@@ -846,10 +846,12 @@ def test_the_listing_defaults_to_SIXTY_nights_and_a_FIFTEEN_second_budget(tmp_pa
         # The second parameter is the span pass's own deadline: `index_nights` hands it the SAME one it
         # hands `night_entry`, so a stub that takes only `captures` breaks on arity rather than silently
         # intercepting nothing — which is the failure the comment above records. The third is the set the
-        # pass fills with sessions it left without an end; this stub leaves it empty.
-        lambda captures, deadline=None, unread=None: (
-            [(f"2026-07-{d:02d}", frozenset({float(d)})) for d in range(1, 10)] * 7
-        ),
+        # pass fills with sessions it left without an end; this stub leaves it empty. The fourth is the end
+        # map `index_nights` reads each recording's end from, so the stub fills it for every start it names.
+        lambda captures, deadline=None, unread=None, ends=None: (
+            ends.update({float(d): float(d) for d in range(1, 10)}),
+            [(f"2026-07-{d:02d}", frozenset({float(d)})) for d in range(1, 10)] * 7,
+        )[1],
     )
     seen: list = []
 
@@ -1126,10 +1128,11 @@ def test_a_DATE_KEYED_tree_is_not_expanded_across_folders(tmp_path):
 # ══ THE RECORDING ENUMERATION'S OWN EDGES (2026-10-10) ═════════════════════════════════════════════
 
 
-def test_ONE_BAND_CARRIES_TWO_ROWS_when_a_doff_gap_splits_it(tmp_path):
-    """🔴 LAST NIGHT, AND THE CASE THE OWNER REPORTED. Row identity is `(night band, recording start)`, so
-    the ring at 21:25 and the Polar sets at 01:47/01:50 — which land in DIFFERENT folders — are ONE row,
-    while the 09:18 morning session is a SECOND row in the same band.
+def test_ONE_BAND_IS_ONE_ROW_and_a_doff_gap_splits_its_RECORDINGS(tmp_path):
+    """🔴 THE ROW IS THE NIGHT (owner ruling 2026-11-01, reversing the 2026-10-10 row identity
+    `(night band, recording start)`). The ring at 21:25 and the Polar sets at 01:47/01:50 — which land
+    in DIFFERENT folders — are ONE recording, and the 09:18 morning session is a SECOND recording. Both
+    are sessions of the SAME row, each with its own start and end; the night never shows twice.
 
     ⚠️ AND THE CHAIN IS MEASURED END-TO-START, which my first version got wrong. The ring begins 21:25
     and the H10 01:50 — 4 h 22 m apart by START, so a start-to-start gap split the night in two. The
@@ -1159,15 +1162,18 @@ def test_ONE_BAND_CARRIES_TWO_ROWS_when_a_doff_gap_splits_it(tmp_path):
     put("2026-10-10", "Polar_H10_02849638_20261010015024_ECG.txt", 5000, "20261010064500")
     put("2026-10-10", "Wellue_O2Ring-S_A_20261010091801_SPO2.csv", 100, "20261010101500")
     rows = ni.index_nights(root, budget_s=None)
-    assert [r["night"] for r in rows] == ["2026-10-09", "2026-10-09"], [r["night"] for r in rows]
-    starts = [r["recording_start"] for r in rows]
-    assert starts == ["2026-10-09 21:25", "2026-10-10 09:18"], starts
-    night, morning = rows
+    assert [r["night"] for r in rows] == ["2026-10-09"], [r["night"] for r in rows]
+    (night,) = rows
+    assert night["recording_start"] == "2026-10-09 21:25", night["recording_start"]
+    # each recording with its own span: the night ends at the H10's 06:45, which is the chain's reach
+    assert night["sessions"] == [
+        {"start": "2026-10-09 21:25", "end": "2026-10-10 06:45", "daytime": False},
+        {"start": "2026-10-10 09:18", "end": "2026-10-10 10:15", "daytime": False},
+    ], night["sessions"]
     # the night carries BOTH devices despite their bytes living under two dates — the reported defect
     assert night["OxyDex"] and night["ECGDex"], night
-    # and the morning session is its own row, not merged into the night and not a "0 kB / ?" cell on a
-    # phantom 2026-10-10 night
-    assert morning["OxyDex"] and morning.get("ECGDex") is None, morning
+    # and the morning ring is in the SAME row's cell, not a "0 kB / ?" cell on a phantom 10-10 night
+    assert any("20261010091801" in f for f in night["OxyDex"]["files"]), night["OxyDex"]["files"]
 
 
 def test_a_DATE_KEYED_night_with_no_session_stamp_anywhere_still_gets_a_row(tmp_path):
@@ -1461,29 +1467,32 @@ def test_the_PRIMARY_re_read_takes_the_scope_too(tmp_path):
     assert ni._expand_alt(c, d9, pats, pick, None)[0] == [], "without the scope the re-read sees nothing"
 
 
-def test_the_STAMP_FILTER_is_what_keeps_one_recording_out_of_the_others_arrival(tmp_path):
+def test_the_STAMP_FILTER_keeps_a_session_that_opened_NO_RECORDING_out_of_the_arrival(tmp_path):
     """CI named the stamps filter in `_recording_files` as a survivor, and it was: every fixture until
     now had a stamp set covering all the files in scope, so switching the filter off changed nothing.
 
-    Two recordings in ONE band is the input that separates them — the night's arrival sidecar and the
-    morning session's must not appear in each other's row."""
+    ⏪ THE SEPARATING INPUT MOVED. Two recordings in one band used to separate it, because each was a row
+    of its own; under the one-row-per-night ruling (2026-11-01) both recordings are in the row. What the
+    band admits and the stamps do not is now a session that opened nothing: here the 08:30 connect left
+    its arrival stub and no stream. Without the filter the stub is listed beside the 22:00 recording."""
     import time as _t
 
     root = str(tmp_path)
     c = os.path.join(root, "captures")
     os.makedirs(os.path.join(c, "2026-10-09"), exist_ok=True)
     ep = lambda s: _t.mktime(_t.strptime(s, "%Y%m%d%H%M%S"))  # noqa: E731
-    for stamp, end in (("20261009220000", "20261010030000"), ("20261010083000", "20261010093000")):
-        for suf in ("ECG", "PMDARRIVAL"):
+    for stamp, end, sufs in (
+        ("20261009220000", "20261010030000", ("ECG", "PMDARRIVAL")),
+        ("20261010083000", "20261010093000", ("PMDARRIVAL",)),
+    ):
+        for suf in sufs:
             ext = "csv" if suf == "PMDARRIVAL" else "txt"
-            p = os.path.join(c, "2026-10-09", f"Polar_H10_02849638_{stamp}_{suf}.{ext}")
+            p = os.path.join(c, "2026-10-09", f"Polar_H10_0284_{stamp}_{suf}.{ext}")
             _w(p, "Phone timestamp;device;meas\n" if suf == "PMDARRIVAL" else ISO_ROWS)
             os.utime(p, (ep(end), ep(end)))
     rows = ni.index_nights(root, budget_s=None)
-    assert len(rows) == 2, [r.get("recording_start") for r in rows]
-    for r in rows:
-        stamp = "20261009220000" if r["recording_start"].endswith("22:00") else "20261010083000"
-        assert r["arrival"] and all(stamp in a for a in r["arrival"]), (r["recording_start"], r["arrival"])
+    assert len(rows) == 1, [r.get("recording_start") for r in rows]
+    assert rows[0]["arrival"] == ["2026-10-09/Polar_H10_0284_20261009220000_PMDARRIVAL.csv"], rows[0]["arrival"]
 
 
 def _put(c, day, name, body, end, *, stamp_end=True):
@@ -1524,10 +1533,9 @@ def test_a_gap_EXACTLY_the_session_threshold_BREAKS_the_chain(tmp_path):
     _put(c, "2026-10-09", "Polar_H10_02849638_20261009220000_ECG.txt", ISO_ROWS, "20261009223000")
     _put(c, "2026-10-09", "Polar_H10_02849638_20261009233000_ECG.txt", ISO_ROWS, "20261009234000")
     rows = ni.index_nights(root, budget_s=None)
-    assert len(rows) == 2, "a gap of exactly the threshold is a NEW recording: " + str(
-        [r.get("recording_start") for r in rows]
-    )
-    assert [r["recording_start"] for r in rows] == ["2026-10-09 22:00", "2026-10-09 23:30"], rows
+    assert len(rows) == 1, [r.get("recording_start") for r in rows]
+    starts = [x["start"] for x in rows[0]["sessions"]]
+    assert starts == ["2026-10-09 22:00", "2026-10-09 23:30"], "a gap of exactly the threshold is a NEW recording"
 
 
 def test_a_SESSION_END_is_the_LATEST_write_across_all_of_its_files(tmp_path):
@@ -1635,19 +1643,18 @@ def test_a_DERIVED_tool_sees_the_half_of_its_inputs_in_the_NEXT_folder(tmp_path)
     assert rows[0]["PAT"] is True, "both PAT inputs are in the recording, across two folders"
 
 
-def test_a_DERIVED_tool_does_NOT_borrow_the_OTHER_recordings_inputs(tmp_path):
-    """`_recording_files(night_dir, p, scope, None)` — the stamps dropped — named by CI. Two recordings
-    in ONE band: the night has the H10 only, the morning session has the Verity only. Neither row can
-    claim "PAT", and without the stamp filter the night's row borrows the morning's Verity and says it
-    can — a tool offered on a night whose inputs were never worn together."""
+def test_a_DERIVED_tool_does_NOT_borrow_an_EMPTY_stream_of_the_same_night(tmp_path):
+    """`_recording_files(night_dir, p, scope, None)` — the stamps dropped — named by CI. The night has the
+    H10 only; the Verity connected on its charger and left a 0-byte `_PPG.txt`, which opens no recording.
+    The row cannot claim "PAT", and without the stamp filter it borrows the empty file and says it can —
+    a tool offered on a night whose second input holds no sample."""
     root = str(tmp_path)
     c = os.path.join(root, "captures")
-    _put(c, "2026-10-09", "Polar_H10_02849638_20261009210000_ECG.txt", ISO_ROWS, "20261009233000")
-    _put(c, "2026-10-10", "Polar_VeritySense_0C30_20261010090000_PPG.txt", ISO_ROWS, "20261010093000")
+    _put(c, "2026-10-09", "Polar_H10_0284_20261009210000_ECG.txt", ISO_ROWS, "20261009233000")
+    _w(os.path.join(c, "2026-10-09", "Polar_VeritySense_A1B2_20261009220000_PPG.txt"), "")
     rows = ni.index_nights(root, budget_s=None)
-    assert len(rows) == 2, [r.get("recording_start") for r in rows]
-    night = next(r for r in rows if r["recording_start"].endswith("21:00"))
-    assert night["PAT"] is False, "the night has no Verity of its own — it must not borrow the morning's"
+    assert len(rows) == 1, [r.get("recording_start") for r in rows]
+    assert rows[0]["PAT"] is False, "the Verity recorded nothing — the row must not borrow its empty file"
 
 
 def test_a_REFUSED_scope_does_not_lend_its_band_to_the_filter(tmp_path, monkeypatch):
@@ -1785,10 +1792,11 @@ def test_an_AFTER_MIDNIGHT_device_s_cell_is_MEASURED_not_just_listed(tmp_path):
     assert r["HRVDex"]["hours"] == 2.0, r["HRVDex"]
 
 
-def test_the_PRIMARY_is_THIS_row_s_recording_when_a_band_holds_two(tmp_path):
-    """The chain half of the same rule. A morning session in the same band, in the same folder and with
-    the LARGER file, is a second row; the night row must measure its own ECG, never the morning's because
-    `max(…, key=getsize)` saw both."""
+def test_the_PRIMARY_is_the_night_s_LARGEST_stream_across_its_recordings(tmp_path):
+    """⏪ The morning session used to be a second row, and the night row measured its own ECG alone.
+    Under the one-row-per-night ruling (2026-11-01) both recordings are in the row, so
+    `max(…, key=getsize)` sees both and the cell measures the larger: the 90-minute morning file. Each
+    recording's own span is in `sessions`, which is where the page reads it."""
     c = os.path.join(str(tmp_path), "captures")
     for stamp, start, minutes, end in (
         ("20261009220000", "2026-10-09T22:00", 60, "20261009230000"),
@@ -1796,9 +1804,10 @@ def test_the_PRIMARY_is_THIS_row_s_recording_when_a_band_holds_two(tmp_path):
     ):
         _put(c, "2026-10-09", f"Polar_H10_SYNTH01_{stamp}_ECG.txt", _span_rows(start, minutes), end, stamp_end=False)
     rows = ni.index_nights(str(tmp_path), budget_s=None)
-    assert len(rows) == 2, [r.get("recording_start") for r in rows]
-    by_start = {r["recording_start"][-5:]: r["ECGDex"]["hours"] for r in rows}
-    assert by_start == {"22:00": 1.0, "08:30": 1.5}, by_start
+    assert len(rows) == 1, [r.get("recording_start") for r in rows]
+    assert rows[0]["ECGDex"]["hours"] == 1.5, rows[0]["ECGDex"]
+    spans = [(x["start"][11:], x["end"][11:]) for x in rows[0]["sessions"]]
+    assert spans == [("22:00", "23:00"), ("08:30", "10:00")], spans
 
 
 def test_a_node_with_files_and_NO_PRIMARY_lists_them_unmeasured(tmp_path, monkeypatch):
@@ -1831,9 +1840,10 @@ def test_THE_SCREENSHOT_NIGHT_is_one_row_and_the_daytime_sitting_is_flagged(tmp_
     REGRESSION PIN, not new work, and it is here because the screenshot is what the deployed box shows,
     not what this tree does.
 
-    The new facts are the other two rows the same band carries, and they are DIFFERENT QUESTIONS:
+    The new facts are the two other recordings, and they are DIFFERENT QUESTIONS:
       · 09:18 is INSIDE `[18:00, 10:00)`, so its files are admitted and it is a second RECORDING — not
-        daytime. The 10:00 edge is an owner ruling; moving it to catch this would move every span.
+        daytime. The 10:00 edge is an owner ruling; moving it to catch this would move every span. Since
+        the owner's 2026-11-01 ruling it is a session of the night's row, not a row of its own.
       · 13:00 is keyed to ITS OWN day by the owner's noon-to-noon ruling (2026-10-13), so it is no
         longer an empty row among this night's rows. Its cells are still every one `None`, because the
         SLEEP band correctly says 13:00 is not night signal — a session that recorded fine, published as
@@ -1848,11 +1858,11 @@ def test_THE_SCREENSHOT_NIGHT_is_one_row_and_the_daytime_sitting_is_flagged(tmp_
 
     rows = ni.index_nights(root, budget_s=None)
     by_start = {r["recording_start"][11:]: r for r in rows}
-    assert sorted(by_start) == ["09:18", "13:00", "21:25"], sorted(by_start)
-    assert {by_start[k]["night"] for k in ("21:25", "09:18")} == {"2026-10-09"}, (
-        "the 21:25 donning and the 09:18 sitting key to the 10-09 evening — one night, two rows: "
-        + str([r["night"] for r in rows])
+    assert sorted(by_start) == ["13:00", "21:25"], sorted(by_start)
+    assert [x["start"][11:] for x in by_start["21:25"]["sessions"]] == ["21:25", "09:18"], (
+        "the 21:25 donning and the 09:18 sitting key to the 10-09 evening — one night, two recordings"
     )
+    assert by_start["21:25"]["night"] == "2026-10-09", by_start["21:25"]["night"]
     assert by_start["13:00"]["night"] == "2026-10-10", (
         "a 13:00 start is at or after the key band's noon, so it keys to its OWN day: "
         + str(by_start["13:00"]["night"])
@@ -1867,15 +1877,14 @@ def test_THE_SCREENSHOT_NIGHT_is_one_row_and_the_daytime_sitting_is_flagged(tmp_
     assert any("2026-10-10/" in f for f in night["ECGDex"]["files"]), night["ECGDex"]["files"]
     assert night["daytime"] is False
 
-    # ② 09:18 — its own row, files ADMITTED, and NOT daytime. The band edge is the owner's.
-    morning = by_start["09:18"]
+    # ② 09:18 — a recording of the night's row, files ADMITTED, and NOT daytime. The edge is the owner's.
+    morning = night["sessions"][1]
     assert morning["daytime"] is False, "09:18 is inside [18:00, 10:00); flagging it needs a wear rule"
-    assert morning["OxyDex"] and morning["OxyDex"]["files"], "its files are in the band and stay listed"
-    assert morning["ECGDex"] is None, "and it carries only its own session's streams"
+    assert any("20261010091800" in f for f in night["OxyDex"]["files"]), "its files are in the band"
 
     # ③ 13:00 — flagged, and the flag is the ONLY thing distinguishing it from an empty night.
     day = by_start["13:00"]
-    assert day["daytime"] is True
+    assert day["daytime"] is True and day["sessions"][0]["daytime"] is True, day
     assert all(day[k] is None for k in ("OxyDex", "PPGDex", "ECGDex")), (
         "the band admits nothing, which is exactly why the row needs the flag: " + str(_nodes(day))
     )
