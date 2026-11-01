@@ -44761,7 +44761,12 @@
            its `parsePPG` calls (−2; its two ACC calls stay bare, since the ACC union pads silence onto a
            grid and a run index needs its own rebase), and `parseECGLines` joins CALL because it now
            accepts `runsText`, which surfaces the one bare call in `ecg-rate-transfer.mjs` (+1, +1 file). */
-        var TOOLS_PIN = { files: 40, calls: 64, reason: 'research tools: ' + OPEN };
+        /* 40 / 62 from 2026-11-01: the two PAT foot ports take the guarded ternary
+           (`runsText ? parsePPG(text, { runsText }) : parsePPG(text)`), so each file's `parsePPG` call
+           leaves CALL (-2). Both files stay in the population on their other bare calls, so the file
+           count holds. Neither call site passes a sidecar today, which row
+           2026-10-17-sample-parsers-called-without-their-sidecar still holds. */
+        var TOOLS_PIN = { files: 40, calls: 62, reason: 'research tools: ' + OPEN };
 
         function blank(s) {
           return s.replace(/[^\n]/g, '');
