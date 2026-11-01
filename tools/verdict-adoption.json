@@ -1522,6 +1522,18 @@
    },
    "note": "wave-1 adopter (#2798): --json emits one tepna.verdict/1 per fixture (\u2717 hop \u21d2 FAIL naming the hop; \u2218 hop \u21d2 NOT_RUN naming the hop, result null; all \u2713 \u21d2 PASS); the manifest reads the committed synthetic fixture, whose input is committed too, so the check is corpus-free and runs in CI"
   },
+  "tools/memory-supersession.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/memory-supersession.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "which memory lesson LEADS with a ruling the fleet has replaced (residue 2026-10-28-a-replaced-owner-ruling-ranks-first-from-the-memory-corpus). The board lane marks and de-ranks a replaced post; a memory file is edited in place, so neither board signal reaches it and the one signal that does is the board post it cites. Pre-stated criterion: a lead (frontmatter plus first paragraph, which is what a doc-search chunk carries) cites no post the board corpus marked replaced. FAIL names each file, post and successor; a body-only citation, a lead that cites the successor too, a declared frontmatter mark and a bare id with no board cue are DIAGNOSTICS beside the criterion and move no status; a root that does not resolve on this machine is NOT_RUN with exit 2, because it could not look. The tool reports and never writes: the memory directory is shared, un-versioned and has no conflict surface, and a selftest leg pins that this source names no filesystem write API."
+  },
   "tools/motion-rho-vs-minrho.mjs": {
    "bin": "already-json",
    "status": "adopted",
