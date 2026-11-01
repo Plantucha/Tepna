@@ -113,7 +113,7 @@ function loadDsps() {
   sandbox.__DEX_NAMESPACED__ = true;
   const ctx = vm.createContext(sandbox);
   // clock.js FIRST — the delegating DSPs alias DexClock.parseTimestamp at load (CLAUDE.md §Clock Contract)
-  for (const f of ['clock.js', 'kernel-constants.js', 'pat-align.js', 'ecgdex-dsp.js', 'ppgdex-dsp.js']) {
+  for (const f of ['clock.js', 'kernel-constants.js', 'pat-align.js', 'pat-gate.js', 'ecgdex-dsp.js', 'ppgdex-dsp.js']) {
     const p = join(ROOT, f);
     if (!existsSync(p)) throw new Error('module not found: ' + f);
     vm.runInContext(DexBuild.classicify(readFileSync(p, 'utf8')), ctx, { filename: f });
@@ -192,18 +192,25 @@ function ecgRpeakTimes(text, opts) {
     maxStepMs: rec.hostAxis ? rec.hostAxis.maxStepMs : null
   };
 }
-/* ── @port-from pat-feasibility-worker.js#ppgFootTimes ─────────────────────────────────────────────
-   @port-sha 8282b1de745f
-   @port-behind aa2336fd1179 2026-11-01-the-pat-foot-ports-stand-behind-the-shipped-definition
-   The copy below agrees with the worker's pre-#4069 text. #4069 (2026-10-28) gave the worker a
-   pinned-span refusal and this copy carries none, so `tools/port-parity.mjs` reads SHORTFALL against
-   that row rather than a pass. Re-pin the sha only after READING both sides, never to quiet the gate.
-   The polarity pass below is the deliberate difference in the other direction: the node's `analyze`
-   applies it, this copy applies it, and the worker applies it nowhere (row
+/* ── @port-from pat-feasibility-worker.js#ppgFootTimes ─────────────────────────────
+   @port-sha aa2336fd1179
+   READ against that text on 2026-11-01, for row
+   2026-11-01-the-pat-foot-ports-stand-behind-the-shipped-definition. #4069's pinned-span refusal now
+   lives here: a consensus foot every channel was pinned through was measured by nothing and is
+   refused, while one pinned channel of three is reduced COVERAGE and is annotated (§∅). `runsText`
+   is OPTIONAL and LAST per §🧪, so a caller handing over no `_PPGRUNS.txt` gets the record this copy
+   has always returned. This tool's own call site hands over none today, which row
+   2026-10-17-sample-parsers-called-without-their-sidecar holds.
+   The `timeAt` interpolation below is the direction the port ran the OTHER way: the worker took it
+   from this copy in #4069, and its comment says so.
+   DELIBERATELY NOT PORTED. The worker's `beatSQI` / `beatConfidence` / `unmeasuredSec` / `validity`
+   block serves the worker's own consumers; a port is not a merge. The polarity pass below is the
+   deliberate difference in the other direction — the node's `analyze` applies it, this copy applies
+   it, and the worker applies it nowhere (row
    2026-11-01-the-consensus-polarity-wiring-reached-one-of-ten-callers).
  */
-function ppgFootTimes(text) {
-  const rec = PPGDSP.parsePPG(text);
+function ppgFootTimes(text, runsText) {
+  const rec = runsText ? PPGDSP.parsePPG(text, { runsText }) : PPGDSP.parsePPG(text);
   if (rec.t0Ms == null) throw new Error('PPG file carried no phone timestamp.');
   const per = rec.ch.map((c) => PPGDSP.detectChannel(c, rec.fs));
   /* CONSENSUS POLARITY — the node's `analyze` applies this and THIS TOOL CHAIN DID NOT, so every PAT
@@ -225,7 +232,40 @@ function ppgFootTimes(text) {
       refIdx = i;
     }
   });
-  const cons = PPGDSP.consensusBeats(per, refIdx, rec.fs);
+  let cons = PPGDSP.consensusBeats(per, refIdx, rec.fs);
+  /* §∅ A FOOT EVERY CHANNEL WAS PINNED THROUGH IS NOT A BEAT — #4069, ported 2026-11-01.
+     `rec.spans` is per optical channel and `parsePPG` publishes it with or without a sidecar, so the
+     drop is gated on `pinnedCrossCheck`: the field that exists only where a sidecar was ingested.
+     Consuming the in-JS recompute alone would move every existing PAT result, which is a claim about
+     the recompute that row 2026-10-28-pat-legs-refuse-only-the-spans-a-sidecar-confirmed still holds. */
+  const chRanges = [];
+  if (rec.pinnedCrossCheck && Array.isArray(rec.spans)) {
+    for (const sp of rec.spans) chRanges.push(PATGate.runRanges((sp && sp.spans) || []));
+  }
+  const chCursors = chRanges.map((r) => PATGate.inRunsCursor(r));
+  const keptFeet = [];
+  let nAllPinned = 0,
+    nPartPinned = 0;
+  for (let fi = 0; fi < cons.feet.length; fi++) {
+    let hits = 0;
+    for (let cj = 0; cj < chCursors.length; cj++) if (chCursors[cj](cons.feet[fi])) hits++;
+    if (chCursors.length && hits === chCursors.length) {
+      nAllPinned++;
+      continue;
+    }
+    if (hits) nPartPinned++;
+    keptFeet.push(fi);
+  }
+  if (nAllPinned) {
+    /* `feet`, `peaks` and `agree` are index-aligned — `halfAmplitudeIndex` below pairs `feet[i]` with
+       `peaks[i]`, so cutting one without the others would read another beat's peak. */
+    cons = {
+      ...cons,
+      feet: keptFeet.map((i) => cons.feet[i]),
+      peaks: cons.peaks ? keptFeet.map((i) => cons.peaks[i]) : cons.peaks,
+      agree: cons.agree ? keptFeet.map((i) => cons.agree[i]) : cons.agree
+    };
+  }
   const rel = rec.relSec,
     fs = rec.fs,
     t0 = rec.t0Ms;
@@ -290,7 +330,9 @@ function ppgFootTimes(text) {
     halfTimes: half,
     nHalfUnusable: nUnusable,
     cfdTimes: cfd,
-    nCfdUnusable
+    nCfdUnusable,
+    droppedAllPinned: rec.pinnedCrossCheck ? nAllPinned : null,
+    partialPinned: rec.pinnedCrossCheck ? nPartPinned : null
   };
 }
 
