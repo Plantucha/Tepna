@@ -64,6 +64,7 @@ import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { launch } from './pw-launch.mjs';
 import { refuseUnknownArgvOrExit, isCliEntry } from './argv-guard.mjs';
+import { PRODUCER_COMMIT_NOTE } from './fold-generation.mjs';
 import { populationVerdict, snapshotEntries } from './corpus-scope-core.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -368,6 +369,7 @@ if (FIGDIR) {
         return null;
       }
     })(),
+    producerCommitNote: PRODUCER_COMMIT_NOTE,
     invocation: `node tools/resp-acc-headless.mjs <staged-dir> --figures ${path.relative(REPO, FIGDIR) || FIGDIR}`,
     generated: day,
     inputs: {
