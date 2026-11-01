@@ -333,11 +333,11 @@ export function act(actions, state, opts) {
 /* The signature comment, pure. `at` is an ISO instant; the walker runs on real UTC time (it is not a
    capture stamp), so the comment says UTC. Returns null for an action that changed nothing. */
 const SIGN_VERB = {
-  ready: 'Marked ready for review (undrafted)',
-  rerun: 'Re-ran the failed required jobs',
-  rebase: 'Rebased onto main with `tools/rebase-safe.mjs` and pushed',
-  update: 'Updated the branch from main',
-  merge: 'Squash-merged'
+  ready: 'marked this PR ready for review (undrafted)',
+  rerun: 're-ran the failed required jobs',
+  rebase: 'rebased this branch onto main with `tools/rebase-safe.mjs` and pushed it',
+  update: 'updated this branch from main',
+  merge: 'squash-merged this PR'
 };
 export function signature(a, at) {
   const ok = a.result === 'ok' || /^pushed:/.test(a.result || '');
@@ -346,7 +346,7 @@ export function signature(a, at) {
   const when = m ? `${m[2]} UTC, ${m[1]}` : 'an unknown time';
   const head = a.op === 'rebase' ? ` New head \`${a.result.slice(7, 16)}\`.` : '';
   return [
-    `🚶 **${SIGN_VERB[a.op]} by the fleet walker** at ${when}.${head}`,
+    `🚶 **The fleet walker ${SIGN_VERB[a.op]}** at ${when}.${head}`,
     '',
     `Reason: ${a.why}.`,
     '',
@@ -448,7 +448,7 @@ function selftest() {
   eq(held.actions.map((a) => `${a.op}:${a.number}`).join(','), 'update:7', 'held behind ⇒ update at once');
   eq(plan([classify(mk({ number: 7, isDraft: false, labels: [HOLD_LABEL] }), req)], { reruns: {}, rebased: {} }, { nowMs: 0, mainMovedAtMs: 0, cap: 4 }).actions.length, 0, 'held current ⇒ nothing');
   const sig = signature({ op: 'ready', number: 3, result: 'ok', why: 'green draft, pool 1/4' }, '2026-11-01T11:45:09.000Z');
-  eq(/^🚶 \*\*Marked ready for review \(undrafted\) by the fleet walker\*\* at 11:45 UTC, 2026-11-01\./.test(sig), true, 'signature names the walker, the action and the time');
+  eq(/^🚶 \*\*The fleet walker marked this PR ready for review \(undrafted\)\*\* at 11:45 UTC, 2026-11-01\./.test(sig), true, 'signature names the walker, the action and the time');
   eq(signature({ op: 'ready', number: 3, result: 'failed: x', why: 'w' }, '2026-11-01T11:45:09Z'), null, 'a failed action signs nothing');
   eq(signature({ op: 'rebase', number: 3, result: 'stopped', why: 'w' }, '2026-11-01T11:45:09Z'), null, 'a stopped rebase signs nothing');
   console.log(`all ${ran} selftests passed`);
