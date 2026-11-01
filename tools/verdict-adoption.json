@@ -2909,6 +2909,18 @@
     ]
    },
    "note": "row 2026-09-29-ring-offset-steps-every-night-single-rate-quoted-across-them: the census reads every raw ring PPG fragment of every folded night and measures what the per-segment host axis makes of it. Pre-stated criterion: no night keeps a finite segment rate outside the +-50 ppm crystal bound, threshold 0 nights. Population = folded ring nights with raw fragments here; a folded night with no raw is excluded and named, an unreadable directory is counted apart and never read as empty. A recording the model left whole contributes ONE implied segment carrying its single-axis rate, because offsetSegments is written only where the split raises more than one segment. The sample is synthetic: no corpus, no night names, commit null with a reason."
+  },
+  "tools/mutation-draft-py.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/mutation-draft-py.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the python lane's drafter (owner order 2026-10-31, board #2562): a local model proposes a fixture for each open survivor in the per-function baseline #4173 inherits from, and this tool records the real module's output and each mutant's and keeps only the fixtures whose outputs differ. Two verdicts, one object each: the drafting run (criterion drafts_written_without_a_machine_check, population = the baseline's survivors, excluded = rows whose line is gone from today's source) and --verify-kills, which re-proves every written draft through pytest in a private copy of the tree and reds unless each mutant's own draft exits 1 there."
   }
  }
 }
