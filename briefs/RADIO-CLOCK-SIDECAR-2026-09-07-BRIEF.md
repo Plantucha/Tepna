@@ -328,6 +328,14 @@ between two ADJACENT anchors may not reach the span it happened in. The denomina
 host and device spans, because a corrupt sample inflates its own column's span by about as much as the
 step it creates. Against that column alone the ratio reads 1.00003 and passes by luck.
 
+**THE READER REFUSES A DRAWN DEVICE COLUMN ON PROVENANCE.** `clock.js` publishes `deviceDrawn`
+additively and leaves `independent` true for a drawn axis, because a synthetic fixture's uniform device
+counter reads the same way. A reader that mints `'radio'` claims two clocks exist, so `radio-clock.js`
+refuses a drawn column and names it. The arm costs no verdict here: of the 7 streams the spine accepts,
+0 read `deviceDrawn:true`, and all 142 band verdicts match the arm-free run. An axis that
+publishes no flag at all refuses as well, because board #1687 measured that read defaulting to admit. The suite's own plants carry
+a realistic device axis, so they earn the flag rather than trip it.
+
 ## 5 · Box-side verification BEFORE §3/§4 are built (Wren, physical-vigil step; ~15 min, daytime)
 
 After the reflash (confirmed by the product string in §2, not by the USB ID): with one Polar strap

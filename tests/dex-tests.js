@@ -1145,13 +1145,27 @@
          plant the same numbers — a `Math.sin` hash would not. */
       function plant(n, jitterMs, driftPpm) {
         var seed = 11213;
+        var dseed = 25747;
         var out = [];
         for (var i = 0; i < n; i++) {
           seed = (seed * 75 + 74) % 65537;
+          dseed = (dseed * 75 + 74) % 65537;
           var u = seed / 65537 - 0.5;
-          out.push({ devMs: i * 1000, hostMs: 5000 + i * 1000 * (1 + driftPpm / 1e6) + u * 2 * jitterMs });
+          /* THE DEVICE COLUMN CARRIES ITS OWN QUANTISATION WOBBLE, in exact 1/64 ms
+             steps so the ns round-trip of the end-to-end leg stays lossless. A bare
+             `devMs = i * 1000` is a DRAWN counter (clock.js CK_AXIS_DRAWN_SHARE), and
+             the reader's provenance arm refuses a drawn column before any band is
+             read — the re-cut `clock.js:638` asks of a node adopting `deviceDrawn`.
+             `drawnPlant` below keeps the uniform form, as the control it now is. */
+          var dq = (dseed % 5) / 64;
+          out.push({ devMs: i * 1000 + dq, hostMs: 5000 + i * 1000 * (1 + driftPpm / 1e6) + u * 2 * jitterMs });
         }
         return out;
+      }
+      function drawnPlant(n, jitterMs, driftPpm) {
+        return plant(n, jitterMs, driftPpm).map(function (a, i) {
+          return { devMs: i * 1000, hostMs: a.hostMs };
+        });
       }
 
       /* ── the three bands, each with its own premise asserted ───────────── */
@@ -1297,6 +1311,51 @@
         "and still reads 'radio', because drift is not a seam",
         drift.band === 'radio' && drift.timingSource === 'radio' && drift.step.ratio < DR.CK_RADIO_STEP_OVER_SPAN,
         JSON.stringify({ band: drift.band, jitter: drift.spreadMs, ratio: drift.step.ratio })
+      );
+
+      /* ── control 4: a DRAWN device column, which the SPINE also accepts ───
+         `clock.js:623` publishes `deviceDrawn` additively and deliberately does
+         NOT let it gate `independent`, so a uniform device counter arrives here
+         with every spine statistic clean. The band table alone would mint the
+         best tier on it — asserted below, then refused on provenance, because
+         `'radio'` is a claim that two clocks exist. */
+      var dw = DR.radioAxis(drawnPlant(601, 2, 20));
+      T.ok(
+        'the premise: the spine accepts a uniform device counter and still reads independent',
+        dw.axis && dw.axis.ok === true && dw.axis.deviceDrawn === true && dw.axis.independent === true,
+        JSON.stringify({ spineOk: dw.axis && dw.axis.ok, deviceDrawn: dw.axis && dw.axis.deviceDrawn, independent: dw.axis && dw.axis.independent })
+      );
+      T.ok(
+        '…and its jitter sits inside the radio band, so the band table alone would have minted it',
+        dw.axis && Math.abs(dw.axis.stackJitterMs) < DR.CK_RADIO_BEST_MS && DR.classify(dw.axis.stackJitterMs, true) === 'radio',
+        JSON.stringify({ jitter: dw.axis && dw.axis.stackJitterMs, band: dw.axis && DR.classify(dw.axis.stackJitterMs, true) })
+      );
+      T.ok(
+        'so the reader refuses on PROVENANCE and names the drawn column',
+        dw.band === 'rejected' && dw.ok === false && dw.timingSource === null && dw.spreadMs === null && dw.deviceDrawn === true && /DRAWN/.test(String(dw.reason)),
+        JSON.stringify({ band: dw.band, deviceDrawn: dw.deviceDrawn, reason: dw.reason })
+      );
+      T.ok(
+        'and the twin that differs only in the device column reads radio, with the flag forwarded false',
+        best.band === 'radio' && best.deviceDrawn === false,
+        JSON.stringify({ band: best.band, deviceDrawn: best.deviceDrawn })
+      );
+      T.ok('a refused axis forwards no provenance at all (∅ — null, never false)', ppiOut.deviceDrawn === null, JSON.stringify({ deviceDrawn: ppiOut.deviceDrawn, reason: ppiOut.reason }));
+
+      /* ── control 5: a spine that publishes NO provenance flag ──────────
+         Board #1687 measured the other shape of this read: `deviceDrawn !== true`
+         over artifacts carrying no such key read TRUE of all 173 and defaulted to
+         ADMIT. The shim below is an older spine — every statistic the band table
+         needs, and no flag — and the reader refuses it by name. */
+      var shim = function (an) {
+        return { ok: true, n: an.length, independent: true, stackJitterMs: 1, spreadMs: 40, spanMs: 600000, ppm: 20, maxStepMs: 0.5 };
+      };
+      var noFlag = DR.radioAxis(plant(601, 2, 20), { hostAxis: shim });
+      T.ok('the premise: the shim axis satisfies the whole band table', DR.classify(shim(plant(4, 2, 20)).stackJitterMs, true) === 'radio', 'a 1 ms jitter on an independent axis is the best tier');
+      T.ok(
+        'and an axis with NO deviceDrawn flag is refused, never admitted by default',
+        noFlag.band === 'rejected' && noFlag.timingSource === null && noFlag.deviceDrawn === null && /provenance is undecided/.test(String(noFlag.reason)),
+        JSON.stringify({ band: noFlag.band, deviceDrawn: noFlag.deviceDrawn, reason: noFlag.reason })
       );
 
       /* ── the floors: too few anchors, and an absent spine ────────────────── */
