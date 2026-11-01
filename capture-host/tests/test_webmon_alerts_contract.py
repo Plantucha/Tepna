@@ -200,7 +200,8 @@ def test_test_alert_goes_through_the_live_notifier(tmp_path):
     n = _Spy(url="https://ntfy.sh/t", enabled=True)
     (res, _) = _post(tmp_path, {}, notifier=n, path="/api/alerts/test")
     assert res["json"]["ok"] is True
-    assert n.sent and n.sent[0][0] == "https://ntfy.sh/t"
+    # An ntfy topic is published at the server root with a `topic` field (alerts.ntfy_publish).
+    assert n.sent and n.sent[0][0] == "https://ntfy.sh/" and n.sent[0][1]["topic"] == "t"
 
 
 def test_test_alert_refuses_when_alerting_is_off(tmp_path):

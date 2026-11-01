@@ -140,6 +140,24 @@ def mail_topic_url(url: str) -> str:
     return urlunsplit((p.scheme, p.netloc, p.path.rstrip("/") + "-mail", p.query, p.fragment))
 
 
+def ntfy_publish(url: str, payload: dict) -> tuple[str, dict]:
+    """Where to POST `payload`, and in what shape, so an ntfy topic shows it as text and not as JSON.
+
+    ntfy reads a JSON body as a structured message ONLY when it is posted to the server ROOT with a
+    `topic` field. Posted to the topic URL itself, the same body is the message text, so every phone and
+    every email copy showed the raw `{"title": …, "message": …}` (measured 2026-11-01: 29 of 31 vigil
+    alerts arrived with no title). An ntfy topic URL is exactly one path segment (`/<topic>`), so that
+    shape is published to the root with `topic` added and the query kept (ntfy's `?auth=` rides there).
+
+    Every other shape posts unchanged: a Discord, Slack or Home Assistant webhook has a deeper path (the
+    path is where those services put the token), and a bare host has no topic to name."""
+    p = urlsplit(url)
+    seg = p.path.strip("/")
+    if not seg or "/" in seg:
+        return url, payload
+    return urlunsplit((p.scheme, p.netloc, "/", p.query, "")), {**payload, "topic": seg}
+
+
 def webhook_hint(url: str | None) -> str:
     """A safe, non-secret label for a configured URL: scheme://host[:port], PATH AND QUERY REMOVED.
 
@@ -251,10 +269,11 @@ class Notifier:
             if self.context:
                 message = f"{message}\n\n{self.context}"
             payload = {"title": title, "message": message}
+            post_url, body = ntfy_publish(self.url, payload)
             if email and self.emails:
-                ok = bool(await self._post(self.url, payload, headers={"Email": self.emails[0]}))
+                ok = bool(await self._post(post_url, body, headers={"Email": self.emails[0]}))
             else:
-                ok = bool(await self._post(self.url, payload))
+                ok = bool(await self._post(post_url, body))
         except Exception as e:
             # SWALLOWING THE EXCEPTION MUST NOT ALSO SWALLOW THE EVIDENCE (CAPTURE-HOST-DEEP-AUDIT §C1).
             # A webhook must never crash capture — that part is right and stays. But this used to return
@@ -286,7 +305,8 @@ class Notifier:
         does not undo the push, which already arrived."""
         for i, addr in enumerate(self.emails[1:], start=2):
             try:
-                ok = bool(await self._post(mail_topic_url(url), payload, headers={"Email": addr}))
+                post_url, body = ntfy_publish(mail_topic_url(url), payload)
+                ok = bool(await self._post(post_url, body, headers={"Email": addr}))
             except Exception as e:
                 _log.warning("alert email %d of %d not delivered: %r", i, len(self.emails), e)
                 ok = None
@@ -635,6 +655,26 @@ def frozen_devices(qc: dict, live: dict, threshold_sec: float) -> list[str]:
 # pull that preceded the power-off already took the data off it.
 RING_IDLE_TIMER_S = 121.9  # the measured power-off timer (n=23, sd 1.18) — see above
 RING_IDLE_EXPECT_MAX_S = 8 * 3600  # how long "expected" may last before it becomes a real absence
+
+
+# A STREAM THAT RAN TO A MORNING STOP IS A NIGHT THAT ENDED, NOT A SENSOR THAT WENT MISSING. A Polar
+# Sense live-streams all night and its not-worn pull often times out, so no pull licenses its silence and
+# `powered_off_after_pull` stays False. Measured 2026-11-01: the Sense streamed until 05:43:40, the owner
+# switched it off, and at 05:48 the box sent "has been offline for ~5 min — capture is missing it". The
+# live file held every sample up to the switch-off, so capture was missing nothing.
+#
+# The box cannot see WHY a link stopped: a switch-off, the charger, a flat battery and a strap out of
+# range all end the same way. Two observed facts separate the end of a night from a fault, and both must
+# hold: the stream ran long enough to be a night (4 h), and it stopped in the morning (local 04:00 to
+# 11:59). A stop at 02:00, or after 40 min, still raises the offline alarm.
+STREAM_NIGHT_MIN_S = 4 * 3600
+STREAM_MORNING_HOURS = range(4, 12)
+
+
+def stream_ended_in_the_morning(streamed_sec: float | None, stop_hour: int) -> bool:
+    """Did a live stream run a whole night and stop in the morning? `streamed_sec` is the span from the
+    first to the last sample of this recording episode, or None when no sample arrived in it."""
+    return streamed_sec is not None and streamed_sec >= STREAM_NIGHT_MIN_S and stop_hour in STREAM_MORNING_HOURS
 
 
 def powered_off_after_pull(
