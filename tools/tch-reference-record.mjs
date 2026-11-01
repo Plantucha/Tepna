@@ -64,6 +64,7 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { BAND_ABS, BAND_REL, MIN_NIGHTS, PASS_FRAC, median, withinBand } from './tch-firmware-reference.mjs';
 import { isCliEntry } from './argv-guard.mjs';
+import { PRODUCER_COMMIT_NOTE } from './fold-generation.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(HERE, '..');
@@ -451,6 +452,7 @@ export function buildRecord(runs, meta = {}) {
     schema: SCHEMA,
     producer: 'tools/tch-reference-record.mjs',
     producerCommit: meta.commit || null,
+    producerCommitNote: PRODUCER_COMMIT_NOTE,
     invocation:
       'node tools/tch-reference-record.mjs --host <host run of tools/tch-firmware-reference.mjs --axis host --solid auto --json> --wall <the same with --axis wall> --out <this file> --js codegen/generated/tch-reference-record.js',
     generated: meta.generated || new Date().toISOString().slice(0, 10),
@@ -780,11 +782,22 @@ function selftest() {
      §∅ — THE GAP IS NOT CLOSED BY TYPING THE DEFAULT IN. `REF_AXIS_DEFAULT` is what a run with no flag
      USES; it is not a record of what the published run rode. Writing it into the file would turn an
      unmeasured provenance fact into a published one. */
+  /* 🔴 EACH HELD-BACK FIELD CARRIES ITS OWN ROW AND DATE. The gap began as one list keyed to one
+     row, and a second row then held a field back for a different reason: `producerCommitNote` says
+     what a `producerCommit` is worth (row below, 2026-11-01) and is a constant that is true of any
+     cut, so unlike the axis fields it is not an unmeasured fact. Writing it in would still EDIT a
+     published record, which is the one thing a record may never suffer, so it waits for the same
+     re-publication. Keying the list to one row would have filed it under the axis defect. */
   const PUBLISHED_FIELD_GAP = {
-    row: '2026-10-20-the-published-tch-reference-figures-ride-the-mismatched-axis',
-    declared: '2026-10-26',
-    top: ['referenceAxisCanonical', 'referenceAxisNote'],
-    pairedDrift: ['referenceAxis', 'refused']
+    top: {
+      referenceAxisCanonical: { row: '2026-10-20-the-published-tch-reference-figures-ride-the-mismatched-axis', declared: '2026-10-26' },
+      referenceAxisNote: { row: '2026-10-20-the-published-tch-reference-figures-ride-the-mismatched-axis', declared: '2026-10-26' },
+      producerCommitNote: { row: '2026-10-21-a-producer-commit-can-name-a-tree-it-never-held', declared: '2026-11-01' }
+    },
+    pairedDrift: {
+      referenceAxis: { row: '2026-10-20-the-published-tch-reference-figures-ride-the-mismatched-axis', declared: '2026-10-26' },
+      refused: { row: '2026-10-20-the-published-tch-reference-figures-ride-the-mismatched-axis', declared: '2026-10-26' }
+    }
   };
   /* The dated record filename is read out of the twin's own header, so this test pins no run. */
   const twinOnDisk = path.join(ROOT, 'codegen', 'generated', 'tch-reference-record.js');
@@ -798,19 +811,29 @@ function selftest() {
       const want = Object.keys(rec);
       ok(want.length >= 15, 'ANTI-VACUITY · the producer writes a substantial record to compare against (' + want.length + ' field(s))');
       const missing = want.filter((k) => !(k in pub));
-      const unexpected = missing.filter((k) => !PUBLISHED_FIELD_GAP.top.includes(k));
+      const unexpected = missing.filter((k) => !(k in PUBLISHED_FIELD_GAP.top));
       ok(unexpected.length === 0, 'the published record carries every provenance field the producer writes, outside the declared gap — new: ' + (unexpected.join(', ') || 'none'));
       const dWant = Object.keys(rec.pairedDrift || {});
       ok(dWant.length >= 4, 'ANTI-VACUITY · the paired-drift block has fields to compare (' + dWant.length + ')');
-      const dUnexpected = dWant.filter((k) => !(k in (pub.pairedDrift || {}))).filter((k) => !PUBLISHED_FIELD_GAP.pairedDrift.includes(k));
+      const dUnexpected = dWant.filter((k) => !(k in (pub.pairedDrift || {}))).filter((k) => !(k in PUBLISHED_FIELD_GAP.pairedDrift));
       ok(dUnexpected.length === 0, 'the published pairedDrift block carries every field the producer writes, outside the declared gap — new: ' + (dUnexpected.join(', ') || 'none'));
       /* A FROZEN EXEMPTION AGES. This reds the day the record is re-published, so the entry cannot
          outlive the gap it excuses. */
-      const stillMissing = PUBLISHED_FIELD_GAP.top.filter((k) => !(k in pub)).concat(PUBLISHED_FIELD_GAP.pairedDrift.filter((k) => !(k in (pub.pairedDrift || {}))));
+      const gapTop = Object.keys(PUBLISHED_FIELD_GAP.top);
+      const gapDrift = Object.keys(PUBLISHED_FIELD_GAP.pairedDrift);
+      const closed = gapTop.filter((k) => k in pub).concat(gapDrift.filter((k) => k in (pub.pairedDrift || {})));
       ok(
-        stillMissing.length === PUBLISHED_FIELD_GAP.top.length + PUBLISHED_FIELD_GAP.pairedDrift.length,
-        'the declared gap is still real — a re-published record must shrink PUBLISHED_FIELD_GAP in the same diff (row ' + PUBLISHED_FIELD_GAP.row + ')'
+        closed.length === 0,
+        'the declared gap is still real — a re-published record must drop its entry from PUBLISHED_FIELD_GAP in the same diff: ' +
+          (closed.map((k) => k + ' (row ' + (PUBLISHED_FIELD_GAP.top[k] || PUBLISHED_FIELD_GAP.pairedDrift[k]).row + ')').join(', ') || 'none closed')
       );
+      /* EVERY ENTRY NAMES A ROW AND A DATE, so no key can be parked in the gap unattributed. */
+      const unattributed = gapTop
+        .map((k) => ['top.' + k, PUBLISHED_FIELD_GAP.top[k]])
+        .concat(gapDrift.map((k) => ['pairedDrift.' + k, PUBLISHED_FIELD_GAP.pairedDrift[k]]))
+        .filter(([, v]) => !(v && /^20\d\d-\d\d-\d\d$/.test(v.declared) && /^20\d\d-\d\d-[\w-]+$/.test(v.row)))
+        .map(([k]) => k);
+      ok(unattributed.length === 0, 'every held-back field names its row and the date it was declared — unattributed: ' + (unattributed.join(', ') || 'none'));
       /* §∅ — the record may omit the axis, and it may state it; what it may not do is carry it empty. */
       ok(
         !('referenceAxisCanonical' in pub) || (typeof pub.referenceAxisCanonical === 'string' && pub.referenceAxisCanonical.length > 0),

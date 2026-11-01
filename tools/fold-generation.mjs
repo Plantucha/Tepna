@@ -51,6 +51,18 @@ export const STAMP = '.trio-stamp';
 export const RECORD_DIR = 'analysis/published-numbers';
 export const SELF = 'tools/fold-generation.mjs';
 
+/* 🔴 WHAT A `producerCommit` IS WORTH, IN THE RECORD AND NOT ONLY IN THIS MODULE. The field reads as
+   the cut's address and is a weak pointer two ways, both of them recorded below at :693. Measured
+   2026-11-01 over the 13 committed records that carry it: ONE said what it was worth, EIGHT promised
+   reproducibility from it, and FOUR carry no content identity at all, so for those four the weak
+   pointer is the only address the record has. That is why the remedy is not to drop the field —
+   dropping it would leave those four with nothing — but to make every producer state its worth where
+   the reader resolving it will be looking. Single-sourced here because a copied note drifts, and a
+   producer that copies it reds the pin in `tests/dex-tests.js`. Residue
+   2026-10-21-a-producer-commit-can-name-a-tree-it-never-held. */
+export const PRODUCER_COMMIT_NOTE =
+  'the branch commit HEAD sat at when this tool ran, and a weak pointer two ways: a squash merge replaces it, so resolve this record through publishedIn and the pull request that carried it rather than expecting this sha on main; and a named commit is a hypothesis about the inputs and never proof, so only a digest that reproduces over a tree identifies this cut';
+
 export const sha12 = (b) => createHash('sha256').update(b).digest('hex').slice(0, 12);
 
 /* The files git tracks under a root. A path is data unless its basename is the stamp — the split the

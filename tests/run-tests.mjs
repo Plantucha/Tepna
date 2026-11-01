@@ -1901,6 +1901,30 @@ async function readPublishedCorpus() {
       /* The record FILES, text and all. The cut-tree legs read strings only — no corpus walk. */
       records: M.readRecords(M.RECORD_DIR, { cwd: ROOT }).map((r) => ({ ...r, text: readFileSync(join(ROOT, M.RECORD_DIR, r.name), 'utf8') })),
       compare: (record, cut) => M.compareRecord(record, identity, cut),
+      /* THE PRODUCERS THAT WRITE `producerCommit`, as TEXT. Population DERIVED, never curated: every
+         `tools/*.mjs` carrying a `producerCommit:` property at statement position. The owner module is
+         excluded BY NAME because it holds the shared note and names the field in prose and in its own
+         selftest objects, so a scan including it would be reading its own documentation; `ownerHits`
+         reports what that exclusion actually dropped, so the choice stays measurable. The DIRECTORY
+         scope is measured, not assumed: on 2026-11-01 a tree-wide scan over `*.js`, `*.mjs`, `*.py`
+         and `*.html` found all six write sites under `tools/`, so this walk sees the whole set. */
+      producers: (() => {
+        const OWNER = 'fold-generation.mjs';
+        const dir = join(ROOT, 'tools');
+        const out = { owner: `tools/${OWNER}`, note: M.PRODUCER_COMMIT_NOTE, files: [], ownerHits: 0 };
+        for (const f of readdirSync(dir)
+          .filter((x) => /\.mjs$/.test(x))
+          .sort()) {
+          const text = readFileSync(join(dir, f), 'utf8');
+          if (f === OWNER) {
+            out.ownerHits = (text.match(/^[ \t]*producerCommit:/gm) || []).length;
+            continue;
+          }
+          if (!/^[ \t]*producerCommit:/m.test(text)) continue;
+          out.files.push({ name: `tools/${f}`, text });
+        }
+        return out;
+      })(),
       scoped: (nights) => M.corpusIdentity(identity.root || M.TRIO, { cwd: ROOT, nights })
     };
   } catch (e) {

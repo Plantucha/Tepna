@@ -37,6 +37,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry } from './argv-guard.mjs';
+import { PRODUCER_COMMIT_NOTE } from './fold-generation.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
@@ -206,6 +207,7 @@ function main(argv) {
     schema: 'tepna.published-number-record/1',
     producer: 'tools/treatment-response-recut.mjs',
     producerCommit: headCommit(),
+    producerCommitNote: PRODUCER_COMMIT_NOTE,
     invocation: 'node tools/analysis-rerun.mjs --only treatment-response-analysis.html --paper-scale --out <rerun.json> · node tools/treatment-response-recut.mjs --rerun <rerun.json>',
     generated: new Date().toISOString().slice(0, 10),
     inputs: {
@@ -213,7 +215,7 @@ function main(argv) {
       committed: true,
       files: 1,
       digest: sha12(raw),
-      note: 'digest = sha256[0:12] over the captured rerun results file; the page and the generator it inlines are committed, so the run is reproducible from producerCommit'
+      note: 'digest = sha256[0:12] over the captured rerun results file; the page and the generator it inlines are committed, so the run reproduces at the producer this record names, resolved the way producerCommitNote says and never from the sha alone'
     },
     publishedIn: 'papers/treatment-response.html Table 1 (re-cut correction block, 2026-09-22)',
     claims: { note: 'values EXACTLY as the prose states them, so CLAIM … FROM … #claims/<key> compares equal; intervals: Wilson 95 % for proportions, Hanley–McNeil 95 % for AUC', ...claimsOf(S) },
