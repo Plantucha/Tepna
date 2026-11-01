@@ -192,8 +192,17 @@ function ecgRpeakTimes(text, runsText) {
   };
 }
 /* `runsText` (OPTIONAL, LAST — §🧪) is the `_PPGRUNS.txt` companion's bytes. This function serves BOTH
-   optical legs, so the ankle (Verity) and the finger (O2Ring) each hand it their OWN sidecar. */
-function ppgFootTimes(text, runsText) {
+   optical legs, so the ankle (Verity) and the finger (O2Ring) each hand it their OWN sidecar.
+
+   `opts` (OPTIONAL, LAST — §🧪) carries ONE switch, and it exists so the counterfactual the row below
+   names is measurable WITHOUT a second copy of this function. `opts.pinnedFromRecompute` builds the
+   pinned ranges from `rec.spans`, which `parsePPG` publishes on every path, instead of waiting for a
+   sidecar to confirm them. Absent or false ⇒ every line runs exactly as it did, so no fixture moves.
+   Row `2026-10-28-pat-legs-refuse-only-the-spans-a-sidecar-confirmed`: 170 of 3618 PPG recordings
+   reachable from the corpus search carry the companion, so the refusal reaches 4.7 % of them. Whether
+   the shipped default should consume the recompute is NOT decided here — it moves published PAT
+   numbers, and the move is what an instrument calling this switch measures. */
+function ppgFootTimes(text, runsText, opts) {
   var rec = runsText ? PPGDSP.parsePPG(text, { runsText: runsText }) : PPGDSP.parsePPG(text);
   if (rec.t0Ms == null) throw new Error('PPG file carried no phone timestamp.');
   var per = rec.ch.map(function (c) {
@@ -218,8 +227,9 @@ function ppgFootTimes(text, runsText) {
      single channel. One pinned channel out of three leaves a beat two channels still measured:
      that is reduced COVERAGE and is annotated (`partial`). A foot pinned on EVERY channel was
      measured by nothing and is refused. The O2Ring's single channel makes the two rules one. */
+  var _fromRecompute = !!(opts && opts.pinnedFromRecompute);
   var chRanges = [];
-  if (rec.pinnedCrossCheck && Array.isArray(rec.spans)) {
+  if ((rec.pinnedCrossCheck || _fromRecompute) && Array.isArray(rec.spans)) {
     for (var ci = 0; ci < rec.spans.length; ci++) {
       var _sp = rec.spans[ci];
       chRanges.push(PATGate.runRanges((_sp && _sp.spans) || []));
@@ -333,6 +343,15 @@ function ppgFootTimes(text, runsText) {
         })
       : [];
     _unmeasured = PATGate.runSeconds(_allPinned, rec.fs, rec.t0Ms).size;
+  } else if (_fromRecompute && chRanges.length) {
+    /* THE RECOMPUTE LEG COMPUTES THE SAME SECONDS AND IS KEPT OUT OF THE BRANCH ABOVE ON PURPOSE: the
+       sidecar branch keeps its own arithmetic to the byte, so a file with a sidecar reads exactly what
+       it read before this switch existed. ∅ No ranges ⇒ `null` stays, never a 0 that reads as measured
+       time. */
+    var _allRecomp = chRanges.reduce(function (a, b) {
+      return PATGate.intersectRuns(a, b);
+    });
+    _unmeasured = PATGate.runSeconds(_allRecomp, rec.fs, rec.t0Ms).size;
   }
   return {
     t0Ms: rec.t0Ms,
@@ -354,7 +373,20 @@ function ppgFootTimes(text, runsText) {
           partial: nPartPinned,
           unmeasuredSec: _unmeasured
         }
-      : null
+      : _fromRecompute
+        ? {
+            /* THE SOURCE NAMES ITSELF. A reader of this block must never mistake a recompute for a
+               sidecar: nothing confirmed these spans, so `comparable` is `null` with a named reason
+               rather than a borrowed verdict (§∅ — a named reason, never a sentinel). */
+            source: 'recompute',
+            comparable: null,
+            comparableReason: 'no `_PPGRUNS.txt` companion was ingested, so nothing confirms these spans',
+            channels: chCursors.length,
+            dropped: nAllPinned,
+            partial: nPartPinned,
+            unmeasuredSec: _unmeasured
+          }
+        : null
   };
 }
 function overlap(ecg, ppg) {

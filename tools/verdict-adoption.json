@@ -2025,6 +2025,18 @@
    },
    "note": "the population verdict this tool publishes through populationVerdict@tools/corpus-scope-core.mjs, over night directories. Row 2026-10-28-the-word-only-bin-misses-a-verdict-built-by-an-imported-helper re-bins it: the row read word-only, which exempts a producer from object validation, and the object half of the gate could not see a build one import away. checkWordOnlyObject now reads that hop, and only to a builder whose own body CONSTRUCTS \u2014 tools/rebase-safe.mjs calls extractVerdicts@tools/pr-compliance.mjs, which parses objects out of a PR body and constructs none, so it stays word-only as the measured control. --verdict-sample runs the real builder over a fabricated population listed by a closure, so the gate reads a complete object, the corpus stays untouched and the shape cannot drift from snapshotEntries."
   },
+  "tools/pat-pinned-move.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/pat-pinned-move.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "PAT-PINNED-MOVE (row 2026-10-28-pat-legs-refuse-only-the-spans-a-sidecar-confirmed): runs the SHIPPED `ppgFootTimes` twice per recording \u2014 once as it ships, once with `{ pinnedFromRecompute: true }` \u2014 and reports how far the consensus foot set moves when the pinned-span refusal stops waiting for a `_PPGRUNS.txt` companion. The population the criterion judges is the recordings the switch CAN bite, which is those with a span every optical channel was pinned through; a recording with no such span is excluded with its reason rather than counted as one that held still. PASS = no biting recording loses a foot; FAIL names how many do; UNDERPOWERED where fewer than three biting recordings were read, which is the state a prefix sample produced before the sample became a stride; NOT_RUN (exit 2) where no recording was read at all, which is CI and every fresh clone, so the sample there examines nothing and says so."
+  },
   "tools/pat-ppg-ppg-control.mjs": {
    "bin": "decides",
    "status": "adopted",

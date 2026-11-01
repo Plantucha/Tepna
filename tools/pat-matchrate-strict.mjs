@@ -194,6 +194,11 @@ function ecgRpeakTimes(text, opts) {
 }
 /* ── @port-from pat-feasibility-worker.js#ppgFootTimes ─────────────────────────────
    @port-sha aa2336fd1179
+   @port-behind 15e9ff8df936 2026-11-01-the-pat-foot-ports-cannot-run-the-recompute-counterfactual
+   BEHIND SINCE 2026-11-01: the worker's `ppgFootTimes` now takes an optional
+   `opts.pinnedFromRecompute`, which builds the pinned ranges from `rec.spans` instead of waiting
+   for a `_PPGRUNS.txt` companion. This copy carries no such switch, so it cannot run that
+   counterfactual. It still matches the shipped DEFAULT, which the switch leaves untouched.
    READ against that text on 2026-11-01, for row
    2026-11-01-the-pat-foot-ports-stand-behind-the-shipped-definition. #4069's pinned-span refusal now
    lives here: a consensus foot every channel was pinned through was measured by nothing and is

@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**309 tools** · 308 with a purpose line · **1 without**
+**310 tools** · 309 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -194,6 +194,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`pat-matchrate-strict.mjs`](../tools/pat-matchrate-strict.mjs) | PAT-UNDER-PERBLOCK-ALIGNMENT §4, open item 1: "A stricter `matchRate` whose chance floor is not 60 %. |
 | [`pat-mode-posture.mjs`](../tools/pat-mode-posture.mjs) | does the PAT lag mode follow the BODY or the CLOCK-ON-THE-WALL? |
 | [`pat-per-led.mjs`](../tools/pat-per-led.mjs) | EACH LED AS AN INDEPENDENT DETECTOR — and a three-cornered hat that measures FIDUCIAL JITTER directly. |
+| [`pat-pinned-move.mjs`](../tools/pat-pinned-move.mjs) | HOW FAR WOULD THE PAT FOOT SET MOVE IF THE PINNED-SPAN REFUSAL STOPPED WAITING FOR A SIDECAR? |
 | [`pat-ppg-ppg-control.mjs`](../tools/pat-ppg-ppg-control.mjs) | THE POSITIVE CONTROL THE PAT WORK NEVER HAD — O2Ring FINGER pulse vs Verity pulse. |
 | [`pat-residual-structure.mjs`](../tools/pat-residual-structure.mjs) | PAT-ROOT-CAUSE-FORENSICS §14: is the leftover 20–40 ms ERROR or SIGNAL? |
 | [`pat-three-corner.mjs`](../tools/pat-three-corner.mjs) | ALL THREE PAT PAIRS, ON ONE 5-MIN GRID — plus a CLOSURE test and a three-cornered hat. |
