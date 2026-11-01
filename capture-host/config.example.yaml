@@ -229,7 +229,7 @@ o2ring:                   # Wellue O2Ring-S / T8520 specifics.
 # a new one; leave the field empty and save to keep the current one.
 alerts:
   enabled: false
-  webhook_url: ""         # e.g. https://ntfy.sh/your-private-topic   (POSTs {"title","message"} JSON)
+  webhook_url: ""         # e.g. https://ntfy.sh/your-private-topic   (an ntfy topic: JSON publish at the root; other URLs: {"title","message"} JSON)
   offline_sec: 300        # a configured sensor offline this long → alert (edge-triggered; no flap spam)
   poll_sec: 60
 

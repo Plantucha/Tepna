@@ -8935,7 +8935,8 @@ def test_alert_poller_stays_QUIET_for_a_ring_that_powered_off_after_a_completed_
     _run(capture.alert_poller(cfg, _N()))
     capture._LAST_PULL_OK.pop("O2Ring", None)
     capture._IDLE_TIMER_NAMED.discard("O2Ring")
-    assert sent == [], "an expected power-off must not alert"
+    # Owner 2026-11-01: the end of a night is reported, ONCE, as a note and never as an offline alarm.
+    assert sent == ["Tepna: O2Ring night ended"], sent
 
 
 def test_alert_poller_names_a_polar_power_off_without_calling_it_a_ring(monkeypatch, caplog):
@@ -8972,11 +8973,178 @@ def test_alert_poller_names_a_polar_power_off_without_calling_it_a_ring(monkeypa
         _run(capture.alert_poller(cfg, _N()))
     capture._LAST_PULL_OK.pop(nm, None)
     capture._IDLE_TIMER_NAMED.discard(nm)
-    assert sent == [], "an expected power-off must not alert"
+    assert sent == ["Tepna: " + nm + " night ended"], sent
     line = [r.getMessage() for r in caplog.records if "powered off" in r.getMessage()]
     assert line == [
         nm + ": powered off — idle timer (expected until re-wear or charger; its stored session was already pulled)"
     ], line
+
+
+def _night_end_poll(monkeypatch, *, first, last, now, stop_hour, delivered=True, enabled=True, polls=3):
+    """Drive the poller over one device that streamed from `first` to `last` (monotonic s) and is now
+    disconnected, with the wall clock reading `stop_hour` at the last sample. Returns the titles sent."""
+    sent = []
+
+    class _N:
+        def __init__(self):
+            self.enabled = enabled
+
+        async def send(self, title, message, **kw):
+            sent.append((title, message))
+            return delivered
+
+    nm = "Polar Sense TEST0001"
+    cfg = {"alerts": {"poll_sec": 1, "offline_sec": 0}, "devices": [_dev(name=nm, model="VeritySense")]}
+    capture._LAST_PULL_OK.pop(nm, None)
+    capture._IDLE_TIMER_NAMED.discard(nm)
+    clock = {"t": first}
+    calls = {"n": 0}
+    capture.STATUS["devices"][nm] = {"connected": True}
+    capture._LAST_DATA[nm] = first
+
+    async def fake_sleep(_s):
+        calls["n"] += 1
+        if calls["n"] == 2:  # the poller sleeps BEFORE each poll, so this is the gap after poll 1
+            clock["t"] = now
+            capture._LAST_DATA[nm] = last
+            capture.STATUS["devices"][nm] = {"connected": False}
+        if calls["n"] >= polls:
+            capture._STOP.set()
+
+    class _FakeDT(capture._dt.datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return capture._dt.datetime(2026, 11, 1, stop_hour, 30) + capture._dt.timedelta(seconds=now - last)
+
+    monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
+    monkeypatch.setattr(capture._time, "monotonic", lambda: clock["t"])
+    monkeypatch.setattr(capture._dt, "datetime", _FakeDT)
+    _run(capture.alert_poller(cfg, _N()))
+    capture._LAST_DATA.pop(nm, None)
+    return [t for t, _ in sent], sent
+
+
+def test_alert_poller_calls_a_night_long_stream_that_stops_in_the_morning_a_night_end(monkeypatch):
+    """MEASURED 2026-11-01: the Sense streamed until 05:43:40 and was switched off; at 05:48 the box said
+    "has been offline for ~5 min — capture is missing it". Its live file held every sample to the stop."""
+    titles, sent = _night_end_poll(
+        monkeypatch, first=1000.0, last=1000.0 + 7 * 3600 + 300, now=1000.0 + 7 * 3600 + 900, stop_hour=5
+    )
+    assert titles == ["Tepna: Polar Sense TEST0001 night ended"], titles
+    assert "streamed for 7 h 05 min and stopped at 05:30" in sent[0][1], sent[0][1]
+
+
+def test_alert_poller_STILL_alerts_a_stream_that_stops_in_the_middle_of_the_night(monkeypatch):
+    titles, _ = _night_end_poll(
+        monkeypatch, first=1000.0, last=1000.0 + 5 * 3600, now=1000.0 + 5 * 3600 + 600, stop_hour=2
+    )
+    assert titles == ["Tepna: sensor offline"], titles
+
+
+def test_alert_poller_STILL_alerts_a_short_stream_that_stops_in_the_morning(monkeypatch):
+    titles, _ = _night_end_poll(monkeypatch, first=1000.0, last=1000.0 + 1800, now=1000.0 + 2400, stop_hour=6)
+    assert titles == ["Tepna: sensor offline"], titles
+
+
+def test_alert_poller_RETRIES_an_undelivered_night_end_note(monkeypatch):
+    titles, _ = _night_end_poll(
+        monkeypatch,
+        first=1000.0,
+        last=1000.0 + 6 * 3600,
+        now=1000.0 + 6 * 3600 + 600,
+        stop_hour=6,
+        delivered=False,
+        polls=4,
+    )
+    assert titles == ["Tepna: Polar Sense TEST0001 night ended"] * 3, titles
+
+
+def test_alert_poller_RETRIES_an_undelivered_pulled_night_end_note(monkeypatch):
+    sent = []
+
+    class _N:
+        enabled = True
+
+        async def send(self, title, message, **kw):
+            sent.append(title)
+            return False
+
+    cfg = {"alerts": {"poll_sec": 1, "offline_sec": 0}, "devices": [_dev(name="O2Ring")]}
+    capture.STATUS["devices"]["O2Ring"] = {"connected": False}
+    capture._LAST_DATA.pop("O2Ring", None)
+    capture._IDLE_TIMER_NAMED.discard("O2Ring")
+    capture._LAST_PULL_OK["O2Ring"] = 1000.0
+    calls = {"n": 0}
+
+    async def fake_sleep(_s):
+        calls["n"] += 1
+        if calls["n"] >= 3:
+            capture._STOP.set()
+
+    monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
+    monkeypatch.setattr(capture._time, "monotonic", lambda: 1060.0)
+    _run(capture.alert_poller(cfg, _N()))
+    capture._LAST_PULL_OK.pop("O2Ring", None)
+    capture._IDLE_TIMER_NAMED.discard("O2Ring")
+    assert sent == ["Tepna: O2Ring night ended"] * 3, sent
+
+
+def test_alert_poller_starts_a_new_episode_when_a_stream_comes_back_after_a_gap(monkeypatch):
+    """A device that went quiet and came back starts its night span again from the return, so a 2 h
+    stream after a 5 h gap is not a night (the morning stop of that 2 h stream still alerts)."""
+    sent = []
+
+    class _N:
+        enabled = True
+
+        async def send(self, title, message, **kw):
+            sent.append(title)
+            return True
+
+    nm = "Polar Sense TEST0002"
+    cfg = {"alerts": {"poll_sec": 1, "offline_sec": 10**9}, "devices": [_dev(name=nm)]}
+    capture._LAST_PULL_OK.pop(nm, None)
+    st = {"t": 0.0}
+    steps = [
+        (0.0, True, 0.0),  # streaming from t=0
+        (60.0, False, 0.0),  # gone (offline_sec is huge, so no alarm)
+        (5 * 3600.0, True, 5 * 3600.0),  # back after 5 h: a NEW episode
+        (7 * 3600.0, False, 7 * 3600.0),  # stops 2 h later — not a night
+    ]
+    calls = {"n": 0}
+
+    def apply(i):
+        t, conn, last = steps[i]
+        st["t"] = t
+        capture.STATUS["devices"][nm] = {"connected": conn}
+        capture._LAST_DATA[nm] = last if conn else capture._LAST_DATA.get(nm, last)
+
+    async def fake_sleep(_s):
+        calls["n"] += 1
+        if calls["n"] <= len(steps):  # the poller sleeps BEFORE each poll
+            apply(calls["n"] - 1)
+        else:
+            capture._STOP.set()
+
+    class _FakeDT(capture._dt.datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return capture._dt.datetime(2026, 11, 1, 6, 0)
+
+    monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
+    monkeypatch.setattr(capture._time, "monotonic", lambda: st["t"])
+    monkeypatch.setattr(capture._dt, "datetime", _FakeDT)
+    _run(capture.alert_poller(cfg, _N()))
+    capture._LAST_DATA.pop(nm, None)
+    assert sent == [], sent
+
+
+def test_stream_ended_in_the_morning_needs_a_night_AND_a_morning():
+    a = capture.alerts
+    assert a.stream_ended_in_the_morning(4 * 3600, 4) and a.stream_ended_in_the_morning(9 * 3600, 11)
+    assert not a.stream_ended_in_the_morning(4 * 3600 - 1, 6), "shorter than a night"
+    assert not a.stream_ended_in_the_morning(8 * 3600, 3) and not a.stream_ended_in_the_morning(8 * 3600, 12)
+    assert not a.stream_ended_in_the_morning(None, 6), "no sample in the episode"
 
 
 def test_alert_poller_STILL_alerts_when_the_pull_did_not_succeed(monkeypatch):
