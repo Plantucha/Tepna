@@ -30,6 +30,7 @@
  */
 
 import { codeMask } from './js-lex.mjs';
+import { escapeRe } from './regex-escape-core.mjs';
 
 /* The CLAIM grammar's own number: an optional sign, digits, an optional decimal part. Exponent and hex
    forms are REFUSED rather than truncated — `5e3` would otherwise read as 5, which is the silent
@@ -68,7 +69,9 @@ export function readCodeConstant(src, ident) {
   const id = String(ident || '');
   if (!/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(id)) return { value: null, reason: 'the pointer `' + id + '` is not a JS identifier — a code source takes a bare identifier, not a path', at: 0 };
   const code = codeOnly(src);
-  const esc = id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  /* The metacharacter class has ONE home (`tools/regex-escape-core.mjs`), and a gate reds a second
+     copy of it: a tool that spells the class itself is the day the two sets stop agreeing. */
+  const esc = escapeRe(id);
   const bind = new RegExp('(?<![\\w$.])' + esc + '\\s*=(?!=)\\s*(' + NUM + ')(?![\\w.$])', 'g');
   const hits = [...code.matchAll(bind)];
   if (hits.length === 1) return { value: Number(hits[0][1]), reason: null, at: 1 };
