@@ -3060,6 +3060,22 @@ def test_the_generator_is_part_of_the_measurement_and_an_unnameable_one_is_absen
     pw = M.merge_prework("", "m.py", "sel", 2.0, 1.0, "2026-11-02", "rig", "3.8.1")
     assert M.prework_record(pw, None) == {}
     assert M.prework_record(pw, "") == {}
+
+    # THE GUARD ITSELF, not the per-entry comparison. Every assertion above also passes under a reader
+    # that drops only MISMATCHED entries, because nothing in `stamped` or `pw` RECORDS an unnameable
+    # generator — the fall-through then returns {} for its own reason. A ledger that does record one is
+    # what separates the two readings, and both `or`s here survived mutation on #4248 until this read.
+    rec_bad = (
+        '{"sizes": {"d.py@ddd": {"generatedBytes": 4, "generator": ""},'
+        ' "e.py@eee": {"generatedBytes": 5, "generator": 381}}}'
+    )
+    assert M.mutants_size_record(rec_bad, "") == {}, "an empty name is no knowledge on BOTH sides"
+    assert M.mutants_size_record(rec_bad, 381) == {}, "a non-string generator stays absence"
+    pw_bad = (
+        '{"prework": {"d.py@sel": {"statsSec": 2, "generator": ""}, "e.py@sel": {"statsSec": 3, "generator": 381}}}'
+    )
+    assert M.prework_record(pw_bad, "") == {}, "an empty name is no knowledge on BOTH sides"
+    assert M.prework_record(pw_bad, 381) == {}, "a non-string generator stays absence"
     assert M.prework_record(pw, 381) == {}
 
 
