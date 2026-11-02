@@ -1,5 +1,5 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED — 2026-09-28 · **Created:** 2026-09-28
+**Status:** IN-PROGRESS — 2026-11-01 · **Created:** 2026-09-28
 
 # The mutation survivor ledger
 
@@ -320,6 +320,31 @@ where a real, unkillable mutant sits over correct code.
 8. **CONTROL**: today's verdicts are byte-identical apart from the new count.
 9. The #3022/#3024 survivors are ingested as the first real entries, with their state as measured
    today — **twelve**, not the ten the row names (see §1), each with its `diff_key`, all `open`.
+
+### Verified 2026-11-01 — seven of nine hold, and item 4 should not
+
+Read-only against `tools/mutation-survivors.mjs` and the committed ledger. One item asks for something
+unsafe, so it carries a correction rather than a tick.
+
+| item | holds | evidence |
+|---|---|---|
+| 1 | yes | `mutation-survivors.json`, 128 entries, `_README` present, §2b fields |
+| 2 | yes | `cmdIngest`, with a selftest leg per refusal |
+| 3 | yes | `cmdList`, `cmdClose`; the tool is the only writer |
+| 4 | **no, deliberately** | see the correction below |
+| 5 | yes | `cmdOrphans` plus the `orphaned` state; three entries carry it |
+| 6 | yes | `verify:survivor-ratchet` in CI, two-sided, read-only |
+| 7 | partly | the mechanism has legs; no end-to-end plant over a real verdict |
+| 8 | unverified | no leg by that name; the byte-identical leg covers the key migration instead |
+| 9 | yes | twelve entries carry `pr: 3022` |
+
+**Correction to item 4.** An open entry ABSENT from a later verdict must NOT close. Absence cannot tell
+a kill from a mutant the run never generated. `mergeEntries` reports `regressed`, `stale` and `unknown`
+for that reason. The honest form of item 4 is narrower: a later run that NAMES the mutant as killed
+closes the entry, and silence closes nothing.
+
+A third state arrived on 2026-11-01. An entry whose recorded line has grown under it reads `stale-line`:
+no run can produce its mutant again, so the ratchet excludes it and the verdict's population says so.
 
 ## 4 · Non-goals
 
