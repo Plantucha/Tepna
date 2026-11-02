@@ -10274,7 +10274,9 @@ def test_alert_poller_keeps_a_stream_that_ended_quiet_across_a_restart(tmp_path,
     assert sent == [], sent
 
 
-def test_alert_poller_alarms_again_when_the_saved_state_is_older_than_8_h(tmp_path, monkeypatch):
+def test_alert_poller_keeps_a_9_h_old_night_note_quiet_but_drops_the_9_h_old_pull(tmp_path, monkeypatch):
+    """Board #2972: a night-ended note licenses silence until the next night begins, with no 8 h expiry.
+    The pull stamp keeps its own 8 h bound (`alerts.powered_off_after_pull`)."""
     nm = "Polar H10 TEST0001"
     old = _WALL - 9 * 3600
     cfg = _quiet_setup(tmp_path, nm, {"pull_ok": {nm: old}, "ended": {nm: old}})
@@ -10283,7 +10285,7 @@ def test_alert_poller_alarms_again_when_the_saved_state_is_older_than_8_h(tmp_pa
         restored = nm in capture._LAST_PULL_OK
     finally:
         _quiet_teardown(nm)
-    assert sent == ["Tepna: sensor offline"], sent
+    assert sent == [], sent
     assert restored is False
 
 
@@ -10297,7 +10299,7 @@ def test_alert_poller_saves_the_quiet_state_in_wall_clock_seconds(tmp_path, monk
         _quiet_teardown(nm)
     assert sent == ["Tepna: " + nm + " night ended"], sent
     saved = json.loads((tmp_path / "captures" / alerts.QUIET_STATE_NAME).read_text())
-    assert saved == {"pull_ok": {nm: _WALL - 60}, "ended": {nm: _WALL}}
+    assert saved == {"pull_ok": {nm: _WALL - 60}, "ended": {nm: _WALL}, "night_began": None}
     assert not (tmp_path / "captures" / (alerts.QUIET_STATE_NAME + ".tmp")).exists()
 
 

@@ -613,7 +613,10 @@ def test_the_covered_function_count_is_MEASURED_from_the_ast_not_quoted():
     # 337 → 339 on 2026-11-02 (the CPAP night-ended alert): `_cpap_notify`, which reads the daemon
     # notifier at call time, and `_cpap_night_ended_note`, which words the alert and logs a failed send.
     # +2, the whole delta. `moduleFunctionsAtDeclaration` stays where it is, per the note above.
-    assert n == 339, f"capture.py now defines {n} functions — update the declaration's note deliberately"
+    # 339 → 340 on 2026-11-02 (board #2972, "capture started" says why): `_boot_id`, which reads the
+    # kernel's boot id so the next start can tell a boot from a restart. +1, the whole delta.
+    # `moduleFunctionsAtDeclaration` stays where it is, per the note above.
+    assert n == 340, f"capture.py now defines {n} functions — update the declaration's note deliberately"
 
 
 def test_count_functions_counts_nested_and_methods_and_refuses_nothing():

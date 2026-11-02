@@ -527,17 +527,16 @@ def test_on_charger_reads_the_charge_flag_only_while_linked():
     assert alerts.on_charger(False, True) is False
 
 
-def test_quiet_licence_holds_for_8_h_and_never_for_a_future_stamp():
-    assert alerts.quiet_licence_holds(None, 100.0) is False
-    assert alerts.quiet_licence_holds(100.0, 100.0) is True
-    assert alerts.quiet_licence_holds(100.0, 99.0) is False
-    assert alerts.quiet_licence_holds(0.0, alerts.RING_IDLE_EXPECT_MAX_S - 1) is True
+def test_quiet_licence_has_no_timer_and_ends_when_a_night_begins():
+    """Board #2972 removed the 8 h expiry; `tests/test_alert_why.py` holds the measurement."""
+    assert alerts.quiet_licence_holds(None, None) is False
+    assert alerts.quiet_licence_holds(0.0, None) is True
     assert alerts.quiet_licence_holds(0.0, alerts.RING_IDLE_EXPECT_MAX_S) is False
 
 
 def test_quiet_state_round_trips_through_the_wall_clock():
     saved = alerts.quiet_state_to_save({"B": 1000.0, "A": 400.0}, {"A": 900.0}, 1060.0, 5_000_000.0)
-    assert saved == {"pull_ok": {"A": 4_999_340.0, "B": 4_999_940.0}, "ended": {"A": 4_999_840.0}}
+    assert saved == {"pull_ok": {"A": 4_999_340.0, "B": 4_999_940.0}, "ended": {"A": 4_999_840.0}, "night_began": None}
     # a restart: the monotonic clock starts again at 10.0, and 100 s of wall time passed
     pull_ok, ended = alerts.quiet_state_restored(saved, 10.0, 5_000_100.0)
     assert pull_ok == {"A": 10.0 - 760.0, "B": 10.0 - 160.0}
