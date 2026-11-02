@@ -504,13 +504,28 @@ def test_ABSENT_PIN_migrates_onto_a_CHOSEN_spare_when_armed(monkeypatch, caplog)
     assert PINNED in ev["detail"], "the event must name the radio that left"
 
 
-def test_ABSENT_PIN_DEFAULT_OFF_is_report_only_and_says_so_ONCE(monkeypatch, caplog):
-    """🔴 THE PIN THIS SHIPS UNDER. No flag means the degrade stands and nothing moves — the shape
-    `distress_failover` already ships under. The silence is what changes: one critical line per
-    episode, not a line every 25 s and not the nothing that ran the 2026-10-26 night."""
+def test_ABSENT_PIN_DEFAULT_IS_ARMED_so_an_UNCONFIGURED_box_migrates(monkeypatch, caplog):
+    """🔴 THE PIN THIS SHIPS UNDER, AND THE OWNER CHOSE IT. Board #2912, 2026-11-02: arm the failover
+    now. This unit proposed report-only and the owner overruled it, so a box that configures nothing
+    migrates onto a chosen spare. The key's ABSENCE is what this pins — `test_..._when_armed` above
+    already covers an explicit `true`, and the two must not drift apart."""
     caplog.set_level("INFO")
     _absent(monkeypatch)
     _run_healthy_watchdog(monkeypatch, _cfg())
+    assert capture.ADAPTER == SPARE, "an unconfigured box must migrate — the owner armed this switch"
+    assert [e["cause"] for e in capture._RADIO_EVENTS] == ["pin-absent"], "one named switch event"
+    # The fake leaves the SPARE unresolvable too, so a later poll opens a SECOND episode about the
+    # new pin. That is the harness, not a flap, and the single switch event above is what bounds it.
+    assert "chosen spare" in _absent_lines(caplog)[0], "the first line must name what it did"
+
+
+def test_ABSENT_PIN_DISARMED_BY_CONFIG_is_report_only_and_says_so_ONCE(monkeypatch, caplog):
+    """The one way back to report-only is an explicit `false`, now that the owner has armed the
+    default. The silence is what this holds: one critical line per episode, not a line every 25 s
+    and not the nothing that ran the 2026-10-26 night."""
+    caplog.set_level("INFO")
+    _absent(monkeypatch)
+    _run_healthy_watchdog(monkeypatch, _cfg(absent_pin_failover=False))
     assert capture.ADAPTER != SPARE, "an unarmed decision must not move the pin"
     assert [e for e in capture._RADIO_EVENTS if e["cause"] == "pin-absent"] == []
     said = _absent_lines(caplog)
@@ -534,9 +549,9 @@ def test_ABSENT_PIN_LATCH_CLEARS_when_the_radio_comes_back(monkeypatch, caplog):
     night is silent, which is the defect this whole unit is about."""
     caplog.set_level("INFO")
     _absent(monkeypatch, resolves_after=1)
-    _run_healthy_watchdog(monkeypatch, _cfg())
+    _run_healthy_watchdog(monkeypatch, _cfg(absent_pin_failover=False))
     assert len(_absent_lines(caplog)) == 1, "it spoke for the first episode"
-    assert capture.ADAPTER != SPARE, "an unarmed decision still moves nothing"
+    assert capture.ADAPTER != SPARE, "report-only holds the pin, so the latch is what this measures"
 
 
 def test_ABSENT_PIN_defers_to_the_LADDER_when_nothing_is_streaming(monkeypatch, caplog):

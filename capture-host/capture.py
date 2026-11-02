@@ -1240,7 +1240,7 @@ ABSENT_PIN_SAID = {
     # What the rising-edge line says the box is DOING about an absent pin. A named consequence, not
     # the bare decision token: a reader of the journal at 03:00 needs the outcome, not the enum.
     "migrate": "failing over to a chosen spare",
-    "disarmed": "absent_pin_failover OFF — report-only; arming is the owner's",
+    "disarmed": "absent_pin_failover is false in config — report-only",
     "budget-spent": "the failover budget is spent, so the degrade stands",
     "ladder-owns-it": "the recovery ladder owns this poll",
 }
@@ -1275,8 +1275,10 @@ def absent_pin_action(
     · `None` — no pin is configured, or the pin still resolves. Nothing to decide.
     · `"ladder-owns-it"` — absent AND the adapter reads wedged, so the ladder below acts first. Two
       owners for one radio is how a reset races a migration.
-    · `"disarmed"` — absent, and `watchdog.absent_pin_failover` is off. Report-only, the shape
-      `distress_failover` ships under: arming is the owner's.
+    · `"disarmed"` — absent, and `watchdog.absent_pin_failover` reads `false` in config.
+      Report-only. The owner ARMED this switch on 2026-11-02 (board #2912), so this state needs an
+      explicit `false`; an unconfigured box migrates. That is where it parts from
+      `distress_failover`, which still ships off.
     · `"budget-spent"` — absent and armed, with `max_failovers` already spent. The flap cap stops
       ping-pong between two radios, and an absent pin must not be the one cause that escapes it.
     · `"migrate"` — act: pick a live spare, re-point the pin, re-bond there.
@@ -8678,7 +8680,12 @@ async def adapter_watchdog(adapter_mac, cfg: dict):
             pin_configured=bool(adapter_mac),
             pin_resolved=_hci_now is not None,
             wedged=bool(h["wedged"]),
-            armed=bool(wcfg.get("absent_pin_failover")),
+            # OWNER RULING 2026-11-02 (board #2912): this switch ships ARMED, which is where it
+            # parts from its `distress_failover` sibling. The owner chose arming over the
+            # report-only default this unit proposed, so an ABSENT key arms the failover and only
+            # an explicit `false` disarms it. Absence is not a measurement here: it is an
+            # unconfigured switch, and the documented default is what an unconfigured box gets.
+            armed=bool(wcfg.get("absent_pin_failover", True)),
             failovers=failovers,
             max_failovers=max_failovers,
         )
