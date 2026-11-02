@@ -2512,11 +2512,22 @@
       var mono = true;
       for (var k = 1; k < rec.beatMarkerSec.length; k++) if (!(rec.beatMarkerSec[k] > rec.beatMarkerSec[k - 1])) mono = false;
       T.ok('marker times are strictly increasing (a beat train, not a bag of samples)', mono);
-      /* Markers sit 25 rows apart with 24 REAL samples between them, and on the crystal grid a marker
-         row advances no time — so the spacing is exactly 24/125 s. Derived from the fixture geometry,
-         not a recorded magic number: if marker deflation breaks, this moves. */
-      var gap = rec.beatMarkerSec[1] - rec.beatMarkerSec[0];
-      T.ok('marker spacing is the deflated crystal interval 24/125 s', Math.abs(gap - 24 / 125) < 1e-9, 'got ' + gap + ' s, expected ' + 24 / 125);
+      /* THE DEFLATION IDENTITY IS A CRYSTAL FACT, SO IT ASKS FOR THE CRYSTAL. Markers sit 25 rows apart
+         with 24 REAL samples between them, and only on the crystal grid does a marker row advance no
+         time — so the spacing there is exactly 24/125 s. Both numbers come from the fixture geometry
+         above, not from a recorded magic number: if marker deflation breaks, this moves. Until
+         2026-11-02 this leg read the DEFAULT parse, which was the crystal; the default is the host axis
+         now (`RING-TIMEBASE-ECG-TEST-2026-10-29-BRIEF.md` §4). */
+      var crysM = P.parsePPG(txt, { timebase: 'device-crystal' });
+      var gap = crysM.beatMarkerSec[1] - crysM.beatMarkerSec[0];
+      T.ok('marker spacing on the crystal is the deflated interval 24/125 s', Math.abs(gap - 24 / 125) < 1e-9, 'got ' + gap + ' s, expected ' + 24 / 125);
+      /* AND THE DEFAULT RIDES THE OTHER AXIS, which is what makes the leg above a measurement rather
+         than a restatement of the default. On the host axis a marker row spends its own row time, so 25
+         rows apart means 25 device steps — 7953045 ns each, from the generator above. This leg reds if
+         the finger default ever returns to the crystal without a brief saying so. */
+      var defGap = rec.beatMarkerSec[1] - rec.beatMarkerSec[0];
+      T.ok('the DEFAULT spacing is 25 host rows, not 24 deflated crystal ticks', Math.abs(defGap - 25 * 7953045e-9) < 1e-9, 'got ' + defGap + ' s, expected ' + 25 * 7953045e-9);
+      T.ok('…so the two axes really do disagree here', Math.abs(defGap - gap) > 1e-6, 'defGap=' + defGap + ' crystalGap=' + gap);
       T.ok('positions are SECONDS on the published axis, not row indices', rec.beatMarkerSec[0] < rec.relSec[rec.relSec.length - 1] && rec.beatMarkerSec[0] > 0, 'got ' + rec.beatMarkerSec[0]);
       // A wrist (Verity) file has no O2Ring markers: 156 there is an ordinary raw ADC count, and
       // claiming beats from it would fabricate a beat train out of ordinary signal.
@@ -3108,7 +3119,7 @@
       T.ok("ANTI-VACUITY · the twin's own ppm is under HALF a step of fs, so no division could survive it", Math.abs(hostHa.ppm) < stepPpm / 2, 'ppm=' + hostHa.ppm + ' halfStep=' + stepPpm / 2);
       T.eq('…and the arithmetic says the same: 125 Hz divided by that ppm rounds back to 125 Hz', Math.round((125 / (1 + hostHa.ppm / 1e6)) * 100) / 100, 125);
       T.eq('so the host arm reports the division reached nothing — it divided, the rounding took it back', hostHa.rateApplied, false);
-      T.eq('…and the crystal default reports the same, for its own reason: the ADC constant overwrote fs', crysHa.rateApplied, false);
+      T.eq('…and the crystal arm reports the same, for its own reason: the ADC constant overwrote fs', crysHa.rateApplied, false);
       T.eq('both arms still publish the same measured ppm', hostHa.ppm, crysHa.ppm);
       T.eq('…and the same sub-floor verdict, because it is about the SPAN, not about fs', hostHa.rate + '|' + crysHa.rate, 'unknown|unknown');
 
@@ -3116,8 +3127,8 @@
          constant `false` would pass every leg in this group. A correction LARGER than one quantisation
          step must still read `true`. 2000 ppm against the ~74 ppm step at 135 Hz is 27 steps, so this
          leg is the one that reds if the flag ever stops tracking the published rate. Verity-shaped on
-         purpose: three channels that differ keep `deriveSiteFromLayout` off 'finger', whose default
-         timebase is the crystal, and the arm is named anyway. */
+         purpose: three channels that differ keep `deriveSiteFromLayout` off 'finger', which is the only
+         site a timebase applies to at all, and the arm is named anyway. */
       var bigRows = ['Phone timestamp;sensor timestamp [ns];channel 0;channel 1;channel 2;ambient'];
       var bigStep = 1000 / 135,
         bigDev = 0;
@@ -4574,21 +4585,34 @@
       }
       var N = 2000;
       var txt = HDR + fingerRows(N);
-      var def = P.parsePPG(txt); // Stage 3b: an O2Ring finger recording now DEFAULTS to device-crystal
-      var host = P.parsePPG(txt, { timebase: 'host-disciplined' }); // the opt-OUT back to the host axis
-      var crys = P.parsePPG(txt, { timebase: 'device-crystal' });
-      T.eq('a finger recording now DEFAULTS to device-crystal (the "default 125" flip)', def.timebase, 'device-crystal');
-      T.eq('host-disciplined is still reachable as an explicit opt-out', host.timebase, 'host-disciplined');
-      T.eq('the explicit crystal path is labelled device-crystal', crys.timebase, 'device-crystal');
+      /* THE DEFAULT IS THE HOST AXIS AGAIN since 2026-11-02. `RING-TIMEBASE-ECG-TEST-2026-10-29-BRIEF.md`
+         §4 scored 93 nights against the H10 ECG: the crystal reads 0.24 bpm high over 22 box-QC-PASS
+         nights where the host axis reads 0.00, worse on 18 and better on none. §5.4 calls the crystal
+         default unsupported, so the crystal is the OPT-IN arm and the whole branch below still runs on
+         the explicit request. */
+      var def = P.parsePPG(txt); // no opt, no embed ⇒ the DEFAULT path
+      var host = P.parsePPG(txt, { timebase: 'host-disciplined' }); // the same axis, asked for by name
+      var crys = P.parsePPG(txt, { timebase: 'device-crystal' }); // the OPT-IN crystal
+      T.eq('a finger recording DEFAULTS to host-disciplined (the 93-night flip back)', def.timebase, 'host-disciplined');
+      T.eq('device-crystal is still reachable as an explicit opt-in', crys.timebase, 'device-crystal');
+      T.eq('asking for the host axis by name reaches the same axis', host.timebase, 'host-disciplined');
       T.ok('device-crystal fs is the 125.000 ADC rate', Math.abs(crys.fs - 125) < 1e-9, 'got ' + crys.fs);
-      T.ok('the default (crystal) and the host axis are genuinely different', crys.relSec[N - 1] !== host.relSec[N - 1]);
-      T.ok('the default IS the crystal axis (same as explicit crystal)', def.relSec[N - 1] === crys.relSec[N - 1]);
+      T.ok('the crystal and the host axis are genuinely different', crys.relSec[N - 1] !== host.relSec[N - 1]);
+      T.ok('the default IS the host axis (same as the named host request)', def.relSec[N - 1] === host.relSec[N - 1]);
+      /* ∅ THE DEFAULT DISCLOSES ITSELF. Both arms now answer 'host-disciplined' on `timebase`, so
+         without `timebaseSource` a consumer cannot tell a capture host that EARNED discipline from this
+         build's floor — the same silent assumption the crystal default made in the other direction. */
+      T.eq('∅ the defaulted axis says nobody chose it', def.timebaseSource, 'default');
+      T.eq('…and a named request says the caller did', host.timebaseSource, 'caller');
+      T.eq('…so does the explicit crystal', crys.timebaseSource, 'caller');
       // THE EMBED (Stage 3a→3b): a `# timebase=…` header the capture host stamped is honoured, and an
       // explicit opts.timebase still overrides it (precedence: opts > embed > default).
       var embHost = P.parsePPG('# timebase=host-disciplined\n' + txt);
       T.eq('an embedded host-disciplined stamp selects the host axis (a stratum-1 capture)', embHost.timebase, 'host-disciplined');
+      T.eq('…and the stamp is what the source names, not the default that agrees with it', embHost.timebaseSource, 'embedded');
       var embCrys = P.parsePPG('# timebase=device-crystal\n' + txt);
       T.eq('an embedded device-crystal stamp selects the crystal', embCrys.timebase, 'device-crystal');
+      T.eq('…from the embed too', embCrys.timebaseSource, 'embedded');
       T.eq('an explicit opts.timebase OVERRIDES the embed', P.parsePPG('# timebase=host-disciplined\n' + txt, { timebase: 'device-crystal' }).timebase, 'device-crystal');
       T.ok('the embedded-host axis matches the explicit-host axis (the comment is invisible to parsing)', embHost.relSec[N - 1] === host.relSec[N - 1] && embHost.n === host.n);
       // Two consecutive REAL samples (indices 0,1) are one crystal tick apart, EXACTLY.
@@ -4620,6 +4644,7 @@
       }
       var wCrys = P.parsePPG(WHDR + wrist, { timebase: 'device-crystal' });
       T.eq('a Verity recording carries no timebase (not a finger either/or)', wCrys.timebase, null);
+      T.eq('…and no source for one either', wCrys.timebaseSource, null);
       T.ok('device-crystal is a no-op on a Verity (fs is not forced to 125)', Math.abs(wCrys.fs - 125) > 1, 'got ' + wCrys.fs);
       // The compute → rich-export wiring: quality.timebase is emitted for a finger crystal export and
       // OMITTED for a Verity (conditional spread), so every committed Verity golden stays byte-identical.
@@ -34147,12 +34172,13 @@
       T.ok('CONTROL · the export is still LIGHT — no rich hrv block travelled with the axis', !lightTwo.hrv, 'light.hrv=' + JSON.stringify(lightTwo.hrv));
     });
 
-    group('PpgDex O2Ring finger export ≡ its committed golden — the device-crystal DEFAULT (Stage 3b)', 'ppgdex-dsp · equiv · device-crystal', function (T) {
-      /* The dynamic (GATE-C) leg for the crystal DEFAULT-flip: compute({text}) on the committed finger
-         twin — WITHOUT any timebase opt — must reproduce the golden, which was recorded on the crystal.
+    group('PpgDex O2Ring finger export ≡ its committed golden — the host-disciplined DEFAULT', 'ppgdex-dsp · equiv · device-crystal', function (T) {
+      /* The dynamic (GATE-C) leg for the finger DEFAULT: compute({text}) on the committed finger twin
+         — WITHOUT any timebase opt — must reproduce the golden, which is recorded on whatever the
+         default is. It was the crystal from Stage 3b until 2026-11-02 and is the host axis now
+         (`RING-TIMEBASE-ECG-TEST-2026-10-29-BRIEF.md` §4, 93 nights against the H10 ECG).
          GATE B already content-addresses it statically; this reds if a code change MOVES the finger output.
-         Every other PpgDex golden is a Verity, so before this the shipped crystal default had no committed
-         leg (O2RING-ADAPTIVE-TIMEBASE Stage 3b). */
+         Every other PpgDex golden is a Verity, so this is the only committed leg the finger default has. */
       var eq = env.equiv && env.equiv.ppgdex_finger;
       var P = env.PpgDex;
       if (!(eq && eq.input && eq.fixture && P && typeof P.compute === 'function')) {
@@ -34195,8 +34221,11 @@
         return P.compute({ text: eq.input }, { rich: true }); // rich, but NO timebase opt ⇒ the DEFAULT path
       });
       T.eq('compute({rich:true}) on the finger twin reproduces the committed golden (volatile keys aside)', JSON.stringify(strip(out)), JSON.stringify(strip(eq.fixture)));
-      // ANTI-VACUITY: the golden must actually record the crystal default, not an empty export.
-      T.eq('the golden was recorded on the device-crystal DEFAULT', eq.fixture.quality && eq.fixture.quality.timebase, 'device-crystal');
+      // ANTI-VACUITY: the golden must actually record the default, not an empty export — and the
+      // twin carries no `# timebase=` embed, so `timebaseSource` must say the DEFAULT chose it. A
+      // golden that recorded an embedded or caller-chosen axis would not be testing the default.
+      T.eq('the golden was recorded on the host-disciplined DEFAULT', eq.fixture.quality && eq.fixture.quality.timebase, 'host-disciplined');
+      T.eq('…and the twin carries no embed, so the DEFAULT is what chose it', eq.fixture.quality && eq.fixture.quality.timebaseSource, 'default');
       T.eq('…and the recompute agrees it is a finger recording', out.recording && out.recording.site, 'finger');
     });
 
@@ -36719,14 +36748,17 @@
       // ── layout ─────────────────────────────────────────────────────────────────────────────────
       T.eq('a ONE-optical-column file parses (Verity path needs 6 columns)', rec.ch.length, 1);
       T.eq('site is tagged from the LAYOUT, not guessed', rec.site, 'finger');
-      // Stage 3b: a finger recording now DEFAULTS to the device-crystal timebase, so its fs is the 125.000
-      // ADC rate (not the ~125.7 host ROW rate the old default rode). The host axis is still reachable.
-      T.eq('a finger recording DEFAULTS to the device-crystal timebase', rec.timebase, 'device-crystal');
-      T.ok('…so its default fs is the 125.000 ADC rate', Math.abs(rec.fs - 125) < 1e-9, 'fs=' + rec.fs);
+      /* A finger recording DEFAULTS to the host-disciplined timebase again since 2026-11-02, so its fs
+         is the ~125.7 host ROW rate rather than the 125.000 ADC constant the crystal default rode
+         (`RING-TIMEBASE-ECG-TEST-2026-10-29-BRIEF.md` §4: the crystal reads 0.24 bpm high over 22
+         box-QC-PASS nights, worse on 18 and better on none). The crystal is still reachable. */
+      T.eq('a finger recording DEFAULTS to the host-disciplined timebase', rec.timebase, 'host-disciplined');
+      T.eq('∅ …and names the DEFAULT as what chose it, the twin carrying no embed', rec.timebaseSource, 'default');
+      T.ok('…so its default fs is the host ROW rate, not the ADC constant', rec.fs > 125.2, 'fs=' + rec.fs);
       T.ok(
-        'the host-disciplined row rate (~125.7) is still reachable as an opt-out',
-        D.parsePPG(eq.input, { timebase: 'host-disciplined' }).fs > 125.2,
-        'host fs=' + D.parsePPG(eq.input, { timebase: 'host-disciplined' }).fs
+        'the 125.000 ADC rate is still reachable as the crystal opt-in',
+        Math.abs(D.parsePPG(eq.input, { timebase: 'device-crystal' }).fs - 125) < 1e-9,
+        'crystal fs=' + D.parsePPG(eq.input, { timebase: 'device-crystal' }).fs
       );
       // BOTH directions: the wrist twin must NOT acquire a finger tag or a gap mask.
       if (env.equiv && env.equiv.ppgdex_synth && env.equiv.ppgdex_synth.input) {
