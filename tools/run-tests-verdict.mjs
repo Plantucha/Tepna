@@ -29,7 +29,7 @@ import { aggregateChildren, makeVerdict } from './verdict-emit.mjs';
 import { isCliEntry } from './argv-guard.mjs';
 
 const CRITERION = {
-  name: 'children_failing (a group with a failing assertion ⇒ FAIL; an undeclared skip ⇒ FAIL by the skip budget; a group of declared skips only is NOT_APPLICABLE; a filtered run (--group=, --shard=) is never the gate; a dead shard is an undeclared NOT_RUN ⇒ UNKNOWN)',
+  name: 'children_failing (a group with a failing assertion ⇒ FAIL; an undeclared skip ⇒ FAIL by the skip budget; a group of declared skips only is NOT_APPLICABLE; a filtered run (--group=, --group-index=, --shard=) is never the gate; a dead shard is an undeclared NOT_RUN ⇒ UNKNOWN)',
   threshold: 0,
   unit: 'failing children',
   direction: 'eq'
@@ -46,14 +46,21 @@ export function groupChild(g) {
 }
 
 /* The object for ONE process — a full serial run, a --group= run, or one shard's run. */
-export function suiteVerdict({ groups, totalGroups, groupFilter = null, shard = null, skipViolations = [] }, { commit, commitReason, at } = {}) {
+export function suiteVerdict({ groups, totalGroups, groupFilter = null, groupIndices = null, shard = null, skipViolations = [] }, { commit, commitReason, at } = {}) {
   const children = groups.map(groupChild);
   const total = Number.isInteger(totalGroups) ? totalGroups : groups.length;
-  const excludedBy = groupFilter ? `--group=${groupFilter}` : shard ? `--shard=${shard}` : null;
+  /* `--group-index=` IS A DECLARED EXCLUSION TOO (residue
+     2026-11-02-the-failing-group-rerun-line-cannot-rerun-a-third-of-the-groups). It was neither a
+     filter nor a shard here, so an index-selected run reported `checked: 1` against `eligible: 867`
+     with `excluded: 0` — `validate` rejects that equality and the runner THREW instead of reporting.
+     Measured: `--group-index=705` exited 1 with "population must satisfy checked + excluded =
+     eligible". The failure footer now prints that flag, so the address has to answer. */
+  const idx = groupIndices && groupIndices.length ? [...groupIndices] : null;
+  const excludedBy = groupFilter ? `--group=${groupFilter}` : idx ? `--group-index=${idx.join(',')}` : shard ? `--shard=${shard}` : null;
   const agg = aggregateChildren(children, { eligible: total, declaredExcluded: excludedBy ? Math.max(0, total - groups.length) : 0, excludedBy });
   let { status, reason, result } = agg;
   const assertions = children.reduce((a, c) => ({ pass: a.pass + c.n.pass, fail: a.fail + c.n.fail, skip: a.skip + c.n.skip }), { pass: 0, fail: 0, skip: 0 });
-  if (result) result = { ...result, assertions, skipViolations: skipViolations.length, shard, groupFilter, children: result.children.map((c, i) => ({ ...c, n: children[i].n })) };
+  if (result) result = { ...result, assertions, skipViolations: skipViolations.length, shard, groupFilter, groupIndices: idx, children: result.children.map((c, i) => ({ ...c, n: children[i].n })) };
   /* THE SKIP BUDGET — the runner's own pre-stated criterion. */
   if (skipViolations.length && status !== 'FAIL') {
     status = 'FAIL';
@@ -186,6 +193,15 @@ function selftest() {
   eq(/NOT the gate/.test(filt.result.consumerRule || ''), true, '§3d plant · …carries the consumer rule');
   const sh = suiteVerdict({ groups: [G('a', 1), G('b', 1)], totalGroups: 8, shard: '2/4' }, AT);
   eq(sh.result.filtered === true && sh.result.excludedBy === '--shard=2/4' && sh.population.excluded === 6, true, '§3d plant · a shard is a declared exclusion too');
+  const gi = suiteVerdict({ groups: [G('a', 2)], totalGroups: 867, groupIndices: [705] }, AT);
+  eq(JSON.stringify(gi.population), JSON.stringify({ checked: 1, eligible: 867, excluded: 866 }), '§3d plant · --group-index= is a declared exclusion, so the equality holds');
+  eq(gi.result.filtered === true && gi.result.excludedBy === '--group-index=705', true, '§3d plant · …filtered:true, excludedBy --group-index=');
+  eq(JSON.stringify(gi.result.groupIndices), JSON.stringify([705]), '§3d plant · …and the result names the indices it ran');
+  eq(
+    suiteVerdict({ groups: [G('a', 2)], totalGroups: 1, groupIndices: [] }, AT).result.filtered,
+    false,
+    '§3d control · an EMPTY index set is no selection (dexShardSelector runs everything), so it is not an exclusion'
+  );
   const sv = suiteVerdict({ groups: [G('a', 3)], totalGroups: 1, skipViolations: [{ group: 'a', test: 'x' }] }, AT);
   eq(sv.status === 'FAIL' && /UNDECLARED skip/.test(sv.reason) && /\[a\] x/.test(sv.reason), true, '§3d plant · an undeclared skip ⇒ FAIL by the skip budget, named');
   const unk = suiteVerdict({ groups: [G('a', 3), G('empty')], totalGroups: 2 }, AT);
