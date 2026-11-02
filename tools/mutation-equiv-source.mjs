@@ -38,14 +38,14 @@ import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
-import { functionSpan, lineShape, parseAssignment, recordedLineState, splitKey } from './mutation-key-core.mjs';
+import { draftableShape, functionSpan, lineShape, parseAssignment, recordedLineState, splitKey } from './mutation-key-core.mjs';
 import { escapeRe } from './regex-escape-core.mjs';
 import { makeVerdict } from './verdict-emit.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
 /** The closed set of answers. A class outside it is a bug, not a new case. */
-export const CLASSES = ['truthiness-equivalent', 'write-only', 'observable', 'not-an-initialiser', 'undecided', 'unresolved'];
+export const CLASSES = ['truthiness-equivalent', 'write-only', 'observable', 'expression-initialiser', 'publishes-own-field', 'not-an-initialiser', 'undecided', 'unresolved'];
 
 /** The two classes that are PROOFS of equivalence — the only ones a closure may rest on. */
 export const PROVEN_EQUIVALENT = ['truthiness-equivalent', 'write-only'];
@@ -144,8 +144,17 @@ function maskOutsideBraces(body) {
 /* ── 2 · THE MUTATED LINE'S SHAPE ────────────────────────────────────────────────────────────────
    Only a simple assignment of a literal to ONE bare name is in scope. A call-argument mutant
    (`daemon_starts(prev, data, offset_sec=None)`) and an operator mutant (`<` → `<=`) are real
-   survivors whose question is the callee's contract or a boundary, not this name's reads — they get
-   `not-an-initialiser` with the shape named, never silence.
+   survivors whose question is the callee's contract or a boundary, not this name's reads.
+
+   🔴 THREE ANSWERS, NOT ONE. Row `2026-11-02-not-an-initialiser-counts-two-populations-with-opposite-remedies`:
+   `not-an-initialiser` used to carry every one of them, and the remedies are opposite.
+   · `expression-initialiser` — the name IS there and a fixture reads it; only this reader's TRUTH
+     model cannot decide the expression. Measured 14 of the 26 open python survivors. A draft is owed.
+   · `publishes-own-field` — no name, but the line publishes its own dict key, which a fixture reads.
+   · `not-an-initialiser` — no name and no field. Nothing a fixture reads carries the mutated value,
+     so this one is the refusal, and the shape is always named rather than silent.
+   The partition is `draftableShape`'s, in `mutation-key-core.mjs`, so the census and the drafting
+   program cannot come to disagree about one line.
 
    `parseAssignment` and `lineShape` moved to `mutation-key-core.mjs`, because the drafting program
    asks the same question of the same line and a second copy is how two readers come to disagree. They
@@ -273,11 +282,19 @@ export function classifyEntry(src, entry) {
   const ownKeys = [...String(halves.before).matchAll(/["']([A-Za-z_][A-Za-z0-9_]*)["']\s*:/g)].map((k) => k[1]);
 
   if (!before || !after || before.name !== after.name) {
+    /* A LINE THAT PUBLISHES ITS OWN DICT KEY HAS SOMETHING A FIXTURE READS, and a condition has
+       nothing. Those two wanted opposite remedies under one class name. `draftableShape` already
+       decides it, and asking it here is what keeps the two readers from forking. */
+    const draft = draftableShape(halves.before, halves.after);
+    const field = draft.shape === 'dict-entry' ? draft.observe : null;
     return {
-      class: 'not-an-initialiser',
+      class: field ? 'publishes-own-field' : 'not-an-initialiser',
       shape,
+      observe: field,
       publishedFields: ownKeys.map((f) => ({ field: f, line: (state.at || [])[0] ?? null, name: null })),
-      reason: `the mutated line is a ${shape}, not an assignment to one name, so what decides it is that expression's own contract rather than a name's reads${ownKeys.length ? `; the line publishes field(s) ${[...new Set(ownKeys)].join(', ')}` : ''}`
+      reason: field
+        ? `the mutated line assigns no name, but it publishes field \`${field}\`, so a fixture reads the mutated value out of that field`
+        : `the mutated line is a ${shape}, not an assignment to one name, so what decides it is that expression's own contract rather than a name's reads${ownKeys.length ? `; the line publishes field(s) ${[...new Set(ownKeys)].join(', ')}` : ''}`
     };
   }
 
@@ -305,9 +322,10 @@ export function classifyEntry(src, entry) {
   if (oldTruth === null && newTruth === null) {
     return {
       ...base,
-      class: 'not-an-initialiser',
+      class: 'expression-initialiser',
       shape: `${shape} on the right-hand side of \`${name}\``,
-      reason: `the mutation changes the expression \`${before.value}\` to \`${after.value}\`, so what decides it is that expression's own contract rather than \`${name}\`'s reads${hint}`
+      observe: name,
+      reason: `the mutation changes the expression \`${before.value}\` to \`${after.value}\`, so no literal truth decides it — but \`${name}\` is what a fixture reads, once an input makes the two expressions differ${hint}`
     };
   }
   /* A DISTINGUISHING READ IS ENOUGH ON ITS OWN, whatever the two values' truth — it is a CANDIDATE
@@ -445,6 +463,9 @@ const FIX = [
   '        rows = []',
   '    msg = f"{flag} seen" if flag else tag',
   '    out = {"span_sec": round(span) if span else None, "label": label, "msg": msg}',
+  '    bag = {',
+  '        "session_end": g(rows, 1),',
+  '    }',
   '    return out',
   '',
   '',
@@ -502,8 +523,12 @@ export function selftest() {
   eq(blankTargets('    if label == "x":', 'label'), '    if label == "x":', 'CONTROL: a comparison is not an assignment');
 
   // ── the shapes that are not initialiser mutations ──
-  eq(cls('extra = f(rows, 1)', 'extra = f(rows, None)'), 'not-an-initialiser', 'a call-argument mutant');
-  eq(cls('if span < 60:', 'if span <= 60:'), 'not-an-initialiser', 'a comparison-operator mutant');
+  eq(cls('extra = f(rows, 1)', 'extra = f(rows, None)'), 'expression-initialiser', 'a call-argument mutant assigns a NAME a fixture can read');
+  eq(classifyEntry(FIX, E('extra = f(rows, 1)', 'extra = f(rows, None)')).observe, 'extra', 'and the census names what to observe');
+  eq(cls('        "session_end": g(rows, 1),', '        "session_end": g(rows, None),'), 'publishes-own-field', 'a dict entry publishes the field a fixture reads');
+  eq(classifyEntry(FIX, E('        "session_end": g(rows, 1),', '        "session_end": g(rows, None),')).observe, 'session_end', 'and it names that field');
+  eq(cls('if span < 60:', 'if span <= 60:'), 'not-an-initialiser', 'CONTROL: a comparison assigns no name and publishes no field, so the refusal is the only honest answer');
+  eq(classifyEntry(FIX, E('if span < 60:', 'if span <= 60:')).observe, null, 'and the refusal names nothing to observe');
   eq(cls('unused = None', 'unused = f()'), 'undecided', 'CONTROL: an UNREAD name assigned an expression is not write-only — evaluating it can raise or write');
   const callv = classifyEntry(FIX, E('extra = f(rows, 1)', 'extra = f(rows, None)'));
   eq(callv.shape.includes('call'), true, 'and the shape is named');
@@ -556,7 +581,8 @@ export function selftest() {
   eq(censusVerdictObject([]).status, 'NOT_APPLICABLE', 'no entry in scope is examined-nothing, not a green');
   eq(censusVerdictObject([]).result, null, 'and NOT_APPLICABLE carries no result');
   eq(vPass.criterion.threshold, 0, 'the criterion is pre-stated');
-  eq(CLASSES.length, 6, 'the class set is closed');
+  eq(CLASSES.length, 8, 'the class set is closed');
+  for (const c of ['expression-initialiser', 'publishes-own-field']) ok(!PROVEN_EQUIVALENT.includes(c), `CONTROL: ${c} is a draftable shape, never a proof of equivalence`);
   eq(JSON.stringify(PROVEN_EQUIVALENT), '["truthiness-equivalent","write-only"]', 'only the two proofs may close an entry');
   for (const c of PROVEN_EQUIVALENT) ok(CLASSES.includes(c), `${c} is one of the classes`);
 
