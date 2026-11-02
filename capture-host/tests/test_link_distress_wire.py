@@ -143,7 +143,7 @@ def test_a_FAILING_scan_does_not_cost_the_watchdog_its_poll(monkeypatch, caplog)
     still probes BlueZ (the watchdog is alive and polling), with the failure logged each time rather
     than swallowed. Until 2026-09-25 this test ran one tick and asserted nothing, so a watchdog that
     died on the first explosion passed it."""
-    from test_capture_runners import _dev, _run, _stop_after
+    from test_capture_runners import _dev, _pin_present, _run, _stop_after
 
     probes = []
 
@@ -159,6 +159,7 @@ def test_a_FAILING_scan_does_not_cost_the_watchdog_its_poll(monkeypatch, caplog)
 
     monkeypatch.setattr(capture.bonding, "_btctl", fake_btctl)
     monkeypatch.setattr(capture, "link_distress_scan", boom)
+    _pin_present(monkeypatch)  # the scan is what explodes here; an absent pin would move the radio
     capture._STOP.clear()
     _stop_after(monkeypatch, 2)
     cfg = {"watchdog": {"enabled": True, "interval_sec": 60}, "devices": [_dev(name="H10")]}
