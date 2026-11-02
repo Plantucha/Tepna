@@ -697,8 +697,9 @@ def test_the_watchdog_power_cycles_the_adapter_by_its_BLUEZ_address(monkeypatch)
     assert all(s.startswith("select DA:44:2D:51:0F:54\n") for s in power), power
     assert not any("99:67:24:2E:CD:98" in s for s in scripts), "the kernel address must never reach bluetoothctl"
     src = inspect.getsource(capture.adapter_watchdog)
-    assert src.count("await bonding.select_line(adapter_mac)") == 3, (
-        "before the loop + both failover repoints — a hand-built select f-string is the defect returning"
+    assert src.count("await bonding.select_line(adapter_mac)") == 4, (
+        "before the loop + both distress repoints + the absent-pin repoint — a hand-built select "
+        "f-string is the defect returning"
     )
     assert 'f"select {adapter_mac}' not in src
 
