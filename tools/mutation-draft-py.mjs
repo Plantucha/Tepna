@@ -56,7 +56,7 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { diffPaths } from './mutation-suite.mjs';
 import { checkArgv, isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
-import { functionSpan, locate, splitKey, whyAbsent } from './mutation-key-core.mjs';
+import { draftableShape, functionSpan, locate, publishedFieldOnLine, splitKey, whyAbsent } from './mutation-key-core.mjs';
 import { classify } from './js-lex.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -1115,12 +1115,35 @@ function verdict(o) {
     criterion: { name: 'drafts_written_without_a_machine_check', threshold: 0, unit: 'drafts', direction: 'lte' },
     /* NOT_RUN examined nothing, so it measures nothing: the contract wants `result: null` there,
        not a row of zeros that reads like a measurement. */
-    result: o.status === 'NOT_RUN' ? null : { kept: o.kept, rejected: o.rejected, gone: o.gone, alreadyDrafted: o.dup ?? 0, unverified: 0 },
+    /* `refusedByShape` and `shapes` state the COVERAGE of the model: a run that drafted nothing
+       because every key was the wrong shape is not the same reading as one whose fixtures failed. */
+    result:
+      o.status === 'NOT_RUN'
+        ? null
+        : {
+            kept: o.kept,
+            rejected: o.rejected,
+            gone: o.gone,
+            alreadyDrafted: o.dup ?? 0,
+            refusedByShape: o.shapeRefused ?? 0,
+            shapes: o.byShape ?? {},
+            unverified: 0
+          },
     evidence: o.evidence,
     reason: o.reason ?? null,
     producedBy: { tool: 'tools/mutation-draft-py.mjs', commit: o.commit, ...(o.commit ? {} : { commitReason: 'not a git checkout' }) },
     at: new Date().toISOString().replace(/\.\d+Z$/, 'Z')
   };
+}
+
+/** The status a run earns from its COVERAGE alone, before any fixture is judged.
+ *
+ * 🔴 Examining nothing is never a pass. `NOT_RUN` means the baseline named no key; `SHORTFALL` means
+ * the keys were there and this program's model served none of them; `PASS` means at least one key
+ * reached a fixture, which is what the pre-stated criterion then judges. */
+export function coverageStatus(picked, examined) {
+  if (picked === 0) return 'NOT_RUN';
+  return examined === 0 ? 'SHORTFALL' : 'PASS';
 }
 
 /* A REFUSAL IS A READING TOO. A caller that polls this tool must tell "it never looked" from "it
@@ -1224,6 +1247,8 @@ async function main() {
   let rejected = 0;
   let gone = 0;
   let dup = 0;
+  let shapeRefused = 0;
+  const byShape = {};
   for (const row of pick) {
     const parts = splitKey(row.key);
     const tag = row.mutant.replace(/^.*__mutmut_/, '#') + '  ' + String(parts ? parts.before : row.key).slice(0, 58);
@@ -1256,6 +1281,24 @@ async function main() {
       gone++;
       continue;
     }
+
+    /* 🔴 THE SHAPE DECIDES WHETHER THIS PROGRAM'S MODEL APPLIES AT ALL, and until now nothing asked.
+       The prompt describes a value a published field carries, so a key that assigns no name and
+       publishes no field gets a fixture that discriminates nothing — and the rejection then reads as
+       a model failure rather than as the wrong population. A refusal that NAMES the shape is the
+       honest output (§∅). Measured over the 26 open keys: 23 initialiser, 1 dict-entry, 2 refused
+       (a condition and a boolean sub-expression). `draftableShape` carries the partition. */
+    const sh = draftableShape(parts.before, parts.after);
+    if (!sh.draftable) {
+      jrec({ mutant: row.mutant, v: 'REFUSED-BY-SHAPE', shape: sh.shape, why: sh.reason });
+      log('  ⊘ ' + tag);
+      log('      ' + sh.reason);
+      log('      so no fixture is drafted: one written anyway could not fail, and that is a green over something never examined');
+      byShape[sh.shape] = (byShape[sh.shape] || 0) + 1;
+      shapeRefused++;
+      continue;
+    }
+
     const mutDirs = occ.map((idx, n) => {
       const d = join(dir, 'm' + row.mutant.replace(/[^\w]+/g, '_') + '_' + n);
       mkdirSync(d, { recursive: true });
@@ -1389,20 +1432,44 @@ async function main() {
     log('  NEXT: `python3 -m pytest -q tests/test_nightqc_mutation_drafts.py` in capture-host, then the full check.sh.');
   } else log('\n  no draft survived the machine check — nothing was written');
 
+  /* `checked` is what the harness actually RAN: a gone line, a mutant that already has a draft and a
+     shape this model does not serve were all excluded before any fixture ran, so §🧾's
+     checked + excluded = eligible holds. */
+  const examined = pick.length - gone - dup - shapeRefused;
+  const shapeList = Object.entries(byShape)
+    .sort()
+    .map(([s, c]) => s + ' × ' + c)
+    .join(', ');
+  /* 🔴 A MODEL AIMED AT A POPULATION THAT DOES NOT EXIST MUST NOT READ AS A PASS. Examining nothing
+     because every key was the wrong shape is a SHORTFALL: the harness looked, and its model covered
+     none of what it found. `PASS` over `checked: 0` is invalid under the contract anyway. */
+  const status = coverageStatus(pick.length, examined);
   const v = verdict({
-    status: pick.length === 0 ? 'NOT_RUN' : 'PASS',
-    /* `checked` is what the harness actually RAN: a gone line and a mutant that already has a draft
-       were both excluded before any fixture ran, so §🧾's checked + excluded = eligible holds. */
-    checked: pick.length - gone - dup,
+    status,
+    checked: examined,
     eligible: pick.length,
     kept: kept.length,
     rejected,
     gone,
     dup,
+    shapeRefused,
+    byShape,
     evidence: ['mutation-survivors.json', 'tools/mutation-draft-py.mjs', journal.replace(ROOT + '/', '')],
-    reason: pick.length === 0 ? 'the baseline named no survivor to work' : null,
+    reason:
+      pick.length === 0
+        ? 'the baseline named no survivor to work'
+        : status === 'SHORTFALL'
+          ? 'no key reached a fixture: ' +
+            shapeRefused +
+            ' of ' +
+            pick.length +
+            " are shapes this program's initialiser model does not serve" +
+            (shapeList ? ' (' + shapeList + ')' : '') +
+            (gone + dup ? ', and ' + (gone + dup) + ' were excluded before the shape read' : '')
+          : null,
     commit: headCommit()
   });
+  if (shapeRefused) log('  ' + shapeRefused + ' key(s) refused by shape: ' + shapeList);
   log('\nVERDICT (tepna.verdict/1): ' + JSON.stringify(v));
 }
 
@@ -1448,6 +1515,38 @@ function selftest() {
   eq(decide({ ok: true, result: { a: 1 } }, [{ ok: false, why: 'x' }]).keep, false, 'decide refuses when a mutant run failed');
   eq(decide({ ok: true, result: { a: 1 } }, [{ ok: true, result: { a: 1 } }]).keep, false, 'decide refuses a fixture that discriminates nothing');
   eq(decide({ ok: true, result: { a: 1 } }, [{ ok: true, result: { a: 2 } }]), { keep: true, paths: ['.a'], stats: { mutants: 1, discriminated: 1 } }, 'decide keeps a discriminating fixture');
+  /* THE SHAPE READER, AND ITS CONTROLS. A refusal leg that cannot be distinguished from "refuses
+     everything" proves nothing, so the shapes a fixture CAN observe must still read draftable.
+     Measured over the 26 open keys: initialiser 23, dict-entry 1, refused 2. */
+  eq(
+    draftableShape('    _span_reason = None', '    _span_reason = ""'),
+    { draftable: true, shape: 'initialiser', observe: '_span_reason', reason: null },
+    'draftableShape drafts a plain initialiser and names what to read (CONTROL)'
+  );
+  eq(
+    draftableShape('    _d = starts(night, scanned, off=1)', '    _d = starts(night, None, off=1)').draftable,
+    true,
+    'draftableShape drafts an initialiser whose mutated value sits inside a call (CONTROL)'
+  );
+  eq(
+    draftableShape('    "session_end": (round(_cur) if span else None),', '    "session_end": (round(_cur) if span else 1),'),
+    { draftable: true, shape: 'dict-entry', observe: 'session_end', reason: null },
+    'draftableShape drafts a line that publishes its own field (CONTROL)'
+  );
+  eq(draftableShape('    starts(night, scanned, off=1)', '    starts(night, None, off=1)').draftable, false, 'draftableShape refuses a bare call statement');
+  eq(
+    draftableShape('    starts(night, scanned, off=1)', '    starts(night, None, off=1)').reason,
+    'the mutated line is a call: it assigns no name and publishes no field, so nothing a fixture reads carries the mutated value',
+    'and the refusal names the shape rather than going silent'
+  );
+  eq(draftableShape('    if dev_span < _MIN:', '    if dev_span <= _MIN:').shape, 'condition', 'draftableShape names a condition');
+  eq(draftableShape('    x is not None and (a + x) - b < G', '    x is not None and (a + x) - b <= G').shape, 'boolean-expression', 'a keyword before a paren is not a call');
+  eq(draftableShape('a = 1', 'b = 1').draftable, false, 'draftableShape refuses a key whose halves assign different names');
+  eq(publishedFieldOnLine('    "session_end": 1,'), 'session_end', 'publishedFieldOnLine reads a dict key');
+  eq(publishedFieldOnLine('    x = {"a": 1}'), null, 'publishedFieldOnLine does not read a dict INSIDE an assignment as the published field');
+  eq(coverageStatus(0, 0), 'NOT_RUN', 'a run over no key examined nothing');
+  eq(coverageStatus(5, 0), 'SHORTFALL', 'a run whose model served none of its keys is a shortfall, never a pass');
+  eq(coverageStatus(5, 2), 'PASS', 'a run that reached a fixture earns the criterion (CONTROL)');
   /* THE CRITERION MOVED ON 2026-11-01, and this is the leg that moved with it. The two mutants are
      discriminated by DIFFERENT paths, the rendered draft asserts both, and pytest fails that one test
      when either assert fails — so both occurrences die and the old refusal was too strong. */

@@ -12210,6 +12210,68 @@
       T.ok('and the home carries importers rather than being a third unused export', importers.length >= 10, importers.length + ' importer(s)');
     });
 
+    /* THE LINE-SHAPE READER HAS ONE HOME FOR THE SAME REASON THE ESCAPER DOES. The census and the
+       drafting program both ask what SHAPE a mutated line is, and the second copy is how the two
+       readers come to disagree — which already happened once for "does the recorded line still
+       exist" (the defect `mutation-key-core.mjs` was created to end). A re-export is not a second
+       definition, so the scan looks for a DEFINITION outside the home. */
+    group('the line-shape reader has one home in the tools tree', 'tools · line-shape · source-scan', function (T) {
+      var TT = env.toolTexts;
+      var nodeLane = typeof process !== 'undefined' && process && process.env != null;
+      if (!TT) {
+        if (nodeLane) T.ok('env.toolTexts is wired in the node lane', false, 'absent — the line-shape scan examined nothing');
+        else T.skip('the line-shape single-source scan', 'no tool-source table in this lane (browser); the node lane carries it');
+        return;
+      }
+      var HOME = 'mutation-key-core.mjs';
+      var READERS = ['parseAssignment', 'lineShape', 'draftableShape', 'publishedFieldOnLine'];
+      var population = Object.keys(TT)
+        .filter(function (k) {
+          return /^tools\/[^/]+\.m?js$/.test(k);
+        })
+        .sort();
+      var defs = {};
+      READERS.forEach(function (fn) {
+        defs[fn] = population
+          .filter(function (k) {
+            return new RegExp('(^|\\n)\\s*(export\\s+)?function\\s+' + fn + '\\s*\\(').test(String(TT[k] || ''));
+          })
+          .map(function (k) {
+            return k.replace(/^.*\//, '');
+          });
+      });
+      T.ok('ANTI-VACUITY · the scan reads the whole tools tree rather than a sample', population.length > 100, population.length + ' tool source(s)');
+      T.eq(
+        'ANTI-VACUITY · and it finds every reader AT the home, so the detector can see a definition at all',
+        READERS.filter(function (fn) {
+          return defs[fn].indexOf(HOME) < 0;
+        }).join(', '),
+        ''
+      );
+      T.eq(
+        'no other tool defines one of them for itself',
+        READERS.map(function (fn) {
+          return defs[fn]
+            .filter(function (f) {
+              return f !== HOME;
+            })
+            .map(function (f) {
+              return fn + ' in ' + f;
+            })
+            .join(', ');
+        })
+          .filter(function (s) {
+            return s !== '';
+          })
+          .join('; '),
+        ''
+      );
+      var importers = population.filter(function (k) {
+        return String(TT[k] || '').indexOf("from './" + HOME + "'") >= 0;
+      });
+      T.ok('and the home carries importers rather than being an unused export', importers.length >= 3, importers.length + ' importer(s)');
+    });
+
     group('every corpus enumerator reports its population or is named here', 'tools · corpus-reads · source-scan', function (T) {
       var TT = env.toolTexts;
       var CR = env.corpusReads;
