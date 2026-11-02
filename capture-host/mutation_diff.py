@@ -1290,7 +1290,9 @@ def pinned_generator(text, dist="mutmut"):
     entry that looks measured, which is the defect the generator field was added to end."""
     want = re.escape(str(dist))
     for line in str(text or "").split("\n"):
-        bare = line.split("#", 1)[0].strip()
+        # `partition`, not `split("#", 1)`: at index 0 a maxsplit of 1, 2 or none are the SAME
+        # string, so that argument carried no meaning and generated two unkillable mutants.
+        bare = line.partition("#")[0].strip()
         m = re.match(rf"^{want}\s*==\s*([^\s;,]+)", bare, re.IGNORECASE)
         if m:
             return m.group(1)

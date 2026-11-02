@@ -4907,6 +4907,11 @@ def test_the_pin_is_read_only_from_an_exact_requirement_and_a_range_is_no_knowle
     assert M.pinned_generator("mutmut~=3.8.1") is None
     assert M.pinned_generator("mutmut") is None, "an unversioned requirement pins nothing"
     assert M.pinned_generator("# mutmut==3.8.1") is None, "a commented-out line is not a pin"
+    assert M.pinned_generator("mutmut==3.8.1  # see #4032 for the reason") == "3.8.1"
+    assert M.pinned_generator("mutmut==3.8.1#4032#note") == "3.8.1", (
+        "a comment begins at the FIRST hash, so a hash glued to the version ends the pin there — "
+        "reading to the LAST hash instead returns `3.8.1#4032` as the version"
+    )
     assert M.pinned_generator("mutmut-extras==1.0") is None, "another distribution's pin is not ours"
     assert M.pinned_generator("pytest==9.2.0") is None
     assert M.pinned_generator("") is None
