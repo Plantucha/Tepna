@@ -302,6 +302,29 @@ def test_TWO_indistinguishable_anchors_yield_a_BLANK_and_never_the_nearer_one():
     assert rc.associate(1_000_020 + 200.0, anchors, 200.0, 5.0) == (10, 1_000_000)
 
 
+def test_THE_JITTER_BOUND_IS_INCLUSIVE_so_a_tie_at_exactly_the_jitter_reads_blank():
+    """Two anchors exactly the measured jitter from the target are indistinguishable, not separated.
+
+    The bound belongs on the refusing side: `jitter` is the MAD of the offset samples, so a distance
+    equal to it is the typical disagreement between the two clocks, and a pick made at that distance
+    is a coin toss with a number printed beside it. One pair of anchors answers both ways — blank at
+    a jitter of exactly the gap, attributed once the jitter shrinks below it."""
+    anchors = [(10, 1_000_000), (11, 1_000_040)]
+    assert rc.associate(1_000_020 + 200.0, anchors, 200.0, 20.0) == (None, None)
+    assert rc.associate(1_000_020 + 200.0, anchors, 200.0, 19.0) == (10, 1_000_000)
+
+
+def test_the_anchor_arrival_is_keyed_on_THE_PAIR_because_the_counter_alone_REPEATS():
+    """The event counter is a per-connection u16 that wraps at 0xFFFF, so one series holds the same
+    counter more than once over a long link — which is why `associate` returns the pair and why the
+    arrival lookup matches on both members. A lookup keyed on the counter alone answers with the
+    first event that ever carried it, and a reader cannot see that the stamp is from hours earlier."""
+    series = [(11, 1_000_000, 111_000), (11, 1_050_000, 222_000)]
+    assert rc.anchor_rx_ns(series, 11, 1_050_000) == 222_000, "the pick's own event, not its namesake"
+    assert rc.anchor_rx_ns(series, 11, 1_000_000) == 111_000
+    assert rc.anchor_rx_ns(series, 11, 1_025_000) is None, "a pair in neither entry reaches no stamp"
+
+
 def test_no_offset_no_anchors_and_no_jitter_each_yield_a_blank():
     anchors = [(10, 1_000_000)]
     assert rc.associate(1_000_200.0, anchors, None, 5.0) == (None, None)
