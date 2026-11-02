@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**311 tools** · 310 with a purpose line · **1 without**
+**312 tools** · 311 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -143,6 +143,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`mutation-ai-probe.mjs`](../tools/mutation-ai-probe.mjs) | ask the local model for an input that separates a survivor from the real code, then CHECK whether it does by running both. |
 | [`mutation-crawl.mjs`](../tools/mutation-crawl.mjs) | MUTATION CRAWL — run the MEASUREMENT unattended, so a person only does the judgement. |
 | [`mutation-draft-py.mjs`](../tools/mutation-draft-py.mjs) | THE PYTHON LANE'S DRAFTER — a local model proposes the INPUT, and this harness decides everything else. |
+| [`mutation-equiv-source.mjs`](../tools/mutation-equiv-source.mjs) | WHY A SOURCE READER DECIDES THIS AND A RUN CANNOT Residue: 2026-11-01-drafted-fixtures-discriminate-nothing-on-a-single-mutant-key |
 | [`mutation-excused-rate.mjs`](../tools/mutation-excused-rate.mjs) | mutation-excused-rate — COUNT the exclusion the diff-scoped mutation gate makes, over the verdicts CI has already uploaded. |
 | [`mutation-key-core.mjs`](../tools/mutation-key-core.mjs) | ONE HOME for reading a mutmut key against today's source. Residue: 2026-11-01-the-absence-reader-has-two-homes-and-one-cannot-tell-edited-from-gone |
 | [`mutation-map.mjs`](../tools/mutation-map.mjs) | WHERE THE COVERAGE MAP LIVES, AND WHETHER IT STILL DESCRIBES THIS CODE. |
