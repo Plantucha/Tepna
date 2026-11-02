@@ -100,7 +100,7 @@ function quantile(a, q) {
 }
 
 /* ── the headless DSP realm (same co-load contract as tools/trio-batch.mjs) ───────────────────── */
-let ECGDSP, PPGDSP, PATAlign, DexClock;
+let ECGDSP, PPGDSP, PATAlign, DexClock, PATGate;
 function loadDsps() {
   if (ECGDSP) return;
   const sandbox = {};
@@ -121,9 +121,16 @@ function loadDsps() {
   ECGDSP = ctx.ECGDSP || (ctx.ECGDex && ctx.ECGDex._bare);
   PPGDSP = ctx.PPGDSP || (ctx.PpgDex && ctx.PpgDex._bare);
   PATAlign = ctx.PATAlign;
+  /* ∅ THE REFUSAL #4069 PORTED HERE COULD NEVER RUN: `pat-gate.js` was loaded into the realm and
+     `PATGate` was bound nowhere, so the first pinned span threw `PATGate is not defined` at every
+     one of the nine tools that import `ppgFootTimes`. Measured 2026-11-02 on a ring fragment, by
+     asking for the recompute leg: the sidecar leg never fired because no reachable night carries a
+     `_PPGRUNS.txt` companion, so the throw sat under a branch nothing entered. Bound and asserted
+     below, where a missing module is a named refusal rather than a ReferenceError mid-record. */
+  PATGate = ctx.PATGate;
   DexClock = ctx.DexClock; // the Clock Contract's parser, so a sibling never hand-rolls a stamp regex
 
-  for (const [n, v] of Object.entries({ ECGDSP, PPGDSP, PATAlign, DexClock })) if (!v) throw new Error('pat-matchrate-strict: ' + n + ' did not load into the headless realm');
+  for (const [n, v] of Object.entries({ ECGDSP, PPGDSP, PATAlign, DexClock, PATGate })) if (!v) throw new Error('pat-matchrate-strict: ' + n + ' did not load into the headless realm');
 }
 
 /* ── beat derivation: ported from pat-feasibility-worker.js ───────────────────────────────────────
@@ -193,15 +200,14 @@ function ecgRpeakTimes(text, opts) {
   };
 }
 /* ── @port-from pat-feasibility-worker.js#ppgFootTimes ─────────────────────────────
-   @port-sha aa2336fd1179
-   @port-behind 43679618f5a2 2026-11-01-the-pat-foot-ports-cannot-run-the-recompute-counterfactual
-   RE-READ 2026-11-01 at `43679618f5a2`: the only move is the `@polarity-decision` comment this unit
-   added inside the worker, so the ported logic is unchanged.
-   BEHIND SINCE 2026-11-01: the worker's `ppgFootTimes` now takes an optional
-   `opts.pinnedFromRecompute`, which builds the pinned ranges from `rec.spans` instead of waiting
-   for a `_PPGRUNS.txt` companion. This copy carries no such switch, so it cannot run that
-   counterfactual. It still matches the shipped DEFAULT, which the switch leaves untouched.
-   READ against that text on 2026-11-01, for row
+   @port-sha 43679618f5a2
+   RECONCILED 2026-11-02 against that source text, for row
+   2026-11-01-the-pat-foot-ports-cannot-run-the-recompute-counterfactual. The worker's optional
+   `opts.pinnedFromRecompute` now lives here, so this copy runs the counterfactual the switch exists
+   to run. `opts` is OPTIONAL and LAST per §🧪, and absent or false every line below runs as it did,
+   so no published number moves. The switch is reachable because this copy is EXPORTED: nine tools
+   import it, and each can now ask how far the foot set moves.
+   READ against the pre-switch text on 2026-11-01, for row
    2026-11-01-the-pat-foot-ports-stand-behind-the-shipped-definition. #4069's pinned-span refusal now
    lives here: a consensus foot every channel was pinned through was measured by nothing and is
    refused, while one pinned channel of three is reduced COVERAGE and is annotated (§∅). `runsText`
@@ -216,7 +222,7 @@ function ecgRpeakTimes(text, opts) {
    it, and the worker applies it nowhere (row
    2026-11-01-the-consensus-polarity-wiring-reached-one-of-ten-callers).
  */
-function ppgFootTimes(text, runsText) {
+function ppgFootTimes(text, runsText, opts) {
   const rec = runsText ? PPGDSP.parsePPG(text, { runsText }) : PPGDSP.parsePPG(text);
   if (rec.t0Ms == null) throw new Error('PPG file carried no phone timestamp.');
   const per = rec.ch.map((c) => PPGDSP.detectChannel(c, rec.fs));
@@ -244,9 +250,15 @@ function ppgFootTimes(text, runsText) {
      `rec.spans` is per optical channel and `parsePPG` publishes it with or without a sidecar, so the
      drop is gated on `pinnedCrossCheck`: the field that exists only where a sidecar was ingested.
      Consuming the in-JS recompute alone would move every existing PAT result, which is a claim about
-     the recompute that row 2026-10-28-pat-legs-refuse-only-the-spans-a-sidecar-confirmed still holds. */
+     the recompute that row 2026-10-28-pat-legs-refuse-only-the-spans-a-sidecar-confirmed still holds.
+     `opts.pinnedFromRecompute` is how a caller MEASURES that move instead of asserting it. The spans
+     then come from the recompute `parsePPG` publishes on every path. A record that publishes no
+     spans array ran no leg at all, so `recomputeRan` keeps "nobody looked" apart from "nothing was
+     pinned" (§∅) and the sidecar leg's own arithmetic is untouched. */
+  const fromRecompute = !!(opts && opts.pinnedFromRecompute);
+  const recomputeRan = fromRecompute && !rec.pinnedCrossCheck && Array.isArray(rec.spans);
   const chRanges = [];
-  if (rec.pinnedCrossCheck && Array.isArray(rec.spans)) {
+  if ((rec.pinnedCrossCheck || recomputeRan) && Array.isArray(rec.spans)) {
     for (const sp of rec.spans) chRanges.push(PATGate.runRanges((sp && sp.spans) || []));
   }
   const chCursors = chRanges.map((r) => PATGate.inRunsCursor(r));
@@ -338,8 +350,11 @@ function ppgFootTimes(text, runsText) {
     nHalfUnusable: nUnusable,
     cfdTimes: cfd,
     nCfdUnusable,
-    droppedAllPinned: rec.pinnedCrossCheck ? nAllPinned : null,
-    partialPinned: rec.pinnedCrossCheck ? nPartPinned : null
+    droppedAllPinned: rec.pinnedCrossCheck || recomputeRan ? nAllPinned : null,
+    partialPinned: rec.pinnedCrossCheck || recomputeRan ? nPartPinned : null,
+    /* §∅ THE SOURCE NAMES ITSELF, so a reader never reads a recompute as a sidecar: nothing
+       confirmed the recompute's spans. `null` where neither leg ran. */
+    pinnedSource: rec.pinnedCrossCheck ? '_PPGRUNS.txt' : recomputeRan ? 'recompute' : null
   };
 }
 
@@ -654,7 +669,7 @@ export { legacyMatchRate, strictMatchRate, circShift, rawLags, STRICT_W_MS, PHYS
    exactly as it absorbs delta. A null under one fiducial is not a null under the other. */
 function getDsps() {
   loadDsps();
-  return { ECGDSP, PPGDSP, PATAlign, DexClock };
+  return { ECGDSP, PPGDSP, PATAlign, DexClock, PATGate };
 }
 export { loadDsps, getDsps, ecgRpeakTimes, ecgCounterTimeMs, ppgFootTimes, median, quantile, BIN_MIN };
 /* Night selection and clock alignment, so the fiducial comparison runs on exactly the pair and the
