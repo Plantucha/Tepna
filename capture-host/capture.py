@@ -9497,28 +9497,28 @@ async def storage_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None
         await asyncio.sleep(interval)
 
 
-def _read_quiet_state(path):
-    """The saved quiet state (`alerts.quiet_state_to_save`), or None. Never raises: a lost file costs one
-    false alarm, and capture must go on."""
+def _read_quiet_state(path, what="the quiet state"):
+    """A saved alert state (`alerts.quiet_state_to_save`, `alerts.qc_latch_to_save`), or None. Never
+    raises: a lost file costs one repeated alert, and capture must go on."""
     try:
         with open(path, encoding="utf-8") as fh:
             return json.load(fh)
     except FileNotFoundError:
         return None  # the first start, or a box that has not pulled yet
     except (OSError, ValueError):
-        log.warning("alert: %s is unreadable; the quiet state starts empty", path, exc_info=True)
+        log.warning("alert: %s is unreadable; %s starts empty", path, what, exc_info=True)
         return None
 
 
-def _write_quiet_state(path, state):
-    """Atomic write of the quiet state. A failure is logged and capture goes on."""
+def _write_quiet_state(path, state, what="the quiet state"):
+    """Atomic write of an alert state. A failure is logged and capture goes on."""
     try:
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path + ".tmp", "w", encoding="utf-8") as fh:
             json.dump(state, fh, indent=1, sort_keys=True)
         os.replace(path + ".tmp", path)
     except OSError:
-        log.warning("alert: could not save %s; a restart will forget the quiet state", path, exc_info=True)
+        log.warning("alert: could not save %s; a restart will forget %s", path, what, exc_info=True)
 
 
 async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
@@ -10091,7 +10091,6 @@ async def qc_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = N
     # is measured, not theoretical: the same commit ran green locally before 09:00 EDT and red in CI
     # at ≥09:00 UTC. A default whose test outcome depends on the wall clock is a flake generator.
     digest_hour = int(qcfg.get("digest_hour", -1))
-    digest_sent_date = None
     # Its own hour and its own once-a-day key, so enabling the digest does not silently also
     # decide when baselines rebuild — and disabling the digest does not disable them.
     baseline_hour = int(qcfg.get("baseline_hour", 11))
@@ -10105,9 +10104,13 @@ async def qc_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = N
     settle = float((cfg.get("storage") or {}).get("settle_sec", _NIGHT_SETTLE_S))
     captures = os.path.join(root, "captures")
     first_seen: dict[str, float] = {}  # night → monotonic ts we first saw it with data
-    alerted: set[str] = set()  # nights already alerted (edge-trigger, one per night)
     frozen_alerted: set[str] = set()  # night:device — one warning per frozen sensor per night
     canary_alerted: set[str] = set()  # night:message — one warning per dead sidecar per night
+    # The digest day and the gap-alerted nights come back from disk, so a restart sends neither again
+    # (`alerts.QC_LATCH_NAME` holds the measurement).
+    latch_path = os.path.join(captures, alerts.QC_LATCH_NAME)
+    digest_sent_date, alerted = alerts.qc_latch_restored(_read_quiet_state(latch_path, "the qc latch"))
+    latch_saved = alerts.qc_latch_to_save(digest_sent_date, alerted)
     while not _STOP.is_set():
         await asyncio.sleep(interval)
         try:
@@ -10308,6 +10311,10 @@ async def qc_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = N
                         "Tepna: night has a gap",
                         f"{n}: no data on {', '.join(summ['missing'])} {int(waited / 3600)}h into the night.",
                     )
+            latch_now = alerts.qc_latch_to_save(digest_sent_date, alerted)
+            if latch_now != latch_saved:
+                _write_quiet_state(latch_path, latch_now, "the qc latch")
+                latch_saved = latch_now
         except Exception as e:  # QC is observability — never take capture down
             # exc_info, NOT just %r. This handler logged `AttributeError("'str' object has no attribute
             # 'get'")` on main under `-n 4` — reddening #3024, #3027 and 320d7a6e — and the repr alone
