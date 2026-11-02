@@ -852,7 +852,23 @@ def test_the_DEFAULT_flush_interval_is_the_one_a_caller_that_passes_nothing_gets
 
     acls = tuple((1_051_300_000 + i,) for i in range(64))
     rc.run(_stream(acls=acls), _collector(), lambda a: _Counting(str(tmp_path / rc.sidecar_name("s", a))))
-    assert flushes[0] == 64, "the 64th row, and a cadence one off fires on neither of the rows here"
+    assert flushes == [64, 64], (
+        "the 64th row flushed, and `close` flushed the same 64 again. ONE entry means the close did "
+        "it alone, which happens under EVERY interval — so `flushes[0] == 64` asserts nothing"
+    )
+
+
+def test_the_writer_trims_COLUMNS_and_never_CHARACTERS_inside_the_last_one(tmp_path):
+    """`write` strips the row's own line terminator, so a trimmed row cannot carry a newline into the
+    middle of a line. It strips THAT and nothing else: stripping all trailing whitespace would edit
+    the last cell's content, and a sidecar row is the bytes its formatter wrote."""
+    path = str(tmp_path / rc.sidecar_name("s", "AA:BB"))
+    w = rc.SidecarWriter(path)
+    w.write(";".join(["x"] * (len(rc.SIDECAR_COLUMNS) - 1) + ["trailing "]) + "\n")
+    w.close()
+    with open(path, encoding="utf-8") as fh:
+        last = fh.read().splitlines()[-1]
+    assert last.endswith(";trailing "), last
 
 
 def test_the_missed_anchor_count_reaches_the_caller_as_TELEMETRY(tmp_path):
