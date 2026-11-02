@@ -67,8 +67,8 @@ Notes on the criteria:
 - [x] The owner approved the timer and the nine checks (2026-11-01).
 - [x] A dry run on the 2026-10-31 night emits nine verdict objects and a report (§4.1).
 - [x] The report carries no serial, no address and no device file name.
-- [ ] The timer runs on 2026-11-02 at 07:30 and reads the 2026-11-01 night (§4.2).
-- [ ] Wren posts the result to Kestrel on the board.
+- [x] The timer runs on 2026-11-02 at 07:30 and reads the 2026-11-01 night (§4.2).
+- [x] Wren posts the result to Kestrel on the board.
 
 ## 4 · Results
 
@@ -104,9 +104,39 @@ Findings from the dry run and the same day:
 Wren proposes residue rows for findings 1 and 2. Kestrel sequences them. The watchdog script is a box
 file, so a change to it is the owner's call.
 
-### 4.2 · The 2026-11-01 night
+### 4.2 · The 2026-11-01 night (timer run 2026-11-02 07:30:03)
 
-Owed: the timer runs at 07:30 on 2026-11-02.
+The timer ran on time and emitted nine verdict objects and a report. The window is 11-01 18:00 to
+11-02 07:30.
+
+| # | status | measurement |
+|---|---|---|
+| 1 | PASS | Sense 30458 rows, 19:55 → 04:09 · H10 95768 rows, 22:15 → 04:11 · ring 193976 rows, 22:19 → 07:29 |
+| 2 | FAIL | Sense 156.929 ms over 30257 frame changes (no use) · H10 19.133 ms over 95767 (jitter aid) · the ring has no sensor clock |
+| 3 | PASS | 7 daemon starts, 0 `sensor offline` alerts in the window |
+| 4 | PASS | 12 pulls, 15 idle-off lines, 1 inside a pull, no night-ended alert after it |
+| 5 | PASS | 5 of 5 pushes at Δ 0 s |
+| 6 | PASS | ring, H10 and Sense streams each have a last write from 04:09 to 04:11 |
+| 7 | NOT_APPLICABLE | no watchdog restart in the window |
+| 8 | FAIL, PASS after the fix | 6 auto-update restarts: 4 with charger links only, 2 at 05:04 and 06:02 after `box is idle` |
+| 9 | PASS | peak 18 H10 connect timeouts in one hour (06:00) |
+
+Findings:
+
+1. **#4224 holds on a real night.** Seven daemon starts sent no `sensor offline` alert. The dry run
+   on the night before #4224 counted 26.
+2. **RTC push.** All five pushes matched the host time. This night had no DST change, so it does not
+   test finding 1 of §4.1.
+3. **Check 8 had a defect.** The script read the clock and the BLE links line only. Before the
+   05:04 and 06:02 restarts, the update script logged `box is idle`. The H10 and the Sense last wrote
+   at 04:11, and the ring at 04:13. So the update path deferred correctly, and the FAIL is false.
+   Wren fixed the script on 2026-11-02: a restart after `box is idle` does not count. A rerun on this
+   night gives PASS for check 8. The rerun reads the files as they were after 07:30, so this section
+   takes only check 8 from it.
+4. **The dry run had the same defect.** It explains the 05:50 and 06:01 FAIL in §4.1.
+5. **U6, second night.** The Sense reads 157 ms and the H10 reads 19 ms. Both nights give the same
+   bands, and neither Polar device reads in the radio band. Kestrel decides if two nights are
+   enough for U6.
 
 ## 5 · Open items
 
