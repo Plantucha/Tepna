@@ -161,7 +161,7 @@ def acl_rows(mod, anchors, offsets):
     return out
 
 
-TABLES = (
+TABLES: tuple[dict[int, list[tuple[int, int]]], ...] = (
     {},
     {0x0040: [(10, 1_000_000), (11, 1_050_000)]},
     {0x0041: [(10, 1_000_000)]},
