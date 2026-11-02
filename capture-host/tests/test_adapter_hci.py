@@ -492,3 +492,75 @@ def test_nightqc_a_crash_still_names_the_sidecar_it_was_reading(tmp_path):
     root, night = _night(tmp_path)
     v = ok(nightqc.adapter_hci_verdict(str(night), {"sessions": [{"start": "x", "end": 1}]}), "UNKNOWN")
     assert v["evidence"][:2] == [H.TOOL, os.path.join(str(root), H.FILE_NAME)]
+
+
+# ── a VANISHED pin reaches the night's artifact — residue `2026-11-01-a-vanished-radio-reconnects-on-
+# the-bluez-default`. The decision site is wired in the watchdog (#4264); these pin the REPORT half,
+# whose gap was that a pin which left the bus fell out of the population entirely and read exactly
+# like a box that pins nothing. ────────────────────────────────────────────────────────────────────
+def _only_other(monkeypatch):
+    """Enumeration that lists one radio and NOT the pin — the bus after the dongle was pulled."""
+
+    async def adapters():
+        return [{"hci": "hci1", "mac": OTHER, "up": True}]
+
+    monkeypatch.setattr(capture, "list_adapters", adapters)
+
+
+def test_a_pin_enumeration_does_not_list_gets_its_own_row_with_both_probes_null(tmp_path, monkeypatch):
+    cfg = _watchdog_rig(monkeypatch, tmp_path)
+    _only_other(monkeypatch)
+    rows = _run(capture._record_adapter_hci(cfg, None, None, None, pinned_mac=PIN))
+    gone = [r for r in rows if r["mac"] == PIN]
+    assert len(gone) == 1, f"the configured pin must reach exactly one row: {rows}"
+    assert gone[0]["hci"] == "" and gone[0]["pinned"] is True
+    assert gone[0]["up"] is None and gone[0]["responds"] is None, "no controller was asked, so neither is 0"
+    # The empties survive the CSV, which is what the night's reader sees.
+    line = next(x for x in (tmp_path / H.FILE_NAME).read_text().splitlines() if PIN in x)
+    assert line.split(";")[1] == "" and line.split(";")[4] == "" and line.split(";")[5] == ""
+    assert capture.STATUS["adapter_hci"][PIN] == {"hci": "", "pinned": True, "up": None, "responds": None}
+
+
+def test_an_enumerated_pin_that_did_not_resolve_is_still_named_pinned(tmp_path, monkeypatch):
+    # The pin is ON the bus and the resolve missed this poll. Identity is the MAC: naming it unpinned
+    # is how a whole night read as a box with no pin, and a second absent row would double-count it.
+    cfg = _watchdog_rig(monkeypatch, tmp_path)
+    rows = _run(capture._record_adapter_hci(cfg, None, None, None, pinned_mac=PIN))
+    mine = [r for r in rows if r["mac"] == PIN]
+    assert len(mine) == 1 and mine[0]["pinned"] is True and mine[0]["hci"] == "hci0"
+
+
+def test_the_measured_fallback_row_keys_on_the_hci_not_on_the_pinned_flag(tmp_path, monkeypatch):
+    # REGRESSION GUARD for the flag above: enumeration lists the pin's MAC under another hciN, so
+    # `any(r["pinned"])` is already True. Reading that would drop the caller's MEASURED verdict for
+    # the radio it actually probed, which is the one the recovery ladder acts on.
+    cfg = _watchdog_rig(monkeypatch, tmp_path)
+    rows = _run(capture._record_adapter_hci(cfg, "hci9", False, False, pinned_mac=PIN))
+    assert [r["hci"] for r in rows if r["mac"] == PIN] == ["hci0", "hci9"]
+    assert [r["responds"] for r in rows if r["hci"] == "hci9"] == [False]
+
+
+def test_a_vanished_pin_keeps_the_name_its_last_present_poll_measured_and_counts_the_absence():
+    rows = _rows([True, True]) + [H.parse_row(H.row(T0 + 120_000, "", PIN, True, None, None, 0))]
+    v = ok(H.verdict_object(rows), "PASS")
+    p = v["result"]["radios"][PIN]
+    assert p["hci"] == "hci0", "the last poll that FOUND it names it, not the poll that found nothing"
+    assert (p["polls"], p["determinable"], p["absent_polls"]) == (3, 2, 1)
+    assert p["unanswered"] == 0, "a radio that was gone did not fail a probe it was never asked"
+
+
+def test_a_pin_absent_beside_a_healthy_radio_joins_the_population_and_moves_no_status():
+    rows = _rows([True, True], mac=OTHER, hci="hci1", pinned=False) + [
+        H.parse_row(H.row(T0 + i * 60_000, "", PIN, True, None, None, 0)) for i in range(2)
+    ]
+    v = ok(H.verdict_object(rows), "PASS")
+    assert v["population"] == {"checked": 1, "eligible": 2, "excluded": 1}
+    assert v["result"]["radios"][PIN]["absent_polls"] == 2
+    assert v["result"]["radios"][PIN]["hci"] == "", "it was never seen, so it has no name to report"
+
+
+def test_a_pin_gone_all_night_with_no_other_radio_is_UNKNOWN_never_a_pass():
+    rows = [H.parse_row(H.row(T0 + i * 60_000, "", PIN, True, None, None, 0)) for i in range(3)]
+    v = ok(H.verdict_object(rows), "UNKNOWN")
+    assert v["population"] == {"checked": 0, "eligible": 1, "excluded": 1}
+    assert "no probe was determinable" in v["reason"]

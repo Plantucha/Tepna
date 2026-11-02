@@ -260,10 +260,19 @@ def verdict_object(
         longest, isolated, total = _runs(flags)
         det = [r for r in rs if r["responds"] is not None]
         unanswered = [r for r in rs if r["responds"] is False]
+        # THE LAST POLL THAT FOUND IT NAMES IT, not simply the last poll. A radio that LEAVES the bus
+        # mid-night ends on rows whose `hci` is empty by construction (`capture._record_adapter_hci`
+        # writes the configured MAC with no hciN), and reading `rs[-1]` there would drop the name the
+        # earlier polls measured. Re-enumeration between two present polls still wins, as before.
         per[mac] = {
-            "hci": rs[-1]["hci"],
+            "hci": next((r["hci"] for r in reversed(rs) if r["hci"]), ""),
             "pinned": any(r["pinned"] for r in rs),
             "polls": len(rs),
+            # Polls at which the radio was not on the bus at all. Derived from the rows, no new column:
+            # an empty `hci` is the absence, and it is why `determinable` can sit below `polls` without
+            # a single unanswered probe. It moves NO status — a radio that was gone did not fail a probe
+            # it was never asked (§∅), and reduced coverage annotates.
+            "absent_polls": sum(1 for r in rs if not r["hci"]),
             "determinable": len(det),
             "unanswered": total,
             "longest_run": longest,

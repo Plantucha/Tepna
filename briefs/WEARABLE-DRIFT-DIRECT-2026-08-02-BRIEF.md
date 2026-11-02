@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** DONE — 2026-08-17 (every §6 item re-verified against the tree, and the recorded ppm caveat DISCHARGED BY RE-MEASUREMENT — see §8) · **Created:** 2026-08-02 · **Corrects:** `papers/wearable-clock-drift.html` scope note (90–216 ppm), `JOINT-UNWRAP-ATTEMPT-2026-08-02-BRIEF.md`, `WEARABLE-DRIFT-FIT-2026-08-01-BRIEF.md` · **Affects:** `tools/dual-clock-rate.mjs`
+**Status:** DONE — 2026-08-17 (every §6 item re-verified against the tree, and the recorded ppm caveat DISCHARGED BY RE-MEASUREMENT — see §8; §9 re-measured on the GPS box 2026-11-02) · **Created:** 2026-08-02 · **Corrects:** `papers/wearable-clock-drift.html` scope note (90–216 ppm), `JOINT-UNWRAP-ATTEMPT-2026-08-02-BRIEF.md`, `WEARABLE-DRIFT-FIT-2026-08-01-BRIEF.md` · **Affects:** `tools/dual-clock-rate.mjs`
 
 # The inter-device rate is ~7 ppm, and it was in the raw files the whole time.
 
@@ -378,3 +378,114 @@ withdrawn claim is how a correction chain stops being auditable.
 
 **Not claimed:** this flip says every acceptance item is met, not that the drift question is closed.
 `CROSS-DEVICE-DRIFT-AND-CLOSURE` §5 still holds one open PAT item, and the §7.4 estimator warning stands.
+
+## 9 · Re-measured on the GPS-disciplined box, 2026-11-01 night (Wren, 2026-11-02)
+
+The capture-host box is now stratum 1 on GPS PPS. `chronyc tracking` read 17 ns offset and 0.135 ppm skew on 2026-11-02. So the host is a reference at least 100 times better than the device rates below.
+
+### 9.1 · Both Polars repeat the §7.2 baseline
+
+One box night, 2026-11-01 22:15 → 2026-11-02 04:10, one raw fragment per device:
+
+| device | ten-minute bins | span | ppm, §1 convention | §7.2 range | inside? |
+|---|---|---|---|---|---|
+| Polar H10 (ECG) | 37 | 5.88 h | **−20.5** | −18.7 … −21.6 | yes |
+| Polar Verity (PPG) | 36 | 5.79 h | **−27.2** | −23.9 … −30.2 | yes |
+
+The sign follows §1: a negative value means the device crystal runs fast against the host. The inter-device rate is 6.7 ppm, the same as §7.2.
+
+The method differs from `tools/dual-clock-rate.mjs`, because node is absent on the box. The script takes host minus device time in ten-minute bins. Then it takes the median slope over every bin pair at least 2 h apart. The script is in §9.4.
+
+⚠ The H10 fragment holds one step in `sensor timestamp [ns]` of about 2.86 days. Bin pairs that cross the step give absurd slopes, and only the median rejects them. Treat the H10 figure as robust to the step, not free of it. A rate on the two sides of the step separately is the next check.
+
+### 9.2 · The O2Ring RTC runs about 24 ppm fast
+
+§7.1 says the ring stream carries no device clock. That stays true. The ring's real-time clock is a different oscillator path, and the box reads it. Each `*RTCLOG.csv` row holds the host time, the event (`push` or `read`) and `rtc_offset_s`, ring minus host.
+
+The population is every RTC log on the box, 2026-08-22 → 2026-11-02:
+
+| quantity | value |
+|---|---|
+| events | 11 858 (1 044 pushes, 5 387 reads) |
+| read pairs ≥ 4 h apart with no push between | 1 484 |
+| pair span | 4.0 h min · 5.3 h median · 9.9 h max |
+| rate, ring against host | **+23.8 ppm median** (p10 −5.8, p90 +59.5) |
+| five longest pairs (9.7–9.9 h) | +14.0, +14.1, +16.9, +20.0, +14.3 ppm |
+
+A positive value here means the ring RTC runs fast, so it is −23.8 in §1's convention. The spread is resolution, not instability. A 1 s change in the offset over the 5.3 h median span is 52 ppm. The pairs share reads, so 1 484 pairs are not 1 484 independent measurements. The five longest pairs have the best resolution, and they give 14–20 ppm.
+
+So the ring RTC sits in the same band as the two Polar crystals. This is a rate for the RTC only. It says nothing about the 125 Hz sample clock, which §7.1 and `O2RING-SYNTHESISED-AXIS` cover.
+
+### 9.3 · What the literature says
+
+No vendor publishes a crystal tolerance for the H10, the Verity or the O2Ring. The figures below are the nearest published evidence.
+
+| source | figure | against this brief |
+|---|---|---|
+| Brønd et al. 2021, *Sensors* 21(14):4777, doi:10.3390/s21144777 | RTC accuracy is commonly ±20 ppm at +25 °C; ±12 s per 7-day recording is expected | All three devices sit at or just above that band |
+| Schuna et al. 2015, cited in Brønd et al. 2021 | ActiGraph RTC drift of −4 to +14 s over 7 days (about −7 to +23 ppm) | Same range |
+| `polar-ble-sdk` issue #674 (one user, not reviewed) | H10 against Verity: 0.62 s at start, 2.4 s after 24 h, about 21 ppm between the two | Ours is 6.7 ppm between them. Different units, one two-point measurement |
+| `polar-ble-sdk` `TimeSystemExplained.md` | The H10 resets its clock to the firmware default when it shuts down | A possible source of the 2.86-day step in §9.1 |
+| `polar-ble-sdk` `KnownIssues.md` | `setLocalTime` does not change stream stamps until a power cycle | Relevant to any offset, not to a rate |
+
+The direct measurement in §1, §7.2, §8 and §9.1 stays the better evidence. It uses one reference clock, one method and many nights.
+
+### 9.4 · The scripts
+
+Polar rate, run as `python3 -I polardrift.py <H10 ECG file> <Verity PPG file>`:
+
+```python
+import sys, datetime as dt, statistics as st
+def run(path, label, step):
+    bins = {}
+    with open(path) as f:
+        next(f)
+        for i, line in enumerate(f):
+            if i % step: continue
+            p = line.split(";", 2)
+            try:
+                h = dt.datetime.fromisoformat(p[0]); s = int(p[1]) / 1e9
+            except Exception: continue
+            hs = (h - dt.datetime(2026, 11, 1)).total_seconds()
+            bins.setdefault(int(hs // 600), []).append((hs, hs - s))
+    pts = [(st.median(x for x, _ in v), st.median(y for _, y in v)) for k, v in sorted(bins.items()) if len(v) >= 20]
+    sl = [(b[1]-a[1])/(b[0]-a[0]) for i, a in enumerate(pts) for b in pts[i+1:] if b[0]-a[0] >= 7200]
+    print(f"{label}: {len(pts)} bins over {(pts[-1][0]-pts[0][0])/3600:.2f} h; device fast by {-st.median(sl)*1e6:+.1f} ppm")
+run(sys.argv[1], "H10 ECG", 130)
+run(sys.argv[2], "Verity PPG", 55)
+```
+
+Ring RTC rate, run as `python3 -I rtcdrift.py '<captures>/*/*RTCLOG.csv'`:
+
+```python
+import csv, glob, sys, datetime as dt, statistics as st
+ev = {}
+for f in glob.glob(sys.argv[1]):
+    for r in csv.DictReader(open(f), delimiter=";"):
+        try: t = dt.datetime.fromisoformat(r["Phone timestamp"])
+        except Exception: continue
+        ev[(t, r["event"])] = r["rtc_offset_s"]
+last_push = first_read = None; out = []
+for (t, e), off in sorted(ev.items()):
+    if e == "push": last_push = t; first_read = None; continue
+    if e != "read" or off in ("", None) or last_push is None: continue
+    o = float(off)
+    if first_read is None: first_read = (t, o); continue
+    h = (t - first_read[0]).total_seconds() / 3600
+    if h >= 4: out.append((h, o - first_read[1]))
+ppm = sorted(d / (h * 3600) * 1e6 for h, d in out)
+print(len(out), "pairs; median ppm", st.median(ppm), "p10", ppm[len(ppm)//10], "p90", ppm[len(ppm)*9//10])
+```
+
+Both scripts read box data only. Neither is a repo tool yet. Moving them into `tools/` with a verdict object is a separate unit.
+
+```json
+{ "schema": "tepna.verdict/1", "gate": "wearable-drift-direct-remeasure-2026-11-01", "status": "PASS",
+  "population": { "checked": 2, "eligible": 2, "excluded": 0 },
+  "criterion": { "name": "polar_rate_inside_s7_2_range", "threshold": "H10 −18.7…−21.6, Verity −23.9…−30.2", "unit": "ppm", "direction": "inside" },
+  "result": { "h10Ppm": -20.5, "verityPpm": -27.2, "interDevicePpm": 6.7, "ringRtcPpmMedian": -23.8, "ringRtcPairs": 1484 },
+  "evidence": ["briefs/WEARABLE-DRIFT-DIRECT-2026-08-02-BRIEF.md#9"], "reason": null,
+  "producedBy": { "tool": "§9.4 polardrift.py (box-local)", "commit": null }, "at": "2026-11-02T00:00:00Z" }
+```
+
+The ring RTC figure is in `result` for the record. It has no prior range, so the criterion does not judge it.

@@ -109,7 +109,9 @@ from mutation_diff import (  # noqa: E402  (after the sys.path fix above)
     generation_timeout_reason,
     results_timeout_reason,
     generator_mismatches,
+    generator_pin_refusal,
     installed_generator,
+    pinned_generator,
     merge_mutants_size,
     merge_prework,
     mutants_size_record,
@@ -125,6 +127,19 @@ RESULTS_CAP_SEC = 300.0
 # The bound on the `mutmut results` READ, unchanged in value from the `timeout=300` it replaces — this
 # fix is about catching it and reaping the group, not about retuning it. Reading a finished run's
 # per-mutant outcomes is a file walk; 300 s is already orders above its measured cost.
+
+DEV_REQUIREMENTS_FILE = "requirements-dev.txt"
+# Where the generator PIN lives. Read only when a record flag is set, and an unreadable file is NO
+# KNOWLEDGE: `generator_pin_refusal` then has nothing to disagree with and lets the run record.
+
+
+def _dev_requirements_text():
+    """The pin file's text, or "" when this tree does not carry it."""
+    try:
+        return (HERE / DEV_REQUIREMENTS_FILE).read_text(encoding="utf-8")
+    except OSError:
+        return ""
+
 
 SIZES_FILE = "mutation-sizes.json"
 # The COMMITTED generated-size record, beside this tool. Read on every fresh scratch — which is every CI
@@ -970,6 +985,16 @@ def main(argv=None) -> int:
             print(f"{m:24s} {len(tests_for(m))} test file(s)")
         return 0
     targets = [m if m.endswith(".py") else m + ".py" for m in a.modules]
+    if a.record_sizes or a.record_prework:
+        # ∅ REFUSE BEFORE THE CAMPAIGN. Both record flags stamp `installed_generator()`, and the write
+        # itself refuses only an UNNAMEABLE generator. A venv behind the pin names one, so the entry
+        # lands looking measured and reads ABSENT to every correctly-pinned reader. Checked here rather
+        # than at the write so a caller learns it in a second, not after hours of generation that
+        # record nothing.
+        _refusal = generator_pin_refusal(installed_generator(), pinned_generator(_dev_requirements_text()))
+        if _refusal:
+            print(f"refusing to record: {_refusal}", file=sys.stderr, flush=True)
+            return 2
     records: list[dict[str, Any]] = []
     for m in targets:
         print(f"\n=== {m} ===", flush=True)
