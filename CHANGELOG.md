@@ -30,6 +30,94 @@ changesets.)
 
 ---
 
+## [2.26.0] — 2026-11-02
+
+### Added
+- Write a source-hashed manifest for every archived capture night at copy time. (`INFRA-STATE-2026-10-31-BRIEF.md`)
+- Each GitHub Release now attaches the 11 owned bundles as separate downloads.
+- Publish the sample rate, the rate before correction and the correction verdict in the shared timing block.
+- `tools/unit-health.mjs` reports a failed, stopped or overdue user timer to board thread 7.
+- Record in a published table’s provenance stamp which fold produced the nights it read, so a later re-fold names the numbers it invalidates.
+- Hold every `consensusBeats` call site to a polarity decision a gate can read, and declare the nine sites that stand behind the shipped one.
+- Report drift between installed systemd units and their tracked copies. (`INFRA-STATE-2026-10-31-BRIEF.md`)
+- Two new suite gates over the host-axis export blocks.
+- Add `tools/mutation-draft-py.mjs`, the python lane's survivor drafter. The model proposes only the fixture. The harness records every expected value from the real module. It writes a draft only after proving that the draft kills its mutant and keeps the suite green.
+- Measure how far the PAT consensus foot set moves when the pinned-span refusal reads the spans `parsePPG` already publishes. The refusal waits for a `_PPGRUNS.txt` companion today.
+- Hold every declared port to the source text a person last read it against, so a copy cannot keep claiming it is its source.
+- Write a shared `producerCommitNote` into every published-number producer, so each record states what its commit sha is worth.
+- Read the radio-clock sidecar and classify each device stream against the brief's pre-stated bands, so a (`RADIO-CLOCK-SIDECAR-2026-09-07-BRIEF.md`)
+- `tools/residue-cite-drift.mjs` gains a `--base <ref>` mode and runs under `npm run check`.
+- A source-reading census classifies every open python survivor into six named states. It proves which ones no input can kill, and names the published field a fixture must assert.
+- The survivor ledger gains a stale-line state for an entry whose recorded line has grown under it. The closer reads today's source and refuses any other state, and the ratchet excludes the entry instead of counting it as open debt.
+- Red a `.length` read of a `validate` result, and make the five dead guards fire.
+- The PR walker posts one signed comment on each PR it readies, re-runs, rebases, updates or merges, with the UTC time and the reason.
+- Let a CLAIM marker name a constant that lives in code, and red a number two mechanisms pin at once.
+
+### Changed
+- Re-attribute the stage lab's formula terms to what their sources define, add 25 Crossref-verified DOIs to the ledger, and update the oximeter-staging paper's comparators.
+- Name, per unstamped trio night, whether any recorded fold ever planned it, so the era census says which nights a re-fold can reach.
+- Show each night as one row on the Nights page, and list each recording in that row with its own start and end.
+- Tell the survivor drafter which reported field the mutated line feeds, and drain the embed backlog before the model loads.
+- Name the fleet walker as the actor at the start of its signature comment, as in "The fleet walker re-ran the failed required jobs".
+- Move the capture-host mutation gate to mutmut 3.8.1 and pytest 9.2.0 together, which discharges the 9.1.1 hold at its source. Assert that the two `mutmut==` pins agree.
+- Default an unstamped O2Ring finger recording to the host-disciplined timebase, and publish `timebaseSource` so a consumer can tell a stamped decision from that default. (`RING-TIMEBASE-ECG-TEST-2026-10-29-BRIEF.md`)
+- Publish the Verity harmonic gate's HR ratio beside its verdict on the trio night page, badged apart from it.
+
+### Fixed
+- Vigil push alerts now carry their Where/Handle footer.
+- Drop the deprecated asyncio policy call from two test helpers and arm a tripwire against its return.
+- The board's closure reader no longer derives file names from its own comments or from the import strings its selftest plants.
+- The hourly index tick embeds again, and new board posts reach search within minutes.
+- The CPAP inventory reads the decoded spool and the live stream's night folders, so it flags only nights that one source lacks.
+- ECGDex forwards the spine's inert and drawn reasons, so its exports quote the measured sentence instead of the fallback.
+- The mutation gate reads the survivor record at its base. A survivor main already owns no longer fails the PR that touched its function.
+- The idle Qwen driver runs in the primary checkout again. It pointed at a retired worktree and failed every 5 min from 2026-10-26.
+- Two rig tools stop filling the rig's memory. `tools/hook-contract.mjs` removes its scratch directories in `/tmp` when it exits. Before this fix, 3107 of them held 11 GB of the tmpfs. `tools/board.mjs` gives ccusage a slim copy of the session logs. The board child then holds 0.49 GB, against 4.7 to 6.0 GB before, and the copy gives the same block costs.
+- State a reason when the host axis ran and found a drawn counter or an inert host column.
+- The PR walker unions its required-context mirror into the degraded path and reports the mirror's drift from branch protection.
+- `pr-compliance` reads a Dependabot PR that touches only dependency manifests as NOT_APPLICABLE. A bot cannot write a `Rule 0:` line, a trailer or a changeset, so the gate failed #4238, #4239 and #4240 by construction. The exemption keys on the author that GitHub sets in the event and on a manifest-only diff.
+- The survivor ledger now reads a recorded line through one home and names six states. An edited line asks for a re-recorded mutant id, and a module-level twin of its text no longer retires the entry.
+- Stop false sensor alarms after a daemon restart and for a device on its charger.
+- Gate the archive copy on whether a night's device data is still arriving, not on whether any
+- Point the corpus archive link and the fold rescorer at the vigil copy that still grows. A rig reader read a tree frozen on 2026-10-07.
+- The capture box no longer reports a night ended while it is itself downloading from that device.
+- Run the `covscope` gate leg in CI as well as locally. Hold every blocking leg of `capture-host/check.sh` to a declared step in the workflow.
+- The host-axis bakeoff and the geometry scan publish the population each one-file selection was drawn from.
+- The python-lane drafter keeps a fixture that kills every mutant on a key, each by its own path. It no longer demands one path shared by them all.
+- The ECG fold tells an unread blanking sidecar from an absent one, and carries the refusal reason onto the merged record.
+- Read the ECG sidecar's channel column against the file's own declaration, so recorded blanking runs reach consumers. (`SAMPLE-VALIDITY-ENVELOPE-2026-09-17-BRIEF.md`)
+- Name an unread ECG validity sidecar on the ECGDex node-export. The key annotates coverage rather than refusing a value, and a clean export still carries no key at all.
+- Stop the connected-but-silent alert from firing while the box itself explains the silence. A device in an offline-recording op or off the body now reads like one on its charger.
+- Refuse an unknown flag in the python-lane drafter and print its usage, so a typo no longer starts the night model run.
+- Hold every held-back provenance field to a residue row the ledger still reads as open, so settling a row cannot orphan the exemption it excused.
+- PpgDex and ECGDex forward `hostAxis.ok` into `recording.hostAxis`. Both blocks ship only when the gate
+- Rule 0 now de-ranks a memory lesson that declares its successor. `tools/memory-supersession.mjs` reports every lesson whose lead cites a board post the fleet replaced.
+- Each mutation gate's pre-stated criterion now names its own scope and its own count. The Python diff gate emits `blocking_survivors_in_changed_functions`, since `entry_matches_function` selects whole functions. Its bound takes what `split_inherited` and `classify` leave. The JS diff gate emits `blocking_survivors_on_changed_lines`, because `tools/mutate.mjs` filters each mutant through the touched line set. The old `survivors_on_changed_lines` over-stated the count in both lanes and misnamed the scope in one. A pin in each lane now holds its name beside the reason the two differ (residue `2026-10-31-the-mutation-verdicts-criterion-names-lines-not-functions`).
+- The capture box sends one "night ended" note per device. A night-long stream that stops in the morning no longer raises "sensor offline". An ntfy topic shows an alert as text, not as raw JSON.
+- The survivor ledger retires an entry whose mutated line is gone from the source. The close path checks that itself and refuses the flag on a line that is still there.
+- Read the measured per-sample axis at each sub-sample PPG foot in the two PAT analysis tools.
+- Read the drawn and independent verdicts before quoting a host-axis rate, so the published reason names the real refusal. (`PPGDEX-SUBFLOOR-RATE-TEST-2026-10-29-BRIEF.md`)
+- The python drafter runs its machine check inside the attempt loop and hands each retry the measured reason it rejected the last fixture.
+- Push true civil time to the ring's onboard RTC. A capture session that absorbs a DST relabelling no longer stamps the ring's own stored header an hour ahead.
+- Open a nights recording only from a non-empty file that an analyzer reads. Clock logs, link logs and empty charger sessions then make no rows.
+- Stop the held-open alert when the box rewrites its own verdict files in a finished night.
+- Correct the archive-pull header, which denied a NAS push the box makes nightly, and gate the
+- Give the CPAP a night-ended alert, plus fixes for three false or misleading sensor alerts.
+- Let a caller pin the timestamp the ring auth frame carries, so a byte-for-byte test stops racing the clock.
+- The source-equivalence census splits `not-an-initialiser` into the three answers a fixture can act on, so one class no longer counts opposite remedies.
+- The python drafting program now reads the mutated line's shape before it drafts. A key that assigns no name and publishes no field earns a refusal naming the shape. The verdict states the coverage per shape, and a run whose model served none of its keys reads SHORTFALL.
+- Bound each argv helper body at the next declaration at or left of its own column. Two helpers declared inside a function no longer read as one body.
+- The marker probe reads the keeper fields a marker recorded about an unreachable keeper. A sibling longer than the recorded size refutes the claim. A disagreeing first-MiB hash refutes it too. An agreement stays an exclusion, because the keeper itself stays unread.
+- Make both committed mutation measurement ledgers name the generator that produced each number. A reader now treats an entry from another mutmut as absent, and a writer refuses an entry no reader can date.
+- Keep a device quiet after its night-ended note until the next night begins.
+- Both PAT foot ports take the worker's optional `pinnedFromRecompute` switch, so each runs the recompute counterfactual. Each port also binds `PATGate`, which the ported pinned-span refusal calls.
+- Apply the segment model's flatness floor to the whole-file host-axis rate, so an unsegmented recording no longer skips the node's last floor.
+- Stop a daemon restart from sending the morning QC digest or a night-gap alert a second time.
+- Let the PR walker rebase a branch that the owning bird's worktree still holds, and name the step that stopped a rebase in its alert.
+- Let the PR walker rebase a held PR that conflicts with main, once per head, so the owner's merge stays one click.
+
+---
+
 ## [2.25.0] — 2026-10-31
 
 ### Added
@@ -3692,7 +3780,8 @@ and establishes the release-governance layer over it.
 - **The shared test suite** (`Dex-Test-Suite.html` + `tests/dex-tests.js`) and the build/provenance
   manifests.
 
-[Unreleased]: https://github.com/Plantucha/Tepna/compare/v2.25.0...HEAD
+[Unreleased]: https://github.com/Plantucha/Tepna/compare/v2.26.0...HEAD
+[2.26.0]: https://github.com/Plantucha/Tepna/compare/v2.25.0...v2.26.0
 [2.25.0]: https://github.com/Plantucha/Tepna/compare/v2.24.0...v2.25.0
 [2.24.0]: https://github.com/Plantucha/Tepna/compare/v2.23.0...v2.24.0
 [2.23.0]: https://github.com/Plantucha/Tepna/compare/v2.22.0...v2.23.0
