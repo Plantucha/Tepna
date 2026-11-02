@@ -24190,6 +24190,188 @@
       });
     });
 
+    /* ════ 8c¹ · A CLAIM MAY NAME A CONSTANT THAT LIVES IN CODE, AND ONE NUMBER GETS ONE MECHANISM ════
+       Row `2026-10-10-two-mechanisms-bind-a-doc-number-to-code-and-one-cannot-read-code`. The resolver
+       above walked a slash-separated pointer with `JSON.parse`, so a marker naming a `.js` source failed
+       as `unreadable/invalid JSON` — a refusal about the file FORMAT, worded as a broken artifact. #3389
+       was asked for a marker sourced from `clock.js` and could not have one: satisfying it meant
+       publishing the constant into a JSON, a SECOND source of truth for a number that already had one.
+
+       THE DECISION (§7, 2026-11-02): a CLAIM may name a code source, and `docs-constants.mjs` stays.
+       The doc side decides which mechanism applies — a marker the doc can carry is a CLAIM, a number
+       inside prose that carries no marker is a `CHECKS` entry — so a number pinned by both is the
+       accident the row names, and `pinnedByDocsConstants` reds it.
+
+       Every leg below plants its source, so the refusals are exercised without a drifted repository. A
+       GATE THAT CANNOT READ ITS SOURCE MUST NOT CERTIFY THE CLAIM: each blind path returns a named
+       reason and no value, because the suite reds an unresolved claim while a quiet null reads as
+       agreement (CLAUDE.md §4b). Node lane only — the module is a tool import. */
+    group('a CLAIM resolves a code source, and every way it goes blind is a named refusal', 'docs · claim-source · resolver', function (T) {
+      var CS = env.claimSource;
+      if (!CS) {
+        T.skip('env.claimSource provided to the runner', 'Node-lane only — wire env.claimSource (tools/claim-source.mjs)');
+        return;
+      }
+      /* The planted source states 99 twice — once in a comment, once in a string — and 21 once, in
+         code. A reader that scanned raw text would have three candidates and no answer. */
+      var SRC = [
+        'var CK_WIDTH = 21; // the one real binding',
+        '// var CK_WIDTH = 99; a commented-out twin is not a binding',
+        'var LABEL = "CK_WIDTH = 99";',
+        'var CK_EXPR = other * 2;',
+        'var CK_EXP = 5e3;',
+        'var CK_TWICE = 1;',
+        'CK_TWICE = 2;'
+      ].join('\n');
+
+      var w = CS.readCodeConstant(SRC, 'CK_WIDTH');
+      T.eq('CONTROL · a code binding resolves to its number, past a commented and a quoted twin', w.value, 21);
+      T.eq('…with no reason, because it resolved', w.reason, null);
+      T.eq('a binding that exists only in a comment is bound NOWHERE', CS.readCodeConstant('// var CK_ONLY = 7;', 'CK_ONLY').value, null);
+      T.ok(
+        '…and says so by name',
+        /bound nowhere in the code/.test(String(CS.readCodeConstant('// var CK_ONLY = 7;', 'CK_ONLY').reason)),
+        'reason: ' + CS.readCodeConstant('// var CK_ONLY = 7;', 'CK_ONLY').reason
+      );
+      T.eq('a binding that exists only inside a string is bound NOWHERE', CS.readCodeConstant('var L = "CK_ONLY = 7";', 'CK_ONLY').value, null);
+
+      var expr = CS.readCodeConstant(SRC, 'CK_EXPR');
+      T.eq('an identifier bound to an EXPRESSION yields no value', expr.value, null);
+      T.ok('…and the reason names the shape, not the file', /no plain numeric literal/.test(String(expr.reason)), 'reason: ' + expr.reason);
+
+      /* THE TRUNCATION THIS FORM REFUSES. `5e3` under a `-?\d+(\.\d+)?` read is 5 — the same silent
+         truncation `CLAIM x = 5.5` once suffered, one indirection down, and a wrong number that passes
+         is worse than a claim that reds. */
+      var exp = CS.readCodeConstant(SRC, 'CK_EXP');
+      T.eq('an exponent form is REFUSED, never truncated to its mantissa', exp.value, null);
+      T.ok('…and the refusal is named', /no plain numeric literal/.test(String(exp.reason)), 'reason: ' + exp.reason);
+
+      var twice = CS.readCodeConstant(SRC, 'CK_TWICE');
+      T.eq('an identifier bound twice names no single value', twice.value, null);
+      T.ok('…and the reason carries the count', /2 times/.test(String(twice.reason)), 'reason: ' + twice.reason);
+      T.ok(
+        'a slash pointer on a code source is refused as not an identifier',
+        /not a JS identifier/.test(String(CS.readCodeConstant(SRC, 'a/b').reason)),
+        'reason: ' + CS.readCodeConstant(SRC, 'a/b').reason
+      );
+
+      // ── the dispatch by source kind, and the two refusals that frame it ──────────────────────
+      T.eq('a .json source is read as a pointer', CS.sourceKind('analysis/x.json'), 'json');
+      T.eq('a .js source is read as an identifier', CS.sourceKind('clock.js'), 'code');
+      T.eq('a .mjs source is read as an identifier', CS.sourceKind('tools/x.mjs'), 'code');
+      T.eq('a doc is neither', CS.sourceKind('docs/X.md'), null);
+      var unsup = CS.resolveSourcedClaim({ file: 'docs/X.md', pointer: 'n' }, function () {
+        return 'anything';
+      });
+      T.eq('an unsupported source resolves to nothing', unsup.actual, null);
+      T.ok('…and the reason sends the reader to the OTHER mechanism', /docs-constants/.test(String(unsup.reason)), 'reason: ' + unsup.reason);
+      T.ok(
+        'an absent file is named as absent, not as a format problem',
+        /source file not found/.test(
+          String(
+            CS.resolveSourcedClaim({ file: 'clock.js', pointer: 'CK_WIDTH' }, function () {
+              return null;
+            }).reason
+          )
+        ),
+        'an absent source and an unreadable one are the same answer to a reader: nothing was examined'
+      );
+
+      // ── the JSON path is UNCHANGED (the regression this refactor could have shipped) ──────────
+      var jread = function () {
+        return '{"a":{"b":4,"s":"x"}}';
+      };
+      T.eq('CONTROL · a JSON pointer still resolves to its number', CS.resolveSourcedClaim({ file: 'x.json', pointer: 'a/b' }, jread).actual, 4);
+      T.ok(
+        'a dead JSON pointer still reds by name',
+        /pointer did not resolve/.test(String(CS.resolveSourcedClaim({ file: 'x.json', pointer: 'a/zz' }, jread).reason)),
+        'the original wording is the one briefs quote'
+      );
+      T.ok('a non-numeric JSON pointer still reds by name', /not a number/.test(String(CS.resolveSourcedClaim({ file: 'x.json', pointer: 'a/s' }, jread).reason)), 'a string is not a claim');
+      T.ok(
+        'invalid JSON still reds as invalid JSON — for a .json source, which is where that wording is true',
+        /unreadable\/invalid JSON/.test(
+          String(
+            CS.resolveSourcedClaim({ file: 'x.json', pointer: 'a' }, function () {
+              return 'not json';
+            }).reason
+          )
+        ),
+        'the wording was only ever wrong when the file was code'
+      );
+
+      // ── ONE NUMBER, ONE MECHANISM ─────────────────────────────────────────────────────────────
+      var planted = [
+        { name: 'planted', codeFile: 'clock.js', codeRegex: /CK_PLANTED\s*=\s*([\d.]+)/ },
+        { name: 'no-code-side', docFile: 'CLAUDE.md', docRegex: /x/ }
+      ];
+      var pins = CS.docsConstantsPins(planted);
+      T.eq('a CHECKS entry declares its territory: one file, one identifier', pins.length, 1);
+      T.eq('…read from the code regex the entry already carries', pins[0].ident, 'CK_PLANTED');
+      T.eq(
+        'an entry with no code side pins nothing (it cannot read code either)',
+        pins.filter(function (x) {
+          return x.check === 'no-code-side';
+        }).length,
+        0
+      );
+      T.ok('a CLAIM on a pinned file+identifier is PINNED', CS.pinnedByDocsConstants(planted, 'clock.js', 'CK_PLANTED').pinned === true, 'two gates on one number is the accident the row names');
+      T.ok('CONTROL · the same identifier in another file is NOT pinned', CS.pinnedByDocsConstants(planted, 'other.js', 'CK_PLANTED').pinned === false, 'else the detector refuses everything');
+      T.ok(
+        'CONTROL · another identifier in the pinned file is NOT pinned',
+        CS.pinnedByDocsConstants(planted, 'clock.js', 'CK_AXIS_WIN').pinned === false,
+        'else no code-sourced CLAIM could ever name clock.js'
+      );
+
+      /* THE HALF OF THE ROW THAT WAS A HAZARD, NOT A DECISION. `docs-constants.mjs` called `main()` at
+         module scope and `main()` ends in `process.exit`, so reading its `CHECKS` list from the suite
+         TERMINATED the suite — an examined-nothing green of the §4c shape, since a runner that exits
+         during import prints no verdict at all. The guard is `isCliEntry`, and the child is where a
+         regression of it reads as an assertion instead of a dead shard. */
+      if (typeof env.importToolInChild === 'function') {
+        var imp = env.importToolInChild('tools/docs-constants.mjs', ['CHECKS']);
+        T.eq('importing the OTHER mechanism exits 0 — it does not run, and does not exit the importer', imp.status, 0);
+        T.ok(
+          '…and its CHECKS list is readable from outside',
+          imp.read !== null && Array.isArray(imp.read.CHECKS) && imp.read.CHECKS.length > 0,
+          'read: ' + JSON.stringify(imp.read && imp.read.CHECKS ? imp.read.CHECKS.length : imp.read)
+        );
+        T.ok('…and the gate did not RUN on the way (no verdict line in its output)', !/docs-constants: (\u2713 PASS|FAIL)/.test(String(imp.out)), String(imp.out).slice(0, 200));
+      } else {
+        T.skip('the child-import probe is in env', 'Node-lane only — env.importToolInChild');
+      }
+
+      // ── the live tree: the form ships, and the overlap detector has something to read ─────────
+      var C = env.claudeMdClaims;
+      if (!C) {
+        T.skip('the live CLAIM scan is in env', 'Node-lane only — env.claudeMdClaims');
+        return;
+      }
+      var live = C.docsConstantsPins || [];
+      T.ok(
+        'the live CHECKS list pins at least one number (an empty pin set is a vacuous detector)',
+        live.length > 0,
+        'pins: ' +
+          live
+            .map(function (x) {
+              return x.file + '#' + x.ident;
+            })
+            .join(', ')
+      );
+      var code = (C.sourced || []).filter(function (r) {
+        return r.kind === 'code';
+      });
+      T.ok(
+        'at least one SOURCED CLAIM reads a code source (a form nothing uses is not a mechanism)',
+        code.length > 0,
+        code
+          .map(function (r) {
+            return r.name + ' = ' + r.actual + ' FROM ' + r.file + '#' + r.pointer;
+          })
+          .join(', ') || 'none — the code-source form shipped with no marker using it'
+      );
+    });
+
     /* ════ 8c² · THE TRIO-ELIGIBLE POPULATION — the artifact the CLAIM sources, held against the TREE ════
        Row `2026-10-25-the-trio-eligible-claim-resolves-to-an-unproduced-list`. The group above proves the
        prose COPIES its artifact, and that is all a sourced CLAIM can prove. This one did not hold:

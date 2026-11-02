@@ -26,6 +26,8 @@ import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { isCliEntry } from './argv-guard.mjs';
+
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const Verdict = createRequire(import.meta.url)(join(ROOT, 'verdict.js'));
 
@@ -283,4 +285,9 @@ function main() {
   process.exit(status === 'PASS' ? 0 : 1);
 }
 
-main();
+/* RUN ONLY AS THE PROGRAM. `main()` ends in `process.exit`, so an unguarded call at module scope KILLED
+   every importer: `tests/run-tests.mjs` now reads `CHECKS` to hold a code-sourced CLAIM off the numbers
+   this gate already pins, and importing this file exited the suite instead of returning the list. Row
+   `2026-10-10-two-mechanisms-bind-a-doc-number-to-code-and-one-cannot-read-code` — the two mechanisms
+   could not read each other, and this was half of the reason. */
+if (isCliEntry(import.meta.url)) main();
