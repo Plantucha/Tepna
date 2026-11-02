@@ -86,6 +86,13 @@ UNMEASURED_BY_DESIGN: dict[str, str] = {
         "diagnostic. THE WEAKEST PIN IN THIS LEDGER: no test imports it and none names it, so unlike "
         "every other pin here its split was never audited. Logged as residue, not resolved by this pin"
     ),
+    "tools/mutate_set.py": (
+        "the mutant-set CLI: argparse, the mutmut call, the scratch config and the IO. Every decision "
+        "— what counts as a moved set, and what counts as a comparison that cannot be made at all — "
+        "lives in mutation_set.py, inside the floor, with its own tests. The one thing only this file "
+        "knows is its exit-code map, and `--selftest` asserts that map including the arm a vacuous one "
+        "could not pass"
+    ),
     "tools/mutate_triage.py": (
         "the CLI over mutation_triage.py, which holds the classification. It printed a 100 % row "
         "until #1889 moved that logic up, and this is the file whose silent exit from the report "

@@ -108,6 +108,11 @@
    "status": "exempt",
    "reason": "the PURE builder (verdict_object, VERDICT_STATUSES) and the classifier vocabulary; the emitting producer is capture-host/tools/mutate_diff.py (adopted)"
   },
+  "capture-host/mutation_set.py": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "the PURE builder (artifact, refusal, compare, verdict_object, refusal_object) behind the mutant-set diff; the emitting producer is capture-host/tools/mutate_set.py (adopted) \u2014 same split as coverage_scope.py beside tools/covscope.py"
+  },
   "capture-host/mutation_sweep.py": {
    "bin": "word-only",
    "status": "exempt",
@@ -558,6 +563,18 @@
      "--verdict-sample"
     ]
    }
+  },
+  "capture-host/tools/mutate_set.py": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "python3",
+     "capture-host/tools/mutate_set.py",
+     "--verdict-sample"
+    ]
+   },
+   "note": "ADOPTED on arrival 2026-11-02: does moving the mutmut pin change the mutant set, so that baselined survivors stop addressing the mutants they were baselined against? requirements-dev.txt's own comment demands that comparison before a pin move and no committed tool performed one, so each mover wrote a throwaway probe. criterion = modules_whose_named_mutant_set_moved == 0, pre-stated in mutation_set.CRITERION and the same sum --compare exits 1 on. The population is the gate's own module list (tools/mutate.py modules()), minus the owner-declared MODULE exclusions of tools/mutate-exclusions.json, which no survivor is baselined against; --all puts them back. PASS the two versions differ and no module's named set moved \u00b7 FAIL at least one moved, named \u00b7 NOT_RUN neither side enumerated a module, which examined nothing \u00b7 NOT_APPLICABLE both sides ran ONE version, so the comparison says nothing about a pin move and must not read as a pass \u00b7 UNKNOWN refused, because a side is not an artifact, names no tree commit, or names a different tree than the other \u2014 a source edit between the two runs moves every module, so an unattributable difference is a broken premise and never a finding. The names come from mutmut's own combining pass (mutate_file_contents), which is the only enumeration a survivor can be keyed to: measured 2026-11-02 on capture.py, the cheap create_mutations call counts 24151 mutations against 23539 named mutants. Sampled with --verdict-sample, which is canned and runs no mutmut."
   },
   "capture-host/tools/scan_coexistence.py": {
    "bin": "decides",
