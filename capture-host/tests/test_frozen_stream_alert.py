@@ -259,3 +259,27 @@ def test_frozen_devices_keeps_WALKING_past_a_device_it_skips():
     qc = _qc({"quiet": 1, "H10": 900})
     live = {"quiet": _st(), "H10": _st()}
     assert alerts.frozen_devices(qc, live, 600) == ["H10"]
+
+
+# ── live samples outrank a stale file scan ────────────────────────────────────────────────────────
+def test_a_device_whose_samples_ARRIVE_now_is_not_frozen_whatever_the_scan_says():
+    """MEASURED 2026-11-01: "silent 182 min" at 13:26, 14:23 and 22:22 while samples arrived."""
+    live = _live(Sense=(True, False))
+    assert alerts.frozen_devices(_qc({"Sense": 182 * 60}), live, 600, None, {"Sense": 5.0}) == []
+
+
+def test_a_device_whose_live_samples_are_ALSO_stale_is_still_frozen():
+    live = _live(Sense=(True, False))
+    assert alerts.frozen_devices(_qc({"Sense": 900}), live, 600, None, {"Sense": 900.0}) == ["Sense"]
+
+
+def test_a_device_with_NO_live_age_is_judged_by_the_scan():
+    live = _live(Sense=(True, False))
+    assert alerts.frozen_devices(_qc({"Sense": 900}), live, 600, None, {"Other": 1.0}) == ["Sense"]
+    assert alerts.frozen_devices(_qc({"Sense": 900}), live, 600) == ["Sense"]
+
+
+def test_the_live_age_bound_is_strict_at_the_threshold():
+    live = _live(Sense=(True, False))
+    assert alerts.frozen_devices(_qc({"Sense": 900}), live, 600, None, {"Sense": 600.0}) == ["Sense"]
+    assert alerts.frozen_devices(_qc({"Sense": 900}), live, 600, None, {"Sense": 599.9}) == []

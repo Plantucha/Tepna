@@ -133,6 +133,7 @@ def _loop(
     paths=None,
     unlinked=None,
     unlink_fn=None,
+    notify=None,
 ):
     """Drive `_cpap_autostart_loop` for len(therapy_seq) cycles with a fake clock and op.
 
@@ -184,6 +185,7 @@ def _loop(
             now_ms=lambda: t["ms"],
             get_therapy=therapy,
             unlink=unlink,
+            notify=notify,
         )
     )
     return calls
@@ -270,6 +272,104 @@ def test_a_LONG_session_is_retained_and_spends_nothing(tmp_path):
     rec = json.loads(open(capture._cpap_autostart_path(str(tmp_path))).read())
     assert rec["attempts"] == 0
     assert capture._CPAP_THERAPY_END["mono"] is not None, "a retained session arms the post-therapy spool pull"
+
+
+def _recorder(sent, result=True):
+    async def notify(title, message):
+        sent.append((title, message))
+        if isinstance(result, Exception):
+            raise result
+        return result
+
+    return notify
+
+
+def test_a_RETAINED_session_sends_ONE_night_ended_alert_with_its_span(tmp_path):
+    """The CPAP is outside the wearables poller, so its night-ended alert comes from retention.
+    The stream starts at 23:10:30 and retention judges it at 23:15:00, 270 s later."""
+    _in_therapy(tmp_path)
+    sent = []
+    _loop(
+        tmp_path,
+        [True] * 12,
+        [{"ok": True}],
+        running_seq=[False] + [True] * 8 + [False],
+        notify=_recorder(sent),
+    )
+    assert sent == [
+        (
+            "Tepna: CPAP night ended",
+            "CPAP streamed for 0 h 04 min and stopped at 23:15. The live record on the box runs up to that minute.",
+        )
+    ]
+
+
+def test_a_LONG_session_states_hours_and_zero_padded_minutes(tmp_path):
+    """150 running ticks of 30 s: start 23:10:30, judged at 00:26:00, so 1 h 15 min."""
+    _in_therapy(tmp_path)
+    sent = []
+    _loop(
+        tmp_path,
+        [True] * 160,
+        [{"ok": True}],
+        running_seq=[False] + [True] * 150 + [False],
+        notify=_recorder(sent),
+    )
+    assert len(sent) == 1
+    assert sent[0][1].startswith("CPAP streamed for 1 h 15 min and stopped at 00:26."), sent
+
+
+def test_a_FALSE_START_sends_no_night_ended_alert(tmp_path):
+    _in_therapy(tmp_path)
+    sent = []
+    _loop(
+        tmp_path,
+        [True, True, True, False, False, False],
+        [{"ok": True}],
+        running_seq=[False, True, False, False],
+        notify=_recorder(sent),
+    )
+    assert sent == []
+
+
+def test_a_FAILING_alert_is_logged_and_the_session_is_still_retained(tmp_path, caplog):
+    _in_therapy(tmp_path)
+    sent = []
+    with caplog.at_level("WARNING"):
+        calls = _loop(
+            tmp_path,
+            [True] * 12,
+            [{"ok": True}],
+            running_seq=[False] + [True] * 8 + [False],
+            notify=_recorder(sent, RuntimeError("ntfy down")),
+        )
+    assert calls == ["start"] and len(sent) == 1
+    assert "night-ended alert failed (RuntimeError: ntfy down)" in caplog.text
+    assert capture._CPAP_THERAPY_END["mono"] is not None
+
+
+def test_the_note_returns_the_delivery_and_False_without_a_notifier():
+    sent = []
+    assert asyncio.run(capture._cpap_night_ended_note(None, 0.0, 60_000.0)) is False
+    assert asyncio.run(capture._cpap_night_ended_note(_recorder(sent, 0), 0.0, 60_000.0)) is False
+    assert asyncio.run(capture._cpap_night_ended_note(_recorder(sent, 1), 0.0, 60_000.0)) is True
+    assert asyncio.run(capture._cpap_night_ended_note(_recorder(sent, RuntimeError("x")), 0.0, 1.0)) is False
+    assert len(sent) == 3, "no notify means no send"
+
+
+def test_cpap_notify_reads_the_daemon_notifier_at_call_time(monkeypatch):
+    sent = []
+
+    class _N:
+        async def send(self, title, message):
+            sent.append((title, message))
+            return 1
+
+    monkeypatch.setattr(capture, "_NOTIFIER", None)
+    assert asyncio.run(capture._cpap_notify("t", "m")) is False
+    monkeypatch.setattr(capture, "_NOTIFIER", _N())
+    assert asyncio.run(capture._cpap_notify("t", "m")) is True
+    assert sent == [("t", "m")]
 
 
 def test_the_loop_does_NOT_start_while_a_stream_is_already_running(tmp_path):
@@ -365,6 +465,24 @@ def test_arming_creates_the_task_and_honours_the_configured_numbers(tmp_path):
     cfg = {"cpap": {"ble_stream": {"auto_start": {"enabled": True, "debounce_s": 45, "max_attempts": 2}}}}
     assert capture._maybe_start_cpap_autostart(cfg, str(tmp_path), _Ctl(), tasks, create_task=fake_task) == "TASK"
     assert tasks == ["TASK"] and made["coro"]
+
+
+def test_arming_wires_the_daemon_notifier_into_the_loop(tmp_path, monkeypatch):
+    """Without this wire the loop holds `notify=None` and the CPAP night ends in silence."""
+    seen = {}
+
+    def fake_loop(**kw):
+        seen.update(kw)
+
+    def fake_keep_running(make_coro, label, *a, **k):
+        make_coro()
+        return None
+
+    monkeypatch.setattr(capture, "_cpap_autostart_loop", fake_loop)
+    monkeypatch.setattr(capture, "keep_running", fake_keep_running)
+    cfg = {"cpap": {"ble_stream": {"auto_start": {"enabled": True}}}}
+    capture._maybe_start_cpap_autostart(cfg, str(tmp_path), _Ctl(), [], create_task=lambda c: "TASK")
+    assert seen["notify"] is capture._cpap_notify
 
 
 # ── the watchdog tells a failed automation from a missed click ─────────────────────────────────
