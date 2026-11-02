@@ -4609,6 +4609,36 @@ def test_pull_oxyii_session_is_bounded(tmp_path, monkeypatch):
     assert not capture._CONNECT_LOCK.locked()  # and the radio is free for everyone else
 
 
+def test_the_ring_pull_abandon_line_reports_the_elapsed_not_the_bound(tmp_path, monkeypatch, caplog):
+    """Row `2026-11-01-a-connect-failure-logs-as-a-300s-abandon`: five such lines sit in the retained
+    box journal, each 30 s after its own pull start, and all five name the 300 s whole-op bound.
+    `pull_session.pull` opens the ring with `oxy_power.TIMEOUTS.connect_s` and raises the builtin
+    `TimeoutError` at it — which IS `asyncio.TimeoutError` here, so the handler reads it as its own
+    deadline. Nothing but the measured elapsed separates the two."""
+    import pull_session
+
+    async def connect_times_out(*a, **k):
+        raise TimeoutError("connect")
+
+    monkeypatch.setattr(pull_session, "pull", connect_times_out)
+
+    async def hci():
+        return None
+
+    monkeypatch.setattr(capture, "adapter_hci", hci)
+    dev = {"name": "Ring", "address": "AA", "vendor": "Wellue", "model": "O2Ring-S", "device_id": "S1"}
+
+    async def go():
+        with pytest.raises(asyncio.TimeoutError):
+            await capture.pull_oxyii_session(dev, str(tmp_path))
+
+    with caplog.at_level(logging.ERROR, logger="capture"):
+        _run(go())
+    line = next(r.getMessage() for r in caplog.records if "stored-session pull" in r.getMessage())
+    assert "exceeded" not in line, line
+    assert "INSIDE the op" in line, line
+
+
 def test_run_polar_silent_control_point_is_not_a_rejection(tmp_path, monkeypatch):
     """The device ACCEPTS the control WRITE but never sends the indication — a real BlueZ behaviour
     (notifications sharing a connection interval get dropped). The write path succeeds, so this exercises

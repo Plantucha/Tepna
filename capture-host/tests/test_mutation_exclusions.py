@@ -628,7 +628,13 @@ def test_the_covered_function_count_is_MEASURED_from_the_ast_not_quoted():
     # an absent stamp is a DISCARDED record, never a measurement of zero pushes — reads as a decision
     # rather than a truthiness test. +1, the whole delta.
     # `moduleFunctionsAtDeclaration` stays where it is, per the note above.
-    assert n == 342, f"capture.py now defines {n} functions — update the declaration's note deliberately"
+    # 342 → 343 on 2026-11-02 (row `2026-11-01-a-connect-failure-logs-as-a-300s-abandon`):
+    # `_abandon_reason`, which decides whether the whole-op bound or a bound INSIDE the op fired. It is
+    # a PURE function because the two abandon sites must give one answer and because the decision is
+    # the measured elapsed against the bound — a comparison the two call sites cannot each own without
+    # drifting apart. +1, the whole delta.
+    # `moduleFunctionsAtDeclaration` stays where it is, per the note above.
+    assert n == 343, f"capture.py now defines {n} functions — update the declaration's note deliberately"
 
 
 def test_count_functions_counts_nested_and_methods_and_refuses_nothing():
