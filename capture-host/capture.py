@@ -9497,28 +9497,28 @@ async def storage_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None
         await asyncio.sleep(interval)
 
 
-def _read_quiet_state(path):
-    """The saved quiet state (`alerts.quiet_state_to_save`), or None. Never raises: a lost file costs one
-    false alarm, and capture must go on."""
+def _read_quiet_state(path, what="the quiet state"):
+    """A saved alert state (`alerts.quiet_state_to_save`, `alerts.qc_latch_to_save`), or None. Never
+    raises: a lost file costs one repeated alert, and capture must go on."""
     try:
         with open(path, encoding="utf-8") as fh:
             return json.load(fh)
     except FileNotFoundError:
         return None  # the first start, or a box that has not pulled yet
     except (OSError, ValueError):
-        log.warning("alert: %s is unreadable; the quiet state starts empty", path, exc_info=True)
+        log.warning("alert: %s is unreadable; %s starts empty", path, what, exc_info=True)
         return None
 
 
-def _write_quiet_state(path, state):
-    """Atomic write of the quiet state. A failure is logged and capture goes on."""
+def _write_quiet_state(path, state, what="the quiet state"):
+    """Atomic write of an alert state. A failure is logged and capture goes on."""
     try:
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path + ".tmp", "w", encoding="utf-8") as fh:
             json.dump(state, fh, indent=1, sort_keys=True)
         os.replace(path + ".tmp", path)
     except OSError:
-        log.warning("alert: could not save %s; a restart will forget the quiet state", path, exc_info=True)
+        log.warning("alert: could not save %s; a restart will forget %s", path, what, exc_info=True)
 
 
 async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
@@ -9720,6 +9720,12 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
                             name,
                         )
                     if name not in ended_noted:
+                        if not alerts.worth_a_night_note(stream_since.get(name), _LAST_DATA.get(name)):
+                            # A short wear: the pull licenses the silence, and no note goes out.
+                            log.info("%s: a short wear ended after a completed pull — no night note", name)
+                            ended_noted.add(name)
+                            ended_at[name] = now
+                            continue
                         delivered = await notifier.send(
                             f"Tepna: {name} night ended",
                             f"{name} powered off after a completed pull. Its stored session is on the box.",
@@ -9733,6 +9739,8 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
                 if not connected and last is not None and first is not None:
                     stop = _dt.datetime.now() - _dt.timedelta(seconds=now - last)
                     if alerts.stream_ended_in_the_morning(last - first, stop.hour):
+                        if not alerts.stream_end_settled(last, now):
+                            continue  # a doff pull may still complete; the pulled-night note wins then
                         if name not in ended_noted:
                             mins = int((last - first) / 60)
                             log.info("%s: live stream ended at %s after %d min", name, stop.strftime("%H:%M"), mins)
@@ -10083,7 +10091,6 @@ async def qc_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = N
     # is measured, not theoretical: the same commit ran green locally before 09:00 EDT and red in CI
     # at ≥09:00 UTC. A default whose test outcome depends on the wall clock is a flake generator.
     digest_hour = int(qcfg.get("digest_hour", -1))
-    digest_sent_date = None
     # Its own hour and its own once-a-day key, so enabling the digest does not silently also
     # decide when baselines rebuild — and disabling the digest does not disable them.
     baseline_hour = int(qcfg.get("baseline_hour", 11))
@@ -10097,9 +10104,13 @@ async def qc_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = N
     settle = float((cfg.get("storage") or {}).get("settle_sec", _NIGHT_SETTLE_S))
     captures = os.path.join(root, "captures")
     first_seen: dict[str, float] = {}  # night → monotonic ts we first saw it with data
-    alerted: set[str] = set()  # nights already alerted (edge-trigger, one per night)
     frozen_alerted: set[str] = set()  # night:device — one warning per frozen sensor per night
     canary_alerted: set[str] = set()  # night:message — one warning per dead sidecar per night
+    # The digest day and the gap-alerted nights come back from disk, so a restart sends neither again
+    # (`alerts.QC_LATCH_NAME` holds the measurement).
+    latch_path = os.path.join(captures, alerts.QC_LATCH_NAME)
+    digest_sent_date, alerted = alerts.qc_latch_restored(_read_quiet_state(latch_path, "the qc latch"))
+    latch_saved = alerts.qc_latch_to_save(digest_sent_date, alerted)
     while not _STOP.is_set():
         await asyncio.sleep(interval)
         try:
@@ -10218,8 +10229,13 @@ async def qc_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = N
             # `gate_state()` carries the offline-op pauses, and this rule could not see them: a Sense
             # mid-download writes nothing BY DESIGN, and on 2026-11-01 15:00 that silence reached the
             # watchdog as a fault. `alerts.explained_silence` is the one home for every such state.
+            _mono = _time.monotonic()
             for _name in alerts.frozen_devices(
-                summ, STATUS.get("devices") or {}, frozen_after, gate_state()["polar_paused"]
+                summ,
+                STATUS.get("devices") or {},
+                frozen_after,
+                gate_state()["polar_paused"],
+                {k: _mono - v for k, v in _LAST_DATA.items()},
             ):
                 _key = f"{n}:{_name}"
                 if _key in frozen_alerted:
@@ -10295,6 +10311,10 @@ async def qc_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = N
                         "Tepna: night has a gap",
                         f"{n}: no data on {', '.join(summ['missing'])} {int(waited / 3600)}h into the night.",
                     )
+            latch_now = alerts.qc_latch_to_save(digest_sent_date, alerted)
+            if latch_now != latch_saved:
+                _write_quiet_state(latch_path, latch_now, "the qc latch")
+                latch_saved = latch_now
         except Exception as e:  # QC is observability — never take capture down
             # exc_info, NOT just %r. This handler logged `AttributeError("'str' object has no attribute
             # 'get'")` on main under `-n 4` — reddening #3024, #3027 and 320d7a6e — and the repr alone
@@ -14416,6 +14436,37 @@ def _cpap_autostart_boot(root, now_ms):
     return watch
 
 
+async def _cpap_notify(title: str, message: str) -> bool:
+    """Send one alert through the daemon notifier. It reads `_NOTIFIER` at CALL time, because
+    `main()` sets the notifier and the auto-start task outlives any value bound at arming."""
+    if _NOTIFIER is None:
+        return False
+    return bool(await _NOTIFIER.send(title, message))
+
+
+async def _cpap_night_ended_note(notify, began_ms: float, ended_ms: float) -> bool:
+    """Tell the operator that the CPAP night ended, as `alert_poller` does for each wearable.
+
+    The CPAP is not in the wearable device list, so that poller never sees it. Its night ends
+    HERE, when retention judges a stream real. A false start never reaches this call. A failed
+    send is logged and never raises into the loop: the alert is a courtesy, the loop is capture."""
+    if notify is None:
+        return False
+    mins = int((ended_ms - began_ms) / 60_000)
+    stop = _dt.datetime.fromtimestamp(ended_ms / 1000.0).strftime("%H:%M")
+    try:
+        return bool(
+            await notify(
+                "Tepna: CPAP night ended",
+                f"CPAP streamed for {mins // 60} h {mins % 60:02d} min and stopped at {stop}. "
+                "The live record on the box runs up to that minute.",
+            )
+        )
+    except Exception as e:  # noqa: BLE001 — an alert transport fault must not kill auto-start
+        log.warning("CPAP auto-start: the night-ended alert failed (%s: %s)", type(e).__name__, e)
+        return False
+
+
 async def _cpap_autostart_loop(
     *,
     root,
@@ -14430,6 +14481,7 @@ async def _cpap_autostart_loop(
     now_ms=None,
     get_therapy=None,
     unlink=None,
+    notify=None,
 ):
     """Start the live stream when therapy starts — EAGERLY — and judge the start afterward.
     The deciding is all in `cpap_live`.
@@ -14516,6 +14568,7 @@ async def _cpap_autostart_loop(
             else:
                 log.info("CPAP auto-start: session ended and RETAINED (%s)", verdict_why)
                 _CPAP_THERAPY_END["mono"] = _time.monotonic()
+                await _cpap_night_ended_note(notify, streaming_since_ms, t)
             streaming_since_ms = None
         due, why = cpap_live.autostart_due(watch, t, max_attempts=max_attempts, already_streaming=running)
         if not due:
@@ -14612,6 +14665,7 @@ def _maybe_start_cpap_autostart(cfg, root, cpap_ctl, tasks, *, create_task=None)
                 hold_s=hold,
                 max_attempts=attempts,
                 get_last_paths=lambda: list(getattr(cpap_ctl, "last_sink_paths", []) or []),
+                notify=_cpap_notify,
             ),
             "CPAP auto-start",
         )

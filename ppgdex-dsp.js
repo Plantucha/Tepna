@@ -868,13 +868,14 @@
   }
 
   /* opts.timebase (O2RING-ADAPTIVE-TIMEBASE Stage 2):
-       undefined / 'host-disciplined'  the device ns axis disciplined to the capture host (today's path,
-                                        and the default — behaviour is byte-identical when unset).
+       undefined / 'host-disciplined'  the device ns axis disciplined to the capture host — the default
+                                        again since 2026-11-02, on the 93-night ECG score in
+                                        `RING-TIMEBASE-ECG-TEST-2026-10-29-BRIEF.md` §4.
        'device-crystal'                 O2Ring finger ONLY: real ADC samples on the 125.000 crystal grid,
                                         the inserted `156` beat markers NOT counted as samples, contiguous
                                         SEGMENTS re-anchored to the host so genuine losses are preserved.
-     The choice is Stage 3's to make per stamped clock provenance; Stage 2 only builds + tests the path,
-     so no production caller passes it yet and the default is unchanged. */
+     The choice is Stage 3's to make per stamped clock provenance: the capture host's `# timebase=` embed
+     decides where it said anything, and `timebaseSource` reports which rule chose the axis. */
   function parsePPG(text, opts) {
     opts = opts || {};
     const lines = text.split(/\r?\n/);
@@ -1482,11 +1483,23 @@
     /* THE EFFECTIVE TIMEBASE for an O2Ring FINGER recording, by precedence (Stage 3b):
          1. opts.timebase — an explicit caller override (tests, signal-orchestrate)
          2. embeddedTimebase — the `# timebase=…` the capture host stamped into the file (Stage 3a decision)
-         3. DEFAULT 'device-crystal' — the safe 125.000 floor. THIS is the default-FLIP: an O2Ring finger
-            recording is analysed on its crystal unless the host EARNED discipline (stratum ≤ 1, tight skew)
-            and said so via the embed. A Verity ignores all of this (not a finger either/or) → null. */
-    const wantTimebase = opts.timebase === 'device-crystal' || opts.timebase === 'host-disciplined' ? opts.timebase : embeddedTimebase || 'device-crystal';
+         3. DEFAULT 'host-disciplined' — the axis the corpus rates better. The crystal held this slot
+            from Stage 3b until 2026-11-02, on the ONE-night ECG validation in
+            `O2RING-ADAPTIVE-TIMEBASE-2026-08-08-BRIEF.md` §3.
+            `RING-TIMEBASE-ECG-TEST-2026-10-29-BRIEF.md` §4 then scored 93 nights against the same H10
+            ECG: over the 22 box-QC-PASS nights the crystal reads 0.24 bpm high where the host axis reads
+            0.00, crystal worse on 18 nights and better on NONE, worst night +2.66 bpm. That brief's
+            §5.4 calls the crystal default unsupported, and 33 of the 93 nights carry no embed, so the
+            default is what they ride. A Verity ignores all of this (not a finger either/or) → null.
+         THE DEFAULT IS NOT A MEASUREMENT (∅). An unstamped file now rides the host axis WITHOUT the host
+         having earned discipline, which is the same silent assumption the crystal default made in the
+         other direction. So `timebaseSource` names which of the three rules chose it — 'caller',
+         'embedded' or 'default' — on the `site`/`siteSource` pattern above: a consumer can tell a
+         stratum-1 embed from this fallback instead of inheriting a verdict neither clock earned. */
+    const explicitTimebase = opts.timebase === 'device-crystal' || opts.timebase === 'host-disciplined';
+    const wantTimebase = explicitTimebase ? opts.timebase : embeddedTimebase || 'host-disciplined';
     let timebase = site === 'finger' ? wantTimebase : null;
+    const timebaseSource = site === 'finger' ? (explicitTimebase ? 'caller' : embeddedTimebase ? 'embedded' : 'default') : null;
     if (timebase === 'device-crystal' && site === 'finger' && n > 0) {
       const gapMask = sent ? sent.gap : null;
       const maxStep = TIME_GAP_STEPS / (fs > 0 ? fs : O2_ADC_HZ); // gap detector, on the host axis just built
@@ -1539,6 +1552,10 @@
       relSec,
       fs,
       timebase,
+      /* WHICH RULE CHOSE THAT AXIS — 'caller' | 'embedded' | 'default', null for a Verity. 'default'
+         is the ∅ disclosure: nobody said, so the host axis here is this build's floor and not a
+         clock the capture host earned. */
+      timebaseSource,
       /* THE RATE THE HOST CORRECTION IS ABOUT (residue row
          `2026-10-29-the-timing-block-publishes-every-fact-about-the-rate-except-the-rate`). `fs`
          above is what every consumer spends; these three say where it came from. `fsRaw` is the rate
@@ -6262,6 +6279,10 @@
       // 125.000 ADC clock, markers deflated) or 'host-disciplined' (the host-referenced row axis) for an
       // O2Ring finger recording; null for a Verity (a real multi-oscillator device, not an either/or).
       timebase: rec.timebase || null,
+      /* AND WHICH RULE CHOSE IT — 'caller' | 'embedded' | 'default', null for a Verity. The same
+         ∅ disclosure `siteSource` makes above: 'default' means nobody stamped a decision, so the
+         host axis is this build's floor rather than a clock the capture host earned. */
+      timebaseSource: rec.timebaseSource || null,
       /* `=== true` COLLAPSED THE UNKNOWN. `drawn` is tri-state at the emitter, and this projection
          turned `null` into `false` — the same §∅ defect one layer out, on the field `quality` readers
          branch on. `:6928` below already nulls correctly; this line was the only loss. */
@@ -7407,7 +7428,7 @@
         // clock with the `156` beat markers deflated; 'host-disciplined' = the host-referenced row axis).
         // O2RING-ADAPTIVE-TIMEBASE. Additive + CONDITIONAL: a Verity (r.timebase == null) omits the key,
         // so every committed Verity export stays byte-identical; only a finger export carries it.
-        ...(r.timebase ? { timebase: r.timebase } : {})
+        ...(r.timebase ? { timebase: r.timebase, timebaseSource: r.timebaseSource || null } : {})
       };
       out.hrv = {
         time: {

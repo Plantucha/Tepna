@@ -856,6 +856,27 @@ def test_a_connected_but_silent_sensor_warns_once_per_night(tmp_path, monkeypatc
     assert "not a dropout" in sent[0][1]
 
 
+def test_qc_poller_passes_live_sample_ages_so_an_ARRIVING_stream_is_not_silent(tmp_path, monkeypatch, caplog):
+    """The wire. Without the ages the poller warns on the stale scan, as it did on 2026-11-01 22:22."""
+    os.makedirs(str(tmp_path / "captures" / "2026-07-25"), exist_ok=True)
+    monkeypatch.setattr(capture, "_current_night", lambda captures, settle: "2026-07-25")
+    monkeypatch.setattr(
+        capture.nightqc,
+        "summarize",
+        lambda night, devices: {
+            "night": "2026-07-25",
+            "missing": [],
+            "devices": [{"name": "Verity", "silent_sec": 182 * 60}],
+        },
+    )
+    capture.STATUS["devices"]["Verity"] = {"connected": True}
+    monkeypatch.setitem(capture._LAST_DATA, "Verity", capture._time.monotonic())
+    _stop_after(monkeypatch, 1)
+    with caplog.at_level("WARNING"):
+        _run(capture.qc_poller({"qc": {"poll_sec": 1}, "devices": []}, str(tmp_path), None))
+    assert not any("CONNECTED but has written nothing" in r.getMessage() for r in caplog.records)
+
+
 def test_a_silent_sensor_still_warns_the_journal_with_no_webhook(tmp_path, monkeypatch, caplog):
     """The notifier is optional; the journal line is not."""
     os.makedirs(str(tmp_path / "captures" / "2026-07-25"), exist_ok=True)

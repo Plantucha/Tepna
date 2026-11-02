@@ -2512,11 +2512,22 @@
       var mono = true;
       for (var k = 1; k < rec.beatMarkerSec.length; k++) if (!(rec.beatMarkerSec[k] > rec.beatMarkerSec[k - 1])) mono = false;
       T.ok('marker times are strictly increasing (a beat train, not a bag of samples)', mono);
-      /* Markers sit 25 rows apart with 24 REAL samples between them, and on the crystal grid a marker
-         row advances no time — so the spacing is exactly 24/125 s. Derived from the fixture geometry,
-         not a recorded magic number: if marker deflation breaks, this moves. */
-      var gap = rec.beatMarkerSec[1] - rec.beatMarkerSec[0];
-      T.ok('marker spacing is the deflated crystal interval 24/125 s', Math.abs(gap - 24 / 125) < 1e-9, 'got ' + gap + ' s, expected ' + 24 / 125);
+      /* THE DEFLATION IDENTITY IS A CRYSTAL FACT, SO IT ASKS FOR THE CRYSTAL. Markers sit 25 rows apart
+         with 24 REAL samples between them, and only on the crystal grid does a marker row advance no
+         time — so the spacing there is exactly 24/125 s. Both numbers come from the fixture geometry
+         above, not from a recorded magic number: if marker deflation breaks, this moves. Until
+         2026-11-02 this leg read the DEFAULT parse, which was the crystal; the default is the host axis
+         now (`RING-TIMEBASE-ECG-TEST-2026-10-29-BRIEF.md` §4). */
+      var crysM = P.parsePPG(txt, { timebase: 'device-crystal' });
+      var gap = crysM.beatMarkerSec[1] - crysM.beatMarkerSec[0];
+      T.ok('marker spacing on the crystal is the deflated interval 24/125 s', Math.abs(gap - 24 / 125) < 1e-9, 'got ' + gap + ' s, expected ' + 24 / 125);
+      /* AND THE DEFAULT RIDES THE OTHER AXIS, which is what makes the leg above a measurement rather
+         than a restatement of the default. On the host axis a marker row spends its own row time, so 25
+         rows apart means 25 device steps — 7953045 ns each, from the generator above. This leg reds if
+         the finger default ever returns to the crystal without a brief saying so. */
+      var defGap = rec.beatMarkerSec[1] - rec.beatMarkerSec[0];
+      T.ok('the DEFAULT spacing is 25 host rows, not 24 deflated crystal ticks', Math.abs(defGap - 25 * 7953045e-9) < 1e-9, 'got ' + defGap + ' s, expected ' + 25 * 7953045e-9);
+      T.ok('…so the two axes really do disagree here', Math.abs(defGap - gap) > 1e-6, 'defGap=' + defGap + ' crystalGap=' + gap);
       T.ok('positions are SECONDS on the published axis, not row indices', rec.beatMarkerSec[0] < rec.relSec[rec.relSec.length - 1] && rec.beatMarkerSec[0] > 0, 'got ' + rec.beatMarkerSec[0]);
       // A wrist (Verity) file has no O2Ring markers: 156 there is an ordinary raw ADC count, and
       // claiming beats from it would fabricate a beat train out of ordinary signal.
@@ -3108,7 +3119,7 @@
       T.ok("ANTI-VACUITY · the twin's own ppm is under HALF a step of fs, so no division could survive it", Math.abs(hostHa.ppm) < stepPpm / 2, 'ppm=' + hostHa.ppm + ' halfStep=' + stepPpm / 2);
       T.eq('…and the arithmetic says the same: 125 Hz divided by that ppm rounds back to 125 Hz', Math.round((125 / (1 + hostHa.ppm / 1e6)) * 100) / 100, 125);
       T.eq('so the host arm reports the division reached nothing — it divided, the rounding took it back', hostHa.rateApplied, false);
-      T.eq('…and the crystal default reports the same, for its own reason: the ADC constant overwrote fs', crysHa.rateApplied, false);
+      T.eq('…and the crystal arm reports the same, for its own reason: the ADC constant overwrote fs', crysHa.rateApplied, false);
       T.eq('both arms still publish the same measured ppm', hostHa.ppm, crysHa.ppm);
       T.eq('…and the same sub-floor verdict, because it is about the SPAN, not about fs', hostHa.rate + '|' + crysHa.rate, 'unknown|unknown');
 
@@ -3116,8 +3127,8 @@
          constant `false` would pass every leg in this group. A correction LARGER than one quantisation
          step must still read `true`. 2000 ppm against the ~74 ppm step at 135 Hz is 27 steps, so this
          leg is the one that reds if the flag ever stops tracking the published rate. Verity-shaped on
-         purpose: three channels that differ keep `deriveSiteFromLayout` off 'finger', whose default
-         timebase is the crystal, and the arm is named anyway. */
+         purpose: three channels that differ keep `deriveSiteFromLayout` off 'finger', which is the only
+         site a timebase applies to at all, and the arm is named anyway. */
       var bigRows = ['Phone timestamp;sensor timestamp [ns];channel 0;channel 1;channel 2;ambient'];
       var bigStep = 1000 / 135,
         bigDev = 0;
@@ -4574,21 +4585,34 @@
       }
       var N = 2000;
       var txt = HDR + fingerRows(N);
-      var def = P.parsePPG(txt); // Stage 3b: an O2Ring finger recording now DEFAULTS to device-crystal
-      var host = P.parsePPG(txt, { timebase: 'host-disciplined' }); // the opt-OUT back to the host axis
-      var crys = P.parsePPG(txt, { timebase: 'device-crystal' });
-      T.eq('a finger recording now DEFAULTS to device-crystal (the "default 125" flip)', def.timebase, 'device-crystal');
-      T.eq('host-disciplined is still reachable as an explicit opt-out', host.timebase, 'host-disciplined');
-      T.eq('the explicit crystal path is labelled device-crystal', crys.timebase, 'device-crystal');
+      /* THE DEFAULT IS THE HOST AXIS AGAIN since 2026-11-02. `RING-TIMEBASE-ECG-TEST-2026-10-29-BRIEF.md`
+         §4 scored 93 nights against the H10 ECG: the crystal reads 0.24 bpm high over 22 box-QC-PASS
+         nights where the host axis reads 0.00, worse on 18 and better on none. §5.4 calls the crystal
+         default unsupported, so the crystal is the OPT-IN arm and the whole branch below still runs on
+         the explicit request. */
+      var def = P.parsePPG(txt); // no opt, no embed ⇒ the DEFAULT path
+      var host = P.parsePPG(txt, { timebase: 'host-disciplined' }); // the same axis, asked for by name
+      var crys = P.parsePPG(txt, { timebase: 'device-crystal' }); // the OPT-IN crystal
+      T.eq('a finger recording DEFAULTS to host-disciplined (the 93-night flip back)', def.timebase, 'host-disciplined');
+      T.eq('device-crystal is still reachable as an explicit opt-in', crys.timebase, 'device-crystal');
+      T.eq('asking for the host axis by name reaches the same axis', host.timebase, 'host-disciplined');
       T.ok('device-crystal fs is the 125.000 ADC rate', Math.abs(crys.fs - 125) < 1e-9, 'got ' + crys.fs);
-      T.ok('the default (crystal) and the host axis are genuinely different', crys.relSec[N - 1] !== host.relSec[N - 1]);
-      T.ok('the default IS the crystal axis (same as explicit crystal)', def.relSec[N - 1] === crys.relSec[N - 1]);
+      T.ok('the crystal and the host axis are genuinely different', crys.relSec[N - 1] !== host.relSec[N - 1]);
+      T.ok('the default IS the host axis (same as the named host request)', def.relSec[N - 1] === host.relSec[N - 1]);
+      /* ∅ THE DEFAULT DISCLOSES ITSELF. Both arms now answer 'host-disciplined' on `timebase`, so
+         without `timebaseSource` a consumer cannot tell a capture host that EARNED discipline from this
+         build's floor — the same silent assumption the crystal default made in the other direction. */
+      T.eq('∅ the defaulted axis says nobody chose it', def.timebaseSource, 'default');
+      T.eq('…and a named request says the caller did', host.timebaseSource, 'caller');
+      T.eq('…so does the explicit crystal', crys.timebaseSource, 'caller');
       // THE EMBED (Stage 3a→3b): a `# timebase=…` header the capture host stamped is honoured, and an
       // explicit opts.timebase still overrides it (precedence: opts > embed > default).
       var embHost = P.parsePPG('# timebase=host-disciplined\n' + txt);
       T.eq('an embedded host-disciplined stamp selects the host axis (a stratum-1 capture)', embHost.timebase, 'host-disciplined');
+      T.eq('…and the stamp is what the source names, not the default that agrees with it', embHost.timebaseSource, 'embedded');
       var embCrys = P.parsePPG('# timebase=device-crystal\n' + txt);
       T.eq('an embedded device-crystal stamp selects the crystal', embCrys.timebase, 'device-crystal');
+      T.eq('…from the embed too', embCrys.timebaseSource, 'embedded');
       T.eq('an explicit opts.timebase OVERRIDES the embed', P.parsePPG('# timebase=host-disciplined\n' + txt, { timebase: 'device-crystal' }).timebase, 'device-crystal');
       T.ok('the embedded-host axis matches the explicit-host axis (the comment is invisible to parsing)', embHost.relSec[N - 1] === host.relSec[N - 1] && embHost.n === host.n);
       // Two consecutive REAL samples (indices 0,1) are one crystal tick apart, EXACTLY.
@@ -4620,6 +4644,7 @@
       }
       var wCrys = P.parsePPG(WHDR + wrist, { timebase: 'device-crystal' });
       T.eq('a Verity recording carries no timebase (not a finger either/or)', wCrys.timebase, null);
+      T.eq('…and no source for one either', wCrys.timebaseSource, null);
       T.ok('device-crystal is a no-op on a Verity (fs is not forced to 125)', Math.abs(wCrys.fs - 125) > 1, 'got ' + wCrys.fs);
       // The compute → rich-export wiring: quality.timebase is emitted for a finger crystal export and
       // OMITTED for a Verity (conditional spread), so every committed Verity golden stays byte-identical.
@@ -24190,6 +24215,188 @@
       });
     });
 
+    /* ════ 8c¹ · A CLAIM MAY NAME A CONSTANT THAT LIVES IN CODE, AND ONE NUMBER GETS ONE MECHANISM ════
+       Row `2026-10-10-two-mechanisms-bind-a-doc-number-to-code-and-one-cannot-read-code`. The resolver
+       above walked a slash-separated pointer with `JSON.parse`, so a marker naming a `.js` source failed
+       as `unreadable/invalid JSON` — a refusal about the file FORMAT, worded as a broken artifact. #3389
+       was asked for a marker sourced from `clock.js` and could not have one: satisfying it meant
+       publishing the constant into a JSON, a SECOND source of truth for a number that already had one.
+
+       THE DECISION (§7, 2026-11-02): a CLAIM may name a code source, and `docs-constants.mjs` stays.
+       The doc side decides which mechanism applies — a marker the doc can carry is a CLAIM, a number
+       inside prose that carries no marker is a `CHECKS` entry — so a number pinned by both is the
+       accident the row names, and `pinnedByDocsConstants` reds it.
+
+       Every leg below plants its source, so the refusals are exercised without a drifted repository. A
+       GATE THAT CANNOT READ ITS SOURCE MUST NOT CERTIFY THE CLAIM: each blind path returns a named
+       reason and no value, because the suite reds an unresolved claim while a quiet null reads as
+       agreement (CLAUDE.md §4b). Node lane only — the module is a tool import. */
+    group('a CLAIM resolves a code source, and every way it goes blind is a named refusal', 'docs · claim-source · resolver', function (T) {
+      var CS = env.claimSource;
+      if (!CS) {
+        T.skip('env.claimSource provided to the runner', 'Node-lane only — wire env.claimSource (tools/claim-source.mjs)');
+        return;
+      }
+      /* The planted source states 99 twice — once in a comment, once in a string — and 21 once, in
+         code. A reader that scanned raw text would have three candidates and no answer. */
+      var SRC = [
+        'var CK_WIDTH = 21; // the one real binding',
+        '// var CK_WIDTH = 99; a commented-out twin is not a binding',
+        'var LABEL = "CK_WIDTH = 99";',
+        'var CK_EXPR = other * 2;',
+        'var CK_EXP = 5e3;',
+        'var CK_TWICE = 1;',
+        'CK_TWICE = 2;'
+      ].join('\n');
+
+      var w = CS.readCodeConstant(SRC, 'CK_WIDTH');
+      T.eq('CONTROL · a code binding resolves to its number, past a commented and a quoted twin', w.value, 21);
+      T.eq('…with no reason, because it resolved', w.reason, null);
+      T.eq('a binding that exists only in a comment is bound NOWHERE', CS.readCodeConstant('// var CK_ONLY = 7;', 'CK_ONLY').value, null);
+      T.ok(
+        '…and says so by name',
+        /bound nowhere in the code/.test(String(CS.readCodeConstant('// var CK_ONLY = 7;', 'CK_ONLY').reason)),
+        'reason: ' + CS.readCodeConstant('// var CK_ONLY = 7;', 'CK_ONLY').reason
+      );
+      T.eq('a binding that exists only inside a string is bound NOWHERE', CS.readCodeConstant('var L = "CK_ONLY = 7";', 'CK_ONLY').value, null);
+
+      var expr = CS.readCodeConstant(SRC, 'CK_EXPR');
+      T.eq('an identifier bound to an EXPRESSION yields no value', expr.value, null);
+      T.ok('…and the reason names the shape, not the file', /no plain numeric literal/.test(String(expr.reason)), 'reason: ' + expr.reason);
+
+      /* THE TRUNCATION THIS FORM REFUSES. `5e3` under a `-?\d+(\.\d+)?` read is 5 — the same silent
+         truncation `CLAIM x = 5.5` once suffered, one indirection down, and a wrong number that passes
+         is worse than a claim that reds. */
+      var exp = CS.readCodeConstant(SRC, 'CK_EXP');
+      T.eq('an exponent form is REFUSED, never truncated to its mantissa', exp.value, null);
+      T.ok('…and the refusal is named', /no plain numeric literal/.test(String(exp.reason)), 'reason: ' + exp.reason);
+
+      var twice = CS.readCodeConstant(SRC, 'CK_TWICE');
+      T.eq('an identifier bound twice names no single value', twice.value, null);
+      T.ok('…and the reason carries the count', /2 times/.test(String(twice.reason)), 'reason: ' + twice.reason);
+      T.ok(
+        'a slash pointer on a code source is refused as not an identifier',
+        /not a JS identifier/.test(String(CS.readCodeConstant(SRC, 'a/b').reason)),
+        'reason: ' + CS.readCodeConstant(SRC, 'a/b').reason
+      );
+
+      // ── the dispatch by source kind, and the two refusals that frame it ──────────────────────
+      T.eq('a .json source is read as a pointer', CS.sourceKind('analysis/x.json'), 'json');
+      T.eq('a .js source is read as an identifier', CS.sourceKind('clock.js'), 'code');
+      T.eq('a .mjs source is read as an identifier', CS.sourceKind('tools/x.mjs'), 'code');
+      T.eq('a doc is neither', CS.sourceKind('docs/X.md'), null);
+      var unsup = CS.resolveSourcedClaim({ file: 'docs/X.md', pointer: 'n' }, function () {
+        return 'anything';
+      });
+      T.eq('an unsupported source resolves to nothing', unsup.actual, null);
+      T.ok('…and the reason sends the reader to the OTHER mechanism', /docs-constants/.test(String(unsup.reason)), 'reason: ' + unsup.reason);
+      T.ok(
+        'an absent file is named as absent, not as a format problem',
+        /source file not found/.test(
+          String(
+            CS.resolveSourcedClaim({ file: 'clock.js', pointer: 'CK_WIDTH' }, function () {
+              return null;
+            }).reason
+          )
+        ),
+        'an absent source and an unreadable one are the same answer to a reader: nothing was examined'
+      );
+
+      // ── the JSON path is UNCHANGED (the regression this refactor could have shipped) ──────────
+      var jread = function () {
+        return '{"a":{"b":4,"s":"x"}}';
+      };
+      T.eq('CONTROL · a JSON pointer still resolves to its number', CS.resolveSourcedClaim({ file: 'x.json', pointer: 'a/b' }, jread).actual, 4);
+      T.ok(
+        'a dead JSON pointer still reds by name',
+        /pointer did not resolve/.test(String(CS.resolveSourcedClaim({ file: 'x.json', pointer: 'a/zz' }, jread).reason)),
+        'the original wording is the one briefs quote'
+      );
+      T.ok('a non-numeric JSON pointer still reds by name', /not a number/.test(String(CS.resolveSourcedClaim({ file: 'x.json', pointer: 'a/s' }, jread).reason)), 'a string is not a claim');
+      T.ok(
+        'invalid JSON still reds as invalid JSON — for a .json source, which is where that wording is true',
+        /unreadable\/invalid JSON/.test(
+          String(
+            CS.resolveSourcedClaim({ file: 'x.json', pointer: 'a' }, function () {
+              return 'not json';
+            }).reason
+          )
+        ),
+        'the wording was only ever wrong when the file was code'
+      );
+
+      // ── ONE NUMBER, ONE MECHANISM ─────────────────────────────────────────────────────────────
+      var planted = [
+        { name: 'planted', codeFile: 'clock.js', codeRegex: /CK_PLANTED\s*=\s*([\d.]+)/ },
+        { name: 'no-code-side', docFile: 'CLAUDE.md', docRegex: /x/ }
+      ];
+      var pins = CS.docsConstantsPins(planted);
+      T.eq('a CHECKS entry declares its territory: one file, one identifier', pins.length, 1);
+      T.eq('…read from the code regex the entry already carries', pins[0].ident, 'CK_PLANTED');
+      T.eq(
+        'an entry with no code side pins nothing (it cannot read code either)',
+        pins.filter(function (x) {
+          return x.check === 'no-code-side';
+        }).length,
+        0
+      );
+      T.ok('a CLAIM on a pinned file+identifier is PINNED', CS.pinnedByDocsConstants(planted, 'clock.js', 'CK_PLANTED').pinned === true, 'two gates on one number is the accident the row names');
+      T.ok('CONTROL · the same identifier in another file is NOT pinned', CS.pinnedByDocsConstants(planted, 'other.js', 'CK_PLANTED').pinned === false, 'else the detector refuses everything');
+      T.ok(
+        'CONTROL · another identifier in the pinned file is NOT pinned',
+        CS.pinnedByDocsConstants(planted, 'clock.js', 'CK_AXIS_WIN').pinned === false,
+        'else no code-sourced CLAIM could ever name clock.js'
+      );
+
+      /* THE HALF OF THE ROW THAT WAS A HAZARD, NOT A DECISION. `docs-constants.mjs` called `main()` at
+         module scope and `main()` ends in `process.exit`, so reading its `CHECKS` list from the suite
+         TERMINATED the suite — an examined-nothing green of the §4c shape, since a runner that exits
+         during import prints no verdict at all. The guard is `isCliEntry`, and the child is where a
+         regression of it reads as an assertion instead of a dead shard. */
+      if (typeof env.importToolInChild === 'function') {
+        var imp = env.importToolInChild('tools/docs-constants.mjs', ['CHECKS']);
+        T.eq('importing the OTHER mechanism exits 0 — it does not run, and does not exit the importer', imp.status, 0);
+        T.ok(
+          '…and its CHECKS list is readable from outside',
+          imp.read !== null && Array.isArray(imp.read.CHECKS) && imp.read.CHECKS.length > 0,
+          'read: ' + JSON.stringify(imp.read && imp.read.CHECKS ? imp.read.CHECKS.length : imp.read)
+        );
+        T.ok('…and the gate did not RUN on the way (no verdict line in its output)', !/docs-constants: (\u2713 PASS|FAIL)/.test(String(imp.out)), String(imp.out).slice(0, 200));
+      } else {
+        T.skip('the child-import probe is in env', 'Node-lane only — env.importToolInChild');
+      }
+
+      // ── the live tree: the form ships, and the overlap detector has something to read ─────────
+      var C = env.claudeMdClaims;
+      if (!C) {
+        T.skip('the live CLAIM scan is in env', 'Node-lane only — env.claudeMdClaims');
+        return;
+      }
+      var live = C.docsConstantsPins || [];
+      T.ok(
+        'the live CHECKS list pins at least one number (an empty pin set is a vacuous detector)',
+        live.length > 0,
+        'pins: ' +
+          live
+            .map(function (x) {
+              return x.file + '#' + x.ident;
+            })
+            .join(', ')
+      );
+      var code = (C.sourced || []).filter(function (r) {
+        return r.kind === 'code';
+      });
+      T.ok(
+        'at least one SOURCED CLAIM reads a code source (a form nothing uses is not a mechanism)',
+        code.length > 0,
+        code
+          .map(function (r) {
+            return r.name + ' = ' + r.actual + ' FROM ' + r.file + '#' + r.pointer;
+          })
+          .join(', ') || 'none — the code-source form shipped with no marker using it'
+      );
+    });
+
     /* ════ 8c² · THE TRIO-ELIGIBLE POPULATION — the artifact the CLAIM sources, held against the TREE ════
        Row `2026-10-25-the-trio-eligible-claim-resolves-to-an-unproduced-list`. The group above proves the
        prose COPIES its artifact, and that is all a sourced CLAIM can prove. This one did not hold:
@@ -34147,12 +34354,13 @@
       T.ok('CONTROL · the export is still LIGHT — no rich hrv block travelled with the axis', !lightTwo.hrv, 'light.hrv=' + JSON.stringify(lightTwo.hrv));
     });
 
-    group('PpgDex O2Ring finger export ≡ its committed golden — the device-crystal DEFAULT (Stage 3b)', 'ppgdex-dsp · equiv · device-crystal', function (T) {
-      /* The dynamic (GATE-C) leg for the crystal DEFAULT-flip: compute({text}) on the committed finger
-         twin — WITHOUT any timebase opt — must reproduce the golden, which was recorded on the crystal.
+    group('PpgDex O2Ring finger export ≡ its committed golden — the host-disciplined DEFAULT', 'ppgdex-dsp · equiv · device-crystal', function (T) {
+      /* The dynamic (GATE-C) leg for the finger DEFAULT: compute({text}) on the committed finger twin
+         — WITHOUT any timebase opt — must reproduce the golden, which is recorded on whatever the
+         default is. It was the crystal from Stage 3b until 2026-11-02 and is the host axis now
+         (`RING-TIMEBASE-ECG-TEST-2026-10-29-BRIEF.md` §4, 93 nights against the H10 ECG).
          GATE B already content-addresses it statically; this reds if a code change MOVES the finger output.
-         Every other PpgDex golden is a Verity, so before this the shipped crystal default had no committed
-         leg (O2RING-ADAPTIVE-TIMEBASE Stage 3b). */
+         Every other PpgDex golden is a Verity, so this is the only committed leg the finger default has. */
       var eq = env.equiv && env.equiv.ppgdex_finger;
       var P = env.PpgDex;
       if (!(eq && eq.input && eq.fixture && P && typeof P.compute === 'function')) {
@@ -34195,8 +34403,11 @@
         return P.compute({ text: eq.input }, { rich: true }); // rich, but NO timebase opt ⇒ the DEFAULT path
       });
       T.eq('compute({rich:true}) on the finger twin reproduces the committed golden (volatile keys aside)', JSON.stringify(strip(out)), JSON.stringify(strip(eq.fixture)));
-      // ANTI-VACUITY: the golden must actually record the crystal default, not an empty export.
-      T.eq('the golden was recorded on the device-crystal DEFAULT', eq.fixture.quality && eq.fixture.quality.timebase, 'device-crystal');
+      // ANTI-VACUITY: the golden must actually record the default, not an empty export — and the
+      // twin carries no `# timebase=` embed, so `timebaseSource` must say the DEFAULT chose it. A
+      // golden that recorded an embedded or caller-chosen axis would not be testing the default.
+      T.eq('the golden was recorded on the host-disciplined DEFAULT', eq.fixture.quality && eq.fixture.quality.timebase, 'host-disciplined');
+      T.eq('…and the twin carries no embed, so the DEFAULT is what chose it', eq.fixture.quality && eq.fixture.quality.timebaseSource, 'default');
       T.eq('…and the recompute agrees it is a finger recording', out.recording && out.recording.site, 'finger');
     });
 
@@ -36719,14 +36930,17 @@
       // ── layout ─────────────────────────────────────────────────────────────────────────────────
       T.eq('a ONE-optical-column file parses (Verity path needs 6 columns)', rec.ch.length, 1);
       T.eq('site is tagged from the LAYOUT, not guessed', rec.site, 'finger');
-      // Stage 3b: a finger recording now DEFAULTS to the device-crystal timebase, so its fs is the 125.000
-      // ADC rate (not the ~125.7 host ROW rate the old default rode). The host axis is still reachable.
-      T.eq('a finger recording DEFAULTS to the device-crystal timebase', rec.timebase, 'device-crystal');
-      T.ok('…so its default fs is the 125.000 ADC rate', Math.abs(rec.fs - 125) < 1e-9, 'fs=' + rec.fs);
+      /* A finger recording DEFAULTS to the host-disciplined timebase again since 2026-11-02, so its fs
+         is the ~125.7 host ROW rate rather than the 125.000 ADC constant the crystal default rode
+         (`RING-TIMEBASE-ECG-TEST-2026-10-29-BRIEF.md` §4: the crystal reads 0.24 bpm high over 22
+         box-QC-PASS nights, worse on 18 and better on none). The crystal is still reachable. */
+      T.eq('a finger recording DEFAULTS to the host-disciplined timebase', rec.timebase, 'host-disciplined');
+      T.eq('∅ …and names the DEFAULT as what chose it, the twin carrying no embed', rec.timebaseSource, 'default');
+      T.ok('…so its default fs is the host ROW rate, not the ADC constant', rec.fs > 125.2, 'fs=' + rec.fs);
       T.ok(
-        'the host-disciplined row rate (~125.7) is still reachable as an opt-out',
-        D.parsePPG(eq.input, { timebase: 'host-disciplined' }).fs > 125.2,
-        'host fs=' + D.parsePPG(eq.input, { timebase: 'host-disciplined' }).fs
+        'the 125.000 ADC rate is still reachable as the crystal opt-in',
+        Math.abs(D.parsePPG(eq.input, { timebase: 'device-crystal' }).fs - 125) < 1e-9,
+        'crystal fs=' + D.parsePPG(eq.input, { timebase: 'device-crystal' }).fs
       );
       // BOTH directions: the wrist twin must NOT acquire a finger tag or a gap mask.
       if (env.equiv && env.equiv.ppgdex_synth && env.equiv.ppgdex_synth.input) {
