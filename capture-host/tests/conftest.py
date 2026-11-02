@@ -497,11 +497,29 @@ def _capture_status_is_not_leaked():
     so the failure moved: measured 2026-09-26 on one tree, three full runs, three different sets —
     test_link_distress_wire + test_pull_identity_key, then test_link_distress_wire alone, then five
     test_l3_rebind_target tests, every one `KeyError: 'devices'`, every one green alone.
-    Snapshot one level deep (each top-level dict copied, so a write into `devices` is undone too) and put it
-    back after; nothing is written BEFORE the test, so no test's starting state changes."""
+    Snapshot before the test and put it back after; nothing is written BEFORE the test, so no test's
+    starting state changes.
+
+    ⚠️ **DEEP, and the depth is the subtle half — corrected 2026-11-02.** This fixture copied ONE
+    level and said so: "each top-level dict copied, so a write into `devices` is undone too". That
+    parenthetical holds for a write that ADDS or REBINDS a key in `devices`, and it is false for the
+    write production actually makes. `capture._set()` does `STATUS["devices"].setdefault(name, {})` and
+    then `d.update(kv)` — in place, at depth TWO — so a one-level snapshot hands back a fresh outer
+    dict holding the SAME per-device dicts the test mutated. Measured directly against these two steps:
+    a depth-1 addition came back, `connected` and `link_epoch` written through `_set()` did not.
+
+    ⚠️ **It held anyway, for a reason that is not this fixture's.** `STATUS` is `{"devices": {}}` at
+    import and every depth-1 addition is restored, so no device key survives into a later test's
+    snapshot and nothing reaches the depth the copy missed. That is a property of `capture.py`, not of
+    the mechanism here: anything that pre-populates a device — a module-scoped fixture, an import-time
+    default, a nested key in `STATUS` itself — makes the leak live with no edit to this file. The
+    sibling leak above cost four sessions one day; a one-word copy is the cheaper side of that trade.
+    `tests/test_status_snapshot_depth.py` binds the depth, because nothing else observes it."""
+    import copy
+
     import capture
 
-    keep = {k: (dict(v) if isinstance(v, dict) else v) for k, v in capture.STATUS.items()}
+    keep = copy.deepcopy(capture.STATUS)
     yield
     capture.STATUS.clear()
     capture.STATUS.update(keep)

@@ -12023,6 +12023,65 @@
       T.ok('default is OFF so every existing analysis is unchanged', /const ALLOW_PARTIAL = flag\('--allow-partial'\)/.test(tb));
     });
 
+    /* 🔴 A CLAMP WHOSE TWO BOUNDS ARE ONE IDENTIFIER IS NOT A CLAMP, AND THE PROSE AROUND IT LIES.
+       `childHeapMB` read `Math.max(CHILD_HEAP_MB, Math.min(CHILD_HEAP_MB, perJobMB))` until
+       2026-11-02. One constant stands in both bounds, so it answered 2048 for every finite input and
+       the per-job figure it computed reached no consumer. Two live comments described it as a
+       three-way clamp and one reasoned from that shape. `NaN` was the single input that behaved
+       differently: it propagates through `Math.min` and `Math.max` alike and `opts.heapMB || heapMB`
+       keeps it, so a plan with a non-numeric `budgetGB` would have handed a child
+       `--max-old-space-size=NaN`. The backreference leg below is the general rule and reads the WHOLE
+       orchestrator, because the defect is the shape rather than this one function. The body bound is
+       brace-walked and the walk is asserted: a fixed character window over a function body reads the
+       next function. */
+    group('the child heap cap is one constant, not a clamp over one identifier', 'trio-batch · child-heap · dead-clamp', function (T) {
+      var tb = (env.sources && (env.sources['tools/trio-batch.mjs'] || env.sources['trio-batch.mjs'])) || '';
+      T.ok('trio-batch source wired', !!tb, 'not in env.sources — without it every leg here goes vacuous');
+      if (!tb) return;
+
+      /* ── the general rule, over the whole orchestrator, read as CODE ──────────────────────────── */
+      /* The scan must not read the comment that explains the defect's absence: the note above
+         `childHeapMB` quotes the old expression verbatim, and against raw source this leg went red on
+         that quotation. Comments are blanked first. A block comment and a trailing line comment are
+         both removed; the blanker can mangle a regex literal carrying `//`, which cannot CREATE the
+         pattern below and could only hide a clamp sharing a line with a comment. */
+      var code = tb.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:\\])\/\/[^\n]*/g, '$1');
+      T.ok('blanking left the code', code.length > tb.length * 0.4, 'over-blanking would make every leg below vacuous — ' + code.length + ' of ' + tb.length + ' chars');
+      var noop = code.match(/Math\.(max|min)\(\s*([A-Za-z_$][\w$.]*)\s*,\s*Math\.(min|max)\(\s*\2\s*,/);
+      T.ok(
+        'no clamp names one identifier in both of its bounds',
+        !noop,
+        noop ? 'Math.' + noop[1] + '(' + noop[2] + ', Math.' + noop[3] + '(' + noop[2] + ', …)) answers ' + noop[2] + ' for every finite input — the inner argument reaches nothing' : ''
+      );
+
+      /* ── the cap itself ──────────────────────────────────────────────────────────────────────── */
+      T.ok('CHILD_HEAP_MB is declared exactly once', (tb.match(/const CHILD_HEAP_MB\s*=/g) || []).length === 1, 'two declarations means two caps and the second wins silently');
+
+      var at = tb.indexOf('function childHeapMB(');
+      T.ok('childHeapMB is declared', at >= 0, 'the single named place the child heap cap comes from');
+      if (at < 0) return;
+      var open = tb.indexOf('{', at);
+      var depth = 0;
+      var end = -1;
+      for (var i = open; i < tb.length; i++) {
+        if (tb[i] === '{') depth++;
+        else if (tb[i] === '}') {
+          depth--;
+          if (depth === 0) {
+            end = i;
+            break;
+          }
+        }
+      }
+      T.ok('the brace walk closed the body', end > open, 'an unbalanced walk would read the next function into this body and the legs below could never go red');
+      if (end <= open) return;
+      var body = tb.slice(open + 1, end);
+
+      T.ok('the body answers the constant', /return\s+CHILD_HEAP_MB\s*;/.test(body), 'body: ' + body.trim().slice(0, 80));
+      T.ok('the body derives nothing, so no input can make it NaN', !/[/*]|Math\./.test(body), 'a division over a plan field is how NaN reached --max-old-space-size');
+      T.ok('the call site passes no plan', /childHeapMB\(\)/.test(tb) && !/childHeapMB\(\s*[A-Za-z_$]/.test(tb), 'an argument here is a reader believing the plan narrows the cap');
+    });
+
     /* THE DRAWN-AXIS REFUSAL, GATED AS TEXT IN BOTH TOOLS THAT SPEND A CLOCK.
        `hostAxis.independent` compares two COLUMNS, so a synthesised counter reads MORE independent the
        coarser its quantisation; `plausibleCrystal` is a magnitude proxy. Neither is provenance. The
