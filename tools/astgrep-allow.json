@@ -443,6 +443,24 @@
         "match": "self.transitions.get(channel, 0)",
         "ordinal": 1,
         "why": "tally"
+      },
+      {
+        "file": "capture-host/radioclock.py",
+        "match": "self.not_a_pmd_frame.get(NOT_A_FRAME_TOO_SHORT, 0)",
+        "ordinal": 0,
+        "why": "tally"
+      },
+      {
+        "file": "capture-host/radioclock.py",
+        "match": "self.not_a_pmd_frame.get(NOT_A_FRAME_UNKNOWN_MEAS, 0)",
+        "ordinal": 0,
+        "why": "tally"
+      },
+      {
+        "file": "capture-host/radioclock.py",
+        "match": "self.no_device_clock.get(device_clock, 0)",
+        "ordinal": 0,
+        "why": "tally"
       }
     ]
   }

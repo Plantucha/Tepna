@@ -48,6 +48,18 @@ ECG, PPG, ACC, PPI, GYRO, MAG = 0x00, 0x01, 0x02, 0x03, 0x05, 0x06
 _OP_GET_SETTINGS, _OP_START, _OP_STOP = 0x01, 0x02, 0x03
 MEAS_NAME = {ECG: "ecg", PPG: "ppg", ACC: "acc", PPI: "ppi", GYRO: "gyro", MAG: "mag"}
 
+# Measurement types whose samples carry NO device time, PER THE VENDOR. It is a fact about the
+# PROTOCOL, which is why it lives here. Polar BLE SDK `documentation/TimeSystemExplained.md` (master
+# at 8.3.0, 2026-09-09): a stream whose individual sample time cannot be defined, e.g. PPI or HR,
+# carries a sample time that "is either zero or it is missing from the stream". The SDK's own
+# `PpiData.kt` parser reads it behind `if (frame.timeStamp != 0uL)`. So a 0 on one of these streams
+# is the DOCUMENTED SHAPE of the stream and never an absent measurement: a consumer that reports it
+# as EMPTY is right, and one that writes the 0 through as a stamp is wrong (CLAUDE.md §∅).
+# `capture.py` keeps its own `_NO_SAMPLE_TIME_BY_DESIGN` because §0.1 of
+# RADIO-CLOCK-SIDECAR-2026-09-07-BRIEF holds that file untouched by this unit; the two are held EQUAL
+# by `tests/test_capture_runners.py` so they cannot drift apart.
+NO_SAMPLE_TIME_BY_DESIGN = frozenset({PPI})
+
 # PMD control-point response status codes (for readable logs / diagnosing a rejected START).
 CTRL_STATUS = {
     0x00: "ok",
