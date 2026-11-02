@@ -399,3 +399,169 @@ def test_ONE_distressed_link_does_not_switch_even_armed(monkeypatch):
     assert capture.ADAPTER != SPARE and capture._RADIO_EVENTS == []
     av = capture.STATUS.get("radio_distress_adapter") or {}
     assert av.get("state") == "ok" and "device-local" in (av.get("detail") or "")
+
+
+# ── the ABSENT-PIN cause (residue 2026-11-01-a-vanished-radio-reconnects-on-the-bluez-default) ──────
+# The pinned radio LEAVES THE BUS: a pulled dongle, or a Zephyr board that came back on a new ttyACM.
+# `adapter_hci()` degrades to the BlueZ default on every reconnect and the owner keeps that degrade,
+# so the sensors keep streaming — which is exactly why no pre-existing signal fires. The wedge rung
+# needs `not any_streaming`, and the distress fold needs rated links over band. Measured on vigil
+# 2026-10-26: the wearables took the CPAP's reserved radio and no commandeer line printed.
+
+
+@pytest.mark.parametrize(
+    "over,expected",
+    [
+        ({"pin_configured": False}, None),
+        ({"pin_resolved": True}, None),
+        ({"wedged": True}, "ladder-owns-it"),
+        ({"armed": False}, "disarmed"),
+        ({"failovers": 3}, "budget-spent"),
+        ({}, "migrate"),
+    ],
+)
+def test_absent_pin_action_names_every_outcome(over, expected):
+    """Each outcome is NAMED, and the order of the guards is the point: a wedge outranks arming, and
+    arming outranks the budget. A bare boolean could not say which of the four held."""
+    base = {
+        "pin_configured": True,
+        "pin_resolved": False,
+        "wedged": False,
+        "armed": True,
+        "failovers": 0,
+        "max_failovers": 3,
+    }
+    assert capture.absent_pin_action(**{**base, **over}) == expected
+
+
+def test_every_absent_pin_outcome_has_a_sentence(monkeypatch):
+    """The rising-edge line reads `ABSENT_PIN_SAID[_absent]`, so a new outcome with no sentence would
+    raise inside the watchdog rather than print a worse line. This is the guard for that."""
+    named = set(capture.ABSENT_PIN_SAID)
+    reached = set()
+    for over in ({"wedged": True}, {"armed": False}, {"failovers": 3}, {}):
+        base = {
+            "pin_configured": True,
+            "pin_resolved": False,
+            "wedged": False,
+            "armed": True,
+            "failovers": 0,
+            "max_failovers": 3,
+        }
+        reached.add(capture.absent_pin_action(**{**base, **over}))
+    assert reached == named, "every reachable outcome must carry a sentence, and no sentence may be dead"
+
+
+def _absent(monkeypatch, *, spares=((SPARE, True),), resolves_after=None):
+    """The pin VANISHES: `adapter_hci()` resolves nothing, and the vanished radio is not enumerated.
+
+    `resolves_after` makes the pin come BACK after that many polls, which is how the rising-edge
+    latch gets tested — a latch that never clears says nothing about the second episode."""
+    bonded = []
+    polls = {"n": 0}
+
+    async def hci():
+        polls["n"] += 1
+        if resolves_after is not None and polls["n"] > resolves_after:
+            return "hci1"
+        return None
+
+    async def is_up(_h):
+        return True
+
+    async def adapters():
+        return [{"mac": m, "up": u} for m, u in spares]
+
+    async def btctl(_script, timeout=6):
+        return ""
+
+    async def ensure_bonded(addr, mac, force=False):
+        bonded.append((addr, mac))
+        return True
+
+    monkeypatch.setattr(capture, "adapter_hci", hci)
+    monkeypatch.setattr(capture, "_adapter_is_up", is_up)
+    monkeypatch.setattr(capture, "list_adapters", adapters)
+    monkeypatch.setattr(capture.bonding, "_btctl", btctl)
+    monkeypatch.setattr(capture.bonding, "ensure_bonded", ensure_bonded)
+    return bonded
+
+
+def _absent_lines(caplog):
+    return [r.getMessage() for r in caplog.records if "ABSENT from the bus" in r.getMessage()]
+
+
+def test_ABSENT_PIN_migrates_onto_a_CHOSEN_spare_when_armed(monkeypatch, caplog):
+    """The fix. The degrade stays, but the radio the night lands on is now a DECISION: picked from the
+    live roster, past the reservation and the cooldown, recorded as an event that outlives the night."""
+    caplog.set_level("INFO")
+    bonded = _absent(monkeypatch)
+    _run_healthy_watchdog(monkeypatch, _cfg(absent_pin_failover=True))
+    assert capture.ADAPTER == SPARE, "an armed absent pin must be re-pointed at a live spare"
+    assert bonded, "the sensors must be re-bonded on the spare"
+    (ev,) = [e for e in capture._RADIO_EVENTS if e["cause"] == "pin-absent"]
+    assert ev["to"] == SPARE and ev["from"] == PINNED
+    assert PINNED in ev["detail"], "the event must name the radio that left"
+
+
+def test_ABSENT_PIN_DEFAULT_IS_ARMED_so_an_UNCONFIGURED_box_migrates(monkeypatch, caplog):
+    """🔴 THE PIN THIS SHIPS UNDER, AND THE OWNER CHOSE IT. Board #2912, 2026-11-02: arm the failover
+    now. This unit proposed report-only and the owner overruled it, so a box that configures nothing
+    migrates onto a chosen spare. The key's ABSENCE is what this pins — `test_..._when_armed` above
+    already covers an explicit `true`, and the two must not drift apart."""
+    caplog.set_level("INFO")
+    _absent(monkeypatch)
+    _run_healthy_watchdog(monkeypatch, _cfg())
+    assert capture.ADAPTER == SPARE, "an unconfigured box must migrate — the owner armed this switch"
+    assert [e["cause"] for e in capture._RADIO_EVENTS] == ["pin-absent"], "one named switch event"
+    # The fake leaves the SPARE unresolvable too, so a later poll opens a SECOND episode about the
+    # new pin. That is the harness, not a flap, and the single switch event above is what bounds it.
+    assert "chosen spare" in _absent_lines(caplog)[0], "the first line must name what it did"
+
+
+def test_ABSENT_PIN_DISARMED_BY_CONFIG_is_report_only_and_says_so_ONCE(monkeypatch, caplog):
+    """The one way back to report-only is an explicit `false`, now that the owner has armed the
+    default. The silence is what this holds: one critical line per episode, not a line every 25 s
+    and not the nothing that ran the 2026-10-26 night."""
+    caplog.set_level("INFO")
+    _absent(monkeypatch)
+    _run_healthy_watchdog(monkeypatch, _cfg(absent_pin_failover=False))
+    assert capture.ADAPTER != SPARE, "an unarmed decision must not move the pin"
+    assert [e for e in capture._RADIO_EVENTS if e["cause"] == "pin-absent"] == []
+    said = _absent_lines(caplog)
+    assert len(said) == 1, f"one line per episode over four polls, got {len(said)}"
+    assert "report-only" in said[0], "the line must name why nothing moved"
+
+
+def test_ABSENT_PIN_ARMED_with_NO_SPARE_reports_and_stays_put(monkeypatch, caplog):
+    """Armed with nowhere to go. No switch, no event, no crash — and the report still stands, because
+    a decision that evaporates when it cannot act is the silent-healing shape from the other side."""
+    caplog.set_level("INFO")
+    _absent(monkeypatch, spares=())
+    _run_healthy_watchdog(monkeypatch, _cfg(absent_pin_failover=True))
+    assert capture.ADAPTER != SPARE
+    assert [e for e in capture._RADIO_EVENTS if e["cause"] == "pin-absent"] == []
+    assert len(_absent_lines(caplog)) == 1
+
+
+def test_ABSENT_PIN_LATCH_CLEARS_when_the_radio_comes_back(monkeypatch, caplog):
+    """A replugged board resolves again, so the latch must clear. Otherwise the second episode of the
+    night is silent, which is the defect this whole unit is about."""
+    caplog.set_level("INFO")
+    _absent(monkeypatch, resolves_after=1)
+    _run_healthy_watchdog(monkeypatch, _cfg(absent_pin_failover=False))
+    assert len(_absent_lines(caplog)) == 1, "it spoke for the first episode"
+    assert capture.ADAPTER != SPARE, "report-only holds the pin, so the latch is what this measures"
+
+
+def test_ABSENT_PIN_defers_to_the_LADDER_when_nothing_is_streaming(monkeypatch, caplog):
+    """Two owners for one radio is how a reset races a migration. With no device streaming the wedge
+    rung fires, so this cause stands down and says which owner has it."""
+    caplog.set_level("INFO")
+    _absent(monkeypatch)
+    capture.STATUS["devices"]["H10"] = {"connected": False, "address": "24:AC:AC:02:84:96"}
+    _stop_after(monkeypatch, 4)
+    _run(capture.adapter_watchdog(PINNED, _cfg(absent_pin_failover=True)))
+    assert [e for e in capture._RADIO_EVENTS if e["cause"] == "pin-absent"] == []
+    said = _absent_lines(caplog)
+    assert len(said) == 1 and "recovery ladder" in said[0], "it must name the ladder as the owner"

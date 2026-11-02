@@ -101,6 +101,29 @@ def _dev(**kw):
     return d
 
 
+def _pin_present(monkeypatch, hci="hci0"):
+    """The pinned radio RESOLVES, which is what a watchdog test means by a radio that is there.
+
+    Needed from 2026-11-02, when the owner ARMED `absent_pin_failover` (board #2912). Until then these
+    tests resolved no pin at all — no bluetooth radio answers on a build machine — and they passed only
+    because the absent-pin decision shipped disabled. A `healthy check` over a pin that answered
+    nothing was never healthy, and the old default hid that. The two probes need stubs as well: a
+    resolving pin is the one state where the watchdog reaches them, and the real pair shells out."""
+
+    async def _hci():
+        return hci
+
+    async def _up(_h):
+        return True
+
+    async def _responds(_h, timeout=6.0):
+        return True
+
+    monkeypatch.setattr(capture, "adapter_hci", _hci)
+    monkeypatch.setattr(capture, "_adapter_is_up", _up)
+    monkeypatch.setattr(capture, "_adapter_responds", _responds)
+
+
 # ── run_muse (subprocess supervisor, no bleak) ──────────────────────────────────────────────────────
 # A pid no process can bear: one past the kernel's ceiling. `run_muse` now hands the recorder's pgid to
 # `proc_util.sweep_group`, which really signals, so a fake child's pid must be a value that cannot name
@@ -291,6 +314,7 @@ def test_adapter_watchdog_runs_a_healthy_check(monkeypatch):
 
     monkeypatch.setattr(capture.bonding, "_btctl", fake_btctl)
     monkeypatch.setattr(capture, "_restart_radio", fake_restart)
+    _pin_present(monkeypatch)  # a healthy pass means the pin ANSWERS; the armed failover reads it
     _stop_after(monkeypatch, 1)
     cfg = {"watchdog": {"enabled": True, "interval_sec": 60}, "devices": [_dev(name="H10")]}
     capture.STATUS["devices"]["H10"] = {"connected": True, "address": "24:AC:AC:02:84:96"}
@@ -2926,6 +2950,7 @@ def test_adapter_watchdog_skips_while_paused(monkeypatch):
         return "Connected: no\n"
 
     monkeypatch.setattr(capture.bonding, "_btctl", fake_btctl)
+    _pin_present(monkeypatch)  # the pause is what must silence the probe, not an absent pin
     cfg = {"watchdog": {"enabled": True, "interval_sec": 1}, "devices": [_dev(name="H10")]}
     capture.STATUS["devices"]["H10"] = {"connected": True, "address": "24:AC:AC:02:84:96"}
     capture._OXYII_PAUSE.set()
