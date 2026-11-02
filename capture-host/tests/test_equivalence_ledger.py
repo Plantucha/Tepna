@@ -239,7 +239,13 @@ RATCHET = {
     "pull_session.py": 12,
     "pulsedex-dsp.js": 43,
     "qc_child.py": 2,
-    "radioclock.py": 8,
+    # 8 -> 6 on 2026-11-02: the two `Collector._acl` entries excused `self._anchors.get(handle, [])`
+    # with a None or an absent default, on the ground that `associate` reads `not anchors` either
+    # way. That line now feeds a list comprehension and `anchor_rx_ns`, and BOTH mutants raise
+    # `TypeError: 'NoneType' object is not iterable` on the first ACL packet of a handle with no
+    # anchor table — measured by `tools/probe_radioclock_equiv.py`, which crashed on them where it
+    # used to find 0 of 28 runs differing. A killed mutant needs no excuse.
+    "radioclock.py": 6,
     "solid_night.py": 2,
     "solid_night_inputs.py": 33,
     "stallsampler.py": 2,

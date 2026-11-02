@@ -634,7 +634,12 @@ def test_an_unrecognised_opcode_and_an_unparsable_event_change_nothing():
     assert len(c.handles) == 0 and c.rows == 0
 
 
-def test_the_row_carries_the_association_and_blanks_what_was_not_measured():
+def test_the_row_carries_the_association_AND_the_anchors_own_host_receive_stamp():
+    """\U0001f534 `vs_rx_ns` is the column \u00a74 of the brief defines `ctrl_host_offset` on, and it stood
+    blank in every row the collector ever wrote while the collector HELD the value: the anchor's host
+    stamp is what `self.offsets.add` already consumes. The two host stamps are different reads of
+    different events — the anchor report arrives at the connection event, the ACL packet after it —
+    so `acl_rx_ns` was never a stand-in for this one."""
     c = _collector()
     c.feed(*_mon(rc.MONITOR_OPCODE_EVENT, _le_conn_complete(0x0040, H10)), host_ns=1)
     for counter, us in ((10, 1_000_000), (11, 1_050_000), (12, 1_100_000)):
@@ -644,12 +649,59 @@ def test_the_row_carries_the_association_and_blanks_what_was_not_measured():
     )
     assert (address, meas, ns, handle) == (H10, 0x00, 819_000_000_000_000, 0x40)
     assert (counter, anchor_us) == (11, 1_050_000)
-    assert acl_rx == 1_051_300_000
+    assert vs_rx == 1_050_300_000, "the stamp of the anchor it associated to, not of the ACL packet"
+    assert acl_rx == 1_051_300_000 and acl_rx != vs_rx, "two reads of two events, 1 ms apart"
     assert device_clock == rc.DEVICE_CLOCK_PMD, "an H10 ECG frame's stamp IS the device's own clock"
     row = rc.format_row(
         "2026-09-07T03:00:00.000", address, meas, ns, handle, counter, anchor_us, vs_rx, acl_rx, device_clock
     )
-    assert row.count(";") == 9 and ";;" in row, "the unmeasured vs_rx cell is blank, not zero"
+    assert row.count(";") == 9 and ";;" not in row, "the offset's own column is populated now"
+    assert row.split(";")[7] == "1050300000", "field 8 of the sidecar schema is vs_rx_ns"
+
+
+def test_an_UNATTRIBUTED_row_blanks_the_association_AND_its_stamp_together():
+    """\u2205 A row carrying an `anchor_us` and a blank `vs_rx_ns` would say the offset's own input is
+    missing for a row the offset placed. The three cells answer one question between them, so they go
+    blank together or not at all — and the ACL packet's own stamp is unaffected, because the host did
+    receive THAT."""
+    c = _collector()
+    c.feed(*_mon(rc.MONITOR_OPCODE_EVENT, _le_conn_complete(0x0040, H10)), host_ns=1)
+    for counter, us in ((10, 1_000_000), (11, 1_050_000), (12, 1_100_000)):
+        c.feed(*_mon(rc.MONITOR_OPCODE_EVENT, _anchor_event(0x0040, counter, us)), host_ns=(us + 300) * 1000)
+    row_t = c.feed(*_mon(rc.MONITOR_OPCODE_ACL_RX, _pmd_acl(0x0040, 0x00, 7)), host_ns=900_200_000)
+    counter, anchor_us, vs_rx, acl_rx = row_t[4], row_t[5], row_t[6], row_t[7]
+    assert (counter, anchor_us, vs_rx) == (None, None, None), "before every anchor: nothing to attribute"
+    assert acl_rx == 900_200_000, "the packet's own arrival is still a measurement"
+    cells = rc.format_row("t", *row_t[:8], row_t[8]).split(";")
+    assert cells[5] == "" and cells[6] == "" and cells[7] == "", "blank, and never a 0"
+
+
+def test_anchor_rx_ns_returns_the_stamp_of_the_entry_the_pair_identifies():
+    anchors = [(10, 1_000_000, 1_000_300_000), (11, 1_050_000, 1_050_300_000)]
+    assert rc.anchor_rx_ns(anchors, 11, 1_050_000) == 1_050_300_000
+    assert rc.anchor_rx_ns(anchors, 10, 1_000_000) == 1_000_300_000
+
+
+def test_anchor_rx_ns_blanks_for_an_unattributed_packet_and_for_an_evicted_entry():
+    """\u2205 Three sources, one statement. `associate` declined, or the window has already dropped
+    the entry, or the series never held it: in all three the host stamp of the anchor this row sits on
+    is not a number this collector can produce."""
+    anchors = [(10, 1_000_000, 1_000_300_000)]
+    assert rc.anchor_rx_ns(anchors, None, None) is None, "associate declined to attribute"
+    assert rc.anchor_rx_ns(anchors, 10, None) is None, "half an identity identifies nothing"
+    assert rc.anchor_rx_ns(anchors, 9, 950_000) is None, "evicted by the bounded window"
+    assert rc.anchor_rx_ns([], 10, 1_000_000) is None, "a series that never held it"
+
+
+def test_anchor_rx_ns_takes_BOTH_halves_of_the_identity_so_a_WRAPPED_counter_cannot_pull_the_wrong_stamp():
+    """\U0001f534 The event counter is a u16, so a long enough window holds the same counter twice. A
+    lookup on the counter alone would hand the row a host stamp from a connection event one wrap
+    earlier — a precise number out of a read that does not contain one. The microsecond anchor
+    separates them, and `reversed` prefers the most recent of two identical pairs."""
+    anchors = [(7, 1_000_000, 1_000_300_000), (7, 44_536_000, 44_536_300_000)]
+    assert rc.anchor_rx_ns(anchors, 7, 44_536_000) == 44_536_300_000
+    assert rc.anchor_rx_ns(anchors, 7, 1_000_000) == 1_000_300_000
+    assert rc.anchor_rx_ns(anchors, 7, 2_000_000) is None, "the counter alone is not an identity"
 
 
 def test_NON_PMD_traffic_on_our_own_link_emits_nothing():
