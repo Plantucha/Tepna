@@ -299,6 +299,18 @@ def heartbeat_ms() -> int:
     return int(_time.time() * 1000)
 
 
+_BOOT_ID_PATH = "/proc/sys/kernel/random/boot_id"
+
+
+def _boot_id() -> str | None:
+    """The kernel's id for this boot, or None when it cannot be read. A new boot gets a new id."""
+    try:
+        with open(_BOOT_ID_PATH, encoding="ascii") as fh:
+            return fh.read().strip() or None
+    except OSError:
+        return None
+
+
 def _now() -> _dt.datetime:
     global _civil_shift
     # Bind a LOCAL rather than re-reading the global. `_anchor_wall` is `datetime | None`, and mypy
@@ -9557,12 +9569,16 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
     # joined and then dropped is, so the distinction has to be remembered rather than re-derived.
     ever_connected: set[str] = set()
     # When each night-ended note went out (monotonic). It licenses silence until the device records
-    # again, for 8 h. With `_LAST_PULL_OK` it is the state a restart reads back (`alerts.QUIET_STATE_NAME`).
+    # again or the next night begins (`alerts.quiet_licence_holds`). `night_began` is the start of the
+    # latest night. With `_LAST_PULL_OK` they are the state a restart reads back (`alerts.QUIET_STATE_NAME`).
     ended_at: dict[str, float] = {}
+    night_began: float | None = None
     quiet_path = os.path.join(cfg["root"], "captures", alerts.QUIET_STATE_NAME) if cfg.get("root") else None
     saved_key = None
     if quiet_path:
-        pull_ok, ended = alerts.quiet_state_restored(_read_quiet_state(quiet_path), _time.monotonic(), _time.time())
+        saved = _read_quiet_state(quiet_path)
+        pull_ok, ended = alerts.quiet_state_restored(saved, _time.monotonic(), _time.time())
+        night_began = alerts.night_began_restored(saved, _time.monotonic(), _time.time())
         for n, t in pull_ok.items():
             _LAST_PULL_OK.setdefault(n, t)
         ended_at.update(ended)
@@ -9661,10 +9677,10 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
             # connect→drop cycle. Only flowing samples clear the alarm.
             recording = alerts.device_is_recording(connected, _LAST_DATA.get(name), now, data_grace)
             if recording:
-                if name in down_since:
-                    stream_since[name] = now  # back after a gap: a new episode starts here
-                else:
-                    stream_since.setdefault(name, now)
+                if name in down_since or name not in stream_since:
+                    stream_since[name] = now  # a new episode starts here
+                    if alerts.begins_a_night(_now().hour):
+                        night_began = now  # a worn device in the evening: a night began
                 ended_noted.discard(name)
                 ended_at.pop(name, None)
                 down_since.pop(name, None)
@@ -9755,10 +9771,17 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
                                 ended_noted.add(name)
                                 ended_at[name] = now
                         continue
-                # A NIGHT ALREADY REPORTED AS ENDED STAYS QUIET until the device records again or 8 h pass.
-                # After a restart this stamp is the only witness: `stream_since` and `_LAST_DATA` start empty.
-                if not connected and alerts.quiet_licence_holds(ended_at.get(name), now):
-                    continue
+                # A NIGHT ALREADY REPORTED AS ENDED STAYS QUIET until the device records again or the next
+                # night begins. After a restart this stamp is the only witness: `stream_since` and
+                # `_LAST_DATA` start empty. When a night began, the alarm counts from its start, so it
+                # says how long this night has been missing the device, not how long the device was off.
+                stamp = ended_at.get(name)
+                if alerts.quiet_licence_holds(stamp, night_began):
+                    if not connected:
+                        continue
+                elif stamp is not None and night_began is not None:
+                    ended_at.pop(name, None)
+                    down_since[name] = max(down_since[name], night_began)
                 if name not in alerted and alerts.offline_alert_due(down_since[name], now, threshold):
                     mins = int((now - down_since[name]) / 60)
                     # NAME THE FAILURE. "offline" and "linked but silent" want different responses from
@@ -9778,9 +9801,11 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
                     if delivered or not notifier.enabled:
                         alerted.add(name)
         # Save only on a change, so an idle box does not rewrite the file every poll.
-        key = (dict(_LAST_PULL_OK), dict(ended_at))
+        key = (dict(_LAST_PULL_OK), dict(ended_at), night_began)
         if quiet_path and key != saved_key:
-            _write_quiet_state(quiet_path, alerts.quiet_state_to_save(_LAST_PULL_OK, ended_at, now, _time.time()))
+            _write_quiet_state(
+                quiet_path, alerts.quiet_state_to_save(_LAST_PULL_OK, ended_at, now, _time.time(), night_began)
+            )
             saved_key = key
 
 
@@ -16075,12 +16100,21 @@ async def main():
     # being re-derived from `journalctl` for.
     _bid = build_id.probe(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     append_daemon_start(root, _now(), pid=os.getpid(), git=_bid.get("git"), dirty=_bid.get("dirty"), adapter=ADAPTER)
+    # WHY THIS START HAPPENED (`alerts.start_reason`): compare the previous run's record with this run.
+    run_path = os.path.join(root, "captures", alerts.RUN_RECORD_NAME)
+    this_run = alerts.run_record(_boot_id(), _bid.get("git"))
+    start_why = alerts.start_reason(_read_quiet_state(run_path, "the run record"), this_run["boot_id"], this_run["git"])
+    _write_quiet_state(run_path, this_run, "the run record")
+    log.info("start reason: %s", start_why)
     await startup_defense_check(_hci, cfg)  # LOUD-warn if a wedge defense is disarmed (§P1.4)
     log.info("tepna-capture up: %d device(s), root=%s", len(cfg.get("devices", [])), root)
     sdnotify.sd_notify("READY=1")  # Type=notify: `systemctl start` unblocks once capture is up
     # A (re)start is otherwise invisible overnight — a spurious restart mid-night is exactly what you want
     # to know about, so announce it. Disabled unless a webhook is configured.
-    await notifier.send("Tepna: capture started", f"tepna-capture is up with {len(cfg.get('devices', []))} device(s).")
+    await notifier.send(
+        "Tepna: capture started",
+        f"tepna-capture is up with {len(cfg.get('devices', []))} device(s). It started because {start_why}.",
+    )
     await _STOP.wait()
     sdnotify.sd_notify("STOPPING=1")
     # SHUTDOWN MUST TERMINATE, AND MUST SAY WHAT WENT WRONG. Measured 2026-07-20: SIGTERM left the daemon
@@ -16118,6 +16152,10 @@ async def main():
                 "shutdown: web server did not close in %.0fs (an open monitor/SSE client?) — abandoning it",
                 _SHUTDOWN_PHASE_S,
             )
+    # The last step of a stop: the next start reads this exit code as a clean end of this run.
+    _write_quiet_state(
+        run_path, alerts.run_record(this_run["boot_id"], this_run["git"], _EXIT_CODE[0]), "the run record"
+    )
     log.info("tepna-capture stopped")
 
 
