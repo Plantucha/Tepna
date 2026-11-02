@@ -144,7 +144,7 @@ def test_main_over_met_floors_prints_no_upgrade_line(capsys, monkeypatch):
     monkeypatch.setattr(D, "dist_version", lambda name: "9999.0.0")
     rc = D.main([])
     out = capsys.readouterr().out
-    # `mutmut==3.8.0` is the file's one pin, so an all-9999 interpreter is OFF_PIN rather than MET.
+    # `mutmut==3.8.1` is the file's one pin, so an all-9999 interpreter is OFF_PIN rather than MET.
     assert f"{D.TOKEN}-state={D.OFF_PIN}" in out
     assert rc == D.RC[D.OFF_PIN]
     monkeypatch.setattr(D, "survey", lambda text, lookup=None: ([("ruff", ">=", "1.0", "1.0", D.MET)], []))

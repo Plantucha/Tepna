@@ -122,7 +122,7 @@ def compare_floor(op: str, floor: str, installed: str | None) -> str:
     have += (0,) * (width - len(have))
     want += (0,) * (width - len(want))
     if op == "==":
-        # A PIN IS AN IDENTITY, so a newer version is a finding too. `mutmut==3.8.0` is the dev file's
+        # A PIN IS AN IDENTITY, so a newer version is a finding too. `mutmut==3.8.1` is the dev file's
         # only `==` and the reason is written there: the mutant GENERATOR is the gate, and two versions
         # generate different mutant sets, so "newer" is not "better" for this one line.
         return MET if have == want else OFF_PIN
