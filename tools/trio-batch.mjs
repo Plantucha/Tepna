@@ -1180,9 +1180,12 @@ if (flag('--selftest')) {
         JSON.stringify([probe(realMarker.replace('1mib: ABC', '1mib: DEF')).outcome, /was replaced or re-synced/.test(probe(realMarker.replace('1mib: ABC', '1mib: DEF')).detail || '')]),
         '["UNKNOWN",true]'
       );
-      /* THE VOCABULARY SPLIT, measured 2026-10-28: one real marker spells its reason `why` and its keeper
-         `by`. The parser reads neither, so the marker is UNUSABLE — and the report must name the words it
-         used, or a reader sees "no reason" beside a file whose reason is right there in another spelling. */
+      /* THE VOCABULARY SPLIT, SYNTHETIC: this fixture spells its reason `why` and its keeper `by`. The
+         parser reads neither, so the marker is UNUSABLE — and the report must name the words it used, or a
+         reader sees "no reason" beside a file whose reason is right there in another spelling. ⚠️ No real
+         marker spells it this way: censused 2026-11-02 over every root a reader can reach, the three
+         written on 2026-10-05 all spell `kept` and `reason`, and the capture box holds none over 110 night
+         directories. The key list below is this fixture's, so a report quoting it is quoting the suite. */
       const spelt = probe('superseded: true\nby: ' + KEEPER_P + '\nwhy: mid-write NAS snapshot\nkept: ' + KEEPER_P + '\n');
       eq('probe · a marker spelling its reason `why` is UNUSABLE, not resolved', spelt.outcome, 'UNUSABLE');
       eq('…and the report names the keys it DID carry, so the spelling is visible', JSON.stringify(spelt.keys), '["by","kept","superseded","why"]');
@@ -1196,6 +1199,52 @@ if (flag('--selftest')) {
       });
       eq('probe · a keeper this box cannot reach is KEEPER-ABSENT', gone.outcome, 'KEEPER-ABSENT');
       eq('…and says the keeper-side checks bound on nothing', /bind on nothing/.test(gone.detail || ''), true);
+      /* ── THE RECORDED KEEPER LEG, the only branch a probe run off the capture box ever takes ─────────
+         Measured 2026-11-02: all three real markers name a keeper under that box's own root, so the
+         keeper is unreadable everywhere else. The marker records its size and its first-MiB hash, and a
+         prefix shares its first MiB — so a disagreement REFUTES the claim with no keeper read, while
+         agreement leaves the marker excluded. These legs pin both directions and the sentences. */
+      const MIB = 1 << 20;
+      const absentKeeper = (smallBytes, hash) => ({
+        sizeOf: (pth) => {
+          if (pth === KEEPER_P) throw new Error('ENOENT: no such file or directory');
+          return smallBytes;
+        },
+        hashFirstMib: () => hash
+      });
+      eq(
+        'probe · the recorded hash covers more bytes than the sibling holds, so that leg examined nothing',
+        JSON.stringify([gone.recordedOutcome, /under the one MiB the recorded hash covers/.test(gone.recordedDetail || '')]),
+        '["unbound",true]'
+      );
+      const tooBig = probe(realMarker.replace('kept_bytes: 300', 'kept_bytes: 50'), absentKeeper(100, 'abc'));
+      eq('probe · a sibling LONGER than the recorded keeper is REFUTED-RECORDED, with no keeper read', tooBig.outcome, 'REFUTED-RECORDED');
+      eq('…and the sentence carries both numbers', /records a keeper of 50 B and the copy it sits beside is 100 B/.test(tooBig.detail || ''), true);
+      const hashOff = probe(realMarker.replace('kept_bytes: 300', 'kept_bytes: 2097152'), absentKeeper(MIB, 'def'));
+      eq('probe · a sibling whose first MiB disagrees with the recorded keeper hash is REFUTED-RECORDED', hashOff.outcome, 'REFUTED-RECORDED');
+      eq('…because a prefix shares its first MiB', /a prefix shares its first MiB/.test(hashOff.detail || ''), true);
+      const consistent = probe(realMarker.replace('kept_bytes: 300', 'kept_bytes: 2097152'), absentKeeper(MIB, 'abc'));
+      eq(
+        'probe · a sibling the recorded fields agree with stays an EXCLUSION — the keeper is still unread',
+        JSON.stringify([consistent.outcome, consistent.recordedOutcome]),
+        '["KEEPER-ABSENT","consistent"]'
+      );
+      eq('…and the sentence on the leg itself refuses to call that a resolution', /never a resolution/.test(consistent.recordedDetail || ''), true);
+      eq(
+        '…while the outcome sentence names the leg and does NOT repeat it',
+        JSON.stringify([/recorded keeper fields read consistent/.test(consistent.detail || ''), /never a resolution/.test(consistent.detail || '')]),
+        '[true,false]'
+      );
+      eq('…and it names the fields it bound on', JSON.stringify(consistent.recordedKeys), '["keptBytes","keptHash"]');
+      const nanSize = probe(realMarker.replace('kept_bytes: 300', 'kept_bytes: later'), absentKeeper(MIB, 'abc'));
+      eq('probe · a recorded keeper size that is not a number refutes nothing', JSON.stringify([nanSize.outcome, nanSize.recordedOutcome]), '["KEEPER-ABSENT","unbound"]');
+      eq('…and says which field went unread', /is not a number/.test(nanSize.recordedDetail || ''), true);
+      const bare = probe('date: 2026-10-05\nkept: ' + KEEPER_P + '\nreason: mid-write NAS snapshot\n', absentKeeper(MIB, 'abc'));
+      eq(
+        'probe · a marker recording no keeper field leaves that keeper wholly unexamined',
+        JSON.stringify([bare.outcome, bare.recordedOutcome, bare.recordedKeys.length]),
+        '["KEEPER-ABSENT","unbound",0]'
+      );
       eq(
         'probe · an unreadable marker is not an absent one',
         probe(null, {
@@ -1219,6 +1268,24 @@ if (flag('--selftest')) {
       );
       eq('…and the reason counts the checked population, not the found one', /0 of 1 checked marker/.test(POP([spelt, gone]).reason || ''), true);
       eq('probe · keeperSideChecksRun counts only a marker a keeper field actually bound on', JSON.stringify([POP([r11]).keeperSideChecksRun, POP([spelt, gone]).keeperSideChecksRun]), '[1,0]');
+      // THE RECORDED LEG'S OWN POPULATION — it can refute without the keeper and never resolve.
+      eq(
+        'probe · a marker refuted by its own recorded fields is CHECKED and unresolved',
+        JSON.stringify([POP([hashOff]).status, POP([hashOff]).checked, POP([hashOff]).excluded]),
+        '["SHORTFALL",1,0]'
+      );
+      eq(
+        'probe · a consistent recorded reading is counted and is still not a resolution',
+        JSON.stringify([POP([consistent]).status, POP([consistent]).recordedBound, POP([consistent]).recordedConsistent, POP([consistent]).resolved]),
+        '["NOT_APPLICABLE",1,1,0]'
+      );
+      eq('…and the NOT_APPLICABLE reason reports what the recorded leg DID examine', /recorded keeper fields bound on 1 of 1 and refuted none/.test(POP([consistent]).reason || ''), true);
+      eq('…while a root whose markers record nothing says that instead', /nothing about a keeper was examined/.test(POP([bare]).reason || ''), true);
+      eq(
+        'probe verdict · a recorded refutation validates and carries the split',
+        JSON.stringify([val(markerProbeVerdict([hashOff], '/root')), markerProbeVerdict([hashOff], '/root').result.recordedRefuted]),
+        '[true,1]'
+      );
       // ── the verdict object, validated against verdict.js for every status this probe can emit
       eq('probe verdict · PASS validates', val(markerProbeVerdict([r11], '/root')), true);
       eq('probe verdict · SHORTFALL validates and carries its reason', val(markerProbeVerdict([spelt, gone], '/root')) === true && markerProbeVerdict([spelt, gone], '/root').reason !== null, true);
@@ -1245,6 +1312,7 @@ if (flag('--selftest')) {
       eq('walk · a root with no marker returns nothing to probe', WALK(['a/x.txt']).length, 0);
       eq('probe lines · a RESOLVED marker names its keeper and what it was keyed to', /keeper named: \/keep\/.*\(300 B\)/.test(markerProbeLines([r11]).join('\n')), true);
       eq('probe lines · an UNUSABLE marker lists the keys it carried', /keys recorded: by, kept, superseded, why/.test(markerProbeLines([spelt]).join('\n')), true);
+      eq('probe lines · the recorded leg is printed with its own verdict word', /recorded keeper leg: consistent — /.test(markerProbeLines([consistent]).join('\n')), true);
     }
 
     const distinct = dedupeStream([
@@ -1637,7 +1705,10 @@ if (flag('--check-markers')) {
   console.log(`marker probe over ${SRC}`);
   console.log(`  ${pop.eligible} marker(s) found · ${pop.checked} checked · ${pop.excluded} excluded (the file or the keeper is not readable here)`);
   for (const line of markerProbeLines(recs)) console.log(line);
-  console.log(`  keeper-side checks that BOUND on a recorded field: ${pop.keeperSideChecksRun} of ${pop.eligible}`);
+  console.log(`  keeper-side checks that READ THE KEEPER: ${pop.keeperSideChecksRun} of ${pop.eligible}`);
+  /* The recorded leg's own count, printed beside it: a refutation here needs no keeper, and the two
+     numbers are different claims — one reads the keeper, the other reads what the marker said about it. */
+  console.log(`  the markers' OWN recorded keeper fields: bound on ${pop.recordedBound} of ${pop.eligible}, refuted ${pop.recordedRefuted}, consistent ${pop.recordedConsistent}`);
   console.log(`  ${pop.status}${pop.reason ? ` — ${pop.reason}` : ''}`);
   console.log(JSON.stringify(markerProbeVerdict(recs, SRC), null, 2));
   process.exit(0);
@@ -1913,8 +1984,11 @@ function parseMarker(text) {
   const keptBytes = keptSizeRaw !== undefined && /^\d+$/.test(keptSizeRaw) ? Number(keptSizeRaw) : keptSizeRaw !== undefined ? NaN : null;
   const keptHash = kv.get('kept_sha256_first_1mib') || null;
   /* THE RAW KEYS, on BOTH answers and parsed by the regex above rather than beside it — so a reader of a
-     refusal learns which words the marker actually used. One real marker spells its reason `why` and its
-     keeper `by`, and a report that said only "no reason" would hide the spelling that caused it. */
+     refusal learns which words the marker actually used. A report that said only "no reason" would hide
+     the spelling that caused it. ⚠️ The `by`/`why` spelling this comment used to call real is the
+     SELFTEST's own fixture below: censused 2026-11-02 over every root a reader can reach, the three
+     markers written on 2026-10-05 all spell `kept` and `reason`, and the capture box holds none at all
+     over 110 night directories. */
   const keys = [...kv.keys()].sort();
   if (!kept || !reason) return { ok: false, keys, reason: `the marker names ${!kept ? 'no kept file' : 'no reason'} — it cannot resolve an ambiguity it does not explain` };
   return { ok: true, keys, kept, reason, dated, target, bytes, keptBytes, keptHash };
@@ -2079,12 +2153,72 @@ function defaultHashFirstMib(path) {
    `kept` line points at — and hands that pair to the PRODUCTION resolver rather than to a copy of it.
    What it prints is therefore what a fold would decide. Every read is injected, so `--selftest` pins the
    decision table with no corpus, and the defaults do the real filesystem work. */
+/* ── THE RECORDED KEEPER LEG — what a marker can still be held to with its keeper out of reach ───────
+   Measured 2026-11-02: the keeper every real marker names lives under the capture box's own root, so a
+   probe run anywhere else cannot size it and every marker is EXCLUDED before any keeper-side field is
+   read. The marker records two facts about that keeper — its size and the SHA-256 of its first MiB —
+   and the copy the marker sits beside IS readable, so one direction of the claim is checkable here.
+   A prefix shares its first MiB, so a first-MiB disagreement REFUTES the claim; agreement confirms
+   nothing, because the bytes past that MiB are the part nobody read. This leg therefore returns
+   `refuted` or `consistent` and never a resolution, and `consistent` leaves the marker excluded.
+   The recorded fields are the marker writer's own, so a `consistent` reading trusts that writer about
+   the keeper; the refutation does not, because the bytes it contradicts are the sibling's own. */
+function recordedKeeperLeg(m, smallPath, smallBytes, opts = {}) {
+  const hashFirstMib = opts.hashFirstMib || defaultHashFirstMib;
+  const CH = 1 << 20;
+  const keys = [];
+  if (m.keptBytes !== null) keys.push('keptBytes');
+  if (m.keptHash !== null) keys.push('keptHash');
+  if (!keys.length) return { keys, outcome: 'unbound', detail: "the marker records neither the keeper's size nor its first-MiB hash, so nothing about that keeper is checkable without reading it" };
+  // NaN is the parser's "present and wrong" — it refutes nothing and must not read as a number.
+  if (m.keptBytes !== null && !Number.isFinite(m.keptBytes)) return { keys, outcome: 'unbound', detail: 'the keeper size this marker records is not a number, so the size leg examined nothing' };
+  if (m.keptBytes !== null && Number(smallBytes) > m.keptBytes)
+    return {
+      keys,
+      outcome: 'refuted',
+      detail: `the marker records a keeper of ${m.keptBytes} B and the copy it sits beside is ${smallBytes} B — a completed file is never shorter than the snapshot it completed, so these are two different recordings`
+    };
+  if (m.keptHash !== null) {
+    if (Number(smallBytes) < CH)
+      return { keys, outcome: 'unbound', detail: `the copy beside the marker is ${smallBytes} B, under the one MiB the recorded hash covers, so the two hashes are not comparable` };
+    let got;
+    try {
+      got = hashFirstMib(String(smallPath));
+    } catch (e) {
+      return { keys, outcome: 'unbound', detail: `the copy beside the marker could not be hashed (${(e && e.message) || e}), so the hash leg examined nothing` };
+    }
+    if (String(got).toLowerCase() !== String(m.keptHash).toLowerCase())
+      return {
+        keys,
+        outcome: 'refuted',
+        detail: `the marker records the keeper's first MiB as \`${m.keptHash}\` and the copy it sits beside hashes to \`${got}\` — a prefix shares its first MiB, so these are two different recordings`
+      };
+  }
+  return {
+    keys,
+    outcome: 'consistent',
+    detail: `the marker's own recorded keeper field(s) agree with the copy it sits beside, and the keeper itself stays unread — so this is an exclusion with a checked claim, never a resolution`
+  };
+}
 function markerProbeOne(markerPath, opts = {}) {
   const readMarker = opts.readMarker || defaultReadMarker;
   const sizeOf = opts.sizeOf || ((p) => statSync(p).size);
   const resolver = opts.resolver || resolveSuperseded;
   const small = String(markerPath).replace(/\.superseded$/, '');
-  const rec = { marker: String(markerPath), small, keys: [], keeper: null, smallBytes: null, keeperBytes: null, keyed: null, outcome: null, detail: null };
+  const rec = {
+    marker: String(markerPath),
+    small,
+    keys: [],
+    keeper: null,
+    smallBytes: null,
+    keeperBytes: null,
+    keyed: null,
+    recordedKeys: null,
+    recordedOutcome: null,
+    recordedDetail: null,
+    outcome: null,
+    detail: null
+  };
   let raw;
   try {
     raw = readMarker(rec.marker);
@@ -2118,8 +2252,21 @@ function markerProbeOne(markerPath, opts = {}) {
   try {
     rec.keeperBytes = sizeOf(rec.keeper);
   } catch (e) {
+    /* THE KEEPER IS OUT OF REACH, AND THE MARKER RECORDED TWO FACTS ABOUT IT. The branch used to stop
+       here, so the keeper-side rule bound on nothing and the recorded fields the parser had already
+       read went unused. A refutation needs no keeper; a resolution still does. */
+    const leg = recordedKeeperLeg(m, small, rec.smallBytes, opts);
+    rec.recordedKeys = leg.keys;
+    rec.recordedOutcome = leg.outcome;
+    rec.recordedDetail = leg.detail;
+    const absent = `the keeper this marker names cannot be sized from here (${(e && e.message) || e})`;
+    if (leg.outcome === 'refuted') {
+      rec.outcome = 'REFUTED-RECORDED';
+      rec.detail = `${absent}, and the marker's OWN recorded keeper fields refute it: ${leg.detail}`;
+      return rec;
+    }
     rec.outcome = 'KEEPER-ABSENT';
-    rec.detail = `the keeper this marker names cannot be sized from here (${(e && e.message) || e}) — the keeper-side checks bind on nothing, which is an EXCLUSION and never a pass`;
+    rec.detail = `${absent} — the keeper-side checks bind on nothing, which is an EXCLUSION and never a pass. Its own recorded keeper fields read ${leg.outcome}, printed in full on the leg's own line`;
     return rec;
   }
   const r = resolver({ name: basename(small), full: small, bytes: rec.smallBytes }, { name: basename(rec.keeper), full: rec.keeper, bytes: rec.keeperBytes }, opts);
@@ -2159,6 +2306,11 @@ function markerProbePopulation(recs) {
   const checked = rows.length - excluded;
   const resolved = rows.filter((r) => r.outcome === 'RESOLVED').length;
   const keeperSideChecksRun = rows.filter((r) => (r.keyed || []).some((k) => k === 'keptBytes' || k === 'keptHash')).length;
+  /* THE RECORDED LEG'S OWN POPULATION, separate because it answers a weaker question than the criterion:
+     it can refute a claim without the keeper and it can never resolve one. */
+  const recordedRefuted = rows.filter((r) => r.recordedOutcome === 'refuted').length;
+  const recordedConsistent = rows.filter((r) => r.recordedOutcome === 'consistent').length;
+  const recordedBound = recordedRefuted + recordedConsistent;
   const unresolved = checked - resolved;
   let status, reason;
   if (!rows.length) {
@@ -2166,7 +2318,13 @@ function markerProbePopulation(recs) {
     reason = 'no `.superseded` marker under the root — the probe examined nothing';
   } else if (!checked) {
     status = 'NOT_APPLICABLE';
-    reason = `${rows.length} marker(s) found and every one excluded — the file or the keeper it names is not readable here, so the keeper-side rule bound on nothing`;
+    /* The contract reserves `result` for a criterion that bound, so the recorded leg's numbers travel in
+       the reason: the exclusion is unchanged and the reader learns what WAS examined (§∅). */
+    reason =
+      `${rows.length} marker(s) found and every one excluded — the file or the keeper it names is not readable here, so the keeper-side rule bound on nothing` +
+      (recordedBound
+        ? `; the markers' own recorded keeper fields bound on ${recordedBound} of ${rows.length} and refuted none`
+        : `; no marker records a keeper field either, so nothing about a keeper was examined`);
   } else if (unresolved) {
     status = 'SHORTFALL';
     reason = `${resolved} of ${checked} checked marker(s) resolve the keeper they name; ${unresolved} do not (each named in the report)`;
@@ -2174,7 +2332,7 @@ function markerProbePopulation(recs) {
     status = 'PASS';
     reason = null;
   }
-  return { eligible: rows.length, checked, excluded, resolved, unresolved, keeperSideChecksRun, byOutcome, status, reason };
+  return { eligible: rows.length, checked, excluded, resolved, unresolved, keeperSideChecksRun, recordedBound, recordedRefuted, recordedConsistent, byOutcome, status, reason };
 }
 /* THE PRINTED BLOCK, PURE — the sentences a reader will actually see, so `--selftest` pins them. */
 function markerProbeLines(recs) {
@@ -2185,6 +2343,7 @@ function markerProbeLines(recs) {
     out.push(`    keys recorded: ${r.keys && r.keys.length ? r.keys.join(', ') : 'NONE — no KEY: VALUE line parsed'}`);
     if (r.keeper) out.push(`    keeper named: ${r.keeper}${r.keeperBytes === null ? ' (not sizeable here)' : ` (${r.keeperBytes} B)`}`);
     if (r.keyed) out.push(`    ${markerKeyedPhrase(r.keyed)}`);
+    if (r.recordedOutcome) out.push(`    recorded keeper leg: ${r.recordedOutcome} — ${r.recordedDetail}`);
     out.push(
       r.sameBasenameCopies >= 2
         ? `    pair: this basename occurs ${r.sameBasenameCopies} times under the root, so a walk forms the ambiguity this marker answers`
@@ -2203,7 +2362,18 @@ function markerProbeVerdict(recs, root) {
     status: p.status,
     population: { checked: p.checked, eligible: p.eligible, excluded: p.excluded },
     criterion: { name: 'unresolved_markers', threshold: 0, unit: 'markers', direction: 'lte' },
-    result: p.status === 'NOT_RUN' || p.status === 'NOT_APPLICABLE' ? null : { resolved: p.resolved, unresolved: p.unresolved, keeperSideChecksRun: p.keeperSideChecksRun, byOutcome: p.byOutcome },
+    result:
+      p.status === 'NOT_RUN' || p.status === 'NOT_APPLICABLE'
+        ? null
+        : {
+            resolved: p.resolved,
+            unresolved: p.unresolved,
+            keeperSideChecksRun: p.keeperSideChecksRun,
+            recordedBound: p.recordedBound,
+            recordedRefuted: p.recordedRefuted,
+            recordedConsistent: p.recordedConsistent,
+            byOutcome: p.byOutcome
+          },
     evidence: ['tools/trio-batch.mjs', `${root} (marker root)`],
     reason: p.reason,
     producedBy: gateProducer()

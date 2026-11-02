@@ -567,3 +567,46 @@ def test_quiet_state_restored_drops_what_it_cannot_trust():
     pull_ok, ended = alerts.quiet_state_restored(saved, 50.0, wall)
     assert pull_ok == {"edge": 50.0 - (8 * 3600 - 1)}
     assert ended == {"now": 50.0}
+
+
+# ── `silence_owner` — the box's OWN reason a device is silent, NAMED ─────────────────────────────
+#
+# The defect it closes: `powered_off_after_pull` answers True for its whole 8 h window, so it says
+# "expected" for the seconds while the NEXT stored pull holds the very same device's link. Measured on
+# the box: 16 of 88 `powered off — idle timer` lines and 3 of 5 `night ended` deliveries landed inside
+# an open pull, 1.1 s to 35.2 s in, against a 121.9 s timer.
+def test_silence_owner_names_the_stored_pull_that_holds_this_device():
+    """The offline slot is entered with the DEVICE'S OWN NAME, so the answer is per-device."""
+    assert alerts.silence_owner("ring", offline_slot="ring") == "stored-pull"
+
+
+def test_silence_owner_is_silent_about_a_pull_of_a_DIFFERENT_device():
+    """The slot is global but its holder is named. Another device's pull explains nothing about this one,
+    and answering True there would trade a false alarm for a false all-clear."""
+    assert alerts.silence_owner("ring", offline_slot="H10") is None
+
+
+def test_silence_owner_names_a_polar_charger_pull_by_address():
+    """`gate_state()` publishes `polar_paused` as ADDRESSES, not names, so the match is on the address."""
+    assert alerts.silence_owner("H10", paused_addrs=["AA:BB:CC:DD:EE:01"], addr="AA:BB:CC:DD:EE:01") == "charger-pull"
+
+
+def test_silence_owner_is_silent_when_a_DIFFERENT_address_is_paused():
+    assert alerts.silence_owner("H10", paused_addrs=["AA:BB:CC:DD:EE:01"], addr="AA:BB:CC:DD:EE:02") is None
+
+
+def test_silence_owner_returns_None_when_the_box_holds_nothing():
+    """Every gate free: the device's silence is the device's own, and the clauses below it must speak."""
+    assert alerts.silence_owner("ring", offline_slot=None, paused_addrs=[], addr="AA:BB:CC:DD:EE:01") is None
+
+
+def test_silence_owner_needs_an_address_before_it_reads_the_pause_set():
+    """A device configured without an address cannot match a pause set, and `None in {...}` must not be
+    the thing that decides it — an absent address is UNKNOWN, never a member."""
+    assert alerts.silence_owner("H10", paused_addrs=["AA:BB:CC:DD:EE:01"], addr=None) is None
+
+
+def test_silence_owner_does_not_match_a_nameless_device_against_a_free_slot():
+    """A device with no name must not collide with a slot that is also falsy. The real poller skips a
+    nameless device earlier, so this pins the predicate's own guard rather than the caller's."""
+    assert alerts.silence_owner("", offline_slot="") is None

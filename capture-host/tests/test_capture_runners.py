@@ -10356,3 +10356,138 @@ def test_alert_poller_names_the_charger_instead_of_calling_it_recording(tmp_path
     finally:
         _quiet_teardown(nm)
     assert sent == ["Tepna: sensor offline", "Tepna: sensor on charger"], sent
+
+
+# ── THE BOX HOLDING A LINK IS NOT A DEVICE THAT POWERED ITSELF OFF ───────────────────────────────
+#
+# Measured over 1 451 286 journal lines (2026-09-12 to 2026-11-01): 16 of 88 ring `powered off — idle
+# timer` lines and 3 of 5 `night ended` deliveries landed INSIDE an open stored pull, 1.1 s to 35.2 s
+# after it started, against the ring's measured 121.9 s timer. These drive the REAL gates rather than a
+# patched `gate_state`, so a renamed key fails here instead of passing a double.
+class _NSilent:
+    enabled = True
+
+    def __init__(self):
+        self.sent = []
+
+    async def send(self, title, message, **kw):
+        self.sent.append(title)
+        return True
+
+
+def _poll_twice(monkeypatch, cfg, notifier, on_poll=None):
+    """Run `alert_poller` for exactly two polls. `on_poll(n)` runs before each one."""
+    calls = {"n": 0}
+
+    async def fake_sleep(_s):
+        calls["n"] += 1
+        if on_poll:
+            on_poll(calls["n"])
+        if calls["n"] >= 3:
+            capture._STOP.set()
+
+    monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
+    monkeypatch.setattr(capture._time, "monotonic", lambda: 1000.0)
+    _run(capture.alert_poller(cfg, notifier))
+
+
+def test_alert_poller_sends_NOTHING_while_a_stored_pull_holds_this_device(monkeypatch, caplog):
+    """THE MEASURED DEFECT. A completed pull leaves `_LAST_PULL_OK` recent, so `powered_off_after_pull`
+    reads True for 8 h — including the seconds while the NEXT pull holds the same device's link. The
+    device is not advertising because the BOX took it, so neither the offline alarm nor the night-ended
+    note may speak. The note is logged ONCE across both polls, because the hold spans polls."""
+    cfg = {"alerts": {"poll_sec": 1, "offline_sec": 0}, "devices": [_dev(name="Dev")]}
+    capture.STATUS["devices"]["Dev"] = {"connected": False}
+    capture._LAST_DATA.pop("Dev", None)
+    capture._LAST_PULL_OK["Dev"] = 1000.0  # a pull succeeded this instant: the 8 h licence is open
+    n = _NSilent()
+    capture.offline_lock._busy = "Dev"  # the box is downloading from it RIGHT NOW
+    try:
+        with caplog.at_level("INFO"):
+            _poll_twice(monkeypatch, cfg, n)
+    finally:
+        capture.offline_lock._busy = None
+        capture._LAST_PULL_OK.pop("Dev", None)
+    assert n.sent == [], "the box's own link seizure is not an event to alert about"
+    held = [r for r in caplog.records if "holds its link" in r.getMessage()]
+    assert len(held) == 1, "one line per HOLD, not one per poll"
+    assert "stored-pull" in held[0].getMessage(), "the reason must be NAMED, never borrowed"
+    assert not [r for r in caplog.records if "powered off" in r.getMessage()]
+
+
+def test_alert_poller_sends_NOTHING_while_a_charger_pull_pauses_this_address(monkeypatch):
+    """The sibling gate, read by ADDRESS because that is what `polar_paused` publishes."""
+    addr = "AA:BB:CC:DD:EE:01"
+    cfg = {"alerts": {"poll_sec": 1, "offline_sec": 0}, "devices": [_dev(name="Dev", address=addr)]}
+    capture.STATUS["devices"]["Dev"] = {"connected": False}
+    capture._LAST_DATA.pop("Dev", None)
+    n = _NSilent()
+    capture._POLAR_PAUSED.add(addr)
+    try:
+        _poll_twice(monkeypatch, cfg, n)
+    finally:
+        capture._POLAR_PAUSED.clear()
+    assert n.sent == []
+
+
+def test_alert_poller_speaks_again_the_poll_AFTER_the_box_releases_the_link(monkeypatch):
+    """THE SUPPRESSION MUST NOT OUTLIVE THE HOLD. It needs no expiry only because the slot is released
+    however the pull ends, so the very next poll has to reach the clauses below it. A device still not
+    advertising after a completed pull is then the expected power-off, and the note goes out."""
+    cfg = {"alerts": {"poll_sec": 1, "offline_sec": 0}, "devices": [_dev(name="Dev")]}
+    capture.STATUS["devices"]["Dev"] = {"connected": False}
+    capture._LAST_DATA.pop("Dev", None)
+    capture._LAST_PULL_OK["Dev"] = 1000.0
+    n = _NSilent()
+    capture.offline_lock._busy = "Dev"
+
+    def release(poll):
+        if poll == 2:
+            capture.offline_lock._busy = None  # the pull finished between the two polls
+
+    try:
+        _poll_twice(monkeypatch, cfg, n, on_poll=release)
+    finally:
+        capture.offline_lock._busy = None
+        capture._LAST_PULL_OK.pop("Dev", None)
+    assert n.sent == ["Tepna: Dev night ended"], "the clause below the hold must speak once freed"
+
+
+def test_alert_poller_clears_the_hold_note_when_samples_flow_again(monkeypatch, caplog):
+    """A device that is recording is not being held by anything, so the latch clears on the recording
+    path too — otherwise the NEXT genuine hold would log nothing and the journal would lose the reason."""
+    cfg = {"alerts": {"poll_sec": 1, "offline_sec": 0}, "devices": [_dev(name="Dev")]}
+    st = {"connected": False}
+    capture.STATUS["devices"]["Dev"] = st
+    capture._LAST_DATA.pop("Dev", None)
+    n = _NSilent()
+    capture.offline_lock._busy = "Dev"
+
+    def wiggle(poll):
+        if poll == 2:
+            capture.offline_lock._busy = None
+            st["connected"] = True
+            capture._LAST_DATA["Dev"] = 1000.0  # flowing samples: the recording branch runs
+        if poll == 3:
+            capture.offline_lock._busy = "Dev"
+            st["connected"] = False
+            capture._LAST_DATA.pop("Dev", None)
+
+    calls = {"n": 0}
+
+    async def fake_sleep(_s):
+        calls["n"] += 1
+        wiggle(calls["n"])
+        if calls["n"] >= 4:
+            capture._STOP.set()
+
+    monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
+    monkeypatch.setattr(capture._time, "monotonic", lambda: 1000.0)
+    try:
+        with caplog.at_level("INFO"):
+            _run(capture.alert_poller(cfg, n))
+    finally:
+        capture.offline_lock._busy = None
+        capture._LAST_DATA.pop("Dev", None)
+    held = [r for r in caplog.records if "holds its link" in r.getMessage()]
+    assert len(held) == 2, "the latch cleared on the recording poll, so the second hold logs its own line"
