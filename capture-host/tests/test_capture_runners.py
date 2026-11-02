@@ -9141,6 +9141,77 @@ def test_alert_poller_starts_a_new_episode_when_a_stream_comes_back_after_a_gap(
     assert sent == [], sent
 
 
+def test_alert_poller_HOLDS_a_morning_stream_end_while_a_doff_pull_may_complete(monkeypatch):
+    """MEASURED 2026-11-02: "No pull completed" at 04:10:40, the ring's pull completed at 04:10:45."""
+    titles, _ = _night_end_poll(
+        monkeypatch, first=1000.0, last=1000.0 + 6 * 3600, now=1000.0 + 6 * 3600 + 60, stop_hour=4
+    )
+    assert titles == [], titles
+
+
+def test_stream_end_settled_is_the_hold_and_no_less():
+    a = capture.alerts
+    assert not a.stream_end_settled(1000.0, 1000.0 + a.STREAM_END_HOLD_S - 0.1)
+    assert a.stream_end_settled(1000.0, 1000.0 + a.STREAM_END_HOLD_S)
+
+
+def test_worth_a_night_note_needs_an_hour_and_speaks_when_the_span_is_unknown():
+    a = capture.alerts
+    assert a.worth_a_night_note(None, 5.0) and a.worth_a_night_note(5.0, None)
+    assert a.worth_a_night_note(0.0, a.NIGHT_NOTE_MIN_S)
+    assert not a.worth_a_night_note(0.0, a.NIGHT_NOTE_MIN_S - 0.1)
+    # A span is a DIFFERENCE: a 10 min wear late in the box's uptime is still a short wear.
+    assert not a.worth_a_night_note(50_000.0, 50_600.0)
+
+
+def _pulled_poll(monkeypatch, *, first, last):
+    """One device that streamed from `first` to `last` (monotonic s), was pulled, and is now off."""
+    sent = []
+
+    class _N:
+        enabled = True
+
+        async def send(self, title, message, **kw):
+            sent.append(title)
+            return True
+
+    nm = "O2Ring TEST0003"
+    cfg = {"alerts": {"poll_sec": 1, "offline_sec": 0}, "devices": [_dev(name=nm)]}
+    capture._IDLE_TIMER_NAMED.discard(nm)
+    capture._LAST_PULL_OK.pop(nm, None)
+    clock = {"t": first}
+    calls = {"n": 0}
+    capture.STATUS["devices"][nm] = {"connected": True}
+    capture._LAST_DATA[nm] = first
+
+    async def fake_sleep(_s):
+        calls["n"] += 1
+        if calls["n"] == 2:
+            clock["t"] = last + 120.0
+            capture._LAST_DATA[nm] = last
+            capture._LAST_PULL_OK[nm] = last + 60.0
+            capture.STATUS["devices"][nm] = {"connected": False}
+        if calls["n"] >= 3:
+            capture._STOP.set()
+
+    monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
+    monkeypatch.setattr(capture._time, "monotonic", lambda: clock["t"])
+    _run(capture.alert_poller(cfg, _N()))
+    capture._LAST_DATA.pop(nm, None)
+    capture._LAST_PULL_OK.pop(nm, None)
+    capture._IDLE_TIMER_NAMED.discard(nm)
+    return sent
+
+
+def test_alert_poller_sends_NO_night_note_for_a_short_daytime_wear(monkeypatch):
+    """MEASURED 2026-11-01: four ring "night ended" notes between 14:09 and 14:31, one per short wear."""
+    assert _pulled_poll(monkeypatch, first=1000.0, last=1000.0 + 600) == []
+
+
+def test_alert_poller_STILL_sends_the_night_note_after_a_long_wear(monkeypatch):
+    assert _pulled_poll(monkeypatch, first=1000.0, last=1000.0 + 6 * 3600) == ["Tepna: O2Ring TEST0003 night ended"]
+
+
 def test_stream_ended_in_the_morning_needs_a_night_AND_a_morning():
     a = capture.alerts
     assert a.stream_ended_in_the_morning(4 * 3600, 4) and a.stream_ended_in_the_morning(9 * 3600, 11)

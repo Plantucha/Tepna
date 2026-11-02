@@ -26,11 +26,11 @@ Identities are stable; role and machine are metadata — update the row, never t
 | session | machine | lane |
 |---|---|---|
 | **Kestrel** | rig-x870 | coordinator / owner's deputy |
-| **Heron** | vigil | capture-host + box ops. Deploys to vigil are **owner-authorized only**; a relay never changes that |
+| **Heron** | vigil | capture-host + box ops. A MANUAL deploy to vigil is **owner-authorized only** (a merged PR's auto-update is not; §5); a relay never changes that |
 | **Osprey** | rig-x870 | mutation program + analysis |
 | **Magpie** | rig-x870 | JS surface + sweeps |
 | **Finch** | roaming (bridge) | special-collab / hardware RE, on demand |
-| **Wren** | vigil | resident on the capture box — box-local measurement + capture-host work; runs under the fleet herder's boot-enabled user unit. Deploys/daemon restarts owner-authorized. No push credentials on the box, so its branches land via a relay: `Fleet-Session: Wren (relay: <Name>)` |
+| **Wren** | vigil | resident on the capture box — box-local measurement + capture-host work; runs under the fleet herder's boot-enabled user unit. Manual deploys/daemon restarts owner-authorized. No push credentials on the box, so its branches land via a relay: `Fleet-Session: Wren (relay: <Name>)` |
 
 - **`Fleet-Session: <Name>` in every commit message and PR body** (forward-only from 2026-08-31).
 - **The trailer is a convention, not a mechanism** — self-declared, unverified; never infer "X did it".
@@ -226,7 +226,8 @@ your diff.
   merges when Kodiak sits idle. So a `ready_for_review` by `Plantucha` is the walker — read
   `journalctl --user -u tepna-pr-walker.service` (local time), never ask the owner. A bird asking for
   an undraft is usually already served: read `gh pr view` first. **A capture-host PR the walker lands
-  deploys to vigil**, so a deploy that needs the owner's yes carries `do-not-merge` until he gives it.
+  deploys to vigil, and it carries NO deploy hold** (owner, 2026-11-02: "Stop putting do not merge
+  badge on vigil capture box"): vigil's update path defers the daemon restart while the box records.
 - Without Kodiak, `strict` status checks make an armed green BEHIND PR a **deadlock** (auto-merge never
   updates a branch): `node tools/queue-doctor.mjs --dry-run` names the green-and-stuck state and
   `node tools/land-pr.mjs <PR#>` drives one PR to merge. A merge queue is **not available** (user-owned
