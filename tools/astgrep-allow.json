@@ -461,6 +461,12 @@
         "match": "self.no_device_clock.get(device_clock, 0)",
         "ordinal": 0,
         "why": "tally"
+      },
+      {
+        "file": "capture-host/radioclock.py",
+        "match": "self.link_epochs.get(address, 0)",
+        "ordinal": 0,
+        "why": "tally"
       }
     ]
   }

@@ -302,6 +302,29 @@ def test_TWO_indistinguishable_anchors_yield_a_BLANK_and_never_the_nearer_one():
     assert rc.associate(1_000_020 + 200.0, anchors, 200.0, 5.0) == (10, 1_000_000)
 
 
+def test_THE_JITTER_BOUND_IS_INCLUSIVE_so_a_tie_at_exactly_the_jitter_reads_blank():
+    """Two anchors exactly the measured jitter from the target are indistinguishable, not separated.
+
+    The bound belongs on the refusing side: `jitter` is the MAD of the offset samples, so a distance
+    equal to it is the typical disagreement between the two clocks, and a pick made at that distance
+    is a coin toss with a number printed beside it. One pair of anchors answers both ways — blank at
+    a jitter of exactly the gap, attributed once the jitter shrinks below it."""
+    anchors = [(10, 1_000_000), (11, 1_000_040)]
+    assert rc.associate(1_000_020 + 200.0, anchors, 200.0, 20.0) == (None, None)
+    assert rc.associate(1_000_020 + 200.0, anchors, 200.0, 19.0) == (10, 1_000_000)
+
+
+def test_the_anchor_arrival_is_keyed_on_THE_PAIR_because_the_counter_alone_REPEATS():
+    """The event counter is a per-connection u16 that wraps at 0xFFFF, so one series holds the same
+    counter more than once over a long link — which is why `associate` returns the pair and why the
+    arrival lookup matches on both members. A lookup keyed on the counter alone answers with the
+    first event that ever carried it, and a reader cannot see that the stamp is from hours earlier."""
+    series = [(11, 1_000_000, 111_000), (11, 1_050_000, 222_000)]
+    assert rc.anchor_rx_ns(series, 11, 1_050_000) == 222_000, "the pick's own event, not its namesake"
+    assert rc.anchor_rx_ns(series, 11, 1_000_000) == 111_000
+    assert rc.anchor_rx_ns(series, 11, 1_025_000) is None, "a pair in neither entry reaches no stamp"
+
+
 def test_no_offset_no_anchors_and_no_jitter_each_yield_a_blank():
     anchors = [(10, 1_000_000)]
     assert rc.associate(1_000_200.0, anchors, None, 5.0) == (None, None)
@@ -434,6 +457,7 @@ def test_an_unmeasured_cell_is_BLANK_and_never_zero():
         "1700000000000000000",
         "",
         "pmd",
+        "",
     ]
     assert len(row.rstrip("\n").split(";")) == len(rc.SIDECAR_HEADER.rstrip("\n").split(";"))
     assert ";0;" not in rc.format_row("t", H10, None, None, None, None, None, None, None, rc.DEVICE_CLOCK_NOT_PMD)
@@ -442,7 +466,7 @@ def test_an_unmeasured_cell_is_BLANK_and_never_zero():
 def test_the_header_is_the_columns_the_brief_names_in_the_order_it_names_them():
     assert rc.SIDECAR_HEADER == (
         "Phone timestamp;device;meas;last_sensor_ns;conn_handle;event_counter;anchor_us;vs_rx_ns;"
-        "acl_rx_ns;device_clock\n"
+        "acl_rx_ns;device_clock;anchor_epoch\n"
     )
 
 
@@ -462,7 +486,7 @@ def test_the_column_set_is_APPEND_ONLY_AT_THE_TAIL():
         "vs_rx_ns",
         "acl_rx_ns",
     )
-    assert rc.SIDECAR_COLUMNS[9] == "device_clock" and len(rc.SIDECAR_COLUMNS) == 10
+    assert rc.SIDECAR_COLUMNS[9:] == ("device_clock", "anchor_epoch") and len(rc.SIDECAR_COLUMNS) == 11
 
 
 # ─── the enable's outcome, as three distinguishable facts ─────────────────────────────────────────
@@ -644,18 +668,29 @@ def test_the_row_carries_the_association_AND_the_anchors_own_host_receive_stamp(
     c.feed(*_mon(rc.MONITOR_OPCODE_EVENT, _le_conn_complete(0x0040, H10)), host_ns=1)
     for counter, us in ((10, 1_000_000), (11, 1_050_000), (12, 1_100_000)):
         c.feed(*_mon(rc.MONITOR_OPCODE_EVENT, _anchor_event(0x0040, counter, us)), host_ns=(us + 300) * 1000)
-    address, meas, ns, handle, counter, anchor_us, vs_rx, acl_rx, device_clock = c.feed(
+    address, meas, ns, handle, counter, anchor_us, vs_rx, acl_rx, device_clock, anchor_epoch = c.feed(
         *_mon(rc.MONITOR_OPCODE_ACL_RX, _pmd_acl(0x0040, 0x00, 819_000_000_000_000)), host_ns=1_051_300_000
     )
     assert (address, meas, ns, handle) == (H10, 0x00, 819_000_000_000_000, 0x40)
     assert (counter, anchor_us) == (11, 1_050_000)
     assert vs_rx == 1_050_300_000, "the stamp of the anchor it associated to, not of the ACL packet"
     assert acl_rx == 1_051_300_000 and acl_rx != vs_rx, "two reads of two events, 1 ms apart"
+    assert anchor_epoch == 1, "one Connection Complete was seen, so this row sits in the first generation"
     assert device_clock == rc.DEVICE_CLOCK_PMD, "an H10 ECG frame's stamp IS the device's own clock"
     row = rc.format_row(
-        "2026-09-07T03:00:00.000", address, meas, ns, handle, counter, anchor_us, vs_rx, acl_rx, device_clock
+        "2026-09-07T03:00:00.000",
+        address,
+        meas,
+        ns,
+        handle,
+        counter,
+        anchor_us,
+        vs_rx,
+        acl_rx,
+        device_clock,
+        anchor_epoch,
     )
-    assert row.count(";") == 9 and ";;" not in row, "the offset's own column is populated now"
+    assert row.count(";") == 10 and ";;" not in row, "every column on THIS row was measured, so none of them is blank"
     assert row.split(";")[7] == "1050300000", "field 8 of the sidecar schema is vs_rx_ns"
 
 
@@ -670,9 +705,10 @@ def test_an_UNATTRIBUTED_row_blanks_the_association_AND_its_stamp_together():
         c.feed(*_mon(rc.MONITOR_OPCODE_EVENT, _anchor_event(0x0040, counter, us)), host_ns=(us + 300) * 1000)
     row_t = c.feed(*_mon(rc.MONITOR_OPCODE_ACL_RX, _pmd_acl(0x0040, 0x00, 7)), host_ns=900_200_000)
     counter, anchor_us, vs_rx, acl_rx = row_t[4], row_t[5], row_t[6], row_t[7]
+    assert len(row_t) == 10, "the row grew a generation column, and this test reads the whole row"
     assert (counter, anchor_us, vs_rx) == (None, None, None), "before every anchor: nothing to attribute"
     assert acl_rx == 900_200_000, "the packet's own arrival is still a measurement"
-    cells = rc.format_row("t", *row_t[:8], row_t[8]).split(";")
+    cells = rc.format_row("t", *row_t).split(";")
     assert cells[5] == "" and cells[6] == "" and cells[7] == "", "blank, and never a 0"
 
 
@@ -702,6 +738,58 @@ def test_anchor_rx_ns_takes_BOTH_halves_of_the_identity_so_a_WRAPPED_counter_can
     assert rc.anchor_rx_ns(anchors, 7, 44_536_000) == 44_536_300_000
     assert rc.anchor_rx_ns(anchors, 7, 1_000_000) == 1_000_300_000
     assert rc.anchor_rx_ns(anchors, 7, 2_000_000) is None, "the counter alone is not an identity"
+
+
+def test_a_RECONNECT_NAMES_A_NEW_GENERATION_and_the_rows_after_it_say_so():
+    """🔴 The row this closes: a radio-clock file holds multi-hour gaps in its anchor sequence and
+    nothing marked them, so a consumer built ONE axis over the whole file and interpolated a
+    correction inside the gap from two anchors hours apart. `anchor_us` is a controller counter whose
+    epoch survives no reset, and a re-establishment starts a new series on it — so the generation is
+    what tells a reader where to cut (row
+    2026-11-01-the-radio-anchor-sequence-interpolates-across-a-link-gap)."""
+    c = _connected(_collector(), 0x0040, H10)
+    for counter, us in ((10, 1_000_000), (11, 1_050_000)):
+        c.feed(*_mon(rc.MONITOR_OPCODE_EVENT, _anchor_event(0x0040, counter, us)), host_ns=(us + 300) * 1000)
+    first = c.feed(*_mon(rc.MONITOR_OPCODE_ACL_RX, _pmd_acl(0x0040, 0x00, 5)), host_ns=1_051_300_000)
+    assert first[9] == 1
+    c.feed(*_mon(rc.MONITOR_OPCODE_EVENT, _disconnect(0x0040)), host_ns=2_000_000_000)
+    c.feed(*_mon(rc.MONITOR_OPCODE_EVENT, _le_conn_complete(0x0040, H10)), host_ns=3_000_000_000)
+    for counter, us in ((0, 9_000_000), (1, 9_050_000)):
+        c.feed(*_mon(rc.MONITOR_OPCODE_EVENT, _anchor_event(0x0040, counter, us)), host_ns=(us + 300) * 1000)
+    second = c.feed(*_mon(rc.MONITOR_OPCODE_ACL_RX, _pmd_acl(0x0040, 0x00, 6)), host_ns=9_051_300_000)
+    assert second[9] == 2, "the second establishment is a second generation, and the row says which"
+    assert first[9] != second[9], (
+        "which is the whole point: a reader that cuts the axis where this column changes never "
+        "interpolates across the gap"
+    )
+
+
+def test_A_KIND_THIS_COLLECTOR_DOES_NOT_KNOW_reaches_no_table_at_all(monkeypatch):
+    """The parser answers three kinds today, and the guard is there for the fourth.
+
+    ⚠️ THE GUARD BECAME UNREACHABLE THROUGH THE PARSER when the connect branch landed: before it,
+    a Connection Complete fell through to this line, and now it returns above. The line stays, and
+    a patched parser is how it keeps a test: a kind added to the parser tomorrow must leave the
+    anchor table, the counter table and the generation dict alone rather than reach the unpacking
+    below it, which reads three fields an unknown event does not carry."""
+    c = _connected(_collector(), 0x0040, H10)
+    monkeypatch.setattr(rc, "parse_hci_event", lambda payload: {"kind": "le_phy_update", "handle": 0x0040})
+    c.feed(*_mon(rc.MONITOR_OPCODE_EVENT, _anchor_event(0x0040, 10, 1_000_000)), host_ns=1_000_300_000)
+    assert c._anchors == {}, "an unknown kind records no anchor, and the bytes behind it are not consulted"
+    assert c._last_counter == {}, "and moves no counter, so the missed-anchor count cannot drift on it"
+    assert c.link_epochs == {H10: 1}, "and starts no generation: the one epoch is the connect that opened"
+    assert c.missed_anchors == 0
+
+
+def test_a_CONNECT_WE_DID_NOT_ASK_FOR_reaches_no_generation_either():
+    """The monitor channel carries the neighbour's connections too. None of them is ours to count, for
+    the same reason none of them is ours to write: an address we did not configure must leave no trace
+    at all, not even a key in a telemetry dict."""
+    c = _collector(devices=(H10,))
+    c.feed(*_mon(rc.MONITOR_OPCODE_EVENT, _le_conn_complete(0x0041, VERITY)), host_ns=1)
+    assert c.link_epochs == {}, "the neighbour's link is not a generation of ours"
+    c.feed(*_mon(rc.MONITOR_OPCODE_EVENT, _le_conn_complete(0x0040, H10)), host_ns=2)
+    assert c.link_epochs == {H10: 1}
 
 
 def test_NON_PMD_traffic_on_our_own_link_emits_nothing():
@@ -745,14 +833,17 @@ def test_a_TORN_TAIL_from_a_power_cut_is_truncated_and_not_left_to_corrupt_the_n
     """The capture host loses power mid-write. The half-line must go, or the row appended after it is
     silently glued onto the fragment and parses as neither."""
     p = tmp_path / "s.csv"
-    p.write_text(rc.SIDECAR_HEADER + "t;%s;0;5;64;11;1050000;;7;pmd\nu;%s;0;6;64" % (H10, H10), encoding="utf-8")
+    p.write_text(
+        rc.SIDECAR_HEADER + "t;%s;0;5;64;11;1050000;1050300;7;pmd;1\nu;%s;0;6;64" % (H10, H10),
+        encoding="utf-8",
+    )
     w = rc.SidecarWriter(str(p))
-    w.write(rc.format_row("v", H10, 0, 7, 64, 13, 1_150_000, None, 9, rc.DEVICE_CLOCK_PMD))
+    w.write(rc.format_row("v", H10, 0, 7, 64, 13, 1_150_000, 1_150_300, 9, rc.DEVICE_CLOCK_PMD, 1))
     w.close()
     lines = p.read_text(encoding="utf-8").splitlines()
     assert len(lines) == 3
     assert lines[1].startswith("t;") and lines[2].startswith("v;")
-    assert all(line.count(";") == 9 for line in lines[1:]), "every surviving row is whole"
+    assert all(line.count(";") == 10 for line in lines[1:]), "every surviving row is whole"
 
 
 def test_an_EMPTY_file_is_rewritten_with_a_header_rather_than_appended_to(tmp_path):
@@ -829,7 +920,7 @@ def test_run_writes_one_file_per_device_and_reports_its_telemetry(tmp_path):
     lines = body.splitlines()
     assert lines[0] == rc.SIDECAR_HEADER.rstrip("\n")
     assert len(lines) == 3
-    assert all(line.count(";") == 9 for line in lines[1:])
+    assert all(line.count(";") == 10 for line in lines[1:])
     assert lines[1].split(";")[1] == H10
     assert got["no_device_clock"] == {} and got["not_a_pmd_frame"] == {}, (
         "every row here IS a PMD data frame from a declared Polar device"
@@ -1262,7 +1353,7 @@ def test_every_column_lands_in_its_OWN_position_when_all_are_present():
     """The earlier row test carried several `None`s, so a cell replaced by `None` was indistinguishable
     from the real thing. With every field populated and distinct, a swapped or dropped column shows."""
     row = (
-        rc.format_row("2026-09-08T03:00:00.000", H10, 7, 819_000_000_000_000, 0x40, 4242, 1_050_000, 111, 222, "pmd")
+        rc.format_row("2026-09-08T03:00:00.000", H10, 7, 819_000_000_000_000, 0x40, 4242, 1_050_000, 111, 222, "pmd", 3)
         .rstrip("\n")
         .split(";")
     )
@@ -1277,11 +1368,13 @@ def test_every_column_lands_in_its_OWN_position_when_all_are_present():
         "111",
         "222",
         "pmd",
+        "3",
     ]
     header = rc.SIDECAR_HEADER.rstrip("\n").split(";")
     assert len(row) == len(header)
     assert header[5] == "event_counter" and row[5] == "4242"
     assert header[6] == "anchor_us" and row[6] == "1050000"
+    assert header[10] == "anchor_epoch" and row[10] == "3"
 
 
 def test_the_monitor_socket_is_opened_with_the_BLUETOOTH_family_and_HCI_protocol():
@@ -1928,8 +2021,9 @@ def test_a_device_that_does_not_speak_PMD_gets_EMPTY_columns_and_a_NAMED_REASON(
     c = _connected(_collector(devices=(RING,), vendor="Wellue"), 0x0040, RING)
     payload = bytes([0x4A]) + struct.pack("<Q", 18_440_000_000_000_000_000) + b"\x00" * 8
     row = c.feed(*_mon(rc.MONITOR_OPCODE_ACL_RX, _att_notification(0x0040, payload)), host_ns=77)
-    address, meas, ns, handle, counter, anchor_us, vs_rx, acl_rx, device_clock = row
+    address, meas, ns, handle, counter, anchor_us, vs_rx, acl_rx, device_clock, anchor_epoch = row
     assert (meas, ns) == (None, None), "the two keyed columns are EMPTY, not payload bytes"
+    assert anchor_epoch == 1, "the link we watched it on is still a measurement of this packet"
     assert device_clock == rc.DEVICE_CLOCK_NOT_PMD == "none-not-pmd"
     assert (address, handle, acl_rx) == (RING, 0x40, 77), "the radio record is intact"
     line = rc.format_row("t", address, meas, ns, handle, counter, anchor_us, vs_rx, acl_rx, device_clock)
@@ -2088,10 +2182,10 @@ def test_a_RESUMED_PRE_CHANGE_FILE_KEEPS_ITS_OWN_WIDTH_FOR_LIFE(tmp_path):
     assert not lines[-1].endswith(";pmd"), "the tail column is dropped rather than appended blind"
     fresh_path = tmp_path / "fresh.csv"
     fresh = rc.SidecarWriter(str(fresh_path))
-    assert fresh._width == 10, "and only a FRESH file gets the new column"
-    fresh.write(rc.format_row("v", H10, 0, 7, 64, 13, 1_150_000, None, 9, rc.DEVICE_CLOCK_PMD))
+    assert fresh._width == 11, "and only a FRESH file gets the new columns"
+    fresh.write(rc.format_row("v", H10, 0, 7, 64, 13, 1_150_000, None, 9, rc.DEVICE_CLOCK_PMD, 2))
     fresh.close()
-    assert fresh_path.read_text(encoding="utf-8").splitlines()[-1].endswith(";pmd")
+    assert fresh_path.read_text(encoding="utf-8").splitlines()[-1].endswith(";pmd;2")
 
 
 def test_an_EIGHT_column_file_keeps_EIGHT_columns_and_the_narrow_fallback_is_not_its_width(tmp_path):
@@ -2130,5 +2224,5 @@ def test_an_UNREADABLE_header_assumes_the_NARROW_shape_and_never_widens_it(tmp_p
         w = rc.SidecarWriter(q)
         got = w._width
     assert seen["n"] == 1, "the header read must have been attempted, or this asserts nothing"
-    assert got == 9
+    assert got == 10
     w.close()
