@@ -80,8 +80,14 @@ def auth_payload(serial: str = "0000", ts: int | None = None) -> bytes:
     return bytes(a ^ b for a, b in zip(bytes(key), _LEPU))
 
 
-def auth_frame(serial: str = "0000") -> bytes:
-    return encode(OP_AUTH, auth_payload(serial))
+# `ts` passes through to `auth_payload`, which otherwise reads `int(time.time())` at build time.
+# WITHOUT IT A CALLER CANNOT PIN THIS FRAME, and a test that rebuilds the frame to compare it
+# byte-for-byte against what was already written agrees only while both builds land in the same
+# second (row `2026-11-01-the-probe-auth-frame-test-compares-a-clock-dependent-frame`: measured 7 s
+# apart on a loaded CI runner, differing at `payload[12]` alone). The default is unchanged, so no
+# production caller moves: the ring tolerates this field as a loose nonce either way.
+def auth_frame(serial: str = "0000", ts: int | None = None) -> bytes:
+    return encode(OP_AUTH, auth_payload(serial, ts))
 
 
 OP_RT_ACC = 0x14  # device-PUSHED 3-axis accelerometer; enabled via AUTO_RT_SWITCH bit 3
