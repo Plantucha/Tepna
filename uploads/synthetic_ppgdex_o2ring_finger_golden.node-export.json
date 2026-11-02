@@ -40,6 +40,10 @@
       "ppm": -6.868177291421405,
       "spanMs": 39757.27306,
       "spanPpm": -6.868177291421405,
+      "flat": true,
+      "flatResidualMs": 0.2868321050376111,
+      "flatJitterMs": 0.49999949999892124,
+      "segments": 1,
       "rate": "unknown",
       "rateReason": "the device column is drawn (77.9 % of its deltas are one value) — a rate over it measures a counter with no oscillator, whatever the span",
       "rateApplied": false,
@@ -75,8 +79,8 @@
       },
       "sourceChannel": "O2Ring:ppg",
       "code": {
-        "manifestHash": "3988e3711521",
-        "computeHash": "ad90e0b2b715"
+        "manifestHash": "981044b28005",
+        "computeHash": "91a32814cd53"
       },
       "evidence": {
         "envelopeRef": null,
@@ -105,8 +109,8 @@
       },
       "sourceChannel": "O2Ring:ppg",
       "code": {
-        "manifestHash": "3988e3711521",
-        "computeHash": "ad90e0b2b715"
+        "manifestHash": "981044b28005",
+        "computeHash": "91a32814cd53"
       },
       "evidence": {
         "envelopeRef": null,

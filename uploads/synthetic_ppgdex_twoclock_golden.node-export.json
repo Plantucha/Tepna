@@ -40,6 +40,10 @@
       "ppm": 132.02640828038045,
       "spanMs": 37029.62963,
       "spanPpm": 226.0451990374636,
+      "flat": false,
+      "flatResidualMs": 4.107484590421811,
+      "flatJitterMs": 0.5000005000001693,
+      "segments": 1,
       "rate": "unknown",
       "rateReason": "spans 37 s, under the 2400 s a rate needs",
       "rateApplied": true,
@@ -72,8 +76,8 @@
       },
       "sourceChannel": "Verity:ppg",
       "code": {
-        "manifestHash": "3988e3711521",
-        "computeHash": "ad90e0b2b715"
+        "manifestHash": "981044b28005",
+        "computeHash": "91a32814cd53"
       },
       "evidence": {
         "envelopeRef": null,
@@ -102,8 +106,8 @@
       },
       "sourceChannel": "Verity:ppg",
       "code": {
-        "manifestHash": "3988e3711521",
-        "computeHash": "ad90e0b2b715"
+        "manifestHash": "981044b28005",
+        "computeHash": "91a32814cd53"
       },
       "evidence": {
         "envelopeRef": null,

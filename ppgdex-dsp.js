@@ -839,6 +839,13 @@
         flatOffsetMs: flat,
         residualRmsMs: rms,
         jitterMs: jitter,
+        /* THE FLATNESS TEST AS ITS OWN TRI-STATE, not only as prose inside `rateReason`. The
+           whole-file axis needs this one predicate too, and a second copy of
+           `rms > PPG_FLAT_RESIDUAL_K * jitter` one layer up is how two layers drift apart. `null`
+           where the segment carries no jitter scale to judge the residual against — §∅, an
+           unmeasured test is never `false`. A segment of fewer than 2 anchors is the only such case,
+           and `tooFew` has already refused it. */
+        flat: jitter == null ? null : !notFlat,
         /* §7 — a ppm never travels without its anchor count and span, which are in this same object. */
         ppm: rated ? slopePpm : null,
         rate: rated ? 'measured' : 'unknown',
@@ -1227,6 +1234,44 @@
        is byte-identical. That is the control, and it is structural: there is no arithmetic here that
        could drift it. */
     const multiSeg = offSegs.ok && offSegs.segments.length > 1;
+    /* ── THE SEGMENT MODEL'S FLATNESS FLOOR, CARRIED UP TO THE WHOLE-FILE AXIS ──────────────────
+       Row `2026-10-29-the-implied-single-segment-publishes-a-rate-with-no-floor-applied`: a recording
+       the model never segmented contributes ONE IMPLIED segment, this node floors it, and
+       `offsetSegments` is published only where `multiSeg` holds — so that verdict was computed and
+       then dropped. `tools/ring-offset-census.mjs` synthesises the implied segment itself to count
+       these nights, and its stand-in carries the whole-file `ppm` with `rateReason: null`, which
+       reads as "no test refused this rate" over a segment nothing ever asked.
+       The span half of the row's floor reached the export on 2026-10-31 and the drawn/independent
+       half in #4218. FLATNESS is the one test `ppgOffsetSegments` applies that no published surface
+       carried, and it is the §∅ question in the owner's own terms (2026-09-17): does the window still
+       describe ONE continuous stretch of signal? A residual over `PPG_FLAT_RESIDUAL_K` times the
+       segment's own jitter says it holds structure the flat model has not removed.
+       A THREE-VALUED AND over the segments, never the first one: the whole-file axis SPANS the seams,
+       so one unflat segment leaves the whole series unflat whatever its neighbours read. `false`
+       wins, then `null` (§∅ — an unmeasured test may not certify a rate), and `true` only where every
+       segment cleared it. The DECIDING segment's two numbers travel beside the verdict per §7, so a
+       reader sees the residual and the jitter that refused rather than a bare `false`. */
+    const flatSegs = offSegs.ok ? offSegs.segments : [];
+    const flatDecider =
+      flatSegs.find(function (s) {
+        return s.flat === false;
+      }) ||
+      flatSegs.find(function (s) {
+        return s.flat == null;
+      }) ||
+      flatSegs[0] ||
+      null;
+    const axisFlat = !flatSegs.length
+      ? null
+      : flatSegs.some(function (s) {
+            return s.flat === false;
+          })
+        ? false
+        : flatSegs.some(function (s) {
+              return s.flat == null;
+            })
+          ? null
+          : true;
     const segAxes =
       multiSeg && typeof DexClock !== 'undefined' && DexClock.hostAxis
         ? offSegs.segments.map(function (s) {
@@ -1700,6 +1745,15 @@
                width-21 running median; read `ppm` WITH it, and apply neither as a rate. */
             spanMs: hostAx.spanMs,
             spanPpm: hostAx.spanPpm,
+            /* THE SEGMENT MODEL'S FLATNESS, forwarded so the export's `rate` can apply this node's own
+               last floor; `axisFlat` above carries the reduction and the row. `segments` is the count
+               the verdict was reduced over, which is how a reader tells an IMPLIED single segment from
+               a seamed recording — `offsetSegments` is absent for the first and that absence used to
+               be the only signal. */
+            flat: axisFlat,
+            flatResidualMs: flatDecider ? flatDecider.residualRmsMs : null,
+            flatJitterMs: flatDecider && flatDecider.jitterMs != null ? flatDecider.jitterMs : null,
+            segments: flatSegs.length || null,
             /* ⚠️ `rateApplied` IS NOT `rate`, and that asymmetry is deliberate (owner, board #2180).
                `rate`, published beside this field in the export, says whether the SPAN supports a rate.
                This field says whether the correction REACHED the published `fs`, which only this layer
@@ -7046,6 +7100,25 @@
       const haDrawnKey = r.hostAxis.drawn != null ? r.hostAxis.drawn : r.hostAxis.deviceDrawn;
       const haDrawn = haDrawnKey == null ? null : haDrawnKey === true;
       const haIndep = r.hostAxis.independent == null ? null : r.hostAxis.independent === true;
+      /* THE SPAN TEST NOW INVERTS RATHER THAN BRANCHING LAST, so its sentence stays byte for byte and
+         every pre-existing assertion on it stays green; flatness is the new LAST test. Last on
+         purpose: it only ever bites a rate this chain would otherwise publish as `measured`, which is
+         the population the row is about, and no fragment's existing refusal changes its reason. */
+      const haFlat = r.hostAxis.flat == null ? null : r.hostAxis.flat === true;
+      /* ⚠️ THE FLOOR BINDS ONLY WHERE THE SEGMENT MODEL ACTUALLY RAN, and `segments` is how this block
+         can tell. `flat` is NOT a spine field — `clock.js` never computes it — so unlike `drawn` and
+         `independent` a `null` here does NOT mean this reshape dropped a key. `buildNodeExport` is
+         called with a RAW `DexClock.hostAxis` by this node's own suite and by any caller holding an
+         axis rather than a parse, and such an axis carries no segmentation at all. Refusing those
+         would be a false refusal over a test that never ran, so the absence is published in its own
+         key (`flat: null`, `segments: null`) where a reader sees it, rather than hidden inside `rate`.
+         Where the model DID run, a `null` flatness fails closed, because then the test ran and
+         declined — §∅, and an unmeasured floor may not certify a rate. On a parsed recording the
+         state is unreachable: an `ok` axis holds 3 anchors, so its one segment holds 2 jumps and a
+         jitter scale. It is pinned by the group below all the same. */
+      const haSegs = Number.isFinite(r.hostAxis.segments) ? r.hostAxis.segments : null;
+      const haResid = Number.isFinite(r.hostAxis.flatResidualMs) ? r.hostAxis.flatResidualMs : null;
+      const haJit = Number.isFinite(r.hostAxis.flatJitterMs) ? r.hostAxis.flatJitterMs : null;
       const haRate =
         haDrawn !== false
           ? {
@@ -7067,9 +7140,25 @@
               }
             : haSpanMs == null
               ? { rate: 'unknown', reason: 'no span — the axis published none' }
-              : haSpanMs >= PPG_RATE_MIN_SPAN_S * 1000
-                ? { rate: 'measured', reason: null }
-                : { rate: 'unknown', reason: 'spans ' + Math.round(haSpanMs / 1000) + ' s, under the ' + PPG_RATE_MIN_SPAN_S + ' s a rate needs' };
+              : haSpanMs < PPG_RATE_MIN_SPAN_S * 1000
+                ? { rate: 'unknown', reason: 'spans ' + Math.round(haSpanMs / 1000) + ' s, under the ' + PPG_RATE_MIN_SPAN_S + ' s a rate needs' }
+                : haSegs == null
+                  ? { rate: 'measured', reason: null }
+                  : haFlat === true
+                    ? { rate: 'measured', reason: null }
+                    : {
+                        rate: 'unknown',
+                        reason:
+                          haFlat === false
+                            ? 'residual ' +
+                              (haResid == null ? '?' : haResid.toFixed(1)) +
+                              ' ms about the flat offset is over ' +
+                              PPG_FLAT_RESIDUAL_K +
+                              'x the ' +
+                              (haJit == null ? '?' : haJit.toFixed(1)) +
+                              ' ms jitter of the segment that refused — it holds structure the flat model has not removed (sub-bound replays)'
+                            : 'the segment model ran and could not judge flatness, so whether this span describes one continuous stretch of signal is unknown'
+                      };
       out.recording.hostAxis = {
         /* ── THE GATE'S OWN VERDICT, WHICH THIS RESHAPE DROPPED UNTIL 2026-11-01 ──────────────────
            The `if` one line up tests `r.hostAxis.ok`, and this list never named `ok`, so over an
@@ -7097,6 +7186,14 @@
            `clock.js` beside `spanPpm:` for why neither is the rate to apply. */
         spanMs: nz(r.hostAxis.spanMs),
         spanPpm: nz(r.hostAxis.spanPpm),
+        /* THE SEGMENT MODEL'S LAST FLOOR, and the two numbers that decided it (§7: a verdict travels
+           with the figures behind it). `flat` is a three-valued AND over the segments, computed at the
+           parse layer where the segmentation lives; `segments` is the count it was reduced over, so an
+           IMPLIED single segment is legible here even though `offsetSegments` is absent for it. */
+        flat: r.hostAxis.flat == null ? null : r.hostAxis.flat === true,
+        flatResidualMs: nz(r.hostAxis.flatResidualMs),
+        flatJitterMs: nz(r.hostAxis.flatJitterMs),
+        segments: r.hostAxis.segments != null ? r.hostAxis.segments : null,
         /* THE RATE'S OWN VERDICT, in `ppgOffsetSegments`'s vocabulary rather than a second spelling
            of one refusal: `rate` reads 'unknown' under `PPG_RATE_MIN_SPAN_S`, the floor this node
            already applies to a SEGMENT's ppm, and `rateReason` names the span that refused it. The

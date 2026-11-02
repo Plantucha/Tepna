@@ -62,6 +62,10 @@
       "ppm": -7.478025799256342,
       "spanMs": 39622.222222,
       "spanPpm": -5.608519349359048,
+      "flat": true,
+      "flatResidualMs": 0.281254141462637,
+      "flatJitterMs": 0.2962965000024269,
+      "segments": 1,
       "rate": "unknown",
       "rateReason": "host ≡ device — residual spread 0.81 ms ≤ 2 ms (one stamp quantum); this host column is not an independent clock",
       "rateApplied": false,
@@ -94,8 +98,8 @@
       },
       "sourceChannel": "Verity:ppg",
       "code": {
-        "manifestHash": "3988e3711521",
-        "computeHash": "ad90e0b2b715"
+        "manifestHash": "981044b28005",
+        "computeHash": "91a32814cd53"
       },
       "evidence": {
         "envelopeRef": null,
@@ -124,8 +128,8 @@
       },
       "sourceChannel": "Verity:ppg",
       "code": {
-        "manifestHash": "3988e3711521",
-        "computeHash": "ad90e0b2b715"
+        "manifestHash": "981044b28005",
+        "computeHash": "91a32814cd53"
       },
       "evidence": {
         "envelopeRef": null,
