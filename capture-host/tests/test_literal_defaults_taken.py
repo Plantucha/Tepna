@@ -143,3 +143,18 @@ def test_the_ring_auth_defaults_to_serial_0000(monkeypatch):
     assert oxyii.auth_payload(ts=t) == oxyii.auth_payload("0000", t)
     monkeypatch.setattr(oxyii.time, "time", lambda: t)
     assert oxyii.auth_frame() == oxyii.encode(oxyii.OP_AUTH, oxyii.auth_payload("0000", t))
+
+
+def test_the_ring_auth_frame_takes_a_PINNED_clock(monkeypatch):
+    """A caller can now pin the stamp this frame carries, which is what lets any byte-for-byte
+    assertion about a written auth frame stop racing the second it was written in.
+
+    The clock here reads SEVEN SECONDS LATER than the pinned value on purpose. That is the real
+    measured gap from the CI red, so the second assertion fails if `ts` ever stops passing through
+    and the frame silently falls back to the wall clock."""
+    t = 1_788_000_123
+    monkeypatch.setattr(oxyii.time, "time", lambda: t + 7)
+    assert oxyii.auth_frame("4321", ts=t) == oxyii.encode(oxyii.OP_AUTH, oxyii.auth_payload("4321", t))
+    assert oxyii.auth_frame("4321", ts=t) != oxyii.auth_frame("4321"), (
+        "a passthrough that ignored `ts` would make these two equal"
+    )

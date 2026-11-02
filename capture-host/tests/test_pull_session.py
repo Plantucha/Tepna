@@ -1281,12 +1281,19 @@ def test_probe_sends_EXACTLY_three_frames_in_order_and_none_expects_a_response(m
     `response=False` is write-without-response, which is how the daemon speaks to this ring. Flipping
     it to True changes the ATT operation — a different thing on the wire, for a family whose behaviour
     is exactly what is being probed."""
+    # 🔴 THE AUTH FRAME CARRIES THE WALL CLOCK, so a rebuilt expectation USED TO RACE the write it
+    # compares against: `auth_payload` defaults `ts` to `int(time.time())`, and the two builds agreed
+    # only inside one second. Measured 7 s apart on a loaded runner, red at `payload[12]` alone
+    # (row `2026-11-01-the-probe-auth-frame-test-compares-a-clock-dependent-frame`). Both halves are
+    # pinned now: the clock is frozen for the write, and the expectation names the stamp it wants, so
+    # removing the freeze reds LOUDLY here instead of once a week on CI.
+    auth_ts = 1_788_000_000
+    monkeypatch.setattr(oxyii.time, "time", lambda: auth_ts)
     ring = _ProbeRing(reply=bytes.fromhex("0100"))
     _probe_ble(monkeypatch, ring)
     _run(pull_session.probe_ppg_list("D1:98:62:7C:92:B3", serial="4321"))
-    assert ring.writes == [oxyii.auth_frame("4321"), oxyii.setup_frame(), oxyii.ppg_file_list_frame()], (
-        "auth(serial) + setup + LIST, byte-for-byte — and NOTHING else reaches the ring"
-    )
+    expected = [oxyii.auth_frame("4321", ts=auth_ts), oxyii.setup_frame(), oxyii.ppg_file_list_frame()]
+    assert ring.writes == expected, "auth(serial) + setup + LIST, byte-for-byte — and NOTHING else reaches the ring"
     assert ring.responses == [False, False, False], "write-without-response, as the daemon does"
     assert ring.notified == [oxyii.OXYII_NOTIFY], "subscribed once, to the notify characteristic"
 
