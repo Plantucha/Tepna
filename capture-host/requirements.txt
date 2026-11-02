@@ -2,7 +2,7 @@
 # Core BLE + config. Install into a venv:  python -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt
 bleak>=0.22         # cross-platform BLE central; clean on Linux/BlueZ
 PyYAML>=6.0.3         # config.yaml
-aiohttp>=3.9        # webmon.py — monitor + control surface (scan/bond/forget + SSE live waveform)
+aiohttp>=3.14.5        # webmon.py — monitor + control surface (scan/bond/forget + SSE live waveform)
 cryptography>=50.0.0   # as11_cipher.py — AES-256-CBC for the ResMed AS11 encrypted BLE channel (CPAP live stream); the floor both venvs run (owner, 2026-10-25) — 50.0.1 only relinks its wheels to OpenSSL 4.0.2
 
 # Muse EEG is captured by a SEPARATE tool driven as a child process (see README):
