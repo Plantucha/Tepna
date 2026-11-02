@@ -412,9 +412,15 @@ def anchor_rx_ns(anchors: list[tuple[int, int, int]], counter: int | None, ancho
     ∅ None is a real answer with three sources, and they are the same statement: an ambiguous or
     unattributed packet (`counter is None`), a window the entry has already fallen out of, and a
     series that never held it. A row carrying an `anchor_us` and a blank `vs_rx_ns` would say the
-    offset's own input is missing for a row the offset placed, so the two travel together or not at
-    all. PURE."""
-    if counter is None or anchor_us is None:
+    offset's own input is absent for a row the offset placed, so the two travel together or not at
+    all. PURE.
+
+    The guard reads `counter` ALONE, and a lone `anchor_us is None` falls through to the loop on
+    purpose. `None` never equals the int a real entry holds, so the loop answers None for it by
+    itself, and a second condition would only be a branch no caller can take: `associate` returns
+    both halves or neither. A mutation gate reads such a condition as a survivor, correctly — the
+    `or` arm it swapped for `and` changed no answer, because nothing could reach it."""
+    if counter is None:  # the common case on a dense link: skip a 256-entry scan that cannot match
         return None
     for ctr, us, rx_ns in reversed(anchors):
         if ctr == counter and us == anchor_us:
