@@ -446,6 +446,12 @@
       "source": "stamps and bytes built in the test; no provenance claim in the file",
       "sha256": null
     },
+    "test_mutation_set.py": {
+      "class": "authored",
+      "kind": "constructed-stamps",
+      "source": "ISO stamps, repo commit shas and mutant names built in the test; no device bytes and no provenance claim in the file",
+      "sha256": null
+    },
     "test_night_report.py": {
       "class": "derived",
       "kind": "real-night-values",

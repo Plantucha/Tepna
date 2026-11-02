@@ -3,14 +3,14 @@
 """THE MUTANT SET UNDER ONE VENV, AND THE DIFF ACROSS TWO — the instrument a mutmut pin move needs.
 
     python3 tools/mutate_set.py --write before.json        # enumerate under the venv on PATH now
-    python3 tools/mutate_set.py --compare before.json after.json
-    python3 tools/mutate_set.py --compare a.json b.json --verdict-out v.json
+    python3 tools/mutate_set.py --diff before.json after.json
+    python3 tools/mutate_set.py --diff a.json b.json --verdict-out v.json
     python3 tools/mutate_set.py --write s.json --all        # include the owner-declared exclusions
     python3 tools/mutate_set.py --selftest
 
 `requirements-dev.txt` tells the next session to re-baseline survivors when the mutmut pin moves. This
 is the comparison that decides whether it is owed, and it replaces the throwaway probe each mover
-wrote. `--compare` exits 0 on PASS, 1 on FAIL, 2 when it could not look (§4c).
+wrote. `--diff` exits 0 on PASS, 1 on FAIL, 2 when it could not look (§4c).
 
 WHERE THE DECISIONS LIVE. In `mutation_set.py`, one directory up, inside the 100 % coverage floor. This
 file is argparse, the mutmut call, the scratch config and the IO — the same split as
@@ -113,7 +113,7 @@ def _verdict_sample() -> dict:
         commit=sha,
         modules={"devfloors.py": ["x_f__mutmut_1", "x_f__mutmut_2"]},
     )
-    return MS.verdict_object(MS.compare(before, after), commit=sha, at="2026-11-02T00:00:00Z")
+    return MS.verdict_object(MS.compare_sets(before, after), commit=sha, at="2026-11-02T00:00:00Z")
 
 
 def selftest() -> int:
@@ -138,9 +138,9 @@ def selftest() -> int:
 
     same = MS.artifact(mutmut="3.8.0", python="3.13.1", commit=sha, modules={"a.py": ["m1"]})
     moved = MS.artifact(mutmut="3.8.1", python="3.13.1", commit=sha, modules={"a.py": ["m2"]})
-    cases.append(("a moved set exits 1", _exit_for(MS.verdict_object(MS.compare(same, moved), commit=sha)) == 1))
+    cases.append(("a moved set exits 1", _exit_for(MS.verdict_object(MS.compare_sets(same, moved), commit=sha)) == 1))
     held = MS.artifact(mutmut="3.8.1", python="3.13.1", commit=sha, modules={"a.py": ["m1"]})
-    cases.append(("a held set exits 0", _exit_for(MS.verdict_object(MS.compare(same, held), commit=sha)) == 0))
+    cases.append(("a held set exits 0", _exit_for(MS.verdict_object(MS.compare_sets(same, held), commit=sha)) == 0))
     cases.append(("a refusal exits 2", _exit_for(MS.refusal_object("r", commit=sha)) == REFUSED))
     # THE DISCRIMINATING ARM: every arm above is satisfied by a map that returns 0 for everything, so
     # one arm has to read a FAIL and refuse that answer. It is not a plant — nothing here is broken on
@@ -181,14 +181,14 @@ def _print_report(report: dict[str, Any], status: str, reason: str | None) -> No
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="the named mutant set under one venv, and the diff across two")
     ap.add_argument("--write", metavar="PATH", help="enumerate under the current venv and write the artifact here")
-    ap.add_argument("--compare", nargs=2, metavar=("BEFORE", "AFTER"), help="compare two artifacts")
+    ap.add_argument("--diff", nargs=2, metavar=("BEFORE", "AFTER"), help="diff two artifacts")
     ap.add_argument("--all", action="store_true", help="include the owner-declared module exclusions")
     ap.add_argument("--verdict-out", metavar="PATH", help="write the tepna.verdict/1 object here")
     ap.add_argument("--quiet", action="store_true", help="no per-module progress line")
     args = ap.parse_args(argv)
 
-    if bool(args.write) == bool(args.compare):
-        ap.error("exactly one of --write or --compare")
+    if bool(args.write) == bool(args.diff):
+        ap.error("exactly one of --write or --diff")
 
     commit = VD.commit_sha(str(HERE))
 
@@ -208,13 +208,13 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  wrote {args.write} — mutmut {obj['mutmut']} · {len(modules)} module(s) · {total} mutant(s)")
         return 0
 
-    before, after = (json.loads(Path(p).read_text(encoding="utf-8")) for p in args.compare)
+    before, after = (json.loads(Path(p).read_text(encoding="utf-8")) for p in args.diff)
     reason = MS.refusal(before, after)
     if reason is not None:
         obj = MS.refusal_object(reason, commit=commit)
         print(f"  \033[33m⚠ REFUSED\033[0m {reason}")
     else:
-        report = MS.compare(before, after)
+        report = MS.compare_sets(before, after)
         obj = MS.verdict_object(report, commit=commit)
         _print_report(report, obj["status"], obj["reason"])
 

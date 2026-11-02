@@ -73,7 +73,7 @@ def test_two_comparable_artifacts_refuse_nothing() -> None:
 
 
 def test_a_set_that_gained_and_lost_names_reports_both() -> None:
-    report = MS.compare(_art("3.8.0", {"a.py": ["m1", "m2"]}), _art("3.8.1", {"a.py": ["m2", "m3"]}))
+    report = MS.compare_sets(_art("3.8.0", {"a.py": ["m1", "m2"]}), _art("3.8.1", {"a.py": ["m2", "m3"]}))
     assert report["checked"] == 1
     assert report["moved"] == {"a.py": {"added": ["m3"], "removed": ["m1"]}}
     assert report["reordered"] == []
@@ -84,22 +84,22 @@ def test_the_same_names_in_a_different_order_are_reordered_and_not_moved() -> No
     """A survivor is addressed by NAME, so a reordering leaves every baseline resolving. It is
     reported because mutmut's output really did change, and it moves no module into `moved` because
     the pre-stated criterion counts sets."""
-    report = MS.compare(_art("3.8.0", {"a.py": ["m1", "m2"]}), _art("3.8.1", {"a.py": ["m2", "m1"]}))
+    report = MS.compare_sets(_art("3.8.0", {"a.py": ["m1", "m2"]}), _art("3.8.1", {"a.py": ["m2", "m1"]}))
     assert report["moved"] == {}
     assert report["reordered"] == ["a.py"]
     assert MS.verdict_object(report, commit=SHA)["status"] == "PASS"
 
 
 def test_an_unchanged_module_appears_in_neither_list() -> None:
-    report = MS.compare(_art("3.8.0", {"a.py": ["m1"]}), _art("3.8.1", {"a.py": ["m1"]}))
+    report = MS.compare_sets(_art("3.8.0", {"a.py": ["m1"]}), _art("3.8.1", {"a.py": ["m1"]}))
     assert report["moved"] == {} and report["reordered"] == []
     assert report["checked"] == 1
 
 
 def test_only_the_modules_both_sides_enumerated_are_compared() -> None:
-    """`refusal` is what refuses a mismatched population. `compare` is then free to intersect, so a
+    """`refusal` is what refuses a mismatched population. `compare_sets` is then free to intersect, so a
     caller that skipped the refusal still gets a report over a defined set rather than a KeyError."""
-    report = MS.compare(_art("3.8.0", {"a.py": ["m1"], "gone.py": ["m9"]}), _art("3.8.1", {"a.py": ["m1"]}))
+    report = MS.compare_sets(_art("3.8.0", {"a.py": ["m1"], "gone.py": ["m9"]}), _art("3.8.1", {"a.py": ["m1"]}))
     assert report["checked"] == 1
     assert "gone.py" not in report["moved"]
 
@@ -107,7 +107,7 @@ def test_only_the_modules_both_sides_enumerated_are_compared() -> None:
 def test_a_moved_set_fails_and_the_reason_names_every_module() -> None:
     before = _art("3.8.0", {"a.py": ["m1"], "b.py": ["m1"]})
     after = _art("3.8.1", {"a.py": ["m2"], "b.py": ["m2"]})
-    obj = MS.verdict_object(MS.compare(before, after), commit=SHA)
+    obj = MS.verdict_object(MS.compare_sets(before, after), commit=SHA)
     assert obj["status"] == "FAIL"
     assert obj["reason"] is not None
     assert "a.py" in obj["reason"] and "b.py" in obj["reason"]
@@ -116,7 +116,9 @@ def test_a_moved_set_fails_and_the_reason_names_every_module() -> None:
 
 
 def test_a_held_set_passes_and_carries_the_two_versions_it_compared() -> None:
-    obj = MS.verdict_object(MS.compare(_art("3.8.0", {"a.py": ["m1"]}), _art("3.8.1", {"a.py": ["m1"]})), commit=SHA)
+    obj = MS.verdict_object(
+        MS.compare_sets(_art("3.8.0", {"a.py": ["m1"]}), _art("3.8.1", {"a.py": ["m1"]})), commit=SHA
+    )
     assert obj["status"] == "PASS"
     assert obj["reason"] is None
     assert obj["result"]["mutmut"] == {"before": "3.8.0", "after": "3.8.1"}
@@ -127,7 +129,9 @@ def test_a_held_set_passes_and_carries_the_two_versions_it_compared() -> None:
 def test_one_version_compared_against_itself_binds_nothing() -> None:
     """The vacuous shape this gate must never report as a pass (§4b): both sides ran one version, so
     the comparison answers nothing about a pin move."""
-    obj = MS.verdict_object(MS.compare(_art("3.8.0", {"a.py": ["m1"]}), _art("3.8.0", {"a.py": ["m1"]})), commit=SHA)
+    obj = MS.verdict_object(
+        MS.compare_sets(_art("3.8.0", {"a.py": ["m1"]}), _art("3.8.0", {"a.py": ["m1"]})), commit=SHA
+    )
     assert obj["status"] == "NOT_APPLICABLE"
     assert obj["result"] is None
     assert "3.8.0" in str(obj["reason"])
@@ -135,7 +139,7 @@ def test_one_version_compared_against_itself_binds_nothing() -> None:
 
 
 def test_a_comparison_over_no_module_examined_nothing() -> None:
-    obj = MS.verdict_object(MS.compare(_art("3.8.0", {}), _art("3.8.1", {})), commit=SHA)
+    obj = MS.verdict_object(MS.compare_sets(_art("3.8.0", {}), _art("3.8.1", {})), commit=SHA)
     assert obj["status"] == "NOT_RUN"
     assert obj["result"] is None
     VD.validate(obj)

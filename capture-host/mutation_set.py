@@ -11,7 +11,7 @@ same mutant, and a set that moved leaves the baseline pointing at code nobody ge
 
 WHY THE TREE COMMIT IS PART OF THE ARTIFACT. Two runs under two venvs are a measurement of mutmut only
 while the SOURCE is held still. Compare an artifact written before a source edit against one written
-after, and every moved module reads as a mutmut change. `compare` therefore REFUSES two artifacts that
+after, and every moved module reads as a mutmut change. `compare_sets` therefore REFUSES two artifacts that
 name different tree commits, rather than reporting a difference it cannot attribute.
 
 WHY THE NAMES AND NOT THE RAW MUTATIONS. mutmut can enumerate a module two ways, and they do not
@@ -63,7 +63,7 @@ def artifact(
     """One side of the comparison: the named mutants each module generates under one venv.
 
     `commit` is the tree the names were read from, and `None` says the tree was not a checkout (§∅) —
-    `compare` refuses such an artifact rather than guessing that two of them share a tree."""
+    `compare_sets` refuses such an artifact rather than guessing that two of them share a tree."""
     return {
         "schema": SCHEMA,
         "mutmut": mutmut,
@@ -97,7 +97,7 @@ def refusal(before: Mapping, after: Mapping) -> str | None:
     return None
 
 
-def compare(before: Mapping, after: Mapping) -> dict:
+def compare_sets(before: Mapping, after: Mapping) -> dict:
     """Per-module added and removed mutant names, over the modules both sides enumerated."""
     shared = sorted(set(before["modules"]) & set(after["modules"]))
     moved = {}
