@@ -8512,10 +8512,27 @@ async def _restart_radio() -> bool:
     return False
 
 
-async def _record_adapter_hci(cfg: dict, pinned_hci, pinned_up, pinned_responds) -> list[dict]:
+async def _record_adapter_hci(cfg: dict, pinned_hci, pinned_up, pinned_responds, *, pinned_mac=None) -> list[dict]:
     """Probe every enumerated radio but the pinned one (whose verdict the caller already holds), append
     one `ADAPTERHCI.csv` row per radio, publish the roster on STATUS["adapter_hci"]. Returns the rows
-    as dicts. Never raises: a record about the radios must not disturb the watchdog."""
+    as dicts. Never raises: a record about the radios must not disturb the watchdog.
+
+    `pinned_mac` is the MAC the caller pinned, which is what makes a VANISHED pin reportable. Residue
+    `2026-11-01-a-vanished-radio-reconnects-on-the-bluez-default` names the decision site, now wired in
+    the watchdog; this is the half that reaches the night's artifact. Two things follow from the MAC:
+
+    · **`pinned` keys on the MAC as well as the resolved `hciN`.** A pin that is on the bus but did not
+      resolve this poll was named `pinned: 0` on every row, so the night read as a box with no pin at
+      all. Identity is the MAC — `hciN` re-enumerates and the resolve can miss transiently.
+    · **A pin enumeration does not list at all gets its own row**, carrying the configured MAC with an
+      EMPTY `hci` and `up`/`responds` NULL (§∅ — there is no controller to ask, so a 0 would be a
+      measurement we never made). `verdict_object` then counts it in `eligible` and `excluded` and
+      names it, where today a vanished pin falls out of the population and the verdict cannot tell it
+      from an unpinned box. It moves no status: reduced coverage annotates (owner ruling 2026-09-17).
+
+    `pinned_mac=None` keeps the pre-existing behaviour, reading the process global as the fallback row
+    always has — the watchdog passes its own loop-local, which is the one the decision above acted on."""
+    pm = ((pinned_mac if pinned_mac is not None else ADAPTER) or "").upper() or None
     try:
         adapters = await list_adapters()
     except Exception:  # noqa: BLE001 — list_adapters already returns [] on failure; belt to that brace
@@ -8536,22 +8553,40 @@ async def _record_adapter_hci(cfg: dict, pinned_hci, pinned_up, pinned_responds)
                 "probed_ms": t_ms,
                 "hci": hci,
                 "mac": mac,
-                "pinned": hci == pinned_hci,
+                "pinned": hci == pinned_hci or mac == pm,
                 "up": up,
                 "responds": responds,
                 "probe_ms": (_time.monotonic() - t0) * 1000.0,
             }
         )
-    if pinned_hci and not any(r["pinned"] for r in rows):
+    # ⚠️ KEYED ON THE hci, NOT ON `pinned` — the flag above now also fires on a MAC match, so reading it
+    # here would skip the caller's MEASURED verdict whenever enumeration listed the pin under some other
+    # hciN. This branch asks one question only: did the radio the caller probed reach a row?
+    if pinned_hci and not any(r["hci"] == pinned_hci for r in rows):
         # The enumeration failed or omitted the pinned radio: its measured verdict is still a row.
         rows.append(
             {
                 "probed_ms": t_ms,
                 "hci": pinned_hci,
-                "mac": (ADAPTER or "").upper(),
+                "mac": pm or "",
                 "pinned": True,
                 "up": pinned_up,
                 "responds": pinned_responds,
+                "probe_ms": 0.0,
+            }
+        )
+    elif pm and not pinned_hci and not any(r["mac"] == pm for r in rows):
+        # THE PIN IS CONFIGURED AND ENUMERATION DOES NOT LIST IT — it left the bus. There is no
+        # controller to probe, so both probes are NULL and never False: this row says "the pin was
+        # absent at this poll", which is a different fact from "the pin did not answer".
+        rows.append(
+            {
+                "probed_ms": t_ms,
+                "hci": "",
+                "mac": pm,
+                "pinned": True,
+                "up": None,
+                "responds": None,
                 "probe_ms": 0.0,
             }
         )
@@ -8716,7 +8751,7 @@ async def adapter_watchdog(adapter_mac, cfg: dict):
         # the `adapter-hci` verdict. REPORT only: nothing here resets a non-pinned radio; the ladder
         # below acts on the pinned one exactly as before. A failed enumeration records nothing rather
         # than a fabricated roster (§∅), and the pinned row is still written from what was measured.
-        await _record_adapter_hci(cfg, _hci_now, adapter_up, adapter_responds)
+        await _record_adapter_hci(cfg, _hci_now, adapter_up, adapter_responds, pinned_mac=adapter_mac)
         h = classify_adapter_health(devs, adapter_up=adapter_up, adapter_responds=adapter_responds)
         # ── THE PIN IS GONE AND EVERY SIGNAL ABOVE READS HEALTHY ─────────────────────────────
         # Residue 2026-11-01-a-vanished-radio-reconnects-on-the-bluez-default. `adapter_hci()` has
