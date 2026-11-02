@@ -466,7 +466,7 @@ def test_an_unmeasured_cell_is_BLANK_and_never_zero():
 def test_the_header_is_the_columns_the_brief_names_in_the_order_it_names_them():
     assert rc.SIDECAR_HEADER == (
         "Phone timestamp;device;meas;last_sensor_ns;conn_handle;event_counter;anchor_us;vs_rx_ns;"
-        "acl_rx_ns;device_clock;link_epoch\n"
+        "acl_rx_ns;device_clock;anchor_epoch\n"
     )
 
 
@@ -486,7 +486,7 @@ def test_the_column_set_is_APPEND_ONLY_AT_THE_TAIL():
         "vs_rx_ns",
         "acl_rx_ns",
     )
-    assert rc.SIDECAR_COLUMNS[9:] == ("device_clock", "link_epoch") and len(rc.SIDECAR_COLUMNS) == 11
+    assert rc.SIDECAR_COLUMNS[9:] == ("device_clock", "anchor_epoch") and len(rc.SIDECAR_COLUMNS) == 11
 
 
 # ─── the enable's outcome, as three distinguishable facts ─────────────────────────────────────────
@@ -668,14 +668,14 @@ def test_the_row_carries_the_association_AND_the_anchors_own_host_receive_stamp(
     c.feed(*_mon(rc.MONITOR_OPCODE_EVENT, _le_conn_complete(0x0040, H10)), host_ns=1)
     for counter, us in ((10, 1_000_000), (11, 1_050_000), (12, 1_100_000)):
         c.feed(*_mon(rc.MONITOR_OPCODE_EVENT, _anchor_event(0x0040, counter, us)), host_ns=(us + 300) * 1000)
-    address, meas, ns, handle, counter, anchor_us, vs_rx, acl_rx, device_clock, link_epoch = c.feed(
+    address, meas, ns, handle, counter, anchor_us, vs_rx, acl_rx, device_clock, anchor_epoch = c.feed(
         *_mon(rc.MONITOR_OPCODE_ACL_RX, _pmd_acl(0x0040, 0x00, 819_000_000_000_000)), host_ns=1_051_300_000
     )
     assert (address, meas, ns, handle) == (H10, 0x00, 819_000_000_000_000, 0x40)
     assert (counter, anchor_us) == (11, 1_050_000)
     assert vs_rx == 1_050_300_000, "the stamp of the anchor it associated to, not of the ACL packet"
     assert acl_rx == 1_051_300_000 and acl_rx != vs_rx, "two reads of two events, 1 ms apart"
-    assert link_epoch == 1, "one Connection Complete was seen, so this row sits in the first generation"
+    assert anchor_epoch == 1, "one Connection Complete was seen, so this row sits in the first generation"
     assert device_clock == rc.DEVICE_CLOCK_PMD, "an H10 ECG frame's stamp IS the device's own clock"
     row = rc.format_row(
         "2026-09-07T03:00:00.000",
@@ -688,7 +688,7 @@ def test_the_row_carries_the_association_AND_the_anchors_own_host_receive_stamp(
         vs_rx,
         acl_rx,
         device_clock,
-        link_epoch,
+        anchor_epoch,
     )
     assert row.count(";") == 10 and ";;" not in row, "every column on THIS row was measured, so none of them is blank"
     assert row.split(";")[7] == "1050300000", "field 8 of the sidecar schema is vs_rx_ns"
@@ -1374,7 +1374,7 @@ def test_every_column_lands_in_its_OWN_position_when_all_are_present():
     assert len(row) == len(header)
     assert header[5] == "event_counter" and row[5] == "4242"
     assert header[6] == "anchor_us" and row[6] == "1050000"
-    assert header[10] == "link_epoch" and row[10] == "3"
+    assert header[10] == "anchor_epoch" and row[10] == "3"
 
 
 def test_the_monitor_socket_is_opened_with_the_BLUETOOTH_family_and_HCI_protocol():
@@ -2021,9 +2021,9 @@ def test_a_device_that_does_not_speak_PMD_gets_EMPTY_columns_and_a_NAMED_REASON(
     c = _connected(_collector(devices=(RING,), vendor="Wellue"), 0x0040, RING)
     payload = bytes([0x4A]) + struct.pack("<Q", 18_440_000_000_000_000_000) + b"\x00" * 8
     row = c.feed(*_mon(rc.MONITOR_OPCODE_ACL_RX, _att_notification(0x0040, payload)), host_ns=77)
-    address, meas, ns, handle, counter, anchor_us, vs_rx, acl_rx, device_clock, link_epoch = row
+    address, meas, ns, handle, counter, anchor_us, vs_rx, acl_rx, device_clock, anchor_epoch = row
     assert (meas, ns) == (None, None), "the two keyed columns are EMPTY, not payload bytes"
-    assert link_epoch == 1, "the link we watched it on is still a measurement of this packet"
+    assert anchor_epoch == 1, "the link we watched it on is still a measurement of this packet"
     assert device_clock == rc.DEVICE_CLOCK_NOT_PMD == "none-not-pmd"
     assert (address, handle, acl_rx) == (RING, 0x40, 77), "the radio record is intact"
     line = rc.format_row("t", address, meas, ns, handle, counter, anchor_us, vs_rx, acl_rx, device_clock)

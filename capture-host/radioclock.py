@@ -470,11 +470,11 @@ SIDECAR_COLUMNS = (
     "vs_rx_ns",
     "acl_rx_ns",
     "device_clock",
-    "link_epoch",
+    "anchor_epoch",
 )
 SIDECAR_HEADER = ";".join(SIDECAR_COLUMNS) + "\n"
 
-#: `link_epoch`: how many times THIS device's link has been established since the collector
+#: `anchor_epoch`: how many times THIS device's link has been established since the collector
 #: started. 🔴 A SEGMENT MARKER, NOT A COUNT WORTH READING. `anchor_us` is a controller counter
 #: whose epoch "is not promised to survive a controller reset", and a re-establishment starts a new
 #: anchor series — so a consumer building ONE axis over a whole file takes a correction inside the
@@ -482,6 +482,15 @@ SIDECAR_HEADER = ";".join(SIDECAR_COLUMNS) + "\n"
 #: hold 2 and 6 anchor gaps over 60 s, the biggest 13 644 s, on nights spanning about 8 h (row
 #: `2026-11-01-the-radio-anchor-sequence-interpolates-across-a-link-gap`). The epoch changes
 #: exactly where the axis must be cut.
+#:
+#: 🔴 NAMED FOR WHAT IT GOVERNS, BECAUSE `link_epoch` IS ALREADY TAKEN BY A WEAKER
+#: COUNTER. `capture.py` publishes a `link_epoch` to the LINK sidecar, counted on a False→True
+#: edge of its poll loop — which cannot see a drop and reconnect that both happen inside one
+#: poll interval, as its own test says in so many words. This one counts LE Connection Complete
+#: events on the monitor channel, so it misses no establishment. Same physical event, two
+#: observers, two reliabilities, and for one night the two columns may legitimately disagree —
+#: so they carry different names and a reader never joins them. This name also says which
+#: column it governs: the series `anchor_us` is counted in.
 #:
 #: ⚠️ NEVER 0, AND TODAY NEVER BLANK EITHER. A row is emitted only for a handle whose Connection
 #: Complete this collector SAW — `HandleMap.address` answers None otherwise and the row is dropped
@@ -551,7 +560,7 @@ def format_row(
     vs_rx_ns,
     acl_rx_ns,
     device_clock: str,
-    link_epoch=None,
+    anchor_epoch=None,
 ) -> str:
     """One sidecar line. **A blank cell is `not measured`; nothing here is ever defaulted to 0.**
 
@@ -582,7 +591,7 @@ def format_row(
                 cell(vs_rx_ns),
                 cell(acl_rx_ns),
                 device_clock,
-                cell(link_epoch),
+                cell(anchor_epoch),
             ]
         )
         + "\n"
@@ -726,7 +735,7 @@ class Collector:
         """One monitor packet in; a row tuple out, or None.
 
         The row is `(device, meas, last_sensor_ns, handle, event_counter, anchor_us, vs_rx_ns,
-        acl_rx_ns, device_clock, link_epoch)` with None for anything not measured — never a zero.
+        acl_rx_ns, device_clock, anchor_epoch)` with None for anything not measured — never a zero.
         `device_clock` is never None: it NAMES which clock the stamp came from, or why there is none.
         """
         if index != self.adapter_index:
