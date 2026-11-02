@@ -376,8 +376,7 @@ def associate(
 ) -> tuple[int | None, int | None]:
     """Pick the connection event an ACL packet belongs to → `(event_counter, anchor_us)`.
 
-    `anchors` is `[(event_counter, anchor_us, vs_rx_ns), …]` for ONE handle, in arrival order; a
-    two-member entry is read the same way, so a caller that keeps no receive stamp is unchanged. The rule is the
+    `anchors` is `[(event_counter, anchor_us), …]` for ONE handle, in arrival order. The rule is the
     brief's: translate the packet's host stamp onto the controller's timebase (`pkt_rx_us − offset`)
     and take the nearest anchor at or before it — a packet is sent during the event it follows.
 
@@ -393,10 +392,10 @@ def associate(
     if offset is None or jitter is None or not anchors:
         return None, None
     target = float(pkt_rx_us) - float(offset)
-    candidates = [(entry[0], entry[1]) for entry in anchors if float(entry[1]) <= target]
+    candidates = [(counter, us) for counter, us in anchors if float(us) <= target]
     if not candidates:
         return None, None
-    if sum(1 for entry in anchors if abs(float(entry[1]) - target) <= float(jitter)) >= 2:
+    if sum(1 for _, us in anchors if abs(float(us) - target) <= float(jitter)) >= 2:
         return None, None
     counter, anchor_us = max(candidates, key=lambda pair: pair[1])
     return counter, anchor_us
@@ -841,7 +840,18 @@ class Collector:
         if device_clock != DEVICE_CLOCK_PMD:
             self.no_device_clock[device_clock] = self.no_device_clock.get(device_clock, 0) + 1
         series = self._anchors.get(handle, [])
-        counter, anchor_us = associate(host_ns / 1000.0, series, self.offsets.offset, self.offsets.jitter)
+        # ⚠️ THE COMPREHENSION IS LOAD-BEARING, AND PASSING `series` STRAIGHT IN IS NOT A TIDY-UP.
+        # It is the only read of `series` that iterates unconditionally. `associate` tests `not
+        # anchors` and returns first; `anchor_rx_ns` returns on a None counter before its loop. So
+        # without this line a `self._anchors.get(handle, None)` typo answers exactly what the real
+        # default answers, no test can see it, and `tools/probe_radioclock_equiv.py` goes UNKNOWN on
+        # the two canaries it keeps for this. Measured 2026-11-02: removing it took them to 0 of 28.
+        counter, anchor_us = associate(
+            host_ns / 1000.0,
+            [(ctr, us) for ctr, us, _rx in series],
+            self.offsets.offset,
+            self.offsets.jitter,
+        )
         self.rows += 1
         return (
             address,
