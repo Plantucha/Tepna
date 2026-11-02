@@ -616,7 +616,13 @@ def test_the_covered_function_count_is_MEASURED_from_the_ast_not_quoted():
     # 339 → 340 on 2026-11-02 (board #2972, "capture started" says why): `_boot_id`, which reads the
     # kernel's boot id so the next start can tell a boot from a restart. +1, the whole delta.
     # `moduleFunctionsAtDeclaration` stays where it is, per the note above.
-    assert n == 340, f"capture.py now defines {n} functions — update the declaration's note deliberately"
+    # 340 → 341 on 2026-11-02 (row `2026-11-01-a-vanished-radio-reconnects-on-the-bluez-default`):
+    # `absent_pin_action`, the NAMED answer the watchdog owes a pin that stopped resolving. It is a
+    # function because the four outcomes ARE the decision, and the one that held is what a reader of
+    # the journal needs at 03:00. A bare conjunction at the call site names none of them. +1, the
+    # whole delta. Rebased onto the `_boot_id` rise above, so this one counts from 340.
+    # `moduleFunctionsAtDeclaration` stays where it is, per the note above.
+    assert n == 341, f"capture.py now defines {n} functions — update the declaration's note deliberately"
 
 
 def test_count_functions_counts_nested_and_methods_and_refuses_nothing():

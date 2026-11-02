@@ -1236,6 +1236,64 @@ def cpap_escalation_gate(cfg: dict, cpap_mac: "str | None", status_devices: dict
     }
 
 
+ABSENT_PIN_SAID = {
+    # What the rising-edge line says the box is DOING about an absent pin. A named consequence, not
+    # the bare decision token: a reader of the journal at 03:00 needs the outcome, not the enum.
+    "migrate": "failing over to a chosen spare",
+    "disarmed": "absent_pin_failover is false in config — report-only",
+    "budget-spent": "the failover budget is spent, so the degrade stands",
+    "ladder-owns-it": "the recovery ladder owns this poll",
+}
+
+
+def absent_pin_action(
+    *,
+    pin_configured: bool,
+    pin_resolved: bool,
+    wedged: bool,
+    armed: bool,
+    failovers: int,
+    max_failovers: int,
+) -> "str | None":
+    """PURE: what the watchdog owes a PINNED radio that no longer resolves, NAMED, or None when the
+    question does not arise.
+
+    🔴 THE GAP THIS CLOSES. A pinned radio that VANISHES from the bus takes the degrade in
+    `adapter_hci()`: the pin is a PREFERENCE (owner decision 2026-08-26), so every reconnect falls
+    back to the BlueZ default rather than refusing to capture. That degrade reads no spare list,
+    honours no `_failover_reserved` lease and re-points nothing. So the night runs on whatever radio
+    BlueZ happens to prefer. Measured on vigil 2026-10-26 (BOX-EVENING §6 T1): the wearables moved
+    onto the CPAP's dedicated radio and the commandeer line never printed, because nothing had
+    DECIDED to take it.
+
+    ⚠️ AND THE WEDGE LADDER CANNOT SEE IT. `classify_adapter_health` counts an absent pin as a wedge
+    only `and not any_streaming`, because a live stream outranks any probe. The wearables kept
+    streaming on the fallback radio, so `wedged` stayed False all night and no rung fired. That
+    conjunction is the hole: streaming devices plus an absent pin is the one state where every
+    existing signal reads healthy.
+
+    · `None` — no pin is configured, or the pin still resolves. Nothing to decide.
+    · `"ladder-owns-it"` — absent AND the adapter reads wedged, so the ladder below acts first. Two
+      owners for one radio is how a reset races a migration.
+    · `"disarmed"` — absent, and `watchdog.absent_pin_failover` reads `false` in config.
+      Report-only. The owner ARMED this switch on 2026-11-02 (board #2912), so this state needs an
+      explicit `false`; an unconfigured box migrates. That is where it parts from
+      `distress_failover`, which still ships off.
+    · `"budget-spent"` — absent and armed, with `max_failovers` already spent. The flap cap stops
+      ping-pong between two radios, and an absent pin must not be the one cause that escapes it.
+    · `"migrate"` — act: pick a live spare, re-point the pin, re-bond there.
+    """
+    if not pin_configured or pin_resolved:
+        return None
+    if wedged:
+        return "ladder-owns-it"
+    if not armed:
+        return "disarmed"
+    if failovers >= max_failovers:
+        return "budget-spent"
+    return "migrate"
+
+
 def classify_adapter_health(
     devices: list[dict], adapter_up: "bool | None" = None, adapter_responds: "bool | None" = None
 ) -> dict:
@@ -8535,6 +8593,7 @@ async def adapter_watchdog(adapter_mac, cfg: dict):
     recover = int(wcfg.get("recover_checks", 2))
     consecutive = cycles = silent = healthy_run = failovers = 0
     distress_fired = False  # rising-edge latch for the adapter-level distress log (once per episode)
+    absent_fired = False  # the same latch for the ABSENT-pin cause: one line per episode
     wedge_restarts, wedge_day = 0, None  # per-device wedge budget, reset each day
     cpap_handoffs = 0  # adapter-ladder handoffs after that budget is SPENT (1/day)
     max_failovers = int(wcfg.get("max_failovers", 3))  # P1.5: cap ping-pong between two flaky radios
@@ -8611,6 +8670,64 @@ async def adapter_watchdog(adapter_mac, cfg: dict):
         # than a fabricated roster (§∅), and the pinned row is still written from what was measured.
         await _record_adapter_hci(cfg, _hci_now, adapter_up, adapter_responds)
         h = classify_adapter_health(devs, adapter_up=adapter_up, adapter_responds=adapter_responds)
+        # ── THE PIN IS GONE AND EVERY SIGNAL ABOVE READS HEALTHY ─────────────────────────────
+        # Residue 2026-11-01-a-vanished-radio-reconnects-on-the-bluez-default. `adapter_hci()` has
+        # already degraded to the BlueZ default on each reconnect, and the owner keeps that degrade.
+        # What was missing is that nothing CHOSE the radio it degraded onto, so a reserved one gets
+        # taken in silence. This is the ONE decision site for that cause: `absent_pin_action` holds
+        # the decision and `_migrate_to_spare` the mechanics, so the three causes cannot drift.
+        _absent = absent_pin_action(
+            pin_configured=bool(adapter_mac),
+            pin_resolved=_hci_now is not None,
+            wedged=bool(h["wedged"]),
+            # OWNER RULING 2026-11-02 (board #2912): this switch ships ARMED, which is where it
+            # parts from its `distress_failover` sibling. The owner chose arming over the
+            # report-only default this unit proposed, so an ABSENT key arms the failover and only
+            # an explicit `false` disarms it. Absence is not a measurement here: it is an
+            # unconfigured switch, and the documented default is what an unconfigured box gets.
+            armed=bool(wcfg.get("absent_pin_failover", True)),
+            failovers=failovers,
+            max_failovers=max_failovers,
+        )
+        if _absent is None:
+            absent_fired = False  # the pin answers again, so a fresh episode may speak once more
+        elif not absent_fired:
+            absent_fired = True  # rising edge: a 25 s poll must not shout all night
+            log.critical(
+                "watchdog: pinned adapter %s is ABSENT from the bus — every reconnect takes the "
+                "BlueZ default, which nothing has chosen (%s)",
+                adapter_mac,
+                ABSENT_PIN_SAID[_absent],
+            )
+        if _absent == "migrate":
+            spare = await _pick_live_spare(
+                adapter_mac,
+                await list_adapters(),
+                reserved=_failover_reserved(cfg),
+                cooldown_sec=spare_cooldown,
+            )
+            if spare:
+                failovers += 1
+                prev_mac = adapter_mac
+                log.critical(
+                    "watchdog: FAILING OVER %s -> %s on an ABSENT pin (failover %d/%d)",
+                    prev_mac,
+                    spare,
+                    failovers,
+                    max_failovers,
+                )
+                await _migrate_to_spare(
+                    cfg,
+                    prev_mac,
+                    spare,
+                    cause="pin-absent",
+                    verdict={"detail": "pinned adapter %s absent from the bus" % prev_mac},
+                    device_label="(adapter)",
+                )
+                adapter_mac = spare
+                sel = await bonding.select_line(adapter_mac)
+                cycles = consecutive = 0
+                absent_fired = False
         if not h["wedged"]:
             # ── IS THE RADIO DEAF? ───────────────────────────────────────────────────────────
             # Everything above says "not wedged", and on 2026-07-30 that verdict was CORRECT by its own
