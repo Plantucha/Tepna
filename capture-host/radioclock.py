@@ -376,7 +376,8 @@ def associate(
 ) -> tuple[int | None, int | None]:
     """Pick the connection event an ACL packet belongs to → `(event_counter, anchor_us)`.
 
-    `anchors` is `[(event_counter, anchor_us), …]` for ONE handle, in arrival order. The rule is the
+    `anchors` is `[(event_counter, anchor_us, vs_rx_ns), …]` for ONE handle, in arrival order; a
+    two-member entry is read the same way, so a caller that keeps no receive stamp is unchanged. The rule is the
     brief's: translate the packet's host stamp onto the controller's timebase (`pkt_rx_us − offset`)
     and take the nearest anchor at or before it — a packet is sent during the event it follows.
 
@@ -392,10 +393,10 @@ def associate(
     if offset is None or jitter is None or not anchors:
         return None, None
     target = float(pkt_rx_us) - float(offset)
-    candidates = [(counter, us) for counter, us in anchors if float(us) <= target]
+    candidates = [(entry[0], entry[1]) for entry in anchors if float(entry[1]) <= target]
     if not candidates:
         return None, None
-    if sum(1 for _, us in anchors if abs(float(us) - target) <= float(jitter)) >= 2:
+    if sum(1 for entry in anchors if abs(float(entry[1]) - target) <= float(jitter)) >= 2:
         return None, None
     counter, anchor_us = max(candidates, key=lambda pair: pair[1])
     return counter, anchor_us
@@ -469,8 +470,24 @@ SIDECAR_COLUMNS = (
     "vs_rx_ns",
     "acl_rx_ns",
     "device_clock",
+    "link_epoch",
 )
 SIDECAR_HEADER = ";".join(SIDECAR_COLUMNS) + "\n"
+
+#: `link_epoch`: how many times THIS device's link has been established since the collector
+#: started. 🔴 A SEGMENT MARKER, NOT A COUNT WORTH READING. `anchor_us` is a controller counter
+#: whose epoch "is not promised to survive a controller reset", and a re-establishment starts a new
+#: anchor series — so a consumer building ONE axis over a whole file takes a correction inside the
+#: seam from two anchors hours apart. Measured 2026-11-01 over six box sidecars: the Verity files
+#: hold 2 and 6 anchor gaps over 60 s, the biggest 13 644 s, on nights spanning about 8 h (row
+#: `2026-11-01-the-radio-anchor-sequence-interpolates-across-a-link-gap`). The epoch changes
+#: exactly where the axis must be cut.
+#:
+#: ⚠️ NEVER 0, AND TODAY NEVER BLANK EITHER. A row is emitted only for a handle whose Connection
+#: Complete this collector SAW — `HandleMap.address` answers None otherwise and the row is dropped
+#: — so every row states a generation of 1 or more. The column is still written through a `.get`:
+#: a capture daemon must not die of a KeyError over a telemetry column, and the miss that cannot
+#: happen would be written as an absence rather than as a 0 (§∅).
 
 
 def parse_monitor_packet(buf: bytes) -> tuple[int, int, bytes] | None:
@@ -534,6 +551,7 @@ def format_row(
     vs_rx_ns,
     acl_rx_ns,
     device_clock: str,
+    link_epoch=None,
 ) -> str:
     """One sidecar line. **A blank cell is `not measured`; nothing here is ever defaulted to 0.**
 
@@ -564,6 +582,7 @@ def format_row(
                 cell(vs_rx_ns),
                 cell(acl_rx_ns),
                 device_clock,
+                cell(link_epoch),
             ]
         )
         + "\n"
@@ -690,7 +709,12 @@ class Collector:
         self.not_a_pmd_frame: dict[str, int] = {}
         self.handles = HandleMap()
         self.offsets = OffsetTracker(offset_window)
+        #: Per handle, `(event_counter, anchor_us, vs_rx_ns)` in arrival order. The third member is
+        #: the vendor event's OWN host arrival, which is the column §4 defines the offset on.
         self._anchors: dict[int, list[tuple[int, int, int]]] = {}
+        #: Per device address, how many link establishments this collector has SEEN. Absent until
+        #: the first one, because a stream that began mid-connection has no generation to state.
+        self.link_epochs: dict[str, int] = {}
         #: Anchors the controller never delivered. The report is DISCARDABLE by design and is dropped
         #: under host-buffer pressure, so a gap in `event_counter` is expected — it is counted as
         #: telemetry and NEVER interpolated. An anchor that was not delivered did not happen for us.
@@ -702,8 +726,8 @@ class Collector:
         """One monitor packet in; a row tuple out, or None.
 
         The row is `(device, meas, last_sensor_ns, handle, event_counter, anchor_us, vs_rx_ns,
-        acl_rx_ns, device_clock)` with None for anything not measured — never a zero. The last member
-        is never None: it NAMES which clock the stamp came from, or why there is none.
+        acl_rx_ns, device_clock, link_epoch)` with None for anything not measured — never a zero.
+        `device_clock` is never None: it NAMES which clock the stamp came from, or why there is none.
         """
         if index != self.adapter_index:
             return None  # another controller's traffic; not ours to record
@@ -719,6 +743,15 @@ class Collector:
         if not event:
             return
         self.handles.apply(event)
+        if event.get("kind") == "connect":
+            # A link that comes back is a NEW anchor series under a counter whose epoch survives
+            # nothing, so the rows after it say which establishment they belong to. Counted only
+            # for a device we configured: an address we did not ask for reaches no row, and it
+            # reaches no dict here either.
+            address = str(event["address"]).upper()
+            if address in self.devices:
+                self.link_epochs[address] = self.link_epochs.get(address, 0) + 1
+            return
         if event.get("kind") == "disconnect":
             # The handle is gone, so its anchors are about a connection that no longer exists. Keeping
             # them would let a REUSED handle associate a new connection's packets with the old one's
@@ -799,12 +832,7 @@ class Collector:
         if device_clock != DEVICE_CLOCK_PMD:
             self.no_device_clock[device_clock] = self.no_device_clock.get(device_clock, 0) + 1
         series = self._anchors.get(handle, [])
-        counter, anchor_us = associate(
-            host_ns / 1000.0,
-            [(ctr, us) for ctr, us, _rx in series],
-            self.offsets.offset,
-            self.offsets.jitter,
-        )
+        counter, anchor_us = associate(host_ns / 1000.0, series, self.offsets.offset, self.offsets.jitter)
         self.rows += 1
         return (
             address,
@@ -816,6 +844,7 @@ class Collector:
             anchor_rx_ns(series, counter, anchor_us),
             host_ns,
             device_clock,
+            self.link_epochs.get(address.upper()),
         )
 
 
