@@ -36,11 +36,13 @@ from __future__ import annotations
 # ON PURPOSE: the diff-scoped mutation gate selects whole FUNCTIONS, so moving one line out of `main`
 # would pull this entry point's 27 pre-existing survivors into a blocking gate for a one-line change.
 # Residue `2026-10-30-the-mutation-gate-selects-a-whole-entry-point-for-one-line`.
+import functools
 import os
 import re
 import struct
 
 import journal_logging
+import polar_pmd as pmd
 
 #: HCI event codes we care about. Everything else on the monitor stream is ignored.
 HCI_EVT_DISCONNECT_COMPLETE = 0x05
@@ -177,23 +179,64 @@ def _address(raw: bytes) -> str:
     return ":".join("%02X" % b for b in reversed(raw))
 
 
-def parse_acl_pmd(payload: bytes) -> tuple[int, int, int] | None:
-    """`(conn_handle, meas_type, last_sensor_ns)` from one ACL packet, or None if it is not a PMD frame.
+#: Which vendors put PMD DATA FRAMES on their ATT notifications. A device's `vendor` key in
+#: `config.yaml` is the DECLARATION, matched the way `capture.py:3709` matches it, and it FAILS
+#: CLOSED: an absent or unknown vendor means no PMD decode, an empty stamp and a named reason.
+#:
+#: 🔴 THE FRAME LAYOUT IS ONE VENDOR'S, NOT A BLE STANDARD, SO IT CANNOT BE APPLIED TO EVERY DEVICE.
+#: `pmd_fields` reads byte 0 of an ATT value as a measurement type and bytes 1..9 as a nanosecond
+#: stamp. Pointed at a device that speaks anything else, both reads return PAYLOAD BYTES — and `meas`
+#: is the column a consumer GROUPS BY, so the corruption does not spoil one cell, it MULTIPLIES one
+#: stream into dozens of invented ones. Measured 2026-11-01 on the box: 3 of 11 sidecars carry 64
+#: distinct `meas` keys over 614 832 rows, with `last_sensor_ns` reaching 1.844e19 — 2^64 ns, 584
+#: years, which no device uptime can be. Row
+#: `2026-11-01-the-ring-sidecar-writes-payload-bytes-into-two-keyed-columns`.
+#:
+#: ⚠️ VENDOR IS NECESSARY AND NOT SUFFICIENT. The same measurement found 6 rows under `meas` 20 and
+#: 22 on two POLAR nights: a Polar device also emits notifications that are not PMD data frames (the
+#: control point answers on its own attribute handle). That is why the decode stays gated on the
+#: frame's own shape as well, and why a short value is refused rather than padded.
+PMD_VENDORS = frozenset({"polar"})
 
-    🔴 THE JOIN KEY IS `last_sensor_ns`, AND THAT NAME IS LOAD-BEARING. Bytes 1..9 of a PMD data frame
-    are the ns stamp of the frame's **LAST** sample (`polar_pmd.py` `last_ns`), which is what
-    `PmdArrivalLogWriter` records in its `last_sensor_ns` column (`capture.py` writes
-    `samples[-1].sensor_ns`). The sibling column `first_sensor_ns` is `samples[0].sensor_ns`, a value
-    the decoder BACK-TIMES from `fs` and the previous frame — it is not in the packet at all.
-    Measured 2026-09-07 on a 3-sample H10 frame: the raw field equals `samples[-1]`, and differs from
-    `samples[0]` by two sample periods. A collector joining on the first-sample key would match ZERO
-    rows on every multi-sample frame, and an empty join reads exactly like a night with no correlated
-    packets. Read the raw 8 bytes. Decode nothing. Do not reimplement the back-timing to recover the
-    other key.
+#: The `device_clock` column's closed vocabulary — WHICH clock the row's `last_sensor_ns` came from,
+#: or, when it is empty, WHY. §∅ is not satisfied by an empty cell alone: "a DISCONTINUITY refuses;
+#: reduced COVERAGE annotates", and a refusal owes a NAMED reason rather than a borrowed one. These
+#: three are distinguishable on purpose, because the 2026-11-01 measurement found the two empty
+#: cases as their OWN populations: a device that speaks no PMD at all (the ring, 614 832 rows over 3
+#: sidecars) and a stream the vendor defines with no sample time (PPI, 11 709 rows over 3 sidecars,
+#: every one of them stamped 0). Collapsing them into one blank cell would have hidden one of the two.
+DEVICE_CLOCK_PMD = "pmd"
+DEVICE_CLOCK_NOT_PMD = "none-not-pmd"
+DEVICE_CLOCK_BY_DESIGN = "none-by-design"
+
+#: Why a PMD speaker's notification was NOT a data frame, counted per reason rather than dropped in
+#: silence. ⚠️ A LENGTH TEST CANNOT FIND THESE. The same measurement found 6 rows under `meas` 20 and
+#: 22 on two POLAR nights: the control point answers on its own attribute handle with a value LONGER
+#: than 10 bytes, so it passes every structural check and lands as an invented stream key. The type
+#: field is checked against the vendor's own enum instead — `polar_pmd.MEAS_NAME` names every PMD
+#: measurement type, and a value outside it did not come from a data frame. A FUTURE firmware's new
+#: type would be dropped here too, which is why the count is reported: an unknown type is visible as
+#: a number rather than inferred from a gap.
+NOT_A_FRAME_TOO_SHORT = "too-short"
+NOT_A_FRAME_UNKNOWN_MEAS = "unknown-meas"
+
+
+def speaks_pmd(vendor) -> bool:
+    """Does a device DECLARED with this `vendor` carry PMD data frames? Unknown ⇒ False, by design."""
+    return str(vendor or "").strip().lower() in PMD_VENDORS
+
+
+def parse_acl_att_notification(payload: bytes) -> tuple[int, bytes] | None:
+    """`(conn_handle, att_value)` from one ACL packet, or None if it is not an ATT notification.
+
+    ⚠️ EVERYTHING HERE IS BLE AND NOTHING HERE IS A VENDOR'S. The ACL header, the L2CAP header and
+    the ATT opcode are standard, so this much is true of EVERY device on the link — which is the
+    whole reason it is separated from `pmd_fields` below. A radio-arrival stamp is readable for a
+    device whose payload layout we cannot read at all.
 
     Only continuation-free start fragments are read. A reassembled frame's first fragment carries the
     header we need; a continuation carries no L2CAP header at all, and treating one as a start yields
-    a plausible ns value from payload bytes — the failure this docstring exists to prevent.
+    a plausible value from payload bytes — the failure this docstring exists to prevent.
     """
     if len(payload) < 4:
         return None
@@ -217,12 +260,32 @@ def parse_acl_pmd(payload: bytes) -> tuple[int, int, int] | None:
     att = att[:l2_len]
     if len(att) < 3 or att[0] != ATT_HANDLE_VALUE_NOTIFICATION:
         return None
-    value = att[3:]
+    return handle, att[3:]
+
+
+def pmd_fields(value: bytes) -> tuple[int, int] | None:
+    """`(meas_type, last_sensor_ns)` from an ATT value that IS a PMD data frame, else None.
+
+    🔴 THE JOIN KEY IS `last_sensor_ns`, AND THAT NAME IS LOAD-BEARING. Bytes 1..9 of a PMD data frame
+    are the ns stamp of the frame's **LAST** sample (`polar_pmd.py` `last_ns`), which is what
+    `PmdArrivalLogWriter` records in its `last_sensor_ns` column (`capture.py` writes
+    `samples[-1].sensor_ns`). The sibling column `first_sensor_ns` is `samples[0].sensor_ns`, a value
+    the decoder BACK-TIMES from `fs` and the previous frame — it is not in the packet at all.
+    Measured 2026-09-07 on a 3-sample H10 frame: the raw field equals `samples[-1]`, and differs from
+    `samples[0]` by two sample periods. A collector joining on the first-sample key would match ZERO
+    rows on every multi-sample frame, and an empty join reads exactly like a night with no correlated
+    packets. Read the raw 8 bytes. Decode nothing. Do not reimplement the back-timing to recover the
+    other key.
+
+    🔴 THE CALLER MUST ALREADY KNOW THE DEVICE SPEAKS PMD (`speaks_pmd`). The length test below only
+    proves the value is BIG ENOUGH to hold these fields; it cannot prove the bytes mean them. Any
+    ATT value of 10 bytes or more parses here, and on the wrong device the answer is payload noise
+    that looks exactly like a measurement.
+    """
     if len(value) < 10:  # meas u8 + ns u64 + frame_type u8
         return None
     meas = value[0] & 0x3F  # bits 6–7 are recording-type flags (polar_pmd.py)
-    last_sensor_ns = struct.unpack_from("<Q", value, 1)[0]
-    return handle, meas, last_sensor_ns
+    return meas, struct.unpack_from("<Q", value, 1)[0]
 
 
 class HandleMap:
@@ -364,7 +427,23 @@ HCI_CHANNEL_MONITOR = 2
 _MONITOR_HDR = struct.Struct("<HHH")
 MONITOR_HDR_LEN = _MONITOR_HDR.size
 
-SIDECAR_HEADER = "Phone timestamp;device;meas;last_sensor_ns;conn_handle;event_counter;anchor_us;vs_rx_ns;acl_rx_ns\n"
+#: The sidecar's columns, NAMED ONCE. ⚠️ APPEND AT THE TAIL; never insert, never reorder.
+#: `radio-clock.js` reads this header line and looks each column up BY NAME, and `writers.py`'s
+#: OXYFRAME rule is the same one for the same reason: appending a column there (2026-09-06) silently
+#: moved three tests that counted from the END onto different columns. A row MAY grow at the tail.
+SIDECAR_COLUMNS = (
+    "Phone timestamp",
+    "device",
+    "meas",
+    "last_sensor_ns",
+    "conn_handle",
+    "event_counter",
+    "anchor_us",
+    "vs_rx_ns",
+    "acl_rx_ns",
+    "device_clock",
+)
+SIDECAR_HEADER = ";".join(SIDECAR_COLUMNS) + "\n"
 
 
 def parse_monitor_packet(buf: bytes) -> tuple[int, int, bytes] | None:
@@ -418,7 +497,16 @@ def open_monitor_socket(socket_module=None):
 
 
 def format_row(
-    phone_ts: str, device: str, meas, last_sensor_ns, conn_handle, event_counter, anchor_us, vs_rx_ns, acl_rx_ns
+    phone_ts: str,
+    device: str,
+    meas,
+    last_sensor_ns,
+    conn_handle,
+    event_counter,
+    anchor_us,
+    vs_rx_ns,
+    acl_rx_ns,
+    device_clock: str,
 ) -> str:
     """One sidecar line. **A blank cell is `not measured`; nothing here is ever defaulted to 0.**
 
@@ -426,6 +514,11 @@ def format_row(
     a nanosecond stamp can all legitimately read zero — so a fabricated zero is indistinguishable
     from a measurement, forever, to every reader. `writers._ns_col` makes the same argument for the
     vendor streams; this is that rule applied to the sidecar.
+
+    `device_clock` is REQUIRED and is never blank: it is the row's own statement of which clock
+    `last_sensor_ns` came from, or of why the cell beside it is empty. An empty stamp with no reason
+    is the half-measure §∅ rejects — a reader cannot tell "this device has no readable clock" from
+    "this stream carries none by design" from "we dropped it", and all three were happening.
     """
 
     def cell(value):
@@ -443,6 +536,7 @@ def format_row(
                 cell(anchor_us),
                 cell(vs_rx_ns),
                 cell(acl_rx_ns),
+                device_clock,
             ]
         )
         + "\n"
@@ -554,6 +648,19 @@ class Collector:
         self.adapter_address = adapter_address
         #: Matched case-insensitively: BlueZ prints uppercase, configs are written by humans.
         self.devices = {str(a).upper() for a in (devices or [])}
+        #: WHICH of those devices speak PMD, from the config's own `vendor` declaration. `devices` is
+        #: a MAPPING of address → vendor; a bare sequence is still accepted, and it DECLARES NOTHING,
+        #: so every row from one reads `none-not-pmd`. That is the fail-closed direction on purpose:
+        #: a caller that cannot say which protocol a device speaks must not have its payload bytes
+        #: read as a measurement and a clock.
+        vendors = dict(devices.items()) if hasattr(devices, "items") else {}
+        self.pmd_devices = {str(a).upper() for a, v in vendors.items() if speaks_pmd(v)}
+        #: Rows written with NO device stamp, counted per reason. Telemetry, so the empty column is
+        #: visibly a DECISION taken n times rather than a device that happened to say nothing.
+        self.no_device_clock: dict[str, int] = {}
+        #: Notifications from a PMD speaker that were not data frames, counted per reason — the rows
+        #: this collector does NOT write. A silent drop and a device that never spoke look identical.
+        self.not_a_pmd_frame: dict[str, int] = {}
         self.handles = HandleMap()
         self.offsets = OffsetTracker(offset_window)
         self._anchors: dict[int, list[tuple[int, int]]] = {}
@@ -568,7 +675,8 @@ class Collector:
         """One monitor packet in; a row tuple out, or None.
 
         The row is `(device, meas, last_sensor_ns, handle, event_counter, anchor_us, vs_rx_ns,
-        acl_rx_ns)` with None for anything not measured — never a zero.
+        acl_rx_ns, device_clock)` with None for anything not measured — never a zero. The last member
+        is never None: it NAMES which clock the stamp came from, or why there is none.
         """
         if index != self.adapter_index:
             return None  # another controller's traffic; not ours to record
@@ -606,19 +714,63 @@ class Collector:
             del series[0]
         self.offsets.add(host_ns / 1000.0, anchor_us)
 
+    def _device_clock(self, address: str, value: bytes):
+        """`(meas, last_sensor_ns, device_clock)` for one ATT value, or None to emit NO row.
+
+        🔴 NOTHING HERE JUDGES A MEASUREMENT BY ITS MAGNITUDE. Which columns a row can carry is
+        decided by the device's declared protocol, by the frame's own type field read against the
+        vendor's enum, and by the vendor's rule about the stream. A plausibility bound on the stamp
+        would also have caught the ring's 1.8e19 values, and it is exactly the value-keyed detector
+        §∅ forbids: 0 ns and 819e12 ns are both legal stamps, so a bound loose enough to admit them
+        admits payload bytes too, and one tight enough to reject payload bytes rejects real data on
+        the next device. Reading a type field against the set of types the protocol DEFINES is a
+        different act — it asks what the frame says it is, not whether its number looks right.
+        """
+        if address.upper() not in self.pmd_devices:
+            # Not a PMD speaker. Byte 0 is not a stream key here and bytes 1..9 are not a clock. The
+            # radio arrival stamps on this row are STILL REAL and still worth a row: what is absent
+            # is the device's own time, and the absence is what gets written.
+            return None, None, DEVICE_CLOCK_NOT_PMD
+        fields = pmd_fields(value)
+        if fields is None:
+            # Not a data frame at all: a battery level, a CCCD echo, the control point's short reply.
+            # A PMD speaker's DATA FRAMES are its radio record, so this one emits no row — the
+            # contract this collector shipped with, kept because dropping it adds no timing a data
+            # frame on the same handle does not already carry.
+            self.not_a_pmd_frame[NOT_A_FRAME_TOO_SHORT] = self.not_a_pmd_frame.get(NOT_A_FRAME_TOO_SHORT, 0) + 1
+            return None
+        meas, last_sensor_ns = fields
+        if meas not in pmd.MEAS_NAME:
+            # Long enough to parse, and still not a data frame. This is the branch the ring's defect
+            # has a Polar-shaped twin in: the type field says a stream the vendor does not define.
+            self.not_a_pmd_frame[NOT_A_FRAME_UNKNOWN_MEAS] = self.not_a_pmd_frame.get(NOT_A_FRAME_UNKNOWN_MEAS, 0) + 1
+            return None
+        if meas in pmd.NO_SAMPLE_TIME_BY_DESIGN:
+            # The vendor defines NO per-sample time for this stream, so the 0 in the packet is the
+            # documented shape of the stream and not a measurement of anything. `capture.py` refuses
+            # the same frames for the same cited reason; this is that rule reaching the sidecar.
+            return meas, None, DEVICE_CLOCK_BY_DESIGN
+        return meas, last_sensor_ns, DEVICE_CLOCK_PMD
+
     def _acl(self, payload: bytes, host_ns: int):
-        got = parse_acl_pmd(payload)
+        got = parse_acl_att_notification(payload)
         if got is None:
             return None
-        handle, meas, last_sensor_ns = got
+        handle, value = got
         address = self.handles.address(handle)
         if address is None or address.upper() not in self.devices:
             return None
+        decided = self._device_clock(address, value)
+        if decided is None:
+            return None
+        meas, last_sensor_ns, device_clock = decided
+        if device_clock != DEVICE_CLOCK_PMD:
+            self.no_device_clock[device_clock] = self.no_device_clock.get(device_clock, 0) + 1
         counter, anchor_us = associate(
             host_ns / 1000.0, self._anchors.get(handle, []), self.offsets.offset, self.offsets.jitter
         )
         self.rows += 1
-        return (address, meas, last_sensor_ns, handle, counter, anchor_us, None, host_ns)
+        return (address, meas, last_sensor_ns, handle, counter, anchor_us, None, host_ns, device_clock)
 
 
 class SidecarWriter:
@@ -651,8 +803,39 @@ class SidecarWriter:
         if not resume:
             self._fh.write(SIDECAR_HEADER)
 
+    @functools.cached_property
+    def _width(self) -> int:
+        """How many columns THIS file has, learned from the file itself before the first row.
+
+        🔴 A MIXED-WIDTH FILE IS THE ONE OUTCOME THAT MUST NOT BE POSSIBLE. `writers.py` states the
+        rule for exactly this situation: a resumed narrower file keeps writing its own width for the
+        rest of its life, and only a FRESH file gets the new column, because every consumer splitting
+        on `;` would otherwise read a new column as part of an old one in half the rows. The cost is
+        stated rather than hidden: rows appended to a pre-change file carry no `device_clock`, so for
+        those rows the reason lives only in the run's telemetry — their stamp cell is still empty
+        rather than wrong.
+
+        It is read HERE rather than in `__init__` for two reasons. `write` is what trims, so the width
+        and the trimming stay in one place. And the diff-scoped mutation gate selects whole FUNCTIONS,
+        so one read inside that constructor pulls its pre-existing torn-tail survivors into a blocking
+        gate over a change that does not touch them (residue
+        2026-10-30-the-mutation-gate-selects-a-whole-entry-point-for-one-line).
+        """
+        if not self._fh.mode.startswith("a"):
+            return len(SIDECAR_COLUMNS)  # a FRESH file carries the header `__init__` just wrote
+        try:
+            with open(self.path, "r", encoding="utf-8", errors="replace") as head:
+                seps = (head.readline() or "").count(";")
+        except OSError:
+            seps = 0
+        # A header we cannot read, or one carrying no separator, is not a header this writer wrote:
+        # assume the narrowest shape ever written rather than widen a file we cannot see.
+        return seps + 1 if seps else len(SIDECAR_COLUMNS) - 1
+
     def write(self, line: str) -> None:
-        self._fh.write(line)
+        # Trimmed to THIS file's width, which is a no-op on a fresh file. The row is terminated
+        # once, here, so the trim cannot leave a cell carrying a newline into the middle of a line.
+        self._fh.write(";".join(line.rstrip("\n").split(";")[: self._width]) + "\n")
         self.rows += 1
 
     def flush(self) -> None:
@@ -811,6 +994,11 @@ def run(packets, collector: Collector, open_writer, flush_every: int = 64, rearm
         "missed_anchors": collector.missed_anchors,
         "offset_samples": collector.offsets.n,
         "rearmed": rearmed,
+        #: Per reason, how many rows carry no device stamp. A resumed pre-change file cannot hold the
+        #: reason column at all, so for those rows this is the only place it is stated.
+        "no_device_clock": dict(collector.no_device_clock),
+        #: Per reason, the notifications that were not PMD data frames and so got no row at all.
+        "not_a_pmd_frame": dict(collector.not_a_pmd_frame),
     }
 
 
@@ -1051,28 +1239,38 @@ def probe_controller(index: int, socket_module=None):  # pragma: no cover — ra
 def decide(cfg: dict, sysfs: str = SYSFS_BLUETOOTH, probe=probe_controller):
     """Everything the collector must know before it opens a file → `(index, devices, why)`.
 
+    `devices` maps each configured address to its DECLARED `vendor`, because the address alone cannot
+    say whether that device's notifications are PMD data frames — and reading them as PMD when they
+    are not is what put payload bytes into two keyed columns (row
+    `2026-11-01-the-ring-sidecar-writes-payload-bytes-into-two-keyed-columns`). An absent declaration
+    is carried through as absent; `Collector` fails closed on it rather than guessing a protocol.
+
     `why` is None when the box can do this. Otherwise it is the ONE line that gets logged before the
     process exits 0 having written nothing — and it names WHICH of the ways this box cannot, because
     §0.3's outcomes are all the same exit and would otherwise be indistinguishable to a reader.
     """
     rc_cfg = (cfg or {}).get("radio_clock") or {}
     if not rc_cfg.get("enabled"):
-        return None, [], "radio_clock.enabled is false — nothing to do"
+        return None, {}, "radio_clock.enabled is false — nothing to do"
     address = rc_cfg.get("adapter") or (cfg or {}).get("adapter")
     index = adapter_index(address, sysfs)
     if index is None:
-        return None, [], "no controller with address %r is present" % (address,)
-    devices = [d.get("address") for d in ((cfg or {}).get("devices") or []) if isinstance(d, dict) and d.get("address")]
+        return None, {}, "no controller with address %r is present" % (address,)
+    devices = {
+        str(d["address"]): d.get("vendor")
+        for d in ((cfg or {}).get("devices") or [])
+        if isinstance(d, dict) and d.get("address")
+    }
     if not devices:
-        return None, [], "no devices with addresses are configured — nothing could be recorded"
+        return None, {}, "no devices with addresses are configured — nothing could be recorded"
     try:
         manufacturer, status, error = probe(index)
     except RadioClockUnavailable as exc:
-        return None, [], "radio clock unavailable on %s: %s" % (address, exc)
+        return None, {}, "radio clock unavailable on %s: %s" % (address, exc)
     if manufacturer != NORDIC_COMPANY_ID:
         return (
             None,
-            [],
+            {},
             (
                 "controller %s reports manufacturer %s, not Nordic (%d) — this is the common "
                 "case, not an error" % (address, manufacturer, NORDIC_COMPANY_ID)
@@ -1080,7 +1278,7 @@ def decide(cfg: dict, sysfs: str = SYSFS_BLUETOOTH, probe=probe_controller):
         )
     outcome = describe_enable(status, error)
     if outcome != ENABLE_ENABLED:
-        return None, [], "anchor reports not enabled on %s: %s" % (address, outcome)
+        return None, {}, "anchor reports not enabled on %s: %s" % (address, outcome)
     return index, devices, None
 
 

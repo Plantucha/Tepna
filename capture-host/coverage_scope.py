@@ -106,6 +106,15 @@ UNMEASURED_BY_DESIGN: dict[str, str] = {
         "wrong lines and decide mutants for the wrong reason. Its battery is re-checked by running "
         "it, and the three equivalence entries it supports name the command"
     ),
+    "tools/probe_radioclock_equiv.py": (
+        "a hand-run probe, and it cannot be a test for a reason of its own. It rebuilds each mutant "
+        "by replacing a line of radioclock.py's source that it asserts occurs EXACTLY ONCE, and "
+        "under the mutation gate that source on disk is already rewritten — so the same code run as "
+        "a test would either refuse on the anchor or, worse, patch a line mutmut had already "
+        "mutated and compare two mutants. Its battery is 1 240 769 payloads and 28 collector runs, "
+        "which is also an order of magnitude past what belongs in a 70-second suite. Its claims are "
+        "re-checked by running it, and the eight equivalence entries it supports name it"
+    ),
     "tools/probe_verity_equivalence.py": (
         "a hand-run probe, and a DELIBERATELY WEAK PIN. It rebuilds each claimed-equivalent mutant "
         "from the module source BY LINE NUMBER, so it cannot be a test: under the mutation gate the "
