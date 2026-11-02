@@ -131,6 +131,47 @@ export function parseRows(text) {
   return rows;
 }
 
+/* ── A ROW THE PARSER CANNOT READ MUST RED, NEVER VANISH ─────────────────────────────────────────
+   Row 2026-11-02-a-residue-key-with-an-underscore-is-dropped-by-every-ledger-gate. `parseRows` keys a
+   row on `\d{4}-\d{2}-\d{2}-[a-z0-9-]+` and `continue`s on anything else, so a key carrying an
+   underscore, an uppercase letter or an internal space stays in the file, reads correctly to a human,
+   and is invisible to `--open`, to the collision check and to the mutation check for its whole life.
+
+   ⚠️ THE FAILURE MODE IS A REPORTED PASS, NOT A SKIP (§4b). Measured 2026-11-02: the tool printed
+   `ok — 0 row(s) added, none colliding, none mutated` and exited 0 over a commit that added exactly
+   one row. A session reading that line learns its row is fine. Silence is the one answer that must
+   not be available, so an unreadable row reds here instead of leaving the parser.
+
+   The signal that a line INTENDS to be a row is therefore wider than the signal that it parses as
+   one: a first cell of a date, a dash, and any content at all is a key attempt. A line that attempts
+   a key and fails the parse is returned here, and both halves of the tool red on it.
+
+   ⚠️ `residue-cite-drift.mjs` keeps its OWN reader, and that one takes the first cell VERBATIM, so it
+   never dropped these rows. Measured 2026-11-02 against its `parseRows` at `tools/residue-cite-drift.mjs:156`,
+   which gates on `line.startsWith('| 20')` and splits on `' | '`. So the row's own claim that every
+   ledger gate drops the key is too wide: the two readers DISAGREED about which rows exist, and only
+   this one was silent about the disagreement. */
+const KEY_ATTEMPT = /^\d{4}-\d{2}-\d{2}-.+$/;
+const KEY_PARSES = /^\d{4}-\d{2}-\d{2}-[a-z0-9-]+$/;
+
+/**
+ * Pure. Every line that attempts a residue key and fails `parseRows`'s pattern.
+ * @param {string} text
+ * @returns {Array<{line: number, cell: string, text: string}>} 1-indexed line numbers, file order
+ */
+export function unparsedRows(text) {
+  const out = [];
+  for (const [i, line] of String(text ?? '')
+    .split('\n')
+    .entries()) {
+    if (!line.startsWith('|')) continue;
+    const cell = (splitRowCells(line)[1] ?? '').trim();
+    if (!KEY_ATTEMPT.test(cell) || KEY_PARSES.test(cell)) continue;
+    out.push({ line: i + 1, cell, text: line });
+  }
+  return out;
+}
+
 /* ── THE FULL-TREE HALF: a close CLAIM against the row's state cell ───────────────────────────────
    Row 2026-10-10-a-closes-residue-claim-is-never-checked-against-the-row. The ledger closes a row by
    editing only its state cell, in the session that fixes it — so the commit message that SAYS
@@ -339,7 +380,9 @@ export function verdict(baseText, headText, tipText) {
     if (seen.has(id)) collisions.push(`${id} — added twice on this branch`);
     seen.add(id);
   }
-  return { collisions, mutated, added, landed };
+  /* Read over HEAD, not over `added`: a row the parser cannot see is absent from `added` by
+     construction, which is exactly how the measured commit reported 0 rows added. */
+  return { collisions, mutated, added, landed, unparsed: unparsedRows(headText) };
 }
 
 /* ── THE PICKUP HALF: the list a session sizes work from must come from the REF ───────────────────
@@ -404,6 +447,10 @@ export function pickupDrift(refText, diskText) {
      unpushed work, which is normal. It is reported, never counted as drift. */
   const onlyDisk = disk.filter((r) => !refById.has(r.id)).map((r) => r.id);
   return {
+    /* The pickup list comes from the REF, so an unreadable row THERE makes the list incomplete and
+       nothing else in this object can say so. A malformed row on DISK is the branch's own and the
+       diff half above reds it. */
+    unparsed: unparsedRows(refText),
     checked: ref.length - onlyRef.length,
     openOnRef: ref.filter((r) => r.state === 'OPEN').map((r) => r.id),
     openOnDisk: disk.filter((r) => r.state === 'OPEN').map((r) => r.id),
@@ -643,9 +690,12 @@ export function namedByCode(keys, commits, addedBy) {
  */
 export function pickupVerdict(drift, ctx) {
   const stale = drift.differs.length + drift.onlyRef.length;
+  /* A row the reader cannot parse is not drift, and it fails the gate all the same: the list this
+     verdict vouches for does not contain it. */
+  const unreadable = (drift.unparsed || []).length;
   const v = Verdict.make({
     gate: 'residue-pickup',
-    status: stale === 0 ? 'PASS' : 'FAIL',
+    status: stale === 0 && unreadable === 0 ? 'PASS' : 'FAIL',
     population: { checked: drift.checked, eligible: drift.checked + drift.onlyRef.length, excluded: drift.onlyRef.length },
     criterion: { name: 'stale_row_states', threshold: 0, unit: 'rows', direction: 'lte' },
     result: {
@@ -669,14 +719,21 @@ export function pickupVerdict(drift, ctx) {
          correction and an unattributable one at once — so they never sum to `openCitedByRow`. */
       openCorrectedByRow: Number.isInteger(ctx.correctedBy) ? ctx.correctedBy : null,
       openCorrectionUnattributable: Number.isInteger(ctx.correctionUnattributable) ? ctx.correctionUnattributable : null,
+      /* Part of the status, unlike every informational count above it. */
+      unparsed: unreadable,
       behindCommits: ctx.behind,
       base: ctx.base
     },
     evidence: [LEDGER_PATH, 'tools/residue-ids.mjs'],
     reason:
-      stale === 0
-        ? null
-        : `the read is stale: ${drift.differs.length} row(s) differ (${drift.staleOpen.length} read OPEN and are closed on ${ctx.base}), and ${drift.onlyRef.length} row(s) exist only on ${ctx.base}`,
+      [
+        stale === 0
+          ? null
+          : `the read is stale: ${drift.differs.length} row(s) differ (${drift.staleOpen.length} read OPEN and are closed on ${ctx.base}), and ${drift.onlyRef.length} row(s) exist only on ${ctx.base}`,
+        unreadable === 0 ? null : `${unreadable} row(s) on ${ctx.base} attempt a key this reader cannot parse, so the list above does not contain them`
+      ]
+        .filter(Boolean)
+        .join('; ') || null,
     producedBy: { tool: 'tools/residue-ids.mjs', commit: ctx.commit }
   });
   const ck = Verdict.validate(v);
@@ -803,6 +860,10 @@ function main() {
       process.stdout.write(`${JSON.stringify({ verdict: v, ...drift, namedByCode: leads === null ? null : Object.fromEntries(leads), citedBy: Object.fromEntries(cites) }, null, 2)}\n`);
       process.exit(v.status === 'PASS' ? 0 : 1);
     }
+    /* FIRST, and on stderr: the count on the next line is a count of rows the reader could read, so
+       a row it could not read has to be said before the number, not after it. */
+    for (const u of drift.unparsed)
+      process.stderr.write(`residue-pickup: ✗ ${LEDGER_PATH}:${u.line} at ${base} — \`${u.cell}\` attempts a residue key this reader cannot parse, so the list below LEAVES IT OUT\n`);
     process.stdout.write(`residue-pickup: ${drift.openOnRef.length} OPEN row(s) at ${base}${behind === null ? '' : ` (this tree is ${behind} commit(s) behind it)`}\n`);
     for (const k of drift.openOnRef)
       process.stdout.write(
@@ -902,7 +963,11 @@ function main() {
   }
 
   const v = verdict(baseText, headText, tipText);
-  const problems = [...v.collisions, ...v.mutated];
+  const problems = [
+    ...v.collisions,
+    ...v.mutated,
+    ...v.unparsed.map((u) => `${LEDGER_PATH}:${u.line} — \`${u.cell}\` attempts a residue key this reader cannot parse, so every check below would have SKIPPED the row`)
+  ];
 
   if (asJson) {
     process.stdout.write(`${JSON.stringify(v, null, 2)}\n`);
@@ -919,6 +984,12 @@ function main() {
     if (v.mutated.length) {
       process.stderr.write('\n  Rows are appended and CLOSED, never edited or deleted: only the state cell may\n');
       process.stderr.write('  change (OPEN → `→ `<brief>`` | `fixed #N`). A wrong row gets a NEW row saying so.\n');
+    }
+    if (v.unparsed.length) {
+      process.stderr.write('\n  A residue key is a DATE PLUS A SLUG of lowercase letters, digits and hyphens —\n');
+      process.stderr.write('  nothing else. An underscore, a capital or a space puts the row outside the pattern,\n');
+      process.stderr.write('  and the row then stays in the file while every check here skips it silently. Rename\n');
+      process.stderr.write('  the key. This gate used to print `ok` over exactly that commit.\n');
     }
   } else {
     process.stdout.write(`residue-ids: ok — ${v.added.length} row(s) added, none colliding, none mutated\n`);
@@ -1071,6 +1142,43 @@ if (IS_CLI && process.argv.includes('--selftest')) {
   // 5 — non-vacuous: the parser must actually see rows, or every assertion above passes on empty input
   assert(parseRows(BASE).length === 2 && parseRows('').length === 0, 'parseRows reads rows (and only rows)');
   assert(parseRows('| 2026-09-02-alpha | d |').length === 1, 'a malformed row still yields its identity — shape is check8b’s job');
+
+  /* ── A ROW THE PARSER CANNOT READ REDS — row 2026-11-02-a-residue-key-with-an-underscore… ───── */
+  {
+    const bad = '| 2026-11-02-a_key | 2026-11-02 | `x` | d | e | OPEN |';
+    const good = '| 2026-11-02-a-key | 2026-11-02 | `x` | d | e | OPEN |';
+    /* CONTROL on the premise, not on the fix: the parser really does drop it, and silently. */
+    assert(parseRows(bad).length === 0 && parseRows(good).length === 1, 'an underscored key is invisible to parseRows — the premise of the row');
+    assert(unparsedRows(bad).length === 1, 'an underscored key is REPORTED instead of skipped');
+    assert(unparsedRows(bad)[0].cell === '2026-11-02-a_key' && unparsedRows(bad)[0].line === 1, 'the report names the cell and its 1-indexed line');
+    assert(unparsedRows(good).length === 0, 'a well-formed key is not reported');
+    /* Every other way to leave the character class. An internal space is the one a human cannot
+       see in rendered markdown, so it is the one worth naming. */
+    assert(unparsedRows('| 2026-11-02-A-key | d |').length === 1, 'an uppercase letter reds');
+    assert(unparsedRows('| 2026-11-02-a key | d |').length === 1, 'an internal space reds');
+    assert(unparsedRows('| 2026-11-02-a.key | d |').length === 1, 'a full stop reds');
+    /* NOT a key attempt, so NOT this gate's finding: the header, the separator, prose, and a bare
+       date with no slug. A gate that reds the table header would red every run. */
+    assert(unparsedRows('| <key> | logged | source | defect | evidence | state |').length === 0, 'the table header is not a key attempt');
+    assert(unparsedRows('|---|---|---|---|---|---|').length === 0, 'the separator row is not a key attempt');
+    assert(unparsedRows('see 2026-11-02-a_key for the trap').length === 0, 'a key inside prose is not a table row');
+    assert(unparsedRows('| 2026-11-02 | logged |').length === 0, 'a bare date with no slug is not a key attempt');
+    assert(unparsedRows('').length === 0 && unparsedRows(null).length === 0, 'no text reads as no finding');
+    /* THE WHOLE POINT (§4b): the diff verdict reported a PASS over exactly this commit, because a
+       row the parser cannot see is absent from `added`. */
+    const vb = verdict('', bad, '');
+    assert(vb.added.length === 0, 'the dropped row is absent from `added` — how the pass was reported');
+    assert(vb.unparsed.length === 1 && vb.collisions.length === 0 && vb.mutated.length === 0, 'the diff verdict carries the unreadable row where nothing else could');
+    assert(verdict('', good, '').unparsed.length === 0, 'a clean ledger carries no finding');
+    /* And the pickup half fails over a ref whose list it cannot vouch for. */
+    const dr = pickupDrift(bad, bad);
+    assert(dr.unparsed.length === 1 && dr.differs.length === 0, 'the pickup read carries it, and it is not drift');
+    const pv = pickupVerdict(dr, { behind: 0, base: 'origin/main', commit: 'c0ffee00', namedByCode: null, citedBy: 0, correctedBy: 0, correctionUnattributable: 0 });
+    assert(pv.status === 'FAIL' && pv.result.unparsed === 1, 'an unreadable row on the ref FAILS the pickup verdict');
+    assert(/cannot parse/.test(pv.reason || ''), 'and the reason says why, with no stale rows to blame');
+    const pvOk = pickupVerdict(pickupDrift(good, good), { behind: 0, base: 'origin/main', commit: 'c0ffee00', namedByCode: null, citedBy: 0, correctedBy: 0, correctionUnattributable: 0 });
+    assert(pvOk.status === 'PASS' && pvOk.reason === null, 'a clean ref still passes with a null reason');
+  }
 
   // 6 — THE FULL-TREE CLAIM CHECK (row 2026-10-10-a-closes-residue-claim-is-never-checked-against-the-row).
   //     A claim whose row still reads OPEN FIRES; a closed one, a promoted one and a withdrawn one are
