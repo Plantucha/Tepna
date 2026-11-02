@@ -9942,6 +9942,13 @@ def test_the_by_design_set_is_exactly_PPI_and_cites_the_vendor():
     assert capture._NO_SAMPLE_TIME_BY_DESIGN == frozenset({pmd.PPI})
     src = module_source("capture.py")
     assert "TimeSystemExplained.md" in src and "PpiData.kt" in src
+    # 🔴 AND THE TWO COPIES OF THE RULE ARE HELD EQUAL HERE. `polar_pmd.NO_SAMPLE_TIME_BY_DESIGN` is
+    # the single source the radio-clock sidecar reads (§0.1 of RADIO-CLOCK-SIDECAR-2026-09-07-BRIEF
+    # holds `capture.py` untouched by that unit, so this file keeps its own name for its own guard).
+    # Two copies with no test holding them equal are two places the vendor's rule can drift apart —
+    # the measured failure of row `2026-10-30-the-journal-priority-formatter-is-duplicated-in-...`,
+    # in the same file pair. Add a type to one and this reds until the other agrees.
+    assert capture._NO_SAMPLE_TIME_BY_DESIGN == pmd.NO_SAMPLE_TIME_BY_DESIGN
 
 
 def test_the_H10_on_a_chest_with_a_FULL_flat_battery_is_worn_not_docked(tmp_path, monkeypatch):

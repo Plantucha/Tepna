@@ -7,6 +7,7 @@ import struct
 import datetime as _dt
 
 import polar_pmd as pmd
+from _srcscan import module_source
 
 
 def _i24_bytes(vals):
@@ -951,3 +952,14 @@ def test_a_sub_nanosecond_estimate_is_still_clamped_not_refused():
     )
     assert s[0].sensor_ns >= prev  # never reaches past the predecessor
     assert (s[-1].sensor_ns - s[-2].sensor_ns) == 1  # clamped to the measured 1 ns, not nominal
+
+
+def test_the_streams_with_NO_SAMPLE_TIME_are_the_VENDORS_rule_and_CITE_it():
+    """🔴 A rule about the PROTOCOL belongs with the protocol, and the citation is load-bearing: a
+    reader who cannot check it should treat the rule as a guess. It is a set of TYPES, not a device
+    name — a rule keyed to the Verity would miss the next device that streams PPI — and `capture.py`
+    plus `radioclock.py` both read it so a 0 on one of these streams is reported as EMPTY rather
+    than written through as a stamp (CLAUDE.md §∅)."""
+    assert pmd.NO_SAMPLE_TIME_BY_DESIGN == frozenset({pmd.PPI})
+    src = module_source("polar_pmd.py")
+    assert "TimeSystemExplained.md" in src and "PpiData.kt" in src
