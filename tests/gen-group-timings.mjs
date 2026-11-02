@@ -55,8 +55,8 @@ process.stdin.on('end', () => {
     console.error('✗ no groups in input — pipe a FULL run: node tests/run-tests.mjs --json | node tests/gen-group-timings.mjs');
     process.exit(2);
   }
-  if (j.shard || j.groupFilter) {
-    console.error('✗ refusing to record a PARTIAL run (shard/filter set) — the planner needs every group. Run unfiltered.');
+  if (j.shard || j.groupFilter || (Array.isArray(j.groupIndices) && j.groupIndices.length)) {
+    console.error('✗ refusing to record a PARTIAL run (shard/filter/index selection set) — the planner needs every group. Run unselected.');
     process.exit(2);
   }
   const groups = {};

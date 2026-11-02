@@ -3868,7 +3868,7 @@ async function main() {
   // Exact index selection. Set before the SHARD block so the two never both apply.
   if (GROUP_INDICES) env.shardIndices = GROUP_INDICES;
 
-  const { runDexTests, auditSkips } = require('./dex-tests.js');
+  const { runDexTests, auditSkips, dexRerunIndices } = require('./dex-tests.js');
 
   /* Sharding is a TWO-PASS run, and it is cheap because pass 1 costs nothing: an inventory pass
      (listOnly) declares all N groups while executing ZERO of them (~0.07 s — every group body is
@@ -3910,7 +3910,14 @@ async function main() {
     ? forked.verdict
     : LIST_ONLY
       ? null
-      : suiteVerdict({ groups, totalGroups, groupFilter: groupFilter || null, shard: SHARD ? SHARD.label : null, skipViolations: auditSkips(groups, EXPECTED_SKIPS.allow || []).violations });
+      : suiteVerdict({
+          groups,
+          totalGroups,
+          groupFilter: groupFilter || null,
+          groupIndices: GROUP_INDICES ? [...GROUP_INDICES] : null,
+          shard: SHARD ? SHARD.label : null,
+          skipViolations: auditSkips(groups, EXPECTED_SKIPS.allow || []).violations
+        });
   if (__covPost && process.env.DEX_IV_COUNTS) {
     const iv = await __covPost('Profiler.takePreciseCoverage');
     writeFileSync(INTERVAL_COV, JSON.stringify({ groupIndices: GROUP_INDICES ? [...GROUP_INDICES] : null, counts: intervalToCounts(iv) }));
@@ -3938,6 +3945,10 @@ async function main() {
         listOnly: LIST_ONLY,
         shard: SHARD ? SHARD.label : null,
         groupFilter: groupFilter || null,
+        /* DECLARED so a consumer can refuse a scoped run. `tests/gen-group-timings.mjs` refuses a shard
+           and a filter, and would otherwise have recorded an index-selected run as the full planner
+           input — one group's time written over the other 866. */
+        groupIndices: GROUP_INDICES ? [...GROUP_INDICES] : null,
         verdict, // §3d — the tepna.verdict/1 object; a superset of the shape verify-shard-union reads
         groups: groups.map((g) => ({
           index: g.index,
@@ -3967,11 +3978,21 @@ async function main() {
       process.exit(2);
     }
   }
+  /* A SCOPED RUN SAYS SO. `--group=` and `--shard=` both announce themselves; `--group-index=` ran
+     867 groups' worth of banner-free output over one group, so a green index run read exactly like
+     the gate. The footer now hands this flag to a human, so it owes the same loud marking. */
+  if (GROUP_INDICES && !groupFilter) {
+    console.log('\n' + paint('▸ SCOPED RUN', C.yellow) + paint('  --group-index=' + [...GROUP_INDICES].join(',') + '  →  ' + groups.length + ' of ' + totalGroups + ' groups', C.dim));
+    console.log(paint('  (dev convenience — NOT the canonical gate; run with no selection for the merge-gate pass)', C.dim));
+  }
   if (groupFilter) {
     console.log('\n' + paint('▸ FILTERED RUN', C.yellow) + paint('  --group="' + groupFilter + '"  →  ' + groups.length + ' of ' + totalGroups + ' groups', C.dim));
     console.log(paint('  (dev convenience — NOT the canonical gate; run with no filter for the merge-gate pass)', C.dim));
     if (!groups.length) {
       console.log(paint('  ✗ filter matched ZERO groups — check the pattern', C.red));
+      console.log(paint('    A title is not a pattern: --group= compiles each term as a regex, so parens, a plus or a dot', C.yellow));
+      console.log(paint('    stop matching the title they came from, and a comma splits it into OR-terms. Address the group by', C.yellow));
+      console.log(paint('    its declaration index instead — node tests/run-tests.mjs --list names every index.', C.yellow));
       process.exit(2);
     }
   }
@@ -4075,9 +4096,26 @@ async function main() {
     for (const f of failures) {
       console.log(paint('  ✕ ', C.red) + paint('[' + f.group + ']', C.bold) + ' ' + f.name + (f.detail ? paint('  — ' + f.detail, C.yellow) : ''));
     }
+    /* ADDRESS THE GROUP BY ITS DECLARATION INDEX, not by its title (residue
+       2026-11-02-the-failing-group-rerun-line-cannot-rerun-a-third-of-the-groups). `--group=` compiles
+       each term as a regex and only falls back to a substring when that regex THROWS, so 265 of the
+       867 titles stop matching themselves: parens, a plus, a dot, or a comma that splits the title
+       into OR-terms. The runner refuses a zero-match filter, so the pasted line cost a whole cycle.
+       `--group-index=` is what `--list` emits and what the shard planner already selects on. A title
+       the inventory cannot address falls back to the old form rather than going unsaid. */
     const failGroups = [...new Set(failures.map((f) => f.group))];
+    const rerun = dexRerunIndices(failGroups, groups);
     console.log(paint('  → re-run just the failing group(s):', C.dim));
-    for (const gt of failGroups) console.log(paint('      node tests/run-tests.mjs --group=' + JSON.stringify(gt), C.cyan));
+    if (rerun.indices.length) {
+      console.log(paint('      node tests/run-tests.mjs --group-index=' + rerun.indices.join(','), C.cyan));
+      for (const i of rerun.indices) {
+        const g = groups.find((x) => x.index === i);
+        console.log(paint('        ' + String(i).padStart(4) + '  ' + (g ? g.title : '?'), C.dim));
+      }
+    }
+    for (const gt of rerun.unresolved) {
+      console.log(paint('      node tests/run-tests.mjs --group=' + JSON.stringify(gt), C.cyan) + paint("   (no declaration index — this group was not in this run's inventory)", C.yellow));
+    }
   }
 
   // TAP-ish footer for CI log parsers
@@ -4085,7 +4123,13 @@ async function main() {
   const summary = fail
     ? paint('✕ ' + fail + ' failing', C.red) + paint('  ·  ' + pass + ' passing', C.dim) + (skip ? paint('  ·  ' + skip + ' skipped', C.yellow) : '')
     : paint('✓ all ' + pass + ' assertions passed', C.green) + (skip ? paint('  ·  ' + skip + ' skipped', C.yellow) : '');
-  console.log(paint('Tepna test suite', C.cyan) + '  ' + summary + paint('  (' + groups.length + ' groups)', C.dim) + (groupFilter ? paint('  [FILTERED — not the full gate]', C.yellow) : ''));
+  console.log(
+    paint('Tepna test suite', C.cyan) +
+      '  ' +
+      summary +
+      paint('  (' + groups.length + ' groups)', C.dim) +
+      (groupFilter ? paint('  [FILTERED — not the full gate]', C.yellow) : GROUP_INDICES ? paint('  [SCOPED — not the full gate]', C.yellow) : '')
+  );
   /* §3d — the object's one-line reading, so the human lane cannot say "all green" without it. The
      object itself is on stdout under --json; the exit code below is unchanged. */
   if (verdict) {
