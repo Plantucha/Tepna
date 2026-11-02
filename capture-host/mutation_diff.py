@@ -59,6 +59,8 @@ __all__ = [
     "PREWORK_CLEAN_DRIFT",
     "selection_hash",
     "installed_generator",
+    "pinned_generator",
+    "generator_pin_refusal",
     "generator_mismatches",
     "prework_record",
     "merge_prework",
@@ -1270,6 +1272,44 @@ def installed_generator(dist="mutmut"):
         return importlib.metadata.version(dist)
     except importlib.metadata.PackageNotFoundError:
         return None
+
+
+def pinned_generator(text, dist="mutmut"):
+    """The generator version this tree PINS, read from `requirements-dev.txt` text, or None.
+
+    Only an exact `==` pin answers. A floor (`>=`) names a range, and a range cannot say which
+    generator wrote a measurement, so it reads as NO KNOWLEDGE rather than as the lowest member (§∅).
+    A commented-out line is not a pin either.
+
+    WHY THIS EXISTS, measured 2026-11-02. `installed_generator` above closed one direction: a pin bump
+    used to leave every recorded number silently applicable. The OTHER direction stayed open. A venv
+    BEHIND the pin still writes a record, and `merge_mutants_size` refuses only an unnameable
+    generator, never a mismatched one. This tree pinned mutmut 3.8.1 while the shared venv ran 3.8.0,
+    so a record run there would have stamped 3.8.0 on every size — and every correctly-pinned reader
+    would then read those sizes as ABSENT. That is not a stale number a reader can spot. It is a dead
+    entry that looks measured, which is the defect the generator field was added to end."""
+    want = re.escape(str(dist))
+    for line in str(text or "").split("\n"):
+        bare = line.split("#", 1)[0].strip()
+        m = re.match(rf"^{want}\s*==\s*([^\s;,]+)", bare, re.IGNORECASE)
+        if m:
+            return m.group(1)
+    return None
+
+
+def generator_pin_refusal(installed, pinned):
+    """Why a record run must not write, as one sentence, or None when writing is sound.
+
+    The comparison needs BOTH halves. An absent generator is already refused at the write itself, and a
+    tree that pins no exact version has said nothing to disagree with — neither case is a mismatch, and
+    inventing one would refuse a run on no evidence. Only two named versions that differ decide."""
+    if not installed or not pinned or installed == pinned:
+        return None
+    return (
+        f"the installed generator is mutmut {installed} and this tree pins {pinned}, so a record "
+        f"written here would name a generator no correctly-pinned reader computes, and every entry "
+        f"it stamps would read ABSENT to them. Install the pinned generator, then record."
+    )
 
 
 def generator_mismatches(text, section, generator):

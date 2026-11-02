@@ -4885,3 +4885,86 @@ def test_the_retry_COUNT_is_published_outside_the_undecided_branch():
             "the retry count moved inside `if undecided:`, so a run whose timeouts all settled "
             "reports no bound at all — and that run is the one the count is for"
         )
+
+
+def test_the_pin_is_read_only_from_an_exact_requirement_and_a_range_is_no_knowledge():
+    """🔴 A VENV BEHIND THE PIN STAMPS A GENERATOR NO READER COMPUTES. `installed_generator` closed one
+    direction: a pin bump used to leave every recorded number silently applicable. This closes the
+    other. `merge_mutants_size` refuses only an UNNAMEABLE generator, never a mismatched one, so a
+    record run under mutmut 3.8.0 against a tree pinning 3.8.1 writes entries that look measured and
+    read ABSENT to everyone. Measured 2026-11-02: that is exactly what this venv would have done.
+
+    Only `==` answers. A floor names a RANGE, and a range cannot say which generator wrote a number, so
+    it reads as no knowledge rather than as its lowest member (§∅). The dist name must be the whole
+    name: `mutmut-extras` is a different distribution and its pin says nothing about mutmut's."""
+    assert M.pinned_generator("mutmut==3.8.1") == "3.8.1"
+    assert M.pinned_generator("mutmut == 3.8.1  # a comment after the pin") == "3.8.1"
+    assert M.pinned_generator("MutMut==3.8.1") == "3.8.1", "a distribution name is case-insensitive"
+    assert M.pinned_generator('mutmut==3.8.1 ; python_version>="3.10"') == "3.8.1"
+    assert M.pinned_generator("pytest==9.2.0\nmutmut==3.8.1\nruff==0.14.0") == "3.8.1"
+
+    assert M.pinned_generator("mutmut>=3.8.1") is None, "a floor is a range, and a range names nothing"
+    assert M.pinned_generator("mutmut~=3.8.1") is None
+    assert M.pinned_generator("mutmut") is None, "an unversioned requirement pins nothing"
+    assert M.pinned_generator("# mutmut==3.8.1") is None, "a commented-out line is not a pin"
+    assert M.pinned_generator("mutmut-extras==1.0") is None, "another distribution's pin is not ours"
+    assert M.pinned_generator("pytest==9.2.0") is None
+    assert M.pinned_generator("") is None
+    assert M.pinned_generator(None) is None, "an unreadable pin file is no knowledge, not a failure"
+    assert M.pinned_generator("pytest==9.2.0", dist="pytest") == "9.2.0", "the dist is a parameter"
+
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    with open(os.path.join(root, "requirements-dev.txt"), encoding="utf-8") as fh:
+        real = M.pinned_generator(fh.read())
+    assert real, "this tree's own pin must still parse — a reformat of the file must red this test"
+
+
+def test_a_record_run_refuses_before_the_campaign_when_the_generator_is_not_the_pinned_one():
+    """The comparison needs BOTH halves known. An absent generator is already refused at the write, and
+    a tree pinning no exact version has said nothing to disagree with — neither is a mismatch, and
+    inventing one would refuse a run on no evidence.
+
+    The refusal is checked BEFORE the mutation loop, not at the write. Both halves are known in a
+    second, and the alternative is hours of generation that record nothing. The order is the fact this
+    test pins over the driver's AST, because `coverage_scope.py` holds `tools/mutate.py` out of the
+    100 % floor on the stated condition that its control flow is asserted this way rather than
+    imported. Exit 2 is NOT_RUN: the run examined nothing (§🧾)."""
+    msg = M.generator_pin_refusal("3.8.0", "3.8.1")
+    assert msg and "3.8.0" in msg and "3.8.1" in msg, "the refusal must name both versions"
+    assert "ABSENT" in msg, "it must say what the entry would read as, not just that it differs"
+    assert M.generator_pin_refusal("3.8.1", "3.8.1") is None, "agreement is not a mismatch"
+    assert M.generator_pin_refusal(None, "3.8.1") is None, "an absent generator is refused at the write"
+    assert M.generator_pin_refusal("3.8.0", None) is None, "a tree with no exact pin disagrees with nothing"
+    assert M.generator_pin_refusal("", "") is None
+    assert M.generator_pin_refusal(None, None) is None
+
+    import ast as _ast
+    import pathlib as _pl
+
+    src = (_pl.Path(__file__).resolve().parent.parent / "tools" / "mutate.py").read_text()
+    main = next(n for n in _ast.walk(_ast.parse(src)) if isinstance(n, _ast.FunctionDef) and n.name == "main")
+
+    def _calls(node, name):
+        return any(
+            isinstance(c, _ast.Call) and isinstance(c.func, _ast.Name) and c.func.id == name for c in _ast.walk(node)
+        )
+
+    guards = [n for n in _ast.walk(main) if isinstance(n, _ast.If) and _calls(n, "generator_pin_refusal")]
+    assert len(guards) == 1, "the driver must consult the refusal exactly once"
+    guard = guards[0]
+    assert _calls(guard, "installed_generator"), "it must compare the generator it is RUNNING"
+    assert _calls(guard, "pinned_generator"), "against the one this tree PINS"
+    returns = [n for n in _ast.walk(guard) if isinstance(n, _ast.Return)]
+    assert any(isinstance(r.value, _ast.Constant) and r.value.value == 2 for r in returns), (
+        "a refusal that does not exit 2 reads as a run that looked and passed"
+    )
+    loops = [
+        n
+        for n in _ast.walk(main)
+        if isinstance(n, _ast.For) and isinstance(n.iter, _ast.Name) and n.iter.id == "targets"
+    ]
+    assert loops, "the campaign loop over `targets` moved; re-read this test before trusting it"
+    assert guard.lineno < min(n.lineno for n in loops), (
+        "the guard moved after the campaign, so a caller learns the run records nothing only once the "
+        "generation it paid for is already done"
+    )
