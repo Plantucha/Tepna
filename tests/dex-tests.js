@@ -12125,7 +12125,14 @@
              Gating a drawn axis out would delete 373 of its 689 rated fragments, which are exactly
              the population it was built to characterise. */
           'tools/ring-rate-cause.mjs':
-            'REPORTS — it decomposes the published rate into five named causes and prints `quantizedShare`, `axisDrawn`, `axisSpreadMs` and the span beside every ppm it attributes. It applies no rate, corrects no axis and places no sample.'
+            'REPORTS — it decomposes the published rate into five named causes and prints `quantizedShare`, `axisDrawn`, `axisSpreadMs` and the span beside every ppm it attributes. It applies no rate, corrects no axis and places no sample.',
+          /* Joined the population 2026-11-02 with the census of the RAW anchor step against each
+             recording's own span. Its subject is the step the spine's two median statistics walk past,
+             so it reads `.ppm` only to print what the spine answered beside that step — and it
+             publishes `axisOk`, `axisAccepted` and `axisRefused` as the population, because the harm
+             it counts is the conjunction `flaggedAndAccepted` and never a rate it spends. */
+          'tools/wild-anchor-census.mjs':
+            "REPORTS — it measures the raw divergence step against the smaller of the two clocks' spans and forwards the spine's `ppm` beside it as the diagnostic §🔒.7 calls it. It applies no rate, corrects no axis and places no sample."
         };
         var POP = [],
           AXIS = [],
@@ -12185,8 +12192,9 @@
            published `axisNote` sentence (see its EXCLUDED row); 14 from 2026-10-29, when
            `ring-offset-census.mjs` joined on the `.ppm` it audits; 15 the same day, when
            `ring-rate-cause.mjs` joined to decompose that same `.ppm` into named causes. The number is
-           a ratchet on a derived set, so it moves only beside a classification. */
-        T.eq('POPULATION is 15 — the published denominator', POP.length, 15, 'POPULATION=' + POP.join(', '));
+           a ratchet on a derived set, so it moves only beside a classification. 16 from 2026-11-02,
+           when `wild-anchor-census.mjs` joined on the `ppm` it prints beside the raw anchor step. */
+        T.eq('POPULATION is 16 — the published denominator', POP.length, 16, 'POPULATION=' + POP.join(', '));
       }
 
       /* THE NOTE IN `clock.js` IS A CLAIM ABOUT THREE NODES, so it drifts when they migrate and nothing
