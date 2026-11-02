@@ -36,6 +36,7 @@ from __future__ import annotations
 # ON PURPOSE: the diff-scoped mutation gate selects whole FUNCTIONS, so moving one line out of `main`
 # would pull this entry point's 27 pre-existing survivors into a blocking gate for a one-line change.
 # Residue `2026-10-30-the-mutation-gate-selects-a-whole-entry-point-for-one-line`.
+import functools
 import os
 import re
 import struct
@@ -798,31 +799,43 @@ class SidecarWriter:
                     cut = data.rfind(b"\n")
                     fh.truncate(cut + 1 if cut >= 0 else 0)
             resume = os.path.getsize(path) > 0
-        #: How many columns THIS file has — read FROM THE FILE on resume, never assumed.
-        #: 🔴 A MIXED-WIDTH FILE IS THE ONE OUTCOME THAT MUST NOT BE POSSIBLE. `writers.py`'s PMD
-        #: arrival sidecar states the rule for exactly this situation: a resumed narrower file keeps
-        #: writing its own width for the rest of its life, and only a FRESH file gets the new column,
-        #: because every consumer splitting on `;` would otherwise read a new column as part of an
-        #: old one in half the rows. The cost is stated rather than hidden: rows appended to a
-        #: pre-change file carry no `device_clock`, so for those rows the reason lives only in the
-        #: run's telemetry — but their stamp cell is still empty rather than wrong.
-        self.cols = len(SIDECAR_COLUMNS)
-        if resume:
-            try:
-                with open(path, "r", encoding="utf-8", errors="replace") as head:
-                    self.cols = (head.readline() or "").rstrip("\n").count(";") + 1
-            except OSError:
-                # Unreadable header: assume the narrowest shape ever written and never widen it.
-                self.cols = len(SIDECAR_COLUMNS) - 1
         self._fh = open(path, "a" if resume else "w", buffering=1 << 16, newline="\n")
         if not resume:
             self._fh.write(SIDECAR_HEADER)
 
+    @functools.cached_property
+    def _width(self) -> int:
+        """How many columns THIS file has, learned from the file itself before the first row.
+
+        🔴 A MIXED-WIDTH FILE IS THE ONE OUTCOME THAT MUST NOT BE POSSIBLE. `writers.py` states the
+        rule for exactly this situation: a resumed narrower file keeps writing its own width for the
+        rest of its life, and only a FRESH file gets the new column, because every consumer splitting
+        on `;` would otherwise read a new column as part of an old one in half the rows. The cost is
+        stated rather than hidden: rows appended to a pre-change file carry no `device_clock`, so for
+        those rows the reason lives only in the run's telemetry — their stamp cell is still empty
+        rather than wrong.
+
+        It is read HERE rather than in `__init__` for two reasons. `write` is what trims, so the width
+        and the trimming stay in one place. And the diff-scoped mutation gate selects whole FUNCTIONS,
+        so one read inside that constructor pulls its pre-existing torn-tail survivors into a blocking
+        gate over a change that does not touch them (residue
+        2026-10-30-the-mutation-gate-selects-a-whole-entry-point-for-one-line).
+        """
+        if not self._fh.mode.startswith("a"):
+            return len(SIDECAR_COLUMNS)  # a FRESH file carries the header `__init__` just wrote
+        try:
+            with open(self.path, "r", encoding="utf-8", errors="replace") as head:
+                seps = (head.readline() or "").count(";")
+        except OSError:
+            seps = 0
+        # A header we cannot read, or one carrying no separator, is not a header this writer wrote:
+        # assume the narrowest shape ever written rather than widen a file we cannot see.
+        return seps + 1 if seps else len(SIDECAR_COLUMNS) - 1
+
     def write(self, line: str) -> None:
-        if self.cols < len(SIDECAR_COLUMNS):
-            cells = line.rstrip("\n").split(";")
-            line = ";".join(cells[: self.cols]) + "\n"
-        self._fh.write(line)
+        # Trimmed to THIS file's width, which is a no-op on a fresh file. The row is terminated
+        # once, here, so the trim cannot leave a cell carrying a newline into the middle of a line.
+        self._fh.write(";".join(line.rstrip("\n").split(";")[: self._width]) + "\n")
         self.rows += 1
 
     def flush(self) -> None:

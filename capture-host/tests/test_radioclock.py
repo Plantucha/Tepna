@@ -838,6 +838,23 @@ def test_run_flushes_periodically_so_a_kill_9_does_not_lose_the_whole_night(tmp_
     assert flushes[:2] == [2, 4], "flushed on the interval, not only at the end"
 
 
+def test_the_DEFAULT_flush_interval_is_the_one_a_caller_that_passes_nothing_gets(tmp_path):
+    """The test above names its own interval, so the DEFAULT is unasserted and may be any number at
+    all. A night runs under the default, which is the only interval that decides how much of it a
+    `kill -9` loses, so the default is pinned at the row it fires on rather than left to the
+    signature."""
+    flushes = []
+
+    class _Counting(rc.SidecarWriter):
+        def flush(self):
+            flushes.append(self.rows)
+            super().flush()
+
+    acls = tuple((1_051_300_000 + i,) for i in range(64))
+    rc.run(_stream(acls=acls), _collector(), lambda a: _Counting(str(tmp_path / rc.sidecar_name("s", a))))
+    assert flushes[0] == 64, "the 64th row, and a cadence one off fires on neither of the rows here"
+
+
 def test_the_missed_anchor_count_reaches_the_caller_as_TELEMETRY(tmp_path):
     def open_writer(address):
         return rc.SidecarWriter(str(tmp_path / rc.sidecar_name("s", address)))
@@ -1913,6 +1930,33 @@ def test_a_SHORT_notification_from_a_PMD_SPEAKER_is_COUNTED_as_well_as_DROPPED()
     assert c.rows == 0 and c.not_a_pmd_frame == {"too-short": 1}
 
 
+def test_the_SHORTEST_value_that_IS_a_PMD_HEADER_is_read_and_one_byte_less_is_not():
+    """The guard's own bound, bitten from both sides. A PMD header is meas(1) + last_ns(8) +
+    frame_type(1), so a value of exactly ten bytes carries a whole header and no samples: the stamp
+    is the column this sidecar exists for, and the samples are the stream's business. Nine bytes
+    carries no frame type and is not a header. A bound one off either way reads one of these two
+    cases wrong, and nothing else in the suite stands on the boundary itself."""
+    c = _connected(_collector(), 0x0040, H10)
+    ten = bytes([pmd.ECG]) + struct.pack("<Q", 819_000_000_000_000) + b"\x00"
+    row = c.feed(*_mon(rc.MONITOR_OPCODE_ACL_RX, _att_notification(0x0040, ten)), host_ns=5)
+    assert row[1] == pmd.ECG and row[2] == 819_000_000_000_000 and row[8] == rc.DEVICE_CLOCK_PMD
+    assert c.not_a_pmd_frame == {}, "a whole header is not a frame we cannot read"
+    assert c.feed(*_mon(rc.MONITOR_OPCODE_ACL_RX, _att_notification(0x0040, ten[:9])), host_ns=6) is None
+    assert c.not_a_pmd_frame == {"too-short": 1}
+
+
+def test_an_ATT_notification_with_NO_VALUE_is_COUNTED_and_the_COUNT_ACCUMULATES():
+    """Three bytes is a whole ATT notification: the opcode and the attribute handle, with no value.
+    The structural parse is BLE's and it succeeds, so the PMD read is what must refuse. The count is
+    the assertion because a refusal that forgets to count is indistinguishable from a device that
+    never spoke — and the count is asserted at TWO, because a counter that overwrites rather than
+    accumulates reads 1 forever and every single-frame test passes over it."""
+    c = _connected(_collector(), 0x0040, H10)
+    for host_ns in (5, 6):
+        assert c.feed(*_mon(rc.MONITOR_OPCODE_ACL_RX, _att_notification(0x0040, b"")), host_ns=host_ns) is None
+    assert c.rows == 0 and c.not_a_pmd_frame == {"too-short": 2}
+
+
 def test_a_bare_SEQUENCE_of_devices_declares_no_vendor_and_so_FAILS_CLOSED():
     """The fail-closed direction, and the reason the collector takes a mapping. A caller that cannot
     say which protocol a device speaks must not have that device's payload read as a measurement —
@@ -1968,15 +2012,31 @@ def test_a_RESUMED_PRE_CHANGE_FILE_KEEPS_ITS_OWN_WIDTH_FOR_LIFE(tmp_path):
     nine = ";".join(rc.SIDECAR_COLUMNS[:9]) + "\n"
     p.write_text(nine + "t;%s;0;5;64;11;1050000;;7\n" % H10, encoding="utf-8")
     w = rc.SidecarWriter(str(p))
-    assert w.cols == 9, "read from the FILE, not assumed from the module"
+    assert w._width == 9, "read from the FILE, not assumed from the module"
     w.write(rc.format_row("u", H10, 0, 6, 64, 12, 1_100_000, None, 8, rc.DEVICE_CLOCK_PMD))
     w.close()
     lines = p.read_text(encoding="utf-8").splitlines()
     assert all(line.count(";") == 8 for line in lines), "nine columns, header and every row"
     assert not lines[-1].endswith(";pmd"), "the tail column is dropped rather than appended blind"
-    fresh = rc.SidecarWriter(str(tmp_path / "fresh.csv"))
-    assert fresh.cols == 10, "and only a FRESH file gets the new column"
+    fresh_path = tmp_path / "fresh.csv"
+    fresh = rc.SidecarWriter(str(fresh_path))
+    assert fresh._width == 10, "and only a FRESH file gets the new column"
+    fresh.write(rc.format_row("v", H10, 0, 7, 64, 13, 1_150_000, None, 9, rc.DEVICE_CLOCK_PMD))
     fresh.close()
+    assert fresh_path.read_text(encoding="utf-8").splitlines()[-1].endswith(";pmd")
+
+
+def test_an_EIGHT_column_file_keeps_EIGHT_columns_and_the_narrow_fallback_is_not_its_width(tmp_path):
+    """The fallback width and the width of the file that prompted this change are both nine, so a
+    nine-column file alone cannot tell a header READ from the fallback. An eight-column file can: it
+    is the shape this sidecar carried before `acl_rx_ns`, and it separates the two."""
+    p = tmp_path / "s.csv"
+    p.write_text(";".join(rc.SIDECAR_COLUMNS[:8]) + "\nt;%s;0;5;64;11;1050000;\n" % H10, encoding="utf-8")
+    w = rc.SidecarWriter(str(p))
+    assert w._width == 8
+    w.write(rc.format_row("u", H10, 0, 6, 64, 12, 1_100_000, None, 8, rc.DEVICE_CLOCK_PMD))
+    w.close()
+    assert all(line.count(";") == 7 for line in p.read_text(encoding="utf-8").splitlines())
 
 
 def test_an_UNREADABLE_header_assumes_the_NARROW_shape_and_never_widens_it(tmp_path):
@@ -2000,6 +2060,7 @@ def test_an_UNREADABLE_header_assumes_the_NARROW_shape_and_never_widens_it(tmp_p
 
     with mock.patch.object(builtins, "open", boom):
         w = rc.SidecarWriter(q)
+        got = w._width
     assert seen["n"] == 1, "the header read must have been attempted, or this asserts nothing"
-    assert w.cols == 9
+    assert got == 9
     w.close()
