@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**312 tools** · 311 with a purpose line · **1 without**
+**313 tools** · 312 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -55,6 +55,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`checkout-advance.mjs`](../tools/checkout-advance.mjs) | say what blocks a fast-forward of a checkout, path by path, and which of those paths an advance would not change at all. |
 | [`ci-timing.mjs`](../tools/ci-timing.mjs) | WHICH CHECK IS THE MERGE RACE? — per-job CI timings, measured. |
 | [`circular-stats.mjs`](../tools/circular-stats.mjs) | CIRCULAR STATISTICS — the null the suite's own phase statistic lacked. |
+| [`claim-source.mjs`](../tools/claim-source.mjs) | TWO MECHANISMS BIND A DOC NUMBER TO CODE, AND THIS FILE DRAWS THE LINE BETWEEN THEM. |
 | [`closure-tol-hac.mjs`](../tools/closure-tol-hac.mjs) | derive the 3-source clock-closure tolerance from the legs' own PRECISION instead of their MAGNITUDE. |
 | [`codex-export.mjs`](../tools/codex-export.mjs) | THE SOURCE-ONLY EXPORT AN EXTERNAL READER MAY SEE. Owner ruling 2026-10-04: an external model (Codex) may read SOURCE, never the CORPUS. |
 | [`cohort-fit.mjs`](../tools/cohort-fit.mjs) | DOES THE SYNTHETIC COHORT LOOK LIKE A REAL ONE? — and what would it take to project it onto one. |

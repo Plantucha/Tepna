@@ -67,6 +67,9 @@ import {
   HOLD_LABEL as PW_HOLD_LABEL
 } from '../tools/pr-walker.mjs';
 import { classify as commitShape, classifyRootAdd as commitShapeRootAdd, KNOWN_ROOT_ZERO_BYTE as commitShapeBaseline } from '../tools/commit-shape.mjs';
+import { docsConstantsPins, pinnedByDocsConstants, resolveSourcedClaim } from '../tools/claim-source.mjs';
+import * as claimSource from '../tools/claim-source.mjs';
+import { CHECKS as DOCS_CONSTANTS_CHECKS } from '../tools/docs-constants.mjs';
 import { elementBlocks } from '../tools/strip-markup.mjs';
 import * as argvReads from '../tools/argv-reads.mjs';
 import * as corpusReads from '../tools/corpus-reads.mjs';
@@ -2126,30 +2129,48 @@ function readClaudeMdClaims() {
     for (const m of text.matchAll(CLAIM_FROM)) {
       const [, name, raw, file, pointer] = m;
       const rec = { name, where, file, pointer, stated: Number(raw), actual: null, reason: null };
-      const abs = join(ROOT, file);
-      if (!existsSync(abs)) rec.reason = 'source file not found: ' + file;
-      else {
+      /* A `.json` pointer and a `.js`/`.mjs` IDENTIFIER both resolve here (`tools/claim-source.mjs`).
+         The JSON-only resolver read a code source as `unreadable/invalid JSON` — a refusal about the
+         file FORMAT, worded as a broken artifact — so #3389 could not bind a number that lives in
+         `clock.js` without publishing it into a JSON first, which is a second source of truth for a
+         constant that already has one. */
+      const got = resolveSourcedClaim({ file, pointer }, (f) => {
+        const a = join(ROOT, f);
+        if (!existsSync(a)) return null;
         try {
-          let cur = JSON.parse(readFileSync(abs, 'utf8'));
-          for (const seg of pointer.split('/')) {
-            if (cur == null || typeof cur !== 'object' || !(seg in cur)) {
-              cur = undefined;
-              break;
-            }
-            cur = cur[seg];
-          }
-          if (cur === undefined) rec.reason = 'pointer did not resolve: #' + pointer;
-          else if (typeof cur !== 'number') rec.reason = 'pointer resolved to ' + typeof cur + ', not a number';
-          else rec.actual = cur;
-        } catch (e) {
-          rec.reason = 'unreadable/invalid JSON: ' + String((e && e.message) || e).slice(0, 80);
+          return readFileSync(a, 'utf8');
+        } catch {
+          return null;
         }
+      });
+      rec.kind = got.kind;
+      rec.actual = got.actual;
+      rec.reason = got.reason;
+      /* ONE NUMBER, ONE MECHANISM. `docs-constants.mjs` CHECKS pins a number whose doc side carries no
+         marker; a CLAIM pins one whose doc side does. A code-sourced CLAIM on a constant CHECKS already
+         pins is the overlap the row names — two gates on one number, and which one bites decided by
+         whichever a session reached for. */
+      if (!rec.reason && got.kind === 'code') {
+        const pin = pinnedByDocsConstants(DOCS_CONSTANTS_CHECKS, file, pointer);
+        if (pin.pinned) rec.reason = 'already pinned by tools/docs-constants.mjs CHECKS (' + pin.by + ') — one number gets one mechanism: drop this marker or drop that check';
       }
       sourced.push(rec);
     }
   }
 
-  return { claudeMd, claims, claimsMalformed, clockBundles, missingBundles, appBundles: APP_BUNDLES, ownedBundles, orchestrators, sourced, claimFilesScanned: claimFiles.length };
+  return {
+    claudeMd,
+    claims,
+    claimsMalformed,
+    clockBundles,
+    missingBundles,
+    appBundles: APP_BUNDLES,
+    ownedBundles,
+    orchestrators,
+    sourced,
+    claimFilesScanned: claimFiles.length,
+    docsConstantsPins: docsConstantsPins(DOCS_CONSTANTS_CHECKS)
+  };
 }
 
 /* N1 (PRIVACY-SECURITY-AUDIT-FINDINGS-2026-07-13): the standalone, unbundled analysis/research pages +
@@ -3674,6 +3695,7 @@ async function main() {
       return { status: r.status, signal: r.signal, out, read, ms: Date.now() - t0 };
     },
     argvReads,
+    claimSource,
     /* THE PROBE-SAFETY PREDICATE, read from the gate that owns it rather than restated. It is
        already in this process's import graph — `tools/importer-flag-probe.mjs` imports
        `closureHazards` from it — so naming it here adds no module, only a handle. The module
