@@ -454,6 +454,25 @@ def oxyii_rtc_due(last_sync, now, session_restarted: bool, resync_sec: float) ->
     return None
 
 
+def rtc_jump_is_our_push(push_at: _dt.datetime | None, push_at_prev_read: _dt.datetime | None) -> bool:
+    """Did a 0xC0 push of OURS land between the previous RTC read and this one?
+
+    The reset detector's premise is a jump beyond `_OXYII_RTC_JUMP_S` WITH NO PUSH, because a push we
+    sent moves the offset by exactly as much as the clock was wrong. The code read no push record, so
+    every correction above 5 s read as the ring's battery event instead
+    (`2026-11-01-an-rtc-correction-push-logs-as-a-battery-event-reset`). `_OXYII_RTC_AT[addr]` is the
+    record the premise needs: the host time of our last write to that address.
+
+    True only when a push stamp EXISTS and differs from the one this address carried at the previous
+    read, so the exemption lasts exactly one read — the one the correction lands in. A stamp that went
+    from a time to `None` is `False`, never "no push": the detector CLEARS `_OXYII_RTC_AT` itself to
+    queue a re-push, and an absent stamp is a discarded record rather than a measurement of zero
+    pushes (∅). PURE."""
+    if push_at is None:
+        return False
+    return push_at != push_at_prev_read
+
+
 # ── THE RING'S VITALS CADENCE IS A DEADLINE, NOT A SLEEP AFTER THE WORK ──────────────────────────────────
 # The live loop used to `sleep(1.0)` (or `0.5 + raw poll + 0.5`) AFTER each cycle's writes, so every cycle
 # lasted 1 s PLUS its own work. Measured on vigil 2026-09-28: 23 826 frames over a 24 179 s night, mean
@@ -615,6 +634,10 @@ _OXYII_RTC_CONFIRM_S = 2.0  # |offset| at or under this = the ring's RTC agrees 
 #   sub-second BLE write latency and the drift over one read cadence. It is not tuned to any corpus.
 _OXYII_LAST_RTC_OFF: dict[str, float] = {}  # addr -> previous read offset (survives reconnects,
 #                                                    which is where battery swaps actually happen)
+_OXYII_RTC_PUSH_SEEN: dict[str, _dt.datetime | None] = {}  # addr -> the _OXYII_RTC_AT stamp this
+#                                                    address carried at the PREVIOUS read, so the
+#                                                    reset detector can ask whether a push of ours
+#                                                    landed between the two (rtc_jump_is_our_push)
 _OXYII_CFG_PENDING: dict[str, tuple[str, int]] = {}  # addr -> (field, value) queued by webmon
 
 
@@ -5928,9 +5951,19 @@ def _oxyii_nonlive_frame(cx: _OxyiiLink, r) -> bool:
             # the documented failure that silently ruins a stored .dat's timebase).
             # Flag it the moment it is SEEN, and clear _OXYII_RTC_AT so the very next
             # loop re-pushes (oxyii_rtc_due reads it as first contact).
+            # 🔴 THE "WITH NO PUSH" HALF IS READ, NOT ASSUMED. `_OXYII_RTC_AT[addr]` holds
+            # the host time of our last 0xC0 write, and `rtc_jump_is_our_push` asks it
+            # whether a write landed since the previous read. Without that question every
+            # correction of ours above 5 s read as the ring's battery event, and 16 of the
+            # 20 flags in the box archive were ours (board #2852). A DST relabelling makes
+            # the hour-sized case routine, so the detector names its own corrections.
             _prev_off = _OXYII_LAST_RTC_OFF.get(addr)
             _OXYII_LAST_RTC_OFF[addr] = _off
-            if _prev_off is not None and abs(_off - _prev_off) > _OXYII_RTC_JUMP_S:
+            _push_at = _OXYII_RTC_AT.get(addr)
+            _ours = rtc_jump_is_our_push(_push_at, _OXYII_RTC_PUSH_SEEN.get(addr))
+            _OXYII_RTC_PUSH_SEEN[addr] = _push_at
+            _jumped = _prev_off is not None and abs(_off - _prev_off) > _OXYII_RTC_JUMP_S
+            if _jumped and not _ours:
                 _set(name, ring_rtc_reset_suspect=_now().isoformat(timespec="seconds"))
                 _OXYII_RTC_AT.pop(addr, None)
                 log.warning(
@@ -5942,6 +5975,21 @@ def _oxyii_nonlive_frame(cx: _OxyiiLink, r) -> bool:
                 )
                 rtcwr.write(_now(), "reset-suspect", rtc_offset_s=_off)
             else:
+                if _jumped:
+                    # The reading itself stays a `read` row, so the night's drift series keeps
+                    # it (`nightqc.rtc_drift_summary` pools `read` and `reset-suspect`), and the
+                    # `push` row written beside it carries the explanation on disk.
+                    log.info(
+                        "%s: RTC moved %+.1f s -> %+.1f s between reads, and our 0xC0 push at "
+                        "%s accounts for it — no battery event claimed",
+                        name,
+                        _prev_off,
+                        _off,
+                        # `_ours` is True only where a stamp EXISTS, so %s needs no guard: a
+                        # conditional rendering would carry an arm no read can reach, and the
+                        # 100 % branch floor is not satisfied by unreachable code.
+                        _push_at,
+                    )
                 rtcwr.write(_now(), "read", rtc_offset_s=_off)
         else:
             rtcwr.write(_now(), "read")

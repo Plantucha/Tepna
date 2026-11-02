@@ -622,7 +622,13 @@ def test_the_covered_function_count_is_MEASURED_from_the_ast_not_quoted():
     # the journal needs at 03:00. A bare conjunction at the call site names none of them. +1, the
     # whole delta. Rebased onto the `_boot_id` rise above, so this one counts from 340.
     # `moduleFunctionsAtDeclaration` stays where it is, per the note above.
-    assert n == 341, f"capture.py now defines {n} functions — update the declaration's note deliberately"
+    # 341 → 342 on 2026-11-02 (row `2026-11-01-an-rtc-correction-push-logs-as-a-battery-event-reset`):
+    # `rtc_jump_is_our_push`, the premise the reset detector always claimed and never read. It is a
+    # PURE function so the four push-record states can be tested without a radio, and so the ∅ case —
+    # an absent stamp is a DISCARDED record, never a measurement of zero pushes — reads as a decision
+    # rather than a truthiness test. +1, the whole delta.
+    # `moduleFunctionsAtDeclaration` stays where it is, per the note above.
+    assert n == 342, f"capture.py now defines {n} functions — update the declaration's note deliberately"
 
 
 def test_count_functions_counts_nested_and_methods_and_refuses_nothing():
