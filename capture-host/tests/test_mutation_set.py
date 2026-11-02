@@ -9,6 +9,8 @@ second must never read as the first, because a source edit between the two runs 
 
 from __future__ import annotations
 
+import re
+
 import pytest
 
 import mutation_set as MS
@@ -169,3 +171,39 @@ def test_a_refusal_object_carries_the_tool_that_could_not_look() -> None:
     obj = MS.refusal_object("r", commit=SHA, at="2026-11-02T00:00:00Z")
     assert obj["producedBy"]["tool"] == MS.TOOL
     assert obj["at"] == "2026-11-02T00:00:00Z"
+    assert obj["producedBy"]["commit"] == SHA
+
+
+@pytest.mark.parametrize(
+    ("was", "now", "added", "removed"),
+    [(["m1"], ["m1", "m2"], ["m2"], []), (["m1", "m2"], ["m1"], [], ["m2"])],
+)
+def test_a_set_that_only_gained_or_only_lost_a_name_has_still_moved(
+    was: list[str], now: list[str], added: list[str], removed: list[str]
+) -> None:
+    """Either side alone moves the module. A gained name is a mutant no baseline covers, and a lost
+    name is a baseline that addresses nothing, so the criterion cannot ask for both at once."""
+    report = MS.compare_sets(_art("3.8.0", {"a.py": was}), _art("3.8.1", {"a.py": now}))
+    assert report["moved"] == {"a.py": {"added": added, "removed": removed}}
+    assert report["reordered"] == []
+    assert MS.verdict_object(report, commit=SHA)["status"] == "FAIL"
+
+
+def test_the_default_stamp_is_a_whole_second_in_Z_form() -> None:
+    """`microsecond=0` is the shape, not a rounding taste: an artifact names the instant it enumerated
+    a tree, and a sub-second tail makes two artifacts from one second read as different runs."""
+    at = MS.artifact(mutmut="3.8.0", python="3.13.1", commit=SHA, modules={})["at"]
+    assert re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", at), at
+
+
+def test_a_verdict_carries_the_commit_and_the_instant_it_was_given() -> None:
+    """The verdict is the API (§🧾), so a caller's commit and stamp must reach it. A verdict that
+    stamps its own clock instead cannot be tied to the tree the comparison ran over."""
+    obj = MS.verdict_object(
+        MS.compare_sets(_art("3.8.0", {"a.py": ["m1"]}), _art("3.8.1", {"a.py": ["m1"]})),
+        commit=SHA,
+        at="2026-11-02T00:00:00Z",
+    )
+    assert obj["producedBy"]["commit"] == SHA
+    assert obj["at"] == "2026-11-02T00:00:00Z"
+    VD.validate(obj)
