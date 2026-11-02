@@ -122,7 +122,12 @@
        landed on disk. Every fixed name capture-host writes into a night folder is listed here, read
        off the writers (`grep -o '"[A-Z-]*\.\(jsonl\|csv\|json\)"' capture-host/*.py`), and `.JSONL`
        joins the container list — a line-delimited ledger is never a waveform. `.CSV` still is NOT. */
-    if (/^(CPAP-INVENTORY|OXYLIFE|CLOCKSYNC|SESSIONDETECT|AS11CLOCK|WEDGEFIRE|MANIFEST|QC-SUMMARY)\./.test(u)) return true;
+    /* 2026-11-02 — the SAME defect a FIFTH time. `STARTS.csv`, `PMDNEG.csv` and `WORN.csv` are fixed-name
+       night-folder sidecars, and `README-SIDECARS.txt` is the folder's sidecar key. None was listed, so on
+       origin/main 9a9973bb `planIngest` made each one a one-file ECG group and `planIngestPpg` a PPG primary.
+       Box census 2026-11-02, night folders holding each: 42 · 41 · 40 · 21. A README is never a waveform. */
+    if (/^(CPAP-INVENTORY|OXYLIFE|CLOCKSYNC|SESSIONDETECT|AS11CLOCK|WEDGEFIRE|MANIFEST|QC-SUMMARY|STARTS|PMDNEG|WORN)\./.test(u)) return true;
+    if (/^README[-_.]/.test(u)) return true;
     /* SAMPLE-VALIDITY-ENVELOPE §3.2 (2026-09-25) — the SAME defect a FOURTH time, and this one was
        measured before it was fixed: the validity sidecars `<base>RUNS.txt` / `<base>SEAMS.txt`
        (capture-host `writers.py` `_RunSidecar` / `_SeamSidecar`, shipped #2317) are named by APPENDING
@@ -133,7 +138,12 @@
        a night folder was queued as a RECORDING in both nodes (only the O2Ring's `_PPG2WRUNS` escaped,
        via the vendor pattern). A sidecar is never a waveform; `ppgKind` claims `_PPGRUNS` as the
        'runs' COMPANION before reaching this line, everything else lands here. */
-    if (/_(PPG|PPG2W|PPG1|ACC|ACCRAW|ECG)(RUNS|SEAMS)\b|_(PPG|PPG2W|PPG1|ACC|ACCRAW|ECG)(RUNS|SEAMS)\./.test(u)) return true;
+    /* 2026-11-02 — the stream list above omitted `PPI` and `HR`, and the box writes `…_PPISEAMS.txt` (42 night
+       folders) and `…_HRSEAMS.txt` (18). Both reached the ECG and PPG nodes as recordings. The suffix is now
+       matched on ANY stream token, because `_SeamSidecar` / `_RunSidecar` name the file by appending to the
+       stream suffix and a new stream must not reopen this. The companions (`_PPGRUNS`, `_ECGRUNS`, `_ACCRUNS`)
+       are claimed by `ppgKind` / `ecgKind` BEFORE this function runs, so they keep their companion kinds. */
+    if (/_[A-Z0-9]+(RUNS|SEAMS)\b|_[A-Z0-9]+(RUNS|SEAMS)\./.test(u)) return true;
     if (/^QC-|^\.|\.(JSON|JSONL|MD|LOG|YAML|YML|INI|CFG|PNG|JPG|PDF|ZIP)$/.test(u)) return true;
     return false;
   }
