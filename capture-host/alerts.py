@@ -14,6 +14,7 @@
 # swallowed; the worst case is a missed notification, never a missed night.
 from __future__ import annotations
 import logging
+from collections.abc import Iterable
 import time as _time
 from urllib.parse import urlsplit, urlunsplit
 
@@ -583,12 +584,51 @@ def arrival_canary(qc: dict, live: dict) -> list[str]:
     return out
 
 
-def frozen_devices(qc: dict, live: dict, threshold_sec: float) -> list[str]:
+# ── A SILENCE THE BOX ITSELF CAUSED IS NOT A FAULT ──────────────────────────────────────────────────
+# MEASURED on the box 2026-11-01 15:00: the ring and the Sense had written nothing for ~1750 s and the
+# connected-but-silent rule fired, so the watchdog restarted the daemon mid-afternoon. Both silences were
+# explained and neither state was readable here. The Sense was in an offline-recording op, which holds
+# `_POLAR_PAUSED` and the connect lock by design, and the ring was off the finger.
+#
+# The charger clause has been here since the rule was written, and it is the SAME KIND of clause: a state
+# in which the device sends nothing BY DESIGN. The sibling encoding `cpap_harvest.blocking_devices` reads
+# all three, and `classify_adapter_health` reads charging and worn — so this was the one consumer of the
+# rule that knew only one of them.
+#
+# NAMED, not a boolean, so a consumer can say WHICH state explained a silence rather than borrow a
+# reason — "charging" and "offline-op" call for different follow-ups, and §∅'s rule about a borrowed
+# reason applies to a suppression as much as to a null. `None` means nothing explains the silence, and
+# that is the only state the rule alerts on. No consumer logs the name yet; `frozen_devices` reads the
+# decision, not the word.
+#
+# UNKNOWN IS NEVER AN EXPLANATION. `worn` is absent on a device with no wear detection and None before
+# the first frame, so the test is `is False` — the device SAID it is off the body. An absent key explains
+# nothing and the silence still alerts.
+def explained_silence(st: dict, paused_addrs: Iterable[str] | None = None) -> str | None:
+    """Name why a connected device is expected to be silent, or None when nothing explains it.
+
+    `st` is one entry of STATUS["devices"]. `paused_addrs` is `gate_state()["polar_paused"]` — the
+    addresses whose live capture a Polar offline-recording op has paused. It is optional and defaults to
+    nothing known, so an older caller keeps the charger-and-worn answer rather than a wrong one."""
+    if st.get("charging"):
+        return "charging"
+    if st.get("worn") is False:
+        return "not-worn"
+    addr = st.get("address")
+    if addr is not None and addr in set(paused_addrs or ()):
+        return "offline-op"
+    return None
+
+
+def frozen_devices(qc: dict, live: dict, threshold_sec: float, paused_addrs: Iterable[str] | None = None) -> list[str]:
     """Devices that are connected and awake but have stopped producing data.
 
     `qc` is a nightqc.summarize() result (each device carries `silent_sec`, seconds since its last
     write measured against the night's newest write). `live` is STATUS["devices"]. A device missing
-    from `live` is never reported — an unknown state is not evidence of a fault."""
+    from `live` is never reported — an unknown state is not evidence of a fault.
+
+    `paused_addrs` carries the offline-op pauses, so a silence this box caused is not a fault — see
+    `explained_silence` above, which decides and NAMES every such state."""
     out = []
     # THE SUMMARY SIDE OF THE GUARD BELOW, and it was the half still open. The `live` check further
     # down names a non-dict status; this one names a non-dict SUMMARY, and until it existed the exact
@@ -614,7 +654,7 @@ def frozen_devices(qc: dict, live: dict, threshold_sec: float) -> list[str]:
         # named, not stepped over — see the same guard in `arrival_canary`
         if st is not None and not isinstance(st, dict):
             raise TypeError(f"live status for {name!r} is {type(st).__name__}, not dict: {st!r:.120}")
-        if not st or not st.get("connected") or st.get("charging"):
+        if not st or not st.get("connected") or explained_silence(st, paused_addrs):
             continue
         out.append(name)
     return out
