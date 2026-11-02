@@ -912,7 +912,7 @@ def run_record(boot_id: str | None, git: str | None, stopped: int | None = None)
 def start_reason(prev, boot_id: str | None, git: str | None) -> str:
     """PURE: why this daemon started, from the previous run's record, as words for the alert."""
     if not isinstance(prev, dict):
-        return "no record of a previous run"
+        return "the box holds no record of a previous run"
     was_boot, was_git, stopped = prev.get("boot_id"), prev.get("git"), prev.get("stopped")
     if boot_id and isinstance(was_boot, str) and was_boot != boot_id:
         return "the box booted"
@@ -921,7 +921,7 @@ def start_reason(prev, boot_id: str | None, git: str | None) -> str:
     if isinstance(stopped, bool) or not isinstance(stopped, int):
         return f"the previous run on {git or 'unknown code'} did not stop cleanly (a crash or a kill)"
     if stopped == 0:
-        return f"a clean stop and start on the same code ({git or 'unknown'})"
+        return f"the previous run stopped cleanly on the same code ({git or 'unknown'})"
     return f"the previous run exited with code {stopped} to ask for a restart"
 
 
