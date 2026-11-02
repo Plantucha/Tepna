@@ -848,30 +848,39 @@ def test_the_prework_record_is_keyed_on_the_selection_and_a_miss_is_absence():
     assert a != selection_hash(["tests/test_a.py"]), "a selection that lost a file is a different key"
     assert len(a) == 12
 
-    text = merge_prework("", "localstamp.py", a, 2.0, 0.6, "2026-10-17", "rig-x870")
-    rec = prework_record(text)
+    text = merge_prework("", "localstamp.py", a, 2.0, 0.6, "2026-10-17", "rig-x870", "3.8.1")
+    rec = prework_record(text, "3.8.1")
     assert rec[("localstamp.py", a)]["statsSec"] == 2.0
     assert rec[("localstamp.py", a)]["cleanSec"] == 0.6
     assert rec[("localstamp.py", a)]["host"] == "rig-x870"
     assert rec[("localstamp.py", a)]["measuredAt"] == "2026-10-17"
     assert text.endswith("\n") and '"schema": "tepna.mutation-prework/1"' in text
+    assert rec[("localstamp.py", a)] and '"generator": "3.8.1"' in text, "the entry names its generator"
 
     # a malformed or absent record is EMPTY, never a partial one a reader would trust
-    assert prework_record("") == {}
-    assert prework_record("{not json") == {}
-    assert prework_record("{}") == {}
-    assert prework_record('{"prework": null}') == {}
-    assert prework_record('{"prework": {"bad-key": {"statsSec": 2}}}') == {}, "a key with no @hash is not a row"
-    assert prework_record('{"prework": {"@abc": {"statsSec": 2}}}') == {}
-    assert prework_record('{"prework": {"m.py@": {"statsSec": 2}}}') == {}
-    assert prework_record('{"prework": {"m.py@abc": 2}}') == {}, "a bare number carries no provenance"
-    assert prework_record('{"prework": {"m.py@abc": {"statsSec": 0}}}') == {}, "zero is absence, not a pass"
-    assert prework_record('{"prework": {"m.py@abc": {"statsSec": -5}}}') == {}
-    assert prework_record('{"prework": {"m.py@abc": {"statsSec": "slow"}}}') == {}
-    assert prework_record('{"prework": {"m.py@abc": {"statsSec": true}}}') == {}, "a bool is not a measurement"
+    assert prework_record("", "3.8.1") == {}
+    assert prework_record("{not json", "3.8.1") == {}
+    assert prework_record("{}", "3.8.1") == {}
+    assert prework_record('{"prework": null}', "3.8.1") == {}
+    assert prework_record('{"prework": {"bad-key": {"statsSec": 2, "generator": "3.8.1"}}}', "3.8.1") == {}, (
+        "a key with no @hash is not a row"
+    )
+    assert prework_record('{"prework": {"@abc": {"statsSec": 2, "generator": "3.8.1"}}}', "3.8.1") == {}
+    assert prework_record('{"prework": {"m.py@": {"statsSec": 2, "generator": "3.8.1"}}}', "3.8.1") == {}
+    assert prework_record('{"prework": {"m.py@abc": 2}}', "3.8.1") == {}, "a bare number carries no provenance"
+    assert prework_record('{"prework": {"m.py@abc": {"statsSec": 0, "generator": "3.8.1"}}}', "3.8.1") == {}, (
+        "zero is absence, not a pass"
+    )
+    assert prework_record('{"prework": {"m.py@abc": {"statsSec": -5, "generator": "3.8.1"}}}', "3.8.1") == {}
+    assert prework_record('{"prework": {"m.py@abc": {"statsSec": "slow", "generator": "3.8.1"}}}', "3.8.1") == {}
+    assert prework_record('{"prework": {"m.py@abc": {"statsSec": true, "generator": "3.8.1"}}}', "3.8.1") == {}, (
+        "a bool is not a measurement"
+    )
     # the stats time can stand without a clean run; the clean run is then absent, never zero
     for bad_clean in ("0", "-1", "true", '"quick"', "null"):
-        one = prework_record('{"prework": {"m.py@abc": {"statsSec": 2, "cleanSec": %s}}}' % bad_clean)
+        one = prework_record(
+            '{"prework": {"m.py@abc": {"statsSec": 2, "cleanSec": %s, "generator": "3.8.1"}}}' % bad_clean, "3.8.1"
+        )
         assert one[("m.py", "abc")]["cleanSec"] is None, bad_clean
 
 
@@ -880,16 +889,16 @@ def test_a_replaced_measurement_keeps_the_number_it_replaced():
     `tools/mutation-sizes.json` keeps `supersedes` for, and the argument is identical here."""
     from mutation_diff import merge_prework, prework_record
 
-    first = merge_prework("", "alerts.py", "abc", 4.0, 1.0, "2026-10-17", "rig-x870")
-    again = merge_prework(first, "alerts.py", "abc", 4.0, 1.0, "2026-10-17", "rig-x870")
+    first = merge_prework("", "alerts.py", "abc", 4.0, 1.0, "2026-10-17", "rig-x870", "3.8.1")
+    again = merge_prework(first, "alerts.py", "abc", 4.0, 1.0, "2026-10-17", "rig-x870", "3.8.1")
     assert "supersedes" not in again, "an unchanged measurement is not a supersession"
-    moved = merge_prework(first, "alerts.py", "abc", 9.0, 1.1, "2026-10-18", "vigil")
-    assert prework_record(moved)[("alerts.py", "abc")]["statsSec"] == 9.0
+    moved = merge_prework(first, "alerts.py", "abc", 9.0, 1.1, "2026-10-18", "vigil", "3.8.1")
+    assert prework_record(moved, "3.8.1")[("alerts.py", "abc")]["statsSec"] == 9.0
     assert '"supersedes": 4.0' in moved
     # a corrupt file is rebuilt rather than appended to, and the new row survives it
-    assert prework_record(merge_prework("{not json", "alerts.py", "abc", 4.0, 1.0, "2026-10-17", "h"))
+    assert prework_record(merge_prework("{not json", "alerts.py", "abc", 4.0, 1.0, "2026-10-17", "h", "3.8.1"), "3.8.1")
     # keys stay sorted, so two sessions recording different modules do not reorder each other's rows
-    two = merge_prework(first, "aaa.py", "abc", 1.0, 1.0, "2026-10-17", "rig-x870")
+    two = merge_prework(first, "aaa.py", "abc", 1.0, 1.0, "2026-10-17", "rig-x870", "3.8.1")
     assert two.index('"aaa.py@abc"') < two.index('"alerts.py@abc"')
 
 
@@ -940,25 +949,37 @@ def test_the_prework_record_survives_every_shape_the_diff_gate_mutated():
     assert secs is None and "factor of 1.1" in why
 
     # the note is written under its own key and says what the file is
-    doc = json.loads(merge_prework("", "alerts.py", "abc", 1.234, 0.567, "2026-10-17", "h"))
+    doc = json.loads(merge_prework("", "alerts.py", "abc", 1.234, 0.567, "2026-10-17", "h", "3.8.1"))
     assert sorted(doc) == ["note", "prework", "schema"]
     assert doc["note"].startswith("Measured stats-pass seconds") and "NEVER hand-edited" in doc["note"]
     # one decimal, both numbers
     assert doc["prework"]["alerts.py@abc"]["statsSec"] == 1.2
     assert doc["prework"]["alerts.py@abc"]["cleanSec"] == 0.6
     # the committed file is two-space indented, so a re-record diffs line by line
-    text = merge_prework("", "alerts.py", "abc", 1.0, 1.0, "2026-10-17", "h")
+    text = merge_prework("", "alerts.py", "abc", 1.0, 1.0, "2026-10-17", "h", "3.8.1")
     assert text == json.dumps(json.loads(text), indent=2) + "\n"
 
     # the module name is everything before the FIRST @: a selection hash never carries one, a key may
-    assert set(prework_record('{"prework": {"m.py@a@b": {"statsSec": 2}}}')) == {("m.py", "a@b")}
+    assert set(prework_record('{"prework": {"m.py@a@b": {"statsSec": 2, "generator": "3.8.1"}}}', "3.8.1")) == {
+        ("m.py", "a@b")
+    }
     # a bad row is skipped, never the end of the record
-    skip_key = '{"prework": {"bad": {"statsSec": 2}, "m.py@abc": {"statsSec": 2}}}'
-    assert set(prework_record(skip_key)) == {("m.py", "abc")}
-    skip_stats = '{"prework": {"a.py@abc": {"statsSec": 0}, "m.py@abc": {"statsSec": 2}}}'
-    assert set(prework_record(skip_stats)) == {("m.py", "abc")}
+    skip_key = (
+        '{"prework": {"bad": {"statsSec": 2, "generator": "3.8.1"}, "m.py@abc": {"statsSec": 2, "generator": "3.8.1"}}}'
+    )
+    assert set(prework_record(skip_key, "3.8.1")) == {("m.py", "abc")}
+    skip_stats = '{"prework": {"a.py@abc": {"statsSec": 0, "generator": "3.8.1"}, "m.py@abc": {"statsSec": 2, "generator": "3.8.1"}}}'
+    assert set(prework_record(skip_stats, "3.8.1")) == {("m.py", "abc")}
+    # a row measured by ANOTHER generator is skipped the same way, and never ends the record
+    skip_gen = '{"prework": {"a.py@abc": {"statsSec": 2, "generator": "3.8.0"}, "m.py@abc": {"statsSec": 2, "generator": "3.8.1"}}}'
+    assert set(prework_record(skip_gen, "3.8.1")) == {("m.py", "abc")}
     # a sub-second stats pass is a measurement: only a non-positive one is absence
-    assert prework_record('{"prework": {"m.py@abc": {"statsSec": 0.5}}}')[("m.py", "abc")]["statsSec"] == 0.5
+    assert (
+        prework_record('{"prework": {"m.py@abc": {"statsSec": 0.5, "generator": "3.8.1"}}}', "3.8.1")[("m.py", "abc")][
+            "statsSec"
+        ]
+        == 0.5
+    )
 
     # the command names the module without its .py
     note = prework_unmeasured_note("capture.py", 1.0, 1, "why")
@@ -2855,61 +2876,101 @@ def test_a_changed_SIGNATURE_scopes_the_function():
 def test_the_size_record_round_trips_and_a_hash_MISS_IS_ABSENT():
     """The keying is the whole safety property: a size measured from a DIFFERENT version of the source is
     a guess wearing a measurement's clothes. So a miss must be absent, never the nearest entry."""
-    text = M.merge_mutants_size("", "capture.py", "7cf809a4bbf4", 562427047, "2026-09-28", "rig-x870")
-    rec = M.mutants_size_record(text)
+    text = M.merge_mutants_size("", "capture.py", "7cf809a4bbf4", 562427047, "2026-09-28", "rig-x870", "3.8.1")
+    rec = M.mutants_size_record(text, "3.8.1")
     assert rec[("capture.py", "7cf809a4bbf4")] == 562427047
     assert rec.get(("capture.py", "8c405e68387e")) is None, "a different source hash must not inherit a size"
     assert rec.get(("other.py", "7cf809a4bbf4")) is None, "a different module must not inherit it either"
+    # …and a different "generator": "3.8.1"ERATOR must not inherit it either: the size is whatever that generator wrote
+    assert M.mutants_size_record(text, "3.8.0") == {}, "a size from another mutmut is not this tree's size"
 
 
 def test_the_record_survives_being_unreadable_or_absent():
     """A record that cannot be parsed must read as NO KNOWLEDGE, not as a crash and not as a zero that
     some caller treats as permissive. The tool runs on hosts where this file may not exist at all."""
-    assert M.mutants_size_record("") == {}
-    assert M.mutants_size_record("{not json") == {}
-    assert M.mutants_size_record('{"sizes": {"bad-key": 12}}') == {}, "a key with no @hash is not a row"
-    assert M.mutants_size_record('{"sizes": {"m.py@abc": 0}}') == {}, "a zero size is absence, not a measurement"
-    assert M.mutants_size_record('{"sizes": {"m.py@abc": -5}}') == {}
-    assert M.mutants_size_record('{"sizes": {"m.py@abc": "big"}}') == {}
-    assert M.mutants_size_record('{"sizes": {"@abc": 5}}') == {}
-    assert M.mutants_size_record('{"sizes": {"m.py@": 5}}') == {}
-    assert M.mutants_size_record('{"sizes": {"m.py@abc": 7}}') == {("m.py", "abc"): 7}, "a bare int is a size"
+    assert M.mutants_size_record("", "3.8.1") == {}
+    assert M.mutants_size_record("{not json", "3.8.1") == {}
+    assert (
+        M.mutants_size_record('{"sizes": {"bad-key": {"generatedBytes": 12, "generator": "3.8.1"}}}', "3.8.1") == {}
+    ), "a key with no @hash is not a row"
+    assert (
+        M.mutants_size_record('{"sizes": {"m.py@abc": {"generatedBytes": 0, "generator": "3.8.1"}}}', "3.8.1") == {}
+    ), "a zero size is absence, not a measurement"
+    assert M.mutants_size_record('{"sizes": {"m.py@abc": {"generatedBytes": -5, "generator": "3.8.1"}}}', "3.8.1") == {}
+    assert (
+        M.mutants_size_record('{"sizes": {"m.py@abc": {"generatedBytes": "big", "generator": "3.8.1"}}}', "3.8.1") == {}
+    )
+    assert (
+        M.mutants_size_record('{"sizes": {"m.py@abc": {"generatedBytes": true, "generator": "3.8.1"}}}', "3.8.1") == {}
+    ), "`True` is an int in python, and a bool is not a byte count"
+    assert M.mutants_size_record('{"sizes": {"@abc": {"generatedBytes": 5, "generator": "3.8.1"}}}', "3.8.1") == {}
+    assert M.mutants_size_record('{"sizes": {"m.py@": {"generatedBytes": 5, "generator": "3.8.1"}}}', "3.8.1") == {}
+    assert M.mutants_size_record('{"sizes": {"m.py@abc": 7}}', "3.8.1") == {}, (
+        "a bare int cannot name a generator, so it is no longer a size"
+    )
+    assert M.mutants_size_record('{"sizes": {"m.py@abc": {"generatedBytes": 7, "generator": "3.8.1"}}}', "3.8.1") == {
+        ("m.py", "abc"): 7
+    }
 
 
 def test_a_re_measurement_REPLACES_and_says_what_it_superseded():
     """The same source hash generating a different size means the GENERATOR changed (a mutmut bump), and
     the newer number describes the mutmut this tree pins. Keeping both, or averaging, would describe
     neither — but the old value stays visible so the change is not silent."""
-    t1 = M.merge_mutants_size("", "m.py", "aaa", 100, "2026-09-01", "rig")
-    t2 = M.merge_mutants_size(t1, "m.py", "aaa", 250, "2026-09-28", "rig")
+    t1 = M.merge_mutants_size("", "m.py", "aaa", 100, "2026-09-01", "rig", "3.8.0")
+    t2 = M.merge_mutants_size(t1, "m.py", "aaa", 250, "2026-09-28", "rig", "3.8.1")
     import json as _j
 
     entry = _j.loads(t2)["sizes"]["m.py@aaa"]
     assert entry["generatedBytes"] == 250
     assert entry["supersedes"] == 100, "a replaced measurement must stay visible"
+    # 🔴 THE BUMP THE PROSE ALWAYS DESCRIBED IS NOW IN THE ENTRY. `supersedes` left "the generator
+    # changed" as a reader's inference from two numbers; the reader FUNCTION could not draw it, so the
+    # old number stayed applicable. The entry names the generator that produced the surviving size.
+    assert entry["generator"] == "3.8.1"
+    assert M.mutants_size_record(t2, "3.8.0") == {}, "the superseded generator reads absent, not 100"
     # Idempotent on an unchanged measurement: re-recording the same size adds no `supersedes` noise.
-    t3 = M.merge_mutants_size(t2, "m.py", "aaa", 250, "2026-09-29", "rig")
+    t3 = M.merge_mutants_size(t2, "m.py", "aaa", 250, "2026-09-29", "rig", "3.8.1")
     assert "supersedes" not in _j.loads(t3)["sizes"]["m.py@aaa"]
     # …and a corrupt file is rebuilt rather than inherited, so one bad write cannot poison every later one.
     assert (
-        _j.loads(M.merge_mutants_size("{not json", "m.py", "aaa", 7, "d", "h"))["sizes"]["m.py@aaa"]["generatedBytes"]
+        _j.loads(M.merge_mutants_size("{not json", "m.py", "aaa", 7, "d", "h", "3.8.1"))["sizes"]["m.py@aaa"][
+            "generatedBytes"
+        ]
         == 7
     )
 
 
 def test_the_committed_record_in_this_tree_parses_and_is_keyed_to_real_modules():
     """The file itself, not a fixture: a record nobody can parse is a record that silently stops helping,
-    and the keys must name modules this tree actually has."""
+    and the keys must name modules this tree actually has.
+
+    Reading it is "generator": "3.8.1"ERATOR-SCOPED, so the two halves are checked separately. The structure is checked
+    on the file, and the read is checked against the generator each entry names. An entry written before
+    the field existed names none, and nothing retro-stamps it: which mutmut measured it is not written
+    anywhere, and inferring it from the pin's git history would be a manufactured provenance (§∅). Such
+    an entry is absent under every generator, which costs that module one bounded re-measurement."""
+    import json as _j
     import pathlib as _p
 
     path = _p.Path(__file__).resolve().parent.parent / "tools" / "mutation-sizes.json"
     assert path.exists(), "the committed size record is missing"
-    rec = M.mutants_size_record(path.read_text(encoding="utf-8"))
-    assert rec, "the committed record parses to nothing — every CI run is a fresh scratch and would learn nothing"
+    text = path.read_text(encoding="utf-8")
+    entries = _j.loads(text)["sizes"]
+    assert entries, "the committed size record is empty — every CI run is a fresh scratch and would learn nothing"
     root = path.parent.parent
-    for module, src_hash in rec:
+    for key, entry in entries.items():
+        module, _, src_hash = key.partition("@")
         assert (root / module).exists(), f"{module} is recorded but not in the tree"
         assert len(src_hash) == 12 and all(c in "0123456789abcdef" for c in src_hash), src_hash
+        # readable under the generator it names, and under no other — with no `if` on the file's own
+        # contents, so this test pins the rule rather than today's state of the ledger
+        named = entry.get("generator") if isinstance(entry, dict) else None
+        readable = M.mutants_size_record(text, named or "0.0.0-no-generator-names-itself-this")
+        assert ((module, src_hash) in readable) == bool(named), key
+    assert M.mutants_size_record(text, "0.0.0-no-generator-names-itself-this") == {}, (
+        "no entry may be readable under a generator no entry names"
+    )
 
 
 def test_an_unknown_size_is_capped_and_NEVER_the_core_count():
@@ -2932,7 +2993,7 @@ def test_the_record_SERIALISATION_is_stable_because_the_file_is_committed():
     For a COMMITTED file that is not cosmetic: an unstable serialisation rewrites the whole file on every
     `--record-sizes`, so a one-entry measurement lands as a whole-file diff and the next session cannot
     see what changed."""
-    text = M.merge_mutants_size("", "m.py", "aaa", 100, "2026-09-28", "rig")
+    text = M.merge_mutants_size("", "m.py", "aaa", 100, "2026-09-28", "rig", "3.8.1")
     assert text.endswith("}\n"), "the record must end with exactly one newline — a committed file needs it"
     assert text.startswith('{\n  "'), f"two-space indent, not compact and not three: {text[:20]!r}"
     assert '\n  "sizes": {\n    "m.py@aaa": {\n      "generatedBytes": 100' in text, text[:400]
@@ -2951,7 +3012,11 @@ def test_ONE_malformed_row_does_not_drop_every_row_after_it():
     """`continue` → `break` survived. For a file whose whole job is remembering sizes, that turns a single
     bad row into silent amnesia for everything below it — and amnesia reads as "nothing to worry about",
     which is the §∅ failure this PR exists to fix, one layer along."""
-    rec = M.mutants_size_record('{"sizes": {"aaa-no-at": 5, "good.py@abc123abc123": 7, "zzz.py@def456def456": 9}}')
+    rec = M.mutants_size_record(
+        '{"sizes": {"aaa-no-at": {"generatedBytes": 5, "generator": "3.8.1"}, "good.py@abc123abc123": {"generatedBytes": 7, "generator": "3.8.1"},'
+        ' "zzz.py@def456def456": {"generatedBytes": 9, "generator": "3.8.1"}}}',
+        "3.8.1",
+    )
     assert rec == {("good.py", "abc123abc123"): 7, ("zzz.py", "def456def456"): 9}, rec
 
 
@@ -2960,7 +3025,7 @@ def test_the_module_is_everything_before_the_FIRST_at_sign():
     documented key is `<module>@<hash>`, so the hash is the LAST field and the module is the first — but a
     key with two `@` is malformed either way, and what matters is that it does not resolve to a module this
     tree has. Pinned so the choice is deliberate rather than whichever function was typed."""
-    rec = M.mutants_size_record('{"sizes": {"a@b@c": 5}}')
+    rec = M.mutants_size_record('{"sizes": {"a@b@c": {"generatedBytes": 5, "generator": "3.8.1"}}}', "3.8.1")
     assert rec == {("a", "b@c"): 5}, f"partition semantics: module is before the FIRST @, got {rec}"
 
 
@@ -2968,7 +3033,85 @@ def test_a_ONE_BYTE_size_is_a_measurement():
     """`size > 0` → `size > 1` survived. One byte is absurd for a generated module and that is exactly why
     it must be KEPT: the rule is "absence is absent", not "small values are absent". A guard that silently
     discards implausible measurements is a guard that decides what the data may say."""
-    assert M.mutants_size_record('{"sizes": {"m.py@abc": 1}}') == {("m.py", "abc"): 1}
+    assert M.mutants_size_record('{"sizes": {"m.py@abc": {"generatedBytes": 1, "generator": "3.8.1"}}}', "3.8.1") == {
+        ("m.py", "abc"): 1
+    }
+
+
+def test_the_generator_is_part_of_the_measurement_and_an_unnameable_one_is_absence():
+    """🔴 THE KEY DID NOT NAME WHAT DECIDES THE VALUE. Both ledgers key on `<module>@<hash>` — the
+    source hash for a size, the test selection for a stats pass — and neither names the generator. But
+    mutmut WROTE the size, and the stats pass is mutmut's own phase, so a pin bump leaves every recorded
+    number in place and applicable. `merge_mutants_size` said so in prose and kept the old value in
+    `supersedes`; no reader function could draw that conclusion.
+
+    So the generator is read from the installed distribution, and a tree that cannot name its generator
+    has NO KNOWLEDGE rather than a wildcard: `None` reads the whole file as absent, in both directions
+    (§∅). `pytest` stands in for the present case, because the mutation job installs mutmut and the
+    test job does not — a test that needed mutmut installed would be testing the environment."""
+    assert M.installed_generator("pytest"), "the running pytest must name a version"
+    assert M.installed_generator("no-such-distribution-exists-here") is None
+    assert M.installed_generator() in (None, M.installed_generator("mutmut")), "the default is mutmut"
+
+    stamped = M.merge_mutants_size("", "m.py", "aaa", 100, "2026-11-02", "rig", "3.8.1")
+    assert M.mutants_size_record(stamped, None) == {}, "an unnameable generator is not a wildcard"
+    assert M.mutants_size_record(stamped, "") == {}
+    assert M.mutants_size_record(stamped, 381) == {}, "a version is a string, and a non-string is absence"
+    pw = M.merge_prework("", "m.py", "sel", 2.0, 1.0, "2026-11-02", "rig", "3.8.1")
+    assert M.prework_record(pw, None) == {}
+    assert M.prework_record(pw, "") == {}
+    assert M.prework_record(pw, 381) == {}
+
+
+def test_a_merge_REFUSES_to_write_an_entry_no_reader_can_date():
+    """An unstamped entry IS the hazard, so writing one is refused instead of deferred to the reader.
+    The refusal is the tool's: `tools/mutate.py` passes `installed_generator()`, and a host that cannot
+    name its mutmut records nothing rather than a number that outlives its generator."""
+    for bad in (None, "", 381):
+        with pytest.raises(ValueError, match="name the generator"):
+            M.merge_mutants_size("", "m.py", "aaa", 100, "d", "h", bad)
+        with pytest.raises(ValueError, match="name the generator"):
+            M.merge_prework("", "m.py", "sel", 2.0, 1.0, "d", "h", bad)
+
+
+def test_the_dropped_entries_are_NAMED_so_the_absence_is_not_a_first_run():
+    """Dropping a stale entry silently turns a measured number into an unexplained absence, which reads
+    exactly like a first run on this hash — and a first run is the case the gate spends its generation
+    budget on. `generator_mismatches` names what was dropped and by which generator it was measured, so
+    `tools/mutate.py` reports the reason instead of a borrowed one (§∅)."""
+    text = (
+        '{"sizes": {"a.py@aaa": {"generatedBytes": 1, "generator": "3.8.0"},'
+        ' "b.py@bbb": {"generatedBytes": 2, "generator": "3.8.1"},'
+        ' "c.py@ccc": {"generatedBytes": 3},'
+        ' "d.py@ddd": {"generatedBytes": 4, "generator": ""},'
+        ' "e.py@eee": {"generatedBytes": 5, "generator": 381},'
+        ' "f.py@fff": 6}}'
+    )
+    stale = M.generator_mismatches(text, "sizes", "3.8.1")
+    assert stale == {"a.py@aaa": "3.8.0", "c.py@ccc": None, "d.py@ddd": None, "e.py@eee": None, "f.py@fff": None}
+    assert "b.py@bbb" not in stale, "the entry this tree can read is not a mismatch"
+    assert set(M.mutants_size_record(text, "3.8.1")) == {("b.py", "bbb")}
+    # the same function serves the other ledger, by section name, and an unreadable file names nothing
+    pw = '{"prework": {"a.py@sel": {"statsSec": 2, "generator": "3.8.0"}}}'
+    assert M.generator_mismatches(pw, "prework", "3.8.1") == {"a.py@sel": "3.8.0"}
+    assert M.generator_mismatches("{not json", "sizes", "3.8.1") == {}
+    assert M.generator_mismatches("{}", "sizes", "3.8.1") == {}
+    assert M.generator_mismatches('{"sizes": null}', "sizes", "3.8.1") == {}
+
+
+def test_the_tool_passes_the_generator_at_every_ledger_boundary():
+    """The contract is only closed if the CALLERS carry it: a reader that defaults the generator, or a
+    writer that omits it, puts the hazard back one layer along. Both halves are source-pinned, as
+    `test_the_gate_both_reads_the_record_and_reports_the_absence` pins the prework pair."""
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    with open(os.path.join(root, "tools", "mutate.py"), encoding="utf-8") as fh:
+        src = fh.read()
+    assert "installed_generator()" in src, "the tool must read the generator it is running"
+    assert "generator_mismatches(" in src, "a dropped entry must be named, not silently absent"
+    assert "mutants_size_record(_sizes_text, _gen)" in src, "the reader is called WITH the generator"
+    with open(os.path.join(root, "tools", "mutate_diff.py"), encoding="utf-8") as fh:
+        gsrc = fh.read()
+    assert "installed_generator()" in gsrc, "the gate reads the prework record under its own generator"
 
 
 def test_the_generation_reason_defaults_to_NOTHING_WRITTEN_and_distinguishes_one_byte():

@@ -39,6 +39,7 @@ from __future__ import annotations
 import ast
 import fnmatch
 import hashlib
+import importlib.metadata
 import json
 import os
 import pathlib
@@ -57,6 +58,8 @@ __all__ = [
     "PREWORK_SCHEMA",
     "PREWORK_CLEAN_DRIFT",
     "selection_hash",
+    "installed_generator",
+    "generator_mismatches",
     "prework_record",
     "merge_prework",
     "prework_stale_reason",
@@ -1248,6 +1251,47 @@ GATE_BUDGET_SEC = 7200  # 2 h of gate wall time. Pre-stated: no mutation job in 
 # `None` and the gate prints `prework_unmeasured_note`, because a bound that invents a number for the
 # module it has never measured is the defect this replaces (§∅ — absence is null, never a default).
 PREWORK_FILE = "mutation-prework.json"
+
+
+def installed_generator(dist="mutmut"):
+    """The mutant generator's version as this tree has it installed, or None when it is absent.
+
+    WHY THE LEDGERS NEED IT. Both committed measurement records — `tools/mutation-sizes.json` and
+    `tools/mutation-prework.json` — key on the module plus a hash of what it measured, and neither key
+    names the generator. But the generator decides both values: the size is whatever mutmut WROTE, and
+    the stats pass is mutmut's own phase over those mutants. `merge_mutants_size` already said so in
+    prose ("the same source hash generating a different size means the generator changed") and kept the
+    old number in `supersedes`, which makes the change visible to a reader and invisible to the reader
+    FUNCTIONS. So a pin bump leaves every recorded number in place and silently applicable.
+
+    None is the honest answer for a tree that cannot name its generator, and both readers treat it as NO
+    KNOWLEDGE rather than as a wildcard (§∅): an unnameable generator must not match a stamped entry."""
+    try:
+        return importlib.metadata.version(dist)
+    except importlib.metadata.PackageNotFoundError:
+        return None
+
+
+def generator_mismatches(text, section, generator):
+    """Keys in one ledger section whose entry names a DIFFERENT generator, as `{key: recorded | None}`.
+
+    The readers below drop those entries, and dropping them silently turns a stale number into an
+    unexplained absence. This names them so a caller reports the absence with its own reason — "recorded
+    under another generator" — never a borrowed one (§∅). An entry with no `generator` field reads as
+    None here, which is what every entry written before the field existed reads as: those measurements
+    are not retro-stamped, because nothing in the file says which generator produced them."""
+    try:
+        doc = json.loads(text or "{}")
+    except ValueError:
+        return {}
+    out = {}
+    for key, entry in (doc.get(section) or {}).items():
+        recorded = entry.get("generator") if isinstance(entry, dict) else None
+        if recorded != generator:
+            out[key] = recorded if isinstance(recorded, str) and recorded else None
+    return out
+
+
 PREWORK_SCHEMA = "tepna.mutation-prework/1"
 
 # THE RECORDED CLEAN RUN IS A VALIDITY BOUND ON THE CACHED NUMBER, AND IT IS NOT A SUBSTITUTE FOR IT.
@@ -1271,14 +1315,22 @@ def selection_hash(tests: "list[str]") -> str:
     return hashlib.sha256("\n".join(sorted(tests)).encode("utf-8")).hexdigest()[:12]
 
 
-def prework_record(text):
+def prework_record(text, generator):
     """Parse the committed `tools/mutation-prework.json` into `{(module, selection_hash): entry}`.
+
+    ⚠️ THE GENERATOR IS PART OF THE MEASUREMENT. The stats pass this file records is mutmut's own
+    phase, so an entry that does not name THIS generator is absent, and a tree that cannot name its
+    generator (`installed_generator()` → None) reads the whole file as absent. Fails closed in both
+    directions: no stamp means no knowledge, never a wildcard. `generator_mismatches` names the
+    entries dropped this way so the caller can say which generator measured them.
 
     WHY COMMITTED, on the same argument as `tools/mutation-sizes.json`: every CI run is a fresh scratch,
     so a stats time remembered only beside the scratch is one CI never has. Tool-written by
     `tools/mutate.py --record-prework`; a hand-typed number here would be indistinguishable from a
     measured one, which is the whole value of the file. A key miss is ABSENT — never a factor, never
     the nearest module, and a non-positive or non-numeric `statsSec` is absence too."""
+    if not isinstance(generator, str) or not generator:
+        return {}
     try:
         doc = json.loads(text or "{}")
     except ValueError:
@@ -1287,6 +1339,8 @@ def prework_record(text):
     for key, entry in (doc.get("prework") or {}).items():
         module, _, sel = key.partition("@")
         if not module or not sel or not isinstance(entry, dict):
+            continue
+        if entry.get("generator") != generator:
             continue
         stats = entry.get("statsSec")
         if isinstance(stats, bool) or not isinstance(stats, (int, float)) or stats <= 0:
@@ -1302,13 +1356,18 @@ def prework_record(text):
     return out
 
 
-def merge_prework(text, module, sel_hash, stats_sec, clean_sec, measured_at, host):
+def merge_prework(text, module, sel_hash, stats_sec, clean_sec, measured_at, host, generator):
     """The record with this measurement added, as JSON text. Idempotent on an unchanged measurement.
 
     An existing entry is REPLACED rather than averaged, for the reason `merge_mutants_size` gives: the
     same selection costing a different stats pass means the machine or the tests changed, and the newer
     measurement is the one that describes this tree. The previous value stays in `supersedes` so the
-    change is visible to a reader who did not run either."""
+    change is visible to a reader who did not run either.
+
+    The entry NAMES its generator, and an unnameable one refuses rather than writing an unstamped entry:
+    an entry no reader can date to a generator is exactly the stale-number hazard this field closes."""
+    if not isinstance(generator, str) or not generator:
+        raise ValueError("a prework record must name the generator whose stats pass it timed")
     try:
         doc = json.loads(text or "{}")
     except ValueError:
@@ -1321,7 +1380,8 @@ def merge_prework(text, module, sel_hash, stats_sec, clean_sec, measured_at, hos
         "generation's end and the first mutant verdict. It REPLACED a 2.0 trace factor that "
         "under-predicted capture.py by at least 5.6x. NEVER hand-edited: a typed number here is "
         "indistinguishable from a measured one. A key miss is absent, not a default, and the gate "
-        "reports the absence instead of predicting.",
+        "reports the absence instead of predicting. Each entry NAMES the generator whose stats pass "
+        "it timed, and an entry naming another generator is absent too.",
     )
     prework = doc.setdefault("prework", {})
     key = f"{module}@{sel_hash}"
@@ -1331,6 +1391,7 @@ def merge_prework(text, module, sel_hash, stats_sec, clean_sec, measured_at, hos
         "cleanSec": round(float(clean_sec), 1),
         "measuredAt": measured_at,
         "host": host,
+        "generator": generator,
     }
     if isinstance(prior, dict) and prior.get("statsSec") not in (None, entry["statsSec"]):
         entry["supersedes"] = prior.get("statsSec")
@@ -1740,8 +1801,13 @@ UNKNOWN_SIZE_WORKERS = 4
 # not this number.
 
 
-def mutants_size_record(text):
+def mutants_size_record(text, generator):
     """Parse the committed `tools/mutation-sizes.json` into `{(module, src_hash): bytes}`.
+
+    ⚠️ THE GENERATOR IS PART OF THE MEASUREMENT: the size is whatever mutmut WROTE for this source, so
+    an entry that does not name THIS generator is absent, and a tree that cannot name its own generator
+    reads the whole file as absent. `generator_mismatches` names what was dropped. A bare integer is no
+    longer a size, because an integer cannot name a generator.
 
     WHY COMMITTED, and why keyed on the module's SOURCE HASH. Every CI run is a fresh scratch, so a
     size remembered only beside the scratch is a size CI never has: without a record on main, each
@@ -1750,6 +1816,8 @@ def mutants_size_record(text):
     simply ABSENT — never a default, never the nearest entry, because a size from a different version of
     the source is a guess wearing a measurement's clothes (§∅). Tool-written; a hand-edited number here
     would be indistinguishable from a measured one, which is the whole value of the file."""
+    if not isinstance(generator, str) or not generator:
+        return {}
     try:
         doc = json.loads(text or "{}")
     except ValueError:
@@ -1757,20 +1825,30 @@ def mutants_size_record(text):
     out = {}
     for key, entry in (doc.get("sizes") or {}).items():
         module, _, src_hash = key.partition("@")
-        if not module or not src_hash:
+        if not module or not src_hash or not isinstance(entry, dict):
             continue
-        size = entry.get("generatedBytes") if isinstance(entry, dict) else entry
-        if isinstance(size, int) and size > 0:
+        if entry.get("generator") != generator:
+            continue
+        size = entry.get("generatedBytes")
+        # `True` is an `int` in python, and a boolean standing where a byte count belongs is not a
+        # measurement of one byte.
+        if isinstance(size, int) and not isinstance(size, bool) and size > 0:
             out[(module, src_hash)] = size
     return out
 
 
-def merge_mutants_size(text, module, src_hash, generated_bytes, measured_at, host):
+def merge_mutants_size(text, module, src_hash, generated_bytes, measured_at, host, generator):
     """The record with this measurement added, as JSON text. Idempotent on an unchanged measurement.
 
     An existing entry is REPLACED rather than kept or averaged: the same source hash generating a
     different size means the generator changed, and the newer measurement is the one that describes the
-    mutmut this tree pins. The previous value is kept in `supersedes` so the change is visible."""
+    mutmut this tree pins. The previous value is kept in `supersedes` so the change is visible.
+
+    That prose is also why the entry NAMES its generator: "the generator changed" was a reader's
+    inference from two numbers, and `mutants_size_record` could not draw it. An unnameable generator
+    refuses rather than writing an entry no reader can date."""
+    if not isinstance(generator, str) or not generator:
+        raise ValueError("a size record must name the generator that produced the mutants")
     try:
         doc = json.loads(text or "{}")
     except ValueError:
@@ -1780,12 +1858,18 @@ def merge_mutants_size(text, module, src_hash, generated_bytes, measured_at, hos
         "note",
         "Generated-mutants size per (module, source sha256[:12]), written by "
         "tools/mutate.py --record-sizes. NEVER hand-edited: a typed number here is "
-        "indistinguishable from a measured one. A hash miss is absent, not a default.",
+        "indistinguishable from a measured one. A hash miss is absent, not a default, and so is an "
+        "entry that names a different generator: the size is whatever that generator wrote.",
     )
     sizes = doc.setdefault("sizes", {})
     key = f"{module}@{src_hash}"
     prior = sizes.get(key)
-    entry = {"generatedBytes": int(generated_bytes), "measuredAt": measured_at, "host": host}
+    entry = {
+        "generatedBytes": int(generated_bytes),
+        "measuredAt": measured_at,
+        "host": host,
+        "generator": generator,
+    }
     if isinstance(prior, dict) and prior.get("generatedBytes") not in (None, int(generated_bytes)):
         entry["supersedes"] = prior.get("generatedBytes")
     sizes[key] = entry

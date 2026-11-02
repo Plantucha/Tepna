@@ -122,6 +122,7 @@ from mutation_diff import (  # noqa: E402
     GATE_BUDGET_SEC,
     budget_refusal,
     cached_stats_sec,
+    installed_generator,
     prework_record,
     prework_unmeasured_note,
     PREWORK_FILE,
@@ -601,7 +602,7 @@ def main(argv=None) -> int:
     # only measurement the pre-work bound ever has there. Unreadable or malformed reads as EMPTY, which
     # means every module reports its bound unevaluated — loud, and never a fabricated prediction.
     try:
-        _prework = prework_record((HERE / "tools" / PREWORK_FILE).read_text(encoding="utf-8"))
+        _prework = prework_record((HERE / "tools" / PREWORK_FILE).read_text(encoding="utf-8"), installed_generator())
     except OSError:
         _prework = {}
     _prework_unmeasured: list[str] = []  # modules whose pre-work bound examined nothing, with reasons
