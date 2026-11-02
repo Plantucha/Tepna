@@ -86,6 +86,49 @@
     };
   }
 
+  /* ── Re-run addressing (residue 2026-11-02-the-failing-group-rerun-line-cannot-rerun-a-third-of-the-groups) ──
+   A failure footer that suggests `--group=<title>` cannot re-run 265 of the 867 groups. The matcher
+   above compiles each term as a RegExp and falls back to a substring only when that regex THROWS, so
+   a title holding parens, a plus or a dot compiles cleanly and then stops matching itself — and a
+   comma in a title splits it into OR-terms besides. The runner REFUSES a zero-match filter (exit 2,
+   no TAP plan), so a pasted suggestion costs a cycle rather than reading as a pass, but it still
+   cannot re-run the group it names.
+
+   The address that always works is the DECLARATION INDEX: the number `--list` already emits and
+   `dexShardSelector` already selects on, which is why `--group-index` exists at all. Resolution is
+   EXACT title equality over the inventory, and a title the inventory does not hold comes back in
+   `unresolved` rather than vanishing — a suggestion must re-run what it names or say it cannot.
+   An entry with no usable index is no address, so it leaves its title unresolved too. */
+  function dexRerunIndices(titles, inventory) {
+    var byTitle = Object.create(null);
+    var inv = inventory || [];
+    for (var i = 0; i < inv.length; i++) {
+      var e = inv[i];
+      if (!e || typeof e.index !== 'number' || !isFinite(e.index)) continue;
+      var t = String(e.title);
+      if (!byTitle[t]) byTitle[t] = [];
+      byTitle[t].push(e.index);
+    }
+    var indices = [];
+    var unresolved = [];
+    var want = titles || [];
+    for (var k = 0; k < want.length; k++) {
+      var key = String(want[k]);
+      var hit = byTitle[key];
+      if (!hit) {
+        if (unresolved.indexOf(key) < 0) unresolved.push(key);
+        continue;
+      }
+      for (var j = 0; j < hit.length; j++) {
+        if (indices.indexOf(hit[j]) < 0) indices.push(hit[j]);
+      }
+    }
+    indices.sort(function (a, b) {
+      return a - b;
+    });
+    return { indices: indices, unresolved: unresolved };
+  }
+
   /* ── Skip budget (G1 · EFFICIENCY-AUDIT-FINDINGS-2026-07-12) ────────────────
    A ⊘ SKIP counts as NEITHER pass nor fail, so a leg that stops running does not
    red the gate — it just quietly stops being checked, and the suite still reports
@@ -75305,6 +75348,40 @@
         }).length;
       });
       T.eq('a partition claims every group exactly once (no orphan, no duplicate)', claims, [1, 1, 1, 1, 1, 1]);
+
+      /* ── the re-run address (residue 2026-11-02-the-failing-group-rerun-line-…-third-of-the-groups) ──
+         The failure footer's own suggestion has to re-run the group it names. A title is not an
+         address: `mk` compiles it as a regex first, so the metacharacter titles this suite is full of
+         stop matching themselves and the pasted line re-runs NOTHING. These pin the index form the
+         footer now prints, and the round trip through the selector that makes it an address at all. */
+      var rr = dexRerunIndices;
+      var invy = [
+        { index: 4, title: '∅ clock seam — the COMPOSITES refuse too (stress/hrv)' },
+        { index: 9, title: 'OxyDex ODI-4 caveat' },
+        { index: 12, title: 'a, comma, in a title' }
+      ];
+      var paren = invy[0].title;
+      T.ok('the title the footer printed matches NO group under --group= (the defect)', mk(paren)(paren, '') === false);
+      T.eq('…and resolves to its declaration index instead', rr([paren], invy), { indices: [4], unresolved: [] });
+      T.ok('the index re-runs exactly that group (the round trip)', sel(rr([paren], invy).indices)(4) === true && sel(rr([paren], invy).indices)(9) === false);
+      T.ok('a comma in a title splits into OR-terms, so the title over-matches', mk(invy[2].title)('a', '') === true);
+      T.eq('…and that title resolves to one index, not three', rr([invy[2].title], invy), { indices: [12], unresolved: [] });
+      T.eq('several failing groups give one ascending index list', rr([invy[1].title, paren], invy), { indices: [4, 9], unresolved: [] });
+      T.eq('a repeated title is addressed once', rr([paren, paren], invy), { indices: [4], unresolved: [] });
+      T.eq('a title the inventory does not hold is REPORTED, never dropped', rr(['no such group'], invy), { indices: [], unresolved: ['no such group'] });
+      T.eq('an entry with no usable index is no address', rr(['x'], [{ index: null, title: 'x' }]), { indices: [], unresolved: ['x'] });
+      T.eq(
+        'a duplicated title addresses every declaration that carries it',
+        rr(
+          ['t'],
+          [
+            { index: 1, title: 't' },
+            { index: 5, title: 't' }
+          ]
+        ),
+        { indices: [1, 5], unresolved: [] }
+      );
+      T.eq('no failures → no suggestion', rr([], invy), { indices: [], unresolved: [] });
     });
 
     /* ── adapters/resmed-edf.js — ResMed SD-card EDF ingest (CPAP-REAL-CORPUS §F4/§P3) ────
@@ -87369,12 +87446,14 @@
   root.runDexTests = runDexTests;
   root.dexGroupMatcher = dexGroupMatcher;
   root.dexShardSelector = dexShardSelector;
+  root.dexRerunIndices = dexRerunIndices;
   root.auditSkips = auditSkips;
   if (typeof module !== 'undefined' && module.exports)
     module.exports = {
       runDexTests: runDexTests,
       dexGroupMatcher: dexGroupMatcher,
       dexShardSelector: dexShardSelector,
+      dexRerunIndices: dexRerunIndices,
       auditSkips: auditSkips,
       /* EXPORTED so `tools/verify-drafts.mjs` compares through THE REAL comparator rather than a
        copy. This file already learned that lesson once: the `T.eq distinguishes null from NaN`
