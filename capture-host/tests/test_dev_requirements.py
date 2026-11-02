@@ -115,3 +115,26 @@ def test_the_mutation_job_pins_the_pytest_it_installs():
     floor = re.search(r"^pytest>=([^\s#]+)", REQ_DEV.read_text(encoding="utf-8"), re.MULTILINE)
     assert floor, "requirements-dev.txt declares no pytest floor"
     assert pinned.group(1) == floor.group(1), (pinned.group(1), floor.group(1))
+
+
+def test_the_mutation_job_pins_the_mutmut_it_installs():
+    """The mutant GENERATOR is the gate, so the job's inline pin must name the pin this file declares.
+
+    Both this pin's own comment in requirements-dev.txt and the workflow's said "a test asserts they
+    agree" from 2026-09-21 — and the only such test was the pytest one above. So the claim was prose,
+    and the two `mutmut==` literals could have drifted in silence, which is the exact failure the
+    exact pin exists to prevent: on #2776 the two generators examined populations four mutants apart,
+    one of them reaching a branch no local run had ever driven. A gate that can disagree with its own
+    local run by version is not a gate, and neither is a pin nothing compares.
+    """
+    if not WORKFLOW.exists():  # pragma: no cover - capture-host shipped alone
+        pytest.skip("workflow not present in this checkout (scratch copy or lane shipped alone)")
+    lines = [
+        ln for ln in WORKFLOW.read_text(encoding="utf-8").splitlines() if "pip install pytest" in ln and "mutmut" in ln
+    ]
+    assert len(lines) == 1, lines
+    pinned = re.search(r"\bmutmut==([^\s]+)", lines[0])
+    assert pinned, f"the mutation job installs mutmut unpinned: {lines[0].strip()}"
+    declared = re.search(r"^mutmut==([^\s#]+)", REQ_DEV.read_text(encoding="utf-8"), re.MULTILINE)
+    assert declared, "requirements-dev.txt declares no exact mutmut pin"
+    assert pinned.group(1) == declared.group(1), (pinned.group(1), declared.group(1))
