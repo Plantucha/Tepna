@@ -811,21 +811,65 @@ def qc_latch_to_save(digest_sent: _datetime.date | None, gap_alerted: Iterable[s
 # 07:01:46 cleared that memory, and at 07:07:45 the box sent three "sensor offline" alarms for devices
 # whose night had ended and been pulled at 05:44 to 05:47. The 08:03:52 restart did it again at 08:09:52.
 # The box saves the stamps as wall-clock epoch seconds, because a monotonic clock does not carry across
-# a restart or a reboot. A stamp keeps its 8 h expiry.
+# a restart or a reboot. A night-ended stamp has no expiry (see `quiet_licence_holds`).
 QUIET_STATE_NAME = "alert-quiet.json"
 
 
-def quiet_licence_holds(stamp: float | None, now: float, expiry_sec: float = RING_IDLE_EXPECT_MAX_S) -> bool:
-    """PURE: does a monotonic `stamp` (a night-ended note) still license silence at `now`?"""
-    return stamp is not None and 0 <= now - stamp < expiry_sec
+# THE NIGHT-ENDED QUIET HOLDS UNTIL THE NEXT NIGHT BEGINS, NOT FOR A FIXED 8 H. Measured on the capture
+# box from 2026-10-19 to 2026-11-01: one alert, 2026-10-29 12:22, said a device "has been offline for
+# ~481 min — capture is missing it". The device had ended its night that morning and was off by design.
+# Board #2972 (Kestrel, CLAUDE.md §7) ruled that the licence ends when the device records again or when
+# the next night begins.
+#
+# A night begins when a device starts a recording episode between local 18:00 and 03:59. The 18:00 edge
+# is the owner's 2026-10-05 ruling, "a recording begins at the first donning after 18:00"
+# (`nightqc._NIGHT_BEGIN_H`); the 04:00 edge is where `STREAM_MORNING_HOURS` starts. The box reads the
+# start from a worn device, never from the clock alone: a clock edge at 18:00 would raise an alarm for
+# every device on every evening before bedtime. So a device left off while another one records raises the
+# offline alarm, and its minutes count from that start. A night with no device worn raises nothing,
+# because the box cannot tell it from a night away from home.
+NIGHT_BEGIN_H = 18
+NIGHT_BEGIN_HOURS = frozenset(range(NIGHT_BEGIN_H, 24)) | frozenset(range(0, STREAM_MORNING_HOURS.start))
 
 
-def quiet_state_to_save(pull_ok: dict, ended_at: dict, mono_now: float, wall_now: float) -> dict:
+def begins_a_night(hour: int) -> bool:
+    """PURE: does a recording episode that starts at this local hour begin a night?"""
+    return hour in NIGHT_BEGIN_HOURS
+
+
+def quiet_licence_holds(stamp: float | None, night_began: float | None) -> bool:
+    """PURE: does a night-ended `stamp` still license silence? It holds until a night begins after it.
+
+    Both are monotonic seconds. `night_began` is the start of the latest night the poller saw, or None."""
+    return stamp is not None and (night_began is None or night_began < stamp)
+
+
+def quiet_state_to_save(
+    pull_ok: dict, ended_at: dict, mono_now: float, wall_now: float, night_began: float | None = None
+) -> dict:
     """PURE: the monotonic stamps as wall-clock epoch seconds, for the file a restart reads back."""
     return {
         "pull_ok": {n: wall_now - (mono_now - t) for n, t in sorted(pull_ok.items())},
         "ended": {n: wall_now - (mono_now - t) for n, t in sorted(ended_at.items())},
+        "night_began": None if night_began is None else wall_now - (mono_now - night_began),
     }
+
+
+def _restored_stamp(wall, mono_now: float, wall_now: float, max_age: float | None) -> float | None:
+    """One saved wall stamp as a monotonic one, or None for a non-number, a future or a too-old stamp."""
+    if isinstance(wall, bool) or not isinstance(wall, (int, float)):
+        return None
+    age = wall_now - wall
+    if age < 0 or (max_age is not None and age >= max_age):
+        return None
+    return mono_now - age
+
+
+def night_began_restored(saved, mono_now: float, wall_now: float) -> float | None:
+    """PURE: the saved start of the latest night, as a monotonic stamp, or None."""
+    if not isinstance(saved, dict):
+        return None
+    return _restored_stamp(saved.get("night_began"), mono_now, wall_now, None)
 
 
 def quiet_state_restored(
@@ -833,22 +877,52 @@ def quiet_state_restored(
 ) -> tuple[dict, dict]:
     """PURE: `(pull_ok, ended)`, each `{name: monotonic stamp}`, from what `quiet_state_to_save` wrote.
 
-    A stamp older than `max_age`, a stamp in the future (the wall clock moved back) and a value that is
-    not a number are dropped. A dropped stamp costs one alarm; a kept wrong stamp costs a false all-clear."""
+    A stamp in the future (the wall clock moved back) and a value that is not a number are dropped, and so
+    is a `pull_ok` stamp older than `max_age`. An `ended` stamp has no age bound: the next night ends its
+    licence (`quiet_licence_holds`). A dropped stamp costs one alarm; a kept wrong stamp costs a false
+    all-clear."""
     out: tuple[dict, dict] = ({}, {})
     if not isinstance(saved, dict):
         return out
-    for i, key in enumerate(("pull_ok", "ended")):
+    for i, (key, bound) in enumerate((("pull_ok", max_age), ("ended", None))):
         rows = saved.get(key)
         if not isinstance(rows, dict):
             continue
         for name, wall in rows.items():
-            if isinstance(wall, bool) or not isinstance(wall, (int, float)):
-                continue
-            age = wall_now - wall
-            if 0 <= age < max_age:
-                out[i][name] = mono_now - age
+            mono = _restored_stamp(wall, mono_now, wall_now, bound)
+            if mono is not None:
+                out[i][name] = mono
     return out
+
+
+# "CAPTURE STARTED" SAYS WHY. Measured on the capture box from 2026-10-19 to 2026-11-01: 98 "capture
+# started" alerts, and 72 of the starts were deploys. The alert said the same words for a deploy, a boot
+# and a crash, so the owner could not tell them apart (board #2972). The daemon keeps a record of its own
+# run (`RUN_RECORD_NAME`): the boot it ran in, its commit, and its exit code once it stopped. The next
+# start compares that record with itself. A run that left no exit code did not reach the end of its
+# shutdown: a crash, a kill or a power cut.
+RUN_RECORD_NAME = "daemon-run.json"
+
+
+def run_record(boot_id: str | None, git: str | None, stopped: int | None = None) -> dict:
+    """PURE: the record of this run. `stopped` is the exit code, written at the end of the shutdown."""
+    return {"boot_id": boot_id, "git": git, "stopped": stopped}
+
+
+def start_reason(prev, boot_id: str | None, git: str | None) -> str:
+    """PURE: why this daemon started, from the previous run's record, as words for the alert."""
+    if not isinstance(prev, dict):
+        return "no record of a previous run"
+    was_boot, was_git, stopped = prev.get("boot_id"), prev.get("git"), prev.get("stopped")
+    if boot_id and isinstance(was_boot, str) and was_boot != boot_id:
+        return "the box booted"
+    if git and isinstance(was_git, str) and was_git != git:
+        return f"a deploy moved the code from {was_git} to {git}"
+    if isinstance(stopped, bool) or not isinstance(stopped, int):
+        return f"the previous run on {git or 'unknown code'} did not stop cleanly (a crash or a kill)"
+    if stopped == 0:
+        return f"a clean stop and start on the same code ({git or 'unknown'})"
+    return f"the previous run exited with code {stopped} to ask for a restart"
 
 
 def powered_off_after_pull(
