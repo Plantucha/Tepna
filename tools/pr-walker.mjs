@@ -171,7 +171,7 @@ export function plan(classified, state, ctx) {
     if (r.state === 'conflict') {
       const st = (state.rebased || {})[r.headSha];
       if (!st) actions.push({ op: 'rebase', number: r.number, headSha: r.headSha, branch: r.branch, why: 'conflicts with main — rebase-safe once' });
-      else alerts.push({ number: r.number, kind: 'hand-rebase', why: `rebase-safe ${st} on ${String(r.headSha).slice(0, 9)} — rebase by hand` });
+      else alerts.push({ number: r.number, kind: 'hand-rebase', why: `rebase ${st} on ${String(r.headSha).slice(0, 9)} — rebase by hand` });
       continue;
     }
     if (r.state === 'stuck') {
@@ -269,28 +269,42 @@ function saveState(s) {
 }
 
 /* The rebase runs in a worktree the walker OWNS (`--worktree`), never in a bird's checkout. rebase-safe
-   refuses a dirty tree and stops on a source conflict; both leave the branch untouched upstream. */
+   refuses a dirty tree and stops on a source conflict; both leave the branch untouched upstream.
+   DETACHED, never `checkout -B <branch>`: git refuses a branch name another worktree holds (rc 128,
+   "already used by worktree"), and the owning bird holds the worktree for every PR under active work.
+   Measured 2026-11-02 (board #2901): #4233, #4242 and #4245 each alerted `rebase-safe stopped` when
+   rebase-safe had never run. A detached HEAD needs no branch name, and the push names the ref. */
+export function stepResult(step, e) {
+  const line = String((e && (e.stderr || e.message)) || (typeof e === 'string' ? e : ''))
+    .split('\n')
+    .map((l) => l.trim())
+    .find(Boolean);
+  return `stopped:${step}${line ? `: ${line.slice(0, 140)}` : ''}`;
+}
 function rebaseBranch(a, wt) {
   const g = (...args) => sh('git', args, { cwd: wt });
   if (!wt || !existsSync(path.join(wt, '.git'))) return 'no-worktree';
   if (g('status', '--porcelain').trim()) return 'dirty';
   if (!/^claude\//.test(a.branch || '')) return 'not-a-fleet-branch';
+  let step = 'fetch';
   try {
     g('fetch', '-q', 'origin', 'main', a.branch);
-    g('checkout', '-q', '-B', a.branch, `origin/${a.branch}`);
+    step = 'checkout';
+    g('checkout', '-q', '--detach', `origin/${a.branch}`);
     if (g('rev-parse', 'HEAD').trim() !== a.headSha) return 'moved';
+    step = 'rebase-safe';
     sh('node', ['tools/rebase-safe.mjs'], { cwd: wt });
-    g('push', '-q', `--force-with-lease=${a.branch}:${a.headSha}`, 'origin', a.branch);
+    step = 'push';
+    g('push', '-q', `--force-with-lease=${a.branch}:${a.headSha}`, 'origin', `HEAD:refs/heads/${a.branch}`);
     return `pushed:${g('rev-parse', 'HEAD').trim()}`;
-  } catch {
+  } catch (e) {
     try {
       g('rebase', '--abort');
     } catch {}
-    return 'stopped';
+    return stepResult(step, e);
   } finally {
     try {
       g('checkout', '-q', '--detach', 'origin/main');
-      g('branch', '-q', '-D', a.branch);
     } catch {}
   }
 }
@@ -451,6 +465,16 @@ function selftest() {
   eq(/^🚶 \*\*The fleet walker marked this PR ready for review \(undrafted\)\*\* at 11:45 UTC, 2026-11-01\./.test(sig), true, 'signature names the walker, the action and the time');
   eq(signature({ op: 'ready', number: 3, result: 'failed: x', why: 'w' }, '2026-11-01T11:45:09Z'), null, 'a failed action signs nothing');
   eq(signature({ op: 'rebase', number: 3, result: 'stopped', why: 'w' }, '2026-11-01T11:45:09Z'), null, 'a stopped rebase signs nothing');
+  const used = { stderr: "fatal: 'claude/x-hrn' is already used by worktree at '/w'\n" };
+  eq(stepResult('checkout', used), "stopped:checkout: fatal: 'claude/x-hrn' is already used by worktree at '/w'", 'a stop names the step that failed and its first stderr line');
+  eq(stepResult('rebase-safe', {}), 'stopped:rebase-safe', 'a stop with no message still names its step');
+  eq(signature({ op: 'rebase', number: 3, result: 'stopped:push: x', why: 'w' }, '2026-11-01T11:45:09Z'), null, 'a step-named stop signs nothing');
+  const hr = plan(
+    [classify(mk({ number: 9, isDraft: false, mergeState: 'DIRTY' }), req)],
+    { reruns: {}, rebased: { [mk({}).headSha]: 'stopped:rebase-safe' } },
+    { nowMs: 0, mainMovedAtMs: 0, cap: 4 }
+  );
+  eq(hr.alerts[0].why.startsWith('rebase stopped:rebase-safe on '), true, 'the hand-rebase alert names the step, never rebase-safe by default');
   console.log(`all ${ran} selftests passed`);
 }
 
