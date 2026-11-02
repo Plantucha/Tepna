@@ -75,6 +75,14 @@ export function loadSpine() {
    same stride. A density difference moves an extreme-value statistic, so a census that invented its
    own stride would not be comparable with what the nodes see. */
 export const ANCHOR_STEP = 500;
+
+/* TWO DESCRIPTIVE STRATA, never criteria (§🧾). The criterion is the pre-stated ratio bound and
+   nothing here moves it. `MEDIAN_WIDTH` is the spine's own running-median width, so a stream with
+   fewer anchors than this has a smoothed statistic with nothing to smooth; `STRATUM_SPAN_MS` is ten
+   minutes, which separates a fragment from a recording. A worst-case ratio quoted over the whole
+   measured set hides which of the two it came from. */
+export const MEDIAN_WIDTH = 21;
+export const STRATUM_SPAN_MS = 600000;
 /* Polar Sensor Logger layout. The serial sits in group 2 and is dropped immediately. */
 export const RE_PSL = /^Polar_(H10|VeritySense)_([^_]+)_(\d{14})_([A-Z0-9]+)\.txt$/;
 export const HOST_COL = 'Phone timestamp';
@@ -166,8 +174,11 @@ export function measureStream(anchors, spine, bound) {
     spanMs: Number.isFinite(st.spanMs) ? st.spanMs : null,
     ratio: Number.isFinite(ratio) ? ratio : ratio === Infinity ? Infinity : null,
     flagged,
-    /* THE ROW'S HARM, one boolean: the step is impossible and the spine said yes. */
-    acceptedByTheSpine: flagged && ax.ok === true
+    /* THE ROW'S HARM, one boolean: the step is impossible AND the spine said yes. It is a
+       CONJUNCTION, not a population — an earlier name, `acceptedByTheSpine`, read as "the spine
+       accepted this stream" and its author misread a corpus-wide 0 as "the spine accepted nothing"
+       within the hour. `axisOk` is the population; this field is the harm. */
+    flaggedAndAccepted: flagged && ax.ok === true
   };
 }
 
@@ -261,7 +272,8 @@ export function censusPopulation(rows, bound) {
   const checked = rows.filter((r) => r.measured);
   const excluded = rows.filter((r) => !r.measured);
   const flagged = checked.filter((r) => r.flagged);
-  const accepted = checked.filter((r) => r.acceptedByTheSpine);
+  const accepted = checked.filter((r) => r.flaggedAndAccepted);
+  const axisOk = checked.filter((r) => r.axisOk === true);
   let worstUnflagged = null;
   for (const r of checked) {
     if (r.flagged || !Number.isFinite(r.ratio)) continue;
@@ -271,6 +283,36 @@ export function censusPopulation(rows, bound) {
      twice the corpus. The per-group split is DATA beside the count, never a deduplication: two
      copies of one night are two files on disk, and a reader deciding about the spine needs to know
      which number is which. */
+  /* THE WORST RATIO ON AN AXIS THE SPINE ACCEPTED is the number the row is about: a refused axis
+     carries no statistic to mislead anyone. Each stratum reports its own worst stream, because the
+     same ratio means one thing on a three-anchor fragment and another on an hour of ECG. */
+  const strata = [
+    { label: 'axis accepted', keep: () => true },
+    { label: `axis accepted, at least ${MEDIAN_WIDTH} anchors`, keep: (r) => r.n >= MEDIAN_WIDTH },
+    { label: `axis accepted, span at least ${STRATUM_SPAN_MS / 1000} s`, keep: (r) => r.spanMs >= STRATUM_SPAN_MS }
+  ].map((s) => {
+    const pool = axisOk.filter((r) => Number.isFinite(r.ratio) && s.keep(r));
+    let worst = null;
+    for (const r of pool) if (worst === null || r.ratio > worst.ratio) worst = r;
+    return {
+      label: s.label,
+      n: pool.length,
+      worstRatio: worst ? worst.ratio : null,
+      worst: worst
+        ? {
+            night: worst.night,
+            device: worst.device,
+            stream: worst.stream,
+            anchors: worst.n,
+            rawStepMs: worst.rawStepMs,
+            spanMs: worst.spanMs,
+            stackJitterMs: worst.stackJitterMs,
+            maxStepMs: worst.maxStepMs
+          }
+        : null
+    };
+  });
+
   const groups = {};
   for (const r of rows) {
     const g = String(r.group || '.');
@@ -293,7 +335,8 @@ export function censusPopulation(rows, bound) {
     status = 'FAIL';
     reason =
       `${flagged.length} of ${checked.length} measured stream(s) carry an anchor step at or over the ` +
-      `recording's own span, which no continuous recording can do; the spine accepted ${accepted.length} of them`;
+      `recording's own span, which no continuous recording can do; the spine's own checks already ` +
+      `refused ${flagged.length - accepted.length} of them and accepted ${accepted.length}`;
   } else {
     status = 'PASS';
   }
@@ -305,8 +348,11 @@ export function censusPopulation(rows, bound) {
     eligible: rows.length,
     excluded: excluded.length,
     flagged: flagged.length,
-    acceptedByTheSpine: accepted.length,
+    flaggedAndAccepted: accepted.length,
+    axisAccepted: axisOk.length,
+    axisRefused: checked.length - axisOk.length,
     worstUnflaggedRatio: worstUnflagged,
+    strata,
     exclusionReasons: reasons,
     groups
   };
@@ -324,8 +370,11 @@ export function censusVerdict(rows, roots, bound, commit) {
         ? null
         : {
             flagged: p.flagged,
-            acceptedByTheSpine: p.acceptedByTheSpine,
+            flaggedAndAccepted: p.flaggedAndAccepted,
+            axisAccepted: p.axisAccepted,
+            axisRefused: p.axisRefused,
             worstUnflaggedRatio: p.worstUnflaggedRatio,
+            worstAcceptedRatio: p.strata[0] ? p.strata[0].worstRatio : null,
             stepOverSpanBound: bound
           },
     evidence: ['tools/wild-anchor-census.mjs', 'radio-clock.js', 'clock.js', ...roots.map((r) => `${collapseHome(r)} (walked root)`)],
@@ -347,6 +396,19 @@ export function censusLines(rows, pop, roots) {
   }
   if (pop.worstUnflaggedRatio !== null) out.push(`  worst ratio among the streams the bound did NOT flag: ${pop.worstUnflaggedRatio.toExponential(2)}`);
   else out.push('  no measured stream carries a finite ratio, so nothing bounds the clean side');
+  out.push(`  the spine accepted ${pop.axisAccepted} of ${pop.checked} measured axis/axes and refused ${pop.axisRefused}`);
+  for (const s of pop.strata || []) {
+    if (!s.n || !s.worst) {
+      out.push(`  ${s.label}: no stream carries a finite ratio`);
+      continue;
+    }
+    out.push(`  ${s.label}: ${s.n} stream(s), worst ratio ${s.worstRatio.toExponential(3)}`);
+    out.push(
+      `    ${s.worst.night} ${s.worst.device} ${s.worst.stream} — raw step ${Math.round(s.worst.rawStepMs)} ms over ` +
+        `${Math.round(s.worst.spanMs / 1000)} s on ${s.worst.anchors} anchors; the spine reported jitter ` +
+        `${s.worst.stackJitterMs} ms and maxStep ${s.worst.maxStepMs} ms`
+    );
+  }
   for (const [g, c] of Object.entries(pop.groups || {}).sort()) out.push(`  group ${g}: ${c.streams} stream(s), ${c.measured} measured, ${c.flagged} flagged`);
   for (const [k, n] of Object.entries(pop.exclusionReasons).sort()) out.push(`  excluded ${n} × ${k}`);
   out.push(`  ${pop.status}${pop.reason ? ` — ${pop.reason}` : ''}`);
@@ -406,13 +468,19 @@ function selftest() {
   const wildM = measureStream(wild, spine, spine.radio.CK_RADIO_STEP_OVER_SPAN);
   eq('one wild anchor is flagged by the step ratio', wildM.flagged, true);
   eq('…and BOTH spine statistics stay small, which is the row', [wildM.stackJitterMs < 2, wildM.maxStepMs < 2], [true, true]);
-  eq('…so the harm is recorded: an impossible step the spine accepted', wildM.acceptedByTheSpine, true);
+  eq('…so the harm is recorded: an impossible step the spine accepted', wildM.flaggedAndAccepted, true);
   /* The population arithmetic. */
   const row = (o) => ({ night: '2026-08-15', group: 'captures', device: 'H10', stream: 'ACC', measured: true, ...o });
   const popClean = censusPopulation([row({ ...cleanM })], 1);
   eq('population · a clean census is PASS and carries the clean side', [popClean.status, popClean.flagged, popClean.worstUnflaggedRatio !== null], ['PASS', 0, true]);
   const popWild = censusPopulation([row({ ...wildM })], 1);
-  eq('population · one flagged stream FAILS and names the spine it passed', [popWild.status, popWild.flagged, popWild.acceptedByTheSpine], ['FAIL', 1, 1]);
+  eq('population · one flagged stream FAILS and names the spine it passed', [popWild.status, popWild.flagged, popWild.flaggedAndAccepted], ['FAIL', 1, 1]);
+  eq(
+    'strata · the worst ratio is reported per stratum, and a stratum with no stream says so',
+    [popWild.strata.length, popWild.strata[0].label, popWild.strata[0].n >= 1, popWild.strata[2].n === 0 ? popWild.strata[2].worstRatio : 'a stream cleared ten minutes'],
+    [3, 'axis accepted', true, null]
+  );
+  eq('strata · an accepted axis is counted apart from the harm conjunction', [popWild.axisAccepted, popWild.axisRefused], [1, 0]);
   eq('…and the reason says no continuous recording can do that', /no continuous recording can do/.test(popWild.reason || ''), true);
   const popNone = censusPopulation([], 1);
   eq('population · nothing measurable is NOT_RUN, never PASS', [popNone.status, popNone.checked], ['NOT_RUN', 0]);
