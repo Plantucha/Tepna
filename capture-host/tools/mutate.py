@@ -108,6 +108,8 @@ from mutation_diff import (  # noqa: E402  (after the sys.path fix above)
     generation_cap_sec,
     generation_timeout_reason,
     results_timeout_reason,
+    generator_mismatches,
+    installed_generator,
     merge_mutants_size,
     merge_prework,
     mutants_size_record,
@@ -633,18 +635,33 @@ def run_one(
         #      scratch. Without it each capture.py PR spends its whole generation budget rediscovering
         #      that capture.py generates 562 MB and fits nowhere.
         # A hash miss is ABSENT, not the nearest entry: a size from a different version of the source is
-        # a guess wearing a measurement's clothes.
+        # a guess wearing a measurement's clothes. So is a size from a different GENERATOR, because the
+        # size is whatever that generator wrote — and that absence is NAMED here rather than left to
+        # read as a first run on this hash.
         _mutants_bytes, _size_basis = 0, "unknown"
         try:
             _mutants_bytes, _size_basis = int(_size_note.read_text(encoding="utf-8").strip()), "scratch note"
         except (OSError, ValueError):
+            _gen = installed_generator()
             try:
-                _rec = mutants_size_record((HERE / "tools" / SIZES_FILE).read_text(encoding="utf-8"))
+                _sizes_text = (HERE / "tools" / SIZES_FILE).read_text(encoding="utf-8")
             except OSError:
-                _rec = {}
+                _sizes_text = ""
+            _rec = mutants_size_record(_sizes_text, _gen)
             _known = _rec.get((module, src_hash))
             if _known:
-                _mutants_bytes, _size_basis = _known, f"committed record ({SIZES_FILE})"
+                _mutants_bytes, _size_basis = _known, f"committed record ({SIZES_FILE}, mutmut {_gen})"
+            else:
+                # ∅ NAME THE ABSENCE. A record entry dropped for naming another generator must not read
+                # as a first run on this hash: membership says an entry exists, and its value names the
+                # generator that measured it — None for an entry written before the field existed.
+                _stale = generator_mismatches(_sizes_text, "sizes", _gen)
+                _skey = f"{module}@{src_hash}"
+                if _gen is None:
+                    _size_basis = "unknown (no mutmut installed, so no record can describe this tree)"
+                elif _skey in _stale:
+                    _by = _stale[_skey] or "an unnamed generator"
+                    _size_basis = f"unknown (the record measured {module} under mutmut {_by}, not {_gen})"
     try:
         with open("/proc/meminfo", encoding="utf-8") as _fh:
             _avail = available_bytes_from_meminfo(_fh.read())
@@ -979,6 +996,7 @@ def main(argv=None) -> int:
                     r["mutants_bytes"],
                     time.strftime("%Y-%m-%d"),
                     platform.node(),
+                    installed_generator(),
                 ),
                 encoding="utf-8",
             )
@@ -1001,6 +1019,7 @@ def main(argv=None) -> int:
                     r["clean_run_sec"],
                     time.strftime("%Y-%m-%d"),
                     platform.node(),
+                    installed_generator(),
                 ),
                 encoding="utf-8",
             )
