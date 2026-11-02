@@ -113,7 +113,7 @@ UNMEASURED_BY_DESIGN: dict[str, str] = {
         "a test would either refuse on the anchor or, worse, patch a line mutmut had already "
         "mutated and compare two mutants. Its battery is 1 240 769 payloads and 28 collector runs, "
         "which is also an order of magnitude past what belongs in a 70-second suite. Its claims are "
-        "re-checked by running it, and the eight equivalence entries it supports name it"
+        "re-checked by running it, and the six equivalence entries it supports name it"
     ),
     "tools/probe_verity_equivalence.py": (
         "a hand-run probe, and a DELIBERATELY WEAK PIN. It rebuilds each claimed-equivalent mutant "

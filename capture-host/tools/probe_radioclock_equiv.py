@@ -1,16 +1,16 @@
 # tepna-capture — tools/probe_radioclock_equiv.py
 # Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
-"""ARE `radioclock.py`'S EIGHT SURVIVING MUTANTS UNKILLABLE? — the probe behind their
+"""ARE `radioclock.py`'S SIX SURVIVING MUTANTS UNKILLABLE? — the probe behind their
 `tools/mutate-equivalence.json` entries.
 
 `tools/probe_equivalence.py` is the general Python prober, and its battery is written for
-`polar_pmd.decode_frame`: one frame in, one decode out. These eight survivors sit in a BLE framing
+`polar_pmd.decode_frame`: one frame in, one decode out. These six survivors sit in a BLE framing
 parser and in a collector method, so neither the inputs nor the comparison are that shape. This
 module is the battery for them, built the way the sibling is: each mutant is compiled as a real
 module from patched source, one battery runs through original and mutant, and every return value is
 compared.
 
-🔴 IT FAILS CLOSED. Four canary mutations are run through the same battery, and each MUST be seen. A
+🔴 IT FAILS CLOSED. Six canary mutations are run through the same battery, and each MUST be seen. A
 battery that cannot distinguish a parser ignoring the L2CAP channel id is not reaching the parser at
 all, and every equivalence it reports would be vacuous rather than true — the shape
 `tools/probe_equivalence.py` names as the reason its own canaries exist.
@@ -75,9 +75,16 @@ MUTANTS = {
     "body_le4": ("if len(body) < 4:", "if len(body) <= 4:"),
     "body_lt5": ("if len(body) < 4:", "if len(body) < 5:"),
     "body_unpack_default": ('struct.unpack_from("<HH", body, 0)', 'struct.unpack_from("<HH", body)'),
-    "anchors_none": ("self._anchors.get(handle, [])", "self._anchors.get(handle, None)"),
-    "anchors_default": ("self._anchors.get(handle, [])", "self._anchors.get(handle)"),
 }
+
+# 🔴 THE TWO `anchors_*` MUTANTS MOVED OUT OF THIS DICT AND INTO `canary()` ON 2026-11-02, because
+# the code answered the question for them. `self._anchors.get(handle, [])` used to be an argument to
+# `associate`, which reads `not anchors` and so could not tell `[]` from `None`. The series now also
+# feeds a list comprehension and `anchor_rx_ns`, and both of those ITERATE it, so each mutant raises
+# `TypeError: 'NoneType' object is not iterable` on the first ACL packet of a handle with no anchor
+# table. A mutant the tests kill needs no excuse, and the two ledger entries that excused them are
+# gone. They stay in this file as canaries the battery MUST see: that way a later change that makes
+# the default unread again cannot pass this probe in silence.
 MODS = {k: build(k, *v) for k, v in MUTANTS.items()}
 
 PARSE = [k for k in MUTANTS if not k.startswith("anchors")]
@@ -195,6 +202,18 @@ TABLES: tuple[dict[int, list[tuple[int, int]]], ...] = (
 OFFS = ((None, None), (300.0, 100.0), (300.0, None), (None, 100.0), (0.0, 0.0), (-5.0, 1e9), (300.0, 0.0))
 
 
+def acl_rows_or_raise(mod, anchors, offsets):
+    """The rows, or the name of the exception that replaced them.
+
+    A mutant that CRASHES differs from one that answers, and a canary has to be able to say so
+    without ending the run. The returned shape can never equal a real row list, so a raise reads as
+    a difference and never as agreement."""
+    try:
+        return acl_rows(mod, anchors, offsets)
+    except Exception as exc:  # noqa: BLE001 — any raise is a difference, and its type is the evidence
+        return ("RAISED", type(exc).__name__)
+
+
 def probe_acl():
     n = 0
     bad = {k: 0 for k in ACLK}
@@ -240,7 +259,31 @@ def canary():
             if acl_rows(mod, t, o) != acl_rows(BASE, t, o):
                 seen += 1
     out["anchors_ignored"] = seen
+    # ...and the two defaults this file once held equivalent. Both now reach an iteration, so each
+    # one RAISES rather than answering, which `acl_rows_or_raise` reports as the difference it is.
+    for name, new_text in (
+        ("anchors_none", "self._anchors.get(handle, None)"),
+        ("anchors_default", "self._anchors.get(handle)"),
+    ):
+        mod = build(name, "self._anchors.get(handle, [])", new_text)
+        out[name] = sum(
+            1 for t in TABLES for o in OFFS if acl_rows_or_raise(mod, t, o) != acl_rows_or_raise(BASE, t, o)
+        )
     return out
+
+
+# The counts a clean hand run prints, so the canned sample and the selftest cannot drift from the
+# battery. Measured 2026-11-02 on `87569847b`: the three parser canaries are capped at 4 by the loop
+# that counts them, `anchors_ignored` differs in 11 of the 28 collector runs, and the two defaults
+# RAISE in all 28 — a handle with no anchor table appears in every table the probe runs.
+CLEAN_CANARIES = {
+    "cid_ignored": 2,
+    "opcode_ignored": 2,
+    "continuation_read": 2,
+    "anchors_ignored": 11,
+    "anchors_none": 28,
+    "anchors_default": 28,
+}
 
 
 def verdict_object(
@@ -298,7 +341,7 @@ def verdict_object(
 def verdict_sample() -> dict:
     """The object the adoption gate reads (`--verdict-sample`): canned counts, no battery."""
     return verdict_object(
-        {"cid_ignored": 2, "opcode_ignored": 2, "continuation_read": 2, "anchors_ignored": 11},
+        CLEAN_CANARIES,
         1_240_769,
         dict.fromkeys(PARSE, 0),
         28,
@@ -316,7 +359,7 @@ def selftest() -> int:
     kills that no test earned. So the three branches are checked here, where nothing imports them
     except a hand run and this flag.
     """
-    clean_c = {"cid_ignored": 2, "opcode_ignored": 2, "continuation_read": 2, "anchors_ignored": 11}
+    clean_c = dict(CLEAN_CANARIES)
     clean_p, clean_a = dict.fromkeys(PARSE, 0), dict.fromkeys(ACLK, 0)
     declared = len(PARSE) + len(ACLK)
     bad_p = {**clean_p, "body_le4": 3}
