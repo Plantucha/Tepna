@@ -52183,11 +52183,42 @@
       /* THE BADGE. Two grades, one card, and the registry is the only source for either (§🎫). */
       T.ok('the ratio is badged MEASURED — it is a ratio of two measured HR medians', /gateEv: \[\s*\n?\s*'measured'/.test(pg));
       T.ok('the verdict keeps its EXPERIMENTAL grade — a rule is not a measurement', /gate: \['experimental'/.test(pg));
-      T.ok('the ratio badge goes through MetricRegistry, never hand-rolled CSS', /evb\('gateEv'\)/.test(pg));
       var gi = pg.indexOf('function gateEvidence');
-      var gbody = gi >= 0 ? pg.slice(gi, gi + 1200) : '';
-      T.ok('the measured badge rides the FINITE branch only, so no badge sits on an absence', gbody.indexOf("evb('gateEv')") > gbody.indexOf('const txt'));
+      /* BRACE-WALKED, not a fixed window: a window that overshoots the function reads the NEXT
+         renderer's `innerHTML` and the no-sink leg below can never go red. */
+      var gbody = '';
+      if (gi >= 0) {
+        var gd = 0,
+          gstarted = false;
+        for (var gk = gi; gk < pg.length; gk++) {
+          if (pg.charAt(gk) === '{') {
+            gd++;
+            gstarted = true;
+          } else if (pg.charAt(gk) === '}') {
+            gd--;
+            if (gstarted && gd === 0) {
+              gbody = pg.slice(gi, gk + 1);
+              break;
+            }
+          }
+        }
+      }
+      T.ok('the renderer body is bounded by its own braces, so the legs below read it alone', gbody.length > 200 && gbody.length < 2000, gbody.length + ' chars');
+      /* The badge goes through the page's inline-badge helper, which writes `MetricRegistry.badge()`
+         output — one sink, one escaper. `verify:xss-sink` reds a NEW `innerHTML` line whose right-hand
+         side keeps an identifier, and a badge producer is exactly that, because it returns markup. */
+      T.ok('the ratio badge goes through the page’s MetricRegistry helper, never hand-rolled CSS', /seriesBadges\('kGate',[^\n]*'gateEv'/.test(gbody));
+      /* The gate's OWN sink pattern (tools/xss-sink-gate.mjs SINK_RE), not the word: this renderer's
+         comment names `innerHTML` to explain why it has none, and a word search reads that as a sink. */
+      T.ok('the renderer adds NO innerHTML sink of its own — the sink stays in one helper', gi >= 0 && !/\.innerHTML\s*(?:\+=|=)/.test(gbody));
+      T.ok(
+        'the measured badge rides the FINITE branch only, so no badge sits on an absence',
+        /txt \? \[\['gateEv', txt\]\] : \[\]/.test(gbody),
+        'an empty item list also CLEARS the strip, so a night with no ratio cannot show the last one’s'
+      );
       T.ok('the absence branch names its reason instead of a number', /no HR ratio/.test(gbody) && !/toFixed/.test(gbody));
+      T.ok('…and writes it as TEXT, so the reason is not a sink either', /el\.textContent = txt \?/.test(gbody));
+      T.ok('the verdict badge keeps the CARD CORNER, which is the other §🎫 placement', /corner\(\$\('kGate'\), 'gate'\)/.test(pg));
 
       /* THE REASON THE ELEMENT EXISTS. `kpi()` writes textContent, so a badge span cannot ride in the
          value or the sub-line. A later author reading only the markup would see a third div with no cause. */
@@ -52209,8 +52240,8 @@
           /id="kGateEv"/.test(card),
           'the element must be a child of #kGate — beside the verdict it evidences, not in another card'
         );
-        T.ok('its class is defined in the page CSS, so the line is not unstyled', /\.ts-kpiev\s*\{/.test(html));
-        T.ok('the absence class is defined too', /\.ts-noev\s*\{/.test(html));
+        T.ok('the absence class is defined in the page CSS, so the reason is not unstyled', /\.ts-noev\s*\{/.test(html));
+        T.ok('the inline-badge strip this card borrows is styled too', /\.ts-evser\s*\{/.test(html) && /\.ts-evitem\s*\{/.test(html));
         T.eq('exactly one evidence element exists', (html.match(/id="kGateEv"/g) || []).length, 1);
       }
     });
