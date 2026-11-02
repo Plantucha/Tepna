@@ -2980,6 +2980,102 @@
       );
       T.eq("the parse layer's `drawn` spelling reaches the same verdict as the spine's `deviceDrawn`", nodeSpelling && nodeSpelling.rate, 'unknown');
 
+      /* ── THE SEGMENT MODEL'S FLATNESS FLOOR, ON SPANS THAT CLEAR EVERY EARLIER TEST ───────────────
+         Row `2026-10-29-the-implied-single-segment-publishes-a-rate-with-no-floor-applied`. A
+         recording the model never segmented contributes ONE IMPLIED segment, `ppgOffsetSegments`
+         floors it, and `offsetSegments` is published only where `multiSeg` holds — so until now that
+         verdict was computed and dropped, and the whole-file rate published with the node's own last
+         floor unapplied. The span half of the floor reached this chain on 2026-10-31 and the
+         drawn/independent half in #4218; this is the third and last test.
+         EVERY ARM BELOW IS BUILT FROM `longRun.ha`, the one axis this group already proves reads
+         'measured', so each differs from a known-passing control in exactly ONE fact. The numbers are
+         the corpus's own: over 364 of 3633 PPG fragments (stride 10), 331 build an axis, 14 reach
+         'measured' under the earlier tests and 3 of those read `flat:false` — single-segment Polar
+         recordings spanning 9 h that quote -30.8 to -38.2 ppm off a 288-312 ms residual against a
+         91-96 ms jitter. No committed fixture reaches this branch, which is why it is planted. */
+      var flatBase = function (over) {
+        var o = {};
+        for (var k3 in longRun.ha) if (Object.prototype.hasOwnProperty.call(longRun.ha, k3)) o[k3] = longRun.ha[k3];
+        for (var k4 in over) if (Object.prototype.hasOwnProperty.call(over, k4)) o[k4] = over[k4];
+        return expOf(o);
+      };
+      T.ok(
+        'ANTI-VACUITY · the axis every flatness arm is built from really reads "measured" with no flatness of its own',
+        longRun.out.rate === 'measured' && longRun.out.flat === null && longRun.out.segments === null,
+        'rate=' + longRun.out.rate + ' flat=' + JSON.stringify(longRun.out.flat) + ' segments=' + JSON.stringify(longRun.out.segments)
+      );
+      /* THE FLOOR DOES NOT RUN OVER A RAW SPINE AXIS, and that is not a defect to fail closed on.
+         `flat` is NOT a spine field — `clock.js` computes no flatness — so unlike `drawn` and
+         `independent` a null here does not mean this reshape dropped a key: it means the caller handed
+         `buildNodeExport` an axis rather than a parse, which this group itself does on every arm.
+         Refusing those would refuse a test that never ran, so the absence is published in its OWN two
+         keys where a reader sees it, never folded into `rate`. */
+      T.eq('…so a raw spine axis keeps its verdict and publishes the absence instead', longRun.out.rate, 'measured');
+      var unflat = flatBase({ segments: 1, flat: false, flatResidualMs: 312.2, flatJitterMs: 94.3 });
+      var flatOk = flatBase({ segments: 1, flat: true, flatResidualMs: 12.4, flatJitterMs: 94.3 });
+      var unjudged = flatBase({ segments: 1, flat: null, flatResidualMs: null, flatJitterMs: null });
+      T.ok(
+        'ANTI-VACUITY · all three planted arms carry a segment count, so the floor binds on each',
+        !!unflat && !!flatOk && !!unjudged && unflat.segments === 1 && flatOk.segments === 1 && unjudged.segments === 1,
+        'segments=' + [unflat && unflat.segments, flatOk && flatOk.segments, unjudged && unjudged.segments].join(',')
+      );
+      if (unflat) {
+        T.eq('an IMPLIED single segment that is not flat publishes rate "unknown" over a 3990 s span', unflat.rate, 'unknown');
+        T.ok(
+          '…with a reason naming the residual, the multiple and the jitter that refused — not the span',
+          typeof unflat.rateReason === 'string' && /residual 312\.2 ms/.test(unflat.rateReason) && /over 3x the 94\.3 ms jitter/.test(unflat.rateReason) && !/a rate needs/.test(unflat.rateReason),
+          'rateReason=' + JSON.stringify(unflat.rateReason)
+        );
+        T.ok('…and the ppm still travels beside it — this annotates, it does not refuse', typeof unflat.ppm === 'number' && isFinite(unflat.ppm), 'ppm=' + unflat.ppm);
+        T.eq('…and the two numbers behind the verdict are published, per §7', unflat.flatResidualMs, 312.2);
+        T.eq('…the jitter with them', unflat.flatJitterMs, 94.3);
+      }
+      if (flatOk) {
+        T.eq('a flat implied segment over the same span publishes rate "measured"', flatOk.rate, 'measured');
+        T.eq('…and carries no reason, because nothing refused it', flatOk.rateReason, null);
+      }
+      /* §∅ · the test RAN and declined. The segment count says the model was there, so an unmeasured
+         flatness may not certify the rate — it fails closed, and it says which test could not decide
+         rather than borrowing the span's sentence. Unreachable on a parsed recording (an `ok` axis
+         holds 3 anchors, so its one segment holds 2 jumps and a jitter scale), and pinned anyway. */
+      if (unjudged) {
+        T.eq('a segment model that ran and could not judge flatness fails closed', unjudged.rate, 'unknown');
+        T.ok(
+          '…naming its own test, never the span or the counter',
+          typeof unjudged.rateReason === 'string' &&
+            /could not judge flatness/.test(unjudged.rateReason) &&
+            !/a rate needs/.test(unjudged.rateReason) &&
+            !/counter with no oscillator/.test(unjudged.rateReason),
+          'rateReason=' + JSON.stringify(unjudged.rateReason)
+        );
+      }
+      /* ONE PREDICATE, ONE COPY. `ppgOffsetSegments` publishes each segment's own `flat`, and the
+         whole-file verdict is a three-valued AND over them — so `rms > PPG_FLAT_RESIDUAL_K * jitter`
+         is written once. A second copy one layer up is how two layers drift apart, and this leg reads
+         the segment field rather than re-deriving it. */
+      if (typeof P.ppgOffsetSegments === 'function') {
+        var flatAnchors = [];
+        for (var m2 = 0; m2 < 40; m2++) flatAnchors.push({ devMs: m2 * 1000, hostMs: m2 * 1000 + 5 });
+        var flatSegOut = P.ppgOffsetSegments(flatAnchors, 10000);
+        T.ok(
+          'every segment publishes its own flatness as a tri-state',
+          !!flatSegOut &&
+            flatSegOut.ok &&
+            flatSegOut.segments.length >= 1 &&
+            flatSegOut.segments.every(function (s) {
+              return s.flat === true || s.flat === false || s.flat === null;
+            }),
+          'flat=' +
+            JSON.stringify(
+              ((flatSegOut && flatSegOut.segments) || []).map(function (s) {
+                return s.flat;
+              })
+            )
+        );
+      } else {
+        T.skip('PPGDSP.ppgOffsetSegments exported', 'not exported');
+      }
+
       /* ── `rateApplied` FROM A FILE, where the fs division either survives or does not ──────────────
          The committed finger twin is the one fixture that takes both branches: `device-crystal`
          overwrites `fs` with the 125.000 ADC constant AFTER the division, so its measured ppm reaches
@@ -3571,6 +3667,13 @@
         'drawn',
         'drawnReason',
         'drawnShare',
+        /* The segment model's flatness floor and the two numbers that decided it, plus the count of
+           segments it was reduced over — PpgDex only, because `ppgOffsetSegments` is this node's and
+           `clock.js` computes no flatness. `segments: null` is how a reader tells a raw spine axis,
+           over which the floor never ran, from a parsed recording where it did. */
+        'flat',
+        'flatJitterMs',
+        'flatResidualMs',
         'independent',
         'inertReason',
         'maxStepMs',
@@ -3580,6 +3683,7 @@
         'rate',
         'rateApplied',
         'rateReason',
+        'segments',
         'spanMs',
         'spanPpm',
         'spreadMs',
@@ -3656,14 +3760,22 @@
         'stability',
         'timingSource'
       ]);
-      T.eq('PpgDex alone publishes the eight fields only it measures', onlyIn(DECLARED_PPG, DECLARED_ECG, DECLARED_MOTION), [
+      /* Twelve since 2026-11-01: `ppgOffsetSegments` is this node's own model, so the flatness floor
+         it applies and the three numbers behind that verdict are PpgDex-only by construction.
+         `clock.js` computes no flatness, which is also why a null `flat` over a raw spine axis is a
+         legitimate absence here and not a dropped key. */
+      T.eq('PpgDex alone publishes the twelve fields only it measures', onlyIn(DECLARED_PPG, DECLARED_ECG, DECLARED_MOTION), [
         'drawn',
         'drawnReason',
+        'flat',
+        'flatJitterMs',
+        'flatResidualMs',
         'inertReason',
         'quantizedShare',
         'rate',
         'rateApplied',
         'rateReason',
+        'segments',
         'totalMs'
       ]);
       T.eq('ECGDex alone publishes the three fields only it measures', onlyIn(DECLARED_ECG, DECLARED_PPG, DECLARED_MOTION), ['note', 'ppmUncertainty', 'tMsCorrected']);
