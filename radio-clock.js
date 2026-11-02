@@ -105,6 +105,29 @@
  * the suite's own plants were re-cut to a realistic device axis to earn it —
  * the discipline `clock.js:638` asks of a node adopting the flag.
  *
+ * ════ A HOLE IN THE ANCHOR SEQUENCE IS PUBLISHED, NOT REFUSED ════════════
+ * The link drops, the collector keeps appending, and the file then reads as one
+ * continuous stretch. `anchorGaps` reads the sequence's own holes on the
+ * controller column, and every answer `radioAxis` gives carries them.
+ *
+ * MEASURED 2026-11-02 (Heron) over the 11 sidecars the box now holds: 1 251 472
+ * rows, 222 device streams, 3 sensors, 0 rows dropped. 197 of the 222 streams
+ * hold a hole over 60 s, and the holes total 2 222 016 s. The widest single hole
+ * runs 25 653 s on a ring stream. The Verity ACC stream of 7981 anchors
+ * reproduces the ledger row that asked for the statistic: 2 holes, the widest
+ * 13 644 s, 22 351 s in all, over a 14.1 h span.
+ *
+ * TWO STREAMS READ COVERAGE 0.000, each 2 anchors about 2 h apart, so the
+ * sequence spans a recording and measures nothing inside it. Five more carry
+ * ONE anchor, where a span, a hole and a share are all absent and `null` — the
+ * two counts stay real, because the anchors were read (§∅).
+ *
+ * AND IT COSTS NO BAND VERDICT, measured rather than argued: all four banded
+ * streams (both H10 nights, jitter-aid) read gapCount 0 and coverage 1.000 with
+ * a widest hole of 1 to 5 s, so every hole on this corpus sits in a stream the
+ * spine or this reader had already refused. All 222 verdicts are byte-identical
+ * before and after the statistic.
+ *
  * ════ `null` IS NOT A SMALL NUMBER ════════════════════════════════════════
  * `hostAxis.stackJitterMs` is `null` when `independent` is false, because a
  * host column that is the device stamp rounded would report its own rounding
@@ -129,6 +152,15 @@
      ratio of 1 says the divergence between two neighbouring anchors reached the
      whole recording's length, which is a broken clock and not a rate. */
   var CK_RADIO_STEP_OVER_SPAN = 1;
+
+  /* A HOLE IN THE ANCHOR SEQUENCE IS NOT A SMALL INTERVAL. The collector emits
+     one anchor per connection event, and its own header puts that cadence at
+     about 0.2 s (`capture-host/radioclock.py:9`), so a minute with none is
+     about three hundred events the link did not deliver. The bound is
+     pre-stated at 60 s and fitted to nothing (§🧾): the ledger row that asked
+     for this statistic counted its holes over the same 60 s, so the counts this
+     reader publishes are comparable with the row's own. */
+  var CK_RADIO_GAP_MS = 60000;
 
   /* The sidecar's declared columns (§3 of the brief). Read BY NAME from the
      file's own header line — never by position. A sibling reader compared a
@@ -286,6 +318,86 @@
     };
   }
 
+  /* anchorGaps(anchors) → { n, dropped, spanMs, maxGapMs, maxGapShare,
+     gapCount, gapTotalMs, coveredShare, backwards, gapOverMs }.
+     THE HOLES IN THE ANCHOR SEQUENCE, read on the HOST column. The link drops,
+     the collector keeps appending, and the file then reads as one continuous
+     stretch: `hostAxis` runs linear between neighbouring anchors, so a
+     correction asked for inside a hole comes from two anchors hours apart and
+     from no measurement of its own. Neither criterion already here can see it —
+     `anchorStep` reads the DIVERGENCE between neighbours, and two clocks that
+     drift together across a hole diverge by nothing across it.
+     THIS ANNOTATES AND IT REFUSES NOTHING, which applies §∅'s owner ruling
+     (2026-09-17): a discontinuity refuses, reduced coverage annotates. The band
+     states something about the anchors that EXIST — whether the two clocks are
+     independent, and how tightly the controller delivers — and each one stays a
+     real paired reading whatever happened between them. A hole invalidates
+     something narrower, which belongs to a different caller: a correction at an
+     instant inside it. So this reader publishes the hole, and the consumer that
+     asks `correctionAt` for such an instant owes the refusal.
+     A BACKWARDS INTERVAL IS A NEW CLOCK AND NOT A NEGATIVE HOLE
+     (`capture-host/radioclock.py:110`), so it carries its own count and stays
+     out of the sum rather than shortening it. */
+  function anchorGaps(anchors) {
+    var list = anchors || [];
+    var n = 0;
+    var dropped = 0;
+    var hMin = Infinity;
+    var hMax = -Infinity;
+    var maxGap = 0;
+    var gapCount = 0;
+    var gapTotal = 0;
+    var backwards = 0;
+    var prev = null;
+    for (var i = 0; i < list.length; i++) {
+      var a = list[i];
+      if (!a || !isFinite(a.devMs) || !isFinite(a.hostMs)) {
+        dropped++; // §∅ — an unreadable anchor is counted, never read as an interval of zero
+        continue;
+      }
+      n++;
+      if (a.hostMs < hMin) hMin = a.hostMs;
+      if (a.hostMs > hMax) hMax = a.hostMs;
+      if (prev != null) {
+        var d = a.hostMs - prev;
+        if (d < 0) backwards++;
+        else {
+          if (d > maxGap) maxGap = d;
+          if (d > CK_RADIO_GAP_MS) {
+            gapCount++;
+            gapTotal += d;
+          }
+        }
+      }
+      prev = a.hostMs;
+    }
+    /* One readable anchor spans nothing and bounds no interval, so every
+       statistic over the sequence is absent rather than zero. The two counts
+       above are real either way and stay. */
+    if (n < 2) return { n: n, dropped: dropped, spanMs: null, maxGapMs: null, maxGapShare: null, gapCount: null, gapTotalMs: null, coveredShare: null, backwards: null, gapOverMs: CK_RADIO_GAP_MS };
+    var span = hMax - hMin;
+    return {
+      n: n,
+      dropped: dropped,
+      spanMs: span,
+      /* The widest FORWARD interval, whether or not it reached the bound: the
+         bound counts holes, and this says how wide the widest one grew. */
+      maxGapMs: maxGap,
+      /* A zero-span sequence divides by nothing, and a sequence that crossed a
+         clock change has no single duration to divide BY: both shares are then
+         absent rather than 0 or 1. The second case matters more than it looks —
+         a backwards jump leaves `hMax - hMin` a readable number that is not a
+         span, and a coverage share over it reads 1.000 on a sequence whose
+         anchors cover a second of the hours it appears to hold. */
+      maxGapShare: span > 0 && backwards === 0 ? maxGap / span : null,
+      gapCount: gapCount,
+      gapTotalMs: gapTotal,
+      coveredShare: span > 0 && backwards === 0 ? (span - gapTotal) / span : null,
+      backwards: backwards,
+      gapOverMs: CK_RADIO_GAP_MS
+    };
+  }
+
   /* classify(stackJitterMs, independent) → the band name. Three states, read
      separately: a `null` jitter is NOT a small jitter (see the header). */
   function classify(stackJitterMs, independent) {
@@ -305,6 +417,11 @@
      plant, because delivery jitter is bimodal (clock.js, measured 2026-08-23). */
   function radioAxis(anchors, opts) {
     opts = opts || {};
+    /* The holes are a property of the SEQUENCE, so they are read before any
+       refusal and published on every answer this function gives. A caller that
+       learns why its band was rejected learns the coverage behind it in the
+       same object. */
+    var gp = anchorGaps(anchors);
     // An EXPLICIT opts.hostAxis is honoured even when it is not callable, so a caller that
     // injects the spine can see this refusal; absent the key, the loaded DexClock is the spine.
     var spine = Object.prototype.hasOwnProperty.call(opts, 'hostAxis') ? opts.hostAxis : (root.DexClock && root.DexClock.hostAxis) || null;
@@ -316,6 +433,7 @@
         band: 'rejected',
         timingSource: null,
         spreadMs: null,
+        gaps: gp,
         n: anchors && anchors.length ? anchors.length : 0,
         reason: 'clock.js is not loaded, so DexClock.hostAxis cannot build the radio axis',
         deviceDrawn: null,
@@ -329,6 +447,7 @@
         band: 'rejected',
         timingSource: null,
         spreadMs: null,
+        gaps: gp,
         n: n,
         reason: 'need ≥' + CK_RADIO_MIN_ANCHORS + ' radio anchors, got ' + n,
         deviceDrawn: null,
@@ -342,6 +461,7 @@
         band: 'rejected',
         timingSource: null,
         spreadMs: null,
+        gaps: gp,
         n: ax && ax.n != null ? ax.n : n,
         reason: 'the host axis refused the radio anchors: ' + ((ax && ax.reason) || 'the spine named no reason'),
         /* A refused axis publishes no `deviceDrawn`, and an absent flag is `null`
@@ -377,6 +497,7 @@
         band: 'rejected',
         timingSource: null,
         spreadMs: null,
+        gaps: gp,
         n: ax.n,
         reason: "the host axis published no deviceDrawn flag, so the device column's provenance is undecided and 'radio' cannot be minted",
         deviceDrawn: null,
@@ -389,6 +510,7 @@
         band: 'rejected',
         timingSource: null,
         spreadMs: null,
+        gaps: gp,
         n: ax.n,
         reason: 'the device column is DRAWN (' + (ax.drawnReason || 'its inter-anchor deltas concentrate on one value') + '), so the anchors and the device stamps are not two clocks',
         deviceDrawn: true,
@@ -404,6 +526,7 @@
         band: 'rejected',
         timingSource: null,
         spreadMs: null,
+        gaps: gp,
         n: ax.n,
         reason:
           st.ratio == null
@@ -441,6 +564,7 @@
          a spread the table does not admit is a bug, not a good night. */
       timingSource: band === 'radio' ? 'radio' : null,
       spreadMs: jitter,
+      gaps: gp,
       n: ax.n,
       reason: reason,
       deviceDrawn: ax.deviceDrawn == null ? null : ax.deviceDrawn,
@@ -454,10 +578,12 @@
     CK_RADIO_AID_MS: CK_RADIO_AID_MS,
     CK_RADIO_MIN_ANCHORS: CK_RADIO_MIN_ANCHORS,
     CK_RADIO_STEP_OVER_SPAN: CK_RADIO_STEP_OVER_SPAN,
+    CK_RADIO_GAP_MS: CK_RADIO_GAP_MS,
     RC_COLUMNS: RC_COLUMNS,
     parseRadioClock: parseRadioClock,
     radioAxis: radioAxis,
     anchorStep: anchorStep,
+    anchorGaps: anchorGaps,
     classify: classify
   };
   /* The IIFE argument is typed as a union by the gate, so the attach is cast
