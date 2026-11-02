@@ -369,9 +369,10 @@ function legEvidence(pick) {
    comment on CHILD_HEAP_MB warns that the old 1536 floor "sat one notch above the abort edge with no
    observed margin"; 3328 would repeat that.
 
-   ⚠️ WHY THIS IS A RETRY AND NOT A RAISED CEILING. `childHeapMB` is max(floor, min(ceiling, perJobMB))
-   and perJobMB on a dev rig is ~13.8 GB, so the CEILING binds and a raise hands the new cap to EVERY
-   child. That is not free: a LIGHT night (2026-07-17) peaks 2.27 GB at cap 2048 and 3.03 GB at 4096 —
+   ⚠️ WHY THIS IS A RETRY AND NOT A RAISED CEILING. `childHeapMB` answers one constant for every
+   caller — see its own note, corrected 2026-11-02 — so a raise hands the new cap to EVERY child. The
+   conclusion here survives that correction; the mechanism it first named does not, because no per-job
+   figure ever narrowed the cap. That is not free: a LIGHT night (2026-07-17) peaks 2.27 GB at cap 2048 and 3.03 GB at 4096 —
    +33 % for a night that never needed it. At --jobs 3 that is 9.1 GB of box residency for typical
    nights, over the owner's 8 GB standing rule, to serve 0.7 % of the corpus. The retry instead leaves
    138 of 139 nights at ~2.3 GB and gives the one night 4096 while NOTHING ELSE RUNS. */
@@ -1586,9 +1587,23 @@ function planConcurrency() {
 // sees `code !== 0`, counts it failed and leaves the night unstamped for redo), so it will be seen.
 const CHILD_HEAP_MB = 2048;
 
-function childHeapMB(planned) {
-  const perJobMB = Math.floor((planned.budgetGB / Math.max(1, planned.jobs)) * 1024 * 0.9);
-  return Math.max(CHILD_HEAP_MB, Math.min(CHILD_HEAP_MB, perJobMB));
+/* 🔴 THE PER-JOB BUDGET DOES NOT REACH THIS CAP, and until 2026-11-02 the code said it did. The body
+   read `Math.max(CHILD_HEAP_MB, Math.min(CHILD_HEAP_MB, perJobMB))` over a `perJobMB` computed from
+   `planned.budgetGB` and `planned.jobs`. ONE constant stands in both bounds, so that expression
+   answers 2048 for every finite input: the computed figure reached no consumer, and the clamp held its
+   shape and none of its effect.
+   `NaN` was the one input that behaved differently — it propagates through `Math.min` and `Math.max`
+   alike, and `const cap = opts.heapMB || heapMB` below treats it as falsy and keeps it, so a `plan`
+   carrying a non-numeric `budgetGB` would hand a child `--max-old-space-size=NaN`. `planConcurrency`
+   always sets a numeric `budgetGB`, so no live caller reached that; a hand-built plan in a test or a
+   later caller does.
+   THE BEHAVIOUR WAS RIGHT AND STAYS BYTE-IDENTICAL. The floor is deliberate, because an abort wastes
+   the whole fold and leaves partial exports behind, so a tight per-job budget must NOT talk the cap
+   below it — which is the same decision as writing both bounds at 2048, stated once instead of
+   arithmetically. A reader raising `--jobs` to shrink the per-job budget gets this cap either way, and
+   the raise the comment above asks for is an edit to the one constant. */
+function childHeapMB() {
+  return CHILD_HEAP_MB;
 }
 
 if (!flag('--code-digest') && (!SRC || !existsSync(SRC))) {
@@ -3184,7 +3199,7 @@ if (DRY) {
  */
 if (!CHILD && work.length >= 1 && (work.length > 1 || planConcurrency().jobs > 1)) {
   const plan = planConcurrency();
-  const heapMB = childHeapMB(plan);
+  const heapMB = childHeapMB();
   console.log(
     `\nhost: ${plan.cores} core(s) · ${plan.totalGB.toFixed(1)} GB RAM (${plan.freeGB.toFixed(1)} GB free)` +
       `\nconcurrency: ${plan.jobs}${plan.forced ? ' (forced via --jobs)' : ''}` +
