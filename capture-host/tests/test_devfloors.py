@@ -71,9 +71,51 @@ def test_a_version_this_module_cannot_parse_is_NOT_COMPARABLE(floor, installed):
 
 
 def test_version_key_reads_a_numeric_version_and_refuses_the_rest():
-    assert D.version_key("0.11.0.1") == (0, 11, 0, 1)
-    assert D.version_key("6.165.10") == (6, 165, 10)
+    assert D.version_key("0.11.0.1") == ((0, 11, 0, 1), 0)
+    assert D.version_key("6.165.10") == ((6, 165, 10), 0)
     assert D.version_key("1.0.dev0") is None
+
+
+def test_a_post_release_is_read_and_its_number_is_not_a_release_segment():
+    """`1.4.1.post1` sits ABOVE `1.4.1` in PEP 440 and BELOW the four-segment `0.11.0.1` shape this
+    tree really declares, so the post number is a second field. Folding it into the release tuple
+    would make `0.11.0.post1` and `0.11.0.1` the same version."""
+    assert D.version_key("1.4.1.post1") == ((1, 4, 1), 1)
+    assert D.version_key("0.11.0.post1") != D.version_key("0.11.0.1")
+    assert D.version_key("1.4.1.post12") == ((1, 4, 1), 12)
+
+
+def test_a_post_release_meets_the_floor_its_release_meets():
+    """The measured case, 2026-11-02: `pytest-asyncio 1.4.1.post1` against the declared `>=1.4.1`
+    read NOT_COMPARABLE, and one such line took the whole advisory to rc 4 over 13 met floors."""
+    assert D.compare_floor(">=", "1.4.1", "1.4.1.post1") == D.MET
+    rows, _ = D.survey("pytest-asyncio>=1.4.1\n", _lookup({"pytest-asyncio": "1.4.1.post1"}))
+    assert rows[0][4] == D.MET
+
+
+def test_a_release_is_below_a_post_release_floor_and_a_pin_excludes_one():
+    """The ordering runs both ways, and a pin is an identity: `==3.8.1` is not `3.8.1.post1`, because
+    the mutant GENERATOR is the gate and a post-release is a different artefact."""
+    assert D.compare_floor(">=", "1.4.1.post1", "1.4.1") == D.BELOW
+    assert D.compare_floor("==", "3.8.1", "3.8.1.post1") == D.OFF_PIN
+
+
+@pytest.mark.parametrize("version", ["9.2.0rc1", "1.0.dev0", ".post1", "1.0.post1.dev0", "1.0.postX"])
+def test_only_the_normalised_post_spelling_is_read_and_the_rest_stay_absent(version):
+    """One suffix, read where PEP 440 is unambiguous. A pre-release, a dev release and an unnormalised
+    post spelling still return None, so this module never invents an ordering (§∅)."""
+    assert D.version_key(version) is None
+
+
+def test_a_shortfall_is_not_masked_by_an_unreadable_version():
+    """A CORRECTION to a row this module's fix answers, keyed
+    `2026-11-02-devfloors-refuses-a-post-release-and-that-refusal-outranks-every-other-state`.
+    `worst` returns the FIRST token present in RANK, and RANK leads with BELOW,
+    so a definite shortfall already outranks NOT_COMPARABLE. The row read RC's numbers as the
+    priority order. What one unreadable line really masks is a population of MET."""
+    assert D.worst([D.MET, D.BELOW, D.NOT_COMPARABLE]) == D.BELOW
+    assert D.worst([D.MET, D.OFF_PIN, D.NOT_COMPARABLE]) == D.OFF_PIN
+    assert D.worst([D.MET, D.NOT_COMPARABLE]) == D.NOT_COMPARABLE
 
 
 def test_a_comment_a_blank_line_and_an_inline_comment_are_all_handled():
@@ -250,11 +292,15 @@ def test_the_declaring_file_is_found_beside_the_module_not_beside_the_caller(cap
     """`check.sh` runs with the working directory wherever the invoker stood. A path relative to the
     caller finds nothing there and the leg reports NOT_COMPARABLE over an unread file."""
     monkeypatch.chdir(tmp_path)
-    rc = D.main([])
+    D.main([])
     out = capsys.readouterr().out
     assert "could not be read" not in out
     assert "ruff" in out
-    assert rc != D.RC[D.NOT_COMPARABLE]
+    # NOT `rc != RC[NOT_COMPARABLE]`. Every cause of NOT_COMPARABLE shares that one number, so an
+    # unreadable VERSION in this venv reded this test while its name pointed at a path. Measured
+    # 2026-11-02: `pytest-asyncio 1.4.1.post1` failed it on `assert 4 != 4`. The unread file is what
+    # this test is about, and the note names it by itself.
+    assert "file(s) unread" not in out
 
 
 def test_the_declaring_file_is_read_as_utf8_whatever_this_box_prefers(monkeypatch):
