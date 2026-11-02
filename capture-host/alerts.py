@@ -13,6 +13,7 @@
 # this module never invents a destination. Alerting must NEVER take capture down, so every failure here is
 # swallowed; the worst case is a missed notification, never a missed night.
 from __future__ import annotations
+import datetime as _datetime
 import logging
 from collections.abc import Iterable
 import time as _time
@@ -770,6 +771,39 @@ def stream_ended_in_the_morning(streamed_sec: float | None, stop_hour: int) -> b
 def on_charger(connected: bool, charging) -> bool:
     """PURE: is this device linked and on its charger right now?"""
     return bool(connected and charging)
+
+
+# THE QC POLLER'S LATCHES SURVIVE A RESTART, AS THE QUIET STATE BELOW DOES. The poller held in memory
+# the day it sent the morning digest and the nights it reported as having a gap. Measured on the capture
+# box from 2026-10-19 to 2026-11-01: 5 of 19 "Tepna night QC" digests and 5 of 7 "night has a gap" alerts
+# were repeats. Each repeat followed a daemon restart, and three gap repeats came at 16:26, 20:14 and
+# 23:35, many hours after the night they named. The box keeps the latest `QC_LATCH_KEEP` nights.
+QC_LATCH_NAME = "qc-alert-latch.json"
+QC_LATCH_KEEP = 14
+
+
+def qc_latch_restored(saved) -> tuple[_datetime.date | None, set[str]]:
+    """PURE: the digest date and the gap-alerted nights from a saved latch. Bad parts read as absent."""
+    if not isinstance(saved, dict):
+        return None, set()
+    digest = None
+    raw = saved.get("digest_sent")
+    if isinstance(raw, str):
+        try:
+            digest = _datetime.date.fromisoformat(raw)
+        except ValueError:
+            digest = None
+    gaps = saved.get("gap_alerted")
+    nights = {n for n in gaps if isinstance(n, str)} if isinstance(gaps, list) else set()
+    return digest, nights
+
+
+def qc_latch_to_save(digest_sent: _datetime.date | None, gap_alerted: Iterable[str]) -> dict:
+    """PURE: the latch to write, with only the latest `QC_LATCH_KEEP` nights."""
+    return {
+        "digest_sent": digest_sent.isoformat() if digest_sent is not None else None,
+        "gap_alerted": sorted(gap_alerted)[-QC_LATCH_KEEP:],
+    }
 
 
 # THE QUIET STATE SURVIVES A RESTART. The poller holds in memory which device completed a pull and which
