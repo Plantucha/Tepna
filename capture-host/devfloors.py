@@ -59,6 +59,12 @@ TOKEN = "devfloors"
 # report rather than skipped, because a dropped line is a floor nobody compares.
 FLOOR_RE = re.compile(r"^([A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)\s*(>=|==)\s*([0-9][0-9A-Za-z.*+!-]*)$")
 
+# The ONE non-numeric suffix this module reads. PEP 440 orders `1.4.1.post1` ABOVE `1.4.1` with no
+# ambiguity, so reading it is a measurement rather than a guess — unlike `rc1` or `dev0`, which still
+# return None below. Only the normalised `.postN` spelling is read; `.revN`, `.rN` and an implicit
+# `-N` post-release return None rather than inviting a second parser for one question.
+POST_SUFFIX = re.compile(r"\.post(\d+)\Z")
+
 MET = "MET"
 BELOW = "BELOW_FLOOR"
 OFF_PIN = "OFF_PIN"
@@ -91,18 +97,30 @@ def declared_floors(text: str) -> tuple[list[tuple[str, str, str]], list[str]]:
     return floors, unreadable
 
 
-def version_key(version: str) -> tuple[int, ...] | None:
-    """`"0.16.0"` → `(0, 16, 0)`; `None` when any segment is not a number.
+def version_key(version: str) -> tuple[tuple[int, ...], int] | None:
+    """`"0.16.0"` → `((0, 16, 0), 0)`; `"1.4.1.post1"` → `((1, 4, 1), 1)`; `None` when any release
+    segment is not a number.
 
     `None` is the absence, and the caller reports it as such. A best-effort parse here would compare
     `0.11.0.1` against `0.11.0rc1` on a guess and call the guess a measurement.
+
+    THE POST NUMBER IS A SECOND FIELD AND NEVER A RELEASE SEGMENT. `shellcheck-py>=0.11.0.1` is a real
+    four-segment release in this tree, and `0.11.0.post1` sits BELOW it, so folding the post number
+    into the release tuple would order the two wrongly. Measured 2026-11-02: `pytest-asyncio
+    1.4.1.post1` against the declared `>=1.4.1` read NOT_COMPARABLE, and the advisory returned rc 4
+    over 13 met floors.
     """
+    post = 0
+    found = POST_SUFFIX.search(version)
+    if found:
+        post = int(found.group(1))
+        version = version[: found.start()]
     key: list[int] = []
     for part in version.split("."):
         if not part.isdigit():
             return None
         key.append(int(part))
-    return tuple(key)
+    return tuple(key), post
 
 
 def compare_floor(op: str, floor: str, installed: str | None) -> str:
@@ -118,9 +136,14 @@ def compare_floor(op: str, floor: str, installed: str | None) -> str:
     have, want = version_key(installed), version_key(floor)
     if have is None or want is None:
         return NOT_COMPARABLE
-    width = max(len(have), len(want))
-    have += (0,) * (width - len(have))
-    want += (0,) * (width - len(want))
+    # The release halves are padded to one width so `1.4` and `1.4.1` compare; the post number is
+    # compared after them, which is the order PEP 440 states.
+    have_rel, have_post = have
+    want_rel, want_post = want
+    width = max(len(have_rel), len(want_rel))
+    have_rel += (0,) * (width - len(have_rel))
+    want_rel += (0,) * (width - len(want_rel))
+    have, want = (have_rel, have_post), (want_rel, want_post)
     if op == "==":
         # A PIN IS AN IDENTITY, so a newer version is a finding too. `mutmut==3.8.1` is the dev file's
         # only `==` and the reason is written there: the mutant GENERATOR is the gate, and two versions
