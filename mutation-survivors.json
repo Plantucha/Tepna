@@ -1546,7 +1546,12 @@
       "run_id": "36399889018",
       "merge_sha": "4c65b868",
       "reported": "2026-09-28",
-      "state": "open"
+      "state": "stale-line",
+      "stale_line_evidence": "the recorded line survives inside a longer line in `summarize`, so the mutant id needs re-recording rather than a retirement",
+      "recorded_line": "_span_reason = None",
+      "today_line": "_span_reason = None if span else \"under the minimum judgeable span\"",
+      "closed_commit": "766bc3cd63ab2ccc27302558ccc3c2e280804fa5",
+      "closed_commit_source": "session HEAD at close (pre-squash)"
     },
     {
       "lane": "py",
