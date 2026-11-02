@@ -741,6 +741,23 @@ def test_a_RECONNECT_NAMES_A_NEW_GENERATION_and_the_rows_after_it_say_so():
     )
 
 
+def test_A_KIND_THIS_COLLECTOR_DOES_NOT_KNOW_reaches_no_table_at_all(monkeypatch):
+    """The parser answers three kinds today, and the guard is there for the fourth.
+
+    ⚠️ THE GUARD BECAME UNREACHABLE THROUGH THE PARSER when the connect branch landed: before it,
+    a Connection Complete fell through to this line, and now it returns above. The line stays, and
+    a patched parser is how it keeps a test: a kind added to the parser tomorrow must leave the
+    anchor table, the counter table and the generation dict alone rather than reach the unpacking
+    below it, which reads three fields an unknown event does not carry."""
+    c = _connected(_collector(), 0x0040, H10)
+    monkeypatch.setattr(rc, "parse_hci_event", lambda payload: {"kind": "le_phy_update", "handle": 0x0040})
+    c.feed(*_mon(rc.MONITOR_OPCODE_EVENT, _anchor_event(0x0040, 10, 1_000_000)), host_ns=1_000_300_000)
+    assert c._anchors == {}, "an unknown kind records no anchor, and the bytes behind it are not consulted"
+    assert c._last_counter == {}, "and moves no counter, so the missed-anchor count cannot drift on it"
+    assert c.link_epochs == {H10: 1}, "and starts no generation: the one epoch is the connect that opened"
+    assert c.missed_anchors == 0
+
+
 def test_a_CONNECT_WE_DID_NOT_ASK_FOR_reaches_no_generation_either():
     """The monitor channel carries the neighbour's connections too. None of them is ours to count, for
     the same reason none of them is ours to write: an address we did not configure must leave no trace
