@@ -9579,6 +9579,9 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
     # Low-battery latch: the lowest threshold already alerted per device (see `alerts.battery_alert_step`).
     # In memory, so a daemon restart while a cell sits at 10 % sends the 10 % alert once more.
     batt_latch: dict[str, int | None] = {}
+    # Per-HOLD latch for the box-holds-the-link note below (`alerts.silence_owner`). One line per hold
+    # rather than one per poll, because a stored pull spans several polls at a 60 s interval.
+    box_held: set[str] = set()
     while not _STOP.is_set():
         await asyncio.sleep(interval)
         now = _time.monotonic()
@@ -9666,6 +9669,7 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
                 ended_at.pop(name, None)
                 down_since.pop(name, None)
                 _IDLE_TIMER_NAMED.discard(name)  # re-worn: the next power-off is a new event
+                box_held.discard(name)  # flowing samples mean the box is not holding the link
                 if name in alerted:  # it had alerted → tell the operator it is back
                     alerted.discard(name)
                     log.info("alert: %s recording again", name)
@@ -9674,6 +9678,29 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
                 down_since.setdefault(name, now)
                 if alerts.offline_alert_suppressed(d.get("optional"), name in ever_connected):
                     continue  # never showed up; not a thing we are missing
+                # A SILENCE THE BOX ITSELF CAUSED IS NOT THE DEVICE'S IDLE TIMER. Read BEFORE the
+                # powered-off clause below, because `powered_off_after_pull` asks only whether a pull
+                # SUCCEEDED recently and so answers True for its whole 8 h window — including the seconds
+                # while the NEXT pull holds this device's link. Measured: 16 of 88 `powered off — idle
+                # timer` lines and 3 of 5 `night ended` deliveries landed inside an open stored pull,
+                # 1.1 s to 35.2 s in, against a 121.9 s timer (`alerts.silence_owner`). The reason is
+                # NAMED, so the journal says which subsystem has the device instead of borrowing the
+                # idle timer's story and sending the next reader after the wrong one.
+                box_reason = None
+                if not connected:
+                    _gs = gate_state()
+                    box_reason = alerts.silence_owner(
+                        name,
+                        offline_slot=_gs["offline_slot"],
+                        paused_addrs=_gs["polar_paused"],
+                        addr=d.get("address"),
+                    )
+                if box_reason:
+                    if name not in box_held:
+                        box_held.add(name)
+                        log.info("%s: not advertising while the box holds its link (%s)", name, box_reason)
+                    continue
+                box_held.discard(name)
                 # THE RING POWERS ITSELF OFF ~122 s AFTER A DOFF, AND THAT IS NOT AN OUTAGE. Measured
                 # over 244 sessions (see `alerts.RING_IDLE_TIMER_S`). Once its pull has SUCCEEDED there
                 # is nothing left on it to miss, so the silence that follows is the device working as
