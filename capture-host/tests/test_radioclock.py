@@ -20,6 +20,7 @@
 import os
 import struct
 
+import polar_pmd as pmd
 import radioclock as rc
 from _srcscan import after_last, module_source, until_anchor
 
@@ -56,6 +57,25 @@ def _pmd_acl(handle, meas, last_ns, n_samples=3, pb=0x02):
     att = bytes([rc.ATT_HANDLE_VALUE_NOTIFICATION]) + struct.pack("<H", 0x0025) + frame
     l2cap = struct.pack("<HH", len(att), rc.L2CAP_CID_ATT) + att
     return struct.pack("<HH", (pb << 12) | handle, len(l2cap)) + l2cap
+
+
+def _parse_acl_pmd(payload):
+    """The two halves of a PMD frame read in one call: the structural ATT parse, then the PMD header.
+
+    The collector performs these as SEPARATE steps, because the step between them decides whether the
+    device speaks PMD at all, and the step after it counts a frame it cannot read. So the composition
+    has no production caller and lives here — a module function its tests alone keep alive is the
+    orphan `tools/find_unwired.py` names, and it reds `check.sh`.
+    """
+    got = rc.parse_acl_att_notification(payload)
+    if got is None:
+        return None
+    handle, value = got
+    fields = rc.pmd_fields(value)
+    if fields is None:
+        return None
+    meas, last_sensor_ns = fields
+    return handle, meas, last_sensor_ns
 
 
 # ─── the anchor report ────────────────────────────────────────────────────────────────────────────
@@ -154,46 +174,46 @@ def test_the_join_key_is_the_LAST_sample_stamp_read_raw_from_the_packet():
     Joining on the wrong one matches zero rows on every multi-sample frame, and an empty join looks
     exactly like a night with no correlated packets."""
     ns = 819_000_000_000_000
-    got = rc.parse_acl_pmd(_pmd_acl(0x0040, 0x00, ns))
+    got = _parse_acl_pmd(_pmd_acl(0x0040, 0x00, ns))
     assert got == (0x40, 0x00, ns)
 
 
 def test_the_measurement_type_is_masked_because_bit_7_is_a_recording_flag():
     """`polar_pmd.py` masks with 0x3F for this reason; an unmasked compare fails to match a type the
     moment the offline-recording bit is set."""
-    assert rc.parse_acl_pmd(_pmd_acl(0x0040, 0x80, 5))[1] == 0x00
-    assert rc.parse_acl_pmd(_pmd_acl(0x0040, 0x82, 5))[1] == 0x02
+    assert _parse_acl_pmd(_pmd_acl(0x0040, 0x80, 5))[1] == 0x00
+    assert _parse_acl_pmd(_pmd_acl(0x0040, 0x82, 5))[1] == 0x02
 
 
 def test_a_CONTINUATION_fragment_is_refused_because_it_carries_no_L2CAP_header():
     """A continuation's first bytes are payload. Treating one as a start reads a PMD header out of
     ECG samples and yields a plausible ns value — the precise shape of a silent wrong answer."""
-    assert rc.parse_acl_pmd(_pmd_acl(0x0040, 0x00, 5, pb=0x01)) is None
+    assert _parse_acl_pmd(_pmd_acl(0x0040, 0x00, 5, pb=0x01)) is None
 
 
 def test_anything_that_is_not_an_ATT_notification_on_the_ATT_channel_is_refused():
     ns = 700_000_000_000
     good = _pmd_acl(0x0040, 0x00, ns)
-    assert rc.parse_acl_pmd(good) is not None
+    assert _parse_acl_pmd(good) is not None
     signalling = bytearray(good)
     signalling[6] = 0x05  # L2CAP CID → signalling channel
-    assert rc.parse_acl_pmd(bytes(signalling)) is None
+    assert _parse_acl_pmd(bytes(signalling)) is None
     write_req = bytearray(good)
     write_req[8] = 0x12  # ATT opcode → Write Request
-    assert rc.parse_acl_pmd(bytes(write_req)) is None
+    assert _parse_acl_pmd(bytes(write_req)) is None
 
 
 def test_a_short_or_lying_ACL_packet_is_refused_at_every_length():
     full = _pmd_acl(0x0040, 0x00, 42)
     for cut in range(0, len(full)):
-        assert rc.parse_acl_pmd(full[:cut]) is None, cut
+        assert _parse_acl_pmd(full[:cut]) is None, cut
     lying_l2cap = bytearray(full)
     lying_l2cap[4] = 0xF0
-    assert rc.parse_acl_pmd(bytes(lying_l2cap)) is None
+    assert _parse_acl_pmd(bytes(lying_l2cap)) is None
     tiny = struct.pack("<HH", 0x0040, 4) + struct.pack("<HH", 0, rc.L2CAP_CID_ATT)
-    assert rc.parse_acl_pmd(tiny) is None
+    assert _parse_acl_pmd(tiny) is None
     hdr_only = struct.pack("<HH", 0x0040, 3) + b"\x1b\x25\x00"
-    assert rc.parse_acl_pmd(hdr_only) is None
+    assert _parse_acl_pmd(hdr_only) is None
 
 
 def test_a_WELL_FORMED_notification_too_short_to_be_a_PMD_frame_is_refused():
@@ -206,7 +226,7 @@ def test_a_WELL_FORMED_notification_too_short_to_be_a_PMD_frame_is_refused():
         att = bytes([rc.ATT_HANDLE_VALUE_NOTIFICATION]) + struct.pack("<H", 0x0029) + value
         l2cap = struct.pack("<HH", len(att), rc.L2CAP_CID_ATT) + att
         packet = struct.pack("<HH", (0x02 << 12) | 0x0040, len(l2cap)) + l2cap
-        assert rc.parse_acl_pmd(packet) is None, value.hex()
+        assert _parse_acl_pmd(packet) is None, value.hex()
 
 
 # ─── the offset and the association ───────────────────────────────────────────────────────────────
@@ -302,7 +322,7 @@ def test_the_whole_chain_end_to_end_on_a_synthetic_stream():
         t.add(anchor_us + 300.0, ev["anchor_us"])
     assert t.offset == 300.0 and t.jitter == 0.0
 
-    handle, meas, ns = rc.parse_acl_pmd(_pmd_acl(0x0040, 0x00, 819_000_000_000_000))
+    handle, meas, ns = _parse_acl_pmd(_pmd_acl(0x0040, 0x00, 819_000_000_000_000))
     assert m.address(handle) == H10 and meas == 0x00
     assert rc.associate(1_051_000 + 300.0, anchors, t.offset, t.jitter) == (11, 1_050_000)
 
@@ -392,7 +412,16 @@ def test_an_unmeasured_cell_is_BLANK_and_never_zero():
     a nanosecond stamp can all legitimately read 0 — so a fabricated zero cannot be told from a
     measurement by any reader, ever. This is `writers._ns_col`'s argument applied to the sidecar."""
     row = rc.format_row(
-        "2026-09-07T03:14:15.926", H10, 0, 819_000_000_000_000, 0x40, None, None, 1_700_000_000_000_000_000, None
+        "2026-09-07T03:14:15.926",
+        H10,
+        0,
+        819_000_000_000_000,
+        0x40,
+        None,
+        None,
+        1_700_000_000_000_000_000,
+        None,
+        rc.DEVICE_CLOCK_PMD,
     )
     assert row.rstrip("\n").split(";") == [
         "2026-09-07T03:14:15.926",
@@ -404,15 +433,36 @@ def test_an_unmeasured_cell_is_BLANK_and_never_zero():
         "",
         "1700000000000000000",
         "",
+        "pmd",
     ]
     assert len(row.rstrip("\n").split(";")) == len(rc.SIDECAR_HEADER.rstrip("\n").split(";"))
-    assert ";0;" not in rc.format_row("t", H10, None, None, None, None, None, None, None)
+    assert ";0;" not in rc.format_row("t", H10, None, None, None, None, None, None, None, rc.DEVICE_CLOCK_NOT_PMD)
 
 
 def test_the_header_is_the_columns_the_brief_names_in_the_order_it_names_them():
     assert rc.SIDECAR_HEADER == (
-        "Phone timestamp;device;meas;last_sensor_ns;conn_handle;event_counter;anchor_us;vs_rx_ns;acl_rx_ns\n"
+        "Phone timestamp;device;meas;last_sensor_ns;conn_handle;event_counter;anchor_us;vs_rx_ns;"
+        "acl_rx_ns;device_clock\n"
     )
+
+
+def test_the_column_set_is_APPEND_ONLY_AT_THE_TAIL():
+    """`radio-clock.js` looks each column up BY NAME out of this header line, and `writers.py`'s
+    OXYFRAME tuple carries the same rule for the same measured reason: appending a column there moved
+    three tests that counted from the END onto different columns. Inserting one here would move every
+    consumer's index silently, so the first nine stay exactly where the brief put them."""
+    assert rc.SIDECAR_COLUMNS[:9] == (
+        "Phone timestamp",
+        "device",
+        "meas",
+        "last_sensor_ns",
+        "conn_handle",
+        "event_counter",
+        "anchor_us",
+        "vs_rx_ns",
+        "acl_rx_ns",
+    )
+    assert rc.SIDECAR_COLUMNS[9] == "device_clock" and len(rc.SIDECAR_COLUMNS) == 10
 
 
 # ─── the enable's outcome, as three distinguishable facts ─────────────────────────────────────────
@@ -483,8 +533,11 @@ def _mon(opcode, payload, index=ADAPTER):
     return opcode, index, payload
 
 
-def _collector(devices=(H10,)):
-    return rc.Collector(ADAPTER, devices)
+def _collector(devices=(H10,), vendor="Polar"):
+    """Addresses → their DECLARED vendor, which is the shape `decide` hands over. The vendor is the
+    only thing that can say a device's notifications are PMD data frames at all, so a test that wants
+    the fail-closed direction passes a bare sequence instead (`test_a_bare_SEQUENCE_...`)."""
+    return rc.Collector(ADAPTER, dict.fromkeys(devices, vendor))
 
 
 def test_a_row_is_emitted_ONLY_for_a_device_we_configured():
@@ -586,14 +639,17 @@ def test_the_row_carries_the_association_and_blanks_what_was_not_measured():
     c.feed(*_mon(rc.MONITOR_OPCODE_EVENT, _le_conn_complete(0x0040, H10)), host_ns=1)
     for counter, us in ((10, 1_000_000), (11, 1_050_000), (12, 1_100_000)):
         c.feed(*_mon(rc.MONITOR_OPCODE_EVENT, _anchor_event(0x0040, counter, us)), host_ns=(us + 300) * 1000)
-    address, meas, ns, handle, counter, anchor_us, vs_rx, acl_rx = c.feed(
+    address, meas, ns, handle, counter, anchor_us, vs_rx, acl_rx, device_clock = c.feed(
         *_mon(rc.MONITOR_OPCODE_ACL_RX, _pmd_acl(0x0040, 0x00, 819_000_000_000_000)), host_ns=1_051_300_000
     )
     assert (address, meas, ns, handle) == (H10, 0x00, 819_000_000_000_000, 0x40)
     assert (counter, anchor_us) == (11, 1_050_000)
     assert acl_rx == 1_051_300_000
-    row = rc.format_row("2026-09-07T03:00:00.000", address, meas, ns, handle, counter, anchor_us, vs_rx, acl_rx)
-    assert row.count(";") == 8 and ";;" in row, "the unmeasured vs_rx cell is blank, not zero"
+    assert device_clock == rc.DEVICE_CLOCK_PMD, "an H10 ECG frame's stamp IS the device's own clock"
+    row = rc.format_row(
+        "2026-09-07T03:00:00.000", address, meas, ns, handle, counter, anchor_us, vs_rx, acl_rx, device_clock
+    )
+    assert row.count(";") == 9 and ";;" in row, "the unmeasured vs_rx cell is blank, not zero"
 
 
 def test_NON_PMD_traffic_on_our_own_link_emits_nothing():
@@ -623,10 +679,10 @@ def test_the_sidecar_is_named_by_ADDRESS_because_that_is_the_identity(tmp_path):
 def test_a_new_file_gets_the_header_and_a_resumed_one_does_not(tmp_path):
     p = str(tmp_path / "s.csv")
     w = rc.SidecarWriter(p)
-    w.write(rc.format_row("t", H10, 0, 5, 64, 11, 1_050_000, None, 7))
+    w.write(rc.format_row("t", H10, 0, 5, 64, 11, 1_050_000, None, 7, rc.DEVICE_CLOCK_PMD))
     w.close()
     again = rc.SidecarWriter(p)
-    again.write(rc.format_row("u", H10, 0, 6, 64, 12, 1_100_000, None, 8))
+    again.write(rc.format_row("u", H10, 0, 6, 64, 12, 1_100_000, None, 8, rc.DEVICE_CLOCK_PMD))
     again.close()
     lines = open(p, encoding="utf-8").read().splitlines()
     assert lines[0] == rc.SIDECAR_HEADER.rstrip("\n")
@@ -637,14 +693,14 @@ def test_a_TORN_TAIL_from_a_power_cut_is_truncated_and_not_left_to_corrupt_the_n
     """The capture host loses power mid-write. The half-line must go, or the row appended after it is
     silently glued onto the fragment and parses as neither."""
     p = tmp_path / "s.csv"
-    p.write_text(rc.SIDECAR_HEADER + "t;%s;0;5;64;11;1050000;;7\nu;%s;0;6;64" % (H10, H10), encoding="utf-8")
+    p.write_text(rc.SIDECAR_HEADER + "t;%s;0;5;64;11;1050000;;7;pmd\nu;%s;0;6;64" % (H10, H10), encoding="utf-8")
     w = rc.SidecarWriter(str(p))
-    w.write(rc.format_row("v", H10, 0, 7, 64, 13, 1_150_000, None, 9))
+    w.write(rc.format_row("v", H10, 0, 7, 64, 13, 1_150_000, None, 9, rc.DEVICE_CLOCK_PMD))
     w.close()
     lines = p.read_text(encoding="utf-8").splitlines()
     assert len(lines) == 3
     assert lines[1].startswith("t;") and lines[2].startswith("v;")
-    assert all(line.count(";") == 8 for line in lines[1:]), "every surviving row is whole"
+    assert all(line.count(";") == 9 for line in lines[1:]), "every surviving row is whole"
 
 
 def test_an_EMPTY_file_is_rewritten_with_a_header_rather_than_appended_to(tmp_path):
@@ -721,8 +777,11 @@ def test_run_writes_one_file_per_device_and_reports_its_telemetry(tmp_path):
     lines = body.splitlines()
     assert lines[0] == rc.SIDECAR_HEADER.rstrip("\n")
     assert len(lines) == 3
-    assert all(line.count(";") == 8 for line in lines[1:])
+    assert all(line.count(";") == 9 for line in lines[1:])
     assert lines[1].split(";")[1] == H10
+    assert got["no_device_clock"] == {} and got["not_a_pmd_frame"] == {}, (
+        "every row here IS a PMD data frame from a declared Polar device"
+    )
 
 
 def test_a_device_that_sends_NO_PMD_FRAME_never_causes_a_file_to_exist(tmp_path):
@@ -931,7 +990,7 @@ def test_DISABLED_by_default_is_the_first_thing_checked(tmp_path):
         raise AssertionError("must not probe a box that did not opt in")
 
     index, devices, why = rc.decide({"radio_clock": {"enabled": False}}, sysfs, probe=_never)
-    assert index is None and devices == [] and "enabled is false" in why
+    assert index is None and devices == {} and "enabled is false" in why
     assert rc.decide({}, sysfs, probe=_never)[2] is not None
 
 
@@ -977,7 +1036,9 @@ def test_every_way_this_box_CANNOT_is_named_and_none_reads_like_another(tmp_path
 def test_a_CAPABLE_box_returns_the_index_and_the_configured_devices(tmp_path):
     sysfs = _sysfs(tmp_path, {"hci0": "AA:BB:CC:DD:EE:FF", "hci1": "28:0C:50:0C:18:FD"})
     index, devices, why = rc.decide(CFG, sysfs, probe=lambda i: (rc.NORDIC_COMPANY_ID, 0, None))
-    assert (index, devices, why) == (1, [H10], None)
+    assert (index, devices, why) == (1, {H10: None}, None), (
+        "the address maps to its DECLARED vendor, and this fixture declares none"
+    )
 
 
 def test_radio_clock_adapter_OVERRIDES_the_capture_adapter(tmp_path):
@@ -1107,7 +1168,7 @@ def test_the_row_and_writer_counters_COUNT_rather_than_latch():
 def test_the_writer_counts_every_row_it_writes(tmp_path):
     w = rc.SidecarWriter(str(tmp_path / "s.csv"))
     for i in range(4):
-        w.write(rc.format_row("t", H10, 0, i, 64, 1, 2, 3, 4))
+        w.write(rc.format_row("t", H10, 0, i, 64, 1, 2, 3, 4, rc.DEVICE_CLOCK_PMD))
     assert w.rows == 4
     w.close()
 
@@ -1116,11 +1177,22 @@ def test_every_column_lands_in_its_OWN_position_when_all_are_present():
     """The earlier row test carried several `None`s, so a cell replaced by `None` was indistinguishable
     from the real thing. With every field populated and distinct, a swapped or dropped column shows."""
     row = (
-        rc.format_row("2026-09-08T03:00:00.000", H10, 7, 819_000_000_000_000, 0x40, 4242, 1_050_000, 111, 222)
+        rc.format_row("2026-09-08T03:00:00.000", H10, 7, 819_000_000_000_000, 0x40, 4242, 1_050_000, 111, 222, "pmd")
         .rstrip("\n")
         .split(";")
     )
-    assert row == ["2026-09-08T03:00:00.000", H10, "7", "819000000000000", "64", "4242", "1050000", "111", "222"]
+    assert row == [
+        "2026-09-08T03:00:00.000",
+        H10,
+        "7",
+        "819000000000000",
+        "64",
+        "4242",
+        "1050000",
+        "111",
+        "222",
+        "pmd",
+    ]
     header = rc.SIDECAR_HEADER.rstrip("\n").split(";")
     assert len(row) == len(header)
     assert header[5] == "event_counter" and row[5] == "4242"
@@ -1193,7 +1265,7 @@ def test_a_configured_device_with_NO_address_is_dropped_not_carried_as_None(tmp_
     sysfs = _sysfs(tmp_path, {"hci1": "28:0C:50:0C:18:FD"})
     cfg = dict(CFG, devices=[{"name": "no address here"}, {"address": H10}, {"address": ""}])
     index, devices, why = rc.decide(cfg, sysfs, probe=lambda i: (rc.NORDIC_COMPANY_ID, 0, None))
-    assert devices == [H10] and why is None
+    assert devices == {H10: None} and why is None
     only_nameless = dict(CFG, devices=[{"name": "x"}])
     assert rc.decide(only_nameless, sysfs, probe=lambda i: (rc.NORDIC_COMPANY_ID, 0, None))[2] is not None, (
         "a config with no usable address records nothing and says so"
@@ -1735,3 +1807,199 @@ def test_a_garbage_address_attribute_reads_as_unknown_rather_than_raising(tmp_pa
     (root / "hci0" / "address").write_bytes(b"\xff\xfegarbage\n")  # a NUL is ASCII and would survive
     assert rc.address_from_sysfs(0, str(root)) == "GARBAGE"
     assert rc.adapter_index(H10, str(root)) is None
+
+
+# ─── whose clock is in `last_sensor_ns`, and what it says when there is none ──────────────────────
+#
+# 🔴 THE DEFECT THIS SECTION EXISTS FOR, as measured on the box 2026-11-01: the PMD frame layout was
+# applied to EVERY configured device, so a ring that speaks a different protocol had its payload
+# bytes written into the two columns a consumer keys on. 3 of 11 sidecars carried 64 invented `meas`
+# keys over 614 832 rows, with `last_sensor_ns` reaching 1.844e19 ns — 2^64, 584 years. Row
+# `2026-11-01-the-ring-sidecar-writes-payload-bytes-into-two-keyed-columns`.
+
+RING = "FF:EE:DD:CC:BB:AA"  # synthetic: a non-PMD device's address, never a real one
+
+
+def _att_notification(handle, value, att_handle=0x002B):
+    """One ACL packet carrying an ATT Handle Value Notification with `value` — any bytes at all.
+    `_pmd_acl` builds the PMD-shaped one; this builds the ones that are NOT that shape."""
+    att = bytes([rc.ATT_HANDLE_VALUE_NOTIFICATION]) + struct.pack("<H", att_handle) + value
+    l2cap = struct.pack("<HH", len(att), rc.L2CAP_CID_ATT) + att
+    return struct.pack("<HH", (0x02 << 12) | handle, len(l2cap)) + l2cap
+
+
+def _connected(c, handle, address):
+    c.feed(*_mon(rc.MONITOR_OPCODE_EVENT, _le_conn_complete(handle, address)), host_ns=1)
+    return c
+
+
+def test_a_device_that_does_not_speak_PMD_gets_EMPTY_columns_and_a_NAMED_REASON():
+    """🔴 The measured defect, in its measured shape. These are the ring's own payload bytes: byte 0
+    masked to 6 bits became an invented stream key, and bytes 1..9 became a 584-year uptime. Neither
+    is ours to read, and neither is written — but the row SURVIVES, because the radio arrival stamp
+    and the anchor association on it are real measurements of this packet regardless of what the
+    payload means. §∅: the output over absent input REPORTS the absence, and the reason is NAMED
+    rather than borrowed."""
+    c = _connected(_collector(devices=(RING,), vendor="Wellue"), 0x0040, RING)
+    payload = bytes([0x4A]) + struct.pack("<Q", 18_440_000_000_000_000_000) + b"\x00" * 8
+    row = c.feed(*_mon(rc.MONITOR_OPCODE_ACL_RX, _att_notification(0x0040, payload)), host_ns=77)
+    address, meas, ns, handle, counter, anchor_us, vs_rx, acl_rx, device_clock = row
+    assert (meas, ns) == (None, None), "the two keyed columns are EMPTY, not payload bytes"
+    assert device_clock == rc.DEVICE_CLOCK_NOT_PMD == "none-not-pmd"
+    assert (address, handle, acl_rx) == (RING, 0x40, 77), "the radio record is intact"
+    line = rc.format_row("t", address, meas, ns, handle, counter, anchor_us, vs_rx, acl_rx, device_clock)
+    assert "18440000000000000000" not in line and "74" not in line.split(";")[2]
+    assert line.split(";")[2] == "" and line.split(";")[3] == "", "blank, and never a 0"
+    assert c.no_device_clock == {"none-not-pmd": 1}
+
+
+def test_an_O2RING_SIZED_run_of_those_rows_is_COUNTED_so_the_blank_column_is_a_decision():
+    """A blank column that nothing counts is indistinguishable from a device that said nothing — the
+    §4b shape, where silence reads as a pass. 614 832 rows went out keyed on invented values; the
+    count is what makes the next run's blanks readable as the decision they are."""
+    c = _connected(_collector(devices=(RING,), vendor="Wellue"), 0x0040, RING)
+    for i in range(50):
+        c.feed(*_mon(rc.MONITOR_OPCODE_ACL_RX, _att_notification(0x0040, bytes([i]) * 12)), host_ns=i)
+    assert c.rows == 50 and c.no_device_clock == {"none-not-pmd": 50}
+    assert c.not_a_pmd_frame == {}, "a non-PMD device is not a PMD speaker sending a bad frame"
+
+
+def test_a_PPI_frame_carries_NO_STAMP_because_THE_VENDOR_DEFINES_NONE():
+    """🔴 The same column, one layer over, and the opposite remedy. Polar's own documentation says a
+    PPI stream's per-sample time "is either zero or it is missing", and its own parser reads it behind
+    `if (frame.timeStamp != 0uL)`. Measured on the box: key 3 carried `last_sensor_ns = 0` in all
+    11 709 of its rows across three sidecars — an IN-BAND ZERO standing in for absence, which §∅
+    forbids at every layer. The stream key stays (it is real and useful); the stamp goes blank with a
+    reason of its own, so "this stream has no clock by design" never reads as "this device has none"."""
+    assert pmd.PPI in pmd.NO_SAMPLE_TIME_BY_DESIGN, "the vendor's rule, single-sourced in the decoder"
+    c = _connected(_collector(), 0x0040, H10)
+    row = c.feed(*_mon(rc.MONITOR_OPCODE_ACL_RX, _pmd_acl(0x0040, pmd.PPI, 0)), host_ns=5)
+    assert row[1] == pmd.PPI and row[2] is None
+    assert row[8] == rc.DEVICE_CLOCK_BY_DESIGN == "none-by-design"
+    assert c.no_device_clock == {"none-by-design": 1}
+    line = rc.format_row("t", *row[:8], row[8])
+    assert line.split(";")[3] == "", "blank — the packet's 0 is the stream's shape, not a measurement"
+
+
+def test_a_PPI_frame_stamped_NON_ZERO_is_STILL_refused_because_the_rule_is_the_VENDORS_not_the_VALUE():
+    """§∅ forbids value-keyed detection, and this is where that bites: a firmware that puts something
+    in the field does not thereby acquire a per-sample clock. The decision reads the vendor's rule
+    about the STREAM, so it does not change when the bytes do."""
+    c = _connected(_collector(), 0x0040, H10)
+    row = c.feed(*_mon(rc.MONITOR_OPCODE_ACL_RX, _pmd_acl(0x0040, pmd.PPI, 819_000_000_000_000)), host_ns=5)
+    assert row[2] is None and row[8] == rc.DEVICE_CLOCK_BY_DESIGN
+
+
+def test_an_UNKNOWN_measurement_TYPE_from_a_PMD_SPEAKER_emits_NO_ROW_and_is_COUNTED():
+    """⚠️ A LENGTH TEST CANNOT FIND THIS ONE. The same measurement found 6 rows under keys 20 and 22
+    on two POLAR nights: the control point answers on its own attribute handle with a value longer
+    than a PMD header, so every structural check passes and an invented stream key lands anyway. The
+    type field is read against the vendor's own enum instead — 20 is not a measurement type Polar
+    defines, so the frame is not a data frame and gets no row."""
+    assert 20 not in pmd.MEAS_NAME and 22 not in pmd.MEAS_NAME
+    c = _connected(_collector(), 0x0040, H10)
+    assert c.feed(*_mon(rc.MONITOR_OPCODE_ACL_RX, _pmd_acl(0x0040, 20, 7_000_000_000)), host_ns=5) is None
+    assert c.feed(*_mon(rc.MONITOR_OPCODE_ACL_RX, _pmd_acl(0x0040, 22, 11_400_000_000)), host_ns=6) is None
+    assert c.rows == 0 and c.not_a_pmd_frame == {"unknown-meas": 2}
+    assert c.no_device_clock == {}, "no row was written, so no row carries a reason"
+
+
+def test_a_SHORT_notification_from_a_PMD_SPEAKER_is_COUNTED_as_well_as_DROPPED():
+    """The contract this collector shipped with: a battery level or a control-point reply emits
+    nothing, because a PMD speaker's data frames are already its radio record on that handle. What is
+    new is that the drop is counted — a silent drop and a device that never spoke look identical."""
+    c = _connected(_collector(), 0x0040, H10)
+    assert c.feed(*_mon(rc.MONITOR_OPCODE_ACL_RX, _att_notification(0x0040, b"\x63")), host_ns=5) is None
+    assert c.rows == 0 and c.not_a_pmd_frame == {"too-short": 1}
+
+
+def test_a_bare_SEQUENCE_of_devices_declares_no_vendor_and_so_FAILS_CLOSED():
+    """The fail-closed direction, and the reason the collector takes a mapping. A caller that cannot
+    say which protocol a device speaks must not have that device's payload read as a measurement —
+    so an undeclared device yields the absence and its reason, never a decoded frame."""
+    c = _connected(rc.Collector(ADAPTER, (H10,)), 0x0040, H10)
+    row = c.feed(*_mon(rc.MONITOR_OPCODE_ACL_RX, _pmd_acl(0x0040, 0x00, 819_000_000_000_000)), host_ns=5)
+    assert row[1] is None and row[2] is None and row[8] == rc.DEVICE_CLOCK_NOT_PMD
+    assert c.pmd_devices == set() and c.devices == {H10}
+
+
+def test_the_vendor_DECLARATION_is_matched_the_way_the_capture_daemon_matches_it():
+    """`capture.py` reads `(dev.get("vendor") or "").strip().lower() == "polar"`; this is that, as a
+    set, so a config written by a human still matches and an absent key still fails closed."""
+    assert rc.speaks_pmd("Polar") and rc.speaks_pmd(" POLAR ") and rc.speaks_pmd("polar")
+    assert not rc.speaks_pmd(None) and not rc.speaks_pmd("") and not rc.speaks_pmd("Wellue")
+    assert not rc.speaks_pmd("polaroid"), "a prefix match would widen the set by accident"
+    c = rc.Collector(ADAPTER, {H10: "polar", RING: "Wellue", VERITY: None})
+    assert c.pmd_devices == {H10} and c.devices == {H10, RING, VERITY}
+
+
+def test_decide_hands_the_DECLARED_VENDOR_THROUGH_with_each_address(tmp_path):
+    """The declaration lives in `config.yaml` and nowhere else, so `decide` is the only place it can
+    enter. An address with no vendor travels as None and fails closed downstream."""
+    sysfs = _sysfs(tmp_path, {"hci1": "28:0C:50:0C:18:FD"})
+    cfg = dict(CFG, devices=[{"address": H10, "vendor": "Polar"}, {"address": RING, "vendor": "Wellue"}, {"x": 1}])
+    index, devices, why = rc.decide(cfg, sysfs, probe=lambda i: (rc.NORDIC_COMPANY_ID, 0, None))
+    assert (index, why) == (1, None)
+    assert devices == {H10: "Polar", RING: "Wellue"}
+    assert rc.Collector(ADAPTER, devices).pmd_devices == {H10}
+
+
+def test_the_run_REPORTS_the_absent_stamps_per_reason(tmp_path):
+    """A resumed pre-change file cannot carry the reason column at all, so the run's own telemetry is
+    where the reason is stated for those rows. It is reported per reason for the same purpose the
+    column exists: two different absences must not read as one."""
+
+    def open_writer(address):
+        return rc.SidecarWriter(str(tmp_path / rc.sidecar_name("20260907T030000", address)))
+
+    stream = [(rc.MONITOR_OPCODE_EVENT, ADAPTER, _le_conn_complete(0x0040, RING), 1)]
+    stream += [(rc.MONITOR_OPCODE_ACL_RX, ADAPTER, _att_notification(0x0040, bytes([9]) * 12), 2)]
+    got = rc.run(stream, _collector(devices=(RING,), vendor="Wellue"), open_writer)
+    assert got["rows"] == 1 and got["no_device_clock"] == {"none-not-pmd": 1}
+    assert got["not_a_pmd_frame"] == {}
+
+
+def test_a_RESUMED_PRE_CHANGE_FILE_KEEPS_ITS_OWN_WIDTH_FOR_LIFE(tmp_path):
+    """🔴 A MIXED-WIDTH FILE IS THE ONE OUTCOME THAT MUST NOT BE POSSIBLE. `writers.py`'s PMD arrival
+    sidecar states the rule for exactly this situation, and the reason is that every consumer
+    splitting on `;` would read the new column as part of an old one in half the rows. A night that
+    was already being written when this change deployed keeps nine columns to its last row."""
+    p = tmp_path / "s.csv"
+    nine = ";".join(rc.SIDECAR_COLUMNS[:9]) + "\n"
+    p.write_text(nine + "t;%s;0;5;64;11;1050000;;7\n" % H10, encoding="utf-8")
+    w = rc.SidecarWriter(str(p))
+    assert w.cols == 9, "read from the FILE, not assumed from the module"
+    w.write(rc.format_row("u", H10, 0, 6, 64, 12, 1_100_000, None, 8, rc.DEVICE_CLOCK_PMD))
+    w.close()
+    lines = p.read_text(encoding="utf-8").splitlines()
+    assert all(line.count(";") == 8 for line in lines), "nine columns, header and every row"
+    assert not lines[-1].endswith(";pmd"), "the tail column is dropped rather than appended blind"
+    fresh = rc.SidecarWriter(str(tmp_path / "fresh.csv"))
+    assert fresh.cols == 10, "and only a FRESH file gets the new column"
+    fresh.close()
+
+
+def test_an_UNREADABLE_header_assumes_the_NARROW_shape_and_never_widens_it(tmp_path):
+    """The branch cannot be reached by a file on disk, and an uncovered fallback that guesses WIDE
+    would write a column nobody can place. `test_pmd_arrival_writer.py` pins the same branch the same
+    way; the `mode == "r"` predicate is load-bearing — the torn-tail handler opens the same path
+    `rb+`, outside the try, so a looser match would raise instead of exercising this."""
+    import builtins
+    from unittest import mock
+
+    q = str(tmp_path / "s.csv")
+    with open(q, "w", encoding="utf-8") as fh:
+        fh.write(";".join(rc.SIDECAR_COLUMNS[:9]) + "\nt;%s;0;5;64;11;1050000;;7\n" % H10)
+    real_open, seen = builtins.open, {"n": 0}
+
+    def boom(path, mode="r", *a, **kw):
+        if str(path) == q and mode == "r":
+            seen["n"] += 1
+            raise OSError(5, "Input/output error")
+        return real_open(path, mode, *a, **kw)
+
+    with mock.patch.object(builtins, "open", boom):
+        w = rc.SidecarWriter(q)
+    assert seen["n"] == 1, "the header read must have been attempted, or this asserts nothing"
+    assert w.cols == 9
+    w.close()
