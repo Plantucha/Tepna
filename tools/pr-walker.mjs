@@ -13,12 +13,14 @@
  *
  * One pass. Snapshot every open PR (draft flag, labels, merge state, checks, head SHA), read the
  * REQUIRED set from the `protect-main` ruleset, classify each PR as exactly one of
- *   held · conflict · red · pending · stuck · unknown · green
+ *   held · conflict · red · cancelled · pending · stuck · unknown · green
  * and plan actions from the classification alone:
  *   ready   a green draft is marked ready while fewer than CAP (4, CLAUDE.md §👥.5) are out of draft,
  *           oldest number first
  *   rerun   a PR red on a REQUIRED check gets its failed jobs re-run ONCE per head SHA; red again is
  *           a coder's, and the walker says so instead of looping
+ *   rerun-all a PR whose REQUIRED check was CANCELLED gets the whole run re-run, never `--failed`,
+ *           because a cancelled run's jobs conclude `cancelled` and `--failed` would re-run nothing
  *   rebase  a conflicting PR is rebased with `tools/rebase-safe.mjs` in the walker's OWN worktree and
  *           pushed with `--force-with-lease` against the SHA it observed, ONCE per head SHA; a
  *           source-file conflict stops rebase-safe, and the walker reports "hand rebase" and moves on
@@ -96,6 +98,7 @@ export function classify(pr, required, fallback = FALLBACK_REQUIRED) {
     behind: pr.mergeState === 'BEHIND',
     dirty: pr.mergeState === 'DIRTY',
     failed: [],
+    cancelled: [],
     runIds: []
   };
   if ((pr.labels || []).includes(HOLD_LABEL)) return { ...base, state: 'held', why: `${HOLD_LABEL} label` };
@@ -117,6 +120,25 @@ export function classify(pr, required, fallback = FALLBACK_REQUIRED) {
       failed: failed.map((c) => c.name),
       runIds,
       why: `required red: ${failed.map((c) => c.name).join(', ')}${ruleset ? '' : ' (ruleset unreadable — every check counts)'}`
+    };
+  }
+  /* 🔴 A CANCELLED REQUIRED CHECK USED TO READ AS GREEN TO THE TOOL THAT ACTS. `gh pr checks` puts
+     it in bucket `cancel`, which is neither `fail` nor `pending`, and the context DID report, so
+     `unreported` below cannot see it either: every rung fell through and the PR classified `green`.
+     This tool then UNDRAFTS it and merges it once Kodiak is idle, while nothing re-runs a cancelled
+     run, so the required context never becomes a success and the merge waits on it forever.
+     `classify` in `tools/queue-doctor.mjs` has held this rung since 2026-10-19 (#3688: `biome` and
+     `typecheck` cancelled by a supersede-on-push group, seven other workflows green on the same
+     head). The rung sat in the tool that only REPORTS and was absent from the one that ACTS. It
+     ranks below `red`, because a red is a code question and a cancellation is a queue question. */
+  const cancelled = checks.filter((c) => c.bucket === 'cancel' && isReq(c));
+  if (cancelled.length) {
+    return {
+      ...base,
+      state: 'cancelled',
+      cancelled: cancelled.map((c) => c.name),
+      runIds: [...new Set(cancelled.map((c) => runIdOf(c.link)).filter(Boolean))],
+      why: `required cancelled: ${cancelled.map((c) => c.name).join(', ')} — terminal, so nothing re-runs them`
     };
   }
   const pending = checks.filter((c) => c.bucket === 'pending');
@@ -187,6 +209,20 @@ export function plan(classified, state, ctx) {
       if (n < MAX_RERUNS_PER_SHA && r.runIds.length)
         actions.push({ op: 'rerun', number: r.number, headSha: r.headSha, runIds: r.runIds, why: `required red (${r.failed.join(', ')}), rerun ${n + 1}/${MAX_RERUNS_PER_SHA}` });
       else alerts.push({ number: r.number, kind: 'red', why: `${r.failed.join(', ')} red after ${n} rerun(s) — a coder owns it` });
+      continue;
+    }
+    if (r.state === 'cancelled') {
+      /* A FULL re-run, never `--failed`: a cancelled run's jobs conclude `cancelled`, not `failure`,
+         so `gh run rerun --failed` would re-run nothing and the walker would report an action that
+         changed the PR not at all. Measured 2026-11-02 over the five most recent cancelled runs in
+         this repo: FOUR carried zero jobs concluding `failure` (3 cancelled · 1 cancelled + 1 success
+         · 5 + 2 · 1 + 6), and only one had a single failed job beside seven cancelled ones.
+         The per-head counter is shared with the red rerun above on purpose. The bound is re-runs per
+         HEAD, so a cancellation followed by a red cannot spin one head twice. */
+      const n = (state.reruns || {})[r.headSha] || 0;
+      if (n < MAX_RERUNS_PER_SHA && r.runIds.length)
+        actions.push({ op: 'rerun-all', number: r.number, headSha: r.headSha, runIds: r.runIds, why: `required cancelled (${r.cancelled.join(', ')}), full rerun ${n + 1}/${MAX_RERUNS_PER_SHA}` });
+      else alerts.push({ number: r.number, kind: 'cancelled', why: `${r.cancelled.join(', ')} cancelled${r.runIds.length ? ` after ${n} rerun(s)` : ' with no run id to re-run'} — a coder owns it` });
       continue;
     }
     if (r.state === 'conflict') {
@@ -338,6 +374,10 @@ export function act(actions, state, opts) {
       else if (a.op === 'rerun') {
         for (const id of a.runIds) gh(['run', 'rerun', id, '--failed']);
         state.reruns[a.headSha] = (state.reruns[a.headSha] || 0) + 1;
+      } else if (a.op === 'rerun-all') {
+        /* No `--failed`. A cancelled run has no failed jobs to re-run — see `plan`'s measurement. */
+        for (const id of a.runIds) gh(['run', 'rerun', id]);
+        state.reruns[a.headSha] = (state.reruns[a.headSha] || 0) + 1;
       } else if (a.op === 'rebase') {
         result = rebaseBranch(a, opts.worktree);
         state.rebased[a.headSha] = result;
@@ -368,6 +408,7 @@ export function act(actions, state, opts) {
 const SIGN_VERB = {
   ready: 'marked this PR ready for review (undrafted)',
   rerun: 're-ran the failed required jobs',
+  'rerun-all': 're-ran every job in the cancelled required run(s)',
   rebase: 'rebased this branch onto main with `tools/rebase-safe.mjs` and pushed it',
   update: 'updated this branch from main',
   merge: 'squash-merged this PR'
@@ -467,6 +508,38 @@ function selftest() {
   eq(classify(mk({ checks: [G[0]] }), req).state, 'stuck', 'stuck');
   eq(classify(mk({}), []).state, 'stuck', 'degraded: the mirror names what never arrived');
   eq(classify(mk({}), [], ['test', 'biome']).state, 'green', 'degraded: a satisfied mirror');
+  /* The cancelled rung. A `cancel` bucket is terminal and it DID report, so before this rung every
+     test fell through and the PR read `green` — which undrafts and merges it. */
+  const CN = { name: 'test', bucket: 'cancel', link: 'https://github.com/x/y/actions/runs/77/job/3' };
+  eq(classify(mk({ checks: [CN, G[1]] }), req).state, 'cancelled', 'a cancelled required check is not green');
+  eq(classify(mk({ checks: [CN, G[1]] }), req).runIds[0], '77', 'the cancelled run id is carried, so it can be re-run');
+  eq(classify(mk({ checks: [CN, G[1]] }), req).cancelled.join(','), 'test', 'the rung names the context it blocked on');
+  eq(classify(mk({ checks: [{ name: 'mutation', bucket: 'cancel' }, ...G] }), req).state, 'green', "an advisory cancellation is not the queue's business");
+  eq(classify(mk({ checks: [{ name: 'mutation', bucket: 'cancel' }, ...G] }), []).state, 'cancelled', 'fail closed: an unreadable ruleset makes every cancellation count');
+  eq(
+    classify(
+      mk({
+        checks: [
+          { name: 'test', bucket: 'fail' },
+          { name: 'biome', bucket: 'cancel' }
+        ]
+      }),
+      req
+    ).state,
+    'red',
+    'a red outranks a cancellation: code question before queue question'
+  );
+  const cn = (o) => mk({ number: 4, isDraft: false, checks: [CN, G[1]], ...o });
+  const cc = plan([classify(cn({}), req)], { reruns: {}, rebased: {} }, { nowMs: 0, mainMovedAtMs: 0, cap: 4 });
+  eq(cc.actions.map((a) => `${a.op}:${a.runIds.join('')}`).join(','), 'rerun-all:77', 'a cancelled required check re-runs the WHOLE run, never --failed');
+  const cc2 = plan([classify(cn({}), req)], { reruns: { ['a'.repeat(40)]: 1 }, rebased: {} }, { nowMs: 0, mainMovedAtMs: 0, cap: 4 });
+  eq(cc2.actions.length, 0, 'one rerun per head, a cancellation included');
+  eq(cc2.alerts[0].kind, 'cancelled', 'an exhausted head alerts instead of looping');
+  eq(
+    signature({ op: 'rerun-all', number: 4, result: 'ok', why: 'w' }, '2026-11-02T19:45:00Z').includes('every job in the cancelled'),
+    true,
+    'the signature must not claim it re-ran FAILED jobs when it re-ran the whole run'
+  );
   eq(fallbackDrift(['test', 'biome'], ['test']).missing.join(','), 'biome', 'drift names the lag');
   eq(fallbackDrift([], ['test']).readable, false, 'an unreadable ruleset judges no mirror');
   eq(classify(mk({ readable: false }), req).state, 'unknown', 'unreadable');
