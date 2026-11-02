@@ -143,6 +143,20 @@ export function extractVerdicts(body = '') {
  * @param {{body: string, files: string[]|null, computeHashMoved: boolean, ste: Array<{line:number,rule:string,detail:string}>|null, steChecked: number|null, prStates: Record<string,string>|null, self: string|null, newDocs: Array<{path:string, findings:Array<{line:number,rule:string,detail:string}>}>|null, freshness: Array<{gate: string|null, commit: string|null, state: string, moved?: string[]}>|null}} ctx
  * @returns {{failures: string[], checked: string[]}}
  */
+/* A DEPENDABOT PR THAT TOUCHES ONLY DEPENDENCY MANIFESTS IS OUT OF SCOPE. A bot cannot write a
+   `Rule 0:` line, a `Fleet-Session:` trailer or a changeset, so every check above reds it by
+   construction. Measured 2026-11-01: #4238, #4239 and #4240 each read `pr-compliance: FAIL` and
+   nothing else in the gate's own step. The exemption keys on the author GitHub sets in the event
+   (`pull_request.user.login`, never the body) AND on a manifest-only diff, so a person who pushes
+   code onto a bot branch loses it. An absent file list is no diff, and no diff earns no exemption. */
+export const BOT_AUTHORS = new Set(['dependabot[bot]']);
+export const MANIFEST_RE = /^(package(-lock)?\.json|capture-host\/requirements[^/]*\.txt|capture-host\/pyproject\.toml|\.github\/workflows\/[^/]+\.ya?ml)$/;
+export function botManifestOnly({ author = null, files = null }) {
+  if (!author || !BOT_AUTHORS.has(author)) return false;
+  if (!Array.isArray(files) || files.length === 0) return false;
+  return files.every((f) => MANIFEST_RE.test(f));
+}
+
 export function checkCompliance({ body = '', files = null, computeHashMoved = false, ste = null, steChecked = null, prStates = null, self = null, newDocs = null, freshness = null }) {
   const failures = [];
   const checked = [];
@@ -293,6 +307,14 @@ export function selftest() {
   // CONTROL — a compliant body with a compliant file list must pass, or the gate blocks everything.
   const clean = checkCompliance({ body: good, files: ['tools/x.mjs', 'changes/2026-10-10-x.md'], ste: [], steChecked: 1, prStates: {}, newDocs: [], freshness: [] });
   ok(clean.failures.length === 0, 'CONTROL: a compliant body and changeset pass');
+
+  // BOT EXEMPTION — a dependabot manifest-only diff is out of scope; anything else is not.
+  ok(botManifestOnly({ author: 'dependabot[bot]', files: ['capture-host/requirements.txt'] }), 'BOT: a dependabot requirements bump is exempt');
+  ok(botManifestOnly({ author: 'dependabot[bot]', files: ['.github/workflows/no-network.yml', 'package-lock.json'] }), 'BOT: a dependabot actions + lockfile bump is exempt');
+  ok(!botManifestOnly({ author: 'dependabot[bot]', files: ['capture-host/requirements.txt', 'capture-host/capture.py'] }), 'BOT: code on a bot branch loses the exemption');
+  ok(!botManifestOnly({ author: 'dependabot[bot]', files: null }), 'BOT: no diff earns no exemption');
+  ok(!botManifestOnly({ author: 'dependabot[bot]', files: [] }), 'BOT: an empty diff earns no exemption');
+  ok(!botManifestOnly({ author: 'Plantucha', files: ['capture-host/requirements.txt'] }), 'BOT: a person bumping a manifest is still checked');
   ok(clean.checked.length === ELIGIBLE_CHECKS, 'CONTROL: every check was evaluated, so the pass is not a skip');
   /* THE POPULATION BOUND. Twice on 2026-10-12 the verdict's `eligible` stayed one below the checks that
      ran (6 of 7, then 7 of 8 after #3510), so `--json` threw on every full PR context: excluded = -1 fails Verdict.validate. */
@@ -790,6 +812,13 @@ function main() {
     }
   }
 
+  const author = process.env.PR_AUTHOR || null;
+  if (botManifestOnly({ author, files })) {
+    const reason = `${author} PR touches only dependency manifests (${files.length} file(s)); the body rules do not bind a bot`;
+    if (asJson) process.stdout.write(`${JSON.stringify(verdictOf({ status: 'NOT_APPLICABLE', failures: [], checked: ['bot-manifest-scope'], reason }), null, 1)}\n`);
+    else console.log(`pr-compliance: NOT_APPLICABLE — ${reason}`);
+    return 0;
+  }
   const { failures, checked } = checkCompliance({ body, files, computeHashMoved, ste, steChecked, prStates, self: process.env.PR_NUMBER || null, newDocs, freshness });
   if (diffError) failures.push(diffError);
   const status = failures.length ? 'FAIL' : 'PASS';

@@ -177,6 +177,8 @@ jobs:
           # reports itself as not evaluated, and the other five still run — so this env is what makes
           # check 6 bite in CI rather than only on a rig.
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          # The author GitHub sets, never the body: a dependabot manifest-only PR is out of scope.
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
           GH_TOKEN: ${{ github.token }}
         run: node tools/pr-compliance.mjs
       - name: Self-contained analysis tools ≡ bundle(source) (file://-safe drift guard)
