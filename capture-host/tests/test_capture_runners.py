@@ -7821,13 +7821,23 @@ def test_run_oxyii_writes_the_ring_clock_sidecar(tmp_path, monkeypatch):
 
 def test_run_oxyii_flags_an_rtc_jump_as_a_battery_reset(tmp_path, monkeypatch, caplog):
     """The offset moved > _OXYII_RTC_JUMP_S between reads with no push of ours: reset-suspect is
-    published, the sidecar rows say so, and the re-push is queued by clearing _OXYII_RTC_AT."""
+    published, the sidecar rows say so, and the re-push is queued by clearing _OXYII_RTC_AT.
+
+    🔴 "WITH NO PUSH" BELONGS TO THE SETUP, NOT TO THE NAME. A cleared `_OXYII_RTC_AT` reads as
+    first contact, so this run pushed before it read and the whole jump was the ring obeying us. The
+    assertion held only while the detector ignored its own push record, and it is the twin of the
+    explained case below. A push 5 min old is inside `_OXYII_RTC_RESYNC_SEC` and so is not due, and
+    `_OXYII_RTC_PUSH_SEEN` says the previous read already saw that same stamp."""
     capture._OXYII_PAUSE.clear()
     capture._RECOVER.clear()
     capture._OXYII_RTC_AT.clear()
     capture._OXYII_LAST_RTC_OFF.clear()
+    capture._OXYII_RTC_PUSH_SEEN.clear()
     dev = _o2dev()
     capture._OXYII_LAST_RTC_OFF[dev["address"]] = 0.0  # a previous session read the RTC on time
+    _pushed_long_ago = _dt.datetime(2026, 8, 19, 21, 45, 0)
+    capture._OXYII_RTC_AT[dev["address"]] = _pushed_long_ago
+    capture._OXYII_RTC_PUSH_SEEN[dev["address"]] = _pushed_long_ago
     c = FakeGattClient()
 
     def on(data):
@@ -7850,6 +7860,47 @@ def test_run_oxyii_flags_an_rtc_jump_as_a_battery_reset(tmp_path, monkeypatch, c
     rows = _rtclog_rows(tmp_path)
     assert any(r[1] == "reset-suspect" for r in rows)
     capture._OXYII_LAST_RTC_OFF.clear()
+    capture._OXYII_RTC_PUSH_SEEN.clear()
+
+
+def test_run_oxyii_does_not_call_our_own_rtc_push_a_battery_event(tmp_path, monkeypatch, caplog):
+    """The defect this repairs: a correction we made OURSELVES above `_OXYII_RTC_JUMP_S` read as the
+    ring's battery event, because the detector consulted no push record. A DST relabelling makes that
+    correction a whole hour, and 16 of the 20 flags in the box archive were ours (board #2852).
+
+    First contact pushes, the next read carries the whole correction, and the detector must name it:
+    no `ring_rtc_reset_suspect` key, the push record KEPT rather than discarded, and a `read` row."""
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
+    capture._OXYII_LAST_RTC_OFF.clear()
+    capture._OXYII_RTC_PUSH_SEEN.clear()
+    dev = _o2dev()
+    capture._OXYII_LAST_RTC_OFF[dev["address"]] = 0.0  # the previous read agreed with the host
+    c = FakeGattClient()
+
+    def on(data):
+        op = data[1]
+        if op == oxyii.OP_LIVE:
+            c.notify(0, _o2ring_live_reply())
+        elif op == oxyii.OP_GET_INFO:
+            c.notify(0, _o2_info_reply(h=19, mi=0, s=0))  # ring says 19:00:00 — hours off the host
+
+    c.on_live = on
+    _inject_connect_scan(monkeypatch, c)
+    monkeypatch.setattr(capture, "_now", lambda: _dt.datetime(2026, 8, 19, 21, 50, 0))
+    _stop_after(monkeypatch, 4)
+    with caplog.at_level("INFO"):
+        _run(capture.run_oxyii(dev, str(tmp_path)))
+    st = capture.STATUS["devices"]["Ring"]
+    assert st.get("ring_rtc_reset_suspect") is None
+    assert dev["address"] in capture._OXYII_RTC_AT, "a push of ours is no reason to discard the record"
+    assert any("accounts for it" in r.getMessage() for r in caplog.records)
+    assert not any("RTC JUMPED" in r.getMessage() for r in caplog.records)
+    rows = _rtclog_rows(tmp_path)
+    assert any(r[1] == "read" for r in rows) and not any(r[1] == "reset-suspect" for r in rows)
+    capture._OXYII_LAST_RTC_OFF.clear()
+    capture._OXYII_RTC_PUSH_SEEN.clear()
 
 
 def test_run_oxyii_small_drift_is_a_read_not_a_reset(tmp_path, monkeypatch):
@@ -7858,6 +7909,7 @@ def test_run_oxyii_small_drift_is_a_read_not_a_reset(tmp_path, monkeypatch):
     capture._RECOVER.clear()
     capture._OXYII_RTC_AT.clear()
     capture._OXYII_LAST_RTC_OFF.clear()
+    capture._OXYII_RTC_PUSH_SEEN.clear()
     dev = _o2dev()
     capture._OXYII_LAST_RTC_OFF[dev["address"]] = -6.0
     c = FakeGattClient()

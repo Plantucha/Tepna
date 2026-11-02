@@ -187,3 +187,37 @@ def test_the_unacknowledged_write_does_not_claim_a_synced_clock():
     # explanation of the fix.
     code = "\n".join(ln for ln in helper.splitlines() if not ln.strip().startswith("#"))
     assert "clock_synced" not in code, "only an agreeing READ may stamp a synced clock"
+
+
+# ---------------------------------------------------------------------------
+# rtc_jump_is_our_push — the reset detector's missing premise
+# (row `2026-11-01-an-rtc-correction-push-logs-as-a-battery-event-reset`)
+# ---------------------------------------------------------------------------
+
+PUSHED = _dt.datetime(2026, 11, 1, 5, 43, 5)
+
+
+def test_a_fresh_push_stamp_explains_the_jump_it_caused():
+    """A 0xC0 push moves the ring's clock by exactly as much as it was wrong, so the first read
+    after one carries a jump WE caused. That read is the one the exemption is for."""
+    assert capture.rtc_jump_is_our_push(PUSHED, None) is True
+
+
+def test_a_later_push_explains_the_next_jump_too():
+    """The record is compared, not merely tested for presence: a second push six hours on is a
+    second correction, and the read after it is exempt on its own merit."""
+    assert capture.rtc_jump_is_our_push(PUSHED + _dt.timedelta(seconds=SIX_H), PUSHED) is True
+
+
+def test_the_SAME_push_stamp_twice_no_longer_explains_anything():
+    """The exemption lasts exactly one read. A ring whose clock jumps again while the push record
+    stands still has not been written to since — and that is the battery event the detector is for."""
+    assert capture.rtc_jump_is_our_push(PUSHED, PUSHED) is False
+
+
+def test_an_ABSENT_push_record_is_a_discarded_record_not_a_measurement_of_none():
+    """∅ — the detector CLEARS `_OXYII_RTC_AT` itself to queue a re-push, so a stamp that went from
+    a time to `None` records a DISCARDED record. Reading that as "no push of ours" would exempt the
+    very jump this detector exists to catch, one read after it flagged the last one."""
+    assert capture.rtc_jump_is_our_push(None, PUSHED) is False
+    assert capture.rtc_jump_is_our_push(None, None) is False
