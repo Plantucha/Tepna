@@ -48,6 +48,7 @@
  * reported as such rather than forced onto a culprit.)
  *
  *   node tools/pat-literature-spec.mjs --dir <captures root> [--night 2026-08-03] [--site ring|ankle]
+ *                                        [--pinned-from-recompute]
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -66,6 +67,13 @@ const arg = (k, d) => {
 const DIR = arg('--dir', null);
 const ONLY = arg('--night', null);
 const SITE = arg('--site', 'ankle'); // which PPG corner to pair the ECG against
+/* THE COUNTERFACTUAL, OFF BY DEFAULT. The foot extractor refuses a foot every optical channel was
+   pinned through, and it believes a `_PPGRUNS.txt` companion alone — 170 of 3618 PPG recordings
+   carry one, so the refusal reaches 4.7 % of them and this tool's own call site hands over none.
+   The flag feeds the extractor the in-JS recompute instead, which answers how far these residuals
+   move once the refusal reaches every night. Absent, every number this tool prints is the number it
+   printed before the switch existed. */
+const FROM_RECOMPUTE = argv.includes('--pinned-from-recompute');
 /* THE SAMPLE THE ADOPTION GATE READS — two identical fabricated snapshots, so the object is
    complete and no corpus is touched. */
 function verdictSample() {
@@ -135,8 +143,17 @@ for (const f of ['clock.js', 'kernel-constants.js', 'metric-registry.js', 'pat-g
     console.error('load fail', f, e.message.slice(0, 110));
   }
 }
+/* ∅ `PATGate` CARRIES THE PINNED-SPAN REFUSAL AND NOTHING BOUND IT: `pat-gate.js` loads into the
+   realm above, and the copy below calls `PATGate.runRanges` on the first pinned span. Unbound, that
+   call threw `PATGate is not defined`, under a branch no reachable night entered — every night here
+   hands over no `_PPGRUNS.txt`, so only the recompute leg below reaches it. Measured 2026-11-02. */
 const ECGDSP = ctx.ECGDSP || ctx.ECGDex,
-  PPGDSP = ctx.PPGDSP || ctx.PpgDex;
+  PPGDSP = ctx.PPGDSP || ctx.PpgDex,
+  PATGate = ctx.PATGate;
+if (!PATGate || typeof PATGate.runRanges !== 'function') {
+  console.error('PATGate.runRanges unavailable — the pinned-span refusal cannot run');
+  process.exit(1);
+}
 for (const fn of ['detectChannel', 'consensusBeats', 'parsePPG'])
   if (typeof PPGDSP[fn] !== 'function') {
     console.error(`PPGDSP.${fn} unavailable — cannot use the sanctioned fiducial`);
@@ -170,15 +187,14 @@ function ecgRpeakTimes(text) {
   return { fs: rec.fs, times: Array.from(t), n: peaks.length };
 }
 /* ── @port-from pat-feasibility-worker.js#ppgFootTimes ─────────────────────────────
-   @port-sha aa2336fd1179
-   @port-behind 43679618f5a2 2026-11-01-the-pat-foot-ports-cannot-run-the-recompute-counterfactual
-   RE-READ 2026-11-01 at `43679618f5a2`: the only move is the `@polarity-decision` comment this unit
-   added inside the worker, so the ported logic is unchanged.
-   BEHIND SINCE 2026-11-01: the worker's `ppgFootTimes` now takes an optional
-   `opts.pinnedFromRecompute`, which builds the pinned ranges from `rec.spans` instead of waiting
-   for a `_PPGRUNS.txt` companion. This copy carries no such switch, so it cannot run that
-   counterfactual. It still matches the shipped DEFAULT, which the switch leaves untouched.
-   READ against that text on 2026-11-01, for row
+   @port-sha 43679618f5a2
+   RECONCILED 2026-11-02 against that source text, for row
+   2026-11-01-the-pat-foot-ports-cannot-run-the-recompute-counterfactual. The worker's optional
+   `opts.pinnedFromRecompute` now lives here, so this copy runs the counterfactual the switch exists
+   to run. `opts` is OPTIONAL and LAST per §🧪, and absent or false every line below runs as it did,
+   so no published residual moves. This copy exports nothing, so the switch reaches it through the
+   `--pinned-from-recompute` flag above and the report column names the leg that ran.
+   READ against the pre-switch text on 2026-11-01, for row
    2026-11-01-the-pat-foot-ports-stand-behind-the-shipped-definition. Two of the worker's corrections
    now live here.
 
@@ -206,7 +222,7 @@ function ecgRpeakTimes(text) {
    `tools/pat-matchrate-strict.mjs` does, and row
    2026-11-01-the-consensus-polarity-wiring-reached-one-of-ten-callers holds that difference.
  */
-function ppgFootTimes(text, runsText) {
+function ppgFootTimes(text, runsText, opts) {
   const rec = runsText ? PPGDSP.parsePPG(text, { runsText }) : PPGDSP.parsePPG(text);
   if (!rec || rec.t0Ms == null) return null;
   const per = rec.ch.map((c) => PPGDSP.detectChannel(c, rec.fs));
@@ -221,8 +237,16 @@ function ppgFootTimes(text, runsText) {
   /* @polarity-decision behind 2026-11-01-the-consensus-polarity-wiring-reached-one-of-ten-callers
      The residuals this spec holds against the literature then come from a 2-of-3 vote on an affected night. */
   let cons = PPGDSP.consensusBeats(per, refIdx, rec.fs);
+  /* `opts.pinnedFromRecompute` MEASURES the move that consuming the recompute would make, rather
+     than asserting it: the spans then come from the recompute `parsePPG` publishes on every path,
+     and row 2026-10-28-pat-legs-refuse-only-the-spans-a-sidecar-confirmed still holds the question
+     of whether the shipped default should consume them. A record that publishes no spans array ran
+     no leg at all, so `recomputeRan` keeps "nobody looked" apart from "nothing was pinned" (§∅),
+     and the sidecar leg's own arithmetic stays untouched. */
+  const fromRecompute = !!(opts && opts.pinnedFromRecompute);
+  const recomputeRan = fromRecompute && !rec.pinnedCrossCheck && Array.isArray(rec.spans);
   const chRanges = [];
-  if (rec.pinnedCrossCheck && Array.isArray(rec.spans)) {
+  if ((rec.pinnedCrossCheck || recomputeRan) && Array.isArray(rec.spans)) {
     for (const sp of rec.spans) chRanges.push(PATGate.runRanges((sp && sp.spans) || []));
   }
   const chCursors = chRanges.map((r) => PATGate.inRunsCursor(r));
@@ -276,8 +300,11 @@ function ppgFootTimes(text, runsText) {
     usedRelSec: cons.feet.length > 0 && nViaRel === cons.feet.length,
     feetViaRelSec: nViaRel,
     feetViaSampleRate: cons.feet.length - nViaRel,
-    droppedAllPinned: rec.pinnedCrossCheck ? nAllPinned : null,
-    partialPinned: rec.pinnedCrossCheck ? nPartPinned : null
+    droppedAllPinned: rec.pinnedCrossCheck || recomputeRan ? nAllPinned : null,
+    partialPinned: rec.pinnedCrossCheck || recomputeRan ? nPartPinned : null,
+    /* §∅ THE SOURCE NAMES ITSELF, so a reader never reads a recompute as a sidecar: nothing
+       confirmed the recompute's spans. `null` where neither leg ran. */
+    pinnedSource: rec.pinnedCrossCheck ? '_PPGRUNS.txt' : recomputeRan ? 'recompute' : null
   };
 }
 /* coupleRtoFoot — the REJECTING form. A beat whose foot is not inside the window contributes nothing. */
@@ -341,7 +368,7 @@ for (const n of nights) {
     E = ecgRpeakTimes(fs.readFileSync(eF.f, 'utf8'));
   } catch {}
   try {
-    P = ppgFootTimes(fs.readFileSync(pF.f, 'utf8'));
+    P = ppgFootTimes(fs.readFileSync(pF.f, 'utf8'), null, { pinnedFromRecompute: FROM_RECOMPUTE });
   } catch {}
   if (!E || !P) {
     console.log(`  ${n}  ⊘ extractor failed (ECG ${!!E} · PPG ${!!P})`);
@@ -355,7 +382,8 @@ for (const n of nights) {
   }
   console.log(
     `  ${n}  ${String(E.n).padStart(7)} ${String(P.n).padStart(6)} ${String(c.lags.length).padStart(8)}  ${(100 * c.yield).toFixed(0).padStart(4)}%  | ` +
-      `${med(c.lags).toFixed(0).padStart(6)}ms ${sd(c.lags).toFixed(1).padStart(6)} ${iqr(c.lags).toFixed(0).padStart(5)}   | ${P.feetViaRelSec}/${P.n}`
+      `${med(c.lags).toFixed(0).padStart(6)}ms ${sd(c.lags).toFixed(1).padStart(6)} ${iqr(c.lags).toFixed(0).padStart(5)}   | ${P.feetViaRelSec}/${P.n}` +
+      (P.pinnedSource ? `  pinned ${P.droppedAllPinned}+${P.partialPinned} (${P.pinnedSource})` : '')
   );
   ALL.push(...c.lags);
   covered.push(n);
