@@ -1707,6 +1707,31 @@
         "PPGDEX-SUBFLOOR-RATE-TEST-2026-10-29-BRIEF.md"
       ],
       "notes": ""
+    },
+    {
+      "version": "2.26.0",
+      "date": "2026-11-02",
+      "bump": "minor",
+      "name": "",
+      "manifestHashes": {
+        "ECGDex": "d38176034702",
+        "OxyDex": "0256e2721318",
+        "PulseDex": "e05773c7dc3d",
+        "GlucoDex": "0b7216507512",
+        "PpgDex": "fba635c60888",
+        "HRVDex": "5aa7bcfad6cb",
+        "CPAPDex": "e6c17d4d8a5b",
+        "Integrator": "f8c8e296a8b6",
+        "MotionDex": "7cbf3f0771f5"
+      },
+      "briefs": [
+        "INFRA-STATE-2026-10-31-BRIEF.md",
+        "SAMPLE-VALIDITY-ENVELOPE-2026-09-17-BRIEF.md",
+        "PPGDEX-SUBFLOOR-RATE-TEST-2026-10-29-BRIEF.md",
+        "RADIO-CLOCK-SIDECAR-2026-09-07-BRIEF.md",
+        "RING-TIMEBASE-ECG-TEST-2026-10-29-BRIEF.md"
+      ],
+      "notes": ""
     }
   ]
 }
