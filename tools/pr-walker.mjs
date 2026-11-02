@@ -31,8 +31,8 @@
  * time and the reason (owner, 2026-11-01: "it will sign everything what it does … It will increase
  * visibility"). A failed or dry-run action signs nothing; a comment that cannot post never changes the
  * action's result, it only reads `signed: false` on the landing page.
- * A `do-not-merge` label HOLDS a PR: the walker never readies, reruns, rebases or merges it. It still
- * UPDATES a held PR that falls BEHIND main, at once and with no idleness gate, because Kodiak never
+ * A `do-not-merge` label HOLDS a PR: the walker never readies, reruns or merges it. It still REBASES a
+ * held PR that CONFLICTS (once per head, owner 2026-11-02), and it UPDATES a held PR that falls BEHIND main, at once and with no idleness gate, because Kodiak never
  * updates a held PR and the owner's merge button otherwise reads "out-of-date" after every merge to
  * main (owner, 2026-10-13: "let the walker update held PRs too"). Kodiak keeps the merge; `update` and
  * `merge` on a green PR are fallbacks for the hours Kodiak is down, gated on its idleness, never a race.
@@ -87,7 +87,17 @@ export const FALLBACK_REQUIRED = [
    required: [context] from the ruleset, [] when unreadable. fallback stands in for the ruleset ONLY
    when it is unreadable, and even then it only ADDS to the reported names. */
 export function classify(pr, required, fallback = FALLBACK_REQUIRED) {
-  const base = { number: pr.number, draft: !!pr.isDraft, headSha: pr.headSha, branch: pr.branch, updatedAtMs: pr.updatedAtMs || 0, behind: pr.mergeState === 'BEHIND', failed: [], runIds: [] };
+  const base = {
+    number: pr.number,
+    draft: !!pr.isDraft,
+    headSha: pr.headSha,
+    branch: pr.branch,
+    updatedAtMs: pr.updatedAtMs || 0,
+    behind: pr.mergeState === 'BEHIND',
+    dirty: pr.mergeState === 'DIRTY',
+    failed: [],
+    runIds: []
+  };
   if ((pr.labels || []).includes(HOLD_LABEL)) return { ...base, state: 'held', why: `${HOLD_LABEL} label` };
   if (pr.readable === false) return { ...base, state: 'unknown', why: 'checks unreadable (API error) — not an empty list' };
   if (pr.mergeState === 'DIRTY') return { ...base, state: 'conflict', why: 'conflicts with main' };
@@ -138,6 +148,13 @@ export function runIdOf(link) {
 
 /* state: { reruns:{sha:n}, rebased:{sha:'pushed:<sha>'|'stopped'|'dirty'|…}, firstPending:{number:ms} }
    ctx:   { nowMs, mainMovedAtMs, cap } */
+/* One rebase per head SHA; a head that already stopped once is a coder's, named by the step. */
+function planRebase(r, state, actions, alerts, why) {
+  const st = (state.rebased || {})[r.headSha];
+  if (!st) actions.push({ op: 'rebase', number: r.number, headSha: r.headSha, branch: r.branch, why });
+  else alerts.push({ number: r.number, kind: 'hand-rebase', why: `rebase ${st} on ${String(r.headSha).slice(0, 9)} — rebase by hand` });
+}
+
 export function plan(classified, state, ctx) {
   const cap = ctx.cap || CAP;
   const now = ctx.nowMs;
@@ -150,8 +167,12 @@ export function plan(classified, state, ctx) {
   for (const r of rows) {
     if (r.state === 'held') {
       /* The one thing a hold permits: keep the branch current, so the owner's merge is one click. A
-         held PR that CONFLICTS is not BEHIND (update-branch cannot merge it) and stays untouched. */
+         held PR BEHIND main gets `update`. A held PR that CONFLICTS gets the same once-per-head rebase
+         as an unheld one, because update-branch cannot merge a conflict (owner, 2026-11-02: "Fix
+         walker. Everything is idle" — three held PRs sat DIRTY with no action). A rebase moves no
+         label and merges nothing, so the hold still decides the landing. */
       if (r.behind && !actions.some((a) => a.op === 'update')) actions.push({ op: 'update', number: r.number, why: 'held, behind main — updated so the owner can merge' });
+      else if (r.dirty) planRebase(r, state, actions, alerts, 'held, conflicts with main — rebase-safe once so the owner can merge');
       continue;
     }
     if (r.state === 'green' && r.draft) {
@@ -169,9 +190,7 @@ export function plan(classified, state, ctx) {
       continue;
     }
     if (r.state === 'conflict') {
-      const st = (state.rebased || {})[r.headSha];
-      if (!st) actions.push({ op: 'rebase', number: r.number, headSha: r.headSha, branch: r.branch, why: 'conflicts with main — rebase-safe once' });
-      else alerts.push({ number: r.number, kind: 'hand-rebase', why: `rebase ${st} on ${String(r.headSha).slice(0, 9)} — rebase by hand` });
+      planRebase(r, state, actions, alerts, 'conflicts with main — rebase-safe once');
       continue;
     }
     if (r.state === 'stuck') {
@@ -461,6 +480,14 @@ function selftest() {
   const held = plan([classify(mk({ number: 7, isDraft: false, labels: [HOLD_LABEL], mergeState: 'BEHIND' }), req)], { reruns: {}, rebased: {} }, { nowMs: 0, mainMovedAtMs: 0, cap: 4 });
   eq(held.actions.map((a) => `${a.op}:${a.number}`).join(','), 'update:7', 'held behind ⇒ update at once');
   eq(plan([classify(mk({ number: 7, isDraft: false, labels: [HOLD_LABEL] }), req)], { reruns: {}, rebased: {} }, { nowMs: 0, mainMovedAtMs: 0, cap: 4 }).actions.length, 0, 'held current ⇒ nothing');
+  const hd = plan([classify(mk({ number: 8, labels: [HOLD_LABEL], mergeState: 'DIRTY' }), req)], { reruns: {}, rebased: {} }, { nowMs: 0, mainMovedAtMs: 0, cap: 4 });
+  eq(hd.actions.map((a) => `${a.op}:${a.number}`).join(','), 'rebase:8', 'held conflicting ⇒ one rebase');
+  const hd2 = plan(
+    [classify(mk({ number: 8, labels: [HOLD_LABEL], mergeState: 'DIRTY' }), req)],
+    { reruns: {}, rebased: { [mk({}).headSha]: 'stopped:rebase-safe' } },
+    { nowMs: 0, mainMovedAtMs: 0, cap: 4 }
+  );
+  eq(`${hd2.actions.length}:${hd2.alerts[0] && hd2.alerts[0].kind}`, '0:hand-rebase', 'held conflicting, stopped once ⇒ an alert, never a second try');
   const sig = signature({ op: 'ready', number: 3, result: 'ok', why: 'green draft, pool 1/4' }, '2026-11-01T11:45:09.000Z');
   eq(/^🚶 \*\*The fleet walker marked this PR ready for review \(undrafted\)\*\* at 11:45 UTC, 2026-11-01\./.test(sig), true, 'signature names the walker, the action and the time');
   eq(signature({ op: 'ready', number: 3, result: 'failed: x', why: 'w' }, '2026-11-01T11:45:09Z'), null, 'a failed action signs nothing');
