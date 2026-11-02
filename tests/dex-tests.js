@@ -47799,11 +47799,15 @@
       T.eq('a held PR BEHIND main is updated AT ONCE, with main having just moved (no Kodiak-quiet gate)', ops(ph), 'update:3');
       T.eq('…and the update is the only thing a hold permits', ph.actions.length, 1);
       T.eq('a held non-draft PR that is current still gets nothing', pl([cl(P({ number: 3, isDraft: false, labels: [env.pwHoldLabel] }), REQ)], ST({}), CTX({})).actions.length, 0);
-      T.eq(
-        'a held CONFLICTING PR is not updated — update-branch cannot merge a conflict',
-        pl([cl(P({ number: 3, isDraft: false, labels: [env.pwHoldLabel], mergeState: 'DIRTY' }), REQ)], ST({}), CTX({})).actions.length,
-        0
-      );
+      /* Owner, 2026-11-02: "Fix walker. Everything is idle" — three held PRs sat DIRTY with no action.
+         update-branch cannot merge a conflict, so a held conflict gets the once-per-head rebase. */
+      var heldDirty = cl(P({ number: 3, isDraft: false, labels: [env.pwHoldLabel], mergeState: 'DIRTY' }), REQ);
+      T.eq('a held CONFLICTING PR is rebased once, never updated — update-branch cannot merge a conflict', ops(pl([heldDirty], ST({}), CTX({}))), 'rebase:3');
+      var hdRebased = {};
+      hdRebased[SHA] = 'stopped:rebase-safe';
+      var hdStopped = pl([heldDirty], ST({ rebased: hdRebased }), CTX({}));
+      T.eq('…and a held head that already stopped gets no second try', hdStopped.actions.length, 0);
+      T.eq('…only the hand-rebase alert naming the step', kinds(hdStopped), 'hand-rebase:3');
       var greenBehindQuiet = cl(P({ number: 4, isDraft: false, mergeState: 'BEHIND', updatedAtMs: NOW - 30 * MIN }), REQ);
       T.eq('one update per pass: a held behind PR and a quiet green behind PR yield ONE update, oldest first', ops(pl([greenBehindQuiet, heldBehind], ST({}), CTX({}))), 'update:3');
       T.eq('and no alert — a hold is a decision, not a defect', pl([cl(P({ number: 3, labels: [env.pwHoldLabel] }), REQ)], ST({}), CTX({})).alerts.length, 0);
