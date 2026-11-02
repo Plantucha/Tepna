@@ -75471,20 +75471,52 @@
       T.ok('DECOY · a call below a regex literal holding both quote kinds survives', /opt\(\s*'--real2'/.test(regexMask), regexMask);
       T.ok('DECOY · …and the plant between them is still masked', !/opt\(\s*'--planted2'/.test(regexMask), regexMask);
 
-      adopters.forEach(function (name) {
-        var src = maskEmbedded(TSg[name]);
-        var helpers = { flag: 'boolean', opt: 'valued', optAll: 'valued' };
-        var hre = /(?:const|let|var)\s+(\w+)\s*=\s*\([^)]*\)\s*=>/g,
-          _hm;
+      /* Bound a helper's body at the next declaration AT OR LEFT OF ITS OWN COLUMN. A fixed-width
+         window ran on into the helper below, and `flag` inherited `opt`'s `indexOf`, so every boolean
+         reported as valued. The first repair bounded at a COLUMN-0 declaration, which reaches only
+         module scope: two helpers declared inside a function then read as ONE body, measured on
+         `tools/pat-pinned-move.mjs` (row `2026-11-01-the-flag-arity-scan-bounds-a-helper-body-at-column-0`).
+         ⚠ Indentation-tolerance ALONE is not the fix. A bound that stops at ANY indented declaration
+         ends a block-bodied `opt` before its own `const i = argv.indexOf(n)`. That drops 49 of the 512
+         live helpers to unclassified, 20 of them a real valued `opt`, and the CONTROL below is that
+         shape. The column rule keeps an inner statement inside the body and ends it at a sibling. */
+      function helperBody(src, at) {
+        var pre = /(^|\n)([ \t]*)$/.exec(src.slice(0, at)),
+          own = pre ? pre[2].length : 0,
+          rest = src.slice(at + 1),
+          bre = /\n([ \t]*)(?:const|let|var|function|export|async)\s/g,
+          bm;
+        while ((bm = bre.exec(rest))) if (bm[1].length <= own) return rest.slice(0, bm.index);
+        return rest.slice(0, 400);
+      }
+      function classifyHelpers(src) {
+        var helpers = { flag: 'boolean', opt: 'valued', optAll: 'valued' },
+          hre = /(?:const|let|var)\s+(\w+)\s*=\s*\([^)]*\)\s*=>/g;
         for (const hm of src.matchAll(hre)) {
-          /* Bound the body at the next declaration: a fixed-width window ran on into the helper below
-             and `flag` inherited `opt`'s `indexOf`, reporting every boolean as valued. */
-          var rest = src.slice(hm.index + 1);
-          var stop = rest.search(/\n(?:const|let|var|function|export|async)\s/);
-          var body = rest.slice(0, stop < 0 ? 400 : stop);
+          var body = helperBody(src, hm.index);
           if (!/\bargv\b/.test(body)) continue;
           helpers[hm[1]] = /argv\[\s*\w+\s*\+\s*1\s*\]|indexOf\(/.test(body) ? 'valued' : 'boolean';
         }
+        return helpers;
+      }
+      /* DECOY: two helpers declared INSIDE a function, indented — the measured shape. The boolean one
+         must not inherit the valued one's `indexOf` from the line below it. */
+      var pairIndented = classifyHelpers(
+        maskEmbedded("function main() {\n  const has = (n) => argv.includes(n);\n  const valueOf = (n) => argv[argv.indexOf(n) + 1];\n  if (has('--selftest')) return 0;\n}\n")
+      );
+      T.eq('DECOY · an indented boolean helper above a valued one reads BOOLEAN', pairIndented.has, 'boolean');
+      T.eq('DECOY · …and the valued helper beside it still reads VALUED', pairIndented.valueOf, 'valued');
+      /* CONTROL: the shape that refuses indentation-tolerance alone. */
+      var blockBodied = classifyHelpers(maskEmbedded('const one = (n) => {\n  const i = argv.indexOf(n);\n  return i < 0 ? null : argv[i + 1];\n};\nconst two = (n) => argv.includes(n);\n'));
+      T.eq('CONTROL · a block-bodied helper keeps its own inner `argv.indexOf` — VALUED', blockBodied.one, 'valued');
+      T.eq('CONTROL · …and the boolean helper below it still reads BOOLEAN', blockBodied.two, 'boolean');
+      /* CONTROL: the column-0 inheritance the bound was first written for stays fixed. */
+      var pairColumn0 = classifyHelpers(maskEmbedded('const yes = (n) => argv.includes(n);\nconst val = (n) => argv[argv.indexOf(n) + 1];\n'));
+      T.eq('CONTROL · the column-0 inheritance the bound was first written for stays fixed', pairColumn0.yes, 'boolean');
+
+      adopters.forEach(function (name) {
+        var src = maskEmbedded(TSg[name]);
+        var helpers = classifyHelpers(src);
         var reads = { valued: [], boolean: [] };
         Object.keys(helpers).forEach(function (h) {
           var cre = new RegExp('\\b' + h + "\\(\\s*'(--[a-z0-9-]+)'", 'g'),
