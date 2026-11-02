@@ -59,11 +59,40 @@ TOKEN = "devfloors"
 # report rather than skipped, because a dropped line is a floor nobody compares.
 FLOOR_RE = re.compile(r"^([A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)\s*(>=|==)\s*([0-9][0-9A-Za-z.*+!-]*)$")
 
-# The ONE non-numeric suffix this module reads. PEP 440 orders `1.4.1.post1` ABOVE `1.4.1` with no
-# ambiguity, so reading it is a measurement rather than a guess — unlike `rc1` or `dev0`, which still
-# return None below. Only the normalised `.postN` spelling is read; `.revN`, `.rN` and an implicit
-# `-N` post-release return None rather than inviting a second parser for one question.
-POST_SUFFIX = re.compile(r"\.post(\d+)\Z")
+# THE NON-NUMERIC SEGMENTS THIS MODULE READS, and PEP 440 orders every one of them with no ambiguity:
+# `1.0.dev1 < 1.0a1 < 1.0b1 < 1.0rc1 < 1.0 < 1.0.post1`. Reading them is a measurement rather than a
+# guess, which is the whole test for what belongs in this pattern.
+#
+# ONLY THE NORMALISED SPELLINGS. `alpha`, `beta`, `c`, `pre`, `preview`, `.revN`, `.rN`, an implicit
+# `-N` post-release, an epoch (`1!2.0`) and a local version (`1.0+abc`) all still return None below.
+# Each of those is either a second spelling for one question or a segment whose comparison this gate
+# has never needed, and a parser that guesses at one is the defect this module exists to refuse.
+#
+# MEASURED BEFORE WIDENING, 2026-11-02, because reading a pre-release turns a refusal into a BELOW and
+# so reds a venv this gate passes today: the rig's dev venv carries 49 distributions and the capture
+# box's runtime venv 21, and NONE of the 70 is a pre-release or a dev release. So this widening reds
+# nothing in either venv the fleet runs. Row
+# `2026-11-02-the-floor-check-refuses-a-pre-release-it-could-order`; §7 decision #3027 deferred it to
+# exactly this measurement.
+VERSION_RE = re.compile(
+    r"\A(?P<release>[0-9]+(?:\.[0-9]+)*)"
+    r"(?:(?P<pre_letter>a|b|rc)(?P<pre_number>[0-9]+))?"
+    r"(?:\.post(?P<post>[0-9]+))?"
+    r"(?:\.dev(?P<dev>[0-9]+))?\Z"
+)
+
+# The pre-release rank, and the two SENTINELS around it are the whole of PEP 440's ordering rule here.
+# A version with no pre-release segment sorts ABOVE every pre-release of the same release, so absence
+# is the highest rank. The one exception is a bare dev release: `1.0.dev1` carries no pre-release and
+# still sorts BELOW `1.0a1`, so that case takes the lowest rank instead of the highest.
+PRE_RANK = {"a": 0, "b": 1, "rc": 2}
+PRE_ABSENT = 3
+PRE_DEV_ONLY = -1
+# A post number is never negative, so an absent post-release sorts below every real one.
+POST_ABSENT = -1
+# A dev release sorts BELOW the same version without one, so PRESENT is the lower rank.
+DEV_PRESENT = 0
+DEV_ABSENT = 1
 
 MET = "MET"
 BELOW = "BELOW_FLOOR"
@@ -97,30 +126,39 @@ def declared_floors(text: str) -> tuple[list[tuple[str, str, str]], list[str]]:
     return floors, unreadable
 
 
-def version_key(version: str) -> tuple[tuple[int, ...], int] | None:
-    """`"0.16.0"` → `((0, 16, 0), 0)`; `"1.4.1.post1"` → `((1, 4, 1), 1)`; `None` when any release
-    segment is not a number.
+def version_key(version: str) -> tuple[tuple[int, ...], tuple[int, ...]] | None:
+    """`(release, suffix)` for a version this module reads, or `None` for one it refuses.
+
+    The suffix is `(pre_rank, pre_number, post, dev_rank, dev_number)`, which is PEP 440's own
+    ordering for everything after the release segments. Compare two keys and the spec's order falls
+    out: `1.0.dev1 < 1.0a1 < 1.0b1 < 1.0rc1 < 1.0 < 1.0.post1`.
 
     `None` is the absence, and the caller reports it as such. A best-effort parse here would compare
-    `0.11.0.1` against `0.11.0rc1` on a guess and call the guess a measurement.
+    `0.11.0.1` against `0.11.0.rev1` on a guess and call the guess a measurement.
 
-    THE POST NUMBER IS A SECOND FIELD AND NEVER A RELEASE SEGMENT. `shellcheck-py>=0.11.0.1` is a real
-    four-segment release in this tree, and `0.11.0.post1` sits BELOW it, so folding the post number
-    into the release tuple would order the two wrongly. Measured 2026-11-02: `pytest-asyncio
-    1.4.1.post1` against the declared `>=1.4.1` read NOT_COMPARABLE, and the advisory returned rc 4
-    over 13 met floors.
+    THE SUFFIX IS NEVER A RELEASE SEGMENT. `shellcheck-py>=0.11.0.1` is a real four-segment release in
+    this tree, and `0.11.0.post1` sits BELOW it, so folding the post number into the release tuple
+    would order the two wrongly. Measured 2026-11-02: `pytest-asyncio 1.4.1.post1` against the
+    declared `>=1.4.1` read NOT_COMPARABLE, and the advisory returned rc 4 over 13 met floors.
     """
-    post = 0
-    found = POST_SUFFIX.search(version)
-    if found:
-        post = int(found.group(1))
-        version = version[: found.start()]
-    key: list[int] = []
-    for part in version.split("."):
-        if not part.isdigit():
-            return None
-        key.append(int(part))
-    return tuple(key), post
+    found = VERSION_RE.match(version)
+    if not found:
+        return None
+    release = tuple(int(part) for part in found.group("release").split("."))
+    pre_letter, pre_number = found.group("pre_letter"), found.group("pre_number")
+    post, dev = found.group("post"), found.group("dev")
+    if pre_letter is not None:
+        pre = (PRE_RANK[pre_letter], int(pre_number))
+    elif post is None and dev is not None:
+        pre = (PRE_DEV_ONLY, 0)
+    else:
+        pre = (PRE_ABSENT, 0)
+    suffix = (
+        *pre,
+        POST_ABSENT if post is None else int(post),
+        *((DEV_PRESENT, int(dev)) if dev is not None else (DEV_ABSENT, 0)),
+    )
+    return release, suffix
 
 
 def compare_floor(op: str, floor: str, installed: str | None) -> str:
@@ -136,14 +174,15 @@ def compare_floor(op: str, floor: str, installed: str | None) -> str:
     have, want = version_key(installed), version_key(floor)
     if have is None or want is None:
         return NOT_COMPARABLE
-    # The release halves are padded to one width so `1.4` and `1.4.1` compare; the post number is
-    # compared after them, which is the order PEP 440 states.
-    have_rel, have_post = have
-    want_rel, want_post = want
+    # The release halves are padded to one width so `1.4` and `1.4.1` compare; the suffix is compared
+    # after them, which is the order PEP 440 states. Only the RELEASE is padded — the suffix is a
+    # fixed-width tuple by construction, so padding it would be padding nothing.
+    have_rel, have_suffix = have
+    want_rel, want_suffix = want
     width = max(len(have_rel), len(want_rel))
     have_rel += (0,) * (width - len(have_rel))
     want_rel += (0,) * (width - len(want_rel))
-    have, want = (have_rel, have_post), (want_rel, want_post)
+    have, want = (have_rel, have_suffix), (want_rel, want_suffix)
     if op == "==":
         # A PIN IS AN IDENTITY, so a newer version is a finding too. `mutmut==3.8.1` is the dev file's
         # only `==` and the reason is written there: the mutant GENERATOR is the gate, and two versions
