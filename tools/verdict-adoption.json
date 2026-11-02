@@ -3038,6 +3038,18 @@
     ]
    },
    "note": "the hand-run battery behind radioclock.py's 6 mutate-equivalence entries: each declared mutant is replayed through parse_hci_event over the recorded monitor corpus and through a collector run, and verdict_object() reads the four counts the prose already prints \u2014 PASS no declared mutant changed an output \u00b7 FAIL at least one did, so the entries keyed on it excuse nothing and the mutation gate owes a test instead \u00b7 UNKNOWN a canary read 0, which means the battery never reached the code and every equivalence it reports would be vacuous rather than true (that case excludes the whole population, so no PASS over checked 0 can be stated). population = the declared mutants; the criterion (0 distinguished, lte) is a module constant. The exit code is derived from the stamped status, so prose, object and code cannot disagree; --verdict-sample prints the shape from canned counts and runs no battery, and --selftest checks the three branches with a plant: the battery itself cannot be a pytest test, because it rebuilds each mutant from radioclock.py's source at import and under the mutation gate that source is already rewritten (coverage_scope.py pins the file on that reason)"
+  },
+  "tools/wild-anchor-census.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/wild-anchor-census.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "row 2026-11-01-both-host-axis-statistics-walk-past-one-wild-anchor: the corpus measurement the row asks for before any spine change. Both diagnostics DexClock.hostAxis publishes are median-based - stackJitterMs is a half-IQR and maxStepMs walks the smoothed series - so one corrupt anchor moves neither, while the axis still interpolates linearly through it. Pre-stated criterion: streams_with_an_impossible_anchor_step is 0, against CK_RADIO_STEP_OVER_SPAN = 1, which lives in radio-clock.js and is read at run time rather than restated here; a ratio of 1 says the divergence between two neighbouring anchors reached the whole duration of the recording, which a continuous recording cannot do. The statistic is the module own anchorStep, called here and never re-derived, because the row finding is about what the spine publishes. Population = every Polar Sensor Logger stream in the corpus carrying a device clock column, which is the population every hostAxis consumer reads; Magpie prior measurement covered six radio sidecars over two nights. Reported beside the verdict as data and never as the thing judged: the spine own ok, stackJitterMs and maxStepMs per flagged stream, so a flagged stream the spine ACCEPTED is the row harm measured. A stream whose stamps do not parse is excluded and named, never a stream of zero anchors, and a ratio is null wherever the span is unmeasurable. The sample is synthetic and holds no night name or device serial."
   }
  }
 }

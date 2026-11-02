@@ -357,6 +357,49 @@ refuses a drawn column and names it. The arm costs no verdict here: of the 7 str
 publishes no flag at all refuses as well, because board #1687 measured that read defaulting to admit. The suite's own plants carry
 a realistic device axis, so they earn the flag rather than trip it.
 
+### 4.2 · MEASURED 2026-11-02 (Heron) — the anchor step against the recording's own span
+
+`radio-clock.js` publishes `anchorStep` and the pre-stated bound `CK_RADIO_STEP_OVER_SPAN` (1,
+`radio-clock.js:131`), and until this census no caller held the corpus against them. Row
+`2026-11-01-both-host-axis-statistics-walk-past-one-wild-anchor` asks for that measurement before the
+spine change, because a spine publishing a new statistic owes a population first.
+`tools/wild-anchor-census.mjs` walks every Polar Sensor Logger stream under the corpus root, builds
+anchors at the nodes' own `AXIS_EVERY` stride of 500, and reports the raw step over the span beside
+the answer `DexClock.hostAxis` gave for the same stream.
+
+**Population.** 16078 streams found, 6854 measured, 9224 excluded — 7046 carry no
+`sensor timestamp [ns]` column, 2089 hold fewer anchors than the spine's floor of three, and 89 are
+empty. The walk declined 208 directories, 192 of them one CPAP tree below the walk depth of three,
+so the census says nothing about those. The archive mirrors the live capture tree, so one recording
+can appear under two groups, and the per-group split sits beside every total.
+
+**The bound flags 14 streams and the spine had already refused every one of them.** Twelve are H10
+ACC and ECG pairs the spine turned away for an implausible host/device rate near -1e6 ppm, and two
+are copies of one Verity PPI stream whose device column spans zero. The conjunction
+`flaggedAndAccepted` reads 0 over the whole corpus, so a refusal at ratio ≥ 1 adds no refusal this
+corpus needs.
+
+**The harm the row names grades with the recording length.** The spine accepted 6833 of the 6854 axes, and
+the worst raw step on an accepted axis reads:
+
+| stratum | streams | worst ratio | the worst stream |
+|---|---|---|---|
+| axis accepted | 6833 | 4.14e-1 | 2026-07-28 H10 ECG — a 3181 ms step over 8 s on 3 anchors; the spine reported jitter 1617 ms and maxStep 0 ms |
+| ≥ 21 anchors (the spine's own median width) | 5221 | 3.95e-1 | 2026-08-17 Verity PPG — a 35854 ms step over 91 s on 33 anchors; jitter 2363 ms, maxStep 2897 ms |
+| span ≥ 600 s | 1783 | 1.69e-2 | 2026-08-18 H10 ECG — a 55410 ms step over 3273 s on 852 anchors; jitter 36 ms, maxStep 18993 ms |
+
+Read that table downward. On a three-anchor fragment `maxStepMs` reads 0 ms beside a step covering a
+third of the recording. At 33 anchors it reads a twelfth of the raw step. On a recording past ten
+minutes it reads a third of a step that covers 1.7 % of the span. The two statistics mislead hardest
+where the recording is shortest, which is where the three-anchor floor admits a stream whose running
+median has nothing to smooth.
+
+**What this scopes for §4.** The remedy is not a new refusal at ratio ≥ 1, because nothing the spine
+admits clears that bound. It is `hostAxis` publishing the ratio beside `ppm` as a diagnostic, plus a
+caution that reads the span — which remains the six-bundle spine change the row named, so the row
+stays OPEN. A consumer quoting `stackJitterMs` or `maxStepMs` on a stream under ten minutes should
+read the ratio first.
+
 ## 5 · Box-side verification BEFORE §3/§4 are built (Wren, physical-vigil step; ~15 min, daytime)
 
 After the reflash (confirmed by the product string in §2, not by the USB ID): with one Polar strap

@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**313 tools** · 312 with a purpose line · **1 without**
+**314 tools** · 313 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -318,6 +318,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`verify-fixtures.mjs`](../tools/verify-fixtures.mjs) | THE ONLY TOOL ALLOWED TO WRITE `verifiedUnder` (FIXTURE-VERIFICATION-GATE-2026-07-14 §2). |
 | [`verify-seals.mjs`](../tools/verify-seals.mjs) | VERIFY A `tepna-seal/1` FILE — the Node twin of capture-host/unseal.py (CAPTURE-NIGHT-SEAL §5, §6). |
 | [`wearable-sync.mjs`](../tools/wearable-sync.mjs) | wearable-sync — ARE THE WEARABLES ON THE SAME TIMELINE? Two accelerometers strapped to one body see the same turn at the same instant — physics, no physiology in between — so ACC-vs-ACC is… |
+| [`wild-anchor-census.mjs`](../tools/wild-anchor-census.mjs) | THE IMPOSSIBLE ANCHOR STEP, COUNTED OVER THE CORPUS. Residue `2026-11-01-both-host-axis-statistics-walk-past-one-wild-anchor` states the class and sizes the remedy: "the remedy shape is… |
 | [`withdraw-fragment-verdict.mjs`](../tools/withdraw-fragment-verdict.mjs) | WITHDRAW A VERDICT THAT JUDGED A FRAGMENT, WITH ITS REASON RECORDED |
 | [`witness-baseline.mjs`](../tools/witness-baseline.mjs) | THE CLASSICAL BASELINE FOR `survivor-witness.mjs` A peer's framing, and it is structurally exact: the model is a HEURISTIC PROPOSER working because searching is expensive and checking is… |
 | [`workflow-timeout-guard.mjs`](../tools/workflow-timeout-guard.mjs) | EVERY WORKFLOW JOB DECLARES `timeout-minutes`. Without one a job inherits GitHub's 360-minute default, so a hung step burns six hours of the concurrency pool before anything notices. |

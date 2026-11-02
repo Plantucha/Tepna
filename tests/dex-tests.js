@@ -1469,6 +1469,98 @@
         DR.CK_RADIO_BEST_MS === 2 && DR.CK_RADIO_AID_MS === 50 && DR.CK_RADIO_MIN_ANCHORS === 3 && DR.CK_RADIO_STEP_OVER_SPAN === 1,
         JSON.stringify({ best: DR.CK_RADIO_BEST_MS, aid: DR.CK_RADIO_AID_MS, min: DR.CK_RADIO_MIN_ANCHORS, step: DR.CK_RADIO_STEP_OVER_SPAN })
       );
+
+      /* ── THE HOLES IN THE SEQUENCE: PUBLISHED, AND REFUSING NOTHING ─────
+         A link gap is the one defect neither criterion above can see. Both
+         clocks keep their own time across it, so the divergence step reads
+         nothing, and the jitter comes from anchors that are every one of them
+         real. The hole is planted by DELETING a run from a healthy stream,
+         which is what the link does, and the band must not move across it. */
+      var whole = plant(1201, 2, 20);
+      var holed = whole.slice(0, 400).concat(whole.slice(800));
+      var gWhole = DR.anchorGaps(whole);
+      var gHoled = DR.anchorGaps(holed);
+      T.ok(
+        'a gapless sequence reads gapCount 0 and coverage 1.000',
+        gWhole.gapCount === 0 && gWhole.coveredShare === 1 && gWhole.maxGapMs < 1010 && gWhole.n === 1201 && gWhole.dropped === 0,
+        JSON.stringify(gWhole)
+      );
+      T.ok(
+        'deleting a run of 400 anchors names ONE hole, 401 s wide across the two survivors, and the coverage falls by it',
+        gHoled.gapCount === 1 && Math.round(gHoled.maxGapMs / 1000) === 401 && Math.abs(gHoled.coveredShare - 2 / 3) < 0.01,
+        JSON.stringify(gHoled)
+      );
+      var aWhole = DR.radioAxis(whole);
+      var aHoled = DR.radioAxis(holed);
+      T.ok(
+        '\uD83D\uDD34 THE HOLE ANNOTATES AND REFUSES NOTHING: the band reads identically across it (§∅ — reduced coverage annotates)',
+        aWhole.band === aHoled.band && aHoled.band === 'radio' && aHoled.timingSource === 'radio',
+        JSON.stringify({ whole: aWhole.band, holed: aHoled.band, holedJitter: aHoled.spreadMs })
+      );
+      T.ok(
+        '…and that same answer carries the hole, so a consumer reading the band reads the coverage beside it',
+        aHoled.gaps && aHoled.gaps.gapCount === 1 && Math.abs(aHoled.gaps.coveredShare - 2 / 3) < 0.01,
+        JSON.stringify(aHoled.gaps)
+      );
+      T.ok('…while `anchorStep` reads nothing across the same hole, which is why the statistic exists', DR.anchorStep(holed).ratio < 1e-3, JSON.stringify(DR.anchorStep(holed)));
+      var refusedFew = DR.radioAxis([
+        { devMs: 0, hostMs: 0 },
+        { devMs: 1000, hostMs: 1000 }
+      ]);
+      T.ok(
+        'a refusal under the anchor floor still publishes the holes it read',
+        refusedFew.ok === false && refusedFew.gaps && refusedFew.gaps.n === 2 && refusedFew.gaps.gapCount === 0,
+        JSON.stringify({ reason: refusedFew.reason, gaps: refusedFew.gaps })
+      );
+      var refusedNoSpine = DR.radioAxis(holed, { hostAxis: null });
+      T.ok(
+        'and so does the absent-spine refusal, so the coverage never depends on the spine',
+        refusedNoSpine.ok === false && refusedNoSpine.gaps && refusedNoSpine.gaps.gapCount === 1,
+        JSON.stringify({ reason: refusedNoSpine.reason, gaps: refusedNoSpine.gaps })
+      );
+      var g1 = DR.anchorGaps([{ devMs: 0, hostMs: 5000 }]);
+      T.ok(
+        '∅ ONE anchor spans nothing: every statistic is null and the two counts stay real',
+        g1.n === 1 && g1.dropped === 0 && g1.spanMs === null && g1.maxGapMs === null && g1.gapCount === null && g1.coveredShare === null && g1.backwards === null,
+        JSON.stringify(g1)
+      );
+      var g0 = DR.anchorGaps(null);
+      T.ok('∅ no anchors at all reads n 0 with every statistic null, never a full coverage', g0.n === 0 && g0.dropped === 0 && g0.coveredShare === null && g0.maxGapShare === null, JSON.stringify(g0));
+      var gDrop = DR.anchorGaps([
+        { devMs: 0, hostMs: 0 },
+        { devMs: NaN, hostMs: 120000 },
+        { devMs: 2000, hostMs: 2000 }
+      ]);
+      T.ok(
+        '∅ an unreadable anchor is COUNTED and skipped, never read as an interval of zero',
+        gDrop.n === 2 && gDrop.dropped === 1 && gDrop.maxGapMs === 2000 && gDrop.gapCount === 0,
+        JSON.stringify(gDrop)
+      );
+      var gBack = DR.anchorGaps([
+        { devMs: 0, hostMs: 500000 },
+        { devMs: 1000, hostMs: 1000 },
+        { devMs: 2000, hostMs: 2000 }
+      ]);
+      T.ok(
+        'a BACKWARDS interval is a new clock and not a hole of negative length: it counts apart, stays out of the sum, and takes the two shares to null',
+        gBack.backwards === 1 && gBack.gapCount === 0 && gBack.gapTotalMs === 0 && gBack.coveredShare === null && gBack.maxGapShare === null && gBack.spanMs === 499000,
+        JSON.stringify(gBack)
+      );
+      var gFlat = DR.anchorGaps([
+        { devMs: 0, hostMs: 7 },
+        { devMs: 1000, hostMs: 7 },
+        { devMs: 2000, hostMs: 7 }
+      ]);
+      T.ok(
+        '∅ a zero-span sequence divides by nothing: the two shares read null, never 0 or 1',
+        gFlat.spanMs === 0 && gFlat.maxGapShare === null && gFlat.coveredShare === null && gFlat.n === 3,
+        JSON.stringify(gFlat)
+      );
+      T.ok(
+        'the hole bound is pre-stated, reachable by name, and echoed on every reading',
+        DR.CK_RADIO_GAP_MS === 60000 && gWhole.gapOverMs === DR.CK_RADIO_GAP_MS && g0.gapOverMs === DR.CK_RADIO_GAP_MS,
+        String(DR.CK_RADIO_GAP_MS)
+      );
     });
 
     group('OxyDex §∅ — an ABSENT oximetry index is not a measured zero, and Normal is a claim', 'oxydex-dsp · absence', function (T) {
@@ -12092,7 +12184,14 @@
              Gating a drawn axis out would delete 373 of its 689 rated fragments, which are exactly
              the population it was built to characterise. */
           'tools/ring-rate-cause.mjs':
-            'REPORTS — it decomposes the published rate into five named causes and prints `quantizedShare`, `axisDrawn`, `axisSpreadMs` and the span beside every ppm it attributes. It applies no rate, corrects no axis and places no sample.'
+            'REPORTS — it decomposes the published rate into five named causes and prints `quantizedShare`, `axisDrawn`, `axisSpreadMs` and the span beside every ppm it attributes. It applies no rate, corrects no axis and places no sample.',
+          /* Joined the population 2026-11-02 with the census of the RAW anchor step against each
+             recording's own span. Its subject is the step the spine's two median statistics walk past,
+             so it reads `.ppm` only to print what the spine answered beside that step — and it
+             publishes `axisOk`, `axisAccepted` and `axisRefused` as the population, because the harm
+             it counts is the conjunction `flaggedAndAccepted` and never a rate it spends. */
+          'tools/wild-anchor-census.mjs':
+            "REPORTS — it measures the raw divergence step against the smaller of the two clocks' spans and forwards the spine's `ppm` beside it as the diagnostic §🔒.7 calls it. It applies no rate, corrects no axis and places no sample."
         };
         var POP = [],
           AXIS = [],
@@ -12152,8 +12251,9 @@
            published `axisNote` sentence (see its EXCLUDED row); 14 from 2026-10-29, when
            `ring-offset-census.mjs` joined on the `.ppm` it audits; 15 the same day, when
            `ring-rate-cause.mjs` joined to decompose that same `.ppm` into named causes. The number is
-           a ratchet on a derived set, so it moves only beside a classification. */
-        T.eq('POPULATION is 15 — the published denominator', POP.length, 15, 'POPULATION=' + POP.join(', '));
+           a ratchet on a derived set, so it moves only beside a classification. 16 from 2026-11-02,
+           when `wild-anchor-census.mjs` joined on the `ppm` it prints beside the raw anchor step. */
+        T.eq('POPULATION is 16 — the published denominator', POP.length, 16, 'POPULATION=' + POP.join(', '));
       }
 
       /* THE NOTE IN `clock.js` IS A CLAIM ABOUT THREE NODES, so it drifts when they migrate and nothing

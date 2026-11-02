@@ -300,6 +300,14 @@
       ],
       "anchored": null,
       "note": "READ 2026-10-29 (Heron), the day the file entered the tree. `RE_RING_PPG` admits a ring plethysmogram filename and decides nothing else. The instant comes from `PpgDex.parsePPG` through the shared clock spine, never from these digits, so no site here converts the stamp. Same reading as `capture-host/ppg_grid_check.py`."
+    },
+    "tools/wild-anchor-census.mjs": {
+      "reads": [
+        "accept-test",
+        "identifier"
+      ],
+      "anchored": null,
+      "note": "READ 2026-11-02 (Heron), the day the file entered the tree. `RE_PSL` admits a Polar Sensor Logger filename, drops the serial in group 2, and carries the 14-digit group 3 onto the row as the string `stamp`. No site here converts those digits, and no consumer reads the field: every instant in this tool comes from `DexClock.parseTimestamp` over the `Phone timestamp` COLUMN. Same accept test as `tools/ring-offset-census.mjs`, with the digits also kept as a label."
     }
   }
 }
