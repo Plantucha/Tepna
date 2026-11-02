@@ -9160,6 +9160,8 @@ def test_worth_a_night_note_needs_an_hour_and_speaks_when_the_span_is_unknown():
     assert a.worth_a_night_note(None, 5.0) and a.worth_a_night_note(5.0, None)
     assert a.worth_a_night_note(0.0, a.NIGHT_NOTE_MIN_S)
     assert not a.worth_a_night_note(0.0, a.NIGHT_NOTE_MIN_S - 0.1)
+    # A span is a DIFFERENCE: a 10 min wear late in the box's uptime is still a short wear.
+    assert not a.worth_a_night_note(50_000.0, 50_600.0)
 
 
 def _pulled_poll(monkeypatch, *, first, last):

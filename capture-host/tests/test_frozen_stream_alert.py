@@ -283,3 +283,10 @@ def test_the_live_age_bound_is_strict_at_the_threshold():
     live = _live(Sense=(True, False))
     assert alerts.frozen_devices(_qc({"Sense": 900}), live, 600, None, {"Sense": 600.0}) == ["Sense"]
     assert alerts.frozen_devices(_qc({"Sense": 900}), live, 600, None, {"Sense": 599.9}) == []
+
+
+def test_a_fresh_device_does_not_end_the_scan_of_the_devices_after_it():
+    """The live-age skip passes over ONE device. The frozen device listed after it is still reported."""
+    live = _live(Sense=(True, False), H10=(True, False))
+    qc = {"devices": [{"name": "Sense", "silent_sec": 900}, {"name": "H10", "silent_sec": 900}]}
+    assert alerts.frozen_devices(qc, live, 600, None, {"Sense": 5.0}) == ["H10"]
