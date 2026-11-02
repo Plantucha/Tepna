@@ -20,8 +20,10 @@ Run it from anywhere; it reads the module beside it:
     .venv/bin/python tools/probe_radioclock_equiv.py
 
 Exit 0 means every mutant was indistinguishable AND every canary was seen. Exit 1 means one of those
-two failed, and the printed line says which."""
+two failed, and the printed line says which. One `tepna.verdict/1` object follows the prose and
+carries the same decision: the prose explains, and the object is what a machine reads."""
 
+import json
 import random
 import struct
 import sys
@@ -31,6 +33,29 @@ from pathlib import Path
 CH = Path(__file__).resolve().parent.parent  # capture-host/, whose `radioclock.py` is the subject
 sys.path.insert(0, str(CH))
 SRC = (CH / "radioclock.py").read_text(encoding="utf-8")
+
+import verdict as VD  # noqa: E402  — the path above is what makes this importable
+
+# ── tepna.verdict/1 — the decision this probe already prints, as ONE object ───────────────────────
+# The criterion is the probe's own rule, pre-stated: every declared mutant runs through the battery
+# and NONE may be distinguished, because each one stands behind an equivalence entry that excuses it
+# from the mutation gate. PASS every mutant indistinguishable with every canary seen · FAIL at least
+# one mutant distinguished, so the entries keyed on it do not hold · UNKNOWN a canary went unseen,
+# which means the battery never reached the code and every equivalence it reports would be vacuous
+# rather than true. The population is the declared mutants; a blind canary excludes all of them,
+# because a battery that cannot see a mutation it must see has examined nothing.
+VERDICT_GATE = "probe-radioclock-equiv"
+VERDICT_CRITERION = {
+    "name": "mutants_distinguished_by_the_battery",
+    "threshold": 0,
+    "unit": "mutants",
+    "direction": "lte",
+}
+VERDICT_EVIDENCE = [
+    "capture-host/tools/probe_radioclock_equiv.py",
+    "capture-host/radioclock.py",
+    "capture-host/tools/mutate-equivalence.json",
+]
 
 
 def build(name, old, new):
@@ -218,13 +243,142 @@ def canary():
     return out
 
 
+def verdict_object(
+    canaries: dict[str, int],
+    parse_n: int,
+    parse_bad: dict[str, int],
+    acl_n: int,
+    acl_bad: dict[str, int],
+) -> dict:
+    """PURE over the four counts the run prints, so the prose and the object cannot disagree."""
+    blind = sorted(k for k, v in canaries.items() if v == 0)
+    seen = {**parse_bad, **acl_bad}
+    distinguished = sorted(k for k, v in seen.items() if v)
+    declared = len(seen)
+    result = {
+        "canaries": dict(canaries),
+        "parseInputs": parse_n,
+        "aclRuns": acl_n,
+        "parse": dict(parse_bad),
+        "acl": dict(acl_bad),
+        "distinguished": distinguished,
+    }
+
+    def mk(status: str, population: dict, reason: str | None) -> dict:
+        return VD.make(
+            gate=VERDICT_GATE,
+            status=status,
+            population=population,
+            criterion=VERDICT_CRITERION,
+            result=result,
+            evidence=VERDICT_EVIDENCE,
+            reason=reason,
+            tool="capture-host/tools/probe_radioclock_equiv.py",
+        )
+
+    if blind:
+        return mk(
+            "UNKNOWN",
+            {"checked": 0, "eligible": declared, "excluded": declared},
+            "the battery never saw %s, a mutation it MUST see, so it reached neither the parser nor the "
+            "collector and every equivalence here would be vacuous rather than true" % ", ".join(blind),
+        )
+    pop = {"checked": declared, "eligible": declared, "excluded": 0}
+    if distinguished:
+        return mk(
+            "FAIL",
+            pop,
+            "%d of %d declared mutant(s) changed an output — %s. The equivalence entries keyed on them "
+            "excuse nothing and the mutation gate owes a test instead"
+            % (len(distinguished), declared, ", ".join(distinguished)),
+        )
+    return mk("PASS", pop, None)
+
+
+def verdict_sample() -> dict:
+    """The object the adoption gate reads (`--verdict-sample`): canned counts, no battery."""
+    return verdict_object(
+        {"cid_ignored": 2, "opcode_ignored": 2, "continuation_read": 2, "anchors_ignored": 11},
+        1_240_769,
+        dict.fromkeys(PARSE, 0),
+        28,
+        dict.fromkeys(ACLK, 0),
+    )
+
+
+def selftest() -> int:
+    """The decision logic checked WITHOUT the battery, by the flag the adoption gate names.
+
+    It cannot be a pytest test, for the reason `coverage_scope.py` already pins this file on: the
+    module rebuilds each mutant from `radioclock.py`'s source at IMPORT, against an anchor it asserts
+    occurs exactly once, and under the mutation gate that source on disk is already rewritten. A test
+    that imported this module would therefore raise at import under every mutant and report eight
+    kills that no test earned. So the three branches are checked here, where nothing imports them
+    except a hand run and this flag.
+    """
+    clean_c = {"cid_ignored": 2, "opcode_ignored": 2, "continuation_read": 2, "anchors_ignored": 11}
+    clean_p, clean_a = dict.fromkeys(PARSE, 0), dict.fromkeys(ACLK, 0)
+    declared = len(PARSE) + len(ACLK)
+    bad_p = {**clean_p, "body_le4": 3}
+    blind_c = {**clean_c, "anchors_ignored": 0}
+    ok = verdict_object(clean_c, 10, clean_p, 4, clean_a)
+    bad = verdict_object(clean_c, 10, bad_p, 4, clean_a)
+    vac = verdict_object(blind_c, 10, clean_p, 4, clean_a)
+    sample = verdict_sample()
+    cases = [
+        (ok["status"] == "PASS" and ok["reason"] is None, "clean counts state PASS with no reason"),
+        (
+            ok["population"] == {"checked": declared, "eligible": declared, "excluded": 0},
+            "a PASS checked every declared mutant",
+        ),
+        (
+            bad["status"] == "FAIL" and "body_le4" in (bad["reason"] or ""),
+            "a distinguished mutant states FAIL and is NAMED",
+        ),
+        (
+            bad["result"]["distinguished"] == ["body_le4"],
+            "the distinguished mutant is in the result, not only the prose",
+        ),
+        (vac["status"] == "UNKNOWN" and vac["population"]["checked"] == 0, "a blind canary examined NOTHING"),
+        (
+            vac["population"]["excluded"] == declared,
+            "a blind canary excludes the WHOLE population — no equivalence here is true, only unexamined",
+        ),
+        (
+            sample["status"] == "PASS" and sample["gate"] == VERDICT_GATE,
+            "the sample the gate reads carries this gate's own name",
+        ),
+        (
+            sample["criterion"] == VERDICT_CRITERION,
+            "the criterion is the pre-stated constant, not one derived from a run",
+        ),
+    ]
+    bad_cases = [label for held, label in cases if not held]
+    for label in bad_cases:
+        print("SELFTEST ✗ %s" % label)
+    print("SELFTEST=%s (%d/%d)" % ("PASS" if not bad_cases else "FAIL", len(cases) - len(bad_cases), len(cases)))
+    return 1 if bad_cases else 0
+
+
+def only_flag(name: str) -> bool:
+    """True when `name` is the whole argument list."""
+    return sys.argv[1:] == [name]
+
+
 if __name__ == "__main__":
+    if only_flag("--verdict-sample"):  # the adoption gate's cmd — canned counts, no battery
+        print(json.dumps(verdict_sample(), indent=1))
+        sys.exit(0)
+    if only_flag("--selftest"):  # the decision logic alone — see selftest()'s own docstring
+        sys.exit(selftest())
     cn = canary()
     print("CANARIES (each must be > 0):", cn)
     pn, pbad = probe_parse()
     print("PARSE: %d inputs" % pn, "mismatches:", pbad)
     an, abad = probe_acl()
     print("ACL: %d collector runs" % an, "mismatches:", abad)
-    ok = all(v > 0 for v in cn.values()) and not any(pbad.values()) and not any(abad.values())
-    print("PROBE=%s" % ("EQUIVALENT" if ok else "DISTINGUISHED-OR-VACUOUS"))
-    sys.exit(0 if ok else 1)
+    # ONE rule decides the word, the object and the exit code: the status the builder stamped.
+    obj = verdict_object(cn, pn, pbad, an, abad)
+    print("PROBE=%s" % ("EQUIVALENT" if obj["status"] == "PASS" else "DISTINGUISHED-OR-VACUOUS"))
+    print(json.dumps(obj))
+    sys.exit(0 if obj["status"] == "PASS" else 1)
