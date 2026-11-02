@@ -25851,7 +25851,13 @@
       /* pat-feasibility-worker.js 26 -> 27 on 2026-10-18 (the owner's three charts: a raw, b all sidecars,
          c derived): the payload gains `threeSide`, the three legs' window medians on every arrival-floor
          sidecar the night has. The page reads it in the `drawThree` helper, beside the raw hat it draws. */
-      var UNDECIDED_EXPECTED = { 'pat-feasibility-worker.js': 27, 'sensor-trio-worker.js': 36, 'qrs-equiv-worker.js': 2, 'qrs-yield-worker.js': 1 };
+      /* sensor-trio-worker.js 36 -> 37 on 2026-11-02 (row 2026-09-27-verity-gate-verdict-has-no-number-behind-it):
+         the payload gains `hrRatio` back, and this time a consumer reads it — the night page renders it under the
+         corner-gate KPI as the evidence for that verdict. The read sits in the page's `gateEvidence` helper rather
+         than a handler body, which is where this page reads every other aggregate key. ⚠️ This key was DEAD here
+         once (2026-09-27, the dead-key leg above found it) and was deleted rather than surfaced; the ratchet's own
+         rule is that it must not be re-opened to admit a dead key, and this bump admits a SURFACED one. */
+      var UNDECIDED_EXPECTED = { 'pat-feasibility-worker.js': 27, 'sensor-trio-worker.js': 37, 'qrs-equiv-worker.js': 2, 'qrs-yield-worker.js': 1 };
       Object.keys(UNDECIDED_EXPECTED).forEach(function (w2) {
         T.eq(
           w2 + ' · helper-reached (UNDECIDABLE) key count',
@@ -52094,6 +52100,119 @@
       T.ok('the gate calls verityFailureClass() on the skip path', /verityFailureClass\(hrRatio\)/.test(src));
       T.ok('the skip result carries a machine-readable failure class + the ratio', /failure:\s*_fail/.test(src) && /hrRatio:\s*hrRatio/.test(src));
       T.ok('the doubling verdict names the DETECTOR, not the sensor', /OUR DETECTOR/.test(src) && /sensor is fine/.test(src));
+    });
+
+    /* ════ THE CORNER-GATE VERDICT PUBLISHES THE NUMBER IT RULED ON (row 2026-09-27) ════════════════════
+       Closes 2026-09-27-verity-gate-verdict-has-no-number-behind-it. The night page said `both gates ok`
+       on a solved night and `Verity: harmonic-double` on a skipped one, and NEITHER line carried the
+       quantity the gate read — the shape CLAUDE.md §🎫 exists to prevent, a claim on a surface with no
+       badged number under it. The ratio was computed on both paths and reached no surface on either: the
+       success payload dropped it as a dead key on 2026-09-27, and the skip payload carried it machine-
+       readably while the page rendered only the CLASS.
+       🔴 THE TWO QUANTITIES IN THIS CARD TAKE DIFFERENT GRADES. The verdict is this suite's own rule
+       (`gate`, experimental). The ratio is arithmetic over two measured HR medians (`gateEv`, measured).
+       A single badge on the card would publish one grade over both claims, which is why the KPI grew a
+       third element rather than a longer sub-line. */
+    group('the corner-gate verdict carries its ratio, badged apart from the verdict', 'sensor-trio-night · gate-evidence · §🎫', function (T) {
+      var wk = (env.sources && env.sources['sensor-trio-worker.js']) || '';
+      var pg = (env.sources && env.sources['sensor-trio-night.js']) || '';
+      T.ok('the worker source is readable in this lane', !!wk, wk ? wk.length + ' bytes' : 'sensor-trio-worker.js not in env.sources — list it in BOTH lanes');
+      T.ok('the page source is readable in this lane', !!pg, pg ? pg.length + ' bytes' : 'sensor-trio-night.js not in env.sources — list it in BOTH lanes');
+      if (!wk || !pg) return;
+
+      /* THE PRODUCER. The skip return carries the ratio inline; the success payload carries it as its own
+         depth-1 line. Two sites, and the second is the one this row re-opened. */
+      T.ok('the skip result still carries the ratio', /hrRatio:\s*hrRatio,\s*reason:/.test(wk));
+      T.ok('the success payload carries the ratio again', /\n\s*hrRatio: hrRatio\n/.test(wk), 'the key that row 2026-09-27 found dead here is now the KPI’s evidence — a consumer reads it below');
+      T.ok('…and the payload says WHY it is back, not just that it is', /a consumer reads it this time/.test(wk));
+
+      /* THE CONSUMER. The dead-key gate above asks whether any consumer reads `.hrRatio`; these two legs
+         ask the stronger question this surface owes — that the page reads it and renders it on BOTH paths. */
+      T.ok('the page reads the ratio off the payload', /real\.hrRatio/.test(pg));
+      /* `function gateEvidence(real)` matches the call shape too, so count the STATEMENT calls only. */
+      var calls = (pg.match(/\n\s*gateEvidence\(real\);/g) || []).length;
+      T.eq('the evidence line renders on BOTH the solved and the skipped path', calls, 2, 'one call per path — a single call leaves one verdict bare, which is the defect this row logged');
+      var si = pg.indexOf('function renderSkip');
+      T.ok('the skipped path is one of the two', si >= 0 && pg.slice(si, si + 1400).indexOf('gateEvidence(real);') >= 0);
+
+      /* THE FORMATTER, EVALUATED. Pure on purpose, following `verityFailureClass`’s precedent in the
+         worker, so the §∅ branch is a measurement here rather than a reading of the source. */
+      var fi = pg.search(/^\s*function gateRatioText/m);
+      T.ok('the page exposes a PURE gateRatioText(hrRatio) (so the absence branch is testable with no DOM)', fi >= 0);
+      var fmt = null;
+      if (fi >= 0) {
+        var d = 0,
+          started = false,
+          end = -1;
+        for (var k = fi; k < pg.length; k++) {
+          if (pg.charAt(k) === '{') {
+            d++;
+            started = true;
+          } else if (pg.charAt(k) === '}') {
+            d--;
+            if (started && d === 0) {
+              end = k + 1;
+              break;
+            }
+          }
+        }
+        try {
+          fmt = new Function(pg.slice(fi, end) + ';\nreturn gateRatioText;')();
+        } catch (e) {
+          T.ok('gateRatioText is evaluable', false, e.message);
+        }
+      }
+      if (fmt) {
+        T.ok('a solved night’s ~1 ratio prints to two decimals', /HR×1\.00/.test(String(fmt(1.0))));
+        T.ok('a doubled night’s ratio prints the measured multiple', /HR×2\.13/.test(String(fmt(2.13))));
+        T.ok('the line names both medians it divides, so the number is readable without the source', /median Verity/.test(String(fmt(1.0))) && /median H10/.test(String(fmt(1.0))));
+        /* §∅ — an unmeasured ratio is null, never 1.00 and never 0.00. The gate still rules there
+           (`verityFailureClass(null)` reads `poor-contact`), so a number here would manufacture the
+           agreement the verdict claims. */
+        T.eq('an absent ratio formats as null, not as a number', fmt(null), null);
+        T.eq('a non-finite ratio formats as null too', fmt(Infinity), null);
+        T.eq('NaN formats as null', fmt(NaN), null);
+        /* PLANT — the §∅ legs above must be able to FAIL. A formatter that coerces an absent ratio to a
+           number passes every other leg in this group, and on origin/main’s page it would have rendered
+           `HR×NaN` beside a verdict claiming agreement. */
+        var bad = new Function("return function (h) { return 'HR×' + Number(h).toFixed(2) + ' vs ECG — median Verity / median H10'; };")();
+        T.ok('PLANT · a coercing formatter does NOT return null for an absent ratio', bad(null) !== null, 'the plant returns null as well, so the three §∅ legs above could be vacuous');
+        T.ok('PLANT · …and it prints a number for an absent ratio, which is what §∅ forbids', /HR×(?:0\.00|NaN)/.test(String(bad(null))));
+      }
+
+      /* THE BADGE. Two grades, one card, and the registry is the only source for either (§🎫). */
+      T.ok('the ratio is badged MEASURED — it is a ratio of two measured HR medians', /gateEv: \[\s*\n?\s*'measured'/.test(pg));
+      T.ok('the verdict keeps its EXPERIMENTAL grade — a rule is not a measurement', /gate: \['experimental'/.test(pg));
+      T.ok('the ratio badge goes through MetricRegistry, never hand-rolled CSS', /evb\('gateEv'\)/.test(pg));
+      var gi = pg.indexOf('function gateEvidence');
+      var gbody = gi >= 0 ? pg.slice(gi, gi + 1200) : '';
+      T.ok('the measured badge rides the FINITE branch only, so no badge sits on an absence', gbody.indexOf("evb('gateEv')") > gbody.indexOf('const txt'));
+      T.ok('the absence branch names its reason instead of a number', /no HR ratio/.test(gbody) && !/toFixed/.test(gbody));
+
+      /* THE REASON THE ELEMENT EXISTS. `kpi()` writes textContent, so a badge span cannot ride in the
+         value or the sub-line. A later author reading only the markup would see a third div with no cause. */
+      T.ok('kpi() still writes textContent, which is why the badge needs its own element', /\.textContent = val/.test(pg) && /s\.textContent = sub/.test(pg));
+
+      /* THE MARKUP. `gateEvidence` returns silently when the element is absent, so a missing id would
+         disable this surface and leave every leg above green. Node-lane only (fs-read env.analysisTools);
+         the browser lane has no readdir and SKIPs. */
+      var AT = env.analysisTools;
+      if (!AT || !AT['sensor-trio-night.html']) {
+        T.skip('the page markup is readable', 'Node-lane only — env.analysisTools (run-tests.mjs readAnalysisTools)');
+      } else {
+        var html = AT['sensor-trio-night.html'];
+        var gk = html.indexOf('id="kGate"');
+        T.ok('the corner-gate KPI is still on the page', gk >= 0);
+        var card = gk >= 0 ? html.slice(gk, html.indexOf('</div>\n', gk) + 7) : '';
+        T.ok(
+          'the evidence element sits INSIDE that KPI, where the verdict is',
+          /id="kGateEv"/.test(card),
+          'the element must be a child of #kGate — beside the verdict it evidences, not in another card'
+        );
+        T.ok('its class is defined in the page CSS, so the line is not unstyled', /\.ts-kpiev\s*\{/.test(html));
+        T.ok('the absence class is defined too', /\.ts-noev\s*\{/.test(html));
+        T.eq('exactly one evidence element exists', (html.match(/id="kGateEv"/g) || []).length, 1);
+      }
     });
 
     /* ════ The H10 (ECG) corner gate — sibling of the Verity gate, for the OTHER corner ════
