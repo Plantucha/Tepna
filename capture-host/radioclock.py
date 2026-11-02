@@ -401,6 +401,27 @@ def associate(
     return counter, anchor_us
 
 
+def anchor_rx_ns(anchors: list[tuple[int, int, int]], counter: int | None, anchor_us: int | None) -> int | None:
+    """The host receive stamp of the anchor `associate` picked, or None when it picked none.
+
+    `associate` answers WHICH connection event a packet belongs to, and it is kept pure and unchanged
+    for that one question. This answers a second one the row needs: when did the host see that
+    event's report arrive? The pair `(counter, anchor_us)` identifies the entry, so a u16 counter
+    that wrapped inside one window cannot pull the wrong stamp.
+
+    ∅ None is a real answer with three sources, and they are the same statement: an ambiguous or
+    unattributed packet (`counter is None`), a window the entry has already fallen out of, and a
+    series that never held it. A row carrying an `anchor_us` and a blank `vs_rx_ns` would say the
+    offset's own input is missing for a row the offset placed, so the two travel together or not at
+    all. PURE."""
+    if counter is None or anchor_us is None:
+        return None
+    for ctr, us, rx_ns in reversed(anchors):
+        if ctr == counter and us == anchor_us:
+            return rx_ns
+    return None
+
+
 # ══════════════════════════════════════════════════════════════════════════════════════════════════
 # THE I/O HALF. Everything above is pure and fully tested; everything below touches a socket, a clock
 # or a file, and is kept as thin as it can be for exactly that reason.
@@ -663,7 +684,7 @@ class Collector:
         self.not_a_pmd_frame: dict[str, int] = {}
         self.handles = HandleMap()
         self.offsets = OffsetTracker(offset_window)
-        self._anchors: dict[int, list[tuple[int, int]]] = {}
+        self._anchors: dict[int, list[tuple[int, int, int]]] = {}
         #: Anchors the controller never delivered. The report is DISCARDABLE by design and is dropped
         #: under host-buffer pressure, so a gap in `event_counter` is expected — it is counted as
         #: telemetry and NEVER interpolated. An anchor that was not delivered did not happen for us.
@@ -709,7 +730,12 @@ class Collector:
             self.missed_anchors += (counter - prev - 1) & 0xFFFF
         self._last_counter[handle] = counter
         series = self._anchors.setdefault(handle, [])
-        series.append((counter, anchor_us))
+        #: The anchor's OWN host receive stamp travels with it, because `vs_rx_ns` is the column §4 of
+        #: the brief defines `ctrl_host_offset` on, and the only host stamp a row carried was the ACL
+        #: packet's — which arrives after the radio event it belongs to
+        #: (`2026-11-01-the-collector-leaves-the-column-the-offset-is-defined-on-blank`). This is the
+        #: same read `self.offsets.add` below already consumes; it was simply never written down.
+        series.append((counter, anchor_us, host_ns))
         if len(series) > ANCHOR_WINDOW:
             del series[0]
         self.offsets.add(host_ns / 1000.0, anchor_us)
@@ -766,11 +792,25 @@ class Collector:
         meas, last_sensor_ns, device_clock = decided
         if device_clock != DEVICE_CLOCK_PMD:
             self.no_device_clock[device_clock] = self.no_device_clock.get(device_clock, 0) + 1
+        series = self._anchors.get(handle, [])
         counter, anchor_us = associate(
-            host_ns / 1000.0, self._anchors.get(handle, []), self.offsets.offset, self.offsets.jitter
+            host_ns / 1000.0,
+            [(ctr, us) for ctr, us, _rx in series],
+            self.offsets.offset,
+            self.offsets.jitter,
         )
         self.rows += 1
-        return (address, meas, last_sensor_ns, handle, counter, anchor_us, None, host_ns, device_clock)
+        return (
+            address,
+            meas,
+            last_sensor_ns,
+            handle,
+            counter,
+            anchor_us,
+            anchor_rx_ns(series, counter, anchor_us),
+            host_ns,
+            device_clock,
+        )
 
 
 class SidecarWriter:
