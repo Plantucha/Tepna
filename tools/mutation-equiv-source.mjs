@@ -38,7 +38,7 @@ import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
-import { functionSpan, recordedLineState, splitKey } from './mutation-key-core.mjs';
+import { functionSpan, lineShape, parseAssignment, recordedLineState, splitKey } from './mutation-key-core.mjs';
 import { escapeRe } from './regex-escape-core.mjs';
 import { makeVerdict } from './verdict-emit.mjs';
 
@@ -145,13 +145,12 @@ function maskOutsideBraces(body) {
    Only a simple assignment of a literal to ONE bare name is in scope. A call-argument mutant
    (`daemon_starts(prev, data, offset_sec=None)`) and an operator mutant (`<` → `<=`) are real
    survivors whose question is the callee's contract or a boundary, not this name's reads — they get
-   `not-an-initialiser` with the shape named, never silence. */
-export function parseAssignment(line) {
-  const m = /^(\s*)([A-Za-z_][A-Za-z0-9_]*)\s*(:[^=]+)?=(?!=)\s*(.+?)\s*$/.exec(String(line));
-  if (!m) return null;
-  return { indent: m[1], name: m[2], annotation: (m[3] || '').trim() || null, value: m[4] };
-}
+   `not-an-initialiser` with the shape named, never silence.
 
+   `parseAssignment` and `lineShape` moved to `mutation-key-core.mjs`, because the drafting program
+   asks the same question of the same line and a second copy is how two readers come to disagree. They
+   are re-exported here so this module's own callers and selftests keep one import. */
+export { lineShape, parseAssignment } from './mutation-key-core.mjs';
 /** Blank every LHS occurrence of `name` in a plain assignment, tuple targets included, keeping the
  * line's length so columns still line up. A subscript or attribute target (`out["k"] = x`) is NOT a
  * write to the bare name and is left alone. */
@@ -164,22 +163,6 @@ export function blankTargets(line, name) {
   if (!/^[\s]*[A-Za-z_][A-Za-z0-9_]*(\s*:[^=]+)?(\s*,\s*[A-Za-z_][A-Za-z0-9_]*)*\s*$/.test(lhs)) return whole;
   const masked = lhs.replace(new RegExp(`(?<![A-Za-z0-9_])${name}(?![A-Za-z0-9_])`, 'g'), ' '.repeat(name.length));
   return masked + '=' + eq[2];
-}
-
-/** What shape a line IS, when it is not a plain assignment — so the census names it. */
-export function lineShape(before, after) {
-  const asgB = parseAssignment(before);
-  const asgA = parseAssignment(after);
-  const b = asgB ? asgB.value : String(before);
-  const a = asgA ? asgA.value : String(after);
-  const pair = `${b}\n${a}`;
-  if (/^\s*(if|elif|while|assert)\b/.test(b)) return 'condition';
-  if (/^\s*(return|yield)\b/.test(b)) return 'return-expression';
-  if (/[A-Za-z_][A-Za-z0-9_]*\s*\(/.test(b)) return 'call';
-  if (/\b(and|or|not)\b/.test(pair)) return 'boolean-expression';
-  if (/(<=|>=|==|!=|<|>)/.test(pair)) return 'comparison';
-  if (/^\s*(for|with|try|except|else|elif)\b/.test(b)) return 'statement';
-  return 'expression';
 }
 
 /* ── 3 · TRUTHINESS OF A LITERAL, OR NOTHING ─────────────────────────────────────────────────────
