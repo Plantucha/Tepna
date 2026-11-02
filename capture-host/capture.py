@@ -9579,6 +9579,9 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
     # Low-battery latch: the lowest threshold already alerted per device (see `alerts.battery_alert_step`).
     # In memory, so a daemon restart while a cell sits at 10 % sends the 10 % alert once more.
     batt_latch: dict[str, int | None] = {}
+    # Per-HOLD latch for the box-holds-the-link note below (`alerts.silence_owner`). One line per hold
+    # rather than one per poll, because a stored pull spans several polls at a 60 s interval.
+    box_held: set[str] = set()
     while not _STOP.is_set():
         await asyncio.sleep(interval)
         now = _time.monotonic()
@@ -9666,6 +9669,7 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
                 ended_at.pop(name, None)
                 down_since.pop(name, None)
                 _IDLE_TIMER_NAMED.discard(name)  # re-worn: the next power-off is a new event
+                box_held.discard(name)  # flowing samples mean the box is not holding the link
                 if name in alerted:  # it had alerted → tell the operator it is back
                     alerted.discard(name)
                     log.info("alert: %s recording again", name)
@@ -9674,6 +9678,29 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
                 down_since.setdefault(name, now)
                 if alerts.offline_alert_suppressed(d.get("optional"), name in ever_connected):
                     continue  # never showed up; not a thing we are missing
+                # A SILENCE THE BOX ITSELF CAUSED IS NOT THE DEVICE'S IDLE TIMER. Read BEFORE the
+                # powered-off clause below, because `powered_off_after_pull` asks only whether a pull
+                # SUCCEEDED recently and so answers True for its whole 8 h window — including the seconds
+                # while the NEXT pull holds this device's link. Measured: 16 of 88 `powered off — idle
+                # timer` lines and 3 of 5 `night ended` deliveries landed inside an open stored pull,
+                # 1.1 s to 35.2 s in, against a 121.9 s timer (`alerts.silence_owner`). The reason is
+                # NAMED, so the journal says which subsystem has the device instead of borrowing the
+                # idle timer's story and sending the next reader after the wrong one.
+                box_reason = None
+                if not connected:
+                    _gs = gate_state()
+                    box_reason = alerts.silence_owner(
+                        name,
+                        offline_slot=_gs["offline_slot"],
+                        paused_addrs=_gs["polar_paused"],
+                        addr=d.get("address"),
+                    )
+                if box_reason:
+                    if name not in box_held:
+                        box_held.add(name)
+                        log.info("%s: not advertising while the box holds its link (%s)", name, box_reason)
+                    continue
+                box_held.discard(name)
                 # THE RING POWERS ITSELF OFF ~122 s AFTER A DOFF, AND THAT IS NOT AN OUTAGE. Measured
                 # over 244 sessions (see `alerts.RING_IDLE_TIMER_S`). Once its pull has SUCCEEDED there
                 # is nothing left on it to miss, so the silence that follows is the device working as
@@ -9693,6 +9720,12 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
                             name,
                         )
                     if name not in ended_noted:
+                        if not alerts.worth_a_night_note(stream_since.get(name), _LAST_DATA.get(name)):
+                            # A short wear: the pull licenses the silence, and no note goes out.
+                            log.info("%s: a short wear ended after a completed pull — no night note", name)
+                            ended_noted.add(name)
+                            ended_at[name] = now
+                            continue
                         delivered = await notifier.send(
                             f"Tepna: {name} night ended",
                             f"{name} powered off after a completed pull. Its stored session is on the box.",
@@ -9706,6 +9739,8 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
                 if not connected and last is not None and first is not None:
                     stop = _dt.datetime.now() - _dt.timedelta(seconds=now - last)
                     if alerts.stream_ended_in_the_morning(last - first, stop.hour):
+                        if not alerts.stream_end_settled(last, now):
+                            continue  # a doff pull may still complete; the pulled-night note wins then
                         if name not in ended_noted:
                             mins = int((last - first) / 60)
                             log.info("%s: live stream ended at %s after %d min", name, stop.strftime("%H:%M"), mins)
@@ -10191,8 +10226,13 @@ async def qc_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = N
             # `gate_state()` carries the offline-op pauses, and this rule could not see them: a Sense
             # mid-download writes nothing BY DESIGN, and on 2026-11-01 15:00 that silence reached the
             # watchdog as a fault. `alerts.explained_silence` is the one home for every such state.
+            _mono = _time.monotonic()
             for _name in alerts.frozen_devices(
-                summ, STATUS.get("devices") or {}, frozen_after, gate_state()["polar_paused"]
+                summ,
+                STATUS.get("devices") or {},
+                frozen_after,
+                gate_state()["polar_paused"],
+                {k: _mono - v for k, v in _LAST_DATA.items()},
             ):
                 _key = f"{n}:{_name}"
                 if _key in frozen_alerted:
@@ -14389,6 +14429,37 @@ def _cpap_autostart_boot(root, now_ms):
     return watch
 
 
+async def _cpap_notify(title: str, message: str) -> bool:
+    """Send one alert through the daemon notifier. It reads `_NOTIFIER` at CALL time, because
+    `main()` sets the notifier and the auto-start task outlives any value bound at arming."""
+    if _NOTIFIER is None:
+        return False
+    return bool(await _NOTIFIER.send(title, message))
+
+
+async def _cpap_night_ended_note(notify, began_ms: float, ended_ms: float) -> bool:
+    """Tell the operator that the CPAP night ended, as `alert_poller` does for each wearable.
+
+    The CPAP is not in the wearable device list, so that poller never sees it. Its night ends
+    HERE, when retention judges a stream real. A false start never reaches this call. A failed
+    send is logged and never raises into the loop: the alert is a courtesy, the loop is capture."""
+    if notify is None:
+        return False
+    mins = int((ended_ms - began_ms) / 60_000)
+    stop = _dt.datetime.fromtimestamp(ended_ms / 1000.0).strftime("%H:%M")
+    try:
+        return bool(
+            await notify(
+                "Tepna: CPAP night ended",
+                f"CPAP streamed for {mins // 60} h {mins % 60:02d} min and stopped at {stop}. "
+                "The live record on the box runs up to that minute.",
+            )
+        )
+    except Exception as e:  # noqa: BLE001 — an alert transport fault must not kill auto-start
+        log.warning("CPAP auto-start: the night-ended alert failed (%s: %s)", type(e).__name__, e)
+        return False
+
+
 async def _cpap_autostart_loop(
     *,
     root,
@@ -14403,6 +14474,7 @@ async def _cpap_autostart_loop(
     now_ms=None,
     get_therapy=None,
     unlink=None,
+    notify=None,
 ):
     """Start the live stream when therapy starts — EAGERLY — and judge the start afterward.
     The deciding is all in `cpap_live`.
@@ -14489,6 +14561,7 @@ async def _cpap_autostart_loop(
             else:
                 log.info("CPAP auto-start: session ended and RETAINED (%s)", verdict_why)
                 _CPAP_THERAPY_END["mono"] = _time.monotonic()
+                await _cpap_night_ended_note(notify, streaming_since_ms, t)
             streaming_since_ms = None
         due, why = cpap_live.autostart_due(watch, t, max_attempts=max_attempts, already_streaming=running)
         if not due:
@@ -14585,6 +14658,7 @@ def _maybe_start_cpap_autostart(cfg, root, cpap_ctl, tasks, *, create_task=None)
                 hold_s=hold,
                 max_attempts=attempts,
                 get_last_paths=lambda: list(getattr(cpap_ctl, "last_sink_paths", []) or []),
+                notify=_cpap_notify,
             ),
             "CPAP auto-start",
         )

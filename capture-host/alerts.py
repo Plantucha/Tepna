@@ -620,7 +620,13 @@ def explained_silence(st: dict, paused_addrs: Iterable[str] | None = None) -> st
     return None
 
 
-def frozen_devices(qc: dict, live: dict, threshold_sec: float, paused_addrs: Iterable[str] | None = None) -> list[str]:
+def frozen_devices(
+    qc: dict,
+    live: dict,
+    threshold_sec: float,
+    paused_addrs: Iterable[str] | None = None,
+    data_age: dict | None = None,
+) -> list[str]:
     """Devices that are connected and awake but have stopped producing data.
 
     `qc` is a nightqc.summarize() result (each device carries `silent_sec`, seconds since its last
@@ -628,7 +634,14 @@ def frozen_devices(qc: dict, live: dict, threshold_sec: float, paused_addrs: Ite
     from `live` is never reported — an unknown state is not evidence of a fault.
 
     `paused_addrs` carries the offline-op pauses, so a silence this box caused is not a fault — see
-    `explained_silence` above, which decides and NAMES every such state."""
+    `explained_silence` above, which decides and NAMES every such state.
+
+    `data_age` maps a device name to the seconds since live samples last ARRIVED (`capture._LAST_DATA`).
+    A device whose samples arrived within `threshold_sec` is not silent, whatever the file scan says.
+    MEASURED 2026-11-01: the alert said "Sense silent 182 min" and "H10 silent 321 min" at 13:26, at
+    14:23 and again at 22:22. The figures did not move across nine hours, because the scan read a night
+    folder whose files had stopped changing. Each time the device had just connected and its samples
+    were arriving. An absent entry is no evidence, so the file scan still decides for that device."""
     out = []
     # THE SUMMARY SIDE OF THE GUARD BELOW, and it was the half still open. The `live` check further
     # down names a non-dict status; this one names a non-dict SUMMARY, and until it existed the exact
@@ -656,6 +669,9 @@ def frozen_devices(qc: dict, live: dict, threshold_sec: float, paused_addrs: Ite
             raise TypeError(f"live status for {name!r} is {type(st).__name__}, not dict: {st!r:.120}")
         if not st or not st.get("connected") or explained_silence(st, paused_addrs):
             continue
+        age = (data_age or {}).get(name)
+        if age is not None and age < threshold_sec:
+            continue  # its samples are arriving now: the scan is reading old files
         out.append(name)
     return out
 
@@ -709,6 +725,34 @@ RING_IDLE_EXPECT_MAX_S = 8 * 3600  # how long "expected" may last before it beco
 # 11:59). A stop at 02:00, or after 40 min, still raises the offline alarm.
 STREAM_NIGHT_MIN_S = 4 * 3600
 STREAM_MORNING_HOURS = range(4, 12)
+
+
+# WAIT FOR THE DOFF PULL BEFORE CALLING A STREAM'S END. MEASURED 2026-11-02: the box sent the ring's
+# "No pull completed for this device" note at 04:10:40, and the ring's doff pull completed at 04:10:45.
+# The doff pull settles for ~48 s and the pull takes ~27 s (see `RING_IDLE_TIMER_S` above). Three
+# minutes after the last sample, a pull that will complete has completed, and the pulled-night note
+# speaks instead of the false "No pull completed".
+STREAM_END_HOLD_S = 180.0
+
+
+def stream_end_settled(last_mono: float, now_mono: float) -> bool:
+    """Has the last sample aged past the doff-pull window, so a pull outcome is known?"""
+    return now_mono - last_mono >= STREAM_END_HOLD_S
+
+
+# A SHORT WEAR IS NOT A NIGHT. MEASURED 2026-11-01: the ring sent "night ended" four times between
+# 14:09 and 14:31 local, once after each daytime wear of a few minutes, and the H10 sent one at 14:33.
+# The pull after each wear was real, so the silence is still licensed. Only the note goes. An episode
+# with no known span (after a restart, `stream_since` starts empty) still gets its note: an unknown span
+# is not a short one.
+NIGHT_NOTE_MIN_S = 3600.0
+
+
+def worth_a_night_note(first_mono: float | None, last_mono: float | None) -> bool:
+    """Did the episode run long enough to call its end a night? True when its span is unknown."""
+    if first_mono is None or last_mono is None:
+        return True
+    return last_mono - first_mono >= NIGHT_NOTE_MIN_S
 
 
 def stream_ended_in_the_morning(streamed_sec: float | None, stop_hour: int) -> bool:
@@ -798,3 +842,43 @@ def powered_off_after_pull(
         return False
     age = now - last_pull_ok_sec
     return 0 <= age < expiry_sec
+
+
+# A LINK THE BOX ITSELF TOOK IS NOT A DEVICE THAT POWERED ITSELF OFF. Measured over 1 451 286 journal
+# lines on the capture box (2026-09-12 to 2026-11-01): 16 of 88 ring `powered off — idle timer` lines and
+# 3 of 5 ring `night ended` deliveries landed INSIDE an open stored pull, 1.1 s to 35.2 s after that pull
+# started. The ring needs 121.9 s to reach its own timer (`RING_IDLE_TIMER_S`), so the reason those 19
+# lines name is impossible. The cause is that a stored pull TAKES the link, the device stops advertising,
+# and `powered_off_after_pull` reads only whether a pull succeeded RECENTLY — which one had, on the
+# previous cycle. The latch then clears itself as soon as samples flow again, so each pull cycle buys one
+# more alert.
+#
+# ⚠️ ONLY THE PER-DEVICE GATES ARE READ HERE. `gate_state()` also publishes `oxyii_pause` and
+# `connect_lock`, and both are GLOBAL: suppressing on either would silence every other device for the
+# span of one ring's pull. A false all-clear is worse than the false alarm it replaces — the same
+# reasoning `powered_off_after_pull` gives for its own 8 h bound — so the two global gates stay out and
+# this predicate answers for ONE device.
+#
+# IT NEEDS NO EXPIRY, unlike the quiet licence. The hold is bounded by the pull's own timeout and the
+# slot is released however the pull ends (`offline_lock.slot`), so the next poll speaks again by itself.
+def silence_owner(
+    name: str,
+    offline_slot: str | None = None,
+    paused_addrs: Iterable[str] | None = None,
+    addr: str | None = None,
+) -> str | None:
+    """PURE: the BOX's own reason this device is silent, NAMED, or None when the box is not the cause.
+
+    · `stored-pull` — the box holds the single offline-download slot for this device. `offline_lock.slot`
+      is entered with the device's own name, so this is a per-device answer rather than a global one.
+    · `charger-pull` — this device's address is paused for a Polar charger pull (`gate_state()` publishes
+      the set as `polar_paused`).
+
+    A NAME rather than a boolean, because the log line that replaces a false alert has to say WHICH
+    subsystem holds the device. A borrowed reason sends the next reader after the wrong one, which is the
+    whole defect this predicate exists to stop."""
+    if name and offline_slot is not None and offline_slot == name:
+        return "stored-pull"
+    if addr and paused_addrs is not None and addr in set(paused_addrs):
+        return "charger-pull"
+    return None

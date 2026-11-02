@@ -610,7 +610,10 @@ def test_the_covered_function_count_is_MEASURED_from_the_ast_not_quoted():
     # which clock the 0xC0 push reads is the whole content of the decision, and a bare expression at the
     # call site cannot be tested without re-implementing it in the test. +1, the whole delta.
     # `moduleFunctionsAtDeclaration` stays where it is, per the note above.
-    assert n == 337, f"capture.py now defines {n} functions — update the declaration's note deliberately"
+    # 337 → 339 on 2026-11-02 (the CPAP night-ended alert): `_cpap_notify`, which reads the daemon
+    # notifier at call time, and `_cpap_night_ended_note`, which words the alert and logs a failed send.
+    # +2, the whole delta. `moduleFunctionsAtDeclaration` stays where it is, per the note above.
+    assert n == 339, f"capture.py now defines {n} functions — update the declaration's note deliberately"
 
 
 def test_count_functions_counts_nested_and_methods_and_refuses_nothing():
