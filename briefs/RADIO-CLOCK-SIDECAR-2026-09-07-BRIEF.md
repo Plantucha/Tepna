@@ -223,10 +223,22 @@ after any adapter bounce. Found live in `radioclock.py` and fixed in #2392, keye
   (`event_counter`) so the choice is auditable; if two anchors are within `ctrl_host_offset` jitter of the
   packet, write the row with `anchor_us` blank — ambiguous is absent, not guessed.
 - **Sidecar:** `<night>/<stamp>_<DEVICE>_RADIOCLOCK.csv`, header
-  `Phone timestamp;device;meas;last_sensor_ns;conn_handle;event_counter;anchor_us;vs_rx_ns;acl_rx_ns`
+  `Phone timestamp;device;meas;last_sensor_ns;conn_handle;event_counter;anchor_us;vs_rx_ns;acl_rx_ns;`
+  `device_clock;anchor_epoch`
   — `Phone timestamp` = the kernel monitor timestamp of the ACL packet rendered as the existing
   `_phone_ts` floating wall-clock (so a reader that only knows `PMDARRIVAL` can read it), `vs_rx_ns` /
   `acl_rx_ns` the raw `CLOCK_REALTIME` ns of the two monitor packets. Blank cell = not measured (never 0).
+  `vs_rx_ns` holds the arrival of the vendor event the packet associated with — never the newest anchor's,
+  and never the packet's own, because an ACL packet leaves after the connection event it rides, so the two
+  stamps answer different questions (2026-11-02, row
+  `2026-11-01-the-collector-leaves-the-column-the-offset-is-defined-on-blank`). The last two columns append
+  at the tail: `device_clock` names which clock `last_sensor_ns` came from, or why the cell is empty, and
+  `anchor_epoch` counts the link establishments this collector saw, which is where a consumer cuts the axis
+  rather than interpolating across a re-establishment (row
+  `2026-11-01-the-radio-anchor-sequence-interpolates-across-a-link-gap`). It is named for the series it
+  governs, not for the event it counts, because `capture.py` already publishes a `link_epoch` to the LINK
+  sidecar from a poll-loop edge that cannot see a drop and reconnect inside one interval. Two observers of
+  one event, two reliabilities: the columns carry different names so that no consumer joins them.
   Torn-tail / resume handling copied from `PmdArrivalLogWriter`. Rolls with `writers.night_dir` like every
   other sidecar. It is **TELEMETRY**, never a metric.
 - **Tests (in `capture-host/tests/`):** feature-detect refusal on manufacturer ≠ 89 writes no file; refusal
@@ -303,7 +315,10 @@ so one ring file reads as 64 measurement types.
 
 **§5(b) and §5(c), measured over the same six files.** `anchor_us` rises monotonically in all 938 176
 rows, and `acl_rx_ns` carries a value in 938 176 of 938 176. `vs_rx_ns` carries one in **0** of them, so
-the reader publishes `offsetFrom: 'acl_rx_ns'` rather than §4's `ctrl_host_offset` column. The anchor
+the reader publishes `offsetFrom: 'acl_rx_ns'` rather than §4's `ctrl_host_offset` column. **That figure
+dates the files, not the column:** every one of those six sidecars predates 2026-11-02, when the collector
+learned to stamp the vendor event's own arrival. A file written after it carries `vs_rx_ns`, and the same
+reader then names `vs_rx_ns` without a change of its own — the next box night is what moves this row. The anchor
 deltas fall on a 30 ms grid for the Verity, 40 and 50 ms for the H10, and 20 ms for the ring — each a
 legal BLE connection interval. The collector logs only events that carried data, so the delta grid names
 the interval and the negotiated value still owes a box-side `btmon` read.

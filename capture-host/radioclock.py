@@ -469,8 +469,33 @@ SIDECAR_COLUMNS = (
     "vs_rx_ns",
     "acl_rx_ns",
     "device_clock",
+    "anchor_epoch",
 )
 SIDECAR_HEADER = ";".join(SIDECAR_COLUMNS) + "\n"
+
+#: `anchor_epoch`: how many times THIS device's link has been established since the collector
+#: started. 🔴 A SEGMENT MARKER, NOT A COUNT WORTH READING. `anchor_us` is a controller counter
+#: whose epoch "is not promised to survive a controller reset", and a re-establishment starts a new
+#: anchor series — so a consumer building ONE axis over a whole file takes a correction inside the
+#: seam from two anchors hours apart. Measured 2026-11-01 over six box sidecars: the Verity files
+#: hold 2 and 6 anchor gaps over 60 s, the biggest 13 644 s, on nights spanning about 8 h (row
+#: `2026-11-01-the-radio-anchor-sequence-interpolates-across-a-link-gap`). The epoch changes
+#: exactly where the axis must be cut.
+#:
+#: 🔴 NAMED FOR WHAT IT GOVERNS, BECAUSE `link_epoch` IS ALREADY TAKEN BY A WEAKER
+#: COUNTER. `capture.py` publishes a `link_epoch` to the LINK sidecar, counted on a False→True
+#: edge of its poll loop — which cannot see a drop and reconnect that both happen inside one
+#: poll interval, as its own test says in so many words. This one counts LE Connection Complete
+#: events on the monitor channel, so it misses no establishment. Same physical event, two
+#: observers, two reliabilities, and for one night the two columns may legitimately disagree —
+#: so they carry different names and a reader never joins them. This name also says which
+#: column it governs: the series `anchor_us` is counted in.
+#:
+#: ⚠️ NEVER 0, AND TODAY NEVER BLANK EITHER. A row is emitted only for a handle whose Connection
+#: Complete this collector SAW — `HandleMap.address` answers None otherwise and the row is dropped
+#: — so every row states a generation of 1 or more. The column is still written through a `.get`:
+#: a capture daemon must not die of a KeyError over a telemetry column, and the miss that cannot
+#: happen would be written as an absence rather than as a 0 (§∅).
 
 
 def parse_monitor_packet(buf: bytes) -> tuple[int, int, bytes] | None:
@@ -534,6 +559,7 @@ def format_row(
     vs_rx_ns,
     acl_rx_ns,
     device_clock: str,
+    anchor_epoch=None,
 ) -> str:
     """One sidecar line. **A blank cell is `not measured`; nothing here is ever defaulted to 0.**
 
@@ -564,6 +590,7 @@ def format_row(
                 cell(vs_rx_ns),
                 cell(acl_rx_ns),
                 device_clock,
+                cell(anchor_epoch),
             ]
         )
         + "\n"
@@ -690,7 +717,12 @@ class Collector:
         self.not_a_pmd_frame: dict[str, int] = {}
         self.handles = HandleMap()
         self.offsets = OffsetTracker(offset_window)
+        #: Per handle, `(event_counter, anchor_us, vs_rx_ns)` in arrival order. The third member is
+        #: the vendor event's OWN host arrival, which is the column §4 defines the offset on.
         self._anchors: dict[int, list[tuple[int, int, int]]] = {}
+        #: Per device address, how many link establishments this collector has SEEN. Absent until
+        #: the first one, because a stream that began mid-connection has no generation to state.
+        self.link_epochs: dict[str, int] = {}
         #: Anchors the controller never delivered. The report is DISCARDABLE by design and is dropped
         #: under host-buffer pressure, so a gap in `event_counter` is expected — it is counted as
         #: telemetry and NEVER interpolated. An anchor that was not delivered did not happen for us.
@@ -702,8 +734,8 @@ class Collector:
         """One monitor packet in; a row tuple out, or None.
 
         The row is `(device, meas, last_sensor_ns, handle, event_counter, anchor_us, vs_rx_ns,
-        acl_rx_ns, device_clock)` with None for anything not measured — never a zero. The last member
-        is never None: it NAMES which clock the stamp came from, or why there is none.
+        acl_rx_ns, device_clock, anchor_epoch)` with None for anything not measured — never a zero.
+        `device_clock` is never None: it NAMES which clock the stamp came from, or why there is none.
         """
         if index != self.adapter_index:
             return None  # another controller's traffic; not ours to record
@@ -719,6 +751,15 @@ class Collector:
         if not event:
             return
         self.handles.apply(event)
+        if event.get("kind") == "connect":
+            # A link that comes back is a NEW anchor series under a counter whose epoch survives
+            # nothing, so the rows after it say which establishment they belong to. Counted only
+            # for a device we configured: an address we did not ask for reaches no row, and it
+            # reaches no dict here either.
+            address = str(event["address"]).upper()
+            if address in self.devices:
+                self.link_epochs[address] = self.link_epochs.get(address, 0) + 1
+            return
         if event.get("kind") == "disconnect":
             # The handle is gone, so its anchors are about a connection that no longer exists. Keeping
             # them would let a REUSED handle associate a new connection's packets with the old one's
@@ -799,6 +840,12 @@ class Collector:
         if device_clock != DEVICE_CLOCK_PMD:
             self.no_device_clock[device_clock] = self.no_device_clock.get(device_clock, 0) + 1
         series = self._anchors.get(handle, [])
+        # ⚠️ THE COMPREHENSION IS LOAD-BEARING, AND PASSING `series` STRAIGHT IN IS NOT A TIDY-UP.
+        # It is the only read of `series` that iterates unconditionally. `associate` tests `not
+        # anchors` and returns first; `anchor_rx_ns` returns on a None counter before its loop. So
+        # without this line a `self._anchors.get(handle, None)` typo answers exactly what the real
+        # default answers, no test can see it, and `tools/probe_radioclock_equiv.py` goes UNKNOWN on
+        # the two canaries it keeps for this. Measured 2026-11-02: removing it took them to 0 of 28.
         counter, anchor_us = associate(
             host_ns / 1000.0,
             [(ctr, us) for ctr, us, _rx in series],
@@ -816,6 +863,7 @@ class Collector:
             anchor_rx_ns(series, counter, anchor_us),
             host_ns,
             device_clock,
+            self.link_epochs.get(address.upper()),
         )
 
 
