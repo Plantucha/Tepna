@@ -9720,6 +9720,12 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
                             name,
                         )
                     if name not in ended_noted:
+                        if not alerts.worth_a_night_note(stream_since.get(name), _LAST_DATA.get(name)):
+                            # A short wear: the pull licenses the silence, and no note goes out.
+                            log.info("%s: a short wear ended after a completed pull — no night note", name)
+                            ended_noted.add(name)
+                            ended_at[name] = now
+                            continue
                         delivered = await notifier.send(
                             f"Tepna: {name} night ended",
                             f"{name} powered off after a completed pull. Its stored session is on the box.",
@@ -9733,6 +9739,8 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
                 if not connected and last is not None and first is not None:
                     stop = _dt.datetime.now() - _dt.timedelta(seconds=now - last)
                     if alerts.stream_ended_in_the_morning(last - first, stop.hour):
+                        if not alerts.stream_end_settled(last, now):
+                            continue  # a doff pull may still complete; the pulled-night note wins then
                         if name not in ended_noted:
                             mins = int((last - first) / 60)
                             log.info("%s: live stream ended at %s after %d min", name, stop.strftime("%H:%M"), mins)
@@ -10218,8 +10226,13 @@ async def qc_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = N
             # `gate_state()` carries the offline-op pauses, and this rule could not see them: a Sense
             # mid-download writes nothing BY DESIGN, and on 2026-11-01 15:00 that silence reached the
             # watchdog as a fault. `alerts.explained_silence` is the one home for every such state.
+            _mono = _time.monotonic()
             for _name in alerts.frozen_devices(
-                summ, STATUS.get("devices") or {}, frozen_after, gate_state()["polar_paused"]
+                summ,
+                STATUS.get("devices") or {},
+                frozen_after,
+                gate_state()["polar_paused"],
+                {k: _mono - v for k, v in _LAST_DATA.items()},
             ):
                 _key = f"{n}:{_name}"
                 if _key in frozen_alerted:
@@ -14416,6 +14429,37 @@ def _cpap_autostart_boot(root, now_ms):
     return watch
 
 
+async def _cpap_notify(title: str, message: str) -> bool:
+    """Send one alert through the daemon notifier. It reads `_NOTIFIER` at CALL time, because
+    `main()` sets the notifier and the auto-start task outlives any value bound at arming."""
+    if _NOTIFIER is None:
+        return False
+    return bool(await _NOTIFIER.send(title, message))
+
+
+async def _cpap_night_ended_note(notify, began_ms: float, ended_ms: float) -> bool:
+    """Tell the operator that the CPAP night ended, as `alert_poller` does for each wearable.
+
+    The CPAP is not in the wearable device list, so that poller never sees it. Its night ends
+    HERE, when retention judges a stream real. A false start never reaches this call. A failed
+    send is logged and never raises into the loop: the alert is a courtesy, the loop is capture."""
+    if notify is None:
+        return False
+    mins = int((ended_ms - began_ms) / 60_000)
+    stop = _dt.datetime.fromtimestamp(ended_ms / 1000.0).strftime("%H:%M")
+    try:
+        return bool(
+            await notify(
+                "Tepna: CPAP night ended",
+                f"CPAP streamed for {mins // 60} h {mins % 60:02d} min and stopped at {stop}. "
+                "The live record on the box runs up to that minute.",
+            )
+        )
+    except Exception as e:  # noqa: BLE001 — an alert transport fault must not kill auto-start
+        log.warning("CPAP auto-start: the night-ended alert failed (%s: %s)", type(e).__name__, e)
+        return False
+
+
 async def _cpap_autostart_loop(
     *,
     root,
@@ -14430,6 +14474,7 @@ async def _cpap_autostart_loop(
     now_ms=None,
     get_therapy=None,
     unlink=None,
+    notify=None,
 ):
     """Start the live stream when therapy starts — EAGERLY — and judge the start afterward.
     The deciding is all in `cpap_live`.
@@ -14516,6 +14561,7 @@ async def _cpap_autostart_loop(
             else:
                 log.info("CPAP auto-start: session ended and RETAINED (%s)", verdict_why)
                 _CPAP_THERAPY_END["mono"] = _time.monotonic()
+                await _cpap_night_ended_note(notify, streaming_since_ms, t)
             streaming_since_ms = None
         due, why = cpap_live.autostart_due(watch, t, max_attempts=max_attempts, already_streaming=running)
         if not due:
@@ -14612,6 +14658,7 @@ def _maybe_start_cpap_autostart(cfg, root, cpap_ctl, tasks, *, create_task=None)
                 hold_s=hold,
                 max_attempts=attempts,
                 get_last_paths=lambda: list(getattr(cpap_ctl, "last_sink_paths", []) or []),
+                notify=_cpap_notify,
             ),
             "CPAP auto-start",
         )
