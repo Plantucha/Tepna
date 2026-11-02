@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-10-29 (O1, U1, U2, U3, U4 and U5 done; U7 in progress; U6 waits for the owner) · **Created:** 2026-10-29
+**Status:** IN-PROGRESS — 2026-10-29 (O1, O2, U1, U2, U3, U4, U5 and U6 done; U7 in progress) · **Created:** 2026-10-29
 
 # Brief — better time handling on every device
 
@@ -158,7 +158,22 @@ Search: `RADIO-CLOCK-SIDECAR-2026-09-07` (the owner flashed the firmware on 2026
 - Read-only on vigil. Nothing deploys and no daemon restarts without the owner.
 - **NOT_RUN (Wren, board #2191).** The box holds 0 `RADIOCLOCK` sidecars. Nobody enabled `tepna-radioclock.service`, and `config.yaml` has no `radio_clock` block. The unit waits for the owner to arm the collector for one night.
 
-- [ ] Spread per night, population and window stated, one `tepna.verdict/1` object
+- **DONE 2026-11-02 (Wren; Kestrel decision, board #2986).** The owner armed the collector. The
+  nightcheck timer (`NIGHTCHECK-2026-11-01-BRIEF`, check 2) read two nights, each from 18:00 to 07:30
+  the next day, and emitted one verdict object per night:
+
+| night | device | frame changes | spread | band |
+|---|---|---|---|---|
+| 2026-10-31 | Sense | 39168 | 158.227 ms | ignore |
+| 2026-10-31 | H10 | 130544 | 26.114 ms | jitter aid |
+| 2026-11-01 | Sense | 30257 | 156.929 ms | ignore |
+| 2026-11-01 | H10 | 95767 | 19.133 ms | jitter aid |
+
+  The ring rows carry no device sensor clock, so the check does not judge the ring. Neither Polar
+  device reads in the `'radio'` band. A third night cannot move either device across a band edge at
+  this spread, so two nights decide U6.
+
+- [x] Spread per night, population and window stated, one `tepna.verdict/1` object
 
 ### U7 · AS11 per-EDF re-anchor at ingest — **Heron, IN-PROGRESS**
 
@@ -188,7 +203,7 @@ ingest re-anchor carried as #1956's follow-up).
 | U3 | Osprey | `oxydex-dsp.js`, `pulsedex-dsp.js`, `hrvdex-dsp.js` | any time; rebase after U5 |
 | U2 | Heron | `ppgdex-dsp.js` | measurement now; code after U1 |
 | U1 | Kestrel | nothing: measured, no code (2026-10-30) | done |
-| U6 | Wren | box read-only | any time |
+| U6 | Wren | box read-only | DONE 2026-11-02 |
 | U4 | Magpie | `motiondex-dsp.js` | after U5 merges |
 | U7 | Heron | `capture-host/` | after U2 — in progress |
 
@@ -202,5 +217,5 @@ writes its handoff and stops at the next unit boundary.
 ## 4 · Owner decisions
 
 - [x] **O1** — inline `clock.js` into PpgDex (5 → 6 clock bundles; the node-local parser variants stay). The owner approved it on 2026-10-29, and the PpgDex clock PR does it.
-- [ ] **O2** — arm the radio collector on vigil for one night, so U6 can run.
+- [x] **O2** — arm the radio collector on vigil for one night, so U6 can run. The owner armed it; the box holds radio-clock sidecars for 2026-10-31 and 2026-11-01.
 - Not reopened: resync file-set rotation (declined 2026-09-07), edge-stamp §4 (your two open questions).
