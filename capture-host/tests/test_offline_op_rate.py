@@ -92,5 +92,9 @@ def test_the_site_counts_before_it_decides():
     # count sat 1239 behind — a passing invariant failing on the size of the comment between them,
     # which is the shape of assertion that has to be re-tuned every time the file is edited.
     counted = src.index('blestats.fail("offline_op"')
-    logged = src.index("offline op exceeded")
+    # The literal moved on 2026-11-02 (row `2026-11-01-a-connect-failure-logs-as-a-300s-abandon`): the
+    # site no longer writes `exceeded` into its own format string, because whether the whole-op bound
+    # fired at all is now `_abandon_reason`'s decision and the line interpolates the answer. The ORDER
+    # this test pins is unchanged, so the anchor follows the site rather than the wording it used to use.
+    logged = src.index('"Polar %s: offline op %s')
     assert counted < logged, "the count must precede the logging decision, not follow it"

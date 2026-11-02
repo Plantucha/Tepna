@@ -7686,17 +7686,20 @@ async def pull_oxyii_session(
                         or []
                     )
 
+            # THE STOPWATCH, started where the bound starts, because the handler below reports the
+            # elapsed rather than the constant (`_abandon_reason`).
+            _t_bound = _time.monotonic()
             try:
                 saved = await asyncio.wait_for(_locked_pull(), timeout=_OFFLINE_OP_TIMEOUT_S)
                 _outcome["ok"] = True
             except asyncio.TimeoutError as e:
                 _outcome["failure"] = oxy_power.classify_exception(e)
                 log.error(
-                    "%s: stored-session pull exceeded %.0fs and was abandoned — resuming live "
-                    "capture. The ring was most likely carried out of range or the adapter is "
-                    "wedged; the capture loops are now free to reconnect.",
+                    "%s: stored-session pull %s — resuming live capture. The ring was most likely "
+                    "carried out of range or the adapter is wedged; the capture loops are now free to "
+                    "reconnect.",
                     name,
-                    _OFFLINE_OP_TIMEOUT_S,
+                    _abandon_reason(_time.monotonic() - _t_bound, _OFFLINE_OP_TIMEOUT_S),
                 )
                 raise
             except BaseException as e:
@@ -7747,6 +7750,41 @@ async def pull_oxyii_session(
 # the condition that wedges it. bleak's own timeouts did not bound it either — a wedged BlueZ can leave a
 # D-Bus call outstanding indefinitely. So the bound has to live here, at the point that holds the locks.
 _OFFLINE_OP_TIMEOUT_S = 300.0
+# The slop between the deadline `asyncio.wait_for` fires on and the handler that reports it. Named
+# because `_abandon_reason` decides WHOSE bound fired by comparing the measured elapsed against the
+# bound, and that comparison owes a stated tolerance. It is scheduling slop and nothing else: the
+# nearest bound inside either op (`oxy_power.TIMEOUTS.connect_s`, 30 s) sits an order of magnitude
+# below this op's 300 s, so a tolerance this small cannot reach it. A test that patches the bound
+# BELOW the slop reads every abandon as the bound firing, which is what those tests arrange.
+_ABANDON_SLACK_S = 0.5
+
+
+def _abandon_reason(elapsed_s: float, bound_s: float) -> str:
+    """How an abandoned offline op ended, in the time it ACTUALLY took rather than the bound it was given.
+
+    Row `2026-11-01-a-connect-failure-logs-as-a-300s-abandon`. Both abandon lines below used to fill
+    their own `%.0fs` from the whole-op constant, so a connect that gave up at its own 30 s bound was
+    journalled as a 300 s overrun. Measured 2026-11-01 over the retained box journal, 1 451 286 lines
+    from 2026-09-12 to 2026-11-01: five abandon lines exist, and each one sits 30.0 s to 30.2 s after
+    its own `pulling stored session`. The 300 s bound fired in 0 of 5, and the line overstated the
+    elapsed time tenfold in all five.
+
+    THE HANDLER CANNOT TELL THE TWO APART BY TYPE. On this python `asyncio.TimeoutError` IS the builtin
+    `TimeoutError`, so `except asyncio.TimeoutError` catches every bound inside the op as well as its
+    own. The ELAPSED time can tell them apart: `wait_for` fires AT its deadline, and a bound inside the
+    op fires short of it. `oxy_power.Timeouts` names seven such bounds, one failure each by design, and
+    a line that reports one of them must not name a different one.
+
+    It reports the phase bound's EXISTENCE, never its identity — naming a bound this frame cannot see
+    would be the same defect in the other direction."""
+    if elapsed_s >= bound_s - _ABANDON_SLACK_S:
+        return f"exceeded its {bound_s:g}s whole-op bound after {elapsed_s:.1f}s and was abandoned"
+    return (
+        f"was abandoned after {elapsed_s:.1f}s — short of its {bound_s:g}s whole-op bound, so a bound "
+        "INSIDE the op fired and this line cannot name which"
+    )
+
+
 # The BlueZ link-teardown settle, named so a test can set it to 0 — the same reason
 # `_OFFLINE_OP_TIMEOUT_S` above is a constant rather than a literal. Production value UNCHANGED at 0.8 s:
 # BlueZ reports a disconnect before the link is actually gone, and re-scanning or re-connecting inside
@@ -7944,6 +7982,10 @@ async def polar_offline_op(address: str, op, timeout: float | None = None, prese
                 async with _CONNECT_LOCK:
                     return await op()
 
+            # THE STOPWATCH sits HERE, not at the top of the try: the up-to-12 s link-drop wait and the
+            # BlueZ settle above are outside the bound, so counting them would overstate the elapsed
+            # against the very bound this reports on.
+            _t_bound = _time.monotonic()
             _result = await asyncio.wait_for(_locked(), timeout=timeout)
             blestats.ok("offline_op", address)
             return _result
@@ -7964,21 +8006,20 @@ async def polar_offline_op(address: str, op, timeout: float | None = None, prese
             # needed in reverse: a recovery that SHOUTS its frequency buries the signal as surely as one
             # that hides it.
             _decade = n < 10 or (n < 100 and n % 10 == 0) or n % 100 == 0
+            _why = _abandon_reason(_time.monotonic() - _t_bound, timeout)
             if n == 1:
                 log.error(
-                    "Polar %s: offline op exceeded %.0fs and was abandoned — resuming live capture. "
-                    "The device was most likely out of range or the adapter is wedged; the capture "
-                    "loops are now free to reconnect.",
+                    "Polar %s: offline op %s — resuming live capture. The device was most likely out "
+                    "of range or the adapter is wedged; the capture loops are now free to reconnect.",
                     address,
-                    timeout,
+                    _why,
                 )
             elif _decade:
                 log.warning(
-                    "Polar %s: offline op exceeded %.0fs and was abandoned (occurrence %d for this "
-                    "device this session) — out of range or a wedged adapter; the rate is in "
-                    "status.json `ble`.",
+                    "Polar %s: offline op %s (occurrence %d for this device this session) — out of "
+                    "range or a wedged adapter; the rate is in status.json `ble`.",
                     address,
-                    timeout,
+                    _why,
                     n,
                 )
             raise
