@@ -798,3 +798,43 @@ def powered_off_after_pull(
         return False
     age = now - last_pull_ok_sec
     return 0 <= age < expiry_sec
+
+
+# A LINK THE BOX ITSELF TOOK IS NOT A DEVICE THAT POWERED ITSELF OFF. Measured over 1 451 286 journal
+# lines on the capture box (2026-09-12 to 2026-11-01): 16 of 88 ring `powered off — idle timer` lines and
+# 3 of 5 ring `night ended` deliveries landed INSIDE an open stored pull, 1.1 s to 35.2 s after that pull
+# started. The ring needs 121.9 s to reach its own timer (`RING_IDLE_TIMER_S`), so the reason those 19
+# lines name is impossible. The cause is that a stored pull TAKES the link, the device stops advertising,
+# and `powered_off_after_pull` reads only whether a pull succeeded RECENTLY — which one had, on the
+# previous cycle. The latch then clears itself as soon as samples flow again, so each pull cycle buys one
+# more alert.
+#
+# ⚠️ ONLY THE PER-DEVICE GATES ARE READ HERE. `gate_state()` also publishes `oxyii_pause` and
+# `connect_lock`, and both are GLOBAL: suppressing on either would silence every other device for the
+# span of one ring's pull. A false all-clear is worse than the false alarm it replaces — the same
+# reasoning `powered_off_after_pull` gives for its own 8 h bound — so the two global gates stay out and
+# this predicate answers for ONE device.
+#
+# IT NEEDS NO EXPIRY, unlike the quiet licence. The hold is bounded by the pull's own timeout and the
+# slot is released however the pull ends (`offline_lock.slot`), so the next poll speaks again by itself.
+def silence_owner(
+    name: str,
+    offline_slot: str | None = None,
+    paused_addrs: Iterable[str] | None = None,
+    addr: str | None = None,
+) -> str | None:
+    """PURE: the BOX's own reason this device is silent, NAMED, or None when the box is not the cause.
+
+    · `stored-pull` — the box holds the single offline-download slot for this device. `offline_lock.slot`
+      is entered with the device's own name, so this is a per-device answer rather than a global one.
+    · `charger-pull` — this device's address is paused for a Polar charger pull (`gate_state()` publishes
+      the set as `polar_paused`).
+
+    A NAME rather than a boolean, because the log line that replaces a false alert has to say WHICH
+    subsystem holds the device. A borrowed reason sends the next reader after the wrong one, which is the
+    whole defect this predicate exists to stop."""
+    if name and offline_slot is not None and offline_slot == name:
+        return "stored-pull"
+    if addr and paused_addrs is not None and addr in set(paused_addrs):
+        return "charger-pull"
+    return None
