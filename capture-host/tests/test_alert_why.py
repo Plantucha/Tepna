@@ -91,12 +91,17 @@ def test_the_run_record_shape():
 @pytest.mark.parametrize(
     "prev, boot, git, want",
     [
-        (None, "b1", "new", "no record of a previous run"),
-        (["x"], "b1", "new", "no record of a previous run"),
+        (None, "b1", "new", "the box holds no record of a previous run"),
+        (["x"], "b1", "new", "the box holds no record of a previous run"),
         ({"boot_id": "b0", "git": "old", "stopped": 0}, "b1", "new", "the box booted"),
         ({"boot_id": "b0", "git": "new", "stopped": None}, "b1", "new", "the box booted"),
         ({"boot_id": "b1", "git": "old", "stopped": 0}, "b1", "new", "a deploy moved the code from old to new"),
-        ({"boot_id": "b1", "git": "new", "stopped": 0}, "b1", "new", "a clean stop and start on the same code (new)"),
+        (
+            {"boot_id": "b1", "git": "new", "stopped": 0},
+            "b1",
+            "new",
+            "the previous run stopped cleanly on the same code (new)",
+        ),
         (
             {"boot_id": "b1", "git": "new", "stopped": 1},
             "b1",
@@ -120,7 +125,7 @@ def test_the_run_record_shape():
             {"boot_id": "b0", "git": "old", "stopped": 0},
             None,
             None,
-            "a clean stop and start on the same code (unknown)",
+            "the previous run stopped cleanly on the same code (unknown)",
         ),
         (
             {"boot_id": None, "git": None},
@@ -339,11 +344,13 @@ def _record(tmp_path):
 @pytest.mark.sets_capture_events
 def test_capture_started_names_a_deploy_then_a_clean_restart_then_a_crash(tmp_path, monkeypatch):
     first = _main(tmp_path, monkeypatch, "aaa1111")
-    assert first.endswith("It started because no record of a previous run."), first
+    assert first.endswith("It started because the box holds no record of a previous run."), first
     assert _record(tmp_path) == {"boot_id": "boot-1", "git": "aaa1111", "stopped": 0}
 
     assert _main(tmp_path, monkeypatch, "bbb2222").endswith("a deploy moved the code from aaa1111 to bbb2222.")
-    assert _main(tmp_path, monkeypatch, "bbb2222").endswith("a clean stop and start on the same code (bbb2222).")
+    assert _main(tmp_path, monkeypatch, "bbb2222").endswith(
+        "the previous run stopped cleanly on the same code (bbb2222)."
+    )
 
     # A run that never reached the end of its stop leaves no exit code.
     (tmp_path / "captures" / alerts.RUN_RECORD_NAME).write_text(json.dumps(alerts.run_record("boot-1", "bbb2222")))
