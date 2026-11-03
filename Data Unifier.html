@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="cd87fb40fae5" data-compute-hash="ea09c90f672c"><head>
+<html lang="en" data-manifest-hash="b59e477f74e5" data-compute-hash="40bff306aedb"><head>
 <!--
   Data Unifier.html — Tepna
   Copyright 2026 Michal Planicka
@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+iskltdbf7/UUg8Y6ZfcamkqkNKvnVyfhKrlKyBzwKE=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-4H9qbwJg0Px/ddF5s19lSEh0lobH/6PK1pgCZ+NZiHI=' 'sha256-6f85C28BTIAdWBrVBSCTqiDlgEUZZvCfBlJGXVI6LrA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-FRmXwVeLmk/oKNu5BL8gBiQVUsH88GJmm92tz4RR/9M=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HzpXWOPOmYq1yS+1Lwu7KL6HoGmEkgy2vwnzL5usAbA=' 'sha256-IOGPMbRcH864r7zf4ZB3jn1uFqtYSY8DqWp2YdgZWag=' 'sha256-LLgboXd2yVxQuxadbV6/XakvyuElnwPqqeK60I9qEBg=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-QuLHvHgODcQjuAGp7QrzR2K8XMRHpK7C3ar3ZKqNnUU=' 'sha256-RL5agm0jO+OAF4uwgIkvU/TYyrFDJF4flIvpopkODeQ=' 'sha256-RvqN2r4JXRFcPjgEqhy7aHQJAbjKRTZwBnI4olVweec=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-ZXcSUPmdNX+PI5tNnnDW/vQNEDiDXjF3XV977vxYNoU=' 'sha256-fOxAcG4FGOYjHtLk+7Sbd1mzABUQSzPGmybpbJk9b6c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-jHB+Vbnq13/OqiREytNt1VT0oXPXPmhrehzKnnu7PDA=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-t6KwwRs/7k1CX+Ola4fMUbTfsZ+7sfK7iLtOVFeyxdw=' 'sha256-wPiR0mHERwqCZR4gMZnRtTm1BC+vsdDwOsTq7ombnvc=' 'sha256-ymWNG1fe6A9fVnBAn01eHLqgiZnCfxijVdDQPf6xLlQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+iskltdbf7/UUg8Y6ZfcamkqkNKvnVyfhKrlKyBzwKE=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-4H9qbwJg0Px/ddF5s19lSEh0lobH/6PK1pgCZ+NZiHI=' 'sha256-6f85C28BTIAdWBrVBSCTqiDlgEUZZvCfBlJGXVI6LrA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-FRmXwVeLmk/oKNu5BL8gBiQVUsH88GJmm92tz4RR/9M=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HzpXWOPOmYq1yS+1Lwu7KL6HoGmEkgy2vwnzL5usAbA=' 'sha256-IOGPMbRcH864r7zf4ZB3jn1uFqtYSY8DqWp2YdgZWag=' 'sha256-LLgboXd2yVxQuxadbV6/XakvyuElnwPqqeK60I9qEBg=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-QuLHvHgODcQjuAGp7QrzR2K8XMRHpK7C3ar3ZKqNnUU=' 'sha256-RL5agm0jO+OAF4uwgIkvU/TYyrFDJF4flIvpopkODeQ=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-ZXcSUPmdNX+PI5tNnnDW/vQNEDiDXjF3XV977vxYNoU=' 'sha256-fOxAcG4FGOYjHtLk+7Sbd1mzABUQSzPGmybpbJk9b6c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-jHB+Vbnq13/OqiREytNt1VT0oXPXPmhrehzKnnu7PDA=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-t6KwwRs/7k1CX+Ola4fMUbTfsZ+7sfK7iLtOVFeyxdw=' 'sha256-wHzYQaAFMTjegqW6+VfCnNpMl+Op+Ey2uvBFYCsVHlc=' 'sha256-wPiR0mHERwqCZR4gMZnRtTm1BC+vsdDwOsTq7ombnvc=' 'sha256-ymWNG1fe6A9fVnBAn01eHLqgiZnCfxijVdDQPf6xLlQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -40576,7 +40576,12 @@ __exports.CPAPDex = window.CPAPDex;
        landed on disk. Every fixed name capture-host writes into a night folder is listed here, read
        off the writers (`grep -o '"[A-Z-]*\.\(jsonl\|csv\|json\)"' capture-host/*.py`), and `.JSONL`
        joins the container list — a line-delimited ledger is never a waveform. `.CSV` still is NOT. */
-    if (/^(CPAP-INVENTORY|OXYLIFE|CLOCKSYNC|SESSIONDETECT|AS11CLOCK|WEDGEFIRE|MANIFEST|QC-SUMMARY)\./.test(u)) return true;
+    /* 2026-11-02 — the SAME defect a FIFTH time. `STARTS.csv`, `PMDNEG.csv` and `WORN.csv` are fixed-name
+       night-folder sidecars, and `README-SIDECARS.txt` is the folder's sidecar key. None was listed, so on
+       origin/main 9a9973bb `planIngest` made each one a one-file ECG group and `planIngestPpg` a PPG primary.
+       Box census 2026-11-02, night folders holding each: 42 · 41 · 40 · 21. A README is never a waveform. */
+    if (/^(CPAP-INVENTORY|OXYLIFE|CLOCKSYNC|SESSIONDETECT|AS11CLOCK|WEDGEFIRE|MANIFEST|QC-SUMMARY|STARTS|PMDNEG|WORN)\./.test(u)) return true;
+    if (/^README[-_.]/.test(u)) return true;
     /* SAMPLE-VALIDITY-ENVELOPE §3.2 (2026-09-25) — the SAME defect a FOURTH time, and this one was
        measured before it was fixed: the validity sidecars `<base>RUNS.txt` / `<base>SEAMS.txt`
        (capture-host `writers.py` `_RunSidecar` / `_SeamSidecar`, shipped #2317) are named by APPENDING
@@ -40587,7 +40592,12 @@ __exports.CPAPDex = window.CPAPDex;
        a night folder was queued as a RECORDING in both nodes (only the O2Ring's `_PPG2WRUNS` escaped,
        via the vendor pattern). A sidecar is never a waveform; `ppgKind` claims `_PPGRUNS` as the
        'runs' COMPANION before reaching this line, everything else lands here. */
-    if (/_(PPG|PPG2W|PPG1|ACC|ACCRAW|ECG)(RUNS|SEAMS)\b|_(PPG|PPG2W|PPG1|ACC|ACCRAW|ECG)(RUNS|SEAMS)\./.test(u)) return true;
+    /* 2026-11-02 — the stream list above omitted `PPI` and `HR`, and the box writes `…_PPISEAMS.txt` (42 night
+       folders) and `…_HRSEAMS.txt` (18). Both reached the ECG and PPG nodes as recordings. The suffix is now
+       matched on ANY stream token, because `_SeamSidecar` / `_RunSidecar` name the file by appending to the
+       stream suffix and a new stream must not reopen this. The companions (`_PPGRUNS`, `_ECGRUNS`, `_ACCRUNS`)
+       are claimed by `ppgKind` / `ecgKind` BEFORE this function runs, so they keep their companion kinds. */
+    if (/_[A-Z0-9]+(RUNS|SEAMS)\b|_[A-Z0-9]+(RUNS|SEAMS)\./.test(u)) return true;
     if (/^QC-|^\.|\.(JSON|JSONL|MD|LOG|YAML|YML|INI|CFG|PNG|JPG|PDF|ZIP)$/.test(u)) return true;
     return false;
   }

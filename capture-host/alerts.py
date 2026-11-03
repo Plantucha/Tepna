@@ -585,6 +585,38 @@ def arrival_canary(qc: dict, live: dict) -> list[str]:
     return out
 
 
+# ── ONE PAUSE, ONE NAME ─────────────────────────────────────────────────────────────────────────────
+# `_POLAR_PAUSED` is added to in exactly ONE place — inside `capture.polar_offline_op`, immediately
+# after the single offline slot is taken — so a member of that set means an offline-recording op holds
+# this address. A charger pull never puts an address there.
+#
+# THE TWO PREDICATES BELOW READ THAT ONE SET WITH ONE MEMBERSHIP TEST, and they used to name the result
+# twice: `explained_silence` answered `offline-op` and `silence_owner` answered `charger-pull`. Neither
+# subsumed the other, because the first also knows `charging` and `not-worn` and the second also knows
+# `stored-pull`. So a reader correlating a frozen-stream suppression with a night-ended suppression for
+# one device read TWO subsystems for one pause — which is the borrowed reason both docstrings say a NAME
+# rather than a boolean exists to prevent (residue `2026-11-01-two-predicates-name-one-polar-pause-differently`).
+#
+# THE NAME FOLLOWS THE JOURNAL, which has declared that pause as `offline-recording op — live capture
+# paused` since `briefs/SOLID-NIGHT-2026-09-23-BRIEF.md` — 8,369 of 8,956 such lines on the box carry the
+# ADDRESS alone (`loss_audit.read_journal`), so the address is the key a reader correlates on and the op
+# is what owns the device. `charger-pull` named neither the owner nor the set's producer.
+POLAR_PAUSE_NAME = "offline-op"
+
+
+def polar_pause_reason(addr: str | None, paused_addrs: Iterable[str] | None) -> str | None:
+    """PURE: `POLAR_PAUSE_NAME` when a Polar offline-recording op holds this address, else None.
+
+    The one home for BOTH halves of that question — the membership test and the word for it. A caller
+    that spells either one itself is how one pause came to have two names.
+
+    An absent `addr` and an absent set are both the question being unanswerable, which is never evidence
+    of a pause (§∅): a device whose address we do not know is not thereby paused."""
+    if not addr or paused_addrs is None:
+        return None
+    return POLAR_PAUSE_NAME if addr in set(paused_addrs) else None
+
+
 # ── A SILENCE THE BOX ITSELF CAUSED IS NOT A FAULT ──────────────────────────────────────────────────
 # MEASURED on the box 2026-11-01 15:00: the ring and the Sense had written nothing for ~1750 s and the
 # connected-but-silent rule fired, so the watchdog restarted the daemon mid-afternoon. Both silences were
@@ -609,16 +641,14 @@ def explained_silence(st: dict, paused_addrs: Iterable[str] | None = None) -> st
     """Name why a connected device is expected to be silent, or None when nothing explains it.
 
     `st` is one entry of STATUS["devices"]. `paused_addrs` is `gate_state()["polar_paused"]` — the
-    addresses whose live capture a Polar offline-recording op has paused. It is optional and defaults to
-    nothing known, so an older caller keeps the charger-and-worn answer rather than a wrong one."""
+    addresses whose live capture a Polar offline-recording op has paused, read through
+    `polar_pause_reason` so this answer and `silence_owner`'s are one word. It is optional and defaults
+    to nothing known, so an older caller keeps the charger-and-worn answer rather than a wrong one."""
     if st.get("charging"):
         return "charging"
     if st.get("worn") is False:
         return "not-worn"
-    addr = st.get("address")
-    if addr is not None and addr in set(paused_addrs or ()):
-        return "offline-op"
-    return None
+    return polar_pause_reason(st.get("address"), paused_addrs)
 
 
 def frozen_devices(
@@ -979,14 +1009,14 @@ def silence_owner(
 
     · `stored-pull` — the box holds the single offline-download slot for this device. `offline_lock.slot`
       is entered with the device's own name, so this is a per-device answer rather than a global one.
-    · `charger-pull` — this device's address is paused for a Polar charger pull (`gate_state()` publishes
-      the set as `polar_paused`).
+    · `offline-op` — this device's address is paused by a Polar offline-recording op (`gate_state()`
+      publishes the set as `polar_paused`). Read through `polar_pause_reason`, so this answer is the
+      SAME WORD `explained_silence` gives for the same set. It read `charger-pull` until 2026-11-02,
+      which named neither the op that holds the device nor the one writer of that set.
 
     A NAME rather than a boolean, because the log line that replaces a false alert has to say WHICH
     subsystem holds the device. A borrowed reason sends the next reader after the wrong one, which is the
     whole defect this predicate exists to stop."""
     if name and offline_slot is not None and offline_slot == name:
         return "stored-pull"
-    if addr and paused_addrs is not None and addr in set(paused_addrs):
-        return "charger-pull"
-    return None
+    return polar_pause_reason(addr, paused_addrs)
