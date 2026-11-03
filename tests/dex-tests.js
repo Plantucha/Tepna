@@ -6307,6 +6307,115 @@
       T.eq('…and a zero-span refusal names the span it got, still with no rate', flat.ok === false && flat.spanMs === 0 && flat.spanPpm === undefined, true);
     });
 
+    /* THE RAW ADJACENT STEP — the arrival record the smoother discards (row
+       2026-11-01-both-host-axis-statistics-walk-past-one-wild-anchor). Measured over the consolidated
+       corpus by `tools/wild-anchor-census.mjs`: 287 of 1547 distinct ACCEPTED axes publish a
+       `maxStepMs` under a tenth of their own worst raw step, and 248 publish exactly 0. These legs
+       hold the published blindness in place and pin the new field that sees past it. */
+    group('hostAxis rawMaxStepMs \u2014 one wild anchor the smoothed statistics cannot reach', 'clock \u00b7 host-axis \u00b7 rawstep', function (T) {
+      var C = env.DexClock;
+      if (!C || typeof C.hostAxis !== 'function') {
+        T.skip('DexClock.hostAxis available', 'clock.js not loaded');
+        return;
+      }
+      var SPAN = 190 * 60 * 1000;
+      /* A FLAT divergence with ONE wild anchor in the middle: no drift, so every step in the smoothed
+         series is the smoother's own doing and nothing else. */
+      var flatWild = function (N, wildMs) {
+        var a = [],
+          wi = N >> 1;
+        for (var i = 0; i < N; i++) {
+          var d = (i / (N - 1)) * SPAN;
+          a.push({ devMs: d, hostMs: d + (i === wi ? wildMs : 0) });
+        }
+        return a;
+      };
+      var ax = C.hostAxis(flatWild(41, 3000), {});
+      T.eq('the axis is ACCEPTED \u2014 the wild anchor passes every existing check', ax.ok, true);
+      T.eq('maxStepMs reads exactly 0 \u2014 the width-21 median rejects a lone outlier', ax.maxStepMs, 0);
+      T.eq('stackJitterMs reads exactly 0 too \u2014 a half-IQR rejects it as well', ax.stackJitterMs, 0);
+      T.eq('rawMaxStepMs reads the whole 3000 ms the two columns actually did', ax.rawMaxStepMs, 3000);
+      T.eq('rawStepAtDevMs is the LATER anchor of that gap, so the gap is findable', ax.rawStepAtDevMs, SPAN / 2);
+      /* ∅ — a ratio with no denominator is NULL, not a large number, and the reason names the case. */
+      T.eq('stepHiddenRatio is null when the smoothed series carries no step at all', ax.stepHiddenRatio, null);
+      T.ok(
+        'stepHiddenReason names the missing denominator and quotes the raw step',
+        typeof ax.stepHiddenReason === 'string' && /maxStepMs 0 over 41 anchors/.test(ax.stepHiddenReason) && /3000\.00 ms/.test(ax.stepHiddenReason),
+        'reason=' + ax.stepHiddenReason
+      );
+      /* THE BLINDNESS IS NOT A SMALL-SAMPLE ARTIFACT. Both published statistics stay at 0 across a 20×
+         anchor-count sweep that straddles the window width, while the new field is constant at 3000. */
+      var sweep = [3, 5, 10, 20, 21, 22, 30, 41, 60],
+        blindMax = 0,
+        blindRaw = 0;
+      for (var si = 0; si < sweep.length; si++) {
+        var axs = C.hostAxis(flatWild(sweep[si], 3000), {});
+        if (axs.maxStepMs === 0) blindMax++;
+        if (axs.rawMaxStepMs === 3000) blindRaw++;
+      }
+      T.eq('maxStepMs is 0 at every anchor count from 3 to 60 (9 of 9)', blindMax, sweep.length);
+      T.eq('\u2026and rawMaxStepMs reads 3000 at every one of them', blindRaw, sweep.length);
+      T.eq('stackJitterMs sees the anchor only below n = 10 \u2014 1500 at n = 3', C.hostAxis(flatWild(3, 3000), {}).stackJitterMs, 1500);
+      T.eq('\u2026750 at n = 5, half of it, and it is gone by n = 10', C.hostAxis(flatWild(5, 3000), {}).stackJitterMs, 750);
+      T.eq('\u2026exactly 0 at n = 10, where the window majority outvotes the anchor', C.hostAxis(flatWild(10, 3000), {}).stackJitterMs, 0);
+      /* A CLEAN DRIFTING RAMP — the control. With no outlier the two maxima are the SAME number, so
+         the field adds nothing where nothing is hidden, and the ratio is exactly 1. */
+      var ramp = function (N, extraAt, extraMs, span) {
+        var a = [];
+        for (var i = 0; i < N; i++) {
+          var d = (i / (N - 1)) * span;
+          a.push({ devMs: d, hostMs: d + (d / span) * 1000 + (i === extraAt ? extraMs : 0) });
+        }
+        return a;
+      };
+      var axClean = C.hostAxis(ramp(41, -1, 0, SPAN), {});
+      T.eq('a clean 1000 ms/190 min ramp reads the SAME maximum both ways', axClean.rawMaxStepMs, axClean.maxStepMs);
+      T.eq('\u2026which is the per-gap drift, 25 ms over 40 gaps', axClean.maxStepMs, 25);
+      T.eq('\u2026so stepHiddenRatio is exactly 1 \u2014 nothing is hidden', axClean.stepHiddenRatio, 1);
+      /* THE SAME RAMP WITH THE WILD ANCHOR. `maxStepMs` does move off the clean 25 ms — to 50 ms, twice
+         the drift step, because the window's median shifts by one sample. It still sizes the DRIFT and
+         not the anchor: 50 ms against a 3025 ms raw step. */
+      var axDrift = C.hostAxis(ramp(41, 20, 3000, SPAN), {});
+      T.eq('a drifting ramp with the same wild anchor reads maxStepMs 50, twice the drift step', axDrift.maxStepMs, 50);
+      T.eq('\u2026while rawMaxStepMs reads 3025 \u2014 the anchor plus one gap of drift', axDrift.rawMaxStepMs, 3025);
+      T.eq('\u2026so stepHiddenRatio quotes the factor 60.5 rather than a null', axDrift.stepHiddenRatio, 60.5);
+      /* SCALE-FREE FORM. The identical 3000 ms anchor over a 10× longer recording is 10× less of that
+         recording, which is what `rawStepOverSpan` says and what the bare millisecond count cannot. */
+      var axWide = C.hostAxis(ramp(41, 20, 3000, SPAN * 10), {});
+      T.eq('rawMaxStepMs is unchanged by the span \u2014 the same anchor, the same 3025 ms', axWide.rawMaxStepMs, 3025);
+      T.ok(
+        '\u2026and rawStepOverSpan is exactly a tenth of the 190-minute case',
+        Math.abs(axWide.rawStepOverSpan * 10 - axDrift.rawStepOverSpan) < 1e-18,
+        'wide=' + axWide.rawStepOverSpan + ' narrow=' + axDrift.rawStepOverSpan
+      );
+      T.ok(
+        '\u2026and it is the step divided by the device span it was seen over',
+        Math.abs(axDrift.rawStepOverSpan - axDrift.rawMaxStepMs / axDrift.spanMs) < 1e-18,
+        'over=' + axDrift.rawStepOverSpan
+      );
+      /* ∅ — a refusal publishes no step of either kind, exactly as it publishes no rate. */
+      var few = C.hostAxis(
+        [
+          { devMs: 0, hostMs: 0 },
+          { devMs: 1, hostMs: 1 }
+        ],
+        {}
+      );
+      T.eq('a sub-3-anchor refusal carries no rawMaxStepMs', few.ok === false && few.rawMaxStepMs === undefined, true);
+      var flat = C.hostAxis(
+        [
+          { devMs: 5, hostMs: 0 },
+          { devMs: 5, hostMs: 7 },
+          { devMs: 5, hostMs: 3 }
+        ],
+        {}
+      );
+      T.eq('\u2026and a zero-span refusal carries neither the step nor its ratio', flat.ok === false && flat.rawMaxStepMs === undefined && flat.rawStepOverSpan === undefined, true);
+      /* THE DIAGNOSTIC GATES NOTHING — 287 real accepted axes sit on today's answer, so the correction
+         is untouched and a reader decides. */
+      T.ok('the correction itself is unchanged \u2014 this addition refuses nothing', ax.ok === true && Math.abs(ax.correctionAt(SPAN / 2)) < 1e-12, 'correction=' + ax.correctionAt(SPAN / 2));
+    });
+
     group('hostAxis — recover a planted device drift without disturbing the intervals', 'clock · host-axis', function (T) {
       var C = env.DexClock;
       if (!C || typeof C.hostAxis !== 'function') {
