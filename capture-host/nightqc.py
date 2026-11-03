@@ -1043,6 +1043,21 @@ def known_rows(files: list[dict]) -> int:
     return sum(f["rows"] for f in files if f["rows"] is not None)
 
 
+def recorded_nothing(files: list[dict]) -> bool:
+    """True only when every file here was READABLE and they hold zero rows between them.
+
+    ∅ THIS IS NOT `known_rows(files) == 0`, and the difference is the whole reason it has a name.
+    `known_rows` leaves an unreadable file out rather than counting it as zero, so a group whose files
+    could not be read sums to 0 and would answer "recorded nothing" when the honest answer is that
+    nobody knows. A caller acting on this subtracts time from a measurement, so it must act on
+    DEMONSTRATED emptiness: every file readable, and every readable file holding zero rows.
+
+    A session whose rows are UNKNOWN therefore keeps its duration, which is the conservative side —
+    the span stays as wide as it is today and the night keeps whatever shortfall that produces, rather
+    than a narrower span granting a green over files nothing could read."""
+    return not any(f["rows"] is None for f in files) and not known_rows(files)
+
+
 def file_span_sec(path: str) -> float | None:
     """Elapsed time THE FILE ITSELF records, from its own device-clock column. None when it cannot say.
 
@@ -3576,6 +3591,11 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None, wri
     # `gaps_in_night` says a session inside the night was LEFT OUT; these say it was taken IN and the
     # hole before it is published rather than charged to a device (owner ruling 2026-10-12).
     joined_gaps: list[str] = []
+    # ...and these say a session was taken in and recorded NOTHING, so its own minutes are a hole in
+    # the night rather than capture time. Kept apart from `joined_gaps` because the two are different
+    # news: a hole between sessions is time nobody was recording in, an empty session is time somebody
+    # WAS recording in and no row arrived.
+    empty_joined: list[str] = []
     _join_gap_spans: list[tuple[float, float]] = []
     _joined_gap_sec = 0.0
     _sessions_judged = 0
@@ -3661,6 +3681,38 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None, wri
             )
             gaps.append(_line)
             joined_gaps.append(_line)
+        # 🔴 A JOINED SESSION THAT RECORDED NOTHING IS A HOLE, NOT A SESSION.
+        #
+        # The comment above subtracts the holes BETWEEN joined sessions, which is what residue
+        # `2026-09-25-coverage-spans-two-capture-sessions` (fixed #3131) measured: a union span read nine
+        # clean streams at 0.46-0.52. An empty session is the same defect through the door that fix left
+        # open. It is not a hole between two sessions, so nothing subtracted it, and its whole duration
+        # stayed in the denominator while it contributed no rows to the numerator.
+        #
+        # MEASURED 2026-11-03, read-only, over the box's own 102 `QC-SUMMARY.json` files. 23 carry
+        # `sessions_judged` and so can be replayed; of the 21 multi-session nights among them, 18 are
+        # inflated. 2026-10-17 and 2026-10-18 published a span over TWICE the time their devices
+        # recorded (48 314 s against 23 771 s, 48 667 s against 24 124 s), and the night of 2026-11-02
+        # read 33 991 s against 23 597 s with every device at 65 to 74 % while each held about 97.5 % of
+        # its own recording. An evening of daemon restarts before anyone puts a sensor on is the shape
+        # that produces it.
+        #
+        # THE REMEDY IS A HOLE, NOT AN EXCLUSION, and the difference is load-bearing. The row proposed
+        # that such a session not join at all — but `excluded` in-night writes `gaps_in_night`, and `ok`
+        # reads that, so not joining would turn every restart-before-donning night red. Charging its
+        # minutes to `_join_gap_spans` instead corrects the denominator while the session stays part of
+        # the night, which also hands the per-device span and the stopped-early figure below the same
+        # correction through the `_gap_sec_inside` they already read.
+        _empty_joined = [s for s in _judged if recorded_nothing(s[2])]
+        for _s in _empty_joined:
+            _join_gap_spans.append((_s[0], _s[1]))
+            _joined_gap_sec += _s[1] - _s[0]
+            _line = (
+                f"{_hhmm(_s[0])}->{_hhmm(_s[1])} {round((_s[1] - _s[0]) / 60)}min empty session; "
+                f"{len(_s[2])} file(s), 0 rows, not charged to the night's coverage [in-night empty]"
+            )
+            gaps.append(_line)
+            empty_joined.append(_line)
         # ⚠️ NO RECOVERED OFFSET, NO SPAN — and the refusal is the point of the floor, not a shortfall
         # of it. In the floating frame a session's end is its own last stamp plus its own recorded
         # duration, so `end − start` IS that duration: publishing it as the session's ELAPSED time would
@@ -3671,6 +3723,19 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None, wri
         if _off["offset_sec"] is None:
             span = None
             _span_reason = _off["reason"]
+        elif recorded_nothing(current):
+            # ∅ AND A WINDOW THAT RECORDED NOTHING OWES ITS OWN REASON. The predicate is asked of
+            # the judged window's own files rather than of a count of empty sessions: the two are the
+            # same statement — a session with rows puts rows in `current`, an unreadable file makes it
+            # refuse — and `len(_empty_joined) == _sessions_judged` carries an EQUIVALENT mutant
+            # (`>=` can never differ, since the empty sessions are a subset of the judged ones) that no
+            # input could kill. Every judged session is a hole here, so the arithmetic below lands on
+            # exactly 0 and the floor would report it as
+            # "under the minimum judgeable span" — a borrowed reason, and a wrong one: the window is
+            # not short, it is empty. CLAUDE.md ∅ wants the named cause, so this branch states it
+            # rather than letting a true statement about the floor stand in for the fact.
+            span = None
+            _span_reason = "no joined session recorded a readable row"
         else:
             span = (_cur_end - _judged_start) - _joined_gap_sec
             span = span if span >= _MIN_SPAN_SEC else None
@@ -3995,6 +4060,10 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None, wri
             # split by a daemon restart or a box-wide outage now reads as ONE night with a stated hole,
             # and these are the fields that state it. `night_gap_min` is 0 on a single-session night.
             "joined_gaps": joined_gaps,
+            # The joined sessions that recorded nothing, so a reader can tell a span narrowed by an
+            # empty session from one narrowed by packet loss. The row this closes names exactly that
+            # confusion: the digest marked the figure `~session` and nothing said which it was.
+            "empty_joined": empty_joined,
             "night_gap_min": round(_joined_gap_sec / 60),
             # How many capture sessions the figures above rest on, so a reader never has to infer it
             # from the length of a gap list.

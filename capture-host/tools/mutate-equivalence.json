@@ -2913,6 +2913,36 @@
       "why": "`close(len(lines))` differs from `close(None)` only when the scan ends with a body still OPEN — and `lines[start:None]` is `lines[start:]`, which is what `len(lines)` also yields. The two slices are equal for every input, so the final close cannot distinguish them."
     }
   ],
+  "mutation_sweep.py": [
+    {
+      "class": "no-distinguishing-input",
+      "function": "inherited_ini_options",
+      "key": "- in_section = False | + in_section = None",
+      "probe": "Ran BOTH the original and the mutant over 18 config texts, comparing the full (kept, denied) pair each time: the live capture-host/pyproject.toml, plus empty, no pytest section, a top-level key above the first header, a comment and a blank line as the section's first line, kept and denied multi-line values, a denied multi-line value followed by a key, nested brackets, a bracket inside a string, an unbalanced close, a following section, a dotted sub-table, an inline table and padded key spacing. 0 of 18 differed. Run empirically 2026-11-03. The 19th shape, a top-level key, is the one that DOES separate `in_section = True` from the original, and it is a test now, not an entry.",
+      "why": "`in_section` is read in exactly one place, `if not in_section: continue`, and written in exactly one other, from the section-header comparison. None and False are both falsy, so the read agrees on every line before the first header, and the header's own write replaces the initial value with a real bool. Nothing else reads it."
+    },
+    {
+      "class": "untestable-by-design",
+      "function": "inherited_ini_options",
+      "key": "- keeping = False | + keeping = True",
+      "probe": "Ran BOTH the original and the mutant over 18 config texts, comparing the full (kept, denied) pair each time: the live capture-host/pyproject.toml, plus empty, no pytest section, a top-level key above the first header, a comment and a blank line as the section's first line, kept and denied multi-line values, a denied multi-line value followed by a key, nested brackets, a bracket inside a string, an unbalanced close, a following section, a dotted sub-table, an inline table and padded key spacing. 0 of 18 differed. Run empirically 2026-11-03. The 19th shape, a top-level key, is the one that DOES separate `in_section = True` from the original, and it is a test now, not an entry.",
+      "why": "THE INITIAL VALUE IS NEVER READ, by construction. `if keeping:` is reached only after the `depth == 0` branch has assigned `keeping`, or on a continuation line where depth is non-zero. depth is 0 whenever the first in-section line arrives: every line before the section header and the header line itself `continue` ahead of the `depth +=` at the foot of the body, and the only path that skips the assignment (`found is None`) also `continue`s ahead of it. So no input can reach `if keeping:` before the first assignment."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "function": "inherited_ini_options",
+      "key": "- keeping = False | + keeping = None",
+      "probe": "Ran BOTH the original and the mutant over 18 config texts, comparing the full (kept, denied) pair each time: the live capture-host/pyproject.toml, plus empty, no pytest section, a top-level key above the first header, a comment and a blank line as the section's first line, kept and denied multi-line values, a denied multi-line value followed by a key, nested brackets, a bracket inside a string, an unbalanced close, a following section, a dotted sub-table, an inline table and padded key spacing. 0 of 18 differed. Run empirically 2026-11-03. The 19th shape, a top-level key, is the one that DOES separate `in_section = True` from the original, and it is a test now, not an entry.",
+      "why": "Equivalent twice over. `keeping` is read only by `if keeping:`, where None and False are both falsy — and the initial value is unreachable anyway, for the reason recorded against `keeping = True` above."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "function": "inherited_ini_options",
+      "key": "- depth += line.count(\"[\") - line.count(\"]\") | + depth -= line.count(\"[\") - line.count(\"]\")",
+      "probe": "Ran BOTH the original and the mutant over 18 config texts, comparing the full (kept, denied) pair each time: the live capture-host/pyproject.toml, plus empty, no pytest section, a top-level key above the first header, a comment and a blank line as the section's first line, kept and denied multi-line values, a denied multi-line value followed by a key, nested brackets, a bracket inside a string, an unbalanced close, a following section, a dotted sub-table, an inline table and padded key spacing. 0 of 18 differed. Run empirically 2026-11-03. The 19th shape, a top-level key, is the one that DOES separate `in_section = True` from the original, and it is a test now, not an entry.",
+      "why": "`depth` is read by one expression only, `depth == 0`, and the mutant's accumulator is the exact negation of the original's at every step: both start at 0 and each iteration applies the same magnitude with the opposite sign. Negation preserves zero, so every `depth == 0` test agrees for every sequence of bracket counts. This is an argument over the whole input domain, and the battery below is its empirical half."
+    }
+  ],
   "mutation_triage.py": [
     {
       "class": "no-distinguishing-input",

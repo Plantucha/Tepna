@@ -34,12 +34,15 @@ reports normally. So an unverified measurement REFUSES rather than quietly takin
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping, Sequence
 from typing import Any
 
 __all__ = [
     "SOURCE_SCANNING_TESTS",
     "select_tests",
+    "inherited_ini_options",
+    "INI_NOT_INHERITED",
     "deselect_args",
     "deselect_notes",
     "DESELECTED_TESTS",
@@ -188,6 +191,67 @@ def select_tests(
         kept.remove(own)
         kept.insert(0, own)
     return kept, dropped
+
+
+# Keys the scratch tree must NOT inherit from the real `[tool.pytest.ini_options]`, each one because
+# it changes what the run MEASURES rather than merely differing. `testpaths` is restated by the
+# scratch config itself. `addopts` would carry flags the sweep must choose for itself — `--cov` above
+# all, which makes every mutant pay for coverage it is not judged on.
+#
+# ⚠️ IT IS A DENYLIST, so an UNKNOWN key is INHERITED. That is the cautious direction here, and it is
+# the opposite of a selection rule: a pytest setting nobody listed above is far more likely to be a
+# rule the suite ASSERTS ON than a measurement hazard, and a scratch tree that silently runs under
+# different rules than the real suite is what this function exists to stop.
+INI_NOT_INHERITED = frozenset({"testpaths", "addopts"})
+
+_INI_KEY = re.compile(r"\s*([A-Za-z_][A-Za-z0-9_.-]*)\s*=")
+
+
+def inherited_ini_options(pyproject_text: str) -> tuple[list[str], list[str]]:
+    """The `[tool.pytest.ini_options]` lines a mutation scratch tree must carry, and the keys dropped.
+
+    Pure, and it takes the TEXT for the same reason `select_tests` does: the read is plumbing.
+
+    🔴 THE DEFECT THIS CLOSES. `tools/mutate.py` wrote the scratch `pyproject.toml` from a literal
+    template carrying `testpaths` alone, so the mutation run obeyed none of the real suite's pytest
+    rules. Measured 2026-11-03 on the first PR to mutate `nightqc.py` after the asyncio-policy
+    tripwire landed (#4175): the real config pins `filterwarnings`, the scratch config did not carry
+    it, and `tests/test_pytest_config.py` — selected for that module because its docstring happens to
+    name it — FAILED inside the scratch. A failing test in the stats pass means zero mutants tested,
+    so `mutate_diff` refused with exit 2 and verdict `NOT_RUN`. The red was the gate reporting that it
+    could not look, and no survivor existed.
+
+    The same absence is a measurement hole even when nothing asserts on it: a mutant that reintroduces
+    a deprecated call cannot be killed by a filter the scratch tree does not have, and 40
+    `PytestUnknownMarkWarning` lines in that run were the `markers` table absent for the same reason.
+
+    Comment-only and blank lines are dropped (they carry no rule), a bracketed multi-line value is
+    kept whole, and the scan stops at the next section header. A value continued WITHOUT brackets is
+    not a shape this config uses and would not survive the scan — keep one on a single line.
+    """
+    kept: list[str] = []
+    denied: list[str] = []
+    in_section = False
+    keeping = False
+    depth = 0
+    for line in pyproject_text.splitlines():
+        stripped = line.strip()
+        if depth == 0 and stripped.startswith("[") and stripped.endswith("]") and "=" not in stripped:
+            in_section = stripped == "[tool.pytest.ini_options]"
+            continue
+        if not in_section:
+            continue
+        if depth == 0:
+            found = _INI_KEY.match(line)
+            if found is None:
+                continue
+            keeping = found.group(1) not in INI_NOT_INHERITED
+            if not keeping:
+                denied.append(found.group(1))
+        if keeping:
+            kept.append(line)
+        depth += line.count("[") - line.count("]")
+    return kept, denied
 
 
 def budget_verdict(clean_sec: float, measured_ok: bool) -> tuple[str, int | None, str]:
