@@ -11,6 +11,7 @@ asked what a positive zone with a two-digit hour and non-zero minutes does.
 Clock Contract §1: `tMs` is the stamp's components encoded as if UTC, so it does NOT move with the
 zone. The zone travels beside it as `offsetMin`, which is the only field a zone may change."""
 
+import datetime as _dt
 import os
 import sys
 
@@ -51,3 +52,36 @@ def test_the_pid_is_the_identity_the_series_segments_on():
 def test_a_line_with_no_journal_prefix_is_None():
     assert journal_line.stamp_of("INFO ble: since last line backoff rate AA 1/h over 60 min") is None
     assert journal_line.stamp_of("2026-01-02T03:04:05Z synthbox tepna-capture: no pid here") is None
+
+
+# ── THE SECOND GRAMMAR: a BARE ISO stamp, which is what the heap probe writes ────────────────────────
+# Row `2026-09-25-heap-growth-is-json-retention-not-a-buffer-leak`. `heap_series` compares the probe's
+# rows against this journal's series, so both axes must come out of ONE encoder — an age or a span
+# computed with a second one is a figure across two axes.
+def test_a_bare_iso_stamp_with_no_zone_reads_its_components_verbatim():
+    got = journal_line.stamp_iso("2026-11-03T12:00:00")
+    assert got == {"tMs": journal_line.floating_ms(_dt.datetime(2026, 11, 3, 12, 0, 0)), "offsetMin": None}
+
+
+def test_a_declared_zone_travels_beside_tMs_and_never_moves_it():
+    naive = journal_line.stamp_iso("2026-11-03T12:00:00")["tMs"]
+    assert journal_line.stamp_iso("2026-11-03T12:00:00Z") == {"tMs": naive, "offsetMin": 0}
+    assert journal_line.stamp_iso("2026-11-03T12:00:00+02:00") == {"tMs": naive, "offsetMin": 120}
+    assert journal_line.stamp_iso("2026-11-03T12:00:00-0330") == {"tMs": naive, "offsetMin": -210}
+
+
+def test_a_stamp_this_grammar_does_not_know_is_None_rather_than_the_time_of_the_read():
+    for bad in ("", "whenever", "03/11/2026 12:00:00", "2026-11-03 12:00:00"):
+        assert journal_line.stamp_iso(bad) is None
+
+
+def test_a_shape_that_is_not_a_calendar_day_is_refused():
+    """§2 rule 7: the components are range-validated, so a legal shape is not a legal instant."""
+    assert journal_line.stamp_iso("2026-02-30T00:00:00") is None
+    assert journal_line.stamp_iso("2026-11-03T25:00:00") is None
+
+
+def test_the_two_grammars_agree_on_one_instant():
+    """The reason the second grammar lives here: one encoder, so the two series share an axis."""
+    line = "2026-11-03T12:00:00+02:00 synthbox tepna-capture[7]: INFO mem: VmRSS 1 kB"
+    assert journal_line.stamp_of(line)["tMs"] == journal_line.stamp_iso("2026-11-03T12:00:00+02:00")["tMs"]
