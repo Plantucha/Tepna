@@ -3043,6 +3043,18 @@
    },
    "note": "holds every `consensusBeats` call site to a READABLE polarity decision. PASS = every site applies the decision, verified in the code. SHORTFALL = a site declares `@polarity-decision behind <row>` and the row holds the debt. FAIL = a site declares nothing, or its declaration disagrees with its code. Row 2026-11-01-the-consensus-polarity-wiring-reached-one-of-ten-callers."
   },
+  "tools/consensus-refpick-dissent.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/consensus-refpick-dissent.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "names WHICH rule picks the reference channel at every `consensusBeats` call site, and measures how often that pick lands on a polarity dissenter. The default census FAILs on a site whose pick rule the scan cannot name, because an unnamed rule is a pick nobody has checked. Under `--dir` the same gate reports the corpus figure. Row 2026-11-01-a-dissenting-led-can-win-the-consensus-reference-pick."
+  },
   "tools/mutation-equiv-source.mjs": {
    "bin": "decides",
    "status": "adopted",
