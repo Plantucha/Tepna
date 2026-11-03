@@ -47,6 +47,19 @@ import { createRequire } from 'node:module';
 import { gitShort } from './verdict-emit.mjs';
 import { isCliEntry, positionalArgs, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 import { populationVerdict, snapshotEntries } from './corpus-scope-core.mjs';
+import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
+
+/* ── THE VALIDITY SIDECAR RIDES WITH THE STREAM ─────────────────────────────────────────────
+   Row 2026-11-02-no-caller-hands-the-shared-pat-foot-extractor-its-sidecar: the foot extractor has
+   taken a `runsText` validity sidecar since the PAT foot ports landed, and this caller handed it
+   none, so a blanking run the box recorded reached the foot detector as signal — a flat rail is a
+   plausible diastole, and no reader could tell it from one. `readRunsSidecar` names which of four
+   things happened per stream, and the tally prints beside the numbers: §∅, reduced coverage
+   annotates, and an ABSENT sidecar is validity UNKNOWN for that stream, never a clean one. Most of
+   this corpus predates the writer, so most streams read `absent` and parse exactly as they did
+   before. */
+const VALIDITY = {};
+const runsOf = (streamPath, stream) => readRunsSidecar(streamPath, stream, { tally: VALIDITY }).runsText;
 
 /* ONE spec, read twice: the guard refuses an undeclared flag with it, and `positionalArgs`
    skips each valued flag's VALUE with it, so a flag written before the positional cannot be
@@ -398,8 +411,11 @@ function ecgRpeakTimes(text) {
   for (let i = 0; i < peaks.length; i++) t[i] = rec.t0Ms + (peaks[i] / rec.fs) * 1000;
   return t;
 }
-function ppgFootTimes(text) {
-  const rec = PPGDSP.parsePPG(text);
+/* This copy had no `runsText` PARAMETER, so no caller could have handed it one — the guarded
+   ternary below is the shape the shared extractor ships (row
+   2026-11-02-no-caller-hands-the-shared-pat-foot-extractor-its-sidecar). */
+function ppgFootTimes(text, runsText) {
+  const rec = runsText ? PPGDSP.parsePPG(text, { runsText }) : PPGDSP.parsePPG(text);
   if (rec.t0Ms == null) throw new Error('PPG file carried no phone timestamp.');
   const per = rec.ch.map((c) => PPGDSP.detectChannel(c, rec.fs));
   let refIdx = 0,
@@ -536,7 +552,8 @@ async function main() {
   );
   console.log('POPULATION ' + JSON.stringify(population));
   const tA = Array.from(ecgRpeakTimes(readFileSync(join(dir, ecgF[0]), 'utf8')));
-  const tB = Array.from(ppgFootTimes(readFileSync(join(dir, ppgF[0]), 'utf8')));
+  const pPath = join(dir, ppgF[0]);
+  const tB = Array.from(ppgFootTimes(readFileSync(pPath, 'utf8'), runsOf(pPath, 'PPG')));
   const rrA = tA.slice(1).map((x, i) => x - tA[i]),
     rrB = tB.slice(1).map((x, i) => x - tB[i]);
   console.log(
@@ -580,6 +597,8 @@ async function main() {
   console.log(`beats  ECG ${r.nA}  PPG ${r.nB}   offset ${r.offsetMs.toFixed(1)} ms`);
   console.log(`matched ${r.matched}   deletions(ECG-only) ${r.deletionsA}   insertions(PPG-only) ${r.insertionsB}   indel rate ${(100 * r.indelRate).toFixed(2)} %`);
   console.log(`residual |Δt|: mean ${r.meanAbsDtMs.toFixed(1)} ms   max ${r.maxAbsDtMs.toFixed(1)} ms   VP distance ${r.distance.toFixed(1)}`);
+  const validity = validityLine(VALIDITY);
+  if (validity) console.log('  ' + validity);
 }
 
 if (isCliEntry(import.meta.url)) main();

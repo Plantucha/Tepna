@@ -56,6 +56,19 @@ import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { NIGHT_RE, notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
+import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
+
+/* ── THE VALIDITY SIDECAR RIDES WITH THE STREAM ─────────────────────────────────────────────
+   Row 2026-11-02-no-caller-hands-the-shared-pat-foot-extractor-its-sidecar: the foot extractor has
+   taken a `runsText` validity sidecar since the PAT foot ports landed, and this caller handed it
+   none, so a blanking run the box recorded reached the foot detector as signal — a flat rail is a
+   plausible diastole, and no reader could tell it from one. `readRunsSidecar` names which of four
+   things happened per stream, and the tally prints beside the numbers: §∅, reduced coverage
+   annotates, and an ABSENT sidecar is validity UNKNOWN for that stream, never a clean one. Most of
+   this corpus predates the writer, so most streams read `absent` and parse exactly as they did
+   before. */
+const VALIDITY = {};
+const runsOf = (streamPath, stream) => readRunsSidecar(streamPath, stream, { tally: VALIDITY }).runsText;
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DexBuild = createRequire(import.meta.url)(path.join(ROOT, 'tools', 'build-core.js'));
@@ -368,7 +381,7 @@ for (const n of nights) {
     E = ecgRpeakTimes(fs.readFileSync(eF.f, 'utf8'));
   } catch {}
   try {
-    P = ppgFootTimes(fs.readFileSync(pF.f, 'utf8'), null, { pinnedFromRecompute: FROM_RECOMPUTE });
+    P = ppgFootTimes(fs.readFileSync(pF.f, 'utf8'), runsOf(pF.f, 'PPG'), { pinnedFromRecompute: FROM_RECOMPUTE });
   } catch {}
   if (!E || !P) {
     console.log(`  ${n}  ⊘ extractor failed (ECG ${!!E} · PPG ${!!P})`);
@@ -403,6 +416,8 @@ const rl = ruleLine(population);
 if (rl) console.log('  ' + rl);
 console.log(`  selected but not scored: ${unscored.length ? unscored.join(', ') : 'none'}`);
 console.log('POPULATION ' + JSON.stringify(population));
+const validity = validityLine(VALIDITY);
+if (validity) console.log('  ' + validity);
 if (!ALL.length) {
   console.log('\n  nothing measured.');
   process.exit(0);

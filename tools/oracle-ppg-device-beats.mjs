@@ -62,6 +62,19 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry } from './argv-guard.mjs';
 import { notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
+import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
+
+/* ── THE VALIDITY SIDECAR RIDES WITH THE STREAM ─────────────────────────────────────────────
+   Row 2026-11-02-no-caller-hands-the-shared-pat-foot-extractor-its-sidecar: the foot extractor has
+   taken a `runsText` validity sidecar since the PAT foot ports landed, and this caller handed it
+   none, so a blanking run the box recorded reached the foot detector as signal — a flat rail is a
+   plausible diastole, and no reader could tell it from one. `readRunsSidecar` names which of four
+   things happened per stream, and the tally prints beside the numbers: §∅, reduced coverage
+   annotates, and an ABSENT sidecar is validity UNKNOWN for that stream, never a clean one. Most of
+   this corpus predates the writer, so most streams read `absent` and parse exactly as they did
+   before. */
+const VALIDITY = {};
+const runsOf = (streamPath, stream) => readRunsSidecar(streamPath, stream, { tally: VALIDITY }).runsText;
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
@@ -106,7 +119,7 @@ export function scoreNight(PPGDSP, ppgText, opts = {}) {
      verdict is not a result.) */
   let rec;
   try {
-    rec = PPGDSP.parsePPG(ppgText);
+    rec = opts.runsText ? PPGDSP.parsePPG(ppgText, { runsText: opts.runsText }) : PPGDSP.parsePPG(ppgText);
   } catch (e) {
     return { ok: false, reason: 'unparsed: ' + String((e && e.message) || e).slice(0, 90) };
   }
@@ -123,7 +136,7 @@ export function scoreNight(PPGDSP, ppgText, opts = {}) {
      which is the axis the markers live on and the only one on which the two are comparable. */
   let ft;
   try {
-    ft = opts.footTimes || (opts.ppgFootTimes || ppgFootTimes)(ppgText);
+    ft = opts.footTimes || (opts.ppgFootTimes || ppgFootTimes)(ppgText, opts.runsText);
   } catch (e) {
     // `ppgFootTimes` throws when the file carries no phone timestamp — same discipline as above.
     return { ok: false, reason: 'no-own-beats: ' + String((e && e.message) || e).slice(0, 90) };
@@ -391,7 +404,9 @@ if (IS_CLI) {
       continue;
     }
     for (const f of files) {
-      const r = scoreNight(PPGDSP, readFileSync(join(nd, f), 'utf8'));
+      /* `scoreNight` takes the TEXT, so the sidecar it cannot name from a path travels in `opts`. */
+      const fp = join(nd, f);
+      const r = scoreNight(PPGDSP, readFileSync(fp, 'utf8'), { runsText: runsOf(fp, 'PPG') });
       rows.push({ night, file: f, ...r });
       console.log(r.ok ? `  ✓ ${night} ${f}  matched ${r.matchedPct}%  lag ${r.latencyMedianMs} ms (MAD ${r.latencyMadMs})  ppiΔ ${r.ppiDeltaMedianMs} ms` : `  ⊘ ${night} ${f}  ${r.reason}`);
     }
@@ -431,6 +446,8 @@ if (IS_CLI) {
   console.log('\nA REFERENCE IS A REFERENCE, NOT GROUND TRUTH — disagreement opens an investigation, never an auto-fix.');
   console.log("The lag is the firmware's DETECTION LATENCY, a device property. The agreement is its MAD and the interval delta.");
   printPopulation(population, snap, rows);
+  const validity = validityLine(VALIDITY);
+  if (validity) console.log('  ' + validity);
   console.log(JSON.stringify({ ...v, detail: { corpusPopulation: population } }, null, 2));
   process.exit(v.status === 'FAIL' ? 1 : 0);
 }
