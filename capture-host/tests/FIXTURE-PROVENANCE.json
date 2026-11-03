@@ -722,12 +722,6 @@
       "source": "stamps and bytes built in the test; no provenance claim in the file",
       "sha256": null
     },
-    "test_tepna_solid_prompt_sh.py": {
-      "class": "authored",
-      "kind": "constructed-stamps",
-      "source": "stamps and bytes built in the test; no provenance claim in the file",
-      "sha256": null
-    },
     "test_tepna_wifi_sh.py": {
       "class": "synthetic",
       "kind": "standard-vectors",
