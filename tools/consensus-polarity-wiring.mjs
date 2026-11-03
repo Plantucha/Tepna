@@ -64,7 +64,7 @@ const APPLIER = 'applyConsensusPolarity';
 
 /* The trees a call may live in. Named, never globbed: a glob would pull `node_modules` and every
    generated bundle into the population, and an inlined bundle copy is the same source twice. */
-const SCAN = [
+export const SCAN = [
   { dir: '.', exts: ['.js'] },
   { dir: 'tools', exts: ['.mjs', '.js'] }
 ];
@@ -89,19 +89,33 @@ export function lineOf(text, index) {
   return n;
 }
 
-/* The first argument as WRITTEN, walked on the masked copy so a comma inside a string or a comment
-   cannot end it. Returns null when the call's parenthesis never closes. */
-export function firstArg(text, masked, open) {
-  let depth = 0;
+/* The Nth argument as WRITTEN, walked on the masked copy so a comma inside a string or a comment
+   cannot end it. Returns null when the call's parenthesis never closes, or when the call carries no
+   argument at that position — an ABSENT argument and an unterminated call are both `null` here,
+   which is why a caller that cares reads the arity it expects rather than this alone. */
+export function argAt(text, masked, open, n = 0) {
+  let depth = 0,
+    at = 0,
+    from = open + 1;
   for (let k = open; k < masked.length; k++) {
     const c = masked[k];
     if (c === '(' || c === '[' || c === '{') depth++;
     else if (c === ')' || c === ']' || c === '}') {
       depth--;
-      if (depth === 0) return text.slice(open + 1, k).trim() || null;
-    } else if (c === ',' && depth === 1) return text.slice(open + 1, k).trim() || null;
+      if (depth === 0) return at === n ? text.slice(from, k).trim() || null : null;
+    } else if (c === ',' && depth === 1) {
+      if (at === n) return text.slice(from, k).trim() || null;
+      at++;
+      from = k + 1;
+    }
   }
   return null;
+}
+
+/* The first argument, which every caller of this module reads. Kept as its own name because it is
+   the shape the shared assertions pin; it is `argAt` at position 0 and nothing more. */
+export function firstArg(text, masked, open) {
+  return argAt(text, masked, open, 0);
 }
 
 export function findCalls(text, name) {
@@ -116,7 +130,9 @@ export function findCalls(text, name) {
        one, so the preceding text decides. */
     if (/\bfunction\s+$/.test(masked.slice(Math.max(0, at - 24), at))) continue;
     const open = m.index + m[0].length - 1;
-    out.push({ callee: m[1], index: at, line: lineOf(text, at), arg: firstArg(text, masked, open) });
+    /* `open` travels with the call because a second reader needs a LATER argument, and re-deriving
+       the parenthesis from `index` would be a second rule over the same text. */
+    out.push({ callee: m[1], index: at, line: lineOf(text, at), arg: firstArg(text, masked, open), open });
   }
   return out;
 }
@@ -220,7 +236,9 @@ export function buildVerdict(rows, scanned, opts = {}) {
 
 /* ── io ──────────────────────────────────────────────────────────────────────────────────────── */
 
-function scanFiles(root) {
+/* The FILE population, exported because a second reader of these call sites must not re-derive it:
+   two listers over one `SCAN` is the drift this module's own limits section warns about. */
+export function scanFiles(root) {
   const out = [];
   for (const s of SCAN) {
     const dir = join(root, s.dir);
