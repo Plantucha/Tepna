@@ -162,6 +162,19 @@
      reader publishes are comparable with the row's own. */
   var CK_RADIO_GAP_MS = 60000;
 
+  /* THE DELAY'S FLOOR IS SHARP WHERE ITS SPREAD IS WIDE, so the window that
+     reads the floor is pre-stated here and fitted to nothing (§🧾). A frame
+     waits in the device buffer and then for the next connection event, so the
+     device-to-anchor delay has a HARD MINIMUM and a long upper tail: the tail
+     is the link's delivery noise and the floor is the clock. `stackJitterMs` is
+     a half-IQR about a running median, so it measures the tail. The ledger row
+     `2026-11-02-the-radio-band-reads-the-delay-spread-and-discards-its-floor`
+     measured both edges on six box sidecars (Wren, 2026-11-02): H10 ECG floor
+     MAD 2.2 ms against a bulk IQR of 32 ms, Verity PPG 9.3 ms against 180 ms.
+     The window is the row's own 5 min, so the numbers this reader publishes are
+     comparable with the row's. */
+  var CK_RADIO_FLOOR_WIN_MS = 300000;
+
   /* The sidecar's declared columns (§3 of the brief). Read BY NAME from the
      file's own header line — never by position. A sibling reader compared a
      literal against column 1 while the box wrote a different vocabulary there,
@@ -398,6 +411,246 @@
     };
   }
 
+  /* anchorFloor(anchors, correctionAt, opts) → { winMs, n, dropped, windows,
+     usedWindows, floorOffsetMs, floorMadMs, bulkIqrMs, floorOverBulk, reason }.
+     THE SHARP EDGE OF THE DELAY, READ ABOUT THE SPINE'S OWN CURVE. The residual
+     this bins is `r_i - correctionAt(devMs_i)`, which is the series whose
+     HALF-IQR the spine publishes as `stackJitterMs` — so the two statistics
+     describe the same residual and differ only in which edge of it they read.
+     The constant the residual carries (the spine's `r0`) cancels: a MAD of
+     window minima and an IQR are both shift-invariant.
+     WHY THE SPINE'S CURVE AND NOT A LINE OF THIS READER'S OWN. The row's own
+     method ran Theil-Sen through the window minima. That answers a different
+     question — how straight the floor is — where this one answers how tightly
+     the floor holds about the correction a consumer actually gets, which is the
+     running median and nothing else (`clock.js:817`). A second drift model here
+     would drift from the one the axis publishes, which is the reason this whole
+     module delegates.
+     IT ANNOTATES AND IT DECIDES NOTHING, and that is the owner's §∅ ruling
+     applied, not caution: the floor would be the better band criterion only if
+     a floor-mapped axis holds BETWEEN NIGHTS, and the row names that test (PAT
+     stability over the per-connection offset, −867…+1321 ms between nights)
+     as the one nobody has run. The number ships; the gate does not move on it.
+     ⚠ A SHARP FLOOR IS NOT A CORRECT ONE. Any distribution bounded below has a
+     sharp floor, a uniform ±J wobble included, and there the floor sits J below
+     the clock rather than on it. The suite plants that control beside the
+     one-sided one, because a reader who takes a small `floorMadMs` for accuracy
+     would move the band onto a biased edge. */
+  function anchorFloor(anchors, correctionAt, opts) {
+    opts = opts || {};
+    var winMs = opts.winMs != null ? Number(opts.winMs) : CK_RADIO_FLOOR_WIN_MS;
+    var list = anchors || [];
+    /* An EXPLICIT `opts.median` is honoured even when it is not callable, the
+       same idiom `radioAxis` uses for the spine: a caller that injects the
+       median can see this refusal, and absent the key the loaded DexClock is
+       the one source. */
+    var med = Object.prototype.hasOwnProperty.call(opts, 'median') ? opts.median : root.DexClock && root.DexClock._ckMedian;
+    function absent(reason, n, dropped, extra) {
+      /* §∅ — every count this function READ stays real, and everything derived
+         from a population it could not form is `null` with a named reason,
+         never a 0 that reads as a perfectly sharp floor. The counts travel in
+         `extra` because a refusal that discards what it measured cannot be told
+         from one that measured nothing. */
+      var out = {
+        winMs: winMs,
+        n: n,
+        dropped: dropped,
+        windows: null,
+        usedWindows: null,
+        anchorsPerWindow: null,
+        floorBelowMedianMs: null,
+        floorMadMs: null,
+        ceilAboveMedianMs: null,
+        ceilMadMs: null,
+        asymmetry: null,
+        bulkIqrMs: null,
+        floorOverBulk: null,
+        reason: reason
+      };
+      for (var ek in extra || {}) {
+        if (Object.prototype.hasOwnProperty.call(extra, ek)) out[ek] = extra[ek];
+      }
+      return out;
+    }
+    if (typeof med !== 'function') {
+      /* §👥.3 — an absent spine refuses BY NAME. `_ckMedian` is exported for
+         exactly this delegation, and a local copy is the second estimator this
+         module exists not to keep. */
+      return absent('clock.js is not loaded, so DexClock._ckMedian cannot read the floor', 0, 0);
+    }
+    if (typeof correctionAt !== 'function') {
+      return absent('the host axis published no correction curve, so there is no series to read the floor about', 0, 0);
+    }
+    var n = 0;
+    var dropped = 0;
+    var hMin = Infinity;
+    var i;
+    for (i = 0; i < list.length; i++) {
+      var a0 = list[i];
+      if (!a0 || !isFinite(a0.devMs) || !isFinite(a0.hostMs)) {
+        dropped++;
+        continue;
+      }
+      n++;
+      if (a0.hostMs < hMin) hMin = a0.hostMs;
+    }
+    if (n < 1) return absent('no readable anchor carries a delay, so the floor is absent', n, dropped);
+    if (!(winMs > 0)) return absent('the floor window must be a positive duration, so no window could be formed', n, dropped);
+    /* The minimum per window, keyed on the HOST column: the windows are wall
+       time the link had to deliver in, and the device column is the thing under
+       test. A map keyed by the window index holds one number per window, so a
+       14 h stream at 0.2 s cadence keeps 169 entries and not its 250 000 rows. */
+    var mins = Object.create(null);
+    var maxs = Object.create(null);
+    var cnt = Object.create(null);
+    var res = [];
+    for (i = 0; i < list.length; i++) {
+      var a = list[i];
+      if (!a || !isFinite(a.devMs) || !isFinite(a.hostMs)) continue;
+      var r = a.hostMs - a.devMs - correctionAt(a.devMs);
+      if (!isFinite(r)) {
+        /* A curve that answers a non-finite correction leaves this anchor
+           unreadable, which is a drop and never a residual of zero. */
+        dropped++;
+        n--;
+        continue;
+      }
+      res.push(r);
+      var k = Math.floor((a.hostMs - hMin) / winMs);
+      if (!(k in mins) || r < mins[k]) mins[k] = r;
+      if (!(k in maxs) || r > maxs[k]) maxs[k] = r;
+      cnt[k] = (cnt[k] || 0) + 1;
+    }
+    var keys = Object.keys(mins);
+    /* The windows the stream SPANS, against the `usedWindows` that hold an
+       anchor: the two differ by exactly the holes `anchorGaps` counts. An
+       explicit loop, because a spread over an `apply`-ed array would blow the
+       stack on a small window. */
+    var lo = Infinity;
+    var hi = -Infinity;
+    for (i = 0; i < keys.length; i++) {
+      var kz = Number(keys[i]);
+      if (kz < lo) lo = kz;
+      if (kz > hi) hi = kz;
+    }
+    var cs = [];
+    for (i = 0; i < keys.length; i++) cs.push(cnt[keys[i]]);
+    cs.sort(function (x, y) {
+      return x - y;
+    });
+    var counts = { windows: hi - lo + 1, usedWindows: keys.length, anchorsPerWindow: med(cs) };
+    if (keys.length < 2) {
+      /* ONE WINDOW IS ONE NUMBER, and a MAD over one number is 0 — which reads
+         as a perfectly sharp floor measured on nothing. The floor of the
+         estimator IS the estimator's own: two minima are the fewest that can
+         scatter. */
+      return absent('the anchors fill ' + keys.length + ' window(s) of ' + winMs + ' ms, and a scatter needs two', n, dropped, counts);
+    }
+    if (!(counts.anchorsPerWindow >= 2)) {
+      /* 🔴 AND ONE ANCHOR IN A WINDOW IS ITS OWN MINIMUM AND ITS OWN MAXIMUM.
+         Over a population of such windows the floor series, the ceiling series
+         and the bulk are ONE series, so `floorMadMs` would report the bulk
+         scatter under the floor's name and `asymmetry` would read the ratio of
+         two numbers that are both noise about one median. The counts above are
+         what a caller needs to fix it — a longer `winMs` or a denser capture —
+         so they stay real while every scatter statistic refuses. */
+      return absent('the median window holds ' + counts.anchorsPerWindow + ' anchor(s), so a window minimum is its only sample and no floor is separable from the bulk', n, dropped, counts);
+    }
+    var mv = [];
+    for (i = 0; i < keys.length; i++) mv.push(mins[keys[i]]);
+    mv.sort(function (x, y) {
+      return x - y;
+    });
+    var floorMid = med(mv);
+    var dev = [];
+    for (i = 0; i < mv.length; i++) dev.push(Math.abs(mv[i] - floorMid));
+    dev.sort(function (x, y) {
+      return x - y;
+    });
+    var mad = med(dev);
+    /* THE OTHER END OF THE SAME WINDOWS. A sharp floor alone says nothing about
+       which edge is the clock — see the asymmetry note below — so the maxima are
+       read in the same pass and cost one more number per window. */
+    var xv = [];
+    for (i = 0; i < keys.length; i++) xv.push(maxs[keys[i]]);
+    xv.sort(function (x, y) {
+      return x - y;
+    });
+    var ceilMid = med(xv);
+    var xdev = [];
+    for (i = 0; i < xv.length; i++) xdev.push(Math.abs(xv[i] - ceilMid));
+    xdev.sort(function (x, y) {
+      return x - y;
+    });
+    var cmad = med(xdev);
+    /* The BULK edge, for the comparison the row states: a full IQR of the same
+       residual. The spine's `stackJitterMs` is a HALF-IQR of it, so the two
+       differ by a factor of two by construction and a reader comparing them
+       straight would halve the tail. The row quoted full IQRs (32 ms, 180 ms),
+       so this one does too. */
+    res.sort(function (x, y) {
+      return x - y;
+    });
+    var half = res.length >> 1;
+    var iqr = half > 0 ? med(res.slice(res.length - half)) - med(res.slice(0, half)) : null;
+    var bulkMid = med(res);
+    return {
+      winMs: winMs,
+      n: n,
+      dropped: dropped,
+      windows: counts.windows,
+      usedWindows: counts.usedWindows,
+      /* 🔴 THE NUMBER WITHOUT WHICH `floorMadMs` CANNOT BE COMPARED. A minimum
+         is an EXTREME-VALUE statistic, so how close a window's minimum gets to
+         the true floor depends on how many anchors the window held. Measured on
+         one shape at two cadences: the same one-sided 8/180 ms plant reads
+         `floorOverBulk` 0.2916 at 300 anchors per window and 0.0450 at 1500 —
+         the floor did not sharpen, the sampling did. So a reader comparing two
+         streams' floors owes this count the way §7 owes an anchor count beside
+         a `ppm`. `asymmetry` carries no such debt: it moved 2.486 → 2.191 over
+         the same change. */
+      anchorsPerWindow: counts.anchorsPerWindow,
+      /* HOW FAR BELOW THE PUBLISHED CORRECTION THE FLOOR SITS, and deliberately
+         not the floor's raw position. The residual carries the spine's own `r0`
+         as a constant (see the head of this function), so a raw position is
+         readable but means nothing between two streams; a DEPTH below the same
+         series' median is frame-free and is the quantity a per-connection
+         offset correction would have to remove. Negative by construction. */
+      floorBelowMedianMs: bulkMid != null ? floorMid - bulkMid : null,
+      ceilAboveMedianMs: bulkMid != null ? ceilMid - bulkMid : null,
+      ceilMadMs: cmad,
+      /* 🔴 THE NUMBER THAT SAYS WHETHER THE FLOOR IS THE CLOCK, and the reason
+         `floorMadMs` alone cannot say it. ANY distribution bounded below reads a
+         sharp floor: measured on this suite's own plants at 300 anchors per
+         window, a uniform ±32 ms wobble reads `floorOverBulk` 0.0955 and the
+         one-sided 8/180 ms plant reads 0.2916 — the SYMMETRIC one reads
+         sharper, and at 1500 anchors per window the order reverses. What
+         separates them at BOTH cadences is the SHAPE: a one-sided delay sits
+         far below its ceiling (`asymmetry` 2.486 and 2.191) and a symmetric one
+         sits in the middle (0.898 and 0.961). A
+         remedy that moved the band onto a tight floor would have moved it onto
+         the biased edge of a symmetric stream, which is why this ships as a
+         shape statistic and the band stays where it is.
+         Still NOT decided by any of this: whether the floor holds BETWEEN
+         NIGHTS, which is the row's own decisive test and needs the beat path. */
+      asymmetry: (function () {
+        if (bulkMid == null) return null;
+        var below = bulkMid - floorMid;
+        var above = ceilMid - bulkMid;
+        /* A zero-width side divides by nothing — a constant residual has no
+           shape to report, and 0 or Infinity would both read as one. */
+        return below > 0 && above > 0 ? above / below : null;
+      })(),
+      floorMadMs: mad,
+      bulkIqrMs: iqr,
+      /* ONE NUMBER THE ROW'S CLAIM LIVES IN: the floor's scatter as a share of
+         the bulk spread. A zero-width bulk divides by nothing, so the share is
+         absent rather than 0 or Infinity. */
+      floorOverBulk: iqr != null && iqr > 0 ? mad / iqr : null,
+      reason: null
+    };
+  }
+
   /* classify(stackJitterMs, independent) → the band name. Three states, read
      separately: a `null` jitter is NOT a small jitter (see the header). */
   function classify(stackJitterMs, independent) {
@@ -434,6 +687,7 @@
         timingSource: null,
         spreadMs: null,
         gaps: gp,
+        floor: null,
         n: anchors && anchors.length ? anchors.length : 0,
         reason: 'clock.js is not loaded, so DexClock.hostAxis cannot build the radio axis',
         deviceDrawn: null,
@@ -448,6 +702,7 @@
         timingSource: null,
         spreadMs: null,
         gaps: gp,
+        floor: null,
         n: n,
         reason: 'need ≥' + CK_RADIO_MIN_ANCHORS + ' radio anchors, got ' + n,
         deviceDrawn: null,
@@ -462,6 +717,7 @@
         timingSource: null,
         spreadMs: null,
         gaps: gp,
+        floor: null,
         n: ax && ax.n != null ? ax.n : n,
         reason: 'the host axis refused the radio anchors: ' + ((ax && ax.reason) || 'the spine named no reason'),
         /* A refused axis publishes no `deviceDrawn`, and an absent flag is `null`
@@ -498,6 +754,7 @@
         timingSource: null,
         spreadMs: null,
         gaps: gp,
+        floor: null,
         n: ax.n,
         reason: "the host axis published no deviceDrawn flag, so the device column's provenance is undecided and 'radio' cannot be minted",
         deviceDrawn: null,
@@ -511,6 +768,7 @@
         timingSource: null,
         spreadMs: null,
         gaps: gp,
+        floor: null,
         n: ax.n,
         reason: 'the device column is DRAWN (' + (ax.drawnReason || 'its inter-anchor deltas concentrate on one value') + '), so the anchors and the device stamps are not two clocks',
         deviceDrawn: true,
@@ -527,6 +785,7 @@
         timingSource: null,
         spreadMs: null,
         gaps: gp,
+        floor: null,
         n: ax.n,
         reason:
           st.ratio == null
@@ -565,6 +824,11 @@
       timingSource: band === 'radio' ? 'radio' : null,
       spreadMs: jitter,
       gaps: gp,
+      /* THE OTHER EDGE OF THE SAME RESIDUAL, beside the one the band read. It
+         rides on the accepted answers only, because it is read about the
+         spine's curve and a refused axis published none — a refusal carries
+         `floor: null`, which is the absence and not a floor of zero. */
+      floor: anchorFloor(anchors, ax.correctionAt, opts.floor || {}),
       n: ax.n,
       reason: reason,
       deviceDrawn: ax.deviceDrawn == null ? null : ax.deviceDrawn,
@@ -579,11 +843,13 @@
     CK_RADIO_MIN_ANCHORS: CK_RADIO_MIN_ANCHORS,
     CK_RADIO_STEP_OVER_SPAN: CK_RADIO_STEP_OVER_SPAN,
     CK_RADIO_GAP_MS: CK_RADIO_GAP_MS,
+    CK_RADIO_FLOOR_WIN_MS: CK_RADIO_FLOOR_WIN_MS,
     RC_COLUMNS: RC_COLUMNS,
     parseRadioClock: parseRadioClock,
     radioAxis: radioAxis,
     anchorStep: anchorStep,
     anchorGaps: anchorGaps,
+    anchorFloor: anchorFloor,
     classify: classify
   };
   /* The IIFE argument is typed as a union by the gate, so the attach is cast
