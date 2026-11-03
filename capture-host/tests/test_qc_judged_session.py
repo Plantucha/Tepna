@@ -415,6 +415,65 @@ def test_a_window_whose_EVERY_session_recorded_nothing_refuses_with_its_OWN_reas
     assert len(r["empty_joined"]) == 2, r["empty_joined"]
 
 
+# The device list the two tests below need, and the reason it is not `_DEV`: attribution is a device_id
+# FIELD comparison (`writers.file_device_id`), so a record carrying no `device_id` claims no file and
+# every per-device figure stays null. `_DEV` is left as it is deliberately — the tests above read the
+# NIGHT's numbers, and lighting up the device path there would change what they measure.
+_DEV_ATTRIBUTED = [
+    {
+        "name": "Polar H10 02849638",
+        "vendor": "Polar",
+        "model": "H10",
+        "device_id": "02849638",
+        "streams": ["ecg"],
+        "address": "AA:BB:CC:DD:EE:FF",
+    }
+]
+
+#: The empty session's own published line, asserted whole. Its ENDS were the part no test read, and they
+#: are what names the minutes being discounted — a line reading `04:15->04:15` for a 15 min hole is the
+#: same arithmetic reported against the wrong window.
+_TRAILING_EMPTY_LINE = (
+    "04:00->04:15 15min empty session; 1 file(s), 0 rows, not charged to the night's coverage [in-night empty]"
+)
+
+
+def _an_empty_session_TRAILS_the_night(tmp_path, late_rows=0):
+    """The mirror of the fixture above: the empty session arrives AFTER the judged one.
+
+    Order is load-bearing for `stopped_early_s`, which measures from this device's last write to the end
+    of the judged window. An empty session BEFORE the device started sits outside that window; one after
+    it stopped sits inside it, and is the shape that charges a device idle minutes as an early stop."""
+    d = str(tmp_path / "2026-08-15")
+    judged = _dt.strptime("20260815020000", "%Y%m%d%H%M%S").timestamp()
+    late = _dt.strptime("20260815040000", "%Y%m%d%H%M%S").timestamp()
+    _rows(d, "Polar_H10_02849638_20260815020000_ECG.txt", 900, judged + 2400)
+    _rows(d, "Polar_VeritySense_0C301E3F_20260815040000_PPG.txt", late_rows, late + 900)
+    return d
+
+
+def test_an_empty_TRAILING_session_is_NOT_an_EARLY_STOP_for_the_device(tmp_path):
+    """The H10 wrote its last row at 02:40 and the judged window ends at 04:15. Every second between the
+    two is a hole — 80 min of gap, then 15 min of empty session — so the honest figure is 0.
+
+    Only the Polar H10 is configured, so the empty file belongs to another device and `_dev_end` stays at
+    the H10's own last write. That is what makes the subtraction observable from outside."""
+    r = _summarize(_an_empty_session_TRAILS_the_night(tmp_path), _DEV_ATTRIBUTED)
+    assert r["sessions_judged"] == 2, (r["sessions_judged"], "the premise: the empty session joins")
+    assert r["empty_joined"] == [_TRAILING_EMPTY_LINE], r["empty_joined"]
+    assert r["devices"][0]["streams"] == {"ecg": 900}, "the premise: the H10's file is attributed to it"
+    assert r["devices"][0]["stopped_early_s"] == 0, r["devices"][0]["stopped_early_s"]
+
+
+def test_CONTROL_a_TRAILING_session_WITH_rows_IS_a_real_early_stop(tmp_path):
+    """The same night, the same clocks, 60 rows in the late session. Those 15 minutes are now time the
+    box really was recording, so the H10 did stop early and the figure must say so. Without this leg a
+    `stopped_early_s` hard-wired to 0 would pass the test above."""
+    r = _summarize(_an_empty_session_TRAILS_the_night(tmp_path, late_rows=60), _DEV_ATTRIBUTED)
+    assert r["empty_joined"] == [], r["empty_joined"]
+    assert r["devices"][0]["stopped_early_s"] == 900, r["devices"][0]["stopped_early_s"]
+
+
 def test_recorded_nothing_reads_DEMONSTRATED_emptiness_and_not_a_zero_sum():
     """The predicate, on its own terms. `known_rows` leaves an unreadable file out rather than counting
     it as zero, so a group whose files could not be read SUMS to 0 — and the one thing this must never

@@ -813,3 +813,12 @@ def test_the_TOOL_renders_the_inherited_block_into_the_scratch_config():
     assert "{inherited}" in src, "the scratch template must carry the slot"
     assert 'inherited_ini_options((HERE / "pyproject.toml").read_text' in src
     assert 'inherited="\\n".join(inherited)' in src
+
+
+def test_a_key_ABOVE_the_first_SECTION_HEADER_is_not_a_pytest_rule():
+    """TOML allows top-level keys before any table, so the scan must START OUTSIDE the section. Starting
+    inside it would copy another tool's settings into the scratch config as pytest rules, and `addopts`
+    is not the only key whose value changes what the run measures."""
+    text = 'line-length = 110\n[tool.pytest.ini_options]\nmarkers = ["slow"]\n'
+    kept, denied = S.inherited_ini_options(text)
+    assert (kept, denied) == (['markers = ["slow"]'], [])
