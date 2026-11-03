@@ -816,9 +816,15 @@ def test_no_test_executes_a_deploy_script_that_mutates_host_state_unguarded():
     #     TEPNA_RESTART at a path that does not exist, so no test reaches the real helper;
     #   • `systemctl` and `sleep` are stubbed on PATH; it only ever calls `systemctl is-active`;
     #   • every file it writes is under TEPNA_CAPTURES, which `_run()` sets into tmp_path.
+    # deploy/tepna-solid-prompt.sh added 2026-11-03 (test_tepna_solid_prompt_sh.py) — the user-crontab
+    # script that prompts the session after a non-PASS solid-night verdict. The confirmation:
+    #   • it runs no privileged command; its one outside call is `herdr`, and `_run()` points TEPNA_HERDR
+    #     at a tmp_path stub, so no test reaches a real session;
+    #   • every file it writes is under TEPNA_CAPTURES, which `_run()` sets into tmp_path.
     assert executed <= {
         "check-system-files.sh",
         "tepna-watchdog.sh",
+        "tepna-solid-prompt.sh",
         "sync-apps.sh",
         "sse-frames.sh",
         "enable-cpap-wifi.sh",
