@@ -836,6 +836,69 @@ def qc_latch_to_save(digest_sent: _datetime.date | None, gap_alerted: Iterable[s
     }
 
 
+# THE SOLID-NIGHT VERDICT GOES OUT WITH THE OTHER ALERTS (owner order, board thread 7, 2026-11-03).
+# When the box judges a night, the operator reads the verdict on ntfy, once per night and status. A
+# non-PASS verdict also asks the investigating session to act at once. The daemon cannot do that itself:
+# its unit runs with `ProtectHome=yes`, and the herdr socket lives in the service user's home (measured
+# on the capture box 2026-11-03). So the daemon writes a REQUEST beside the captures, and the user-crontab
+# script `deploy/tepna-solid-prompt.sh` delivers it. Both latches survive a restart, as the QC latch does.
+SOLID_LATCH_NAME = "solid-alert-latch.json"
+SOLID_PROMPT_NAME = "solid-prompt.json"
+SOLID_LATCH_KEEP = 62
+VERDICT_STATUSES = frozenset({"PASS", "FAIL", "SHORTFALL", "UNDERPOWERED", "NOT_RUN", "NOT_APPLICABLE", "UNKNOWN"})
+
+
+def solid_key(night: str, status: str) -> str:
+    """PURE: the latch key. A night re-judged to a DIFFERENT status is a new event; the same one is not."""
+    return f"{night}:{status}"
+
+
+def solid_latch_restored(saved) -> tuple[set[str], set[str]]:
+    """PURE: the ntfy-sent and prompt-written keys from a saved latch. Bad parts read as absent."""
+    if not isinstance(saved, dict):
+        return set(), set()
+    out = []
+    for field in ("ntfy", "prompt"):
+        raw = saved.get(field)
+        out.append({k for k in raw if isinstance(k, str)} if isinstance(raw, list) else set())
+    return out[0], out[1]
+
+
+def solid_latch_to_save(ntfy: Iterable[str], prompt: Iterable[str]) -> dict:
+    """PURE: the latch to write, with only the latest `SOLID_LATCH_KEEP` keys of each kind."""
+    return {"ntfy": sorted(ntfy)[-SOLID_LATCH_KEEP:], "prompt": sorted(prompt)[-SOLID_LATCH_KEEP:]}
+
+
+def solid_alert_text(night: str, s: dict) -> tuple[str, str]:
+    """PURE: the ntfy title and message for one verdict. The reason and the run statement are the judge's
+    own words; with neither, the message says only what the status is."""
+    status = s.get("status")
+    parts = [str(s[k]) for k in ("reason", "statement") if s.get(k)]
+    return f"Tepna: night {night} {status}", " — ".join(parts) or f"The solid-night judge reads {status}."
+
+
+def _is_night(night) -> bool:
+    if not isinstance(night, str) or len(night) != 10:
+        return False
+    try:
+        _datetime.date.fromisoformat(night)
+    except ValueError:
+        return False
+    return True
+
+
+def solid_prompt_request(night: str, s: dict, at: str) -> dict | None:
+    """PURE: the request the user-crontab script turns into a prompt, or None.
+
+    None for a PASS (nothing to investigate), for a status outside the seven verdict words, and for a
+    night that is not a `YYYY-MM-DD` date. The script builds its prompt from these two checked values
+    only, so no free text from a verdict reaches a session as an instruction."""
+    status = s.get("status")
+    if status == "PASS" or status not in VERDICT_STATUSES or not _is_night(night):
+        return None
+    return {"night": night, "status": status, "at": at}
+
+
 # THE QUIET STATE SURVIVES A RESTART. The poller holds in memory which device completed a pull and which
 # night it already reported as ended. Measured on the capture box 2026-11-01: the deploy restart at
 # 07:01:46 cleared that memory, and at 07:07:45 the box sent three "sensor offline" alarms for devices

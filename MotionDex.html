@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="7cbf3f0771f5" data-compute-hash="c55552089529">
+<html lang="en" data-manifest-hash="8af838febec8" data-compute-hash="e453cf3ee2cb">
 <head>
 <!--
   MotionDex.src.html — Tepna
@@ -12,7 +12,7 @@
 <!-- CSP: browser-enforces the no-network invariant. connect-src 'none' blocks every outbound request;
      script-src is STRICT ('self' + per-inline-script sha256, NO 'unsafe-inline'). MotionDex ships zero
      inline scripts (all init lives in motiondex-app.js), so the hash list is empty by construction. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-HzpXWOPOmYq1yS+1Lwu7KL6HoGmEkgy2vwnzL5usAbA=' 'sha256-LNL2HIbq1MolWykSbNRcVM1IXWPE1b23gr8wWMcU+sA=' 'sha256-QEzEx9Ca0xcQ45sC3/oCziqTofTt2qySQMnrAXAZbJk=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-bIhKcpZRJ/ZzKulROPoeorGxddt3ajAjGiOPqmDw7ik=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-rIcm4jQwZdAp6l3SdrzI0nizBN01Nhu8bJROOQanTRo=' 'sha256-ymWNG1fe6A9fVnBAn01eHLqgiZnCfxijVdDQPf6xLlQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-480RdBeZewCrcxw2IlPN/CrrdfcwPb+/JfQh96aaM6U=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-HzpXWOPOmYq1yS+1Lwu7KL6HoGmEkgy2vwnzL5usAbA=' 'sha256-LNL2HIbq1MolWykSbNRcVM1IXWPE1b23gr8wWMcU+sA=' 'sha256-QEzEx9Ca0xcQ45sC3/oCziqTofTt2qySQMnrAXAZbJk=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-bIhKcpZRJ/ZzKulROPoeorGxddt3ajAjGiOPqmDw7ik=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-rIcm4jQwZdAp6l3SdrzI0nizBN01Nhu8bJROOQanTRo='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>MotionDex — Motion / IMU Analyzer · v2.26.0</title>
@@ -7586,7 +7586,7 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
          raw `DexClock.hostAxis` return — `buildNodeExport` forwards it to `DexExport.timingBlock`,
          which owns the nine-key shape and the null discipline; `clockAxis` is the published remainder
          (see `_mdClockAxis`). The correction itself was already applied to `relNs` at parse time. */
-      hostAxis: _mdDomAx ? _mdDomAx.rows._hostAxis || null : null,
+      hostAxis: _mdDomAx ? _mdPubAxis(_mdDomAx.rows._hostAxis) : null,
       exportAxis: _mdExportAxis(_mdDomAx),
       durSec: durMeasured == null ? null : Math.round(durMeasured),
       streams: {
@@ -7638,6 +7638,7 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
     var ax = dom.rows._hostAxis || null;
     var seams = dom.rows._clockResyncs || null;
     if (!ax) return null;
+    var rate = _mdPubRate(ax);
     return {
       ok: ax.ok === true,
       applied: ax.applied === true,
@@ -7646,8 +7647,12 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
       /* ONE DEVICE CLOCK PER AXIS: the anchors read off the pre-resync counter never reached the
          spine, so `anchors` above is a post-seam count and this says what it cost. */
       anchorsDroppedPreResync: ax.anchorsDroppedPreResync != null ? ax.anchorsDroppedPreResync : null,
-      ppm: ax.ppm != null ? ax.ppm : null,
-      spanPpm: ax.spanPpm != null ? ax.spanPpm : null,
+      ppm: rate.ppm,
+      spanPpm: rate.spanPpm,
+      /* `undefined` wherever the rate above IS the measurement, so a measured axis moves no byte of
+         JSON — the `anchorsDroppedPreResync` discipline one field up, and PpgDex's in #4306. */
+      ppmReason: rate.ppmReason,
+      drawnColumn: rate.drawnColumn,
       spanMs: ax.spanMs != null ? ax.spanMs : null,
       maxStepMs: ax.maxStepMs != null ? ax.maxStepMs : null,
       /* Read THIS, never a ~0 ppm, to decide whether a second clock disciplined the axis (§7). */
@@ -7662,6 +7667,61 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
       reason: ax.reason || null,
       resyncs: seams && seams.length ? seams : null
     };
+  }
+  /* PLACED BELOW `_mdExportAxis` DELIBERATELY. The suite's seam gate finds the FIRST literal
+     `out.recording.hostAxis` in this source — which is a sentence in the comment above the exporter —
+     and then brace-matches from the next `{`. A function declared between the two becomes the block it
+     compares against ECGDex, and the §7 discriminators read as missing. Hoisting makes this position
+     equivalent to the reader; the gate makes it the only safe one. */
+  /* ── A RATE OVER A DRAWN COUNTER IS AN ABSENCE, NOT A NUMBER (§∅; PpgDex, #4306) ─────────────
+     Row `2026-11-03-the-shared-timing-block-quotes-a-rate-over-a-drawn-axis`. This node is the
+     measured population: `synthetic_motiondex_golden.node-export.json` published `ppm: -3.8597` and
+     `spanPpm: -6.4388` in BOTH blocks, beside `deviceDrawn: true`, `drawnShare: 0.7097`,
+     `independent: false`, `applied: false` and a `reason` that says in two clauses that neither
+     column is a clock. The object stated the absence and quoted the rate anyway.
+     THE CONTROL IS THE SIBLING FIELD. `stability` was ALREADY null here on a drawn axis, because
+     `clock.js` refuses a σ_y(τ) curve over `index × an assumed rate`. A ppm is the same claim one
+     derivative down: the divergence of a host clock from a counter with no oscillator behind it.
+     WHAT THIS DOES NOT TOUCH. The `fs`-style correction is not published here and `applied` already
+     says whether one rode (`false` whenever the host column is inert), so nulling the QUOTE removes
+     no arithmetic — the figures travel under `drawnColumn` for anyone diagnosing the counter.
+     WHY THE REMEDY IS NODE-LOCAL AND NOT A GUARD IN `timingBlock`. `clock.js:623-640` records the
+     measurement: gating on `deviceDrawn` in the shared path "was tried and reverted", because a
+     synthetic fixture legitimately uses a uniform device axis (`devMs = i × 1000`) and is by
+     construction indistinguishable from a fabricated one — it red 11 assertions including ECGDex's
+     planted-drift recovery, "a real feature, not a fixture nit". So each node adopts the discipline
+     as it re-cuts its own fixtures, which is why PpgDex did it inside PpgDex and this does it here.
+     The shared block needs no edit: it reads `ppm` off the object passed to it, so a disciplined
+     view reaches `recording.timing` through the spine unchanged.
+     A REFUSED AXIS PASSES THROUGH UNTOUCHED. Its `ppm` is already absent, so a `drawnColumn` of two
+     nulls would be an empty container standing in for an absence — the very shape §∅ forbids. */
+  function _mdPubRate(ax) {
+    var raw = { ppm: ax && ax.ppm != null ? ax.ppm : null, spanPpm: ax && ax.spanPpm != null ? ax.spanPpm : null };
+    if (!(ax && ax.ok === true)) return raw;
+    // TRI-STATE: an axis that published no verdict is UNMEASURED, and that cannot collapse into "it is a clock".
+    var drawn = ax.deviceDrawn !== undefined ? ax.deviceDrawn : null;
+    if (drawn === false) return raw;
+    return {
+      ppm: null,
+      spanPpm: null,
+      ppmReason:
+        drawn === true
+          ? ax.drawnReason || 'drawn-column — the device column is host-synthesised, so a rate against it describes a counter with no oscillator'
+          : 'whether the device column is a clock is UNMEASURED, so no rate is published against it',
+      drawnColumn: raw
+    };
+  }
+  // The publication view of the axis: every quoted field as published, the rest of the spine's object as it stands.
+  function _mdPubAxis(ax) {
+    if (!ax) return null;
+    var out = {};
+    for (var k in ax) if (Object.prototype.hasOwnProperty.call(ax, k)) out[k] = ax[k];
+    var rate = _mdPubRate(ax);
+    out.ppm = rate.ppm;
+    out.spanPpm = rate.spanPpm;
+    if (rate.ppmReason !== undefined) out.ppmReason = rate.ppmReason;
+    if (rate.drawnColumn !== undefined) out.drawnColumn = rate.drawnColumn;
+    return out;
   }
   function _mdResyncCount(streams) {
     var looked = false,

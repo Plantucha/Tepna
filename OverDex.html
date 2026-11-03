@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="ced307b34ba1" data-compute-hash="e23b0c82ec43"><head>
+<html lang="en" data-manifest-hash="a8cf730b07e8" data-compute-hash="003edbac2660"><head>
 <!--
   OverDex.html — Tepna
   Copyright 2026 Michal Planicka
@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+iskltdbf7/UUg8Y6ZfcamkqkNKvnVyfhKrlKyBzwKE=' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-4H9qbwJg0Px/ddF5s19lSEh0lobH/6PK1pgCZ+NZiHI=' 'sha256-6f85C28BTIAdWBrVBSCTqiDlgEUZZvCfBlJGXVI6LrA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-FRmXwVeLmk/oKNu5BL8gBiQVUsH88GJmm92tz4RR/9M=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HzpXWOPOmYq1yS+1Lwu7KL6HoGmEkgy2vwnzL5usAbA=' 'sha256-IOGPMbRcH864r7zf4ZB3jn1uFqtYSY8DqWp2YdgZWag=' 'sha256-LLgboXd2yVxQuxadbV6/XakvyuElnwPqqeK60I9qEBg=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-QuLHvHgODcQjuAGp7QrzR2K8XMRHpK7C3ar3ZKqNnUU=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-XJV3E1G3sukFgbJQW5vuMv8oMeGex2wLInYe3q3i6Dk=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-XeM139aCzQDSzEaQuQBVa+zEhnOSgXP/4pqlC0h9wO4=' 'sha256-ZXcSUPmdNX+PI5tNnnDW/vQNEDiDXjF3XV977vxYNoU=' 'sha256-b/3cr3fEKA226qKxIKH9duRTbo6viskcVfqeOMzUwtA=' 'sha256-fOxAcG4FGOYjHtLk+7Sbd1mzABUQSzPGmybpbJk9b6c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-jHB+Vbnq13/OqiREytNt1VT0oXPXPmhrehzKnnu7PDA=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-rIcm4jQwZdAp6l3SdrzI0nizBN01Nhu8bJROOQanTRo=' 'sha256-t6KwwRs/7k1CX+Ola4fMUbTfsZ+7sfK7iLtOVFeyxdw=' 'sha256-wPiR0mHERwqCZR4gMZnRtTm1BC+vsdDwOsTq7ombnvc=' 'sha256-ymWNG1fe6A9fVnBAn01eHLqgiZnCfxijVdDQPf6xLlQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+iskltdbf7/UUg8Y6ZfcamkqkNKvnVyfhKrlKyBzwKE=' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-480RdBeZewCrcxw2IlPN/CrrdfcwPb+/JfQh96aaM6U=' 'sha256-4H9qbwJg0Px/ddF5s19lSEh0lobH/6PK1pgCZ+NZiHI=' 'sha256-6f85C28BTIAdWBrVBSCTqiDlgEUZZvCfBlJGXVI6LrA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-FRmXwVeLmk/oKNu5BL8gBiQVUsH88GJmm92tz4RR/9M=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HzpXWOPOmYq1yS+1Lwu7KL6HoGmEkgy2vwnzL5usAbA=' 'sha256-IOGPMbRcH864r7zf4ZB3jn1uFqtYSY8DqWp2YdgZWag=' 'sha256-LLgboXd2yVxQuxadbV6/XakvyuElnwPqqeK60I9qEBg=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-QuLHvHgODcQjuAGp7QrzR2K8XMRHpK7C3ar3ZKqNnUU=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-XJV3E1G3sukFgbJQW5vuMv8oMeGex2wLInYe3q3i6Dk=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-XeM139aCzQDSzEaQuQBVa+zEhnOSgXP/4pqlC0h9wO4=' 'sha256-ZXcSUPmdNX+PI5tNnnDW/vQNEDiDXjF3XV977vxYNoU=' 'sha256-b/3cr3fEKA226qKxIKH9duRTbo6viskcVfqeOMzUwtA=' 'sha256-fOxAcG4FGOYjHtLk+7Sbd1mzABUQSzPGmybpbJk9b6c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-jHB+Vbnq13/OqiREytNt1VT0oXPXPmhrehzKnnu7PDA=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-rIcm4jQwZdAp6l3SdrzI0nizBN01Nhu8bJROOQanTRo=' 'sha256-wPiR0mHERwqCZR4gMZnRtTm1BC+vsdDwOsTq7ombnvc=' 'sha256-yMecZl9pAdUJLfK88JddMhc9qIV5QAXJTXhhA/QkdgM='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -31219,14 +31219,45 @@ __exports.GlucoDex = window.GlucoDex;
             ok: true,
             anchors: hostAx.n,
             totalMs: hostAx.totalMs,
-            ppm: hostAx.ppm,
+            /* ⚠️ A RATE MEASURED AGAINST A DRAWN COLUMN IS PUBLISHED AS `null`, NEVER AS A NUMBER.
+               Decision 2026-11-03 (Osprey, CLAUDE.md §7): row
+               2026-10-29-per-segment-model-leaves-fifty-of-sixty-five-ring-nights-impossible measured
+               that 50 of 65 folded ring nights keep a segment rate outside the ±50 ppm crystal bound,
+               worst 30 681 ppm, and left the remedy open between publishing `null` and publishing the
+               number labelled. §∅ settles it rather than taste: the input a RATE needs is a second
+               clock, a drawn column is not one, so the output reports the absence with a named reason.
+               ECGDex is the precedent in this repo — `stability` is null on a drawn axis because a
+               σ_y(τ) curve over an assumed rate describes the writer's arithmetic and not a crystal,
+               and a `ppm` over the same column is the same quantity one derivative down.
+               ⚠️ NULLED WHENEVER `drawn` IS NOT `false`, because an UNMEASURED verdict must not
+               collapse into "it is a clock" — the same absence the `axisDrawnReason` block above keeps
+               distinguishable. ⚠️ THE ARITHMETIC IS NOT DESTROYED: both figures stay under
+               `drawnColumn`, a name no consumer can mistake for a rate, so the census and
+               `tools/ring-rate-cause.mjs` still read what the old single axis said.
+               ⚠️ THE `fs` CORRECTION ABOVE IS UNCHANGED, deliberately. The Clock Contract allows a
+               drawn column to be placed on the host timeline and forbids SPENDING it as a second
+               clock; refusing the division would leave every sample on the assumed rate, which
+               `RING-TIMEBASE-ECG-TEST-2026-10-29-BRIEF.md` rates worse on 18 of 22 QC-PASS nights.
+               This stops the QUOTE, not the correction. */
+            ppm: axisSynthetic === false ? hostAx.ppm : null,
+            ppmReason:
+              axisSynthetic === false
+                ? undefined
+                : axisSynthetic == null
+                  ? 'whether the device column is a clock is UNMEASURED, so no rate is published against it'
+                  : 'drawn-column — the device column is host-synthesised, so a rate against it describes a counter with no oscillator',
+            /* Present only on a drawn or unmeasured column, so a real-axis export stays byte-identical
+               (the `anchorsDroppedPreResync` discipline below). These are DIAGNOSTICS and the only
+               place the old single-axis figures survive; a consumer that applies one as a rate has
+               undone the decision above. */
+            drawnColumn: axisSynthetic === false ? undefined : { ppm: hostAx.ppm, spanPpm: hostAx.spanPpm === undefined ? null : hostAx.spanPpm },
             /* §7's two companions for the `ppm` above, forwarded from the spine. THIS BLOCK RENAMES, so a
                field the spine adds and this list omits is dropped — the trap that already ate `stability`
                here once, and the reason 173 committed exports of this node quote a rate with an anchor
                count and no span anywhere in the block. `spanPpm` is the same divergence ratio before the
                width-21 running median; read `ppm` WITH it, and apply neither as a rate. */
             spanMs: hostAx.spanMs,
-            spanPpm: hostAx.spanPpm,
+            spanPpm: axisSynthetic === false ? hostAx.spanPpm : null,
             /* THE SEGMENT MODEL'S FLATNESS, forwarded so the export's `rate` can apply this node's own
                last floor; `axisFlat` above carries the reduction and the row. `segments` is the count
                the verdict was reduced over, which is how a reader tells an IMPLIED single segment from
@@ -36664,14 +36695,32 @@ __exports.GlucoDex = window.GlucoDex;
            and never false. `anchors` below already carries the spine's `n`. */
         ok: r.hostAxis.ok == null ? null : r.hostAxis.ok === true,
         anchors: r.hostAxis.anchors != null ? r.hostAxis.anchors : null,
-        ppm: nz(r.hostAxis.ppm),
+        /* ⚠️ THE SAME DECISION AS THE PARSE LAYER, APPLIED HERE TOO, because this list is handed a RAW
+           `DexClock.hostAxis` by this node's own suite and by any caller holding an axis rather than
+           a parse — and a raw spine axis carries the number with no parse-layer rule in front of it.
+           `rate` one block down already reads 'unknown' over a drawn column; until now the block
+           published a figure beside that verdict, so the two disagreed in one object. `haDrawn` is
+           the tri-state read over BOTH spellings above, so an unmeasured verdict nulls as well
+           (§∅: never answer an unknown with a rate). */
+        ppm: haDrawn === false ? nz(r.hostAxis.ppm) : null,
+        ppmReason:
+          haDrawn === false
+            ? undefined
+            : r.hostAxis.ppmReason ||
+              (haDrawn === true
+                ? 'drawn-column — the device column is host-synthesised, so a rate against it describes a counter with no oscillator'
+                : 'whether the device column is a clock is UNMEASURED, so no rate is published against it'),
+        /* The old single-axis figures, under a name no consumer can apply as a rate. Forwarded when
+           the parse layer wrote them and reconstructed from the raw spine object when it did not, so
+           the diagnostic survives both callers. */
+        drawnColumn: haDrawn === false ? undefined : r.hostAxis.drawnColumn || { ppm: nz(r.hostAxis.ppm), spanPpm: nz(r.hostAxis.spanPpm) },
         /* §7's two companions for a quoted rate, and this block published neither. `spanMs` is the
            span the ppm was measured over — 173 committed exports of this node quote a ppm with
            `anchors` and no span. `spanPpm` is the same ratio before the running median, so the pair
            says how much of the quote the smoother's last window set. Both come from the spine; see
            `clock.js` beside `spanPpm:` for why neither is the rate to apply. */
         spanMs: nz(r.hostAxis.spanMs),
-        spanPpm: nz(r.hostAxis.spanPpm),
+        spanPpm: haDrawn === false ? nz(r.hostAxis.spanPpm) : null,
         /* THE SEGMENT MODEL'S LAST FLOOR, and the two numbers that decided it (§7: a verdict travels
            with the figures behind it). `flat` is a three-valued AND over the segments, computed at the
            parse layer where the segmentation lives; `segments` is the count it was reduced over, so an
@@ -46028,7 +46077,7 @@ __exports.ECGDex = window.ECGDex;
          raw `DexClock.hostAxis` return — `buildNodeExport` forwards it to `DexExport.timingBlock`,
          which owns the nine-key shape and the null discipline; `clockAxis` is the published remainder
          (see `_mdClockAxis`). The correction itself was already applied to `relNs` at parse time. */
-      hostAxis: _mdDomAx ? _mdDomAx.rows._hostAxis || null : null,
+      hostAxis: _mdDomAx ? _mdPubAxis(_mdDomAx.rows._hostAxis) : null,
       exportAxis: _mdExportAxis(_mdDomAx),
       durSec: durMeasured == null ? null : Math.round(durMeasured),
       streams: {
@@ -46080,6 +46129,7 @@ __exports.ECGDex = window.ECGDex;
     var ax = dom.rows._hostAxis || null;
     var seams = dom.rows._clockResyncs || null;
     if (!ax) return null;
+    var rate = _mdPubRate(ax);
     return {
       ok: ax.ok === true,
       applied: ax.applied === true,
@@ -46088,8 +46138,12 @@ __exports.ECGDex = window.ECGDex;
       /* ONE DEVICE CLOCK PER AXIS: the anchors read off the pre-resync counter never reached the
          spine, so `anchors` above is a post-seam count and this says what it cost. */
       anchorsDroppedPreResync: ax.anchorsDroppedPreResync != null ? ax.anchorsDroppedPreResync : null,
-      ppm: ax.ppm != null ? ax.ppm : null,
-      spanPpm: ax.spanPpm != null ? ax.spanPpm : null,
+      ppm: rate.ppm,
+      spanPpm: rate.spanPpm,
+      /* `undefined` wherever the rate above IS the measurement, so a measured axis moves no byte of
+         JSON — the `anchorsDroppedPreResync` discipline one field up, and PpgDex's in #4306. */
+      ppmReason: rate.ppmReason,
+      drawnColumn: rate.drawnColumn,
       spanMs: ax.spanMs != null ? ax.spanMs : null,
       maxStepMs: ax.maxStepMs != null ? ax.maxStepMs : null,
       /* Read THIS, never a ~0 ppm, to decide whether a second clock disciplined the axis (§7). */
@@ -46104,6 +46158,61 @@ __exports.ECGDex = window.ECGDex;
       reason: ax.reason || null,
       resyncs: seams && seams.length ? seams : null
     };
+  }
+  /* PLACED BELOW `_mdExportAxis` DELIBERATELY. The suite's seam gate finds the FIRST literal
+     `out.recording.hostAxis` in this source — which is a sentence in the comment above the exporter —
+     and then brace-matches from the next `{`. A function declared between the two becomes the block it
+     compares against ECGDex, and the §7 discriminators read as missing. Hoisting makes this position
+     equivalent to the reader; the gate makes it the only safe one. */
+  /* ── A RATE OVER A DRAWN COUNTER IS AN ABSENCE, NOT A NUMBER (§∅; PpgDex, #4306) ─────────────
+     Row `2026-11-03-the-shared-timing-block-quotes-a-rate-over-a-drawn-axis`. This node is the
+     measured population: `synthetic_motiondex_golden.node-export.json` published `ppm: -3.8597` and
+     `spanPpm: -6.4388` in BOTH blocks, beside `deviceDrawn: true`, `drawnShare: 0.7097`,
+     `independent: false`, `applied: false` and a `reason` that says in two clauses that neither
+     column is a clock. The object stated the absence and quoted the rate anyway.
+     THE CONTROL IS THE SIBLING FIELD. `stability` was ALREADY null here on a drawn axis, because
+     `clock.js` refuses a σ_y(τ) curve over `index × an assumed rate`. A ppm is the same claim one
+     derivative down: the divergence of a host clock from a counter with no oscillator behind it.
+     WHAT THIS DOES NOT TOUCH. The `fs`-style correction is not published here and `applied` already
+     says whether one rode (`false` whenever the host column is inert), so nulling the QUOTE removes
+     no arithmetic — the figures travel under `drawnColumn` for anyone diagnosing the counter.
+     WHY THE REMEDY IS NODE-LOCAL AND NOT A GUARD IN `timingBlock`. `clock.js:623-640` records the
+     measurement: gating on `deviceDrawn` in the shared path "was tried and reverted", because a
+     synthetic fixture legitimately uses a uniform device axis (`devMs = i × 1000`) and is by
+     construction indistinguishable from a fabricated one — it red 11 assertions including ECGDex's
+     planted-drift recovery, "a real feature, not a fixture nit". So each node adopts the discipline
+     as it re-cuts its own fixtures, which is why PpgDex did it inside PpgDex and this does it here.
+     The shared block needs no edit: it reads `ppm` off the object passed to it, so a disciplined
+     view reaches `recording.timing` through the spine unchanged.
+     A REFUSED AXIS PASSES THROUGH UNTOUCHED. Its `ppm` is already absent, so a `drawnColumn` of two
+     nulls would be an empty container standing in for an absence — the very shape §∅ forbids. */
+  function _mdPubRate(ax) {
+    var raw = { ppm: ax && ax.ppm != null ? ax.ppm : null, spanPpm: ax && ax.spanPpm != null ? ax.spanPpm : null };
+    if (!(ax && ax.ok === true)) return raw;
+    // TRI-STATE: an axis that published no verdict is UNMEASURED, and that cannot collapse into "it is a clock".
+    var drawn = ax.deviceDrawn !== undefined ? ax.deviceDrawn : null;
+    if (drawn === false) return raw;
+    return {
+      ppm: null,
+      spanPpm: null,
+      ppmReason:
+        drawn === true
+          ? ax.drawnReason || 'drawn-column — the device column is host-synthesised, so a rate against it describes a counter with no oscillator'
+          : 'whether the device column is a clock is UNMEASURED, so no rate is published against it',
+      drawnColumn: raw
+    };
+  }
+  // The publication view of the axis: every quoted field as published, the rest of the spine's object as it stands.
+  function _mdPubAxis(ax) {
+    if (!ax) return null;
+    var out = {};
+    for (var k in ax) if (Object.prototype.hasOwnProperty.call(ax, k)) out[k] = ax[k];
+    var rate = _mdPubRate(ax);
+    out.ppm = rate.ppm;
+    out.spanPpm = rate.spanPpm;
+    if (rate.ppmReason !== undefined) out.ppmReason = rate.ppmReason;
+    if (rate.drawnColumn !== undefined) out.drawnColumn = rate.drawnColumn;
+    return out;
   }
   function _mdResyncCount(streams) {
     var looked = false,

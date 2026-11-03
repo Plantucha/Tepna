@@ -10724,7 +10724,7 @@ async def _archive_transfer(
             return
 
 
-async def loss_poller(cfg: dict, root: str):
+async def loss_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = None):
     """CAPTURE-LOSS-PRECEDENCE-AUDIT R4: for each SETTLED night, once, the §0 loss ledger beside its
     summary (`LOSS-AUDIT.json` + `LOSS-VERDICT.json`, gate `night-loss`). Re-run only when the night's
     primary files are newer than the last audit. Reads the journal (a subprocess) — hence per settled
@@ -10820,7 +10820,8 @@ async def loss_poller(cfg: dict, root: str):
                     deps=(loss_audit.write_night, solid_night.write_night),
                     record="loss",
                 ):
-                    _publish_loss(r)
+                    if _publish_loss(r):
+                        await _announce_solid(captures, r["night"], r["solid"], notifier)
             # AFTER a failed audit too. When this ran in-process an audit that raised left the loop by
             # exception and took the pending statement with it, so the morning card kept a verdict about
             # an older night — a second night's absence caused by the first night's failure. The batch
@@ -10830,7 +10831,7 @@ async def loss_poller(cfg: dict, root: str):
             log.warning("loss-audit: poll failed", exc_info=True)
 
 
-def _publish_loss(r: dict) -> None:
+def _publish_loss(r: dict) -> bool:
     """One night's audit and verdict, as the journal and the status surface see them.
 
     The work itself ran in `qc_child.audit_and_compose`, which logs nothing — a spawned child has no
@@ -10838,7 +10839,9 @@ def _publish_loss(r: dict) -> None:
     journal reads exactly as it did when the calls were made from this frame.
 
     Each leg is published only if the child did it: §∅, an absent audit is no row rather than a row of
-    zeros, and a night whose verdict could not be composed keeps its audit and reads as unassessed."""
+    zeros, and a night whose verdict could not be composed keeps its audit and reads as unassessed.
+
+    Returns True when the card now states this night's verdict — the caller announces exactly those."""
     night = r["night"]
     if r["loss"]:
         STATUS.setdefault("loss", {})[night] = {
@@ -10864,20 +10867,24 @@ def _publish_loss(r: dict) -> None:
         log.warning("loss-audit: poll failed — %s\n%s", night, r["loss_error"])
     if r["solid_error"]:
         log.warning("solid-night: %s — verdict not written\n%s", night, r["solid_error"])
-    if r["solid"]:
-        _publish_solid(night, r["solid"])
+    if not r["solid"]:
+        return False
+    return _publish_solid(night, r["solid"])
 
 
-def _publish_solid(night: str, s: dict) -> None:
+def _publish_solid(night: str, s: dict) -> bool:
     """SOLID-NIGHT §2's verdict on the STATUS surface. The file was already written beside the night by
     `qc_child.audit_and_compose`; this decides what the card SAYS.
 
     A RE-JUDGED OLDER NIGHT IS WRITTEN BUT NOT PUBLISHED: the status card states the newest night, and
-    `code_moved` re-judges past nights routinely — the same never-backwards rule `_solid_pending` keeps."""
+    `code_moved` re-judges past nights routinely — the same never-backwards rule `_solid_pending` keeps.
+
+    Returns True when it published, which is the ONE point the alert hooks on (`_announce_solid`): a
+    re-judged older night is neither stated on the card nor announced."""
     log.info("solid-night: %s %s — %s", night, s["status"], s["statement"])
     shown = (STATUS.get("solid") or {}).get("night")
     if shown is not None and night < shown:
-        return
+        return False
     STATUS["solid"] = {
         "night": night,
         "status": s["status"],
@@ -10886,6 +10893,38 @@ def _publish_solid(night: str, s: dict) -> None:
         "solid": s["solid"],
         "exit": s["exit"],
     }
+    return True
+
+
+async def _announce_solid(captures: str, night: str, s: dict, notifier: "alerts.Notifier | None") -> None:
+    """THE PUBLISHED VERDICT ON NTFY, AND A NON-PASS AS A PROMPT REQUEST — once per night and status.
+
+    Owner order, board thread 7 (2026-11-03). Both latches live in `alerts.SOLID_LATCH_NAME` beside the
+    captures, so a restart re-sends neither (the #4261 shape). The ntfy latch follows the DELIVERY, as
+    every alert here does (CAPTURE-HOST-DEEP-AUDIT §C1): a failed send is tried again on the next publish.
+    The prompt latch follows the WRITE of the request: the daemon cannot reach the session itself
+    (`ProtectHome=yes`), so `deploy/tepna-solid-prompt.sh` delivers it, and a failed delivery only logs."""
+    latch_path = os.path.join(captures, alerts.SOLID_LATCH_NAME)
+    ntfy, prompt = alerts.solid_latch_restored(
+        await asyncio.to_thread(_read_quiet_state, latch_path, "the solid latch")
+    )
+    before = alerts.solid_latch_to_save(ntfy, prompt)
+    key = alerts.solid_key(night, s["status"])
+    if notifier is not None and key not in ntfy:
+        title, message = alerts.solid_alert_text(night, s)
+        delivered = await notifier.send(title, message)
+        if delivered or not notifier.enabled:
+            ntfy.add(key)
+    if key not in prompt:
+        req = alerts.solid_prompt_request(night, s, _now().isoformat(timespec="seconds"))
+        if req is not None:
+            req_path = os.path.join(captures, alerts.SOLID_PROMPT_NAME)
+            await asyncio.to_thread(_write_quiet_state, req_path, req, "the solid prompt request")
+            log.warning("solid-night: %s %s — prompt request written for the session", night, s["status"])
+        prompt.add(key)  # a PASS too: it asks for nothing, and asking again would change nothing
+    after = alerts.solid_latch_to_save(ntfy, prompt)
+    if after != before:
+        await asyncio.to_thread(_write_quiet_state, latch_path, after, "the solid latch")
 
 
 def _seed_solid(captures: str) -> None:
@@ -16275,7 +16314,7 @@ async def main():
         ("qc_poller", lambda: qc_poller(cfg, root, notifier)),
         ("archive_poller", lambda: archive_poller(cfg, root)),
         ("seal_poller", lambda: seal_poller(cfg, root)),
-        ("loss_poller", lambda: loss_poller(cfg, root)),
+        ("loss_poller", lambda: loss_poller(cfg, root, notifier)),
         ("autopull_poller", lambda: autopull_poller(cfg, root)),
         ("cpap_poller", lambda: cpap_poller(cfg, root, notifier)),
         ("charger_pull_poller", lambda: charger_pull_poller(cfg, root)),

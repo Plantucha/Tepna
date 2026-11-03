@@ -2950,7 +2950,24 @@
         !!haD && haD.deviceDrawn === true && haD.drawnShare === 0.993 && /99.30 %/.test(String(haD.drawnReason)),
         JSON.stringify(haD && [haD.deviceDrawn, haD.drawnShare, haD.drawnReason])
       );
-      T.ok('…and `ppm` stays beside it — §7 relabels a drawn axis, it never withholds the diagnostic', !!haD && typeof haD.ppm === 'number', 'ppm=' + (haD && haD.ppm));
+      /* ⚠️ THIS ASSERTION HAS CHANGED SIDES, DELIBERATELY (2026-11-03, Osprey). It used to read "`ppm`
+         stays beside it — §7 relabels a drawn axis, it never withholds the diagnostic", which was the
+         LABELLED shape row
+         2026-10-29-per-segment-model-leaves-fifty-of-sixty-five-ring-nights-impossible left open
+         against publishing `null`. §∅ settles it: a rate needs a second clock, a drawn column is not
+         one, so the published rate reports the absence with a named reason. The diagnostic is still
+         not withheld — it moves to `drawnColumn`, under a name no consumer can apply as a rate. */
+      T.ok(
+        'a drawn axis publishes NO rate — `ppm` is null with a named reason',
+        !!haD && haD.ppm === null && /drawn-column/.test(String(haD.ppmReason)),
+        'ppm=' + (haD && haD.ppm) + ' ppmReason=' + JSON.stringify(haD && haD.ppmReason)
+      );
+      T.ok(
+        '…and the old single-axis figures survive under `drawnColumn`, which is not a rate',
+        !!haD && !!haD.drawnColumn && typeof haD.drawnColumn.ppm === 'number' && isFinite(haD.drawnColumn.ppm),
+        'drawnColumn=' + JSON.stringify(haD && haD.drawnColumn)
+      );
+      T.ok('…and `spanPpm`, the same ratio before the median, is null for the same reason', !!haD && haD.spanPpm === null, 'spanPpm=' + (haD && haD.spanPpm));
       /* THE CONTROL NEEDS ITS OWN AXIS, and finding that out is the point of writing it. `ha` above
          is built from `devMs: m * 100` — a PERFECTLY uniform device column, so the spine reads it
          `deviceDrawn:true` and reusing it as the clean case asserted nothing at all. A real device
@@ -3081,7 +3098,17 @@
           typeof drawnOut.rate === 'string' && typeof drawnOut.rateReason === 'string' && /counter with no oscillator/.test(drawnOut.rateReason) && !/a rate needs/.test(drawnOut.rateReason),
           'rateReason=' + JSON.stringify(drawnOut.rateReason)
         );
-        T.ok('…and the ppm is still published beside it — this annotates, it does not refuse', typeof drawnOut.ppm === 'number' && isFinite(drawnOut.ppm), 'ppm=' + drawnOut.ppm);
+        /* THE VERDICT AND THE VALUE NOW AGREE. This group used to assert that a figure travels beside
+           `rate:'unknown'`; one object said both "no rate could be measured" and "here is the rate".
+           The two floors below keep the annotating shape — a SHORT SPAN and an UNFLAT segment still
+           publish their number, because there the instrument exists and the window is what fails. A
+           drawn column is not a floor: the instrument is absent (§∅). */
+        T.ok(
+          '…and no rate travels beside it — the value is null and the reason names the column',
+          drawnOut.ppm === null && /drawn-column|counter with no oscillator/.test(String(drawnOut.ppmReason)),
+          'ppm=' + drawnOut.ppm + ' ppmReason=' + JSON.stringify(drawnOut.ppmReason)
+        );
+        T.ok('…and the old figure is readable under `drawnColumn`', !!drawnOut.drawnColumn && typeof drawnOut.drawnColumn.ppm === 'number', 'drawnColumn=' + JSON.stringify(drawnOut.drawnColumn));
       }
       if (inertOut) {
         T.eq('a host column that is no second clock publishes rate "unknown" too', inertOut.rate, 'unknown');
@@ -3811,6 +3838,12 @@
         'applied',
         'deviceDrawn',
         'drawn',
+        /* The two keys a DRAWN or UNMEASURED column adds, and only such a column: `ppmReason` says why
+           no rate is published and `drawnColumn` holds the figures the old single axis quoted, under a
+           name no consumer can apply as a rate (2026-11-03, row
+           2026-10-29-per-segment-model-leaves-fifty-of-sixty-five-ring-nights-impossible). A real-axis
+           export carries neither, which is why the clean-case group below asserts their ABSENCE. */
+        'drawnColumn',
         'drawnReason',
         'drawnShare',
         /* The segment model's flatness floor and the two numbers that decided it, plus the count of
@@ -3825,6 +3858,7 @@
         'maxStepMs',
         'ok',
         'ppm',
+        'ppmReason',
         'quantizedShare',
         'rate',
         'rateApplied',
@@ -3860,11 +3894,13 @@
         'anchorsDroppedPreResync',
         'applied',
         'deviceDrawn',
+        'drawnColumn',
         'drawnShare',
         'independent',
         'maxStepMs',
         'ok',
         'ppm',
+        'ppmReason',
         'reason',
         'resyncs',
         'spanMs',
@@ -3909,7 +3945,11 @@
       /* Twelve since 2026-11-01: `ppgOffsetSegments` is this node's own model, so the flatness floor
          it applies and the three numbers behind that verdict are PpgDex-only by construction.
          `clock.js` computes no flatness, which is also why a null `flat` over a raw spine axis is a
-         legitimate absence here and not a dropped key. */
+         legitimate absence here and not a dropped key. TWELVE since this unit, and the two that left
+         are the measurement: `ppmReason` and `drawnColumn` were PpgDex-only for one day, because
+         #4306 withheld a rate over a drawn column in PpgDex alone. MotionDex has now taken the same
+         decision, so the pair sits in two publishers and leaves this set. ECGDex spends `ppm` as a
+         crystal figure and owes the question under its own row — named here, not answered. */
       T.eq('PpgDex alone publishes the twelve fields only it measures', onlyIn(DECLARED_PPG, DECLARED_ECG, DECLARED_MOTION), [
         'drawn',
         'drawnReason',
@@ -18294,6 +18334,35 @@
         T.eq('every ingest call site drives the promise' + tag, undriven.length, 0, 'an un-driven ingestFiles() returns before a single night is bucketed: ' + JSON.stringify(undriven));
         T.ok('the classifier body is untouched by this change' + tag, page.indexOf(P.classifierPin) >= 0, 'capture-host test_the_tool_classifiers_accept_box_filenames reads that body as text');
         T.ok('the page still buckets into its own index' + tag, page.indexOf(P.bucket + '[nk]') >= 0, 'the bucket map name moved — this group names it per page');
+
+        /* ── the picker hands over a COPY: `files` is LIVE and the reset empties it (2026-11-03) ──────
+           `ingestFiles` awaits a row read per file, so it reads the list AFTER `onPick` returns. The stub
+           keeps the list it was handed; after the handler returns, that list must still hold every file. */
+        if (P.file === 'sensor-trio-night.js') {
+          var pa = page.indexOf('    const onPick = (e) => {'),
+            pb = pa < 0 ? -1 : page.indexOf('\n    };', pa);
+          T.ok('the picker handler is sliceable' + tag, pa >= 0 && pb > pa, 'onPick moved — this leg would examine nothing');
+          if (pa >= 0 && pb > pa) {
+            var handed = null,
+              live = [{ name: 'a' }, { name: 'b' }, { name: 'c' }],
+              ev = {
+                target: {
+                  get files() {
+                    return live;
+                  },
+                  set value(v) {
+                    if (v === '') live.length = 0;
+                  }
+                }
+              };
+            var onPick = new Function('ingestFiles', page.slice(pa, pb + 7) + '\nreturn onPick;')(function (l) {
+              handed = l;
+            });
+            onPick(ev);
+            T.eq('the input reset still runs, so a repeat pick fires' + tag, live.length, 0, 'the stub input was not reset');
+            T.eq('the ingest still holds every picked file after the reset' + tag, handed ? handed.length : -1, 3, 'a live FileList read after the reset is empty');
+          }
+        }
 
         /* ── the reader itself, executed ──────────────────────────────────────────────────────────── */
         var a = page.indexOf('  const ROW_SCAN_BYTES'),
@@ -35685,6 +35754,45 @@
          `dex-export.js`, this one by the node. */
       T.eq('…and the two timing surfaces agree on the source', ex.recording.hostAxis.timingSource, ex.recording.timing.timingSource);
       T.eq('a real crystal under an independent host is NOT drawn', ex.recording.hostAxis.deviceDrawn, false);
+
+      /* ── 6 · §∅ A RATE OVER A DRAWN COUNTER IS WITHHELD, AND THE FIGURES STAY READABLE ─────────
+         Row `2026-11-03-the-shared-timing-block-quotes-a-rate-over-a-drawn-axis`. The committed
+         golden published `ppm: -3.8597` in BOTH blocks, beside `deviceDrawn: true`, `applied: false`
+         and a `reason` whose two clauses say that neither column is a clock. Leg 2 above is the same
+         axis one layer down, and it already asserts both halves of that verdict.
+         THE CONTROL IS THE SIBLING FIELD, and it was already right: `stability` is null here because
+         `clock.js` refuses a σ_y(τ) curve over `index × an assumed rate`. A ppm is that claim one
+         derivative down.
+         THE OTHER CONTROL IS LEG 5's `ex`, which still quotes its rate — a jittered counter under an
+         independent host is a real crystal, and this unit must not touch it. */
+      var exD = X.buildNodeExport(M.compute({ acc: accText({ ppm: 0 }) }));
+      T.eq('control: this export IS the drawn case', exD.recording.hostAxis.deviceDrawn, true);
+      T.eq('control: …and the axis held, so a null below is a decision rather than a refusal', exD.recording.hostAxis.ok, true);
+      T.eq('control: …and nothing rode the rate anyway', exD.recording.hostAxis.applied, false);
+      T.eq('§∅ the node block publishes NO rate over a drawn counter', exD.recording.hostAxis.ppm, null);
+      T.eq('…nor the span rate', exD.recording.hostAxis.spanPpm, null);
+      T.ok('…and it names the case rather than leaving a bare null', /DRAWN|drawn-column/.test(String(exD.recording.hostAxis.ppmReason)), String(exD.recording.hostAxis.ppmReason));
+      T.ok(
+        '…with the withheld figures still readable for a diagnosis',
+        !!exD.recording.hostAxis.drawnColumn && isFinite(exD.recording.hostAxis.drawnColumn.ppm) && isFinite(exD.recording.hostAxis.drawnColumn.spanPpm),
+        JSON.stringify(exD.recording.hostAxis.drawnColumn)
+      );
+      T.eq('the control one derivative up was ALREADY null here', exD.recording.hostAxis.stability, null);
+      /* The shared block is `dex-export.js timingBlock`, and this unit edits no spine: the block
+         reads `ppm` off the object the node hands it, so a disciplined view carries through. */
+      T.eq('§∅ the SHARED block agrees, through the spine and with no spine edit', exD.recording.timing.ppm, null);
+      T.eq('…and so does its span rate', exD.recording.timing.spanPpm, null);
+      T.ok(
+        '…the drawn sentence was already in the shared reason, so the null is not bare there either',
+        /DRAWN|synthesised counter/.test(String(exD.recording.timing.reason)),
+        String(exD.recording.timing.reason)
+      );
+      T.ok(
+        'control · a MEASURED axis still publishes its rate in both blocks',
+        isFinite(ex.recording.hostAxis.ppm) && isFinite(ex.recording.timing.ppm),
+        'node=' + ex.recording.hostAxis.ppm + ' shared=' + ex.recording.timing.ppm
+      );
+      T.eq('control · …and no withheld-rate key reaches its JSON', Object.prototype.hasOwnProperty.call(JSON.parse(JSON.stringify(ex.recording.hostAxis)), 'drawnColumn'), false);
     });
 
     group('MotionDex ACC unit — ∅ an UNDETERMINED unit is not milli-g', 'motiondex-dsp · absence', function (T) {
@@ -65388,6 +65496,8 @@
            adapter-id equality did not exist these would not be exempt on my word. */
         'oxydex-stager.js':
           'OxyDex sleep stager (unit 2b): an ES module with sibling imports (tools/stage-lab-core.mjs, tools/seqnet-infer.mjs) that the owned bundler inlines; it exposes window.OxyDexStager for the render only, so a RESOLVE global would assert a DOM-side alias, not the compute. COVERING GATE: tests/oxydex-stager-tests.mjs (run-check step test:oxydex-stager) imports the module as ESM and stages a synthetic night through it — series→night contract, column selection by name, presence flags, refusals, hypnogram markup; the net arithmetic is held to torch in tests/seqnet-port-tests.mjs.',
+        'hypno-export.js':
+          'the shared hypnogram export (OxyDex, ECGDex): a pure ES module the owned bundler inlines; it exposes window.HypnoExport for the render and the export buttons only, so a RESOLVE global would assert a DOM-side alias. COVERING GATE: `test:hypno-export` (tests/hypno-export-tests.mjs, in npm run check) asserts every pure function the buttons call.',
         'coospo-rr.js':
           'vendor adapter — exposes NO global of its own; it self-registers into SignalAdapters on load, so there is nothing for a RESOLVE entry to assert. COVERING GATE: `Co-load manifest — single source vs host realms (PPGDEX-FOLLOWUPS §5)` asserts the manifest adapter ids EQUAL the ids actually registered via SignalAdapters.list() (see the self-consistency leg in that group) — an EQUALITY over the whole adapter set, which is strictly stronger than a per-file presence test.',
         'libre-cgm.js':

@@ -45,6 +45,7 @@ COVERED = {
     "tepna-sniff.sh": "test_tepna_sniff_sh.py",
     "deploy/tepna-fold.sh": "test_fold_unit.py",
     "deploy/tepna-watchdog.sh": "test_tepna_watchdog_sh.py",
+    "deploy/tepna-solid-prompt.sh": "test_tepna_solid_prompt_sh.py",
     "tepna-report.sh": "test_tepna_report_sh.py",
     "vigil.sh": "test_vigil_sh.py",
     "deploy/sync-apps.sh": "test_deploy_sync_apps.py",

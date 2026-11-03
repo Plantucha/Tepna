@@ -175,6 +175,13 @@
       "mechanism": "predicate-strength",
       "reaimed": null,
       "why": "Writer and reader were both asserted against the same lowercase literal, so the group could not see that nobody compared the two."
+    },
+    {
+      "file": "tests/dex-tests.js",
+      "quote": "E NOW AGREE. This group used to assert that a figure travels beside",
+      "mechanism": "expected-value",
+      "reaimed": "2026-11-03",
+      "why": "The expected value was the old output: a ppm figure beside rate 'unknown', so one object said both that no rate could be measured and here is the rate."
     }
   ]
 }
