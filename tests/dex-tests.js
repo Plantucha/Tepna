@@ -25253,6 +25253,98 @@
       );
     });
 
+    /* ── capture-host FIXED-NAME artifacts are never a waveform — DERIVED, not listed ────────────
+       `dex-ingest.js nonSignalName` sets the capture host's fixed-name files aside through a
+       hand-maintained alternation, and its own comment records how that list was built: read off the
+       writers with a grep. A grep someone runs is why the same defect has been fixed six times —
+       `CPAP-INVENTORY`/`OXYLIFE`, `CLOCKSYNC`, the RUNS/SEAMS family, `PPISEAMS`/`HRSEAMS`, and
+       `STARTS`/`PMDNEG`/`WORN`/`README-SIDECARS`. Each one was found on a real night folder, after the
+       writer had shipped. This group runs that grep in the gate instead.
+       Both classifiers FAIL OPEN. `ecgKind` defaults an unrecognised name to the ECG primary on its
+       last line, and `ppgKind` to the PPG primary, so a new fixed-name artifact is not merely
+       unrecognised — it is queued as a RECORDING in both nodes. The assertion is therefore stated on
+       the PRIMARY kinds, never on 'skip': a sidecar may legitimately carry a declared companion kind,
+       and `_ECGRUNS.txt` and `_PPGRUNS.txt` deliberately carry 'runs'.
+       The population is the last argument of every `os.path.join(…)` in comment-stripped
+       `capture-host/*.py` — a double-quoted literal, or an uppercase constant the same module assigns
+       a literal to — whose value is a filename with an all-uppercase stem. That shape is how the
+       capture tree names an artifact. It is also what separates a whole filename the box writes from a
+       suffix fragment it matches on (`"RUNS.txt"`, `"CLOCK.csv"`) and from a reader's example waveform
+       (`"20260830132000.dat"`): those are strings in the same modules, and the controls below assert
+       that they stay OUT. */
+    group('capture-host fixed-name artifacts are not waveforms — derived off the writers', 'capture-host · dex-ingest · source-scan', function (T) {
+      var FILES = env.captureFilenameScan,
+        DI = env.DexIngest;
+      if (!FILES) {
+        T.skip('env.captureFilenameScan provided to the runner', 'Node-lane only — wire env.captureFilenameScan (run-tests.mjs readCaptureFilenameScan)');
+        return;
+      }
+      if (!(DI && typeof DI.ecgKind === 'function' && typeof DI.ppgKind === 'function')) {
+        T.ok('DexIngest co-loaded (window.DexIngest / ctx.DexIngest)', false, 'load dex-ingest.js into both runners');
+        return;
+      }
+      function blankp(s) {
+        return s.replace(/[^\n]/g, '');
+      }
+      function stripPyp(t) {
+        return t.replace(/"""[\s\S]*?"""|'''[\s\S]*?'''/g, blankp).replace(/#.*$/gm, '');
+      }
+      var FIXED = /^[A-Z0-9][A-Z0-9-]*\.(?:csv|txt|json|jsonl|dat)$/;
+      var pyFiles = Object.keys(FILES)
+        .filter(function (f) {
+          return /^capture-host\/[^/]+\.py$/.test(f);
+        })
+        .sort();
+      var pop = {};
+      pyFiles.forEach(function (f) {
+        var t = stripPyp(FILES[f] || ''),
+          consts = {};
+        for (const m of t.matchAll(/^([A-Z][A-Z0-9_]*) *= *"([^"]+)"/gm)) consts[m[1]] = m[2];
+        for (const m of t.matchAll(/os\.path\.join\([^()]*?(?:\([^()]*\))?[^()]*?,\s*(?:"([^"]+)"|([A-Z][A-Z0-9_]*))\s*\)/g)) {
+          var v = m[1] != null ? m[1] : consts[m[2]];
+          if (!v || !FIXED.test(v)) continue;
+          if (!pop[v]) pop[v] = f + (m[2] ? ' `' + m[2] + '`' : ' literal');
+        }
+      });
+      var popList = Object.keys(pop).sort();
+      T.ok('the scan read the capture host (' + pyFiles.length + ' module(s))', pyFiles.length > 5, 'env.captureFilenameScan lost capture-host/*.py — the population has no denominator');
+      T.ok('the derivation found the fixed-name population (' + popList.length + ' name(s))', popList.length >= 20, 'the join or the constant regex stopped matching — derived: ' + popList.join(' '));
+      /* a name each earlier round of this defect was fixed for: the derivation must still SEE it */
+      ['WORN.csv', 'STARTS.csv', 'PMDNEG.csv', 'README-SIDECARS.txt', 'WEDGEFIRE.csv', 'CPAP-INVENTORY.jsonl', 'OXYLIFE.csv'].forEach(function (n) {
+        T.ok('the population carries `' + n + '` (' + (pop[n] || 'MISSING') + ')', !!pop[n], 'a name an earlier round of this defect was fixed for is no longer derived — the scan went blind');
+      });
+      /* and the shapes that are strings in the same modules but are not filenames the box writes */
+      ['RUNS.txt', 'SEAMS.txt', 'CLOCK.csv', '20260830132000.dat'].forEach(function (n) {
+        T.ok(
+          '`' + n + '` stays OUT of the population (a suffix fragment, or a reader’s example waveform)',
+          !pop[n],
+          'the derivation widened past what the box writes as a whole filename — derived: ' + popList.join(' ')
+        );
+      });
+      /* the classifiers still NAME a primary, so the two assertions at the end are not vacuous */
+      T.eq('ecgKind still names the chest-strap primary', DI.ecgKind('Polar_H10_AAAAAAAA_20260617_010000_ECG.txt'), 'ecg');
+      T.eq('ppgKind still names the optical primary', DI.ppgKind('Polar_Sense_0C30_20260617_010000_PPG.txt'), 'ppg');
+      /* …and they still fail OPEN, which is the whole reason the population is derived and not listed */
+      T.eq('an unlisted fixed name defaults to the ECG primary (the fail-open this group guards)', DI.ecgKind('NOTYETLISTED.csv'), 'ecg');
+      T.eq('…and to the PPG primary', DI.ppgKind('NOTYETLISTED.csv'), 'ppg');
+      var asEcg = [],
+        asPpg = [];
+      popList.forEach(function (n) {
+        if (DI.ecgKind(n) === 'ecg') asEcg.push(n + ' (' + pop[n] + ')');
+        if (DI.ppgKind(n) === 'ppg') asPpg.push(n + ' (' + pop[n] + ')');
+      });
+      T.ok(
+        'no capture-host fixed name enters ECGDex as a recording — ' + asEcg.length + ' of ' + popList.length,
+        asEcg.length === 0,
+        'ecgKind returns the ECG primary for: ' + asEcg.join(', ') + ' — set the stem aside in nonSignalName'
+      );
+      T.ok(
+        'no capture-host fixed name enters PpgDex as a recording — ' + asPpg.length + ' of ' + popList.length,
+        asPpg.length === 0,
+        'ppgKind returns the PPG primary for: ' + asPpg.join(', ') + ' — set the stem aside in nonSignalName'
+      );
+    });
+
     /* ════ DEAD FIELD HINTS — a write to an id that NO surface defines ════
        DEAD-FIELD-HINTS-FLEET-2026-08-19: five nodes wrote 42 `lbl_*` field hints through guarded
        setters (`if (!el) return`) to ids no .src.html defines. Every write was a silent no-op, which
