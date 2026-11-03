@@ -250,9 +250,24 @@ A5_GAP_FLOOR_S = 2.0  # the host gap width recorded during the residual pass, so
 A5_RECORD_NEAR_S = 300.0  # a recorded clock event within this of a candidate MAKES IT RECORDED. Pre-stated
 # rather than fitted: the 08-18 positive was logged at 04:09:08 for an instant at ~04:08, a lag of ~68 s,
 # and 300 s is over four times that while staying inside the persistence window's own neighbourhood.
-A5_DENSE_RECORDS = 2  # ... and this many records inside one candidate's persistence span is
+A5_DENSE_RECORDS = 2  # ... and this many EVENTS inside one candidate's persistence span is
 # `clock-sets too dense to attribute` — the 08-28 → 09-12 resync storm, one set every ~5.5 min, where
 # ±15–30 s flips minutes apart cannot be assigned to one another.
+A5_EVENT_CLUSTER_S = 60.0  # ... and records this close together, agreeing on a magnitude, are ONE event.
+# 🔴 THE RECORD SET IS A UNION OF THREE SOURCES THAT RECORD THE SAME EVENT, so a count of ROWS is not a
+# count of clock-sets. One sync writes a journal line, a `CLOCKSYNC.csv` row and — at the PMD restart it
+# forces — a seam, and the night of 2026-11-01 put three such rows inside one 210 s window around a
+# single 7.8-year step: the H10 came up on its 2019 firmware default, the daemon synced at 22:21:39 and
+# PMD restarted 22 s later. The density arm read three records and returned UNKNOWN for the whole
+# device, over a step every one of those rows records.
+# PRE-STATED, not fitted: 60 s is five times the 22 s that separated that night's sync from its seam,
+# and five times UNDER the storm's own measured spacing of one set every ~5.5 min, so no storm record
+# can reach its neighbour through this window. It is deliberately well inside `A5_RECORD_NEAR_S`.
+A5_SKEW_AGREE_FRAC = 0.01  # ... and two magnitudes this close, relative to the larger, are one skew.
+# RELATIVE because the quantity spans four decades — a storm's ±15–30 s flips against a firmware
+# default's 2.47e+08 s — so no absolute tolerance separates both. Pre-stated at 1 %: the two reads of
+# that night's default differ by 0.4 % (-2.46e+08 against -2.47e+08) and the storm's own flips differ by
+# 100 %, so the bound sits an order of magnitude clear of each.
 
 # THE SECOND-TO-MS CONVERSIONS, NAMED ONCE, for the reason `A5_BIN_MS` above already gives: every
 # `A5_X_S * 1000.0` written inline inside the function was a separate mutation site, and twenty of the
@@ -265,6 +280,7 @@ A5_AFTER_MS = (A5_AFTER_S[0] * 1000.0, A5_AFTER_S[1] * 1000.0)
 A5_REANCHOR_MS = A5_REANCHOR_S * 1000.0
 A5_GAP_NEAR_MS = A5_GAP_NEAR_S * 1000.0
 A5_RECORD_NEAR_MS = A5_RECORD_NEAR_S * 1000.0
+A5_EVENT_CLUSTER_MS = A5_EVENT_CLUSTER_S * 1000.0
 A5_GAP_FLOOR_MS = A5_GAP_FLOOR_S * 1000.0
 _SENSOR_NS_COL = "sensor timestamp [ns]"
 
@@ -1399,7 +1415,22 @@ def _clocksync_rows(night_dir: str, device: str, start, end) -> list[float] | No
     """This device's CLOCKSYNC rows in the interval, as host ms, over the night's folder AND the next
     date's. `None` only when a file exists and cannot be read — an ABSENT file is no rows, not an error,
     because most nights never write one."""
-    out: list[float] = []
+    recs = _clocksync_records(night_dir, device, start, end)
+    return None if recs is None else [tm for tm, _skew in recs]
+
+
+def _clocksync_records(night_dir: str, device: str, start, end) -> list[tuple[float, float | None]] | None:
+    """The same rows, each with the SKEW it names — `(host ms, skew seconds or None)`.
+
+    ONE PARSE, TWO READERS. `_clocksync_rows` wants the times and `clock_record_skews` wants the
+    magnitudes, and `writers.append_clock_sync_event` writes both in one row
+    (`stamp;device;address;event;skew;detail`). Splitting the parse would give the two readers separate
+    chances to disagree about which rows are records, and the exclusion list below is the half that
+    must not drift.
+
+    The skew cell is BLANK, never a fabricated value, when the event carried none — `writers` states
+    that rule at the write — so an unparseable or empty cell is `None` here and names no magnitude."""
+    out: list[tuple[float, float | None]] = []
     base = os.path.dirname(night_dir.rstrip("/"))
     night = os.path.basename(night_dir.rstrip("/"))
     dirs = [night_dir]
@@ -1423,9 +1454,47 @@ def _clocksync_rows(night_dir: str, device: str, start, end) -> list[float] | No
                     t = _ni.parse_host_stamp(cells[0])
                     if t is None or (start is not None and (t < start or t > end)):
                         continue
-                    out.append(t.timestamp() * 1000.0)
+                    skew: float | None = None
+                    if len(cells) > 4:
+                        try:
+                            skew = float(cells[4])
+                        except ValueError:
+                            skew = None  # a blank or unparseable cell names no magnitude (§∅)
+                    if skew is not None and not math.isfinite(skew):
+                        skew = None  # `float()` accepts "nan" and "inf"; neither is a measured skew
+                    out.append((t.timestamp() * 1000.0, skew))
         except OSError:
             return None
+    return out
+
+
+def clock_record_skews(night_dir: str, device: str, primary: str, start, end) -> dict[float, float]:
+    """Host ms to the magnitude in SECONDS that record names, for every record that names one.
+
+    §A5 counts EVENTS rather than rows (`_clock_event_clusters`), and a magnitude is how a row says it
+    belongs to a different event from its neighbour. Two of the three record sources carry one: the seam
+    sidecar's `step_ms` and `CLOCKSYNC.csv`'s skew cell. The journal's clock-event lines do NOT — the
+    audit persists the stamp, the phrase and the devices, not the line — so those records name no
+    magnitude and are clustered on time alone.
+
+    THE SIGNS ARE NOT COMPARED, only the sizes. A seam's step is the device clock moving forward onto
+    host time and the CSV's skew is how far behind it was, so the same event is recorded with opposite
+    signs by the two sources; `_mags_agree` takes absolute values for that reason.
+
+    Where a seam and a CSV row land on the same host ms the CSV wins. Both describe one event, and the
+    row written by the sync itself is the one that measured the skew.
+
+    A missing key is absence, so this returns `{}` rather than `None` when nothing names a magnitude:
+    the clustering reads a missing key exactly as it reads an empty map, and the record set's own
+    readability is already answered by `clock_records`."""
+    out: dict[float, float] = {}
+    for seam in recorded_seams(primary, start, end):
+        step = seam.get("step_ms")
+        if step is not None:
+            out[seam["host_ms"]] = step / 1000.0
+    for tm, skew in _clocksync_records(night_dir, device, start, end) or []:
+        if skew is not None:
+            out[tm] = skew
     return out
 
 
@@ -1509,7 +1578,56 @@ def _rows_in(row_bins: dict[int, int], lo_ms: float, hi_ms: float) -> tuple[int,
     return n, max(A5_BIN_S, (b1 - b0 + 1) * A5_BIN_S)
 
 
-def unrecorded_shift(scan: dict, records: list[float], nominal_hz: float | None) -> dict | None:
+def _mags_agree(a: float | None, b: float | None) -> bool:
+    """PURE: do these two recorded magnitudes name ONE skew?
+
+    ABSENCE AGREES, and that is the one place here where §∅ reads the other way round, so it has to
+    earn it. A journal clock-event line names no number the night persisted — `loss_audit` writes the
+    stamp, the phrase and the devices, never the line — so a record from that source cannot contradict
+    a magnitude, and the TIME window is the whole of the evidence for it. Treating absence as
+    disagreement would make the journal's own line split the event it records, which is the double
+    count this rule exists to undo. The magnitudes that ARE present stay the safety valve: one
+    disagreeing row splits the cluster, however close it sits.
+
+    `max(…) == 0.0` agrees: a pair of records each naming a zero step names one non-step, and the
+    relative bound has nothing to divide by."""
+    if a is None or b is None:
+        return True
+    a, b = abs(a), abs(b)
+    hi = max(a, b)
+    if hi == 0.0:
+        return True
+    return (hi - min(a, b)) <= A5_SKEW_AGREE_FRAC * hi
+
+
+def _clock_event_clusters(times: list[float], skews: dict | None = None) -> list[list[float]]:
+    """PURE: the span's records grouped into the clock EVENTS they record, in host-ms order.
+
+    Single linkage on time, split by a disagreeing magnitude. A record joins the open cluster when it
+    sits within `A5_EVENT_CLUSTER_MS` of the last record in it AND agrees with the magnitude that
+    cluster has already named; otherwise it opens a new one. The magnitude carries FORWARD so a cluster
+    that has named one is not then joined by a row naming another — which is what keeps the storm's
+    ±15–30 s flips from chaining into one event through a magnitude-less neighbour.
+
+    `skews` maps host ms to the magnitude in seconds that record names, where one is recorded. `None`,
+    and a missing key, mean the record names no magnitude — see `_mags_agree`."""
+    out: list[list[float]] = []
+    named: list[float | None] = []
+    for t in sorted(times):
+        mag = None if skews is None else skews.get(t)
+        if out and t - out[-1][-1] <= A5_EVENT_CLUSTER_MS and _mags_agree(named[-1], mag):
+            out[-1].append(t)
+            if named[-1] is None:
+                named[-1] = mag
+            continue
+        out.append([t])
+        named.append(mag)
+    return out
+
+
+def unrecorded_shift(
+    scan: dict, records: list[float], nominal_hz: float | None, skews: dict | None = None
+) -> dict | None:
     """SOLID-NIGHT §A5: the strongest persistent residual shift on this axis, and what it is.
 
     Returns a decision when something is worth saying — the tripwire's own fire, or one of the guards'
@@ -1528,11 +1646,14 @@ def unrecorded_shift(scan: dict, records: list[float], nominal_hz: float | None)
     PRECEDENCE, and it is not arbitrary. Each test below can only make the verdict SOFTER than a fire,
     and the softest applicable one wins, because each says the candidate cannot be adjudicated for a
     different reason:
-      1. too dense        — `A5_DENSE_RECORDS` records inside the persistence span; ±15–30 s flips
-                            minutes apart cannot be assigned to one another. Checked FIRST, and the
-                            order is load-bearing for the reason the code below states: dense sets are
-                            dense because several sit NEAR the candidate, so asking "is one within the
-                            match window" first would absorb every storm night as recorded.
+      1. too dense        — `A5_DENSE_RECORDS` clock EVENTS inside the persistence span; ±15–30 s
+                            flips minutes apart cannot be assigned to one another. Checked FIRST, and
+                            the order is load-bearing for the reason the code below states: dense sets
+                            are dense because several sit NEAR the candidate, so asking "is one within
+                            the match window" first would absorb every storm night as recorded.
+                            Records are counted as EVENTS, not as rows (`_clock_event_clusters`): the
+                            three sources record one sync three times, and `skews` is how a row's own
+                            magnitude splits a cluster it does not belong in.
       2. recorded         — a clock event within `A5_RECORD_NEAR_S`. Not a finding at all: the box said
                             so. Never convict a logged step; that was the 08-18 mistake.
       3. latency regime   — Guard 1: the row rate in either window departs from nominal by more than
@@ -1623,9 +1744,35 @@ def unrecorded_shift(scan: dict, records: list[float], nominal_hz: float | None)
     # a rule that cannot fire is not a rule. The storm's point is that ±15–30 s flips minutes apart
     # cannot be assigned to one another, which is neither "recorded" nor "unrecorded" but unadjudicable.
     span = [r for r in records if at + A5_BEFORE_MS[0] <= r <= at + A5_AFTER_MS[1]]
-    if len(span) >= A5_DENSE_RECORDS:
+    events = _clock_event_clusters(span, skews)
+    if len(events) >= A5_DENSE_RECORDS:
         return {
-            **_decision("UNKNOWN", f"clock-sets too dense to attribute — {len(span)} records around {what}"),
+            **_decision(
+                "UNKNOWN",
+                f"clock-sets too dense to attribute — {len(events)} clock events ({len(span)} records) around {what}",
+            ),
+            "vantages": vantages,
+        }
+    if len(span) >= A5_DENSE_RECORDS:
+        # 🔴 THE CONCESSION IS PUBLISHED, NOT SILENT. The rows collapsed to one event, so the step is
+        # recorded and the arm above stands down — but a reader who saw the old UNKNOWN needs to find
+        # out what replaced it, and a night whose absolute time only begins at the clock-set has lost
+        # the head before it. Owner ruling 2026-09-17 (CLAUDE.md §∅): a DISCONTINUITY refuses and
+        # reduced COVERAGE annotates. The step IS a discontinuity, and the segment split already
+        # refused across it; what is left is one segment's head with no usable absolute time, which
+        # annotates. So this returns a PASS that names the head and hands the verdict to the stretch
+        # after the set, rather than an UNKNOWN over the whole device.
+        # NO `max(0.0, ...)` HERE. The crossing cannot precede the stretch it was found in: a vantage
+        # needs its whole before-window inside the segment, so `at` sits at least 60 s past the first
+        # anchor by construction. A floor over that would be a mutant nothing can kill.
+        head_s = (at - b_times[0]) / 1000.0
+        return {
+            **_decision(
+                "PASS",
+                f"one recorded clock event at {what} — {len(span)} records inside the window collapse "
+                f"to one, so the segment after the set decides",
+                coverage=f"{head_s:.0f} s before the recorded clock-set carry no usable absolute time",
+            ),
             "vantages": vantages,
         }
     near = [r for r in records if abs(r - at) <= A5_RECORD_NEAR_MS]
@@ -1961,9 +2108,16 @@ def timebase(night_dir: str, device: str, clock_tag: str, clock_files: list[str]
                             f"but the A5 record set could not be read — {how}{seam_note}",
                         )
                     else:
-                        trip = unrecorded_shift(scan, recs, seam_rate(path))
+                        trip = unrecorded_shift(
+                            scan, recs, seam_rate(path), clock_record_skews(night_dir, device, path, start, end)
+                        )
                         if trip is not None:
                             out = _decision(trip["status"], f"{tag}: {trip['reason']}{seam_note}")
+                            # The concession's own coverage note (the head with no usable absolute
+                            # time) travels with the other segment notes, so a PASS that conceded a
+                            # recorded step still says what the step cost the night.
+                            if trip.get("coverage"):
+                                notes.append(f"{tag}: {trip['coverage']}")
                         else:
                             # A PASS CARRIES ITS MEASUREMENT. `device_outcome` collects reasons only from
                             # FAIL and UNKNOWN bands, so this changes no verdict — but a band that passes
