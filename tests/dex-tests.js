@@ -2950,7 +2950,24 @@
         !!haD && haD.deviceDrawn === true && haD.drawnShare === 0.993 && /99.30 %/.test(String(haD.drawnReason)),
         JSON.stringify(haD && [haD.deviceDrawn, haD.drawnShare, haD.drawnReason])
       );
-      T.ok('…and `ppm` stays beside it — §7 relabels a drawn axis, it never withholds the diagnostic', !!haD && typeof haD.ppm === 'number', 'ppm=' + (haD && haD.ppm));
+      /* ⚠️ THIS ASSERTION HAS CHANGED SIDES, DELIBERATELY (2026-11-03, Osprey). It used to read "`ppm`
+         stays beside it — §7 relabels a drawn axis, it never withholds the diagnostic", which was the
+         LABELLED shape row
+         2026-10-29-per-segment-model-leaves-fifty-of-sixty-five-ring-nights-impossible left open
+         against publishing `null`. §∅ settles it: a rate needs a second clock, a drawn column is not
+         one, so the published rate reports the absence with a named reason. The diagnostic is still
+         not withheld — it moves to `drawnColumn`, under a name no consumer can apply as a rate. */
+      T.ok(
+        'a drawn axis publishes NO rate — `ppm` is null with a named reason',
+        !!haD && haD.ppm === null && /drawn-column/.test(String(haD.ppmReason)),
+        'ppm=' + (haD && haD.ppm) + ' ppmReason=' + JSON.stringify(haD && haD.ppmReason)
+      );
+      T.ok(
+        '…and the old single-axis figures survive under `drawnColumn`, which is not a rate',
+        !!haD && !!haD.drawnColumn && typeof haD.drawnColumn.ppm === 'number' && isFinite(haD.drawnColumn.ppm),
+        'drawnColumn=' + JSON.stringify(haD && haD.drawnColumn)
+      );
+      T.ok('…and `spanPpm`, the same ratio before the median, is null for the same reason', !!haD && haD.spanPpm === null, 'spanPpm=' + (haD && haD.spanPpm));
       /* THE CONTROL NEEDS ITS OWN AXIS, and finding that out is the point of writing it. `ha` above
          is built from `devMs: m * 100` — a PERFECTLY uniform device column, so the spine reads it
          `deviceDrawn:true` and reusing it as the clean case asserted nothing at all. A real device
@@ -3081,7 +3098,17 @@
           typeof drawnOut.rate === 'string' && typeof drawnOut.rateReason === 'string' && /counter with no oscillator/.test(drawnOut.rateReason) && !/a rate needs/.test(drawnOut.rateReason),
           'rateReason=' + JSON.stringify(drawnOut.rateReason)
         );
-        T.ok('…and the ppm is still published beside it — this annotates, it does not refuse', typeof drawnOut.ppm === 'number' && isFinite(drawnOut.ppm), 'ppm=' + drawnOut.ppm);
+        /* THE VERDICT AND THE VALUE NOW AGREE. This group used to assert that a figure travels beside
+           `rate:'unknown'`; one object said both "no rate could be measured" and "here is the rate".
+           The two floors below keep the annotating shape — a SHORT SPAN and an UNFLAT segment still
+           publish their number, because there the instrument exists and the window is what fails. A
+           drawn column is not a floor: the instrument is absent (§∅). */
+        T.ok(
+          '…and no rate travels beside it — the value is null and the reason names the column',
+          drawnOut.ppm === null && /drawn-column|counter with no oscillator/.test(String(drawnOut.ppmReason)),
+          'ppm=' + drawnOut.ppm + ' ppmReason=' + JSON.stringify(drawnOut.ppmReason)
+        );
+        T.ok('…and the old figure is readable under `drawnColumn`', !!drawnOut.drawnColumn && typeof drawnOut.drawnColumn.ppm === 'number', 'drawnColumn=' + JSON.stringify(drawnOut.drawnColumn));
       }
       if (inertOut) {
         T.eq('a host column that is no second clock publishes rate "unknown" too', inertOut.rate, 'unknown');
@@ -3811,6 +3838,12 @@
         'applied',
         'deviceDrawn',
         'drawn',
+        /* The two keys a DRAWN or UNMEASURED column adds, and only such a column: `ppmReason` says why
+           no rate is published and `drawnColumn` holds the figures the old single axis quoted, under a
+           name no consumer can apply as a rate (2026-11-03, row
+           2026-10-29-per-segment-model-leaves-fifty-of-sixty-five-ring-nights-impossible). A real-axis
+           export carries neither, which is why the clean-case group below asserts their ABSENCE. */
+        'drawnColumn',
         'drawnReason',
         'drawnShare',
         /* The segment model's flatness floor and the two numbers that decided it, plus the count of
@@ -3825,6 +3858,7 @@
         'maxStepMs',
         'ok',
         'ppm',
+        'ppmReason',
         'quantizedShare',
         'rate',
         'rateApplied',
@@ -3909,14 +3943,19 @@
       /* Twelve since 2026-11-01: `ppgOffsetSegments` is this node's own model, so the flatness floor
          it applies and the three numbers behind that verdict are PpgDex-only by construction.
          `clock.js` computes no flatness, which is also why a null `flat` over a raw spine axis is a
-         legitimate absence here and not a dropped key. */
-      T.eq('PpgDex alone publishes the twelve fields only it measures', onlyIn(DECLARED_PPG, DECLARED_ECG, DECLARED_MOTION), [
+         legitimate absence here and not a dropped key. FOURTEEN since 2026-11-03: `ppmReason` and
+         `drawnColumn` are this node's half of the drawn-column decision, and the other two publishers
+         have not taken it — ECGDex spends `ppm` as a crystal figure and owes the same question under
+         its own row, which this unit names rather than answers. */
+      T.eq('PpgDex alone publishes the fourteen fields only it measures', onlyIn(DECLARED_PPG, DECLARED_ECG, DECLARED_MOTION), [
         'drawn',
+        'drawnColumn',
         'drawnReason',
         'flat',
         'flatJitterMs',
         'flatResidualMs',
         'inertReason',
+        'ppmReason',
         'quantizedShare',
         'rate',
         'rateApplied',
