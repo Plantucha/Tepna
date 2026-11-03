@@ -7230,9 +7230,12 @@ window.TCH_REFERENCE_RECORD = {
   }
   // ── wiring ─────────────────────────────────────────────────────────────────
   document.addEventListener('DOMContentLoaded', () => {
+    /* COPY THE LIST BEFORE THE RESET. `e.target.files` is LIVE: `value = ''` empties it, and the ingest
+       awaits a row read per file, so it saw one file and then an empty list (2026-11-03: 11 files handed
+       over, "indexed from 0 file(s) · 0 eligible"). The reset stays, so the same pick fires again. */
     const onPick = (e) => {
-      const list = e.target.files;
-      if (list && list.length) void ingestFiles(list);
+      const list = Array.from(e.target.files || []);
+      if (list.length) void ingestFiles(list);
       e.target.value = '';
     };
     if ($('folderInput')) $('folderInput').addEventListener('change', onPick);
@@ -7247,7 +7250,7 @@ window.TCH_REFERENCE_RECORD = {
       drop.addEventListener('drop', (e) => {
         e.preventDefault();
         drop.classList.remove('ts-over');
-        if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) void ingestFiles(e.dataTransfer.files);
+        if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) void ingestFiles(Array.from(e.dataTransfer.files));
       });
     }
     const nav = $('nightNav');

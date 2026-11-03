@@ -1853,7 +1853,7 @@ async function openNight(key, node){
   }
   const rec = pick.rec;
   const got = nightFiles(n, node, rec); const rels = got.files;
-  if(!rels.length){ nToast(got.reason || ('nothing to load for '+node+' on '+night), true); return; }
+  if(!rels.length){ nToast(got.reason || ('nothing to load for '+node+' on '+n.night), true); return; }
   /* ∅ A file with no session stamp belongs to no band — the CPAP trees are keyed by DATE. They are handed
      over with the recording (they are this FOLDER's) and SAID, rather than dropped silently or filed under
      a band they were never stamped for. */
@@ -1875,8 +1875,10 @@ async function openNight(key, node){
   const extra = (pick.others.length ? ' — this folder also holds '+pick.others.join(', ')+
                  (pick.others.length>1?' (separate recordings)':' (a separate recording)') : '')
               + (noStamp.length ? ', plus '+noStamp.length+' file'+(noStamp.length>1?'s':'')+' carrying no session stamp' : '');
-  nToast('opening '+node+' — fetching '+rels.length+' file'+(rels.length>1?'s':'')+' from '+
-         (rec ? 'recording '+rec.recording : n.night)+extra+' …');
+  /* ONE NAME for the source, read from the row: the parameter is `key` since #3473, and two reads of the old
+     `night` threw after the files reached the page and before the Run press (2026-11-03). */
+  const from = rec ? 'recording '+rec.recording : n.night;
+  nToast('opening '+node+' — fetching '+rels.length+' file'+(rels.length>1?'s':'')+' from '+from+extra+' …');
   let files;
   try{
     files = await Promise.all(rels.map(async rel=>{ const r=await fetch('/captures/'+rel.split('/').map(encodeURIComponent).join('/')); if(!r.ok) throw new Error(r.status+' '+rel);
@@ -1901,7 +1903,7 @@ async function openNight(key, node){
     const dt = new w.DataTransfer(); list.forEach(f=>dt.items.add(f));
     el.files = dt.files; el.dispatchEvent(new w.Event('change', {bubbles:true}));
   }
-  const loaded = node+': '+files.length+' file'+(files.length>1?'s':'')+' ('+nMB(total)+') loaded from '+night;
+  const loaded = node+': '+files.length+' file'+(files.length>1?'s':'')+' ('+nMB(total)+') loaded from '+from;
   const runSel = NIGHT_RUN[node];
   if(!runSel){ nToast(loaded+' — processing in the new tab'); return; }
   // a batch tool: press Process for the user once the tool has indexed the night and enabled it

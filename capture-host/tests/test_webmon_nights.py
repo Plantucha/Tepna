@@ -1074,3 +1074,68 @@ def test_a_night_WITHOUT_THE_VERITY_still_opens_the_rings_PPG():
     for k in ("ring_not_loadable", "nothing"):
         assert "<button" not in out[k] and "not recorded" in out[k], (k, out[k])
     assert "O2Ring PPG" not in out["both"] and 'data-node="PPGDex"' in out["both"], "a Verity night is unchanged"
+
+
+def _open_night_run(html, rels, reason=""):
+    """Run the shipped `openNight` in node with a stubbed window, fetch and analyzer page; return the toasts."""
+    import json
+    import shutil
+    import subprocess
+
+    import pytest
+
+    node = shutil.which("node")
+    if not node:  # pragma: no cover - ubuntu-latest always has node; a dev box might not
+        pytest.skip("node is not installed")
+    start = html.index("async function openNight(")
+    end = html.index("\nfunction nightsClick(")
+    src = html[start:end]
+    assert "btn.click()" in src, "openNight extracted no success arm — the run would test nothing"
+    prog = (
+        "const TOASTS = []; let CLICKED = 0;\n"
+        "const nToast = (m, bad) => TOASTS.push({ m, bad: !!bad });\n"
+        "const NIGHTS = [{ night: '2026-09-19', key: 'K' }];\n"
+        "const nRowKey = (x) => x.key;\n"
+        "const pickRecording = () => ({ ambiguous: false, rec: null, others: [] });\n"
+        "const nightFiles = () => ({ files: " + json.dumps(rels) + ", reason: " + json.dumps(reason) + " });\n"
+        "const nBase = (r) => r.split('/').pop();\n"
+        "const nMB = (b) => b + ' B';\n"
+        "const NIGHT_APP = { hat: 'hat.html' }, NIGHT_INPUT = { hat: '#fileInput' }, NIGHT_RUN = { hat: '#procBtn' };\n"
+        "const NIGHT_RUN_WAIT = {}, NIGHT_RUN_LATE = {};\n"
+        "globalThis.fetch = async () => ({ ok: true, blob: async () => new Blob(['x']) });\n"
+        "const input = { files: null, dispatchEvent() {} };\n"
+        "const btn = { disabled: false, click() { CLICKED++; } };\n"
+        "const doc = { readyState: 'complete', querySelector: (s) => (s === '#procBtn' ? btn : input) };\n"
+        "class DT { constructor() { const a = []; this.files = a; this.items = { add: (f) => a.push(f) }; } }\n"
+        "const w = { document: doc, DataTransfer: DT, Event: class { constructor(t) { this.type = t; } } };\n"
+        "const window = { open: () => w };\n"
+        + src
+        + "\nopenNight('K', 'hat').then(() => console.log(JSON.stringify({ TOASTS, CLICKED })),"
+        " (e) => console.log(JSON.stringify({ TOASTS, CLICKED, threw: String(e) })));\n"
+    )
+    r = subprocess.run([node, "-e", prog], capture_output=True, text=True, timeout=60)
+    assert r.returncode == 0, r.stderr
+    return json.loads(r.stdout.strip())
+
+
+def test_a_night_click_reaches_the_run_press():
+    """THE CLICK NEVER PRESSED RUN (2026-11-03). #3473 renamed `openNight`'s parameter `night` to `key` and
+    left two `night` reads behind. The success arm threw "night is not defined" after the files reached the
+    page and before the Run press, so every analyzer open stopped one step short. Executed end to end."""
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    html = open(os.path.join(here, "monitor.html"), encoding="utf-8").read()
+    got = _open_night_run(html, ["2026-09-19/a_ECG.txt", "2026-09-19/b_PPG.txt"])
+    assert "threw" not in got, got
+    assert got["CLICKED"] == 1, got  # the monitor pressed Run for the user
+    last = got["TOASTS"][-1]
+    assert "Process pressed" in last["m"] and "2026-09-19" in last["m"] and not last["bad"], got
+
+
+def test_a_night_with_nothing_to_load_says_so():
+    """The empty arm read the same stale `night`, so a night with no inputs threw instead of toasting."""
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    html = open(os.path.join(here, "monitor.html"), encoding="utf-8").read()
+    got = _open_night_run(html, [])
+    assert "threw" not in got, got
+    assert got["CLICKED"] == 0, got
+    assert got["TOASTS"] == [{"m": "nothing to load for hat on 2026-09-19", "bad": True}], got
