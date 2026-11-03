@@ -55,6 +55,19 @@ import vm from 'node:vm';
 import { CFD_FRAC, fractionAmplitudeIndex, halfAmplitudeIndex } from './pat-fiducial.mjs';
 import { isCliEntry } from './argv-guard.mjs';
 import { snapshotNights, populationVerdict, notANight } from './corpus-scope-core.mjs';
+import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
+
+/* ── THE VALIDITY SIDECAR RIDES WITH THE STREAM ─────────────────────────────────────────────
+   Row 2026-11-02-no-caller-hands-the-shared-pat-foot-extractor-its-sidecar: the foot extractor has
+   taken a `runsText` validity sidecar since the PAT foot ports landed, and this caller handed it
+   none, so a blanking run the box recorded reached the foot detector as signal — a flat rail is a
+   plausible diastole, and no reader could tell it from one. `readRunsSidecar` names which of four
+   things happened per stream, and the tally prints beside the numbers: §∅, reduced coverage
+   annotates, and an ABSENT sidecar is validity UNKNOWN for that stream, never a clean one. Most of
+   this corpus predates the writer, so most streams read `absent` and parse exactly as they did
+   before. */
+const VALIDITY = {};
+const runsOf = (streamPath, stream) => readRunsSidecar(streamPath, stream, { tally: VALIDITY }).runsText;
 
 // the repo's own ESM→classic shim, so a DSP's `export const` tail does not break the vm realm
 const DexBuild = createRequire(import.meta.url)('./build-core.js');
@@ -627,19 +640,23 @@ function bestPair(dir) {
   let ppgs = biggest(dir, /verity.*_PPG\.txt$/i, CANDIDATES);
   if (!ppgs.length) ppgs = biggest(dir, /_PPG\.txt$/i, CANDIDATES);
   if (!ecgs.length || !ppgs.length) return null;
+  /* The callback takes the PATH beside the text, because the sidecar is named from the path and
+     only this layer holds it. The ECG leg ignores it: `ecgRpeakTimes` has no `runsText` parameter,
+     and its second argument is `opts`, so handing it a path would read as an axis request — row
+     2026-11-03-the-ecg-leg-of-the-shared-pat-extractor-takes-no-sidecar. */
   const parse = (list, fn) =>
     list
       .map((c) => {
         try {
-          const r = fn(readFileSync(c.f, 'utf8'));
+          const r = fn(readFileSync(c.f, 'utf8'), c.f);
           return r.t0Ms == null ? null : { ...c, rec: r };
         } catch {
           return null;
         }
       })
       .filter(Boolean);
-  const E = parse(ecgs, ecgRpeakTimes),
-    P = parse(ppgs, ppgFootTimes);
+  const E = parse(ecgs, (text) => ecgRpeakTimes(text)),
+    P = parse(ppgs, (text, path) => ppgFootTimes(text, runsOf(path, 'PPG')));
   let best = null;
   for (const e of E)
     for (const p of P) {
@@ -781,5 +798,7 @@ if (IS_CLI && argv.includes('--verdict-sample')) {
     }
     console.log(`\n${popLine}`);
     console.log(`selected but not scored: ${unscored.length ? unscored.join(', ') : 'none'}`);
+    const validity = validityLine(VALIDITY);
+    if (validity) console.log('  ' + validity);
   }
 }

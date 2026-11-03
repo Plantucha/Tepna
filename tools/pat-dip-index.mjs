@@ -32,6 +32,19 @@ import { pairsIn } from './pat-finger-coupler.mjs';
 import { loadDsps, ecgRpeakTimes, ppgFootTimes } from './pat-matchrate-strict.mjs';
 import { readFileSync, statSync } from 'node:fs';
 import { isCliEntry, positionalArgs, refuseUnknownArgvOrExit } from './argv-guard.mjs';
+import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
+
+/* ── THE VALIDITY SIDECAR RIDES WITH THE STREAM ─────────────────────────────────────────────
+   Row 2026-11-02-no-caller-hands-the-shared-pat-foot-extractor-its-sidecar: the foot extractor has
+   taken a `runsText` validity sidecar since the PAT foot ports landed, and this caller handed it
+   none, so a blanking run the box recorded reached the foot detector as signal — a flat rail is a
+   plausible diastole, and no reader could tell it from one. `readRunsSidecar` names which of four
+   things happened per stream, and the tally prints beside the numbers: §∅, reduced coverage
+   annotates, and an ABSENT sidecar is validity UNKNOWN for that stream, never a clean one. Most of
+   this corpus predates the writer, so most streams read `absent` and parse exactly as they did
+   before. */
+const VALIDITY = {};
+const runsOf = (streamPath, stream) => readRunsSidecar(streamPath, stream, { tally: VALIDITY }).runsText;
 
 /* ONE spec, read twice: the guard refuses an undeclared flag with it, and `positionalArgs`
    skips each valued flag's VALUE with it, so a flag written before the positional cannot be
@@ -69,19 +82,22 @@ function anklePair(dir) {
       .map((f) => ({ f: join(dir, f), size: statSync(join(dir, f)).size }))
       .sort((a, b) => b.size - a.size)
       .slice(0, 4);
+  /* The callback takes the PATH beside the text — the sidecar is named from the path, and only
+     this layer holds it. The ECG leg ignores it: `ecgRpeakTimes` takes `opts` second, never a
+     sidecar (row 2026-11-03-the-ecg-leg-of-the-shared-pat-extractor-takes-no-sidecar). */
   const parse = (list, fn) =>
     list
       .map((c) => {
         try {
-          const r = fn(readFileSync(c.f, 'utf8'));
+          const r = fn(readFileSync(c.f, 'utf8'), c.f);
           return r.t0Ms == null ? null : { rec: r };
         } catch {
           return null;
         }
       })
       .filter(Boolean);
-  const E = parse(cand(RE_ECG2), ecgRpeakTimes);
-  const P = parse(cand(RE_VERITY), ppgFootTimes);
+  const E = parse(cand(RE_ECG2), (text) => ecgRpeakTimes(text));
+  const P = parse(cand(RE_VERITY), (text, path) => ppgFootTimes(text, runsOf(path, 'PPG')));
   let best = null;
   for (const e of E)
     for (const p of P) {
@@ -165,6 +181,8 @@ function main() {
   }
   /* The text run says it too. A population that moved under a table nobody re-read is the defect. */
   console.log(`\npopulation: ${population.status} — ${population.population.checked} night(s) covered of ${population.population.eligible}` + (population.reason ? `\n  ${population.reason}` : ''));
+  const validity = validityLine(VALIDITY);
+  if (validity) console.log('  ' + validity);
 }
 
 /* The corpus-free sample the adoption gate runs: the measured shape this tool reports, which is a

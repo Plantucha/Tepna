@@ -188,6 +188,83 @@ ok(
   'the fold hands _PPGRUNS.txt to both PPG parses (Verity and ring)'
 );
 
+ok(ownSidecarPaths(`    pinnedSource: rec.pinnedCrossCheck ? '_PPGRUNS.txt' : recomputeRan ? 'recompute' : null`).length === 0, 'CONTROL · a provenance LABEL naming the sidecar is not a path this tool built');
+ok(ownSidecarPaths("const p = base + '_PPGRUNS.txt';").length === 1, 'and a hand-built sidecar path still reads as one');
+
+function stripComments(src, keepStrings) {
+  let out = '';
+  let i = 0;
+  while (i < src.length) {
+    const c = src[i];
+    const d = src[i + 1];
+    if (c === '/' && d === '/') {
+      while (i < src.length && src[i] !== '\n') i++;
+      continue;
+    }
+    if (c === '/' && d === '*') {
+      i += 2;
+      while (i < src.length && !(src[i] === '*' && src[i + 1] === '/')) i++;
+      i += 2;
+      continue;
+    }
+    if (c === "'" || c === '"' || c === '`') {
+      /* A STRING IS NOT A COMMENT, and `keepStrings` is which of the two readers below is asking.
+         The arity reader must not see a call spelled inside a string; the sidecar-path reader must
+         still see the label `'_PPGRUNS.txt'`, because that label is the thing it judges. */
+      const q = c;
+      const start = i;
+      i++;
+      while (i < src.length && src[i] !== q) {
+        if (src[i] === '\\') i++;
+        i++;
+      }
+      i++;
+      out += keepStrings ? src.slice(start, i) : ' ';
+      continue;
+    }
+    out += c;
+    i++;
+  }
+  return out;
+}
+
+/** Every INVOCATION of `name` in `src`, as its top-level argument count. A definition is not an
+ *  invocation, so `function name(` is skipped; a call with no argument reads 0. */
+function callArity(src, name) {
+  const bare = stripComments(src);
+  const out = [];
+  const re = new RegExp(`(function\\s+)?\\b${name}\\s*\\(`, 'g');
+  let m;
+  while ((m = re.exec(bare)) !== null) {
+    if (m[1]) continue;
+    let i = re.lastIndex;
+    let depth = 1;
+    let args = 0;
+    let seen = false;
+    while (i < bare.length && depth > 0) {
+      const c = bare[i];
+      if (c === '(' || c === '[' || c === '{') depth++;
+      else if (c === ')' || c === ']' || c === '}') depth--;
+      else if (c === ',' && depth === 1) args++;
+      if (depth > 0 && !/\s/.test(c)) seen = true;
+      i++;
+    }
+    out.push(seen ? args + 1 : 0);
+  }
+  return out;
+}
+
+/** The sidecar NAME is derived in one place. A line that merely REPORTS which source a pinned span
+ *  came from (`pinnedSource: rec.pinnedCrossCheck ? '_PPGRUNS.txt' : …`) spells a label, not a path,
+ *  and two tools publish exactly that field — so this reader asks whether the spelling is being
+ *  BUILT INTO a path, never whether the characters appear. */
+function ownSidecarPaths(src) {
+  return stripComments(src, true)
+    .split('\n')
+    .filter((l) => /RUNS\.txt/.test(l))
+    .filter((l) => /join\(|replace\(|existsSync|readFileSync|`|\+/.test(l));
+}
+
 /* ── AND THE EIGHT PAT TOOLS CALL IT ───────────────────────────────────────────────────────────────
    The per-call arithmetic lives in `tests/dex-tests.js` ("SAMPLE-VALIDITY-ENVELOPE done-when 4"),
    which pins how many call sites under `tools/` still pass no sidecar. These legs pin the OTHER half
@@ -210,7 +287,77 @@ for (const f of [
   ok(/const runsOf = \(streamPath, stream\) => readRunsSidecar\(streamPath, stream, \{ tally: VALIDITY \}\)\.runsText;/.test(src), `${f} reads every sidecar through one tallying helper`);
   ok(/validityLine\(VALIDITY\)/.test(src), `${f} prints the tally beside its own numbers`);
   ok(/runsText \? [\w$.]+\(\w+, \{ runsText \}\) :/.test(src) || /\{ runsText: \w+ \}\) :/.test(src), `${f} parses through the guarded ternary, so a stream with no sidecar parses as it did`);
-  ok(!/RUNS\.txt'/.test(src), `${f} spells no sidecar path of its own`);
+  ok(ownSidecarPaths(src).length === 0, `${f} builds no sidecar path of its own (${ownSidecarPaths(src).join(' | ').slice(0, 90)})`);
+}
+
+/* ── AND THE FOOT CALLERS HAND IT OVER ─────────────────────────────────────────────────────────────
+   Row 2026-11-02-no-caller-hands-the-shared-pat-foot-extractor-its-sidecar: the shared extractor has
+   taken a `runsText` sidecar since the PAT foot ports landed, and every call site handed it none, so
+   the guarded ternary inside the extractor ran its sidecar-less arm every time. The done-when 4
+   ratchet cannot see this: it counts calls to the six sample parsers BY NAME, and a tool reaching a
+   parser through this helper leaves no mark in that population.
+
+   ⚠ A LEG THAT GREPS FOR `ppgFootTimes(` MISSES THE CALLS THIS ROW WAS FILED FROM. The row's own
+   evidence was built that way and found ten sites; a callback (`parse(list, ppgFootTimes)`) and a
+   parenthesised indirection (`(opts.ppgFootTimes || ppgFootTimes)(text)`) both call the extractor
+   with the name never followed by `(`. So this block counts ARGUMENTS at each invocation instead,
+   over a source with its comments and string literals removed, and names the indirection on its
+   own. */
+/* The arity reader is itself read by a planted source, because a reader that matched nothing would
+   hand every leg below an empty population, and every answer over an empty population reads clean. */
+const PLANT = `
+/* a comment naming ppgFootTimes(text) and nothing else */
+function ppgFootTimes(text, runsText) { return [text, runsText]; }
+const a = ppgFootTimes(readFileSync(pF, 'utf8'));
+const b = ppgFootTimes(readFileSync(pF, 'utf8'), runsOf(pF, 'PPG'));
+const c = "a string with ppgFootTimes(x, y, z) inside it";
+const d = ppgFootTimes(text, runsOf(p, 'PPG'), { pinnedFromRecompute: true });
+`;
+ok(JSON.stringify(callArity(PLANT, 'ppgFootTimes')) === '[1,2,3]', 'the arity reader counts calls, skips the definition, and reads neither comments nor strings');
+ok(callArity('const x = 1;', 'ppgFootTimes').length === 0, 'CONTROL · a source that never calls it yields no invocation, so an empty population is visible as empty');
+
+/* The twelve files this slice migrated. `calls` is the callee each one reaches the parser through:
+   the shared extractor, a local port of it, or a local re-derivation. Every invocation of it must
+   carry the sidecar, which is the second argument. */
+for (const [f, callees] of [
+  ['beat-correspondence.mjs', ['ppgFootTimes']],
+  ['oracle-ppg-device-beats.mjs', []],
+  ['pat-connection-stability.mjs', ['ppgFootTimes']],
+  ['pat-dip-index.mjs', ['ppgFootTimes']],
+  ['pat-drift-attribution.mjs', ['ppgFootTimes']],
+  ['pat-ecg-axis-residual.mjs', ['ppgFootTimes']],
+  ['pat-finger-coupler.mjs', ['ppgFootTimes', 'ppgFiducialTimes']],
+  ['pat-literature-spec.mjs', ['ppgFootTimes']],
+  ['pat-matchrate-strict.mjs', ['ppgFootTimes']],
+  ['pat-mode-posture.mjs', ['ppgFootTimes']],
+  ['pat-residual-structure.mjs', ['ppgFootTimes']],
+  ['pat-window-oracle.mjs', ['ppgFootTimes']]
+]) {
+  const src = readFileSync(join(here, '..', 'tools', f), 'utf8');
+  ok(/import \{ readRunsSidecar, validityLine \} from '\.\/trio-fold-validity\.mjs';/.test(src), `${f} imports the shared reader`);
+  ok(/const runsOf = \(streamPath, stream\) => readRunsSidecar\(streamPath, stream, \{ tally: VALIDITY \}\)\.runsText;/.test(src), `${f} reads every sidecar through one tallying helper`);
+  ok(/validityLine\(VALIDITY\)/.test(src), `${f} prints the tally beside its own numbers`);
+  ok(ownSidecarPaths(src).length === 0, `${f} builds no sidecar path of its own (${ownSidecarPaths(src).join(' | ').slice(0, 90)})`);
+  for (const callee of callees) {
+    const arity = callArity(src, callee);
+    ok(arity.length > 0, `${f} calls ${callee}, so this leg judges something`);
+    ok(
+      arity.every((n) => n >= 2),
+      `${f} hands ${callee} its sidecar at every call site (arity ${JSON.stringify(arity)})`
+    );
+  }
+}
+
+/* THE INDIRECTION, NAMED. `oracle-ppg-device-beats.mjs` reaches the extractor as
+   `(opts.ppgFootTimes || ppgFootTimes)(ppgText, …)`, where the name is never followed by `(`, so the
+   arity reader above sees no invocation at all and the row's grep saw none either. Its sidecar
+   rides `opts`, because `scoreNight` takes the TEXT and cannot name a sidecar from a path. */
+{
+  const src = readFileSync(join(here, '..', 'tools', 'oracle-ppg-device-beats.mjs'), 'utf8');
+  ok(callArity(src, 'ppgFootTimes').length === 0, 'CONTROL · the arity reader finds no `ppgFootTimes(` invocation here, which is why this leg exists');
+  ok(/\(opts\.ppgFootTimes \|\| ppgFootTimes\)\(ppgText, opts\.runsText\)/.test(src), 'the indirection hands the extractor the sidecar that rode in on `opts`');
+  ok(/opts\.runsText \? PPGDSP\.parsePPG\(ppgText, \{ runsText: opts\.runsText \}\) : PPGDSP\.parsePPG\(ppgText\)/.test(src), 'and its own parse takes the guarded ternary');
+  ok(/scoreNight\(PPGDSP, readFileSync\(fp, 'utf8'\), \{ runsText: runsOf\(fp, 'PPG'\) \}\)/.test(src), 'the caller that holds the path is the one that reads the sidecar');
 }
 
 if (fails.length) {
