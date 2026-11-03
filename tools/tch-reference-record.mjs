@@ -65,7 +65,7 @@ import { fileURLToPath } from 'node:url';
 import { BAND_ABS, BAND_REL, MIN_NIGHTS, PASS_FRAC, median, withinBand } from './tch-firmware-reference.mjs';
 import { isCliEntry } from './argv-guard.mjs';
 import { PRODUCER_COMMIT_NOTE } from './fold-generation.mjs';
-import { LEDGER_PATH, parseRows } from './residue-ids.mjs';
+import { LEDGER_PATH, PINNED_OPEN, parseRows } from './residue-ids.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(HERE, '..');
@@ -829,6 +829,22 @@ function selftest() {
       const real = classify(named);
       ok(real.absent.length === 0, 'every held-back field names a row this ledger carries — absent: ' + (real.absent.join(', ') || 'none'));
       ok(real.settled.length === 0, 'every held-back field names a row that is still OPEN — a settled row tracks nothing: ' + (real.settled.join(', ') || 'none'));
+      /* 🔴 THE OTHER DIRECTION: THE PIN HAS TO BE READABLE WHERE THE ROW IS PICKED UP. The legs
+         above hold a named row open, and a picker reading `residue-ids.mjs --open` sees a lead
+         saying the fix may have landed — for these rows it never can. `PINNED_OPEN` carries that
+         statement beside the row, so this leg holds the two lists together: a gap entry whose row
+         is not declared there would pin a row silently, which is the failure the row below names. */
+      const pinned = new Set(PINNED_OPEN.map((e) => e.row));
+      ok(pinned.size >= 2, 'ANTI-VACUITY · the pinned list carries entries (' + pinned.size + ')');
+      const unpublished = [...new Set(named.map(([, v]) => v.row))].filter((r) => !pinned.has(r));
+      ok(
+        unpublished.length === 0,
+        'every row these legs pin open is declared in residue-ids PINNED_OPEN, so a picker reads the pin beside the row — undeclared: ' + (unpublished.join(', ') || 'none')
+      );
+      ok(
+        [...new Set([['top.plant', { row: '1970-01-01-no-such-row' }]].map(([, v]) => v.row))].filter((r) => !pinned.has(r)).length === 1,
+        'CONTROL · the same read over a planted gap row reports it undeclared, so the leg above is not vacuous'
+      );
       const aSettled = rows.find((r) => r.state !== 'OPEN' && r.state !== '');
       ok(!!aSettled, 'ANTI-VACUITY · the ledger carries a settled row for the plant to borrow');
       const plant = classify([

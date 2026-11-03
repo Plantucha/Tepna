@@ -63,6 +63,31 @@ const Verdict = createRequire(import.meta.url)('../verdict.js');
 
 export const LEDGER_PATH = 'briefs/RESIDUE.md';
 
+/* 🔴 A LEAD SAYS "THE FIX MAY HAVE LANDED". For a row below it never can: another tool's check HOLDS
+   the row open, so a picker who closes it reds a gate in code the row itself never names. Measured
+   2026-11-03 over the 18 OPEN rows a later commit names — 17 say in their own PR's words that they
+   stay open, and these two are pinned. `tools/tch-reference-record.mjs` declares a
+   `PUBLISHED_FIELD_GAP` entry per provenance field its published records still lack, and its legs
+   assert that every held-back field names a row that is still OPEN, since a settled row tracks
+   nothing. So the pin is a property of the OTHER tool, and the list is DECLARED rather than swept:
+   a sweep would have to decide what a `row:` property means in code it does not own, which is the
+   reason that tool gives for keeping its own legs local. The drift guard sits there too — its
+   selftest asserts every gap row appears below, so a gap entry that goes away takes its pin with
+   it. A pin is not a reason to leave a defect unfixed: it says the REMEDY is not a state change. */
+export const PINNED_OPEN = [
+  {
+    row: '2026-10-20-the-published-tch-reference-figures-ride-the-mismatched-axis',
+    by: 'tools/tch-reference-record.mjs',
+    why: 'four PUBLISHED_FIELD_GAP entries name it, and a gap entry must name an OPEN row'
+  },
+  {
+    row: '2026-11-01-the-published-records-predate-the-producer-commit-note',
+    by: 'tools/tch-reference-record.mjs',
+    why: 'the producerCommitNote gap entry names it, so a close would orphan the gap it excuses'
+  }
+];
+const PINNED_BY_ROW = new Map(PINNED_OPEN.map((e) => [e.row, e]));
+
 /**
  * Pure core. Parses ledger rows into `{ id, n, key }`, where `key` is every cell EXCEPT the
  * state — the part the contract freezes once written.
@@ -719,6 +744,10 @@ export function pickupVerdict(drift, ctx) {
          correction and an unattributable one at once — so they never sum to `openCitedByRow`. */
       openCorrectedByRow: Number.isInteger(ctx.correctedBy) ? ctx.correctedBy : null,
       openCorrectionUnattributable: Number.isInteger(ctx.correctionUnattributable) ? ctx.correctionUnattributable : null,
+      /* Informational, and NOT gated on git or on a citing read: the pin is read from this tool's
+         own declared list, so it counts whatever the open set holds. A pinned row cannot be closed
+         without reding the check that names it, which is the one lead a picker must not chase. */
+      openPinnedByCheck: drift.openOnRef.filter((k) => PINNED_BY_ROW.has(k)).length,
       /* Part of the status, unlike every informational count above it. */
       unparsed: unreadable,
       behindCommits: ctx.behind,
@@ -868,6 +897,7 @@ function main() {
     for (const k of drift.openOnRef)
       process.stdout.write(
         `  ${k}${leads?.has(k) ? `  ← named by code: ${leads.get(k).join(', ')}` : ''}` +
+          `${PINNED_BY_ROW.has(k) ? `  ← PINNED OPEN by ${PINNED_BY_ROW.get(k).by}: ${PINNED_BY_ROW.get(k).why}` : ''}` +
           `${
             cites.has(k)
               ? `  ← cited by row: ${cites
@@ -883,6 +913,14 @@ function main() {
         `\nresidue-pickup: ${leads.size} of the ${drift.openOnRef.length} OPEN row(s) are named by a later commit that changed code. ` +
           'Read those PRs before you size the row: the fix may have landed. A lead is not a close.\n'
       );
+    {
+      const pinned = drift.openOnRef.filter((k) => PINNED_BY_ROW.has(k));
+      process.stdout.write(
+        `residue-pickup: ${pinned.length} of the ${drift.openOnRef.length} OPEN row(s) are PINNED OPEN by a check in ` +
+          'another tool, which holds the row to an OPEN state because something it excuses still points at it. ' +
+          'Closing one reds that check. Read the pin beside the row: the remedy there is never a state change.\n'
+      );
+    }
     process.stdout.write(
       `residue-pickup: ${cites.size} of the ${drift.openOnRef.length} OPEN row(s) are named by ANOTHER ROW. ` +
         'Read those rows too, including the ones that already read closed: a measurement that does not move a ' +
@@ -1278,6 +1316,30 @@ if (IS_CLI && process.argv.includes('--selftest')) {
     assert(pickupVerdict(d0, { behind: 0, base: 'b', commit: 'abc1234', namedByCode: 3 }).result.openNamedByCode === 3, 'the verdict carries the lead count');
     const pv0 = pickupVerdict(d0, { behind: 0, base: 'b', commit: 'abc1234' });
     assert(pv0.result.openNamedByCode === null && pv0.status === 'PASS', 'no code read is null, never 0, and a lead never moves the status');
+    /* THE PIN. Every leg below reads the SHIPPED list, never a fixture, because the list is the
+       claim: a pin that holds only in a fixture tells a picker nothing. */
+    assert(PINNED_OPEN.length >= 2, `ANTI-VACUITY · the pinned list carries entries (${PINNED_OPEN.length})`);
+    assert(
+      PINNED_OPEN.every((e) => KEY_PARSES.test(e.row) && /^tools\/.+\.mjs$/.test(e.by) && e.why.length > 20),
+      'every pin names a parseable row, the tool whose check holds it, and a why'
+    );
+    assert(new Set(PINNED_OPEN.map((e) => e.row)).size === PINNED_OPEN.length, 'no row is pinned twice');
+    const PIN = PINNED_OPEN[0].row;
+    const dPin = pickupDrift([row(PIN), row(A)].join('\n'), [row(PIN), row(A)].join('\n'));
+    assert(pickupVerdict(dPin, { behind: 0, base: 'b', commit: 'abc1234' }).result.openPinnedByCheck === 1, 'the verdict counts a pinned row in the open set');
+    assert(
+      pickupVerdict(d0, { behind: 0, base: 'b', commit: 'abc1234' }).result.openPinnedByCheck === 0,
+      'CONTROL · an open set holding no pinned row counts none, so the count reads the list and not the size'
+    );
+    assert(
+      pickupDrift([row(PIN, 'd', 'fixed #1')].join('\n'), [row(PIN, 'd', 'fixed #1')].join('\n')).openOnRef.length === 0 &&
+        pickupVerdict(pickupDrift([row(PIN, 'd', 'fixed #1')].join('\n'), [row(PIN, 'd', 'fixed #1')].join('\n')), {
+          behind: 0,
+          base: 'b',
+          commit: 'abc1234'
+        }).result.openPinnedByCheck === 0,
+      'a pinned row that is NOT open counts none here — this tool reports the pin, it does not enforce it'
+    );
   }
 
   /* THE LEDGER-INTERNAL READ — one plant per condition, and a control for each way it could
