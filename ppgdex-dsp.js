@@ -1754,14 +1754,45 @@
             ok: true,
             anchors: hostAx.n,
             totalMs: hostAx.totalMs,
-            ppm: hostAx.ppm,
+            /* ⚠️ A RATE MEASURED AGAINST A DRAWN COLUMN IS PUBLISHED AS `null`, NEVER AS A NUMBER.
+               Decision 2026-11-03 (Osprey, CLAUDE.md §7): row
+               2026-10-29-per-segment-model-leaves-fifty-of-sixty-five-ring-nights-impossible measured
+               that 50 of 65 folded ring nights keep a segment rate outside the ±50 ppm crystal bound,
+               worst 30 681 ppm, and left the remedy open between publishing `null` and publishing the
+               number labelled. §∅ settles it rather than taste: the input a RATE needs is a second
+               clock, a drawn column is not one, so the output reports the absence with a named reason.
+               ECGDex is the precedent in this repo — `stability` is null on a drawn axis because a
+               σ_y(τ) curve over an assumed rate describes the writer's arithmetic and not a crystal,
+               and a `ppm` over the same column is the same quantity one derivative down.
+               ⚠️ NULLED WHENEVER `drawn` IS NOT `false`, because an UNMEASURED verdict must not
+               collapse into "it is a clock" — the same absence the `axisDrawnReason` block above keeps
+               distinguishable. ⚠️ THE ARITHMETIC IS NOT DESTROYED: both figures stay under
+               `drawnColumn`, a name no consumer can mistake for a rate, so the census and
+               `tools/ring-rate-cause.mjs` still read what the old single axis said.
+               ⚠️ THE `fs` CORRECTION ABOVE IS UNCHANGED, deliberately. The Clock Contract allows a
+               drawn column to be placed on the host timeline and forbids SPENDING it as a second
+               clock; refusing the division would leave every sample on the assumed rate, which
+               `RING-TIMEBASE-ECG-TEST-2026-10-29-BRIEF.md` rates worse on 18 of 22 QC-PASS nights.
+               This stops the QUOTE, not the correction. */
+            ppm: axisSynthetic === false ? hostAx.ppm : null,
+            ppmReason:
+              axisSynthetic === false
+                ? undefined
+                : axisSynthetic == null
+                  ? 'whether the device column is a clock is UNMEASURED, so no rate is published against it'
+                  : 'drawn-column — the device column is host-synthesised, so a rate against it describes a counter with no oscillator',
+            /* Present only on a drawn or unmeasured column, so a real-axis export stays byte-identical
+               (the `anchorsDroppedPreResync` discipline below). These are DIAGNOSTICS and the only
+               place the old single-axis figures survive; a consumer that applies one as a rate has
+               undone the decision above. */
+            drawnColumn: axisSynthetic === false ? undefined : { ppm: hostAx.ppm, spanPpm: hostAx.spanPpm === undefined ? null : hostAx.spanPpm },
             /* §7's two companions for the `ppm` above, forwarded from the spine. THIS BLOCK RENAMES, so a
                field the spine adds and this list omits is dropped — the trap that already ate `stability`
                here once, and the reason 173 committed exports of this node quote a rate with an anchor
                count and no span anywhere in the block. `spanPpm` is the same divergence ratio before the
                width-21 running median; read `ppm` WITH it, and apply neither as a rate. */
             spanMs: hostAx.spanMs,
-            spanPpm: hostAx.spanPpm,
+            spanPpm: axisSynthetic === false ? hostAx.spanPpm : null,
             /* THE SEGMENT MODEL'S FLATNESS, forwarded so the export's `rate` can apply this node's own
                last floor; `axisFlat` above carries the reduction and the row. `segments` is the count
                the verdict was reduced over, which is how a reader tells an IMPLIED single segment from
@@ -7199,14 +7230,32 @@
            and never false. `anchors` below already carries the spine's `n`. */
         ok: r.hostAxis.ok == null ? null : r.hostAxis.ok === true,
         anchors: r.hostAxis.anchors != null ? r.hostAxis.anchors : null,
-        ppm: nz(r.hostAxis.ppm),
+        /* ⚠️ THE SAME DECISION AS THE PARSE LAYER, APPLIED HERE TOO, because this list is handed a RAW
+           `DexClock.hostAxis` by this node's own suite and by any caller holding an axis rather than
+           a parse — and a raw spine axis carries the number with no parse-layer rule in front of it.
+           `rate` one block down already reads 'unknown' over a drawn column; until now the block
+           published a figure beside that verdict, so the two disagreed in one object. `haDrawn` is
+           the tri-state read over BOTH spellings above, so an unmeasured verdict nulls as well
+           (§∅: never answer an unknown with a rate). */
+        ppm: haDrawn === false ? nz(r.hostAxis.ppm) : null,
+        ppmReason:
+          haDrawn === false
+            ? undefined
+            : r.hostAxis.ppmReason ||
+              (haDrawn === true
+                ? 'drawn-column — the device column is host-synthesised, so a rate against it describes a counter with no oscillator'
+                : 'whether the device column is a clock is UNMEASURED, so no rate is published against it'),
+        /* The old single-axis figures, under a name no consumer can apply as a rate. Forwarded when
+           the parse layer wrote them and reconstructed from the raw spine object when it did not, so
+           the diagnostic survives both callers. */
+        drawnColumn: haDrawn === false ? undefined : r.hostAxis.drawnColumn || { ppm: nz(r.hostAxis.ppm), spanPpm: nz(r.hostAxis.spanPpm) },
         /* §7's two companions for a quoted rate, and this block published neither. `spanMs` is the
            span the ppm was measured over — 173 committed exports of this node quote a ppm with
            `anchors` and no span. `spanPpm` is the same ratio before the running median, so the pair
            says how much of the quote the smoother's last window set. Both come from the spine; see
            `clock.js` beside `spanPpm:` for why neither is the rate to apply. */
         spanMs: nz(r.hostAxis.spanMs),
-        spanPpm: nz(r.hostAxis.spanPpm),
+        spanPpm: haDrawn === false ? nz(r.hostAxis.spanPpm) : null,
         /* THE SEGMENT MODEL'S LAST FLOOR, and the two numbers that decided it (§7: a verdict travels
            with the figures behind it). `flat` is a three-valued AND over the segments, computed at the
            parse layer where the segmentation lives; `segments` is the count it was reduced over, so an
