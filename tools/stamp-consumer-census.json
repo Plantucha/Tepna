@@ -308,6 +308,14 @@
       ],
       "anchored": null,
       "note": "READ 2026-11-02 (Heron), the day the file entered the tree. `RE_PSL` admits a Polar Sensor Logger filename, drops the serial in group 2, and carries the 14-digit group 3 onto the row as the string `stamp`. No site here converts those digits, and no consumer reads the field: every instant in this tool comes from `DexClock.parseTimestamp` over the `Phone timestamp` COLUMN. Same accept test as `tools/ring-offset-census.mjs`, with the digits also kept as a label."
+    },
+    "tools/ecg-template-xcorr-residual.mjs": {
+      "reads": [
+        "identifier"
+      ],
+      "anchored": null,
+      "readBy": "Osprey",
+      "note": "`nightStampOf` at 567 slices the 14-digit run itself and returns `YYYY-MM-DD`, which keys the night and bounds the window by string order in `inWindow` at 596. The file computes no instant at all — no `Date.UTC`, no `strptime`, no owner call — so §∅ leaves `anchored` null. The reader range-validates the components and returns null for an undated name, so an undated capture is excluded by name rather than dated into the window."
     }
   }
 }

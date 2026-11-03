@@ -35,6 +35,9 @@ const ARGV_SPEC = { valued: ['--max-rounds'], boolean: ['--selftest'], positiona
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(join(HERE, '..'));
+/* The listing cap. It is named because the truncation notice quotes it and a selftest asserts the
+   notice: a literal in three places is how the notice and the cap come apart. */
+const LIST_CAP = 80;
 const OLLAMA = 'http://127.0.0.1:11434';
 const MODEL = 'qwen3-coder:30b';
 const RESULT_CAP = 9000; // chars per tool result handed back to the model
@@ -100,17 +103,23 @@ export function runTool(name, args) {
     if (name === 'list_dir') {
       const p = jail(args.path || '.');
       if (!p) return 'REFUSED: path escapes the repo';
-      return readdirSync(p)
-        .slice(0, 80)
-        .map((f) => {
-          try {
-            const st = statSync(join(p, f));
-            return `${st.isDirectory() ? 'd' : '-'} ${st.size}\t${f}`;
-          } catch {
-            return '? ?\t' + f;
-          }
-        })
-        .join('\n');
+      const all = readdirSync(p);
+      const rows = all.slice(0, LIST_CAP).map((f) => {
+        try {
+          const st = statSync(join(p, f));
+          return `${st.isDirectory() ? 'd' : '-'} ${st.size}\t${f}`;
+        } catch {
+          return '? ?\t' + f;
+        }
+      });
+      /* ∅ A TRUNCATED LISTING THAT LOOKS COMPLETE REPORTS SOMETHING IT NEVER SHOWED. The cap hid 269
+         of the 349 entries in `tools/` and the reader — a model deciding whether a file exists — read
+         the remainder as absence. The count of what was cut travels with the listing.
+         Measured 2026-11-03: `doc-search.mjs` was entry 80 of `tools/`, so the selftest leg asserting
+         it appears passed on the cap's last slot, and ONE new file in `tools/` reded it. */
+      const hidden = all.length - rows.length;
+      if (hidden > 0) rows.push(`… ${hidden} more entr${hidden === 1 ? 'y' : 'ies'} not shown (cap ${LIST_CAP})`);
+      return rows.join('\n');
     }
     return 'UNKNOWN TOOL: ' + name;
   } catch (e) {
@@ -246,7 +255,12 @@ function selftest() {
   ck('read_file: pages', runTool('read_file', { path: 'CLAUDE.md', start_line: 50 }).includes('lines 50-'));
   ck('grep: finds fixed string', runTool('grep_repo', { text: 'DEFAULT_FLEET' }).includes('mutation-crawl'));
   ck('list: jailed', runTool('list_dir', { path: '/etc' }).startsWith('REFUSED'));
-  ck('list: works', runTool('list_dir', { path: 'tools' }).includes('doc-search.mjs'));
+  /* 🔴 THE LEG USED TO NAME `doc-search.mjs`, WHICH MADE AN UNRELATED FILE'S ALPHABETICAL POSITION
+     LOAD-BEARING. It was entry 80 of `tools/`, the cap's last slot, so adding any file that sorts
+     before it reded this leg with nothing wrong in the tool. The listing's SHAPE is the contract, and
+     the truncation notice is the part a reader cannot do without. */
+  ck('list: works', /^[d-] \d+\t\S/m.test(runTool('list_dir', { path: 'tools' })));
+  ck('list: a truncated listing says what it hid', /more entr(?:y|ies) not shown \(cap \d+\)/.test(runTool('list_dir', { path: 'tools' })));
   ck('unknown tool named', runTool('nope', {}).startsWith('UNKNOWN'));
   ck('distill: nonempty', distilledClaudeMd().length > 200);
   ck('distill: clock contract present', distilledClaudeMd().includes('CLOCK CONTRACT'));

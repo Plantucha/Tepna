@@ -126,7 +126,18 @@
        night-folder sidecars, and `README-SIDECARS.txt` is the folder's sidecar key. None was listed, so on
        origin/main 9a9973bb `planIngest` made each one a one-file ECG group and `planIngestPpg` a PPG primary.
        Box census 2026-11-02, night folders holding each: 42 · 41 · 40 · 21. A README is never a waveform. */
-    if (/^(CPAP-INVENTORY|OXYLIFE|CLOCKSYNC|SESSIONDETECT|AS11CLOCK|WEDGEFIRE|MANIFEST|QC-SUMMARY|STARTS|PMDNEG|WORN)\./.test(u)) return true;
+    /* 2026-11-02 — the SAME defect a SIXTH time, and this time the list did not find them: a GENERATIVE
+       test did (`tests/dex-tests.js`, group "capture-host fixed-name artifacts are not waveforms"). It
+       derives the population off the last argument of every `os.path.join` in `capture-host/*.py` and
+       asks both classifiers, and two names answered with a primary kind. `ADAPTERHCI.csv` is written at
+       the capture root by `adapter_hci.py`, which declares itself "the `WEDGEFIRE.csv` shape" — and
+       `WEDGEFIRE` has been listed here since its own round of this defect, so its sibling was in scope
+       from the day it shipped. `NIGHT-REPORT.txt` is written to `<captures_root>/<night>/` by
+       `night_report.py`, and a `.txt` in a night folder is the exact shape the bare-name default reads
+       as a waveform. No census is quoted: the rig's corpus carries neither name, and the box is not
+       read from here. The grep the line below was built with is now the gate, so a seventh name reds a
+       test instead of waiting for a night folder. */
+    if (/^(ADAPTERHCI|CPAP-INVENTORY|OXYLIFE|CLOCKSYNC|SESSIONDETECT|AS11CLOCK|WEDGEFIRE|MANIFEST|NIGHT-REPORT|QC-SUMMARY|STARTS|PMDNEG|WORN)\./.test(u)) return true;
     if (/^README[-_.]/.test(u)) return true;
     /* SAMPLE-VALIDITY-ENVELOPE §3.2 (2026-09-25) — the SAME defect a FOURTH time, and this one was
        measured before it was fixed: the validity sidecars `<base>RUNS.txt` / `<base>SEAMS.txt`

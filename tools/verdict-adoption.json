@@ -3043,6 +3043,18 @@
    },
    "note": "holds every `consensusBeats` call site to a READABLE polarity decision. PASS = every site applies the decision, verified in the code. SHORTFALL = a site declares `@polarity-decision behind <row>` and the row holds the debt. FAIL = a site declares nothing, or its declaration disagrees with its code. Row 2026-11-01-the-consensus-polarity-wiring-reached-one-of-ten-callers."
   },
+  "tools/consensus-refpick-dissent.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/consensus-refpick-dissent.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "names WHICH rule picks the reference channel at every `consensusBeats` call site, and measures how often that pick lands on a polarity dissenter. The default census FAILs on a site whose pick rule the scan cannot name, because an unnamed rule is a pick nobody has checked. Under `--dir` the same gate reports the corpus figure. Row 2026-11-01-a-dissenting-led-can-win-the-consensus-reference-pick."
+  },
   "tools/mutation-equiv-source.mjs": {
    "bin": "decides",
    "status": "adopted",
@@ -3078,6 +3090,18 @@
     ]
    },
    "note": "row 2026-11-01-both-host-axis-statistics-walk-past-one-wild-anchor: the corpus measurement the row asks for before any spine change. Both diagnostics DexClock.hostAxis publishes are median-based - stackJitterMs is a half-IQR and maxStepMs walks the smoothed series - so one corrupt anchor moves neither, while the axis still interpolates linearly through it. Pre-stated criterion: streams_with_an_impossible_anchor_step is 0, against CK_RADIO_STEP_OVER_SPAN = 1, which lives in radio-clock.js and is read at run time rather than restated here; a ratio of 1 says the divergence between two neighbouring anchors reached the whole duration of the recording, which a continuous recording cannot do. The statistic is the module own anchorStep, called here and never re-derived, because the row finding is about what the spine publishes. Population = every Polar Sensor Logger stream in the corpus carrying a device clock column, which is the population every hostAxis consumer reads; Magpie prior measurement covered six radio sidecars over two nights. Reported beside the verdict as data and never as the thing judged: the spine own ok, stackJitterMs and maxStepMs per flagged stream, so a flagged stream the spine ACCEPTED is the row harm measured. A stream whose stamps do not parse is excluded and named, never a stream of zero anchors, and a ratio is null wherever the span is unmeasurable. The sample is synthetic and holds no night name or device serial."
+  },
+  "tools/ecg-template-xcorr-residual.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/ecg-template-xcorr-residual.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "gives the ppg-ecg-hrv paper's \u00a72.1 detector-validation residual a producer. Criterion is `carried_figure_relative_deviation` <= 0.5, pre-stated against the 0.244 ms the paper carries from Draft v2; the integer-peak arm is the CONTROL and is held against the \u0394/\u221a12 sample-grid bound, which is the only part of the published sentence that is a per-beat quantity. `segAggregateSdMs` rides in `result` as a DIAGNOSTIC and is never the criterion \u2014 a segment-aggregated residual is smaller by roughly \u221an and reads nothing about per-beat fiducial precision. scope: internal \u2014 one estimator held against a second estimator on the same ECG, not a second sensor"
   },
   "capture-host/alerts.py": {
    "bin": "word-only",

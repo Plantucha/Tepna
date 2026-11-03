@@ -703,6 +703,29 @@ function download(content, fname, type) {
 // at click time regardless of load order.
 if (window.DexActions)
   DexActions.registerAll({
+    // Hypnogram export (hypno-export.js): the lossless JSON, or the CPAP viewer's sleep-stage CSV.
+    hypnoExport: function (el) {
+      var n = window.allNights && window.allNights[el.dataset.night];
+      var hx = window.HypnoExport;
+      if (!n || !n.stager || !hx) return;
+      try {
+        var h = hx.fromIndexed(n.stager.stages, {
+          proba: n.stager.proba,
+          K: 4,
+          startMs: n.t0Ms,
+          epochSec: n.stager.epochSec,
+          source: { node: 'OxyDex', method: 'control net (loaded weights)', model: n.stager.model }
+        });
+        var csv = el.dataset.fmt === 'csv';
+        download(
+          csv ? hx.toViewerCsv(h) : JSON.stringify(hx.toJson(h), null, 2),
+          exportName({ node: 'OxyDex', t0Ms: n.t0Ms, kind: 'hypnogram', ext: csv ? 'csv' : 'json' }),
+          csv ? 'text/csv' : 'application/json;charset=utf-8'
+        );
+      } catch (e) {
+        window.alert('Hypnogram export: ' + e.message);
+      }
+    },
     setMode: function (el) {
       window.setMode(el.dataset.mode, el);
     },
