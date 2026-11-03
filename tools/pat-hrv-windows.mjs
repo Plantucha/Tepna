@@ -37,6 +37,7 @@ import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { NIGHT_RE, notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
+import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DexBuild = createRequire(import.meta.url)(path.join(ROOT, 'tools', 'build-core.js'));
@@ -161,15 +162,31 @@ function spanOf(file) {
     z = col(tail, true);
   return a != null && z != null ? { a, z, span: z - a } : null;
 }
+
+/* ── THE VALIDITY SIDECAR RIDES WITH THE STREAM ─────────────────────────────────────────────────────
+   Row 2026-10-17-sample-parsers-called-without-their-sidecar: this tool read a night's samples and
+   none of the box's `…RUNS.txt` validity, so a blanking run the box recorded reached the detectors
+   below as signal — a flat rail is a plausible diastole, and no reader could tell it from one.
+   `readRunsSidecar` names which of four things happened per stream, and the tally prints beside the
+   numbers: §∅, reduced coverage annotates, and an ABSENT sidecar is validity UNKNOWN for that
+   stream, never a clean one. Most of this corpus predates the writer, so most streams read `absent`
+   and parse exactly as they did before. */
+const VALIDITY = {};
+const runsOf = (streamPath, stream) => readRunsSidecar(streamPath, stream, { tally: VALIDITY }).runsText;
+
 function beatsECG(file) {
-  const rec = ECG.parseECG(fs.readFileSync(file, 'utf8'));
+  const runsText = runsOf(file, 'ECG');
+  const text = fs.readFileSync(file, 'utf8');
+  const rec = runsText ? ECG.parseECG(text, { runsText }) : ECG.parseECG(text);
   if (!rec || !rec.int16 || !rec.int16.length || !rec.t0Ms) return null;
   const idx = ECG.detectPeaks(rec.int16, ECG.bandpass(rec.int16, rec.fs), rec.fs);
   if (!idx || idx.length < 100) return null;
   return idx.map((i) => rec.t0Ms + (i / rec.fs) * 1000);
 }
 function beatsPPG(file) {
-  const rec = PPG.parsePPG(fs.readFileSync(file, 'utf8'));
+  const runsText = runsOf(file, 'PPG');
+  const text = fs.readFileSync(file, 'utf8');
+  const rec = runsText ? PPG.parsePPG(text, { runsText }) : PPG.parsePPG(text);
   if (!rec) return null;
   const an = PPG.analyze(rec);
   if (!an || !an.tt || an.tt.length < 100) return null;
@@ -324,6 +341,8 @@ console.log(
 const rl = ruleLine(population);
 if (rl) console.log('  ' + rl);
 console.log(`  selected but not scored: ${unscored.length ? unscored.join(', ') : 'none'}`);
+const validity = validityLine(VALIDITY);
+if (validity) console.log('  ' + validity);
 console.log('POPULATION ' + JSON.stringify(population));
 
 /* The sample the adoption gate reads: two identical fabricated snapshots, so the object is complete

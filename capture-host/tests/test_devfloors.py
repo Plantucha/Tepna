@@ -63,26 +63,105 @@ def test_an_absent_distribution_is_ABSENT_and_never_MET():
     assert rows[0][3] is None and rows[0][4] == D.ABSENT
 
 
-@pytest.mark.parametrize("floor,installed", [("1.0", "1.0rc1"), ("1.0b1", "1.0"), ("1.0b1", "2.0rc1")])
+def _key(version: str) -> tuple[tuple[int, ...], tuple[int, ...]]:
+    """The key with the refusal ruled out, so two of them can be ORDERED under mypy.
+
+    A test that writes `D.version_key(a) < D.version_key(b)` is comparing two optionals, and the
+    refusal is the case an ordering test must not silently carry."""
+    key = D.version_key(version)
+    assert key is not None, version
+    return key
+
+
+@pytest.mark.parametrize(
+    "floor,installed",
+    [("1.0", "1!2.0"), ("1.0+abc", "1.0"), ("1.0", "1.0.rev1"), ("1.0alpha1", "2.0"), ("1.0", "1.0a")],
+)
 def test_a_version_this_module_cannot_parse_is_NOT_COMPARABLE(floor, installed):
-    """§∅ in the comparison position: a guess at `1.0rc1` would be a measurement nobody made."""
+    """§∅ in the comparison position: a guess at an epoch would be a measurement nobody made.
+
+    RE-ANCHORED 2026-11-02 onto what STAYS a refusal. This read `("1.0", "1.0rc1")`, `("1.0b1",
+    "1.0")` and `("1.0b1", "2.0rc1")` until the module learned PEP 440's pre-release order, and all
+    three are comparable now (row `2026-11-02-the-floor-check-refuses-a-pre-release-it-could-order`).
+    An epoch, a local version, a `.revN` post spelling, the unnormalised word `alpha` and a numberless
+    `1.0a` are what this module still declines to order."""
     assert D.version_key(installed) is None or D.version_key(floor) is None
     assert D.compare_floor(">=", floor, installed) == D.NOT_COMPARABLE
 
 
-def test_version_key_reads_a_numeric_version_and_refuses_the_rest():
-    assert D.version_key("0.11.0.1") == ((0, 11, 0, 1), 0)
-    assert D.version_key("6.165.10") == ((6, 165, 10), 0)
-    assert D.version_key("1.0.dev0") is None
+def test_version_key_reads_a_release_and_the_pep440_suffix_after_it():
+    """MOVED DELIBERATELY 2026-11-02. The second half of the key was one post number; it is now the
+    five-field suffix `(pre_rank, pre_number, post, dev_rank, dev_number)`, so `1.0.dev0` reads
+    instead of refusing.
+
+    THE LITERALS ARE THE POINT. Written through `D.PRE_ABSENT` and friends, this test would pass with
+    any sentinel that keeps the same order, and the sentinels are the one thing a reader of a stored
+    key has to take on trust."""
+    assert D.version_key("0.11.0.1") == ((0, 11, 0, 1), (3, 0, -1, 1, 0))
+    assert D.version_key("6.165.10") == ((6, 165, 10), (3, 0, -1, 1, 0))
+    assert D.version_key("1.0.dev0") == ((1, 0), (-1, 0, -1, 0, 0))
+    assert D.version_key("1.0a2") == ((1, 0), (0, 2, -1, 1, 0))
+    assert D.version_key("1.0b7") == ((1, 0), (1, 7, -1, 1, 0))
+    assert D.version_key("1.0rc1") == ((1, 0), (2, 1, -1, 1, 0))
+    assert D.version_key("1.0a1.dev3") == ((1, 0), (0, 1, -1, 0, 3))
+    assert D.version_key("1.0.post1.dev2") == ((1, 0), (3, 0, 1, 0, 2))
+
+
+def test_the_key_orders_a_pre_release_the_way_pep440_does():
+    """`1.0.dev1 < 1.0a1 < 1.0b1 < 1.0rc1 < 1.0 < 1.0.post1`, which is PEP 440's own ladder.
+
+    A BARE DEV RELEASE IS THE ONE INVERSION. Every other version with no pre-release segment sorts
+    ABOVE every pre-release of its release, so absence is the HIGHEST pre-release rank — but `1.0.dev1`
+    carries no pre-release and still sorts below `1.0a1`, so that case takes the lowest rank instead.
+    Checked against `packaging.version.Version` over all 342 ordered pairs of 19 versions on
+    2026-11-02: zero disagreements."""
+    ladder = ["1.0.dev1", "1.0a1", "1.0a2", "1.0b1", "1.0rc1", "1.0", "1.0.post1", "1.0.post2"]
+    keys = [_key(version) for version in ladder]
+    assert keys == sorted(keys)
+    assert len(set(keys)) == len(keys)
+
+
+def test_a_dev_release_sorts_below_the_pre_or_post_release_it_leads_up_to():
+    """The dev segment is read beside a pre-release and beside a post-release, not only alone, and it
+    lowers whichever one it is attached to."""
+    assert _key("1.0a1.dev1") < _key("1.0a1")
+    assert _key("1.0.post1.dev2") < _key("1.0.post1")
+    assert _key("1.0") < _key("1.0.post1.dev2")
+    assert _key("1.0.dev1") < _key("1.0a1")
+
+
+def test_a_pre_release_is_BELOW_the_release_it_precedes_rather_than_NOT_COMPARABLE():
+    """THE ROW ITSELF, `2026-11-02-the-floor-check-refuses-a-pre-release-it-could-order`: the three
+    pairs below read NOT_COMPARABLE, so an installed `9.2.0rc1` against the declared `pytest>=9.2.0`
+    reported that the comparison could not run — and one such row takes the whole advisory to rc 4,
+    which is the token for an unreadable version rather than for the shortfall it actually is.
+
+    A PIN IS STILL AN IDENTITY. `3.8.1rc1` is not `3.8.1`, and reading the order does not make a
+    release candidate the pinned artefact."""
+    assert D.compare_floor(">=", "1.0", "1.0rc1") == D.BELOW
+    assert D.compare_floor(">=", "1.0b1", "1.0") == D.MET
+    assert D.compare_floor(">=", "1.0b1", "2.0rc1") == D.MET
+    assert D.compare_floor("==", "3.8.1", "3.8.1rc1") == D.OFF_PIN
+    rows, _ = D.survey("pytest>=9.2.0\n", _lookup({"pytest": "9.2.0rc1"}))
+    assert rows[0][3] == "9.2.0rc1" and rows[0][4] == D.BELOW
+
+
+def test_a_dev_release_is_BELOW_the_version_it_leads_up_to():
+    """The same shortfall one segment further down, and the release before it is still MET: a dev
+    release of `0.17.3` is below that floor and above `0.17.2`."""
+    assert D.compare_floor(">=", "0.17.3", "0.17.3.dev1") == D.BELOW
+    assert D.compare_floor(">=", "0.17.2", "0.17.3.dev1") == D.MET
+    rows, _ = D.survey("ruff>=0.17.3\n", _lookup({"ruff": "0.17.3.dev1"}))
+    assert rows[0][4] == D.BELOW
 
 
 def test_a_post_release_is_read_and_its_number_is_not_a_release_segment():
     """`1.4.1.post1` sits ABOVE `1.4.1` in PEP 440 and BELOW the four-segment `0.11.0.1` shape this
     tree really declares, so the post number is a second field. Folding it into the release tuple
     would make `0.11.0.post1` and `0.11.0.1` the same version."""
-    assert D.version_key("1.4.1.post1") == ((1, 4, 1), 1)
+    assert D.version_key("1.4.1.post1") == ((1, 4, 1), (3, 0, 1, 1, 0))
     assert D.version_key("0.11.0.post1") != D.version_key("0.11.0.1")
-    assert D.version_key("1.4.1.post12") == ((1, 4, 1), 12)
+    assert D.version_key("1.4.1.post12") == ((1, 4, 1), (3, 0, 12, 1, 0))
 
 
 def test_a_post_release_meets_the_floor_its_release_meets():
@@ -100,10 +179,37 @@ def test_a_release_is_below_a_post_release_floor_and_a_pin_excludes_one():
     assert D.compare_floor("==", "3.8.1", "3.8.1.post1") == D.OFF_PIN
 
 
-@pytest.mark.parametrize("version", ["9.2.0rc1", "1.0.dev0", ".post1", "1.0.post1.dev0", "1.0.postX"])
-def test_only_the_normalised_post_spelling_is_read_and_the_rest_stay_absent(version):
-    """One suffix, read where PEP 440 is unambiguous. A pre-release, a dev release and an unnormalised
-    post spelling still return None, so this module never invents an ordering (§∅)."""
+@pytest.mark.parametrize(
+    "version",
+    [
+        "1.0alpha1",
+        "1.0beta2",
+        "1.0c1",
+        "1.0pre1",
+        "1.0preview1",
+        "1.0.rev1",
+        "1.0.r1",
+        "1.0-1",
+        "1.0a",
+        "1.0.dev",
+        ".post1",
+        "1.0.postX",
+        "1!2.0",
+        "1.0+abc",
+        "v1.0",
+        "1.0.",
+    ],
+)
+def test_only_the_normalised_spellings_are_read_and_the_rest_stay_absent(version):
+    """The suffixes are read where PEP 440 is unambiguous AND normalised. Every spelling here is
+    either a second way to write a segment this module already reads, or a segment whose comparison no
+    floor in this tree has needed, so all of them return None and the module invents no ordering (§∅).
+
+    WIDENED 2026-11-02 from the post spelling alone. `9.2.0rc1`, `1.0.dev0` and `1.0.post1.dev0` used
+    to sit in this list and are read now, so what is left is the boundary itself: the words `alpha`,
+    `beta`, `c`, `pre` and `preview`, the `.revN` and `.rN` post spellings, an implicit `-N`
+    post-release, a pre-release or dev segment with no number, a suffix with no release, an epoch, a
+    local version and a `v` prefix."""
     assert D.version_key(version) is None
 
 

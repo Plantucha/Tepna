@@ -10,7 +10,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { mergeBlankingSpans, mergePinnedSpans, runsSidecarPath } from '../tools/trio-fold-validity.mjs';
+import { VALIDITY_STATES, mergeBlankingSpans, mergePinnedSpans, readRunsSidecar, runsSidecarPath, validityLine } from '../tools/trio-fold-validity.mjs';
 
 let pass = 0;
 const fails = [];
@@ -113,6 +113,67 @@ same(
   'after a fragment of unknown length a pinned span is dropped and counted'
 );
 
+/* ── THE SIDECAR READ, AND WHICH OF FOUR THINGS HAPPENED ──────────────────────────────────────────
+   Row 2026-10-17-sample-parsers-called-without-their-sidecar. The states are not interchangeable: an
+   ABSENT sidecar is validity UNKNOWN for that stream, while an EMPTY one is informative, because its
+   header states what was looked for. A reader that answered `''` for both would hand every consumer
+   a clean stream for a night nothing was measured on. `opts.io` plants all four with no disk. */
+const planted = (map) => ({
+  readFileSync(path) {
+    if (!(path in map)) {
+      const e = new Error(`ENOENT: ${path}`);
+      e.code = 'ENOENT';
+      throw e;
+    }
+    const v = map[path];
+    if (typeof v !== 'string') {
+      const e = new Error('permission denied');
+      e.code = 'EACCES';
+      throw e;
+    }
+    return v;
+  }
+});
+const PPG_PATH = '/n/Polar_VeritySense_0C301E3F_20261006190137_PPG.txt';
+const PPG_RUNS = '/n/Polar_VeritySense_0C301E3F_20261006190137_PPGRUNS.txt';
+
+let v = readRunsSidecar(PPG_PATH, 'PPG', { io: planted({ [PPG_RUNS]: '# stream=ppg min_run=200\nPhone timestamp;stream\n' }) });
+same([v.state, v.path, v.stream, typeof v.runsText, v.reason], ['read', PPG_RUNS, 'PPG', 'string', null], 'a readable sidecar reads, and names no reason');
+v = readRunsSidecar(PPG_PATH, 'PPG', { io: planted({ [PPG_RUNS]: '' }) });
+same([v.state, v.runsText], ['read', ''], 'an EMPTY sidecar is READ — its header states what was looked for');
+v = readRunsSidecar(PPG_PATH, 'PPG', { io: planted({}) });
+same([v.state, v.runsText], ['absent', null], 'a missing sidecar is ABSENT with NO text — an empty string would read as a clean stream');
+ok(v.reason.includes(PPG_RUNS) && /UNKNOWN/.test(v.reason), `the absent reason names the path and says UNKNOWN: ${v.reason}`);
+v = readRunsSidecar(PPG_PATH, 'PPG', { io: planted({ [PPG_RUNS]: 7 }) });
+same([v.state, v.runsText], ['unreadable', null], 'a sidecar that will not open is UNREADABLE, never absent');
+ok(/EACCES/.test(v.reason), `the unreadable reason carries the error code: ${v.reason}`);
+v = readRunsSidecar('/n/x_PPG2W.txt', 'PPG', { io: planted({}) });
+same([v.state, v.path, v.runsText], ['unnamed', null, null], 'a path that yields no sidecar name reads nothing and says so');
+let reads = 0;
+readRunsSidecar('/n/x_PPG2W.txt', 'PPG', {
+  io: {
+    readFileSync() {
+      reads++;
+      return '';
+    }
+  }
+});
+same(reads, 0, 'an unnamed path is never read — a guessed name is worse than no answer');
+same(readRunsSidecar('/nonexistent-tepna-test-dir/x_PPG.txt', 'PPG').state, 'absent', 'with no planted io the default node reader answers');
+
+/* ── THE TALLY A TOOL PRINTS BESIDE ITS NUMBERS ── */
+const tally = {};
+readRunsSidecar(PPG_PATH, 'PPG', { io: planted({}), tally });
+readRunsSidecar(PPG_PATH, 'PPG', { io: planted({}), tally });
+readRunsSidecar(PPG_PATH, 'PPG', { io: planted({ [PPG_RUNS]: 'x' }), tally });
+same([tally.read, tally.absent, tally.unreadable, tally.unnamed], [1, 2, undefined, undefined], 'the tally counts each state by its own name');
+same(VALIDITY_STATES.slice(), ['read', 'absent', 'unreadable', 'unnamed'], 'the four states are stated in print order');
+ok(validityLine(tally).startsWith('validity sidecars: 1 read \u00b7 2 absent \u00b7 0 unreadable \u00b7 0 unnamed'), `the line prints every state: ${validityLine(tally)}`);
+ok(/UNKNOWN/.test(validityLine(tally)), 'the line says what an absent sidecar means for the numbers beside it');
+same(validityLine({}), null, 'an empty tally prints nothing — four zeros read exactly like a sweep where every sidecar was there');
+same(validityLine(null), null, 'no tally prints nothing');
+same(validityLine({ absent: 'two' }), null, 'a non-numeric count is no count');
+
 /* ── THE FOLD CALLS IT ── */
 const here = dirname(fileURLToPath(import.meta.url));
 const tb = readFileSync(join(here, '..', 'tools', 'trio-batch.mjs'), 'utf8');
@@ -126,6 +187,31 @@ ok(
   (tb.match(/PpgDex\.parsePPG\(readFileSync\(f\.full, 'utf8'\), \{ runsText: readRuns\(f\.full, 'PPG'\) \}\)/g) || []).length === 2,
   'the fold hands _PPGRUNS.txt to both PPG parses (Verity and ring)'
 );
+
+/* ── AND THE EIGHT PAT TOOLS CALL IT ───────────────────────────────────────────────────────────────
+   The per-call arithmetic lives in `tests/dex-tests.js` ("SAMPLE-VALIDITY-ENVELOPE done-when 4"),
+   which pins how many call sites under `tools/` still pass no sidecar. These legs pin the OTHER half
+   for the eight tools this slice migrated: each reads through the shared reader rather than a
+   hand-rolled path, counts what it read, and prints the tally beside its own numbers. A tool that
+   passes the sidecar and reports nothing leaves a reader unable to tell a measured night from an
+   unmeasured one. */
+for (const f of [
+  'pat-axis-leg-audit.mjs',
+  'pat-fiducial-jitter.mjs',
+  'pat-host-offset.mjs',
+  'pat-hrv-windows.mjs',
+  'pat-per-led.mjs',
+  'pat-ppg-ppg-control.mjs',
+  'pat-three-corner.mjs',
+  'pat-window-scaling.mjs'
+]) {
+  const src = readFileSync(join(here, '..', 'tools', f), 'utf8');
+  ok(/import \{ readRunsSidecar, validityLine \} from '\.\/trio-fold-validity\.mjs';/.test(src), `${f} imports the shared reader`);
+  ok(/const runsOf = \(streamPath, stream\) => readRunsSidecar\(streamPath, stream, \{ tally: VALIDITY \}\)\.runsText;/.test(src), `${f} reads every sidecar through one tallying helper`);
+  ok(/validityLine\(VALIDITY\)/.test(src), `${f} prints the tally beside its own numbers`);
+  ok(/runsText \? [\w$.]+\(\w+, \{ runsText \}\) :/.test(src) || /\{ runsText: \w+ \}\) :/.test(src), `${f} parses through the guarded ternary, so a stream with no sidecar parses as it did`);
+  ok(!/RUNS\.txt'/.test(src), `${f} spells no sidecar path of its own`);
+}
 
 if (fails.length) {
   console.error(`trio-fold-validity: ${fails.length} FAILED of ${pass + fails.length}`);

@@ -810,8 +810,15 @@ def test_no_test_executes_a_deploy_script_that_mutates_host_state_unguarded():
     #     fixture SKIPS when euid == 0;
     #   • tepna-update.sh reaches it only through TEPNA_SYSFILES_SH, which test_vigil_update.py's
     #     `_run()` points at a tmp_path stub, absent unless a test writes it.
+    # deploy/tepna-watchdog.sh added 2026-11-03 (test_tepna_watchdog_sh.py) — the cron watchdog, which
+    # restarts the daemon or the radio through the NOPASSWD helper. The confirmation:
+    #   • its only privileged call is `sudo -n "$RESTART"`; `_run()` stubs `sudo` on PATH and points
+    #     TEPNA_RESTART at a path that does not exist, so no test reaches the real helper;
+    #   • `systemctl` and `sleep` are stubbed on PATH; it only ever calls `systemctl is-active`;
+    #   • every file it writes is under TEPNA_CAPTURES, which `_run()` sets into tmp_path.
     assert executed <= {
         "check-system-files.sh",
+        "tepna-watchdog.sh",
         "sync-apps.sh",
         "sse-frames.sh",
         "enable-cpap-wifi.sh",

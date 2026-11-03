@@ -53,6 +53,7 @@ import vm from 'node:vm';
 import { legacyMatchRate, strictMatchRate, circShift, rawLags } from './pat-matchrate-strict.mjs';
 import { isCliEntry } from './argv-guard.mjs';
 import { populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
+import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
 
 const require = createRequire(import.meta.url);
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -168,15 +169,28 @@ function hostCorrector(axis, devStartMs) {
   return (devMs) => axis.correctionAt(devMs) - c0;
 }
 
-function ecgBeats(text) {
-  const rec = ECGDSP.parseECG(text);
+/* ── THE VALIDITY SIDECAR RIDES WITH THE STREAM ─────────────────────────────────────────────────────
+   Row 2026-10-17-sample-parsers-called-without-their-sidecar: this tool read a night's samples and
+   none of the box's `…RUNS.txt` validity, so a blanking run the box recorded reached the detectors
+   below as signal — a flat rail is a plausible diastole, and no reader could tell it from one.
+   `readRunsSidecar` names which of four things happened per stream, and the tally prints beside the
+   numbers: §∅, reduced coverage annotates, and an ABSENT sidecar is validity UNKNOWN for that
+   stream, never a clean one. Most of this corpus predates the writer, so most streams read `absent`
+   and parse exactly as they did before. */
+const VALIDITY = {};
+const runsOf = (streamPath, stream) => readRunsSidecar(streamPath, stream, { tally: VALIDITY }).runsText;
+
+/* `runsText` is OPTIONAL and LAST per §🧪, the shape `ppgFootTimes` already ships in this family, so
+   a caller that hands over none gets the record these helpers have always returned. */
+function ecgBeats(text, runsText) {
+  const rec = runsText ? ECGDSP.parseECG(text, { runsText }) : ECGDSP.parseECG(text);
   if (rec.t0Ms == null) throw new Error('ECG file carried no phone timestamp.');
   const bp = ECGDSP.bandpass(rec.int16, rec.fs);
   const peaks = ECGDSP.detectPeaks(rec.int16, bp, rec.fs);
   return { t0Ms: rec.t0Ms, fs: rec.fs, durSec: rec.durSec, idx: peaks };
 }
-function ppgFeet(text) {
-  const rec = PPGDSP.parsePPG(text);
+function ppgFeet(text, runsText) {
+  const rec = runsText ? PPGDSP.parsePPG(text, { runsText }) : PPGDSP.parsePPG(text);
   if (rec.t0Ms == null) throw new Error('PPG file carried no phone timestamp.');
   const per = rec.ch.map((c) => PPGDSP.detectChannel(c, rec.fs));
   let refIdx = 0,
@@ -438,8 +452,8 @@ if (IS_CLI && process.argv.includes('--verdict-sample')) {
       for (const pf of P) {
         let er, pr, ea, pa;
         try {
-          er = REF_MODE === 'ppg-ppg' ? ppgFeet(readFileSync(ef.f, 'utf8')) : ecgBeats(readFileSync(ef.f, 'utf8'));
-          pr = ppgFeet(readFileSync(pf.f, 'utf8'));
+          er = REF_MODE === 'ppg-ppg' ? ppgFeet(readFileSync(ef.f, 'utf8'), runsOf(ef.f, 'PPG')) : ecgBeats(readFileSync(ef.f, 'utf8'), runsOf(ef.f, 'ECG'));
+          pr = ppgFeet(readFileSync(pf.f, 'utf8'), runsOf(pf.f, 'PPG'));
         } catch (e) {
           // Reported, not swallowed — see the header. A `continue` here would let a detector failure
           // shrink the scored set silently, which reads as "these windows had no coupling".
@@ -600,6 +614,8 @@ if (IS_CLI && process.argv.includes('--verdict-sample')) {
     );
     const rl = ruleLine(population);
     if (rl) console.log(rl);
+    const validity = validityLine(VALIDITY);
+    if (validity) console.log(validity);
     console.log('POPULATION ' + JSON.stringify(population));
   }
 }

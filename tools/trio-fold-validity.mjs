@@ -23,12 +23,68 @@
    §∅: a span this merge cannot place is dropped and counted, never placed at a guessed index. An
    index off by a whole fragment points at real samples, and no reader can tell it from a right one. */
 
+import { readFileSync as nodeReadFileSync } from 'node:fs';
+
 /* The sidecar path for a raw stream path: `…_ECG.txt` → `…_ECGRUNS.txt`, `…_PPG.txt` → `…_PPGRUNS.txt`.
    `null` when the path does not end in `_<STREAM>.txt`, so a caller never reads a guessed name. */
 export function runsSidecarPath(streamPath, stream) {
   if (typeof streamPath !== 'string' || !/^[A-Z0-9]+$/.test(String(stream || ''))) return null;
   const tail = `_${stream}.txt`;
   return streamPath.endsWith(tail) ? `${streamPath.slice(0, -tail.length)}_${stream}RUNS.txt` : null;
+}
+
+/* ── READ THAT SIDECAR, AND NAME WHICH OF FOUR THINGS HAPPENED ─────────────────────────────────────
+   Row 2026-10-17-sample-parsers-called-without-their-sidecar: 62 call sites under `tools/` hand a
+   sample parser no `opts.runsText`, so a blanking run the box recorded reaches those readers as
+   signal. Four of them hand-rolled this read first, and each collapsed the states that matter
+   (`cvhr-edge-widen.mjs`, `ppg-autogain-e2.mjs`, `trio-batch.mjs`, `pat-pinned-move.mjs`).
+
+   ⚠ AN ABSENT SIDECAR IS "VALIDITY UNKNOWN", NEVER "NO ABSENCES"
+   (`briefs/SAMPLE-VALIDITY-ENVELOPE-2026-09-17-BRIEF.md`, the reader contract). The file is missing
+   for three non-equivalent reasons: the stream has no entry in the writer's `RUN_MIN_BY_STREAM`, the
+   capture predates the writer, or the path yields no sidecar name at all. An EMPTY sidecar is the one
+   state of the four that does say something, because its header states what was looked for. So this
+   reader names the state and never returns an empty string, which every consumer downstream would
+   read as a clean stream.
+
+   §∅: `runsText` is `null` in every state but `read`. A caller tests that one field and passes the
+   guarded `runsText ? parse(text, { runsText }) : parse(text)`, so an unmeasured stream parses
+   exactly as it did before this reader existed, and `state` says which of the four it was.
+
+   `opts.io` takes a `{ readFileSync }` stand-in, so a test plants all four states with no disk.
+   `opts.tally` counts them for `validityLine` below. */
+export function readRunsSidecar(streamPath, stream, opts) {
+  const io = opts && opts.io;
+  const read = io && typeof io.readFileSync === 'function' ? io.readFileSync : nodeReadFileSync;
+  const path = runsSidecarPath(streamPath, stream);
+  const out = (state, runsText, reason) => {
+    const tally = opts && opts.tally;
+    if (tally) tally[state] = (Number.isFinite(tally[state]) ? tally[state] : 0) + 1;
+    return { path, stream: String(stream || '') || null, runsText, state, reason };
+  };
+  if (!path) return out('unnamed', null, `no \`_${stream}RUNS.txt\` name follows from this path, so nothing was read — validity UNKNOWN`);
+  let text;
+  try {
+    text = read(path, 'utf8');
+  } catch (e) {
+    const code = (e && e.code) || '';
+    if (code === 'ENOENT') return out('absent', null, `${path} is not there — validity UNKNOWN for this stream, never "no blanking runs"`);
+    return out('unreadable', null, `${path} could not be read (${code || (e && e.message)}) — validity UNKNOWN for this stream`);
+  }
+  return out('read', text, null);
+}
+
+/* The four states, in the order `validityLine` prints them. */
+export const VALIDITY_STATES = Object.freeze(['read', 'absent', 'unreadable', 'unnamed']);
+
+/* One line a tool prints beside its own numbers, from the tally `readRunsSidecar` filled. `null` for
+   an empty tally: a run that read no stream states nothing, rather than four zeros that read exactly
+   like a sweep where every sidecar was there. */
+export function validityLine(tally) {
+  const t = tally || {};
+  const at = (k) => (Number.isFinite(t[k]) ? t[k] : 0);
+  if (!VALIDITY_STATES.reduce((a, k) => a + at(k), 0)) return null;
+  return `validity sidecars: ${VALIDITY_STATES.map((k) => `${at(k)} ${k}`).join(' \u00b7 ')} — an absent, unreadable or unnamed sidecar is validity UNKNOWN for that stream, never a clean one`;
 }
 
 /* Sample count of one fragment, or null when the fragment states none. */
