@@ -3,7 +3,7 @@ Copyright 2026 Michal Planicka
 SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** IN-PROGRESS · **Created:** 2026-10-28
+**Status:** DONE — 2026-11-02 · **Created:** 2026-10-28
 
 # Which code era should a night carry when the fold never stamped it?
 
@@ -87,8 +87,27 @@ a forced dry run at `4338e00cb`.
 ### So the ruling needs the owner once more
 
 Option 2 names the one tool that writes a stamp, and that tool cannot plan these nights. The ruling
-therefore stands unexecuted, and options 1, 3 and 4 still hold the 57 between them. This brief keeps
-the question open for that ranking.
+therefore stands unexecuted, and options 1, 3 and 4 still hold the 57 between them. The
+ranking below answers that.
+
+### The owner's ruling, 2026-11-02 — option 1, an honest absence
+
+The owner ranked the three remaining options and picked **option 1**. The 57 nights stay era-less,
+their readers annotate the gap, and nothing re-folds them. Kestrel relayed the ruling from the
+board.
+
+So the absence is the answer here, not a backlog. Option 3 would assert an era nobody measured, and
+§🧾 reads a number derived from the data it judges as `UNKNOWN`. Option 4 would destroy a derived
+result to avoid recording one. Option 1 keeps the number honest and costs nothing, which is why it
+ranks first over a population the three-leg readers never reach.
+
+The census stays as the tripwire. A night a later fold DOES plan still gains its stamp through
+`trio-batch.mjs`, so this ruling settles the question without shutting that door.
+
+Re-measured 2026-11-02 at `39435396d` with `node tools/fold-generation.mjs --era --json`: the
+verdict reads PASS over 147 nights, 90 stamped and 57 unstamped, and all 57 carry the reason
+`no-fold-record`. `folded-not-stamped` counts 0, so no night in the tracked corpus waits on a
+re-fold that could stamp it.
 
 ### A measured era and an asserted era read differently
 
@@ -143,7 +162,7 @@ remedy those two rows name cannot fire on the nine.
 - [x] A reader tells a measured era from an asserted one. **The fold ledger holds the difference.**
 - [x] The census names a reason per unstamped night. **`eraCensus.unstampedByReason`, 2026-11-01.**
 - [x] A measurement holds the nine unstamped trio-shaped nights against the stamp writer's own condition. **2026-11-01.**
-- [ ] The owner ranks 1, 3 and 4 over the 57, now that option 2 reaches none of them.
+- [x] The owner ranks 1, 3 and 4 over the 57. **Option 1, 2026-11-02 — an honest absence.**
 
 ## Why this is not a tool fix
 
