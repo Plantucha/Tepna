@@ -47,6 +47,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { refuseUnknownArgvOrExit, isCliEntry } from './argv-guard.mjs';
+import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const NOMINAL_MAX_MS = 2; // hostAxis `independent` threshold — see header
@@ -117,6 +118,17 @@ export function axisIsNominal(rel, n, fs) {
   return { nominal: maxDev * 1000 < NOMINAL_MAX_MS, maxDevMs: maxDev * 1000 };
 }
 
+/* ── THE VALIDITY SIDECAR RIDES WITH THE STREAM ─────────────────────────────────────────────────────
+   Row 2026-10-17-sample-parsers-called-without-their-sidecar: this tool read a night's samples and
+   none of the box's `…RUNS.txt` validity, so a blanking run the box recorded reached the detectors
+   below as signal — a flat rail is a plausible diastole, and no reader could tell it from one.
+   `readRunsSidecar` names which of four things happened per stream, and the tally prints beside the
+   numbers: §∅, reduced coverage annotates, and an ABSENT sidecar is validity UNKNOWN for that
+   stream, never a clean one. Most of this corpus predates the writer, so most streams read `absent`
+   and parse exactly as they did before. */
+const VALIDITY = {};
+const runsOf = (streamPath, stream) => readRunsSidecar(streamPath, stream, { tally: VALIDITY }).runsText;
+
 function selftest() {
   const fails = [];
   let ran = 0;
@@ -171,7 +183,9 @@ async function main() {
   for (const f of files) {
     let rec;
     try {
-      rec = PPGDSP.parsePPG(readFileSync(f, 'utf8'));
+      const text = readFileSync(f, 'utf8');
+      const runsText = runsOf(f, 'PPG');
+      rec = runsText ? PPGDSP.parsePPG(text, { runsText }) : PPGDSP.parsePPG(text);
     } catch (e) {
       console.log(`${f}: parse failed — ${e.message.slice(0, 70)}`);
       continue;
@@ -214,6 +228,8 @@ async function main() {
     const wb = rows.map((r) => r.a.withinBinMedianMs).filter(Number.isFinite);
     const taken = rows.reduce((s, r) => s + r.a.branchTaken, 0);
     const tot = rows.reduce((s, r) => s + r.a.n, 0);
+    const validity = validityLine(VALIDITY);
+    if (validity) console.log('  ' + validity);
     console.log(`\nAGGREGATE over ${rows.length} files: relSec branch taken ${taken}/${tot} feet · within-bin residual median-of-medians ${q(wb, 0.5).toFixed(2)} ms`);
   }
 }

@@ -59,6 +59,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { makeVerdict } from './verdict-emit.mjs';
 import { refuseUnknownArgvOrExit, isCliEntry } from './argv-guard.mjs';
+import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const BAND_MATERIAL_MS = 20;
@@ -194,6 +195,17 @@ export function tchTriple(pw, A, B, C) {
     .map(([k]) => k);
   return { v, negative: neg, ok: neg.length === 0 };
 }
+
+/* ── THE VALIDITY SIDECAR RIDES WITH THE STREAM ─────────────────────────────────────────────────────
+   Row 2026-10-17-sample-parsers-called-without-their-sidecar: this tool read a night's samples and
+   none of the box's `…RUNS.txt` validity, so a blanking run the box recorded reached the detectors
+   below as signal — a flat rail is a plausible diastole, and no reader could tell it from one.
+   `readRunsSidecar` names which of four things happened per stream, and the tally prints beside the
+   numbers: §∅, reduced coverage annotates, and an ABSENT sidecar is validity UNKNOWN for that
+   stream, never a clean one. Most of this corpus predates the writer, so most streams read `absent`
+   and parse exactly as they did before. */
+const VALIDITY = {};
+const runsOf = (streamPath, stream) => readRunsSidecar(streamPath, stream, { tally: VALIDITY }).runsText;
 
 function selftest() {
   const fails = [];
@@ -355,7 +367,9 @@ async function main() {
   for (const f of files) {
     let rec;
     try {
-      rec = PPGDSP.parsePPG(readFileSync(f, 'utf8'));
+      const text = readFileSync(f, 'utf8');
+      const runsText = runsOf(f, 'PPG');
+      rec = runsText ? PPGDSP.parsePPG(text, { runsText }) : PPGDSP.parsePPG(text);
     } catch {
       continue;
     }
@@ -398,6 +412,8 @@ async function main() {
   /* stratum key = NOMINAL rate (nearest Hz): measured effFs differs by hundredths file to file and
      each of those is one quantum, not a different one */
   const strata = strataOf(perFile);
+  const validity = validityLine(VALIDITY);
+  if (validity) console.log(validity);
   console.log(`beats ${all.length} across ${byFile.length} files · ${strata.length} sample-rate stratum/strata: ${strata.map((f) => f + ' Hz').join(', ')}`);
   if (strata.length > 1) console.log('⚠️  mixed sample rates — SDs are reported PER STRATUM and must not be compared across them (one sample differs between strata).');
   let pw = {};

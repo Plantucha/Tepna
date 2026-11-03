@@ -342,7 +342,13 @@ export function check(enumerated, manifest, validator, runner) {
    ⚠️ The population is the manifest's decides set, not every tool: the row's own instance
    (`tools/wt-done.mjs`, a queue action, `word-only`) sits outside it by design. Widening to every
    tools/*.mjs that declares a check is the owner's call, with a measured count (see the PR body). */
-export const UNGATED_RATCHET = new Set(['tools/pat-ppg-ppg-control.mjs', 'tools/pulse-agreement.mjs', 'tools/tch-estimator-bakeoff.mjs', 'tools/tch-per-epoch-rho.mjs']);
+/* 🔴 ONE ENTRY LEFT THIS SET BY A ROUTE THE COMMENT BELOW DID NOT ANTICIPATE (2026-11-02, Magpie).
+   `tools/pat-ppg-ppg-control.mjs` gained a test that NAMES it — `tests/trio-fold-validity-tests.mjs`
+   asserts its source reads the box validity sidecar through the shared reader — so `checkGated` read it
+   as GATED and reds until it leaves. That is a SOURCE-SHAPE test, not a test of the decision this tool
+   publishes, and the ratchet is one-way, so the debt record goes to the residue ledger rather than
+   vanishing: row `2026-11-02-a-ratchet-entry-left-on-a-source-shape-test`. */
+export const UNGATED_RATCHET = new Set(['tools/pulse-agreement.mjs', 'tools/tch-estimator-bakeoff.mjs', 'tools/tch-per-epoch-rho.mjs']);
 
 /* ⚠️ A FOURTH SPELLING — and the comment in `selftest-all.mjs` predicted it. That predicate matched
    `has('--selftest')` / `includes('--selftest')` / `indexOf('--selftest')` by CALL POSITION, which is
