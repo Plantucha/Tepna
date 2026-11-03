@@ -6,11 +6,13 @@
 
 import asyncio
 import datetime as dt
+import os
 import subprocess
 from types import SimpleNamespace
 
 from aiohttp.test_utils import TestClient, TestServer
 
+import heap_series
 import mem_series
 import telemetry
 import webmon
@@ -168,7 +170,8 @@ def _get(tmp_path, path):
 def test_api_mem_clamps_the_window_and_serves_the_series(tmp_path, monkeypatch):
     asked = []
     monkeypatch.setattr(webmon._mem, "read_mem_series", lambda h: asked.append(h) or {"segments": []})
-    assert _get(tmp_path, "/api/memory") == (200, {"segments": []})
+    status, body = _get(tmp_path, "/api/memory")
+    assert (status, body["segments"]) == (200, [])
     _get(tmp_path, "/api/memory?hours=500")
     _get(tmp_path, "/api/memory?hours=0")
     _get(tmp_path, "/api/memory?hours=abc")
@@ -179,3 +182,17 @@ def test_api_mem_says_unreadable_with_503_and_null_segments(tmp_path, monkeypatc
     monkeypatch.setattr(webmon._mem, "read_mem_series", lambda h: None)
     status, body = _get(tmp_path, "/api/memory")
     assert status == 503 and body["segments"] is None
+
+
+# Row 2026-09-25-heap-growth-is-json-retention-not-a-buffer-leak. The journal's RssAnon and the probe's
+# traced bytes reach the drawer in ONE response on ONE axis, because a drawer holding two responses
+# still owes the join — and the probe block says which absence it is when the probe never ran.
+def test_api_mem_carries_the_heap_probe_block_on_the_same_axis(tmp_path, monkeypatch):
+    monkeypatch.setattr(webmon._mem, "read_mem_series", lambda h: {"segments": []})
+    status, body = _get(tmp_path, "/api/memory")
+    assert status == 200
+    probe = body["probe"]
+    # Nothing armed the probe under this root, so the block is an ABSENCE with a reason — never [].
+    assert probe["file"]["state"] == "absent" and probe["points"] is None
+    assert probe["file"]["path"].endswith(os.path.join("captures", heap_series.PROBE_NAME))
+    assert probe["shapes"]["traced_bytes"] == "level"

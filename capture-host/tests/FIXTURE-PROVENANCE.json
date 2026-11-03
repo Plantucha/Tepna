@@ -338,6 +338,12 @@
       "source": "stamps and bytes built in the test; no provenance claim in the file",
       "sha256": null
     },
+    "test_heap_series.py": {
+      "class": "authored",
+      "kind": "constructed-stamps",
+      "source": "probe rows and stamps built in the test; the header quotes measured figures from the row it closes, and no fixture carries captured bytes",
+      "sha256": null
+    },
     "test_host_clock_and_helper_path.py": {
       "class": "authored",
       "kind": "constructed-stamps",
