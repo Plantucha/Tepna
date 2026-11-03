@@ -24,6 +24,7 @@ import asyncio as _aio
 import pytest
 
 import capture
+import oxy_power
 
 
 # ── polar_offline_op — the pause must never be permanent ────────────────────────────────────────────
@@ -153,4 +154,64 @@ def test_a_REPEATING_hung_op_logs_ONE_error_and_then_counts(monkeypatch, caplog)
     assert len(errors) + len(warns) < 12, "and fewer lines than occurrences"
     # THE COUNT IS NEVER LOST, which is what makes the quieter log safe.
     assert blestats.failures("offline_op", "AA:BB")["timeout"] == 12
+    blestats.reset()
+
+
+# ── THE ABANDON LINE REPORTS THE TIME IT TOOK, NOT THE BOUND IT WAS GIVEN ──────────────────────────
+# Row `2026-11-01-a-connect-failure-logs-as-a-300s-abandon`. Measured over the retained box journal:
+# five abandon lines exist, each one 30.0 s to 30.2 s after its own `pulling stored session`, every one
+# of them naming the 300 s whole-op bound. The bound fired in 0 of 5. `asyncio.TimeoutError` IS the
+# builtin `TimeoutError` on this python, so the handler catches a bound inside the op as readily as its
+# own and cannot tell them apart by type — only the measured elapsed can.
+
+
+def test_the_reason_names_the_whole_op_bound_only_when_that_bound_fired():
+    why = capture._abandon_reason(300.4, 300.0)
+    assert "exceeded its 300s whole-op bound after 300.4s" in why
+    assert "abandoned" in why
+
+
+def test_a_connect_that_gave_up_at_thirty_seconds_is_not_reported_as_a_300s_overrun():
+    """THE defect, in the five journal lines' own numbers."""
+    why = capture._abandon_reason(30.1, 300.0)
+    assert "30.1s" in why, why
+    assert "exceeded" not in why, "the 300 s bound did not fire, so the line may not say it did"
+    assert "INSIDE the op" in why
+
+
+def test_the_reason_never_names_which_inner_bound_fired():
+    """It reports the phase bound's EXISTENCE. Naming one the handler cannot see would be the same
+    defect pointing the other way — `Timeouts` holds seven candidates and this frame sees none of them."""
+    why = capture._abandon_reason(30.1, 300.0)
+    assert "connect" not in why and "30s" not in why.replace("30.1s", "")
+
+
+def test_the_slack_is_scheduling_slop_and_cannot_reach_a_phase_bound():
+    """`wait_for` fires AT the deadline and the handler reads the clock after it, so an elapsed a
+    fraction of a second short of the bound is still that bound firing."""
+    assert "exceeded" in capture._abandon_reason(300.0 - capture._ABANDON_SLACK_S / 2, 300.0)
+    assert "exceeded" not in capture._abandon_reason(300.0 - capture._ABANDON_SLACK_S * 2, 300.0)
+    assert capture._ABANDON_SLACK_S * 10 < oxy_power.TIMEOUTS.connect_s, (
+        "the tolerance must not reach the nearest phase bound"
+    )
+
+
+def test_an_inner_bound_at_the_polar_site_is_not_journalled_as_the_whole_op_bound(monkeypatch, caplog):
+    """Drives the REAL site, not a reproduction of its decision. The op raises the builtin
+    `TimeoutError`, which this handler catches as if its own deadline had fired."""
+    import blestats
+
+    blestats.reset()
+    _clear_pause(monkeypatch)
+
+    async def connect_times_out():
+        raise TimeoutError("connect")
+
+    with caplog.at_level(logging.ERROR, logger="capture"):
+        with pytest.raises(_aio.TimeoutError):
+            _run_async(capture.polar_offline_op("AA:BB", connect_times_out, timeout=300.0))
+    line = next(r.getMessage() for r in caplog.records if "offline op" in r.getMessage())
+    assert "exceeded" not in line, line
+    assert "INSIDE the op" in line, line
+    assert capture._POLAR_PAUSED == set(), "and the pause is still released"
     blestats.reset()
