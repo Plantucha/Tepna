@@ -48,6 +48,7 @@ import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 import { maskNonCode } from './argv-reads.mjs';
 import { argAt, findCalls, scanFiles } from './consensus-polarity-wiring.mjs';
 import { gitCommitOf, populationVerdict, ruleLine, snapshotEntries } from './corpus-scope-core.mjs';
+import { runsSidecarPath } from './trio-fold-validity.mjs';
 import { makeVerdict, printVerdict } from './verdict-emit.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -247,6 +248,17 @@ export function picksOf(peakCounts, snrs) {
 /* THE POPULATION IS NOT RESTATED HERE. `populationVerdict` publishes the walked population and
    whether the tree moved under the run, as its own `corpus-population` object beside this one, so
    this verdict answers only the question it pre-stated. Two statements of one count is drift. */
+/* The sidecar states present, each with its count. A state nothing hit is left out, so the tally
+   cannot print four zeros and read like a clean sweep. */
+export function tallyOf(nights) {
+  const t = {};
+  for (const st of RUNS_STATES) {
+    const n = nights.filter((x) => x.validity === st).length;
+    if (n) t[st] = n;
+  }
+  return Object.keys(t).length ? t : null;
+}
+
 export function corpusVerdictOf(nights, opts = {}) {
   const read = nights.filter((n) => n.ok);
   const withDissent = read.filter((n) => n.dissenters.length > 0);
@@ -272,7 +284,10 @@ export function corpusVerdictOf(nights, opts = {}) {
                cannot be quoted for a caller using the other. */
             nightsTheTwoRulesPickDifferentChannels: read.filter((n) => n.peakArgmax !== n.snrPick).length,
             peakArgmaxOnDissenter: pkOnDissent.length,
-            snrPickOnDissenter: snOnDissent.length
+            snrPickOnDissenter: snOnDissent.length,
+            /* The sidecar state of every file the run parsed, by name. A run that read no sidecar
+               says so here rather than reporting a validity it never had. */
+            validity: tallyOf(nights)
           },
     evidence: [TOOL, 'ppgdex-dsp.js'],
     reason:
@@ -335,11 +350,35 @@ function realm(files) {
    static relative import then resolves against the wrong tree. */
 let classicify = null;
 
+/* THE VALIDITY SIDECAR, IN FOUR STATES — AND AN ABSENT ONE IS NOT AN EMPTY ONE.
+   `parsePPG` accepts the box's `…_PPGRUNS.txt` as `opts.runsText`, and the path rule is
+   `runsSidecarPath` so no caller guesses a name. §∅: an EMPTY `runsText` reads as a stream with no
+   blanking runs, which is the opposite of nobody having recorded whether there were any — so only a
+   sidecar with content travels, and every other state travels as a NAME. The Polar Sensor Logger
+   exports measured here carry no sidecar at all (`absent` ×54), which is a fact about the input and
+   not a clean sweep. */
+export function readRunsFor(streamPath) {
+  const p = runsSidecarPath(streamPath, 'PPG');
+  if (!p) return { state: 'unnamed', runsText: null };
+  let t;
+  try {
+    t = readFileSync(p, 'utf8');
+  } catch (e) {
+    return { state: e && e.code === 'ENOENT' ? 'absent' : 'unreadable', runsText: null };
+  }
+  return t.trim() ? { state: 'read', runsText: t } : { state: 'empty', runsText: null };
+}
+
+export const RUNS_STATES = ['read', 'empty', 'absent', 'unreadable', 'unnamed'];
+
 export function measureNight(P, file) {
-  const out = { file, ok: false, nCh: 0, maj: 0, shape: null, dissenters: [], peakArgmax: null, snrPick: null, why: null };
+  const out = { file, ok: false, nCh: 0, maj: 0, shape: null, validity: null, dissenters: [], peakArgmax: null, snrPick: null, why: null };
+  const runs = readRunsFor(file);
+  out.validity = runs.state;
   let rec;
   try {
-    rec = P.parsePPG(readFileSync(file, 'utf8'));
+    const text = readFileSync(file, 'utf8');
+    rec = runs.runsText ? P.parsePPG(text, { runsText: runs.runsText }) : P.parsePPG(text);
   } catch (e) {
     out.why = `parse refused: ${e.message}`;
     return out;
@@ -423,6 +462,10 @@ function selftest() {
   fail += ok(picksOf([10, 10, 10], [null, null, null]).snrPick === 0, 'an unscored channel never wins the SNR pick');
   fail += ok(picksOf([5, 5, 5], [0, 0, 0]).peakArgmax === 0, 'a tie keeps the first channel, as every caller writes it');
   /* The verdicts refuse to pass over nothing. */
+  fail += ok(readRunsFor('/nope/x_PPG.txt').state === 'absent' && readRunsFor('/nope/x_PPG.txt').runsText === null, 'an absent sidecar arrives as a NAME, never as empty text');
+  fail += ok(readRunsFor('/nope/not-a-stream.csv').state === 'unnamed', 'a path the rule cannot name reaches no disk');
+  fail += ok(tallyOf([{ validity: 'absent' }, { validity: 'absent' }]).absent === 2, 'the sidecar tally counts the state it saw');
+  fail += ok(tallyOf([{ validity: null }]) === null, 'a tally of nothing is null, never four zeros reading as a clean sweep');
   fail += ok(censusVerdictOf([]).status === 'NOT_RUN', 'a census over no call site examined nothing');
   fail += ok(corpusVerdictOf([]).status === 'NOT_RUN', 'a corpus run over no night examined nothing');
   const hit = corpusVerdictOf([{ ok: true, shape: 'majority', dissenters: [2], peakArgmax: 2, snrPick: 0 }]);
