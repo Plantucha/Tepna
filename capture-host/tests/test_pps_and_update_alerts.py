@@ -241,3 +241,117 @@ def test_a_failed_recovery_send_keeps_the_latch_and_retries_with_no_streak(box, 
     _upd(box)
     assert [c[2:5] for c in _calls(box)][-1] == ["back", "0", "0"]
     assert not (tmp_path / "update-fails.alerted").exists()
+
+
+# ── exact text: every word of an alert is the contract (mutation gate, 2026-11-03) ────────────────────
+def test_the_pps_alert_text_is_exact():
+    assert alerts.pps_alert_text("lost", 10.6, 2, "disciplined") == (
+        "Tepna: host clock left the GPS pulse",
+        "The host clock has run without the GPS pulse (PPS) for 11 min. "
+        "It now reads stratum 2, trust disciplined. "
+        "Night timestamps stay consistent with each other. "
+        "Absolute time is only as good as the fallback source.",
+    )
+    assert alerts.pps_alert_text("lost", 0.4, None, "") == (
+        "Tepna: host clock left the GPS pulse",
+        "The host clock has run without the GPS pulse (PPS) for 0 min. "
+        "It now reads stratum unknown, trust unknown. "
+        "Night timestamps stay consistent with each other. "
+        "Absolute time is only as good as the fallback source.",
+    )
+    assert alerts.pps_alert_text("back", 20.0, 1, "disciplined") == (
+        "Tepna: host clock back on the GPS pulse",
+        "The host clock is back on the GPS pulse (PPS) after 20 min without it.",
+    )
+
+
+def test_the_update_streak_text_is_exact(monkeypatch):
+    import time as _t
+
+    monkeypatch.setattr(alerts._time, "localtime", _t.gmtime)
+    assert alerts.update_streak_text("lost", 2, 3600, 3600 + 3900) == (
+        "Tepna: box update failing",
+        "The box update has failed 2 runs in a row, first at 1970-01-01 01:00 (1h5m). "
+        "The daemon can run stale code until it recovers. Read journalctl -u tepna-update.",
+    )
+    assert alerts.update_streak_text("lost", 3, 1, 0)[1].startswith(
+        "The box update has failed 3 runs in a row, first at 1970-01-01 00:00 (0h0m). "
+    )
+    assert alerts.update_streak_text("lost", 0, 1, 7200)[1].startswith(
+        "The box update has failed 0 runs in a row, first at 1970-01-01 00:00 (span unknown). "
+    )
+    assert alerts.update_streak_text("back", 1, 1, 1 + 2 * 3600 + 59 * 60 + 59) == (
+        "Tepna: box update recovered",
+        "The box update ran clean after 1 failed runs over 2h59m.",
+    )
+    assert alerts.update_streak_text("back", 4, 10, 5) == (
+        "Tepna: box update recovered",
+        "The box update ran clean after 4 failed runs over 0h0m.",
+    )
+
+
+def test_update_streak_main_posts_the_configured_url_title_and_message(tmp_path, monkeypatch):
+    import time as _t
+
+    monkeypatch.setattr(alerts._time, "localtime", _t.gmtime)
+    monkeypatch.setattr(alerts._time, "time", lambda: 3600 + 120)
+    got = []
+
+    async def ok(url, payload, headers=None):
+        got.append((url, payload.get("topic"), payload["title"], payload["message"]))
+        return True
+
+    assert alerts.update_streak_main(["update-streak", _cfg(tmp_path), "lost", "2", "3600"], _post=ok) == 0
+    assert got == [
+        (
+            "https://hook.invalid/",
+            "topic",
+            "Tepna: box update failing",
+            "The box update has failed 2 runs in a row, first at 1970-01-01 01:00 (0h2m). "
+            "The daemon can run stale code until it recovers. Read journalctl -u tepna-update.",
+        )
+    ]
+
+
+def test_update_streak_main_names_each_refusal(tmp_path, caplog):
+    import logging
+
+    c = _cfg(tmp_path)
+    caplog.set_level(logging.WARNING)
+    assert alerts.update_streak_main(["update-streak", c, "lost", "2", "1", "extra"]) == 2
+    assert alerts.update_streak_main(["update-streak", c, "lost", "2"]) == 2
+    assert alerts.update_streak_main(["update-streak", c, "lost", "2", "x"]) == 2
+    assert [r.getMessage() for r in caplog.records] == [
+        "alerts: usage: update-streak <config> lost|back <n> <first-epoch>",
+        "alerts: usage: update-streak <config> lost|back <n> <first-epoch>",
+        "alerts: update-streak needs integer <n> and <first-epoch>",
+    ]
+
+
+def test_update_streak_main_reads_an_empty_config_as_off_and_a_utf8_config_as_on(tmp_path):
+    async def never(url, payload, headers=None):
+        raise AssertionError("no post when alerts are off")
+
+    (tmp_path / "empty.yaml").write_text("")
+    assert (
+        alerts.update_streak_main(["update-streak", str(tmp_path / "empty.yaml"), "back", "2", "1"], _post=never) == 0
+    )
+    (tmp_path / "noalerts.yaml").write_text("time: {}\n")
+    assert (
+        alerts.update_streak_main(["update-streak", str(tmp_path / "noalerts.yaml"), "back", "2", "1"], _post=never)
+        == 0
+    )
+    (tmp_path / "utf8.yaml").write_text(
+        "# müller\nalerts:\n  enabled: true\n  webhook_url: https://hook.invalid/t\n", encoding="utf-8"
+    )
+    sent = []
+
+    async def ok(url, payload, headers=None):
+        sent.append((url, payload.get("topic")))
+        return True
+
+    assert (
+        alerts.update_streak_main(["update-streak", str(tmp_path / "utf8.yaml"), "back", "2", "1"], _post=ok, now=5)
+        == 0
+    )
+    assert sent == [("https://hook.invalid/", "t")]
