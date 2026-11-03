@@ -634,7 +634,11 @@ def test_the_covered_function_count_is_MEASURED_from_the_ast_not_quoted():
     # the measured elapsed against the bound — a comparison the two call sites cannot each own without
     # drifting apart. +1, the whole delta.
     # `moduleFunctionsAtDeclaration` stays where it is, per the note above.
-    assert n == 343, f"capture.py now defines {n} functions — update the declaration's note deliberately"
+    # 343 → 344 on 2026-11-03 (owner order, board thread 7): `_announce_solid`, the solid-night verdict
+    # on ntfy and the prompt request for a non-PASS, latched per night and status. It is async because
+    # it awaits the notifier; the pure parts live in alerts.py. +1, the whole delta.
+    # `moduleFunctionsAtDeclaration` stays where it is, per the note above.
+    assert n == 344, f"capture.py now defines {n} functions — update the declaration's note deliberately"
 
 
 def test_count_functions_counts_nested_and_methods_and_refuses_nothing():
