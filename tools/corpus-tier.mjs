@@ -67,12 +67,12 @@
  * tiered and the marker kept local: the run #2784's byte audit did by hand, as the tool's own check.
  */
 import { createHash } from 'node:crypto';
-import { createReadStream, promises as fs, readFileSync, statSync } from 'node:fs';
+import { createReadStream, promises as fs, readFileSync, readdirSync, statSync } from 'node:fs';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 /* ── THE CHECKOUT ROOT, WHICH IS NOT ALWAYS ONE LEVEL ABOVE THIS FILE ───────────────────────────
    `import.meta.url` is this file's path when the tool is run as a file, and the CWD when it is run
@@ -126,6 +126,12 @@ function findCheckoutRoot() {
 }
 const ROOT = findCheckoutRoot();
 const Verdict = createRequire(path.join(ROOT, 'package.json'))(path.join(ROOT, 'verdict.js'));
+/* THE POPULATION SPINE IS LOADED THROUGH `ROOT`, NEVER BY A RELATIVE SPECIFIER — the same reason
+   `verdict.js` is. A static `./corpus-scope-core.mjs` reads correct by inspection and dies under the
+   piped invocation this file's selftest pins, because `import.meta.url` is the CWD there. Measured
+   2026-11-02: the static form reds `pipedRunResolvesItsSpine` and `pipedWithNoRootRefusesNamingBoth`
+   with `Cannot find module`, which is the bug the header above exists to prevent. */
+const { gitCommitOf, populationVerdict, ruleLine, snapshotEntries } = await import(pathToFileURL(path.join(ROOT, 'tools', 'corpus-scope-core.mjs')).href);
 
 const args = process.argv.slice(2);
 const opt = (k, d) => {
@@ -144,6 +150,8 @@ const JSON_OUT = flag('--json');
 const SELFTEST = flag('--selftest');
 // under --json the human report goes to stderr so stdout is one parseable document
 const out = (line) => (JSON_OUT ? console.error(line) : console.log(line));
+const POP_UNIT = 'files';
+const POP_EV = ['tools/corpus-tier.mjs', 'tools/corpus-scope-core.mjs'];
 
 /* ── WHAT THE JOB HOLDS, WHICH `MemoryPeak` CANNOT SAY ──────────────────────────────
    `VmHWM` is the kernel's high-water mark for THIS process's resident set, so it needs no sampler: the
@@ -324,7 +332,32 @@ async function selftest() {
     procMemNullsAnAbsentFieldAndNamesIt: memPartial.swapKb === null && memPartial.hwmKb === 1234 && /names no VmSwap/.test(memPartial.reason || ''),
     procMemOverEmptyTextNamesAllThree: memEmpty.hwmKb === null && memEmpty.rssKb === null && memEmpty.swapKb === null && /VmHWM, VmRSS, VmSwap/.test(memEmpty.reason || ''),
     theFoldKeepsTheMaxAndCountsEverySample: memFolded.vmSwapMaxKb === 10 && memFolded.vmRSSMaxKb === 90 && memFolded.samples === 3 && memFolded.reason === 'absent',
-    theRealRunReportsItsOwnHighWater: !!(res.memory && Number.isFinite(res.memory.vmHWMKb) && res.memory.samples >= 3)
+    theRealRunReportsItsOwnHighWater: !!(res.memory && Number.isFinite(res.memory.vmHWMKb) && res.memory.samples >= 3),
+    /* ── THE POPULATION, ROW 2026-10-21-forty-one-corpus-enumerators-report-no-population ──────
+       The denominator is the tree's, and the three legs are the three ways a population lies: it is
+       absent, it does not add up, or it moves because the run itself moved it. */
+    theRealRunPublishesItsPopulation: !!(res.population && res.population.schema === 'tepna.verdict/1' && res.population.result && res.population.result.rule === 'listTierEntries'),
+    /* ONE RULE, TWO VIEWS: the snapshot's denominator IS the tier walk's own offered count, so a
+       lister that had drifted from the walk could not read equal here. */
+    thePopulationArithmeticCloses: !!(
+      res.population &&
+      res.population.population.eligible === res.files + res.alreadyLinked &&
+      res.files === 3 &&
+      res.tierOut === 3 &&
+      res.replaced + res.refused + res.zeroByte + res.vanished === res.tierOut &&
+      res.undated === 0 &&
+      res.keepLocal === 0
+    ),
+    /* THE CONTROL ON THE SYMLINK ARM: this run replaced one regular file with a symlink, and the
+       member set must be unchanged — a lister yielding regular files alone would read that work as
+       a population that shrank. */
+    tieringAFileDoesNotMoveThePopulation: !!(
+      res.population &&
+      res.replaced === 1 &&
+      res.population.status === 'PASS' &&
+      res.population.result.added.length === 0 &&
+      res.population.result.removed.length === 0
+    )
   };
   await fs.rm(root, { recursive: true, force: true });
   const failed = Object.keys(checks).filter((k) => !checks[k]);
@@ -356,16 +389,30 @@ function nightOf(rel) {
   return m ? `${m[1]}-${m[2]}-${m[3]}` : null;
 }
 
-async function* walk(dir, base = dir) {
-  for (const e of await fs.readdir(dir, { withFileTypes: true })) {
+/* ── ONE TRAVERSAL RULE, TWO VIEWS ─────────────────────────────────────────────────────────────
+   `entriesOf` yields the entry AND its kind, because the tier phase must tell a symlink an earlier
+   run left from a regular file it may still tier. `listTierEntries` yields the same names and
+   nothing else, because that is the shape `snapshotEntries` takes. The second is DERIVED from the
+   first, so the population this file publishes is the same rule the run acts on — a second walk
+   written to its own rule is the drift this job refused to carry while it sat in
+   `corpus-reads.mjs` `UNWIRED_BACKLOG` (row
+   2026-10-21-forty-one-corpus-enumerators-report-no-population).
+   SYNC, because the snapshot primitive takes a sync lister and this is a sequential batch job with
+   nothing to interleave: the walk reads directory ENTRIES, never file bytes. */
+function* entriesOf(dir, base = dir) {
+  for (const e of readdirSync(dir, { withFileTypes: true })) {
     const p = path.join(dir, e.name);
     if (e.isSymbolicLink()) {
       yield { rel: path.relative(base, p), link: true };
       continue;
     }
-    if (e.isDirectory()) yield* walk(p, base);
+    if (e.isDirectory()) yield* entriesOf(p, base);
     else if (e.isFile()) yield { rel: path.relative(base, p), link: false };
   }
+}
+
+function* listTierEntries(root) {
+  for (const e of entriesOf(root)) yield e.rel;
 }
 
 function sha256(file) {
@@ -396,7 +443,7 @@ async function main() {
     process.exit(2);
   }
   let nasCount = 0;
-  for await (const _ of walk(NAS)) {
+  for (const _ of entriesOf(NAS)) {
     if (++nasCount >= NAS_MIN_FILES) break;
   }
   if (nasCount < NAS_MIN_FILES) {
@@ -406,9 +453,15 @@ async function main() {
   }
 
   memSample(); // the baseline, before the walk builds the one structure that grows with the corpus
+  /* THE POPULATION, SNAPSHOT BEFORE THE RUN TOUCHES ANYTHING. The unit is the ENTRY and not the
+     night, because this job decides per file. A tiered file keeps its path, so a symlink an earlier
+     run left is still the same member and this comparison reads the tree MOVING UNDER the run
+     rather than the run's own work. */
+  const commitOf = gitCommitOf(ROOT);
+  const popBefore = snapshotEntries(SRC, { list: listTierEntries, unit: POP_UNIT });
   const files = [];
   let alreadyLinked = 0;
-  for await (const f of walk(SRC)) {
+  for (const f of entriesOf(SRC)) {
     if (f.link) alreadyLinked++;
     else files.push(f.rel);
   }
@@ -455,9 +508,8 @@ async function main() {
 
   out(`corpus-tier ${DRY ? '(DRY RUN) ' : ''}src=${SRC} nas=${NAS} keep=${KEEP}`);
   out(`  regular files ${files.length} · already symlinked ${alreadyLinked} · undated (stay local) ${undated} · nights ${sorted.length}`);
-  out(
-    `  keep local: ${sorted.slice(0, KEEP).length} nights, ${[...keepSet].reduce((a, n) => a + nights.get(n).length, 0)} files (${sorted[Math.min(KEEP, sorted.length) - 1] ?? '—'} … ${sorted[0] ?? '—'})`
-  );
+  const keepLocal = [...keepSet].reduce((a, n) => a + nights.get(n).length, 0);
+  out(`  keep local: ${sorted.slice(0, KEEP).length} nights, ${keepLocal} files (${sorted[Math.min(KEEP, sorted.length) - 1] ?? '—'} … ${sorted[0] ?? '—'})`);
   out(`  tier out:   ${sorted.length - keepSet.size} nights, ${tierOut.length} files`);
   out(`  ${DRY ? 'would sync' : 'synced'} to NAS: ${synced} new file(s) · sync failed ${syncFailed.length}`);
   for (const r of syncFailed.slice(0, 10)) out(`    ! ${r}`);
@@ -465,6 +517,7 @@ async function main() {
   let replaced = 0,
     refused = 0,
     zeroByte = 0,
+    vanished = 0,
     bytes = 0;
   const refusals = [];
   let memTierSeen = 0;
@@ -476,7 +529,9 @@ async function main() {
     try {
       ls = await fs.stat(local);
     } catch {
-      continue; // vanished between walk and tier
+      // vanished between walk and tier — COUNTED, because an uncounted drop leaves the arithmetic below unable to close (§∅)
+      vanished++;
+      continue;
     }
     if (ls.size === 0) {
       zeroByte++; // a marker: its EXISTENCE is the signal, a symlink into an unmounted NAS reads as absent, and there is nothing to save
@@ -515,6 +570,34 @@ async function main() {
   out(`  ${DRY ? 'would replace' : 'replaced'} ${replaced} files (${(bytes / 2 ** 30).toFixed(1)} GB) · refused ${refused} · zero-byte kept local ${zeroByte}`);
   for (const r of refusals.slice(0, 20)) out(`    ! ${r}`);
   if (refusals.length > 20) out(`    … and ${refusals.length - 20} more`);
+
+  /* ── THE POPULATION, PUBLISHED BEFORE THE ONE EXIT ─────────────────────────────────────────────
+     The run already knew every count below; nothing held them against the denominator the tree
+     offered, so a night the walk never reached scored zero and said nothing. The added cost is one
+     more `readdirSync` pass over the entries, beside a run that stats every file and hashes every
+     tiered one. */
+  const population = populationVerdict(popBefore, snapshotEntries(SRC, { list: listTierEntries, unit: POP_UNIT }), {
+    commit: commitOf.commit,
+    commitReason: commitOf.reason,
+    tool: 'tools/corpus-tier.mjs',
+    evidence: POP_EV
+  });
+  const walkOffered = files.length + alreadyLinked;
+  const tierDecided = replaced + refused + zeroByte + vanished;
+  /* THE ARITHMETIC IS A CONTROL, NOT A REPORT: every entry the walk offered lands in exactly one
+     class, so a coverage line can never contradict its own headline. */
+  if (undated + keepLocal + tierOut.length !== files.length)
+    throw new Error(`population arithmetic: ${files.length} regular file(s) ≠ ${undated} undated + ${keepLocal} kept + ${tierOut.length} tiered out`);
+  if (tierDecided !== tierOut.length) throw new Error(`population arithmetic: ${tierOut.length} tiered out ≠ ${replaced} replaced + ${refused} refused + ${zeroByte} zero-byte + ${vanished} vanished`);
+  out(`  population: ${popBefore.n} ${POP_UNIT} offered under ${SRC} · ${walkOffered} seen by the tier walk · movement ${population.status}${population.reason ? ` — ${population.reason}` : ''}`);
+  const popRule = ruleLine(population);
+  if (popRule) out(popRule);
+  if (popBefore.n !== walkOffered)
+    out(`    the snapshot and the tier walk disagree by ${Math.abs(popBefore.n - walkOffered)}: the tree moved between the two passes, so every figure here covers the walk's own set`);
+  out(
+    `    decided: ${alreadyLinked} already tiered · ${undated} undated kept local · ${keepLocal} kept by recency · ${tierOut.length} tiered out (${replaced} replaced, ${refused} refused, ${zeroByte} zero-byte, ${vanished} vanished)`
+  );
+  out('POPULATION ' + JSON.stringify(population));
   memSample();
   out(
     `  memory held: VmHWM ${memMiB(memHeld.vmHWMKb)} MiB · VmRSS max ${memMiB(memHeld.vmRSSMaxKb)} MiB · VmSwap max ${memMiB(memHeld.vmSwapMaxKb)} MiB over ${memHeld.samples} sample(s)${memHeld.reason ? ` · ${memHeld.reason}` : ''}`
@@ -534,6 +617,10 @@ async function main() {
         replaced,
         refused,
         zeroByte,
+        vanished,
+        alreadyLinked,
+        undated,
+        keepLocal,
         synced,
         syncFailed: syncFailed.length,
         bytes,
@@ -545,7 +632,10 @@ async function main() {
           reason: memHeld.reason,
           note: 'this process, not the cgroup: MemoryPeak charges reclaimable page cache and is not comparable'
         },
-        refusals: refusals.slice(0, 50)
+        refusals: refusals.slice(0, 50),
+        /* The population travels the machine path too, NESTED so stdout still carries exactly ONE
+           `tepna.verdict/1` — the shape `verdict-adoption` parses. */
+        population
       },
       reason: bad
         ? `${refused} file(s) refused (no byte-identical NAS twin)${syncFailed.length ? `, ${syncFailed.length} sync failure(s)` : ''}: ${refusals.concat(syncFailed).slice(0, 5).join('; ')}`
