@@ -57,6 +57,9 @@ def test_a_row_becomes_a_point_on_the_floating_axis():
     p = heap_series.probe_point(_row())
     assert p["tMs"] == 1793707200000 and p["offsetMin"] is None  # 2026-11-03T12:00:00 as if UTC
     assert p["traced_bytes"] == 1000 and p["rss_kb"]["RssAnon"] == 100
+    # Every published figure, read back from the row that carried it: a figure no test reads is a
+    # figure the reader may be taking from the wrong key, and both of these are levels, not deltas.
+    assert p["traced_peak_bytes"] == 1007 and p["gc_tracked_objects"] == 42
     assert p["covered_capture"] is True and p["status"] == "OK"
 
 
@@ -64,12 +67,19 @@ def test_a_row_this_cannot_stamp_is_dropped_rather_than_placed_at_the_time_of_th
     assert heap_series.probe_point(_row(at="whenever")) is None
     assert heap_series.probe_point(_row(at="2026-02-30T00:00:00")) is None  # a shape, not a calendar day
     assert heap_series.probe_point("not a row") is None
+    assert heap_series.probe_point(_row(at=None)) is None  # a row that never stamped itself
 
 
 def test_a_figure_the_row_did_not_carry_is_None_and_never_zero():
     p = heap_series.probe_point(_row(traced=None, rss_kb="not a dict", covered_capture="maybe", status=7, reason=7))
     assert p["traced_bytes"] is None and p["rss_kb"] is None
     assert p["covered_capture"] is None and p["status"] is None and p["reason"] is None
+
+
+def test_the_row_own_reason_travels_with_the_point():
+    """The row says why it recorded nothing, and a point that drops it leaves the reader to guess."""
+    p = heap_series.probe_point(_row(covered=False))
+    assert p["reason"] == "nothing streamed during this interval" and p["status"] == "NOT_APPLICABLE"
 
 
 def test_a_boolean_is_not_a_byte_count():
@@ -88,6 +98,30 @@ def test_both_rates_are_read_over_the_same_span():
     assert pair["absent"] == []
 
 
+def test_a_rate_keeps_three_decimals_so_a_slow_interval_is_not_rounded_to_a_whole_unit():
+    """A 1-byte rise over 7 s is 514.286 B/h. Rounded to a whole number it reads as 514 — and the
+    probe's own finding was 9.2 MiB/h against a 21 MB/h journal, a comparison the third decimal of a
+    short interval is exactly what carries."""
+    pts = [
+        heap_series.probe_point(_row(at="2026-11-03T12:00:00", traced=1000, anon=100)),
+        heap_series.probe_point(_row(at="2026-11-03T12:00:07", traced=1001, anon=101)),
+    ]
+    (pair,) = heap_series.rates(pts)
+    assert pair["spanMs"] == 7000 and pair["status"] == "OK"
+    assert pair["traced_bytes_per_hour"] == 514.286 and pair["rss_anon_kb_per_hour"] == 514.286
+
+
+def test_a_one_millisecond_span_is_still_a_span():
+    """The refusal is a zero or negative span, not a short one: the boundary sits at 0."""
+    pts = [
+        heap_series.probe_point(_row(at="2026-11-03T12:00:00.000", traced=1000, anon=100)),
+        heap_series.probe_point(_row(at="2026-11-03T12:00:00.001", traced=1001, anon=101)),
+    ]
+    (pair,) = heap_series.rates(pts)
+    assert pair["spanMs"] == 1 and pair["status"] == "OK" and pair["reason"] is None
+    assert pair["traced_bytes_per_hour"] == 3600000.0 and pair["rss_anon_kb_per_hour"] == 3600000.0
+
+
 def test_an_interval_that_did_not_stream_is_NOT_APPLICABLE_rather_than_a_flat_rate():
     pts = [
         heap_series.probe_point(_row(at="2026-11-03T12:00:00", covered=False)),
@@ -95,6 +129,8 @@ def test_an_interval_that_did_not_stream_is_NOT_APPLICABLE_rather_than_a_flat_ra
     ]
     (pair,) = heap_series.rates(pts)
     assert pair["status"] == "NOT_APPLICABLE" and "absence of capture" in pair["reason"]
+    # The refusal still has to say WHICH interval it is about, so the endpoints survive the branch.
+    assert pair["fromTMs"] == 1793707200000 and pair["toTMs"] == 1793710800000 and pair["spanMs"] == 3600000
     assert pair["traced_bytes_per_hour"] is None and pair["rss_anon_kb_per_hour"] is None
     assert pair["absent"] == ["traced_bytes_per_hour", "rss_anon_kb_per_hour"]
 
@@ -147,6 +183,15 @@ def test_the_series_carries_the_file_age_so_a_stale_probe_is_never_drawn_as_toni
     assert len(out["points"]) == 1
 
 
+def test_the_age_keeps_two_decimals_so_a_fresh_probe_is_not_rounded_to_a_whole_hour(tmp_path):
+    """2 h 00 m 25 s is 2.01 h. As a whole number it reads 2.00 — and the question this age answers is
+    whether the file is tonight's, which is decided in minutes near the boundary."""
+    f = tmp_path / capture.HEAP_PROBE_NAME
+    f.write_text(json.dumps({"rows": [_row(at="2026-11-03T11:59:35")]}))
+    out = heap_series.read_heap_series(str(f), now=NOW)
+    assert out["file"]["ageHours"] == 2.01
+
+
 def test_a_file_with_no_readable_row_has_no_age_rather_than_an_age_of_zero(tmp_path):
     f = tmp_path / capture.HEAP_PROBE_NAME
     f.write_text(json.dumps({"rows": [_row(at="nonsense")]}))
@@ -175,7 +220,20 @@ def test_a_file_that_is_not_JSON_is_unreadable_rather_than_empty(tmp_path):
     f.write_text("{not json")
     out = heap_series.read_heap_series(str(f))
     assert out["file"]["state"] == "unreadable" and "not JSON" in out["file"]["reason"]
+    # The reason names the exception the read actually raised. A borrowed name is a borrowed diagnosis.
+    assert "JSONDecodeError" in out["file"]["reason"]
     assert out["points"] is None and out["file"]["ageHours"] is None
+
+
+def test_the_probe_is_decoded_as_UTF_8_and_never_as_whatever_the_box_locale_says(tmp_path):
+    """The read takes BYTES and `json.loads` decodes UTF-8 per RFC 8259, so the same file reads the
+    same way under any locale — and a byte that is not UTF-8 lands in `unreadable`, named."""
+    f = tmp_path / capture.HEAP_PROBE_NAME
+    f.write_bytes(b'{"rows": [{"at": "2026-11-03T12:00:00", "reason": "caf\xe9"}]}')
+    assert isinstance(heap_series._read(str(f)), bytes)
+    out = heap_series.read_heap_series(str(f))
+    assert out["file"]["state"] == "unreadable" and "UnicodeDecodeError" in out["file"]["reason"]
+    assert out["points"] is None
 
 
 def test_the_age_is_read_against_the_wall_clock_when_no_reference_is_given(tmp_path):

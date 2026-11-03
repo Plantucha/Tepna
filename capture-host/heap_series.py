@@ -30,6 +30,7 @@ from __future__ import annotations
 import datetime as _dt
 import json
 import os
+import pathlib
 
 import journal_line
 
@@ -73,7 +74,9 @@ def probe_point(row) -> dict | None:
     evidence about an interval nobody measured."""
     if not isinstance(row, dict):
         return None
-    head = journal_line.stamp_iso(str(row.get("at", "")))
+    # No `""` default: an absent key already reaches `stamp_iso` as the unreadable `"None"`, and the
+    # two spellings of the same drop are one mutant nothing can tell apart.
+    head = journal_line.stamp_iso(str(row.get("at")))
     if head is None:
         return None
     rss = row.get("rss_kb")
@@ -161,9 +164,15 @@ def series(doc) -> dict:
     }
 
 
-def _read(path: str) -> str:
-    with open(path, encoding="utf-8") as fh:
-        return fh.read()
+def _read(path: str) -> bytes:
+    """BYTES, not text, so the encoding is not a parameter here.
+
+    `json.loads` decodes UTF-8 per RFC 8259 whatever the box locale says. `open(path,
+    encoding="utf-8")` was the obvious spelling and `mmeta.read_exit_codes` records why it is the wrong
+    one: `encoding=None` reads the HOST LOCALE's encoding, which on this box is UTF-8, so no in-process
+    test can tell the two apart — while under C/POSIX it is ASCII, and the first non-ASCII byte then
+    raises where a UTF-8 read succeeds. Reading bytes deletes the parameter and the locale together."""
+    return pathlib.Path(path).read_bytes()
 
 
 def _no_series(file: dict) -> dict:
@@ -192,7 +201,7 @@ def read_heap_series(path: str, now: _dt.datetime | None = None, read=None) -> d
         read = _read
     file: dict = {"state": "read", "path": path, "reason": None}
     try:
-        text = read(path)
+        raw = read(path)
     except FileNotFoundError:
         return _no_series(
             file
@@ -206,7 +215,7 @@ def read_heap_series(path: str, now: _dt.datetime | None = None, read=None) -> d
             file | {"state": "unreadable", "reason": f"the probe file could not be read ({type(e).__name__})"}
         )
     try:
-        doc = json.loads(text)
+        doc = json.loads(raw)
     except ValueError as e:
         return _no_series(file | {"state": "unreadable", "reason": f"the probe file is not JSON ({type(e).__name__})"})
     out = series(doc)
