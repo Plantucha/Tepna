@@ -188,7 +188,10 @@ ok(
   'the fold hands _PPGRUNS.txt to both PPG parses (Verity and ring)'
 );
 
-ok(ownSidecarPaths(`    pinnedSource: rec.pinnedCrossCheck ? '_PPGRUNS.txt' : recomputeRan ? 'recompute' : null`).length === 0, 'CONTROL · a provenance LABEL naming the sidecar is not a path this tool built');
+ok(
+  ownSidecarPaths(`    pinnedSource: rec.pinnedCrossCheck ? '_PPGRUNS.txt' : recomputeRan ? 'recompute' : null`).length === 0,
+  'CONTROL · a provenance LABEL naming the sidecar is not a path this tool built'
+);
 ok(ownSidecarPaths("const p = base + '_PPGRUNS.txt';").length === 1, 'and a hand-built sidecar path still reads as one');
 
 function stripComments(src, keepStrings) {
