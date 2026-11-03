@@ -54,6 +54,7 @@ import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { NIGHT_RE, notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
+import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DexBuild = createRequire(import.meta.url)(path.join(ROOT, 'tools', 'build-core.js'));
@@ -111,6 +112,18 @@ if (!DIR && !argv.includes('--selftest')) {
    NOT exposed — changing it would move 450/√12 and confound the two effects, which is the entire
    reason for holding it. These flags touch ONLY `patLags`'s accept/reject comparison and nothing
    upstream, so a shifted rail changes which lags are admitted and never how a foot is detected. */
+
+/* ── THE VALIDITY SIDECAR RIDES WITH THE STREAM ─────────────────────────────────────────────────────
+   Row 2026-10-17-sample-parsers-called-without-their-sidecar: this tool read a night's samples and
+   none of the box's `…RUNS.txt` validity, so a blanking run the box recorded reached the detectors
+   below as signal — a flat rail is a plausible diastole, and no reader could tell it from one.
+   `readRunsSidecar` names which of four things happened per stream, and the tally prints beside the
+   numbers: §∅, reduced coverage annotates, and an ABSENT sidecar is validity UNKNOWN for that
+   stream, never a clean one. Most of this corpus predates the writer, so most streams read `absent`
+   and parse exactly as they did before. */
+const VALIDITY = {};
+const runsOf = (streamPath, stream) => readRunsSidecar(streamPath, stream, { tally: VALIDITY }).runsText;
+
 const PHYS_LO = Number(arg('--phys-lo', 200)),
   PHYS_HI = Number(arg('--phys-hi', 650));
 if (!Number.isFinite(PHYS_LO) || !Number.isFinite(PHYS_HI) || PHYS_HI <= PHYS_LO) {
@@ -266,8 +279,12 @@ for (const n of nights) {
   }
   let er, pr;
   try {
-    er = E.parseECG(fs.readFileSync(eF.f, 'utf8'));
-    pr = P.parsePPG(fs.readFileSync(pF.f, 'utf8'));
+    const eTxt = fs.readFileSync(eF.f, 'utf8');
+    const pTxt = fs.readFileSync(pF.f, 'utf8');
+    const eRuns = runsOf(eF.f, 'ECG');
+    const pRuns = runsOf(pF.f, 'PPG');
+    er = eRuns ? E.parseECG(eTxt, { runsText: eRuns }) : E.parseECG(eTxt);
+    pr = pRuns ? P.parsePPG(pTxt, { runsText: pRuns }) : P.parsePPG(pTxt);
   } catch {
     console.log(`  ${n}  ⊘ parse failed`);
     continue;
@@ -336,4 +353,6 @@ console.log(
 const rl = ruleLine(population);
 if (rl) console.log('  ' + rl);
 console.log(`  selected but not scored: ${unscored.length ? unscored.join(', ') : 'none'}`);
+const validity = validityLine(VALIDITY);
+if (validity) console.log('  ' + validity);
 console.log('POPULATION ' + JSON.stringify(population));
