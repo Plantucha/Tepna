@@ -54,6 +54,7 @@ import vm from 'node:vm';
 import { readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, relative } from 'node:path';
+import { createRequire } from 'node:module';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const argv = process.argv.slice(2);
@@ -112,6 +113,8 @@ const DAY_MS = 86400000;
    doing so; exporting them is a compute-path change with a re-bundle and verify-fixtures behind it.
    Superseded note (was: ⚠ INCOMPLETE — the FINGER side merges, the ECG side does not yet). */
 const MERGE = !has('--no-merge');
+/* §4'S FIDUCIAL COUNTERFACTUAL, off by default: an unflagged run keeps today's behaviour. */
+const FIDUCIAL = has('--fiducial');
 const nightKeyOf = (tMs) => new Date(tMs - 12 * 3600 * 1000).toISOString().slice(0, 10);
 
 /* NOCTURNAL MILLISECONDS of one span, on the floating wall clock (CLAUDE.md §5: every hour here comes
@@ -179,6 +182,15 @@ import {
   rateAgreement
 } from './ppi-match.mjs';
 import { gitCommitOf, notCovered, populationVerdict, ruleLine, snapshotEntries } from './corpus-scope-core.mjs';
+import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
+
+/* ── THE VALIDITY SIDECAR RIDES WITH THE STREAM (row 2026-10-17-sample-parsers-called-without-their-sidecar) ──
+   One shared reader names which of four things happened per stream, and the tally prints beside the
+   numbers. An absent sidecar is validity UNKNOWN, never a clean stream, so `runsText` is `null` in
+   every state but `read` and the call below stays guarded. The sidecar is read ONCE per recording,
+   not once per arm, so the tally counts streams rather than parses. */
+const VALIDITY = {};
+const runsOf = (streamPath, stream) => readRunsSidecar(streamPath, stream, { tally: VALIDITY }).runsText;
 /* Re-exported so the existing import surface of this file is unchanged for any consumer. */
 export { hrEnvelope, envelopeLagMs, refineLagByMatch, matchBeats, refinePeaks, ppiJitterMs, rateAgreement };
 
@@ -404,6 +416,47 @@ export function catastrophicSplit(eps, biasPct, bandMs) {
 }
 
 /* ════════════════════════════════════════ SELFTEST ════════════════════════════════════════ */
+/* ══════ THE FIDUCIAL SUBSTITUTION, AS SOURCE ══════
+ * §4 of the paper reports that substituting the middle-amplitude fiducial the tilt-table literature
+ * ranks above the intersecting-tangent point makes timing WORSE here. The counterfactual therefore
+ * has to change ONE branch of the shipped detector and nothing else, so it travels as a source patch
+ * applied inside a second vm realm (the pattern `tools/gap-s-sweep.mjs` ships) rather than as a flag
+ * on `ppgdex-dsp.js`: no node file changes, and everything downstream of the foot stays shipped code.
+ * `find` is the whole `msv > 1e-9` branch of `refineFeet`, so the `foot = mi` fallback above it is
+ * SHARED by both arms and the only difference between the two numbers is which point on the upstroke
+ * the foot sits at. The replacement mirrors `familiesForBeat`'s `pct50`
+ * (`tools/pat-fiducial-jitter.mjs`) so the two readings of "middle amplitude" cannot drift apart. */
+export const FOOT_PATCH = {
+  file: 'ppgdex-dsp.js',
+  find: '      let foot = mi;\n' + '      if (msv > 1e-9) {\n' + '        const cross = ms - (bp[ms] - mv) / msv;\n' + '        foot = Math.max(lo, Math.min(p, cross));\n' + '      }\n',
+  replace:
+    '      let foot = mi;\n' +
+    '      if (msv > 1e-9) {\n' +
+    '        const amp = bp[p] - mv;\n' +
+    '        const target = mv + 0.5 * amp;\n' +
+    '        let hit = Number.NaN;\n' +
+    '        if (amp > 1e-9) {\n' +
+    '          for (let j = mi; j < p; j++) {\n' +
+    '            if (bp[j] <= target && bp[j + 1] >= target) {\n' +
+    '              const d = bp[j + 1] - bp[j];\n' +
+    '              hit = d > 1e-12 ? j + (target - bp[j]) / d : j;\n' +
+    '              break;\n' +
+    '            }\n' +
+    '          }\n' +
+    '        }\n' +
+    '        foot = Number.isFinite(hit) ? Math.max(lo, Math.min(p, hit)) : Number.NaN;\n' +
+    '      }\n'
+};
+
+/* ONE replacement or none: a patch that matched twice patched something it was not aimed at, and a
+   patch that matched nothing leaves the SHIPPED detector running under the counterfactual's name —
+   the §4b family, a verdict about something never examined. Both refuse. */
+export function applyFootPatch(src, patch = FOOT_PATCH) {
+  const n = src.split(patch.find).length - 1;
+  if (n !== 1) throw new Error(`the fiducial patch matched ${n} time(s) in ${patch.file}, and only exactly one is a counterfactual`);
+  return src.split(patch.find).join(patch.replace);
+}
+
 /* The usage string is a CONSTANT so the selftest can check it against the flags the tool actually
    reads. `--device` shipped undocumented: it exists at the DEVICE line below and selects the Verity
    leg, but `--help` never mentioned it, so a session looking for it found `--dir` only and concluded
@@ -411,7 +464,7 @@ export function catastrophicSplit(eps, biasPct, bandMs) {
    the flag is IN the tool and unreachable by anyone who did not read the source. */
 const USAGE =
   'usage: node tools/ppi-jitter-vs-ecg.mjs --dir <captures> [--device o2ring|verity] ' +
-  '[--min-epochs N] [--max-nights N] [--sleep-only] [--no-merge] [--epoch-dump <path outside the repo>]  |  --selftest  |  --verdict-sample';
+  '[--min-epochs N] [--max-nights N] [--sleep-only] [--no-merge] [--epoch-dump <path outside the repo>] [--fiducial]  |  --selftest  |  --verdict-sample';
 
 function selftest() {
   let fail = 0;
@@ -748,6 +801,41 @@ function selftest() {
     );
   }
 
+  /* ── §4'S FIDUCIAL COUNTERFACTUAL: the patch, and the point it lands on ────────────────────────
+     The substituted TEXT is what runs in the second realm, so these legs evaluate that exact string
+     rather than a re-implementation of it, and `tanOf` below is the formula the patch REMOVES, kept
+     here as the control the comparison needs. */
+  {
+    const dsp = readFileSync(join(ROOT, FOOT_PATCH.file), 'utf8');
+    const TANGENT_LINE = 'const cross = ms - (bp[ms] - mv) / msv;';
+    ok('the fiducial patch finds the shipped tangent branch exactly once', dsp.split(FOOT_PATCH.find).length - 1 === 1, String(dsp.split(FOOT_PATCH.find).length - 1));
+    const patched = applyFootPatch(dsp);
+    ok('…and the patched source no longer computes the tangent crossing', patched.indexOf(TANGENT_LINE) < 0);
+    ok('…while the shipped file still does, because the patch edits a COPY', dsp.indexOf(TANGENT_LINE) >= 0);
+    ok('…and the patched source carries the 50 % target', patched.indexOf('const target = mv + 0.5 * amp;') >= 0);
+    let threw = null;
+    try {
+      applyFootPatch(patched);
+    } catch (e) {
+      threw = e.message;
+    }
+    ok('applying it twice REFUSES — an unpatched arm under the counterfactual’s name is the §4b family', threw != null && /matched 0 time/.test(threw), threw || 'it returned');
+    const foot = new Function('bp', 'lo', 'p', 'mi', 'mv', 'ms', 'msv', FOOT_PATCH.replace + '\nreturn foot;');
+    const tanOf = (bp, lo, p, mi, mv, ms, msv) => Math.max(lo, Math.min(p, ms - (bp[ms] - mv) / msv));
+    const ramp = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+    ok('the substituted foot lands on the interpolated 50 % crossing', foot(ramp, 0, 10, 0, 0, 0, 1) === 5, String(foot(ramp, 0, 10, 0, 0, 0, 1)));
+    const steep = [0, 2, 4, 6, 8, 10];
+    ok('…and it interpolates between two samples instead of rounding to one', foot(steep, 0, 5, 0, 0, 0, 2) === 2.5, String(foot(steep, 0, 5, 0, 0, 0, 2)));
+    /* A slow onset separates the two fiducials: both numbers are non-degenerate, so the leg compares
+       rather than restating one formula. */
+    const slow = [0, 0, 0, 1, 4, 9, 10];
+    const fSlow = foot(slow, 0, 6, 0, 0, 4, 5),
+      tSlow = tanOf(slow, 0, 6, 0, 0, 4, 5);
+    ok('…and on a slow-onset beat it sits LATER on the upstroke than the tangent intercept', Math.abs(fSlow - 4.2) < 1e-9 && Math.abs(tSlow - 3.2) < 1e-9, fSlow + ' against ' + tSlow);
+    /* ∅ — a beat with no bracketing pair has NO 50 % crossing, and the tangent is not a substitute. */
+    ok('a beat with no 50 % crossing publishes a NON-FINITE foot, never the tangent', !Number.isFinite(foot([0, 5, 0], 0, 2, 0, 0, 0, 5)));
+  }
+
   console.log(fail ? '\nselftest: ' + fail + ' FAILED' : '\nselftest: all green');
   return fail;
 }
@@ -774,7 +862,7 @@ if (!DIR) {
 }
 const B = await import(join(ROOT, 'tools/build-core.js'));
 const classicify = B.classicify || B.default?.classicify;
-function realm(files) {
+function realm(files, patch) {
   const sb = { console: { log() {}, warn() {}, error() {} }, setTimeout, clearTimeout, addEventListener() {}, removeEventListener() {} };
   sb.window = sb;
   sb.globalThis = sb;
@@ -790,10 +878,18 @@ function realm(files) {
   sb.navigator = { userAgent: 'v' };
   sb.localStorage = { getItem: () => null, setItem() {}, removeItem() {} };
   const ctx = vm.createContext(sb);
-  for (const f of files) vm.runInContext(classicify(readFileSync(join(ROOT, f), 'utf8')), ctx, { filename: f });
+  for (const f of files) {
+    let src = readFileSync(join(ROOT, f), 'utf8');
+    /* The patch names the file it is aimed at, so a realm list that does not carry that file cannot
+       silently produce an unpatched arm: `applyFootPatch` refuses on nought matches. */
+    if (patch && f === patch.file) src = applyFootPatch(src, patch);
+    vm.runInContext(classicify(src), ctx, { filename: f });
+  }
   return sb;
 }
-const P = realm(['clock.js', 'kernel-constants.js', 'metric-registry.js', 'ppgdex-registry.js', 'ppgdex-morph.js', 'ppgdex-dsp.js']).PPGDSP;
+/* ONE list, read by both fiducial arms below, so the second arm cannot drift onto another spine. */
+const PPG_REALM = ['clock.js', 'kernel-constants.js', 'metric-registry.js', 'ppgdex-registry.js', 'ppgdex-morph.js', 'ppgdex-dsp.js'];
+const P = realm(PPG_REALM).PPGDSP;
 const E = realm(['clock.js', 'kernel-constants.js', 'metric-registry.js', 'ecgdex-registry.js', 'ecgdex-morph.js', 'ecgdex-dsp.js']).ECGDSP;
 
 /* ═══════════════════════ THE PER-EPOCH ARM — THE HALF THAT CALLS THE NODES ══════════════════════
@@ -919,9 +1015,13 @@ if (!_ppgMatched.length) {
 }
 const ecgs = all.filter((f) => /H10.*_ECG\.txt$/i.test(f.p));
 
-console.log('O2RING-FINGER-HRV-VALIDATION §3 — PPI-jitter sd vs paired H10 ECG (per-epoch alignment)');
-console.log('device: ' + (DEVICE === 'verity' ? 'Polar Verity Sense (WRIST — the deep-dive reference leg)' : "Wellue O2Ring (FINGER — this brief's subject)") + '\n');
-console.log('night                                        eps  jitter_sd  match%  ratio  refBpm  drop   lag_ms   RMSSD_f  RMSSD_e  bias%   sdnnRob%');
+/* THE §3 TABLE BELONGS TO THE PER-EPOCH ARM. A --fiducial run prints its own table and would
+   otherwise leave this header standing over no rows. */
+if (!FIDUCIAL) {
+  console.log('O2RING-FINGER-HRV-VALIDATION §3 — PPI-jitter sd vs paired H10 ECG (per-epoch alignment)');
+  console.log('device: ' + (DEVICE === 'verity' ? 'Polar Verity Sense (WRIST — the deep-dive reference leg)' : "Wellue O2Ring (FINGER — this brief's subject)") + '\n');
+  console.log('night                                        eps  jitter_sd  match%  ratio  refBpm  drop   lag_ms   RMSSD_f  RMSSD_e  bias%   sdnnRob%');
+}
 
 /* Build the UNITS to score. Merged: one unit per NIGHT, its beat train the union of every session's
    beats on the shared absolute (floating) clock. Unmerged: one unit per file, the legacy behaviour.
@@ -1051,6 +1151,254 @@ function buildEcgNights(files) {
   return out;
 }
 const ecgNights = buildEcgNights(ecgs);
+
+/* ═════════════ §4'S FIDUCIAL COUNTERFACTUAL — THE MIDDLE-AMPLITUDE ARM ═════════════════════════
+ * Draft v3 of `papers/ppg-ecg-hrv-validation.html` reports that substituting the middle-amplitude
+ * fiducial the tilt-table literature ranks above the intersecting-tangent point makes timing WORSE
+ * here, and the same draft's revision note records that the panel carries no producer. This is the
+ * producer. It runs the SHIPPED node and a second realm whose `refineFeet` takes the interpolated
+ * 50 % upstroke crossing instead, over the same recordings, against the same reference beats, under
+ * ONE alignment, so the only difference between the two numbers is the fiducial.
+ *
+ * WHAT MAKES THE SEGMENT MATCHED, and it is three separate disciplines:
+ *   · beat-exact — detection runs UPSTREAM of the foot, so both arms index the same beats. A length
+ *     that differs means they do not, and the recording leaves the population by name rather than
+ *     contributing a jitter pair that compares detectors.
+ *   · ∅ — a beat whose upstroke holds no bracketing pair has NO 50 % crossing. The patch publishes a
+ *     non-finite foot, this arm excludes the recording and names it, and the tangent foot is never
+ *     substituted for the crossing that is absent.
+ *   · one window, one lag — epoch membership and the refined lag are taken on the SHIPPED arm and
+ *     applied to both. The feet differ by a few ms, so a beat at an epoch edge could otherwise fall
+ *     on different sides and the two arms would score different segments.
+ *
+ * THE FIGURE IS A PAIRED DIFFERENCE, not two medians subtracted: the epochs are the same epochs, so
+ * the paired median is what the criterion reads and the two pooled medians ride beside it.
+ * The exit code separates could-not-look from a reading: 0 when the arm decided either way, 2 when it
+ * examined too little to decide (§4c's ⏱ convention). */
+if (FIDUCIAL) {
+  const Verdict = createRequire(import.meta.url)(join(ROOT, 'verdict.js'));
+  const P2 = realm(PPG_REALM, FOOT_PATCH).PPGDSP;
+  /* PRE-STATED (§🧾), both of them: the paper's own DIRECTION, and the floor below which this corpus
+     cannot speak. Neither is read off the result. */
+  const FID_MIN_EPOCHS = 20;
+  const base = (x) => x.split('/').pop();
+  const excluded = [];
+  const pairs = [];
+  const dropped = { thin: 0, noLag: 0, noJitterTangent: 0, noJitterPct50: 0 };
+  /* THE TRANSLATION, MEASURED, because it is the mechanism and not a diagnostic. The 50 % crossing
+     sits later on the upstroke than the tangent intercept by construction, and
+     `briefs/EXTERNAL-METHODS-SURVEY-2026-08-20-BRIEF.md` measured that offset on a different path
+     (`tools/pat-fiducial-compare.mjs`, 30 nights, 2026-08-23) as a median 89.5 ms with a 22 ms
+     spread, nearly constant. A jitter read as the sd of matched INTERVAL differences ignores a
+     constant translation exactly, so a near-constant offset predicts a paired delta near nought —
+     and an estimator that does NOT absorb it reports the offset under the fiducial's name. This arm
+     publishes the offset beside the deltas so a reader can tell those two cases apart. */
+  const offs = [];
+  let scored = 0;
+  console.log('§4 FIDUCIAL COUNTERFACTUAL — the shipped intersecting tangent against the interpolated 50 % upstroke crossing');
+  console.log('device: ' + (DEVICE === 'verity' ? 'Polar Verity Sense (WRIST)' : 'Wellue O2Ring (FINGER)') + '\n');
+  console.log('recording                                 eps  tangent   pct50    delta');
+  /* ONE ARM AT A TIME, and the text is re-read rather than held. A Verity night is ~480 MB of text
+     and a parsed record carries its sample channels, so holding both arms' records and the shared
+     text at once is ~1.5 GB for one file. Returning the feet and nothing else lets the record, the
+     result and the text all become unreachable before the second arm parses (owner's lazy-load rule:
+     never hold more than 8 GB). */
+  const armFeet = (dsp, path, runsText) => {
+    try {
+      const text = readFileSync(path, 'utf8');
+      const rec = runsText ? dsp.parsePPG(text, { runsText }) : dsp.parsePPG(text);
+      if (rec.t0Ms == null) return { err: 'no parseable start stamp' };
+      const res = dsp.analyze(rec);
+      if (!res || !res.footSec) return { err: 'an arm published no foot series' };
+      return { t0Ms: rec.t0Ms, durSec: rec.durSec, feet: Array.from(res.footSec) };
+    } catch (e) {
+      return { err: (e && e.message) || 'threw' };
+    }
+  };
+  for (const f of fingerFiles) {
+    /* both arms parse the same stream under the same validity, so one read serves both */
+    const runsText = runsOf(f.p, 'PPG');
+    const armA = armFeet(P, f.p, runsText);
+    if (armA.err) {
+      excluded.push(base(f.p) + ' (' + armA.err + ')');
+      continue;
+    }
+    const armB = armFeet(P2, f.p, runsText);
+    if (armB.err) {
+      excluded.push(base(f.p) + ' (' + armB.err + ')');
+      continue;
+    }
+    const fa = armA.feet,
+      fb = armB.feet;
+    if (fa.length !== fb.length) {
+      excluded.push(base(f.p) + ' (' + fa.length + ' feet against ' + fb.length + ' — the arms index different beats)');
+      continue;
+    }
+    const nf = fa.reduce((a, x) => a + (Number.isFinite(x) ? 0 : 1), 0) + fb.reduce((a, x) => a + (Number.isFinite(x) ? 0 : 1), 0);
+    if (nf) {
+      excluded.push(base(f.p) + ' (' + nf + ' beat(s) with no 50 % crossing — ∅, and the tangent is not a substitute)');
+      continue;
+    }
+    const beatsA = fa.map((x) => armA.t0Ms + x * 1000);
+    const beatsB = fb.map((x) => armB.t0Ms + x * 1000);
+    /* THE WINDOW IS THE SHIPPED ARM'S, like the epoch membership and the lag below it. */
+    const w0 = armA.t0Ms,
+      w1 = armA.t0Ms + (armA.durSec || 0) * 1000;
+    let best = null;
+    for (const u of ecgNights) {
+      const ov = Math.min(w1, u.t1) - Math.max(w0, u.t0);
+      if (ov > EPOCH_MS && (!best || ov > best.ov)) best = { ov, u };
+    }
+    if (!best) {
+      excluded.push(base(f.p) + ' (no paired H10 ECG night overlaps it)');
+      continue;
+    }
+    const eBeats = best.u.beats;
+    const lo = Math.max(w0, best.u.t0),
+      hi = Math.min(w1, best.u.t1);
+    const jA = [],
+      jB = [];
+    for (let t = lo; t + EPOCH_MS <= hi; t += EPOCH_MS) {
+      const idx = [];
+      for (let i = 0; i < beatsA.length; i++) if (beatsA[i] >= t && beatsA[i] < t + EPOCH_MS) idx.push(i);
+      const ee = eBeats.filter((x) => x >= t - MAX_LAG_MS && x < t + EPOCH_MS + MAX_LAG_MS);
+      if (idx.length < 60 || ee.length < 60) {
+        dropped.thin++;
+        continue;
+      }
+      const fe = idx.map((i) => beatsA[i]);
+      const fp = idx.map((i) => beatsB[i]);
+      const coarse = envelopeLagMs(hrEnvelope(fe, t, t + EPOCH_MS), hrEnvelope(ee, t, t + EPOCH_MS));
+      if (!coarse) {
+        dropped.noLag++;
+        continue;
+      }
+      /* ONE COARSE LAG, EACH ARM REFINES IT. The coarse lag comes from the instantaneous-HR envelope,
+         which is a RATE and identical for both arms; the refinement is alignment, and the fiducial
+         substitution moves every foot later on the upstroke by tens of ms — more than `MATCH_MS`'s
+         75 ms. Measured on 2026-11-03: holding the shipped arm's refined lag across both arms dropped
+         51 of 57 epochs on `noJitterPct50`, so the comparison would have run on the few epochs where
+         a constant OFFSET happened not to break the one-to-one match. The jitter itself is the sd of
+         matched INTERVAL differences (`ppiJitterMs`), so a per-arm lag cannot flatter either arm — it
+         decides which beats pair, never what the pairs read. */
+      const lagA = refineLagByMatch(fe, ee, coarse.lagMs);
+      const lagB = refineLagByMatch(fp, ee, coarse.lagMs);
+      const ja = ppiJitterMs(fe, ee, matchBeats(fe, ee, lagA.lagMs));
+      if (!ja) {
+        dropped.noJitterTangent++;
+        continue;
+      }
+      const jb = ppiJitterMs(fp, ee, matchBeats(fp, ee, lagB.lagMs));
+      if (!jb) {
+        dropped.noJitterPct50++;
+        continue;
+      }
+      let so = 0;
+      for (let i = 0; i < fe.length; i++) so += fp[i] - fe[i];
+      offs.push(so / fe.length);
+      jA.push(ja.sd);
+      jB.push(jb.sd);
+      pairs.push({ tangent: ja.sd, pct50: jb.sd });
+    }
+    if (!jA.length) {
+      excluded.push(base(f.p) + ' (no epoch scored in both arms)');
+      continue;
+    }
+    scored++;
+    console.log(
+      base(f.p).slice(0, 40).padEnd(40) + String(jA.length).padStart(5) + median(jA).toFixed(2).padStart(9) + median(jB).toFixed(2).padStart(8) + (median(jB) - median(jA)).toFixed(2).padStart(9)
+    );
+  }
+  const dsum = dropped.thin + dropped.noLag + dropped.noJitterTangent + dropped.noJitterPct50;
+  const deltas = pairs.map((x) => x.pct50 - x.tangent);
+  const tanM = pairs.length ? median(pairs.map((x) => x.tangent)) : null;
+  const pctM = pairs.length ? median(pairs.map((x) => x.pct50)) : null;
+  const dM = deltas.length ? median(deltas) : null;
+  const worse = deltas.filter((d) => d > 0).length;
+  const offM = offs.length ? median(offs) : null;
+  console.log('\nscored ' + pairs.length + ' epoch(s) over ' + scored + ' recording(s); ' + excluded.length + ' recording(s) excluded, ' + dsum + ' epoch(s) dropped');
+  console.log('  dropped by reason: ' + JSON.stringify(dropped));
+  for (const x of excluded) console.log('  excluded: ' + x);
+  if (pairs.length) {
+    console.log(
+      '\n  tangent (shipped)  median ' +
+        tanM.toFixed(2) +
+        ' ms   IQR ' +
+        quantile(
+          pairs.map((x) => x.tangent),
+          0.25
+        ).toFixed(2) +
+        '–' +
+        quantile(
+          pairs.map((x) => x.tangent),
+          0.75
+        ).toFixed(2)
+    );
+    console.log(
+      '  50 % crossing      median ' +
+        pctM.toFixed(2) +
+        ' ms   IQR ' +
+        quantile(
+          pairs.map((x) => x.pct50),
+          0.25
+        ).toFixed(2) +
+        '–' +
+        quantile(
+          pairs.map((x) => x.pct50),
+          0.75
+        ).toFixed(2)
+    );
+    console.log('  paired delta       median ' + dM.toFixed(2) + ' ms   worse under the 50 % crossing in ' + worse + ' of ' + pairs.length + ' epoch(s)');
+    console.log(
+      '  foot translation   median ' + offM.toFixed(2) + ' ms   IQR ' + quantile(offs, 0.25).toFixed(2) + '–' + quantile(offs, 0.75).toFixed(2) + '   (the PAT path read 89.5 ms over 30 nights)'
+    );
+    console.log("  the paper's §4 figures, for comparison: 5.02 ms against 4.44 ms, a +0.58 ms paired delta");
+    /* the tally is `null` over an empty one, because four zeros read exactly like a sweep where
+       every sidecar was there */
+    const validity = validityLine(VALIDITY);
+    if (validity) console.log('  ' + validity);
+  }
+  /* THE STATUS FOLLOWS THE STATED CRITERION MECHANICALLY: `gte 0` is the paper's direction, that
+     the 50 % crossing times WORSE than the tangent, and the verdict reads nothing else. */
+  const status = pairs.length === 0 ? 'NOT_RUN' : pairs.length < FID_MIN_EPOCHS ? 'UNDERPOWERED' : dM >= 0 ? 'PASS' : 'FAIL';
+  const reason =
+    status === 'NOT_RUN'
+      ? 'no epoch scored in both arms, so the two fiducials were never compared'
+      : status === 'UNDERPOWERED'
+        ? 'only ' + pairs.length + ' epoch(s) scored in both arms, under the pre-stated floor of ' + FID_MIN_EPOCHS
+        : status === 'FAIL'
+          ? 'the 50 % crossing is not worse here: the paired median delta reads ' + dM.toFixed(2) + ' ms, so the direction §4 reports does not reproduce on this corpus'
+          : null;
+  const v = Verdict.make({
+    gate: 'ppi-jitter-fiducial-pct50',
+    status,
+    scope: 'internal',
+    population: { checked: pairs.length, eligible: pairs.length + dsum, excluded: dsum },
+    criterion: { name: 'median_paired_jitter_delta_ms', threshold: 0, unit: 'ms', direction: 'gte' },
+    result: {
+      medianDeltaMs: dM,
+      medianTangentMs: tanM,
+      medianPct50Ms: pctM,
+      epochs: pairs.length,
+      epochsWorseUnderPct50: worse,
+      recordingsScored: scored,
+      recordingsExcluded: excluded.length,
+      medianFootOffsetMs: offM,
+      droppedByReason: dropped,
+      device: DEVICE
+    },
+    evidence: ['tools/ppi-jitter-vs-ecg.mjs', 'papers/ppg-ecg-hrv-validation.html', 'briefs/EXTERNAL-METHODS-SURVEY-2026-08-20-BRIEF.md'],
+    reason,
+    producedBy: { tool: 'tools/ppi-jitter-vs-ecg.mjs', commit: commitOf.commit, commitReason: commitOf.commit ? null : commitOf.reason }
+  });
+  const bad = Verdict.validate(v);
+  if (bad && bad.ok === false) {
+    console.error('the fiducial verdict does not validate: ' + JSON.stringify(bad.errors || bad));
+    process.exit(2);
+  }
+  console.log('\n' + JSON.stringify(v));
+  process.exit(status === 'NOT_RUN' || status === 'UNDERPOWERED' ? 2 : 0);
+}
 
 const nights = [];
 /* EVERY SCORED EPOCH IN THE CORPUS, pooled. The catastrophic-epoch claim and the reference rMSSD the
