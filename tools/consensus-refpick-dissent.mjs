@@ -47,7 +47,7 @@ import vm from 'node:vm';
 import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 import { maskNonCode } from './argv-reads.mjs';
 import { argAt, findCalls, scanFiles } from './consensus-polarity-wiring.mjs';
-import { gitCommitOf, snapshotEntries } from './corpus-scope-core.mjs';
+import { gitCommitOf, populationVerdict, ruleLine, snapshotEntries } from './corpus-scope-core.mjs';
 import { makeVerdict, printVerdict } from './verdict-emit.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -244,13 +244,15 @@ export function picksOf(peakCounts, snrs) {
   return { peakArgmax: pk, snrPick: sn };
 }
 
-export function corpusVerdictOf(nights, snapBefore, snapAfter, opts = {}) {
+/* THE POPULATION IS NOT RESTATED HERE. `populationVerdict` publishes the walked population and
+   whether the tree moved under the run, as its own `corpus-population` object beside this one, so
+   this verdict answers only the question it pre-stated. Two statements of one count is drift. */
+export function corpusVerdictOf(nights, opts = {}) {
   const read = nights.filter((n) => n.ok);
   const withDissent = read.filter((n) => n.dissenters.length > 0);
   const pkOnDissent = withDissent.filter((n) => n.dissenters.includes(n.peakArgmax));
   const snOnDissent = withDissent.filter((n) => n.dissenters.includes(n.snrPick));
   const hit = pkOnDissent.length + snOnDissent.length;
-  const moved = snapBefore && snapAfter ? snapBefore.n !== snapAfter.n : null;
   const status = read.length === 0 ? 'NOT_RUN' : hit ? 'FAIL' : 'PASS';
   return makeVerdict({
     gate: GATE,
@@ -270,9 +272,7 @@ export function corpusVerdictOf(nights, snapBefore, snapAfter, opts = {}) {
                cannot be quoted for a caller using the other. */
             nightsTheTwoRulesPickDifferentChannels: read.filter((n) => n.peakArgmax !== n.snrPick).length,
             peakArgmaxOnDissenter: pkOnDissent.length,
-            snrPickOnDissenter: snOnDissent.length,
-            filesOffered: snapBefore ? snapBefore.n : null,
-            treeMoved: moved
+            snrPickOnDissenter: snOnDissent.length
           },
     evidence: [TOOL, 'ppgdex-dsp.js'],
     reason:
@@ -424,12 +424,12 @@ function selftest() {
   fail += ok(picksOf([5, 5, 5], [0, 0, 0]).peakArgmax === 0, 'a tie keeps the first channel, as every caller writes it');
   /* The verdicts refuse to pass over nothing. */
   fail += ok(censusVerdictOf([]).status === 'NOT_RUN', 'a census over no call site examined nothing');
-  fail += ok(corpusVerdictOf([], null, null).status === 'NOT_RUN', 'a corpus run over no night examined nothing');
-  const hit = corpusVerdictOf([{ ok: true, dissenters: [2], peakArgmax: 2, snrPick: 0 }], null, null);
+  fail += ok(corpusVerdictOf([]).status === 'NOT_RUN', 'a corpus run over no night examined nothing');
+  const hit = corpusVerdictOf([{ ok: true, shape: 'majority', dissenters: [2], peakArgmax: 2, snrPick: 0 }]);
   fail += ok(hit.status === 'FAIL' && hit.result.peakArgmaxOnDissenter === 1 && hit.result.snrPickOnDissenter === 0, 'a pick on the dissenter reads FAIL and names which rule landed there');
-  const split = corpusVerdictOf([{ ok: true, shape: 'unanimous', dissenters: [], peakArgmax: 2, snrPick: 1 }], null, null);
+  const split = corpusVerdictOf([{ ok: true, shape: 'unanimous', dissenters: [], peakArgmax: 2, snrPick: 1 }]);
   fail += ok(split.status === 'PASS' && split.result.nightsTheTwoRulesPickDifferentChannels === 1, 'the two rules disagreeing on a clean night is counted, not a failure');
-  const clean = corpusVerdictOf([{ ok: true, shape: 'majority', dissenters: [2], peakArgmax: 0, snrPick: 0 }], null, null);
+  const clean = corpusVerdictOf([{ ok: true, shape: 'majority', dissenters: [2], peakArgmax: 0, snrPick: 0 }]);
   fail += ok(clean.status === 'PASS' && clean.result.nightsWithADissenter === 1, 'a dissenting night whose pick lands elsewhere still counts as a night with a dissenter');
   console.log(fail ? `\nselftest: ${fail} FAILURE(S) of ${ASSERTED}` : `\nselftest: all ${ASSERTED} assertions passed`);
   return fail;
@@ -487,10 +487,18 @@ if (isCliEntry(import.meta.url)) {
       `${name.padEnd(50)}  ${String(n.nCh).padStart(3)}  ${(n.shape || '—').padEnd(10)}  ${(n.dissenters.join(',') || '—').padEnd(10)}  ${String(n.peakArgmax ?? '—').padStart(11)}  ${String(n.snrPick ?? '—').padStart(8)}${n.ok ? '' : `   (${n.why})`}`
     );
   }
-  const snapAfter = snapshotEntries(DIR, { list: listVerityPpg, unit: PPG_UNIT });
-  const v = corpusVerdictOf(nights, snapBefore, snapAfter, { commit: commitOf.commit, commitReason: commitOf.reason });
-  if (has('--json')) console.log(JSON.stringify({ nights, verdict: v }, null, 2));
+  const population = populationVerdict(snapBefore, snapshotEntries(DIR, { list: listVerityPpg, unit: PPG_UNIT }), {
+    tool: TOOL,
+    commit: commitOf.commit,
+    commitReason: commitOf.reason,
+    evidence: [TOOL]
+  });
+  const v = corpusVerdictOf(nights, { commit: commitOf.commit, commitReason: commitOf.reason });
+  if (has('--json')) console.log(JSON.stringify({ nights, population, verdict: v }, null, 2));
   else {
+    console.log('');
+    console.log(ruleLine(population));
+    console.log(`POPULATION (tepna.verdict/1): ${JSON.stringify(population)}`);
     console.log('');
     printVerdict(v);
   }
