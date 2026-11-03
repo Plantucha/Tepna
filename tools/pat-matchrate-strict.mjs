@@ -200,8 +200,13 @@ function ecgRpeakTimes(text, opts) {
   };
 }
 /* ── @port-from pat-feasibility-worker.js#ppgFootTimes ─────────────────────────────
-   @port-sha 43679618f5a2
-   RECONCILED 2026-11-02 against that source text, for row
+   @port-sha 34a85f9eb0c9
+   RECONCILED 2026-11-03 against that source text, for row
+   2026-11-01-the-consensus-polarity-wiring-reached-one-of-ten-callers. The worker now applies the consensus
+   polarity decision, in the place and the order this copy applies it: after the per-channel
+   detection and BEFORE the reference pick. The difference this block recorded in the other
+   direction is therefore closed, and both sides run one polarity rule.
+   RECONCILED 2026-11-02 against the pre-polarity source text, for row
    2026-11-01-the-pat-foot-ports-cannot-run-the-recompute-counterfactual. The worker's optional
    `opts.pinnedFromRecompute` now lives here, so this copy runs the counterfactual the switch exists
    to run. `opts` is OPTIONAL and LAST per §🧪, and absent or false every line below runs as it did,
@@ -217,10 +222,7 @@ function ecgRpeakTimes(text, opts) {
    The `timeAt` interpolation below is the direction the port ran the OTHER way: the worker took it
    from this copy in #4069, and its comment says so.
    DELIBERATELY NOT PORTED. The worker's `beatSQI` / `beatConfidence` / `unmeasuredSec` / `validity`
-   block serves the worker's own consumers; a port is not a merge. The polarity pass below is the
-   deliberate difference in the other direction — the node's `analyze` applies it, this copy applies
-   it, and the worker applies it nowhere (row
-   2026-11-01-the-consensus-polarity-wiring-reached-one-of-ten-callers).
+   block serves the worker's own consumers; a port is not a merge.
  */
 function ppgFootTimes(text, runsText, opts) {
   const rec = runsText ? PPGDSP.parsePPG(text, { runsText }) : PPGDSP.parsePPG(text);

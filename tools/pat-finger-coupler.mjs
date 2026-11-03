@@ -86,6 +86,11 @@ function ppgFiducialTimes(text, which) {
   const rec = PPGDSP.parsePPG(text);
   if (rec.t0Ms == null) throw new Error('PPG file carried no phone timestamp.');
   const per = rec.ch.map((c) => PPGDSP.detectChannel(c, rec.fs));
+  /* CONSENSUS POLARITY — the order follows `analyze` (apply, then pick). The ring stream carries one
+     channel today, and `consensusSign` returns 0 below two channels, so this is a no-op the code
+     proves rather than a claim about the stream. A two-channel ring export reaches the node's rule
+     here without another edit. */
+  PPGDSP.applyConsensusPolarity(per, (i, sgn) => PPGDSP.detectChannel(rec.ch[i], rec.fs, sgn));
   let refIdx = 0,
     best = -1;
   per.forEach((p, i) => {
@@ -94,8 +99,8 @@ function ppgFiducialTimes(text, which) {
       refIdx = i;
     }
   });
-  /* @polarity-decision behind 2026-11-01-the-consensus-polarity-wiring-reached-one-of-ten-callers
-     The ring finger stream carries one channel today, where the re-detection is a no-op, and nothing in this call reads the channel count. */
+  /* @polarity-decision applies
+     One channel makes the apply a no-op `consensusSign` enforces, and a two-channel export needs no edit here. */
   const cons = PPGDSP.consensusBeats(per, refIdx, rec.fs);
   const src = cons.peaks;
   const t = new Float64Array(src.length);

@@ -208,6 +208,13 @@ function ppgFootTimes(text, runsText, opts) {
   var per = rec.ch.map(function (c) {
     return PPGDSP.detectChannel(c, rec.fs);
   });
+  /* CONSENSUS POLARITY — apply BEFORE the reference pick, which is the order `analyze` ships
+     (`ppgdex-dsp.js` applies, then picks): a flipped dissenter's peak count moves, so a pick made
+     first would ratify a reference chosen under the polarity the device-wide majority overrules.
+     The call is a no-op on a unanimous set and on a 1-1 split, so no undissenting night moves. */
+  PPGDSP.applyConsensusPolarity(per, function (i, sgn) {
+    return PPGDSP.detectChannel(rec.ch[i], rec.fs, sgn);
+  });
   var refIdx = 0,
     best = -1;
   per.forEach(function (p, i) {
@@ -216,8 +223,8 @@ function ppgFootTimes(text, runsText, opts) {
       refIdx = i;
     }
   });
-  /* @polarity-decision behind 2026-11-01-the-consensus-polarity-wiring-reached-one-of-ten-callers
-     The shipped PAT feet then ride a 2-of-3 vote, and this worker’s own kept33 reads 0 for what is a phase offset. */
+  /* @polarity-decision applies
+     The shipped PAT feet now ride the device-wide majority, so kept33 counts agreement and not phase. */
   var cons = PPGDSP.consensusBeats(per, refIdx, rec.fs);
   /* ── §∅ A FOOT EVERY CHANNEL WAS PINNED THROUGH IS NOT A BEAT ───────────────────────────────────
      `rec.spans` is per optical channel, and `parsePPG` publishes it with or without a sidecar: the

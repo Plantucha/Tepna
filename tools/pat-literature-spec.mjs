@@ -187,8 +187,13 @@ function ecgRpeakTimes(text) {
   return { fs: rec.fs, times: Array.from(t), n: peaks.length };
 }
 /* ── @port-from pat-feasibility-worker.js#ppgFootTimes ─────────────────────────────
-   @port-sha 43679618f5a2
-   RECONCILED 2026-11-02 against that source text, for row
+   @port-sha 34a85f9eb0c9
+   RECONCILED 2026-11-03 against that source text, for row
+   2026-11-01-the-consensus-polarity-wiring-reached-one-of-ten-callers. The worker now applies the consensus
+   polarity decision, in the place and the order this copy applies it: after the per-channel
+   detection and BEFORE the reference pick. The difference this block recorded in the other
+   direction is therefore closed, and both sides run one polarity rule.
+   RECONCILED 2026-11-02 against the pre-polarity source text, for row
    2026-11-01-the-pat-foot-ports-cannot-run-the-recompute-counterfactual. The worker's optional
    `opts.pinnedFromRecompute` now lives here, so this copy runs the counterfactual the switch exists
    to run. `opts` is OPTIONAL and LAST per §🧪, and absent or false every line below runs as it did,
@@ -218,14 +223,16 @@ function ecgRpeakTimes(text) {
 
    DELIBERATELY NOT PORTED. The worker's `beatSQI` / `beatConfidence` / `unmeasuredSec` / `validity`
    block serves the worker's own consumers, and nothing here reads those fields: a port is not a
-   merge. The worker applies no consensus polarity and neither does this copy —
-   `tools/pat-matchrate-strict.mjs` does, and row
-   2026-11-01-the-consensus-polarity-wiring-reached-one-of-ten-callers holds that difference.
+   merge.
  */
 function ppgFootTimes(text, runsText, opts) {
   const rec = runsText ? PPGDSP.parsePPG(text, { runsText }) : PPGDSP.parsePPG(text);
   if (!rec || rec.t0Ms == null) return null;
-  const per = rec.ch.map((c) => PPGDSP.detectChannel(c, rec.fs));
+  /* CONSENSUS POLARITY — apply BEFORE the reference pick, which is the order `analyze` ships
+     (`ppgdex-dsp.js` applies, then picks): a flipped dissenter's peak count moves, so a pick made
+     first would ratify a reference chosen under the polarity the device-wide majority overrules.
+     The call is a no-op on a unanimous set and on a 1-1 split, so no undissenting night moves. */
+  PPGDSP.applyConsensusPolarity(per, (i, sgn) => PPGDSP.detectChannel(rec.ch[i], rec.fs, sgn));
   let refIdx = 0,
     best = -1;
   per.forEach((p, i) => {
@@ -234,8 +241,8 @@ function ppgFootTimes(text, runsText, opts) {
       refIdx = i;
     }
   });
-  /* @polarity-decision behind 2026-11-01-the-consensus-polarity-wiring-reached-one-of-ten-callers
-     The residuals this spec holds against the literature then come from a 2-of-3 vote on an affected night. */
+  /* @polarity-decision applies
+     The residuals this spec holds against the literature now come from the whole channel set. */
   let cons = PPGDSP.consensusBeats(per, refIdx, rec.fs);
   /* `opts.pinnedFromRecompute` MEASURES the move that consuming the recompute would make, rather
      than asserting it: the spans then come from the recompute `parsePPG` publishes on every path,
