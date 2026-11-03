@@ -6874,33 +6874,103 @@ def test_a_band_edge_arrives_as_the_CIVIL_COMPONENTS_the_capture_wrote(monkeypat
         assert got.tzinfo is None, "worn_interval's ends are naive, so this one has to be too"
 
 
-# ── THE BOX'S OWN RE-JUDGE, AS A CAUSE THIS BAND HAS TO CLASSIFY ────────────────────────────────────
+# ── THE BOX'S OWN RE-JUDGE KEEPS THE BAR IT HAD (residue 2026-10-20-a-re-judge-that-tears-the-ring) ──
 # `loss_audit.JOB_SPANS` gives a gap that starts inside the box's `solid-night ... re-judged` bracket a
-# name. This band had no entry for that name, and the absence was not neutral: the five gaps it reaches
-# would have left `un` and the night would have turned PASS because the audit learned the cause.
+# name. The cause spent two weeks in `DAEMON_REGRESSION` as a declared holding position, where ONE bracket
+# gap of any length failed a night. Heron measured the corpus and decided it under CLAUDE.md §7 on
+# 2026-11-03: exactly one night carries such a gap, that night is NOT_APPLICABLE as a declared probe
+# night, so no published verdict moves and the module's own rule decides — naming a cause must not move a
+# verdict on its own. These gaps read `unattributed` before the attribution, so they keep that bar.
 
 
 def test_the_box_s_own_re_judge_fails_the_band_the_way_the_unattributed_night_already_did(tmp_path):
     """The night of 2026-10-12 in both vocabularies. Six ring gaps inside the worn interval: five start
     inside a re-judge bracket and one does not. Before the attribution all six read `unattributed` and the
-    band FAILed on the count; after it, five carry the program's own name and the band still FAILs, now
-    naming it. The status is what must not move on an attribution change."""
+    band FAILed on the count; after it, five carry the program's own name and the band still FAILs on the
+    same count, now naming the program. The status is what must not move on an attribution change."""
     five = [(f"2026-09-20T23:0{i // 2}:{10 + 30 * (i % 2)}", 13.0, "unattributed") for i in range(5)]
     lone = [("2026-09-20T23:02:40", 23.0, "unattributed")]
     before = _cont(tmp_path, gaps=five + lone)
     assert before["status"] == "FAIL" and before["reason"].startswith("6 unattributed gap(s)"), before
     d = tmp_path / "attributed"
     d.mkdir()
-    after = _cont(d, gaps=[(t, s, "daemon:solid-night re-judge") for t, s, _c in five] + lone)
-    assert after == {
-        "status": "FAIL",
-        "reason": "daemon regression inside the worn interval: daemon:solid-night re-judge",
-    }, after
-    # and the lone gap alone — 23 s, under both bars — is the leg that proves the holding position is
-    # load-bearing: drop the cause from the tuple and this same night PASSes.
+    after = _cont(d, gaps=[(t, s, si.REJUDGE) for t, s, _c in five] + lone)
+    # the seconds are the gate's arithmetic, not mine: the prose is pinned, the total is computed
+    total = sum(s for _t, s, _c in five + lone)
+    assert after["status"] == "FAIL", after
+    assert after["reason"] == (
+        f"6 unattributed gap(s) (5 under a solid-night re-judge, {si.REJUDGE}), {total:.0f} s, inside the worn interval"
+    ), after
+    # and the lone gap alone — 23 s, under both bars — still PASSes: the count is what fails the night.
     d2 = tmp_path / "lone"
     d2.mkdir()
     assert _cont(d2, gaps=lone)["status"] == "PASS"
+
+
+def test_a_lone_re_judge_gap_under_both_bars_passes_and_names_the_bracket(tmp_path):
+    """One 17 s bracket gap: under 60 s and under the count, so it annotates rather than decides."""
+    out = _cont(tmp_path, gaps=[("2026-09-20T23:01:00", 17.0, si.REJUDGE)])
+    assert out["status"] == "PASS"
+    assert out["reason"] == (
+        f"counted discontinuity: 1 gap(s) inside a solid-night re-judge bracket ({si.REJUDGE}) inside "
+        "the worn interval — counted toward the unattributed bar, which they stay under"
+    ), out
+
+
+def test_sixty_seconds_inside_re_judge_brackets_fail_the_band_on_minutes(tmp_path):
+    """The seconds bar reaches a bracket gap too, so one long bracket fails on its own."""
+    out = _cont(tmp_path, gaps=[("2026-09-20T23:01:00", 60.0, si.REJUDGE)])
+    assert out["status"] == "FAIL"
+    assert out["reason"] == (
+        f"1 unattributed gap(s) (1 under a solid-night re-judge, {si.REJUDGE}), 60 s, inside the worn interval"
+    ), out
+
+
+def test_a_stall_and_a_re_judge_in_one_night_name_both_causes_in_one_clause(tmp_path):
+    """Five gaps over the count bar: three under a stall, two inside a bracket. One clause names both,
+    stall first, so neither cause can hide behind the other and the order is pinned."""
+    gaps = [(f"2026-09-20T23:01:{s}0", 1.0, si.LOOP_STALL) for s in (1, 2, 3)]
+    gaps += [(f"2026-09-20T23:01:{s}0", 1.0, si.REJUDGE) for s in (4, 5)]
+    out = _cont(tmp_path, gaps=gaps)
+    assert out["status"] == "FAIL"
+    assert out["reason"].startswith(
+        f"5 unattributed gap(s) (3 under an event-loop stall, {si.LOOP_STALL}; "
+        f"2 under a solid-night re-judge, {si.REJUDGE}),"
+    ), out
+
+
+def test_a_stall_and_a_re_judge_under_the_bars_annotate_the_pass_in_a_pinned_order(tmp_path):
+    """Both annotations on one PASS, stall first. A night can carry two counted causes and must name
+    both; the ∅ half that annotates is worth nothing if one clause overwrites the other."""
+    gaps = [("2026-09-20T23:01:10", 2.0, si.LOOP_STALL), ("2026-09-20T23:01:20", 3.0, si.REJUDGE)]
+    out = _cont(tmp_path, gaps=gaps)
+    assert out["status"] == "PASS"
+    stall_at = out["reason"].index("under an event-loop stall")
+    rejudge_at = out["reason"].index("inside a solid-night re-judge bracket")
+    assert stall_at < rejudge_at, out
+    assert out["reason"].count("counted discontinuity:") == 2, out
+
+
+def test_a_re_judge_gap_outside_the_worn_interval_reaches_no_bar(tmp_path):
+    """A bracket gap the band never sees cannot count: 23:10 is past this night's worn end."""
+    assert _cont(tmp_path, gaps=[("2026-09-20T23:10:00", 900.0, si.REJUDGE)])["status"] == "PASS"
+
+
+def test_the_re_judge_cause_counts_and_is_never_a_daemon_regression(tmp_path):
+    """The drift pin for the 2026-11-03 decision. Membership is the whole rule, so it is asserted
+    directly: a later session moving the cause back into the regression tuple fails here first."""
+    assert si.REJUDGE not in si.DAEMON_REGRESSION, "a re-judge is not a fixed mechanism regressing"
+    assert si.REJUDGE in si.COUNTED_UNEXPLAINED, "it keeps the bar its gaps had as `unattributed`"
+    assert si.UNATTRIBUTED in si.COUNTED_UNEXPLAINED and si.LOOP_STALL in si.COUNTED_UNEXPLAINED
+    assert si.RESTART not in si.COUNTED_UNEXPLAINED, "a declared restart is excluded, not counted"
+    assert si.DECLARED_PAUSE not in si.COUNTED_UNEXPLAINED, "nor is a declared pause"
+    # and a 99 s restart still PASSes, which is the owner's 2026-10-13 ruling read back through this set
+    out = _cont(tmp_path, gaps=[("2026-09-20T23:01:00", 99.0, si.RESTART)])
+    assert out["status"] == "PASS", out
+
+
+def test_the_judge_and_the_audit_spell_the_re_judge_cause_alike():
+    assert si.REJUDGE in {cause for cause, _a, _b in _la.JOB_SPANS}
 
 
 # ── AN EVENT-LOOP STALL KEEPS THE BAR IT HAD (residue 2026-10-13-the-stall-that-tore-the-ring-is-invisible-…) ──

@@ -189,17 +189,9 @@ DAEMON_REGRESSION = (
     "daemon:clock re-sync",
     "daemon:stream stall re-negotiate",
     "daemon:not-worn drop",
-    # ⚠️ A HOLDING POSITION, NOT A RULING. `loss_audit.JOB_SPANS` attributes a gap that starts inside the
-    # box's own `solid-night … re-judged` bracket to the box, and that cause is new here. Listing it
-    # PRESERVES every verdict this corpus holds: the only 5 gaps it reaches are the ring's on
-    # 2026-10-12→13, that band already FAILs on `6 unattributed gap(s), 87 s`, and it keeps FAILing —
-    # with the program named instead of nobody. Leaving it OFF this tuple would have been the silent
-    # change: the 5 gaps would leave `un`, the remaining one is 23 s under both bars, and the night would
-    # turn PASS because the audit learned the cause. Whether a re-judge the box CHOSE to start is instead
-    # a declared action, excluded and annotated like `daemon:restart` (the owner's 2026-10-13 ruling
-    # above), is the owner's call and not a measurement — residue
-    # `2026-10-20-a-re-judge-that-tears-the-ring-is-classified-by-a-holding-position`.
-    "daemon:solid-night re-judge",
+    # THE BOX'S OWN RE-JUDGE IS NOT HERE, AND `REJUDGE` below carries the measurement that moved it out.
+    # Every member of this tuple is a mechanism that was FIXED and whose recurrence is therefore a
+    # regression. A re-judge bracket is not one: nothing was fixed, so nothing can regress.
 )
 UNATTRIBUTED = "unattributed"
 # AN EVENT-LOOP STALL KEEPS THE BAR IT HAD. Until `loss_audit` read the device-less stall line, a gap a
@@ -207,6 +199,27 @@ UNATTRIBUTED = "unattributed"
 # verdict on its own: the stall is an OPEN daemon defect, not a fixed mechanism (`DAEMON_REGRESSION`) and
 # not a declared pause, so its gaps still count as unexplained here and the reason names them.
 LOOP_STALL = "daemon:event-loop stall"
+# 🔴 A SOLID-NIGHT RE-JUDGE KEEPS THE BAR IT HAD, on the same rule as the stall one line up.
+# `loss_audit.JOB_SPANS` attributes a gap that starts inside the box's own `solid-night … re-judged`
+# bracket to the box, and that cause was new here. It spent two weeks in `DAEMON_REGRESSION` as a declared
+# holding position, where ONE bracket gap of any length failed a night — residue
+# `2026-10-20-a-re-judge-that-tears-the-ring-is-classified-by-a-holding-position` asked which bin it
+# belongs in. Heron decided it under CLAUDE.md §7 on 2026-11-03 and the owner can overrule it.
+# ⚠️ MEASURED FIRST, over the 76 nights of `LOSS-AUDIT.json` on the canonical rig copy of the box
+# archive: 48 carry the per-gap cause list this band reads, and exactly ONE night (2026-10-12) carries any
+# gap whose cause is a re-judge — 11 of them, 136 s across the night's devices. That night's published
+# `solid-night` verdict is NOT_APPLICABLE, because `probe_night` declared it and `solid_night.py`
+# precedence 1b puts a declared probe night ahead of every band. So NO published verdict on this corpus
+# moves under any classification, and the holding position was preserving a band result inside a night
+# that nothing decides. With no verdict at stake the rule above decides: naming a cause must not move a
+# verdict on its own. These gaps read `unattributed` before the attribution and counted toward the two
+# bars, so they keep that bar and the reason names the program. The 2026-10-12 ring shape still FAILs on
+# `6 unattributed gap(s), 87 s`, which is what the holding position was protecting.
+REJUDGE = "daemon:solid-night re-judge"
+# The causes that count toward the two unattributed bars. A cause reaches this tuple when it is
+# UNEXPLAINED or an OPEN defect — never when the box DECLARED it (`DECLARED_PAUSE`, `RESTART`), and never
+# when it is a fixed mechanism regressing (`DAEMON_REGRESSION`, which fails ahead of these bars).
+COUNTED_UNEXPLAINED = (UNATTRIBUTED, LOOP_STALL, REJUDGE)
 NO_JOURNAL = "unattributed (no journal)"
 UNATTRIBUTED_MAX_S = 60.0  # §3.4: total < 60 s …
 UNATTRIBUTED_MAX_N = 5  # … and count < 5
@@ -767,10 +780,19 @@ def continuity(audit: dict, audit_dev: dict, start, end, spans: dict[str, tuple]
         return _decision("FAIL", f"daemon regression inside the worn interval: {', '.join(regress)}")
     if any(c == NO_JOURNAL for c, _ in inside):
         return _decision("UNKNOWN", "a gap inside the worn interval is unattributed for want of a journal")
-    un = [s for c, s in inside if c in (UNATTRIBUTED, LOOP_STALL)]
+    un = [s for c, s in inside if c in COUNTED_UNEXPLAINED]
     stalled = sum(1 for c, _ in inside if c == LOOP_STALL)
+    rejudged = sum(1 for c, _ in inside if c == REJUDGE)
     if sum(un) >= UNATTRIBUTED_MAX_S or len(un) >= UNATTRIBUTED_MAX_N:
-        named = f" ({stalled} under an event-loop stall, {LOOP_STALL})" if stalled else ""
+        # ONE JOINED CLAUSE, NOT A BRANCH PER CAUSE. A test pins the stall-only sentence, so the pairs
+        # below reproduce it verbatim when the stall is the only named cause; a re-judge-only night reads
+        # the same shape under its own name, and a night carrying both names both in this fixed order.
+        pairs = (
+            (stalled, f"{stalled} under an event-loop stall, {LOOP_STALL}"),
+            (rejudged, f"{rejudged} under a solid-night re-judge, {REJUDGE}"),
+        )
+        clauses = [text for n, text in pairs if n]
+        named = f" ({'; '.join(clauses)})" if clauses else ""
         return _decision("FAIL", f"{len(un)} unattributed gap(s){named}, {sum(un):.0f} s, inside the worn interval")
     link = sum(s for c, s in inside if c.startswith("link:"))
     if worn_s > 0 and link / worn_s >= LINK_MAX_FRACTION:
@@ -795,6 +817,11 @@ def continuity(audit: dict, audit_dev: dict, start, end, spans: dict[str, tuple]
         notes.append(
             f"counted discontinuity: {stalled} gap(s) under an event-loop stall ({LOOP_STALL}) inside the "
             "worn interval — counted toward the unattributed bar, which they stay under",
+        )
+    if rejudged:
+        notes.append(
+            f"counted discontinuity: {rejudged} gap(s) inside a solid-night re-judge bracket ({REJUDGE}) "
+            "inside the worn interval — counted toward the unattributed bar, which they stay under",
         )
     paused = [s for c, s in inside if c == DECLARED_PAUSE]
     if paused:
