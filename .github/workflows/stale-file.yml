@@ -37,8 +37,17 @@ concurrency:
 
 jobs:
   stale-file:
-    # measured 2026-10-11 over 30 job run(s): p95 0.7 min, max 0.8 min (tools/ci-timing.mjs `pct`). Cap = ceil(max(p95, max) × 2).
-    timeout-minutes: 2
+    # NO MAIN SAMPLE REACHES THIS JOB. It fires on `pull_request` and `merge_group` only, so
+    # `tools/ci-timing.mjs --branch main` never sees it, and row
+    # `2026-11-03-seven-ci-caps-no-longer-satisfy-their-own-derivation-rule` left that debt open.
+    # The cost here is the full-history checkout, not the one `git log` the step runs, so `biome`'s
+    # own `fetch-depth: 0` job gives the bound here (it carries setup-node and a lint run on top,
+    # so that bound is generous, which is what a cap wants):
+    # measured 2026-11-03 over 17 job run(s): p90 2m30s, max 2m58s (tools/ci-timing.mjs --limit 100).
+    # Cap = ceil(max(p95, max) × 2) = 6; max bounds p95. The cap of 2 killed three consecutive
+    # attempts on head 65a9d8aa4 of #4332, each at 2m33s inside actions/checkout@v7 with the work
+    # step SKIPPED — a cancelled required check, which the walker never re-runs.
+    timeout-minutes: 6
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
