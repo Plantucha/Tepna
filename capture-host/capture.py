@@ -10897,34 +10897,26 @@ def _publish_solid(night: str, s: dict) -> bool:
 
 
 async def _announce_solid(captures: str, night: str, s: dict, notifier: "alerts.Notifier | None") -> None:
-    """THE PUBLISHED VERDICT ON NTFY, AND A NON-PASS AS A PROMPT REQUEST — once per night and status.
+    """THE PUBLISHED VERDICT ON NTFY, once per night and status.
 
-    Owner order, board thread 7 (2026-11-03). Both latches live in `alerts.SOLID_LATCH_NAME` beside the
-    captures, so a restart re-sends neither (the #4261 shape). The ntfy latch follows the DELIVERY, as
-    every alert here does (CAPTURE-HOST-DEEP-AUDIT §C1): a failed send is tried again on the next publish.
-    The prompt latch follows the WRITE of the request: the daemon cannot reach the session itself
-    (`ProtectHome=yes`), so `deploy/tepna-solid-prompt.sh` delivers it, and a failed delivery only logs."""
+    Owner order, board thread 7 (2026-11-03). The rig ntfy-board-bridge posts the same message to the
+    board for the session that investigates (owner ruling, board #3128), so the daemon sends nothing else.
+    The latch lives in `alerts.SOLID_LATCH_NAME` beside the captures, so a restart does not re-send (the
+    #4261 shape). It follows the DELIVERY, as every alert here does (CAPTURE-HOST-DEEP-AUDIT §C1): a failed
+    send is tried again on the next publish."""
+    if notifier is None:
+        return
     latch_path = os.path.join(captures, alerts.SOLID_LATCH_NAME)
-    ntfy, prompt = alerts.solid_latch_restored(
-        await asyncio.to_thread(_read_quiet_state, latch_path, "the solid latch")
-    )
-    before = alerts.solid_latch_to_save(ntfy, prompt)
+    saved = await asyncio.to_thread(_read_quiet_state, latch_path, "the solid latch")
+    ntfy = alerts.solid_latch_restored(saved)
     key = alerts.solid_key(night, s["status"])
-    if notifier is not None and key not in ntfy:
-        title, message = alerts.solid_alert_text(night, s)
-        delivered = await notifier.send(title, message)
-        if delivered or not notifier.enabled:
-            ntfy.add(key)
-    if key not in prompt:
-        req = alerts.solid_prompt_request(night, s, _now().isoformat(timespec="seconds"))
-        if req is not None:
-            req_path = os.path.join(captures, alerts.SOLID_PROMPT_NAME)
-            await asyncio.to_thread(_write_quiet_state, req_path, req, "the solid prompt request")
-            log.warning("solid-night: %s %s — prompt request written for the session", night, s["status"])
-        prompt.add(key)  # a PASS too: it asks for nothing, and asking again would change nothing
-    after = alerts.solid_latch_to_save(ntfy, prompt)
-    if after != before:
-        await asyncio.to_thread(_write_quiet_state, latch_path, after, "the solid latch")
+    if key in ntfy:
+        return
+    title, message = alerts.solid_alert_text(night, s)
+    delivered = await notifier.send(title, message)
+    if delivered or not notifier.enabled:
+        ntfy.add(key)
+        await asyncio.to_thread(_write_quiet_state, latch_path, alerts.solid_latch_to_save(ntfy), "the solid latch")
 
 
 def _seed_solid(captures: str) -> None:

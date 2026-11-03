@@ -3115,16 +3115,7 @@
    },
    "note": "gives the ppg-ecg-hrv paper's \u00a72.1 detector-validation residual a producer. Criterion is `carried_figure_relative_deviation` <= 0.5, pre-stated against the 0.244 ms the paper carries from Draft v2; the integer-peak arm is the CONTROL and is held against the \u0394/\u221a12 sample-grid bound, which is the only part of the published sentence that is a per-beat quantity. `segAggregateSdMs` rides in `result` as a DIAGNOSTIC and is never the criterion \u2014 a segment-aggregated residual is smaller by roughly \u221an and reads nothing about per-beat fiducial precision. scope: internal \u2014 one estimator held against a second estimator on the same ECG, not a second sensor"
   },
-  "capture-host/alerts.py": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "relays the solid-night status (read from the SOLID verdict the daemon already wrote) into the ntfy alert text and the prompt request; it names the seven statuses to validate what it read and decides nothing of its own"
-  },
   "capture-host/tests/test_solid_alert.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_tepna_solid_prompt_sh.py": {
    "bin": "test",
    "status": "exempt"
   }
