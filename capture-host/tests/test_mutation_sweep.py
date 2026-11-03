@@ -723,3 +723,93 @@ def test_the_CRITERION_is_the_same_sum_the_EXIT_CODE_uses():
     code, reasons = S.sweep_exit_verdict(recs)
     f = S.sweep_verdict_fields(recs, reasons)
     assert (code != 0) == (f["result"]["undecided"] > S.SWEEP_CRITERION["threshold"])
+
+
+# ── the scratch tree must run under the REAL suite's pytest rules ────────────────────────────────
+
+_FIXTURE_INI = """
+[tool.other]
+somekey = 1
+
+[tool.pytest.ini_options]
+# a comment carries no rule, and neither does a blank line
+
+testpaths = ["tests"]
+filterwarnings = ["error:.*get_event_loop_policy.*:DeprecationWarning"]
+markers = [
+  "slow: holds a subprocess",
+]
+addopts = [
+  "--cov",
+]
+unknown_future_key = "inherited because the list is a DENYLIST"
+
+[tool.mutmut]
+source_paths = ['a.py']
+"""
+
+
+def test_the_scratch_config_INHERITS_every_rule_it_is_not_told_to_state_itself():
+    """🔴 THE DEFECT THIS UNIT CLOSES. The scratch `pyproject.toml` was a literal template carrying
+    `testpaths` alone, so a mutation run obeyed none of the real suite's pytest rules. The first PR to
+    mutate `nightqc.py` after the asyncio-policy tripwire landed red at exit 2: the tripwire test is
+    selected for that module, it read the scratch config, and its failure in the stats pass left zero
+    mutants tested. The gate reported that it could not look, and no survivor existed."""
+    kept, denied = S.inherited_ini_options(_FIXTURE_INI)
+    assert denied == ["testpaths", "addopts"]
+    assert kept == [
+        'filterwarnings = ["error:.*get_event_loop_policy.*:DeprecationWarning"]',
+        "markers = [",
+        '  "slow: holds a subprocess",',
+        "]",
+        'unknown_future_key = "inherited because the list is a DENYLIST"',
+    ]
+
+
+def test_a_DENIED_multi_line_value_does_not_leak_its_continuation():
+    """`addopts` is denied, so `--cov` must not reach the scratch tree on a continuation line — the
+    one way a dropped key still changes what the run measures."""
+    kept, _ = S.inherited_ini_options(_FIXTURE_INI)
+    assert not [line for line in kept if "cov" in line]
+
+
+def test_CONTROL_an_unknown_key_is_INHERITED_because_the_list_is_a_denylist():
+    """The cautious direction: a pytest setting nobody listed is likelier a rule the suite asserts on
+    than a measurement hazard. An allowlist would silently drop the next tripwire."""
+    kept, denied = S.inherited_ini_options('[tool.pytest.ini_options]\nbrand_new = "x"\n')
+    assert kept == ['brand_new = "x"'] and denied == []
+
+
+def test_a_file_with_no_pytest_section_yields_nothing_rather_than_guessing():
+    kept, denied = S.inherited_ini_options("[tool.mutmut]\nsource_paths = ['a.py']\n")
+    assert (kept, denied) == ([], [])
+
+
+def test_the_LIVE_config_carries_the_tripwire_and_the_block_carries_it_too():
+    """The anti-vacuity control for the test above: the fixture proves the parser, this proves the
+    parser is reading the file that actually governs the suite."""
+    live = (HERE / "pyproject.toml").read_text(encoding="utf-8")
+    assert "filterwarnings = [" in live, "the real config must pin the filter this test is about"
+    kept, denied = S.inherited_ini_options(live)
+    assert any(line.startswith("filterwarnings = [") for line in kept)
+    assert "testpaths" in denied
+
+
+def test_every_live_key_is_either_inherited_or_named_as_denied():
+    """Parity, so a key added to the real section cannot go missing in the scratch without one of the
+    two lists naming it."""
+    live = (HERE / "pyproject.toml").read_text(encoding="utf-8")
+    kept, denied = S.inherited_ini_options(live)
+    keys = [line.split("=")[0].strip() for line in kept if not line.startswith((" ", "]", "#"))]
+    assert set(denied) <= S.INI_NOT_INHERITED
+    assert set(keys).isdisjoint(S.INI_NOT_INHERITED)
+    assert "markers" in keys and "filterwarnings" in keys
+
+
+def test_the_TOOL_renders_the_inherited_block_into_the_scratch_config():
+    """`tools/mutate.py` is outside the coverage floor, so the WIRING is pinned here — the template
+    carries the slot and the write site fills it from the real config."""
+    src = (HERE / "tools" / "mutate.py").read_text(encoding="utf-8")
+    assert "{inherited}" in src, "the scratch template must carry the slot"
+    assert 'inherited_ini_options((HERE / "pyproject.toml").read_text' in src
+    assert 'inherited="\\n".join(inherited)' in src
