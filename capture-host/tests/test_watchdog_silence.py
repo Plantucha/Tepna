@@ -122,3 +122,36 @@ def test_main_modes(tmp_path, capsys):
     assert "Strap A=" in capsys.readouterr().out
     assert ws.main(["nope", str(p)]) == 2
     assert ws.main([]) == 2
+
+
+def test_every_skip_kind_continues_past_itself():
+    # `continue` versus `break` needs a later device: each skip kind sits BEFORE a silent device.
+    devices = {
+        "off": {"connected": False, "last_sample": OLD},
+        "nostamp": _dev(last_sample=None),
+        "junk": _dev(last_sample="not a time"),
+        "fresh": _dev(last_sample=FRESH),
+        "Strap Z": _dev(),
+    }
+    assert ws.silent_devices({"devices": devices}, NOW) == (["Strap Z=1750s"], [])
+
+
+def test_exactly_at_the_threshold_is_not_silent():
+    at = (NOW - dt.timedelta(seconds=ws.SILENT_SEC)).isoformat()
+    over = (NOW - dt.timedelta(seconds=ws.SILENT_SEC + 1)).isoformat()
+    assert ws.silent_devices({"devices": {"a": _dev(last_sample=at)}}, NOW) == ([], [])
+    assert ws.silent_devices({"devices": {"a": _dev(last_sample=over)}}, NOW)[0] == ["a=1201s"]
+
+
+def test_usage_goes_to_stderr_only(capsys):
+    assert ws.main(["silent"]) == 2
+    out, err = capsys.readouterr()
+    assert out == ""
+    assert err == "usage: watchdog_silence.py silent|wedged|summary <status.json>\n"
+
+
+def test_a_non_ascii_name_reads_as_written(tmp_path, capsys):
+    p = tmp_path / "status.json"
+    p.write_bytes(json.dumps({"devices": {"Pás Ž": {"connected": True}}}, ensure_ascii=False).encode("utf-8"))
+    assert ws.main(["summary", str(p)]) == 0
+    assert capsys.readouterr().out == "Pás:up\n"

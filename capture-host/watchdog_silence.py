@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import datetime as _dt
 import json
+import pathlib
 import sys
 
 import alerts
@@ -108,8 +109,8 @@ def main(argv: list[str], now: _dt.datetime | None = None) -> int:
     if len(argv) != 2 or argv[0] not in ("silent", "wedged", "summary"):
         print("usage: watchdog_silence.py silent|wedged|summary <status.json>", file=sys.stderr)
         return 2
-    with open(argv[1], encoding="utf-8") as fh:
-        status = json.load(fh)
+    # Bytes, not text: json detects UTF-8 itself, so the box locale cannot change how a name decodes.
+    status = json.loads(pathlib.Path(argv[1]).read_bytes())
     if argv[0] == "wedged":
         print(";".join(wedged_devices(status)))
     elif argv[0] == "summary":
