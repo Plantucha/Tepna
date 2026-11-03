@@ -19,7 +19,10 @@
  *   --census   WHICH RULE picks the reference at each `consensusBeats` call site. The row cites one
  *              rule (an argmax over per-channel peak counts). The shipped path uses another
  *              (`pickChannel`, which ranks by pulse-band SNR). Both are live, so a figure measured
- *              on one rule says nothing about a caller using the other.
+ *              on one rule says nothing about a caller using the other. Every site also carries a
+ *              DECLARED rule (`DECLARED_PICKS`), and the census reds a site whose read rule differs
+ *              from its declaration, a site the table does not name, and a declared file no call
+ *              site answers for.
  *   --dir      HOW OFTEN the pick lands on a dissenter, measured per rule on the real nights, with
  *              the channels detected the way a caller that applies no polarity decision sees them.
  *
@@ -69,6 +72,41 @@ export const PICK_RULES = ['peak-argmax', 'variance-argmax', 'snr-pick', 'snr-pi
 /* A rebinding guard may sit between the pick and the consumer; four hops is far more than any live
    caller writes, and a cap is what keeps a cycle from spinning. */
 export const CHAIN_HOPS = 4;
+
+/* ── the declared pick, per call site ────────────────────────────────────────────────────────── */
+
+/* 🔴 THE DECLARATION IS A FREEZE, NOT AN ENDORSEMENT. Row
+   2026-11-03-three-pick-rules-disagree-on-the-consensus-reference-on-thirty-seven-nights measured
+   three live rules over these call sites, disagreeing about which channel is the reference on 37 of
+   54 nights. This table writes down the rule each site HOLDS today, so the divergence stops widening
+   quietly: a new call site, a site whose rule changes, and a stale entry each red until an author
+   moves the table on purpose. IT REPAIRS NOTHING. Nine sites still read a peak-count argmax while
+   the shipped path reads `SHIPPED_RULE`, and that comparability half stays the row's, not this
+   table's.
+
+   🔴 A SITE IS KEYED BY FILE, NOT BY LINE. A line number moves on every edit above the call, so a
+   line-keyed table would red this gate on diffs that change no pick at all. Each declared file
+   carries exactly one call today. A second call in one file must read the same rule, or an author
+   splits the entry by hand and says which call got which rule. */
+export const SHIPPED_RULE = 'snr-pick-guarded';
+export const DECLARED_PICKS = {
+  'pat-feasibility-worker.js': 'peak-argmax',
+  'ppgdex-dsp.js': SHIPPED_RULE,
+  'sensor-trio-worker.js': 'variance-argmax',
+  'tools/beat-correspondence.mjs': 'peak-argmax',
+  'tools/beat-leg-closure.mjs': 'peak-argmax',
+  'tools/pat-axis-leg-audit.mjs': 'peak-argmax',
+  'tools/pat-finger-coupler.mjs': 'peak-argmax',
+  'tools/pat-host-offset.mjs': 'peak-argmax',
+  'tools/pat-literature-spec.mjs': 'peak-argmax',
+  'tools/pat-matchrate-strict.mjs': 'peak-argmax',
+  'tools/pat-ppg-ppg-control.mjs': 'peak-argmax',
+  'tools/ppg-foot-consensus-e1.mjs': 'snr-pick',
+  'tools/ppg-fusion-e3.mjs': 'snr-pick'
+};
+/* The states a census row can hold against the table. `undeclared` and `diverged` are the two the
+   row asked for; `declared` is the quiet case. */
+export const DECLARATION_STATES = ['declared', 'undeclared', 'diverged'];
 
 /* 🔴 AN ARGMAX IS A COMPARISON THAT ASSIGNS THE INDEX, NOT A MENTION OF THE SCORE. A first cut read
    `.peaks.length >` anywhere in the region and called `ppgdex-dsp.js` a peak-count pick, because the
@@ -158,6 +196,20 @@ function lineAt(text, index) {
   return n;
 }
 
+/* Every census row marked against the table, plus the declared files no row answers for. An ORPHAN
+   is not a row: it is a declaration whose caller was deleted or renamed, which is how a table
+   outlives the code it describes. A rule this scan cannot name stays `unknown` and keeps its own
+   leg in the verdict, because an undeclared unknown is two defects and not one. */
+export function declarationAudit(rows, declared = DECLARED_PICKS) {
+  const marked = rows.map((r) => {
+    const want = Object.hasOwn(declared, r.in) ? declared[r.in] : null;
+    const state = want === null ? 'undeclared' : want === r.rule ? 'declared' : 'diverged';
+    return { ...r, declaredRule: want, declarationState: state };
+  });
+  const seen = new Set(rows.map((r) => r.in));
+  return { rows: marked, orphans: Object.keys(declared).filter((f) => !seen.has(f)) };
+}
+
 export function censusRows(root) {
   const rows = [];
   for (const rel of scanFiles(root)) {
@@ -173,28 +225,46 @@ export function censusRows(root) {
 }
 
 export function censusVerdictOf(rows, opts = {}) {
-  const unknown = rows.filter((r) => r.rule === 'unknown');
+  /* `declared` steers the audit and is NEVER a verdict field, so it leaves `opts` here rather than
+     reaching `makeVerdict` through the spread. */
+  const { declared: table, ...rest } = opts;
+  const { rows: marked, orphans } = declarationAudit(rows, table || DECLARED_PICKS);
+  const unknown = marked.filter((r) => r.rule === 'unknown');
+  const undeclared = marked.filter((r) => r.declarationState === 'undeclared');
+  const diverged = marked.filter((r) => r.declarationState === 'diverged');
   const byRule = {};
   for (const r of PICK_RULES) {
-    const n = rows.filter((x) => x.rule === r).length;
+    const n = marked.filter((x) => x.rule === r).length;
     if (n) byRule[r] = n;
   }
-  const status = rows.length === 0 ? 'NOT_RUN' : unknown.length ? 'FAIL' : 'PASS';
+  /* FOUR LEGS, ONE JOINED REASON. A reader who gets one clause per defect cannot tell which of the
+     four reds the verdict, and the gate's own criterion names all four at once. */
+  const clauses = [];
+  if (unknown.length) clauses.push(`${unknown.length} call site(s) pick a reference by a rule this scan cannot name: ${unknown.map((r) => `${r.in}:${r.line} — ${r.why}`).join(' · ')}`);
+  if (undeclared.length) clauses.push(`${undeclared.length} call site(s) carry no declared rule: ${undeclared.map((r) => `${r.in}:${r.line} reads ${r.rule}`).join(' · ')}`);
+  if (diverged.length)
+    clauses.push(
+      `${diverged.length} call site(s) read a rule their declaration does not name: ${diverged.map((r) => `${r.in}:${r.line} reads ${r.rule} against a declared ${r.declaredRule}`).join(' · ')}`
+    );
+  if (orphans.length) clauses.push(`${orphans.length} declared file(s) carry no call site: ${orphans.join(' · ')}`);
+  const status = marked.length === 0 ? 'NOT_RUN' : clauses.length ? 'FAIL' : 'PASS';
   return makeVerdict({
     gate: GATE,
     status,
-    population: { checked: rows.length, eligible: rows.length, excluded: 0 },
-    criterion: { name: 'consensus_calls_whose_reference_pick_rule_cannot_be_named', threshold: 0, unit: 'call sites', direction: 'lte' },
-    result: rows.length === 0 ? null : { byRule, mode: 'census' },
-    evidence: [TOOL, 'tools/consensus-polarity-wiring.mjs', ...new Set(rows.map((r) => r.in))],
-    reason:
-      rows.length === 0
-        ? `no file in the scanned trees calls \`${CONSUMER}\`, so no reference pick was read`
-        : unknown.length
-          ? `${unknown.length} call site(s) pick a reference by a rule this scan cannot name: ${unknown.map((r) => `${r.in}:${r.line} — ${r.why}`).join(' · ')}`
-          : null,
+    population: { checked: marked.length, eligible: marked.length, excluded: 0 },
+    criterion: { name: 'consensus_calls_whose_pick_rule_is_unnamed_or_undeclared', threshold: 0, unit: 'call sites', direction: 'lte' },
+    result:
+      marked.length === 0
+        ? null
+        : {
+            byRule,
+            mode: 'census',
+            declared: { ok: marked.length - undeclared.length - diverged.length, undeclared: undeclared.length, diverged: diverged.length, orphans: orphans.length }
+          },
+    evidence: [TOOL, 'tools/consensus-polarity-wiring.mjs', ...new Set(marked.map((r) => r.in))],
+    reason: marked.length === 0 ? `no file in the scanned trees calls \`${CONSUMER}\`, so no reference pick was read` : clauses.length ? clauses.join('; ') : null,
     tool: TOOL,
-    ...opts
+    ...rest
   });
 }
 
@@ -474,13 +544,44 @@ function selftest() {
   fail += ok(split.status === 'PASS' && split.result.nightsTheTwoRulesPickDifferentChannels === 1, 'the two rules disagreeing on a clean night is counted, not a failure');
   const clean = corpusVerdictOf([{ ok: true, shape: 'majority', dissenters: [2], peakArgmax: 0, snrPick: 0 }]);
   fail += ok(clean.status === 'PASS' && clean.result.nightsWithADissenter === 1, 'a dissenting night whose pick lands elsewhere still counts as a night with a dissenter');
+  /* The declaration, four states and one control. A row is written here rather than scanned, so a
+     state reds on its own shape and not on whatever the tree happens to hold. */
+  const ROW = (file, rule) => ({ in: file, line: 7, callee: CONSUMER, rule, expr: 'refIdx', why: 'selftest' });
+  const T = { 'a.mjs': 'peak-argmax', 'b.mjs': 'snr-pick' };
+  const agree = declarationAudit([ROW('a.mjs', 'peak-argmax')], T);
+  fail += ok(agree.rows[0].declarationState === 'declared' && agree.orphans.join() === 'b.mjs', 'a site reading its declared rule reads declared, and the unanswered entry reads orphan');
+  fail += ok(declarationAudit([ROW('c.mjs', 'snr-pick')], T).rows[0].declarationState === 'undeclared', 'a site the table does not name reads undeclared, never declared by default');
+  fail += ok(declarationAudit([ROW('a.mjs', 'snr-pick')], T).rows[0].declarationState === 'diverged', 'a site reading another rule than its declaration reads diverged');
+  const bothSites = [ROW('a.mjs', 'peak-argmax'), ROW('b.mjs', 'snr-pick')];
+  const clean2 = censusVerdictOf(bothSites, { declared: T });
+  fail += ok(clean2.status === 'PASS' && clean2.result.declared.ok === 2 && clean2.result.declared.orphans === 0, 'every site reading its declared rule passes the census');
+  fail += ok(clean2.declared === undefined, 'CONTROL · the test table steers the audit and never reaches the verdict object');
+  const undec = censusVerdictOf([...bothSites, ROW('c.mjs', 'snr-pick')], { declared: T });
+  fail += ok(undec.status === 'FAIL' && undec.reason.includes('carry no declared rule') && undec.reason.includes('c.mjs:7'), 'a new undeclared call site reds the census and the reason names it');
+  const div = censusVerdictOf([ROW('a.mjs', 'variance-argmax'), ROW('b.mjs', 'snr-pick')], { declared: T });
+  fail += ok(div.status === 'FAIL' && div.reason.includes('against a declared peak-argmax'), 'a changed rule reds the census and the reason names both rules');
+  const orph = censusVerdictOf([ROW('a.mjs', 'peak-argmax')], { declared: T });
+  fail += ok(orph.status === 'FAIL' && orph.reason.includes('carry no call site'), 'a declared file whose call site is gone reds the census');
+  fail += ok(censusVerdictOf([ROW('a.mjs', 'unknown')], { declared: { 'a.mjs': 'unknown' } }).status === 'FAIL', 'declaring a rule `unknown` never buys a pass: an unnamed pick keeps its own leg');
+  /* 🔴 THE LIVE TREE IS THE POINT. The table above freezes the divergence the row measured, so this
+     assertion is what a new call site or a changed rule reds. The remedy is an entry in
+     `DECLARED_PICKS`, written by whoever moved the pick. */
+  const live = censusVerdictOf(censusRows(ROOT));
+  fail += ok(live.status === 'PASS', `the live tree matches the declared table${live.status === 'PASS' ? '' : ` — ${live.reason}`}`);
+  fail += ok(live.result !== null && live.result.declared.ok === live.population.checked, `every one of the ${live.population.checked} live call site(s) reads its declared rule`);
+  fail += ok(DECLARED_PICKS['ppgdex-dsp.js'] === SHIPPED_RULE, 'the shipped path is the one site declared by the shipped rule, under its own name');
   console.log(fail ? `\nselftest: ${fail} FAILURE(S) of ${ASSERTED}` : `\nselftest: all ${ASSERTED} assertions passed`);
   return fail;
 }
 
 export function verdictSample() {
   const at = '2026-11-03T00:00:00Z';
-  return censusVerdictOf([{ in: 'ppgdex-dsp.js', line: 1, callee: 'consensusBeats', rule: 'snr-pick-guarded', expr: 'refIdxUsed', why: 'sample' }], { at });
+  /* The sample carries a one-entry table, because the real one names 13 files and 12 of them would
+     read as orphans beside a single sampled row. */
+  return censusVerdictOf([{ in: 'ppgdex-dsp.js', line: 1, callee: 'consensusBeats', rule: SHIPPED_RULE, expr: 'refIdxUsed', why: 'sample' }], {
+    at,
+    declared: { 'ppgdex-dsp.js': SHIPPED_RULE }
+  });
 }
 
 if (isCliEntry(import.meta.url)) {
@@ -503,8 +604,13 @@ if (isCliEntry(import.meta.url)) {
     if (has('--json')) console.log(JSON.stringify({ rows, verdict: v }, null, 2));
     else {
       console.log(`${CONSUMER} reference-pick census — which rule chooses the channel every foot is derived on\n`);
-      console.log('file                                            line  rule                expr');
-      for (const r of rows) console.log(`${r.in.padEnd(46)}  ${String(r.line).padStart(4)}  ${r.rule.padEnd(18)}  ${r.expr || '—'}`);
+      console.log('file                                            line  rule                declared            expr');
+      const audit = declarationAudit(rows);
+      for (const r of audit.rows)
+        console.log(
+          `${r.in.padEnd(46)}  ${String(r.line).padStart(4)}  ${r.rule.padEnd(18)}  ${(r.declarationState === 'declared' ? r.declaredRule : r.declarationState.toUpperCase()).padEnd(18)}  ${r.expr || '—'}`
+        );
+      for (const f of audit.orphans) console.log(`${f.padEnd(46)}     —  ORPHAN              a declared file no call site answers for`);
       console.log('');
       printVerdict(v);
     }
