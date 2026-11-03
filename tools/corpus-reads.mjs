@@ -317,8 +317,10 @@ const NOT_A_FUNCTION = new Set(['if', 'for', 'while', 'switch', 'catch', 'do', '
  *
  * A GENERATOR'S PARAMETERS WERE INVISIBLE. The old `parameters()` reads `function` and then a name,
  * and `async function* walk(dir, base = dir)` puts a star between the two, so `corpus-tier.mjs`
- * abstained on a plain parameter. The spans carry SCOPE as well, which is what tells one `d` from
- * another: a parameter of the function the call sits INSIDE is the binding in force. */
+ * abstained on a plain parameter. That file's walk is SYNC since 2026-11-02 and `stmt-delete.mjs`
+ * carries the shape now, so the subject moved and the rule did not. The spans carry SCOPE as well,
+ * which is what tells one `d` from another: a parameter of the function the call sits INSIDE is the
+ * binding in force. */
 export function functionSpans(masked) {
   const spans = [];
   const add = (name, raw, from, decl, kind) => {
@@ -1035,18 +1037,22 @@ export const UNWIRED_BACKLOG = {
      nothing, a run invoked with no arguments at all, and an argument that is not a directory, now
      exit 2 naming the errno where three of the four either threw an uncaught stack trace or read an
      unreadable root as an empty one. */
-  /* `corpus-tier.mjs` STAYS, AND THE COST IS THE REASON, 2026-11-01, row
-     2026-10-21-forty-one-corpus-enumerators-report-no-population. Its walk is an ASYNC recursive
-     traversal of the whole canonical corpus root — `await fs.readdir(dir, { withFileTypes: true })`
-     — and `snapshotEntries` takes a SYNC lister, so wiring it means a second, synchronous walk of
-     tens of thousands of entries written to a rule that must not drift from the async one. It is
-     also the job that MOVES every other tool's population: it re-tiers daily under
-     `tepna-corpus-tier.service`, it REPLACES files with symlinks under the owner's ruling, and it
-     already publishes a verdict over the files it replaced and the files it refused. A second walk
-     of a 174 GB tree on a mutating daily timer is a cost the owner carries and not a wiring, so the
-     remaining debt here is ONE name, and it is named with its reason rather than left as a bare
-     key. */
-  'corpus-tier.mjs': 1
+  /* `corpus-tier.mjs` WAS THE LAST NAME AND IT IS WIRED, 2026-11-02, row
+     2026-10-21-forty-one-corpus-enumerators-report-no-population. The 2026-11-01 note held it here
+     on a cost: wiring it meant "a second, synchronous walk of a 174 GB tree" written to a rule that
+     could drift from its async one. BOTH HALVES WERE ANSWERABLE, and the figure was the thing
+     nobody had measured.
+     THE RULE CANNOT DRIFT, because there is now one of it. `entriesOf` is the traversal and
+     `listTierEntries` yields its `rel` names for `snapshotEntries`, so the lister IS the walk the
+     run acts on rather than a copy of it.
+     THE COST IS 1.1 SECONDS, NOT 174 GB. A walk reads directory ENTRIES, never file bytes.
+     Measured 2026-11-02 over `/srv/data/tepna-corpus`: 66 230 entries, one cold pass 2 870 ms, the
+     snapshot pass 1 134 ms warm, 106 MiB RSS — beside a run that stats all 66 230 and sha256s every
+     file it tiers. The daily timer carries one extra readdir pass.
+     THE SYMLINK ARM IS LOAD-BEARING. The population unit is the ENTRY, and the lister yields
+     symlinks as members, so a file this run replaces with a symlink stays the same member: the
+     comparison reads the tree MOVING UNDER the run and never the run's own work. The selftest pins
+     that — it tiers one file and the population still reads PASS with nothing added or removed. */
   /* THE THREE CPAP-CORPUS READERS LEFT TOGETHER, 2026-10-28, row
      2026-10-21-forty-one-corpus-enumerators-report-no-population. `cpap-corpus.mjs`,
      `cpap-oxy-couple.mjs` and `cpap-sa2-agreement.mjs` read the SAME ResMed card from three
