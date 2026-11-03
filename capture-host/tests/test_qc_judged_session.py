@@ -303,3 +303,125 @@ def test_every_excluded_session_is_counted_on_its_own_side(tmp_path):
     assert "2 later session(s)" in later, later
     assert "180 rows" in earlier, earlier  # 50 + 60 + 70
     assert "170 rows" in later, later  # 80 + 90
+
+
+# ── AN EMPTY JOINED SESSION IS A HOLE, NOT CAPTURE TIME ─────────────────────────────────────────────
+#
+# The join absorbs an in-band session AND the hole before it into the judged night, then subtracts the
+# holes BETWEEN the joined sessions. A session that recorded nothing is not a hole between two
+# sessions, so nothing subtracted it and its whole duration stayed in the coverage denominator.
+#
+# MEASURED 2026-11-03, read-only, over the box's own 102 `QC-SUMMARY.json` files: 23 carry
+# `sessions_judged` and can be replayed, and 18 of the 21 multi-session nights among them are inflated.
+# Two nights published a span over twice their own recording. The shape is an evening of daemon
+# restarts before anyone puts a sensor on.
+def _an_empty_session_joins_the_night(tmp_path, early_rows=0, lock_early=False, judged_rows=900):
+    """An in-band early session, then the judged one — absolute stamps, never derived from now().
+
+    The early session runs 02:00->02:40 and the judged 04:00->04:15, so the gap between them is 80 min
+    (over `_SESSION_GAP_SEC`, so they stay two sessions) and the judged midpoint puts both inside one
+    band. The arithmetic the tests below read is therefore fixed by the fixture: the envelope is 135
+    min, the hole between is 80, and the early session's own duration is 40."""
+    d = str(tmp_path / "2026-08-15")
+    early = _dt.strptime("20260815020000", "%Y%m%d%H%M%S").timestamp()
+    judged = _dt.strptime("20260815040000", "%Y%m%d%H%M%S").timestamp()
+    _rows(d, "Polar_H10_02849638_20260815020000_ECG.txt", early_rows, early + 2400)
+    if lock_early:
+        # A SESSION HOLDING AN UNREADABLE FILE BESIDE AN EMPTY ONE. Both halves are needed: the
+        # unreadable file is what makes the session's rows UNKNOWN, and the zero-row file beside it is
+        # what makes `known_rows` sum to 0 anyway — which is the input that tells a predicate reading
+        # DEMONSTRATED emptiness apart from one reading the sum.
+        locked = _rows(d, "Polar_VeritySense_0C301E3F_20260815020000_PPG.txt", 7, early + 2400)
+        os.chmod(locked, 0)
+    _rows(d, "Polar_H10_02849638_20260815040000_ECG.txt", judged_rows, judged + 900)
+    return d
+
+
+def test_AN_EMPTY_JOINED_SESSION_LEAVES_THE_COVERAGE_SPAN(tmp_path):
+    """The defect. 135 min envelope − 80 min hole = 55 min published, over a night that recorded 15.
+
+    Residue `2026-11-03-an-empty-daemon-session-stretches-the-coverage-span`. The early session held a
+    header and no rows, so it contributed nothing to any numerator while 40 of those 55 minutes were
+    its own duration — and every device on the night was then graded against a denominator 3.7x its
+    own recording."""
+    r = _summarize(_an_empty_session_joins_the_night(tmp_path), _DEV)
+    assert r["sessions_judged"] == 2, (r["sessions_judged"], "the premise: the empty session joins")
+    assert r["span_sec"] == 900, (r["span_sec"], "the judged session's own 15 min, and nothing else")
+    assert r["span_reason"] is None, r["span_reason"]
+    assert len(r["empty_joined"]) == 1, r["empty_joined"]
+    line = r["empty_joined"][0]
+    assert "40min empty session" in line, line
+    assert "1 file(s), 0 rows" in line, line
+    assert "[in-night empty]" in line, line
+    assert line in r["gaps"], (r["gaps"], "a reader of `gaps` alone must see it too")
+    # Its minutes join the hole total, because that is the one number for time inside the judged
+    # window that nobody was recording in: 80 min of gap plus 40 of empty session.
+    assert r["night_gap_min"] == 120, r["night_gap_min"]
+
+
+def test_the_empty_session_is_a_HOLE_and_not_an_EXCLUSION(tmp_path):
+    """The remedy's shape, and why it is not the one the row proposed.
+
+    The row proposed that a session recording nothing not join at all. It would have fixed the span and
+    broken something else: an excluded in-night session writes `gaps_in_night`, and `ok` reads that
+    list, so every night with a daemon restart before donning would have gone red for a session nobody
+    was wearing a sensor during. Charging the minutes to the hole total keeps the session in the night,
+    leaves `ok` answering the question it states, and corrects the denominator."""
+    r = _summarize(_an_empty_session_joins_the_night(tmp_path), _DEV)
+    assert r["gaps_in_night"] == [], (r["gaps_in_night"], "nothing was excluded, so nothing is red")
+    assert r["joined_gaps"] and "[in-night joined]" in r["joined_gaps"][0], r["joined_gaps"]
+    assert r["empty_joined"][0] not in r["joined_gaps"], "a hole between sessions is different news"
+    assert len(r["sessions"]) == 2 and any(s["rows"] == 0 for s in r["sessions"]), r["sessions"]
+
+
+def test_CONTROL_a_joined_session_WITH_rows_keeps_its_duration_in_the_span(tmp_path):
+    """The ordinary case is untouched, and this is the fixture that proves the fix is not just a
+    narrower span for everyone: the same geometry with 60 rows in the early session publishes the old
+    55 min, because those 40 minutes WERE capture time."""
+    r = _summarize(_an_empty_session_joins_the_night(tmp_path, early_rows=60), _DEV)
+    assert r["sessions_judged"] == 2, r["sessions_judged"]
+    assert r["span_sec"] == 3300, (r["span_sec"], "135 min envelope minus the 80 min hole")
+    assert r["empty_joined"] == [], r["empty_joined"]
+    assert r["night_gap_min"] == 80, r["night_gap_min"]
+
+
+def test_a_joined_session_whose_rows_are_UNKNOWN_KEEPS_its_duration(tmp_path):
+    """∅ UNKNOWN IS NOT ZERO, on the side that costs us the span rather than the side that is convenient.
+
+    The early session holds one unreadable file and one that recorded nothing, so `known_rows` sums to
+    0 while the honest answer is that nobody knows what the session held. Subtracting its duration
+    would narrow the denominator — raising every coverage figure — on the strength of files nothing
+    could read. So it keeps its 40 minutes and the night keeps whatever shortfall that produces."""
+    night = _an_empty_session_joins_the_night(tmp_path, lock_early=True)
+    locked = os.path.join(night, "Polar_VeritySense_0C301E3F_20260815020000_PPG.txt")
+    try:
+        r = _summarize(night, _DEV)
+        assert r["unreadable_files"] == [os.path.basename(locked)], r["unreadable_files"]
+        assert r["sessions_judged"] == 2, r["sessions_judged"]
+        assert r["span_sec"] == 3300, (r["span_sec"], "the wide span stands where the rows are unknown")
+        assert r["empty_joined"] == [], (r["empty_joined"], "an unknown session is not a demonstrated one")
+    finally:
+        os.chmod(locked, 0o644)
+
+
+def test_a_window_whose_EVERY_session_recorded_nothing_refuses_with_its_OWN_reason(tmp_path):
+    """∅ A borrowed reason is a wrong one. Every judged session is a hole here, so the arithmetic lands
+    on exactly 0 and the floor would have called it "under the minimum judgeable span" — a true
+    statement about the floor standing in for the fact, which is that the window is empty, not short."""
+    r = _summarize(_an_empty_session_joins_the_night(tmp_path, judged_rows=0), _DEV)
+    assert r["sessions_judged"] == 2, r["sessions_judged"]
+    assert r["span_sec"] is None, r["span_sec"]
+    assert r["span_reason"] == "no joined session recorded a readable row", r["span_reason"]
+    assert len(r["empty_joined"]) == 2, r["empty_joined"]
+
+
+def test_recorded_nothing_reads_DEMONSTRATED_emptiness_and_not_a_zero_sum():
+    """The predicate, on its own terms. `known_rows` leaves an unreadable file out rather than counting
+    it as zero, so a group whose files could not be read SUMS to 0 — and the one thing this must never
+    do is read that sum as "recorded nothing"."""
+    assert nightqc.recorded_nothing([{"rows": 0}]) is True
+    assert nightqc.recorded_nothing([{"rows": 0}, {"rows": 0}]) is True
+    assert nightqc.recorded_nothing([{"rows": 1}]) is False
+    assert nightqc.recorded_nothing([{"rows": None}]) is False, "unknown, never zero"
+    assert nightqc.recorded_nothing([{"rows": None}, {"rows": 0}]) is False, "a zero sum is not evidence"
+    assert nightqc.recorded_nothing([{"rows": None}, {"rows": 5}]) is False
