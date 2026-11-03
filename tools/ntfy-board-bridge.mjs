@@ -37,9 +37,8 @@
 import fs from 'node:fs';
 import https from 'node:https';
 import os from 'node:os';
-import path from 'node:path';
 import { execFile } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { isCliEntry } from './argv-guard.mjs';
 
 const HOME = os.homedir();
 const DRY = process.env.BRIDGE_DRY_RUN === '1';
@@ -480,8 +479,10 @@ function selftest() {
   return bad === 0 ? 0 : 1;
 }
 
-const INVOKED = process.argv[1] ? path.resolve(process.argv[1]) === fileURLToPath(import.meta.url) : false;
-if (INVOKED) {
+/* The ONE allowed spelling is `isCliEntry` (tools/argv-guard.mjs). Comparing `process.argv[1]` with
+   this module by hand answers wrong through a symlink and under `--preserve-symlinks-main`, and
+   `tests/dex-tests.js` reds every tool that writes that comparison itself. */
+if (isCliEntry(import.meta.url)) {
   if (process.argv.includes('--selftest')) process.exit(selftest());
   else main();
 }
