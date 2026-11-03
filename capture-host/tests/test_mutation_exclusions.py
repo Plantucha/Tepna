@@ -638,7 +638,14 @@ def test_the_covered_function_count_is_MEASURED_from_the_ast_not_quoted():
     # on ntfy and the prompt request for a non-PASS, latched per night and status. It is async because
     # it awaits the notifier; the pure parts live in alerts.py. +1, the whole delta.
     # `moduleFunctionsAtDeclaration` stays where it is, per the note above.
-    assert n == 344, f"capture.py now defines {n} functions — update the declaration's note deliberately"
+    # 344 → 345 on 2026-11-03 (the H10 firmware-default clock, 2026-11-01):
+    # `clock_reads_firmware_default`, which asks whether ONE read places the device clock at its
+    # firmware default. It is a PURE function because it is the discriminator two rungs consume — the
+    # resync reason and the decline verdict must agree about which population a read belongs to, and a
+    # predicate each of them owned would let them disagree. +1, the whole delta. Rebased onto the
+    # `_announce_solid` rise above, so this one counts from 344.
+    # `moduleFunctionsAtDeclaration` stays where it is, per the note above.
+    assert n == 345, f"capture.py now defines {n} functions — update the declaration's note deliberately"
 
 
 def test_count_functions_counts_nested_and_methods_and_refuses_nothing():

@@ -24,6 +24,7 @@
 # reported three attempts that never happened. Each of these tests pins one denominator.
 
 import asyncio
+import datetime as dt
 import glob
 import os
 
@@ -289,7 +290,9 @@ def test_an_ISOLATED_beyond_the_bound_read_still_triggers_NOTHING():
     jump, tol = 30.0, capture.CLOCK_TOLERANCE_S
     assert capture.clock_resync_reason(-842505658.4, -1.3, jump, tol) is None
     assert capture.clock_resync_reason(-2.46e8, -1.3, jump, tol) is None
-    assert capture.clock_resync_reason(-2.46e8, None, jump, tol) is None, "a first sighting decides nothing"
+    assert capture.clock_resync_reason(-2.46e8, None, jump, tol) is None, (
+        "a first sighting decides nothing — until the caller names the firmware default (§4b)"
+    )
 
 
 def test_a_PERSISTENT_beyond_the_bound_read_IS_a_reset_clock():
@@ -308,6 +311,86 @@ def test_the_RESET_rung_is_PURE():
     thing however often it is asked."""
     for _ in range(3):
         assert capture.clock_resync_reason(-2.46e8, -2.47e8, 30.0, 2.0, 0) == "reset"
+
+
+# ── 4b · the FIRMWARE DEFAULT is the one magnitude that decides on the FIRST read ────────────────────
+#
+# §4's law holds for the population it was measured on and NOT for this one. The 22 bad reads are a zero
+# `sensor_ns` resolving to `_POLAR_EPOCH`, and the H10 off its dock reads its 2019-01-01 firmware
+# default: measured, -842505658.4 s puts the device at 2000-02-08 and the two H10 nights (-246245660.720
+# on 2026-10-20, -247288549 on 2026-11-01) put it within hours of 2019-01-01. NINETEEN YEARS APART, with
+# nothing in between. So the DEVICE INSTANT separates them where the BOUND cannot, and only the reset
+# population needs correcting — which is why the wait that §4 bought is kept for everything else.
+
+
+def test_the_PREDICATE_is_the_DEVICE_INSTANT_and_both_of_its_edges_are_CLOSED():
+    """`skew` alone cannot say this: the same number is the firmware default or 19 years off it
+    depending on WHEN it was read, so the predicate takes the host instant and every magnitude here is
+    derived from it. The window is one day before the default to a year after."""
+    now = dt.datetime(2026, 11, 2, 12, 0, 0)
+    at_default = -(now - capture._CLOCK_FIRMWARE_DEFAULT).total_seconds()  # device exactly at 2019-01-01
+    assert capture.clock_reads_firmware_default(at_default, now) is True
+    assert capture.clock_reads_firmware_default(at_default - capture._CLOCK_FIRMWARE_MARGIN_S, now) is True, (
+        "a device a day BEFORE the default is still at it — the margin is closed"
+    )
+    assert capture.clock_reads_firmware_default(at_default - capture._CLOCK_FIRMWARE_MARGIN_S - 0.1, now) is False
+    assert capture.clock_reads_firmware_default(at_default + capture._CLOCK_FIRMWARE_WINDOW_S, now) is True, (
+        "a year of uptime on the default clock is still the default clock — that edge is closed too"
+    )
+    assert capture.clock_reads_firmware_default(at_default + capture._CLOCK_FIRMWARE_WINDOW_S + 0.1, now) is False
+
+
+def test_the_PREDICATE_separates_the_THREE_MEASURED_POPULATIONS():
+    """The whole justification, as numbers. Nothing derived from the nights being judged: the margin and
+    the window are pre-stated, and these are the reads they have to sort."""
+    now = dt.datetime(2026, 11, 2, 12, 0, 0)
+    assert capture.clock_reads_firmware_default(-246245660.720, now) is True, "the H10, 2026-10-20"
+    assert capture.clock_reads_firmware_default(-247288549.0, dt.datetime(2026, 11, 1, 22, 16, 39)) is True, (
+        "the H10, 2026-11-01, read against the instant it was actually read at"
+    )
+    assert capture.clock_reads_firmware_default(-842505658.4, now) is False, "a zero `sensor_ns`, 19 years off"
+    assert capture.clock_reads_firmware_default(-1.3, now) is False, "and an ordinary sane skew"
+
+
+def test_the_PREDICATE_IS_NULL_SAFE_and_refuses_a_NON_FINITE_read():
+    """§∅ — an absent reading places the device nowhere, and `inf` would otherwise sail through one of
+    the two comparisons. Both edges are asserted because each catches a different half."""
+    now = dt.datetime(2026, 11, 2, 12, 0, 0)
+    assert capture.clock_reads_firmware_default(None, now) is False
+    assert capture.clock_reads_firmware_default(-246245660.720, None) is False, "no host instant, no answer"
+    assert capture.clock_reads_firmware_default(float("nan"), now) is False
+    assert capture.clock_reads_firmware_default(float("inf"), now) is False
+    assert capture.clock_reads_firmware_default(float("-inf"), now) is False
+
+
+def test_a_FIRMWARE_DEFAULT_read_is_a_RESET_ON_SIGHT_and_still_BOUNDED():
+    """The rung §4 left open. A first sighting at the default is a reset clock with no second read,
+    because an absent stamp does not land at the firmware default — and the give-up budget still binds,
+    so a device that will not take the write is not retried all night."""
+    jump, tol = 30.0, capture.CLOCK_TOLERANCE_S
+    assert capture.clock_resync_reason(-2.46e8, None, jump, tol, firmware_default=True) == "reset"
+    assert capture.clock_resync_reason(-2.46e8, -1.3, jump, tol, firmware_default=True) == "reset", (
+        "and a SANE prev does not argue with it either — that `prev` is the clock before the reset"
+    )
+    assert (
+        capture.clock_resync_reason(-2.46e8, None, jump, tol, capture.CLOCK_ADRIFT_GIVEUP, firmware_default=True)
+        is None
+    )
+    assert capture.clock_resync_reason(-842505658.4, None, jump, tol, firmware_default=False) is None, (
+        "THE CONTROL: the flag is what moved, not the rung"
+    )
+
+
+def test_a_read_we_are_ABOUT_TO_CORRECT_is_never_called_UNREADABLE():
+    """The two words would otherwise both fire on one read: `unreadable` says the stamp was absent and
+    nothing was attempted, and the next rung is about to attempt a correction. `uncorrectable` is NOT
+    suppressed — a default clock that refuses three writes has genuinely given up."""
+    assert capture.clock_decline_verdict(-2.46e8, None, 0, 2.0, firmware_default=True) is None
+    assert capture.clock_decline_verdict(-2.46e8, None, 0, 2.0) == ("unreadable", 0), "THE CONTROL"
+    assert capture.clock_decline_verdict(-2.46e8, -2.46e8, 3, 2.0, giveup=3, firmware_default=True) == (
+        "uncorrectable",
+        3,
+    )
 
 
 # ── 5 · the firmware-default override, as a predicate ────────────────────────────────────────────────
@@ -381,12 +464,14 @@ def test_neither_new_WORD_can_excuse_a_SEAM_in_the_axis(tmp_path):
 # that CONSUME the verdict are where a wrong word reaches the night's file and the operator's log.
 
 
-def _watchdog(monkeypatch, root, skew, cycles, sync=None):
+def _watchdog(monkeypatch, root, skew, cycles, sync=None, now=None):
     """Run the watchdog `cycles` polls against one connected Polar holding a constant skew.
 
     Shaped after `tests/test_clocksync_sidecar._drive`, with `_set` CAPTURED rather than discarded: the
     `unreadable` arm's whole claim is that it leaves STATUS alone, and a no-op stub cannot show that."""
     sets = []
+    if now is not None:
+        monkeypatch.setattr(capture, "_utcnow", lambda: now)
     monkeypatch.setattr(capture, "_set", lambda name, **kw: sets.append((name, kw)))
     calls = []
 
@@ -413,15 +498,18 @@ def _watchdog(monkeypatch, root, skew, cycles, sync=None):
 
 
 def test_ONE_beyond_the_bound_read_lands_UNREADABLE_and_claims_nothing(tmp_path, monkeypatch, _no_sleep):
-    """The 2026-10-20 skew on its FIRST cycle. The row says what was read and what was attempted, and
-    nothing else moves: `uncorrectable` would name corrections that never ran, and clearing
-    `clock_synced` would erase when the last real sync happened on the strength of one unreadable
-    sample."""
-    sets, calls = _watchdog(monkeypatch, tmp_path, skew=-246245660.72, cycles=1)
+    """A ZERO-`sensor_ns` read on its FIRST cycle — the population §4 names, which resolves to
+    `_POLAR_EPOCH` and is 19 years from the firmware default, so the one-day margin cannot reach it and
+    the two-read wait still governs. The row says what was read and what was attempted, and nothing else
+    moves: `uncorrectable` would name corrections that never ran, and clearing `clock_synced` would
+    erase when the last real sync happened on the strength of one unreadable sample.
+
+    The 2026-10-20 magnitude this test used to carry is now decided on cycle 1 by §4b."""
+    sets, calls = _watchdog(monkeypatch, tmp_path, skew=-842505658.4, cycles=1)
     rows = _rows(str(tmp_path))
     unr = [r for r in rows if ";unreadable;" in r]
     assert len(unr) == 1, rows
-    assert ";H10;AA:BB:CC:DD:EE:FF;unreadable;-246245660.720;one read past the plausible bound" in unr[0]
+    assert ";H10;AA:BB:CC:DD:EE:FF;unreadable;-842505658.400;one read past the plausible bound" in unr[0]
     assert not [r for r in rows if ";uncorrectable;" in r], "nothing was attempted, so nothing gave up"
     assert calls == [], "one read past the bound must not grab the link"
     assert not [kw for _n, kw in sets if "clock_synced" in kw], sets
@@ -430,14 +518,37 @@ def test_ONE_beyond_the_bound_read_lands_UNREADABLE_and_claims_nothing(tmp_path,
 def test_the_SECOND_such_read_re_syncs_the_clock_as_a_RESET(tmp_path, monkeypatch, _no_sleep):
     """THE CONTROL on the test above, and the whole point of the persistence rung. The same constant
     skew, one cycle later: now a `prev` past the bound exists, so the read is a reset clock rather than
-    an absent stamp, and the watchdog corrects it."""
-    sets, calls = _watchdog(monkeypatch, tmp_path, skew=-246245660.72, cycles=2)
+    an absent stamp, and the watchdog corrects it. Two reads at the Polar epoch cannot be two absent
+    stamps bracketing each other, whatever instant they name."""
+    sets, calls = _watchdog(monkeypatch, tmp_path, skew=-842505658.4, cycles=2)
     rows = _rows(str(tmp_path))
     assert len([r for r in rows if ";unreadable;" in r]) == 1, rows
     res = [r for r in rows if ";resynced;" in r]
     assert len(res) == 1, rows
     assert res[0].endswith(";reset"), res
     assert calls == ["AA:BB:CC:DD:EE:FF"], calls
+    assert ("H10", {"clock_synced": None}) in sets, sets
+
+
+def test_the_FIRMWARE_DEFAULT_read_is_CORRECTED_ON_THE_FIRST_CYCLE(tmp_path, monkeypatch, _no_sleep):
+    """The 2026-11-01 night, which is the whole reason for the rung. The H10 connected at 22:15:52 on its
+    2019 clock, PMD started on that clock, and the first skew read at 22:16:39 was DECLINED for want of
+    an agreeing `prev` — so the correction waited a full watchdog cycle and landed at 22:21:39, with the
+    PMD restart it forces at 22:22:01. The cost is a ~6-minute head of recorded ECG carrying no usable
+    absolute time. One cycle is the entire budget, so the row has to appear on cycle 1.
+
+    Driven at the instant the night actually read it: the predicate reads the HOST clock, so a frozen
+    magnitude without a frozen `now` would decide something different a year from now."""
+    sets, calls = _watchdog(
+        monkeypatch, tmp_path, skew=-247288549.0, cycles=1, now=dt.datetime(2026, 11, 1, 22, 16, 39)
+    )
+    rows = _rows(str(tmp_path))
+    assert not [r for r in rows if ";unreadable;" in r], (
+        "the read is being corrected, so calling the stamp absent would be two verdicts on one sample"
+    )
+    res = [r for r in rows if ";resynced;" in r]
+    assert len(res) == 1 and res[0].endswith(";reset"), rows
+    assert calls == ["AA:BB:CC:DD:EE:FF"], "the link is grabbed on the FIRST read, not the second"
     assert ("H10", {"clock_synced": None}) in sets, sets
 
 

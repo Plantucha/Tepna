@@ -2984,14 +2984,65 @@ _NIGHT_SETTLE_S = 1200.0  # 20 min of no writes ⇒ a night is complete; overrid
 CLOCK_IMPLAUSIBLE_S = clock_offset.CLOCK_IMPLAUSIBLE_S
 
 
-def clock_resync_reason(skew, prev, jump, tolerance, failed_adrift=0, giveup=CLOCK_ADRIFT_GIVEUP):
+#: THE FIRMWARE-DEFAULT INSTANT, and how far past it a read may land and still BE it. A Polar that
+#: leaves the strap comes back on 2019-01-01 00:00:00 and ticks from there, so the clock it then
+#: reports is the default plus however long the device has been awake. Measured on the two nights that
+#: lost time to this: 2026-10-20 read -246245660.720 s off host and 2026-11-01 read -247288549 s,
+#: placing the device at 2019-01-01T00:00:57 and 2019-01-01T00:00:50 — the default plus a minute.
+#:
+#: The window is PRE-STATED rather than fitted to those two reads (§🧾), and a year is the width because
+#: a device can be awake for days before the watchdog reads it, while the population this must stay
+#: clear of is nowhere near: a zero `sensor_ns` resolves to `_POLAR_EPOCH` and reads 2000-02-08,
+#: nineteen years earlier. The lower edge carries a day of margin because the daemon has never measured
+#: which frame the device reports its own default in — `_utcnow` says the skew is measured against UTC,
+#: and one day of slack costs nothing against a separation of nineteen years.
+_CLOCK_FIRMWARE_DEFAULT = _dt.datetime(2019, 1, 1)
+_CLOCK_FIRMWARE_WINDOW_S = 365 * 24 * 3600.0
+_CLOCK_FIRMWARE_MARGIN_S = 86400.0
+
+
+def clock_reads_firmware_default(skew_s, now) -> bool:
+    """PURE: does this ONE read place the device clock at its firmware default?
+
+    🔴 THIS IS THE DISCRIMINATOR `clock_resync_reason` LACKED, AND IT IS MAGNITUDE AFTER ALL — just not
+    the magnitude that was tried. That function's own comment says persistence separates the two
+    populations and magnitude does not, and it is right about the bound it was talking about: both
+    populations sit past a year, so `abs(skew) > CLOCK_IMPLAUSIBLE_S` cannot tell them apart. The
+    INSTANT each one implies can. A firmware reset places the device within a minute of 2019-01-01; the
+    22 measured bad reads place it at the Polar epoch, 2000-01-01 plus a frame's worth of drift. Nothing
+    reads in between, so a read that lands in the firmware-default window needs no second cycle.
+
+    The cost of being wrong is the same asymmetry `clock_reads_reset` weighs, measured on the night of
+    2026-11-01. The H10 connected at 22:15:52 and PMD started on the reset clock. The daemon read
+    -247288549 s at 22:16:39, declined because no previous read agreed, read the same skew again at
+    22:21:39, synced, and PMD restarted at 22:22:01. `ECGSEAMS.txt` carries that one seam and the ECG
+    then runs clean to 04:11. So the wait cost the night a 6-minute head with no usable absolute time,
+    and a false positive here would cost one re-sync of a clock already beyond a year off host.
+
+    `now` is the same naive-UTC clock the skew was measured against (`_utcnow`). The subtraction is
+    datetime-minus-datetime and the skew is added as a float, so no `timedelta` is built from an
+    unbounded number and a non-finite skew cannot raise — it compares False against both edges."""
+    if skew_s is None or now is None:
+        return False
+    past = (now - _CLOCK_FIRMWARE_DEFAULT).total_seconds() + skew_s
+    return -_CLOCK_FIRMWARE_MARGIN_S <= past <= _CLOCK_FIRMWARE_WINDOW_S
+
+
+def clock_resync_reason(
+    skew, prev, jump, tolerance, failed_adrift=0, giveup=CLOCK_ADRIFT_GIVEUP, firmware_default=False
+):
     """PURE: why (if at all) a device clock should be re-synced now.
     'jump'   — the clock MOVED. Always worth correcting, no matter how often we have tried before: an
                H10 resets to its 2019 firmware default whenever it leaves the strap.
     'adrift' — steady, but outside tolerance. Worth correcting until we have PROVEN we cannot shift it.
-    'reset'  — beyond a year AND still there on the next read: a firmware reset, not a bad sample.
+    'reset'  — beyond a year AND either still there on the next read or already at the firmware
+               default on this one: a firmware reset, not a bad sample.
     None     — in tolerance, an offset we have repeatedly failed to move (see CLOCK_ADRIFT_GIVEUP), or a
                single beyond-a-year read we have not yet seen twice.
+
+    `firmware_default` is `clock_reads_firmware_default` for THIS read, added LAST and defaulting to
+    False so every existing positional caller keeps its behaviour. It is the only one of these that can
+    turn a first sighting into a correction, and the arm below says what it stands down.
     """
     # ∅ DEFENCE IN DEPTH, device-agnostic: a skew beyond a year is not a clock error, it is a bad or
     # absent read. Re-syncing on it DROPS THE LINK, so acting is strictly worse than waiting for the
@@ -3016,7 +3067,15 @@ def clock_resync_reason(skew, prev, jump, tolerance, failed_adrift=0, giveup=CLO
         # `prev is None` declines on purpose (§∅): no previous read is not evidence of persistence, and
         # a daemon that has just started has no second read yet. The give-up budget still bounds this,
         # so a device that truly cannot be written is not asked forever.
-        if prev is None or abs(prev) <= CLOCK_IMPLAUSIBLE_S:
+        # 🔴 THE SECOND READ IS EVIDENCE OF PERSISTENCE, AND THE FIRMWARE WINDOW IS EVIDENCE OF THE
+        # SAME THING AT NO COST. The paragraph above prices the second read at one watchdog cycle,
+        # which was true of the night it was written for: 2026-10-20 was already streaming when the
+        # strap reset. On 2026-11-01 the reset was there before PMD START, so the cycle was spent on
+        # recorded signal — 6 minutes of ECG with no usable absolute time, the seam at 22:22:01.
+        # A read inside the firmware-default window needs no second cycle, because the only other
+        # population past the bound places the device nineteen years further back (§∅ — the two are
+        # distinguishable, so this is not a guess about which one arrived).
+        if not firmware_default and (prev is None or abs(prev) <= CLOCK_IMPLAUSIBLE_S):
             return None
         return "reset" if failed_adrift < giveup else None
     if prev is not None and abs(skew - prev) >= jump:
@@ -3026,7 +3085,7 @@ def clock_resync_reason(skew, prev, jump, tolerance, failed_adrift=0, giveup=CLO
     return None
 
 
-def clock_decline_verdict(skew, prev, failed_adrift, tolerance, giveup=CLOCK_ADRIFT_GIVEUP):
+def clock_decline_verdict(skew, prev, failed_adrift, tolerance, giveup=CLOCK_ADRIFT_GIVEUP, firmware_default=False):
     """PURE: what to RECORD when `clock_resync_reason` declines a clock that is out of tolerance.
 
     Returns `(verdict, resyncs_that_ran)`, or None when nothing should be said yet.
@@ -3044,10 +3103,16 @@ def clock_decline_verdict(skew, prev, failed_adrift, tolerance, giveup=CLOCK_ADR
     'unreadable'    — one beyond-a-year read, not yet seen twice. NOTHING has been attempted; the next
                       read decides whether this is a firmware reset or an absent sample, so the count
                       is 0 and the word does not claim a failure.
+
+    `firmware_default` STANDS THAT WORD DOWN, and the two halves have to move together. The word says
+    the next read decides; once `clock_resync_reason` corrects a firmware-default read on sight, no
+    next read decides anything and the row would describe a deliberation that did not happen (§∅ — a
+    reason that was not the reason). The give-up arm below still answers for a default clock the
+    daemon has written to and failed to move, which is a measured failure and keeps its own word.
     """
     if skew is None or abs(skew) <= tolerance:
         return None
-    if abs(skew) > CLOCK_IMPLAUSIBLE_S and (prev is None or abs(prev) <= CLOCK_IMPLAUSIBLE_S):
+    if not firmware_default and abs(skew) > CLOCK_IMPLAUSIBLE_S and (prev is None or abs(prev) <= CLOCK_IMPLAUSIBLE_S):
         return ("unreadable", 0)
     if failed_adrift >= giveup:
         return ("uncorrectable", failed_adrift)
@@ -9315,7 +9380,13 @@ async def clock_watchdog(cfg: dict, root=None):
             # jumps, so the jump-only watchdog would watch an H10 sit at its 2019 firmware default
             # forever — and the startup sync is then the only defence, which is exactly the thing that
             # can fail transiently. An absolute skew beyond tolerance is itself a fault worth correcting.
-            reason = clock_resync_reason(skew, prev, jump, CLOCK_TOLERANCE_S, failed_adrift.get(addr, 0))
+            # ONE READ, ONE PREDICATE, BOTH HALVES. The resync decision and the decline it records
+            # must agree about what this read is, or the night gets a correction with an `unreadable`
+            # row beside it saying nothing was attempted.
+            at_default = clock_reads_firmware_default(skew, _utcnow())
+            reason = clock_resync_reason(
+                skew, prev, jump, CLOCK_TOLERANCE_S, failed_adrift.get(addr, 0), firmware_default=at_default
+            )
             if reason is None:
                 # Say it ONCE when we stop trying. An offset we cannot shift is a real property of the
                 # night's data — the operator needs it in `status.json`, not buried in a log that repeats
@@ -9327,7 +9398,9 @@ async def clock_watchdog(cfg: dict, root=None):
                 # bound declines before anything is attempted at all. Both used to emit the same
                 # sentence, with CLOCK_ADRIFT_GIVEUP in place of a count — see
                 # `clock_decline_verdict`, which names the cause and quotes the measured number.
-                verdict = clock_decline_verdict(skew, prev, failed_adrift.get(addr, 0), CLOCK_TOLERANCE_S)
+                verdict = clock_decline_verdict(
+                    skew, prev, failed_adrift.get(addr, 0), CLOCK_TOLERANCE_S, firmware_default=at_default
+                )
                 if verdict is not None and addr not in gave_up:
                     word, ran = verdict
                     gave_up.add(addr)
@@ -9383,14 +9456,17 @@ async def clock_watchdog(cfg: dict, root=None):
                 _set(name, clock_synced=None)  # do not claim a sync we no longer believe
                 tried_adrift[addr] = True
             elif reason == "reset":
-                # A SECOND beyond-the-bound read, so the first was not an absent stamp. `skew - prev`
-                # would read as a few seconds of drift between two reads of a clock sitting 26 years
-                # out, which is why this does not borrow the jump line's wording.
+                # `skew - prev` would read as a few seconds of drift between two reads of a clock
+                # sitting decades out, which is why this does not borrow the jump line's wording. AND
+                # WHICH RUNG DECIDED IS PART OF THE SENTENCE: a read at the firmware default is a reset
+                # clock on sight, so a message naming a SECOND cycle would be false on the first one.
                 log.warning(
-                    "%s device clock reads %+.1fs off host for the SECOND cycle — a persistent "
-                    "beyond-the-bound skew is a reset clock, not an absent stamp; re-syncing",
+                    "%s device clock reads %+.1fs off host — %s; re-syncing",
                     name,
                     skew,
+                    "the device clock sits at its firmware default, which is a reset clock on one read"
+                    if at_default
+                    else "a persistent beyond-the-bound skew is a reset clock, not an absent stamp",
                 )
                 _set(name, clock_synced=None)  # do not claim a sync we no longer believe
                 tried_adrift[addr] = True
