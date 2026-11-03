@@ -270,6 +270,10 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
 
 @media(max-width:1080px){.app-shell{grid-template-columns:1fr}.sidebar{display:none}#exportBar{left:0 !important}}
 @media(max-width:768px){#ecgCanvas{height:230px}.gang-ev{grid-template-columns:64px 1fr auto;gap:7px}.gang-ev .ge-meta{display:none}}
+.hx-row { display:flex; flex-wrap:wrap; gap:8px; margin:8px 0 2px; }
+.hx-btn { font:inherit; font-size:12px; padding:4px 10px; border:1px solid var(--border, #8884); border-radius:6px; background:transparent; color:inherit; cursor:pointer; }
+.hx-btn:hover { background:var(--bg3, #8882); }
+.hx-note { margin-top:4px; }
 </style>
 <link rel="canonical" href="https://tepna.net/ECGDex.html">
 <meta property="og:url" content="https://tepna.net/ECGDex.html">
@@ -662,6 +666,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
 <script src="dex-patient-gen.js"></script>
 <script type="module" src="ecgdex-dsp.js"></script>
 <script type="module" src="ecgdex-render.js"></script>
+<script type="module" src="hypno-export.js"></script>
 <script src="ecgdex-morph.js"></script>
 <script src="ecgdex-profile.js"></script>
 <script src="crossnight-envelope.js"></script>

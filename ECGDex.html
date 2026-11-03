@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="1879eb352433" data-compute-hash="92214bfc6999">
+<html lang="en" data-manifest-hash="f00968a375cc" data-compute-hash="aa65d6141964">
 <head>
 <!--
   ECGDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-2BDRZ6VKh8OkZurNHffDYcwBtBuhz/p2tofi1tuMXLQ=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-HzpXWOPOmYq1yS+1Lwu7KL6HoGmEkgy2vwnzL5usAbA=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-QuLHvHgODcQjuAGp7QrzR2K8XMRHpK7C3ar3ZKqNnUU=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-XJV3E1G3sukFgbJQW5vuMv8oMeGex2wLInYe3q3i6Dk=' 'sha256-brcVxTI6BShvL8gR+V83Km/RAvADXOTbir/uhFdqiC0=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-kCIXFB+Oh+fPXQK0n5wv9ysz8QHUPT7/BBvnQcqS+u0=' 'sha256-ndwAaS7rxPDbDdTDUAApFCDBcXWisKUftg+0xzuxsoI=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rIcm4jQwZdAp6l3SdrzI0nizBN01Nhu8bJROOQanTRo=' 'sha256-rKaNN0Ty7SX+P/hqThFsDPpnNNxRWZ1qeyOfye3zhi8=' 'sha256-tddD0f4n4/0SctOR+t6ziGNCiH/GZ6G3Q5Iib/iByoM='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-2BDRZ6VKh8OkZurNHffDYcwBtBuhz/p2tofi1tuMXLQ=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-HzpXWOPOmYq1yS+1Lwu7KL6HoGmEkgy2vwnzL5usAbA=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-QuLHvHgODcQjuAGp7QrzR2K8XMRHpK7C3ar3ZKqNnUU=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-XJV3E1G3sukFgbJQW5vuMv8oMeGex2wLInYe3q3i6Dk=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-kCIXFB+Oh+fPXQK0n5wv9ysz8QHUPT7/BBvnQcqS+u0=' 'sha256-ndwAaS7rxPDbDdTDUAApFCDBcXWisKUftg+0xzuxsoI=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rIcm4jQwZdAp6l3SdrzI0nizBN01Nhu8bJROOQanTRo=' 'sha256-rKaNN0Ty7SX+P/hqThFsDPpnNNxRWZ1qeyOfye3zhi8=' 'sha256-s+ZLD2YDV4+kIdokItuHqVnEbiUJWha5Y1wVK9Bm6+o=' 'sha256-tddD0f4n4/0SctOR+t6ziGNCiH/GZ6G3Q5Iib/iByoM=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>ECGDex — Raw ECG Analyzer · v2.26.0</title>
@@ -2791,6 +2791,10 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
 
 @media(max-width:1080px){.app-shell{grid-template-columns:1fr}.sidebar{display:none}#exportBar{left:0 !important}}
 @media(max-width:768px){#ecgCanvas{height:230px}.gang-ev{grid-template-columns:64px 1fr auto;gap:7px}.gang-ev .ge-meta{display:none}}
+.hx-row { display:flex; flex-wrap:wrap; gap:8px; margin:8px 0 2px; }
+.hx-btn { font:inherit; font-size:12px; padding:4px 10px; border:1px solid var(--border, #8884); border-radius:6px; background:transparent; color:inherit; cursor:pointer; }
+.hx-btn:hover { background:var(--bg3, #8882); }
+.hx-note { margin-top:4px; }
 </style>
 <link rel="canonical" href="https://tepna.net/ECGDex.html">
 <meta property="og:url" content="https://tepna.net/ECGDex.html">
@@ -17268,6 +17272,248 @@ window.evBadge = evBadge;
 __exports.ECGUI = window.ECGUI;
 
 });})();</script>
+<script data-inline-src="hypno-export.js">(function(){var __M=(globalThis.__dexEsm=globalThis.__dexEsm||(function(){var reg={},cache={};function require(n){if(Object.prototype.hasOwnProperty.call(cache,n))return cache[n];var f=reg[n];if(!f)throw new Error('ESM bundle: module not found: '+n);var ex={};cache[n]=ex;f(require,ex);return ex;}return{define:function(n,f){reg[n]=f;},require:require};})());__M.define("hypno-export.js",function(__require,__exports){
+/* Copyright 2026 Michal Planicka
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+ * project root, or http://www.apache.org/licenses/LICENSE-2.0
+ * ════════════════════════════════════════════════════════════════════════
+ * hypno-export.js — ONE hypnogram shape for every Dex that stages a night, and the two files it
+ * leaves the app as.
+ *
+ * THE SHAPE. `{ startMs, epochSec, stages, confidence, source }`: `startMs` is the recording anchor
+ * (floating wall-clock ms, read back through getUTC* — the Clock Contract, as dex-export.js), `stages`
+ * is one of 'Wake' | 'Light' | 'Deep' | 'REM' | null per epoch (null = not scored: a refused window, a
+ * gap), `confidence` is one number in [0, 1] per epoch or null for the whole night.
+ *
+ * CONFIDENCE IS WHAT THE STAGER KNOWS, NEVER A DECORATION. A model with posteriors (OxyDex's net)
+ * reports, per epoch, the posterior probability of the stage it SHOWS (the decoded path's stage, not
+ * the arg-max — after decoding they can differ, and the number must describe the bar it sits under).
+ * A stager without posteriors (ECGDex's rule set) reports `confidence: null`, and the card says so; a
+ * constant would be a fabricated certainty.
+ *
+ * THE TWO FILES.
+ *   · `tepna.hypnogram/1` JSON — lossless: the stages at their own epoch, the confidence, the source.
+ *   · The CPAP viewer's sleep-stage CSV import (the legacy sleep-headband layout): one header row and
+ *     one night row. The importer steps its detailed graph in FIXED 30 s slots and carries no epoch
+ *     field, so any other grid is resampled here by MIDPOINT lookup (a 5 min epoch becomes ten slots;
+ *     transitions stay within half a slot of their true time and never drift with night length).
+ *     Codes: 1 Wake · 2 REM · 3 Light · 4 Deep · 0 no data; the 5 min column is the majority non-empty
+ *     code of each ten slots. Confidence does not survive this file — it is a presentation export.
+ *     The headband's own quality score and the morning-feel rating were never measured here, so
+ *     their columns are EMPTY, never 0 (absence is null — a 0 would read as a score of zero).
+ *
+ * Pure except `downloadText` and the window global at the bottom. Exports through one list (the owned
+ * bundler leaves `export function` in place and strips `export const`'s binding).
+ */
+
+const SCHEMA = 'tepna.hypnogram/1';
+const STAGE_NAMES = ['Wake', 'Light', 'Deep', 'REM'];
+const VIEWER_SLOT_S = 30;
+const VIEWER_GROUP = 10; // ten 30 s slots = the 5 min column
+const VIEWER_CODE = { Wake: 1, REM: 2, Light: 3, Deep: 4 };
+const VIEWER_HEADER = 'Start of Night,End of Night,Rise Time,ZQ,Time to Z,Time in Wake,Time in REM,Time in Light,Time in Deep,Awakenings,Morning Feel,Detailed Sleep Graph,Sleep Graph';
+const LOW_CONFIDENCE = 0.5;
+
+const _isStage = (s) => s === 'Wake' || s === 'Light' || s === 'Deep' || s === 'REM';
+const _finite = (v) => typeof v === 'number' && Number.isFinite(v);
+
+/**
+ * A contiguous indexed path (OxyDex: Viterbi indices into `names`) → the hypnogram shape.
+ * `proba` (optional) is the T×K row-major posterior; confidence is the posterior of the decoded stage.
+ */
+function fromIndexed(idx, opts) {
+  const o = opts || {};
+  const names = o.names || STAGE_NAMES;
+  const T = idx ? idx.length : 0;
+  const stages = new Array(T);
+  for (let t = 0; t < T; t++) {
+    const s = names[idx[t]];
+    stages[t] = _isStage(s) ? s : null;
+  }
+  let confidence = null;
+  if (o.proba && T) {
+    const K = o.K || names.length;
+    if (o.proba.length < T * K) throw new Error('hypno-export: posterior shorter than T × K');
+    confidence = new Array(T);
+    for (let t = 0; t < T; t++) {
+      const p = o.proba[t * K + idx[t]];
+      confidence[t] = _finite(p) ? Math.round(Math.min(1, Math.max(0, p)) * 1000) / 1000 : null;
+    }
+  }
+  return { startMs: _finite(o.startMs) ? o.startMs : null, epochSec: o.epochSec || 30, stages, confidence, source: o.source || null };
+}
+
+/**
+ * A sparse epoch list (ECGDex: `[{ tMin, stage }]`, refused windows absent) → the hypnogram shape on a
+ * contiguous grid of `epochSec`; an absent window is a null stage, never the neighbour's stage.
+ */
+function fromEpochList(list, opts) {
+  const o = opts || {};
+  const epochSec = o.epochSec || 300;
+  const rows = (list || []).filter((e) => e && _finite(e.tMin));
+  if (!rows.length) return { startMs: _finite(o.startMs) ? o.startMs : null, epochSec, stages: [], confidence: null, source: o.source || null };
+  const first = rows[0].tMin;
+  const T = Math.round((rows[rows.length - 1].tMin - first) / (epochSec / 60)) + 1;
+  const stages = new Array(T).fill(null);
+  for (const e of rows) {
+    const t = Math.round((e.tMin - first) / (epochSec / 60));
+    if (t >= 0 && t < T) stages[t] = _isStage(e.stage) ? e.stage : null;
+  }
+  const startMs = _finite(o.startMs) ? o.startMs + first * 60000 : null;
+  return { startMs, epochSec, stages, confidence: null, source: o.source || null };
+}
+
+/** Minutes per stage, sleep onset, awakenings and the confidence read — from the epochs themselves. */
+function summarize(h) {
+  const T = h.stages.length;
+  const min = { Wake: 0, Light: 0, Deep: 0, REM: 0 };
+  let scored = 0;
+  let onset = -1;
+  let lastSleep = -1;
+  for (let t = 0; t < T; t++) {
+    const s = h.stages[t];
+    if (!s) continue;
+    scored++;
+    min[s] += h.epochSec / 60;
+    if (s !== 'Wake') {
+      if (onset < 0) onset = t;
+      lastSleep = t;
+    }
+  }
+  // An awakening is a Wake bout that starts after sleep onset and is followed by more sleep: the
+  // wake after the last sleep epoch is getting up, not waking in the night.
+  let awakenings = 0;
+  for (let t = Math.max(onset, 0) + 1; onset >= 0 && t <= lastSleep; t++) {
+    if (h.stages[t] === 'Wake' && h.stages[t - 1] !== 'Wake') awakenings++;
+  }
+  let meanConfidence = null;
+  let lowConfidencePct = null;
+  if (h.confidence) {
+    const c = h.confidence.filter((v, t) => _finite(v) && h.stages[t]);
+    if (c.length) {
+      meanConfidence = Math.round((c.reduce((a, b) => a + b, 0) / c.length) * 1000) / 1000;
+      lowConfidencePct = Math.round((c.filter((v) => v < LOW_CONFIDENCE).length / c.length) * 1000) / 10;
+    }
+  }
+  return {
+    epochs: T,
+    scored,
+    minutes: min,
+    sleepMin: min.Light + min.Deep + min.REM,
+    sleepOnsetMin: onset >= 0 ? (onset * h.epochSec) / 60 : null,
+    awakenings,
+    meanConfidence,
+    lowConfidencePct
+  };
+}
+
+/** The 30 s viewer raster: slot k samples the epoch under its midpoint; codes 0–4. */
+function viewerSlots(h) {
+  const spanSec = h.stages.length * h.epochSec;
+  const n = Math.floor(spanSec / VIEWER_SLOT_S);
+  const out = new Array(n);
+  for (let k = 0; k < n; k++) {
+    const t = Math.floor(((k + 0.5) * VIEWER_SLOT_S) / h.epochSec);
+    const s = h.stages[t];
+    out[k] = s ? VIEWER_CODE[s] : 0;
+  }
+  return out;
+}
+
+const _pad = (v) => String(v).padStart(2, '0');
+/** Floating wall-clock ms → 'YYYY-MM-DD HH:MM:SS' through getUTC* (never the viewer's timezone). */
+function wallClock(ms) {
+  const d = new Date(ms);
+  return `${d.getUTCFullYear()}-${_pad(d.getUTCMonth() + 1)}-${_pad(d.getUTCDate())} ${_pad(d.getUTCHours())}:${_pad(d.getUTCMinutes())}:${_pad(d.getUTCSeconds())}`;
+}
+
+/** The viewer CSV (header + one night). Refuses a night with no anchor or no scored slot. */
+function toViewerCsv(h) {
+  if (!_finite(h.startMs)) throw new Error('hypno-export: the recording has no start time, and the viewer places a night by it');
+  const slots = viewerSlots(h);
+  if (!slots.some((c) => c > 0)) throw new Error('hypno-export: no scored epoch to export');
+  const s = summarize(h);
+  const end = wallClock(h.startMs + slots.length * VIEWER_SLOT_S * 1000);
+  const groups = [];
+  for (let g = 0; g < slots.length; g += VIEWER_GROUP) {
+    const votes = [0, 0, 0, 0, 0];
+    for (let k = g; k < Math.min(g + VIEWER_GROUP, slots.length); k++) votes[slots[k]]++;
+    let best = 0;
+    for (let c = 1; c <= 4; c++) if (votes[c] > votes[best]) best = c;
+    groups.push(best);
+  }
+  const m = (x) => Math.round(x);
+  const row = [
+    wallClock(h.startMs),
+    end,
+    end,
+    '',
+    s.sleepOnsetMin != null ? m(s.sleepOnsetMin) : '',
+    m(s.minutes.Wake),
+    m(s.minutes.REM),
+    m(s.minutes.Light),
+    m(s.minutes.Deep),
+    s.awakenings,
+    '',
+    `"${slots.join(' ')}"`,
+    `"${groups.join(' ')}"`
+  ];
+  return VIEWER_HEADER + '\n' + row.join(',') + '\n';
+}
+
+/** The lossless file: stages at their own epoch, confidence, source and the summary. */
+function toJson(h) {
+  return {
+    schema: SCHEMA,
+    source: h.source || null,
+    start: _finite(h.startMs) ? wallClock(h.startMs).replace(' ', 'T') : null,
+    startMs: _finite(h.startMs) ? h.startMs : null,
+    epochSec: h.epochSec,
+    stageNames: STAGE_NAMES.slice(),
+    stages: h.stages.slice(),
+    confidence: h.confidence ? h.confidence.slice() : null,
+    summary: summarize(h)
+  };
+}
+
+/** A confidence strip as inline SVG under the hypnogram: darker = surer; a gap = no number. */
+function confidenceSvg(conf, width, height) {
+  const T = conf ? conf.length : 0;
+  const W = width || 640;
+  const H = height || 10;
+  let bars = '';
+  for (let t = 0; t < T; t++) {
+    const c = conf[t];
+    if (!_finite(c)) continue;
+    const x = (t / T) * W;
+    const w = Math.max(W / T, 0.5);
+    bars += `<rect x="${x.toFixed(2)}" y="0" width="${w.toFixed(2)}" height="${H}" fill="#7f8c8d" fill-opacity="${(0.1 + 0.9 * c).toFixed(2)}"/>`;
+  }
+  return `<svg class="hypno-conf" viewBox="0 0 ${W} ${H}" width="100%" height="${H}" role="img" aria-label="per-epoch confidence, ${T} epochs">${bars}</svg>`;
+}
+
+/** Browser-only: hand `text` to the user as a file. */
+function downloadText(doc, name, text, mime) {
+  const blob = new Blob([text], { type: mime || 'text/plain;charset=utf-8' });
+  const a = doc.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  doc.body.appendChild(a);
+  a.click();
+  setTimeout(() => {
+    URL.revokeObjectURL(a.href);
+    a.remove();
+  }, 0);
+}
+
+if (typeof window !== 'undefined') {
+  /** @type {any} */ (window).HypnoExport = { fromIndexed, fromEpochList, summarize, viewerSlots, toViewerCsv, toJson, confidenceSvg, downloadText, LOW_CONFIDENCE };
+}
+
+__exports.SCHEMA = SCHEMA; __exports.STAGE_NAMES = STAGE_NAMES; __exports.VIEWER_HEADER = VIEWER_HEADER; __exports.VIEWER_SLOT_S = VIEWER_SLOT_S; __exports.LOW_CONFIDENCE = LOW_CONFIDENCE; __exports.fromIndexed = fromIndexed; __exports.fromEpochList = fromEpochList; __exports.summarize = summarize; __exports.viewerSlots = viewerSlots; __exports.wallClock = wallClock; __exports.toViewerCsv = toViewerCsv; __exports.toJson = toJson; __exports.confidenceSvg = confidenceSvg; __exports.downloadText = downloadText;
+
+});})();</script>
 <script data-inline-src="ecgdex-morph.js">/* ════════════════════════════════════════════════════════════════════════
  * Copyright 2026 Michal Planicka
  * SPDX-License-Identifier: Apache-2.0
@@ -20675,6 +20921,35 @@ self.onmessage = async (e) => {
     _chartCardBadge('morphIntervals', 'QTc');
   }
 
+  /* The hypnogram card's note and export buttons (hypno-export.js), built through the DOM rather than an
+     innerHTML string: no text here comes from the recording, and no new HTML sink is added for it. */
+  function _hypnoControls(host, hasStart) {
+    const note = document.createElement('div');
+    note.className = 'q-note hx-note';
+    note.textContent = 'No per-epoch confidence: the rule set gives a stage, not a probability.';
+    const row = document.createElement('div');
+    row.className = 'hx-row';
+    const btn = (fmt, label) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'hx-btn';
+      b.dataset.act = 'hypnoExport';
+      b.dataset.fmt = fmt;
+      b.textContent = label;
+      return b;
+    };
+    row.appendChild(btn('json', '⬇ Hypnogram (JSON)'));
+    if (hasStart) row.appendChild(btn('csv', '⬇ CSV for a CPAP viewer'));
+    else {
+      const s = document.createElement('span');
+      s.className = 'q-note';
+      s.textContent = 'CSV needs the recording start time';
+      row.appendChild(s);
+    }
+    host.appendChild(note);
+    host.appendChild(row);
+  }
+
   function renderSleep(r) {
     if (r.longRec && r.ambulatory) {
       $('hypnoBody').innerHTML =
@@ -20685,6 +20960,7 @@ self.onmessage = async (e) => {
       $('hypnoCard').style.display = 'block';
     } else if (r.longRec && r.stages.length) {
       $('hypnoBody').innerHTML = UI.hypnogram(r.stages);
+      _hypnoControls($('hypnoBody'), r.t0Ms != null);
       const sm = r.stageMin;
       $('sleepStats').innerHTML = ['Deep', 'Light', 'REM', 'Wake']
         .map((st) => {
@@ -22869,6 +23145,26 @@ self.onmessage = async (e) => {
     DexActions.registerAll({
       ecgProfileToggle: function () {
         ecgProfileToggle();
+      },
+      // Hypnogram export (hypno-export.js): the 5 min rule-set epochs, refused windows left empty.
+      hypnoExport: function (el) {
+        const hx = window.HypnoExport;
+        if (!RESULT || !RESULT.stages || !RESULT.stages.length || !hx) return;
+        try {
+          const h = hx.fromEpochList(RESULT.stages, {
+            startMs: RESULT.t0Ms,
+            epochSec: 300,
+            source: { node: 'ECGDex', method: 'HRV rule set (estimate, not a validated hypnogram)' }
+          });
+          const csv = el.dataset.fmt === 'csv';
+          dl(
+            csv ? hx.toViewerCsv(h) : JSON.stringify(hx.toJson(h), null, 2),
+            exportName({ node: 'ECGDex', t0Ms: RESULT.t0Ms, kind: 'hypnogram', ext: csv ? 'csv' : 'json' }),
+            csv ? 'text/csv' : 'application/json;charset=utf-8'
+          );
+        } catch (e) {
+          window.alert('Hypnogram export: ' + e.message);
+        }
       }
     });
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
@@ -22916,7 +23212,7 @@ self.onmessage = async (e) => {
   }
 })();
 
-});__M.require("ecgdex-app.js");})();</script>
+});__M.require("hypno-export.js");__M.require("ecgdex-app.js");})();</script>
 <script data-inline-src="inline:script:0">
 // keep the chip name element in sync (app.js sets text via showChip shim)
 function showChip(name){ document.getElementById('ecgChipName').textContent = name; document.getElementById('ecgChip').classList.add('show'); }

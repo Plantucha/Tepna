@@ -890,6 +890,35 @@ self.onmessage = async (e) => {
     _chartCardBadge('morphIntervals', 'QTc');
   }
 
+  /* The hypnogram card's note and export buttons (hypno-export.js), built through the DOM rather than an
+     innerHTML string: no text here comes from the recording, and no new HTML sink is added for it. */
+  function _hypnoControls(host, hasStart) {
+    const note = document.createElement('div');
+    note.className = 'q-note hx-note';
+    note.textContent = 'No per-epoch confidence: the rule set gives a stage, not a probability.';
+    const row = document.createElement('div');
+    row.className = 'hx-row';
+    const btn = (fmt, label) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'hx-btn';
+      b.dataset.act = 'hypnoExport';
+      b.dataset.fmt = fmt;
+      b.textContent = label;
+      return b;
+    };
+    row.appendChild(btn('json', '⬇ Hypnogram (JSON)'));
+    if (hasStart) row.appendChild(btn('csv', '⬇ CSV for a CPAP viewer'));
+    else {
+      const s = document.createElement('span');
+      s.className = 'q-note';
+      s.textContent = 'CSV needs the recording start time';
+      row.appendChild(s);
+    }
+    host.appendChild(note);
+    host.appendChild(row);
+  }
+
   function renderSleep(r) {
     if (r.longRec && r.ambulatory) {
       $('hypnoBody').innerHTML =
@@ -900,6 +929,7 @@ self.onmessage = async (e) => {
       $('hypnoCard').style.display = 'block';
     } else if (r.longRec && r.stages.length) {
       $('hypnoBody').innerHTML = UI.hypnogram(r.stages);
+      _hypnoControls($('hypnoBody'), r.t0Ms != null);
       const sm = r.stageMin;
       $('sleepStats').innerHTML = ['Deep', 'Light', 'REM', 'Wake']
         .map((st) => {
@@ -3084,6 +3114,26 @@ self.onmessage = async (e) => {
     DexActions.registerAll({
       ecgProfileToggle: function () {
         ecgProfileToggle();
+      },
+      // Hypnogram export (hypno-export.js): the 5 min rule-set epochs, refused windows left empty.
+      hypnoExport: function (el) {
+        const hx = window.HypnoExport;
+        if (!RESULT || !RESULT.stages || !RESULT.stages.length || !hx) return;
+        try {
+          const h = hx.fromEpochList(RESULT.stages, {
+            startMs: RESULT.t0Ms,
+            epochSec: 300,
+            source: { node: 'ECGDex', method: 'HRV rule set (estimate, not a validated hypnogram)' }
+          });
+          const csv = el.dataset.fmt === 'csv';
+          dl(
+            csv ? hx.toViewerCsv(h) : JSON.stringify(hx.toJson(h), null, 2),
+            exportName({ node: 'ECGDex', t0Ms: RESULT.t0Ms, kind: 'hypnogram', ext: csv ? 'csv' : 'json' }),
+            csv ? 'text/csv' : 'application/json;charset=utf-8'
+          );
+        } catch (e) {
+          window.alert('Hypnogram export: ' + e.message);
+        }
       }
     });
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

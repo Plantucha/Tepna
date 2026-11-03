@@ -3369,6 +3369,28 @@ function nightDetail(n, idx) {
     html += '<div class="sec-section" data-tier="secondary">';
     html += '<div class="sec-label">Sleep Stages <span class="cite-note">(control model — not shipped · ' + escHTML(sProv) + ' · motion absent)</span></div>';
     html += typeof window !== 'undefined' && window.OxyDexStager ? window.OxyDexStager.hypnogramSvg(st.stages, 640, 56) : '';
+    // Per-epoch confidence (hypno-export.js): the posterior of the stage each bar shows — darker = surer.
+    if (st.confidence && st.meanConfidence != null && typeof window !== 'undefined' && window.HypnoExport) {
+      html += window.HypnoExport.confidenceSvg(st.confidence, 640, 10);
+      html +=
+        '<div class="cite-note hx-note">' +
+        _ntBadge('experimental', '') +
+        " Confidence (the model's probability for the stage shown): mean " +
+        Math.round(st.meanConfidence * 100) +
+        ' % · ' +
+        st.lowConfidencePct.toFixed(1) +
+        ' % of epochs below ' +
+        Math.round(window.HypnoExport.LOW_CONFIDENCE * 100) +
+        ' % · not calibrated against a scorer</div>';
+    }
+    html +=
+      '<div class="hx-row"><button type="button" class="hx-btn" data-act="hypnoExport" data-fmt="json" data-night="' +
+      escHTML(n.key || '') +
+      '">⬇ Hypnogram (JSON)</button>' +
+      (n.t0Ms != null
+        ? '<button type="button" class="hx-btn" data-act="hypnoExport" data-fmt="csv" data-night="' + escHTML(n.key || '') + '">⬇ CSV for a CPAP viewer</button>'
+        : '<span class="cite-note">CSV needs the recording start time</span>') +
+      '</div>';
     html +=
       '<div class="grid">' +
       metric('Wake', sm.wake != null ? Math.round(sm.wake) : '—', 'min', '', 'secondary', 'data-key="d_stager_wake"') +
