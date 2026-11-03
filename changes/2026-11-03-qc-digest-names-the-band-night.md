@@ -4,4 +4,4 @@ type: fixed
 brief: none
 ---
 
-Name the morning QC digest and the gap alert by the night band of the judged window, not by the newest folder.
+Name the QC digest and the gap alert by the night band. Stop the archive calling an unfinished folder a finished night.
