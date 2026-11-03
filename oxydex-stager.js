@@ -25,6 +25,7 @@
  */
 import { EPOCH_S, STAGES, harmonizeSpo2, nightFeatures } from './tools/stage-lab-core.mjs';
 import { loadWeights, seqnetForward, viterbi } from './tools/seqnet-infer.mjs';
+import { fromIndexed, summarize } from './hypno-export.js';
 
 const BLOCKS_USED = ['spo2', 'pulse', 'motion'];
 const BLOCK_PREFIXES = ['spo2.', 'pulse.', 'motion.'];
@@ -125,6 +126,9 @@ function stageNight(parsed, night) {
   const logT = Float64Array.from(meta.logT.flat());
   const logPrior = Float64Array.from(meta.logPrior);
   const stages = viterbi(r.proba, T, K, logT, logPrior);
+  // Per-epoch confidence: the posterior of the DECODED stage (hypno-export.js), never the arg-max's.
+  const hyp = fromIndexed(stages, { proba: r.proba, K, names: STAGES, epochSec: EPOCH_S });
+  const hs = summarize(hyp);
   const counts = new Array(K).fill(0);
   for (let t = 0; t < T; t++) counts[stages[t]]++;
   const minutes = {};
@@ -136,6 +140,9 @@ function stageNight(parsed, night) {
     nEpochs: T,
     stages,
     proba: r.proba,
+    confidence: hyp.confidence,
+    meanConfidence: hs.meanConfidence,
+    lowConfidencePct: hs.lowConfidencePct,
     minutes,
     presence: { spo2: presence[0], pulse: presence[1], motion: presence[2] },
     model: {

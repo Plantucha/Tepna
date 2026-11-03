@@ -65417,6 +65417,8 @@
            adapter-id equality did not exist these would not be exempt on my word. */
         'oxydex-stager.js':
           'OxyDex sleep stager (unit 2b): an ES module with sibling imports (tools/stage-lab-core.mjs, tools/seqnet-infer.mjs) that the owned bundler inlines; it exposes window.OxyDexStager for the render only, so a RESOLVE global would assert a DOM-side alias, not the compute. COVERING GATE: tests/oxydex-stager-tests.mjs (run-check step test:oxydex-stager) imports the module as ESM and stages a synthetic night through it — series→night contract, column selection by name, presence flags, refusals, hypnogram markup; the net arithmetic is held to torch in tests/seqnet-port-tests.mjs.',
+        'hypno-export.js':
+          'the shared hypnogram export (OxyDex, ECGDex): a pure ES module the owned bundler inlines; it exposes window.HypnoExport for the render and the export buttons only, so a RESOLVE global would assert a DOM-side alias. COVERING GATE: `test:hypno-export` (tests/hypno-export-tests.mjs, in npm run check) asserts every pure function the buttons call.',
         'coospo-rr.js':
           'vendor adapter — exposes NO global of its own; it self-registers into SignalAdapters on load, so there is nothing for a RESOLVE entry to assert. COVERING GATE: `Co-load manifest — single source vs host realms (PPGDEX-FOLLOWUPS §5)` asserts the manifest adapter ids EQUAL the ids actually registered via SignalAdapters.list() (see the self-consistency leg in that group) — an EQUALITY over the whole adapter set, which is strictly stronger than a per-file presence test.',
         'libre-cgm.js':
