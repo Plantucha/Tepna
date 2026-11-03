@@ -2144,15 +2144,21 @@ def test_the_record_set_reads_CLOCKSYNC_from_the_NEXT_date_too(tmp_path):
 # ── the MAGNITUDE each record names, which is what joins two records into one event ──────────────────
 
 
-def _skews(night, rows=(), seams=()):
-    """The two of the three record sources that carry a magnitude, written into one night."""
+def _skews(night, rows=(), seams=(), records=None):
+    """The two of the three record sources that carry a magnitude, written into one night.
+
+    `records` is the record set the map is keyed by — `clock_records`'s own output in production. It
+    defaults to every instant the fixture plants, which is what the night's own record set holds when
+    every row sits inside the worn interval; a test that means to leave one out passes the set it means.
+    """
     if seams:
         _seam_rows(night, list(seams))
     if rows:
         _clocksync(night.parent, list(rows), name=night.name)
-    return si.clock_record_skews(
-        str(night), H10["name"], str(night / f"{BASE}_ECG.txt"), T0, T0 + dt.timedelta(hours=8)
-    )
+    if records is None:
+        records = [(T0 + dt.timedelta(milliseconds=ms)).timestamp() * 1000.0 for ms, _step in seams]
+        records += [dt.datetime.fromisoformat(r.split(";")[0]).timestamp() * 1000.0 for r in rows]
+    return si.clock_record_skews(str(night), H10["name"], str(night / f"{BASE}_ECG.txt"), records)
 
 
 def test_a_RECORD_NAMES_A_MAGNITUDE_ONLY_WHEN_ITS_CELL_HOLDS_ONE(tmp_path):
@@ -2162,7 +2168,11 @@ def test_a_RECORD_NAMES_A_MAGNITUDE_ONLY_WHEN_ITS_CELL_HOLDS_ONE(tmp_path):
     entirely — `deferred-absent` rows do.
 
     A row with no magnitude is NOT dropped from the record set: it still records a clock event, and
-    `_clock_event_clusters` clusters it on time alone. Only the magnitude goes absent."""
+    `_clock_event_clusters` clusters it on time alone. Only the magnitude goes absent.
+
+    THE CELL COUNT IS A LOWER BOUND, NOT A WIDTH. A row that stops AT the skew cell carries it, and the
+    last row below is that row — six cells is the writer's full shape, five is this one, and the mutation
+    gate found the difference by widening the bound to six (`x__clocksync_records__mutmut_69`)."""
     night = tmp_path / "2026-09-20"
     night.mkdir()
     out = _skews(
@@ -2174,9 +2184,13 @@ def test_a_RECORD_NAMES_A_MAGNITUDE_ONLY_WHEN_ITS_CELL_HOLDS_ONE(tmp_path):
             f"2026-09-20T23:13:00;{H10['name']};a;resynced;nan;watchdog",
             f"2026-09-20T23:14:00;{H10['name']};a;resynced;inf;watchdog",
             f"2026-09-20T23:15:00;{H10['name']};a;resynced",
+            f"2026-09-20T23:16:00;{H10['name']};a;resynced;2.5",
         ],
     )
-    assert out == {dt.datetime(2026, 9, 20, 23, 10, 0).timestamp() * 1000.0: 1.5}, out
+    assert out == {
+        dt.datetime(2026, 9, 20, 23, 10, 0).timestamp() * 1000.0: 1.5,
+        dt.datetime(2026, 9, 20, 23, 16, 0).timestamp() * 1000.0: 2.5,
+    }, out
 
 
 def test_NOTHING_NAMING_A_MAGNITUDE_is_the_EMPTY_MAP_and_not_a_refusal(tmp_path):
@@ -2211,6 +2225,26 @@ def test_a_SEAM_whose_STEP_IS_NOT_FINITE_names_NO_MAGNITUDE(tmp_path):
     night = tmp_path / "2026-09-20"
     night.mkdir()
     assert _skews(night, seams=[(600_000.0, float("nan"))]) == {}
+
+
+def test_a_MAGNITUDE_THE_RECORD_SET_DOES_NOT_ADMIT_IS_NOT_IN_THE_MAP(tmp_path):
+    """The records ARE the window here, and that is the whole of it: `clock_records` has already applied
+    the worn interval to these same two files, so a second copy of the bound inside this function would
+    be one more place for the two to disagree — and the mutation gate showed it was worse than that,
+    because a mutant that dropped half of the second copy widened the map where nothing could see it.
+
+    A seam and a CSV row the record set left out name nothing here, whatever their own cells say."""
+    night = tmp_path / "2026-09-20"
+    night.mkdir()
+    at_ms = 600_000.0
+    kept = (T0 + dt.timedelta(milliseconds=at_ms)).timestamp() * 1000.0
+    out = _skews(
+        night,
+        rows=[f"2026-09-20T23:20:00;{H10['name']};a;resynced;7.5;watchdog"],
+        seams=[(at_ms, 4000.0), (at_ms + 60_000.0, 9000.0)],
+        records=[kept],
+    )
+    assert out == {kept: 4.0}, out
 
 
 def test_an_UNREADABLE_CLOCKSYNC_does_not_ERASE_the_SEAM_s_MAGNITUDE(tmp_path):
@@ -3312,6 +3346,10 @@ def test_MAGNITUDE_AGREEMENT_is_RELATIVE_to_the_larger_and_lets_ABSENCE_AGREE():
     assert si._mags_agree(15.0, -30.0) is False, "the storm's flips, 100 % apart — two skews"
     assert si._mags_agree(0.0, 0.0) is True, "two zeros agree; the relative test cannot divide by the larger"
     assert si._mags_agree(0.0, 15.0) is False, "but a zero and a number do not"
+    assert si._mags_agree(1.0, 0.5) is False, (
+        "and ONLY a larger of zero skips the relative test — a pair whose larger is 1.0 is an ordinary "
+        "pair, which is the mutation the gate found (`x__mags_agree__mutmut_14`)"
+    )
     assert si._mags_agree(100.0, 100.0 * (1.0 - si.A5_SKEW_AGREE_FRAC)) is True, "at the bound, inside it"
     assert si._mags_agree(100.0, 98.9) is False
 
@@ -3390,6 +3428,60 @@ def test_the_CONCEDED_HEAD_REACHES_THE_NIGHTS_OWN_COVERAGE_CHANNEL(tmp_path):
         "window collapse to one, so the segment after the set decides"
     ) in tb["reason"], tb["reason"]
     assert "720 s before the recorded clock-set carry no usable absolute time" in tb["coverage"], tb["coverage"]
+
+
+def test_TWO_DISAGREEING_MAGNITUDES_REACH_THE_BAND_AS_TWO_EVENTS(tmp_path):
+    """The band level of the test above, with the two sources naming skews that cannot be one event: the
+    seam records a 2.44e+08 s step and the CSV row a second later records 15 s, which is 100 % apart.
+
+    Nothing may collapse them. The magnitudes travel from the night's own files to the clustering
+    through ONE argument, and the mutation gate dropped it three ways at this call site — the map
+    itself, the device whose rows carry the CSV half, and the argument (`x_timebase__mutmut_257`,
+    `__mutmut_261`, `__mutmut_264`). Each of the three reads as ONE event and concedes a recorded
+    clock-set over a step no single record can account for."""
+    d = tmp_path / "2026-09-20"
+    d.mkdir()
+    (d / "CLOCKSYNC.csv").write_text(
+        "Phone timestamp;device;address;event;skew_sec;detail\n"
+        f"2026-09-20T23:12:01;{H10['name']};a;resynced;15.0;watchdog\n"
+    )
+    tb = _stepped(d, step_ms=2.44e8 * 1000.0)
+    assert tb["status"] == "UNKNOWN", tb["reason"]
+    assert "clock-sets too dense to attribute — 2 clock events (2 records) around" in tb["reason"], tb["reason"]
+
+
+def test_THE_MAGNITUDES_ARE_WHAT_THE_TRIPWIRE_SPLITS_THE_SPAN_ON():
+    """The same two records, read twice: with the magnitudes they name, and without them.
+
+    Two rows a second apart naming skews 100 % apart are TWO events the density arm cannot attribute,
+    and the identical rows with no magnitude in hand are ONE event the night recorded. The argument is
+    the only difference between the two calls, so it is what carries the decision — which is what the
+    mutation gate asked when it dropped it (`x_unrecorded_shift__mutmut_143`, `__mutmut_145`)."""
+    at = A5_T0_MS + 200_000.0
+    scan = _scan([(0.0, 0.0), (200.0, 4000.0)])
+    recs = [at, at + 1000.0]
+    out = si.unrecorded_shift(scan, recs, 2.0, {at: 15.0, at + 1000.0: -30.0})
+    assert out is not None and out["status"] == "UNKNOWN", out
+    assert out["reason"] == (
+        f"clock-sets too dense to attribute — 2 clock events (2 records) around +4 s persistent shift at {_at(200.0)}"
+    ), out["reason"]
+    without = si.unrecorded_shift(scan, recs, 2.0, None)
+    assert without is not None and without["status"] == "PASS", without
+    assert "one recorded clock event" in without["reason"], without["reason"]
+
+
+def test_NO_ANCHORS_IS_NO_CANDIDATE_and_the_FLOOR_BELONGS_TO_THE_GRID():
+    """The only count this function guards is ZERO, and the grid holds the rest.
+
+    A vantage needs 90 s of segment behind it and 120 s ahead, and a segment's anchors sit at most
+    `A5_REANCHOR_S` apart — so n anchors span at most 60(n-1) s and five is the fewest that can reach
+    210 s. Three cannot, whatever a floor here says, which is why the `TB_MIN_ANCHORS` restatement this
+    carried was indistinguishable from a relaxed one (`x_unrecorded_shift__mutmut_6`). `timebase` states
+    the contract's floor in its own words, where a reader meets it."""
+    assert si.unrecorded_shift({"anchors": []}, [], 2.0) is None
+    three = _scan([(0.0, 0.0)], spacing_ms=si.A5_REANCHOR_MS, span_s=120.0)
+    assert len(three["anchors"]) == 3, three["anchors"]
+    assert si.unrecorded_shift(three, [], 2.0) is None
 
 
 def test_a_REANCHOR_of_EXACTLY_A5_REANCHOR_S_does_not_split_the_axis(tmp_path):

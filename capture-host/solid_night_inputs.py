@@ -1468,7 +1468,7 @@ def _clocksync_records(night_dir: str, device: str, start, end) -> list[tuple[fl
     return out
 
 
-def clock_record_skews(night_dir: str, device: str, primary: str, start, end) -> dict[float, float]:
+def clock_record_skews(night_dir: str, device: str, primary: str, records: list[float]) -> dict[float, float]:
     """Host ms to the magnitude in SECONDS that record names, for every record that names one.
 
     §A5 counts EVENTS rather than rows (`_clock_event_clusters`), and a magnitude is how a row says it
@@ -1486,14 +1486,22 @@ def clock_record_skews(night_dir: str, device: str, primary: str, start, end) ->
 
     A missing key is absence, so this returns `{}` rather than `None` when nothing names a magnitude:
     the clustering reads a missing key exactly as it reads an empty map, and the record set's own
-    readability is already answered by `clock_records`."""
+    readability is already answered by `clock_records`.
+
+    🔴 KEYED BY THE RECORD SET, NOT BY A SECOND WINDOW. This used to take `start, end` and re-apply them
+    to both sources — a second copy of the bound `clock_records` had already applied to the same files —
+    and the diff-scoped mutation gate found what that cost: a mutant dropping the start
+    (`x_timebase__mutmut_266`) widened the map by every out-of-window magnitude and NO input could see
+    it, because the map is only ever read at keys the record set admitted. Taking the records says that
+    invariant where it is used, and the widening mutant has nowhere left to be written."""
+    keys = set(records)
     out: dict[float, float] = {}
-    for seam in recorded_seams(primary, start, end):
+    for seam in recorded_seams(primary, None, None):
         step = seam.get("step_ms")
-        if step is not None:
+        if step is not None and seam["host_ms"] in keys:
             out[seam["host_ms"]] = step / 1000.0
-    for tm, skew in _clocksync_records(night_dir, device, start, end) or []:
-        if skew is not None:
+    for tm, skew in _clocksync_records(night_dir, device, None, None) or []:
+        if skew is not None and tm in keys:
             out[tm] = skew
     return out
 
@@ -1664,8 +1672,15 @@ def unrecorded_shift(
       5. the fire.
     """
     anchors = scan.get("anchors") or []
-    if len(anchors) < TB_MIN_ANCHORS:
-        return None  # `timebase` already says so in its own words; saying it twice adds nothing
+    if not anchors:
+        return None  # there is no origin to subtract; `timebase` says so in its own words for a thin segment
+    # 🔴 NO ANCHOR FLOOR HERE, AND THE GRID IS WHY. This read `len(anchors) < TB_MIN_ANCHORS`, and the
+    # diff-scoped mutation gate relaxed it to `<=` with nothing able to tell the two spellings apart
+    # (`x_unrecorded_shift__mutmut_6`). The floor decided nothing: a segment's anchors sit at most
+    # `A5_REANCHOR_S` apart, so n of them span at most 60(n-1) s, while a vantage needs 90 s of segment
+    # behind it and 120 s ahead of it — 210 s, which is five anchors at the widest legal spacing. Three
+    # anchors cannot reach the grid whatever this line says, so the count was a restatement of
+    # `timebase`'s own floor and the only real guard is the empty case, which `anchors[0]` cannot survive.
     # SORTED ONCE. The segment split already assumed host order, and `_win_median` now bisects on it, so
     # the assumption is made explicit here instead of being inherited from the read order of a file.
     pts = sorted((h, (h - d) - (anchors[0][0] - anchors[0][1])) for h, d in anchors)
@@ -2109,7 +2124,7 @@ def timebase(night_dir: str, device: str, clock_tag: str, clock_files: list[str]
                         )
                     else:
                         trip = unrecorded_shift(
-                            scan, recs, seam_rate(path), clock_record_skews(night_dir, device, path, start, end)
+                            scan, recs, seam_rate(path), clock_record_skews(night_dir, device, path, recs)
                         )
                         if trip is not None:
                             out = _decision(trip["status"], f"{tag}: {trip['reason']}{seam_note}")
