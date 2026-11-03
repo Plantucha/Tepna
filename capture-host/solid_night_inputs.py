@@ -403,6 +403,26 @@ def band_of(night_dir: str):
     return _nqc.night_band(cast(float, probe))
 
 
+def band_phase(night_dir: str, now: _dt.datetime) -> str | None:
+    """Where `now` sits against the band this folder NAMES: `before`, `open` or `closed`. None without a date.
+
+    `now` is CIVIL local time (the daemon's `_now()`), read through `nightqc.floating_stamp_s` so that both
+    sides are floating — the band's edges are floating, and a zone-resolved `now` would shift the edge.
+
+    WHY IT EXISTS (residue `2026-11-03-a-night-is-judged-and-announced-before-its-band-opens`): a daemon
+    restart after midnight opens a ring file set in the folder of the calendar date. Its data settled 20
+    minutes later, the loss poller judged that folder, and the judge read UNKNOWN over 0 of 0 nights for a
+    band that opens at 18:00 that evening. A verdict on a band that has not closed is not a verdict about a
+    night, so the poller, the startup seed and the pending statement all ask this first."""
+    band = band_of(night_dir)
+    if band is None:
+        return None
+    t = cast(float, _nqc.floating_stamp_s(now.strftime("%Y%m%d%H%M%S")))
+    if t < band[0]:
+        return "before"
+    return "open" if t < band[1] else "closed"
+
+
 def _scope_file_count(night_dir: str, band) -> int:
     """How many of this folder's CAPTURE files the band admits.
 

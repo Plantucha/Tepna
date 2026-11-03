@@ -67,6 +67,7 @@ import pymalloc_stats  # CPython's own arena figures for the mem line; see its d
 import qc_child  # the night-QC work that runs in the spawned child, never in this process
 import loss_audit
 import solid_night
+import solid_night_inputs
 import seal
 import sealbox
 import sealfmt
@@ -10764,7 +10765,15 @@ async def loss_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" =
             _settled: "dict[str, float]" = {}
             for _n in every:
                 _m = await asyncio.to_thread(nightqc.newest_data_mtime, os.path.join(captures, _n))
-                if _m is not None and nightqc.data_settled(_m, settle, _t):
+                # AND THE BAND THE FOLDER NAMES HAS CLOSED. Settled data alone judged a morning-only folder
+                # before its own band opened (vigil 2026-11-03: UNKNOWN over 0 of 0, announced on ntfy).
+                # `solid_night_inputs.band_phase` carries the measurement; the night before already reads
+                # that morning through `_next_day_dir`.
+                if (
+                    _m is not None
+                    and nightqc.data_settled(_m, settle, _t)
+                    and solid_night_inputs.band_phase(os.path.join(captures, _n), _now()) == "closed"
+                ):
                     _settled[_n] = _m
             nights = [n for n in every if n in _settled]
             # ONE re-judge per poll for a night whose verdict older judge code wrote (`solid_night.code_moved`):
@@ -10938,7 +10947,15 @@ def _seed_solid(captures: str) -> None:
     ∅ A NOT_APPLICABLE NIGHT CARRIES `result: null` BY CONTRACT, so its run is ABSENT — null here, never
     a zero count or a false exit. NO WRITTEN VERDICT ANYWHERE SEEDS NOTHING and says so in the log: the
     card stays hidden, which is what "this box has judged no night" looks like."""
-    found = solid_night.newest_written(captures, diskguard.list_nights(captures))
+    # ONLY A CLOSED BAND SEEDS THE CARD: a verdict written beside a folder whose band is still open or not
+    # yet begun is not a statement about a night (`solid_night_inputs.band_phase`).
+    now = _now()
+    closed = [
+        n
+        for n in diskguard.list_nights(captures)
+        if solid_night_inputs.band_phase(os.path.join(captures, n), now) == "closed"
+    ]
+    found = solid_night.newest_written(captures, closed)
     if found is None:
         log.info("solid-night: no written verdict under %s — the card seeds nothing", captures)
         return
@@ -10979,15 +10996,22 @@ async def _solid_pending(captures: str, every: list, active: set, cfg: dict, set
     if not every:
         return
     freshest: tuple[float, str] | None = None
+    now = _now()
+    phase: dict[str, str | None] = {}
     for night in every[-3:]:  # only a night near the end of the list can still be receiving data
+        # A BAND THAT HAS NOT BEGUN STATES NOTHING: a morning fragment in the calendar date's folder is
+        # not tonight's night (`solid_night_inputs.band_phase`). Closed and open bands both compete.
+        phase[night] = solid_night_inputs.band_phase(os.path.join(captures, night), now)
+        if phase[night] == "before":
+            continue
         q = await asyncio.to_thread(nightqc.data_quiet_s, os.path.join(captures, night))
         if q is not None and (freshest is None or q < freshest[0]):
             freshest = (q, night)
     if freshest is None:
         return  # no device data anywhere in the window: nothing is being captured
     quiet, night = freshest
-    if quiet >= settle:
-        return  # it has settled; the loop above owns it
+    if quiet >= settle and phase[night] != "open":
+        return  # it has settled and its band has closed; the loop above owns it
     shown = (STATUS.get("solid") or {}).get("night")
     if shown is not None and night < shown:
         return

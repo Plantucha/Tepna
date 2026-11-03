@@ -558,3 +558,88 @@ def test_after_a_restart_the_seed_keeps_a_re_judged_older_night_off_the_card(tmp
     monkeypatch.setattr(capture, "_seed_solid", lambda captures: None)
     _poll_once(monkeypatch, tmp_path)
     assert capture.STATUS["solid"]["night"] == "2026-09-18", "which is the state the row logged"
+
+
+# ---- a night is judged only after its band closes (residue
+# `2026-11-03-a-night-is-judged-and-announced-before-its-band-opens`) ----
+
+
+def _at(monkeypatch, *ymdhm):
+    import datetime as dt
+
+    now = dt.datetime(*ymdhm)
+    monkeypatch.setattr(capture, "_now", lambda: now)
+    return now
+
+
+def _aged(d, *ymdhm):
+    import datetime as dt
+
+    t = dt.datetime(*ymdhm).timestamp()
+    for f in d.iterdir():
+        os.utime(str(f), (t, t))
+
+
+def test_the_band_a_folder_names_is_before_open_or_closed():
+    import datetime as dt
+
+    import solid_night_inputs as sni
+
+    nd = "/x/2026-10-03"
+    assert sni.band_phase(nd, dt.datetime(2026, 10, 3, 5, 6)) == "before"
+    assert sni.band_phase(nd, dt.datetime(2026, 10, 3, 17, 59, 59)) == "before"
+    assert sni.band_phase(nd, dt.datetime(2026, 10, 3, 18, 0)) == "open"
+    assert sni.band_phase(nd, dt.datetime(2026, 10, 4, 9, 59, 59)) == "open"
+    assert sni.band_phase(nd, dt.datetime(2026, 10, 4, 10, 0)) == "closed"
+    assert sni.band_phase("/x/not-a-date", dt.datetime(2026, 10, 4, 10, 0)) is None
+
+
+def test_a_morning_only_folder_is_not_judged_before_its_band_opens(tmp_path, monkeypatch):
+    """vigil 2026-11-03: a ring file set that began at 04:18 sat in the calendar date's folder, settled, and
+    was judged UNKNOWN over 0 of 0 nights for a band that opens at 18:00 that evening."""
+    _aged(_night(tmp_path, "2026-10-02"), 2026, 10, 3, 6, 0)
+    _aged(_night(tmp_path, "2026-10-03"), 2026, 10, 3, 5, 0)  # the morning fragment
+    _at(monkeypatch, 2026, 10, 3, 10, 30)
+    monkeypatch.setattr(capture, "STATUS", {})
+    calls = []
+    monkeypatch.setattr(capture.loss_audit, "write_night", _audit_writer(calls))
+    _poll_once(monkeypatch, tmp_path)
+    assert calls == ["2026-10-02"]
+    assert capture.STATUS["solid"]["night"] == "2026-10-02", "the card keeps the night that happened"
+    assert not (tmp_path / "captures" / "2026-10-03" / capture.solid_night.VERDICT_NAME).exists()
+    _at(monkeypatch, 2026, 10, 4, 10, 0)  # CONTROL: once its own band closes, the folder is judged
+    _poll_once(monkeypatch, tmp_path)
+    assert calls == ["2026-10-02", "2026-10-03"]
+
+
+def test_a_settled_night_whose_band_is_open_is_pending_not_judged(tmp_path, monkeypatch):
+    _aged(_night(tmp_path, "2026-10-02"), 2026, 10, 3, 6, 0)
+    _at(monkeypatch, 2026, 10, 3, 7, 0)
+    monkeypatch.setattr(capture, "STATUS", {})
+    calls = []
+    monkeypatch.setattr(capture.loss_audit, "write_night", _audit_writer(calls))
+    _poll_once(monkeypatch, tmp_path, devices=_cfg_devices())
+    assert calls == []
+    s = capture.STATUS["solid"]
+    assert s["night"] == "2026-10-02" and s["reason"] == capture.solid_night.NOT_SETTLED
+    assert s["settles_in_s"] == 0.0
+    assert not (tmp_path / "captures" / "2026-10-02" / capture.solid_night.VERDICT_NAME).exists()
+
+
+def test_the_seed_skips_a_verdict_written_beside_a_band_that_has_not_closed(tmp_path, monkeypatch):
+    _stored(tmp_path, "2026-10-02", {"status": "PASS", "reason": None})
+    _stored(tmp_path, "2026-10-03", {"status": "UNKNOWN", "reason": "0 solid of 0"})
+    _at(monkeypatch, 2026, 10, 3, 10, 30)
+    monkeypatch.setattr(capture, "STATUS", {})
+    capture._seed_solid(str(tmp_path / "captures"))
+    assert capture.STATUS["solid"]["night"] == "2026-10-02"
+
+
+def test_a_fragment_still_recording_before_its_band_opens_is_not_the_pending_night(tmp_path, monkeypatch):
+    _aged(_night(tmp_path, "2026-10-02"), 2026, 10, 3, 4, 0)
+    _night(tmp_path, "2026-10-03", data_age_s=60)  # the fragment, still inside its settle window
+    _at(monkeypatch, 2026, 10, 3, 5, 10)
+    monkeypatch.setattr(capture, "STATUS", {})
+    monkeypatch.setattr(capture.loss_audit, "write_night", _audit_writer([]))
+    _poll_once(monkeypatch, tmp_path, devices=_cfg_devices())
+    assert capture.STATUS["solid"]["night"] == "2026-10-02"
