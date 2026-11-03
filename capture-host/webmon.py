@@ -35,6 +35,7 @@ import nights_index as _nights
 import nightqc as _nightqc
 import ble_series as _ble
 import mem_series as _mem
+import heap_series as _heap
 import build_id
 import seal
 import sealbox
@@ -2061,6 +2062,12 @@ def make_app(
         out = await asyncio.to_thread(_mem.read_mem_series, hours)
         if out is None:
             return web.json_response({"error": "the journal could not be read", "segments": None}, status=503)
+        # Row 2026-09-25-heap-growth-is-json-retention-not-a-buffer-leak. The two quantities the stall
+        # was argued over — the journal's RssAnon and the probe's traced bytes — travel in ONE response
+        # on ONE axis, because a drawer holding two responses still owes the join. The probe block
+        # carries its own state and age, so an absent or stale probe can never read as tonight.
+        root = cfg.get("root", "/srv/tepna")
+        out["probe"] = await asyncio.to_thread(_heap.read_heap_series, _heap.probe_path(root))
         return web.json_response(out)
 
     # Residue row 2026-10-20-ble-backoff-rate-is-drawn-as-a-level-not-a-curve. Same mechanism as
