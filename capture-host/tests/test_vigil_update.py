@@ -75,7 +75,19 @@ def box(tmp_path):
         # Tests that need links create `hciN:HANDLE` entries in it.
         "ble": _mkdir(tmp_path / "ble-sysfs"),
         "ble_seen": tmp_path / "ble-last-link",
+        # THE ALERT SEAM, isolated per test. Without it the EXIT trap would run the box venv's python
+        # against a real config.yaml, and a failing-streak test could publish to a live topic. The
+        # recorder writes its argv and exits $FAKE_ALERT_EXIT (0 = delivered).
+        "alert_py": _recorder(tmp_path / "alert-py", tmp_path / "alert-calls"),
+        "alert_calls": tmp_path / "alert-calls",
+        "alert_cfg": tmp_path / "absent-config.yaml",
     }
+
+
+def _recorder(path, calls):
+    path.write_text(f'#!/usr/bin/env bash\necho "$@" >> {calls}\nexit "${{FAKE_ALERT_EXIT:-0}}"\n')
+    path.chmod(0o755)
+    return path
 
 
 def _write_status(path, devices, top=None, publish=True, age=0.0):
@@ -124,6 +136,8 @@ def _run(box, *mode, **env):
         # would present as this updater being broken. An EMPTY directory is the "no links" case.
         "TEPNA_BLE_SYSFS": str(box["ble"]),
         "TEPNA_BLE_SEEN_MARK": str(box["ble_seen"]),
+        "TEPNA_PYTHON": str(box["alert_py"]),
+        "TEPNA_CONFIG": str(box["alert_cfg"]),
         **env,
     }
     return subprocess.run(["bash", UPD, *mode], capture_output=True, text=True, env=e)
