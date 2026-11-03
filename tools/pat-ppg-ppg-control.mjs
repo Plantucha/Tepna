@@ -53,6 +53,7 @@ import { loadDsps, getDsps, median, quantile, BIN_MIN } from './pat-matchrate-st
 import { printVerdict, undeclaredVerdict, verdictSample } from './verdict-undeclared.mjs';
 import { isCliEntry } from './argv-guard.mjs';
 import { gitCommitOf, notCovered, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
+import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
 
 const argv = process.argv.slice(2);
 const arg = (k, d) => {
@@ -95,9 +96,22 @@ const SCATTER = argv.includes('--scatter');
 const WIN_MIN = +arg('--win-min', 60); // the family's 60-min windows
 const BLOCK_MS = BIN_MIN * 60000;
 
-function fiducialTimes(text) {
+/* ── THE VALIDITY SIDECAR RIDES WITH THE STREAM ─────────────────────────────────────────────────────
+   Row 2026-10-17-sample-parsers-called-without-their-sidecar: this tool read a night's samples and
+   none of the box's `…RUNS.txt` validity, so a blanking run the box recorded reached the detectors
+   below as signal — a flat rail is a plausible diastole, and no reader could tell it from one.
+   `readRunsSidecar` names which of four things happened per stream, and the tally prints beside the
+   numbers: §∅, reduced coverage annotates, and an ABSENT sidecar is validity UNKNOWN for that
+   stream, never a clean one. Most of this corpus predates the writer, so most streams read `absent`
+   and parse exactly as they did before. */
+const VALIDITY = {};
+const runsOf = (streamPath, stream) => readRunsSidecar(streamPath, stream, { tally: VALIDITY }).runsText;
+
+/* `runsText` is OPTIONAL and LAST per §🧪, the shape `ppgFootTimes` already ships in this family, so
+   a caller that hands over none gets the record this helper has always returned. */
+function fiducialTimes(text, runsText) {
   const { PPGDSP } = getDsps();
-  const rec = PPGDSP.parsePPG(text);
+  const rec = runsText ? PPGDSP.parsePPG(text, { runsText }) : PPGDSP.parsePPG(text);
   if (rec.t0Ms == null) return null;
   const per = rec.ch.map((c) => PPGDSP.detectChannel(c, rec.fs));
   let refIdx = 0,
@@ -340,7 +354,7 @@ function main() {
     const F = fs_
       .map((c) => {
         try {
-          return fiducialTimes(readFileSync(c.f, 'utf8'));
+          return fiducialTimes(readFileSync(c.f, 'utf8'), runsOf(c.f, 'PPG'));
         } catch {
           return null;
         }
@@ -349,7 +363,7 @@ function main() {
     const W = ws
       .map((c) => {
         try {
-          return fiducialTimes(readFileSync(c.f, 'utf8'));
+          return fiducialTimes(readFileSync(c.f, 'utf8'), runsOf(c.f, 'PPG'));
         } catch {
           return null;
         }
@@ -415,6 +429,8 @@ function main() {
   if (bests.length) {
     console.log('-'.repeat(100));
     const sig = bests.filter((b) => b.p < 0.05 && b.ratio > 1);
+    const validity = validityLine(VALIDITY);
+    if (validity) console.log(validity);
     console.log(`${bests.length} night(s) - best-pair ratio median ${median(bests.map((b) => b.ratio)).toFixed(2)} - ` + `${sig.length}/${bests.length} with p<0.05 and ratio>1`);
     console.log(
       sig.length >= bests.length * 0.5

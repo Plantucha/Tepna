@@ -138,3 +138,111 @@ def test_the_mutation_job_pins_the_mutmut_it_installs():
     declared = re.search(r"^mutmut==([^\s#]+)", REQ_DEV.read_text(encoding="utf-8"), re.MULTILINE)
     assert declared, "requirements-dev.txt declares no exact mutmut pin"
     assert pinned.group(1) == declared.group(1), (pinned.group(1), declared.group(1))
+
+
+# ── the two pin tests above compare for EQUALITY, so this is the DIRECTION ──────────────────────────
+#
+# `test_the_mutation_job_pins_the_pytest_it_installs` and its mutmut twin each compare two literals.
+# A bump that moves a pair UP into a combination the gate cannot run satisfies both exactly as well
+# as holding a working pair does. That move was asked for: #4239 raised the pytest floor to 9.2.0
+# while mutmut 3.8.0 read pytest's private `Item._nodeid`, and the only thing that refused it was a
+# session reading the pin's comment by hand. #4246 then moved BOTH pins after reading mutmut 3.8.1's
+# harness, so today's pair is verified. The rule below is what makes the NEXT mover state its read
+# instead of relying on someone noticing.
+
+MUTMUT_PYTEST_VERIFIED: dict[str, str] = {
+    # mutmut pin → the highest pytest release someone READ that pin against, newest first.
+    # 3.8.1: `runners/harness.py` reads the public `item.nodeid`, where 3.8.0 read the private
+    # `item._nodeid` that pytest 9.2.0 dropped; #4246 ran the suite and a decided mutation glob
+    # under 3.8.1 + 9.2.0 on python 3.13 before moving either pin.
+    "3.8.1": "9.2.0",
+}
+
+
+def _release(spec: str) -> tuple[int, ...]:
+    """The numeric release prefix of a version, so `9.2.0rc1` and `9.2.0` compare equal."""
+    m = re.match(r"(\d+(?:\.\d+)*)", spec)
+    if not m:
+        raise ValueError(f"not a version: {spec!r}")
+    return tuple(int(p) for p in m.group(1).split("."))
+
+
+def floor_is_legal(
+    mutmut_pin: str,
+    pytest_floor: str,
+    verified: dict[str, str] | None = None,
+) -> tuple[bool, str | None]:
+    """Has the PINNED mutmut been read against the pytest release the floor names?
+
+    Absence is never legal here, and the two absences differ. A mutmut bump nobody has read reaches
+    this with no entry at all. A floor raised past the read release reaches it with an entry that
+    does not cover it. Each refuses with the read its mover owes, so neither can pass by being newer
+    than what the table records.
+    """
+    table = MUTMUT_PYTEST_VERIFIED if verified is None else verified
+    read = table.get(mutmut_pin)
+    if read is None:
+        return False, (
+            f"mutmut {mutmut_pin} has no recorded read against any pytest release, so a floor of "
+            f"{pytest_floor} runs the mutation gate under a pair nobody has executed — move mutmut "
+            "with the read that clears it, the way #4246 did"
+        )
+    if _release(pytest_floor) > _release(read):
+        return False, (
+            f"the pytest floor reads {pytest_floor} and mutmut {mutmut_pin} is recorded only against "
+            f"{read}, so the gate's own pin follows the floor into a pair nobody has run — record the "
+            "read for the newer pytest, or hold the floor"
+        )
+    return True, None
+
+
+def test_the_pinned_pair_on_disk_is_one_somebody_read():
+    """The live leg: the real `mutmut==` and `pytest>=` literals, against the recorded reads."""
+    text = REQ_DEV.read_text(encoding="utf-8")
+    pin = re.search(r"^mutmut==([^\s#]+)", text, re.MULTILINE)
+    assert pin, "requirements-dev.txt pins no mutmut, so the mutation gate's runner is unknown"
+    floor = re.search(r"^pytest>=([^\s#]+)", text, re.MULTILINE)
+    assert floor, "requirements-dev.txt declares no pytest floor"
+    legal, reason = floor_is_legal(pin.group(1), floor.group(1))
+    assert legal, reason
+
+
+def test_a_floor_raised_past_the_read_release_is_refused():
+    """CONTROL — the Dependabot shape: the floor moves alone, the runner stands still."""
+    legal, reason = floor_is_legal("3.8.1", "9.3.0", {"3.8.1": "9.2.0"})
+    assert not legal
+    assert "recorded only against 9.2.0" in reason
+
+
+def test_a_mutmut_bump_nobody_read_is_refused():
+    """CONTROL — the other absence: a newer runner with no recorded read holds nothing."""
+    legal, reason = floor_is_legal("3.9.0", "9.2.0", {"3.8.1": "9.2.0"})
+    assert not legal
+    assert "no recorded read" in reason
+
+
+def test_a_pair_moved_together_with_its_read_recorded_is_legal():
+    """CONTROL — a rule that refuses every move is not a direction, it is a freeze."""
+    legal, reason = floor_is_legal("3.9.0", "9.3.0", {"3.9.0": "9.3.0"})
+    assert legal
+    assert reason is None
+
+
+def test_the_pair_that_broke_the_gate_in_october_is_refused_by_this_rule():
+    """The measured case: #4032 read 642 mutants generated and 0 tested under this exact pair."""
+    legal, reason = floor_is_legal("3.8.0", "9.2.0", {"3.8.1": "9.2.0"})
+    assert not legal
+    assert "nobody has executed" in reason
+
+
+def test_a_prerelease_compares_equal_to_its_own_release():
+    """`9.2.0rc1` names the release the read covers, so it may not read as newer than it."""
+    assert _release("9.2.0rc1") == _release("9.2.0")
+    legal, _ = floor_is_legal("3.8.1", "9.2.0rc1", {"3.8.1": "9.2.0"})
+    assert legal
+
+
+def test_a_version_with_no_numeric_release_refuses_rather_than_compares():
+    """A spec this cannot read is not silently equal to anything."""
+    with pytest.raises(ValueError, match="not a version"):
+        _release("main")

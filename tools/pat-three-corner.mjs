@@ -63,6 +63,7 @@ import { fileURLToPath } from 'node:url';
 import { ecgCounterTimeMs } from './pat-matchrate-strict.mjs';
 import { NIGHT_RE, notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
 import { printVerdict, undeclaredVerdict } from './verdict-undeclared.mjs';
+import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DexBuild = createRequire(import.meta.url)(path.join(ROOT, 'tools', 'build-core.js'));
@@ -199,15 +200,31 @@ function spanOf(file) {
     z = col(tail, true);
   return a != null && z != null ? { a, z, span: z - a } : null;
 }
+
+/* ── THE VALIDITY SIDECAR RIDES WITH THE STREAM ─────────────────────────────────────────────────────
+   Row 2026-10-17-sample-parsers-called-without-their-sidecar: this tool read a night's samples and
+   none of the box's `…RUNS.txt` validity, so a blanking run the box recorded reached the detectors
+   below as signal — a flat rail is a plausible diastole, and no reader could tell it from one.
+   `readRunsSidecar` names which of four things happened per stream, and the tally prints beside the
+   numbers: §∅, reduced coverage annotates, and an ABSENT sidecar is validity UNKNOWN for that
+   stream, never a clean one. Most of this corpus predates the writer, so most streams read `absent`
+   and parse exactly as they did before. */
+const VALIDITY = {};
+const runsOf = (streamPath, stream) => readRunsSidecar(streamPath, stream, { tally: VALIDITY }).runsText;
+
 const beatsECG = (f) => {
-  const r = ECG.parseECG(fs.readFileSync(f, 'utf8'));
+  const runsText = runsOf(f, 'ECG');
+  const txt = fs.readFileSync(f, 'utf8');
+  const r = runsText ? ECG.parseECG(txt, { runsText }) : ECG.parseECG(txt);
   if (!r || !r.int16 || !r.t0Ms) return null;
   const i = ECG.detectPeaks(r.int16, ECG.bandpass(r.int16, r.fs), r.fs);
   if (!i || i.length <= 100) return null;
   return i.map((k) => (ECG_AXIS === 'counter' ? ecgCounterTimeMs(r, k) : ECG_AXIS === 'piecewise' ? r.tMsAt(k) : r.t0Ms + (k / r.fs) * 1000));
 };
 const beatsPPG = (f) => {
-  const r = PPG.parsePPG(fs.readFileSync(f, 'utf8'));
+  const runsText = runsOf(f, 'PPG');
+  const txt = fs.readFileSync(f, 'utf8');
+  const r = runsText ? PPG.parsePPG(txt, { runsText }) : PPG.parsePPG(txt);
   if (!r) return null;
   const a = PPG.analyze(r);
   return a && a.tt && a.tt.length > 100 ? a.tt.map((s) => r.t0Ms + s * 1000) : null;
@@ -407,6 +424,8 @@ say(`  selected but not scored: ${unscoredNights.length ? unscoredNights.join(',
    second line on it reds the gate (measured at step 37/40: "Unexpected non-whitespace character
    after JSON"). `say` is stderr under either flag and stdout on a plain run, which is where a human
    reader and a POPULATION consumer both want it. */
+const validityNote = validityLine(VALIDITY);
+if (validityNote) say('  ' + validityNote);
 say('POPULATION ' + JSON.stringify(population));
 if (!V.AB.length) {
   say('\n  no night produced a three-way window — that is the result.');

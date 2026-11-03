@@ -585,9 +585,17 @@ def test_silence_owner_is_silent_about_a_pull_of_a_DIFFERENT_device():
     assert alerts.silence_owner("ring", offline_slot="H10") is None
 
 
-def test_silence_owner_names_a_polar_charger_pull_by_address():
-    """`gate_state()` publishes `polar_paused` as ADDRESSES, not names, so the match is on the address."""
-    assert alerts.silence_owner("H10", paused_addrs=["AA:BB:CC:DD:EE:01"], addr="AA:BB:CC:DD:EE:01") == "charger-pull"
+def test_silence_owner_names_a_polar_offline_op_by_address():
+    """`gate_state()` publishes `polar_paused` as ADDRESSES, not names, so the match is on the address.
+
+    The WORD is the point: it read `charger-pull` until 2026-11-02, while `explained_silence` read
+    `offline-op` off the same set and the same test (residue
+    `2026-11-01-two-predicates-name-one-polar-pause-differently`)."""
+    assert (
+        alerts.silence_owner("H10", paused_addrs=["AA:BB:CC:DD:EE:01"], addr="AA:BB:CC:DD:EE:01")
+        == alerts.POLAR_PAUSE_NAME
+    )
+    assert alerts.POLAR_PAUSE_NAME == "offline-op"
 
 
 def test_silence_owner_is_silent_when_a_DIFFERENT_address_is_paused():
@@ -609,3 +617,37 @@ def test_silence_owner_does_not_match_a_nameless_device_against_a_free_slot():
     """A device with no name must not collide with a slot that is also falsy. The real poller skips a
     nameless device earlier, so this pins the predicate's own guard rather than the caller's."""
     assert alerts.silence_owner("", offline_slot="") is None
+
+
+# ── `polar_pause_reason` — ONE pause, ONE name ───────────────────────────────────────────────────
+#
+# The defect it closes: two predicates applied one membership test to `gate_state()["polar_paused"]`
+# and gave the result two different names, so one pause read as two subsystems. `_POLAR_PAUSED` is
+# added to in one place only, inside `capture.polar_offline_op`, so the op is what owns the device.
+def test_the_pause_reason_names_the_op_that_actually_holds_the_address():
+    """The set's one writer is the offline op, and the journal has called it that all along."""
+    assert alerts.polar_pause_reason("AA:BB:CC:DD:EE:01", ["AA:BB:CC:DD:EE:01"]) == "offline-op"
+
+
+def test_the_pause_reason_is_silent_about_an_address_outside_the_set():
+    assert alerts.polar_pause_reason("AA:BB:CC:DD:EE:02", ["AA:BB:CC:DD:EE:01"]) is None
+
+
+def test_an_absent_address_is_unknown_rather_than_paused():
+    """`None in {...}` must not be the thing that decides it — an unanswerable question is not a pause."""
+    assert alerts.polar_pause_reason(None, ["AA:BB:CC:DD:EE:01"]) is None
+    assert alerts.polar_pause_reason("", ["AA:BB:CC:DD:EE:01"]) is None
+
+
+def test_an_absent_pause_set_is_unknown_rather_than_paused():
+    """A caller that cannot read `gate_state()` knows nothing about pauses, which is not a clean bill."""
+    assert alerts.polar_pause_reason("AA:BB:CC:DD:EE:01", None) is None
+
+
+def test_both_predicates_give_one_pause_one_word():
+    """THE ROW ITSELF: the same address in the same set, read through the two consumers that disagreed."""
+    addr = "AA:BB:CC:DD:EE:01"
+    assert alerts.explained_silence({"address": addr, "connected": True}, [addr]) == alerts.silence_owner(
+        "H10", offline_slot=None, paused_addrs=[addr], addr=addr
+    )
+    assert alerts.explained_silence({"address": addr, "connected": True}, [addr]) == "offline-op"

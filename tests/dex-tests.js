@@ -46018,6 +46018,15 @@
       T.eq('ecgKind · `_PPGRUNS.txt` is set aside in the ECG node too', DI.ecgKind(VS + 'PPGRUNS.txt'), 'skip');
       T.eq('control · the real `_PPG.txt` is still the PPG primary', DI.ppgKind(VS + 'PPG.txt'), 'ppg');
       T.eq('control · the real `_ECG.txt` is still the ECG primary', DI.ecgKind(H10 + 'ECG.txt'), 'ecg');
+      /* 2026-11-02 — six sidecars the box writes were absent from `nonSignalName`, so each one became an ECG
+         recording AND a PPG primary. Every name below must be 'skip' in BOTH routers. */
+      [VS + 'PPISEAMS.txt', H10 + 'HRSEAMS.txt', VS + 'ACCSEAMS.txt', 'STARTS.csv', 'PMDNEG.csv', 'WORN.csv', 'README-SIDECARS.txt'].forEach(function (n) {
+        T.eq('ecgKind · sidecar `' + n.replace(/^.*_/, '_') + '` is set aside', DI.ecgKind(n), 'skip');
+        T.eq('ppgKind · sidecar `' + n.replace(/^.*_/, '_') + '` is set aside', DI.ppgKind(n), 'skip');
+      });
+      T.eq('control · `_PPI.txt` is still the ECG node\u2019s rr companion', DI.ecgKind(VS + 'PPI.txt'), 'rr');
+      T.eq('control · `_HR.txt` is still the ECG node\u2019s hr companion', DI.ecgKind(H10 + 'HR.txt'), 'hr');
+      T.eq('control · `_ACCRUNS.txt` keeps its companion kind', DI.ecgKind(H10 + 'ACCRUNS.txt'), 'accruns');
       // (2) PLANNER — the sidecar is a device-eligible companion of its own primary and of no other.
       var nm = function (n, t) {
         return { name: n, text: t || '' };
@@ -46225,7 +46234,16 @@
            leaves CALL (-2). Both files stay in the population on their other bare calls, so the file
            count holds. Neither call site passes a sidecar today, which row
            2026-10-17-sample-parsers-called-without-their-sidecar still holds. */
-        var TOOLS_PIN = { files: 40, calls: 62, reason: 'research tools: ' + OPEN };
+        /* 32 / 49 from 2026-11-02: the eight PAT tools that read a night from a PATH take the guarded
+           ternary through one shared reader, `readRunsSidecar` in `tools/trio-fold-validity.mjs`. Thirteen
+           calls leave CALL, and each of those eight files leaves the population: `pat-axis-leg-audit`,
+           `pat-fiducial-jitter`, `pat-host-offset`, `pat-hrv-windows`, `pat-per-led`,
+           `pat-ppg-ppg-control`, `pat-three-corner`, `pat-window-scaling`. The reader names which of four
+           things happened per stream and every one of the eight prints the tally, because passing the
+           sidecar is not reporting its absence (§∅): most of this corpus predates the writer, so most
+           streams read `absent` and an absent sidecar is validity UNKNOWN, never a clean one. Row
+           2026-10-17-sample-parsers-called-without-their-sidecar holds the 32 files still bare. */
+        var TOOLS_PIN = { files: 32, calls: 49, reason: 'research tools: ' + OPEN };
 
         function blank(s) {
           return s.replace(/[^\n]/g, '');
@@ -46318,7 +46336,12 @@
           'sensor-trio-worker.js parsePPG',
           'pat-feasibility-worker.js parseECG',
           'pat-feasibility-worker.js parsePPG',
-          'resp-acc-analysis-app.js parseSensorXYZ'
+          'resp-acc-analysis-app.js parseSensorXYZ',
+          /* the migrated `tools/` half: the population above is a COUNT, and a count alone cannot show
+             that a migration landed where this gate can see it */
+          'tools/pat-hrv-windows.mjs parseECG',
+          'tools/pat-three-corner.mjs parsePPG',
+          'tools/pat-per-led.mjs parsePPG'
         ].forEach(function (k) {
           T.ok('…and it sees the WIRED caller `' + k + '` carry the sidecar', carried.indexOf(k) >= 0, 'carrying: ' + carried.join(' · '));
         });
