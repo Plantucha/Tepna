@@ -48,6 +48,19 @@ import { join } from 'node:path';
 import { loadDsps, ecgRpeakTimes, ppgFootTimes, median } from './pat-matchrate-strict.mjs';
 import { isCliEntry, positionalArgs, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 import { snapshotNights, populationVerdict, notANight } from './corpus-scope-core.mjs';
+import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
+
+/* ── THE VALIDITY SIDECAR RIDES WITH THE STREAM ─────────────────────────────────────────────
+   Row 2026-11-02-no-caller-hands-the-shared-pat-foot-extractor-its-sidecar: the foot extractor has
+   taken a `runsText` validity sidecar since the PAT foot ports landed, and this caller handed it
+   none, so a blanking run the box recorded reached the foot detector as signal — a flat rail is a
+   plausible diastole, and no reader could tell it from one. `readRunsSidecar` names which of four
+   things happened per stream, and the tally prints beside the numbers: §∅, reduced coverage
+   annotates, and an ABSENT sidecar is validity UNKNOWN for that stream, never a clean one. Most of
+   this corpus predates the writer, so most streams read `absent` and parse exactly as they did
+   before. */
+const VALIDITY = {};
+const runsOf = (streamPath, stream) => readRunsSidecar(streamPath, stream, { tally: VALIDITY }).runsText;
 
 /* ONE spec, read twice: the guard refuses an undeclared flag with it, and `positionalArgs`
    skips each valued flag's VALUE with it, so a flag written before the positional cannot be
@@ -238,19 +251,22 @@ function main() {
         .map((f) => ({ f: join(dir, f), size: statSync(join(dir, f)).size }))
         .sort((a, b) => b.size - a.size)
         .slice(0, 6);
+    /* The callback takes the PATH beside the text — the sidecar is named from the path, and only
+       this layer holds it. The ECG leg ignores it: `ecgRpeakTimes` takes `opts` second, never a
+       sidecar (row 2026-11-03-the-ecg-leg-of-the-shared-pat-extractor-takes-no-sidecar). */
     const parse = (list, fn) =>
       list
         .map((c) => {
           try {
-            const r = fn(readFileSync(c.f, 'utf8'));
+            const r = fn(readFileSync(c.f, 'utf8'), c.f);
             return r && r.t0Ms != null ? r : null;
           } catch {
             return null;
           }
         })
         .filter(Boolean);
-    const E = parse(big(/_ECG\.txt$/i), ecgRpeakTimes);
-    const P = parse(big(/(?:VeritySense|Polar_Sense).*_PPG\.txt$/i), ppgFootTimes);
+    const E = parse(big(/_ECG\.txt$/i), (text) => ecgRpeakTimes(text));
+    const P = parse(big(/(?:VeritySense|Polar_Sense).*_PPG\.txt$/i), (text, path) => ppgFootTimes(text, runsOf(path, 'PPG')));
     if (!E.length || !P.length) {
       rows.push({ night, skip: `no parseable ECG (${E.length}) / Verity PPG (${P.length})` });
       continue;
@@ -342,6 +358,8 @@ function main() {
      sentence and kept the object to itself, so no reader could take the population machine-readably
      — the same defect the reference validator carried. */
   console.log('POPULATION ' + JSON.stringify(population));
+  const validity = validityLine(VALIDITY);
+  if (validity) console.log('  ' + validity);
 }
 
 /* The corpus-free sample the adoption gate runs: the shape this tool reports when the population

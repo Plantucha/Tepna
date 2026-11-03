@@ -41,6 +41,19 @@ import { join, basename } from 'node:path';
 import { loadDsps, getDsps, ecgRpeakTimes, ppgFootTimes, legacyMatchRate, strictMatchRate, circShift, rawLags, median, STRICT_W_MS } from './pat-matchrate-strict.mjs';
 import { isCliEntry } from './argv-guard.mjs';
 import { notANight, populationVerdict, snapshotNights } from './corpus-scope-core.mjs';
+import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
+
+/* ── THE VALIDITY SIDECAR RIDES WITH THE STREAM ─────────────────────────────────────────────
+   Row 2026-11-02-no-caller-hands-the-shared-pat-foot-extractor-its-sidecar: the foot extractor has
+   taken a `runsText` validity sidecar since the PAT foot ports landed, and this caller handed it
+   none, so a blanking run the box recorded reached the foot detector as signal — a flat rail is a
+   plausible diastole, and no reader could tell it from one. `readRunsSidecar` names which of four
+   things happened per stream, and the tally prints beside the numbers: §∅, reduced coverage
+   annotates, and an ABSENT sidecar is validity UNKNOWN for that stream, never a clean one. Most of
+   this corpus predates the writer, so most streams read `absent` and parse exactly as they did
+   before. */
+const VALIDITY = {};
+const runsOf = (streamPath, stream) => readRunsSidecar(streamPath, stream, { tally: VALIDITY }).runsText;
 
 const argv = process.argv.slice(2);
 const arg = (k, d) => {
@@ -80,10 +93,13 @@ function biggest(dir, re, n) {
 }
 
 /* Feet or peaks from the SAME committed detector, so the two fiducials differ in nothing else. */
-function ppgFiducialTimes(text, which) {
-  if (which === 'foot') return ppgFootTimes(text);
+function ppgFiducialTimes(text, which, runsText) {
+  if (which === 'foot') return ppgFootTimes(text, runsText);
   const { PPGDSP } = getDsps();
-  const rec = PPGDSP.parsePPG(text);
+  /* BOTH BRANCHES reach a parser, so both take the sidecar — a peak leg that read validity and a
+     foot leg that did not would differ in more than the fiducial, which is the one thing this
+     wrapper exists to hold still. */
+  const rec = runsText ? PPGDSP.parsePPG(text, { runsText }) : PPGDSP.parsePPG(text);
   if (rec.t0Ms == null) throw new Error('PPG file carried no phone timestamp.');
   const per = rec.ch.map((c) => PPGDSP.detectChannel(c, rec.fs));
   let refIdx = 0,
@@ -110,19 +126,22 @@ function pairsIn(dir) {
   const ecgs = biggest(dir, RE_ECG, 4);
   const ppgs = biggest(dir, RE_RING, 4);
   if (!ecgs.length || !ppgs.length) return [];
+  /* The callback takes the PATH beside the text — the sidecar is named from the path, and only
+     this layer holds it. The ECG leg ignores it: `ecgRpeakTimes` takes `opts` second, never a
+     sidecar (row 2026-11-03-the-ecg-leg-of-the-shared-pat-extractor-takes-no-sidecar). */
   const parse = (list, fn) =>
     list
       .map((c) => {
         try {
-          const r = fn(readFileSync(c.f, 'utf8'));
+          const r = fn(readFileSync(c.f, 'utf8'), c.f);
           return r.t0Ms == null ? null : { file: basename(c.f), rec: r };
         } catch {
           return null;
         }
       })
       .filter(Boolean);
-  const E = parse(ecgs, ecgRpeakTimes);
-  const P = parse(ppgs, (txt) => ppgFiducialTimes(txt, FIDUCIAL));
+  const E = parse(ecgs, (text) => ecgRpeakTimes(text));
+  const P = parse(ppgs, (txt, path) => ppgFiducialTimes(txt, FIDUCIAL, runsOf(path, 'PPG')));
   let best = null;
   for (const e of E)
     for (const p of P) {
@@ -268,6 +287,8 @@ function main() {
   );
   console.log(`selected but not scored: ${unscored.length ? unscored.join(', ') : 'none'}`);
   console.log('POPULATION ' + JSON.stringify(population));
+  const validity = validityLine(VALIDITY);
+  if (validity) console.log('  ' + validity);
 }
 
 /* The sample the adoption gate reads: two identical fabricated snapshots, so the object is complete

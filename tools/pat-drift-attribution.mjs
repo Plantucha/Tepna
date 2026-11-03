@@ -92,6 +92,19 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry } from './argv-guard.mjs';
 import { NIGHT_RE, notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
+import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
+
+/* ── THE VALIDITY SIDECAR RIDES WITH THE STREAM ─────────────────────────────────────────────
+   Row 2026-11-02-no-caller-hands-the-shared-pat-foot-extractor-its-sidecar: the foot extractor has
+   taken a `runsText` validity sidecar since the PAT foot ports landed, and this caller handed it
+   none, so a blanking run the box recorded reached the foot detector as signal — a flat rail is a
+   plausible diastole, and no reader could tell it from one. `readRunsSidecar` names which of four
+   things happened per stream, and the tally prints beside the numbers: §∅, reduced coverage
+   annotates, and an ABSENT sidecar is validity UNKNOWN for that stream, never a clean one. Most of
+   this corpus predates the writer, so most streams read `absent` and parse exactly as they did
+   before. */
+const VALIDITY = {};
+const runsOf = (streamPath, stream) => readRunsSidecar(streamPath, stream, { tally: VALIDITY }).runsText;
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const BAND_EXPLAINS = 0.3;
@@ -304,7 +317,7 @@ async function main() {
       const eTxt = readFileSync(eF, 'utf8');
       const pTxt = readFileSync(pF, 'utf8');
       E = ecgRpeakTimes(eTxt, ECG_AXIS === 'linear' ? undefined : { axis: ECG_AXIS });
-      P = ppgFootTimes(pTxt);
+      P = ppgFootTimes(pTxt, runsOf(pF, 'PPG'));
       /* Straight from the parser — the wrappers above drop `hostAxis` (see header). */
       eAx = ECGDSP.parseECG(eTxt).hostAxis;
       pAx = PPGDSP.parsePPG(pTxt).hostAxis;
@@ -384,6 +397,8 @@ async function main() {
   if (rl) console.log(rl);
   console.log(`selected but not scored: ${unscored.length ? unscored.join(', ') : 'none'}`);
   console.log('POPULATION ' + JSON.stringify(population));
+  const validity = validityLine(VALIDITY);
+  if (validity) console.log('  ' + validity);
 }
 
 /* One synthetic pair of snapshots, so the shape `verify:verdict-adoption` parses needs no corpus.
