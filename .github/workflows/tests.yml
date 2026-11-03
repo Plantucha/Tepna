@@ -91,9 +91,9 @@ concurrency:
 jobs:
   # ── the assertion suite, split 6 ways ──────────────────────────────────────────────
   suite:
-    # measured 2026-10-11 over 175 job run(s): p95 2.7 min, max 2.9 min (tools/ci-timing.mjs `pct`). Cap = ceil(max(p95, max) × 2).
+    # measured 2026-11-03 over 17 job run(s): p90 3m21s, max 3m32s (tools/ci-timing.mjs --limit 100). Cap = ceil(max(p95, max) × 2); max bounds p95.
     # max over the six shards
-    timeout-minutes: 6
+    timeout-minutes: 8
     name: suite (shard ${{ matrix.shard }}/6)
     runs-on: ubuntu-latest
     strategy:
@@ -110,8 +110,8 @@ jobs:
 
   # ── the shard gate's own gate, + the static/provenance checks (~15 s, in parallel) ──
   static:
-    # measured 2026-10-11 over 29 job run(s): p95 3.3 min, max 3.4 min (tools/ci-timing.mjs `pct`). Cap = ceil(max(p95, max) × 2).
-    timeout-minutes: 7
+    # measured 2026-11-03 over 17 job run(s): p90 6m09s, max 6m32s (tools/ci-timing.mjs --limit 100). Cap = ceil(max(p95, max) × 2); max bounds p95.
+    timeout-minutes: 14
     name: shard-union + build + provenance
     runs-on: ubuntu-latest
     steps:

@@ -43,9 +43,9 @@ concurrency:
 
 jobs:
   analyze:
-    # measured 2026-10-11 over 89 job run(s): p95 3.3 min, max 3.4 min (tools/ci-timing.mjs `pct`). Cap = ceil(max(p95, max) × 2).
+    # measured 2026-11-03 over 17 job run(s): p90 4m14s, max 4m18s (tools/ci-timing.mjs --limit 100). Cap = ceil(max(p95, max) × 2); max bounds p95.
     # max over the javascript-typescript/python/actions legs
-    timeout-minutes: 7
+    timeout-minutes: 9
     name: Analyze (${{ matrix.language }})
     runs-on: ubuntu-latest
     permissions:

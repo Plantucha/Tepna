@@ -1110,7 +1110,7 @@
      "--verdict-sample"
     ]
    },
-   "note": "names WHICH rule picks the reference channel at every `consensusBeats` call site, and measures how often that pick lands on a polarity dissenter. The default census FAILs on a site whose pick rule the scan cannot name, because an unnamed rule is a pick nobody has checked. Under `--dir` the same gate reports the corpus figure. Row 2026-11-01-a-dissenting-led-can-win-the-consensus-reference-pick."
+   "note": "names WHICH rule picks the reference channel at every `consensusBeats` call site, and measures how often that pick lands on a polarity dissenter. The default census FAILs on a site whose pick rule the scan cannot name, because an unnamed rule is a pick nobody has checked. Under `--dir` the same gate reports the corpus figure. Row 2026-11-01-a-dissenting-led-can-win-the-consensus-reference-pick. It also holds every site to a DECLARED rule in `DECLARED_PICKS`, and FAILs a site whose read rule differs from its declaration, a site the table does not name, and a declared file no call site answers for. That table freezes the divergence row 2026-11-03-three-pick-rules-disagree-on-the-consensus-reference-on-thirty-seven-nights measured, and repairs none of it."
   },
   "tools/corpus-census.mjs": {
    "bin": "decides",
