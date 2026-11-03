@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-10-29 (O1, O2, U1, U2, U3, U4, U5 and U6 done; U7 in progress) · **Created:** 2026-10-29
+**Status:** IN-PROGRESS — 2026-11-03 (O1, O2, U1, U3, U4, U5, U6 and U7 done; **U2 in progress** — verified 2026-11-03, Heron: the previous header had U2 and U7 the wrong way round. U7 meets all three of its boxes in the tree — `capture-host/as11_clock.py:255` sets `ENVELOPE_WINDOW_S = 12 * 3600.0`, `offset_for_envelope` publishes `anchors`, `span_s` and `window_s` beside the value, and `capture-host/tests/test_as11_clock_envelope.py` reads it back. U2 meets none of its three: no producer exists for the sub-2400 s fragment measurement its own first step names, so the `fs` change at `ppgdex-dsp.js` has nothing to beat. Neither #4303 nor #4311 discharges U7 — #4303 reads a firmware-default clock as a reset and #4311 publishes the raw adjacent host-device step, which U2 can use as a diagnostic.) · **Created:** 2026-10-29
 
 # Brief — better time handling on every device
 
@@ -201,13 +201,14 @@ ingest re-anchor carried as #1956's follow-up).
 |---|---|---|---|
 | U5 | Magpie | `dex-export.js` (spine, 9 bundles) | 1st, alone — DONE |
 | U3 | Osprey | `oxydex-dsp.js`, `pulsedex-dsp.js`, `hrvdex-dsp.js` | any time; rebase after U5 |
-| U2 | Heron | `ppgdex-dsp.js` | measurement now; code after U1 |
+| U2 | Heron | `ppgdex-dsp.js` | measurement now; code after U1 — IN PROGRESS, 0 of 3 boxes |
 | U1 | Kestrel | nothing: measured, no code (2026-10-30) | done |
 | U6 | Wren | box read-only | DONE 2026-11-02 |
 | U4 | Magpie | `motiondex-dsp.js` | after U5 merges |
-| U7 | Heron | `capture-host/` | after U2 — in progress |
+| U7 | Heron | `capture-host/` | DONE 2026-11-03 — all 3 boxes, independent of U2 |
 
-U1 landed no code, so U2 had no rebase to wait for.
+U1 landed no code, so U2 had no rebase to wait for. U7 did not wait for U2 either: it touches
+`capture-host/` alone and landed first.
 One PR per bird, draft-first, WIP cap 4 (§👥.5).
 
 **Usage guard.** The owner's order lifts pace ruling #2138 for these units. On 2026-10-29 the weekly

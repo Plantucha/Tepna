@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED — 2026-10-25 (core BUILT, remainder PR- and owner-blocked — verified 2026-10-26, Kestrel: §3 waits on #3959, OPEN, which carries row `2026-10-26-the-absorbed-civil-shift-reaches-no-night-artifact`. §4 holds two owner questions, still undecided.) · Previously: PROPOSED — 2026-10-25 (core BUILT, verified 2026-10-25. §1 measures every rail's edge. The CPAP live rail now declares its clocks. §3 names a new defect for a residue row. §4 stays the owner's.) · **Created:** 2026-10-25
+**Status:** PROPOSED — 2026-11-03 (core BUILT, remainder OWNER-blocked only — verified 2026-11-03, Heron: §3 is DISCHARGED. #3959 merged 2026-10-26 and its row reads the closure, `capture_absorbed_sec` is the appended column in `capture-host/writers.py`, and the event-row half is retired on that PR's coverage argument rather than built. §4's two owner questions are all that remain, so nothing here is PR-blocked any more.) · EARLIER: PROPOSED — 2026-10-25 (core BUILT, remainder PR- and owner-blocked — verified 2026-10-26, Kestrel: §3 waits on #3959, OPEN, which carries row `2026-10-26-the-absorbed-civil-shift-reaches-no-night-artifact`. §4 holds two owner questions, still undecided.) · Previously: PROPOSED — 2026-10-25 (core BUILT, verified 2026-10-25. §1 measures every rail's edge. The CPAP live rail now declares its clocks. §3 names a new defect for a residue row. §4 stays the owner's.) · **Created:** 2026-10-25
 
 # Brief — where a transport-edge seam stamp lives, and what a seam event is on the wire
 
@@ -104,5 +104,12 @@ them:
 - [x] §1 — the CPAP live rail declares its clocks, derived from its record's own facts, with the
       derivation and the pump wiring both pinned.
 - [x] §2 — the format question has an answer and every clause of the rule names a precedent.
-- [ ] §3 — the absorbed shift reaches the night's own file. Both halves wait on a residue row.
+- [x] §3 — the absorbed shift reaches the night's own file (verified 2026-11-03). Row
+      `2026-10-26-the-absorbed-civil-shift-reaches-no-night-artifact` reads the #3959 closure, merged
+      2026-10-26. The LEVEL half shipped: `capture_absorbed_sec` is appended last to the host-clock
+      sidecar header (`capture-host/writers.py:2414`) and written per row (`:2450`). The INSTANT half is
+      RETIRED rather than built, on that PR's own coverage argument — a shift absorbed during an open
+      capture persists until every sample writer closes, so at least one 120 s poll records it, and the
+      one uncovered case holds no open sample writer and therefore owns no recording whose stamps could
+      be wrong. The tree agrees: no seam-event drain exists in `capture-host/capture.py`.
 - [ ] §4 — the two owner questions stay undecided.
