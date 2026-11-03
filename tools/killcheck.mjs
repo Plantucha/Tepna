@@ -150,6 +150,71 @@ export function functionRange(src, name) {
   return hits[0] || null;
 }
 
+/* ── A BASELINE THAT NEVER RAN IS NOT A RED BASELINE ─────────────────────────────────────────────
+   `run-tests.mjs` exits 1 for a failing suite and 2 for every refusal BEFORE any group runs — a
+   filter matching zero groups, a bad `--jobs`, a shard wider than the group count. Keeping only
+   `ok: !err` over that child read both as "the baseline is red", so one mistyped `--group` sent the
+   operator to fix a test that never ran (residue
+   `2026-11-02-killcheck-reads-an-unmatched-filter-as-a-red-baseline`).
+
+   THE EXIT CODE DISCRIMINATES, NOT THE MESSAGE. This repo spends exit 2 on "I could not look"
+   everywhere, while the wording of any one refusal moves the day someone rewords it. The phrase is
+   read only to name WHICH refusal happened, so its absence narrows the class rather than widening
+   it. A killed child reports a signal and no code, and a death is its own reason (§∅) — never a
+   verdict about the test. */
+export function baselineDiagnosis({ code = null, signal = null, out = '' } = {}) {
+  if (signal) return { status: 'could-not-run', zeroMatch: false, reason: `the runner died on ${signal}, so the baseline examined nothing`, exit: 2 };
+  if (code === 0) return { status: 'green', zeroMatch: false, reason: null, exit: 0 };
+  if (code === 1) return { status: 'red', zeroMatch: false, reason: 'the baseline suite failed, so every mutant would read as killed', exit: 3 };
+  if (code === 2) {
+    const zeroMatch = /matched ZERO groups|selected ZERO groups/.test(String(out));
+    return {
+      status: 'examined-nothing',
+      zeroMatch,
+      reason: zeroMatch ? 'the group filter matched no group, so the baseline examined nothing' : 'the runner refused its arguments, so the baseline examined nothing',
+      exit: 2
+    };
+  }
+  return { status: 'could-not-run', zeroMatch: false, reason: `the runner exited ${code === null ? 'with no code' : code}, so the baseline examined nothing`, exit: 2 };
+}
+
+/* The operator-facing half, kept pure so a selftest reads the words an operator will read. A refusal
+   quotes the group it passed: the measured cost of the defect was a hunt through a test that is fine. */
+export function baselineMessage(d, { group = '' } = {}) {
+  if (!d || d.status === 'green') return '';
+  if (d.status === 'red') return '✗ BASELINE IS RED — every mutant would read as killed. Fix the test first.';
+  const tail = '\n  Nothing about the test is known yet, so this is NOT a red baseline.';
+  if (d.zeroMatch) {
+    return (
+      `⏱ BASELINE UNEXAMINED — ${d.reason}` +
+      `\n  --group ${JSON.stringify(group)} selected no group. Each term compiles as a regex, so a title carrying` +
+      '\n  parens, a plus or a dot stops matching itself. `node tests/run-tests.mjs --list` names every group.' +
+      tail
+    );
+  }
+  return `⏱ BASELINE UNEXAMINED — ${d.reason}` + tail;
+}
+
+/* ── AND A MUTANT RUN THAT NEVER RAN IS NOT A KILL ───────────────────────────────────────────────
+   The same `ok: !err` sat over every mutant child, where it reads the other way round: a refusal or
+   a timeout counts as a KILL and inflates the conversion. The 300 s cap makes this reachable on any
+   loaded box — the child dies on SIGTERM with no code, which says nothing about whether the test
+   notices the mutant. An undecided mutant stays undecided; no bound converts one into a kill.
+
+   The capture-host gate reached this rule first and states it as `TRUSTED_KILL_EXIT = 1`
+   (`capture-host/mutation_diff.py`, `kill_is_a_detection`): a kill is read from the RAW exit code,
+   because a reaped worker or an OOM lands on an exit that is not the suite's own failure. `mutate.mjs`
+   spends the same coin from the other side, where a VOID mutant leaves the denominator rather than
+   joining a bucket. This is that rule in the inner loop. */
+export function mutantOutcome({ code = null, signal = null, out = '' } = {}) {
+  if (signal) return { outcome: 'undecided', reason: `the run died on ${signal}` };
+  if (code === 0) return { outcome: 'survived', reason: null };
+  if (code === 1) return { outcome: 'killed', reason: null };
+  if (code === 2)
+    return { outcome: 'undecided', reason: /matched ZERO groups|selected ZERO groups/.test(String(out)) ? 'the group filter matched no group in the worker tree' : 'the runner refused its arguments' };
+  return { outcome: 'undecided', reason: `the runner exited ${code === null ? 'with no code' : code}` };
+}
+
 // ── selftest ────────────────────────────────────────────────────────────────────────────────
 if (IS_MAIN && has('--selftest')) {
   let pass = 0,
@@ -235,6 +300,47 @@ if (IS_MAIN && has('--selftest')) {
   ok('…and the refusal names how many it found, so the caller can see the collision', threw !== null && /2 declarations|2 definitions/.test(threw), String(threw));
   ok('an UNambiguous name is unaffected by the duplicate guard', functionRange(DUPSRC, 'other') !== null, JSON.stringify(functionRange(DUPSRC, 'other')));
 
+  /* ── A BASELINE THAT NEVER RAN, AND A MUTANT RUN THAT NEVER RAN ───────────────────────────────
+     Both were `ok: !err`, and the one predicate pointed the wrong way at each site: a refusal read
+     as a red baseline at the first and as a KILL at the second. The legs below pin the exit code as
+     the discriminator, and the anti-vacuity legs pin what must NOT happen — a reword of either
+     refusal message leaves them standing. */
+  const BG = baselineDiagnosis({ code: 0, out: 'all 120 assertions passed' });
+  ok('a green baseline reads green', BG.status === 'green' && BG.exit === 0, JSON.stringify(BG));
+  ok('…and prints nothing', baselineMessage(BG, { group: 'g' }) === '');
+  const BR = baselineDiagnosis({ code: 1, out: '  ✕ one assertion' });
+  ok('a FAILING suite still reads red and still exits 3', BR.status === 'red' && BR.exit === 3, JSON.stringify(BR));
+  const BZ = baselineDiagnosis({ code: 2, out: '  ✗ filter matched ZERO groups — check the pattern' });
+  ok('an unmatched --group filter does NOT read as a red baseline', BZ.status !== 'red', JSON.stringify(BZ));
+  ok('…it reports that nothing was examined, and exits 2 like every refusal here', BZ.status === 'examined-nothing' && BZ.exit === 2, JSON.stringify(BZ));
+  ok('…and its message quotes the group that matched nothing', /"OxyDex nope"/.test(baselineMessage(BZ, { group: 'OxyDex nope' })), baselineMessage(BZ, { group: 'OxyDex nope' }).split('\n')[1] || '');
+  ok('…and says in words that this is not a red baseline', /NOT a red baseline/.test(baselineMessage(BZ, { group: 'g' })));
+  const BA = baselineDiagnosis({ code: 2, out: '✗ bad --jobs "x" — want a positive integer' });
+  ok('a code-2 refusal with no ZERO-groups line still examined nothing', BA.status === 'examined-nothing' && BA.exit === 2, JSON.stringify(BA));
+  ok('…and its message does NOT blame the filter it cannot know about', !/selected no group/.test(baselineMessage(BA, { group: 'g' })), baselineMessage(BA, { group: 'g' }));
+  const BK = baselineDiagnosis({ code: null, signal: 'SIGTERM', out: '' });
+  ok('a baseline child killed by a signal examined nothing', BK.status === 'could-not-run' && BK.exit === 2, JSON.stringify(BK));
+  ok('…and the reason names the signal rather than the test', /SIGTERM/.test(String(BK.reason)) && !/failed/.test(String(BK.reason)), String(BK.reason));
+  ok('an unknown exit code examines nothing rather than deciding', baselineDiagnosis({ code: 7, out: '' }).exit === 2, JSON.stringify(baselineDiagnosis({ code: 7, out: '' })));
+  ok('ONLY exit 1 reaches exit 3 — the three outcomes keep three exits', [0, 1, 2, 7].map((c) => baselineDiagnosis({ code: c, out: '' }).exit).join() === '0,3,2,2');
+  ok('an absent child object examines nothing, never green', baselineDiagnosis({}).exit === 2 && baselineDiagnosis({}).status === 'could-not-run');
+
+  ok('a mutant whose suite passes SURVIVED', mutantOutcome({ code: 0, out: '' }).outcome === 'survived');
+  ok('a mutant whose suite fails is KILLED', mutantOutcome({ code: 1, out: '' }).outcome === 'killed');
+  ok(
+    'a mutant run killed by the 300 s cap is UNDECIDED, never a kill',
+    mutantOutcome({ code: null, signal: 'SIGTERM', out: '' }).outcome === 'undecided',
+    JSON.stringify(mutantOutcome({ code: null, signal: 'SIGTERM', out: '' }))
+  );
+  ok('…and it carries the reason the run gave', /SIGTERM/.test(String(mutantOutcome({ code: null, signal: 'SIGTERM', out: '' }).reason)));
+  ok('a runner refusal under a mutant is UNDECIDED', mutantOutcome({ code: 2, out: '✗ filter matched ZERO groups' }).outcome === 'undecided');
+  ok('…naming the filter when the runner named it', /filter matched no group/.test(String(mutantOutcome({ code: 2, out: '✗ filter matched ZERO groups' }).reason)));
+  ok('an unknown exit is UNDECIDED, so no unexamined run joins the conversion', mutantOutcome({ code: 9, out: '' }).outcome === 'undecided');
+  ok(
+    'NOTHING but exit 1 is a kill',
+    [0, 2, 7, 9, null].every((c) => mutantOutcome({ code: c, out: '' }).outcome !== 'killed')
+  );
+
   console.log('\n' + (fail ? `✗ ${fail} failed, ${pass} passed` : `✓ all ${pass} selftests passed`));
   process.exit(fail ? 1 : 0);
 }
@@ -287,23 +393,25 @@ if (IS_MAIN && !has('--selftest')) {
   const run = (dir) =>
     new Promise((res) => {
       execFile(process.execPath, [join(dir, 'tests/run-tests.mjs'), '--group=' + group], { cwd: dir, timeout: 300000, maxBuffer: 1 << 24 }, (err, stdout) =>
-        res({ ok: !err, out: String(stdout || '') })
+        res({ ok: !err, code: err ? (typeof err.code === 'number' ? err.code : null) : 0, signal: (err && err.signal) || null, out: String(stdout || '') })
       );
     });
 
   /* 1 · THE BASELINE FIRST. A red baseline reports a perfect score from a broken test, so it aborts
      rather than producing a number that reads like success. */
   const base = await run(ROOT);
-  if (!base.ok) {
-    console.error('✗ BASELINE IS RED — every mutant would read as killed. Fix the test first.\n');
-    console.error(
-      base.out
-        .split('\n')
-        .filter((l) => l.includes('✕'))
-        .slice(0, 5)
-        .join('\n')
-    );
-    process.exit(3);
+  const diag = baselineDiagnosis(base);
+  if (diag.status !== 'green') {
+    console.error(baselineMessage(diag, { group }) + '\n');
+    if (diag.status === 'red')
+      console.error(
+        base.out
+          .split('\n')
+          .filter((l) => l.includes('✕'))
+          .slice(0, 5)
+          .join('\n')
+      );
+    process.exit(diag.exit);
   }
   const baseAsserts = (base.out.match(/all (\d+) assertions passed/) || [])[1] || '?';
 
@@ -344,8 +452,10 @@ if (IS_MAIN && !has('--selftest')) {
   let killed = 0,
     survived = 0,
     unapplied = 0,
+    undecided = 0,
     next = 0;
   const survivorList = [];
+  const undecidedList = [];
   const worker = async (w) => {
     const d = dirs[w];
     for (;;) {
@@ -364,10 +474,15 @@ if (IS_MAIN && !has('--selftest')) {
       } catch (_) {}
       writeFileSync(join(d, file), mutated.join('\n'));
       const res = await run(d);
-      if (res.ok) {
+      const o = mutantOutcome(res);
+      if (o.outcome === 'survived') {
         survived++;
         survivorList.push(m);
-      } else killed++;
+      } else if (o.outcome === 'killed') killed++;
+      else {
+        undecided++;
+        undecidedList.push({ line: m.line, reason: o.reason });
+      }
     }
   };
   const t0 = Date.now();
@@ -376,10 +491,20 @@ if (IS_MAIN && !has('--selftest')) {
   for (const d of dirs) rmSync(d, { recursive: true, force: true });
 
   console.log(`\n▸ ${file} · ${fn}  L${r.start}-${r.end}   baseline green (${baseAsserts} assertions)`);
-  console.log(`  KILLED ${killed}   survived ${survived}${unapplied ? `   ⚠ ${unapplied} could not be applied` : ''}   of ${mine.length}`);
   console.log(
-    `  ${((100 * killed) / (mine.length - unapplied || 1)).toFixed(0)}% conversion · ${secs.toFixed(1)}s at ${jobs}-way + ${setupSecs.toFixed(1)}s setup (serial would be ~${((mine.length * 4) / 60).toFixed(0)} min)`
+    `  KILLED ${killed}   survived ${survived}${unapplied ? `   ⚠ ${unapplied} could not be applied` : ''}${undecided ? `   ⏱ ${undecided} UNDECIDED (the run examined nothing — not a kill)` : ''}   of ${mine.length}`
   );
+  /* THE DENOMINATOR IS WHAT WAS DECIDED. An unapplied mutant and an undecided run both leave the
+     conversion unmeasured for that mutant, so neither sits in it, and the line says which count it
+     divided by rather than leaving the reader to assume `mine.length`. */
+  const decided = killed + survived;
+  console.log(
+    `  ${((100 * killed) / (decided || 1)).toFixed(0)}% conversion of the ${decided} decided · ${secs.toFixed(1)}s at ${jobs}-way + ${setupSecs.toFixed(1)}s setup (serial would be ~${((mine.length * 4) / 60).toFixed(0)} min)`
+  );
+  if (undecidedList.length) {
+    console.log('\n  undecided, with the reason each run gave:');
+    for (const u of undecidedList.slice(0, 10)) console.log(`    L${u.line} — ${u.reason}`);
+  }
   if (has('--list') && survivorList.length) {
     console.log('\n  still surviving:');
     for (const m of survivorList.slice(0, 40)) console.log(`    L${m.line} [${m.op}] ${String(m.before).trim().slice(0, 62)}`);
