@@ -13047,9 +13047,26 @@
         ''
       );
       T.eq('the class vocabulary is closed', offVocab.join(', '), '');
+      /* THE LAST NAME THE BACKLOG HELD, AND WHAT ITS REPAIR MUST NOT ERASE (row
+         2026-10-21-forty-one-corpus-enumerators-report-no-population, closed 2026-11-02). The two
+         membership legs above are satisfied by an EMPTY backlog over an EMPTY hazard set, so on
+         their own they no longer say that the tiering job answers for its denominator. It owes both
+         halves at once: a population verdict, and still being IN the population — a tool that left
+         the scan's sight would read green on the same two legs while examining nothing. */
+      T.ok(
+        'the tiering job reports its population and is still a corpus consumer',
+        CR.isCorpusConsumer(TT['tools/corpus-tier.mjs'] || '') && CR.classifyTool(TT['tools/corpus-tier.mjs'] || '').cls === 'reports' && KNOWN_BACKLOG['corpus-tier.mjs'] === undefined,
+        'consumer ' +
+          CR.isCorpusConsumer(TT['tools/corpus-tier.mjs'] || '') +
+          ' · class ' +
+          CR.classifyTool(TT['tools/corpus-tier.mjs'] || '').cls +
+          ' · backlog ' +
+          (KNOWN_BACKLOG['corpus-tier.mjs'] === undefined ? 'absent' : 'still listed')
+      );
       /* THE INSTRUMENT, TESTED BOTH WAYS AND INDEPENDENTLY OF ANY TOOL'S STATE. The membership legs
-         above go quiet the day the one `repo-corpus` tool is wired, and the question a repair must
-         not erase is whether the scan can still tell a corpus path from a repo path at all. Read
+         above went quiet on 2026-11-02, when the last `repo-corpus` tool was wired, and the question
+         a repair must not erase is whether the scan can still tell a corpus path from a repo path at
+         all. Read
          over RAW text on purpose: the path lives in a string body and the code mask blanks those,
          so the masked argument carries this shape zero times across `tools/`. */
       T.ok(
