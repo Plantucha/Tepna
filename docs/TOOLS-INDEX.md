@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**316 tools** · 315 with a purpose line · **1 without**
+**317 tools** · 316 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -324,6 +324,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`withdraw-fragment-verdict.mjs`](../tools/withdraw-fragment-verdict.mjs) | WITHDRAW A VERDICT THAT JUDGED A FRAGMENT, WITH ITS REASON RECORDED |
 | [`witness-baseline.mjs`](../tools/witness-baseline.mjs) | THE CLASSICAL BASELINE FOR `survivor-witness.mjs` A peer's framing, and it is structurally exact: the model is a HEURISTIC PROPOSER working because searching is expensive and checking is… |
 | [`workflow-timeout-guard.mjs`](../tools/workflow-timeout-guard.mjs) | EVERY WORKFLOW JOB DECLARES `timeout-minutes`. Without one a job inherits GitHub's 360-minute default, so a hung step burns six hours of the concurrency pool before anything notices. |
+| [`write-root.mjs`](../tools/write-root.mjs) | A TOOL'S OWN LOCATION IS NOT THE CHECKOUT IT WAS ASKED TO WRITE. |
 | [`wt-done.mjs`](../tools/wt-done.mjs) | CLOSE THE WORKTREE LOOP. `git worktree add` is cheap and correct, and the REMOVAL is the half that gets skipped — the PR merging feels like the end of the work-unit, and it is not. |
 | [`xerj-bench.mjs`](../tools/xerj-bench.mjs) | xerj-bench — score bge-alone vs hybrid vs xerj-BM25 on REAL past Rule-0 queries. |
 | [`xerj-load.mjs`](../tools/xerj-load.mjs) | xerj-load — write doc-search's EXISTING chunks and cached bge-m3 vectors into a xerj index carrying a `dense_vector` mapping, so one engine can serve BM25 + kNN + hybrid in one request. |

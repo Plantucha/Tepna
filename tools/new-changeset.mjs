@@ -38,8 +38,13 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry } from './argv-guard.mjs';
+import { writeRootOrDie } from './write-root.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+/* THIS tool's own checkout, which is NOT necessarily the one a run was asked to write — see
+   `tools/write-root.mjs` and residue `2026-11-02-a-tool-run-by-absolute-path-writes-into-its-own-checkout`.
+   It stays the default for the exported READERS, because reading a peer checkout is legitimate; the
+   write root is resolved inside `main` from the directory the run was launched in. */
+const SELF_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const BUMPS = ['patch', 'minor', 'major'];
 // Keep a Changelog's set, which is what `check5` accepts — restated nowhere else in this file.
 const TYPES = ['added', 'changed', 'fixed', 'removed', 'deprecated', 'security'];
@@ -51,7 +56,7 @@ const arg = (k, d = null) => {
 };
 
 /** Every brief filename on disk. The POPULATION, read fresh — never a cached or hand-kept list. */
-export function briefSet(root = ROOT) {
+export function briefSet(root = SELF_ROOT) {
   return fs.readdirSync(path.join(root, 'briefs')).filter((f) => f.endsWith('-BRIEF.md'));
 }
 
@@ -84,7 +89,7 @@ export function changesetText({ bump, type, brief, body }) {
 /* Run the STE linter on a changeset's text BEFORE it lands on disk. `pr-compliance` lints every new
    Markdown file at step 36 of 40 of `npm run check`, so a long bullet failed a gate after 35 slow
    steps (measured 2026-10-22, #3901: one 27-word sentence). Returns { ok, report }. */
-export function lintChangeset(text, name, root = ROOT) {
+export function lintChangeset(text, name, root = SELF_ROOT) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'changeset-lint-'));
   const f = path.join(dir, name);
   try {
@@ -101,6 +106,10 @@ export function lintChangeset(text, name, root = ROOT) {
 }
 
 function main() {
+  /* The checkout this run writes is the one it was LAUNCHED IN. Called by an absolute path from a
+     worktree, this file's own root is the shared checkout, and a changeset written there is a lost
+     work-unit. `writeRootOrDie` refuses on a disagreement and names both trees. */
+  const ROOT = writeRootOrDie(import.meta.url);
   const slug = arg('slug');
   const bump = arg('bump', 'patch');
   const type = arg('type');
@@ -116,7 +125,7 @@ function main() {
   if (!BUMPS.includes(bump)) die(`--bump must be one of ${BUMPS.join(' | ')}; got ${JSON.stringify(bump)}`);
   if (!type || !TYPES.includes(type)) die(`--type must be one of ${TYPES.join(' | ')}; got ${JSON.stringify(type)}`);
 
-  const r = resolveBrief(arg('brief'), briefSet());
+  const r = resolveBrief(arg('brief'), briefSet(ROOT));
   if (!r.ok) {
     console.error(
       `new-changeset: --brief=${JSON.stringify(arg('brief'))} ${r.reason === 'ambiguous' ? `matches ${r.candidates.length}+ briefs — narrow it:` : 'matches no brief. Nearest by shared words:'}`
@@ -133,7 +142,7 @@ function main() {
   if (fs.existsSync(file)) die(`${path.relative(ROOT, file)} already exists — pick another slug`);
   const text = changesetText({ bump, type, brief: r.brief, body });
   if (body !== TODO_BODY) {
-    const l = lintChangeset(text, path.basename(file));
+    const l = lintChangeset(text, path.basename(file), ROOT);
     if (!l.ok) {
       console.error(`new-changeset: --body fails the writing rules (tools/ste-lint.mjs exit ${l.status}); nothing written:`);
       for (const x of l.report) console.error(`  ${x}`);
