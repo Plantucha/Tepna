@@ -1,9 +1,9 @@
 # tepna-capture — tests/test_solid_alert.py
 # Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
-"""The solid-night verdict on ntfy, and a non-PASS verdict as a prompt request (owner order, board
-thread 7, 2026-11-03). Pinned: once per night and status, both latches survive a restart, the ntfy latch
-follows the delivery, a PASS writes no request, a re-judged older night announces nothing. Every
-notifier here is a stub; no test reaches a live topic."""
+"""The solid-night verdict on ntfy (owner order, board thread 7, 2026-11-03). The rig bridge carries the
+same message to the board (owner ruling, board #3128), so the daemon writes no prompt request. Pinned: once
+per night and status, the latch survives a restart and follows the delivery, a re-judged older night
+announces nothing. Every notifier here is a stub; no test reaches a live topic."""
 
 import json
 import os
@@ -37,18 +37,17 @@ def test_the_key_joins_night_and_status():
     assert alerts.solid_key("2026-09-18", "FAIL") == "2026-09-18:FAIL"
 
 
-def test_a_bad_latch_reads_as_empty_part_by_part():
-    assert alerts.solid_latch_restored(None) == (set(), set())
-    assert alerts.solid_latch_restored([1]) == (set(), set())
-    assert alerts.solid_latch_restored({"ntfy": "x", "prompt": ["a", 3]}) == (set(), {"a"})
-    assert alerts.solid_latch_restored({"ntfy": ["n"]}) == ({"n"}, set())
+def test_a_bad_latch_reads_as_empty_and_an_old_prompt_list_is_ignored():
+    assert alerts.solid_latch_restored(None) == set()
+    assert alerts.solid_latch_restored([1]) == set()
+    assert alerts.solid_latch_restored({"ntfy": "x", "prompt": ["a"]}) == set()
+    assert alerts.solid_latch_restored({"ntfy": ["n", 3], "prompt": ["a"]}) == {"n"}
 
 
-def test_the_saved_latch_keeps_only_the_latest_keys_of_each_kind():
+def test_the_saved_latch_keeps_only_the_latest_keys():
     keys = [f"2026-{m:02d}-{d:02d}:FAIL" for m in (1, 2, 3) for d in range(1, 29)]
-    saved = alerts.solid_latch_to_save(reversed(keys), ["b", "a"])
-    assert saved["ntfy"] == keys[-alerts.SOLID_LATCH_KEEP :] and len(saved["ntfy"]) == 62
-    assert saved["prompt"] == ["a", "b"]
+    saved = alerts.solid_latch_to_save(reversed(keys))
+    assert saved == {"ntfy": keys[-alerts.SOLID_LATCH_KEEP :]} and len(saved["ntfy"]) == 62
 
 
 def test_the_alert_text_carries_the_judges_own_words():
@@ -59,66 +58,60 @@ def test_the_alert_text_carries_the_judges_own_words():
     assert text == ("Tepna: night 2026-09-18 PASS", "The solid-night judge reads PASS.")
 
 
-def test_a_pass_an_unknown_word_and_a_bad_night_write_no_request():
-    assert alerts.solid_prompt_request("2026-09-18", _s("PASS"), "t") is None
-    assert alerts.solid_prompt_request("2026-09-18", _s("BROKEN"), "t") is None
-    for night in (None, "2026-9-18", "2026-02-30", "2026-09-18x", "x" * 10):
-        assert alerts.solid_prompt_request(night, _s(), "t") is None, night
-    for status in sorted(alerts.VERDICT_STATUSES - {"PASS"}):
-        req = alerts.solid_prompt_request("2026-09-18", _s(status), "t")
-        assert req == {"night": "2026-09-18", "status": status, "at": "t"}, status
-    assert len(alerts.VERDICT_STATUSES) == 7
+def test_the_prompt_route_is_gone():
+    assert not hasattr(alerts, "SOLID_PROMPT_NAME") and not hasattr(alerts, "solid_prompt_request")
 
 
 # ---- capture._announce_solid ----
 
 
-def test_a_delivered_verdict_goes_out_once_and_the_latch_survives_a_restart(tmp_path, caplog):
+def test_a_delivered_verdict_goes_out_once_and_the_latch_survives_a_restart(tmp_path):
     n = _N()
-    with caplog.at_level("WARNING"):
-        _run(capture._announce_solid(str(tmp_path), "2026-09-18", _s(), n))
+    _run(capture._announce_solid(str(tmp_path), "2026-09-18", _s(), n))
     assert n.sent == [("Tepna: night 2026-09-18 FAIL", "H10 short — 1 solid of 3")]
-    assert _latch(tmp_path) == {"ntfy": ["2026-09-18:FAIL"], "prompt": ["2026-09-18:FAIL"]}
-    req = json.loads((tmp_path / alerts.SOLID_PROMPT_NAME).read_text())
-    assert (req["night"], req["status"]) == ("2026-09-18", "FAIL") and req["at"]
-    assert any("prompt request written" in r.getMessage() for r in caplog.records)
-    (tmp_path / alerts.SOLID_PROMPT_NAME).unlink()
+    assert _latch(tmp_path) == {"ntfy": ["2026-09-18:FAIL"]}
+    assert sorted(f.name for f in tmp_path.iterdir()) == [alerts.SOLID_LATCH_NAME], "no prompt request"
     n2 = _N()  # a restart: a new notifier, and the latch read back from disk
     _run(capture._announce_solid(str(tmp_path), "2026-09-18", _s(), n2))
-    assert n2.sent == [] and not (tmp_path / alerts.SOLID_PROMPT_NAME).exists()
+    assert n2.sent == []
 
 
-def test_a_failed_send_is_tried_again_and_the_prompt_is_not(tmp_path):
+def test_a_latch_from_before_the_ruling_still_holds_its_ntfy_keys(tmp_path):
+    (tmp_path / alerts.SOLID_LATCH_NAME).write_text('{"ntfy": ["2026-09-18:FAIL"], "prompt": ["2026-09-18:FAIL"]}')
+    n = _N()
+    _run(capture._announce_solid(str(tmp_path), "2026-09-18", _s(), n))
+    _run(capture._announce_solid(str(tmp_path), "2026-09-19", _s(), n))
+    assert n.sent == [("Tepna: night 2026-09-19 FAIL", "H10 short — 1 solid of 3")]
+    assert _latch(tmp_path) == {"ntfy": ["2026-09-18:FAIL", "2026-09-19:FAIL"]}
+
+
+def test_a_failed_send_is_tried_again(tmp_path):
     n = _N(ok=False)
     _run(capture._announce_solid(str(tmp_path), "2026-09-18", _s(), n))
-    assert _latch(tmp_path) == {"ntfy": [], "prompt": ["2026-09-18:FAIL"]}
-    (tmp_path / alerts.SOLID_PROMPT_NAME).unlink()
+    assert not (tmp_path / alerts.SOLID_LATCH_NAME).exists()
     n.ok = True
     _run(capture._announce_solid(str(tmp_path), "2026-09-18", _s(), n))
-    assert len(n.sent) == 2 and _latch(tmp_path)["ntfy"] == ["2026-09-18:FAIL"]
-    assert not (tmp_path / alerts.SOLID_PROMPT_NAME).exists(), "the request went out once"
+    assert len(n.sent) == 2 and _latch(tmp_path) == {"ntfy": ["2026-09-18:FAIL"]}
 
 
-def test_a_box_without_a_webhook_latches_and_writes_the_request(tmp_path):
+def test_a_box_without_a_webhook_latches(tmp_path):
     n = _N(enabled=False, ok=False)
     _run(capture._announce_solid(str(tmp_path), "2026-09-18", _s(), n))
-    assert _latch(tmp_path)["ntfy"] == ["2026-09-18:FAIL"]
+    assert _latch(tmp_path) == {"ntfy": ["2026-09-18:FAIL"]}
     _run(capture._announce_solid(str(tmp_path), "2026-09-18", _s(), n))
     assert len(n.sent) == 1
 
 
-def test_no_notifier_still_writes_the_request(tmp_path):
+def test_no_notifier_writes_nothing(tmp_path):
     _run(capture._announce_solid(str(tmp_path), "2026-09-18", _s(), None))
-    assert _latch(tmp_path) == {"ntfy": [], "prompt": ["2026-09-18:FAIL"]}
-    assert (tmp_path / alerts.SOLID_PROMPT_NAME).exists()
+    assert list(tmp_path.iterdir()) == []
 
 
-def test_a_pass_goes_out_and_writes_no_request(tmp_path):
+def test_a_pass_goes_out(tmp_path):
     n = _N()
     _run(capture._announce_solid(str(tmp_path), "2026-09-18", _s("PASS", None, "3 solid of 3"), n))
     assert n.sent == [("Tepna: night 2026-09-18 PASS", "3 solid of 3")]
-    assert not (tmp_path / alerts.SOLID_PROMPT_NAME).exists()
-    assert _latch(tmp_path) == {"ntfy": ["2026-09-18:PASS"], "prompt": ["2026-09-18:PASS"]}
+    assert _latch(tmp_path) == {"ntfy": ["2026-09-18:PASS"]}
 
 
 def test_a_new_status_for_the_same_night_goes_out_again(tmp_path):
@@ -126,8 +119,7 @@ def test_a_new_status_for_the_same_night_goes_out_again(tmp_path):
     _run(capture._announce_solid(str(tmp_path), "2026-09-18", _s("FAIL"), n))
     _run(capture._announce_solid(str(tmp_path), "2026-09-18", _s("SHORTFALL"), n))
     assert [t for t, _ in n.sent] == ["Tepna: night 2026-09-18 FAIL", "Tepna: night 2026-09-18 SHORTFALL"]
-    req = json.loads((tmp_path / alerts.SOLID_PROMPT_NAME).read_text())
-    assert req["status"] == "SHORTFALL"
+    assert _latch(tmp_path) == {"ntfy": ["2026-09-18:FAIL", "2026-09-18:SHORTFALL"]}
 
 
 def test_an_unchanged_latch_is_not_written_again(tmp_path, monkeypatch):
