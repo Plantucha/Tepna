@@ -4715,6 +4715,40 @@ def class_b_quality(night_dir: str, *, emit=None) -> list:
     return out
 
 
+def digest_night(summ) -> str | None:
+    """PURE: the night a QC summary's numbers describe — the evening date of the noon-to-noon band that
+    holds the judged night window, or None when the summary carries no window to read.
+
+    🔴 THE FOLDER NAME IS NOT THE NIGHT. The writer names a folder by the calendar date its file set
+    started, and the poller judges the folder whose data is newest. On 2026-11-03 the ring opened a file
+    set at 04:18 in a new 11-03 folder while both Polars kept writing to 11-02. The poller judged 11-03,
+    searched 11-02 beside it, and the digest said "night 2026-11-03" over the 11-02 night (residue
+    2026-11-03-qc-digest-names-the-newest-folder-not-the-night). The writer rule stays; the label moves.
+
+    `night_window.begin` is in the frame `writer_offset.frame` names — an instant when the offset was
+    recovered, floating otherwise (`_band_in_frame`). Bring it down to floating before keying it.
+    """
+    if not isinstance(summ, dict):
+        return None
+    win = summ.get("night_window")
+    begin = win.get("begin") if isinstance(win, dict) else None
+    if isinstance(begin, bool) or not isinstance(begin, (int, float)):
+        return None
+    off = (summ.get("writer_offset") or {}).get("offset_sec")
+    floating = begin if isinstance(off, bool) or not isinstance(off, (int, float)) else begin - off
+    b0, _ = night_key_band(floating)
+    return datetime.fromtimestamp(b0, timezone.utc).date().isoformat()
+
+
+def night_label(summ) -> str:
+    """PURE: the night name an alert shows — the band's night, and the folder beside it when they differ."""
+    folder = summ.get("night") if isinstance(summ, dict) else None
+    band = digest_night(summ)
+    if band is None:
+        return folder or "?"
+    return band if band == folder or not folder else f"{band} (folder {folder})"
+
+
 def qc_digest(summ) -> str | None:
     """One line of night QC for the webhook — the unconditional 'how did tonight go', as opposed to the
     missing-stream alert that fires only when something is wrong (VIGIL-OVERNIGHT-FINDINGS §P2.4: the
@@ -4796,4 +4830,4 @@ def qc_digest(summ) -> str | None:
     missing = summ.get("missing") or []
     if missing:
         seg.append("missing: " + ", ".join(str(m) for m in missing[:4]))
-    return f"night {summ.get('night') or '?'} — " + " · ".join(seg)
+    return f"night {night_label(summ)} — " + " · ".join(seg)

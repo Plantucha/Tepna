@@ -10652,7 +10652,8 @@ async def qc_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = N
                     alerted.add(n)  # one alert per night, no matter how many polls
                     await notifier.send(
                         "Tepna: night has a gap",
-                        f"{n}: no data on {', '.join(summ['missing'])} {int(waited / 3600)}h into the night.",
+                        f"{nightqc.night_label(summ)}: no data on {', '.join(summ['missing'])} "
+                        f"{int(waited / 3600)}h into the night.",
                     )
             latch_now = alerts.qc_latch_to_save(digest_sent_date, alerted)
             if latch_now != latch_saved:
