@@ -98,6 +98,7 @@ export const STEPS = [
   'test:seqnet-port',
   'test:stage-lab-core',
   'test:oxydex-stager',
+  'test:hypno-export',
   'build:check',
   'verify:analysis',
   'verify:docs',
