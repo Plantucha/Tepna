@@ -18295,6 +18295,35 @@
         T.ok('the classifier body is untouched by this change' + tag, page.indexOf(P.classifierPin) >= 0, 'capture-host test_the_tool_classifiers_accept_box_filenames reads that body as text');
         T.ok('the page still buckets into its own index' + tag, page.indexOf(P.bucket + '[nk]') >= 0, 'the bucket map name moved — this group names it per page');
 
+        /* ── the picker hands over a COPY: `files` is LIVE and the reset empties it (2026-11-03) ──────
+           `ingestFiles` awaits a row read per file, so it reads the list AFTER `onPick` returns. The stub
+           keeps the list it was handed; after the handler returns, that list must still hold every file. */
+        if (P.file === 'sensor-trio-night.js') {
+          var pa = page.indexOf('    const onPick = (e) => {'),
+            pb = pa < 0 ? -1 : page.indexOf('\n    };', pa);
+          T.ok('the picker handler is sliceable' + tag, pa >= 0 && pb > pa, 'onPick moved — this leg would examine nothing');
+          if (pa >= 0 && pb > pa) {
+            var handed = null,
+              live = [{ name: 'a' }, { name: 'b' }, { name: 'c' }],
+              ev = {
+                target: {
+                  get files() {
+                    return live;
+                  },
+                  set value(v) {
+                    if (v === '') live.length = 0;
+                  }
+                }
+              };
+            var onPick = new Function('ingestFiles', page.slice(pa, pb + 7) + '\nreturn onPick;')(function (l) {
+              handed = l;
+            });
+            onPick(ev);
+            T.eq('the input reset still runs, so a repeat pick fires' + tag, live.length, 0, 'the stub input was not reset');
+            T.eq('the ingest still holds every picked file after the reset' + tag, handed ? handed.length : -1, 3, 'a live FileList read after the reset is empty');
+          }
+        }
+
         /* ── the reader itself, executed ──────────────────────────────────────────────────────────── */
         var a = page.indexOf('  const ROW_SCAN_BYTES'),
           b = page.indexOf(P.sliceEnd || '  function hashStr(s) {');
