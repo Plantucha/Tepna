@@ -46018,6 +46018,15 @@
       T.eq('ecgKind · `_PPGRUNS.txt` is set aside in the ECG node too', DI.ecgKind(VS + 'PPGRUNS.txt'), 'skip');
       T.eq('control · the real `_PPG.txt` is still the PPG primary', DI.ppgKind(VS + 'PPG.txt'), 'ppg');
       T.eq('control · the real `_ECG.txt` is still the ECG primary', DI.ecgKind(H10 + 'ECG.txt'), 'ecg');
+      /* 2026-11-02 — six sidecars the box writes were absent from `nonSignalName`, so each one became an ECG
+         recording AND a PPG primary. Every name below must be 'skip' in BOTH routers. */
+      [VS + 'PPISEAMS.txt', H10 + 'HRSEAMS.txt', VS + 'ACCSEAMS.txt', 'STARTS.csv', 'PMDNEG.csv', 'WORN.csv', 'README-SIDECARS.txt'].forEach(function (n) {
+        T.eq('ecgKind · sidecar `' + n.replace(/^.*_/, '_') + '` is set aside', DI.ecgKind(n), 'skip');
+        T.eq('ppgKind · sidecar `' + n.replace(/^.*_/, '_') + '` is set aside', DI.ppgKind(n), 'skip');
+      });
+      T.eq('control · `_PPI.txt` is still the ECG node\u2019s rr companion', DI.ecgKind(VS + 'PPI.txt'), 'rr');
+      T.eq('control · `_HR.txt` is still the ECG node\u2019s hr companion', DI.ecgKind(H10 + 'HR.txt'), 'hr');
+      T.eq('control · `_ACCRUNS.txt` keeps its companion kind', DI.ecgKind(H10 + 'ACCRUNS.txt'), 'accruns');
       // (2) PLANNER — the sidecar is a device-eligible companion of its own primary and of no other.
       var nm = function (n, t) {
         return { name: n, text: t || '' };
