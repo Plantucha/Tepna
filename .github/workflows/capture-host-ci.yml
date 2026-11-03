@@ -93,8 +93,8 @@ jobs:
   # traced from a green run — 45 tracked root paths, re-measured by tests/test_relevance_filter.py. The
   # script is the ONE implementation and this job is one of its two callers; the other is that test.
   changes:
-    # measured 2026-10-11 over 28 job run(s): p95 0.7 min, max 1 min (tools/ci-timing.mjs `pct`). Cap = ceil(max(p95, max) × 2).
-    timeout-minutes: 3
+    # measured 2026-11-03 over 17 job run(s): p90 51s, max 2m13s (tools/ci-timing.mjs --limit 100). Cap = ceil(max(p95, max) × 2); max bounds p95.
+    timeout-minutes: 5
     name: relevance (capture-host)   # distinct from browser-gates' own `changes` job
     runs-on: ubuntu-latest
     defaults:
@@ -125,9 +125,9 @@ jobs:
           echo "decision: run=$run"
 
   test:
-    # measured 2026-10-11 over 50 job run(s): p95 6.9 min, max 7 min (tools/ci-timing.mjs `pct`). Cap = ceil(max(p95, max) × 2).
-    # max over both py3.12/py3.13 legs
-    timeout-minutes: 14
+    # measured 2026-11-03 over 17 job run(s): p90 8m02s, max 8m03s (tools/ci-timing.mjs --limit 100). Cap = ceil(max(p95, max) × 2); max bounds p95.
+    # max over the py3.12/py3.13/py3.14 legs
+    timeout-minutes: 17
     needs: changes
     # ⚠️ NO JOB-LEVEL `if:` HERE — the guard is on the STEPS below, and the difference deadlocks the repo.
     # The note above says "a job skipped by a condition reports as skipped and satisfies the requirement".
@@ -415,8 +415,8 @@ jobs:
   # parse is now anchored on the assignment, which the tests already read that way
   # (`^MYPY_BASELINE=(\d+)$` in tests/test_check_script.py `_baseline`).
   mypy:
-    # measured 2026-10-11 over 25 job run(s): p95 0.7 min, max 0.8 min (tools/ci-timing.mjs `pct`). Cap = ceil(max(p95, max) × 2).
-    timeout-minutes: 2
+    # measured 2026-11-03 over 17 job run(s): p90 53s, max 1m02s (tools/ci-timing.mjs --limit 100). Cap = ceil(max(p95, max) × 2); max bounds p95.
+    timeout-minutes: 3
     needs: changes
     runs-on: ubuntu-latest
     name: mypy (advisory ratchet)
@@ -592,8 +592,8 @@ jobs:
   # two produce the same silence and mean opposite things, and this repo has spent a lot of the last
   # week on exactly that distinction.
   supply-chain:
-    # measured 2026-10-11 over 25 job run(s): p95 2.7 min, max 2.7 min (tools/ci-timing.mjs `pct`). Cap = ceil(max(p95, max) × 2).
-    timeout-minutes: 6
+    # measured 2026-11-03 over 17 job run(s): p90 3m35s, max 4m56s (tools/ci-timing.mjs --limit 100). Cap = ceil(max(p95, max) × 2); max bounds p95.
+    timeout-minutes: 10
     needs: changes
     runs-on: ubuntu-latest
     name: supply-chain (advisory)
