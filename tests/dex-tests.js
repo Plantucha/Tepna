@@ -3894,11 +3894,13 @@
         'anchorsDroppedPreResync',
         'applied',
         'deviceDrawn',
+        'drawnColumn',
         'drawnShare',
         'independent',
         'maxStepMs',
         'ok',
         'ppm',
+        'ppmReason',
         'reason',
         'resyncs',
         'spanMs',
@@ -3943,19 +3945,18 @@
       /* Twelve since 2026-11-01: `ppgOffsetSegments` is this node's own model, so the flatness floor
          it applies and the three numbers behind that verdict are PpgDex-only by construction.
          `clock.js` computes no flatness, which is also why a null `flat` over a raw spine axis is a
-         legitimate absence here and not a dropped key. FOURTEEN since 2026-11-03: `ppmReason` and
-         `drawnColumn` are this node's half of the drawn-column decision, and the other two publishers
-         have not taken it — ECGDex spends `ppm` as a crystal figure and owes the same question under
-         its own row, which this unit names rather than answers. */
-      T.eq('PpgDex alone publishes the fourteen fields only it measures', onlyIn(DECLARED_PPG, DECLARED_ECG, DECLARED_MOTION), [
+         legitimate absence here and not a dropped key. TWELVE since this unit, and the two that left
+         are the measurement: `ppmReason` and `drawnColumn` were PpgDex-only for one day, because
+         #4306 withheld a rate over a drawn column in PpgDex alone. MotionDex has now taken the same
+         decision, so the pair sits in two publishers and leaves this set. ECGDex spends `ppm` as a
+         crystal figure and owes the question under its own row — named here, not answered. */
+      T.eq('PpgDex alone publishes the twelve fields only it measures', onlyIn(DECLARED_PPG, DECLARED_ECG, DECLARED_MOTION), [
         'drawn',
-        'drawnColumn',
         'drawnReason',
         'flat',
         'flatJitterMs',
         'flatResidualMs',
         'inertReason',
-        'ppmReason',
         'quantizedShare',
         'rate',
         'rateApplied',
@@ -35753,6 +35754,45 @@
          `dex-export.js`, this one by the node. */
       T.eq('…and the two timing surfaces agree on the source', ex.recording.hostAxis.timingSource, ex.recording.timing.timingSource);
       T.eq('a real crystal under an independent host is NOT drawn', ex.recording.hostAxis.deviceDrawn, false);
+
+      /* ── 6 · §∅ A RATE OVER A DRAWN COUNTER IS WITHHELD, AND THE FIGURES STAY READABLE ─────────
+         Row `2026-11-03-the-shared-timing-block-quotes-a-rate-over-a-drawn-axis`. The committed
+         golden published `ppm: -3.8597` in BOTH blocks, beside `deviceDrawn: true`, `applied: false`
+         and a `reason` whose two clauses say that neither column is a clock. Leg 2 above is the same
+         axis one layer down, and it already asserts both halves of that verdict.
+         THE CONTROL IS THE SIBLING FIELD, and it was already right: `stability` is null here because
+         `clock.js` refuses a σ_y(τ) curve over `index × an assumed rate`. A ppm is that claim one
+         derivative down.
+         THE OTHER CONTROL IS LEG 5's `ex`, which still quotes its rate — a jittered counter under an
+         independent host is a real crystal, and this unit must not touch it. */
+      var exD = X.buildNodeExport(M.compute({ acc: accText({ ppm: 0 }) }));
+      T.eq('control: this export IS the drawn case', exD.recording.hostAxis.deviceDrawn, true);
+      T.eq('control: …and the axis held, so a null below is a decision rather than a refusal', exD.recording.hostAxis.ok, true);
+      T.eq('control: …and nothing rode the rate anyway', exD.recording.hostAxis.applied, false);
+      T.eq('§∅ the node block publishes NO rate over a drawn counter', exD.recording.hostAxis.ppm, null);
+      T.eq('…nor the span rate', exD.recording.hostAxis.spanPpm, null);
+      T.ok('…and it names the case rather than leaving a bare null', /DRAWN|drawn-column/.test(String(exD.recording.hostAxis.ppmReason)), String(exD.recording.hostAxis.ppmReason));
+      T.ok(
+        '…with the withheld figures still readable for a diagnosis',
+        !!exD.recording.hostAxis.drawnColumn && isFinite(exD.recording.hostAxis.drawnColumn.ppm) && isFinite(exD.recording.hostAxis.drawnColumn.spanPpm),
+        JSON.stringify(exD.recording.hostAxis.drawnColumn)
+      );
+      T.eq('the control one derivative up was ALREADY null here', exD.recording.hostAxis.stability, null);
+      /* The shared block is `dex-export.js timingBlock`, and this unit edits no spine: the block
+         reads `ppm` off the object the node hands it, so a disciplined view carries through. */
+      T.eq('§∅ the SHARED block agrees, through the spine and with no spine edit', exD.recording.timing.ppm, null);
+      T.eq('…and so does its span rate', exD.recording.timing.spanPpm, null);
+      T.ok(
+        '…the drawn sentence was already in the shared reason, so the null is not bare there either',
+        /DRAWN|synthesised counter/.test(String(exD.recording.timing.reason)),
+        String(exD.recording.timing.reason)
+      );
+      T.ok(
+        'control · a MEASURED axis still publishes its rate in both blocks',
+        isFinite(ex.recording.hostAxis.ppm) && isFinite(ex.recording.timing.ppm),
+        'node=' + ex.recording.hostAxis.ppm + ' shared=' + ex.recording.timing.ppm
+      );
+      T.eq('control · …and no withheld-rate key reaches its JSON', Object.prototype.hasOwnProperty.call(JSON.parse(JSON.stringify(ex.recording.hostAxis)), 'drawnColumn'), false);
     });
 
     group('MotionDex ACC unit — ∅ an UNDETERMINED unit is not milli-g', 'motiondex-dsp · absence', function (T) {

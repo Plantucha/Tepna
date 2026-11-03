@@ -1589,7 +1589,7 @@
          raw `DexClock.hostAxis` return — `buildNodeExport` forwards it to `DexExport.timingBlock`,
          which owns the nine-key shape and the null discipline; `clockAxis` is the published remainder
          (see `_mdClockAxis`). The correction itself was already applied to `relNs` at parse time. */
-      hostAxis: _mdDomAx ? _mdDomAx.rows._hostAxis || null : null,
+      hostAxis: _mdDomAx ? _mdPubAxis(_mdDomAx.rows._hostAxis) : null,
       exportAxis: _mdExportAxis(_mdDomAx),
       durSec: durMeasured == null ? null : Math.round(durMeasured),
       streams: {
@@ -1641,6 +1641,7 @@
     var ax = dom.rows._hostAxis || null;
     var seams = dom.rows._clockResyncs || null;
     if (!ax) return null;
+    var rate = _mdPubRate(ax);
     return {
       ok: ax.ok === true,
       applied: ax.applied === true,
@@ -1649,8 +1650,12 @@
       /* ONE DEVICE CLOCK PER AXIS: the anchors read off the pre-resync counter never reached the
          spine, so `anchors` above is a post-seam count and this says what it cost. */
       anchorsDroppedPreResync: ax.anchorsDroppedPreResync != null ? ax.anchorsDroppedPreResync : null,
-      ppm: ax.ppm != null ? ax.ppm : null,
-      spanPpm: ax.spanPpm != null ? ax.spanPpm : null,
+      ppm: rate.ppm,
+      spanPpm: rate.spanPpm,
+      /* `undefined` wherever the rate above IS the measurement, so a measured axis moves no byte of
+         JSON — the `anchorsDroppedPreResync` discipline one field up, and PpgDex's in #4306. */
+      ppmReason: rate.ppmReason,
+      drawnColumn: rate.drawnColumn,
       spanMs: ax.spanMs != null ? ax.spanMs : null,
       maxStepMs: ax.maxStepMs != null ? ax.maxStepMs : null,
       /* Read THIS, never a ~0 ppm, to decide whether a second clock disciplined the axis (§7). */
@@ -1665,6 +1670,61 @@
       reason: ax.reason || null,
       resyncs: seams && seams.length ? seams : null
     };
+  }
+  /* PLACED BELOW `_mdExportAxis` DELIBERATELY. The suite's seam gate finds the FIRST literal
+     `out.recording.hostAxis` in this source — which is a sentence in the comment above the exporter —
+     and then brace-matches from the next `{`. A function declared between the two becomes the block it
+     compares against ECGDex, and the §7 discriminators read as missing. Hoisting makes this position
+     equivalent to the reader; the gate makes it the only safe one. */
+  /* ── A RATE OVER A DRAWN COUNTER IS AN ABSENCE, NOT A NUMBER (§∅; PpgDex, #4306) ─────────────
+     Row `2026-11-03-the-shared-timing-block-quotes-a-rate-over-a-drawn-axis`. This node is the
+     measured population: `synthetic_motiondex_golden.node-export.json` published `ppm: -3.8597` and
+     `spanPpm: -6.4388` in BOTH blocks, beside `deviceDrawn: true`, `drawnShare: 0.7097`,
+     `independent: false`, `applied: false` and a `reason` that says in two clauses that neither
+     column is a clock. The object stated the absence and quoted the rate anyway.
+     THE CONTROL IS THE SIBLING FIELD. `stability` was ALREADY null here on a drawn axis, because
+     `clock.js` refuses a σ_y(τ) curve over `index × an assumed rate`. A ppm is the same claim one
+     derivative down: the divergence of a host clock from a counter with no oscillator behind it.
+     WHAT THIS DOES NOT TOUCH. The `fs`-style correction is not published here and `applied` already
+     says whether one rode (`false` whenever the host column is inert), so nulling the QUOTE removes
+     no arithmetic — the figures travel under `drawnColumn` for anyone diagnosing the counter.
+     WHY THE REMEDY IS NODE-LOCAL AND NOT A GUARD IN `timingBlock`. `clock.js:623-640` records the
+     measurement: gating on `deviceDrawn` in the shared path "was tried and reverted", because a
+     synthetic fixture legitimately uses a uniform device axis (`devMs = i × 1000`) and is by
+     construction indistinguishable from a fabricated one — it red 11 assertions including ECGDex's
+     planted-drift recovery, "a real feature, not a fixture nit". So each node adopts the discipline
+     as it re-cuts its own fixtures, which is why PpgDex did it inside PpgDex and this does it here.
+     The shared block needs no edit: it reads `ppm` off the object passed to it, so a disciplined
+     view reaches `recording.timing` through the spine unchanged.
+     A REFUSED AXIS PASSES THROUGH UNTOUCHED. Its `ppm` is already absent, so a `drawnColumn` of two
+     nulls would be an empty container standing in for an absence — the very shape §∅ forbids. */
+  function _mdPubRate(ax) {
+    var raw = { ppm: ax && ax.ppm != null ? ax.ppm : null, spanPpm: ax && ax.spanPpm != null ? ax.spanPpm : null };
+    if (!(ax && ax.ok === true)) return raw;
+    // TRI-STATE: an axis that published no verdict is UNMEASURED, and that cannot collapse into "it is a clock".
+    var drawn = ax.deviceDrawn !== undefined ? ax.deviceDrawn : null;
+    if (drawn === false) return raw;
+    return {
+      ppm: null,
+      spanPpm: null,
+      ppmReason:
+        drawn === true
+          ? ax.drawnReason || 'drawn-column — the device column is host-synthesised, so a rate against it describes a counter with no oscillator'
+          : 'whether the device column is a clock is UNMEASURED, so no rate is published against it',
+      drawnColumn: raw
+    };
+  }
+  // The publication view of the axis: every quoted field as published, the rest of the spine's object as it stands.
+  function _mdPubAxis(ax) {
+    if (!ax) return null;
+    var out = {};
+    for (var k in ax) if (Object.prototype.hasOwnProperty.call(ax, k)) out[k] = ax[k];
+    var rate = _mdPubRate(ax);
+    out.ppm = rate.ppm;
+    out.spanPpm = rate.spanPpm;
+    if (rate.ppmReason !== undefined) out.ppmReason = rate.ppmReason;
+    if (rate.drawnColumn !== undefined) out.drawnColumn = rate.drawnColumn;
+    return out;
   }
   function _mdResyncCount(streams) {
     var looked = false,
