@@ -383,11 +383,11 @@
    "bin": "test",
    "status": "exempt"
   },
-  "capture-host/tests/test_mutation_set.py": {
+  "capture-host/tests/test_mutation_exclusions.py": {
    "bin": "test",
    "status": "exempt"
   },
-  "capture-host/tests/test_mutation_exclusions.py": {
+  "capture-host/tests/test_mutation_set.py": {
    "bin": "test",
    "status": "exempt"
   },
@@ -470,6 +470,10 @@
    "status": "exempt"
   },
   "capture-host/tests/test_seq_suite.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
+  "capture-host/tests/test_solid_alert.py": {
    "bin": "test",
    "status": "exempt"
   },
@@ -586,6 +590,18 @@
     ]
    },
    "note": "ADOPTED on arrival 2026-11-02: does moving the mutmut pin change the mutant set, so that baselined survivors stop addressing the mutants they were baselined against? requirements-dev.txt's own comment demands that comparison before a pin move and no committed tool performed one, so each mover wrote a throwaway probe. criterion = modules_whose_named_mutant_set_moved == 0, pre-stated in mutation_set.CRITERION and the same sum --diff exits 1 on. The population is the gate's own module list (tools/mutate.py modules()), minus the owner-declared MODULE exclusions of tools/mutate-exclusions.json, which no survivor is baselined against; --all puts them back. PASS the two versions differ and no module's named set moved \u00b7 FAIL at least one moved, named \u00b7 NOT_RUN neither side enumerated a module, which examined nothing \u00b7 NOT_APPLICABLE both sides ran ONE version, so the comparison says nothing about a pin move and must not read as a pass \u00b7 UNKNOWN refused, because a side is not an artifact, names no tree commit, or names a different tree than the other \u2014 a source edit between the two runs moves every module, so an unattributable difference is a broken premise and never a finding. The names come from mutmut's own combining pass (mutate_file_contents), which is the only enumeration a survivor can be keyed to: measured 2026-11-02 on capture.py, the cheap create_mutations call counts 24151 mutations against 23539 named mutants. Sampled with --verdict-sample, which is canned and runs no mutmut."
+  },
+  "capture-host/tools/probe_radioclock_equiv.py": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "python3",
+     "capture-host/tools/probe_radioclock_equiv.py",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the hand-run battery behind radioclock.py's 6 mutate-equivalence entries: each declared mutant is replayed through parse_hci_event over the recorded monitor corpus and through a collector run, and verdict_object() reads the four counts the prose already prints \u2014 PASS no declared mutant changed an output \u00b7 FAIL at least one did, so the entries keyed on it excuse nothing and the mutation gate owes a test instead \u00b7 UNKNOWN a canary read 0, which means the battery never reached the code and every equivalence it reports would be vacuous rather than true (that case excludes the whole population, so no PASS over checked 0 can be stated). population = the declared mutants; the criterion (0 distinguished, lte) is a module constant. The exit code is derived from the stamped status, so prose, object and code cannot disagree; --verdict-sample prints the shape from canned counts and runs no battery, and --selftest checks the three branches with a plant: the battery itself cannot be a pytest test, because it rebuilds each mutant from radioclock.py's source at import and under the mutation gate that source is already rewritten (coverage_scope.py pins the file on that reason)"
   },
   "capture-host/tools/scan_coexistence.py": {
    "bin": "decides",
@@ -1072,6 +1088,30 @@
    },
    "note": "wave-2 adopter: --json prints ONE tepna.verdict/1 (PASS = every changeset-deleting commit in range is a release or declared exempt; FAIL names the flagged shas; NOT_RUN on a shallow clone). Was binned word-only/exempt because its rows' `verdict` field is a classification, not an emitted verdict; the CLI now emits one. Needs full history (fetch-depth: 0), which the static job has."
   },
+  "tools/consensus-polarity-wiring.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/consensus-polarity-wiring.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "holds every `consensusBeats` call site to a READABLE polarity decision. PASS = every site applies the decision, verified in the code. SHORTFALL = a site declares `@polarity-decision behind <row>` and the row holds the debt. FAIL = a site declares nothing, or its declaration disagrees with its code. Row 2026-11-01-the-consensus-polarity-wiring-reached-one-of-ten-callers."
+  },
+  "tools/consensus-refpick-dissent.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/consensus-refpick-dissent.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "names WHICH rule picks the reference channel at every `consensusBeats` call site, and measures how often that pick lands on a polarity dissenter. The default census FAILs on a site whose pick rule the scan cannot name, because an unnamed rule is a pick nobody has checked. Under `--dir` the same gate reports the corpus figure. Row 2026-11-01-a-dissenting-led-can-win-the-consensus-reference-pick."
+  },
   "tools/corpus-census.mjs": {
    "bin": "decides",
    "status": "adopted",
@@ -1173,6 +1213,18 @@
     ]
    },
    "note": "the cost of widening the CVHR hole exclusion from the hole's own seconds to the DECISION's support window, which reaches 37 s back and 72 s forward. Pre-stated criterion excluded_events_per_hole_mean <= 2 events, the bound the artefact itself carries (a planted hole adds at most 2 events, tools/cvhr-gap-edge.mjs), so a widen removing more real events per hole than that cannot pay for itself. Phase 1 is planted and phase 2 reads every optical stream of the corpus; `--verdict-sample` is what this gate reads, because both phases together outlast its timeout and a real run needs a corpus. The recomputation refuses a night whose event count does not reproduce the node's own, so `population.excluded` is part of the result and not an aside."
+  },
+  "tools/cvhr-fold-rescore.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/cvhr-fold-rescore.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "\u03c1 itself carries NO verdict, deliberately: the tool reports Spearman \u03c1 with n over the CVHR fold overlap and proposes no band, as its siblings `gap-s-sweep.mjs` (\"a MEASUREMENT sweep for an owner ruling\") and `treatment-response-recut.mjs` (\"a re-cut AGGREGATOR, not a gate\") do. What it DOES decide is its own POPULATION: the night tree is snapshotted through `snapshotNights` before the control phase and again after the scoring, and `populationVerdict` publishes whether that set held still across the run \u2014 PASS stable, SHORTFALL moved, NOT_RUN when a walk could not enumerate. Three removals went unpublished before this: the tool never enumerated the tree at all, so its offer was the control file's night list; `--limit` cut that offer while the published figure counted the survivors; and `--resume` mixed nights carried from a prior run with nights this one scored. The offer is now stated before the control phase, so a run that REFUSES to score still says what it was offered, and an absent or unreadable tree exits 2 naming the errno where `existsSync` used to pass it to a throw. The cmd walks a scratch temp root holding two synthetic night directories, so the gate validates the object where no corpus is mounted (row 2026-10-21-forty-one-corpus-enumerators-report-no-population)."
   },
   "tools/cvhr-gap-edge.mjs": {
    "bin": "decides",
@@ -1294,6 +1346,18 @@
    },
    "note": "wave-3 adopter (#3368 gates): --json prints ONE tepna.verdict/1. Was binned word-only/exempt on the grounds that \"the machine-readable result is the exit code\" \u2014 which the VERDICT-CONTRACT rejects as a reason: an exit code carries no population, no criterion and no reason, so it cannot say what was examined. PASS/FAIL over the declared CHECKS list. A doc sentence reworded or a constant renamed is a FAILURE (doc-pattern-missing / code-pattern-missing), never a skip: a gate that cannot compare must not report agreement."
   },
+  "tools/dual-clock-rate.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/dual-clock-rate.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "it measures device rate against the host clock from the two stamp columns of each raw file in ONE capture night. The population is the capture FILES the night offered, taken through `snapshotEntries` with the named lister `listCaptureFiles` before the read and once after, so a file arriving or leaving mid-run is a FAIL rather than a silently different denominator. The offered count is not the read count, measured on a real night 2026-10-28: 187 capture files matched and the six largest over a 3 MB floor were read, leaving 181 unexamined and named. The pre-existing refusals stay: an unreadable directory, a night matching no capture file, and a night whose every match sits under the fragment floor each exit 2 with the reason named (row 2026-10-21-forty-one-corpus-enumerators-report-no-population)."
+  },
   "tools/ecg-apnea-correlate.mjs": {
    "bin": "decides",
    "status": "adopted",
@@ -1330,6 +1394,18 @@
    },
    "note": "wave-2 adopter (Magpie): E3's two pre-stated bands (median |delta| <= 4 ms AND correspondence >= 99 %) as a conjunction counted in bands missed \u2014 PASS 0 \u00b7 FAIL names which band (and a non-zero same-rate control) \u00b7 UNKNOWN no matched beats \u00b7 NOT_RUN no record found. --json prints the object after the report."
   },
+  "tools/ecg-template-xcorr-residual.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/ecg-template-xcorr-residual.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "gives the ppg-ecg-hrv paper's \u00a72.1 detector-validation residual a producer. Criterion is `carried_figure_relative_deviation` <= 0.5, pre-stated against the 0.244 ms the paper carries from Draft v2; the integer-peak arm is the CONTROL and is held against the \u0394/\u221a12 sample-grid bound, which is the only part of the published sentence that is a per-beat quantity. `segAggregateSdMs` rides in `result` as a DIAGNOSTIC and is never the criterion \u2014 a segment-aggregated residual is smaller by roughly \u221an and reads nothing about per-beat fiducial precision. scope: internal \u2014 one estimator held against a second estimator on the same ECG, not a second sensor"
+  },
   "tools/edge-settle.mjs": {
    "bin": "decides",
    "status": "adopted",
@@ -1353,6 +1429,18 @@
     ]
    },
    "note": "extended quadruple collocation reports the night population it covered: `populationVerdict` over a snapshot taken before the per-night walk and one taken after, published above every insufficiency exit rather than on the one path that reaches the end. Its CPAP-pairing filter is a coverage rule over that offer, so the nights it drops are named by `notANight` instead of narrowing the snapshot. The sample is synthetic, because the CPAP leg lives on a removable volume no gate mounts"
+  },
+  "tools/estate-drift.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/estate-drift.mjs",
+     "--json"
+    ]
+   },
+   "note": "ESTATE-DRIFT (infra item 5, Kestrel ruling #2564, brief INFRA-STATE-2026-10-31): --json prints ONE tepna.verdict/1 over the systemd estate. PASS = every installed unit matches its tracked copy on the rig and on vigil; FAIL names each untracked, absent, differing or disabled unit and each unreadable host-local script (scripts are hashed into the verdict, never copied); NOT_RUN (exit 2) where the rig inventory cannot be read, which is CI and every fresh clone, so the sample there examines nothing and says so."
   },
   "tools/extreme-mutate.mjs": {
    "bin": "already-json",
@@ -1624,6 +1712,30 @@
    "status": "exempt",
    "reason": "the words occur in prose inside code (docstrings, string constants, fail-closed comments), not as an emitted verdict"
   },
+  "tools/mutation-draft-py.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/mutation-draft-py.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the python lane's drafter (owner order 2026-10-31, board #2562): a local model proposes a fixture for each open survivor in the per-function baseline #4173 inherits from, and this tool records the real module's output and each mutant's and keeps only the fixtures whose outputs differ. Two verdicts, one object each: the drafting run (criterion drafts_written_without_a_machine_check, population = the baseline's survivors, excluded = rows whose line is gone from today's source) and --verify-kills, which re-proves every written draft through pytest in a private copy of the tree and reds unless each mutant's own draft exits 1 there."
+  },
+  "tools/mutation-equiv-source.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/mutation-equiv-source.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the source-reading census of the open python survivors (residue 2026-11-01-drafted-fixtures-discriminate-nothing-on-a-single-mutant-key) \u2014 PASS when every entry in scope receives one of the six named classes, UNKNOWN when any entry carries a side whose truth the reader refuses to decide, NOT_APPLICABLE over an empty scope; an entry whose recorded line today's source does not carry is EXCLUDED and named, because it belongs to the orphan path"
+  },
   "tools/mutation-excused-rate.mjs": {
    "bin": "decides",
    "status": "adopted",
@@ -1783,6 +1895,11 @@
     ]
    },
    "note": "a DECLARED pool scorer: exports CRITERION (cohen_kappa_4class_pooled \u2265 0.60, the E1 band pre-stated in SHHS-EXTERNAL-VALIDATION-2026-09-04 before #2423 ran) + verdict() \u2014 PASS \u2265 0.60 \u00b7 FAIL naming the partial / does-not-transfer band and per-stage recall \u00b7 UNKNOWN when populationMisalignment says suspect-shift (pipeline, not detector) \u00b7 UNDERPOWERED < 10 records \u00b7 NOT_RUN; --dir emits the same object via poolVerdict, --json puts it at the top level It also publishes the RECORD POPULATION it was offered under `--dir`, through `snapshotEntries` with a named lister before the pairing and once after, since a pooled kappa says nothing about the records that never reached the pool: measured on the real NSRR mount 2026-10-28, 8 records offered, 6 scored, and the 2 without an annotation pair named beside the figure under an arithmetic control. The population rides inside the one `--json` object rather than beside it. A root nobody can enumerate, a root that offered no record, and a run that scored no record now exit 2 where this tool exited 0 (row 2026-10-21-forty-one-corpus-enumerators-report-no-population)."
+  },
+  "tools/ntfy-board-bridge.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "the only verdict word it prints is its OWN --selftest result line (\"ntfy-board-bridge selftest: FAIL\"); it decides nothing about data. The bridge classifies one push alert into an episode key, a thread and an owning bird, and posts it to the board. Its machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses."
   },
   "tools/null-fuzz.mjs": {
    "bin": "decides",
@@ -2173,6 +2290,18 @@
    },
    "note": "wave-2 adopter (Magpie): the #2758 heuristic (a lone 156 is a beat marker, a run of 156s is signal) \u2014 PASS holds with >= 1 discriminating run row \u00b7 UNDERPOWERED holds but VACUOUS (no run of 156s seen; minimum 1) \u00b7 FAIL names which of the three counts is non-zero \u00b7 NOT_RUN nothing scored. Population = rows scored. --json prints the object after the report; the sample is the #2758 corpus counts."
   },
+  "tools/port-parity.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/port-parity.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "holds every declared port to the SOURCE TEXT it was reconciled against. PASS = every declaration matches; SHORTFALL = a copy declares itself behind a named source text and names the row that holds the debt; FAIL = a source moved with nothing declaring it, or a declaration names a file or symbol this cannot read. The sample runs the real scan over a root that cannot exist, so it examines nothing and says NOT_RUN \u2014 the same builder the real run prints."
+  },
   "tools/ppg-autogain-e2.mjs": {
    "bin": "decides",
    "status": "adopted",
@@ -2368,19 +2497,6 @@
    "status": "exempt",
    "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
   },
-  "tools/residue-ids.mjs": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tools/residue-ids.mjs",
-     "--open",
-     "--verdict-sample"
-    ]
-   },
-   "note": "the residue-pickup verdict (row 2026-10-20-the-primary-checkouts-ledger-read-is-eleven-commits-stale). --open reads the ledger from origin/main rather than from the working tree, and compares every row's state against the copy on disk. Pre-stated rule: a row whose state differs, or a row the disk copy does not carry at all, is a stale read and FAILs. Population = the rows on the ref, a row only on the ref excluded as unreadable. An unresolvable base refuses with exit 2, and NOT_RUN appears only under --verdict-sample, where there is no ref to resolve"
-  },
   "tools/residue-citations.mjs": {
    "bin": "decides",
    "status": "adopted",
@@ -2405,6 +2521,31 @@
    },
    "note": "the residue citation-drift verdict (row 2026-10-26-three-of-six-cited-printer-lines-name-no-printer). Every row in briefs/RESIDUE.md cites source lines, and this tool re-resolves each citation against a ref by the identifiers the ROW ITSELF names. Criterion pre-stated, and TWO SCOPES CARRY TWO NAMES: `--base <ref>` keeps only the rows whose key the base ledger does not carry, which is the rows a branch added, and bounds `defect_class_citations_in_added_rows` at 0; a plain run judges every row and bounds `defect_class_citations_in_every_row`. The defect classes are missing-file, unanchored and beyond-eof, and the advisory `moved` plus the external `off-tree` never decide the exit. Population = the file:line citations in scope, excluded 0. The whole ledger can never go green, because CLAUDE.md \\u00a7\\U0001f4cc forbids editing a row cell, so `npm run check` runs the --base origin/main form and the standing debt stops growing rather than being repaired where it sits. An added-row set citing no line is NOT_APPLICABLE with result null, and a base ledger that cannot be read is NOT_RUN at exit 2 rather than an empty diff that passes. The sample below is the whole-ledger census, which FAILs on that standing debt."
   },
+  "tools/residue-ids.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/residue-ids.mjs",
+     "--open",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the residue-pickup verdict (row 2026-10-20-the-primary-checkouts-ledger-read-is-eleven-commits-stale). --open reads the ledger from origin/main rather than from the working tree, and compares every row's state against the copy on disk. Pre-stated rule: a row whose state differs, or a row the disk copy does not carry at all, is a stale read and FAILs. Population = the rows on the ref, a row only on the ref excluded as unreadable. An unresolvable base refuses with exit 2, and NOT_RUN appears only under --verdict-sample, where there is no ref to resolve"
+  },
+  "tools/resp-acc-headless.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/resp-acc-headless.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "it drives the respiration page over a staged ACC directory in a headless browser. The population is the H10 ACC files the pre-flight walked, through `snapshotEntries` with the named lister `listAccFiles`, and the line says plainly that the PAGE receives the whole folder, so the page's own night grouping decides what it analyses. The staged-directory guard answered ENOENT only, so a directory present and unreadable reached a bare `readdirSync` and threw with no named reason; the snapshot names the errno and exits 2 (row 2026-10-21-forty-one-corpus-enumerators-report-no-population)."
+  },
   "tools/resp-cardiac-suppression-e8.mjs": {
    "bin": "decides",
    "status": "adopted",
@@ -2416,6 +2557,42 @@
     ]
    },
    "note": "the population verdict this tool publishes through populationVerdict@tools/corpus-scope-core.mjs, over H10 ACC files. Row 2026-10-28-the-word-only-bin-misses-a-verdict-built-by-an-imported-helper re-bins it: the row read word-only, which exempts a producer from object validation, and the object half of the gate could not see a build one import away. checkWordOnlyObject now reads that hop, and only to a builder whose own body CONSTRUCTS \u2014 tools/rebase-safe.mjs calls extractVerdicts@tools/pr-compliance.mjs, which parses objects out of a PR body and constructs none, so it stays word-only as the measured control. --verdict-sample runs the real builder over a fabricated population listed by a closure, so the gate reads a complete object, the corpus stays untouched and the shape cannot drift from snapshotEntries."
+  },
+  "tools/rho-overlap-power.mjs": {
+   "bin": "already-json",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/rho-overlap-power.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the overlap-power scan over paired trio nights: 147 offered, 104 contributing a pair. It was the one `repo-corpus` member of the unwired set \u2014 it walks `uploads/trio` inside the checkout, which no flag can re-point, so the walk was never in doubt, only invisible. The population is the NIGHT TREE the run walked, published once before the read and once after through `snapshotNights`, so a night arriving or leaving mid-run is a FAIL rather than a silently different denominator. The headline names the unscored nights, and an arithmetic control (offered \u2212 scored === unscored) throws rather than let a coverage line contradict its own headline. A root that offers nights and a run that scores none now exit 2 (row 2026-10-21-forty-one-corpus-enumerators-report-no-population)."
+  },
+  "tools/ring-offset-census.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/ring-offset-census.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "row 2026-09-29-ring-offset-steps-every-night-single-rate-quoted-across-them: the census reads every raw ring PPG fragment of every folded night and measures what the per-segment host axis makes of it. Pre-stated criterion: no night keeps a finite segment rate outside the +-50 ppm crystal bound, threshold 0 nights. Population = folded ring nights with raw fragments here; a folded night with no raw is excluded and named, an unreadable directory is counted apart and never read as empty. A recording the model left whole contributes ONE implied segment carrying its single-axis rate, because offsetSegments is written only where the split raises more than one segment. The sample is synthetic: no corpus, no night names, commit null with a reason."
+  },
+  "tools/ring-rate-cause.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/ring-rate-cause.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "row 2026-10-29-the-implied-single-segment-publishes-a-rate-with-no-floor-applied, under owner order #2161: the owner ruled the ring carries a crystal and cannot drift past single-digit ppm, so the census's 50 impossible nights hold an acquisition or a processing error instead. This decomposes each published rate into five pre-stated causes and names the dominant one per fragment and per night. spanPpm = (hostSpan - devSpan)/devSpan, and hostSpan - devSpan = (n-1)(stepTrue - stepNom) + G - J*stepNom + jitter, so the terms are drawn-constant-error, undelivered-samples, device-counted-skips, host-stamp-jitter and end-window-median. Pre-stated criterion: no rated fragment publishes a rate outside the node's own two floors, threshold 0 fragments; the floors are read out of ppgdex-dsp.js and clock.js at run time, and a floor this tool cannot read exits 2 rather than scoring it zero. Population = folded ring nights with raw fragments here, the census's own enumerator reused, with an unreadable fragment named and counted apart. It calls the real DexClock.hostAxis and the real DexClock.parseTimestamp, so the arithmetic is the node's; the control is that it reproduces the census's worst single-axis ppm for 2026-07-25 to all 15 digits. The cmd builds two synthetic fragments in memory and takes the FAIL branch, so the object validates where no corpus is mounted."
   },
   "tools/run-check.mjs": {
    "bin": "decides",
@@ -2440,6 +2617,18 @@
     ]
    },
    "note": "the THIRD RUNNER adopter and the largest (Magpie, 2026-09-22, VERDICT-CONTRACT \u00a73d) \u2014 the test runner's object, built here (pure) and called by tests/run-tests.mjs, which sits outside this gate's enumeration (tests/). A group is a child, an assertion is not (provenance 'assertions': a failing assertion \u21d2 FAIL, passes \u21d2 PASS, declared skips only \u21d2 NOT_APPLICABLE, none \u21d2 UNKNOWN); --group= and --shard= are declared exclusions \u21d2 filtered with the consumer rule; the skip budget is the runner's one own criterion (undeclared skip \u21d2 FAIL by name); the --jobs union aggregates the SHARD OBJECTS, a dead shard is an undeclared NOT_RUN \u21d2 UNKNOWN (\u00a74c made structural). --json payload carries `verdict` (a superset verify-shard-union still reads); the exit code stays. 32 plants; the cmd is three scratch shards, one dead."
+  },
+  "tools/seam-sidecar-yield.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/seam-sidecar-yield.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "row 2026-11-02-no-node-reads-a-seam-sidecar-or-the-radio-clock: the precondition the owner set on 2026-09-16 when he ruled the seam sidecar EMITTED, NOT ENFORCED - consumption is a separate unit so the emission can be proven on real nights first. This tool is that proof, and it decides whether a node may read the sidecar at all. Pre-stated criterion: reconnect_boundaries_outside_any_examined_population is 0, against the arithmetic the writer itself fixes. A stream of N samples scanned by S writer sessions holds N-1 adjacent intervals, so a sidecar that judges every reconnect boundary reports examined = N-1 and one that skips every boundary reports N-S; the difference IS the number of boundaries that reached an examined population. The criterion binds on the nights recorded on or after 2026-09-22, which is the seed fix (a resumed sidecar used to store its first sample and judge nothing), because captured bytes are immutable and no re-run repairs an earlier file - earlier boundaries are reported as history and never as a result. An empty post-fix population is NOT_RUN and carries result null, never a pass. Population = every SEAMS sidecar under the named roots that can be placed against its companion stream; a file whose examined count falls outside [N-S, N-1] counts no shared population with its stream and is EXCLUDED by name with both counts in the reason, never clamped into the tally - measured on HR, where the sidecar feeds per notification while the writer drops rows, so examined can exceed the intervals the file holds. Absence is null: with no seam row anywhere the largest device step is null beside a reason naming the empty population, because a 0 ms step is the opposite claim. No default root, so a census of a tree nobody named cannot be run by accident. The selftest plants its own tree and drives every arm with no corpus, and --verdict-sample prints the shape from that plant, so it holds no night name, no device and no path."
   },
   "tools/secret-scan.mjs": {
    "bin": "decides",
@@ -2477,18 +2666,6 @@
    },
    "note": "the JS port of the stage-lab control net against the Python net on real nights (STAGE-LAB brief \u00a724). Criterion pre-stated before the run: every compared night's max |\u0394 proba| \u2264 2e-3 (Python saves float16) and |\u03ba_JS \u2212 \u03ba_Python| \u2264 0.002; one night outside the band is FAIL; no Python probabilities to compare = NOT_RUN, never a pass by absence."
   },
-  "tools/stamp-consumer-census.mjs": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tools/stamp-consumer-census.mjs",
-     "--verdict-sample"
-    ]
-   },
-   "note": "residue 2026-10-26-a-residue-census-enumeration-has-no-instrument-and-has-drifted-by-two: the instrument for a frozen census of the files that read a 14-digit filename stamp - the predicate is COMPUTED, a run of quantified digit atoms in regex source whose widths sum to 14, because the parent census grepped one SPELLING (`\\d{14}`) and so could not see the twelve files that spell the same read out; an ISO datetime also sums to 14 and the separator set that ends a run is the named control - pre-stated rule: FAIL a file that entered or left the declared census, or a declared reading outside the vocabulary accept-test | docstring | identifier | time, or an `anchored` datum stated against its reading - SHORTFALL a file in the population with no reading yet, since what a file DOES with a stamp is not re-derivable - UNKNOWN a tracked source this reader could not open - NOT_RUN an empty declared or measured set - PASS otherwise; population = tracked *.js/*.mjs/*.py minus test paths whose source spells such a run"
-  },
   "tools/stage-lab.mjs": {
    "bin": "decides",
    "status": "adopted",
@@ -2500,6 +2677,18 @@
     ]
    },
    "note": "the sleep-stage lab's benchmark verdict (STAGE-LAB brief): grouped-CV Cohen kappa against the pre-stated offline comparator 0.390 \u2014 PASS at or above it, FAIL below, UNKNOWN while the half-night-shift plant does not fire, because a model that cannot be broken by a planted shift has not been tested; population = folds; the sample is a synthetic result and claims no code identity."
+  },
+  "tools/stamp-consumer-census.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/stamp-consumer-census.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "residue 2026-10-26-a-residue-census-enumeration-has-no-instrument-and-has-drifted-by-two: the instrument for a frozen census of the files that read a 14-digit filename stamp - the predicate is COMPUTED, a run of quantified digit atoms in regex source whose widths sum to 14, because the parent census grepped one SPELLING (`\\d{14}`) and so could not see the twelve files that spell the same read out; an ISO datetime also sums to 14 and the separator set that ends a run is the named control - pre-stated rule: FAIL a file that entered or left the declared census, or a declared reading outside the vocabulary accept-test | docstring | identifier | time, or an `anchored` datum stated against its reading - SHORTFALL a file in the population with no reading yet, since what a file DOES with a stamp is not re-derivable - UNKNOWN a tracked source this reader could not open - NOT_RUN an empty declared or measured set - PASS otherwise; population = tracked *.js/*.mjs/*.py minus test paths whose source spells such a run"
   },
   "tools/ste-lint.mjs": {
    "bin": "decides",
@@ -2651,6 +2840,18 @@
    },
    "note": "UNKNOWN BY DESIGN via tools/verdict-undeclared.mjs \u2014 no band was ever pre-stated and the numbers are on record, so a threshold derived from the data it judges is UNKNOWN, not PASS (VERDICT-CONTRACT \u00a71); pooled and per-night residual rho(ECG,PPG) rides in result. Route to a decided status: a band pre-stated in a brief BEFORE the next run on unseen records (RESIDUE 2026-09-22-bandless-analysis-tools-emit-unknown)"
   },
+  "tools/tch-pooled-hat.mjs": {
+   "bin": "already-json",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/tch-pooled-hat.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the pooled three-cornered-hat solve: 147 nights offered, 90 with a solved triple. The `--json` path carries the same object plus the offered count, so a consumer reading the pooled \u03c3 can see what it was pooled over. The population is the NIGHT TREE the run walked, published once before the read and once after through `snapshotNights`, so a night arriving or leaving mid-run is a FAIL rather than a silently different denominator. The headline names the unscored nights, and an arithmetic control (offered \u2212 scored === unscored) throws rather than let a coverage line contradict its own headline. Fewer than two solved nights publishes the population and exits 2, where the tool used to print a need-more line and exit 0 (row 2026-10-21-forty-one-corpus-enumerators-report-no-population)."
+  },
   "tools/tch-reference-record.mjs": {
    "bin": "decides",
    "status": "adopted",
@@ -2715,6 +2916,14 @@
     ]
    },
    "note": "the corpus fold's per-night gate (VERDICT-CONTRACT \u00a73b #7): every night the plan DECIDES on emits one tepna.verdict/1 \u2014 PASS entered the fold \u00b7 FAIL rejected (no concurrent leg / not nocturnal / overlap < MIN_OVERLAP, hours in reason) \u00b7 NOT_APPLICABLE not a trio night (no anchor or too few legs; judged nothing) \u2014 plus one run-level object over the night population (SHORTFALL when any judged night was rejected; NOT_RUN over zero nights); written to <out>/trio-batch-verdicts.json by the PARENT only, never into a night directory and never by a child (one child owns one night and cannot describe a run); a dry run computes but does not write; beside it, one fold-outcome object (gate trio-batch-fold) over the admitted nights \u2014 PASS only when each landed all three trio node-exports, SHORTFALL or FAIL naming every short night, NOT_RUN when nothing was admitted"
+  },
+  "tools/trio-eligible-nights.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "file": "analysis/tri_device_nights.json"
+   },
+   "note": "row 2026-10-25-the-trio-eligible-claim-resolves-to-an-unproduced-list: the producer of analysis/tri_device_nights.json, which sourced CLAUDE.md's trio figure with 20 hand-typed night names, no criterion, no population and no producer. It writes one tepna.verdict/1 over the git-tracked uploads/trio tree: PASS when each night's own .trio-stamp and the trio node-exports in that folder agree on every night, FAIL naming the nights where they split or an export dated to another night. The manifest reads the committed artifact; `--check` re-derives it and reds on drift, and the suite holds the committed lists against a live classification."
   },
   "tools/trio-power-headless.mjs": {
    "bin": "decides",
@@ -2812,6 +3021,30 @@
     ]
    }
   },
+  "tools/wearable-sync.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/wearable-sync.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "it measures H10 against Verity motion over every night under `--src`. The population is the FILES the recursive walk found, through `snapshotEntries` with the named lister `listCaptureFiles`, with members kept as paths relative to the root because two subdirectories may hold one filename. Its walk caught an unreadable subdirectory and returned the accumulator, so a partly readable tree and a whole one printed the same line: the walk now names the directories it could not read and the population line carries the count, while an unreadable `--src` itself exits 2 with the errno named. The offered count is not the scored count, measured 2026-10-28: 577 files walked for one paired night, with refused stamps, `--night`, `--skip-existing` and the both-devices requirement each named as remainder (row 2026-10-21-forty-one-corpus-enumerators-report-no-population)."
+  },
+  "tools/wild-anchor-census.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/wild-anchor-census.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "row 2026-11-01-both-host-axis-statistics-walk-past-one-wild-anchor: the corpus measurement the row asks for before any spine change. Both diagnostics DexClock.hostAxis publishes are median-based - stackJitterMs is a half-IQR and maxStepMs walks the smoothed series - so one corrupt anchor moves neither, while the axis still interpolates linearly through it. Pre-stated criterion: streams_with_an_impossible_anchor_step is 0, against CK_RADIO_STEP_OVER_SPAN = 1, which lives in radio-clock.js and is read at run time rather than restated here; a ratio of 1 says the divergence between two neighbouring anchors reached the whole duration of the recording, which a continuous recording cannot do. The statistic is the module own anchorStep, called here and never re-derived, because the row finding is about what the spine publishes. Population = every Polar Sensor Logger stream in the corpus carrying a device clock column, which is the population every hostAxis consumer reads; Magpie prior measurement covered six radio sidecars over two nights. Reported beside the verdict as data and never as the thing judged: the spine own ok, stackJitterMs and maxStepMs per flagged stream, so a flagged stream the spine ACCEPTED is the row harm measured. A stream whose stamps do not parse is excluded and named, never a stream of zero anchors, and a ratio is null wherever the span is unmeasurable. The sample is synthetic and holds no night name or device serial."
+  },
   "tools/withdraw-fragment-verdict.mjs": {
    "bin": "decides",
    "status": "adopted",
@@ -2890,234 +3123,6 @@
     ]
    },
    "note": "ZOTERO FILL (owner 2026-10-11): one object over the citation ledger\u2019s DOIs, criterion ledger_dois_present_in_library eq the ledger count \u2014 PASS when every DOI is in the library (created or already present), SHORTFALL naming the DOIs that could not be resolved or written, NOT_RUN under --dry-run (reads the library, writes nothing). --verdict-sample reads no ledger and touches no library, so it reports NOT_RUN / checked 0."
-  },
-  "tools/trio-eligible-nights.mjs": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "file": "analysis/tri_device_nights.json"
-   },
-   "note": "row 2026-10-25-the-trio-eligible-claim-resolves-to-an-unproduced-list: the producer of analysis/tri_device_nights.json, which sourced CLAUDE.md's trio figure with 20 hand-typed night names, no criterion, no population and no producer. It writes one tepna.verdict/1 over the git-tracked uploads/trio tree: PASS when each night's own .trio-stamp and the trio node-exports in that folder agree on every night, FAIL naming the nights where they split or an export dated to another night. The manifest reads the committed artifact; `--check` re-derives it and reds on drift, and the suite holds the committed lists against a live classification."
-  },
-  "tools/rho-overlap-power.mjs": {
-   "bin": "already-json",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tools/rho-overlap-power.mjs",
-     "--verdict-sample"
-    ]
-   },
-   "note": "the overlap-power scan over paired trio nights: 147 offered, 104 contributing a pair. It was the one `repo-corpus` member of the unwired set \u2014 it walks `uploads/trio` inside the checkout, which no flag can re-point, so the walk was never in doubt, only invisible. The population is the NIGHT TREE the run walked, published once before the read and once after through `snapshotNights`, so a night arriving or leaving mid-run is a FAIL rather than a silently different denominator. The headline names the unscored nights, and an arithmetic control (offered \u2212 scored === unscored) throws rather than let a coverage line contradict its own headline. A root that offers nights and a run that scores none now exit 2 (row 2026-10-21-forty-one-corpus-enumerators-report-no-population)."
-  },
-  "tools/tch-pooled-hat.mjs": {
-   "bin": "already-json",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tools/tch-pooled-hat.mjs",
-     "--verdict-sample"
-    ]
-   },
-   "note": "the pooled three-cornered-hat solve: 147 nights offered, 90 with a solved triple. The `--json` path carries the same object plus the offered count, so a consumer reading the pooled \u03c3 can see what it was pooled over. The population is the NIGHT TREE the run walked, published once before the read and once after through `snapshotNights`, so a night arriving or leaving mid-run is a FAIL rather than a silently different denominator. The headline names the unscored nights, and an arithmetic control (offered \u2212 scored === unscored) throws rather than let a coverage line contradict its own headline. Fewer than two solved nights publishes the population and exits 2, where the tool used to print a need-more line and exit 0 (row 2026-10-21-forty-one-corpus-enumerators-report-no-population)."
-  },
-  "tools/dual-clock-rate.mjs": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tools/dual-clock-rate.mjs",
-     "--verdict-sample"
-    ]
-   },
-   "note": "it measures device rate against the host clock from the two stamp columns of each raw file in ONE capture night. The population is the capture FILES the night offered, taken through `snapshotEntries` with the named lister `listCaptureFiles` before the read and once after, so a file arriving or leaving mid-run is a FAIL rather than a silently different denominator. The offered count is not the read count, measured on a real night 2026-10-28: 187 capture files matched and the six largest over a 3 MB floor were read, leaving 181 unexamined and named. The pre-existing refusals stay: an unreadable directory, a night matching no capture file, and a night whose every match sits under the fragment floor each exit 2 with the reason named (row 2026-10-21-forty-one-corpus-enumerators-report-no-population)."
-  },
-  "tools/resp-acc-headless.mjs": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tools/resp-acc-headless.mjs",
-     "--verdict-sample"
-    ]
-   },
-   "note": "it drives the respiration page over a staged ACC directory in a headless browser. The population is the H10 ACC files the pre-flight walked, through `snapshotEntries` with the named lister `listAccFiles`, and the line says plainly that the PAGE receives the whole folder, so the page's own night grouping decides what it analyses. The staged-directory guard answered ENOENT only, so a directory present and unreadable reached a bare `readdirSync` and threw with no named reason; the snapshot names the errno and exits 2 (row 2026-10-21-forty-one-corpus-enumerators-report-no-population)."
-  },
-  "tools/wearable-sync.mjs": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tools/wearable-sync.mjs",
-     "--verdict-sample"
-    ]
-   },
-   "note": "it measures H10 against Verity motion over every night under `--src`. The population is the FILES the recursive walk found, through `snapshotEntries` with the named lister `listCaptureFiles`, with members kept as paths relative to the root because two subdirectories may hold one filename. Its walk caught an unreadable subdirectory and returned the accumulator, so a partly readable tree and a whole one printed the same line: the walk now names the directories it could not read and the population line carries the count, while an unreadable `--src` itself exits 2 with the errno named. The offered count is not the scored count, measured 2026-10-28: 577 files walked for one paired night, with refused stamps, `--night`, `--skip-existing` and the both-devices requirement each named as remainder (row 2026-10-21-forty-one-corpus-enumerators-report-no-population)."
-  },
-  "tools/cvhr-fold-rescore.mjs": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tools/cvhr-fold-rescore.mjs",
-     "--verdict-sample"
-    ]
-   },
-   "note": "\u03c1 itself carries NO verdict, deliberately: the tool reports Spearman \u03c1 with n over the CVHR fold overlap and proposes no band, as its siblings `gap-s-sweep.mjs` (\"a MEASUREMENT sweep for an owner ruling\") and `treatment-response-recut.mjs` (\"a re-cut AGGREGATOR, not a gate\") do. What it DOES decide is its own POPULATION: the night tree is snapshotted through `snapshotNights` before the control phase and again after the scoring, and `populationVerdict` publishes whether that set held still across the run \u2014 PASS stable, SHORTFALL moved, NOT_RUN when a walk could not enumerate. Three removals went unpublished before this: the tool never enumerated the tree at all, so its offer was the control file's night list; `--limit` cut that offer while the published figure counted the survivors; and `--resume` mixed nights carried from a prior run with nights this one scored. The offer is now stated before the control phase, so a run that REFUSES to score still says what it was offered, and an absent or unreadable tree exits 2 naming the errno where `existsSync` used to pass it to a throw. The cmd walks a scratch temp root holding two synthetic night directories, so the gate validates the object where no corpus is mounted (row 2026-10-21-forty-one-corpus-enumerators-report-no-population)."
-  },
-  "tools/ring-rate-cause.mjs": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tools/ring-rate-cause.mjs",
-     "--verdict-sample"
-    ]
-   },
-   "note": "row 2026-10-29-the-implied-single-segment-publishes-a-rate-with-no-floor-applied, under owner order #2161: the owner ruled the ring carries a crystal and cannot drift past single-digit ppm, so the census's 50 impossible nights hold an acquisition or a processing error instead. This decomposes each published rate into five pre-stated causes and names the dominant one per fragment and per night. spanPpm = (hostSpan - devSpan)/devSpan, and hostSpan - devSpan = (n-1)(stepTrue - stepNom) + G - J*stepNom + jitter, so the terms are drawn-constant-error, undelivered-samples, device-counted-skips, host-stamp-jitter and end-window-median. Pre-stated criterion: no rated fragment publishes a rate outside the node's own two floors, threshold 0 fragments; the floors are read out of ppgdex-dsp.js and clock.js at run time, and a floor this tool cannot read exits 2 rather than scoring it zero. Population = folded ring nights with raw fragments here, the census's own enumerator reused, with an unreadable fragment named and counted apart. It calls the real DexClock.hostAxis and the real DexClock.parseTimestamp, so the arithmetic is the node's; the control is that it reproduces the census's worst single-axis ppm for 2026-07-25 to all 15 digits. The cmd builds two synthetic fragments in memory and takes the FAIL branch, so the object validates where no corpus is mounted."
-  },
-  "tools/ring-offset-census.mjs": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tools/ring-offset-census.mjs",
-     "--verdict-sample"
-    ]
-   },
-   "note": "row 2026-09-29-ring-offset-steps-every-night-single-rate-quoted-across-them: the census reads every raw ring PPG fragment of every folded night and measures what the per-segment host axis makes of it. Pre-stated criterion: no night keeps a finite segment rate outside the +-50 ppm crystal bound, threshold 0 nights. Population = folded ring nights with raw fragments here; a folded night with no raw is excluded and named, an unreadable directory is counted apart and never read as empty. A recording the model left whole contributes ONE implied segment carrying its single-axis rate, because offsetSegments is written only where the split raises more than one segment. The sample is synthetic: no corpus, no night names, commit null with a reason."
-  },
-  "tools/mutation-draft-py.mjs": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tools/mutation-draft-py.mjs",
-     "--verdict-sample"
-    ]
-   },
-   "note": "the python lane's drafter (owner order 2026-10-31, board #2562): a local model proposes a fixture for each open survivor in the per-function baseline #4173 inherits from, and this tool records the real module's output and each mutant's and keeps only the fixtures whose outputs differ. Two verdicts, one object each: the drafting run (criterion drafts_written_without_a_machine_check, population = the baseline's survivors, excluded = rows whose line is gone from today's source) and --verify-kills, which re-proves every written draft through pytest in a private copy of the tree and reds unless each mutant's own draft exits 1 there."
-  },
-  "tools/estate-drift.mjs": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tools/estate-drift.mjs",
-     "--json"
-    ]
-   },
-   "note": "ESTATE-DRIFT (infra item 5, Kestrel ruling #2564, brief INFRA-STATE-2026-10-31): --json prints ONE tepna.verdict/1 over the systemd estate. PASS = every installed unit matches its tracked copy on the rig and on vigil; FAIL names each untracked, absent, differing or disabled unit and each unreadable host-local script (scripts are hashed into the verdict, never copied); NOT_RUN (exit 2) where the rig inventory cannot be read, which is CI and every fresh clone, so the sample there examines nothing and says so."
-  },
-  "tools/port-parity.mjs": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tools/port-parity.mjs",
-     "--verdict-sample"
-    ]
-   },
-   "note": "holds every declared port to the SOURCE TEXT it was reconciled against. PASS = every declaration matches; SHORTFALL = a copy declares itself behind a named source text and names the row that holds the debt; FAIL = a source moved with nothing declaring it, or a declaration names a file or symbol this cannot read. The sample runs the real scan over a root that cannot exist, so it examines nothing and says NOT_RUN \u2014 the same builder the real run prints."
-  },
-  "tools/consensus-polarity-wiring.mjs": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tools/consensus-polarity-wiring.mjs",
-     "--verdict-sample"
-    ]
-   },
-   "note": "holds every `consensusBeats` call site to a READABLE polarity decision. PASS = every site applies the decision, verified in the code. SHORTFALL = a site declares `@polarity-decision behind <row>` and the row holds the debt. FAIL = a site declares nothing, or its declaration disagrees with its code. Row 2026-11-01-the-consensus-polarity-wiring-reached-one-of-ten-callers."
-  },
-  "tools/consensus-refpick-dissent.mjs": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tools/consensus-refpick-dissent.mjs",
-     "--verdict-sample"
-    ]
-   },
-   "note": "names WHICH rule picks the reference channel at every `consensusBeats` call site, and measures how often that pick lands on a polarity dissenter. The default census FAILs on a site whose pick rule the scan cannot name, because an unnamed rule is a pick nobody has checked. Under `--dir` the same gate reports the corpus figure. Row 2026-11-01-a-dissenting-led-can-win-the-consensus-reference-pick."
-  },
-  "tools/mutation-equiv-source.mjs": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tools/mutation-equiv-source.mjs",
-     "--verdict-sample"
-    ]
-   },
-   "note": "the source-reading census of the open python survivors (residue 2026-11-01-drafted-fixtures-discriminate-nothing-on-a-single-mutant-key) \u2014 PASS when every entry in scope receives one of the six named classes, UNKNOWN when any entry carries a side whose truth the reader refuses to decide, NOT_APPLICABLE over an empty scope; an entry whose recorded line today's source does not carry is EXCLUDED and named, because it belongs to the orphan path"
-  },
-  "capture-host/tools/probe_radioclock_equiv.py": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "python3",
-     "capture-host/tools/probe_radioclock_equiv.py",
-     "--verdict-sample"
-    ]
-   },
-   "note": "the hand-run battery behind radioclock.py's 6 mutate-equivalence entries: each declared mutant is replayed through parse_hci_event over the recorded monitor corpus and through a collector run, and verdict_object() reads the four counts the prose already prints \u2014 PASS no declared mutant changed an output \u00b7 FAIL at least one did, so the entries keyed on it excuse nothing and the mutation gate owes a test instead \u00b7 UNKNOWN a canary read 0, which means the battery never reached the code and every equivalence it reports would be vacuous rather than true (that case excludes the whole population, so no PASS over checked 0 can be stated). population = the declared mutants; the criterion (0 distinguished, lte) is a module constant. The exit code is derived from the stamped status, so prose, object and code cannot disagree; --verdict-sample prints the shape from canned counts and runs no battery, and --selftest checks the three branches with a plant: the battery itself cannot be a pytest test, because it rebuilds each mutant from radioclock.py's source at import and under the mutation gate that source is already rewritten (coverage_scope.py pins the file on that reason)"
-  },
-  "tools/seam-sidecar-yield.mjs": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tools/seam-sidecar-yield.mjs",
-     "--verdict-sample"
-    ]
-   },
-   "note": "row 2026-11-02-no-node-reads-a-seam-sidecar-or-the-radio-clock: the precondition the owner set on 2026-09-16 when he ruled the seam sidecar EMITTED, NOT ENFORCED - consumption is a separate unit so the emission can be proven on real nights first. This tool is that proof, and it decides whether a node may read the sidecar at all. Pre-stated criterion: reconnect_boundaries_outside_any_examined_population is 0, against the arithmetic the writer itself fixes. A stream of N samples scanned by S writer sessions holds N-1 adjacent intervals, so a sidecar that judges every reconnect boundary reports examined = N-1 and one that skips every boundary reports N-S; the difference IS the number of boundaries that reached an examined population. The criterion binds on the nights recorded on or after 2026-09-22, which is the seed fix (a resumed sidecar used to store its first sample and judge nothing), because captured bytes are immutable and no re-run repairs an earlier file - earlier boundaries are reported as history and never as a result. An empty post-fix population is NOT_RUN and carries result null, never a pass. Population = every SEAMS sidecar under the named roots that can be placed against its companion stream; a file whose examined count falls outside [N-S, N-1] counts no shared population with its stream and is EXCLUDED by name with both counts in the reason, never clamped into the tally - measured on HR, where the sidecar feeds per notification while the writer drops rows, so examined can exceed the intervals the file holds. Absence is null: with no seam row anywhere the largest device step is null beside a reason naming the empty population, because a 0 ms step is the opposite claim. No default root, so a census of a tree nobody named cannot be run by accident. The selftest plants its own tree and drives every arm with no corpus, and --verdict-sample prints the shape from that plant, so it holds no night name, no device and no path."
-  },
-  "tools/wild-anchor-census.mjs": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tools/wild-anchor-census.mjs",
-     "--verdict-sample"
-    ]
-   },
-   "note": "row 2026-11-01-both-host-axis-statistics-walk-past-one-wild-anchor: the corpus measurement the row asks for before any spine change. Both diagnostics DexClock.hostAxis publishes are median-based - stackJitterMs is a half-IQR and maxStepMs walks the smoothed series - so one corrupt anchor moves neither, while the axis still interpolates linearly through it. Pre-stated criterion: streams_with_an_impossible_anchor_step is 0, against CK_RADIO_STEP_OVER_SPAN = 1, which lives in radio-clock.js and is read at run time rather than restated here; a ratio of 1 says the divergence between two neighbouring anchors reached the whole duration of the recording, which a continuous recording cannot do. The statistic is the module own anchorStep, called here and never re-derived, because the row finding is about what the spine publishes. Population = every Polar Sensor Logger stream in the corpus carrying a device clock column, which is the population every hostAxis consumer reads; Magpie prior measurement covered six radio sidecars over two nights. Reported beside the verdict as data and never as the thing judged: the spine own ok, stackJitterMs and maxStepMs per flagged stream, so a flagged stream the spine ACCEPTED is the row harm measured. A stream whose stamps do not parse is excluded and named, never a stream of zero anchors, and a ratio is null wherever the span is unmeasurable. The sample is synthetic and holds no night name or device serial."
-  },
-  "tools/ecg-template-xcorr-residual.mjs": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tools/ecg-template-xcorr-residual.mjs",
-     "--verdict-sample"
-    ]
-   },
-   "note": "gives the ppg-ecg-hrv paper's \u00a72.1 detector-validation residual a producer. Criterion is `carried_figure_relative_deviation` <= 0.5, pre-stated against the 0.244 ms the paper carries from Draft v2; the integer-peak arm is the CONTROL and is held against the \u0394/\u221a12 sample-grid bound, which is the only part of the published sentence that is a per-beat quantity. `segAggregateSdMs` rides in `result` as a DIAGNOSTIC and is never the criterion \u2014 a segment-aggregated residual is smaller by roughly \u221an and reads nothing about per-beat fiducial precision. scope: internal \u2014 one estimator held against a second estimator on the same ECG, not a second sensor"
-  },
-  "capture-host/tests/test_solid_alert.py": {
-   "bin": "test",
-   "status": "exempt"
   }
  }
 }

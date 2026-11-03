@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**318 tools** · 317 with a purpose line · **1 without**
+**319 tools** · 318 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -171,6 +171,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`nsrr-resprate-validate.mjs`](../tools/nsrr-resprate-validate.mjs) | IS OXYDEX'S PROXY RESPIRATION RATE RIGHT? — a POOL SCORER, not a tool. |
 | [`nsrr-score-pool.mjs`](../tools/nsrr-score-pool.mjs) | SCORE A CORPUS IN PARALLEL — resumable, observable, and able to STOP WHEN THE ANSWER IS IN. |
 | [`nsrr-stage-validate.mjs`](../tools/nsrr-stage-validate.mjs) | SCORE THE SHIPPED SLEEP STAGER AGAINST EXPERT PSG LABELS. REM-STAGING-FOLLOWUPS §2b: "the shipped conjunction scored against REAL PSG labels; REM recall/precision recorded. |
+| [`ntfy-board-bridge.mjs`](../tools/ntfy-board-bridge.mjs) | THE RIG RAN THIS BRIDGE FOR WEEKS AND NO TREE HELD IT. Every push alert a capture host or a watchdog publishes reaches a bird through this one script… |
 | [`null-fuzz.mjs`](../tools/null-fuzz.mjs) | Fuzzes OxyDex's processNight with random dropout patterns and asserts the §∅ contract: STATISTICS ARE COMPUTED OVER MEASURED SAMPLES, NEVER OVER ABSENT ONES (oxydex-dsp.js, the `§∅` block… |
 | [`o2ring-dat-timefit.mjs`](../tools/o2ring-dat-timefit.mjs) | PIN THE O2RING'S STORED-SESSION CLOCK TO HOST TIME by fitting the onboard.dat against the live SPO2.csv — the SAME 1 Hz session from the SAME ring, one stored, one delivered live and… |
 | [`o2ring-finger-roundtrip.mjs`](../tools/o2ring-finger-roundtrip.mjs) | PPGDEX-O2RING-FINGER-SITE §6 — the round-trip acceptance, on a REAL capture. |
