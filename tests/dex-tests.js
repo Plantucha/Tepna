@@ -1604,6 +1604,163 @@
         DR.CK_RADIO_GAP_MS === 60000 && gWhole.gapOverMs === DR.CK_RADIO_GAP_MS && g0.gapOverMs === DR.CK_RADIO_GAP_MS,
         String(DR.CK_RADIO_GAP_MS)
       );
+
+      /* ── THE FLOOR OF THE DELAY, AND WHY IT MOVES NO BAND ───────────────
+         Ledger row `2026-11-02-the-radio-band-reads-the-delay-spread-and-discards-its-floor`:
+         a frame waits in the device buffer and then for a connection event, so
+         the delay has a HARD MINIMUM and a long tail, and `stackJitterMs`
+         measures the tail. Wren's box-local read put the H10 ECG floor MAD at
+         2.2 ms against a bulk IQR of 32 ms and the Verity PPG at 9.3 against
+         180. The plants below carry a floor this suite KNOWS, which is what the
+         box corpus cannot give, and they also carry the control that stops the
+         obvious remedy: a sharp floor is not a one-sided delay. */
+      function onePlant(n, stepMs, floorMs, tailMs, driftPpm) {
+        /* The same exact 16-bit Lehmer LCG as `plant`, so every lane plants the
+           same numbers; `u³` is a one-sided tail with its mass at the floor,
+           which is the shape a buffered frame plus a connection wait makes. */
+        var seed = 11213;
+        var dseed = 25747;
+        var out = [];
+        for (var i = 0; i < n; i++) {
+          seed = (seed * 75 + 74) % 65537;
+          dseed = (dseed * 75 + 74) % 65537;
+          var u = seed / 65537;
+          var dq = (dseed % 5) / 64;
+          out.push({ devMs: i * stepMs + dq, hostMs: 5000 + i * stepMs * (1 + driftPpm / 1e6) + floorMs + tailMs * u * u * u });
+        }
+        return out;
+      }
+      function symPlant(n, stepMs, jitterMs, driftPpm) {
+        var seed = 11213;
+        var dseed = 25747;
+        var out = [];
+        for (var i = 0; i < n; i++) {
+          seed = (seed * 75 + 74) % 65537;
+          dseed = (dseed * 75 + 74) % 65537;
+          var u = seed / 65537 - 0.5;
+          var dq = (dseed % 5) / 64;
+          out.push({ devMs: i * stepMs + dq, hostMs: 5000 + i * stepMs * (1 + driftPpm / 1e6) + u * 2 * jitterMs });
+        }
+        return out;
+      }
+      var oneDense = DR.radioAxis(onePlant(9001, 200, 8, 180, 20));
+      var oneSparse = DR.radioAxis(onePlant(1801, 1000, 8, 180, 20));
+      var symDense = DR.radioAxis(symPlant(9001, 200, 32, 20));
+      var symSparse = DR.radioAxis(symPlant(1801, 1000, 32, 20));
+      T.ok(
+        "the row's claim reproduced on a plant whose floor is known: the floor sits an order of magnitude tighter than the spread the band read",
+        oneDense.floor.floorOverBulk < 0.1 && oneDense.floor.bulkIqrMs > 60 && Math.abs(oneDense.spreadMs) > DR.CK_RADIO_BEST_MS,
+        JSON.stringify({ mad: oneDense.floor.floorMadMs, bulkIqr: oneDense.floor.bulkIqrMs, share: oneDense.floor.floorOverBulk, bandSpread: oneDense.spreadMs })
+      );
+      T.ok(
+        '🔴 A SHARP FLOOR IS NOT A ONE-SIDED DELAY — at the SAME cadence the symmetric plant reads SHARPER than the one-sided one, so `floorMadMs` cannot carry the remedy',
+        symSparse.floor.floorOverBulk < oneSparse.floor.floorOverBulk,
+        JSON.stringify({ symmetric: symSparse.floor.floorOverBulk, oneSided: oneSparse.floor.floorOverBulk, anchorsPerWindow: symSparse.floor.anchorsPerWindow })
+      );
+      T.ok(
+        'what separates the two shapes is `asymmetry`, and it separates them at BOTH cadences with no overlap',
+        oneDense.floor.asymmetry > 2 && oneSparse.floor.asymmetry > 2 && symDense.floor.asymmetry < 1.2 && symSparse.floor.asymmetry < 1.2,
+        JSON.stringify({ oneSided: [oneSparse.floor.asymmetry, oneDense.floor.asymmetry], symmetric: [symSparse.floor.asymmetry, symDense.floor.asymmetry] })
+      );
+      T.ok(
+        'a minimum is an EXTREME-VALUE statistic, so the same shape reads a tighter floor at the denser cadence — which is why `anchorsPerWindow` rides beside it',
+        oneSparse.floor.anchorsPerWindow === 300 && oneDense.floor.anchorsPerWindow === 1500 && oneSparse.floor.floorOverBulk > 5 * oneDense.floor.floorOverBulk,
+        JSON.stringify({ sparse: [oneSparse.floor.anchorsPerWindow, oneSparse.floor.floorOverBulk], dense: [oneDense.floor.anchorsPerWindow, oneDense.floor.floorOverBulk] })
+      );
+      var wideTail = DR.radioAxis(onePlant(9001, 200, 8, 400, 20));
+      T.ok(
+        '🔴 AND A TIGHT FLOOR BUYS NO BAND: a stream rejected over the 50 ms bound keeps its rejection while its floor sits at 9 % of the spread — the statistic annotates and decides nothing',
+        wideTail.band === 'rejected' && wideTail.timingSource === null && wideTail.floor.floorMadMs < 0.1 * Math.abs(wideTail.spreadMs),
+        JSON.stringify({ band: wideTail.band, spread: wideTail.spreadMs, mad: wideTail.floor.floorMadMs, reason: wideTail.reason })
+      );
+      T.ok(
+        'the band verdicts themselves are untouched: the three bands read exactly what they read before the statistic existed',
+        best.band === 'radio' && best.timingSource === 'radio' && oneDense.band === 'jitter-aid' && wideTail.band === 'rejected',
+        JSON.stringify({ best: best.band, aid: oneDense.band, rejected: wideTail.band })
+      );
+      T.ok(
+        'the floor window is pre-stated, reachable by name, and echoed on every reading',
+        DR.CK_RADIO_FLOOR_WIN_MS === 300000 && oneDense.floor.winMs === DR.CK_RADIO_FLOOR_WIN_MS,
+        String(DR.CK_RADIO_FLOOR_WIN_MS)
+      );
+      var fOne = DR.anchorFloor(symPlant(60, 1000, 32, 20), function () {
+        return 0;
+      });
+      T.ok(
+        '∅ ONE window is ONE number, and a MAD over it would read as a perfectly sharp floor: every scatter statistic is null with a named reason while the counts it READ stay real',
+        fOne.n === 60 &&
+          fOne.dropped === 0 &&
+          fOne.windows === 1 &&
+          fOne.usedWindows === 1 &&
+          fOne.anchorsPerWindow === 60 &&
+          fOne.floorMadMs === null &&
+          fOne.bulkIqrMs === null &&
+          fOne.asymmetry === null &&
+          /needs two/.test(fOne.reason),
+        JSON.stringify(fOne)
+      );
+      var fNoMed = DR.anchorFloor(
+        symPlant(1801, 1000, 32, 20),
+        function () {
+          return 0;
+        },
+        { median: null }
+      );
+      T.ok(
+        '§👥.3 an absent spine refuses BY NAME rather than keeping a second median of its own',
+        fNoMed.floorMadMs === null && /clock\.js is not loaded/.test(fNoMed.reason),
+        JSON.stringify({ reason: fNoMed.reason })
+      );
+      var fNoCurve = DR.anchorFloor(symPlant(1801, 1000, 32, 20), null);
+      T.ok(
+        'and an absent correction curve refuses by name too, because the floor is read ABOUT that curve',
+        fNoCurve.floorMadMs === null && /no correction curve/.test(fNoCurve.reason),
+        JSON.stringify({ reason: fNoCurve.reason })
+      );
+      var fDrop = DR.anchorFloor(
+        [
+          { devMs: 0, hostMs: 5000 },
+          { devMs: NaN, hostMs: 5001 },
+          { devMs: 600000, hostMs: 605000 },
+          { devMs: 1200000, hostMs: 1205000 }
+        ],
+        function () {
+          return 0;
+        }
+      );
+      T.ok(
+        '🔴 AND ONE ANCHOR IN A WINDOW IS ITS OWN MINIMUM AND ITS OWN MAXIMUM — a floor over such a population is the BULK under another name, so it refuses; the unreadable anchor is counted, never residual zero',
+        fDrop.n === 3 &&
+          fDrop.dropped === 1 &&
+          fDrop.windows === 5 &&
+          fDrop.usedWindows === 3 &&
+          fDrop.anchorsPerWindow === 1 &&
+          fDrop.floorMadMs === null &&
+          fDrop.asymmetry === null &&
+          /only sample/.test(fDrop.reason),
+        JSON.stringify(fDrop)
+      );
+      T.ok(
+        'and the counts a refusal keeps are the ones that say how to fix it: a longer window or a denser capture, read off `usedWindows` and `anchorsPerWindow`',
+        DR.anchorFloor(
+          [
+            { devMs: 0, hostMs: 5000 },
+            { devMs: 1000, hostMs: 6002 },
+            { devMs: 600000, hostMs: 605000 },
+            { devMs: 601000, hostMs: 606003 }
+          ],
+          function () {
+            return 0;
+          },
+          { winMs: 300000 }
+        ).anchorsPerWindow === 2,
+        'two anchors per window is the fewest that separates a minimum from a maximum'
+      );
+      T.ok(
+        'every refusal carries `floor: null` — the absence of a floor, never a floor of zero',
+        refusedFew.floor === null && refusedNoSpine.floor === null,
+        JSON.stringify({ few: refusedFew.floor, noSpine: refusedNoSpine.floor })
+      );
     });
 
     group('OxyDex §∅ — an ABSENT oximetry index is not a measured zero, and Normal is a claim', 'oxydex-dsp · absence', function (T) {
