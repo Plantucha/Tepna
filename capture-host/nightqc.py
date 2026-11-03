@@ -3596,6 +3596,10 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None, wri
     # news: a hole between sessions is time nobody was recording in, an empty session is time somebody
     # WAS recording in and no row arrived.
     empty_joined: list[str] = []
+    # ...and these say a session sat INSIDE the judged window and was not taken in at all. Only a
+    # session of zero length can land there, so it is news of its own: the night read none of its rows
+    # and charged none of its minutes, because it has none.
+    excluded_inside: list[str] = []
     _join_gap_spans: list[tuple[float, float]] = []
     _joined_gap_sec = 0.0
     _sessions_judged = 0
@@ -3782,6 +3786,44 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None, wri
                 )
                 gaps.append(line)
                 if cls == "in-night":
+                    gaps_in_night.append(line)
+            # ⚠️ AND THE TWO TESTS ABOVE ARE A PAIR, NOT A PARTITION. `before` reads
+            # `s[1] <= _judged_start` and `after` reads `s[0] >= _cur_end`, so an excluded session
+            # strictly INSIDE the judged envelope satisfies neither. It used to be reported nowhere:
+            # no line in `gaps`, no label, no bearing on `ok`.
+            #
+            # Only a session of ZERO LENGTH can sit there, and the geometry proves it. A join needs
+            # positive overlap with the band, and an excluded session between two joined ones lies
+            # between two sessions that each overlap the band — so it overlaps the band too, and it
+            # would have joined. That is the same point session residue
+            # `2026-10-12-a-zero-length-session-inside-the-band-reads-outside-band` fixed in
+            # `_gap_class`, and the fix never reached a point INSIDE a judged window, because neither
+            # list ever selected one to classify.
+            #
+            # MEASURED 2026-11-03, read-only, over the box's own 102 `QC-SUMMARY.json` files. Of the 20
+            # replayable multi-session nights, 2026-11-01 holds two such points. One carries 39 353
+            # rows, and that night published `ok: true` with `gaps_in_night: []`.
+            #
+            # The set is completed by DIFFERENCE over the two lists above, never by a third pair of
+            # comparisons. So it cannot drift from them, and no boundary mutant hides in it.
+            _placed = {id(s) for s in before} | {id(s) for s in after}
+            for _s in (s for s in excluded if id(s) not in _placed):
+                cls = _gap_class([_s], b0, b1)
+                line = (
+                    f"{_hhmm(_s[0])} point session inside the judged window; "
+                    f"{len(_s[2])} file(s), {known_rows(_s[2])} rows, not read by the judgement"
+                    f" [{cls}]"
+                )
+                gaps.append(line)
+                excluded_inside.append(line)
+                # ∅ ROWS ARE THE ONLY LOSS A POINT CAN CARRY, so rows are what reds the night here.
+                # A `before` or `after` exclusion always takes real MINUTES out of the night, and that
+                # is a loss whatever its row count, which is why those two branches red on the label
+                # alone. A zero-length session takes no time at all. With every file readable and no
+                # row in any of them, the judgement left nothing unread, and a red would rest on
+                # nothing. `recorded_nothing` is not `known_rows(...) == 0`: an unreadable file leaves
+                # the question open and reds, which is the direction this gate fails in.
+                if not recorded_nothing(_s[2]):
                     gaps_in_night.append(line)
     per_device = []
     newest = max((f["mtime"] for f in current), default=None)
@@ -4064,6 +4106,10 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None, wri
             # empty session from one narrowed by packet loss. The row this closes names exactly that
             # confusion: the digest marked the figure `~session` and nothing said which it was.
             "empty_joined": empty_joined,
+            # The excluded sessions that sat INSIDE the judged window, which the night read nothing
+            # from. A point session holding rows is capture the judgement never saw, so it also reds
+            # `ok` through `gaps_in_night`; one holding no row is published here and nowhere else.
+            "excluded_inside": excluded_inside,
             "night_gap_min": round(_joined_gap_sec / 60),
             # How many capture sessions the figures above rest on, so a reader never has to infer it
             # from the length of a gap list.
