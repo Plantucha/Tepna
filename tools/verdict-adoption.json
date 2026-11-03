@@ -3078,6 +3078,19 @@
     ]
    },
    "note": "row 2026-11-01-both-host-axis-statistics-walk-past-one-wild-anchor: the corpus measurement the row asks for before any spine change. Both diagnostics DexClock.hostAxis publishes are median-based - stackJitterMs is a half-IQR and maxStepMs walks the smoothed series - so one corrupt anchor moves neither, while the axis still interpolates linearly through it. Pre-stated criterion: streams_with_an_impossible_anchor_step is 0, against CK_RADIO_STEP_OVER_SPAN = 1, which lives in radio-clock.js and is read at run time rather than restated here; a ratio of 1 says the divergence between two neighbouring anchors reached the whole duration of the recording, which a continuous recording cannot do. The statistic is the module own anchorStep, called here and never re-derived, because the row finding is about what the spine publishes. Population = every Polar Sensor Logger stream in the corpus carrying a device clock column, which is the population every hostAxis consumer reads; Magpie prior measurement covered six radio sidecars over two nights. Reported beside the verdict as data and never as the thing judged: the spine own ok, stackJitterMs and maxStepMs per flagged stream, so a flagged stream the spine ACCEPTED is the row harm measured. A stream whose stamps do not parse is excluded and named, never a stream of zero anchors, and a ratio is null wherever the span is unmeasurable. The sample is synthetic and holds no night name or device serial."
+  },
+  "capture-host/alerts.py": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "relays the solid-night status (read from the SOLID verdict the daemon already wrote) into the ntfy alert text and the prompt request; it names the seven statuses to validate what it read and decides nothing of its own"
+  },
+  "capture-host/tests/test_solid_alert.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
+  "capture-host/tests/test_tepna_solid_prompt_sh.py": {
+   "bin": "test",
+   "status": "exempt"
   }
  }
 }
