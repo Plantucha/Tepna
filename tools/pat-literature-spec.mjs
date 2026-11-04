@@ -241,6 +241,7 @@ function ecgRpeakTimes(text) {
 function ppgFootTimes(text, runsText, opts) {
   const rec = runsText ? PPGDSP.parsePPG(text, { runsText }) : PPGDSP.parsePPG(text);
   if (!rec || rec.t0Ms == null) return null;
+  const per = rec.ch.map((c) => PPGDSP.detectChannel(c, rec.fs));
   /* CONSENSUS POLARITY — apply BEFORE the reference pick, which is the order `analyze` ships
      (`ppgdex-dsp.js` applies, then picks): a flipped dissenter's peak count moves, so a pick made
      first would ratify a reference chosen under the polarity the device-wide majority overrules.
