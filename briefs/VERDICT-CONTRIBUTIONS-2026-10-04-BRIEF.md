@@ -127,8 +127,10 @@ a figure in this table without the block and a block whose shares do not sum to 
 - [ ] The five figures in §2 publish it; `verify:verdict-adoption` reds a §2 figure without it.
       ⚠️ **TWO OF THE FIVE 2026-11-04 (Magpie).** The trio pooled hat publishes the block by
       leave-one-out over nights, and its row is `adopted` with `emits`, so the gate RUNS
-      `node tools/tch-pooled-hat.mjs --verdict-sample` and reads the block rather than taking the
-      row's word. `node tools/tch-pooled-hat.mjs --selftest` reads `✓ selftest — 12 passed, 0 failed`.
+      `node tools/tch-pooled-hat.mjs --contributions-sample` and reads the block rather than taking
+      the row's word. That is a SECOND flag by necessity: `--verdict-sample` is a cross-tool contract
+      where the four trio-night readers each publish their population, and the suite pins `PASS` and
+      `result.rule: sampleNights` for all four, so the attribution object cannot ride under it. `node tools/tch-pooled-hat.mjs --selftest` reads `✓ selftest — 12 passed, 0 failed`.
       🔴 **THE ROW NAMED A FILE THAT COMPUTES NO HAT, and the gate could not see it.** It read
       `tools/trio-batch.mjs`, where the three hat identifiers match zero times, while all five
       published figures stamp `producer: tools/tch-pooled-hat.mjs`. The pairing comes from §1's own

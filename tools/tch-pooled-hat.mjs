@@ -31,6 +31,9 @@
  *   node tools/tch-pooled-hat.mjs --dir uploads/trio
  *   node tools/tch-pooled-hat.mjs --dir uploads/trio --json
  *   node tools/tch-pooled-hat.mjs --selftest      # planted truth: identity + recovery
+ *   node tools/tch-pooled-hat.mjs --verdict-sample          # the POPULATION object, over a fabricated 3-night snapshot
+ *   node tools/tch-pooled-hat.mjs --contributions-sample [--corner h10|verity|o2]
+ *                                                 # the FIGURE object carrying the attribution block, over planted nights
  */
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -406,22 +409,34 @@ function plantedNights() {
   return [mk('planted-a', 1000, 5, 13, 10, 0, 0, 0), mk('planted-b', 3000, 5, 13, 10, 2, -1, 0.5), mk('planted-c', 600, 9, 13, 10, -1, 0.5, 0)];
 }
 /* The adoption sample reads no corpus, so the object's shape is checkable where no uploads tree
-   exists. STDOUT CARRIES ONE OBJECT — `verify:verdict-adoption` runs this command and parses its
-   stdout as a single JSON value, so the population object goes to stderr beside it rather than
-   making stdout two documents. */
+   exists. It prints the object ALONE, because `verify:verdict-adoption` parses stdout as JSON. */
 /* THE SAMPLE LIVES IN A NAMED HELPER, because `corpus-reads.mjs` blanks a `verdictSample` body
    before it decides whether this tool reports a population: a fabricated call left at top level
    would clear the tool over a walk no run makes (the lesson its own CONTROL leg records). */
 function verdictSample() {
   const at = '2026-10-28T00:00:00Z';
   const snap = snapshotEntries('<uploads>/trio', { list: sampleNights, unit: 'nights', at });
-  const population = populationVerdict(snap, snap, { tool: 'tools/tch-pooled-hat.mjs', at, evidence: ['tools/tch-pooled-hat.mjs', 'tools/corpus-scope-core.mjs'] });
+  return populationVerdict(snap, snap, { tool: 'tools/tch-pooled-hat.mjs', at, evidence: ['tools/tch-pooled-hat.mjs', 'tools/corpus-scope-core.mjs'] });
+}
+if (process.argv.slice(2).includes('--verdict-sample')) {
+  console.log(JSON.stringify(verdictSample()));
+  process.exit(0);
+}
+
+/* 🔴 A SECOND FLAG, AND NOT A SECOND OBJECT UNDER THE FIRST. `--verdict-sample` is a CROSS-TOOL
+   contract: the four trio-night readers each publish their POPULATION under it, and the suite pins
+   `status: 'PASS'` and `result.rule: 'sampleNights'` for all four (`tests/dex-tests.js`, group
+   `tools · corpus-reads · verdict-sample`). The attribution object is a different figure with a
+   different status, so it gets its own flag and the adoption row's `emits` names that one. Printing
+   both under one flag is what the suite caught: the probe reads stdout and stderr together, so a
+   population line beside the figure makes the output two JSON values and parses as neither. */
+function contributionsSample() {
   const nights = plantedNights();
   const e = estimators(nights);
   const r3 = (x) => (Number.isFinite(x) ? +x.toFixed(3) : null);
-  const figure = undeclaredVerdict({
+  return undeclaredVerdict({
     tool: 'tools/tch-pooled-hat.mjs',
-    gate: 'tch-pooled-hat',
+    gate: 'tch-pooled-hat-contributions',
     stat: {
       label: `pooled-seconds three-cornered hat, sigma² per device, attributing ${CORNER}`,
       corner: CORNER,
@@ -434,18 +449,15 @@ function verdictSample() {
     population: { checked: nights.length, eligible: nights.length },
     evidence: ['<planted: 3 nights, 4600 pooled seconds, a pairwise bias on two of them>'],
     note:
-      'PLANTED, NOT MEASURED — `--verdict-sample` reads no corpus, and the three nights are synthetic pairwise moments, so this object asserts the SHAPE and states nothing about any recording; ' +
+      'PLANTED, NOT MEASURED — this flag reads no corpus, and the three nights are synthetic pairwise moments, so this object asserts the SHAPE and states nothing about any recording; ' +
       `the block attributes sigma2.pooled.${CORNER} by leave-one-out over nights, and its deltas do NOT sum to the figure — each is measured against a different pool of n−1`,
     commit: null,
-    commitReason: '--verdict-sample: planted per-night moments, no code identity claimed',
-    at
+    commitReason: '--contributions-sample: planted per-night moments, no code identity claimed',
+    at: '2026-10-28T00:00:00Z'
   });
-  return { population, figure };
 }
-if (process.argv.slice(2).includes('--verdict-sample')) {
-  const s = verdictSample();
-  console.error('POPULATION ' + JSON.stringify(s.population));
-  console.log(JSON.stringify(s.figure));
+if (process.argv.slice(2).includes('--contributions-sample')) {
+  console.log(JSON.stringify(contributionsSample()));
   process.exit(0);
 }
 

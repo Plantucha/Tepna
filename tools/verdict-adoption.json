@@ -38,7 +38,7 @@
      "cmd": [
       "node",
       "tools/tch-pooled-hat.mjs",
-      "--verdict-sample"
+      "--contributions-sample"
      ]
     }
    },
