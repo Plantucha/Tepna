@@ -5,7 +5,7 @@
   Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
   project root, or http://www.apache.org/licenses/LICENSE-2.0
 -->
-**Status:** PROPOSED (core BUILT, remainder corpus-blocked — verified 2026-11-03: `anchorFloor` ships and eleven suite legs pass. The rig holds no sidecar, so the box owes §5. **RE-TRIAGED 2026-11-04 (Heron, box read-only; rule 0: "solid night cowear probe stage lab O2Ring presence trigger radio delay floor vigil coexistence brief status"): §5'S PRECONDITION IS MET ON THE BOX, so the arm is SCHEDULABLE and no longer corpus-blocked.** `/srv/tepna/captures` holds fourteen `*RADIOCLOCK*` sidecars over four nights — 2026-10-30, 2026-10-31, 2026-11-01 and 2026-11-03 — where this brief's own §5 expected six. The sentence that the rig holds none stays true of the RIG, and it was never a statement about the box. No `*PAT*` file exists beside them, so PAT still comes from the beat path at analysis time. What §5 now owes is the analysis itself, which a box session can run read-only, and the second box still waits on §5 earning a band) · **Created:** 2026-11-03
+**Status:** PROPOSED (core BUILT, remainder corpus-blocked — verified 2026-11-03: `anchorFloor` ships and eleven suite legs pass. The rig holds no sidecar, so the box owes §5. **RE-TRIAGED 2026-11-04 (Heron, box read-only; rule 0: "solid night cowear probe stage lab O2Ring presence trigger radio delay floor vigil coexistence brief status"): §5'S PRECONDITION IS MET ON THE BOX, so the arm is SCHEDULABLE and no longer corpus-blocked.** `/srv/tepna/captures` holds fourteen `*RADIOCLOCK*` sidecars over four nights — 2026-10-30, 2026-10-31, 2026-11-01 and 2026-11-03 — where this brief's own §5 expected six. **CORRECTED 2026-11-04 (Heron, rig measurement): THE RIG HOLDS ELEVEN OF THEM TOO, so the arm needs no box session.** `find uploads/` returns nothing because `uploads/vigil-archive` is a symlink to the NAS, and `find -L` finds eleven sidecars over 2026-10-30, 2026-10-31 and 2026-11-01, each one older than this brief. `docs/CORPUS-LOCATIONS.md` already names that path canonical for a rig reader. My earlier sentence that the rig holds none repeated a symlink-blind find, and this withdraws it. No `*PAT*` file exists beside them, so PAT still comes from the beat path at analysis time. What §5 now owes is the analysis itself, which a box session can run read-only, and the second box still waits on §5 earning a band) · **Created:** 2026-11-03
 
 # The radio delay has a floor, and the band reads its tail
 
@@ -71,8 +71,21 @@ spread, and the suite pins that leg. Moving the band needs §5.
 The row states it: **PAT on the floor-mapped axis, stable between nights.** A per-connection floor
 would convert the per-connection BLE offset (`PAT-PACKET-ARRIVAL`, −867…+1321 ms between nights)
 into a per-model constant that one calibration removes. That claim needs the beat path and the
-box-local sidecars. The rig holds no `*RADIOCLOCK*` file (`find` over `uploads/` returns 0, and
-`DEX_UPLOADS` is unset), so the arm belongs to a session on the capture box.
+box-local sidecars.
+
+🔴 **CORRECTED 2026-11-04 (Heron, rig measurement): the paragraph below measured a symlink, not a
+corpus.** `find uploads/ -name '*RADIOCLOCK*'` returns 0, and `find -L uploads/ -name '*RADIOCLOCK*'`
+returns 11 over the same tree. `uploads/vigil-archive` is a symlink to `/mnt/nas/vigil-archive`, and a
+plain `find` never follows one. `docs/CORPUS-LOCATIONS.md` records that link under my own 2026-11-01
+decision, and its table already names `/mnt/nas/vigil-archive/captures` canonical for a rig reader. The
+eleven sidecars cover 2026-10-30, 2026-10-31 and 2026-11-01, and each one reached the rig before
+2026-11-03, the date this brief carries. So §5 needs no box session. A rig session reads the archive
+directly, and the arm keeps only its real cost: the beat path over three nights.
+
+For the record, the sentence this correction withdraws: "The rig holds no `*RADIOCLOCK*` file (`find`
+over `uploads/` returns 0, and `DEX_UPLOADS` is unset), so the arm belongs to a session on the capture
+box." The `DEX_UPLOADS` half stays true and never mattered: the tools fall back to the primary
+checkout's `uploads/`, which is where the symlink sits.
 
 ### Acceptance
 
@@ -82,5 +95,6 @@ box-local sidecars. The rig holds no `*RADIOCLOCK*` file (`find` over `uploads/`
 - [x] `anchorsPerWindow` ships beside `floorMadMs`, and a leg pins the sampling dependence.
 - [x] Absence refuses by name: no spine, no correction curve, one window, one anchor per window.
 - [ ] PAT per night on the floor-mapped axis, over the six box-local sidecars, with the between-nights
-      spread quoted against the −867…+1321 ms it would replace. **Box-local; owed.**
+      spread quoted against the −867…+1321 ms it would replace. **Owed; a rig session can run it
+      over the archived nights, corrected 2026-11-04.**
 - [ ] A band decision, if §5 earns one, with the threshold pre-stated before the data that judges it.
