@@ -5,7 +5,7 @@
   Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
   project root, or http://www.apache.org/licenses/LICENSE-2.0
 -->
-**Status:** IN-PROGRESS — 2026-10-12 · **Created:** 2026-10-12
+**Status:** IN-PROGRESS — 2026-10-12 · ⚠️ **API-LANE TRIAGE 2026-11-04 — RE-VERIFIED BY MAGPIE, NOT TAKEN ON ITS WORD.** The managed-agent lane read this brief at `4ca6b91cc` and reported five acceptance items: four met, one open, none blocked. Two of the four MET checks name a path outside this repo, so I resolved those two myself. The builder's cited command reads `tasks: 0` against a fresh `--out`, because the proof cache lives in the output file. Pointed at a copy of the committed ledger it reads `tasks: 97`, `unproven: 0`, `dev: 45`, `heldout: 52` and `pendingProof: 209` at `86a168284`, which reproduces the lane's figures. Every committed task carries `proof.ok` and a `failToPass` pair, and the builder reports `excluded: 855` by reason. The solver selftest reads all twenty-seven passed. **The baseline control run stays UNVERIFIED here**: its cited form names another user and tree, and re-running it locally is a ninety-seven-task git and pytest sweep. **The OPEN and BLOCKED verdicts stay the lane's self-report, unverified here.** The remainder the lane reports is one item, which its own batch file lists. · **Created:** 2026-10-12
 
 # A frozen benchmark of past defects
 
