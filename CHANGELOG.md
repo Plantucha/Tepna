@@ -30,6 +30,90 @@ changesets.)
 
 ---
 
+## [2.27.0] — 2026-11-04
+
+### Added
+- Say which radio a night runs on when the pinned adapter leaves the bus, and fail over to a chosen spare.
+- Add a committed tool that compares the mutant set across two mutmut versions.
+- The radio-clock reader counts the holes in its own anchor sequence and publishes them beside every band verdict. A hole annotates and refuses nothing.
+- A census counts the streams whose raw anchor step reaches the recording span. It walks every Polar Sensor Logger stream the corpus holds. The spine keeps both median statistics, and the census reports what each one said beside the ratio.
+- Name which rule picks the reference channel at every consensus call site. Measure how often that pick lands on a channel the polarity vote rejected.
+- Give the paper's fiducial panel a producer. `tools/ppi-jitter-vs-ecg.mjs --fiducial` runs a second vm realm. That realm takes the interpolated 50 % upstroke crossing in place of the shipped intersecting tangent. Both arms score one matched epoch population, and the paired jitter difference carries a verdict. The arm reads the box validity sidecar through the shared reader and prints its tally.
+- Serve the heap probe beside the memory series on one floating axis, so `/api/memory` carries both the journal RSS and the probe traced bytes.
+- Publish the RAW adjacent host-device step beside the smoothed one, so a reader can see the wild anchor the running median rejects. Annotate only: `hostAxis` refuses nothing new.
+- Show per-epoch stage confidence in OxyDex and export staged nights from OxyDex and ECGDex as hypnogram JSON or CPAP-viewer CSV.
+- Track the ntfy alert bridge as `tools/ntfy-board-bridge.mjs`, with its three rules exported as pure functions. A stream that stalls with no end event now reconnects. (`NTFY-ALERT-WIRING-2026-11-03-BRIEF.md`)
+- Give the HRV paper's ECG detector residual a producer. It measures 1.85 ms per beat against the carried 0.244 ms.
+- Name the open rows another tool's check holds open, so a picker reads the pin and chases no close that reds a gate.
+- The box sends a push alert when its clock runs 10 min without the GPS pulse. It also alerts when the box update fails twice in a row. Each alert has a recovery message.
+- Read the floor of the radio anchor delay beside the band that reads only its tail. Ship `anchorsPerWindow` and `asymmetry` with it. (`RADIO-DELAY-FLOOR-2026-11-03-BRIEF.md`)
+- Declare the reference-pick rule at every `consensusBeats` call site, and red a site whose rule, or whose entry, no longer matches.
+- Measure what the box's seam sidecar examined, over the nights it can reach. A new census places (`SEAM-SIDECAR-CONSUMPTION-2026-11-03-BRIEF.md`)
+- The box now sends each solid-night verdict on ntfy, once per night and status. A non-PASS verdict also writes a prompt request, and a user-crontab script delivers it to the session.
+- The PAT hat worker publishes a `contributions` block per corner, and an UNDERPOWERED site card names the leg that carries it with that leg's share. An unreadable leg nulls `dominant`, and the card then names the absence instead of the largest survivor. (`VERDICT-CONTRIBUTIONS-2026-10-04-BRIEF.md`)
+- Each mutant verdict record carries its lap duration in ms, and an unstamped start reads null rather than zero. (`MUTATION-SUITE-FOLLOWUPS-2026-08-17-BRIEF.md`)
+- Alert in the evening when a device has less battery than its worst nights used. (`NTFY-ALERT-WIRING-2026-11-03-BRIEF.md`)
+- Map the radio delay floor onto the host stamp per night and judge it against the beat path. (`RADIO-DELAY-FLOOR-2026-11-03-BRIEF.md`)
+- `tools/tch-pooled-hat.mjs` publishes a `contributions` block over its nights by (`VERDICT-CONTRIBUTIONS-2026-10-04-BRIEF.md`)
+- Add `tools/ppg-channel-combination.mjs`, which re-cuts the paper's channel-combination result. Each 300 s block fits channel selection, PCA-1 and a maximum-SNR beamformer on its first half. It scores all four on the second half. The criteria are the shipped spectral SQI and foot-to-foot dispersion. One recording counts once when two capture trees both hold it. The run emits a `tepna.verdict/1`.
+
+### Changed
+- Publish no rate over a drawn device counter in MotionDex. The withheld figures travel under `drawnColumn`, `ppmReason` names the case, and the shared `recording.timing` block reads the same nulls through an unedited spine.
+- Publish no rate over a drawn device column in PpgDex. The figures the single axis used to quote now travel under `drawnColumn`, and the `fs` correction is unchanged.
+- Count a solid-night re-judge bracket toward the unattributed bars instead of failing the band on one gap, and name the brackets in the reason.
+- Send the solid-night verdict on ntfy only, because the rig bridge now posts it to the board.
+
+### Fixed
+- Report the measured elapsed time on an abandoned offline op, so a connect that gave up at its own
+- Carry each radio anchor's own host receive stamp into the sidecar's `vs_rx_ns` column. The collector already read that stamp for its offset median and wrote a blank cell beside it.
+- `tools/trio-batch.mjs` states the child heap cap as the one constant it has always answered. `childHeapMB` read `Math.max(CHILD_HEAP_MB, Math.min(CHILD_HEAP_MB, perJobMB))`, and one identifier stood in both bounds. So the per-job figure it derived reached no consumer, and two comments described a clamp that could not bind. Behaviour stays byte-identical on every live path. A plan carrying a non-numeric `budgetGB` no longer propagates `NaN` into a child's `--max-old-space-size`.
+- Read a PEP 440 post-release in the dev floor check, so it meets the floor its release meets.
+- Address a failing group by its declaration index, so the footer's own re-run line re-runs it.
+- Give one Polar pause one name: both predicates that read `polar_paused` now answer `offline-op`,
+- The two mutation-gate pin tests compare literals for equality, so a bump that raises the pair into a combination nobody has run passes both. The floor now needs a recorded read of the pinned mutmut against the pytest release it names.
+- Read PEP 440's pre-release and dev segments in the dev-floor check, so an installed `9.2.0rc1`
+- Append an `anchor_epoch` column to the radio-clock sidecar, counting every LE link establishment the (`RADIO-CLOCK-SIDECAR-2026-09-07-BRIEF.md`)
+- Stamp a device clock on a radio-clock sidecar row only when the device declares the vendor whose (`RADIO-CLOCK-SIDECAR-2026-09-07-BRIEF.md`)
+- Refuse a mutation record run when the installed generator differs from the version this tree pins.
+- Red an unreadable residue row instead of skipping it, so the ledger gate cannot report a pass over it.
+- Read the ring's own push record before calling an RTC jump a battery-event reset. A correction
+- Set aside every `RUNS` and `SEAMS` sidecar and four fixed-name sidecars, so none enters a node as a recording.
+- Make each start reason in the "capture started" alert a full clause.
+- The `capture.STATUS` snapshot in the capture-host test suite copies deep. It copied one level and its comment claimed that undid a write into `devices`. That holds for an added or rebound key. It is false for the write `capture._set()` makes, which reaches depth two in place, so the snapshot handed back the mutation it existed to undo. Measured against the fixture's own save and restore steps with the real writer. The suite stayed green because `STATUS` holds no device at import, which is a property of `capture.py` rather than of the fixture.
+- Record a pinned radio that left the bus as its own `ADAPTERHCI.csv` row, carrying both probes null. The night's `adapter-hci` verdict then counts the vanished pin, where it used to read like a box that pins nothing.
+- Stop the PR walker reading a cancelled required check as green, and re-run the whole cancelled run.
+- The box watchdog skips a connected device whose silence the status file explains, and its script now lives in the tree.
+- Re-derive the seven CI job caps that a main-branch sample sizes, so a job no longer reports CANCELLED while every step reads SUCCESS.
+- Raise the `biome` and `stale-file` caps to 6 minutes, each derived from today's full-history checkout sample.
+- Apply the consensus polarity decision at every `consensusBeats` caller, so the nine PAT and trio
+- Publish a population verdict from the corpus tiering job, count the files that vanish between the walk and the tier, and empty the unwired-enumerator backlog.
+- Charge a joined capture session that recorded nothing to the night QC hole total, so the coverage span stops counting it as capture time.
+- The twelve callers of the shared PAT foot extractor hand it the validity sidecar they held a path for. Each reads it through `readRunsSidecar` and prints the four-state tally beside its own numbers. A callback and a parenthesised indirection call that extractor with its name never followed by `(`. So the new legs count the ARGUMENTS at each invocation instead of grepping for the name. (`SAMPLE-VALIDITY-ENVELOPE-2026-09-17-BRIEF.md`) (`SAMPLE-VALIDITY-ENVELOPE-2026-09-17-BRIEF.md`)
+- Sync a device clock that reads its firmware default on the first watchdog read. Count clock events rather than records in the night judge, so one recorded clock-set annotates the head it cost instead of reading as a storm.
+- Set `ADAPTERHCI.csv` and `NIGHT-REPORT.txt` aside in the ingest classifiers, and derive the
+- Judge a night only after its band closes, so a morning fragment no longer reads as a night.
+- Refuse an unexamined `killcheck` baseline with exit 2, and stop counting an undecided mutant run as a kill.
+- Give the mutation gate's scratch tree every pytest rule the real suite runs under. A test pinning one of those rules then stops failing inside the scratch.
+- Fix the monitor night click so that it presses Run and the trio page indexes every file.
+- Report the point capture session inside night QC's judged window, and red the night when it holds unread rows.
+- Name the QC digest and the gap alert by the night band. Stop the archive calling an unfinished folder a finished night.
+- Eight PAT tools hand the box validity sidecar to their sample parsers through one shared reader. The reader names which of four things happened per stream, and each tool prints that tally beside its own numbers. (`SAMPLE-VALIDITY-ENVELOPE-2026-09-17-BRIEF.md`)
+- Refuse a tool run that would write into a checkout it was not launched in.
+- The index tick treats a mutation-tool selftest as a gate step, and a CPU embed releases its Ollama runner after one minute.
+- The adoption-delta reader finds a batch-2 or batch-3 group by the global handle its file assigns, not by the file stem alone. (`MUTATION-ACCOUNTING-LOOP-2026-08-27-BRIEF.md`)
+- The AHI estimator's R² figure names the definition behind it, so no reader takes it for a harmonized baseline. (`AHI-SURROGATE-REFIT-PAPER-2026-10-13-BRIEF.md`)
+- Pin the wall clock in the battery-alert poller tests, so three required contexts stop reding for the ten hours the night-alert window stands open.
+- The hourly doc-search index tick no longer skips while another job holds the GPU. It embeds on the CPU at the lowest priority instead. A session's own search also moves bge to the CPU when the card has less than 4 GB free.
+- Restore the per-channel detection four consensus-feet tools vote on, and red an unbound variable under `tools/`.
+- The defect benchmark's selftest pins its split rule to known answers and to the frozen set. A changed hash rule now reds. (`DEFECT-BENCHMARK-2026-10-12-BRIEF.md`)
+- Name a device epoch change at the `hostAxis` rate refusal, and publish the seam, so a node can re-anchor on it.
+- Judge the module allowlist for spent entries, and name the half that is really absent in the two reasons that got it backwards.
+- pat-per-led's SNR column reads the node's own channel score instead of a copy of the retired mid-window scorer. (`PPG-FOOT-PLACEMENT-FOLLOWUPS-2026-09-01-BRIEF.md`)
+- Render every row of a radio-clock run in one anchored UTC offset. A fall-back night then neither rewinds the sidecar nor leaves its tail an hour from the sample stream.
+- A CI workflow step now runs the two-sided survivor ratchet, which until now ran only in the local check chain. (`MUTATION-SURVIVOR-LEDGER-2026-09-28-BRIEF.md`)
+
+---
+
 ## [2.26.0] — 2026-11-02
 
 ### Added
@@ -3780,7 +3864,8 @@ and establishes the release-governance layer over it.
 - **The shared test suite** (`Dex-Test-Suite.html` + `tests/dex-tests.js`) and the build/provenance
   manifests.
 
-[Unreleased]: https://github.com/Plantucha/Tepna/compare/v2.26.0...HEAD
+[Unreleased]: https://github.com/Plantucha/Tepna/compare/v2.27.0...HEAD
+[2.27.0]: https://github.com/Plantucha/Tepna/compare/v2.26.0...v2.27.0
 [2.26.0]: https://github.com/Plantucha/Tepna/compare/v2.25.0...v2.26.0
 [2.25.0]: https://github.com/Plantucha/Tepna/compare/v2.24.0...v2.25.0
 [2.24.0]: https://github.com/Plantucha/Tepna/compare/v2.23.0...v2.24.0
