@@ -2364,3 +2364,36 @@ def test_EVERY_low_rate_sidecar_writer_in_this_tree_opens_LINE_BUFFERED():
     states that a count over scanned source breaks under mutmut, while an `in` check survives it."""
     for name in ("radioclock.py", "as11_clock.py", "cpap_shadow_runner.py"):
         assert 'buffering=1, newline="\\n"' in module_source(name), name
+
+
+def test_a_ONE_BYTE_file_that_ends_in_a_newline_is_a_RESUME_and_not_a_rewrite(tmp_path):
+    """One byte is the smallest file the torn-tail check can look at, and it is where an off-by-one in
+    either size bound shows itself. A `> 1` bound skips the check and re-headers a file that was
+    whole, and a `seek(-2, 2)` walks off the front of it."""
+    p = tmp_path / "s.csv"
+    p.write_bytes(b"\n")
+    w = rc.SidecarWriter(str(p))
+    w.close()
+    assert p.read_bytes() == b"\n", "a whole one-byte file is appended to, never re-headered"
+
+
+def test_the_torn_tail_check_reads_the_LAST_byte_and_never_a_fixed_offset(tmp_path):
+    """A fixed offset into the file answers a different question. This file's third byte IS a newline,
+    so an absolute `seek(2)` reads one and calls the file whole, while the real last byte is a torn
+    fragment that has to go."""
+    p = tmp_path / "s.csv"
+    p.write_bytes(b"ab\ncd")
+    w = rc.SidecarWriter(str(p))
+    w.close()
+    assert p.read_bytes() == b"ab\n", "the fragment after the last newline is dropped"
+
+
+def test_a_file_whose_ONLY_newline_is_its_FIRST_byte_keeps_that_byte(tmp_path):
+    """`cut` is the index of the last newline, so `cut == 0` is a real file state and the only one
+    that separates `cut >= 0` from `cut > 0`. Truncating to 0 there throws away a line the file had
+    written whole, and the writer then re-headers a file it should have resumed."""
+    p = tmp_path / "s.csv"
+    p.write_bytes(b"\nxy")
+    w = rc.SidecarWriter(str(p))
+    w.close()
+    assert p.read_bytes() == b"\n", "the first line survives and the fragment after it does not"
