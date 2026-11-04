@@ -1732,6 +1732,38 @@
         "RING-TIMEBASE-ECG-TEST-2026-10-29-BRIEF.md"
       ],
       "notes": ""
+    },
+    {
+      "version": "2.27.0",
+      "date": "2026-11-04",
+      "bump": "minor",
+      "name": "",
+      "manifestHashes": {
+        "ECGDex": "df7980aac8af",
+        "OxyDex": "3db7e51af187",
+        "PulseDex": "4a1eb2c602e0",
+        "GlucoDex": "0b7216507512",
+        "PpgDex": "af0eaefeb3e1",
+        "HRVDex": "981d43cb2065",
+        "CPAPDex": "e6c17d4d8a5b",
+        "Integrator": "62be68f264c7",
+        "MotionDex": "42cd5f2662b7"
+      },
+      "briefs": [
+        "RADIO-CLOCK-SIDECAR-2026-09-07-BRIEF.md",
+        "SAMPLE-VALIDITY-ENVELOPE-2026-09-17-BRIEF.md",
+        "NTFY-ALERT-WIRING-2026-11-03-BRIEF.md",
+        "RADIO-DELAY-FLOOR-2026-11-03-BRIEF.md",
+        "SEAM-SIDECAR-CONSUMPTION-2026-11-03-BRIEF.md",
+        "MUTATION-ACCOUNTING-LOOP-2026-08-27-BRIEF.md",
+        "AHI-SURROGATE-REFIT-PAPER-2026-10-13-BRIEF.md",
+        "DEFECT-BENCHMARK-2026-10-12-BRIEF.md",
+        "VERDICT-CONTRIBUTIONS-2026-10-04-BRIEF.md",
+        "MUTATION-SUITE-FOLLOWUPS-2026-08-17-BRIEF.md",
+        "PPG-FOOT-PLACEMENT-FOLLOWUPS-2026-09-01-BRIEF.md",
+        "MUTATION-SURVIVOR-LEDGER-2026-09-28-BRIEF.md"
+      ],
+      "notes": ""
     }
   ]
 }
