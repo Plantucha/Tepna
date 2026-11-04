@@ -3,7 +3,7 @@ Copyright 2026 Michal Planicka
 SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** IN-PROGRESS — 2026-10-13 · **Created:** 2026-10-13 · **Follows:** `AHI-SURROGATE-REFIT-SIZING-2026-10-12-BRIEF.md` · **Relates:** `PAPER-ODI4-REPRODUCIBILITY-2026-07-31-BRIEF.md`, `HELD-OUT-BAND-CAMPAIGN-2026-09-22-BRIEF.md`, `OPEN-DATASET-AHI-DERIVATION-2026-10-12-BRIEF.md` · **Touches:** a new `papers/` page, `papers/papers.html`, `papers/RERUN-RESULTS.md` (docs only — no bundle, no provenance)
+**Status:** IN-PROGRESS — 2026-10-13 · ⚠️ **API-LANE TRIAGE 2026-11-04 — RE-VERIFIED BY MAGPIE, NOT TAKEN ON ITS WORD.** The managed-agent lane read this brief at `4ca6b91cc` and reported nine acceptance items: three met, four open, two blocked. I re-ran the cited check behind every MET item in my own tree and **every one reproduces** (one file citation, one named test group, one reader over a committed artefact). An empty `-k` or `--group=` filter exits 0. So I read the collected count and the plan line, never the exit code, and none of them collected nothing. **The OPEN and BLOCKED verdicts stay the lane's self-report, unverified here.** The remainder the lane reports is six items, which its own batch file lists. · **Created:** 2026-10-13 · **Follows:** `AHI-SURROGATE-REFIT-SIZING-2026-10-12-BRIEF.md` · **Relates:** `PAPER-ODI4-REPRODUCIBILITY-2026-07-31-BRIEF.md`, `HELD-OUT-BAND-CAMPAIGN-2026-09-22-BRIEF.md`, `OPEN-DATASET-AHI-DERIVATION-2026-10-12-BRIEF.md` · **Touches:** a new `papers/` page, `papers/papers.html`, `papers/RERUN-RESULTS.md` (docs only — no bundle, no provenance)
 
 # BRIEF — Paper: one oximetry AHI surrogate, four harmonized references, one subject-disjoint split
 
