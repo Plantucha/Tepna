@@ -624,11 +624,54 @@ export function listExternalDocs(roots = readExternalConfig()) {
   return out;
 }
 
+/* `DEX_EMBED_CPU=1` asks the server to run the embed with no GPU layers. The hourly tick sets it while
+   the mutation pipeline holds the card: until 2026-11-03 the tick SKIPPED instead, and a crawl that ran
+   11:00–17:00 left the cache seven ticks stale, so the next session's query embedded 4,986 chunks
+   inline and ran past its tool's two-minute limit. Same model, same weights: the vectors the cache keys
+   on do not change, only where they are computed. */
+/* A NAMED PIPELINE IS NOT THE ONLY TENANT OF THE CARD (owner 2026-11-03: a U-Net is planned for the
+   GPU). So the query path asks the card itself: when the largest card's free VRAM is under
+   `DEX_EMBED_MIN_FREE_MB` (default 4096; bge-m3 needs ~0.7 GB on the card), the embed runs on the CPU
+   rather than squeezing beside whatever holds the card. `DEX_EMBED_CPU=1` forces the CPU, `=0` forces
+   the GPU. No readable card (another machine, no sysfs) reads null, and null changes nothing. */
+export function vramFreeMb(readDir = readdirSync, readFile = readFileSync) {
+  let best = null;
+  try {
+    for (const c of readDir('/sys/class/drm')) {
+      if (!/^card\d+$/.test(c)) continue;
+      try {
+        const total = Number(readFile(`/sys/class/drm/${c}/device/mem_info_vram_total`, 'utf8'));
+        const used = Number(readFile(`/sys/class/drm/${c}/device/mem_info_vram_used`, 'utf8'));
+        if (Number.isFinite(total) && Number.isFinite(used) && (!best || total > best.total)) best = { total, used };
+      } catch {
+        /* a card with no VRAM counters is not a card we embed on */
+      }
+    }
+  } catch {
+    return null;
+  }
+  return best ? Math.round((best.total - best.used) / 1048576) : null;
+}
+
+export function embedOnCpu(env = process.env, freeMb = vramFreeMb) {
+  if (env.DEX_EMBED_CPU === '1') return true;
+  if (env.DEX_EMBED_CPU === '0') return false;
+  const floor = Number(env.DEX_EMBED_MIN_FREE_MB ?? 4096);
+  const free = freeMb();
+  return free !== null && Number.isFinite(floor) && free < floor;
+}
+
+export function embedRequest(model, inputs, cpu = embedOnCpu()) {
+  const body = { model, input: inputs };
+  if (cpu) body.options = { num_gpu: 0 };
+  return body;
+}
+
 async function embed(inputs) {
   const res = await fetch(`${OLLAMA}/api/embed`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ model: EMBED_MODEL, input: inputs })
+    body: JSON.stringify(embedRequest(EMBED_MODEL, inputs))
   });
   const j = await res.json();
   if (!j.embeddings) throw new Error(j.error || 'no embeddings returned');
@@ -1195,6 +1238,33 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
   ok('strict wins over --semantic when both are given (a caller who asked for the index gets an answer about the index)', searchLane(['--semantic', '--hybrid']) === 'hybrid-strict');
   ok('--semantic is a flag, never a query word', !stripFlags(['--semantic', 'q']).includes('--semantic'));
   ok('--brief is a flag, never a query word', stripFlags(['--brief', 'q']).join(' ') === 'q');
+  ok('a GPU embed request carries no options', embedRequest('m', ['a'], false).options === undefined);
+  ok('a CPU embed request asks for zero GPU layers', embedRequest('m', ['a'], true).options?.num_gpu === 0);
+  ok('DEX_EMBED_CPU=1 forces the CPU whatever the card reads', embedOnCpu({ DEX_EMBED_CPU: '1' }, () => 19000) === true);
+  ok('DEX_EMBED_CPU=0 forces the GPU whatever the card reads', embedOnCpu({ DEX_EMBED_CPU: '0' }, () => 10) === false);
+  ok('a crowded card sends the embed to the CPU', embedOnCpu({}, () => 2000) === true);
+  ok('a free card keeps the embed on the GPU', embedOnCpu({}, () => 19000) === false);
+  ok('an unreadable card changes nothing', embedOnCpu({}, () => null) === false);
+  ok('the floor is configurable', embedOnCpu({ DEX_EMBED_MIN_FREE_MB: '1000' }, () => 2000) === false);
+  {
+    const files = {
+      '/sys/class/drm/card0/device/mem_info_vram_total': String(2048 * 1048576),
+      '/sys/class/drm/card0/device/mem_info_vram_used': String(15 * 1048576),
+      '/sys/class/drm/card1/device/mem_info_vram_total': String(20464 * 1048576),
+      '/sys/class/drm/card1/device/mem_info_vram_used': String(18000 * 1048576)
+    };
+    const rf = (p) => {
+      if (!(p in files)) throw new Error('ENOENT');
+      return files[p];
+    };
+    ok('free VRAM reads the LARGEST card, not the integrated one', vramFreeMb(() => ['card0', 'card1', 'card1-DP-1', 'renderD128'], rf) === 2464);
+    ok(
+      'no drm directory reads null',
+      vramFreeMb(() => {
+        throw new Error('ENOENT');
+      }, rf) === null
+    );
+  }
   ok('--rerank is a flag, never a query word', stripFlags(['--rerank', 'q']).join(' ') === 'q');
   ok('the reranker floor is the default', wantRerank(['node', 'x', 'q']) === true && wantRerank(['--rerank', 'q']) === true);
   ok('--no-rerank asks for the old floor', wantRerank(['--no-rerank', 'q']) === false);

@@ -60,13 +60,23 @@ mkdir -p "$STATE" 2>/dev/null
 exec 9>"$STATE/bge-reindex.lock" || exit 0
 flock -n 9 || exit 0
 
-# Yield to the mutation pipeline: qwen3-coder holds ~18 GB of a 20 GB card,
-# and loading bge-m3 beside it risks evicting the model mid-sweep. The
-# index catches up on the next tick — staleness is cheap, eviction is not.
+# Yield the CARD to the mutation pipeline, not the tick: qwen3-coder holds ~18 GB of a 20 GB card,
+# and loading bge-m3 beside it risks evicting the model mid-sweep. Until 2026-11-03 this branch
+# skipped the tick on the belief that "the index catches up on the next tick", but a crawl holds the
+# card for hours: seven ticks skipped from 11:00 to 17:00 that day, and the first session query after
+# them embedded 4,986 chunks inline and ran past its two-minute tool limit. Now the tick embeds on the
+# CPU (`DEX_EMBED_CPU=1` → `num_gpu: 0`) at the lowest priority. Measured: 32 chunks in 7 s with no
+# VRAM touched, so a typical hour of ~2,500 chunks takes ~9 min. Any OTHER tenant of the card (a
+# U-Net, owner 2026-11-03) is caught by doc-search itself, which reads the card's free VRAM and goes to
+# the CPU below `DEX_EMBED_MIN_FREE_MB`; the pipeline check stays because qwen3-coder can sit unloaded
+# between sweeps, so a free card at this instant says nothing about the next minute. The tick always
+# runs at the lowest priority under a timeout wide enough for a CPU hour.
 # Bracketed patterns so this script's own cmdline never self-matches (§4).
+NICE="nice -n 19"
+EMBED_TIMEOUT=2700
 if pgrep -f "[m]utate\.mjs|[m]utation-crawl|[m]utation-suite" >/dev/null 2>&1; then
-  echo "$(date -Is) busy — pipeline running, skipped" >>"$LOG"
-  exit 0
+  [ "$MODE" = full ] && echo "$(date -Is) busy — pipeline holds the card, embedding on the CPU" >>"$LOG"
+  export DEX_EMBED_CPU=1
 fi
 
 curl -sf --max-time 5 http://127.0.0.1:11434/api/tags >/dev/null 2>&1 || {
@@ -91,8 +101,8 @@ pull=--pull-ext
 # nothing for three weeks: the cache moved only when some session's query fell back to the semantic
 # lane, and the hourly reload re-loaded a stale cache. Measured 2026-10-31: the first `--semantic` tick
 # embedded 29,062 of 72,318 chunks (9 min 23 s). Only the semantic lane embeds.
-# shellcheck disable=SC2086 # $pull is one flag or empty, never a word list
-out=$(timeout 900 node tools/doc-search.mjs --semantic $pull "index freshness tick" 2>&1 | grep -E ' newly embedded|^  ⚠ (index cache|external root)' | head -4 | tr '\n' ' ')
+# shellcheck disable=SC2086 # $pull is one flag or empty, $NICE one command prefix or empty
+out=$(timeout "$EMBED_TIMEOUT" $NICE node tools/doc-search.mjs --semantic $pull "index freshness tick" 2>&1 | grep -E ' newly embedded|^  ⚠ (index cache|external root)' | head -4 | tr '\n' ' ')
 if [ "$MODE" = full ]; then
   echo "$(date -Is) [$ROOT @ $(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null)] ${out:-'(no embed line — check doc-search output)'}" >>"$LOG"
   exit 0
