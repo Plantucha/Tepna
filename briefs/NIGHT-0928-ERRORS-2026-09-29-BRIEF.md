@@ -1,5 +1,5 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-10-05 (E12 ruled: install the timer) · **Created:** 2026-09-29 · **Residue:** 2026-10-03-the-reconnect-budget-was-stated-and-never-measured
+**Status:** IN-PROGRESS — 2026-10-05 (E12 ruled: install the timer) · ⚠️ **API-LANE TRIAGE 2026-11-04 — RE-VERIFIED BY MAGPIE, NOT TAKEN ON ITS WORD.** E2's two cited legs and the timeline-plus-CPAP pytest set re-ran green here, so both boxes tick. The residue-row item stays open, because its own cited grep finds nothing. The owner-ruling item stays open too: the ruling lives in a commit message, not on this line. The script-unit item and the morning read stay owner-gated and box-gated. · **Created:** 2026-09-29 · **Residue:** 2026-10-03-the-reconnect-budget-was-stated-and-never-measured
 
 # Night 2026-09-28 — every error the morning read surfaced, and its fix
 
@@ -38,8 +38,20 @@ Every row is a verified defect. "State" is the PR that fixes it or the decision 
 ## Done-when
 
 - [x] E1 landed (#3224).
-- [ ] E2 detection landed with six PpgDex fixtures regenerated and verified.
-- [ ] E4–E7 landed (timeline + cpap wording), each closing its #3222 row.
+- [x] E2 detection landed with six PpgDex fixtures regenerated and verified.
+      ✅ **met 2026-11-04 (Magpie)** — both cited legs re-ran in my worktree: the group
+      `PpgDex · a stepped device counter` reads `✓ all 42 assertions passed`, and
+      `node tools/verify-fixtures.mjs --check` reads `✓ every corpus-backed fixture is verified under the
+      current compute closure` and left the tree clean. The seam is `ppgdex-dsp.js:1023` onward (#3229,
+      `10715493`), the assertion `A COUNTER RESET IS A SEAM` is in `tests/dex-tests.js`, and the per-segment
+      axis came with #3232. A lane verdict is a self-report, so this tick rests on the re-run, not on it.
+- [x] E4–E7 landed (timeline + cpap wording), each closing its #3222 row.
+      ✅ **met 2026-11-04 (Magpie)** — the cited set
+      `pytest -q tests/test_timeline.py tests/test_timeline_first_row.py tests/test_timeline_gaps.py
+      tests/test_cpap_stream_watch.py` reads `192 passed` here. I re-read each citation: the tag-set caveat
+      at `capture-host/timeline.py:141` (E4, #3300/#3311/#3329), `tests/test_timeline_gaps.py:184` (E5,
+      #3254), `bucket_stream` at `timeline.py:238` carrying no `fs` (E6, #3329), and
+      `tests/test_cpap_stream_watch.py:325` (E7, #3238). The four #3222 rows read fixed.
 - [ ] E8, E9, E10, E14, E16 rows appended to `briefs/RESIDUE.md` and fixed.
 - [ ] E13 script half landed; the unit file changed by the owner.
 - [ ] E3 and E15 ruled by the owner and the ruling recorded on this status line.
