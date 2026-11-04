@@ -74,7 +74,11 @@ flock -n 9 || exit 0
 # Bracketed patterns so this script's own cmdline never self-matches (§4).
 NICE="nice -n 19"
 EMBED_TIMEOUT=2700
-if pgrep -f "[m]utate\.mjs|[m]utation-crawl|[m]utation-suite" >/dev/null 2>&1; then
+# A `--selftest` of those tools is a gate step, not a sweep: it never loads qwen3-coder. Measured
+# 2026-11-04 14:27: one bird's `npm run check` ran `mutate.mjs --selftest` and `mutation-crawl.mjs
+# --selftest`, this branch forced the CPU, and Ollama kept that CPU runner for every later caller too.
+# A single-text embed then took 60 s against 3.8 s on the card, and each 5-minute board tick ran 5.5 min.
+if pgrep -af "[m]utate\.mjs|[m]utation-crawl|[m]utation-suite" 2>/dev/null | grep -qv -- '--selftest'; then
   [ "$MODE" = full ] && echo "$(date -Is) busy — pipeline holds the card, embedding on the CPU" >>"$LOG"
   export DEX_EMBED_CPU=1
 fi
