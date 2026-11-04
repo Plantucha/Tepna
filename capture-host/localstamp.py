@@ -125,8 +125,14 @@ class CivilFrame:
 
     def telemetry(self) -> dict[str, float]:
         """What the run reports about its own frame. `offset_s` names the frame the file is IN, which
-        a reader of the telemetry needs in order to convert the stamps back to instants."""
+        a reader of the telemetry needs in order to convert the stamps back to instants.
+
+        `anchor_epoch_s` rides along because the offset alone does not say WHICH instant chose it. A
+        reader comparing two runs of one night needs the anchor to tell a frame set before the seam
+        from one set after it. It also keeps the attribute OBSERVABLE: an attribute nothing reads is
+        dead weight, and the diff-scoped mutation gate reports it as a survivor rather than guessing."""
         return {
+            "anchor_epoch_s": self.anchor_epoch_s,
             "offset_s": self.offset.total_seconds(),
             "shifted_rows": float(self.shifted_rows),
         }

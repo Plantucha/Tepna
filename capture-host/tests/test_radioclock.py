@@ -2285,8 +2285,13 @@ def test_a_FALL_BACK_NIGHT_does_not_rewind_the_sidecar_mid_file(tmp_path):
         assert rc.phone_ts(seam_ns + 60_000_000_000) == "2026-11-01T01:01:00.000", (
             "the plant: without the frame the same instant renders an hour back"
         )
-        assert got["civil_frame"] == {"offset_s": -14400.0, "shifted_rows": 1.0}, (
-            "the telemetry names the frame the file is IN and the rows the live zone disagreed with"
+        assert got["civil_frame"] == {
+            "anchor_epoch_s": (seam_ns - 60_000_000_000) / 1e9,
+            "offset_s": -14400.0,
+            "shifted_rows": 1.0,
+        }, (
+            "the anchor is the FIRST row's instant, and the rest names the frame the file is IN "
+            "and the rows the live zone disagreed with"
         )
 
 

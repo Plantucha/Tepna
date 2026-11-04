@@ -478,9 +478,11 @@ def test_a_frame_counts_the_rows_the_live_zone_disagreed_with(new_york):
     frame.civil(seam + 30)
     frame.civil(seam + 60)
     assert frame.shifted_rows == 2
-    assert frame.telemetry() == {"offset_s": -14400.0, "shifted_rows": 2.0}, (
-        "offset_s names the frame the file is IN, which a reader needs to recover instants"
-    )
+    assert frame.telemetry() == {
+        "anchor_epoch_s": seam - 60,
+        "offset_s": -14400.0,
+        "shifted_rows": 2.0,
+    }, "offset_s names the frame the file is IN, which a reader needs to recover instants"
 
 
 def test_a_frame_in_a_zone_without_DST_is_exactly_the_plain_render(utc):
@@ -489,7 +491,7 @@ def test_a_frame_in_a_zone_without_DST_is_exactly_the_plain_render(utc):
     frame = L.CivilFrame(seam - 3600)
     for delta in (-3600.0, -1.0, 0.0, 1.0, 3600.0, 7200.0):
         assert frame.civil(seam + delta) == datetime.fromtimestamp(seam + delta)
-    assert frame.telemetry() == {"offset_s": 0.0, "shifted_rows": 0.0}
+    assert frame.telemetry() == {"anchor_epoch_s": seam - 3600, "offset_s": 0.0, "shifted_rows": 0.0}
 
 
 def test_a_frame_anchors_on_the_instant_it_is_GIVEN_not_on_now(new_york):
