@@ -29091,6 +29091,83 @@
       T.approx('…and the sample spacing equals 1/fs', at10.ok && at10.r.relSec[1] - at10.r.relSec[0], at10.ok && 1 / at10.r.fs, 1e-9);
     });
 
+    /* ABSENCE IS NOT A FORMAT ERROR — §∅ at PpgDex's parse floor (residue
+       `2026-11-04-an-empty-ppg-stream-is-refused-as-a-wrong-column-layout`). `parsePPG` threw ONE
+       message below 10 samples, and that message named the two expected column layouts. On the
+       archive's 2026-11-01 night 22 of 165 files hold zero bytes, four of them `_PPG.txt`, and each of
+       those four reported that its columns were wrong. The four inputs that reach the floor carry four
+       different claims about the device, so each is asserted against a control differing in exactly the
+       cause — one shared message passes any test that only checks THAT it refused. */
+    group('PpgDex parsePPG — the refusal names WHICH of four causes refused it', 'ppgdex-dsp · known-answer · mutation-pinned', function (T) {
+      var P = env.PPGDSP || env.PpgDex;
+      if (!P || typeof P.parsePPG !== 'function') {
+        T.skip('PpgDex.parsePPG available', 'PPGDSP not co-loaded in this runner');
+        return;
+      }
+      var HDR6 = 'Phone timestamp;sensor timestamp [ns];channel 0;channel 1;channel 2;ambient';
+      var rows = function (n, bad) {
+        var L = [HDR6],
+          start = Date.UTC(2026, 10, 1, 1, 14, 7),
+          fs = 135;
+        for (var i = 0; i < n; i++) {
+          var ms = start + Math.round((i * 1000) / fs);
+          var ns = String(i * Math.round(1e9 / fs));
+          var v = bad ? 'x' : String(200000 + i);
+          L.push(new Date(ms).toISOString().replace('Z', '') + ';' + ns + ';' + v + ';' + v + ';' + v + ';' + v);
+        }
+        return L.join('\n');
+      };
+      var why = function (txt) {
+        try {
+          P.parsePPG(txt);
+          return { ok: true };
+        } catch (e) {
+          return { ok: false, reason: e.reason, msg: e.message, bytes: e.bytes, seen: e.rowsSeen, shaped: e.rowsShaped, samples: e.samples };
+        }
+      };
+
+      /* THE CONTROL FIRST: the same generator at ten rows PARSES, so every refusal below is about its
+         own input rather than about this harness. */
+      var good = why(rows(10, false));
+      T.ok('CONTROL — ten well-formed rows parse, so the generator is not what refuses', good.ok, good.msg);
+
+      /* 1 · the zero-byte file the archive actually holds. */
+      var zero = why('');
+      T.eq('a zero-byte stream refuses as empty-stream, not as a layout error', zero.reason, 'empty-stream');
+      T.eq('…and it publishes the byte count that makes it an absence', zero.bytes, 0);
+      T.ok('…its text says ABSENCE and names no column layout', /ABSENCE/.test(zero.msg) && !/channel 1/.test(zero.msg), zero.msg);
+
+      /* 2 · header and comments only — the same absence, told apart by the byte count. */
+      var hdrOnly = why('# timebase=device-crystal\n' + HDR6 + '\n');
+      T.eq('a header-only stream is the same absence', hdrOnly.reason, 'empty-stream');
+      T.ok('…and its byte count separates it from the zero-byte case', hdrOnly.bytes > 0, String(hdrOnly.bytes));
+      T.eq('…with no row counted, because a header is not a row', hdrOnly.seen, 0);
+
+      /* 3 · rows that really do carry the wrong columns — the verdict this message was written for. */
+      var wrong = why('alpha;beta\n1;2\n3;4\n5;6\n');
+      T.eq('a two-column junk file keeps the LAYOUT verdict, which is true of it', wrong.reason, 'layout');
+      T.ok('…and it counted the rows it read, so no absence can be claimed over it', wrong.seen >= 3, 'rowsSeen ' + wrong.seen);
+      T.ok('…its text names the expected layouts, as only this cause should', /channel 0/.test(wrong.msg), wrong.msg);
+
+      /* 4 · the layout is right and the values are not. */
+      var junk = why(rows(12, true));
+      T.eq('twelve right-shaped rows of unreadable values is unreadable-columns', junk.reason, 'unreadable-columns');
+      T.ok('…and it says the columns ARE right', /columns are right/.test(junk.msg), junk.msg);
+      T.ok('…over rows it shaped, which is what separates it from cause 3', junk.shaped >= 12, 'rowsShaped ' + junk.shaped);
+
+      /* 5 · a real stream, too short to analyse. */
+      var short9 = why(rows(9, false));
+      T.eq('nine good samples is too-short, not a layout error', short9.reason, 'too-short');
+      T.eq('…and the count it refused on is published', short9.samples, 9);
+
+      /* VACUITY: four EQUAL reasons would satisfy every assertion above that only reads a string. */
+      var set = {};
+      [zero, hdrOnly, wrong, junk, short9].forEach(function (r) {
+        set[r.reason] = 1;
+      });
+      T.eq('the four causes are DISTINCT — one shared message is what this group refuses', Object.keys(set).length, 4);
+    });
+
     /* PpgDex's lombScargle is 129 lines producing every frequency-domain metric the node ships —
        and a full mutation sweep left 21 survivors in it. The suite calls it exactly ONCE, and the only
        numeric lombScargle test in this file is ECGDSP's; PpgDex's own is checked by SOURCE REGEX
