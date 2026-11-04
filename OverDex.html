@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="a76b0de5803b" data-compute-hash="1f44d18092b7"><head>
+<html lang="en" data-manifest-hash="8de84f4b887a" data-compute-hash="34b01e626593"><head>
 <!--
   OverDex.html — Tepna
   Copyright 2026 Michal Planicka
@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+iskltdbf7/UUg8Y6ZfcamkqkNKvnVyfhKrlKyBzwKE=' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-480RdBeZewCrcxw2IlPN/CrrdfcwPb+/JfQh96aaM6U=' 'sha256-4H9qbwJg0Px/ddF5s19lSEh0lobH/6PK1pgCZ+NZiHI=' 'sha256-6f85C28BTIAdWBrVBSCTqiDlgEUZZvCfBlJGXVI6LrA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-FRmXwVeLmk/oKNu5BL8gBiQVUsH88GJmm92tz4RR/9M=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-IOGPMbRcH864r7zf4ZB3jn1uFqtYSY8DqWp2YdgZWag=' 'sha256-LLgboXd2yVxQuxadbV6/XakvyuElnwPqqeK60I9qEBg=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-QuLHvHgODcQjuAGp7QrzR2K8XMRHpK7C3ar3ZKqNnUU=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-S9q+/UVeYTsQz8yqeVogyaGSYYxTYmKiieZ36k8VYkQ=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-XJV3E1G3sukFgbJQW5vuMv8oMeGex2wLInYe3q3i6Dk=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-XeM139aCzQDSzEaQuQBVa+zEhnOSgXP/4pqlC0h9wO4=' 'sha256-ZXcSUPmdNX+PI5tNnnDW/vQNEDiDXjF3XV977vxYNoU=' 'sha256-b/3cr3fEKA226qKxIKH9duRTbo6viskcVfqeOMzUwtA=' 'sha256-fOxAcG4FGOYjHtLk+7Sbd1mzABUQSzPGmybpbJk9b6c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-jHB+Vbnq13/OqiREytNt1VT0oXPXPmhrehzKnnu7PDA=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-rIcm4jQwZdAp6l3SdrzI0nizBN01Nhu8bJROOQanTRo=' 'sha256-wPiR0mHERwqCZR4gMZnRtTm1BC+vsdDwOsTq7ombnvc=' 'sha256-yMecZl9pAdUJLfK88JddMhc9qIV5QAXJTXhhA/QkdgM='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+iskltdbf7/UUg8Y6ZfcamkqkNKvnVyfhKrlKyBzwKE=' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-480RdBeZewCrcxw2IlPN/CrrdfcwPb+/JfQh96aaM6U=' 'sha256-4H9qbwJg0Px/ddF5s19lSEh0lobH/6PK1pgCZ+NZiHI=' 'sha256-6f85C28BTIAdWBrVBSCTqiDlgEUZZvCfBlJGXVI6LrA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-FRmXwVeLmk/oKNu5BL8gBiQVUsH88GJmm92tz4RR/9M=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-IOGPMbRcH864r7zf4ZB3jn1uFqtYSY8DqWp2YdgZWag=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-LLgboXd2yVxQuxadbV6/XakvyuElnwPqqeK60I9qEBg=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-QuLHvHgODcQjuAGp7QrzR2K8XMRHpK7C3ar3ZKqNnUU=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-XJV3E1G3sukFgbJQW5vuMv8oMeGex2wLInYe3q3i6Dk=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-XeM139aCzQDSzEaQuQBVa+zEhnOSgXP/4pqlC0h9wO4=' 'sha256-ZXcSUPmdNX+PI5tNnnDW/vQNEDiDXjF3XV977vxYNoU=' 'sha256-b/3cr3fEKA226qKxIKH9duRTbo6viskcVfqeOMzUwtA=' 'sha256-fOxAcG4FGOYjHtLk+7Sbd1mzABUQSzPGmybpbJk9b6c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-jHB+Vbnq13/OqiREytNt1VT0oXPXPmhrehzKnnu7PDA=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-rIcm4jQwZdAp6l3SdrzI0nizBN01Nhu8bJROOQanTRo=' 'sha256-wPiR0mHERwqCZR4gMZnRtTm1BC+vsdDwOsTq7ombnvc=' 'sha256-yMecZl9pAdUJLfK88JddMhc9qIV5QAXJTXhhA/QkdgM='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -2060,7 +2060,9 @@
   /* anchors: [{ devMs, hostMs }, …] — BOTH relative to the same first row, in device order.
      Returns { ok, correctionAt(devMs) → ms to ADD to the device axis, n, maxStepMs, rawMaxStepMs,
      totalMs, ppm }.
-     ok:false ⇒ caller keeps the raw device axis (honest: no correction beats a fabricated one). */
+     ok:false ⇒ caller keeps the raw device axis (honest: no correction beats a fabricated one).
+     A refusal on a device epoch change also carries { epochStepMs, epochAtDevMs, epochHostStepMs,
+     ppmExEpoch }, so the caller can re-anchor on the seam. */
   function hostAxis(anchors, opts) {
     opts = opts || {};
     var win = opts.window > 0 ? opts.window | 0 : CK_AXIS_WIN;
@@ -2111,7 +2113,8 @@
        So the smoothed step sizes the DRIFT and never the anchor, both published statistics are blind
        to a lone wild anchor BY CONSTRUCTION, and a consumer had nothing to read instead. */
     var rawMaxStep = 0,
-      rawStepAt = null;
+      rawStepAt = null,
+      rawStepIdx = null;
     for (var s = 1; s < n; s++) {
       var st = Math.abs(sm[s] - sm[s - 1]);
       if (st > maxStep) maxStep = st;
@@ -2119,6 +2122,7 @@
       if (rst > rawMaxStep) {
         rawMaxStep = rst;
         rawStepAt = pts[s].d;
+        rawStepIdx = s;
       }
     }
     var span = pts[n - 1].d - pts[0].d;
@@ -2209,9 +2213,74 @@
        ppm "correction" that doubled fs from 130 to 259.9. A device crystal is wrong by ppm; the worst
        REAL one in this corpus is the O2Ring at −3035 ppm, which this admits with 16× headroom. Beyond
        5 % the two columns are not the two clocks we think they are — a misparse, a unit mismatch, a
-       shifted column — and applying it would fabricate a timebase. §2.6's rule, one level up: when the
-       input cannot be trusted the answer is "no correction", not a confident wrong one. */
+       shifted column, or a device epoch change INSIDE one stream — and applying it would fabricate a
+       timebase. §2.6's rule, one level up: when the input cannot be trusted the answer is "no
+       correction", not a confident wrong one. */
     if (!(Math.abs(ppm) <= CK_AXIS_MAX_PPM)) {
+      /* WHICH OF THE FOUR CAUSES? The first three are properties of the COLUMNS and the fourth is a
+         property of the RECORDING, and until now this branch named the columns for all four. Measured
+         2026-11-04 on one archived ECG stream: its first 45260 rows carry a device counter 7.84 years
+         below the rest of the same file, the counter never steps BACKWARD so every monotonic check
+         passes, and this refusal read -999914 ppm and reported that the columns are probably not host
+         and device. They are exactly host and device. §7 already names the shape — "a resync is a
+         change of clock" — so the diagnosis existed and the refusal could not reach it.
+
+         THE DISCRIMINATOR IS CONCENTRATION, and it needs no new threshold. A rate error is UNIFORM:
+         it spreads divergence across every interval, so dropping any one interval leaves the rest of
+         it behind. An epoch change is ONE interval. So drop the single worst adjacent step from the
+         raw divergence and re-measure against this function's OWN bound — a misparse or a unit
+         mismatch is still implausible without that step, and a seam is not. `CK_AXIS_MAX_PPM` is
+         therefore the criterion on both sides of the test, pre-stated (§🧾) rather than fitted here.
+         Worked: a ns column read as ms diverges 1e6 ppm across EVERY interval, so dropping one of
+         (n-1) of them still reads 1e6 * (1 - 1/(n-1)) ppm, over the bound for every n this function
+         admits. The seam case drops to the night's real drift.
+
+         The second condition states the MECHANISM, also without a tuned number: through a real
+         interval both clocks advance together, so a dropout keeps the device step near the host step.
+         An epoch change is a device advance the host does not corroborate, and the unaccounted part
+         exceeds the host's own elapsed time over that interval. No crystal inside ±5 % can do that.
+
+         ⚠ STILL A REFUSAL. The rate is unusable either way and `ok` stays false, exactly as §7
+         requires: the bound "guards the RATE, not the AXIS". What changes is that the caller now
+         learns WHERE the seam sits (`epochAtDevMs`) and how large it is, which is what a node needs
+         to re-anchor — §7 puts step detection and re-anchoring on the axis, not in here.
+         ⚠ TWO seams defeat it: dropping one leaves the other, the residual stays implausible, and
+         this falls back to the column reason. That is today's answer, so the branch is no worse
+         there, and a multi-seam split belongs with the node that owns the re-anchoring. */
+      var epPpm = null,
+        epStep = null,
+        epHostStep = null;
+      if (rawStepIdx != null) {
+        var epPrev = pts[rawStepIdx - 1],
+          epHere = pts[rawStepIdx];
+        epHostStep = epHere.d + epHere.r - (epPrev.d + epPrev.r);
+        epStep = epHere.d - epPrev.d - epHostStep;
+        epPpm = ((pts[n - 1].r - r0 - (epHere.r - epPrev.r)) / span) * 1e6;
+      }
+      if (epPpm != null && Math.abs(epStep) > Math.abs(epHostStep) && Math.abs(epPpm) <= CK_AXIS_MAX_PPM) {
+        return {
+          ok: false,
+          reason:
+            'device epoch change of ' +
+            Math.round(epStep) +
+            ' ms at device stamp ' +
+            pts[rawStepIdx].d +
+            ', where the host advanced ' +
+            Math.round(epHostStep) +
+            ' ms — without that one step the rate reads ' +
+            Math.round(epPpm) +
+            ' ppm, inside ±' +
+            CK_AXIS_MAX_PPM +
+            ', so the columns ARE host+device and the axis carries a resync',
+          n: n,
+          ppm: ppm,
+          spanMs: span,
+          epochStepMs: epStep,
+          epochAtDevMs: pts[rawStepIdx].d,
+          epochHostStepMs: epHostStep,
+          ppmExEpoch: epPpm
+        };
+      }
       return { ok: false, reason: 'implausible host/device rate ' + Math.round(ppm) + ' ppm (bound ±' + CK_AXIS_MAX_PPM + ') — columns are probably not host+device', n: n, ppm: ppm };
     }
     return {
