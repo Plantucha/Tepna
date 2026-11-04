@@ -216,5 +216,15 @@ def main(argv: list[str]) -> int:
     return 0
 
 
+# WHY NOTHING IMPORTS THIS MODULE, and what retires the question. Moved here 2026-11-04 from
+# find_unwired's ALLOW_MODULES, where the entry excused nothing: the `__main__` below exempts this
+# file from that scan (residue 2026-11-04-the-unwired-allowlist-waits-on-a-writer-that-already-ships).
+# HALF LIVE, HALF PENDING, both named. LIVE: main() is a hand-invoked reporter — `ble_visibility.py
+# <records.jsonl> <MAC>` answers "which radio can see this device, out of how many scans" in one
+# command, which is the entire reason this file exists. PENDING: nothing WRITES the log yet. The
+# periodic per-adapter scan belongs in the daemon, and that touches production capture, which is an
+# owner call rather than a drafting one. RETIRE the question when that scan lands and imports
+# make_record/append_record; if the daemon never collects, DELETE this module, because a reader with
+# nothing to read is dead code.
 if __name__ == "__main__":  # pragma: no cover
     sys.exit(main(sys.argv[1:]))

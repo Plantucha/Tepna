@@ -1012,6 +1012,44 @@ def test_the_where_list_excludes_the_defining_file_and_is_empty_for_other_lists(
     assert stale[("ALLOW_KEYS", "wired_key")]["where"] == []
 
 
+def test_a_spent_ALLOW_MODULES_entry_is_JUDGED_like_every_other_list(tmp_path, monkeypatch, capsys):
+    """🔴 THE DEFECT IN THIS TOOL'S OWN STALENESS SCAN, residue 2026-11-04-the-unwired-allowlist-waits-
+    on-a-writer-that-already-ships. Scan 5's table named five allowlists and left ALLOW_MODULES out, so
+    an entry here could stop excusing anything and the gate stayed green AND silent — the one list whose
+    entries are modules, which live longest.
+
+    Measured on the real tree the day the row was logged: `unseal` and `ble_visibility` had each grown
+    `if __name__ == "__main__"`, which exempts a module from scan 6 altogether, so neither entry could
+    ever match again. Both are deleted now; the population here is the TREE, not scan 6's candidate set,
+    precisely so an entry-point module's entry still gets judged.
+
+    The fixture: `other.py` imports `m`, so scan 6 does not report `m` while an entry names it. The
+    `other` entry is the control — a module nothing imports, reported, so its entry still excuses
+    something and must NOT read as spent."""
+    root = _tree(
+        tmp_path,
+        {
+            "m.py": "def helper():\n    return 1\n",
+            "other.py": "import m\n\n\ndef caller():\n    return m.helper()\n",
+        },
+    )
+    monkeypatch.setattr(find_unwired, "HERE", root)
+    monkeypatch.setattr(
+        find_unwired,
+        "ALLOW_MODULES",
+        {"m": "spent — other.py imports m", "other": "genuine — nothing imports other"},
+    )
+    monkeypatch.setattr(find_unwired, "ALLOW_FUNCS", {"caller": "genuine — nothing calls caller"})
+    res = find_unwired.scan(root)
+    spent = {(r["list"], r["name"]) for r in res["stale_allowlist"]}
+    assert ("ALLOW_MODULES", "m") in spent, res["stale_allowlist"]
+    assert ("ALLOW_MODULES", "other") not in spent, "the control entry read as spent — the gate flags everything"
+    # the module scan itself stays clean, so the red below can only be the spent entry
+    assert [r for r in res["orphan_modules"] if not r["allowed"]] == []
+    assert find_unwired.main(["--check"]) == 1
+    assert "DELETE them" in capsys.readouterr().out
+
+
 # ── the interpreter floor (residue 2026-09-25-find-unwired-verdict-depends-on-the-interpreter-version)
 def test_the_floor_is_PEP_701_and_the_helper_is_pure():
     """3.11 tokenizes an f-string as ONE STRING token, so `_code_only` strips a call made inside one and
