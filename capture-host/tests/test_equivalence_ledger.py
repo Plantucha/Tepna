@@ -189,6 +189,16 @@ LEDGER = os.path.join(str(HERE), "tools", "mutate-equivalence.json")
 # active-and-blocks-every-offload). The diff-scoped gate judged the two new functions and reported 8
 # survivors; 7 were real gaps and each is killed by a named test. The one entry is the MAXIMUM fold in
 # `_newest_any_mtime`, where `>=` differs from `>` only on a tie and a tie assigns the value already held.
+# nightqc.py went 52 -> 50 on 2026-11-03: the interior report in this PR gives `excluded` a READER,
+# and the gate REFUTED both entries excusing `id(s)` -> `id(None)` in the join block (`_joined_ids`
+# and the `excluded` filter). One premise carried both: the mutant leaks every joined session back
+# into `excluded`, and no other line reads that list. The new interior lines read it, so each mutant
+# dies. A refuted claim leaves the ledger, and nothing softens it (the shape of the
+# solid_night_inputs.py drop above).
+# nightqc.py goes 50 -> 51 on 2026-11-04 (#4335, same PR as the drop above): the interior report's own
+# line carries one EQUIVALENT mutant, `_hhmm(_s[0])` -> `_hhmm(_s[1])`, on a session the geometry forces
+# to be a POINT, so both indices name one minute. The suite is not blind to the expression -- it asserts
+# the exact `21:00`, and a `+ 3600` canary on that line FAILS where the mutant passes.
 RATCHET = {
     "acq_evidence_cpap.py": 1,
     "acq_evidence_o2ring.py": 1,
@@ -223,7 +233,7 @@ RATCHET = {
     "mutation_triage.py": 2,
     "night_report.py": 8,
     "nightarchive.py": 1,
-    "nightqc.py": 52,
+    "nightqc.py": 51,
     "nights_index.py": 6,
     "oxy_inventory.py": 4,
     "oxy_transfer.py": 1,
