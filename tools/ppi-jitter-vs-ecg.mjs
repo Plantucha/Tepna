@@ -48,6 +48,7 @@
  * USAGE
  *   node tools/ppi-jitter-vs-ecg.mjs --dir <captures> [--min-epochs 3] [--max-nights 20]
  *   node tools/ppi-jitter-vs-ecg.mjs --selftest
+ *   node tools/ppi-jitter-vs-ecg.mjs --dir <captures> --sqi   # §3.4's within-night SQI AUC + its verdict
  *   node tools/ppi-jitter-vs-ecg.mjs --verdict-sample   # the population verdict the adoption gate reads
  * ════════════════════════════════════════════════════════════════════════════════════════════════ */
 import vm from 'node:vm';
@@ -115,6 +116,9 @@ const DAY_MS = 86400000;
 const MERGE = !has('--no-merge');
 /* §4'S FIDUCIAL COUNTERFACTUAL, off by default: an unflagged run keeps today's behaviour. */
 const FIDUCIAL = has('--fiducial');
+/* §3.4'S PER-EPOCH SQI ARM. Its figures print on every run that scores epochs; `--sqi` additionally
+   emits the arm's verdict and makes the exit code the arm's, which is how `--fiducial` behaves. */
+const SQI_ARM = has('--sqi');
 const nightKeyOf = (tMs) => new Date(tMs - 12 * 3600 * 1000).toISOString().slice(0, 10);
 
 /* NOCTURNAL MILLISECONDS of one span, on the floating wall clock (CLAUDE.md §5: every hour here comes
@@ -219,6 +223,73 @@ export { hrEnvelope, envelopeLagMs, refineLagByMatch, matchBeats, refinePeaks, p
 const CAT_BIAS_PCT = 25;
 const JIT_BAND_MS = 15;
 const MIN_KFIT_EPOCHS = 5;
+/* ── §3.4'S CONSTANTS, every one of them the NODE'S OWN or derived from the TEST, never from this data.
+   SQI_CLEAN_CUT is the cut `ppgdex-dsp.js` itself applies when it publishes `cleanBeatPct` (:5793) and
+   when it accepts an interval's endpoints (:5532). SQI_MIN_NIGHTS is a property of the signed-rank
+   test and not a taste: under the exact two-sided null the smallest attainable p is 2/2ⁿ, so it is
+   0.125 at n = 4, 0.0625 at n = 5 and 0.03125 at n = 6 — SIX is therefore the smallest night count at
+   which this test can reject at 0.05 at all, and a run below it would publish a p that could not have
+   been small whatever the data did.
+
+   ⚠️ IT READ 5, and the 5-night proof run is what showed the floor was off by one: it printed
+   `p = 0.0625 [exact, n = 5, W+ = 15]` with every night above chance — the most extreme result five
+   nights can produce — so the floor admitted a run whose best possible p misses 0.05. The old comment
+   was true about n = 4 and silent about the n it actually set. The leg below now DERIVES the floor
+   from `wilcoxonSignedRank` rather than restating this paragraph, so the number and its reason cannot
+   drift apart again.
+
+   SQI_PUBLISHED_AUC and SQI_REPRO_BAND state the criterion AHEAD of the run — the published figure is
+   a prior claim, so a band around it is pre-stated rather than fitted. */
+const SQI_MIN_BEATS = 5;
+const SQI_CLEAN_CUT = 0.5;
+const SQI_MIN_NIGHTS = 6;
+/* 🔴 THE PUBLISHED FIGURE IS DEVICE-KEYED, and this arm first reproduced the very defect the jitter
+   arm had already been taught — see the DEVICE-KEYED reference note at the jitter summary below.
+   §3.4's 0.763 is a VERITY ARMBAND figure, measured on the Verity + H10 corpus. `--device` defaults
+   to o2ring, so the first 30-night run of this arm (2026-11-04) compared an O2Ring FINGER median of
+   0.862 against it and printed FAIL at a deviation of 0.099 — a real measurement held against a
+   reference that does not describe it. No published §3.4 AUC exists for the finger, so for any device
+   but the Verity the reproduction criterion DOES NOT BIND: the arm reports its measurement and the
+   verdict reads NOT_APPLICABLE, which is what the contract's "examined, and the rule does not bind"
+   is for. A label must travel with the number it labels. */
+const SQI_PUBLISHED_BY_DEVICE = {
+  verity: { auc: 0.763, iqr: '0.645–0.791', aboveChance: '9 of 10', p: 0.014, paper: 'papers/ppg-ecg-hrv-validation.html' }
+};
+export function sqiPublishedFor(device) {
+  const p = SQI_PUBLISHED_BY_DEVICE[String(device).toLowerCase()];
+  return p || null;
+}
+const SQI_PUBLISHED = sqiPublishedFor(DEVICE);
+const SQI_PUBLISHED_AUC = SQI_PUBLISHED ? SQI_PUBLISHED.auc : null;
+const SQI_REPRO_BAND = 0.05;
+/* The STATUS decision, pure and separate from the emitter, because the emitter exits the process and
+   cannot be called from a selftest. NOT_RUN outranks everything (nothing was examined); then an absent
+   published figure, which is a statement about the REFERENCE and not about power; then the test's own
+   floor; and only then the reproduction band. */
+export function sqiVerdictStatus(nNights, publishedAuc, deviation, minNights, band) {
+  if (!nNights) return 'NOT_RUN';
+  if (publishedAuc == null) return 'NOT_APPLICABLE';
+  if (nNights < minNights) return 'UNDERPOWERED';
+  return deviation <= band ? 'PASS' : 'FAIL';
+}
+/* WHICH STATUSES MAY CARRY A RESULT — the contract's rule, not this tool's taste. `verdict.js`'s
+   `validate()` (the resultless branch, beside the UNDERPOWERED one) refuses a `result` beside
+   NOT_RUN and beside NOT_APPLICABLE: nothing was examined in the first case, and in the second the
+   criterion does not bind so no result EXISTS under it. The rule is inline in that function and not
+   exported, so it is restated here as one predicate rather than spelled out at the two sites that
+   need it — and the selftest legs below pin it, because BOTH halves were found by running the arm
+   and reading a non-zero exit, never by reading the contract first.
+
+   The measurement does not vanish with the result field: a resultless status names its figures in
+   the `reason`, in numerals, so a machine reader still sees what was measured and sees that it is
+   not being claimed against a threshold. */
+export function sqiStatusCarriesResult(status) {
+  return status !== 'NOT_RUN' && status !== 'NOT_APPLICABLE';
+}
+/* The exact null enumerates subset sums of the signed ranks, so its count is an integer up to 2ⁿ and
+   stays exact in a double to n = 53. Above that the arm refuses rather than switching to a normal
+   approximation nobody asked for — this corpus has 30 nights. */
+const SQI_EXACT_MAX_N = 53;
 
 /* §4's clean-adjacency mask in the KEPT frame, rebuilt from the index map PpgDex publishes.
    `adj[j]` is true when the pair (j−1, j) was adjacent in the ORIGINAL train: a pair spanning a
@@ -415,6 +486,159 @@ export function catastrophicSplit(eps, biasPct, bandMs) {
   };
 }
 
+/* ══════ THE PER-EPOCH SQI ARM (§3.4), AS SOURCE ══════
+ * §3.4 reports that the shipped per-beat SQI discriminates catastrophic epochs within a night at a
+ * median AUC of 0.763 (IQR 0.645–0.791, above chance on 9 of 10 evaluable nights, Wilcoxon p = 0.014).
+ * All four figures are Draft v2 measurements carried with no producer — the last open half of row
+ * `2026-10-28-three-paper-panels-are-carried-from-draft-v2-with-no-producer`.
+ *
+ * NOTHING IS REIMPLEMENTED (§3.5's rule, applied to a quality channel). The score is the node's OWN
+ * per-beat `sqi`, read off `PPGDSP.analyze`'s published array against its published `beatTimes`:
+ * `ppgdex-dsp.js:5433` builds `sqi` on `det.peaks` and `:6143` publishes those same peaks' times,
+ * so the two share an index by construction. The two epoch aggregates are the node's own as well —
+ * the mean (`:5792`) and the ≥ 0.5 clean-beat share (`:5793`). A third aggregate invented here would
+ * measure this tool's taste rather than the shipped gate.
+ *
+ * THE LABEL IS THE ONE §3.3 PUBLISHES — |ΔrMSSD| > 25 % against the paired ECG epoch, computed by the
+ * per-epoch arm above and read, not recomputed. A second epoch grid is exactly how the companion
+ * paper's catastrophic population (158 of 1,488) came to disagree with this one (283 of 1,961).
+ *
+ * WITHIN NIGHTS, NEVER POOLED. The companion paper's whole subject is that pooling inverts the
+ * ranking, because each night's SQI sits on its own scale. So the AUC is computed per night and the
+ * nights are summarised, and no pooled AUC is printed at all — a figure that is not printed cannot be
+ * quoted.
+ */
+
+/* THE EPOCH'S SQI, from the covering session's own beat grid. ∅ — a beat the node did not score is
+   skipped, never counted as zero quality, and an epoch under the beat floor is NAMED rather than
+   silently scored: a mean over two beats is not this epoch's quality. */
+export function epochSqi(s, t0, t1) {
+  if (!s || !s.sqi || !s.beatMs || !s.sqi.length || !s.beatMs.length) return { ok: false, reason: 'no-sqi-channel' };
+  let sum = 0,
+    n = 0,
+    clean = 0;
+  const lim = Math.min(s.beatMs.length, s.sqi.length);
+  for (let i = 0; i < lim; i++) {
+    const t = s.beatMs[i];
+    if (!(t >= t0 && t < t1)) continue;
+    const q = s.sqi[i];
+    if (!Number.isFinite(q)) continue;
+    sum += q;
+    n++;
+    if (q >= SQI_CLEAN_CUT) clean++;
+  }
+  if (n < SQI_MIN_BEATS) return { ok: false, reason: n === 0 ? 'no-scored-beat' : 'thin-sqi-epoch' };
+  return { ok: true, mean: sum / n, cleanShare: clean / n, n };
+}
+
+/* THE AUC AS A RANK STATISTIC with MID-RANKS, so a tied pair counts half — which is what an AUC means
+   and what a threshold sweep over a tied score would also give. ∅ — an AUC over one class is not
+   chance, it is undefined, so this returns null rather than 0.5. */
+export function aucMidRank(pos, neg) {
+  const P2 = (pos || []).filter(Number.isFinite),
+    N2 = (neg || []).filter(Number.isFinite);
+  if (!P2.length || !N2.length) return null;
+  const all = P2.map((v) => ({ v, p: 1 })).concat(N2.map((v) => ({ v, p: 0 })));
+  all.sort((a, b) => a.v - b.v);
+  let i = 0,
+    rsum = 0;
+  while (i < all.length) {
+    let j = i;
+    while (j + 1 < all.length && all[j + 1].v === all[i].v) j++;
+    const mid = (i + j + 2) / 2;
+    for (let k = i; k <= j; k++) if (all[k].p) rsum += mid;
+    i = j + 1;
+  }
+  return (rsum - (P2.length * (P2.length + 1)) / 2) / (P2.length * N2.length);
+}
+
+/* THE SIGNED-RANK TEST, COMPUTED. The paper's own limitations section says a p-value without a
+   producer is what this re-cut exists to remove, so this arm computes the test instead of carrying
+   Draft v2's 0.014. Zeros are dropped — the test's own convention — and the drop is reported, because
+   it changes n. Ties take mid-ranks and the null enumerates sign flips of THOSE ranks: the conditional
+   exact test, by subset-sum over doubled ranks, not a table lookup and not a normal approximation. */
+/* AN EXACT p CANNOT BE ZERO, and a fixed-point print manufactures one. The smallest value the exact
+   two-sided null can take is 2/2ⁿ, so at n = 26 it is 2.98e-8 — and `toFixed(4)` printed that as
+   `0.0000` while `toFixed(6)` stored it in the verdict as `0`. A reader cannot tell that zero from a
+   measured zero, and no p is ever measured at zero: this is §∅ pointed at a derived statistic rather
+   than at a sample. Measured 2026-11-04 on the 26-night Verity run, W+ = 351 = n(n+1)/2, every night
+   above chance.
+
+   So ONE formatter, used by the printed line and by the verdict field alike: three significant
+   figures, in exponential form below the fixed-point floor. The leg below derives the smallest
+   attainable p from this file's own test rather than quoting the arithmetic. */
+export function fmtExactP(p) {
+  if (p == null || !Number.isFinite(p)) return null;
+  if (p === 0) return '0';
+  return p < 1e-4 ? p.toExponential(2) : String(+p.toPrecision(3));
+}
+export function wilcoxonSignedRank(diffs, nullValue = 0) {
+  const d = (diffs || []).filter(Number.isFinite).map((x) => x - nullValue);
+  const nz = d.filter((x) => x !== 0);
+  const nDropped = d.length - nz.length;
+  if (!nz.length) return null;
+  const abs = nz.map((x) => ({ a: Math.abs(x), s: x > 0 ? 1 : -1 }));
+  abs.sort((x, y) => x.a - y.a);
+  const rank = new Array(abs.length);
+  let i = 0;
+  while (i < abs.length) {
+    let j = i;
+    while (j + 1 < abs.length && abs[j + 1].a === abs[i].a) j++;
+    const mid = (i + j + 2) / 2;
+    for (let k = i; k <= j; k++) rank[k] = mid;
+    i = j + 1;
+  }
+  const n = abs.length;
+  const total = rank.reduce((a, r) => a + r, 0);
+  const wPlus = abs.reduce((a, x, k) => a + (x.s > 0 ? rank[k] : 0), 0);
+  const stat = Math.min(wPlus, total - wPlus);
+  const positives = abs.filter((x) => x.s > 0).length;
+  if (n > SQI_EXACT_MAX_N) return { n, nDropped, wPlus, stat, positives, p: null, exact: false, reason: 'n-over-exact-limit' };
+  const r2 = rank.map((r) => Math.round(r * 2));
+  const T2 = r2.reduce((a, b) => a + b, 0);
+  const dp = new Float64Array(T2 + 1);
+  dp[0] = 1;
+  for (const r of r2) for (let v = T2; v >= r; v--) if (dp[v - r]) dp[v] += dp[v - r];
+  const s2 = Math.round(stat * 2);
+  let hit = 0;
+  for (let v = 0; v <= T2; v++) if (dp[v] && Math.min(v, T2 - v) <= s2) hit += dp[v];
+  return { n, nDropped, wPlus, stat, positives, p: Math.min(1, hit / 2 ** n), exact: true };
+}
+
+/* ONE AUC PER NIGHT. A night with one class only is EXCLUDED under its own reason and counted, never
+   scored as 0.5: an undiscriminable night and a night with nothing to discriminate are different
+   facts, and averaging the second into the first is how a null result acquires a median. */
+export function nightAucs(rows, biasPct, pick) {
+  const byNight = new Map();
+  for (const r of rows || []) {
+    if (!r || !Number.isFinite(r.rmBiasPct)) continue;
+    if (!byNight.has(r.night)) byNight.set(r.night, []);
+    byNight.get(r.night).push(r);
+  }
+  const nights = [],
+    excluded = [];
+  for (const [night, rs] of byNight) {
+    const scored = rs.filter((r) => Number.isFinite(pick(r)));
+    if (!scored.length) {
+      excluded.push({ night, reason: 'no-sqi-scored-epoch' });
+      continue;
+    }
+    const pos = scored.filter((r) => Math.abs(r.rmBiasPct) > biasPct).map(pick);
+    const neg = scored.filter((r) => Math.abs(r.rmBiasPct) <= biasPct).map(pick);
+    if (!pos.length) {
+      excluded.push({ night, reason: 'no-catastrophic-epoch' });
+      continue;
+    }
+    if (!neg.length) {
+      excluded.push({ night, reason: 'every-epoch-catastrophic' });
+      continue;
+    }
+    nights.push({ night, n: scored.length, nCat: pos.length, auc: aucMidRank(pos, neg) });
+  }
+  nights.sort((a, b) => (a.night < b.night ? -1 : a.night > b.night ? 1 : 0));
+  return { nights, excluded };
+}
+
 /* ════════════════════════════════════════ SELFTEST ════════════════════════════════════════ */
 /* ══════ THE FIDUCIAL SUBSTITUTION, AS SOURCE ══════
  * §4 of the paper reports that substituting the middle-amplitude fiducial the tilt-table literature
@@ -464,7 +688,7 @@ export function applyFootPatch(src, patch = FOOT_PATCH) {
    the flag is IN the tool and unreachable by anyone who did not read the source. */
 const USAGE =
   'usage: node tools/ppi-jitter-vs-ecg.mjs --dir <captures> [--device o2ring|verity] ' +
-  '[--min-epochs N] [--max-nights N] [--sleep-only] [--no-merge] [--epoch-dump <path outside the repo>] [--fiducial]  |  --selftest  |  --verdict-sample';
+  '[--min-epochs N] [--max-nights N] [--sleep-only] [--no-merge] [--epoch-dump <path outside the repo>] [--fiducial] [--sqi]  |  --selftest  |  --verdict-sample';
 
 function selftest() {
   let fail = 0;
@@ -836,6 +1060,151 @@ function selftest() {
     ok('a beat with no 50 % crossing publishes a NON-FINITE foot, never the tangent', !Number.isFinite(foot([0, 5, 0], 0, 2, 0, 0, 0, 5)));
   }
 
+  /* ══════ §3.4'S SQI ARM ══════ */
+  {
+    /* THE EPOCH SCORE. The grid is a beat every 1000 ms from t=0, so each leg states exactly which
+       beats the window should take and the assertion fails if the half-open window drifts by one. */
+    const ses = { sqi: [1, 1, 0.9, 0.8, 0.2, 0.1, 0.4, 0.9], beatMs: [0, 1000, 2000, 3000, 4000, 5000, 6000, 7000] };
+    const w = epochSqi(ses, 2000, 7000);
+    ok('the epoch score takes the beats inside [t0, t1) and no others', w.ok && w.n === 5, w.ok ? w.n : w.reason);
+    ok('…and it is the MEAN the node itself publishes, not a median', w.ok && Math.abs(w.mean - 0.48) < 1e-12, w.ok && w.mean);
+    ok("…beside the node's own ≥ 0.5 clean-beat share", w.ok && Math.abs(w.cleanShare - 0.4) < 1e-12, w.ok && w.cleanShare);
+    /* ∅ — a beat the node did not score must not read as a zero-quality beat: that would pull the
+       epoch mean toward a failure the node never reported. */
+    const holed = epochSqi({ sqi: [1, null, 1, undefined, 1, Number.NaN, 1, 1, 1, 1], beatMs: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9] }, 0, 10);
+    ok('an UNSCORED beat is skipped, never counted as zero quality', holed.ok && holed.mean === 1 && holed.n === 7, holed.ok && holed.mean + '/' + holed.n);
+    ok('an epoch under the beat floor is NAMED, not scored', epochSqi(ses, 0, 2000).reason === 'thin-sqi-epoch', JSON.stringify(epochSqi(ses, 0, 2000)));
+    ok('an epoch with no beat at all is named separately', epochSqi(ses, 100000, 200000).reason === 'no-scored-beat');
+    ok('a session the node published no SQI for is named, not treated as clean', epochSqi({ sqi: null, beatMs: [0] }, 0, 1).reason === 'no-sqi-channel');
+
+    /* THE RANK STATISTIC. Perfect separation, the reverse, a full tie and an absent class. */
+    ok('a perfectly separating score reads AUC 1', aucMidRank([3, 4, 5], [0, 1, 2]) === 1);
+    ok('…the reverse reads 0, so the orientation is never assumed', aucMidRank([0, 1, 2], [3, 4, 5]) === 0);
+    ok('a score tied across both classes reads exactly 0.5 — mid-ranks, not a coin flip', aucMidRank([1, 1], [1, 1]) === 0.5);
+    ok('one tie at the boundary counts half', Math.abs(aucMidRank([2, 3], [1, 2]) - 0.875) < 1e-12, String(aucMidRank([2, 3], [1, 2])));
+    /* ∅ — an AUC over one class is UNDEFINED, and 0.5 would read as a measured null. */
+    ok('an absent class has NO AUC, never 0.5', aucMidRank([1, 2], []) === null && aucMidRank([], [1]) === null);
+
+    /* THE EXACT TEST, against values derivable by hand: with n untied positives the only sign patterns
+       at or beyond the observed extreme are the two all-same ones, so p = 2/2ⁿ. */
+    const w5 = wilcoxonSignedRank([1, 2, 3, 4, 5]);
+    ok('five positive differences give the exact two-sided p = 2/2⁵', w5.exact && Math.abs(w5.p - 0.0625) < 1e-12, w5.p);
+    const w6 = wilcoxonSignedRank([1, 2, 3, 4, 5, 6]);
+    ok('…and six give 2/2⁶, so the enumeration is the test and not a table', Math.abs(w6.p - 0.03125) < 1e-12, w6.p);
+    ok('a symmetric pair reads p = 1 under mid-ranks', Math.abs(wilcoxonSignedRank([1, -1]).p - 1) < 1e-12, wilcoxonSignedRank([1, -1]).p);
+    ok('the null value is subtracted before ranking, so an AUC test is about 0.5', Math.abs(wilcoxonSignedRank([0.6, 0.7, 0.8, 0.9, 1.0], 0.5).p - 0.0625) < 1e-12);
+    /* A night exactly at the null carries no sign; dropping it changes n, so the drop is reported. */
+    const wz = wilcoxonSignedRank([0.5, 0.6, 0.7, 0.8, 0.9, 1.0], 0.5);
+    ok('a difference of exactly zero is dropped AND the drop is reported', wz.n === 5 && wz.nDropped === 1, wz.n + '/' + wz.nDropped);
+    ok('a set of nothing but zeros has NO test', wilcoxonSignedRank([0.5, 0.5], 0.5) === null);
+
+    /* THE NIGHT SPLIT. A night with one class only is excluded under its own reason — the §∅ line
+       between an undiscriminable night and a night with nothing to discriminate. */
+    const mk = (night, bias, sqi) => ({ night, rmBiasPct: bias, sqiMean: sqi, sqiClean: sqi });
+    const pick = (e) => (Number.isFinite(e.sqiMean) ? -e.sqiMean : Number.NaN);
+    const na = nightAucs([mk('n1', 50, 0.2), mk('n1', 5, 0.9), mk('n2', 5, 0.9), mk('n2', 5, 0.8), mk('n3', 50, 0.9), mk('n3', 5, 0.2)], CAT_BIAS_PCT, pick);
+    ok('a night with no catastrophic epoch is EXCLUDED by name, never scored as chance', na.excluded.length === 1 && na.excluded[0].reason === 'no-catastrophic-epoch', JSON.stringify(na.excluded));
+    ok(
+      '…and the two scored nights point in OPPOSITE directions, so no average is implied',
+      na.nights.length === 2 && na.nights[0].auc === 1 && na.nights[1].auc === 0,
+      JSON.stringify(na.nights.map((x) => x.auc))
+    );
+    ok('a low SQI on the catastrophic epoch is the AUC-above-0.5 direction', na.nights[0].night === 'n1' && na.nights[0].auc === 1);
+    const unscored = nightAucs([mk('n4', 50, null), mk('n4', 5, null)], CAT_BIAS_PCT, pick);
+    ok('a night whose epochs carry no SQI score is excluded before the class test', unscored.excluded[0].reason === 'no-sqi-scored-epoch');
+    /* The report is pure in its rows, so the published figures come from this same function. */
+    const R = sqiReport([mk('n1', 50, 0.2), mk('n1', 5, 0.9), mk('n2', 50, 0.1), mk('n2', 5, 0.8)]);
+    ok('the arm reports one AUC per night and counts the nights above chance', R.A.length === 2 && R.above === 2, JSON.stringify(R.A));
+    ok('…and it counts the epochs it scored against the epochs it was offered', R.scoredEpochs === 4 && R.epochs === 4, R.scoredEpochs + '/' + R.epochs);
+    /* ⚠️ THE PUBLISHED FIGURE IS A VERITY FIGURE. These legs exist because the first corpus run of this
+       arm held an O2Ring median against it and called the miss a FAIL. */
+    ok('the published §3.4 AUC is keyed to the Verity, the device it was measured on', sqiPublishedFor('verity').auc === 0.763);
+    ok('…and no published AUC is claimed for the O2Ring finger', sqiPublishedFor('o2ring') === null);
+    ok('…nor for an unknown device name', sqiPublishedFor('nosuchdevice') === null);
+    ok(
+      'a device with no published figure reads NOT_APPLICABLE, never FAIL — the rule does not bind',
+      sqiVerdictStatus(13, null, null, SQI_MIN_NIGHTS, SQI_REPRO_BAND) === 'NOT_APPLICABLE',
+      sqiVerdictStatus(13, null, null, SQI_MIN_NIGHTS, SQI_REPRO_BAND)
+    );
+    ok(
+      '…and the same 0.862 median that reads NOT_APPLICABLE unkeyed reads FAIL against the Verity figure',
+      sqiVerdictStatus(13, 0.763, Math.abs(0.862 - 0.763), SQI_MIN_NIGHTS, SQI_REPRO_BAND) === 'FAIL'
+    );
+    ok('an absent reference does NOT mask an empty run: nothing examined is still NOT_RUN', sqiVerdictStatus(0, null, null, SQI_MIN_NIGHTS, SQI_REPRO_BAND) === 'NOT_RUN');
+    ok('an absent reference outranks the power floor, because power is not the reason it cannot answer', sqiVerdictStatus(2, null, null, SQI_MIN_NIGHTS, SQI_REPRO_BAND) === 'NOT_APPLICABLE');
+    /* ⚠️ THE 26-NIGHT RUN PRINTED `p = 0.0000`, and the verdict stored `wilcoxonP: 0`. Both were
+       `toFixed` on a number no fixed-point width can hold. These legs pin the floor, the formatter and
+       the one case that produced it. */
+    ok(
+      'the smallest attainable exact p is 2/2ⁿ, never zero',
+      (() => {
+        const p = wilcoxonSignedRank(Array.from({ length: 26 }, (_, i) => 0.1 * (i + 1))).p;
+        return p > 0 && Math.abs(p - 2 / 2 ** 26) < 1e-20;
+      })()
+    );
+    ok('…and the formatter says so instead of rounding it away', fmtExactP(2 / 2 ** 26) === '2.98e-8', String(fmtExactP(2 / 2 ** 26)));
+    ok('a p a fixed-point print CAN hold reads as a plain number', fmtExactP(0.0625) === '0.0625' && fmtExactP(0.014) === '0.014');
+    ok('…and an absent p stays absent, never 0', fmtExactP(null) === null && fmtExactP(Number.NaN) === null);
+    ok('a keyed reference with too few nights is UNDERPOWERED', sqiVerdictStatus(4, 0.763, 0.01, SQI_MIN_NIGHTS, SQI_REPRO_BAND) === 'UNDERPOWERED');
+    ok('…and so is the five-night run whose best attainable p is 0.0625', sqiVerdictStatus(5, 0.763, 0.01, SQI_MIN_NIGHTS, SQI_REPRO_BAND) === 'UNDERPOWERED');
+    /* THE FLOOR IS DERIVED, NOT TYPED. The most extreme result n nights can produce is every night
+       above chance; its exact two-sided p is 2/2ⁿ. This leg runs the arm's own test over that result
+       at the floor and one below it, so the constant and the sentence justifying it cannot drift. */
+    ok(
+      `the night floor is the smallest n whose best attainable exact p clears 0.05 (reads ${SQI_MIN_NIGHTS})`,
+      (() => {
+        const best = (k) => wilcoxonSignedRank(Array.from({ length: k }, (_, i) => 0.1 * (i + 1))).p;
+        return best(SQI_MIN_NIGHTS) < 0.05 && best(SQI_MIN_NIGHTS - 1) >= 0.05;
+      })()
+    );
+    ok('a keyed reference inside the band is PASS', sqiVerdictStatus(13, 0.763, 0.04, SQI_MIN_NIGHTS, SQI_REPRO_BAND) === 'PASS');
+    ok('…and the band is inclusive at its edge, as "lte" says', sqiVerdictStatus(13, 0.763, SQI_REPRO_BAND, SQI_MIN_NIGHTS, SQI_REPRO_BAND) === 'PASS');
+    /* ⚠️ TWO STATUSES MAY NOT CARRY A RESULT, and both were learnt from a non-zero exit rather than
+       from the contract. The first corpus run of the arm emitted a result beside NOT_RUN; the first
+       O2Ring proof run emitted one beside NOT_APPLICABLE, and `validate()` refused it with
+       "NOT_APPLICABLE must carry result: null". These legs state the rule for the next status this
+       emitter learns to produce. */
+    ok('a result may not ride NOT_RUN — nothing was examined', sqiStatusCarriesResult('NOT_RUN') === false);
+    ok('…nor NOT_APPLICABLE — the criterion does not bind, so no result exists under it', sqiStatusCarriesResult('NOT_APPLICABLE') === false);
+    ok(
+      'every status that DID measure against the criterion carries its result',
+      ['PASS', 'FAIL', 'SHORTFALL', 'UNDERPOWERED', 'UNKNOWN'].every((st) => sqiStatusCarriesResult(st) === true)
+    );
+    /* The predicate is checked against the CONTRACT's own enum, so a seventh status added upstream
+       cannot slip past this file unexamined. */
+    ok(
+      'the predicate answers for all seven contract statuses and for no other',
+      (() => {
+        const V = createRequire(import.meta.url)(join(ROOT, 'verdict.js'));
+        return V.STATUSES.length === 7 && V.STATUSES.filter((st) => !sqiStatusCarriesResult(st)).join(',') === 'NOT_RUN,NOT_APPLICABLE';
+      })()
+    );
+    /* THE WHOLE OBJECT, VALIDATED — the leg that would have caught both refusals before a corpus run.
+       An O2Ring-shaped report (nights scored, no published reference) must validate as NOT_APPLICABLE
+       with result null and a reason carrying its numerals. */
+    ok(
+      "an unreferenced device's verdict validates: NOT_APPLICABLE, result null, numerals in the reason",
+      (() => {
+        const V = createRequire(import.meta.url)(join(ROOT, 'verdict.js'));
+        const st = sqiVerdictStatus(5, null, null, SQI_MIN_NIGHTS, SQI_REPRO_BAND);
+        const v = V.make({
+          gate: 'ppi-jitter-sqi-epoch-auc',
+          status: st,
+          scope: 'internal',
+          population: { checked: 5, eligible: 5, excluded: 0 },
+          criterion: { name: 'median_within_night_auc_deviation_from_published', threshold: SQI_REPRO_BAND, unit: 'auc', direction: 'lte' },
+          result: sqiStatusCarriesResult(st) ? { medianAuc: 0.835 } : null,
+          evidence: ['tools/ppi-jitter-vs-ecg.mjs'],
+          reason:
+            'no published §3.4 AUC exists for the o2ring, so the reproduction criterion does not bind and this verdict claims no reproduction: 0.763 is the Verity armband figure and is not comparable. Measured on its own terms over 5 night(s): median within-night AUC 0.835, above chance on 5 of 5',
+          producedBy: { tool: 'tools/ppi-jitter-vs-ecg.mjs', commit: null, commitReason: 'selftest' }
+        });
+        const r = V.validate(v);
+        return st === 'NOT_APPLICABLE' && v.result === null && /0\.835/.test(v.reason) && r.ok === true;
+      })()
+    );
+  }
+
   console.log(fail ? '\nselftest: ' + fail + ' FAILED' : '\nselftest: all green');
   return fail;
 }
@@ -909,7 +1278,18 @@ function fingerSession(rec, res) {
     ttMs,
     nn: res.nn || [],
     clean: res.ppiClean || null,
-    adj: adjFromKeptIdx(res.ppiKeptIdx)
+    adj: adjFromKeptIdx(res.ppiKeptIdx),
+    /* THE NODE'S OWN PER-BEAT QUALITY CHANNEL, on the absolute floating clock. `sqi` is indexed on
+       `det.peaks` and `beatTimes` is those same peaks' `relSec` values (`ppgdex-dsp.js:5433`, `:6143`),
+       so the pair shares an index. The times come from `relSec` through the node, never from
+       index/fs — the Clock Contract §7 rule that a node does not hand-roll a rate. */
+    sqi: res.sqi && res.sqi.length ? res.sqi : null,
+    beatMs: (() => {
+      const bt = res.beatTimes || [];
+      const out = new Float64Array(bt.length);
+      for (let i = 0; i < bt.length; i++) out[i] = rec.t0Ms + bt[i] * 1000;
+      return out;
+    })()
   };
 }
 function ecgSession(t0Ms, durMs, res) {
@@ -998,6 +1378,123 @@ const snap = snapshotEntries(DIR, { list: listDevicePpg, unit: PPG_UNIT });
 /* 🔴 STAMP THE CODE THAT RAN, NOT THE CODE AT THE END OF THE RUN. Reading a night of PPG takes long
    enough for a commit to land in this worktree, and Node loaded this module at the start. */
 const commitOf = gitCommitOf(ROOT);
+
+/* §3.4'S ARM, ASSEMBLED. Pure in `allEp`, so the selftest exercises the same function the corpus run
+   prints. The negation is the GATE'S OWN DIRECTION: a LOW SQI is the warning, so the score ranked
+   against the catastrophic label is the negated SQI and an AUC above 0.5 means the shipped channel
+   points the right way. Ranking the un-negated score would publish 1 − AUC under the AUC's name. */
+function sqiReport(eps) {
+  const rows = (eps || []).filter((e) => e && Number.isFinite(e.rmBiasPct));
+  const neg = (k) => (e) => (Number.isFinite(e[k]) ? -e[k] : Number.NaN);
+  const mean = nightAucs(rows, CAT_BIAS_PCT, neg('sqiMean'));
+  const clean = nightAucs(rows, CAT_BIAS_PCT, neg('sqiClean'));
+  const A = mean.nights.map((x) => x.auc).filter(Number.isFinite);
+  const C = clean.nights.map((x) => x.auc).filter(Number.isFinite);
+  return {
+    epochs: rows.length,
+    scoredEpochs: rows.filter((e) => Number.isFinite(e.sqiMean)).length,
+    mean,
+    clean,
+    A,
+    C,
+    above: A.filter((x) => x > 0.5).length,
+    w: A.length ? wilcoxonSignedRank(A, 0.5) : null
+  };
+}
+
+const sqiTally = (o) =>
+  Object.entries(o)
+    .filter(([, v]) => v > 0)
+    .map(([k, v]) => v + ' ' + k)
+    .join(' · ') || 'none';
+
+function sqiLines(R) {
+  const band = (xs) => `median ${median(xs).toFixed(3)}  IQR ${quantile(xs, 0.25).toFixed(3)}–${quantile(xs, 0.75).toFixed(3)}`;
+  const out = ["  per-epoch SQI (§3.4)      the node's own per-beat SQI against the |ΔrMSSD| > " + CAT_BIAS_PCT + ' % label, WITHIN nights'];
+  if (!R.A.length) {
+    out.push('                            no night carried both classes — nothing to discriminate, so no AUC');
+  } else {
+    out.push(`                            mean SQI          ${band(R.A)}   above 0.5 on ${R.above} of ${R.A.length} night(s)`);
+    if (R.C.length) out.push(`                            clean-beat share  ${band(R.C)}   [the node's own ≥ ${SQI_CLEAN_CUT} cut, over ${R.C.length} night(s)]`);
+    const w = R.w;
+    if (w)
+      out.push(
+        `                            Wilcoxon signed-rank p = ${w.p == null ? '—' : fmtExactP(w.p)}   [${w.exact ? 'exact' : w.reason}, n = ${w.n}${w.nDropped ? `, ${w.nDropped} night(s) exactly at 0.5 dropped` : ''}, W+ = ${w.wPlus}, the null is AUC = 0.5]`
+      );
+    out.push(
+      SQI_PUBLISHED
+        ? `                            the paper's §3.4 figures, for comparison: median ${SQI_PUBLISHED.auc}, IQR ${SQI_PUBLISHED.iqr}, above chance on ${SQI_PUBLISHED.aboveChance} night(s), p = ${SQI_PUBLISHED.p}   [${DEVICE} — like-for-like]`
+        : `                            no published §3.4 AUC for the ${DEVICE.toUpperCase()}: 0.763 is the VERITY ARMBAND figure and is NOT comparable, so this run makes no reproduction claim`
+    );
+  }
+  out.push(`                            epochs scored     ${R.scoredEpochs} of ${R.epochs}   ·   without a score: ${sqiTally(sqiDrops)}`);
+  out.push(`                            nights excluded   ${R.mean.excluded.length}${R.mean.excluded.length ? ': ' + R.mean.excluded.map((e) => e.night + ' (' + e.reason + ')').join(' · ') : ''}`);
+  return out.join('\n');
+}
+
+/* THE ARM'S VERDICT, emitted only under `--sqi` so an unflagged run keeps today's exit code. The
+   POPULATION IS NIGHTS, because §3.4's claim is a claim about evaluable nights — an epoch count here
+   would report a different denominator from the one the median is taken over. */
+function emitSqiVerdict(R) {
+  const Verdict = createRequire(import.meta.url)(join(ROOT, 'verdict.js'));
+  const med = R.A.length ? median(R.A) : null;
+  const dev = med == null ? null : Math.abs(med - SQI_PUBLISHED_AUC);
+  const status = sqiVerdictStatus(R.A.length, SQI_PUBLISHED_AUC, dev, SQI_MIN_NIGHTS, SQI_REPRO_BAND);
+  const reason =
+    status === 'NOT_RUN'
+      ? 'no night carried both a catastrophic and a non-catastrophic epoch with an SQI score, so the channel was never ranked'
+      : status === 'NOT_APPLICABLE'
+        ? `no published §3.4 AUC exists for the ${DEVICE}, so the reproduction criterion does not bind and this verdict claims no reproduction: 0.763 is the Verity armband figure and is not comparable. Measured on its own terms over ${R.A.length} night(s): median within-night AUC ${med == null ? 'n/a' : med.toFixed(3)}, above chance on ${R.above} of ${R.A.length}`
+        : status === 'UNDERPOWERED'
+          ? `only ${R.A.length} night(s) carried both classes, under the pre-stated floor of ${SQI_MIN_NIGHTS} — below it the exact signed-rank test cannot reject at any conventional level`
+          : status === 'FAIL'
+            ? `the within-night median AUC reads ${med.toFixed(3)} against the published ${SQI_PUBLISHED_AUC}, a deviation of ${dev.toFixed(3)} outside the pre-stated ±${SQI_REPRO_BAND} band, so §3.4's carried figure does not reproduce on this corpus`
+            : null;
+  const v = Verdict.make({
+    gate: 'ppi-jitter-sqi-epoch-auc',
+    status,
+    scope: 'internal',
+    population: { checked: R.A.length, eligible: R.A.length + R.mean.excluded.length, excluded: R.mean.excluded.length },
+    criterion: { name: 'median_within_night_auc_deviation_from_published', threshold: SQI_REPRO_BAND, unit: 'auc', direction: 'lte' },
+    /* The contract decides this, through `sqiStatusCarriesResult` above — NOT_RUN examined nothing
+       and NOT_APPLICABLE measured under no binding criterion, and both refusals were found by
+       running the arm, not by reading the spec. */
+    result: !sqiStatusCarriesResult(status)
+      ? null
+      : {
+          medianAuc: med,
+          publishedAuc: SQI_PUBLISHED_AUC,
+          deviation: dev,
+          iqr: R.A.length ? [+quantile(R.A, 0.25).toFixed(4), +quantile(R.A, 0.75).toFixed(4)] : null,
+          nightsAboveChance: R.above,
+          nights: R.A.length,
+          medianAucCleanShare: R.C.length ? +median(R.C).toFixed(4) : null,
+          /* THE UNROUNDED DOUBLE, because rounding is what manufactured the zero; `wilcoxonPText`
+             is the form a reader quotes, from the one formatter the printed line uses. */
+          wilcoxonP: R.w && R.w.p != null ? R.w.p : null,
+          wilcoxonPText: R.w && R.w.p != null ? fmtExactP(R.w.p) : null,
+          wilcoxonExact: !!(R.w && R.w.exact),
+          wilcoxonN: R.w ? R.w.n : null,
+          epochsScored: R.scoredEpochs,
+          epochsOffered: R.epochs,
+          epochsWithoutScore: { ...sqiDrops },
+          nightsExcluded: R.mean.excluded,
+          device: DEVICE
+        },
+    /* Evidence follows the device as well: a finger run must not cite a wrist paper as the thing it
+       examined. */
+    evidence: SQI_PUBLISHED ? ['tools/ppi-jitter-vs-ecg.mjs', SQI_PUBLISHED.paper, 'papers/ppg-quality-gate-pooling.html'] : ['tools/ppi-jitter-vs-ecg.mjs'],
+    reason,
+    producedBy: { tool: 'tools/ppi-jitter-vs-ecg.mjs', commit: commitOf.commit, commitReason: commitOf.commit ? null : commitOf.reason }
+  });
+  const bad = Verdict.validate(v);
+  if (bad && bad.ok === false) {
+    console.error('the SQI verdict does not validate: ' + JSON.stringify(bad.errors || bad));
+    process.exit(2);
+  }
+  console.log('\n' + JSON.stringify(v));
+  process.exit(status === 'NOT_RUN' || status === 'UNDERPOWERED' ? 2 : 0);
+}
 const all = walk(DIR);
 const _ppgMatched = all.filter((f) => PPG_RE.test(f.p));
 const fingerFiles = _ppgMatched.sort((a, b) => b.size - a.size).slice(0, MAX_NIGHTS);
@@ -1405,6 +1902,13 @@ const nights = [];
    budget is a fraction of are both corpus-level, so they are computed over this pool rather than over
    per-night medians — a median of medians answers a different question and the paper quotes both. */
 const allEp = [];
+/* ∅ — an epoch with no SQI score is still a valid rMSSD epoch, so it is KEPT in the pool with a null
+   score and tallied here by reason. Dropping the row instead would silently shrink §3.3's population
+   to §3.4's, which is the very disagreement row 2026-10-28 names. */
+const sqiDrops = {};
+const sqiDrop = (r) => {
+  sqiDrops[r] = (sqiDrops[r] || 0) + 1;
+};
 /* ∅ — a night the sleep test COULD NOT DECIDE is not a night it rejected. Named in the population
    block below, because a count of silent exclusions names nothing to chase. */
 const sleepUndecided = [];
@@ -1530,6 +2034,8 @@ for (const unit of buildUnits(fingerFiles)) {
       /* A ZERO REFERENCE HAS NO RATIO (§∅). A 0 ms epoch rMSSD is legal — a perfectly regular stretch —
          and a percentage against it is not a large bias, it is no bias to report. */ else if (!(eh.rmssd > 0)) epDrop('ecg-zero-reference');
       else {
+        const sq = epochSqi(fS, t, t + EPOCH_MS);
+        if (!sq.ok) sqiDrop(sq.reason);
         const row = {
           night: unit.name,
           t,
@@ -1541,7 +2047,11 @@ for (const unit of buildUnits(fingerFiles)) {
           rmBiasPct: ((fh.rmssd - eh.rmssd) / eh.rmssd) * 100,
           sdBiasPct: eh.sdnn > 0 ? ((fh.sdnn - eh.sdnn) / eh.sdnn) * 100 : null,
           nF: fh.n,
-          nE: eh.n
+          nE: eh.n,
+          /* §3.4's two scores, from the SAME window and the SAME covering session as the rMSSD pair. */
+          sqiMean: sq.ok ? sq.mean : null,
+          sqiClean: sq.ok ? sq.cleanShare : null,
+          sqiBeats: sq.ok ? sq.n : null
         };
         eph.push(row);
         allEp.push(row);
@@ -1672,6 +2182,7 @@ function printPopulation() {
 if (!nights.length) {
   console.log('\nno night produced ≥' + MIN_EPOCHS + ' comparable epochs — nothing to report.');
   printPopulation();
+  if (SQI_ARM) emitSqiVerdict(sqiReport(allEp));
   process.exit(0);
 }
 const J = nights.map((n) => n.jitter);
@@ -1857,6 +2368,7 @@ if (!epNights.length) {
       `  catastrophic epochs       ${split.nCat} of ${split.n} (${(split.catShare * 100).toFixed(1)} %) with |ΔrMSSD| > ${CAT_BIAS_PCT} %\n` +
         `                            jitter median ${split.jitIn == null ? '—' : split.jitIn.toFixed(1)} ms inside vs ${split.jitOut == null ? '—' : split.jitOut.toFixed(1)} ms outside · above ${JIT_BAND_MS} ms: ${split.aboveIn == null ? '—' : (split.aboveIn * 100).toFixed(0)} % vs ${split.aboveOut == null ? '—' : (split.aboveOut * 100).toFixed(0)} %`
     );
+  console.log(sqiLines(sqiReport(allEp)));
   /* THE BUDGET IS A FRACTION OF SOMETHING, so the something is MEASURED and printed with it. The
      reference is the corpus median per-epoch ECG rMSSD — the quantity the bias is a percentage of.
      Quoting a σ budget without it publishes a number nobody can check, and a budget read against an
@@ -1907,3 +2419,4 @@ if (!epNights.length) {
 }
 
 printPopulation();
+if (SQI_ARM) emitSqiVerdict(sqiReport(allEp));
