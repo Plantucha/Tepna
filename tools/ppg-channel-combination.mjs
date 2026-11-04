@@ -707,10 +707,15 @@ console.log('file                                            fs     blocks  rho 
 
 for (const f of files) {
   const name = relative(DIR, f.p);
-  readRunsSidecar(f.p, 'PPG', { tally: validity });
+  /* THE SIDECAR GOES TO THE PARSER, not merely to the tally. `parsePPG` is what can mark a sample
+     absent rather than zero, so a reader that keeps `runsText` to itself leaves the parser blind
+     (§∅; gate SAMPLE-VALIDITY-ENVELOPE). Most of this corpus predates the writer, so most streams
+     read `absent` and parse exactly as before — absent is validity UNKNOWN, never a clean stream. */
+  const runsText = readRunsSidecar(f.p, 'PPG', { tally: validity }).runsText;
   let rec;
   try {
-    rec = P.parsePPG(readFileSync(f.p, 'utf8'));
+    const text = readFileSync(f.p, 'utf8');
+    rec = runsText ? P.parsePPG(text, { runsText }) : P.parsePPG(text);
   } catch (_e) {
     bump('parse-failed');
     console.log(`${basename(name).slice(0, 44).padEnd(44)}  ${'—'.padStart(5)}  ${'—'.padStart(6)}  parse-failed`);
