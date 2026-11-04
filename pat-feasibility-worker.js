@@ -792,6 +792,12 @@ function threeHat(cAB, cAC, cBC, wAB, wAC, wBC) {
     windows: win,
     ci: ci,
     corners: AnalysisStats.patHatCornerStatus(v2, ci),
+    /* ADDITIVE (VERDICT-CONTRIBUTIONS-2026-10-04 §2 row 1): every corner says WHICH leg moved it.
+       `FromVars` and never `patHatContributions`, for the reason the kernel states beside itself — our
+       pairwise dispersion is IQR/1.349 of the window medians, so handing it the windows would attribute
+       an across-window spread this hat never solved. These are the same three variances `v2` is built
+       from, so each block's deltas sum to the corner beside it. */
+    contributions: AnalysisStats.patHatContributionsFromVars(vAB, vAC, vBC, {}),
     diff: AnalysisStats.patDifferencedHat(win, HAT_WIN_MS, { minPairs: HAT_MIN_WINDOWS })
   };
 }
