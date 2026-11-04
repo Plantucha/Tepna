@@ -2,7 +2,7 @@
 Copyright 2026 Michal Planicka
 SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-10-11 · **Owner ask:** 2026-10-11 ("spend tokens to save tokens", "do it now") · **Measured on:** the fleet's own transcripts, 2026-10-05 → 2026-10-11 · **Tool:** `tools/fleet-turns.mjs`
+**Status:** PROPOSED (the rules SHIPPED, the turn target MISSED — verified 2026-11-04 (Osprey) against `origin/main` 4ca6b91cc: done-when 1 to 4 are met. CLAUDE.md carries §6 · Tokens, `tools/unit-launch.sh` landed in #3452, `.claude/hooks/trim-output.sh` landed in #3450 with its own test file and the #3493 repair, and the skills landed in #3453 and #3464. The fifth item fails on the turn half: `node tools/fleet-turns.mjs --since 2026-11-03` reads tools/turn of 0.91 to 1.05 against the target of 2.0, on all four birds. The window half is met with room, at a median of 140k to 154k and a p90 of 185k to 189k, against the 363k to 658k of §1. Narration is under 20 % on three of the four. The sixth item finds no compaction key in `.claude/settings.json`, so only that window measurement evidences the cap) · **Created:** 2026-10-11 · **Owner ask:** 2026-10-11 ("spend tokens to save tokens", "do it now") · **Measured on:** the fleet's own transcripts, 2026-10-05 → 2026-10-11 · **Tool:** `tools/fleet-turns.mjs`
 
 # The token diet: five rules, each with a measure — plus two the owner added on 2026-10-11 evening
 
@@ -114,9 +114,9 @@ Heron's launcher reads this file. The bird writes it back before it exits. A han
 
 ## Done-when
 
-- [ ] the owner has approved or edited §3 and CLAUDE.md carries it
-- [ ] `tools/unit-launch.sh` lands with one real launch shown to the owner (Heron)
-- [ ] `trim-output.sh` lands with its tests (Osprey)
-- [ ] the skills PR lands (Magpie)
+- [x] the owner has approved or edited §3 and CLAUDE.md carries it (CLAUDE.md §👥.6, edited from §3 rather than copied)
+- [x] `tools/unit-launch.sh` lands with one real launch shown to the owner (Heron) — #3452
+- [x] `trim-output.sh` lands with its tests (Osprey) — #3450, with `.claude/hooks/trim-output.test.sh`, repaired in #3493
+- [x] the skills PR lands (Magpie) — #3453, extended in #3464
 - [ ] `fleet-turns.mjs` run on the first full day under the rules shows narration below 20 %, tools per turn at or above 2.0 and a window median at or below 300k on every bird, or the brief records why not
 - [ ] the owner has set the compaction value that caps the window near 300k (today it reached 967k)

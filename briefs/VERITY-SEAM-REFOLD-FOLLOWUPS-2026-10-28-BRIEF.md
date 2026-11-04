@@ -1,5 +1,5 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED — 2026-10-28 · **Created:** 2026-10-28
+**Status:** PROPOSED (corpus-blocked — verified 2026-11-04 (Osprey): all four §3 items stay open. `offsetSegments` now reaches the analysis result and the node-export (#4070, the commit that created this brief), and it still reaches no committed PPG export at all, as §1 found on a smaller corpus. No commit since 2026-10-28 names the commit that closed the `multiSeg` gate, and `ppgdex-dsp.js:1237` still derives `multiSeg` from `offSegs.segments.length > 1`. A fresh two-ended fold is the only instrument left) · **Created:** 2026-10-28
 
 # The ring-seam re-fold moved ten Verity nights, and today it would move none
 
