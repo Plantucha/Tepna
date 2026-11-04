@@ -195,6 +195,11 @@ async function main() {
       continue;
     }
     const per = rec.ch.map((c) => PPGDSP.detectChannel(c, rec.fs));
+    /* CONSENSUS POLARITY — apply BEFORE the reference pick, which is the order `analyze` ships
+       (`ppgdex-dsp.js` applies, then picks): a flipped dissenter's peak count moves, so a pick made
+       first would ratify a reference chosen under the polarity the majority overrules. The call is a
+       no-op on a unanimous set and on a 1-1 split, so no undissenting night moves. */
+    PPGDSP.applyConsensusPolarity(per, (i, sgn) => PPGDSP.detectChannel(rec.ch[i], rec.fs, sgn));
     let refIdx = 0;
     let best = -1;
     per.forEach((p, i) => {
@@ -203,8 +208,8 @@ async function main() {
         refIdx = i;
       }
     });
-    /* @polarity-decision behind 2026-11-01-the-consensus-polarity-wiring-reached-one-of-ten-callers
-       The feet whose index-to-time conversion this audits are then the ones a 2-of-3 vote produced. */
+    /* @polarity-decision applies
+       The feet whose index-to-time conversion this audits now come from the whole channel set. */
     const feet = PPGDSP.consensusBeats(per, refIdx, rec.fs).feet;
     const ax = axisIsNominal(rec.relSec, rec.n, rec.fs);
     const a = auditFeet(rec.relSec, feet, rec.fs);

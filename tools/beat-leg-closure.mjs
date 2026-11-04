@@ -350,6 +350,11 @@ export function verityBeats(path, ctx) {
      the parser neither resamples nor gap-fills here, so peak index i is raw row i. */
   if (rec.ch[0].length !== dev.length) return null;
   const per = rec.ch.map((c) => ctx.PPGDSP.detectChannel(c, rec.fs));
+  /* CONSENSUS POLARITY — apply BEFORE the reference pick, which is the order `analyze` ships
+     (`ppgdex-dsp.js` applies, then picks): a flipped dissenter's peak count moves, so a pick made
+     first would ratify a reference chosen under the polarity the device-wide majority overrules.
+     The call is a no-op on a unanimous set and on a 1-1 split, so no undissenting night moves. */
+  ctx.PPGDSP.applyConsensusPolarity(per, (i, sgn) => ctx.PPGDSP.detectChannel(rec.ch[i], rec.fs, sgn));
   let ri = 0,
     b = -1;
   per.forEach((p, i) => {
@@ -358,8 +363,8 @@ export function verityBeats(path, ctx) {
       ri = i;
     }
   });
-  /* @polarity-decision behind 2026-11-01-the-consensus-polarity-wiring-reached-one-of-ten-callers
-     Leg C’s device-axis beat times then come from a 2-of-3 vote. */
+  /* @polarity-decision applies
+     Leg C’s device-axis beat times now come from the whole channel set. */
   const cons = ctx.PPGDSP.consensusBeats(per, ri, rec.fs);
   const idx = cons && (cons.feet && cons.feet.length ? cons.feet : cons.peaks);
   if (!idx || !idx.length) return null;
