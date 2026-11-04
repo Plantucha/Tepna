@@ -894,7 +894,17 @@ class SidecarWriter:
                     cut = data.rfind(b"\n")
                     fh.truncate(cut + 1 if cut >= 0 else 0)
             resume = os.path.getsize(path) > 0
-        self._fh = open(path, "a" if resume else "w", buffering=1 << 16, newline="\n")
+        # LINE-BUFFERED, never 64 KiB. `as11_clock.ClockSidecar` and `cpap_shadow_runner` already
+        # carry this idiom and its reason for the same shape of file: at 64 KiB an unclean stop
+        # discards every row since the last flush, and a WORKING sidecar then reads as a 0-byte file
+        # — indistinguishable from a device that sent nothing, which is the one absence this module
+        # promises to keep honest (the header above: absence is the absence of a file; CLAUDE.md §∅).
+        # Measured 2026-11-04 over the 11 archived sidecars: 1 600 008 rows at 0.556 to 6.653 rows/s,
+        # median 3.812, mean row 105 bytes. So `run`'s 64-row flush arrived 10 s to 115 s after the
+        # first row, and the 64 KiB buffer alone takes about 164 s at the median rate. Line buffering
+        # costs under 7 write syscalls per second at the measured peak, and it leaves the 0-byte file
+        # meaning ONE thing: the filesystem kept the create and lost the data.
+        self._fh = open(path, "a" if resume else "w", buffering=1, newline="\n")
         if not resume:
             self._fh.write(SIDECAR_HEADER)
 
