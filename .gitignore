@@ -270,6 +270,16 @@ capture-host/.check-verdict.json
 capture-host/.unwired-verdict.json
 capture-host/.covscope-verdict.json
 
+# The diff-scoped mutation gate's per-run verdict. CI writes it as `--json mutation-diff.json`
+# under `defaults.run.working-directory: capture-host`, then uploads it as an artifact — so the
+# path is CI's own, and a bird reproducing the gate locally lands exactly here. Untracked, it made
+# `tools/wt-done.mjs` refuse the worktree as "may be someone's only copy", which is right about an
+# unknown file and useless about a gate artefact. #1577 is the same shape on the `node_modules`
+# symlink. ⚠️ By EXACT NAME, never a blanket glob: `mutation-survivors.json`,
+# `capture-host/tools/mutation-sizes.json` and the three `mutate-*.json` beside it are COMMITTED
+# records the gate reads, and ignoring them would let a branch clear its own gate.
+capture-host/mutation-diff.json
+
 # Hypothesis example database — per-machine and regenerated. ⚠️ Hypothesis ALREADY writes its own
 # `.gitignore` inside the directory, which is why `git status` never showed it while `git check-ignore`
 # said it was not ignored; the two disagreed because the ignore was one level down, not absent. This
