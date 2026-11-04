@@ -557,6 +557,21 @@ export function aucMidRank(pos, neg) {
    Draft v2's 0.014. Zeros are dropped — the test's own convention — and the drop is reported, because
    it changes n. Ties take mid-ranks and the null enumerates sign flips of THOSE ranks: the conditional
    exact test, by subset-sum over doubled ranks, not a table lookup and not a normal approximation. */
+/* AN EXACT p CANNOT BE ZERO, and a fixed-point print manufactures one. The smallest value the exact
+   two-sided null can take is 2/2ⁿ, so at n = 26 it is 2.98e-8 — and `toFixed(4)` printed that as
+   `0.0000` while `toFixed(6)` stored it in the verdict as `0`. A reader cannot tell that zero from a
+   measured zero, and no p is ever measured at zero: this is §∅ pointed at a derived statistic rather
+   than at a sample. Measured 2026-11-04 on the 26-night Verity run, W+ = 351 = n(n+1)/2, every night
+   above chance.
+
+   So ONE formatter, used by the printed line and by the verdict field alike: three significant
+   figures, in exponential form below the fixed-point floor. The leg below derives the smallest
+   attainable p from this file's own test rather than quoting the arithmetic. */
+export function fmtExactP(p) {
+  if (p == null || !Number.isFinite(p)) return null;
+  if (p === 0) return '0';
+  return p < 1e-4 ? p.toExponential(2) : String(+p.toPrecision(3));
+}
 export function wilcoxonSignedRank(diffs, nullValue = 0) {
   const d = (diffs || []).filter(Number.isFinite).map((x) => x - nullValue);
   const nz = d.filter((x) => x !== 0);
@@ -1117,6 +1132,19 @@ function selftest() {
     );
     ok('an absent reference does NOT mask an empty run: nothing examined is still NOT_RUN', sqiVerdictStatus(0, null, null, SQI_MIN_NIGHTS, SQI_REPRO_BAND) === 'NOT_RUN');
     ok('an absent reference outranks the power floor, because power is not the reason it cannot answer', sqiVerdictStatus(2, null, null, SQI_MIN_NIGHTS, SQI_REPRO_BAND) === 'NOT_APPLICABLE');
+    /* ⚠️ THE 26-NIGHT RUN PRINTED `p = 0.0000`, and the verdict stored `wilcoxonP: 0`. Both were
+       `toFixed` on a number no fixed-point width can hold. These legs pin the floor, the formatter and
+       the one case that produced it. */
+    ok(
+      'the smallest attainable exact p is 2/2ⁿ, never zero',
+      (() => {
+        const p = wilcoxonSignedRank(Array.from({ length: 26 }, (_, i) => 0.1 * (i + 1))).p;
+        return p > 0 && Math.abs(p - 2 / 2 ** 26) < 1e-20;
+      })()
+    );
+    ok('…and the formatter says so instead of rounding it away', fmtExactP(2 / 2 ** 26) === '2.98e-8', String(fmtExactP(2 / 2 ** 26)));
+    ok('a p a fixed-point print CAN hold reads as a plain number', fmtExactP(0.0625) === '0.0625' && fmtExactP(0.014) === '0.014');
+    ok('…and an absent p stays absent, never 0', fmtExactP(null) === null && fmtExactP(Number.NaN) === null);
     ok('a keyed reference with too few nights is UNDERPOWERED', sqiVerdictStatus(4, 0.763, 0.01, SQI_MIN_NIGHTS, SQI_REPRO_BAND) === 'UNDERPOWERED');
     ok('…and so is the five-night run whose best attainable p is 0.0625', sqiVerdictStatus(5, 0.763, 0.01, SQI_MIN_NIGHTS, SQI_REPRO_BAND) === 'UNDERPOWERED');
     /* THE FLOOR IS DERIVED, NOT TYPED. The most extreme result n nights can produce is every night
@@ -1391,7 +1419,7 @@ function sqiLines(R) {
     const w = R.w;
     if (w)
       out.push(
-        `                            Wilcoxon signed-rank p = ${w.p == null ? '—' : w.p.toFixed(4)}   [${w.exact ? 'exact' : w.reason}, n = ${w.n}${w.nDropped ? `, ${w.nDropped} night(s) exactly at 0.5 dropped` : ''}, W+ = ${w.wPlus}, the null is AUC = 0.5]`
+        `                            Wilcoxon signed-rank p = ${w.p == null ? '—' : fmtExactP(w.p)}   [${w.exact ? 'exact' : w.reason}, n = ${w.n}${w.nDropped ? `, ${w.nDropped} night(s) exactly at 0.5 dropped` : ''}, W+ = ${w.wPlus}, the null is AUC = 0.5]`
       );
     out.push(
       SQI_PUBLISHED
@@ -1441,7 +1469,10 @@ function emitSqiVerdict(R) {
           nightsAboveChance: R.above,
           nights: R.A.length,
           medianAucCleanShare: R.C.length ? +median(R.C).toFixed(4) : null,
-          wilcoxonP: R.w && R.w.p != null ? +R.w.p.toFixed(6) : null,
+          /* THE UNROUNDED DOUBLE, because rounding is what manufactured the zero; `wilcoxonPText`
+             is the form a reader quotes, from the one formatter the printed line uses. */
+          wilcoxonP: R.w && R.w.p != null ? R.w.p : null,
+          wilcoxonPText: R.w && R.w.p != null ? fmtExactP(R.w.p) : null,
           wilcoxonExact: !!(R.w && R.w.exact),
           wilcoxonN: R.w ? R.w.n : null,
           epochsScored: R.scoredEpochs,
