@@ -42,8 +42,7 @@ half: dominant `node.ECGDex` at `0.538`, two measured zeros beside it.
 
 ## Open questions
 
-- Whether §2's label "Integrator fused sleep summary" should be renamed to the object. I left the label and
-  named `confirmedApneaIndex` in the row's own cell instead, because the adoption gate pairs rows on that
-  label.
+- Whether §2's label "Integrator fused sleep summary" should name the object instead. I kept the label and
+  named `confirmedApneaIndex` in the row's own cell, because the adoption gate pairs rows on that label.
 - `test:hooks` redded once on the `git worktree add` shape and does not reproduce; row
   `2026-11-04-the-hooks-gate-flakes-on-the-worktree-creating-cd-shape` holds the evidence.
