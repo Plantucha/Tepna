@@ -6302,6 +6302,62 @@
       "key": "- l2_len, cid = struct.unpack_from(\"<HH\", body, 0) | + l2_len, cid = struct.unpack_from(\"<HH\", body, )",
       "probe": "Ran `tools/probe_radioclock_equiv.py` on 2026-11-02: each mutant is compiled as a real module from patched `radioclock.py` source, then ONE battery runs through original and mutant and every return value is compared. 1 240 769 payloads — the whole four-byte space by behaviour class (handle in {0x000, 0x001, 0x7FF, 0xFFF} x pb_flag 0..3 x all 65 536 `data_len` values), every prefix of a well-formed PMD notification at pb 0, 1 and 2, those same frames with a `data_len` that lies about the body, 192 000 random payloads over lengths 0..47, and seven single-byte corruptions of the L2CAP length, the channel id and the ATT opcode. 0 of 1 240 769 differed. The battery FAILS CLOSED on four canary mutations it must see, and sees all four: a parser ignoring the channel id, one ignoring the opcode, one reading a continuation fragment as a start, and a collector whose anchor table is always empty.",
       "why": "`struct.unpack_from(format, /, buffer, offset=0)`: the argument the mutant omits IS the value this line passes, so the mutant is the same call and no buffer can distinguish them. The explicit 0 stays because this read and its sibling below state the layout they expect at the offset they read it from, and dropping one of the two would leave the pair reading as two different conventions."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "function": "SidecarWriter.__init__",
+      "key": "- resume = False | + resume = None",
+      "probe": "ran tests/test_radioclock.py (153 tests, including the three new torn-tail fixtures: a one-byte file holding a bare newline, a file whose only newline is its third byte with a torn tail, and a file whose only newline is its first byte with a torn tail) plus the full capture-host/check.sh suite on Linux; this mutant survives every one of them, and no test can read `resume` at all.",
+      "why": "`None` and `False` are both falsy, and `resume` reaches exactly two readers inside the constructor: `\"a\" if resume else \"w\"` and `if not resume`. Both take the same branch for either value, and `resume` never leaves the constructor, so no input distinguishes them."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "function": "SidecarWriter.__init__",
+      "key": "- fh.seek(-1, 2) | + fh.seek(+1, 2)",
+      "probe": "ran tests/test_radioclock.py (153 tests, including the three new torn-tail fixtures: a one-byte file holding a bare newline, a file whose only newline is its third byte with a torn tail, and a file whose only newline is its first byte with a torn tail) plus the full capture-host/check.sh suite on Linux; this mutant survives every one of them.",
+      "why": "`seek(+1, 2)` lands one byte past the end, so `read(1)` returns `b\"\"`, which never equals `b\"\\n\"` and sends every file down the torn-tail branch. For a file that ends in a newline that branch is a no-op: `rfind` returns the final newline, `truncate(len)` moves no byte, and `resume` stays true. The mutant changes the work done, never the bytes or the decision."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "function": "SidecarWriter.__init__",
+      "key": "- if fh.read(1) != b\"\\n\": | + if fh.read(None) != b\"\\n\":",
+      "probe": "ran tests/test_radioclock.py (153 tests, including the three new torn-tail fixtures: a one-byte file holding a bare newline, a file whose only newline is its third byte with a torn tail, and a file whose only newline is its first byte with a torn tail) plus the full capture-host/check.sh suite on Linux; this mutant survives every one of them.",
+      "why": "The read follows `seek(-1, 2)`, so exactly one byte remains. `read(1)`, `read(2)` and `read(None)` all return that single byte, and the comparison is the same byte either way."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "function": "SidecarWriter.__init__",
+      "key": "- if fh.read(1) != b\"\\n\": | + if fh.read(2) != b\"\\n\":",
+      "probe": "ran tests/test_radioclock.py (153 tests, including the three new torn-tail fixtures: a one-byte file holding a bare newline, a file whose only newline is its third byte with a torn tail, and a file whose only newline is its first byte with a torn tail) plus the full capture-host/check.sh suite on Linux; this mutant survives every one of them.",
+      "why": "Same argument as the `read(None)` sibling: one byte remains after `seek(-1, 2)`, so a larger request returns that one byte and nothing else."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "function": "SidecarWriter.__init__",
+      "key": "- fh.truncate(cut + 1 if cut >= 0 else 0) | + fh.truncate(cut + 1 if (cut >= 0) or True else 0)",
+      "probe": "ran tests/test_radioclock.py (153 tests, including the three new torn-tail fixtures: a one-byte file holding a bare newline, a file whose only newline is its third byte with a torn tail, and a file whose only newline is its first byte with a torn tail) plus the full capture-host/check.sh suite on Linux; this mutant survives every one of them, and the `cut == -1` case is the one `test_a_file_torn_before_its_FIRST_newline_is_truncated_to_nothing_and_re_headered` already drives.",
+      "why": "`(cut >= 0) or True` is always true, so the mutant always truncates to `cut + 1`. The only value that reached the `else` was `cut == -1`, where `cut + 1` IS 0. The two expressions agree on the whole domain of `cut`."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "function": "SidecarWriter.__init__",
+      "key": "- self._fh = open(path, \"a\" if resume else \"w\", buffering=1, newline=\"\\n\") | + self._fh = open(path, \"a\" if resume else \"w\", buffering=1, newline=None)",
+      "probe": "ran a direct byte comparison on this box: the same two rows written through `newline=\"\\n\"`, `newline=None` and no `newline` argument produced identical bytes (b'a;b;c\\nd;e;f\\n'), because `os.linesep` is `'\\n'` here and in CI. ran tests/test_radioclock.py (153 tests, including the three new torn-tail fixtures: a one-byte file holding a bare newline, a file whose only newline is its third byte with a torn tail, and a file whose only newline is its first byte with a torn tail) plus the full capture-host/check.sh suite on Linux; this mutant survives every one of them.",
+      "why": "`newline=None` translates `'\\n'` to `os.linesep` on write, so the mutant differs only on a platform whose line separator is not `'\\n'`. Linux cannot produce that input. The explicit form is a portability guard, and killing this mutant needs a non-POSIX runner."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "function": "SidecarWriter.__init__",
+      "key": "- self._fh = open(path, \"a\" if resume else \"w\", buffering=1, newline=\"\\n\") | + self._fh = open(path, \"a\" if resume else \"w\", buffering=1, )",
+      "probe": "same byte comparison as the `newline=None` sibling: dropping the argument resolves to `newline=None` and wrote identical bytes. ran tests/test_radioclock.py (153 tests, including the three new torn-tail fixtures: a one-byte file holding a bare newline, a file whose only newline is its third byte with a torn tail, and a file whose only newline is its first byte with a torn tail) plus the full capture-host/check.sh suite on Linux; this mutant survives every one of them.",
+      "why": "Dropping the keyword IS `newline=None`, so the argument above applies unchanged: only a platform whose `os.linesep` differs from `'\\n'` could distinguish them."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "function": "SidecarWriter.__init__",
+      "key": "- self._fh = open(path, \"a\" if resume else \"w\", buffering=1, newline=\"\\n\") | + self._fh = open(path, \"a\" if (resume) or True else \"w\", buffering=1, newline=\"\\n\")",
+      "probe": "ran tests/test_radioclock.py (153 tests, including the three new torn-tail fixtures: a one-byte file holding a bare newline, a file whose only newline is its third byte with a torn tail, and a file whose only newline is its first byte with a torn tail) plus the full capture-host/check.sh suite on Linux; this mutant survives every one of them, including the empty-file and torn-before-the-first-newline fixtures, which are the two states that reach this line with `resume` false.",
+      "why": "The mutant always opens for append. `resume` is false only when the path is absent, holds zero bytes, or was just truncated to zero bytes. Append and write both leave an empty file in all three states, and the header write that follows is identical, so no input separates them."
     }
   ]
 }
