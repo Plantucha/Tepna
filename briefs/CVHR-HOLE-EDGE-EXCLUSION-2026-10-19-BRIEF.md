@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED · **Created:** 2026-10-19
+**Status:** PROPOSED (triaged 2026-11-04: not built — both detectors still test the event’s own second through `covered[s]`, with no mirror-window mask and no `cvhrDenomSec`) · **Created:** 2026-10-19
 
 # CVHR: exclude the decision window, not the hole
 

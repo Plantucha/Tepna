@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 · Copyright 2026 Michal Planicka -->
-**Status:** PROPOSED — 2026-10-20 · **Created:** 2026-10-20
+**Status:** PROPOSED (triaged 2026-11-04: not built — the workflows already carry `merge_group` triggers, but root bundles still ride PR diffs and `CLAUDE.md` still records no queue) — 2026-10-20 · **Created:** 2026-10-20
 
 # GENERATED-OUT-OF-PRS — take the generated trees out of the PR diff, then batch the queue
 

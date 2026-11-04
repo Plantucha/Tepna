@@ -4,7 +4,7 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** PROPOSED · **Created:** 2026-09-28 ·
+**Status:** PROPOSED (triaged 2026-11-04: not built — `mutate_diff.py` still generates the whole module and filters afterwards through `changed_lines`, with no generation post-pass and no known-answer test for one) · **Created:** 2026-09-28 ·
 **Residue:** 2026-09-28-mutmut-generation-cannot-be-scoped-to-the-diff
 
 # A diff-scoped gate should not generate 20,021 mutants to run 242
