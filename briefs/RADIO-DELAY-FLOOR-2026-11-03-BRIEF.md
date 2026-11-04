@@ -5,7 +5,7 @@
   Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
   project root, or http://www.apache.org/licenses/LICENSE-2.0
 -->
-**Status:** PROPOSED (core BUILT, remainder corpus-blocked — verified 2026-11-03: `anchorFloor` ships and eleven suite legs pass. The rig holds no sidecar, so the box owes §5) · **Created:** 2026-11-03
+**Status:** PROPOSED (core BUILT, remainder corpus-blocked — verified 2026-11-03: `anchorFloor` ships and eleven suite legs pass. The rig holds no sidecar, so the box owes §5. **RE-TRIAGED 2026-11-04 (Heron, box read-only; rule 0: "solid night cowear probe stage lab O2Ring presence trigger radio delay floor vigil coexistence brief status"): §5'S PRECONDITION IS MET ON THE BOX, so the arm is SCHEDULABLE and no longer corpus-blocked.** `/srv/tepna/captures` holds fourteen `*RADIOCLOCK*` sidecars over four nights — 2026-10-30, 2026-10-31, 2026-11-01 and 2026-11-03 — where this brief's own §5 expected six. The sentence that the rig holds none stays true of the RIG, and it was never a statement about the box. No `*PAT*` file exists beside them, so PAT still comes from the beat path at analysis time. What §5 now owes is the analysis itself, which a box session can run read-only, and the second box still waits on §5 earning a band) · **Created:** 2026-11-03
 
 # The radio delay has a floor, and the band reads its tail
 
