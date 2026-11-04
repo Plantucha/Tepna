@@ -38,9 +38,23 @@ import { solveNight } from './tch-fused-corpus.mjs';
 import { isCliEntry } from './argv-guard.mjs';
 import { STAMP_OUTPUT_OWED, corpusBlock, corpusIdentity, repoRelative, stampFields } from './fold-generation.mjs';
 import { gitCommitOf, notCovered, populationVerdict, ruleLine, snapshotEntries, snapshotNights } from './corpus-scope-core.mjs';
+import { undeclaredVerdict } from './verdict-undeclared.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const KEYS = ['h10', 'verity', 'o2'];
+/* WHICH corner the emitted object attributes. The contract carries ONE `contributions` block per
+   verdict object, so the object names one corner; the `--json` document carries all three. h10 is the
+   default because the H10 chest ECG is the reference leg the trio σ work is written against. */
+const CORNER = (() => {
+  const a = process.argv.slice(2);
+  const i = a.indexOf('--corner');
+  const c = i >= 0 && a[i + 1] ? a[i + 1] : 'h10';
+  if (!KEYS.includes(c)) {
+    console.error(`--corner must be one of ${KEYS.join('|')}, got ${JSON.stringify(c)}`);
+    process.exit(2);
+  }
+  return c;
+})();
 
 /* TCH solve from the three pairwise variances. Linear by construction — that linearity is what
    makes the pooled/weighted identity exact, so it is written once and shared by both paths. */
@@ -92,6 +106,64 @@ export function estimators(nights) {
   return { P, pooled, weighted, gap, med, perNight, nights: nights.length };
 }
 
+/* ── WHICH NIGHT MOVED THE POOLED σ (VERDICT-CONTRIBUTIONS-2026-10-04 §2, the trio row) ──────────
+   `delta_n = σ²_pooled(all nights) − σ²_pooled(all nights except n)`, per corner.
+
+   THE METHOD IS `leave-one-out` AND NOT `analytic`, and the pooled form is why. A night enters the
+   figure through BOTH terms of `within + B` — its own weight `w_n = n_n / N` scales its within-night
+   variance, and its pairwise means move the between-night spread — so removing it moves the
+   denominator every other night is weighted by. There is no partial derivative to take against a
+   fixed total, which is exactly the case the closed-form hat row (`analytic`) does not cover.
+
+   🔴 THE DELTAS DO NOT SUM TO THE FIGURE, and nothing here claims they do. With n nights each delta
+   is measured against a different pool of n−1, and the removals overlap, so a leave-one-out set is
+   not a decomposition of the figure. What the three fields jointly pin is each night's fraction of
+   the TOTAL ABSOLUTE MOVEMENT, which is the quantity `share` is defined as. Read the contract's
+   sum-to-1 invariant as a statement about the shares and never about the figure.
+
+   §∅ — a night whose removal leaves no pooled seconds carries `delta: null` with its reason, and
+   every share and `dominant` go null with it (`verdict.js:_contributions`). A night that never
+   SOLVED is a DIFFERENT thing and is not an input here: the figure is defined over the nights that
+   entered the pool, and the `population` block beside this one is what reports the nights that did
+   not. Listing an unsolved night as an unknown term would make every share null on any real corpus
+   with one unreadable night, and would say the pooled σ is unattributable when it is not. */
+export function pooledVarOf(nights, key) {
+  const N = nights.reduce((a, r) => a + r.pairs.hv.n, 0);
+  if (!(N > 0)) return null;
+  const P = poolPairs(nights);
+  const v = tchFromPairs(P.hv.pooled, P.ho.pooled, P.vo.pooled)[key];
+  return Number.isFinite(v) ? v : null;
+}
+
+export function pooledHatLeaveOneOut(nights, key) {
+  /* Under two nights there is nothing to attribute: one removal leaves a single night and the other
+     leaves none, so the contract's own floor of two inputs is the honest refusal. */
+  if (!Array.isArray(nights) || nights.length < 2 || !KEYS.includes(key)) return null;
+  const whole = pooledVarOf(nights, key);
+  if (whole == null) return null;
+  const inputs = nights.map((r, i) => {
+    const name = 'night.' + (r.night || `planted-${i + 1}`);
+    const without = pooledVarOf(
+      nights.filter((_, j) => j !== i),
+      key
+    );
+    return without == null
+      ? { key: name, share: null, delta: null, reason: 'removing this night leaves no pooled seconds, so the figure without it does not exist and its movement is unknown' }
+      : { key: name, share: 0, delta: whole - without };
+  });
+  const unknown = inputs.some((it) => it.delta === null);
+  const sumAbs = inputs.reduce((a, it) => a + (it.delta == null ? 0 : Math.abs(it.delta)), 0);
+  let dominant = null;
+  if (unknown || sumAbs === 0) {
+    /* `0/0` is not 0, and neither is an unknown denominator: refuse a number for every share. */
+    for (const it of inputs) it.share = null;
+  } else {
+    for (const it of inputs) it.share = Math.abs(it.delta) / sumAbs;
+    dominant = inputs.reduce((b, it) => (Math.abs(it.delta) > Math.abs(b.delta) ? it : b), inputs[0]).key;
+  }
+  return { of: `sigma2.pooled.${key}`, unit: 'bpm^2', method: 'leave-one-out', inputs, dominant };
+}
+
 function selftest() {
   /* Planted: three corners with known σ, plus a known per-night pairwise BIAS. The identity
      σ²_pooled − σ²_weighted = ½(B_AB + B_AC − B_BC) must hold exactly, and the pooled hat must
@@ -126,6 +198,51 @@ function selftest() {
   console.log(`  ${differs ? '✓' : '✗'} median ≠ seconds-weighted when night lengths differ  (${eu.med.h10.toFixed(4)} vs ${Math.sqrt(eu.weighted.h10).toFixed(4)})`);
   if (differs) pass++;
   else fail++;
+  // 4 · LEAVE-ONE-OUT OVER NIGHTS (VERDICT-CONTRIBUTIONS §2, the trio row) — planted truth
+  const okc = (name, cond, detail) => {
+    console.log(`  ${cond ? '✓' : '✗'} ${name}${detail ? `  ${detail}` : ''}`);
+    if (cond) pass++;
+    else fail++;
+  };
+  /* Three nights, and exactly ONE of them carries a different pairwise variance. That night is the
+     planted answer: it is the night whose removal moves the pooled hat most. */
+  const loo = [mk(1000, 5, 13, 10, 0, 0, 0), mk(3000, 5, 13, 10, 2, -1, 0.5), mk(600, 9, 13, 10, -1, 0.5, 0)];
+  loo[0].night = 'a';
+  loo[1].night = 'b';
+  loo[2].night = 'c';
+  const B = pooledHatLeaveOneOut(loo, 'h10');
+  okc('the one night whose pairwise variance differs is the dominant night', B.dominant === 'night.c', `dominant ${B.dominant}`);
+  const sAbs = B.inputs.reduce((a, it) => a + Math.abs(it.delta), 0);
+  okc(
+    'every share is |delta| / Σ|delta|, computed and not asserted beside the deltas',
+    B.inputs.every((it) => Math.abs(it.share - Math.abs(it.delta) / sAbs) < 1e-12) && Math.abs(B.inputs.reduce((a, it) => a + it.share, 0) - 1) < 1e-12,
+    `Σshare ${B.inputs.reduce((a, it) => a + it.share, 0)}`
+  );
+  /* 🔴 THE ANTI-CLAIM. A reader who knows the analytic hat row expects the deltas to sum to the
+     corner; a leave-one-out set does not, and this assertion is here so that nobody later "repairs"
+     the kernel into an identity it was never entitled to. The gap is the overlap between removals. */
+  const whole = pooledVarOf(loo, 'h10');
+  const sumDelta = B.inputs.reduce((a, it) => a + it.delta, 0);
+  okc('the deltas do NOT sum to the figure — a leave-one-out set is not a decomposition', Math.abs(sumDelta - whole) > 1e-6, `Σdelta ${sumDelta.toFixed(6)} vs figure ${whole.toFixed(6)}`);
+  /* §∅ — a night whose removal leaves NO pooled seconds. Its movement is unknown, so it is listed
+     with `delta: null` and a reason, and the unknown denominator takes every share and `dominant`
+     with it. Normalising over the nights that DID move would manufacture a denominator. */
+  const zero = [mk(1000, 5, 13, 10, 0, 0, 0), mk(0, 5, 13, 10, 1, 1, 1)];
+  zero[0].night = 'has-seconds';
+  zero[1].night = 'no-seconds';
+  const Z = pooledHatLeaveOneOut(zero, 'h10');
+  const nullRow = Z.inputs.find((it) => it.key === 'night.has-seconds');
+  okc(
+    '∅ · removing the only night with pooled seconds is an UNKNOWN movement, never 0',
+    nullRow.delta === null && typeof nullRow.reason === 'string' && nullRow.reason.length > 0,
+    JSON.stringify({ delta: nullRow.delta, reason: !!nullRow.reason })
+  );
+  okc(
+    '∅ · one unknown delta nulls EVERY share and the dominant night',
+    Z.inputs.every((it) => it.share === null) && Z.dominant === null,
+    JSON.stringify({ shares: Z.inputs.map((it) => it.share), dominant: Z.dominant })
+  );
+  okc('a single night has nothing to attribute, so there is no block at all', pooledHatLeaveOneOut([loo[0]], 'h10') === null && pooledHatLeaveOneOut(loo, 'nope') === null);
   console.log(`\n${fail === 0 ? '✓' : '✗'} selftest — ${pass} passed, ${fail} failed`);
   if (fail) process.exit(1);
 }
@@ -206,7 +323,23 @@ function main() {
     });
     console.log(
       JSON.stringify(
-        { dir, corpus, population, offered: snapBefore.n, nights: e.nights, skipped: skipped.length, pairs: e.P, pooled: e.pooled, weighted: e.weighted, gap: e.gap, medianSigma: e.med },
+        {
+          dir,
+          corpus,
+          population,
+          offered: snapBefore.n,
+          nights: e.nights,
+          skipped: skipped.length,
+          pairs: e.P,
+          pooled: e.pooled,
+          weighted: e.weighted,
+          gap: e.gap,
+          medianSigma: e.med,
+          /* One block per corner, because the attribution is per corner and the document is a
+             document — the ONE-block-per-object rule of the contract binds a verdict object, and
+             `--verdict-sample` is where this tool emits one. */
+          contributions: Object.fromEntries(KEYS.map((k) => [k, pooledHatLeaveOneOut(solved, k)]))
+        },
         null,
         2
       )
@@ -264,13 +397,55 @@ function sampleNights() {
 /* THE SAMPLE LIVES IN A NAMED HELPER, because `corpus-reads.mjs` blanks a `verdictSample` body
    before it decides whether this tool reports a population: a fabricated call left at top level
    would clear the tool over a walk no run makes (the lesson its own CONTROL leg records). */
+/* PLANTED NIGHTS, so the shape is checkable where no uploads tree exists: three nights of different
+   lengths, two of them carrying a pairwise BIAS. The bias is what makes the deltas differ at all — with
+   identical per-night moments every removal moves the pool by the same amount and `dominant` would be
+   decided by float noise rather than by the plant. */
+function plantedNights() {
+  const mk = (night, n, vHV, vHO, vVO, mHV, mHO, mVO) => ({ night, pairs: { hv: { n, var: vHV, mu: mHV }, ho: { n, var: vHO, mu: mHO }, vo: { n, var: vVO, mu: mVO } } });
+  return [mk('planted-a', 1000, 5, 13, 10, 0, 0, 0), mk('planted-b', 3000, 5, 13, 10, 2, -1, 0.5), mk('planted-c', 600, 9, 13, 10, -1, 0.5, 0)];
+}
+/* The adoption sample reads no corpus, so the object's shape is checkable where no uploads tree
+   exists. STDOUT CARRIES ONE OBJECT — `verify:verdict-adoption` runs this command and parses its
+   stdout as a single JSON value, so the population object goes to stderr beside it rather than
+   making stdout two documents. */
+/* THE SAMPLE LIVES IN A NAMED HELPER, because `corpus-reads.mjs` blanks a `verdictSample` body
+   before it decides whether this tool reports a population: a fabricated call left at top level
+   would clear the tool over a walk no run makes (the lesson its own CONTROL leg records). */
 function verdictSample() {
   const at = '2026-10-28T00:00:00Z';
   const snap = snapshotEntries('<uploads>/trio', { list: sampleNights, unit: 'nights', at });
-  return populationVerdict(snap, snap, { tool: 'tools/tch-pooled-hat.mjs', at, evidence: ['tools/tch-pooled-hat.mjs', 'tools/corpus-scope-core.mjs'] });
+  const population = populationVerdict(snap, snap, { tool: 'tools/tch-pooled-hat.mjs', at, evidence: ['tools/tch-pooled-hat.mjs', 'tools/corpus-scope-core.mjs'] });
+  const nights = plantedNights();
+  const e = estimators(nights);
+  const r3 = (x) => (Number.isFinite(x) ? +x.toFixed(3) : null);
+  const figure = undeclaredVerdict({
+    tool: 'tools/tch-pooled-hat.mjs',
+    gate: 'tch-pooled-hat',
+    stat: {
+      label: `pooled-seconds three-cornered hat, sigma² per device, attributing ${CORNER}`,
+      corner: CORNER,
+      nights: nights.length,
+      pooledSeconds: e.P.N,
+      sigma2Bpm2: { h10: r3(e.pooled.h10), verity: r3(e.pooled.verity), o2: r3(e.pooled.o2) },
+      gapPooledMinusWeightedBpm2: { h10: r3(e.gap.h10), verity: r3(e.gap.verity), o2: r3(e.gap.o2) }
+    },
+    contributions: pooledHatLeaveOneOut(nights, CORNER),
+    population: { checked: nights.length, eligible: nights.length },
+    evidence: ['<planted: 3 nights, 4600 pooled seconds, a pairwise bias on two of them>'],
+    note:
+      'PLANTED, NOT MEASURED — `--verdict-sample` reads no corpus, and the three nights are synthetic pairwise moments, so this object asserts the SHAPE and states nothing about any recording; ' +
+      `the block attributes sigma2.pooled.${CORNER} by leave-one-out over nights, and its deltas do NOT sum to the figure — each is measured against a different pool of n−1`,
+    commit: null,
+    commitReason: '--verdict-sample: planted per-night moments, no code identity claimed',
+    at
+  });
+  return { population, figure };
 }
 if (process.argv.slice(2).includes('--verdict-sample')) {
-  console.log(JSON.stringify(verdictSample()));
+  const s = verdictSample();
+  console.error('POPULATION ' + JSON.stringify(s.population));
+  console.log(JSON.stringify(s.figure));
   process.exit(0);
 }
 
