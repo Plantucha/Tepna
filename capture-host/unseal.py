@@ -338,6 +338,15 @@ def verdict_sample() -> dict:
     )
 
 
+# WHY NOTHING IMPORTS THIS MODULE, and what retires the question. Moved here 2026-11-04 from
+# find_unwired's ALLOW_MODULES, where the entry excused nothing: the `__main__` below exempts this
+# file from that scan, so the entry could never match again (residue
+# 2026-11-04-the-unwired-allowlist-waits-on-a-writer-that-already-ships).
+# This is the tepna-seal/1 READER, CAPTURE-NIGHT-SEAL phase A. Its consumer is NAMED: phase B wires
+# seal.py at night close on the box, phase C gives the Dex a browser reader, and the Python reader's
+# production consumer is the nightly `verify-seals` run over outbox/ and the archive (brief §6),
+# which phase B installs. Until then its tests judge it and tools/verify-seals.mjs on the same
+# committed vectors.
 if __name__ == "__main__":  # `verdict_sample` is tested; this only prints it
     import sys
 

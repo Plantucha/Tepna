@@ -29,21 +29,71 @@ import ast
 import pathlib
 import re
 
+from _srcscan import module_source
+
 
 HERE = pathlib.Path(__file__).resolve().parent.parent
 TOOL = HERE / "tools" / "find_unwired.py"
 
 
 def _allowlists():
+    """EVERY `ALLOW_*` list the tool defines, by PREFIX rather than by name.
+
+    🔴 WHY THE PREFIX. This read named `ALLOW_FUNCS` and `ALLOW_KEYS` and stopped there, so four lists
+    were never checked for a false reason at all — ALLOW_MODULES among them, which is where the longest-
+    lived entries live and where a reason naming the wrong absent half sat for weeks (residue
+    2026-11-04-the-unwired-allowlist-waits-on-a-writer-that-already-ships). A seventh list added
+    tomorrow is examined the moment it is defined, which an explicit tuple of names cannot promise."""
     tree = ast.parse(TOOL.read_text())
     out = {}
     for n in ast.walk(tree):
+        names = []
         if isinstance(n, ast.Assign):
-            for t in n.targets:
-                if getattr(t, "id", None) in ("ALLOW_FUNCS", "ALLOW_KEYS"):
-                    out[t.id] = ast.literal_eval(n.value)
+            names = [getattr(x, "id", None) for x in n.targets]
+        elif isinstance(n, ast.AnnAssign):
+            names = [getattr(n.target, "id", None)]
+        for nm in names:
+            if nm and nm.startswith("ALLOW_") and n.value is not None:
+                out[nm] = ast.literal_eval(n.value)
     assert "ALLOW_FUNCS" in out, "ALLOW_FUNCS is gone or reshaped — this test is stale, fix it"
     return out
+
+
+def test_the_read_covers_EVERY_allowlist_the_tool_defines():
+    """The regression guard on the read above. If a later edit narrows it back to two lists, or a new
+    list escapes the prefix, this says so by name rather than passing over an unexamined allowlist."""
+    source = TOOL.read_text()
+    declared = set(re.findall(r"^(ALLOW_[A-Z_]+)\s*(?::[^=]+)?=", source, re.M))
+    assert declared, "no ALLOW_* list found at all — the probe is blind"
+    examined = set(_allowlists())
+    assert declared == examined, "declared but not examined: %s" % sorted(declared - examined)
+    # the five the tool gates on, named so a deletion is deliberate rather than silent
+    for expected in ("ALLOW_KEYS", "ALLOW_FUNCS", "ALLOW_MODULES", "ALLOW_RENDERED", "ALLOW_JS"):
+        assert expected in examined, expected
+
+
+def test_no_reason_may_claim_the_PER_INSTANCE_STATUS_WRITER_IS_ABSENT():
+    """🔴 THE FALSE CLAIM ITSELF, pinned so it cannot return by copy-paste. Two entries read that
+    "nothing yet writes" the per-instance `status.<instance>.json`, and one promised to retire "when
+    the writer lands". The writer had landed. A retirement condition that has already fired cannot
+    retire anything, so the entry outlives its own criterion while reading as tracked."""
+    # via `module_source`, never a raw read: a raw read makes capture.py unmeasurable under mutmut
+    # (tests/test_mutation_hygiene.py::test_no_test_reads_a_mutatable_module_source_raw)
+    capture = module_source("capture.py")
+    assert re.search(r"def status_path\(root: str, instance: str \| None", capture), (
+        "the per-instance status writer changed shape — re-read the ALLOW_MODULES reason that cites it"
+    )
+    assert "status.{instance}.json" in capture or "status.%s.json" in capture
+    assert '"--instance"' in capture, "capture.py no longer declares --instance"
+    # ⚠️ A RETRACTION MUST NOT QUOTE THE CLAIM IT RETRACTS, or this guard fires on the correction —
+    # measured 2026-11-04 on the first draft of the corrected entry, which quoted both phrases.
+    # A reason that paraphrases keeps the ban strict, which is what makes it worth having.
+    for listname, d in _allowlists().items():
+        for key, reason in d.items():
+            for dead in ("nothing yet writes", "retires when the writer lands"):
+                assert dead not in reason.lower(), (
+                    "%s[%r] revives the claim that the per-instance writer is absent: %r" % (listname, key, dead)
+                )
 
 
 def _modules():
