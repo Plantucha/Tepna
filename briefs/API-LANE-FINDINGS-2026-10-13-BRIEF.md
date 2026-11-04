@@ -5,7 +5,7 @@
   Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
   project root, or http://www.apache.org/licenses/LICENSE-2.0
 -->
-**Status:** IN-PROGRESS — 2026-10-17 (items 1–3 met: #3579, #3580 and #3581 merged; items 4–6 open) · **Created:** 2026-10-13 · **Residue:** 2026-10-13-oxydex-coverage-segments-reach-the-integrator-as-strings, 2026-10-13-computehradvanced-keeps-an-absent-hr-as-a-sample
+**Status:** IN-PROGRESS — 2026-10-17 (items 1–3 met: #3579, #3580 and #3581 merged; items 4–6 open) · ⚠️ **API-LANE TRIAGE 2026-11-04 — RE-VERIFIED BY MAGPIE, NOT TAKEN ON ITS WORD.** The managed-agent lane read this brief at `4ca6b91cc` and reported six acceptance items: three met, two open, one blocked. I re-ran the cited check behind every MET item in my own tree and **every one reproduces** (two named test groups, one reader over a committed artefact). An empty `-k` or `--group=` filter exits 0. So I read the collected count and the plan line, never the exit code, and none of them collected nothing. **The OPEN and BLOCKED verdicts stay the lane's self-report, unverified here.** The remainder the lane reports is three items, which its own batch file lists. · **Created:** 2026-10-13 · **Residue:** 2026-10-13-oxydex-coverage-segments-reach-the-integrator-as-strings, 2026-10-13-computehradvanced-keeps-an-absent-hr-as-a-sample
 
 # API coder lane findings — 2026-10-13
 
