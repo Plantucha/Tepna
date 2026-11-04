@@ -438,3 +438,68 @@ def test_host_span_refuses_when_the_tail_window_holds_only_EARLIER_rows(utc, tmp
     p.write_text("Phone timestamp;sensor timestamp [ns];X [raw];Y [raw];Z [raw]\n" + "\n".join(rows) + "\n")
     assert p.stat().st_size > (1 << 13), "the plant needs the first row OUTSIDE the tail window"
     assert nightqc.file_host_span_sec(str(p)) is None
+
+
+# ─── the writer direction: CivilFrame ─────────────────────────────────────────────────────────────
+
+
+def _seam_instant():
+    """The instant the wall clock falls back: 2026-11-01 02:00 EDT == 01:00 EST."""
+    import zoneinfo
+
+    ny = zoneinfo.ZoneInfo("America/New_York")
+    return datetime(2026, 11, 1, 1, 0, 0, tzinfo=ny, fold=1).timestamp()
+
+
+def test_a_frame_anchored_before_the_seam_keeps_COUNTING_past_it(new_york):
+    """🔴 The plant: `datetime.fromtimestamp` renders the post-seam instant as `01:00`, repeating an
+    hour the file already wrote. The frame renders it as `02:00` — one continuous series, which is
+    what `capture._now()` does for the sample streams it has to be joinable with."""
+    seam = _seam_instant()
+    frame = L.CivilFrame(seam - 120)
+    before = frame.civil(seam - 120)
+    after = frame.civil(seam + 120)
+    assert before.strftime("%H:%M:%S") == "01:58:00"
+    assert after.strftime("%H:%M:%S") == "02:02:00", "the frame counts on; it does not relabel"
+    assert after > before, "a file that rewinds mid-night is the defect this closes"
+    assert datetime.fromtimestamp(seam + 120).strftime("%H:%M:%S") == "01:02:00", (
+        "the plant: the zone-following render is the one that rewinds"
+    )
+
+
+def test_a_frame_counts_the_rows_the_live_zone_disagreed_with(new_york):
+    """`shifted_rows` is the telemetry that makes a reframed tail visible. A night that never crosses
+    a transition reports 0, so the count names an event rather than a policy."""
+    seam = _seam_instant()
+    frame = L.CivilFrame(seam - 60)
+    frame.civil(seam - 60)
+    frame.civil(seam - 30)
+    assert frame.shifted_rows == 0
+    frame.civil(seam + 30)
+    frame.civil(seam + 60)
+    assert frame.shifted_rows == 2
+    assert frame.telemetry() == {
+        "anchor_epoch_s": seam - 60,
+        "offset_s": -14400.0,
+        "shifted_rows": 2.0,
+    }, "offset_s names the frame the file is IN, which a reader needs to recover instants"
+
+
+def test_a_frame_in_a_zone_without_DST_is_exactly_the_plain_render(utc):
+    """Outside a transition the frame must be a no-op — the same bar the fold resolver is held to."""
+    seam = _seam_instant()
+    frame = L.CivilFrame(seam - 3600)
+    for delta in (-3600.0, -1.0, 0.0, 1.0, 3600.0, 7200.0):
+        assert frame.civil(seam + delta) == datetime.fromtimestamp(seam + delta)
+    assert frame.telemetry() == {"anchor_epoch_s": seam - 3600, "offset_s": 0.0, "shifted_rows": 0.0}
+
+
+def test_a_frame_anchors_on_the_instant_it_is_GIVEN_not_on_now(new_york):
+    """The run anchors on its first ROW. A frame anchored after the seam is in the later offset, and
+    renders the pre-seam instant an hour BACK rather than pretending the night began twice."""
+    seam = _seam_instant()
+    late = L.CivilFrame(seam + 60)
+    assert late.telemetry()["offset_s"] == -18000.0
+    assert late.civil(seam + 60).strftime("%H:%M:%S") == "01:01:00"
+    assert late.civil(seam - 60).strftime("%H:%M:%S") == "00:59:00"
+    assert late.shifted_rows == 1, "the pre-seam row is the one that disagrees with THIS frame"

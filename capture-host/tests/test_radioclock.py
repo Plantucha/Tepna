@@ -2226,3 +2226,80 @@ def test_an_UNREADABLE_header_assumes_the_NARROW_shape_and_never_widens_it(tmp_p
     assert seen["n"] == 1, "the header read must have been attempted, or this asserts nothing"
     assert got == 10
     w.close()
+
+
+# ─── the civil frame: one run, one UTC offset ─────────────────────────────────────────────────────
+
+
+def _in_zone(name):
+    """Apply a zone to the PROCESS — `datetime.fromtimestamp` reads the C library's zone, so `TZ`
+    alone changes nothing until `tzset()`. Restored on the way out, including when the body raises."""
+    import contextlib
+    import os as _os
+    import time as _time
+
+    @contextlib.contextmanager
+    def ctx():
+        before = _os.environ.get("TZ")
+        _os.environ["TZ"] = name
+        _time.tzset()
+        try:
+            yield
+        finally:
+            if before is None:
+                _os.environ.pop("TZ", None)
+            else:
+                _os.environ["TZ"] = before
+            _time.tzset()
+
+    return ctx()
+
+
+def test_a_FALL_BACK_NIGHT_does_not_rewind_the_sidecar_mid_file(tmp_path):
+    """🔴 Residue 2026-11-04-one-sessions-sidecar-and-sample-stream-end-an-hour-apart.
+
+    The box runs America/New_York. On 2026-11-01 the wall clock passes 01:00–02:00 twice, and a
+    stamp rendered from the live zone writes `01:01` for an instant AFTER the file already wrote
+    `01:59` — a 3600 s rewind inside one file, and an hour away from the sample stream of the same
+    session, which `capture._now()` keeps counting in the session's original offset. The run's frame
+    gives this process that discipline without touching `capture.py` (invariant 1)."""
+    import datetime as _dt
+    import zoneinfo
+
+    with _in_zone("America/New_York"):
+        seam_ns = (
+            int(_dt.datetime(2026, 11, 1, 1, 0, 0, tzinfo=zoneinfo.ZoneInfo("America/New_York"), fold=1).timestamp())
+            * 1_000_000_000
+        )
+        acls = ((seam_ns - 60_000_000_000,), (seam_ns + 60_000_000_000,))
+        name = rc.sidecar_name("20261101T015000", H10)
+
+        def open_writer(address):
+            return rc.SidecarWriter(str(tmp_path / rc.sidecar_name("20261101T015000", address)))
+
+        got = rc.run(_stream(acls=acls), _collector(), open_writer)
+        stamps = [line.split(";")[0] for line in (tmp_path / name).read_text(encoding="utf-8").splitlines()[1:]]
+        assert got["rows"] == 2
+        assert stamps == ["2026-11-01T01:59:00.000", "2026-11-01T02:01:00.000"]
+        assert stamps[0] < stamps[1], "a file that rewinds mid-night is the defect this closes"
+        assert rc.phone_ts(seam_ns + 60_000_000_000) == "2026-11-01T01:01:00.000", (
+            "the plant: without the frame the same instant renders an hour back"
+        )
+        assert got["civil_frame"] == {
+            "anchor_epoch_s": (seam_ns - 60_000_000_000) / 1e9,
+            "offset_s": -14400.0,
+            "shifted_rows": 1.0,
+        }, (
+            "the anchor is the FIRST row's instant, and the rest names the frame the file is IN "
+            "and the rows the live zone disagreed with"
+        )
+
+
+def test_a_run_that_writes_NO_ROW_reports_NO_civil_frame(tmp_path):
+    """A frame with no file is a claim about nothing — the same rule as the absent sidecar itself."""
+
+    def open_writer(address):  # pragma: no cover — reaching it would mean a row was written
+        raise AssertionError("no row, so no writer")
+
+    got = rc.run(_stream(acls=()), _collector(), open_writer)
+    assert got["rows"] == 0 and got["civil_frame"] is None
