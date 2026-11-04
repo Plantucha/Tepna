@@ -1533,6 +1533,23 @@ def _has_worn_evidence(night_dir: str, model: str) -> bool | None:
 #   file — 2026-09-07 07:32 (gap 468 s, both witnesses agree) reads `doff`, correctly, against a `link` label.
 #   Ends by label 2026-08-25..09-23 under this rule: night-ends 33/33 usable-with-tail called doff (5 not: 3 under
 #   60 s of PPG2W, refused; 2 daytime sessions with no tail -> quiet); link-labelled ends 1/40 (the one above).
+#   (3) THE CHARGER. A ring moved straight from the finger onto its charger leaves NO off-finger tail: the daemon's
+#       record gate (`telemetry.RingRecordGate`) drops every frame while the ring charges, so PPG2W and SpO2 stop
+#       on the same second and nothing relinks. 2026-11-03 04:22 read `quiet-end-unclassified` and the ring's
+#       night went UNKNOWN for exactly this. The charge shows in the LINK sidecar's `battery_pct`: a dock is a
+#       battery RISE after the SpO2 file's last row. `ring_dock_witness` measures it; a dock is a doff.
+#   RING_DOCK_RISE_PCT = 6        CHOSEN between the two populations, capture box 2026-07-25..2026-11-04 (662 ring
+#                                 SpO2 files, 307,197 ring LINK rows). Worn: the largest rise inside any 600 s
+#                                 window wholly within an SpO2 span was +3 (~101k windows; +1 x31, +2 x3, +3 x7 —
+#                                 the gauge re-reads under load). Docked: 21 ends rose +9..+19 within 600 s; the
+#                                 2026-11-03 end rose +17, first step 18 s after the last row. One end rose +4
+#                                 (2026-08-29 06:00) and stays undecided. 6 sits over the worn maximum by the
+#                                 geometric mean of the two edges (sqrt(3 x 9) = 5.2, rounded UP). A ring docked
+#                                 near full (99 -> 100) cannot rise 6: that end stays quiet, never a borrowed doff.
+#   RING_DOCK_WINDOW_S = 600      the look-back for the baseline (the last battery row AT OR BEFORE the end) and the
+#                                 look-ahead for the rise. The box writes a LINK row about every 2 min per device.
+#   The witness reads ring rows by the LINK `device` name ("Wellue O2Ring-S"): a renamed ring gives no rows, so no
+#   witness, so the end keeps the PPG2W verdict. The worn end stays the SpO2 file's last row (the conservative edge).
 WEAR_EPOCH_S = 10  # an INT: epoch keys and starts are integer arithmetic end to end
 H10_TAIL_REL_MIN = 5.0
 H10_TAIL_RUN_EPOCHS = 6
@@ -1547,6 +1564,10 @@ _WEAR_STREAM = {"H10": ("Polar_H10_*_ECG.txt", [3]), "VeritySense": ("Polar_Veri
 RING_DOFF_SPO2_AGREE_S = 30.0
 _RING_SPO2 = "Wellue_O2Ring-S_*_SPO2.csv"
 _TAIL_BYTES = 4096  # the last stamped row of an SpO2 file sits in its final ~30 bytes
+RING_DOCK_RISE_PCT = 6
+RING_DOCK_WINDOW_S = 600.0
+_LINK = "Tepna_*_LINK.csv"
+_RING_LINK_DEVICE = "O2Ring"
 
 
 def h10_tail(epoch_sd: list[float]) -> dict | None:
@@ -1744,7 +1765,57 @@ def ring_end_doff(tail_off: bool | None, doff_at: _dt.datetime | None, spo2_last
     return (doff_at - spo2_last).total_seconds() >= -RING_DOFF_SPO2_AGREE_S
 
 
-def _ring_end(path: str, night_dir: str, contact: list[dict]) -> dict:
+def ring_dock_witness(series: list[tuple[_dt.datetime, int]], spo2_last: _dt.datetime) -> dict | None:
+    """Did the ring go onto its charger at this end? PURE. `series` is the ring's sorted `(stamp, battery %)`.
+
+    `None` when there is no baseline (no battery row in the RING_DOCK_WINDOW_S before the end) or nothing
+    after it: an absent witness, never a "not docked"."""
+    win = _dt.timedelta(seconds=RING_DOCK_WINDOW_S)
+    before = [b for t, b in series if spo2_last - win <= t <= spo2_last]
+    after = [(t, b) for t, b in series if spo2_last < t <= spo2_last + win]
+    if not before or not after:
+        return None
+    base = before[-1]
+    rise = max(b for _, b in after) - base
+    first = next(((t - spo2_last).total_seconds() for t, b in after if b - base >= RING_DOCK_RISE_PCT), None)
+    return {
+        "base_pct": base,
+        "rise_pct": rise,
+        "first_rise_s": None if first is None else round(first),
+        "docked": rise >= RING_DOCK_RISE_PCT,
+    }
+
+
+def _ring_battery(night_dir: str) -> tuple[list[tuple[_dt.datetime, int]], list[str]]:
+    """The ring's `(stamp, battery %)` rows from the recording's LINK sidecars, sorted, and every sidecar it could
+    not read, by name. An empty `battery_pct` is absent and is skipped, never read as 0."""
+    series: list[tuple[_dt.datetime, int]] = []
+    unreadable: list[str] = []
+    for path in _recording_glob(night_dir, _LINK, membership=False):
+        try:
+            with open(path, errors="replace") as fh:
+                head = fh.readline()
+                while head.startswith("#"):  # the radio provenance line (writers.LinkLogWriter)
+                    head = fh.readline()
+                idx = {k: i for i, k in enumerate(head.rstrip("\n").split(";"))}
+                i_ts, i_dev, i_b = idx.get("Phone timestamp"), idx.get("device"), idx.get("battery_pct")
+                if i_ts is None or i_dev is None or i_b is None:
+                    continue  # a sidecar written before the battery column landed
+                for line in fh:
+                    p = line.rstrip("\n").split(";")
+                    if len(p) <= max(i_ts, i_dev, i_b) or _RING_LINK_DEVICE not in p[i_dev]:
+                        continue
+                    try:
+                        series.append((_dt.datetime.fromisoformat(p[i_ts]), int(p[i_b])))
+                    except ValueError:
+                        continue  # an empty battery field is ABSENT (never 0); a torn stamp is no row
+        except OSError as exc:
+            unreadable.append(f"{os.path.basename(path)}: {exc!r}")
+    series.sort()
+    return series, unreadable
+
+
+def _ring_end(path: str, night_dir: str, contact: list[dict], battery: list[tuple[_dt.datetime, int]]) -> dict:
     base = os.path.basename(path)
     last = _last_stamp(path)
     if last is None:
@@ -1759,14 +1830,18 @@ def _ring_end(path: str, night_dir: str, contact: list[dict]) -> dict:
     else:
         tail, why = blk["tail_off"], None
         doff_at = _dt.datetime.fromisoformat(blk["doff_at"]) if blk["doff_at"] else None
-    doff = ring_end_doff(tail, doff_at, last)
+    ppg_doff = ring_end_doff(tail, doff_at, last)
+    dock = ring_dock_witness(battery, last)
+    # The charger is the second road to a doff: it can only ADD one. A PPG2W doff stands whatever the battery did.
+    doff = True if dock is not None and dock["docked"] else ppg_doff
+    witness = "ppg2w-tail" if ppg_doff else "charger" if doff else None
     gap, no_stamp = _relink_gap(night_dir, _RING_SPO2, last)
     # The worn interval ends where EITHER witness goes quiet: the doff second is typically 0–4 s AFTER the SpO2
     # file's last row, and a worn end past the primary's own last row can never be covered by that file (the
     # SOLID-NIGHT continuity band read UNKNOWN on 2026-09-24 for 2 s of exactly that). Within the 30 s agreement
     # bound the tail can also start first; then it is the earlier one.
     worn_end = last
-    if doff:
+    if ppg_doff:
         assert doff_at is not None  # ring_end_doff is never True without a doff time
         worn_end = min(doff_at, last)
     return {
@@ -1781,7 +1856,9 @@ def _ring_end(path: str, night_dir: str, contact: list[dict]) -> dict:
         "ppg2w_unusable": why,
         "tail_off": tail,
         "doff_at": None if doff_at is None else doff_at.isoformat(timespec="seconds"),
-        "ppg2w_contradicted": bool(tail) and doff is False,
+        "ppg2w_contradicted": bool(tail) and ppg_doff is False,
+        "doff_witness": witness,
+        "dock_witness": dock,
     }
 
 
@@ -1797,13 +1874,17 @@ def wear_ends(night_dir: str, model: str) -> dict:
         return {"available": False, "reason": f"no wear-end rule for model {model!r}"}
     files = _recording_glob(night_dir, spec[0])
     contact = _ring_contact(files) if ring else []
+    battery, link_unreadable = _ring_battery(night_dir) if ring else ([], [])
     ends = []
     for f in files:
         try:
-            ends.append(_ring_end(f, night_dir, contact) if ring else _wear_end(f, night_dir, model))
+            ends.append(_ring_end(f, night_dir, contact, battery) if ring else _wear_end(f, night_dir, model))
         except OSError as exc:
             ends.append({"file": os.path.basename(f), "usable": False, "reason": f"unreadable: {exc!r}"})
-    return {"available": True, "ends": ends, "worn_end": worn_end_of(ends)}
+    out = {"available": True, "ends": ends, "worn_end": worn_end_of(ends)}
+    if link_unreadable:
+        out["link_unreadable"] = link_unreadable  # the charger witness could not read these; named, never silent
+    return out
 
 
 def _ring_contact(spo2_files: list[str]) -> list[dict]:
