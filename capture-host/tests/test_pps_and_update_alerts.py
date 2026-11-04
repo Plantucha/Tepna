@@ -383,3 +383,17 @@ def test_update_streak_main_reads_a_latin1_comment_as_bytes(tmp_path):
     p = tmp_path / "latin1.yaml"
     p.write_bytes(b"# m\xfcller\nalerts:\n  enabled: true\n  webhook_url: https://hook.invalid/t\n")
     assert alerts.update_streak_main(["update-streak", str(p), "back", "2", "1"], _post=never) == 0
+
+
+def test_update_streak_main_reads_a_utf16_config_through_its_byte_order_mark(tmp_path):
+    """Bytes in, so YAML reads the BOM and decodes UTF-16; a text-mode read under a UTF-8 locale fails."""
+    sent = []
+
+    async def ok(url, payload, headers=None):
+        sent.append((url, payload.get("topic")))
+        return True
+
+    p = tmp_path / "utf16.yaml"
+    p.write_text("alerts:\n  enabled: true\n  webhook_url: https://hook.invalid/t\n", encoding="utf-16")
+    assert alerts.update_streak_main(["update-streak", str(p), "back", "2", "1"], _post=ok, now=5) == 0
+    assert sent == [("https://hook.invalid/", "t")]
