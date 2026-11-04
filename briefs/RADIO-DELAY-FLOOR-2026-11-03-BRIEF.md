@@ -175,6 +175,9 @@ The row's own target is the between-nights spread. On the floor-mapped axis the 
 spans 522.74 to 1644.98 ms over the three nights, a 1122 ms spread against the 2188 ms of the
 −867…+1321 ms it would replace. **So the floor map halves that spread and leaves no constant.**
 
+The run names its own denominator. It reports 103 nights offered under the archive root and three
+folded here, beside a `corpus-population` verdict that reads PASS for movement across the read.
+
 **The beat offsets**, from `node tools/pat-host-offset.mjs --scan --json` grouped per night:
 
 | night | median beat offset | median RR | scored windows | within-night spread |

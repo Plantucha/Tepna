@@ -49,6 +49,7 @@ import { closeSync, existsSync, openSync, readFileSync, readSync, readdirSync, s
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { isCliEntry } from './argv-guard.mjs';
+import { populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
 import { makeVerdict, printVerdict } from './verdict-emit.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -76,8 +77,11 @@ const MIN_PAIRS = 4;
 /* The numeric PMD stream ids the capture host writes. 2 (acc) and 3 (ppi) are read and ignored. */
 const MEAS_ROLE = { 0: 'ecg', 1: 'ppg' };
 
-const arg = (n, d) => {
-  const i = process.argv.indexOf('--' + n);
+/* THE FLAG NAME IS A LITERAL AT THE CALL SITE, never composed here. A `indexOf('--' + n)` read is
+   undecidable for the usage-line scan (`tests/dex-tests.js`, "a documented flag is read by the tool
+   that documents it"), which then excludes the whole tool from the judged set instead of checking it. */
+const arg = (flag, d) => {
+  const i = process.argv.indexOf(flag);
   return i > 0 && process.argv[i + 1] ? process.argv[i + 1] : d;
 };
 
@@ -631,18 +635,21 @@ if (IS_CLI && process.argv.includes('--selftest')) {
 } else if (IS_CLI && process.argv.includes('--verdict-sample')) {
   console.log(JSON.stringify(verdictSample()));
 } else if (IS_CLI) {
-  const DIR = arg('dir', 'uploads/vigil-archive/captures');
-  const ONLY = arg('night', null);
-  const BEATS = arg('beats', null);
+  const DIR = arg('--dir', 'uploads/vigil-archive/captures');
+  const ONLY = arg('--night', null);
+  const BEATS = arg('--beats', null);
   const JSON_OUT = process.argv.includes('--json');
   const base = DIR.startsWith('/') ? DIR : join(ROOT, DIR);
   if (!existsSync(base)) {
     console.error(`pat-floor-offset: ${DIR} not found. The raw corpus is gitignored — pass --dir.`);
     process.exit(2);
   }
-  const nights = readdirSync(base)
-    .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d) && (!ONLY || d === ONLY))
-    .sort();
+  /* THE NIGHT POPULATION IS SNAPSHOTTED ACROSS THE READ. A run that opens over one night set and
+     closes over another covers neither, so the movement verdict publishes beside this tool's own. */
+  const popBefore = snapshotNights(base);
+  /* THE SNAPSHOT IS THE LISTING. A second `readdirSync` here would describe one population and score
+     another, so `--night` filters the snapshot's own nights and the count it leaves unread is named. */
+  const nights = popBefore.nights.filter((d) => !ONLY || d === ONLY);
   const rows = [],
     floors = [];
   for (const night of nights) {
@@ -654,8 +661,9 @@ if (IS_CLI && process.argv.includes('--selftest')) {
   const beats = BEATS ? readBeats(BEATS) : [];
   const agreement = agreementPairs(floors, beats);
   const verdict = agreementVerdict(agreement, { evidence: ['tools/pat-floor-offset.mjs', DIR, ...(BEATS ? [BEATS] : [])] });
+  const population = populationVerdict(popBefore, snapshotNights(base), { tool: 'tools/pat-floor-offset.mjs', evidence: ['tools/pat-floor-offset.mjs'] });
   if (JSON_OUT) {
-    console.log(JSON.stringify({ dir: DIR, nights: rows, floors, beats, agreement, verdict }, null, 2));
+    console.log(JSON.stringify({ dir: DIR, nights: rows, floors, beats, agreement, verdict, population }, null, 2));
   } else {
     for (const r of rows) {
       console.log(`\n${r.night} — ${r.files} sidecar(s), ${r.rows} rows, ${r.used} folded`);
@@ -677,6 +685,15 @@ if (IS_CLI && process.argv.includes('--selftest')) {
     }
     for (const p of agreement.pairs)
       console.log(`\n${p.pair}: floor moved ${p.floorMoveMs.toFixed(2)} ms, beats moved ${p.beatMoveMs.toFixed(0)} ms mod RR ${p.rrMs.toFixed(0)} — disagreement ${p.disagreementMs.toFixed(1)} ms`);
+    /* MOVEMENT, NEVER COVERAGE: the night counts beside it are what the run actually read. */
+    console.log(
+      `\npopulation: ${popBefore.n} night(s) offered under the root · ${nights.length} selected · ${rows.length} folded · movement ${population.status}` +
+        (ONLY ? ` · --night left ${popBefore.n - nights.length} offered night(s) unread` : '') +
+        (population.reason ? ` — ${population.reason}` : '')
+    );
+    const rl = ruleLine(population);
+    if (rl) console.log(rl);
+    console.log('POPULATION ' + JSON.stringify(population));
     printVerdict(verdict);
   }
 }
