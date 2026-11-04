@@ -233,8 +233,35 @@ const MIN_KFIT_EPOCHS = 5;
 const SQI_MIN_BEATS = 5;
 const SQI_CLEAN_CUT = 0.5;
 const SQI_MIN_NIGHTS = 5;
-const SQI_PUBLISHED_AUC = 0.763;
+/* 🔴 THE PUBLISHED FIGURE IS DEVICE-KEYED, and this arm first reproduced the very defect the jitter
+   arm had already been taught — see the DEVICE-KEYED reference note at the jitter summary below.
+   §3.4's 0.763 is a VERITY ARMBAND figure, measured on the Verity + H10 corpus. `--device` defaults
+   to o2ring, so the first 30-night run of this arm (2026-11-04) compared an O2Ring FINGER median of
+   0.862 against it and printed FAIL at a deviation of 0.099 — a real measurement held against a
+   reference that does not describe it. No published §3.4 AUC exists for the finger, so for any device
+   but the Verity the reproduction criterion DOES NOT BIND: the arm reports its measurement and the
+   verdict reads NOT_APPLICABLE, which is what the contract's "examined, and the rule does not bind"
+   is for. A label must travel with the number it labels. */
+const SQI_PUBLISHED_BY_DEVICE = {
+  verity: { auc: 0.763, iqr: '0.645–0.791', aboveChance: '9 of 10', p: 0.014, paper: 'papers/ppg-ecg-hrv-validation.html' }
+};
+export function sqiPublishedFor(device) {
+  const p = SQI_PUBLISHED_BY_DEVICE[String(device).toLowerCase()];
+  return p || null;
+}
+const SQI_PUBLISHED = sqiPublishedFor(DEVICE);
+const SQI_PUBLISHED_AUC = SQI_PUBLISHED ? SQI_PUBLISHED.auc : null;
 const SQI_REPRO_BAND = 0.05;
+/* The STATUS decision, pure and separate from the emitter, because the emitter exits the process and
+   cannot be called from a selftest. NOT_RUN outranks everything (nothing was examined); then an absent
+   published figure, which is a statement about the REFERENCE and not about power; then the test's own
+   floor; and only then the reproduction band. */
+export function sqiVerdictStatus(nNights, publishedAuc, deviation, minNights, band) {
+  if (!nNights) return 'NOT_RUN';
+  if (publishedAuc == null) return 'NOT_APPLICABLE';
+  if (nNights < minNights) return 'UNDERPOWERED';
+  return deviation <= band ? 'PASS' : 'FAIL';
+}
 /* The exact null enumerates subset sums of the signed ranks, so its count is an integer up to 2ⁿ and
    stays exact in a double to n = 53. Above that the arm refuses rather than switching to a normal
    approximation nobody asked for — this corpus has 30 nights. */
@@ -1050,6 +1077,25 @@ function selftest() {
     const R = sqiReport([mk('n1', 50, 0.2), mk('n1', 5, 0.9), mk('n2', 50, 0.1), mk('n2', 5, 0.8)]);
     ok('the arm reports one AUC per night and counts the nights above chance', R.A.length === 2 && R.above === 2, JSON.stringify(R.A));
     ok('…and it counts the epochs it scored against the epochs it was offered', R.scoredEpochs === 4 && R.epochs === 4, R.scoredEpochs + '/' + R.epochs);
+    /* ⚠️ THE PUBLISHED FIGURE IS A VERITY FIGURE. These legs exist because the first corpus run of this
+       arm held an O2Ring median against it and called the miss a FAIL. */
+    ok('the published §3.4 AUC is keyed to the Verity, the device it was measured on', sqiPublishedFor('verity').auc === 0.763);
+    ok('…and no published AUC is claimed for the O2Ring finger', sqiPublishedFor('o2ring') === null);
+    ok('…nor for an unknown device name', sqiPublishedFor('nosuchdevice') === null);
+    ok(
+      'a device with no published figure reads NOT_APPLICABLE, never FAIL — the rule does not bind',
+      sqiVerdictStatus(13, null, null, SQI_MIN_NIGHTS, SQI_REPRO_BAND) === 'NOT_APPLICABLE',
+      sqiVerdictStatus(13, null, null, SQI_MIN_NIGHTS, SQI_REPRO_BAND)
+    );
+    ok(
+      '…and the same 0.862 median that reads NOT_APPLICABLE unkeyed reads FAIL against the Verity figure',
+      sqiVerdictStatus(13, 0.763, Math.abs(0.862 - 0.763), SQI_MIN_NIGHTS, SQI_REPRO_BAND) === 'FAIL'
+    );
+    ok('an absent reference does NOT mask an empty run: nothing examined is still NOT_RUN', sqiVerdictStatus(0, null, null, SQI_MIN_NIGHTS, SQI_REPRO_BAND) === 'NOT_RUN');
+    ok('an absent reference outranks the power floor, because power is not the reason it cannot answer', sqiVerdictStatus(2, null, null, SQI_MIN_NIGHTS, SQI_REPRO_BAND) === 'NOT_APPLICABLE');
+    ok('a keyed reference with too few nights is UNDERPOWERED', sqiVerdictStatus(4, 0.763, 0.01, SQI_MIN_NIGHTS, SQI_REPRO_BAND) === 'UNDERPOWERED');
+    ok('a keyed reference inside the band is PASS', sqiVerdictStatus(13, 0.763, 0.04, SQI_MIN_NIGHTS, SQI_REPRO_BAND) === 'PASS');
+    ok('…and the band is inclusive at its edge, as "lte" says', sqiVerdictStatus(13, 0.763, SQI_REPRO_BAND, SQI_MIN_NIGHTS, SQI_REPRO_BAND) === 'PASS');
   }
 
   console.log(fail ? '\nselftest: ' + fail + ' FAILED' : '\nselftest: all green');
@@ -1268,7 +1314,11 @@ function sqiLines(R) {
       out.push(
         `                            Wilcoxon signed-rank p = ${w.p == null ? '—' : w.p.toFixed(4)}   [${w.exact ? 'exact' : w.reason}, n = ${w.n}${w.nDropped ? `, ${w.nDropped} night(s) exactly at 0.5 dropped` : ''}, W+ = ${w.wPlus}, the null is AUC = 0.5]`
       );
-    out.push(`                            the paper's §3.4 figures, for comparison: median ${SQI_PUBLISHED_AUC}, IQR 0.645–0.791, above chance on 9 of 10 night(s), p = 0.014`);
+    out.push(
+      SQI_PUBLISHED
+        ? `                            the paper's §3.4 figures, for comparison: median ${SQI_PUBLISHED.auc}, IQR ${SQI_PUBLISHED.iqr}, above chance on ${SQI_PUBLISHED.aboveChance} night(s), p = ${SQI_PUBLISHED.p}   [${DEVICE} — like-for-like]`
+        : `                            no published §3.4 AUC for the ${DEVICE.toUpperCase()}: 0.763 is the VERITY ARMBAND figure and is NOT comparable, so this run makes no reproduction claim`
+    );
   }
   out.push(`                            epochs scored     ${R.scoredEpochs} of ${R.epochs}   ·   without a score: ${sqiTally(sqiDrops)}`);
   out.push(`                            nights excluded   ${R.mean.excluded.length}${R.mean.excluded.length ? ': ' + R.mean.excluded.map((e) => e.night + ' (' + e.reason + ')').join(' · ') : ''}`);
@@ -1282,15 +1332,17 @@ function emitSqiVerdict(R) {
   const Verdict = createRequire(import.meta.url)(join(ROOT, 'verdict.js'));
   const med = R.A.length ? median(R.A) : null;
   const dev = med == null ? null : Math.abs(med - SQI_PUBLISHED_AUC);
-  const status = !R.A.length ? 'NOT_RUN' : R.A.length < SQI_MIN_NIGHTS ? 'UNDERPOWERED' : dev <= SQI_REPRO_BAND ? 'PASS' : 'FAIL';
+  const status = sqiVerdictStatus(R.A.length, SQI_PUBLISHED_AUC, dev, SQI_MIN_NIGHTS, SQI_REPRO_BAND);
   const reason =
     status === 'NOT_RUN'
       ? 'no night carried both a catastrophic and a non-catastrophic epoch with an SQI score, so the channel was never ranked'
-      : status === 'UNDERPOWERED'
-        ? `only ${R.A.length} night(s) carried both classes, under the pre-stated floor of ${SQI_MIN_NIGHTS} — below it the exact signed-rank test cannot reject at any conventional level`
-        : status === 'FAIL'
-          ? `the within-night median AUC reads ${med.toFixed(3)} against the published ${SQI_PUBLISHED_AUC}, a deviation of ${dev.toFixed(3)} outside the pre-stated ±${SQI_REPRO_BAND} band, so §3.4's carried figure does not reproduce on this corpus`
-          : null;
+      : status === 'NOT_APPLICABLE'
+        ? `no published §3.4 AUC exists for the ${DEVICE}, so the reproduction criterion does not bind; 0.763 is the Verity armband figure and the measurement above is reported on its own terms`
+        : status === 'UNDERPOWERED'
+          ? `only ${R.A.length} night(s) carried both classes, under the pre-stated floor of ${SQI_MIN_NIGHTS} — below it the exact signed-rank test cannot reject at any conventional level`
+          : status === 'FAIL'
+            ? `the within-night median AUC reads ${med.toFixed(3)} against the published ${SQI_PUBLISHED_AUC}, a deviation of ${dev.toFixed(3)} outside the pre-stated ±${SQI_REPRO_BAND} band, so §3.4's carried figure does not reproduce on this corpus`
+            : null;
   const v = Verdict.make({
     gate: 'ppi-jitter-sqi-epoch-auc',
     status,
@@ -1319,7 +1371,9 @@ function emitSqiVerdict(R) {
             nightsExcluded: R.mean.excluded,
             device: DEVICE
           },
-    evidence: ['tools/ppi-jitter-vs-ecg.mjs', 'papers/ppg-ecg-hrv-validation.html', 'papers/ppg-quality-gate-pooling.html'],
+    /* Evidence follows the device as well: a finger run must not cite a wrist paper as the thing it
+       examined. */
+    evidence: SQI_PUBLISHED ? ['tools/ppi-jitter-vs-ecg.mjs', SQI_PUBLISHED.paper, 'papers/ppg-quality-gate-pooling.html'] : ['tools/ppi-jitter-vs-ecg.mjs'],
     reason,
     producedBy: { tool: 'tools/ppi-jitter-vs-ecg.mjs', commit: commitOf.commit, commitReason: commitOf.commit ? null : commitOf.reason }
   });
