@@ -63,6 +63,8 @@ The transport is a generic JSON webhook. ntfy is the transport the box uses. Not
 | `Tepna: night <night> <status>` | `loss_poller` → `_announce_solid` | The solid-night verdict, once per night and status, after the night's band closes. |
 | `Tepna: CPAP harvest failed` / `found nothing` | `_cpap_loop` | The CPAP card harvest fails or finds no data. |
 | `Tepna: <label> crashed` | `keep_running` | A supervised task crashes and restarts. |
+| `Tepna: host clock left the GPS pulse` / `back on the GPS pulse` | `host_clock_poller` | The chrony reference stays off `PPS` for `time.pps_loss_alert_sec` (600 s) after this run saw it. |
+| `Tepna: box update failing` / `box update recovered` | `tepna-update.sh` EXIT trap | The second update run in a row fails, and the first clean run after that alert. |
 
 Run `git grep -n 'notifier.send\|_NOTIFIER.send' capture-host/capture.py` for the current list. This table can go stale.
 

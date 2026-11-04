@@ -1090,3 +1090,141 @@ def silence_owner(
     if name and offline_slot is not None and offline_slot == name:
         return "stored-pull"
     return polar_pause_reason(addr, paused_addrs)
+
+
+# ── THE HOST CLOCK LEFT THE GPS PULSE ──────────────────────────────────────────────────────────────
+# The box disciplines its clock to a GPS receiver's pulse (chrony refclock `PPS`, stratum 1). Without the
+# pulse chrony falls back to a LAN or internet server, and every night timestamp after that point is only
+# as good as the fallback. `docs/VIGIL-GPS-STRATUM1.md` records that the box once fell back to stratum 2
+# "without a word"; `host_clock_poller` logged the change and alerted nobody.
+#
+# ARMED ONLY AFTER THIS RUN SAW THE PULSE. A host without a receiver never alerts, and neither does the
+# boot window. Measured on the capture box 2026-11-03 after a reboot: chrony started at 15:14:11, chose a
+# LAN server at 15:14:16 and chose PPS at 15:14:58. The daemon's first poll at 15:14:13 read no source.
+#
+# A GRACE BEFORE THE ALERT. chrony drops a refclock for a few polls when the receiver re-acquires, so a
+# short loss is no news. 600 s is five daemon polls at the 120 s default, pre-stated, not fitted.
+PPS_REFERENCE = "PPS"
+PPS_LOSS_GRACE_SEC = 600.0
+
+
+def pps_watch_new() -> dict:
+    """The state of a watch that has not yet seen the pulse."""
+    return {"armed": False, "lost_since": None, "back_at": None, "alerted": False}
+
+
+def pps_watch_step(
+    state: dict, reference: str | None, now: float, grace_sec: float = PPS_LOSS_GRACE_SEC
+) -> tuple[dict, str | None, float | None]:
+    """PURE: one clock poll → (new state, `"lost"` / `"back"` / None, minutes off the pulse or None).
+
+    `"lost"` is due once an armed watch has been off the pulse for `grace_sec`. `"back"` is due when the
+    pulse returns after a delivered loss alert, and it stays due until `pps_watch_sent` records it."""
+    s = dict(state)
+    if reference == PPS_REFERENCE:
+        s["armed"] = True
+        if s["alerted"]:
+            if s["back_at"] is None:
+                s["back_at"] = now
+            return s, "back", (s["back_at"] - s["lost_since"]) / 60.0
+        s["lost_since"] = None
+        return s, None, None
+    if not s["armed"]:
+        return s, None, None
+    s["back_at"] = None
+    if s["lost_since"] is None:
+        s["lost_since"] = now
+    if s["alerted"] or now - s["lost_since"] < grace_sec:
+        return s, None, None
+    return s, "lost", (now - s["lost_since"]) / 60.0
+
+
+def pps_watch_sent(state: dict, due: str) -> dict:
+    """PURE: the state after the `due` alert was delivered (or alerts are off)."""
+    s = dict(state)
+    if due == "lost":
+        s["alerted"] = True
+    else:
+        s.update(alerted=False, lost_since=None, back_at=None)
+    return s
+
+
+def pps_alert_text(due: str, minutes: float, stratum, trust) -> tuple[str, str]:
+    """PURE: the title and message for a `pps_watch_step` result. Names no server: a fallback reference
+    can be a LAN address, and the alert also reaches the board."""
+    m = int(round(minutes))
+    if due == "lost":
+        st = "unknown" if stratum is None else stratum
+        return (
+            "Tepna: host clock left the GPS pulse",
+            f"The host clock has run without the GPS pulse (PPS) for {m} min. "
+            f"It now reads stratum {st}, trust {trust or 'unknown'}. "
+            "Night timestamps stay consistent with each other. "
+            "Absolute time is only as good as the fallback source.",
+        )
+    return (
+        "Tepna: host clock back on the GPS pulse",
+        f"The host clock is back on the GPS pulse (PPS) after {m} min without it.",
+    )
+
+
+# ── THE BOX UPDATE KEEPS FAILING ────────────────────────────────────────────────────────────────────
+# `tepna-update.sh` counts consecutive failed runs in its FAIL_MARK and names the streak in the journal.
+# Nobody reads that journal at night: the 2026-08-04 streak ran 9.3 h unseen. The script calls
+# `update_streak_main` from its EXIT trap at the SECOND failure in a row, and once more when a run
+# succeeds after that alert. One failure is a blip and stays in the journal only.
+def update_streak_text(due: str, n: int, first_epoch: int, now: float) -> tuple[str, str]:
+    """PURE: the title and message for a failing (`"lost"`) or recovered (`"back"`) update streak.
+    `first_epoch` 0 means the streak start is not known (the marker was already cleared). A clock that
+    stepped back past the start leaves the span unknown too: absence, never a 0 h 0 m span."""
+    el = int(now) - int(first_epoch)
+    known = n > 0 and first_epoch > 0 and el >= 0
+    span = f"{el // 3600}h{(el % 3600) // 60}m" if known else "span unknown"
+    if due == "lost":
+        since = _time.strftime("%Y-%m-%d %H:%M", _time.localtime(first_epoch)) if first_epoch > 0 else "unknown"
+        return (
+            "Tepna: box update failing",
+            f"The box update has failed {n} runs in a row, first at {since} ({span}). "
+            "The daemon can run stale code until it recovers. Read journalctl -u tepna-update.",
+        )
+    if known:
+        return "Tepna: box update recovered", f"The box update ran clean after {n} failed runs over {span}."
+    return "Tepna: box update recovered", "The box update ran clean after a failing streak."
+
+
+def update_streak_main(argv: list[str], _post=None, now: float | None = None) -> int:
+    """`python alerts.py update-streak <config.yaml> lost|back <n> <first-epoch>`.
+
+    Exit 0 when the alert was delivered or alerts are off, 5 when a configured send failed, 2 on bad
+    arguments. The caller latches on 0 only, so a failed send retries on the next run."""
+    import asyncio
+
+    if len(argv) != 5 or argv[0] != "update-streak" or argv[2] not in ("lost", "back"):
+        _log.warning("alerts: usage: update-streak <config> lost|back <n> <first-epoch>")
+        return 2
+    try:
+        n, first = int(argv[3]), int(argv[4])
+    except ValueError:
+        _log.warning("alerts: update-streak needs integer <n> and <first-epoch>")
+        return 2
+    try:
+        import yaml
+
+        # Bytes in: YAML detects the encoding itself, so the host locale cannot change the read.
+        with open(argv[1], "rb") as fh:
+            cfg = yaml.safe_load(fh)
+    except Exception:
+        return 0  # no readable config is no configured alert: alerts off
+    acfg = (cfg.get("alerts") if isinstance(cfg, dict) else None) or {}
+    notifier = Notifier(acfg.get("webhook_url"), bool(acfg.get("enabled")), _post=_post)
+    if not notifier.enabled:
+        return 0
+    title, msg = update_streak_text(argv[2], n, first, _time.time() if now is None else now)
+    return 0 if asyncio.run(notifier.send(title, msg)) else 5
+
+
+if __name__ == "__main__":  # pragma: no cover - exercised via update_streak_main(argv)
+    import sys as _sys
+
+    logging.basicConfig(level=logging.WARNING)
+    _sys.exit(update_streak_main(_sys.argv[1:]))

@@ -9502,6 +9502,10 @@ async def host_clock_poller(cfg: dict, root: str | None = None):
     writer = None
     writer_night = None  # night_dir the writer points at — roll a fresh CSV when the date turns
     prev_trust = None
+    # The GPS-pulse watch (`alerts.pps_watch_step`): armed by this run's first PPS poll, so a host
+    # without a receiver, and the boot window before chrony locks, never alert.
+    pps = alerts.pps_watch_new()
+    pps_grace = float((cfg.get("time") or {}).get("pps_loss_alert_sec", alerts.PPS_LOSS_GRACE_SEC))
     try:
         while not _STOP.is_set():
             try:
@@ -9518,6 +9522,12 @@ async def host_clock_poller(cfg: dict, root: str | None = None):
                         "host clock %s → %s (%s)", prev_trust, st.get("trust"), st.get("reason")
                     )
                 prev_trust = st.get("trust")
+                pps, due, off_min = alerts.pps_watch_step(pps, st.get("reference"), _time.monotonic(), pps_grace)
+                if due and _NOTIFIER is not None:
+                    title, msg = alerts.pps_alert_text(due, off_min or 0.0, st.get("stratum"), st.get("trust"))
+                    # Latch on delivery, or when alerts are off; a failed send retries on the next poll.
+                    if await _NOTIFIER.send(title, msg) or not _NOTIFIER.enabled:
+                        pps = alerts.pps_watch_sent(pps, due)
                 if root:
                     night = night_dir(root, _now())
                     if writer is None or night != writer_night:
