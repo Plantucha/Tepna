@@ -2,7 +2,7 @@
 Copyright 2026 Michal Planicka
 SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-10-11 · **Owner ask:** 2026-10-11 ("graphically update all html pages in same manner like you did nights, more readable, not crowded, unify color pallets, make it pretty, futuristic design, old limits still apply") · **Pilot:** the monitor's Nights view, PR #3445 · **Sequencing:** Kestrel's ruling 2026-10-11 (spine work; nothing else touches shared CSS before this lands)
+**Status:** PROPOSED (triaged 2026-11-04 (Magpie): **not built.** `ans-design.css` carries none of §2's `--st-*` tokens, and the pilot's own palette still sits in `capture-host/monitor.html`'s `#view-nights` block with its light twin beside it. Every later §6 item reads off those tokens, so the own-palette count, the hue-alone scan and the owner's approval of a restyled app all wait behind the first one. The sequencing ruling still holds: this is spine work, and nothing else should touch shared CSS first) · **Created:** 2026-10-11 · **Owner ask:** 2026-10-11 ("graphically update all html pages in same manner like you did nights, more readable, not crowded, unify color pallets, make it pretty, futuristic design, old limits still apply") · **Pilot:** the monitor's Nights view, PR #3445 · **Sequencing:** Kestrel's ruling 2026-10-11 (spine work; nothing else touches shared CSS before this lands)
 
 # One look for every page: the design tokens and the rules that come with them
 
