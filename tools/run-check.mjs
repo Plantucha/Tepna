@@ -73,6 +73,7 @@ export const STEPS = [
   'verify:residue-claims',
   'verify:residue-citations',
   'verify:residue-cite-drift',
+  'verify:sidecar-census',
   'verify:defect-pins',
   'verify:survivor-ratchet',
   'verify:flag-exit',

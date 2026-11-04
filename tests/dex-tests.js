@@ -1434,6 +1434,12 @@
         pr.ok === true && pr.rows === 80 && Object.keys(pr.streams).length === 2 && !!pr.streams['AA:BB|ECG'] && !!pr.streams['AA:BB|ACC'],
         JSON.stringify({ ok: pr.ok, rows: pr.rows, keys: Object.keys(pr.streams || {}) })
       );
+      var pAbsent = DR.parseRadioClock('');
+      T.ok(
+        'parseRadioClock · no sidecar text is a named refusal, never zero rows read as a clean night',
+        pAbsent.ok === false && pAbsent.streams === null && /no sidecar text/.test(String(pAbsent.reason)),
+        JSON.stringify(pAbsent)
+      );
       T.ok(
         'interleaving does not corrupt either stream — 40 anchors each',
         pr.streams['AA:BB|ECG'].anchors.length === 40 && pr.streams['AA:BB|ACC'].anchors.length === 40,
@@ -17984,6 +17990,7 @@
         '2026-06-25T05:00:00;push;;discharging;73;;\n' +
         '2026-06-25T05:00:00;battery;;discharging;73;41;0\n' +
         '2026-06-25T05:30:00;read;-1.8;discharging;72;;\n';
+      T.ok('parseRingClockLog · no text places no clock read', OB.parseRingClockLog(undefined).length === 0 && OB.parseRingClockLog('').length === 0);
       var log = OB.parseRingClockLog(CSV);
       T.ok('parseRingClockLog reads every event type', log.length === 4, 'expected 4 rows, got ' + log.length);
       T.ok('…and coerces offset to a finite number on read events', log[0].offsetS === -1.2 && log[3].offsetS === -1.8, 'offset column not parsed as number');
