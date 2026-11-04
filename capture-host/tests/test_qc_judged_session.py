@@ -484,3 +484,65 @@ def test_recorded_nothing_reads_DEMONSTRATED_emptiness_and_not_a_zero_sum():
     assert nightqc.recorded_nothing([{"rows": None}]) is False, "unknown, never zero"
     assert nightqc.recorded_nothing([{"rows": None}, {"rows": 0}]) is False, "a zero sum is not evidence"
     assert nightqc.recorded_nothing([{"rows": None}, {"rows": 5}]) is False
+
+
+# ── A POINT SESSION INSIDE THE JUDGED WINDOW IS REPORTED, NOT SWALLOWED ─────────────────────────────
+# `before` reads `s[1] <= _judged_start` and `after` reads `s[0] >= _cur_end`. The two are a pair, not a
+# partition: a session strictly inside the judged envelope satisfies neither, and only a session of ZERO
+# length can sit there. A join needs positive overlap with the band, and an excluded session between two
+# joined ones overlaps the band they both overlap. So the containment fix residue
+# `2026-10-12-a-zero-length-session-inside-the-band-reads-outside-band` made to `_gap_class` never
+# reached the point sessions inside a judged window, because neither list selected one to classify.
+def _a_point_session_sits_INSIDE_the_judged_window(tmp_path, point_rows):
+    """Four placed sessions around the judged one, with a point session INSIDE it.
+
+    The band runs 18:00 to 10:00, so the 11:00 session lies before it and the next noon lies after it,
+    and both stay excluded on the evidence. The 19:00 run is judged on rows, the 23:00 run overlaps the
+    band and joins it, and the stampless file at 21:00 is a session of zero length in the hole between
+    them (`file_interval` places an unstamped file at its own last write). Both neighbours are needed:
+    with only one side populated, the interior set could be read off either list alone."""
+    d = str(tmp_path / "2026-08-15")
+
+    def at(day, hhmmss, rows, name):
+        t = _dt.strptime(day + hhmmss, "%Y%m%d%H%M%S").timestamp()
+        _rows(d, name, rows, t + 900)
+        return t
+
+    at("20260815", "110000", 50, "Polar_H10_02849638_20260815110000_ECG.txt")  # before the band opens
+    at("20260815", "190000", 900, "Polar_H10_02849638_20260815190000_ECG.txt")  # judged, on rows
+    at("20260815", "230000", 60, "Polar_H10_02849638_20260815230000_ECG.txt")  # in-night, so it joins
+    at("20260816", "120000", 70, "Polar_H10_02849638_20260816120000_ECG.txt")  # after the band closes
+    point = _dt.strptime("20260815210000", "%Y%m%d%H%M%S").timestamp()
+    _rows(d, "Polar_H10_02849638_ECG.txt", point_rows, point)
+    return d
+
+
+def test_a_POINT_SESSION_inside_the_judged_window_IS_REPORTED_and_reds_the_night(tmp_path):
+    """30 rows the judgement never read, in a night that used to grade on silence about them."""
+    r = _summarize(_a_point_session_sits_INSIDE_the_judged_window(tmp_path, point_rows=30), _DEV)
+    assert r["sessions_judged"] == 2, (r["sessions_judged"], "the 19:00 run and the 23:00 one it joins")
+    inside = r["excluded_inside"]
+    assert len(inside) == 1, (inside, "the point alone: the other two exclusions sit beside the window")
+    assert "21:00 point session inside the judged window" in inside[0], inside[0]
+    assert "1 file(s), 30 rows, not read by the judgement" in inside[0], inside[0]
+    assert "[in-night]" in inside[0], (inside[0], "a point inside the band is placed by containment")
+    assert inside[0] in r["gaps"], "every exclusion is reported in `gaps` as well"
+    assert r["gaps_in_night"] == inside, "capture the judgement never read cannot grade green"
+    assert r["ok"] is False, "and `ok` reads `gaps_in_night`"
+    # The neighbours beside the window are still reported, still labelled, and still not red.
+    assert len([g for g in r["gaps"] if "earlier session" in g]) == 1, r["gaps"]
+    assert len([g for g in r["gaps"] if "later session" in g]) == 1, r["gaps"]
+    assert [g for g in r["gaps_in_night"] if "session(s)" in g] == [], r["gaps_in_night"]
+
+
+def test_CONTROL_a_point_session_that_recorded_NOTHING_is_published_and_reds_nothing(tmp_path):
+    """The same night and the same geometry, with no row in the point's file.
+
+    A point takes no minutes out of the night, so rows are the only loss it can carry. With every file
+    readable and no row in any of them, the judgement left nothing unread. Without this leg an
+    unconditional append would pass the test above."""
+    r = _summarize(_a_point_session_sits_INSIDE_the_judged_window(tmp_path, point_rows=0), _DEV)
+    inside = r["excluded_inside"]
+    assert len(inside) == 1, (inside, "it is still published: the night read nothing from it")
+    assert "0 rows, not read by the judgement" in inside[0], inside[0]
+    assert r["gaps_in_night"] == [], "no time and no row is nothing the judgement failed to read"
