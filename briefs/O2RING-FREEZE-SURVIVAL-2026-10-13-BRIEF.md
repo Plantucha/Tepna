@@ -3,7 +3,7 @@ Copyright 2026 Michal Planicka
 SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** PROPOSED (deferred 2026-10-13 — owner: "Write up Options 2 and 3 for after Saturday") · **Created:** 2026-10-13 · **Follows:** `O2RING-OPCODE-SURFACE-2026-08-03-BRIEF.md` · **Residue:** 2026-10-28-both-loop-attribution-instruments-shipped-with-no-reader
+**Status:** PROPOSED (deferred 2026-10-13 — owner: "Write up Options 2 and 3 for after Saturday". **TRIAGED 2026-11-04 (Magpie): the deferral is DISCHARGED — both write-ups are in this brief, and what remains is a BOX READ rather than a page.** §2's Option 2 is CLOSED by the owner's own 2026-10-13 call on a clean sweep of the worn nights with no probe. §3's Option 3 is PRE-STATED and UNRUN: `#3554` merged 2026-10-13, and §3 lets that remedy proceed only if the `/api/state` `loop` block, read over three worn nights after that deploy, puts a stall of one second or longer inside a worn interval. No such census exists under `analysis/`, so the trigger is **UNMEASURED, never negative** — and that remedy may not close on its absence. That read is box-local and owner-authorized, so this brief now waits on the box and not on a session. Its residue row reads `fixed #4047` at the ref) · **Created:** 2026-10-13 · **Follows:** `O2RING-OPCODE-SURFACE-2026-08-03-BRIEF.md` · **Residue:** 2026-10-28-both-loop-attribution-instruments-shipped-with-no-reader
 
 # The ring survives a daemon freeze: drain the backlog, or poll from its own process
 

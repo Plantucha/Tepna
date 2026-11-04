@@ -112,4 +112,5 @@ them:
       capture persists until every sample writer closes, so at least one 120 s poll records it, and the
       one uncovered case holds no open sample writer and therefore owns no recording whose stamps could
       be wrong. The tree agrees: no seam-event drain exists in `capture-host/capture.py`.
-- [ ] §4 — the two owner questions stay undecided.
+- [ ] §4 — the two owner questions stay undecided. Queued 2026-11-04 (Magpie) as **D17** in
+      `OWNER-DECISION-QUEUE-2026-09-03-BRIEF.md`, which had never named this brief.

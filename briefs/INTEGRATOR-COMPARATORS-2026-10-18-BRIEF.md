@@ -2,7 +2,7 @@
 Copyright 2026 Michal Planicka
 SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED (deferred 2026-10-18 — owner: drain briefs and residue first) · **Created:** 2026-10-18
+**Status:** PROPOSED (deferred 2026-10-18 — owner: drain briefs and residue first; re-verified 2026-11-04 (Magpie): nothing in Part A or Part B has landed. `summary.respRateBrpm` still reads the ECG's RSA with a cross-node motion fallback beside it, and no `cpap-flow` method string exists anywhere in `integrator-dsp.js`, so A1's CPAPDex leg is absent. The owner's drain order holds this brief, not a technical blocker) · **Created:** 2026-10-18
 
 > **Owner ask, 2026-10-18:** "integrator definitely should have come comparators for each shared metrics like ecgdex have … all wit table and graphs", then "are we able create neural network that will make it better, similar to oxydex sleep network?", then "for now just write brief. we return to it."
 

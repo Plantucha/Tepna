@@ -4,7 +4,7 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** PROPOSED · **Created:** 2026-10-04 ·
+**Status:** PROPOSED (SIZED, nothing BUILT — verified 2026-11-04 (Osprey) against `origin/main` 4ca6b91cc: none of the seven oracles exists. `tools/oracle-edr-reference.mjs` and `tools/oracle-sampen-reference.mjs` are absent, as is every `uploads/synthetic/` path, and `THIRD-PARTY.md` carries no reference-tools heading. `tools/ecg-physionet-differential.mjs` still reads one annotation set; its only commits since 2026-10-04 are a CLI-entry repair (#3853) and the stage-lab record (#3633), neither of which adds a detector. All four §3 items stay open) · **Created:** 2026-10-04 ·
 
 # PhysioNet's software as ORACLES — seven packages, one rule, no new runtime dependency
 

@@ -5,7 +5,7 @@ SPDX-License-Identifier: Apache-2.0
 
 **Status:** PROPOSED (core BUILT, remainder owner-gated — verified 2026-10-20 on a read-only rig
 replay: three items tick, two need restating, one waits on the owner-authorized box run, one waits on
-the RESIDUE-only slot, and one is half met; the Verification section names each) — 2026-10-05 · **Created:** 2026-10-05
+the RESIDUE-only slot, and one is half met; the Verification section names each. **RE-VERIFIED 2026-11-04 (Magpie), one brief of the PROPOSED triage order:** ⑤'s FIRST case is RULED and BUILT — `nightqc.night_key_band` keys ATTRIBUTION on the noon-to-noon tiling band while `nightqc.night_band` keeps ADMISSION, under the owner's 2026-10-13 ruling that the comment above the function cites, and both key-band call sites sit in `nights_index`. ⑤'s SECOND case, the 10-03 tail, still carries NO ruling, so it is now **D16** in `OWNER-DECISION-QUEUE-2026-09-03-BRIEF.md`, where this page's own acceptance item sends an un-ruled case. The RESIDUE-only row it owes waits for its own PR: the triage PR that carries this stamp touches briefs, and a mixed diff spends the slot the row's own stopgap reserved) — 2026-10-05 · **Created:** 2026-10-05
 
 # NIGHT-IS-THE-RECORDING — one recording, one night, one verdict; and why the folder boundary is the wrong lever
 
@@ -311,6 +311,7 @@ Dry-run first, on the rig corpus copy; **the box run is owner-authorized** and w
       not straddle a boundary.
 - [ ] The superseded fragment verdict is withdrawn **with its reason recorded**, never deleted silently.
 - [ ] A row for whichever of ⑤'s two cases the owner does not rule on now — in a **RESIDUE-only PR**, per
+      (⑤'s second case is the one, and it is now **D16** in `OWNER-DECISION-QUEUE-2026-09-03-BRIEF.md`)
       the 2026-10-05 stopgap: main takes rows every ~30 min, so a code PR carrying one goes DIRTY on each
       merge and loses its CI dispatch (#3277 thrashed three times in three hours; #3286 hit it today and
       was split, #3289 carrying its rows).

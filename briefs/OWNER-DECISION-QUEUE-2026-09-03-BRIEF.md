@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-**Status:** CHECKPOINT (living — last-verified **2026-10-13**) · **Created:** 2026-09-03 · **Owner rulings 2026-09-15 (Kestrel, one batch):** **D2 AUTHORIZED** — the named set of four, PLUS a new rail-keyed sidecar rule in `capture-host/writers.py` (floor 5, alongside `rule=stuck` at 200); authorization does NOT generalise to other box touches. **D4 — all three DECLINED**, closed as negatives, not deferrals. **D5 — all three RATIFIED.** **D8 — YES**, build the two-channel dual-wavelength ingest. ⚠️ **D6 WAS ALREADY DECIDED ON 2026-09-07 (option C) and this file still listed it as open** — the queue was `last-verified 2026-09-03` while the ruling landed four days later, so it manufactured a re-ask. **Still open: D3 and D7** — and as of **2026-09-17** BOTH have moved: **D3 is ONE call** (re-verified,
+**Status:** CHECKPOINT (living — last-verified **2026-11-04**) · **Created:** 2026-09-03 · **Owner rulings 2026-09-15 (Kestrel, one batch):** **D2 AUTHORIZED** — the named set of four, PLUS a new rail-keyed sidecar rule in `capture-host/writers.py` (floor 5, alongside `rule=stuck` at 200); authorization does NOT generalise to other box touches. **D4 — all three DECLINED**, closed as negatives, not deferrals. **D5 — all three RATIFIED.** **D8 — YES**, build the two-channel dual-wavelength ingest. ⚠️ **D6 WAS ALREADY DECIDED ON 2026-09-07 (option C) and this file still listed it as open** — the queue was `last-verified 2026-09-03` while the ruling landed four days later, so it manufactured a re-ask. **Still open: D3 and D7** — and as of **2026-09-17** BOTH have moved: **D3 is ONE call** (re-verified,
 below), and **D7 is RULED — derive the mechanism first**, which converts it from a pending decision
 into an analysis unit with no owner. **D6-adjacent note:** `BLE-TRANSPORT-REDESIGN` §1.1 was also ruled
 on 2026-09-17 (**BUILD**, promoted to `GATT-HANDLE-MAP-2026-09-17-BRIEF.md`), and the fleet-wide
@@ -283,9 +283,13 @@ confirmed no ResMed oximeter module exists — a purchase, not a cable) · `CROS
 >    pinned span (P5) and like a gap; the matcher keys on magnitude so the third state
 >    (`2026-09-20-positive-saturation-at-negated-low-rail`) joins the first two. Stamped in
 >    PINNED-SPAN-POPULATIONS §6's item. The detector change moves `computeHash`.
-> 4. **`GAP_S`: MEASURE BEFORE RULING.** A sweep over the corpus reporting where the CVHR index moves on
->    both nodes (`GAP_S` and the coupled `PPG_CVHR_GAP_S`); the owner rules on the numbers. Stamped in
->    ECG-SATURATION-ABSENCE's last item. A measurement unit, not a decision yet.
+> 4. **`GAP_S`: MEASURE BEFORE RULING — the measurement is finished; the ruling is not.** The sweep ran
+>    on both corpora (`audits/GAP-S-SWEEP-2026-09-22.json`, `audits/GAP-S-SWEEP-PHONE-2026-09-22.json`;
+>    #2829 · #2840 · #2843): the CVHR index moves on no box night and no phone night over 3–60 s on
+>    either node, and the tool's null control proves the instrument sees the cut. This corpus cannot
+>    discriminate the constant, so the owner rules on FINISHED numbers and nothing here changes a
+>    constant. Stamped in ECG-SATURATION-ABSENCE's last item; re-verified 2026-11-04 (Magpie), which
+>    is why that brief now reads DONE while this ruling stays open.
 >
 > ⚠️ **Three questions were put to the owner today whose answers the tree already carried** (the 68 tiles,
 > the cohort-harness fix, the 3600 skew floor). These four were tree-checked first — the rows named above
@@ -332,12 +336,27 @@ it, which is the cheapest possible moment to ask.
 > | **D10** | `GATT-HANDLE-MAP` | four-device box validation; the header says **"Owner still unassigned"** — no D-number, and it is absent from D1's 13 | the handle-map validation with H10/Verity/O2Ring observed (unobserved since 09-18) | the brief at "validated on one device", and `BLE-TRANSPORT-REDESIGN` waits behind it |
 > | **D11** | `VIGIL-SELF-SUSTAINED-FOLDING` | acceptance 2–4 — a systemd unit plus `MemoryMax`/`OOMScoreAdjust`/scheduling **on vigil**; not in D2's authorized set of four | the box folds its own nights under a memory fence, which is the whole point of the brief | folding stays a rig-only job and the box keeps producing nights nobody folds locally |
 > | **D12** | `VIGIL-BLUETOOTH-ADVERSARIAL-AUDIT` | **Mitigation C clause 1 is still UN-ARMED** and needs a `config.yaml` touch on vigil — distinct from D2's 2026-09-19 sniffer-INERT ruling, which this brief already records | the last unarmed mitigation of that audit | the audit closes with one mitigation documented and not armed — state it, so it is not read as armed |
-> | **D13** | `VERDICT-CONTRACT` | **12 adoption rows are `UNKNOWN`-by-design awaiting the owner's held-out decision** — §3c records the rule, not the call | those 12 rows resolve and the adoption ratchet advances | the 12 stay UNKNOWN-by-design, which is honest but permanent; say so in §3c |
+> | **D13** | `VERDICT-CONTRACT` + `HELD-OUT-BAND-CAMPAIGN` | **12 adoption rows are `UNKNOWN`-by-design awaiting the owner's held-out decision** — §3c records the rule, not the call, and the bands to ratify or strike sit in `HELD-OUT-BAND-CAMPAIGN-2026-09-22-BRIEF.md` §4 (re-verified 2026-11-04, Magpie) | those 12 rows resolve and the adoption ratchet advances | the 12 stay UNKNOWN-by-design, which is honest but permanent; say so in §3c |
 > | **D14** | `OXYII-ACQUISITION-CHARTER` | §50's **R1 attestation** — an owner *attestation*, not a box touch. D2 authorized the touch only, so this half was never covered | §50 closes and the charter's last non-box arm with it | the charter stays open on one attestation while every buildable arm is done |
 > | **D15** | `AS11-AUTO-SESSION-DETECTION` | the **`SubscribeEvent` probe** is owner-scheduled and absent from D1's 13; the queue's §3 already records the owner saying the ANALYSIS half needs no hardware | the probe runs in a box window and `Leak` joins the poll set | the analysis half proceeds alone — already unblocked — and the probe stays unscheduled |
 >
 > ⚠️ **D1 is still the bigger lever and is still un-ruled.** Six of the other eighteen wait on nothing
 > but its scheduling call. These six are what remains when D1 is granted.
+
+### D16–D17 · Two brief remainders that are the owner's and were never queued (Magpie, 2026-11-04)
+
+> Both surfaced in the 2026-11-04 PROPOSED triage, and both briefs name their call precisely. Neither
+> brief's name appeared anywhere on this page before this row landed, so neither call was ever put to
+> the owner — it was not refused, it was never asked. That is D10–D15's finding, one cycle later.
+>
+> | | brief | the call, precisely | a YES unblocks | a NO parks |
+> |---|---|---|---|---|
+> | **D16** | `NIGHT-IS-THE-RECORDING` | ⑤'s SECOND case — the 10-03 tail, three sessions past midnight. Under **(b)** it is grouped with the 10-03 recording and no file moves; under **(a)** it is re-filed, which is a migration over the whole corpus rather than two folders. The first case was ruled 2026-10-13 and is built; this one has no ruling | the acceptance item that wants the un-ruled case written to a residue row, and the brief's last keying question | the tail keeps its folder key, the brief records the refusal as a negative, and no corpus migration is owed |
+> | **D17** | `BLE-TIMEBASE-EDGE-STAMP-FOLLOWUPS` | §4's two questions: whether consumers are **FORCED** to see a seam or may ignore the sidecar (a contract question over §🔒 §6's export surface), and how nights that predate any seam channel read — **UNKNOWN or seam-free**. §3 discharged on 2026-11-03, so §4 is all that remains | §4, the brief's one open section, after which it can go DONE | §4 closes as a negative and the brief goes DONE on the refusal |
+>
+> ⚠️ **Neither is a box touch and neither waits on D1.** D16 is a keying judgement over data already
+> captured; D17 is a contract judgement about what a downstream reader must be shown. Both are
+> answerable at a desk, which puts them in D4's economics rather than D1's.
 
 ## 3 · Not the owner's — 18 briefs waiting on SESSIONS
 
