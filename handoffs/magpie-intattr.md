@@ -15,6 +15,15 @@ DRAFT #4369 is open and green over its committed head: TC=0, LINT=0 at main's 10
 undrafts it; I never undraft my own. A second commit adds the handoff and one residue row, so the gate
 re-runs over that state before the branch is final.
 
+## One thing the walker did to this branch
+
+After #4368 merged, the walker rebased `claude/intattr-mg` and pushed the result, and that rebase
+resolved `OverDex.html` to the base. The orchestrator then carried the previous `integrator-dsp.js`
+while `integrator-dsp.js`, `Integrator.html`, `docs/Integrator.html` and `resp-acc-analysis.html` all
+held the new one. `rebase-safe` from the worktree rebuilt it, commit `a91bf0a88` carries the rebuild,
+and row `2026-11-04-a-branch-rebase-left-one-generated-bundle-on-the-base` holds the evidence. CLAUDE.md
+§2c's verification is what finds this, so run it after any rebase you did not drive yourself.
+
 ## What it does
 
 `confirmedApneaIndex` (`integrator-dsp.js fuseApneaEvents`) publishes a `contributions` block by
