@@ -2345,6 +2345,18 @@
    },
    "note": "the population verdict this tool publishes through populationVerdict@tools/corpus-scope-core.mjs, over device PPG files. Row 2026-10-28-the-word-only-bin-misses-a-verdict-built-by-an-imported-helper re-bins it: the row read word-only, which exempts a producer from object validation, and the object half of the gate could not see a build one import away. checkWordOnlyObject now reads that hop, and only to a builder whose own body CONSTRUCTS \u2014 tools/rebase-safe.mjs calls extractVerdicts@tools/pr-compliance.mjs, which parses objects out of a PR body and constructs none, so it stays word-only as the measured control. --verdict-sample runs the real builder over a fabricated population listed by a closure, so the gate reads a complete object, the corpus stays untouched and the shape cannot drift from snapshotEntries."
   },
+  "tools/ppg-channel-combination.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/ppg-channel-combination.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the producer for the channel-combination half of the PPG/ECG validation paper \u00a74. The ordinary run prints its own finding verdict (criterion max_fusion_advantage, pre-stated at 1.0) and the population verdict beside it; --verdict-sample runs populationVerdict@tools/corpus-scope-core.mjs over a fabricated population listed by a closure, so the gate reads a complete object, the corpus stays untouched and the shape cannot drift from snapshotEntries."
+  },
   "tools/ppg-foot-consensus-e1.mjs": {
    "bin": "decides",
    "status": "adopted",
