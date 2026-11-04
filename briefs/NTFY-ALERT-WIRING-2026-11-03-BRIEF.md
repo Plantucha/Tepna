@@ -48,6 +48,7 @@ The transport is a generic JSON webhook. ntfy is the transport the box uses. Not
 | `Tepna: capture started` | `main()` | The daemon starts. The text names the reason: boot, deploy, clean stop, exit code or crash (`alerts.start_reason`). |
 | `Tepna: sensor offline` / `sensor recovered` | `alert_poller` | A configured sensor stays down for `alerts.offline_sec`. |
 | `Tepna: sensor connected but silent` | `alert_poller` | A link is up and no data arrives. |
+| `Tepna: <name> may not last the night` | `alert_poller` | In the night-begin hours, a device off its charger reads less battery than its worst nights used (`alerts.NIGHT_NEED_PCT`, or the device's `night_need_pct`). Once per device per night. |
 | `Tepna: <name> battery <pct> %` | `alert_poller` | 20 % and 10 %, re-armed at 50 % (`battery_alert_step`). |
 | `Tepna: sensor on charger` | `alert_poller` | A worn device goes on its charger. |
 | `Tepna: <name> night ended` | `alert_poller`, CPAP path | A stream ends in the morning after a real night. |
