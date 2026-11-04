@@ -864,6 +864,12 @@ function ppgHrMapReal(text, onPhase, runsText) {
       if (onPhase) onPhase('beat-detect LED ' + (ci + 1) + '/' + rec.ch.length);
       perCh.push(PPGDSP.detectChannel(rec.ch[ci], rec.fs));
     }
+    /* CONSENSUS POLARITY — the order follows `analyze` (apply, then pick). This site picks by
+       bandpassed VARIANCE, which a sign flip leaves unchanged, so the order decides nothing here;
+       the vote below is what moves. The call is a no-op on a unanimous set and on a 1-1 split. */
+    PPGDSP.applyConsensusPolarity(perCh, function (i, sgn) {
+      return PPGDSP.detectChannel(rec.ch[i], rec.fs, sgn);
+    });
     var sel = 0,
       best = -1;
     for (ci = 0; ci < perCh.length; ci++) {
@@ -890,8 +896,8 @@ function ppgHrMapReal(text, onPhase, runsText) {
       }
     }
     if (onPhase) onPhase('3-LED consensus');
-    /* @polarity-decision behind 2026-11-01-the-consensus-polarity-wiring-reached-one-of-ten-callers
-       The trio export’s 3-LED consensus then runs as a 2-LED one, silently, on the nights where one LED dissents. */
+    /* @polarity-decision applies
+       The trio export’s 3-LED consensus now votes over three channels of one polarity. */
     var cons = PPGDSP.consensusBeats(perCh, sel, rec.fs);
     if (!cons || !cons.feet || cons.feet.length < 20) {
       self.__ppgErr = 'consensus <20 feet';

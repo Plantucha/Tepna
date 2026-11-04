@@ -417,7 +417,11 @@ function ecgRpeakTimes(text) {
 function ppgFootTimes(text, runsText) {
   const rec = runsText ? PPGDSP.parsePPG(text, { runsText }) : PPGDSP.parsePPG(text);
   if (rec.t0Ms == null) throw new Error('PPG file carried no phone timestamp.');
-  const per = rec.ch.map((c) => PPGDSP.detectChannel(c, rec.fs));
+  /* CONSENSUS POLARITY — apply BEFORE the reference pick, which is the order `analyze` ships
+     (`ppgdex-dsp.js` applies, then picks): a flipped dissenter's peak count moves, so a pick made
+     first would ratify a reference chosen under the polarity the device-wide majority overrules.
+     The call is a no-op on a unanimous set and on a 1-1 split, so no undissenting night moves. */
+  PPGDSP.applyConsensusPolarity(per, (i, sgn) => PPGDSP.detectChannel(rec.ch[i], rec.fs, sgn));
   let refIdx = 0,
     best = -1;
   per.forEach((p, i) => {
@@ -426,8 +430,8 @@ function ppgFootTimes(text, runsText) {
       refIdx = i;
     }
   });
-  /* @polarity-decision behind 2026-11-01-the-consensus-polarity-wiring-reached-one-of-ten-callers
-     The edit distance is then computed between a 2-of-3 vote’s train and the ECG’s. */
+  /* @polarity-decision applies
+     The edit distance now compares a train the whole channel set voted on against the ECG’s. */
   const cons = PPGDSP.consensusBeats(per, refIdx, rec.fs);
   /* Per-ELEMENT guard on relSec, copied from pat-matchrate-strict verbatim — the array can exist with
      non-finite entries, and an array-level truthiness check propagates NaN into every downstream time. */

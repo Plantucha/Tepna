@@ -113,7 +113,11 @@ function fiducialTimes(text, runsText) {
   const { PPGDSP } = getDsps();
   const rec = runsText ? PPGDSP.parsePPG(text, { runsText }) : PPGDSP.parsePPG(text);
   if (rec.t0Ms == null) return null;
-  const per = rec.ch.map((c) => PPGDSP.detectChannel(c, rec.fs));
+  /* CONSENSUS POLARITY — apply BEFORE the reference pick, which is the order `analyze` ships
+     (`ppgdex-dsp.js` applies, then picks): a flipped dissenter's peak count moves, so a pick made
+     first would ratify a reference chosen under the polarity the device-wide majority overrules.
+     The call is a no-op on a unanimous set and on a 1-1 split, so no undissenting night moves. */
+  PPGDSP.applyConsensusPolarity(per, (i, sgn) => PPGDSP.detectChannel(rec.ch[i], rec.fs, sgn));
   let refIdx = 0,
     best = -1;
   per.forEach((p, i) => {
@@ -122,8 +126,8 @@ function fiducialTimes(text, runsText) {
       refIdx = i;
     }
   });
-  /* @polarity-decision behind 2026-11-01-the-consensus-polarity-wiring-reached-one-of-ten-callers
-     The control’s Verity pulse train then rides a 2-of-3 vote. */
+  /* @polarity-decision applies
+     The control’s Verity pulse train now rides the device-wide majority. */
   const cons = PPGDSP.consensusBeats(per, refIdx, rec.fs);
   const rel = rec.relSec;
   const at =
