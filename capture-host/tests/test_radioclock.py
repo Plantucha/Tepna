@@ -2303,3 +2303,64 @@ def test_a_run_that_writes_NO_ROW_reports_NO_civil_frame(tmp_path):
 
     got = rc.run(_stream(acls=()), _collector(), open_writer)
     assert got["rows"] == 0 and got["civil_frame"] is None
+
+
+def test_a_ROW_is_on_DISK_before_any_flush_so_a_working_sidecar_cannot_read_EMPTY(tmp_path):
+    """🔴 A 0-BYTE SIDECAR MUST MEAN ONE THING. This module promises that absence is the absence of a
+    file, and a 64 KiB buffer broke that promise from the other side: the writer opens on the first
+    row, so the file EXISTS, while its rows sat in memory and a reader saw 0 bytes. One archived
+    night holds exactly that file. The row is read back through a SECOND handle, with no `flush` and
+    no `close` on the writer, because that is what a reader on the box has."""
+    p = tmp_path / "s.csv"
+    w = rc.SidecarWriter(str(p))
+    assert w._fh.line_buffering is True, "the handle itself, not the comment, carries the promise"
+    w.write(rc.format_row("t", H10, 0, 5, 64, 11, 1_050_000, None, 7, rc.DEVICE_CLOCK_PMD, 1))
+    seen = p.read_text(encoding="utf-8").splitlines()
+    assert seen[0] == rc.SIDECAR_HEADER.rstrip("\n"), "the header reached the disk at open"
+    assert len(seen) == 2 and w.rows == 1, "and the row reached it when it was written"
+    w.close()
+
+
+def test_a_RESUMED_sidecar_also_reaches_the_disk_one_row_at_a_time(tmp_path):
+    """The resume path opens in append mode through the same call, so it needs its own assertion: a
+    night that reconnects mid-session is exactly when an unclean stop costs the most."""
+    p = tmp_path / "s.csv"
+    first = rc.SidecarWriter(str(p))
+    first.write(rc.format_row("t", H10, 0, 5, 64, 11, 1_050_000, None, 7, rc.DEVICE_CLOCK_PMD, 1))
+    first.close()
+    again = rc.SidecarWriter(str(p))
+    assert again._fh.line_buffering is True
+    again.write(rc.format_row("u", H10, 0, 6, 64, 12, 1_100_000, None, 8, rc.DEVICE_CLOCK_PMD, 1))
+    assert len(p.read_text(encoding="utf-8").splitlines()) == 3, "header plus both rows, before close"
+    again.close()
+
+
+def test_the_FLUSH_INTERVAL_is_no_longer_what_puts_a_row_on_disk(tmp_path):
+    """`run` flushes every 64 rows, and at the measured 0.556 to 6.653 rows/s that is 10 s to 115 s of
+    real rows held in memory. This drives a run with the interval set far beyond the stream, so a
+    periodic flush cannot explain what the file holds, and watches the size after every write."""
+    sizes = []
+
+    class _Watch(rc.SidecarWriter):
+        def write(self, line: str) -> None:
+            super().write(line)
+            sizes.append(os.path.getsize(self.path))
+
+    def open_writer(address):
+        return _Watch(str(tmp_path / rc.sidecar_name("20260907T030000", address)))
+
+    stream = [(rc.MONITOR_OPCODE_EVENT, ADAPTER, _le_conn_complete(0x0040, RING), 1)]
+    stream += [(rc.MONITOR_OPCODE_ACL_RX, ADAPTER, _att_notification(0x0040, bytes([9]) * 12), 2)]
+    got = rc.run(stream, _collector(devices=(RING,), vendor="Wellue"), open_writer, flush_every=10_000)
+    assert got["rows"] == 1, "one row, and the interval it was written under was never reached"
+    assert sizes and all(size > 0 for size in sizes), "every row was on disk as it was written"
+
+
+def test_EVERY_low_rate_sidecar_writer_in_this_tree_opens_LINE_BUFFERED():
+    """The population is THREE writers that keep a low-rate telemetry sidecar beside a capture:
+    `radioclock.SidecarWriter`, `as11_clock.ClockSidecar` and `cpap_shadow_runner`'s decision log.
+    Two carried the idiom and its written reason, and this module was the third, which is how a
+    working sidecar came to read as 0 bytes. Each one is asserted here, and no COUNT is: `_srcscan`
+    states that a count over scanned source breaks under mutmut, while an `in` check survives it."""
+    for name in ("radioclock.py", "as11_clock.py", "cpap_shadow_runner.py"):
+        assert 'buffering=1, newline="\\n"' in module_source(name), name
