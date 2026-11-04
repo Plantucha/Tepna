@@ -5,7 +5,7 @@
   Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
   project root, or http://www.apache.org/licenses/LICENSE-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-11-03
+**Status:** PROPOSED (resolver BUILT, the per-writer readings unstarted — verified 2026-11-04 (Osprey): `tools/write-root.mjs` ships and its `--selftest` passes whole. `tools/new-changeset.mjs` is still the only adopter. The §1 population re-measures identically today, by the two `grep` recipes §1 states. No gate names the adopted set, so all four §4 items stay open) · **Created:** 2026-11-03
 
 # Every writing tool resolves the checkout it writes from the run, not from its own path
 
