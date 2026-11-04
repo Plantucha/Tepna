@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**319 tools** · 318 with a purpose line · **1 without**
+**320 tools** · 319 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -194,6 +194,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`pat-fiducial-jitter.mjs`](../tools/pat-fiducial-jitter.mjs) | PAT-ROOT-CAUSE-FORENSICS §7, rescoped. §7 asks: "even with a PERFECT clock, how much uncertainty does the foot introduce?" Every prior attempt answered a different question, and two… |
 | [`pat-fiducial.mjs`](../tools/pat-fiducial.mjs) | HALF-AMPLITUDE pulse fiducial, for EXTERNAL-METHODS-SURVEY §1. |
 | [`pat-finger-coupler.mjs`](../tools/pat-finger-coupler.mjs) | DOES THE O2RING FINGER PPG COUPLE TO H10 ECG? — the leg `pat-matchrate-strict.mjs` cannot run. |
+| [`pat-floor-offset.mjs`](../tools/pat-floor-offset.mjs) | RADIO-DELAY-FLOOR §5, the beat half: does the floor-mapped radio delay EXPLAIN the inter-device offset PAT has to carry, or does it only sharpen a term it cannot predict? |
 | [`pat-host-offset.mjs`](../tools/pat-host-offset.mjs) | PAT-UNDER-PERBLOCK-ALIGNMENT §3e.4, the shipped form of the scout. |
 | [`pat-hrv-windows.mjs`](../tools/pat-hrv-windows.mjs) | PAT THE WAY HRV IS DONE — 5-minute windows, artifact segments discarded, report the DISTRIBUTION. |
 | [`pat-literature-spec.mjs`](../tools/pat-literature-spec.mjs) | PAT MEASURED TO THE PUBLISHED SPEC, PLUS AN ERROR BUDGET THAT WORKS BACKWARDS FROM IT. |
