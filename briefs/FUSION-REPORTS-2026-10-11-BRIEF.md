@@ -2,7 +2,7 @@
 Copyright 2026 Michal Planicka
 SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-10-11 · **Owner ask:** 2026-10-11 ("any ideas what other reports to put in fused and derived? what else can be calculated?", then "Fusion reports: i like it, write it up") · **Surface:** the Nights view's *Fused & derived* tab (proposal relayed 2026-10-11)
+**Status:** PROPOSED (triaged 2026-11-04 (Magpie): **not built.** The Nights view does carry the *Fused & derived* tab, and `nightsClick` reaches `openNight`, which opens ONE node's app for that night. No §2a producer is linked from `capture-host/monitor.html` — a search for `resp-acc-analysis.html`, the CPAP-oximetry tool and `treatment-response-analysis` finds nothing there. So every report in §2 sits in neither state §6 allows: nothing is reachable from a night click, and nothing has moved to the residue ledger with a measured reason) · **Created:** 2026-10-11 · **Owner ask:** 2026-10-11 ("any ideas what other reports to put in fused and derived? what else can be calculated?", then "Fusion reports: i like it, write it up") · **Surface:** the Nights view's *Fused & derived* tab (proposal relayed 2026-10-11)
 
 # Fusion reports — what the box's recordings can answer together
 

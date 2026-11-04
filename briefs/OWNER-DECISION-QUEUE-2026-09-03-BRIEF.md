@@ -283,9 +283,13 @@ confirmed no ResMed oximeter module exists — a purchase, not a cable) · `CROS
 >    pinned span (P5) and like a gap; the matcher keys on magnitude so the third state
 >    (`2026-09-20-positive-saturation-at-negated-low-rail`) joins the first two. Stamped in
 >    PINNED-SPAN-POPULATIONS §6's item. The detector change moves `computeHash`.
-> 4. **`GAP_S`: MEASURE BEFORE RULING.** A sweep over the corpus reporting where the CVHR index moves on
->    both nodes (`GAP_S` and the coupled `PPG_CVHR_GAP_S`); the owner rules on the numbers. Stamped in
->    ECG-SATURATION-ABSENCE's last item. A measurement unit, not a decision yet.
+> 4. **`GAP_S`: MEASURE BEFORE RULING — the measurement is finished; the ruling is not.** The sweep ran
+>    on both corpora (`audits/GAP-S-SWEEP-2026-09-22.json`, `audits/GAP-S-SWEEP-PHONE-2026-09-22.json`;
+>    #2829 · #2840 · #2843): the CVHR index moves on no box night and no phone night over 3–60 s on
+>    either node, and the tool's null control proves the instrument sees the cut. This corpus cannot
+>    discriminate the constant, so the owner rules on FINISHED numbers and nothing here changes a
+>    constant. Stamped in ECG-SATURATION-ABSENCE's last item; re-verified 2026-11-04 (Magpie), which
+>    is why that brief now reads DONE while this ruling stays open.
 >
 > ⚠️ **Three questions were put to the owner today whose answers the tree already carried** (the 68 tiles,
 > the cohort-harness fix, the 3600 skew floor). These four were tree-checked first — the rows named above
@@ -332,7 +336,7 @@ it, which is the cheapest possible moment to ask.
 > | **D10** | `GATT-HANDLE-MAP` | four-device box validation; the header says **"Owner still unassigned"** — no D-number, and it is absent from D1's 13 | the handle-map validation with H10/Verity/O2Ring observed (unobserved since 09-18) | the brief at "validated on one device", and `BLE-TRANSPORT-REDESIGN` waits behind it |
 > | **D11** | `VIGIL-SELF-SUSTAINED-FOLDING` | acceptance 2–4 — a systemd unit plus `MemoryMax`/`OOMScoreAdjust`/scheduling **on vigil**; not in D2's authorized set of four | the box folds its own nights under a memory fence, which is the whole point of the brief | folding stays a rig-only job and the box keeps producing nights nobody folds locally |
 > | **D12** | `VIGIL-BLUETOOTH-ADVERSARIAL-AUDIT` | **Mitigation C clause 1 is still UN-ARMED** and needs a `config.yaml` touch on vigil — distinct from D2's 2026-09-19 sniffer-INERT ruling, which this brief already records | the last unarmed mitigation of that audit | the audit closes with one mitigation documented and not armed — state it, so it is not read as armed |
-> | **D13** | `VERDICT-CONTRACT` | **12 adoption rows are `UNKNOWN`-by-design awaiting the owner's held-out decision** — §3c records the rule, not the call | those 12 rows resolve and the adoption ratchet advances | the 12 stay UNKNOWN-by-design, which is honest but permanent; say so in §3c |
+> | **D13** | `VERDICT-CONTRACT` + `HELD-OUT-BAND-CAMPAIGN` | **12 adoption rows are `UNKNOWN`-by-design awaiting the owner's held-out decision** — §3c records the rule, not the call, and the bands to ratify or strike sit in `HELD-OUT-BAND-CAMPAIGN-2026-09-22-BRIEF.md` §4 (re-verified 2026-11-04, Magpie) | those 12 rows resolve and the adoption ratchet advances | the 12 stay UNKNOWN-by-design, which is honest but permanent; say so in §3c |
 > | **D14** | `OXYII-ACQUISITION-CHARTER` | §50's **R1 attestation** — an owner *attestation*, not a box touch. D2 authorized the touch only, so this half was never covered | §50 closes and the charter's last non-box arm with it | the charter stays open on one attestation while every buildable arm is done |
 > | **D15** | `AS11-AUTO-SESSION-DETECTION` | the **`SubscribeEvent` probe** is owner-scheduled and absent from D1's 13; the queue's §3 already records the owner saying the ANALYSIS half needs no hardware | the probe runs in a box window and `Leak` joins the poll set | the analysis half proceeds alone — already unblocked — and the probe stays unscheduled |
 >
