@@ -6958,3 +6958,77 @@ def test_night_view_IS_HANDED_the_offset_and_a_zero_one_cannot_show_it(tmp_path)
         nightqc.night_view = real
     assert s["night_window"] == {"ok": 1}, "the spy did not stand in for night_view"
     assert seen["off"] == 14400.0, (seen, "night_view was judged in a frame that is not this night's")
+
+
+# ── THE DIGEST NAMES THE NIGHT BY ITS BAND, NOT BY ITS FOLDER (residue
+#    2026-11-03-qc-digest-names-the-newest-folder-not-the-night) ─────────────────────────────────────────
+# 2026-11-02 18:00 as a floating value. The band begin `night_view` publishes is this value plus the
+# writer offset when one was recovered, and this value itself when the offset refused.
+_EVE_1102 = 1793642400
+
+
+def _digest_summ(begin, offset_sec, folder="2026-11-03"):
+    return {
+        "night": folder,
+        "night_window": {"begin": begin, "end": begin + 57600},
+        "writer_offset": {"offset_sec": offset_sec},
+        "devices": [{"name": "H10", "coverage": {"ecg": 0.68}}],
+    }
+
+
+def test_digest_night_reads_the_band_not_the_folder():
+    """The 2026-11-03 box case: the ring opened a new folder at 04:18 and the digest named it. The
+    judged window began 11-02 18:00 EST, so the night is 11-02 whatever the folder says."""
+    s = _digest_summ(_EVE_1102 + 18000, 18000)  # EST: the instant is five hours above the civil value
+    assert nightqc.digest_night(s) == "2026-11-02"
+    assert nightqc.night_label(s) == "2026-11-02 (folder 2026-11-03)"
+    assert nightqc.qc_digest(s).startswith("night 2026-11-02 (folder 2026-11-03) — ")
+
+
+def test_digest_night_brings_an_instant_down_to_floating():
+    """An offset east of UTC puts the instant of 18:00 at 08:00 the same day — BEFORE noon, so keying
+    the instant unconverted names the night before. Only the subtraction gives the right night."""
+    s = _digest_summ(_EVE_1102 - 36000, -36000, folder="2026-11-02")
+    assert nightqc.digest_night(s) == "2026-11-02"
+    assert nightqc.night_label(s) == "2026-11-02"  # band and folder agree: no folder note
+
+
+def test_digest_night_reads_a_floating_window_as_written():
+    """A refused offset leaves the window floating; a bool is not a number on either field."""
+    assert nightqc.digest_night(_digest_summ(_EVE_1102, None)) == "2026-11-02"
+    assert nightqc.digest_night(_digest_summ(_EVE_1102, True)) == "2026-11-02"
+    assert nightqc.digest_night(_digest_summ(True, 18000)) is None
+
+
+def test_digest_night_reads_the_band_in_utc_whatever_the_host_zone(monkeypatch):
+    """The band begin is FLOATING (civil time encoded as UTC), so it is read with `getUTC*` semantics.
+    A host zone 14 h east puts 12:00 floating on the next local day; a local read names the wrong night."""
+    import time
+
+    monkeypatch.setenv("TZ", "TST-14")
+    time.tzset()
+    try:
+        assert nightqc.digest_night(_digest_summ(_EVE_1102, None)) == "2026-11-02"
+    finally:
+        monkeypatch.undo()
+        time.tzset()
+
+
+def test_qc_digest_range_states_both_ends_exactly():
+    """Both ends of a diverging range are whole percents of the stream they come from: 60 and 95."""
+    s = {"night": "2026-11-02", "devices": [{"name": "Verity", "coverage": {"acc": 0.6, "ppg": 0.95}}]}
+    assert "Verity 60–95%" in nightqc.qc_digest(s)
+
+
+def test_night_label_falls_back_to_the_folder_without_a_window():
+    """∅ No judged window ⇒ no band to read: the label is the folder, and '?' when that is absent too."""
+    s = {"night": "2026-11-03", "night_window": None, "devices": []}
+    assert nightqc.digest_night(s) is None
+    assert nightqc.night_label(s) == "2026-11-03"
+    assert nightqc.night_label({"night_window": {"begin": "x"}}) == "?"
+    assert nightqc.digest_night(None) is None
+    assert nightqc.night_label(None) == "?"
+    no_folder = _digest_summ(_EVE_1102, None, folder=None)
+    assert nightqc.night_label(no_folder) == "2026-11-02"
+    no_off = dict(_digest_summ(_EVE_1102, None), writer_offset=None)
+    assert nightqc.digest_night(no_off) == "2026-11-02"

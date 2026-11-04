@@ -4125,10 +4125,12 @@ _real_summarize = capture.nightqc.summarize  # bound BEFORE any test patches the
 def test_qc_poller_alerts_once_on_a_gap_past_the_grace(tmp_path, monkeypatch):
     """A stream still missing after alert_after_sec fires exactly one alert for the night."""
     sent = []
+    msgs = []
 
     class _N:
         async def send(self, title, message, **kw):
             sent.append(title)
+            msgs.append(message)
             return True
 
     cfg = _qc_night(tmp_path, monkeypatch, missing=True)
@@ -4140,7 +4142,17 @@ def test_qc_poller_alerts_once_on_a_gap_past_the_grace(tmp_path, monkeypatch):
     # about the alert grace, not about isolation — route the REAL scan through a wrapper the child cannot
     # import by name, so it runs on a thread with the same computation; the isolation legs live in
     # tests/test_qc_offload.py.
-    monkeypatch.setattr(capture.nightqc, "summarize", lambda n, d: _real_summarize(n, d))
+    # The judged window is put on the evening BEFORE the folder's date, as on the box on 2026-11-03, so the
+    # alert must name the band's night and the folder beside it — the folder alone is the defect.
+    monkeypatch.setattr(
+        capture.nightqc,
+        "summarize",
+        lambda n, d: dict(
+            _real_summarize(n, d),
+            night_window={"begin": 1784397600, "end": 1784455200},
+            writer_offset={"offset_sec": None},
+        ),
+    )
     calls = {"n": 0}
 
     async def fake_sleep(_s):
@@ -4152,6 +4164,7 @@ def test_qc_poller_alerts_once_on_a_gap_past_the_grace(tmp_path, monkeypatch):
     monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
     _run(capture.qc_poller(cfg, str(tmp_path), _N()))
     assert sent == ["Tepna: night has a gap"]  # once, despite 3 polls all seeing the gap
+    assert msgs[0].startswith("2026-07-18 (folder 2026-07-19): no data on "), msgs
 
 
 def test_qc_poller_holds_the_alert_during_the_grace(tmp_path, monkeypatch):

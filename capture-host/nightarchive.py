@@ -29,8 +29,11 @@ import os
 import shutil
 import time
 
+import datetime as _dt
+
 import diskguard
 import nightqc
+import solid_night_inputs
 
 _MARKER = ".archived"
 
@@ -147,12 +150,18 @@ def copy_blocked_nights(
     return out
 
 
+def _band_phase(night_dir: str, now: float) -> str | None:
+    """`solid_night_inputs.band_phase` at the epoch `now`, read as civil local time like the daemon's `_now()`."""
+    return solid_night_inputs.band_phase(night_dir, _dt.datetime.fromtimestamp(now))
+
+
 def stalled_protection(
     captures_dir: str,
     settle_sec: float,
     stall_after_sec: float = COPY_STALL_AFTER_SEC,
     _now=time.time,
     _newest=nightqc.newest_data_mtime,
+    _phase=None,
 ) -> list[dict]:
     """The nights `diskguard.active_nights` still holds although their DEVICE data settled long ago.
 
@@ -171,9 +180,17 @@ def stalled_protection(
     passed, so nothing anywhere said a night had stopped being offered. A bound with no alarm trades a
     stall you can measure for one you cannot.
 
+    🔴 ONLY A FOLDER WHOSE BAND HAS CLOSED IS A FINISHED NIGHT. A file set that starts after midnight puts
+    device data into the folder of the calendar date, and the box writes its daytime sidecars there too.
+    On 2026-11-03 the ring opened a two-minute file set at 04:18 in the 2026-11-03 folder, and at 10:20
+    this reported that folder as a finished night held open, hours before its band began (residue
+    2026-11-03-a-folder-whose-band-has-not-closed-is-reported-as-a-finished-night). `_phase(dir, now)`
+    reads `solid_night_inputs.band_phase` with `now` as civil local time; tests inject it.
+
     Ages are `None`-free by construction — a night with no device data never qualifies, so no row
     carries a measurement that was not taken."""
     now = _now()
+    phase = _phase or _band_phase
     rows: list[dict] = []
     for n in diskguard.list_nights(captures_dir):
         d = os.path.join(captures_dir, n)
@@ -186,7 +203,7 @@ def stalled_protection(
             continue
         data_age = now - newest
         any_age = now - any_m
-        if data_age >= settle_sec and any_age < settle_sec and data_age > stall_after_sec:
+        if data_age >= settle_sec and any_age < settle_sec and data_age > stall_after_sec and phase(d, now) == "closed":
             rows.append({"night": n, "data_age_sec": data_age, "any_age_sec": any_age})
     rows.sort(key=lambda r: -r["data_age_sec"])
     return rows

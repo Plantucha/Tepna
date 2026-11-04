@@ -547,6 +547,13 @@ _DEV = "Polar_H10_1_20260701010101_ECG.txt"  # a device-capture file: newest_dat
 _SIDE = "OXYLIFE.csv"  # a sidecar: excluded by tag, and the file that parked the measured night
 
 
+def _stalled(*a, **k):
+    """`stalled_protection` with every band closed. These tests fix `_now` near the epoch, before any
+    folder's band; the band gate has its own tests below, on real local times."""
+    k.setdefault("_phase", lambda _d, _now: "closed")
+    return nightarchive.stalled_protection(*a, **k)
+
+
 def test_copy_blocked_nights_blocks_only_a_night_whose_device_data_is_still_arriving(tmp_path):
     cap = str(tmp_path / "captures")
     live = _night(cap, "2026-10-29", {_DEV: "x"})
@@ -595,7 +602,7 @@ def test_stalled_protection_names_the_night_one_writer_holds_open(tmp_path):
     d = _night(cap, "2026-10-28", {_DEV: "x", _SIDE: "y"})
     _touch(os.path.join(d, _DEV), 100_000 - 14 * 3600)
     _touch(os.path.join(d, _SIDE), 99_999)
-    rows = nightarchive.stalled_protection(cap, 60.0, _now=lambda: 100_000.0)
+    rows = _stalled(cap, 60.0, _now=lambda: 100_000.0)
     assert [r["night"] for r in rows] == ["2026-10-28"]
     assert round(rows[0]["data_age_sec"] / 3600.0, 1) == 14.0
     assert rows[0]["any_age_sec"] == 1.0
@@ -616,7 +623,7 @@ def test_stalled_protection_is_silent_unless_all_three_conditions_hold(tmp_path)
     young = _night(cap, "2026-10-26", {_DEV: "x", _SIDE: "y"})
     _touch(os.path.join(young, _DEV), now - 3600)
     _touch(os.path.join(young, _SIDE), now - 1)
-    assert nightarchive.stalled_protection(cap, 60.0, _now=lambda: now) == []
+    assert _stalled(cap, 60.0, _now=lambda: now) == []
 
 
 def test_stalled_protection_ignores_the_box_rewriting_its_own_verdicts_on_an_old_night(tmp_path):
@@ -630,12 +637,12 @@ def test_stalled_protection_ignores_the_box_rewriting_its_own_verdicts_on_an_old
     _touch(os.path.join(d, _DEV), now - 723 * 3600)
     for n in names:
         _touch(os.path.join(d, n), now - 1)
-    assert nightarchive.stalled_protection(cap, 60.0, _now=lambda: now) == []
+    assert _stalled(cap, 60.0, _now=lambda: now) == []
     # a REAL lone writer beside the fresh verdicts still raises the row
     with open(os.path.join(d, _SIDE), "w") as fh:
         fh.write("y")
     _touch(os.path.join(d, _SIDE), now - 2)
-    rows = nightarchive.stalled_protection(cap, 60.0, _now=lambda: now)
+    rows = _stalled(cap, 60.0, _now=lambda: now)
     assert [(r["night"], r["any_age_sec"]) for r in rows] == [("2026-10-01", 2.0)], rows
 
 
@@ -665,12 +672,12 @@ def test_stalled_protection_skips_a_night_with_no_device_data_and_an_unreadable_
     cap = str(tmp_path / "captures")
     d = _night(cap, "2026-10-29", {_SIDE: "y"})
     _touch(os.path.join(d, _SIDE), 99_999)
-    assert nightarchive.stalled_protection(cap, 60.0, _now=lambda: 100_000.0) == []
+    assert _stalled(cap, 60.0, _now=lambda: 100_000.0) == []
 
     def boom(_d):
         raise OSError("EACCES")
 
-    assert nightarchive.stalled_protection(cap, 60.0, _now=lambda: 100_000.0, _newest=boom) == []
+    assert _stalled(cap, 60.0, _now=lambda: 100_000.0, _newest=boom) == []
 
 
 def test_stalled_protection_skips_a_night_whose_folder_reports_no_file_at_all(tmp_path):
@@ -678,7 +685,7 @@ def test_stalled_protection_skips_a_night_whose_folder_reports_no_file_at_all(tm
     # it is reachable only by injection — and the row must not carry an age that was never measured.
     cap = str(tmp_path / "captures")
     _night(cap, "2026-10-28", {})
-    rows = nightarchive.stalled_protection(cap, 60.0, _now=lambda: 100_000.0, _newest=lambda _d: 1_000.0)
+    rows = _stalled(cap, 60.0, _now=lambda: 100_000.0, _newest=lambda _d: 1_000.0)
     assert rows == []
 
 
@@ -689,7 +696,7 @@ def test_stalled_protection_reports_the_longest_held_night_first(tmp_path):
         d = _night(cap, name, {_DEV: "x", _SIDE: "y"})
         _touch(os.path.join(d, _DEV), now - age_h * 3600)
         _touch(os.path.join(d, _SIDE), now - 1)
-    rows = nightarchive.stalled_protection(cap, 60.0, _now=lambda: now)
+    rows = _stalled(cap, 60.0, _now=lambda: now)
     assert [r["night"] for r in rows] == ["2026-10-27", "2026-10-26", "2026-10-28"]
 
 
@@ -757,7 +764,7 @@ def test_stalled_protection_keeps_scanning_past_both_of_its_skip_arms(tmp_path):
             raise OSError("EIO")
         return nightqc.newest_data_mtime(d)
 
-    rows = nightarchive.stalled_protection(cap, 60.0, 3600.0, _now=lambda: now, _newest=newest)
+    rows = _stalled(cap, 60.0, 3600.0, _now=lambda: now, _newest=newest)
     assert [r["night"] for r in rows] == ["2026-10-28"]
 
 
@@ -774,7 +781,7 @@ def test_stalled_protection_counts_data_settled_exactly_at_the_window(tmp_path):
     stall it is held by is the same stall."""
     now = 500_000.0
     cap = _one_night(tmp_path, 600.0, 1.0, now)
-    rows = nightarchive.stalled_protection(cap, 600.0, 300.0, _now=lambda: now)
+    rows = _stalled(cap, 600.0, 300.0, _now=lambda: now)
     assert [r["night"] for r in rows] == ["2026-10-21"]
 
 
@@ -783,7 +790,7 @@ def test_stalled_protection_is_silent_when_nothing_in_the_folder_is_still_fresh(
     no protection to report — `copy_blocked_nights` already offers the night."""
     now = 500_000.0
     cap = _one_night(tmp_path, 600.0, 600.0, now)
-    assert nightarchive.stalled_protection(cap, 600.0, 300.0, _now=lambda: now) == []
+    assert _stalled(cap, 600.0, 300.0, _now=lambda: now) == []
 
 
 def test_stalled_protection_waits_until_the_stall_bound_is_passed_not_reached(tmp_path):
@@ -791,5 +798,42 @@ def test_stalled_protection_waits_until_the_stall_bound_is_passed_not_reached(tm
     alarm fires past it, not on it."""
     now = 500_000.0
     cap = _one_night(tmp_path, 600.0, 1.0, now)
-    assert nightarchive.stalled_protection(cap, 300.0, 600.0, _now=lambda: now) == []
-    assert [r["night"] for r in nightarchive.stalled_protection(cap, 300.0, 599.0, _now=lambda: now)] == ["2026-10-21"]
+    assert _stalled(cap, 300.0, 600.0, _now=lambda: now) == []
+    assert [r["night"] for r in _stalled(cap, 300.0, 599.0, _now=lambda: now)] == ["2026-10-21"]
+
+
+# ── THE BAND GATE (residue 2026-11-03-a-folder-whose-band-has-not-closed-is-reported-as-a-finished-night) ──
+def _local(y, mo, d, h, mi, s=0):
+    import time as _t
+
+    return _t.mktime((y, mo, d, h, mi, s, 0, 0, -1))
+
+
+def _today_folder(tmp_path):
+    """The 2026-11-03 box shape: a two-minute ring file set after midnight, then daytime sidecars."""
+    cap = str(tmp_path / "captures")
+    d = _night(cap, "2026-11-03", {_DEV: "x", _SIDE: "y"})
+    _touch(os.path.join(d, _DEV), _local(2026, 11, 3, 4, 20))
+    return cap, d
+
+
+def test_stalled_protection_is_silent_on_a_folder_whose_band_has_not_begun(tmp_path):
+    cap, d = _today_folder(tmp_path)
+    now = _local(2026, 11, 3, 10, 20, 44)
+    _touch(os.path.join(d, _SIDE), now - 17)
+    assert nightarchive.stalled_protection(cap, 60.0, _now=lambda: now) == []
+
+
+def test_stalled_protection_is_silent_while_the_band_is_open(tmp_path):
+    cap, d = _today_folder(tmp_path)
+    now = _local(2026, 11, 3, 23, 0)
+    _touch(os.path.join(d, _SIDE), now - 17)
+    assert nightarchive.stalled_protection(cap, 60.0, _now=lambda: now) == []
+
+
+def test_stalled_protection_reports_the_same_folder_once_its_band_has_closed(tmp_path):
+    cap, d = _today_folder(tmp_path)
+    now = _local(2026, 11, 4, 10, 30)
+    _touch(os.path.join(d, _SIDE), now - 17)
+    rows = nightarchive.stalled_protection(cap, 60.0, _now=lambda: now)
+    assert [r["night"] for r in rows] == ["2026-11-03"], rows
