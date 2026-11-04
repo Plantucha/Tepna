@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="5f00e8c8df9a" data-compute-hash="271e6e574ad9">
+<html lang="en" data-manifest-hash="3db7e51af187" data-compute-hash="f947ad3dbaab">
 <head>
 <!--
   OxyDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-3+T/ar3EZVk36//Zv52rHgbUF+4QZZdJyqAYvpowbmk=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-4H9qbwJg0Px/ddF5s19lSEh0lobH/6PK1pgCZ+NZiHI=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CNkm2h+ZlrSYYzoGx9OxoFo/k2UmcAbaZ9Bd72GM4as=' 'sha256-D0YR9+62Fd3hUFRoEZhA/MkKslQirmZQg7KMBHKpICk=' 'sha256-E1IsN6aDCUvHb/53fIyPoB7AQMLdRp5olYowv/ZbZ6A=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-OlU0jGA0OnZ42Fdafhb1v9ikML39C1Hlaiwi6Hnx54g=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-QyURGUmKmbpEGz6vtt+poPueeRE901i4IjiyZIbxJNo=' 'sha256-S9q+/UVeYTsQz8yqeVogyaGSYYxTYmKiieZ36k8VYkQ=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-XqyVux6nZ1GoEpXw5HlJF6/fUCrzC+aJ4dGKEuYCK0w=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-jq3cXJLEUHiuuLv50xIj1gi1pGarxBz1FXmrV0BuKrE=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rIcm4jQwZdAp6l3SdrzI0nizBN01Nhu8bJROOQanTRo=' 'sha256-s5jQgZ2dCmcNdTTy5gLqyiwkCVbXvuldnqeO/1M79kk=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-3+T/ar3EZVk36//Zv52rHgbUF+4QZZdJyqAYvpowbmk=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-4H9qbwJg0Px/ddF5s19lSEh0lobH/6PK1pgCZ+NZiHI=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CNkm2h+ZlrSYYzoGx9OxoFo/k2UmcAbaZ9Bd72GM4as=' 'sha256-D0YR9+62Fd3hUFRoEZhA/MkKslQirmZQg7KMBHKpICk=' 'sha256-E1IsN6aDCUvHb/53fIyPoB7AQMLdRp5olYowv/ZbZ6A=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-OlU0jGA0OnZ42Fdafhb1v9ikML39C1Hlaiwi6Hnx54g=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-QyURGUmKmbpEGz6vtt+poPueeRE901i4IjiyZIbxJNo=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-XqyVux6nZ1GoEpXw5HlJF6/fUCrzC+aJ4dGKEuYCK0w=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-jq3cXJLEUHiuuLv50xIj1gi1pGarxBz1FXmrV0BuKrE=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rIcm4jQwZdAp6l3SdrzI0nizBN01Nhu8bJROOQanTRo=' 'sha256-s5jQgZ2dCmcNdTTy5gLqyiwkCVbXvuldnqeO/1M79kk=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>OxyDex — Nocturnal Oximetry Analyzer · v2.26.0</title>
@@ -12502,7 +12502,9 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
   /* anchors: [{ devMs, hostMs }, …] — BOTH relative to the same first row, in device order.
      Returns { ok, correctionAt(devMs) → ms to ADD to the device axis, n, maxStepMs, rawMaxStepMs,
      totalMs, ppm }.
-     ok:false ⇒ caller keeps the raw device axis (honest: no correction beats a fabricated one). */
+     ok:false ⇒ caller keeps the raw device axis (honest: no correction beats a fabricated one).
+     A refusal on a device epoch change also carries { epochStepMs, epochAtDevMs, epochHostStepMs,
+     ppmExEpoch }, so the caller can re-anchor on the seam. */
   function hostAxis(anchors, opts) {
     opts = opts || {};
     var win = opts.window > 0 ? opts.window | 0 : CK_AXIS_WIN;
@@ -12553,7 +12555,8 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
        So the smoothed step sizes the DRIFT and never the anchor, both published statistics are blind
        to a lone wild anchor BY CONSTRUCTION, and a consumer had nothing to read instead. */
     var rawMaxStep = 0,
-      rawStepAt = null;
+      rawStepAt = null,
+      rawStepIdx = null;
     for (var s = 1; s < n; s++) {
       var st = Math.abs(sm[s] - sm[s - 1]);
       if (st > maxStep) maxStep = st;
@@ -12561,6 +12564,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       if (rst > rawMaxStep) {
         rawMaxStep = rst;
         rawStepAt = pts[s].d;
+        rawStepIdx = s;
       }
     }
     var span = pts[n - 1].d - pts[0].d;
@@ -12651,9 +12655,74 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
        ppm "correction" that doubled fs from 130 to 259.9. A device crystal is wrong by ppm; the worst
        REAL one in this corpus is the O2Ring at −3035 ppm, which this admits with 16× headroom. Beyond
        5 % the two columns are not the two clocks we think they are — a misparse, a unit mismatch, a
-       shifted column — and applying it would fabricate a timebase. §2.6's rule, one level up: when the
-       input cannot be trusted the answer is "no correction", not a confident wrong one. */
+       shifted column, or a device epoch change INSIDE one stream — and applying it would fabricate a
+       timebase. §2.6's rule, one level up: when the input cannot be trusted the answer is "no
+       correction", not a confident wrong one. */
     if (!(Math.abs(ppm) <= CK_AXIS_MAX_PPM)) {
+      /* WHICH OF THE FOUR CAUSES? The first three are properties of the COLUMNS and the fourth is a
+         property of the RECORDING, and until now this branch named the columns for all four. Measured
+         2026-11-04 on one archived ECG stream: its first 45260 rows carry a device counter 7.84 years
+         below the rest of the same file, the counter never steps BACKWARD so every monotonic check
+         passes, and this refusal read -999914 ppm and reported that the columns are probably not host
+         and device. They are exactly host and device. §7 already names the shape — "a resync is a
+         change of clock" — so the diagnosis existed and the refusal could not reach it.
+
+         THE DISCRIMINATOR IS CONCENTRATION, and it needs no new threshold. A rate error is UNIFORM:
+         it spreads divergence across every interval, so dropping any one interval leaves the rest of
+         it behind. An epoch change is ONE interval. So drop the single worst adjacent step from the
+         raw divergence and re-measure against this function's OWN bound — a misparse or a unit
+         mismatch is still implausible without that step, and a seam is not. `CK_AXIS_MAX_PPM` is
+         therefore the criterion on both sides of the test, pre-stated (§🧾) rather than fitted here.
+         Worked: a ns column read as ms diverges 1e6 ppm across EVERY interval, so dropping one of
+         (n-1) of them still reads 1e6 * (1 - 1/(n-1)) ppm, over the bound for every n this function
+         admits. The seam case drops to the night's real drift.
+
+         The second condition states the MECHANISM, also without a tuned number: through a real
+         interval both clocks advance together, so a dropout keeps the device step near the host step.
+         An epoch change is a device advance the host does not corroborate, and the unaccounted part
+         exceeds the host's own elapsed time over that interval. No crystal inside ±5 % can do that.
+
+         ⚠ STILL A REFUSAL. The rate is unusable either way and `ok` stays false, exactly as §7
+         requires: the bound "guards the RATE, not the AXIS". What changes is that the caller now
+         learns WHERE the seam sits (`epochAtDevMs`) and how large it is, which is what a node needs
+         to re-anchor — §7 puts step detection and re-anchoring on the axis, not in here.
+         ⚠ TWO seams defeat it: dropping one leaves the other, the residual stays implausible, and
+         this falls back to the column reason. That is today's answer, so the branch is no worse
+         there, and a multi-seam split belongs with the node that owns the re-anchoring. */
+      var epPpm = null,
+        epStep = null,
+        epHostStep = null;
+      if (rawStepIdx != null) {
+        var epPrev = pts[rawStepIdx - 1],
+          epHere = pts[rawStepIdx];
+        epHostStep = epHere.d + epHere.r - (epPrev.d + epPrev.r);
+        epStep = epHere.d - epPrev.d - epHostStep;
+        epPpm = ((pts[n - 1].r - r0 - (epHere.r - epPrev.r)) / span) * 1e6;
+      }
+      if (epPpm != null && Math.abs(epStep) > Math.abs(epHostStep) && Math.abs(epPpm) <= CK_AXIS_MAX_PPM) {
+        return {
+          ok: false,
+          reason:
+            'device epoch change of ' +
+            Math.round(epStep) +
+            ' ms at device stamp ' +
+            pts[rawStepIdx].d +
+            ', where the host advanced ' +
+            Math.round(epHostStep) +
+            ' ms — without that one step the rate reads ' +
+            Math.round(epPpm) +
+            ' ppm, inside ±' +
+            CK_AXIS_MAX_PPM +
+            ', so the columns ARE host+device and the axis carries a resync',
+          n: n,
+          ppm: ppm,
+          spanMs: span,
+          epochStepMs: epStep,
+          epochAtDevMs: pts[rawStepIdx].d,
+          epochHostStepMs: epHostStep,
+          ppmExEpoch: epPpm
+        };
+      }
       return { ok: false, reason: 'implausible host/device rate ' + Math.round(ppm) + ' ppm (bound ±' + CK_AXIS_MAX_PPM + ') — columns are probably not host+device', n: n, ppm: ppm };
     }
     return {

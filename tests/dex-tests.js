@@ -6276,6 +6276,71 @@
        §2.7 states the band as `. 0–999`, i.e. CLOSED at both ends, and that is what these pin.
 
        Written as the contract (both endpoints of a closed band are inside it), not as the mutant. */
+    group('clock.js — a device epoch change inside one stream is not a column mismatch', 'clock · known-answer · mutation-pinned', function (T) {
+      var C = env.DexClock;
+      if (!C || typeof C.hostAxis !== 'function') {
+        T.skip('DexClock.hostAxis available', 'clock.js not loaded');
+        return;
+      }
+      /* THE DEFECT (residue 2026-11-04-a-presync-device-epoch-refuses-a-night-and-blames-the-columns):
+         one archived ECG stream opens with 45260 rows whose device counter sits 7.84 years below the
+         rest of the SAME file. The counter never steps BACKWARD, so every monotonic check passes, and
+         `hostAxis` refused at -999914 ppm reporting that the columns are probably not host+device.
+         They are exactly host and device, and §7 already calls a counter step a change of clock. */
+      var DELTA = Math.round(7.84 * 365.25 * 86400 * 1000);
+      var mk = function (f) {
+        var a = [];
+        for (var i = 0; i < 20; i++) a.push(f(i));
+        return a;
+      };
+      var seam = C.hostAxis(
+        mk(function (i) {
+          return { devMs: i * 60000 + (i >= 5 ? DELTA : 0), hostMs: i * 60000 };
+        })
+      );
+
+      // ── THE REFUSAL STANDS; ONLY THE CAUSE CHANGES ────────────────────────────────────────────
+      T.eq('a seamed axis is still REFUSED — §7 bounds the RATE, and this rate is unusable', seam.ok, false);
+      T.ok('…and the reason names a device epoch change', /device epoch change/.test(String(seam.reason)), String(seam.reason));
+      T.ok('…and no longer blames the column layout', !/not host\+device/.test(String(seam.reason)), String(seam.reason));
+
+      // ── THE SEAM IS PUBLISHED, so a node can re-anchor on it (§7 puts re-anchoring on the axis) ─
+      T.ok('the published step sizes the jump', Math.abs(seam.epochStepMs - DELTA) <= 1, 'got ' + seam.epochStepMs + ' want ' + DELTA);
+      T.eq('…and locates it at the LATER anchor of the straddling pair', seam.epochAtDevMs, 5 * 60000 + DELTA);
+      T.eq('…beside the host step, which reads the real elapsed minute', seam.epochHostStepMs, 60000);
+      T.ok('…and the rate WITHOUT that one step is plausible, which is the whole criterion', Math.abs(seam.ppmExEpoch) <= 1, 'got ' + seam.ppmExEpoch);
+
+      // ── CONTROL · A UNIFORM ERROR SURVIVES THE REMOVAL, so it keeps the column reason ──────────
+      /* A nanosecond column read as milliseconds diverges at ~1e6 ppm across EVERY interval. Dropping
+         one of (n-1) of them still reads 1e6 * (1 - 1/(n-1)) ppm, over the bound for every n this
+         function admits. That is why the discriminator needs no threshold of its own. */
+      var units = C.hostAxis(
+        mk(function (i) {
+          return { devMs: i * 60000 * 1e6, hostMs: i * 60000 };
+        })
+      );
+      T.eq('a ns-as-ms column is refused', units.ok, false);
+      T.ok('…and KEEPS the column reason — one interval cannot carry a uniform error', /not host\+device/.test(String(units.reason)), String(units.reason));
+      T.ok('…so it never reads as an epoch change', !/epoch/.test(String(units.reason)), String(units.reason));
+
+      // ── CONTROL · A DROPOUT IS NOT A SEAM — through a real gap both clocks keep ticking ────────
+      var drop = C.hostAxis(
+        mk(function (i) {
+          var g = i >= 5 ? 120000 : 0;
+          return { devMs: i * 60000 + g, hostMs: i * 60000 + g };
+        })
+      );
+      T.eq('a 120 s dropout is still ACCEPTED — the host corroborates the device across it', drop.ok, true);
+      T.eq('…and publishes no epoch seam', drop.epochAtDevMs == null, true);
+
+      // ── CONTROL · the ordinary accepted path is untouched ──────────────────────────────────────
+      var drift = [];
+      for (var k = 0; k < 40; k++) drift.push({ devMs: k * 60000, hostMs: k * 60000 * (1 + 30e-6) + (k % 3) * 7 });
+      var good = C.hostAxis(drift);
+      T.eq('a healthy 30 ppm axis is still accepted', good.ok, true);
+      T.ok('…and its rate still reads near 30 ppm', Math.abs(good.ppm - 30) < 10, 'got ' + good.ppm);
+    });
+
     group('clock.js — wave 9: the millisecond band is closed at both ends', 'clock · known-answer · mutation-pinned', function (T) {
       var C = env.DexClock;
       if (!C || typeof C.parseTimestamp !== 'function') {

@@ -8,6 +8,7 @@ it. Owner ruling 2026-10-25: a push at 20 %, a push plus an email at 10 %, and a
 Device names here are synthetic."""
 
 import asyncio
+import datetime as dt
 import json
 import logging
 import os
@@ -367,6 +368,15 @@ def _poll(monkeypatch, levels, notifier, name="H10-01"):
 
     monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
     monkeypatch.setattr(capture._time, "monotonic", lambda: 1000.0)
+    # THE RUNNER'S CLOCK IS NOT AN INPUT. `alert_poller` reads `_now().hour` for the "may not last the
+    # night" note (`alerts.NIGHT_BEGIN_HOURS`, 18:00-03:59), so an unpinned clock puts a fourth,
+    # time-keyed title into `sent` for ten hours of every day. Three tests here reded in CI from 18:00Z
+    # on 2026-11-04 and passed on a rig at 14:30 local, which blocked every bird's PR on a required
+    # context. Noon sits outside both time-keyed windows (the night hours, and
+    # `alerts.STREAM_MORNING_HOURS`, 04:00-11:59), so these tests measure the threshold ladder alone.
+    # The night note has its own coverage in `test_night_battery_alert.py`, which drives `_now`
+    # deliberately and asserts the note DOES fire inside the window.
+    monkeypatch.setattr(capture, "_now", lambda: dt.datetime(2026, 11, 4, 12, 0, 0))
     asyncio.run(capture.alert_poller(cfg, notifier))
     capture._LAST_DATA.pop(name, None)
     return st
@@ -696,3 +706,27 @@ def test_read_link_does_not_depend_on_the_boxes_locale(tmp_path):
     if enc.lower().replace("-", "") in ("utf8",):
         pytest.skip(f"this host forces UTF-8 even under LC_ALL=C ({enc}) — the condition was not reached")
     assert got == json.dumps(here, sort_keys=True), f"the history must not depend on the ambient encoding ({enc})"
+
+
+def test_every_poller_test_file_pins_the_wall_clock():
+    """A test that reaches `alert_poller` with the runner's own clock passes or fails by the time of day.
+
+    Measured 2026-11-04: of the four test files that reach the poller, three pinned `_now` (22, 2 and 1
+    times) and this one pinned nothing, so `test (py3.12)`, `test (py3.13)` and `test (py3.14)` — all
+    three REQUIRED contexts — reded for every PR in the repo while the night window was open.
+    """
+    here = os.path.dirname(os.path.abspath(__file__))
+    pollers, unpinned = [], []
+    for name in sorted(os.listdir(here)):
+        if not name.startswith("test_") or not name.endswith(".py"):
+            continue
+        with open(os.path.join(here, name), encoding="utf-8") as fh:
+            src = fh.read()
+        if "alert_poller(" not in src:
+            continue
+        pollers.append(name)
+        if 'setattr(capture, "_now"' not in src:
+            unpinned.append(name)
+    # A scan that examined nothing is not a pass (CLAUDE.md §4b), so the population is asserted too.
+    assert len(pollers) >= 4, f"the scan found only {len(pollers)} poller test file(s): {pollers}"
+    assert unpinned == [], f"{len(unpinned)} of {len(pollers)} poller test file(s) read the runner's clock: {unpinned}"
