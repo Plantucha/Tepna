@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**320 tools** · 319 with a purpose line · **1 without**
+**321 tools** · 320 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -217,6 +217,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`port-parity.mjs`](../tools/port-parity.mjs) | "PORTED VERBATIM FROM X" IS A CLAIM, AND NOTHING IN THE TREE READ IT. |
 | [`ppg-autogain-e2.mjs`](../tools/ppg-autogain-e2.mjs) | PPGDEX-ALGORITHM-DEEP-DIVE §6 experiment E-2, punch-list item 9 |
 | [`ppg-bridge-hrv-validate.mjs`](../tools/ppg-bridge-hrv-validate.mjs) | does O2RING-PPG-GAP §4 move finger HRV toward or away from chest ECG? |
+| [`ppg-channel-combination.mjs`](../tools/ppg-channel-combination.mjs) | CHANNEL COMBINATION AGAINST CHANNEL SELECTION, OUT OF SAMPLE — a producer for the half of `papers/ppg-ecg-hrv-validation.html` §4 that carries none. |
 | [`ppg-foot-consensus-e1.mjs`](../tools/ppg-foot-consensus-e1.mjs) | PPGDEX-ALGORITHM-DEEP-DIVE §6 experiment E-1 E-1 asks: "does foot-domain consensus (feet on all three channels, de-offset, ±40 ms) recover the 1-of-3 drop rate without admitting false beats? |
 | [`ppg-foot-residual-sweep.mjs`](../tools/ppg-foot-residual-sweep.mjs) | THE RESIDUAL 2.2–13.2 ms — per-night inter-LED foot dispersion against PRE-REGISTERED candidates. |
 | [`ppg-fusion-e3.mjs`](../tools/ppg-fusion-e3.mjs) | PPGDEX-ALGORITHM-DEEP-DIVE §6 experiment E-3 §3.1 REFUTED waveform-level fusion of the three optical channels: out-of-sample it scored 0.95x (mean-of-3), 0.95x (PCA-1) and 0.97x (GEV… |
