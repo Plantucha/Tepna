@@ -7000,6 +7000,26 @@ def test_digest_night_reads_a_floating_window_as_written():
     assert nightqc.digest_night(_digest_summ(True, 18000)) is None
 
 
+def test_digest_night_reads_the_band_in_utc_whatever_the_host_zone(monkeypatch):
+    """The band begin is FLOATING (civil time encoded as UTC), so it is read with `getUTC*` semantics.
+    A host zone 14 h east puts 12:00 floating on the next local day; a local read names the wrong night."""
+    import time
+
+    monkeypatch.setenv("TZ", "TST-14")
+    time.tzset()
+    try:
+        assert nightqc.digest_night(_digest_summ(_EVE_1102, None)) == "2026-11-02"
+    finally:
+        monkeypatch.undo()
+        time.tzset()
+
+
+def test_qc_digest_range_states_both_ends_exactly():
+    """Both ends of a diverging range are whole percents of the stream they come from: 60 and 95."""
+    s = {"night": "2026-11-02", "devices": [{"name": "Verity", "coverage": {"acc": 0.6, "ppg": 0.95}}]}
+    assert "Verity 60–95%" in nightqc.qc_digest(s)
+
+
 def test_night_label_falls_back_to_the_folder_without_a_window():
     """∅ No judged window ⇒ no band to read: the label is the folder, and '?' when that is absent too."""
     s = {"night": "2026-11-03", "night_window": None, "devices": []}
