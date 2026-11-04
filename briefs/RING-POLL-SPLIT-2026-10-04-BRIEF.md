@@ -3,7 +3,7 @@ Copyright 2026 Michal Planicka
 SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** PROPOSED (P1 and P2 RUN 2026-10-06, worn, box-local (Wren): P1 rate PASS — 125.236 Hz over unsaturated replies, 1 of 2958 saturated; P2 PASS, n = 1 — 0x02 answers and its 20-byte payload is byte-identical to the first 20 bytes of the 0x04 payload, and SUSTAINED 120/120 at 1 Hz with no 0x04; criterion (b) FAIL — 0x03 [0:4] is constant 0, not a stream position, and 0x04 [20:24] is dead too: neither opcode carries a moving position on this unit (2026-10-06); split mode is not adopted by the criterion, and the premise correction is the owner’s. See §P1/P2 results) · **Created:** 2026-10-04
+**Status:** PROPOSED (P1 and P2 RUN 2026-10-06, worn, box-local (Wren): P1 rate PASS — 125.236 Hz over unsaturated replies, 1 of 2958 saturated; P2 PASS, n = 1 — 0x02 answers and its 20-byte payload is byte-identical to the first 20 bytes of the 0x04 payload, and SUSTAINED 120/120 at 1 Hz with no 0x04; criterion (b) FAIL — 0x03 [0:4] is constant 0, not a stream position, and 0x04 [20:24] is dead too: neither opcode carries a moving position on this unit (2026-10-06); split mode is not adopted by the criterion, and the premise correction is the owner’s. See §P1/P2 results) · **Created:** 2026-10-04 · **RE-TRIAGED 2026-11-04 (Osprey), tree-only: TWO acceptance items were already discharged and read open.** #3273 landed on 2026-10-04, the day this brief was created, and the 10-06 stamp never ticked them. The flag ships as `o2ring.wave_poll_mode` (`capture.py:750`, default `dual`, a named warning on anything else), the arrival logger writes the position column blank (`capture.py:6195`), and the consumer refusal names split mode (`pat-feasibility-worker.js:1033`). Both boxes carry a tick and the PR number now. What remains is the criterion, both of its parts, the NOT_APPLICABLE refusal and the unbuilt fallback — and every one of those waits on an experiment night, which does not exist.
 
 # RING-POLL-SPLIT — one opcode for the wave: what the experiment can test tonight, and the two things it cannot
 
@@ -243,10 +243,12 @@ floor axis for an accounting gain is a loss, not a trade. This is why (a) alone 
 ## Acceptance (unchanged in shape, corrected in content)
 
 - [x] P1 and P2 run and recorded (2026-10-06, worn, box-local; §P1/P2 results above).
-- [ ] A config flag selecting the wave-poll mode, **default OFF**, so main's behaviour is byte-identical.
-- [ ] E11's arrival logger follows the frame-carrying command, writing the position column **BLANK** when
+- [x] A config flag selecting the wave-poll mode, **default OFF**, so main's behaviour is byte-identical. **#3273, 2026-10-04** — `o2ring.wave_poll_mode` at `capture.py:750`, reading `dual` with a named warning on any other value.
+- [x] E11's arrival logger follows the frame-carrying command, writing the position column **BLANK** when
       that command carries none — and the consumer's refusal NAMES split mode rather than today's
-      misleading *"a pre-E11 capture carries arrival rows with no stream position"*.
+      misleading *"a pre-E11 capture carries arrival rows with no stream position"*. **#3273, 2026-10-04** —
+      `capture.py:6195` writes the column blank, and `pat-feasibility-worker.js:1033` branches on
+      `;PPG_FRAME_A;` to name split mode, keeping the pre-E11 text for the other branch.
 - [ ] Criterion part (a): raw row rate on `0x03`, markers included; controls summed over both opcodes;
       ≥ 99.9 %; one experiment night against 09-28..10-04.
 - [ ] Criterion part (b): a cumulative device position exists on the carrying opcode, or the mode is not
