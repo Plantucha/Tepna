@@ -4,7 +4,7 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** PROPOSED · **Created:** 2026-10-04 ·
+**Status:** PROPOSED (triaged 2026-11-04: not built — `tools/differentiator.mjs` is absent, with no series file and no timer; claimed by Osprey on the board, waiting on its PR slot) · **Created:** 2026-10-04 ·
 
 # Differentiator — the nightly series gets a change detector (the "derivator", reading two: d/dt across nights)
 
