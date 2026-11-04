@@ -2105,6 +2105,18 @@
    },
    "note": "it publishes the NIGHT POPULATION its figures were taken over: `populationVerdict` over a snapshot taken before the per-night walk and one taken after, so a corpus that moves mid-run reads as SHORTFALL rather than as a table nobody re-read. `--verdict-sample` prints the object over a synthetic two-night snapshot, so the gate validates it without the corpus. It entered the population on 2026-10-25, when the enumerator stopped keying membership on a literal decision word and started reading a publication (row 2026-10-22-the-adoption-population-is-keyed-on-a-literal-word-anywhere-in-the-file). The word it prints is `population.status`, computed at run time, so no literal PASS or SHORTFALL ever appears in the source and the old grep could not see it."
   },
+  "tools/pat-floor-offset.mjs": {
+   "bin": "already-json",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/pat-floor-offset.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "RADIO-DELAY-FLOOR \u00a75, the beat half. It decides one pre-stated question: does the floor-mapped radio delay explain how far the inter-device offset MOVED between two nights, as the beat scan reads that movement modulo one RR? The criterion (median absolute disagreement <= 90 ms, `PAT-UNDER-PERBLOCK-ALIGNMENT` \u00a73e's own alignment tolerance) was posted to the fleet board on 2026-11-04 before the deciding data existed, and fewer than four night pairs reads UNDERPOWERED rather than PASS \u2014 one pair agreeing is one coin landing heads. Over the archive it reads UNDERPOWERED at one pair. `--verdict-sample` decides over four synthetic nights, so the gate validates the object where the captures are not, and its evidence names the sample function so no reader mistakes it for a corpus result."
+  },
   "tools/pat-host-offset.mjs": {
    "bin": "already-json",
    "status": "adopted",
