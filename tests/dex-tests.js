@@ -87816,6 +87816,119 @@
       });
     });
 
+    /* ════ AHI-SURROGATE-REFIT-PAPER §7 item 8 — the published R² 0.27 is cited as the FIFTH-definition control ════
+       `papers/odi4-ahi-bias.html` §3.2 publishes R² 0.27 (n = 5136) against `(nApnea + nHypop) / TST`
+       (`nsrr-adapter.js`, `ahiSource: 'xml(events/TST)'`): a fifth, repo-local AHI with no desaturation or
+       arousal rule, none of the four harmonized columns the refit fits. A citation that quotes the figure
+       beside its source and names no definition reads as a baseline a harmonized refit may be scored
+       against. Scope: every paragraph (a table row is its own paragraph) of tools/*.mjs and briefs/*.md.
+       OUT, each for a reason: the paper page and its card (the publication itself, not a citation of it);
+       `docs/**` (served copies); `briefs/RESIDUE.md` (rows are never edited). Node lane only. */
+    group('AHI refit paper item 8 — every citation of the published R² 0.27 names its definition', 'nsrr · ahi-paper-item-8 · citation-scope', function (T) {
+      var TS = env.toolSources;
+      var DL = env.docsLedger;
+      if (!TS || !DL || !DL.briefs) {
+        T.skip('env.toolSources + env.docsLedger provided to the runner', 'Node-lane only — the browser lane cannot list tools/ or briefs/');
+        return;
+      }
+      var files = {};
+      Object.keys(TS).forEach(function (n) {
+        files['tools/' + n] = TS[n];
+      });
+      Object.keys(DL.briefs).forEach(function (n) {
+        if (n !== 'RESIDUE.md') files['briefs/' + n] = DL.briefs[n];
+      });
+      var FIG = /(?:R²|R&sup2;|R\^2)\s*(?:of\s*)?0\.27\b/;
+      var SRC = /odi4-ahi-bias|\b5136\b|bias paper/;
+      var NAMED = /repo-local|fifth[- ]definition/i;
+      var cites = [];
+      Object.keys(files)
+        .sort()
+        .forEach(function (f) {
+          files[f].split(/\n[ \t]*\*?[ \t]*\n/).forEach(function (p0) {
+            (/^\s*\|/.test(p0) ? p0.split('\n') : [p0]).forEach(function (p) {
+              if (FIG.test(p) && SRC.test(p)) cites.push({ f: f, named: NAMED.test(p) });
+            });
+          });
+        });
+      T.ok('anti-vacuity: the scan finds the citations (the scorer + both refit briefs ⇒ ≥ 3)', cites.length >= 3, 'found ' + cites.length);
+      T.ok(
+        'the scorer that quotes the figure is inside the scan (else the scan lost its first target)',
+        cites.some(function (c) {
+          return c.f === 'tools/nsrr-ahiest-validate.mjs';
+        })
+      );
+      var bare = cites
+        .filter(function (c) {
+          return !c.named;
+        })
+        .map(function (c) {
+          return c.f;
+        });
+      T.eq('no citation of R² 0.27 leaves its definition unnamed (bare citations listed)', bare.join(', '), '');
+    });
+
+    /* DEFECT-BENCHMARK acceptance item 3: "a selftest shows the rule is stable". The selftest leg
+       `the split is stable` compared `half(k)` with `half(k)` in one process, so it passed under ANY
+       deterministic rule. Measured 2026-11-04 at 4ca6b91cc: with the halves swapped in `half()`, all
+       35 selftests still passed while 97 of 97 frozen tasks changed half. This group runs the tool's
+       own `--selftest` against that swapped-rule mutant and requires a red; the unmodified tool is
+       the control. The mutant lives in a temp dir with its imports and ROOT pointed back at this
+       checkout, so the selftest still reads the committed set. Nothing is written into the tree. */
+    group('defect-bench — the split selftest reds when the hash rule changes', 'tools · defect-bench · split-pin', function (T) {
+      if (!env.nodeSpawnSync || !env.nodeFs || !env.nodeOs || !env.nodePath || !env.repoRoot) {
+        T.skip('needs Node child_process and the repo root — not available in the browser lane');
+        return;
+      }
+      var fs = env.nodeFs,
+        P = env.nodePath,
+        root = env.repoRoot;
+      var toolPath = P.join(root, 'tools', 'defect-bench.mjs');
+      var src = fs.readFileSync(toolPath, 'utf8');
+      var fileUrl = function (p) {
+        return 'file://' + P.resolve(p).split(P.sep).map(encodeURIComponent).join('/');
+      };
+      var edits = [
+        ["% 2 === 0 ? 'dev' : 'heldout'", "% 2 === 0 ? 'heldout' : 'dev'"],
+        ["from './residue-ids.mjs'", 'from ' + JSON.stringify(fileUrl(P.join(root, 'tools', 'residue-ids.mjs')))],
+        ["from './argv-guard.mjs'", 'from ' + JSON.stringify(fileUrl(P.join(root, 'tools', 'argv-guard.mjs')))],
+        ["('../verdict.js')", '(' + JSON.stringify(P.join(root, 'verdict.js')) + ')'],
+        ["const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');", 'const ROOT = ' + JSON.stringify(root) + ';']
+      ];
+      var mutant = src;
+      edits.forEach(function (e) {
+        var n = mutant.split(e[0]).length - 1;
+        T.eq('ANTI-VACUITY · the mutation anchor occurs exactly once: ' + e[0], n, 1);
+        mutant = mutant.split(e[0]).join(e[1]);
+      });
+      var dir = fs.mkdtempSync(P.join(env.nodeOs.tmpdir(), 'defect-bench-split-'));
+      try {
+        var mutPath = P.join(dir, 'defect-bench.mjs');
+        fs.writeFileSync(mutPath, mutant);
+        var ctl = env.nodeSpawnSync(process.execPath, [toolPath, '--selftest'], { cwd: dir, encoding: 'utf8', timeout: 60000 });
+        T.eq('CONTROL · the unmodified tool passes its own selftest', ctl.status, 0);
+        var mut = env.nodeSpawnSync(process.execPath, [mutPath, '--selftest'], { cwd: dir, encoding: 'utf8', timeout: 60000 });
+        T.ok(
+          'the mutant ran its selftest rather than crashing on an import',
+          /selftests? (passed|FAILED)/.test(mut.stdout || ''),
+          String(mut.stdout || '').slice(-200) + String(mut.stderr || '').slice(-300)
+        );
+        T.ok(
+          'a swapped split rule reds the selftest',
+          mut.status !== 0 && mut.status !== null,
+          'exit ' +
+            mut.status +
+            ' — ' +
+            String(mut.stdout || '')
+              .trim()
+              .split('\n')
+              .slice(-1)[0]
+        );
+      } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
     /* Selection already happened at declaration time (see group() above) — a group that
        was not selected never RAN, so here we only drop its placeholder from the report.
        `totalGroups` stays the full declaration count, so "N of 134" is still honest. */

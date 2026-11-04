@@ -1028,6 +1028,22 @@ function selftest() {
   ck('…and says what happened', /rose 5 → 6/.test(ratchetVerdict(5, 6).reason), true);
   ck('an entry naming no PR fails whatever the count', ratchetVerdict(5, 5, 1).status, 'FAIL');
 
+  /* BRIEF §3 ITEM 6 — "checked as a two-sided ratchet IN CI". #3186 registered the ratchet in
+     `run-check.mjs` STEPS and said that made CI run it, but no workflow invokes `run-check.mjs`
+     (`npm run check` is a local chain), so on 4ca6b91cc the ratchet ran on no hosted runner at all.
+     The scan reads `run:` lines only, so a comment naming the ratchet cannot satisfy it. */
+  console.log('\nthe ratchet is wired into a CI workflow (brief §3 item 6)');
+  {
+    const RUNS_RATCHET = /^\s*(?:-\s+)?run:\s*.*(?:mutation-survivors\.mjs ratchet|verify:survivor-ratchet)/m;
+    ck('CONTROL · the scan matches a planted step', RUNS_RATCHET.test('      - name: x\n        run: npm run -s verify:survivor-ratchet\n'), true);
+    ck('CONTROL · …and not a comment that only names it', RUNS_RATCHET.test('      # run: npm run -s verify:survivor-ratchet\n'), false);
+    const wfDir = path.join(HERE, '..', '.github', 'workflows');
+    const wfs = fs.existsSync(wfDir) ? fs.readdirSync(wfDir).filter((f) => /\.ya?ml$/.test(f)) : [];
+    ck('ANTI-VACUITY · the workflows directory was read', wfs.length > 0, true);
+    const wired = wfs.filter((f) => RUNS_RATCHET.test(fs.readFileSync(path.join(wfDir, f), 'utf8')));
+    ck('a CI workflow step runs the ratchet', wired.length > 0, true);
+  }
+
   console.log('\norphans are REPORTED, never dropped');
   const led = {
     entries: [

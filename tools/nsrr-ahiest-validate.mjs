@@ -14,7 +14,10 @@
  *   ahiKulkas  = 0.8×ODI3 + 0.6×DesSev + 0.15×T95 − 1.2         — three measured terms, four constants
  *
  * The first has been measured against real PSG (`papers/odi4-ahi-bias.html` §3.2, SHHS1 n = 5136:
- * slope 0.134, R² 0.27 against scored AHI). **The second never has, by anything** — `nsrr-adapter.js`
+ * slope 0.134, R² 0.27 against scored AHI). That R² is the fifth-definition control: its reference is
+ * the repo-local `(nApnea + nHypop) / TST` (`nsrr-adapter.js`, no desaturation or arousal rule), none of
+ * the four harmonized AHI columns, so it is no baseline for a harmonized refit
+ * (AHI-SURROGATE-REFIT-PAPER §1). **The second never has, by anything** — `nsrr-adapter.js`
  * surfaced only `ahiOxyEst` (= ahiODI4), and every NSRR measurement in this repo reads the adapter,
  * so what the adapter dropped was invisible to all of them. Exposing `ahiKulkas` is what makes this
  * scorer possible and is the smaller half of the change.

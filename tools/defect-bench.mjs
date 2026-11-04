@@ -551,6 +551,18 @@ if (DIRECT && has('--selftest')) {
   ck('the split is stable', [half('2026-01-01-a'), half('2026-01-01-a')], [half('2026-01-01-a'), half('2026-01-01-a')]);
   ck('the split names one of two halves', ['dev', 'heldout'].includes(half('2026-09-02-respiration-fusion-no-fixture')), true);
   ck('a different key can land in the other half', new Set(['2026-01-01-a', '2026-01-02-b', '2026-01-03-c', '2026-01-04-d', '2026-01-05-e', '2026-01-06-f'].map(half)).size, 2);
+  /* KNOWN ANSWERS, because the leg above compares `half(k)` with itself and passes under ANY
+     deterministic rule (measured 2026-11-04: halves swapped, 35 of 35 green, every frozen task
+     moved). These answers were computed outside this tool — Python `hashlib.sha256`, first 8 hex
+     digits as an int, even → dev — so a changed rule reds here instead of re-splitting the set. */
+  ck('the split rule reproduces answers computed outside this tool', ['2026-01-01-a', '2026-01-02-b', '2026-01-03-c', '2026-01-04-d', '2026-01-05-e', '2026-01-06-f'].map(half), [
+    'heldout',
+    'dev',
+    'heldout',
+    'dev',
+    'dev',
+    'dev'
+  ]);
 
   /* THE ORACLE LANE IS NAMED, NEVER GUESSED. */
   ck('a capture-host test file is the implemented lane', oracleFor(['capture-host/capture.py', 'capture-host/tests/test_hr_strap.py']).kind, 'capture-host-pytest');
@@ -575,6 +587,13 @@ if (DIRECT && has('--selftest')) {
     ck(
       `all ${set.tasks.length} stored cmd(s) re-parse to their own ids`,
       set.tasks.filter((t) => JSON.stringify(cmdIds(t.oracle.cmd)) !== JSON.stringify(t.oracle.ids)).map((t) => t.key),
+      []
+    );
+    /* The frozen set is the record of the split, so the rule must still place every task where
+       the set put it. A tool change that moves a task between halves reds here. */
+    ck(
+      'the split rule still places every frozen task in its recorded half',
+      set.tasks.filter((t) => half(t.key) !== t.half).map((t) => t.key),
       []
     );
     ck(

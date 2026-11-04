@@ -515,6 +515,12 @@ export function quarantineBoundMs(explicitMs, maxGroupMs, baseMs) {
   const silent = maxGroupMs != null && Number.isFinite(maxGroupMs) ? maxGroupMs : baseMs;
   return Math.max(QUARANTINE_FLOOR_MS, Number.isFinite(silent) ? silent * 5 : 0);
 }
+/* ONE MUTANT'S LAP, START record to verdict, in ms (MUTATION-SUITE-FOLLOWUPS §7.5). `null` when the
+   START time was never stamped or the clock ran backwards — an unmeasured lap is absent, never 0
+   (§∅), because a 0 would read as "killed instantly by a cheap group". Pure and exported for --selftest. */
+export function lapMs(startMs, nowMs) {
+  return Number.isFinite(startMs) && Number.isFinite(nowMs) && nowMs >= startMs ? nowMs - startMs : null;
+}
 export function quarantineWarning(q, tested, quarantineMs) {
   if (!(q > 0)) return null;
   return (
@@ -2340,6 +2346,7 @@ async function runFile(file) {
       ks: ks.length ? ks : undefined,
       r: typeof v === 'string' ? undefined : v.reason,
       fh: fnHash(mu.line),
+      ms: lapMs(mu.__t0, Date.now()),
       gh: ks.length ? Object.fromEntries(ks.map((g) => [g, _groupHash.get(g)])) : undefined
     });
     /* ONE LINE PER MUTANT, on stderr so stdout stays pure NDJSON. An aggregate counter tells you a
@@ -2399,6 +2406,7 @@ async function runFile(file) {
     mu.__epoch = seamCheck();
     writeFileSync(target, mu.apply());
     jwrite({ k: jkey(mu) });
+    mu.__t0 = Date.now(); // the lap clock (§7.5): it starts where the START record is written
   };
 
   startHeartbeat();
@@ -3195,6 +3203,17 @@ function selftest() {
   const UNRUN_RE = new RegExp('const unrun = ok\\.reduce\\(\\(a, r\\) => a \\+ r\\.invalid \\+ \\(r\\.quarantined [|][|] 0\\) \\+ \\(r\\.inputVoid [|][|] 0\\), 0\\);', 'g');
   ck('…and the verdict counts it among the mutants that proved nothing', UNRUN_RE.test(ENVSRC), true);
   ck('…in BOTH the verdict object and the gate prose, which may never disagree', (ENVSRC.match(UNRUN_RE) || []).length, 2);
+  /* MUTATION-SUITE-FOLLOWUPS §7.5 — THE LAP DURATION IS PERSISTED. The expensive-guard query (a KILLED
+     mutant whose lap ran far over calibration was killed only by an expensive group) needs one field on
+     the verdict record, and the journal carried none: the 29 % integrator residual stayed algebra over
+     one wall-clock total. `typeof` keeps this leg a red line, not a ReferenceError, on a tree without it. */
+  console.log('\nthe verdict record persists its lap duration (MUTATION-SUITE-FOLLOWUPS §7.5)');
+  const _lap = typeof lapMs === 'function' ? lapMs : () => undefined;
+  ck('a lap is the verdict time minus the START time', _lap(1000, 2500), 1500);
+  ck('🔴 a mutant with no recorded START has no lap — null, never 0 (§∅)', _lap(undefined, 2500), null);
+  ck('…and a clock that ran backwards is not a negative lap', _lap(3000, 2500), null);
+  ck('the START site stamps the lap clock beside the START record', /jwrite\(\{ k: jkey\(mu\) \}\);\n\s+mu\.__t0 = Date\.now\(\);/.test(ENVSRC), true);
+  ck('…and the verdict record persists it', /fh: fnHash\(mu\.line\),\n\s+ms: lapMs\(mu\.__t0, Date\.now\(\)\),/.test(ENVSRC), true);
   /* 🔴 THE VERDICT MUST NOT MOVE WITH THE LOAD ON THE BOX. Residue
      2026-10-20-the-js-gate-survivor-set-does-not-reproduce-across-runs reports three legs over one
      identical population, each naming a different survivor at an identical kill rate. One candidate

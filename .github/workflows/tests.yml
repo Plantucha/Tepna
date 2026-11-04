@@ -201,6 +201,12 @@ jobs:
       # as the five guards above — committed artifact ≡ build(source) — pure Node, no corpus, no network.
       - name: Codegen copies ≡ dex-gen(source) (the sixth generated tree)
         run: npm run -s verify:codegen
+      # MUTATION-SURVIVOR-LEDGER §3 item 6 — the open survivor count is a two-sided ratchet, READ-ONLY in
+      # CI (it reads the committed `mutation-survivors.json`, writes nothing, needs no `contents: write`).
+      # #3186 registered it in `run-check.mjs` STEPS only, and no workflow runs that chain, so until this
+      # step the ratchet ran on no hosted runner. Pure Node, no corpus, no network.
+      - name: Survivor ledger open count ≡ the ratchet (two-sided, read-only)
+        run: npm run -s verify:survivor-ratchet
       # VERDICT-CONTRACT §3 — the producers of a verdict word, ENUMERATED on the tree and held equal to a
       # committed manifest that bins every one (decides · already-json · word-only-with-reason · test).
       # A new tool that prints PASS/FAIL and is in no bin is a red with its name; an adoption is READ

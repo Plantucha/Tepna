@@ -279,6 +279,10 @@ the repository.
 6. The page carries the section 16 line, both cohort citations, the disclaimer and the `dxl-` stamp.
 7. The page carries its own DOI, and cites the software DOI only as the apparatus.
 8. Every citation of the published R² 0.27 names it as the fifth-definition control.
+   ✅ **met 2026-11-04 (Magpie)** — `tools/nsrr-ahiest-validate.mjs` now names that figure as the
+   fifth-definition control, measured against the repo-local `(nApnea + nHypop) / TST` reference and
+   none of the four harmonized columns, so it is no baseline for a harmonized refit. The suite asserts
+   the naming. Proven: the assertion reds on `8162fb3dc` and passes with the fix.
 9. Any coefficient change to `computeAHIestimates` lands in its own unit, sequenced against the fold.
 
 ## 8 · Open decisions
