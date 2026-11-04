@@ -303,6 +303,22 @@ Two consequences beyond this brief:
 **What §5 still owes:** three more night pairs. The clock half holds and the agreement test runs, so
 the arm is now a corpus question and not a method question. A band decision waits on four pairs.
 
+### 5c · Fixed 2026-11-04 (Heron): the sidecar now writes in ONE offset frame, and the archive does not
+
+§5b measured the disagreement; `radioclock.run` now anchors a `localstamp.CivilFrame` on its first row
+and renders every stamp in that offset. A fall-back night therefore counts on past `02:00` instead of
+repeating `01:00`, which is the discipline `capture._now()` already keeps for the sample streams
+(`capture.py` §A1 rule 1). The run telemetry carries `civil_frame`, so a night that crossed a
+transition names the frame and the row count instead of reframing its rows in silence. Invariant 1 holds:
+this process still reads nothing from `capture.py`.
+
+🔴 **THE ARCHIVE KEEPS THE DEFECT, BY DESIGN.** Captured bytes are immutable, so every sidecar written
+before this change still rewinds 3600 s at the 2026-11-01 seam. `localstamp.LocalStampResolver`
+recovers the right INSTANT for those rows by continuity, which is enough for a reader of the sidecar
+alone. It is NOT enough for a join: that session's sample stamps sit in the pre-seam offset, so a
+reader pairing the two files by civil label misaligns the post-seam tail by one hour. Treat that one
+night's sample stamps as EDT labels, and take the pairing from the device counters.
+
 ### Acceptance
 
 - [x] The floor of the published residual reads as a statistic beside the band, never as a band input.

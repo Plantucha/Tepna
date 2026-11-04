@@ -42,6 +42,7 @@ import re
 import struct
 
 import journal_logging
+import localstamp
 import polar_pmd as pmd
 
 #: HCI event codes we care about. Everything else on the monitor stream is ignored.
@@ -953,7 +954,7 @@ def sidecar_name(stamp: str, address: str) -> str:
     return "%s_%s_RADIOCLOCK.csv" % (stamp, address.upper().replace(":", "-"))
 
 
-def phone_ts(host_ns: int) -> str:
+def phone_ts(host_ns: int, frame: localstamp.CivilFrame | None = None) -> str:
     """A `CLOCK_REALTIME` nanosecond stamp → the vendor `Phone timestamp` string.
 
     Delegates to `writers._phone_ts`, which owns the format, rather than carrying a second copy: the
@@ -961,10 +962,20 @@ def phone_ts(host_ns: int) -> str:
     too, and two formatters would eventually disagree about a boundary case. Imported inside the
     function so this module stays importable — and its tests collectable — without pulling the whole
     writer stack in.
-    """
-    import datetime as _dt
 
+    🔴 HAND THIS THE RUN'S `frame` — residue 2026-11-04-one-sessions-sidecar-and-sample-stream-end-an-hour-apart.
+    Without one, each stamp follows the live zone, so a fall-back night rewinds 3600 s mid-file and
+    its tail sits an hour from the sample stream it belongs to. `capture._now()` absorbs that relabel
+    for the sample streams, and invariant 1 above forbids reading its state from here, so the frame
+    gives this process the same discipline on its own. The parameter stays OPTIONAL and LAST: a caller
+    outside a run (the equivalence probe, the tests) keeps the old single-stamp behaviour.
+    """
     import writers
+
+    if frame is not None:
+        return writers._phone_ts(frame.civil(host_ns / 1e9))
+
+    import datetime as _dt
 
     return writers._phone_ts(_dt.datetime.fromtimestamp(host_ns / 1e9))
 
@@ -1057,6 +1068,9 @@ def run(packets, collector: Collector, open_writer, flush_every: int = 64, rearm
     Returns the run's telemetry. `missed_anchors` is reported, never interpolated.
     """
     writers_by_device: dict[str, SidecarWriter] = {}
+    #: Anchored on the FIRST row, not at entry: a run that waits hours for its first PMD frame would
+    #: otherwise anchor on an offset no row was ever stamped in.
+    frame: localstamp.CivilFrame | None = None
     written = 0
     rearmed = 0
     try:
@@ -1075,7 +1089,9 @@ def run(packets, collector: Collector, open_writer, flush_every: int = 64, rearm
             sink = writers_by_device.get(address)
             if sink is None:
                 sink = writers_by_device[address] = open_writer(address)
-            sink.write(format_row(phone_ts(row[7]), *row))
+            if frame is None:
+                frame = localstamp.CivilFrame(row[7] / 1e9)
+            sink.write(format_row(phone_ts(row[7], frame), *row))
             written += 1
             if written % flush_every == 0:
                 sink.flush()
@@ -1093,6 +1109,10 @@ def run(packets, collector: Collector, open_writer, flush_every: int = 64, rearm
         "no_device_clock": dict(collector.no_device_clock),
         #: Per reason, the notifications that were not PMD data frames and so got no row at all.
         "not_a_pmd_frame": dict(collector.not_a_pmd_frame),
+        #: The civil frame every stamp in this run's files is IN, or `None` when the run wrote no row
+        #: — a frame with no file is a claim about nothing. `shifted_rows` above zero means the live
+        #: zone moved under the run, so those rows read an hour from the local wall clock BY DESIGN.
+        "civil_frame": frame.telemetry() if frame is not None else None,
     }
 
 
