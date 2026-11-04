@@ -144,5 +144,8 @@ a git repository.
 1. `tools/defect-bench.mjs` builds `audits/DEFECT-BENCHMARK.json` from `RESIDUE.md` and `git log`, with the parent and fix commits per task.
 2. The builder proves the fail-then-pass pair for every included task and lists each exclusion with a reason.
 3. The builder writes the split from a stated hash rule, and a selftest shows the rule is stable.
+   ✅ **met 2026-11-04 (Magpie)** — the selftest pins the split to known answers and to the frozen
+   set, so a changed hash rule reds instead of re-cutting the halves. Proven: swapping the rule reds
+   the selftest on `8162fb3dc`, and the pinned set passes with the fix.
 4. A scorer emits one verdict object per configuration, with the held-out half reported apart.
 5. One baseline run with no agent completes: the fix commit itself, which must score 100 % correct.

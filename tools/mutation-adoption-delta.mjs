@@ -204,16 +204,30 @@ export function upsertBlock(existing, block) {
   return s.slice(0, i) + block + s.slice(j + MARK_B.length);
 }
 
+/** The global handles a source file assigns (`root.CpapEdf =`, `global.PPGDSP =`), lowercased. A
+ *  `==` comparison is not an assignment. */
+export function fileHandles(srcText) {
+  const out = new Set();
+  for (const m of String(srcText || '').matchAll(/\b(?:root|global|globalThis|window|self)\.([A-Za-z_$][\w$]*)\s*=(?!=)/g)) out.add(m[1].toLowerCase());
+  return out;
+}
+
 /** Group titles a drafts-adoption batch added, read from the suite by TAG rather than by name — the
- *  tag `mutation-drafts` is the batch's own marker and survives a title rewrite. */
-export function adoptedGroupTitles(suiteText, fileStem) {
+ *  tag `mutation-drafts` is the batch's own marker and survives a title rewrite.
+ *  Batch 1 tags a group by file stem (`cpapdex-dsp`); batch 2 and later tag it by the lowercased
+ *  handle the file assigns (`cpapdsp`, `cpapedf`, `oxydex`). `srcText` is optional and additive: with
+ *  it, a tag TOKEN equal to one of the file's handles also matches. Without it, only the stem does,
+ *  and every b2/b3 group stays invisible. */
+export function adoptedGroupTitles(suiteText, fileStem, srcText = '') {
   const out = [];
+  const handles = fileHandles(srcText);
   const re = /group\(\s*'((?:[^'\\]|\\.)*)'\s*,\s*'([^']*mutation-drafts[^']*)'/g;
   let m = re.exec(String(suiteText));
   while (m) {
     const title = m[1].replace(/\\'/g, "'");
     const tag = m[2];
-    if (!fileStem || tag.includes(fileStem)) out.push(title);
+    const byHandle = tag.split('·').some((t) => handles.has(t.trim().toLowerCase()));
+    if (!fileStem || tag.includes(fileStem) || byHandle) out.push(title);
     m = re.exec(String(suiteText));
   }
   return out;
@@ -301,6 +315,24 @@ function selftest() {
   ck('adopted groups are found by tag', adoptedGroupTitles(suite, 'cpapdex-dsp'), ['mutation drafts — cpapdex: recorded outputs']);
   ck('...and a different file does not match', adoptedGroupTitles(suite, 'oxydex-dsp'), []);
 
+  /* 8 - BATCH 2 AND LATER ARE TAGGED BY THE GLOBAL HANDLE, NOT THE FILE STEM. `mutation-drafts-b2/b3`
+     groups carry `cpapdsp`, `cpapedf`, `oxydex`, `ppgdsp`, `pulsedex`: the lowercased handle the file
+     assigns (`root.CpapEdf =`). Matched by stem alone, a b3 group is invisible, its kills land in
+     killedByOther, and the batch-3 delta §E3 asks for reads 0 by construction. */
+  const b3 =
+    "group(\n  'mutation drafts b3 — CpapEdf: recorded outputs',\n  'mutation-drafts · mutation-drafts-b3 · cpapedf · mutation · adopted-draft · realm-verified',\n  function (T) {\n" +
+    "group(\n  'mutation drafts b2 — OXYCross: recorded outputs',\n  'mutation-drafts · mutation-drafts-b2 · oxycross · mutation · adopted-draft',\n  function (T) {";
+  ck('a b3 group is found by the handle its file assigns', adoptedGroupTitles(b3, 'cpapdex-edf', 'root.CpapEdf = { readEDF };'), ['mutation drafts b3 — CpapEdf: recorded outputs']);
+  ck('...the handle is a whole TOKEN, so OxyDex does not claim OXYCross', adoptedGroupTitles(b3, 'oxydex-dsp', 'root.OxyDex = OxyDex;'), []);
+  ck('...and a comparison is not an assignment', adoptedGroupTitles(b3, 'cpapdex-edf', 'if (root.CpapEdf == null) {}'), []);
+  /* The tree itself: each batch-3 file must reach its own b3 group. This is the assertion that was
+     false on 4ca6b91cc for all five. */
+  const realSuite = readFileSync(join(ROOT, 'tests', 'dex-tests.js'), 'utf8');
+  for (const f of ['cpapdex-dsp.js', 'cpapdex-edf.js', 'oxydex-dsp.js', 'ppgdex-dsp.js', 'pulsedex-dsp.js']) {
+    const got = adoptedGroupTitles(realSuite, f.replace(/\.js$/, ''), readFileSync(join(ROOT, f), 'utf8')).filter((t) => t.startsWith('mutation drafts b3 '));
+    ck(`tree: ${f} reaches exactly one batch-3 group`, got.length, 1);
+  }
+
   console.log(`\nmutation-adoption-delta selftest: ${pass} passed, ${fail} failed`);
   return fail === 0 ? 0 : 1;
 }
@@ -332,7 +364,9 @@ function main(argv) {
   }
   const suitePath = join(ROOT, 'tests', 'dex-tests.js');
   const stem = file.replace(/\.js$/, '');
-  const adopted = existsSync(suitePath) ? adoptedGroupTitles(readFileSync(suitePath, 'utf8'), stem) : [];
+  const srcPath = resolve(ROOT, file);
+  const srcText = existsSync(srcPath) ? readFileSync(srcPath, 'utf8') : '';
+  const adopted = existsSync(suitePath) ? adoptedGroupTitles(readFileSync(suitePath, 'utf8'), stem, srcText) : [];
   if (!adopted.length) console.error(`warning: no mutation-drafts group tagged "${stem}" — the delta can only be 0 by construction. Read it as "nothing to measure", never as "adoption did nothing".`);
   const d = adoptionDelta({ before: parseJournal(readFileSync(beforeP, 'utf8')), after: parseJournal(readFileSync(afterP, 'utf8')), adopted });
   const stamp = new Date().toISOString().slice(0, 10);

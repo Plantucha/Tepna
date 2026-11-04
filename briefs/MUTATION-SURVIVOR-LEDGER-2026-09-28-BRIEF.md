@@ -1,5 +1,5 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-11-01 · **Created:** 2026-09-28
+**Status:** IN-PROGRESS — 2026-11-01 · ⚠️ **API-LANE TRIAGE 2026-11-04 — RE-VERIFIED BY MAGPIE, NOT TAKEN ON ITS WORD.** The managed-agent lane read this brief at `4ca6b91cc` and reported nine acceptance items: five met, four open, none blocked. Three of the five cited checks name an elided `node -e` script, so I wrote those readers myself. The committed ledger holds one hundred and twenty-eight entries with a `_README` and no missing field of the entry shape, and the seeded ledger at `83973f72` holds twelve entries from PR #3022, all open and all keyed. The tool selftest, the open list and the orphan report reproduce as cited. The lane also shipped a patch for the CI-ratchet item, proven red on `8162fb3dc` and green with it, so that box ticks in this diff and the open remainder is three items. **The remaining open verdicts stay the lane's self-report, unverified here.** · **Created:** 2026-09-28
 
 # The mutation survivor ledger
 
@@ -315,6 +315,11 @@ where a real, unkillable mutant sits over correct code.
 4. A later gate run that kills or excuses a recorded mutant closes its entry.
 5. An entry whose key no longer matches any generated mutant is reported **orphaned**, never dropped.
 6. The open count is published beside the verdict and checked as a two-sided ratchet in CI (read-only).
+   ✅ **met 2026-11-04 (Magpie)** — `.github/workflows/tests.yml` runs `verify:survivor-ratchet` in
+   the static job, read-only over the committed ledger. #3186 had registered the ratchet in
+   `run-check.mjs` only, and no workflow runs that chain, so until now it ran on no hosted runner.
+   The selftest reads the workflow directory itself, with a planted-step control and a comment
+   control. Proven: the leg reds on `8162fb3dc` and passes with the step.
 7. **PLANT**: a run that reports a survivor and merges without answering it leaves an `open` entry,
    and the ratchet reds on the next PR touching that function.
 8. **CONTROL**: today's verdicts are byte-identical apart from the new count.

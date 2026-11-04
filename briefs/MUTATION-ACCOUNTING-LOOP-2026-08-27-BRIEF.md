@@ -282,6 +282,13 @@ has the argument; diff-scoped is the CI form) · a second verification realm.
 
 - [x] §E1 + §E2 implemented, selftested, live-runner synced (2026-08-27).
 - [ ] §E3 built; batch-3 delta measured positive; planted no-op delta measures zero.
+      ⚠️ **2026-11-04 (Magpie) — the delta read zero BY CONSTRUCTION, and the instrument was why.**
+      `adoptedGroupTitles` matched a group by file stem alone, while batch-2 and batch-3 groups are
+      tagged by the lowercased global handle their file assigns (`cpapdsp`, `cpapedf`, `oxydex`,
+      `ppgdsp`, `pulsedex`). Every b2/b3 group was invisible, and its kills landed in
+      `killedByOther`. The reader now takes the file's own source and matches a tag TOKEN against
+      its handles, with legs for the whole-token rule and for `==` not being an assignment. The
+      measurement is still owed: this fixes the instrument, not the item.
 - [x] **§E4 lane exists** (2026-08-27) — one previously-stranded file re-examined under a moved
       `testsHash`, generation-archived. ⚠️ Re-**swept**, not re-probed: see §E4-EXECUTED for why the
       probe cannot answer this question.

@@ -211,22 +211,21 @@ function pairSame(A, B) {
    The original line read `P.channelSNR ? P.channelSNR(c, pr.fs).snr : NaN` — and `channelSNR` is
    LOCAL to ppgdex-dsp.js (line ~830), never on the PPGDSP namespace, so the guard took the NaN arm
    on every run and this column printed "n/a" from the day the tool was written: a guard that makes
-   an absence look like data. This wrapper computes the IDENTICAL spectral quantity by DELEGATING
-   to the exported `bandpass`/`std` (same mid-recording ≤90 s window, same 0.7–3.0 Hz pulse band
-   over 4.0–8.0 Hz noise band) — no DSP edit, no re-bundle. If `channelSNR` itself is ever exported
-   (it rides the next real re-bundle, not its own), delete this and call it. */
+   an absence look like data.
+
+   The first fix (#2043) re-built the quantity from the exported `bandpass`/`std` over the same
+   mid-recording ≤90 s window. #3678 then moved `channelSNR` to the p25 over every 20 s window
+   (PPGDEX-ALGORITHM-DEEP-DIVE §4 #6), and the copy kept the retired window, so the column printed a
+   number the node no longer computes — on a channel clean only in its middle it read 165 where the
+   node reads 2.0. A copy drifts; a delegation cannot. `pickChannel` IS exported and returns each
+   channel's `channelSNR` result in `scores`, so the column now reads that object directly. `snr` is
+   `null` when no window was scorable (§∅), and the table prints that as n/a. */
 function chanSNR(sig, fs) {
-  const win = Math.min(sig.length, Math.max(Math.round(fs * 90), Math.round(fs * 20)));
-  let s0 = Math.floor((sig.length - win) / 2);
-  if (s0 < 0) s0 = 0;
-  const slice = s0 === 0 && win === sig.length ? sig : sig.subarray(s0, s0 + win);
-  const pulse = P.bandpass(slice, fs, 0.7, 3.0);
-  const noise = P.bandpass(slice, fs, 4.0, 8.0);
-  return P.std(pulse) / (P.std(noise) || 1e-6);
+  return P.pickChannel({ ch: [sig], fs }).scores[0].snr;
 }
 
-/* Selftest pins the wrapper against arithmetic, not against the function it mirrors (which is
-   unreachable — that being the point). A 1.5 Hz "pulse" plus a 6.0 Hz "noise" tone, both mid-band:
+/* Selftest pins the wrapper against arithmetic AND against the node's own score. A 1.5 Hz "pulse"
+   plus a 6.0 Hz "noise" tone, both mid-band:
    the ratio tracks A/B, and doubling the noise amplitude halves the SNR (a gain-independent
    known-answer, so a wrapper returning a constant or the wrong band FAILS it). */
 function selftest() {
@@ -249,6 +248,23 @@ function selftest() {
   ok(s1 > 5 && s1 < 20, `A/B=10 lands near 10 through both passbands (got ${s1.toFixed(2)})`);
   ok(Math.abs(s1 / s2 - 2) < 0.15, `doubling the noise tone halves SNR (ratio ${(s1 / s2).toFixed(3)})`);
   ok(chanSNR(mk(1, 10), fs) < 1, `noise-dominated signal reads SNR < 1 (got ${chanSNR(mk(1, 10), fs).toFixed(2)})`);
+  /* IDENTITY with the node's own channel score, not only with arithmetic. The column claims to print
+     the quantity `pickChannel` ranks on, and since #3678 that is the p25 over every 20 s window, not
+     one mid-record window. A channel clean ONLY in its middle 90 s separates the two scorers: the
+     retired mid-window form reads it as clean, the shipped whole-night form does not. */
+  const NW = fs * 600;
+  const m0 = Math.floor((NW - fs * 90) / 2);
+  const midOnly = new Float64Array(NW);
+  for (let i = 0; i < NW; i++) {
+    const nz = i >= m0 && i < m0 + fs * 90 ? 0.004 : 0.5;
+    midOnly[i] = Math.sin((2 * Math.PI * 1.0 * i) / fs) + nz * (Math.sin((2 * Math.PI * 5.3 * i) / fs) + 0.7 * Math.sin((2 * Math.PI * 6.7 * i) / fs));
+  }
+  const shipped = P.pickChannel({ ch: [midOnly], fs }).scores[0].snr;
+  const mine = chanSNR(midOnly, fs);
+  ok(mine === shipped, `the column equals PPGDSP.pickChannel's own score on a mid-clean channel (column ${mine}, node ${shipped})`);
+  /* §∅ — a channel with no scorable window carries NO score, so the column prints n/a, never a number. */
+  const dead = new Float64Array(fs * 60).fill(Number.NaN);
+  ok(chanSNR(dead, fs) === null, `an all-absent channel scores null, not a number (got ${chanSNR(dead, fs)})`);
   console.log(fails.length ? `SELFTEST FAIL (${fails.length})` : `SELFTEST PASS (${ran}/${ran})`);
   return fails.length === 0;
 }
@@ -311,7 +327,7 @@ for (const n of nights) {
     const L = patLags(R, feet[c]);
     const medS = L.length ? med(L).toFixed(0).padStart(6) : '     —';
     const sdS = L.length ? sd(L).toFixed(1).padStart(7) : '      —';
-    const snrS = (isFinite(snr[c]) ? snr[c].toFixed(2) : 'n/a').padStart(5);
+    const snrS = (Number.isFinite(snr[c]) ? snr[c].toFixed(2) : 'n/a').padStart(5); // isFinite(null) is TRUE
     console.log(
       `      ${c}  ${snrS} ${String(feet[c].length).padStart(7)} ${sd(ffd(feet[c])).toFixed(1).padStart(11)} ms | ${String(L.length).padStart(6)} ${((100 * L.length) / R.length).toFixed(0).padStart(4)}% ${medS} ${sdS}`
     );
