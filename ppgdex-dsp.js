@@ -916,6 +916,16 @@
       preResyncAnchorsDropped = 0;
     const resyncs = [];
     let pcols = null;
+    /* WHY THE SCAN COUNTS WHAT IT REJECTED (§∅, residue 2026-11-04-an-empty-ppg-stream-is-refused-as-a-wrong-column-layout). The `n < 10` refusal below carried ONE message for four different inputs, and the
+       message named the two expected column layouts. A zero-byte stream therefore reported that its
+       columns were wrong. Measured on the archive's 2026-11-01 night: 22 of 165 files hold zero bytes,
+       four of them `_PPG.txt`, and the scan's four refusals are exactly those four files. §∅ asks a
+       consumer to tell absence from a bad reading, and a shared message cannot. These two counters are
+       what separates them, and they cost one increment per line — no parse, nothing on the hot path.
+       `rowsSeen` counts BEFORE the field floor on purpose: a two-column junk file has rows, and counting
+       after that floor would report it as an absence, which is the very confusion this fixes. */
+    let rowsSeen = 0,
+      rowsShaped = 0;
     // Minimum data-row field count. 6 for the Verity layout; a single-optical-column file
     // (`phone;ns;ch0`) has only 3, so the floor drops once a 1-channel header resolves. Until
     // the layout is known the Verity floor applies, which keeps every existing file's row
@@ -947,9 +957,11 @@
           continue;
         }
       }
+      rowsSeen++;
       if (p.length < minFields) continue;
       const pc = pcols || ppgColsByTail(p);
       if (!pc) continue;
+      rowsShaped++;
       // The layout the ACCEPTED rows actually carry (a headerless file resolves per-row via the tail).
       nCh = pc.chIdx.length;
       dual = !!pc.dual;
@@ -1114,10 +1126,44 @@
       }
     }
     const n = ch0.length;
-    if (n < 10)
-      throw new Error(
-        'No PPG samples parsed — expected Polar Sense `*_PPG.txt` (Phone timestamp;sensor ns;ch0;ch1;ch2;ambient) or an O2Ring finger `*_PPG.txt` (Phone timestamp;sensor ns;channel 0).'
-      );
+    if (n < 10) {
+      /* ── ABSENCE IS NOT A FORMAT ERROR (§∅) ────────────────────────────────────────
+         Four inputs reach this floor, and they carry four different claims about the device:
+           · nothing was written at all           → the device sent no sample. An ABSENCE.
+           · rows exist, no layout matches        → a format error. The columns really are wrong.
+           · the layout matches, the values do not → the columns are RIGHT and the file is junk.
+           · fewer than 10 good samples           → a real stream, too short to analyse.
+         The old message asserted the second for all four. The reason is published on the Error as well
+         as in its text, because a caller cannot distinguish what it has to pattern-match out of prose. */
+      let why, msg;
+      if (rowsSeen === 0) {
+        why = 'empty-stream';
+        msg = 'No PPG data row in the stream (' + text.length + ' characters) — an ABSENCE, not a layout error. The file was created and never written, or it holds only a header and comments.';
+      } else if (rowsShaped === 0) {
+        why = 'layout';
+        msg =
+          'No PPG row matched a known column layout (' +
+          rowsSeen +
+          ' row(s) read) — expected Polar Sense `*_PPG.txt` (Phone timestamp;sensor ns;ch0;ch1;ch2;ambient) or an O2Ring finger `*_PPG.txt` (Phone timestamp;sensor ns;channel 0).';
+      } else if (n === 0) {
+        why = 'unreadable-columns';
+        msg =
+          rowsShaped + ' PPG row(s) carried a known column layout, and every one of them held an unreadable value in a column that layout claims — so the columns are right and the values are not.';
+      } else {
+        why = 'too-short';
+        msg = 'Only ' + n + ' PPG sample(s) parsed, below the floor of 10 — a real stream, too short to analyse.';
+      }
+      /* The fields ride ON the Error because a caller cannot pattern-match a cause out of prose,
+         and §∅ asks a consumer to tell absence from a bad reading. The cast is this file's idiom for
+         a shape TypeScript does not model (see glucodex-dsp.js). */
+      const err = /** @type {any} */ (new Error(msg));
+      err.reason = why;
+      err.bytes = text.length;
+      err.rowsSeen = rowsSeen;
+      err.rowsShaped = rowsShaped;
+      err.samples = n;
+      throw err;
+    }
     // fs from median ns delta (precise) — fall back to phone-clock span
     let fs = 176;
     const deltas = [];
