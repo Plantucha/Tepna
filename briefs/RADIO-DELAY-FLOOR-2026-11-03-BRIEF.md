@@ -5,7 +5,7 @@
   Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
   project root, or http://www.apache.org/licenses/LICENSE-2.0
 -->
-**Status:** PROPOSED (core BUILT, remainder corpus-blocked — verified 2026-11-03: `anchorFloor` ships and eleven suite legs pass. The rig holds no sidecar, so the box owes §5. **RE-TRIAGED 2026-11-04 (Heron, box read-only; rule 0: "solid night cowear probe stage lab O2Ring presence trigger radio delay floor vigil coexistence brief status"): §5'S PRECONDITION IS MET ON THE BOX, so the arm is SCHEDULABLE and no longer corpus-blocked.** `/srv/tepna/captures` holds fourteen `*RADIOCLOCK*` sidecars over four nights — 2026-10-30, 2026-10-31, 2026-11-01 and 2026-11-03 — where this brief's own §5 expected six. **CORRECTED 2026-11-04 (Heron, rig measurement): THE RIG HOLDS ELEVEN OF THEM TOO, so the arm needs no box session.** `find uploads/` returns nothing because `uploads/vigil-archive` is a symlink to the NAS, and `find -L` finds eleven sidecars over 2026-10-30, 2026-10-31 and 2026-11-01, each one older than this brief. `docs/CORPUS-LOCATIONS.md` already names that path canonical for a rig reader. My earlier sentence that the rig holds none repeated a symlink-blind find, and this withdraws it. No `*PAT*` file exists beside them, so PAT still comes from the beat path at analysis time. What §5 now owes is the analysis itself, which a box session can run read-only, and the second box still waits on §5 earning a band) · **Created:** 2026-11-03
+**Status:** PROPOSED (core BUILT, remainder corpus-blocked — verified 2026-11-03: `anchorFloor` ships and eleven suite legs pass. The rig holds no sidecar, so the box owes §5. **RE-TRIAGED 2026-11-04 (Heron, box read-only; rule 0: "solid night cowear probe stage lab O2Ring presence trigger radio delay floor vigil coexistence brief status"): §5'S PRECONDITION IS MET ON THE BOX, so the arm is SCHEDULABLE and no longer corpus-blocked.** `/srv/tepna/captures` holds fourteen `*RADIOCLOCK*` sidecars over four nights — 2026-10-30, 2026-10-31, 2026-11-01 and 2026-11-03 — where this brief's own §5 expected six. **CORRECTED 2026-11-04 (Heron, rig measurement): THE RIG HOLDS ELEVEN OF THEM TOO, so the arm needs no box session.** `find uploads/` returns nothing because `uploads/vigil-archive` is a symlink to the NAS, and `find -L` finds eleven sidecars over 2026-10-30, 2026-10-31 and 2026-11-01, each one older than this brief. `docs/CORPUS-LOCATIONS.md` already names that path canonical for a rig reader. My earlier sentence that the rig holds none repeated a symlink-blind find, and this withdraws it. No `*PAT*` file exists beside them, so PAT still comes from the beat path at analysis time. What §5 now owes is the analysis itself, which a box session can run read-only, and the second box still waits on §5 earning a band. **MEASURED 2026-11-04 (Heron, §5a): the floor's own anchor is the BLE controller clock, and moving the map onto the host stamp holds each device's rate across nights, so only the beat half of §5 stays owed.**) · **Created:** 2026-11-03
 
 # The radio delay has a floor, and the band reads its tail
 
@@ -87,6 +87,70 @@ over `uploads/` returns 0, and `DEX_UPLOADS` is unset), so the arm belongs to a 
 box." The `DEX_UPLOADS` half stays true and never mattered: the tools fall back to the primary
 checkout's `uploads/`, which is where the symlink sits.
 
+### 5a · Measured 2026-11-04 (Heron, rig over the NAS archive): the floor's anchor is the controller clock
+
+The sidecar carries **three** clocks, and the published floor pairs two of them:
+
+| column | clock |
+|---|---|
+| `last_sensor_ns` | the device's own PMD clock |
+| `anchor_us` | the BLE **controller** clock, a counter whose epoch survives no controller reset |
+| `acl_rx_ns` | the **host** clock, a `CLOCK_REALTIME` nanosecond stamp |
+
+`radioclock.py` says so itself: `anchor_us` is "a controller counter", and `OffsetEstimator` keeps the
+controller-to-host offset as a running median. The published floor reads `anchor_us − last_sensor_ns`,
+so it measures the device against the CONTROLLER. `DexClock.hostAxis` anchors on the host stamp
+(CLAUDE.md §🔒.7), so a floor map built on the controller carries the controller-to-host divergence
+straight into the node's axis.
+
+I ran the row's own method over the archived nights — floor per five-minute window, Theil-Sen through
+the window minima with pairs at least twenty minutes apart, MAD about that line — on all three pairs.
+Each line spans about seven hours over seventy or more windows.
+
+**The published pair, device against controller:**
+
+| night | Verity floor MAD | H10 floor MAD | Verity rate | H10 rate |
+|---|---|---|---|---|
+| 2026-10-30 | 8.26 · 10.18 ms | 2.58 · 1.26 ms | 359 ms/h | 386 ms/h |
+| 2026-10-31 | 68.73 · 76.47 ms | 70.04 · 71.84 ms | 415 ms/h | 452 ms/h |
+| 2026-11-01 | 9.70 · 12.49 ms | 0.88 · 3.18 ms | 357 ms/h | 384 ms/h |
+
+**The control, controller against host — no device clock enters it:**
+
+| night | rate | MAD |
+|---|---|---|
+| 2026-10-30 | 457.5 · 457.7 ms/h | 0.49 · 1.89 ms |
+| 2026-10-31 | 531.6 · 539.1 ms/h | 82.41 · 92.26 ms |
+| 2026-11-01 | 457.1 · 457.9 ms/h | 0.58 · 2.27 ms |
+
+**The axis pair, device against host:**
+
+| night | Verity | H10 |
+|---|---|---|
+| 2026-10-30 | −98.5 ms/h · MAD 2.91 · 7.38 ms | −71.3 ms/h · MAD 1.62 · 0.72 ms |
+| 2026-10-31 | −118.0 ms/h · MAD 29.16 · 30.33 ms | −79.1 ms/h · MAD 13.54 · 4.18 ms |
+| 2026-11-01 | −97.7 ms/h · MAD 3.08 · 10.37 ms | −72.7 ms/h · MAD 0.73 · 1.48 ms |
+
+What the three tables say together:
+
+1. 🔴 **The night that looks worst on the published pair holds no device fact.** The control carries no
+   device clock, and on 2026-10-31 its MAD runs about forty times the other two nights. Both devices
+   share one host and one controller, so two independent device crystals cannot inflate in step.
+2. 🔴 **The controller is the degraded element.** The axis pair stayed far tighter on that same night,
+   and the controller sits inside the degraded pair and outside the tighter one.
+3. **On the axis pair each device keeps its own rate across nights** — the Verity near −98 ms/h, the
+   H10 near −72 ms/h. On the published pair the same two rates move by about a sixth between nights.
+4. **So the floor map belongs on the host stamp.** Anchoring it there drops the controller term, and
+   the host stamp is the one the node's axis already reads.
+5. ⚠️ **Every archived sidecar carries the nine-column header.** `device_clock` and `anchor_epoch`
+   landed on 2026-11-02 (#4267, #4272), after these nights ended. A reader of this corpus cannot cut
+   the axis at a link establishment by column, so it must infer a seam from `conn_handle` and from
+   gaps in `anchor_us`. The 2026-11-01 files show two handles per device, which is a reconnect; the
+   other two nights show one each.
+
+A session scratchpad holds the streaming script that measured this, so the result is a measurement and
+not a shipped tool. The port belongs with the beat half, which still owes the PAT comparison.
+
 ### Acceptance
 
 - [x] The floor of the published residual reads as a statistic beside the band, never as a band input.
@@ -96,5 +160,6 @@ checkout's `uploads/`, which is where the symlink sits.
 - [x] Absence refuses by name: no spine, no correction curve, one window, one anchor per window.
 - [ ] PAT per night on the floor-mapped axis, over the six box-local sidecars, with the between-nights
       spread quoted against the −867…+1321 ms it would replace. **Owed; a rig session can run it
-      over the archived nights, corrected 2026-11-04.**
+      over the archived nights, corrected 2026-11-04. §5a measured the clock half on 2026-11-04 and
+      moved the map onto the host stamp, so the beat half is what stays owed.**
 - [ ] A band decision, if §5 earns one, with the threshold pre-stated before the data that judges it.
