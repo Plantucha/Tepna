@@ -1287,7 +1287,8 @@
         (typeof c.boundMs === 'number' && isFinite(c.boundMs) ? 'σ < ' + c.boundMs.toFixed(1) + ' ms' : 'no bound resolved') +
           ' — variance ' +
           vs +
-          ', but its 95 % CI reaches 0: too few windows to resolve this site, not an independence failure',
+          ', but its 95 % CI reaches 0: too few windows to resolve this site, not an independence failure' +
+          domClause(h, site),
         C.mut
       ];
     if (c && c.status === 'independence-failed')
@@ -1303,6 +1304,27 @@
         C.mut
       ];
     return [lab, 'REFUSED', '', 'negative variance ' + vs + ' — the independent-error model does not fit this site', C.mut];
+  }
+  /* ── WHICH LEG CARRIES THE CORNER (VERDICT-CONTRIBUTIONS-2026-10-04 §5, the hat page's half) ──
+     An UNDERPOWERED corner is exactly the case the brief names: the σ is unresolved, and "which leg
+     carries the subtraction" is still answerable from the same three variances the hat solved. The
+     block comes from the worker, so the page attributes nothing itself.
+     §∅ — `dominant` is null when a leg could not be read or when the legs moved the corner by nothing,
+     and the clause then NAMES that rather than printing the largest of what survived. */
+  function domClause(h, site) {
+    var b = h && h.contributions ? h.contributions[site] : null;
+    if (!b) return '';
+    if (!b.dominant) {
+      var absent = (b.inputs || []).filter(function (it) {
+        return it.delta === null;
+      });
+      return ' · dominant leg not attributed — ' + (absent.length ? absent[0].reason : 'the three legs moved this corner by nothing');
+    }
+    var it = (b.inputs || []).filter(function (x) {
+      return x.key === b.dominant;
+    })[0];
+    if (!it || typeof it.share !== 'number') return ' · dominant leg not attributed — the block names ' + b.dominant + ' with no share';
+    return ' · ' + b.dominant.replace(/^leg\./, '') + ' carries it, ' + (it.share * 100).toFixed(0) + ' % of the movement';
   }
   function hcard(label, val, unit, sub, tone, ev) {
     return (

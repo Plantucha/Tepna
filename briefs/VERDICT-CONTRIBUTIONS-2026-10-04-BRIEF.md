@@ -4,7 +4,7 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** IN-PROGRESS — 2026-10-12 · ⚠️ **API-LANE TRIAGE 2026-11-04 — RE-VERIFIED BY MAGPIE, NOT TAKEN ON ITS WORD.** §5.1's box ticks: the contributions group re-ran green here, the validator ships in `verdict.js`, and the contract section is in place. The rest stay open, since one figure of the five publishes the block, the hat page names no dominant leg, and the recorded night waits on both. · **Created:** 2026-10-04 · **Residue:** 2026-10-12-hat-contribution-row-names-a-solve-with-no-closed-form
+**Status:** IN-PROGRESS — 2026-10-12 · ⚠️ **API-LANE TRIAGE 2026-11-04 — RE-VERIFIED BY MAGPIE, NOT TAKEN ON ITS WORD.** §5.1's box ticks: the contributions group re-ran green here, the validator ships in `verdict.js`, and the contract section is in place. The rest stay open, since one figure of the five publishes the block and the recorded night still waits on a reader. · ⚠️ **HAT PAGE HALF BUILT 2026-11-04 (Magpie)** — the UNDERPOWERED card now names the dominant leg; §5's second box stays open for its SOLID morning-verdict half. · **Created:** 2026-10-04 · **Residue:** 2026-10-12-hat-contribution-row-names-a-solve-with-no-closed-form
 
 # Attribution — every fused number says which input moved it (the `contributions` block; the "derivator", reading one)
 
@@ -127,6 +127,19 @@ a figure in this table without the block and a block whose shares do not sum to 
 - [ ] The five figures in §2 publish it; `verify:verdict-adoption` reds a §2 figure without it.
 - [ ] The hat page names the dominant leg on the UNDERPOWERED card; the SOLID morning verdict names the
   deciding band and device in its first line.
+      ⚠️ **HALF MET 2026-11-04 (Magpie) — the box stays open for the SOLID half, which is capture-host.**
+      The hat half is built: `pat-feasibility-worker.js threeHat` publishes a `contributions` block per
+      corner, and `pat-feasibility.js domClause` appends the dominant leg to the UNDERPOWERED card. On the
+      recorded 2026-09-26 night the chest card now reads
+      `· finger-ankle carries it, 52 % of the movement` — the pair that corner subtracts.
+      The worker calls `patHatContributionsFromVars`, never `patHatContributions`, because its dispersion
+      is IQR/1.349 of the window medians; `analysis-stats.js:753` states that hazard beside the kernel.
+      §∅ — an unreadable leg nulls `dominant`, and the card then says
+      `dominant leg not attributed — <reason>` and names no leg.
+      ⚠️ **What the new tests do NOT pin, measured not assumed:** the delta-sum invariant does not
+      discriminate the entry point. `_patRobustVar` IS (IQR/1.349)², and the suite's `leg()` repeats each
+      window's value on every beat, so all three call forms summed to the same corner with a delta of
+      exactly zero. A source assertion is the only thing pinning the entry point.
 - [ ] One recorded night where the block answered "which input" without a bird reading code — cited here.
 
 Companion: `NIGHTLY-CHANGE-DETECTION-2026-10-04-BRIEF.md` — **Differentiator**, reading two of the same ruling (the time derivative).
