@@ -9923,6 +9923,7 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
     # Low-battery latch: the lowest threshold already alerted per device (see `alerts.battery_alert_step`).
     # In memory, so a daemon restart while a cell sits at 10 % sends the 10 % alert once more.
     batt_latch: dict[str, int | None] = {}
+    night_short_sent: dict[str, _dt.date] = {}  # the night each device was last told it may run flat
     # Per-HOLD latch for the box-holds-the-link note below (`alerts.silence_owner`). One line per hold
     # rather than one per poll, because a stored pull spans several polls at a 60 s interval.
     box_held: set[str] = set()
@@ -9952,6 +9953,18 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
                 if delivered or not notifier.enabled:
                     batt_latch[name] = nxt
                     dst["battery_alert"] = {"pct": pct, "threshold": fire, "at": _time.strftime("%Y-%m-%d %H:%M")}
+            # WILL IT LAST THE NIGHT (`alerts.night_battery_short`): once per device per night, keyed on
+            # the evening's date, so a 02:00 poll belongs to the night that began the evening before.
+            wall = _now()
+            night_key = (wall - _dt.timedelta(hours=12)).date()
+            need = alerts.night_need_pct(d)
+            if night_short_sent.get(name) != night_key and alerts.night_battery_short(
+                pct, need, dst.get("charging"), wall.hour
+            ):
+                log.warning("alert: %s battery reads %s %%, below the %s %% a night can use", name, pct, need)
+                delivered = await notifier.send(*alerts.night_battery_text(name, pct, need or 0))
+                if delivered or not notifier.enabled:
+                    night_short_sent[name] = night_key
             # IMPOSTOR-SHAPE (VIGIL-BLUETOOTH-ADVERSARIAL-AUDIT §6.2 Mitigation C). The oxyii session sets
             # `ring_identity_mismatch` when the peer's 0xE1 serial ≠ the configured one and clears it when
             # it matches. Checked BEFORE the offline logic on purpose: the wrong ring streams SpO₂ like the

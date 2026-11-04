@@ -342,6 +342,43 @@ class Notifier:
             self._last.clear()
 
 
+# ── WILL THE BATTERY LAST THE NIGHT? (owner, 2026-11-04) ─────────────────────────────────────────────
+# `battery_alert_step` speaks at 20 % and 10 %, when a cell is already low. A device can start a night at
+# 35 % and still go flat before morning. Measured on the capture box from 2026-07-25 to 2026-11-04 from
+# the `battery_pct` column of LINK.csv, as the drop from 21:00 to 07:00 on nights with no charge: the
+# worst decile used 41 % on the Verity Sense (44 nights), 37 % on the O2Ring (46 nights) and 30 % on the
+# H10 (82 nights, read in 10 % steps). These are the defaults, keyed on the configured model. A device
+# sets its own figure with `night_need_pct`, and a model with no figure never alerts.
+NIGHT_NEED_PCT = (("verity", 41), ("o2ring", 37), ("h10", 30))
+
+
+def night_need_pct(dev: dict) -> int | None:
+    """PURE: the battery percent a night can use on this device, or None when no figure is known."""
+    own = dev.get("night_need_pct")
+    if own is not None:
+        return int(own)
+    model = str(dev.get("model") or "").lower()
+    for key, pct in NIGHT_NEED_PCT:
+        if key in model:
+            return pct
+    return None
+
+
+def night_battery_short(pct, need: int | None, charging, hour: int) -> bool:
+    """PURE: in the night-begin hours, is a device off its charger with less battery than a night uses?"""
+    if pct is None or need is None or charging or hour not in NIGHT_BEGIN_HOURS:
+        return False
+    return pct < need
+
+
+def night_battery_text(name: str, pct, need: int) -> tuple[str, str]:
+    """PURE: the title and message for `night_battery_short`."""
+    return (
+        f"Tepna: {name} may not last the night",
+        f"{name} reads {pct} %. The worst nights on record used {need} %. Charge it before you sleep.",
+    )
+
+
 def device_is_recording(connected: bool, last_data_mono: float | None, now: float, grace_sec: float) -> bool:
     """PURE: is the device actually PRODUCING DATA, or merely LINKED?
 
