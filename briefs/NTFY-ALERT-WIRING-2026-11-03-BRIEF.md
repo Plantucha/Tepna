@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-**Status:** REFERENCE (living — last-verified 2026-11-03) · **Created:** 2026-11-03
+**Status:** REFERENCE (living — last-verified 2026-11-04) · **Created:** 2026-11-03
 
 # Push alerts — how ntfy is wired, and how to add a new alert
 
@@ -49,8 +49,10 @@ The transport is a generic JSON webhook. ntfy is the transport the box uses. Not
 | `Tepna: sensor offline` / `sensor recovered` | `alert_poller` | A configured sensor stays down for `alerts.offline_sec`. |
 | `Tepna: sensor connected but silent` | `alert_poller` | A link is up and no data arrives. |
 | `Tepna: <name> battery <pct> %` | `alert_poller` | 20 % and 10 %, re-armed at 50 % (`battery_alert_step`). |
-| `Tepna: sensor on charger` | `alert_poller` | A worn device goes on its charger. |
-| `Tepna: <name> night ended` | `alert_poller`, CPAP path | A stream ends in the morning after a real night. |
+| `Tepna: sensor on charger` | `alert_poller` | A device that had a `sensor offline` alert goes on its charger. |
+| `Tepna: <name> night ended` | `alert_poller`, CPAP path | A stream ends in the morning after a real night, a device powers off after a completed pull, or a device goes on its charger after a wear of at least 1 h. |
+| `Tepna: <name> not worn` | `alert_poller` | A device sends samples while its worn verdict stays False for `alerts.not_worn_sec` (600 s; 0 turns it off). |
+| `Tepna: <name> streams on its charger` | `alert_poller` | Samples arrive after a device went on its charger. The text names the SDK mode. |
 | `Tepna: ring identity mismatch` | `alert_poller` | The ring that connects is not the configured ring. |
 | `Tepna: ring connects but serves nothing` / `ring serving again` | `alert_poller` | Three connects in a row deliver no frames. |
 | `Tepna: packet-arrival sidecar dead` | `qc_poller` | The arrival sidecar stops. |

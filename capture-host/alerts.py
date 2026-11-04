@@ -803,6 +803,69 @@ def on_charger(connected: bool, charging) -> bool:
     return bool(connected and charging)
 
 
+# ── THREE DEVICE STATES THAT REACHED NO PHONE (owner, 2026-11-04) ──────────────────────────────────────
+# 1. A NIGHT THAT ENDS ON THE DOCK. The night-ended note fired only when a device went SILENT after a
+#    completed pull. A Verity Sense on its dock stays LINKED and answers every PMD START with
+#    `in_charger`, so it never goes silent. On 2026-11-04 it recorded 22:50 to 04:24, docked at 04:25,
+#    and the operator got no note. `alert_poller` now sends the same note when a device that held a
+#    night episode reaches its charger, once per night through the same `ended_noted` latch.
+# 2. ON, AND NOT ON A BODY. `_WORN_SINCE` holds the monotonic second the worn verdict went False. A
+#    device that keeps sending samples while that verdict stays False for `NOT_WORN_ALERT_SEC` is
+#    running on a desk or a bedside table. 600 s is pre-stated: a real wear is never not-worn for
+#    minutes (see `capture._DROP_NOT_WORN_SEC`), and the alert must not race the 180 s power drop.
+#    Samples must be recent (`NOT_WORN_DATA_WINDOW_SEC`), so a device that powered itself off with a
+#    stale not-worn clock does not alert. 300 s covers the H10's 90 s reconnect-and-check cycle.
+# 3. STREAMING ON THE DOCK. In SDK mode a Verity Sense can accept a START on its charger
+#    (`briefs/POLAR-VERITY-DEVICE-SURFACE-2026-08-03-BRIEF.md` §5). Samples that arrive after the dock
+#    began are a device turned on in its charger, not a wear.
+NOT_WORN_ALERT_SEC = 600.0
+NOT_WORN_DATA_WINDOW_SEC = 300.0
+
+
+def not_worn_while_running(
+    worn_since: float | None,
+    last_data: float | None,
+    now: float,
+    grace_sec: float = NOT_WORN_ALERT_SEC,
+    window_sec: float = NOT_WORN_DATA_WINDOW_SEC,
+) -> bool:
+    """PURE: has a device sent samples while not worn for at least `grace_sec`? A grace of 0 or less
+    turns the alert off. All times are monotonic seconds."""
+    if grace_sec <= 0 or worn_since is None or last_data is None:
+        return False
+    return now - worn_since >= grace_sec and now - last_data <= window_sec
+
+
+def not_worn_text(name: str, minutes: float) -> tuple[str, str]:
+    """PURE: the title and message for `not_worn_while_running`."""
+    return (
+        f"Tepna: {name} not worn",
+        f"{name} is on and sends data, but it has not been on a body for {int(minutes)} min.",
+    )
+
+
+def streams_on_charger(last_data: float | None, docked_since: float, now: float, grace_sec: float) -> bool:
+    """PURE: did samples arrive after the dock began, and are they still recent? Monotonic seconds."""
+    return last_data is not None and last_data > docked_since and now - last_data <= grace_sec
+
+
+def dock_stream_text(name: str, sdk_mode) -> tuple[str, str]:
+    """PURE: the title and message for `streams_on_charger`. `sdk_mode` None means the device did not say."""
+    mode = {True: "on", False: "off"}.get(sdk_mode, "unknown")
+    return (
+        f"Tepna: {name} streams on its charger",
+        f"{name} is on its charger and sends samples (SDK mode {mode}). These samples are not a wear.",
+    )
+
+
+def dock_night_text(name: str) -> tuple[str, str]:
+    """PURE: the night-ended note for a device whose night ended on its charger."""
+    return (
+        f"Tepna: {name} night ended",
+        f"{name} went onto its charger after the night. Its live data is on the box.",
+    )
+
+
 # THE QC POLLER'S LATCHES SURVIVE A RESTART, AS THE QUIET STATE BELOW DOES. The poller held in memory
 # the day it sent the morning digest and the nights it reported as having a gap. Measured on the capture
 # box from 2026-10-19 to 2026-11-01: 5 of 19 "Tepna night QC" digests and 5 of 7 "night has a gap" alerts
