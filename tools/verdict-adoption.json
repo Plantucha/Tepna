@@ -30,10 +30,17 @@
     "since": "2026-10-12"
    },
    "trio pooled hat \u00a711 (`tch-pooled-hat-*.json`)": {
-    "file": "tools/trio-batch.mjs",
+    "file": "tools/tch-pooled-hat.mjs",
     "method": "leave-one-out",
-    "status": "pending",
-    "since": "2026-10-12"
+    "status": "adopted",
+    "since": "2026-10-12",
+    "emits": {
+     "cmd": [
+      "node",
+      "tools/tch-pooled-hat.mjs",
+      "--verdict-sample"
+     ]
+    }
    },
    "Integrator fused sleep summary": {
     "file": "integrator-dsp.js",
