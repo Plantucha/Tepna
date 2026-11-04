@@ -17422,6 +17422,78 @@
       var under = f(Object.assign({ corners: { chest: { status: 'underpowered', boundMs: 14.4 } } }, base), 'chest', 'H10 chest ECG', 'teal');
       T.eq('the 2026-09-26 chest corner reads UNDERPOWERED', under[1], 'UNDERPOWERED');
       T.ok('…with its bound, and it is NOT called an independence failure', /σ < 14\.4 ms/.test(under[3]) && /not an independence failure/.test(under[3]) && !/does not fit/.test(under[3]), under[3]);
+
+      /* VERDICT-CONTRIBUTIONS-2026-10-04 §5 — the UNDERPOWERED card names the dominant leg.
+         The variances are the 2026-09-26 night's own, inverted from the corner values in `base`:
+         vAB = chest + finger = 117, vAC = chest + ankle = 619, vBC = finger + ankle = 800. The kernel
+         then reads the chest corner as carried by finger-ankle at 52 %, which is the pair that corner
+         SUBTRACTS — the one line the brief says a bird should not have to read code for. */
+      var BLOCK = {
+        chest: {
+          of: 'sigma2.chest',
+          unit: 'ms^2',
+          method: 'analytic',
+          inputs: [
+            { key: 'leg.chest-finger', share: 0.076171875, delta: 58.5 },
+            { key: 'leg.chest-ankle', share: 0.4029947916666667, delta: 309.5 },
+            { key: 'leg.finger-ankle', share: 0.5208333333333334, delta: -400 }
+          ],
+          dominant: 'leg.finger-ankle'
+        }
+      };
+      var dom = f(Object.assign({ corners: { chest: { status: 'underpowered', boundMs: 14.4 } }, contributions: BLOCK }, base), 'chest', 'H10 chest ECG', 'teal');
+      T.ok('the UNDERPOWERED card names the dominant leg and its share', /finger-ankle carries it, 52 % of the movement/.test(dom[3]), dom[3]);
+      T.ok('…and keeps everything the card already said', /σ < 14\.4 ms/.test(dom[3]) && /not an independence failure/.test(dom[3]), dom[3]);
+
+      /* ∅ PLANT — a block whose denominator is unknown must NAME that, never promote the largest of
+         what survived. `dominant: null` is what the kernel returns when any leg reads null. */
+      var NUL = {
+        chest: {
+          of: 'sigma2.chest',
+          unit: 'ms^2',
+          method: 'analytic',
+          inputs: [
+            { key: 'leg.chest-finger', share: null, delta: 58.5 },
+            { key: 'leg.chest-ankle', share: null, delta: null, reason: 'leg variance absent — this pair contributed no window' },
+            { key: 'leg.finger-ankle', share: null, delta: -400 }
+          ],
+          dominant: null
+        }
+      };
+      var undom = f(Object.assign({ corners: { chest: { status: 'underpowered', boundMs: 14.4 } }, contributions: NUL }, base), 'chest', 'H10 chest ECG', 'teal');
+      T.ok('an unattributable corner says so and names no leg', /dominant leg not attributed — leg variance absent/.test(undom[3]) && !/carries it/.test(undom[3]), undom[3]);
+
+      /* THE OTHER ∅ BRANCH — `dominant` is also null when every leg read fine and moved the corner by
+         nothing, which the kernel returns for `patHatContributionsFromVars(0, 0, 0)`: three deltas of 0,
+         no absent input, every share null. There is no absence to name here, so the clause must not
+         reach for one — it says the legs moved nothing, and still names no leg. */
+      var FLAT = {
+        chest: {
+          of: 'sigma2.chest',
+          unit: 'ms^2',
+          method: 'analytic',
+          inputs: [
+            { key: 'leg.chest-finger', share: null, delta: 0 },
+            { key: 'leg.chest-ankle', share: null, delta: 0 },
+            { key: 'leg.finger-ankle', share: null, delta: 0 }
+          ],
+          dominant: null
+        }
+      };
+      var flat = f(Object.assign({ corners: { chest: { status: 'underpowered', boundMs: 14.4 } }, contributions: FLAT }, base), 'chest', 'H10 chest ECG', 'teal');
+      T.ok(
+        'a corner the legs moved by nothing says THAT, and still names no leg',
+        /dominant leg not attributed — the three legs moved this corner by nothing/.test(flat[3]) && !/carries it/.test(flat[3]) && !/undefined/.test(flat[3]),
+        flat[3]
+      );
+
+      /* BACK-COMPAT — a result from before the worker published the block renders the card unchanged. */
+      T.eq(
+        'a result with no block renders the card it always did',
+        under[3],
+        f(Object.assign({ corners: { chest: { status: 'underpowered', boundMs: 14.4 } } }, base), 'chest', 'H10 chest ECG', 'teal')[3]
+      );
+      T.ok('the page attributes nothing itself — the block comes from the worker', !/patHatContributions/.test(page), 'pat-feasibility.js computes a contributions block of its own');
       var failed = f(
         Object.assign({ corners: { chest: { status: 'independence-failed', pair: ['finger', 'ankle'], explainRho: -1.3, rhoOutOfRange: true } } }, base),
         'chest',
@@ -27627,6 +27699,89 @@
           'the worker publishes ci, corners and the labelled drift-removed hat beside its unchanged fields',
           h.ci && h.corners && h.corners.chest && h.diff && h.diff.ok && h.sigma && h.pairSd && h.lagMed && h.windows.length === 20,
           Object.keys(h).join(',')
+        );
+
+        /* VERDICT-CONTRIBUTIONS-2026-10-04 §2 row 1 — the worker publishes WHICH leg moved each corner.
+           WHAT EACH ASSERTION BELOW PINS, measured rather than assumed. The sum pins the block to the
+           corner beside it: it catches a block built over different variances, attached to the wrong
+           site key, or with a scrambled delta. It does NOT pin the entry point, and this was measured
+           on 2026-11-04 — `_patRobustVar` IS (IQR/1.349)², so `patHatContributions(col(…))` re-derives
+           the very same three variances, and the suite's `leg()` repeats each window's value on all 60
+           of its beats, so even the raw-beat call quantiles to an identical IQR. All three forms summed
+           to 137.62940064339932 with a delta of exactly 0.
+           The ENTRY POINT is pinned by the source assertion last in this block, and that is the only
+           thing pinning it. It is not decoration: on a real night the raw beats do NOT replicate a
+           window median, and then `patHatContributions` would attribute an across-window spread this
+           hat never solved — the hazard `analysis-stats.js:753` warns about beside the kernel. */
+        var CK = ['chest', 'finger', 'ankle'];
+        var cb = h.contributions;
+        T.ok(
+          'every corner carries an analytic contributions block over the three legs',
+          !!cb &&
+            CK.every(function (k) {
+              return (
+                cb[k] &&
+                cb[k].of === 'sigma2.' + k &&
+                cb[k].unit === 'ms^2' &&
+                cb[k].method === 'analytic' &&
+                cb[k].inputs.length === 3 &&
+                cb[k].inputs
+                  .map(function (i) {
+                    return i.key;
+                  })
+                  .join(',') === 'leg.chest-finger,leg.chest-ankle,leg.finger-ankle'
+              );
+            }),
+          JSON.stringify(cb && cb.chest)
+        );
+        T.ok(
+          "each block's deltas sum to the corner it explains — the block is over THIS hat's three variances",
+          !!cb &&
+            CK.every(function (k) {
+              var sum = cb[k].inputs.reduce(function (t, i) {
+                return t + i.delta;
+              }, 0);
+              return Math.abs(sum - h.variance[k]) < 1e-9;
+            }),
+          JSON.stringify(
+            CK.map(function (k) {
+              return {
+                site: k,
+                sum:
+                  cb &&
+                  cb[k].inputs.reduce(function (t, i) {
+                    return t + i.delta;
+                  }, 0),
+                corner: h.variance[k]
+              };
+            })
+          )
+        );
+        T.ok(
+          'and `dominant` is the largest |delta|, with shares that total 1',
+          !!cb &&
+            CK.every(function (k) {
+              var ins = cb[k].inputs.slice().sort(function (x, y) {
+                return Math.abs(y.delta) - Math.abs(x.delta);
+              });
+              var tot = cb[k].inputs.reduce(function (t, i) {
+                return t + i.share;
+              }, 0);
+              return cb[k].dominant === ins[0].key && Math.abs(tot - 1) < 1e-9;
+            }),
+          JSON.stringify(
+            cb && {
+              dominant: cb.chest.dominant,
+              shares: cb.chest.inputs.map(function (i) {
+                return i.share;
+              })
+            }
+          )
+        );
+        T.ok(
+          'the worker calls the FromVars entry point the kernel reserves for a windowed dispersion',
+          /patHatContributionsFromVars\(/.test(wsrc) && !/[^s]patHatContributions\(/.test(wsrc),
+          'worker must not hand its window medians to patHatContributions()'
         );
       }
     );
