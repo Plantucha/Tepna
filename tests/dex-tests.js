@@ -64971,19 +64971,27 @@
             schema: {
               name: 'ganglior.integrator-apnea-null-twins',
               version: '1.0',
-              doc: 'Committed synthetic twins for the apnea chance-null (DEEP-AUDIT-VI-FOLLOWUPS §4.3). Inputs rebuilt in-code by tests/apnea-null-twins.js, the same builder the equivalence gate uses.'
+              doc: 'Committed synthetic twins for the apnea chance-null (DEEP-AUDIT-VI-FOLLOWUPS §4.3) and for its attribution block (the contributions contract §1 — the four-node `attributed` twin is the only one whose block is not all-null). Inputs rebuilt in-code by tests/apnea-null-twins.js, the same builder the equivalence gate uses.'
             },
             twins: {}
           };
           var _T = _twins();
-          for (var _ti = 0; _ti < 4; _ti++) {
-            var _k = ['coupled', 'uncoupled', 'gapped', 'contended'][_ti];
+          var _aKeys = ['coupled', 'uncoupled', 'gapped', 'contended', 'attributed'];
+          for (var _ti = 0; _ti < _aKeys.length; _ti++) {
+            var _k = _aKeys[_ti];
             var _recs = _T[_k].map(function (x) {
               return Ag(x.json, x.node, x.node)[0];
             });
             var _f = FAg(_recs, 120000, {});
             aBuilt.twins[_k] = _f
-              ? { nullModel: _f.nullModel, nConf: _f.findings.length, confirmedAHI: _f.confirmedAHI, confirmedAHIReportable: _f.confirmedAHIReportable, overlapHours: _f.overlapHours }
+              ? {
+                  nullModel: _f.nullModel,
+                  nConf: _f.findings.length,
+                  confirmedAHI: _f.confirmedAHI,
+                  confirmedAHIReportable: _f.confirmedAHIReportable,
+                  overlapHours: _f.overlapHours,
+                  contributions: _f.contributions || null
+                }
               : null;
           }
           var ad = [];
@@ -65014,6 +65022,87 @@
             'contended twin has desats competing for one surge',
             aBuilt.twins.contended.nConf > 0 && aBuilt.twins.contended.nullModel.expectedConfirmed > 0,
             'nConf=' + aBuilt.twins.contended.nConf + ' surrogateMean=' + aBuilt.twins.contended.nullModel.expectedConfirmed
+          );
+
+          /* ── ATTRIBUTION (VERDICT-CONTRIBUTIONS §1, the §2 Integrator row) ─────────────────────
+             The apnea index is fused over a desaturation observer AND a cardiac node, so on a
+             TWO-node bus a leave-one-out is unknown for both inputs — remove either and no reduced
+             bus can produce the figure. ∅: that is `null` with a reason, never 0, and one unknown
+             nulls every share and `dominant`. The first four twins are two-node, so they pin the
+             ∅ half; `attributed` is four-node and pins the half that carries numbers. */
+          ['coupled', 'uncoupled', 'gapped', 'contended'].forEach(function (k2) {
+            var c2 = aBuilt.twins[k2].contributions;
+            var allNull =
+              c2 &&
+              c2.method === 'leave-one-out' &&
+              c2.of === 'confirmedApneaIndex' &&
+              c2.inputs.length === 2 &&
+              c2.dominant === null &&
+              c2.inputs.every(function (i2) {
+                return i2.delta === null && i2.share === null && typeof i2.reason === 'string' && i2.reason.length > 0;
+              });
+            T.ok('apnea attribution on the two-node ' + k2 + ' twin is ∅ — both inputs necessary, neither quantifiable', !!allNull, c2 ? JSON.stringify(c2) : 'no block');
+          });
+          var cA = aBuilt.twins.attributed.contributions;
+          T.ok('attributed twin is the only FOUR-input block', !!cA && cA.inputs.length === 4, cA ? 'inputs=' + cA.inputs.length : 'no block');
+          T.eq('…and it is a leave-one-out of the confirmed index, in events/h', [cA.of, cA.method, cA.unit].join('|'), 'confirmedApneaIndex|leave-one-out|events/h');
+          /* The PLANTED dominant: the ECG is the only node corroborating the whole night, so its
+             removal has to move the index furthest. A block that named anything else would mean the
+             kernel is not measuring what the twin plants. */
+          T.eq('dominant is the node that alone corroborates the whole night', cA.dominant, 'node.ECGDex');
+          var _shareSum = cA.inputs.reduce(function (a2, i2) {
+            return a2 + i2.share;
+          }, 0);
+          T.ok('shares sum to 1 ± 1e-9 over the inputs listed', Math.abs(_shareSum - 1) < 1e-9, 'sum=' + _shareSum);
+          /* A MEASURED 0 is not a ∅. The PPG's surges are redundant (the ECG already confirmed every
+             desat it could) and the CPAP's desats never reach the spine (OxyDex outlasts it), so both
+             were READ and moved nothing: delta 0, share 0, and NO reason — the field that only an
+             unknown carries. Collapsing these two states is the ∅ bug this assertion exists to catch. */
+          var _zeros = cA.inputs.filter(function (i2) {
+            return i2.delta === 0 && i2.share === 0 && i2.reason === undefined;
+          });
+          T.eq('two inputs were read and moved nothing — measured 0, not ∅ null', _zeros.length, 2);
+          T.eq(
+            '…and they are the redundant corroborator and the shorter desat observer',
+            _zeros
+              .map(function (i2) {
+                return i2.key;
+              })
+              .join(','),
+            'node.CPAPDex,node.PpgDex'
+          );
+          /* 🔴 ANTI-CLAIM. A leave-one-out is NOT a decomposition: two inputs can both be necessary,
+             so the deltas do not sum to the figure and must never be read as parts of it. Measured
+             here: Σdelta = 3.25 against a figure of 5. An assertion that they were equal would be
+             satisfiable only by a kernel that stopped measuring removals. */
+          var _deltaSum = cA.inputs.reduce(function (a2, i2) {
+            return a2 + i2.delta;
+          }, 0);
+          T.ok(
+            'the deltas do NOT sum to the figure — a leave-one-out is not a decomposition',
+            Math.abs(_deltaSum - aBuilt.twins.attributed.confirmedAHI) > 1,
+            'Σdelta=' + _deltaSum.toFixed(2) + ' figure=' + aBuilt.twins.attributed.confirmedAHI
+          );
+          /* METAMORPHIC — a node on the bus carrying neither a desaturation nor a surge is not an
+             input of this figure: it must not appear, and it must not move a share. Listing it at
+             delta 0 would dilute every other share while changing nothing about the night. */
+          var _mClone = JSON.parse(JSON.stringify(_T.attributed[3].json));
+          _mClone.node = 'MotionDex';
+          _mClone.schema.node = 'MotionDex';
+          _mClone.ganglior_events = _mClone.ganglior_events.map(function (e2) {
+            var c3 = JSON.parse(JSON.stringify(e2));
+            c3.node = 'MotionDex';
+            c3.impulse = 'position_change';
+            return c3;
+          });
+          var _mRecs = _T.attributed.concat([{ node: 'MotionDex', json: _mClone }]).map(function (x) {
+            return Ag(x.json, x.node, x.node)[0];
+          });
+          var _mF = FAg(_mRecs, 120000, {});
+          T.eq(
+            'a fifth node carrying neither event changes neither the figure nor the block',
+            JSON.stringify([_mF.confirmedAHI, _mF.contributions]),
+            JSON.stringify([aBuilt.twins.attributed.confirmedAHI, cA])
           );
         }
         var tb = gExp.consensus && gExp.consensus.blocks && gExp.consensus.blocks[0];

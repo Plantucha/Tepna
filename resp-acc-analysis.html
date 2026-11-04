@@ -3012,7 +3012,7 @@ function typeApneaByEffort(recs) {
     return a.tMs - b.tMs;
   });
 
-  var DESAT_TYPES = ['spo2_desaturation', 'desat_event'];
+  var DESAT_TYPES = APNEA_DESAT_TYPES;
   var desats = [];
   recs.forEach(function (r) {
     if (r.dateUnknown) return;
@@ -3263,6 +3263,11 @@ function _coveredShift(surges, merged, shiftMs) {
   return out;
 }
 
+/* The desaturation impulses the apnea pool is keyed by — hoisted out of `fuseApneaEvents` so the
+   attribution kernel below cannot drift from the pool it attributes. The §15 note inside the
+   function is why this is keyed by EVENT and not by node. */
+var APNEA_DESAT_TYPES = ['spo2_desaturation', 'desat_event'];
+
 function fuseApneaEvents(recs, dtMs, gate) {
   // CARDIAC surge sources: ECGDex (primary) + PpgDex (PPG-derived). A desat is
   // confirmable by an autonomic surge from EITHER — PpgDex is a first-class node
@@ -3274,7 +3279,7 @@ function fuseApneaEvents(recs, dtMs, gate) {
      null. Metamorphic proof: a byte-identical desat_event stream changes only its `node` label and the
      whole rule vanishes. Pool by the events a record actually CARRIES — any node that observes a
      desaturation can corroborate one. (The per-node confidence tiering downstream is unchanged.) */
-  var DESAT_TYPES = ['spo2_desaturation', 'desat_event'];
+  var DESAT_TYPES = APNEA_DESAT_TYPES;
   var oxyAll = recs.filter(function (r) {
     return !r.dateUnknown && _eventsOfType(r, DESAT_TYPES).length;
   });
@@ -3305,6 +3310,8 @@ function fuseApneaEvents(recs, dtMs, gate) {
       findings: [],
       confirmedAHI: null,
       confirmedAHIReportable: false,
+      // Same key on this path as on the fused one, so a reader never branches on its presence.
+      contributions: null,
       overlapHours: 0,
       // Same block on the no-overlap path so a reader never has to branch on its presence. A zero
       // recorded union with a NON-zero envelope is exactly the case worth seeing: the recordings
@@ -3347,7 +3354,7 @@ function fuseApneaEvents(recs, dtMs, gate) {
     });
     return pool;
   }
-  var desats = gather(oxy, ['spo2_desaturation', 'desat_event']);
+  var desats = gather(oxy, DESAT_TYPES);
   // EVENT-LEXICON §4 (OXYDEX-NODE-EXPORT-ENVELOPE-FOLLOWUPS-II §3): cvhr_surge DROPPED — no node
   // emits it (ECGDex + PpgDex emit autonomic_surge for CVHR surges); autonomic_arousal stays for the
   // legacy OxyDex bare-array synthesis fallback. Canonical surge name is autonomic_surge.
@@ -3583,10 +3590,16 @@ function fuseApneaEvents(recs, dtMs, gate) {
 
   // AHI over the *union* hours; keep 2 decimals so a real but low index isn't rounded to 0.
   var ahi = totHrs > 0 ? +(nConf / totHrs).toFixed(2) : null;
+  /* VERDICT-CONTRIBUTIONS §1 — attribution rides WITH the figure rather than at one call site, so
+     the golden builder, the suite and `runFusion` cannot drift on whether it was attached.
+     `_noAttribution` is set only by the reduced runs below; it suppresses the recursion and nothing
+     the figure is computed from. */
+  var contributions = gate._noAttribution ? null : apneaIndexContributions(recs, dtMs, gate, ahi);
   return {
     findings: findings,
     confirmedAHI: ahi,
     confirmedAHIReportable: !belowChance && nConf > 0,
+    contributions: contributions,
     overlapHours: +totHrs.toFixed(2),
     /* WHAT THAT DENOMINATOR IS (INTEGRATOR-GAP-AWARE-OVERLAP §6 — "the fusion export publishes the
        coverage it used"). `overlapHours` alone cannot be audited: 2.1 and 6.86 look equally
@@ -3633,6 +3646,88 @@ function fuseApneaEvents(recs, dtMs, gate) {
     },
     coupling: coupling
   };
+}
+
+/* ── ATTRIBUTION — WHICH NODE MOVED THE CONFIRMED INDEX ───────────────────────────────────────
+   VERDICT-CONTRIBUTIONS-2026-10-04-BRIEF §2's Integrator row: `integrator-dsp.js`,
+   `leave-one-out over nodes`. `confirmedAHI` is fused by construction — it needs a desaturation
+   observer AND a cardiac node — so when it surprises a reader the question is always "which
+   node's events made it that number", and until now the answer took a bird reading this file.
+
+   WHAT COUNTS AS AN INPUT: the nodes the figure READS. That is every node carrying a
+   desaturation impulse (pooled by EVENT, not by node — the §15 note above) plus every cardiac
+   node. A node on the bus carrying neither is not an input: removing it returns the identical
+   figure, and listing it at a delta of 0 would dilute every other share.
+
+   ∅ (CLAUDE.md §∅, brief §1's "unknown" rule): on a TWO-node bus — all four committed apnea
+   twins, and nearly every night in the corpus — removing either input leaves a population that
+   CANNOT produce the figure at all. That is not a delta of 0 and not a delta with a sign: it is
+   `null` with a named reason, and one null delta nulls every `share` and `dominant`. So the block
+   is informative only from three contributing nodes up. It also costs nothing below three,
+   because a reduced bus refuses on `fuseApneaEvents`'s first guard, before any surrogate draw.
+
+   THE DELTAS DO NOT SUM TO THE FIGURE and are not meant to. Two nodes can both be necessary, so
+   each one's removal can move the index by more than its own share of the events; `share` is the
+   normalised |delta| over the inputs listed, nothing more. */
+function _attributionGate(gate) {
+  var g = {},
+    k;
+  for (k in gate) if (Object.prototype.hasOwnProperty.call(gate, k)) g[k] = gate[k];
+  g._noAttribution = true; // a reduced run computes the figure, never its attribution
+  return g;
+}
+
+function apneaIndexContributions(recs, dtMs, gate, confirmedIndex) {
+  // No figure, nothing to attribute. The block belongs to a published number.
+  if (confirmedIndex == null || !isFinite(confirmedIndex)) return null;
+  var live = (recs || []).filter(function (r) {
+    return r && !r.dateUnknown;
+  });
+  var keys = [],
+    seen = {};
+  live.forEach(function (r) {
+    var n = r.node || 'unknown';
+    if (seen[n]) return;
+    if (!_eventsOfType(r, APNEA_DESAT_TYPES).length && n !== 'ECGDex' && n !== 'PpgDex') return;
+    seen[n] = 1;
+    keys.push(n);
+  });
+  keys.sort();
+  if (keys.length < 2) return null; // brief §1: a figure with ONE input has no block
+  var inputs = keys.map(function (n) {
+    var without = live.filter(function (r) {
+      return (r.node || 'unknown') !== n;
+    });
+    /* The same function, called with no flags: a leave-one-out delta is a delta of the PUBLISHED
+       figure only while the reduced run takes the identical path. */
+    var red = fuseApneaEvents(without, dtMs, _attributionGate(gate));
+    var val = red ? red.confirmedAHI : null;
+    if (val == null)
+      return {
+        key: 'node.' + n,
+        share: null,
+        delta: null,
+        reason: red ? 'reduced-bus-no-overlap' : 'reduced-bus-unfusable'
+      };
+    // Both operands carry 2 decimals, so this is the exact difference, not a display rounding.
+    return { key: 'node.' + n, share: null, delta: +(confirmedIndex - val).toFixed(2) };
+  });
+  var sumAbs = 0,
+    anyNull = false;
+  inputs.forEach(function (i) {
+    if (i.delta == null) anyNull = true;
+    else sumAbs += Math.abs(i.delta);
+  });
+  var dominant = null;
+  if (!anyNull && sumAbs > 0) {
+    var best = inputs[0]; // keys are sorted, so a tie resolves deterministically on the node name
+    inputs.forEach(function (i) {
+      i.share = Math.abs(i.delta) / sumAbs; // the computed ratio, never a display rounding
+      if (Math.abs(i.delta) > Math.abs(best.delta)) best = i;
+    });
+    dominant = best.key;
+  }
+  return { of: 'confirmedApneaIndex', unit: 'events/h', method: 'leave-one-out', inputs: inputs, dominant: dominant };
 }
 
 /* DEVICE-SCORED AHI (CPAPDex) — the strongest apnea truth on the bus. The
@@ -8797,6 +8892,9 @@ function buildFusionExport(recs, fusion) {
     nodes: fusion.nodes,
     confirmedApneaIndex: fusion.apnea ? fusion.apnea.confirmedAHI : null,
     confirmedApneaIndexReportable: fusion.apnea ? !!fusion.apnea.confirmedAHIReportable : false,
+    /* VERDICT-CONTRIBUTIONS §1 — which node moved the index, by leave-one-out over the nodes the
+       index reads. `null` on a two-node bus, where no reduced bus can produce the figure. */
+    confirmedApneaIndexContributions: fusion.apnea ? fusion.apnea.contributions || null : null,
     apneaNullModel: fusion.apnea ? fusion.apnea.nullModel : null,
     // P7: the EventCoupling shuffled-null verdict for desat⟷surge (coverage-aware; read `real`/`lift`
     // only where `usable`). Additive + null-tolerant; the Poisson apneaNullModel above is unchanged.
@@ -8978,6 +9076,9 @@ window.IntegratorDSP = {
   overlapInterval,
   runFusion,
   buildFusionExport,
+  /* VERDICT-CONTRIBUTIONS §2's Integrator figure — exported so the suite and the gate harness can
+     drive the attribution on a planted bus without running a whole fusion. */
+  apneaIndexContributions: apneaIndexContributions,
   // CROSS-DEVICE-CLOCK-SKEW §3.1 — exported so the gate can drive them without a whole fusion.
   estimateEventLag,
   deltaModeSec,
