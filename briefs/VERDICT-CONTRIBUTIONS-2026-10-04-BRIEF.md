@@ -4,7 +4,7 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** IN-PROGRESS — 2026-10-12 · **Created:** 2026-10-04 · **Residue:** 2026-10-12-hat-contribution-row-names-a-solve-with-no-closed-form
+**Status:** IN-PROGRESS — 2026-10-12 · ⚠️ **API-LANE TRIAGE 2026-11-04 — RE-VERIFIED BY MAGPIE, NOT TAKEN ON ITS WORD.** §5.1's box ticks: the contributions group re-ran green here, the validator ships in `verdict.js`, and the contract section is in place. The rest stay open, since one figure of the five publishes the block, the hat page names no dominant leg, and the recorded night waits on both. · **Created:** 2026-10-04 · **Residue:** 2026-10-12-hat-contribution-row-names-a-solve-with-no-closed-form
 
 # Attribution — every fused number says which input moved it (the `contributions` block; the "derivator", reading one)
 
@@ -117,8 +117,13 @@ a figure in this table without the block and a block whose shares do not sum to 
 
 ## 5 · Done when
 
-- [ ] `tepna.verdict/1` spec gains the optional `contributions` block with the three methods and the ∅ rule
+- [x] `tepna.verdict/1` spec gains the optional `contributions` block with the three methods and the ∅ rule
   (`docs/VERDICT-CONTRACT.md`, MINOR changeset — a new optional field).
+      ✅ **met 2026-11-04 (Magpie)** — `node tests/run-tests.mjs --group=contributions` reads
+      `✓ all 48 assertions passed  (2 groups)` in my worktree. I re-read the citations: `_contributions` at
+      `verdict.js:67`, the `checked[]` push and call at `verdict.js:241`, and the contract section at
+      `docs/VERDICT-CONTRACT.md:72` onward. #3504 shipped it as a MINOR changeset, released in the
+      `CHANGELOG.md` entry for that version.
 - [ ] The five figures in §2 publish it; `verify:verdict-adoption` reds a §2 figure without it.
 - [ ] The hat page names the dominant leg on the UNDERPOWERED card; the SOLID morning verdict names the
   deciding band and device in its first line.

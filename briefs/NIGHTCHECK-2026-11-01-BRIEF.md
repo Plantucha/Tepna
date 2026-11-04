@@ -5,7 +5,7 @@
   Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
   project root, or http://www.apache.org/licenses/LICENSE-2.0
 -->
-**Status:** IN-PROGRESS — 2026-11-01 · **Created:** 2026-11-01
+**Status:** IN-PROGRESS — 2026-11-01 · ⚠️ **API-LANE TRIAGE 2026-11-04 — RE-VERIFIED BY MAGPIE, NOT TAKEN ON ITS WORD.** Each §3.x tick rests on box-local evidence that the repo cannot show: no committed artifact records the approval, the dry run, the report, the timer or the board post, and the script stays off `capture-host/` by this brief's own design. §5.2's two rows are both in the ledger and both read closed, where the lane cited one. The move item stays owner-gated. · **Created:** 2026-11-01
 
 # An automatic morning check reads each capture night against nine criteria
 

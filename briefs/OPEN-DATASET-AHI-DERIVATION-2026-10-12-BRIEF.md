@@ -3,7 +3,7 @@ Copyright 2026 Michal Planicka
 SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** IN-PROGRESS — 2026-10-21 · **Created:** 2026-10-12 · **Relates:** `AHI-SURROGATE-REFIT-SIZING-2026-10-12-BRIEF.md` (PROPOSED, §5 and §8), `docs/SHHS-COHORT-REFERENCE.md`, `docs/CORPUS-LOCATIONS.md`
+**Status:** IN-PROGRESS — 2026-10-21 · ⚠️ **API-LANE TRIAGE 2026-11-04 — RE-VERIFIED BY MAGPIE, NOT TAKEN ON ITS WORD.** The tool's selftest, its argv refusal and the `docs-ledger` group all re-ran green here, so the ticked items hold. The first item stays blocked on the owner's choice of reference. With no corpus mounted the tool refuses by itself and names the absence, which is the contract rather than a failure. · **Created:** 2026-10-12 · **Relates:** `AHI-SURROGATE-REFIT-SIZING-2026-10-12-BRIEF.md` (PROPOSED, §5 and §8), `docs/SHHS-COHORT-REFERENCE.md`, `docs/CORPUS-LOCATIONS.md`
 
 # Deriving an AHI from open-dataset annotations — 156 distinct of 579 recordings, and the four sets that carry no respiratory event at all
 
