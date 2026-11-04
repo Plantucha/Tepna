@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="62be68f264c7" data-compute-hash="05dc3984a15c"><head>
+<html lang="en" data-manifest-hash="67f1fcfa0f21" data-compute-hash="cf27fbfbd6aa"><head>
 <!--
   Integrator.src.html — Tepna
   Copyright 2026 Michal Planicka
@@ -9,7 +9,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'self' (NOT 'none') — this bundle fetches committed LOCAL sample files; 'self' still blocks every REMOTE origin. object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BH58u01qWhNePsiOK1+lcUp7rfOKHeAk0TqZU5vE4VM=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-aUdm/7EmRqa2iiXr8zBekMiJhlqW7z51cZBG+7OCko8=' 'sha256-b/3cr3fEKA226qKxIKH9duRTbo6viskcVfqeOMzUwtA=' 'sha256-fGkqo1InzXusfon2RDMp9a98flNCFaw3TSbxCC/xJUA=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rIcm4jQwZdAp6l3SdrzI0nizBN01Nhu8bJROOQanTRo=' 'sha256-uPBXSh8bOW0EIESjeEN3ZVzHDWjVCQ1RSoTzI4m2jM0='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BH58u01qWhNePsiOK1+lcUp7rfOKHeAk0TqZU5vE4VM=' 'sha256-E4rPcQgBrpmaKtJOAz/8RO4ZVPZ0d4+8Kr6NXg6n+Jc=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-aUdm/7EmRqa2iiXr8zBekMiJhlqW7z51cZBG+7OCko8=' 'sha256-fGkqo1InzXusfon2RDMp9a98flNCFaw3TSbxCC/xJUA=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rIcm4jQwZdAp6l3SdrzI0nizBN01Nhu8bJROOQanTRo=' 'sha256-uPBXSh8bOW0EIESjeEN3ZVzHDWjVCQ1RSoTzI4m2jM0='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>Integrator · Fusion Layer · v2.26.0</title>
@@ -8594,7 +8594,7 @@ function typeApneaByEffort(recs) {
     return a.tMs - b.tMs;
   });
 
-  var DESAT_TYPES = ['spo2_desaturation', 'desat_event'];
+  var DESAT_TYPES = APNEA_DESAT_TYPES;
   var desats = [];
   recs.forEach(function (r) {
     if (r.dateUnknown) return;
@@ -8845,6 +8845,11 @@ function _coveredShift(surges, merged, shiftMs) {
   return out;
 }
 
+/* The desaturation impulses the apnea pool is keyed by — hoisted out of `fuseApneaEvents` so the
+   attribution kernel below cannot drift from the pool it attributes. The §15 note inside the
+   function is why this is keyed by EVENT and not by node. */
+var APNEA_DESAT_TYPES = ['spo2_desaturation', 'desat_event'];
+
 function fuseApneaEvents(recs, dtMs, gate) {
   // CARDIAC surge sources: ECGDex (primary) + PpgDex (PPG-derived). A desat is
   // confirmable by an autonomic surge from EITHER — PpgDex is a first-class node
@@ -8856,7 +8861,7 @@ function fuseApneaEvents(recs, dtMs, gate) {
      null. Metamorphic proof: a byte-identical desat_event stream changes only its `node` label and the
      whole rule vanishes. Pool by the events a record actually CARRIES — any node that observes a
      desaturation can corroborate one. (The per-node confidence tiering downstream is unchanged.) */
-  var DESAT_TYPES = ['spo2_desaturation', 'desat_event'];
+  var DESAT_TYPES = APNEA_DESAT_TYPES;
   var oxyAll = recs.filter(function (r) {
     return !r.dateUnknown && _eventsOfType(r, DESAT_TYPES).length;
   });
@@ -8887,6 +8892,8 @@ function fuseApneaEvents(recs, dtMs, gate) {
       findings: [],
       confirmedAHI: null,
       confirmedAHIReportable: false,
+      // Same key on this path as on the fused one, so a reader never branches on its presence.
+      contributions: null,
       overlapHours: 0,
       // Same block on the no-overlap path so a reader never has to branch on its presence. A zero
       // recorded union with a NON-zero envelope is exactly the case worth seeing: the recordings
@@ -8929,7 +8936,7 @@ function fuseApneaEvents(recs, dtMs, gate) {
     });
     return pool;
   }
-  var desats = gather(oxy, ['spo2_desaturation', 'desat_event']);
+  var desats = gather(oxy, DESAT_TYPES);
   // EVENT-LEXICON §4 (OXYDEX-NODE-EXPORT-ENVELOPE-FOLLOWUPS-II §3): cvhr_surge DROPPED — no node
   // emits it (ECGDex + PpgDex emit autonomic_surge for CVHR surges); autonomic_arousal stays for the
   // legacy OxyDex bare-array synthesis fallback. Canonical surge name is autonomic_surge.
@@ -9165,10 +9172,16 @@ function fuseApneaEvents(recs, dtMs, gate) {
 
   // AHI over the *union* hours; keep 2 decimals so a real but low index isn't rounded to 0.
   var ahi = totHrs > 0 ? +(nConf / totHrs).toFixed(2) : null;
+  /* VERDICT-CONTRIBUTIONS §1 — attribution rides WITH the figure rather than at one call site, so
+     the golden builder, the suite and `runFusion` cannot drift on whether it was attached.
+     `_noAttribution` is set only by the reduced runs below; it suppresses the recursion and nothing
+     the figure is computed from. */
+  var contributions = gate._noAttribution ? null : apneaIndexContributions(recs, dtMs, gate, ahi);
   return {
     findings: findings,
     confirmedAHI: ahi,
     confirmedAHIReportable: !belowChance && nConf > 0,
+    contributions: contributions,
     overlapHours: +totHrs.toFixed(2),
     /* WHAT THAT DENOMINATOR IS (INTEGRATOR-GAP-AWARE-OVERLAP §6 — "the fusion export publishes the
        coverage it used"). `overlapHours` alone cannot be audited: 2.1 and 6.86 look equally
@@ -9215,6 +9228,88 @@ function fuseApneaEvents(recs, dtMs, gate) {
     },
     coupling: coupling
   };
+}
+
+/* ── ATTRIBUTION — WHICH NODE MOVED THE CONFIRMED INDEX ───────────────────────────────────────
+   VERDICT-CONTRIBUTIONS-2026-10-04-BRIEF §2's Integrator row: `integrator-dsp.js`,
+   `leave-one-out over nodes`. `confirmedAHI` is fused by construction — it needs a desaturation
+   observer AND a cardiac node — so when it surprises a reader the question is always "which
+   node's events made it that number", and until now the answer took a bird reading this file.
+
+   WHAT COUNTS AS AN INPUT: the nodes the figure READS. That is every node carrying a
+   desaturation impulse (pooled by EVENT, not by node — the §15 note above) plus every cardiac
+   node. A node on the bus carrying neither is not an input: removing it returns the identical
+   figure, and listing it at a delta of 0 would dilute every other share.
+
+   ∅ (CLAUDE.md §∅, brief §1's "unknown" rule): on a TWO-node bus — all four committed apnea
+   twins, and nearly every night in the corpus — removing either input leaves a population that
+   CANNOT produce the figure at all. That is not a delta of 0 and not a delta with a sign: it is
+   `null` with a named reason, and one null delta nulls every `share` and `dominant`. So the block
+   is informative only from three contributing nodes up. It also costs nothing below three,
+   because a reduced bus refuses on `fuseApneaEvents`'s first guard, before any surrogate draw.
+
+   THE DELTAS DO NOT SUM TO THE FIGURE and are not meant to. Two nodes can both be necessary, so
+   each one's removal can move the index by more than its own share of the events; `share` is the
+   normalised |delta| over the inputs listed, nothing more. */
+function _attributionGate(gate) {
+  var g = {},
+    k;
+  for (k in gate) if (Object.prototype.hasOwnProperty.call(gate, k)) g[k] = gate[k];
+  g._noAttribution = true; // a reduced run computes the figure, never its attribution
+  return g;
+}
+
+function apneaIndexContributions(recs, dtMs, gate, confirmedIndex) {
+  // No figure, nothing to attribute. The block belongs to a published number.
+  if (confirmedIndex == null || !isFinite(confirmedIndex)) return null;
+  var live = (recs || []).filter(function (r) {
+    return r && !r.dateUnknown;
+  });
+  var keys = [],
+    seen = {};
+  live.forEach(function (r) {
+    var n = r.node || 'unknown';
+    if (seen[n]) return;
+    if (!_eventsOfType(r, APNEA_DESAT_TYPES).length && n !== 'ECGDex' && n !== 'PpgDex') return;
+    seen[n] = 1;
+    keys.push(n);
+  });
+  keys.sort();
+  if (keys.length < 2) return null; // brief §1: a figure with ONE input has no block
+  var inputs = keys.map(function (n) {
+    var without = live.filter(function (r) {
+      return (r.node || 'unknown') !== n;
+    });
+    /* The same function, called with no flags: a leave-one-out delta is a delta of the PUBLISHED
+       figure only while the reduced run takes the identical path. */
+    var red = fuseApneaEvents(without, dtMs, _attributionGate(gate));
+    var val = red ? red.confirmedAHI : null;
+    if (val == null)
+      return {
+        key: 'node.' + n,
+        share: null,
+        delta: null,
+        reason: red ? 'reduced-bus-no-overlap' : 'reduced-bus-unfusable'
+      };
+    // Both operands carry 2 decimals, so this is the exact difference, not a display rounding.
+    return { key: 'node.' + n, share: null, delta: +(confirmedIndex - val).toFixed(2) };
+  });
+  var sumAbs = 0,
+    anyNull = false;
+  inputs.forEach(function (i) {
+    if (i.delta == null) anyNull = true;
+    else sumAbs += Math.abs(i.delta);
+  });
+  var dominant = null;
+  if (!anyNull && sumAbs > 0) {
+    var best = inputs[0]; // keys are sorted, so a tie resolves deterministically on the node name
+    inputs.forEach(function (i) {
+      i.share = Math.abs(i.delta) / sumAbs; // the computed ratio, never a display rounding
+      if (Math.abs(i.delta) > Math.abs(best.delta)) best = i;
+    });
+    dominant = best.key;
+  }
+  return { of: 'confirmedApneaIndex', unit: 'events/h', method: 'leave-one-out', inputs: inputs, dominant: dominant };
 }
 
 /* DEVICE-SCORED AHI (CPAPDex) — the strongest apnea truth on the bus. The
@@ -14379,6 +14474,9 @@ function buildFusionExport(recs, fusion) {
     nodes: fusion.nodes,
     confirmedApneaIndex: fusion.apnea ? fusion.apnea.confirmedAHI : null,
     confirmedApneaIndexReportable: fusion.apnea ? !!fusion.apnea.confirmedAHIReportable : false,
+    /* VERDICT-CONTRIBUTIONS §1 — which node moved the index, by leave-one-out over the nodes the
+       index reads. `null` on a two-node bus, where no reduced bus can produce the figure. */
+    confirmedApneaIndexContributions: fusion.apnea ? fusion.apnea.contributions || null : null,
     apneaNullModel: fusion.apnea ? fusion.apnea.nullModel : null,
     // P7: the EventCoupling shuffled-null verdict for desat⟷surge (coverage-aware; read `real`/`lift`
     // only where `usable`). Additive + null-tolerant; the Poisson apneaNullModel above is unchanged.
@@ -14560,6 +14658,9 @@ window.IntegratorDSP = {
   overlapInterval,
   runFusion,
   buildFusionExport,
+  /* VERDICT-CONTRIBUTIONS §2's Integrator figure — exported so the suite and the gate harness can
+     drive the attribution on a planted bus without running a whole fusion. */
+  apneaIndexContributions: apneaIndexContributions,
   // CROSS-DEVICE-CLOCK-SKEW §3.1 — exported so the gate can drive them without a whole fusion.
   estimateEventLag,
   deltaModeSec,

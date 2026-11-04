@@ -2,7 +2,7 @@
   "schema": {
     "name": "ganglior.integrator-apnea-null-twins",
     "version": "1.0",
-    "doc": "Committed synthetic twins for the apnea chance-null (DEEP-AUDIT-VI-FOLLOWUPS §4.3). Inputs rebuilt in-code by tests/apnea-null-twins.js, the same builder the equivalence gate uses."
+    "doc": "Committed synthetic twins for the apnea chance-null (DEEP-AUDIT-VI-FOLLOWUPS §4.3) and for its attribution block (the contributions contract §1 — the four-node `attributed` twin is the only one whose block is not all-null). Inputs rebuilt in-code by tests/apnea-null-twins.js, the same builder the equivalence gate uses."
   },
   "twins": {
     "coupled": {
@@ -22,7 +22,27 @@
       "nConf": 40,
       "confirmedAHI": 5,
       "confirmedAHIReportable": true,
-      "overlapHours": 8
+      "overlapHours": 8,
+      "contributions": {
+        "of": "confirmedApneaIndex",
+        "unit": "events/h",
+        "method": "leave-one-out",
+        "inputs": [
+          {
+            "key": "node.ECGDex",
+            "share": null,
+            "delta": null,
+            "reason": "reduced-bus-unfusable"
+          },
+          {
+            "key": "node.OxyDex",
+            "share": null,
+            "delta": null,
+            "reason": "reduced-bus-unfusable"
+          }
+        ],
+        "dominant": null
+      }
     },
     "uncoupled": {
       "nullModel": {
@@ -41,7 +61,27 @@
       "nConf": 5,
       "confirmedAHI": 0.63,
       "confirmedAHIReportable": false,
-      "overlapHours": 8
+      "overlapHours": 8,
+      "contributions": {
+        "of": "confirmedApneaIndex",
+        "unit": "events/h",
+        "method": "leave-one-out",
+        "inputs": [
+          {
+            "key": "node.ECGDex",
+            "share": null,
+            "delta": null,
+            "reason": "reduced-bus-unfusable"
+          },
+          {
+            "key": "node.OxyDex",
+            "share": null,
+            "delta": null,
+            "reason": "reduced-bus-unfusable"
+          }
+        ],
+        "dominant": null
+      }
     },
     "gapped": {
       "nullModel": {
@@ -60,7 +100,27 @@
       "nConf": 30,
       "confirmedAHI": 4.74,
       "confirmedAHIReportable": true,
-      "overlapHours": 6.33
+      "overlapHours": 6.33,
+      "contributions": {
+        "of": "confirmedApneaIndex",
+        "unit": "events/h",
+        "method": "leave-one-out",
+        "inputs": [
+          {
+            "key": "node.ECGDex",
+            "share": null,
+            "delta": null,
+            "reason": "reduced-bus-unfusable"
+          },
+          {
+            "key": "node.OxyDex",
+            "share": null,
+            "delta": null,
+            "reason": "reduced-bus-unfusable"
+          }
+        ],
+        "dominant": null
+      }
     },
     "contended": {
       "nullModel": {
@@ -79,7 +139,76 @@
       "nConf": 20,
       "confirmedAHI": 2.5,
       "confirmedAHIReportable": false,
-      "overlapHours": 8
+      "overlapHours": 8,
+      "contributions": {
+        "of": "confirmedApneaIndex",
+        "unit": "events/h",
+        "method": "leave-one-out",
+        "inputs": [
+          {
+            "key": "node.ECGDex",
+            "share": null,
+            "delta": null,
+            "reason": "reduced-bus-unfusable"
+          },
+          {
+            "key": "node.OxyDex",
+            "share": null,
+            "delta": null,
+            "reason": "reduced-bus-unfusable"
+          }
+        ],
+        "dominant": null
+      }
+    },
+    "attributed": {
+      "nullModel": {
+        "expectedConfirmed": 5.11,
+        "expectedConfirmedAnalytic": 3.96,
+        "nullMethod": "circular-shift surrogates, covered-time, scored by the published matching",
+        "nullDraws": 80,
+        "pFloor": 0.0123,
+        "pAtLeastObserved": 0.0123,
+        "belowChance": false,
+        "surgeRatePerHr": 5,
+        "surgeRateObserver": "ECGDex",
+        "surgeAlsoObservedBy": [
+          "PpgDex"
+        ],
+        "directionalWindowSec": 75
+      },
+      "nConf": 40,
+      "confirmedAHI": 5,
+      "confirmedAHIReportable": true,
+      "overlapHours": 8,
+      "contributions": {
+        "of": "confirmedApneaIndex",
+        "unit": "events/h",
+        "method": "leave-one-out",
+        "inputs": [
+          {
+            "key": "node.CPAPDex",
+            "share": 0,
+            "delta": 0
+          },
+          {
+            "key": "node.ECGDex",
+            "share": 0.5384615384615384,
+            "delta": 1.75
+          },
+          {
+            "key": "node.OxyDex",
+            "share": 0.46153846153846156,
+            "delta": 1.5
+          },
+          {
+            "key": "node.PpgDex",
+            "share": 0,
+            "delta": 0
+          }
+        ],
+        "dominant": "node.ECGDex"
+      }
     }
   }
 }

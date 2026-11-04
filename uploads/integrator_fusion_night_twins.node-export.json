@@ -125,6 +125,30 @@
         ]
       },
       "confirmedApneaIndex": 5,
+      "confirmedApneaIndexContributions": {
+        "dominant": null,
+        "inputs": [
+          {
+            "delta": 5,
+            "key": "node.ECGDex",
+            "share": null
+          },
+          {
+            "delta": null,
+            "key": "node.OxyDex",
+            "reason": "reduced-bus-unfusable",
+            "share": null
+          },
+          {
+            "delta": 0,
+            "key": "node.PpgDex",
+            "share": null
+          }
+        ],
+        "method": "leave-one-out",
+        "of": "confirmedApneaIndex",
+        "unit": "events/h"
+      },
       "confirmedApneaIndexReportable": true,
       "deviceScoredAHI": null,
       "findings": [
@@ -1993,6 +2017,30 @@
         ]
       },
       "confirmedApneaIndex": 0.63,
+      "confirmedApneaIndexContributions": {
+        "dominant": null,
+        "inputs": [
+          {
+            "delta": 0.63,
+            "key": "node.ECGDex",
+            "share": null
+          },
+          {
+            "delta": null,
+            "key": "node.OxyDex",
+            "reason": "reduced-bus-unfusable",
+            "share": null
+          },
+          {
+            "delta": 0,
+            "key": "node.PpgDex",
+            "share": null
+          }
+        ],
+        "method": "leave-one-out",
+        "of": "confirmedApneaIndex",
+        "unit": "events/h"
+      },
       "confirmedApneaIndexReportable": false,
       "deviceScoredAHI": null,
       "findings": [
@@ -2840,6 +2888,7 @@
         "pairs": []
       },
       "confirmedApneaIndex": null,
+      "confirmedApneaIndexContributions": null,
       "confirmedApneaIndexReportable": false,
       "deviceScoredAHI": null,
       "findings": [],

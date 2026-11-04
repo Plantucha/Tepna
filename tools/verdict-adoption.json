@@ -45,8 +45,15 @@
    "Integrator fused sleep summary": {
     "file": "integrator-dsp.js",
     "method": "leave-one-out",
-    "status": "pending",
-    "since": "2026-10-12"
+    "status": "adopted",
+    "since": "2026-11-04",
+    "emits": {
+     "cmd": [
+      "node",
+      "tools/integrator-contributions.mjs",
+      "--contributions-sample"
+     ]
+    }
    }
   }
  },
@@ -1626,6 +1633,18 @@
    "bin": "word-only",
    "status": "exempt",
    "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+  },
+  "tools/integrator-contributions.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/integrator-contributions.mjs",
+     "--contributions-sample"
+    ]
+   },
+   "note": "the gate harness for VERDICT-CONTRIBUTIONS \u00a72's Integrator figure (confirmedApneaIndex, leave-one-out over nodes). Six pre-stated checks over the committed apnea twins plus two floors the corpus cannot express: a one-input bus and a null figure both carry NO block. The four two-node twins attribute \u2205 \u2014 the index needs a desaturation observer AND a cardiac node, so a reduced two-node bus cannot produce the figure at all (unknown, never 0); the four-node `attributed` twin is the only one carrying shares, and its planted dominant is node.ECGDex. A block that fails verdict.js is reported as a FAILING check with the block under result.invalidContributions, never as exit 2 \u2014 a found defect is not an inability to look."
   },
   "tools/integrator-surface-gate.mjs": {
    "bin": "decides",

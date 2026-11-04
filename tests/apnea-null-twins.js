@@ -14,6 +14,11 @@
  * CONSTRUCTION, not evidence. That is the failure class this repo keeps finding: a check that ran
  * and examined nothing.
  *
+ * FIVE TWINS NOW, EACH ADDED FOR ONE THING THE CORPUS COULD NOT OTHERWISE EXPRESS — the per-twin
+ * comments below carry the measurement that justified each. The fifth, `attributed`, is the only
+ * four-node night and the only one whose `contributions` block (VERDICT-CONTRIBUTIONS §1) is not
+ * all-null.
+ *
  * TWO TWINS, NOT ONE, because a gate has two directions and a corpus that can only express one of
  * them can only ever half-fail. `coupled` must be PUBLISHED (p at the surrogate floor) and `null`
  * must be WITHHELD (p mid-range). A single coupled twin would go green against a null that published
@@ -182,6 +187,51 @@
     return out;
   }
 
+  /* ATTRIBUTED twin — the only FOUR-node night here, and the only one whose `contributions` block
+     carries a number.
+     WHY A FIFTH. The apnea index is fused over a desaturation observer AND a cardiac node, so on a
+     two-node bus — which all four twins above are, and which nearly every night in the corpus is —
+     a leave-one-out over nodes is `null` for BOTH inputs by construction: remove either and no
+     reduced bus can produce the figure at all (CLAUDE.md §∅ — unknown, never 0). Measured on the
+     four twins above: every input `delta: null`, reason `reduced-bus-unfusable`, every `share` and
+     `dominant` null. A corpus of only those twins could never witness a share, a sign or a dominant
+     node, so the block would have shipped with its informative half untested — silence by
+     construction, the same failure class this file was minted to close.
+     An informative block needs BOTH roles redundant: two desaturation observers and two cardiac
+     nodes. So: OxyDex desats across the whole night; CPAPDex `desat_event` (a first-class desat
+     emitter — the pool is keyed by EVENT) on the second half only, with the coverage to match;
+     ECGDex surges trailing EVERY desat by 18 s; PpgDex surges trailing only the first half, by 25 s.
+     The planted story, and what the block then has to say:
+       · `node.ECGDex`  dominant — it alone corroborates the whole night.
+       · `node.OxyDex`  second — removing it hands the desat spine to the CPAP's 4 h.
+       · `node.PpgDex`  delta 0 — the ECG already confirmed everything it could confirm.
+       · `node.CPAPDex` delta 0 — OxyDex outlasts it, so the observer rule never reads its desats.
+     The two zeros are the point of the twin as much as the dominant is: a MEASURED 0 ("read, moved
+     nothing") has to stay distinguishable from a `null` ("could not be read"), and only a bus with
+     both in one block can pin that. */
+  var ATTR_MID_MS = T0 + SPAN_MS / 2;
+  var ATTR_CPAP_SEGMENTS = [{ startMs: ATTR_MID_MS, durSec: (T0 + SPAN_MS - ATTR_MID_MS) / 1000 }];
+  function attrFirstHalf(t) {
+    return t < ATTR_MID_MS;
+  }
+  function attrCpapDesatTimes() {
+    return desatTimes().filter(function (t) {
+      return !attrFirstHalf(t);
+    });
+  }
+  function attrEcgSurgeTimes() {
+    return desatTimes().map(function (t) {
+      return t + 18000;
+    });
+  }
+  function attrPpgSurgeTimes() {
+    return desatTimes()
+      .filter(attrFirstHalf)
+      .map(function (t) {
+        return t + 25000;
+      });
+  }
+
   function apneaNullTwins() {
     return {
       contended: [
@@ -199,6 +249,12 @@
       uncoupled: [
         { node: 'OxyDex', json: exportOf('OxyDex', 'spo2_desaturation', desatTimes(), 0.9) },
         { node: 'ECGDex', json: exportOf('ECGDex', 'autonomic_surge', nullSurgeTimes(), 0.9) }
+      ],
+      attributed: [
+        { node: 'OxyDex', json: exportOf('OxyDex', 'spo2_desaturation', desatTimes(), 0.9) },
+        { node: 'CPAPDex', json: exportOf('CPAPDex', 'desat_event', attrCpapDesatTimes(), 0.9, ATTR_CPAP_SEGMENTS) },
+        { node: 'ECGDex', json: exportOf('ECGDex', 'autonomic_surge', attrEcgSurgeTimes(), 0.9) },
+        { node: 'PpgDex', json: exportOf('PpgDex', 'autonomic_surge', attrPpgSurgeTimes(), 0.85) }
       ]
     };
   }
