@@ -46726,7 +46726,18 @@
            sidecar is not reporting its absence (§∅): most of this corpus predates the writer, so most
            streams read `absent` and an absent sidecar is validity UNKNOWN, never a clean one. Row
            2026-10-17-sample-parsers-called-without-their-sidecar holds the 32 files still bare. */
-        var TOOLS_PIN = { files: 32, calls: 49, reason: 'research tools: ' + OPEN };
+        /* 30 / 46 from 2026-11-03, row 2026-11-02-no-caller-hands-the-shared-pat-foot-extractor-its-sidecar:
+           the twelve callers of the shared PAT foot extractor hand it the sidecar they already held a path
+           for. Two files leave the population outright — `pat-finger-coupler` (its peak branch took the
+           guarded ternary, so both fiducial legs now read the same validity) and
+           `oracle-ppg-device-beats` (its `scoreNight` takes TEXT, so the sidecar rides `opts`). Ten more
+           callers reach `PPGDSP.parsePPG` only THROUGH the extractor, so they were never in this
+           population at all: the ratchet counts the six parsers BY NAME, and that blindness is what the
+           row was filed for. `beat-correspondence`, `pat-drift-attribution`, `pat-literature-spec` and
+           `pat-matchrate-strict` stay here on their bare `parseECG` calls — `ecgRpeakTimes` has no
+           `runsText` parameter at all (row
+           2026-11-03-the-ecg-leg-of-the-shared-pat-extractor-takes-no-sidecar). */
+        var TOOLS_PIN = { files: 30, calls: 46, reason: 'research tools: ' + OPEN };
 
         function blank(s) {
           return s.replace(/[^\n]/g, '');
@@ -46824,7 +46835,15 @@
              that a migration landed where this gate can see it */
           'tools/pat-hrv-windows.mjs parseECG',
           'tools/pat-three-corner.mjs parsePPG',
-          'tools/pat-per-led.mjs parsePPG'
+          'tools/pat-per-led.mjs parsePPG',
+          /* the foot-extractor slice: three of its twelve callers hold a parser call of their OWN, so
+             three of the twelve are all this gate can see. The other nine reach `parsePPG` only through
+             the extractor, and `tests/trio-fold-validity-tests.mjs` pins those by counting the ARGUMENTS
+             at each invocation — a name-and-paren grep reads neither a callback nor a parenthesised
+             indirection, which is how the row's own evidence came to miss two of them. */
+          'tools/beat-correspondence.mjs parsePPG',
+          'tools/oracle-ppg-device-beats.mjs parsePPG',
+          'tools/pat-finger-coupler.mjs parsePPG'
         ].forEach(function (k) {
           T.ok('…and it sees the WIRED caller `' + k + '` carry the sidecar', carried.indexOf(k) >= 0, 'carrying: ' + carried.join(' · '));
         });

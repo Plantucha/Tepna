@@ -157,6 +157,7 @@ from mutation_sweep import (  # noqa: E402
     budget_verdict,
     deselect_args,
     deselect_notes,
+    inherited_ini_options,
     select_tests,
     sweep_exit_verdict,
     sweep_verdict_fields,
@@ -233,10 +234,13 @@ SKIP = {"probe_oxyii_ppg.py", "probe_polar_onboard.py", "ppg_grid_check.py", "ad
 TIMEOUT_MULTIPLIER = 3.0
 WIDE_TIMEOUT_MULTIPLIER = 15.0
 
+# ⚠️ EVERY PYTEST RULE THE REAL SUITE RUNS UNDER IS INHERITED HERE, not restated — see
+# `mutation_sweep.inherited_ini_options` for the refusal this template once produced by carrying
+# `testpaths` alone.
 CONFIG = """
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-
+{inherited}
 [tool.mutmut]
 source_paths = [{source!r}]
 also_copy = [{also_copy}]
@@ -589,12 +593,16 @@ def run_one(
         print(f"  ! could not claim {scratch}: {exc} — it will be judged as an unmarked tree", file=sys.stderr)
 
     selection = list(tests) + deselect_args()
+    inherited, ini_denied = inherited_ini_options((HERE / "pyproject.toml").read_text(encoding="utf-8"))
+    if ini_denied:
+        print(f"  … scratch pytest config states {', '.join(ini_denied)} itself")
     (work / "pyproject.toml").write_text(
         CONFIG.format(
             source=module,
             also_copy=also,
             tests=", ".join(repr(t) for t in selection),
             timeout_multiplier=timeout_multiplier,
+            inherited="\n".join(inherited),
         ),
         encoding="utf-8",
     )

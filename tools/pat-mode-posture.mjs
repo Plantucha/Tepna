@@ -64,6 +64,19 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry } from './argv-guard.mjs';
 import { NIGHT_RE, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
+import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
+
+/* ── THE VALIDITY SIDECAR RIDES WITH THE STREAM ─────────────────────────────────────────────
+   Row 2026-11-02-no-caller-hands-the-shared-pat-foot-extractor-its-sidecar: the foot extractor has
+   taken a `runsText` validity sidecar since the PAT foot ports landed, and this caller handed it
+   none, so a blanking run the box recorded reached the foot detector as signal — a flat rail is a
+   plausible diastole, and no reader could tell it from one. `readRunsSidecar` names which of four
+   things happened per stream, and the tally prints beside the numbers: §∅, reduced coverage
+   annotates, and an ABSENT sidecar is validity UNKNOWN for that stream, never a clean one. Most of
+   this corpus predates the writer, so most streams read `absent` and parse exactly as they did
+   before. */
+const VALIDITY = {};
+const runsOf = (streamPath, stream) => readRunsSidecar(streamPath, stream, { tally: VALIDITY }).runsText;
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
@@ -507,7 +520,7 @@ async function main() {
     let acc;
     try {
       E = ecgRpeakTimes(readFileSync(paired.eF, 'utf8'), { refine: true });
-      P = ppgFootTimes(readFileSync(paired.pF, 'utf8'));
+      P = ppgFootTimes(readFileSync(paired.pF, 'utf8'), runsOf(paired.pF, 'PPG'));
       acc = parseAcc(readFileSync(accPath, 'utf8'));
     } catch (e) {
       skip(n, `parse-error: ${String(e.message).slice(0, 50)}`);
@@ -547,6 +560,8 @@ async function main() {
   const rl = ruleLine(population);
   if (rl) console.log('  ' + rl);
   console.log('POPULATION ' + JSON.stringify(population));
+  const validity = validityLine(VALIDITY);
+  if (validity) console.log('  ' + validity);
   const v = runVerdict(nightRows, excludedBy, nights.length, { commit: gitCommitShort(), evidence: [DIR] });
   console.log(`${v.status} — ${v.result ? v.result.reading : v.reason}`);
   console.log('VERDICT ' + JSON.stringify(JSON_OUT ? v : { ...v, result: v.result && { ...v.result, nights: v.result.nights.map((r) => ({ night: r.night, ratio: r.ratio, p: r.p })) } }));

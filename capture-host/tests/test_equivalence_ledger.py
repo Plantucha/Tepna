@@ -219,6 +219,7 @@ RATCHET = {
     "motiondex-dsp.js": 100,
     "mutation_diff.py": 41,
     "mutation_pure.py": 5,
+    "mutation_sweep.py": 4,
     "mutation_triage.py": 2,
     "night_report.py": 8,
     "nightarchive.py": 1,

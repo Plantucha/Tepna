@@ -37,8 +37,11 @@ concurrency:
 
 jobs:
   biome:
-    # measured 2026-10-11 over 30 job run(s): p95 0.9 min, max 1 min (tools/ci-timing.mjs `pct`). Cap = ceil(max(p95, max) × 2).
-    timeout-minutes: 3
+    # measured 2026-11-03 over 17 job run(s): p90 2m30s, max 2m58s (tools/ci-timing.mjs --limit 100).
+    # Cap = ceil(max(p95, max) × 2) = 6; max bounds p95. The cap of 3 sat 2 s above its own sampled
+    # max, and it killed two consecutive attempts on head 65a9d8aa4 of #4332 at 3m44s, both inside
+    # actions/checkout@v7 with every later step SKIPPED.
+    timeout-minutes: 6
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
