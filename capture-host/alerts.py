@@ -1138,19 +1138,19 @@ def pps_alert_text(due: str, minutes: float, stratum, trust) -> tuple[str, str]:
 # succeeds after that alert. One failure is a blip and stays in the journal only.
 def update_streak_text(due: str, n: int, first_epoch: int, now: float) -> tuple[str, str]:
     """PURE: the title and message for a failing (`"lost"`) or recovered (`"back"`) update streak.
-    `first_epoch` 0 means the streak start is not known (the marker was already cleared)."""
-    span = ""
-    if n > 0 and first_epoch > 0:
-        el = max(0, int(now) - int(first_epoch))
-        span = f"{el // 3600}h{(el % 3600) // 60}m"
+    `first_epoch` 0 means the streak start is not known (the marker was already cleared). A clock that
+    stepped back past the start leaves the span unknown too: absence, never a 0 h 0 m span."""
+    el = int(now) - int(first_epoch)
+    known = n > 0 and first_epoch > 0 and el >= 0
+    span = f"{el // 3600}h{(el % 3600) // 60}m" if known else "span unknown"
     if due == "lost":
         since = _time.strftime("%Y-%m-%d %H:%M", _time.localtime(first_epoch)) if first_epoch > 0 else "unknown"
         return (
             "Tepna: box update failing",
-            f"The box update has failed {n} runs in a row, first at {since} ({span or 'span unknown'}). "
+            f"The box update has failed {n} runs in a row, first at {since} ({span}). "
             "The daemon can run stale code until it recovers. Read journalctl -u tepna-update.",
         )
-    if span:
+    if known:
         return "Tepna: box update recovered", f"The box update ran clean after {n} failed runs over {span}."
     return "Tepna: box update recovered", "The box update ran clean after a failing streak."
 
@@ -1173,10 +1173,11 @@ def update_streak_main(argv: list[str], _post=None, now: float | None = None) ->
     try:
         import yaml
 
-        with open(argv[1], encoding="utf-8") as fh:
-            cfg = yaml.safe_load(fh) or {}
+        # Bytes in: YAML detects the encoding itself, so the host locale cannot change the read.
+        with open(argv[1], "rb") as fh:
+            cfg = yaml.safe_load(fh)
     except Exception:
-        cfg = {}
+        return 0  # no readable config is no configured alert: alerts off
     acfg = (cfg.get("alerts") if isinstance(cfg, dict) else None) or {}
     notifier = Notifier(acfg.get("webhook_url"), bool(acfg.get("enabled")), _post=_post)
     if not notifier.enabled:

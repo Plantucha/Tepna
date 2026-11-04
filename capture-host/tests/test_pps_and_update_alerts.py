@@ -275,6 +275,9 @@ def test_the_update_streak_text_is_exact(monkeypatch):
         "The daemon can run stale code until it recovers. Read journalctl -u tepna-update.",
     )
     assert alerts.update_streak_text("lost", 3, 1, 0)[1].startswith(
+        "The box update has failed 3 runs in a row, first at 1970-01-01 00:00 (span unknown). "
+    )
+    assert alerts.update_streak_text("lost", 3, 1, 1)[1].startswith(
         "The box update has failed 3 runs in a row, first at 1970-01-01 00:00 (0h0m). "
     )
     assert alerts.update_streak_text("lost", 0, 1, 7200)[1].startswith(
@@ -286,8 +289,9 @@ def test_the_update_streak_text_is_exact(monkeypatch):
     )
     assert alerts.update_streak_text("back", 4, 10, 5) == (
         "Tepna: box update recovered",
-        "The box update ran clean after 4 failed runs over 0h0m.",
+        "The box update ran clean after a failing streak.",
     )
+    assert alerts.update_streak_text("back", 4, 10, 10)[1] == "The box update ran clean after 4 failed runs over 0h0m."
 
 
 def test_update_streak_main_posts_the_configured_url_title_and_message(tmp_path, monkeypatch):
@@ -355,3 +359,27 @@ def test_update_streak_main_reads_an_empty_config_as_off_and_a_utf8_config_as_on
         == 0
     )
     assert sent == [("https://hook.invalid/", "t")]
+
+
+def test_update_streak_main_judges_at_the_given_now_not_the_wall_clock(tmp_path, monkeypatch):
+    monkeypatch.setattr(alerts._time, "time", lambda: 10**9)
+    got = []
+
+    async def ok(url, payload, headers=None):
+        got.append(payload["message"])
+        return True
+
+    argv = ["update-streak", _cfg(tmp_path), "back", "2", "3600"]
+    assert alerts.update_streak_main(argv, _post=ok, now=3600 + 300) == 0
+    assert got == ["The box update ran clean after 2 failed runs over 0h5m."]
+
+
+def test_update_streak_main_reads_a_latin1_comment_as_bytes(tmp_path):
+    """A config byte that is not UTF-8 makes the YAML read fail whatever the host locale: alerts off."""
+
+    async def never(url, payload, headers=None):
+        raise AssertionError("no post from an unreadable config")
+
+    p = tmp_path / "latin1.yaml"
+    p.write_bytes(b"# m\xfcller\nalerts:\n  enabled: true\n  webhook_url: https://hook.invalid/t\n")
+    assert alerts.update_streak_main(["update-streak", str(p), "back", "2", "1"], _post=never) == 0
