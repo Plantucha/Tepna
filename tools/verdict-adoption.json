@@ -2680,6 +2680,18 @@
    },
    "note": "row 2026-11-02-no-node-reads-a-seam-sidecar-or-the-radio-clock: the precondition the owner set on 2026-09-16 when he ruled the seam sidecar EMITTED, NOT ENFORCED - consumption is a separate unit so the emission can be proven on real nights first. This tool is that proof, and it decides whether a node may read the sidecar at all. Pre-stated criterion: reconnect_boundaries_outside_any_examined_population is 0, against the arithmetic the writer itself fixes. A stream of N samples scanned by S writer sessions holds N-1 adjacent intervals, so a sidecar that judges every reconnect boundary reports examined = N-1 and one that skips every boundary reports N-S; the difference IS the number of boundaries that reached an examined population. The criterion binds on the nights recorded on or after 2026-09-22, which is the seed fix (a resumed sidecar used to store its first sample and judge nothing), because captured bytes are immutable and no re-run repairs an earlier file - earlier boundaries are reported as history and never as a result. An empty post-fix population is NOT_RUN and carries result null, never a pass. Population = every SEAMS sidecar under the named roots that can be placed against its companion stream; a file whose examined count falls outside [N-S, N-1] counts no shared population with its stream and is EXCLUDED by name with both counts in the reason, never clamped into the tally - measured on HR, where the sidecar feeds per notification while the writer drops rows, so examined can exceed the intervals the file holds. Absence is null: with no seam row anywhere the largest device step is null beside a reason naming the empty population, because a 0 ms step is the opposite claim. No default root, so a census of a tree nobody named cannot be run by accident. The selftest plants its own tree and drives every arm with no corpus, and --verdict-sample prints the shape from that plant, so it holds no night name, no device and no path."
   },
+  "tools/sidecar-census.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/sidecar-census.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "unit ordered by the owner 2026-11-04 (sidecar census): for each sidecar the capture host writes, the registry names the writer, every reader in nodes, the box and tools, and what each reader does when the sidecar is absent or unreadable. Pre-stated criterion: unaccounted_sidecar_claims is 0. Discovery reads every upper-case NAME.csv/txt literal, every capture_filename stream word and the RUNS/SEAMS families in capture-host/*.py, so a new sidecar the registry does not classify reds. A writer or reader anchor that no longer stands reds. A node or box reader must cite a committed absent-path test or an open residue row; a cited test or row that does not exist reds. A tool reader with no test is counted, not failed. Population = the registered sidecars, none excluded; an empty registry is NOT_RUN with result null. The selftest plants its own tree and drives every arm, and --verdict-sample prints the shape from that plant, so it holds no night name, no device and no path."
+  },
   "tools/secret-scan.mjs": {
    "bin": "decides",
    "status": "adopted",
