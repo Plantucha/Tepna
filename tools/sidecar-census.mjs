@@ -45,7 +45,6 @@ const TOOL = 'tools/sidecar-census.mjs';
 const GATE = 'sidecar-census';
 
 const ROW_ACC = '2026-11-04-two-acc-parsers-read-an-absent-run-sidecar-as-a-clean-one';
-const ROW_UNTESTED = '2026-11-04-six-box-sidecar-readers-cite-no-absent-path-test';
 const ROW_NOREADER = '2026-11-04-the-worn-and-host-clock-sidecars-have-no-reader';
 const ROW_SEAMNODE = '2026-11-02-no-node-reads-a-seam-sidecar-or-the-radio-clock';
 
@@ -134,7 +133,13 @@ export const REGISTRY = [
         onAbsent: 'an absent sidecar is a named absence, not zero seams',
         test: 'capture-host/tests/test_solid_night_inputs.py::test_a_MEASURED_seam_carries_NO_REASON_and_the_absent_one_carries_ITS_OWN'
       },
-      { kind: 'box', file: 'capture-host/solid_night_inputs.py', anchor: 'def seam_rate(', onAbsent: 'OSError gives None', residue: ROW_UNTESTED },
+      {
+        kind: 'box',
+        file: 'capture-host/solid_night_inputs.py',
+        anchor: 'def seam_rate(',
+        onAbsent: 'OSError gives None, never the zero §A5 would read as a negotiation',
+        test: 'capture-host/tests/test_solid_night_inputs.py::test_an_ABSENT_seam_sidecar_reads_as_NO_RATE_and_never_as_zero'
+      },
       {
         kind: 'tool',
         file: 'tools/seam-sidecar-yield.mjs',
@@ -227,7 +232,13 @@ export const REGISTRY = [
         onAbsent: 'a missing folder or an unreadable file is survived and named',
         test: 'capture-host/tests/test_pmd_arrival_writer.py::test_arrival_quality_survives_a_missing_directory'
       },
-      { kind: 'box', file: 'capture-host/jitterfloor.py', anchor: 'def parse_pmdarrival(', onAbsent: 'reads a path its caller found', residue: ROW_UNTESTED },
+      {
+        kind: 'box',
+        file: 'capture-host/jitterfloor.py',
+        anchor: 'def parse_pmdarrival(',
+        onAbsent: 'reads a path its caller found, so an absent one RAISES rather than reading as an empty night',
+        test: 'capture-host/tests/test_jitterfloor.py::test_an_ABSENT_arrival_sidecar_RAISES_rather_than_reading_as_an_EMPTY_night'
+      },
       { kind: 'tool', file: 'tools/known-clock-recovery.mjs', anchor: 'function parseSidecar(', onAbsent: 'parses the text it is given', test: null },
       { kind: 'tool', file: 'tools/o2ring-frame-cadence.mjs', anchor: 'function readArrival(', onAbsent: 'an unreadable file stops the run', test: null }
     ]
@@ -251,7 +262,15 @@ export const REGISTRY = [
   {
     tag: 'OXYLIFE',
     writer: { file: 'capture-host/writers.py', anchor: 'class OxyLifeLogWriter' },
-    readers: [{ kind: 'box', file: 'capture-host/capture.py', anchor: 'def _oxy_rec_journals(', onAbsent: 'reads each journal that exists; OSError skips one', residue: ROW_UNTESTED }]
+    readers: [
+      {
+        kind: 'box',
+        file: 'capture-host/capture.py',
+        anchor: 'def _oxy_rec_journals(',
+        onAbsent: 'reads each journal that exists; OSError skips one, and no night directory is created',
+        test: 'capture-host/tests/test_oxy_rec_axis.py::test_an_absent_journal_seeds_unknown_and_CREATES_NO_night_directory'
+      }
+    ]
   },
   {
     tag: 'CLOCKSYNC',
@@ -264,7 +283,13 @@ export const REGISTRY = [
         onAbsent: 'a missing record source gives None, not a shorter set',
         test: 'capture-host/tests/test_solid_night_inputs.py::test_a_MISSING_record_source_returns_None_rather_than_a_shorter_record_set'
       },
-      { kind: 'box', file: 'capture-host/stitch_31d.py', anchor: 'def collect_sidecars(', onAbsent: 'no clock record leaves the offsets absent', residue: ROW_UNTESTED }
+      {
+        kind: 'box',
+        file: 'capture-host/stitch_31d.py',
+        anchor: 'def collect_sidecars(',
+        onAbsent: 'no clock record leaves the offsets absent, never a zero',
+        test: 'capture-host/tests/test_stitch_31d.py::test_an_ABSENT_clocksync_leaves_the_OFFSETS_ABSENT_and_never_a_zero'
+      }
     ]
   },
   {
@@ -291,7 +316,13 @@ export const REGISTRY = [
     tag: 'PMDNEG',
     writer: { file: 'capture-host/writers.py', anchor: 'PMDNEG_NAME = ' },
     readers: [
-      { kind: 'box', file: 'capture-host/nightqc.py', anchor: 'def pmd_negotiations(', onAbsent: 'OSError is caught', residue: ROW_UNTESTED },
+      {
+        kind: 'box',
+        file: 'capture-host/nightqc.py',
+        anchor: 'def pmd_negotiations(',
+        onAbsent: 'OSError is caught and the night reports no negotiation',
+        test: 'capture-host/tests/test_pmdneg_sidecar.py::test_pmd_negotiations_counts_every_start_and_reports_a_rate_only_when_they_AGREE'
+      },
       {
         kind: 'box',
         file: 'capture-host/solid_night_inputs.py',
@@ -344,7 +375,13 @@ export const REGISTRY = [
         onAbsent: 'ClockOffset.unknown(), never a zero',
         test: 'capture-host/tests/test_as11_clock_envelope.py::test_NO_SIDECAR_is_ClockOffset_unknown_not_a_zero'
       },
-      { kind: 'box', file: 'capture-host/cpap_edf.py', anchor: 'def device_start_from_host(', onAbsent: 'reads the offset its caller passes', residue: ROW_UNTESTED }
+      {
+        kind: 'box',
+        file: 'capture-host/cpap_edf.py',
+        anchor: 'def device_start_from_host(',
+        onAbsent: 'reads the offset its caller passes, and an UNMEASURED one raises',
+        test: 'capture-host/tests/test_cpap_edf_sa2.py::test_an_unmeasured_offset_REFUSES_rather_than_writing_an_unknown_axis'
+      }
     ]
   },
   {

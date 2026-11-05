@@ -464,6 +464,40 @@ def test_clocksync_column_names_are_matched_after_stripping(tmp_path):
     assert stitch_31d.collect_sidecars(night)["clock_offsets"] == {"H10": 0.5}
 
 
+def test_an_ABSENT_clocksync_leaves_the_OFFSETS_ABSENT_and_never_a_zero(tmp_path):
+    """The `except OSError` branch is EXERCISED by the wear tests above and asserted by none of them.
+
+    That is the whole shape this test closes: a branch a suite walks through while nothing holds its
+    result. Every other CLOCKSYNC test plants the file and varies its CONTENT, so a change that made
+    an absent sidecar answer `{dev: 0.0}` would keep the 100 % floor and stay green.
+
+    A zero offset is a MEASUREMENT — the clocks agreed — so it must never stand for a sidecar the box
+    never wrote (§∅, and the same line `cpap_edf.device_start_from_host` draws for its own offset).
+
+    Row `2026-11-04-six-box-sidecar-readers-cite-no-absent-path-test`.
+    """
+    night = _make_night(str(tmp_path), "2026-10-16", "PASS")
+    assert not os.path.exists(os.path.join(night, "CLOCKSYNC.csv"))
+    sc = stitch_31d.collect_sidecars(night)
+    assert sc["clock_offsets"] == {}, "an absent sidecar measured nothing"
+    assert sc["wear"] == {}, "and an absent LOSS-AUDIT.json fabricates no interval either"
+
+    # UNREADABLE, by the same branch and without monkeypatching open(): a directory in its place.
+    os.mkdir(os.path.join(night, "CLOCKSYNC.csv"))
+    assert stitch_31d.collect_sidecars(night)["clock_offsets"] == {}
+
+    # The CONTROL, so the two empties above are the absence rather than a reader that reads nothing:
+    # a real row still arrives, and a 0.0 skew arrives as a measured zero.
+    with open(os.path.join(night, "LOSS-AUDIT.json"), "w") as fh:
+        json.dump({"devices": {"H10": {"span_min": 400}}}, fh)
+    os.rmdir(os.path.join(night, "CLOCKSYNC.csv"))
+    with open(os.path.join(night, "CLOCKSYNC.csv"), "w") as fh:
+        fh.write("Phone timestamp;device;skew_sec\nt;H10;0.0\n")
+    sc = stitch_31d.collect_sidecars(night)
+    assert sc["clock_offsets"] == {"H10": 0.0}, "zero is a measurement, and it reads as one"
+    assert sc["wear"] == {"H10": {"span_min": 400}}
+
+
 def test_clocksync_without_a_skew_column_is_absence(tmp_path):
     night = _make_night(str(tmp_path), "2026-10-16", "PASS", {"CLOCKSYNC.csv": "Phone timestamp;device\nt;H10\n"})
     assert stitch_31d.collect_sidecars(night)["clock_offsets"] == {}

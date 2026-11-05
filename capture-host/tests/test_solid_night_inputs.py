@@ -2905,6 +2905,34 @@ def test_a_RATE_of_EXACTLY_ONE_HERTZ_is_a_rate_and_a_rate_of_ZERO_is_not(tmp_pat
     assert rate("# final stream=ecg seams=0 examined=10\n") is None, "no pmd line at all"
 
 
+def test_an_ABSENT_seam_sidecar_reads_as_NO_RATE_and_never_as_zero(tmp_path):
+    """`seam_rate` answers None three ways, and this pins the one no test held: the sidecar the box
+    never wrote.
+
+    SOLID-NIGHT §A5's Guard 1 compares the rate rows arrived at against the rate THIS FILE was
+    negotiated to, so the guard's denominator is a measured rate. A zero standing in for an absent
+    sidecar would make every unnegotiated stream read as negotiated at 0 Hz, and the guard would
+    compare against a rate no device ever agreed to (§∅).
+
+    Row `2026-11-04-six-box-sidecar-readers-cite-no-absent-path-test`.
+    """
+    p = tmp_path / f"{BASE}_ECG.txt"
+    assert not (tmp_path / f"{BASE}_ECGSEAMS.txt").exists()
+    got = si.seam_rate(str(p))
+    assert got is None, "no sidecar is no rate, and never the zero §A5 would read as a negotiation"
+
+    # UNREADABLE, without monkeypatching open(): a directory where the sidecar belongs. The reader
+    # catches OSError, and IsADirectoryError is one.
+    (tmp_path / f"{BASE}_ECGSEAMS.txt").mkdir()
+    assert si.seam_rate(str(p)) is None
+
+    # The CONTROL: the same call reads a real rate once the sidecar is a file, so the two Nones above
+    # are the absence and not a reader that answers None whatever it is handed.
+    (tmp_path / f"{BASE}_ECGSEAMS.txt").rmdir()
+    (tmp_path / f"{BASE}_ECGSEAMS.txt").write_text("# pmd stream=ecg negotiated=yes rate=130 offered=130\n")
+    assert si.seam_rate(str(p)) == 130.0
+
+
 def test_the_SEAM_RATE_READER_DECLARES_ITS_ENCODING(tmp_path):
     """`encoding="utf-8"` asserted on the CALL, not on a decoded byte: `-X warn_default_encoding` with
     `-W error::EncodingWarning` makes every `open()` that leaves `encoding` unset — or explicitly None —
