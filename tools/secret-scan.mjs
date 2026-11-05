@@ -9,6 +9,9 @@
        node tools/secret-scan.mjs --verdict-sample    # the verdict shape, examining nothing
        node tools/secret-scan.mjs --selftest
 
+   Run it from the checkout you mean: this gate judges the tree it was RUN FROM, and refuses when that
+   disagrees with the copy you invoked (`tools/write-root.mjs`).
+
    Owner, 2026-10-20: a secret scanner with our own rules as a CI gate. The
    scanner is the pinned `gitleaks` binary (CI downloads it by checksum; set
    $GITLEAKS to point at a local copy). The rules are `.gitleaks.toml`: the
@@ -53,9 +56,12 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
+import { WriteRootRefusal, judgeRoot } from './write-root.mjs';
 
 const Verdict = createRequire(import.meta.url)('../verdict.js');
-const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+/* The DEFAULT only, for a library import and for `--verdict-sample`, which examine no tree. A real run
+   replaces it in `main` with the checkout it was RUN FROM — see the comment there. */
+let ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SELF = 'tools/secret-scan.mjs';
 const GATE = 'secret-scan';
 export const ALLOWED_FINDINGS = 0;
@@ -181,6 +187,21 @@ function main() {
   /* The walk is read before the guard, because the spec that judges the argv depends on it. */
   const walk = process.argv.includes('--tree') ? 'tree' : 'diff';
   refuseUnknownArgvOrExit(process.argv.slice(2), argvSpecFor(walk), { tool: 'secret-scan' });
+
+  /* A GATE JUDGES THE CHECKOUT IT WAS RUN FROM, never the one it lives in. Measured 2026-11-04:
+     `node <shared root>/tools/secret-scan.mjs` from a worktree answered `NOT_RUN — HEAD adds no
+     commits over origin/main`, because every `git` call below runs with `cwd: ROOT`. That sentence was
+     true of the shared root and said nothing about the branch the reader had just pushed. Residue
+     `2026-11-04-a-verdict-gate-judges-the-checkout-it-lives-in-not-the-one-it-ran-from`. The refusal
+     goes through `refuse`, so the run still emits one verdict rather than dying mute. */
+  try {
+    ROOT = judgeRoot(import.meta.url);
+  } catch (e) {
+    if (!(e instanceof WriteRootRefusal)) throw e;
+    console.error(e.message);
+    refuse('this run and ' + SELF + ' sit in different checkouts (' + e.reason + '), so which tree to scan is undecided', null);
+  }
+
   const commit = gitCommit();
   const bin = process.env.GITLEAKS || 'gitleaks';
   const probe = spawnSync(bin, ['version'], { encoding: 'utf8' });
