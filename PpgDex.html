@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="d96be11f1d82" data-compute-hash="a8a6812bab0c">
+<html lang="en" data-manifest-hash="76df5af462dc" data-compute-hash="9b830cc3fd43">
 <head>
 <!--
   PpgDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-3IUQgcSOji2CeRMbcMgIbQ+j+8z6+T9s9DeZGqBO7KA=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-NjntMXCQa7Ujm45zxhn5RagnUXecQAsomLdGhIqDXRg=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-XJV3E1G3sukFgbJQW5vuMv8oMeGex2wLInYe3q3i6Dk=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-fqhp4uoeZeCyCOtsTVvJY/rgoZv+Oo7+GUwjjkOnsqc=' 'sha256-jzJnte+elEp/YL/dKPBjUNceuZl7x6OYEPLRBoCkuNA=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rCirk2YDG5hFUST54QihtO4S/eA0Q5IdiVoSV+cCE9U=' 'sha256-rIcm4jQwZdAp6l3SdrzI0nizBN01Nhu8bJROOQanTRo=' 'sha256-yVk7BEgxIDoYcriZXH8GN6SLrb6NgVjsklX7DlxsMc0=' 'sha256-z8IJkvGtS/6EXJq/GTxC7f6JF6g2ecKNz4bxeNHWj4c='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-3IUQgcSOji2CeRMbcMgIbQ+j+8z6+T9s9DeZGqBO7KA=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-NjntMXCQa7Ujm45zxhn5RagnUXecQAsomLdGhIqDXRg=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-fqhp4uoeZeCyCOtsTVvJY/rgoZv+Oo7+GUwjjkOnsqc=' 'sha256-jzJnte+elEp/YL/dKPBjUNceuZl7x6OYEPLRBoCkuNA=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rCirk2YDG5hFUST54QihtO4S/eA0Q5IdiVoSV+cCE9U=' 'sha256-rIcm4jQwZdAp6l3SdrzI0nizBN01Nhu8bJROOQanTRo=' 'sha256-u+Z07dzg2j5RYvPiWNyexMMPkW5mcsCQJTrMAI1fiaU=' 'sha256-yVk7BEgxIDoYcriZXH8GN6SLrb6NgVjsklX7DlxsMc0=' 'sha256-z8IJkvGtS/6EXJq/GTxC7f6JF6g2ecKNz4bxeNHWj4c='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>PpgDex — Raw Wrist-PPG Analyzer · v2.27.0</title>
@@ -19698,6 +19698,13 @@ __exports.PPGUI = window.PPGUI;
        through to `nonSignalName` and was set aside as 'skip': a sidecar the box writes and nothing
        could ever read. The writer landed with `ECG_RUN_MIN = 30`; this is the half that reads it. */
     if (/_ECGRUNS\b|_ECGRUNS\./.test(u)) return 'runs';
+    /* The clock-seam sidecar (`…_ECGSEAMS.txt`, capture-host `writers.py` `_SeamSidecar`) is ECGDex's
+       'seams' companion, and a DISTINCT kind from 'runs': a blanking run and a clock seam carry
+       different rows, different reasons and different refusals (SEAM-SIDECAR-CONSUMPTION §4, owner
+       ruling 2026-11-05). Claimed on the same line of reasoning as `_ECGRUNS` above — `_ECG\b` does
+       not match `_ECGSEAMS`, so `nonSignalName` set the file aside as 'skip' and the reader
+       `ecgdex-dsp.js` shipped in #4407 could never be handed a byte of it from a browser drop. */
+    if (/_ECGSEAMS\b|_ECGSEAMS\./.test(u)) return 'seams';
     // The ACC companion's own sidecar — a DISTINCT kind, never 'runs' (see signal-orchestrate).
     if (/_ACCRUNS\b|_ACCRUNS\./.test(u)) return 'accruns';
     if (/_ACC\b|_ACC\./.test(u)) return 'acc';
@@ -19907,7 +19914,8 @@ __exports.PPGUI = window.PPGUI;
   //        reclassified as foreign (a misnamed MAGN/PPG/…); default none → every ecg-named is real.
   // opts.partKey         : the multipart splitter (DSP.partKey); absent → no part folding.
   // → { ecgGroups: [[item,…],…],                                  // ordered part-groups, one recording each
-  //     companionLanes: { rr:[[item,…]], hr:[[…]], acc:[[…]], runs:[[…]] },  // deduped part-groups per lane, device-filtered
+  //     companionLanes: { rr:[[item,…]], hr:[[…]], acc:[[…]], runs:[[…]], seams:[[…]], accruns:[[…]] },  // deduped part-groups per lane
+  //                                                               // ⚠️ step (5) device-filters rr/hr/acc ONLY
   //     skipped: [{name, kind, device?}] }                        // skip-bucket + sniff-foreign + foreign-device + dup-night
   function planIngest(items, opts) {
     opts = opts || {};
@@ -19918,13 +19926,23 @@ __exports.PPGUI = window.PPGUI;
     };
     items = Array.isArray(items) ? items : [];
     // (1) bucket by name classification (the SAME ecgKind the app + the routing-table test use)
-    var byKind = /** @type {{ ecg:any[], rr:any[], hr:any[], acc:any[], runs:any[], accruns:any[], skip:any[] }} */ ({ ecg: [], rr: [], hr: [], acc: [], runs: [], accruns: [], skip: [] });
+    var byKind = /** @type {{ ecg:any[], rr:any[], hr:any[], acc:any[], runs:any[], seams:any[], accruns:any[], skip:any[] }} */ ({
+      ecg: [],
+      rr: [],
+      hr: [],
+      acc: [],
+      runs: [],
+      seams: [],
+      accruns: [],
+      skip: []
+    });
     /* `runs` MUST have a bucket of its own. The line below falls back to `byKind.ecg` for any kind
        without one, so the moment `ecgKind` learned to return 'runs' the sidecar landed in the PRIMARY
        waveform bucket — and `_dedupeBySession` then dropped it against the real `_ECG.txt` it shares a
        device and stamp with, setting it aside as a 'duplicate'. Measured before the fix: the sidecar
        reached `skipped: [{kind:'duplicate'}]` and no lane at all. A fail-open default is why adding a
-       classifier value without its bucket is never inert here. */
+       classifier value without its bucket is never inert here. `seams` joined on 2026-11-05 and
+       carries its own bucket for that reason, not for symmetry. */
     items.forEach(function (it) {
       (byKind[ecgKind(it.name)] || byKind.ecg).push(it);
     });
@@ -19990,6 +20008,9 @@ __exports.PPGUI = window.PPGUI;
       // part-grouped like every other companion. The app picks the nearest by FILENAME stamp, because
       // its text must reach parseECGText BEFORE a parsed rec.t0Ms exists to pair on.
       runs: _dedupeGroups(_groupParts(byKind.runs, pk)),
+      // SEAM-SIDECAR-CONSUMPTION §4 — the `_ECGSEAMS.txt` clock-seam sidecar, paired by the app the
+      // same way and for the same reason: `parseECGText` needs its text before a rec.t0Ms exists.
+      seams: _dedupeGroups(_groupParts(byKind.seams, pk)),
       accruns: _dedupeGroups(_groupParts(byKind.accruns, pk))
     };
     // (8) ECG groups: part-group, then de-dupe a duplicate night (same device id + structured start
