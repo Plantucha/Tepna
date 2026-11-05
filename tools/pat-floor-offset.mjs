@@ -271,8 +271,67 @@ export function theilSen(pts, minGapS = MIN_PAIR_GAP_S) {
   return { slopeMsPerS: m, interceptMs: b, pairs: sl.length, madMs: mad };
 }
 
-/* One line per key, or a NAMED refusal. A refusal is a row in the report, never a dropped key. */
+/* ── A FIT NEVER INTERPOLATES ACROSS UNOBSERVED TIME ─────────────────────────────────────────────
+   `windowRuns(rec)` splits a key's floor windows at every EMPTY window and returns one array of
+   `[windowIndex, floorMs]` pairs per continuous run, in time order.
+
+   WHY AN EMPTY WINDOW IS A DISCONTINUITY AND NOT DROPOUT NOISE. Measured 2026-11-04 over the 14
+   archived sidecars: of 65 device-handle-role keys, 63 hold NO empty window at all, over spans up to
+   8.08 h and 97 windows. A window holds ~4000 packets at 130 Hz, so a 300 s window with none is the
+   stream stopping rather than a late frame. The two keys that do hold holes carry 3 each at 5 min,
+   and both already refuse on this tool's own rate bound.
+
+   WHY THE FIT CANNOT SPAN ONE. Theil-Sen takes the median of pairwise slopes, so a pair straddling a
+   hole divides an observed delay change by unobserved time. `anchor_us` is a controller counter whose
+   epoch does not survive a link establishment (§🔒.7), and the archived nine-column sidecars carry no
+   `anchor_epoch` to say whether one happened inside the hole — #4272 appended that column on
+   2026-11-02, after these nights. `conn_handle` cannot stand in for it: #4378 measured 484 of 26 099
+   over-bound anchor intervals on a row where the handle changed.
+
+   SO A HOLE MAKES A NEW LINE, which is this tool's own idiom for a reconnect: the key already splits
+   on `conn_handle` rather than carrying a step inside one line. Each run then meets the same floors —
+   `MIN_WINDOWS`, `MIN_PAIR_GAP_S`, `RATE_BOUND_MS_PER_H` — so a run too short to fit refuses by name
+   instead of borrowing a baseline from the other side of the hole. */
+export function windowRuns(rec) {
+  const ws = [...((rec && rec.wins) || new Map()).entries()].sort((a, b) => a[0] - b[0]);
+  const runs = [];
+  let cur = [];
+  for (let i = 0; i < ws.length; i++) {
+    if (i && ws[i][0] - ws[i - 1][0] > 1) {
+      runs.push(cur);
+      cur = [];
+    }
+    cur.push(ws[i]);
+  }
+  if (cur.length) runs.push(cur);
+  return runs;
+}
+
+/* Every line a key yields, one per continuous run, each carrying what the key held around it. An
+   empty key still yields one NAMED refusal: a key that folded no window must not vanish from both
+   the lines and the refusals (§∅). */
+export function floorLines(rec) {
+  const runs = windowRuns(rec);
+  const keyWindows = (rec.wins || new Map()).size;
+  if (!runs.length)
+    return [{ role: rec.role, conn: rec.conn, windows: 0, run: 1, runs: 0, holes: 0, keyWindows: 0, droppedWindows: 0, maxHoleMin: 0, ok: false, reason: 'no floor window folded for this key' }];
+  const idx = [...(rec.wins || new Map()).keys()].sort((a, b) => a - b);
+  let maxHole = 0;
+  for (let i = 1; i < idx.length; i++) maxHole = Math.max(maxHole, idx[i] - idx[i - 1] - 1);
+  return runs.map((run, i) => {
+    const ln = floorLine({ role: rec.role, dev: rec.dev, conn: rec.conn, wins: new Map(run) });
+    /* The coverage travels with the rate, so a reader never quotes one without the other. */
+    return { ...ln, run: i + 1, runs: runs.length, holes: runs.length - 1, keyWindows, droppedWindows: keyWindows - run.length, maxHoleMin: (maxHole * WIN_S) / 60 };
+  });
+}
+
+/* One line per continuous RUN, or a NAMED refusal. A refusal is a row in the report, never a dropped
+   key. A rec holding a hole refuses here rather than fitting across it — `floorLines` is the caller
+   that splits, and a caller that forgets to split gets told so by name. */
 export function floorLine(rec) {
+  const runs = windowRuns(rec);
+  const base0 = { role: rec.role, conn: rec.conn, windows: (rec.wins || new Map()).size };
+  if (runs.length > 1) return { ...base0, ok: false, reason: `${runs.length - 1} hole(s) in the floor windows — fit each run with floorLines()` };
   const pts = [...rec.wins.entries()].map(([w, d]) => [(w + 0.5) * WIN_S, d]).sort((a, b) => a[0] - b[0]);
   const base = { role: rec.role, conn: rec.conn, windows: pts.length };
   if (pts.length < MIN_WINDOWS) return { ...base, ok: false, reason: `only ${pts.length} floor window(s), need ${MIN_WINDOWS}` };
@@ -452,9 +511,10 @@ export function nightReport(dir) {
     refusals = [];
   for (const rec of keys.values()) {
     if (!ord.has(rec.dev)) ord.set(rec.dev, ord.size + 1);
-    const ln = floorLine(rec);
-    ln.device = `dev#${ord.get(rec.dev)}`;
-    (ln.ok ? lines : refusals).push(ln);
+    for (const ln of floorLines(rec)) {
+      ln.device = `dev#${ord.get(rec.dev)}`;
+      (ln.ok ? lines : refusals).push(ln);
+    }
   }
   const ecg = lines.filter((l) => l.role === 'ecg'),
     ppg = lines.filter((l) => l.role === 'ppg');
@@ -463,7 +523,9 @@ export function nightReport(dir) {
   for (const e of ecg)
     for (const g of ppg) {
       const o = pairOffset(e, g);
-      const tag = { ecg: `${e.device}/${e.conn}`, ppg: `${g.device}/${g.conn}` };
+      /* The tag names the RUN only where the key holds more than one, so a hole-free night's report
+         reads byte-identical to before this split landed. */
+      const tag = { ecg: `${e.device}/${e.conn}${e.runs > 1 ? `r${e.run}` : ''}`, ppg: `${g.device}/${g.conn}${g.runs > 1 ? `r${g.run}` : ''}` };
       if (o.ok) segments.push({ ...tag, ...o });
       else segRefusals.push({ ...tag, reason: o.reason });
     }
@@ -560,19 +622,64 @@ export function selftest() {
   ok(mid.civilBackSteps === 0, `the midnight wrap is not a rewind (got ${mid.civilBackSteps})`);
   ok(mid.civilSkewMoved === 0, `the midnight wrap moves no skew (got ${mid.civilSkewMoved})`);
 
-  /* 5 — an implausible rate refuses by name */
+  /* 5 — an implausible rate refuses by name. The windows are CONTIGUOUS, because a holed key now
+     refuses for the hole first and would pass this assertion on the wrong reason. */
   const wild = {
     role: 'ecg',
     dev: 'AA',
     conn: '1',
     wins: new Map([
       [0, 0],
-      [10, 1e9],
-      [20, 2e9]
+      [1, 1e9],
+      [2, 2e9],
+      [3, 3e9],
+      [4, 4e9],
+      [5, 5e9]
     ])
   };
   const wl = floorLine(wild);
   ok(wl.ok === false && /implausible floor rate/.test(wl.reason), 'an implausible floor rate refuses by name');
+
+  /* 5b — A HOLE MAKES A NEW LINE, and `floorLine` refuses to span one. */
+  const holed = {
+    role: 'ecg',
+    dev: 'AA',
+    conn: '1',
+    wins: new Map([
+      [0, 100],
+      [1, 94],
+      [2, 88],
+      [3, 82],
+      [4, 76],
+      [5, 70],
+      [40, 10],
+      [41, 4],
+      [42, -2],
+      [43, -8],
+      [44, -14],
+      [45, -20]
+    ])
+  };
+  const hl = floorLine(holed);
+  ok(hl.ok === false && /hole\(s\) in the floor windows/.test(hl.reason), 'a holed key refuses in floorLine by name');
+  const hls = floorLines(holed);
+  ok(hls.length === 2, `a one-hole key yields two lines (got ${hls.length})`);
+  ok(
+    hls.every((l) => l.ok && l.windows === 6 && l.runs === 2 && l.holes === 1 && l.keyWindows === 12 && l.droppedWindows === 6),
+    'each run fits alone and carries the coverage the key held around it'
+  );
+  near(hls[0].maxHoleMin, 34 * 5, 1e-9, 'the largest hole reads in minutes of empty windows');
+  near(hls[0].rateMsPerH, -72, 1e-9, 'the first run recovers its own rate');
+  /* 5c — CONTROL: the same 12 windows with NO hole fit as one line, so 5b cannot pass on a stub that
+     always splits. */
+  const whole = { role: 'ecg', dev: 'AA', conn: '1', wins: new Map() };
+  for (let w = 0; w < 12; w++) whole.wins.set(w, 100 - 6 * w);
+  const wls = floorLines(whole);
+  ok(wls.length === 1 && wls[0].ok && wls[0].runs === 1 && wls[0].holes === 0 && wls[0].droppedWindows === 0, 'CONTROL: a contiguous key stays one line with no coverage loss');
+  near(wls[0].rateMsPerH, -72, 1e-9, 'CONTROL: the whole-key rate is the one each run recovers');
+  /* 5d — a key that folded nothing is a NAMED refusal, never an absent row (§∅). */
+  const empty = floorLines({ role: 'ppg', dev: 'AA', conn: '1', wins: new Map() });
+  ok(empty.length === 1 && empty[0].ok === false && /no floor window folded/.test(empty[0].reason), 'an empty key yields one named refusal');
 
   /* 6 — the modulo reduction is the smallest honest disagreement */
   near(reduceModRR(657 - 629, 1040), 28, 1e-9, 'a small disagreement passes through unchanged');
@@ -673,9 +780,15 @@ if (IS_CLI && process.argv.includes('--selftest')) {
         `  clock: civil-vs-acl skew moved on ${c.skewMoved}/${c.civilPairs} rows (${share.toFixed(1)} %), extreme ${c.skewExtremeS.toFixed(1)} s, civil backward steps ${c.civilBackSteps}` +
           (c.civilBackSteps > 0 && Math.abs(c.skewExtremeS) > CIVIL_REWIND_MIN_S ? ' — THE CIVIL STAMP REWOUND MID-RECORDING' : '')
       );
+      /* THE COVERAGE PRINTS BESIDE THE RATE, never behind a flag: a rate over a run is a rate over
+         part of the key wherever `holes` reads above 0. */
       for (const l of r.lines)
-        console.log(`  ${l.device} ${l.role} conn=${l.conn} windows=${l.windows} rate=${l.rateMsPerH.toFixed(2)} ms/h MAD=${l.madMs.toFixed(2)} ms span=${l.spanH.toFixed(2)} h`);
-      for (const l of r.refusals) console.log(`  ${l.device} ${l.role} conn=${l.conn} REFUSED — ${l.reason}`);
+        console.log(
+          `  ${l.device} ${l.role} conn=${l.conn} windows=${l.windows} rate=${l.rateMsPerH.toFixed(2)} ms/h MAD=${l.madMs.toFixed(2)} ms span=${l.spanH.toFixed(2)} h` +
+            ` run=${l.run}/${l.runs} holes=${l.holes}` +
+            (l.holes > 0 ? ` dropped=${l.droppedWindows} window(s), largest hole ${l.maxHoleMin.toFixed(0)} min` : '')
+        );
+      for (const l of r.refusals) console.log(`  ${l.device} ${l.role} conn=${l.conn} REFUSED — ${l.reason}` + (l.runs > 1 ? ` [run ${l.run}/${l.runs}]` : ''));
       for (const s of r.segments) console.log(`  offset ppg-ecg = ${s.ppgMinusEcgMs.toFixed(2)} ms over ${s.overlapH.toFixed(2)} h, drift ${s.driftOverOverlapMs.toFixed(2)} ms [${s.ecg} x ${s.ppg}]`);
       for (const s of r.segRefusals) console.log(`  offset REFUSED — ${s.reason} [${s.ecg} x ${s.ppg}]`);
     }
