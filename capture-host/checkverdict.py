@@ -100,6 +100,14 @@ CONTRACTS: dict[str, dict[int, tuple[str, str]]] = {
         1: ("FAIL", "the mypy count rose above the recorded baseline"),
         2: ("UNKNOWN", "mypy printed no summary line, so the count was never measured"),
     },
+    # OURS, and in CONTRACTS rather than UNADOPTED_OURS because it PUBLISHES these two codes: its own
+    # usage header states exit 1 on any red, and its source states that exit 2 is "I could not look".
+    # A published code is a contract, which is the whole reason this table holds third-party tools.
+    # ⚠️ IT READS ONE LANE'S SLICE, so a green here is never a green `npm run check` (see check.sh).
+    "adoption": {
+        1: ("FAIL", "a producer in this lane is unbinned, ungated, or de-adopted"),
+        2: ("UNKNOWN", "the lane filter matched nothing, or an adopted producer could not be read"),
+    },
 }
 # Children of OURS that have not adopted the contract: read by PROVENANCE, never by an exit code they do
 # not publish — any code but 127 is UNKNOWN. Emptied one name at a time as each adopts (`unwired` was the

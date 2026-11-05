@@ -151,6 +151,38 @@ COVSCOPE_VERDICT="${COVSCOPE_VERDICT_OUT:-.covscope-verdict.json}"
 rm -f "$COVSCOPE_VERDICT"
 run_gate "covscope"   "$PY" tools/covscope.py --check --verdict-out "$COVSCOPE_VERDICT"
 
+# WHICH tools/verdict-adoption.json ROWS THIS LANE MOVES. Every capture-host/**/*.py file enters that
+# registry's population, and until now nothing in this script could read it — so three units reached a
+# green lane verdict beside a red required context: #4362 over a comment block in radioclock.py, #4388
+# over a status word inside a FILENAME, and one over a new test file. Residue
+# 2026-11-05-the-capture-host-gate-does-not-run-the-verdict-adoption-check.
+# ⚠️ `--lane capture-host/` IS ONE SLICE OF THAT GATE, NEVER THE WHOLE ONE: 7 s against 172 s for all
+# lanes on an idle rig, and the whole gate's own child cap has already closed on another lane's producer
+# under load (§4c). All three arrivals above are population reds, which the slice reads.
+# TWO ABSENCES, AND THEY CONVICT DIFFERENTLY. A tree carrying no registry puts none of its files in any
+# population, so there is nothing to read and nothing this gate could miss: it returns 0 and prints that
+# state. An absent node leaves a registry UNREAD, which is not a pass — exit 127 is NOT_RUN
+# (`checkverdict.py` child_status), the same shape as an absent shellcheck.
+# Both names are overridable for the reason PYTHON is: tests/test_check_script.py scripts the paths a
+# box cannot (a tree with no registry, and a box with no node). The resolved values print below.
+NODE="${NODE:-node}"
+ADOPTION_ROOT="${ADOPTION_ROOT:-..}"
+adoption_gate() {
+  local tool="$ADOPTION_ROOT/tools/verdict-adoption.mjs"
+  if [ ! -f "$tool" ] || [ ! -f "$ADOPTION_ROOT/tools/verdict-adoption.json" ]; then
+    printf '  not convicting: %s carries no adoption registry, so no file here is in its population.\n' "$ADOPTION_ROOT"
+    printf '  There is nothing to read, and so nothing this gate could miss.\n'
+    return 0
+  fi
+  if ! command -v "$NODE" > /dev/null 2>&1; then
+    printf '  \033[33mNOT RUN: %s is absent, so a registry this lane moves went unread\033[0m\n' "$NODE"
+    printf '    run "npm run check" from a checkout that carries node\n'
+    return 127
+  fi
+  "$NODE" "$tool" --check --lane capture-host/
+}
+run_gate "adoption"   adoption_gate
+
 # ── ADVISORY GATES (PYTHON-TYPES-AND-FORMAT-2026-08-27) ─────────────────────────────────────────
 # These RUN and REPORT but cannot fail the run. Advisory here is not the ignorable kind: the counts
 # print in the summary, and the flip conditions are pre-stated in the brief, not per-PR. 🔴 mypy's
