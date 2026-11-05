@@ -48,6 +48,18 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { populationVerdict, snapshotEntries } from './corpus-scope-core.mjs';
+import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
+/* ── THE VALIDITY SIDECAR RIDES WITH THE STREAM ─────────────────────────────────────────────────────
+   Row 2026-10-17-sample-parsers-called-without-their-sidecar: this tool read a night's samples and
+   none of the box's `…RUNS.txt` validity, so a blanking run the box recorded reached the detectors
+   below as signal — a flat rail is a plausible diastole, and no reader can tell it from one.
+   `readRunsSidecar` names which of four things happened per stream, and the tally prints beside the
+   numbers: §∅, reduced coverage annotates, and an ABSENT sidecar is validity UNKNOWN for that
+   stream, never a clean one. Most of this corpus predates the writer, so most streams read `absent`
+   and parse exactly as they did before. Both HRV arms read ONE stream under ONE validity, so one
+   read serves both and the tally counts the stream once. */
+const VALIDITY = {};
+const runsOf = (streamPath, stream) => readRunsSidecar(streamPath, stream, { tally: VALIDITY }).runsText;
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const argv = process.argv.slice(2);
@@ -137,8 +149,8 @@ function epochsOf(pairs, originMs) {
 /* The node's OWN per-epoch HRV — `res.epochs[]` carries {tMin, rmssd, sdnn, meanRR, pnn50, …}
    computed downstream of `cleanMask`, which is the gate §4 actually moves. Returns each epoch keyed by
    its ABSOLUTE start so it can be matched to ECG without either series' t0 leaking in. */
-function fingerEpochs(PD, text) {
-  const rec = PD.parsePPG(text);
+function fingerEpochs(PD, text, runsText) {
+  const rec = runsText ? PD.parsePPG(text, { runsText }) : PD.parsePPG(text);
   const res = PD.analyze(rec);
   const eps = res.epochs || [];
   const lenMin = eps.length > 1 ? eps[1].tMin - eps[0].tMin : 5;
@@ -192,8 +204,8 @@ export function bestBySpan(index, lo, hi, minSec) {
   }
   return best;
 }
-function ecgPairs(ED, text) {
-  const rec = ED.parseECG(text);
+function ecgPairs(ED, text, runsText) {
+  const rec = runsText ? ED.parseECG(text, { runsText }) : ED.parseECG(text);
   const res = ED.analyze(rec);
   const pk = res.peaks || [];
   const out = [];
@@ -334,7 +346,7 @@ const ecgFiles = all.filter((f) => /H10.*_ECG\.txt$/i.test(f.p));
 const ecgIndex = ecgFiles.map((f) => ({ p: f.p, span: fileSpan(f.p) }));
 const ecgCache = new Map(); // path → parsed pairs, parsed ONCE
 const ecgParsed = (p) => {
-  if (!ecgCache.has(p)) ecgCache.set(p, ecgPairs(ECG, readFileSync(p, 'utf8')));
+  if (!ecgCache.has(p)) ecgCache.set(p, ecgPairs(ECG, readFileSync(p, 'utf8'), runsOf(p, 'ECG')));
   return ecgCache.get(p);
 };
 const skipped = { 'parse-error': 0, 'not-a-validation-case (no gap beats)': 0, 'no-ecg-overlap': 0, 'ecg-parse-error': 0 };
@@ -353,8 +365,10 @@ for (const f of ppgFiles) {
   let fo, fn;
   try {
     const text = readFileSync(f.p, 'utf8');
-    fo = fingerEpochs(OLD, text);
-    fn = fingerEpochs(NEW, text);
+    /* both arms parse the same stream under the same validity, so one read serves both */
+    const runsText = runsOf(f.p, 'PPG');
+    fo = fingerEpochs(OLD, text, runsText);
+    fn = fingerEpochs(NEW, text, runsText);
   } catch (_e) {
     skipped['parse-error']++;
     continue;
@@ -437,6 +451,10 @@ console.log(
     (popBefore.n > ppgFiles.length ? ` · --top ${TOP} left ${popBefore.n - ppgFiles.length} offered file(s) unread` : '') +
     (population.reason ? `\n  ${population.reason}` : '')
 );
+/* PASSING THE SIDECAR IS NOT REPORTING ITS ABSENCE (§∅). `null` over an empty tally, because four
+   zeros read exactly like a sweep where every sidecar was there. */
+const validity = validityLine(VALIDITY);
+if (validity) console.log(validity);
 console.log('POPULATION ' + JSON.stringify(population));
 if (inert) console.log(`${inert} firing file(s) where §4 moved NO epoch HRV — accounting only (nGapSpanIntervals), nothing to score.`);
 if (noEcg) console.log(`${noEcg} firing file(s) had no overlapping ECG epoch — not counted either way.`);

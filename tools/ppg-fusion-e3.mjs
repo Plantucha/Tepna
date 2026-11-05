@@ -65,6 +65,17 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join, relative } from 'node:path';
 import { EPOCH_MS, MAX_LAG_MS, median, quantile, hrEnvelope, envelopeLagMs, refineLagByMatch, matchBeats, refinePeaks, ppiJitterMs } from './ppi-match.mjs';
 import { gitCommitOf, notCovered, populationVerdict, ruleLine, snapshotEntries } from './corpus-scope-core.mjs';
+import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
+/* ── THE VALIDITY SIDECAR RIDES WITH THE STREAM ─────────────────────────────────────────────────────
+   Row 2026-10-17-sample-parsers-called-without-their-sidecar: this tool read a night's samples and
+   none of the box's `…RUNS.txt` validity, so a blanking run the box recorded reached the detectors
+   below as signal — a flat rail is a plausible diastole, and no reader can tell it from one.
+   `readRunsSidecar` names which of four things happened per stream, and the tally prints beside the
+   numbers: §∅, reduced coverage annotates, and an ABSENT sidecar is validity UNKNOWN for that
+   stream, never a clean one. Most of this corpus predates the writer, so most streams read `absent`
+   and parse exactly as they did before. */
+const VALIDITY = {};
+const runsOf = (streamPath, stream) => readRunsSidecar(streamPath, stream, { tally: VALIDITY }).runsText;
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const argv = process.argv.slice(2);
@@ -360,7 +371,9 @@ function ecgCache(p) {
   if (_ecgMemo.has(p)) return _ecgMemo.get(p);
   let v = null;
   try {
-    const er = E.parseECG(readFileSync(p, 'utf8'));
+    const eTxt = readFileSync(p, 'utf8');
+    const eRuns = runsOf(p, 'ECG');
+    const er = eRuns ? E.parseECG(eTxt, { runsText: eRuns }) : E.parseECG(eTxt);
     const eres = E.analyze(er);
     if (er.t0Ms != null && eres.peaks) {
       const bp = E.bandpass(er.int16, er.fs);
@@ -402,7 +415,9 @@ const rows = [];
 for (const f of ppgs) {
   let rec0;
   try {
-    rec0 = P.parsePPG(readFileSync(f.p, 'utf8'));
+    const pTxt = readFileSync(f.p, 'utf8');
+    const pRuns = runsOf(f.p, 'PPG');
+    rec0 = pRuns ? P.parsePPG(pTxt, { runsText: pRuns }) : P.parsePPG(pTxt);
   } catch (_e) {
     continue;
   }
@@ -483,6 +498,10 @@ function printPopulation() {
   const missed = notCovered(snap, rows, { key: 'rec' });
   if (missed.length) console.log(`  it removed ${missed.length}, by name: ${missed.slice(0, 8).join(' · ')}${missed.length > 8 ? ` · … (+${missed.length - 8})` : ''}`);
   if (ppgs.length < snap.n) console.log(`  ${snap.n - ppgs.length} of those left under the --max-nights ${MAX_NIGHTS} cap, largest first`);
+  /* PASSING THE SIDECAR IS NOT REPORTING ITS ABSENCE (§∅). `null` over an empty tally, because four
+     zeros read exactly like a sweep where every sidecar was there. */
+  const validity = validityLine(VALIDITY);
+  if (validity) console.log('  ' + validity);
 }
 
 /* 🔴 A RUN THAT SCORED NOTHING STILL OWES ITS POPULATION. The early exit below used to be the only
