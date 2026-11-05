@@ -44,6 +44,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 import { createRequire } from 'node:module';
+import { dissentStampLine, dissentStampOf, signsOf } from './consensus-dissent-core.mjs';
 import { gitShort } from './verdict-emit.mjs';
 import { isCliEntry, positionalArgs, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 import { populationVerdict, snapshotEntries } from './corpus-scope-core.mjs';
@@ -481,7 +482,15 @@ function ppgFootTimes(text, runsText) {
      (`ppgdex-dsp.js` applies, then picks): a flipped dissenter's peak count moves, so a pick made
      first would ratify a reference chosen under the polarity the device-wide majority overrules.
      The call is a no-op on a unanimous set and on a 1-1 split, so no undissenting night moves. */
-  PPGDSP.applyConsensusPolarity(per, (i, sgn) => PPGDSP.detectChannel(rec.ch[i], rec.fs, sgn));
+  /* ∅ THE RETURN IS THE ONLY RECORD THAT THIS STREAM MOVED. The signs are read BEFORE the pass,
+     because after it the dissenter carries the majority sign and every stream reads unanimous — row
+     2026-11-04-pat-figures-were-published-under-the-overruled-polarity. The stamp leaves with the
+     times, which is also the shape the shared extractor ships (an object, never a bare array). */
+  const signsBefore = signsOf(per);
+  const polarity = dissentStampOf(
+    signsBefore,
+    PPGDSP.applyConsensusPolarity(per, (i, sgn) => PPGDSP.detectChannel(rec.ch[i], rec.fs, sgn))
+  );
   let refIdx = 0,
     best = -1;
   per.forEach((p, i) => {
@@ -536,7 +545,11 @@ function ppgFootTimes(text, runsText) {
     droppedAllPinned: confirmed && spansPerCh ? nAllPinned : null,
     partialPinned: confirmed && spansPerCh ? nPartPinned : null,
     wouldDropAllPinned: !confirmed && spansPerCh ? nAllPinned : null,
-    wouldPartialPinned: !confirmed && spansPerCh ? nPartPinned : null
+    wouldPartialPinned: !confirmed && spansPerCh ? nPartPinned : null,
+    /* the dissent stamp travels with the times (row
+       2026-11-04-pat-figures-were-published-under-the-overruled-polarity) */
+    polarity,
+    signs: signsBefore
   };
 }
 
@@ -664,6 +677,7 @@ async function main() {
   console.log(
     `extracted: ECG ${tA.length} R-peaks (${((tA[tA.length - 1] - tA[0]) / 60000).toFixed(0)} min)   PPG ${tB.length} feet (${((tB[tB.length - 1] - tB[0]) / 60000).toFixed(0)} min)   t0 delta ${((tB[0] - tA[0]) / 1000).toFixed(1)} s`
   );
+  console.log(dissentStampLine(pRead.polarity, pRead.signs));
   const eb = eRead.blanking;
   console.log(
     `  ECG blanking: sidecar ${eb.sidecar}${eb.reason ? ` (${eb.reason})` : ''} · ${eb.nDropped == null ? 'dropped null — no run set reached this leg' : `${eb.nDropped} of ${eRead.nDetected} R-peaks dropped across ${eb.nRanges} run(s)`}`

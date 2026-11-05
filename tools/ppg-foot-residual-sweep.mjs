@@ -41,6 +41,7 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import { dissentStampOf, dissentTallyLine, signsOf } from './consensus-dissent-core.mjs';
 import { isCliEntry } from './argv-guard.mjs';
 import { NIGHT_RE, notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
 import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
@@ -483,7 +484,15 @@ async function main() {
       continue;
     }
     const per = rec.ch.map((c) => P.detectChannel(c, rec.fs));
-    P.applyConsensusPolarity(per, (i, sgn) => P.detectChannel(rec.ch[i], rec.fs, sgn));
+    /* ∅ THE RETURN IS THE ONLY RECORD THAT THIS NIGHT MOVED, and the signs are read BEFORE the pass:
+       after it the dissenter carries the majority sign and every night reads unanimous (row
+       2026-11-04-pat-figures-were-published-under-the-overruled-polarity). The stamp rides the night
+       row, so `--json` carries it too. */
+    const signsBefore = signsOf(per);
+    const pol = dissentStampOf(
+      signsBefore,
+      P.applyConsensusPolarity(per, (i, sgn) => P.detectChannel(rec.ch[i], rec.fs, sgn))
+    );
     const toMs = (i) => {
       const lo = Math.floor(i);
       const hi = Math.ceil(i);
@@ -543,7 +552,7 @@ async function main() {
       console.log(
         `${n}  ${p.pair}  ${String(p.n).padStart(6)}  ${(100 * p.yield).toFixed(0).padStart(4)}%  ${p.sd.toFixed(2).padStart(6)}  ${p.iqr.toFixed(2).padStart(6)}  ${p.r1.toFixed(2).padStart(5)}  ${p.sdAvg2.toFixed(2).padStart(7)}  ${p.c1.toFixed(3).padStart(8)}  ${isFinite(p.snrPair) ? p.snrPair.toFixed(2).padStart(6) : '     —'}`
       );
-    rows.push({ night: n, fs: rec.fs, ...row });
+    rows.push({ night: n, fs: rec.fs, pol, ...row });
   }
   /* THE POPULATION THIS RUN COVERED, printed before the cross-night figures it qualifies. The
      status labels MOVEMENT of the night population under the run, never coverage. */
@@ -558,6 +567,7 @@ async function main() {
   );
   const rl = ruleLine(population);
   if (rl) console.log('  ' + rl);
+  console.log(dissentTallyLine(rows.map((r) => r.pol)));
   console.log(`  night-directory names not scored: ${unscored.length ? unscored.join(', ') : 'none'}`);
   /* PASSING THE SIDECAR IS NOT REPORTING ITS ABSENCE (§∅). `null` over an empty tally, because four
      zeros read exactly like a sweep where every sidecar was there. */
