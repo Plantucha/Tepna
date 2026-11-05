@@ -5,7 +5,7 @@
   Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
   project root, or http://www.apache.org/licenses/LICENSE-2.0
 -->
-**Status:** PROPOSED (resolver BUILT with TWO arms, the per-tool readings unstarted — verified 2026-11-05 (Heron): `tools/write-root.mjs` ships `writeRoot` and `judgeRoot` over one pure decision, and its `--selftest` passes whole. Two tools adopt it: `tools/new-changeset.mjs` writes through it and `tools/secret-scan.mjs` judges through it (#4384). The §1 writer population re-measures identically today, by the two `grep` recipes §1 states. §6 adds the JUDGE population, whose figures and recipe live in §6.2. No gate names either adopted set, so every §4 and §6.5 item stays open) · **Created:** 2026-11-03
+**Status:** PROPOSED (resolver BUILT with TWO arms, the per-tool readings BEGUN — verified 2026-11-05 (Heron). `tools/write-root.mjs` ships `writeRoot` and `judgeRoot` over one pure decision, and its `--selftest` passes whole. Three tools adopt it: `tools/new-changeset.mjs` writes through it, and `tools/secret-scan.mjs` (#4384) and `tools/run-check.mjs` judge through it. The §1 writer population re-measures identically today, by the two `grep` recipes §1 states. §6 adds the JUDGE population, whose figures and recipe live in §6.2. This PR ticks §6.5's third box, and no gate names either adopted set, so every other §4 and §6.5 item stays open) · **Created:** 2026-11-03
 
 # Every writing tool resolves the checkout it writes from the run, not from its own path
 
@@ -111,7 +111,7 @@ Measured 2026-11-05 over `tools/*.mjs` at `feecbee8b`:
 | of those, tools that touch a verdict | 131 |
 | of those, tools deriving a root from `import.meta.url` | 116 |
 | of those, tools passing that root as a child's `cwd` | 50 |
-| converted so far | 1 — `tools/secret-scan.mjs` |
+| converted so far | 2 — `tools/secret-scan.mjs` · `tools/run-check.mjs` |
 
 Three greps reproduce the last figure. The pipes live in a code block, because a pipe inside a table
 cell ends the cell:
@@ -150,8 +150,9 @@ three tests held the path in this repo's own words. So each of the 49 remaining 
 
 ### 6.5 · Acceptance
 
-- [ ] Each of the 49 remaining judge sites carries one of the three readings above, in its own header.
+- [ ] Each of the 48 remaining judge sites carries one of the three readings above, in its own header.
 - [ ] Every gate judging an artifact of the run's work-unit calls `judgeRootOrDie`.
-- [ ] `tools/run-check.mjs` carries its reading, because it runs the whole gate in the tree it resolves.
+- [x] `tools/run-check.mjs` carries its reading, because it runs the whole gate in the tree it resolves.
+      Done 2026-11-05: it resolves through `judgeRoot` inside the CLI block and refuses a disagreement with exit 2.
 - [ ] A gate names the adopted judge set, so a new gate joins it deliberately rather than by habit.
 - [ ] The population figures here are re-measured at closing, because `tools/` grows every week.
