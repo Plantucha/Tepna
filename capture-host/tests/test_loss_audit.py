@@ -4349,6 +4349,49 @@ def test_an_unreadable_link_sidecar_is_named_and_the_other_ends_are_still_judged
     assert bad.startswith("Tepna_20260922223959_LINK.csv: IsADirectoryError")
 
 
+def _at(s):
+    return (R0 + dt.timedelta(seconds=s)).isoformat(timespec="milliseconds")
+
+
+def test_the_charger_witness_reads_a_link_file_opened_before_the_band_and_columns_in_any_order(tmp_path):
+    d = _ring_dir(tmp_path)
+    _ring(d, R0, worn_s=120, off_s=0, spo2_s=120)
+    # the LINK sidecar opened at noon: its session starts outside the night band, and its rows still cover the end
+    _link(d, [(60, 53)], name="Tepna_20260922120000_LINK.csv")
+    # the stamp is the LAST column, so a reader that keeps the line end in the name or the value loses the row
+    with open(d / "Tepna_20260922223900_LINK.csv", "wb") as fh:
+        fh.write(b"# adapter note \xff not UTF-8\n")  # a stray byte is replaced, never a crash
+        fh.write(f"device;battery_pct;Phone timestamp\nWellue O2Ring-S;70;{_at(300)}\n".encode())
+    (e,) = loss_audit.wear_ends(str(d), "O2Ring-S")["ends"]
+    assert e["dock_witness"] == {"base_pct": 53, "rise_pct": 17, "first_rise_s": 181, "docked": True}
+
+
+def test_the_charger_witness_skips_short_rows_and_headers_without_its_three_columns(tmp_path):
+    d = _ring_dir(tmp_path)
+    _ring(d, R0, worn_s=120, off_s=0, spo2_s=120)
+    _link(d, [(60, 53)])
+    files = {
+        "01": f"Phone timestamp;connected;battery_pct\n{_at(300)};1;99\n",  # no device column
+        "02": f"device;connected;battery_pct\nWellue O2Ring-S;1;99\n",  # no stamp column
+        "03": f"Phone timestamp;device;battery_pct \n{_at(300)};Wellue O2Ring-S;99\n",  # the name is not battery_pct
+        "04": LINK_HDR + f"{_at(300)};Wellue O2Ring-S;1;-60\n",  # one field short of the battery column
+        "05": "battery_pct;device;Phone timestamp\n99;Wellue O2Ring-S\n",  # short of the stamp column
+        "06": f"Phone timestamp;battery_pct;device\n{_at(300)};99\n",  # short of the device column
+        "07": f"device;battery_pct;Phone timestamp\nWellue O2Ring-S;99;{_at(300)} \n",  # a stamp with a tail
+    }
+    for k, body in files.items():
+        (d / f"Tepna_202609222239{k}_LINK.csv").write_text(body)
+    (e,) = loss_audit.wear_ends(str(d), "O2Ring-S")["ends"]
+    assert e["dock_witness"] is None and e["doff_witness"] is None
+
+
+def test_a_model_other_than_the_ring_never_reads_the_link_sidecars(tmp_path):
+    d, _ = _h10_night(tmp_path, 300)
+    (d / "Tepna_20260923230000_LINK.csv").mkdir()  # unreadable, but no H10 rule reads it
+    w = loss_audit.wear_ends(str(d), "H10")
+    assert w["ends"][0]["reason"] == "doff" and "link_unreadable" not in w
+
+
 def test_a_contradicted_tail_stays_published_when_the_charger_calls_the_doff(tmp_path):
     d = _ring_dir(tmp_path)
     _ring(d, R0, worn_s=100, off_s=202, spo2_s=302)  # the tail the SpO2 stream contradicts (2026-09-11 shape)

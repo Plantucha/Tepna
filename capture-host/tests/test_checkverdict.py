@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 
 import pytest
@@ -337,3 +338,33 @@ def test_refused_as_the_LAST_argument_still_writes_a_refusal_with_a_NAMED_reason
     assert v["reason"] == C.REFUSAL_REASON_ABSENT
     assert v["reason"], "§🧾: every non-PASS carries a reason, so the absence is named, not empty"
     assert v["reason"] != "no child ran to a verdict", "a refusal is not an empty run"
+
+
+# ── `adoption`: the capture-host slice of tools/verdict-adoption.json (2026-11-05) ─────────────────
+def test_the_adoption_rows_two_codes_separate_a_red_from_a_refusal():
+    """It is a tool of OURS that publishes no object, which is usually UNADOPTED_OURS — UNKNOWN by
+    provenance. It sits in CONTRACTS because it PUBLISHES these codes: its usage header states exit 1
+    on any red, and its source states exit 2 as "I could not look". A published code is a contract,
+    which is the whole reason this table can hold a third-party tool at all."""
+    assert C.child_status("adoption", 0) == ("PASS", "exit 0")
+    assert C.child_status("adoption", 1)[0] == "FAIL"
+    assert C.child_status("adoption", 2)[0] == "UNKNOWN"
+    assert C.child_status("adoption", 127)[0] == "NOT_RUN", "an absent node examined nothing"
+    assert "unbinned" in C.child_status("adoption", 1)[1], "a red names what it read"
+    assert "matched nothing" in C.child_status("adoption", 2)[1], "a refusal names why it could not look"
+
+
+def test_EVERY_BLOCKING_LABEL_check_sh_PASSES_HAS_A_ROW_HERE():
+    """THE SENTENCE AT THE TOP OF checkverdict.py, WHICH NOTHING READ: every name passed as a blocking
+    child belongs in CONTRACTS, ADOPTED_OURS or UNADOPTED_OURS on the commit that makes it blocking.
+    Without a reader, a new leg falls through to `not a code <name>'s contract names` — UNKNOWN for
+    every non-zero code, which is a verdict about a diff from a table that never heard of the gate.
+    The population is read from the CALLS: `^run_gate "…"` is a statement position, so it cannot reach
+    a comment or this file's own words."""
+    src = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "check.sh"), encoding="utf-8")
+    legs = re.findall(r'^run_gate "([a-z-]+)"', src.read(), re.M)
+    src.close()
+    assert len(legs) >= 8, f"only {legs} — the legs are no longer readable here, so nothing below means anything"
+    known = set(C.CONTRACTS) | set(C.ADOPTED_OURS) | set(C.UNADOPTED_OURS)
+    assert [leg for leg in legs if leg not in known] == [], f"blocking label(s) with no contract: {legs}"
+    assert "plantleg" not in known, "CONTROL: a label this table has never seen must not read as known"

@@ -3678,6 +3678,21 @@ def _current_night(captures: str, settle_sec: float) -> str | None:
     return nights[-1] if nights else None
 
 
+def _report_dir(captures: str, judged: str, summ=None) -> str:
+    """Which folder a night's OWN reports belong in — `nightqc.report_night` over this box's disk and
+    this daemon's live summary. The judged folder is not always the night's (decision #3178).
+
+    `summ` is the fresh scan when the caller holds one. A caller that holds none — the CPAP reconciler,
+    which files beside the summary at the 13:00 harvest — reads the poller's live summary out of STATUS,
+    and only when that summary judged THIS folder: a band label describes the night it was measured on,
+    so a summary for another folder would file the harvest beside a different night. With no summary to
+    read the destination stays where it is today, which is the judged folder itself."""
+    if summ is None:
+        _qc = STATUS.get("qc")
+        summ = _qc if isinstance(_qc, dict) and _qc.get("night") == judged else None
+    return nightqc.report_night(judged, summ, lambda n: os.path.isdir(os.path.join(captures, n)))
+
+
 # E5 · LINK.csv under-reported dropouts. rssi_poller samples `connected` every ~25 s, so a drop+reconnect
 # INSIDE a 25 s window is invisible — it reads connected=1 at both ends (measured: the Verity re-subscribed
 # twice and the H10 once in a 22:14-22:16 window that LINK.csv logged as connected throughout). The runners,
@@ -10560,7 +10575,16 @@ async def qc_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = N
             # Reads here, decides in `cpap_stream_watch` (pure, tested). Off the loop like summarize.
             summ["cpap_stream"] = await asyncio.to_thread(_cpap_stream_watch_row, cfg, root, current)
             STATUS["qc"] = summ
-            _qc = os.path.join(night, "QC-SUMMARY.json")
+            # 🔴 THE NIGHT'S REPORTS GO IN THE BAND'S FOLDER, NOT IN THE JUDGED ONE (decision #3178).
+            # The writer names a folder by the date its file set started, so a set opening after midnight
+            # makes a folder whose name is not its night, and this poller judges the folder whose data is
+            # newest. Writing there left the night's OWN folder holding an older summary, and that older
+            # copy is what every reader keyed on the folder name picks up (`night_report`). It also meant
+            # the next night overwrote the newer copy. `nightqc.report_night` reads the band label #4324
+            # added, so a morning folder holding only a post-midnight file set now gets no summary at all
+            # and the night's folder gets every one of them.
+            night_rep = os.path.join(captures, _report_dir(captures, current, summ))
+            _qc = os.path.join(night_rep, "QC-SUMMARY.json")
             # 🔴 THIS FILE HAS MORE THAN ONE WRITER, and this poller rewrites it WHOLESALE every
             # `poll_sec`. The CPAP inventory reconciler merges its own field in after the 13:00
             # harvest; without the carry-forward below, that field survived at most ten minutes and
@@ -10581,7 +10605,7 @@ async def qc_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = N
             os.replace(_qc + ".tmp", _qc)  # atomic
             # VERDICT-CONTRACT §3b wave 1: the two `tepna.verdict/1` objects beside the summary —
             # QC-VERDICT.json (night-qc) and BACKCHECK-VERDICT.json (the end-of-night back-check).
-            await asyncio.to_thread(nightqc.write_verdicts, night, summ, cfg.get("devices", []))
+            await asyncio.to_thread(nightqc.write_verdicts, night_rep, summ, cfg.get("devices", []))
             n = summ["night"]
             first_seen.setdefault(n, _time.monotonic())
             # ── morning digest — once per LOCAL day, unconditional (§P2.4) ──────────────────────
@@ -11913,13 +11937,16 @@ def _cpap_inventory_report(result, cfg, root, dest):
     so a night's evidence stays in one place."""
     import cpap_inventory_adapter
 
-    night = _current_night(
-        os.path.join(root, "captures"), float((cfg.get("storage") or {}).get("settle_sec", _NIGHT_SETTLE_S))
-    )
+    captures = os.path.join(root, "captures")
+    night = _current_night(captures, float((cfg.get("storage") or {}).get("settle_sec", _NIGHT_SETTLE_S)))
     if night is None:
         return None  # no night dir yet: nowhere to file a report, and nothing to
         # reconcile against — a box that has captured nothing tonight
-    nd = os.path.join(root, "captures", night)
+    # THE SAME FOLDER THE QC POLLER WRITES ITS SUMMARY INTO, because `write_reports` MERGES into that
+    # summary and creates one where it finds none. Left on the judged folder, a harvest after a
+    # cross-midnight night would have written a lone CPAP field into a morning folder that decision
+    # #3178 says gets no summary at all — a night manufactured out of a reconciliation.
+    nd = os.path.join(captures, _report_dir(captures, night))
     return cpap_inventory_adapter.on_harvest_complete(
         result,
         dest_root=dest,

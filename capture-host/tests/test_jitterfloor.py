@@ -6,6 +6,8 @@ import json
 import os
 import time
 
+import pytest
+
 
 import jitterfloor as jf
 
@@ -490,3 +492,32 @@ def test_folded_base_is_not_fooled_by_a_median_residual_that_describes_half_the_
     assert f is not None, f
     assert 495.0 <= f["base_ms"] <= 505.0, f  # retired score returned 999.0 here
     assert f["jitter_ms"] < 10.0, f  # ... and 248.0 ms of "jitter" with it
+
+
+def test_an_ABSENT_arrival_sidecar_RAISES_rather_than_reading_as_an_EMPTY_night(tmp_path):
+    """The reader takes a path its caller found, so it never catches the error — and that is the
+    contract this test pins.
+
+    `{}` already means something here: the file was read and no row contributed a floor, which the
+    clockless-ring case above asserts. Were an absent file to answer `{}` too, the two states would
+    arrive at the caller as one. The floor is a MINIMUM over parsed rows, so no rows reds nothing: a
+    night whose sidecar the box never wrote would report a floor taken over nothing at all.
+
+    Row `2026-11-04-six-box-sidecar-readers-cite-no-absent-path-test`.
+    """
+    absent = tmp_path / "gone_20261004220000_PMDARRIVAL.csv"
+    assert not absent.exists()
+    with pytest.raises(OSError):
+        jf.parse_pmdarrival(absent)
+
+    # UNREADABLE, by the same rule and without monkeypatching open(): a directory in the file's place.
+    unreadable = tmp_path / "dir_20261004220000_PMDARRIVAL.csv"
+    unreadable.mkdir()
+    with pytest.raises(OSError):
+        jf.parse_pmdarrival(unreadable)
+
+    # The CONTROL, so the raise above is not simply what this function always does: a header-only file
+    # IS read, and answers the empty dict that means "no row contributed".
+    empty = tmp_path / "header_20261004220000_PMDARRIVAL.csv"
+    empty.write_text("Phone timestamp;device;meas;first_sensor_ns;last_sensor_ns;n_samples\n")
+    assert jf.parse_pmdarrival(empty) == {}

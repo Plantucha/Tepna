@@ -455,6 +455,10 @@
    "bin": "test",
    "status": "exempt"
   },
+  "capture-host/tests/test_qc_report_dir.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
   "capture-host/tests/test_run_polar_bounded_awaits.py": {
    "bin": "test",
    "status": "exempt"
