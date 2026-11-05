@@ -29,11 +29,13 @@
 # nobody works in — never a peer's working tree, never a non-git tree).
 # ════════════════════════════════════════════════════════════════════════
 set -u
-# THE BOARD LANE (owner 2026-10-31: "board search lag"). `--board` is the 5-min tick
-# (tepna-board-search.timer): the board export, an embed of what changed, then an upsert of
-# the changed board files into the generation that serves search now. It skips the external pull,
-# and it never builds a generation — the hourly :20 reload still does that, and resets what this lane
-# wrote. It takes the same lock, so it never runs beside the hourly tick.
+# THE FAST LANE (owner 2026-10-31: "board search lag"; widened 2026-11-05: "Take it"). `--board` is the
+# 15-min tick (tepna-board-search.timer): the board export, an embed of what changed, then an upsert of
+# EVERY changed file, repo and external, into the generation that serves search now. It skips the
+# external pull. The hourly tick runs the same upsert after its pull. Neither builds a generation: the
+# nightly reload (03:20) does that, and resets the graph growth that overwrites cause (xerj-org/xerj#2796).
+# Until 2026-11-05 the reload ran hourly and stalled searches for minutes each hour; the residue row is
+# `2026-11-03-hybrid-searches-stall-during-the-hourly-generation-load`. Both ticks take one lock.
 MODE=full
 [ "${1:-}" = "--board" ] && MODE=board
 # THE CHECKOUT THAT GETS INDEXED IS A DEDICATED, ALWAYS-CURRENT ONE — not the shared root.
@@ -107,15 +109,30 @@ pull=--pull-ext
 # embedded 29,062 of 72,318 chunks (9 min 23 s). Only the semantic lane embeds.
 # shellcheck disable=SC2086 # $pull is one flag or empty, $NICE one command prefix or empty
 out=$(timeout "$EMBED_TIMEOUT" $NICE node tools/doc-search.mjs --semantic $pull "index freshness tick" 2>&1 | grep -E ' newly embedded|^  ⚠ (index cache|external root)' | head -4 | tr '\n' ' ')
-if [ "$MODE" = full ]; then
-  echo "$(date -Is) [$ROOT @ $(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null)] ${out:-'(no embed line — check doc-search output)'}" >>"$LOG"
-  exit 0
+[ "$MODE" = full ] && echo "$(date -Is) [$ROOT @ $(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null)] ${out:-'(no embed line — check doc-search output)'}" >>"$LOG"
+# THE WINDOW REACHES BACK TO THE LAST GOOD UPSERT, plus 2 min of margin. A tick that skipped on the lock
+# or failed leaves the stamp where it was, so the next tick covers its span. No stamp (a fresh machine)
+# reads 90 min. The cap is one day, because the nightly reload carries anything older.
+STAMP="$STATE/fast-lane.stamp"
+WIN=90
+if [ -f "$STAMP" ]; then
+  WIN=$((($(date +%s) - $(stat -c %Y "$STAMP")) / 60 + 2))
+  [ "$WIN" -gt 1440 ] && WIN=1440
 fi
-# The board lane logs only when it moved something: 288 quiet ticks a day would bury the hourly lines.
-# The loader runs from the PRIMARY, which holds the cache the embed just wrote.
-load=$(timeout 120 node "$PRIMARY/tools/xerj-load.mjs" --only ext:agent-board/ --newer-than 10 2>&1)
+# The loader runs from the indexed checkout, so a file's mtime and its presence are the current
+# main's. Its symbol parser needs `node_modules`, which a linked worktree does not share.
+[ -e "$ROOT/node_modules" ] || ln -s "$PRIMARY/node_modules" "$ROOT/node_modules" 2>/dev/null
+started=$(date +%s)
+# shellcheck disable=SC2086 # $NICE is one command prefix
+load=$(timeout 600 $NICE node "$ROOT/tools/xerj-load.mjs" --only '*' --newer-than "$WIN" 2>&1)
 rc=$?
+# A stale-hash skip means the embed did not reach a changed file: keep the stamp, so the next tick
+# offers that file again.
+if [ "$rc" = 0 ] && ! printf '%s' "$load" | grep -q 'stale-hash'; then
+  touch -d "@$started" "$STAMP"
+fi
+# The fast lane logs only when it moved something: 96 quiet ticks a day would bury the hourly lines.
 case "$load" in
 *"fast lane: 0 doc"* | *"changed in the last"*) [ "$rc" = 0 ] && exit 0 ;;
 esac
-echo "$(date -Is) board lane rc=$rc ${board:-} | ${out:-} | $(printf '%s' "$load" | grep -E 'fast lane|REFUSING|✕' | head -2 | tr '\n' ' ')" >>"$LOG"
+echo "$(date -Is) $MODE fast lane rc=$rc win=${WIN}m ${board:-} | ${out:-} | $(printf '%s' "$load" | grep -E 'fast lane|REFUSING|✕' | head -3 | tr '\n' ' ')" >>"$LOG"

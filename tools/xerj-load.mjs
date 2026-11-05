@@ -17,6 +17,8 @@
  *   node tools/xerj-load.mjs --only ext:agent-board/ --newer-than 10
  *                                            # UPSERT the files under a prefix that changed in the
  *                                            # last N minutes into the generation that serves now
+ *   node tools/xerj-load.mjs --only '*' --newer-than 20
+ *                                            # the same over EVERY file: the 15-minute tick
  *
  * ⚠️ NEVER RE-CHUNK AND NEVER RE-EMBED. `doc-search.mjs`'s `chunk()` is the single source of truth:
  * the cache stores ONE 1024-dim vector per chunk, positionally, so the i-th vector describes the
@@ -387,12 +389,54 @@ export function bulkBody(index, docs) {
    ⚠️ It OVERWRITES ids, which is the write the engine never reclaims (xerj-org/xerj#2796, measured
    again on rc.100 2026-10-31: an 87.7 MB graph for 1,000 live vectors after 20 overwrites). The
    window keeps that to the files that changed — a few board posts per tick — and the next hourly
-   generation discards the growth. A file that LEFT the prefix keeps its old docs until that reload. */
+   generation discards the growth. A file that LEFT the prefix keeps its old docs until that reload.
+
+   THE WHOLE CORPUS RIDES IT TOO (owner, 2026-11-05: "Take it"). `--only '*'` matches every file, so the
+   15-minute tick carries a changed brief or tool into search, and the full load runs once a night, not
+   hourly (row 2026-11-03-hybrid-searches-stall-during-the-hourly-generation-load: every hourly load
+   stalled the searches at :22–:24). Two writes keep an upsert equal to what a full load would hold:
+   a changed file first loses EVERY doc under its path, so a file that shrank keeps no stale tail, and a
+   file that no longer exists loses its docs, as a full load would skip it. */
+export function matchesPrefix(file, only) {
+  return only === '*' || String(file).startsWith(only);
+}
+
 export function inFastLane(file, only, mtimeMs, nowMs, newerMin) {
   if (!only) return true;
-  if (!String(file).startsWith(only)) return false;
+  if (!matchesPrefix(file, only)) return false;
   if (!(newerMin > 0)) return true;
   return Number.isFinite(mtimeMs) && nowMs - mtimeMs <= newerMin * 60000;
+}
+
+/* THE FAST LANE CLEARS AFTER IT WRITES, AND ONLY THE OLD CONTENT. A rewritten id overwrites its doc in
+   place; what stays behind is the tail of a file that now has fewer chunks, and every doc of that tail
+   carries the OLD `file_hash`. Measured 2026-11-05: a delete-by-path sent BEFORE the bulk write removed
+   the docs the write had just added (a brief read 13 → 0 docs), and a refresh between the two did not
+   make it reliable. A delete that names the old hash cannot match a doc this run wrote. */
+export function staleDocsBody(fileHashes) {
+  return JSON.stringify({
+    query: {
+      bool: {
+        should: fileHashes.map(([path, hash]) => ({
+          bool: { filter: [{ term: { path } }], must_not: [{ term: { file_hash: hash } }] }
+        })),
+        minimum_should_match: 1
+      }
+    }
+  });
+}
+
+/** A delete-by-query body that removes every doc under the named paths. */
+export function deleteByPathsBody(paths) {
+  return JSON.stringify({ query: { terms: { path: paths } } });
+}
+
+/* A GONE-FILE SWEEP THAT WOULD EMPTY THE INDEX IS A WRONG ROOT, NOT A DELETION. Run from a checkout that
+   lacks the corpus, every cached file reads as gone. Above half of the files under the prefix, the
+   sweep refuses and deletes nothing. */
+export const GONE_MAX_SHARE = 0.5;
+export function goneSweepAllowed(gone, inPrefix) {
+  return inPrefix > 0 && gone <= inPrefix * GONE_MAX_SHARE;
 }
 
 /** The one generation the alias points at, or null when no alias holds the name. */
@@ -644,6 +688,22 @@ export function selftest() {
   ok(!inFastLane('ext:agent-board/7/1.md', 'ext:agent-board/', now - 11 * 60000, now, 10), 'a file older than the window is out');
   ok(!inFastLane('ext:agent-board/7/1.md', 'ext:agent-board/', Number.NaN, now, 10), 'an unreadable mtime is out');
   ok(inFastLane('ext:agent-board/7/1.md', 'ext:agent-board/', Number.NaN, now, 0), 'no window means every file under the prefix');
+  ok(inFastLane('briefs/X.md', '*', now - 9 * 60000, now, 10) && inFastLane('ext:memory/a.md', '*', now, now, 10), '`*` takes every file inside the window');
+  ok(!inFastLane('briefs/X.md', '*', now - 11 * 60000, now, 10), '`*` still holds the window');
+  ok(matchesPrefix('tools/a.mjs', '*') && !matchesPrefix('tools/a.mjs', 'ext:') && matchesPrefix('ext:a/b.md', 'ext:'), 'a prefix matches by start, `*` matches all');
+  {
+    const q = JSON.parse(
+      staleDocsBody([
+        ['a.md', 'h1'],
+        ['b.md', 'h2']
+      ])
+    ).query.bool;
+    ok(q.minimum_should_match === 1 && q.should.length === 2, 'the stale delete names each written file once');
+    ok(q.should[0].bool.filter[0].term.path === 'a.md' && q.should[0].bool.must_not[0].term.file_hash === 'h1', 'a written file loses only the docs whose hash is not the one just written');
+  }
+  ok(JSON.parse(deleteByPathsBody(['a.md', 'b.md'])).query.terms.path.join() === 'a.md,b.md', 'the delete names the paths and nothing else');
+  ok(goneSweepAllowed(10, 100) && goneSweepAllowed(50, 100), 'a sweep up to half the prefix runs');
+  ok(!goneSweepAllowed(51, 100) && !goneSweepAllowed(0, 0), 'a sweep above half, or over an empty prefix, refuses');
   ok(servingGeneration({ 'tepna-hybrid-20261031t102147z': { aliases: { 'tepna-hybrid': {} } } }) === 'tepna-hybrid-20261031t102147z', 'the alias names the generation it serves');
   ok(servingGeneration({ error: { type: 'alias_not_found' }, status: 404 }) === null || servingGeneration({}) === null, 'no alias, no generation');
   ok(servingGeneration({ a: {}, b: {} }) === null, 'an alias over two generations is refused, not guessed');
@@ -775,13 +835,23 @@ async function main() {
   }
 
   const counts = { files: 0, loaded: 0, skipped: 0, docs: 0, repairedChunks: 0, tagged: 0, symbolDocs: 0, skips: {} };
+  if (only) Object.assign(counts, { cleared: 0, gone: 0, removed: 0, goneRefused: false });
+  const written = new Map();
+  const gone = [];
+  let inPrefix = 0;
   let pending = [];
   let header = null;
+  const deleteBody = async (body) => {
+    const r = await req(url, `/${target}/_delete_by_query`, 'POST', body);
+    if (r.status >= 300 || r.json?.failures?.length) throw new Error(`delete_by_query failed (${r.status}): ${r.text.slice(0, 200)}`);
+    return Number(r.json?.deleted) || 0;
+  };
   const flush = async () => {
     if (!pending.length || dry) {
       pending = [];
       return;
     }
+    if (only) for (const d of pending) written.set(d.path, d.file_hash);
     const r = await req(url, '/_bulk', 'POST', bulkBody(target, pending), true);
     if (r.status >= 300 || (r.json && r.json.errors)) {
       const first = r.json?.items?.find((i) => i.index?.error)?.index?.error;
@@ -824,6 +894,13 @@ async function main() {
       if (!entry.file) continue;
       if (only) {
         const a = entry.file.startsWith(EXT_PREFIX) ? extAbs().get(entry.file) : join(ROOT, entry.file);
+        if (matchesPrefix(entry.file, only)) {
+          inPrefix += 1;
+          if (a && !existsSync(a)) {
+            gone.push(entry.file);
+            continue;
+          }
+        }
         let m = Number.NaN;
         try {
           m = a ? statSync(a).mtimeMs : Number.NaN;
@@ -870,6 +947,16 @@ async function main() {
       if (limit && counts.loaded >= limit) break;
     }
     await flush();
+    if (only && written.size) {
+      await req(url, `/${target}/_refresh`, 'POST');
+      const pairs = [...written];
+      for (let i = 0; i < pairs.length; i += 200) counts.cleared += await deleteBody(staleDocsBody(pairs.slice(i, i + 200)));
+    }
+    if (only && gone.length) {
+      counts.gone = gone.length;
+      if (!goneSweepAllowed(gone.length, inPrefix) || dry) counts.goneRefused = !dry;
+      else for (let i = 0; i < gone.length; i += 500) counts.removed += await deleteBody(deleteByPathsBody(gone.slice(i, i + 500)));
+    }
   }
 
   /* EXAMINED-NOTHING REFUSAL. A run that loaded no document is not a clean load; it means the cache,
@@ -912,8 +999,12 @@ async function main() {
     process.stdout.write(`  chunks with a split pair repaired : ${counts.repairedChunks}\n`);
     process.stdout.write(`  files / chunks naming a symbol : ${counts.tagged} / ${counts.symbolDocs}\n`);
     for (const [k, n] of Object.entries(counts.skips).sort((a, b) => b[1] - a[1])) process.stdout.write(`    ${k.padEnd(16)} ${n}\n`);
-    if (only && generation) process.stdout.write(`  fast lane: ${counts.docs} doc(s) under ${only} upserted into ${generation.index}\n`);
-    else if (generation?.promoted)
+    if (only && dry) process.stdout.write(`  fast lane (dry): ${counts.files} file(s) in the window · ${counts.gone} gone file(s) of ${inPrefix} under ${only}\n`);
+    if (only && generation) {
+      process.stdout.write(`  fast lane: ${counts.docs} doc(s) under ${only} upserted into ${generation.index}\n`);
+      process.stdout.write(`  fast lane: ${counts.cleared} stale doc(s) cleared after the write · ${counts.removed} doc(s) of ${counts.gone} gone file(s) removed\n`);
+      if (counts.goneRefused) process.stdout.write(`  ✕ REFUSING the gone-file sweep: ${counts.gone} of ${inPrefix} files under ${only} read as gone — a wrong root, not a deletion\n`);
+    } else if (generation?.promoted)
       process.stdout.write(`  generation ${generation.index} now serves ${index} · replaced ${generation.replaced.join(', ') || 'nothing'} · retired ${generation.retired.length}\n`);
     else if (generation) process.stdout.write(`  ${probe ? 'probe' : 'empty generation'} ${generation.index} deleted · ${index} untouched\n`);
     if (quiet) process.stdout.write(`  · ${reason}\n`);
