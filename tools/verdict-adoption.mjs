@@ -56,6 +56,7 @@
  *
  *   node tools/verdict-adoption.mjs --check          # the gate (npm run check step; exit 1 on any red)
  *   node tools/verdict-adoption.mjs --check --base <ref>   # ratchet base (default origin/main; merge-base with HEAD)
+ *   node tools/verdict-adoption.mjs --check --lane capture-host/   # ONE LANE's slice (capture-host/check.sh)
  *   node tools/verdict-adoption.mjs --triage         # first-pass suggestions for UNBINNED files; writes nothing
  *   node tools/verdict-adoption.mjs --format         # rewrite the manifest in its one byte form (THE BYTE FORM)
  *   node tools/verdict-adoption.mjs --selftest
@@ -260,6 +261,30 @@ export function treePublications(root) {
     }
   };
   return publicationsOf([...new Set(files)], read);
+}
+
+/* ONE LANE'S SLICE OF THE POPULATION (residue 2026-11-05-the-capture-host-gate-does-not-run-the-
+   verdict-adoption-check). `capture-host/check.sh` is that lane's whole gate, and it could not red on
+   this registry: the enumeration admits every `capture-host/*.py`, because the `*` crosses a slash,
+   while no `check.sh` leg ever read the manifest. Three units reached a green lane verdict and a red
+   required context that way (#4362, #4388, and the one the fleet note `capture-host-change-still-owes-
+   npm-check` records).
+
+   WHY A SLICE AND NOT THE WHOLE GATE. `--check` takes 172 s on an idle rig, because it runs every
+   adopted producer in the tree, and its child cap has already closed on another lane's producer under
+   load (CLAUDE.md §4c). The slice runs the SAME legs over what a capture-host file can move: 97
+   producers of 326, 26 of them adopted, every one a `--verdict-sample` call with no corpus.
+
+   IT SCOPES THE ALLOWLISTS TOO. Each set carries a stale-entry leg, so the unscoped sets would red six
+   times on a capture-host run over `tools/` entries that lane cannot see. PURE. */
+export function laneView(prefix, enumerated, manifest, sets) {
+  const inLane = (p) => p.startsWith(prefix);
+  const rows = (manifest && manifest.producers) || {};
+  const producers = {};
+  for (const p of Object.keys(rows).sort()) if (inLane(p)) producers[p] = rows[p];
+  const scoped = {};
+  for (const [name, s] of Object.entries(sets || {})) scoped[name] = new Set([...s].filter(inLane));
+  return { enumerated: enumerated.filter(inLane), manifest: { ...manifest, producers }, sets: scoped };
 }
 
 /* Pure: judge a manifest against an enumerated population. Returns { ok, errors[], unexamined[],
@@ -2194,6 +2219,64 @@ function selftest() {
     }
   }
 
+  /* THE LANE SLICE, pure (residue 2026-11-05-the-capture-host-gate-does-not-run-the-verdict-adoption-
+     check). The slice is handed to the same legs, so the thing to pin is that it carries NOTHING from
+     another lane — above all the allowlists, whose stale-entry legs would otherwise red on every run. */
+  {
+    const man = {
+      schema: 'tepna.verdict-adoption/1',
+      producers: { 'capture-host/a.py': { bin: 'test', status: 'exempt' }, 'tools/b.mjs': { bin: 'test', status: 'exempt' } }
+    };
+    const sets = { ungated: new Set(['tools/b.mjs']), nameOnly: new Set(['capture-host/a.py']) };
+    const v = laneView('capture-host/', ['capture-host/a.py', 'tools/b.mjs'], man, sets);
+    ok(v.enumerated.length === 1 && v.enumerated[0] === 'capture-host/a.py', 'laneView keeps only the enumerated producers under the prefix');
+    ok(Object.keys(v.manifest.producers).join() === 'capture-host/a.py', 'laneView keeps only the manifest rows under the prefix');
+    ok(v.manifest.schema === man.schema, 'laneView carries the rest of the manifest through, so a byte-form or schema leg still reads it');
+    ok(v.sets.ungated.size === 0 && v.sets.nameOnly.size === 1, 'laneView scopes the allowlists, so no stale-entry leg fires over another lane');
+    ok(Object.keys(man.producers).length === 2 && sets.ungated.size === 1, 'laneView mutates neither the manifest nor the sets it was handed');
+    const empty = laneView('zzz/', ['capture-host/a.py'], man, sets);
+    ok(empty.enumerated.length === 0 && Object.keys(empty.manifest.producers).length === 0, 'a prefix no producer carries yields an empty slice, which the CLI refuses rather than passes');
+  }
+
+  /* BLACK BOX, the lane slice: a scratch checkout with one unbinned producer in each lane. `--lane`
+     must name its own and say nothing about the other, the unsliced gate must name both, and a prefix
+     that matches nothing must exit 2 — a filter matching nothing reads as a pass (CLAUDE.md §4b). */
+  {
+    const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'verdict-adoption-lane-'));
+    try {
+      fs.mkdirSync(path.join(scratch, 'tools'));
+      fs.mkdirSync(path.join(scratch, 'capture-host'));
+      fs.copyFileSync(fileURLToPath(import.meta.url), path.join(scratch, 'tools', 'verdict-adoption.mjs'));
+      copyToolImports(scratch);
+      fs.copyFileSync(path.join(ROOT, 'verdict.js'), path.join(scratch, 'verdict.js'));
+      fs.writeFileSync(path.join(scratch, 'capture-host', 'box.py'), 'def f():\n    return "VERDICT: PASS"\n');
+      fs.writeFileSync(path.join(scratch, 'tools', 'js.mjs'), "export const r = () => console.log('VERDICT: PASS');\n");
+      fs.writeFileSync(path.join(scratch, 'tools', 'verdict-adoption.json'), canonicalText({ schema: 'tepna.verdict-adoption/1', producers: {} }));
+      const git = (...a) => execFileSync('git', ['-c', 'user.email=a@b.c', '-c', 'user.name=selftest', ...a], { cwd: scratch, stdio: 'ignore' });
+      git('init', '-q');
+      git('add', '-A');
+      git('commit', '-qm', 'scratch');
+      const cli = (...a) => spawnSync(process.execPath, [path.join(scratch, 'tools', 'verdict-adoption.mjs'), '--check', '--base', 'HEAD', ...a], { cwd: scratch, encoding: 'utf8' });
+      let run = cli('--lane', 'capture-host/');
+      let out = `${run.stdout}${run.stderr}`;
+      ok(run.status === 1 && /UNBINNED producer: capture-host\/box\.py/.test(out), `BLACK BOX: --lane reds on an unbinned producer in its own lane (exit ${run.status})`);
+      ok(!/tools\/js\.mjs/.test(out), "BLACK BOX: --lane says nothing about the other lane's unbinned producer");
+      /* DERIVED, never a frozen count: the scratch population also holds this tool and its imports. */
+      const m = out.match(/LANE capture-host\/ — 1 of (\d+) enumerated/);
+      ok(m !== null && Number(m[1]) > 1, 'BLACK BOX: the lane line names the slice AND the whole population it read one slice of');
+      run = cli();
+      out = `${run.stdout}${run.stderr}`;
+      ok(run.status === 1 && /capture-host\/box\.py/.test(out) && /tools\/js\.mjs/.test(out), 'BLACK BOX: the unsliced gate still names both lanes');
+      ok(!/LANE /.test(out), 'BLACK BOX: a run with no --lane claims no slice');
+      run = cli('--lane', 'zzz/');
+      ok(run.status === 2 && /matches no producer/.test(`${run.stdout}${run.stderr}`), `BLACK BOX: a prefix no producer carries exits 2 and examines nothing (exit ${run.status})`);
+      run = cli('--lane');
+      ok(run.status === 2 && /needs a path prefix/.test(`${run.stdout}${run.stderr}`), `BLACK BOX: --lane with no prefix exits 2 (exit ${run.status})`);
+    } finally {
+      fs.rmSync(scratch, { recursive: true, force: true });
+    }
+  }
+
   if (fails.length) {
     console.log(fails.map((f) => '  ✗ ' + f).join('\n'));
     console.log(`${fails.length} failed of ${ran}`);
@@ -2228,19 +2311,46 @@ function main() {
     return;
   }
   const V = createRequire(import.meta.url)(path.join(ROOT, 'verdict.js'));
-  const r = check(en, manifest, V.validate, (e) => runEmits(e, ROOT));
+  /* THE LANE SLICE (see `laneView`). A `--lane` with no prefix, or a prefix no producer carries,
+     EXITS 2 and examines nothing: a filter that matches nothing reads as a pass (CLAUDE.md §4b), and
+     this one would read as the whole gate. */
+  const lai = argv.indexOf('--lane');
+  const lane = lai >= 0 ? argv[lai + 1] || '' : null;
+  if (lane !== null && !lane) {
+    console.log('verdict-adoption: --lane needs a path prefix, for example `--lane capture-host/`. Nothing was examined.');
+    process.exit(2);
+  }
+  const SETS = { ungated: UNGATED_RATCHET, nameOnly: NAME_ONLY_RATCHET, woClaim: WO_CLAIM_RATCHET, builders: OBJECT_BUILDER_LIBRARIES };
+  const view = lane === null ? { enumerated: en, manifest, sets: SETS } : laneView(lane, en, manifest, SETS);
+  const allRows = Object.keys(manifest.producers || {}).length;
+  const laneRows = Object.keys(view.manifest.producers || {}).length;
+  if (lane !== null && !view.enumerated.length && !laneRows) {
+    console.log(`verdict-adoption: --lane ${lane} matches no producer, in the population or in the manifest. Nothing was examined.`);
+    process.exit(2);
+  }
+  if (lane !== null)
+    console.log(
+      `verdict-adoption: LANE ${lane} — ${view.enumerated.length} of ${en.length} enumerated producer(s) \u00b7 ${laneRows} of ${allRows} manifest row(s). ` +
+        'This is one slice of the gate, never the whole one.'
+    );
+  const r = check(view.enumerated, view.manifest, V.validate, (e) => runEmits(e, ROOT));
   const c = r.counts;
   console.log(
     `verdict-adoption: ${c.enumerated} producer(s) enumerated · ${c.named} binned — decides ${c.decides} · already-json ${c['already-json']} · word-only ${c['word-only']} · test ${c.test} · adopted ${c.adopted} (validated ${c.validated}, unexamined ${c.unexamined}) · pending ${c.pending}`
   );
   const { readSource, testRefs } = treeReaders(ROOT);
-  const g = checkGated(manifest, readSource, testRefs);
-  const w = checkWordOnlyClaim(manifest, readSource);
-  const wo = checkWordOnlyObject(manifest, readSource, OBJECT_BUILDER_LIBRARIES, buildersOver(en, readSource));
+  const g = checkGated(view.manifest, readSource, testRefs, view.sets.ungated, view.sets.nameOnly);
+  const w = checkWordOnlyClaim(view.manifest, readSource, view.sets.woClaim);
+  /* `buildersOver` reads the WHOLE population on purpose, even under a lane: a lane's word-only row
+     may call a builder that lives in another lane, and a scoped map would miss the hop it exists for. */
+  const wo = checkWordOnlyObject(view.manifest, readSource, view.sets.builders, buildersOver(en, readSource));
   const bi = argv.indexOf('--base');
   const baseRef = bi >= 0 && argv[bi + 1] ? argv[bi + 1] : 'origin/main';
   const { mergeBase, manifest: baseManifest } = baseManifestAt(ROOT, baseRef);
-  const rt = checkRatchet(baseManifest, manifest, (p) => fs.existsSync(path.join(ROOT, p)));
+  /* THE BASE GETS THE SAME SLICE. A full base against a sliced head reads every other lane's adopted
+     row as de-adopted, which is the ratchet firing on rows the run never examined. */
+  const baseView = lane === null ? baseManifest : laneView(lane, [], baseManifest, {}).manifest;
+  const rt = checkRatchet(baseView, view.manifest, (p) => fs.existsSync(path.join(ROOT, p)));
   console.log(
     `verdict-adoption: ${w.checked} word-only row(s) CLAIM nothing is emitted \u00b7 ${w.conceded} concede emission and say why ` +
       `= ${w.wordOnly} word-only \u2014 ${w.flagged.length} still print a decision outside their selftest, all in WO_CLAIM_RATCHET (debt, may only shrink)`
@@ -2262,14 +2372,18 @@ function main() {
   const setPath = setRef.split(' §')[0];
   const setAbs = setPath ? path.join(ROOT, setPath) : '';
   let cr;
-  if (!setPath) cr = { ok: false, errors: ['contributions: tools/verdict-adoption.json carries no `contributions.enumeratedFrom`, so the leg has no population to read'], counts: {} };
+  if (lane !== null) cr = { ok: true, errors: [], counts: {}, unexamined: [] };
+  else if (!setPath) cr = { ok: false, errors: ['contributions: tools/verdict-adoption.json carries no `contributions.enumeratedFrom`, so the leg has no population to read'], counts: {} };
   else if (!fs.existsSync(setAbs)) cr = { ok: false, errors: [`contributions: the named set points at ${setPath}, which is not in this tree`], counts: {} };
   else cr = checkContributions(manifest, fs.readFileSync(setAbs, 'utf8'), V.validate, (e) => runEmits(e, ROOT));
   const cc = cr.counts;
-  console.log(
-    `verdict-adoption: contributions — ${cc.table ?? 0} figure(s) in the named set ${setPath || '(unset)'} · ${cc.figures ?? 0} row(s) here · ` +
-      `adopted ${cc.adopted ?? 0} (read ${cc.read ?? 0}, block examined ${cc.examined ?? 0}) · pending ${cc.pending ?? 0}`
-  );
+  if (lane !== null)
+    console.log(`verdict-adoption: contributions \u2014 NOT_APPLICABLE under --lane ${lane}: that leg's population is the figure table of ${setPath || '(unset)'}, which no file in this lane moves.`);
+  else
+    console.log(
+      `verdict-adoption: contributions — ${cc.table ?? 0} figure(s) in the named set ${setPath || '(unset)'} · ${cc.figures ?? 0} row(s) here · ` +
+        `adopted ${cc.adopted ?? 0} (read ${cc.read ?? 0}, block examined ${cc.examined ?? 0}) · pending ${cc.pending ?? 0}`
+    );
   if (Array.isArray(V.CONTRIBUTION_METHODS) && V.CONTRIBUTION_METHODS.slice().sort().join('|') !== CONTRIBUTION_METHODS.slice().sort().join('|'))
     cr.errors.push(`contributions: the method set here (${CONTRIBUTION_METHODS.join('|')}) differs from verdict.js (${V.CONTRIBUTION_METHODS.join('|')}) — verdict.js owns it, so follow it here`);
   console.log(`verdict-adoption: byte form — ${text === null ? 'no manifest file' : bf.ok ? 'canonical' : `NOT canonical from line ${bf.line}`}`);
@@ -2293,6 +2407,15 @@ function main() {
         "This is contention, not a failing adoption: re-run the step alone with `npm run verify:verdict-adoption`, and if it holds at an idle load, raise that row's `emits.timeoutMs`."
     );
     process.exit(2);
+  }
+  if (lane !== null) {
+    /* THE GREEN LINE NAMES THE SLICE. A lane run that printed the whole gate's sentence would be the
+       defect this flag exists to fix, one layer up: a verdict about a population it never read. */
+    console.log(
+      `✓ LANE ${lane}: the manifest partitions this slice of the population; every adoption in it read and valid; every check in it is gated or in the ratchet; ` +
+        'nothing in it was de-adopted. The other lanes went unread, so `npm run check` is still the whole gate.'
+    );
+    return;
   }
   console.log(
     '✓ the manifest partitions the enumerated population; every adoption read and valid; every check is gated or in the ratchet; nothing adopted on the base was de-adopted; ' +
