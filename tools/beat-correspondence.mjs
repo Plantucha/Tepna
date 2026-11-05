@@ -408,7 +408,14 @@ function loadDsps() {
 }
 
 /* ── @port-from pat-feasibility-worker.js#ecgRpeakTimes ─────────────────────────
-   @port-sha e3b9cd07ac8c
+   @port-sha a0779492738e
+   RECONCILED 2026-11-05 against that source text, for row
+   2026-10-28-pat-legs-refuse-only-the-spans-a-sidecar-confirmed. The worker's leg now publishes a
+   validity record on all three companion states rather than a bare `null`, and holds its unmeasured
+   union at `null` where the companion's rows went unplaced. The `blanking` block below already
+   carried both facts — `sidecar: 'absent' | 'read' | 'unplaced'` with `null` sizes beside the parser's
+   own reason — so this copy reconciles with no code change. The worker's `validity` record serves the
+   worker's own consumers, which is why it stays outside this port.
    PORTED 2026-11-05 for row 2026-11-03-the-ecg-leg-of-the-shared-pat-extractor-takes-no-sidecar.
    `runsText` (OPTIONAL, LAST — §🧪) carries the `_ECGRUNS.txt` bytes. A blanking run the box
    recorded now leaves ahead of the R-peak train, which is where §∅ puts the rail: a peak inside a

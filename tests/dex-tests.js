@@ -34495,8 +34495,8 @@
       var wsrc = (env.sources && env.sources['pat-feasibility-worker.js']) || '';
       var E = env.ECGDSP,
         P = env.PPGDSP;
-      if (!wsrc || !E || !P || typeof E.parseECG !== 'function') {
-        T.ok('worker source + ECGDSP/PPGDSP available', false, 'not loaded in this lane');
+      if (!wsrc || !E || !P || !env.PATGate || typeof E.parseECG !== 'function') {
+        T.ok('worker source + ECGDSP/PPGDSP/PATGate available', false, 'not loaded in this lane');
         return;
       }
       T.ok('ECGDSP exports refinePeaks (without it the worker cannot reach a sub-sample position)', typeof E.refinePeaks === 'function', 'typeof ' + typeof E.refinePeaks);
@@ -34507,13 +34507,18 @@
            with a no-op `importScripts` lets the REAL file run to completion — the DSPs are already in
            scope as arguments, so the loader finds them present and the leg builders are defined from
            the shipped source rather than from an excerpt of it. Only the trailing `onmessage` handler
-           is removed, because it is the one part that needs a live Worker. */
+           is removed, because it is the one part that needs a live Worker.
+           `PATGate` rides in beside the DSPs for the same reason: the real Worker co-loads
+           `pat-gate.js` through `importScripts`, and the PPG leg now reaches `runRanges` on EVERY
+           path — it sizes an unconfirmed span set rather than skipping one. Before that it touched
+           `PATGate` only where a sidecar existed, so this lane's shim had a hole no leg stepped in. */
         var body = wsrc.replace(/self\.onmessage[\s\S]*$/, '');
         var shim = { postMessage: function () {} };
         shim.self = shim;
         legs = new Function(
           'ECGDSP',
           'PPGDSP',
+          'PATGate',
           'self',
           'importScripts',
           'XMLHttpRequest',
@@ -34521,6 +34526,7 @@
         )(
           E,
           P,
+          env.PATGate,
           shim,
           function () {},
           function () {}
@@ -47742,6 +47748,29 @@
           '…and the page SHOWS it — a refusal no reader can see is the silence the sidecar exists to end',
           /validityNote\(m\.ecg\.validity\)/.test(psrc) && /validityNote\(m\.ppg\.validity\)/.test(psrc)
         );
+
+        /* ── ∅ AN UNCONFIRMED SPAN SET STILL HAS A SIZE ──────────────────────────────────────────
+           Row 2026-10-28-pat-legs-refuse-only-the-spans-a-sidecar-confirmed. Both legs published
+           `null` counts beside a `null` source on the default path, so a reader could not tell "the
+           recompute would refuse nothing here" from "nobody sized it". The PPG leg now walks the
+           feet, keeps every one and reports the magnitude; the ECG leg holds no span set to size and
+           says exactly that. A worker's top-level functions do not execute in this lane, so the
+           EXECUTING coverage of those counts lives in `tests/trio-fold-validity-tests.mjs`, over the
+           ported copy in `tools/pat-matchrate-strict.mjs`. */
+        T.ok('the PPG leg SIZES an unconfirmed span set', /_annotateOnly = !rec\.pinnedCrossCheck && !_fromRecompute && Array\.isArray\(rec\.spans\)/.test(wsrc));
+        T.ok('…and keeps every foot it counted, so no published time moves', /if \(!_annotateOnly\) continue;/.test(wsrc) && /if \(nAllPinned && !_annotateOnly\)/.test(wsrc));
+        T.ok(
+          '…and the magnitude leaves the worker as a count, null where no span set existed',
+          /wouldDrop: _annotateOnly \? nAllPinned : null/.test(wsrc) && /wouldPartial: _annotateOnly \? nPartPinned : null/.test(wsrc)
+        );
+        T.ok(
+          '∅ …while the CONSUMED union stays null there, because this leg refused no second',
+          /unmeasuredSec: null,\s*wouldUnmeasuredSec: _wouldUnmeasured/.test(wsrc),
+          'a would-be union published as `unmeasuredSec` reads as time this leg really refused'
+        );
+        T.ok("∅ the ECG leg holds a null where an UNPLACED sidecar arrived, and carries the parser's own sentence", /unplacedReason: rec\.blankingSpansReason, unmeasuredSec: null/.test(wsrc));
+        T.eq('∅ and every null-source record names its reason — a bare null states nothing', (wsrc.match(/comparableReason:/g) || []).length, 3);
+        T.ok('…and the page states the state: unconfirmed sizes, an unknown, and an unplaced companion', /unconfirmed: /.test(psrc) && /validity unknown: /.test(psrc) && /sizes unknown/.test(psrc));
       }
     );
 
