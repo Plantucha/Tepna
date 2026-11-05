@@ -62,6 +62,9 @@ def _sandbox(
     unwired_object="PASS",
     covscope_rc=0,
     covscope_object="PASS",
+    adoption_rc=0,
+    node_present=True,
+    adoption_root=None,
 ):
     """A PATH where each gate is a stub that records that it ran and exits as scripted.
 
@@ -203,6 +206,16 @@ echo shellcheck >> "{log}"
 exit {shellcheck_rc}
 """,
     )
+    # `node` is the ADOPTION leg's interpreter, and that leg's real run reads a registry outside this
+    # lane (tools/verdict-adoption.json, 7 s for the capture-host slice). The stub logs and exits as
+    # scripted, so what these tests measure is check.sh's control flow — the bargain every stub here makes.
+    _write_exec(
+        str(binn / "node"),
+        f"""#!/usr/bin/env bash
+echo adoption >> "{log}"
+exit {adoption_rc}
+""",
+    )
     env = dict(os.environ)
     env["PATH"] = f"{binn}{os.pathsep}{env['PATH']}"
     env["PYTHON"] = str(binn / "fakepy")
@@ -210,6 +223,13 @@ exit {shellcheck_rc}
     env["UNWIRED_VERDICT_OUT"] = str(tmp_path / "unwired-verdict.json")  # …nor the real tree's unwired object
     env["COVSCOPE_VERDICT_OUT"] = str(tmp_path / "covscope-verdict.json")  # …nor the real tree's covscope object
     env["MYPY_OUT"] = str(tmp_path / "mypy-latest.txt")  # per sandbox: eight boxes, eight files
+    # TWO ABSENCES, SCRIPTED TWO WAYS, because check.sh answers them differently. `command -v` resolves
+    # $NODE, so an absolute path to a file that does not exist is a box with no node. `adoption_root`
+    # is the other one — a checkout carrying no registry, which one worktree on the capture box really
+    # is (measured 2026-11-05: a full tree from 2026-09-07, node 22 present, no registry file).
+    env["NODE"] = str(binn / ("node" if node_present else "node-is-not-installed-here"))
+    if adoption_root is not None:
+        env["ADOPTION_ROOT"] = str(adoption_root)
     return env, log
 
 
@@ -220,12 +240,12 @@ def _run(tmp_path, **rcs):
     return p, ran
 
 
-def test_all_green_exits_zero_and_runs_all_four_blocking_gates(tmp_path):
+def test_all_green_exits_zero_and_runs_every_observable_blocking_gate(tmp_path):
     p, ran = _run(tmp_path)
     assert p.returncode == 0, p.stdout + p.stderr
     # `format` JOINED THE BLOCKING SET on 2026-10-05 (owner: "Add formatter."), so every pin on the
     # gate SHAPE moves with it. Updated deliberately, which is what these pins are for.
-    assert set(ran) == {"ruff", "format", "shellcheck", "pytest"}, ran
+    assert set(ran) == {"ruff", "format", "shellcheck", "pytest", "adoption"}, ran
     assert "all gates green" in p.stdout
 
 
@@ -243,7 +263,7 @@ def test_a_failing_pytest_still_reports_the_other_gates(tmp_path):
     assert p.returncode != 0
     # `format` JOINED THE BLOCKING SET on 2026-10-05 (owner: "Add formatter."), so every pin on the
     # gate SHAPE moves with it. Updated deliberately, which is what these pins are for.
-    assert set(ran) == {"ruff", "format", "shellcheck", "pytest"}, ran
+    assert set(ran) == {"ruff", "format", "shellcheck", "pytest", "adoption"}, ran
 
 
 def test_every_failing_gate_is_named_in_the_verdict_not_just_the_first(tmp_path):
@@ -352,8 +372,9 @@ def test_the_bound_agrees_with_the_one_CI_runs():
     assert set(ci) == {local.group(1)}, f"check.sh says {local.group(1)}, CI says {sorted(set(ci))}"
 
 
-def _wf_text():
-    wf = pathlib.Path(HERE).parent / ".github" / "workflows" / "capture-host-ci.yml"
+def _wf_text(leg=None):
+    """The workflow a leg's CI step lives in — this lane's own, unless `CI_WORKFLOW` names another."""
+    wf = pathlib.Path(HERE).parent / ".github" / "workflows" / CI_WORKFLOW.get(leg, "capture-host-ci.yml")
     if not wf.exists():  # pragma: no cover - lane shipped alone
         pytest.skip("workflow not present in this checkout")
     return wf.read_text(encoding="utf-8")
@@ -805,7 +826,7 @@ def _verdict(tmp_path):
         return json.load(fh)
 
 
-def test_a_green_run_writes_the_object_over_the_six_blocking_children_and_it_reads_PASS(tmp_path):
+def test_a_green_run_writes_the_object_over_EVERY_blocking_child_and_it_reads_PASS(tmp_path):
     """THE RESIDUE 2026-10-12-find-unwired-has-not-adopted-the-verdict-schema-so-check-sh-can-never-read-
     pass. All five children exit 0 and the object read UNKNOWN anyway, because `unwired` was the last child
     of ours that published no object — so a downstream reader keying on `status` could not tell a green
@@ -823,13 +844,15 @@ def test_a_green_run_writes_the_object_over_the_six_blocking_children_and_it_rea
         "unwired": "PASS",
         "mypy-ratchet": "PASS",
         "covscope": "PASS",
+        "adoption": "PASS",
     }
     assert v["result"]["unknown"] == 0 and v["result"]["notRun"] == 0 and v["result"]["fail"] == 0
     # 4 → 5 children with `format` blocking (2026-10-05), 6 with `mypy-ratchet` and 7 with `covscope`
-    # (both 2026-10-20, landed from separate PRs — this count is what the two conflicted on). The
-    # population is the BLOCKING set, so this equality is the one that would have caught a leg added to
-    # the printout and not to the object.
-    assert v["population"] == {"checked": 7, "eligible": 7, "excluded": 0}
+    # (both 2026-10-20, landed from separate PRs — this count is what the two conflicted on), 8 with
+    # `adoption` (2026-11-05). The population is the BLOCKING set, so this equality is the one that
+    # would have caught a leg added to the printout and not to the object. The name no longer carries
+    # the number: it went stale twice while the assertion below stayed right.
+    assert v["population"] == {"checked": 8, "eligible": 8, "excluded": 0}
     # AT_BASELINE, from the sandbox's clean count. It read NO_COUNT until 2026-10-20, when the default
     # stopped scripting an abort — see `_sandbox`.
     assert v["result"]["advisory"]["mypy"] == "AT_BASELINE"
@@ -944,9 +967,9 @@ def test_a_MISSING_TOOL_is_NOT_RUN_for_that_child_and_leaves_the_run_UNKNOWN_nev
     _run(tmp_path, shellcheck_rc=127)
     v = _verdict(tmp_path)
     assert v["status"] == "UNKNOWN" and v["result"]["statuses"]["shellcheck"] == "NOT_RUN"
-    # 4 → 5 eligible with `format` blocking (2026-10-05), 6 with `mypy-ratchet` and 7 with `covscope`
-    # (both 2026-10-20); one tool absent still excludes exactly one.
-    assert v["population"] == {"checked": 6, "eligible": 7, "excluded": 1}
+    # 4 → 5 eligible with `format` blocking (2026-10-05), 6 with `mypy-ratchet`, 7 with `covscope`
+    # (both 2026-10-20) and 8 with `adoption`; one tool absent still excludes exactly one.
+    assert v["population"] == {"checked": 7, "eligible": 8, "excluded": 1}
     assert "not installed" in v["reason"]
 
 
@@ -1020,7 +1043,7 @@ def test_a_COMPLETE_interpreter_is_not_refused(tmp_path):
     green sandbox must still run all four blocking gates."""
     p, ran = _run(tmp_path)
     assert p.returncode == 0, p.stdout + p.stderr
-    assert set(ran) == {"ruff", "format", "shellcheck", "pytest"}, ran
+    assert set(ran) == {"ruff", "format", "shellcheck", "pytest", "adoption"}, ran
     assert "REFUSED" not in p.stdout + p.stderr
 
 
@@ -1047,7 +1070,15 @@ CI_EVIDENCE = {
     # reviewer and does not hold the merge. The ruleset is the owner's, and the remainder is residue
     # `2026-10-20-the-mypy-ratchet-job-is-not-a-required-context`.
     "mypy-ratchet": r"^\s*python -m mypy --ignore-missing-imports",
+    # The adoption slice's CI home is the NODE lane's WHOLE-registry run, which strictly contains it:
+    # CI reads all 326 producers where this leg reads the 97 in this lane. So the drift this test
+    # guards cannot happen here in the harmful direction, and a second job to read a subset of a gate
+    # CI already runs would buy nothing. It is declared, in the workflow that runs it.
+    "adoption": r"^\s*run: node tools/verdict-adoption\.mjs --check\s*$",
 }
+# The exception, named per leg rather than globbed over every workflow: a pattern searched in every
+# file would let any workflow satisfy any leg, which is a weaker claim than each of the seven above.
+CI_WORKFLOW = {"adoption": "tests.yml"}
 # Every pattern anchors on a `run:` line or on a shell line inside one, so the workflow's prose cannot
 # satisfy it. The file names `ruff`, `pytest` and `check.sh` dozens of times in comments.
 
@@ -1056,13 +1087,13 @@ def _legs(src):
     return re.findall(r'^run_gate "([a-z-]+)"', src, re.M)
 
 
-def _ci_gap(legs, evidence, wf):
+def _ci_gap(legs, evidence, text_for):
     """ONE classifier, read twice — over the real legs and over a plant — so a control cannot drift
     away from the check it is controlling."""
     return {
         "undeclared": [leg for leg in legs if leg not in evidence],
         "unused": [name for name in evidence if name not in legs],
-        "absent": [name for name, pat in evidence.items() if re.search(pat, wf, re.M) is None],
+        "absent": [name for name, pat in evidence.items() if re.search(pat, text_for(name), re.M) is None],
     }
 
 
@@ -1070,20 +1101,72 @@ def test_EVERY_BLOCKING_LEG_OF_check_sh_HAS_A_STEP_IN_CI():
     """THREE ways the two sides drift, and the one that bit is the first: a leg with no declared CI
     home. `unused` catches the map outliving a leg, `absent` catches a step renamed or deleted under a
     declaration that still reads live."""
-    wf = _wf_text()
     legs = _legs(open(CHECK, encoding="utf-8").read())
-    assert len(legs) >= 7, f"only {legs} — the legs are no longer readable here, so nothing below means anything"
-    real = _ci_gap(legs, CI_EVIDENCE, wf)
+    assert len(legs) >= 8, f"only {legs} — the legs are no longer readable here, so nothing below means anything"
+    real = _ci_gap(legs, CI_EVIDENCE, _wf_text)
     assert real["undeclared"] == [], f"blocking leg(s) with no declared CI step: {real['undeclared']}"
     assert real["unused"] == [], f"declared CI step(s) for no blocking leg: {real['unused']}"
     assert real["absent"] == [], f"declared CI step(s) the workflow no longer runs: {real['absent']}"
     plant = _ci_gap(
         ["ruff", "plantleg"],
         {"ruff": CI_EVIDENCE["ruff"], "plantdeclared": r"^\s*run: no-such-step-exists\b"},
-        wf,
+        _wf_text,
     )
     assert plant == {
         "undeclared": ["plantleg"],
         "unused": ["plantdeclared"],
         "absent": ["plantdeclared"],
     }, f"CONTROL: the classifier no longer names a planted gap: {plant}"
+
+
+# ── THE ADOPTION REGISTRY ─ residue 2026-11-05-the-capture-host-gate-does-not-run-the-verdict-adoption-
+# check. `tools/verdict-adoption.json` rows every capture-host/**/*.py file, and no local gate could
+# read it: three units reached a green `check.sh` beside a red required context over a file in this
+# lane — #4362 over a comment block, #4388 over a status word inside a FILENAME, one over a new test
+# file. `--lane capture-host/` is ONE SLICE of that gate (7 s against 172 s), never the whole one.
+def test_the_adoption_slice_is_a_BLOCKING_child_so_a_red_in_it_fails_the_run(tmp_path):
+    """All three arrivals above were population reds, which the slice reads. A leg that only reported
+    would have left all three green here and red in CI, which is the state this closes."""
+    p, ran = _run(tmp_path, adoption_rc=1)
+    assert "adoption" in ran, "the leg never ran"
+    assert p.returncode == 1
+    v = _verdict(tmp_path)
+    assert v["status"] == "FAIL" and v["result"]["statuses"]["adoption"] == "FAIL"
+    assert v["result"]["firstFailure"] == "adoption"
+
+
+def test_an_exit_2_from_the_slice_is_UNKNOWN_because_the_tool_COULD_NOT_LOOK(tmp_path):
+    """The tool publishes two codes and they are not the same claim: 1 is a red it read, 2 is "I could
+    not look" — a lane filter matching nothing, or an adoption it could not read. A refusal reported as
+    a finding sends the next session to a diff that is fine."""
+    p, _ = _run(tmp_path, adoption_rc=2)
+    assert p.returncode == 1, "§3d: the shell's verdict stays non-zero"
+    v = _verdict(tmp_path)
+    assert v["status"] == "UNKNOWN" and v["result"]["statuses"]["adoption"] == "UNKNOWN"
+    assert v["result"]["fail"] == 0, "a refusal is not a finding"
+
+
+def test_a_box_with_no_node_reads_NOT_RUN_for_the_slice_and_never_a_PASS(tmp_path):
+    """An absent interpreter leaves a registry UNREAD, and the registry is right there — so this is the
+    shellcheck-127 shape, never a green. Measured on the capture box 2026-11-05: node 22 is installed
+    and npm is not, so the leg had to work from node alone or report that it could not."""
+    p, ran = _run(tmp_path, node_present=False)
+    assert "adoption" not in ran, "no stub can have run"
+    v = _verdict(tmp_path)
+    assert v["result"]["statuses"]["adoption"] == "NOT_RUN" and v["status"] == "UNKNOWN"
+    assert v["population"] == {"checked": 7, "eligible": 8, "excluded": 1}
+    assert "NOT RUN" in p.stdout
+
+
+def test_a_checkout_with_no_registry_convicts_NOTHING_and_prints_that_state(tmp_path):
+    """The OTHER absence, and it is not the same one. A tree carrying no registry puts none of its own
+    files in any population, so there is nothing to read and nothing this gate could miss. `mypy_ratchet`
+    already answers its own absent tool this way: return 0 and say so. One worktree on the capture box
+    is exactly this tree, so the branch is measured, not hypothetical."""
+    empty = tmp_path / "no-registry"
+    empty.mkdir()
+    p, ran = _run(tmp_path, adoption_root=empty)
+    assert "adoption" not in ran, "node cannot be invoked when there is nothing to read"
+    assert p.returncode == 0 and "carries no adoption registry" in p.stdout
+    v = _verdict(tmp_path)
+    assert v["status"] == "PASS" and v["result"]["statuses"]["adoption"] == "PASS"
