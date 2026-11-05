@@ -48,7 +48,8 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, relative } from 'node:path';
 import { median, quantile } from './ppi-match.mjs';
-import { gitCommitOf, notCovered, populationVerdict, ruleLine, snapshotEntries } from './corpus-scope-core.mjs';
+import { capByNights, gitCommitOf, headNightKeyWith, notCovered, populationVerdict, ruleLine, snapshotEntries } from './corpus-scope-core.mjs';
+import { readRunsSidecar } from './trio-fold-validity.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const argv = process.argv.slice(2);
@@ -259,10 +260,32 @@ const snap = snapshotEntries(DIR, { list: listH10Acc, unit: ACC_UNIT });
    enough for a commit to land in this worktree, and Node loaded this module at the start. */
 const commitOf = gitCommitOf(ROOT);
 const all = walk(DIR);
-const accs = all
-  .filter((f) => ACC_RE.test(f.p))
-  .sort((a, b) => b.size - a.size)
-  .slice(0, MAX_NIGHTS);
+/* ── THE CAP IS NAMED FOR NIGHTS, SO IT SELECTS NIGHTS ────────────────────────────────────────────
+   Row 2026-11-05-three-more-max-nights-caps-still-cut-files: this line sorted the matched ACC files
+   by descending SIZE and sliced `--max-nights` of them, so the flag kept the LONGEST sessions and a
+   night recorded as two sessions spent two of the budget. The rule and the head probe live in
+   `corpus-scope-core.mjs`; the parser is this tool's.
+
+   THE ACC NIGHT KEY IS THE FIRST ROW'S PARSED STAMP. `parseSensorXYZ` returns rows carrying `tMs`,
+   so the key comes from the clock the node itself read and never from the 14-digit filename stamp,
+   which is the SESSION's start taken before the link is up. A head that parses to no row, or to a
+   row with no stamp, is a night UNKNOWN (§∅): the cap offers it after every dated night and the line
+   below names how many there were. The probe's sidecar read is untallied, because this run's numbers
+   describe the sessions it SCORED. */
+const headNightKey = headNightKeyWith({
+  parse: (t, o) => {
+    const rt = o && o.runsText;
+    return rt ? M.parseSensorXYZ(t, { runsText: rt }) : M.parseSensorXYZ(t);
+  },
+  runsOf: (path) => readRunsSidecar(path, 'ACC').runsText,
+  t0Of: (rows) => (rows && rows.length && Number.isFinite(rows[0].tMs) ? rows[0].tMs : null)
+});
+const _cap = capByNights(
+  all.filter((f) => ACC_RE.test(f.p)),
+  MAX_NIGHTS,
+  headNightKey
+);
+const accs = _cap.kept;
 
 console.log('MOTIONDEX-RESPIRATORY-RATE-FOLLOWUPS §8 — is there cardiac energy left to notch?');
 console.log(`grid ${FSC} Hz · respiratory band ${RESP_LO}-${RESP_HI} Hz · f_HR from the paired H10 ECG\n`);
@@ -362,7 +385,14 @@ function printPopulation() {
   console.log(`  the read scored ${rows.length} of the ${snap.n} offered under ${DIR}${snap.ok ? '' : ` · ${snap.reason}`}`);
   const missed = notCovered(snap, rows, { key: 'rec' });
   if (missed.length) console.log(`  it removed ${missed.length}, by name: ${missed.slice(0, 8).join(' · ')}${missed.length > 8 ? ` · … (+${missed.length - 8})` : ''}`);
-  if (accs.length < snap.n) console.log(`  ${snap.n - accs.length} of those left under the --max-nights ${MAX_NIGHTS} cap, largest first`);
+  /* THE CAP'S OWN UNIT, STATED. The old line said `largest first` over a count of files under a flag
+     named for nights, which describes two different selections at once. */
+  if (accs.length < snap.n)
+    console.log(
+      `  the --max-nights ${MAX_NIGHTS} cap kept ${_cap.keptNights.length} of ${_cap.nights.length} dated night(s), earliest first, whole nights only · ${snap.n - accs.length} offered file(s) left` +
+        (_cap.droppedNights.length ? ` · nights left by name: ${_cap.droppedNights.slice(0, 8).join(' · ')}${_cap.droppedNights.length > 8 ? ` · … (+${_cap.droppedNights.length - 8})` : ''}` : '') +
+        (_cap.undated.length ? ` · ∅ ${_cap.undated.length} candidate head(s) carried no clock, offered after every dated night, ${_cap.keptUndated.length} read` : '')
+    );
 }
 
 /* 🔴 A RUN THAT SCORED NOTHING STILL OWES ITS POPULATION. The early exit below used to be the only
