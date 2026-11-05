@@ -12,6 +12,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { VALIDITY_STATES, mergeBlankingSpans, mergePinnedSpans, readRunsSidecar, runsSidecarPath, validityLine } from '../tools/trio-fold-validity.mjs';
 import { ecgRpeakTimes, loadDsps, ppgFootTimes } from '../tools/pat-matchrate-strict.mjs';
+import { loadDsps as loadBc, ppgFootTimes as bcPpgFootTimes } from '../tools/beat-correspondence.mjs';
 
 let pass = 0;
 const fails = [];
@@ -545,6 +546,46 @@ function synthPpg(nSamples, clipFrom, clipTo) {
   ok(cut.n === annot.n - annot.wouldDropAllPinned, `so the kept train is the annotated train less that count (${cut.n} = ${annot.n} - ${annot.wouldDropAllPinned})`);
   ok(cut.wouldDropAllPinned === null && cut.wouldPartialPinned === null, '∅ and the would-fields null out where a leg really dropped, so one figure never reads twice');
   ok(annot.n === clean.n || annot.n !== cut.n, `CONTROL · the annotate path published its own feet unchanged (n=${annot.n})`);
+}
+
+/* ── ∅ THE THIRD COPY REPORTS WHAT THE SIDECAR PLACED, EXECUTED ───────────────────
+   Rows 2026-11-03-a-third-foot-detector-copy-carries-no-port-declaration and
+   2026-10-17-sample-parsers-called-without-their-sidecar. `tools/beat-correspondence.mjs` holds its
+   own `ppgFootTimes`. It handed the sidecar bytes to `parsePPG` and returned a bare `Float64Array`,
+   so the arity leg above read it as wired while no reader ever saw a pinned span. The source scan
+   cannot catch that shape, which is why these legs EXECUTE the copy over the same synthetic stream.
+   The companion rows carry the pinned class, and `parsePPG` sets `pinnedCrossCheck` from them: the
+   recompute's own spans still win where the file could not see, so the counts below come from the
+   stream and the companion only confirms them. */
+const ppgRuns = (spans) => ecgRuns(spans, { stream: 'ppg', channel: 'channel 0' });
+{
+  loadBc();
+  const clean = bcPpgFootTimes(synthPpg(3300, -1, -1));
+  ok(clean.n > 20, `ANTI-VACUITY · the copy yields feet at all (n=${clean.n})`);
+  ok(
+    clean.wouldDropAllPinned === 0 && clean.wouldPartialPinned === 0,
+    `∅ a span set that refused nothing reads a MEASURED zero (${JSON.stringify([clean.wouldDropAllPinned, clean.wouldPartialPinned])})`
+  );
+  ok(clean.droppedAllPinned === null && clean.partialPinned === null, '∅ the consuming fields stay null where nothing confirmed the spans');
+  ok(clean.pinnedSource === null, 'and the source stays null, so no reader takes the annotation for a confirmed sidecar');
+  ok(JSON.stringify(clean.wouldDropAllPinned) !== JSON.stringify(clean.droppedAllPinned), '∅ the measured zero and the null do not serialise alike');
+
+  const railed = synthPpg(3300, 18, 24);
+  const annot = bcPpgFootTimes(railed);
+  ok(annot.wouldDropAllPinned >= 1, `∅ the unconfirmed span set reports what it WOULD refuse (${annot.wouldDropAllPinned})`);
+  ok(annot.n === annot.nDetected, `the annotate path keeps every foot, so no published number moves there (${annot.n})`);
+
+  const cut = bcPpgFootTimes(railed, ppgRuns([{ first: 18 + 4 * PPG_FS, n: 60 }]));
+  ok(cut.pinnedSource === '_PPGRUNS.txt', `a companion CONFIRMS the spans, and the record names it (${cut.pinnedSource})`);
+  ok(cut.droppedAllPinned === annot.wouldDropAllPinned, `the confirmed path drops exactly the feet the annotation sized (${cut.droppedAllPinned} of ${annot.wouldDropAllPinned})`);
+  ok(cut.n === annot.n - annot.wouldDropAllPinned, `so the kept train is the annotated train less that count (${cut.n} = ${annot.n} - ${annot.wouldDropAllPinned})`);
+  ok(cut.wouldDropAllPinned === null && cut.wouldPartialPinned === null, '∅ the would-fields null out where a leg really dropped, so one figure never reads twice');
+  ok(cut.nDetected === annot.nDetected, `nDetected keeps naming the consensus train, so the "of N" line stays true (${cut.nDetected})`);
+  ok(cut.channelsScanned === 1, `the record names the channel set it scanned (${cut.channelsScanned})`);
+
+  const bcSrc = readFileSync(join(here, '..', 'tools', 'beat-correspondence.mjs'), 'utf8');
+  ok(/@port-from pat-feasibility-worker\.js#ppgFootTimes/.test(bcSrc), 'the copy declares its source, so `port-parity` reads a later source move as drift');
+  ok(ownSidecarPaths(bcSrc).length === 0, `and the pinnedSource label builds no sidecar path of its own (${ownSidecarPaths(bcSrc).join(' | ').slice(0, 90)})`);
 }
 
 if (fails.length) {
