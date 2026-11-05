@@ -1769,6 +1769,180 @@
       );
     });
 
+    group('∅ radio-clock seams — anchor_epoch is read where it exists, and its absence travels', 'clock · radio-clock · seams', function (T) {
+      var DR = env.DexRadio || (typeof DexRadio !== 'undefined' ? DexRadio : null);
+      if (!DR || typeof DR.anchorSeams !== 'function') {
+        T.ok('DexRadio.anchorSeams is reachable', false, 'radio-clock.js is not loaded, or predates the seam reader — this group cannot run and must not read as a pass');
+        return;
+      }
+
+      /* The same exact 16-bit Lehmer LCG the band group plants with, so both
+         suite lanes and every rig get the same numbers. `seg` is the marker the
+         collector writes as `anchor_epoch`: a number per link establishment,
+         counted from 1, and `null` where the file names no such column. */
+      function plant(n, seg, resetAt) {
+        var seed = 11213;
+        var dseed = 25747;
+        var out = [];
+        for (var i = 0; i < n; i++) {
+          seed = (seed * 75 + 74) % 65537;
+          dseed = (dseed * 75 + 74) % 65537;
+          var u = seed / 65537 - 0.5;
+          var dev = (resetAt != null && i >= resetAt ? i - resetAt : i) * 1000 + (dseed % 5) / 64;
+          var a = { devMs: dev, hostMs: 5000 + i * 1000 * (1 + 20 / 1e6) + u * 4 };
+          if (seg != null) a.seg = typeof seg === 'function' ? seg(i) : seg;
+          out.push(a);
+        }
+        return out;
+      }
+
+      /* ── anchorSeams: the marker, and the question to ask first ─────────── */
+      T.ok("the marker is the collector's own column name, read from the module", DR.RC_SEAM_COLUMN === 'anchor_epoch', String(DR.RC_SEAM_COLUMN));
+      T.ok(
+        '…and it is NOT in RC_COLUMNS, so a night whose header predates it parses rather than refusing by header shape',
+        DR.RC_COLUMNS.indexOf(DR.RC_SEAM_COLUMN) === -1 && DR.RC_COLUMNS.length === 9,
+        JSON.stringify({ columns: DR.RC_COLUMNS.length, seam: DR.RC_SEAM_COLUMN })
+      );
+
+      var unmarked = DR.anchorSeams(plant(601, null));
+      T.ok(
+        'an unmarked sequence reads marked:false with every count real',
+        unmarked.marked === false && unmarked.n === 601 && unmarked.dropped === 0 && unmarked.lastSegment.length === 601 && unmarked.anchorsBeforeLastSeam === 0,
+        JSON.stringify({ marked: unmarked.marked, n: unmarked.n, segments: unmarked.segments, before: unmarked.anchorsBeforeLastSeam })
+      );
+      var markedOne = DR.anchorSeams(plant(601, 7));
+      T.ok(
+        '🔴 `marked` IS THE QUESTION TO ASK FIRST: one stamped link and NO column at all read the SAME segments count, and they mean opposite things',
+        markedOne.segments === unmarked.segments && markedOne.segments === 1 && markedOne.marked === true && unmarked.marked === false,
+        JSON.stringify({ markedSegments: markedOne.segments, unmarkedSegments: unmarked.segments })
+      );
+      var twoSeg = DR.anchorSeams(
+        plant(601, function (i) {
+          return i < 300 ? 1 : 2;
+        })
+      );
+      T.ok(
+        'a second stamped establishment reads segments 2 and names where it fell',
+        twoSeg.marked === true && twoSeg.segments === 2 && twoSeg.anchorsBeforeLastSeam === 300 && twoSeg.lastSegment.length === 301,
+        JSON.stringify({ segments: twoSeg.segments, before: twoSeg.anchorsBeforeLastSeam, last: twoSeg.lastSegment.length })
+      );
+      var sDropped = DR.anchorSeams([{ devMs: 0, hostMs: 1, seg: 1 }, { devMs: Number.NaN, hostMs: 2, seg: 1 }, { devMs: 2000, hostMs: 2003, seg: 1 }, null]);
+      T.ok(
+        '∅ an unreadable anchor is DROPPED and counted, never placed at 0',
+        sDropped.n === 2 && sDropped.dropped === 2 && sDropped.segments === 1,
+        JSON.stringify(sDropped)
+      );
+      var sNoneSeg = DR.anchorSeams([{ devMs: 0, hostMs: 1, seg: null }, { devMs: 1000, hostMs: 1002, seg: null }]);
+      T.ok(
+        '∅ a seam cell that is null on every row is UNMARKED, not segment zero',
+        sNoneSeg.marked === false && sNoneSeg.segments === 1 && sNoneSeg.n === 2,
+        JSON.stringify(sNoneSeg)
+      );
+
+      /* ── radioAxis: §🔒.7 cuts the axis, and §∅ keeps the unmarked band ─── */
+      var resetMarked = DR.radioAxis(
+        plant(601, function (i) {
+          return i < 300 ? 1 : 2;
+        }, 300)
+      );
+      var resetUnmarked = DR.radioAxis(plant(601, null, 300));
+      T.ok(
+        '🔴 §🔒.7 — a STAMPED establishment cuts the axis: the same anchors refuse unmarked and build on the last segment when the column is there',
+        resetUnmarked.ok === false && resetMarked.ok === true && resetMarked.n === 301,
+        JSON.stringify({ unmarked: { ok: resetUnmarked.ok, reason: resetUnmarked.reason }, marked: { ok: resetMarked.ok, band: resetMarked.band, n: resetMarked.n } })
+      );
+      T.ok(
+        '…and the answer says what it dropped, while `gaps` keeps describing the whole file',
+        resetMarked.seams.anchorsBeforeLastSeam === 300 && resetMarked.seams.n === 601 && resetMarked.gaps.n === 601,
+        JSON.stringify({ before: resetMarked.seams.anchorsBeforeLastSeam, seamN: resetMarked.seams.n, gapN: resetMarked.gaps.n })
+      );
+      var markedSame = DR.radioAxis(plant(601, 7));
+      var unmarkedSame = DR.radioAxis(plant(601, null));
+      T.ok(
+        'one stamped link changes nothing: a single-segment marked stream reads the same band and the same n as the unmarked twin',
+        markedSame.band === unmarkedSame.band && markedSame.n === unmarkedSame.n && markedSame.seams.marked === true && unmarkedSame.seams.marked === false,
+        JSON.stringify({ marked: markedSame.band, unmarked: unmarkedSame.band, n: markedSame.n })
+      );
+      var lateSeam = DR.radioAxis(
+        plant(601, function (i) {
+          return i < 599 ? 1 : 2;
+        })
+      );
+      T.ok(
+        'a last segment under the 3-anchor floor refuses and counts BOTH populations, so the floor is never read against the file',
+        lateSeam.ok === false && lateSeam.n === 2 && /in the segment after the last link establishment, of 601 readable/.test(String(lateSeam.reason)),
+        JSON.stringify({ n: lateSeam.n, reason: lateSeam.reason })
+      );
+      var holed = plant(1201, null);
+      holed = holed.slice(0, 400).concat(holed.slice(800));
+      var axHoled = DR.radioAxis(holed);
+      T.ok(
+        '🔴 §∅ — AN UNMARKED HOLE STILL ANNOTATES AND REFUSES NOTHING: the band holds and the pair a consumer reads rides beside it',
+        axHoled.band === 'radio' && axHoled.ok === true && axHoled.seams.marked === false && axHoled.gaps.gapCount === 1,
+        JSON.stringify({ band: axHoled.band, marked: axHoled.seams.marked, gapCount: axHoled.gaps.gapCount })
+      );
+      var noSpineSeams = DR.radioAxis(plant(601, 7), { hostAxis: null });
+      T.ok(
+        'the seams ride on a refusal too, so the seam read never depends on the spine',
+        noSpineSeams.ok === false && noSpineSeams.seams && noSpineSeams.seams.marked === true && noSpineSeams.seams.n === 601,
+        JSON.stringify({ reason: noSpineSeams.reason, seams: noSpineSeams.seams && { marked: noSpineSeams.seams.marked, n: noSpineSeams.seams.n } })
+      );
+
+      /* ── the parser: the column is OPTIONAL, and a blank cell is not a 0 ── */
+      function rows(n, withSeam, segAt, blankFrom) {
+        var out = [];
+        for (var i = 0; i < n; i++) {
+          var f = ['2026-11-03T22:00:00.000', 'AA:BB', 'ECG', String(i * 1000000000), '1', String(i), String(9000000 + i * 1000000), '', String(17000000 + i * 1000000)];
+          if (withSeam) {
+            f.push('44100');
+            f.push(blankFrom != null && i >= blankFrom ? '' : String(i < segAt ? 1 : 2));
+          }
+          out.push(f.join(';'));
+        }
+        return out;
+      }
+      function sidecar(rs, withSeam) {
+        var head = DR.RC_COLUMNS.join(';') + (withSeam ? ';device_clock;' + DR.RC_SEAM_COLUMN : '');
+        return '# radio-clock sidecar, synthetic twin\n' + head + '\n' + rs.join('\n') + '\n';
+      }
+      var pSeam = DR.parseRadioClock(sidecar(rows(40, true, 20), true));
+      var aSeam = pSeam.ok ? pSeam.streams['AA:BB|ECG'].anchors : [];
+      T.ok(
+        'an eleven-column night yields a `seg` on every anchor, and the two stamped epochs are both read',
+        pSeam.ok === true &&
+          aSeam.length === 40 &&
+          aSeam.every(function (a) {
+            return a.seg === 1 || a.seg === 2;
+          }) &&
+          DR.anchorSeams(aSeam).segments === 2,
+        JSON.stringify({ ok: pSeam.ok, anchors: aSeam.length, segments: DR.anchorSeams(aSeam).segments })
+      );
+      var pNine = DR.parseRadioClock(sidecar(rows(40, false), false));
+      var aNine = pNine.ok ? pNine.streams['AA:BB|ECG'].anchors : [];
+      T.ok(
+        '🔴 ∅ a nine-column night PARSES, and every `seg` is null rather than 0 — a 0 would claim a link that never opened',
+        pNine.ok === true &&
+          aNine.length === 40 &&
+          aNine.every(function (a) {
+            return a.seg === null;
+          }) &&
+          DR.anchorSeams(aNine).marked === false,
+        JSON.stringify({ ok: pNine.ok, anchors: aNine.length, firstSeg: aNine.length ? aNine[0].seg : 'none' })
+      );
+      var pBlank = DR.parseRadioClock(sidecar(rows(40, true, 20, 30), true));
+      var aBlank = pBlank.ok ? pBlank.streams['AA:BB|ECG'].anchors : [];
+      T.ok(
+        '∅ a blank seam cell on a night that names the column is null too, and the rows around it keep their epoch',
+        pBlank.ok === true &&
+          aBlank.length === 40 &&
+          aBlank[29].seg === 2 &&
+          aBlank.slice(30).every(function (a) {
+            return a.seg === null;
+          }),
+        JSON.stringify({ at29: aBlank.length > 29 ? aBlank[29].seg : 'none', at39: aBlank.length > 39 ? aBlank[39].seg : 'none' })
+      );
+    });
+
     group('OxyDex §∅ — an ABSENT oximetry index is not a measured zero, and Normal is a claim', 'oxydex-dsp · absence', function (T) {
       var _odn = env.OxyDex || env.OxyDSP || env.OXYDSP;
       var OD = (_odn && _odn._bare) || _odn;
