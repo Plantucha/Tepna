@@ -33,6 +33,10 @@ import { ECGUI } from './ecgdex-render.js';
        FILENAME stamp. Filename, not a parsed t0Ms: the text has to reach parseECGText BEFORE a rec
        exists to pair on. Empty on every drop without a sidecar, which is every existing fixture. */
     _runsFiles = [],
+    /* SEAM-SIDECAR-CONSUMPTION §4 — `_ECGSEAMS.txt` texts from the same drop, keyed the same way and
+       for the same reason. A SEPARATE list, not a field on the runs entries: the two sidecars are
+       separate files with separate stamps, and a drop may carry either one alone. */
+    _seamsFiles = [],
     _replaceMode = false;
 
   /* ════════════════════════════════════════════════════════════════════════
@@ -142,17 +146,23 @@ self.onmessage = async (e) => {
   // ════════════════════════════════════════════════════════════════════════
   //  INGEST
   // ════════════════════════════════════════════════════════════════════════
-  /* Nearest `_ECGRUNS.txt` by FILENAME stamp, or null. `ING.pickNearestByStamp` is the shared rule
-     (dex-ingest.js) PpgDex already uses for its own sidecar, so the two nodes pair identically. */
-  function _pickRunsFor(primaryName) {
-    if (!_runsFiles.length) return null;
+  /* Nearest sidecar text by FILENAME stamp, or null. `ING.pickNearestByStamp` is the shared rule
+     (dex-ingest.js) PpgDex already uses for its own sidecar, so the two nodes pair identically.
+     The LIST is a parameter because `_ECGRUNS` and `_ECGSEAMS` pair by one rule over two files. */
+  function _pickSidecarFor(list, primaryName) {
+    if (!list.length) return null;
     const ING = typeof DexIngest !== 'undefined' ? DexIngest : null;
     const stamp = ING && typeof ING.stampMs === 'function' ? ING.stampMs(primaryName) : null;
     if (ING && typeof ING.pickNearestByStamp === 'function' && stamp != null) {
-      const hit = ING.pickNearestByStamp(_runsFiles, stamp);
+      const hit = ING.pickNearestByStamp(list, stamp);
       return hit && typeof hit.text === 'string' ? hit.text : null;
     }
-    return _runsFiles.length === 1 ? _runsFiles[0].text : null; // one sidecar, one drop — unambiguous
+    return list.length === 1 ? list[0].text : null; // one sidecar, one drop — unambiguous
+  }
+  /* Both sidecars for one primary, as the DSP's `attachEcgSidecars` opts. Absent ones stay null, so
+     a drop without either hands the parser an object it treats as the 1-arg call it always was. */
+  function _sidecarsFor(primaryName) {
+    return { runsText: _pickSidecarFor(_runsFiles, primaryName), seamsText: _pickSidecarFor(_seamsFiles, primaryName) };
   }
 
   function loadECGFile(files) {
@@ -196,6 +206,13 @@ self.onmessage = async (e) => {
             deviceEpoch: t.deviceEpoch,
             hostAxis: t.hostAxis
           };
+          /* …and the validity sidecars this drop paired. THIS ROAD HAD NEITHER until 2026-11-05:
+             the rec above is hand-built from the worker's scan and never passes through
+             `parseECGLines`, where the attach used to live — so a drop over 5 MB or of more than one
+             part, which is every real overnight recording, read as a night with no sidecar at all.
+             `attachEcgSidecars` is the DSP's single attach body (exported for exactly this caller);
+             it mutates `rec` in place and a drop carrying neither text leaves it untouched. */
+          DSP.attachEcgSidecars(rec, _sidecarsFor((files[0] && files[0].name) || ''));
           // R1 provenance: the streamed primary ECG bypasses the FileReader hook —
           // attest each part explicitly (name/bytes/mtime) so the export records its true inputs.
           if (window.GangliorProvenance) files.forEach((f) => GangliorProvenance.noteInput(f));
@@ -215,9 +232,14 @@ self.onmessage = async (e) => {
       const file = files[0];
       const fr = new FileReader();
       fr.onload = (e) => {
-        // §3.2 — the nearest `_ECGRUNS.txt` by FILENAME stamp (the same rule planIngest pairs on).
-        const _rt = _pickRunsFor(file.name);
-        runPipeline(_rt ? DSP.parseECG(e.target.result, { runsText: _rt }) : DSP.parseECG(e.target.result), file.name);
+        /* §3.2 + SEAM-SIDECAR-CONSUMPTION §4 — the nearest `_ECGRUNS.txt` and `_ECGSEAMS.txt` by
+           FILENAME stamp (the same rule planIngest pairs on). The 1-arg call is kept for a drop with
+           neither, so every existing fixture takes the byte-identical road it always took. */
+        const _sc = _sidecarsFor(file.name);
+        /* The opts are SPELLED OUT here rather than handed over as `_sc`, because done-when 4's
+           ratchet reads the guarded ternary's own argument list: an opts object built elsewhere
+           reads to it as a parser called with no sidecar at all, which is the defect it counts. */
+        runPipeline(_sc.runsText || _sc.seamsText ? DSP.parseECG(e.target.result, { runsText: _sc.runsText, seamsText: _sc.seamsText }) : DSP.parseECG(e.target.result), file.name);
       };
       fr.readAsText(file);
     }
@@ -1915,38 +1937,43 @@ self.onmessage = async (e) => {
     }
     const wasDraining = _loadQueue.length > 0;
     _loadQueue = _loadQueue.concat(ecgGroups);
-    /* The runs lane is resolved BEFORE the queue drains, unlike RR/HR/ACC which are applied to an
-       already-parsed rec. A validity span has to be known at parse time or the refusal cannot be
-       applied at all, so the ECG start waits on these reads — and only when the drop actually
-       carries one. No sidecar ⇒ the exact pre-existing call order (byte-identical). */
+    /* The runs and seams lanes are resolved BEFORE the queue drains, unlike RR/HR/ACC which are
+       applied to an already-parsed rec. A validity span or a recorded seam has to be known at parse
+       time or the refusal cannot be applied at all, so the ECG start waits on these reads — and only
+       when the drop actually carries one. No sidecar ⇒ the exact pre-existing call order
+       (byte-identical). */
     const _runsGroups = (plan.companionLanes && plan.companionLanes.runs) || [];
-    if (!_runsGroups.length) {
+    const _seamsGroups = (plan.companionLanes && plan.companionLanes.seams) || [];
+    if (!_runsGroups.length && !_seamsGroups.length) {
       if (!wasDraining) _processQueue();
       return;
     }
-    Promise.all(
-      _runsGroups.map((parts) => {
-        const f = parts.length === 1 ? Promise.resolve(parts[0]) : mergeFileParts(parts);
-        return Promise.resolve(f).then(
-          (file) =>
-            new Promise((res) => {
-              const fr = new FileReader();
-              /* `stampMs` is a PROPERTY the picker reads off the candidate — it does not derive one
-                 from the name. Omitting it makes every candidate unscoreable (§10.3) and the pick
-                 returns null, i.e. the sidecar silently never pairs. Measured that way first. */
-              fr.onload = (e) =>
-                res({
-                  name: file.name,
-                  text: String(e.target.result || ''),
-                  stampMs: typeof DexIngest !== 'undefined' && typeof DexIngest.stampMs === 'function' ? DexIngest.stampMs(file.name) : null
-                });
-              fr.onerror = () => res(null); // a sidecar that will not read is NOT a reason to lose the night
-              fr.readAsText(file);
-            })
-        );
-      })
-    ).then((loaded) => {
-      _runsFiles = loaded.filter(Boolean);
+    const _readLane = (groups) =>
+      Promise.all(
+        groups.map((parts) => {
+          const f = parts.length === 1 ? Promise.resolve(parts[0]) : mergeFileParts(parts);
+          return Promise.resolve(f).then(
+            (file) =>
+              new Promise((res) => {
+                const fr = new FileReader();
+                /* `stampMs` is a PROPERTY the picker reads off the candidate — it does not derive one
+                   from the name. Omitting it makes every candidate unscoreable (§10.3) and the pick
+                   returns null, i.e. the sidecar silently never pairs. Measured that way first. */
+                fr.onload = (e) =>
+                  res({
+                    name: file.name,
+                    text: String(e.target.result || ''),
+                    stampMs: typeof DexIngest !== 'undefined' && typeof DexIngest.stampMs === 'function' ? DexIngest.stampMs(file.name) : null
+                  });
+                fr.onerror = () => res(null); // a sidecar that will not read is NOT a reason to lose the night
+                fr.readAsText(file);
+              })
+          );
+        })
+      ).then((loaded) => loaded.filter(Boolean));
+    Promise.all([_readLane(_runsGroups), _readLane(_seamsGroups)]).then((lanes) => {
+      _runsFiles = lanes[0];
+      _seamsFiles = lanes[1];
       if (!wasDraining) _processQueue();
     });
   }

@@ -4881,6 +4881,7 @@
     poincareGeo,
     epochEngine, // §∅ epoch gap-exclusion + seam refusal, gated directly
     placeRecordedSeams, // SEAM-SIDECAR-CONSUMPTION §4 — box-recorded seams onto this node's beat axis
+    attachEcgSidecars, // the one attach body for `_ECGRUNS` / `_ECGSEAMS` — the app's worker road calls it
     detectCVHR,
     cardiorespCoupling,
     dfaAlpha1,
@@ -6079,6 +6080,45 @@
     return false;
   }
 
+  /* ONE attach body for BOTH validity sidecars, and exported because the browser's streaming road
+     cannot reach a body that lives inside the parser. `ecgdex-app.js` sends a drop over 5 MB or of
+     more than one part — which is the shape of every real overnight `_ECG.txt` — to the parse
+     worker, then rebuilds the record from `ecgTimingResolve(d.scan)`; that record never passed
+     through `parseECGLines`, so neither sidecar the drop carried ever reached the DSP there. A
+     second copy of this block in the app would drift from this one, exactly as the app's third
+     ingest copy drifted (DEEP-AUDIT-VI F2), so the block moves HERE and both roads call it.
+
+     Mutates and returns the SAME `rec`. `opts.runsText` is the `_ECGRUNS.txt` companion's bytes and
+     `opts.seamsText` the `_ECGSEAMS.txt` companion's; a call carrying neither leaves the record
+     byte-identical, which is why no existing fixture input moves. LAST and OPTIONAL per §🧪. */
+  function attachEcgSidecars(rec, opts) {
+    if (!rec) return rec;
+    /* It lives HERE, not only in `parseECGText`, so a STREAMED caller (`tools/trio-batch.mjs` folds
+       60 MB files line by line) reaches the same validity a whole-text caller does. */
+    var runs = parseEcgRuns(opts && opts.runsText);
+    if (runs) {
+      rec.runsSidecar = runs;
+      /* §∅ — a sidecar whose rows went unplaced measured nothing here, and `[]` would report that
+         the box found no blanking. `null` is the absence; every consumer already guards for it
+         (`Array.isArray`, or `runRanges`, which answers `[]` to a null), and the reason names what
+         this reader could not place. */
+      rec.blankingSpans = runs.placedNone ? null : runs.spans;
+      if (runs.placedNone) rec.blankingSpansReason = 'sidecar rows unplaced: ' + (runs.rejectedChannels.join(', ') || 'malformed rows only');
+    }
+    /* …and the box's own clock-seam sidecar beside the same stream (SEAM-SIDECAR-CONSUMPTION §4,
+       owner ruling 2026-11-05), on the same footing. */
+    var seams = parseEcgSeams(opts && opts.seamsText);
+    if (seams) {
+      rec.seamsSidecar = seams;
+      /* §∅ — `[]` is the honest answer for a sidecar that examined intervals and recorded no seam,
+         and the WRONG answer for one whose rows this reader could not place. `null` is the absence
+         and the reason names which rows went unplaced. */
+      rec.recordedSeams = seams.placedNone ? null : seams.rows;
+      if (seams.placedNone) rec.recordedSeamsReason = 'seam sidecar rows unplaced: ' + (seams.rejectedReasons.join(', ') || 'malformed rows only');
+    }
+    return rec;
+  }
+
   function parseECGText(text, opts) {
     // Whole-text entry point — UNCHANGED contract, kept for the browser and every existing caller.
     // It delegates so there is exactly ONE parse body: a second copy would drift, and the two would
@@ -6152,34 +6192,7 @@
       deviceEpoch: t.deviceEpoch,
       hostAxis: t.hostAxis
     };
-    /* `opts.runsText` is the `_ECGRUNS.txt` companion's bytes. It lives HERE, not only in
-       `parseECGText`, so a STREAMED caller (`tools/trio-batch.mjs` folds 60 MB files line by line)
-       reaches the same validity a whole-text caller does. LAST and OPTIONAL per §🧪: a call without
-       it returns the record above unchanged. */
-    var runs = parseEcgRuns(opts && opts.runsText);
-    if (runs) {
-      rec.runsSidecar = runs;
-      /* §∅ — a sidecar whose rows went unplaced measured nothing here, and `[]` would report that
-         the box found no blanking. `null` is the absence; every consumer already guards for it
-         (`Array.isArray`, or `runRanges`, which answers `[]` to a null), and the reason names what
-         this reader could not place. */
-      rec.blankingSpans = runs.placedNone ? null : runs.spans;
-      if (runs.placedNone) rec.blankingSpansReason = 'sidecar rows unplaced: ' + (runs.rejectedChannels.join(', ') || 'malformed rows only');
-    }
-    /* …and the box's own clock-seam sidecar beside the same stream (SEAM-SIDECAR-CONSUMPTION §4,
-       owner ruling 2026-11-05). Here for the same reason `runsText` is: a streamed caller reaches
-       the same validity a whole-text caller does. LAST and OPTIONAL — a call without it returns the
-       record above unchanged, which is why no existing fixture input moves. */
-    var seams = parseEcgSeams(opts && opts.seamsText);
-    if (seams) {
-      rec.seamsSidecar = seams;
-      /* §∅ — `[]` is the honest answer for a sidecar that examined intervals and recorded no seam,
-         and the WRONG answer for one whose rows this reader could not place. `null` is the absence
-         and the reason names which rows went unplaced. */
-      rec.recordedSeams = seams.placedNone ? null : seams.rows;
-      if (seams.placedNone) rec.recordedSeamsReason = 'seam sidecar rows unplaced: ' + (seams.rejectedReasons.join(', ') || 'malformed rows only');
-    }
-    return rec;
+    return attachEcgSidecars(rec, opts);
   }
 
   /* recording.coverage for an ECG recording — INTEGRATOR-GAP-AWARE-OVERLAP part 2.
