@@ -397,7 +397,7 @@ if (!_ppgOffer.kept.length) {
   }
   process.exit(2);
 }
-/* 🔴 THIS CAP COUNTS FILES, NOT NIGHTS, AND SAYS SO (row 2026-11-04-max-nights-caps-files-not-nights).
+/* 🔴 THIS CAP COUNTS FILES, NOT NIGHTS, AND SAYS SO (row 2026-11-04-max-nights-caps-the-largest-files-not-the-nights).
    `--max-nights` ranks by byte size and cuts the file list, so one night split across two captures
    spends two of the budget and a 20-file cap can cover far fewer than 20 nights. The flag name is
    kept because seven other tools share it; the rule it applies is stated in the population line. */
