@@ -3,6 +3,8 @@
 """Three device states that reached no phone (owner, 2026-11-04): a night that ends on the dock, a device
 that runs while not worn, and a device that streams on its charger. Every notifier is a stub."""
 
+import datetime as dt
+
 import pytest
 
 import alerts
@@ -90,6 +92,9 @@ def poll(monkeypatch):
 
         monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
         monkeypatch.setattr(capture._time, "monotonic", lambda: steps[it["i"]][0])
+        # The wall clock is pinned to midday: the night-battery alert reads `_now`, and a run inside the
+        # night window must not decide these dock and wear tests (test_battery_alerts.py, the pin rule).
+        monkeypatch.setattr(capture, "_now", lambda: dt.datetime(2026, 11, 4, 12, 0))
         cfg = {
             "alerts": {"poll_sec": 1, "offline_sec": 10**6, **(acfg or {})},
             "devices": [_dev(name=NM, address=ADDR)],
