@@ -78,7 +78,10 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { basename, dirname, join, relative } from 'node:path';
 import { createRequire } from 'node:module';
-import { gitCommitOf, notCovered, populationVerdict, ruleLine, snapshotEntries } from './corpus-scope-core.mjs';
+import { dedupeByIdentity, gitCommitOf, notCovered, populationVerdict, ruleLine, snapshotEntries } from './corpus-scope-core.mjs';
+/* RE-EXPORTED, NOT RE-IMPLEMENTED. The identity rule moved to the shared module so that the three
+   tools applying it cannot drift apart; this spelling stays because callers already import it here. */
+export { dedupeByIdentity };
 import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
 import { median, quantile, sd } from './ppi-match.mjs';
 
@@ -629,40 +632,6 @@ const walk = (d, o = []) => {
   } catch (_e) {}
   return o;
 };
-/* THE SAME RECORDING IS OFFERED TWICE, AT TWO DIFFERENT REAL PATHS. `uploads/captures/` and
-   `uploads/vigil-archive/captures/` hold two copies of the capture tree, and they are separate files
-   on separate shares rather than one file and a symlink to it — so a `realpath` dedup does NOT see
-   it. Measured 2026-11-04 under the primary checkout's uploads root: 1,568 distinct Verity PPG
-   recordings at 2,816 paths, 1,248 of them offered twice. A recursive walk that pools per file gives
-   half the corpus double weight, and this tool's first run printed every duplicated capture as two
-   identical rows.
-
-   THE IDENTITY RULE IS PRE-STATED, AND IT IS NOT A PATH EXCLUSION. A capture is identified by
-   (basename, byte size): the filename carries the device id and a 14-digit stamp, so two trees
-   agreeing on both that name and the exact length hold the same bytes. The lexicographically first
-   path wins, which is deterministic and privileges no tree by name, and every dropped twin is named.
-   The same basename at a DIFFERENT size is the opposite case — two recordings that are not each
-   other — so both are kept and the basename is reported, never silently collapsed. */
-export function dedupeByIdentity(rows) {
-  const byKey = new Map();
-  const dropped = [];
-  for (const r of rows.slice().sort((a, b) => (a.p < b.p ? -1 : a.p > b.p ? 1 : 0))) {
-    const key = `${basename(r.p)}\u0000${r.size}`;
-    if (byKey.has(key)) {
-      dropped.push(r.p);
-      continue;
-    }
-    byKey.set(key, r);
-  }
-  const kept = Array.from(byKey.values());
-  const seen = new Map();
-  for (const r of kept) seen.set(basename(r.p), (seen.get(basename(r.p)) || 0) + 1);
-  const conflicts = Array.from(seen.entries())
-    .filter(([, n]) => n > 1)
-    .map(([b]) => b);
-  return { kept, dropped, conflicts };
-}
-
 export function listVerityPpg(root) {
   readdirSync(root);
   return dedupeByIdentity(walk(root).filter((f) => PPG_RE.test(f.p))).kept.map((f) => relative(root, f.p));
