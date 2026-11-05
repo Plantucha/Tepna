@@ -57,10 +57,15 @@ jobs:
     # browser-gates.yml --event pull_request --limit 100):
     # measured 2026-11-05 over 100 job run(s), window 2026-11-04T08:13Z → 2026-11-05T12:18Z:
     # p90 46s, max 1m51s, 5 run(s) ended in a concurrency cancel, so that max is a lower bound.
-    # Cap = ceil(max(p95, max) × 2) = 4; max bounds p95. The old 3 left 1.6× over the observed
-    # max, under the rule's own factor, and this job is a REQUIRED context that the walker never
-    # re-runs once a cap cancels it.
-    timeout-minutes: 4
+    # THAT PAGE MISSES THE BINDING OBSERVATION, exactly as `stale-file`'s own page does. Board
+    # #2031 read this job CANCELLED at 3m06s against the cap of 3 on 2026-10-28 — a cap-kill, so
+    # its real runtime is unknown and at least 3m06s. The page alone sizes the cap at 4, which
+    # leaves 1.29× over that bound and sits under the rule's own factor, on a REQUIRED context
+    # the walker never re-runs once a cap cancels it.
+    # Cap = ceil(max(p95, max) × 2) over 3m06s = 7; max bounds p95. Row
+    # `2026-11-05-a-new-cap-ignored-a-censored-cap-kill` records the 4 this file carried for one
+    # merge. A page whose max carries no cancel re-derives this downward.
+    timeout-minutes: 7
     name: relevance (browser-gates)
     runs-on: ubuntu-latest
     outputs:
