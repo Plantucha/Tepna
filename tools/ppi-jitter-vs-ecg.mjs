@@ -1578,7 +1578,13 @@ function headNightKey(path) {
     fd = openSync(path, 'r');
     const buf = Buffer.alloc(HEAD_BYTES);
     const n = readSync(fd, buf, 0, HEAD_BYTES, 0);
-    const rec = P.parsePPG(buf.slice(0, n).toString('utf8'));
+    const _t = buf.slice(0, n).toString('utf8');
+    /* THE SIDECAR RIDES THE HEAD TOO, AND THE PROBE'S READ IS NOT TALLIED. A run naming the first
+       samples absent must not key the night off a sample the stream never measured (§∅). The tally
+       describes the streams this tool SCORED, so a candidate the cap drops would otherwise be
+       counted as a validity reading nobody made. */
+    const _rt = readRunsSidecar(path, 'PPG').runsText;
+    const rec = _rt ? P.parsePPG(_t, { runsText: _rt }) : P.parsePPG(_t);
     return rec && rec.t0Ms != null ? nightKeyOf(rec.t0Ms) : null;
   } catch (_e) {
     return null;
