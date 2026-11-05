@@ -1827,23 +1827,22 @@
         JSON.stringify({ segments: twoSeg.segments, before: twoSeg.anchorsBeforeLastSeam, last: twoSeg.lastSegment.length })
       );
       var sDropped = DR.anchorSeams([{ devMs: 0, hostMs: 1, seg: 1 }, { devMs: Number.NaN, hostMs: 2, seg: 1 }, { devMs: 2000, hostMs: 2003, seg: 1 }, null]);
-      T.ok(
-        '∅ an unreadable anchor is DROPPED and counted, never placed at 0',
-        sDropped.n === 2 && sDropped.dropped === 2 && sDropped.segments === 1,
-        JSON.stringify(sDropped)
-      );
-      var sNoneSeg = DR.anchorSeams([{ devMs: 0, hostMs: 1, seg: null }, { devMs: 1000, hostMs: 1002, seg: null }]);
-      T.ok(
-        '∅ a seam cell that is null on every row is UNMARKED, not segment zero',
-        sNoneSeg.marked === false && sNoneSeg.segments === 1 && sNoneSeg.n === 2,
-        JSON.stringify(sNoneSeg)
-      );
+      T.ok('∅ an unreadable anchor is DROPPED and counted, never placed at 0', sDropped.n === 2 && sDropped.dropped === 2 && sDropped.segments === 1, JSON.stringify(sDropped));
+      var sNoneSeg = DR.anchorSeams([
+        { devMs: 0, hostMs: 1, seg: null },
+        { devMs: 1000, hostMs: 1002, seg: null }
+      ]);
+      T.ok('∅ a seam cell that is null on every row is UNMARKED, not segment zero', sNoneSeg.marked === false && sNoneSeg.segments === 1 && sNoneSeg.n === 2, JSON.stringify(sNoneSeg));
 
       /* ── radioAxis: §🔒.7 cuts the axis, and §∅ keeps the unmarked band ─── */
       var resetMarked = DR.radioAxis(
-        plant(601, function (i) {
-          return i < 300 ? 1 : 2;
-        }, 300)
+        plant(
+          601,
+          function (i) {
+            return i < 300 ? 1 : 2;
+          },
+          300
+        )
       );
       var resetUnmarked = DR.radioAxis(plant(601, null, 300));
       T.ok(
