@@ -1,0 +1,12 @@
+# SPDX-FileCopyrightText: Copyright 2026 Michal Planicka
+# SPDX-License-Identifier: Apache-2.0
+[Unit]
+Description=Daily run of tepna-update-watch.service
+
+[Timer]
+OnCalendar=*-*-* 09:30:00
+RandomizedDelaySec=900
+Persistent=true
+
+[Install]
+WantedBy=timers.target
