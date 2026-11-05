@@ -10119,6 +10119,7 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
                 # 4 min after a completed pull. The state EXPIRES (8 h) so a ring that is genuinely flat
                 # still alerts — a false all-clear is worse than the false alarm it replaces.
                 if not connected and alerts.powered_off_after_pull(_LAST_PULL_OK.get(name), now):
+                    down_since[name] = now  # a licensed silence: see the quiet-licence clause below
                     if name not in _IDLE_TIMER_NAMED:
                         _IDLE_TIMER_NAMED.add(name)
                         # NO DEVICE NOUN: this poller walks EVERY device, and since the Polar auto-pull a
@@ -10173,6 +10174,13 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
                 stamp = ended_at.get(name)
                 if alerts.quiet_licence_holds(stamp, night_began):
                     if not connected:
+                        # A LICENSED SILENCE DOES NOT RUN THE ALARM CLOCK. Measured on the capture box
+                        # 2026-11-05: a Sense whose night had ended linked on its dock at 06:20. At 06:21
+                        # the box sent "linked but recording nothing for ~35 min", and the charger flag
+                        # came at 06:23. The 35 min were off time since a 05:45 restart, which this
+                        # licence covers. The clock restarts at each licensed poll, so a link that
+                        # follows counts only its own minutes.
+                        down_since[name] = now
                         continue
                 elif stamp is not None and night_began is not None:
                     ended_at.pop(name, None)

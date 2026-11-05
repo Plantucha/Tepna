@@ -266,6 +266,53 @@ def test_a_linked_device_with_a_licence_still_alarms_when_it_records_nothing(tmp
     assert sent == [f"{_RING} has been linked but recording nothing for ~0 min — capture is missing it."]
 
 
+@pytest.mark.sets_capture_events
+@pytest.mark.parametrize("licence", ["ended", "pulled"])
+def test_a_licensed_device_that_links_counts_only_its_linked_minutes(tmp_path, monkeypatch, licence):
+    """MEASURED on the capture box 2026-11-05: a Sense whose night had ended linked on its dock at 06:20.
+    At 06:21 the box sent "linked but recording nothing for ~35 min", 2 min before the charger flag came.
+    The 35 min were licensed off time. Only the minutes since the link count."""
+    if licence == "ended":
+        p = tmp_path / "captures" / alerts.QUIET_STATE_NAME
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(json.dumps(_ENDED_8H_AGO))
+    capture.STATUS["devices"][_RING] = {"connected": False}
+    capture._LAST_DATA.pop(_RING, None)
+    capture._LAST_PULL_OK.pop(_RING, None)
+    capture._IDLE_TIMER_NAMED.discard(_RING)
+    if licence == "pulled":
+        capture._LAST_PULL_OK[_RING] = _MONO
+    clock = {"t": _MONO}
+    sent = []
+
+    class _N:
+        enabled = True
+
+        async def send(self, title, message, **kw):
+            sent.append(title)
+            return True
+
+    calls = {"n": 0}
+
+    async def fake_sleep(_s):  # the poller sleeps BEFORE each poll; the 4th poll repeats the 3rd
+        calls["n"] += 1
+        clock["t"] += {1: 0, 2: 35 * 60, 3: 60}.get(calls["n"], 0)
+        if calls["n"] == 3:
+            capture.STATUS["devices"][_RING] = {"connected": True}
+        if calls["n"] >= 4:
+            capture._STOP.set()
+
+    monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
+    monkeypatch.setattr(capture._time, "monotonic", lambda: clock["t"])
+    monkeypatch.setattr(capture._time, "time", lambda: _WALL + clock["t"] - _MONO)
+    monkeypatch.setattr(capture, "_now", lambda: dt.datetime(2026, 11, 5, 6, 21))
+    capture._STOP.clear()
+    cfg = {"root": str(tmp_path), "alerts": {"poll_sec": 1, "offline_sec": 1800}, "devices": [_dev(_RING)]}
+    _run(capture.alert_poller(cfg, _N()))
+    assert calls["n"] == 4, "polls: off, off 35 min later, linked 1 min later, linked"
+    assert "Tepna: sensor offline" not in sent, sent
+
+
 # ── the wire: main() and the run record ─────────────────────────────────────────────────────────────
 def _main(tmp_path, monkeypatch, git, boot="boot-1"):
     """Run main() once, stopping at once; return the 'capture started' message."""
