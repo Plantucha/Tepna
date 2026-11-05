@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-**Status:** REFERENCE (living — last-verified 2026-11-03) · **Created:** 2026-11-03
+**Status:** REFERENCE (living — last-verified 2026-11-04) · **Created:** 2026-11-03
 
 # Push alerts — how ntfy is wired, and how to add a new alert
 
@@ -50,6 +50,8 @@ The transport is a generic JSON webhook. ntfy is the transport the box uses. Not
 | `Tepna: sensor connected but silent` | `alert_poller` | A link is up and no data arrives. |
 | `Tepna: <name> may not last the night` | `alert_poller` | In the night-begin hours, a device off its charger reads less battery than its worst nights used (`alerts.NIGHT_NEED_PCT`, or the device's `night_need_pct`). Once per device per night. |
 | `Tepna: <name> battery <pct> %` | `alert_poller` | 20 % and 10 %, re-armed at 50 % (`battery_alert_step`). |
+| `Tepna: <name> battery is wearing out` | `qc_poller` → `_battery_health_step` | The overnight drain of a ring or a Verity reaches 1.25 times its first-14-night median (about 80 % capacity). One more alert at each further 10 % capacity step (`battery_health.py`). |
+| `Tepna: <name> battery gauge is unsteady` | `qc_poller` → `_battery_health_step` | While the ring is worn, its battery reading rises 5 % within 10 minutes. The charger doff rule starts at 6 %. Once per device. |
 | `Tepna: sensor on charger` | `alert_poller` | A worn device goes on its charger. |
 | `Tepna: <name> night ended` | `alert_poller`, CPAP path | A stream ends in the morning after a real night. |
 | `Tepna: ring identity mismatch` | `alert_poller` | The ring that connects is not the configured ring. |
