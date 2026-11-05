@@ -11,7 +11,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { VALIDITY_STATES, mergeBlankingSpans, mergePinnedSpans, readRunsSidecar, runsSidecarPath, validityLine } from '../tools/trio-fold-validity.mjs';
-import { ecgRpeakTimes, loadDsps } from '../tools/pat-matchrate-strict.mjs';
+import { ecgRpeakTimes, loadDsps, ppgFootTimes } from '../tools/pat-matchrate-strict.mjs';
 
 let pass = 0;
 const fails = [];
@@ -475,6 +475,76 @@ function ecgRuns(spans, { stream = 'ecg', channel = 'ecg [uV]' } = {}) {
     twice = e.message;
   }
   ok(!!twice && /position two and position three/.test(twice), `opts in both slots refuses (${twice})`);
+}
+
+/* ── ∅ AN UNCONFIRMED SPAN SET STILL HAS A SIZE, EXECUTED ─────────────────────────
+   Row 2026-10-28-pat-legs-refuse-only-the-spans-a-sidecar-confirmed. `parsePPG` publishes per-channel
+   pinned spans on every path, and only a `_PPGRUNS.txt` companion sets `pinnedCrossCheck`. So the
+   default path held a span set it never sized, and published `null` counts beside a `null` source.
+   A reader could not tell "the recompute would refuse nothing here" from "nobody looked" (§∅).
+   The annotate path walks the same feet, keeps every one, and reports the magnitude as
+   `wouldDropAllPinned` / `wouldPartialPinned`. The legs below need all three states to differ.
+
+   THE RAIL WINDOW IS A MEASURED ONE, never a guessed one. A rail reshapes the upstroke, so it MOVES
+   the detected foot — three earlier constructions clipped the trough and the foot walked out ahead of
+   the run every time. A sweep over clip windows found the one that walks the foot INTO the rail. The
+   clean twin's own feet sit at phase 47, outside this window, which is why it reads a zero. */
+const PPG_FS = 55;
+function synthPpg(nSamples, clipFrom, clipTo) {
+  const rows = ['Phone timestamp;sensor timestamp [ns];channel 0'];
+  for (let i = 0; i < nSamples; i++) {
+    const ph = (i % PPG_FS) / PPG_FS;
+    let v = 200000 + Math.round(9000 * Math.sin(2 * Math.PI * ph) + 2500 * Math.sin(4 * Math.PI * ph + 0.7));
+    /* The rail starts at beat 4, so the histogram sees a stream that is clean first. */
+    if (clipFrom >= 0 && Math.floor(i / PPG_FS) >= 4) {
+      const k = i % PPG_FS;
+      if (k >= clipFrom && k < clipTo) v = 188000;
+    }
+    const ms = Math.round((i * 1000) / PPG_FS);
+    const stamp = new Date(Date.UTC(2026, 5, 17, 1, 6, 17, 723) + ms).toISOString().slice(0, 23);
+    rows.push(`${stamp};${Math.round((i * 1e9) / PPG_FS)};${v}`);
+  }
+  return rows.join('\n');
+}
+{
+  loadDsps();
+
+  /* ── THE MEASURED ZERO ── a stream with no rail run. `parsePPG` publishes an empty span set, the
+     scan walks every foot, and it refuses none. That answer is 0, and 0 is not an absence. */
+  const clean = ppgFootTimes(synthPpg(3300, -1, -1));
+  ok(clean.n > 20, `ANTI-VACUITY · the synthetic stream yields feet at all (n=${clean.n})`);
+  ok(
+    clean.wouldDropAllPinned === 0 && clean.wouldPartialPinned === 0,
+    `∅ a span set that refused nothing reads a MEASURED zero (${JSON.stringify([clean.wouldDropAllPinned, clean.wouldPartialPinned])})`
+  );
+  ok(clean.pinnedSource === null, 'and the source stays null, so no reader takes the annotation for a confirmed sidecar');
+  ok(
+    clean.droppedAllPinned === null && clean.partialPinned === null,
+    `∅ the consuming fields stay null on this path, because no leg dropped a foot (${JSON.stringify([clean.droppedAllPinned, clean.partialPinned])})`
+  );
+  ok(JSON.stringify(clean.wouldDropAllPinned) !== JSON.stringify(clean.droppedAllPinned), '∅ the measured zero and the null do not serialise alike');
+
+  /* ── THE COUNT ── the rail covers the clean stream's measured foot phase, so a consensus foot lands
+     inside a qualifying run and the counterfactual has something to refuse. */
+  const phases = (rec) => Array.from(rec.times, (t) => Math.floor((((t - rec.t0Ms) / 1000) * PPG_FS) % PPG_FS));
+  const inRail = (rec) => phases(rec).filter((k) => k >= 18 && k < 24).length;
+  ok(inRail(clean) === 0, `CONTROL · the clean twin places no foot in the window this test rails (phases ${phases(clean).slice(0, 4).join(' ')})`);
+  const railed = synthPpg(3300, 18, 24);
+  const annot = ppgFootTimes(railed);
+  ok(inRail(annot) > 0, `CONTROL · the railed twin places feet inside the rail run, which is the thing the count sizes (${inRail(annot)})`);
+  ok(annot.wouldDropAllPinned >= 1, `∅ the unconfirmed span set reports what it WOULD refuse (${annot.wouldDropAllPinned})`);
+  ok(annot.wouldPartialPinned >= annot.wouldDropAllPinned, `and the partial count covers the whole-channel count (${annot.wouldPartialPinned})`);
+  ok(annot.droppedAllPinned === null && annot.partialPinned === null, '∅ it refused no foot, so the consuming fields stay null');
+  ok(annot.pinnedSource === null, 'the source is still null — nothing confirmed these spans');
+
+  /* ── AND THE COUNT IS THE MOVE ── the same bytes through the counterfactual switch drop exactly the
+     feet the annotation sized. That equality is what makes `wouldDropAllPinned` a measurement. */
+  const cut = ppgFootTimes(railed, null, { pinnedFromRecompute: true });
+  ok(cut.pinnedSource === 'recompute', `the switch names the recompute as the source (${cut.pinnedSource})`);
+  ok(cut.droppedAllPinned === annot.wouldDropAllPinned, `the recompute drops exactly the sized feet (${cut.droppedAllPinned} of ${annot.wouldDropAllPinned})`);
+  ok(cut.n === annot.n - annot.wouldDropAllPinned, `so the kept train is the annotated train less that count (${cut.n} = ${annot.n} - ${annot.wouldDropAllPinned})`);
+  ok(cut.wouldDropAllPinned === null && cut.wouldPartialPinned === null, '∅ and the would-fields null out where a leg really dropped, so one figure never reads twice');
+  ok(annot.n === clean.n || annot.n !== cut.n, `CONTROL · the annotate path published its own feet unchanged (n=${annot.n})`);
 }
 
 if (fails.length) {
