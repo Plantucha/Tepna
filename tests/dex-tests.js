@@ -47276,7 +47276,19 @@
            `pat-matchrate-strict` stay here on their bare `parseECG` calls — `ecgRpeakTimes` has no
            `runsText` parameter at all (row
            2026-11-03-the-ecg-leg-of-the-shared-pat-extractor-takes-no-sidecar). */
-        var TOOLS_PIN = { files: 30, calls: 46, reason: 'research tools: ' + OPEN };
+        /* 22 / 34 from 2026-11-05: eight PPG/ECG night readers take the guarded ternary through the same
+           shared reader, and each one prints `validityLine`'s tally beside its own numbers, because
+           passing the sidecar is not reporting its absence (§∅). Twelve calls leave CALL and all eight
+           files leave the population: `ppi-jitter-vs-ecg` (its merged finger and reference builders; the
+           fiducial arm was already wired), `ppg-foot-consensus-e1`, `ppg-fusion-e3`,
+           `ppg-foot-residual-sweep`, `pulse-template-toa`, `ppg-gap-bridge-scan`,
+           `ppg-bridge-hrv-validate` and `pulse-agreement`. Three shapes beyond the plain call site: a
+           text-taking helper takes `runsText` as its last parameter (`scanText`, `fingerEpochs`,
+           `ecgPairs`), `pulse-agreement` reads in a CHILD process and hands its tally back on the JSON
+           line for the parent to sum, and `ppg-gap-bridge-scan`'s synthetic twin passes none, since no
+           box wrote a sidecar beside text the file generates. Row
+           2026-10-17-sample-parsers-called-without-their-sidecar holds the 22 files still bare. */
+        var TOOLS_PIN = { files: 22, calls: 34, reason: 'research tools: ' + OPEN };
 
         function blank(s) {
           return s.replace(/[^\n]/g, '');

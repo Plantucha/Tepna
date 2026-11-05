@@ -43,6 +43,17 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry } from './argv-guard.mjs';
 import { NIGHT_RE, notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
+import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
+/* ── THE VALIDITY SIDECAR RIDES WITH THE STREAM ─────────────────────────────────────────────────────
+   Row 2026-10-17-sample-parsers-called-without-their-sidecar: this tool read a night's samples and
+   none of the box's `…RUNS.txt` validity, so a blanking run the box recorded reached the detectors
+   below as signal — a flat rail is a plausible diastole, and no reader can tell it from one.
+   `readRunsSidecar` names which of four things happened per stream, and the tally prints beside the
+   numbers: §∅, reduced coverage annotates, and an ABSENT sidecar is validity UNKNOWN for that
+   stream, never a clean one. Most of this corpus predates the writer, so most streams read `absent`
+   and parse exactly as they did before. */
+const VALIDITY = {};
+const runsOf = (streamPath, stream) => readRunsSidecar(streamPath, stream, { tally: VALIDITY }).runsText;
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DexBuild = createRequire(import.meta.url)(path.join(ROOT, 'tools', 'build-core.js'));
@@ -458,7 +469,9 @@ async function main() {
     if (!cand) continue;
     let rec;
     try {
-      rec = P.parsePPG(fs.readFileSync(cand.f, 'utf8'));
+      const txt = fs.readFileSync(cand.f, 'utf8');
+      const runsText = runsOf(cand.f, 'PPG');
+      rec = runsText ? P.parsePPG(txt, { runsText }) : P.parsePPG(txt);
     } catch (e) {
       console.log(`${n}  ⊘ parse failed (${String(e.message).slice(0, 60)})`);
       continue;
@@ -546,6 +559,10 @@ async function main() {
   const rl = ruleLine(population);
   if (rl) console.log('  ' + rl);
   console.log(`  night-directory names not scored: ${unscored.length ? unscored.join(', ') : 'none'}`);
+  /* PASSING THE SIDECAR IS NOT REPORTING ITS ABSENCE (§∅). `null` over an empty tally, because four
+     zeros read exactly like a sweep where every sidecar was there. */
+  const validity = validityLine(VALIDITY);
+  if (validity) console.log('  ' + validity);
   console.log('POPULATION ' + JSON.stringify(population));
   /* Cross-night Spearman per pre-registered candidate — worst pair per night, IQR as the estimand
      (the brief's figure), SD reported beside it. */
