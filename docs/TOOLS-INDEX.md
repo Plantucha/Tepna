@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**319 tools** · 318 with a purpose line · **1 without**
+**323 tools** · 322 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -127,6 +127,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`hostaxis-estimator-bakeoff.mjs`](../tools/hostaxis-estimator-bakeoff.mjs) | is a SYMMETRIC filter the right shape for a ONE-SIDED error? |
 | [`importer-flag-probe.mjs`](../tools/importer-flag-probe.mjs) | DOES AN IMPORTER'S FLAG FIRE AN IMPORTED TOOL'S SELFTEST. Executable, paired against a control, and bounded to tools whose closure cannot write, exec or fetch. |
 | [`integrator-block-precision.mjs`](../tools/integrator-block-precision.mjs) | JOINT-UNWRAP-ATTEMPT §4's one open item The brief's remaining box: |
+| [`integrator-contributions.mjs`](../tools/integrator-contributions.mjs) | THE GATE HARNESS for the Integrator's attribution block — VERDICT-CONTRIBUTIONS-2026-10-04 §2's Integrator row (`integrator-dsp.js`, `leave-one-out over nodes`). |
 | [`integrator-surface-gate.mjs`](../tools/integrator-surface-gate.mjs) | every Integrator key declares its surface node tools/integrator-surface-gate.mjs # gate node tools/integrator-surface-gate.mjs --json # verdict only node tools/integrator-surface-gate.mjs… |
 | [`js-lex.mjs`](../tools/js-lex.mjs) | THE ONE REGEX-AWARE JS LEXER, shared by the tools that need to tell code from prose. |
 | [`killcheck.mjs`](../tools/killcheck.mjs) | DID THE TEST I JUST WROTE ACTUALLY KILL ANYTHING? — measured, per function, in parallel. |
@@ -194,6 +195,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`pat-fiducial-jitter.mjs`](../tools/pat-fiducial-jitter.mjs) | PAT-ROOT-CAUSE-FORENSICS §7, rescoped. §7 asks: "even with a PERFECT clock, how much uncertainty does the foot introduce?" Every prior attempt answered a different question, and two… |
 | [`pat-fiducial.mjs`](../tools/pat-fiducial.mjs) | HALF-AMPLITUDE pulse fiducial, for EXTERNAL-METHODS-SURVEY §1. |
 | [`pat-finger-coupler.mjs`](../tools/pat-finger-coupler.mjs) | DOES THE O2RING FINGER PPG COUPLE TO H10 ECG? — the leg `pat-matchrate-strict.mjs` cannot run. |
+| [`pat-floor-offset.mjs`](../tools/pat-floor-offset.mjs) | RADIO-DELAY-FLOOR §5, the beat half: does the floor-mapped radio delay EXPLAIN the inter-device offset PAT has to carry, or does it only sharpen a term it cannot predict? |
 | [`pat-host-offset.mjs`](../tools/pat-host-offset.mjs) | PAT-UNDER-PERBLOCK-ALIGNMENT §3e.4, the shipped form of the scout. |
 | [`pat-hrv-windows.mjs`](../tools/pat-hrv-windows.mjs) | PAT THE WAY HRV IS DONE — 5-minute windows, artifact segments discarded, report the DISTRIBUTION. |
 | [`pat-literature-spec.mjs`](../tools/pat-literature-spec.mjs) | PAT MEASURED TO THE PUBLISHED SPEC, PLUS AN ERROR BUDGET THAT WORKS BACKWARDS FROM IT. |
@@ -216,6 +218,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`port-parity.mjs`](../tools/port-parity.mjs) | "PORTED VERBATIM FROM X" IS A CLAIM, AND NOTHING IN THE TREE READ IT. |
 | [`ppg-autogain-e2.mjs`](../tools/ppg-autogain-e2.mjs) | PPGDEX-ALGORITHM-DEEP-DIVE §6 experiment E-2, punch-list item 9 |
 | [`ppg-bridge-hrv-validate.mjs`](../tools/ppg-bridge-hrv-validate.mjs) | does O2RING-PPG-GAP §4 move finger HRV toward or away from chest ECG? |
+| [`ppg-channel-combination.mjs`](../tools/ppg-channel-combination.mjs) | CHANNEL COMBINATION AGAINST CHANNEL SELECTION, OUT OF SAMPLE — a producer for the half of `papers/ppg-ecg-hrv-validation.html` §4 that carries none. |
 | [`ppg-foot-consensus-e1.mjs`](../tools/ppg-foot-consensus-e1.mjs) | PPGDEX-ALGORITHM-DEEP-DIVE §6 experiment E-1 E-1 asks: "does foot-domain consensus (feet on all three channels, de-offset, ±40 ms) recover the 1-of-3 drop rate without admitting false beats? |
 | [`ppg-foot-residual-sweep.mjs`](../tools/ppg-foot-residual-sweep.mjs) | THE RESIDUAL 2.2–13.2 ms — per-night inter-LED foot dispersion against PRE-REGISTERED candidates. |
 | [`ppg-fusion-e3.mjs`](../tools/ppg-fusion-e3.mjs) | PPGDEX-ALGORITHM-DEEP-DIVE §6 experiment E-3 §3.1 REFUTED waveform-level fusion of the three optical channels: out-of-sample it scored 0.95x (mean-of-3), 0.95x (PCA-1) and 0.97x (GEV… |
@@ -276,6 +279,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`seqnet-infer.mjs`](../tools/seqnet-infer.mjs) | run the stage-lab control net (seqnet.py's TCN + biGRU + Viterbi) in plain JS with no runtime library, so a trained stager can ship inside a bundled offline Tepna instrument. |
 | [`served-link-check.mjs`](../tools/served-link-check.mjs) | which local links are DEAD on a deployed box? `CAPTURE-HOST-DEEP-AUDIT-FOLLOWUPS` §1.2 records two dead-link residues on the served tree and says plainly what is missing: *"A link-checker… |
 | [`severity-ladder-audit.mjs`](../tools/severity-ladder-audit.mjs) | does a node ever render the SAME metric with two different good/warn/bad boundaries? |
+| [`sidecar-census.mjs`](../tools/sidecar-census.mjs) | WHO WRITES EACH CAPTURE-HOST SIDECAR, WHO READS IT, AND WHAT EACH READER DOES WHEN IT IS ABSENT. |
 | [`sigma-corpus-headless.mjs`](../tools/sigma-corpus-headless.mjs) | run `sigma-no-reference-analysis.html` over the canonical corpus without a human dropping a folder, and report the POPULATION it reaches. |
 | [`stage-lab-core.mjs`](../tools/stage-lab-core.mjs) | PURE ESM, NO node: IMPORTS — so a browser app can import the same model code it was trained with. |
 | [`stage-lab.mjs`](../tools/stage-lab.mjs) | Brief: briefs/STAGE-LAB-2026-09-27-BRIEF.md (bands and plants are PRE-STATED there, before any run). |

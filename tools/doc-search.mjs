@@ -663,7 +663,14 @@ export function embedOnCpu(env = process.env, freeMb = vramFreeMb) {
 
 export function embedRequest(model, inputs, cpu = embedOnCpu()) {
   const body = { model, input: inputs };
-  if (cpu) body.options = { num_gpu: 0 };
+  /* A CPU load must not outlive its caller. Ollama keeps a loaded runner for every later request, so a
+     CPU runner kept for its default keep-alive served the GPU callers too (measured 2026-11-04: 60 s for
+     one text, 3.8 s once the model reloaded on the card). One minute spans the gap between one tick's
+     batches; the next caller with a free card then loads on the card. */
+  if (cpu) {
+    body.options = { num_gpu: 0 };
+    body.keep_alive = '1m';
+  }
   return body;
 }
 
@@ -1240,6 +1247,8 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
   ok('--brief is a flag, never a query word', stripFlags(['--brief', 'q']).join(' ') === 'q');
   ok('a GPU embed request carries no options', embedRequest('m', ['a'], false).options === undefined);
   ok('a CPU embed request asks for zero GPU layers', embedRequest('m', ['a'], true).options?.num_gpu === 0);
+  ok('a CPU embed request unloads its runner after a minute', embedRequest('m', ['a'], true).keep_alive === '1m');
+  ok('a GPU embed request keeps the default keep-alive', embedRequest('m', ['a'], false).keep_alive === undefined);
   ok('DEX_EMBED_CPU=1 forces the CPU whatever the card reads', embedOnCpu({ DEX_EMBED_CPU: '1' }, () => 19000) === true);
   ok('DEX_EMBED_CPU=0 forces the GPU whatever the card reads', embedOnCpu({ DEX_EMBED_CPU: '0' }, () => 10) === false);
   ok('a crowded card sends the embed to the CPU', embedOnCpu({}, () => 2000) === true);

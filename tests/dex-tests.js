@@ -1434,6 +1434,12 @@
         pr.ok === true && pr.rows === 80 && Object.keys(pr.streams).length === 2 && !!pr.streams['AA:BB|ECG'] && !!pr.streams['AA:BB|ACC'],
         JSON.stringify({ ok: pr.ok, rows: pr.rows, keys: Object.keys(pr.streams || {}) })
       );
+      var pAbsent = DR.parseRadioClock('');
+      T.ok(
+        'parseRadioClock · no sidecar text is a named refusal, never zero rows read as a clean night',
+        pAbsent.ok === false && pAbsent.streams === null && /no sidecar text/.test(String(pAbsent.reason)),
+        JSON.stringify(pAbsent)
+      );
       T.ok(
         'interleaving does not corrupt either stream — 40 anchors each',
         pr.streams['AA:BB|ECG'].anchors.length === 40 && pr.streams['AA:BB|ACC'].anchors.length === 40,
@@ -1760,6 +1766,179 @@
         'every refusal carries `floor: null` — the absence of a floor, never a floor of zero',
         refusedFew.floor === null && refusedNoSpine.floor === null,
         JSON.stringify({ few: refusedFew.floor, noSpine: refusedNoSpine.floor })
+      );
+    });
+
+    group('∅ radio-clock seams — anchor_epoch is read where it exists, and its absence travels', 'clock · radio-clock · seams', function (T) {
+      var DR = env.DexRadio || (typeof DexRadio !== 'undefined' ? DexRadio : null);
+      if (!DR || typeof DR.anchorSeams !== 'function') {
+        T.ok('DexRadio.anchorSeams is reachable', false, 'radio-clock.js is not loaded, or predates the seam reader — this group cannot run and must not read as a pass');
+        return;
+      }
+
+      /* The same exact 16-bit Lehmer LCG the band group plants with, so both
+         suite lanes and every rig get the same numbers. `seg` is the marker the
+         collector writes as `anchor_epoch`: a number per link establishment,
+         counted from 1, and `null` where the file names no such column. */
+      function plant(n, seg, resetAt) {
+        var seed = 11213;
+        var dseed = 25747;
+        var out = [];
+        for (var i = 0; i < n; i++) {
+          seed = (seed * 75 + 74) % 65537;
+          dseed = (dseed * 75 + 74) % 65537;
+          var u = seed / 65537 - 0.5;
+          var dev = (resetAt != null && i >= resetAt ? i - resetAt : i) * 1000 + (dseed % 5) / 64;
+          var a = { devMs: dev, hostMs: 5000 + i * 1000 * (1 + 20 / 1e6) + u * 4 };
+          if (seg != null) a.seg = typeof seg === 'function' ? seg(i) : seg;
+          out.push(a);
+        }
+        return out;
+      }
+
+      /* ── anchorSeams: the marker, and the question to ask first ─────────── */
+      T.ok("the marker is the collector's own column name, read from the module", DR.RC_SEAM_COLUMN === 'anchor_epoch', String(DR.RC_SEAM_COLUMN));
+      T.ok(
+        '…and it is NOT in RC_COLUMNS, so a night whose header predates it parses rather than refusing by header shape',
+        DR.RC_COLUMNS.indexOf(DR.RC_SEAM_COLUMN) === -1 && DR.RC_COLUMNS.length === 9,
+        JSON.stringify({ columns: DR.RC_COLUMNS.length, seam: DR.RC_SEAM_COLUMN })
+      );
+
+      var unmarked = DR.anchorSeams(plant(601, null));
+      T.ok(
+        'an unmarked sequence reads marked:false with every count real',
+        unmarked.marked === false && unmarked.n === 601 && unmarked.dropped === 0 && unmarked.lastSegment.length === 601 && unmarked.anchorsBeforeLastSeam === 0,
+        JSON.stringify({ marked: unmarked.marked, n: unmarked.n, segments: unmarked.segments, before: unmarked.anchorsBeforeLastSeam })
+      );
+      var markedOne = DR.anchorSeams(plant(601, 7));
+      T.ok(
+        '🔴 `marked` IS THE QUESTION TO ASK FIRST: one stamped link and NO column at all read the SAME segments count, and they mean opposite things',
+        markedOne.segments === unmarked.segments && markedOne.segments === 1 && markedOne.marked === true && unmarked.marked === false,
+        JSON.stringify({ markedSegments: markedOne.segments, unmarkedSegments: unmarked.segments })
+      );
+      var twoSeg = DR.anchorSeams(
+        plant(601, function (i) {
+          return i < 300 ? 1 : 2;
+        })
+      );
+      T.ok(
+        'a second stamped establishment reads segments 2 and names where it fell',
+        twoSeg.marked === true && twoSeg.segments === 2 && twoSeg.anchorsBeforeLastSeam === 300 && twoSeg.lastSegment.length === 301,
+        JSON.stringify({ segments: twoSeg.segments, before: twoSeg.anchorsBeforeLastSeam, last: twoSeg.lastSegment.length })
+      );
+      var sDropped = DR.anchorSeams([{ devMs: 0, hostMs: 1, seg: 1 }, { devMs: Number.NaN, hostMs: 2, seg: 1 }, { devMs: 2000, hostMs: 2003, seg: 1 }, null]);
+      T.ok('∅ an unreadable anchor is DROPPED and counted, never placed at 0', sDropped.n === 2 && sDropped.dropped === 2 && sDropped.segments === 1, JSON.stringify(sDropped));
+      var sNoneSeg = DR.anchorSeams([
+        { devMs: 0, hostMs: 1, seg: null },
+        { devMs: 1000, hostMs: 1002, seg: null }
+      ]);
+      T.ok('∅ a seam cell that is null on every row is UNMARKED, not segment zero', sNoneSeg.marked === false && sNoneSeg.segments === 1 && sNoneSeg.n === 2, JSON.stringify(sNoneSeg));
+
+      /* ── radioAxis: §🔒.7 cuts the axis, and §∅ keeps the unmarked band ─── */
+      var resetMarked = DR.radioAxis(
+        plant(
+          601,
+          function (i) {
+            return i < 300 ? 1 : 2;
+          },
+          300
+        )
+      );
+      var resetUnmarked = DR.radioAxis(plant(601, null, 300));
+      T.ok(
+        '🔴 §🔒.7 — a STAMPED establishment cuts the axis: the same anchors refuse unmarked and build on the last segment when the column is there',
+        resetUnmarked.ok === false && resetMarked.ok === true && resetMarked.n === 301,
+        JSON.stringify({ unmarked: { ok: resetUnmarked.ok, reason: resetUnmarked.reason }, marked: { ok: resetMarked.ok, band: resetMarked.band, n: resetMarked.n } })
+      );
+      T.ok(
+        '…and the answer says what it dropped, while `gaps` keeps describing the whole file',
+        resetMarked.seams.anchorsBeforeLastSeam === 300 && resetMarked.seams.n === 601 && resetMarked.gaps.n === 601,
+        JSON.stringify({ before: resetMarked.seams.anchorsBeforeLastSeam, seamN: resetMarked.seams.n, gapN: resetMarked.gaps.n })
+      );
+      var markedSame = DR.radioAxis(plant(601, 7));
+      var unmarkedSame = DR.radioAxis(plant(601, null));
+      T.ok(
+        'one stamped link changes nothing: a single-segment marked stream reads the same band and the same n as the unmarked twin',
+        markedSame.band === unmarkedSame.band && markedSame.n === unmarkedSame.n && markedSame.seams.marked === true && unmarkedSame.seams.marked === false,
+        JSON.stringify({ marked: markedSame.band, unmarked: unmarkedSame.band, n: markedSame.n })
+      );
+      var lateSeam = DR.radioAxis(
+        plant(601, function (i) {
+          return i < 599 ? 1 : 2;
+        })
+      );
+      T.ok(
+        'a last segment under the 3-anchor floor refuses and counts BOTH populations, so the floor is never read against the file',
+        lateSeam.ok === false && lateSeam.n === 2 && /in the segment after the last link establishment, of 601 readable/.test(String(lateSeam.reason)),
+        JSON.stringify({ n: lateSeam.n, reason: lateSeam.reason })
+      );
+      var holed = plant(1201, null);
+      holed = holed.slice(0, 400).concat(holed.slice(800));
+      var axHoled = DR.radioAxis(holed);
+      T.ok(
+        '🔴 §∅ — AN UNMARKED HOLE STILL ANNOTATES AND REFUSES NOTHING: the band holds and the pair a consumer reads rides beside it',
+        axHoled.band === 'radio' && axHoled.ok === true && axHoled.seams.marked === false && axHoled.gaps.gapCount === 1,
+        JSON.stringify({ band: axHoled.band, marked: axHoled.seams.marked, gapCount: axHoled.gaps.gapCount })
+      );
+      var noSpineSeams = DR.radioAxis(plant(601, 7), { hostAxis: null });
+      T.ok(
+        'the seams ride on a refusal too, so the seam read never depends on the spine',
+        noSpineSeams.ok === false && noSpineSeams.seams && noSpineSeams.seams.marked === true && noSpineSeams.seams.n === 601,
+        JSON.stringify({ reason: noSpineSeams.reason, seams: noSpineSeams.seams && { marked: noSpineSeams.seams.marked, n: noSpineSeams.seams.n } })
+      );
+
+      /* ── the parser: the column is OPTIONAL, and a blank cell is not a 0 ── */
+      function rows(n, withSeam, segAt, blankFrom) {
+        var out = [];
+        for (var i = 0; i < n; i++) {
+          var f = ['2026-11-03T22:00:00.000', 'AA:BB', 'ECG', String(i * 1000000000), '1', String(i), String(9000000 + i * 1000000), '', String(17000000 + i * 1000000)];
+          if (withSeam) {
+            f.push('44100');
+            f.push(blankFrom != null && i >= blankFrom ? '' : String(i < segAt ? 1 : 2));
+          }
+          out.push(f.join(';'));
+        }
+        return out;
+      }
+      function sidecar(rs, withSeam) {
+        var head = DR.RC_COLUMNS.join(';') + (withSeam ? ';device_clock;' + DR.RC_SEAM_COLUMN : '');
+        return '# radio-clock sidecar, synthetic twin\n' + head + '\n' + rs.join('\n') + '\n';
+      }
+      var pSeam = DR.parseRadioClock(sidecar(rows(40, true, 20), true));
+      var aSeam = pSeam.ok ? pSeam.streams['AA:BB|ECG'].anchors : [];
+      T.ok(
+        'an eleven-column night yields a `seg` on every anchor, and the two stamped epochs are both read',
+        pSeam.ok === true &&
+          aSeam.length === 40 &&
+          aSeam.every(function (a) {
+            return a.seg === 1 || a.seg === 2;
+          }) &&
+          DR.anchorSeams(aSeam).segments === 2,
+        JSON.stringify({ ok: pSeam.ok, anchors: aSeam.length, segments: DR.anchorSeams(aSeam).segments })
+      );
+      var pNine = DR.parseRadioClock(sidecar(rows(40, false), false));
+      var aNine = pNine.ok ? pNine.streams['AA:BB|ECG'].anchors : [];
+      T.ok(
+        '🔴 ∅ a nine-column night PARSES, and every `seg` is null rather than 0 — a 0 would claim a link that never opened',
+        pNine.ok === true &&
+          aNine.length === 40 &&
+          aNine.every(function (a) {
+            return a.seg === null;
+          }) &&
+          DR.anchorSeams(aNine).marked === false,
+        JSON.stringify({ ok: pNine.ok, anchors: aNine.length, firstSeg: aNine.length ? aNine[0].seg : 'none' })
+      );
+      var pBlank = DR.parseRadioClock(sidecar(rows(40, true, 20, 30), true));
+      var aBlank = pBlank.ok ? pBlank.streams['AA:BB|ECG'].anchors : [];
+      T.ok(
+        '∅ a blank seam cell on a night that names the column is null too, and the rows around it keep their epoch',
+        pBlank.ok === true &&
+          aBlank.length === 40 &&
+          aBlank[29].seg === 2 &&
+          aBlank.slice(30).every(function (a) {
+            return a.seg === null;
+          }),
+        JSON.stringify({ at29: aBlank.length > 29 ? aBlank[29].seg : 'none', at39: aBlank.length > 39 ? aBlank[39].seg : 'none' })
       );
     });
 
@@ -6276,6 +6455,71 @@
        §2.7 states the band as `. 0–999`, i.e. CLOSED at both ends, and that is what these pin.
 
        Written as the contract (both endpoints of a closed band are inside it), not as the mutant. */
+    group('clock.js — a device epoch change inside one stream is not a column mismatch', 'clock · known-answer · mutation-pinned', function (T) {
+      var C = env.DexClock;
+      if (!C || typeof C.hostAxis !== 'function') {
+        T.skip('DexClock.hostAxis available', 'clock.js not loaded');
+        return;
+      }
+      /* THE DEFECT (residue 2026-11-04-a-presync-device-epoch-refuses-a-night-and-blames-the-columns):
+         one archived ECG stream opens with 45260 rows whose device counter sits 7.84 years below the
+         rest of the SAME file. The counter never steps BACKWARD, so every monotonic check passes, and
+         `hostAxis` refused at -999914 ppm reporting that the columns are probably not host+device.
+         They are exactly host and device, and §7 already calls a counter step a change of clock. */
+      var DELTA = Math.round(7.84 * 365.25 * 86400 * 1000);
+      var mk = function (f) {
+        var a = [];
+        for (var i = 0; i < 20; i++) a.push(f(i));
+        return a;
+      };
+      var seam = C.hostAxis(
+        mk(function (i) {
+          return { devMs: i * 60000 + (i >= 5 ? DELTA : 0), hostMs: i * 60000 };
+        })
+      );
+
+      // ── THE REFUSAL STANDS; ONLY THE CAUSE CHANGES ────────────────────────────────────────────
+      T.eq('a seamed axis is still REFUSED — §7 bounds the RATE, and this rate is unusable', seam.ok, false);
+      T.ok('…and the reason names a device epoch change', /device epoch change/.test(String(seam.reason)), String(seam.reason));
+      T.ok('…and no longer blames the column layout', !/not host\+device/.test(String(seam.reason)), String(seam.reason));
+
+      // ── THE SEAM IS PUBLISHED, so a node can re-anchor on it (§7 puts re-anchoring on the axis) ─
+      T.ok('the published step sizes the jump', Math.abs(seam.epochStepMs - DELTA) <= 1, 'got ' + seam.epochStepMs + ' want ' + DELTA);
+      T.eq('…and locates it at the LATER anchor of the straddling pair', seam.epochAtDevMs, 5 * 60000 + DELTA);
+      T.eq('…beside the host step, which reads the real elapsed minute', seam.epochHostStepMs, 60000);
+      T.ok('…and the rate WITHOUT that one step is plausible, which is the whole criterion', Math.abs(seam.ppmExEpoch) <= 1, 'got ' + seam.ppmExEpoch);
+
+      // ── CONTROL · A UNIFORM ERROR SURVIVES THE REMOVAL, so it keeps the column reason ──────────
+      /* A nanosecond column read as milliseconds diverges at ~1e6 ppm across EVERY interval. Dropping
+         one of (n-1) of them still reads 1e6 * (1 - 1/(n-1)) ppm, over the bound for every n this
+         function admits. That is why the discriminator needs no threshold of its own. */
+      var units = C.hostAxis(
+        mk(function (i) {
+          return { devMs: i * 60000 * 1e6, hostMs: i * 60000 };
+        })
+      );
+      T.eq('a ns-as-ms column is refused', units.ok, false);
+      T.ok('…and KEEPS the column reason — one interval cannot carry a uniform error', /not host\+device/.test(String(units.reason)), String(units.reason));
+      T.ok('…so it never reads as an epoch change', !/epoch/.test(String(units.reason)), String(units.reason));
+
+      // ── CONTROL · A DROPOUT IS NOT A SEAM — through a real gap both clocks keep ticking ────────
+      var drop = C.hostAxis(
+        mk(function (i) {
+          var g = i >= 5 ? 120000 : 0;
+          return { devMs: i * 60000 + g, hostMs: i * 60000 + g };
+        })
+      );
+      T.eq('a 120 s dropout is still ACCEPTED — the host corroborates the device across it', drop.ok, true);
+      T.eq('…and publishes no epoch seam', drop.epochAtDevMs == null, true);
+
+      // ── CONTROL · the ordinary accepted path is untouched ──────────────────────────────────────
+      var drift = [];
+      for (var k = 0; k < 40; k++) drift.push({ devMs: k * 60000, hostMs: k * 60000 * (1 + 30e-6) + (k % 3) * 7 });
+      var good = C.hostAxis(drift);
+      T.eq('a healthy 30 ppm axis is still accepted', good.ok, true);
+      T.ok('…and its rate still reads near 30 ppm', Math.abs(good.ppm - 30) < 10, 'got ' + good.ppm);
+    });
+
     group('clock.js — wave 9: the millisecond band is closed at both ends', 'clock · known-answer · mutation-pinned', function (T) {
       var C = env.DexClock;
       if (!C || typeof C.parseTimestamp !== 'function') {
@@ -17919,6 +18163,7 @@
         '2026-06-25T05:00:00;push;;discharging;73;;\n' +
         '2026-06-25T05:00:00;battery;;discharging;73;41;0\n' +
         '2026-06-25T05:30:00;read;-1.8;discharging;72;;\n';
+      T.ok('parseRingClockLog · no text places no clock read', OB.parseRingClockLog(undefined).length === 0 && OB.parseRingClockLog('').length === 0);
       var log = OB.parseRingClockLog(CSV);
       T.ok('parseRingClockLog reads every event type', log.length === 4, 'expected 4 rows, got ' + log.length);
       T.ok('…and coerces offset to a finite number on read events', log[0].offsetS === -1.2 && log[3].offsetS === -1.8, 'offset column not parsed as number');
@@ -29024,6 +29269,83 @@
       T.eq('…timingSource follows the verdict: two real clocks', indep.timingSource, 'device+host');
       T.eq('…and a derived host column contributes no second clock', inert.timingSource, 'device');
       T.approx('…and the sample spacing equals 1/fs', at10.ok && at10.r.relSec[1] - at10.r.relSec[0], at10.ok && 1 / at10.r.fs, 1e-9);
+    });
+
+    /* ABSENCE IS NOT A FORMAT ERROR — §∅ at PpgDex's parse floor (residue
+       `2026-11-04-an-empty-ppg-stream-is-refused-as-a-wrong-column-layout`). `parsePPG` threw ONE
+       message below 10 samples, and that message named the two expected column layouts. On the
+       archive's 2026-11-01 night 22 of 165 files hold zero bytes, four of them `_PPG.txt`, and each of
+       those four reported that its columns were wrong. The four inputs that reach the floor carry four
+       different claims about the device, so each is asserted against a control differing in exactly the
+       cause — one shared message passes any test that only checks THAT it refused. */
+    group('PpgDex parsePPG — the refusal names WHICH of four causes refused it', 'ppgdex-dsp · known-answer · mutation-pinned', function (T) {
+      var P = env.PPGDSP || env.PpgDex;
+      if (!P || typeof P.parsePPG !== 'function') {
+        T.skip('PpgDex.parsePPG available', 'PPGDSP not co-loaded in this runner');
+        return;
+      }
+      var HDR6 = 'Phone timestamp;sensor timestamp [ns];channel 0;channel 1;channel 2;ambient';
+      var rows = function (n, bad) {
+        var L = [HDR6],
+          start = Date.UTC(2026, 10, 1, 1, 14, 7),
+          fs = 135;
+        for (var i = 0; i < n; i++) {
+          var ms = start + Math.round((i * 1000) / fs);
+          var ns = String(i * Math.round(1e9 / fs));
+          var v = bad ? 'x' : String(200000 + i);
+          L.push(new Date(ms).toISOString().replace('Z', '') + ';' + ns + ';' + v + ';' + v + ';' + v + ';' + v);
+        }
+        return L.join('\n');
+      };
+      var why = function (txt) {
+        try {
+          P.parsePPG(txt);
+          return { ok: true };
+        } catch (e) {
+          return { ok: false, reason: e.reason, msg: e.message, bytes: e.bytes, seen: e.rowsSeen, shaped: e.rowsShaped, samples: e.samples };
+        }
+      };
+
+      /* THE CONTROL FIRST: the same generator at ten rows PARSES, so every refusal below is about its
+         own input rather than about this harness. */
+      var good = why(rows(10, false));
+      T.ok('CONTROL — ten well-formed rows parse, so the generator is not what refuses', good.ok, good.msg);
+
+      /* 1 · the zero-byte file the archive actually holds. */
+      var zero = why('');
+      T.eq('a zero-byte stream refuses as empty-stream, not as a layout error', zero.reason, 'empty-stream');
+      T.eq('…and it publishes the byte count that makes it an absence', zero.bytes, 0);
+      T.ok('…its text says ABSENCE and names no column layout', /ABSENCE/.test(zero.msg) && !/channel 1/.test(zero.msg), zero.msg);
+
+      /* 2 · header and comments only — the same absence, told apart by the byte count. */
+      var hdrOnly = why('# timebase=device-crystal\n' + HDR6 + '\n');
+      T.eq('a header-only stream is the same absence', hdrOnly.reason, 'empty-stream');
+      T.ok('…and its byte count separates it from the zero-byte case', hdrOnly.bytes > 0, String(hdrOnly.bytes));
+      T.eq('…with no row counted, because a header is not a row', hdrOnly.seen, 0);
+
+      /* 3 · rows that really do carry the wrong columns — the verdict this message was written for. */
+      var wrong = why('alpha;beta\n1;2\n3;4\n5;6\n');
+      T.eq('a two-column junk file keeps the LAYOUT verdict, which is true of it', wrong.reason, 'layout');
+      T.ok('…and it counted the rows it read, so no absence can be claimed over it', wrong.seen >= 3, 'rowsSeen ' + wrong.seen);
+      T.ok('…its text names the expected layouts, as only this cause should', /channel 0/.test(wrong.msg), wrong.msg);
+
+      /* 4 · the layout is right and the values are not. */
+      var junk = why(rows(12, true));
+      T.eq('twelve right-shaped rows of unreadable values is unreadable-columns', junk.reason, 'unreadable-columns');
+      T.ok('…and it says the columns ARE right', /columns are right/.test(junk.msg), junk.msg);
+      T.ok('…over rows it shaped, which is what separates it from cause 3', junk.shaped >= 12, 'rowsShaped ' + junk.shaped);
+
+      /* 5 · a real stream, too short to analyse. */
+      var short9 = why(rows(9, false));
+      T.eq('nine good samples is too-short, not a layout error', short9.reason, 'too-short');
+      T.eq('…and the count it refused on is published', short9.samples, 9);
+
+      /* VACUITY: four EQUAL reasons would satisfy every assertion above that only reads a string. */
+      var set = {};
+      [zero, hdrOnly, wrong, junk, short9].forEach(function (r) {
+        set[r.reason] = 1;
+      });
+      T.eq('the four causes are DISTINCT — one shared message is what this group refuses', Object.keys(set).length, 4);
     });
 
     /* PpgDex's lombScargle is 129 lines producing every frequency-domain metric the node ships —
@@ -58245,6 +58567,113 @@
       T.ok("--list from outside any repository reads the tool's own repository", /DENOMINATOR: \d+ worktree\(s\) registered/.test(l.stdout), l.stdout + l.stderr);
     });
 
+    /* Row 2026-11-04-wt-done-removes-a-tree-over-a-commit-stamped-before-the-merge. `unlandedFor`
+       counts commits STAMPED after the merge, so a commit written minutes BEFORE it and never pushed
+       counts zero, and the tool removed the only checkout where its files existed.
+
+       THE TWO CONTROLS ARE THE DESIGN. Heron measured the naive rule — absence from the base alone —
+       over the 8 worktrees on rig-x870 holding a MERGED PR: it refused 8 of 8, and every refusal was
+       false, each one over the branch's own `changes/*.md` changeset that a release had consumed. So
+       a consumed changeset must NOT refuse and a never-landed path must. The discriminator is the
+       base's own history, which reads 2 commits for a consumed changeset and 0 for a path that never
+       arrived. This group drives the real git commands against a temp repository. */
+    group('wt-done — an added path the base never carried refuses, and a consumed changeset does not', 'tools · wt-done · added-absent', function (T) {
+      if (!env.nodeSpawnSync || !env.nodeFs || !env.nodeOs || !env.wtDone || typeof env.wtDone.addedAbsentFor !== 'function') {
+        T.skip('needs Node child_process and tools/wt-done.mjs — not available in the browser lane');
+        return;
+      }
+      var fs = env.nodeFs,
+        pathMod = env.nodePath;
+      var repo = fs.mkdtempSync(pathMod.join(env.nodeOs.tmpdir(), 'wtdone-absent-'));
+      function git() {
+        var a = Array.prototype.slice.call(arguments);
+        return env.nodeSpawnSync('git', ['-C', repo, '-c', 'user.name=T', '-c', 'user.email=t@e', '-c', 'commit.gpgsign=false'].concat(a), { encoding: 'utf8' });
+      }
+      function write(rel, text) {
+        var f = pathMod.join(repo, rel);
+        fs.mkdirSync(pathMod.dirname(f), { recursive: true });
+        fs.writeFileSync(f, text);
+      }
+      var init = git('init', '-q', '-b', 'main');
+      if (init.status !== 0) {
+        T.skip('git init -b refused here — ' + String(init.stderr || '').split('\n')[0]);
+        return;
+      }
+      write('a.txt', 'base\n');
+      git('add', 'a.txt');
+      git('commit', '-q', '-m', 'base');
+
+      git('checkout', '-q', '-b', 'feat');
+      write('changes/x.md', 'bump: patch\n');
+      write('handoffs/y.md', 'the only copy\n');
+      git('add', 'changes/x.md', 'handoffs/y.md');
+      git('commit', '-q', '-m', 'feat: two added paths');
+
+      /* MAIN NOW DOES WHAT A SQUASH MERGE AND THEN A RELEASE DO: it carries the changeset, then the
+         release deletes it. `handoffs/y.md` never reaches main at all. */
+      git('checkout', '-q', 'main');
+      write('changes/x.md', 'bump: patch\n');
+      git('add', 'changes/x.md');
+      git('commit', '-q', '-m', 'land the changeset');
+      git('rm', '-q', 'changes/x.md');
+      git('commit', '-q', '-m', 'release consumes the changeset');
+
+      git('checkout', '-q', 'feat');
+      var r = env.wtDone.addedAbsentFor(repo, 'refs/heads/main', { fetch: false });
+      T.eq('both added paths are examined', r.checked, 2);
+      T.ok('the verdict REFUSES', r.ok === false, JSON.stringify(r));
+      T.eq('exactly one path is named', r.paths.length, 1);
+      T.eq('and it is the one main never carried', r.paths[0], 'handoffs/y.md');
+      T.ok('🔴 the consumed changeset is NOT named — a release deleting it never lost a copy', r.paths.indexOf('changes/x.md') < 0, r.paths.join(' '));
+      T.ok('the refusal names the path, so a reader can go and look at it', /handoffs\/y\.md/.test(r.why), r.why);
+
+      /* A PRESENT PATH PASSES, AND ITS CONTENT IS NOT THIS TEST'S QUESTION. The branch's copy differs
+         from main's, which is the limit the function's comment states: content is `--landed`'s
+         instrument and absence is this one's. */
+      git('checkout', '-q', '-b', 'feat2', 'main');
+      write('changes/z.md', 'the branch wrote this\n');
+      git('add', 'changes/z.md');
+      git('commit', '-q', '-m', 'feat2: one added path');
+      git('checkout', '-q', 'main');
+      write('changes/z.md', 'main carries other bytes\n');
+      git('add', 'changes/z.md');
+      git('commit', '-q', '-m', 'land it under different content');
+      git('checkout', '-q', 'feat2');
+      var r2 = env.wtDone.addedAbsentFor(repo, 'refs/heads/main', { fetch: false });
+      T.ok('a path present in the base passes', r2.ok === true, JSON.stringify(r2));
+      T.eq('one path examined', r2.checked, 1);
+      T.eq('and nothing is named', r2.paths.length, 0);
+
+      /* A BRANCH THAT ADDED NOTHING IS STILL A MEASUREMENT. An examined-nothing pass must say 0
+         rather than stay silent, which is how a reader tells it from a scan that never ran. */
+      git('checkout', '-q', '-b', 'feat3', 'main');
+      var r3 = env.wtDone.addedAbsentFor(repo, 'refs/heads/main', { fetch: false });
+      T.ok('a branch with no added path passes', r3.ok === true, JSON.stringify(r3));
+      T.eq('and reports 0 examined, never silence', r3.checked, 0);
+
+      /* AN UNREADABLE BASE CANNOT PASS. Unknown is not landed, which is the same rule the date scan
+         follows one rung above. */
+      var r4 = env.wtDone.addedAbsentFor(repo, 'refs/heads/no-such-base', { fetch: false });
+      T.ok('an absent base refuses rather than passing', r4.ok === false, JSON.stringify(r4));
+
+      /* THE PURE CORE THEN TURNS IT INTO THE REFUSAL, with the date count at 0 — the exact shape the
+         row measured. */
+      var v = env.wtDone.verdict({ prState: 'MERGED', dirtyCount: 0, isMain: false, unlanded: { ok: true, count: 0 }, addedAbsent: r });
+      T.ok('🔴 a date count of 0 no longer passes a tree holding the only copy', v.ok === false, v.why);
+      T.ok('and the refusal names the hatch that answers it with content', /--landed/.test(v.why), v.why);
+      var vl = env.wtDone.verdict({
+        prState: 'MERGED',
+        dirtyCount: 0,
+        isMain: false,
+        unlanded: { ok: true, count: 0 },
+        addedAbsent: r,
+        landedElsewhere: { ok: true, why: 'every identifier is on origin/main' }
+      });
+      T.ok('--landed outranks it, because the identifier proof answers the same question', vl.ok === true, vl.why);
+      var vc = env.wtDone.verdict({ prState: 'MERGED', dirtyCount: 0, isMain: false, unlanded: { ok: true, count: 0 }, addedAbsent: r3 });
+      T.ok('a clean scan names what it examined in the verdict text', /0 added path\(s\) present in the base/.test(vc.why), vc.why);
+    });
+
     group('PPGDex §∅ — pinned spans: both extremes, marker-transparent, and the widening is DERIVED', 'ppgdex-dsp · absence-as-value', function (T) {
       var P = env.PPGDSP;
       if (!(P && typeof P.pinnedSpans === 'function' && typeof P.settlingWidenSec === 'function')) {
@@ -64829,19 +65258,27 @@
             schema: {
               name: 'ganglior.integrator-apnea-null-twins',
               version: '1.0',
-              doc: 'Committed synthetic twins for the apnea chance-null (DEEP-AUDIT-VI-FOLLOWUPS §4.3). Inputs rebuilt in-code by tests/apnea-null-twins.js, the same builder the equivalence gate uses.'
+              doc: 'Committed synthetic twins for the apnea chance-null (DEEP-AUDIT-VI-FOLLOWUPS §4.3) and for its attribution block (the contributions contract §1 — the four-node `attributed` twin is the only one whose block is not all-null). Inputs rebuilt in-code by tests/apnea-null-twins.js, the same builder the equivalence gate uses.'
             },
             twins: {}
           };
           var _T = _twins();
-          for (var _ti = 0; _ti < 4; _ti++) {
-            var _k = ['coupled', 'uncoupled', 'gapped', 'contended'][_ti];
+          var _aKeys = ['coupled', 'uncoupled', 'gapped', 'contended', 'attributed'];
+          for (var _ti = 0; _ti < _aKeys.length; _ti++) {
+            var _k = _aKeys[_ti];
             var _recs = _T[_k].map(function (x) {
               return Ag(x.json, x.node, x.node)[0];
             });
             var _f = FAg(_recs, 120000, {});
             aBuilt.twins[_k] = _f
-              ? { nullModel: _f.nullModel, nConf: _f.findings.length, confirmedAHI: _f.confirmedAHI, confirmedAHIReportable: _f.confirmedAHIReportable, overlapHours: _f.overlapHours }
+              ? {
+                  nullModel: _f.nullModel,
+                  nConf: _f.findings.length,
+                  confirmedAHI: _f.confirmedAHI,
+                  confirmedAHIReportable: _f.confirmedAHIReportable,
+                  overlapHours: _f.overlapHours,
+                  contributions: _f.contributions || null
+                }
               : null;
           }
           var ad = [];
@@ -64872,6 +65309,87 @@
             'contended twin has desats competing for one surge',
             aBuilt.twins.contended.nConf > 0 && aBuilt.twins.contended.nullModel.expectedConfirmed > 0,
             'nConf=' + aBuilt.twins.contended.nConf + ' surrogateMean=' + aBuilt.twins.contended.nullModel.expectedConfirmed
+          );
+
+          /* ── ATTRIBUTION (VERDICT-CONTRIBUTIONS §1, the §2 Integrator row) ─────────────────────
+             The apnea index is fused over a desaturation observer AND a cardiac node, so on a
+             TWO-node bus a leave-one-out is unknown for both inputs — remove either and no reduced
+             bus can produce the figure. ∅: that is `null` with a reason, never 0, and one unknown
+             nulls every share and `dominant`. The first four twins are two-node, so they pin the
+             ∅ half; `attributed` is four-node and pins the half that carries numbers. */
+          ['coupled', 'uncoupled', 'gapped', 'contended'].forEach(function (k2) {
+            var c2 = aBuilt.twins[k2].contributions;
+            var allNull =
+              c2 &&
+              c2.method === 'leave-one-out' &&
+              c2.of === 'confirmedApneaIndex' &&
+              c2.inputs.length === 2 &&
+              c2.dominant === null &&
+              c2.inputs.every(function (i2) {
+                return i2.delta === null && i2.share === null && typeof i2.reason === 'string' && i2.reason.length > 0;
+              });
+            T.ok('apnea attribution on the two-node ' + k2 + ' twin is ∅ — both inputs necessary, neither quantifiable', !!allNull, c2 ? JSON.stringify(c2) : 'no block');
+          });
+          var cA = aBuilt.twins.attributed.contributions;
+          T.ok('attributed twin is the only FOUR-input block', !!cA && cA.inputs.length === 4, cA ? 'inputs=' + cA.inputs.length : 'no block');
+          T.eq('…and it is a leave-one-out of the confirmed index, in events/h', [cA.of, cA.method, cA.unit].join('|'), 'confirmedApneaIndex|leave-one-out|events/h');
+          /* The PLANTED dominant: the ECG is the only node corroborating the whole night, so its
+             removal has to move the index furthest. A block that named anything else would mean the
+             kernel is not measuring what the twin plants. */
+          T.eq('dominant is the node that alone corroborates the whole night', cA.dominant, 'node.ECGDex');
+          var _shareSum = cA.inputs.reduce(function (a2, i2) {
+            return a2 + i2.share;
+          }, 0);
+          T.ok('shares sum to 1 ± 1e-9 over the inputs listed', Math.abs(_shareSum - 1) < 1e-9, 'sum=' + _shareSum);
+          /* A MEASURED 0 is not a ∅. The PPG's surges are redundant (the ECG already confirmed every
+             desat it could) and the CPAP's desats never reach the spine (OxyDex outlasts it), so both
+             were READ and moved nothing: delta 0, share 0, and NO reason — the field that only an
+             unknown carries. Collapsing these two states is the ∅ bug this assertion exists to catch. */
+          var _zeros = cA.inputs.filter(function (i2) {
+            return i2.delta === 0 && i2.share === 0 && i2.reason === undefined;
+          });
+          T.eq('two inputs were read and moved nothing — measured 0, not ∅ null', _zeros.length, 2);
+          T.eq(
+            '…and they are the redundant corroborator and the shorter desat observer',
+            _zeros
+              .map(function (i2) {
+                return i2.key;
+              })
+              .join(','),
+            'node.CPAPDex,node.PpgDex'
+          );
+          /* 🔴 ANTI-CLAIM. A leave-one-out is NOT a decomposition: two inputs can both be necessary,
+             so the deltas do not sum to the figure and must never be read as parts of it. Measured
+             here: Σdelta = 3.25 against a figure of 5. An assertion that they were equal would be
+             satisfiable only by a kernel that stopped measuring removals. */
+          var _deltaSum = cA.inputs.reduce(function (a2, i2) {
+            return a2 + i2.delta;
+          }, 0);
+          T.ok(
+            'the deltas do NOT sum to the figure — a leave-one-out is not a decomposition',
+            Math.abs(_deltaSum - aBuilt.twins.attributed.confirmedAHI) > 1,
+            'Σdelta=' + _deltaSum.toFixed(2) + ' figure=' + aBuilt.twins.attributed.confirmedAHI
+          );
+          /* METAMORPHIC — a node on the bus carrying neither a desaturation nor a surge is not an
+             input of this figure: it must not appear, and it must not move a share. Listing it at
+             delta 0 would dilute every other share while changing nothing about the night. */
+          var _mClone = JSON.parse(JSON.stringify(_T.attributed[3].json));
+          _mClone.node = 'MotionDex';
+          _mClone.schema.node = 'MotionDex';
+          _mClone.ganglior_events = _mClone.ganglior_events.map(function (e2) {
+            var c3 = JSON.parse(JSON.stringify(e2));
+            c3.node = 'MotionDex';
+            c3.impulse = 'position_change';
+            return c3;
+          });
+          var _mRecs = _T.attributed.concat([{ node: 'MotionDex', json: _mClone }]).map(function (x) {
+            return Ag(x.json, x.node, x.node)[0];
+          });
+          var _mF = FAg(_mRecs, 120000, {});
+          T.eq(
+            'a fifth node carrying neither event changes neither the figure nor the block',
+            JSON.stringify([_mF.confirmedAHI, _mF.contributions]),
+            JSON.stringify([aBuilt.twins.attributed.confirmedAHI, cA])
           );
         }
         var tb = gExp.consensus && gExp.consensus.blocks && gExp.consensus.blocks[0];

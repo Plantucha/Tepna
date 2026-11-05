@@ -632,6 +632,12 @@
       "source": "stamps and bytes built in the test; no provenance claim in the file",
       "sha256": null
     },
+    "test_qc_report_dir.py": {
+      "class": "authored",
+      "kind": "constructed-stamps",
+      "source": "stamps and folder names built in the test; the two clock minutes reproduce the 2026-11-03 cross-midnight incident, which residue row 2026-11-03-a-nights-last-qc-summary-lands-in-the-next-date-folder already publishes in this repo; no device bytes and no address in the file",
+      "sha256": null
+    },
     "test_qc_scope_resolution.py": {
       "class": "captured",
       "kind": "real-night-values+device-address",

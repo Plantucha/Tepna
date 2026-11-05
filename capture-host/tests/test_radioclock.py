@@ -2226,3 +2226,174 @@ def test_an_UNREADABLE_header_assumes_the_NARROW_shape_and_never_widens_it(tmp_p
     assert seen["n"] == 1, "the header read must have been attempted, or this asserts nothing"
     assert got == 10
     w.close()
+
+
+# ─── the civil frame: one run, one UTC offset ─────────────────────────────────────────────────────
+
+
+def _in_zone(name):
+    """Apply a zone to the PROCESS — `datetime.fromtimestamp` reads the C library's zone, so `TZ`
+    alone changes nothing until `tzset()`. Restored on the way out, including when the body raises."""
+    import contextlib
+    import os as _os
+    import time as _time
+
+    @contextlib.contextmanager
+    def ctx():
+        before = _os.environ.get("TZ")
+        _os.environ["TZ"] = name
+        _time.tzset()
+        try:
+            yield
+        finally:
+            if before is None:
+                _os.environ.pop("TZ", None)
+            else:
+                _os.environ["TZ"] = before
+            _time.tzset()
+
+    return ctx()
+
+
+def test_a_FALL_BACK_NIGHT_does_not_rewind_the_sidecar_mid_file(tmp_path):
+    """🔴 Residue 2026-11-04-one-sessions-sidecar-and-sample-stream-end-an-hour-apart.
+
+    The box runs America/New_York. On 2026-11-01 the wall clock passes 01:00–02:00 twice, and a
+    stamp rendered from the live zone writes `01:01` for an instant AFTER the file already wrote
+    `01:59` — a 3600 s rewind inside one file, and an hour away from the sample stream of the same
+    session, which `capture._now()` keeps counting in the session's original offset. The run's frame
+    gives this process that discipline without touching `capture.py` (invariant 1)."""
+    import datetime as _dt
+    import zoneinfo
+
+    with _in_zone("America/New_York"):
+        seam_ns = (
+            int(_dt.datetime(2026, 11, 1, 1, 0, 0, tzinfo=zoneinfo.ZoneInfo("America/New_York"), fold=1).timestamp())
+            * 1_000_000_000
+        )
+        acls = ((seam_ns - 60_000_000_000,), (seam_ns + 60_000_000_000,))
+        name = rc.sidecar_name("20261101T015000", H10)
+
+        def open_writer(address):
+            return rc.SidecarWriter(str(tmp_path / rc.sidecar_name("20261101T015000", address)))
+
+        got = rc.run(_stream(acls=acls), _collector(), open_writer)
+        stamps = [line.split(";")[0] for line in (tmp_path / name).read_text(encoding="utf-8").splitlines()[1:]]
+        assert got["rows"] == 2
+        assert stamps == ["2026-11-01T01:59:00.000", "2026-11-01T02:01:00.000"]
+        assert stamps[0] < stamps[1], "a file that rewinds mid-night is the defect this closes"
+        assert rc.phone_ts(seam_ns + 60_000_000_000) == "2026-11-01T01:01:00.000", (
+            "the plant: without the frame the same instant renders an hour back"
+        )
+        assert got["civil_frame"] == {
+            "anchor_epoch_s": (seam_ns - 60_000_000_000) / 1e9,
+            "offset_s": -14400.0,
+            "shifted_rows": 1.0,
+        }, (
+            "the anchor is the FIRST row's instant, and the rest names the frame the file is IN "
+            "and the rows the live zone disagreed with"
+        )
+
+
+def test_a_run_that_writes_NO_ROW_reports_NO_civil_frame(tmp_path):
+    """A frame with no file is a claim about nothing — the same rule as the absent sidecar itself."""
+
+    def open_writer(address):  # pragma: no cover — reaching it would mean a row was written
+        raise AssertionError("no row, so no writer")
+
+    got = rc.run(_stream(acls=()), _collector(), open_writer)
+    assert got["rows"] == 0 and got["civil_frame"] is None
+
+
+def test_a_ROW_is_on_DISK_before_any_flush_so_a_working_sidecar_cannot_read_EMPTY(tmp_path):
+    """🔴 A 0-BYTE SIDECAR MUST MEAN ONE THING. This module promises that absence is the absence of a
+    file, and a 64 KiB buffer broke that promise from the other side: the writer opens on the first
+    row, so the file EXISTS, while its rows sat in memory and a reader saw 0 bytes. One archived
+    night holds exactly that file. The row is read back through a SECOND handle, with no `flush` and
+    no `close` on the writer, because that is what a reader on the box has."""
+    p = tmp_path / "s.csv"
+    w = rc.SidecarWriter(str(p))
+    assert w._fh.line_buffering is True, "the handle itself, not the comment, carries the promise"
+    w.write(rc.format_row("t", H10, 0, 5, 64, 11, 1_050_000, None, 7, rc.DEVICE_CLOCK_PMD, 1))
+    seen = p.read_text(encoding="utf-8").splitlines()
+    assert seen[0] == rc.SIDECAR_HEADER.rstrip("\n"), "the header reached the disk at open"
+    assert len(seen) == 2 and w.rows == 1, "and the row reached it when it was written"
+    w.close()
+
+
+def test_a_RESUMED_sidecar_also_reaches_the_disk_one_row_at_a_time(tmp_path):
+    """The resume path opens in append mode through the same call, so it needs its own assertion: a
+    night that reconnects mid-session is exactly when an unclean stop costs the most."""
+    p = tmp_path / "s.csv"
+    first = rc.SidecarWriter(str(p))
+    first.write(rc.format_row("t", H10, 0, 5, 64, 11, 1_050_000, None, 7, rc.DEVICE_CLOCK_PMD, 1))
+    first.close()
+    again = rc.SidecarWriter(str(p))
+    assert again._fh.line_buffering is True
+    again.write(rc.format_row("u", H10, 0, 6, 64, 12, 1_100_000, None, 8, rc.DEVICE_CLOCK_PMD, 1))
+    assert len(p.read_text(encoding="utf-8").splitlines()) == 3, "header plus both rows, before close"
+    again.close()
+
+
+def test_the_FLUSH_INTERVAL_is_no_longer_what_puts_a_row_on_disk(tmp_path):
+    """`run` flushes every 64 rows, and at the measured 0.556 to 6.653 rows/s that is 10 s to 115 s of
+    real rows held in memory. This drives a run with the interval set far beyond the stream, so a
+    periodic flush cannot explain what the file holds, and watches the size after every write."""
+    sizes = []
+
+    class _Watch(rc.SidecarWriter):
+        def write(self, line: str) -> None:
+            super().write(line)
+            sizes.append(os.path.getsize(self.path))
+
+    def open_writer(address):
+        return _Watch(str(tmp_path / rc.sidecar_name("20260907T030000", address)))
+
+    stream = [(rc.MONITOR_OPCODE_EVENT, ADAPTER, _le_conn_complete(0x0040, RING), 1)]
+    stream += [(rc.MONITOR_OPCODE_ACL_RX, ADAPTER, _att_notification(0x0040, bytes([9]) * 12), 2)]
+    got = rc.run(stream, _collector(devices=(RING,), vendor="Wellue"), open_writer, flush_every=10_000)
+    assert got["rows"] == 1, "one row, and the interval it was written under was never reached"
+    assert sizes and all(size > 0 for size in sizes), "every row was on disk as it was written"
+
+
+def test_EVERY_low_rate_sidecar_writer_in_this_tree_opens_LINE_BUFFERED():
+    """The population is THREE writers that keep a low-rate telemetry sidecar beside a capture:
+    `radioclock.SidecarWriter`, `as11_clock.ClockSidecar` and `cpap_shadow_runner`'s decision log.
+    Two carried the idiom and its written reason, and this module was the third, which is how a
+    working sidecar came to read as 0 bytes. Each one is asserted here, and no COUNT is: `_srcscan`
+    states that a count over scanned source breaks under mutmut, while an `in` check survives it."""
+    for name in ("radioclock.py", "as11_clock.py", "cpap_shadow_runner.py"):
+        assert 'buffering=1, newline="\\n"' in module_source(name), name
+
+
+def test_a_ONE_BYTE_file_that_ends_in_a_newline_is_a_RESUME_and_not_a_rewrite(tmp_path):
+    """One byte is the smallest file the torn-tail check can look at, and it is where an off-by-one in
+    either size bound shows itself. A `> 1` bound skips the check and re-headers a file that was
+    whole, and a `seek(-2, 2)` walks off the front of it."""
+    p = tmp_path / "s.csv"
+    p.write_bytes(b"\n")
+    w = rc.SidecarWriter(str(p))
+    w.close()
+    assert p.read_bytes() == b"\n", "a whole one-byte file is appended to, never re-headered"
+
+
+def test_the_torn_tail_check_reads_the_LAST_byte_and_never_a_fixed_offset(tmp_path):
+    """A fixed offset into the file answers a different question. This file's third byte IS a newline,
+    so an absolute `seek(2)` reads one and calls the file whole, while the real last byte is a torn
+    fragment that has to go."""
+    p = tmp_path / "s.csv"
+    p.write_bytes(b"ab\ncd")
+    w = rc.SidecarWriter(str(p))
+    w.close()
+    assert p.read_bytes() == b"ab\n", "the fragment after the last newline is dropped"
+
+
+def test_a_file_whose_ONLY_newline_is_its_FIRST_byte_keeps_that_byte(tmp_path):
+    """`cut` is the index of the last newline, so `cut == 0` is a real file state and the only one
+    that separates `cut >= 0` from `cut > 0`. Truncating to 0 there throws away a line the file had
+    written whole, and the writer then re-headers a file it should have resumed."""
+    p = tmp_path / "s.csv"
+    p.write_bytes(b"\nxy")
+    w = rc.SidecarWriter(str(p))
+    w.close()
+    assert p.read_bytes() == b"\n", "the first line survives and the fragment after it does not"

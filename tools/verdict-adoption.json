@@ -30,16 +30,30 @@
     "since": "2026-10-12"
    },
    "trio pooled hat \u00a711 (`tch-pooled-hat-*.json`)": {
-    "file": "tools/trio-batch.mjs",
+    "file": "tools/tch-pooled-hat.mjs",
     "method": "leave-one-out",
-    "status": "pending",
-    "since": "2026-10-12"
+    "status": "adopted",
+    "since": "2026-10-12",
+    "emits": {
+     "cmd": [
+      "node",
+      "tools/tch-pooled-hat.mjs",
+      "--contributions-sample"
+     ]
+    }
    },
    "Integrator fused sleep summary": {
     "file": "integrator-dsp.js",
     "method": "leave-one-out",
-    "status": "pending",
-    "since": "2026-10-12"
+    "status": "adopted",
+    "since": "2026-11-04",
+    "emits": {
+     "cmd": [
+      "node",
+      "tools/integrator-contributions.mjs",
+      "--contributions-sample"
+     ]
+    }
    }
   }
  },
@@ -438,6 +452,10 @@
    "since": "2026-10-17"
   },
   "capture-host/tests/test_qc_poller_verdicts.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
+  "capture-host/tests/test_qc_report_dir.py": {
    "bin": "test",
    "status": "exempt"
   },
@@ -1620,6 +1638,18 @@
    "status": "exempt",
    "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
   },
+  "tools/integrator-contributions.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/integrator-contributions.mjs",
+     "--contributions-sample"
+    ]
+   },
+   "note": "the gate harness for VERDICT-CONTRIBUTIONS \u00a72's Integrator figure (confirmedApneaIndex, leave-one-out over nodes). Six pre-stated checks over the committed apnea twins plus two floors the corpus cannot express: a one-input bus and a null figure both carry NO block. The four two-node twins attribute \u2205 \u2014 the index needs a desaturation observer AND a cardiac node, so a reduced two-node bus cannot produce the figure at all (unknown, never 0); the four-node `attributed` twin is the only one carrying shares, and its planted dominant is node.ECGDex. A block that fails verdict.js is reported as a FAILING check with the block under result.invalidContributions, never as exit 2 \u2014 a found defect is not an inability to look."
+  },
   "tools/integrator-surface-gate.mjs": {
    "bin": "decides",
    "status": "adopted",
@@ -2098,6 +2128,18 @@
    },
    "note": "it publishes the NIGHT POPULATION its figures were taken over: `populationVerdict` over a snapshot taken before the per-night walk and one taken after, so a corpus that moves mid-run reads as SHORTFALL rather than as a table nobody re-read. `--verdict-sample` prints the object over a synthetic two-night snapshot, so the gate validates it without the corpus. It entered the population on 2026-10-25, when the enumerator stopped keying membership on a literal decision word and started reading a publication (row 2026-10-22-the-adoption-population-is-keyed-on-a-literal-word-anywhere-in-the-file). The word it prints is `population.status`, computed at run time, so no literal PASS or SHORTFALL ever appears in the source and the old grep could not see it."
   },
+  "tools/pat-floor-offset.mjs": {
+   "bin": "already-json",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/pat-floor-offset.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "RADIO-DELAY-FLOOR \u00a75, the beat half. It decides one pre-stated question: does the floor-mapped radio delay explain how far the inter-device offset MOVED between two nights, as the beat scan reads that movement modulo one RR? The criterion (median absolute disagreement <= 90 ms, `PAT-UNDER-PERBLOCK-ALIGNMENT` \u00a73e's own alignment tolerance) was posted to the fleet board on 2026-11-04 before the deciding data existed, and fewer than four night pairs reads UNDERPOWERED rather than PASS \u2014 one pair agreeing is one coin landing heads. Over the archive it reads UNDERPOWERED at one pair. `--verdict-sample` decides over four synthetic nights, so the gate validates the object where the captures are not, and its evidence names the sample function so no reader mistakes it for a corpus result."
+  },
   "tools/pat-host-offset.mjs": {
    "bin": "already-json",
    "status": "adopted",
@@ -2325,6 +2367,18 @@
     ]
    },
    "note": "the population verdict this tool publishes through populationVerdict@tools/corpus-scope-core.mjs, over device PPG files. Row 2026-10-28-the-word-only-bin-misses-a-verdict-built-by-an-imported-helper re-bins it: the row read word-only, which exempts a producer from object validation, and the object half of the gate could not see a build one import away. checkWordOnlyObject now reads that hop, and only to a builder whose own body CONSTRUCTS \u2014 tools/rebase-safe.mjs calls extractVerdicts@tools/pr-compliance.mjs, which parses objects out of a PR body and constructs none, so it stays word-only as the measured control. --verdict-sample runs the real builder over a fabricated population listed by a closure, so the gate reads a complete object, the corpus stays untouched and the shape cannot drift from snapshotEntries."
+  },
+  "tools/ppg-channel-combination.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/ppg-channel-combination.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the producer for the channel-combination half of the PPG/ECG validation paper \u00a74. The ordinary run prints its own finding verdict (criterion max_fusion_advantage, pre-stated at 1.0) and the population verdict beside it; --verdict-sample runs populationVerdict@tools/corpus-scope-core.mjs over a fabricated population listed by a closure, so the gate reads a complete object, the corpus stays untouched and the shape cannot drift from snapshotEntries."
   },
   "tools/ppg-foot-consensus-e1.mjs": {
    "bin": "decides",
@@ -2629,6 +2683,18 @@
     ]
    },
    "note": "row 2026-11-02-no-node-reads-a-seam-sidecar-or-the-radio-clock: the precondition the owner set on 2026-09-16 when he ruled the seam sidecar EMITTED, NOT ENFORCED - consumption is a separate unit so the emission can be proven on real nights first. This tool is that proof, and it decides whether a node may read the sidecar at all. Pre-stated criterion: reconnect_boundaries_outside_any_examined_population is 0, against the arithmetic the writer itself fixes. A stream of N samples scanned by S writer sessions holds N-1 adjacent intervals, so a sidecar that judges every reconnect boundary reports examined = N-1 and one that skips every boundary reports N-S; the difference IS the number of boundaries that reached an examined population. The criterion binds on the nights recorded on or after 2026-09-22, which is the seed fix (a resumed sidecar used to store its first sample and judge nothing), because captured bytes are immutable and no re-run repairs an earlier file - earlier boundaries are reported as history and never as a result. An empty post-fix population is NOT_RUN and carries result null, never a pass. Population = every SEAMS sidecar under the named roots that can be placed against its companion stream; a file whose examined count falls outside [N-S, N-1] counts no shared population with its stream and is EXCLUDED by name with both counts in the reason, never clamped into the tally - measured on HR, where the sidecar feeds per notification while the writer drops rows, so examined can exceed the intervals the file holds. Absence is null: with no seam row anywhere the largest device step is null beside a reason naming the empty population, because a 0 ms step is the opposite claim. No default root, so a census of a tree nobody named cannot be run by accident. The selftest plants its own tree and drives every arm with no corpus, and --verdict-sample prints the shape from that plant, so it holds no night name, no device and no path."
+  },
+  "tools/sidecar-census.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/sidecar-census.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "unit ordered by the owner 2026-11-04 (sidecar census): for each sidecar the capture host writes, the registry names the writer, every reader in nodes, the box and tools, and what each reader does when the sidecar is absent or unreadable. Pre-stated criterion: unaccounted_sidecar_claims is 0. Discovery reads every upper-case NAME.csv/txt literal, every capture_filename stream word and the RUNS/SEAMS families in capture-host/*.py, so a new sidecar the registry does not classify reds. A writer or reader anchor that no longer stands reds. A node or box reader must cite a committed absent-path test or an open residue row; a cited test or row that does not exist reds. A tool reader with no test is counted, not failed. Population = the registered sidecars, none excluded; an empty registry is NOT_RUN with result null. The selftest plants its own tree and drives every arm, and --verdict-sample prints the shape from that plant, so it holds no night name, no device and no path."
   },
   "tools/secret-scan.mjs": {
    "bin": "decides",

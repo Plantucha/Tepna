@@ -191,15 +191,25 @@ const buildApneaTwins = () => {
     schema: {
       name: 'ganglior.integrator-apnea-null-twins',
       version: '1.0',
-      doc: 'Committed synthetic twins for the apnea chance-null (DEEP-AUDIT-VI-FOLLOWUPS §4.3). Inputs rebuilt in-code by tests/apnea-null-twins.js, the same builder the equivalence gate uses.'
+      doc: 'Committed synthetic twins for the apnea chance-null (DEEP-AUDIT-VI-FOLLOWUPS §4.3) and for its attribution block (the contributions contract §1 — the four-node `attributed` twin is the only one whose block is not all-null). Inputs rebuilt in-code by tests/apnea-null-twins.js, the same builder the equivalence gate uses.'
     },
     twins: {}
   };
-  for (const k of ['coupled', 'uncoupled', 'gapped', 'contended']) {
+  for (const k of ['coupled', 'uncoupled', 'gapped', 'contended', 'attributed']) {
     const recs = T[k].map((x) => adaptEnvelopeNode(x.json, x.node, x.node)[0]);
     const fused = fuseApneaEvents(recs, 120000, {});
+    /* `contributions` is minted here, not asserted here: a block that is all-null on the four
+       two-node twins and carries shares on the four-node one is exactly the discrimination the
+       fixture exists to hold (VERDICT-CONTRIBUTIONS §1). */
     out.twins[k] = fused
-      ? { nullModel: fused.nullModel, nConf: fused.findings.length, confirmedAHI: fused.confirmedAHI, confirmedAHIReportable: fused.confirmedAHIReportable, overlapHours: fused.overlapHours }
+      ? {
+          nullModel: fused.nullModel,
+          nConf: fused.findings.length,
+          confirmedAHI: fused.confirmedAHI,
+          confirmedAHIReportable: fused.confirmedAHIReportable,
+          overlapHours: fused.overlapHours,
+          contributions: fused.contributions || null
+        }
       : null;
   }
   return out;

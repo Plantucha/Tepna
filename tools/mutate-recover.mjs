@@ -13,6 +13,7 @@
    (its own note at :1405 — importing it starts a multi-hour run), so nothing may import it. */
 import { readdirSync, readFileSync, writeFileSync, rmSync, rmdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { execFileSync } from 'node:child_process';
 
 /* RECOVER FIRST, ALWAYS. A previous run killed mid-mutation leaves `<file>.mutate-backup` beside a
    mutated source. Restore it before doing anything, so the damage window closes on the next

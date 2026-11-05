@@ -4795,6 +4795,30 @@ def night_label(summ) -> str:
     return band if band == folder or not folder else f"{band} (folder {folder})"
 
 
+def report_night(night: str, summ, exists) -> str:
+    """PURE but for `exists`: the folder a night's OWN reports belong in — the one the band names,
+    rather than the one the poller judged. `exists(name)` says whether that folder is on disk.
+
+    `night_label` moved the NAME an alert shows (#4324). This moves the DESTINATION, and the two are
+    halves of one finding. On 2026-11-03 the ring opened a file set at 04:18 in a fresh 11-03 folder
+    while both Polars kept writing to 11-02, so the poller judged 11-03 over the 11-02 band and wrote
+    QC-SUMMARY.json and the verdicts there. The night's own folder kept the 04:15 copy, which is the one
+    `night_report 2026-11-02` reads, and the following night overwrote the newer one. Measured on the box
+    that day: the 11-02 copy stood at 23 236 s and 8.26 M rows, the 11-03 copy at 23 597 s and 8.39 M
+    rows, over one night (residue `2026-11-03-a-nights-last-qc-summary-lands-in-the-next-date-folder`,
+    decision #3178).
+
+    🔴 THE BAND FOLDER HAS TO EXIST ALREADY. A night whose whole file set opened after midnight has no
+    evening folder, and creating one would make a night out of a date on which nothing recorded. The
+    judged folder is then the only folder that night has, so no second summary can disagree with it, and
+    `night_label` still prints the band beside the folder. This never creates a folder; `exists` is the
+    whole guard."""
+    band = digest_night(summ)
+    if band is None or band == night:
+        return night
+    return band if exists(band) else night
+
+
 def qc_digest(summ) -> str | None:
     """One line of night QC for the webhook — the unconditional 'how did tonight go', as opposed to the
     missing-stream alert that fires only when something is wrong (VIGIL-OVERNIGHT-FINDINGS §P2.4: the

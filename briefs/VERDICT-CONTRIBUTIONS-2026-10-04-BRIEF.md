@@ -4,7 +4,7 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** IN-PROGRESS — 2026-10-12 · ⚠️ **API-LANE TRIAGE 2026-11-04 — RE-VERIFIED BY MAGPIE, NOT TAKEN ON ITS WORD.** §5.1's box ticks: the contributions group re-ran green here, the validator ships in `verdict.js`, and the contract section is in place. The rest stay open, since one figure of the five publishes the block and the recorded night still waits on a reader. · ⚠️ **HAT PAGE HALF BUILT 2026-11-04 (Magpie)** — the UNDERPOWERED card now names the dominant leg; §5's second box stays open for its SOLID morning-verdict half. · **Created:** 2026-10-04 · **Residue:** 2026-10-12-hat-contribution-row-names-a-solve-with-no-closed-form
+**Status:** IN-PROGRESS — 2026-10-12 · ⚠️ **API-LANE TRIAGE 2026-11-04 — RE-VERIFIED BY MAGPIE, NOT TAKEN ON ITS WORD.** §5.1's box ticks: the contributions group re-ran green here, the validator ships in `verdict.js`, and the contract section is in place. The rest stay open, since three figures of the five publish the block and the recorded night still waits on a reader. · ⚠️ **INTEGRATOR FIGURE BUILT 2026-11-04 (Magpie)** — the fused apnea index publishes the block, and its answer is ∅ on a two-node bus by construction. · ⚠️ **HAT PAGE HALF BUILT 2026-11-04 (Magpie)** — the UNDERPOWERED card now names the dominant leg; §5's second box stays open for its SOLID morning-verdict half. · **Created:** 2026-10-04 · **Residue:** 2026-10-12-hat-contribution-row-names-a-solve-with-no-closed-form
 
 # Attribution — every fused number says which input moved it (the `contributions` block; the "derivator", reading one)
 
@@ -84,8 +84,8 @@ publishes a `contributions` block beside it:
 | hat per-site σ (classic and drift-removed) | `analysis-stats.js threeCorneredHat` | `analytic` | the UNDERPOWERED corner is the open question of the solid-night programme |
 | SOLID-NIGHT night verdict | `capture-host/solid_night.py` compose | `decomposition` over bands × devices | "which band" is asked every morning |
 | LOSS verdict `worn_not_recorded_fraction` | `capture-host/loss_audit.py night_verdict` | `decomposition` over devices and causes (`by_device` already exists — this names it as the block) | cheapest; mostly a rename |
-| trio pooled hat §11 (`tch-pooled-hat-*.json`) | `tools/trio-batch.mjs` | `leave-one-out` over nights | the re-fold question: which night moved the pooled σ |
-| Integrator fused sleep summary | `integrator-dsp.js` | `leave-one-out` over nodes | the Integrator is the namesake; last because its consumers are render-only today |
+| trio pooled hat §11 (`tch-pooled-hat-*.json`) | `tools/tch-pooled-hat.mjs` | `leave-one-out` over nights | the re-fold question: which night moved the pooled σ |
+| Integrator fused sleep summary | `integrator-dsp.js` | `leave-one-out` over nodes | the Integrator is the namesake; the figure is `confirmedApneaIndex` from `fuseApneaEvents`, the one fused scalar whose inputs are nodes |
 
 The hat row names the closed form, `threeCorneredHat`. The correlated solve `tchSigmasPairwiseFromVars` is out:
 it is a damped-Newton iteration, so it has no closed-form partials (residue `2026-10-12-hat-contribution-row-names-a-solve-with-no-closed-form`).
@@ -125,6 +125,51 @@ a figure in this table without the block and a block whose shares do not sum to 
       `docs/VERDICT-CONTRACT.md:72` onward. #3504 shipped it as a MINOR changeset, released in the
       `CHANGELOG.md` entry for that version.
 - [ ] The five figures in §2 publish it; `verify:verdict-adoption` reds a §2 figure without it.
+      ⚠️ **THREE OF THE FIVE 2026-11-04 (Magpie).** The trio pooled hat publishes the block by
+      leave-one-out over nights, and its row is `adopted` with `emits`, so the gate RUNS
+      `node tools/tch-pooled-hat.mjs --contributions-sample` and reads the block rather than taking
+      the row's word. That is a SECOND flag by necessity: `--verdict-sample` is a cross-tool contract
+      where the four trio-night readers each publish their population, and the suite pins `PASS` and
+      `result.rule: sampleNights` for all four, so the attribution object cannot ride under it. `node tools/tch-pooled-hat.mjs --selftest` reads `✓ selftest — 12 passed, 0 failed`.
+      🔴 **THE ROW NAMED A FILE THAT COMPUTES NO HAT, and the gate could not see it.** It read
+      `tools/trio-batch.mjs`, where the three hat identifiers match zero times, while all five
+      published figures stamp `producer: tools/tch-pooled-hat.mjs`. The pairing comes from §1's own
+      example, which puts gate `tch-pooled-hat` beside `producedBy.tool: tools/trio-batch.mjs`. The
+      file is corrected above; the mechanism is row
+      `2026-11-04-the-adoption-gate-cross-checks-two-copies-of-one-claim`, because the leg compares a
+      row only against this table and two copies of one wrong claim agree forever.
+      ⚠️ **What this block does NOT claim:** the deltas do not sum to the figure. Each is measured
+      against a different pool of n−1 and the removals overlap, so a leave-one-out set is not a
+      decomposition, and the selftest asserts the gap rather than leaving a reader to assume the
+      analytic row's identity holds here.
+      ⚠️ **THE INTEGRATOR FIGURE IS THE THIRD 2026-11-04 (Magpie).** The figure is
+      `confirmedApneaIndex` (`integrator-dsp.js fuseApneaEvents`), attributed by leave-one-out over the
+      nodes it reads. The block rides on the figure's own return rather than at a call site, so the
+      golden builder, the suite and `runFusion` cannot drift on whether it was attached; a reduced run
+      carries `_noAttribution`, which suppresses only the recursion. The row is `adopted` with `emits`,
+      so the gate RUNS `node tools/integrator-contributions.mjs --contributions-sample` and
+      `verify:verdict-adoption` reads `contributions — 5 figure(s) … adopted 3 (read 3, block examined
+      3) · pending 2`. `node tools/integrator-contributions.mjs --selftest` reads
+      `✓ selftest: the block check discriminates — all 7 selftests passed`, and one planted mutant (`dominant` forced
+      to the first input) takes the gate to exit 1 with the bad block under
+      `result.invalidContributions` — a found defect is a FAILING check, never an inability to look.
+      🔴 **MEASURED, NOT ASSUMED — ON EVERY REAL BUS SHAPE THIS BLOCK IS ∅, AND THAT IS THE RESULT.**
+      The index is fused over a desaturation observer AND a cardiac node, and `fuseApneaEvents` returns
+      `null` when either pool is empty. So on a two-node bus removing either input leaves a population
+      that cannot produce the figure: both deltas are `null` with reason `reduced-bus-unfusable`, and
+      §1's ∅ rule then nulls every share and the dominant. All four pre-existing apnea twins read that
+      way. The real tri-device shape is only partly better — on `apneaNight` the three-node bus
+      publishes `node.ECGDex` at `delta: 5` and `node.PpgDex` at `delta: 0`, while `node.OxyDex` stays
+      `null` because the sole oximeter IS the desaturation pool, so the shares and the dominant stay
+      null there too. An informative block needs BOTH roles redundant, which is what the new fifth twin
+      `attributed` plants with four nodes: deltas CPAPDex `0`, ECGDex `1.75`, OxyDex `1.5`, PpgDex `0`,
+      shares summing to one, dominant `node.ECGDex` at `0.538`. The two measured zeros are as much the
+      point of that twin as the dominant is: a `0` with `share: 0` and NO `reason` says read and moved
+      nothing, where `null` with a reason says could not be read. The per-input `reason` is therefore
+      what this figure publishes on a corpus night — necessity, machine-readably, instead of a share.
+      ⚠️ **What this block does NOT claim, on this figure either:** Σ|delta| is `3.25` against a figure
+      of `5` on that twin, so the leave-one-out set is not a decomposition, and the suite asserts the
+      gap rather than leaving a reader to assume it closes.
 - [ ] The hat page names the dominant leg on the UNDERPOWERED card; the SOLID morning verdict names the
   deciding band and device in its first line.
       ⚠️ **HALF MET 2026-11-04 (Magpie) — the box stays open for the SOLID half, which is capture-host.**

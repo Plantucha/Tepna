@@ -109,9 +109,11 @@ ALLOW_KEYS = {
     #    scan below will say so.
     # ── top-level shape (STATUS[key]= / setdefault) — covered since 2026-09-01 ──────────────────────
     # `heartbeat_ms` left this list 2026-10-12: monitor.html's Tonight (QC) tile reads it as the box clock.
-    "instance": "read by status_union.read_instance — the §3.6 merge layer of PER-DEVICE-ADAPTER-PINNING, "
-    "itself in ALLOW_MODULES as PENDING with its missing producer named; the identity field status_union "
-    "folds N instances by. When that brief lands or is retired, this entry goes with it",
+    "instance": "read by `status_union.read_instance` — the §3.6 merge layer of PER-DEVICE-ADAPTER-PINNING, "
+    "itself in ALLOW_MODULES as PENDING with the absent half named there. ⚠️ THE PREVIOUS REASON HERE "
+    "said the PRODUCER was the absent half, and that was wrong: `capture.status_path` names "
+    "status.<instance>.json today. The absent half is the CONSUMER. This is the identity field "
+    "status_union folds N instances by. When that brief lands or is retired, this entry goes with it",
     "devcaps": "BLE-TRANSPORT-REDESIGN §1.3 per-unit capability record (devcaps.snapshot). The record "
     "has a real PRODUCER (the hr-flags-bit2 measurement in run_polar writes both arms per "
     "address) and persists across restarts, and status.json is where an operator reads it. "
@@ -146,19 +148,22 @@ ALLOW_JS: dict = {}
 
 # SCAN 6's allowlist: modules nothing imports. Keyed by MODULE, not by function — the whole point is
 # that the module is unreachable, so exempting it function-by-function would restate the bug.
+# ⚠️ IN THE STALENESS SCAN SINCE 2026-11-04, and for six weeks it was not: this list alone was absent
+# from scan 5's table, so an entry here could stop excusing anything and the gate stayed green and
+# silent. Two of five entries were in that state when the row was logged.
 ALLOW_MODULES = {
-    "unseal": (
-        "the tepna-seal/1 READER (CAPTURE-NIGHT-SEAL phase A, #TBD). PENDING its consumer, which is NAMED: "
-        "phase B wires seal.py at night close on the box and phase C gives the Dex a browser reader; the "
-        "Python reader's production consumer is the nightly `verify-seals` run over outbox/ and the archive "
-        "(brief §6), which phase B installs. Until then it is exercised only by its tests, which judge it and "
-        "tools/verify-seals.mjs on the same committed vectors. Retire this entry when phase B lands."
-    ),
     "status_union": (
-        "the §3.6 merge layer of PER-DEVICE-ADAPTER-PINNING-2026-08-26-BRIEF. PENDING, and the "
-        "consumer it waits on is NAMED: nothing yet writes the per-instance status.<instance>.json "
-        "that read_instance() expects, because the systemd-instance half of that brief is unbuilt. "
-        "Retires when the writer lands; if that brief is abandoned, DELETE this module with the entry"
+        "the §3.6 merge layer of PER-DEVICE-ADAPTER-PINNING-2026-08-26-BRIEF. PENDING, and the half it "
+        "waits on is the CONSUMER. ⚠️ THE PREVIOUS REASON WAS WRONG ABOUT WHICH HALF: it named the "
+        "WRITER of the per-instance status.<instance>.json as the absent one, and promised to retire "
+        "once that writer landed. The writer had landed before the entry was written — "
+        "`capture.status_path` names "
+        "status.<instance>.json for a split instance, `capture.apply_instance` resolves the --instance "
+        "flag capture.py declares. So the stated retirement condition could never fire. What IS absent: "
+        "no file outside capture-host/tests/ imports this module, and capture-host/systemd/ holds no "
+        "templated capture unit, so no box runs a second instance. RETIRE this entry when a daemon-path "
+        "file imports `status_union.merge`; if that brief is abandoned, DELETE this module with the "
+        "entry. Residue 2026-11-04-the-unwired-allowlist-waits-on-a-writer-that-already-ships"
     ),
     "adapter_ab": (
         "an offline A/B analysis tool, not daemon code — it answers 'which radio receives better' "
@@ -167,18 +172,6 @@ ALLOW_MODULES = {
         "PER-DEVICE-ADAPTER-PINNING-2026-08-26-BRIEF §1. Its individual functions already carry the "
         "same reason in ALLOW_FUNCS; this entry says it at the module level, which is the level at "
         "which it is unreachable"
-    ),
-    "ble_visibility": (
-        "the adapter-visibility log's record format + reader. HALF LIVE, HALF PENDING, both named. "
-        "LIVE: main() is a hand-invoked reporter like adapter_ab — `ble_visibility.py "
-        "<records.jsonl> <MAC>` answers 'which radio can see this device, out of how many scans' in "
-        "one command, which is the entire reason it exists (that question cost an hour and three "
-        "wrong hypotheses on 2026-09-04, because the journal logs discovery FAILURES and is silent "
-        "on successes, so it carries no denominator). PENDING: nothing WRITES the log yet — the "
-        "periodic per-adapter scan belongs in the daemon, and that touches production capture, "
-        "which is an owner call rather than a drafting one. RETIRE this entry when that scan lands "
-        "and imports make_record/append_record; if the daemon never collects, DELETE the module "
-        "with the entry, because a reader with nothing to read is dead code"
     ),
     "adapter_pool": (
         "swappability's per-device reassignment core. ASPIRATIONAL for the same architecture reason "
@@ -1092,6 +1085,8 @@ def scan(root: "str | None" = None) -> dict:
     defined = set()
     for f in files:
         defined |= public_functions(src[f])
+    # Every module in the scanned tree — scan 6's population, and the module-level twin of `defined`.
+    pop_modules = {f[:-3] for f in files}
     stale = []
     for label, allow, reported in (
         ("ALLOW_KEYS", ALLOW_KEYS, {r["key"] for r in orphan_keys}),
@@ -1099,6 +1094,7 @@ def scan(root: "str | None" = None) -> dict:
         ("ALLOW_RENDERED", ALLOW_RENDERED, {r["key"] for r in orphan_rendered}),
         ("ALLOW_JS", ALLOW_JS, {r["func"] for r in orphan_js}),
         ("ALLOW_PROVENANCE", ALLOW_PROVENANCE, {r["consumer"] for r in divergent}),
+        ("ALLOW_MODULES", ALLOW_MODULES, {r["module"] for r in orphan_modules}),
     ):
         # ⚠️ AN ENTRY IS STALE ONLY IF ITS SUBJECT WAS IN THE POPULATION THIS SCAN ENUMERATED and is
         # no longer reported. If the
@@ -1116,6 +1112,14 @@ def scan(root: "str | None" = None) -> dict:
             "ALLOW_JS": pop_js,
             # a provenance entry applies only to a consumer scan 7 actually saw with 2+ callers
             "ALLOW_PROVENANCE": {r["consumer"] for r in divergent} | set(ALLOW_PROVENANCE) & defined,
+            # 🔴 THE POPULATION IS THE TREE, NOT THE CANDIDATES SCAN 6 KEPT, and that distinction is
+            # the whole finding of residue 2026-11-04-the-unwired-allowlist-waits-on-a-writer-that-
+            # already-ships. An ENTRY POINT is exempt from scan 6, so the day a module grows
+            # `if __name__ == "__main__"` its entry stops being able to match — it excuses nothing
+            # from then on, and scoping this to the candidate set would hide exactly that case.
+            # Measured 2026-11-04: `unseal` and `ble_visibility` had both grown one, and both entries
+            # sat spent and green because ALLOW_MODULES was in NO staleness table at all.
+            "ALLOW_MODULES": pop_modules,
         }[label]
         for name in sorted((set(allow) & applies) - reported):
             # WHERE the un-orphaning match lives, for ALLOW_FUNCS: every corpus file whose code carries

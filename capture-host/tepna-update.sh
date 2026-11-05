@@ -95,6 +95,17 @@ VERSION_FETCH="${TEPNA_VERSION_FETCH:-curl -fsS --max-time 3 $VERSION_URL}"
 # 0755, which is what made the deployed-SHA marker inert), and NOT inside $REPO_DIR (§1's cleanliness
 # check would see it and refuse to update at all).
 FAIL_MARK="${TEPNA_FAIL_MARK:-/srv/tepna/.tepna-update-fails}"
+# THE STREAK REACHES A PHONE (2026-11-03). The journal line above names a streak, and nobody reads the
+# journal at night. From the SECOND failure in a row the EXIT trap sends one push alert through the
+# daemon's own notifier config (`alerts.update_streak_main`), and one more when a run succeeds after it.
+# ALERT_MARK exists while a failing-streak alert is out; it is written only on delivery (or alerts off),
+# so a failed send retries on the next run. Derived from FAIL_MARK, so a test that isolates one
+# isolates both.
+ALERT_MARK="${TEPNA_UPDATE_ALERT_MARK:-$FAIL_MARK.alerted}"
+ALERT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ALERT_CONFIG="${TEPNA_CONFIG:-$ALERT_DIR/config.yaml}"
+# The interpreter seam, as in tepna-report.sh: a test substitutes a recorder, so no test reaches a topic.
+ALERT_PY="${TEPNA_PYTHON:-$ALERT_DIR/.venv/bin/python}"
 # DEFERRAL STREAK — how long this box has been running code that is on disk but not loaded.
 #
 # `deferred` is this script WORKING, so it is INFO-level prose and must stay that way. What that line
@@ -182,6 +193,17 @@ _streak_read() {
 # reachability analysis does not follow (nor into the calls this makes).
 _streak_stamp() { date -d "@$1" '+%F %T' 2>/dev/null || printf 'unknown'; }
 
+# Send one update-streak alert: `lost|back <n> <first-epoch>`. Exit 0 = delivered or alerts off. Bounded
+# by `timeout`, and every failure only warns: an alert must never be the reason the box stops updating.
+# shellcheck disable=SC2329  # reached through the EXIT trap below, which shellcheck's
+# reachability analysis does not follow (nor into the calls this makes).
+_streak_alert() {
+  local rc=0
+  timeout 30 "$ALERT_PY" "$ALERT_DIR/alerts.py" update-streak "$ALERT_CONFIG" "$@" </dev/null >/dev/null 2>&1 || rc=$?
+  [ "$rc" = 0 ] || warn "could not send the update-streak alert ($1, exit ${rc})"
+  return "$rc"
+}
+
 # shellcheck disable=SC2329  # reached through the EXIT trap below, which shellcheck's
 # reachability analysis does not follow (nor into the calls this makes).
 _streak_finish() {
@@ -196,6 +218,11 @@ _streak_finish() {
     # whoever reads the journal AFTER an outage needs to see how long it actually lasted, and by then
     # every failing tick is behind them.
     [ "$n" -gt 0 ] && say "recovered after ${n} consecutive failed run(s) spanning ${h}h${m}m — first failed at $(_streak_stamp "$first")"
+    if [ -e "$ALERT_MARK" ]; then
+      if _streak_alert back "$n" "$first"; then
+        rm -f "$ALERT_MARK" 2>/dev/null || warn "could not clear the update-alert latch at $ALERT_MARK"
+      fi
+    fi
     rm -f "$FAIL_MARK" 2>/dev/null || warn "could not clear the failure streak at $FAIL_MARK"
     return 0
   fi
@@ -208,6 +235,11 @@ _streak_finish() {
   # draw does not exist yet. From the second onward the streak is named, so the line answers "since
   # when" and not merely "again".
   [ "$n" -gt 1 ] && warn "this is failure ${n} IN A ROW, spanning ${h}h${m}m — first failed at $(_streak_stamp "$first")"
+  if [ "$n" -gt 1 ] && [ ! -e "$ALERT_MARK" ]; then
+    if _streak_alert lost "$n" "$first"; then
+      : > "$ALERT_MARK" 2>/dev/null || warn "could not record the update-alert latch at $ALERT_MARK"
+    fi
+  fi
   return 0
 }
 # Installed before the MODE check, so every nonzero exit counts — including a hand-typed usage error.

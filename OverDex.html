@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="a76b0de5803b" data-compute-hash="1f44d18092b7"><head>
+<html lang="en" data-manifest-hash="732d1aa93154" data-compute-hash="80c61c95de29"><head>
 <!--
   OverDex.html — Tepna
   Copyright 2026 Michal Planicka
@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+iskltdbf7/UUg8Y6ZfcamkqkNKvnVyfhKrlKyBzwKE=' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-480RdBeZewCrcxw2IlPN/CrrdfcwPb+/JfQh96aaM6U=' 'sha256-4H9qbwJg0Px/ddF5s19lSEh0lobH/6PK1pgCZ+NZiHI=' 'sha256-6f85C28BTIAdWBrVBSCTqiDlgEUZZvCfBlJGXVI6LrA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-FRmXwVeLmk/oKNu5BL8gBiQVUsH88GJmm92tz4RR/9M=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-IOGPMbRcH864r7zf4ZB3jn1uFqtYSY8DqWp2YdgZWag=' 'sha256-LLgboXd2yVxQuxadbV6/XakvyuElnwPqqeK60I9qEBg=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-QuLHvHgODcQjuAGp7QrzR2K8XMRHpK7C3ar3ZKqNnUU=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-S9q+/UVeYTsQz8yqeVogyaGSYYxTYmKiieZ36k8VYkQ=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-XJV3E1G3sukFgbJQW5vuMv8oMeGex2wLInYe3q3i6Dk=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-XeM139aCzQDSzEaQuQBVa+zEhnOSgXP/4pqlC0h9wO4=' 'sha256-ZXcSUPmdNX+PI5tNnnDW/vQNEDiDXjF3XV977vxYNoU=' 'sha256-b/3cr3fEKA226qKxIKH9duRTbo6viskcVfqeOMzUwtA=' 'sha256-fOxAcG4FGOYjHtLk+7Sbd1mzABUQSzPGmybpbJk9b6c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-jHB+Vbnq13/OqiREytNt1VT0oXPXPmhrehzKnnu7PDA=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-rIcm4jQwZdAp6l3SdrzI0nizBN01Nhu8bJROOQanTRo=' 'sha256-wPiR0mHERwqCZR4gMZnRtTm1BC+vsdDwOsTq7ombnvc=' 'sha256-yMecZl9pAdUJLfK88JddMhc9qIV5QAXJTXhhA/QkdgM='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+iskltdbf7/UUg8Y6ZfcamkqkNKvnVyfhKrlKyBzwKE=' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-480RdBeZewCrcxw2IlPN/CrrdfcwPb+/JfQh96aaM6U=' 'sha256-4H9qbwJg0Px/ddF5s19lSEh0lobH/6PK1pgCZ+NZiHI=' 'sha256-6f85C28BTIAdWBrVBSCTqiDlgEUZZvCfBlJGXVI6LrA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-E4rPcQgBrpmaKtJOAz/8RO4ZVPZ0d4+8Kr6NXg6n+Jc=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-FRmXwVeLmk/oKNu5BL8gBiQVUsH88GJmm92tz4RR/9M=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-IOGPMbRcH864r7zf4ZB3jn1uFqtYSY8DqWp2YdgZWag=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-LLgboXd2yVxQuxadbV6/XakvyuElnwPqqeK60I9qEBg=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-QuLHvHgODcQjuAGp7QrzR2K8XMRHpK7C3ar3ZKqNnUU=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-XJV3E1G3sukFgbJQW5vuMv8oMeGex2wLInYe3q3i6Dk=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-XeM139aCzQDSzEaQuQBVa+zEhnOSgXP/4pqlC0h9wO4=' 'sha256-ZXcSUPmdNX+PI5tNnnDW/vQNEDiDXjF3XV977vxYNoU=' 'sha256-dWD+6EOXcN2zY96MYZytC+N4rraIJ5H8pXsCL7FHXx0=' 'sha256-fOxAcG4FGOYjHtLk+7Sbd1mzABUQSzPGmybpbJk9b6c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-jHB+Vbnq13/OqiREytNt1VT0oXPXPmhrehzKnnu7PDA=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-rIcm4jQwZdAp6l3SdrzI0nizBN01Nhu8bJROOQanTRo=' 'sha256-wPiR0mHERwqCZR4gMZnRtTm1BC+vsdDwOsTq7ombnvc='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -2060,7 +2060,9 @@
   /* anchors: [{ devMs, hostMs }, …] — BOTH relative to the same first row, in device order.
      Returns { ok, correctionAt(devMs) → ms to ADD to the device axis, n, maxStepMs, rawMaxStepMs,
      totalMs, ppm }.
-     ok:false ⇒ caller keeps the raw device axis (honest: no correction beats a fabricated one). */
+     ok:false ⇒ caller keeps the raw device axis (honest: no correction beats a fabricated one).
+     A refusal on a device epoch change also carries { epochStepMs, epochAtDevMs, epochHostStepMs,
+     ppmExEpoch }, so the caller can re-anchor on the seam. */
   function hostAxis(anchors, opts) {
     opts = opts || {};
     var win = opts.window > 0 ? opts.window | 0 : CK_AXIS_WIN;
@@ -2111,7 +2113,8 @@
        So the smoothed step sizes the DRIFT and never the anchor, both published statistics are blind
        to a lone wild anchor BY CONSTRUCTION, and a consumer had nothing to read instead. */
     var rawMaxStep = 0,
-      rawStepAt = null;
+      rawStepAt = null,
+      rawStepIdx = null;
     for (var s = 1; s < n; s++) {
       var st = Math.abs(sm[s] - sm[s - 1]);
       if (st > maxStep) maxStep = st;
@@ -2119,6 +2122,7 @@
       if (rst > rawMaxStep) {
         rawMaxStep = rst;
         rawStepAt = pts[s].d;
+        rawStepIdx = s;
       }
     }
     var span = pts[n - 1].d - pts[0].d;
@@ -2209,9 +2213,74 @@
        ppm "correction" that doubled fs from 130 to 259.9. A device crystal is wrong by ppm; the worst
        REAL one in this corpus is the O2Ring at −3035 ppm, which this admits with 16× headroom. Beyond
        5 % the two columns are not the two clocks we think they are — a misparse, a unit mismatch, a
-       shifted column — and applying it would fabricate a timebase. §2.6's rule, one level up: when the
-       input cannot be trusted the answer is "no correction", not a confident wrong one. */
+       shifted column, or a device epoch change INSIDE one stream — and applying it would fabricate a
+       timebase. §2.6's rule, one level up: when the input cannot be trusted the answer is "no
+       correction", not a confident wrong one. */
     if (!(Math.abs(ppm) <= CK_AXIS_MAX_PPM)) {
+      /* WHICH OF THE FOUR CAUSES? The first three are properties of the COLUMNS and the fourth is a
+         property of the RECORDING, and until now this branch named the columns for all four. Measured
+         2026-11-04 on one archived ECG stream: its first 45260 rows carry a device counter 7.84 years
+         below the rest of the same file, the counter never steps BACKWARD so every monotonic check
+         passes, and this refusal read -999914 ppm and reported that the columns are probably not host
+         and device. They are exactly host and device. §7 already names the shape — "a resync is a
+         change of clock" — so the diagnosis existed and the refusal could not reach it.
+
+         THE DISCRIMINATOR IS CONCENTRATION, and it needs no new threshold. A rate error is UNIFORM:
+         it spreads divergence across every interval, so dropping any one interval leaves the rest of
+         it behind. An epoch change is ONE interval. So drop the single worst adjacent step from the
+         raw divergence and re-measure against this function's OWN bound — a misparse or a unit
+         mismatch is still implausible without that step, and a seam is not. `CK_AXIS_MAX_PPM` is
+         therefore the criterion on both sides of the test, pre-stated (§🧾) rather than fitted here.
+         Worked: a ns column read as ms diverges 1e6 ppm across EVERY interval, so dropping one of
+         (n-1) of them still reads 1e6 * (1 - 1/(n-1)) ppm, over the bound for every n this function
+         admits. The seam case drops to the night's real drift.
+
+         The second condition states the MECHANISM, also without a tuned number: through a real
+         interval both clocks advance together, so a dropout keeps the device step near the host step.
+         An epoch change is a device advance the host does not corroborate, and the unaccounted part
+         exceeds the host's own elapsed time over that interval. No crystal inside ±5 % can do that.
+
+         ⚠ STILL A REFUSAL. The rate is unusable either way and `ok` stays false, exactly as §7
+         requires: the bound "guards the RATE, not the AXIS". What changes is that the caller now
+         learns WHERE the seam sits (`epochAtDevMs`) and how large it is, which is what a node needs
+         to re-anchor — §7 puts step detection and re-anchoring on the axis, not in here.
+         ⚠ TWO seams defeat it: dropping one leaves the other, the residual stays implausible, and
+         this falls back to the column reason. That is today's answer, so the branch is no worse
+         there, and a multi-seam split belongs with the node that owns the re-anchoring. */
+      var epPpm = null,
+        epStep = null,
+        epHostStep = null;
+      if (rawStepIdx != null) {
+        var epPrev = pts[rawStepIdx - 1],
+          epHere = pts[rawStepIdx];
+        epHostStep = epHere.d + epHere.r - (epPrev.d + epPrev.r);
+        epStep = epHere.d - epPrev.d - epHostStep;
+        epPpm = ((pts[n - 1].r - r0 - (epHere.r - epPrev.r)) / span) * 1e6;
+      }
+      if (epPpm != null && Math.abs(epStep) > Math.abs(epHostStep) && Math.abs(epPpm) <= CK_AXIS_MAX_PPM) {
+        return {
+          ok: false,
+          reason:
+            'device epoch change of ' +
+            Math.round(epStep) +
+            ' ms at device stamp ' +
+            pts[rawStepIdx].d +
+            ', where the host advanced ' +
+            Math.round(epHostStep) +
+            ' ms — without that one step the rate reads ' +
+            Math.round(epPpm) +
+            ' ppm, inside ±' +
+            CK_AXIS_MAX_PPM +
+            ', so the columns ARE host+device and the axis carries a resync',
+          n: n,
+          ppm: ppm,
+          spanMs: span,
+          epochStepMs: epStep,
+          epochAtDevMs: pts[rawStepIdx].d,
+          epochHostStepMs: epHostStep,
+          ppmExEpoch: epPpm
+        };
+      }
       return { ok: false, reason: 'implausible host/device rate ' + Math.round(ppm) + ' ppm (bound ±' + CK_AXIS_MAX_PPM + ') — columns are probably not host+device', n: n, ppm: ppm };
     }
     return {
@@ -5357,7 +5426,7 @@ function typeApneaByEffort(recs) {
     return a.tMs - b.tMs;
   });
 
-  var DESAT_TYPES = ['spo2_desaturation', 'desat_event'];
+  var DESAT_TYPES = APNEA_DESAT_TYPES;
   var desats = [];
   recs.forEach(function (r) {
     if (r.dateUnknown) return;
@@ -5608,6 +5677,11 @@ function _coveredShift(surges, merged, shiftMs) {
   return out;
 }
 
+/* The desaturation impulses the apnea pool is keyed by — hoisted out of `fuseApneaEvents` so the
+   attribution kernel below cannot drift from the pool it attributes. The §15 note inside the
+   function is why this is keyed by EVENT and not by node. */
+var APNEA_DESAT_TYPES = ['spo2_desaturation', 'desat_event'];
+
 function fuseApneaEvents(recs, dtMs, gate) {
   // CARDIAC surge sources: ECGDex (primary) + PpgDex (PPG-derived). A desat is
   // confirmable by an autonomic surge from EITHER — PpgDex is a first-class node
@@ -5619,7 +5693,7 @@ function fuseApneaEvents(recs, dtMs, gate) {
      null. Metamorphic proof: a byte-identical desat_event stream changes only its `node` label and the
      whole rule vanishes. Pool by the events a record actually CARRIES — any node that observes a
      desaturation can corroborate one. (The per-node confidence tiering downstream is unchanged.) */
-  var DESAT_TYPES = ['spo2_desaturation', 'desat_event'];
+  var DESAT_TYPES = APNEA_DESAT_TYPES;
   var oxyAll = recs.filter(function (r) {
     return !r.dateUnknown && _eventsOfType(r, DESAT_TYPES).length;
   });
@@ -5650,6 +5724,8 @@ function fuseApneaEvents(recs, dtMs, gate) {
       findings: [],
       confirmedAHI: null,
       confirmedAHIReportable: false,
+      // Same key on this path as on the fused one, so a reader never branches on its presence.
+      contributions: null,
       overlapHours: 0,
       // Same block on the no-overlap path so a reader never has to branch on its presence. A zero
       // recorded union with a NON-zero envelope is exactly the case worth seeing: the recordings
@@ -5692,7 +5768,7 @@ function fuseApneaEvents(recs, dtMs, gate) {
     });
     return pool;
   }
-  var desats = gather(oxy, ['spo2_desaturation', 'desat_event']);
+  var desats = gather(oxy, DESAT_TYPES);
   // EVENT-LEXICON §4 (OXYDEX-NODE-EXPORT-ENVELOPE-FOLLOWUPS-II §3): cvhr_surge DROPPED — no node
   // emits it (ECGDex + PpgDex emit autonomic_surge for CVHR surges); autonomic_arousal stays for the
   // legacy OxyDex bare-array synthesis fallback. Canonical surge name is autonomic_surge.
@@ -5928,10 +6004,16 @@ function fuseApneaEvents(recs, dtMs, gate) {
 
   // AHI over the *union* hours; keep 2 decimals so a real but low index isn't rounded to 0.
   var ahi = totHrs > 0 ? +(nConf / totHrs).toFixed(2) : null;
+  /* VERDICT-CONTRIBUTIONS §1 — attribution rides WITH the figure rather than at one call site, so
+     the golden builder, the suite and `runFusion` cannot drift on whether it was attached.
+     `_noAttribution` is set only by the reduced runs below; it suppresses the recursion and nothing
+     the figure is computed from. */
+  var contributions = gate._noAttribution ? null : apneaIndexContributions(recs, dtMs, gate, ahi);
   return {
     findings: findings,
     confirmedAHI: ahi,
     confirmedAHIReportable: !belowChance && nConf > 0,
+    contributions: contributions,
     overlapHours: +totHrs.toFixed(2),
     /* WHAT THAT DENOMINATOR IS (INTEGRATOR-GAP-AWARE-OVERLAP §6 — "the fusion export publishes the
        coverage it used"). `overlapHours` alone cannot be audited: 2.1 and 6.86 look equally
@@ -5978,6 +6060,88 @@ function fuseApneaEvents(recs, dtMs, gate) {
     },
     coupling: coupling
   };
+}
+
+/* ── ATTRIBUTION — WHICH NODE MOVED THE CONFIRMED INDEX ───────────────────────────────────────
+   VERDICT-CONTRIBUTIONS-2026-10-04-BRIEF §2's Integrator row: `integrator-dsp.js`,
+   `leave-one-out over nodes`. `confirmedAHI` is fused by construction — it needs a desaturation
+   observer AND a cardiac node — so when it surprises a reader the question is always "which
+   node's events made it that number", and until now the answer took a bird reading this file.
+
+   WHAT COUNTS AS AN INPUT: the nodes the figure READS. That is every node carrying a
+   desaturation impulse (pooled by EVENT, not by node — the §15 note above) plus every cardiac
+   node. A node on the bus carrying neither is not an input: removing it returns the identical
+   figure, and listing it at a delta of 0 would dilute every other share.
+
+   ∅ (CLAUDE.md §∅, brief §1's "unknown" rule): on a TWO-node bus — all four committed apnea
+   twins, and nearly every night in the corpus — removing either input leaves a population that
+   CANNOT produce the figure at all. That is not a delta of 0 and not a delta with a sign: it is
+   `null` with a named reason, and one null delta nulls every `share` and `dominant`. So the block
+   is informative only from three contributing nodes up. It also costs nothing below three,
+   because a reduced bus refuses on `fuseApneaEvents`'s first guard, before any surrogate draw.
+
+   THE DELTAS DO NOT SUM TO THE FIGURE and are not meant to. Two nodes can both be necessary, so
+   each one's removal can move the index by more than its own share of the events; `share` is the
+   normalised |delta| over the inputs listed, nothing more. */
+function _attributionGate(gate) {
+  var g = {},
+    k;
+  for (k in gate) if (Object.prototype.hasOwnProperty.call(gate, k)) g[k] = gate[k];
+  g._noAttribution = true; // a reduced run computes the figure, never its attribution
+  return g;
+}
+
+function apneaIndexContributions(recs, dtMs, gate, confirmedIndex) {
+  // No figure, nothing to attribute. The block belongs to a published number.
+  if (confirmedIndex == null || !isFinite(confirmedIndex)) return null;
+  var live = (recs || []).filter(function (r) {
+    return r && !r.dateUnknown;
+  });
+  var keys = [],
+    seen = {};
+  live.forEach(function (r) {
+    var n = r.node || 'unknown';
+    if (seen[n]) return;
+    if (!_eventsOfType(r, APNEA_DESAT_TYPES).length && n !== 'ECGDex' && n !== 'PpgDex') return;
+    seen[n] = 1;
+    keys.push(n);
+  });
+  keys.sort();
+  if (keys.length < 2) return null; // brief §1: a figure with ONE input has no block
+  var inputs = keys.map(function (n) {
+    var without = live.filter(function (r) {
+      return (r.node || 'unknown') !== n;
+    });
+    /* The same function, called with no flags: a leave-one-out delta is a delta of the PUBLISHED
+       figure only while the reduced run takes the identical path. */
+    var red = fuseApneaEvents(without, dtMs, _attributionGate(gate));
+    var val = red ? red.confirmedAHI : null;
+    if (val == null)
+      return {
+        key: 'node.' + n,
+        share: null,
+        delta: null,
+        reason: red ? 'reduced-bus-no-overlap' : 'reduced-bus-unfusable'
+      };
+    // Both operands carry 2 decimals, so this is the exact difference, not a display rounding.
+    return { key: 'node.' + n, share: null, delta: +(confirmedIndex - val).toFixed(2) };
+  });
+  var sumAbs = 0,
+    anyNull = false;
+  inputs.forEach(function (i) {
+    if (i.delta == null) anyNull = true;
+    else sumAbs += Math.abs(i.delta);
+  });
+  var dominant = null;
+  if (!anyNull && sumAbs > 0) {
+    var best = inputs[0]; // keys are sorted, so a tie resolves deterministically on the node name
+    inputs.forEach(function (i) {
+      i.share = Math.abs(i.delta) / sumAbs; // the computed ratio, never a display rounding
+      if (Math.abs(i.delta) > Math.abs(best.delta)) best = i;
+    });
+    dominant = best.key;
+  }
+  return { of: 'confirmedApneaIndex', unit: 'events/h', method: 'leave-one-out', inputs: inputs, dominant: dominant };
 }
 
 /* DEVICE-SCORED AHI (CPAPDex) — the strongest apnea truth on the bus. The
@@ -11142,6 +11306,9 @@ function buildFusionExport(recs, fusion) {
     nodes: fusion.nodes,
     confirmedApneaIndex: fusion.apnea ? fusion.apnea.confirmedAHI : null,
     confirmedApneaIndexReportable: fusion.apnea ? !!fusion.apnea.confirmedAHIReportable : false,
+    /* VERDICT-CONTRIBUTIONS §1 — which node moved the index, by leave-one-out over the nodes the
+       index reads. `null` on a two-node bus, where no reduced bus can produce the figure. */
+    confirmedApneaIndexContributions: fusion.apnea ? fusion.apnea.contributions || null : null,
     apneaNullModel: fusion.apnea ? fusion.apnea.nullModel : null,
     // P7: the EventCoupling shuffled-null verdict for desat⟷surge (coverage-aware; read `real`/`lift`
     // only where `usable`). Additive + null-tolerant; the Poisson apneaNullModel above is unchanged.
@@ -11323,6 +11490,9 @@ window.IntegratorDSP = {
   overlapInterval,
   runFusion,
   buildFusionExport,
+  /* VERDICT-CONTRIBUTIONS §2's Integrator figure — exported so the suite and the gate harness can
+     drive the attribution on a planted bus without running a whole fusion. */
+  apneaIndexContributions: apneaIndexContributions,
   // CROSS-DEVICE-CLOCK-SKEW §3.1 — exported so the gate can drive them without a whole fusion.
   estimateEventLag,
   deltaModeSec,
@@ -30424,6 +30594,16 @@ __exports.GlucoDex = window.GlucoDex;
       preResyncAnchorsDropped = 0;
     const resyncs = [];
     let pcols = null;
+    /* WHY THE SCAN COUNTS WHAT IT REJECTED (§∅, residue 2026-11-04-an-empty-ppg-stream-is-refused-as-a-wrong-column-layout). The `n < 10` refusal below carried ONE message for four different inputs, and the
+       message named the two expected column layouts. A zero-byte stream therefore reported that its
+       columns were wrong. Measured on the archive's 2026-11-01 night: 22 of 165 files hold zero bytes,
+       four of them `_PPG.txt`, and the scan's four refusals are exactly those four files. §∅ asks a
+       consumer to tell absence from a bad reading, and a shared message cannot. These two counters are
+       what separates them, and they cost one increment per line — no parse, nothing on the hot path.
+       `rowsSeen` counts BEFORE the field floor on purpose: a two-column junk file has rows, and counting
+       after that floor would report it as an absence, which is the very confusion this fixes. */
+    let rowsSeen = 0,
+      rowsShaped = 0;
     // Minimum data-row field count. 6 for the Verity layout; a single-optical-column file
     // (`phone;ns;ch0`) has only 3, so the floor drops once a 1-channel header resolves. Until
     // the layout is known the Verity floor applies, which keeps every existing file's row
@@ -30455,9 +30635,11 @@ __exports.GlucoDex = window.GlucoDex;
           continue;
         }
       }
+      rowsSeen++;
       if (p.length < minFields) continue;
       const pc = pcols || ppgColsByTail(p);
       if (!pc) continue;
+      rowsShaped++;
       // The layout the ACCEPTED rows actually carry (a headerless file resolves per-row via the tail).
       nCh = pc.chIdx.length;
       dual = !!pc.dual;
@@ -30622,10 +30804,44 @@ __exports.GlucoDex = window.GlucoDex;
       }
     }
     const n = ch0.length;
-    if (n < 10)
-      throw new Error(
-        'No PPG samples parsed — expected Polar Sense `*_PPG.txt` (Phone timestamp;sensor ns;ch0;ch1;ch2;ambient) or an O2Ring finger `*_PPG.txt` (Phone timestamp;sensor ns;channel 0).'
-      );
+    if (n < 10) {
+      /* ── ABSENCE IS NOT A FORMAT ERROR (§∅) ────────────────────────────────────────
+         Four inputs reach this floor, and they carry four different claims about the device:
+           · nothing was written at all           → the device sent no sample. An ABSENCE.
+           · rows exist, no layout matches        → a format error. The columns really are wrong.
+           · the layout matches, the values do not → the columns are RIGHT and the file is junk.
+           · fewer than 10 good samples           → a real stream, too short to analyse.
+         The old message asserted the second for all four. The reason is published on the Error as well
+         as in its text, because a caller cannot distinguish what it has to pattern-match out of prose. */
+      let why, msg;
+      if (rowsSeen === 0) {
+        why = 'empty-stream';
+        msg = 'No PPG data row in the stream (' + text.length + ' characters) — an ABSENCE, not a layout error. The file was created and never written, or it holds only a header and comments.';
+      } else if (rowsShaped === 0) {
+        why = 'layout';
+        msg =
+          'No PPG row matched a known column layout (' +
+          rowsSeen +
+          ' row(s) read) — expected Polar Sense `*_PPG.txt` (Phone timestamp;sensor ns;ch0;ch1;ch2;ambient) or an O2Ring finger `*_PPG.txt` (Phone timestamp;sensor ns;channel 0).';
+      } else if (n === 0) {
+        why = 'unreadable-columns';
+        msg =
+          rowsShaped + ' PPG row(s) carried a known column layout, and every one of them held an unreadable value in a column that layout claims — so the columns are right and the values are not.';
+      } else {
+        why = 'too-short';
+        msg = 'Only ' + n + ' PPG sample(s) parsed, below the floor of 10 — a real stream, too short to analyse.';
+      }
+      /* The fields ride ON the Error because a caller cannot pattern-match a cause out of prose,
+         and §∅ asks a consumer to tell absence from a bad reading. The cast is this file's idiom for
+         a shape TypeScript does not model (see glucodex-dsp.js). */
+      const err = /** @type {any} */ (new Error(msg));
+      err.reason = why;
+      err.bytes = text.length;
+      err.rowsSeen = rowsSeen;
+      err.rowsShaped = rowsShaped;
+      err.samples = n;
+      throw err;
+    }
     // fs from median ns delta (precise) — fall back to phone-clock span
     let fs = 176;
     const deltas = [];

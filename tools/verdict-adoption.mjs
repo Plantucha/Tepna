@@ -56,6 +56,7 @@
  *
  *   node tools/verdict-adoption.mjs --check          # the gate (npm run check step; exit 1 on any red)
  *   node tools/verdict-adoption.mjs --check --base <ref>   # ratchet base (default origin/main; merge-base with HEAD)
+ *   node tools/verdict-adoption.mjs --check --lane capture-host/   # ONE LANE's slice (capture-host/check.sh)
  *   node tools/verdict-adoption.mjs --triage         # first-pass suggestions for UNBINNED files; writes nothing
  *   node tools/verdict-adoption.mjs --format         # rewrite the manifest in its one byte form (THE BYTE FORM)
  *   node tools/verdict-adoption.mjs --selftest
@@ -262,6 +263,30 @@ export function treePublications(root) {
   return publicationsOf([...new Set(files)], read);
 }
 
+/* ONE LANE'S SLICE OF THE POPULATION (residue 2026-11-05-the-capture-host-gate-does-not-run-the-
+   verdict-adoption-check). `capture-host/check.sh` is that lane's whole gate, and it could not red on
+   this registry: the enumeration admits every `capture-host/*.py`, because the `*` crosses a slash,
+   while no `check.sh` leg ever read the manifest. Three units reached a green lane verdict and a red
+   required context that way (#4362, #4388, and the one the fleet note `capture-host-change-still-owes-
+   npm-check` records).
+
+   WHY A SLICE AND NOT THE WHOLE GATE. `--check` takes 172 s on an idle rig, because it runs every
+   adopted producer in the tree, and its child cap has already closed on another lane's producer under
+   load (CLAUDE.md §4c). The slice runs the SAME legs over what a capture-host file can move: 97
+   producers of 326, 26 of them adopted, every one a `--verdict-sample` call with no corpus.
+
+   IT SCOPES THE ALLOWLISTS TOO. Each set carries a stale-entry leg, so the unscoped sets would red six
+   times on a capture-host run over `tools/` entries that lane cannot see. PURE. */
+export function laneView(prefix, enumerated, manifest, sets) {
+  const inLane = (p) => p.startsWith(prefix);
+  const rows = (manifest && manifest.producers) || {};
+  const producers = {};
+  for (const p of Object.keys(rows).sort()) if (inLane(p)) producers[p] = rows[p];
+  const scoped = {};
+  for (const [name, s] of Object.entries(sets || {})) scoped[name] = new Set([...s].filter(inLane));
+  return { enumerated: enumerated.filter(inLane), manifest: { ...manifest, producers }, sets: scoped };
+}
+
 /* Pure: judge a manifest against an enumerated population. Returns { ok, errors[], unexamined[],
    counts }. `unexamined` is the producers the runner could not READ — a cap hit under box load, not
    a judgement about the adoption; the CLI reports them apart from `errors` and `ok` ignores them,
@@ -349,6 +374,20 @@ export function check(enumerated, manifest, validator, runner) {
    publishes, and the ratchet is one-way, so the debt record goes to the residue ledger rather than
    vanishing: row `2026-11-02-a-ratchet-entry-left-on-a-source-shape-test`. */
 export const UNGATED_RATCHET = new Set(['tools/pulse-agreement.mjs', 'tools/tch-estimator-bakeoff.mjs', 'tools/tch-per-epoch-rho.mjs']);
+
+/* `NAME_ONLY_RATCHET` names the decides producers whose ONLY test reads them as source text. Same
+   shape as `UNGATED_RATCHET` above and for the same reason: an entry removed is a demonstration that
+   the check has teeth on a real file, so it may only SHRINK.
+   Row `2026-11-02-a-ratchet-entry-left-on-a-source-shape-test`: `tools/pat-ppg-ppg-control.mjs` left
+   `UNGATED_RATCHET` on `tests/trio-fold-validity-tests.mjs`, which reads eight PAT tools with
+   `readFileSync` and asserts regexes over the text. The tool has no `--selftest` and no test runs it,
+   so the ratchet shrank and the decision stayed unexercised.
+   Measured 2026-11-05 over the 182 `decides` producers: 150 selftest-gated, 26 reached by a test,
+   these 3 named only, 3 in `UNGATED_RATCHET`. The binding hop in `reachKind` carries three of the
+   recoveries — without it this set would read 6, and `capture-host/tools/covscope.py`,
+   `capture-host/tools/mutate.py` and `tools/tch-window-sensitivity.mjs` would sit in it while their
+   tests spawn them. */
+export const NAME_ONLY_RATCHET = new Set(['tools/hostaxis-estimator-bakeoff.mjs', 'tools/pat-ppg-ppg-control.mjs', 'tools/resp-acc-headless.mjs']);
 
 /* ⚠️ A FOURTH SPELLING — and the comment in `selftest-all.mjs` predicted it. That predicate matched
    `has('--selftest')` / `includes('--selftest')` / `indexOf('--selftest')` by CALL POSITION, which is
@@ -448,16 +487,128 @@ export function blankPyStrings(src) {
   return out;
 }
 
+/* Python comments AND DOCSTRINGS, blanked. `blankPyComments` above keeps a triple-quoted block, on the
+   measured ground that no producer's GATE STATE turns on it (123 `decides` producers, 2026-10-21;
+   re-measured at 182, 2026-11-05 — still none). What DOES turn on it is the EVIDENCE a gate prints.
+   `gatedBy` names the first naming files it finds, and `capture-host/tools/mutate.py` draws them from
+   55 docstring-only files of 64, because its stem is the English verb `mutate`: a docstring reading
+   "the test mutated" named itself as that tool's test. A single-quoted literal stays CODE here, because
+   a path literal lives in one. */
+export function blankPyProse(src) {
+  const bare = blankPyComments(src);
+  let out = '';
+  let i = 0;
+  let q = null;
+  while (i < bare.length) {
+    const three = bare.slice(i, i + 3);
+    if (q) {
+      if (three === q) {
+        out += q;
+        i += 3;
+        q = null;
+      } else {
+        out += bare[i] === '\n' ? '\n' : ' ';
+        i++;
+      }
+      continue;
+    }
+    if (three === "'''" || three === '"""') {
+      q = three;
+      out += three;
+      i += 3;
+      continue;
+    }
+    if (bare[i] === "'" || bare[i] === '"') {
+      const qc = bare[i];
+      out += bare[i++];
+      while (i < bare.length && bare[i] !== qc) {
+        if (bare[i] === '\\') {
+          out += bare.slice(i, i + 2);
+          i += 2;
+          continue;
+        }
+        out += bare[i++];
+      }
+      if (i < bare.length) out += bare[i++];
+      continue;
+    }
+    out += bare[i++];
+  }
+  return out;
+}
+
+/* Does `text` name `stem` as a FILE-NAME TOKEN rather than as a word? PURE. A gate's evidence must name
+   what it examined (§🧾), and `namesOutsideComments`'s bare `includes` cannot: every English use of a
+   short stem answers yes. The token forms are the two a reference actually takes — `<stem>.mjs|.js|.py`
+   anywhere, or a Python `import`. Measured 2026-11-05 over the 182 `decides` producers: 0 lose a gate
+   under this rule, and the evidence lists shrink to real references — `nightqc.py` 39 files of 61,
+   `capture-host/tools/mutate.py` 8 of 99, `capture-host/tools/covscope.py` 2 of 3. */
+export function namesAsFile(stem, text, isPy) {
+  if (text == null) return false;
+  const bare = isPy ? blankPyProse(text) : blankComments(text);
+  const esc = escapeRe(stem);
+  if (new RegExp(`(?:^|[^\\w-])${esc}\\.(?:mjs|js|py)\\b`).test(bare)) return 'path-token';
+  if (isPy && new RegExp(`(?:^|\\n)\\s*(?:from|import)\\s+[\\w.]*${esc}\\b`).test(bare)) return 'py-import';
+  return false;
+}
+
+/* A call that RUNS another file. Kept deliberately WIDE — `run(` matches any method of that name — because
+   the two errors are not symmetric: a false reach keeps a producer gated exactly as today, while a false
+   name-only would park a tested tool in a debt set and call a tested decision untested. */
+const SPAWNERS = /(?:spawnSync|spawn|execFileSync|execSync|exec|fork|subprocess\.run|subprocess\.Popen|check_output|check_call|run)\s*\(/g;
+
+/* Does the naming file REACH the producer — import, require, dynamic import, Python import, or spawn of
+   its path? PURE. Row `2026-11-02-a-ratchet-entry-left-on-a-source-shape-test`: a test asserting what a
+   tool's SOURCE says names it, so `gatedBy` read it as tested and the ratchet discharged a decision's
+   debt. `tests/trio-fold-validity-tests.mjs` reads eight PAT tools with `readFileSync` and asserts regexes
+   over the text; it never runs one.
+   ⚠️ A PATH REACHES ITS TOOL THROUGH A VARIABLE. `capture-host/tests/test_coverage_scope.py` sets
+   `CLI = HERE / "tools" / "covscope.py"` and spawns that name, so a detector keyed on literal proximity
+   called a genuinely exercised tool untested (measured 2026-11-05, 1 false name-only of 7). The binding
+   hop below is why, and the spawn window is 400 characters because a Python spawn spreads its argv over
+   lines. */
+export function reachKind(stem, text, isPy) {
+  if (text == null) return false;
+  const bare = isPy ? blankPyProse(text) : blankComments(text);
+  const esc = escapeRe(stem);
+  const file = `${esc}\\.(?:mjs|js|py)`;
+  if (new RegExp(`from\\s+['"\`][^'"\`]*${file}['"\`]`).test(bare)) return 'import';
+  if (new RegExp(`import\\s*\\(\\s*['"\`][^'"\`]*${esc}`).test(bare)) return 'dynamic-import';
+  if (new RegExp(`require\\s*\\(\\s*['"\`][^'"\`]*${esc}`).test(bare)) return 'require';
+  if (isPy && new RegExp(`(?:^|\\n)\\s*(?:from|import)\\s+[\\w.]*${esc}\\b`).test(bare)) return 'py-import';
+  const windows = [];
+  for (const m of bare.matchAll(SPAWNERS)) windows.push(bare.slice(m.index, m.index + 400));
+  const fileRe = new RegExp(file);
+  for (const w of windows) if (fileRe.test(w)) return 'spawn';
+  const bound = new Set();
+  for (const m of bare.matchAll(new RegExp(`([A-Za-z_$][\\w$]*)\\s*=\\s*[^\\n;]*${file}`, 'g'))) bound.add(m[1]);
+  for (const w of windows) for (const v of bound) if (new RegExp(`\\b${v}\\b`).test(w)) return 'spawn-var';
+  return false;
+}
+
+/* WHAT gates a producer, split by kind. PURE but for the two injected readers. `how` is `selftest`,
+   `tests` (a naming test that REACHES it), `names-only` (every naming test reads it as source), or
+   `null` (nothing names it). `gatedBy` below is this function's string projection, kept for the callers
+   and the printed reason. */
+export function gateKind(p, readSource, testRefs) {
+  const src = readSource(p);
+  if (src != null && declaresSelftest(src)) return { how: 'selftest', via: [] };
+  const stem = path.basename(p).replace(/\.(mjs|py)$/, '');
+  const named = (testRefs(stem) || []).filter((f) => f !== p && namesAsFile(stem, readSource(f), f.endsWith('.py')));
+  const reaching = named.filter((f) => reachKind(stem, readSource(f), f.endsWith('.py')));
+  if (reaching.length) return { how: 'tests', via: reaching };
+  if (named.length) return { how: 'names-only', via: named };
+  return { how: null, via: [] };
+}
+
 /* What gates a producer, or null. `readSource(p)` returns the file text — for the producer AND for each
    candidate test file; `testRefs(stem)` the list of test files naming it. Both injected, so the
    invariant is testable without a tree. A ref counts only when the test file names the tool outside its
    comments (see `namesOutsideComments`). */
 export function gatedBy(p, readSource, testRefs) {
-  const src = readSource(p);
-  if (src != null && declaresSelftest(src)) return 'selftest';
-  const stem = path.basename(p).replace(/\.(mjs|py)$/, '');
-  const refs = (testRefs(stem) || []).filter((f) => f !== p && namesOutsideComments(stem, readSource(f), f.endsWith('.py')));
-  return refs.length ? 'tests:' + refs.slice(0, 2).join(',') : null;
+  const k = gateKind(p, readSource, testRefs);
+  if (k.how === 'selftest') return 'selftest';
+  return k.how === 'tests' ? 'tests:' + k.via.slice(0, 2).join(',') : null;
 }
 
 /* ── A WORD-ONLY ROW MAKES A CLAIM, AND THE CLAIM GOES STALE ──────────────────────────────────
@@ -873,30 +1024,44 @@ export function checkWordOnlyObject(manifest, readSource, libraries = OBJECT_BUI
   return { ok: errors.length === 0, errors, checked: wordOnly.length, flagged, hops };
 }
 
-/* Pure: judge the decides set against the ratchet. Returns { ok, errors[], gated, ungated }. */
-export function checkGated(manifest, readSource, testRefs, ratchet = UNGATED_RATCHET) {
+/* Pure: judge the decides set against the two ratchets. Returns { ok, errors[], gated, nameOnly,
+   ungated }. A producer lands in exactly one of three states, and the middle one is the row's finding:
+   a test that READS a tool's source is not a test of the decision the tool makes. */
+export function checkGated(manifest, readSource, testRefs, ratchet = UNGATED_RATCHET, nameOnlyRatchet = NAME_ONLY_RATCHET) {
   const errors = [];
   const rows = (manifest && manifest.producers) || {};
   const decides = Object.keys(rows)
     .filter((p) => rows[p] && rows[p].bin === 'decides')
     .sort();
   const gated = {};
+  const nameOnly = [];
   const ungated = [];
   for (const p of decides) {
-    const g = gatedBy(p, readSource, testRefs);
-    if (g) {
+    const k = gateKind(p, readSource, testRefs);
+    if (k.how === 'selftest' || k.how === 'tests') {
+      const g = k.how === 'selftest' ? 'selftest' : 'tests:' + k.via.slice(0, 2).join(',');
       gated[p] = g;
       if (ratchet.has(p)) errors.push(`${p}: now GATED (${g}) — REMOVE it from UNGATED_RATCHET (the ratchet may only go down)`);
-    } else {
-      ungated.push(p);
-      if (!ratchet.has(p))
-        errors.push(
-          `${p}: a \`decides\` producer with NO test — no --selftest and nothing under tests/ or capture-host/tests/ names it. A check with no test is the #2321 shape; add its selftest (or a test) in the same PR that bins it`
-        );
+      if (nameOnlyRatchet.has(p)) errors.push(`${p}: now GATED (${g}) — REMOVE it from NAME_ONLY_RATCHET (the ratchet may only go down)`);
+      continue;
     }
+    if (k.how === 'names-only') {
+      nameOnly.push(p);
+      if (!nameOnlyRatchet.has(p))
+        errors.push(
+          `${p}: a \`decides\` producer whose only test NAMES it — ${k.via.slice(0, 2).join(',')} read its source and assert over the text, and nothing imports or runs it, so the decision itself is unexercised (row 2026-11-02-a-ratchet-entry-left-on-a-source-shape-test); add its --selftest, or a test that RUNS it`
+        );
+      continue;
+    }
+    ungated.push(p);
+    if (!ratchet.has(p))
+      errors.push(
+        `${p}: a \`decides\` producer with NO test — no --selftest and nothing under tests/ or capture-host/tests/ names it. A check with no test is the #2321 shape; add its selftest (or a test) in the same PR that bins it`
+      );
   }
   for (const p of ratchet) if (!decides.includes(p)) errors.push(`${p}: in UNGATED_RATCHET but not a \`decides\` producer — remove the stale entry`);
-  return { ok: errors.length === 0, errors, gated, ungated, decides: decides.length };
+  for (const p of nameOnlyRatchet) if (!decides.includes(p)) errors.push(`${p}: in NAME_ONLY_RATCHET but not a \`decides\` producer — remove the stale entry`);
+  return { ok: errors.length === 0, errors, gated, nameOnly, ungated, decides: decides.length };
 }
 
 /* ── ADOPTION IS A RATCHET — a population equality over the base's `adopted` set ─────────────────
@@ -1329,6 +1494,9 @@ function selftest() {
     /* The test files are in this map too, because `gatedBy` now READS them: a ref counts only when the
        test names the tool outside its comments. `tests/real.js` exercises `b`, `tests/prose.js` only
        talks about it, and `capture-host/tests/test_p.py` does the same in the other comment syntax. */
+    /* Every leg below pins BOTH ratchets empty, so it judges the fixture and never the real tree's
+       debt. The real-tree leg further down is the one that reads the committed sets. */
+    const checkGatedF = (m, rs, rf, r = new Set()) => checkGated(m, rs, rf, r, new Set());
     const src = {
       'tools/a.mjs': "if (argv.includes('--selftest')) selftest();",
       'tools/b.mjs': '// a check with no test at all',
@@ -1341,15 +1509,20 @@ function selftest() {
       'tests/real.js': "spawnSync('node', ['tools/b.mjs', '--check']);",
       'tests/prose.js': '/* the prototype in tools/b.mjs did this; see also b.mjs */\nvar unrelated = 1;',
       'capture-host/tests/test_p.py': '# the python counterpart of tools/b.mjs\nassert True\n',
-      'capture-host/tests/test_q.py': "run(['tools/b.mjs'])\n"
+      'capture-host/tests/test_q.py': "run(['tools/b.mjs'])\n",
+      /* `tests/shape.js` is the row's shape: it READS the tool and asserts over the text, which names
+         the path and exercises no decision. `tests/var.js` binds the path to a variable and spawns
+         that, which is the hop a literal-proximity detector misses. */
+      'tests/shape.js': "const text = readFileSync('tools/b.mjs', 'utf8');\nok(/--check/.test(text));",
+      'tests/var.js': "const CLI = join(ROOT, 'tools/b.mjs');\nspawnSync('node', [CLI, '--check']);"
     };
     const refs = () => [];
-    let g = checkGated(M2, (p) => src[p], refs, new Set());
+    let g = checkGatedF(M2, (p) => src[p], refs, new Set());
     ok(!g.ok && g.errors.length === 1 && /tools\/b.mjs: a `decides` producer with NO test/.test(g.errors[0]), 'a decides producer with no selftest and no test reference is a red WITH ITS NAME');
     ok(g.gated['tools/a.mjs'] === 'selftest' && g.ungated.length === 1, 'the gated map names what gates each producer; the ungated list names the rest');
-    g = checkGated(M2, (p) => src[p], refs, new Set(['tools/b.mjs']));
+    g = checkGatedF(M2, (p) => src[p], refs, new Set(['tools/b.mjs']));
     ok(g.ok, 'the same producer in the ratchet is debt, not a red');
-    g = checkGated(
+    g = checkGatedF(
       M2,
       (p) => src[p],
       (stem) => (stem === 'b' ? ['tests/real.js'] : []),
@@ -1362,28 +1535,28 @@ function selftest() {
        them (`null-fuzz.mjs`) had a real selftest the dashed pattern could not see; the other three had
        nothing. They entered UNGATED_RATCHET as arrived debt, and each left it with a `--selftest`
        (row 2026-10-21-three-decides-producers-rest-on-a-comment). */
-    g = checkGated(
+    g = checkGatedF(
       M2,
       (p) => src[p],
       (stem) => (stem === 'b' ? ['tests/prose.js'] : []),
       new Set()
     );
     ok(!g.ok && /tools\/b.mjs: a `decides` producer with NO test/.test(g.errors[0]), 'a test file that names the producer only in a COMMENT does not gate it');
-    g = checkGated(
+    g = checkGatedF(
       M2,
       (p) => src[p],
       (stem) => (stem === 'b' ? ['tests/prose.js', 'tests/real.js'] : []),
       new Set()
     );
     ok(g.ok && g.gated['tools/b.mjs'] === 'tests:tests/real.js', 'the prose ref drops out and the real one still gates — the filter is per FILE, not per producer');
-    g = checkGated(
+    g = checkGatedF(
       M2,
       (p) => src[p],
       (stem) => (stem === 'b' ? ['capture-host/tests/test_p.py'] : []),
       new Set()
     );
     ok(!g.ok && /tools\/b.mjs: a `decides` producer with NO test/.test(g.errors[0]), 'a `#` comment in a python test does not gate either');
-    g = checkGated(
+    g = checkGatedF(
       M2,
       (p) => src[p],
       (stem) => (stem === 'b' ? ['capture-host/tests/test_q.py'] : []),
@@ -1393,7 +1566,7 @@ function selftest() {
     /* THE FOURTH SPELLING: the dashes composed in a helper. `null-fuzz.mjs` is the measured instance. */
     const M3 = M({ 'tools/d.mjs': { bin: 'decides', status: 'pending' } });
     ok(
-      checkGated(
+      checkGatedF(
         M3,
         (p) => src[p],
         () => [],
@@ -1406,21 +1579,56 @@ function selftest() {
       'namesOutsideComments is the discriminator, and it is pure'
     );
     ok(blankPyComments("a = '# not a comment'  # a comment\n").trim() === "a = '# not a comment'", 'the python blanker keeps a hash inside a string and drops the real comment');
-    g = checkGated(
+    g = checkGatedF(
       M2,
       (p) => src[p],
       (stem) => (stem === 'b' ? ['tests/real.js'] : []),
       new Set()
     );
     ok(g.ok && g.gated['tools/b.mjs'] === 'tests:tests/real.js', 'a test file naming the producer gates it');
-    g = checkGated(M2, (p) => (p === 'tools/a.mjs' ? '/* usage: node tools/a.mjs --selftest */' : src[p]), refs, new Set(['tools/b.mjs']));
+    g = checkGatedF(M2, (p) => (p === 'tools/a.mjs' ? '/* usage: node tools/a.mjs --selftest */' : src[p]), refs, new Set(['tools/b.mjs']));
     ok(
       !g.ok && /tools\/a.mjs: a `decides` producer with NO test/.test(g.errors[0]),
       "a --selftest that appears only in a usage COMMENT does not gate (the call-position predicate, like selftest-all's)"
     );
-    g = checkGated(M2, (p) => src[p], refs, new Set(['tools/b.mjs', 'tools/c.mjs']));
+    g = checkGatedF(M2, (p) => src[p], refs, new Set(['tools/b.mjs', 'tools/c.mjs']));
     ok(!g.ok && /tools\/c.mjs: in UNGATED_RATCHET but not a `decides` producer/.test(g.errors[0]), 'a stale ratchet entry (not decides) is a red');
-    ok(checkGated(M({}), () => null, refs, new Set()).ok, 'an empty decides set is trivially gated');
+    ok(checkGatedF(M({}), () => null, refs, new Set()).ok, 'an empty decides set is trivially gated');
+    /* ── the third gate state: a test that READS the tool ── row 2026-11-02-a-ratchet-entry-left-on-a-source-shape-test */
+    const shapeRefs = (stem) => (stem === 'b' ? ['tests/shape.js'] : []);
+    g = checkGatedF(M2, (p) => src[p], shapeRefs);
+    ok(
+      !g.ok && g.errors.length === 1 && g.nameOnly.length === 1 && /tools\/b.mjs: a `decides` producer whose only test NAMES it — tests\/shape.js/.test(g.errors[0]),
+      'a producer whose only test reads its source is a red of its own, and the message names that test'
+    );
+    g = checkGated(M2, (p) => src[p], shapeRefs, new Set(), new Set(['tools/b.mjs']));
+    ok(g.ok && g.nameOnly.length === 1 && !g.gated['tools/b.mjs'], 'the same producer in NAME_ONLY_RATCHET is declared debt, not a red, and is still not gated');
+    g = checkGated(
+      M2,
+      (p) => src[p],
+      (stem) => (stem === 'b' ? ['tests/shape.js', 'tests/var.js'] : []),
+      new Set(),
+      new Set(['tools/b.mjs'])
+    );
+    ok(
+      !g.ok && /now GATED \(tests:tests\/var.js\) — REMOVE it from NAME_ONLY_RATCHET/.test(g.errors[0]),
+      'a name-only entry that gains a test which RUNS the tool reds until removed, and the reason names only the reaching test'
+    );
+    g = checkGated(M2, (p) => src[p], refs, new Set(['tools/b.mjs']), new Set(['tools/c.mjs']));
+    ok(!g.ok && /tools\/c.mjs: in NAME_ONLY_RATCHET but not a `decides` producer/.test(g.errors[0]), 'a stale name-only entry (not decides) is a red');
+    /* ── the two readers the states rest on ── */
+    const pyFix = "'''mutate this file'''\nCLI = 'tools/mutate.py'\n";
+    ok(blankPyProse(pyFix).includes('tools/mutate.py'), 'blankPyProse keeps a path literal, which is code');
+    ok(!blankPyProse(pyFix).includes('mutate this'), 'blankPyProse blanks a docstring, which is prose');
+    ok(!namesAsFile('mutate', '"""the test mutated the file"""\n', true), 'an English use of a stem inside a docstring does not name the tool');
+    ok(namesAsFile('mutate', "run(['tools/mutate.py'])\n", true) === 'path-token', 'a path spelling of the stem does name the tool');
+    ok(namesAsFile('nightqc', 'from nightqc import report_night\n', true) === 'py-import', 'a Python import names the tool, under its own kind');
+    ok(
+      reachKind('covscope', 'CLI = HERE / \"tools\" / \"covscope.py\"\nsubprocess.run([sys.executable, str(CLI)])\n', true) === 'spawn-var',
+      'a path bound to a variable the file later spawns REACHES the tool'
+    );
+    ok(!reachKind('b', "const text = readFileSync('tools/b.mjs', 'utf8');\n", false), 'reading a tool as text does not reach it');
+    ok(reachKind('b', "import { x } from '../tools/b.mjs';\n", false) === 'import', 'an import reaches it');
     // the real tree: the ratchet is exact today
     const { readSource, testRefs } = treeReaders(ROOT);
     const real = checkGated(JSON.parse(fs.readFileSync(MANIFEST, 'utf8')), readSource, testRefs);
@@ -2011,6 +2219,64 @@ function selftest() {
     }
   }
 
+  /* THE LANE SLICE, pure (residue 2026-11-05-the-capture-host-gate-does-not-run-the-verdict-adoption-
+     check). The slice is handed to the same legs, so the thing to pin is that it carries NOTHING from
+     another lane — above all the allowlists, whose stale-entry legs would otherwise red on every run. */
+  {
+    const man = {
+      schema: 'tepna.verdict-adoption/1',
+      producers: { 'capture-host/a.py': { bin: 'test', status: 'exempt' }, 'tools/b.mjs': { bin: 'test', status: 'exempt' } }
+    };
+    const sets = { ungated: new Set(['tools/b.mjs']), nameOnly: new Set(['capture-host/a.py']) };
+    const v = laneView('capture-host/', ['capture-host/a.py', 'tools/b.mjs'], man, sets);
+    ok(v.enumerated.length === 1 && v.enumerated[0] === 'capture-host/a.py', 'laneView keeps only the enumerated producers under the prefix');
+    ok(Object.keys(v.manifest.producers).join() === 'capture-host/a.py', 'laneView keeps only the manifest rows under the prefix');
+    ok(v.manifest.schema === man.schema, 'laneView carries the rest of the manifest through, so a byte-form or schema leg still reads it');
+    ok(v.sets.ungated.size === 0 && v.sets.nameOnly.size === 1, 'laneView scopes the allowlists, so no stale-entry leg fires over another lane');
+    ok(Object.keys(man.producers).length === 2 && sets.ungated.size === 1, 'laneView mutates neither the manifest nor the sets it was handed');
+    const empty = laneView('zzz/', ['capture-host/a.py'], man, sets);
+    ok(empty.enumerated.length === 0 && Object.keys(empty.manifest.producers).length === 0, 'a prefix no producer carries yields an empty slice, which the CLI refuses rather than passes');
+  }
+
+  /* BLACK BOX, the lane slice: a scratch checkout with one unbinned producer in each lane. `--lane`
+     must name its own and say nothing about the other, the unsliced gate must name both, and a prefix
+     that matches nothing must exit 2 — a filter matching nothing reads as a pass (CLAUDE.md §4b). */
+  {
+    const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'verdict-adoption-lane-'));
+    try {
+      fs.mkdirSync(path.join(scratch, 'tools'));
+      fs.mkdirSync(path.join(scratch, 'capture-host'));
+      fs.copyFileSync(fileURLToPath(import.meta.url), path.join(scratch, 'tools', 'verdict-adoption.mjs'));
+      copyToolImports(scratch);
+      fs.copyFileSync(path.join(ROOT, 'verdict.js'), path.join(scratch, 'verdict.js'));
+      fs.writeFileSync(path.join(scratch, 'capture-host', 'box.py'), 'def f():\n    return "VERDICT: PASS"\n');
+      fs.writeFileSync(path.join(scratch, 'tools', 'js.mjs'), "export const r = () => console.log('VERDICT: PASS');\n");
+      fs.writeFileSync(path.join(scratch, 'tools', 'verdict-adoption.json'), canonicalText({ schema: 'tepna.verdict-adoption/1', producers: {} }));
+      const git = (...a) => execFileSync('git', ['-c', 'user.email=a@b.c', '-c', 'user.name=selftest', ...a], { cwd: scratch, stdio: 'ignore' });
+      git('init', '-q');
+      git('add', '-A');
+      git('commit', '-qm', 'scratch');
+      const cli = (...a) => spawnSync(process.execPath, [path.join(scratch, 'tools', 'verdict-adoption.mjs'), '--check', '--base', 'HEAD', ...a], { cwd: scratch, encoding: 'utf8' });
+      let run = cli('--lane', 'capture-host/');
+      let out = `${run.stdout}${run.stderr}`;
+      ok(run.status === 1 && /UNBINNED producer: capture-host\/box\.py/.test(out), `BLACK BOX: --lane reds on an unbinned producer in its own lane (exit ${run.status})`);
+      ok(!/tools\/js\.mjs/.test(out), "BLACK BOX: --lane says nothing about the other lane's unbinned producer");
+      /* DERIVED, never a frozen count: the scratch population also holds this tool and its imports. */
+      const m = out.match(/LANE capture-host\/ — 1 of (\d+) enumerated/);
+      ok(m !== null && Number(m[1]) > 1, 'BLACK BOX: the lane line names the slice AND the whole population it read one slice of');
+      run = cli();
+      out = `${run.stdout}${run.stderr}`;
+      ok(run.status === 1 && /capture-host\/box\.py/.test(out) && /tools\/js\.mjs/.test(out), 'BLACK BOX: the unsliced gate still names both lanes');
+      ok(!/LANE /.test(out), 'BLACK BOX: a run with no --lane claims no slice');
+      run = cli('--lane', 'zzz/');
+      ok(run.status === 2 && /matches no producer/.test(`${run.stdout}${run.stderr}`), `BLACK BOX: a prefix no producer carries exits 2 and examines nothing (exit ${run.status})`);
+      run = cli('--lane');
+      ok(run.status === 2 && /needs a path prefix/.test(`${run.stdout}${run.stderr}`), `BLACK BOX: --lane with no prefix exits 2 (exit ${run.status})`);
+    } finally {
+      fs.rmSync(scratch, { recursive: true, force: true });
+    }
+  }
+
   if (fails.length) {
     console.log(fails.map((f) => '  ✗ ' + f).join('\n'));
     console.log(`${fails.length} failed of ${ran}`);
@@ -2045,19 +2311,46 @@ function main() {
     return;
   }
   const V = createRequire(import.meta.url)(path.join(ROOT, 'verdict.js'));
-  const r = check(en, manifest, V.validate, (e) => runEmits(e, ROOT));
+  /* THE LANE SLICE (see `laneView`). A `--lane` with no prefix, or a prefix no producer carries,
+     EXITS 2 and examines nothing: a filter that matches nothing reads as a pass (CLAUDE.md §4b), and
+     this one would read as the whole gate. */
+  const lai = argv.indexOf('--lane');
+  const lane = lai >= 0 ? argv[lai + 1] || '' : null;
+  if (lane !== null && !lane) {
+    console.log('verdict-adoption: --lane needs a path prefix, for example `--lane capture-host/`. Nothing was examined.');
+    process.exit(2);
+  }
+  const SETS = { ungated: UNGATED_RATCHET, nameOnly: NAME_ONLY_RATCHET, woClaim: WO_CLAIM_RATCHET, builders: OBJECT_BUILDER_LIBRARIES };
+  const view = lane === null ? { enumerated: en, manifest, sets: SETS } : laneView(lane, en, manifest, SETS);
+  const allRows = Object.keys(manifest.producers || {}).length;
+  const laneRows = Object.keys(view.manifest.producers || {}).length;
+  if (lane !== null && !view.enumerated.length && !laneRows) {
+    console.log(`verdict-adoption: --lane ${lane} matches no producer, in the population or in the manifest. Nothing was examined.`);
+    process.exit(2);
+  }
+  if (lane !== null)
+    console.log(
+      `verdict-adoption: LANE ${lane} — ${view.enumerated.length} of ${en.length} enumerated producer(s) \u00b7 ${laneRows} of ${allRows} manifest row(s). ` +
+        'This is one slice of the gate, never the whole one.'
+    );
+  const r = check(view.enumerated, view.manifest, V.validate, (e) => runEmits(e, ROOT));
   const c = r.counts;
   console.log(
     `verdict-adoption: ${c.enumerated} producer(s) enumerated · ${c.named} binned — decides ${c.decides} · already-json ${c['already-json']} · word-only ${c['word-only']} · test ${c.test} · adopted ${c.adopted} (validated ${c.validated}, unexamined ${c.unexamined}) · pending ${c.pending}`
   );
   const { readSource, testRefs } = treeReaders(ROOT);
-  const g = checkGated(manifest, readSource, testRefs);
-  const w = checkWordOnlyClaim(manifest, readSource);
-  const wo = checkWordOnlyObject(manifest, readSource, OBJECT_BUILDER_LIBRARIES, buildersOver(en, readSource));
+  const g = checkGated(view.manifest, readSource, testRefs, view.sets.ungated, view.sets.nameOnly);
+  const w = checkWordOnlyClaim(view.manifest, readSource, view.sets.woClaim);
+  /* `buildersOver` reads the WHOLE population on purpose, even under a lane: a lane's word-only row
+     may call a builder that lives in another lane, and a scoped map would miss the hop it exists for. */
+  const wo = checkWordOnlyObject(view.manifest, readSource, view.sets.builders, buildersOver(en, readSource));
   const bi = argv.indexOf('--base');
   const baseRef = bi >= 0 && argv[bi + 1] ? argv[bi + 1] : 'origin/main';
   const { mergeBase, manifest: baseManifest } = baseManifestAt(ROOT, baseRef);
-  const rt = checkRatchet(baseManifest, manifest, (p) => fs.existsSync(path.join(ROOT, p)));
+  /* THE BASE GETS THE SAME SLICE. A full base against a sliced head reads every other lane's adopted
+     row as de-adopted, which is the ratchet firing on rows the run never examined. */
+  const baseView = lane === null ? baseManifest : laneView(lane, [], baseManifest, {}).manifest;
+  const rt = checkRatchet(baseView, view.manifest, (p) => fs.existsSync(path.join(ROOT, p)));
   console.log(
     `verdict-adoption: ${w.checked} word-only row(s) CLAIM nothing is emitted \u00b7 ${w.conceded} concede emission and say why ` +
       `= ${w.wordOnly} word-only \u2014 ${w.flagged.length} still print a decision outside their selftest, all in WO_CLAIM_RATCHET (debt, may only shrink)`
@@ -2069,7 +2362,7 @@ function main() {
     `verdict-adoption: ${w.noLocator} of the ${w.checked} have no recognisable selftest locator, so their WHOLE file is scanned \u2014 ` + `that bias runs toward false positives, never toward misses`
   );
   console.log(
-    `verdict-adoption: ${g.decides} \`decides\` producer(s) — ${Object.keys(g.gated).length} gated (a selftest or a test names them) · ${g.ungated.length} ungated, all in UNGATED_RATCHET (debt, may only shrink)`
+    `verdict-adoption: ${g.decides} \`decides\` producer(s) — ${Object.keys(g.gated).length} gated (a selftest, or a test that runs them) · ${g.nameOnly.length} gated only by NAME, all in NAME_ONLY_RATCHET · ${g.ungated.length} ungated, all in UNGATED_RATCHET (both sets are debt, and may only shrink)`
   );
   console.log(
     `verdict-adoption: ${rt.adoptedAtBase} adopted at the merge base ${mergeBase.slice(0, 12)} (${baseRef}) — ${rt.kept} kept · ${rt.retired.length} retired with their file · ${rt.deAdopted.length} DE-ADOPTED (adoption is a ratchet; must be 0)`
@@ -2079,14 +2372,18 @@ function main() {
   const setPath = setRef.split(' §')[0];
   const setAbs = setPath ? path.join(ROOT, setPath) : '';
   let cr;
-  if (!setPath) cr = { ok: false, errors: ['contributions: tools/verdict-adoption.json carries no `contributions.enumeratedFrom`, so the leg has no population to read'], counts: {} };
+  if (lane !== null) cr = { ok: true, errors: [], counts: {}, unexamined: [] };
+  else if (!setPath) cr = { ok: false, errors: ['contributions: tools/verdict-adoption.json carries no `contributions.enumeratedFrom`, so the leg has no population to read'], counts: {} };
   else if (!fs.existsSync(setAbs)) cr = { ok: false, errors: [`contributions: the named set points at ${setPath}, which is not in this tree`], counts: {} };
   else cr = checkContributions(manifest, fs.readFileSync(setAbs, 'utf8'), V.validate, (e) => runEmits(e, ROOT));
   const cc = cr.counts;
-  console.log(
-    `verdict-adoption: contributions — ${cc.table ?? 0} figure(s) in the named set ${setPath || '(unset)'} · ${cc.figures ?? 0} row(s) here · ` +
-      `adopted ${cc.adopted ?? 0} (read ${cc.read ?? 0}, block examined ${cc.examined ?? 0}) · pending ${cc.pending ?? 0}`
-  );
+  if (lane !== null)
+    console.log(`verdict-adoption: contributions \u2014 NOT_APPLICABLE under --lane ${lane}: that leg's population is the figure table of ${setPath || '(unset)'}, which no file in this lane moves.`);
+  else
+    console.log(
+      `verdict-adoption: contributions — ${cc.table ?? 0} figure(s) in the named set ${setPath || '(unset)'} · ${cc.figures ?? 0} row(s) here · ` +
+        `adopted ${cc.adopted ?? 0} (read ${cc.read ?? 0}, block examined ${cc.examined ?? 0}) · pending ${cc.pending ?? 0}`
+    );
   if (Array.isArray(V.CONTRIBUTION_METHODS) && V.CONTRIBUTION_METHODS.slice().sort().join('|') !== CONTRIBUTION_METHODS.slice().sort().join('|'))
     cr.errors.push(`contributions: the method set here (${CONTRIBUTION_METHODS.join('|')}) differs from verdict.js (${V.CONTRIBUTION_METHODS.join('|')}) — verdict.js owns it, so follow it here`);
   console.log(`verdict-adoption: byte form — ${text === null ? 'no manifest file' : bf.ok ? 'canonical' : `NOT canonical from line ${bf.line}`}`);
@@ -2110,6 +2407,15 @@ function main() {
         "This is contention, not a failing adoption: re-run the step alone with `npm run verify:verdict-adoption`, and if it holds at an idle load, raise that row's `emits.timeoutMs`."
     );
     process.exit(2);
+  }
+  if (lane !== null) {
+    /* THE GREEN LINE NAMES THE SLICE. A lane run that printed the whole gate's sentence would be the
+       defect this flag exists to fix, one layer up: a verdict about a population it never read. */
+    console.log(
+      `✓ LANE ${lane}: the manifest partitions this slice of the population; every adoption in it read and valid; every check in it is gated or in the ratchet; ` +
+        'nothing in it was de-adopted. The other lanes went unread, so `npm run check` is still the whole gate.'
+    );
+    return;
   }
   console.log(
     '✓ the manifest partitions the enumerated population; every adoption read and valid; every check is gated or in the ratchet; nothing adopted on the base was de-adopted; ' +

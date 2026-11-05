@@ -181,6 +181,19 @@
      and 335 of 335 rows placed nothing (#4210). */
   var RC_COLUMNS = ['Phone timestamp', 'device', 'meas', 'last_sensor_ns', 'conn_handle', 'event_counter', 'anchor_us', 'vs_rx_ns', 'acl_rx_ns'];
 
+  /* THE SEAM MARKER, READ WHEN THE FILE CARRIES IT AND NEVER REQUIRED. #4272 appended
+     `device_clock` and `anchor_epoch` to the collector's header on 2026-11-02, and the archive
+     predates both: measured 2026-11-04 over 14 archived sidecars, 10 carry the nine-column form,
+     3 carry the eleven-column form and 1 holds no header at all. Requiring the column would refuse
+     every older night by header SHAPE, which answers a different question — §∅ carries the absence
+     forward, it does not reject the file.
+     WHY NOT `conn_handle`, WHICH EVERY NIGHT ALREADY CARRIES. It does not mark the seam. Measured
+     over the same 14 files: of 26 099 anchor intervals over CK_RADIO_GAP_MS, 484 sit on a row where
+     the handle changed and 25 615 do not. The two ring files are the decisive pair — each holds one
+     multi-hour gap and ZERO handle changes, so the gaps that most need a seam are exactly the ones
+     a handle read would miss. */
+  var RC_SEAM_COLUMN = 'anchor_epoch';
+
   function _num(cell) {
     /* §∅ — a blank cell is NOT MEASURED, which is `null`, never 0. Measured on
        the first corpus: `vs_rx_ns` is blank in 938 176 of 938 176 rows, so a
@@ -263,7 +276,11 @@
          `hostMs` from the controller's anchor. Both are free-running and the
          spine measures their divergence relative to its first anchor, so the
          absolute epochs do not need to agree. */
-      st.anchors.push({ devMs: devNs / 1e6, hostMs: anchorUs / 1e3 });
+      /* §∅ — the header may name no seam column (an older night) and the cell may sit blank, and
+         both are `null`. NEVER 0: `anchor_epoch` counts this device's link establishments from 1,
+         so a 0 here would claim a segment no link ever opened. */
+      var seg = RC_SEAM_COLUMN in ix ? _num(f[ix[RC_SEAM_COLUMN]]) : null;
+      st.anchors.push({ devMs: devNs / 1e6, hostMs: anchorUs / 1e3, seg: seg });
       st.hostRx.push(vs != null ? vs : acl);
     }
 
@@ -408,6 +425,53 @@
       coveredShare: span > 0 && backwards === 0 ? (span - gapTotal) / span : null,
       backwards: backwards,
       gapOverMs: CK_RADIO_GAP_MS
+    };
+  }
+
+  /* anchorSeams(anchors) → { marked, n, dropped, segments, lastSegment, anchorsBeforeLastSeam }.
+     §🔒.7 — ONE DEVICE CLOCK PER AXIS, AND A RESYNC IS A CHANGE OF CLOCK. `anchor_us` is a
+     controller counter whose epoch does not survive a controller reset, so a link establishment
+     starts a NEW anchor series. An axis built across one takes its correction from two anchors that
+     never shared a clock.
+     `marked` is the question a caller must ask FIRST, before `segments`: an unmarked sequence reads
+     `segments: 1` the same way a single-segment marked one does, and the two mean opposite things.
+     One says the collector stamped one link; the other says nothing was stamped at all. */
+  function anchorSeams(anchors) {
+    var list = anchors || [];
+    var n = 0;
+    var dropped = 0;
+    var marked = false;
+    var segments = 0;
+    var prevSeg = null;
+    var lastChangeAt = 0;
+    var readable = [];
+    for (var i = 0; i < list.length; i++) {
+      var a = list[i];
+      if (!a || !isFinite(a.devMs) || !isFinite(a.hostMs)) {
+        dropped++; // §∅ — an unreadable anchor is counted, never read as a segment of its own
+        continue;
+      }
+      var seg = a.seg == null || !isFinite(a.seg) ? null : a.seg;
+      if (seg != null) marked = true;
+      if (n === 0 || seg !== prevSeg) {
+        segments++;
+        lastChangeAt = n;
+      }
+      prevSeg = seg;
+      readable.push(a);
+      n++;
+    }
+    /* An unmarked sequence carries ONE run by construction, because every `seg` reads `null` and
+       equals its neighbour. The count is honest and `marked:false` is what says not to trust it. */
+    return {
+      marked: marked,
+      n: n,
+      dropped: dropped,
+      segments: n > 0 ? segments : 0,
+      /* The anchors at or after the LAST change, which is the only series on the current clock.
+         CLAUDE.md §🔒.7: build the axis from anchors at or after the last resync. */
+      lastSegment: readable.slice(lastChangeAt),
+      anchorsBeforeLastSeam: lastChangeAt
     };
   }
 
@@ -675,6 +739,10 @@
        learns why its band was rejected learns the coverage behind it in the
        same object. */
     var gp = anchorGaps(anchors);
+    /* The seams are read over the SAME whole sequence, and both ride on every answer. `gaps`
+       therefore keeps describing the FILE's anchor sequence even when the axis below is built on
+       one segment of it — `seams.anchorsBeforeLastSeam` is what says they differ. */
+    var sm = anchorSeams(anchors);
     // An EXPLICIT opts.hostAxis is honoured even when it is not callable, so a caller that
     // injects the spine can see this refusal; absent the key, the loaded DexClock is the spine.
     var spine = Object.prototype.hasOwnProperty.call(opts, 'hostAxis') ? opts.hostAxis : (root.DexClock && root.DexClock.hostAxis) || null;
@@ -687,6 +755,7 @@
         timingSource: null,
         spreadMs: null,
         gaps: gp,
+        seams: sm,
         floor: null,
         n: anchors && anchors.length ? anchors.length : 0,
         reason: 'clock.js is not loaded, so DexClock.hostAxis cannot build the radio axis',
@@ -694,7 +763,20 @@
         axis: null
       };
     }
-    var n = anchors && anchors.length ? anchors.length : 0;
+    /* §🔒.7 — one device clock per axis. A marked sequence that changed segment is two clocks, so
+       the axis takes the anchors at or after the LAST establishment and counts what it dropped.
+       🔴 AN UNMARKED SEQUENCE KEEPS ITS BAND, AND THAT IS THE RULING RATHER THAN CAUTION. Without
+       the seam column a hole has two readings — the link re-established inside it and reset the
+       counter, or it held while no frame arrived — and nothing in a nine-column row tells them
+       apart. A refusal there is exactly the generalisation CLAUDE.md §∅ forbids ("do not generalise
+       into 'refuse when in doubt'"), and the suite pins the same answer: `clock · radio-clock ·
+       absence` asserts a 401 s hole leaves the band at 'radio'. So the absence travels instead:
+       every answer carries `seams.marked:false` beside `gaps.gapCount`, which is the pair a consumer
+       needing a rate reads. Measured 2026-11-04 over the 14 archived sidecars, a refusal arm here
+       moved the published reason on 205 of 227 streams and erased the device-epoch diagnosis (#4365)
+       on 5, while changing no band at all — the 6 streams this function accepts carry 0 gaps. */
+    var used = sm.marked && sm.segments > 1 ? sm.lastSegment : anchors;
+    var n = used && used.length ? used.length : 0;
     if (n < CK_RADIO_MIN_ANCHORS) {
       return {
         ok: false,
@@ -702,14 +784,15 @@
         timingSource: null,
         spreadMs: null,
         gaps: gp,
+        seams: sm,
         floor: null,
         n: n,
-        reason: 'need ≥' + CK_RADIO_MIN_ANCHORS + ' radio anchors, got ' + n,
+        reason: 'need ≥' + CK_RADIO_MIN_ANCHORS + ' radio anchors, got ' + n + (used === anchors ? '' : ' in the segment after the last link establishment, of ' + sm.n + ' readable in the file'),
         deviceDrawn: null,
         axis: null
       };
     }
-    var ax = spine(anchors, opts.axis || {});
+    var ax = spine(used, opts.axis || {});
     if (!ax || ax.ok !== true) {
       return {
         ok: false,
@@ -717,6 +800,7 @@
         timingSource: null,
         spreadMs: null,
         gaps: gp,
+        seams: sm,
         floor: null,
         n: ax && ax.n != null ? ax.n : n,
         reason: 'the host axis refused the radio anchors: ' + ((ax && ax.reason) || 'the spine named no reason'),
@@ -754,6 +838,7 @@
         timingSource: null,
         spreadMs: null,
         gaps: gp,
+        seams: sm,
         floor: null,
         n: ax.n,
         reason: "the host axis published no deviceDrawn flag, so the device column's provenance is undecided and 'radio' cannot be minted",
@@ -768,6 +853,7 @@
         timingSource: null,
         spreadMs: null,
         gaps: gp,
+        seams: sm,
         floor: null,
         n: ax.n,
         reason: 'the device column is DRAWN (' + (ax.drawnReason || 'its inter-anchor deltas concentrate on one value') + '), so the anchors and the device stamps are not two clocks',
@@ -777,7 +863,7 @@
     }
     /* The spine ACCEPTED these anchors, and both of its statistics are blind to
        a single wild one (see the header). A discontinuity refuses here. */
-    var st = anchorStep(anchors);
+    var st = anchorStep(used);
     if (st.ratio == null || st.ratio >= CK_RADIO_STEP_OVER_SPAN) {
       return {
         ok: false,
@@ -785,6 +871,7 @@
         timingSource: null,
         spreadMs: null,
         gaps: gp,
+        seams: sm,
         floor: null,
         n: ax.n,
         reason:
@@ -824,11 +911,12 @@
       timingSource: band === 'radio' ? 'radio' : null,
       spreadMs: jitter,
       gaps: gp,
+      seams: sm,
       /* THE OTHER EDGE OF THE SAME RESIDUAL, beside the one the band read. It
          rides on the accepted answers only, because it is read about the
          spine's curve and a refused axis published none — a refusal carries
          `floor: null`, which is the absence and not a floor of zero. */
-      floor: anchorFloor(anchors, ax.correctionAt, opts.floor || {}),
+      floor: anchorFloor(used, ax.correctionAt, opts.floor || {}),
       n: ax.n,
       reason: reason,
       deviceDrawn: ax.deviceDrawn == null ? null : ax.deviceDrawn,
@@ -845,10 +933,12 @@
     CK_RADIO_GAP_MS: CK_RADIO_GAP_MS,
     CK_RADIO_FLOOR_WIN_MS: CK_RADIO_FLOOR_WIN_MS,
     RC_COLUMNS: RC_COLUMNS,
+    RC_SEAM_COLUMN: RC_SEAM_COLUMN,
     parseRadioClock: parseRadioClock,
     radioAxis: radioAxis,
     anchorStep: anchorStep,
     anchorGaps: anchorGaps,
+    anchorSeams: anchorSeams,
     anchorFloor: anchorFloor,
     classify: classify
   };
