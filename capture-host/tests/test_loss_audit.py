@@ -4530,3 +4530,58 @@ def test_a_contradicted_tail_stays_published_when_the_charger_calls_the_doff(tmp
     _link(d, [(60, 53), (400, 70)])
     (e,) = loss_audit.wear_ends(str(d), "O2Ring-S")["ends"]
     assert e["ppg2w_contradicted"] is True and e["reason"] == "doff" and e["doff_witness"] == "charger"
+
+
+def _ppi(path, hrs, t0=W0):
+    """A Verity-shaped PPI file: one row per second carrying the given `hr [bpm]` values ("" = blank)."""
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write("Phone Data RX timestamp;PP-interval [ms];error estimate [ms];blocker;contact;contact;hr [bpm]\n")
+        for k, hr in enumerate(hrs):
+            fh.write(f"{(t0 + dt.timedelta(seconds=k)).isoformat(timespec='milliseconds')};900;30;0;1;1;{hr}\n")
+
+
+def test_AN_UNWORN_VERITY_FILE_AFTER_A_DOFF_DOES_NOT_SET_THE_WORN_END(tmp_path):
+    """Residue `2026-11-05-an-unworn-verity-file-sets-the-worn-end`. A witnessed doff, then a relink 20 s
+    later and a file streamed off the body: its PPI reports hr 0 on every row, so its quiet end is not the
+    worn end and the night keeps the doff."""
+    d = tmp_path / "captures" / "2026-09-23"
+    d.mkdir(parents=True)
+    worn = d / "Polar_VeritySense_0C30_20260923230000_PPG.txt"
+    _ppg(str(worn), 370, 20, lambda t: 37.0 if t < 360 else 111.0)  # ends with the removal signature
+    _ppi(str(d / "Polar_VeritySense_0C30_20260923230000_PPI.txt"), [60] * 300)
+    t1 = W0 + dt.timedelta(seconds=390)
+    off = d / "Polar_VeritySense_0C30_20260923230630_PPG.txt"
+    _ppg(str(off), 400, 20, lambda t: 37.0, t0=t1)  # flat to its end: no removal signature, a quiet end
+    off_ppi = d / "Polar_VeritySense_0C30_20260923230630_PPI.txt"
+    _ppi(str(off_ppi), [0] * 30, t0=t1)
+    w = loss_audit.wear_ends(str(d), "VeritySense")
+    first, second = w["ends"]
+    assert first["reason"] == "doff" and first["usable"] is True
+    assert second == {
+        "file": off.name,
+        "usable": False,
+        "reason": "not worn: the device reports no pulse on any of its 30 PPI rows",
+        "ppi_rows": 30,
+        "ppi_pulse_rows": 0,
+    }
+    assert w["worn_end"] == {"at": first["worn_end_at"], "reason": "doff", "file": worn.name}
+    # ONE pulse row keeps the file: worn for part of its span is never dropped
+    _ppi(str(off_ppi), [0] * 29 + [58], t0=t1)
+    assert loss_audit.wear_ends(str(d), "VeritySense")["worn_end"]["file"] == off.name
+    # under the floor, blank hrs and torn rows are no witness: the end is judged as before
+    _ppi(str(off_ppi), [0] * 29 + ["", "x"], t0=t1)
+    assert loss_audit.verity_ppi_pulse(str(off_ppi)) == (29, 0)
+    assert loss_audit.wear_ends(str(d), "VeritySense")["worn_end"]["reason"] == "quiet-end-unclassified"
+    with open(off_ppi, "a", encoding="utf-8") as fh:
+        fh.write("2026-09-23T23:07:00.000;900\n")  # a row too short to hold an hr
+    assert loss_audit.verity_ppi_pulse(str(off_ppi)) == (29, 0)
+    # a header-only file and one without the hr column say nothing; an absent one neither
+    off_ppi.write_text(
+        "Phone Data RX timestamp;PP-interval [ms];error estimate [ms];blocker;contact;contact;hr [bpm]\n"
+    )
+    assert loss_audit.verity_ppi_pulse(str(off_ppi)) == (0, 0)
+    off_ppi.write_text("Phone Data RX timestamp;PP-interval [ms]\n2026-09-23T23:06:30.000;900\n")
+    assert loss_audit.verity_ppi_pulse(str(off_ppi)) is None
+    off_ppi.unlink()
+    assert loss_audit.verity_ppi_pulse(str(off_ppi)) is None
+    assert loss_audit.wear_ends(str(d), "VeritySense")["worn_end"]["file"] == off.name
