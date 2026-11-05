@@ -11,6 +11,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { VALIDITY_STATES, mergeBlankingSpans, mergePinnedSpans, readRunsSidecar, runsSidecarPath, validityLine } from '../tools/trio-fold-validity.mjs';
+import { ecgRpeakTimes, loadDsps, ppgFootTimes } from '../tools/pat-matchrate-strict.mjs';
 
 let pass = 0;
 const fails = [];
@@ -361,6 +362,189 @@ for (const [f, callees] of [
   ok(/\(opts\.ppgFootTimes \|\| ppgFootTimes\)\(ppgText, opts\.runsText\)/.test(src), 'the indirection hands the extractor the sidecar that rode in on `opts`');
   ok(/opts\.runsText \? PPGDSP\.parsePPG\(ppgText, \{ runsText: opts\.runsText \}\) : PPGDSP\.parsePPG\(ppgText\)/.test(src), 'and its own parse takes the guarded ternary');
   ok(/scoreNight\(PPGDSP, readFileSync\(fp, 'utf8'\), \{ runsText: runsOf\(fp, 'PPG'\) \}\)/.test(src), 'the caller that holds the path is the one that reads the sidecar');
+}
+
+/* ── AND THE ECG LEG TAKES ITS SIDECAR TOO ──────────────────────────────────────
+   Row 2026-11-03-the-ecg-leg-of-the-shared-pat-extractor-takes-no-sidecar. `ppgFootTimes` has taken
+   the `_PPGRUNS.txt` bytes since #4069 and `ecgRpeakTimes` took none, so every R peak inside a
+   blanking run the box recorded reached the matcher as a beat. The `_ECGRUNS.txt` companion exists
+   beside every `_ECG.txt` file this corpus holds, so this is the stream where the omission costs a
+   number.
+   Position two is TYPED rather than re-ordered, because `opts` already held that slot: a STRING is
+   the sidecar and an OBJECT is `opts`. The executed legs below judge both arms, since a typed slot
+   that silently ignored one type would read here exactly like a wired one. */
+for (const f of [
+  'beat-correspondence.mjs',
+  'pat-connection-stability.mjs',
+  'pat-dip-index.mjs',
+  'pat-drift-attribution.mjs',
+  'pat-ecg-axis-residual.mjs',
+  'pat-finger-coupler.mjs',
+  'pat-literature-spec.mjs',
+  'pat-matchrate-strict.mjs',
+  'pat-mode-posture.mjs',
+  'pat-residual-structure.mjs',
+  'pat-window-oracle.mjs'
+]) {
+  const src = readFileSync(join(here, '..', 'tools', f), 'utf8');
+  const arity = callArity(src, 'ecgRpeakTimes');
+  ok(arity.length > 0, `${f} calls ecgRpeakTimes, so this leg judges something`);
+  ok(
+    arity.every((n) => n >= 2),
+    `${f} hands ecgRpeakTimes its sidecar at every call site (arity ${JSON.stringify(arity)})`
+  );
+  ok(/runsOf\([^;]{0,60}'ECG'\)/.test(stripComments(src, true)), `${f} names the ECG sidecar through the shared reader`);
+}
+
+/* ── ∅ THE THREE SIDECAR STATES, EXECUTED ─────────────────────────────────────────
+   A source scan cannot tell a parameter that is READ from one that is accepted and dropped, and it
+   cannot tell `null` from `0`. The legs below run the shared extractor over a synthetic H10 stream
+   at 130 Hz: no sidecar, a sidecar naming no run, a sidecar naming one run, and a sidecar whose rows
+   belong to another stream. ∅ the four answers must differ, because an absent sidecar is validity
+   UNKNOWN and a sidecar that looked and found nothing is a measured zero. */
+const ECG_FS = 130;
+function synthEcg(nSamples) {
+  const rows = ['Phone timestamp;sensor timestamp [ns];timestamp [ms];ecg [uV]'];
+  for (let i = 0; i < nSamples; i++) {
+    const ph = (i % ECG_FS) / ECG_FS;
+    let v = 40 * Math.sin(2 * Math.PI * ph);
+    if (ph > 0.2 && ph < 0.3) v += 900 * Math.exp(-(((ph - 0.2537) / 0.012) ** 2));
+    rows.push(`2026-06-17T01:06:17.723;${Math.round((i * 1e9) / ECG_FS)};${Math.round((i * 1000) / ECG_FS)};${Math.round(v)}`);
+  }
+  return rows.join('\n');
+}
+/* The writer's own shape: a rule line, a `# stream=… channel=… class=…` declaration, then one
+   semicolon row per run whose columns 3 and 4 are the SAMPLE index and the run length. */
+function ecgRuns(spans, { stream = 'ecg', channel = 'ecg [uV]' } = {}) {
+  const out = [`# stream=${stream} min_run=30 merge_gap_max=2`, `# stream=${stream} channel=${channel} class=variable unit=uV`];
+  for (const sp of spans) out.push(['2026-06-17T01:06:17.723', channel, '0', String(sp.first), String(sp.n), '0', '0', '0'].join(';'));
+  return out.join('\n');
+}
+{
+  loadDsps();
+  const txt = synthEcg(4000);
+  const base = ecgRpeakTimes(txt);
+  ok(base.n > 20, `ANTI-VACUITY · the synthetic stream yields R peaks at all (n=${base.n})`);
+  ok(
+    base.blanking.sidecar === 'absent' && base.blanking.nDropped === null && base.blanking.nRanges === null,
+    `∅ no sidecar reads ABSENT with null counts, never a clean zero (${JSON.stringify(base.blanking)})`
+  );
+
+  const empty = ecgRpeakTimes(txt, ecgRuns([]));
+  ok(empty.blanking.sidecar === 'read' && empty.blanking.nDropped === 0 && empty.blanking.nRanges === 0, `∅ a sidecar that names no run reads a MEASURED zero (${JSON.stringify(empty.blanking)})`);
+  same(Array.from(empty.times), Array.from(base.times), 'and it moves no beat, so no published number walks on the empty-sidecar path');
+
+  const RUN = { first: 1000, n: 400 };
+  const cut = ecgRpeakTimes(txt, ecgRuns([RUN]));
+  const loMs = base.t0Ms + (RUN.first / base.fs) * 1000;
+  const hiMs = base.t0Ms + ((RUN.first + RUN.n) / base.fs) * 1000;
+  const insideBase = Array.from(base.times).filter((t) => t >= loMs && t < hiMs).length;
+  ok(insideBase > 0, `CONTROL · the sidecar-less run DID report beats inside that span (${insideBase}), so the legs below are not vacuous`);
+  ok(cut.blanking.sidecar === 'read' && cut.blanking.nRanges === 1, `one recorded run reads as one range (${JSON.stringify(cut.blanking)})`);
+  ok(cut.blanking.nDropped === insideBase, `and it drops exactly the beats the baseline reported there (${cut.blanking.nDropped} of ${insideBase})`);
+  ok(Array.from(cut.times).filter((t) => t >= loMs && t < hiMs).length === 0, 'no kept beat sits inside the run the box recorded as measuring nothing');
+  ok(cut.n === base.n - insideBase, `the kept train is the detected train less the dropped peaks (${cut.n})`);
+  ok(cut.nDetected === base.n, `nDetected keeps naming the DETECTOR's own count, so the "of N detected" line stays true (${cut.nDetected})`);
+
+  /* A sidecar whose rows belong to another stream places none, and `parseECG` nulls the spans with a
+     reason rather than publishing an empty set — the one state a count cannot carry. */
+  const foreign = ecgRpeakTimes(txt, ecgRuns([RUN], { stream: 'ppg', channel: 'channel 0' }));
+  ok(
+    foreign.blanking.sidecar === 'unplaced' && foreign.blanking.nDropped === null && typeof foreign.blanking.reason === 'string',
+    `∅ a sidecar whose rows went unplaced reads UNPLACED with its own reason (${JSON.stringify(foreign.blanking)})`
+  );
+  same(Array.from(foreign.times), Array.from(base.times), 'and it drops nothing, because an unread sidecar refuses rather than blanking a guess');
+
+  /* ── POSITION TWO IS TYPED ── */
+  const asOpts = ecgRpeakTimes(txt, { refine: true });
+  ok(asOpts.refined === true, 'an OBJECT at position two is still `opts`, so no existing caller moved');
+  ok(asOpts.blanking.sidecar === 'absent', '…and it carries no sidecar');
+  const viaField = ecgRpeakTimes(txt, { runsText: ecgRuns([RUN]) });
+  ok(viaField.blanking.nDropped === insideBase, '`opts.runsText` carries the same bytes to the same drop');
+  let threw = null;
+  try {
+    ecgRpeakTimes(txt, 42);
+  } catch (e) {
+    threw = e.message;
+  }
+  ok(!!threw && /position two/.test(threw), `a number at position two refuses by name (${threw})`);
+  let twice = null;
+  try {
+    ecgRpeakTimes(txt, { refine: true }, { refine: true });
+  } catch (e) {
+    twice = e.message;
+  }
+  ok(!!twice && /position two and position three/.test(twice), `opts in both slots refuses (${twice})`);
+}
+
+/* ── ∅ AN UNCONFIRMED SPAN SET STILL HAS A SIZE, EXECUTED ─────────────────────────
+   Row 2026-10-28-pat-legs-refuse-only-the-spans-a-sidecar-confirmed. `parsePPG` publishes per-channel
+   pinned spans on every path, and only a `_PPGRUNS.txt` companion sets `pinnedCrossCheck`. So the
+   default path held a span set it never sized, and published `null` counts beside a `null` source.
+   A reader could not tell "the recompute would refuse nothing here" from "nobody looked" (§∅).
+   The annotate path walks the same feet, keeps every one, and reports the magnitude as
+   `wouldDropAllPinned` / `wouldPartialPinned`. The legs below need all three states to differ.
+
+   THE RAIL WINDOW IS A MEASURED ONE, never a guessed one. A rail reshapes the upstroke, so it MOVES
+   the detected foot — three earlier constructions clipped the trough and the foot walked out ahead of
+   the run every time. A sweep over clip windows found the one that walks the foot INTO the rail. The
+   clean twin's own feet sit at phase 47, outside this window, which is why it reads a zero. */
+const PPG_FS = 55;
+function synthPpg(nSamples, clipFrom, clipTo) {
+  const rows = ['Phone timestamp;sensor timestamp [ns];channel 0'];
+  for (let i = 0; i < nSamples; i++) {
+    const ph = (i % PPG_FS) / PPG_FS;
+    let v = 200000 + Math.round(9000 * Math.sin(2 * Math.PI * ph) + 2500 * Math.sin(4 * Math.PI * ph + 0.7));
+    /* The rail starts at beat 4, so the histogram sees a stream that is clean first. */
+    if (clipFrom >= 0 && Math.floor(i / PPG_FS) >= 4) {
+      const k = i % PPG_FS;
+      if (k >= clipFrom && k < clipTo) v = 188000;
+    }
+    const ms = Math.round((i * 1000) / PPG_FS);
+    const stamp = new Date(Date.UTC(2026, 5, 17, 1, 6, 17, 723) + ms).toISOString().slice(0, 23);
+    rows.push(`${stamp};${Math.round((i * 1e9) / PPG_FS)};${v}`);
+  }
+  return rows.join('\n');
+}
+{
+  loadDsps();
+
+  /* ── THE MEASURED ZERO ── a stream with no rail run. `parsePPG` publishes an empty span set, the
+     scan walks every foot, and it refuses none. That answer is 0, and 0 is not an absence. */
+  const clean = ppgFootTimes(synthPpg(3300, -1, -1));
+  ok(clean.n > 20, `ANTI-VACUITY · the synthetic stream yields feet at all (n=${clean.n})`);
+  ok(
+    clean.wouldDropAllPinned === 0 && clean.wouldPartialPinned === 0,
+    `∅ a span set that refused nothing reads a MEASURED zero (${JSON.stringify([clean.wouldDropAllPinned, clean.wouldPartialPinned])})`
+  );
+  ok(clean.pinnedSource === null, 'and the source stays null, so no reader takes the annotation for a confirmed sidecar');
+  ok(
+    clean.droppedAllPinned === null && clean.partialPinned === null,
+    `∅ the consuming fields stay null on this path, because no leg dropped a foot (${JSON.stringify([clean.droppedAllPinned, clean.partialPinned])})`
+  );
+  ok(JSON.stringify(clean.wouldDropAllPinned) !== JSON.stringify(clean.droppedAllPinned), '∅ the measured zero and the null do not serialise alike');
+
+  /* ── THE COUNT ── the rail covers the clean stream's measured foot phase, so a consensus foot lands
+     inside a qualifying run and the counterfactual has something to refuse. */
+  const phases = (rec) => Array.from(rec.times, (t) => Math.floor((((t - rec.t0Ms) / 1000) * PPG_FS) % PPG_FS));
+  const inRail = (rec) => phases(rec).filter((k) => k >= 18 && k < 24).length;
+  ok(inRail(clean) === 0, `CONTROL · the clean twin places no foot in the window this test rails (phases ${phases(clean).slice(0, 4).join(' ')})`);
+  const railed = synthPpg(3300, 18, 24);
+  const annot = ppgFootTimes(railed);
+  ok(inRail(annot) > 0, `CONTROL · the railed twin places feet inside the rail run, which is the thing the count sizes (${inRail(annot)})`);
+  ok(annot.wouldDropAllPinned >= 1, `∅ the unconfirmed span set reports what it WOULD refuse (${annot.wouldDropAllPinned})`);
+  ok(annot.wouldPartialPinned >= annot.wouldDropAllPinned, `and the partial count covers the whole-channel count (${annot.wouldPartialPinned})`);
+  ok(annot.droppedAllPinned === null && annot.partialPinned === null, '∅ it refused no foot, so the consuming fields stay null');
+  ok(annot.pinnedSource === null, 'the source is still null — nothing confirmed these spans');
+
+  /* ── AND THE COUNT IS THE MOVE ── the same bytes through the counterfactual switch drop exactly the
+     feet the annotation sized. That equality is what makes `wouldDropAllPinned` a measurement. */
+  const cut = ppgFootTimes(railed, null, { pinnedFromRecompute: true });
+  ok(cut.pinnedSource === 'recompute', `the switch names the recompute as the source (${cut.pinnedSource})`);
+  ok(cut.droppedAllPinned === annot.wouldDropAllPinned, `the recompute drops exactly the sized feet (${cut.droppedAllPinned} of ${annot.wouldDropAllPinned})`);
+  ok(cut.n === annot.n - annot.wouldDropAllPinned, `so the kept train is the annotated train less that count (${cut.n} = ${annot.n} - ${annot.wouldDropAllPinned})`);
+  ok(cut.wouldDropAllPinned === null && cut.wouldPartialPinned === null, '∅ and the would-fields null out where a leg really dropped, so one figure never reads twice');
+  ok(annot.n === clean.n || annot.n !== cut.n, `CONTROL · the annotate path published its own feet unchanged (n=${annot.n})`);
 }
 
 if (fails.length) {

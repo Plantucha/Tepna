@@ -416,7 +416,7 @@ async function main() {
     let E;
     let P;
     try {
-      E = ecgRpeakTimes(readFileSync(eF, 'utf8'));
+      E = ecgRpeakTimes(readFileSync(eF, 'utf8'), runsOf(eF, 'ECG'));
       P = ppgFootTimes(readFileSync(pF, 'utf8'), runsOf(pF, 'PPG'));
     } catch {
       skip('parse-error');

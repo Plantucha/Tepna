@@ -2960,6 +2960,19 @@
         _blankSec.push({ t0: b.first / rec.fs, t1: (b.first + b.n) / rec.fs });
       }
     }
+    /* …AND THE SEAMS THE BOX ITSELF RECORDED (`<base>ECGSEAMS.txt`; SEAM-SIDECAR-CONSUMPTION §4,
+       owner ruling 2026-11-05). This node detects its own steps above (`clockResyncs`) and the box's
+       sidecar is a SECOND, independent observer of the same fact: it judges device-minus-host at
+       every sample, where this node reads a stepped counter. Either can see a seam the other misses,
+       and the owner's ruling is that a window spanning one REFUSES whoever saw it.
+
+       Placed by the beat's own host-disciplined `tMsAt`, never by the sidecar's `at_rel_ms` or `idx`
+       (see `parseEcgSeams` for why both are unusable). `recordedSeams` is absent unless a sidecar was
+       ingested, so this loop is a no-op on every existing path and moves no epoch. */
+    const _rsPlaced = placeRecordedSeams(rec.recordedSeams, typeof rec.tMsAt === 'function' ? rec.tMsAt : null, nnPeak, tt, N);
+    for (const _rsSec of _rsPlaced.seamSec) _seamSec.push(_rsSec);
+    const _recSeamPlaced = _rsPlaced.placed,
+      _recSeamUnplaced = _rsPlaced.unplaced;
     const epochsRefused = [];
     const epochs = epochEngine(nn, tt, 300, nnSqi, nnSpansGap, _seamSec, epochsRefused, _blankSec);
 
@@ -3270,6 +3283,10 @@
          caller that needs it. `null` whenever the sidecar parsed, or the parse ran without one, so
          the export's conditional key stays absent and no clean export moves a byte. */
       blankingSpansReason: rec && typeof rec.blankingSpansReason === 'string' && rec.blankingSpansReason ? rec.blankingSpansReason : null,
+      /* …and the SEAM channel's state, carried for the same reason and from the same place. Unlike
+         every key above this one is ALWAYS populated, because the owner ruled on 2026-11-05 that a
+         night with no seam sidecar reads as seams UNKNOWN rather than as a night with none. */
+      seams: _ecgSeamState(rec, _recSeamPlaced, _recSeamUnplaced),
       durMin: +durMin.toFixed(1),
       longRec,
       tier,
@@ -4863,6 +4880,7 @@
        reaches them through this surface, and the internal call sites are unchanged. */
     poincareGeo,
     epochEngine, // §∅ epoch gap-exclusion + seam refusal, gated directly
+    placeRecordedSeams, // SEAM-SIDECAR-CONSUMPTION §4 — box-recorded seams onto this node's beat axis
     detectCVHR,
     cardiorespCoupling,
     dfaAlpha1,
@@ -5850,6 +5868,204 @@
     return out;
   }
 
+  /* THE BOX'S OWN CLOCK-SEAM SIDECAR — `<base>ECGSEAMS.txt`, written by `writers._SeamSidecar`
+     beside the stream it judges. SEAM-SIDECAR-CONSUMPTION §4 sized this ingest and the owner ruled
+     on §4.4 on 2026-11-05 (relayed as board #3569): a night with NO sidecar reads as seams UNKNOWN,
+     never as a night with zero seams, and a window that spans a recorded seam REFUSES. The box
+     compares each sample's device step against its host step and writes a row wherever the two
+     disagree by more than its own `bound_ms`; a `# final` line reports, per writer session, how many
+     intervals it examined.
+
+     🔴 THE FILE CARRIES THREE POSITION COLUMNS AND EACH BREAKS DIFFERENTLY, so this reader keeps
+     only the host stamp. `at_rel_ms` is measured on the DEVICE axis — the very axis the seam broke —
+     and a resumed sidecar measures it from its seed rather than from the stream's first sample.
+     `idx` is that writer session's `examined` counter, so it restarts at every reconnect while the
+     file appends. The host stamp is continuous by construction, which is the whole basis of the
+     header's `basis=device-minus-host`. So a seam is placed on the HOST axis or not at all: a row
+     this reader cannot place is counted and named (§∅), never dropped and never placed at a guessed
+     second.
+
+     Mirrors `parseEcgRuns` above in shape, deliberately — the same four states for a companion
+     (read · looked and found nothing · rows unplaceable · wrong stream) and the same `comparable`
+     flag, so a consumer can tell a sidecar that stated its rule from one that did not. */
+  function parseEcgSeams(text) {
+    if (typeof text !== 'string' || !text) return null;
+    var out = /** @type {any} */ ({
+      params: null,
+      rule: null,
+      stream: null,
+      boundMs: null,
+      basis: null,
+      sessions: [],
+      seamsReported: null,
+      examined: null,
+      rows: [],
+      dataRows: 0,
+      malformed: 0,
+      rejected: 0,
+      rejectedReasons: [],
+      sawHeader: false,
+      comparable: false,
+      placedNone: false
+    });
+    var lines = String(text).split(/\r?\n/);
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i].trim();
+      if (!line) continue;
+      if (line.charAt(0) === '#') {
+        /* The parameter line is the one carrying BOTH `stream=` and `bound_ms=`. Keyed on the pair
+           because the writer's optional `# pmd stream=…` line and every `# final stream=…` line also
+           carry a stream, and a first-comment-wins rule would read the negotiated PMD rate as the
+           seam threshold. */
+        if (!out.params && /\bstream=/.test(line) && /\bbound_ms=/.test(line)) {
+          out.params = line.replace(/^#\s*/, '');
+          var st = /\bstream=(\S+)/.exec(line);
+          if (st) out.stream = st[1].trim().toLowerCase();
+          var bm = /\bbound_ms=(\d+(?:\.\d+)?)/.exec(line);
+          if (bm) out.boundMs = +bm[1];
+          var rl = /\brule=(\S+)/.exec(line);
+          if (rl) out.rule = rl[1].trim();
+          var bs = /\bbasis=(\S+)/.exec(line);
+          if (bs) out.basis = bs[1].trim();
+          continue;
+        }
+        /* `# final stream=<s> seams=<n> examined=<m>` — ONE per writer session, so a night that
+           reconnected carries many. SUMMED, never replaced: the last line alone describes the last
+           session, and §2 of the brief reads the sum against the stream's own interval count. */
+        var fseams = /\bseams=(\d+)/.exec(line);
+        var fexam = /\bexamined=(\d+)/.exec(line);
+        if (fseams && fexam) {
+          out.sessions.push({ seams: +fseams[1], examined: +fexam[1] });
+          out.seamsReported = (out.seamsReported || 0) + +fseams[1];
+          out.examined = (out.examined || 0) + +fexam[1];
+        } else if (/^#\s*final\b/.test(line)) out.malformed++;
+        continue;
+      }
+      if (/^phone_ts\s*;/.test(line)) {
+        out.sawHeader = true;
+        continue;
+      }
+      var c = line.split(';');
+      if (c.length < 7) {
+        out.malformed++;
+        continue;
+      }
+      out.dataRows++;
+      /* THE WRONG COMPANION IS REFUSED BY WHAT THE FILE SAYS IT IS, never by the name it arrived
+         under: the pairing that hands this text in reads a filename, and a stamp-nearest pairing can
+         hand over the ACC stream's sidecar. An `_ACCSEAMS.txt` declares `stream=acc` in its own
+         header. A sidecar that names no stream is taken at the caller's word — the alternative is
+         discarding a real observation over a missing header. */
+      if (out.stream != null && !/^ecg/.test(out.stream)) {
+        out.rejected++;
+        if (out.rejectedReasons.indexOf('stream=' + out.stream) < 0) out.rejectedReasons.push('stream=' + out.stream);
+        continue;
+      }
+      /* The host stamp goes through the ONE parser (§🔒.2 via the local alias) — the writer formats
+         it as zone-free local civil time, which is `tMs` by construction, and `new Date(str)` would
+         read it as an instant in the viewer's zone. */
+      var ts = parseTimestamp(c[0]);
+      if (!ts || ts.tMs == null || !isFinite(ts.tMs)) {
+        out.rejected++;
+        if (out.rejectedReasons.indexOf('unparsed host stamp') < 0) out.rejectedReasons.push('unparsed host stamp');
+        continue;
+      }
+      var dev = +c[2],
+        pd = +c[3],
+        resid = +c[4],
+        hoff = +c[5],
+        arel = +c[6],
+        idx = +c[1];
+      out.rows.push({
+        tMs: ts.tMs,
+        offsetMin: ts.offsetMin != null ? ts.offsetMin : null,
+        idx: isFinite(idx) ? idx : null,
+        deviceStepMs: isFinite(dev) ? dev : null,
+        phoneDeltaMs: isFinite(pd) ? pd : null,
+        residualMs: isFinite(resid) ? resid : null,
+        hostOffsetMs: isFinite(hoff) ? hoff : null,
+        atRelMs: isFinite(arel) ? arel : null
+      });
+    }
+    /* ∅ — ROWS PRESENT AND NONE PLACED IS NOT A SEAM-FREE STREAM, the trap `parseEcgRuns` records
+       one function above: an empty row list and an unplaceable one read identically downstream. */
+    out.placedNone = out.dataRows > 0 && out.rows.length === 0;
+    /* A sidecar that states the bound its rows came from can be compared with anything; one that
+       does not is a row list at an unknown threshold. */
+    out.comparable = out.boundMs != null;
+    return out;
+  }
+
+  /* PLACES THE SEAMS THE BOX RECORDED ON THIS NODE'S OWN BEAT AXIS. Pure and exported, so the
+     placement is testable without a 600 s synthetic recording: `axisFn(sampleIndex)` → floating
+     wall-clock ms (`rec.tMsAt`), `nnPeak[k]` the sample index of kept beat k, `tt[k]` its second in
+     the frame the epoch windows use. Returns the seconds to refuse plus the two counts.
+
+     A seam lands on the FIRST KEPT BEAT AT OR AFTER its host stamp, which is what §7's own
+     `clockResyncs` loop does one block up with the device index — the same rule on the one axis a
+     seam does not break. Three states are counted, never guessed:
+       · no axis (a rec that never came from a parse) → every row unplaced
+       · a non-finite stamp                          → that row unplaced
+       · a stamp after the last kept beat            → unplaced, NOT clamped to `tt[N-1]`
+     The last one is the trap: clamping would refuse the final epoch over a seam that lies outside
+     every window, and an over-refusal reads exactly like a correct one. */
+  function placeRecordedSeams(recordedSeams, axisFn, nnPeak, tt, N) {
+    var out = { seamSec: /** @type {number[]} */ ([]), placed: 0, unplaced: 0 };
+    if (!Array.isArray(recordedSeams) || !recordedSeams.length) return out;
+    for (var i = 0; i < recordedSeams.length; i++) {
+      var tMs = recordedSeams[i] && recordedSeams[i].tMs;
+      if (typeof axisFn !== 'function' || tMs == null || !isFinite(tMs) || !(N > 0)) {
+        out.unplaced++;
+        continue;
+      }
+      var k = 0;
+      while (k < N && axisFn(nnPeak[k]) < tMs) k++;
+      if (k < N) {
+        out.seamSec.push(tt[k]);
+        out.placed++;
+      } else out.unplaced++;
+    }
+    return out;
+  }
+
+  /* The seam channel's state for one recording, in the vocabulary the owner's ruling fixes:
+       · no sidecar at all        → { seams: null,  reason: 'no-seam-sidecar' }   — UNKNOWN, never 0
+       · read, rows placed        → { seams: n, examined: m, placed: p, reason: null }
+       · read, rows unplaceable   → { seams: null, placed: 0, reason: 'seam-rows-unplaced' }
+       · read, no row at all      → { seams: 0, examined: m, reason: null }       — a MEASURED zero
+       · read, rows off the axis  → { seams: n, placed: p, reason: 'seams-unplaced-on-axis' }
+     The last two are the pair §∅ exists for: a measured 0 carries NO reason, an absence carries one.
+     `seams` counts the rows this reader placed on the host axis plus the ones it could not, because
+     the file RECORDED them either way — `placed` is what reached the epoch engine, and the two
+     differing is itself the finding. */
+  function _ecgSeamState(rec, placed, unplaced) {
+    var sc = rec && rec.seamsSidecar;
+    if (!sc) return { seams: null, examined: null, placed: null, unplaced: null, boundMs: null, reason: 'no-seam-sidecar' };
+    if (sc.placedNone) {
+      return {
+        seams: null,
+        examined: sc.examined != null ? sc.examined : null,
+        placed: 0,
+        unplaced: sc.dataRows,
+        boundMs: sc.boundMs != null ? sc.boundMs : null,
+        reason: 'seam-rows-unplaced'
+      };
+    }
+    return {
+      seams: sc.rows.length,
+      examined: sc.examined != null ? sc.examined : null,
+      placed: placed,
+      unplaced: unplaced,
+      boundMs: sc.boundMs != null ? sc.boundMs : null,
+      /* A ROW THAT REACHED NO WINDOW IS NOT A SEAM THAT REFUSED ANYTHING, and `reason: null` beside a
+         non-zero `seams` would read as "the refusal ran". It does not run for a row the beat axis
+         cannot host — a stampless recording has no axis, and a seam after the last kept beat lies
+         outside every window (see `placeRecordedSeams`). Named rather than left to `placed`, because
+         a consumer that reads the count and not the pair is the whole failure mode here. */
+      reason: unplaced > 0 ? 'seams-unplaced-on-axis' : null
+    };
+  }
+
   /* Does [i0, i0+len) touch any recorded blanking span? Sample indices, half-open, both sides. */
   function _intersectsRun(spans, i0, len) {
     if (!spans || !spans.length || !(len > 0)) return false;
@@ -5867,10 +6083,10 @@
     // Whole-text entry point — UNCHANGED contract, kept for the browser and every existing caller.
     // It delegates so there is exactly ONE parse body: a second copy would drift, and the two would
     // disagree about a real recording before anyone noticed.
-    // `opts.runsText` is the `_ECGRUNS.txt` companion's bytes when the caller ingested one. LAST and
-    // OPTIONAL per §🧪: every existing 1-arg call is byte-identical, and the no-sidecar path does not
-    // move a single fixture.
-    return parseECGLines(String(text == null ? '' : text).split(/\r?\n/), { runsText: opts && opts.runsText });
+    // `opts.runsText` is the `_ECGRUNS.txt` companion's bytes when the caller ingested one, and
+    // `opts.seamsText` the `_ECGSEAMS.txt` companion's. LAST and OPTIONAL per §🧪: every existing
+    // 1-arg call is byte-identical, and the no-sidecar path does not move a single fixture.
+    return parseECGLines(String(text == null ? '' : text).split(/\r?\n/), { runsText: opts && opts.runsText, seamsText: opts && opts.seamsText });
   }
 
   // LINE-FEED entry point. Takes any ITERABLE of lines, so a Node caller can stream a file in bounded
@@ -5949,6 +6165,19 @@
          this reader could not place. */
       rec.blankingSpans = runs.placedNone ? null : runs.spans;
       if (runs.placedNone) rec.blankingSpansReason = 'sidecar rows unplaced: ' + (runs.rejectedChannels.join(', ') || 'malformed rows only');
+    }
+    /* …and the box's own clock-seam sidecar beside the same stream (SEAM-SIDECAR-CONSUMPTION §4,
+       owner ruling 2026-11-05). Here for the same reason `runsText` is: a streamed caller reaches
+       the same validity a whole-text caller does. LAST and OPTIONAL — a call without it returns the
+       record above unchanged, which is why no existing fixture input moves. */
+    var seams = parseEcgSeams(opts && opts.seamsText);
+    if (seams) {
+      rec.seamsSidecar = seams;
+      /* §∅ — `[]` is the honest answer for a sidecar that examined intervals and recorded no seam,
+         and the WRONG answer for one whose rows this reader could not place. `null` is the absence
+         and the reason names which rows went unplaced. */
+      rec.recordedSeams = seams.placedNone ? null : seams.rows;
+      if (seams.placedNone) rec.recordedSeamsReason = 'seam sidecar rows unplaced: ' + (seams.rejectedReasons.join(', ') || 'malformed rows only');
     }
     return rec;
   }
@@ -6726,6 +6955,24 @@
     if (typeof r.blankingSpansReason === 'string' && r.blankingSpansReason) {
       out.recording.validity = { blankingSpans: null, blankingSpansReason: r.blankingSpansReason };
     }
+    /* …AND WHETHER A SEAM SIDECAR WAS READ AT ALL — UNCONDITIONALLY, the one annotation on this
+       export that every recording carries. Owner ruling 2026-11-05 (board #3569): a night with no
+       seam sidecar reads as seams UNKNOWN, never as zero seams. `coverage` and `blankingSpans` above
+       are assigned conditionally precisely so a clean export's bytes do not move; this key moves
+       them BY ORDER, because an export silent about the channel is exactly what the ruling refuses.
+       The four ECGDex fixtures were regenerated with it. A measured zero carries NO reason and an
+       absence carries `no-seam-sidecar`: a consumer that cannot tell them apart reads an unread
+       sidecar as a clean night, which is the defect one stream over in residue row
+       2026-11-01-no-folded-artefact-names-an-unread-ecg-sidecar. */
+    var seamAnn = r && r.seams && typeof r.seams === 'object' ? r.seams : { seams: null, examined: null, placed: null, unplaced: null, boundMs: null, reason: 'no-seam-sidecar' };
+    out.recording.validity = Object.assign({}, out.recording.validity, {
+      seams: seamAnn.seams,
+      seamsExamined: seamAnn.examined,
+      seamsPlaced: seamAnn.placed,
+      seamsUnplaced: seamAnn.unplaced,
+      seamsBoundMs: seamAnn.boundMs,
+      seamsReason: seamAnn.reason
+    });
     // ── RICH export (gated: opts.rich) — ECG-PPG-FOLLOWUPS-HANDOFF §1 option (a) / ECGDEX-FOLLOWUPS-II §2 ──
     // By DEFAULT this builder emits the LIGHT export above (recording + ganglior_events) and the app's
     // exportGanglior() calls WITHOUT opts.rich → the app's Ganglior stream stays BYTE-IDENTICAL. Only the
@@ -7048,7 +7295,10 @@
          `.runsText` as undefined, so no `input &&` guard: the guard was dead, and an `&&` that no input can
          flip is a mutant no test can kill. */
       var rt = typeof opts.runsText === 'string' ? opts.runsText : typeof input.runsText === 'string' ? input.runsText : null;
-      rec = rt ? parseECGText(txt, { runsText: rt }) : parseECGText(txt);
+      /* …and `_ECGSEAMS.txt` on the same footing (SEAM-SIDECAR-CONSUMPTION §4). Either sidecar alone
+         is enough to take the 2-arg path, and NEITHER leaves the call the 1-arg parse it always was. */
+      var st = typeof opts.seamsText === 'string' ? opts.seamsText : typeof input.seamsText === 'string' ? input.seamsText : null;
+      rec = rt || st ? parseECGText(txt, { runsText: rt, seamsText: st }) : parseECGText(txt);
     }
     if (opts.source) rec.source = opts.source;
     if (opts.offsetMin != null && rec.offsetMin == null) rec.offsetMin = opts.offsetMin;

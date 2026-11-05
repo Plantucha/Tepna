@@ -122,9 +122,23 @@ export const REGISTRY = [
     tag: 'SEAMS',
     names: ['PPGSEAMS', 'PPISEAMS', 'ECGSEAMS', 'HRSEAMS'],
     writer: { file: 'capture-host/writers.py', anchor: 'class _SeamSidecar' },
-    note: 'no node reads it; node consumption waits on the owner at SEAM-SIDECAR-CONSUMPTION §4.4',
+    note: 'ECGDex reads the ECG spelling (SEAM-SIDECAR-CONSUMPTION §4, owner ruling 2026-11-05); the browser drop lane and the four other clock-carrying nodes are open — rows 2026-11-05-the-ecgseams-browser-drop-lane-has-no-companion-lane and 2026-11-05-four-clock-carrying-nodes-still-read-no-seam-sidecar',
     residue: ROW_SEAMNODE,
     readers: [
+      {
+        kind: 'node',
+        file: 'ecgdex-dsp.js',
+        anchor: 'function parseEcgSeams(',
+        onAbsent: "null; the record carries no seam field and the export reads seams:null with the reason 'no-seam-sidecar' — UNKNOWN, never zero",
+        test: 'tests/dex-tests.js::a night with NO seam sidecar reads as seams UNKNOWN'
+      },
+      {
+        kind: 'node',
+        file: 'ecgdex-dsp.js',
+        anchor: 'function placeRecordedSeams(',
+        onAbsent: 'no rows gives no refusal; a row the beat axis cannot host is counted and named, never clamped onto the last epoch',
+        test: 'tests/dex-tests.js::a seam after the last kept beat is UNPLACED, never clamped onto the final epoch'
+      },
       {
         kind: 'box',
         file: 'capture-host/solid_night_inputs.py',

@@ -380,7 +380,7 @@ function selftest() {
 }
 
 /* ── the real corpus run ────────────────────────────────────────────────────────────────────── */
-let ECGDSP, PPGDSP;
+let ECGDSP, PPGDSP, PATGate;
 function loadDsps() {
   if (ECGDSP) return;
   const sandbox = {};
@@ -392,24 +392,64 @@ function loadDsps() {
   sandbox.clearTimeout = clearTimeout;
   sandbox.__DEX_NAMESPACED__ = true;
   const ctx = vm.createContext(sandbox);
-  for (const f of ['clock.js', 'kernel-constants.js', 'ecgdex-dsp.js', 'ppgdex-dsp.js']) {
+  for (const f of ['clock.js', 'kernel-constants.js', 'pat-gate.js', 'ecgdex-dsp.js', 'ppgdex-dsp.js']) {
     const p = join(ROOT, f);
     if (!existsSync(p)) throw new Error('module not found: ' + f);
     vm.runInContext(DexBuild.classicify(readFileSync(p, 'utf8')), ctx, { filename: f });
   }
   ECGDSP = ctx.ECGDSP || (ctx.ECGDex && ctx.ECGDex._bare);
   PPGDSP = ctx.PPGDSP || (ctx.PpgDex && ctx.PpgDex._bare);
-  for (const [n, v] of Object.entries({ ECGDSP, PPGDSP })) if (!v) throw new Error('beat-correspondence: ' + n + ' did not load');
+  PATGate = ctx.PATGate;
+  for (const [n, v] of Object.entries({ ECGDSP, PPGDSP, PATGate })) if (!v) throw new Error('beat-correspondence: ' + n + ' did not load');
+  /* ∅ `PATGate` CARRIES THE BLANKING REFUSAL, SO AN UNBOUND REALM MUST STOP THE RUN. A `typeof`
+     guard here would turn a realm that never loaded `pat-gate.js` into a silent return of the
+     pre-sidecar numbers — the §👥.3 conversion of a crash into silent disablement. */
+  for (const fn of ['runRanges', 'dropInRuns']) if (typeof PATGate[fn] !== 'function') throw new Error('beat-correspondence: PATGate.' + fn + ' unavailable — the blanking refusal cannot run');
 }
 
-function ecgRpeakTimes(text) {
-  const rec = ECGDSP.parseECG(text);
+/* ── @port-from pat-feasibility-worker.js#ecgRpeakTimes ─────────────────────────
+   @port-sha a0779492738e
+   RECONCILED 2026-11-05 against that source text, for row
+   2026-10-28-pat-legs-refuse-only-the-spans-a-sidecar-confirmed. The worker's leg now publishes a
+   validity record on all three companion states rather than a bare `null`, and holds its unmeasured
+   union at `null` where the companion's rows went unplaced. The `blanking` block below already
+   carried both facts — `sidecar: 'absent' | 'read' | 'unplaced'` with `null` sizes beside the parser's
+   own reason — so this copy reconciles with no code change. The worker's `validity` record serves the
+   worker's own consumers, which is why it stays outside this port.
+   PORTED 2026-11-05 for row 2026-11-03-the-ecg-leg-of-the-shared-pat-extractor-takes-no-sidecar.
+   `runsText` (OPTIONAL, LAST — §🧪) carries the `_ECGRUNS.txt` bytes. A blanking run the box
+   recorded now leaves ahead of the R-peak train, which is where §∅ puts the rail: a peak inside a
+   recorded run is no beat at all, never a low-confidence one. Absent, every line below runs as it
+   did, so no published number moves on the no-sidecar path.
+   TWO DELIBERATE DEVIATIONS from the source text. This copy returns an OBJECT, because the bare
+   `Float64Array` left no room for the absence, and §∅ holds an output over absent input to
+   reporting it. And `PATGate` binds above with a refusal instead of the source's `typeof` guard.
+   DELIBERATELY NOT PORTED: the source's `hrConfidence`, `dropArtifactPeaks` gating and
+   `unmeasuredSec`, which this tool has never run. */
+function ecgRpeakTimes(text, runsText) {
+  const rec = runsText ? ECGDSP.parseECG(text, { runsText }) : ECGDSP.parseECG(text);
   if (rec.t0Ms == null) throw new Error('ECG file carried no phone timestamp.');
   const bp = ECGDSP.bandpass(rec.int16, rec.fs);
-  const peaks = ECGDSP.detectPeaks(rec.int16, bp, rec.fs);
+  const detected = ECGDSP.detectPeaks(rec.int16, bp, rec.fs);
+  const sawSidecar = !!rec.runsSidecar;
+  const unplacedWhy = typeof rec.blankingSpansReason === 'string' && rec.blankingSpansReason ? rec.blankingSpansReason : null;
+  const blankRanges = PATGate.runRanges(rec.blankingSpans);
+  const blanked = PATGate.dropInRuns(detected, blankRanges);
+  const peaks = blanked.kept;
   const t = new Float64Array(peaks.length);
   for (let i = 0; i < peaks.length; i++) t[i] = rec.t0Ms + (peaks[i] / rec.fs) * 1000;
-  return t;
+  /* ∅ `nDropped` reads `null` when no run set reached this leg and `0` when one arrived and named
+     no run inside the stream. A measured zero is not an absence. */
+  return {
+    times: t,
+    nDetected: detected.length,
+    blanking: {
+      sidecar: sawSidecar ? (unplacedWhy ? 'unplaced' : 'read') : 'absent',
+      reason: unplacedWhy,
+      nRanges: sawSidecar && !unplacedWhy ? blankRanges.length : null,
+      nDropped: sawSidecar && !unplacedWhy ? blanked.nDropped : null
+    }
+  };
 }
 /* This copy had no `runsText` PARAMETER, so no caller could have handed it one — the guarded
    ternary below is the shape the shared extractor ships (row
@@ -556,13 +596,19 @@ async function main() {
     `population: ${population.status} — reading 1 ECG and 1 PPG of ${population.population.checked} pair-eligible file(s) (${ecgF.length} ECG, ${ppgF.length} PPG)${population.reason ? `\n  ${population.reason}` : ''}`
   );
   console.log('POPULATION ' + JSON.stringify(population));
-  const tA = Array.from(ecgRpeakTimes(readFileSync(join(dir, ecgF[0]), 'utf8')));
+  const ePath = join(dir, ecgF[0]);
+  const eRead = ecgRpeakTimes(readFileSync(ePath, 'utf8'), runsOf(ePath, 'ECG'));
+  const tA = Array.from(eRead.times);
   const pPath = join(dir, ppgF[0]);
   const tB = Array.from(ppgFootTimes(readFileSync(pPath, 'utf8'), runsOf(pPath, 'PPG')));
   const rrA = tA.slice(1).map((x, i) => x - tA[i]),
     rrB = tB.slice(1).map((x, i) => x - tB[i]);
   console.log(
     `extracted: ECG ${tA.length} R-peaks (${((tA[tA.length - 1] - tA[0]) / 60000).toFixed(0)} min)   PPG ${tB.length} feet (${((tB[tB.length - 1] - tB[0]) / 60000).toFixed(0)} min)   t0 delta ${((tB[0] - tA[0]) / 1000).toFixed(1)} s`
+  );
+  const eb = eRead.blanking;
+  console.log(
+    `  ECG blanking: sidecar ${eb.sidecar}${eb.reason ? ` (${eb.reason})` : ''} · ${eb.nDropped == null ? 'dropped null — no run set reached this leg' : `${eb.nDropped} of ${eRead.nDetected} R-peaks dropped across ${eb.nRanges} run(s)`}`
   );
   const an = nccAnchor(rrA, rrB, 400);
   console.log(`anchor: ${an.ok ? `lag ${an.lag} beats, ncc ${an.ncc.toFixed(4)}, margin ${an.margin.toFixed(4)}` : 'REFUSED — ' + an.reason}`);
