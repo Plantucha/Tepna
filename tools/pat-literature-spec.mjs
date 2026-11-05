@@ -55,6 +55,7 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import { dissentStampOf, dissentTallyLine, signsOf } from './consensus-dissent-core.mjs';
 import { NIGHT_RE, notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
 import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
 
@@ -286,7 +287,15 @@ function ppgFootTimes(text, runsText, opts) {
      (`ppgdex-dsp.js` applies, then picks): a flipped dissenter's peak count moves, so a pick made
      first would ratify a reference chosen under the polarity the device-wide majority overrules.
      The call is a no-op on a unanimous set and on a 1-1 split, so no undissenting night moves. */
-  PPGDSP.applyConsensusPolarity(per, (i, sgn) => PPGDSP.detectChannel(rec.ch[i], rec.fs, sgn));
+  /* ∅ THE RETURN IS THE ONLY RECORD THAT THIS STREAM MOVED, and the signs are read BEFORE the pass:
+     after it the dissenter carries the majority sign and every stream reads unanimous. The spec holds
+     its residuals against the literature, so a reader has to see which streams the shipped pass
+     corrected first (row 2026-11-04-pat-figures-were-published-under-the-overruled-polarity). */
+  const polaritySigns = signsOf(per);
+  const polarity = dissentStampOf(
+    polaritySigns,
+    PPGDSP.applyConsensusPolarity(per, (i, sgn) => PPGDSP.detectChannel(rec.ch[i], rec.fs, sgn))
+  );
   let refIdx = 0,
     best = -1;
   per.forEach((p, i) => {
@@ -367,6 +376,8 @@ function ppgFootTimes(text, runsText, opts) {
     fs: rec.fs,
     times: t,
     n: cons.feet.length,
+    polarity,
+    polaritySigns,
     usedRelSec: cons.feet.length > 0 && nViaRel === cons.feet.length,
     feetViaRelSec: nViaRel,
     feetViaSampleRate: cons.feet.length - nViaRel,
@@ -429,6 +440,8 @@ const popBefore = snapshotNights(DIR, { re: NIGHT_RE });
 const nights = popBefore.nights.filter((d) => (!ONLY || d === ONLY) && fs.statSync(path.join(DIR, d)).isDirectory());
 const covered = [];
 const ALL = [];
+/* One stamp per SCORED night, so the pooled line counts the same streams the table above lists. */
+const polStamps = [];
 let anyFs = { ecg: null, ppg: null };
 for (const n of nights) {
   const dir = path.join(DIR, n);
@@ -467,6 +480,7 @@ for (const n of nights) {
   );
   ALL.push(...c.lags);
   covered.push(n);
+  polStamps.push(P.polarity);
 }
 console.log('  ' + '-'.repeat(88));
 /* THE POPULATION, REPORTED BEFORE THE EARLY EXIT — a run that measures nothing still walked a root,
@@ -481,6 +495,7 @@ console.log(
 );
 const rl = ruleLine(population);
 if (rl) console.log('  ' + rl);
+console.log(dissentTallyLine(polStamps));
 console.log(`  selected but not scored: ${unscored.length ? unscored.join(', ') : 'none'}`);
 console.log('POPULATION ' + JSON.stringify(population));
 const validity = validityLine(VALIDITY);

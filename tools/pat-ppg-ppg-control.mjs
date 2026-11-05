@@ -49,6 +49,7 @@
  */
 import { readdirSync, readFileSync, statSync, existsSync, writeFileSync } from 'node:fs';
 import { join, basename } from 'node:path';
+import { dissentStampOf, dissentTallyLine, signsOf } from './consensus-dissent-core.mjs';
 import { loadDsps, getDsps, median, quantile, BIN_MIN } from './pat-matchrate-strict.mjs';
 import { printVerdict, undeclaredVerdict, verdictSample } from './verdict-undeclared.mjs';
 import { isCliEntry } from './argv-guard.mjs';
@@ -118,7 +119,15 @@ function fiducialTimes(text, runsText) {
      (`ppgdex-dsp.js` applies, then picks): a flipped dissenter's peak count moves, so a pick made
      first would ratify a reference chosen under the polarity the device-wide majority overrules.
      The call is a no-op on a unanimous set and on a 1-1 split, so no undissenting night moves. */
-  PPGDSP.applyConsensusPolarity(per, (i, sgn) => PPGDSP.detectChannel(rec.ch[i], rec.fs, sgn));
+  /* ∅ THE RETURN IS THE ONLY RECORD THAT THIS STREAM MOVED, and the signs are read BEFORE the pass:
+     after it the dissenter carries the majority sign and every stream reads unanimous (row
+     2026-11-04-pat-figures-were-published-under-the-overruled-polarity). Both sides of the control
+     are PPG, so both sides carry a stamp and the pooled line counts each stream once. */
+  const polaritySigns = signsOf(per);
+  const polarity = dissentStampOf(
+    polaritySigns,
+    PPGDSP.applyConsensusPolarity(per, (i, sgn) => PPGDSP.detectChannel(rec.ch[i], rec.fs, sgn))
+  );
   let refIdx = 0,
     best = -1;
   per.forEach((p, i) => {
@@ -144,7 +153,7 @@ function fiducialTimes(text, runsText) {
   const t = Array.from(cons.feet, at)
     .filter(isFinite)
     .sort((a, b) => a - b);
-  return { t0Ms: rec.t0Ms, durSec: rec.durSec, times: t, site: rec.site };
+  return { t0Ms: rec.t0Ms, durSec: rec.durSec, times: t, site: rec.site, polarity, polaritySigns };
 }
 
 /* Nearest counterpart within +-WIN_MS, signed. Symmetric because neither device is known to lead. */
@@ -335,6 +344,7 @@ function main() {
     );
     const populationRule = ruleLine(population);
     if (populationRule) console.log(populationRule);
+    console.log(dissentTallyLine(polStamps));
     /* THE OTHER HALF OF THE POPULATION. The verdict is about MOVEMENT; it says nothing about the
        offered nights this run never scored, and a COUNT names nothing to chase. Both causes land
        here: the `--only` cap and the nights holding no ring/ankle pair. */
@@ -350,6 +360,9 @@ function main() {
   console.log('-'.repeat(100));
   const bests = [];
   const allPairs = [];
+  /* Every PPG stream this run READ, finger and ankle alike — the tally's population is the streams
+     scored, never the nights. */
+  const polStamps = [];
   const OUT = arg('--json-out', '/tmp/ppg-ppg-control.json');
   for (const n of nights) {
     const dir = join(DIR, n);
@@ -374,6 +387,8 @@ function main() {
         }
       })
       .filter(Boolean);
+    for (const r of F) polStamps.push(r.polarity);
+    for (const r of W) polStamps.push(r.polarity);
     let best = null,
       nPairs = 0;
     for (const a of F)

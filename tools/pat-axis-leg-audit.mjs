@@ -46,6 +46,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { dissentStampLine, dissentStampOf, dissentTallyLine, signsOf } from './consensus-dissent-core.mjs';
 import { refuseUnknownArgvOrExit, isCliEntry } from './argv-guard.mjs';
 import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
 
@@ -199,7 +200,12 @@ async function main() {
        (`ppgdex-dsp.js` applies, then picks): a flipped dissenter's peak count moves, so a pick made
        first would ratify a reference chosen under the polarity the majority overrules. The call is a
        no-op on a unanimous set and on a 1-1 split, so no undissenting night moves. */
-    PPGDSP.applyConsensusPolarity(per, (i, sgn) => PPGDSP.detectChannel(rec.ch[i], rec.fs, sgn));
+    /* ∅ THE RETURN IS THE ONLY RECORD THAT THIS STREAM MOVED. The signs are read BEFORE the pass,
+       because after it the dissenter carries the majority sign and every record reads unanimous —
+       row 2026-11-04-pat-figures-were-published-under-the-overruled-polarity. */
+    const signsBefore = signsOf(per);
+    const corrected = PPGDSP.applyConsensusPolarity(per, (i, sgn) => PPGDSP.detectChannel(rec.ch[i], rec.fs, sgn));
+    const pol = dissentStampOf(signsBefore, corrected);
     let refIdx = 0;
     let best = -1;
     per.forEach((p, i) => {
@@ -217,11 +223,12 @@ async function main() {
     const durSec = rec.n / rec.fs;
     /* §17 provenance, printed beside the error so `ok` is never read as `independent`. */
     const predictedMs = h.ok && h.ppm != null ? Math.abs(h.ppm) * 1e-6 * durSec * 1000 : Number.NaN;
-    rows.push({ file: f.split('/').pop(), ax, a, h, predictedMs });
+    rows.push({ file: f.split('/').pop(), ax, a, h, predictedMs, pol });
     console.log(`${f.split('/').pop()}`);
     console.log(`   axis ${ax.nominal ? 'NOMINAL' : 'REAL'} (max dev ${ax.maxDevMs.toFixed(1)} ms) · feet ${a.n} fractional ${a.fractional} · relSec branch taken ${a.branchTaken}/${a.n}`);
     console.log(`   within-5min-bin residual: median ${a.withinBinMedianMs.toFixed(2)} ms  p90 ${a.withinBinP90Ms.toFixed(2)}  max ${a.withinBinMaxMs.toFixed(2)}  (${a.bins} bins)`);
     console.log(`   beat-to-beat |delta| median ${a.beatToBeatMedianMs.toFixed(3)} ms  -> ramp, not jitter`);
+    console.log('  ' + dissentStampLine(pol, signsBefore).trim());
     console.log(
       `   §17 provenance: ok=${!!h.ok} independent=${h.independent} spreadMs=${h.spreadMs != null ? h.spreadMs.toFixed(2) : '-'} ppm=${h.ppm != null ? h.ppm.toFixed(1) : '-'} drawn=${h.drawn} qShare=${h.quantizedShare != null ? h.quantizedShare.toFixed(3) : '-'}`
     );
@@ -235,6 +242,7 @@ async function main() {
     const tot = rows.reduce((s, r) => s + r.a.n, 0);
     const validity = validityLine(VALIDITY);
     if (validity) console.log('  ' + validity);
+    console.log(dissentTallyLine(rows.map((r) => r.pol)));
     console.log(`\nAGGREGATE over ${rows.length} files: relSec branch taken ${taken}/${tot} feet · within-bin residual median-of-medians ${q(wb, 0.5).toFixed(2)} ms`);
   }
 }
