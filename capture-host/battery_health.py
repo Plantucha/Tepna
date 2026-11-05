@@ -9,12 +9,12 @@ the median of its last RECENT_NIGHTS is its present. Capacity is estimated as ba
 
 WHAT IT MEASURED, capture box 2026-07-25 -> 2026-11-04, this exact rule:
 
-    device         qualifying nights   baseline %/h   present %/h   present / baseline (range seen)
-    O2Ring              73                3.33           3.89         1.17 (0.53 .. 1.17, climbing)
-    Verity Sense        65                4.85           4.58         0.94 (0.78 .. 0.97)
+    device         qualifying nights   baseline %/h   present %/h   present / baseline
+    O2Ring              73                3.33           3.89         1.17
+    Verity Sense        48                4.26           4.58         1.07
 
 AGEING_DRAIN_RATIO = 1.25 is the 80 % capacity point (1 / 0.8), the usual end-of-life mark for a Li-ion cell.
-It sits over every ratio the Verity showed and over the ring's present 1.17. The push repeats at each further
+It sits over both present ratios. The push repeats at each further
 CAPACITY_STEP_PCT lost, never twice for one step.
 
 THE H10 IS OUT, on purpose. Its coin cell is not recharged, so it does not age, it empties; and its gauge reports
@@ -154,6 +154,12 @@ def noise_text(name: str, rise: int) -> tuple[str, str]:
     )
 
 
+def _model_has(d: dict, *names: str) -> bool:
+    """Does the config `model` name one of `names`, case-insensitive? A device without a model names none."""
+    m = d.get("model")
+    return isinstance(m, str) and any(n in m.lower() for n in names)
+
+
 def _device_of(row_dev: str, row_addr: str, devices: list[dict]) -> dict | None:
     for d in devices:
         addr = (d.get("address") or "").lower()
@@ -196,21 +202,28 @@ def _band_rows(dirs: list[str], night: str, devices: list[dict]) -> dict[str, li
     return out
 
 
-def _stamp_at(path: str, *, last: bool) -> _dt.datetime | None:
-    with open(path, "rb") as fh:
-        if last:
-            fh.seek(max(0, os.path.getsize(path) - _TAIL_BYTES))
-            lines = fh.read().decode("utf-8", "replace").splitlines()[::-1]
-        else:
-            lines = [fh.readline().decode("utf-8", "replace") for _ in range(_HEAD_LINES)]
+def _first_stamp(lines: list[str]) -> _dt.datetime | None:
     return next((s for s in map(_ni.parse_stamp, lines) if s is not None), None)
+
+
+def _head_stamp(path: str) -> _dt.datetime | None:
+    """The first stamp in the file's first _HEAD_LINES lines."""
+    with open(path, "rb") as fh:
+        return _first_stamp([fh.readline().decode("utf-8", "replace") for _ in range(_HEAD_LINES)])
+
+
+def _tail_stamp(path: str) -> _dt.datetime | None:
+    """The last stamp in the file's last _TAIL_BYTES bytes."""
+    with open(path, "rb") as fh:
+        fh.seek(max(0, os.path.getsize(path) - _TAIL_BYTES))
+        return _first_stamp(fh.read().decode("utf-8", "replace").splitlines()[::-1])
 
 
 def _ring_spans(dirs: list[str]) -> list[tuple[_dt.datetime, _dt.datetime]]:
     spans = []
     for path in sorted(p for d in dirs for p in glob.glob(os.path.join(d, _RING_SPO2))):
         try:
-            a, b = _stamp_at(path, last=False), _stamp_at(path, last=True)
+            a, b = _head_stamp(path), _tail_stamp(path)
         except OSError:
             log.warning("battery health: %s is unreadable, so its worn span is absent", path, exc_info=True)
             continue
@@ -224,7 +237,7 @@ def update(captures: str, devices: list[dict], today: _dt.date, state: dict | No
     state: `{device name: {"nights": {night: drain}, "noise": {night: rise}, ...latches}}` plus `"done"`."""
     state = copy.deepcopy(state or {})
     done = set(state.get("done") or [])
-    ageing = [d for d in devices if any(m in str(d.get("model", "")).lower() for m in AGEING_MODELS)]
+    ageing = [d for d in devices if _model_has(d, *AGEING_MODELS)]
     try:
         folders = sorted(n for n in os.listdir(captures) if is_night(n))
     except OSError:
@@ -234,7 +247,7 @@ def update(captures: str, devices: list[dict], today: _dt.date, state: dict | No
         if night in done or night > last_settled or not ageing:
             continue
         nxt = (_dt.date.fromisoformat(night) + _dt.timedelta(days=1)).isoformat()
-        dirs = [os.path.join(captures, n) for n in (night, nxt) if os.path.isdir(os.path.join(captures, n))]
+        dirs = [os.path.join(captures, n) for n in (night, nxt)]  # an absent folder globs to nothing
         rows = _band_rows(dirs, night, ageing)
         spans = None
         for d in ageing:
@@ -243,7 +256,7 @@ def update(captures: str, devices: list[dict], today: _dt.date, state: dict | No
             drain = night_drain(r)
             if drain is not None:
                 rec["nights"][night] = drain
-            if RING_MODEL in str(d.get("model", "")).lower():
+            if _model_has(d, RING_MODEL):
                 spans = _ring_spans(dirs) if spans is None else spans
                 rise = worn_max_rise(r, spans)
                 if rise is not None:
