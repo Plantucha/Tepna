@@ -474,7 +474,7 @@
      excludes for an O2Ring primary), but a slot shared by two of one device's sidecars is a pairing
      that fails by looking like it worked, and the fix costs one word. */
   var _COMPANION_KINDS = {
-    ecg: ['rr', 'hr', 'acc', 'runs', 'accruns'],
+    ecg: ['rr', 'hr', 'acc', 'runs', 'accruns', 'seams'],
     ppg: ['acc', 'gyro', 'magn', 'ppi', 'runs', 'accruns'],
     spo2: ['spo2', 'ppg2wruns'],
     acc: ['accruns', 'gyro', 'magn']
@@ -497,6 +497,14 @@
        ECG's own sidecar could be silently replaced by the ACC's, and the failure would look like a
        working pairing. A distinct kind cannot collide. */
     if (/_ACCRUNS\b|_ACCRUNS\./.test(u)) return 'accruns';
+    /* THE BOX'S CLOCK-SEAM SIDECAR for the ECG stream (SEAM-SIDECAR-CONSUMPTION §4; owner ruling
+       2026-11-05). Its OWN kind for the reason the block above states — the box writes one sidecar
+       per stream, so `_ACCSEAMS`, `_HRSEAMS` and `_PPISEAMS` exist beside this one, and a shared
+       slot would let nearest-stamp replace the ECG's own seams with the ACC's. Tested before `_ECG`,
+       which cannot match it anyway (no boundary before SEAMS), exactly as `_ECGRUNS` is. Only the
+       ECG spelling returns a kind here: a sidecar this node cannot place must not arrive as one it
+       can. */
+    if (/_ECGSEAMS\b|_ECGSEAMS\./.test(u)) return 'seams';
     /* The O2Ring's raw dual-wavelength lane, and its sidecar takes its OWN kind for the reason the
        block above states — one device, two sidecars, and a shared slot is a silent replacement.
        `_PPG2WRUNS` is tested FIRST because the sidecar name is built by APPENDING to the stream

@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED (census BUILT, ingest owner-blocked — verified 2026-11-04 (Osprey): `tools/seam-sidecar-yield.mjs` ships, its `--selftest` passes whole, and `tools/verdict-adoption.json` carries it as `decides`/`adopted`. The four census items are met. No `*-dsp.js` names a seam sidecar, and `tools/trio-fold-validity.mjs` holds no seam reader beside `readRunsSidecar`, so the §4 ingest is unstarted. §4.4 waits on the owner) · **Created:** 2026-11-03 · **Source:** residue `2026-11-02-no-node-reads-a-seam-sidecar-or-the-radio-clock` (Wren) · **Discharges** the owner's 2026-09-16 precondition (§1). **Measured 2026-11-03 (Heron):** `tools/seam-sidecar-yield.mjs` reads PASS over the reachable corpus. No reconnect boundary recorded since the seed fix falls outside an examined population, and §3 carries the counts.
+**Status:** DONE — 2026-11-05 (ECGDex reads the ECG spelling: `parseEcgSeams` + `placeRecordedSeams` in `ecgdex-dsp.js`, the epoch spanning a recorded seam is refused as `clock-seam`, and every ECG export carries `recording.validity.seams`. §4.4 is ruled — see §4 item 4. Two rows carry the remainder: `2026-11-05-the-ecgseams-browser-drop-lane-has-no-companion-lane` and `2026-11-05-four-clock-carrying-nodes-still-read-no-seam-sidecar`. Earlier, verified 2026-11-04 (Osprey): `tools/seam-sidecar-yield.mjs` ships, its `--selftest` passes whole, and `tools/verdict-adoption.json` carries it as `decides`/`adopted`. The four census items are met) · **Created:** 2026-11-03 · **Source:** residue `2026-11-02-no-node-reads-a-seam-sidecar-or-the-radio-clock` (Wren) · **Discharges** the owner's 2026-09-16 precondition (§1). **Measured 2026-11-03 (Heron):** `tools/seam-sidecar-yield.mjs` reads PASS over the reachable corpus. No reconnect boundary recorded since the seed fix falls outside an examined population, and §3 carries the counts.
 
 # Brief — the seam sidecar is proven on real nights, so a node may read it
 
@@ -81,11 +81,26 @@ is not a short window. It is two windows.
 2. **`null` plus a named reason over a window that spans a seam**, with the reason `seam` rather
    than a borrowed one. A 0.6 s seam refuses the window; a 120 s dropout keeps the metric with its
    covered span beside it.
+   **LANDED 2026-11-05 as `clock-seam`, not `seam`.** `epochEngine` already refuses on that word,
+   with a pre-stated precedence over `blanking-run` and `too-few-beats`, and the box's own sidecar
+   header says `rule=clock-seam`. A second spelling for one fact would make the consumer ask which
+   observer refused, which is what `validity.seamsPlaced` answers instead.
 3. **The nodes that carry `clock.js`** are the candidates, because a seam is a clock fact. GlucoDex
    and CPAPDex carry no `DexClock`, so they are out by construction (§✅).
 4. **Every old night predates the channel.** Whether a seam-free night and a night with no sidecar
    read the same is a ruling, not a measurement — `BLE-TIMEBASE-EDGE-STAMP-FOLLOWUPS-2026-10-25-BRIEF.md`
    §4 holds the same question for the edge stamp, and it is still the owner's.
+   🔴 **RULED by the owner 2026-11-05** (16:20Z, "Implement it now all"; relayed to the fleet as
+   board #3569, Kestrel's proposal): **a night with no seam sidecar reads as seams UNKNOWN, never as
+   zero seams.** The metric stays and the night carries `seams: null` with the reason
+   `no-seam-sidecar`. A window that spans a recorded seam refuses.
+   The annotation is therefore **UNCONDITIONAL** on the export — the one key on an ECG export that
+   every recording carries. `coverage` and `blankingSpans` are assigned conditionally so a clean
+   export's bytes do not move; this one moves them by order, because an export silent about the
+   channel is exactly what the ruling refuses. The four ECGDex fixtures were regenerated with it.
+   Its vocabulary is pre-stated and four-valued: `no-seam-sidecar` (no file), `seam-rows-unplaced`
+   (the parser placed no row), `seams-unplaced-on-axis` (rows parsed, the beat axis could not host
+   them) and `null` beside a count — including a MEASURED `0`, which carries no reason.
 5. **The gate cost is real.** A seam reader inside any `*-dsp.js` moves `computeHash` for every
    bundle carrying it, so the ingest lands as its own unit with its own fixture regeneration.
 
@@ -98,10 +113,21 @@ is not a short window. It is two windows.
 - [x] The census excludes a file it cannot place against its stream by name, and clamps none.
 - [x] The tool is a gated `decides` producer in `tools/verdict-adoption.json`, with a corpus-free
       `--selftest` and `--verdict-sample`.
-- [ ] A node reads the sidecar and refuses a window that spans a seam (§4, a separate unit).
-- [ ] The owner rules on item §4.4 — how a night with no sidecar reads.
+- [x] A node reads the sidecar and refuses a window that spans a seam (§4, a separate unit).
+      **ECGDex, 2026-11-05.** `parseEcgSeams` reads the file; `placeRecordedSeams` puts each seam on
+      the node's own host-disciplined beat axis (`rec.tMsAt`), and the epoch spanning it is refused
+      as `clock-seam`. 29 assertions in `tests/dex-tests.js` cover the parse, the placement and the
+      annotation. The headless (`compute`/`parseECG`/`parseECGLines`) and orchestrated
+      (`signal-orchestrate` → `adapters/polar-h10-ecg.js`) paths carry the sidecar; the browser drop
+      lane does not, and its row names why.
+- [x] The owner rules on item §4.4 — how a night with no sidecar reads. **Ruled 2026-11-05** — the
+      ruling and its consequences are quoted in §4 item 4.
 
 ## 6 · What this brief does not do
 
 It wires no node, moves no `computeHash` and changes no export. The census is read-only and names
 its roots on the command line, because a census of a tree nobody named is a census of nothing.
+
+**Superseded in part by the execution of 2026-11-05**, which is the "separate unit" §4 item 5
+sized: it moved `computeHash` for the four bundles carrying `ecgdex-dsp.js` and regenerated the four
+ECGDex fixtures. Nothing above is withdrawn — §1 to §3 are the measurement this unit stood on.
