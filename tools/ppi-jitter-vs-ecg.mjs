@@ -52,7 +52,7 @@
  *   node tools/ppi-jitter-vs-ecg.mjs --verdict-sample   # the population verdict the adoption gate reads
  * ════════════════════════════════════════════════════════════════════════════════════════════════ */
 import vm from 'node:vm';
-import { readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { closeSync, openSync, readFileSync, readSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, relative } from 'node:path';
 import { createRequire } from 'node:module';
@@ -185,7 +185,7 @@ import {
   ppiJitterMs,
   rateAgreement
 } from './ppi-match.mjs';
-import { gitCommitOf, notCovered, populationVerdict, ruleLine, snapshotEntries } from './corpus-scope-core.mjs';
+import { dedupeByIdentity, gitCommitOf, notCovered, populationVerdict, ruleLine, snapshotEntries } from './corpus-scope-core.mjs';
 import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
 
 /* ── THE VALIDITY SIDECAR RIDES WITH THE STREAM (row 2026-10-17-sample-parsers-called-without-their-sidecar) ──
@@ -1205,6 +1205,45 @@ function selftest() {
     );
   }
 
+  /* ══════ THE CAP COUNTS NIGHTS, AND THE WALK REPORTS WHAT IT COULD NOT READ ══════
+     The key reader is injected, so these run over a synthetic offer and never touch a corpus. */
+  {
+    const keys = { '/a/n1-a.txt': '2026-06-01', '/a/n1-b.txt': '2026-06-01', '/a/n2.txt': '2026-06-02', '/a/n3.txt': '2026-06-03' };
+    const rows = Object.keys(keys).map((x) => ({ p: x, size: 10 }));
+    const two = capByNights(rows, 2, (x) => keys[x] || null);
+    ok(
+      'the cap counts NIGHTS, keeps them whole and takes the earliest first',
+      two.keptNights.length === 2 && two.keptNights[0] === '2026-06-01' && two.kept.length === 3 && two.droppedNights.join() === '2026-06-03'
+    );
+    /* THE REPRODUCTION CASE. The committed audit ran --max-nights 54 over a corpus holding 30 nights,
+       so a cap wider than the corpus must leave the population exactly as it found it. */
+    const wide = capByNights(rows, 54, (x) => keys[x] || null);
+    ok('a cap wider than the corpus leaves every night and every file', wide.kept.length === rows.length && wide.droppedNights.length === 0 && wide.keptNights.length === 3);
+    /* A SIZE RANK WOULD HAVE KEPT THE BIG FILE; A NIGHT CAP KEEPS THE EARLY NIGHT. The two orders
+       disagree here on purpose, which is what makes the old selector size-biased. */
+    const sized = [
+      { p: '/a/late-huge.txt', size: 900 },
+      { p: '/a/early-small.txt', size: 1 }
+    ];
+    const one = capByNights(sized, 1, (x) => (x === '/a/late-huge.txt' ? '2026-07-09' : '2026-07-01'));
+    ok('the night cap is not keyed on file size', one.kept.length === 1 && one.kept[0].p === '/a/early-small.txt');
+    /* NIGHT UNKNOWN IS NOT NIGHT ABSENT (§∅): an undated head costs a slot but never displaces a
+       dated night, and it is reported rather than binned. */
+    const mixed = [
+      { p: '/a/dated.txt', size: 2 },
+      { p: '/a/mystery.txt', size: 2 }
+    ];
+    const tight = capByNights(mixed, 1, (x) => (x === '/a/dated.txt' ? '2026-08-02' : null));
+    const roomy = capByNights(mixed, 2, (x) => (x === '/a/dated.txt' ? '2026-08-02' : null));
+    ok(
+      'an undated head never displaces a dated night, and rides only in leftover room',
+      tight.kept.length === 1 && tight.kept[0].p === '/a/dated.txt' && tight.undated.length === 1 && tight.keptUndated.length === 0 && roomy.kept.length === 2
+    );
+    const errs = [];
+    const got = walk('/nonexistent-root-for-the-selftest-' + process.pid, [], errs);
+    ok('a walk that cannot read a directory collects the reason instead of swallowing it', got.length === 0 && errs.length === 1 && typeof errs[0].reason === 'string' && errs[0].reason.length > 0);
+  }
+
   console.log(fail ? '\nselftest: ' + fail + ' FAILED' : '\nselftest: all green');
   return fail;
 }
@@ -1348,17 +1387,31 @@ function ecgEpochHrv(s, t0, t1) {
   return { ok: true, rmssd: +rm.toFixed(1), sdnn: +E.std(seg).toFixed(1), n: seg.length };
 }
 
-const walk = (d, o = []) => {
+/* ── A WALK THAT COULD NOT READ A DIRECTORY SAYS SO ───────────────────────────────────────────────
+   Row 2026-11-04-a-stalled-corpus-walk-blames-the-vendor-naming: the catch-all swallowed every I/O
+   error, so a storage stall under the capture root returned the files gathered so far — none, when
+   the first entry stalls — and the run then exited under a message about the VENDOR NAMING. Measured
+   over one root 8 min apart: `0 file(s) walked` at 20:30Z inside a NAS outage, `7038 file(s) walked`
+   at 20:38Z after it. Nothing was walked either time the message was printed, so it was a statement
+   about neither the pattern nor the corpus.
+
+   THE OWNER'S RULING DECIDES WHICH ONE REFUSES (CLAUDE.md §∅): a DISCONTINUITY refuses, reduced
+   COVERAGE annotates. A walk that gathered NOTHING while a directory refused is the first — it has no
+   corpus to report on. A walk that gathered files past an unreadable subdirectory is the second, and
+   it names what it could not read beside its own numbers. */
+function walk(d, o = [], errs = []) {
   try {
     for (const e of readdirSync(d)) {
       const p = join(d, e);
       const st = statSync(p);
-      if (st.isDirectory()) walk(p, o);
+      if (st.isDirectory()) walk(p, o, errs);
       else o.push({ p, size: st.size });
     }
-  } catch (_e) {}
+  } catch (e) {
+    errs.push({ dir: d, reason: (e && e.code) || (e && e.message) || 'unknown' });
+  }
   return o;
-};
+}
 /* THE LISTER IS THE POPULATION RULE, AND IT CARRIES A NAME ON PURPOSE. `snapshotEntries` publishes
    `rule: null` for an inline arrow (`corpus-scope.mjs:329`), which would state that nobody chose the
    rule this run applied. The unit is a FILE, not a night: `--dir` is a capture tree and not the
@@ -1369,9 +1422,12 @@ const walk = (d, o = []) => {
    `ok: false` with the reason instead. */
 function listDevicePpg(root) {
   readdirSync(root);
-  return walk(root)
-    .filter((f) => PPG_RE.test(f.p))
-    .map((f) => relative(root, f.p));
+  const errs = [];
+  const files = walk(root, [], errs);
+  /* A ZERO HERE WOULD BE A MEASUREMENT OVER A TREE NOTHING READ. The throw is the channel
+     `snapshotEntries` already owns: it publishes `ok: false` with this reason instead of `n: 0`. */
+  if (!files.length && errs.length) throw new Error(`the walk under ${root} read no file and ${errs.length} directory(ies) refused it, first: ${errs[0].dir} (${errs[0].reason})`);
+  return dedupeByIdentity(files.filter((f) => PPG_RE.test(f.p))).kept.map((f) => relative(root, f.p));
 }
 
 const snap = snapshotEntries(DIR, { list: listDevicePpg, unit: PPG_UNIT });
@@ -1495,22 +1551,114 @@ function emitSqiVerdict(R) {
   console.log('\n' + JSON.stringify(v));
   process.exit(status === 'NOT_RUN' || status === 'UNDERPOWERED' ? 2 : 0);
 }
-const all = walk(DIR);
+/* ── THE CAP IS NAMED FOR NIGHTS, SO IT SELECTS NIGHTS ────────────────────────────────────────────
+   Row 2026-11-04-max-nights-caps-the-largest-files-not-the-nights: this line sorted the matched files
+   by descending SIZE and sliced `--max-nights` of them, so a flag named for nights kept the longest
+   CAPTURES and the night count fell out of the cap. `--max-nights 30` over the paper's corpus left 27
+   merged nights, biased toward long wear, with no line saying so. The committed run
+   `--device verity --max-nights 54` (audits/PPG-ECG-HRV-PAPER-EPOCH-BIAS-2026-10-28.json) matched 54
+   files holding 30 nights, so a cap counting NIGHTS leaves that population whole and keeps the
+   record reproducible — and a reader asking for 30 nights now gets 30.
+
+   THE NIGHT KEY COMES FROM THE PARSED CLOCK, NEVER FROM THE FILENAME. `buildUnits` buckets on
+   `nightKeyOf(rec.t0Ms)`, and the filename stamp is the capture SESSION's start, taken before the
+   link is up: row 2026-09-22-filename-stamp-still-wrong-for-other-consumers measured a session
+   stamped 21:00 whose stream opened at 09:00. So the cap reads each candidate's HEAD through the
+   node's own parser and takes `t0Ms` from that. Measured 2026-11-05 on a 19.0 MB Verity capture, a
+   4 KiB head yields the same `t0Ms` as the whole file, so the cap costs one small read per candidate.
+
+   EARLIEST FIRST, AND A HEAD WITH NO CLOCK IS NAMED RATHER THAN BINNED. Chronological order is
+   deterministic and is not keyed on the quantity the run publishes, which a size rank is. A head
+   carrying no `t0Ms` is a night UNKNOWN, not a night absent: those files are offered only after every
+   dated night, each one costing a cap slot, and they go out by name. */
+const HEAD_BYTES = 4096;
+function headNightKey(path) {
+  let fd = null;
+  try {
+    fd = openSync(path, 'r');
+    const buf = Buffer.alloc(HEAD_BYTES);
+    const n = readSync(fd, buf, 0, HEAD_BYTES, 0);
+    const rec = P.parsePPG(buf.slice(0, n).toString('utf8'));
+    return rec && rec.t0Ms != null ? nightKeyOf(rec.t0Ms) : null;
+  } catch (_e) {
+    return null;
+  } finally {
+    if (fd != null) closeSync(fd);
+  }
+}
+export function capByNights(files, maxNights, keyOf = headNightKey) {
+  const byNight = new Map();
+  const undated = [];
+  for (const f of files.slice().sort((a, b) => (a.p < b.p ? -1 : a.p > b.p ? 1 : 0))) {
+    const k = keyOf(f.p);
+    if (k == null) {
+      undated.push(f);
+      continue;
+    }
+    if (!byNight.has(k)) byNight.set(k, []);
+    byNight.get(k).push(f);
+  }
+  const nights = Array.from(byNight.keys()).sort();
+  const keptNights = nights.slice(0, Math.max(0, maxNights));
+  const kept = [];
+  for (const k of keptNights) kept.push(...byNight.get(k));
+  const roomLeft = Math.max(0, maxNights - keptNights.length);
+  const keptUndated = undated.slice(0, roomLeft);
+  return { kept: kept.concat(keptUndated), keptNights, nights, droppedNights: nights.slice(keptNights.length), undated, keptUndated };
+}
+
+const _walkErrs = [];
+const all = walk(DIR, [], _walkErrs);
 const _ppgMatched = all.filter((f) => PPG_RE.test(f.p));
-const fingerFiles = _ppgMatched.sort((a, b) => b.size - a.size).slice(0, MAX_NIGHTS);
+/* THE SAME RECORDING IS OFFERED TWICE (row 2026-11-04-a-per-file-corpus-walk-has-no-capture-identity-rule):
+   two capture trees under one uploads root hold the same captures as separate files on separate
+   shares, so a per-file pool gave half the corpus double weight. The rule is the shared one. */
+const _ppgOffer = dedupeByIdentity(_ppgMatched);
+const _cap = capByNights(_ppgOffer.kept, MAX_NIGHTS);
+const fingerFiles = _cap.kept;
 /* PRINT THE DENOMINATOR. A pattern that matches nothing and a corpus that holds nothing produce the
    same silence, and only one of them is a fact about the data. Stating files-walked beside
    files-matched makes a naming mismatch visible in the output instead of leaving it to be inferred
    from an empty table. */
-console.log(`corpus: ${all.length} file(s) walked · ${_ppgMatched.length} matched ${DEVICE} PPG · ${all.filter((f) => /H10.*_ECG\.txt$/i.test(f.p)).length} paired H10 ECG`);
+const _ecgMatched = all.filter((f) => /H10.*_ECG\.txt$/i.test(f.p));
+const _ecgOffer = dedupeByIdentity(_ecgMatched);
+console.log(`corpus: ${all.length} file(s) walked · ${_ppgOffer.kept.length} matched ${DEVICE} PPG · ${_ecgOffer.kept.length} paired H10 ECG`);
+if (_ppgOffer.dropped.length || _ecgOffer.dropped.length)
+  console.log(
+    `  identity rule (basename, byte size): dropped ${_ppgOffer.dropped.length} duplicate PPG path(s) and ${_ecgOffer.dropped.length} duplicate ECG path(s); the lexicographically first path wins`
+  );
+if (_ppgOffer.conflicts.length) console.log(`  ∅ ${_ppgOffer.conflicts.length} basename(s) offered at DIFFERENT sizes, kept as separate recordings: ${_ppgOffer.conflicts.slice(0, 6).join(' · ')}`);
+/* REDUCED COVERAGE ANNOTATES (§∅). A walk that gathered files past an unreadable subdirectory still
+   describes a corpus, and the directories it could not read go out by name rather than as a count. */
+if (_walkErrs.length && all.length)
+  console.log(
+    `  ∅ ${_walkErrs.length} directory(ies) the walk could not read, by name: ${_walkErrs
+      .slice(0, 4)
+      .map((e) => `${e.dir} (${e.reason})`)
+      .join(' · ')}${_walkErrs.length > 4 ? ` · … (+${_walkErrs.length - 4})` : ''}`
+  );
 if (!_ppgMatched.length) {
+  /* A DISCONTINUITY REFUSES, AND IT REFUSES UNDER ITS OWN REASON. A walk that read nothing has not
+     examined the pattern at all, so the vendor-naming message below would misattribute an I/O
+     failure to the spelling of a filename (row 2026-11-04-a-stalled-corpus-walk-blames-the-vendor-naming). */
+  if (!all.length) {
+    console.error(`\n⊘ THE WALK READ NOTHING under ${DIR}.`);
+    if (_walkErrs.length) {
+      console.error(`  ${_walkErrs.length} directory(ies) refused the walk, first: ${_walkErrs[0].dir} (${_walkErrs[0].reason}).`);
+      console.error('  This is a statement about the STORAGE, not about the pattern or the corpus.');
+    } else {
+      console.error('  The root is readable and holds no file at all, so no pattern could have matched.');
+    }
+    console.error('  Nothing here says whether the corpus holds a matching capture. Re-run once the root reads.');
+    process.exit(2);
+  }
   console.error(`\n⊘ NO ${DEVICE.toUpperCase()} PPG FILE MATCHED under ${DIR}.`);
-  console.error('  This is a statement about the PATTERN, not about the corpus. Check the vendor naming:');
+  console.error(`  The walk read ${all.length} file(s), so this IS a statement about the PATTERN. Check the vendor naming:`);
   console.error('  the Verity is `Polar_VeritySense_*` from the capture host and `Polar_Sense_*` from');
   console.error('  Polar Sensor Logger — the same armband, two spellings.');
   process.exit(2);
 }
-const ecgs = all.filter((f) => /H10.*_ECG\.txt$/i.test(f.p));
+const ecgs = _ecgOffer.kept;
 
 /* THE §3 TABLE BELONGS TO THE PER-EPOCH ARM. A --fiducial run prints its own table and would
    otherwise leave this header standing over no rows. */
@@ -2169,7 +2317,26 @@ function printPopulation() {
   console.log(`  the read scored ${nights.length} of the ${snap.n} offered under ${DIR}${snap.ok ? '' : ` · ${snap.reason}`}`);
   const missed = notCovered(snap, nights, { key: 'rec' });
   if (missed.length) console.log(`  it removed ${missed.length}, by name: ${missed.slice(0, 8).join(' · ')}${missed.length > 8 ? ` · … (+${missed.length - 8})` : ''}`);
-  if (fingerFiles.length < snap.n) console.log(`  ${snap.n - fingerFiles.length} of those left under the --max-nights ${MAX_NIGHTS} cap, largest first`);
+  /* STATE THE RULE THE CAP APPLIED, not just its size. A selection is not a rule (tests/dex-tests.js
+     § the population snapshot), so the line names the unit it counted, the order it took them in and
+     every night it left — by name, because a count names nothing to chase. */
+  if (_cap.droppedNights.length || _cap.undated.length > _cap.keptUndated.length)
+    console.log(
+      `  the --max-nights ${MAX_NIGHTS} cap kept ${_cap.keptNights.length} of ${_cap.nights.length} dated night(s), earliest first, whole nights only` +
+        (_cap.droppedNights.length ? ` · left by name: ${_cap.droppedNights.slice(0, 8).join(' · ')}${_cap.droppedNights.length > 8 ? ` · … (+${_cap.droppedNights.length - 8})` : ''}` : '')
+    );
+  if (_cap.undated.length)
+    console.log(
+      `  ∅ ${_cap.undated.length} file(s) whose 4 KiB head carries no clock, so night UNKNOWN rather than absent; ${_cap.keptUndated.length} of them fit the cap, by name: ${_cap.undated
+        .slice(0, 4)
+        .map((f) => f.p.split('/').pop())
+        .join(' · ')}${_cap.undated.length > 4 ? ` · … (+${_cap.undated.length - 4})` : ''}`
+    );
+  /* THE CAP SELECTED ON THE HEAD; THE RUN BUCKETS ON THE FULL PARSE. They agree on every capture
+     measured so far, and a disagreement is a fact about the file, so it goes out by name. */
+  const _capKeys = new Set(_cap.keptNights);
+  const _moved = nights.map((n) => String(n.name).split(' ')[0]).filter((k) => /^\d{4}-\d{2}-\d{2}$/.test(k) && !_capKeys.has(k));
+  if (_moved.length) console.log(`  ∅ ${_moved.length} night key(s) the full parse placed outside the head-read cap, by name: ${_moved.slice(0, 6).join(' · ')}`);
   if (SLEEP_ONLY)
     console.log(
       `  --sleep-only kept the nights covering ≥ ${(SLEEP_MIN_MS / 3600000).toFixed(0)} h inside ${SLEEP_START_H}:00–${String(SLEEP_END_H).padStart(2, '0')}:00; a fragment outside that window neither adds a night nor removes one`
