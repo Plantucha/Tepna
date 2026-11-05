@@ -38,6 +38,7 @@
  */
 import { readdirSync, readFileSync, statSync, existsSync } from 'node:fs';
 import { join, basename } from 'node:path';
+import { dissentStampOf, dissentTallyLine, signsOf } from './consensus-dissent-core.mjs';
 import { loadDsps, getDsps, ecgRpeakTimes, ppgFootTimes, legacyMatchRate, strictMatchRate, circShift, rawLags, median, STRICT_W_MS } from './pat-matchrate-strict.mjs';
 import { isCliEntry } from './argv-guard.mjs';
 import { notANight, populationVerdict, snapshotNights } from './corpus-scope-core.mjs';
@@ -106,7 +107,15 @@ function ppgFiducialTimes(text, which, runsText) {
      channel today, and `consensusSign` returns 0 below two channels, so this is a no-op the code
      proves rather than a claim about the stream. A two-channel ring export reaches the node's rule
      here without another edit. */
-  PPGDSP.applyConsensusPolarity(per, (i, sgn) => PPGDSP.detectChannel(rec.ch[i], rec.fs, sgn));
+  /* ∅ THE SHAPE IS COMPUTED, NEVER ASSERTED. The comment above says a one-channel ring makes this a
+     no-op; the stamp proves it per stream and reads `alone`, which is not a silent unanimous. A
+     two-channel export would read `majority` or `tie` here with no further edit (row
+     2026-11-04-pat-figures-were-published-under-the-overruled-polarity). */
+  const polaritySigns = signsOf(per);
+  const polarity = dissentStampOf(
+    polaritySigns,
+    PPGDSP.applyConsensusPolarity(per, (i, sgn) => PPGDSP.detectChannel(rec.ch[i], rec.fs, sgn))
+  );
   let refIdx = 0,
     best = -1;
   per.forEach((p, i) => {
@@ -124,7 +133,7 @@ function ppgFiducialTimes(text, which, runsText) {
     const s = src[i];
     t[i] = rec.relSec && rec.relSec.length > s ? rec.t0Ms + rec.relSec[s] * 1000 : rec.t0Ms + (s / rec.fs) * 1000;
   }
-  return { t0Ms: rec.t0Ms, fs: rec.fs, durSec: rec.durSec, times: t, n: src.length };
+  return { t0Ms: rec.t0Ms, fs: rec.fs, durSec: rec.durSec, times: t, n: src.length, polarity, polaritySigns };
 }
 
 function pairsIn(dir) {
@@ -205,7 +214,10 @@ function analyse(night, pair) {
     residIQR: residIQR,
     legacy: summarise(obs.legacy, chance.legacy),
     strict: summarise(obs.strict, chance.strict),
-    files: { ecg: ecg.file, ppg: ppg.file }
+    files: { ecg: ecg.file, ppg: ppg.file },
+    /* The PPG stream's polarity stamp rides the night row, so `--json` carries it and the pooled
+       line below counts the same streams the table lists. */
+    pol: ppg.rec.polarity || null
   };
 }
 
@@ -291,6 +303,7 @@ function main() {
   console.log(
     `population: ${popBefore.n} offered under ${DIR} · ${nights.length} selected · ${scored.length} scored · movement ${population.status}${ONLY ? ` · --night left ${popBefore.n - nights.length} offered night(s) unread` : ''}${population.reason ? ' — ' + population.reason : ''}`
   );
+  console.log(dissentTallyLine(scored.map((r) => r.pol)));
   console.log(`selected but not scored: ${unscored.length ? unscored.join(', ') : 'none'}`);
   console.log('POPULATION ' + JSON.stringify(population));
   const validity = validityLine(VALIDITY);
