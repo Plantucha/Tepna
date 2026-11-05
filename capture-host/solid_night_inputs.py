@@ -1188,6 +1188,42 @@ def recorded_seams(primary: str, start, end) -> list[dict]:
     return seams
 
 
+# ── THE NAMES THE BOX REALLY WRITES ─────────────────────────────────────────────────────────────────
+# `CLOCKSYNC.csv` is a FIXED name (`writers.CLOCKSYNC_NAME`), so a bare name finds it. The host clock
+# log is BOX-WIDE and STAMPED — `Tepna_<stamp>_CLOCK.csv`, tag `CLOCK` in
+# `writers.BOX_WIDE_SIDECAR_TAGS` — so the bare `CLOCK.csv` this reader opened until 2026-11-05 matched
+# NOTHING on the box: 0 files of that name against 1123 `*_CLOCK.csv` (measured 2026-11-04), and no
+# version ever wrote the bare one (`git log -S` over `capture.py` and `writers.py` returns no commit).
+# The second record was therefore unreachable on every real night from the day it was typed, and its
+# tests passed on a file shape no box produces.
+#
+# That is `writers.sidecar_note_text`'s own lesson one step on: there a per-device glob over a box-wide
+# sidecar manufactured an absence, here the reader named no glob at all.
+#
+# `*_RADIOCLOCK.csv` stays OUT, and this suffix excludes it by construction: it records a DEVICE's RTC
+# watched against the host, never what disciplined the box's own clock.
+SEAM_CAUSE_FIXED_NAME = "CLOCKSYNC.csv"
+SEAM_CAUSE_STAMPED_SUFFIX = "_CLOCK.csv"
+
+
+def _seam_cause_records(night_dir: str) -> list[tuple[str, str]]:
+    """Every clock record this night can hold, as `(path, label)` in the order they are read.
+
+    The label is what the verdict QUOTES. A fixed name quotes itself; a stamped box-wide sidecar quotes
+    its SHAPE, because the stamp names a capture session rather than the record, and one night holds
+    one such file per session. NO SORT: every stamped record carries that one label, so the answer is
+    order-invariant and a sort would be a line no test could fail."""
+    out: list[tuple[str, str]] = [(os.path.join(night_dir, SEAM_CAUSE_FIXED_NAME), SEAM_CAUSE_FIXED_NAME)]
+    try:
+        names = os.listdir(night_dir)
+    except OSError:
+        return out  # an unlistable night still holds the fixed name, and `open` reports its own failure
+    for name in names:
+        if name.endswith(SEAM_CAUSE_STAMPED_SUFFIX):
+            out.append((os.path.join(night_dir, name), "*" + SEAM_CAUSE_STAMPED_SUFFIX))
+    return out
+
+
 def _seam_cause(night_dir: str) -> str | None:
     """What the night's own record says caused the step, or None. Never inferred from the magnitude.
 
@@ -1197,13 +1233,13 @@ def _seam_cause(night_dir: str) -> str | None:
     night's clock record and from nothing else, so a `seams` argument would be dead weight the reader
     has to rule out — and it was: the mutation gate found `_seam_cause(night_dir, None)` surviving,
     which is the dead parameter reporting itself."""
-    for name in ("CLOCKSYNC.csv", "CLOCK.csv"):
+    for path, label in _seam_cause_records(night_dir):
         try:
-            with open(os.path.join(night_dir, name), encoding="utf-8", errors="replace") as fh:
+            with open(path, encoding="utf-8", errors="replace") as fh:
                 for line in fh:
                     low = line.lower()
                     if "resync" in low or "synced" in low or "offline" in low:
-                        return f"`{name}` records a clock event this night"
+                        return f"`{label}` records a clock event this night"
         except OSError:
             continue  # this record is unreadable, so it names no cause; the NEXT one may. A missing cause
             # is reported as "no cause recorded", never as an inferred one (the docstring's rule)
