@@ -44,6 +44,14 @@
  *   node tools/run-check.mjs --verdict-sample         # the object over a scratch step list, no gate run
  *   node tools/run-check.mjs --selftest
  *
+ * RUN IT FROM THE CHECKOUT YOU MEAN. Every step is `npm run <step>` with `cwd: ROOT`, and `ROOT` used
+ * to come from `import.meta.url` alone, so `node <other checkout>/tools/run-check.mjs` from a worktree
+ * ran all 50 steps against the OTHER tree and then reported the result as this one's. `judgeRoot`
+ * (tools/write-root.mjs) now resolves the tree inside the CLI block and refuses a disagreement with
+ * exit 2. Residue `2026-11-05-verdict-gates-still-judge-the-checkout-they-live-in`, whose own
+ * measurement hid this file: it reached 49 sites by also requiring the literal word `git`, and this
+ * one hands its root to npm.
+ *
  * VERDICT — the first RUNNER adopter of VERDICT-CONTRACT §3d. The object is a projection of what this
  * file already computes (ran · notRun · failedIdx · each child's exit code) through the shared
  * aggregation `aggregateChildren` (tools/verdict-emit.mjs): population = the steps (eligible = STEPS,
@@ -59,9 +67,12 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { aggregateChildren, makeVerdict } from './verdict-emit.mjs';
 import { isCliEntry } from './argv-guard.mjs';
+import { WriteRootRefusal, judgeRoot } from './write-root.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const ROOT = join(HERE, '..');
+/* THE DEFAULT ONLY. It serves `--list`, `--verdict-sample`, the selftest and a library import, which
+   all examine no tree. A real run replaces it with the checkout it was RUN FROM — see the CLI block. */
+let ROOT = join(HERE, '..');
 
 /* Order matters and is the chain's own: cheap/fast first so a one-line type error is caught before
    anything spends minutes (CLAUDE.md §🔏 "FORMAT BEFORE YOU BUNDLE"). */
@@ -214,6 +225,23 @@ export function verdictSample() {
   return runVerdict(r, { steps: S, commit: null, commitReason: '--verdict-sample: a scratch step list, no gate run, no code identity claimed', at: '2026-09-22T00:00:00Z' });
 }
 
+/* A REFUSAL OWES A VERDICT (§🧾). A run whose cwd and whose own copy sit in different checkouts
+   examined no tree, so the object says `NOT_RUN` over zero children and carries `result: null`. The
+   whole step list is the exclusion, which keeps `checked + excluded = eligible` true. */
+export function refusalVerdict(reason, { at } = {}) {
+  return makeVerdict({
+    gate: 'run-check',
+    status: 'NOT_RUN',
+    population: { checked: 0, eligible: STEPS.length, excluded: STEPS.length },
+    criterion: { name: 'children_failing', threshold: 0, unit: 'failing children', direction: 'eq' },
+    result: null,
+    evidence: ['tools/write-root.mjs'],
+    reason,
+    tool: 'tools/run-check.mjs',
+    at
+  });
+}
+
 const IS_MAIN = isCliEntry(import.meta.url);
 
 if (IS_MAIN && process.argv.includes('--selftest')) {
@@ -322,6 +350,20 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
   );
   ok('§3d · the exit code is unchanged by adoption (a red run still propagates its code)', planted.code === 3 && green.code === 0);
 
+  /* ── the run's tree, not the file's (residue 2026-11-05-verdict-gates-still-judge-…) ──────────── */
+  const vRef = refusalVerdict('cwd-not-a-checkout here', AT);
+  ok('a refusal is NOT_RUN and carries result: null', vRef.status === 'NOT_RUN' && vRef.result === null, JSON.stringify(vRef.result));
+  ok(
+    '…over an honest population: nothing checked, every step excluded',
+    vRef.population.checked === 0 && vRef.population.excluded === STEPS.length && vRef.population.eligible === STEPS.length,
+    JSON.stringify(vRef.population)
+  );
+  ok('…and names a reason, because every non-PASS owes one', /cwd-not-a-checkout/.test(vRef.reason || ''), String(vRef.reason));
+  const SELF_TEXT = readFileSync(fileURLToPath(import.meta.url), 'utf8');
+  ok("ANTI-VACUITY · the CLI resolves the run's tree through judgeRoot", /ROOT = judgeRoot\(import\.meta\.url\)/.test(SELF_TEXT));
+  ok('CONTROL · the children still take that root as their cwd, so the resolution reaches them', /spawnSync\('npm', \['run', step\], \{ cwd: ROOT/.test(SELF_TEXT));
+  ok('CONTROL · the default root is still DERIVED, never read from the cwd', /^let ROOT = join\(HERE, '\.\.'\);$/m.test(SELF_TEXT));
+
   console.log(fail ? `\n✗ ${fail} failed, ${pass} passed` : `\n✓ all ${pass} selftests passed`);
   process.exit(fail ? 1 : 0);
 }
@@ -345,6 +387,19 @@ if (IS_MAIN && !process.argv.includes('--selftest')) {
   }
   const steps = selected ? STEPS.filter((s) => selected.includes(s)) : STEPS;
   const declaredExcluded = selected ? STEPS.filter((s) => !selected.includes(s)) : [];
+  /* THE TREE THIS RUN GATES IS THE ONE IT WAS RUN FROM. Every step below is `npm run <step>` with
+     `cwd: ROOT`, so a run by this file's absolute path from another checkout gated the tree the FILE
+     lives in and then printed a verdict about it. */
+  try {
+    ROOT = judgeRoot(import.meta.url);
+  } catch (e) {
+    if (!(e instanceof WriteRootRefusal)) throw e;
+    console.error(e.message);
+    const reason = 'this run and tools/run-check.mjs sit in different checkouts (' + e.reason + '), so which tree to gate is undecided';
+    console.error('✕ run-check: ' + reason);
+    if (json) console.log(JSON.stringify(refusalVerdict(reason)));
+    process.exit(2);
+  }
   const codes = {};
   const r = runAll({ steps, exec: (step) => ((codes[step] = defaultExec(step, { toStderr: json }).code), { code: codes[step] }), log: json ? (...a) => console.error(...a) : console.log });
   if (json) console.log(JSON.stringify(runVerdict(r, { steps, declaredExcluded, excludedBy: selected ? stepsArg : null, codes })));
