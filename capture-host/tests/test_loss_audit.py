@@ -279,22 +279,23 @@ def test_wear_by_device_keys_by_name_and_omits_what_it_cannot_judge(tmp_path, mo
     monkeypatch.setattr(
         loss_audit,
         "wear_ends",
-        lambda night_dir, model, address: {"available": True, "model": model, "address": address},
+        lambda night_dir, model, address: {"available": True, "model": model, "address": address, "dir": night_dir},
     )
     out = loss_audit.wear_by_device(
         str(d),
         [
-            {"name": "H10 chest", "model": "H10", "address": "AA:BB:CC:DD:EE:01"},  # named → keyed by the name
-            {"model": "VeritySense"},  # unnamed → keyed by the model, as audit_night does
+            "not a dict",  # junk → skipped, not fatal — and the devices after it are still read
             {"name": "Athena", "model": "Athena-9"},  # unknown model → no wear rule → omitted
+            {"name": "H10 chest", "model": "H10", "address": "AA:BB:CC:DD:EE:01"},  # named → keyed by the name
             {"name": "No model"},  # no model at all → omitted
-            "not a dict",  # junk → skipped, not fatal
+            {"model": "VeritySense"},  # unnamed → keyed by the model, as audit_night does
         ],
     )
     assert set(out) == {"H10 chest", "VeritySense"}
     assert out["H10 chest"]["model"] == "H10" and out["VeritySense"]["model"] == "VeritySense"
     # the address reaches the WORN.csv reader; a device the config gives none passes None, never ""
     assert out["H10 chest"]["address"] == "AA:BB:CC:DD:EE:01" and out["VeritySense"]["address"] is None
+    assert out["H10 chest"]["dir"] == str(d)
     assert loss_audit.wear_by_device(str(d), []) == {} and loss_audit.wear_by_device(str(d), None) == {}
 
 
@@ -859,10 +860,12 @@ def test_THE_WORN_ROWS_SPAN_THE_RECORDINGS_NEXT_DAY_FOLDER(tmp_path):
     nxt = tmp_path / "captures" / "2026-09-24"
     nxt.mkdir()
     _worn_csv(d, [("2026-09-23T23:00:05.000", me, "1", "worn per hr-beats")])
-    # out of stamp order inside the file (a restart after a host clock step), and a cell the writer never makes
+    # out of stamp order inside the file (a restart after a host clock step), and a cell the writer never makes;
+    # a torn row FIRST, so a reader that stopped at it would lose the rows after it
     _worn_csv(
         nxt,
         [
+            ("torn", me, "0", "not a stamp"),
             ("2026-09-24T00:10:00.000", me, "0", "not worn per hr-contact-bit"),
             ("2026-09-24T00:05:00.000", me, "1", "worn per hr-beats"),
             ("2026-09-24T00:06:00.000", me, "x", "not a decision"),
@@ -874,6 +877,34 @@ def test_THE_WORN_ROWS_SPAN_THE_RECORDINGS_NEXT_DAY_FOLDER(tmp_path):
         ("2026-09-24T00:05:00", True),
         ("2026-09-24T00:10:00", False),
     ]
+    # a file with no decision columns is skipped, and the NEXT file is still read
+    (d / "WORN.csv").write_text("Phone timestamp;device\n2026-09-23T23:00:00.000;x\n")
+    assert [r[1] for r in loss_audit.daemon_worn_rows(str(d), me)] == [True, False]
+    # an EMPTY file (a write cut short on a full disk) holds no header and no decision
+    (d / "WORN.csv").write_text("")
+    assert len(loss_audit.daemon_worn_rows(str(d), me)) == 2
+
+
+def test_A_WORN_ROW_IS_READ_VERBATIM_AND_A_STAMP_TIE_KEEPS_THE_FILE_ORDER(tmp_path):
+    """The `why` cell reaches the reader byte for byte: CRLF line ends do not stick to it, a trailing space
+    stays, and a non-UTF-8 byte reads as U+FFFD instead of stopping the night. Two rows on one stamp keep
+    the order the daemon wrote them, so the later decision is the one in force — an abstention among them
+    must not make the sort compare a None with a bool."""
+    me = "AA:BB:CC:DD:EE:01"
+    d, _ = _h10_night(tmp_path, 300)
+    with open(d / "WORN.csv", "wb") as fh:
+        fh.write(b"Phone timestamp;device;address;worn;why\r\n")
+        fh.write(b"2026-09-23T23:10:00.000;x;" + me.encode() + b";1;worn per hr-beats \r\n")
+        fh.write(b"2026-09-23T23:12:00.000;x;" + me.encode() + b";;no detector \xff in domain\r\n")
+        fh.write(b"2026-09-23T23:12:00.000;x;" + me.encode() + b';0;"not" worn per ecg-level\r\n')
+    rows = loss_audit.daemon_worn_rows(str(d), me)
+    assert [(r[1], r[2]) for r in rows] == [
+        (True, "worn per hr-beats "),
+        (None, "no detector \ufffd in domain"),
+        (False, '"not" worn per ecg-level'),  # a quote is a character, never CSV quoting
+    ]
+    at = loss_audit.daemon_worn_at(rows, dt.datetime(2026, 9, 23, 23, 15))
+    assert at["worn"] is False and at["why"] == '"not" worn per ecg-level'
 
 
 def test_an_h10_that_ends_off_body_is_a_doff_and_its_worn_interval_ends_where_the_tail_began(tmp_path):
@@ -957,6 +988,12 @@ def test_audit_night_carries_the_wear_block_per_device(tmp_path):
     d, _ = _h10_night(tmp_path, 300, name="2026-09-20", start="20260920220000")
     a = loss_audit.audit_night(str(d), DEV, journal=lambda *a: [])
     assert a["devices"]["Polar H10 0284"]["wear"]["worn_end"]["reason"] == "doff"
+    # the configured address reaches the WORN.csv reader; a device the config gives none asks nothing
+    _worn_csv(d, [("2026-09-20T22:16:00.000", "AA:BB:CC:DD:EE:01", "0", "not worn per hr-contact-bit")])
+    assert "daemon_worn" not in a["devices"]["Polar H10 0284"]["wear"]["ends"][0]
+    dev = [{**DEV[0], "address": "AA:BB:CC:DD:EE:01"}]
+    (e,) = loss_audit.audit_night(str(d), dev, journal=lambda *a: [])["devices"]["Polar H10 0284"]["wear"]["ends"]
+    assert e["daemon_worn"]["worn"] is False and e["daemon_worn"]["at"] == "2026-09-20T22:16:00", e
 
 
 def _rows(path, rows, header="Phone timestamp;sensor timestamp [ns];timestamp [ms];ecg [uV]", raw_tail=b""):

@@ -36,6 +36,7 @@ from __future__ import annotations
 
 import bisect
 import collections
+import csv
 import datetime as _dt
 import glob
 import itertools
@@ -1936,13 +1937,14 @@ def daemon_worn_rows(night_dir: str, address: str) -> list[tuple[_dt.datetime, b
     want = address.strip().lower()
     out: list[tuple[_dt.datetime, bool | None, str]] = []
     for q in paths:
-        with open(q, errors="replace") as fh:
-            idx = {k: i for i, k in enumerate(fh.readline().rstrip("\n").split(";"))}
+        # `csv` with QUOTE_NONE reads each cell verbatim and owns the line ends, so no strip can eat a cell
+        with open(q, errors="replace", newline="") as fh:
+            rows = csv.reader(fh, delimiter=";", quoting=csv.QUOTE_NONE)
+            idx = {k: i for i, k in enumerate(next(rows, []))}
             i_ts, i_a, i_w, i_y = (idx.get(k) for k in ("Phone timestamp", "address", "worn", "why"))
-            if i_ts is None or i_a is None or i_w is None or i_y is None:
+            if None in (i_ts, i_a, i_w, i_y):
                 continue  # a file without the decision columns holds no decision
-            for line in fh:
-                parts = line.rstrip("\n").split(";")
+            for parts in rows:
                 try:
                     t = _dt.datetime.fromisoformat(parts[i_ts])
                     addr, cell, why = parts[i_a], parts[i_w], parts[i_y]
@@ -1950,7 +1952,7 @@ def daemon_worn_rows(night_dir: str, address: str) -> list[tuple[_dt.datetime, b
                     continue  # a torn row or an unparseable stamp holds no decision
                 if addr.strip().lower() == want and cell in ("", "0", "1"):
                     out.append((t, None if cell == "" else cell == "1", why))
-    out.sort(key=lambda r: r[0])
+    out.sort(key=lambda r: r[0])  # on the stamp alone: a tie keeps the file order, so the last row wins
     return out
 
 
