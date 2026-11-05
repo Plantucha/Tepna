@@ -4267,3 +4267,134 @@ def test_the_reason_is_BUILT_from_the_numbers_so_the_prose_cannot_drift_from_the
     assert "two populations" in r, r
     # and it names WHERE the record is, so a reader is pointed at the live counter rather than stopped
     assert "loop status block" in r, r
+
+
+# --- the charger witness (2026-11-03 04:22: finger straight onto the charger, no tail, no relink) -------------
+LINK_HDR = "Phone timestamp;device;connected;rssi_dbm;battery_pct;frames_dropped;frames_duplicated;link_epoch;address\n"
+
+
+def _link(d, rows, name="Tepna_20260922223900_LINK.csv", hdr=LINK_HDR, device="Wellue O2Ring-S"):
+    """A LINK sidecar with one ring row per `(seconds after R0, battery)`; battery None writes an empty field."""
+    with open(d / name, "w") as fh:
+        fh.write("# adapter=00:00:00:00:00:02 hci=hci0\n# a second provenance line\n" + hdr)
+        for s, b in rows:
+            t = (R0 + dt.timedelta(seconds=s)).isoformat(timespec="milliseconds")
+            fh.write(f"{t};{device};1;-60;{'' if b is None else b};0;0;1;00:00:00:00:00:01\n")
+
+
+def _docked(tmp_path, rows, **kw):
+    d = _ring_dir(tmp_path)
+    _ring(d, R0, worn_s=120, off_s=0, spo2_s=120)  # no off-finger tail: SpO2's last row at +119 s
+    _link(d, rows, **kw)
+    return loss_audit.wear_ends(str(d), "O2Ring-S")
+
+
+def test_a_ring_that_went_onto_its_charger_is_a_doff_by_the_charger_witness(tmp_path):
+    w = _docked(tmp_path, [(10, 52), (60, 53), (137, 55), (300, 66), (420, 70)])
+    (e,) = w["ends"]
+    assert e["tail_off"] is False and e["ppg2w_contradicted"] is False
+    assert e["reason"] == "doff" and e["doff_witness"] == "charger"
+    assert e["dock_witness"] == {"base_pct": 53, "rise_pct": 17, "first_rise_s": 181, "docked": True}
+    # the worn end stays the SpO2 file's last row: the charger gives no doff second of its own
+    assert e["worn_end_at"] == (R0 + dt.timedelta(seconds=119)).isoformat()
+    assert w["worn_end"]["reason"] == "doff" and "link_unreadable" not in w
+
+
+def test_a_worn_size_battery_rise_is_no_dock_and_the_bound_is_inclusive(tmp_path):
+    e = _docked(tmp_path, [(60, 53), (300, 58)])["ends"][0]
+    assert e["reason"] == "quiet-end-unclassified" and e["doff_witness"] is None
+    assert e["dock_witness"] == {"base_pct": 53, "rise_pct": 5, "first_rise_s": None, "docked": False}
+    f = loss_audit.ring_dock_witness
+    end = R0 + dt.timedelta(seconds=119)
+    at = lambda s, b: (end + dt.timedelta(seconds=s), b)  # noqa: E731
+    assert f([at(0, 50), at(600, 56)], end)["docked"] is True  # +6 at exactly the window edge
+    assert f([at(0, 50), at(601, 99)], end) is None  # past the window: nothing after the end
+    assert f([at(-600, 50), at(30, 56)], end)["docked"] is True  # the baseline at exactly the look-back edge
+    assert f([at(-601, 50), at(30, 99)], end) is None  # no baseline: absent, never "not docked"
+    assert f([at(-300, 40), at(-10, 50), at(30, 56)], end)["base_pct"] == 50  # the LAST row before the end
+    assert f([], end) is None
+    assert f([at(-10, 50), at(30, 56), at(200, 70)], end)["first_rise_s"] == 30  # the first step that reaches +6
+
+
+def test_a_ppg2w_doff_keeps_its_own_witness_and_doff_second_when_the_ring_also_docked(tmp_path):
+    d = _ring_dir(tmp_path)
+    _ring(d, R0, worn_s=120, off_s=40, spo2_s=119)
+    _link(d, [(60, 53), (300, 70)])
+    (e,) = loss_audit.wear_ends(str(d), "O2Ring-S")["ends"]
+    assert e["reason"] == "doff" and e["doff_witness"] == "ppg2w-tail" and e["dock_witness"]["docked"] is True
+    assert e["worn_end_at"] == (R0 + dt.timedelta(seconds=118)).isoformat()
+
+
+def test_the_charger_witness_reads_only_ring_rows_with_a_battery_value_and_skips_bad_rows(tmp_path):
+    d = _ring_dir(tmp_path)
+    _ring(d, R0, worn_s=120, off_s=0, spo2_s=120)
+    _link(d, [(60, 53), (200, None)])  # an absent battery value is skipped, never read as 0
+    _link(d, [(300, 99)], name="Tepna_20260922223901_LINK.csv", device="Polar H10 TEST0001")
+    _link(d, [(300, 99)], name="Tepna_20260922223902_LINK.csv", hdr="Phone timestamp;device;connected\n")
+    with open(d / "Tepna_20260922223903_LINK.csv", "w") as fh:
+        fh.write(LINK_HDR + "2026-09-22T22:44:00;Wellue O2Ring-S\n" + "not-a-stamp;Wellue O2Ring-S;1;-60;90\n")
+        fh.write("2026-09-22T22:46:00.000;Wellue O2Ring-S;1;-60;70;0;0;1;00:00:00:00:00:01\n")  # read past the bad rows
+    (e,) = loss_audit.wear_ends(str(d), "O2Ring-S")["ends"]
+    assert e["dock_witness"] == {"base_pct": 53, "rise_pct": 17, "first_rise_s": 277, "docked": True}
+
+
+def test_an_unreadable_link_sidecar_is_named_and_the_other_ends_are_still_judged(tmp_path):
+    d = _ring_dir(tmp_path)
+    _ring(d, R0, worn_s=120, off_s=0, spo2_s=120)
+    _link(d, [(60, 53), (300, 70)])
+    (d / "Tepna_20260922223959_LINK.csv").mkdir()  # a sidecar that cannot be opened as a file
+    w = loss_audit.wear_ends(str(d), "O2Ring-S")
+    assert w["ends"][0]["doff_witness"] == "charger"
+    (bad,) = w["link_unreadable"]
+    assert bad.startswith("Tepna_20260922223959_LINK.csv: IsADirectoryError")
+
+
+def _at(s):
+    return (R0 + dt.timedelta(seconds=s)).isoformat(timespec="milliseconds")
+
+
+def test_the_charger_witness_reads_a_link_file_opened_before_the_band_and_columns_in_any_order(tmp_path):
+    d = _ring_dir(tmp_path)
+    _ring(d, R0, worn_s=120, off_s=0, spo2_s=120)
+    # the LINK sidecar opened at noon: its session starts outside the night band, and its rows still cover the end
+    _link(d, [(60, 53)], name="Tepna_20260922120000_LINK.csv")
+    # the stamp is the LAST column, so a reader that keeps the line end in the name or the value loses the row
+    with open(d / "Tepna_20260922223900_LINK.csv", "wb") as fh:
+        fh.write(b"# adapter note \xff not UTF-8\n")  # a stray byte is replaced, never a crash
+        fh.write(f"device;battery_pct;Phone timestamp\nWellue O2Ring-S;70;{_at(300)}\n".encode())
+    (e,) = loss_audit.wear_ends(str(d), "O2Ring-S")["ends"]
+    assert e["dock_witness"] == {"base_pct": 53, "rise_pct": 17, "first_rise_s": 181, "docked": True}
+
+
+def test_the_charger_witness_skips_short_rows_and_headers_without_its_three_columns(tmp_path):
+    d = _ring_dir(tmp_path)
+    _ring(d, R0, worn_s=120, off_s=0, spo2_s=120)
+    _link(d, [(60, 53)])
+    files = {
+        "01": f"Phone timestamp;connected;battery_pct\n{_at(300)};1;99\n",  # no device column
+        "02": "device;connected;battery_pct\nWellue O2Ring-S;1;99\n",  # no stamp column
+        "03": f"Phone timestamp;device;battery_pct \n{_at(300)};Wellue O2Ring-S;99\n",  # the name is not battery_pct
+        "04": LINK_HDR + f"{_at(300)};Wellue O2Ring-S;1;-60\n",  # one field short of the battery column
+        "05": "battery_pct;device;Phone timestamp\n99;Wellue O2Ring-S\n",  # short of the stamp column
+        "06": f"Phone timestamp;battery_pct;device\n{_at(300)};99\n",  # short of the device column
+        "07": f"device;battery_pct;Phone timestamp\nWellue O2Ring-S;99;{_at(300)} \n",  # a stamp with a tail
+    }
+    for k, body in files.items():
+        (d / f"Tepna_202609222239{k}_LINK.csv").write_text(body)
+    (e,) = loss_audit.wear_ends(str(d), "O2Ring-S")["ends"]
+    assert e["dock_witness"] is None and e["doff_witness"] is None
+
+
+def test_a_model_other_than_the_ring_never_reads_the_link_sidecars(tmp_path):
+    d, _ = _h10_night(tmp_path, 300)
+    (d / "Tepna_20260923230000_LINK.csv").mkdir()  # unreadable, but no H10 rule reads it
+    w = loss_audit.wear_ends(str(d), "H10")
+    assert w["ends"][0]["reason"] == "doff" and "link_unreadable" not in w
+
+
+def test_a_contradicted_tail_stays_published_when_the_charger_calls_the_doff(tmp_path):
+    d = _ring_dir(tmp_path)
+    _ring(d, R0, worn_s=100, off_s=202, spo2_s=302)  # the tail the SpO2 stream contradicts (2026-09-11 shape)
+    _link(d, [(60, 53), (400, 70)])
+    (e,) = loss_audit.wear_ends(str(d), "O2Ring-S")["ends"]
+    assert e["ppg2w_contradicted"] is True and e["reason"] == "doff" and e["doff_witness"] == "charger"
