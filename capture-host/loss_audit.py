@@ -1922,6 +1922,9 @@ def worn_end_of(ends: list[dict]) -> dict | None:
     return {"at": last["worn_end_at"], "reason": last["reason"], "file": last["file"]} if last else None
 
 
+_WORN_COLS = ("Phone timestamp", "address", "worn", "why")
+
+
 def daemon_worn_rows(night_dir: str, address: str) -> list[tuple[_dt.datetime, bool | None, str]] | None:
     """The daemon's live worn decisions for ONE device address, from `WORN.csv` in each folder of the
     recording (`writers.append_worn_decision`), sorted by stamp. None when no folder holds the file.
@@ -1941,9 +1944,9 @@ def daemon_worn_rows(night_dir: str, address: str) -> list[tuple[_dt.datetime, b
         with open(q, errors="replace", newline="") as fh:
             rows = csv.reader(fh, delimiter=";", quoting=csv.QUOTE_NONE)
             idx = {k: i for i, k in enumerate(next(rows, []))}
-            i_ts, i_a, i_w, i_y = (idx.get(k) for k in ("Phone timestamp", "address", "worn", "why"))
-            if None in (i_ts, i_a, i_w, i_y):
+            if not all(k in idx for k in _WORN_COLS):
                 continue  # a file without the decision columns holds no decision
+            i_ts, i_a, i_w, i_y = (idx[k] for k in _WORN_COLS)
             for parts in rows:
                 try:
                     t = _dt.datetime.fromisoformat(parts[i_ts])
