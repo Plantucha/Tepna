@@ -11,6 +11,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { VALIDITY_STATES, mergeBlankingSpans, mergePinnedSpans, readRunsSidecar, runsSidecarPath, validityLine } from '../tools/trio-fold-validity.mjs';
+import { ecgRpeakTimes, loadDsps } from '../tools/pat-matchrate-strict.mjs';
 
 let pass = 0;
 const fails = [];
@@ -361,6 +362,119 @@ for (const [f, callees] of [
   ok(/\(opts\.ppgFootTimes \|\| ppgFootTimes\)\(ppgText, opts\.runsText\)/.test(src), 'the indirection hands the extractor the sidecar that rode in on `opts`');
   ok(/opts\.runsText \? PPGDSP\.parsePPG\(ppgText, \{ runsText: opts\.runsText \}\) : PPGDSP\.parsePPG\(ppgText\)/.test(src), 'and its own parse takes the guarded ternary');
   ok(/scoreNight\(PPGDSP, readFileSync\(fp, 'utf8'\), \{ runsText: runsOf\(fp, 'PPG'\) \}\)/.test(src), 'the caller that holds the path is the one that reads the sidecar');
+}
+
+/* ── AND THE ECG LEG TAKES ITS SIDECAR TOO ──────────────────────────────────────
+   Row 2026-11-03-the-ecg-leg-of-the-shared-pat-extractor-takes-no-sidecar. `ppgFootTimes` has taken
+   the `_PPGRUNS.txt` bytes since #4069 and `ecgRpeakTimes` took none, so every R peak inside a
+   blanking run the box recorded reached the matcher as a beat. The `_ECGRUNS.txt` companion exists
+   beside every `_ECG.txt` file this corpus holds, so this is the stream where the omission costs a
+   number.
+   Position two is TYPED rather than re-ordered, because `opts` already held that slot: a STRING is
+   the sidecar and an OBJECT is `opts`. The executed legs below judge both arms, since a typed slot
+   that silently ignored one type would read here exactly like a wired one. */
+for (const f of [
+  'beat-correspondence.mjs',
+  'pat-connection-stability.mjs',
+  'pat-dip-index.mjs',
+  'pat-drift-attribution.mjs',
+  'pat-ecg-axis-residual.mjs',
+  'pat-finger-coupler.mjs',
+  'pat-literature-spec.mjs',
+  'pat-matchrate-strict.mjs',
+  'pat-mode-posture.mjs',
+  'pat-residual-structure.mjs',
+  'pat-window-oracle.mjs'
+]) {
+  const src = readFileSync(join(here, '..', 'tools', f), 'utf8');
+  const arity = callArity(src, 'ecgRpeakTimes');
+  ok(arity.length > 0, `${f} calls ecgRpeakTimes, so this leg judges something`);
+  ok(
+    arity.every((n) => n >= 2),
+    `${f} hands ecgRpeakTimes its sidecar at every call site (arity ${JSON.stringify(arity)})`
+  );
+  ok(/runsOf\([^;]{0,60}'ECG'\)/.test(stripComments(src, true)), `${f} names the ECG sidecar through the shared reader`);
+}
+
+/* ── ∅ THE THREE SIDECAR STATES, EXECUTED ─────────────────────────────────────────
+   A source scan cannot tell a parameter that is READ from one that is accepted and dropped, and it
+   cannot tell `null` from `0`. The legs below run the shared extractor over a synthetic H10 stream
+   at 130 Hz: no sidecar, a sidecar naming no run, a sidecar naming one run, and a sidecar whose rows
+   belong to another stream. ∅ the four answers must differ, because an absent sidecar is validity
+   UNKNOWN and a sidecar that looked and found nothing is a measured zero. */
+const ECG_FS = 130;
+function synthEcg(nSamples) {
+  const rows = ['Phone timestamp;sensor timestamp [ns];timestamp [ms];ecg [uV]'];
+  for (let i = 0; i < nSamples; i++) {
+    const ph = (i % ECG_FS) / ECG_FS;
+    let v = 40 * Math.sin(2 * Math.PI * ph);
+    if (ph > 0.2 && ph < 0.3) v += 900 * Math.exp(-(((ph - 0.2537) / 0.012) ** 2));
+    rows.push(`2026-06-17T01:06:17.723;${Math.round((i * 1e9) / ECG_FS)};${Math.round((i * 1000) / ECG_FS)};${Math.round(v)}`);
+  }
+  return rows.join('\n');
+}
+/* The writer's own shape: a rule line, a `# stream=… channel=… class=…` declaration, then one
+   semicolon row per run whose columns 3 and 4 are the SAMPLE index and the run length. */
+function ecgRuns(spans, { stream = 'ecg', channel = 'ecg [uV]' } = {}) {
+  const out = [`# stream=${stream} min_run=30 merge_gap_max=2`, `# stream=${stream} channel=${channel} class=variable unit=uV`];
+  for (const sp of spans) out.push(['2026-06-17T01:06:17.723', channel, '0', String(sp.first), String(sp.n), '0', '0', '0'].join(';'));
+  return out.join('\n');
+}
+{
+  loadDsps();
+  const txt = synthEcg(4000);
+  const base = ecgRpeakTimes(txt);
+  ok(base.n > 20, `ANTI-VACUITY · the synthetic stream yields R peaks at all (n=${base.n})`);
+  ok(
+    base.blanking.sidecar === 'absent' && base.blanking.nDropped === null && base.blanking.nRanges === null,
+    `∅ no sidecar reads ABSENT with null counts, never a clean zero (${JSON.stringify(base.blanking)})`
+  );
+
+  const empty = ecgRpeakTimes(txt, ecgRuns([]));
+  ok(empty.blanking.sidecar === 'read' && empty.blanking.nDropped === 0 && empty.blanking.nRanges === 0, `∅ a sidecar that names no run reads a MEASURED zero (${JSON.stringify(empty.blanking)})`);
+  same(Array.from(empty.times), Array.from(base.times), 'and it moves no beat, so no published number walks on the empty-sidecar path');
+
+  const RUN = { first: 1000, n: 400 };
+  const cut = ecgRpeakTimes(txt, ecgRuns([RUN]));
+  const loMs = base.t0Ms + (RUN.first / base.fs) * 1000;
+  const hiMs = base.t0Ms + ((RUN.first + RUN.n) / base.fs) * 1000;
+  const insideBase = Array.from(base.times).filter((t) => t >= loMs && t < hiMs).length;
+  ok(insideBase > 0, `CONTROL · the sidecar-less run DID report beats inside that span (${insideBase}), so the legs below are not vacuous`);
+  ok(cut.blanking.sidecar === 'read' && cut.blanking.nRanges === 1, `one recorded run reads as one range (${JSON.stringify(cut.blanking)})`);
+  ok(cut.blanking.nDropped === insideBase, `and it drops exactly the beats the baseline reported there (${cut.blanking.nDropped} of ${insideBase})`);
+  ok(Array.from(cut.times).filter((t) => t >= loMs && t < hiMs).length === 0, 'no kept beat sits inside the run the box recorded as measuring nothing');
+  ok(cut.n === base.n - insideBase, `the kept train is the detected train less the dropped peaks (${cut.n})`);
+  ok(cut.nDetected === base.n, `nDetected keeps naming the DETECTOR's own count, so the "of N detected" line stays true (${cut.nDetected})`);
+
+  /* A sidecar whose rows belong to another stream places none, and `parseECG` nulls the spans with a
+     reason rather than publishing an empty set — the one state a count cannot carry. */
+  const foreign = ecgRpeakTimes(txt, ecgRuns([RUN], { stream: 'ppg', channel: 'channel 0' }));
+  ok(
+    foreign.blanking.sidecar === 'unplaced' && foreign.blanking.nDropped === null && typeof foreign.blanking.reason === 'string',
+    `∅ a sidecar whose rows went unplaced reads UNPLACED with its own reason (${JSON.stringify(foreign.blanking)})`
+  );
+  same(Array.from(foreign.times), Array.from(base.times), 'and it drops nothing, because an unread sidecar refuses rather than blanking a guess');
+
+  /* ── POSITION TWO IS TYPED ── */
+  const asOpts = ecgRpeakTimes(txt, { refine: true });
+  ok(asOpts.refined === true, 'an OBJECT at position two is still `opts`, so no existing caller moved');
+  ok(asOpts.blanking.sidecar === 'absent', '…and it carries no sidecar');
+  const viaField = ecgRpeakTimes(txt, { runsText: ecgRuns([RUN]) });
+  ok(viaField.blanking.nDropped === insideBase, '`opts.runsText` carries the same bytes to the same drop');
+  let threw = null;
+  try {
+    ecgRpeakTimes(txt, 42);
+  } catch (e) {
+    threw = e.message;
+  }
+  ok(!!threw && /position two/.test(threw), `a number at position two refuses by name (${threw})`);
+  let twice = null;
+  try {
+    ecgRpeakTimes(txt, { refine: true }, { refine: true });
+  } catch (e) {
+    twice = e.message;
+  }
+  ok(!!twice && /position two and position three/.test(twice), `opts in both slots refuses (${twice})`);
 }
 
 if (fails.length) {

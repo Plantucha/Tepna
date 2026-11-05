@@ -1101,7 +1101,7 @@ async function main() {
     let E;
     let P;
     try {
-      E = ecgRpeakTimes(readFileSync(eF, 'utf8'), { axis: AXIS === 'linear' ? undefined : AXIS, refine: REFINE });
+      E = ecgRpeakTimes(readFileSync(eF, 'utf8'), runsOf(eF, 'ECG'), { axis: AXIS === 'linear' ? undefined : AXIS, refine: REFINE });
       P = ppgFootTimes(readFileSync(pF, 'utf8'), runsOf(pF, 'PPG'));
     } catch (e) {
       /* The catch cannot narrow WHAT the parse/transform layer throws (it is another module's

@@ -47288,7 +47288,17 @@
            line for the parent to sum, and `ppg-gap-bridge-scan`'s synthetic twin passes none, since no
            box wrote a sidecar beside text the file generates. Row
            2026-10-17-sample-parsers-called-without-their-sidecar holds the 22 files still bare. */
-        var TOOLS_PIN = { files: 22, calls: 34, reason: 'research tools: ' + OPEN };
+        /* 20 / 31 from 2026-11-05, row 2026-11-03-the-ecg-leg-of-the-shared-pat-extractor-takes-no-sidecar:
+           the shared PAT ECG extractor and the two local copies of it take the `_ECGRUNS.txt` bytes at
+           position two, so three `parseECG` calls take the guarded ternary and leave CALL. Two files
+           leave the population outright — `beat-correspondence` and `pat-literature-spec`, whose other
+           parser call was already wired. `pat-matchrate-strict` and `pat-drift-attribution` stay here on
+           their remaining bare calls. Eight more callers reach `parseECG` only THROUGH the extractor, so
+           this population never held them: `tests/trio-fold-validity-tests.mjs` pins all eleven by
+           counting the ARGUMENTS at each invocation, and executes the four sidecar states the count
+           cannot see. The scan over the merged tree is the number — #4405 landed 22 / 34 for eight PPG
+           and ECG night readers, and arithmetic over two diffs would have guessed 28 / 43. */
+        var TOOLS_PIN = { files: 20, calls: 31, reason: 'research tools: ' + OPEN };
 
         function blank(s) {
           return s.replace(/[^\n]/g, '');
