@@ -121,7 +121,12 @@ function ecgRpeakTimes(text, runsText) {
      low-confidence twice and over-read the rate. `null` without a sidecar — the denominator then
      stays the artifact-only one it has always been (§∅: no sidecar is not zero blanked seconds). */
   var unmeasuredSec = null;
-  if (rec.runsSidecar) {
+  /* ∅ AN UNPLACED SIDECAR IS NOT A BLANK-FREE ONE. `parseECG` nulls `blankingSpans` and names the
+     reason when no fragment placed the companion's rows, so the blanking half of this union could not
+     be read. Keeping the artifact-only size there would publish a smaller unmeasured span than the
+     evidence supports. It stays `null`, and `validity.unplacedReason` below carries the parser's own
+     sentence. */
+  if (rec.runsSidecar && !rec.blankingSpansReason) {
     var _u = PATGate.runSeconds(blankRanges, rec.fs, rec.t0Ms);
     if (gated.droppedSec)
       gated.droppedSec.forEach(function (sec) {
@@ -188,7 +193,26 @@ function ecgRpeakTimes(text, runsText) {
        dropouts inside one continuous stretch, not a clock seam. `null` when no sidecar was paired:
        "nothing was recorded as blank" and "nobody looked" are different answers. */
     unmeasuredSec: unmeasuredSec,
-    validity: rec.runsSidecar ? { source: '_ECGRUNS.txt', comparable: rec.runsSidecar.comparable, spans: blankRanges.length, dropped: blanked.nDropped, unmeasuredSec: unmeasuredSec } : null
+    /* ∅ THREE STATES, NEVER ONE. Row 2026-10-28-pat-legs-refuse-only-the-spans-a-sidecar-confirmed:
+       a bare `null` here told a reader nothing about WHY this leg refused no span. A companion that
+       parsed and placed publishes its sizes. A companion whose rows no fragment placed publishes
+       `null` sizes beside the parser's reason, because 0 recorded spans and an unread set are
+       different facts. No companion at all publishes a named absence: `parseECG` recomputes no
+       blanking spans, so this leg holds no span set to size, which is the state the optical leg
+       below can count and this one cannot. */
+    validity: rec.runsSidecar
+      ? rec.blankingSpansReason
+        ? { source: '_ECGRUNS.txt', comparable: rec.runsSidecar.comparable, spans: null, dropped: null, unplacedReason: rec.blankingSpansReason, unmeasuredSec: null }
+        : { source: '_ECGRUNS.txt', comparable: rec.runsSidecar.comparable, spans: blankRanges.length, dropped: blanked.nDropped, unmeasuredSec: unmeasuredSec }
+      : {
+          source: null,
+          comparable: null,
+          comparableReason: 'no `_ECGRUNS.txt` companion was ingested, and parseECG recomputes no blanking spans, so this leg holds no span set to size',
+          spans: null,
+          dropped: null,
+          wouldDrop: null,
+          unmeasuredSec: null
+        }
   };
 }
 /* `runsText` (OPTIONAL, LAST — §🧪) is the `_PPGRUNS.txt` companion's bytes. This function serves BOTH
@@ -237,8 +261,23 @@ function ppgFootTimes(text, runsText, opts) {
      that is reduced COVERAGE and is annotated (`partial`). A foot pinned on EVERY channel was
      measured by nothing and is refused. The O2Ring's single channel makes the two rules one. */
   var _fromRecompute = !!(opts && opts.pinnedFromRecompute);
+  /* ── §∅ AN UNCONFIRMED SPAN SET STILL HAS A SIZE, AND THE SILENCE WAS THE DEFECT ────────────────
+     Row 2026-10-28-pat-legs-refuse-only-the-spans-a-sidecar-confirmed. The two conditions above
+     decide whether a foot is DROPPED. Neither decides whether a reader learns the magnitude, and the
+     default path published `validity: null` — a record that says nothing about how much of this
+     recording the recompute would have refused. `tools/pat-pinned-move.mjs` measured the reach on
+     2026-11-01: of 3618 PPG recordings 170 carry a companion and 3448 do not, so the silent path is
+     95.3 % of the corpus.
+     The default stays. That run also sampled the counterfactual at stride 60 and found 4 of 60
+     recordings moving, 17 feet of 22577, every mover a one-channel finger recording — a floor of 3
+     movers, so the switch FAILS its own bar and flipping it would assert a recompute nobody verified.
+     So this leg COUNTS and keeps. `_annotateOnly` builds the same ranges, walks the same feet and
+     drops none of them, and the counts ride out as `wouldDrop` / `wouldPartial` beside a `dropped`
+     that stays `null`. ∅ A count of 0 means the scan ran and bit nothing; `null` means no span set
+     existed to scan. */
+  var _annotateOnly = !rec.pinnedCrossCheck && !_fromRecompute && Array.isArray(rec.spans);
   var chRanges = [];
-  if ((rec.pinnedCrossCheck || _fromRecompute) && Array.isArray(rec.spans)) {
+  if ((rec.pinnedCrossCheck || _fromRecompute || _annotateOnly) && Array.isArray(rec.spans)) {
     for (var ci = 0; ci < rec.spans.length; ci++) {
       var _sp = rec.spans[ci];
       chRanges.push(PATGate.runRanges((_sp && _sp.spans) || []));
@@ -255,12 +294,14 @@ function ppgFootTimes(text, runsText, opts) {
     for (var cj = 0; cj < chCursors.length; cj++) if (chCursors[cj](cons.feet[fi])) _hits++;
     if (chCursors.length && _hits === chCursors.length) {
       nAllPinned++;
-      continue;
+      /* ANNOTATE, NEVER DROP: the counting path keeps the foot, so `times` and `n` read exactly what
+         they read before this count existed. */
+      if (!_annotateOnly) continue;
     }
     if (_hits) nPartPinned++;
     footIdx.push(fi);
   }
-  if (nAllPinned) {
+  if (nAllPinned && !_annotateOnly) {
     /* `agree` is index-aligned with `feet` (`consensusBeats` pushes both per cluster), so it is cut
        with the same index list or `beatSQI` would read another beat's agreement. */
     cons = {
@@ -362,6 +403,16 @@ function ppgFootTimes(text, runsText, opts) {
     });
     _unmeasured = PATGate.runSeconds(_allRecomp, rec.fs, rec.t0Ms).size;
   }
+  /* The same seconds the counting path would have refused, kept apart from `_unmeasured` because
+     nothing was refused here. ∅ `null` where no channel range was built, a number where the
+     intersection ran — including 0, which means it ran and found no all-channel span. */
+  var _wouldUnmeasured = null;
+  if (_annotateOnly && chRanges.length) {
+    var _allWould = chRanges.reduce(function (a, b) {
+      return PATGate.intersectRuns(a, b);
+    });
+    _wouldUnmeasured = PATGate.runSeconds(_allWould, rec.fs, rec.t0Ms).size;
+  }
   return {
     t0Ms: rec.t0Ms,
     fs: rec.fs,
@@ -395,7 +446,25 @@ function ppgFootTimes(text, runsText, opts) {
             partial: nPartPinned,
             unmeasuredSec: _unmeasured
           }
-        : null
+        : {
+            /* THE UNCONFIRMED RECORD, and ONE branch for two states rather than a second one nothing
+               can reach. `source` is `null` because nothing confirmed these spans and nothing
+               consumed them, and `dropped` / `partial` are `null` because this leg refused no foot.
+               ∅ The two states separate in the COUNTS: a number — 0 included — where the scan walked
+               the feet, and `null` where `parsePPG` published no per-channel span set for it to walk. */
+            source: null,
+            comparable: null,
+            comparableReason: _annotateOnly
+              ? 'no `_PPGRUNS.txt` companion was ingested, so these recompute spans stand unconfirmed and no foot was refused'
+              : 'parsePPG published no per-channel span set, so no leg sized this recording',
+            channels: _annotateOnly ? chCursors.length : null,
+            dropped: null,
+            partial: null,
+            wouldDrop: _annotateOnly ? nAllPinned : null,
+            wouldPartial: _annotateOnly ? nPartPinned : null,
+            unmeasuredSec: null,
+            wouldUnmeasuredSec: _wouldUnmeasured
+          }
   };
 }
 function overlap(ecg, ppg) {

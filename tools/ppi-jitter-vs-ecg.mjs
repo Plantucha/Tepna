@@ -119,7 +119,6 @@ const FIDUCIAL = has('--fiducial');
 /* §3.4'S PER-EPOCH SQI ARM. Its figures print on every run that scores epochs; `--sqi` additionally
    emits the arm's verdict and makes the exit code the arm's, which is how `--fiducial` behaves. */
 const SQI_ARM = has('--sqi');
-const nightKeyOf = (tMs) => new Date(tMs - 12 * 3600 * 1000).toISOString().slice(0, 10);
 
 /* NOCTURNAL MILLISECONDS of one span, on the floating wall clock (CLAUDE.md §5: every hour here comes
    from getUTC*, so the figure does not depend on the reader's zone). The windows are
@@ -185,7 +184,7 @@ import {
   ppiJitterMs,
   rateAgreement
 } from './ppi-match.mjs';
-import { dedupeByIdentity, gitCommitOf, notCovered, populationVerdict, ruleLine, snapshotEntries } from './corpus-scope-core.mjs';
+import { capByNights, dedupeByIdentity, gitCommitOf, headNightKeyWith, nightKeyOf, notCovered, populationVerdict, ruleLine, snapshotEntries } from './corpus-scope-core.mjs';
 import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
 
 /* ── THE VALIDITY SIDECAR RIDES WITH THE STREAM (row 2026-10-17-sample-parsers-called-without-their-sidecar) ──
@@ -1239,6 +1238,35 @@ function selftest() {
       'an undated head never displaces a dated night, and rides only in leftover room',
       tight.kept.length === 1 && tight.kept[0].p === '/a/dated.txt' && tight.undated.length === 1 && tight.keptUndated.length === 0 && roomy.kept.length === 2
     );
+    /* THE KEY IS THE CALLER'S, AND A MISSING ONE IS A REFUSAL RATHER THAN A GUESS. Four tools now
+       share this cap, and a default key would have silently applied one node's parser to another
+       node's stream. */
+    let refused = null;
+    try {
+      capByNights(rows, 1);
+    } catch (e) {
+      refused = e;
+    }
+    ok('the cap refuses a call with no key reader, instead of guessing one', refused instanceof TypeError && /keyOf/.test(refused.message));
+    /* THE HEAD PROBE, OVER THIS FILE ITSELF — a readable path and a stub parser, so the leg pins the
+       factory's own rules and reads no corpus. */
+    const TOOL_SELF = fileURLToPath(import.meta.url);
+    const _probeReads = [];
+    const _probe = headNightKeyWith({
+      parse: (t, o) => {
+        _probeReads.push(o && o.runsText);
+        return { t0Ms: Date.UTC(2026, 6, 9, 23, 30, 0) };
+      },
+      runsOf: () => 'RUNS-TEXT'
+    });
+    ok(
+      'the head probe keys the night off the parsed clock, 12 h shifted, and hands the parser its sidecar',
+      _probe(TOOL_SELF) === '2026-07-09' && _probeReads.length === 1 && _probeReads[0] === 'RUNS-TEXT'
+    );
+    ok(
+      'a head that cannot be opened, and one whose record carries no t0Ms, are both night UNKNOWN',
+      headNightKeyWith({ parse: () => ({ t0Ms: 1 }) })('/nonexistent-head-for-the-selftest-' + process.pid) === null && headNightKeyWith({ parse: () => ({}) })(TOOL_SELF) === null
+    );
     const errs = [];
     const got = walk('/nonexistent-root-for-the-selftest-' + process.pid, [], errs);
     ok('a walk that cannot read a directory collects the reason instead of swallowing it', got.length === 0 && errs.length === 1 && typeof errs[0].reason === 'string' && errs[0].reason.length > 0);
@@ -1552,66 +1580,22 @@ function emitSqiVerdict(R) {
   process.exit(status === 'NOT_RUN' || status === 'UNDERPOWERED' ? 2 : 0);
 }
 /* ── THE CAP IS NAMED FOR NIGHTS, SO IT SELECTS NIGHTS ────────────────────────────────────────────
-   Row 2026-11-04-max-nights-caps-the-largest-files-not-the-nights: this line sorted the matched files
-   by descending SIZE and sliced `--max-nights` of them, so a flag named for nights kept the longest
-   CAPTURES and the night count fell out of the cap. `--max-nights 30` over the paper's corpus left 27
-   merged nights, biased toward long wear, with no line saying so. The committed run
-   `--device verity --max-nights 54` (audits/PPG-ECG-HRV-PAPER-EPOCH-BIAS-2026-10-28.json) matched 54
-   files holding 30 nights, so a cap counting NIGHTS leaves that population whole and keeps the
-   record reproducible — and a reader asking for 30 nights now gets 30.
+   Row 2026-11-04-max-nights-caps-the-largest-files-not-the-nights. The cap, the 12 h night shift and
+   the head probe now live in `corpus-scope-core.mjs`, which carries the measurements that chose each
+   rule, because three more tools cut files under this flag and a fourth copy of the rule would be a
+   fourth chance to disagree with it (row 2026-11-05-three-more-max-nights-caps-still-cut-files).
 
-   THE NIGHT KEY COMES FROM THE PARSED CLOCK, NEVER FROM THE FILENAME. `buildUnits` buckets on
-   `nightKeyOf(rec.t0Ms)`, and the filename stamp is the capture SESSION's start, taken before the
-   link is up: row 2026-09-22-filename-stamp-still-wrong-for-other-consumers measured a session
-   stamped 21:00 whose stream opened at 09:00. So the cap reads each candidate's HEAD through the
-   node's own parser and takes `t0Ms` from that. Measured 2026-11-05 on a 19.0 MB Verity capture, a
-   4 KiB head yields the same `t0Ms` as the whole file, so the cap costs one small read per candidate.
-
-   EARLIEST FIRST, AND A HEAD WITH NO CLOCK IS NAMED RATHER THAN BINNED. Chronological order is
-   deterministic and is not keyed on the quantity the run publishes, which a size rank is. A head
-   carrying no `t0Ms` is a night UNKNOWN, not a night absent: those files are offered only after every
-   dated night, each one costing a cap slot, and they go out by name. */
-const HEAD_BYTES = 4096;
-function headNightKey(path) {
-  let fd = null;
-  try {
-    fd = openSync(path, 'r');
-    const buf = Buffer.alloc(HEAD_BYTES);
-    const n = readSync(fd, buf, 0, HEAD_BYTES, 0);
-    const _t = buf.slice(0, n).toString('utf8');
-    /* THE SIDECAR RIDES THE HEAD TOO, AND THE PROBE'S READ IS NOT TALLIED. A run naming the first
-       samples absent must not key the night off a sample the stream never measured (§∅). The tally
-       describes the streams this tool SCORED, so a candidate the cap drops would otherwise be
-       counted as a validity reading nobody made. */
-    const _rt = readRunsSidecar(path, 'PPG').runsText;
-    const rec = _rt ? P.parsePPG(_t, { runsText: _rt }) : P.parsePPG(_t);
-    return rec && rec.t0Ms != null ? nightKeyOf(rec.t0Ms) : null;
-  } catch (_e) {
-    return null;
-  } finally {
-    if (fd != null) closeSync(fd);
-  }
-}
-export function capByNights(files, maxNights, keyOf = headNightKey) {
-  const byNight = new Map();
-  const undated = [];
-  for (const f of files.slice().sort((a, b) => (a.p < b.p ? -1 : a.p > b.p ? 1 : 0))) {
-    const k = keyOf(f.p);
-    if (k == null) {
-      undated.push(f);
-      continue;
-    }
-    if (!byNight.has(k)) byNight.set(k, []);
-    byNight.get(k).push(f);
-  }
-  const nights = Array.from(byNight.keys()).sort();
-  const keptNights = nights.slice(0, Math.max(0, maxNights));
-  const kept = [];
-  for (const k of keptNights) kept.push(...byNight.get(k));
-  const roomLeft = Math.max(0, maxNights - keptNights.length);
-  const keptUndated = undated.slice(0, roomLeft);
-  return { kept: kept.concat(keptUndated), keptNights, nights, droppedNights: nights.slice(keptNights.length), undated, keptUndated };
-}
+   WHAT STAYS HERE IS THE PART THAT IS THIS TOOL'S: the parser the head is read through, and the
+   untallied sidecar reader beside it. `runsOf` at :197 is the TALLIED reader and is deliberately not
+   used — the tally describes the streams this tool scored, and a candidate the cap drops is not one
+   of them. */
+const headNightKey = headNightKeyWith({
+  parse: (t, o) => {
+    const rt = o && o.runsText;
+    return rt ? P.parsePPG(t, { runsText: rt }) : P.parsePPG(t);
+  },
+  runsOf: (path) => readRunsSidecar(path, 'PPG').runsText
+});
 
 const _walkErrs = [];
 const all = walk(DIR, [], _walkErrs);
@@ -1620,7 +1604,7 @@ const _ppgMatched = all.filter((f) => PPG_RE.test(f.p));
    two capture trees under one uploads root hold the same captures as separate files on separate
    shares, so a per-file pool gave half the corpus double weight. The rule is the shared one. */
 const _ppgOffer = dedupeByIdentity(_ppgMatched);
-const _cap = capByNights(_ppgOffer.kept, MAX_NIGHTS);
+const _cap = capByNights(_ppgOffer.kept, MAX_NIGHTS, headNightKey);
 const fingerFiles = _cap.kept;
 /* PRINT THE DENOMINATOR. A pattern that matches nothing and a corpus that holds nothing produce the
    same silence, and only one of them is a fact about the data. Stating files-walked beside

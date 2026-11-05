@@ -181,7 +181,14 @@ function ecgCounterTimeMs(rec, pos) {
   return rec.t0Ms + dev * scale;
 }
 /* ── @port-from pat-feasibility-worker.js#ecgRpeakTimes ──────────────────────────────
-   @port-sha e3b9cd07ac8c
+   @port-sha a0779492738e
+   RECONCILED 2026-11-05 against that source text, for row
+   2026-10-28-pat-legs-refuse-only-the-spans-a-sidecar-confirmed. The worker's leg now publishes a
+   validity record on all three companion states rather than a bare `null`, and holds its unmeasured
+   union at `null` where the companion's rows went unplaced. The `blanking` block below already
+   carried both facts — `sidecar: 'absent' | 'read' | 'unplaced'` with `null` sizes beside the parser's
+   own reason — so this copy reconciles with no code change. The worker's `validity` record serves the
+   worker's own consumers, which is why it stays outside this port.
    PORTED 2026-11-05 for row 2026-11-03-the-ecg-leg-of-the-shared-pat-extractor-takes-no-sidecar.
    The worker's leg takes the `_ECGRUNS.txt` bytes and drops every R peak inside a span the box
    recorded as measuring nothing. This copy took no sidecar at all, so eleven call sites ran
@@ -261,7 +268,12 @@ function ecgRpeakTimes(text, runsTextOrOpts, optsThird) {
   };
 }
 /* ── @port-from pat-feasibility-worker.js#ppgFootTimes ─────────────────────────────
-   @port-sha 34a85f9eb0c9
+   @port-sha ad119403ae00
+   PORTED 2026-11-05 for row 2026-10-28-pat-legs-refuse-only-the-spans-a-sidecar-confirmed. The worker
+   now SIZES an unconfirmed span set without consuming it, and this copy runs the same count:
+   `annotateOnly` below builds the ranges, walks the feet and keeps every one. The default still never
+   flips, so every time this copy publishes holds. The worker's `validity` / `unmeasuredSec` block
+   stays outside the port for the reason the header already gives.
    RECONCILED 2026-11-03 against that source text, for row
    2026-11-01-the-consensus-polarity-wiring-reached-one-of-ten-callers. The worker now applies the consensus
    polarity decision, in the place and the order this copy applies it: after the per-channel
@@ -320,8 +332,15 @@ function ppgFootTimes(text, runsText, opts) {
      pinned" (§∅) and the sidecar leg's own arithmetic is untouched. */
   const fromRecompute = !!(opts && opts.pinnedFromRecompute);
   const recomputeRan = fromRecompute && !rec.pinnedCrossCheck && Array.isArray(rec.spans);
+  /* ∅ AN UNCONFIRMED SPAN SET STILL HAS A SIZE — ported 2026-11-05 with the worker's own fix for row
+     2026-10-28-pat-legs-refuse-only-the-spans-a-sidecar-confirmed. Neither condition above decides
+     whether a reader learns the MAGNITUDE, and the default path published `null` counts beside a
+     `null` source — a record that cannot tell "the recompute would refuse nothing here" from "nobody
+     sized it". `annotateOnly` builds the same ranges, walks the same feet and keeps every one, so the
+     published times never move; the counts leave as `wouldDropAllPinned` / `wouldPartialPinned`. */
+  const annotateOnly = !fromRecompute && !rec.pinnedCrossCheck && Array.isArray(rec.spans);
   const chRanges = [];
-  if ((rec.pinnedCrossCheck || recomputeRan) && Array.isArray(rec.spans)) {
+  if ((rec.pinnedCrossCheck || recomputeRan || annotateOnly) && Array.isArray(rec.spans)) {
     for (const sp of rec.spans) chRanges.push(PATGate.runRanges((sp && sp.spans) || []));
   }
   const chCursors = chRanges.map((r) => PATGate.inRunsCursor(r));
@@ -333,12 +352,14 @@ function ppgFootTimes(text, runsText, opts) {
     for (let cj = 0; cj < chCursors.length; cj++) if (chCursors[cj](cons.feet[fi])) hits++;
     if (chCursors.length && hits === chCursors.length) {
       nAllPinned++;
-      continue;
+      /* ANNOTATE, NEVER DROP: the counting path keeps the foot, so every published time is the one
+         this copy published before the count existed. */
+      if (!annotateOnly) continue;
     }
     if (hits) nPartPinned++;
     keptFeet.push(fi);
   }
-  if (nAllPinned) {
+  if (nAllPinned && !annotateOnly) {
     /* `feet`, `peaks` and `agree` are index-aligned — `halfAmplitudeIndex` below pairs `feet[i]` with
        `peaks[i]`, so cutting one without the others would read another beat's peak. */
     cons = {
@@ -415,6 +436,12 @@ function ppgFootTimes(text, runsText, opts) {
     nCfdUnusable,
     droppedAllPinned: rec.pinnedCrossCheck || recomputeRan ? nAllPinned : null,
     partialPinned: rec.pinnedCrossCheck || recomputeRan ? nPartPinned : null,
+    /* ∅ WHAT AN UNCONFIRMED SPAN SET WOULD HAVE REFUSED, and the pair reads as a count only where the
+       scan ran: `null` where no span set existed, a number — 0 included — where it walked the feet and
+       refused none of them. Both are `null` whenever a leg above actually dropped, because there the
+       two fields above carry the real figure. */
+    wouldDropAllPinned: annotateOnly ? nAllPinned : null,
+    wouldPartialPinned: annotateOnly ? nPartPinned : null,
     /* §∅ THE SOURCE NAMES ITSELF, so a reader never reads a recompute as a sidecar: nothing
        confirmed the recompute's spans. `null` where neither leg ran. */
     pinnedSource: rec.pinnedCrossCheck ? '_PPGRUNS.txt' : recomputeRan ? 'recompute' : null
