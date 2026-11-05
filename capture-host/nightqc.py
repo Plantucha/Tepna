@@ -51,7 +51,8 @@ log = logging.getLogger("tepna-capture")
 # carries a note NAMING its box-wide sidecars and a note generated from a second copy of this set
 # would eventually describe a different night than the one this pass judges. Same six filter
 # sites, same semantics; the only change is that there is one list.
-_SIDECAR_TAGS = set(writers.BOX_WIDE_SIDECAR_TAGS)
+# 2026-11-05: the per-device clock logs joined the set (`writers.DEVICE_CLOCK_SIDECAR_TAGS`).
+_SIDECAR_TAGS = set(writers.NOT_DEVICE_DATA_TAGS)
 
 # ⚠️ A NAME-KEYED GUARD WAS ADDED HERE AND THE MUTATION GATE REFUTED IT. I wrote
 # `_DAEMON_FIXED_NAMES = {"OXYLIFE.csv"}` beside the tag above and claimed in the commit that "both

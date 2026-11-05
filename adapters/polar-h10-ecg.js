@@ -87,7 +87,12 @@
         // PRIMARY parse, not the companion block below, which runs after the frame is already built.
         // No sidecar → the exact single-argument call as before (byte-identical).
         var runsText = ctx.companions && typeof ctx.companions.runs === 'string' ? ctx.companions.runs : null;
-        rec = runsText ? parseFn(text, { runsText: runsText }) : parseFn(text);
+        // SEAM-SIDECAR-CONSUMPTION §4 — and `…_ECGSEAMS.txt` on the same footing, from the same pairing
+        // (ctx.companions.seams). The owner ruled on 2026-11-05 that a window spanning a recorded seam
+        // REFUSES and a night with no sidecar reads as seams UNKNOWN, so this is the difference between
+        // an annotated unknown and a fabricated zero on every orchestrated H10 night.
+        var seamsText = ctx.companions && typeof ctx.companions.seams === 'string' ? ctx.companions.seams : null;
+        rec = runsText || seamsText ? parseFn(text, { runsText: runsText, seamsText: seamsText }) : parseFn(text);
       } catch (e) {
         return root.SignalFrame.toSignalFrame('ecg', { usable: false, reason: 'polar-h10-ecg: parse error — ' + ((e && e.message) || e) }, prov);
       }

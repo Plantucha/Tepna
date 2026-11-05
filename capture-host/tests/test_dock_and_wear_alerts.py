@@ -25,6 +25,7 @@ def test_not_worn_while_running_needs_the_grace_and_recent_samples():
     assert f(0, 700, 1000) is True  # samples exactly 300 s old
     assert f(0, 699, 1000) is False  # a device that went silent: no alert
     assert f(0, 1000, 1000, grace_sec=0) is False  # 0 turns the alert off
+    assert f(0, 1000, 1000, grace_sec=1) is True  # any positive grace keeps the alert on
     assert f(0, 1000, 1000, grace_sec=50, window_sec=10) is True
 
 

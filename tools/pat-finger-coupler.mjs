@@ -132,8 +132,9 @@ function pairsIn(dir) {
   const ppgs = biggest(dir, RE_RING, 4);
   if (!ecgs.length || !ppgs.length) return [];
   /* The callback takes the PATH beside the text — the sidecar is named from the path, and only
-     this layer holds it. The ECG leg ignores it: `ecgRpeakTimes` takes `opts` second, never a
-     sidecar (row 2026-11-03-the-ecg-leg-of-the-shared-pat-extractor-takes-no-sidecar). */
+     this layer holds it. BOTH legs take it now: a string at `ecgRpeakTimes` position two is the
+     `_ECGRUNS.txt` bytes, and an object there is still `opts`, so no existing caller moved (row
+     2026-11-03-the-ecg-leg-of-the-shared-pat-extractor-takes-no-sidecar, ported 2026-11-05). */
   const parse = (list, fn) =>
     list
       .map((c) => {
@@ -145,7 +146,7 @@ function pairsIn(dir) {
         }
       })
       .filter(Boolean);
-  const E = parse(ecgs, (text) => ecgRpeakTimes(text));
+  const E = parse(ecgs, (text, path) => ecgRpeakTimes(text, runsOf(path, 'ECG')));
   const P = parse(ppgs, (txt, path) => ppgFiducialTimes(txt, FIDUCIAL, runsOf(path, 'PPG')));
   let best = null;
   for (const e of E)

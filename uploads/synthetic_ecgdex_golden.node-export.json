@@ -52,6 +52,14 @@
     "deviceEpoch": {
       "offsetMs": -235343518661,
       "plausible": false
+    },
+    "validity": {
+      "seams": null,
+      "seamsExamined": null,
+      "seamsPlaced": null,
+      "seamsUnplaced": null,
+      "seamsBoundMs": null,
+      "seamsReason": "no-seam-sidecar"
     }
   },
   "measurement": {
@@ -67,8 +75,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "df7980aac8af",
-        "computeHash": "8eebf014cefe"
+        "manifestHash": "4aa649e4b22d",
+        "computeHash": "ee0fbf514a09"
       },
       "evidence": {
         "envelopeRef": null,
@@ -97,8 +105,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "df7980aac8af",
-        "computeHash": "8eebf014cefe"
+        "manifestHash": "4aa649e4b22d",
+        "computeHash": "ee0fbf514a09"
       },
       "evidence": {
         "envelopeRef": null,
@@ -127,8 +135,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "df7980aac8af",
-        "computeHash": "8eebf014cefe"
+        "manifestHash": "4aa649e4b22d",
+        "computeHash": "ee0fbf514a09"
       },
       "evidence": {
         "envelopeRef": null,
@@ -157,8 +165,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "df7980aac8af",
-        "computeHash": "8eebf014cefe"
+        "manifestHash": "4aa649e4b22d",
+        "computeHash": "ee0fbf514a09"
       },
       "evidence": {
         "envelopeRef": null,
@@ -189,8 +197,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "df7980aac8af",
-        "computeHash": "8eebf014cefe"
+        "manifestHash": "4aa649e4b22d",
+        "computeHash": "ee0fbf514a09"
       },
       "evidence": {
         "envelopeRef": null,

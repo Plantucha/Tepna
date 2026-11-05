@@ -64,7 +64,18 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, relative } from 'node:path';
 import { EPOCH_MS, MAX_LAG_MS, median, quantile, hrEnvelope, envelopeLagMs, refineLagByMatch, matchBeats, refinePeaks, ppiJitterMs } from './ppi-match.mjs';
-import { gitCommitOf, notCovered, populationVerdict, ruleLine, snapshotEntries } from './corpus-scope-core.mjs';
+import { dedupeByIdentity, gitCommitOf, notCovered, populationVerdict, ruleLine, snapshotEntries } from './corpus-scope-core.mjs';
+import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
+/* ── THE VALIDITY SIDECAR RIDES WITH THE STREAM ─────────────────────────────────────────────────────
+   Row 2026-10-17-sample-parsers-called-without-their-sidecar: this tool read a night's samples and
+   none of the box's `…RUNS.txt` validity, so a blanking run the box recorded reached the detectors
+   below as signal — a flat rail is a plausible diastole, and no reader can tell it from one.
+   `readRunsSidecar` names which of four things happened per stream, and the tally prints beside the
+   numbers: §∅, reduced coverage annotates, and an ABSENT sidecar is validity UNKNOWN for that
+   stream, never a clean one. Most of this corpus predates the writer, so most streams read `absent`
+   and parse exactly as they did before. */
+const VALIDITY = {};
+const runsOf = (streamPath, stream) => readRunsSidecar(streamPath, stream, { tally: VALIDITY }).runsText;
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const argv = process.argv.slice(2);
@@ -240,6 +251,25 @@ function selftest() {
   const MEASURED_NAME_ERROR_MS = 18.7 * 3600 * 1000;
   ok(OVERLAP_MAX_GAP_MS > MEASURED_NAME_ERROR_MS, `the pre-filter bound ${(OVERLAP_MAX_GAP_MS / 3600000).toFixed(0)} h exceeds the measured name error 18.7 h`);
 
+  /* A WALK THAT COULD NOT READ A DIRECTORY HANDS THE REASON BACK (§∅). The old form caught every
+     error and returned `[]`, which reads exactly like a directory that holds nothing. */
+  const wErrs = [];
+  const wOut = walk(join(ROOT, 'tools/.no-such-dir-for-the-selftest'), [], wErrs);
+  ok(wOut.length === 0 && wErrs.length === 1 && !!wErrs[0].reason, `an unreadable directory leaves a named reason (${wErrs.length} collected: ${wErrs[0] ? wErrs[0].reason : 'none'})`);
+
+  /* THE CAP RANKS FILES BY SIZE, AND THE SELFTEST PINS THAT IT IS SIZE, NOT ORDER. The flag reads
+     `--max-nights`, so the one thing the reader must be able to check is what it really cuts. */
+  const capIn = [
+    { p: 'a', size: 10 },
+    { p: 'b', size: 300 },
+    { p: 'c', size: 200 }
+  ];
+  const capped = capIn
+    .slice()
+    .sort((x, y) => y.size - x.size)
+    .slice(0, 2);
+  ok(capped.map((f) => f.p).join('') === 'bc', `the --max-nights cap keeps the largest FILES first (${capped.map((f) => f.p).join(',')}), so two files can be one night`);
+
   console.log(fail ? `\nselftest: ${fail} FAILURE(S)` : '\nselftest: all green');
   return fail;
 }
@@ -293,17 +323,22 @@ const P = _ppgRealm.PPGDSP;
 const DexClock = _ppgRealm.DexClock;
 const E = realm(['clock.js', 'kernel-constants.js', 'metric-registry.js', 'ecgdex-registry.js', 'ecgdex-morph.js', 'ecgdex-dsp.js']).ECGDSP;
 
-const walk = (d, o = []) => {
+/* A SWALLOWED EIO IS NOT AN EMPTY DIRECTORY (§∅). The catch stays, because one unreadable share must
+   not throw away a corpus the rest of the tree holds, but the reason now leaves with the caller:
+   reduced coverage annotates, and an empty result over nothing-read refuses below. */
+function walk(d, o = [], errs = []) {
   try {
     for (const e of readdirSync(d)) {
       const p = join(d, e);
       const st = statSync(p);
-      if (st.isDirectory()) walk(p, o);
+      if (st.isDirectory()) walk(p, o, errs);
       else o.push({ p, size: st.size });
     }
-  } catch (_e) {}
+  } catch (e) {
+    errs.push({ dir: d, reason: (e && e.code) || (e && e.message) || 'unknown' });
+  }
   return o;
-};
+}
 const PPG_RE = DEVICE === 'verity' ? /(?:VeritySense|Polar_Sense).*_PPG\.txt$/i : /O2Ring.*_PPG\.txt$/i;
 /* THE LISTER IS THE POPULATION RULE, AND IT CARRIES A NAME ON PURPOSE. `snapshotEntries` publishes
    `rule: null` for an inline arrow (`corpus-scope.mjs:329`), which would state that nobody chose the
@@ -315,21 +350,62 @@ const PPG_RE = DEVICE === 'verity' ? /(?:VeritySense|Polar_Sense).*_PPG\.txt$/i 
    `ok: false` with the reason instead. */
 function listDevicePpg(root) {
   readdirSync(root);
-  return walk(root)
-    .filter((f) => PPG_RE.test(f.p))
-    .map((f) => relative(root, f.p));
+  const errs = [];
+  const files = walk(root, [], errs);
+  if (!files.length && errs.length) throw new Error(`the walk under ${root} read no file and ${errs.length} directory(ies) refused it, first: ${errs[0].dir} (${errs[0].reason})`);
+  return dedupeByIdentity(files.filter((f) => PPG_RE.test(f.p))).kept.map((f) => relative(root, f.p));
 }
 
 const snap = snapshotEntries(DIR, { list: listDevicePpg, unit: PPG_UNIT });
 /* 🔴 STAMP THE CODE THAT RAN, NOT THE CODE AT THE END OF THE RUN. Reading a night of PPG takes long
    enough for a commit to land in this worktree, and Node loaded this module at the start. */
 const commitOf = gitCommitOf(ROOT);
-const all = walk(DIR);
-const ppgs = all
-  .filter((f) => PPG_RE.test(f.p))
+const _walkErrs = [];
+const all = walk(DIR, [], _walkErrs);
+/* THE SAME RECORDING IS OFFERED TWICE (row 2026-11-04-a-per-file-corpus-walk-has-no-capture-identity-rule):
+   two capture trees under one uploads root hold the same captures as separate files on separate
+   shares, so a per-file pool gave half the corpus double weight. The rule is the shared one. */
+const _ppgOffer = dedupeByIdentity(all.filter((f) => PPG_RE.test(f.p)));
+const _ecgOffer = dedupeByIdentity(all.filter((f) => /H10.*_ECG\.txt$/i.test(f.p)));
+/* PRINT THE DENOMINATOR. A pattern that matches nothing and a corpus that holds nothing produce the
+   same silence, and only one of them is a fact about the data. */
+console.log(`corpus: ${all.length} file(s) walked · ${_ppgOffer.kept.length} matched ${DEVICE} PPG · ${_ecgOffer.kept.length} paired H10 ECG`);
+if (_ppgOffer.dropped.length || _ecgOffer.dropped.length)
+  console.log(
+    `  identity rule (basename, byte size): dropped ${_ppgOffer.dropped.length} duplicate PPG path(s) and ${_ecgOffer.dropped.length} duplicate ECG path(s); the lexicographically first path wins`
+  );
+if (_ppgOffer.conflicts.length) console.log(`  ∅ ${_ppgOffer.conflicts.length} basename(s) offered at DIFFERENT sizes, kept as separate recordings: ${_ppgOffer.conflicts.slice(0, 6).join(' · ')}`);
+/* REDUCED COVERAGE ANNOTATES (§∅). A walk that gathered files past an unreadable subdirectory still
+   describes a corpus, and the directories it could not read go out by name rather than as a count. */
+if (_walkErrs.length && all.length)
+  console.log(
+    `  ∅ ${_walkErrs.length} directory(ies) the walk could not read, by name: ${_walkErrs
+      .slice(0, 4)
+      .map((e) => `${e.dir} (${e.reason})`)
+      .join(' · ')}${_walkErrs.length > 4 ? ` · … (+${_walkErrs.length - 4})` : ''}`
+  );
+if (!_ppgOffer.kept.length) {
+  /* A DISCONTINUITY REFUSES UNDER ITS OWN REASON (row 2026-11-04-a-stalled-corpus-walk-blames-the-vendor-naming).
+     A walk that read nothing examined no filename, so the absence is a fact about the STORAGE. */
+  console.error(`\n⊘ NO ${DEVICE.toUpperCase()} PPG FILE MATCHED under ${DIR}.`);
+  if (!all.length) {
+    if (_walkErrs.length) console.error(`  THE WALK READ NOTHING: ${_walkErrs.length} directory(ies) refused it, first: ${_walkErrs[0].dir} (${_walkErrs[0].reason}).`);
+    else console.error('  The root is readable and holds no file at all, so no pattern could have matched.');
+    console.error('  This says nothing about the corpus or the pattern. Re-run once the root reads.');
+  } else {
+    console.error(`  The walk read ${all.length} file(s), so this IS a statement about the PATTERN.`);
+  }
+  process.exit(2);
+}
+/* 🔴 THIS CAP COUNTS FILES, NOT NIGHTS, AND SAYS SO (row 2026-11-04-max-nights-caps-the-largest-files-not-the-nights).
+   `--max-nights` ranks by byte size and cuts the file list, so one night split across two captures
+   spends two of the budget and a 20-file cap can cover far fewer than 20 nights. The flag name is
+   kept because seven other tools share it; the rule it applies is stated in the population line. */
+const ppgs = _ppgOffer.kept
+  .slice()
   .sort((a, b) => b.size - a.size)
   .slice(0, MAX_NIGHTS);
-const ecgs = all.filter((f) => /H10.*_ECG\.txt$/i.test(f.p));
+const ecgs = _ecgOffer.kept;
 
 /* Cheap filename pre-filter: an ECG whose name stamp sits further than OVERLAP_MAX_GAP_MS from the
    PPG start cannot overlap it. A file without a parseable stamp is NOT rejected — it falls through to
@@ -360,7 +436,9 @@ function ecgCache(p) {
   if (_ecgMemo.has(p)) return _ecgMemo.get(p);
   let v = null;
   try {
-    const er = E.parseECG(readFileSync(p, 'utf8'));
+    const eTxt = readFileSync(p, 'utf8');
+    const eRuns = runsOf(p, 'ECG');
+    const er = eRuns ? E.parseECG(eTxt, { runsText: eRuns }) : E.parseECG(eTxt);
     const eres = E.analyze(er);
     if (er.t0Ms != null && eres.peaks) {
       const bp = E.bandpass(er.int16, er.fs);
@@ -402,7 +480,9 @@ const rows = [];
 for (const f of ppgs) {
   let rec0;
   try {
-    rec0 = P.parsePPG(readFileSync(f.p, 'utf8'));
+    const pTxt = readFileSync(f.p, 'utf8');
+    const pRuns = runsOf(f.p, 'PPG');
+    rec0 = pRuns ? P.parsePPG(pTxt, { runsText: pRuns }) : P.parsePPG(pTxt);
   } catch (_e) {
     continue;
   }
@@ -482,7 +562,12 @@ function printPopulation() {
   console.log(`  the read scored ${rows.length} of the ${snap.n} offered under ${DIR}${snap.ok ? '' : ` · ${snap.reason}`}`);
   const missed = notCovered(snap, rows, { key: 'rec' });
   if (missed.length) console.log(`  it removed ${missed.length}, by name: ${missed.slice(0, 8).join(' · ')}${missed.length > 8 ? ` · … (+${missed.length - 8})` : ''}`);
-  if (ppgs.length < snap.n) console.log(`  ${snap.n - ppgs.length} of those left under the --max-nights ${MAX_NIGHTS} cap, largest first`);
+  if (ppgs.length < snap.n)
+    console.log(`  ${snap.n - ppgs.length} of those left under the --max-nights ${MAX_NIGHTS} cap, which ranks FILES by byte size and keeps ${MAX_NIGHTS} of them — not ${MAX_NIGHTS} nights`);
+  /* PASSING THE SIDECAR IS NOT REPORTING ITS ABSENCE (§∅). `null` over an empty tally, because four
+     zeros read exactly like a sweep where every sidecar was there. */
+  const validity = validityLine(VALIDITY);
+  if (validity) console.log('  ' + validity);
 }
 
 /* 🔴 A RUN THAT SCORED NOTHING STILL OWES ITS POPULATION. The early exit below used to be the only

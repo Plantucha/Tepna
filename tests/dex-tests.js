@@ -46690,6 +46690,169 @@
       }
     );
 
+    /* ════ SEAM-SIDECAR-CONSUMPTION §4 — the box's `_ECGSEAMS.txt` reaches ECGDex (2026-11-05) ══════
+       `capture-host/writers.py` writes a clock-seam sidecar beside every stream it timestamps, and
+       `tools/sidecar-census.mjs` ranked that tag as the one whose only readers were box-side: every
+       H10 night's export was silent about the box's own observation of a device-clock discontinuity.
+       The brief's §4.4 asked what a night with NO sidecar should read as, and the owner ruled on
+       2026-11-05 (relayed as board #3569): seams UNKNOWN, never a night with zero seams, and a
+       window that spans a recorded seam REFUSES.
+
+       🔴 THE PLACEMENT IS THE DEFECT SURFACE, not the parse. The file carries three position columns
+       and two cannot be used: `at_rel_ms` is measured on the device axis the seam just broke, and
+       `idx` is a per-writer-session counter that restarts at every reconnect while the file appends.
+       So these legs pin the HOST-stamp placement, and — as the control — that a seam lying outside
+       every window is counted rather than clamped onto the last epoch, because an over-refusal reads
+       exactly like a correct one. */
+    group('SEAM-SIDECAR-CONSUMPTION §4 — the _ECGSEAMS sidecar reaches parseECG, and a recorded seam REFUSES its epoch', 'ecgdex-dsp · signal-orchestrate · adapters · absence · §∅', function (T) {
+      var E = env.ECGDSP;
+      var HDR = 'Phone timestamp;sensor timestamp [ns];ecg [uV]\n';
+      /* The writer's own shape (`_SeamSidecar._ensure` + `feed` + `close`): a parameter line stating
+         the rule AND the bound, the 7-column header, one row per seam, and one `# final` per writer
+         session. A night that reconnected carries several of those, which is why they are summed. */
+      var SC = [
+        '# stream=ecg rule=clock-seam bound_ms=250 unit=ms basis=device-minus-host',
+        'phone_ts;idx;device_step_ms;phone_delta_ms;residual_ms;host_offset_ms;at_rel_ms',
+        '2026-06-17T01:05:00.000;413;240000.0;7.7;239992.3;-12.0;312000.0',
+        '# final stream=ecg seams=1 examined=50000',
+        '# final stream=ecg seams=0 examined=39999'
+      ].join('\n');
+      if (E && typeof E.parseECG === 'function') {
+        var bare = E.parseECG(HDR),
+          withSc = E.parseECG(HDR, { seamsText: SC });
+        T.ok('parseECG · ONE argument is byte-identical — no seam fields appear', bare.seamsSidecar === undefined && bare.recordedSeams === undefined);
+        T.eq('parseECG · the sidecar publishes its OWN bound, so a reader can tell WHICH threshold looked', withSc.seamsSidecar.boundMs, 250);
+        T.eq('parseECG · …and its rule and basis, as written', withSc.seamsSidecar.rule + ' ' + withSc.seamsSidecar.basis, 'clock-seam device-minus-host');
+        T.ok(
+          'parseECG · a sidecar stating its bound is comparable; one without a parameter line is not',
+          withSc.seamsSidecar.comparable === true && E.parseECG(HDR, { seamsText: 'phone_ts;idx;device_step_ms;phone_delta_ms;residual_ms;host_offset_ms;at_rel_ms' }).seamsSidecar.comparable === false
+        );
+        T.eq(
+          'parseECG · the seam is kept on the HOST axis — the one a device-clock step does not break',
+          withSc.recordedSeams.length + '@' + withSc.recordedSeams[0].tMs,
+          '1@' + Date.UTC(2026, 5, 17, 1, 5, 0, 0)
+        );
+        T.eq('parseECG · the device step and residual are carried as the box measured them', withSc.recordedSeams[0].deviceStepMs + '/' + withSc.recordedSeams[0].residualMs, '240000/239992.3');
+        /* `idx` and `at_rel_ms` are kept as DIAGNOSTICS and must never be the placement — the
+           comment on `parseEcgSeams` records why each one breaks. Pinned so a later edit that starts
+           placing on them has to delete this leg deliberately. */
+        T.eq('parseECG · `idx` and `at_rel_ms` are carried, as diagnostics only', withSc.recordedSeams[0].idx + '/' + withSc.recordedSeams[0].atRelMs, '413/312000');
+        T.eq(
+          'parseECG · every `# final` line is SUMMED, so a reconnecting night reports its whole examined population',
+          withSc.seamsSidecar.seamsReported + '/' + withSc.seamsSidecar.examined,
+          '1/89999'
+        );
+        /* The wrong-companion case #4069 pairs by stamp to avoid — the box writes `_ACCSEAMS`,
+           `_HRSEAMS` and `_PPISEAMS` beside this one, and each declares its own stream. */
+        var wrong = E.parseECG(HDR, { seamsText: SC.replace('stream=ecg rule', 'stream=acc rule') });
+        T.eq("parseECG · an ACC sidecar's rows are not this stream's, and the refusal is counted", wrong.seamsSidecar.rejected + '/' + wrong.seamsSidecar.dataRows, '1/1');
+        T.eq('∅ · rows present and NONE placed yields null, never an empty list that reads as a seam-free stream', wrong.recordedSeams, null);
+        T.ok('∅ · …with the reason naming the stream that went unplaced', /stream=acc/.test(String(wrong.recordedSeamsReason)), String(wrong.recordedSeamsReason));
+        /* §∅ — the MEASURED zero. The box examined 89,999 intervals and recorded no seam, which is a
+           real observation and must not read like an unread channel. */
+        var zero = E.parseECG(HDR, {
+          seamsText: [
+            '# stream=ecg rule=clock-seam bound_ms=250 unit=ms basis=device-minus-host',
+            'phone_ts;idx;device_step_ms;phone_delta_ms;residual_ms;host_offset_ms;at_rel_ms',
+            '# final stream=ecg seams=0 examined=89999'
+          ].join('\n')
+        });
+        T.ok(
+          '∅ · an EMPTY but comparable sidecar is "looked and found nothing", not "never looked"',
+          Array.isArray(zero.recordedSeams) && zero.recordedSeams.length === 0 && zero.seamsSidecar.examined === 89999 && zero.seamsSidecar.placedNone === false
+        );
+        var ragged = E.parseECG(HDR, {
+          seamsText: SC.replace('2026-06-17T01:05:00.000;413;240000.0;7.7;239992.3;-12.0;312000.0', '2026-06-17T01:05:00.000;413;240000.0\nnot-a-stamp;414;240000.0;7.7;239992.3;-12.0;312000.0')
+        });
+        T.eq('parseECG · a short row is MALFORMED and a stampless row is REJECTED — counted apart, never dropped silently', ragged.seamsSidecar.malformed + '/' + ragged.seamsSidecar.rejected, '1/1');
+        T.ok('parseECG · …and the unparseable host stamp is named', /unparsed host stamp/.test(String(ragged.recordedSeamsReason)), String(ragged.recordedSeamsReason));
+        if (typeof E.parseECGLines === 'function') {
+          var lSc = E.parseECGLines(HDR.split(/\r?\n/), { seamsText: SC });
+          T.eq('parseECGLines · the STREAMED entry carries the same seams as the whole-text one', JSON.stringify(lSc.recordedSeams), JSON.stringify(withSc.recordedSeams));
+          T.ok('parseECGLines · ONE argument is byte-identical — no seam fields appear', E.parseECGLines(HDR.split(/\r?\n/)).seamsSidecar === undefined);
+        } else T.skip('ECGDSP.parseECGLines unavailable');
+      } else T.skip('ECGDSP.parseECG unavailable');
+      // ── THE PLACEMENT, and the refusal it drives ──────────────────────────────────────────────
+      if (E && typeof E.placeRecordedSeams === 'function' && typeof E.epochEngine === 'function') {
+        var N = 2400,
+          nn = new Float64Array(N),
+          tt = new Float64Array(N),
+          nnPeak = new Float64Array(N);
+        for (var i = 0; i < N; i++) {
+          nn[i] = 800;
+          tt[i] = i * 0.8;
+          nnPeak[i] = i;
+        }
+        var axis = function (k) {
+          return 1000 + k * 800;
+        };
+        var mid = E.placeRecordedSeams([{ tMs: axis(400) }], axis, nnPeak, tt, N);
+        T.eq('placeRecordedSeams · a seam lands on the FIRST KEPT BEAT AT OR AFTER its host stamp', JSON.stringify(mid), JSON.stringify({ seamSec: [320], placed: 1, unplaced: 0 }));
+        T.eq(
+          'CONTROL · a seam after the last kept beat is UNPLACED, never clamped onto the final epoch',
+          JSON.stringify(E.placeRecordedSeams([{ tMs: axis(N + 10) }], axis, nnPeak, tt, N)),
+          JSON.stringify({ seamSec: [], placed: 0, unplaced: 1 })
+        );
+        T.eq(
+          '∅ · a stampless recording has no axis to place on, and the row is COUNTED rather than guessed',
+          JSON.stringify(E.placeRecordedSeams([{ tMs: axis(400) }], null, nnPeak, tt, N)),
+          JSON.stringify({ seamSec: [], placed: 0, unplaced: 1 })
+        );
+        T.eq(
+          '∅ · a non-finite stamp is unplaced too — never `0`, which is a legal instant',
+          JSON.stringify(E.placeRecordedSeams([{ tMs: Number.NaN }], axis, nnPeak, tt, N)),
+          JSON.stringify({ seamSec: [], placed: 0, unplaced: 1 })
+        );
+        var refA = [],
+          epochsA = E.epochEngine(nn, tt, 300, null, null, [], refA),
+          refB = [],
+          epochsB = E.epochEngine(nn, tt, 300, null, null, mid.seamSec, refB);
+        T.eq('epochEngine · the epoch spanning the placed seam is REFUSED, not annotated — it is ABSENT from the series', epochsA.length - epochsB.length, 1);
+        T.eq(
+          'epochEngine · and the refusal NAMES the discontinuity, never a borrowed `too-few-beats`',
+          (
+            refB.find(function (r) {
+              return r.n > 0;
+            }) || {}
+          ).reason,
+          'clock-seam'
+        );
+      } else T.skip('ECGDSP.placeRecordedSeams/epochEngine unavailable');
+      // ── THE ANNOTATION — the owner's ruling, on every recording ───────────────────────────────
+      if (E && typeof E.genSynthetic === 'function' && typeof E.analyze === 'function' && typeof E.compute === 'function') {
+        var syn = E.genSynthetic({ durSec: 1200, seed: 7 });
+        var rA = E.analyze(syn),
+          expA = E.compute(E.genSynthetic({ durSec: 1200, seed: 7 }));
+        T.eq('OWNER RULING 2026-11-05 · a night with NO seam sidecar reads as seams UNKNOWN', rA.seams.seams + '/' + rA.seams.reason, 'null/no-seam-sidecar');
+        T.eq('…and the export says so UNCONDITIONALLY — a silent export is what the ruling refuses', expA.recording.validity.seams + '/' + expA.recording.validity.seamsReason, 'null/no-seam-sidecar');
+        T.ok('…on the export it is never `0`, the one answer §∅ forbids for an unmeasured channel', expA.recording.validity.seams === null);
+        /* A rec that carries rows but no axis to place them on: the count is the box's measurement
+           and `placed`/`unplaced` are this node's, so the annotation names the gap between them. */
+        syn.seamsSidecar = { boundMs: 250, examined: 89999, rows: [{ tMs: 1 }], placedNone: false, dataRows: 1 };
+        syn.recordedSeams = syn.seamsSidecar.rows;
+        var rC = E.analyze(syn);
+        T.eq(
+          '∅ · a recorded seam this node could not place is NOT a refusal that ran, and the reason says which',
+          rC.seams.seams + '/' + rC.seams.placed + '/' + rC.seams.reason,
+          '1/0/seams-unplaced-on-axis'
+        );
+      } else T.skip('ECGDSP.genSynthetic/analyze/compute unavailable');
+      // ── THE CALLERS, so a future edit cannot quietly unwire the path (a reader with no caller) ──
+      var src = env.sources || {};
+      if (src['signal-orchestrate.js']) {
+        T.ok('signal-orchestrate · the ECG companion list carries `seams` beside `runs` and `accruns`', /ecg:\s*\[[^\]]*'runs'[^\]]*'accruns'[^\]]*'seams'[^\]]*\]/.test(src['signal-orchestrate.js']));
+        T.ok(
+          'signal-orchestrate · `_ECGSEAMS` is classified, and ONLY the ECG spelling — a sidecar this node cannot place must not arrive as one it can',
+          /_ECGSEAMS\b[^\n]*return 'seams'/.test(src['signal-orchestrate.js']) && !/_ACCSEAMS\b[^\n]*return 'seams'/.test(src['signal-orchestrate.js'])
+        );
+      }
+      if (src['adapters/polar-h10-ecg.js'])
+        T.ok(
+          'polar-h10-ecg · passes ctx.companions.seams into the PRIMARY parse',
+          /companions\.seams/.test(src['adapters/polar-h10-ecg.js']) && /seamsText:\s*seamsText/.test(src['adapters/polar-h10-ecg.js'])
+        );
+    });
+
     /* The ACC leg of §3.2, and the defect is NOT the one the ECG leg pinned. There the sidecar could
        not be read at all; here the quantity it protects is ALREADY guarded — for the wrong door.
        `motiondex-dsp` says in terms that "an uncovered epoch scores counts=0 ⇒ moving=false ⇒ counted
@@ -46928,9 +47091,22 @@
           '∅ · …and it refuses no value: the key ANNOTATES coverage, with `blankingSpans` null beside the reason',
           exUnread && exUnread.recording && exUnread.recording.validity && exUnread.recording.validity.blankingSpans === null
         );
+        /* The CONTROL, updated 2026-11-05 under the owner's SEAM-SIDECAR-CONSUMPTION §4.4 ruling
+           (board #3569): a night with no seam sidecar reads as seams UNKNOWN, never as zero seams,
+           so `validity.seams*` is the one annotation EVERY ECGDex export carries and the four
+           committed fixtures were regenerated for it. What this control still guards is unchanged:
+           the BLANKING keys stay conditional, so a sidecar that parsed and a parse with no sidecar
+           at all both leave `blankingSpans`/`blankingSpansReason` off the export. */
+        var vKeys = function (x) {
+          return Object.keys((x && x.recording && x.recording.validity) || {})
+            .sort()
+            .join(',');
+        };
+        var SEAM_ONLY = 'seams,seamsBoundMs,seamsExamined,seamsPlaced,seamsReason,seamsUnplaced';
         T.ok(
-          'control · a sidecar that PARSED carries no `validity` key, and neither does a parse without one, so no clean export moves a byte',
-          !('validity' in E.compute({ text: etxt, runsText: ERUNS }).recording) && !('validity' in E.compute(etxt).recording)
+          "control · a sidecar that PARSED adds no blanking key, and neither does a parse without one — `validity` holds §4.4's unconditional seam keys alone",
+          vKeys(E.compute({ text: etxt, runsText: ERUNS })) === SEAM_ONLY && vKeys(E.compute(etxt)) === SEAM_ONLY,
+          'parsed=' + vKeys(E.compute({ text: etxt, runsText: ERUNS })) + ' | no-sidecar=' + vKeys(E.compute(etxt))
         );
       } else T.skip('ECGDSP.compute / genSynthetic unavailable');
       // (3) SOURCE-MIRRORS — the ACC ingest routes pass the `_ACCRUNS` text (no multi-file drop runs headless).
@@ -46949,6 +47125,68 @@
           /_ACCRUNS/.test(eApp) && /parseDeviceACC\(e\.target\.result,\s*\{\s*runsText:/.test(eApp)
         );
       else T.skip('ecgdex-app.js source not in env.sources');
+    });
+
+    /* Row 2026-11-04-two-acc-parsers-read-an-absent-run-sidecar-as-a-clean-one. Both ACC parsers
+       published spans and nothing else, so a stream the box cleared and a stream the box never read
+       arrived at a consumer as the same rows. `_runsSidecar` is present exactly when a sidecar
+       parsed, which is the distinction §∅ asks for. The CONTROL is a sidecar with no rule line: the
+       box looked, so the field is present, and `comparable` is false because no threshold is named. */
+    group('§∅ the ACC parsers tell an unread sidecar from one that found no run', 'ecgdex-dsp · ppgdex-dsp · §∅', function (T) {
+      var P2 = env.PPGDSP || env.PpgDex,
+        E2 = env.ECGDSP || env.ECGDex;
+      var iso2 = function (ms) {
+        return new Date(ms).toISOString().replace('Z', '');
+      };
+      var a0 = Date.UTC(2026, 10, 4, 2, 0, 0);
+      var accRows = function () {
+        var r = ['Phone timestamp;sensor timestamp [ns];X [mg];Y [mg];Z [mg]'];
+        for (var i = 0; i < 260; i++) r.push(iso2(a0 + i * 40) + ';' + i * 40000000 + ';' + (900 + (i % 7)) + ';' + (i % 5) + ';0');
+        return r.join('\n');
+      };
+      var HDR = 'Phone timestamp;stream;value;first_index;n_samples;dur_ms;closed;rule';
+      var RULE = '# stream=acc rule=stuck min_run=200 t_stuck=200 merge_gap_max=8 examined=260';
+      var EMPTY_SC = [RULE, HDR].join('\n'),
+        RUN_SC = [RULE, HDR, iso2(a0 + 2000) + ';X [mg];900;50;75;3000;1;stuck'].join('\n'),
+        NORULE_SC = [HDR].join('\n');
+      var legs = [];
+      if (P2 && typeof P2.parseSensorXYZ === 'function')
+        legs.push({
+          name: 'PpgDex parseSensorXYZ',
+          read: function (sc) {
+            return sc === undefined ? P2.parseSensorXYZ(accRows()) : P2.parseSensorXYZ(accRows(), { runsText: sc });
+          }
+        });
+      else T.skip('PPGDSP.parseSensorXYZ unavailable');
+      if (E2 && typeof E2.parseDeviceACC === 'function')
+        legs.push({
+          name: 'ECGDex parseDeviceACC',
+          read: function (sc) {
+            return (sc === undefined ? E2.parseDeviceACC(accRows()) : E2.parseDeviceACC(accRows(), { runsText: sc })).acc;
+          }
+        });
+      else T.skip('ECGDSP.parseDeviceACC unavailable');
+      for (var g = 0; g < legs.length; g++) {
+        var leg = legs[g],
+          bare2 = leg.read(undefined),
+          none = leg.read(EMPTY_SC),
+          one = leg.read(RUN_SC),
+          norule = leg.read(NORULE_SC);
+        T.ok(leg.name + ' · ONE argument keeps today’s bytes — neither field appears', bare2._runsSidecar === undefined && bare2._blankSpans === undefined);
+        T.ok(leg.name + ' · a sidecar that found no run IS carried, so the box’s look is readable', !!none._runsSidecar && none._runsSidecar.spans.length === 0 && none._runsSidecar.emitted === 0);
+        T.ok(leg.name + ' · …and it publishes the threshold it looked at', none._runsSidecar.comparable === true && none._runsSidecar.minRun === 200);
+        T.ok(leg.name + ' · no run means no span, so a clean stream still publishes no `_blankSpans`', none._blankSpans === undefined);
+        T.ok(leg.name + ' · THE TWO STATES NOW DIFFER — unread is undefined, examined is an empty span list', bare2._runsSidecar === undefined && none._runsSidecar.spans.length === 0);
+        T.eq(leg.name + ' · a real run still rides as a span, in floating ms', JSON.stringify(one._blankSpans), JSON.stringify([{ t0Ms: a0 + 2000, t1Ms: a0 + 5000 }]));
+        T.ok(leg.name + ' · …and the span count travels beside it', !!one._runsSidecar && one._runsSidecar.spans.length === 1 && one._runsSidecar.emitted === 1);
+        T.ok(
+          leg.name + ' · CONTROL a sidecar with no rule line reads as examined and NOT comparable',
+          !!norule._runsSidecar && norule._runsSidecar.comparable === false && norule._runsSidecar.minRun === null
+        );
+        T.ok(leg.name + ' · the rows themselves are untouched by any of the four reads', bare2.length === 260 && none.length === 260 && one.length === 260 && norule.length === 260);
+      }
+      if (legs.length === 2) T.eq('both ACC parsers were examined, so a skipped leg cannot read as a pass', legs.length, 2);
+      else T.skip('population — ' + legs.length + ' of 2 ACC parsers co-loaded in this runner');
     });
 
     group('SAMPLE-VALIDITY-ENVELOPE §3.2 — the _PPGRUNS sidecar reaches parsePPG from every ingest path', 'dex-ingest · signal-orchestrate · adapters · ppgdex-app', function (T) {
@@ -47214,7 +47452,29 @@
            `pat-matchrate-strict` stay here on their bare `parseECG` calls — `ecgRpeakTimes` has no
            `runsText` parameter at all (row
            2026-11-03-the-ecg-leg-of-the-shared-pat-extractor-takes-no-sidecar). */
-        var TOOLS_PIN = { files: 30, calls: 46, reason: 'research tools: ' + OPEN };
+        /* 22 / 34 from 2026-11-05: eight PPG/ECG night readers take the guarded ternary through the same
+           shared reader, and each one prints `validityLine`'s tally beside its own numbers, because
+           passing the sidecar is not reporting its absence (§∅). Twelve calls leave CALL and all eight
+           files leave the population: `ppi-jitter-vs-ecg` (its merged finger and reference builders; the
+           fiducial arm was already wired), `ppg-foot-consensus-e1`, `ppg-fusion-e3`,
+           `ppg-foot-residual-sweep`, `pulse-template-toa`, `ppg-gap-bridge-scan`,
+           `ppg-bridge-hrv-validate` and `pulse-agreement`. Three shapes beyond the plain call site: a
+           text-taking helper takes `runsText` as its last parameter (`scanText`, `fingerEpochs`,
+           `ecgPairs`), `pulse-agreement` reads in a CHILD process and hands its tally back on the JSON
+           line for the parent to sum, and `ppg-gap-bridge-scan`'s synthetic twin passes none, since no
+           box wrote a sidecar beside text the file generates. Row
+           2026-10-17-sample-parsers-called-without-their-sidecar holds the 22 files still bare. */
+        /* 20 / 31 from 2026-11-05, row 2026-11-03-the-ecg-leg-of-the-shared-pat-extractor-takes-no-sidecar:
+           the shared PAT ECG extractor and the two local copies of it take the `_ECGRUNS.txt` bytes at
+           position two, so three `parseECG` calls take the guarded ternary and leave CALL. Two files
+           leave the population outright — `beat-correspondence` and `pat-literature-spec`, whose other
+           parser call was already wired. `pat-matchrate-strict` and `pat-drift-attribution` stay here on
+           their remaining bare calls. Eight more callers reach `parseECG` only THROUGH the extractor, so
+           this population never held them: `tests/trio-fold-validity-tests.mjs` pins all eleven by
+           counting the ARGUMENTS at each invocation, and executes the four sidecar states the count
+           cannot see. The scan over the merged tree is the number — #4405 landed 22 / 34 for eight PPG
+           and ECG night readers, and arithmetic over two diffs would have guessed 28 / 43. */
+        var TOOLS_PIN = { files: 20, calls: 31, reason: 'research tools: ' + OPEN };
 
         function blank(s) {
           return s.replace(/[^\n]/g, '');

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="732d1aa93154" data-compute-hash="80c61c95de29"><head>
+<html lang="en" data-manifest-hash="e2e4b9b70443" data-compute-hash="e0db022abfd0"><head>
 <!--
   OverDex.html — Tepna
   Copyright 2026 Michal Planicka
@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+iskltdbf7/UUg8Y6ZfcamkqkNKvnVyfhKrlKyBzwKE=' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-480RdBeZewCrcxw2IlPN/CrrdfcwPb+/JfQh96aaM6U=' 'sha256-4H9qbwJg0Px/ddF5s19lSEh0lobH/6PK1pgCZ+NZiHI=' 'sha256-6f85C28BTIAdWBrVBSCTqiDlgEUZZvCfBlJGXVI6LrA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-E4rPcQgBrpmaKtJOAz/8RO4ZVPZ0d4+8Kr6NXg6n+Jc=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-FRmXwVeLmk/oKNu5BL8gBiQVUsH88GJmm92tz4RR/9M=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-IOGPMbRcH864r7zf4ZB3jn1uFqtYSY8DqWp2YdgZWag=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-LLgboXd2yVxQuxadbV6/XakvyuElnwPqqeK60I9qEBg=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-QuLHvHgODcQjuAGp7QrzR2K8XMRHpK7C3ar3ZKqNnUU=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-XJV3E1G3sukFgbJQW5vuMv8oMeGex2wLInYe3q3i6Dk=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-XeM139aCzQDSzEaQuQBVa+zEhnOSgXP/4pqlC0h9wO4=' 'sha256-ZXcSUPmdNX+PI5tNnnDW/vQNEDiDXjF3XV977vxYNoU=' 'sha256-dWD+6EOXcN2zY96MYZytC+N4rraIJ5H8pXsCL7FHXx0=' 'sha256-fOxAcG4FGOYjHtLk+7Sbd1mzABUQSzPGmybpbJk9b6c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-jHB+Vbnq13/OqiREytNt1VT0oXPXPmhrehzKnnu7PDA=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-rIcm4jQwZdAp6l3SdrzI0nizBN01Nhu8bJROOQanTRo=' 'sha256-wPiR0mHERwqCZR4gMZnRtTm1BC+vsdDwOsTq7ombnvc='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+iskltdbf7/UUg8Y6ZfcamkqkNKvnVyfhKrlKyBzwKE=' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-480RdBeZewCrcxw2IlPN/CrrdfcwPb+/JfQh96aaM6U=' 'sha256-4H9qbwJg0Px/ddF5s19lSEh0lobH/6PK1pgCZ+NZiHI=' 'sha256-6f85C28BTIAdWBrVBSCTqiDlgEUZZvCfBlJGXVI6LrA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-E4rPcQgBrpmaKtJOAz/8RO4ZVPZ0d4+8Kr6NXg6n+Jc=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HTmNkc/vDF3Ym/EUa75ySntJ4FAHQb01t0iLmgRqwK8=' 'sha256-IOGPMbRcH864r7zf4ZB3jn1uFqtYSY8DqWp2YdgZWag=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-LLgboXd2yVxQuxadbV6/XakvyuElnwPqqeK60I9qEBg=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+GOwyapZo2sScGH+5cJoo6b5+LlHTxZUL5ktDzHwXI=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-XJV3E1G3sukFgbJQW5vuMv8oMeGex2wLInYe3q3i6Dk=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-XeM139aCzQDSzEaQuQBVa+zEhnOSgXP/4pqlC0h9wO4=' 'sha256-YMXyC7oZ6u6QRlSYi0h2xnelYsZqjkpreLIKAGmUfZI=' 'sha256-ZXcSUPmdNX+PI5tNnnDW/vQNEDiDXjF3XV977vxYNoU=' 'sha256-fOxAcG4FGOYjHtLk+7Sbd1mzABUQSzPGmybpbJk9b6c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-jHB+Vbnq13/OqiREytNt1VT0oXPXPmhrehzKnnu7PDA=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-rIcm4jQwZdAp6l3SdrzI0nizBN01Nhu8bJROOQanTRo=' 'sha256-yVk7BEgxIDoYcriZXH8GN6SLrb6NgVjsklX7DlxsMc0='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -13394,7 +13394,12 @@ window.IntegratorDSP = {
         // PRIMARY parse, not the companion block below, which runs after the frame is already built.
         // No sidecar → the exact single-argument call as before (byte-identical).
         var runsText = ctx.companions && typeof ctx.companions.runs === 'string' ? ctx.companions.runs : null;
-        rec = runsText ? parseFn(text, { runsText: runsText }) : parseFn(text);
+        // SEAM-SIDECAR-CONSUMPTION §4 — and `…_ECGSEAMS.txt` on the same footing, from the same pairing
+        // (ctx.companions.seams). The owner ruled on 2026-11-05 that a window spanning a recorded seam
+        // REFUSES and a night with no sidecar reads as seams UNKNOWN, so this is the difference between
+        // an annotated unknown and a fabricated zero on every orchestrated H10 night.
+        var seamsText = ctx.companions && typeof ctx.companions.seams === 'string' ? ctx.companions.seams : null;
+        rec = runsText || seamsText ? parseFn(text, { runsText: runsText, seamsText: seamsText }) : parseFn(text);
       } catch (e) {
         return root.SignalFrame.toSignalFrame('ecg', { usable: false, reason: 'polar-h10-ecg: parse error — ' + ((e && e.message) || e) }, prov);
       }
@@ -33579,7 +33584,9 @@ __exports.GlucoDex = window.GlucoDex;
   }
   /* `opts.runsText` is the matching `…_ACCRUNS.txt` when the caller paired one (SAMPLE-VALIDITY-ENVELOPE
      §3.2). LAST and OPTIONAL: every 1-arg call keeps its bytes, and the spans ride on the row array as
-     `_blankSpans`, the idiom ECGDex's `parseDeviceACC` and MotionDex's parser of this name already use. */
+     `_blankSpans`, the idiom ECGDex's `parseDeviceACC` and MotionDex's parser of this name already use.
+     The parsed sidecar itself rides as `_runsSidecar`, so a reader can tell a cleared stream from an
+     unread one. */
   function parseSensorXYZ(text, opts) {
     const lines = text.split(/\r?\n/);
     const out = [];
@@ -33651,7 +33658,16 @@ __exports.GlucoDex = window.GlucoDex;
     }
     if (resyncs.length) /** @type {any} */ (out)._clockResyncs = resyncs;
     const _accRuns = parseAccRunsTimed(opts && opts.runsText);
-    if (_accRuns && _accRuns.spans.length) /** @type {any} */ (out)._blankSpans = _accRuns.spans;
+    /* §∅ — A SIDECAR THAT FOUND NO RUN IS A MEASUREMENT, AND ITS ABSENCE IS NOT. Spans alone
+       cannot carry that difference, so `_runsSidecar` rides beside them and is present exactly when a
+       sidecar parsed. Absent means nobody looked, which is validity UNKNOWN. Same field and same
+       reason as MotionDex's parser of this name and as ECGDex's `parseDeviceACC`. A zero-byte sidecar
+       still reads as absent here, which row
+       `2026-11-04-a-zero-byte-sidecar-hides-rows-the-device-did-send` owns. */
+    if (_accRuns) {
+      /** @type {any} */ (out)._runsSidecar = _accRuns;
+      if (_accRuns.spans.length) /** @type {any} */ (out)._blankSpans = _accRuns.spans;
+    }
     return out;
   }
   /* DISCRETE MOVEMENT ONSETS from a motion grid — the fiducial an apnea's terminating arousal leaves
@@ -40533,6 +40549,19 @@ __exports.PpgDex = window.PpgDex;
         _blankSec.push({ t0: b.first / rec.fs, t1: (b.first + b.n) / rec.fs });
       }
     }
+    /* …AND THE SEAMS THE BOX ITSELF RECORDED (`<base>ECGSEAMS.txt`; SEAM-SIDECAR-CONSUMPTION §4,
+       owner ruling 2026-11-05). This node detects its own steps above (`clockResyncs`) and the box's
+       sidecar is a SECOND, independent observer of the same fact: it judges device-minus-host at
+       every sample, where this node reads a stepped counter. Either can see a seam the other misses,
+       and the owner's ruling is that a window spanning one REFUSES whoever saw it.
+
+       Placed by the beat's own host-disciplined `tMsAt`, never by the sidecar's `at_rel_ms` or `idx`
+       (see `parseEcgSeams` for why both are unusable). `recordedSeams` is absent unless a sidecar was
+       ingested, so this loop is a no-op on every existing path and moves no epoch. */
+    const _rsPlaced = placeRecordedSeams(rec.recordedSeams, typeof rec.tMsAt === 'function' ? rec.tMsAt : null, nnPeak, tt, N);
+    for (const _rsSec of _rsPlaced.seamSec) _seamSec.push(_rsSec);
+    const _recSeamPlaced = _rsPlaced.placed,
+      _recSeamUnplaced = _rsPlaced.unplaced;
     const epochsRefused = [];
     const epochs = epochEngine(nn, tt, 300, nnSqi, nnSpansGap, _seamSec, epochsRefused, _blankSec);
 
@@ -40843,6 +40872,10 @@ __exports.PpgDex = window.PpgDex;
          caller that needs it. `null` whenever the sidecar parsed, or the parse ran without one, so
          the export's conditional key stays absent and no clean export moves a byte. */
       blankingSpansReason: rec && typeof rec.blankingSpansReason === 'string' && rec.blankingSpansReason ? rec.blankingSpansReason : null,
+      /* …and the SEAM channel's state, carried for the same reason and from the same place. Unlike
+         every key above this one is ALWAYS populated, because the owner ruled on 2026-11-05 that a
+         night with no seam sidecar reads as seams UNKNOWN rather than as a night with none. */
+      seams: _ecgSeamState(rec, _recSeamPlaced, _recSeamUnplaced),
       durMin: +durMin.toFixed(1),
       longRec,
       tier,
@@ -42436,6 +42469,7 @@ __exports.PpgDex = window.PpgDex;
        reaches them through this surface, and the internal call sites are unchanged. */
     poincareGeo,
     epochEngine, // §∅ epoch gap-exclusion + seam refusal, gated directly
+    placeRecordedSeams, // SEAM-SIDECAR-CONSUMPTION §4 — box-recorded seams onto this node's beat axis
     detectCVHR,
     cardiorespCoupling,
     dfaAlpha1,
@@ -43423,6 +43457,204 @@ __exports.PpgDex = window.PpgDex;
     return out;
   }
 
+  /* THE BOX'S OWN CLOCK-SEAM SIDECAR — `<base>ECGSEAMS.txt`, written by `writers._SeamSidecar`
+     beside the stream it judges. SEAM-SIDECAR-CONSUMPTION §4 sized this ingest and the owner ruled
+     on §4.4 on 2026-11-05 (relayed as board #3569): a night with NO sidecar reads as seams UNKNOWN,
+     never as a night with zero seams, and a window that spans a recorded seam REFUSES. The box
+     compares each sample's device step against its host step and writes a row wherever the two
+     disagree by more than its own `bound_ms`; a `# final` line reports, per writer session, how many
+     intervals it examined.
+
+     🔴 THE FILE CARRIES THREE POSITION COLUMNS AND EACH BREAKS DIFFERENTLY, so this reader keeps
+     only the host stamp. `at_rel_ms` is measured on the DEVICE axis — the very axis the seam broke —
+     and a resumed sidecar measures it from its seed rather than from the stream's first sample.
+     `idx` is that writer session's `examined` counter, so it restarts at every reconnect while the
+     file appends. The host stamp is continuous by construction, which is the whole basis of the
+     header's `basis=device-minus-host`. So a seam is placed on the HOST axis or not at all: a row
+     this reader cannot place is counted and named (§∅), never dropped and never placed at a guessed
+     second.
+
+     Mirrors `parseEcgRuns` above in shape, deliberately — the same four states for a companion
+     (read · looked and found nothing · rows unplaceable · wrong stream) and the same `comparable`
+     flag, so a consumer can tell a sidecar that stated its rule from one that did not. */
+  function parseEcgSeams(text) {
+    if (typeof text !== 'string' || !text) return null;
+    var out = /** @type {any} */ ({
+      params: null,
+      rule: null,
+      stream: null,
+      boundMs: null,
+      basis: null,
+      sessions: [],
+      seamsReported: null,
+      examined: null,
+      rows: [],
+      dataRows: 0,
+      malformed: 0,
+      rejected: 0,
+      rejectedReasons: [],
+      sawHeader: false,
+      comparable: false,
+      placedNone: false
+    });
+    var lines = String(text).split(/\r?\n/);
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i].trim();
+      if (!line) continue;
+      if (line.charAt(0) === '#') {
+        /* The parameter line is the one carrying BOTH `stream=` and `bound_ms=`. Keyed on the pair
+           because the writer's optional `# pmd stream=…` line and every `# final stream=…` line also
+           carry a stream, and a first-comment-wins rule would read the negotiated PMD rate as the
+           seam threshold. */
+        if (!out.params && /\bstream=/.test(line) && /\bbound_ms=/.test(line)) {
+          out.params = line.replace(/^#\s*/, '');
+          var st = /\bstream=(\S+)/.exec(line);
+          if (st) out.stream = st[1].trim().toLowerCase();
+          var bm = /\bbound_ms=(\d+(?:\.\d+)?)/.exec(line);
+          if (bm) out.boundMs = +bm[1];
+          var rl = /\brule=(\S+)/.exec(line);
+          if (rl) out.rule = rl[1].trim();
+          var bs = /\bbasis=(\S+)/.exec(line);
+          if (bs) out.basis = bs[1].trim();
+          continue;
+        }
+        /* `# final stream=<s> seams=<n> examined=<m>` — ONE per writer session, so a night that
+           reconnected carries many. SUMMED, never replaced: the last line alone describes the last
+           session, and §2 of the brief reads the sum against the stream's own interval count. */
+        var fseams = /\bseams=(\d+)/.exec(line);
+        var fexam = /\bexamined=(\d+)/.exec(line);
+        if (fseams && fexam) {
+          out.sessions.push({ seams: +fseams[1], examined: +fexam[1] });
+          out.seamsReported = (out.seamsReported || 0) + +fseams[1];
+          out.examined = (out.examined || 0) + +fexam[1];
+        } else if (/^#\s*final\b/.test(line)) out.malformed++;
+        continue;
+      }
+      if (/^phone_ts\s*;/.test(line)) {
+        out.sawHeader = true;
+        continue;
+      }
+      var c = line.split(';');
+      if (c.length < 7) {
+        out.malformed++;
+        continue;
+      }
+      out.dataRows++;
+      /* THE WRONG COMPANION IS REFUSED BY WHAT THE FILE SAYS IT IS, never by the name it arrived
+         under: the pairing that hands this text in reads a filename, and a stamp-nearest pairing can
+         hand over the ACC stream's sidecar. An `_ACCSEAMS.txt` declares `stream=acc` in its own
+         header. A sidecar that names no stream is taken at the caller's word — the alternative is
+         discarding a real observation over a missing header. */
+      if (out.stream != null && !/^ecg/.test(out.stream)) {
+        out.rejected++;
+        if (out.rejectedReasons.indexOf('stream=' + out.stream) < 0) out.rejectedReasons.push('stream=' + out.stream);
+        continue;
+      }
+      /* The host stamp goes through the ONE parser (§🔒.2 via the local alias) — the writer formats
+         it as zone-free local civil time, which is `tMs` by construction, and `new Date(str)` would
+         read it as an instant in the viewer's zone. */
+      var ts = parseTimestamp(c[0]);
+      if (!ts || ts.tMs == null || !isFinite(ts.tMs)) {
+        out.rejected++;
+        if (out.rejectedReasons.indexOf('unparsed host stamp') < 0) out.rejectedReasons.push('unparsed host stamp');
+        continue;
+      }
+      var dev = +c[2],
+        pd = +c[3],
+        resid = +c[4],
+        hoff = +c[5],
+        arel = +c[6],
+        idx = +c[1];
+      out.rows.push({
+        tMs: ts.tMs,
+        offsetMin: ts.offsetMin != null ? ts.offsetMin : null,
+        idx: isFinite(idx) ? idx : null,
+        deviceStepMs: isFinite(dev) ? dev : null,
+        phoneDeltaMs: isFinite(pd) ? pd : null,
+        residualMs: isFinite(resid) ? resid : null,
+        hostOffsetMs: isFinite(hoff) ? hoff : null,
+        atRelMs: isFinite(arel) ? arel : null
+      });
+    }
+    /* ∅ — ROWS PRESENT AND NONE PLACED IS NOT A SEAM-FREE STREAM, the trap `parseEcgRuns` records
+       one function above: an empty row list and an unplaceable one read identically downstream. */
+    out.placedNone = out.dataRows > 0 && out.rows.length === 0;
+    /* A sidecar that states the bound its rows came from can be compared with anything; one that
+       does not is a row list at an unknown threshold. */
+    out.comparable = out.boundMs != null;
+    return out;
+  }
+
+  /* PLACES THE SEAMS THE BOX RECORDED ON THIS NODE'S OWN BEAT AXIS. Pure and exported, so the
+     placement is testable without a 600 s synthetic recording: `axisFn(sampleIndex)` → floating
+     wall-clock ms (`rec.tMsAt`), `nnPeak[k]` the sample index of kept beat k, `tt[k]` its second in
+     the frame the epoch windows use. Returns the seconds to refuse plus the two counts.
+
+     A seam lands on the FIRST KEPT BEAT AT OR AFTER its host stamp, which is what §7's own
+     `clockResyncs` loop does one block up with the device index — the same rule on the one axis a
+     seam does not break. Three states are counted, never guessed:
+       · no axis (a rec that never came from a parse) → every row unplaced
+       · a non-finite stamp                          → that row unplaced
+       · a stamp after the last kept beat            → unplaced, NOT clamped to `tt[N-1]`
+     The last one is the trap: clamping would refuse the final epoch over a seam that lies outside
+     every window, and an over-refusal reads exactly like a correct one. */
+  function placeRecordedSeams(recordedSeams, axisFn, nnPeak, tt, N) {
+    var out = { seamSec: /** @type {number[]} */ ([]), placed: 0, unplaced: 0 };
+    if (!Array.isArray(recordedSeams) || !recordedSeams.length) return out;
+    for (var i = 0; i < recordedSeams.length; i++) {
+      var tMs = recordedSeams[i] && recordedSeams[i].tMs;
+      if (typeof axisFn !== 'function' || tMs == null || !isFinite(tMs) || !(N > 0)) {
+        out.unplaced++;
+        continue;
+      }
+      var k = 0;
+      while (k < N && axisFn(nnPeak[k]) < tMs) k++;
+      if (k < N) {
+        out.seamSec.push(tt[k]);
+        out.placed++;
+      } else out.unplaced++;
+    }
+    return out;
+  }
+
+  /* The seam channel's state for one recording, in the vocabulary the owner's ruling fixes:
+       · no sidecar at all        → { seams: null,  reason: 'no-seam-sidecar' }   — UNKNOWN, never 0
+       · read, rows placed        → { seams: n, examined: m, placed: p, reason: null }
+       · read, rows unplaceable   → { seams: null, placed: 0, reason: 'seam-rows-unplaced' }
+       · read, no row at all      → { seams: 0, examined: m, reason: null }       — a MEASURED zero
+       · read, rows off the axis  → { seams: n, placed: p, reason: 'seams-unplaced-on-axis' }
+     The last two are the pair §∅ exists for: a measured 0 carries NO reason, an absence carries one.
+     `seams` counts the rows this reader placed on the host axis plus the ones it could not, because
+     the file RECORDED them either way — `placed` is what reached the epoch engine, and the two
+     differing is itself the finding. */
+  function _ecgSeamState(rec, placed, unplaced) {
+    var sc = rec && rec.seamsSidecar;
+    if (!sc) return { seams: null, examined: null, placed: null, unplaced: null, boundMs: null, reason: 'no-seam-sidecar' };
+    if (sc.placedNone) {
+      return {
+        seams: null,
+        examined: sc.examined != null ? sc.examined : null,
+        placed: 0,
+        unplaced: sc.dataRows,
+        boundMs: sc.boundMs != null ? sc.boundMs : null,
+        reason: 'seam-rows-unplaced'
+      };
+    }
+    return {
+      seams: sc.rows.length,
+      examined: sc.examined != null ? sc.examined : null,
+      placed: placed,
+      unplaced: unplaced,
+      boundMs: sc.boundMs != null ? sc.boundMs : null,
+      /* A ROW THAT REACHED NO WINDOW IS NOT A SEAM THAT REFUSED ANYTHING, and `reason: null` beside a
+         non-zero `seams` would read as "the refusal ran". It does not run for a row the beat axis
+         cannot host — a stampless recording has no axis, and a seam after the last kept beat lies
+         outside every window (see `placeRecordedSeams`). Named rather than left to `placed`, because
+         a consumer that reads the count and not the pair is the whole failure mode here. */
+      reason: unplaced > 0 ? 'seams-unplaced-on-axis' : null
+    };
+  }
+
   /* Does [i0, i0+len) touch any recorded blanking span? Sample indices, half-open, both sides. */
   function _intersectsRun(spans, i0, len) {
     if (!spans || !spans.length || !(len > 0)) return false;
@@ -43440,10 +43672,10 @@ __exports.PpgDex = window.PpgDex;
     // Whole-text entry point — UNCHANGED contract, kept for the browser and every existing caller.
     // It delegates so there is exactly ONE parse body: a second copy would drift, and the two would
     // disagree about a real recording before anyone noticed.
-    // `opts.runsText` is the `_ECGRUNS.txt` companion's bytes when the caller ingested one. LAST and
-    // OPTIONAL per §🧪: every existing 1-arg call is byte-identical, and the no-sidecar path does not
-    // move a single fixture.
-    return parseECGLines(String(text == null ? '' : text).split(/\r?\n/), { runsText: opts && opts.runsText });
+    // `opts.runsText` is the `_ECGRUNS.txt` companion's bytes when the caller ingested one, and
+    // `opts.seamsText` the `_ECGSEAMS.txt` companion's. LAST and OPTIONAL per §🧪: every existing
+    // 1-arg call is byte-identical, and the no-sidecar path does not move a single fixture.
+    return parseECGLines(String(text == null ? '' : text).split(/\r?\n/), { runsText: opts && opts.runsText, seamsText: opts && opts.seamsText });
   }
 
   // LINE-FEED entry point. Takes any ITERABLE of lines, so a Node caller can stream a file in bounded
@@ -43522,6 +43754,19 @@ __exports.PpgDex = window.PpgDex;
          this reader could not place. */
       rec.blankingSpans = runs.placedNone ? null : runs.spans;
       if (runs.placedNone) rec.blankingSpansReason = 'sidecar rows unplaced: ' + (runs.rejectedChannels.join(', ') || 'malformed rows only');
+    }
+    /* …and the box's own clock-seam sidecar beside the same stream (SEAM-SIDECAR-CONSUMPTION §4,
+       owner ruling 2026-11-05). Here for the same reason `runsText` is: a streamed caller reaches
+       the same validity a whole-text caller does. LAST and OPTIONAL — a call without it returns the
+       record above unchanged, which is why no existing fixture input moves. */
+    var seams = parseEcgSeams(opts && opts.seamsText);
+    if (seams) {
+      rec.seamsSidecar = seams;
+      /* §∅ — `[]` is the honest answer for a sidecar that examined intervals and recorded no seam,
+         and the WRONG answer for one whose rows this reader could not place. `null` is the absence
+         and the reason names which rows went unplaced. */
+      rec.recordedSeams = seams.placedNone ? null : seams.rows;
+      if (seams.placedNone) rec.recordedSeamsReason = 'seam sidecar rows unplaced: ' + (seams.rejectedReasons.join(', ') || 'malformed rows only');
     }
     return rec;
   }
@@ -43873,7 +44118,17 @@ __exports.PpgDex = window.PpgDex;
     /* §3.2 — the `…_ACCRUNS.txt` spans ride on the row array itself, the same idiom the seam list
        uses, so no consumer signature changes and a drop without a sidecar keeps today's bytes. */
     var _accRuns = parseAccRunsTimed(opts && opts.runsText);
-    if (_accRuns && _accRuns.spans.length) /** @type {any} */ (out)._blankSpans = _accRuns.spans;
+    /* §∅ — A SIDECAR THAT FOUND NO RUN IS A MEASUREMENT, AND ITS ABSENCE IS NOT. `_blankSpans`
+       alone cannot carry that difference: a stream the box cleared and a stream the box never read
+       both arrive here as no spans at all. `_runsSidecar` is present exactly when a sidecar parsed,
+       so a consumer reads validity UNKNOWN from its absence rather than reading a clean stream. This
+       is MotionDex's form of the same field, and `parseECG` above carries `runsSidecar` for the same
+       reason. A zero-byte sidecar still reads as absent here, which row
+       `2026-11-04-a-zero-byte-sidecar-hides-rows-the-device-did-send` owns. */
+    if (_accRuns) {
+      /** @type {any} */ (out)._runsSidecar = _accRuns;
+      if (_accRuns.spans.length) /** @type {any} */ (out)._blankSpans = _accRuns.spans;
+    }
     return { acc: out, accFs: fs, accClockSteps: accClockSteps, accMaxStepMs: accClockSteps ? Math.round(accMaxStepMs) : null, accAxis: accClockSteps ? 'host' : 'device' };
   }
 
@@ -44289,6 +44544,24 @@ __exports.PpgDex = window.PpgDex;
     if (typeof r.blankingSpansReason === 'string' && r.blankingSpansReason) {
       out.recording.validity = { blankingSpans: null, blankingSpansReason: r.blankingSpansReason };
     }
+    /* …AND WHETHER A SEAM SIDECAR WAS READ AT ALL — UNCONDITIONALLY, the one annotation on this
+       export that every recording carries. Owner ruling 2026-11-05 (board #3569): a night with no
+       seam sidecar reads as seams UNKNOWN, never as zero seams. `coverage` and `blankingSpans` above
+       are assigned conditionally precisely so a clean export's bytes do not move; this key moves
+       them BY ORDER, because an export silent about the channel is exactly what the ruling refuses.
+       The four ECGDex fixtures were regenerated with it. A measured zero carries NO reason and an
+       absence carries `no-seam-sidecar`: a consumer that cannot tell them apart reads an unread
+       sidecar as a clean night, which is the defect one stream over in residue row
+       2026-11-01-no-folded-artefact-names-an-unread-ecg-sidecar. */
+    var seamAnn = r && r.seams && typeof r.seams === 'object' ? r.seams : { seams: null, examined: null, placed: null, unplaced: null, boundMs: null, reason: 'no-seam-sidecar' };
+    out.recording.validity = Object.assign({}, out.recording.validity, {
+      seams: seamAnn.seams,
+      seamsExamined: seamAnn.examined,
+      seamsPlaced: seamAnn.placed,
+      seamsUnplaced: seamAnn.unplaced,
+      seamsBoundMs: seamAnn.boundMs,
+      seamsReason: seamAnn.reason
+    });
     // ── RICH export (gated: opts.rich) — ECG-PPG-FOLLOWUPS-HANDOFF §1 option (a) / ECGDEX-FOLLOWUPS-II §2 ──
     // By DEFAULT this builder emits the LIGHT export above (recording + ganglior_events) and the app's
     // exportGanglior() calls WITHOUT opts.rich → the app's Ganglior stream stays BYTE-IDENTICAL. Only the
@@ -44611,7 +44884,10 @@ __exports.PpgDex = window.PpgDex;
          `.runsText` as undefined, so no `input &&` guard: the guard was dead, and an `&&` that no input can
          flip is a mutant no test can kill. */
       var rt = typeof opts.runsText === 'string' ? opts.runsText : typeof input.runsText === 'string' ? input.runsText : null;
-      rec = rt ? parseECGText(txt, { runsText: rt }) : parseECGText(txt);
+      /* …and `_ECGSEAMS.txt` on the same footing (SEAM-SIDECAR-CONSUMPTION §4). Either sidecar alone
+         is enough to take the 2-arg path, and NEITHER leaves the call the 1-arg parse it always was. */
+      var st = typeof opts.seamsText === 'string' ? opts.seamsText : typeof input.seamsText === 'string' ? input.seamsText : null;
+      rec = rt || st ? parseECGText(txt, { runsText: rt, seamsText: st }) : parseECGText(txt);
     }
     if (opts.source) rec.source = opts.source;
     if (opts.offsetMin != null && rec.offsetMin == null) rec.offsetMin = opts.offsetMin;
@@ -51595,7 +51871,7 @@ __exports.CPAPDex = window.CPAPDex;
      excludes for an O2Ring primary), but a slot shared by two of one device's sidecars is a pairing
      that fails by looking like it worked, and the fix costs one word. */
   var _COMPANION_KINDS = {
-    ecg: ['rr', 'hr', 'acc', 'runs', 'accruns'],
+    ecg: ['rr', 'hr', 'acc', 'runs', 'accruns', 'seams'],
     ppg: ['acc', 'gyro', 'magn', 'ppi', 'runs', 'accruns'],
     spo2: ['spo2', 'ppg2wruns'],
     acc: ['accruns', 'gyro', 'magn']
@@ -51618,6 +51894,14 @@ __exports.CPAPDex = window.CPAPDex;
        ECG's own sidecar could be silently replaced by the ACC's, and the failure would look like a
        working pairing. A distinct kind cannot collide. */
     if (/_ACCRUNS\b|_ACCRUNS\./.test(u)) return 'accruns';
+    /* THE BOX'S CLOCK-SEAM SIDECAR for the ECG stream (SEAM-SIDECAR-CONSUMPTION §4; owner ruling
+       2026-11-05). Its OWN kind for the reason the block above states — the box writes one sidecar
+       per stream, so `_ACCSEAMS`, `_HRSEAMS` and `_PPISEAMS` exist beside this one, and a shared
+       slot would let nearest-stamp replace the ECG's own seams with the ACC's. Tested before `_ECG`,
+       which cannot match it anyway (no boundary before SEAMS), exactly as `_ECGRUNS` is. Only the
+       ECG spelling returns a kind here: a sidecar this node cannot place must not arrive as one it
+       can. */
+    if (/_ECGSEAMS\b|_ECGSEAMS\./.test(u)) return 'seams';
     /* The O2Ring's raw dual-wavelength lane, and its sidecar takes its OWN kind for the reason the
        block above states — one device, two sidecars, and a shared slot is a silent replacement.
        `_PPG2WRUNS` is tested FIRST because the sidecar name is built by APPENDING to the stream

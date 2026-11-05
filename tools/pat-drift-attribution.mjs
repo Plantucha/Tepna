@@ -316,7 +316,7 @@ async function main() {
     try {
       const eTxt = readFileSync(eF, 'utf8');
       const pTxt = readFileSync(pF, 'utf8');
-      E = ecgRpeakTimes(eTxt, ECG_AXIS === 'linear' ? undefined : { axis: ECG_AXIS });
+      E = ecgRpeakTimes(eTxt, runsOf(eF, 'ECG'), ECG_AXIS === 'linear' ? undefined : { axis: ECG_AXIS });
       P = ppgFootTimes(pTxt, runsOf(pF, 'PPG'));
       /* Straight from the parser — the wrappers above drop `hostAxis` (see header). */
       eAx = ECGDSP.parseECG(eTxt).hostAxis;

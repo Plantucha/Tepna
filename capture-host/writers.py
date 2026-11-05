@@ -2947,6 +2947,17 @@ class RingClockLogWriter:
 # manufactures is still an absence a reader believes, so the night now names its own box-wide files.
 BOX_WIDE_SIDECAR_TAGS = ("LINK", "CLOCK", "OXYFRAME", "OXYLIFE")
 
+# ── Per-device CLOCK LOGS: named like a device stream, and still not a device's samples ─────────────
+#
+# Residue 2026-11-05-clock-logs-join-the-night-as-device-data. The ring writes one `_RTCLOG.csv` per
+# CONNECT, and `radioclock` writes a `_RADIOCLOCK.csv` row for every radio event while a device is
+# linked. Both keep writing while the device sits on its charger. The night QC read them as device data,
+# so on 2026-11-05 two morning "sessions" of clock logs alone (22 and 33 874 rows, 06:18 to 09:09) joined
+# night 2026-11-04 and its coverage fell from 73 % to 58 %. They are per-device, so they stay out of the
+# box-wide note above; `NOT_DEVICE_DATA_TAGS` is the one set the night's QC filters on.
+DEVICE_CLOCK_SIDECAR_TAGS = ("RTCLOG", "RADIOCLOCK")
+NOT_DEVICE_DATA_TAGS = BOX_WIDE_SIDECAR_TAGS + DEVICE_CLOCK_SIDECAR_TAGS
+
 SIDECAR_NOTE_NAME = "README-SIDECARS.txt"
 
 

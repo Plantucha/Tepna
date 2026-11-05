@@ -28,7 +28,7 @@ import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { homedir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { collapseHome } from './home-paths.mjs';
 
@@ -664,6 +664,40 @@ export function ruleLine(population) {
  *  `undefined !== false`. There is no guard on the offer: a snapshot or a union that enumerated
  *  nothing already carries an empty `nights`, and a guard here would restate that invariant where no
  *  control can fire it — an unfireable guard reads as covered. */
+/* THE SAME RECORDING IS OFFERED TWICE, AT TWO DIFFERENT REAL PATHS. `uploads/captures/` and
+   `uploads/vigil-archive/captures/` hold two copies of the capture tree, and they are separate files
+   on separate shares rather than one file and a symlink to it — so a `realpath` dedup does NOT see
+   it. Measured 2026-11-04 under the primary checkout's uploads root: 1,568 distinct Verity PPG
+   recordings at 2,816 paths, 1,248 of them offered twice. A recursive walk that pools per file gives
+   half the corpus double weight, and the first run of `tools/ppg-channel-combination.mjs` printed every duplicated
+   capture as two identical rows.
+
+   THE IDENTITY RULE IS PRE-STATED, AND IT IS NOT A PATH EXCLUSION. A capture is identified by
+   (basename, byte size): the filename carries the device id and a 14-digit stamp, so two trees
+   agreeing on both that name and the exact length hold the same bytes. The lexicographically first
+   path wins, which is deterministic and privileges no tree by name, and every dropped twin is named.
+   The same basename at a DIFFERENT size is the opposite case — two recordings that are not each
+   other — so both are kept and the basename is reported, never silently collapsed. */
+export function dedupeByIdentity(rows) {
+  const byKey = new Map();
+  const dropped = [];
+  for (const r of rows.slice().sort((a, b) => (a.p < b.p ? -1 : a.p > b.p ? 1 : 0))) {
+    const key = `${basename(r.p)}\u0000${r.size}`;
+    if (byKey.has(key)) {
+      dropped.push(r.p);
+      continue;
+    }
+    byKey.set(key, r);
+  }
+  const kept = Array.from(byKey.values());
+  const seen = new Map();
+  for (const r of kept) seen.set(basename(r.p), (seen.get(basename(r.p)) || 0) + 1);
+  const conflicts = Array.from(seen.entries())
+    .filter(([, n]) => n > 1)
+    .map(([b]) => b);
+  return { kept, dropped, conflicts };
+}
+
 export function notCovered(offer, covered, { key = 'night' } = {}) {
   const scored = new Set((covered || []).filter((r) => r && r.ok !== false).map((r) => r[key]));
   return membersOf(offer).filter((n) => !scored.has(n));

@@ -1144,13 +1144,54 @@ export function parseContributionSet(briefSrc) {
    An adopted figure must EMIT an object whose validate() EXAMINED a contributions block: a
    validator that never looked at one is a pass over something never read, which is the §4b family
    and the reason `checked` exists. Returns { ok, errors[], counts }. */
-export function checkContributions(manifest, briefSrc, validator, runner) {
+/* ── A FIGURE'S NAMED FILE, HELD AGAINST A THIRD SOURCE ────────────────────────────────────────
+   Row `2026-11-04-the-adoption-gate-cross-checks-two-copies-of-one-claim`: the leg below compared a
+   row's `file` against the §2 table's `file` and against nothing else, so two copies of one claim
+   agreed with each other forever. The measured instance named `tools/trio-batch.mjs` for the trio
+   pooled hat, and that file computes no hat, while all five published figures stamp
+   `producer: tools/tch-pooled-hat.mjs`. The pairing came from §1's own example and §2 inherited it.
+   ⚠️ WHETHER A FILE COMPUTES A FIGURE IS NOT MECHANICAL, and the row says so. REACH is: an adopted
+   row already names a command this gate RUNS, so that command's producer is a third source, written
+   by nobody who copied the table.
+   ⚠️ `reachKind` ALONE REDS TWO CORRECT ROWS. Measured 2026-11-05 over all three adopted rows:
+   `tools/pat-three-corner.mjs` and `tools/integrator-contributions.mjs` load `analysis-stats.js` and
+   `integrator-dsp.js` through `vm.runInContext(fs.readFileSync(…))` over a list of names, and
+   `reachKind` states that reading a tool as text does not reach it. That rule is right for a TEST
+   asserting on source, which is the row it was written for. For a producer that EVALUATES the text,
+   the load IS the reach, so the third kind below carries it. */
+const VM_EVAL = /vm\.runInContext\s*\(|vm\.runInNewContext\s*\(|new vm\.Script\s*\(|new Function\s*\(/;
+
+/** How an emits producer reaches the figure file a row names: `self`, a `reachKind`, `vm-eval`, false
+    (reaches it no way), or null when the question went unread (§∅ — never a pass). PURE. */
+export function figureReach(figureFile, emitterPath, emitterSrc) {
+  if (!figureFile || !emitterPath) return null;
+  if (figureFile === emitterPath) return 'self';
+  if (emitterSrc == null) return null;
+  const stem = path.basename(figureFile).replace(/\.(mjs|js|py)$/, '');
+  const isPy = emitterPath.endsWith('.py');
+  const rk = reachKind(stem, emitterSrc, isPy);
+  if (rk) return rk;
+  if (namesAsFile(stem, emitterSrc, isPy) && VM_EVAL.test(emitterSrc)) return 'vm-eval';
+  return false;
+}
+
+/** The file an `emits` RUNS, or null when it runs none: `{file}` reads a committed object, which has
+    no producer in this tree to hold the row against. argv[0] is the interpreter, so the script is the
+    first path-shaped token after it. PURE. */
+export function emitsProducer(emits) {
+  const cmd = emits && Array.isArray(emits.cmd) ? emits.cmd : null;
+  if (!cmd) return null;
+  for (const a of cmd.slice(1)) if (/^[^-].*\.(mjs|js|py)$/.test(String(a))) return String(a);
+  return null;
+}
+
+export function checkContributions(manifest, briefSrc, validator, runner, readSource) {
   const errors = [];
   const unexamined = [];
   const block = (manifest && manifest.contributions) || {};
   const rows = block.figures || {};
   const table = parseContributionSet(briefSrc);
-  const counts = { table: table.length, figures: Object.keys(rows).length, adopted: 0, pending: 0, read: 0, examined: 0 };
+  const counts = { table: table.length, figures: Object.keys(rows).length, adopted: 0, pending: 0, read: 0, examined: 0, carried: 0, reached: 0, noProducer: 0 };
   if (!table.length) {
     errors.push(`contributions: the named set is ${JSON.stringify(block.enumeratedFrom || '(unset)')} and its §2 table read as 0 figures — a population that reads empty examines nothing`);
     return { ok: false, errors, unexamined, counts };
@@ -1167,6 +1208,17 @@ export function checkContributions(manifest, briefSrc, validator, runner) {
       errors.push(`contributions: "${f}" sits at ${JSON.stringify(r.file)} here and at ${JSON.stringify(t.file)} in the §2 table`);
       continue;
     }
+    /* THE ROW'S OWN FILE, READ. Both `pending` rows name a capture-host file and no `emits`, so this
+       is the only sub-rule that reaches them; the row records that a pending row is checked by nobody. */
+    if (!readSource) {
+      errors.push(`contributions: "${f}" — no source reader reached this leg, so the file it names went unread (∅: unread is not verified)`);
+      continue;
+    }
+    if (readSource(r.file) == null) {
+      errors.push(`contributions: "${f}" names ${JSON.stringify(r.file)}, which this tree does not carry — a row nobody can read holds no claim`);
+      continue;
+    }
+    counts.carried++;
     if (!CONTRIBUTION_METHODS.includes(r.method)) {
       errors.push(`contributions: "${f}" method must be one of ${CONTRIBUTION_METHODS.join('|')}, got ${JSON.stringify(r.method)}`);
       continue;
@@ -1193,6 +1245,24 @@ export function checkContributions(manifest, briefSrc, validator, runner) {
     if (te) {
       errors.push(te);
       continue;
+    }
+    /* THE THIRD SOURCE. The §2 table and this manifest are two copies of one claim; the command this
+       row hands the gate is written somewhere else, and it either reaches the named file or it does not. */
+    const prod = emitsProducer(r.emits);
+    if (!prod) counts.noProducer++;
+    else {
+      const reach = figureReach(r.file, prod, readSource(prod));
+      if (reach === null) {
+        errors.push(`contributions: "${f}" runs ${JSON.stringify(prod)} in its \`emits\` and that file could not be read — ∅: an unread producer is not a reached one`);
+        continue;
+      }
+      if (reach === false) {
+        errors.push(
+          `contributions: "${f}" sits at ${JSON.stringify(r.file)} and its \`emits\` runs ${JSON.stringify(prod)}, which reaches that file no way — no import, require, spawn or vm load names it, so one of the two names is wrong`
+        );
+        continue;
+      }
+      counts.reached++;
     }
     if (!validator || !runner) continue; // the pure core; the CLI passes both
     let obj;
@@ -1843,6 +1913,17 @@ function selftest() {
     const vOK = () => ({ ok: true, errors: [], checked: ['schema', 'status', 'contributions'] });
     const vNoBlock = () => ({ ok: true, errors: [], checked: ['schema', 'status'] });
     const vBad = () => ({ ok: false, errors: ['status is not one of the seven'], checked: ['status'] });
+    /* The stub tree these legs read. `x.mjs` REACHES the figure file by import, so the timeout leg
+       below still routes a cap rather than a reach red; `trio-batch` exists and names nothing. */
+    const RS = (f) =>
+      ({
+        'analysis-stats.js': '// the figure file\n',
+        'capture-host/loss_audit.py': '# the figure file\n',
+        'tools/trio-batch.mjs': '// a real file that computes no hat\n',
+        'x.mjs': "import { s } from '../analysis-stats.js';\n",
+        'reaches-nothing.mjs': "const FILES = ['other.js'];\nvm.runInContext(src, ctx);\n",
+        'loads-it.mjs': "const FILES = ['analysis-stats.js'];\nvm.runInContext(src, ctx);\n"
+      })[f] ?? null;
     const run = (e) =>
       e.file === 'good.json'
         ? { schema: 'tepna.verdict/1' }
@@ -1854,43 +1935,49 @@ function selftest() {
       parsed.length === 2 && parsed[0].file === 'analysis-stats.js' && parsed[1].method === 'decomposition',
       'the §2 table parses to its figures, taking the first backticked token of the file and method cells'
     );
-    let k = checkContributions(F(both()), TABLE, null, null);
+    let k = checkContributions(F(both()), TABLE, null, null, RS);
     ok(k.ok && k.counts.table === 2 && k.counts.figures === 2 && k.counts.pending === 2, 'a manifest equal to the table, all pending, is green and says how many are owed');
     /* PLANT — the leg's own blindness: a reflowed or renamed §2 heading must NOT read as a pass. */
-    k = checkContributions(F(both()), TABLE.replace('## 2 · Adoption set', '## 2 · The set'), null, null);
+    k = checkContributions(F(both()), TABLE.replace('## 2 · Adoption set', '## 2 · The set'), null, null, RS);
     ok(!k.ok && /read as 0 figures/.test(k.errors[0]) && /examines nothing/.test(k.errors[0]), 'PLANT: a renamed §2 heading empties the population and REDS — an empty population examines nothing');
-    k = checkContributions(F({ 'hat σ': { ...HAT } }), TABLE, null, null);
+    k = checkContributions(F({ 'hat σ': { ...HAT } }), TABLE, null, null, RS);
     ok(!k.ok && k.errors.some((e) => /names "LOSS verdict" and this manifest has no row/.test(e)), 'a table figure with no row is a red WITH ITS NAME');
-    k = checkContributions(F({ ...both(), 'ghost figure': { ...HAT } }), TABLE, null, null);
+    k = checkContributions(F({ ...both(), 'ghost figure': { ...HAT } }), TABLE, null, null, RS);
     ok(!k.ok && k.errors.some((e) => /the row "ghost figure" matches no figure/.test(e)), 'a row for no table figure is a red with its name — the brief is the population');
-    k = checkContributions(F({ ...both(), 'hat σ': { ...HAT, file: 'tools/trio-batch.mjs' } }), TABLE, null, null);
+    k = checkContributions(F({ ...both(), 'hat σ': { ...HAT, file: 'tools/trio-batch.mjs' } }), TABLE, null, null, RS);
     ok(!k.ok && /sits at "tools\/trio-batch.mjs" here and at "analysis-stats.js"/.test(k.errors[0]), 'a row whose file disagrees with the table reds naming both sides');
-    k = checkContributions(F({ ...both(), 'hat σ': { ...HAT, method: 'shapley' } }), TABLE, null, null);
+    k = checkContributions(F({ ...both(), 'hat σ': { ...HAT, method: 'shapley' } }), TABLE, null, null, RS);
     ok(!k.ok && /method must be one of leave-one-out\|analytic\|decomposition/.test(k.errors[0]), 'a method outside the closed set is a red');
-    k = checkContributions(F({ ...both(), 'hat σ': { ...HAT, method: 'decomposition' } }), TABLE, null, null);
+    k = checkContributions(F({ ...both(), 'hat σ': { ...HAT, method: 'decomposition' } }), TABLE, null, null, RS);
     ok(!k.ok && /declares method "decomposition" and the §2 table says "analytic"/.test(k.errors[0]), 'a method in the set but not the table’s is a red — the brief names the method too');
-    k = checkContributions(F({ ...both(), 'hat σ': { ...HAT, status: 'done' } }), TABLE, null, null);
+    k = checkContributions(F({ ...both(), 'hat σ': { ...HAT, status: 'done' } }), TABLE, null, null, RS);
     ok(!k.ok && /carries status pending\|adopted, got "done"/.test(k.errors[0]), 'a status outside pending|adopted is a red');
-    k = checkContributions(F({ ...both(), 'hat σ': { ...HAT, since: '2026-10' } }), TABLE, null, null);
+    k = checkContributions(F({ ...both(), 'hat σ': { ...HAT, since: '2026-10' } }), TABLE, null, null, RS);
     ok(!k.ok && /needs `since` as YYYY-MM-DD/.test(k.errors[0]), 'an undated row cannot be read as debt, so it reds');
-    k = checkContributions(F({ ...both(), 'hat σ': { ...HAT, status: 'adopted' } }), TABLE, null, null);
+    k = checkContributions(F({ ...both(), 'hat σ': { ...HAT, status: 'adopted' } }), TABLE, null, null, RS);
     ok(!k.ok && /adopted without `emits`/.test(k.errors[0]), 'adopted without emits is a claim the gate cannot read, red');
-    k = checkContributions(F({ ...both(), 'hat σ': { ...HAT, status: 'adopted', emits: { file: 'good.json' } } }), TABLE, null, null);
+    k = checkContributions(F({ ...both(), 'hat σ': { ...HAT, status: 'adopted', emits: { file: 'good.json' } } }), TABLE, null, null, RS);
     ok(k.ok && k.counts.adopted === 1 && k.counts.read === 0, 'the pure core checks an adopted row for shape alone and reads nothing');
-    k = checkContributions(F({ ...both(), 'hat σ': { ...HAT, status: 'adopted', emits: { file: 'gone.json' } } }), TABLE, vOK, run);
+    k = checkContributions(F({ ...both(), 'hat σ': { ...HAT, status: 'adopted', emits: { file: 'gone.json' } } }), TABLE, vOK, run, RS);
     ok(!k.ok && /emits could not be read/.test(k.errors[0]), 'an adopted figure whose object cannot be read reds, never silently greens');
-    k = checkContributions(F({ ...both(), 'hat σ': { ...HAT, status: 'adopted', emits: { cmd: ['node', 'x.mjs'] } } }), TABLE, vOK, () => {
-      throw unexaminedTimeout({ capMs: 120000, elapsedMs: 120004, load1: 44.1, cmd: 'node x.mjs' });
-    });
+    k = checkContributions(
+      F({ ...both(), 'hat σ': { ...HAT, status: 'adopted', emits: { cmd: ['node', 'x.mjs'] } } }),
+      TABLE,
+      vOK,
+      () => {
+        throw unexaminedTimeout({ capMs: 120000, elapsedMs: 120004, load1: 44.1, cmd: 'node x.mjs' });
+      },
+      RS
+    );
     ok(k.ok && k.unexamined.length === 1 && k.counts.read === 0, 'a figure whose producer hit the cap is unexamined here too, never a red — the two legs route a timeout the same way');
-    k = checkContributions(F({ ...both(), 'hat σ': { ...HAT, status: 'adopted', emits: { file: 'good.json', timeoutMs: 0 } } }), TABLE, vOK, run);
+    k = checkContributions(F({ ...both(), 'hat σ': { ...HAT, status: 'adopted', emits: { file: 'good.json', timeoutMs: 0 } } }), TABLE, vOK, run, RS);
     ok(!k.ok && /emits.timeoutMs must be/.test(k.errors[0]), '…and a malformed cap reds in the contributions leg with the same message');
-    k = checkContributions(F({ ...both(), 'hat σ': { ...HAT, status: 'adopted', emits: { file: 'good.json' } } }), TABLE, vBad, run);
+    k = checkContributions(F({ ...both(), 'hat σ': { ...HAT, status: 'adopted', emits: { file: 'good.json' } } }), TABLE, vBad, run, RS);
     ok(!k.ok && /NOT a valid tepna.verdict\/1 — status is not one of the seven/.test(k.errors[0]), 'an adopted figure emitting an invalid object reds naming the validator error');
     /* PLANT — the whole point: VALID is not ADOPTED. The block must have been EXAMINED. */
-    k = checkContributions(F({ ...both(), 'hat σ': { ...HAT, status: 'adopted', emits: { file: 'good.json' } } }), TABLE, vNoBlock, run);
+    k = checkContributions(F({ ...both(), 'hat σ': { ...HAT, status: 'adopted', emits: { file: 'good.json' } } }), TABLE, vNoBlock, run, RS);
     ok(!k.ok && /examined NO contributions block/.test(k.errors[0]), 'PLANT: a valid object whose validate() examined no block is NOT an adoption — it is a pass over something never read');
-    k = checkContributions(F({ ...both(), 'hat σ': { ...HAT, status: 'adopted', emits: { file: 'good.json' } } }), TABLE, vOK, run);
+    k = checkContributions(F({ ...both(), 'hat σ': { ...HAT, status: 'adopted', emits: { file: 'good.json' } } }), TABLE, vOK, run, RS);
     ok(k.ok && k.counts.adopted === 1 && k.counts.read === 1 && k.counts.examined === 1, 'adopted + a read object whose validate() examined the block is green, and the count says so');
     /* THE REAL VALIDATOR, not a stub: the leg's requirement must be satisfiable by the shipped
        verdict.js, and the same object WITHOUT the block must red through the same path. */
@@ -1915,18 +2002,70 @@ function selftest() {
     });
     const realRun = (e) => (e.file === 'with.json' ? withBlock : good);
     const adoptedHat = (file) => ({ ...both(), 'hat σ': { ...HAT, status: 'adopted', emits: { file } } });
-    k = checkContributions(F(adoptedHat('with.json')), TABLE, V.validate, realRun);
+    k = checkContributions(F(adoptedHat('with.json')), TABLE, V.validate, realRun, RS);
     ok(k.ok && k.counts.examined === 1, `the shipped verdict.js EXAMINES a real contributions block, so an honest adoption greens (${k.errors.join(' | ')})`);
-    k = checkContributions(F(adoptedHat('without.json')), TABLE, V.validate, realRun);
+    k = checkContributions(F(adoptedHat('without.json')), TABLE, V.validate, realRun, RS);
     ok(!k.ok && /examined NO contributions block/.test(k.errors[0]), 'the same real validator over an object WITHOUT the block reds through the same path — the arm is not a stub artefact');
     /* the real tree: the committed manifest equals the brief’s own table, non-vacuous by count */
     const realM = JSON.parse(fs.readFileSync(MANIFEST, 'utf8'));
     const briefPath = String((realM.contributions || {}).enumeratedFrom || '').split(' §')[0];
     const realSrc = briefPath && fs.existsSync(path.join(ROOT, briefPath)) ? fs.readFileSync(path.join(ROOT, briefPath), 'utf8') : '';
-    const rk = checkContributions(realM, realSrc, null, null);
+    /* THE REAL TREE READS ITSELF HERE, never the stub above: this leg is the non-vacuous one, so the
+       three adopted rows must REACH the files they name, and the two pending rows must be carried. */
+    const rk = checkContributions(realM, realSrc, null, null, treeReaders(ROOT).readSource);
     ok(
-      rk.ok && rk.counts.table > 0 && rk.counts.table === rk.counts.figures,
-      `the committed manifest equals the §2 table of ${briefPath || '(unset)'} (${rk.counts.table} figures) (${rk.errors.join(' | ')})`
+      rk.ok && rk.counts.table > 0 && rk.counts.table === rk.counts.figures && rk.counts.carried === rk.counts.figures && rk.counts.reached === rk.counts.adopted,
+      `the committed manifest equals the §2 table of ${briefPath || '(unset)'} (${rk.counts.table} figures), this tree carries all ${rk.counts.carried} named files, and each of the ${rk.counts.adopted} adopted rows is REACHED by the producer its own emits runs (${rk.errors.join(' | ')})`
+    );
+
+    /* ── THE THIRD SOURCE, over the real tree (row 2026-11-04-the-adoption-gate-cross-checks-two-copies-of-one-claim)
+       The defect was a row that agreed with the table it was copied from. These legs read the real
+       files, so the measured instance stays red and the two shapes that MUST pass stay green. */
+    const RT = treeReaders(ROOT).readSource;
+    ok(
+      figureReach('tools/trio-batch.mjs', 'tools/tch-pooled-hat.mjs', RT('tools/tch-pooled-hat.mjs')) === false,
+      'THE MEASURED INSTANCE: the pooled-hat producer reaches `tools/trio-batch.mjs` no way, so the name the row carried for three weeks reds'
+    );
+    ok(
+      figureReach('analysis-stats.js', 'tools/pat-three-corner.mjs', RT('tools/pat-three-corner.mjs')) === 'vm-eval',
+      'a producer that LOADS AND EVALUATES the figure file reaches it, which `reachKind` alone calls false'
+    );
+    ok(figureReach('integrator-dsp.js', 'tools/integrator-contributions.mjs', RT('tools/integrator-contributions.mjs')) === 'vm-eval', '…and so does the second real row, by the same vm load');
+    ok(
+      figureReach('tools/tch-pooled-hat.mjs', 'tools/tch-pooled-hat.mjs', RT('tools/tch-pooled-hat.mjs')) === 'self',
+      'a producer that IS the figure file reaches it by identity, with no source read at all'
+    );
+    ok(reachKind('analysis-stats', RT('tools/pat-three-corner.mjs'), false) === false, 'CONTROL: the vm arm is load-bearing — `reachKind` reads that same pair as no reach');
+    ok(figureReach('analysis-stats.js', 'tools/pat-three-corner.mjs', null) === null, 'an unread producer is null, never false — ∅: the gate could not look');
+    ok(figureReach('', 'tools/x.mjs', 'src') === null && figureReach('a.js', '', 'src') === null, 'a half-named pair is unexaminable, never a pass');
+    ok(emitsProducer({ cmd: ['node', 'tools/x.mjs', '--contributions-sample'] }) === 'tools/x.mjs', 'the producer is the first path-shaped token after the interpreter');
+    ok(emitsProducer({ cmd: ['python3', '-I', 'capture-host/y.py'] }) === 'capture-host/y.py', '…and a flag between them does not become the producer');
+    ok(
+      emitsProducer({ file: 'a.json' }) === null && emitsProducer({ cmd: ['node', '--version'] }) === null && emitsProducer(null) === null,
+      'a committed object, a flag-only command and no emits all run no producer'
+    );
+
+    /* The three leg-level arms, on the stub tree: a producer that reaches nothing, one that cannot be
+       read, and a row whose own file is absent. Each must red, and none may red for another's reason. */
+    const adoptedVia = (cmdPath) => ({ ...both(), 'hat σ': { ...HAT, status: 'adopted', emits: { cmd: ['node', cmdPath] } } });
+    k = checkContributions(F(adoptedVia('loads-it.mjs')), TABLE, null, null, RS);
+    ok(k.ok && k.counts.reached === 1, 'a stub producer that names the figure file and evaluates it is REACHED, and the count says so');
+    k = checkContributions(F(adoptedVia('reaches-nothing.mjs')), TABLE, null, null, RS);
+    ok(
+      !k.ok && /reaches that file no way/.test(k.errors[0]) && k.counts.reached === 0,
+      'PLANT: a producer that evaluates OTHER files and never names this one reds, so the vm arm is not a blanket pass'
+    );
+    k = checkContributions(F(adoptedVia('absent.mjs')), TABLE, null, null, RS);
+    ok(!k.ok && /could not be read/.test(k.errors[0]), '…and an unread producer reds on ∅, a different message from reaching nothing');
+    k = checkContributions(F(both()), TABLE, null, null, null);
+    ok(!k.ok && /no source reader reached this leg/.test(k.errors[0]), 'PLANT: no reader means the files went unread, which is a red — there is no silent-pass path into this leg');
+    const ghostTable = TABLE.replace('analysis-stats.js', 'ghost-file.js');
+    k = checkContributions(F({ ...both(), 'hat σ': { ...HAT, file: 'ghost-file.js' } }), ghostTable, null, null, RS);
+    ok(!k.ok && /this tree does not carry/.test(k.errors[0]), 'a row and a table that AGREE on a file the tree lacks still reds — the whole point is that agreement is not evidence');
+    k = checkContributions(F(both()), TABLE, null, null, RS);
+    ok(
+      k.ok && k.counts.carried === 2 && k.counts.reached === 0 && k.counts.pending === 2,
+      'the two pending rows are CARRIED and reached by nothing, which is the honest reading of a row with no emits'
     );
   }
 
@@ -2375,14 +2514,15 @@ function main() {
   if (lane !== null) cr = { ok: true, errors: [], counts: {}, unexamined: [] };
   else if (!setPath) cr = { ok: false, errors: ['contributions: tools/verdict-adoption.json carries no `contributions.enumeratedFrom`, so the leg has no population to read'], counts: {} };
   else if (!fs.existsSync(setAbs)) cr = { ok: false, errors: [`contributions: the named set points at ${setPath}, which is not in this tree`], counts: {} };
-  else cr = checkContributions(manifest, fs.readFileSync(setAbs, 'utf8'), V.validate, (e) => runEmits(e, ROOT));
+  else cr = checkContributions(manifest, fs.readFileSync(setAbs, 'utf8'), V.validate, (e) => runEmits(e, ROOT), readSource);
   const cc = cr.counts;
   if (lane !== null)
     console.log(`verdict-adoption: contributions \u2014 NOT_APPLICABLE under --lane ${lane}: that leg's population is the figure table of ${setPath || '(unset)'}, which no file in this lane moves.`);
   else
     console.log(
       `verdict-adoption: contributions — ${cc.table ?? 0} figure(s) in the named set ${setPath || '(unset)'} · ${cc.figures ?? 0} row(s) here · ` +
-        `adopted ${cc.adopted ?? 0} (read ${cc.read ?? 0}, block examined ${cc.examined ?? 0}) · pending ${cc.pending ?? 0}`
+        `adopted ${cc.adopted ?? 0} (read ${cc.read ?? 0}, block examined ${cc.examined ?? 0}) · pending ${cc.pending ?? 0} · ` +
+        `file carried ${cc.carried ?? 0} · producer reaches it ${cc.reached ?? 0} of ${cc.adopted ?? 0}${cc.noProducer ? ` (${cc.noProducer} run a committed object)` : ''}`
     );
   if (Array.isArray(V.CONTRIBUTION_METHODS) && V.CONTRIBUTION_METHODS.slice().sort().join('|') !== CONTRIBUTION_METHODS.slice().sort().join('|'))
     cr.errors.push(`contributions: the method set here (${CONTRIBUTION_METHODS.join('|')}) differs from verdict.js (${V.CONTRIBUTION_METHODS.join('|')}) — verdict.js owns it, so follow it here`);
