@@ -49,8 +49,18 @@ jobs:
   # EVERY changed file is under briefs/ audits/ changes/. Forgetting a path here therefore runs the
   # gate unnecessarily; it can never silently disable it (CLAUDE.md §🔒's fail-closed rule).
   changes:
-    # measured 2026-10-11 over 29 job run(s): p95 0.7 min, max 1.1 min (tools/ci-timing.mjs `pct`). Cap = ceil(max(p95, max) × 2).
-    timeout-minutes: 3
+    # THIS WORKFLOW RUNS ON NO PUSH, so a main sample reaches neither job here and row
+    # `2026-11-03-ci-timing-reaches-no-pull-request-only-job` left this cap unsourced. The
+    # 2026-10-11 line below read 29 job run(s) off the main sample, which cannot contain one:
+    #   p95 0.7 min, max 1.1 min (tools/ci-timing.mjs `pct`). Cap = ceil(max(p95, max) × 2) = 3.
+    # Re-measured through the workflow's own runs (tools/ci-timing.mjs --workflow
+    # browser-gates.yml --event pull_request --limit 100):
+    # measured 2026-11-05 over 100 job run(s), window 2026-11-04T08:13Z → 2026-11-05T12:18Z:
+    # p90 46s, max 1m51s, 5 run(s) ended in a concurrency cancel, so that max is a lower bound.
+    # Cap = ceil(max(p95, max) × 2) = 4; max bounds p95. The old 3 left 1.6× over the observed
+    # max, under the rule's own factor, and this job is a REQUIRED context that the walker never
+    # re-runs once a cap cancels it.
+    timeout-minutes: 4
     name: relevance (browser-gates)
     runs-on: ubuntu-latest
     outputs:

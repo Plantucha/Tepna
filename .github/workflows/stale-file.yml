@@ -40,13 +40,18 @@ jobs:
     # NO MAIN SAMPLE REACHES THIS JOB. It fires on `pull_request` and `merge_group` only, so
     # `tools/ci-timing.mjs --branch main` never sees it, and row
     # `2026-11-03-seven-ci-caps-no-longer-satisfy-their-own-derivation-rule` left that debt open.
-    # The cost here is the full-history checkout, not the one `git log` the step runs, so `biome`'s
-    # own `fetch-depth: 0` job gives the bound here (it carries setup-node and a lint run on top,
-    # so that bound is generous, which is what a cap wants):
-    # measured 2026-11-03 over 17 job run(s): p90 2m30s, max 2m58s (tools/ci-timing.mjs --limit 100).
-    # Cap = ceil(max(p95, max) × 2) = 6; max bounds p95. The cap of 2 killed three consecutive
-    # attempts on head 65a9d8aa4 of #4332, each at 2m33s inside actions/checkout@v7 with the work
-    # step SKIPPED — a cancelled required check, which the walker never re-runs.
+    # Row `2026-11-03-ci-timing-reaches-no-pull-request-only-job` gave the tool `--workflow` and
+    # `--event`, so this job now carries a sample of ITSELF rather than a bound borrowed from
+    # `biome`'s `fetch-depth: 0` job:
+    # measured 2026-11-05 over 100 job run(s) (tools/ci-timing.mjs --workflow stale-file.yml
+    # --event pull_request --limit 100), window 2026-11-04T08:13Z → 2026-11-05T12:18Z:
+    # p90 45s, max 1m17s, 5 run(s) ended in a concurrency cancel, so that max is a lower bound.
+    # THAT PAGE SPANS 28 h AND DOES NOT REACH THE BINDING EVENT. The cap of 2 killed three
+    # consecutive attempts on head 65a9d8aa4 of #4332, each at 2m33s inside actions/checkout@v7
+    # with the work step SKIPPED — a cancelled required check, which the walker never re-runs.
+    # The full-history checkout, not the one `git log` the step runs, is the cost here, and 2m33s
+    # is the worst this job has done. Cap = ceil(max(p95, max) × 2) over 2m33s = 6; max bounds
+    # p95. A re-derivation from a fresh page alone reads 3 and re-arms that kill.
     timeout-minutes: 6
     runs-on: ubuntu-latest
     steps:
