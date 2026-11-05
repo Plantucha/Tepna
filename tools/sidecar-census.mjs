@@ -45,7 +45,6 @@ const TOOL = 'tools/sidecar-census.mjs';
 const GATE = 'sidecar-census';
 
 const ROW_ACC = '2026-11-04-two-acc-parsers-read-an-absent-run-sidecar-as-a-clean-one';
-const ROW_NOREADER = '2026-11-04-the-worn-and-host-clock-sidecars-have-no-reader';
 const ROW_SEAMNODE = '2026-11-02-no-node-reads-a-seam-sidecar-or-the-radio-clock';
 
 /* Names the box spells that are NOT sidecars: the signal streams themselves, outputs derived from a
@@ -174,9 +173,15 @@ export const REGISTRY = [
   {
     tag: 'CLOCK',
     writer: { file: 'capture-host/writers.py', anchor: 'class HostClockLogWriter' },
-    note: '`_seam_cause` opens a bare CLOCK.csv that the box never writes; the box writes Tepna_<stamp>_CLOCK.csv',
-    residue: ROW_NOREADER,
-    readers: []
+    readers: [
+      {
+        kind: 'box',
+        file: 'capture-host/solid_night_inputs.py',
+        anchor: 'def _seam_cause_records(',
+        onAbsent: 'an unlistable night still tries the fixed name, and the verdict names no cause',
+        test: 'capture-host/tests/test_solid_night_inputs.py::test_a_night_that_cannot_be_LISTED_still_tries_the_fixed_name_and_names_no_cause'
+      }
+    ]
   },
   {
     tag: 'OXYFRAME',
@@ -335,8 +340,15 @@ export const REGISTRY = [
   {
     tag: 'WORN',
     writer: { file: 'capture-host/writers.py', anchor: 'WORN_NAME = ' },
-    residue: ROW_NOREADER,
-    readers: []
+    readers: [
+      {
+        kind: 'box',
+        file: 'capture-host/loss_audit.py',
+        anchor: 'def daemon_worn_rows(',
+        onAbsent: 'each wear end says in words that no WORN.csv was found, with every value null',
+        test: 'capture-host/tests/test_loss_audit.py::test_EACH_WEAR_END_CARRIES_THE_DAEMONS_WORN_VERDICT_IN_FORCE_AT_IT'
+      }
+    ]
   },
   {
     tag: 'WEDGEFIRE',
