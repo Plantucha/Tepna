@@ -812,16 +812,42 @@
      spans the box recorded as measuring nothing, and a refusal a reader cannot see is the same
      silence the sidecar exists to end. Prose beside the count it qualifies, in the shape the
      artifact-drop parenthetical next to it already uses — so it inherits that number's badge rather
-     than planting a second, unbadged one (§🎫, badge the series not the caption). Empty string when
-     no sidecar was paired: absence of a sidecar is not a clean recording. */
+     than planting a second, unbadged one (§🎫, badge the series not the caption).
+     THE EMPTY STRING WAS THE SILENCE. Row 2026-10-28-pat-legs-refuse-only-the-spans-a-sidecar-confirmed:
+     a companion-less leg returned '' here, which reads as a clean recording on a surface whose whole
+     job is provenance. Both legs now publish a record on every path, so this reads the STATE first and
+     a count second. An unconfirmed span set prints what the recompute WOULD have refused and says that
+     no foot was refused; a leg holding no span set prints its reason and no number at all. */
   function validityNote(v) {
     if (!v) return '';
+    var muted = function (txt) {
+      return ' <span class="muted">[' + txt + ']</span>';
+    };
+    var reason = function (r) {
+      return escHtml(
+        String(r || 'no reason given')
+          .split('`')
+          .join('')
+      );
+    };
+    if (v.source == null) {
+      /* ∅ No span set at all — `wouldDrop` and `channels` are both absent, so there is nothing to
+         size and the reason is the whole answer. */
+      if (v.wouldDrop == null && v.channels == null) return muted('validity unknown: ' + reason(v.comparableReason));
+      var would = [v.channels + '-channel recompute, unconfirmed', v.wouldDrop + ' would be refused'];
+      if (v.wouldPartial) would.push(v.wouldPartial + ' partly pinned');
+      if (v.wouldUnmeasuredSec != null) would.push((v.wouldUnmeasuredSec / 60).toFixed(0) + ' min would be unmeasured');
+      would.push('no foot refused');
+      return muted('unconfirmed: ' + would.join(' · '));
+    }
+    /* A companion whose rows no fragment placed: it arrived, and its sizes stay unknown. */
+    if (v.unplacedReason) return muted(v.source + ': ' + reason(v.unplacedReason) + ' · sizes unknown');
     var bits = [v.spans != null ? v.spans + ' recorded span' + (v.spans === 1 ? '' : 's') : v.channels + '-channel sidecar'];
     bits.push(v.dropped + ' dropped');
     if (v.partial) bits.push(v.partial + ' partly pinned, kept');
     if (v.unmeasuredSec != null) bits.push((v.unmeasuredSec / 60).toFixed(0) + ' min unmeasured');
     if (!v.comparable) bits.push('sidecar not comparable');
-    return ' <span class="muted">[' + v.source + ': ' + bits.join(' · ') + ']</span>';
+    return muted(v.source + ': ' + bits.join(' · '));
   }
 
   function renderFocus(m) {

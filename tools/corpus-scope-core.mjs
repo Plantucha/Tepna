@@ -25,7 +25,7 @@
 // `tools/corpus-scope.mjs` keeps `countUnder` (which runs `find`), the CLI and the selftest, and
 // re-exports everything here, so no caller of the old module changed.
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from 'node:fs';
+import { closeSync, existsSync, openSync, readFileSync, readSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { homedir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
@@ -696,6 +696,90 @@ export function dedupeByIdentity(rows) {
     .filter(([, n]) => n > 1)
     .map(([b]) => b);
   return { kept, dropped, conflicts };
+}
+
+/* ── THE CAP IS NAMED FOR NIGHTS, SO IT SELECTS NIGHTS ────────────────────────────────────────────
+   Row 2026-11-04-max-nights-caps-the-largest-files-not-the-nights, and its successor
+   2026-11-05-three-more-max-nights-caps-still-cut-files: four analysis tools sliced `--max-nights`
+   out of a list of FILES, two of them after a descending SIZE sort, so a flag named for nights kept
+   the longest CAPTURES and the night count fell out of the cap. `--max-nights 30` over the paper's
+   own corpus left 27 merged nights, biased toward long wear, with no line saying so. One night split
+   across two captures spent two of the budget.
+
+   EARLIEST FIRST, AND A NIGHT IS WHOLE. Chronological order is deterministic and is not keyed on the
+   quantity a run publishes, which a size rank is. Every file of a kept night is kept, so the cap
+   never reports a partial night as a night.
+
+   A FILE WITH NO NIGHT IS UNKNOWN, NOT ABSENT (§∅). A candidate whose key reads `null` is offered
+   only after every dated night, each one costing a cap slot, and the caller names them.
+
+   THE KEY IS THE CALLER'S, AND THIS FUNCTION READS NOTHING. A tool whose list is dated by name
+   passes a name reader; a tool whose only date is inside the stream passes `headNightKeyWith`. */
+export function capByNights(files, maxNights, keyOf) {
+  if (typeof keyOf !== 'function') throw new TypeError('capByNights needs a keyOf(path) — the night key is the caller’s, never guessed here');
+  const byNight = new Map();
+  const undated = [];
+  for (const f of files.slice().sort((a, b) => (a.p < b.p ? -1 : a.p > b.p ? 1 : 0))) {
+    const k = keyOf(f.p);
+    if (k == null) {
+      undated.push(f);
+      continue;
+    }
+    if (!byNight.has(k)) byNight.set(k, []);
+    byNight.get(k).push(f);
+  }
+  const nights = Array.from(byNight.keys()).sort();
+  const keptNights = nights.slice(0, Math.max(0, maxNights));
+  const kept = [];
+  for (const k of keptNights) kept.push(...byNight.get(k));
+  const roomLeft = Math.max(0, maxNights - keptNights.length);
+  const keptUndated = undated.slice(0, roomLeft);
+  return { kept: kept.concat(keptUndated), keptNights, nights, droppedNights: nights.slice(keptNights.length), undated, keptUndated };
+}
+
+/** The night a capture belongs to, from the parsed clock. The 12 h shift has ONE definition here,
+ *  because a cap, a bucket and a printed count that disagree on where a night starts are three
+ *  different populations wearing one word. */
+export const NIGHT_SHIFT_MS = 12 * 3600 * 1000;
+export function nightKeyOf(tMs) {
+  return new Date(tMs - NIGHT_SHIFT_MS).toISOString().slice(0, 10);
+}
+
+/* THE NIGHT KEY COMES FROM THE PARSED CLOCK, NEVER FROM THE FILENAME. A node buckets on
+   `nightKeyOf(rec.t0Ms)`, and the filename stamp is the capture SESSION's start, taken before the
+   link is up: row 2026-09-22-filename-stamp-still-wrong-for-other-consumers measured a session
+   stamped 21:00 whose stream opened at 09:00. So the cap reads each candidate's HEAD through the
+   node's own parser and takes `t0Ms` from that. Measured 2026-11-05 on a 19.0 MB Verity capture and
+   again on an 88.8 MB one, a 4 KiB head yields the same `t0Ms` as the whole file, so the cap costs
+   one small read per candidate.
+
+   THE SIDECAR RIDES THE HEAD TOO, AND THE PROBE'S READ IS NOT TALLIED BY THE CALLER. A run naming
+   the first samples absent must not key the night off a sample the stream never measured (§∅), and a
+   validity tally describes the streams a tool SCORED — a candidate the cap drops would otherwise be
+   counted as a reading nobody made. `runsOf` is the caller's untallied reader.
+
+   A HEAD THAT WILL NOT PARSE IS A NIGHT UNKNOWN. Every failure returns `null`, which `capByNights`
+   offers last and the caller names, rather than a date this file invented. */
+export const HEAD_BYTES = 4096;
+export function headNightKeyWith({ parse, runsOf = null, bytes = HEAD_BYTES, t0Of = (rec) => (rec && rec.t0Ms != null ? rec.t0Ms : null) }) {
+  if (typeof parse !== 'function') throw new TypeError('headNightKeyWith needs the node parser that reads this stream');
+  return function headNightKey(path) {
+    let fd = null;
+    try {
+      fd = openSync(path, 'r');
+      const buf = Buffer.alloc(bytes);
+      const n = readSync(fd, buf, 0, bytes, 0);
+      const text = buf.slice(0, n).toString('utf8');
+      const rt = runsOf ? runsOf(path) : null;
+      const rec = rt ? parse(text, { runsText: rt }) : parse(text);
+      const t0 = t0Of(rec);
+      return Number.isFinite(t0) ? nightKeyOf(t0) : null;
+    } catch (_e) {
+      return null;
+    } finally {
+      if (fd != null) closeSync(fd);
+    }
+  };
 }
 
 export function notCovered(offer, covered, { key = 'night' } = {}) {

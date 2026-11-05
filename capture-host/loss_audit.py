@@ -36,6 +36,7 @@ from __future__ import annotations
 
 import bisect
 import collections
+import csv
 import datetime as _dt
 import glob
 import itertools
@@ -1862,12 +1863,15 @@ def _ring_end(path: str, night_dir: str, contact: list[dict], battery: list[tupl
     }
 
 
-def wear_ends(night_dir: str, model: str) -> dict:
+def wear_ends(night_dir: str, model: str, address: str | None = None) -> dict:
     """Every H10 / Verity / ring file end in the night with its named reason, and the device's worn-interval
     END — the latest usable end. A model without a rule says so in words, never a bare null.
 
     The ring recomputes `nightqc.ppg2w_contact_quality` rather than reading the night's QC summary: summaries
-    written before the clock-second epoch carry a wrong `doff_at`. One pass per settled night, ~300 MB peak."""
+    written before the clock-second epoch carry a wrong `doff_at`. One pass per settled night, ~300 MB peak.
+
+    With `address`, every usable end also carries `daemon_worn`: the daemon's own live worn verdict in force
+    at that end, read from the night's `WORN.csv` (`daemon_worn_at`). It annotates; it changes no end."""
     ring = model == "O2Ring-S"
     spec = (_RING_SPO2, []) if ring else _WEAR_STREAM.get(model)
     if spec is None:
@@ -1881,6 +1885,11 @@ def wear_ends(night_dir: str, model: str) -> dict:
             ends.append(_ring_end(f, night_dir, contact, battery) if ring else _wear_end(f, night_dir, model))
         except OSError as exc:
             ends.append({"file": os.path.basename(f), "usable": False, "reason": f"unreadable: {exc!r}"})
+    if address:
+        rows = daemon_worn_rows(night_dir, address)
+        for e in ends:
+            if e["usable"]:
+                e["daemon_worn"] = daemon_worn_at(rows, _dt.datetime.fromisoformat(e["end_at"]))
     out = {"available": True, "ends": ends, "worn_end": worn_end_of(ends)}
     if link_unreadable:
         out["link_unreadable"] = link_unreadable  # the charger witness could not read these; named, never silent
@@ -1911,6 +1920,63 @@ def worn_end_of(ends: list[dict]) -> dict | None:
     usable = [e for e in ends if e["usable"]]
     last = max(usable, key=lambda e: e["end_at"]) if usable else None
     return {"at": last["worn_end_at"], "reason": last["reason"], "file": last["file"]} if last else None
+
+
+_WORN_COLS = ("Phone timestamp", "address", "worn", "why")
+
+
+def daemon_worn_rows(night_dir: str, address: str) -> list[tuple[_dt.datetime, bool | None, str]] | None:
+    """The daemon's live worn decisions for ONE device address, from `WORN.csv` in each folder of the
+    recording (`writers.append_worn_decision`), sorted by stamp. None when no folder holds the file.
+
+    The file records what `worn_verdict` returned and what the not-worn drop acted on; no other artifact
+    keeps it. A blank `worn` cell is an abstention and reads as None, never as not-worn (§∅). A torn row,
+    or one whose stamp does not parse, holds no decision and is skipped."""
+    dirs, _band = _recording_dirs_and_band(night_dir)
+    paths = [os.path.join(d, _w.WORN_NAME) for d in dirs]
+    paths = [q for q in paths if os.path.exists(q)]
+    if not paths:
+        return None
+    want = address.strip().lower()
+    out: list[tuple[_dt.datetime, bool | None, str]] = []
+    for q in paths:
+        # `csv` with QUOTE_NONE reads each cell verbatim, so no strip can eat a cell. With no quoted
+        # field, universal newlines give the same rows as newline="" (probed: 165480 inputs, 0 differ)
+        with open(q, errors="replace") as fh:
+            rows = csv.reader(fh, delimiter=";", quoting=csv.QUOTE_NONE)
+            idx = {k: i for i, k in enumerate(next(rows, []))}
+            if not all(k in idx for k in _WORN_COLS):
+                continue  # a file without the decision columns holds no decision
+            i_ts, i_a, i_w, i_y = (idx[k] for k in _WORN_COLS)
+            for parts in rows:
+                try:
+                    t = _dt.datetime.fromisoformat(parts[i_ts])
+                    addr, cell, why = parts[i_a], parts[i_w], parts[i_y]
+                except (IndexError, ValueError):
+                    continue  # a torn row or an unparseable stamp holds no decision
+                if addr.strip().lower() == want and cell in ("", "0", "1"):
+                    out.append((t, None if cell == "" else cell == "1", why))
+    out.sort(key=lambda r: r[0])  # on the stamp alone: a tie keeps the file order, so the last row wins
+    return out
+
+
+def daemon_worn_at(rows: list[tuple[_dt.datetime, bool | None, str]] | None, at: _dt.datetime) -> dict:
+    """The daemon's decision in force at `at`: the last row at or before it. PURE.
+
+    Absence is said in words with every value None: no `WORN.csv` in the recording, or no row for this
+    device at or before `at`. Neither one is a not-worn verdict."""
+    if rows is None:
+        return {"at": None, "worn": None, "why": None, "reason": "no WORN.csv in the recording's folders"}
+    before = [r for r in rows if r[0] <= at]
+    if not before:
+        return {
+            "at": None,
+            "worn": None,
+            "why": None,
+            "reason": "no WORN.csv row for this address at or before the end",
+        }
+    t, worn, why = before[-1]
+    return {"at": t.isoformat(timespec="seconds"), "worn": worn, "why": why, "reason": None}
 
 
 def _device_keys(devices: list[dict]) -> list[str]:
@@ -2182,7 +2248,7 @@ def audit_night(
             "worn_lost_min": round(lost, 1) if worn else (0.0 if worn is False else None),
             "daemon_caused_min": round(sum(v for k, v in by_cause.items() if k.startswith("daemon:")), 1),
             # where the WORN interval ends, per device, with its reason — gaps above are not wear
-            "wear": wear_ends(night_dir, model),
+            "wear": wear_ends(night_dir, model, address or None),
         }
     return out
 
@@ -2204,7 +2270,7 @@ def wear_by_device(night_dir: str, devices: list[dict]) -> dict:
         name = str(d.get("name") or model)
         if not model or model not in WORN_EVIDENCE_BY_MODEL:
             continue
-        out[name] = wear_ends(night_dir, model)
+        out[name] = wear_ends(night_dir, model, str(d.get("address") or "") or None)
     return out
 
 
