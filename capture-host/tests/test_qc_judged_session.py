@@ -546,3 +546,42 @@ def test_CONTROL_a_point_session_that_recorded_NOTHING_is_published_and_reds_not
     assert len(inside) == 1, (inside, "it is still published: the night read nothing from it")
     assert "0 rows, not read by the judgement" in inside[0], inside[0]
     assert r["gaps_in_night"] == [], "no time and no row is nothing the judgement failed to read"
+
+
+def _clock_logs_after_the_night(tmp_path):
+    """The 2026-11-05 shape: a night session, then the ring on its charger writing only clock logs.
+
+    The judged session is H10 ECG 04:00->04:15. After it, inside the band, the ring writes a 22-row
+    `_RTCLOG.csv` from 06:18 and `radioclock` writes a `_RADIOCLOCK.csv` from 06:45 to 09:09. No device
+    sample is written after 04:15. Absolute stamps, never derived from now()."""
+    d = str(tmp_path / "2026-08-15")
+    judged = _dt.strptime("20260815040000", "%Y%m%d%H%M%S").timestamp()
+    _rows(d, "Polar_H10_ABCD0001_20260815040000_ECG.txt", 900, judged + 900)
+    rtc = os.path.join(d, "Wellue_O2Ring-S_0001_20260815061800_RTCLOG.csv")
+    with open(rtc, "w") as fh:
+        fh.write("Phone timestamp;event;rtc_offset_s;battery_state;battery_level;battery_raw2;battery_raw3\n")
+        for i in range(22):
+            fh.write(f"2026-08-15T06:{18 + i}:00.000;read;-0.5;;;;\n")
+    os.utime(rtc, (judged + 9600, judged + 9600))
+    radio = os.path.join(d, "20260815T064500_AA-BB-CC-DD-EE-FF_RADIOCLOCK.csv")
+    with open(radio, "w") as fh:
+        fh.write(
+            "Phone timestamp;device;meas;last_sensor_ns;conn_handle;event_counter;anchor_us;vs_rx_ns;"
+            "acl_rx_ns;device_clock;anchor_epoch\n"
+        )
+        for i in range(145):
+            h, m = divmod(6 * 60 + 45 + i, 60)
+            fh.write(f"2026-08-15T{h:02d}:{m:02d}:00.000;AA:BB:CC:DD:EE:FF;;;810;{i};{i};{i};{i};none-not-pmd;1\n")
+    os.utime(radio, (judged + 18540, judged + 18540))
+    return d
+
+
+def test_CLOCK_LOGS_AFTER_THE_NIGHT_DO_NOT_STRETCH_ITS_SPAN(tmp_path):
+    """Residue `2026-11-05-clock-logs-join-the-night-as-device-data`. On the box, night 2026-11-04 read
+    73 % at 05:00 and 58 % at 09:09, because two morning sessions made of clock logs alone joined it.
+    A clock log is the box's record of a device's clock, not the device's samples."""
+    r = _summarize(_clock_logs_after_the_night(tmp_path), _DEV)
+    assert r["sessions_judged"] == 1, (r["sessions_judged"], r["gaps"])
+    assert r["span_sec"] == 900, (r["span_sec"], "the night's own 15 min, not the morning's clock logs")
+    assert r["joined_gaps"] == [] and r["empty_joined"] == [], (r["joined_gaps"], r["empty_joined"])
+    assert {"RTCLOG", "RADIOCLOCK"} <= set(r["sidecars"]), (r["sidecars"], "they are named, not dropped")
