@@ -1265,8 +1265,9 @@ def test_nightqc_filters_on_the_SAME_list_the_note_prints():
 
     from tests._srcscan import module_source
 
-    assert nightqc._SIDECAR_TAGS == set(writers.BOX_WIDE_SIDECAR_TAGS)
-    assert "_SIDECAR_TAGS = set(writers.BOX_WIDE_SIDECAR_TAGS)" in module_source("nightqc.py"), (
+    assert nightqc._SIDECAR_TAGS == set(writers.NOT_DEVICE_DATA_TAGS)
+    assert set(writers.NOT_DEVICE_DATA_TAGS) == set(writers.BOX_WIDE_SIDECAR_TAGS) | {"RTCLOG", "RADIOCLOCK"}
+    assert "_SIDECAR_TAGS = set(writers.NOT_DEVICE_DATA_TAGS)" in module_source("nightqc.py"), (
         "nightqc must READ the list, not re-type it"
     )
 
