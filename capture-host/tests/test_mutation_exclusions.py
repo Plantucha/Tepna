@@ -645,7 +645,12 @@ def test_the_covered_function_count_is_MEASURED_from_the_ast_not_quoted():
     # predicate each of them owned would let them disagree. +1, the whole delta. Rebased onto the
     # `_announce_solid` rise above, so this one counts from 344.
     # `moduleFunctionsAtDeclaration` stays where it is, per the note above.
-    assert n == 345, f"capture.py now defines {n} functions — update the declaration's note deliberately"
+    # 345 → 346 on 2026-11-04 (owner, battery ageing alert): `_battery_health_step`, which reads the
+    # state, runs `battery_health.update` off the loop, sends each due alert and latches only a
+    # delivered one. It is async because it awaits the notifier; the rules live in battery_health.py.
+    # +1, the whole delta.
+    # `moduleFunctionsAtDeclaration` stays where it is, per the note above.
+    assert n == 346, f"capture.py now defines {n} functions — update the declaration's note deliberately"
 
 
 def test_count_functions_counts_nested_and_methods_and_refuses_nothing():

@@ -65,6 +65,7 @@ import nightarchive
 import stallsampler
 import pymalloc_stats  # CPython's own arena figures for the mem line; see its docstring
 import qc_child  # the night-QC work that runs in the spawned child, never in this process
+import battery_health
 import loss_audit
 import solid_night
 import solid_night_inputs
@@ -10437,6 +10438,20 @@ async def _qc_offload(fn: Any, *args: Any, deps: tuple = (), record: str = "qc")
         pool.shutdown(wait=False)
 
 
+async def _battery_health_step(captures: str, devices: list, notifier, today) -> None:
+    """Add the settled nights to `battery_health.STATE_NAME` and push what `battery_health.due` names.
+    A push latches only once DELIVERED, so a failed send retries the next day."""
+    path = os.path.join(captures, battery_health.STATE_NAME)
+    prev = _read_quiet_state(path, "the battery health state")
+    prev = prev if isinstance(prev, dict) else None
+    state = await asyncio.to_thread(battery_health.update, captures, devices, today, prev)
+    for name, kind, title, message, value in battery_health.due(state, devices):
+        if notifier and await notifier.send(title, message, key=f"battery-{kind}-{name}-{value}"):
+            state[name][kind] = value
+    if state != prev:
+        _write_quiet_state(path, state, "the battery health state")
+
+
 async def qc_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = None):
     """Summarise the CURRENT night's capture completeness — rows per configured stream, which declared
     streams produced nothing (the header-only files a rejected START / never-worn sensor leaves). Turns
@@ -10579,6 +10594,8 @@ async def qc_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = N
             if qc_digest_due(_dnow, baseline_hour, baseline_built_date):
                 baseline_built_date = _dnow.date()
                 await asyncio.to_thread(_rebuild_link_baselines, root)
+                # BATTERY AGEING (owner 2026-11-04) rides the same once-a-day gate: one settled night a day.
+                await _battery_health_step(captures, cfg.get("devices", []), notifier, _dnow.date())
             if notifier and qc_digest_due(_dnow, digest_hour, digest_sent_date):
                 _line = nightqc.qc_digest(summ)
                 if _line:  # an empty night sends NOTHING — the digest must never train the reader that
