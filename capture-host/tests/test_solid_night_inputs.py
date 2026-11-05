@@ -12,6 +12,7 @@ import pathlib as _pathlib
 
 import loss_audit as _la
 import solid_night_inputs as si
+import writers as _writers
 
 H10 = {"name": "Polar H10 02849638", "model": "H10"}
 BASE = "Polar_H10_02849638_20260920230000"
@@ -810,7 +811,7 @@ def test_an_UNREADABLE_clock_record_names_no_cause_rather_than_guessing_one(tmp_
     moves to the next record and, finding none, says so. It never promotes the step into its own cause."""
     d = tmp_path
     (d / "CLOCKSYNC.csv").mkdir()  # a directory at that name: open() raises OSError, not ValueError
-    (d / "CLOCK.csv").mkdir()
+    (d / STAMPED_CLOCK).mkdir()
     tb = _stepped(d, step_ms=2.44e8 * 1000.0)
     assert "no cause recorded this night" in tb["reason"], tb["reason"]
 
@@ -838,7 +839,7 @@ def test_a_READABLE_clock_record_with_no_event_names_no_cause(tmp_path):
     the loop exhausts and the reader says "no cause recorded" — it does not fall back to the magnitude."""
     d = tmp_path
     (d / "CLOCKSYNC.csv").write_text("at;event\n2026-09-20T23:12:00;battery\n")
-    (d / "CLOCK.csv").write_text("at;event\n2026-09-20T23:13:00;nothing here\n")
+    (d / STAMPED_CLOCK).write_text("at;event\n2026-09-20T23:13:00;nothing here\n")
     tb = _stepped(d, step_ms=2.44e8 * 1000.0)
     assert "no cause recorded this night" in tb["reason"], tb["reason"]
 
@@ -1153,6 +1154,10 @@ def test_a_night_whose_ONLY_seam_carries_no_measured_step_SAYS_so(tmp_path):
 
 
 # ── the cause reader (#3095's `_seam_cause`) ────────────────────────────────────────────────────────
+# The box-wide host clock log, named exactly as `capture.py` writes it: `Tepna_<stamp>_CLOCK.csv`, the
+# `CLOCK` tag of `writers.BOX_WIDE_SIDECAR_TAGS`. These tests planted a bare `CLOCK.csv` until
+# 2026-11-05, which is a name no version of the box ever wrote.
+STAMPED_CLOCK = "Tepna_20260920231200_CLOCK.csv"
 
 
 def test_each_of_the_THREE_clock_event_words_names_the_cause_on_its_own(tmp_path):
@@ -1169,13 +1174,75 @@ def test_each_of_the_THREE_clock_event_words_names_the_cause_on_its_own(tmp_path
 
 
 def test_an_unreadable_FIRST_clock_record_falls_through_to_the_SECOND(tmp_path):
-    """`continue` -> `break` in the `except OSError`: the fallback to `CLOCK.csv` exists precisely for
-    the night whose `CLOCKSYNC.csv` cannot be opened. A `break` makes the second name dead code while
-    the existing both-unreadable test stays green, because that one reaches no cause either way."""
+    """`continue` -> `break` in the `except OSError`: the fallback to the host clock log exists
+    precisely for the night whose `CLOCKSYNC.csv` cannot be opened. A `break` makes the second record
+    dead code while the existing both-unreadable test stays green, because that one reaches no cause
+    either way.
+
+    The verdict quotes the SHAPE rather than this file's name, because the stamp names a capture
+    session and a night holds one such file per session."""
     (tmp_path / "CLOCKSYNC.csv").mkdir()  # OSError on open, not ValueError
-    (tmp_path / "CLOCK.csv").write_text("at;event\n2026-09-20T23:12:00;offline\n")
+    (tmp_path / STAMPED_CLOCK).write_text("at;event\n2026-09-20T23:12:00;offline\n")
     tb = _stepped(tmp_path, step_ms=2.44e8 * 1000.0)
-    assert "; `CLOCK.csv` records a clock event this night;" in tb["reason"], tb["reason"]
+    assert "; `*_CLOCK.csv` records a clock event this night;" in tb["reason"], tb["reason"]
+
+
+def test_the_cause_reader_looks_for_the_name_the_WRITER_ACTUALLY_PRODUCES(tmp_path):
+    """🔴 THE READER NAMED A FILE NOTHING WRITES. Its second record was a bare `CLOCK.csv`, and the
+    host clock log is BOX-WIDE and STAMPED: `Tepna_<stamp>_CLOCK.csv`. Measured on the box 2026-11-04:
+    0 files of the bare name against 1123 `*_CLOCK.csv`, and `git log -S` finds no commit that ever
+    wrote the bare one. So the fallback was unreachable on every real night, and the three tests above
+    passed on a file shape no box produces.
+
+    Same class as the RTCLOG tag mismatch in `test_nightqc.py`: the reader's filename expectation did
+    not match the writer's output, and no test compared the two. This test is that comparison, so the
+    two cannot drift apart again."""
+    # The writer's side, read FROM THE WRITER. `sidecar_note_text` generates its template from that
+    # same tag list, and the box drops the note into every night folder.
+    assert si.SEAM_CAUSE_FIXED_NAME == _writers.CLOCKSYNC_NAME
+    assert "CLOCK" in _writers.BOX_WIDE_SIDECAR_TAGS
+    assert "Tepna_<YYYYMMDDHHMMSS>_<TAG>.csv" in _writers.sidecar_note_text()
+    # So a box-wide CLOCK file carries the suffix the reader looks for, and the bare name carries none
+    # of it — one `endswith` apart, which is the whole defect.
+    assert STAMPED_CLOCK.endswith(si.SEAM_CAUSE_STAMPED_SUFFIX)
+    assert not "CLOCK.csv".endswith(si.SEAM_CAUSE_STAMPED_SUFFIX)
+    # And the reader reaches that file by LISTING the night, never by naming it.
+    (tmp_path / STAMPED_CLOCK).write_text("at;event\n2026-09-20T23:12:00;resync\n")
+    assert [lbl for _p, lbl in si._seam_cause_records(str(tmp_path))] == [
+        si.SEAM_CAUSE_FIXED_NAME,
+        "*" + si.SEAM_CAUSE_STAMPED_SUFFIX,
+    ]
+
+
+def test_a_SECOND_stamped_clock_record_is_read_when_the_first_names_no_event(tmp_path):
+    """One night holds one box-wide CLOCK file per capture SESSION, so a `break` or a `return None` in
+    place of the record loop's fall-through would stop at whichever session wrote nothing. Both files
+    open here, so the unreadable-record test above cannot stand in for this one."""
+    d = tmp_path
+    (d / STAMPED_CLOCK).write_text("at;event\n2026-09-20T23:12:00;battery\n")
+    (d / "Tepna_20260921040000_CLOCK.csv").write_text("at;event\n2026-09-21T04:00:00;offline\n")
+    tb = _stepped(d, step_ms=2.44e8 * 1000.0)
+    assert "; `*_CLOCK.csv` records a clock event this night;" in tb["reason"], tb["reason"]
+
+
+def test_a_night_that_cannot_be_LISTED_still_tries_the_fixed_name_and_names_no_cause(tmp_path):
+    """`os.listdir` raises on a night folder that is gone or unreadable, and the stamped records can
+    only be found by listing. The fixed name needs no listing, so it survives that failure — a `return
+    []` there would drop it, and `open` reports its own failure anyway."""
+    gone = str(tmp_path / "no-such-night")
+    assert si._seam_cause_records(gone) == [(os.path.join(gone, si.SEAM_CAUSE_FIXED_NAME), si.SEAM_CAUSE_FIXED_NAME)]
+    assert si._seam_cause(gone) is None
+
+
+def test_a_RADIOCLOCK_sidecar_is_NOT_read_as_a_host_clock_record(tmp_path):
+    """The suffix boundary, stated as a control. `<stamp>_<DEVICE>_RADIOCLOCK.csv` records a DEVICE's
+    RTC watched against the host, so it never says what disciplined the BOX's clock. Widening the
+    suffix to `CLOCK.csv` would pull every one of them in, with their own vocabulary."""
+    d = tmp_path
+    (d / "20260920231200_AA-BB_RADIOCLOCK.csv").write_text("at;event\n2026-09-20T23:12:00;resync\n")
+    assert [lbl for _p, lbl in si._seam_cause_records(str(d))] == [si.SEAM_CAUSE_FIXED_NAME]
+    tb = _stepped(d, step_ms=2.44e8 * 1000.0)
+    assert "no cause recorded this night" in tb["reason"], tb["reason"]
 
 
 def test_a_clock_record_with_UNDECODABLE_BYTES_still_names_its_cause(tmp_path):
