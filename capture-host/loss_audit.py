@@ -1698,12 +1698,13 @@ def verity_ppi_pulse(ppi_path: str) -> tuple[int, int] | None:
         return None
     rows = pulse = 0
     with open(ppi_path, errors="replace") as fh:
-        head = fh.readline().rstrip("\n").split(";")
+        # Each header cell is stripped, so a CRLF line or a padded cell still names its column.
+        head = [c.strip() for c in fh.readline().split(";")]
         if "hr [bpm]" not in head:
             return None
         i = head.index("hr [bpm]")
         for line in fh:
-            parts = line.rstrip("\n").split(";")
+            parts = line.split(";")  # int() skips the whitespace and the line end around a number
             try:
                 hr = int(parts[i])
             except (IndexError, ValueError):

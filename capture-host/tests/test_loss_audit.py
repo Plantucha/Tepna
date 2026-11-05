@@ -4585,3 +4585,24 @@ def test_AN_UNWORN_VERITY_FILE_AFTER_A_DOFF_DOES_NOT_SET_THE_WORN_END(tmp_path):
     off_ppi.unlink()
     assert loss_audit.verity_ppi_pulse(str(off_ppi)) is None
     assert loss_audit.wear_ends(str(d), "VeritySense")["worn_end"]["file"] == off.name
+
+
+# ── verity_ppi_pulse: the row and pulse counts, one case per kind of row (mutate-diff on #4401) ────────
+def test_verity_ppi_pulse_counts_every_row_and_each_pulse_above_zero(tmp_path):
+    """A bad row in the middle is skipped, and the rows after it still count. An hr of 1 is a pulse."""
+    f = tmp_path / "Polar_VeritySense_ABCD0001_20261105000000_PPI.txt"
+    f.write_text("Phone timestamp;hr [bpm];PP-Interval [ms]\nt;120;500\nt;;0\nt;0;0\nt;1;900\nt;80;750\n")
+    assert loss_audit.verity_ppi_pulse(str(f)) == (4, 3)
+
+
+def test_verity_ppi_pulse_reads_a_crlf_file_with_hr_in_the_last_column(tmp_path):
+    f = tmp_path / "Polar_VeritySense_ABCD0001_20261105000000_PPI.txt"
+    f.write_bytes(b"Phone timestamp;hr [bpm]\r\nt;72\r\nt;0\r\n")
+    assert loss_audit.verity_ppi_pulse(str(f)) == (2, 1)
+
+
+def test_verity_ppi_pulse_reads_past_a_byte_that_is_not_utf_8(tmp_path):
+    """A torn byte in another column costs nothing: the reader replaces it and reads on."""
+    f = tmp_path / "Polar_VeritySense_ABCD0001_20261105000000_PPI.txt"
+    f.write_bytes(b"Phone timestamp;hr [bpm]\n\xff\xfe;64\nt;66\n")
+    assert loss_audit.verity_ppi_pulse(str(f)) == (2, 2)
