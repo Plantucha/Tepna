@@ -180,11 +180,52 @@ function ecgCounterTimeMs(rec, pos) {
   const scale = ha && ha.applied === true && Number.isFinite(ha.ppm) ? 1 + ha.ppm * 1e-6 : 1;
   return rec.t0Ms + dev * scale;
 }
-function ecgRpeakTimes(text, opts) {
-  const rec = ECGDSP.parseECG(text);
+/* ── @port-from pat-feasibility-worker.js#ecgRpeakTimes ──────────────────────────────
+   @port-sha e3b9cd07ac8c
+   PORTED 2026-11-05 for row 2026-11-03-the-ecg-leg-of-the-shared-pat-extractor-takes-no-sidecar.
+   The worker's leg takes the `_ECGRUNS.txt` bytes and drops every R peak inside a span the box
+   recorded as measuring nothing. This copy took no sidecar at all, so eleven call sites ran
+   `parseECG(text)` bare and a blanking run reached the detector as signal. `ppgFootTimes` below has
+   taken its sidecar since #4069, and that asymmetry is what the row names.
+   POSITION TWO IS TYPED, NEVER RE-ORDERED. `opts` already held that slot and carries `axis` and
+   `refine`, so a sidecar appended there would read as an axis request — the row's own warning. A
+   STRING is the sidecar, which matches the worker and `ppgFootTimes`; an OBJECT is `opts`, which is
+   what every existing caller passes; `opts.runsText` carries the bytes for a caller that prefers the
+   field. Anything else refuses by name.
+   ∅ `blanking.nDropped` reads `null` when no sidecar reached this leg and `0` when one arrived and
+   named no run. An absent sidecar is validity UNKNOWN, never a clean stream, so the two states never
+   share a number. A sidecar whose rows no fragment placed reads `sidecar: 'unplaced'` with its own
+   reason, because `parseECG` nulls `blankingSpans` there rather than publishing an empty set.
+   DELIBERATELY NOT PORTED: the worker's `unmeasuredSec`, `beatSQI` and `validity` block serves its
+   own consumers, and a port is not a merge. */
+function ecgRpeakTimes(text, runsTextOrOpts, optsThird) {
+  let runsText = null,
+    opts = optsThird || null;
+  if (typeof runsTextOrOpts === 'string') runsText = runsTextOrOpts;
+  else if (runsTextOrOpts && typeof runsTextOrOpts === 'object' && !Array.isArray(runsTextOrOpts)) {
+    if (optsThird) throw new Error('ecgRpeakTimes: opts arrived at position two and position three');
+    opts = runsTextOrOpts;
+  } else if (runsTextOrOpts != null) {
+    /* The sidecar's NAME is spelled on its own line, away from the throw: the sidecar-path reader in
+       `tests/trio-fold-validity-tests.mjs` asks whether a line naming `…RUNS.txt` also BUILDS a path,
+       and a concatenated message on one line reads as exactly that. */
+    const want = '_ECGRUNS.txt bytes (a string) or opts (an object)';
+    throw new Error('ecgRpeakTimes: position two is the ' + want + ', never a ' + typeof runsTextOrOpts);
+  }
+  if (runsText == null && opts && typeof opts.runsText === 'string') runsText = opts.runsText;
+  const rec = runsText ? ECGDSP.parseECG(text, { runsText }) : ECGDSP.parseECG(text);
   if (rec.t0Ms == null) throw new Error('ECG file carried no phone timestamp.');
   const bp = ECGDSP.bandpass(rec.int16, rec.fs);
-  const peaks = ECGDSP.detectPeaks(rec.int16, bp, rec.fs);
+  const detected = ECGDSP.detectPeaks(rec.int16, bp, rec.fs);
+  /* The rail leaves BEFORE the refinement and the axis arithmetic, which is the worker's order: a
+     peak inside a recorded blanking run is no beat at all, so it never reaches a judgement that
+     would weigh it. `runRanges` reads `{ first, n }` sample indices and answers [] for a null set,
+     so the no-sidecar path drops nothing and every existing number stands. */
+  const sawSidecar = !!rec.runsSidecar;
+  const unplacedWhy = typeof rec.blankingSpansReason === 'string' && rec.blankingSpansReason ? rec.blankingSpansReason : null;
+  const blankRanges = PATGate.runRanges(rec.blankingSpans);
+  const blanked = PATGate.dropInRuns(detected, blankRanges);
+  const peaks = blanked.kept;
   const piecewise = opts && opts.axis === 'piecewise';
   const counter = opts && opts.axis === 'counter';
   /* `refine`: sub-sample R positions through `ECGDSP.refinePeaks` (exported in #2487 for
@@ -205,6 +246,13 @@ function ecgRpeakTimes(text, opts) {
     durSec: rec.durSec,
     times: t,
     n: peaks.length,
+    nDetected: detected.length,
+    blanking: {
+      sidecar: sawSidecar ? (unplacedWhy ? 'unplaced' : 'read') : 'absent',
+      reason: unplacedWhy,
+      nRanges: sawSidecar && !unplacedWhy ? blankRanges.length : null,
+      nDropped: sawSidecar && !unplacedWhy ? blanked.nDropped : null
+    },
     refined: !!refined,
     tMsAt: rec.tMsAt,
     tMsCorrected: !!rec.tMsCorrected,
@@ -643,9 +691,9 @@ function bestPair(dir) {
   if (!ppgs.length) ppgs = biggest(dir, /_PPG\.txt$/i, CANDIDATES);
   if (!ecgs.length || !ppgs.length) return null;
   /* The callback takes the PATH beside the text, because the sidecar is named from the path and
-     only this layer holds it. The ECG leg ignores it: `ecgRpeakTimes` has no `runsText` parameter,
-     and its second argument is `opts`, so handing it a path would read as an axis request — row
-     2026-11-03-the-ecg-leg-of-the-shared-pat-extractor-takes-no-sidecar. */
+     only this layer holds it. BOTH legs take it now: a string at `ecgRpeakTimes` position two is the
+     `_ECGRUNS.txt` bytes, and an object there is still `opts`, so no existing caller moved (row
+     2026-11-03-the-ecg-leg-of-the-shared-pat-extractor-takes-no-sidecar, ported 2026-11-05). */
   const parse = (list, fn) =>
     list
       .map((c) => {
@@ -657,7 +705,7 @@ function bestPair(dir) {
         }
       })
       .filter(Boolean);
-  const E = parse(ecgs, (text) => ecgRpeakTimes(text)),
+  const E = parse(ecgs, (text, path) => ecgRpeakTimes(text, runsOf(path, 'ECG'))),
     P = parse(ppgs, (text, path) => ppgFootTimes(text, runsOf(path, 'PPG')));
   let best = null;
   for (const e of E)

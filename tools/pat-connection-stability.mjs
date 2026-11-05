@@ -252,8 +252,9 @@ function main() {
         .sort((a, b) => b.size - a.size)
         .slice(0, 6);
     /* The callback takes the PATH beside the text — the sidecar is named from the path, and only
-       this layer holds it. The ECG leg ignores it: `ecgRpeakTimes` takes `opts` second, never a
-       sidecar (row 2026-11-03-the-ecg-leg-of-the-shared-pat-extractor-takes-no-sidecar). */
+       this layer holds it. BOTH legs take it now: a string at `ecgRpeakTimes` position two is the
+       `_ECGRUNS.txt` bytes, and an object there is still `opts`, so no existing caller moved (row
+       2026-11-03-the-ecg-leg-of-the-shared-pat-extractor-takes-no-sidecar, ported 2026-11-05). */
     const parse = (list, fn) =>
       list
         .map((c) => {
@@ -265,7 +266,7 @@ function main() {
           }
         })
         .filter(Boolean);
-    const E = parse(big(/_ECG\.txt$/i), (text) => ecgRpeakTimes(text));
+    const E = parse(big(/_ECG\.txt$/i), (text, path) => ecgRpeakTimes(text, runsOf(path, 'ECG')));
     const P = parse(big(/(?:VeritySense|Polar_Sense).*_PPG\.txt$/i), (text, path) => ppgFootTimes(text, runsOf(path, 'PPG')));
     if (!E.length || !P.length) {
       rows.push({ night, skip: `no parseable ECG (${E.length}) / Verity PPG (${P.length})` });

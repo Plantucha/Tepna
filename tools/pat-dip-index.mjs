@@ -83,8 +83,9 @@ function anklePair(dir) {
       .sort((a, b) => b.size - a.size)
       .slice(0, 4);
   /* The callback takes the PATH beside the text — the sidecar is named from the path, and only
-     this layer holds it. The ECG leg ignores it: `ecgRpeakTimes` takes `opts` second, never a
-     sidecar (row 2026-11-03-the-ecg-leg-of-the-shared-pat-extractor-takes-no-sidecar). */
+     this layer holds it. BOTH legs take it now: a string at `ecgRpeakTimes` position two is the
+     `_ECGRUNS.txt` bytes, and an object there is still `opts`, so no existing caller moved (row
+     2026-11-03-the-ecg-leg-of-the-shared-pat-extractor-takes-no-sidecar, ported 2026-11-05). */
   const parse = (list, fn) =>
     list
       .map((c) => {
@@ -96,7 +97,7 @@ function anklePair(dir) {
         }
       })
       .filter(Boolean);
-  const E = parse(cand(RE_ECG2), (text) => ecgRpeakTimes(text));
+  const E = parse(cand(RE_ECG2), (text, path) => ecgRpeakTimes(text, runsOf(path, 'ECG')));
   const P = parse(cand(RE_VERITY), (text, path) => ppgFootTimes(text, runsOf(path, 'PPG')));
   let best = null;
   for (const e of E)

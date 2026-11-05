@@ -519,7 +519,7 @@ async function main() {
     let P;
     let acc;
     try {
-      E = ecgRpeakTimes(readFileSync(paired.eF, 'utf8'), { refine: true });
+      E = ecgRpeakTimes(readFileSync(paired.eF, 'utf8'), runsOf(paired.eF, 'ECG'), { refine: true });
       P = ppgFootTimes(readFileSync(paired.pF, 'utf8'), runsOf(paired.pF, 'PPG'));
       acc = parseAcc(readFileSync(accPath, 'utf8'));
     } catch (e) {

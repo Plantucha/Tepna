@@ -189,15 +189,43 @@ const iqr = (a) => {
   return s[Math.floor(s.length * 0.75)] - s[Math.floor(s.length * 0.25)];
 };
 
-/* ── the sanctioned extractors, ported verbatim in behaviour from pat-feasibility-worker.js ── */
-function ecgRpeakTimes(text) {
-  const rec = ECGDSP.parseECG(text);
+/* ── the sanctioned extractors, each declaring its own port below ── */
+/* ── @port-from pat-feasibility-worker.js#ecgRpeakTimes ─────────────────────────
+   @port-sha e3b9cd07ac8c
+   PORTED 2026-11-05 for row 2026-11-03-the-ecg-leg-of-the-shared-pat-extractor-takes-no-sidecar. The
+   header above read "ported verbatim in behaviour" while only the foot leg carried a declaration, so
+   nothing held this copy to its source. `runsText` (OPTIONAL, LAST — §🧪) carries the
+   `_ECGRUNS.txt` bytes, and a blanking run the box recorded leaves ahead of the R-peak train, which
+   is where §∅ puts the rail. Absent, every line below runs as it did.
+   The return keeps `{ fs, times, n }` and gains `nDetected` and `blanking`, so each reader holds.
+   DELIBERATELY NOT PORTED: the source's `hrConfidence`, `dropArtifactPeaks` gating and
+   `unmeasuredSec`, which this spec has never run. */
+function ecgRpeakTimes(text, runsText) {
+  const rec = runsText ? ECGDSP.parseECG(text, { runsText }) : ECGDSP.parseECG(text);
   if (!rec || rec.t0Ms == null) return null;
   const bp = ECGDSP.bandpass(rec.int16, rec.fs);
-  const peaks = ECGDSP.detectPeaks(rec.int16, bp, rec.fs);
+  const detected = ECGDSP.detectPeaks(rec.int16, bp, rec.fs);
+  const sawSidecar = !!rec.runsSidecar;
+  const unplacedWhy = typeof rec.blankingSpansReason === 'string' && rec.blankingSpansReason ? rec.blankingSpansReason : null;
+  const blankRanges = PATGate.runRanges(rec.blankingSpans);
+  const blanked = PATGate.dropInRuns(detected, blankRanges);
+  const peaks = blanked.kept;
   const t = new Float64Array(peaks.length);
   for (let i = 0; i < peaks.length; i++) t[i] = rec.t0Ms + (peaks[i] / rec.fs) * 1000;
-  return { fs: rec.fs, times: Array.from(t), n: peaks.length };
+  /* ∅ A `null` count states that no run set reached this leg. A `0` states that one arrived and
+     named no run inside the stream. */
+  return {
+    fs: rec.fs,
+    times: Array.from(t),
+    n: peaks.length,
+    nDetected: detected.length,
+    blanking: {
+      sidecar: sawSidecar ? (unplacedWhy ? 'unplaced' : 'read') : 'absent',
+      reason: unplacedWhy,
+      nRanges: sawSidecar && !unplacedWhy ? blankRanges.length : null,
+      nDropped: sawSidecar && !unplacedWhy ? blanked.nDropped : null
+    }
+  };
 }
 /* ── @port-from pat-feasibility-worker.js#ppgFootTimes ─────────────────────────────
    @port-sha 34a85f9eb0c9
@@ -386,7 +414,7 @@ for (const n of nights) {
   let E = null,
     P = null;
   try {
-    E = ecgRpeakTimes(fs.readFileSync(eF.f, 'utf8'));
+    E = ecgRpeakTimes(fs.readFileSync(eF.f, 'utf8'), runsOf(eF.f, 'ECG'));
   } catch {}
   try {
     P = ppgFootTimes(fs.readFileSync(pF.f, 'utf8'), runsOf(pF.f, 'PPG'), { pinnedFromRecompute: FROM_RECOMPUTE });
