@@ -4372,7 +4372,7 @@ def test_the_charger_witness_skips_short_rows_and_headers_without_its_three_colu
     _link(d, [(60, 53)])
     files = {
         "01": f"Phone timestamp;connected;battery_pct\n{_at(300)};1;99\n",  # no device column
-        "02": f"device;connected;battery_pct\nWellue O2Ring-S;1;99\n",  # no stamp column
+        "02": "device;connected;battery_pct\nWellue O2Ring-S;1;99\n",  # no stamp column
         "03": f"Phone timestamp;device;battery_pct \n{_at(300)};Wellue O2Ring-S;99\n",  # the name is not battery_pct
         "04": LINK_HDR + f"{_at(300)};Wellue O2Ring-S;1;-60\n",  # one field short of the battery column
         "05": "battery_pct;device;Phone timestamp\n99;Wellue O2Ring-S\n",  # short of the stamp column
