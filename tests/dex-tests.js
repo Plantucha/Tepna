@@ -46951,6 +46951,68 @@
       else T.skip('ecgdex-app.js source not in env.sources');
     });
 
+    /* Row 2026-11-04-two-acc-parsers-read-an-absent-run-sidecar-as-a-clean-one. Both ACC parsers
+       published spans and nothing else, so a stream the box cleared and a stream the box never read
+       arrived at a consumer as the same rows. `_runsSidecar` is present exactly when a sidecar
+       parsed, which is the distinction §∅ asks for. The CONTROL is a sidecar with no rule line: the
+       box looked, so the field is present, and `comparable` is false because no threshold is named. */
+    group('§∅ the ACC parsers tell an unread sidecar from one that found no run', 'ecgdex-dsp · ppgdex-dsp · §∅', function (T) {
+      var P2 = env.PPGDSP || env.PpgDex,
+        E2 = env.ECGDSP || env.ECGDex;
+      var iso2 = function (ms) {
+        return new Date(ms).toISOString().replace('Z', '');
+      };
+      var a0 = Date.UTC(2026, 10, 4, 2, 0, 0);
+      var accRows = function () {
+        var r = ['Phone timestamp;sensor timestamp [ns];X [mg];Y [mg];Z [mg]'];
+        for (var i = 0; i < 260; i++) r.push(iso2(a0 + i * 40) + ';' + i * 40000000 + ';' + (900 + (i % 7)) + ';' + (i % 5) + ';0');
+        return r.join('\n');
+      };
+      var HDR = 'Phone timestamp;stream;value;first_index;n_samples;dur_ms;closed;rule';
+      var RULE = '# stream=acc rule=stuck min_run=200 t_stuck=200 merge_gap_max=8 examined=260';
+      var EMPTY_SC = [RULE, HDR].join('\n'),
+        RUN_SC = [RULE, HDR, iso2(a0 + 2000) + ';X [mg];900;50;75;3000;1;stuck'].join('\n'),
+        NORULE_SC = [HDR].join('\n');
+      var legs = [];
+      if (P2 && typeof P2.parseSensorXYZ === 'function')
+        legs.push({
+          name: 'PpgDex parseSensorXYZ',
+          read: function (sc) {
+            return sc === undefined ? P2.parseSensorXYZ(accRows()) : P2.parseSensorXYZ(accRows(), { runsText: sc });
+          }
+        });
+      else T.skip('PPGDSP.parseSensorXYZ unavailable');
+      if (E2 && typeof E2.parseDeviceACC === 'function')
+        legs.push({
+          name: 'ECGDex parseDeviceACC',
+          read: function (sc) {
+            return (sc === undefined ? E2.parseDeviceACC(accRows()) : E2.parseDeviceACC(accRows(), { runsText: sc })).acc;
+          }
+        });
+      else T.skip('ECGDSP.parseDeviceACC unavailable');
+      for (var g = 0; g < legs.length; g++) {
+        var leg = legs[g],
+          bare2 = leg.read(undefined),
+          none = leg.read(EMPTY_SC),
+          one = leg.read(RUN_SC),
+          norule = leg.read(NORULE_SC);
+        T.ok(leg.name + ' · ONE argument keeps today’s bytes — neither field appears', bare2._runsSidecar === undefined && bare2._blankSpans === undefined);
+        T.ok(leg.name + ' · a sidecar that found no run IS carried, so the box’s look is readable', !!none._runsSidecar && none._runsSidecar.spans.length === 0 && none._runsSidecar.emitted === 0);
+        T.ok(leg.name + ' · …and it publishes the threshold it looked at', none._runsSidecar.comparable === true && none._runsSidecar.minRun === 200);
+        T.ok(leg.name + ' · no run means no span, so a clean stream still publishes no `_blankSpans`', none._blankSpans === undefined);
+        T.ok(leg.name + ' · THE TWO STATES NOW DIFFER — unread is undefined, examined is an empty span list', bare2._runsSidecar === undefined && none._runsSidecar.spans.length === 0);
+        T.eq(leg.name + ' · a real run still rides as a span, in floating ms', JSON.stringify(one._blankSpans), JSON.stringify([{ t0Ms: a0 + 2000, t1Ms: a0 + 5000 }]));
+        T.ok(leg.name + ' · …and the span count travels beside it', !!one._runsSidecar && one._runsSidecar.spans.length === 1 && one._runsSidecar.emitted === 1);
+        T.ok(
+          leg.name + ' · CONTROL a sidecar with no rule line reads as examined and NOT comparable',
+          !!norule._runsSidecar && norule._runsSidecar.comparable === false && norule._runsSidecar.minRun === null
+        );
+        T.ok(leg.name + ' · the rows themselves are untouched by any of the four reads', bare2.length === 260 && none.length === 260 && one.length === 260 && norule.length === 260);
+      }
+      if (legs.length === 2) T.eq('both ACC parsers were examined, so a skipped leg cannot read as a pass', legs.length, 2);
+      else T.skip('population — ' + legs.length + ' of 2 ACC parsers co-loaded in this runner');
+    });
+
     group('SAMPLE-VALIDITY-ENVELOPE §3.2 — the _PPGRUNS sidecar reaches parsePPG from every ingest path', 'dex-ingest · signal-orchestrate · adapters · ppgdex-app', function (T) {
       var DI = env.DexIngest,
         SO = env.SignalOrchestrate,

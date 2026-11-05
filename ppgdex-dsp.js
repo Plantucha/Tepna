@@ -3901,7 +3901,9 @@
   }
   /* `opts.runsText` is the matching `…_ACCRUNS.txt` when the caller paired one (SAMPLE-VALIDITY-ENVELOPE
      §3.2). LAST and OPTIONAL: every 1-arg call keeps its bytes, and the spans ride on the row array as
-     `_blankSpans`, the idiom ECGDex's `parseDeviceACC` and MotionDex's parser of this name already use. */
+     `_blankSpans`, the idiom ECGDex's `parseDeviceACC` and MotionDex's parser of this name already use.
+     The parsed sidecar itself rides as `_runsSidecar`, so a reader can tell a cleared stream from an
+     unread one. */
   function parseSensorXYZ(text, opts) {
     const lines = text.split(/\r?\n/);
     const out = [];
@@ -3973,7 +3975,16 @@
     }
     if (resyncs.length) /** @type {any} */ (out)._clockResyncs = resyncs;
     const _accRuns = parseAccRunsTimed(opts && opts.runsText);
-    if (_accRuns && _accRuns.spans.length) /** @type {any} */ (out)._blankSpans = _accRuns.spans;
+    /* §∅ — A SIDECAR THAT FOUND NO RUN IS A MEASUREMENT, AND ITS ABSENCE IS NOT. Spans alone
+       cannot carry that difference, so `_runsSidecar` rides beside them and is present exactly when a
+       sidecar parsed. Absent means nobody looked, which is validity UNKNOWN. Same field and same
+       reason as MotionDex's parser of this name and as ECGDex's `parseDeviceACC`. A zero-byte sidecar
+       still reads as absent here, which row
+       `2026-11-04-a-zero-byte-sidecar-hides-rows-the-device-did-send` owns. */
+    if (_accRuns) {
+      /** @type {any} */ (out)._runsSidecar = _accRuns;
+      if (_accRuns.spans.length) /** @type {any} */ (out)._blankSpans = _accRuns.spans;
+    }
     return out;
   }
   /* DISCRETE MOVEMENT ONSETS from a motion grid — the fiducial an apnea's terminating arousal leaves
