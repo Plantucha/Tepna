@@ -90,3 +90,102 @@ def test_a_path_that_was_never_seen_and_is_absent_is_not_a_finding(tmp_path):
         assert findings == [] and snap == {}
     finally:
         w.close()
+
+
+def test_a_writer_closed_DISCARDED_and_reopened_on_its_path_is_a_new_baseline(tmp_path):
+    """The 2026-11-05 false alarm: the ring close discarded an EMPTY writer of a set that did not resume,
+    and the resume five seconds later opened the same path again. Same path, new inode, 0 -> 0 bytes:
+    a new file by design, never `replaced`."""
+    first = _writer(tmp_path, "Ring_ACCRAW.txt", "acc")
+    _, snap = writers.live_loss_check()
+    first.close()
+    os.unlink(first.path)  # the close discards the empty file
+    again = _writer(tmp_path, "Ring_ACCRAW.txt", "acc")
+    try:
+        findings, snap2 = writers.live_loss_check(snap)
+        assert findings == [] and again.path in snap2
+        os.unlink(again.path)
+        with open(again.path, "w") as fh:  # the SAME opening replaced later is still loss
+            fh.write("x" * 100)
+        findings, _ = writers.live_loss_check(snap2)
+        assert [f["kind"] for f in findings] == ["replaced"]
+    finally:
+        again.close()
+
+
+def test_a_reused_token_is_still_a_new_opening_and_an_absent_new_file_is_not_missing(tmp_path):
+    """`id(writer)` is reused once the old writer is freed, so the token alone cannot mark a new opening.
+    A new opening whose file does not exist yet is a writer that has not created it, not a lost file."""
+    path = str(tmp_path / "Ring_SPO2.csv")
+    token = -20261105
+    with open(path, "w") as fh:
+        fh.write("a")
+    writers._writer_opened(path, token)
+    try:
+        _, snap = writers.live_loss_check()
+        writers._writer_closed(token)
+        os.unlink(path)
+        writers._writer_opened(path, token)  # the same token, a new opening, no file yet
+        findings, snap2 = writers.live_loss_check(snap)
+        assert findings == [] and path not in snap2
+        with open(path, "w") as fh:
+            fh.write("")
+        findings, _ = writers.live_loss_check(snap)  # an old snapshot of the old opening
+        assert findings == []
+    finally:
+        writers._writer_closed(token)
+
+
+def _planted(tmp_path, name, body, token):
+    path = str(tmp_path / name)
+    with open(path, "w") as fh:
+        fh.write(body)
+    writers._writer_opened(path, token)
+    return path
+
+
+def test_closing_a_writer_drops_exactly_one_from_the_count_and_its_opening(tmp_path, monkeypatch):
+    """One close is one writer: the count falls by 1, never more, and the opening leaves both maps.
+    A close on a token that never opened raises no KeyError."""
+    monkeypatch.setattr(writers, "_open_sample_writers", writers._open_sample_writers)  # restored after
+    a = _planted(tmp_path, "a.txt", "a", -20261106)
+    _planted(tmp_path, "b.txt", "b", -20261107)
+    try:
+        n = writers.open_sample_writers()
+        writers._writer_closed(-20261106)
+        assert writers.open_sample_writers() == n - 1
+        assert -20261106 not in writers._OPEN_GEN and a not in writers.open_writer_paths()
+        writers._writer_closed(-20261199)  # never opened: no KeyError from either map
+    finally:
+        writers._writer_closed(-20261107)
+
+
+def test_every_finding_carries_its_exact_detail_and_prior_size(tmp_path):
+    """The finding text is what the operator reads, so each field is pinned, not only its kind. A path
+    that is missing, or newly open, does not stop the walk: the paths after it are still examined."""
+    gone = _planted(tmp_path, "a_gone.txt", "x" * 40, -20261110)
+    swap = _planted(tmp_path, "b_swap.txt", "x" * 30, -20261111)
+    cut = _planted(tmp_path, "c_cut.txt", "x" * 20, -20261112)
+    same = _planted(tmp_path, "d_same.txt", "x" * 10, -20261113)
+    try:
+        _, snap = writers.live_loss_check()
+        late = _planted(tmp_path, "a_late.txt", "x", -20261114)  # sorts first, no prior look
+        os.unlink(gone)
+        old_ino = snap[swap][1]
+        os.unlink(swap)
+        with open(swap, "w") as fh:
+            fh.write("y" * 5)
+        new_ino = os.stat(swap).st_ino
+        with open(cut, "r+") as fh:
+            fh.truncate(7)
+        findings, snap2 = writers.live_loss_check(snap)
+        by = {f["path"]: f for f in findings}
+        assert sorted(by) == [gone, swap, cut]  # `same` kept its size: not a finding
+        assert by[gone]["detail"].startswith("FileNotFoundError: ") and by[gone]["was"] == 40
+        assert by[swap]["detail"] == f"inode {old_ino} → {new_ino}"
+        assert by[swap]["was"] == 30 and by[swap]["now"] == 5
+        assert by[cut]["detail"] == "20 → 7 bytes" and by[cut]["was"] == 20 and by[cut]["now"] == 7
+        assert late in snap2 and same in snap2
+    finally:
+        for t in (-20261110, -20261111, -20261112, -20261113, -20261114):
+            writers._writer_closed(t)
