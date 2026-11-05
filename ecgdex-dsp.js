@@ -6300,7 +6300,17 @@
     /* §3.2 — the `…_ACCRUNS.txt` spans ride on the row array itself, the same idiom the seam list
        uses, so no consumer signature changes and a drop without a sidecar keeps today's bytes. */
     var _accRuns = parseAccRunsTimed(opts && opts.runsText);
-    if (_accRuns && _accRuns.spans.length) /** @type {any} */ (out)._blankSpans = _accRuns.spans;
+    /* §∅ — A SIDECAR THAT FOUND NO RUN IS A MEASUREMENT, AND ITS ABSENCE IS NOT. `_blankSpans`
+       alone cannot carry that difference: a stream the box cleared and a stream the box never read
+       both arrive here as no spans at all. `_runsSidecar` is present exactly when a sidecar parsed,
+       so a consumer reads validity UNKNOWN from its absence rather than reading a clean stream. This
+       is MotionDex's form of the same field, and `parseECG` above carries `runsSidecar` for the same
+       reason. A zero-byte sidecar still reads as absent here, which row
+       `2026-11-04-a-zero-byte-sidecar-hides-rows-the-device-did-send` owns. */
+    if (_accRuns) {
+      /** @type {any} */ (out)._runsSidecar = _accRuns;
+      if (_accRuns.spans.length) /** @type {any} */ (out)._blankSpans = _accRuns.spans;
+    }
     return { acc: out, accFs: fs, accClockSteps: accClockSteps, accMaxStepMs: accClockSteps ? Math.round(accMaxStepMs) : null, accAxis: accClockSteps ? 'host' : 'device' };
   }
 
