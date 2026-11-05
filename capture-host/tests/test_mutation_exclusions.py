@@ -649,8 +649,12 @@ def test_the_covered_function_count_is_MEASURED_from_the_ast_not_quoted():
     # which folder a night's OWN reports belong in. It is a named function so the QC poller and the CPAP
     # reconciler ask ONE question — a destination each of them computed would let them file one night's
     # summary and its CPAP field in two different folders. +1, the whole delta.
+    # 346 → 347 on 2026-11-05 (owner, battery ageing alert): `_battery_health_step`, which reads the
+    # state, runs `battery_health.update` off the loop, sends each due alert and latches only a
+    # delivered one. It is async because it awaits the notifier; the rules live in battery_health.py.
+    # +1, the whole delta. Merged onto `_report_dir` above, so this one counts from 346.
     # `moduleFunctionsAtDeclaration` stays where it is, per the note above.
-    assert n == 346, f"capture.py now defines {n} functions — update the declaration's note deliberately"
+    assert n == 347, f"capture.py now defines {n} functions — update the declaration's note deliberately"
 
 
 def test_count_functions_counts_nested_and_methods_and_refuses_nothing():
