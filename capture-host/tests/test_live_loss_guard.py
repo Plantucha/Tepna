@@ -90,3 +90,47 @@ def test_a_path_that_was_never_seen_and_is_absent_is_not_a_finding(tmp_path):
         assert findings == [] and snap == {}
     finally:
         w.close()
+
+
+def test_a_writer_closed_DISCARDED_and_reopened_on_its_path_is_a_new_baseline(tmp_path):
+    """The 2026-11-05 false alarm: the ring close discarded an EMPTY writer of a set that did not resume,
+    and the resume five seconds later opened the same path again. Same path, new inode, 0 -> 0 bytes:
+    a new file by design, never `replaced`."""
+    first = _writer(tmp_path, "Ring_ACCRAW.txt", "acc")
+    _, snap = writers.live_loss_check()
+    first.close()
+    os.unlink(first.path)  # the close discards the empty file
+    again = _writer(tmp_path, "Ring_ACCRAW.txt", "acc")
+    try:
+        findings, snap2 = writers.live_loss_check(snap)
+        assert findings == [] and again.path in snap2
+        os.unlink(again.path)
+        with open(again.path, "w") as fh:  # the SAME opening replaced later is still loss
+            fh.write("x" * 100)
+        findings, _ = writers.live_loss_check(snap2)
+        assert [f["kind"] for f in findings] == ["replaced"]
+    finally:
+        again.close()
+
+
+def test_a_reused_token_is_still_a_new_opening_and_an_absent_new_file_is_not_missing(tmp_path):
+    """`id(writer)` is reused once the old writer is freed, so the token alone cannot mark a new opening.
+    A new opening whose file does not exist yet is a writer that has not created it, not a lost file."""
+    path = str(tmp_path / "Ring_SPO2.csv")
+    token = -20261105
+    with open(path, "w") as fh:
+        fh.write("a")
+    writers._writer_opened(path, token)
+    try:
+        _, snap = writers.live_loss_check()
+        writers._writer_closed(token)
+        os.unlink(path)
+        writers._writer_opened(path, token)  # the same token, a new opening, no file yet
+        findings, snap2 = writers.live_loss_check(snap)
+        assert findings == [] and path not in snap2
+        with open(path, "w") as fh:
+            fh.write("")
+        findings, _ = writers.live_loss_check(snap)  # an old snapshot of the old opening
+        assert findings == []
+    finally:
+        writers._writer_closed(token)
