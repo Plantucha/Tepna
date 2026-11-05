@@ -56,7 +56,7 @@ import vm from 'node:vm';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { basename, dirname, join, relative } from 'node:path';
-import { gitCommitOf, populationVerdict, ruleLine, snapshotEntries } from './corpus-scope-core.mjs';
+import { capByNights, gitCommitOf, headNightKeyWith, populationVerdict, ruleLine, snapshotEntries } from './corpus-scope-core.mjs';
 import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
 import { median, quantile, refinePeaks, sd } from './ppi-match.mjs';
 import { createRequire } from 'node:module';
@@ -692,11 +692,35 @@ for (const f of kept.sort((a, b) => basename(a.p).localeCompare(basename(b.p))))
   if (w.ok) windowed.push(f);
   else outside[w.why]++;
 }
-const files = windowed.slice(0, MAX_NIGHTS);
+/* ── THE CAP IS NAMED FOR NIGHTS, SO IT SELECTS NIGHTS ────────────────────────────────────────────
+   Row 2026-11-05-three-more-max-nights-caps-still-cut-files: this line sliced `--max-nights` out of
+   a list of CAPTURES. The order was never size-biased, so the subsample was not, but a night
+   recorded as two sessions still spent two of the budget and the count the flag names was an output
+   of the cut rather than the cut itself.
+
+   THE KEY IS THE PARSED CLOCK, NOT THE NAME THE WINDOW USES. `inWindow` reads the 14-digit filename
+   stamp, which is the SESSION's start taken before the link is up, so two sessions either side of
+   midnight read as two nights by name and as one night by the clock. The window keeps its name rule,
+   which is what the carried figure's date range means; the cap reads each candidate's head through
+   this node's own parser. The probe's sidecar read is untallied, because `VALIDITY` describes the
+   streams this run SCORED and a candidate the cap drops is not one of them (§∅). */
+const headNightKey = headNightKeyWith({
+  parse: (t, o) => {
+    const rt = o && o.runsText;
+    return rt ? E.parseECG(t, { runsText: rt }) : E.parseECG(t);
+  },
+  runsOf: (path) => readRunsSidecar(path, 'ECG').runsText
+});
+const _cap = capByNights(windowed, MAX_NIGHTS, headNightKey);
+const files = _cap.kept;
 
 console.log(`ECG fiducial residual against template cross-correlation`);
 console.log(
-  `window ${FROM ?? 'any'} → ${TO ?? 'any'} · ${hits.length} path(s) walked, ${dropped} duplicate path(s) of one capture dropped, ${outside.outsideWindow} outside the window, ${outside.undatedName} undated by name → ${windowed.length} capture(s) eligible, ${files.length} read\n`
+  `window ${FROM ?? 'any'} → ${TO ?? 'any'} · ${hits.length} path(s) walked, ${dropped} duplicate path(s) of one capture dropped, ${outside.outsideWindow} outside the window, ${outside.undatedName} undated by name → ${windowed.length} capture(s) eligible, ${files.length} read` +
+    `\n  the --max-nights ${MAX_NIGHTS} cap kept ${_cap.keptNights.length} of ${_cap.nights.length} dated night(s), earliest first, whole nights only` +
+    (_cap.droppedNights.length ? ` · nights left by name: ${_cap.droppedNights.slice(0, 8).join(' · ')}${_cap.droppedNights.length > 8 ? ` · … (+${_cap.droppedNights.length - 8})` : ''}` : '') +
+    (_cap.undated.length ? ` · ∅ ${_cap.undated.length} candidate head(s) carried no clock, offered after every dated night, ${_cap.keptUndated.length} read` : '') +
+    '\n'
 );
 console.log('file                                            fs      beats  refined  grid   bound  seg-ag  excluded');
 const nights = [];

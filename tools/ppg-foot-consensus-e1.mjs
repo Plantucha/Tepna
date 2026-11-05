@@ -55,7 +55,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, relative } from 'node:path';
 import { EPOCH_MS, MAX_LAG_MS, median, quantile, hrEnvelope, envelopeLagMs, refineLagByMatch, matchBeats, refinePeaks, ppiJitterMs } from './ppi-match.mjs';
-import { gitCommitOf, notCovered, populationVerdict, ruleLine, snapshotEntries } from './corpus-scope-core.mjs';
+import { capByNights, gitCommitOf, headNightKeyWith, notCovered, populationVerdict, ruleLine, snapshotEntries } from './corpus-scope-core.mjs';
 import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
 /* ── THE VALIDITY SIDECAR RIDES WITH THE STREAM ─────────────────────────────────────────────────────
    Row 2026-10-17-sample-parsers-called-without-their-sidecar: this tool read a night's samples and
@@ -391,10 +391,28 @@ const snap = snapshotEntries(DIR, { list: listDevicePpg, unit: PPG_UNIT });
    enough for a commit to land in this worktree, and Node loaded this module at the start. */
 const commitOf = gitCommitOf(ROOT);
 const all = walk(DIR);
-const ppgs = all
-  .filter((f) => PPG_RE.test(f.p))
-  .sort((a, b) => b.size - a.size)
-  .slice(0, MAX_NIGHTS);
+/* ── THE CAP IS NAMED FOR NIGHTS, SO IT SELECTS NIGHTS ────────────────────────────────────────────
+   Row 2026-11-05-three-more-max-nights-caps-still-cut-files: this line sorted the matched files by
+   descending SIZE and sliced `--max-nights` of them, so the flag kept the LONGEST captures, the
+   subsample was biased toward long wear, and one night split across two captures spent two of the
+   budget. The rule, the night shift and the head probe live in `corpus-scope-core.mjs` with the
+   measurements behind them; what belongs here is the parser the head is read through.
+
+   THE PROBE'S SIDECAR READ IS NOT TALLIED. `runsOf` at :69 is the tallied reader, and the tally
+   describes the streams this run SCORED — a candidate the cap drops is not one of them (§∅). */
+const headNightKey = headNightKeyWith({
+  parse: (t, o) => {
+    const rt = o && o.runsText;
+    return rt ? P.parsePPG(t, { runsText: rt }) : P.parsePPG(t);
+  },
+  runsOf: (path) => readRunsSidecar(path, 'PPG').runsText
+});
+const _cap = capByNights(
+  all.filter((f) => PPG_RE.test(f.p)),
+  MAX_NIGHTS,
+  headNightKey
+);
+const ppgs = _cap.kept;
 const ecgs = all.filter((f) => /H10.*_ECG\.txt$/i.test(f.p));
 
 console.log('PPGDEX-ALGORITHM-DEEP-DIVE §6 · E-1 — foot-domain consensus vs the shipped peak vote');
@@ -618,7 +636,14 @@ function printPopulation() {
   console.log(`  the read scored ${scored.length} of the ${snap.n} offered under ${DIR}${snap.ok ? '' : ` · ${snap.reason}`}`);
   const missed = notCovered(snap, scored, { key: 'rec' });
   if (missed.length) console.log(`  it removed ${missed.length}, by name: ${missed.slice(0, 8).join(' · ')}${missed.length > 8 ? ` · … (+${missed.length - 8})` : ''}`);
-  if (ppgs.length < snap.n) console.log(`  ${snap.n - ppgs.length} of those left under the --max-nights ${MAX_NIGHTS} cap, largest first`);
+  /* THE CAP'S OWN UNIT, STATED. The old line said `largest first` over a count of files under a flag
+     named for nights, which describes two different selections at once. */
+  if (ppgs.length < snap.n)
+    console.log(
+      `  the --max-nights ${MAX_NIGHTS} cap kept ${_cap.keptNights.length} of ${_cap.nights.length} dated night(s), earliest first, whole nights only · ${snap.n - ppgs.length} offered file(s) left` +
+        (_cap.droppedNights.length ? ` · nights left by name: ${_cap.droppedNights.slice(0, 8).join(' · ')}${_cap.droppedNights.length > 8 ? ` · … (+${_cap.droppedNights.length - 8})` : ''}` : '') +
+        (_cap.undated.length ? ` · ∅ ${_cap.undated.length} candidate head(s) carried no clock, offered after every dated night, ${_cap.keptUndated.length} read` : '')
+    );
   /* PASSING THE SIDECAR IS NOT REPORTING ITS ABSENCE (§∅). `null` over an empty tally, because four
      zeros read exactly like a sweep where every sidecar was there. */
   const validity = validityLine(VALIDITY);
