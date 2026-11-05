@@ -8152,7 +8152,7 @@ def status_path(root: str, instance: str | None = None) -> str:
     return os.path.join(root, "captures", name)
 
 
-# What `live_loss_check` saw last pass: {path: (size, inode)}. Module-level for the same reason
+# What `live_loss_check` saw last pass: {path: (size, inode, opening)}. Module-level for the same reason
 # `_BATT_FLAT_SINCE` is — a snapshot inside the loop body would be re-created on every iteration and
 # the check would never have a prior observation to compare against.
 _LIVE_LOSS_SEEN: dict = {}
