@@ -404,7 +404,8 @@ function loadDsps() {
   /* ∅ `PATGate` CARRIES THE BLANKING REFUSAL, SO AN UNBOUND REALM MUST STOP THE RUN. A `typeof`
      guard here would turn a realm that never loaded `pat-gate.js` into a silent return of the
      pre-sidecar numbers — the §👥.3 conversion of a crash into silent disablement. */
-  for (const fn of ['runRanges', 'dropInRuns']) if (typeof PATGate[fn] !== 'function') throw new Error('beat-correspondence: PATGate.' + fn + ' unavailable — the blanking refusal cannot run');
+  for (const fn of ['runRanges', 'inRunsCursor', 'dropInRuns'])
+    if (typeof PATGate[fn] !== 'function') throw new Error('beat-correspondence: PATGate.' + fn + ' unavailable — the sidecar refusals cannot run');
 }
 
 /* ── @port-from pat-feasibility-worker.js#ecgRpeakTimes ─────────────────────────
@@ -451,9 +452,27 @@ function ecgRpeakTimes(text, runsText) {
     }
   };
 }
-/* This copy had no `runsText` PARAMETER, so no caller could have handed it one — the guarded
-   ternary below is the shape the shared extractor ships (row
-   2026-11-02-no-caller-hands-the-shared-pat-foot-extractor-its-sidecar). */
+/* ── @port-from pat-feasibility-worker.js#ppgFootTimes ─────────────────────────
+   @port-sha ad119403ae00
+   PORTED 2026-11-05 for rows 2026-11-03-a-third-foot-detector-copy-carries-no-port-declaration and
+   2026-10-17-sample-parsers-called-without-their-sidecar. This copy had no `runsText` PARAMETER, so
+   no caller could have handed it one — the guarded ternary below is the shape the shared extractor
+   ships (row 2026-11-02-no-caller-hands-the-shared-pat-foot-extractor-its-sidecar). It then handed
+   the bytes to `parsePPG` and returned a bare `Float64Array`, so every pinned span the sidecar
+   placed ended here. The ECG leg above reported its own sidecar and this one reported nothing.
+   THE SOURCE'S TWO PINNED RULES ARRIVE WHOLE. `parsePPG` publishes per-channel pinned spans on
+   every path, and only a `_PPGRUNS.txt` companion sets `pinnedCrossCheck`. A foot pinned on EVERY
+   channel was measured by nothing, so the confirmed path refuses it; one pinned channel of three
+   leaves a foot two channels measured, which is reduced COVERAGE and rides out as `partial`. The
+   unconfirmed path walks the same feet, keeps every one, and sizes what it WOULD refuse — §∅ holds
+   a count of 0 apart from the `null` that says no span set existed to scan.
+   TWO DELIBERATE DEVIATIONS from the source text. This copy returns an OBJECT, for the reason the
+   ECG leg above states. And `PATGate` binds in `loadDsps` with a refusal instead of the source's
+   `typeof` guard.
+   DELIBERATELY NOT PORTED: the source's `opts`, which carries `axis`, `refine` and the
+   `pinnedFromRecompute` counterfactual switch. This tool reads one pair on one axis, and the
+   counterfactual belongs with the leg that measured it (#4234). So position two stays the sidecar
+   and no caller can ask for an axis here. */
 function ppgFootTimes(text, runsText) {
   const rec = runsText ? PPGDSP.parsePPG(text, { runsText }) : PPGDSP.parsePPG(text);
   if (rec.t0Ms == null) throw new Error('PPG file carried no phone timestamp.');
@@ -474,19 +493,57 @@ function ppgFootTimes(text, runsText) {
   /* @polarity-decision applies
      The edit distance now compares a train the whole channel set voted on against the ECG’s. */
   const cons = PPGDSP.consensusBeats(per, refIdx, rec.fs);
+  /* ∅ THE PINNED WALK. `rec.spans` is per optical channel and a consensus foot is the median
+     position across the channels that agreed, so it belongs to no single channel. A cursor per
+     channel answers "was this foot pinned here", and the hit count against the channel count is
+     what separates a refusal from reduced coverage. */
+  const spansPerCh = Array.isArray(rec.spans) ? rec.spans : null;
+  const chCursors = (spansPerCh || []).map((sp) => PATGate.inRunsCursor(PATGate.runRanges((sp && sp.spans) || [])));
+  const confirmed = !!rec.pinnedCrossCheck;
+  let nAllPinned = 0,
+    nPartPinned = 0;
+  const keptIdx = [];
+  for (let fi = 0; fi < cons.feet.length; fi++) {
+    let hits = 0;
+    for (let cj = 0; cj < chCursors.length; cj++) if (chCursors[cj](cons.feet[fi])) hits++;
+    if (chCursors.length && hits === chCursors.length) {
+      nAllPinned++;
+      /* ANNOTATE, NEVER DROP, where nothing confirmed these spans: the counting path keeps the foot,
+         so `times` reads exactly what it read before this count existed. */
+      if (confirmed) continue;
+    }
+    if (hits) nPartPinned++;
+    keptIdx.push(fi);
+  }
   /* Per-ELEMENT guard on relSec, copied from pat-matchrate-strict verbatim — the array can exist with
      non-finite entries, and an array-level truthiness check propagates NaN into every downstream time. */
   const rel = rec.relSec,
     fs = rec.fs,
     t0 = rec.t0Ms;
-  const t = new Float64Array(cons.feet.length);
-  for (let i = 0; i < cons.feet.length; i++) {
-    const idx = cons.feet[i];
+  const t = new Float64Array(keptIdx.length);
+  for (let i = 0; i < keptIdx.length; i++) {
+    const idx = cons.feet[keptIdx[i]];
     const sec = rel && rel[idx] != null && isFinite(rel[idx]) ? rel[idx] : idx / fs;
     t[i] = t0 + sec * 1000;
   }
-  return t;
+  return {
+    times: t,
+    n: t.length,
+    nDetected: cons.feet.length,
+    /* a LABEL for the reader, never a path this tool built (`trio-fold-validity.mjs` owns the name) */
+    pinnedSource: rec.pinnedCrossCheck ? '_PPGRUNS.txt' : null,
+    channelsScanned: spansPerCh ? chCursors.length : null,
+    droppedAllPinned: confirmed && spansPerCh ? nAllPinned : null,
+    partialPinned: confirmed && spansPerCh ? nPartPinned : null,
+    wouldDropAllPinned: !confirmed && spansPerCh ? nAllPinned : null,
+    wouldPartialPinned: !confirmed && spansPerCh ? nPartPinned : null
+  };
 }
+
+/* The two local ports above are exported for `tests/trio-fold-validity-tests.mjs`, which runs
+   them over a synthetic stream: a source scan cannot tell a sidecar that is READ from one that is
+   accepted and dropped. */
+export { loadDsps, ecgRpeakTimes, ppgFootTimes };
 
 /* ── ONE tepna.verdict/1, AND IT SAYS UNKNOWN — NO BAND EXISTS (CLAUDE.md §🧾) ──────────────────────────
    The audit either REFUSES (anchor unidentifiable · band-edge contact · every mod-RR plane refused) or
@@ -600,7 +657,8 @@ async function main() {
   const eRead = ecgRpeakTimes(readFileSync(ePath, 'utf8'), runsOf(ePath, 'ECG'));
   const tA = Array.from(eRead.times);
   const pPath = join(dir, ppgF[0]);
-  const tB = Array.from(ppgFootTimes(readFileSync(pPath, 'utf8'), runsOf(pPath, 'PPG')));
+  const pRead = ppgFootTimes(readFileSync(pPath, 'utf8'), runsOf(pPath, 'PPG'));
+  const tB = Array.from(pRead.times);
   const rrA = tA.slice(1).map((x, i) => x - tA[i]),
     rrB = tB.slice(1).map((x, i) => x - tB[i]);
   console.log(
@@ -610,6 +668,17 @@ async function main() {
   console.log(
     `  ECG blanking: sidecar ${eb.sidecar}${eb.reason ? ` (${eb.reason})` : ''} · ${eb.nDropped == null ? 'dropped null — no run set reached this leg' : `${eb.nDropped} of ${eRead.nDetected} R-peaks dropped across ${eb.nRanges} run(s)`}`
   );
+  /* ∅ `wouldDrop` sizes what the unconfirmed span set would refuse and `dropped` names what the
+     confirmed one did. Both read `null` where no span set reached this leg, which is the one state a
+     count cannot carry. */
+  const pb = pRead;
+  const pinnedSize =
+    pb.channelsScanned == null
+      ? 'null — no span set reached this leg'
+      : pb.droppedAllPinned != null
+        ? `${pb.droppedAllPinned} of ${pb.nDetected} feet dropped, ${pb.partialPinned} partial`
+        : `${pb.wouldDropAllPinned} of ${pb.nDetected} feet WOULD drop, ${pb.wouldPartialPinned} partial`;
+  console.log(`  PPG pinned: source ${pb.pinnedSource || 'unconfirmed'} · ${pinnedSize} · ${pb.channelsScanned == null ? 'no' : pb.channelsScanned} channel(s) scanned`);
   const an = nccAnchor(rrA, rrB, 400);
   console.log(`anchor: ${an.ok ? `lag ${an.lag} beats, ncc ${an.ncc.toFixed(4)}, margin ${an.margin.toFixed(4)}` : 'REFUSED — ' + an.reason}`);
   if (!an.ok) process.exit(1);

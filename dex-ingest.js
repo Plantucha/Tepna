@@ -178,6 +178,13 @@
        through to `nonSignalName` and was set aside as 'skip': a sidecar the box writes and nothing
        could ever read. The writer landed with `ECG_RUN_MIN = 30`; this is the half that reads it. */
     if (/_ECGRUNS\b|_ECGRUNS\./.test(u)) return 'runs';
+    /* The clock-seam sidecar (`…_ECGSEAMS.txt`, capture-host `writers.py` `_SeamSidecar`) is ECGDex's
+       'seams' companion, and a DISTINCT kind from 'runs': a blanking run and a clock seam carry
+       different rows, different reasons and different refusals (SEAM-SIDECAR-CONSUMPTION §4, owner
+       ruling 2026-11-05). Claimed on the same line of reasoning as `_ECGRUNS` above — `_ECG\b` does
+       not match `_ECGSEAMS`, so `nonSignalName` set the file aside as 'skip' and the reader
+       `ecgdex-dsp.js` shipped in #4407 could never be handed a byte of it from a browser drop. */
+    if (/_ECGSEAMS\b|_ECGSEAMS\./.test(u)) return 'seams';
     // The ACC companion's own sidecar — a DISTINCT kind, never 'runs' (see signal-orchestrate).
     if (/_ACCRUNS\b|_ACCRUNS\./.test(u)) return 'accruns';
     if (/_ACC\b|_ACC\./.test(u)) return 'acc';
@@ -387,7 +394,8 @@
   //        reclassified as foreign (a misnamed MAGN/PPG/…); default none → every ecg-named is real.
   // opts.partKey         : the multipart splitter (DSP.partKey); absent → no part folding.
   // → { ecgGroups: [[item,…],…],                                  // ordered part-groups, one recording each
-  //     companionLanes: { rr:[[item,…]], hr:[[…]], acc:[[…]], runs:[[…]] },  // deduped part-groups per lane, device-filtered
+  //     companionLanes: { rr:[[item,…]], hr:[[…]], acc:[[…]], runs:[[…]], seams:[[…]], accruns:[[…]] },  // deduped part-groups per lane
+  //                                                               // ⚠️ step (5) device-filters rr/hr/acc ONLY
   //     skipped: [{name, kind, device?}] }                        // skip-bucket + sniff-foreign + foreign-device + dup-night
   function planIngest(items, opts) {
     opts = opts || {};
@@ -398,13 +406,23 @@
     };
     items = Array.isArray(items) ? items : [];
     // (1) bucket by name classification (the SAME ecgKind the app + the routing-table test use)
-    var byKind = /** @type {{ ecg:any[], rr:any[], hr:any[], acc:any[], runs:any[], accruns:any[], skip:any[] }} */ ({ ecg: [], rr: [], hr: [], acc: [], runs: [], accruns: [], skip: [] });
+    var byKind = /** @type {{ ecg:any[], rr:any[], hr:any[], acc:any[], runs:any[], seams:any[], accruns:any[], skip:any[] }} */ ({
+      ecg: [],
+      rr: [],
+      hr: [],
+      acc: [],
+      runs: [],
+      seams: [],
+      accruns: [],
+      skip: []
+    });
     /* `runs` MUST have a bucket of its own. The line below falls back to `byKind.ecg` for any kind
        without one, so the moment `ecgKind` learned to return 'runs' the sidecar landed in the PRIMARY
        waveform bucket — and `_dedupeBySession` then dropped it against the real `_ECG.txt` it shares a
        device and stamp with, setting it aside as a 'duplicate'. Measured before the fix: the sidecar
        reached `skipped: [{kind:'duplicate'}]` and no lane at all. A fail-open default is why adding a
-       classifier value without its bucket is never inert here. */
+       classifier value without its bucket is never inert here. `seams` joined on 2026-11-05 and
+       carries its own bucket for that reason, not for symmetry. */
     items.forEach(function (it) {
       (byKind[ecgKind(it.name)] || byKind.ecg).push(it);
     });
@@ -470,6 +488,9 @@
       // part-grouped like every other companion. The app picks the nearest by FILENAME stamp, because
       // its text must reach parseECGText BEFORE a parsed rec.t0Ms exists to pair on.
       runs: _dedupeGroups(_groupParts(byKind.runs, pk)),
+      // SEAM-SIDECAR-CONSUMPTION §4 — the `_ECGSEAMS.txt` clock-seam sidecar, paired by the app the
+      // same way and for the same reason: `parseECGText` needs its text before a rec.t0Ms exists.
+      seams: _dedupeGroups(_groupParts(byKind.seams, pk)),
       accruns: _dedupeGroups(_groupParts(byKind.accruns, pk))
     };
     // (8) ECG groups: part-group, then de-dupe a duplicate night (same device id + structured start

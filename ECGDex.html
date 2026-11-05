@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="1b9bc771b0d9" data-compute-hash="be4a36aa69e5">
+<html lang="en" data-manifest-hash="a2eb5c94e338" data-compute-hash="9dd69772d536">
 <head>
 <!--
   ECGDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-2BDRZ6VKh8OkZurNHffDYcwBtBuhz/p2tofi1tuMXLQ=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-WUx6H6v2MxXFewbQY8ta+EtZ1t9Iejapg8RdXS9oKKc=' 'sha256-XJV3E1G3sukFgbJQW5vuMv8oMeGex2wLInYe3q3i6Dk=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-kCIXFB+Oh+fPXQK0n5wv9ysz8QHUPT7/BBvnQcqS+u0=' 'sha256-ndwAaS7rxPDbDdTDUAApFCDBcXWisKUftg+0xzuxsoI=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rIcm4jQwZdAp6l3SdrzI0nizBN01Nhu8bJROOQanTRo=' 'sha256-rKaNN0Ty7SX+P/hqThFsDPpnNNxRWZ1qeyOfye3zhi8=' 'sha256-s+ZLD2YDV4+kIdokItuHqVnEbiUJWha5Y1wVK9Bm6+o=' 'sha256-tddD0f4n4/0SctOR+t6ziGNCiH/GZ6G3Q5Iib/iByoM=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-2BDRZ6VKh8OkZurNHffDYcwBtBuhz/p2tofi1tuMXLQ=' 'sha256-3/HsgCQxURL00rDh+EmOmq0F0ioCR/hbMcDbSllmrIo=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-OYhJ2lXxS4wvs/p9vz2DXCv4ugnCLSczizK2sAuh0LM=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-kCIXFB+Oh+fPXQK0n5wv9ysz8QHUPT7/BBvnQcqS+u0=' 'sha256-ndwAaS7rxPDbDdTDUAApFCDBcXWisKUftg+0xzuxsoI=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rIcm4jQwZdAp6l3SdrzI0nizBN01Nhu8bJROOQanTRo=' 'sha256-rKaNN0Ty7SX+P/hqThFsDPpnNNxRWZ1qeyOfye3zhi8=' 'sha256-tddD0f4n4/0SctOR+t6ziGNCiH/GZ6G3Q5Iib/iByoM=' 'sha256-u+Z07dzg2j5RYvPiWNyexMMPkW5mcsCQJTrMAI1fiaU=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>ECGDex — Raw ECG Analyzer · v2.27.0</title>
@@ -14402,6 +14402,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     poincareGeo,
     epochEngine, // §∅ epoch gap-exclusion + seam refusal, gated directly
     placeRecordedSeams, // SEAM-SIDECAR-CONSUMPTION §4 — box-recorded seams onto this node's beat axis
+    attachEcgSidecars, // the one attach body for `_ECGRUNS` / `_ECGSEAMS` — the app's worker road calls it
     detectCVHR,
     cardiorespCoupling,
     dfaAlpha1,
@@ -15600,6 +15601,45 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     return false;
   }
 
+  /* ONE attach body for BOTH validity sidecars, and exported because the browser's streaming road
+     cannot reach a body that lives inside the parser. `ecgdex-app.js` sends a drop over 5 MB or of
+     more than one part — which is the shape of every real overnight `_ECG.txt` — to the parse
+     worker, then rebuilds the record from `ecgTimingResolve(d.scan)`; that record never passed
+     through `parseECGLines`, so neither sidecar the drop carried ever reached the DSP there. A
+     second copy of this block in the app would drift from this one, exactly as the app's third
+     ingest copy drifted (DEEP-AUDIT-VI F2), so the block moves HERE and both roads call it.
+
+     Mutates and returns the SAME `rec`. `opts.runsText` is the `_ECGRUNS.txt` companion's bytes and
+     `opts.seamsText` the `_ECGSEAMS.txt` companion's; a call carrying neither leaves the record
+     byte-identical, which is why no existing fixture input moves. LAST and OPTIONAL per §🧪. */
+  function attachEcgSidecars(rec, opts) {
+    if (!rec) return rec;
+    /* It lives HERE, not only in `parseECGText`, so a STREAMED caller (`tools/trio-batch.mjs` folds
+       60 MB files line by line) reaches the same validity a whole-text caller does. */
+    var runs = parseEcgRuns(opts && opts.runsText);
+    if (runs) {
+      rec.runsSidecar = runs;
+      /* §∅ — a sidecar whose rows went unplaced measured nothing here, and `[]` would report that
+         the box found no blanking. `null` is the absence; every consumer already guards for it
+         (`Array.isArray`, or `runRanges`, which answers `[]` to a null), and the reason names what
+         this reader could not place. */
+      rec.blankingSpans = runs.placedNone ? null : runs.spans;
+      if (runs.placedNone) rec.blankingSpansReason = 'sidecar rows unplaced: ' + (runs.rejectedChannels.join(', ') || 'malformed rows only');
+    }
+    /* …and the box's own clock-seam sidecar beside the same stream (SEAM-SIDECAR-CONSUMPTION §4,
+       owner ruling 2026-11-05), on the same footing. */
+    var seams = parseEcgSeams(opts && opts.seamsText);
+    if (seams) {
+      rec.seamsSidecar = seams;
+      /* §∅ — `[]` is the honest answer for a sidecar that examined intervals and recorded no seam,
+         and the WRONG answer for one whose rows this reader could not place. `null` is the absence
+         and the reason names which rows went unplaced. */
+      rec.recordedSeams = seams.placedNone ? null : seams.rows;
+      if (seams.placedNone) rec.recordedSeamsReason = 'seam sidecar rows unplaced: ' + (seams.rejectedReasons.join(', ') || 'malformed rows only');
+    }
+    return rec;
+  }
+
   function parseECGText(text, opts) {
     // Whole-text entry point — UNCHANGED contract, kept for the browser and every existing caller.
     // It delegates so there is exactly ONE parse body: a second copy would drift, and the two would
@@ -15673,34 +15713,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       deviceEpoch: t.deviceEpoch,
       hostAxis: t.hostAxis
     };
-    /* `opts.runsText` is the `_ECGRUNS.txt` companion's bytes. It lives HERE, not only in
-       `parseECGText`, so a STREAMED caller (`tools/trio-batch.mjs` folds 60 MB files line by line)
-       reaches the same validity a whole-text caller does. LAST and OPTIONAL per §🧪: a call without
-       it returns the record above unchanged. */
-    var runs = parseEcgRuns(opts && opts.runsText);
-    if (runs) {
-      rec.runsSidecar = runs;
-      /* §∅ — a sidecar whose rows went unplaced measured nothing here, and `[]` would report that
-         the box found no blanking. `null` is the absence; every consumer already guards for it
-         (`Array.isArray`, or `runRanges`, which answers `[]` to a null), and the reason names what
-         this reader could not place. */
-      rec.blankingSpans = runs.placedNone ? null : runs.spans;
-      if (runs.placedNone) rec.blankingSpansReason = 'sidecar rows unplaced: ' + (runs.rejectedChannels.join(', ') || 'malformed rows only');
-    }
-    /* …and the box's own clock-seam sidecar beside the same stream (SEAM-SIDECAR-CONSUMPTION §4,
-       owner ruling 2026-11-05). Here for the same reason `runsText` is: a streamed caller reaches
-       the same validity a whole-text caller does. LAST and OPTIONAL — a call without it returns the
-       record above unchanged, which is why no existing fixture input moves. */
-    var seams = parseEcgSeams(opts && opts.seamsText);
-    if (seams) {
-      rec.seamsSidecar = seams;
-      /* §∅ — `[]` is the honest answer for a sidecar that examined intervals and recorded no seam,
-         and the WRONG answer for one whose rows this reader could not place. `null` is the absence
-         and the reason names which rows went unplaced. */
-      rec.recordedSeams = seams.placedNone ? null : seams.rows;
-      if (seams.placedNone) rec.recordedSeamsReason = 'seam sidecar rows unplaced: ' + (seams.rejectedReasons.join(', ') || 'malformed rows only');
-    }
-    return rec;
+    return attachEcgSidecars(rec, opts);
   }
 
   /* recording.coverage for an ECG recording — INTEGRATOR-GAP-AWARE-OVERLAP part 2.
@@ -20065,6 +20078,13 @@ __exports.SCHEMA = SCHEMA; __exports.STAGE_NAMES = STAGE_NAMES; __exports.VIEWER
        through to `nonSignalName` and was set aside as 'skip': a sidecar the box writes and nothing
        could ever read. The writer landed with `ECG_RUN_MIN = 30`; this is the half that reads it. */
     if (/_ECGRUNS\b|_ECGRUNS\./.test(u)) return 'runs';
+    /* The clock-seam sidecar (`…_ECGSEAMS.txt`, capture-host `writers.py` `_SeamSidecar`) is ECGDex's
+       'seams' companion, and a DISTINCT kind from 'runs': a blanking run and a clock seam carry
+       different rows, different reasons and different refusals (SEAM-SIDECAR-CONSUMPTION §4, owner
+       ruling 2026-11-05). Claimed on the same line of reasoning as `_ECGRUNS` above — `_ECG\b` does
+       not match `_ECGSEAMS`, so `nonSignalName` set the file aside as 'skip' and the reader
+       `ecgdex-dsp.js` shipped in #4407 could never be handed a byte of it from a browser drop. */
+    if (/_ECGSEAMS\b|_ECGSEAMS\./.test(u)) return 'seams';
     // The ACC companion's own sidecar — a DISTINCT kind, never 'runs' (see signal-orchestrate).
     if (/_ACCRUNS\b|_ACCRUNS\./.test(u)) return 'accruns';
     if (/_ACC\b|_ACC\./.test(u)) return 'acc';
@@ -20274,7 +20294,8 @@ __exports.SCHEMA = SCHEMA; __exports.STAGE_NAMES = STAGE_NAMES; __exports.VIEWER
   //        reclassified as foreign (a misnamed MAGN/PPG/…); default none → every ecg-named is real.
   // opts.partKey         : the multipart splitter (DSP.partKey); absent → no part folding.
   // → { ecgGroups: [[item,…],…],                                  // ordered part-groups, one recording each
-  //     companionLanes: { rr:[[item,…]], hr:[[…]], acc:[[…]], runs:[[…]] },  // deduped part-groups per lane, device-filtered
+  //     companionLanes: { rr:[[item,…]], hr:[[…]], acc:[[…]], runs:[[…]], seams:[[…]], accruns:[[…]] },  // deduped part-groups per lane
+  //                                                               // ⚠️ step (5) device-filters rr/hr/acc ONLY
   //     skipped: [{name, kind, device?}] }                        // skip-bucket + sniff-foreign + foreign-device + dup-night
   function planIngest(items, opts) {
     opts = opts || {};
@@ -20285,13 +20306,23 @@ __exports.SCHEMA = SCHEMA; __exports.STAGE_NAMES = STAGE_NAMES; __exports.VIEWER
     };
     items = Array.isArray(items) ? items : [];
     // (1) bucket by name classification (the SAME ecgKind the app + the routing-table test use)
-    var byKind = /** @type {{ ecg:any[], rr:any[], hr:any[], acc:any[], runs:any[], accruns:any[], skip:any[] }} */ ({ ecg: [], rr: [], hr: [], acc: [], runs: [], accruns: [], skip: [] });
+    var byKind = /** @type {{ ecg:any[], rr:any[], hr:any[], acc:any[], runs:any[], seams:any[], accruns:any[], skip:any[] }} */ ({
+      ecg: [],
+      rr: [],
+      hr: [],
+      acc: [],
+      runs: [],
+      seams: [],
+      accruns: [],
+      skip: []
+    });
     /* `runs` MUST have a bucket of its own. The line below falls back to `byKind.ecg` for any kind
        without one, so the moment `ecgKind` learned to return 'runs' the sidecar landed in the PRIMARY
        waveform bucket — and `_dedupeBySession` then dropped it against the real `_ECG.txt` it shares a
        device and stamp with, setting it aside as a 'duplicate'. Measured before the fix: the sidecar
        reached `skipped: [{kind:'duplicate'}]` and no lane at all. A fail-open default is why adding a
-       classifier value without its bucket is never inert here. */
+       classifier value without its bucket is never inert here. `seams` joined on 2026-11-05 and
+       carries its own bucket for that reason, not for symmetry. */
     items.forEach(function (it) {
       (byKind[ecgKind(it.name)] || byKind.ecg).push(it);
     });
@@ -20357,6 +20388,9 @@ __exports.SCHEMA = SCHEMA; __exports.STAGE_NAMES = STAGE_NAMES; __exports.VIEWER
       // part-grouped like every other companion. The app picks the nearest by FILENAME stamp, because
       // its text must reach parseECGText BEFORE a parsed rec.t0Ms exists to pair on.
       runs: _dedupeGroups(_groupParts(byKind.runs, pk)),
+      // SEAM-SIDECAR-CONSUMPTION §4 — the `_ECGSEAMS.txt` clock-seam sidecar, paired by the app the
+      // same way and for the same reason: `parseECGText` needs its text before a rec.t0Ms exists.
+      seams: _dedupeGroups(_groupParts(byKind.seams, pk)),
       accruns: _dedupeGroups(_groupParts(byKind.accruns, pk))
     };
     // (8) ECG groups: part-group, then de-dupe a duplicate night (same device id + structured start
@@ -20506,6 +20540,10 @@ const { ECGUI } = __require('ecgdex-render.js');
        FILENAME stamp. Filename, not a parsed t0Ms: the text has to reach parseECGText BEFORE a rec
        exists to pair on. Empty on every drop without a sidecar, which is every existing fixture. */
     _runsFiles = [],
+    /* SEAM-SIDECAR-CONSUMPTION §4 — `_ECGSEAMS.txt` texts from the same drop, keyed the same way and
+       for the same reason. A SEPARATE list, not a field on the runs entries: the two sidecars are
+       separate files with separate stamps, and a drop may carry either one alone. */
+    _seamsFiles = [],
     _replaceMode = false;
 
   /* ════════════════════════════════════════════════════════════════════════
@@ -20615,17 +20653,23 @@ self.onmessage = async (e) => {
   // ════════════════════════════════════════════════════════════════════════
   //  INGEST
   // ════════════════════════════════════════════════════════════════════════
-  /* Nearest `_ECGRUNS.txt` by FILENAME stamp, or null. `ING.pickNearestByStamp` is the shared rule
-     (dex-ingest.js) PpgDex already uses for its own sidecar, so the two nodes pair identically. */
-  function _pickRunsFor(primaryName) {
-    if (!_runsFiles.length) return null;
+  /* Nearest sidecar text by FILENAME stamp, or null. `ING.pickNearestByStamp` is the shared rule
+     (dex-ingest.js) PpgDex already uses for its own sidecar, so the two nodes pair identically.
+     The LIST is a parameter because `_ECGRUNS` and `_ECGSEAMS` pair by one rule over two files. */
+  function _pickSidecarFor(list, primaryName) {
+    if (!list.length) return null;
     const ING = typeof DexIngest !== 'undefined' ? DexIngest : null;
     const stamp = ING && typeof ING.stampMs === 'function' ? ING.stampMs(primaryName) : null;
     if (ING && typeof ING.pickNearestByStamp === 'function' && stamp != null) {
-      const hit = ING.pickNearestByStamp(_runsFiles, stamp);
+      const hit = ING.pickNearestByStamp(list, stamp);
       return hit && typeof hit.text === 'string' ? hit.text : null;
     }
-    return _runsFiles.length === 1 ? _runsFiles[0].text : null; // one sidecar, one drop — unambiguous
+    return list.length === 1 ? list[0].text : null; // one sidecar, one drop — unambiguous
+  }
+  /* Both sidecars for one primary, as the DSP's `attachEcgSidecars` opts. Absent ones stay null, so
+     a drop without either hands the parser an object it treats as the 1-arg call it always was. */
+  function _sidecarsFor(primaryName) {
+    return { runsText: _pickSidecarFor(_runsFiles, primaryName), seamsText: _pickSidecarFor(_seamsFiles, primaryName) };
   }
 
   function loadECGFile(files) {
@@ -20669,6 +20713,13 @@ self.onmessage = async (e) => {
             deviceEpoch: t.deviceEpoch,
             hostAxis: t.hostAxis
           };
+          /* …and the validity sidecars this drop paired. THIS ROAD HAD NEITHER until 2026-11-05:
+             the rec above is hand-built from the worker's scan and never passes through
+             `parseECGLines`, where the attach used to live — so a drop over 5 MB or of more than one
+             part, which is every real overnight recording, read as a night with no sidecar at all.
+             `attachEcgSidecars` is the DSP's single attach body (exported for exactly this caller);
+             it mutates `rec` in place and a drop carrying neither text leaves it untouched. */
+          DSP.attachEcgSidecars(rec, _sidecarsFor((files[0] && files[0].name) || ''));
           // R1 provenance: the streamed primary ECG bypasses the FileReader hook —
           // attest each part explicitly (name/bytes/mtime) so the export records its true inputs.
           if (window.GangliorProvenance) files.forEach((f) => GangliorProvenance.noteInput(f));
@@ -20688,9 +20739,14 @@ self.onmessage = async (e) => {
       const file = files[0];
       const fr = new FileReader();
       fr.onload = (e) => {
-        // §3.2 — the nearest `_ECGRUNS.txt` by FILENAME stamp (the same rule planIngest pairs on).
-        const _rt = _pickRunsFor(file.name);
-        runPipeline(_rt ? DSP.parseECG(e.target.result, { runsText: _rt }) : DSP.parseECG(e.target.result), file.name);
+        /* §3.2 + SEAM-SIDECAR-CONSUMPTION §4 — the nearest `_ECGRUNS.txt` and `_ECGSEAMS.txt` by
+           FILENAME stamp (the same rule planIngest pairs on). The 1-arg call is kept for a drop with
+           neither, so every existing fixture takes the byte-identical road it always took. */
+        const _sc = _sidecarsFor(file.name);
+        /* The opts are SPELLED OUT here rather than handed over as `_sc`, because done-when 4's
+           ratchet reads the guarded ternary's own argument list: an opts object built elsewhere
+           reads to it as a parser called with no sidecar at all, which is the defect it counts. */
+        runPipeline(_sc.runsText || _sc.seamsText ? DSP.parseECG(e.target.result, { runsText: _sc.runsText, seamsText: _sc.seamsText }) : DSP.parseECG(e.target.result), file.name);
       };
       fr.readAsText(file);
     }
@@ -22388,38 +22444,43 @@ self.onmessage = async (e) => {
     }
     const wasDraining = _loadQueue.length > 0;
     _loadQueue = _loadQueue.concat(ecgGroups);
-    /* The runs lane is resolved BEFORE the queue drains, unlike RR/HR/ACC which are applied to an
-       already-parsed rec. A validity span has to be known at parse time or the refusal cannot be
-       applied at all, so the ECG start waits on these reads — and only when the drop actually
-       carries one. No sidecar ⇒ the exact pre-existing call order (byte-identical). */
+    /* The runs and seams lanes are resolved BEFORE the queue drains, unlike RR/HR/ACC which are
+       applied to an already-parsed rec. A validity span or a recorded seam has to be known at parse
+       time or the refusal cannot be applied at all, so the ECG start waits on these reads — and only
+       when the drop actually carries one. No sidecar ⇒ the exact pre-existing call order
+       (byte-identical). */
     const _runsGroups = (plan.companionLanes && plan.companionLanes.runs) || [];
-    if (!_runsGroups.length) {
+    const _seamsGroups = (plan.companionLanes && plan.companionLanes.seams) || [];
+    if (!_runsGroups.length && !_seamsGroups.length) {
       if (!wasDraining) _processQueue();
       return;
     }
-    Promise.all(
-      _runsGroups.map((parts) => {
-        const f = parts.length === 1 ? Promise.resolve(parts[0]) : mergeFileParts(parts);
-        return Promise.resolve(f).then(
-          (file) =>
-            new Promise((res) => {
-              const fr = new FileReader();
-              /* `stampMs` is a PROPERTY the picker reads off the candidate — it does not derive one
-                 from the name. Omitting it makes every candidate unscoreable (§10.3) and the pick
-                 returns null, i.e. the sidecar silently never pairs. Measured that way first. */
-              fr.onload = (e) =>
-                res({
-                  name: file.name,
-                  text: String(e.target.result || ''),
-                  stampMs: typeof DexIngest !== 'undefined' && typeof DexIngest.stampMs === 'function' ? DexIngest.stampMs(file.name) : null
-                });
-              fr.onerror = () => res(null); // a sidecar that will not read is NOT a reason to lose the night
-              fr.readAsText(file);
-            })
-        );
-      })
-    ).then((loaded) => {
-      _runsFiles = loaded.filter(Boolean);
+    const _readLane = (groups) =>
+      Promise.all(
+        groups.map((parts) => {
+          const f = parts.length === 1 ? Promise.resolve(parts[0]) : mergeFileParts(parts);
+          return Promise.resolve(f).then(
+            (file) =>
+              new Promise((res) => {
+                const fr = new FileReader();
+                /* `stampMs` is a PROPERTY the picker reads off the candidate — it does not derive one
+                   from the name. Omitting it makes every candidate unscoreable (§10.3) and the pick
+                   returns null, i.e. the sidecar silently never pairs. Measured that way first. */
+                fr.onload = (e) =>
+                  res({
+                    name: file.name,
+                    text: String(e.target.result || ''),
+                    stampMs: typeof DexIngest !== 'undefined' && typeof DexIngest.stampMs === 'function' ? DexIngest.stampMs(file.name) : null
+                  });
+                fr.onerror = () => res(null); // a sidecar that will not read is NOT a reason to lose the night
+                fr.readAsText(file);
+              })
+          );
+        })
+      ).then((loaded) => loaded.filter(Boolean));
+    Promise.all([_readLane(_runsGroups), _readLane(_seamsGroups)]).then((lanes) => {
+      _runsFiles = lanes[0];
+      _seamsFiles = lanes[1];
       if (!wasDraining) _processQueue();
     });
   }

@@ -35113,9 +35113,16 @@
            validity sidecar reddened it even though the property it guards — the app DELEGATES and
            carries no third parse copy — is unchanged and now has to hold on BOTH branches. A literal
            match tests spelling; this tests the capability, and requires the delegation twice. */
+        /* CORRECTED AGAIN 2026-11-05, and the paragraph above says why it had to be: the leg still
+           pinned the whole call TEXT, so threading the SECOND sidecar reddened it while the property
+           it guards — the app delegates on both arms and carries no third parse copy — was
+           untouched. These two reads say the same thing without naming the condition: exactly two
+           delegating calls exist, and one `runPipeline` statement holds both arms. A third sidecar
+           now costs no edit here, and a third parse copy still reds. */
         T.ok(
           'the small-file path delegates to ECGDSP.parseECG on BOTH branches (the third copy is deleted)',
-          /runPipeline\(_rt \? DSP\.parseECG\(e\.target\.result, \{ runsText: _rt \}\) : DSP\.parseECG\(e\.target\.result\), file\.name\)/.test(app),
+          (app.match(/DSP\.parseECG\(e\.target\.result/g) || []).length === 2 &&
+            /runPipeline\([^;]*DSP\.parseECG\(e\.target\.result[^;]*:[^;]*DSP\.parseECG\(e\.target\.result[^;]*, file\.name\)/.test(app),
           'the small-file branch must reach ECGDSP.parseECG with and without a sidecar, never a local parse'
         );
         T.ok('no app-local timestamp parser survives — one parse site, in the DSP', !/function parseTSfloat/.test(app), 'parseTSfloat is back; an unused parser is a mirror waiting for a caller');
@@ -46827,7 +46834,14 @@
             'polar-h10-ecg · passes ctx.companions.runs into the PRIMARY parse',
             /companions\.runs/.test(src['adapters/polar-h10-ecg.js']) && /runsText:\s*runsText/.test(src['adapters/polar-h10-ecg.js'])
           );
-        if (src['ecgdex-app.js']) T.ok('ecgdex-app · picks the sidecar and passes it as runsText', /_pickRunsFor/.test(src['ecgdex-app.js']) && /runsText:\s*_rt/.test(src['ecgdex-app.js']));
+        /* The picker took its LIST as a parameter on 2026-11-05, when the seam sidecar gave the app
+           a second lane to pair; the property is unchanged — the runs lane is still picked by the
+           shared stamp rule and still arrives as `runsText`. */
+        if (src['ecgdex-app.js'])
+          T.ok(
+            'ecgdex-app · picks the sidecar and passes it as runsText',
+            /_pickSidecarFor\(_runsFiles, primaryName\)/.test(src['ecgdex-app.js']) && /runsText: _sc\.runsText/.test(src['ecgdex-app.js'])
+          );
         if (src['dex-ingest.js']) T.ok('dex-ingest · the `runs` BUCKET exists, so the fail-open default cannot claim it', /runs:\s*\[\]/.test(src['dex-ingest.js']));
       }
     );
@@ -46994,6 +47008,126 @@
           /companions\.seams/.test(src['adapters/polar-h10-ecg.js']) && /seamsText:\s*seamsText/.test(src['adapters/polar-h10-ecg.js'])
         );
     });
+
+    /* ════ SEAM-SIDECAR-CONSUMPTION §4 · THE BROWSER DROP LANE (2026-11-05, row
+       `2026-11-05-the-ecgseams-browser-drop-lane-has-no-companion-lane`) ════════════════════════
+       The group above gated the READER and the Node adapter road. The browser road had neither
+       half. `dex-ingest.js ecgKind` did not claim `_ECGSEAMS`, so `nonSignalName` set the file aside
+       as 'skip' and no lane carried it — a reader with no way to be handed a byte from a drop. And
+       `planIngest` fails open (`byKind[ecgKind(it.name)] || byKind.ecg`), so a kind without its own
+       bucket does not merely miss its lane: it lands in the PRIMARY waveform bucket and is then set
+       aside as a duplicate of the `_ECG.txt` it shares a device and a stamp with.
+
+       🔴 AND THE APP HAS TWO PARSE ROADS, ONE OF WHICH ATTACHED NOTHING. `loadECGFile` sends a
+       drop over 5 MB or of more than one part — the shape of every real overnight recording — to the
+       parse worker, then rebuilds the record from `ecgTimingResolve(d.scan)`. That record never
+       passes through `parseECGLines`, where the attach lived, so the `_ECGRUNS` sidecar shipped in
+       #2317 never reached a big night either. The attach body is now `attachEcgSidecars` in the DSP
+       and both roads call it; the legs below pin the SMALL road, the BIG road and the single body. */
+    group(
+      'SEAM-SIDECAR-CONSUMPTION §4 — the _ECGSEAMS drop lane: dex-ingest routes it, and BOTH of the app’s parse roads attach it',
+      'dex-ingest · ecgdex-app · ecgdex-dsp · absence · sidecar',
+      function (T) {
+        var DI = env.DexIngest,
+          E = env.ECGDSP;
+        var H10 = 'Polar_H10_AAAA_20260617_010000_',
+          VS = 'Polar_VS_BBBB_20260617_010001_';
+        // ── (1) CLASSIFICATION — the ECG spelling becomes a companion kind of its own ────────────
+        if (DI && typeof DI.ecgKind === 'function') {
+          T.eq('ecgKind · `_ECGSEAMS.txt` is the seams COMPANION, not an ECG primary and not a skip', DI.ecgKind(H10 + 'ECGSEAMS.txt'), 'seams');
+          /* A DISTINCT kind from 'runs', and the reason is the one `signal-orchestrate` records: a kind
+           IS a slot, and the box writes one sidecar per stream, so a shared slot lets nearest-stamp
+           replace a night's blanking runs with its clock seams. */
+          T.eq('control · `_ECGRUNS.txt` keeps its OWN kind — a seam is not a blanking run', DI.ecgKind(H10 + 'ECGRUNS.txt'), 'runs');
+          T.eq('control · the real `_ECG.txt` is still the primary', DI.ecgKind(H10 + 'ECG.txt'), 'ecg');
+          /* ONLY the ECG spelling. The box writes `_ACCSEAMS`, `_HRSEAMS` and `_PPISEAMS` beside it and
+           this node can place none of them, so each must stay set aside — arriving as a companion
+           this node CAN place is the #4069 wrong-companion defect. */
+          [VS + 'ACCSEAMS.txt', H10 + 'HRSEAMS.txt', VS + 'PPISEAMS.txt'].forEach(function (n) {
+            T.eq('control · `' + n.replace(/^.*_/, '_') + '` is still set aside in the ECG node', DI.ecgKind(n), 'skip');
+          });
+          if (typeof DI.ppgKind === 'function') T.eq('control · and the PPG node still sets the ECG seam sidecar aside', DI.ppgKind(H10 + 'ECGSEAMS.txt'), 'skip');
+        } else T.skip('DexIngest.ecgKind unavailable');
+        // ── (2) THE PLANNER — its own bucket and its own lane ────────────────────────────
+        if (DI && typeof DI.planIngest === 'function') {
+          var nm = function (n) {
+            return { name: n };
+          };
+          var plan = DI.planIngest([nm(H10 + 'ECG.txt'), nm(H10 + 'ECGSEAMS.txt'), nm(H10 + 'ECGRUNS.txt')]);
+          T.eq(
+            'planIngest · the seam sidecar reaches a `seams` lane of its own',
+            (plan.companionLanes.seams || []).length + ':' + (((plan.companionLanes.seams || [])[0] || [])[0] || {}).name,
+            '1:' + H10 + 'ECGSEAMS.txt'
+          );
+          T.eq(
+            'planIngest · …and the runs lane still carries its own file, unmoved',
+            (plan.companionLanes.runs || []).length + ':' + (((plan.companionLanes.runs || [])[0] || [])[0] || {}).name,
+            '1:' + H10 + 'ECGRUNS.txt'
+          );
+          /* THE FAIL-OPEN CONTROL. Without the bucket the sidecar joined `byKind.ecg`, and
+           `_dedupeBySession` then set it aside as a 'duplicate' of the real `_ECG.txt` — a failure
+           that reads like a working drop, because the night still loads. */
+          T.eq('planIngest · the drop still holds exactly ONE recording — the sidecar is no waveform', plan.ecgGroups.length, 1);
+          T.ok(
+            'planIngest · …and the sidecar is NOT set aside as a duplicate, which is where the fail-open default put it',
+            !plan.skipped.some(function (sk) {
+              return sk.name === H10 + 'ECGSEAMS.txt';
+            }),
+            JSON.stringify(plan.skipped)
+          );
+        } else T.skip('DexIngest.planIngest unavailable');
+        // ── (3) THE ONE ATTACH BODY, reachable from the app's worker road ──────────────────
+        var SC = [
+          '# stream=ecg rule=clock-seam bound_ms=250 unit=ms basis=device-minus-host',
+          'phone_ts;idx;device_step_ms;phone_delta_ms;residual_ms;host_offset_ms;at_rel_ms',
+          '2026-06-17T01:05:00.000;413;240000.0;7.7;239992.3;-12.0;312000.0',
+          '# final stream=ecg seams=1 examined=50000'
+        ].join('\n');
+        /* `_RunSidecar`'s own shape (8 columns, the channel in column 1 — the H10 writes `ecg [uV]`). */
+        var RN = [
+          '# stream=ecg rule=stuck min_run=30 merge_gap_max=4 total_runs=1 examined=90000',
+          'Phone timestamp;stream;value;first_index;n_samples;dur_ms;closed;rule',
+          '2026-06-17T01:05:00.000;ecg [uV];0;52000;3900;30000;1;stuck'
+        ].join('\n');
+        if (E && typeof E.attachEcgSidecars === 'function' && typeof E.parseECG === 'function') {
+          /* The worker road's record shape: built from `ecgTimingResolve`, never parsed here. */
+          var wrec = { int16: new Int16Array(4), fs: 130, source: 'file' };
+          var back = E.attachEcgSidecars(wrec, { runsText: RN, seamsText: SC });
+          T.ok('attachEcgSidecars · it mutates the caller’s record and hands the SAME object back', back === wrec);
+          T.eq(
+            'attachEcgSidecars · a hand-built rec — the worker road’s shape — now carries the seams the drop paired',
+            (wrec.recordedSeams || []).length + '@' + ((wrec.recordedSeams || [])[0] || {}).tMs,
+            '1@' + Date.UTC(2026, 5, 17, 1, 5, 0, 0)
+          );
+          T.ok('attachEcgSidecars · …and the blanking sidecar #2317 shipped, which that road never reached either', !!wrec.runsSidecar);
+          T.eq(
+            'attachEcgSidecars · ONE body — the helper and the whole-text parser agree on the same bytes',
+            JSON.stringify(wrec.recordedSeams),
+            JSON.stringify(E.parseECG('Phone timestamp;sensor timestamp [ns];ecg [uV]\n', { seamsText: SC }).recordedSeams)
+          );
+          /* §🧪 — the no-sidecar call stays byte-identical, which is why no fixture input moves. */
+          var brec = { int16: new Int16Array(4), fs: 130, source: 'file' };
+          E.attachEcgSidecars(brec, {});
+          T.eq('control · a drop with NEITHER sidecar leaves the record untouched', Object.keys(brec).sort().join(','), 'fs,int16,source');
+          T.ok('control · a null record is handed back, never thrown on', E.attachEcgSidecars(null, { seamsText: SC }) === null);
+        } else T.skip('ECGDSP.attachEcgSidecars unavailable');
+        // ── (4) THE APP, by source — the DOM lane the headless runner cannot drive ────────────
+        var app = (env.sources || {})['ecgdex-app.js'];
+        if (typeof app === 'string' && app) {
+          T.ok('ecgdex-app · the seam lane has a list of its own, never a field on the runs entries', /_seamsFiles\s*=\s*\[\]/.test(app));
+          T.ok('ecgdex-app · …fed from `companionLanes.seams`', /companionLanes\.seams/.test(app));
+          T.ok('ecgdex-app · the picker takes the LIST as a parameter, so the two lanes cannot share one', /function _pickSidecarFor\(list, primaryName\)/.test(app));
+          T.ok('ecgdex-app · the SMALL-file road hands both texts to the parser', /DSP\.parseECG\(e\.target\.result, \{ runsText: _sc\.runsText, seamsText: _sc\.seamsText \}\)/.test(app));
+          /* THE MEASURED GAP. This leg is the whole row: the big/multi-part road is the one every real
+           overnight drop takes, and it attached nothing at all before 2026-11-05. */
+          T.ok('ecgdex-app · the BIG/multi-part road attaches them too — the road every real night takes', /DSP\.attachEcgSidecars\(rec, _sidecarsFor\(/.test(app));
+          T.ok(
+            'ecgdex-app · both sidecars are picked by ONE rule over the drop’s filename stamps',
+            /runsText: _pickSidecarFor\(_runsFiles, primaryName\), seamsText: _pickSidecarFor\(_seamsFiles, primaryName\)/.test(app)
+          );
+        } else T.skip('ecgdex-app.js source in env.sources', 'not available in this runner');
+      }
+    );
 
     /* The ACC leg of §3.2, and the defect is NOT the one the ECG leg pinned. There the sidecar could
        not be read at all; here the quantity it protects is ALREADY guarded — for the wrong door.
