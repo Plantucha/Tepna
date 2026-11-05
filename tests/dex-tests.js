@@ -58567,6 +58567,113 @@
       T.ok("--list from outside any repository reads the tool's own repository", /DENOMINATOR: \d+ worktree\(s\) registered/.test(l.stdout), l.stdout + l.stderr);
     });
 
+    /* Row 2026-11-04-wt-done-removes-a-tree-over-a-commit-stamped-before-the-merge. `unlandedFor`
+       counts commits STAMPED after the merge, so a commit written minutes BEFORE it and never pushed
+       counts zero, and the tool removed the only checkout where its files existed.
+
+       THE TWO CONTROLS ARE THE DESIGN. Heron measured the naive rule — absence from the base alone —
+       over the 8 worktrees on rig-x870 holding a MERGED PR: it refused 8 of 8, and every refusal was
+       false, each one over the branch's own `changes/*.md` changeset that a release had consumed. So
+       a consumed changeset must NOT refuse and a never-landed path must. The discriminator is the
+       base's own history, which reads 2 commits for a consumed changeset and 0 for a path that never
+       arrived. This group drives the real git commands against a temp repository. */
+    group('wt-done — an added path the base never carried refuses, and a consumed changeset does not', 'tools · wt-done · added-absent', function (T) {
+      if (!env.nodeSpawnSync || !env.nodeFs || !env.nodeOs || !env.wtDone || typeof env.wtDone.addedAbsentFor !== 'function') {
+        T.skip('needs Node child_process and tools/wt-done.mjs — not available in the browser lane');
+        return;
+      }
+      var fs = env.nodeFs,
+        pathMod = env.nodePath;
+      var repo = fs.mkdtempSync(pathMod.join(env.nodeOs.tmpdir(), 'wtdone-absent-'));
+      function git() {
+        var a = Array.prototype.slice.call(arguments);
+        return env.nodeSpawnSync('git', ['-C', repo, '-c', 'user.name=T', '-c', 'user.email=t@e', '-c', 'commit.gpgsign=false'].concat(a), { encoding: 'utf8' });
+      }
+      function write(rel, text) {
+        var f = pathMod.join(repo, rel);
+        fs.mkdirSync(pathMod.dirname(f), { recursive: true });
+        fs.writeFileSync(f, text);
+      }
+      var init = git('init', '-q', '-b', 'main');
+      if (init.status !== 0) {
+        T.skip('git init -b refused here — ' + String(init.stderr || '').split('\n')[0]);
+        return;
+      }
+      write('a.txt', 'base\n');
+      git('add', 'a.txt');
+      git('commit', '-q', '-m', 'base');
+
+      git('checkout', '-q', '-b', 'feat');
+      write('changes/x.md', 'bump: patch\n');
+      write('handoffs/y.md', 'the only copy\n');
+      git('add', 'changes/x.md', 'handoffs/y.md');
+      git('commit', '-q', '-m', 'feat: two added paths');
+
+      /* MAIN NOW DOES WHAT A SQUASH MERGE AND THEN A RELEASE DO: it carries the changeset, then the
+         release deletes it. `handoffs/y.md` never reaches main at all. */
+      git('checkout', '-q', 'main');
+      write('changes/x.md', 'bump: patch\n');
+      git('add', 'changes/x.md');
+      git('commit', '-q', '-m', 'land the changeset');
+      git('rm', '-q', 'changes/x.md');
+      git('commit', '-q', '-m', 'release consumes the changeset');
+
+      git('checkout', '-q', 'feat');
+      var r = env.wtDone.addedAbsentFor(repo, 'refs/heads/main', { fetch: false });
+      T.eq('both added paths are examined', r.checked, 2);
+      T.ok('the verdict REFUSES', r.ok === false, JSON.stringify(r));
+      T.eq('exactly one path is named', r.paths.length, 1);
+      T.eq('and it is the one main never carried', r.paths[0], 'handoffs/y.md');
+      T.ok('🔴 the consumed changeset is NOT named — a release deleting it never lost a copy', r.paths.indexOf('changes/x.md') < 0, r.paths.join(' '));
+      T.ok('the refusal names the path, so a reader can go and look at it', /handoffs\/y\.md/.test(r.why), r.why);
+
+      /* A PRESENT PATH PASSES, AND ITS CONTENT IS NOT THIS TEST'S QUESTION. The branch's copy differs
+         from main's, which is the limit the function's comment states: content is `--landed`'s
+         instrument and absence is this one's. */
+      git('checkout', '-q', '-b', 'feat2', 'main');
+      write('changes/z.md', 'the branch wrote this\n');
+      git('add', 'changes/z.md');
+      git('commit', '-q', '-m', 'feat2: one added path');
+      git('checkout', '-q', 'main');
+      write('changes/z.md', 'main carries other bytes\n');
+      git('add', 'changes/z.md');
+      git('commit', '-q', '-m', 'land it under different content');
+      git('checkout', '-q', 'feat2');
+      var r2 = env.wtDone.addedAbsentFor(repo, 'refs/heads/main', { fetch: false });
+      T.ok('a path present in the base passes', r2.ok === true, JSON.stringify(r2));
+      T.eq('one path examined', r2.checked, 1);
+      T.eq('and nothing is named', r2.paths.length, 0);
+
+      /* A BRANCH THAT ADDED NOTHING IS STILL A MEASUREMENT. An examined-nothing pass must say 0
+         rather than stay silent, which is how a reader tells it from a scan that never ran. */
+      git('checkout', '-q', '-b', 'feat3', 'main');
+      var r3 = env.wtDone.addedAbsentFor(repo, 'refs/heads/main', { fetch: false });
+      T.ok('a branch with no added path passes', r3.ok === true, JSON.stringify(r3));
+      T.eq('and reports 0 examined, never silence', r3.checked, 0);
+
+      /* AN UNREADABLE BASE CANNOT PASS. Unknown is not landed, which is the same rule the date scan
+         follows one rung above. */
+      var r4 = env.wtDone.addedAbsentFor(repo, 'refs/heads/no-such-base', { fetch: false });
+      T.ok('an absent base refuses rather than passing', r4.ok === false, JSON.stringify(r4));
+
+      /* THE PURE CORE THEN TURNS IT INTO THE REFUSAL, with the date count at 0 — the exact shape the
+         row measured. */
+      var v = env.wtDone.verdict({ prState: 'MERGED', dirtyCount: 0, isMain: false, unlanded: { ok: true, count: 0 }, addedAbsent: r });
+      T.ok('🔴 a date count of 0 no longer passes a tree holding the only copy', v.ok === false, v.why);
+      T.ok('and the refusal names the hatch that answers it with content', /--landed/.test(v.why), v.why);
+      var vl = env.wtDone.verdict({
+        prState: 'MERGED',
+        dirtyCount: 0,
+        isMain: false,
+        unlanded: { ok: true, count: 0 },
+        addedAbsent: r,
+        landedElsewhere: { ok: true, why: 'every identifier is on origin/main' }
+      });
+      T.ok('--landed outranks it, because the identifier proof answers the same question', vl.ok === true, vl.why);
+      var vc = env.wtDone.verdict({ prState: 'MERGED', dirtyCount: 0, isMain: false, unlanded: { ok: true, count: 0 }, addedAbsent: r3 });
+      T.ok('a clean scan names what it examined in the verdict text', /0 added path\(s\) present in the base/.test(vc.why), vc.why);
+    });
+
     group('PPGDex §∅ — pinned spans: both extremes, marker-transparent, and the widening is DERIVED', 'ppgdex-dsp · absence-as-value', function (T) {
       var P = env.PPGDSP;
       if (!(P && typeof P.pinnedSpans === 'function' && typeof P.settlingWidenSec === 'function')) {

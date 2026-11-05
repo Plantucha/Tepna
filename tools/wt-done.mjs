@@ -289,7 +289,7 @@ export function declaredConsumers(dir, { unitDirs = UNIT_DIRS, home = os.homedir
   return { ok: true, units: units.sort(), scanned: src.scanned };
 }
 
-export function verdict({ prState, dirtyCount, isMain, inUse, unlanded, pushed, landless, landedElsewhere, declared }) {
+export function verdict({ prState, dirtyCount, isMain, inUse, unlanded, addedAbsent, pushed, landless, landedElsewhere, declared }) {
   /* Pure decision core, so the refusals are testable without a repo. `inUse` is the result of
      `usersOfPath`: omitted entirely means the caller did not scan (older callers keep working);
      `{ok:false}` means the scan FAILED, which refuses — unknown is not idle. */
@@ -392,6 +392,17 @@ export function verdict({ prState, dirtyCount, isMain, inUse, unlanded, pushed, 
      and under squash nothing in the graph distinguishes them (row 2026-09-22-wt-done-merged-is-not-landed).
      `unlanded` supplies the missing question. Omitted ⇒ older callers unchanged. */
   if (unlanded && unlanded.ok === false) return { ok: false, why: `cannot prove every commit landed: ${unlanded.why}` };
+  /* ── ABSENCE IS NOT A DATE, AND IT FIRES WHERE THE DATE COUNT READS 0 ──────────────────────────
+     The count above is the one signal that survived measurement, and its own blind spot is a commit
+     written BEFORE the merge and left out of the PR. `addedAbsent` closes that half at file level:
+     a path this branch added, absent from the base, whose base history holds no commit for it. The
+     tree is then its only copy, so the removal destroys it. `--landed` outranks this, because its
+     identifier proof answers the same question with content. Omitted ⇒ older callers unchanged. */
+  if (addedAbsent && !(landedElsewhere && landedElsewhere.ok === true)) {
+    if (addedAbsent.ok === false && addedAbsent.paths && addedAbsent.paths.length)
+      return { ok: false, why: `${addedAbsent.why}; commit them, move them to a branch, or prove the content landed: --landed` };
+    if (addedAbsent.ok === false) return { ok: false, why: `cannot prove this branch's added paths landed: ${addedAbsent.why}` };
+  }
   /* ── A DATE IS NOT THE CONTENT QUESTION (row 2026-10-12-wt-done-tests-the-date-not-the-content) ──
      The scan above counts commits STAMPED after the merge, and that count refused four reclaimable
      trees of mine on 2026-10-12 — two of them over commits that change zero files (`cd5df27e`,
@@ -417,7 +428,10 @@ export function verdict({ prState, dirtyCount, isMain, inUse, unlanded, pushed, 
     return { ok: false, why: `IN USE by ${who} — removing it would destroy that run` };
   }
   const dated = unlanded && unlanded.count > 0 ? ` + ${unlanded.count} commit(s) dated after it, ${landedElsewhere.why}` : unlanded ? ' + every commit landed' : '';
-  return { ok: true, why: (inUse ? 'PR merged + tree clean + idle' : 'PR merged + tree clean') + dated };
+  /* NAMED ONLY WHEN MEASURED, so a caller that omits the scan keeps its older verdict text. A count
+     of 0 added paths is still a measurement and says so. */
+  const absent = addedAbsent && addedAbsent.ok === true ? ` + ${addedAbsent.checked} added path(s) present in the base` : '';
+  return { ok: true, why: (inUse ? 'PR merged + tree clean + idle' : 'PR merged + tree clean') + dated + absent };
 }
 
 /* A RETRIED BRANCH CARRIES ITS PREDECESSOR'S NAME AS A PREFIX, and that is what makes `--pr` PROOF
@@ -502,6 +516,75 @@ function unlandedFor(wtPath, mergedAt) {
   } catch {
     return { ok: false, why: 'rev-list failed' };
   }
+}
+
+/* THE FILE-LEVEL QUESTION THE DATE COUNT CANNOT ASK (row
+   2026-11-04-wt-done-removes-a-tree-over-a-commit-stamped-before-the-merge). `unlandedFor` counts
+   commits STAMPED after the merge, so a commit written minutes BEFORE the merge and never pushed
+   counts zero. The tree is then the only place its files exist, and the removal is the last copy.
+
+   THE NAIVE RULE IS UNUSABLE, AND THE MEASUREMENT IS WHY. Heron, 2026-11-04, over the 8 worktrees on
+   rig-x870 holding a MERGED PR: "a path the branch ADDED that is absent from the base" refused ALL 8,
+   and all 8 are false. Every one refuses over its own `changes/*.md` changeset, which a release
+   consumes and deletes. File-level absence alone cannot tell unlanded work from a release doing its
+   job, exactly as the content residual in the comment above cannot tell it from a moving base.
+
+   THE DISCRIMINATOR IS THE BASE'S OWN HISTORY. `git rev-list --count <base> -- <path>` reads 2 on each
+   of those 8 consumed changesets, which names the add and the delete. It read 0 for the never-pushed
+   `handoffs/` file of the row's measured case. So the arm is narrow: an added path, absent from the
+   base, whose base history holds NO commit at all. Over the 8 merged trees that is 0 refusals.
+
+   TWO LIMITS, both stated rather than hidden. The history test moves with the base, so a file rescued
+   by a later PR reads 1 afterwards and would pass — the rule is right at the moment of the removal,
+   never retroactively. And this is a FILE-level test: a path present in the base under different
+   content passes here, because content is `--landed`'s question and this one is absence. */
+/* `fetch` is an option rather than a fact of the function, so the suite can drive the real git
+   commands against a temp repository that has no origin. Every production caller keeps the fetch. */
+export function addedAbsentFor(wtPath, base = 'refs/remotes/origin/main', { fetch = true } = {}) {
+  if (fetch) {
+    try {
+      run('git', ['-C', wtPath, 'fetch', '-q', 'origin', 'main']);
+    } catch {
+      return { ok: false, why: `cannot reach ${base} — no base to test this branch's added paths against` };
+    }
+  }
+  let names;
+  try {
+    names = run('git', ['-C', wtPath, 'diff', '--diff-filter=A', '--name-only', `${base}...HEAD`]);
+  } catch (e) {
+    return { ok: false, why: `cannot list the paths this branch added (${String(e.message || e).split('\n')[0]})` };
+  }
+  const added = names
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean);
+  const absent = [];
+  for (const p of added) {
+    let inBase = true;
+    try {
+      run('git', ['-C', wtPath, 'cat-file', '-e', `${base}:${p}`]);
+    } catch {
+      inBase = false;
+    }
+    if (inBase) continue;
+    /* ABSENT NOW — so ask whether the base ever carried it. A non-finite count reads as "cannot
+       look", which keeps the path on the refusing side rather than guessing it landed. */
+    let everThere = null;
+    try {
+      everThere = Number(run('git', ['-C', wtPath, 'rev-list', '--count', base, '--', p]).trim());
+    } catch {
+      everThere = null;
+    }
+    if (everThere === null || !Number.isFinite(everThere) || everThere === 0) absent.push(p);
+  }
+  if (absent.length)
+    return {
+      ok: false,
+      checked: added.length,
+      paths: absent,
+      why: `${absent.length} path(s) this branch added are absent from ${base} and its history holds no commit for them — this tree is their only copy: ${absent.slice(0, 4).join(', ')}${absent.length > 4 ? ` (+${absent.length - 4} more)` : ''}`
+    };
+  return { ok: true, checked: added.length, paths: [] };
 }
 
 /* --pushed proof: every local commit of the worktree's branch is contained in origin/<branch>, read
@@ -837,6 +920,10 @@ function main(argv) {
       /* The same question the dashboard asks, from the same function, so the two cannot disagree. */
       declared: declaredConsumers(w.path),
       unlanded: pr.state === 'MERGED' ? unlandedFor(w.path, pr.mergedAt) : undefined,
+      /* MEASURED ON THE MERGED PATH, which is the whole repair: the date count reads 0 there and the
+         tool proceeded. One `diff --name-only` plus one `cat-file -e` per added path, so it costs a
+         fetch the MERGED path already pays for. */
+      addedAbsent: pr.state === 'MERGED' ? addedAbsentFor(w.path) : undefined,
       /* ONE computation, two roles: `landless` decides the empty case with no flag, `pushed` carries the
          opt-in containment case. Same function, so the two can never disagree about what it measured. */
       pushed: pushedFlag ? land : undefined,
@@ -982,6 +1069,57 @@ if (process.argv.includes('--selftest') && isCliEntry(import.meta.url)) {
   );
   assert(verdict({ prState: 'MERGED', dirtyCount: 0, isMain: false }).why === 'PR merged + tree clean', 'a caller that does NOT scan for unlanded commits keeps the old text byte-for-byte');
   assert(!verdict({ prState: 'MERGED', dirtyCount: 1, isMain: false, unlanded: { ok: true, count: 0 } }).ok, 'dirty still outranks a clean landed-scan');
+  /* ── A PATH THE BRANCH ADDED THAT THE BASE NEVER CARRIED (row
+     2026-11-04-wt-done-removes-a-tree-over-a-commit-stamped-before-the-merge) ────────────────────
+     The measured case: commit `333a89363` stamped 2026-11-04T08:41:20Z against a merge at
+     08:43:43Z, so the date count read 0 where `origin/main..HEAD` read 2, and the tree went. */
+  const ABSENT_ONE = {
+    ok: false,
+    checked: 3,
+    paths: ['handoffs/x.md'],
+    why: '1 path(s) this branch added are absent from refs/remotes/origin/main and its history holds no commit for them — this tree is their only copy: handoffs/x.md'
+  };
+  assert(
+    !verdict({ prState: 'MERGED', dirtyCount: 0, isMain: false, unlanded: { ok: true, count: 0 }, addedAbsent: ABSENT_ONE }).ok,
+    'THE DEFECT: a date count of 0 must not pass a tree holding the only copy of an added path'
+  );
+  assert(
+    /handoffs\/x\.md/.test(verdict({ prState: 'MERGED', dirtyCount: 0, isMain: false, unlanded: { ok: true, count: 0 }, addedAbsent: ABSENT_ONE }).why),
+    'the refusal NAMES the path, so the reader can go and look at it'
+  );
+  assert(
+    /--landed/.test(verdict({ prState: 'MERGED', dirtyCount: 0, isMain: false, unlanded: { ok: true, count: 0 }, addedAbsent: ABSENT_ONE }).why),
+    'the refusal names the hatch that answers it with content'
+  );
+  assert(
+    verdict({
+      prState: 'MERGED',
+      dirtyCount: 0,
+      isMain: false,
+      unlanded: { ok: true, count: 0 },
+      addedAbsent: ABSENT_ONE,
+      landedElsewhere: { ok: true, why: 'every identifier is on origin/main' }
+    }).ok,
+    '--landed OUTRANKS it: the identifier proof answers absence with content'
+  );
+  assert(
+    !verdict({ prState: 'MERGED', dirtyCount: 0, isMain: false, unlanded: { ok: true, count: 0 }, addedAbsent: { ok: false, why: 'cannot reach the base' } }).ok,
+    'an INCONCLUSIVE added-path scan must refuse — unknown is not landed'
+  );
+  assert(
+    verdict({ prState: 'MERGED', dirtyCount: 0, isMain: false, unlanded: { ok: true, count: 0 }, addedAbsent: { ok: true, checked: 2, paths: [] } }).why ===
+      'PR merged + tree clean + every commit landed + 2 added path(s) present in the base',
+    'a scanning caller says how many added paths it examined'
+  );
+  assert(
+    verdict({ prState: 'MERGED', dirtyCount: 0, isMain: false, unlanded: { ok: true, count: 0 }, addedAbsent: { ok: true, checked: 0, paths: [] } }).why ===
+      'PR merged + tree clean + every commit landed + 0 added path(s) present in the base',
+    'A BRANCH THAT ADDED NOTHING IS STILL A MEASUREMENT, never silence'
+  );
+  assert(
+    !verdict({ prState: 'MERGED', dirtyCount: 1, isMain: false, unlanded: { ok: true, count: 0 }, addedAbsent: { ok: true, checked: 2, paths: [] } }).ok,
+    'dirty still outranks a clean added-path scan'
+  );
   /* The caller's `landless` for a branch contained in a freshly fetched origin/main. */
   const EMPTY_LANDLESS = { ok: true, kind: 'empty', commitsAhead: 0, remoteRef: true };
   /* ── CONTAINMENT, the rung above both landed proofs (row
