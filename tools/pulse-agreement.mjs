@@ -55,6 +55,21 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { printVerdict, undeclaredVerdict, verdictSample } from './verdict-undeclared.mjs';
+import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
+/* ── THE VALIDITY SIDECAR RIDES WITH THE STREAM, AND THE STATE RIDES BACK ───────────────────────────
+   Row 2026-10-17-sample-parsers-called-without-their-sidecar: this tool read a night's samples and
+   none of the box's `…RUNS.txt` validity, so a blanking run the box recorded reached the detectors
+   below as signal — a flat rail is a plausible diastole, and no reader can tell it from one.
+   `readRunsSidecar` names which of four things happened per stream: §∅, reduced coverage annotates,
+   and an ABSENT sidecar is validity UNKNOWN for that stream, never a clean one. Most of this corpus
+   predates the writer, so most streams read `absent` and parse exactly as they did before.
+
+   A CHILD READS, THE PARENT REPORTS. One child per session means the tally lives in a process that
+   prints nothing, so each child hands its own tally back on the JSON line and the parent sums them.
+   Passing the sidecar is not reporting its absence, and a tally that dies with the child reports
+   nothing at all. A child that failed to parse states no validity, which is the honest count. */
+const VALIDITY = {};
+const runsOf = (streamPath, stream) => readRunsSidecar(streamPath, stream, { tally: VALIDITY }).runsText;
 
 const R = new URL('..', import.meta.url).pathname;
 const require = createRequire(import.meta.url);
@@ -147,10 +162,11 @@ if (argv.includes('--one')) {
   const out = { ppg: path.basename(ppgPath), ok: false, reason: null, epochs: [], t0Ms: null, durSec: null, vendor: [] };
   try {
     ctx.__t = readFileSync(ppgPath, 'utf8');
+    ctx.__rt = runsOf(ppgPath, 'PPG');
     const r = JSON.parse(
       vm.runInContext(
         `(function(){
-           var rec = PPGDSP.parsePPG(__t);
+           var rec = __rt ? PPGDSP.parsePPG(__t, { runsText: __rt }) : PPGDSP.parsePPG(__t);
            var a = PPGDSP.analyze(rec);
            return JSON.stringify({
              t0Ms: rec.t0Ms, durSec: rec.durSec, fs: rec.fs, site: rec.site,
@@ -161,6 +177,7 @@ if (argv.includes('--one')) {
       )
     );
     ctx.__t = null;
+    ctx.__rt = null;
     Object.assign(out, r, { ok: true });
   } catch (e) {
     out.reason = 'analyze failed: ' + String((e && e.message) || e).slice(0, 120);
@@ -189,6 +206,8 @@ if (argv.includes('--one')) {
      short fragments that survived. Dropping the `exit()` instead makes the child hang, because the
      vm realm keeps the loop alive — so write synchronously and exit deliberately.
      (Redirecting to a FILE hides the whole bug: file writes are already synchronous.) */
+  /* the one line this child prints is the only way its tally reaches a reader */
+  out.validity = VALIDITY;
   const buf = Buffer.from(JSON.stringify(out) + '\n');
   for (let off = 0; off < buf.length; ) off += writeSync(1, buf, off, buf.length - off);
   process.exit(0);
@@ -248,6 +267,7 @@ for (const st of stamps) {
       stdio: ['ignore', 'pipe', 'ignore']
     }).toString();
     rec = JSON.parse(line.trim().split('\n').pop());
+    for (const k of Object.keys((rec && rec.validity) || {})) VALIDITY[k] = (Number.isFinite(VALIDITY[k]) ? VALIDITY[k] : 0) + rec.validity[k];
   } catch (e) {
     if (process.env.PA_DEBUG) console.log('    FAIL ' + st + ': ' + String((e && e.message) || e).slice(0, 200));
     failed++;
@@ -276,6 +296,10 @@ for (const st of stamps) {
 
 console.log(`sessions: ${stamps.length} · no sibling CSV ${noCsv} · analyse failed ${failed} · no usable epoch ${noEpoch}`);
 console.log(`epochs dropped for thin vendor coverage (<${Math.round(MIN_COV * 100)}% of 300 s): ${thin}`);
+/* PASSING THE SIDECAR IS NOT REPORTING ITS ABSENCE (§∅). `null` over an empty tally, because four
+   zeros read exactly like a sweep where every sidecar was there. */
+const validity = validityLine(VALIDITY);
+if (validity) console.log(validity);
 console.log(`\n${perSession.length} session(s) contributed ${pairs.length} paired epoch(s):`);
 for (const s of perSession) console.log(`  ${s.night}  ${s.stamp}  ${String(s.epochs).padStart(3)} epoch(s)  ${String(s.sizeMB).padStart(6)} MB`);
 

@@ -1530,7 +1530,9 @@ function buildUnits(files) {
   const parsed = [];
   for (const f of files) {
     try {
-      const rec = P.parsePPG(readFileSync(f.p, 'utf8'));
+      const txt = readFileSync(f.p, 'utf8');
+      const runsText = runsOf(f.p, 'PPG');
+      const rec = runsText ? P.parsePPG(txt, { runsText }) : P.parsePPG(txt);
       if (rec.t0Ms == null) continue;
       const res = P.analyze(rec);
       if (!res || !res.beatTimes) continue;
@@ -1597,7 +1599,9 @@ function buildEcgNights(files) {
   const parsed = [];
   for (const e of files) {
     try {
-      const er = E.parseECG(readFileSync(e.p, 'utf8'));
+      const eTxt = readFileSync(e.p, 'utf8');
+      const runsText = runsOf(e.p, 'ECG');
+      const er = runsText ? E.parseECG(eTxt, { runsText }) : E.parseECG(eTxt);
       if (er.t0Ms == null) continue;
       const eres = E.analyze(er);
       if (!eres || !eres.peaks) continue;
@@ -2174,6 +2178,10 @@ function printPopulation() {
     console.log(
       `  ∅ ${sleepUndecided.length} night(s) the sleep test could not decide, by name: ${sleepUndecided.slice(0, 8).join(' · ')}${sleepUndecided.length > 8 ? ` · … (+${sleepUndecided.length - 8})` : ''}`
     );
+  /* PASSING THE SIDECAR IS NOT REPORTING ITS ABSENCE (§∅). `null` over an empty tally, because four
+     zeros read exactly like a sweep where every sidecar was there. */
+  const validity = validityLine(VALIDITY);
+  if (validity) console.log('  ' + validity);
 }
 
 /* 🔴 A RUN THAT SCORED NOTHING STILL OWES ITS POPULATION. The early exit below used to be the only

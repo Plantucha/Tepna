@@ -46,6 +46,18 @@ import { createRequire } from 'node:module';
 import vm from 'node:vm';
 import { isCliEntry, positionalArgs, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 import { notCovered, populationVerdict, snapshotEntries } from './corpus-scope-core.mjs';
+import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
+/* ── THE VALIDITY SIDECAR RIDES WITH THE STREAM ─────────────────────────────────────────────────────
+   Row 2026-10-17-sample-parsers-called-without-their-sidecar: this tool read a night's samples and
+   none of the box's `…RUNS.txt` validity, so a blanking run the box recorded reached the detectors
+   below as signal — a flat rail is a plausible diastole, and no reader can tell it from one.
+   `readRunsSidecar` names which of four things happened per stream, and the tally prints beside the
+   numbers: §∅, reduced coverage annotates, and an ABSENT sidecar is validity UNKNOWN for that
+   stream, never a clean one. Most of this corpus predates the writer, so most streams read `absent`
+   and parse exactly as they did before. The synthetic twin below passes none, because no box wrote
+   a sidecar beside text this file generated. */
+const VALIDITY = {};
+const runsOf = (streamPath, stream) => readRunsSidecar(streamPath, stream, { tally: VALIDITY }).runsText;
 
 /* ONE spec, read twice: the guard refuses an undeclared flag with it, and `positionalArgs`
    skips each valued flag's VALUE with it, so a flag written before the positional cannot be
@@ -169,8 +181,8 @@ function realm() {
 }
 
 /* One file → the two counters, from the SHIPPED analyze(). */
-function scanText(PD, text) {
-  const rec = PD.parsePPG(text);
+function scanText(PD, text, runsText) {
+  const rec = runsText ? PD.parsePPG(text, { runsText }) : PD.parsePPG(text);
   if (!rec || !rec.n) return null;
   const r = PD.analyze(rec, null);
   return {
@@ -350,7 +362,7 @@ const scoredOk = new Set();
 for (const p of files) {
   let s = null;
   try {
-    s = scanText(PD, readFileSync(p, 'utf8'));
+    s = scanText(PD, readFileSync(p, 'utf8'), runsOf(p, 'PPG'));
   } catch (e) {
     console.error('  ERR ' + basename(p) + ' — ' + ((e && e.message) || e));
     dropped.push({ file: basename(p), why: 'read failed: ' + ((e && e.message) || e) });
@@ -426,3 +438,7 @@ console.log('\n  files scanned                          : ' + summary.filesScann
 console.log('  files where gapBeats DROPPED a beat    : ' + summary.filesWhereGapBeatsDropped + '   ← §4 is exercised on each of these');
 console.log('  total beats dropped                    : ' + summary.totalBeatsDropped + ' (max ' + summary.maxDroppedInOneFile + ' in one file)');
 console.log('  files where nGapSpanIntervals ≠ 0      : ' + summary.filesWhereNGapSpanIntervalsNonZero + '   (§2’s counter — not §4’s trigger)');
+/* PASSING THE SIDECAR IS NOT REPORTING ITS ABSENCE (§∅). `null` over an empty tally, because four
+   zeros read exactly like a sweep where every sidecar was there. */
+const validity = validityLine(VALIDITY);
+if (validity) console.log('  ' + validity);

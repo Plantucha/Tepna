@@ -45,6 +45,17 @@ import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import vm from 'node:vm';
 import { isCliEntry } from './argv-guard.mjs';
+import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
+/* ── THE VALIDITY SIDECAR RIDES WITH THE STREAM ─────────────────────────────────────────────────────
+   Row 2026-10-17-sample-parsers-called-without-their-sidecar: this tool read a night's samples and
+   none of the box's `…RUNS.txt` validity, so a blanking run the box recorded reached the detectors
+   below as signal — a flat rail is a plausible diastole, and no reader can tell it from one.
+   `readRunsSidecar` names which of four things happened per stream, and the tally prints beside the
+   numbers: §∅, reduced coverage annotates, and an ABSENT sidecar is validity UNKNOWN for that
+   stream, never a clean one. Most of this corpus predates the writer, so most streams read `absent`
+   and parse exactly as they did before. */
+const VALIDITY = {};
+const runsOf = (streamPath, stream) => readRunsSidecar(streamPath, stream, { tally: VALIDITY }).runsText;
 
 const require = createRequire(import.meta.url);
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -237,9 +248,15 @@ if (IS_CLI) {
   for (const f of ['clock.js', 'kernel-constants.js', 'metric-registry.js', 'ppgdex-dsp.js']) vm.runInContext(DexBuild.classicify(readFileSync(join(ROOT, f), 'utf8')), ctx, { filename: f });
   const P = ctx.PPGDSP;
 
-  const rec = P.parsePPG(readFileSync(ppgPath, 'utf8'));
+  const ppgText = readFileSync(ppgPath, 'utf8');
+  const ppgRuns = runsOf(ppgPath, 'PPG');
+  const rec = ppgRuns ? P.parsePPG(ppgText, { runsText: ppgRuns }) : P.parsePPG(ppgText);
   const fs = rec.fs;
   console.log(`PPG ${rec.ch.length} channels · fs=${fs.toFixed(2)} Hz · ${rec.ch[0].length} samples`);
+  /* PASSING THE SIDECAR IS NOT REPORTING ITS ABSENCE (§∅). One stream, so the tally prints beside
+     the stream's own line. */
+  const validity = validityLine(VALIDITY);
+  if (validity) console.log(validity);
 
   const q = (a, p) => {
     const s = [...a].sort((x, y) => x - y);
