@@ -19,8 +19,23 @@
  * refuses the night when the implied rate leaves ±50000 ppm. On 2026-11-01 one recorded clock seam
  * put the implied rate at -999914 ppm and the shipped path refused 5 h 49 min of clean ECG whole.
  * The floor is immune to that: a minimum per window ignores every late packet, and keying the line
- * by `conn_handle` makes a reconnect a NEW line rather than a step inside one. §🔒.7's rule — one
- * device clock per axis, anchors at or after the last resync — falls out of the key.
+ * by the device's STAMPED link establishment makes a reconnect a NEW line rather than a step inside
+ * one. §🔒.7's rule — one device clock per axis, anchors at or after the last resync — falls out
+ * of the key.
+ *
+ * WHY NOT `conn_handle`, WHICH EVERY NIGHT ALREADY CARRIES. It does not mark the seam. #4378
+ * measured 26099 anchor intervals over this archive: of the 484 that pass its gap bound, 25615 sit
+ * on a row whose handle never changed, and the two ring files each hold one multi-hour gap and ZERO
+ * handle changes. This file's own header claimed that key made a reconnect a new line until
+ * 2026-11-05. The key now carries the stamped `anchor_epoch` instead.
+ *
+ * AND WHERE NO HEADER NAMES THAT COLUMN, THE ABSENCE TRAVELS RATHER THAN BECOMING A REFUSAL. Ten of
+ * the 14 archived sidecars predate the column (#4272, 2026-11-02), so an establishment inside one of
+ * their runs is invisible to every reader. `radio-clock.js` settled the policy on this same corpus:
+ * `seams.marked:false` rides beside the gap count on every answer, because a nine-column row cannot
+ * tell a re-established link from a quiet one and §∅ forbids generalising that doubt into a refusal.
+ * A HOLE still refuses here, on its own ground: an empty window is unobserved TIME, and a fit across
+ * one divides an observed delay change by time nobody measured.
  *
  * WHAT IT DECIDES, AND WHAT IT REFUSES TO DECIDE. The floor gives each device a rate and an
  * intercept. The decisive question is whether the floor and the BEATS agree about how much the
@@ -76,6 +91,10 @@ const DISAGREE_MAX_MS = 90;
 const MIN_PAIRS = 4;
 /* The numeric PMD stream ids the capture host writes. 2 (acc) and 3 (ppi) are read and ignored. */
 const MEAS_ROLE = { 0: 'ecg', 1: 'ppg' };
+/* THE SEAM COLUMN IS ONE NAME FOR TWO READERS. `radio-clock.js` declares `RC_SEAM_COLUMN` for the
+   node side. A selftest leg below reads that file and refuses when the two names drift apart, so one
+   name is MEASURED across the pair rather than stated twice and trusted. */
+const SEAM_COLUMN = 'anchor_epoch';
 
 /* THE FLAG NAME IS A LITERAL AT THE CALL SITE, never composed here. A `indexOf('--' + n)` read is
    undecidable for the usage-line scan (`tests/dex-tests.js`, "a documented flag is read by the tool
@@ -166,7 +185,12 @@ export function makeFolder() {
      whose stamps never stepped. The skew's MOVEMENT is exact, and the count of rows that moved
      separates a zone change (half the stream) from a garbage row (a handful). */
   const civil = { backSteps: 0, prevSod: null, skew0: null, moved: 0, extreme: 0, pairs: 0 };
+  /* `stamped` IS THREE-VALUED AND THE THIRD VALUE IS THE POINT: it stays `null` until a header line
+     arrives, so a headerless sidecar reports that nothing was read rather than reporting no column.
+     One archived sidecar is 0 bytes, and `false` there would be a measurement nobody took. */
   let ix = null,
+    stamped = null,
+    seamBlank = 0,
     aclLo = null,
     aclHi = null,
     rows = 0,
@@ -181,6 +205,7 @@ export function makeFolder() {
           .forEach((k, i) => {
             ix[k] = i;
           });
+        stamped = SEAM_COLUMN in ix;
         return;
       }
       rows++;
@@ -218,10 +243,16 @@ export function makeFolder() {
       const w = Math.floor(x / WIN_S);
       const dev = p[ix.device],
         conn = p[ix.conn_handle];
-      const key = dev + '\u0000' + conn + '\u0000' + role;
+      /* §∅ — a blank cell is ABSENT, never 0: the collector counts a device's establishments from 1.
+         A blank keys its own segment, so no fit joins rows whose establishment nobody recorded to
+         rows where one was, and the blanks are counted rather than folded away. */
+      const rawSeg = stamped ? p[ix[SEAM_COLUMN]] : undefined;
+      const seg = rawSeg === undefined || rawSeg === '' ? '' : rawSeg;
+      if (stamped && seg === '') seamBlank++;
+      const key = dev + '\u0000' + conn + '\u0000' + role + '\u0000' + seg;
       let rec = keys.get(key);
       if (!rec) {
-        rec = { role, dev, conn, wins: new Map() };
+        rec = { role, dev, conn, seg: stamped ? seg : null, wins: new Map() };
         keys.set(key, rec);
       }
       const had = rec.wins.get(w);
@@ -233,6 +264,7 @@ export function makeFolder() {
         keys,
         rows,
         used,
+        seams: { marked: stamped, blankRows: seamBlank },
         aclSpanH: aclLo === null ? null : (aclHi - aclLo) / 3600,
         civilPairs: civil.pairs,
         civilSkewMoved: civil.moved,
@@ -473,6 +505,34 @@ export function verdictSample() {
 /* ── THE CORPUS WALK ─────────────────────────────────────────────────────────────────────────────
    A night directory holds one sidecar per device. Device ordinals are assigned by first appearance
    so the report can name two devices apart without printing either address. */
+/* ── THE MARKER'S PRESENCE RIDES ON EVERY ANSWER ────────────────────────────────────────
+   Three file states, never two: a header that names the column, a header without it, and a file
+   whose header never arrived. `marked` is decided over the files that SHOWED a header — true when
+   every one named the column, false when none did, `null` when a night holds both kinds or showed no
+   header at all. A mixed night cannot place a nine-column row inside a stamped segment, so it gets
+   no single answer. `keysSplitBySeam` counts the keys the stamp cut that `conn_handle` alone carried
+   as one line, which is the whole value of the column over this corpus. */
+export function seamSummary(perFile, keys) {
+  const marks = (perFile || []).map((f) => (f && f.seams ? f.seams.marked : null));
+  const filesStamped = marks.filter((m) => m === true).length;
+  const filesUnstamped = marks.filter((m) => m === false).length;
+  const filesHeaderless = marks.filter((m) => m !== true && m !== false).length;
+  const byHandle = new Map();
+  for (const rec of (keys || new Map()).values()) {
+    const g = rec.dev + '\u0000' + rec.conn + '\u0000' + rec.role;
+    if (!byHandle.has(g)) byHandle.set(g, new Set());
+    if (rec.seg !== null && rec.seg !== undefined && rec.seg !== '') byHandle.get(g).add(rec.seg);
+  }
+  return {
+    marked: filesStamped > 0 && filesUnstamped === 0 ? true : filesUnstamped > 0 && filesStamped === 0 ? false : null,
+    filesStamped,
+    filesUnstamped,
+    filesHeaderless,
+    blankRows: (perFile || []).reduce((a, f) => a + ((f && f.seams && f.seams.blankRows) || 0), 0),
+    keysSplitBySeam: [...byHandle.values()].filter((v) => v.size > 1).length
+  };
+}
+
 export function nightReport(dir) {
   const files = readdirSync(dir)
     .filter((f) => f.includes('RADIOCLOCK'))
@@ -513,6 +573,9 @@ export function nightReport(dir) {
     if (!ord.has(rec.dev)) ord.set(rec.dev, ord.size + 1);
     for (const ln of floorLines(rec)) {
       ln.device = `dev#${ord.get(rec.dev)}`;
+      /* The segment travels with the rate, so a reader never quotes one without the establishment it
+         sits inside — `null` where no header named the column. */
+      ln.seam = rec.seg === undefined ? null : rec.seg;
       (ln.ok ? lines : refusals).push(ln);
     }
   }
@@ -538,7 +601,8 @@ export function nightReport(dir) {
     skewExtremeS: perFile.reduce((a, f) => (Math.abs(f.civilSkewExtremeS) > Math.abs(a) ? f.civilSkewExtremeS : a), 0),
     civilBackSteps: perFile.reduce((a, f) => a + f.civilBackSteps, 0)
   };
-  return { files: read, rows, used, clock, lines, refusals, segments, segRefusals };
+  const seams = seamSummary(perFile, keys);
+  return { files: read, rows, used, clock, seams, lines, refusals, segments, segRefusals };
 }
 
 /* ── THE BEAT SIDE ───────────────────────────────────────────────────────────────────────────────
@@ -732,6 +796,52 @@ export function selftest() {
   ok(vm.population.checked + vm.population.excluded === vm.population.eligible, 'checked + excluded = eligible');
   ok(vm.population.excluded === 2, `the two pairs touching the beat-less night are excluded (got ${vm.population.excluded})`);
 
+  /* 12 — THE SEAM MARKER IS READ, PUBLISHED, AND NEVER GUESSED. The archived corpus splits three
+     ways, so the folder answers three ways. */
+  const head11 = head + ';device_clock;' + SEAM_COLUMN;
+  const row11 = (hhmmss, conn, meas, delayMs, ep) => `${row(hhmmss, conn, meas, delayMs)};1000000;${ep}`;
+  ok(floorWindows([head, row('22:00:00', 64, 0, 40)]).seams.marked === false, 'a nine-column header reads marked:false');
+  ok(floorWindows([head11, row11('22:00:00', 64, 0, 40, 1)]).seams.marked === true, 'an eleven-column header reads marked:true');
+  /* 12b — a file whose header never arrived reports that NOTHING was read (§∅), which is a different
+     answer from a header that named no column. One archived sidecar is 0 bytes. */
+  ok(floorWindows([]).seams.marked === null, 'a file with no header line reads marked:null, never false');
+  /* 12c — THE CASE THE COLUMN EXISTS FOR: an establishment inside ONE conn_handle. A handle-keyed
+     reader carries those rows as one line, and #4378 measured 25615 of 26099 over-bound anchor
+     intervals on a row whose handle never changed. */
+  const sp = floorWindows([head11, row11('22:00:00', 64, 0, 40, 1), row11('22:10:00', 64, 0, 20, 2)]);
+  ok(sp.keys.size === 2, `a stamped establishment inside one handle gives two lines (got ${sp.keys.size})`);
+  /* 12d — CONTROL: the same two rows under ONE epoch stay one line, so 12c cannot pass on a stub
+     that splits every row. */
+  const tg = floorWindows([head11, row11('22:00:00', 64, 0, 40, 1), row11('22:10:00', 64, 0, 20, 1)]);
+  ok(tg.keys.size === 1, `one establishment over two rows stays one line (got ${tg.keys.size})`);
+  /* 12e — a blank cell is ABSENT, never 0: it keys its own segment and is counted. */
+  const bl = floorWindows([head11, row11('22:00:00', 64, 0, 40, 1), row11('22:10:00', 64, 0, 20, '')]);
+  ok(bl.keys.size === 2 && bl.seams.blankRows === 1, `a blank seam cell keys apart and is counted (got ${bl.seams.blankRows})`);
+  /* 12f — ONE NAME FOR TWO READERS. `radio-clock.js` carries the node side's own constant, so this
+     leg reads that file rather than restating the name a second time and trusting the pair. */
+  const rcName = /RC_SEAM_COLUMN\s*=\s*'([^']+)'/.exec(readFileSync(join(ROOT, 'radio-clock.js'), 'utf8'));
+  ok(rcName !== null, 'radio-clock.js declares RC_SEAM_COLUMN');
+  ok(rcName[1] === SEAM_COLUMN, `both readers name one seam column (node ${rcName[1]}, here ${SEAM_COLUMN})`);
+  /* 12g — the night summary decides over the files that SHOWED a header, and a mixed night calls it
+     neither way. The key count is the stamp's own yield over the handle key. */
+  const mk = (m) => ({ seams: { marked: m, blankRows: 0 } });
+  const two = new Map([
+    ['a', { dev: 'AA', conn: '64', role: 'ecg', seg: '1' }],
+    ['b', { dev: 'AA', conn: '64', role: 'ecg', seg: '2' }]
+  ]);
+  const s1 = seamSummary([mk(true), mk(null)], two);
+  ok(s1.marked === true && s1.filesHeaderless === 1, 'a headerless file beside a stamped one leaves the night stamped and counts itself');
+  ok(s1.keysSplitBySeam === 1, `the stamp split one key the handle carried whole (got ${s1.keysSplitBySeam})`);
+  ok(seamSummary([mk(true), mk(false)], new Map()).marked === null, 'a night holding both header shapes reads null, never true');
+  /* An unstamped night's keys carry `seg: null`, which is the shape the fold gives them, so nothing
+     there can read as split — the count is 0 BECAUSE nobody looked, and `marked:false` says so. */
+  const nul = new Map([
+    ['a', { dev: 'AA', conn: '64', role: 'ecg', seg: null }],
+    ['b', { dev: 'AA', conn: '65', role: 'ecg', seg: null }]
+  ]);
+  const s3 = seamSummary([mk(false)], nul);
+  ok(s3.marked === false && s3.keysSplitBySeam === 0, `an unstamped night reads false and splits no key (got ${s3.keysSplitBySeam})`);
+
   console.log(`all ${n} selftests passed`);
   return n;
 }
@@ -774,6 +884,19 @@ if (IS_CLI && process.argv.includes('--selftest')) {
   } else {
     for (const r of rows) {
       console.log(`\n${r.night} — ${r.files} sidecar(s), ${r.rows} rows, ${r.used} folded`);
+      /* THE MARKER PRINTS BEFORE THE RATES, because a rate read without it is a rate whose seam
+         guard the reader cannot name. */
+      const sm = r.seams;
+      const mark =
+        sm.marked === true
+          ? 'stamped'
+          : sm.marked === false
+            ? 'ABSENT — no header names ' + SEAM_COLUMN + ', so an establishment inside a run is invisible here'
+            : 'UNDECIDED — this night holds stamped and unstamped headers together';
+      console.log(
+        `  seam marker: ${mark} · stamped ${sm.filesStamped} file(s), unstamped ${sm.filesUnstamped}, headerless ${sm.filesHeaderless},` +
+          ` blank cell(s) ${sm.blankRows} row(s), keys the stamp split ${sm.keysSplitBySeam}`
+      );
       const c = r.clock;
       const share = c.civilPairs ? (100 * c.skewMoved) / c.civilPairs : 0;
       console.log(
@@ -784,7 +907,7 @@ if (IS_CLI && process.argv.includes('--selftest')) {
          part of the key wherever `holes` reads above 0. */
       for (const l of r.lines)
         console.log(
-          `  ${l.device} ${l.role} conn=${l.conn} windows=${l.windows} rate=${l.rateMsPerH.toFixed(2)} ms/h MAD=${l.madMs.toFixed(2)} ms span=${l.spanH.toFixed(2)} h` +
+          `  ${l.device} ${l.role} conn=${l.conn} seam=${l.seam === null ? 'absent' : l.seam} windows=${l.windows} rate=${l.rateMsPerH.toFixed(2)} ms/h MAD=${l.madMs.toFixed(2)} ms span=${l.spanH.toFixed(2)} h` +
             ` run=${l.run}/${l.runs} holes=${l.holes}` +
             (l.holes > 0 ? ` dropped=${l.droppedWindows} window(s), largest hole ${l.maxHoleMin.toFixed(0)} min` : '')
         );
