@@ -80,6 +80,17 @@ import { fileURLToPath } from 'node:url';
 import { coincidenceLag, firmwareHostTimes, pairByTime } from './oracle-ecg-firmware-rr.mjs';
 import { isCliEntry } from './argv-guard.mjs';
 import { intersectSnapshots, populationVerdict, snapshotNights } from './corpus-scope-core.mjs';
+import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
+/* ── THE VALIDITY SIDECAR RIDES WITH THE STREAM ─────────────────────────────────────────────────────
+   Row 2026-10-17-sample-parsers-called-without-their-sidecar: this tool read a night's samples and
+   none of the box's `…RUNS.txt` validity, so a blanking run the box recorded reached the reference legs below as signal —
+   a flat rail is a plausible diastole, and no reader could tell it from one. `readRunsSidecar` names
+   which of four things happened per stream, and the tally prints beside the numbers: §∅, an ABSENT
+   sidecar is validity UNKNOWN for that stream, never a clean one. Most of this corpus predates the
+   writer, so most streams read `absent` and parse exactly as they did before. */
+const VALIDITY = {};
+const runsOf = (streamPath, stream) => readRunsSidecar(streamPath, stream, { tally: VALIDITY }).runsText;
+
 import { printVerdict } from './verdict-emit.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -949,8 +960,9 @@ export function scoreNightDir(ctx, dir) {
   if (missing.length) return { night, axis, referenceAxis: refAxis, ok: false, reason: 'missing ' + missing.join(', ') };
   try {
     const ecgTxt = fs.readFileSync(f.ecg, 'utf8');
+    const ecgRuns = runsOf(f.ecg, 'ECG');
     tag('reference·h10');
-    const rec = E.parseECG(ecgTxt),
+    const rec = ecgRuns ? E.parseECG(ecgTxt, { runsText: ecgRuns }) : E.parseECG(ecgTxt),
       dev = E.parseDeviceRR(fs.readFileSync(f.rr, 'utf8')),
       r = E.analyze(rec, null);
     const ref = referenceBeatTimes(rec, r, refAxis);
@@ -1139,6 +1151,8 @@ async function main(argv) {
         `  ${k.padEnd(7)} true σ ${f(M.trueSd)} · classic hat ${f(M.classic)} · correlated (LOO ρ) ${f(M.correlated)} · bias ${f(M.bias)} bpm${k === 'h10' ? '   (reported, not judged)' : ''}`
       );
     }
+    const validity = validityLine(VALIDITY);
+    if (validity) console.log(`  ${validity}`);
     console.log(`  ρ of errors vs reference: HV ${f(P.medians.rho.hv)} · HO ${f(P.medians.rho.ho)} · VO ${f(P.medians.rho.vo)}`);
     console.log(
       `  classic ${P.classic.pass}/${P.classic.total} · correlated ${P.correlated.pass}/${P.correlated.total} (refused ${P.correlated.refused}) within ±${BAND_ABS} bpm or ±${BAND_REL * 100} %`

@@ -16,6 +16,17 @@ import { homedir } from 'node:os';
 import { gitShort } from './verdict-emit.mjs';
 import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 import { populationVerdict, ruleLine, snapshotEntries } from './corpus-scope-core.mjs';
+import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
+/* ── THE VALIDITY SIDECAR RIDES WITH THE STREAM ─────────────────────────────────────────────────────
+   Row 2026-10-17-sample-parsers-called-without-their-sidecar: this tool read a night's samples and
+   none of the box's `…RUNS.txt` validity, so a blanking run the box recorded reached the batch comparison below as signal —
+   a flat rail is a plausible diastole, and no reader could tell it from one. `readRunsSidecar` names
+   which of four things happened per stream, and the tally prints beside the numbers: §∅, an ABSENT
+   sidecar is validity UNKNOWN for that stream, never a clean one. Most of this corpus predates the
+   writer, so most streams read `absent` and parse exactly as they did before. */
+const VALIDITY = {};
+const runsOf = (streamPath, stream) => readRunsSidecar(streamPath, stream, { tally: VALIDITY }).runsText;
+
 const Verdict = createRequire(import.meta.url)('../verdict.js');
 
 /* ROOT is derived from THIS FILE's location, never hardcoded. Both O2Ring finger tools shipped with an
@@ -68,7 +79,9 @@ const overlapSec = (a, b) => {
 };
 
 function beatsFromPPG(path) {
-  const rec = P.parsePPG(readFileSync(path, 'utf8'));
+  const runsText = runsOf(path, 'PPG');
+  const text = readFileSync(path, 'utf8');
+  const rec = runsText ? P.parsePPG(text, { runsText }) : P.parsePPG(text);
   const res = P.analyze(rec);
   const out = [];
   const feet = res.footSec || [];
@@ -79,7 +92,9 @@ function beatsFromPPG(path) {
   return { out, res, rec };
 }
 function beatsFromECG(path) {
-  const rec = E.parseECG(readFileSync(path, 'utf8'));
+  const runsText = runsOf(path, 'ECG');
+  const text = readFileSync(path, 'utf8');
+  const rec = runsText ? E.parseECG(text, { runsText }) : E.parseECG(text);
   const res = E.analyze(rec);
   const out = [];
   const pk = res.peaks || [];
@@ -332,6 +347,8 @@ for (const { dir: d, snap } of walkable) {
   const population = populationVerdict(snap, snapshotEntries(d, POP), { tool: 'tools/o2ring-finger-validate-batch.mjs', evidence: ['tools/o2ring-finger-validate-batch.mjs'] });
   const rule = ruleLine(population);
   if (rule) console.log(`  ${rule}`);
+  const validity = validityLine(VALIDITY);
+  if (validity) console.log(`  ${validity}`);
   console.log(`POPULATION ${JSON.stringify(population)}`);
 }
 

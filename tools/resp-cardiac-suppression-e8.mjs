@@ -49,7 +49,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join, relative } from 'node:path';
 import { median, quantile } from './ppi-match.mjs';
 import { capByNights, gitCommitOf, headNightKeyWith, notCovered, populationVerdict, ruleLine, snapshotEntries } from './corpus-scope-core.mjs';
-import { readRunsSidecar } from './trio-fold-validity.mjs';
+import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const argv = process.argv.slice(2);
@@ -272,6 +272,14 @@ const all = walk(DIR);
    row with no stamp, is a night UNKNOWN (§∅): the cap offers it after every dated night and the line
    below names how many there were. The probe's sidecar read is untallied, because this run's numbers
    describe the sessions it SCORED. */
+/* §∅: the RUNS sidecar beside each stream carries the validity the samples cannot — a resting ACC
+   axis and an ECG baseline both sit at `0` legally. An absent sidecar is validity UNKNOWN for that
+   stream, never a clean one, so the SCORED sessions' reads run through one tallying helper and the
+   tally prints beside the dB figures. The probe read above stays untallied on purpose: this run's
+   numbers describe the sessions it scored. */
+const VALIDITY = {};
+const runsOf = (streamPath, stream) => readRunsSidecar(streamPath, stream, { tally: VALIDITY }).runsText;
+
 const headNightKey = headNightKeyWith({
   parse: (t, o) => {
     const rt = o && o.runsText;
@@ -296,7 +304,9 @@ const rows = [];
 for (const f of accs) {
   let rowsXYZ;
   try {
-    rowsXYZ = M.parseSensorXYZ(readFileSync(f.p, 'utf8'));
+    const accRuns = runsOf(f.p, 'ACC');
+    const accText = readFileSync(f.p, 'utf8');
+    rowsXYZ = accRuns ? M.parseSensorXYZ(accText, { runsText: accRuns }) : M.parseSensorXYZ(accText);
   } catch (_e) {
     continue;
   }
@@ -309,7 +319,9 @@ for (const f of accs) {
   const ecgPath = f.p.replace(/_ACC\.txt$/i, '_ECG.txt');
   let fHR = null;
   try {
-    const er = E.parseECG(readFileSync(ecgPath, 'utf8'));
+    const ecgRuns = runsOf(ecgPath, 'ECG');
+    const ecgText = readFileSync(ecgPath, 'utf8');
+    const er = ecgRuns ? E.parseECG(ecgText, { runsText: ecgRuns }) : E.parseECG(ecgText);
     const eres = E.analyze(er);
     if (eres && eres.peaks && eres.peaks.length > 100) {
       const rr = [];
@@ -417,5 +429,7 @@ console.log(`\n  WORST post-filter cardiac ratio on any night: ${worst.toFixed(1
 console.log('  A notch can only recover what survives the filter already applied. Read that number');
 console.log('  against the respiratory peak it would have to compete with — the estimator picks the');
 console.log('  LARGEST peak in 0.13-0.5 Hz, so a component this far down cannot move the pick.');
+const validity = validityLine(VALIDITY);
+if (validity) console.log('  ' + validity);
 
 printPopulation();
