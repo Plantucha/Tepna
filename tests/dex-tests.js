@@ -3325,6 +3325,112 @@
       );
     });
 
+    /* ════ THE SAME DISCIPLINE AT ECGDex, AND AT THE SHARED TIMING BLOCK ════════════════════════
+       Row `2026-11-03-the-shared-timing-block-quotes-a-rate-over-a-drawn-axis`, ECGDex's half.
+       PpgDex (#4306) and MotionDex (#4308) withhold the rate over a drawn column in their own
+       publication views. ECGDex is the node that SPENDS `ppm` — it divides `fs` by it — so it
+       published the quote last, and `dex-export.js timingBlock` re-published it a second time from
+       the same object: `recording.timing.ppm` carried a crystal figure beside a `reason` whose own
+       words say the device column is not a clock.
+       WHY THE REMEDY IS NOT IN THE SHARED BUILDER. `clock.js:623-640` records the attempt: gating on
+       `deviceDrawn` in the spine "was tried and reverted", because a synthetic fixture legitimately
+       builds a uniform device axis and is indistinguishable from a fabricated one. It red 11
+       assertions, this node's planted-drift recovery among them. So the node disciplines the object
+       it hands over, and `timing` inherits that with no spine edit — which the timing legs below
+       assert, because an export that nulls one block and quotes the other is the defect unmoved.
+       THE POPULATION IS LATENT AND SAID SO: on 25 real H10 ECG captures across 25 dates `drawnShare`
+       reads 0.0038-0.0677 with `deviceDrawn` false on every one, so no committed ECG export moves.
+       The axis that IS drawn is an O2Ring counter or a Verity PPI stream reaching this parser.
+       ALL THREE STATES, because a tri-state collapsed to a boolean reads UNMEASURED as "it is a
+       clock" — the §∅ conflation this whole row is about. */
+    group('ECGDex hostAxis — a rate over a drawn device column is an absence, in both published blocks', 'ecgdex-dsp · node-export · hostaxis-drawn-rate', function (T) {
+      var C = env.DexClock;
+      var E = env.ECGDSP || env.EcgDsp;
+      if (!C || typeof C.hostAxis !== 'function' || !E || typeof E.buildNodeExport !== 'function') {
+        T.skip('DexClock.hostAxis + ECGDSP.buildNodeExport available', 'not loaded');
+        return;
+      }
+      // MINSTD, exact in a double — deterministic jitter, never Math.random in a gate.
+      var sd = 90210;
+      var rnd = function () {
+        sd = (sd * 16807) % 2147483647;
+        return sd / 2147483647 - 0.5;
+      };
+      var REC = function (ax) {
+        return { hostAxis: ax, nn: [], tt: [], epochs: [], events: [], fs: 130, n: 400, durSec: 400, t0Ms: Date.UTC(2026, 10, 1) };
+      };
+      var haOf = function (ex) {
+        return (ex && ex.recording && ex.recording.hostAxis) || null;
+      };
+      var tmOf = function (ex) {
+        return (ex && ex.recording && ex.recording.timing) || null;
+      };
+
+      /* THE DRAWN AXIS. 400 anchors 10 s apart on a PERFECTLY uniform device column — every delta
+         shares one value, which is what the spine reads as drawn — under a host column jittered by
+         ±40 ms, so the host IS a second clock and the span clears the 2400 s floor. */
+      var anD = [];
+      for (var i = 0; i < 400; i++) anD.push({ devMs: i * 10000, hostMs: i * 10000 * (1 + 30e-6) + 40 * rnd() });
+      var axD = C.hostAxis(anD, {});
+      T.eq('ANTI-VACUITY · the spine built an axis to publish', axD.ok, true);
+      T.eq('ANTI-VACUITY · …and read the device column as DRAWN', axD.deviceDrawn, true);
+      T.ok('ANTI-VACUITY · …and measured a finite rate over it, so the null below withholds something', typeof axD.ppm === 'number' && isFinite(axD.ppm), 'ppm = ' + axD.ppm);
+      T.ok('ANTI-VACUITY · …over an INDEPENDENT host column, so this is the drawn case alone', axD.independent === true, 'spreadMs = ' + axD.spreadMs);
+
+      var exD = E.buildNodeExport(REC(axD), {});
+      var haD = haOf(exD);
+      T.ok('the drawn export carries the hand-rolled block at all', !!haD, 'recording keys: ' + Object.keys((exD && exD.recording) || {}).join(','));
+      T.eq('a drawn axis publishes NO rate — `ppm` is null', haD && haD.ppm, null);
+      T.ok('…with a reason that names the drawn column', !!haD && /drawn-column/.test(String(haD.ppmReason)), 'ppmReason = ' + JSON.stringify(haD && haD.ppmReason));
+      T.eq('…and `spanPpm`, the same ratio before the median, is null for the same reason', haD && haD.spanPpm, null);
+      T.ok(
+        '…and the old single-axis figures survive under `drawnColumn`, which is not a rate',
+        !!haD && !!haD.drawnColumn && haD.drawnColumn.ppm === axD.ppm,
+        'drawnColumn = ' + JSON.stringify(haD && haD.drawnColumn)
+      );
+      T.eq('…including the unsmoothed twin', haD && haD.drawnColumn && haD.drawnColumn.spanPpm, axD.spanPpm);
+      T.eq('…and the verdict itself travels, so a consumer reads the cause rather than inferring it', haD && haD.deviceDrawn, true);
+
+      /* THE ROW'S OWN SUBJECT. The shared builder reads `ppm` off the object this node hands it, so
+         the disciplined view must reach `recording.timing` too. An export nulling one block and
+         quoting the other leaves the defect where it was, under a second name. */
+      var tmD = tmOf(exD);
+      T.ok('the drawn export carries the DECLARED timing block at all', !!tmD, 'recording keys: ' + Object.keys((exD && exD.recording) || {}).join(','));
+      T.eq('the shared timing block publishes no rate either', tmD && tmD.ppm, null);
+      T.eq('…nor the unsmoothed twin', tmD && tmD.spanPpm, null);
+      T.ok('…while the block still BUILT — the anchors it measured are there', !!tmD && typeof tmD.anchors === 'number' && tmD.anchors > 0, 'anchors = ' + (tmD && tmD.anchors));
+      T.ok('…and its reason says the column is not a clock', !!tmD && /drawn/i.test(String(tmD.reason)), 'timing.reason = ' + JSON.stringify(tmD && tmD.reason));
+
+      /* THE CONTROL NEEDS ITS OWN AXIS. A real device column carries packet-level variation, so this
+         one jitters the counter by a few ms. Without it the control is drawn too and asserts nothing. */
+      var anC = [];
+      for (var j = 0; j < 400; j++) anC.push({ devMs: j * 10000 + Math.round(6 * rnd()), hostMs: j * 10000 * (1 + 30e-6) + 40 * rnd() });
+      var axC = C.hostAxis(anC, {});
+      T.eq('ANTI-VACUITY · the control axis really is NOT drawn', axC.deviceDrawn, false);
+      T.ok('ANTI-VACUITY · …and the spine measured a rate over it', typeof axC.ppm === 'number' && isFinite(axC.ppm), 'ppm = ' + axC.ppm);
+      var exC = E.buildNodeExport(REC(axC), {});
+      var haC2 = haOf(exC);
+      T.eq('control · a measured axis publishes its rate', haC2 && haC2.ppm, axC.ppm);
+      T.ok('control · …and NEITHER new key, so every clean export keeps its bytes', !!haC2 && !('ppmReason' in haC2) && !('drawnColumn' in haC2), JSON.stringify(Object.keys(haC2 || {})));
+      T.eq('control · …and the shared timing block quotes the same rate', tmOf(exC) && tmOf(exC).ppm, axC.ppm);
+
+      /* THE THIRD STATE. An axis carrying no verdict is UNMEASURED, and that cannot collapse into
+         "it is a clock" — the collapse a boolean guard would make silently. Built by removing the
+         key from a measured axis, so everything else about it still holds. */
+      var axU = {};
+      for (var k in axC) if (Object.prototype.hasOwnProperty.call(axC, k)) axU[k] = axC[k];
+      delete axU.deviceDrawn;
+      T.ok('ANTI-VACUITY · the unmeasured axis carries no verdict and a real rate', !('deviceDrawn' in axU) && typeof axU.ppm === 'number', 'keys = ' + Object.keys(axU).length);
+      var haU = haOf(E.buildNodeExport(REC(axU), {}));
+      T.eq('an UNMEASURED column publishes no rate either', haU && haU.ppm, null);
+      T.ok(
+        '…and says the verdict is what is absent, never that the column is drawn',
+        !!haU && /UNMEASURED/.test(String(haU.ppmReason)) && !/drawn-column/.test(String(haU.ppmReason)),
+        'ppmReason = ' + JSON.stringify(haU && haU.ppmReason)
+      );
+      T.ok('…and keeps the figures under the same name', !!haU && !!haU.drawnColumn && haU.drawnColumn.ppm === axC.ppm, 'drawnColumn = ' + JSON.stringify(haU && haU.drawnColumn));
+    });
+
     /* ════ THE WHOLE-FILE RATE NOW CARRIES ITS OWN VERDICT ═══════════════════════════════
        `ppgOffsetSegments` refuses a SEGMENT's ppm under `PPG_RATE_MIN_SPAN_S` and names the span in
        `rateReason`. The whole-file axis published a bare `ppm`, so a reader could not tell a rate
@@ -4211,12 +4317,17 @@
         'anchors',
         'applied',
         'deviceDrawn',
+        /* The two keys a DRAWN or UNMEASURED device column adds here too, since this unit: ECGDex
+           answered the question the comment below used to leave open. Same pair, same meaning, same
+           absence on a measured axis — the clean-case leg in the ECGDex group asserts that absence. */
+        'drawnColumn',
         'drawnShare',
         'independent',
         'maxStepMs',
         'note',
         'ok',
         'ppm',
+        'ppmReason',
         'ppmUncertainty',
         'spanMs',
         'spanPpm',
@@ -4263,15 +4374,17 @@
           return b.indexOf(k) < 0 && c.indexOf(k) < 0;
         });
       }
-      T.eq('thirteen keys sit in all three publishers', interOf(interOf(DECLARED_PPG, DECLARED_ECG), DECLARED_MOTION), [
+      T.eq('fifteen keys sit in all three publishers', interOf(interOf(DECLARED_PPG, DECLARED_ECG), DECLARED_MOTION), [
         'anchors',
         'applied',
         'deviceDrawn',
+        'drawnColumn',
         'drawnShare',
         'independent',
         'maxStepMs',
         'ok',
         'ppm',
+        'ppmReason',
         'spanMs',
         'spanPpm',
         'spreadMs',
@@ -4283,9 +4396,9 @@
          `clock.js` computes no flatness, which is also why a null `flat` over a raw spine axis is a
          legitimate absence here and not a dropped key. TWELVE since this unit, and the two that left
          are the measurement: `ppmReason` and `drawnColumn` were PpgDex-only for one day, because
-         #4306 withheld a rate over a drawn column in PpgDex alone. MotionDex has now taken the same
-         decision, so the pair sits in two publishers and leaves this set. ECGDex spends `ppm` as a
-         crystal figure and owes the question under its own row — named here, not answered. */
+         #4306 withheld a rate over a drawn column in PpgDex alone. MotionDex took the same decision
+         next, and ECGDex — the node that spends `ppm` as a crystal figure — has now taken it under
+         the same row. So the pair sits in all three publishers and the intersection above holds it. */
       T.eq('PpgDex alone publishes the twelve fields only it measures', onlyIn(DECLARED_PPG, DECLARED_ECG, DECLARED_MOTION), [
         'drawn',
         'drawnReason',
@@ -33399,10 +33512,25 @@
       var POLAR_EPOCH = Date.UTC(2000, 0, 1); // sensor-ns epoch (capture-host `_POLAR_EPOCH`)
       // Same geometry as the derived-host-column group above: 2600 rows × 1000 ms, anchors every 500
       // rows. The ns column carries an ABSOLUTE device clock whose origin the test plants.
+      /* ── THE COUNTER CARRIES PACKET JITTER, AND THAT IS WHAT MAKES THIS AN H10 ──────────────────
+         `rel = i * 1000` alone gives every inter-sample delta one value, which `clock.js` reads as a
+         DRAWN column — `sample_index × an assumed rate`, no oscillator. On 25 real H10 ECG captures
+         across 25 dates `drawnShare` reads 0.0038-0.0677 with `deviceDrawn` false on every one, so
+         the bare counter was the one shape this device never produces. ECGDex now withholds a rate
+         over a drawn column (row `2026-11-03-the-shared-timing-block-quotes-a-rate-over-a-drawn-axis`),
+         and `clock.js:623-640` names re-cutting the planted axis as the migration path rather than
+         relaxing the verdict. BOTH columns take the same jitter, so the host stays the device stamp
+         rounded (`independent: false`, `timingSource: 'device'`) and this group keeps its subject.
+         Row 0 takes no jitter, so `t0Ms` and the planted epoch offset are unmoved. */
+      var sdE = 24601;
+      var jitE = function () {
+        sdE = (sdE * 16807) % 2147483647;
+        return Math.round(8 * (sdE / 2147483647 - 0.5));
+      };
       function build(devOriginMs) {
         var rows = [HDR];
         for (var i = 0; i < 2600; i++) {
-          var rel = i * 1000;
+          var rel = i * 1000 + (i === 0 ? 0 : jitE());
           var ns = (devOriginMs - POLAR_EPOCH + rel) * 1e6;
           rows.push(new Date(BASE + rel).toISOString() + ';' + ns + ';' + rel + ';' + (100 + (i % 40)));
         }
@@ -33437,6 +33565,14 @@
       /* The unsmoothed twin travels here too (2026-10-29). This node quotes a rate — it divides `fs`
          by the ppm — so a reader sizing that correction needs the end-point ratio the median replaced.
          `spanMs` stays this node's own (`ecgdex-dsp.js:5656`), which is why only one key is new. */
+      /* ANTI-VACUITY FOR THE TWO LEGS BELOW. A rate is published only over a column the spine read
+         as a clock, so the jittered counter above is load-bearing: were it drawn, both legs would be
+         asserting that a null is a number. The key is ABSENT on a measured axis, never `false`. */
+      T.ok(
+        'the planted counter reads as a real device clock, not a drawn column',
+        !!ex.recording.hostAxis && !('deviceDrawn' in ex.recording.hostAxis) && !('ppmReason' in ex.recording.hostAxis),
+        JSON.stringify(Object.keys((ex.recording && ex.recording.hostAxis) || {}))
+      );
       T.ok(
         '…and recording.hostAxis.spanPpm — the rate before the running median',
         !!ex.recording.hostAxis && typeof ex.recording.hostAxis.spanPpm === 'number' && isFinite(ex.recording.hostAxis.spanPpm),

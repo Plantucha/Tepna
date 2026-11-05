@@ -8152,7 +8152,7 @@ def status_path(root: str, instance: str | None = None) -> str:
     return os.path.join(root, "captures", name)
 
 
-# What `live_loss_check` saw last pass: {path: (size, inode)}. Module-level for the same reason
+# What `live_loss_check` saw last pass: {path: (size, inode, opening)}. Module-level for the same reason
 # `_BATT_FLAT_SINCE` is — a snapshot inside the loop body would be re-created on every iteration and
 # the check would never have a prior observation to compare against.
 _LIVE_LOSS_SEEN: dict = {}
@@ -9900,6 +9900,12 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
     # shorter than `offline_sec`, so a link that streams nothing is caught by the SAME 5-minute alarm a
     # disconnected one is.
     data_grace = float(acfg.get("data_stale_sec", 120))
+    # The dock and wear alerts (`alerts.not_worn_while_running`); `alerts.not_worn_sec: 0` turns the
+    # not-worn alert off. Each latch holds for one episode: one dock, or one not-worn stretch.
+    not_worn_grace = float(acfg.get("not_worn_sec", alerts.NOT_WORN_ALERT_SEC))
+    dock_since: dict[str, float] = {}
+    dock_stream_alerted: set[str] = set()
+    not_worn_alerted: set[str] = set()
     down_since: dict[str, float] = {}
     alerted: set[str] = set()
     # NIGHT-ENDED NOTES (owner 2026-11-01: "Night is done sensors are off you should got notifications").
@@ -10021,7 +10027,28 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
             # an alarm is told where the device is, never that it "is recording again".
             if alerts.on_charger(connected, dst.get("charging")):
                 down_since.pop(name, None)
-                stream_since.pop(name, None)  # the next wear starts a new episode
+                not_worn_alerted.discard(name)
+                docked_at = dock_since.setdefault(name, now)
+                first = stream_since.pop(name, None)  # the next wear starts a new episode
+                # A NIGHT THAT ENDS ON THE DOCK (see `alerts.dock_night_text`): the device stays linked,
+                # so the silent-after-a-pull path below never sees this night end.
+                if (
+                    first is not None
+                    and name not in ended_noted
+                    and alerts.worth_a_night_note(first, _LAST_DATA.get(name))
+                ):
+                    delivered = await notifier.send(*alerts.dock_night_text(name))
+                    if delivered or not notifier.enabled:
+                        ended_noted.add(name)
+                        ended_at[name] = now
+                    else:
+                        stream_since[name] = first  # a failed send retries on the next poll
+                if alerts.streams_on_charger(_LAST_DATA.get(name), docked_at, now, data_grace):
+                    if name not in dock_stream_alerted:
+                        log.warning("alert: %s sends samples on its charger", name)
+                        delivered = await notifier.send(*alerts.dock_stream_text(name, dst.get("sdk_mode")))
+                        if delivered or not notifier.enabled:
+                            dock_stream_alerted.add(name)
                 if name in alerted:
                     alerted.discard(name)
                     log.info("alert: %s is on its charger", name)
@@ -10029,6 +10056,17 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
                         "Tepna: sensor on charger", f"{name} is on its charger, so it is not recording."
                     )
                 continue
+            dock_since.pop(name, None)  # off the dock: the next dock is a new episode
+            dock_stream_alerted.discard(name)
+            worn_since = _WORN_SINCE.get(d.get("address") or "")
+            if alerts.not_worn_while_running(worn_since, _LAST_DATA.get(name), now, not_worn_grace):
+                if name not in not_worn_alerted:
+                    log.warning("alert: %s sends samples but is not worn", name)
+                    delivered = await notifier.send(*alerts.not_worn_text(name, (now - (worn_since or now)) / 60.0))
+                    if delivered or not notifier.enabled:
+                        not_worn_alerted.add(name)
+            elif worn_since is None:
+                not_worn_alerted.discard(name)  # worn again (or unknown): the next stretch alerts again
             # RECORDING, not merely LINKED. Keying recovery on `connected` turned a 4.5 h outage into
             # four "resolved" blips, because an unbonded H10 is briefly connected inside every doomed
             # connect→drop cycle. Only flowing samples clear the alarm.

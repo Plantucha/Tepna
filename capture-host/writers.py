@@ -37,7 +37,7 @@
 #   parseDeviceACC, whose worst 175 ms slip never crosses its 30 s epoch boundary.
 
 from __future__ import annotations
-import atexit as _atexit, calendar as _calendar, collections as _collections, errno as _errno, logging, os, queue as _queue, re as _re, threading as _threading, datetime as _dt, time as _time
+import atexit as _atexit, calendar as _calendar, collections as _collections, itertools as _itertools, errno as _errno, logging, os, queue as _queue, re as _re, threading as _threading, datetime as _dt, time as _time
 from typing import Iterable, TextIO
 
 # The annotation values a device INSERTS into a stream live with the device, not here — the merge
@@ -566,6 +566,12 @@ _open_sample_writers = 0
 # daemon believed it was writing while it was writing them. This dict is what makes that checkable: the
 # paths currently open, so `live_loss_check` can stat them against what it last saw.
 _OPEN_WRITERS: dict[int, str] = {}
+# One number per OPENING, never reused (residue 2026-11-05-a-reopened-writer-reads-as-a-replaced-file).
+# The token is `id(writer)`, and CPython reuses an id once the old writer is freed, so the token alone
+# cannot tell a new writer from the old one. `live_loss_check` compares a path only with what the SAME
+# opening wrote: a writer closed, discarded and opened again on its path is a new baseline, not loss.
+_OPEN_GEN: dict[int, int] = {}
+_GEN = _itertools.count(1)
 
 
 def open_sample_writers() -> int:
@@ -581,12 +587,14 @@ def _writer_opened(path: str, token: int) -> None:
     global _open_sample_writers
     _open_sample_writers += 1
     _OPEN_WRITERS[token] = path
+    _OPEN_GEN[token] = next(_GEN)
 
 
 def _writer_closed(token: int) -> None:
     global _open_sample_writers
     _open_sample_writers = max(0, _open_sample_writers - 1)
     _OPEN_WRITERS.pop(token, None)
+    _OPEN_GEN.pop(token, None)
 
 
 def open_writer_paths() -> list[str]:
@@ -599,7 +607,7 @@ def live_loss_check(prev: dict | None = None) -> tuple[list[dict], dict]:
     """(findings, snapshot) — the LIVE half of the loss guard, run while sessions are open.
 
     For every file a writer currently holds open, compare what is on disk now with what this function
-    last saw: `(size, inode)`. Three findings, and each is a thing that must never happen to a file the
+    last saw: `(size, inode, opening)`. Three findings, and each is a thing that must never happen to a file the
     daemon is actively appending to:
 
       · `missing`  — the path is gone (deleted, or its tree moved out from under us);
@@ -609,21 +617,27 @@ def live_loss_check(prev: dict | None = None) -> tuple[list[dict], dict]:
     A file that GREW, or is unchanged, or is newly open (no prior observation) yields nothing — the
     check reports loss, never progress. PURE apart from `os.stat`; the caller owns the snapshot, so the
     first call after a restart establishes a baseline and cannot fabricate a finding from an absent one.
+
+    The comparison holds only inside ONE opening of the path. The ring close discards an empty file of a
+    set that did not resume, and a resume a few seconds later opens the same path again with a new inode.
+    That is a new file by design, so a changed opening is a new baseline and never a finding.
     """
     prev = prev or {}
     findings: list[dict] = []
     snapshot: dict = {}
-    for path in open_writer_paths():
+    for path, gen in sorted((p, _OPEN_GEN[t]) for t, p in _OPEN_WRITERS.items()):
+        was = prev.get(path)
+        if was is not None and was[2] != gen:
+            was = None  # another opening of this path: what the old one wrote is not this file's past
         try:
             st = os.stat(path)
         except OSError as exc:
-            if path in prev:
+            if was is not None:
                 findings.append(
-                    {"path": path, "kind": "missing", "detail": f"{type(exc).__name__}: {exc}", "was": prev[path][0]}
+                    {"path": path, "kind": "missing", "detail": f"{type(exc).__name__}: {exc}", "was": was[0]}
                 )
             continue
-        snapshot[path] = (st.st_size, st.st_ino)
-        was = prev.get(path)
+        snapshot[path] = (st.st_size, st.st_ino, gen)
         if was is None:
             continue
         if st.st_ino != was[1]:

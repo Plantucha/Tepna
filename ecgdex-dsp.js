@@ -6701,6 +6701,63 @@
     return any ? out : null;
   }
 
+  /* ── A RATE OVER A DRAWN COUNTER IS AN ABSENCE, NOT A NUMBER (§∅; PpgDex #4306, MotionDex #4308) ──
+     Row `2026-11-03-the-shared-timing-block-quotes-a-rate-over-a-drawn-axis`, ECGDex's half. This is
+     the node that SPENDS `ppm` — it divides `fs` by it — and the fs block above argues that case.
+     Nothing here touches the correction: `applied` still says whether one rode, and on a drawn axis
+     the host is the only clock there is, so placing the samples on it stays right. What this
+     withholds is the QUOTE. A `ppm` published beside `deviceDrawn: true` reads as a crystal figure,
+     and no crystal sits behind a column written as `sample_index × an assumed rate`.
+     THE CONTROL IS THE SIBLING FIELD. `stability` is already null on a drawn axis in the rec-level
+     block above, because `clock.js` refuses a σ_y(τ) curve over an assumed rate. A ppm is the same
+     claim one derivative down: the divergence of a host clock from a counter with no oscillator.
+     WHY NODE-LOCAL AND NOT A GUARD IN `timingBlock`. `clock.js:623-640` records the measurement:
+     gating on `deviceDrawn` in the shared path "was tried and reverted", because a synthetic fixture
+     legitimately uses a uniform device axis and is by construction indistinguishable from a
+     fabricated one — it red 11 assertions including this node's own planted-drift recovery. So each
+     node adopts the discipline at its own publication boundary, which is what PpgDex and MotionDex
+     did. The shared builder needs no edit: it reads `ppm` off the object handed to it, so the
+     disciplined view reaches `recording.timing` through the spine unchanged.
+     THE REC-LEVEL BLOCK KEEPS THE MEASUREMENT. That object is what this node's own render and fs
+     gate read; the figures reach the export under `drawnColumn`, a name no consumer can apply as a
+     rate. A refused axis passes through untouched — its `ppm` is already absent, so a `drawnColumn`
+     of two nulls would be an empty container standing in for an absence, the shape §∅ forbids. */
+  function _ecgPubRate(ax) {
+    var raw = { ppm: ax && ax.ppm != null ? ax.ppm : null, spanPpm: ax && ax.spanPpm != null ? ax.spanPpm : null };
+    if (!(ax && ax.ok === true)) return raw;
+    // TRI-STATE: an axis that published no verdict is UNMEASURED, and that cannot collapse into "it is a clock".
+    var drawn = ax.deviceDrawn !== undefined ? ax.deviceDrawn : null;
+    if (drawn === false) return raw;
+    return {
+      ppm: null,
+      spanPpm: null,
+      /* ONE VOCABULARY, NOT THREE. These are PpgDex's two sentences verbatim (`:1824`), and
+         MotionDex publishes the same pair — a consumer keys on `drawn-column` across all three
+         publishers. The spine's own measured sentence is NOT substituted in: it reaches the export
+         through `timing.reason` and `drawnShare`, so nothing is lost and the tag stays stable. */
+      ppmReason:
+        drawn === true
+          ? 'drawn-column — the device column is host-synthesised, so a rate against it describes a counter with no oscillator'
+          : 'whether the device column is a clock is UNMEASURED, so no rate is published against it',
+      drawnColumn: raw
+    };
+  }
+  /* The publication view of the whole axis, for the handoff to the SHARED timing builder: the two
+     quoted rate fields as published, every other field as it stands. `dex-export.js timingBlock`
+     reads `ppm`/`spanPpm` off this object, so `recording.timing` inherits the discipline without a
+     spine edit — and a measured axis hands over an identical copy. */
+  function _ecgPubAxis(ax) {
+    if (!ax) return ax;
+    var out = /** @type {any} */ ({});
+    for (var k in ax) if (Object.prototype.hasOwnProperty.call(ax, k)) out[k] = ax[k];
+    var rate = /** @type {any} */ (_ecgPubRate(ax));
+    out.ppm = rate.ppm;
+    out.spanPpm = rate.spanPpm;
+    if (rate.ppmReason !== undefined) out.ppmReason = rate.ppmReason;
+    if (rate.drawnColumn !== undefined) out.drawnColumn = rate.drawnColumn;
+    return out;
+  }
+
   function ecgBuildNodeExport(r, opts) {
     opts = opts || {};
     // EXPORT-IDENTITY §2.1: computed ONCE here and shared by recording.contentId and the measurement
@@ -6766,10 +6823,14 @@
            Guarded like every other `DexExport` reach in this file; `dex-export.js` is inlined in all
            nine bundles and co-loaded by every realm that builds an export, so a `null` here is a
            load-order bug and the export-parity group reds on it rather than letting it pass. */
+        /* `hostAxis` below is the DISCIPLINED view (`_ecgPubAxis`), not the raw block: the builder
+           reads `ppm` off whatever object it is handed, so a drawn column reaches `recording.timing`
+           as an absence too. A measured axis hands over an identical copy. The comment sits OUT here
+           because the suite's seam-count leg reads a 700-character window from the call below. */
         timing:
           typeof DexExport !== 'undefined' && DexExport && DexExport.timingBlock
             ? DexExport.timingBlock({
-                hostAxis: r.hostAxis,
+                hostAxis: _ecgPubAxis(r.hostAxis),
                 timingSource: r.hostAxis ? r.hostAxis.timingSource : null,
                 drawn: r.hostAxis ? r.hostAxis.deviceDrawn : null,
                 resyncs: r.clockResyncs || [],
@@ -6813,6 +6874,10 @@
        −21.9 ± 9.3 ppm on a real box night, i.e. 2.4σ from zero. Omitted entirely when there is no host
        axis, rather than a null key: no committed fixture has one. */
     if (r.hostAxis && r.hostAxis.ok) {
+      /* THE DISCIPLINED VIEW OF THE RATE (see `_ecgPubRate` above): both quoted fields go null over
+         a drawn or unmeasured device column, the cause is named, and the old figures survive under
+         `drawnColumn`. A measured axis takes this path with its bytes unchanged. */
+      var ecgAxisPub = /** @type {any} */ (_ecgPubRate(r.hostAxis));
       out.recording.hostAxis = {
         /* THE GATE'S OWN VERDICT. The `if` one line up tests `r.hostAxis.ok` and this list dropped the
            key, so over an artifact it read `undefined` — row
@@ -6824,10 +6889,10 @@
         ok: r.hostAxis.ok == null ? null : r.hostAxis.ok === true,
         applied: r.hostAxis.applied,
         anchors: r.hostAxis.anchors,
-        ppm: r.hostAxis.ppm,
+        ppm: ecgAxisPub.ppm,
         /* The unsmoothed twin of `ppm`, forwarded from the spine. `spanMs` below stays this node's
            own (`:5656`) — the pair is additive and moves nothing. */
-        spanPpm: r.hostAxis.spanPpm,
+        spanPpm: ecgAxisPub.spanPpm,
         ppmUncertainty: r.hostAxis.stability ? r.hostAxis.stability.ppmUncertainty : null,
         maxStepMs: r.hostAxis.maxStepMs,
         spanMs: r.hostAxis.spanMs,
@@ -6865,6 +6930,11 @@
         out.recording.hostAxis.deviceDrawn = true;
         out.recording.hostAxis.drawnShare = r.hostAxis.drawnShare;
       }
+      /* THE TWO KEYS A DRAWN OR UNMEASURED COLUMN ADDS, and only such a column — the
+         `anchorsDroppedPreResync` discipline once more, so every clean export keeps today's bytes
+         and the key is ABSENT rather than `undefined`. Both sit in this node's declared key set. */
+      if (ecgAxisPub.ppmReason !== undefined) out.recording.hostAxis.ppmReason = ecgAxisPub.ppmReason;
+      if (ecgAxisPub.drawnColumn !== undefined) out.recording.hostAxis.drawnColumn = ecgAxisPub.drawnColumn;
     }
     /* TIMING PROVENANCE on the Integrator-facing surface (H10-2019-ORIGIN, 2026-09-01). ATTACHED ONLY
        WHEN PRESENT, same discipline as `hostAxis`/`validation` above: a null key is still a changed
