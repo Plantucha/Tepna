@@ -363,6 +363,13 @@ it, which is the cheapest possible moment to ask.
 > 2026-09-17 ruling. (2) A night that predates any seam channel reads seam status **UNKNOWN**
 > (`null`), never seam-free. Recorded in `BLE-TIMEBASE-EDGE-STAMP-FOLLOWUPS-2026-10-25-BRIEF.md` §5.
 > The same exchange re-confirmed `KNOWN-CLOCK-ADVERSARIAL-CAPTURE`: the owner still records those nights.
+>
+> **Two more time rulings, 2026-11-06 (owner, in chat to Kestrel).** (1) Row
+> `2026-10-20-the-published-tch-reference-figures-ride-the-mismatched-axis`: **publish both legs side
+> by side**, the device-axis figures and the corrected-axis figures, each labelled. No published figure
+> is replaced. (2) Row `2026-09-26-pat-ecg-index-axis-is-not-the-h10-sample-clock`: **measure first**.
+> The `ecgRpeakTimes` default stays `linear` until a measurement explains the worse 07-24 narrowSD
+> under the measured axis.
 
 ## 3 · Not the owner's — 18 briefs waiting on SESSIONS
 
