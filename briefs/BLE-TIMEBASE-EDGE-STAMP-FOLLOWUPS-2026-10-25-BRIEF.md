@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED — 2026-11-03 (core BUILT, remainder OWNER-blocked only — verified 2026-11-03, Heron: §3 is DISCHARGED. #3959 merged 2026-10-26 and its row reads the closure, `capture_absorbed_sec` is the appended column in `capture-host/writers.py`, and the event-row half is retired on that PR's coverage argument rather than built. §4's two owner questions are all that remain, so nothing here is PR-blocked any more.) · EARLIER: PROPOSED — 2026-10-25 (core BUILT, remainder PR- and owner-blocked — verified 2026-10-26, Kestrel: §3 waits on #3959, OPEN, which carries row `2026-10-26-the-absorbed-civil-shift-reaches-no-night-artifact`. §4 holds two owner questions, still undecided.) · Previously: PROPOSED — 2026-10-25 (core BUILT, verified 2026-10-25. §1 measures every rail's edge. The CPAP live rail now declares its clocks. §3 names a new defect for a residue row. §4 stays the owner's.) · **Created:** 2026-10-25
+**Status:** DONE — 2026-11-06 (every acceptance item met — verified 2026-11-06, Kestrel: the owner answered §4 as D17, so no item stays open. Applying the MANDATORY rule to each consumer is session work, assigned on the board.) · EARLIER: PROPOSED — 2026-11-03 (core BUILT, remainder OWNER-blocked only — verified 2026-11-03, Heron: §3 is DISCHARGED. #3959 merged 2026-10-26 and its row reads the closure, `capture_absorbed_sec` is the appended column in `capture-host/writers.py`, and the event-row half is retired on that PR's coverage argument rather than built. §4's two owner questions are all that remain, so nothing here is PR-blocked any more.) · EARLIER: PROPOSED — 2026-10-25 (core BUILT, remainder PR- and owner-blocked — verified 2026-10-26, Kestrel: §3 waits on #3959, OPEN, which carries row `2026-10-26-the-absorbed-civil-shift-reaches-no-night-artifact`. §4 holds two owner questions, still undecided.) · Previously: PROPOSED — 2026-10-25 (core BUILT, verified 2026-10-25. §1 measures every rail's edge. The CPAP live rail now declares its clocks. §3 names a new defect for a residue row. §4 stays the owner's.) · **Created:** 2026-10-25
 
 # Brief — where a transport-edge seam stamp lives, and what a seam event is on the wire
 
@@ -112,5 +112,7 @@ them:
       capture persists until every sample writer closes, so at least one 120 s poll records it, and the
       one uncovered case holds no open sample writer and therefore owns no recording whose stamps could
       be wrong. The tree agrees: no seam-event drain exists in `capture-host/capture.py`.
-- [ ] §4 — the two owner questions stay undecided. Queued 2026-11-04 (Magpie) as **D17** in
-      `OWNER-DECISION-QUEUE-2026-09-03-BRIEF.md`, which had never named this brief.
+- [x] §4 — the owner answered both questions on 2026-11-06, in chat to Kestrel (**D17** in
+      `OWNER-DECISION-QUEUE-2026-09-03-BRIEF.md`). A seam is MANDATORY: every consumer reads the
+      seam sidecar and refuses a value across a seam. A night that predates any seam channel reads
+      seam status UNKNOWN (`null`), never seam-free.
