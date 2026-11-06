@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-**Status:** CHECKPOINT (living — last-verified **2026-11-04**) · **Created:** 2026-09-03 · **Owner rulings 2026-09-15 (Kestrel, one batch):** **D2 AUTHORIZED** — the named set of four, PLUS a new rail-keyed sidecar rule in `capture-host/writers.py` (floor 5, alongside `rule=stuck` at 200); authorization does NOT generalise to other box touches. **D4 — all three DECLINED**, closed as negatives, not deferrals. **D5 — all three RATIFIED.** **D8 — YES**, build the two-channel dual-wavelength ingest. ⚠️ **D6 WAS ALREADY DECIDED ON 2026-09-07 (option C) and this file still listed it as open** — the queue was `last-verified 2026-09-03` while the ruling landed four days later, so it manufactured a re-ask. **Still open: D3 and D7** — and as of **2026-09-17** BOTH have moved: **D3 is ONE call** (re-verified,
+**Status:** CHECKPOINT (living — last-verified **2026-11-06**) · **Created:** 2026-09-03 · **Owner rulings 2026-09-15 (Kestrel, one batch):** **D2 AUTHORIZED** — the named set of four, PLUS a new rail-keyed sidecar rule in `capture-host/writers.py` (floor 5, alongside `rule=stuck` at 200); authorization does NOT generalise to other box touches. **D4 — all three DECLINED**, closed as negatives, not deferrals. **D5 — all three RATIFIED.** **D8 — YES**, build the two-channel dual-wavelength ingest. ⚠️ **D6 WAS ALREADY DECIDED ON 2026-09-07 (option C) and this file still listed it as open** — the queue was `last-verified 2026-09-03` while the ruling landed four days later, so it manufactured a re-ask. **Still open: D3 and D7** — and as of **2026-09-17** BOTH have moved: **D3 is ONE call** (re-verified,
 below), and **D7 is RULED — derive the mechanism first**, which converts it from a pending decision
 into an analysis unit with no owner. **D6-adjacent note:** `BLE-TRANSPORT-REDESIGN` §1.1 was also ruled
 on 2026-09-17 (**BUILD**, promoted to `GATT-HANDLE-MAP-2026-09-17-BRIEF.md`), and the fleet-wide
@@ -357,6 +357,12 @@ it, which is the cheapest possible moment to ask.
 > ⚠️ **Neither is a box touch and neither waits on D1.** D16 is a keying judgement over data already
 > captured; D17 is a contract judgement about what a downstream reader must be shown. Both are
 > answerable at a desk, which puts them in D4's economics rather than D1's.
+>
+> **D17 ANSWERED 2026-11-06 (owner, in chat to Kestrel).** (1) A seam is **MANDATORY**: every
+> consumer must read the seam sidecar and honour it, and a value across a seam refuses, per the
+> 2026-09-17 ruling. (2) A night that predates any seam channel reads seam status **UNKNOWN**
+> (`null`), never seam-free. Recorded in `BLE-TIMEBASE-EDGE-STAMP-FOLLOWUPS-2026-10-25-BRIEF.md` §5.
+> The same exchange re-confirmed `KNOWN-CLOCK-ADVERSARIAL-CAPTURE`: the owner still records those nights.
 
 ## 3 · Not the owner's — 18 briefs waiting on SESSIONS
 
