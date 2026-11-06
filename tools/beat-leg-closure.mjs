@@ -34,7 +34,7 @@ import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { dissentStampLine, dissentStampOf, signsOf } from './consensus-dissent-core.mjs';
+import { dissentStampLine, dissentStampOf, refpickOf, signsOf } from './consensus-dissent-core.mjs';
 import { makeVerdict } from './verdict-emit.mjs';
 import { isCliEntry } from './argv-guard.mjs';
 import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
@@ -374,14 +374,9 @@ export function verityBeats(path, ctx, polOut) {
   const signsBefore = signsOf(per);
   const corrected = ctx.PPGDSP.applyConsensusPolarity(per, (i, sgn) => ctx.PPGDSP.detectChannel(rec.ch[i], rec.fs, sgn));
   if (polOut) Object.assign(polOut, dissentStampOf(signsBefore, corrected), { signs: signsBefore });
-  let ri = 0,
-    b = -1;
-  per.forEach((p, i) => {
-    if (p.peaks.length > b) {
-      b = p.peaks.length;
-      ri = i;
-    }
-  });
+  /* The reference pick, NAMED at the site so the census reads a declaration rather than a loop
+     shape, and a tie stops hiding: `consensus-dissent-core.mjs#refpickOf`. Same pick. */
+  const ri = refpickOf(per, 'peak-argmax').idx;
   /* @polarity-decision applies
      Leg C’s device-axis beat times now come from the whole channel set. */
   const cons = ctx.PPGDSP.consensusBeats(per, ri, rec.fs);

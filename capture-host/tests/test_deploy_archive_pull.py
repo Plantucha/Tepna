@@ -95,3 +95,23 @@ def test_log_verdict_counts_the_destination(tmp_path):
     text = log.read_text()
     assert "dest files: 2" in text
     assert "newest:" in text
+
+
+def test_never_chmods_an_existing_destination_folder(tmp_path):
+    """A chmod on the Synology replaces the folder's ACL with mode bits. `-a` set each archived
+    folder to the source's 755 and locked the NFS user out (exit 23 from 2026-10-31). An existing
+    destination folder must keep its own mode after a pull."""
+    src = tmp_path / "src"
+    (src / "2026-11-06").mkdir(parents=True)
+    (src / "2026-11-06" / "night.edf").write_bytes(b"n")
+    (src / "2026-11-06").chmod(0o755)
+    dest = tmp_path / "dest"
+    (dest / "2026-11-06").mkdir(parents=True)
+    (dest / "2026-11-06").chmod(0o777)
+    log = tmp_path / "pull.log"
+
+    proc = _run(src, dest, log)
+
+    assert proc.returncode == 0, proc.stderr
+    assert (dest / "2026-11-06" / "night.edf").read_bytes() == b"n"
+    assert (dest / "2026-11-06").stat().st_mode & 0o777 == 0o777

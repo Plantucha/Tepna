@@ -1075,14 +1075,24 @@ def run(packets, collector: Collector, open_writer, flush_every: int = 64, rearm
     that never sends a PMD frame therefore never causes a file to exist, which is §0.3's rule applied
     per device rather than only per box: **absence is the absence of a file.**
 
+    🔴 A DEVICE'S FILE ROLLS WHEN ITS ROW STAMP CROSSES A LOCAL MIDNIGHT — residue
+    `2026-11-06-a-radio-clock-log-holds-a-finished-night-open`. The service runs for days, and one file per
+    device per run kept writing into the folder of the day the run began. On 2026-11-06 a log opened at
+    06:50 on 11-05 still wrote at 11:00 on 11-06, and the archive reported night 2026-11-05 held open
+    (board #3840). The roll matches the LINK log's (`capture.py roll_writer`): `open_writer` is called
+    again, so the new file lands in the new date's folder. The date is the row's own `Phone timestamp`,
+    in the run's civil frame, so the roll and the stamps agree.
+
     Returns the run's telemetry. `missed_anchors` is reported, never interpolated.
     """
     writers_by_device: dict[str, SidecarWriter] = {}
     #: Anchored on the FIRST row, not at entry: a run that waits hours for its first PMD frame would
     #: otherwise anchor on an offset no row was ever stamped in.
     frame: localstamp.CivilFrame | None = None
+    day_by_device: dict[str, str] = {}  # the `YYYY-MM-DD` of the open file's first row, per device
     written = 0
     rearmed = 0
+    rolled = 0
     try:
         for opcode, index, payload, host_ns in packets:
             # BEFORE feeding: an adapter that just came up has no anchors enabled, so the sooner the
@@ -1096,12 +1106,18 @@ def run(packets, collector: Collector, open_writer, flush_every: int = 64, rearm
             if row is None:
                 continue
             address = row[0]
-            sink = writers_by_device.get(address)
-            if sink is None:
-                sink = writers_by_device[address] = open_writer(address)
             if frame is None:
                 frame = localstamp.CivilFrame(row[7] / 1e9)
-            sink.write(format_row(phone_ts(row[7], frame), *row))
+            stamp = phone_ts(row[7], frame)
+            sink = writers_by_device.get(address)
+            if sink is not None and day_by_device[address] != stamp[:10]:
+                sink.close()  # midnight crossed: this device's next row starts the new date's file
+                sink = None
+                rolled += 1
+            if sink is None:
+                sink = writers_by_device[address] = open_writer(address)
+                day_by_device[address] = stamp[:10]
+            sink.write(format_row(stamp, *row))
             written += 1
             if written % flush_every == 0:
                 sink.flush()
@@ -1114,6 +1130,8 @@ def run(packets, collector: Collector, open_writer, flush_every: int = 64, rearm
         "missed_anchors": collector.missed_anchors,
         "offset_samples": collector.offsets.n,
         "rearmed": rearmed,
+        #: Files closed at a local midnight and reopened in the new date's folder.
+        "rolled": rolled,
         #: Per reason, how many rows carry no device stamp. A resumed pre-change file cannot hold the
         #: reason column at all, so for those rows this is the only place it is stated.
         "no_device_clock": dict(collector.no_device_clock),

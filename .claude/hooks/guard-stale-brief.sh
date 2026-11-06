@@ -630,6 +630,27 @@ argv_text="$(printf '%s\n' "$_tok_out" | sed -n 2p)"
 write_shape=""
 write_from_prog=""
 write_cand=""
+# ── §∅ ONE LEVEL UP — A READER THAT COULD NOT RUN IS NOT A READER THAT FOUND NOTHING ───────────
+#    Residue 2026-11-06-the-stale-brief-guard-reads-an-empty-candidate-set-as-no-candidate. The
+#    candidate set was one pipeline whose status nobody read, so the bare `[ -z "$cands" ] && exit
+#    0` below gave ONE answer to TWO questions: this command names no guarded doc, and this hook
+#    could not look. The first is the hook's commonest ALLOW. The second leaves the edit the hook
+#    exists to deny, and prints nothing, so the operator reads a pass as a verdict.
+#
+#    `pipefail` is on, so one status cannot part them. `grep -oE` exits 1 on NO MATCH, which is the
+#    benign answer, and a pipeline carrying that reads non-zero whatever `sort` did. So the two
+#    readers run in sequence and keep their own statuses: only `grep` at 2 or more, or a non-zero
+#    `sort`, means the question went unanswered. A reader that answered "nothing" still allows.
+reader_blind=""
+read_cands() { # read_cands <text> ; sets `cands`, and `reader_blind` when a reader could not look
+  local raw gst sst
+  raw="$(printf '%s' "$1" | grep -oE "$GUARDED_RE")"; gst=$?
+  cands="$(printf '%s' "$raw" | sort -u)"; sst=$?
+  reader_blind=""
+  [ "$gst" -gt 1 ] && reader_blind="the guarded-path reader exited $gst over the text it was handed, so this command was never scanned for a guarded doc"
+  [ "$sst" -ne 0 ] && reader_blind="the candidate sort exited $sst, so a path the reader did find cannot reach the comparison"
+  return 0
+}
 looks_like_write() {
   # A RUN OF ≥3 '>' IS A CONFLICT MARKER, NOT A REDIRECT — strip those runs before the redirect
   # test. Measured 2026-09-02: `grep -n "<<<<<<<\|=======\|>>>>>>>" briefs/X.md`, i.e. the standard
@@ -778,14 +799,44 @@ elif looks_like_write "$cmd_nohere" "$prog_text" "$argv_text"; then
   # A target the scan JOINED is certain, and it is the one case where the path appears nowhere in
   # the command text — so the usual candidate set would be empty and the denial would never print.
   if [ -n "$write_cand" ]; then
-    cands="$(printf '%s' "$write_cand" | grep -oE "$GUARDED_RE" | sort -u)"
-    cand_src='the write target this scan joined from pieces in the program, so the target is certain'
+    read_cands "$write_cand"
+    if [ -n "$cands" ]; then
+      cand_src='the write target this scan joined from pieces in the program, so the target is certain'
+    else
+      # The scan matched the guarded pattern INSIDE awk to produce this target, and the reader here
+      # did not reduce it. So the two readers of one pattern disagree, and the source line says so
+      # rather than call a target certain that no reader of this hook's own pattern could name.
+      cand_src="the write target this scan joined, which the guarded-path reader did not reduce to a path: \`$write_cand\`"
+    fi
   else
-    cands="$(printf '%s' "$cmd_nohere" | grep -oE "$GUARDED_RE" | sort -u)"
+    read_cands "$cmd_nohere"
     cand_src='every guarded-looking path in the command text, which is a candidate set and not a target'
   fi
 fi
-[ -z "$cands" ] && exit 0
+if [ -z "$cands" ]; then
+  # ⚠ THE ONE PLACE WHERE AN EMPTY SET AND A BLIND READER PART. A reader that ran and found nothing
+  #   is this hook's commonest ALLOW, because most commands name no guarded doc. A reader that could
+  #   not run answered nothing at all, and allowing there passes the write this hook exists to deny.
+  [ -z "$reader_blind" ] && exit 0
+  cat >&2 <<EOF
+BLOCKED: this hook could not read your command for a guarded doc, so it refuses rather than pass one.
+
+WHAT COULD NOT LOOK: $reader_blind
+WHY THIS COMMAND READS AS A WRITE: ${write_shape:-the tool payload names a guarded path directly}
+
+An empty candidate set and a reader that never ran used to read as one state here, which left the
+edit this hook exists to deny. The readers are \`grep -oE\` over the command text and then \`sort -u\`.
+Both run on every box, so this message says one of them failed on THIS box — a shadowed PATH entry,
+an exhausted process table, a full /tmp. That is where to look, and it is not your command.
+
+If you have read the upstream commits and are deliberately writing over them, say so:
+
+    CLAUDE_ALLOW_STALE_BRIEF=1 <your bash command>      (command position)
+    export CLAUDE_ALLOW_STALE_BRIEF=1                   (REQUIRED for an Edit/Write, whose payload
+                                                         carries no command text)
+EOF
+  exit 2
+fi
 
 G rev-parse --verify -q HEAD >/dev/null 2>&1 || exit 0
 G rev-parse --verify -q origin/main >/dev/null 2>&1 || exit 0
