@@ -98,7 +98,13 @@
         // (signal-orchestrate pairCompanions → ctx.companions.runs), rides into the parser as runsText so
         // the §∅ P5 cross-check runs. No sidecar → the exact single-argument call as before (byte-identical).
         var runsText = ctx.companions && typeof ctx.companions.runs === 'string' ? ctx.companions.runs : null;
-        rec = runsText ? parseFn(text, { runsText: runsText }) : parseFn(text);
+        // SEAM-SIDECAR-CONSUMPTION §4 — and `…_PPGSEAMS.txt` on the same footing, from the same pairing
+        // (ctx.companions.seams), exactly as `polar-h10-ecg.js` takes the ECG spelling. The owner ruled
+        // on 2026-11-05 that a metric spanning a recorded seam REFUSES and a night with no sidecar reads
+        // seams UNKNOWN, so this is the difference between an annotated unknown and a fabricated zero on
+        // every orchestrated PPG night.
+        var seamsText = ctx.companions && typeof ctx.companions.seams === 'string' ? ctx.companions.seams : null;
+        rec = runsText || seamsText ? parseFn(text, { runsText: runsText, seamsText: seamsText }) : parseFn(text);
       } catch (e) {
         return root.SignalFrame.toSignalFrame('ppg', { usable: false, reason: 'o2ring-ppg: parse error — ' + ((e && e.message) || e) }, prov);
       }
@@ -111,7 +117,7 @@
         );
 
       var samples = { ch: rec.ch, amb: rec.amb, relSec: rec.relSec, n: rec.n, durSec: rec.durSec, length: rec.n };
-      return root.SignalFrame.toSignalFrame(
+      var frame = root.SignalFrame.toSignalFrame(
         'ppg',
         {
           samples: samples,
@@ -123,6 +129,19 @@
         },
         prov
       );
+
+      /* …AND THE SEAM SIDECAR'S PARSE CROSSES THE FRAME BOUNDARY, because `PpgDex.compute()` REBUILDS
+         the analyze-rec from `samples` and drops anything this adapter does not carry — the §2(b)
+         companion idiom `polar-sense-ppg` uses, applied to validity. Without these keys the sidecar would be
+         parsed and then thrown away, which is the shape #4413 paid for one node over: a sidecar wired
+         into one road and absent from the other. Present only when a sidecar parsed, so a drop without
+         one builds a byte-identical frame. */
+      if (rec.seamsSidecar) {
+        frame.seamsSidecar = rec.seamsSidecar;
+        frame.recordedSeams = rec.recordedSeams;
+        if (rec.recordedSeamsReason) frame.recordedSeamsReason = rec.recordedSeamsReason;
+      }
+      return frame;
     }
   });
 })(typeof window !== 'undefined' ? window : globalThis);

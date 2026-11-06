@@ -84,7 +84,13 @@
         // (signal-orchestrate pairCompanions → ctx.companions.runs), rides into the parser as runsText so
         // the §∅ P5 cross-check runs. No sidecar → the exact single-argument call as before (byte-identical).
         var runsText = ctx.companions && typeof ctx.companions.runs === 'string' ? ctx.companions.runs : null;
-        rec = runsText ? parseFn(text, { runsText: runsText }) : parseFn(text);
+        // SEAM-SIDECAR-CONSUMPTION §4 — and `…_PPGSEAMS.txt` on the same footing, from the same pairing
+        // (ctx.companions.seams), exactly as `polar-h10-ecg.js` takes the ECG spelling. The owner ruled
+        // on 2026-11-05 that a metric spanning a recorded seam REFUSES and a night with no sidecar reads
+        // seams UNKNOWN, so this is the difference between an annotated unknown and a fabricated zero on
+        // every orchestrated PPG night.
+        var seamsText = ctx.companions && typeof ctx.companions.seams === 'string' ? ctx.companions.seams : null;
+        rec = runsText || seamsText ? parseFn(text, { runsText: runsText, seamsText: seamsText }) : parseFn(text);
       } catch (e) {
         return root.SignalFrame.toSignalFrame('ppg', { usable: false, reason: 'polar-sense-ppg: parse error — ' + ((e && e.message) || e) }, prov);
       }
@@ -111,6 +117,18 @@
         },
         prov
       );
+
+      /* …AND THE SEAM SIDECAR'S PARSE CROSSES THE FRAME BOUNDARY, because `PpgDex.compute()` REBUILDS
+         the analyze-rec from `samples` and drops anything this adapter does not carry — the §2(b)
+         companion idiom below, applied to validity. Without these two keys the sidecar above would be
+         parsed and then thrown away, which is the shape #4413 paid for one node over: a sidecar wired
+         into one road and absent from the other. Present only when a sidecar parsed, so a drop without
+         one builds a byte-identical frame. */
+      if (rec.seamsSidecar) {
+        frame.seamsSidecar = rec.seamsSidecar;
+        frame.recordedSeams = rec.recordedSeams;
+        if (rec.recordedSeamsReason) frame.recordedSeamsReason = rec.recordedSeamsReason;
+      }
 
       // COMPANION-BUNDLE INGEST (ECG-PPG-FOLLOWUPS-HANDOFF §2(b)). The host pairs the matched motion +
       // device-PPI sidecars by stamp and hands their TEXT via ctx.companions = { acc, gyro, magn, ppi };
