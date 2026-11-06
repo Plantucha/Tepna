@@ -53,6 +53,8 @@ const {
   lombScargle,
   mergeMultipart,
   parseRRInput,
+  pdSeamVerdict, // SEAM-SIDECAR-CONSUMPTION §4 — the box's clock-seam sidecar on the drop road
+  _pdSeamScanWith,
   arrMin,
   arrMax,
   medianOf,
@@ -197,13 +199,30 @@ function loadRawFiles(fileList) {
       }
       // not a PulseDex envelope kind → fall through to the normal RR path (which reports if unreadable).
     }
+    /* ── SEAM-SIDECAR-CONSUMPTION §4 — THE BOX'S CLOCK-SEAM SIDECAR ON THE DROP ROAD ─────────────
+       `…_PPISEAMS.txt` (Verity PPI) and `…_HRSEAMS.txt` (H10 RR, whose writer owns the `_RR.txt`
+       sibling) are not recordings: dropped with their primary they used to be parsed AS interval
+       streams, which is how a sidecar becomes a bogus night. Set aside BEFORE the multipart fold, so
+       nothing can fold a sidecar into a stream, and paired back by the base its own filename carries
+       — device id plus session stamp — never by nearest-stamp, which has nothing to decide here. A
+       primary with no sidecar in the drop reads seams UNKNOWN, never zero (owner, 2026-11-05). */
+    const _seamDrops = [];
+    list = list.filter(function (it) {
+      if (_PD_SEAM_NAME.test(it.name || '')) {
+        _seamDrops.push(it);
+        return false;
+      }
+      return true;
+    });
     list = mergeMultipart(list); // fold Polar `_RR_part01of..` / `_PPI_part..` splits into one stream per base
     list.forEach((it) => {
       document.getElementById('rawPaste').value = it.text;
       _curFname = it.name;
+      _curSeamsText = _pdPickSeams(it.name, _seamDrops);
       calculate(); // stores into allRecordings + sets active
     });
     _curFname = null;
+    _curSeamsText = null;
   });
 }
 
@@ -231,7 +250,34 @@ Object.defineProperty(window, 'welltoryData', {
 let allRecordings = {}; // key (floating t0Ms string) → result object
 let activeKey = null,
   _recSeq = 0,
-  _curFname = null;
+  _curFname = null,
+  /* the sidecar BYTES for the stream `calculate()` is about to read, set by the drop lane beside
+     `_curFname` and cleared with it — the same carrier idiom, so no call signature changes. */
+  _curSeamsText = null;
+const _PD_SEAM_NAME = /_(PPI|HR)SEAMS\b|_(PPI|HR)SEAMS\./i;
+/* The base a primary and its sidecar SHARE: the filename with its stream suffix removed. The box and
+   Polar Sensor Logger both name a session `<vendor>_<device>_<stamp>_<STREAM>.txt`, so the base carries
+   the device id and the session stamp and an exact match cannot cross devices or nights. The extension
+   is optional because `mergeMultipart` hands back a folded base with none. */
+function _pdSeamBase(name) {
+  return String(name || '')
+    .replace(/_(PPISEAMS|HRSEAMS|PPI|RR|HR)(\.[A-Za-z0-9]+)?$/i, '')
+    .toLowerCase();
+}
+/* The sidecar for one primary, or null. A device writes ONE of the two spellings, so the primary's own
+   suffix states which to prefer when a drop somehow holds both for one base. */
+function _pdPickSeams(primaryName, drops) {
+  if (!drops || !drops.length) return null;
+  const base = _pdSeamBase(primaryName);
+  const want = /_PPI(\.[A-Za-z0-9]+)?$/i.test(String(primaryName || '')) ? 'ppi' : 'hr';
+  let fallback = null;
+  for (let i = 0; i < drops.length; i++) {
+    if (_pdSeamBase(drops[i].name) !== base) continue;
+    if (new RegExp('_' + want + 'SEAMS', 'i').test(drops[i].name)) return drops[i].text;
+    if (fallback == null) fallback = drops[i].text;
+  }
+  return fallback;
+}
 wtInput.addEventListener('change', (e) => {
   const f = e.target.files[0];
   if (!f) return;
@@ -601,7 +647,7 @@ loadProfile();
 function calculate() {
   clearAlerts();
   const raw = document.getElementById('rawPaste').value;
-  const parsed = parseRRInput(raw);
+  const parsed = parseRRInput(raw, _curSeamsText ? { seamsText: _curSeamsText } : undefined);
   if (parsed.usable === false || !parsed.vals || parsed.vals.length < 10) {
     const why = parsed.reason || 'Need at least 10 RR values (ms).';
     // an empty / all-zero device onboard stream → point at the raw-waveform node
@@ -675,9 +721,15 @@ function calculate() {
     dispHr = hr,
     dispPn = pn,
     dispMeanRR = meanRR;
+  /* The seams the box recorded at ARRIVAL, placed on this record's beat axis (§4). A 5-min window
+     spanning one refuses and publishes its reason instead of metrics over two stretches of signal
+     (owner ruling 2026-09-17) — `windowAnalysis` already does that for a detected seam, and this hands
+     it the recorded ones under the same shape. `_pdSeamScanWith` returns the scan it was given when
+     nothing was placed, so a stream with no sidecar keeps today's numbers byte-for-byte. */
+  const _pdSeam = pdSeamVerdict(parsed, parsed.tsMs);
   if (longRec) {
     progress(50, 'Windowing ' + (durSec / 3600).toFixed(1) + ' h into 5-min epochs…');
-    win = windowAnalysis(a, times, 300);
+    win = windowAnalysis(a, times, 300, { scan: _pdSeamScanWith(null, _pdSeam.seamIdx, parsed.tsMs), t0Ms: parsed.t0Ms });
     if (win.wins.length >= 3) {
       const rmA = win.wins.map((w) => w.rmssd),
         sdA = win.wins.map((w) => w.sdnn),
@@ -859,6 +911,9 @@ function calculate() {
     windows: win ? win.wins : null,
     sdann,
     sdnnIdx,
+    /* THE SEAM CHANNEL for `pdBuildNodeExport`, which publishes it unconditionally — without this the
+       drop road's export would read `no-seam-sidecar` on a night whose sidecar this road just read. */
+    seamState: _pdSeam.ann,
     N,
     meanRR: +meanRR.toFixed(1),
     hr,
