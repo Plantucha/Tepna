@@ -52,6 +52,7 @@ import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import vm from 'node:vm';
+import { dissentStampOf, signsOf } from './consensus-dissent-core.mjs';
 import { CFD_FRAC, fractionAmplitudeIndex, halfAmplitudeIndex } from './pat-fiducial.mjs';
 import { isCliEntry } from './argv-guard.mjs';
 import { snapshotNights, populationVerdict, notANight } from './corpus-scope-core.mjs';
@@ -311,7 +312,14 @@ function ppgFootTimes(text, runsText, opts) {
      WIRING half: a fix that ships in the node but never reaches the tools measuring it.
      `applyConsensusPolarity` re-detects exactly the dissenters with the majority sign, and is a no-op
      on a unanimous set. */
+  /* ∅ A COUNT OF ZERO IS FOUR DIFFERENT FACTS, so the SHAPE travels beside it: unanimous, a 1-1 tie,
+     channels carrying no sign and a single-channel stream all leave `flipped` at 0, and only the
+     first means the channels agreed. The signs are read BEFORE the pass — after it the dissenter
+     carries the majority sign and every stream reads unanimous (row
+     2026-11-04-pat-figures-were-published-under-the-overruled-polarity). */
+  const polaritySigns = signsOf(per);
   const flipped = PPGDSP.applyConsensusPolarity(per, (i, sgn) => PPGDSP.detectChannel(rec.ch[i], rec.fs, sgn));
+  const polarity = dissentStampOf(polaritySigns, flipped);
   let refIdx = 0,
     best = -1;
   per.forEach((p, i) => {
@@ -430,6 +438,8 @@ function ppgFootTimes(text, runsText, opts) {
     times: t,
     n: cons.feet.length,
     polarityFlipped: flipped,
+    polarity,
+    polaritySigns,
     halfTimes: half,
     nHalfUnusable: nUnusable,
     cfdTimes: cfd,

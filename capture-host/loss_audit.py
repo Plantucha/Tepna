@@ -1558,6 +1558,18 @@ H10_MIN_EPOCHS = 60  # the derivation's floor: under 10 min there is no file bas
 VERITY_END_AMB_RATIO_MIN = 1.5
 VERITY_END_ACC_SD_MIN = 150.0
 VERITY_MIN_EPOCHS = 30  # the derivation's floor for a Verity file
+# A VERITY FILE WITH NO PULSE ON ANY PPI ROW WAS NOT WORN, so it cannot set the worn end. Residue
+# `2026-11-05-an-unworn-verity-file-sets-the-worn-end`: on 2026-11-05 the Verity doffed at 04:49:06 (a
+# witnessed `doff`), relinked 19 s later and streamed 25 min OFF the body. That file was the latest usable
+# end, its end had no witness, and night 2026-11-04 read UNKNOWN. The device's own PPI stream reported
+# `hr [bpm]` 0 on all 1724 of its rows, and its ambient read +347k against -200 worn.
+#   Box census 2026-08-02..2026-11-05, 117 Verity PPI files with >= 30 rows, share of rows with hr > 0:
+#   103 at >= 90 %, 4 at 10..90 % (lowest 19.9 %), none above 0 and under 10 %, 10 at EXACTLY 0. All 10
+#   read a PPG ambient median from -322,939 to +346,857; that night's worn file reads -214. The rule takes
+#   the 0, not a threshold: one pulse row keeps the file, so a file worn for part of its span stays.
+#   An absent PPI file, a header-only one ("often header-only", CLAUDE.md) or one under the floor is NO
+#   witness (None), and the end is judged as before.
+VERITY_NO_PULSE_MIN_ROWS = 30
 WEAR_RELINK_S = 1800.0  # the label: a next file within 30 min is a reconnect
 _ACC_TAIL_BYTES = 262_144  # the final epoch's ACC rows sit in the last ~25 KB at 52 Hz; 256 KB is generous
 _ACC_MIN_ROWS = 50  # fewer ACC rows in the final epoch is not a motion measurement
@@ -1679,6 +1691,29 @@ def _final_acc_sd(acc_path: str, start: _dt.datetime) -> float | None:
     return statistics.pstdev(mags) if len(mags) > _ACC_MIN_ROWS else None
 
 
+def verity_ppi_pulse(ppi_path: str) -> tuple[int, int] | None:
+    """`(PPI rows with an hr, rows whose hr is above 0)` for one Verity `_PPI.txt`, or None when the file
+    is absent or carries no `hr [bpm]` column. A blank or torn hr is absent, never counted as 0."""
+    if not os.path.exists(ppi_path):
+        return None
+    rows = pulse = 0
+    with open(ppi_path, errors="replace") as fh:
+        # Each header cell is stripped, so a CRLF line or a padded cell still names its column.
+        head = [c.strip() for c in fh.readline().split(";")]
+        if "hr [bpm]" not in head:
+            return None
+        i = head.index("hr [bpm]")
+        for line in fh:
+            parts = line.split(";")  # int() skips the whitespace and the line end around a number
+            try:
+                hr = int(parts[i])
+            except (IndexError, ValueError):
+                continue  # a blank, torn or short row holds no hr: absent, so neither a row nor a 0
+            rows += 1
+            pulse += hr > 0
+    return rows, pulse
+
+
 def _relink_gap(night_dir: str, pattern: str, end: _dt.datetime) -> tuple[float | None, int]:
     """`(seconds from end to this stream's next file, count of sibling names carrying no start stamp)`.
 
@@ -1712,6 +1747,16 @@ def _wear_end(path: str, night_dir: str, model: str) -> dict:
     floor = H10_MIN_EPOCHS if model == "H10" else VERITY_MIN_EPOCHS
     if len(ep) < floor or last is None:
         return {"file": base, "usable": False, "reason": f"under {floor} epochs of {WEAR_EPOCH_S:.0f} s"}
+    if model != "H10":
+        ppi = verity_ppi_pulse(path[: -len("_PPG.txt")] + "_PPI.txt")
+        if ppi is not None and ppi[0] >= VERITY_NO_PULSE_MIN_ROWS and ppi[1] == 0:
+            return {
+                "file": base,
+                "usable": False,
+                "reason": f"not worn: the device reports no pulse on any of its {ppi[0]} PPI rows",
+                "ppi_rows": ppi[0],
+                "ppi_pulse_rows": 0,
+            }
     gap, no_stamp = _relink_gap(night_dir, pattern, last)
     if model == "H10":
         t = h10_tail([e[2] for e in ep])

@@ -44,6 +44,7 @@ import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { dissentStampLine, dissentStampOf, signsOf } from './consensus-dissent-core.mjs';
 import { printVerdict, undeclaredVerdict, verdictSample } from './verdict-undeclared.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -275,12 +276,21 @@ else {
     process.exit(1);
   }
   console.log('  H10     beats=%d span=%s min', hb.length, ((hb[hb.length - 1] - hb[0]) / 60).toFixed(1));
-  const vb = verityBeats(vppg, ctx);
+  /* The Verity corner's polarity stamp, printed beside its beat count: #4330 wired the consensus pass
+     into this leg and re-measured nothing already published, so a hat figure has to say whether the
+     stream behind it was corrected (row 2026-11-04-pat-figures-were-published-under-the-overruled-polarity). */
+  const vPol = {};
+  const vb = verityBeats(vppg, ctx, vPol);
   if (!vb || vb.length < 500) {
     console.log('  Verity  FAIL: beats=' + (vb ? vb.length : 0));
     process.exit(1);
   }
   console.log('  Verity  beats=%d span=%s min', vb.length, ((vb[vb.length - 1] - vb[0]) / 60).toFixed(1));
+  console.log(dissentStampLine(vPol, vPol.signs));
+  /* ∅ The O2Ring corner carries ONE optical channel, so there is no majority to read and no pass to
+     apply. The shape is COMPUTED from that one channel's sign rather than written as prose, so it
+     reads `alone` and never a silent unanimous. */
+  console.log('  O2Ring' + dissentStampLine(dissentStampOf(signsOf([det]), 0), signsOf([det])));
 
   const T0 = Math.max(polarAnchor(ecg).host, polarAnchor(vppg).host, frames[0].host);
   const A = beatsToMinuteHr(hb, hb[0], polarAnchor(ecg).host - T0);

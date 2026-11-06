@@ -50,6 +50,7 @@
  *   node tools/pr-walker.mjs --dry-run             # one pass, print the plan, act on nothing
  *   node tools/pr-walker.mjs --loop --interval-s 90
  *   node tools/pr-walker.mjs --print-install       # the owner's install commands (timer-owned worktree)
+ *   node tools/pr-walker.mjs --clean-worktree    # restore the generated paths a rebase rebuilt here
  *   node tools/pr-walker.mjs --selftest
  */
 import { execFileSync } from 'node:child_process';
@@ -57,6 +58,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from '
 import { homedir } from 'node:os';
 import path from 'node:path';
 import { isCliEntry } from './argv-guard.mjs';
+import { generatedSet } from './rebase-safe.mjs';
 
 export const CAP = 4;
 export const KODIAK_IDLE_MIN = 20;
@@ -336,10 +338,53 @@ export function stepResult(step, e) {
     .find(Boolean);
   return `stopped:${step}${line ? `: ${line.slice(0, 140)}` : ''}`;
 }
+/* ── THE WALKER'S OWN CHECKOUT MUST END EVERY PASS CLEAN ───────────────────────────────────────
+   Measured 2026-11-05 (board #3656, #3659): `rebase-safe` REBUILDS the generated trees, so rebasing
+   a branch that moves an inlined source leaves the rebuilt bundle dirty here. The old `finally` ran
+   its detach inside a bare `catch {}`, so that failure was invisible, and the unit's own
+   `ExecStartPre` detach then exited 1 on every later pass. 26 passes died in 36 minutes, no green
+   draft was readied fleet-wide, and the pass that would have cleaned the tree was the pass that
+   could not start.
+
+   THE GENERATED SET IS ASKED FOR, NEVER GUESSED — `rebase-safe.generatedSet()` reads it from the
+   builders that own it and returns null when any of them cannot answer. A null set, an untracked
+   path, or any dirty path outside the set is somebody's work, so this REFUSES and names it rather
+   than discarding it (CLAUDE.md §👥.2). A refusal leaves the walker down and says which path did
+   it, which is the safe side of that trade. */
+export function cleanWorktree(g, generated) {
+  const rows = String(g('status', '--porcelain') || '')
+    .split('\n')
+    .filter((l) => l.trim());
+  if (!rows.length) return 'clean';
+  if (!generated) return 'refused: the generated set is unreadable, so every dirty path reads as source';
+  const unquote = (p) => (/^".*"$/.test(p) ? p.slice(1, -1) : p);
+  const parsed = rows.map((l) => ({ code: l.slice(0, 2), path: unquote(l.slice(3).split(' -> ').pop().trim()) }));
+  // An untracked or renamed path is not restorable by `git checkout --`, so it never counts as generated.
+  const restorable = (r) => !r.code.includes('?') && !r.code.includes('R') && generated.has(r.path);
+  const other = parsed.filter((r) => !restorable(r));
+  if (other.length) {
+    const named = other
+      .slice(0, 4)
+      .map((r) => r.path)
+      .join(', ');
+    return `refused: ${other.length} dirty path(s) outside the generated set: ${named}`;
+  }
+  g('checkout', '--', ...parsed.map((r) => r.path));
+  const left = String(g('status', '--porcelain') || '')
+    .split('\n')
+    .filter((l) => l.trim());
+  if (left.length) return `still-dirty: ${left.length} path(s) survived the restore`;
+  return `restored: ${parsed.length} generated path(s)`;
+}
+
 function rebaseBranch(a, wt) {
   const g = (...args) => sh('git', args, { cwd: wt });
   if (!wt || !existsSync(path.join(wt, '.git'))) return 'no-worktree';
-  if (g('status', '--porcelain').trim()) return 'dirty';
+  if (g('status', '--porcelain').trim()) {
+    const pre = cleanWorktree(g, generatedSet());
+    console.error(`pr-walker: this checkout was dirty before the pass — ${pre}`);
+    if (!/^(clean|restored)/.test(pre)) return `dirty: ${pre}`;
+  }
   if (!/^claude\//.test(a.branch || '')) return 'not-a-fleet-branch';
   let step = 'fetch';
   try {
@@ -358,9 +403,19 @@ function rebaseBranch(a, wt) {
     } catch {}
     return stepResult(step, e);
   } finally {
+    /* REPORT, NEVER SWALLOW. Both halves below used to sit inside one bare `catch {}`. */
+    let post = 'unexamined';
+    try {
+      post = cleanWorktree(g, generatedSet());
+    } catch (e) {
+      post = stepResult('clean', e);
+    }
+    if (!/^clean/.test(post)) console.error(`pr-walker: this checkout after the pass — ${post}`);
     try {
       g('checkout', '-q', '--detach', 'origin/main');
-    } catch {}
+    } catch (e) {
+      console.error(`pr-walker: the detach to origin/main failed — ${stepResult('detach', e)}`);
+    }
   }
 }
 
@@ -575,6 +630,60 @@ function selftest() {
     { nowMs: 0, mainMovedAtMs: 0, cap: 4 }
   );
   eq(hr.alerts[0].why.startsWith('rebase stopped:rebase-safe on '), true, 'the hand-rebase alert names the step, never rebase-safe by default');
+  /* ── cleanWorktree: what it restores, and what it refuses to touch ── */
+  const fakeGit = (before, after) => {
+    const calls = [];
+    let cur = before;
+    const g = (...args) => {
+      calls.push(args.join(' '));
+      if (args[0] === 'status') return cur.join('\n');
+      if (args[0] === 'checkout') {
+        cur = after || [];
+        return '';
+      }
+      return '';
+    };
+    g.calls = calls;
+    return g;
+  };
+  const GEN = new Set(['PAT Feasibility.html', 'OxyDex.html', 'docs/TOOLS-INDEX.md']);
+  const g1 = fakeGit([]);
+  eq(cleanWorktree(g1, GEN), 'clean', 'an undirtied checkout needs no restore');
+  eq(
+    g1.calls.some((c) => c.startsWith('checkout')),
+    false,
+    'a clean checkout is never checked out'
+  );
+  const g2 = fakeGit([' M "PAT Feasibility.html"', ' M OxyDex.html']);
+  eq(cleanWorktree(g2, GEN), 'restored: 2 generated path(s)', 'two dirty generated paths are restored');
+  eq(g2.calls.includes('checkout -- PAT Feasibility.html OxyDex.html'), true, 'the restore is quoted out and passed by path');
+  const g3 = fakeGit([' M ecgdex-dsp.js']);
+  eq(cleanWorktree(g3, GEN), 'refused: 1 dirty path(s) outside the generated set: ecgdex-dsp.js', 'a dirty source file is refused by name');
+  eq(
+    g3.calls.some((c) => c.startsWith('checkout')),
+    false,
+    'a refusal discards nothing'
+  );
+  const g4 = fakeGit([' M OxyDex.html', ' M tests/dex-tests.js']);
+  eq(/^refused: 1 /.test(cleanWorktree(g4, GEN)), true, 'one source path among generated ones refuses the whole set');
+  eq(
+    g4.calls.some((c) => c.startsWith('checkout')),
+    false,
+    'a mixed tree is not partly restored'
+  );
+  const g5 = fakeGit(['?? OxyDex.html']);
+  eq(/^refused: /.test(cleanWorktree(g5, GEN)), true, 'an untracked path is refused — a restore cannot restore it');
+  const g6 = fakeGit([' M OxyDex.html']);
+  eq(cleanWorktree(g6, null), 'refused: the generated set is unreadable, so every dirty path reads as source', 'an unreadable builder list fails closed');
+  eq(
+    g6.calls.some((c) => c.startsWith('checkout')),
+    false,
+    'a fail-closed set discards nothing'
+  );
+  const g7 = fakeGit([' M OxyDex.html'], [' M OxyDex.html']);
+  eq(cleanWorktree(g7, GEN), 'still-dirty: 1 path(s) survived the restore', 'a restore that changed nothing says so rather than reading clean');
+  const g8 = fakeGit(['R  old.html -> "PAT Feasibility.html"']);
+  eq(/^refused: /.test(cleanWorktree(g8, GEN)), true, 'a rename into a generated path is refused, not restored');
   console.log(`all ${ran} selftests passed`);
 }
 
@@ -584,7 +693,15 @@ if (isCliEntry(import.meta.url)) {
   const val = (n, d) => (argv.includes(n) ? argv[argv.indexOf(n) + 1] : d);
   if (flag('--selftest')) selftest();
   else if (flag('--print-install')) console.log(installText());
-  else {
+  else if (flag('--clean-worktree')) {
+    /* The unit's own pre-step calls this, so one dirty generated file can never again stop the pass
+       that would have cleaned it. A refusal exits 1 and names the path it would not discard. */
+    const wt = val('--worktree', process.cwd());
+    const g = (...args) => sh('git', args, { cwd: wt });
+    const r = cleanWorktree(g, generatedSet());
+    console.log(`clean-worktree: ${r}`);
+    if (!/^(clean|restored)/.test(r)) process.exit(1);
+  } else {
     const opts = { dryRun: flag('--dry-run'), json: flag('--json'), worktree: val('--worktree', process.cwd()), cap: Number(val('--cap', CAP)) };
     if (flag('--loop')) {
       const iv = Number(val('--interval-s', 90)) * 1000;
