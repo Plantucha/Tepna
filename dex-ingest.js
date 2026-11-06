@@ -457,8 +457,17 @@
     }
     // (5) device-id companion filter: a foreign-device sidecar is set aside (otherdevice), never attached.
     //     The eligibility predicate is the shared _isDeviceEligible (IV §2; anchor is the device SET here).
+    /* EVERY companion lane is filtered here, the three SIDECAR lanes included. `runs`, `seams` and
+       `accruns` were absent from this list until 2026-11-06, and the `runs` lane's own comment below
+       claimed the filter it never got. One drop of two H10 sessions therefore produced opposite
+       outcomes: the foreign `_ACC` landed in `skipped` as 'otherdevice' while the foreign `_ECGSEAMS`
+       kept its lane. `ecgdex-app.js` `_pickSidecarFor` then pairs by nearest filename stamp and reads
+       no device, so the foreign sidecar won whenever the primary's own sidecar was absent — and a
+       wrong session's seam rows make `epochEngine` refuse epochs this recording never carried.
+       A device-LESS sidecar still passes (`_isDeviceEligible` returns true), so the nearest-stamp
+       pick keeps its one legitimate job. */
     if (anchor) {
-      ['rr', 'hr', 'acc'].forEach(function (kind) {
+      ['rr', 'hr', 'acc', 'runs', 'seams', 'accruns'].forEach(function (kind) {
         var keep = [];
         byKind[kind].forEach(function (it) {
           if (_isDeviceEligible(it.name, anchor)) keep.push(it);
