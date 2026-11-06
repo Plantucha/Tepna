@@ -49,7 +49,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import vm from 'node:vm';
 import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 import { maskNonCode } from './argv-reads.mjs';
-import { dissentOf, dissentStampOf, dissentTally, dissentTallyLine, signsOf } from './consensus-dissent-core.mjs';
+import { dissentOf, dissentStampOf, dissentTally, dissentTallyLine, refpickOf, signsOf } from './consensus-dissent-core.mjs';
 import { argAt, findCalls, scanFiles } from './consensus-polarity-wiring.mjs';
 import { gitCommitOf, populationVerdict, ruleLine, snapshotEntries } from './corpus-scope-core.mjs';
 import { runsSidecarPath } from './trio-fold-validity.mjs';
@@ -108,6 +108,12 @@ export const DECLARED_PICKS = {
 /* The states a census row can hold against the table. `undeclared` and `diverged` are the two the
    row asked for; `declared` is the quiet case. */
 export const DECLARATION_STATES = ['declared', 'undeclared', 'diverged'];
+/* HOW the rule was read, which is the row's own progress metric: `named` means the site passes its
+   rule to `refpickOf` as a literal, so the scan reads a declaration. `inferred` means the scan
+   recognised a comparison, a constant or nothing — the state every site held before this. A
+   `literal` reference and an `unknown` one are both `inferred`, because neither writes a rule NAME
+   at the site. */
+export const READ_SOURCES = ['named', 'inferred'];
 
 /* 🔴 AN ARGMAX IS A COMPARISON THAT ASSIGNS THE INDEX, NOT A MENTION OF THE SCORE. A first cut read
    `.peaks.length >` anywhere in the region and called `ppgdex-dsp.js` a peak-count pick, because the
@@ -146,6 +152,22 @@ export function argmaxOf(region, name) {
   return null;
 }
 
+/* 🔴 A NAMED CALL IS A DECLARATION; AN ARGMAX LOOP IS A GUESS. Eight legs now bind the reference
+   through `consensus-dissent-core.mjs#refpickOf(per, '<rule>')`, so the rule is written at the site
+   and this scan reads it instead of inferring one from a comparison's shape. The call is located on
+   the MASKED copy, so one inside a comment cannot win, and the rule literal is read from the SOURCE
+   at the same offset, because the mask blanks string contents. A literal outside `PICK_RULES` reads
+   `unknown` and keeps its own leg: a misspelt rule must never buy the pass a correct one would. */
+export const NAMED_PICK_SRC = 'refpickOf';
+export function namedPickOf(maskedStmt, textStmt) {
+  const at = maskedStmt.indexOf(`${NAMED_PICK_SRC}(`);
+  if (at < 0) return null;
+  const m = /['"]([\w-]+)['"]/.exec(textStmt.slice(at));
+  if (!m) return { rule: 'unknown', why: `\`${NAMED_PICK_SRC}\` names no rule literal this scan can read` };
+  if (!PICK_RULES.includes(m[1])) return { rule: 'unknown', why: `\`${NAMED_PICK_SRC}\` names \`${m[1]}\`, which is not one of the ${PICK_RULES.length} rules this census knows` };
+  return { rule: m[1], why: `the site names its rule in code as \`${m[1]}\`` };
+}
+
 /* Which rule chose the reference this call consumes. `region` is the text between the binding and
    the consumer — a bound the SOURCE draws, so it can neither overshoot into the next function nor
    stop short of the loop that assigns the index.
@@ -155,6 +177,13 @@ export function argmaxOf(region, name) {
    that chose it, and the pick sits outside its region. Widening the region to find it would be the
    fixed window this module refuses; following the guard's own argument reads the real chain. */
 export function classifyPick(text, masked, call) {
+  /* `read` is stated by the function that DID the reading, not by the row builder downstream: a
+     caller reading one site must get the same answer the census writes into its table. Only the
+     named branch overrides it. */
+  return { read: 'inferred', ...readPick(text, masked, call) };
+}
+
+function readPick(text, masked, call) {
   const expr = argAt(text, masked, call.open, REF_ARG);
   if (expr === null) return { rule: 'unknown', expr: null, why: `the call carries no argument at position ${REF_ARG}` };
   if (/^\d+$/.test(expr)) return { rule: 'literal', expr, why: 'the reference is written as a constant' };
@@ -178,6 +207,9 @@ export function classifyPick(text, masked, call) {
       before = at;
       continue;
     }
+    const tregion = text.slice(at, before);
+    const named = namedPickOf(stmt, stmtEnd === -1 ? tregion : tregion.slice(0, stmtEnd));
+    if (named) return { rule: named.rule, expr, read: 'named', why: named.why + (guarded ? ', then moved by the harmonic-outlier guard' : '') };
     const am = argmaxOf(region, name);
     if (am) return { rule: am.rule, expr, why: am.why + (guarded ? ', then moved by the harmonic-outlier guard' : '') };
     if (SNR_PICK_RE.test(region))
@@ -238,6 +270,8 @@ export function censusVerdictOf(rows, opts = {}) {
     const n = marked.filter((x) => x.rule === r).length;
     if (n) byRule[r] = n;
   }
+  const byRead = {};
+  for (const s of READ_SOURCES) byRead[s] = marked.filter((x) => x.read === s).length;
   /* FOUR LEGS, ONE JOINED REASON. A reader who gets one clause per defect cannot tell which of the
      four reds the verdict, and the gate's own criterion names all four at once. */
   const clauses = [];
@@ -259,6 +293,7 @@ export function censusVerdictOf(rows, opts = {}) {
         ? null
         : {
             byRule,
+            byRead,
             mode: 'census',
             declared: { ok: marked.length - undeclared.length - diverged.length, undeclared: undeclared.length, diverged: diverged.length, orphans: orphans.length }
           },
@@ -540,7 +575,7 @@ function selftest() {
   fail += ok(clean.status === 'PASS' && clean.result.nightsWithADissenter === 1, 'a dissenting night whose pick lands elsewhere still counts as a night with a dissenter');
   /* The declaration, four states and one control. A row is written here rather than scanned, so a
      state reds on its own shape and not on whatever the tree happens to hold. */
-  const ROW = (file, rule) => ({ in: file, line: 7, callee: CONSUMER, rule, expr: 'refIdx', why: 'selftest' });
+  const ROW = (file, rule) => ({ in: file, line: 7, callee: CONSUMER, rule, read: 'inferred', expr: 'refIdx', why: 'selftest' });
   const T = { 'a.mjs': 'peak-argmax', 'b.mjs': 'snr-pick' };
   const agree = declarationAudit([ROW('a.mjs', 'peak-argmax')], T);
   fail += ok(agree.rows[0].declarationState === 'declared' && agree.orphans.join() === 'b.mjs', 'a site reading its declared rule reads declared, and the unanswered entry reads orphan');
@@ -557,12 +592,64 @@ function selftest() {
   const orph = censusVerdictOf([ROW('a.mjs', 'peak-argmax')], { declared: T });
   fail += ok(orph.status === 'FAIL' && orph.reason.includes('carry no call site'), 'a declared file whose call site is gone reds the census');
   fail += ok(censusVerdictOf([ROW('a.mjs', 'unknown')], { declared: { 'a.mjs': 'unknown' } }).status === 'FAIL', 'declaring a rule `unknown` never buys a pass: an unnamed pick keeps its own leg');
+  /* ── the rule NAMED at the site, and the loop it replaced ──────────────────────────────────────
+     The parity leg is the whole licence for the conversion: eight published legs derive every foot
+     on this pick, so the helper has to agree with the loop on ties and on an empty score too. */
+  const OLD_LOOP = (per) => {
+    let refIdx = 0,
+      best = -1;
+    per.forEach((p, i) => {
+      if (p.peaks.length > best) {
+        best = p.peaks.length;
+        refIdx = i;
+      }
+    });
+    return refIdx;
+  };
+  const PER = (...counts) => counts.map((n) => ({ peaks: new Array(n).fill(0) }));
+  const PARITY = [[3, 1, 2], [0, 0, 0], [5, 5, 1], [1], [0, 7], [2, 7, 7], [9, 9, 9, 1]];
+  fail += ok(
+    PARITY.every((c) => refpickOf(PER(...c), 'peak-argmax').idx === OLD_LOOP(PER(...c))),
+    `the named helper reproduces the loop it replaced on all ${PARITY.length} cases, ties included`
+  );
+  fail += ok(refpickOf(PER(5, 5, 1), 'peak-argmax').ties === 1 && refpickOf(PER(3, 1, 2), 'peak-argmax').ties === 0, 'a tie is COUNTED, so a leg can say its reference was arbitrary among equals');
+  fail += ok(refpickOf([], 'peak-argmax').idx === null && refpickOf([], 'peak-argmax').score === null, '∅ a set with no readable score has no argmax: the pick is null, never channel 0');
+  fail += ok(refpickOf([{}, { peaks: [0] }], 'peak-argmax').idx === 1, 'a channel carrying no peaks array is skipped rather than scored as a zero it never measured');
+  let refused = false;
+  try {
+    refpickOf(PER(1), 'snr-pick');
+  } catch {
+    refused = true;
+  }
+  fail += ok(refused, 'the helper implements ONE rule and refuses a name it does not implement, so no caller gets a pick it did not ask for');
+  const NAMED = "const refIdx = refpickOf(per, 'peak-argmax').idx;\nconst cons = PPGDSP.consensusBeats(per, refIdx, rec.fs);\n";
+  fail += ok(pickOf(NAMED).rule === 'peak-argmax' && pickOf(NAMED).read === 'named', 'a converted site classifies by the rule it names, and the row records that the scan read a declaration');
+  fail += ok(pickOf(ARGMAX).read === 'inferred', 'CONTROL · an argmax loop is still read, and still reads as inferred');
+  fail += ok(
+    namedPickOf('const r = pickFromSomewhereElse(per);', 'const r = pickFromSomewhereElse(per);') === null,
+    'a statement naming no rule falls through to the inference rather than answering for it'
+  );
+  fail += ok(
+    namedPickOf("const r = refpickOf(per, 'peek-argmax').idx;", "const r = refpickOf(per, 'peek-argmax').idx;").rule === 'unknown',
+    'a misspelt rule name buys no pass: it is unknown and keeps its own leg'
+  );
+  fail += ok(namedPickOf('const r = refpickOf(per).idx;', 'const r = refpickOf(per).idx;').rule === 'unknown', 'a named call carrying no rule literal reads unknown, never the rule a reader assumed');
+  const CMT = "/* refpickOf(per, 'snr-pick') */\nconst refIdx = 0;\n";
+  fail += ok(namedPickOf(maskNonCode(CMT), CMT) === null, 'a call written inside a comment names nothing, because the call is located on the masked copy');
+  fail += ok(
+    declarationAudit([{ ...ROW('a.mjs', 'snr-pick'), read: 'named' }], T).rows[0].declarationState === 'diverged',
+    'naming a rule in code never overrides the table: a named site that disagrees with it still diverges'
+  );
   /* 🔴 THE LIVE TREE IS THE POINT. The table above freezes the divergence the row measured, so this
      assertion is what a new call site or a changed rule reds. The remedy is an entry in
      `DECLARED_PICKS`, written by whoever moved the pick. */
   const live = censusVerdictOf(censusRows(ROOT));
   fail += ok(live.status === 'PASS', `the live tree matches the declared table${live.status === 'PASS' ? '' : ` — ${live.reason}`}`);
   fail += ok(live.result !== null && live.result.declared.ok === live.population.checked, `every one of the ${live.population.checked} live call site(s) reads its declared rule`);
+  fail += ok(
+    live.result.byRead.named + live.result.byRead.inferred === live.population.checked,
+    `the read counts answer for every examined site — ${live.result.byRead.named} named, ${live.result.byRead.inferred} inferred of ${live.population.checked}`
+  );
   fail += ok(DECLARED_PICKS['ppgdex-dsp.js'] === SHIPPED_RULE, 'the shipped path is the one site declared by the shipped rule, under its own name');
   console.log(fail ? `\nselftest: ${fail} FAILURE(S) of ${ASSERTED}` : `\nselftest: all ${ASSERTED} assertions passed`);
   return fail;
@@ -598,11 +685,11 @@ if (isCliEntry(import.meta.url)) {
     if (has('--json')) console.log(JSON.stringify({ rows, verdict: v }, null, 2));
     else {
       console.log(`${CONSUMER} reference-pick census — which rule chooses the channel every foot is derived on\n`);
-      console.log('file                                            line  rule                declared            expr');
+      console.log('file                                            line  rule                declared            read      expr');
       const audit = declarationAudit(rows);
       for (const r of audit.rows)
         console.log(
-          `${r.in.padEnd(46)}  ${String(r.line).padStart(4)}  ${r.rule.padEnd(18)}  ${(r.declarationState === 'declared' ? r.declaredRule : r.declarationState.toUpperCase()).padEnd(18)}  ${r.expr || '—'}`
+          `${r.in.padEnd(46)}  ${String(r.line).padStart(4)}  ${r.rule.padEnd(18)}  ${(r.declarationState === 'declared' ? r.declaredRule : r.declarationState.toUpperCase()).padEnd(18)}  ${r.read.padEnd(8)}  ${r.expr || '—'}`
         );
       for (const f of audit.orphans) console.log(`${f.padEnd(46)}     —  ORPHAN              a declared file no call site answers for`);
       console.log('');

@@ -150,6 +150,20 @@
       "nWithDuration": 0,
       "n": 30
     },
+    "validity": {
+      "seams": null,
+      "seamsReason": "summary-node-no-stream",
+      "n": 30,
+      "upstreamAnnotated": 0,
+      "upstreamMissing": 30,
+      "upstreamNodes": null,
+      "upstreamSeams": null,
+      "upstreamSeamsMeasurements": 0,
+      "upstreamSeamsReasons": null,
+      "upstreamMissingReasons": {
+        "no-upstream-export": 30
+      }
+    },
     "timing": {
       "timingSource": "device-only",
       "independent": false,
@@ -177,6 +191,9 @@
       "mxdmn": 0.37,
       "sd1": 36.84,
       "sd2": 102.39,
+      "validity": null,
+      "validityNode": null,
+      "validityReason": "no-upstream-export",
       "composites": {
         "stress": 17.1,
         "energy": 62.2,
@@ -202,6 +219,9 @@
       "mxdmn": 0.37,
       "sd1": 35.49,
       "sd2": 99.73,
+      "validity": null,
+      "validityNode": null,
+      "validityReason": "no-upstream-export",
       "composites": {
         "stress": 17,
         "energy": 61.2,
@@ -227,6 +247,9 @@
       "mxdmn": 0.36,
       "sd1": 33.92,
       "sd2": 97.95,
+      "validity": null,
+      "validityNode": null,
+      "validityReason": "no-upstream-export",
       "composites": {
         "stress": 17.2,
         "energy": 60.4,
@@ -252,6 +275,9 @@
       "mxdmn": 0.36,
       "sd1": 32.23,
       "sd2": 97.09,
+      "validity": null,
+      "validityNode": null,
+      "validityReason": "no-upstream-export",
       "composites": {
         "stress": 17.6,
         "energy": 59.7,
@@ -277,6 +303,9 @@
       "mxdmn": 0.35,
       "sd1": 30.51,
       "sd2": 97.14,
+      "validity": null,
+      "validityNode": null,
+      "validityReason": "no-upstream-export",
       "composites": {
         "stress": 18.2,
         "energy": 59.2,
@@ -302,6 +331,9 @@
       "mxdmn": 0.34,
       "sd1": 28.88,
       "sd2": 98.09,
+      "validity": null,
+      "validityNode": null,
+      "validityReason": "no-upstream-export",
       "composites": {
         "stress": 18.9,
         "energy": 59,
@@ -327,6 +359,9 @@
       "mxdmn": 0.33,
       "sd1": 27.41,
       "sd2": 99.88,
+      "validity": null,
+      "validityNode": null,
+      "validityReason": "no-upstream-export",
       "composites": {
         "stress": 19.9,
         "energy": 59,
@@ -352,6 +387,9 @@
       "mxdmn": 0.33,
       "sd1": 26.21,
       "sd2": 102.43,
+      "validity": null,
+      "validityNode": null,
+      "validityReason": "no-upstream-export",
       "composites": {
         "stress": 21,
         "energy": 59.3,
@@ -377,6 +415,9 @@
       "mxdmn": 0.32,
       "sd1": 25.33,
       "sd2": 105.66,
+      "validity": null,
+      "validityNode": null,
+      "validityReason": "no-upstream-export",
       "composites": {
         "stress": 22.2,
         "energy": 59.8,
@@ -402,6 +443,9 @@
       "mxdmn": 0.32,
       "sd1": 24.85,
       "sd2": 109.46,
+      "validity": null,
+      "validityNode": null,
+      "validityReason": "no-upstream-export",
       "composites": {
         "stress": 23.5,
         "energy": 60.5,
@@ -427,6 +471,9 @@
       "mxdmn": 0.32,
       "sd1": 24.77,
       "sd2": 113.69,
+      "validity": null,
+      "validityNode": null,
+      "validityReason": "no-upstream-export",
       "composites": {
         "stress": 24.8,
         "energy": 61.3,
@@ -452,6 +499,9 @@
       "mxdmn": 0.32,
       "sd1": 25.11,
       "sd2": 118.23,
+      "validity": null,
+      "validityNode": null,
+      "validityReason": "no-upstream-export",
       "composites": {
         "stress": 26.1,
         "energy": 62.3,
@@ -477,6 +527,9 @@
       "mxdmn": 0.32,
       "sd1": 25.85,
       "sd2": 122.91,
+      "validity": null,
+      "validityNode": null,
+      "validityReason": "no-upstream-export",
       "composites": {
         "stress": 27.4,
         "energy": 63.5,
@@ -502,6 +555,9 @@
       "mxdmn": 0.33,
       "sd1": 26.94,
       "sd2": 127.58,
+      "validity": null,
+      "validityNode": null,
+      "validityReason": "no-upstream-export",
       "composites": {
         "stress": 28.7,
         "energy": 64.6,
@@ -527,6 +583,9 @@
       "mxdmn": 0.33,
       "sd1": 28.33,
       "sd2": 132.08,
+      "validity": null,
+      "validityNode": null,
+      "validityReason": "no-upstream-export",
       "composites": {
         "stress": 29.8,
         "energy": 65.8,
@@ -552,6 +611,9 @@
       "mxdmn": 0.34,
       "sd1": 29.91,
       "sd2": 136.24,
+      "validity": null,
+      "validityNode": null,
+      "validityReason": "no-upstream-export",
       "composites": {
         "stress": 30.8,
         "energy": 67,
@@ -577,6 +639,9 @@
       "mxdmn": 0.35,
       "sd1": 31.61,
       "sd2": 139.93,
+      "validity": null,
+      "validityNode": null,
+      "validityReason": "no-upstream-export",
       "composites": {
         "stress": 31.6,
         "energy": 68.1,
@@ -602,6 +667,9 @@
       "mxdmn": 0.35,
       "sd1": 33.33,
       "sd2": 143.03,
+      "validity": null,
+      "validityNode": null,
+      "validityReason": "no-upstream-export",
       "composites": {
         "stress": 32.3,
         "energy": 69.1,
@@ -627,6 +695,9 @@
       "mxdmn": 0.36,
       "sd1": 34.95,
       "sd2": 145.42,
+      "validity": null,
+      "validityNode": null,
+      "validityReason": "no-upstream-export",
       "composites": {
         "stress": 32.7,
         "energy": 69.9,
@@ -652,6 +723,9 @@
       "mxdmn": 0.37,
       "sd1": 36.39,
       "sd2": 147.04,
+      "validity": null,
+      "validityNode": null,
+      "validityReason": "no-upstream-export",
       "composites": {
         "stress": 33,
         "energy": 70.5,
@@ -677,6 +751,9 @@
       "mxdmn": 0.37,
       "sd1": 37.56,
       "sd2": 147.83,
+      "validity": null,
+      "validityNode": null,
+      "validityReason": "no-upstream-export",
       "composites": {
         "stress": 33,
         "energy": 70.8,
@@ -702,6 +779,9 @@
       "mxdmn": 0.38,
       "sd1": 38.39,
       "sd2": 147.78,
+      "validity": null,
+      "validityNode": null,
+      "validityReason": "no-upstream-export",
       "composites": {
         "stress": 32.8,
         "energy": 71,
@@ -727,6 +807,9 @@
       "mxdmn": 0.38,
       "sd1": 38.83,
       "sd2": 146.9,
+      "validity": null,
+      "validityNode": null,
+      "validityReason": "no-upstream-export",
       "composites": {
         "stress": 32.4,
         "energy": 70.9,
@@ -752,6 +835,9 @@
       "mxdmn": 0.38,
       "sd1": 38.85,
       "sd2": 145.22,
+      "validity": null,
+      "validityNode": null,
+      "validityReason": "no-upstream-export",
       "composites": {
         "stress": 31.7,
         "energy": 70.6,
@@ -777,6 +863,9 @@
       "mxdmn": 0.38,
       "sd1": 38.46,
       "sd2": 142.8,
+      "validity": null,
+      "validityNode": null,
+      "validityReason": "no-upstream-export",
       "composites": {
         "stress": 30.9,
         "energy": 70,
@@ -802,6 +891,9 @@
       "mxdmn": 0.38,
       "sd1": 37.67,
       "sd2": 139.73,
+      "validity": null,
+      "validityNode": null,
+      "validityReason": "no-upstream-export",
       "composites": {
         "stress": 29.9,
         "energy": 69.3,
@@ -827,6 +919,9 @@
       "mxdmn": 0.37,
       "sd1": 36.54,
       "sd2": 136.11,
+      "validity": null,
+      "validityNode": null,
+      "validityReason": "no-upstream-export",
       "composites": {
         "stress": 28.8,
         "energy": 68.4,
@@ -852,6 +947,9 @@
       "mxdmn": 0.36,
       "sd1": 35.13,
       "sd2": 132.06,
+      "validity": null,
+      "validityNode": null,
+      "validityReason": "no-upstream-export",
       "composites": {
         "stress": 27.6,
         "energy": 67.3,
@@ -877,6 +975,9 @@
       "mxdmn": 0.36,
       "sd1": 33.53,
       "sd2": 127.73,
+      "validity": null,
+      "validityNode": null,
+      "validityReason": "no-upstream-export",
       "composites": {
         "stress": 26.3,
         "energy": 66.2,
@@ -902,6 +1003,9 @@
       "mxdmn": 0.35,
       "sd1": 31.82,
       "sd2": 123.24,
+      "validity": null,
+      "validityNode": null,
+      "validityReason": "no-upstream-export",
       "composites": {
         "stress": 25,
         "energy": 65,

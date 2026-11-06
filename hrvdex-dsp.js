@@ -176,6 +176,11 @@
       r._tMs = _ts ? _ts.tMs : NaN;
       r._offsetMin = _ts ? _ts.offsetMin : null;
       r._date = isFinite(r._tMs) ? new Date(r._tMs) : null;
+      // A vendor summary table carries no upstream validity block. Named, never an empty object:
+      // `{}` on an export reads as "a node looked and found nothing wrong".
+      r._upNode = null;
+      r._upValidity = null;
+      r._upReason = 'no-upstream-export';
       // TRANSPARENT (objective) HRV columns → numOrNull: a blank/absent core cell stays null, so a
       // partial Welltory row never fabricates a 0 that would pollute a rolling baseline (Finding 1).
       r._hr = numOrNull(r['Measurement HR'] || r['HR']);
@@ -257,6 +262,25 @@
     '_spanMin'
   ];
 
+  /* ── PROVENANCE FIELDS — NOT NUMBERS, SO NOT IN HRV_SEED_FIELDS (residue row
+     `2026-11-06-hrvdex-drops-the-upstream-recording-validity-and-emits-none`) ──
+     `_seedFromRow` and `_rowFromSeed` copy HRV_SEED_FIELDS through a `typeof v === 'number'` filter.
+     That is the right filter for a metric, and it silently deletes a string or an object. The
+     upstream validity block and the node name that owns it are neither, so they need their own copy
+     or persistence drops exactly the annotation the row travels to carry. */
+  const HRV_PROV_FIELDS = ['_upNode', '_upValidity', '_upReason'];
+  /* A row persisted before provenance travelled cannot say whether its upstream annotated anything.
+     `'no-upstream-export'` would assert it came from a summary table, which is a claim about a file
+     nobody read; this fourth term claims nothing (§∅). */
+  const HRV_PROV_UNKNOWN = 'upstream-unknown';
+  /* PRE-STATED AND CLOSED, the way `pulsedex-dsp.js` states its seam vocabulary: every absence this
+     node can publish is one of these three, and a reader can enumerate them without reading the
+     code. `null` is the fourth state and the only one that means "an upstream block sits beside it".
+       · `no-upstream-export`            — the row came from a vendor summary table, which has no block.
+       · `upstream-emitted-no-validity`  — the row came from an envelope whose recording block had none.
+       · `upstream-unknown`              — the row was persisted before provenance travelled. */
+  const HRV_PROV_REASONS = ['no-upstream-export', 'upstream-emitted-no-validity', HRV_PROV_UNKNOWN];
+
   /* ════ ALL-NIGHT vs SPOT MEASUREMENT ══════════════════════════════════════════
    A Welltory-style reading is a ~5-minute POINT SAMPLE of a circadian curve, so comparing two of
    them requires a time-of-day correction. An overnight recording is an INTEGRAL over ~8 h of that
@@ -294,6 +318,11 @@
       const v = r[k];
       s[k] = typeof v === 'number' && isFinite(v) ? v : null;
     });
+    // The upstream's validity block rides through storage verbatim; see HRV_PROV_FIELDS.
+    HRV_PROV_FIELDS.forEach((k) => {
+      s[k] = r[k] == null ? null : r[k];
+    });
+    if (s._upValidity == null && s._upReason == null) s._upReason = HRV_PROV_UNKNOWN;
     return s;
   }
   function _rowFromSeed(s) {
@@ -314,6 +343,10 @@
     HRV_SEED_FIELDS.forEach((k) => {
       r[k] = typeof s[k] === 'number' && isFinite(s[k]) ? s[k] : null;
     });
+    HRV_PROV_FIELDS.forEach((k) => {
+      r[k] = s[k] == null ? null : s[k];
+    });
+    if (r._upValidity == null && r._upReason == null) r._upReason = HRV_PROV_UNKNOWN;
     return r;
   }
   // → { ok:true } · { capped:<kept>, total:<n> } · { failed:true }
@@ -511,10 +544,26 @@
       const t = Object.keys(_stage).reduce((a, k) => a + (n(_stage[k]) || 0), 0);
       if (t > 0) spanMin = t;
     }
+    /* ── THE UPSTREAM'S VALIDITY BLOCK TRAVELS WITH THE ROW (residue row
+       `2026-11-06-hrvdex-drops-the-upstream-recording-validity-and-emits-none`) ──
+       Four stream nodes publish `recording.validity`: the seam count, the population their scan
+       examined, and the named reason a count is absent (`ecgdex-dsp.js`, `ppgdex-dsp.js`,
+       `motiondex-dsp.js`, `pulsedex-dsp.js`). This function read `startEpochMs` and the HRV numbers
+       out of the envelope and dropped that block. So a row built from an ECGDex night carried no
+       trace of that night's clock verdict, and the export below published none — leaving a consumer
+       unable to separate "the upstream annotated nothing" from "HRVDex threw the annotation away".
+       Copied VERBATIM and never summarised here. HRVDex measured none of it, so it re-publishes the
+       upstream's own words under the upstream's own node name. An empty block is not an annotation:
+       it takes the named-absence path, because `{}` reads as "looked, clean". */
+    const upNode = env.schema && typeof env.schema.node === 'string' && env.schema.node ? env.schema.node : null;
+    const upV = rec.validity && typeof rec.validity === 'object' && !Array.isArray(rec.validity) && Object.keys(rec.validity).length ? rec.validity : null;
     return {
       tMs,
       offsetMin: rec.offsetMin == null ? null : rec.offsetMin,
       _spanMin: spanMin,
+      _upNode: upNode,
+      _upValidity: upV,
+      _upReason: upV ? null : 'upstream-emitted-no-validity',
       _hr: n(tm.hr),
       _meanRR: n(tm.meanRR),
       _sdnn: sdnn,
@@ -1178,6 +1227,67 @@
   // Per-recording node-export — the single source of the export shape. opts:
   // { kernel (DexKernel obj|null), ingest, generated }. The app passes kernel only;
   // the orchestrator (unifier/OverDex) also passes ingest (adapter provenance).
+  /* ── HRVDex'S OWN `recording.validity` ───────────────────────────────────────────────────────
+     UNCONDITIONAL, like the four stream nodes: the owner's 2026-11-05 ruling is that a block which
+     appears only when an annotation was read lets a reader count the absent blocks as clean nights.
+     HRVDex is a SUMMARY node — it owns no sample axis, so it scans nothing and its own seam count is
+     unknown rather than zero. What it does own is the rollup: how many of its measurements arrived
+     with an upstream verdict, which nodes wrote them, and what the rest said instead.
+     Every count has its own denominator. A sum over the rows whose upstream reported a NUMBER is a
+     measurement; the same sum over every row would read a missing verdict as a quiet zero. */
+  function _hrvValidityBlock(rows) {
+    var all = rows || [];
+    function _upV(r) {
+      return r && r._upValidity && typeof r._upValidity === 'object' ? r._upValidity : null;
+    }
+    var annotated = all.filter(_upV);
+    var counted = annotated.filter(function (r) {
+      return typeof r._upValidity.seams === 'number' && isFinite(r._upValidity.seams);
+    });
+    function _tally(list, pick) {
+      var out = {};
+      list.forEach(function (r) {
+        var k = pick(r);
+        if (typeof k === 'string' && k) out[k] = (out[k] || 0) + 1;
+      });
+      return Object.keys(out).length ? out : null;
+    }
+    var nodes = _tally(annotated, function (r) {
+      return r._upNode;
+    });
+    return {
+      /* The key the four stream nodes publish, so one reader folds five nodes. `null` here is the
+         absence of a scan, not the absence of seams — `0` is the one answer §∅ forbids for a
+         channel nobody examined. */
+      seams: null,
+      seamsReason: 'summary-node-no-stream',
+      n: all.length,
+      upstreamAnnotated: annotated.length,
+      upstreamMissing: all.length - annotated.length,
+      upstreamNodes: nodes ? Object.keys(nodes).sort() : null,
+      // The upstream seam total, over the rows that reported one. The two travel together or the
+      // total is a rate without a denominator.
+      upstreamSeams: counted.length
+        ? counted.reduce(function (a, r) {
+            return a + r._upValidity.seams;
+          }, 0)
+        : null,
+      upstreamSeamsMeasurements: counted.length,
+      // Why an annotated row still published no count — the upstream's own sentence, tallied.
+      upstreamSeamsReasons: _tally(annotated, function (r) {
+        return typeof r._upValidity.seams === 'number' && isFinite(r._upValidity.seams) ? null : r._upValidity.seamsReason;
+      }),
+      upstreamMissingReasons: _tally(
+        all.filter(function (r) {
+          return !_upV(r);
+        }),
+        function (r) {
+          return r && typeof r._upReason === 'string' && r._upReason ? r._upReason : HRV_PROV_UNKNOWN;
+        }
+      )
+    };
+  }
+
   function hrvBuildNodeExport(rows, opts) {
     opts = opts || {};
     // SIGNAL-ADAPTER-FOLLOWUPS-VII §1: sort ascending by floating tMs HERE — ONE ordering rule
@@ -1277,6 +1387,9 @@
            Guarded like every other `DexExport` reach in this file; `dex-export.js` is inlined in all
            nine bundles and co-loaded by every realm that builds an export, so a `null` here is a
            load-order bug and the export-parity group reds on it rather than letting it pass. */
+        /* Beside the timing block, never inside it: `timing` describes the axis this node reads
+           (there is none), while `validity` carries what the upstreams said about theirs. */
+        validity: _hrvValidityBlock(dated),
         timing: typeof DexExport !== 'undefined' && DexExport && DexExport.timingBlock ? DexExport.timingBlock({}) : null
       },
       // SELF-INGEST enrich (D2 path b, 2026-07-04): the per-measurement table — the whole HRVDex clinical
@@ -1296,7 +1409,15 @@
           pnn50: r._pnn50,
           mxdmn: r._mxdmn,
           sd1: sd1 == null ? null : +sd1.toFixed(2),
-          sd2: sd2 == null ? null : +sd2.toFixed(2)
+          sd2: sd2 == null ? null : +sd2.toFixed(2),
+          /* THE ROLLUP ABOVE CANNOT SAY WHICH NIGHT. One HRVDex export folds many recordings from
+             many nodes, so the aggregate answers "how many" and this answers "which one" — the
+             upstream's block verbatim, under the node that wrote it, or the named reason there is
+             none. Both keys ride on every measurement, so a reader never reads an absent key as a
+             clean one. */
+          validity: r._upValidity && typeof r._upValidity === 'object' ? r._upValidity : null,
+          validityNode: typeof r._upNode === 'string' && r._upNode ? r._upNode : null,
+          validityReason: r._upValidity && typeof r._upValidity === 'object' ? null : typeof r._upReason === 'string' && r._upReason ? r._upReason : HRV_PROV_UNKNOWN
         };
         var comp = {};
         if (r._stress > 0) comp.stress = r._stress;
@@ -1425,6 +1546,9 @@
     parseCSV,
     HRV_STORE_KEY,
     HRV_SEED_FIELDS,
+    HRV_PROV_FIELDS,
+    HRV_PROV_REASONS,
+    _hrvValidityBlock,
     _hrvNum,
     _hrvSig,
     _seedFromRow,

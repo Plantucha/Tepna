@@ -46,6 +46,20 @@
       "nWithDuration": 0,
       "n": 4
     },
+    "validity": {
+      "seams": null,
+      "seamsReason": "summary-node-no-stream",
+      "n": 4,
+      "upstreamAnnotated": 0,
+      "upstreamMissing": 4,
+      "upstreamNodes": null,
+      "upstreamSeams": null,
+      "upstreamSeamsMeasurements": 0,
+      "upstreamSeamsReasons": null,
+      "upstreamMissingReasons": {
+        "no-upstream-export": 4
+      }
+    },
     "timing": {
       "timingSource": "device-only",
       "independent": false,
@@ -73,6 +87,9 @@
       "mxdmn": 0.18,
       "sd1": 10.61,
       "sd2": 38.15,
+      "validity": null,
+      "validityNode": null,
+      "validityReason": "no-upstream-export",
       "composites": {
         "stress": 75,
         "energy": 40,
@@ -98,6 +115,9 @@
       "mxdmn": 0.2,
       "sd1": 9.9,
       "sd2": 41.26,
+      "validity": null,
+      "validityNode": null,
+      "validityReason": "no-upstream-export",
       "composites": {
         "stress": 35,
         "energy": 60,
@@ -123,6 +143,9 @@
       "mxdmn": 0.28,
       "sd1": 28.28,
       "sd2": 57.01,
+      "validity": null,
+      "validityNode": null,
+      "validityReason": "no-upstream-export",
       "composites": {
         "stress": 82,
         "energy": 45,
@@ -148,6 +171,9 @@
       "mxdmn": 0.35,
       "sd1": 35.36,
       "sd2": 77.14,
+      "validity": null,
+      "validityNode": null,
+      "validityReason": "no-upstream-export",
       "composites": {
         "stress": 25,
         "energy": 70,

@@ -32,7 +32,7 @@
       "kernel-constants.js": "0050ad3f9dc7",
       "clock.js": "2ca8a192dde5",
       "clock-seam.js": "eca421bd5c5e",
-      "pulsedex-dsp.js": "3c1c1529d982"
+      "pulsedex-dsp.js": "410ccd8abf45"
     }
   },
   "yield": {
@@ -102,11 +102,25 @@
       "old": "92cec4912b7f",
       "new": "017b1384b659",
       "reason": "residue 2026-09-20-oxydex-resprate-pair-is-owner-blocked: the retracted respiration rate ships as a null with a named reason, `proxy-uninformative`, in place of a bare null. A statement moved, so the yield was RE-CUT at paper scale, not re-stamped: 233 tx / 239 flat, unchanged."
+    },
+    {
+      "date": "2026-11-06",
+      "file": "pulsedex-dsp.js",
+      "old": "3c1c1529d982",
+      "new": "cefdbfad2e72",
+      "reason": "residue 2026-11-06-the-pulsedex-seam-detector-reads-the-cleaned-rr-axis-as-a-device-clock: a forward hole over the resync bound annotates coverage instead of refusing whole-record HRV, and a hole over 20 h refuses as `record-discontinuous`. Re-cut at paper scale on 97515cf6c: 233 tx / 239 flat, unchanged"
+    },
+    {
+      "date": "2026-11-06",
+      "file": "pulsedex-dsp.js",
+      "old": "cefdbfad2e72",
+      "new": "410ccd8abf45",
+      "reason": "residue 2026-11-06-the-pulsedex-app-road-publishes-whole-record-variability-over-a-seam: the Poincare pair refuses with the whole-record trio, so `sd2` no longer publishes 0 beside a real `sd1`. A statement moved, so the yield was RE-CUT at paper scale, not re-stamped: 233 tx / 239 flat, unchanged."
     }
   ],
-  "measuredAt": "2026-11-06T13:20:26.284Z",
+  "measuredAt": "2026-11-06T17:52:22.640Z",
   "producedBy": {
     "tool": "tools/treatment-response-yield-pin.mjs",
-    "commit": "3d489facc"
+    "commit": "9736a1979"
   }
 }

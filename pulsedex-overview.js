@@ -129,8 +129,15 @@ function renderHeroPx(r) {
   const wrap = document.getElementById('heroWrap');
   if (!wrap || !r) return;
   const score = r.hrv;
+  /* ∅ A refused whole record (`hrvReason`, `pulsedex-app.js`) leaves no HRV score, and the ladder
+     below read a null as its bottom rung. "Strained · Prioritise rest" is a VERDICT, and absence
+     earns none. */
+  const _noScore = score == null || !isFinite(score);
   let color, tier;
-  if (score >= 55) {
+  if (_noScore) {
+    color = 'neutral';
+    tier = 'Not scored · the recording is not one continuous stretch';
+  } else if (score >= 55) {
     color = 'good';
     tier = 'Primed · Peak readiness';
   } else if (score >= 45) {
@@ -143,18 +150,19 @@ function renderHeroPx(r) {
     color = 'bad';
     tier = 'Strained · Prioritise rest';
   }
-  const cssColor = color === 'good' ? 'var(--status-ok)' : color === 'warn' ? 'var(--status-caution)' : 'var(--status-concern)';
+  const cssColor = color === 'good' ? 'var(--status-ok)' : color === 'warn' ? 'var(--status-caution)' : color === 'neutral' ? 'var(--text3)' : 'var(--status-concern)';
 
   const hist = pxHistory();
   // recovery index = today's rMSSD vs 7-day baseline
   let ari = null;
   if (hist) {
     const last7 = hist.rows.slice(-7).map((x) => x.rmssd);
-    if (last7.length >= 3) ari = +(r.dispRm / pxMean(last7)).toFixed(2);
+    if (last7.length >= 3 && r.dispRm != null) ari = +(r.dispRm / pxMean(last7)).toFixed(2);
   }
 
   let note;
-  if (score >= 55) note = 'Strong parasympathetic recovery — a green light for higher-intensity training.';
+  if (_noScore) note = 'A clock seam splits this recording, so no whole-record readiness score stands. The 5-min windows clear of the seam keep their own values.';
+  else if (score >= 55) note = 'Strong parasympathetic recovery — a green light for higher-intensity training.';
   else if (score >= 45) note = 'Balanced autonomic state — proceed with your planned training load.';
   else if (score >= 33) note = 'HRV is around or below baseline — favour easy aerobic work and recovery today.';
   else note = 'Marked autonomic strain — prioritise rest, sleep and downregulation.';
@@ -256,12 +264,14 @@ function renderHrvBenchPx(r) {
     pn = r.longRec ? r.dispPn : r.pnn50,
     hr = r.dispHr,
     tri = r.triIdx;
-  const sev = rm >= 35 ? 'proj-good' : rm >= 20 ? 'proj-warn' : 'proj-bad';
-  const vc = rm >= 35 ? 'proj-val-good' : rm >= 20 ? 'proj-val-warn' : 'proj-val-bad';
+  /* ∅ A refused rMSSD graded the whole card red. An ungraded card carries no status class at all,
+     which is what absence looks like here — the `cv-neutral` value class does the same below. */
+  const sev = rm == null ? '' : rm >= 35 ? 'proj-good' : rm >= 20 ? 'proj-warn' : 'proj-bad';
+  const vc = rm == null ? '' : rm >= 35 ? 'proj-val-good' : rm >= 20 ? 'proj-val-warn' : 'proj-val-bad';
   const f = (lbl, sub, val, unit, cls) =>
     `<div class="proj-factor"><span>${evBadge(lbl)}${lbl} <span style="opacity:.55">${sub}</span></span><span class="pf-val cv-${cls}">${val != null && !isNaN(val) ? val + ' ' + unit : '—'}</span></div>`;
-  const sdC = sd > 50 ? 'good' : sd > 35 ? 'warn' : 'bad';
-  const pnC = pn >= 15 ? 'good' : pn >= 3 ? 'warn' : 'bad';
+  const sdC = sd == null ? 'neutral' : sd > 50 ? 'good' : sd > 35 ? 'warn' : 'bad';
+  const pnC = pn == null ? 'neutral' : pn >= 15 ? 'good' : pn >= 3 ? 'warn' : 'bad';
   const st = (lbl, val, unit, cls) =>
     `<div class="proj-stat ps-${cls}"><span class="ps-label">${evBadge(lbl)}${lbl}</span><span class="ps-val">${val != null && !isNaN(val) ? val : '—'}<span class="ps-unit">${unit}</span></span></div>`;
   host.innerHTML =
@@ -272,7 +282,7 @@ function renderHrvBenchPx(r) {
     `<div class="proj-header"><span class="proj-icon">💓</span><span class="proj-title">HRV Bench · Time-Domain</span></div>` +
     `<div class="proj-main"><div class="proj-value ${vc}">${rm != null && !isNaN(rm) ? rm : '—'}</div><div class="proj-unit">ms · ${evBadge('rMSSD')}rMSSD (vagal tone)</div></div>` +
     `<div class="proj-waterfall">` +
-    f('rMSSD', 'norm 20–50 ms', rm, 'ms', rm >= 35 ? 'good' : rm >= 20 ? 'warn' : 'bad') +
+    f('rMSSD', 'norm 20–50 ms', rm, 'ms', rm == null ? 'neutral' : rm >= 35 ? 'good' : rm >= 20 ? 'warn' : 'bad') +
     f('SDNN', 'norm 50–100 ms', sd, 'ms', sdC) +
     f('pNN50', 'norm ≥ 3 %', pn, '%', pnC) +
     `</div>` +
@@ -444,10 +454,10 @@ function renderKpiGridPx(r) {
   if (hist) {
     const r7 = hist.rows.slice(-7);
     if (r7.length >= 3) {
-      ari = +(r.dispRm / pxMean(r7.map((x) => x.rmssd))).toFixed(2);
+      ari = r.dispRm == null ? null : +(r.dispRm / pxMean(r7.map((x) => x.rmssd))).toFixed(2);
       const sd7 = r7.map((x) => x.sdnn);
       const sg = pxStd(sd7);
-      sdz = sg ? +((r.dispSd - pxMean(sd7)) / sg).toFixed(2) : null;
+      sdz = sg && r.dispSd != null ? +((r.dispSd - pxMean(sd7)) / sg).toFixed(2) : null;
     }
   }
   // Intra-recording fallbacks so both always generate (esp. overnight, no log loaded)
@@ -463,35 +473,41 @@ function renderKpiGridPx(r) {
   }
   if (sdz == null) {
     // population z-score: adult SDNN norm ≈ 50 ms, SD ≈ 16 (Task Force / Nunan 2010)
-    sdz = +((r.dispSd - 50) / 16).toFixed(2);
+    sdz = r.dispSd == null ? null : +((r.dispSd - 50) / 16).toFixed(2);
     sdzSub = 'vs population norm';
   }
-  const vei = +(r.dispRm / r.dispHr).toFixed(2);
-  const D = (cur, key, inv) => (prev && isFinite(prev[key]) ? { d: cur - prev[key], inv: !!inv } : null);
+  const vei = r.dispRm == null ? null : +(r.dispRm / r.dispHr).toFixed(2);
+  const D = (cur, key, inv) => (cur != null && prev && isFinite(prev[key]) ? { d: cur - prev[key], inv: !!inv } : null);
+  /* ∅ The emitter below already prints an em-dash for a null, but `v + ''` hands it the STRING
+     "null" and the old grades read an absence as the bottom band — a refused record came out red.
+     One grader and one formatter, so absence stays absence on every refusable card. */
+  const _kc = (v, good, warn) => (v == null ? 'neutral' : v > good ? 'good' : v > warn ? 'warn' : 'bad');
+  const _kn = (v) => (v == null ? null : v + '');
+  const _kpn = r.longRec ? r.dispPn : r.pnn50;
   const K = [
-    { l: 'HRV Score', v: r.hrv, s: 'vs prev', c: r.hrv > 45 ? 'good' : r.hrv > 33 ? 'warn' : 'bad', delta: D(r.hrv, 'hrv') },
-    { l: 'SDNN', v: r.dispSd + '', s: 'ms · 5-min', c: r.dispSd > 50 ? 'good' : r.dispSd > 35 ? 'warn' : 'bad', delta: D(r.dispSd, 'sdnn'), u: 'ms' },
-    { l: 'rMSSD', v: r.dispRm + '', s: 'ms · parasymp.', c: r.dispRm > 35 ? 'good' : r.dispRm > 20 ? 'warn' : 'bad', delta: D(r.dispRm, 'rmssd'), u: 'ms' },
-    { l: 'Stress', v: r.stress, s: 'HRV score', c: r.stress < 45 ? 'good' : r.stress < 65 ? 'warn' : 'bad', delta: D(r.stress, 'stress', 1) },
-    { l: 'Energy', v: r.energy, s: 'HRV score', c: r.energy > 55 ? 'good' : r.energy > 35 ? 'warn' : 'bad', delta: D(r.energy, 'energy') },
+    { l: 'HRV Score', v: r.hrv, s: 'vs prev', c: _kc(r.hrv, 45, 33), delta: D(r.hrv, 'hrv') },
+    { l: 'SDNN', v: _kn(r.dispSd), s: 'ms · 5-min', c: _kc(r.dispSd, 50, 35), delta: D(r.dispSd, 'sdnn'), u: 'ms' },
+    { l: 'rMSSD', v: _kn(r.dispRm), s: 'ms · parasymp.', c: _kc(r.dispRm, 35, 20), delta: D(r.dispRm, 'rmssd'), u: 'ms' },
+    { l: 'Stress', v: r.stress, s: 'HRV score', c: r.stress == null ? 'neutral' : r.stress < 45 ? 'good' : r.stress < 65 ? 'warn' : 'bad', delta: D(r.stress, 'stress', 1) },
+    { l: 'Energy', v: r.energy, s: 'HRV score', c: _kc(r.energy, 55, 35), delta: D(r.energy, 'energy') },
     { l: 'Baevsky SI', v: r.si, s: '<150 normal', c: r.si < 150 ? 'good' : r.si < 250 ? 'warn' : 'bad' },
     { l: 'LF/HF', v: r.lfhf, s: '0.5–2.0 optimal', c: r.lfhf > 0.4 && r.lfhf < 2.5 ? 'good' : 'warn' },
     { l: 'Recov Index', v: ari != null ? ari : '—', s: ariSub, c: ari == null ? 'neutral' : ari > 1 ? 'good' : ari > 0.85 ? 'warn' : 'bad' },
-    { l: 'Coherence', v: r.coherence, s: 'PulseDex-native', c: r.coherence > 60 ? 'good' : r.coherence > 30 ? 'warn' : 'bad' },
+    { l: 'Coherence', v: r.coherence, s: 'PulseDex-native', c: _kc(r.coherence, 60, 30) },
     { l: 'SDNN Z', v: sdz != null ? sdz : '—', s: sdzSub, c: sdz == null ? 'neutral' : sdz > -0.5 ? 'good' : sdz > -1.5 ? 'warn' : 'bad' },
-    { l: 'SD1/SD2', v: r.sd1sd2, s: '0.25–0.5 typical', c: r.sd1sd2 > 0.2 && r.sd1sd2 < 0.5 ? 'good' : 'warn' },
+    { l: 'SD1/SD2', v: r.sd1sd2, s: '0.25–0.5 typical', c: r.sd1sd2 == null ? 'neutral' : r.sd1sd2 > 0.2 && r.sd1sd2 < 0.5 ? 'good' : 'warn' },
     { l: 'HF n.u.', v: r.hfnu, s: 'parasympathetic %', c: r.hfnu > 35 ? 'good' : r.hfnu > 20 ? 'warn' : 'bad' },
-    { l: 'VO₂max Est', v: r.vo2adj, s: 'ml/kg/min', c: r.vo2adj >= 45 ? 'good' : r.vo2adj >= 40 ? 'warn' : 'bad' },
+    { l: 'VO₂max Est', v: r.vo2adj, s: 'ml/kg/min', c: r.vo2adj == null ? 'neutral' : r.vo2adj >= 45 ? 'good' : r.vo2adj >= 40 ? 'warn' : 'bad' },
     /* SBP Est / DBP Est rows REMOVED 2026-06-21 (external-review WP-A) — cuffless BP from HRV. */
     { l: 'ABS', v: r.abs, s: '−1=SNS +1=PSNS', c: r.abs > 0 ? 'good' : r.abs > -0.3 ? 'warn' : 'bad' },
-    { l: 'Vagal Eff', v: vei, s: 'rMSSD/HR', c: vei > 0.55 ? 'good' : vei > 0.4 ? 'warn' : 'bad' },
-    { l: 'EFC Ready', v: r.efc, s: 'readiness 0–100', c: r.efc > 60 ? 'good' : r.efc > 40 ? 'warn' : 'bad' },
+    { l: 'Vagal Eff', v: vei, s: 'rMSSD/HR', c: _kc(vei, 0.55, 0.4) },
+    { l: 'EFC Ready', v: r.efc, s: 'readiness 0–100', c: _kc(r.efc, 60, 40) },
     { l: 'DFA α1', v: r.dfa1 == null ? '—' : r.dfa1, s: 'fractal scaling', c: r.dfa1 == null ? 'neutral' : r.dfa1 >= 0.9 && r.dfa1 <= 1.2 ? 'good' : r.dfa1 < 0.75 || r.dfa1 > 1.5 ? 'bad' : 'warn' },
     { l: 'SampEn', v: r.sampen == null ? '—' : r.sampen, s: 'complexity', c: r.sampen == null ? 'neutral' : r.sampen >= 1 ? 'good' : r.sampen >= 0.6 ? 'warn' : 'bad' },
     { l: 'Tri Index', v: r.triIdx, s: r.triIdxNorm === true ? 'geometric HRV' : 'geometric HRV · span < 20 min, ungraded', c: _triCls(triIdxGrade(r.triIdx, r.triIdxSpanMin)) },
     { l: 'Decel Cap', v: r.dc == null ? '—' : r.dc, s: 'ms · vagal', c: r.dc == null ? 'neutral' : r.dc >= 4.5 ? 'good' : r.dc >= 2.5 ? 'warn' : 'bad', u: 'ms' },
     { l: 'Resp Rate', v: r.respRate, s: 'br/min (RSA)', c: r.respRate >= 10 && r.respRate <= 20 ? 'good' : 'warn' },
-    { l: 'pNN50', v: (r.longRec ? r.dispPn : r.pnn50) + '', s: 'beat-pair %', c: (r.longRec ? r.dispPn : r.pnn50) >= 15 ? 'good' : (r.longRec ? r.dispPn : r.pnn50) >= 5 ? 'warn' : 'bad', u: '%' },
+    { l: 'pNN50', v: _kn(_kpn), s: 'beat-pair %', c: _kpn == null ? 'neutral' : _kpn >= 15 ? 'good' : _kpn >= 5 ? 'warn' : 'bad', u: '%' },
     { l: 'Coverage', v: r.coverage + '', s: 'data captured', c: r.coverage >= 95 ? 'good' : r.coverage >= 85 ? 'warn' : 'bad', u: '%' },
     { l: 'Artifacts', v: r.artifactPct + '', s: 'corrected', c: r.artifactPct < 2 ? 'good' : r.artifactPct < 8 ? 'warn' : 'bad', u: '%' }
   ];

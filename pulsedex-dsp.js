@@ -1732,20 +1732,63 @@
        `MOTION_RESYNC_BOUND_MS`, shared because all these nodes read the same step in the same
        device's several files; the `ppgdex-clock-seam` parity group asserts this one equal to them. */
     const PD_RESYNC_BOUND_MS = 60000;
+    /* ⚠️ AND THE DIRECTION OF THE DISAGREEMENT IS WHAT IT PROVES — residue
+       `2026-11-06-the-pulsedex-seam-detector-reads-the-cleaned-rr-axis-as-a-device-clock` is about
+       this loop, and the premise in that row's own text is corrected here: `tsMs` is the host arrival
+       column, never a cumulated interval sum (`parseRRInput` stamps every row through
+       `parseTimestamp`). What the loop got wrong is the OTHER clock. An RR interval measures the time
+       between two DELIVERED beats, so it does not tick while nothing is delivered: through a BLE
+       dropout the host advances and the interval does not, and an absolute disagreement read every
+       dropout as a clock step.
+
+       MEASURED on the real corpus (889 Polar `_RR.txt`/`_PPI.txt` files under `uploads/`,
+       5 198 132 intervals, 2026-11-06): 45 files carry a forward disagreement over the bound, the
+       largest hole 104.6 min inside an 11.9 h night, and the box recorded no decidable clock step on
+       either stream (`SEAM-SIDECAR-NODE-COVERAGE-2026-11-06-BRIEF`). All 45 refused whole-record
+       sdnn/rmssd/pnn50, against the 2026-09-17 ruling that reduced COVERAGE annotates.
+
+         · host BEHIND the beats (negative, beyond the bound) → a STEP, and it refuses. Non-delivery
+           only ever ADDS host time, so nothing physical makes the host clock retreat relative to the
+           beats. Delivery re-ordering does, 1.2 s to 2.1 s of it on the real corpus, which is three
+           orders under this bound.
+         · host AHEAD of the beats (positive, beyond the bound) → a HOLE whose cause this road cannot
+           decide. One clock, and `clock-seam.js`'s header states it: a forward step and a dropout of
+           the same length are the same column of stamps. It is counted and published, the metrics
+           keep their values with `coverage` beside them, and no `clock-seam` is attributed to a cause
+           nobody measured (§∅).
+
+       THE ONE HOLE THAT STILL REFUSES is one no single recording can contain. `PD_MAX_HOLE_MS` is the
+       top of this node's OWN duration vocabulary — `classifyRecording` calls 20 h and over
+       'continuous' — so a hole longer than the longest recording the classifier recognises makes the
+       file two recordings rather than one with a gap. It is a shape decision, not a tuned knob, and it
+       is the only criterion here with margin on both sides: the corpus's largest real hole sits 11x
+       under it, and the suite's planted 7-year jump 3000x over. A coverage floor or a hole-share floor
+       would have no margin at all — real nights measure 42.6 % coverage and a 0.498 hole share. */
+    const PD_MAX_HOLE_MS = 20 * 3600 * 1000;
     let _seamN = 0,
-      _seamMaxMs = 0;
+      _seamMaxMs = 0,
+      _gapN = 0,
+      _gapMaxMs = 0,
+      _gapTotalMs = 0;
     if (timedAxis && f.tsMs && f.tsMs.length >= N) {
       for (let i = 0; i + 1 < N; i++) {
         const hostDelta = f.tsMs[i + 1] - f.tsMs[i],
           devDelta = a[i];
         if (!isFinite(hostDelta) || !isFinite(devDelta)) continue;
-        const disagree = Math.abs(hostDelta - devDelta);
-        if (disagree > PD_RESYNC_BOUND_MS) {
+        const disagree = hostDelta - devDelta;
+        if (disagree < -PD_RESYNC_BOUND_MS) {
           _seamN++;
-          if (disagree > _seamMaxMs) _seamMaxMs = disagree;
+          if (-disagree > _seamMaxMs) _seamMaxMs = -disagree;
+        } else if (disagree > PD_RESYNC_BOUND_MS) {
+          _gapN++;
+          _gapTotalMs += disagree;
+          if (disagree > _gapMaxMs) _gapMaxMs = disagree;
         }
       }
     }
+    /* A hole this long is not reduced coverage, so it refuses — under its OWN name, because the
+       instrument cannot say which cause made it. */
+    const _recordSplit = _gapMaxMs > PD_MAX_HOLE_MS;
     /* …AND THE SEAMS THE BOX RECORDED AT ARRIVAL, which the interval-vs-stamp cross-check above
        cannot see: it compares two clocks that both kept ticking, while the sidecar was written at the
        moment they disagreed (see `parsePdSeams`). Both instruments feed ONE verdict, so a recorded
@@ -1754,6 +1797,9 @@
        `_pdSeamState` names those rows instead. */
     const _pdSeam = pdSeamVerdict(f, f.tsMs);
     const clockSeam = _seamN > 0 || _pdSeam.refuses;
+    /* ONE refusal, TWO reasons. A proven step keeps `clock-seam`; an undecidable hole gets its own
+       name, so a reader never reads an attribution out of an absence. */
+    const _pdRefuses = clockSeam || _recordSplit;
     /* `meanRR`/`hr` are PER-BEAT averages, not window statistics over the axis, and they are kept
        deliberately: `classifyRecording` and `adaptEnvelopeNode` consume the duration immediately, and
        collapsing them is the DEEP-AUDIT-III §6.2 regression the envelope comment above already
@@ -1761,9 +1807,9 @@
        the same split PpgDex makes, where `_clockSeam` nulls the CVHR index with `reason:'clock-seam'`
        and leaves the rest of the record alone. */
     const meanRR = mean(a),
-      sdnn = clockSeam ? null : std(a),
-      rm = clockSeam ? null : rmssd(a),
-      pn = clockSeam ? null : pnn50(a);
+      sdnn = _pdRefuses ? null : std(a),
+      rm = _pdRefuses ? null : rmssd(a),
+      pn = _pdRefuses ? null : pnn50(a);
     const hr = +(60000 / meanRR).toFixed(1);
 
     let win = null,
@@ -1855,8 +1901,13 @@
       focus = _hrvRefused ? null : focusEst(cSd, cRm),
       coh = _hrvRefused ? null : cohEst(cRm, cSd);
     const sdsdv = sdsd(a); // §8: SD1/SD2 spread is SDSD (÷N−1), not rMSSD — unified with ECGDex/PpgDex
-    const sd1v = +sd1(sdsdv).toFixed(2),
-      sd2v = +sd2(sdnn, sdsdv).toFixed(2);
+    /* ∅ The Poincare pair refuses with the trio above. `sd2(null, r)` reads
+       `Math.sqrt(Math.max(0, 2*s*s - r*r/2))`, and `null * null === 0`, so an unguarded refusal
+       publishes SD2 = 0 beside a real SD1 — a pair no ellipse can hold, because SD2 never sits under
+       SD1. SD1 is SDSD/sqrt(2), the beat-to-beat twin of the rMSSD that just refused, so it cannot
+       stand over the seam either. */
+    const sd1v = _pdRefuses ? null : +sd1(sdsdv).toFixed(2),
+      sd2v = _pdRefuses ? null : +sd2(sdnn, sdsdv).toFixed(2);
     const lnrm = cRm == null ? null : +lnR(cRm).toFixed(3);
     const lfhfv = winSpec ? winSpec.lfhf : ls.lfhf;
 
@@ -1901,11 +1952,15 @@
       sdnn: sdnn == null ? null : +sdnn.toFixed(2),
       rmssd: rm == null ? null : +rm.toFixed(2),
       pnn50: pn == null ? null : +pn.toFixed(1),
-      hrvReason: clockSeam ? 'clock-seam' : null,
+      hrvReason: clockSeam ? 'clock-seam' : _recordSplit ? 'record-discontinuous' : null,
       /* THIS BLOCK IS THE CROSS-CHECK'S OWN, keyed on its own count — a recorded seam publishes in
          `seamState` below, and `n: 0` here beside `hrvReason: 'clock-seam'` would read as a
          disagreement nobody measured. One verdict, two instruments, two blocks of evidence. */
       clockSeams: _seamN > 0 ? { n: _seamN, maxDisagreeMs: Math.round(_seamMaxMs), boundMs: PD_RESYNC_BOUND_MS } : null,
+      /* THE HOLES, AND WHETHER ONE OF THEM REFUSED. `refuses: false` beside a non-zero `n` is the
+         ordinary night the ruling describes: the metrics are published and `coverage` carries the
+         cost. `limitMs` travels so a reader sees which bound judged the hole. */
+      clockGaps: _gapN > 0 ? { n: _gapN, maxMs: Math.round(_gapMaxMs), totalMs: Math.round(_gapTotalMs), boundMs: PD_RESYNC_BOUND_MS, limitMs: PD_MAX_HOLE_MS, refuses: _recordSplit } : null,
       seamState: _pdSeam.ann,
       tp: sp.tp,
       hf: sp.hf,
@@ -2014,6 +2069,7 @@
         durationMin: r.durMin,
         clockSeamScan: r.clockSeamScan ?? null,
         ...(r.clockSeams ? { clockSeams: r.clockSeams } : {}),
+        ...(r.clockGaps ? { clockGaps: r.clockGaps } : {}),
         ...(r.clockSeamWindows ? { clockSeamWindows: r.clockSeamWindows } : {}),
         /* FOLLOWUPS-II §1 — `durationMin` is kept for the envelope consumers that already read it
            (`adaptEnvelopeNode`), and these three say what it actually IS. `spanMin` null ⇒ the stream

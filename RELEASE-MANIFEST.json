@@ -1764,6 +1764,32 @@
         "MUTATION-SURVIVOR-LEDGER-2026-09-28-BRIEF.md"
       ],
       "notes": ""
+    },
+    {
+      "version": "2.28.0",
+      "date": "2026-11-06",
+      "bump": "minor",
+      "name": "",
+      "manifestHashes": {
+        "ECGDex": "8db68d45dea9",
+        "OxyDex": "be0daf39c4d7",
+        "PulseDex": "cf5177e796d4",
+        "GlucoDex": "b71ef6865d8f",
+        "PpgDex": "bc4d5b916739",
+        "HRVDex": "b31cc4bfa2c1",
+        "CPAPDex": "83b5f8419672",
+        "Integrator": "7aa7b3926dcf",
+        "MotionDex": "c67a23733b77"
+      },
+      "briefs": [
+        "NTFY-ALERT-WIRING-2026-11-03-BRIEF.md",
+        "VERDICT-CONTRIBUTIONS-2026-10-04-BRIEF.md",
+        "SOLID-NIGHT-2026-09-23-BRIEF.md",
+        "SEAM-SIDECAR-CONSUMPTION-2026-11-03-BRIEF.md",
+        "RADIO-DELAY-FLOOR-2026-11-03-BRIEF.md",
+        "SEAM-SIDECAR-NODE-COVERAGE-2026-11-06-BRIEF.md"
+      ],
+      "notes": ""
     }
   ]
 }

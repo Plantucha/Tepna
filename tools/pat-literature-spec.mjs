@@ -55,7 +55,7 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { dissentStampOf, dissentTallyLine, signsOf } from './consensus-dissent-core.mjs';
+import { dissentStampOf, dissentTallyLine, refpickOf, signsOf } from './consensus-dissent-core.mjs';
 import { NIGHT_RE, notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
 import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
 
@@ -303,14 +303,9 @@ function ppgFootTimes(text, runsText, opts) {
     polaritySigns,
     PPGDSP.applyConsensusPolarity(per, (i, sgn) => PPGDSP.detectChannel(rec.ch[i], rec.fs, sgn))
   );
-  let refIdx = 0,
-    best = -1;
-  per.forEach((p, i) => {
-    if (p.peaks.length > best) {
-      best = p.peaks.length;
-      refIdx = i;
-    }
-  });
+  /* The reference pick, NAMED at the site so the census reads a declaration rather than a loop
+     shape, and a tie stops hiding: `consensus-dissent-core.mjs#refpickOf`. Same pick. */
+  const refIdx = refpickOf(per, 'peak-argmax').idx;
   /* @polarity-decision applies
      The residuals this spec holds against the literature now come from the whole channel set. */
   let cons = PPGDSP.consensusBeats(per, refIdx, rec.fs);
