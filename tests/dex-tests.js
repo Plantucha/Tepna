@@ -771,18 +771,54 @@
         };
         var clean = P.pdComputeResult({ vals: rr, tsMs: stamps(0), t0Ms: t0 });
         var seamed = P.pdComputeResult({ vals: rr, tsMs: stamps(7 * 365 * 24 * 3600e3), t0Ms: t0 });
+        /* THE CORRECTION (residue `2026-11-06-the-pulsedex-seam-detector-reads-the-cleaned-rr-axis-as-a-device-clock`).
+           Three plants, one loop: the host BEHIND the beats is a proven step, the host AHEAD of them is a hole
+           whose cause one clock cannot name, and the 7-year jump is a hole no recording can contain. The two
+           dropout plants are the corpus's own shapes — a 5 min hole, and the largest real one, 104.6 min inside
+           an 11.9 h night (889 files, 5 198 132 intervals, 2026-11-06). Both MUST keep their metrics. */
+        var stepped = P.pdComputeResult({ vals: rr, tsMs: stamps(-90000), t0Ms: t0 });
+        var holed = P.pdComputeResult({ vals: rr, tsMs: stamps(300000), t0Ms: t0 });
+        var bigHole = P.pdComputeResult({ vals: rr, tsMs: stamps(6276000), t0Ms: t0 });
 
         T.ok(
           'control: a continuous record still computes every HRV metric',
           clean && clean.rmssd > 0 && clean.sdnn > 0 && clean.coverage === 100,
           JSON.stringify(clean && { r: clean.rmssd, s: clean.sdnn, c: clean.coverage })
         );
-        T.eq('a clock seam REFUSES the whole-record variability metrics', JSON.stringify({ r: seamed.rmssd, s: seamed.sdnn, p: seamed.pnn50 }), JSON.stringify({ r: null, s: null, p: null }));
-        T.eq('\u2026with the reason NAMED — an absent figure a reader cannot explain is half a refusal', seamed.hrvReason, 'clock-seam');
+        T.eq(
+          'a hole no recording can contain REFUSES the whole-record variability metrics',
+          JSON.stringify({ r: seamed.rmssd, s: seamed.sdnn, p: seamed.pnn50 }),
+          JSON.stringify({ r: null, s: null, p: null })
+        );
+        T.eq('\u2026under its OWN name, because ONE clock cannot say whether a forward hole was a step or a dropout', seamed.hrvReason, 'record-discontinuous');
         T.ok(
-          '\u2026and the seam itself is published, not just its consequence',
-          !!seamed.clockSeams && seamed.clockSeams.n >= 1 && seamed.clockSeams.boundMs === 60000,
-          JSON.stringify(seamed.clockSeams)
+          '\u2026and the hole itself is published with the bound that judged it, not just its consequence',
+          !!seamed.clockGaps && seamed.clockGaps.n >= 1 && seamed.clockGaps.boundMs === 60000 && seamed.clockGaps.limitMs === 20 * 3600 * 1000 && seamed.clockGaps.refuses === true,
+          JSON.stringify(seamed.clockGaps)
+        );
+        T.eq('a host clock that steps BACKWARD past the bound is a PROVEN step and keeps the `clock-seam` name', stepped.hrvReason, 'clock-seam');
+        T.ok(
+          '\u2026with the cross-check block keyed on the step it measured, and no hole beside it',
+          !!stepped.clockSeams && stepped.clockSeams.n >= 1 && stepped.clockSeams.boundMs === 60000 && stepped.clockGaps === null,
+          JSON.stringify({ s: stepped.clockSeams, g: stepped.clockGaps })
+        );
+        /* \ud83d\udd34 THE REFUSAL THAT MUST NOT HAPPEN — the defect this correction fixes. 45 of 889 real files carry a
+           forward hole over the bound, and every one of them refused whole-record HRV (owner ruling 2026-09-17:
+           a discontinuity refuses, reduced COVERAGE annotates). */
+        T.eq(
+          '\ud83d\udd34 a 5 min DROPOUT keeps every whole-record metric, with no reason and no refusal',
+          JSON.stringify([holed.rmssd > 0, holed.sdnn > 0, holed.pnn50 != null, holed.hrvReason, holed.clockGaps && holed.clockGaps.refuses]),
+          JSON.stringify([true, true, true, null, false])
+        );
+        T.ok(
+          '\u2026and the cost is carried by COVERAGE, the annotation the ruling asks for',
+          holed.coverage != null && holed.coverage < 100 && holed.clockGaps.n === 1 && holed.clockGaps.maxMs >= 300000,
+          JSON.stringify({ cov: holed.coverage, gaps: holed.clockGaps })
+        );
+        T.eq(
+          '\ud83d\udd34 the LARGEST hole the real corpus holds keeps its metrics too — 104.6 min is a dropout, not a step',
+          JSON.stringify([bigHole.rmssd > 0, bigHole.sdnn > 0, bigHole.hrvReason]),
+          JSON.stringify([true, true, null])
         );
         /* The PER-BEAT averages are kept deliberately. classifyRecording and adaptEnvelopeNode consume
            the duration immediately, and collapsing it is the DEEP-AUDIT-III §6.2 regression HRVDex
@@ -1153,7 +1189,7 @@
             .join(','),
           'null,null,null,null,null,null'
         );
-        T.eq('…with the reason NAMED — an absent figure a reader cannot explain is half a refusal', seamed.hrvReason, 'clock-seam');
+        T.eq('…with the reason NAMED — an absent figure a reader cannot explain is half a refusal', seamed.hrvReason, 'record-discontinuous');
         T.ok(
           'never a fabricated number, −Infinity, or NaN',
           ![seamed.stress, seamed.hrv, seamed.energy, seamed.focus, seamed.coherence, seamed.lnrmssd].some(function (v) {
@@ -71638,6 +71674,97 @@
       T.ok('ECGDex shares one _baevskyGeom source of truth', /function _baevskyGeom/.test(e));
       T.ok('ECGDex Welltory CSV row uses _baevskyGeom(r.nn)', /_baevskyGeom\(r\.nn\)/.test(e));
       T.ok('ECGDex envelope hrv.time carries amo50/mode/mxDMn (CSV↔JSON parity, P4)', /amo50:\s*_geom\.amo50/.test(e) && /mode:\s*_geom\.mode/.test(e) && /mxDMn:\s*_geom\.mxDMn/.test(e));
+    });
+
+    /* ── HRVDex CARRIES THE UPSTREAM'S `recording.validity`, AND PUBLISHES ITS OWN ────────────────
+       Residue row `2026-11-06-hrvdex-drops-the-upstream-recording-validity-and-emits-none`. Four
+       stream nodes annotate their own axis; HRVDex ingests their envelopes, kept `startEpochMs` and
+       the HRV numbers, and dropped the annotation — so its export published no validity block at
+       all. A consumer could not separate "the upstream annotated nothing" from "HRVDex threw the
+       annotation away", which is the §∅ distinction the whole seam programme rests on.
+       The legs below gate BOTH halves, because either one alone passes a wrong fix: a node that
+       emits its own block while still dropping the upstream's, and a node that forwards the upstream
+       block but reports its own unmeasured channel as clean. */
+    group('HRVDex publishes its own recording.validity and carries the upstream block through', 'hrvdex-dsp · clock-contract · fabricated-absence', function (T) {
+      var B = (env.HRVDex && env.HRVDex._bare) || env.HRVDex || null;
+      if (!B || typeof B._envToSeed !== 'function' || typeof B.hrvBuildNodeExport !== 'function') {
+        T.skip('HRVDex ingest + export helpers available', 'HRVDex not co-loaded in this runner');
+        return;
+      }
+      // The two shapes a stream node actually publishes: a measured count, and a scan that ran and
+      // refused under its own named reason (`ecgdex-dsp.js`, `pulsedex-dsp.js`).
+      var VSEAMS = { seams: 2, seamsExamined: 50000, seamsPlaced: 2, seamsUnplaced: 0, seamsBoundMs: 60000, seamsReason: null };
+      var VREFUSED = { seams: null, seamsExamined: null, seamsPlaced: null, seamsUnplaced: null, seamsBoundMs: null, seamsReason: 'no-seam-sidecar' };
+      function envOf(tMs, validity, node) {
+        var rec = { startEpochMs: tMs, offsetMin: null, durationMin: 480 };
+        if (validity !== undefined) rec.validity = validity;
+        return {
+          schema: { name: 'ganglior.node-export', node: node },
+          recording: rec,
+          hrv: { time: { hr: 55, meanRR: 1090, sdnn: 62, rmssd: 40, pnn50: 12 }, frequency: { totalPower: 2000, hf: 500, lf: 900, vlf: 600 } }
+        };
+      }
+      var t0 = Date.UTC(2026, 5, 10, 22, 0, 0);
+      var rows = [envOf(t0, VSEAMS, 'ECGDex'), envOf(t0 + 864e5, VREFUSED, 'PulseDex'), envOf(t0 + 2 * 864e5, undefined, 'GlucoDex'), envOf(t0 + 3 * 864e5, {}, 'MotionDex')].map(function (en) {
+        return B._rowFromSeed(B._envToSeed(en));
+      });
+      var out = B.hrvBuildNodeExport(rows, { generated: 'fixed' });
+      var v = (out.recording && out.recording.validity) || null;
+      T.ok('the export carries a recording.validity block', !!v, JSON.stringify(v));
+      T.eq('HRVDex owns no stream, so its OWN seam count is unknown under a named reason', v.seams + '/' + v.seamsReason, 'null/summary-node-no-stream');
+      T.ok('…and is never 0, the one answer §∅ forbids for a channel nobody examined', v.seams === null);
+      T.eq('the upstream blocks are counted, with the nodes that wrote them', v.upstreamAnnotated + '/' + (v.upstreamNodes || []).join('+'), '2/ECGDex+PulseDex');
+      T.eq('a summed upstream seam count travels with its own denominator', v.upstreamSeams + '/' + v.upstreamSeamsMeasurements, '2/1');
+      T.eq("…and a refused upstream scan keeps the upstream's own sentence", JSON.stringify(v.upstreamSeamsReasons), '{"no-seam-sidecar":1}');
+      T.eq('a missing upstream block is a named absence, never an empty object', v.upstreamMissing + '/' + JSON.stringify(v.upstreamMissingReasons), '2/{"upstream-emitted-no-validity":2}');
+
+      // ── WHICH night, not just how many: the rollup cannot name a recording, so the row must ──
+      var ms = out.measurements || [];
+      T.eq('the first measurement re-publishes its upstream block verbatim', JSON.stringify(ms[0] && ms[0].validity), JSON.stringify(VSEAMS));
+      T.eq('…under the node that wrote it, with no reason beside it', ms[0].validityNode + '/' + ms[0].validityReason, 'ECGDex/null');
+      T.eq('a measurement with no upstream block names why, and carries null rather than {}', JSON.stringify(ms[2].validity) + '/' + ms[2].validityReason, 'null/upstream-emitted-no-validity');
+      T.eq('an EMPTY upstream block is not an annotation either', JSON.stringify(ms[3].validity) + '/' + ms[3].validityReason, 'null/upstream-emitted-no-validity');
+
+      // ── UNCONDITIONAL (owner ruling 2026-11-05): a block that appears only when something was
+      //    read lets a reader count the absent blocks as clean nights.
+      var vEmpty = B.hrvBuildNodeExport([], { generated: 'fixed' }).recording.validity;
+      T.eq('an export over no measurements still carries the block', vEmpty.seamsReason, 'summary-node-no-stream');
+      T.eq('…and counts nothing rather than reporting a clean night', vEmpty.n + '/' + vEmpty.upstreamAnnotated + '/' + JSON.stringify(vEmpty.upstreamMissingReasons), '0/0/null');
+
+      // ── PERSISTENCE: HRV_SEED_FIELDS filters on `typeof === 'number'`, which deletes an object ──
+      var back = B._rowFromSeed(JSON.parse(JSON.stringify(B._seedFromRow(rows[0]))));
+      T.eq('the upstream block survives persistence verbatim', JSON.stringify(back._upValidity), JSON.stringify(VSEAMS));
+      T.eq('…with the node name and no fabricated reason', back._upNode + '/' + back._upReason, 'ECGDex/null');
+      var legacy = B._rowFromSeed({ tMs: t0, offsetMin: null, _hr: 60 });
+      T.eq('a row stored before provenance travelled says so, and claims no source file', legacy._upReason + '/' + legacy._upValidity, 'upstream-unknown/null');
+
+      // ── The summary-table path: a Welltory CSV has no upstream at all ──
+      if (typeof B._hrvParseSummaryRows === 'function') {
+        var csvRows = B._hrvParseSummaryRows('Date,Time,Measurement HR,Mean RR,SDNN,rMSSD,pNN50\n10/06/2026,22:00:00,55,1090,62,40,12\n');
+        T.eq('a vendor summary row names its own absence', (csvRows[0] || {})._upReason + '/' + (csvRows[0] || {})._upValidity, 'no-upstream-export/null');
+      }
+
+      // ── The vocabulary is pre-stated and closed, the way PulseDex states its seam reasons ──
+      T.eq('the reason vocabulary is pre-stated and closed', JSON.stringify(B.HRV_PROV_REASONS), '["no-upstream-export","upstream-emitted-no-validity","upstream-unknown"]');
+      var emitted = Object.keys(v.upstreamMissingReasons || {}).concat([legacy._upReason, 'no-upstream-export']);
+      T.ok(
+        '…and every reason this node emits is in it',
+        emitted.every(function (k) {
+          return B.HRV_PROV_REASONS.indexOf(k) >= 0;
+        }),
+        emitted.join(',')
+      );
+
+      // ── Source mirror: the three points a later edit would silently undo ──
+      var src = (env.sources || {})['hrvdex-dsp.js'];
+      if (src == null) {
+        T.ok('hrvdex-dsp.js source available', false, 'not in env.sources');
+        return;
+      }
+      T.ok('_envToSeed reads recording.validity', /rec\.validity/.test(src));
+      T.ok('the export publishes the block unconditionally', /validity:\s*_hrvValidityBlock\(dated\)/.test(src));
+      T.ok('provenance fields are copied outside the numeric filter', /HRV_PROV_FIELDS\.forEach/.test(src));
+      T.ok('no empty-object default stands in for an absent block', !/_upValidity\s*=\s*\{\s*\}/.test(src) && !/validity:\s*\{\s*\}/.test(src));
     });
 
     /* ════ GlucoDex synthetic patient-coherence — DexPatientGen → renderGlucoAll → parseCSV ════
