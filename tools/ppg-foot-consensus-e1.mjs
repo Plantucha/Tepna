@@ -55,7 +55,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, relative } from 'node:path';
 import { EPOCH_MS, MAX_LAG_MS, median, quantile, hrEnvelope, envelopeLagMs, refineLagByMatch, matchBeats, refinePeaks, ppiJitterMs } from './ppi-match.mjs';
-import { capByNights, gitCommitOf, headNightKeyWith, notCovered, populationVerdict, ruleLine, snapshotEntries } from './corpus-scope-core.mjs';
+import { capByNights, dedupeByIdentity, gitCommitOf, headNightKeyWith, notCovered, populationVerdict, ruleLine, snapshotEntries } from './corpus-scope-core.mjs';
 import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
 /* ── THE VALIDITY SIDECAR RIDES WITH THE STREAM ─────────────────────────────────────────────────────
    Row 2026-10-17-sample-parsers-called-without-their-sidecar: this tool read a night's samples and
@@ -217,6 +217,12 @@ export function footConsensus(perChannelFeet, refIdx, fs, tolMs, minAgree, offse
   return { feet, agree, nDropped, kept33, kept22, offsets, nClusters };
 }
 
+/* HOISTED ABOVE THE SELFTEST, and it reaches no further than `DEVICE`. The selftest runs before
+   the realm loads, and it pins the composition this tool applies the identity rule in — filter by
+   device, then dedupe — so it needs the one regex that names the device rather than a second copy
+   of it written for the test. */
+const PPG_RE = DEVICE === 'verity' ? /(?:VeritySense|Polar_Sense).*_PPG\.txt$/i : /O2Ring.*_PPG\.txt$/i;
+
 /* ════════════════════════════════════════════════════════════════════════ SELFTEST ═════════════ */
 function selftest() {
   let fail = 0;
@@ -304,6 +310,29 @@ function selftest() {
   ].map((a) => a.map(Number));
   ok(footConsensus(tight, 0, fs, TOL_MS, 2).feet.length <= 2, 'refractory collapses sub-300 ms neighbours');
 
+  /* ── THE IDENTITY RULE, AND THE COMPOSITION THIS TOOL APPLIES IT IN ───────────────────────────
+     The rule itself is pinned where it lives, in `corpus-scope-core.mjs`. What belongs here is the
+     composition: this tool filters by device FIRST and dedupes the result, on both the PPG leg and
+     the reference leg, so a capture two trees hold earns one vote rather than one per root. */
+  const nameFor = (dir, tag) => `${dir}/${DEVICE === 'verity' ? 'VeritySense' : 'O2Ring'}_2026081722${tag}_PPG.txt`;
+  const twoTrees = [
+    { p: nameFor('uploads/vigil-archive/captures/2026-08-17', '00'), size: 100 },
+    { p: nameFor('uploads/captures/2026-08-17', '00'), size: 100 },
+    { p: 'uploads/captures/2026-08-17/H10-01_2026081722_ECG.txt', size: 100 }
+  ];
+  ok(twoTrees.filter((f) => PPG_RE.test(f.p)).length === 2, 'ANTI-VACUITY · the device filter admitted both planted PPG paths, so the dedupe below examined something');
+  const dd = dedupeByIdentity(twoTrees.filter((f) => PPG_RE.test(f.p)));
+  ok(dd.kept.length === 1, 'one recording offered by two capture trees enters the pooled medians ONCE');
+  ok(dd.kept.length === 1 && dd.kept[0].p.startsWith('uploads/captures/'), 'the lexicographically first path wins, so which copy scored does not depend on walk order');
+  ok(dd.dropped.length === 1 && dd.dropped[0].includes('vigil-archive'), 'the dropped second copy is NAMED, not merely counted');
+  const sized = dedupeByIdentity([
+    { p: nameFor('uploads/captures/2026-08-17', '01'), size: 100 },
+    { p: nameFor('uploads/vigil-archive/captures/2026-08-17', '01'), size: 101 }
+  ]);
+  ok(sized.kept.length === 2 && sized.conflicts.length === 1, 'the same basename at a DIFFERENT size is two recordings, so both are kept and the basename is reported');
+  const ecgOnly = dedupeByIdentity(twoTrees.filter((f) => /H10.*_ECG\.txt$/i.test(f.p)));
+  ok(ecgOnly.kept.length === 1 && ecgOnly.dropped.length === 0, 'the reference leg takes the same rule, and a single ECG copy drops nothing');
+
   console.log(fail ? `\nselftest: ${fail} FAILURE(S)` : '\nselftest: all green');
   return fail;
 }
@@ -370,7 +399,6 @@ const walk = (d, o = []) => {
   } catch (_e) {}
   return o;
 };
-const PPG_RE = DEVICE === 'verity' ? /(?:VeritySense|Polar_Sense).*_PPG\.txt$/i : /O2Ring.*_PPG\.txt$/i;
 /* THE LISTER IS THE POPULATION RULE, AND IT CARRIES A NAME ON PURPOSE. `snapshotEntries` publishes
    `rule: null` for an inline arrow (`corpus-scope.mjs:329`), which would state that nobody chose the
    rule this run applied. The unit is a FILE, not a night: `--dir` is a capture tree and not the
@@ -379,11 +407,16 @@ const PPG_RE = DEVICE === 'verity' ? /(?:VeritySense|Polar_Sense).*_PPG\.txt$/i 
    returns `[]`, and the snapshot would then publish `n: 0` — a MEASUREMENT of zero over a directory
    nothing read (§∅). The root's own readdir runs outside that catch, so the snapshot reports
    `ok: false` with the reason instead. */
+/* 🔴 AND IT COUNTS A RECORDING ONCE. `uploads/captures/` and `uploads/vigil-archive/captures/` hold
+   two copies of the capture tree as separate files on separate shares, so a `realpath` dedup does
+   not see the twin. A lister that offers paths publishes a POPULATION of paths: measured
+   2026-11-04 under the primary uploads root, 1,568 distinct Verity PPG recordings sit at 2,816
+   paths. The identity rule is the shared one — (basename, byte size), lexicographically first path
+   wins, every dropped twin named (`dedupeByIdentity`, with its measurement above it in
+   `corpus-scope-core.mjs`). Row 2026-11-05-ppg-foot-consensus-offers-one-capture-many-times. */
 function listDevicePpg(root) {
   readdirSync(root);
-  return walk(root)
-    .filter((f) => PPG_RE.test(f.p))
-    .map((f) => relative(root, f.p));
+  return dedupeByIdentity(walk(root).filter((f) => PPG_RE.test(f.p))).kept.map((f) => relative(root, f.p));
 }
 
 const snap = snapshotEntries(DIR, { list: listDevicePpg, unit: PPG_UNIT });
@@ -407,13 +440,19 @@ const headNightKey = headNightKeyWith({
   },
   runsOf: (path) => readRunsSidecar(path, 'PPG').runsText
 });
-const _cap = capByNights(
-  all.filter((f) => PPG_RE.test(f.p)),
-  MAX_NIGHTS,
-  headNightKey
-);
+/* THE SCORING LEG APPLIES THE IDENTITY RULE BEFORE THE CAP, not after. The cap selects nights out
+   of what it is offered, so a capture both trees hold would spend two of the budget and then carry
+   two votes into the pooled medians — the pooled figure would weight a recording by how many roots
+   hold it. `offer.dropped` and `offer.conflicts` go out by name in `printPopulation`, because a
+   COUNT of removals names nothing to chase. */
+const offer = dedupeByIdentity(all.filter((f) => PPG_RE.test(f.p)));
+const _cap = capByNights(offer.kept, MAX_NIGHTS, headNightKey);
 const ppgs = _cap.kept;
-const ecgs = all.filter((f) => /H10.*_ECG\.txt$/i.test(f.p));
+/* The reference side is held in the same two trees, so it takes the same rule. A duplicate here
+   would not double a vote, because the pairing picks one — it would make WHICH copy paired depend
+   on walk order. The rule's lexicographically-first path makes that deterministic. */
+const ecgOffer = dedupeByIdentity(all.filter((f) => /H10.*_ECG\.txt$/i.test(f.p)));
+const ecgs = ecgOffer.kept;
 
 console.log('PPGDEX-ALGORITHM-DEEP-DIVE §6 · E-1 — foot-domain consensus vs the shipped peak vote');
 console.log(`device: ${DEVICE}   foot tol: ±${TOL_MS} ms   min agree: ${MIN_AGREE}/3   ${SLEEP_ONLY ? '(sleep nights only)' : '(all nights)'}\n`);
@@ -633,6 +672,17 @@ function printPopulation() {
   );
   const rl = ruleLine(population);
   if (rl) console.log(rl);
+  console.log(
+    `  identity rule (basename, size): ${offer.kept.length} distinct recording(s) over ${offer.kept.length + offer.dropped.length} offered path(s), ${offer.dropped.length} second copy/copies dropped${
+      offer.dropped.length
+        ? `, by name: ${offer.dropped
+            .slice(0, 4)
+            .map((q) => relative(DIR, q))
+            .join(' · ')}${offer.dropped.length > 4 ? ` · … (+${offer.dropped.length - 4})` : ''}`
+        : ''
+    }${offer.conflicts.length ? ` · ${offer.conflicts.length} basename(s) kept twice because the sizes differ: ${offer.conflicts.slice(0, 4).join(' · ')}` : ''}`
+  );
+  console.log(`  reference side: ${ecgOffer.kept.length} distinct ECG recording(s), ${ecgOffer.dropped.length} second copy/copies dropped`);
   console.log(`  the read scored ${scored.length} of the ${snap.n} offered under ${DIR}${snap.ok ? '' : ` · ${snap.reason}`}`);
   const missed = notCovered(snap, scored, { key: 'rec' });
   if (missed.length) console.log(`  it removed ${missed.length}, by name: ${missed.slice(0, 8).join(' · ')}${missed.length > 8 ? ` · … (+${missed.length - 8})` : ''}`);
