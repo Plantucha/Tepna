@@ -37,6 +37,7 @@ import { fileURLToPath } from 'node:url';
 import { dissentStampLine, dissentStampOf, signsOf } from './consensus-dissent-core.mjs';
 import { makeVerdict } from './verdict-emit.mjs';
 import { isCliEntry } from './argv-guard.mjs';
+import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
@@ -310,6 +311,13 @@ function realm() {
   return ctx;
 }
 
+/* §∅: the `_PPGRUNS.txt` sidecar beside the Verity stream carries the blanking the samples cannot
+   state. An absent one is validity UNKNOWN for that stream, never a clean stream, so the tally prints
+   on stderr — stdout here carries the verdict object alone. The sidecar adds span metadata and drops
+   no sample, so leg C's row-index identity (`rec.ch[0].length === dev.length`, below) is untouched. */
+const VALIDITY = {};
+const runsOf = (streamPath, stream) => readRunsSidecar(streamPath, stream, { tally: VALIDITY }).runsText;
+
 export function h10Beats(path, ctx) {
   const L = fs.readFileSync(path, 'utf8').split('\n');
   const ns = [],
@@ -348,7 +356,8 @@ export function verityBeats(path, ctx, polOut) {
       if (Number.isFinite(t)) dev.push(t / 1e9);
     }
   }
-  const rec = ctx.PPGDSP.parsePPG(raw);
+  const runsText = runsOf(path, 'PPG');
+  const rec = runsText ? ctx.PPGDSP.parsePPG(raw, { runsText }) : ctx.PPGDSP.parsePPG(raw);
   if (!rec || !rec.ch || !rec.ch.length) return null;
   /* The device axis is read from the COLUMN, not from rec.relSec — relSec is host-disciplined via
      hostAxis, and using it would make leg C the difference of two host-referenced series. Verified:
@@ -525,6 +534,8 @@ if (isCliEntry(import.meta.url)) {
   const vPol = {};
   const H = h10Beats(hp, ctx),
     V = verityBeats(vp, ctx, vPol);
+  const validity = validityLine(VALIDITY);
+  if (validity) console.error('  ' + validity);
   if (!H || !V) {
     console.error('beat extraction failed');
     console.log(JSON.stringify(blcVerdict({ h10Beats: H ? H.length : 0, verityBeats: V ? V.length : 0, r: null, pred: null })));

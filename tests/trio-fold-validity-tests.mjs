@@ -588,6 +588,126 @@ const ppgRuns = (spans) => ecgRuns(spans, { stream: 'ppg', channel: 'channel 0' 
   ok(ownSidecarPaths(bcSrc).length === 0, `and the pinnedSource label builds no sidecar path of its own (${ownSidecarPaths(bcSrc).join(' | ').slice(0, 90)})`);
 }
 
+/* ── ∅ SLICE 1: THE NIGHT READERS THAT ALREADY HELD A PATH ─────────────────────────
+   Row 2026-10-17-sample-parsers-called-without-their-sidecar. Fourteen `tools/` files read a PPG or
+   ECG stream FROM A PATH and parsed it with no `runsText`, so every sample inside a run the box
+   recorded reached the numbers as a reading. Thirteen of them take the shared reader here;
+   `pat-drift-attribution.mjs` already imported it for its foot legs and its two bare `hostAxis`
+   parses now reuse the hoisted consts, so the tally counts each stream once rather than twice.
+   `resp-cardiac-suppression-e8.mjs` is wired on both of its sidecars, because its own night-key probe
+   already held the ACC shape; the other ACC readers are slice 2, where `_ACCRUNS.txt`'s time-keyed
+   spans are a different verification from a sample-index run.
+
+   Passing the sidecar is not reporting its absence (§∅), so each of the ten also prints
+   `validityLine`'s tally beside its own numbers: most of this corpus predates the writer, so most
+   streams read `absent`, and an absent sidecar is validity UNKNOWN for that stream, never a clean one. */
+for (const f of [
+  'beat-leg-closure.mjs',
+  'cvhr-fold-rescore.mjs',
+  'ecg-rate-transfer.mjs',
+  'gap-s-sweep.mjs',
+  'geometry-scan.mjs',
+  'o2ring-finger-roundtrip.mjs',
+  'o2ring-finger-validate-batch.mjs',
+  'oracle-ecg-firmware-rr.mjs',
+  'pin-coverage.mjs',
+  'resp-cardiac-suppression-e8.mjs',
+  'ring-offset-census.mjs',
+  'tch-firmware-reference.mjs',
+  'tch-reference-validation.mjs'
+]) {
+  const src = readFileSync(join(here, '..', 'tools', f), 'utf8');
+  ok(/import \{ readRunsSidecar, validityLine \} from '\.\/trio-fold-validity\.mjs';/.test(src), `${f} imports the shared reader`);
+  ok(/const runsOf = \(streamPath, stream\) => readRunsSidecar\(streamPath, stream, \{ tally: VALIDITY \}\)\.runsText;/.test(src), `${f} reads every sidecar through one tallying helper`);
+  ok(/validityLine\(VALIDITY\)/.test(src), `${f} prints the tally beside its own numbers`);
+  ok(ownSidecarPaths(src).length === 0, `${f} builds no sidecar path of its own (${ownSidecarPaths(src).join(' | ').slice(0, 90)})`);
+}
+
+/* ── ∅ A REWRITTEN TEXT INVALIDATES THE SIDECAR'S INDICES, AND THAT IS NOT AN ABSENCE ──
+   `gap-s-sweep.mjs` is the one slice-1 reader that REWRITES the bytes it scores: `--restrict-overlap`
+   cuts both streams to their shared host window and `--ppg-keep-hz` drops PPG rows to a coarser grid.
+   A sidecar's rows are SAMPLE INDICES into the text as written, so under either switch the indices
+   address samples that are no longer there — passing it would place a blanking run over clean signal.
+   The sidecar is therefore WITHHELD from that leg, and the row says so in its own words, because a
+   silent drop reads exactly like a night that never had a sidecar. The four cases below are EXECUTED:
+   a source scan cannot tell a withheld sidecar from a dropped one. */
+{
+  const { scoreNight } = await import('../tools/gap-s-sweep.mjs');
+  let sawEcg = null;
+  let sawPpg = null;
+  const realms = {
+    ecg: {
+      ECGDSP: {
+        parseECG: (_t, o) => {
+          sawEcg = o && o.runsText ? o.runsText : null;
+          return { int16: new Int16Array(8), fs: 130 };
+        },
+        analyze: () => ({ cvhr: { index: 1.5, denomSec: 100, events: [] }, nBeats: 10 })
+      }
+    },
+    ppg: {
+      PPGDSP: {
+        parsePPG: (_t, o) => {
+          sawPpg = o && o.runsText ? o.runsText : null;
+          return { ch: [new Float32Array(8)], fs: 135 };
+        },
+        analyze: () => ({ cvhrIndex: 2.5, cvhrEvents: 1, nBeats: 11, cvhrReason: null })
+      }
+    }
+  };
+  const mk = (from, to) => `Phone timestamp;sensor timestamp [ns];value\n2026-06-15T${from}:00:00.000;1000000000;11\n2026-06-15T${to}:00:00.000;2000000000;12\n`;
+  const eText = mk('20', '23');
+  const pText = mk('20', '23');
+  const runs = { ecgRunsText: 'E-RUNS', ppgRunsText: 'P-RUNS' };
+
+  sawEcg = sawPpg = null;
+  const plain = scoreNight(realms, eText, pText, { ...runs });
+  ok(sawEcg === 'E-RUNS' && sawPpg === 'P-RUNS', `an untouched text takes both sidecars (ecg ${sawEcg}, ppg ${sawPpg})`);
+  ok(plain.ecg.validity === 'sidecar read' && plain.ppg.validity === 'sidecar read', `and each leg says which it holds (${plain.ecg.validity})`);
+
+  sawEcg = sawPpg = null;
+  const cut = scoreNight(realms, eText, pText, { ...runs, restrictOverlap: true });
+  ok(cut.overlap && cut.overlap.bothHours >= 2, `CONTROL · the overlap cut really ran (${cut.overlap && cut.overlap.bothHours} h)`);
+  ok(sawEcg === null && sawPpg === null, '∅ a text cut to the overlap takes neither sidecar, because the indices no longer address it');
+  ok(/withheld/.test(cut.ecg.validity) && /cut to the overlap/.test(cut.ecg.validity), `and the ECG row names the withholding (${cut.ecg.validity})`);
+  ok(/withheld/.test(cut.ppg.validity) && /cut to the overlap/.test(cut.ppg.validity), `and so does the PPG row (${cut.ppg.validity})`);
+
+  sawEcg = sawPpg = null;
+  const thin = scoreNight(realms, eText, pText, { ...runs, ppgKeepHz: 10 });
+  ok(sawEcg === 'E-RUNS', `the keep grid touches the PPG alone, so the ECG keeps its sidecar (${sawEcg})`);
+  ok(sawPpg === null && /keep grid/.test(thin.ppg.validity), `and the decimated PPG names its own withholding (${thin.ppg.validity})`);
+
+  sawEcg = sawPpg = null;
+  const none = scoreNight(realms, eText, pText, {});
+  ok(sawEcg === null && sawPpg === null, 'CONTROL · with no sidecar read there is nothing to pass');
+  ok(/absent/.test(none.ecg.validity) && !/withheld/.test(none.ecg.validity), `and an absence reads as UNKNOWN rather than as a withholding (${none.ecg.validity})`);
+}
+
+/* ── ∅ AND THE TEXT-TAKING ORACLE TAKES ITS SIDECAR ON `opts` ──────────────────────
+   `oracle-ecg-firmware-rr.mjs`'s `scoreNight` takes the ECG TEXT, so it cannot name a sidecar from a
+   path: the caller that holds the path reads it and the bytes ride `opts.runsText`, the shape
+   `oracle-ppg-device-beats.mjs` already uses. Executed on both arms, because a typed slot that
+   accepted the bytes and dropped them would read here exactly like a wired one. */
+{
+  const { scoreNight } = await import('../tools/oracle-ecg-firmware-rr.mjs');
+  let saw = null;
+  const ECGDSP = {
+    parseECG: (_t, o) => {
+      saw = o && o.runsText ? o.runsText : null;
+      return { int16: new Int16Array(8), fs: 130 };
+    },
+    parseDeviceRR: () => [],
+    analyze: () => ({ nn: [] })
+  };
+  saw = null;
+  const withRuns = scoreNight(ECGDSP, 'ecg', 'rr', { runsText: 'E-RUNS' });
+  ok(saw === 'E-RUNS', `the sidecar that rode in on \`opts\` reaches the parse (${saw})`);
+  saw = null;
+  const bare = scoreNight(ECGDSP, 'ecg', 'rr', {});
+  ok(saw === null, 'CONTROL · no sidecar on `opts` means none is invented');
+  ok(withRuns.ok === false && bare.ok === false && withRuns.reason === bare.reason, `and both arms refuse on the same stubbed RR file (${bare.reason})`);
+}
+
 if (fails.length) {
   console.error(`trio-fold-validity: ${fails.length} FAILED of ${pass + fails.length}`);
   for (const f of fails) console.error('  ✗ ' + f);

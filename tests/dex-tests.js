@@ -47750,7 +47750,32 @@
            counting the ARGUMENTS at each invocation, and executes the four sidecar states the count
            cannot see. The scan over the merged tree is the number — #4405 landed 22 / 34 for eight PPG
            and ECG night readers, and arithmetic over two diffs would have guessed 28 / 43. */
-        var TOOLS_PIN = { files: 20, calls: 31, reason: 'research tools: ' + OPEN };
+        /* 6 / 9 from 2026-11-05, slice 1 of row 2026-10-17-sample-parsers-called-without-their-sidecar:
+           every reader that holds a PPG or ECG stream PATH takes the guarded ternary through the shared
+           reader. Twenty-two calls leave CALL and fourteen files leave the population: `beat-leg-closure`,
+           `cvhr-fold-rescore`, `ecg-rate-transfer`, `gap-s-sweep`, `geometry-scan`,
+           `o2ring-finger-roundtrip`, `o2ring-finger-validate-batch`, `oracle-ecg-firmware-rr`,
+           `pat-drift-attribution`, `pin-coverage`, `resp-cardiac-suppression-e8`, `ring-offset-census`,
+           `tch-firmware-reference` and `tch-reference-validation`. Three shapes beyond the plain call
+           site: the firmware-RR oracle's `scoreNight` takes the TEXT, so its sidecar rides
+           `opts.runsText` as `oracle-ppg-device-beats` already does; a bounded read keeps a PREFIX of
+           the stream (`ecg-rate-transfer`'s line cap, `tch-reference-validation`'s clip), so the
+           sidecar's SAMPLE INDICES still address what was parsed and a run past the prefix turns into a
+           second past the record's end; and `gap-s-sweep` REWRITES the bytes it scores —
+           `--restrict-overlap` cuts both streams and `--ppg-keep-hz` drops rows, so under either switch
+           the sidecar is WITHHELD with the withholding named in the row (§∅: a silent drop reads exactly
+           like a night that never had one).
+           The six files left are the ACC grid readers and the two that parse no file as written:
+           `acc-shared-movement`, `pat-dip-validate`, `pat-matchrate-strict` and `trio-batch` read an ACC
+           stream, whose `_ACCRUNS.txt` companion is a DIFFERENT sidecar — time-keyed spans rather than
+           sample indices (`parseAccRunsTimed`) — and is slice 2 of the row; `derive-sigma-window` parses
+           a CONCATENATION of a night's parts, which no single file's indices address, and
+           `geometry-passthrough` parses text it generates itself, beside which no box wrote anything.
+           `resp-cardiac-suppression-e8` is the one file wired on BOTH sidecars here, because its own
+           night-key probe already held the ACC shape.
+           The scan over the merged tree is the number — arithmetic over two branch diffs would have
+           guessed. */
+        var TOOLS_PIN = { files: 6, calls: 9, reason: 'research tools: ' + OPEN };
 
         function blank(s) {
           return s.replace(/[^\n]/g, '');

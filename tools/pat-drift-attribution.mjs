@@ -316,11 +316,15 @@ async function main() {
     try {
       const eTxt = readFileSync(eF, 'utf8');
       const pTxt = readFileSync(pF, 'utf8');
-      E = ecgRpeakTimes(eTxt, runsOf(eF, 'ECG'), ECG_AXIS === 'linear' ? undefined : { axis: ECG_AXIS });
-      P = ppgFootTimes(pTxt, runsOf(pF, 'PPG'));
-      /* Straight from the parser — the wrappers above drop `hostAxis` (see header). */
-      eAx = ECGDSP.parseECG(eTxt).hostAxis;
-      pAx = PPGDSP.parsePPG(pTxt).hostAxis;
+      const eRuns = runsOf(eF, 'ECG');
+      const pRuns = runsOf(pF, 'PPG');
+      E = ecgRpeakTimes(eTxt, eRuns, ECG_AXIS === 'linear' ? undefined : { axis: ECG_AXIS });
+      P = ppgFootTimes(pTxt, pRuns);
+      /* Straight from the parser — the wrappers above drop `hostAxis` (see header). These two reads
+         take the SAME sidecar bytes the wrappers got, held in a const rather than read twice, so the
+         tally counts each stream once and the two reads of one night cannot disagree about it. */
+      eAx = (eRuns ? ECGDSP.parseECG(eTxt, { runsText: eRuns }) : ECGDSP.parseECG(eTxt)).hostAxis;
+      pAx = (pRuns ? PPGDSP.parsePPG(pTxt, { runsText: pRuns }) : PPGDSP.parsePPG(pTxt)).hostAxis;
     } catch {
       continue;
     }

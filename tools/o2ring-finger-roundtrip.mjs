@@ -20,6 +20,16 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { makeVerdict } from './verdict-emit.mjs';
 import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
+import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
+/* ── THE VALIDITY SIDECAR RIDES WITH THE STREAM ─────────────────────────────────────────────────────
+   Row 2026-10-17-sample-parsers-called-without-their-sidecar: this tool read a night's samples and
+   none of the box's `…RUNS.txt` validity, so a blanking run the box recorded reached the round-trip below as signal —
+   a flat rail is a plausible diastole, and no reader could tell it from one. `readRunsSidecar` names
+   which of four things happened per stream, and the tally prints beside the numbers: §∅, an ABSENT
+   sidecar is validity UNKNOWN for that stream, never a clean one. Most of this corpus predates the
+   writer, so most streams read `absent` and parse exactly as they did before. */
+const VALIDITY = {};
+const runsOf = (streamPath, stream) => readRunsSidecar(streamPath, stream, { tally: VALIDITY }).runsText;
 
 /* ROOT is derived from THIS FILE's location, never hardcoded. Both O2Ring finger tools shipped with an
    absolute path to the author's throwaway worktree (`…/wt-fingerval`, `…/wt-fingerrt`) baked in. Those
@@ -154,7 +164,9 @@ function run(ppgPath, ecgPath, spo2Path, { json = false } = {}) {
   const log = json ? (...a) => console.error(...a) : (...a) => console.log(...a);
   // ── 1 · O2Ring finger PPG → PpgDex → per-beat HR series (absolute tMs) ──
   const P = realm(['clock.js', 'kernel-constants.js', 'metric-registry.js', 'ppgdex-registry.js', 'ppgdex-morph.js', 'ppgdex-dsp.js']).PPGDSP;
-  const prec = P.parsePPG(readFileSync(ppgPath, 'utf8'));
+  const pRuns = runsOf(ppgPath, 'PPG');
+  const pTxt = readFileSync(ppgPath, 'utf8');
+  const prec = pRuns ? P.parsePPG(pTxt, { runsText: pRuns }) : P.parsePPG(pTxt);
   const pres = P.analyze(prec);
   // per-beat instantaneous HR from foot-to-foot NN, stamped at the beat's absolute tMs
   const ppgBeats = [];
@@ -168,7 +180,9 @@ function run(ppgPath, ecgPath, spo2Path, { json = false } = {}) {
 
   // ── 2 · paired H10 ECG → ECGDex (Pan–Tompkins) → per-beat HR series ──
   const E = realm(['clock.js', 'kernel-constants.js', 'metric-registry.js', 'ecgdex-registry.js', 'ecgdex-morph.js', 'ecgdex-dsp.js']).ECGDSP;
-  const erec = E.parseECG(readFileSync(ecgPath, 'utf8'));
+  const eRuns = runsOf(ecgPath, 'ECG');
+  const eTxt = readFileSync(ecgPath, 'utf8');
+  const erec = eRuns ? E.parseECG(eTxt, { runsText: eRuns }) : E.parseECG(eTxt);
   const eres = E.analyze(erec);
   const ecgBeats = [];
   {
@@ -238,6 +252,8 @@ function run(ppgPath, ecgPath, spo2Path, { json = false } = {}) {
   const b = chk('O2Ring PPI-HR vs paired H10 ECG', mP, mE, TOL);
   const c = (pres.footSec || []).length > MIN_FEET && pres.ppiSpine === 'foot';
   log(`  ${c ? 'PASS' : 'FAIL'}  feet detected + PPI is foot-to-foot`);
+  const validity = validityLine(VALIDITY);
+  if (validity) log('  ' + validity);
   log('\n' + (a && b && c ? '✅ ROUND-TRIP PASSES on real hardware.' : '❌ round-trip did not pass — see above.'));
   const v = verdictObject(
     { mP, mE, mR, feet: (pres.footSec || []).length, ppiSpine: pres.ppiSpine, winSec: hi > lo ? (hi - lo) / 1000 : 0, nP: pW.length, nE: eW.length, nR: rW.length },
