@@ -34685,8 +34685,8 @@
       var wsrc = (env.sources && env.sources['pat-feasibility-worker.js']) || '';
       var E = env.ECGDSP,
         P = env.PPGDSP;
-      if (!wsrc || !E || !P || !env.PATGate || typeof E.parseECG !== 'function') {
-        T.ok('worker source + ECGDSP/PPGDSP/PATGate available', false, 'not loaded in this lane');
+      if (!wsrc || !E || !P || !env.PATGate || !env.ConsensusDissent || typeof E.parseECG !== 'function') {
+        T.ok('worker source + ECGDSP/PPGDSP/PATGate/ConsensusDissent available', false, 'not loaded in this lane');
         return;
       }
       T.ok('ECGDSP exports refinePeaks (without it the worker cannot reach a sub-sample position)', typeof E.refinePeaks === 'function', 'typeof ' + typeof E.refinePeaks);
@@ -34698,6 +34698,10 @@
            scope as arguments, so the loader finds them present and the leg builders are defined from
            the shipped source rather than from an excerpt of it. Only the trailing `onmessage` handler
            is removed, because it is the one part that needs a live Worker.
+           `ConsensusDissent` rides in for the same reason, and its absence does not read as a skip:
+           the PPG leg labels the consensus polarity on EVERY path, so a missing global throws inside
+           `ppgFootTimes` and this lane reported `n=null` — a leg that found no feet at all, which is
+           what the anti-vacuity assertion below caught.
            `PATGate` rides in beside the DSPs for the same reason: the real Worker co-loads
            `pat-gate.js` through `importScripts`, and the PPG leg now reaches `runRanges` on EVERY
            path — it sizes an unconfirmed span set rather than skipping one. Before that it touched
@@ -34709,6 +34713,7 @@
           'ECGDSP',
           'PPGDSP',
           'PATGate',
+          'ConsensusDissent',
           'self',
           'importScripts',
           'XMLHttpRequest',
@@ -34717,6 +34722,7 @@
           E,
           P,
           env.PATGate,
+          env.ConsensusDissent,
           shim,
           function () {},
           function () {}
@@ -54887,6 +54893,111 @@
         T.ok('analyze() CALLS applyConsensusPolarity (deleting the call must not pass)', callRe.test(psrc));
         T.ok('the pattern does NOT match the declaration alone (this assertion can fail)', !callRe.test('function applyConsensusPolarity(perChannel, redetect) {'));
         T.ok('...and the call precedes consensusBeats consuming perChannel', psrc.search(callRe) > 0 && psrc.search(callRe) < psrc.indexOf('consensusBeats(perChannel, refIdxUsed'));
+      }
+    });
+
+    /* ════ THE TWO LANES MUST NAME THE SAME ABSTENTION ════
+       `applyConsensusPolarity` returns a count, and a 0 from it is FIVE different facts: a unanimous
+       set, a 1-1 tie, channels carrying no sign, and a single channel. Only the first means the
+       channels agreed. The `tools/` legs read the shape through `tools/consensus-dissent-core.mjs`;
+       the two bundle workers publish into SURFACES and threw the count away entirely, which is row
+       2026-11-05-the-two-bundle-workers-still-discard-the-polarity-return. `consensus-dissent.js` is
+       the browser lane's labelling, and a second copy of a vocabulary is free to drift from the first
+       — so this group holds them EQUAL over a planted sign table rather than trusting the comment
+       that says they agree.
+
+       🔴 THE MAJORITY RULE IS NOT DUPLICATED, AND THE TABLE IS THE CONTROL FOR THAT. `shapeOf` takes
+       the majority from `PPGDSP.consensusSign` — the same function the pass itself calls — so the
+       only thing the browser file decides is the NAME of an abstention. The coverage assertion below
+       is what stops this group passing over a table that exercises one class: a planted set that
+       never ties cannot detect a lane that calls a tie agreement, which is the exact §4b shape the
+       row was logged under. */
+    group('The browser dissent labelling ≡ the node core (a tie is not agreement, in both lanes)', 'ppgdex-dsp · consensus · fabricated-absence', function (T) {
+      var CD = env.ConsensusDissent,
+        core = env.coreDissent,
+        D = env.PPGDSP;
+      T.ok('consensus-dissent.js loaded into the realm (ConsensusDissent.shapeOf)', !!(CD && typeof CD.shapeOf === 'function'));
+      if (!CD || typeof CD.shapeOf !== 'function') return;
+      if (!core || typeof core.dissentOf !== 'function') {
+        /* The browser lane has no `tools/` import, so there is no second lane to compare against
+           there. A skip states that; asserting over an absent half would report on nothing. */
+        T.skip('the node dissent core is not reachable in this lane', 'env.coreDissent unavailable');
+        return;
+      }
+      T.eq('the two lanes carry the SAME closed vocabulary, in the same order', CD.SHAPES.join(','), core.SHAPES.join(','));
+      if (!(D && typeof D.consensusSign === 'function')) {
+        T.ok('PPGDSP.consensusSign is reachable (the browser lane takes the majority from it)', false);
+        return;
+      }
+      /* Every row a real 3-LED record can produce, plus the degenerate ends. */
+      var TABLE = [
+        [1, 1, 1],
+        [-1, -1, -1],
+        [1, 1, -1],
+        [-1, -1, 1],
+        [1, 1, 1, -1],
+        [1, -1],
+        [-1, 1],
+        [1, 1, -1, -1],
+        [null, null],
+        [null, null, null],
+        [1, null],
+        [null, -1],
+        [1, -1, null],
+        [1],
+        [-1]
+      ];
+      var seen = {},
+        mismatch = [];
+      for (var i = 0; i < TABLE.length; i++) {
+        var signs = TABLE[i];
+        var want = core.dissentOf(signs).shape;
+        var got = CD.shapeOf(signs, D.consensusSign(signs));
+        seen[want] = true;
+        if (got !== want) mismatch.push('[' + signs.join(',') + '] browser ' + got + ' vs core ' + want);
+      }
+      T.eq('every planted sign set gets the SAME shape in both lanes', mismatch.join(' · '), '');
+      /* ANTI-VACUITY: the table must exercise all five, or a lane that merges two classes passes. */
+      T.eq(
+        'the table covers the whole closed set (a one-class table detects nothing)',
+        CD.SHAPES.filter(function (s) {
+          return seen[s];
+        }).length,
+        CD.SHAPES.length
+      );
+      /* The stamp, not just the label: the dissenter indices are what a surface prints. */
+      var st = CD.stampOf([1, 1, -1], D.consensusSign([1, 1, -1]), 1);
+      T.eq('a majority stamp names the dissenting channel', st.shape + ':' + st.dissenters.join(',') + ':' + st.corrected + ':' + st.channels, 'majority:2:1:3');
+      var stTie = CD.stampOf([1, -1], D.consensusSign([1, -1]), 0);
+      T.eq('a TIE stamp is not a unanimous one, and names no dissenter', stTie.shape + ':' + stTie.dissenters.length, 'tie:0');
+      /* ∅ An absent return is not a measured abstention. */
+      T.eq('a non-finite `corrected` becomes null, never 0', CD.stampOf([1, 1], 0, undefined).corrected, null);
+      T.eq('...and a real 0 stays 0', CD.stampOf([1, 1], 0, 0).corrected, 0);
+
+      /* THE WIRING, which is where this fix silently stops being applied. The worker must read the
+         signs BEFORE the pass: after it the dissenter carries the majority sign and every night
+         reads unanimous — so a stamp taken afterwards is a fabricated unanimity. */
+      var wsrc = (env.sources && env.sources['pat-feasibility-worker.js']) || '';
+      if (!wsrc) {
+        T.skip('pat-feasibility-worker.js source unavailable — wiring check skipped');
+      } else {
+        var iSigns = wsrc.indexOf('ConsensusDissent.signsOf(per)');
+        var iPass = wsrc.search(/applyConsensusPolarity\(per,\s*function/);
+        var iStamp = wsrc.indexOf('ConsensusDissent.stampOf(polSigns');
+        T.ok('the worker reads the signs through ConsensusDissent.signsOf', iSigns > 0);
+        T.ok('the worker still CALLS the pass (deleting the call must not pass)', iPass > 0);
+        T.ok('the signs are read BEFORE the pass runs', iSigns > 0 && iPass > 0 && iSigns < iPass);
+        T.ok('...and the stamp is built after it, from those pre-pass signs', iStamp > iPass);
+        T.ok('the pass return is ASSIGNED, not discarded (the whole row)', /var polCorrected = PPGDSP\.applyConsensusPolarity\(/.test(wsrc));
+        T.ok('the stamp reaches the payload the page reads', /polarity: ppg\.polarity/.test(wsrc));
+      }
+      var csrc = (env.sources && env.sources['pat-feasibility.js']) || '';
+      if (!csrc) {
+        T.skip('pat-feasibility.js source unavailable — surface check skipped');
+      } else {
+        T.ok('the page SURFACES the stamp beside the foot count it qualifies', /polarityNote\(m\.ppg\.polarity\)/.test(csrc));
+        T.ok('...and an absent stamp prints "not read" rather than agreement', /consensus polarity not read/.test(csrc));
+        T.ok('...and a tie says so in words, not as a bare zero', /a tie is not agreement/.test(csrc));
       }
     });
 

@@ -48,7 +48,7 @@ try {
      the reason `pat-align.js` was extracted from this very file — a worker's top-level functions can only
      ever be SOURCE-SCANNED by the suite, never executed, so a mechanism that lives here cannot carry the
      planted known-answer test it needs. `AnalysisStats` is already loadable and co-loaded in both lanes. */
-  ['kernel-constants.js', 'clock.js', 'pat-gate.js', 'pat-align.js', 'analysis-stats.js', 'ecgdex-dsp.js', 'ppgdex-dsp.js'].forEach(loadScript);
+  ['kernel-constants.js', 'clock.js', 'consensus-dissent.js', 'pat-gate.js', 'pat-align.js', 'analysis-stats.js', 'ecgdex-dsp.js', 'ppgdex-dsp.js'].forEach(loadScript);
   DSP_OK = !!(typeof ECGDSP !== 'undefined' && ECGDSP.parseECG && typeof PPGDSP !== 'undefined' && PPGDSP.parsePPG);
 } catch (e) {
   DSP_ERR = String((e && e.message) || e);
@@ -235,10 +235,18 @@ function ppgFootTimes(text, runsText, opts) {
   /* CONSENSUS POLARITY — apply BEFORE the reference pick, which is the order `analyze` ships
      (`ppgdex-dsp.js` applies, then picks): a flipped dissenter's peak count moves, so a pick made
      first would ratify a reference chosen under the polarity the device-wide majority overrules.
-     The call is a no-op on a unanimous set and on a 1-1 split, so no undissenting night moves. */
-  PPGDSP.applyConsensusPolarity(per, function (i, sgn) {
+     The call is a no-op on a unanimous set and on a 1-1 split, so no undissenting night moves.
+     ∅ THE RETURN IS A COUNT, AND A ZERO FROM IT IS FIVE DIFFERENT FACTS — unanimous, a 1-1 tie,
+     unsigned channels and a single channel all return 0, and only the first means the channels
+     agreed. This lane threw the count away, so a surface fed by it could not say whether the
+     stream behind a row was corrected. The signs and the majority are read BEFORE the pass:
+     after it the dissenter carries the majority sign and the night reads unanimous. */
+  var polSigns = ConsensusDissent.signsOf(per);
+  var polMaj = PPGDSP.consensusSign(polSigns);
+  var polCorrected = PPGDSP.applyConsensusPolarity(per, function (i, sgn) {
     return PPGDSP.detectChannel(rec.ch[i], rec.fs, sgn);
   });
+  var polStamp = ConsensusDissent.stampOf(polSigns, polMaj, polCorrected);
   var refIdx = 0,
     best = -1;
   per.forEach(function (p, i) {
@@ -424,6 +432,10 @@ function ppgFootTimes(text, runsText, opts) {
     feetIdx: cons.feet,
     nSamples: rec.n,
     unmeasuredSec: _unmeasured,
+    /* ∅ The consensus-polarity condition this night was read under, and what the pass did about it.
+       `shape` separates the four abstentions the count cannot: only `unanimous` means the channels
+       agreed. A surface quoting this night's coupling can now say which. */
+    polarity: polStamp,
     validity: rec.pinnedCrossCheck
       ? {
           source: '_PPGRUNS.txt',
@@ -1473,7 +1485,10 @@ self.onmessage = function (e) {
           key: key,
           label: m.label,
           ecg: { t0Ms: ecg.t0Ms, fs: ecg.fs, n: ecg.n, durSec: ecg.durSec, nRaw: ecg.nRaw, artifactSec: ecg.artifactSec, artifactGate: ecg.artifactGate, validity: ecg.validity },
-          ppg: { t0Ms: ppg.t0Ms, fs: ppg.fs, n: ppg.n, durSec: ppg.durSec, validity: ppg.validity },
+          /* `polarity` travels with the stream it describes, beside `validity`, because it is the
+             same kind of fact: the condition the night was read under. §∅ — only `unanimous` means
+             the three LEDs agreed, and the count alone cannot say so. */
+          ppg: { t0Ms: ppg.t0Ms, fs: ppg.fs, n: ppg.n, durSec: ppg.durSec, validity: ppg.validity, polarity: ppg.polarity },
           ov: ov,
           sc: sc,
           vd: vd,
@@ -1492,6 +1507,10 @@ self.onmessage = function (e) {
             cpF = coupledPAT(ecg.times, fin.times);
             cpFA = coupledPAT(fin.times, ppg.times, FINGER_ANKLE_BAND, { start: 'finger-foot', end: 'ankle-foot' });
             var ovFA = overlap(fin, ppg); // the finger→ankle leg's OWN span — neither end of it is the chest
+            /* `fin.polarity` is NOT sent. The finger panel renders no provenance line, so the stamp
+               would cross the boundary unread — the `detailCorr` defect the comment at the payload's
+               tail names. The O2Ring carries one optical channel, so its shape is `alone` by
+               construction; it travels when the finger leg gets a surface that reads it. */
             out.finger = { t0Ms: fin.t0Ms, fs: fin.fs, n: fin.n, durSec: fin.durSec, validity: fin.validity };
             out.cpF = packCp(cpF, ovF);
             /* the ring's axis is DRAWN (sample index × an assumed rate), so the gate refuses to CERTIFY this leg;

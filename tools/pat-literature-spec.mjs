@@ -236,7 +236,14 @@ function ecgRpeakTimes(text, runsText) {
   };
 }
 /* ── @port-from pat-feasibility-worker.js#ppgFootTimes ─────────────────────────────
-   @port-sha ad119403ae00
+   @port-sha 087d087d946a
+   RECONCILED 2026-11-06 against that source text, for row
+   2026-11-05-the-two-bundle-workers-still-discard-the-polarity-return. The worker now reads the
+   polarity signs BEFORE the pass and keeps the return as a stamp, which is the shape this copy
+   already ran, so no line here changed. One difference remains, and it is the LANE: this copy
+   labels through the node core, the worker through the browser `consensus-dissent.js`.
+   `tests/dex-tests.js` holds the two vocabularies and all five shapes equal over a planted sign
+   table, so a lane that renamed an abstention reds rather than drifting.
    PORTED 2026-11-05 for row 2026-10-28-pat-legs-refuse-only-the-spans-a-sidecar-confirmed. The worker
    now SIZES an unconfirmed span set without consuming it, and this copy runs the same count:
    `annotateOnly` below builds the ranges, walks the feet and keeps every one. The default still never
