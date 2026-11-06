@@ -380,12 +380,60 @@ dump_msg() { # dump_msg <what was judged> <text>
   else printf '%s\n' "$2" | sed 's/^/        | /'; fi
 }
 
-expectsays() { # expectsays <PRESENT|ABSENT> <label> <needle> <text>
-  local got
+# ── A NEEDLE FAILURE HAS THREE CAUSES, AND A ONE-SHOT FLAKE OFFERS NO SECOND CHANCE ─────────────
+# Rows 2026-11-04-the-hooks-gate-flakes-on-the-worktree-creating-cd-shape and
+# 2026-11-05-the-stale-brief-self-test-flake-reds-a-leg-the-row-does-not-name. One red arrived in 30
+# runs 6-way concurrent over no diff, and 310 later runs reproduced nothing, so the next arrival is
+# the only evidence anyone gets. Printing the judged text tells a reader WHAT the hook said. It
+# still reports three different causes as one line, and §∅ holds for a capture as much as for a
+# sample: an empty capture is not a text difference, and neither is a capture that ended early.
+#
+# The hook writes its whole diagnostic in ONE `cat >&2` heredoc (guard-stale-brief.sh:869), measured
+# 2026-11-06 at 1949, 1951, 2017, 2053 and 2584 bytes over all five arms. Every one sits under
+# PIPE_BUF, so each is a single atomic write, and all five close with the same line. Two needles 56
+# bytes apart inside ONE assignment (guard-stale-brief.sh:760) cannot arrive separately from that.
+# A failing leg therefore re-captures the SAME command once and classifies the pair.
+_recapture() { # _recapture cmd:<command> | file:<path> ; the recipe carries a prefix, never a guess
+  case "$1" in
+    cmd:*) saysof "${1#cmd:}" ;;
+    file:*) saysof_f "${1#file:}" ;;
+    *) printf 'REFUSE: a recapture recipe with no cmd: or file: prefix' ;;
+  esac
+}
+classify() { # classify <first text> <retry text> <needle> ; one token naming the cause
+  local a=ABSENT b=ABSENT
+  printf '%s' "$1" | grep -qF "$3" && a=PRESENT
+  printf '%s' "$2" | grep -qF "$3" && b=PRESENT
+  if [ -z "$1" ] && [ -z "$2" ]; then printf 'NO-OUTPUT-TWICE'
+  elif [ -z "$1" ]; then printf 'FIRST-CAPTURE-EMPTY'
+  elif [ "$a" != "$b" ]; then printf 'NOT-REPRODUCIBLE'
+  else printf 'STABLE-TEXT'; fi
+}
+_cause_note() { # _cause_note <token> ; where the token sends the reader
+  case "$1" in
+    NO-OUTPUT-TWICE)     printf 'the hook printed nothing on either run, so no arm fired: read the arm selection' ;;
+    FIRST-CAPTURE-EMPTY) printf 'run one printed nothing and run two printed, so the capture failed and the hook held' ;;
+    NOT-REPRODUCIBLE)    printf 'two runs of one command disagree, which is the logged flake rather than your diff' ;;
+    STABLE-TEXT)         printf 'both runs agree, so the text really differs: your diff, or another arm answered' ;;
+    *)                   printf 'unclassified token, so treat the pair above as the evidence' ;;
+  esac
+}
+expectsays() { # expectsays <PRESENT|ABSENT> <label> <needle> <text> [<recapture recipe>]
+  local got retry verdict
   if printf '%s' "$4" | grep -qF "$3"; then got=PRESENT; else got=ABSENT; fi
   if [ "$got" = "$1" ]; then printf '  ok    %-58s %s\n' "$2" "$got"
   else printf '  FAIL  %-58s got %s, want %s\n' "$2" "$got" "$1"; fail=$((fail+1))
-    printf '        needle: %s\n' "$3"; dump_msg "$2" "$4"; fi
+    printf '        needle: %s\n' "$3"; dump_msg "$2" "$4"
+    if [ -n "${5:-}" ]; then
+      retry="$(_recapture "$5")"
+      verdict="$(classify "$4" "$retry" "$3")"
+      printf '        the same command re-run: %s bytes against %s · CAUSE: %s\n' "${#retry}" "${#4}" "$verdict"
+      printf '        %s\n' "$(_cause_note "$verdict")"
+      if [ "$retry" != "$4" ]; then dump_msg "the same command re-run" "$retry"; fi
+    else
+      printf '        no recapture recipe on this leg, so the cause stays unclassified\n'
+    fi
+  fi
 }
 
 # These needles used to hang on the data case, which now ALLOWs and therefore says nothing. The
@@ -393,69 +441,98 @@ expectsays() { # expectsays <PRESENT|ABSENT> <label> <needle> <text>
 # target is an argv element and a guarded path stands in the program as prose. That is the arm
 # where an operator most needs to be told which of the two cases they are in, because the hook is
 # refusing on what it could not read rather than on what it saw.
-_unres_msg="$(saysof "python3 - <<'PY'
+_unres_cmd="python3 - <<'PY'
 import sys
 # the rows live in briefs/SHARED-BRIEF.md
 open(sys.argv[1],'w').write('v3')
-PY")"
-expectsays PRESENT "an unresolved target names the scan that refused"     "a write whose target this scan cannot resolve" "$_unres_msg"
-expectsays PRESENT "…and quotes the expression it could not resolve"      "sys.argv[1]" "$_unres_msg"
-expectsays PRESENT "…and says the path was read in program text alone"    "read ONLY inside a heredoc the shell hands to an interpreter" "$_unres_msg"
-expectsays PRESENT "…and warns that every path sat inside the program"    "EVERY PATH ABOVE WAS READ INSIDE PROGRAM TEXT ALONE" "$_unres_msg"
-expectsays PRESENT "…and names the candidate set as a candidate set"      "which is a candidate set and not a target" "$_unres_msg"
+PY"
+_unres_msg="$(saysof "$_unres_cmd")"
+expectsays PRESENT "an unresolved target names the scan that refused"     "a write whose target this scan cannot resolve" "$_unres_msg" "cmd:$_unres_cmd"
+expectsays PRESENT "…and quotes the expression it could not resolve"      "sys.argv[1]" "$_unres_msg" "cmd:$_unres_cmd"
+expectsays PRESENT "…and says the path was read in program text alone"    "read ONLY inside a heredoc the shell hands to an interpreter" "$_unres_msg" "cmd:$_unres_cmd"
+expectsays PRESENT "…and warns that every path sat inside the program"    "EVERY PATH ABOVE WAS READ INSIDE PROGRAM TEXT ALONE" "$_unres_msg" "cmd:$_unres_cmd"
+expectsays PRESENT "…and names the candidate set as a candidate set"      "which is a candidate set and not a target" "$_unres_msg" "cmd:$_unres_cmd"
 # The arm's OTHER two fail-closed reasons say what they could not read, and never borrow the
 # resolved wording. A denial that names the wrong reason sends the reader to the wrong remedy.
-_shell_msg="$(saysof "python3 - <<'PY'
+_shell_cmd="python3 - <<'PY'
 import subprocess
 # the rows live in briefs/SHARED-BRIEF.md
 subprocess.run(['/bin/true'])
-PY")"
-expectsays PRESENT "a shell-out says the channel is unreadable"           "shells out" "$_shell_msg"
-expectsays ABSENT  "…and claims no resolved target"                       "target IS a guarded path" "$_shell_msg"
+PY"
+_shell_msg="$(saysof "$_shell_cmd")"
+expectsays PRESENT "a shell-out says the channel is unreadable"           "shells out" "$_shell_msg" "cmd:$_shell_cmd"
+expectsays ABSENT  "…and claims no resolved target"                       "target IS a guarded path" "$_shell_msg" "cmd:$_shell_cmd"
 # And the data case, which the scan cleared, prints nothing at all: no verdict, so no text.
-_data_msg="$(saysof "python3 - <<'PY'
+_data_cmd="python3 - <<'PY'
 p='$TMP/elsewhere.txt'
 open(p,'w').write('briefs/SHARED-BRIEF.md holds the rows')
-PY")"
-expectsays ABSENT  "a cleared data mention prints no denial at all"       "STALE BRIEF" "$_data_msg"
+PY"
+_data_msg="$(saysof "$_data_cmd")"
+expectsays ABSENT  "a cleared data mention prints no denial at all"       "STALE BRIEF" "$_data_msg" "cmd:$_data_cmd"
 
 # The ARGV arm's denial is the one that must NOT borrow the program-text vocabulary. The guarded
 # path stands in the command line there, so the candidate-set wording is truthful and the
 # program-text warning would send the reader to look in the wrong place for the path.
-_argv_msg="$(saysof "python3 - briefs/SHARED-BRIEF.md <<'PY'
+_argv_cmd="python3 - briefs/SHARED-BRIEF.md <<'PY'
 import sys
 open(sys.argv[1],'w').write('v3')
-PY")"
-expectsays PRESENT "the argv arm names the slot it read"                 "target the program reads from its own arguments" "$_argv_msg"
-expectsays PRESENT "…and names the other channel it joined"               "a guarded path in the interpreter" "$_argv_msg"
-expectsays ABSENT  "…and does NOT claim the path sat in program text"     "EVERY PATH ABOVE WAS READ INSIDE PROGRAM TEXT ALONE" "$_argv_msg"
+PY"
+_argv_msg="$(saysof "$_argv_cmd")"
+expectsays PRESENT "the argv arm names the slot it read"                 "target the program reads from its own arguments" "$_argv_msg" "cmd:$_argv_cmd"
+expectsays PRESENT "…and names the other channel it joined"               "a guarded path in the interpreter" "$_argv_msg" "cmd:$_argv_cmd"
+expectsays ABSENT  "…and does NOT claim the path sat in program text"     "EVERY PATH ABOVE WAS READ INSIDE PROGRAM TEXT ALONE" "$_argv_msg" "cmd:$_argv_cmd"
 
 # The BUILT-TARGET denial is the only one in this hook that can name a certain target, because the
 # scan resolved it. So it must say the joined value, and it must not describe a candidate set.
-_join_msg="$(saysof "python3 - <<'PY'
+_join_cmd="python3 - <<'PY'
 d = 'briefs/'
 open(d + 'SHARED-BRIEF.md', 'w').write('v3')
-PY")"
-expectsays PRESENT "a joined target is named in the denial"              "briefs/SHARED-BRIEF.md" "$_join_msg"
-expectsays PRESENT "…and the source says the target is certain"            "so the target is certain" "$_join_msg"
-expectsays ABSENT  "…and never calls it a candidate set"                   "which is a candidate set and not a target" "$_join_msg"
+PY"
+_join_msg="$(saysof "$_join_cmd")"
+expectsays PRESENT "a joined target is named in the denial"              "briefs/SHARED-BRIEF.md" "$_join_msg" "cmd:$_join_cmd"
+expectsays PRESENT "…and the source says the target is certain"            "so the target is certain" "$_join_msg" "cmd:$_join_cmd"
+expectsays ABSENT  "…and never calls it a candidate set"                   "which is a candidate set and not a target" "$_join_msg" "cmd:$_join_cmd"
 
 # The control, differing in ONE property: the write verb stands in the command beside the path.
-_sed_msg="$(saysof "sed -i 's/a/b/' briefs/SHARED-BRIEF.md")"
-expectsays PRESENT "an in-place sed is named as the shape that fired"      "an in-place sed" "$_sed_msg"
-expectsays PRESENT "…and the path is reported in the command text"         "read in the command text" "$_sed_msg"
-expectsays ABSENT  "…and the program-text warning is NOT printed"          "EVERY PATH ABOVE WAS READ INSIDE PROGRAM TEXT ALONE" "$_sed_msg"
-expectsays ABSENT  "…and no interpreter verb is claimed"                   "an interpreter write verb" "$_sed_msg"
+_sed_cmd="sed -i 's/a/b/' briefs/SHARED-BRIEF.md"
+_sed_msg="$(saysof "$_sed_cmd")"
+expectsays PRESENT "an in-place sed is named as the shape that fired"      "an in-place sed" "$_sed_msg" "cmd:$_sed_cmd"
+expectsays PRESENT "…and the path is reported in the command text"         "read in the command text" "$_sed_msg" "cmd:$_sed_cmd"
+expectsays ABSENT  "…and the program-text warning is NOT printed"          "EVERY PATH ABOVE WAS READ INSIDE PROGRAM TEXT ALONE" "$_sed_msg" "cmd:$_sed_cmd"
+expectsays ABSENT  "…and no interpreter verb is claimed"                   "an interpreter write verb" "$_sed_msg" "cmd:$_sed_cmd"
 
 # A redirect reaches the first arm, which DOES test adjacency, so the shape says so.
-_redir_msg="$(saysof "printf 'v3' >> briefs/SHARED-BRIEF.md")"
-expectsays PRESENT "a redirect names the clause-adjacent shape"            "standing in the same clause as the guarded path" "$_redir_msg"
+_redir_cmd="printf 'v3' >> briefs/SHARED-BRIEF.md"
+_redir_msg="$(saysof "$_redir_cmd")"
+expectsays PRESENT "a redirect names the clause-adjacent shape"            "standing in the same clause as the guarded path" "$_redir_msg" "cmd:$_redir_cmd"
 
 # A payload path is the one case with no heuristic in it at all, and the text must not pretend to one.
-_pay_msg="$(saysof_f "briefs/SHARED-BRIEF.md")"
-expectsays PRESENT "a payload path is reported as named by the payload"    "named by the tool payload" "$_pay_msg"
-expectsays PRESENT "…and the source line says the target is certain"       "so the target is certain" "$_pay_msg"
-expectsays ABSENT  "…and claims no write shape it never tested"            "WHY THIS COMMAND READS AS A WRITE: a" "$_pay_msg"
+_pay_path="briefs/SHARED-BRIEF.md"
+_pay_msg="$(saysof_f "$_pay_path")"
+expectsays PRESENT "a payload path is reported as named by the payload"    "named by the tool payload" "$_pay_msg" "file:$_pay_path"
+expectsays PRESENT "…and the source line says the target is certain"       "so the target is certain" "$_pay_msg" "file:$_pay_path"
+expectsays ABSENT  "…and claims no write shape it never tested"            "WHY THIS COMMAND READS AS A WRITE: a" "$_pay_msg" "file:$_pay_path"
+
+echo
+echo "### THE INSTRUMENT ITSELF — a needle failure above must name which of four causes it is"
+# A classifier nobody has watched decide is worth no more than the unclassified line it replaced.
+# Each leg below drives classify() over a pair that reads one way only. The live leg proves the
+# recipe reaches the hook, and the last one proves an unprefixed recipe refuses rather than guesses.
+expectis() { # expectis <want> <label> <got>
+  if [ "$3" = "$1" ]; then printf '  ok    %-58s %s\n' "$2" "$3"
+  else printf '  FAIL  %-58s got %s, want %s\n' "$2" "$3" "$1"; fail=$((fail+1)); fi
+}
+expectis NO-OUTPUT-TWICE     "two silent runs read as no arm firing"            "$(classify "" "" "a needle")"
+expectis FIRST-CAPTURE-EMPTY "a silent run beside a loud one reads as a cut"    "$(classify "" "holds a needle here" "a needle")"
+expectis NOT-REPRODUCIBLE    "a needle on one run alone reads as the flake"     "$(classify "holds nothing" "holds a needle here" "a needle")"
+expectis STABLE-TEXT         "two runs that agree read as a real difference"    "$(classify "holds nothing" "holds nothing either" "a needle")"
+_live="$(_recapture "cmd:$_argv_cmd")"
+expectis PRESENT             "a live recapture reproduces the argv denial"      "$(printf '%s' "$_live" | grep -qF "target the program reads from its own arguments" && echo PRESENT || echo ABSENT)"
+expectis REFUSE              "an unprefixed recipe refuses instead of guessing" "$(_recapture 'briefs/SHARED-BRIEF.md' | cut -d: -f1)"
+for _tok in NO-OUTPUT-TWICE FIRST-CAPTURE-EMPTY NOT-REPRODUCIBLE STABLE-TEXT; do
+  if [ -n "$(_cause_note "$_tok")" ]; then echo "  ok    the cause note for $_tok reaches the reader"
+  else echo "  FAIL  $_tok carries no cause note, so the token tells a reader nothing"; fail=$((fail+1)); fi
+done
 
 echo
 echo "### escape hatch + degenerate inputs"
@@ -875,8 +952,10 @@ else
            bash .claude/hooks/guard-stale-brief.test.sh
        A standalone pass means the red is this file's measured flake, not your diff
        (briefs/RESIDUE.md, 2026-11-04-the-hooks-gate-flakes-on-the-worktree-creating-cd-shape).
-       Every failure above prints the hook's own text, so say which path and which route it
-       reported when you log the next arrival.
+       Every failure above prints the hook's own text, re-runs the same command once, and names
+       one of four causes: NO-OUTPUT-TWICE, FIRST-CAPTURE-EMPTY, NOT-REPRODUCIBLE, STABLE-TEXT.
+       Quote that token and both byte counts when you log the next arrival. STABLE-TEXT is the
+       only one of the four that points at the diff in front of you.
 NOTE
 fi
 exit $((fail > 0))
