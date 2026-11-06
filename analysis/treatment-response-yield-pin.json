@@ -32,7 +32,7 @@
       "kernel-constants.js": "0050ad3f9dc7",
       "clock.js": "2ca8a192dde5",
       "clock-seam.js": "eca421bd5c5e",
-      "pulsedex-dsp.js": "3c1c1529d982"
+      "pulsedex-dsp.js": "cefdbfad2e72"
     }
   },
   "yield": {
@@ -59,7 +59,7 @@
       "file": "oxydex-dsp.js",
       "old": "a50aa3668d52",
       "new": "67823e8864cb",
-      "reason": "PR #3595: UI-level changes (EDF rejection, stale-metrics warning) — no DSP computation change"
+      "reason": "PR #3595: UI-level changes (EDF rejection, stale-metrics warning) \u2014 no DSP computation change"
     },
     {
       "date": "2026-10-18",
@@ -87,14 +87,14 @@
       "file": "oxydex-dsp.js",
       "old": "8a6d7668203a",
       "new": "92cec4912b7f",
-      "reason": "residue 2026-10-28-the-lint-allow-list-omits-the-rule-that-sees-a-dead-zone-read: the whole diff for this file is one added `// biome-ignore` comment line above the `var OxyDex = typeof OxyDex …` namespace idiom, which arming `correctness/noInvalidUseBeforeDeclaration` needs. No statement moved, so the 233/239 yield is re-stamped and not re-cut."
+      "reason": "residue 2026-10-28-the-lint-allow-list-omits-the-rule-that-sees-a-dead-zone-read: the whole diff for this file is one added `// biome-ignore` comment line above the `var OxyDex = typeof OxyDex \u2026` namespace idiom, which arming `correctness/noInvalidUseBeforeDeclaration` needs. No statement moved, so the 233/239 yield is re-stamped and not re-cut."
     },
     {
       "date": "2026-10-28",
       "file": "pulsedex-dsp.js",
       "old": "c4f4cee79733",
       "new": "d5e923c8081e",
-      "reason": "residue 2026-10-28-the-lint-allow-list-omits-the-rule-that-sees-a-dead-zone-read: the whole diff for this file is one added `// biome-ignore` comment line above the `var PulseDex = typeof PulseDex …` namespace idiom, which arming `correctness/noInvalidUseBeforeDeclaration` needs. No statement moved, so the 233/239 yield is re-stamped and not re-cut."
+      "reason": "residue 2026-10-28-the-lint-allow-list-omits-the-rule-that-sees-a-dead-zone-read: the whole diff for this file is one added `// biome-ignore` comment line above the `var PulseDex = typeof PulseDex \u2026` namespace idiom, which arming `correctness/noInvalidUseBeforeDeclaration` needs. No statement moved, so the 233/239 yield is re-stamped and not re-cut."
     },
     {
       "date": "2026-10-28",
@@ -102,11 +102,18 @@
       "old": "92cec4912b7f",
       "new": "017b1384b659",
       "reason": "residue 2026-09-20-oxydex-resprate-pair-is-owner-blocked: the retracted respiration rate ships as a null with a named reason, `proxy-uninformative`, in place of a bare null. A statement moved, so the yield was RE-CUT at paper scale, not re-stamped: 233 tx / 239 flat, unchanged."
+    },
+    {
+      "date": "2026-11-06",
+      "file": "pulsedex-dsp.js",
+      "old": "3c1c1529d982",
+      "new": "cefdbfad2e72",
+      "reason": "residue 2026-11-06-the-pulsedex-seam-detector-reads-the-cleaned-rr-axis-as-a-device-clock: a forward hole over the resync bound annotates coverage instead of refusing whole-record HRV, and a hole over 20 h refuses as `record-discontinuous`. Re-cut at paper scale on 97515cf6c: 233 tx / 239 flat, unchanged"
     }
   ],
-  "measuredAt": "2026-11-06T13:20:26.284Z",
+  "measuredAt": "2026-11-06T16:16:19.675Z",
   "producedBy": {
     "tool": "tools/treatment-response-yield-pin.mjs",
-    "commit": "3d489facc"
+    "commit": "97515cf6c"
   }
 }

@@ -771,18 +771,54 @@
         };
         var clean = P.pdComputeResult({ vals: rr, tsMs: stamps(0), t0Ms: t0 });
         var seamed = P.pdComputeResult({ vals: rr, tsMs: stamps(7 * 365 * 24 * 3600e3), t0Ms: t0 });
+        /* THE CORRECTION (residue `2026-11-06-the-pulsedex-seam-detector-reads-the-cleaned-rr-axis-as-a-device-clock`).
+           Three plants, one loop: the host BEHIND the beats is a proven step, the host AHEAD of them is a hole
+           whose cause one clock cannot name, and the 7-year jump is a hole no recording can contain. The two
+           dropout plants are the corpus's own shapes — a 5 min hole, and the largest real one, 104.6 min inside
+           an 11.9 h night (889 files, 5 198 132 intervals, 2026-11-06). Both MUST keep their metrics. */
+        var stepped = P.pdComputeResult({ vals: rr, tsMs: stamps(-90000), t0Ms: t0 });
+        var holed = P.pdComputeResult({ vals: rr, tsMs: stamps(300000), t0Ms: t0 });
+        var bigHole = P.pdComputeResult({ vals: rr, tsMs: stamps(6276000), t0Ms: t0 });
 
         T.ok(
           'control: a continuous record still computes every HRV metric',
           clean && clean.rmssd > 0 && clean.sdnn > 0 && clean.coverage === 100,
           JSON.stringify(clean && { r: clean.rmssd, s: clean.sdnn, c: clean.coverage })
         );
-        T.eq('a clock seam REFUSES the whole-record variability metrics', JSON.stringify({ r: seamed.rmssd, s: seamed.sdnn, p: seamed.pnn50 }), JSON.stringify({ r: null, s: null, p: null }));
-        T.eq('\u2026with the reason NAMED — an absent figure a reader cannot explain is half a refusal', seamed.hrvReason, 'clock-seam');
+        T.eq(
+          'a hole no recording can contain REFUSES the whole-record variability metrics',
+          JSON.stringify({ r: seamed.rmssd, s: seamed.sdnn, p: seamed.pnn50 }),
+          JSON.stringify({ r: null, s: null, p: null })
+        );
+        T.eq('\u2026under its OWN name, because ONE clock cannot say whether a forward hole was a step or a dropout', seamed.hrvReason, 'record-discontinuous');
         T.ok(
-          '\u2026and the seam itself is published, not just its consequence',
-          !!seamed.clockSeams && seamed.clockSeams.n >= 1 && seamed.clockSeams.boundMs === 60000,
-          JSON.stringify(seamed.clockSeams)
+          '\u2026and the hole itself is published with the bound that judged it, not just its consequence',
+          !!seamed.clockGaps && seamed.clockGaps.n >= 1 && seamed.clockGaps.boundMs === 60000 && seamed.clockGaps.limitMs === 20 * 3600 * 1000 && seamed.clockGaps.refuses === true,
+          JSON.stringify(seamed.clockGaps)
+        );
+        T.eq('a host clock that steps BACKWARD past the bound is a PROVEN step and keeps the `clock-seam` name', stepped.hrvReason, 'clock-seam');
+        T.ok(
+          '\u2026with the cross-check block keyed on the step it measured, and no hole beside it',
+          !!stepped.clockSeams && stepped.clockSeams.n >= 1 && stepped.clockSeams.boundMs === 60000 && stepped.clockGaps === null,
+          JSON.stringify({ s: stepped.clockSeams, g: stepped.clockGaps })
+        );
+        /* \ud83d\udd34 THE REFUSAL THAT MUST NOT HAPPEN — the defect this correction fixes. 45 of 889 real files carry a
+           forward hole over the bound, and every one of them refused whole-record HRV (owner ruling 2026-09-17:
+           a discontinuity refuses, reduced COVERAGE annotates). */
+        T.eq(
+          '\ud83d\udd34 a 5 min DROPOUT keeps every whole-record metric, with no reason and no refusal',
+          JSON.stringify([holed.rmssd > 0, holed.sdnn > 0, holed.pnn50 != null, holed.hrvReason, holed.clockGaps && holed.clockGaps.refuses]),
+          JSON.stringify([true, true, true, null, false])
+        );
+        T.ok(
+          '\u2026and the cost is carried by COVERAGE, the annotation the ruling asks for',
+          holed.coverage != null && holed.coverage < 100 && holed.clockGaps.n === 1 && holed.clockGaps.maxMs >= 300000,
+          JSON.stringify({ cov: holed.coverage, gaps: holed.clockGaps })
+        );
+        T.eq(
+          '\ud83d\udd34 the LARGEST hole the real corpus holds keeps its metrics too — 104.6 min is a dropout, not a step',
+          JSON.stringify([bigHole.rmssd > 0, bigHole.sdnn > 0, bigHole.hrvReason]),
+          JSON.stringify([true, true, null])
         );
         /* The PER-BEAT averages are kept deliberately. classifyRecording and adaptEnvelopeNode consume
            the duration immediately, and collapsing it is the DEEP-AUDIT-III §6.2 regression HRVDex
@@ -1153,7 +1189,7 @@
             .join(','),
           'null,null,null,null,null,null'
         );
-        T.eq('…with the reason NAMED — an absent figure a reader cannot explain is half a refusal', seamed.hrvReason, 'clock-seam');
+        T.eq('…with the reason NAMED — an absent figure a reader cannot explain is half a refusal', seamed.hrvReason, 'record-discontinuous');
         T.ok(
           'never a fabricated number, −Infinity, or NaN',
           ![seamed.stress, seamed.hrv, seamed.energy, seamed.focus, seamed.coherence, seamed.lnrmssd].some(function (v) {
