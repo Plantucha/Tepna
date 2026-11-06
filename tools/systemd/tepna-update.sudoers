@@ -1,0 +1,6 @@
+# SPDX-FileCopyrightText: Copyright 2026 Michal Planicka
+# SPDX-License-Identifier: Apache-2.0
+# /etc/sudoers.d/tepna-update — owner, 2026-11-05: passwordless updates for fleet sessions.
+# Install: sed "s/%TEPNA_USER%/$USER/" this file, check it with `visudo -cf`, install it root-owned 0440 in /etc/sudoers.d/.
+# Two exact argument lists. No wildcard, so `sudo tepna-update <anything else>` still asks for a password.
+%TEPNA_USER% ALL=(root) NOPASSWD: /usr/local/sbin/tepna-update ollama, /usr/local/sbin/tepna-update apt
