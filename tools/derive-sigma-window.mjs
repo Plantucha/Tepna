@@ -7,15 +7,18 @@
  * window needs (VERITY-SIGMA-CORNER-BRIEF / SIGMA-WINDOW-DERIVATION.md):
  *   • Verity HR  ← raw PPG  via the suite's PPGDSP (SQI-gated)
  *   • H10 HR     ← raw ECG  via the suite's ECGDSP (Pan-Tompkins QRS)
- * It REUSES the production detectors unchanged — it only runs them on more data.
+ * It REUSES the production detectors unchanged — it only runs them on more data. Each part is
+ * parsed on its own and the records fold through `tools/trio-fold-merge.mjs`, the merge the
+ * production fold runs, so part order on the command line does not matter: the merge sorts by
+ * `t0Ms` and the silence between two parts stays visible as a gap rather than closing up.
  * Run it where the raw Polar Sensor Logger files live (your machine): they are
  * ~150–350 MB each and exceed this project's 30 MiB ingest limit, so the
  * derivation must happen locally, then the small 1-Hz outputs drop into uploads/.
  *
  * USAGE (Node ≥ 18, run from the project root so it can load the *-dsp.js):
  *   node tools/derive-sigma-window.mjs \
- *        --ppg  "Ecg nightly/Polar_Sense_..._PPG.txt"   (repeat --ppg for each part, in order) \
- *        --ecg  "Ecg nightly/Polar_H10_..._ECG.txt"     (repeat --ecg for each part, in order) \
+ *        --ppg  "Ecg nightly/Polar_Sense_..._PPG.txt"   (repeat --ppg for each part) \
+ *        --ecg  "Ecg nightly/Polar_H10_..._ECG.txt"     (repeat --ecg for each part) \
  *        --date 2026-06-16                              (morning date → output filenames) \
  *        --out  uploads
  *   # PPG-only or ECG-only is fine — pass just the legs you want to derive.
@@ -34,12 +37,16 @@
  * Then append a TRIOS entry in sigma-no-reference-analysis.js (commented stubs
  * for 06-10/11/13/15 are already staged there) and re-run the tool.
  *
- * Clock Contract: timing comes from the modules' own parseTimestamp (PPG) and a
- * mirrored ISO-no-zone regex → Date.UTC (ECG). No new Date(str) on vendor stamps.
+ * Clock Contract: both legs take their timing from the DSP modules' own parseTimestamp. No
+ * new Date(str) on a vendor stamp, and no parser of this tool's own: a local ECG reader took no
+ * host-axis `fs` correction and saw no clock resync, and it is gone (residue
+ * 2026-11-06-the-sigma-window-ecg-leg-duplicates-the-dsp-parser).
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
-import { mergeRunsTexts, readRunsSidecar, runsTextPlaceable, runsTextSpans, validityLine } from './trio-fold-validity.mjs';
+import { readLinesBounded } from './read-lines-bounded.mjs';
+import { mergeEcg, mergePpg } from './trio-fold-merge.mjs';
+import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
 
 // ── tiny arg parser ───────────────────────────────────────────────────────
 const args = process.argv.slice(2);
@@ -76,66 +83,27 @@ const PPGDSP = globalThis.PPGDSP,
   ECGDSP = globalThis.ECGDSP;
 
 const sFloorMs = (ms) => Math.floor(ms / 1000) * 1000;
-// concat parts, keeping the header from the first only. `rows` is each part's DATA-row count, which
-// is the frame a run sidecar's `first_index` is written in — `mergedRunsText` below rebases on it.
-function concatParts(paths) {
-  let head = '',
-    body = '';
-  const rows = [];
-  paths.forEach((p, i) => {
-    const t = readFileSync(p, 'utf8');
-    const nl = t.indexOf('\n');
-    if (i === 0) head = t.slice(0, nl + 1);
-    const part = t.slice(nl + 1);
-    rows.push(countRows(part));
-    body += part;
-  });
-  return { text: head + body, rows };
-}
-// Data rows in one part's body, counted WITHOUT splitting: these parts are 150–350 MB and a split
-// would hold ~7 M strings beside the text it was taken from.
-function countRows(body) {
-  let n = 0,
-    i = 0;
-  for (;;) {
-    const j = body.indexOf('\n', i);
-    if (j < 0) {
-      if (i < body.length) n++;
-      break;
-    }
-    if (j > i) n++;
-    i = j + 1;
-  }
-  return n;
+/* ── ONE PART, ONE PARSE, THEN THE PRODUCTION MERGE ───────────────────────────────────────────────
+   Residue 2026-11-06-the-sigma-window-concat-joins-a-nights-parts-as-text. This tool used to join a
+   night's parts as TEXT and keep the first part's header, so the record carried one `t0Ms` and no
+   entry for the silence between two parts. A break between parts then reached both detectors as
+   continuous signal, which is the §∅ discontinuity case rather than a coverage one. It now parses
+   each part on its own and folds the records through `tools/trio-fold-merge.mjs`, the merge the
+   production fold runs: the inter-part silence becomes an ECG `gaps[]` entry and a PPG `relSec` jump,
+   each fragment's gaps and clock resyncs are rebased onto the merged axis, and no time is fabricated.
+
+   The sidecar rebase went with the concatenation. A part's `…RUNS.txt` indices are written in THAT
+   part's frame, so handing each parse its own part's sidecar needs no rebase at all — the one axis
+   fact the old join had to reconstruct. Four things can still happen per part and the tally printed
+   at the end names which: absent, unreadable or unnamed is validity UNKNOWN over that part's stretch,
+   never a clean one, because passing the sidecar is not reporting its absence. */
+const validity = {};
+function sidecarFor(path, stream) {
+  const sc = readRunsSidecar(path, stream, { tally: validity });
+  if (sc.state !== 'read' && sc.reason) console.log(`[${stream}] ${sc.reason}`);
+  return sc.runsText;
 }
 
-/* ── the `…RUNS.txt` validity companions, on the CONCATENATED axis ──────────────────────────────
-   The box writes each optical and ECG stream's constant-run spans BESIDE the stream (§∅,
-   `capture-host/writers.py _RunSidecar`), addressed by SAMPLE INDEX into that one file
-   (`first_index`). A night handed to the detectors as one concatenation therefore needs every part
-   after the first rebased by the data rows ahead of it, which is what this does. Four things can
-   happen per part and the tally printed at the end names which: a part whose sidecar is absent,
-   unreadable or unnamed contributes nothing and is validity UNKNOWN over its stretch, never a clean
-   one — passing the sidecar is not reporting its absence. */
-const validity = {};
-function mergedRunsText(paths, stream, rows) {
-  const sidecars = paths.map((pth) => readRunsSidecar(pth, stream, { tally: validity }));
-  for (const sc of sidecars) if (sc.state !== 'read' && sc.reason) console.log(`[${stream}] ${sc.reason}`);
-  const merged = mergeRunsTexts(sidecars, rows);
-  for (const n of merged.notices) console.log(`[${stream}] ${n}`);
-  if (merged.dropped) console.log(`[${stream}] ${merged.dropped} sidecar row(s) carried no placeable first_index — dropped, not placed`);
-  return merged.text;
-}
-/* The rebase is exact only while the parse keeps every data row counted here, which
-   `runsTextPlaceable` checks against the parse rather than assuming. A mismatch is reported in the
-   tool's own words and the spans are withheld: a span placed on the wrong seconds is worse than one
-   withheld. */
-function spansPlaceable(stream, parts, parsedSamples) {
-  if (runsTextPlaceable(parts.rows, parsedSamples)) return true;
-  const rows = parts.rows.reduce((a, b) => a + b, 0);
-  console.log(`[${stream}] ${parts.rows.length} parts: ${rows} data row(s) against ${parsedSamples} parsed sample(s) — the sidecar's indices do not address this parse, spans WITHHELD`);
-  return false;
-}
 // bucket per-beat (timeMs, hr, sqi) → 1-Hz mean rows
 function toOneHz(beats) {
   const m = new Map();
@@ -159,15 +127,20 @@ function toOneHz(beats) {
 // ── Verity: raw PPG → PPGDSP → SQI-gated 1-Hz HR ───────────────────────────
 if (ppg.length) {
   console.log(`[PPG] ${ppg.length} part(s) → PPGDSP…`);
-  const parts = concatParts(ppg);
-  const runsText = mergedRunsText(ppg, 'PPG', parts.rows);
-  let rec = PPGDSP.parsePPG(parts.text, { runsText });
-  /* The sidecar reaches this parse as a WITNESS against its own pinned-run derivation (`ppgdex-dsp.js`
-     §P5 clause 2 — the box's run detector and this node's rail detector answer different questions and
-     the comparison is the point). An index that does not address this parse would make that comparison
-     report an agreement nobody measured, so the night is re-parsed with the witness WITHHELD rather
-     than by stripping a field the parse also fills from the data. */
-  if (runsText && !spansPlaceable('PPG', parts, rec.n)) rec = PPGDSP.parsePPG(parts.text, { runsText: null });
+  /* The sidecar reaches each part's parse as a WITNESS against that part's own pinned-run derivation
+     (`ppgdex-dsp.js` §P5 clause 2 — the box's run detector and this node's rail detector answer
+     different questions, and the comparison is the point). */
+  const precs = ppg.map((f) => {
+    const runsText = sidecarFor(f, 'PPG');
+    const text = readFileSync(f, 'utf8');
+    return runsText ? PPGDSP.parsePPG(text, { runsText }) : PPGDSP.parsePPG(text);
+  });
+  const rec = mergePpg(precs);
+  if (!rec) {
+    console.error('[PPG] no part parsed into a record — nothing written');
+    process.exit(2);
+  }
+  if (precs.length > 1) console.log(`[PPG] ${precs.length} part(s) folded on parsed records · fs=${rec.fs} · ${rec.n} sample(s) · ${(rec.durSec / 3600).toFixed(2)} h`);
   const res = PPGDSP.analyze(rec);
   const peakSec = res.beatTimes || [],
     sqi = res.sqi || [],
@@ -200,65 +173,40 @@ if (ppg.length) {
 }
 
 // ── H10: raw ECG → ECGDSP (Pan-Tompkins) → 1-Hz HR ─────────────────────────
-/* `opts.runsText` is the night's merged `_ECGRUNS.txt` bytes when its parts carried one. Its spans
-   ride the record as `blankingSpans`, which is where `ECGDSP.analyze` reads recorded absence and
-   converts it to the seconds frame its epochs use. Without them a recorded blanking run enters
-   Pan-Tompkins as signal: 0 µV is a legal ECG sample, so validity can only travel out of band (§∅). */
-function parseECG(text, opts) {
-  // columns: Phone timestamp ; sensor ts [ns] ; timestamp [ms] ; ecg [uV]
-  const L = text.split(/\r?\n/);
-  const uv = [];
-  let t0 = null,
-    firstRelMs = null,
-    lastRelMs = null,
-    n = 0;
-  const iso = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?/;
-  for (let i = 1; i < L.length; i++) {
-    if (!L[i]) continue;
-    const c = L[i].split(';');
-    if (c.length < 4) continue;
-    const v = +c[3];
-    if (!isFinite(v)) continue;
-    let clamp = Math.round(v);
-    if (clamp > 32767) clamp = 32767;
-    if (clamp < -32768) clamp = -32768;
-    uv.push(clamp);
-    const rel = +c[2];
-    if (isFinite(rel)) {
-      if (firstRelMs == null) firstRelMs = rel;
-      lastRelMs = rel;
-    }
-    if (t0 == null) {
-      const m = c[0].match(iso);
-      if (m) t0 = Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6], m[7] ? +m[7].padEnd(3, '0') : 0);
-    }
-    n++;
-  }
-  const fs = firstRelMs != null && lastRelMs != null && lastRelMs > firstRelMs ? (n - 1) / ((lastRelMs - firstRelMs) / 1000) : 130;
-  const runs = runsTextSpans(opts && opts.runsText, 'ecg');
-  return {
-    int16: Int16Array.from(uv),
-    fs: Math.round(fs * 100) / 100,
-    t0Ms: t0,
-    /* Absent when no part carried a sidecar, so a sidecar-less night keeps today's record shape;
-       `null` plus a reason when rows arrived and none could be placed. `parseECGText` states the
-       same two facts the same way. */
-    ...(runs ? { blankingSpans: runs.placedNone ? null : runs.spans } : {}),
-    ...(runs && runs.placedNone ? { blankingSpansReason: `sidecar rows unplaced: ${runs.rejected.join(', ') || 'malformed rows only'}` } : {})
-  };
-}
+/* ── H10: raw ECG → ECGDSP.parseECGLines → Pan-Tompkins → 1-Hz HR ────────────────────────────────
+   Residue 2026-11-06-the-sigma-window-ecg-leg-duplicates-the-dsp-parser. This leg used to parse with
+   a local ISO-regex reader, so it took no host-axis `fs` correction, detected no clock resync, and
+   derived its rate from the first and last `relMs` of the whole concatenation — the quantity a device
+   clock step moves most. It now runs `ECGDSP.parseECGLines`, the DSP's own additive entry point, over
+   the bounded line reader the production fold uses, one part at a time. `opts.runsText` is that
+   part's `_ECGRUNS.txt` bytes when the box wrote one: the spans ride the record as `blankingSpans`,
+   where `analyze` reads recorded absence, because 0 µV is a legal ECG sample and validity can only
+   travel out of band (§∅). */
 if (ecg.length) {
-  console.log(`[ECG] ${ecg.length} part(s) → ECGDSP (fs auto)…`);
-  const parts = concatParts(ecg);
-  const runsText = mergedRunsText(ecg, 'ECG', parts.rows);
-  const rec = parseECG(parts.text, { runsText });
-  if (!spansPlaceable('ECG', parts, rec.int16.length)) {
-    rec.blankingSpans = null;
-    rec.blankingSpansReason = 'the sidecar indices do not address this concatenation (see the line above)';
+  console.log(`[ECG] ${ecg.length} part(s) → ECGDSP.parseECGLines + the production fold…`);
+  const erecs = ecg.map((f) => {
+    const runsText = sidecarFor(f, 'ECG');
+    const lines = readLinesBounded(f);
+    return runsText ? ECGDSP.parseECGLines(lines, { runsText }) : ECGDSP.parseECGLines(lines);
+  });
+  /* `mergeEcg` REFUSES a night whose fragments disagree on `fs` by more than 0.05 Hz, because one
+     sample index would then mean two durations. A refusal writes no file: a wrong HR series is worse
+     than an absent one, and the next reader cannot tell a wrong one from a right one. */
+  let rec = null;
+  try {
+    rec = mergeEcg(erecs);
+  } catch (e) {
+    console.error(`[ECG] REFUSED: ${e.message} — no file written for ${date}`);
+    process.exit(2);
   }
-  /* What the sidecar PLACED, beside the numbers it conditions: an unplaced span list reads exactly
-     like a stream the box recorded no absence in, so the two are printed apart (§∅). `analyze` turns
-     these samples into the seconds its epochs refuse on. */
+  if (!rec) {
+    console.error('[ECG] no part parsed into a record — nothing written');
+    process.exit(2);
+  }
+  if (erecs.length > 1) {
+    const gapMs = (rec.gaps || []).reduce((t, g) => t + (g.ms > 0 ? g.ms : 0), 0);
+    console.log(`[ECG] ${erecs.length} part(s) folded on parsed records · ${(rec.gaps || []).length} gap(s), ${(gapMs / 1000).toFixed(1)} s of real off-link silence`);
+  }
   if (rec.blankingSpansReason) console.log(`[ECG] blanking: no span was placed — ${rec.blankingSpansReason}`);
   else if (Array.isArray(rec.blankingSpans)) {
     const bs = rec.blankingSpans.reduce((a, b) => a + (b && b.n > 0 ? b.n : 0), 0);
@@ -276,12 +224,21 @@ if (ecg.length) {
   const rows = toOneHz(beats);
   // per-second fused-hat confidence: the same call ECGDex's own HRV path makes (A-peak sample
   // indices + per-beat SQI from computeSQI), keyed by absolute second.
-  const ecgConf = ECGDSP.beatConfidence(res.peaks || [], res.sqi || [], rec.fs, t0 || 0);
+  /* OMITTED, never defaulted, across a clock seam — the rule the PPG leg above has carried since the
+     `c` column arrived. The local parser could not see a seam, so this leg wrote a weight over a
+     changed clock; `parseECGLines` reports one, and an unmeasured weight stays visible as absent
+     (§∅, Clock Contract §7). The consumers then run the classic hat for that file. */
+  const ecgSeam = !!(rec.clockResyncs && rec.clockResyncs.length);
+  const ecgConf = ecgSeam ? null : ECGDSP.beatConfidence(res.peaks || [], res.sqi || [], rec.fs, t0 || 0);
+  if (ecgSeam) console.log(`[ECG] ${rec.clockResyncs.length} clock seam(s) in this night — \`c\` column OMITTED (classic hat downstream)`);
   const f = `${out}/h10-ecg-derived-${date}-HR.txt`;
-  writeFileSync(f, 'tMs;hr;src;c\n' + rows.map((r) => `${r.tMs};${r.hr.toFixed(2)};ecg;${(ecgConf.has(r.tMs / 1000) ? ecgConf.get(r.tMs / 1000) : 1).toFixed(3)}`).join('\n') + '\n');
-  let lowE = 0;
-  for (const r of rows) if (ecgConf.has(r.tMs / 1000) && ecgConf.get(r.tMs / 1000) < 0.5) lowE++;
-  console.log(`[ECG] c: ${lowE} of ${rows.length} s below 0.5`);
+  const cOfE = (r) => (ecgConf ? ';' + (ecgConf.has(r.tMs / 1000) ? ecgConf.get(r.tMs / 1000) : 1).toFixed(3) : '');
+  writeFileSync(f, 'tMs;hr;src' + (ecgConf ? ';c' : '') + '\n' + rows.map((r) => `${r.tMs};${r.hr.toFixed(2)};ecg${cOfE(r)}`).join('\n') + '\n');
+  if (ecgConf) {
+    let lowE = 0;
+    for (const r of rows) if (ecgConf.has(r.tMs / 1000) && ecgConf.get(r.tMs / 1000) < 0.5) lowE++;
+    console.log(`[ECG] c: ${lowE} of ${rows.length} s below 0.5`);
+  }
   console.log(`[ECG] fs≈${rec.fs} · ${rows.length} 1-Hz s → ${f}`);
 }
 
