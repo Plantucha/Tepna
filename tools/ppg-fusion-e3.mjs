@@ -66,6 +66,7 @@ import { dirname, join, relative } from 'node:path';
 import { EPOCH_MS, MAX_LAG_MS, median, quantile, hrEnvelope, envelopeLagMs, refineLagByMatch, matchBeats, refinePeaks, ppiJitterMs } from './ppi-match.mjs';
 import { dedupeByIdentity, gitCommitOf, notCovered, populationVerdict, ruleLine, snapshotEntries } from './corpus-scope-core.mjs';
 import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
+import { dissentStampOf, dissentTallyLine, signsOf } from './consensus-dissent-core.mjs';
 /* ── THE VALIDITY SIDECAR RIDES WITH THE STREAM ─────────────────────────────────────────────────────
    Row 2026-10-17-sample-parsers-called-without-their-sidecar: this tool read a night's samples and
    none of the box's `…RUNS.txt` validity, so a blanking run the box recorded reached the detectors
@@ -474,7 +475,7 @@ function score(beatMs, eBeats, lo, hi) {
 
 console.log('PPGDEX-ALGORITHM-DEEP-DIVE §6 · E-3 — waveform fusion re-scored on PPI jitter, shipped detector');
 console.log(`device: ${DEVICE}   ${SLEEP_ONLY ? '(sleep nights only)' : '(all nights)'}\n`);
-console.log('night                                   pol  jit_cons  jit_sing  jit_mean  jit_pca   ppv_cons  ppv_mean  ppv_pca   pca weights');
+console.log('night                                   pol  shape      jit_cons  jit_sing  jit_mean  jit_pca   ppv_cons  ppv_mean  ppv_pca   pca weights');
 
 const rows = [];
 for (const f of ppgs) {
@@ -491,7 +492,15 @@ for (const f of ppgs) {
   if (SLEEP_ONLY && !isSleepNight(rec0.t0Ms, rec0.durSec || 0)) continue;
   if (keepIdx.length < 2 || rec0.gap) continue; // fusion needs >=2 real channels; gaps need analyze()'s hold-over
   const perChannel = keepIdx.map((c) => P.detectChannel(rec0.ch[c], rec0.fs));
+  /* ∅ A ZERO FROM THIS PASS IS FIVE DIFFERENT FACTS — a unanimous set, a 1-1 tie, channels carrying
+     no sign and a single-channel stream all return 0, and only the first means the channels agreed.
+     This leg recorded the count alone, so its own "nights where the pass acted first" line reported
+     every tie as agreement (row 2026-11-05-two-consensus-legs-record-a-count-with-no-shape). The
+     signs are read BEFORE the pass: after it the dissenter carries the majority sign and every
+     stream reads unanimous. */
+  const polaritySigns = signsOf(perChannel);
   const polarityCorrected = P.applyConsensusPolarity(perChannel, (i, sgn) => P.detectChannel(rec0.ch[keepIdx[i]], rec0.fs, sgn));
+  const polarity = dissentStampOf(polaritySigns, polarityCorrected);
   const sel = P.pickChannel(rec0);
   const refIdx = Math.max(0, keepIdx.indexOf(sel.idx));
 
@@ -531,11 +540,11 @@ for (const f of ppgs) {
   for (const k of Object.keys(variants)) s[k] = score(variants[k], best.c.beats, lo, hi);
   if (Object.values(s).some((v) => !v || v.jit == null)) continue;
 
-  const row = { rec: relative(DIR, f.p), name: f.p.split('/').pop().slice(0, 38), pol: polarityCorrected, s, w: pca.weights };
+  const row = { rec: relative(DIR, f.p), name: f.p.split('/').pop().slice(0, 38), pol: polarityCorrected, polarity, s, w: pca.weights };
   rows.push(row);
   const n2 = (v) => (v == null ? '  n/a' : v.toFixed(2));
   console.log(
-    `${row.name.padEnd(40)} ${String(polarityCorrected).padStart(2)}  ${n2(s.cons.jit).padStart(7)}  ${n2(s.sing.jit).padStart(8)}  ${n2(s.mean.jit).padStart(8)}  ${n2(s.pca.jit).padStart(7)}  ${n2(s.cons.ppv * 100).padStart(8)}  ${n2(s.mean.ppv * 100).padStart(8)}  ${n2(s.pca.ppv * 100).padStart(7)}  [${pca.weights.map((w) => w.toFixed(3)).join(' ')}]`
+    `${row.name.padEnd(40)} ${String(polarityCorrected).padStart(2)}  ${polarity.shape.padEnd(9)}  ${n2(s.cons.jit).padStart(7)}  ${n2(s.sing.jit).padStart(8)}  ${n2(s.mean.jit).padStart(8)}  ${n2(s.pca.jit).padStart(7)}  ${n2(s.cons.ppv * 100).padStart(8)}  ${n2(s.mean.ppv * 100).padStart(8)}  ${n2(s.pca.ppv * 100).padStart(7)}  [${pca.weights.map((w) => w.toFixed(3)).join(' ')}]`
   );
 }
 
@@ -608,7 +617,10 @@ console.log('  ^ §3.1 found the GEV beamformer collapsing to [0.0006, 0.0397, -
 console.log('    channel selection". PCA-1 does NOT: ~0.577 each = 1/sqrt(3), the equal-weight mean.');
 console.log('    With rho = 0.94-0.99 the leading eigenvector IS the average, so mean-of-3 and PCA-1');
 console.log('    return identical beat trains. Collapse is a property of GEVD, not of the geometry.');
-console.log(`\n  Nights where the shipped polarity pass acted first: ${rows.filter((r) => r.pol > 0).length} of ${rows.length}`);
+console.log(`\n  Nights where the shipped polarity pass acted first: ${rows.filter((r) => r.polarity.corrected > 0).length} of ${rows.length}`);
+/* ∅ THE COMPLEMENT OF THAT COUNT IS NOT AGREEMENT. The tally names every class, so a reader can see
+   how many nights the pass abstained on for a reason other than unanimity. */
+console.log(dissentTallyLine(rows.map((r) => r.polarity)));
 console.log('  (without it a mean-of-3 on those nights CANCELS the pulse — fusion cannot be measured');
 console.log('   until polarity is settled, which is why E-5 was a prerequisite for this experiment.)');
 
