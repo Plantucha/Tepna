@@ -176,3 +176,136 @@ export function mergePinnedSpans(recs, nch) {
   }
   return { spans: out, unplaced };
 }
+
+/* ── THE SAME RULE ONE LAYER EARLIER: A NIGHT PARSED AS ONE CONCATENATION ─────────────────────────
+   The merges above rebase the spans of fragments that were each parsed on their own. A caller that
+   hands the detectors one CONCATENATION of a night's parts (`tools/derive-sigma-window.mjs`, whose
+   parts are 150–350 MB and are read as one text) has no per-fragment record to merge, and its
+   sidecars are still written per part: `first_index` counts samples from that part's own start. So
+   the same rebase runs on the sidecar TEXT, by the data rows ahead of each part, before any of it
+   reaches a parser.
+
+   `sidecars` are `readRunsSidecar` returns in part order; `rows` is each part's DATA-row count, the
+   frame `first_index` is written in. A part whose sidecar is absent, unreadable or unnamed contributes
+   nothing and still advances the offset — the rows it holds are real either way, and the reader's own
+   tally is what reports the absence. */
+export function mergeRunsTexts(sidecars, rows) {
+  const list = Array.isArray(sidecars) ? sidecars : [];
+  const counts = Array.isArray(rows) ? rows : [];
+  let rule = null,
+    header = null,
+    read = 0,
+    dropped = 0,
+    offset = 0;
+  const decl = [],
+    out = [],
+    notices = [];
+  list.forEach((sc, i) => {
+    const text = sc && sc.state === 'read' && typeof sc.runsText === 'string' ? sc.runsText : null;
+    if (text != null) {
+      read++;
+      for (const raw of text.split(/\r?\n/)) {
+        const ln = raw.trim();
+        if (!ln) continue;
+        if (ln.charAt(0) === '#') {
+          /* The rule line carries `min_run`, which is what makes a sidecar comparable with another run
+             of the detector. The first part's is kept; a later part stating different parameters is
+             NAMED rather than reconciled, because the spans themselves are observations and stay true.
+             Every other `#` line is carried through — among them the `stream=<s> channel=<c>` pairing a
+             reader must key a row's ownership on — hoisted ahead of the rows, so no row can arrive
+             before its own declaration. */
+          if (/\bstream=/.test(ln) && /\bmin_run=/.test(ln)) {
+            if (rule == null) rule = ln;
+            else if (ln !== rule) notices.push(`part ${i + 1}'s sidecar states different run parameters — the merged text keeps part 1's`);
+            continue;
+          }
+          if (!decl.includes(ln)) decl.push(ln);
+          continue;
+        }
+        if (/^Phone timestamp;/.test(ln)) {
+          if (header == null) header = ln;
+          continue;
+        }
+        const c = ln.split(';');
+        const first = Number(c[3]);
+        if (c.length < 8 || !Number.isFinite(first)) {
+          dropped++;
+          continue;
+        }
+        c[3] = String(first + offset);
+        out.push(c.join(';'));
+      }
+    }
+    const k = counts[i];
+    offset += Number.isFinite(k) && k > 0 ? k : 0;
+  });
+  /* No part was read: `null`, never the empty text a reader would take for a stream the box looked at
+     and recorded no run in (§∅). */
+  const text = read
+    ? [rule, header]
+        .filter((x) => x != null)
+        .concat(decl, out)
+        .join('\n') + '\n'
+    : null;
+  return { text, read, rows: out.length, dropped, notices };
+}
+
+/* The rebase is exact only while the parse keeps every data row counted into `rows`; a parser that
+   drops an implausible row shifts every index after it, and a span placed on the wrong seconds is
+   worse than one withheld. `true` when the two counts agree — or when there is one part, whose
+   indices need no rebase at all. */
+export function runsTextPlaceable(rows, parsedSamples) {
+  const counts = Array.isArray(rows) ? rows : [];
+  if (counts.length < 2) return true;
+  const n = counts.reduce((a, b) => a + (Number.isFinite(b) && b > 0 ? b : 0), 0);
+  return Number.isFinite(parsedSamples) && n === parsedSamples;
+}
+
+/* The rows of one `…RUNS.txt` as spans in SAMPLES — the shape `ECGDSP.analyze` reads as
+   `rec.blankingSpans`, for a caller that builds its own record rather than calling a node's parser. A
+   row belongs to `streamPrefix` when the stream its own `# stream=<s> channel=<c>` line pairs its
+   channel column with starts with it, falling back to the rule line's stream, and to the caller's word
+   when the file declares neither. `ecgdex-dsp.js parseEcgRuns` is the authority for that rule and is
+   module-private, so the two regexes below are copied from it rather than re-derived: a rule comparing
+   the channel column with the literal `ecg` matched none of the 335 recorded ECG blanking rows in this
+   corpus, because the writer passes its per-channel key through that column (`ecg [uV]`). */
+export function runsTextSpans(text, streamPrefix) {
+  if (typeof text !== 'string' || !text) return null;
+  const want = String(streamPrefix || '').toLowerCase();
+  let stream = null,
+    dataRows = 0;
+  const declared = {},
+    spans = [],
+    rejected = [];
+  for (const raw of text.split(/\r?\n/)) {
+    const ln = raw.trim();
+    if (!ln) continue;
+    if (ln.charAt(0) === '#') {
+      if (stream == null && /\bstream=/.test(ln) && /\bmin_run=/.test(ln)) {
+        const st = /\bstream=(\S+)/.exec(ln);
+        if (st) stream = st[1].trim().toLowerCase();
+      }
+      const dec = /\bstream=(\S+)\s+channel=(.*?)\s+class=/.exec(ln);
+      if (dec) declared[dec[2].trim().toLowerCase()] = dec[1].trim().toLowerCase();
+      continue;
+    }
+    if (/^Phone timestamp;/.test(ln)) continue;
+    const c = ln.split(';');
+    if (c.length < 8) continue;
+    dataRows++;
+    const first = Number(c[3]),
+      n = Number(c[4]);
+    if (!Number.isFinite(first) || !Number.isFinite(n) || n <= 0) continue;
+    const channel = (c[1] || '').trim();
+    const key = channel.toLowerCase();
+    const owner = Object.prototype.hasOwnProperty.call(declared, key) ? declared[key] : stream;
+    if (owner != null && want && owner.indexOf(want) !== 0) {
+      if (!rejected.includes(channel)) rejected.push(channel);
+      continue;
+    }
+    spans.push({ first: first, n: n, value: Number(c[2]) });
+  }
+  /* Rows present and NONE placed is not a clean stream — the two read identically to a consumer, and
+     that is how the channel rule above stayed green for six weeks (§∅). */
+  return { spans, dataRows, rejected, placedNone: dataRows > 0 && spans.length === 0 };
+}

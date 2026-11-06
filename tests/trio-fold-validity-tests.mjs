@@ -10,7 +10,17 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { VALIDITY_STATES, mergeBlankingSpans, mergePinnedSpans, readRunsSidecar, runsSidecarPath, validityLine } from '../tools/trio-fold-validity.mjs';
+import {
+  VALIDITY_STATES,
+  mergeBlankingSpans,
+  mergePinnedSpans,
+  mergeRunsTexts,
+  readRunsSidecar,
+  runsSidecarPath,
+  runsTextPlaceable,
+  runsTextSpans,
+  validityLine
+} from '../tools/trio-fold-validity.mjs';
 import { ecgRpeakTimes, getDsps, loadDsps, ppgFootTimes } from '../tools/pat-matchrate-strict.mjs';
 import { loadDsps as loadBc, ppgFootTimes as bcPpgFootTimes } from '../tools/beat-correspondence.mjs';
 
@@ -846,6 +856,80 @@ function accRuns(spans, { cls = 'variable' } = {}) {
     `ANTI-VACUITY · the bare grid carried a finite number over all ${unmeas.length} of those bins, into every statistic downstream`
   );
 }
+
+/* ── THE SAME AXIS RULE ON THE SIDECAR TEXT ───────────────────────────────────────────────────────
+   `tools/derive-sigma-window.mjs` hands the detectors one CONCATENATION of a night's parts, so there
+   is no per-fragment record to merge and the rebase has to happen on the sidecar bytes. These are
+   that rule's plants, built from the writer's real shape: column 1 holds the CHANNEL whatever the
+   header calls it (`ecg [uV]`), which is why ownership is keyed on the file's own
+   `# stream=<s> channel=<c>` pairing and not on a literal. */
+const RULE = '# stream=ecg rule=stuck min_run=30 t_stuck=200 merge_gap_max=8';
+const RUNHEAD = 'Phone timestamp;stream;value;first_index;n_samples;dur_ms;closed;rule;bracket;contact';
+const DECL_ECG = '# stream=ecg channel=ecg [uV] class=variable';
+const runRow = (first, n, value, channel) => `2026-10-06T21:20:46.291;${channel || 'ecg [uV]'};${value};${first};${n};${Math.round((n / 130) * 1000)};1;stuck;mid;1`;
+const sidecar = (...body) => ({ state: 'read', runsText: [RULE, RUNHEAD, DECL_ECG].concat(body).join('\n') + '\n' });
+const absent = { state: 'absent', runsText: null, reason: 'the sidecar is not there' };
+
+const two = mergeRunsTexts([sidecar(runRow(0, 315, 0)), sidecar(runRow(497, 401, 0))], [20000, 19000]);
+same({ read: two.read, rows: two.rows, dropped: two.dropped, notices: two.notices }, { read: 2, rows: 2, dropped: 0, notices: [] }, 'two parts read, both rows kept');
+same(
+  runsTextSpans(two.text, 'ecg').spans,
+  [
+    { first: 0, n: 315, value: 0 },
+    { first: 20497, n: 401, value: 0 }
+  ],
+  'part 2’s part-local index is rebased by part 1’s data rows — the round trip through the reader'
+);
+ok(two.text.indexOf(DECL_ECG) < two.text.indexOf(runRow(0, 315, 0)), 'every `#` declaration is hoisted ahead of the rows, so no row arrives before its own channel line');
+same((two.text.match(/channel=ecg \[uV\]/g) || []).length, 1, 'a declaration repeated by every part appears once');
+
+/* A part whose sidecar is absent contributes no row and STILL advances the offset: the samples it
+   holds are real either way, and the next part's indices count from after them. */
+const withGap = mergeRunsTexts([sidecar(runRow(10, 40, 0)), absent, sidecar(runRow(5, 60, 0))], [100, 50, 40]);
+same(
+  runsTextSpans(withGap.text, 'ecg').spans,
+  [
+    { first: 10, n: 40, value: 0 },
+    { first: 155, n: 60, value: 0 }
+  ],
+  'an unread part advances the offset by its own rows'
+);
+same(withGap.read, 2, 'and is not counted as read');
+
+/* §∅: no part read is `null`, never the empty text a reader would take for a stream the box looked at
+   and recorded no run in. */
+same(mergeRunsTexts([absent, absent], [100, 50]).text, null, 'no part read → null, not an empty sidecar');
+same(mergeRunsTexts([], []).text, null, 'no part at all → null');
+same(mergeRunsTexts([sidecar()], [100]).text.trim().split('\n').length, 3, 'a sidecar the box wrote with no run keeps its rule, header and declaration');
+
+const bad = mergeRunsTexts([sidecar(runRow(0, 315, 0), 'x;y', '2026-10-06T21:20:46.291;ecg [uV];0;notanumber;30;231;1;stuck;mid;1')], [20000]);
+same({ rows: bad.rows, dropped: bad.dropped }, { rows: 1, dropped: 2 }, 'a row with no placeable first_index is dropped and COUNTED, never placed at a guessed index');
+
+const other = mergeRunsTexts(
+  [sidecar(runRow(0, 315, 0)), { state: 'read', runsText: ['# stream=ecg rule=stuck min_run=60 t_stuck=200 merge_gap_max=8', RUNHEAD, runRow(0, 315, 0)].join('\n') }],
+  [100, 100]
+);
+same(other.notices, ["part 2's sidecar states different run parameters — the merged text keeps part 1's"], 'a later part stating different run parameters is NAMED, not reconciled');
+ok(other.text.indexOf('min_run=30') >= 0 && other.text.indexOf('min_run=60') < 0, 'and part 1’s rule line is what the merged text carries');
+
+/* The channel rule: a row whose channel is declared on another stream belongs to that stream, and
+   rows present with NONE placed is not a clean stream. */
+const accDecl = { state: 'read', runsText: [RULE, '# stream=acc channel=channel 0 class=variable', RUNHEAD, runRow(0, 315, 0, 'channel 0')].join('\n') };
+const rejected = runsTextSpans(mergeRunsTexts([accDecl], [100]).text, 'ecg');
+same(
+  { spans: rejected.spans, dataRows: rejected.dataRows, rejected: rejected.rejected, placedNone: rejected.placedNone },
+  { spans: [], dataRows: 1, rejected: ['channel 0'], placedNone: true },
+  'a row the file declares on another stream is rejected BY NAME, and rows-present-none-placed is marked'
+);
+same(runsTextSpans(two.text, 'ecg').placedNone, false, 'a stream whose rows did place is not marked');
+same(runsTextSpans('', 'ecg'), null, 'no sidecar text → null, which is not an empty span list');
+same(runsTextSpans(mergeRunsTexts([sidecar()], [100]).text, 'ecg').placedNone, false, 'a sidecar with no row at all is zero spans and NOT unplaced — the box looked and recorded none');
+
+/* The rebase is only exact while the parse counted every row the merge counted. */
+ok(runsTextPlaceable([20000], 19999), 'one part needs no rebase, so its indices address the parse whatever the count');
+ok(runsTextPlaceable([1000, 19000], 20000), 'two parts whose rows sum to the parsed samples are placeable');
+ok(!runsTextPlaceable([1000, 19000], 19999), 'a parse that dropped a row shifts every later index — NOT placeable');
+ok(!runsTextPlaceable([1000, 19000], undefined), 'and an unknown sample count is not a licence to place them');
 
 if (fails.length) {
   console.error(`trio-fold-validity: ${fails.length} FAILED of ${pass + fails.length}`);

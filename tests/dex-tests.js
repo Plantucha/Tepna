@@ -47946,7 +47946,6 @@
           T.skip('env.validitySidecarScan provided to the runner', 'Node-lane only — wire env.validitySidecarScan (run-tests.mjs readValiditySidecarScan)');
           return;
         }
-        var OPEN = 'OPEN — real capture input, no sidecar passed (residue 2026-10-17-sample-parsers-called-without-their-sidecar)';
         var SYNTH = 'synthetic input — SYNTH.renderPPG text has no box sidecar';
         /* [count of sidecar-less calls, reason] per file; the count is an equality, never a ceiling */
         var PIN = {
@@ -48060,7 +48059,26 @@
            of a night's parts, which no single file's sidecar addresses, and `geometry-passthrough`
            parses text it generates itself, beside which no box wrote anything. So the `tools/` half of
            this row is answered by construction, and the row stays OPEN on its node-code half. */
-        var TOOLS_PIN = { files: 2, calls: 4, reason: 'research tools: ' + OPEN };
+        /* 1 / 2 from 2026-11-06, the last of row 2026-10-17-sample-parsers-called-without-their-sidecar's
+           `tools/` half: `derive-sigma-window` hands both of its legs the night's `…RUNS.txt`, so two
+           calls leave CALL and the file leaves the population. The slices above recorded it as
+           unaddressable because it parses a CONCATENATION of a night's parts and a sidecar's
+           `first_index` counts samples from its OWN part's start — so the merged text rebases every part
+           after the first by the data rows ahead of it, and the rebase is CHECKED against the parse
+           rather than assumed: a part holding a row the parser drops shifts every index after it, and
+           the spans are then withheld with a named reason instead of placed on the wrong seconds.
+           Measured over the 2026-10-06 H10 night, a 20 000-sample prefix carrying 2 recorded spans and
+           716 blanked samples: one part with its own sidecar and two parts whose part-2 indices are
+           part-local place the SAME spans and write a byte-identical HR file; part 2's sidecar removed
+           leaves `1 read · 1 absent` with part 1's span alone placed; and one unparseable data row trips
+           the check and withholds both. The ECG leg's spans reach `ECGDSP.analyze` as `blankingSpans`,
+           the PPG leg's reach the parse as the witness its own rail derivation is compared against, and
+           both legs print `validityLine`'s tally, because passing the sidecar is not reporting its
+           absence (§∅).
+           The one file left is `geometry-passthrough`, which parses text it generates itself, beside
+           which no box wrote anything — a structural reason, not a deferral, which is why this pin's
+           reason no longer carries OPEN and the count below reads 0. */
+        var TOOLS_PIN = { files: 1, calls: 2, reason: 'research tools: text the tool generates itself, beside which no box wrote a sidecar' };
 
         function blank(s) {
           return s.replace(/[^\n]/g, '');
@@ -48202,7 +48220,10 @@
           toolFiles.length === TOOLS_PIN.files && toolCalls === TOOLS_PIN.calls,
           'found ' + toolCalls + ' in ' + toolFiles.length + ' files; move TOOLS_PIN in the same PR: ' + toolFiles.join(' · ')
         );
-        var open = TOOLS_PIN.calls;
+        /* The calls still pinned in a file whose entry reads OPEN — the ones a sidecar exists for and
+           nobody hands over. At zero every remaining pinned call has a STRUCTURAL reason instead: no
+           writer emits a sidecar for that stream, or the text is the tool's own. */
+        var open = TOOLS_PIN.reason.indexOf('OPEN') >= 0 ? TOOLS_PIN.calls : 0;
         Object.keys(PIN).forEach(function (f) {
           if (PIN[f][1].indexOf('OPEN') >= 0) open += PIN[f][0];
         });
