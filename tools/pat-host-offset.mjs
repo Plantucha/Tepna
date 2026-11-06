@@ -50,7 +50,7 @@ import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import vm from 'node:vm';
-import { dissentStampOf, dissentTallyLine, signsOf } from './consensus-dissent-core.mjs';
+import { dissentStampOf, dissentTallyLine, refpickOf, signsOf } from './consensus-dissent-core.mjs';
 import { legacyMatchRate, strictMatchRate, circShift, rawLags } from './pat-matchrate-strict.mjs';
 import { isCliEntry } from './argv-guard.mjs';
 import { populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
@@ -206,14 +206,9 @@ function ppgFeet(text, runsText) {
     polaritySigns,
     PPGDSP.applyConsensusPolarity(per, (i, sgn) => PPGDSP.detectChannel(rec.ch[i], rec.fs, sgn))
   );
-  let refIdx = 0,
-    best = -1;
-  per.forEach((p, i) => {
-    if (p.peaks.length > best) {
-      best = p.peaks.length;
-      refIdx = i;
-    }
-  });
+  /* The reference pick, NAMED at the site so the census reads a declaration rather than a loop
+     shape, and a tie stops hiding: `consensus-dissent-core.mjs#refpickOf`. Same pick. */
+  const refIdx = refpickOf(per, 'peak-argmax').idx;
   /* @polarity-decision applies
      The timing points this reads the host offset from now come from the whole channel set. */
   const cons = PPGDSP.consensusBeats(per, refIdx, rec.fs);
