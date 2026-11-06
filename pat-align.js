@@ -40,6 +40,48 @@
     minAnchors: 2
   };
 
+  /* ∅ A HELD RUN IS NOT STILLNESS, AND `0` CANNOT SAY SO. The box's `_ACCRUNS.txt` names every
+     stretch it recorded as one repeated value, and `parseDeviceACC` / `parseSensorXYZ` hang those
+     stretches on the row array as `_blankSpans` ({ t0Ms, t1Ms } absolute, one row per CHANNEL, so
+     x/y/z spans of one event arrive overlapping — hence the merge). Through such a stretch |acc|
+     never changes, so its deviation from the EMA is ~0: the quietest bin in the night, from samples
+     nobody measured. A bin of genuine stillness is a LEGAL zero, so the absence travels as NaN
+     instead — a value every reader below distinguishes. Spans are half-open `[t0Ms, t1Ms)`, the
+     convention PpgDex's `analyzeMotion` already reads them under. */
+  function _mergeSpans(raw) {
+    if (!raw || !raw.length) return [];
+    var sp = [];
+    for (var i = 0; i < raw.length; i++) {
+      var b = raw[i];
+      if (!b || !isFinite(b.t0Ms) || !isFinite(b.t1Ms) || b.t1Ms < b.t0Ms) continue;
+      sp.push({ t0Ms: b.t0Ms, t1Ms: b.t1Ms });
+    }
+    sp.sort(function (a, b) {
+      return a.t0Ms - b.t0Ms;
+    });
+    var out = [];
+    for (var j = 0; j < sp.length; j++) {
+      var last = out.length ? out[out.length - 1] : null;
+      if (last && sp[j].t0Ms <= last.t1Ms) last.t1Ms = Math.max(last.t1Ms, sp[j].t1Ms);
+      else out.push(sp[j]);
+    }
+    return out;
+  }
+
+  /* Bisection, not the linear scan the single-stream consumers use: a night carries dozens of runs
+     against hundreds of thousands of samples, and this function is called once per sample. */
+  function _inSpans(spans, tMs) {
+    var lo = 0,
+      hi = spans.length - 1;
+    while (lo <= hi) {
+      var mid = (lo + hi) >> 1;
+      if (tMs < spans[mid].t0Ms) hi = mid - 1;
+      else if (tMs >= spans[mid].t1Ms) lo = mid + 1;
+      else return true;
+    }
+    return false;
+  }
+
   /* Motion envelope on a fixed grid: per bin, the largest deviation of |acc| from its slow EMA
      baseline. Deviation, not raw magnitude, because gravity dominates |acc| and is posture-dependent
      — two devices on different body segments never agree on it, but they do agree on the DISTURBANCE.
@@ -50,7 +92,19 @@
     var alpha = opts.emaAlpha != null ? opts.emaAlpha : DEFAULTS.emaAlpha;
     if (!samples || samples.length < 20 || !(t1 > t0)) return null;
     var ng = Math.max(1, Math.floor((t1 - t0) / dt) + 1);
-    var grid = new Float32Array(ng);
+    /* ∅ TWO ABSENCES, ONE REPRESENTATION. A bin that received NO SAMPLE AT ALL — a BLE dropout, a
+       sensor gap, the non-finite rows skipped below — kept the zero-fill of a fresh Float32Array,
+       which is the open `aggregate-over-absence` finding at `audits/ABSENCE-SURVEY-2026-09-22.json`
+       (key 5edad595bddc, this line). Fixing only the recorded runs would leave `0` meaning both "a
+       still bin" and "a bin nobody sampled", so the grid starts UNMEASURED and a sample is what
+       makes a bin a measurement. `mark` carries the difference the grid cannot: a blanked bin is
+       STICKY, because a run the box recorded is not re-opened by a sample that lands in the same
+       bin — the fail-closed direction MotionDex takes when it clears both grid points around a
+       blanked sample. The EMA still tracks the held samples, exactly as PpgDex keeps its gravity
+       baseline over them and drops only the cells. */
+    var grid = new Float32Array(ng).fill(Number.NaN);
+    var mark = new Uint8Array(ng);
+    var blank = _mergeSpans(samples._blankSpans);
     var ema = null;
     for (var i = 0; i < samples.length; i++) {
       var s = samples[i];
@@ -59,8 +113,15 @@
       if (!isFinite(g)) continue;
       ema = ema == null ? g : ema + alpha * (g - ema);
       var b = Math.floor((s.tMs - t0) / dt);
+      if (b < 0 || b >= ng) continue;
+      if (blank.length && _inSpans(blank, s.tMs)) {
+        grid[b] = Number.NaN;
+        mark[b] = 1;
+        continue;
+      }
+      if (mark[b]) continue;
       var d = Math.abs(g - ema);
-      if (b >= 0 && b < ng && d > grid[b]) grid[b] = d;
+      if (!isFinite(grid[b]) || d > grid[b]) grid[b] = d;
     }
     return grid;
   }
@@ -77,23 +138,38 @@
     var half = Math.round((opts.windowHalfMs != null ? opts.windowHalfMs : DEFAULTS.windowHalfMs) / dt);
     var out = [];
     if (!env || !env.length) return out;
+    /* ∅ The threshold comes from the stream's own distribution, so an unmeasured bin must not enter
+       it: a NaN propagates into the mean and takes every candidate with it, and a zero substituted
+       for one would pull the mean DOWN and manufacture anchors. Both counts run over the measured
+       bins alone, which leaves a span-free grid's numbers unchanged. */
     var ng = env.length,
-      m = 0;
-    for (var i = 0; i < ng; i++) m += env[i];
-    m /= ng;
+      m = 0,
+      nMeas = 0;
+    for (var i = 0; i < ng; i++) {
+      if (!isFinite(env[i])) continue;
+      m += env[i];
+      nMeas++;
+    }
+    if (!nMeas) return out;
+    m /= nMeas;
     var v = 0;
     for (var i2 = 0; i2 < ng; i2++) {
+      if (!isFinite(env[i2])) continue;
       var d = env[i2] - m;
       v += d * d;
     }
-    var sd = Math.sqrt(v / ng) || 1;
+    var sd = Math.sqrt(v / nMeas) || 1;
     var thr = m + kSigma * sd,
       last = -1e9;
     for (var c = half; c + half < ng; c++) {
-      if (env[c] < thr) continue;
+      if (!isFinite(env[c]) || env[c] < thr) continue;
+      /* An unmeasured neighbour REJECTS the candidate rather than losing the comparison. `env[k] >
+         env[c]` is false against a NaN, so a hole beside a peak would otherwise read as a clean
+         local maximum — and a maximum cannot be certified against bins nobody measured. */
       var isMax = true;
       for (var k = c - localBins; k <= c + localBins; k++) {
-        if (k >= 0 && k < ng && env[k] > env[c]) {
+        if (k < 0 || k >= ng) continue;
+        if (!isFinite(env[k]) || env[k] > env[c]) {
           isMax = false;
           break;
         }
@@ -124,8 +200,15 @@
       s = centre - half,
       e = centre + half;
     if (s < 0 || e > A.length) return null;
+    /* ∅ A's window REFUSES on an unmeasured bin: it is the anchor's own evidence, and a correlation
+       over a hole is not a weaker measurement but a different one. B's unmeasured bins fall out of
+       the overlap count below instead, so the existing `minOverlapFrac` gate decides — the same
+       treatment B's out-of-range bins already get. */
     var aMean = 0;
-    for (var i = s; i < e; i++) aMean += A[i];
+    for (var i = s; i < e; i++) {
+      if (!isFinite(A[i])) return null;
+      aMean += A[i];
+    }
     aMean /= e - s;
     var corrs = new Float64Array(2 * maxLag + 1);
     var best = -2,
@@ -136,7 +219,7 @@
         cnt = 0;
       for (var i2 = s; i2 < e; i2++) {
         var j = i2 + shift;
-        if (j < 0 || j >= ng) continue;
+        if (j < 0 || j >= ng || !isFinite(B[j])) continue;
         bMean += B[j];
         cnt++;
       }
@@ -150,7 +233,7 @@
         sab = 0;
       for (var i3 = s; i3 < e; i3++) {
         var j2 = i3 + shift;
-        if (j2 < 0 || j2 >= ng) continue;
+        if (j2 < 0 || j2 >= ng || !isFinite(B[j2])) continue;
         var da = A[i3] - aMean,
           db = B[j2] - bMean;
         sa += da * da;
