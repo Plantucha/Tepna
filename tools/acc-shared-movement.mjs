@@ -41,6 +41,7 @@ import { bestPairOver, fragmentBounds } from './acc-select-compare.mjs';
 import { getDsps, loadDsps, median, quantile } from './pat-matchrate-strict.mjs';
 import { isCliEntry } from './argv-guard.mjs';
 import { notANight, populationVerdict, snapshotNights } from './corpus-scope-core.mjs';
+import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
 
 const argv = process.argv.slice(2);
 const av = (k, d) => {
@@ -65,12 +66,20 @@ function boundedAcc(dir, re, parseTimestamp) {
     .filter(Boolean);
 }
 
+/* §∅ — an ACC fragment's validity travels out of band in `<base>_ACCRUNS.txt`, which is TIME-keyed
+   (writer stamp + `dur_ms`), so a parser that drops implausible rows cannot slide it. An ABSENT
+   sidecar is validity UNKNOWN, never "no blanking runs": the tally names all four states. */
+const VALIDITY = {};
+const runsOf = (streamPath, stream) => readRunsSidecar(streamPath, stream, { tally: VALIDITY }).runsText;
+
 function loadAll(cand, PPGDSP) {
   const out = [];
   for (const c of cand) {
     let s;
     try {
-      s = PPGDSP.parseSensorXYZ(readFileSync(c.f, 'utf8'));
+      const raw = readFileSync(c.f, 'utf8');
+      const runsText = runsOf(c.f, 'ACC');
+      s = runsText ? PPGDSP.parseSensorXYZ(raw, { runsText }) : PPGDSP.parseSensorXYZ(raw);
     } catch {
       continue;
     }
@@ -301,9 +310,13 @@ if (IS_CLI) {
       console.error(
         `  sigma=${String(b.sigma).padStart(4)}  cand/h ${String(b.medCandidatesPerHour).padStart(6)}  anchors ${String(b.medAnchors).padStart(5)}  corrob ${String(b.medCorroborated).padStart(6)}  refusals ${b.refusals}/${b.nights}`
       );
+    const validitySweep = validityLine(VALIDITY);
+    if (validitySweep) console.error('  ' + validitySweep);
     console.log(JSON.stringify({ sigmas: SIGMAS, offered: popBefore.n, population, nights: rows.length, measured: used.length, bySigma, rows }, null, 2));
     process.exit(0);
   }
+  const validity = validityLine(VALIDITY);
+  if (validity) console.error('  ' + validity);
   const pass = used.filter((r) => r.ok);
   const failn = used.filter((r) => !r.ok);
   const st = (rs, k) => {

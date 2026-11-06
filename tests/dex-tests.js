@@ -47775,7 +47775,24 @@
            night-key probe already held the ACC shape.
            The scan over the merged tree is the number — arithmetic over two branch diffs would have
            guessed. */
-        var TOOLS_PIN = { files: 6, calls: 9, reason: 'research tools: ' + OPEN };
+        /* 2 / 4 from 2026-11-05, slice 2 of the same row: the four ACC readers hand `_ACCRUNS.txt` to
+           the parser that takes it, so five calls leave CALL and four files leave the population —
+           `acc-shared-movement`, `pat-dip-validate`, `pat-matchrate-strict` and `trio-batch`. That
+           sidecar is TIME-keyed (the writer's own stamp plus `dur_ms`, `parseAccRunsTimed`), not
+           sample-indexed, so the intersection the stream sidecars use would slide on parsers that
+           drop an implausible row. Three files take the shared reader; `trio-batch` keeps its own
+           `readRuns`, which already served both of its other streams, and its XYZ helper now takes
+           the stream NAME — gyro and magn ask for none, because the name is derived from the path's
+           `_<stream>.txt` tail and a gyro path handed 'ACC' would name another stream's validity.
+           `tests/trio-fold-validity-tests.mjs` executes both parsers over a synthetic 26 Hz stream in
+           both writer generations (`class=held` beside `class=variable`), and pins the CONTROL that
+           `PATAlign.envelope` still ignores the spans it is handed — row
+           2026-11-05-the-pat-motion-envelope-ignores-the-acc-blanking-spans-it-is-handed owns that.
+           The two files left parse no file as written: `derive-sigma-window` parses a CONCATENATION
+           of a night's parts, which no single file's sidecar addresses, and `geometry-passthrough`
+           parses text it generates itself, beside which no box wrote anything. So the `tools/` half of
+           this row is answered by construction, and the row stays OPEN on its node-code half. */
+        var TOOLS_PIN = { files: 2, calls: 4, reason: 'research tools: ' + OPEN };
 
         function blank(s) {
           return s.replace(/[^\n]/g, '');
