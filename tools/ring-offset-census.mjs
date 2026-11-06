@@ -49,6 +49,14 @@ import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 import { NIGHT_RE, snapshotNights, populationVerdict, ruleLine, gitCommitOf } from './corpus-scope-core.mjs';
 import { collapseHome } from './home-paths.mjs';
 import { corpusSearch, formatCorpusSearch } from './regen-goldens-core.mjs';
+import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
+
+/* §∅: the `_PPGRUNS.txt` sidecar beside a fragment carries the blanking the samples cannot state —
+   the O2Ring's in-band zeros are the measurement this rule was written for. Most of this corpus
+   predates the writer, so most fragments read `absent`, and an absent sidecar is validity UNKNOWN for
+   that fragment, never a clean one: the tally prints beside the census. */
+const VALIDITY = {};
+const runsOf = (streamPath, stream) => readRunsSidecar(streamPath, stream, { tally: VALIDITY }).runsText;
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const { classicify } = createRequire(import.meta.url)(join(ROOT, 'tools/build-core.js'));
@@ -377,7 +385,8 @@ export function publishedAxisOf(exportPath) {
 function measureFragment(PPG, frag) {
   let rec = null;
   try {
-    rec = PPG.parsePPG(readFileSync(frag.full, 'utf8'), undefined);
+    const runsText = runsOf(frag.full, 'PPG');
+    rec = runsText ? PPG.parsePPG(readFileSync(frag.full, 'utf8'), { runsText }) : PPG.parsePPG(readFileSync(frag.full, 'utf8'), undefined);
   } catch (e) {
     return {
       bytes: frag.bytes,
@@ -755,6 +764,8 @@ if (isCliEntry(import.meta.url)) {
         (unreadableNights.length ? `, ${unreadableNights.length} unreadable (${unreadableNights.map((u) => `${u.night}: ${u.errno}`).join('; ')})` : '') +
         `, in ${((Date.now() - t0) / 1000).toFixed(1)} s`
     );
+    const validity = validityLine(VALIDITY);
+    if (validity) console.error('  ' + validity);
     printVerdict(v, { json });
     process.exit(v.status === 'FAIL' ? 1 : 0);
   }

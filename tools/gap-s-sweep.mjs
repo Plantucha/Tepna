@@ -43,10 +43,19 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 import { isCliEntry } from './argv-guard.mjs';
+import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
 const req = createRequire(import.meta.url);
+
+/* §∅: the RUNS sidecar beside each stream carries the validity the stream itself cannot. An absent one
+   is validity UNKNOWN for that stream, never a clean stream, so the tally travels beside the numbers.
+   A sidecar's rows are SAMPLE INDICES into the text as written, so a rewritten text invalidates them:
+   `--restrict-overlap` cuts both streams and `--ppg-keep-hz` drops rows, and under either the sidecar
+   is WITHHELD from that leg's parse with the withholding named in the row (never silently dropped). */
+const VALIDITY = {};
+const runsOf = (streamPath, stream) => readRunsSidecar(streamPath, stream, { tally: VALIDITY }).runsText;
 
 export const ECG_DECL = /^(\s*)const GAP_S = 10;/m;
 export const PPG_DECL = /^(\s*)const PPG_CVHR_GAP_S = 10;/m;
@@ -198,14 +207,26 @@ export function overlapOf(wE, wP) {
 export function scoreNight(realms, ecgText, ppgText, opts) {
   opts = opts || {};
   let overlap = null;
+  let ecgRuns = opts.ecgRunsText || null;
+  let ppgRuns = opts.ppgRunsText || null;
+  let ecgValidity = ecgRuns ? 'sidecar read' : 'sidecar absent — validity UNKNOWN';
+  let ppgValidity = ppgRuns ? 'sidecar read' : 'sidecar absent — validity UNKNOWN';
   if (opts.restrictOverlap) {
     overlap = overlapOf(hostWindowMs(ecgText), hostWindowMs(ppgText));
     if (overlap && overlap.bothHours >= 2) {
       ecgText = cutToWindow(ecgText, overlap.lo, overlap.hi);
       ppgText = cutToWindow(ppgText, overlap.lo, overlap.hi);
+      if (ecgRuns) ecgValidity = 'sidecar withheld — the text was cut to the overlap, so its sample indices no longer address it';
+      if (ppgRuns) ppgValidity = 'sidecar withheld — the text was cut to the overlap, so its sample indices no longer address it';
+      ecgRuns = null;
+      ppgRuns = null;
     } else return { ecg: { index: null, reason: 'overlap < 2 h' }, ppg: { index: null, reason: 'overlap < 2 h' }, overlap };
   }
-  if (opts.ppgKeepHz) ppgText = decimatePpgText(ppgText, opts.ppgKeepHz);
+  if (opts.ppgKeepHz) {
+    ppgText = decimatePpgText(ppgText, opts.ppgKeepHz);
+    if (ppgRuns) ppgValidity = 'sidecar withheld — rows were dropped to the keep grid, so its sample indices no longer address the text';
+    ppgRuns = null;
+  }
   const E = realms.ecg;
   const P = realms.ppg;
   let ecg = { index: null, reason: 'threw' };
@@ -213,25 +234,27 @@ export function scoreNight(realms, ecgText, ppgText, opts) {
   if (opts.ppgOnly) ecg = { index: null, reason: 'skipped (--ppg-only)' };
   else {
     try {
-      const r = E.ECGDSP.analyze(E.ECGDSP.parseECG(ecgText), null);
+      const r = E.ECGDSP.analyze(ecgRuns ? E.ECGDSP.parseECG(ecgText, { runsText: ecgRuns }) : E.ECGDSP.parseECG(ecgText), null);
       ecg = {
         index: r.cvhr ? r.cvhr.index : null,
         denomSec: r.cvhr ? r.cvhr.denomSec : null,
         events: r.cvhr && r.cvhr.events ? r.cvhr.events.length : null,
         nBeats: r.nBeats != null ? r.nBeats : null,
-        reason: r.cvhr && r.cvhr.suppressed ? 'suppressed' : null
+        reason: r.cvhr && r.cvhr.suppressed ? 'suppressed' : null,
+        validity: ecgValidity
       };
     } catch (e) {
       ecg = { index: null, reason: 'threw: ' + String(e && e.message).slice(0, 80) };
     }
   }
   try {
-    const r = P.PPGDSP.analyze(P.PPGDSP.parsePPG(ppgText, undefined), null);
+    const r = P.PPGDSP.analyze(ppgRuns ? P.PPGDSP.parsePPG(ppgText, { runsText: ppgRuns }) : P.PPGDSP.parsePPG(ppgText, undefined), null);
     ppg = {
       index: r.cvhrIndex != null ? r.cvhrIndex : null,
       events: r.cvhrEvents != null ? r.cvhrEvents : null,
       nBeats: r.nBeats != null ? r.nBeats : null,
       reason: r.cvhrReason || null,
+      validity: ppgValidity,
       ...(opts.ppgKeepHz ? { keepHz: opts.ppgKeepHz, rows: ppgText.split('\n').length - 2 } : {})
     };
   } catch (e) {
@@ -493,8 +516,10 @@ function main(argv) {
     const tn = Date.now();
     const ecgText = ppgOnly ? '' : readFileSync(n.ecg, 'utf8');
     const ppgText = readFileSync(n.ppg, 'utf8');
+    const ecgRunsText = ppgOnly ? null : runsOf(n.ecg, 'ECG');
+    const ppgRunsText = runsOf(n.ppg, 'PPG');
     const byValue = {};
-    for (const v of values) byValue[String(v)] = scoreNight(realms[String(v)], ecgText, ppgText, { ppgKeepHz, ppgOnly, restrictOverlap });
+    for (const v of values) byValue[String(v)] = scoreNight(realms[String(v)], ecgText, ppgText, { ppgKeepHz, ppgOnly, restrictOverlap, ecgRunsText, ppgRunsText });
     rows.push({ night: n.night, ecg: n.ecg, ppg: n.ppg, byValue, ms: Date.now() - tn });
     writeFileSync(
       out,
@@ -504,6 +529,8 @@ function main(argv) {
       `  ${n.night}  ${((Date.now() - tn) / 1000).toFixed(0)} s  ecg@10 ${byValue[String(SHIPPED)].ecg.index}  ppg@10 ${byValue[String(SHIPPED)].ppg.index}  (${rows.length}/${nights.length}, ${((Date.now() - t0) / 60000).toFixed(1)} min)`
     );
   }
+  const validity = validityLine(VALIDITY);
+  if (validity) console.error('  ' + validity);
   console.error('  results   ' + out);
   return 0;
 }

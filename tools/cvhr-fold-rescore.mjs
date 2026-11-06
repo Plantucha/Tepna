@@ -49,6 +49,16 @@ import { ECG_FILES, PPG_FILES, hostWindowMs, realm } from './gap-s-sweep.mjs';
 import { ivIntersect, ivSpan, mergeIv } from './trio-anchor.mjs';
 import { isCliEntry } from './argv-guard.mjs';
 import { notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
+import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
+/* ── THE VALIDITY SIDECAR RIDES WITH THE STREAM ─────────────────────────────────────────────────────
+   Row 2026-10-17-sample-parsers-called-without-their-sidecar: this tool read a night's samples and
+   none of the box's `…RUNS.txt` validity, so a blanking run the box recorded reached the fold rescore below as signal —
+   a flat rail is a plausible diastole, and no reader could tell it from one. `readRunsSidecar` names
+   which of four things happened per stream, and the tally prints beside the numbers: §∅, an ABSENT
+   sidecar is validity UNKNOWN for that stream, never a clean one. Most of this corpus predates the
+   writer, so most streams read `absent` and parse exactly as they did before. */
+const VALIDITY = {};
+const runsOf = (streamPath, stream) => readRunsSidecar(streamPath, stream, { tally: VALIDITY }).runsText;
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
@@ -418,10 +428,11 @@ export function controlPhase(tree, committed) {
    The realm is built once per stream and reused; the TEXT is the per-fragment cost and is released as
    soon as the scalars are out. `analyze` is the shipped path at the shipped constants. */
 export function scoreFragment(realms, kind, path) {
+  const runsText = runsOf(path, kind === 'ecg' ? 'ECG' : 'PPG');
   const text = readFileSync(path, 'utf8');
   try {
     if (kind === 'ecg') {
-      const r = realms.ecg.ECGDSP.analyze(realms.ecg.ECGDSP.parseECG(text), null);
+      const r = realms.ecg.ECGDSP.analyze(runsText ? realms.ecg.ECGDSP.parseECG(text, { runsText }) : realms.ecg.ECGDSP.parseECG(text), null);
       const c = r.cvhr;
       if (!c) return { fragment: path, index: null, reason: 'analyze returned no cvhr block' };
       return {
@@ -433,7 +444,7 @@ export function scoreFragment(realms, kind, path) {
         nBeats: r.nBeats != null ? r.nBeats : null
       };
     }
-    const r = realms.ppg.PPGDSP.analyze(realms.ppg.PPGDSP.parsePPG(text, undefined), null);
+    const r = realms.ppg.PPGDSP.analyze(realms.ppg.PPGDSP.parsePPG(text, runsText ? { runsText } : undefined), null);
     return {
       fragment: path,
       index: r.cvhrIndex != null ? r.cvhrIndex : null,
@@ -578,6 +589,8 @@ function main(argv) {
   for (const n of nights)
     for (const k of ['ecg', 'ppg'])
       if (n[k].coveredHours != null && n.unionHours[k] - n[k].coveredHours > 1) coverage.push({ night: n.night, stream: k, unionHours: n.unionHours[k], coveredHours: n[k].coveredHours });
+  const validity = validityLine(VALIDITY);
+  if (validity) console.log('  ' + validity);
   console.log(`\n▸ rho ${rho.rho == null ? 'REFUSED — ' + rho.reason : rho.rho} over n=${rho.n} night(s) · ${refused.length} night(s) with a refused stream`);
   const population = publishPopulation(nights.length, resumed, cutByLimit);
   const out = {

@@ -28,6 +28,7 @@ import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { NIGHT_RE, populationVerdict, producedByOf, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
+import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
 
 // ESM-MIGRATION: shed cpapdex-dsp.js's top-level export/import via the single classicify source before
 // vm-loading (else "Unexpected token 'export'"). build-core.js is required relative to THIS tool (not
@@ -188,6 +189,14 @@ function readClip(file, approxBytes) {
 
 const mean = (a) => a.reduce((s, x) => s + x, 0) / a.length;
 
+/* §∅: the RUNS sidecar beside each raw stream carries the blanking the samples cannot state — `0` is a
+   legal ECG sample and a resting ACC axis. An absent sidecar is validity UNKNOWN for that stream, never
+   a clean one, so the tally prints beside the epoch totals. `readClip` takes a PREFIX from offset 0, so
+   the sidecar's SAMPLE INDICES still address the clipped text; a span beyond the clip turns into a
+   second past the record's end and is harmless. */
+const VALIDITY = {};
+const runsOf = (streamPath, stream) => readRunsSidecar(streamPath, stream, { tally: VALIDITY }).runsText;
+
 /* ── per-night: three respiration series on a shared epoch grid ── */
 function night(dateISO) {
   const ymd = dateISO.replace(/-/g, '');
@@ -209,7 +218,10 @@ function night(dateISO) {
   // 2 · ECG — Lomb-Scargle HF peak of the NN series
   const ecgF = fs.readdirSync(EN).find((f) => f.includes(ymd) && /_ECG\.txt$/.test(f));
   if (!ecgF) return null;
-  const eRec = ECG.parseECG(readClip(path.join(EN, ecgF), CLIP_MIN * 60 * 130 * 60));
+  const eClip = path.join(EN, ecgF);
+  const eRuns = runsOf(eClip, 'ECG');
+  const eText = readClip(eClip, CLIP_MIN * 60 * 130 * 60);
+  const eRec = eRuns ? ECG.parseECG(eText, { runsText: eRuns }) : ECG.parseECG(eText);
   if (!eRec || !eRec.int16 || !eRec.int16.length) return null;
   // detectPeaks returns a plain array of R-peak SAMPLE INDICES; build the NN series from it.
   const eIdx = ECG.detectPeaks(eRec.int16, ECG.bandpass(eRec.int16, eRec.fs), eRec.fs);
@@ -226,7 +238,10 @@ function night(dateISO) {
   // 3 · PPG — same estimator, on the PPI series (independent device)
   const ppgF = fs.readdirSync(EN).find((f) => f.includes(ymd) && /_PPG\.txt$/.test(f));
   if (!ppgF) return null;
-  const pRec = PPG.parsePPG(readClip(path.join(EN, ppgF), CLIP_MIN * 60 * 135 * 100));
+  const pClip = path.join(EN, ppgF);
+  const pRuns = runsOf(pClip, 'PPG');
+  const pText = readClip(pClip, CLIP_MIN * 60 * 135 * 100);
+  const pRec = pRuns ? PPG.parsePPG(pText, { runsText: pRuns }) : PPG.parsePPG(pText);
   if (!pRec) return null;
   const pAn = PPG.analyze(pRec); // → { nn, tt, ... } (Malik-corrected PPI)
   const ppi = pAn && pAn.nn && pAn.tt ? { rr: pAn.nn, tt: pAn.tt } : null;
@@ -337,6 +352,8 @@ if (!all.length) {
 
 fs.writeFileSync(process.env.OUT || '/tmp/p6.json', JSON.stringify(all));
 console.log(`\n  total epochs: ${all.length}`);
+const validity = validityLine(VALIDITY);
+if (validity) console.log('  ' + validity);
 
 /* THE CORPUS-FREE SAMPLE THE ADOPTION GATE RUNS. Two identical fabricated snapshots, so the object
    is complete, the movement criterion is met, and no corpus is touched — CI mounts none

@@ -50,6 +50,15 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { makeVerdict } from './verdict-emit.mjs';
 import { isCliEntry } from './argv-guard.mjs';
+import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
+
+/* §∅: the `_ECGRUNS.txt` sidecar beside the stream carries the blanking the samples cannot state —
+   `0` is a legal ECG sample. An absent sidecar is validity UNKNOWN for that record, never a clean
+   stream, so the tally prints beside the pooled figures. The bounded read below keeps a PREFIX of the
+   lines, so the sidecar's SAMPLE INDICES still address what was parsed; a run beyond the prefix turns
+   into a second past the record's end and is harmless. */
+const VALIDITY = {};
+const runsOf = (streamPath, stream) => readRunsSidecar(streamPath, stream, { tally: VALIDITY }).runsText;
 
 /* The pre-stated acceptance bands. Constants, so the report cannot quietly use different ones. */
 export const BAND_MEDIAN_ABS_MS = 4;
@@ -376,7 +385,8 @@ async function main(argv) {
       /* `parseECGLines` is the exported name; `parseECGText` is internal and delegates to it. Read
          off the realm rather than guessed — the first draft called the internal one and every record
          reported "parse error", which reads like a corpus problem and is a caller problem. */
-      rec = ctx.ECGDSP.parseECGLines(lines);
+      const runsText = runsOf(f, 'ECG');
+      rec = runsText ? ctx.ECGDSP.parseECGLines(lines, { runsText }) : ctx.ECGDSP.parseECGLines(lines);
     } catch (e) {
       console.log('  ' + name.slice(0, 44).padEnd(46) + 'parse error: ' + String(e.message).slice(0, 40));
       continue;
@@ -444,6 +454,8 @@ async function main(argv) {
         : '   ⚠️ NOT ZERO — the resampler displaces beats; the number below is contaminated')
   );
   console.log('  measured              median |Δ| ' + pooled.medianAbsMs + ' ms   correspondence ' + (100 * pooled.correspondence).toFixed(2) + ' %');
+  const validity = validityLine(VALIDITY);
+  if (validity) console.log('  ' + validity);
   console.log('  VERDICT               ' + (v.transfers === true ? 'TRANSFERS — ' : v.transfers === false ? 'DOES NOT TRANSFER — ' : 'INCONCLUSIVE — ') + v.why);
   // the object IS the verdict (stdout under --json; the report above is its explanation)
   if (argv.includes('--json')) console.log(JSON.stringify(verdictObject(pooled, { records: rows.length, found: popBefore.n, dir })));

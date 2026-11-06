@@ -131,6 +131,7 @@ import { fileURLToPath } from 'node:url';
 import { isCliEntry } from './argv-guard.mjs';
 import { digestNights, notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
 import { printVerdict } from './verdict-emit.mjs';
+import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_ROOTS = ['/srv/data/tepna-corpus/smoketest-captures', join(HERE, '..', 'uploads', 'captures')];
@@ -451,9 +452,16 @@ export function pairedRR(selfNN, devRR, align, opts = {}) {
   return { n: d.length, medianAbsMs: median(abs), maxAbsMs: mx, biasMs: mean, loaMs: 1.96 * sd, empirical95Ms: (q(0.975) - q(0.025)) / 2, offsets };
 }
 
+/* §∅: the `_ECGRUNS.txt` sidecar beside the stream carries the blanking the samples cannot state —
+   `0` is a legal ECG sample. An absent sidecar is validity UNKNOWN for that night, never a clean
+   stream, so the tally prints beside the bands. `scoreNight` takes the TEXT and so cannot name a
+   sidecar from a path: the sidecar rides `opts.runsText`, read by the caller that holds the path. */
+const VALIDITY = {};
+const runsOf = (streamPath, stream) => readRunsSidecar(streamPath, stream, { tally: VALIDITY }).runsText;
+
 /* One night: everything the bands need, or a refusal with its reason. */
 export function scoreNight(ECGDSP, ecgText, rrText, opts = {}) {
-  const rec = ECGDSP.parseECG(ecgText);
+  const rec = opts.runsText ? ECGDSP.parseECG(ecgText, { runsText: opts.runsText }) : ECGDSP.parseECG(ecgText);
   if (!rec || !rec.int16 || !rec.fs) return { ok: false, reason: 'ECG did not parse' };
   rec.deviceRR = ECGDSP.parseDeviceRR(rrText);
   if (!rec.deviceRR.length) return { ok: false, reason: 'firmware RR file carries no intervals' };
@@ -1187,7 +1195,12 @@ async function main(argv) {
   for (const p of chosen) {
     let s;
     try {
-      s = scoreNight(ECGDSP, readFileSync(p.ecg, 'utf8'), readFileSync(p.rr, 'utf8'), { minBeats, tolMs: +arg('--tol', 150), anchorWindow: +arg('--anchor-window', 300) });
+      s = scoreNight(ECGDSP, readFileSync(p.ecg, 'utf8'), readFileSync(p.rr, 'utf8'), {
+        minBeats,
+        tolMs: +arg('--tol', 150),
+        anchorWindow: +arg('--anchor-window', 300),
+        runsText: runsOf(p.ecg, 'ECG')
+      });
     } catch (e) {
       s = { ok: false, reason: 'threw: ' + String(e && e.message).slice(0, 80) };
     }
@@ -1209,6 +1222,8 @@ async function main(argv) {
   if (argv.includes('--json')) console.log(JSON.stringify({ ...verdict, detail: { bands: BANDS, roots, pooled: P, ppiCoverage: cov, nights: rows, corpusPopulation: population } }, null, 1));
   else {
     console.log(report(rows, P, cov, roots) + '\n');
+    const validity = validityLine(VALIDITY);
+    if (validity) console.log('  ' + validity);
     printVerdict(verdict);
     printPopulation(population, popBefore, pairs);
   }
