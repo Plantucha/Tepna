@@ -262,13 +262,33 @@
     '_spanMin'
   ];
 
+  /* ── A TRANSCRIBED SUMMARY OVER A SEAMED NIGHT REFUSES (owner ruling 2026-11-06, relayed to the
+     fleet as board #3941; it reverses the annotate-only contract #4469 shipped the same day) ──
+     §∅'s 2026-09-17 line decides the shape: a DISCONTINUITY refuses and reduced COVERAGE annotates.
+     A vendor's whole-night summary covers one span, so a seam the upstream recorded sits INSIDE the
+     window every number here describes. This node measured none of it — it transcribes — and the
+     owner ruled that transcribing a number across a recorded discontinuity publishes a value no
+     window supports. So the numbers read `null` under the reason `clock-seam`, the one spelling the
+     fleet uses for this fact (`epochEngine`, the box sidecar header, the four stream nodes).
+     THE LIST IS DERIVED, never retyped: every number this node transcribes, minus `_spanMin`, which
+     is the envelope's LENGTH rather than a value measured over the signal (and which
+     `_hrvIsAllNight` reads to classify the row). A metric added to the seed list above refuses with
+     no second edit here. */
+  const HRV_SEAM_KEEP_FIELDS = ['_spanMin'];
+  const HRV_VALUE_FIELDS = HRV_SEED_FIELDS.filter(function (k) {
+    return HRV_SEAM_KEEP_FIELDS.indexOf(k) < 0;
+  });
+  /* PRE-STATED AND CLOSED, like `HRV_PROV_REASONS` below: one term, because one fact refuses a
+     transcribed value. `null` is the other state and means the numbers stand. */
+  const HRV_VALUE_REASONS = ['clock-seam'];
+
   /* ── PROVENANCE FIELDS — NOT NUMBERS, SO NOT IN HRV_SEED_FIELDS (residue row
      `2026-11-06-hrvdex-drops-the-upstream-recording-validity-and-emits-none`) ──
      `_seedFromRow` and `_rowFromSeed` copy HRV_SEED_FIELDS through a `typeof v === 'number'` filter.
      That is the right filter for a metric, and it silently deletes a string or an object. The
      upstream validity block and the node name that owns it are neither, so they need their own copy
      or persistence drops exactly the annotation the row travels to carry. */
-  const HRV_PROV_FIELDS = ['_upNode', '_upValidity', '_upReason'];
+  const HRV_PROV_FIELDS = ['_upNode', '_upValidity', '_upReason', '_valueReason'];
   /* A row persisted before provenance travelled cannot say whether its upstream annotated anything.
      `'no-upstream-export'` would assert it came from a summary table, which is a claim about a file
      nobody read; this fourth term claims nothing (§∅). */
@@ -557,7 +577,15 @@
        it takes the named-absence path, because `{}` reads as "looked, clean". */
     const upNode = env.schema && typeof env.schema.node === 'string' && env.schema.node ? env.schema.node : null;
     const upV = rec.validity && typeof rec.validity === 'object' && !Array.isArray(rec.validity) && Object.keys(rec.validity).length ? rec.validity : null;
-    return {
+    /* THE SEAM REFUSAL, AT THE ONE INGEST BOUNDARY (see HRV_VALUE_FIELDS above). A positive count
+       refuses; `0` is a MEASURED zero and keeps the numbers; `null` is a channel nobody examined and
+       keeps them too, because the owner's 2026-11-05 ruling reads that state as UNKNOWN rather than
+       as a seam. `seamsPlaced` is NOT consulted: an upstream that recorded a seam it could not place
+       on its own axis still recorded a discontinuity inside this span, and a window that cannot say
+       WHERE the seam falls cannot say the numbers avoid it. */
+    const upSeams = upV && typeof upV.seams === 'number' && isFinite(upV.seams) ? upV.seams : null;
+    const seamRefused = upSeams != null && upSeams >= 1;
+    const seed = {
       tMs,
       offsetMin: rec.offsetMin == null ? null : rec.offsetMin,
       _spanMin: spanMin,
@@ -584,8 +612,19 @@
       _psns: null,
       _coherence: null,
       _hrv: n(env.personalization && env.personalization.ansReadinessScore),
-      _cv: n(tm.cv)
+      _cv: n(tm.cv),
+      /* Beside the values, never inside them: `null` means the numbers stand. A row refused here
+         carries the reason through storage (HRV_PROV_FIELDS) and onto the export, so a consumer
+         reading a null never has to ask which absence it is. */
+      _valueReason: /** @type {string | null} */ (null)
     };
+    if (seamRefused) {
+      HRV_VALUE_FIELDS.forEach(function (k) {
+        seed[k] = null;
+      });
+      seed._valueReason = 'clock-seam';
+    }
+    return seed;
   }
   function ingestGangliorJSON(text, opts) {
     let data;
@@ -1273,6 +1312,12 @@
           }, 0)
         : null,
       upstreamSeamsMeasurements: counted.length,
+      /* …AND WHAT THIS NODE DID ABOUT THEM (owner ruling 2026-11-06). A count of its own refusals,
+         so a reader sees the ruling act rather than inferring it from nulls across the table. `0`
+         here is a MEASURED zero: this node always knows how many rows it refused. */
+      seamRefusedMeasurements: all.filter(function (r) {
+        return r && r._valueReason === 'clock-seam';
+      }).length,
       // Why an annotated row still published no count — the upstream's own sentence, tallied.
       upstreamSeamsReasons: _tally(annotated, function (r) {
         return typeof r._upValidity.seams === 'number' && isFinite(r._upValidity.seams) ? null : r._upValidity.seamsReason;
@@ -1417,7 +1462,11 @@
              clean one. */
           validity: r._upValidity && typeof r._upValidity === 'object' ? r._upValidity : null,
           validityNode: typeof r._upNode === 'string' && r._upNode ? r._upNode : null,
-          validityReason: r._upValidity && typeof r._upValidity === 'object' ? null : typeof r._upReason === 'string' && r._upReason ? r._upReason : HRV_PROV_UNKNOWN
+          validityReason: r._upValidity && typeof r._upValidity === 'object' ? null : typeof r._upReason === 'string' && r._upReason ? r._upReason : HRV_PROV_UNKNOWN,
+          /* WHY THESE NUMBERS ARE NULL, when they are. `validityReason` says why no upstream BLOCK
+             sits beside the row; this says why the row's VALUES do not stand. The two are different
+             questions, and a reader that cannot tell them apart reads a refusal as a missing file. */
+          valueReason: typeof r._valueReason === 'string' && r._valueReason ? r._valueReason : null
         };
         var comp = {};
         if (r._stress > 0) comp.stress = r._stress;
@@ -1547,6 +1596,8 @@
     HRV_STORE_KEY,
     HRV_SEED_FIELDS,
     HRV_PROV_FIELDS,
+    HRV_VALUE_FIELDS,
+    HRV_VALUE_REASONS,
     HRV_PROV_REASONS,
     _hrvValidityBlock,
     _hrvNum,

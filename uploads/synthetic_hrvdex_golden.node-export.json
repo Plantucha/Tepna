@@ -159,6 +159,7 @@
       "upstreamNodes": null,
       "upstreamSeams": null,
       "upstreamSeamsMeasurements": 0,
+      "seamRefusedMeasurements": 0,
       "upstreamSeamsReasons": null,
       "upstreamMissingReasons": {
         "no-upstream-export": 30
@@ -194,6 +195,7 @@
       "validity": null,
       "validityNode": null,
       "validityReason": "no-upstream-export",
+      "valueReason": null,
       "composites": {
         "stress": 17.1,
         "energy": 62.2,
@@ -222,6 +224,7 @@
       "validity": null,
       "validityNode": null,
       "validityReason": "no-upstream-export",
+      "valueReason": null,
       "composites": {
         "stress": 17,
         "energy": 61.2,
@@ -250,6 +253,7 @@
       "validity": null,
       "validityNode": null,
       "validityReason": "no-upstream-export",
+      "valueReason": null,
       "composites": {
         "stress": 17.2,
         "energy": 60.4,
@@ -278,6 +282,7 @@
       "validity": null,
       "validityNode": null,
       "validityReason": "no-upstream-export",
+      "valueReason": null,
       "composites": {
         "stress": 17.6,
         "energy": 59.7,
@@ -306,6 +311,7 @@
       "validity": null,
       "validityNode": null,
       "validityReason": "no-upstream-export",
+      "valueReason": null,
       "composites": {
         "stress": 18.2,
         "energy": 59.2,
@@ -334,6 +340,7 @@
       "validity": null,
       "validityNode": null,
       "validityReason": "no-upstream-export",
+      "valueReason": null,
       "composites": {
         "stress": 18.9,
         "energy": 59,
@@ -362,6 +369,7 @@
       "validity": null,
       "validityNode": null,
       "validityReason": "no-upstream-export",
+      "valueReason": null,
       "composites": {
         "stress": 19.9,
         "energy": 59,
@@ -390,6 +398,7 @@
       "validity": null,
       "validityNode": null,
       "validityReason": "no-upstream-export",
+      "valueReason": null,
       "composites": {
         "stress": 21,
         "energy": 59.3,
@@ -418,6 +427,7 @@
       "validity": null,
       "validityNode": null,
       "validityReason": "no-upstream-export",
+      "valueReason": null,
       "composites": {
         "stress": 22.2,
         "energy": 59.8,
@@ -446,6 +456,7 @@
       "validity": null,
       "validityNode": null,
       "validityReason": "no-upstream-export",
+      "valueReason": null,
       "composites": {
         "stress": 23.5,
         "energy": 60.5,
@@ -474,6 +485,7 @@
       "validity": null,
       "validityNode": null,
       "validityReason": "no-upstream-export",
+      "valueReason": null,
       "composites": {
         "stress": 24.8,
         "energy": 61.3,
@@ -502,6 +514,7 @@
       "validity": null,
       "validityNode": null,
       "validityReason": "no-upstream-export",
+      "valueReason": null,
       "composites": {
         "stress": 26.1,
         "energy": 62.3,
@@ -530,6 +543,7 @@
       "validity": null,
       "validityNode": null,
       "validityReason": "no-upstream-export",
+      "valueReason": null,
       "composites": {
         "stress": 27.4,
         "energy": 63.5,
@@ -558,6 +572,7 @@
       "validity": null,
       "validityNode": null,
       "validityReason": "no-upstream-export",
+      "valueReason": null,
       "composites": {
         "stress": 28.7,
         "energy": 64.6,
@@ -586,6 +601,7 @@
       "validity": null,
       "validityNode": null,
       "validityReason": "no-upstream-export",
+      "valueReason": null,
       "composites": {
         "stress": 29.8,
         "energy": 65.8,
@@ -614,6 +630,7 @@
       "validity": null,
       "validityNode": null,
       "validityReason": "no-upstream-export",
+      "valueReason": null,
       "composites": {
         "stress": 30.8,
         "energy": 67,
@@ -642,6 +659,7 @@
       "validity": null,
       "validityNode": null,
       "validityReason": "no-upstream-export",
+      "valueReason": null,
       "composites": {
         "stress": 31.6,
         "energy": 68.1,
@@ -670,6 +688,7 @@
       "validity": null,
       "validityNode": null,
       "validityReason": "no-upstream-export",
+      "valueReason": null,
       "composites": {
         "stress": 32.3,
         "energy": 69.1,
@@ -698,6 +717,7 @@
       "validity": null,
       "validityNode": null,
       "validityReason": "no-upstream-export",
+      "valueReason": null,
       "composites": {
         "stress": 32.7,
         "energy": 69.9,
@@ -726,6 +746,7 @@
       "validity": null,
       "validityNode": null,
       "validityReason": "no-upstream-export",
+      "valueReason": null,
       "composites": {
         "stress": 33,
         "energy": 70.5,
@@ -754,6 +775,7 @@
       "validity": null,
       "validityNode": null,
       "validityReason": "no-upstream-export",
+      "valueReason": null,
       "composites": {
         "stress": 33,
         "energy": 70.8,
@@ -782,6 +804,7 @@
       "validity": null,
       "validityNode": null,
       "validityReason": "no-upstream-export",
+      "valueReason": null,
       "composites": {
         "stress": 32.8,
         "energy": 71,
@@ -810,6 +833,7 @@
       "validity": null,
       "validityNode": null,
       "validityReason": "no-upstream-export",
+      "valueReason": null,
       "composites": {
         "stress": 32.4,
         "energy": 70.9,
@@ -838,6 +862,7 @@
       "validity": null,
       "validityNode": null,
       "validityReason": "no-upstream-export",
+      "valueReason": null,
       "composites": {
         "stress": 31.7,
         "energy": 70.6,
@@ -866,6 +891,7 @@
       "validity": null,
       "validityNode": null,
       "validityReason": "no-upstream-export",
+      "valueReason": null,
       "composites": {
         "stress": 30.9,
         "energy": 70,
@@ -894,6 +920,7 @@
       "validity": null,
       "validityNode": null,
       "validityReason": "no-upstream-export",
+      "valueReason": null,
       "composites": {
         "stress": 29.9,
         "energy": 69.3,
@@ -922,6 +949,7 @@
       "validity": null,
       "validityNode": null,
       "validityReason": "no-upstream-export",
+      "valueReason": null,
       "composites": {
         "stress": 28.8,
         "energy": 68.4,
@@ -950,6 +978,7 @@
       "validity": null,
       "validityNode": null,
       "validityReason": "no-upstream-export",
+      "valueReason": null,
       "composites": {
         "stress": 27.6,
         "energy": 67.3,
@@ -978,6 +1007,7 @@
       "validity": null,
       "validityNode": null,
       "validityReason": "no-upstream-export",
+      "valueReason": null,
       "composites": {
         "stress": 26.3,
         "energy": 66.2,
@@ -1006,6 +1036,7 @@
       "validity": null,
       "validityNode": null,
       "validityReason": "no-upstream-export",
+      "valueReason": null,
       "composites": {
         "stress": 25,
         "energy": 65,

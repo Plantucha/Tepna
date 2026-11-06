@@ -71886,6 +71886,107 @@
       T.ok('no empty-object default stands in for an absent block', !/_upValidity\s*=\s*\{\s*\}/.test(src) && !/validity:\s*\{\s*\}/.test(src));
     });
 
+    /* ── A TRANSCRIBED SUMMARY OVER A SEAMED NIGHT REFUSES ───────────────────────────────────────
+       Owner ruling 2026-11-06, relayed to the fleet as board #3941 over the seam-consumer audit at
+       #3933. HRVDex carried the upstream's seam count BESIDE a value it transcribed across that
+       seam, and the annotate-only contract of #4469 let the number stand. §∅'s 2026-09-17 line is
+       that a discontinuity refuses and reduced coverage annotates, so the value now reads `null`
+       under `clock-seam`.
+       The legs gate the refusal AND its three non-triggers. A refusal that also fires on a MEASURED
+       zero, on a channel nobody examined, or on a row with no upstream block at all would fabricate
+       the absence this ruling exists to name — and it would pass a one-sided test. */
+    group('HRVDex refuses a transcribed vendor summary over a seamed upstream night', 'hrvdex-dsp · clock-contract · fabricated-absence', function (T) {
+      var B = (env.HRVDex && env.HRVDex._bare) || env.HRVDex || null;
+      if (!B || typeof B._envToSeed !== 'function' || typeof B.hrvBuildNodeExport !== 'function') {
+        T.skip('HRVDex ingest + export helpers available', 'HRVDex not co-loaded in this runner');
+        return;
+      }
+      function vOf(seams, placed, reason) {
+        return { seams: seams, seamsExamined: 50000, seamsPlaced: placed, seamsUnplaced: 0, seamsBoundMs: 60000, seamsReason: reason };
+      }
+      function envOf(tMs, validity, rmssd) {
+        var rec = { startEpochMs: tMs, offsetMin: null, durationMin: 480 };
+        if (validity !== undefined) rec.validity = validity;
+        return {
+          schema: { name: 'ganglior.node-export', node: 'ECGDex' },
+          recording: rec,
+          hrv: { time: { hr: 55, meanRR: 1090, sdnn: 62, rmssd: rmssd == null ? 40 : rmssd, pnn50: 12 }, frequency: { totalPower: 2000, hf: 500, lf: 900, vlf: 600 } }
+        };
+      }
+      var t0 = Date.UTC(2026, 5, 10, 22, 0, 0);
+      var seamed = B._envToSeed(envOf(t0, vOf(2, 2, null)));
+      var stood = B._envToSeed(envOf(t0, vOf(0, 0, null)));
+
+      // The refusal list is read off the node, so this test enumerates the contract rather than
+      // retyping it. A local fallback keeps the behaviour legs below running when the export is
+      // absent — a thrown group reports ONE failure and examines nothing else.
+      T.ok('the node publishes the refusal list and its reason vocabulary', Array.isArray(B.HRV_VALUE_FIELDS) && Array.isArray(B.HRV_VALUE_REASONS));
+      var VALUE_FIELDS = Array.isArray(B.HRV_VALUE_FIELDS)
+        ? B.HRV_VALUE_FIELDS
+        : (B.HRV_SEED_FIELDS || []).filter(function (k) {
+            return k !== '_spanMin';
+          });
+
+      // ── THE REFUSAL ──
+      var left = VALUE_FIELDS.filter(function (k) {
+        return seamed[k] != null;
+      });
+      T.eq('every transcribed number reads null over a recorded seam', left.join(',') || 'none', 'none');
+      T.eq('…under the one spelling the fleet uses for this fact', seamed._valueReason, 'clock-seam');
+      T.eq('the envelope LENGTH survives the refusal — it is not a value measured over the signal', seamed._spanMin, 480);
+      T.ok('the upstream block itself survives, so the evidence outlives the refusal', JSON.stringify(seamed._upValidity) === JSON.stringify(vOf(2, 2, null)));
+      T.ok('the refusal list is the seed list minus that one length field', VALUE_FIELDS.length === B.HRV_SEED_FIELDS.length - 1 && VALUE_FIELDS.indexOf('_spanMin') < 0);
+
+      // ── THE THREE NON-TRIGGERS: a refusal that fires here fabricates an absence ──
+      T.ok('a MEASURED zero keeps the numbers, with no reason beside them', stood._rmssd === 40 && stood._sdnn === 62 && stood._hr === 55 && stood._valueReason === null);
+      var unknown = B._envToSeed(envOf(t0, vOf(null, null, 'no-seam-sidecar')));
+      T.ok('a channel nobody examined keeps them too — UNKNOWN is not a seam', unknown._rmssd === 40 && unknown._valueReason === null);
+      var bare = B._envToSeed(envOf(t0, undefined));
+      T.ok('a row with no upstream block at all keeps them', bare._rmssd === 40 && bare._valueReason === null);
+      var unplaced = B._envToSeed(envOf(t0, vOf(1, 0, 'seam-rows-unplaced')));
+      T.eq('a seam the upstream could not PLACE still refuses — an unplaced seam is still recorded', unplaced._rmssd + '/' + unplaced._valueReason, 'null/clock-seam');
+
+      // ── THE EXPORT, and the rollup that counts this node's own refusals ──
+      var rows = [seamed, stood].map(function (sd) {
+        return B._rowFromSeed(sd);
+      });
+      var out = B.hrvBuildNodeExport(rows, { generated: 'fixed' });
+      var ms = out.measurements || [];
+      // `[null].join()` and `[undefined].join()` both read '', so a joined string cannot tell an
+      // explicit null from a key the export never wrote. Read the keys.
+      var m0 = ms[0] || {};
+      T.ok('the refused measurement publishes an explicit null for every transcribed number', 'rmssd' in m0 && m0.rmssd === null && 'sdnn' in m0 && m0.sdnn === null && 'sd1' in m0 && m0.sd1 === null);
+      T.eq('…and names why, in the one spelling', m0.valueReason, 'clock-seam');
+      var m1 = ms[1] || {};
+      T.ok('the measurement beside it stands, with an explicit null reason', m1.rmssd === 40 && 'valueReason' in m1 && m1.valueReason === null);
+      T.eq('the refused measurement still re-publishes its upstream block', JSON.stringify(ms[0] && ms[0].validity), JSON.stringify(vOf(2, 2, null)));
+      T.eq('the rollup counts the refusals it made', (out.recording.validity || {}).seamRefusedMeasurements, 1);
+
+      // ── NO IMPULSE OVER A REFUSED VALUE, and the same numbers unrefused still fire one ──
+      var evRefused = B.hrvEventsFromRows([B._rowFromSeed(B._envToSeed(envOf(t0, vOf(1, 1, null), 12)))]);
+      var evKept = B.hrvEventsFromRows([B._rowFromSeed(B._envToSeed(envOf(t0, vOf(0, 0, null), 12)))]);
+      T.eq('a refused row emits no hrv_low impulse, where the same rMSSD unrefused emits one', evRefused.length + '/' + evKept.length, '0/1');
+
+      // ── PERSISTENCE: the reason is a STRING, so the numeric seed filter would drop it ──
+      var back = B._rowFromSeed(JSON.parse(JSON.stringify(B._seedFromRow(rows[0]))));
+      T.eq('the refusal reason survives storage', back._valueReason, 'clock-seam');
+      T.ok('…and the refused numbers do not come back', back._rmssd == null && back._sdnn == null);
+
+      // ── The vocabulary is pre-stated and closed, like every other reason list in this node ──
+      T.eq('the value-reason vocabulary is pre-stated and closed', JSON.stringify(B.HRV_VALUE_REASONS || null), '["clock-seam"]');
+      T.ok('…and the reason this node emits is in it', (B.HRV_VALUE_REASONS || []).indexOf(seamed._valueReason) >= 0);
+
+      // ── Source mirror: the two edits a later change would silently undo ──
+      var src2 = (env.sources || {})['hrvdex-dsp.js'];
+      if (src2 == null) {
+        T.ok('hrvdex-dsp.js source available', false, 'not in env.sources');
+        return;
+      }
+      T.ok('the refusal list is DERIVED from the seed list, never retyped', /HRV_VALUE_FIELDS\s*=\s*HRV_SEED_FIELDS\.filter/.test(src2));
+      T.ok('the reason rides with the provenance fields, outside the numeric filter', /'_valueReason'/.test(src2) && /HRV_PROV_FIELDS = \[[^\]]*_valueReason/.test(src2));
+      T.ok('a positive count refuses and a zero does not', /seamRefused = upSeams != null && upSeams >= 1/.test(src2));
+    });
+
     /* ════ GlucoDex synthetic patient-coherence — DexPatientGen → renderGlucoAll → parseCSV ════
      Gates the June-2026 coherence change: GlucoDex's generator is the SHARED patient (so it
      fuses with OxyDex/HRVDex/etc.), and the additive cfg.glucBaseMmol override expresses

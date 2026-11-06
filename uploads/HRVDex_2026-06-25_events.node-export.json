@@ -55,6 +55,7 @@
       "upstreamNodes": null,
       "upstreamSeams": null,
       "upstreamSeamsMeasurements": 0,
+      "seamRefusedMeasurements": 0,
       "upstreamSeamsReasons": null,
       "upstreamMissingReasons": {
         "no-upstream-export": 4
@@ -90,6 +91,7 @@
       "validity": null,
       "validityNode": null,
       "validityReason": "no-upstream-export",
+      "valueReason": null,
       "composites": {
         "stress": 75,
         "energy": 40,
@@ -118,6 +120,7 @@
       "validity": null,
       "validityNode": null,
       "validityReason": "no-upstream-export",
+      "valueReason": null,
       "composites": {
         "stress": 35,
         "energy": 60,
@@ -146,6 +149,7 @@
       "validity": null,
       "validityNode": null,
       "validityReason": "no-upstream-export",
+      "valueReason": null,
       "composites": {
         "stress": 82,
         "energy": 45,
@@ -174,6 +178,7 @@
       "validity": null,
       "validityNode": null,
       "validityReason": "no-upstream-export",
+      "valueReason": null,
       "composites": {
         "stress": 25,
         "energy": 70,
