@@ -14071,8 +14071,13 @@ const OxyDex = window.OxyDex;
       focus = _hrvRefused ? null : focusEst(cSd, cRm),
       coh = _hrvRefused ? null : cohEst(cRm, cSd);
     const sdsdv = sdsd(a); // §8: SD1/SD2 spread is SDSD (÷N−1), not rMSSD — unified with ECGDex/PpgDex
-    const sd1v = +sd1(sdsdv).toFixed(2),
-      sd2v = +sd2(sdnn, sdsdv).toFixed(2);
+    /* ∅ The Poincare pair refuses with the trio above. `sd2(null, r)` reads
+       `Math.sqrt(Math.max(0, 2*s*s - r*r/2))`, and `null * null === 0`, so an unguarded refusal
+       publishes SD2 = 0 beside a real SD1 — a pair no ellipse can hold, because SD2 never sits under
+       SD1. SD1 is SDSD/sqrt(2), the beat-to-beat twin of the rMSSD that just refused, so it cannot
+       stand over the seam either. */
+    const sd1v = _pdRefuses ? null : +sd1(sdsdv).toFixed(2),
+      sd2v = _pdRefuses ? null : +sd2(sdnn, sdsdv).toFixed(2);
     const lnrm = cRm == null ? null : +lnR(cRm).toFixed(3);
     const lfhfv = winSpec ? winSpec.lfhf : ls.lfhf;
 
