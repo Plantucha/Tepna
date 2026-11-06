@@ -74,13 +74,13 @@ function gitHead() {
   }
 }
 
-export function verdictOf({ status, findings, checked, reason }) {
+export function verdictOf({ status, findings, checked, reason, tolerated = [], classes = null }) {
   const v = Verdict.make({
     gate: 'archive-manifest',
     status,
     population: { checked, eligible: checked, excluded: 0 },
-    criterion: { name: 'archived-night-matches-source-manifest', threshold: 0, unit: 'nights', direction: 'eq' },
-    result: status === 'NOT_RUN' ? null : { findings, failedTransientScopes: [] },
+    criterion: { name: 'blocking-findings', threshold: 0, unit: 'findings', direction: 'eq' },
+    result: status === 'NOT_RUN' ? null : { findings, tolerated, classes: classes ?? emptyClasses(), failedTransientScopes: [] },
     evidence: ['tools/archive-manifest.mjs'],
     reason: reason ?? (status === 'FAIL' ? findings.join('; ') : null),
     producedBy: { tool: 'tools/archive-manifest.mjs', commit: gitHead() },
@@ -165,6 +165,60 @@ export function hashRemoteTree(host, root) {
   });
 }
 
+/* ── the finding taxonomy ─────────────────────────────────────────────── */
+
+// A night-level derived artifact is a verdict or a summary the capture-host
+// writes beside the raw streams, and rewrites whenever it re-judges the night.
+// The rule is declared, never inferred from the stream name: a path at the
+// night root whose basename carries no underscore, spells its stem in
+// capitals, digits and hyphens, and ends in .json or .jsonl. Every raw
+// capture file carries a device prefix and an underscore, so no raw name
+// reaches this set. An unrecognised name reads RAW, which fails closed: a new
+// artifact turns benign only when someone declares it here.
+export function isDerivedNightArtifact(path) {
+  if (path.includes('/') || path.includes('_')) return false;
+  return /^[A-Z0-9][A-Z0-9-]*\.(json|jsonl)$/.test(path);
+}
+
+// Six classes, and two of them break a certificate. The archive is
+// append-only by contract (capture-host/deploy/archive-pull.sh states no
+// --delete, ever), while the source prunes an empty stream, retires a copied
+// night and re-judges a night after the copy. So a copy that holds more than
+// the source, and a derived verdict the box rewrote, are both the pair
+// working as designed. A raw byte that differs, and a source file the copy
+// never took, are not.
+export const BLOCKING_CLASSES = ['missing-in-copy', 'differs-raw'];
+export const TOLERATED_CLASSES = ['extra-renamed', 'extra-empty', 'extra-bytes', 'differs-derived'];
+export const ALL_CLASSES = [...BLOCKING_CLASSES, ...TOLERATED_CLASSES];
+
+export function findingClasses(cmp) {
+  return {
+    'missing-in-copy': cmp.missing.length,
+    'differs-raw': cmp.differRaw.length,
+    'extra-renamed': cmp.extraRenamed.length,
+    'extra-empty': cmp.extraEmpty.length,
+    'extra-bytes': cmp.extraBytes.length,
+    'differs-derived': cmp.differDerived.length
+  };
+}
+
+export function emptyClasses() {
+  return Object.fromEntries(ALL_CLASSES.map((c) => [c, 0]));
+}
+
+export function blockingFindings(night, cmp) {
+  return [...cmp.missing.map((p) => `${night}: missing in copy: ${p}`), ...cmp.differRaw.map((p) => `${night}: differs: ${p}`)];
+}
+
+export function toleratedFindings(night, cmp) {
+  return [
+    ...cmp.extraRenamed.map((e) => `${night}: extra in copy, the source holds these bytes at another path: ${e.path} was renamed to ${e.sourcePath}`),
+    ...cmp.extraEmpty.map((p) => `${night}: extra in copy, zero bytes: ${p}`),
+    ...cmp.extraBytes.map((p) => `${night}: extra in copy, carries bytes: ${p}`),
+    ...cmp.differDerived.map((p) => `${night}: differs, derived verdict: ${p}`)
+  ];
+}
+
 /* ── the pure comparison ──────────────────────────────────────────────── */
 
 export function compareTrees(source, dest) {
@@ -179,17 +233,55 @@ export function compareTrees(source, dest) {
     else if (df.sha256 !== sf.sha256 || df.bytes !== sf.bytes) differ.push(p);
   }
   for (const p of dMap.keys()) if (!sMap.has(p)) extra.push(p);
-  return { missing: missing.sort(), differ: differ.sort(), extra: extra.sort() };
+  // A re-stamp is a rename, and a rename is not a file the copy gained. The
+  // source's own hashes already say so, so this costs no second read: an extra
+  // path whose bytes sit in the source under a different name was renamed
+  // there after the copy. Measured 2026-11-06 on one night: a ring session's
+  // 11 files carried a device-clock correction of 15:10:00, so the box holds
+  // the corrected stamp and the append-only copy keeps the first one.
+  // The byte count must be non-zero. Every empty file shares one sha256, so a
+  // zero-byte extra would match any zero-byte source file and read as a
+  // rename it never was.
+  const srcByBytes = new Map();
+  for (const f of source) {
+    if (f.bytes === 0) continue;
+    const k = `${f.sha256}:${f.bytes}`;
+    if (!srcByBytes.has(k)) srcByBytes.set(k, f.path);
+  }
+  const renamedSource = (p) => {
+    const df = dMap.get(p);
+    if (df.bytes === 0) return null;
+    return srcByBytes.get(`${df.sha256}:${df.bytes}`) ?? null;
+  };
+  const extraRenamed = extra
+    .filter((p) => renamedSource(p) !== null)
+    .map((p) => ({ path: p, sourcePath: renamedSource(p) }))
+    .sort((a, b) => (a.path < b.path ? -1 : 1));
+  const extraEmpty = extra.filter((p) => dMap.get(p).bytes === 0);
+  const extraBytes = extra.filter((p) => dMap.get(p).bytes !== 0 && renamedSource(p) === null);
+  const differDerived = differ.filter((p) => isDerivedNightArtifact(p));
+  const differRaw = differ.filter((p) => !isDerivedNightArtifact(p));
+  return {
+    missing: missing.sort(),
+    differ: differ.sort(),
+    extra: extra.sort(),
+    extraRenamed,
+    extraEmpty: extraEmpty.sort(),
+    extraBytes: extraBytes.sort(),
+    differDerived: differDerived.sort(),
+    differRaw: differRaw.sort()
+  };
 }
 
-// Equality is exact: a file absent from the copy, a file that differs, and a
-// file the copy holds beyond the source each fail. A manifest certifies that
-// the night directory IS the source night, not that it covers it.
+// The strict reading, kept for a caller that wants exact equality in both
+// directions. The modes below bind FAIL to `blockingFindings` instead, because
+// an append-only archive against a pruning source can never read exactly
+// equal. See BLOCKING_CLASSES above.
 export function treeFindings(night, cmp) {
   return [...cmp.missing.map((p) => `${night}: missing in copy: ${p}`), ...cmp.differ.map((p) => `${night}: differs: ${p}`), ...cmp.extra.map((p) => `${night}: extra in copy: ${p}`)];
 }
 
-export function buildManifest({ night, basis, source, files }) {
+export function buildManifest({ night, basis, source, files, tolerated = null }) {
   return {
     kind: 'tepna.archive-manifest/1',
     night,
@@ -198,7 +290,20 @@ export function buildManifest({ night, basis, source, files }) {
     source,
     file_count: files.length,
     total_bytes: files.reduce((a, f) => a + f.bytes, 0),
+    tolerated,
     files
+  };
+}
+
+// The tolerated block is provenance, never a licence. A verify classifies the
+// copy again by the same rule, so a path listed here earns nothing by sitting
+// here.
+export function toleratedBlock(cmp) {
+  return {
+    'extra-renamed': cmp.extraRenamed,
+    'extra-empty': cmp.extraEmpty,
+    'extra-bytes': cmp.extraBytes,
+    'differs-derived': cmp.differDerived
   };
 }
 
@@ -293,17 +398,23 @@ async function doWrite(night, { quiet = false } = {}) {
   const sourceFiles = await hashSourceNight(src, night);
   const destFiles = await hashLocalTree(join(dest, night));
   const cmp = compareTrees(sourceFiles, destFiles);
-  const bad = treeFindings(night, cmp);
-  if (bad.length) return { status: 'FAIL', findings: bad, checked: 1 };
+  const bad = blockingFindings(night, cmp);
+  const tolerated = toleratedFindings(night, cmp);
+  const classes = findingClasses(cmp);
+  if (bad.length) return { status: 'FAIL', findings: bad, tolerated, classes, checked: 1 };
   const manifest = buildManifest({
     night,
     basis: 'copy-time-source',
     source: src.host ? `${src.host}:${src.root}` : src.root,
-    files: sourceFiles
+    files: sourceFiles,
+    tolerated: toleratedBlock(cmp)
   });
   await writeManifest(manifest);
-  if (!quiet) console.log(`${night}: manifest written · ${manifest.file_count} files · ${manifest.total_bytes} bytes · basis copy-time-source`);
-  return { status: 'PASS', findings: [], checked: 1, manifest };
+  if (!quiet) {
+    console.log(`${night}: manifest written · ${manifest.file_count} files · ${manifest.total_bytes} bytes · basis copy-time-source`);
+    for (const line of tolerated) console.log(`  tolerated · ${line}`);
+  }
+  return { status: 'PASS', findings: [], tolerated, classes, checked: 1, manifest };
 }
 
 async function doVerify(night, { quiet = false } = {}) {
@@ -314,10 +425,15 @@ async function doVerify(night, { quiet = false } = {}) {
   if (!manifest) return { status: 'FAIL', findings: [`${night}: no manifest`], checked: 1 };
   const destFiles = await hashLocalTree(join(dest, night));
   const cmp = compareTrees(manifest.files, destFiles);
-  const bad = treeFindings(night, cmp);
-  if (bad.length) return { status: 'FAIL', findings: bad, checked: 1 };
-  if (!quiet) console.log(`${night}: verified · ${manifest.file_count} files match the manifest`);
-  return { status: 'PASS', findings: [], checked: 1 };
+  const bad = blockingFindings(night, cmp);
+  const tolerated = toleratedFindings(night, cmp);
+  const classes = findingClasses(cmp);
+  if (bad.length) return { status: 'FAIL', findings: bad, tolerated, classes, checked: 1 };
+  if (!quiet) {
+    console.log(`${night}: verified · ${manifest.file_count} files match the manifest`);
+    for (const line of tolerated) console.log(`  tolerated · ${line}`);
+  }
+  return { status: 'PASS', findings: [], tolerated, classes, checked: 1 };
 }
 
 async function doSync() {
@@ -334,6 +450,8 @@ async function doSync() {
     .map((e) => e.name)
     .sort();
   const findings = [];
+  const tolerated = [];
+  const classes = emptyClasses();
   let checked = 0;
   for (const night of nights) {
     if (await readManifest(night)) continue;
@@ -343,6 +461,8 @@ async function doSync() {
       findings.push(`${night}: source unreachable over ssh; manifest deferred`);
     } else if (probe === 'yes') {
       const r = await doWrite(night);
+      tolerated.push(...(r.tolerated || []));
+      for (const c of ALL_CLASSES) classes[c] += r.classes?.[c] || 0;
       if (r.status !== 'PASS') findings.push(...(r.findings || [`${night}: ${r.reason || r.status}`]));
     } else {
       const destFiles = await hashLocalTree(join(dest, night));
@@ -353,8 +473,11 @@ async function doSync() {
   }
   const population = populationVerdict(popBefore, snapshotNights(dest), { tool: 'tools/archive-manifest.mjs', evidence: ['tools/archive-manifest.mjs'] });
   console.error(`population: ${popBefore.n} archived night(s) · movement ${population.status}${population.reason ? ` — ${population.reason}` : ''}`);
-  console.log(`sync-manifests: ${nights.length} settled nights · ${checked} newly manifested · ${findings.length} finding(s)`);
-  return { status: findings.length ? 'FAIL' : 'PASS', findings, checked, population };
+  console.log(`sync-manifests: ${nights.length} settled nights · ${checked} newly manifested · ${findings.length} blocking finding(s) · ${tolerated.length} tolerated`);
+  // Print every class, including the ones that hold zero, so a reader sees
+  // which classes this run examined rather than which ones it happened to hit.
+  console.log(`classes: ${ALL_CLASSES.map((c) => `${c}=${classes[c]}`).join(' · ')}`);
+  return { status: findings.length ? 'FAIL' : 'PASS', findings, tolerated, classes, checked, population };
 }
 
 /* ── selftest ─────────────────────────────────────────────────────────── */
@@ -416,15 +539,95 @@ export async function selftest() {
     );
     t('compareTrees reports an extra file', cmp.extra.length === 1 && cmp.missing.length === 0 && cmp.differ.length === 0);
     t('an extra file fails exact equality', treeFindings('n', cmp).length === 1 && treeFindings('n', cmp)[0] === 'n: extra in copy: y');
+    t('compareTrees splits an extra file by its byte count', cmp.extraBytes.length === 1 && cmp.extraEmpty.length === 0);
+    const cmpE = compareTrees(
+      [{ path: 'x', bytes: 1, sha256: 'a' }],
+      [
+        { path: 'x', bytes: 1, sha256: 'a' },
+        { path: 'z', bytes: 0, sha256: 'e' }
+      ]
+    );
+    t('a zero-byte extra reads as extra-empty', cmpE.extraEmpty.length === 1 && cmpE.extraBytes.length === 0);
+    t('an extra file is no blocking finding', blockingFindings('n', cmp).length === 0 && toleratedFindings('n', cmp).length === 1);
 
-    const night3 = '2026-01-03';
+    // The derived-name rule, with a control for every clause it tests.
+    t('a night-root verdict reads derived', isDerivedNightArtifact('QC-SUMMARY.json') && isDerivedNightArtifact('LOSS-VERDICT-WITHDRAWN.jsonl'));
+    t('a device stream carries an underscore and reads raw', !isDerivedNightArtifact('Polar_H10_AABB_ECG.txt.meta.json'));
+    t('a verdict below the night root reads raw', !isDerivedNightArtifact('sub/QC-SUMMARY.json'));
+    t('a lower-case name reads raw', !isDerivedNightArtifact('status.json'));
+    t('an unrecognised extension reads raw', !isDerivedNightArtifact('QC-SUMMARY.bin'));
+    t(
+      'a differing derived name leaves the raw class empty',
+      findingClasses(compareTrees([{ path: 'QC-SUMMARY.json', bytes: 2, sha256: 'a' }], [{ path: 'QC-SUMMARY.json', bytes: 2, sha256: 'b' }]))['differs-derived'] === 1
+    );
+    t('every class is published, including the empty ones', Object.keys(emptyClasses()).length === 6 && ALL_CLASSES.every((c) => emptyClasses()[c] === 0));
+
+    // A re-stamp: the copy holds the source's bytes under the pre-rename name.
+    const cmpR = compareTrees(
+      [{ path: 'new-name.txt', bytes: 9, sha256: 'aa' }],
+      [
+        { path: 'new-name.txt', bytes: 9, sha256: 'aa' },
+        { path: 'old-name.txt', bytes: 9, sha256: 'aa' }
+      ]
+    );
+    const clsR = findingClasses(cmpR);
+    t('an extra whose bytes sit in the source under another name reads as a rename', clsR['extra-renamed'] === 1 && clsR['extra-bytes'] === 0);
+    t('the rename finding names the path it was renamed to', toleratedFindings('n', cmpR)[0].includes('old-name.txt was renamed to new-name.txt'));
+    t('a rename is no blocking finding', blockingFindings('n', cmpR).length === 0);
+    // The control: every empty file shares one sha256, so a zero-byte extra
+    // must never borrow a zero-byte source file's identity.
+    const cmpZ = compareTrees(
+      [{ path: 'kept.txt', bytes: 0, sha256: 'e3' }],
+      [
+        { path: 'kept.txt', bytes: 0, sha256: 'e3' },
+        { path: 'dropped.txt', bytes: 0, sha256: 'e3' }
+      ]
+    );
+    t('a zero-byte extra never reads as a rename', findingClasses(cmpZ)['extra-renamed'] === 0 && findingClasses(cmpZ)['extra-empty'] === 1);
+
+    // night3 held night2's date until 2026-11-06, so its source still carried
+    // night2's missing file and the extra never decided the verdict.
+    const night3 = '2026-01-04';
     await mkdir(join(srcRoot, night3), { recursive: true });
     await mkdir(join(dest, night3), { recursive: true });
     await wf(join(srcRoot, night3, 'a.bin'), Buffer.alloc(20, 4));
     await wf(join(dest, night3, 'a.bin'), Buffer.alloc(20, 4));
     await wf(join(dest, night3, 'stray.bin'), Buffer.alloc(5, 5));
     const r3 = await doWrite(night3, { quiet: true });
-    t('write refuses when the copy holds an extra file', r3.status === 'FAIL' && (await readManifest(night3)) === null);
+    t('write accepts a copy holding an extra file that carries bytes', r3.status === 'PASS' && r3.classes['extra-bytes'] === 1);
+    t('the extra file is named rather than counted alone', r3.tolerated.length === 1 && r3.tolerated[0].includes('stray.bin'));
+    const man3 = await readManifest(night3);
+    t('the manifest records what it tolerated', !!man3 && man3.tolerated['extra-bytes'].join() === 'stray.bin' && man3.tolerated['extra-empty'].length === 0);
+    const v3 = await doVerify(night3, { quiet: true });
+    t('verify repeats the same reading over the copy', v3.status === 'PASS' && v3.classes['extra-bytes'] === 1);
+
+    const night4 = '2026-01-05';
+    await mkdir(join(srcRoot, night4), { recursive: true });
+    await mkdir(join(dest, night4), { recursive: true });
+    await wf(join(srcRoot, night4, 'a.bin'), Buffer.alloc(20, 4));
+    await wf(join(dest, night4, 'a.bin'), Buffer.alloc(20, 4));
+    await wf(join(dest, night4, 'emptied.txt'), Buffer.alloc(0));
+    const r4 = await doWrite(night4, { quiet: true });
+    t('write accepts a copy holding a zero-byte stream the source dropped', r4.status === 'PASS' && r4.classes['extra-empty'] === 1 && r4.classes['extra-bytes'] === 0);
+
+    const night5 = '2026-01-06';
+    await mkdir(join(srcRoot, night5), { recursive: true });
+    await mkdir(join(dest, night5), { recursive: true });
+    await wf(join(srcRoot, night5, 'a.bin'), Buffer.alloc(20, 4));
+    await wf(join(dest, night5, 'a.bin'), Buffer.alloc(20, 4));
+    await wf(join(srcRoot, night5, 'QC-SUMMARY.json'), '{"v":2}');
+    await wf(join(dest, night5, 'QC-SUMMARY.json'), '{"v":1}');
+    const r5 = await doWrite(night5, { quiet: true });
+    t('write accepts a derived verdict the box re-judged after the copy', r5.status === 'PASS' && r5.classes['differs-derived'] === 1 && r5.classes['differs-raw'] === 0);
+
+    // The control for the clause above: one raw byte differs and nothing else.
+    const night6 = '2026-01-07';
+    await mkdir(join(srcRoot, night6), { recursive: true });
+    await mkdir(join(dest, night6), { recursive: true });
+    await wf(join(srcRoot, night6, 'a.bin'), Buffer.alloc(20, 4));
+    await wf(join(dest, night6, 'a.bin'), Buffer.alloc(20, 6));
+    const r6 = await doWrite(night6, { quiet: true });
+    t('write refuses a raw stream whose bytes differ', r6.status === 'FAIL' && r6.classes['differs-raw'] === 1 && (await readManifest(night6)) === null);
 
     // The real transport: hashRemoteTree spawns `ssh` from PATH. A stand-in
     // ssh runs its last argument as the remote shell line, so the base64 and
@@ -452,6 +655,9 @@ export async function selftest() {
 
     const v = verdictOf({ status: 'PASS', findings: [], checked: 1 });
     t('verdict validates as tepna.verdict/1', v && v.gate === 'archive-manifest');
+    t('a verdict publishes a count for every class', ALL_CLASSES.length === 6 && ALL_CLASSES.every((c) => v.result.classes[c] === 0));
+    const vt = verdictOf(r3);
+    t('a PASS verdict carries what it tolerated', vt.status === 'PASS' && vt.result.classes['extra-bytes'] === 1 && vt.result.tolerated.length === 1);
     const vf = verdictOf({ status: 'FAIL', findings: ['2026-01-02: missing in copy: a.bin'], checked: 1 });
     t('FAIL verdict validates and carries its reason', vf.status === 'FAIL' && typeof vf.reason === 'string' && vf.reason.includes('a.bin'));
     const vn = verdictOf({ status: 'NOT_RUN', findings: [], checked: 0, reason: 'archive dest does not exist' });
