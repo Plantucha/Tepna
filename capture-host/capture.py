@@ -4389,7 +4389,12 @@ async def run_polar(dev: dict, root: str):
                             # types decode_frame can return (ECG/ACC/PPG/GYRO/MAG/PPI), and every other
                             # arm above matches first, so the FALSE edge here is unreachable by
                             # construction. Same reasoning, same pragma, as the sibling chain below.
-                            wr.write_ppi(smp.phone, smp.sensor_ns, v[0], v[1], v[2], v[3])
+                            # PPI CARRIES NO DEVICE CLOCK. The PMD frame's timestamp field is fixed
+                            # at 0 for this measurement, so `smp.sensor_ns` is a literal zero rather
+                            # than a clock. §∅ — hand the seam sidecar `None`, so it reports absence
+                            # instead of opening a file whose device axis never moves. `write_hr` took
+                            # the same fix at 875bb6954cdb; `write_ppi` documents the measurement.
+                            wr.write_ppi(smp.phone, None, v[0], v[1], v[2], v[3])
                             # The device's OWN contact bit, from the stream that actually carries one.
                             _ppi_contact = ppi_contact(v[3])
                             _ppi_flags = v[3]
