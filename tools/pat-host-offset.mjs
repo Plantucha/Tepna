@@ -50,6 +50,7 @@ import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import vm from 'node:vm';
+import { dissentStampOf, dissentTallyLine, signsOf } from './consensus-dissent-core.mjs';
 import { legacyMatchRate, strictMatchRate, circShift, rawLags } from './pat-matchrate-strict.mjs';
 import { isCliEntry } from './argv-guard.mjs';
 import { populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
@@ -197,7 +198,14 @@ function ppgFeet(text, runsText) {
      (`ppgdex-dsp.js` applies, then picks): a flipped dissenter's peak count moves, so a pick made
      first would ratify a reference chosen under the polarity the device-wide majority overrules.
      The call is a no-op on a unanimous set and on a 1-1 split, so no undissenting night moves. */
-  PPGDSP.applyConsensusPolarity(per, (i, sgn) => PPGDSP.detectChannel(rec.ch[i], rec.fs, sgn));
+  /* ∅ THE RETURN IS THE ONLY RECORD THAT THIS STREAM MOVED, and the signs are read BEFORE the pass:
+     after it the dissenter carries the majority sign and every stream reads unanimous (row
+     2026-11-04-pat-figures-were-published-under-the-overruled-polarity). */
+  const polaritySigns = signsOf(per);
+  const polarity = dissentStampOf(
+    polaritySigns,
+    PPGDSP.applyConsensusPolarity(per, (i, sgn) => PPGDSP.detectChannel(rec.ch[i], rec.fs, sgn))
+  );
   let refIdx = 0,
     best = -1;
   per.forEach((p, i) => {
@@ -211,7 +219,7 @@ function ppgFeet(text, runsText) {
   const cons = PPGDSP.consensusBeats(per, refIdx, rec.fs);
   const pts = TIMING_POINT === 'peak' ? cons.peaks : cons.feet;
   if (!pts) throw new Error('consensusBeats exposed no `' + TIMING_POINT + '` series');
-  return { t0Ms: rec.t0Ms, fs: rec.fs, durSec: rec.durSec, idx: pts };
+  return { t0Ms: rec.t0Ms, fs: rec.fs, durSec: rec.durSec, idx: pts, polarity, polaritySigns };
 }
 /* idx -> host-axis ms. `idx/fs` IS the device's own clock by construction (that is what makes the
    axis drawn), so it is also the right argument to `correctionAt`. */
@@ -399,6 +407,9 @@ if (IS_CLI && process.argv.includes('--verdict-sample')) {
   const nights = popBefore.nights.filter((n) => !ONLY || n === ONLY);
   const rows = [],
     refusals = [];
+  /* KEYED BY PATH, because the pair loop reads one stream once per partner: a push per read would
+     count a stream as many times as it was paired and inflate every class in the tally. */
+  const polByPath = new Map();
   /* EVERY NIGHT LEAVES A ROW OR A REFUSAL. The header's "REFUSALS ARE LOUD" was true of the four
      mid-loop guards below and FALSE of the three exits around them, which emitted nothing at all.
      That is the §∅ failure one level up: a night that was never evaluated reads exactly like a night
@@ -465,6 +476,8 @@ if (IS_CLI && process.argv.includes('--verdict-sample')) {
           note(`${night}: parse/detect — ${String((e && e.message) || e)}`);
           continue;
         }
+        polByPath.set(pf.f, pr.polarity);
+        if (REF_MODE === 'ppg-ppg') polByPath.set(ef.f, er.polarity);
         const lo = Math.max(er.t0Ms, pr.t0Ms);
         const hi = Math.min(er.t0Ms + er.durSec * 1000, pr.t0Ms + pr.durSec * 1000);
         if (hi - lo < WINDOW_MIN * 60000) {
@@ -619,6 +632,7 @@ if (IS_CLI && process.argv.includes('--verdict-sample')) {
     );
     const rl = ruleLine(population);
     if (rl) console.log(rl);
+    console.log(dissentTallyLine([...polByPath.values()]));
     const validity = validityLine(VALIDITY);
     if (validity) console.log(validity);
     console.log('POPULATION ' + JSON.stringify(population));

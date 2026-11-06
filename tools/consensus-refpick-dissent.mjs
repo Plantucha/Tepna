@@ -49,6 +49,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import vm from 'node:vm';
 import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 import { maskNonCode } from './argv-reads.mjs';
+import { dissentOf, dissentStampOf, dissentTally, dissentTallyLine, signsOf } from './consensus-dissent-core.mjs';
 import { argAt, findCalls, scanFiles } from './consensus-polarity-wiring.mjs';
 import { gitCommitOf, populationVerdict, ruleLine, snapshotEntries } from './corpus-scope-core.mjs';
 import { runsSidecarPath } from './trio-fold-validity.mjs';
@@ -270,28 +271,11 @@ export function censusVerdictOf(rows, opts = {}) {
 
 /* ── the corpus measurement ──────────────────────────────────────────────────────────────────── */
 
-/* The dissenter set as a NON-APPLYING caller holds it: each channel detected on its own orientation,
-   the majority sign taken across them, and the minority named. A unanimous record has no dissenter
-   and no majority, which is `maj: 0` rather than an empty set over a majority of one.
-
-   ∅ UNANIMOUS AND TIED ARE NOT ONE CLASS. Both leave `maj: 0` and no dissenter, and only one of
-   them means the observers agreed: a 1–1 split is a record with NO majority to dissent from, where
-   `applyConsensusPolarity` also abstains. `shape` keeps them apart so a tally cannot report a tie as
-   agreement. */
-export function dissentOf(signs) {
-  let neg = 0,
-    pos = 0;
-  for (const s of signs) {
-    if (s === -1) neg++;
-    else if (s === 1) pos++;
-  }
-  if (neg === pos) return { maj: 0, dissenters: [], shape: neg === 0 ? 'unsigned' : 'tie' };
-  if (neg === 0 || pos === 0) return { maj: 0, dissenters: [], shape: 'unanimous' };
-  const maj = neg > pos ? -1 : 1;
-  const dissenters = [];
-  for (let i = 0; i < signs.length; i++) if (signs[i] !== maj) dissenters.push(i);
-  return { maj, dissenters, shape: 'majority' };
-}
+/* The dissent shape is single-sourced in `consensus-dissent-core.mjs`, because nine PAT legs now
+   print it beside their own numbers and a second copy of the vocabulary would be a second answer
+   to one question. Re-exported here so this tool's own importers and its selftest keep reading it
+   from the file that measures the corpus. */
+export { dissentOf };
 
 /* The two live rules, computed on one detection pass so the comparison is between RULES and not
    between runs. `first max wins` matches the `>` every caller writes. */
@@ -467,7 +451,7 @@ export function measureNight(P, file) {
      signs are unanimous by construction and the dissenter is gone. */
   const per = keepIdx.map((c) => P.detectChannel(rec.ch[c], rec.fs));
   const sel = P.pickChannel(rec);
-  const { maj, dissenters, shape } = dissentOf(per.map((pc) => (pc ? pc.sign : null)));
+  const { maj, dissenters, shape } = dissentOf(signsOf(per));
   const peaks = per.map((pc) => (pc && pc.peaks ? pc.peaks.length : -1));
   const snrs = keepIdx.map((c) => (sel.scores && sel.scores[c] ? sel.scores[c].snr : null));
   const picks = picksOf(peaks, snrs);
@@ -526,6 +510,16 @@ function selftest() {
   fail += ok(dissentOf([1, 1, 1]).shape === 'unanimous', 'agreement reads unanimous');
   fail += ok(dissentOf([1, -1]).shape === 'tie', 'a tie is its own shape, never agreement');
   fail += ok(dissentOf([null, null]).shape === 'unsigned', 'a record whose channels carry no sign reads unsigned');
+  fail += ok(dissentOf([1]).shape === 'alone', 'one channel has nobody to agree with, so it is never unanimous');
+  fail += ok(signsOf([{ sign: -1 }, null]).join() === '-1,', 'a channel the detector could not orient stays null, never a sign');
+  /* The stamp and the pooled tally every PAT leg prints beside its own figures. ∅ The classes a reader could confuse are
+     what these pin: a tie is not agreement, and a stream nobody read is not a unanimous one. */
+  fail += ok(dissentStampOf([1, 1, -1], 1).corrected === 1 && dissentStampOf([1, 1, -1], 1).shape === 'majority', 'a stamp carries the shape and the channels re-detected');
+  fail += ok(dissentStampOf([1, 1, 1], undefined).corrected === null, 'a stamp made with no count reads null, never a zero it did not measure');
+  const tal = dissentTally([dissentStampOf([1, 1, -1], 1), dissentStampOf([1, -1], 0), null]);
+  fail += ok(tal.streams === 2 && tal.unread === 1 && tal.unanimous === 0 && tal.tie === 1, 'an unread stream never pads an agreeing class');
+  fail += ok(tal.corrected === 1 && tal.channels === 1, 'the tally counts corrected STREAMS and re-detected CHANNELS apart');
+  fail += ok(/a tie is not agreement/.test(dissentTallyLine([])), 'the printed line names the tie class even when it is empty');
   /* The picks, including the finiteness trap `null > -Infinity`. */
   fail += ok(picksOf([10, 30, 20], [1, 2, 3]).peakArgmax === 1, 'the most peaks wins the peak rule');
   fail += ok(picksOf([10, 30, 20], [1, 2, 3]).snrPick === 2, 'the best SNR wins the SNR rule');

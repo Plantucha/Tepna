@@ -4365,7 +4365,9 @@ for (const p of work) {
         const accRecs = p.accH10
           .map((f) => {
             try {
-              return ECGDex.parseDeviceACC(readFileSync(f.full, 'utf8'));
+              /* §∅ — `<base>_ACCRUNS.txt` is TIME-keyed (writer stamp + `dur_ms`), so a row the parser
+                 drops cannot slide it, and an absent sidecar stays UNKNOWN rather than "no runs". */
+              return ECGDex.parseDeviceACC(readFileSync(f.full, 'utf8'), { runsText: readRuns(f.full, 'ACC') });
             } catch {
               return null;
             }
@@ -4443,19 +4445,25 @@ for (const p of work) {
          so `relSecOf` would fold all 50 sessions onto the first one's window. Clearing it makes the
          helper fall through to the absolute `tMs` path. Millisecond resolution is ample for a 0.25 s
          motion grid. */
-      const xyz = (l) => {
+      /* `stream` names the sidecar, and only the accelerometer has a writer: `runsSidecarPath` keys
+         on the path's own `_<stream>.txt` tail, so handing a `_GYRO.txt` path the stream 'ACC' would
+         name nothing and read as a missing witness. Each fragment is parsed on its own, BEFORE the
+         rows merge, so a per-file sidecar's indices are still its own. */
+      const xyz = (l, stream) => {
         if (!l || !l.length) return null;
         const rows = [];
         for (const f of l) {
-          const parsed = ctx.PPGDSP.parseSensorXYZ(readFileSync(f.full, 'utf8'));
+          const raw = readFileSync(f.full, 'utf8');
+          const runsText = stream ? readRuns(f.full, stream) : undefined;
+          const parsed = runsText ? ctx.PPGDSP.parseSensorXYZ(raw, { runsText }) : ctx.PPGDSP.parseSensorXYZ(raw);
           for (const r of parsed || []) if (r.tMs != null && isFinite(r.tMs)) rows.push({ ...r, relNs: NaN });
         }
         rows.sort((a, b) => a.tMs - b.tMs);
         return rows.length ? rows : null;
       };
-      rec.acc = xyz(p.accVer);
-      rec.gyro = xyz(p.gyro);
-      rec.magn = xyz(p.magn);
+      rec.acc = xyz(p.accVer, 'ACC');
+      rec.gyro = xyz(p.gyro, null);
+      rec.magn = xyz(p.magn, null);
       const ex = PpgDex.compute(rec, { ...COMMON, source: 'polar-sense-ppg' });
       const h = hoursOf(ex);
       if (!KEEP_DAYTIME && h != null && h < MIN_HOURS) console.log(`    ⊘ PpgDex  ${h.toFixed(1)} h < --min-hours ${MIN_HOURS} (daytime/short) — skipped`);

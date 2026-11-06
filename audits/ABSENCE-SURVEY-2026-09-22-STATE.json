@@ -20,8 +20,8 @@
  ],
  "counts": {
   "findings": 290,
-  "open": 176,
-  "fixed": 111,
+  "open": 175,
+  "fixed": 112,
   "accepted-with-reason": 3
  },
  "entries": [
@@ -1939,7 +1939,8 @@
    "severity": "medium",
    "occurrence": 0,
    "surveyLine": 53,
-   "state": "open"
+   "state": "fixed",
+   "note": "the envelope grid starts UNMEASURED and a sample is what makes a bin a measurement, so a bin no accelerometer sample reached is NaN rather than a zero-fill; `findAnchors` takes its mean and sigma over the measured bins, `lagAtAnchor` refuses an anchor window carrying one and drops B-side holes from the overlap count, and `pat-dip-validate` publishes its quiet share over the measured bins with the coverage beside it. The recorded `_ACCRUNS.txt` runs are marked by the same mechanism (row 2026-11-05-the-pat-motion-envelope-ignores-the-acc-blanking-spans-it-is-handed). Plant: tests/dex-tests.js group PAT-align, the §∅ held-run legs (2026-11-06, Heron)"
   },
   {
    "key": "95896913c96b",

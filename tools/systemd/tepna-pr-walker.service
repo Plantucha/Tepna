@@ -16,7 +16,15 @@
 #
 # The checkout is the walker's alone: the rebase of a conflicting PR happens there, never in a bird's
 # tree, and the unit fast-forwards it to origin/main before every pass (CLAUDE.md §👥.2 protects trees
-# other sessions dirty; this one is never dirtied).
+# other sessions dirty).
+#
+# IT IS DIRTIED, AND A BARE CHECKOUT WEDGES ON IT. `rebase-safe` rebuilds the generated trees inside
+# this checkout, so a rebase of a branch that moves an inlined source leaves the rebuilt bundle
+# modified here. Measured 2026-11-05 (board #3656, #3659, #3662): 49 passes exited 1 inside the
+# pre-step over two rebuilt analysis pages, across 2 h 22 min in which no green draft was readied.
+# So the pre-step restores the generated paths FIRST, through the walker's own `--clean-worktree`,
+# which refuses and names any dirty path the builders do not own. A refusal leaves the detach to
+# fail and the journal to carry the path, which is the safe side of that trade.
 [Unit]
 Description=Tepna — PR walker: ready, rerun, rebase, update, merge (one pass)
 Documentation=https://github.com/Plantucha/Tepna/blob/main/tools/pr-walker.mjs
@@ -25,7 +33,7 @@ Documentation=https://github.com/Plantucha/Tepna/blob/main/tools/pr-walker.mjs
 Type=oneshot
 WorkingDirectory=%h/wt-walker-timer
 ExecStartPre=/usr/bin/git fetch -q origin main
-ExecStartPre=/usr/bin/git checkout -q --detach origin/main
+ExecStartPre=/bin/sh -c 'node tools/pr-walker.mjs --clean-worktree --worktree "$PWD" || echo "clean-worktree refused or absent — the detach below reports the path"; exec git checkout -q --detach origin/main'
 ExecStart=/bin/sh -c '[ -f tools/pr-walker.mjs ] || { echo "pr-walker.mjs not on origin/main yet — nothing to run"; exit 0; }; exec node tools/pr-walker.mjs --worktree %h/wt-walker-timer'
 # A pass that cannot read GitHub exits non-zero so the timer's journal shows it; the next tick retries.
 TimeoutStartSec=20min

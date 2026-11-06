@@ -34,8 +34,10 @@ import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { dissentStampLine, dissentStampOf, signsOf } from './consensus-dissent-core.mjs';
 import { makeVerdict } from './verdict-emit.mjs';
 import { isCliEntry } from './argv-guard.mjs';
+import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
@@ -309,6 +311,13 @@ function realm() {
   return ctx;
 }
 
+/* §∅: the `_PPGRUNS.txt` sidecar beside the Verity stream carries the blanking the samples cannot
+   state. An absent one is validity UNKNOWN for that stream, never a clean stream, so the tally prints
+   on stderr — stdout here carries the verdict object alone. The sidecar adds span metadata and drops
+   no sample, so leg C's row-index identity (`rec.ch[0].length === dev.length`, below) is untouched. */
+const VALIDITY = {};
+const runsOf = (streamPath, stream) => readRunsSidecar(streamPath, stream, { tally: VALIDITY }).runsText;
+
 export function h10Beats(path, ctx) {
   const L = fs.readFileSync(path, 'utf8').split('\n');
   const ns = [],
@@ -332,7 +341,11 @@ export function h10Beats(path, ctx) {
   return Array.from(idx).map((i) => ns[Math.min(ns.length - 1, Math.round(i))] / 1e9);
 }
 
-export function verityBeats(path, ctx) {
+/* `polOut` is LAST and OPTIONAL, because `tools/tch-third-corner.mjs` imports this function and
+   consumes the array directly — a richer return would have moved a caller this leg does not own
+   (CLAUDE.md §🧪). A caller that passes an object gets the dissent stamp written into it; one that
+   does not is unchanged. */
+export function verityBeats(path, ctx, polOut) {
   const raw = fs.readFileSync(path, 'utf8');
   const L = raw.split('\n');
   const dev = [];
@@ -343,7 +356,8 @@ export function verityBeats(path, ctx) {
       if (Number.isFinite(t)) dev.push(t / 1e9);
     }
   }
-  const rec = ctx.PPGDSP.parsePPG(raw);
+  const runsText = runsOf(path, 'PPG');
+  const rec = runsText ? ctx.PPGDSP.parsePPG(raw, { runsText }) : ctx.PPGDSP.parsePPG(raw);
   if (!rec || !rec.ch || !rec.ch.length) return null;
   /* The device axis is read from the COLUMN, not from rec.relSec — relSec is host-disciplined via
      hostAxis, and using it would make leg C the difference of two host-referenced series. Verified:
@@ -354,7 +368,12 @@ export function verityBeats(path, ctx) {
      (`ppgdex-dsp.js` applies, then picks): a flipped dissenter's peak count moves, so a pick made
      first would ratify a reference chosen under the polarity the device-wide majority overrules.
      The call is a no-op on a unanimous set and on a 1-1 split, so no undissenting night moves. */
-  ctx.PPGDSP.applyConsensusPolarity(per, (i, sgn) => ctx.PPGDSP.detectChannel(rec.ch[i], rec.fs, sgn));
+  /* ∅ THE RETURN IS THE ONLY RECORD THAT THIS STREAM MOVED, and the signs are read BEFORE the pass:
+     after it the dissenter carries the majority sign and every stream reads unanimous (row
+     2026-11-04-pat-figures-were-published-under-the-overruled-polarity). */
+  const signsBefore = signsOf(per);
+  const corrected = ctx.PPGDSP.applyConsensusPolarity(per, (i, sgn) => ctx.PPGDSP.detectChannel(rec.ch[i], rec.fs, sgn));
+  if (polOut) Object.assign(polOut, dissentStampOf(signsBefore, corrected), { signs: signsBefore });
   let ri = 0,
     b = -1;
   per.forEach((p, i) => {
@@ -512,8 +531,11 @@ if (isCliEntry(import.meta.url)) {
     process.exit(2);
   }
   const ctx = realm();
+  const vPol = {};
   const H = h10Beats(hp, ctx),
-    V = verityBeats(vp, ctx);
+    V = verityBeats(vp, ctx, vPol);
+  const validity = validityLine(VALIDITY);
+  if (validity) console.error('  ' + validity);
   if (!H || !V) {
     console.error('beat extraction failed');
     console.log(JSON.stringify(blcVerdict({ h10Beats: H ? H.length : 0, verityBeats: V ? V.length : 0, r: null, pred: null })));
@@ -530,6 +552,7 @@ if (isCliEntry(import.meta.url)) {
     process.exit(1);
   }
   console.log(`H10 ${H.length} beats · Verity ${V.length} beats · ${r.blocks} blocks`);
+  console.log(dissentStampLine(vPol, vPol.signs));
   console.log(`leg C (V−H, device axes, host-independent) = ${r.ppm.toFixed(1)} ± ${r.boundPpm.toFixed(1)} ppm`);
   console.log(
     `  unexplained excursion ${r.residualMs.toFixed(0)} ms over ${r.spanMin.toFixed(0)} min · raw wander ${r.wanderMs.toFixed(0)} ms · signal ${r.signalMs.toFixed(0)} ms · SNR ${r.snr.toFixed(2)}`

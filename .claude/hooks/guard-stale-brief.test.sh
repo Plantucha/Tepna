@@ -367,11 +367,25 @@ saysof() { # saysof <command string> ; echoes the hook's stderr, the denial text
 saysof_f() { # saysof_f <file_path> ; same, for an Edit/Write payload
   printf '{"tool_input":{"file_path":"%s"}}' "$1" | bash "$H" 2>&1 >/dev/null
 }
+# A NEEDLE-ON-A-MESSAGE FAIL IS UNREADABLE WITHOUT THE MESSAGE. Residue
+# 2026-11-04-the-hooks-gate-flakes-on-the-worktree-creating-cd-shape: one leg redded under the full
+# `npm run check` over a diff that touched no hook, and the red named the RULE rather than the text,
+# so the reader could not tell three states apart - the hook printed nothing, the hook denied
+# without the block under test, or the block named another path. Reproduced 2026-11-05 at one red in
+# 30 runs of this file 6-way concurrent, and on a DIFFERENT leg, so the next arrival will not be the
+# leg that row names. Every failure that judges captured text now prints that text.
+dump_msg() { # dump_msg <what was judged> <text>
+  printf '        -- what the hook said about %s (%s bytes) --\n' "$1" "${#2}"
+  if [ -z "$2" ]; then printf '        (nothing: the hook printed no diagnostic at all)\n'
+  else printf '%s\n' "$2" | sed 's/^/        | /'; fi
+}
+
 expectsays() { # expectsays <PRESENT|ABSENT> <label> <needle> <text>
   local got
   if printf '%s' "$4" | grep -qF "$3"; then got=PRESENT; else got=ABSENT; fi
   if [ "$got" = "$1" ]; then printf '  ok    %-58s %s\n' "$2" "$got"
-  else printf '  FAIL  %-58s got %s, want %s\n' "$2" "$got" "$1"; fail=$((fail+1)); fi
+  else printf '  FAIL  %-58s got %s, want %s\n' "$2" "$got" "$1"; fail=$((fail+1))
+    printf '        needle: %s\n' "$3"; dump_msg "$2" "$4"; fi
 }
 
 # These needles used to hang on the data case, which now ALLOWs and therefore says nothing. The
@@ -590,17 +604,17 @@ expectcmd_from DENY "bash cd->a tree that does not exist yet - still denied" "$S
 gm="$(msgcmd_from "$STALE" "$ghost_cmd")"
 case "$gm" in
   *"THIS BASE IS THE SHARED ROOT'S"*) printf '  ok    %-58s %s\n' "...and the denial NAMES the missing tree" "explained" ;;
-  *) printf '  FAIL  %-58s %s\n' "...and the denial NAMES the missing tree" "message does not explain the fallback"; fail=$((fail+1)) ;;
+  *) printf '  FAIL  %-58s %s\n' "...and the denial NAMES the missing tree" "message does not explain the fallback"; fail=$((fail+1)); dump_msg "a cd to a tree that does not exist yet" "$gm" ;;
 esac
 case "$gm" in
   *"$ghost"*) printf '  ok    %-58s %s\n' "...and quotes the path it could not resolve" "quoted" ;;
-  *) printf '  FAIL  %-58s %s\n' "...and quotes the path it could not resolve" "path absent from message"; fail=$((fail+1)) ;;
+  *) printf '  FAIL  %-58s %s\n' "...and quotes the path it could not resolve" "path absent from message"; fail=$((fail+1)); dump_msg "the path the hook could not resolve" "$gm" ;;
 esac
 # ANTI-VACUITY for the message: a tree that DOES exist must NOT carry the explanation, or the note
 # becomes wallpaper on every denial and stops meaning anything.
 em="$(msgcmd_from "$STALE" "cd $STALE && python3 -c \"open('briefs/SHARED-BRIEF.md','w').write('v3')\"")"
 case "$em" in
-  *"THIS BASE IS THE SHARED ROOT'S"*) printf '  FAIL  %-58s %s\n' "...and an EXISTING tree carries no such note" "note leaked onto a normal denial"; fail=$((fail+1)) ;;
+  *"THIS BASE IS THE SHARED ROOT'S"*) printf '  FAIL  %-58s %s\n' "...and an EXISTING tree carries no such note" "note leaked onto a normal denial"; fail=$((fail+1)); dump_msg "a cd to a tree that exists" "$em" ;;
   *) printf '  ok    %-58s %s\n' "...and an EXISTING tree carries no such note" "clean" ;;
 esac
 
@@ -812,20 +826,20 @@ bashrun() { # bashrun <command> ; echoes the stderr
 }
 MSG_PLAIN="$(bashrun "sed -i s/a/b/ briefs/SHARED-BRIEF.md")"
 if printf '%s' "$MSG_PLAIN" | grep -q 'MEASURED AGAINST:'; then echo "  ok    a denial names the tree it measured"
-else echo "  FAIL  denial does not name the tree"; fail=$((fail+1)); fi
+else echo "  FAIL  denial does not name the tree"; fail=$((fail+1));dump_msg "a denial that must name its tree" "$MSG_PLAIN"; fi
 if printf '%s' "$MSG_PLAIN" | grep -qE 'behind origin/main|distance from origin/main unknown'; then echo "  ok    …and how far behind that tree is"
-else echo "  FAIL  denial does not give the distance"; fail=$((fail+1)); fi
+else echo "  FAIL  denial does not give the distance"; fail=$((fail+1));dump_msg "a denial that must give the distance" "$MSG_PLAIN"; fi
 
 # THE SHAPE THAT DEFEATED IT: a leading cd to an EXISTING dir, then the worktree that does not exist.
 MISSING="$TMP/not-created-yet"
 MSG_WT="$(bashrun "cd $WORK && git worktree add $MISSING && cd $MISSING && sed -i s/a/b/ briefs/SHARED-BRIEF.md")"
 if printf '%s' "$MSG_WT" | grep -q 'THIS BASE IS THE SHARED ROOT'; then echo "  ok    a LATER cd to a not-yet-created tree is still detected (was: only the first cd)"
-else echo "  FAIL  cd_missing missed a non-first cd — the worktree-creating shape"; fail=$((fail+1)); fi
+else echo "  FAIL  cd_missing missed a non-first cd — the worktree-creating shape"; fail=$((fail+1));printf '        the directory that must read as missing: %s\n' "$MISSING"; dump_msg "the worktree-creating cd shape" "$MSG_WT"; fi
 if printf '%s' "$MSG_WT" | grep -qF "$MISSING"; then echo "  ok    …and the notice names which directory does not exist yet"
-else echo "  FAIL  notice does not name the missing dir"; fail=$((fail+1)); fi
+else echo "  FAIL  notice does not name the missing dir"; fail=$((fail+1));dump_msg "the name of the missing directory" "$MSG_WT"; fi
 # NARROWNESS: an ordinary subdirectory hop to a dir that EXISTS must not be reported as missing.
 MSG_HOP="$(bashrun "cd $WORK && cd briefs && sed -i s/a/b/ SHARED-BRIEF.md")"
-if printf '%s' "$MSG_HOP" | grep -q 'THIS BASE IS THE SHARED ROOT'; then echo "  FAIL  an existing subdirectory hop was reported as a missing tree"; fail=$((fail+1));
+if printf '%s' "$MSG_HOP" | grep -q 'THIS BASE IS THE SHARED ROOT'; then echo "  FAIL  an existing subdirectory hop was reported as a missing tree"; fail=$((fail+1)); dump_msg "an existing subdirectory hop" "$MSG_HOP";
 else echo "  ok    an existing subdirectory hop is NOT reported as a missing tree"; fi
 
 # ⚠ THE HOOK MUST DRAIN STDIN BEFORE THE HATCH EXITS, AND NO LEG ABOVE CAN SEE IT. Every
@@ -846,6 +860,23 @@ if [ "$_worst" = 0 ]; then echo "  ok    the hatch drains a payload past pipe-ma
 else echo "  FAIL  the writer into the hatched hook exited $_worst (141 = SIGPIPE, the hook never read it)"; fail=$((fail+1)); fi
 
 echo
-[ "$fail" -eq 0 ] && echo "PASS — every DENY paired with an ALLOW that differs in one property" \
-                  || echo "FAIL — $fail problem(s)"
+if [ "$fail" -eq 0 ]; then
+  echo "PASS — every DENY paired with an ALLOW that differs in one property"
+else
+  echo "FAIL — $fail problem(s)"
+  # A RED HERE IS NOT YET YOUR DIFF, AND THE FILE SAYS SO ITSELF. Residue
+  # 2026-11-04-the-hooks-gate-flakes-on-the-worktree-creating-cd-shape logged a red under the full
+  # `npm run check` on a branch that touched no hook. Reproduced 2026-11-05: one red in 30 runs of
+  # this file 6-way concurrent against the shared root at `origin/main`, with no diff at all, and on
+  # a different leg from the one that row names. 310 later runs at 6-way and 8-way reproduced
+  # nothing, so the rate follows the box load and the mechanism is still unproven.
+  cat <<'NOTE'
+       Re-run this file ALONE before you change a hook over the lines above:
+           bash .claude/hooks/guard-stale-brief.test.sh
+       A standalone pass means the red is this file's measured flake, not your diff
+       (briefs/RESIDUE.md, 2026-11-04-the-hooks-gate-flakes-on-the-worktree-creating-cd-shape).
+       Every failure above prints the hook's own text, so say which path and which route it
+       reported when you log the next arrival.
+NOTE
+fi
 exit $((fail > 0))

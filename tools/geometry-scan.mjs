@@ -43,6 +43,16 @@ import { createRequire } from 'node:module';
 import { probeAll, saturation, sawtooth, censoring, drawnAxis, stepiness } from './geometry-probe.mjs';
 import { refuseUnknownArgvOrExit, isCliEntry } from './argv-guard.mjs';
 import { gitCommitOf, populationVerdict, ruleLine, snapshotEntries } from './corpus-scope-core.mjs';
+import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
+/* ── THE VALIDITY SIDECAR RIDES WITH THE STREAM ─────────────────────────────────────────────────────
+   Row 2026-10-17-sample-parsers-called-without-their-sidecar: this tool read a night's samples and
+   none of the box's `…RUNS.txt` validity, so a blanking run the box recorded reached the probes below
+   as signal — a flat rail is a plausible diastole, and no reader could tell it from one.
+   `readRunsSidecar` names which of four things happened per stream, and the tally prints beside the
+   numbers: §∅, an ABSENT sidecar is validity UNKNOWN for that stream, never a clean one. Most of this
+   corpus predates the writer, so most streams read `absent` and parse exactly as they did before. */
+const VALIDITY = {};
+const runsOf = (streamPath, stream) => readRunsSidecar(streamPath, stream, { tally: VALIDITY }).runsText;
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const PHYS_LO = 200,
@@ -157,7 +167,9 @@ function scan(dir, dsp, names) {
      counted the directory as examined and the run could report PASS over a folder it never opened. The
      skip is now named and the caller excludes it from `checked`. */
   if (!ef) return { fired: [], skipped: 'no Polar_H10_*_ECG.txt in the directory — nothing to probe' };
-  const er = E.parseECG(fs.readFileSync(ef, 'utf8'));
+  const eRuns = runsOf(ef, 'ECG');
+  const eTxt = fs.readFileSync(ef, 'utf8');
+  const er = eRuns ? E.parseECG(eTxt, { runsText: eRuns }) : E.parseECG(eTxt);
   const idx = Array.from(E.detectPeaks(er.int16, E.bandpass(er.int16, er.fs), er.fs));
   const R = idx.map((i) => er.tMsAt(i));
   /* `allFired` mirrors exactly what the table prints, so the verdict cannot disagree with the rows a
@@ -198,7 +210,9 @@ function scan(dir, dsp, names) {
   for (const [site, re] of PPG_SITES) {
     const pf = pick(dir, re, names);
     if (!pf) continue;
-    const pr = P.parsePPG(fs.readFileSync(pf, 'utf8'));
+    const pRuns = runsOf(pf, 'PPG');
+    const pTxt = fs.readFileSync(pf, 'utf8');
+    const pr = pRuns ? P.parsePPG(pTxt, { runsText: pRuns }) : P.parsePPG(pTxt);
     const det = P.detectChannel(pr.ch[0], pr.fs),
       n = pr.ch[0].length;
     const toMs = (i) => {
@@ -467,6 +481,8 @@ const v = {
   producedBy: PRODUCED_BY,
   at: new Date().toISOString()
 };
+const validity = validityLine(VALIDITY);
+if (validity && !asJson) console.log('  ' + validity);
 if (asJson) process.stdout.write(`${JSON.stringify(v, null, 1)}\n`);
 else console.log(`\n${r.status}${r.reason ? ' — ' + r.reason : ''}`);
 /* A DIRECTORY THAT COULD NOT BE READ EXITS NON-ZERO. The probe-fired path deliberately keeps its old

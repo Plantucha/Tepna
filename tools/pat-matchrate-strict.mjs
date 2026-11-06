@@ -52,6 +52,7 @@ import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import vm from 'node:vm';
+import { dissentStampOf, signsOf } from './consensus-dissent-core.mjs';
 import { CFD_FRAC, fractionAmplitudeIndex, halfAmplitudeIndex } from './pat-fiducial.mjs';
 import { isCliEntry } from './argv-guard.mjs';
 import { snapshotNights, populationVerdict, notANight } from './corpus-scope-core.mjs';
@@ -268,7 +269,14 @@ function ecgRpeakTimes(text, runsTextOrOpts, optsThird) {
   };
 }
 /* ── @port-from pat-feasibility-worker.js#ppgFootTimes ─────────────────────────────
-   @port-sha ad119403ae00
+   @port-sha 087d087d946a
+   RECONCILED 2026-11-06 against that source text, for row
+   2026-11-05-the-two-bundle-workers-still-discard-the-polarity-return. The worker now reads the
+   polarity signs BEFORE the pass and keeps the return as a stamp, which is the shape this copy
+   already ran, so no line here changed. One difference remains, and it is the LANE: this copy
+   labels through the node core, the worker through the browser `consensus-dissent.js`.
+   `tests/dex-tests.js` holds the two vocabularies and all five shapes equal over a planted sign
+   table, so a lane that renamed an abstention reds rather than drifting.
    PORTED 2026-11-05 for row 2026-10-28-pat-legs-refuse-only-the-spans-a-sidecar-confirmed. The worker
    now SIZES an unconfirmed span set without consuming it, and this copy runs the same count:
    `annotateOnly` below builds the ranges, walks the feet and keeps every one. The default still never
@@ -311,7 +319,14 @@ function ppgFootTimes(text, runsText, opts) {
      WIRING half: a fix that ships in the node but never reaches the tools measuring it.
      `applyConsensusPolarity` re-detects exactly the dissenters with the majority sign, and is a no-op
      on a unanimous set. */
+  /* ∅ A COUNT OF ZERO IS FOUR DIFFERENT FACTS, so the SHAPE travels beside it: unanimous, a 1-1 tie,
+     channels carrying no sign and a single-channel stream all leave `flipped` at 0, and only the
+     first means the channels agreed. The signs are read BEFORE the pass — after it the dissenter
+     carries the majority sign and every stream reads unanimous (row
+     2026-11-04-pat-figures-were-published-under-the-overruled-polarity). */
+  const polaritySigns = signsOf(per);
   const flipped = PPGDSP.applyConsensusPolarity(per, (i, sgn) => PPGDSP.detectChannel(rec.ch[i], rec.fs, sgn));
+  const polarity = dissentStampOf(polaritySigns, flipped);
   let refIdx = 0,
     best = -1;
   per.forEach((p, i) => {
@@ -430,6 +445,8 @@ function ppgFootTimes(text, runsText, opts) {
     times: t,
     n: cons.feet.length,
     polarityFlipped: flipped,
+    polarity,
+    polaritySigns,
     halfTimes: half,
     nHalfUnusable: nUnusable,
     cfdTimes: cfd,
@@ -496,7 +513,11 @@ function bestAccFor(dir, deviceRe, t0, t1) {
   for (const c of nearInTime(dir, deviceRe, t0, t1, 3)) {
     let s;
     try {
-      s = PPGDSP.parseSensorXYZ(readFileSync(c.f, 'utf8'));
+      const raw = readFileSync(c.f, 'utf8');
+      /* §∅ — `<base>_ACCRUNS.txt` is TIME-keyed (writer stamp + `dur_ms`), so the parser dropping an
+         implausible row cannot slide it; an absent sidecar is UNKNOWN and the tally says so. */
+      const runsText = runsOf(c.f, 'ACC');
+      s = runsText ? PPGDSP.parseSensorXYZ(raw, { runsText }) : PPGDSP.parseSensorXYZ(raw);
     } catch {
       continue;
     }
@@ -837,6 +858,11 @@ if (IS_CLI && argv.includes('--verdict-sample')) {
     (ONLY ? ` · --night ${ONLY} left ${popBefore.n - nights.length} offered night(s) unread` : '') +
     (population.reason ? `\n  ${population.reason}` : '');
 
+  /* The tally goes to STDERR before the branch: under `--json` stdout is one document, and the ACC
+     leg wired here reports through this same tally, so a JSON run must not swallow it. */
+  const validity = validityLine(VALIDITY);
+  if (validity) console.error('  ' + validity);
+
   if (JSON_OUT) {
     /* Stdout stays ONE JSON document — this tool gets piped into `jq` — so the verdict rides inside
        the tool's own object and the human line goes to stderr. */
@@ -875,7 +901,5 @@ if (IS_CLI && argv.includes('--verdict-sample')) {
     }
     console.log(`\n${popLine}`);
     console.log(`selected but not scored: ${unscored.length ? unscored.join(', ') : 'none'}`);
-    const validity = validityLine(VALIDITY);
-    if (validity) console.log('  ' + validity);
   }
 }

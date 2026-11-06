@@ -72,6 +72,16 @@ import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 import { refuseUnknownArgvOrExit, isCliEntry } from './argv-guard.mjs';
 import { NIGHT_RE, dedupeRoots, gitCommitOf, populationVerdict, ruleLine, snapshotEntries } from './corpus-scope-core.mjs';
+import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
+/* ── THE VALIDITY SIDECAR RIDES WITH THE STREAM ─────────────────────────────────────────────────────
+   Row 2026-10-17-sample-parsers-called-without-their-sidecar: this tool read a night's samples and
+   none of the box's `…RUNS.txt` validity, so a blanking run the box recorded reached the pin reader below
+   as signal — a flat rail is a plausible diastole, and no reader could tell it from one.
+   `readRunsSidecar` names which of four things happened per stream, and the tally prints beside the
+   numbers: §∅, an ABSENT sidecar is validity UNKNOWN for that stream, never a clean one. Most of this
+   corpus predates the writer, so most streams read `absent` and parse exactly as they did before. */
+const VALIDITY = {};
+const runsOf = (streamPath, stream) => readRunsSidecar(streamPath, stream, { tally: VALIDITY }).runsText;
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const CKPT = join(ROOT, '.cache', 'pin-coverage-checkpoint.json');
@@ -458,7 +468,9 @@ for (const { dir: d, snap } of opening) {
       continue;
     }
     try {
-      const a = P.analyze(P.parsePPG(readFileSync(f, 'utf8')), () => {});
+      const fRuns = runsOf(f, 'PPG');
+      const fTxt = readFileSync(f, 'utf8');
+      const a = P.analyze(fRuns ? P.parsePPG(fTxt, { runsText: fRuns }) : P.parsePPG(fTxt), () => {});
       const row = { f, nPinSpanIntervals: a?.nPinSpanIntervals ?? null, nInputIntervals: a?.nInputIntervals ?? null };
       mine.push(row);
       rows.push(row);
@@ -517,6 +529,8 @@ for (const { dir: d, snap } of opening) {
   if (acct.unknown) console.log(`  the ${acct.unknown} inherited file(s) come from a v${PRIOR_V} checkpoint that records no throw, so whether they threw is UNKNOWN, not zero`);
   const badNights = unreadableNightsUnder(d);
   if (badNights && badNights.length) console.log(`  ${badNights.length} night director${badNights.length === 1 ? 'y' : 'ies'} this process cannot open, by name: ${badNights.slice(0, 8).join(' · ')}`);
+  const validity = validityLine(VALIDITY);
+  if (validity) console.log('  ' + validity);
   /* The object beside the prose, per §🧾 — the prose explains, this is the API. */
   console.log('POPULATION ' + JSON.stringify(population));
 }

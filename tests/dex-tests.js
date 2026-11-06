@@ -22604,6 +22604,165 @@
             return a.tMs >= t0 && a.corr > 0;
           })
       );
+
+      /* ════ ∅ A HELD RUN IS NOT STILLNESS (row 2026-11-05-the-pat-motion-envelope-ignores-the-acc-
+         blanking-spans-it-is-handed) ═══════════════════════════════════════════════════════════════
+         The box's `_ACCRUNS.txt` names every stretch it recorded as one repeated value, and the two
+         ACC parsers hang those stretches on the row array as `_blankSpans`. The bytes below actually
+         hold — the fixture in `tests/trio-fold-validity-tests.mjs` only carries the sidecar, so the
+         mechanism is measured here and the wiring there. */
+      var HOLD0 = 540000,
+        HOLD1 = 600000; // a 60 s hold inside the quiet stretch between the 470 s and 700 s movements
+      var held = (function () {
+        var out = mkSamples(moves, 0, 1),
+          hv = null;
+        for (var hi = 0; hi < out.length; hi++) {
+          var rel = out[hi].tMs - t0;
+          if (rel < HOLD0 || rel >= HOLD1) continue;
+          if (hv == null) hv = out[hi].v;
+          out[hi].v = hv; // the device repeats its last reading, which is what the run records
+        }
+        return out;
+      })();
+      var eHeld = envOf(held);
+      var binsIn = function (lo, hi) {
+        var o = [];
+        for (var b = Math.ceil(lo / DT); b < Math.floor(hi / DT); b++) o.push(b);
+        return o;
+      };
+      var medAt = function (ix, g) {
+        var v = ix
+          .map(function (b) {
+            return g[b];
+          })
+          .sort(function (x, y) {
+            return x - y;
+          });
+        return v[v.length >> 1];
+      };
+      /* The first 4 s are skipped on both sides: the EMA needs ~1/alpha samples to converge on the
+         repeated value, so the onset is a transient and the claim is about the BODY of the run. */
+      var holdBins = binsIn(HOLD0 + 4000, HOLD1),
+        quietBins = binsIn(664000, 696000);
+      var medHold = medAt(holdBins, eHeld),
+        medQuiet = medAt(quietBins, eHeld);
+      T.ok('∅ ANTI-VACUITY · the comparison has bins on both sides', holdBins.length > 400 && quietBins.length > 400, holdBins.length + ' vs ' + quietBins.length);
+      T.ok(
+        '∅ the held run reads as STILLNESS in the bare grid — an order below the quiet bins beside it',
+        medQuiet > 0 && medHold * 10 < medQuiet,
+        'hold ' + medHold.toExponential(2) + ' vs quiet ' + medQuiet.toExponential(2)
+      );
+      var heldCut = held.slice();
+      heldCut._blankSpans = [{ t0Ms: t0 + HOLD0, t1Ms: t0 + HOLD1 }];
+      var eCut = envOf(heldCut);
+      var cutUnmeas = [],
+        cutDiff = 0;
+      for (var ci = 0; ci < eCut.length; ci++) {
+        if (!isFinite(eCut[ci])) cutUnmeas.push(ci);
+        else if (eCut[ci] !== eHeld[ci]) cutDiff++;
+      }
+      /* The two absences are asserted SEPARATELY. Every bin overlapping the recorded span is
+         unmeasured; every OTHER unmeasured bin is one no sample reached, which on this stream is the
+         single trailing bin past the last sample. */
+      var spanBins = [];
+      for (var sb = 0; sb < eCut.length; sb++) if ((sb + 1) * DT > HOLD0 && sb * DT < HOLD1) spanBins.push(sb);
+      var sampled = DUR / DT; // one sample per bin, so bins 0…sampled-1 received one
+      T.ok(
+        '∅ the span the box recorded is marked UNMEASURED, bin for bin',
+        spanBins.length > 1000 &&
+          spanBins.every(function (b) {
+            return !isFinite(eCut[b]);
+          }),
+        spanBins.length + ' bin(s) in the span'
+      );
+      T.ok(
+        '…and every other unmeasured bin is one NO SAMPLE reached, with every measured bin unchanged',
+        cutDiff === 0 &&
+          cutUnmeas.every(function (b) {
+            return ((b + 1) * DT > HOLD0 && b * DT < HOLD1) || b >= sampled;
+          }),
+        cutDiff + ' value(s) moved · ' + cutUnmeas.length + ' marked of ' + eCut.length
+      );
+      /* ∅ THE OTHER ABSENCE, AND THE REASON `0` COULD NOT CARRY EITHER. A bin no sample reached kept
+         the zero-fill of a fresh Float32Array — the open `aggregate-over-absence` finding at
+         `audits/ABSENCE-SURVEY-2026-09-22.json` key 5edad595bddc. It cannot be told from a bin of
+         GENUINE stillness, which is a real measurement and a legal 0: a motionless device reports
+         exactly no deviation from its own baseline. Both are planted below, on one stream. */
+      var constV = [];
+      for (var cv = 0; cv < 400; cv++) constV.push({ tMs: t0 + cv * DT, v: 1.25 });
+      var eConst = P.envelope(constV, t0, t0 + 600 * DT, { dtMs: DT });
+      T.ok(
+        '∅ a bin of GENUINE stillness is a finite 0 — a motionless device is a measurement',
+        eConst &&
+          eConst[10] === 0 &&
+          isFinite(eConst[10]) &&
+          Array.from(eConst.slice(0, 400)).every(function (x) {
+            return x === 0;
+          }),
+        eConst && eConst[10]
+      );
+      T.ok(
+        '∅ …and a bin NO SAMPLE reached is unmeasured on the same grid, never that same 0',
+        eConst &&
+          Array.from(eConst.slice(401)).every(function (x) {
+            return !isFinite(x);
+          }),
+        eConst && eConst.slice(401).length + ' bin(s) past the last sample'
+      );
+      var bareAgain = A.slice();
+      bareAgain._blankSpans = [];
+      T.eq('a sidecar naming NO run changes nothing — the bytes of a clean night are untouched', JSON.stringify(Array.from(envOf(bareAgain))), JSON.stringify(Array.from(eA)));
+
+      /* THE THRESHOLD IS THE FIRST CASUALTY. `findAnchors` takes a mean and a σ over the grid, so a
+         NaN left in it silences the whole night, and a `0` substituted for one pulls the mean DOWN
+         and manufactures anchors. Marking a stretch with no movement in it must leave the anchor set
+         exactly where it was. */
+      var quietMark = A.slice();
+      quietMark._blankSpans = [{ t0Ms: t0 + HOLD0, t1Ms: t0 + 660000 }];
+      var aQuiet = P.findAnchors(envOf(quietMark), { dtMs: DT });
+      T.eq('∅ marking a MOVEMENT-FREE stretch unmeasured leaves the anchor set untouched — mean and σ ran over the measured bins', JSON.stringify(aQuiet), JSON.stringify(anch));
+      /* And the other direction: an anchor cannot be certified a local maximum against bins nobody
+         measured. `env[k] > env[c]` is false against a NaN, so a hole beside a peak would otherwise
+         read as the cleanest anchor on the stream. The span below sits 100 ms past the 260 s lurch —
+         outside the movement, inside the ±12-bin window. */
+      var nearMark = A.slice();
+      nearMark._blankSpans = [{ t0Ms: t0 + 260500, t1Ms: t0 + 260580 }];
+      var aNear = P.findAnchors(envOf(nearMark), { dtMs: DT });
+      var lostOne = anch.filter(function (b) {
+        return aNear.indexOf(b) < 0;
+      });
+      T.ok(
+        '∅ an anchor whose local window touches an unmeasured bin is REFUSED — and only that one',
+        aNear.length === anch.length - 1 && lostOne.length === 1 && Math.abs(lostOne[0] * DT - 260000) < 600,
+        JSON.stringify({ bare: anch.length, near: aNear.length, lost: lostOne })
+      );
+      /* A refusal, never a silent offset: mark the windows of all but one movement and the aligner
+         runs out of anchors. */
+      var starved = A.slice();
+      starved._blankSpans = moves.slice(1).map(function (mv) {
+        return { t0Ms: t0 + mv - 200, t1Ms: t0 + mv + 200 };
+      });
+      var st = P.alignByAnchors(envOf(starved), envOf(mkSamples(moves, 0, 2)), t0, { dtMs: DT });
+      T.ok('∅ an envelope whose anchors are all unmeasured REFUSES with a reason, not an offset of 0', st.ok === false && /too few/.test(st.reason || ''), JSON.stringify(st.reason));
+
+      /* SPAN HYGIENE. The writer emits one row per CHANNEL, so x/y/z spans of one event arrive
+         overlapping and out of order; a row that cannot be read is dropped rather than applied. */
+      var messy = A.slice();
+      messy._blankSpans = [
+        { t0Ms: t0 + 600000, t1Ms: t0 + 640000 },
+        { t0Ms: t0 + 540000, t1Ms: t0 + 610000 }, // unsorted, and overlapping the row above
+        { t0Ms: t0 + 700000, t1Ms: t0 + 690000 }, // t1 before t0 — dropped, never applied
+        { t0Ms: t0 + 800000, t1Ms: Number.NaN } // non-finite — dropped
+      ];
+      var eMessy = envOf(messy);
+      var mergedOk = true;
+      for (var mi = binsIn(540000, 640000)[0]; mi <= binsIn(540000, 640000).slice(-1)[0]; mi++) if (isFinite(eMessy[mi])) mergedOk = false;
+      T.ok('∅ overlapping and unsorted spans merge into one unmeasured stretch', mergedOk);
+      T.ok(
+        '…and an unreadable span row is DROPPED, not applied',
+        isFinite(eMessy[Math.floor(695000 / DT)]) && isFinite(eMessy[Math.floor(805000 / DT)]),
+        'reversed ' + eMessy[Math.floor(695000 / DT)] + ' · non-finite ' + eMessy[Math.floor(805000 / DT)]
+      );
     });
 
     /* ════ 6 · METRIC REGISTRY infra (cohesion §2/§3) ════ */
@@ -23935,6 +24094,38 @@
       T.ok('…and a drawn axis under-claims to host however independent it reads', DE.timingBlock({ hostAxis: axDrawnTrue, resyncs: [] }).timingSource === 'host');
       T.ok('…while a node-supplied verdict still outranks the axis field', DE.timingBlock({ hostAxis: axDrawnTrue, drawn: false, resyncs: [] }).timingSource === 'device+host');
 
+      /* ── 4c · §∅ A RATE OVER A DRAWN OR UNMEASURED COLUMN IS AN ABSENCE ───────────────────────────
+         Residue row `2026-11-03-the-shared-timing-block-quotes-a-rate-over-a-drawn-axis`. The block
+         held the verdict already — it under-claims `timingSource` to `host` and names the drawn
+         column in `reason` — and published `ppm` beside that sentence anyway. A column written as
+         `index × an assumed rate` has no oscillator, so the divergence against it measures the
+         writer's arithmetic. All three axis-carrying publishers null the pair at their own boundary;
+         these legs make the shared block refuse to quote one, so a ninth node inherits the rule.
+         THE CONTROL IS THE MEASURED AXIS, asserted by VALUE: a guard that nulled every rate would
+         pass every leg above and lose the measurement this block exists to carry. */
+      var drawnOut = DE.timingBlock({ hostAxis: axDrawnTrue, resyncs: [], seams: [] });
+      T.ok('§∅ a drawn device column publishes no rate', drawnOut.ppm === null, String(drawnOut.ppm));
+      T.ok('…nor the unsmoothed twin of one', drawnOut.spanPpm === null, String(drawnOut.spanPpm));
+      T.ok('…and the null is not bare — the drawn cause is named', /synthesised counter|DRAWN/.test(drawnOut.reason || ''), String(drawnOut.reason));
+      var unmeasOut = DE.timingBlock({ hostAxis: ax, resyncs: [], seams: [] });
+      T.ok('§∅ an UNMEASURED verdict publishes no rate either — it is not "it is a clock"', unmeasOut.ppm === null && unmeasOut.spanPpm === null, JSON.stringify(unmeasOut));
+      T.ok('…and says the column was never tested', /is a clock is UNMEASURED/.test(unmeasOut.reason || ''), String(unmeasOut.reason));
+      var junkOut = DE.timingBlock({ hostAxis: axDrawnFalse, drawn: 1, resyncs: [], seams: [] });
+      T.ok('a non-boolean verdict is UNMEASURED, never a truthy yes-or-no', junkOut.ppm === null && /UNMEASURED/.test(junkOut.reason || ''), JSON.stringify(junkOut));
+      var measOut = DE.timingBlock({ hostAxis: axDrawnFalse, resyncs: [], seams: [] });
+      T.ok('CONTROL · a column measured to be real still quotes its rate, to the digit', measOut.ppm === 12.5 && measOut.spanPpm === 11.9, JSON.stringify(measOut));
+      T.ok('CONTROL · …and a node-supplied drawn:false quotes it over a drawn axis, as the source does', DE.timingBlock({ hostAxis: axDrawnTrue, drawn: false, resyncs: [], seams: [] }).ppm === 12.5);
+      T.ok('CONTROL · the twelve keys are unchanged — the guard adds no conditional key', String(Object.keys(drawnOut)) === String(KEYS), String(Object.keys(drawnOut)));
+      /* A REFUSED AXIS IS A THIRD STATE, and it was already null: the guard must not borrow its
+         sentence, because "the spine refused" and "the column is not a clock" have different
+         remedies. */
+      var refusedAx = DE.timingBlock({ hostAxis: { ok: false, reason: 'too few anchors', n: 2, ppm: 9 }, resyncs: [], seams: [] });
+      T.ok(
+        'a refused axis publishes no rate and keeps its own reason',
+        refusedAx.ppm === null && /too few anchors/.test(refusedAx.reason || '') && !/UNMEASURED/.test(refusedAx.reason || ''),
+        String(refusedAx.reason)
+      );
+
       /* ── THE SANITISERS, PINNED AT THEIR EDGES ──
          `_tbNum` and `_tbCount` are the only place a caller's junk becomes a published number, and §∅
          says a value nobody measured is `null` — never a coerced one. Six inputs pin that, and each was
@@ -23951,7 +24142,9 @@
         '§∅ a numeric STRING is not a measurement — isFinite() alone would have taken it',
         DE.timingBlock({ hostAxis: { ok: true, n: 9, spanMs: '5', independent: true }, resyncs: [] }).spanMs === null
       );
-      T.ok('§∅ NaN is not a measurement either', DE.timingBlock({ hostAxis: { ok: true, n: 9, ppm: NaN, independent: true }, resyncs: [] }).ppm === null);
+      /* `drawn: false` is load-bearing here: without it the drawn-rate guard below nulls `ppm`
+         whatever `_tbNum` does, and this leg stops examining the sanitiser it is about. */
+      T.ok('§∅ NaN is not a measurement either', DE.timingBlock({ hostAxis: { ok: true, n: 9, ppm: NaN, independent: true }, drawn: false, resyncs: [] }).ppm === null);
       T.ok('a plain number IS a count and survives untouched', DE.timingBlock({ resyncs: 3 }).resyncs === 3);
       T.ok('…a numeric string is not one', DE.timingBlock({ resyncs: '3' }).resyncs === null);
       T.ok('…and neither is a negative count', DE.timingBlock({ resyncs: -1 }).resyncs === null);
@@ -24123,6 +24316,7 @@
          tolerate them, so an absent block there is the tolerance under test rather than a defect. Hand-
          writing the block into them would delete the only pre-contract exports this suite reads.
          Both sets owe the SHAPE wherever a block is present. */
+      var quoted = 0;
       function check(where, rec, required) {
         var tb = rec.timing;
         if (tb == null) {
@@ -24142,6 +24336,21 @@
         var positive = absent.length === 0 && tb.timingSource === 'device+host' && tb.independent === true;
         T.ok(where + ' · §∅ a null measurement owes a reason', absent.length === 0 || (typeof tb.reason === 'string' && tb.reason.length > 0), absent.join(',') + ' → ' + String(tb.reason));
         T.ok(where + ' · a fully positive block carries no reason', !positive || tb.reason === null, String(tb.reason));
+        /* ── §∅ A PUBLISHED RATE OWES A DEVICE COLUMN MEASURED TO BE REAL (section 4c) ──
+           The committed side of the drawn-rate guard. Where a block quotes a `ppm`, the axis block
+           beside it must carry no drawn marker: `deviceDrawn:true` and `ppmReason` are written only
+           over a drawn or unmeasured column, so either one beside a quoted rate is the defect the
+           row named. This is also the measurement behind the guard's byte-neutrality — 10 of these
+           blocks quote a rate, and all 10 sit over a column their publisher measured. */
+        if (tb.ppm != null) {
+          quoted++;
+          var ha = rec.hostAxis || null;
+          T.ok(
+            where + ' · §∅ a quoted rate sits over a device column measured to be real',
+            !(ha && (ha.deviceDrawn === true || ha.ppmReason !== undefined)),
+            'deviceDrawn=' + String(ha && ha.deviceDrawn) + ' ppmReason=' + String(ha && ha.ppmReason)
+          );
+        }
       }
       function walk(where, json, required) {
         if (!json || typeof json !== 'object') return 0;
@@ -24173,6 +24382,10 @@
          nodes (OxyDex's golden is a NIGHT ELEMENT, not an envelope, so its coverage is leg 6's). */
       T.ok('the fixture leg actually examined regenerated node-exports', seen >= 15, seen + ' examined');
       T.ok('…and the frozen pre-contract samples were read, not skipped past', frozen >= 2, frozen + ' examined');
+      /* ANTI-VACUITY for the leg above: a guard that nulled every rate would leave nothing to check
+         and the drawn-rate control would pass by examining nothing. The floor is the regenerated set
+         measured 2026-11-05 over this repo's committed node-exports. */
+      T.ok('…and the quoted-rate control examined the blocks that carry one', quoted >= 5, quoted + ' quote a rate');
     });
 
     /* ════ 8b · SECURITY — untrusted filename → innerHTML is escaped (SECURITY-REMEDIATION A) ════ */
@@ -34631,8 +34844,8 @@
       var wsrc = (env.sources && env.sources['pat-feasibility-worker.js']) || '';
       var E = env.ECGDSP,
         P = env.PPGDSP;
-      if (!wsrc || !E || !P || !env.PATGate || typeof E.parseECG !== 'function') {
-        T.ok('worker source + ECGDSP/PPGDSP/PATGate available', false, 'not loaded in this lane');
+      if (!wsrc || !E || !P || !env.PATGate || !env.ConsensusDissent || typeof E.parseECG !== 'function') {
+        T.ok('worker source + ECGDSP/PPGDSP/PATGate/ConsensusDissent available', false, 'not loaded in this lane');
         return;
       }
       T.ok('ECGDSP exports refinePeaks (without it the worker cannot reach a sub-sample position)', typeof E.refinePeaks === 'function', 'typeof ' + typeof E.refinePeaks);
@@ -34644,6 +34857,10 @@
            scope as arguments, so the loader finds them present and the leg builders are defined from
            the shipped source rather than from an excerpt of it. Only the trailing `onmessage` handler
            is removed, because it is the one part that needs a live Worker.
+           `ConsensusDissent` rides in for the same reason, and its absence does not read as a skip:
+           the PPG leg labels the consensus polarity on EVERY path, so a missing global throws inside
+           `ppgFootTimes` and this lane reported `n=null` — a leg that found no feet at all, which is
+           what the anti-vacuity assertion below caught.
            `PATGate` rides in beside the DSPs for the same reason: the real Worker co-loads
            `pat-gate.js` through `importScripts`, and the PPG leg now reaches `runRanges` on EVERY
            path — it sizes an unconfirmed span set rather than skipping one. Before that it touched
@@ -34655,6 +34872,7 @@
           'ECGDSP',
           'PPGDSP',
           'PATGate',
+          'ConsensusDissent',
           'self',
           'importScripts',
           'XMLHttpRequest',
@@ -34663,6 +34881,7 @@
           E,
           P,
           env.PATGate,
+          env.ConsensusDissent,
           shim,
           function () {},
           function () {}
@@ -36670,9 +36889,11 @@
         JSON.stringify(exD.recording.hostAxis.drawnColumn)
       );
       T.eq('the control one derivative up was ALREADY null here', exD.recording.hostAxis.stability, null);
-      /* The shared block is `dex-export.js timingBlock`, and this unit edits no spine: the block
-         reads `ppm` off the object the node hands it, so a disciplined view carries through. */
-      T.eq('§∅ the SHARED block agrees, through the spine and with no spine edit', exD.recording.timing.ppm, null);
+      /* The shared block is `dex-export.js timingBlock`. It reads `ppm` off the object the node hands
+         it, so this node's disciplined view carries through — and since 2026-11-05 the block refuses
+         to quote a rate over a drawn or unmeasured column on its own account too, so the two
+         agreements are independent of each other rather than one riding the other. */
+      T.eq('§∅ the SHARED block agrees, at the node boundary and at its own', exD.recording.timing.ppm, null);
       T.eq('…and so does its span rate', exD.recording.timing.spanPpm, null);
       T.ok(
         '…the drawn sentence was already in the shared reason, so the null is not bare there either',
@@ -47750,7 +47971,51 @@
            counting the ARGUMENTS at each invocation, and executes the four sidecar states the count
            cannot see. The scan over the merged tree is the number — #4405 landed 22 / 34 for eight PPG
            and ECG night readers, and arithmetic over two diffs would have guessed 28 / 43. */
-        var TOOLS_PIN = { files: 20, calls: 31, reason: 'research tools: ' + OPEN };
+        /* 6 / 9 from 2026-11-05, slice 1 of row 2026-10-17-sample-parsers-called-without-their-sidecar:
+           every reader that holds a PPG or ECG stream PATH takes the guarded ternary through the shared
+           reader. Twenty-two calls leave CALL and fourteen files leave the population: `beat-leg-closure`,
+           `cvhr-fold-rescore`, `ecg-rate-transfer`, `gap-s-sweep`, `geometry-scan`,
+           `o2ring-finger-roundtrip`, `o2ring-finger-validate-batch`, `oracle-ecg-firmware-rr`,
+           `pat-drift-attribution`, `pin-coverage`, `resp-cardiac-suppression-e8`, `ring-offset-census`,
+           `tch-firmware-reference` and `tch-reference-validation`. Three shapes beyond the plain call
+           site: the firmware-RR oracle's `scoreNight` takes the TEXT, so its sidecar rides
+           `opts.runsText` as `oracle-ppg-device-beats` already does; a bounded read keeps a PREFIX of
+           the stream (`ecg-rate-transfer`'s line cap, `tch-reference-validation`'s clip), so the
+           sidecar's SAMPLE INDICES still address what was parsed and a run past the prefix turns into a
+           second past the record's end; and `gap-s-sweep` REWRITES the bytes it scores —
+           `--restrict-overlap` cuts both streams and `--ppg-keep-hz` drops rows, so under either switch
+           the sidecar is WITHHELD with the withholding named in the row (§∅: a silent drop reads exactly
+           like a night that never had one).
+           The six files left are the ACC grid readers and the two that parse no file as written:
+           `acc-shared-movement`, `pat-dip-validate`, `pat-matchrate-strict` and `trio-batch` read an ACC
+           stream, whose `_ACCRUNS.txt` companion is a DIFFERENT sidecar — time-keyed spans rather than
+           sample indices (`parseAccRunsTimed`) — and is slice 2 of the row; `derive-sigma-window` parses
+           a CONCATENATION of a night's parts, which no single file's indices address, and
+           `geometry-passthrough` parses text it generates itself, beside which no box wrote anything.
+           `resp-cardiac-suppression-e8` is the one file wired on BOTH sidecars here, because its own
+           night-key probe already held the ACC shape.
+           The scan over the merged tree is the number — arithmetic over two branch diffs would have
+           guessed. */
+        /* 2 / 4 from 2026-11-05, slice 2 of the same row: the four ACC readers hand `_ACCRUNS.txt` to
+           the parser that takes it, so five calls leave CALL and four files leave the population —
+           `acc-shared-movement`, `pat-dip-validate`, `pat-matchrate-strict` and `trio-batch`. That
+           sidecar is TIME-keyed (the writer's own stamp plus `dur_ms`, `parseAccRunsTimed`), not
+           sample-indexed, so the intersection the stream sidecars use would slide on parsers that
+           drop an implausible row. Three files take the shared reader; `trio-batch` keeps its own
+           `readRuns`, which already served both of its other streams, and its XYZ helper now takes
+           the stream NAME — gyro and magn ask for none, because the name is derived from the path's
+           `_<stream>.txt` tail and a gyro path handed 'ACC' would name another stream's validity.
+           `tests/trio-fold-validity-tests.mjs` executes both parsers over a synthetic 26 Hz stream in
+           both writer generations (`class=held` beside `class=variable`). Its CONTROL held the two PAT
+           grids EQUAL until 2026-11-05, when row
+           2026-11-05-the-pat-motion-envelope-ignores-the-acc-blanking-spans-it-is-handed closed:
+           `PATAlign.envelope` now marks a recorded run's bins NaN, and that leg asserts the two grids
+           differ exactly over the span. The §∅ group above plants the mechanism over bytes that hold.
+           The two files left parse no file as written: `derive-sigma-window` parses a CONCATENATION
+           of a night's parts, which no single file's sidecar addresses, and `geometry-passthrough`
+           parses text it generates itself, beside which no box wrote anything. So the `tools/` half of
+           this row is answered by construction, and the row stays OPEN on its node-code half. */
+        var TOOLS_PIN = { files: 2, calls: 4, reason: 'research tools: ' + OPEN };
 
         function blank(s) {
           return s.replace(/[^\n]/g, '');
@@ -54789,6 +55054,111 @@
         T.ok('analyze() CALLS applyConsensusPolarity (deleting the call must not pass)', callRe.test(psrc));
         T.ok('the pattern does NOT match the declaration alone (this assertion can fail)', !callRe.test('function applyConsensusPolarity(perChannel, redetect) {'));
         T.ok('...and the call precedes consensusBeats consuming perChannel', psrc.search(callRe) > 0 && psrc.search(callRe) < psrc.indexOf('consensusBeats(perChannel, refIdxUsed'));
+      }
+    });
+
+    /* ════ THE TWO LANES MUST NAME THE SAME ABSTENTION ════
+       `applyConsensusPolarity` returns a count, and a 0 from it is FIVE different facts: a unanimous
+       set, a 1-1 tie, channels carrying no sign, and a single channel. Only the first means the
+       channels agreed. The `tools/` legs read the shape through `tools/consensus-dissent-core.mjs`;
+       the two bundle workers publish into SURFACES and threw the count away entirely, which is row
+       2026-11-05-the-two-bundle-workers-still-discard-the-polarity-return. `consensus-dissent.js` is
+       the browser lane's labelling, and a second copy of a vocabulary is free to drift from the first
+       — so this group holds them EQUAL over a planted sign table rather than trusting the comment
+       that says they agree.
+
+       🔴 THE MAJORITY RULE IS NOT DUPLICATED, AND THE TABLE IS THE CONTROL FOR THAT. `shapeOf` takes
+       the majority from `PPGDSP.consensusSign` — the same function the pass itself calls — so the
+       only thing the browser file decides is the NAME of an abstention. The coverage assertion below
+       is what stops this group passing over a table that exercises one class: a planted set that
+       never ties cannot detect a lane that calls a tie agreement, which is the exact §4b shape the
+       row was logged under. */
+    group('The browser dissent labelling ≡ the node core (a tie is not agreement, in both lanes)', 'ppgdex-dsp · consensus · fabricated-absence', function (T) {
+      var CD = env.ConsensusDissent,
+        core = env.coreDissent,
+        D = env.PPGDSP;
+      T.ok('consensus-dissent.js loaded into the realm (ConsensusDissent.shapeOf)', !!(CD && typeof CD.shapeOf === 'function'));
+      if (!CD || typeof CD.shapeOf !== 'function') return;
+      if (!core || typeof core.dissentOf !== 'function') {
+        /* The browser lane has no `tools/` import, so there is no second lane to compare against
+           there. A skip states that; asserting over an absent half would report on nothing. */
+        T.skip('the node dissent core is not reachable in this lane', 'env.coreDissent unavailable');
+        return;
+      }
+      T.eq('the two lanes carry the SAME closed vocabulary, in the same order', CD.SHAPES.join(','), core.SHAPES.join(','));
+      if (!(D && typeof D.consensusSign === 'function')) {
+        T.ok('PPGDSP.consensusSign is reachable (the browser lane takes the majority from it)', false);
+        return;
+      }
+      /* Every row a real 3-LED record can produce, plus the degenerate ends. */
+      var TABLE = [
+        [1, 1, 1],
+        [-1, -1, -1],
+        [1, 1, -1],
+        [-1, -1, 1],
+        [1, 1, 1, -1],
+        [1, -1],
+        [-1, 1],
+        [1, 1, -1, -1],
+        [null, null],
+        [null, null, null],
+        [1, null],
+        [null, -1],
+        [1, -1, null],
+        [1],
+        [-1]
+      ];
+      var seen = {},
+        mismatch = [];
+      for (var i = 0; i < TABLE.length; i++) {
+        var signs = TABLE[i];
+        var want = core.dissentOf(signs).shape;
+        var got = CD.shapeOf(signs, D.consensusSign(signs));
+        seen[want] = true;
+        if (got !== want) mismatch.push('[' + signs.join(',') + '] browser ' + got + ' vs core ' + want);
+      }
+      T.eq('every planted sign set gets the SAME shape in both lanes', mismatch.join(' · '), '');
+      /* ANTI-VACUITY: the table must exercise all five, or a lane that merges two classes passes. */
+      T.eq(
+        'the table covers the whole closed set (a one-class table detects nothing)',
+        CD.SHAPES.filter(function (s) {
+          return seen[s];
+        }).length,
+        CD.SHAPES.length
+      );
+      /* The stamp, not just the label: the dissenter indices are what a surface prints. */
+      var st = CD.stampOf([1, 1, -1], D.consensusSign([1, 1, -1]), 1);
+      T.eq('a majority stamp names the dissenting channel', st.shape + ':' + st.dissenters.join(',') + ':' + st.corrected + ':' + st.channels, 'majority:2:1:3');
+      var stTie = CD.stampOf([1, -1], D.consensusSign([1, -1]), 0);
+      T.eq('a TIE stamp is not a unanimous one, and names no dissenter', stTie.shape + ':' + stTie.dissenters.length, 'tie:0');
+      /* ∅ An absent return is not a measured abstention. */
+      T.eq('a non-finite `corrected` becomes null, never 0', CD.stampOf([1, 1], 0, undefined).corrected, null);
+      T.eq('...and a real 0 stays 0', CD.stampOf([1, 1], 0, 0).corrected, 0);
+
+      /* THE WIRING, which is where this fix silently stops being applied. The worker must read the
+         signs BEFORE the pass: after it the dissenter carries the majority sign and every night
+         reads unanimous — so a stamp taken afterwards is a fabricated unanimity. */
+      var wsrc = (env.sources && env.sources['pat-feasibility-worker.js']) || '';
+      if (!wsrc) {
+        T.skip('pat-feasibility-worker.js source unavailable — wiring check skipped');
+      } else {
+        var iSigns = wsrc.indexOf('ConsensusDissent.signsOf(per)');
+        var iPass = wsrc.search(/applyConsensusPolarity\(per,\s*function/);
+        var iStamp = wsrc.indexOf('ConsensusDissent.stampOf(polSigns');
+        T.ok('the worker reads the signs through ConsensusDissent.signsOf', iSigns > 0);
+        T.ok('the worker still CALLS the pass (deleting the call must not pass)', iPass > 0);
+        T.ok('the signs are read BEFORE the pass runs', iSigns > 0 && iPass > 0 && iSigns < iPass);
+        T.ok('...and the stamp is built after it, from those pre-pass signs', iStamp > iPass);
+        T.ok('the pass return is ASSIGNED, not discarded (the whole row)', /var polCorrected = PPGDSP\.applyConsensusPolarity\(/.test(wsrc));
+        T.ok('the stamp reaches the payload the page reads', /polarity: ppg\.polarity/.test(wsrc));
+      }
+      var csrc = (env.sources && env.sources['pat-feasibility.js']) || '';
+      if (!csrc) {
+        T.skip('pat-feasibility.js source unavailable — surface check skipped');
+      } else {
+        T.ok('the page SURFACES the stamp beside the foot count it qualifies', /polarityNote\(m\.ppg\.polarity\)/.test(csrc));
+        T.ok('...and an absent stamp prints "not read" rather than agreement', /consensus polarity not read/.test(csrc));
+        T.ok('...and a tie says so in words, not as a bare zero', /a tie is not agreement/.test(csrc));
       }
     });
 

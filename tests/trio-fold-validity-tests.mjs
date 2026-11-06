@@ -11,7 +11,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { VALIDITY_STATES, mergeBlankingSpans, mergePinnedSpans, readRunsSidecar, runsSidecarPath, validityLine } from '../tools/trio-fold-validity.mjs';
-import { ecgRpeakTimes, loadDsps, ppgFootTimes } from '../tools/pat-matchrate-strict.mjs';
+import { ecgRpeakTimes, getDsps, loadDsps, ppgFootTimes } from '../tools/pat-matchrate-strict.mjs';
 import { loadDsps as loadBc, ppgFootTimes as bcPpgFootTimes } from '../tools/beat-correspondence.mjs';
 
 let pass = 0;
@@ -586,6 +586,265 @@ const ppgRuns = (spans) => ecgRuns(spans, { stream: 'ppg', channel: 'channel 0' 
   const bcSrc = readFileSync(join(here, '..', 'tools', 'beat-correspondence.mjs'), 'utf8');
   ok(/@port-from pat-feasibility-worker\.js#ppgFootTimes/.test(bcSrc), 'the copy declares its source, so `port-parity` reads a later source move as drift');
   ok(ownSidecarPaths(bcSrc).length === 0, `and the pinnedSource label builds no sidecar path of its own (${ownSidecarPaths(bcSrc).join(' | ').slice(0, 90)})`);
+}
+
+/* ── ∅ SLICE 1: THE NIGHT READERS THAT ALREADY HELD A PATH ─────────────────────────
+   Row 2026-10-17-sample-parsers-called-without-their-sidecar. Fourteen `tools/` files read a PPG or
+   ECG stream FROM A PATH and parsed it with no `runsText`, so every sample inside a run the box
+   recorded reached the numbers as a reading. Thirteen of them take the shared reader here;
+   `pat-drift-attribution.mjs` already imported it for its foot legs and its two bare `hostAxis`
+   parses now reuse the hoisted consts, so the tally counts each stream once rather than twice.
+   `resp-cardiac-suppression-e8.mjs` is wired on both of its sidecars, because its own night-key probe
+   already held the ACC shape; the other ACC readers are slice 2, where `_ACCRUNS.txt`'s time-keyed
+   spans are a different verification from a sample-index run.
+
+   Passing the sidecar is not reporting its absence (§∅), so each of the ten also prints
+   `validityLine`'s tally beside its own numbers: most of this corpus predates the writer, so most
+   streams read `absent`, and an absent sidecar is validity UNKNOWN for that stream, never a clean one. */
+for (const f of [
+  'beat-leg-closure.mjs',
+  'cvhr-fold-rescore.mjs',
+  'ecg-rate-transfer.mjs',
+  'gap-s-sweep.mjs',
+  'geometry-scan.mjs',
+  'o2ring-finger-roundtrip.mjs',
+  'o2ring-finger-validate-batch.mjs',
+  'oracle-ecg-firmware-rr.mjs',
+  'pin-coverage.mjs',
+  'resp-cardiac-suppression-e8.mjs',
+  'ring-offset-census.mjs',
+  'tch-firmware-reference.mjs',
+  'tch-reference-validation.mjs'
+]) {
+  const src = readFileSync(join(here, '..', 'tools', f), 'utf8');
+  ok(/import \{ readRunsSidecar, validityLine \} from '\.\/trio-fold-validity\.mjs';/.test(src), `${f} imports the shared reader`);
+  ok(/const runsOf = \(streamPath, stream\) => readRunsSidecar\(streamPath, stream, \{ tally: VALIDITY \}\)\.runsText;/.test(src), `${f} reads every sidecar through one tallying helper`);
+  ok(/validityLine\(VALIDITY\)/.test(src), `${f} prints the tally beside its own numbers`);
+  ok(ownSidecarPaths(src).length === 0, `${f} builds no sidecar path of its own (${ownSidecarPaths(src).join(' | ').slice(0, 90)})`);
+}
+
+/* ── ∅ A REWRITTEN TEXT INVALIDATES THE SIDECAR'S INDICES, AND THAT IS NOT AN ABSENCE ──
+   `gap-s-sweep.mjs` is the one slice-1 reader that REWRITES the bytes it scores: `--restrict-overlap`
+   cuts both streams to their shared host window and `--ppg-keep-hz` drops PPG rows to a coarser grid.
+   A sidecar's rows are SAMPLE INDICES into the text as written, so under either switch the indices
+   address samples that are no longer there — passing it would place a blanking run over clean signal.
+   The sidecar is therefore WITHHELD from that leg, and the row says so in its own words, because a
+   silent drop reads exactly like a night that never had a sidecar. The four cases below are EXECUTED:
+   a source scan cannot tell a withheld sidecar from a dropped one. */
+{
+  const { scoreNight } = await import('../tools/gap-s-sweep.mjs');
+  let sawEcg = null;
+  let sawPpg = null;
+  const realms = {
+    ecg: {
+      ECGDSP: {
+        parseECG: (_t, o) => {
+          sawEcg = o && o.runsText ? o.runsText : null;
+          return { int16: new Int16Array(8), fs: 130 };
+        },
+        analyze: () => ({ cvhr: { index: 1.5, denomSec: 100, events: [] }, nBeats: 10 })
+      }
+    },
+    ppg: {
+      PPGDSP: {
+        parsePPG: (_t, o) => {
+          sawPpg = o && o.runsText ? o.runsText : null;
+          return { ch: [new Float32Array(8)], fs: 135 };
+        },
+        analyze: () => ({ cvhrIndex: 2.5, cvhrEvents: 1, nBeats: 11, cvhrReason: null })
+      }
+    }
+  };
+  const mk = (from, to) => `Phone timestamp;sensor timestamp [ns];value\n2026-06-15T${from}:00:00.000;1000000000;11\n2026-06-15T${to}:00:00.000;2000000000;12\n`;
+  const eText = mk('20', '23');
+  const pText = mk('20', '23');
+  const runs = { ecgRunsText: 'E-RUNS', ppgRunsText: 'P-RUNS' };
+
+  sawEcg = sawPpg = null;
+  const plain = scoreNight(realms, eText, pText, { ...runs });
+  ok(sawEcg === 'E-RUNS' && sawPpg === 'P-RUNS', `an untouched text takes both sidecars (ecg ${sawEcg}, ppg ${sawPpg})`);
+  ok(plain.ecg.validity === 'sidecar read' && plain.ppg.validity === 'sidecar read', `and each leg says which it holds (${plain.ecg.validity})`);
+
+  sawEcg = sawPpg = null;
+  const cut = scoreNight(realms, eText, pText, { ...runs, restrictOverlap: true });
+  ok(cut.overlap && cut.overlap.bothHours >= 2, `CONTROL · the overlap cut really ran (${cut.overlap && cut.overlap.bothHours} h)`);
+  ok(sawEcg === null && sawPpg === null, '∅ a text cut to the overlap takes neither sidecar, because the indices no longer address it');
+  ok(/withheld/.test(cut.ecg.validity) && /cut to the overlap/.test(cut.ecg.validity), `and the ECG row names the withholding (${cut.ecg.validity})`);
+  ok(/withheld/.test(cut.ppg.validity) && /cut to the overlap/.test(cut.ppg.validity), `and so does the PPG row (${cut.ppg.validity})`);
+
+  sawEcg = sawPpg = null;
+  const thin = scoreNight(realms, eText, pText, { ...runs, ppgKeepHz: 10 });
+  ok(sawEcg === 'E-RUNS', `the keep grid touches the PPG alone, so the ECG keeps its sidecar (${sawEcg})`);
+  ok(sawPpg === null && /keep grid/.test(thin.ppg.validity), `and the decimated PPG names its own withholding (${thin.ppg.validity})`);
+
+  sawEcg = sawPpg = null;
+  const none = scoreNight(realms, eText, pText, {});
+  ok(sawEcg === null && sawPpg === null, 'CONTROL · with no sidecar read there is nothing to pass');
+  ok(/absent/.test(none.ecg.validity) && !/withheld/.test(none.ecg.validity), `and an absence reads as UNKNOWN rather than as a withholding (${none.ecg.validity})`);
+}
+
+/* ── ∅ AND THE TEXT-TAKING ORACLE TAKES ITS SIDECAR ON `opts` ──────────────────────
+   `oracle-ecg-firmware-rr.mjs`'s `scoreNight` takes the ECG TEXT, so it cannot name a sidecar from a
+   path: the caller that holds the path reads it and the bytes ride `opts.runsText`, the shape
+   `oracle-ppg-device-beats.mjs` already uses. Executed on both arms, because a typed slot that
+   accepted the bytes and dropped them would read here exactly like a wired one. */
+{
+  const { scoreNight } = await import('../tools/oracle-ecg-firmware-rr.mjs');
+  let saw = null;
+  const ECGDSP = {
+    parseECG: (_t, o) => {
+      saw = o && o.runsText ? o.runsText : null;
+      return { int16: new Int16Array(8), fs: 130 };
+    },
+    parseDeviceRR: () => [],
+    analyze: () => ({ nn: [] })
+  };
+  saw = null;
+  const withRuns = scoreNight(ECGDSP, 'ecg', 'rr', { runsText: 'E-RUNS' });
+  ok(saw === 'E-RUNS', `the sidecar that rode in on \`opts\` reaches the parse (${saw})`);
+  saw = null;
+  const bare = scoreNight(ECGDSP, 'ecg', 'rr', {});
+  ok(saw === null, 'CONTROL · no sidecar on `opts` means none is invented');
+  ok(withRuns.ok === false && bare.ok === false && withRuns.reason === bare.reason, `and both arms refuse on the same stubbed RR file (${bare.reason})`);
+}
+
+/* ── ∅ SLICE 2: THE ACC READERS, AGAINST A TIME-KEYED SIDECAR ──────────────────────
+   Row 2026-10-17-sample-parsers-called-without-their-sidecar. Four `tools/` files read an
+   accelerometer stream FROM A PATH and parsed it bare, so a span the box recorded as one held value
+   reached a motion grid as a stillness it never measured — and a held run is the shape that matters
+   most here, because the PAT quiet split reads stillness as evidence.
+
+   `_ACCRUNS.txt` is a DIFFERENT sidecar from the stream ones above. Its rows carry the writer's own
+   host stamp and a `dur_ms`, so `parseAccRunsTimed` places TIME spans; the index-keyed intersection
+   the PPG and ECG sidecars use would slide here, because these parsers drop an implausible row.
+   Three of the four take the shared reader. `trio-batch.mjs` keeps its own `readRuns`, which it
+   already uses for both of its other streams. */
+for (const f of ['acc-shared-movement.mjs', 'pat-dip-validate.mjs', 'pat-matchrate-strict.mjs']) {
+  const src = readFileSync(join(here, '..', 'tools', f), 'utf8');
+  ok(/import \{ readRunsSidecar, validityLine \} from '\.\/trio-fold-validity\.mjs';/.test(src), `${f} imports the shared reader`);
+  ok(/const runsOf = \(streamPath, stream\) => readRunsSidecar\(streamPath, stream, \{ tally: VALIDITY \}\)\.runsText;/.test(src), `${f} reads every sidecar through one tallying helper`);
+  ok(/runsOf\([^)]*, 'ACC'\)/.test(src), `${f} asks for the ACC sidecar by its own stream name`);
+  ok(/validityLine\(VALIDITY\)/.test(src), `${f} prints the tally beside its own numbers`);
+  ok(ownSidecarPaths(src).length === 0, `${f} builds no sidecar path of its own (${ownSidecarPaths(src).join(' | ').slice(0, 90)})`);
+}
+{
+  const src = readFileSync(join(here, '..', 'tools', 'trio-batch.mjs'), 'utf8');
+  ok(
+    /parseDeviceACC\(readFileSync\(f\.full, 'utf8'\), \{ runsText: readRuns\(f\.full, 'ACC'\) \}\)/.test(src),
+    'trio-batch hands the H10 ACC its sidecar through the reader its other two streams use'
+  );
+  ok(/const xyz = \(l, stream\) =>/.test(src), 'the Verity XYZ helper takes the stream NAME, because only the accelerometer has a writer');
+  ok(
+    /rec\.acc = xyz\(p\.accVer, 'ACC'\);/.test(src) && /rec\.gyro = xyz\(p\.gyro, null\);/.test(src) && /rec\.magn = xyz\(p\.magn, null\);/.test(src),
+    'and gyro and magn ask for NO sidecar, because no writer wrote one beside them'
+  );
+}
+/* Why that `null` is not a convenience: the name is derived from the path's own `_<stream>.txt` tail,
+   so a gyro path handed the ACC stream names nothing at all — and a reader that guessed would read a
+   DIFFERENT stream's validity onto this one. */
+{
+  let gyroReads = 0;
+  const g = readRunsSidecar('/n/Polar_VeritySense_0C301E3F_20261006190137_GYRO.txt', 'ACC', {
+    io: {
+      readFileSync() {
+        gyroReads++;
+        return '';
+      }
+    }
+  });
+  same([g.state, g.path, g.runsText, gyroReads], ['unnamed', null, null, 0], 'a GYRO path handed the ACC stream names nothing and reads nothing');
+}
+
+/* ── ∅ AND THE TIME SPANS ARRIVE, EXECUTED, IN BOTH WRITER GENERATIONS ──────────────
+   A source scan cannot tell a sidecar that is READ from one accepted and dropped, and it cannot tell
+   a sidecar that found no run from no sidecar at all. Both ACC parsers are run over a synthetic
+   26 Hz stream: no sidecar, a sidecar naming no run, and a sidecar naming one. The writer's own
+   column header is used verbatim, and the per-channel declaration is planted in BOTH generations the
+   corpus holds — `class=held` beside `class=variable` — because a reader keying on that word would
+   pass one night and silently skip the other. */
+const ACC_FS = 26;
+const ACC_T0 = Date.UTC(2026, 5, 17, 1, 6, 17, 723);
+const accStamp = (ms) => new Date(ms).toISOString().replace('Z', '');
+function synthAcc(nRows) {
+  const rows = ['Phone timestamp;sensor timestamp [ns];X [mg];Y [mg];Z [mg]'];
+  for (let i = 0; i < nRows; i++) {
+    const ms = ACC_T0 + Math.round((i * 1000) / ACC_FS);
+    const w = Math.sin((2 * Math.PI * i) / 70);
+    rows.push(`${accStamp(ms)};${Math.round((i * 1e9) / ACC_FS)};${Math.round(60 * w)};${Math.round(-40 * w)};${990 + Math.round(20 * w)}`);
+  }
+  return rows.join('\n');
+}
+/* `writers.py` `_RunSidecar.HEADER`, verbatim: the stamp is column 0 and `dur_ms` is column 5. */
+const ACC_RUNS_HEADER = 'Phone timestamp;stream;value;first_index;n_samples;dur_ms;closed;rule;bracket;contact';
+function accRuns(spans, { cls = 'variable' } = {}) {
+  const out = ['# stream=acc rule=stuck min_run=30 t_stuck=3 merge_gap_max=2 annotations=none unit=unknown contact_source=none', `# stream=acc channel=X [mg] class=${cls} unit=mg`, ACC_RUNS_HEADER];
+  for (const sp of spans) out.push([accStamp(sp.t0Ms), 'acc', '0', String(sp.first), String(sp.n), String(sp.durMs), '1', 'stuck', 'varied/varied', 'none'].join(';'));
+  return out.join('\n');
+}
+{
+  const { PPGDSP, ECGDSP, PATAlign } = getDsps();
+  const txt = synthAcc(600);
+  const SPAN = { t0Ms: ACC_T0 + 4000, first: 104, n: 130, durMs: 5000 };
+
+  for (const [name, parse] of [
+    ['parseSensorXYZ', (t, o) => (o ? PPGDSP.parseSensorXYZ(t, o) : PPGDSP.parseSensorXYZ(t))],
+    ['parseDeviceACC', (t, o) => (o ? ECGDSP.parseDeviceACC(t, o) : ECGDSP.parseDeviceACC(t)).acc]
+  ]) {
+    const bare = parse(txt);
+    ok(bare.length > 500, `ANTI-VACUITY · ${name} reads the synthetic stream at all (${bare.length} rows)`);
+    same([bare._runsSidecar === undefined, bare._blankSpans === undefined], [true, true], `∅ ${name} with no sidecar carries NO parsed sidecar — validity UNKNOWN, never a clean zero`);
+
+    const empty = parse(txt, { runsText: accRuns([]) });
+    ok(empty._runsSidecar && empty._runsSidecar.spans.length === 0 && empty._blankSpans === undefined, `∅ ${name}: a sidecar naming no run is a MEASURED zero, and it blanks nothing`);
+    same([empty._runsSidecar.minRun, empty._runsSidecar.comparable], [30, true], `${name} reads the writer's own \`min_run\`, which is what makes two nights comparable`);
+
+    const cut = parse(txt, { runsText: accRuns([SPAN]) });
+    same(cut._blankSpans, [{ t0Ms: SPAN.t0Ms, t1Ms: SPAN.t0Ms + SPAN.durMs }], `${name} places the span by TIME, from the stamp and \`dur_ms\``);
+    ok(cut.length === bare.length, `and it drops no row (${cut.length}), because the spans ride BESIDE the samples`);
+
+    const held = parse(txt, { runsText: accRuns([SPAN], { cls: 'held' }) });
+    same(held._blankSpans, cut._blankSpans, `${name} reads the 2026-09-08 \`class=held\` generation identically — the span and \`min_run\` are the keys, never the class word`);
+  }
+
+  /* ── THE CARRIER IS WIRED AND THE PAT GRID NOW READS IT ──────────────────────────
+     This leg asserted the two grids EQUAL until 2026-11-05, to pin the gap where a reader would find
+     it. Row 2026-11-05-the-pat-motion-envelope-ignores-the-acc-blanking-spans-it-is-handed closed it:
+     a held run repeats one value, so its deviation from the EMA is ~0 and the bin read as the quietest
+     in the night. The bin now holds NaN, because a bin of genuine stillness is a legal zero and `0`
+     cannot carry an absence. The span is the key, so the two grids differ EXACTLY over it. */
+  const rowsBare = PPGDSP.parseSensorXYZ(txt);
+  const rowsCut = PPGDSP.parseSensorXYZ(txt, { runsText: accRuns([SPAN]) });
+  const t1 = rowsBare[rowsBare.length - 1].tMs;
+  const envBare = PATAlign.envelope(rowsBare, ACC_T0, t1, {});
+  const envCut = PATAlign.envelope(rowsCut, ACC_T0, t1, {});
+  const DT_DEF = 50;
+  ok(envBare && envBare.length > 20, `ANTI-VACUITY · the envelope has bins to compare (${envBare && envBare.length})`);
+  ok(
+    Array.from(envBare).every((x) => Number.isFinite(x)),
+    'the bare grid carries NO unmeasured bin — the sidecar is the only thing that marks one'
+  );
+  const unmeas = [];
+  for (let i = 0; i < envCut.length; i++) if (!Number.isFinite(envCut[i])) unmeas.push(i);
+  ok(unmeas.length > 0, `the sidecar-fed grid marks the held run UNMEASURED (${unmeas.length} bin(s) of ${envCut.length})`);
+  const spanHi = SPAN.t0Ms + SPAN.durMs;
+  ok(
+    unmeas.every((i) => ACC_T0 + (i + 1) * DT_DEF > SPAN.t0Ms && ACC_T0 + i * DT_DEF < spanHi),
+    'every unmeasured bin overlaps the recorded span, and no other bin is touched'
+  );
+  const outside = [];
+  for (let i = 0; i < envCut.length; i++) if (Number.isFinite(envCut[i])) outside.push(envCut[i] === envBare[i]);
+  ok(outside.length > 20 && outside.every((x) => x === true), `outside the span the two grids agree bin for bin (${outside.length} measured bin(s))`);
+  /* WHAT THIS FILE CAN AND CANNOT SAY. Its stream VARIES across the span — the sidecar names the run,
+     the synthetic bytes do not repeat a value — so the numbers over those bins are ordinary signal
+     here, and no claim about stillness is available. What IS available is the defect's essential
+     property: every one of those bins carried a finite number into each statistic downstream, from a
+     stretch the box had already reported as unmeasured. The mechanism itself — the EMA converging on
+     a repeated value, and the step at the run's onset — is planted and measured in `dex-tests.js`,
+     over bytes that actually hold. */
+  ok(
+    unmeas.every((i) => Number.isFinite(envBare[i])),
+    `ANTI-VACUITY · the bare grid carried a finite number over all ${unmeas.length} of those bins, into every statistic downstream`
+  );
 }
 
 if (fails.length) {

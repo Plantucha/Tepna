@@ -36,6 +36,13 @@ import { loadDsps, getDsps } from './pat-matchrate-strict.mjs';
 import { isCliEntry, positionalArgs, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 import { notANight, populationVerdict, snapshotNights } from './corpus-scope-core.mjs';
 import { eraCoverage, eraCoverageLine, eraOfNights } from './fold-generation.mjs';
+import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
+
+/* §∅ — the Verity ACC fragment's validity travels out of band in `<base>_ACCRUNS.txt`, TIME-keyed by
+   the writer's own stamp, so a parser that drops implausible rows cannot slide it. An ABSENT sidecar
+   is validity UNKNOWN, never "no blanking runs": the tally names all four states. */
+const VALIDITY = {};
+const runsOf = (streamPath, stream) => readRunsSidecar(streamPath, stream, { tally: VALIDITY }).runsText;
 
 /* ONE spec, read twice: the guard refuses an undeclared flag with it, and `positionalArgs`
    skips each valued flag's VALUE with it, so a flag written before the positional cannot be
@@ -186,13 +193,17 @@ function main() {
        dips would hide the very confound being tested. */
     let quietOnsets = onsets,
       nQuiet = onsets.length,
-      quietShare = null;
+      quietShare = null,
+      quietCover = null;
     {
       const { PPGDSP } = getDsps();
       let acc = null;
       for (const f of readdirSync(join(ROOT, night)).filter((x) => /(?:VeritySense|Polar_Sense).*_ACC\.txt$/i.test(x))) {
         try {
-          const sArr = PPGDSP.parseSensorXYZ(readFileSync(join(ROOT, night, f), 'utf8'));
+          const accPath = join(ROOT, night, f);
+          const raw = readFileSync(accPath, 'utf8');
+          const runsText = runsOf(accPath, 'ACC');
+          const sArr = runsText ? PPGDSP.parseSensorXYZ(raw, { runsText }) : PPGDSP.parseSensorXYZ(raw);
           if (!sArr || !sArr.length || sArr[0].tMs == null) continue;
           const ov = Math.min(spanHi, sArr[sArr.length - 1].tMs) - Math.max(spanLo, sArr[0].tMs);
           if (ov > (acc?.ov ?? 0)) acc = { ov, samples: sArr };
@@ -201,26 +212,48 @@ function main() {
       if (acc && acc.ov > 0) {
         const grid = PATAlign.envelope(acc.samples, spanLo, spanHi, { dtMs: 1000 });
         if (grid) {
-          let m = 0;
-          for (let i = 0; i < grid.length; i++) m += grid[i];
-          m /= grid.length;
-          let v = 0;
-          for (let i = 0; i < grid.length; i++) v += (grid[i] - m) * (grid[i] - m);
-          const thr = m + 2 * Math.sqrt(v / grid.length);
-          const moving = (t) => {
-            const b = Math.floor((t - spanLo) / 1000);
-            return b >= 0 && b < grid.length && grid[b] > thr;
-          };
-          let movingSecs = 0;
-          for (let i = 0; i < grid.length; i++) if (grid[i] > thr) movingSecs++;
-          quietShare = 1 - movingSecs / grid.length;
-          quietOnsets = real.events
-            .filter((e) => {
-              for (let t = e.tMs - 10000; t <= e.tMs + e.durMs + 5000; t += 1000) if (moving(t)) return false;
-              return true;
-            })
-            .map((e) => e.tMs);
-          nQuiet = quietOnsets.length;
+          /* ∅ `PATAlign.envelope` marks a bin NaN where the box's `_ACCRUNS.txt` recorded a held run,
+             so every statistic here runs over the MEASURED bins alone. A second nobody measured is
+             not a quiet second: it carries no claim either way. The threshold would be the first
+             casualty otherwise — a NaN propagates through the mean and silences the whole night. */
+          let m = 0,
+            nMeas = 0;
+          for (let i = 0; i < grid.length; i++) {
+            if (!Number.isFinite(grid[i])) continue;
+            m += grid[i];
+            nMeas++;
+          }
+          if (nMeas) {
+            m /= nMeas;
+            let v = 0;
+            for (let i = 0; i < grid.length; i++) {
+              if (!Number.isFinite(grid[i])) continue;
+              v += (grid[i] - m) * (grid[i] - m);
+            }
+            const thr = m + 2 * Math.sqrt(v / nMeas);
+            /* TRI-STATE, and the third state is the point: `true` moving, `false` still, `null` for a
+               second the box held or the grid does not reach. An out-of-range bin returned `false`
+               here before this change, which read as stillness for the same reason a held run did —
+               the same defect, through the other door, on the same published number. */
+            const moving = (t) => {
+              const b = Math.floor((t - spanLo) / 1000);
+              if (b < 0 || b >= grid.length || !Number.isFinite(grid[b])) return null;
+              return grid[b] > thr;
+            };
+            let movingSecs = 0;
+            for (let i = 0; i < grid.length; i++) if (Number.isFinite(grid[i]) && grid[i] > thr) movingSecs++;
+            quietShare = 1 - movingSecs / nMeas;
+            quietCover = nMeas / grid.length;
+            /* An onset is quiet only where every second of its window was MEASURED and still, so the
+               filter demands `false` rather than a falsy value. */
+            quietOnsets = real.events
+              .filter((e) => {
+                for (let t = e.tMs - 10000; t <= e.tMs + e.durMs + 5000; t += 1000) if (moving(t) !== false) return false;
+                return true;
+              })
+              .map((e) => e.tMs);
+            nQuiet = quietOnsets.length;
+          }
         }
       }
     }
@@ -267,6 +300,10 @@ function main() {
       chanceKatzPct: chanceK.length ? +(100 * med(chanceK)).toFixed(0) : null,
       nQuiet,
       quietSharePct: quietShare == null ? null : +(100 * quietShare).toFixed(0),
+      /* The share's own denominator, published beside it: §∅ annotates a reduced coverage rather
+         than refusing it, and a quiet share over a third of a night is a different number from one
+         over all of it. */
+      quietCoverPct: quietCover == null ? null : +(100 * quietCover).toFixed(0),
       katzQuietPct: +(100 * katzQuiet).toFixed(0),
       chanceKatzQuietPct: chanceKq.length ? +(100 * med(chanceKq)).toFixed(0) : null,
       nSurrogates: chanceK.length
@@ -291,6 +328,8 @@ function main() {
       rows.filter((r) => !r.skip).map((r) => r.night)
     )
   );
+  const validity = validityLine(VALIDITY);
+  if (validity) console.error('  ' + validity);
   if (AS_JSON) {
     console.log(JSON.stringify({ offered: popBefore.n, population, rows, era: ERA }, null, 1));
     return;
