@@ -183,16 +183,17 @@ def _expected_feeds(t):
     """What each stream's row hands its two sidecars, written out rather than read back from the call.
 
     `runs` is `None` where the stream has no run sidecar at all — `RUN_MIN_BY_STREAM` decides that, and
-    §∅ keeps "there is no sidecar" apart from "the sidecar was fed nothing". An empty `seams` list is
-    the second of those: every writer owns a seam sidecar, and the ACC path records no seam on purpose.
+    §∅ keeps "there is no sidecar" apart from "the sidecar was fed nothing". Every writer owns a seam
+    sidecar and every row call feeds it, so no `seams` list here is empty. A `None` device stamp is the
+    second of those two cases: the sidecar hears the sample and opens no file.
     The values repeat `_ROW_BY_STREAM`'s arguments deliberately. An expectation derived from the call
     under test cannot disagree with it.
     """
     ns = 1_000_000_000
     return {
         "ecg": {"seams": [(t, ns)], "runs": [("ecg [uV]", 120, t)]},
-        "acc": {"seams": [], "runs": [("X [mg]", 1, t), ("Y [mg]", 2, t), ("Z [mg]", 3, t)]},
-        "accraw": {"seams": [], "runs": [("X [raw]", 1, t), ("Y [raw]", 2, t), ("Z [raw]", 3, t)]},
+        "acc": {"seams": [(t, ns)], "runs": [("X [mg]", 1, t), ("Y [mg]", 2, t), ("Z [mg]", 3, t)]},
+        "accraw": {"seams": [(t, None)], "runs": [("X [raw]", 1, t), ("Y [raw]", 2, t), ("Z [raw]", 3, t)]},
         "pletha": {"seams": [(t, None)], "runs": None},
         "ppg2w": {"seams": [(t, None)], "runs": [("channel 0", 7, t), ("channel 1", 8, t)]},
         "ppg": {
