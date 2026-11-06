@@ -797,6 +797,23 @@
           JSON.stringify(seamed.clockGaps)
         );
         T.eq('a host clock that steps BACKWARD past the bound is a PROVEN step and keeps the `clock-seam` name', stepped.hrvReason, 'clock-seam');
+
+        /* ∅ THE POINCARE PAIR REFUSES WITH THE TRIO. `sd2(s, r)` reads
+           `Math.sqrt(Math.max(0, 2 * s * s - (r * r) / 2))`, and `null * null === 0` in JS, so an
+           unguarded refusal published SD2 = 0 beside a real SD1 — a pair no ellipse can hold, since
+           SD2 never sits under SD1. SD1 is SDSD/sqrt(2), the beat-to-beat twin of the rMSSD that
+           just refused, so it cannot stand over the seam either. */
+        T.eq(
+          'the Poincare pair refuses with the trio rather than publishing SD2 = 0 beside a real SD1',
+          JSON.stringify({ steppedSd1: stepped.sd1, steppedSd2: stepped.sd2, seamedSd1: seamed.sd1, seamedSd2: seamed.sd2 }),
+          JSON.stringify({ steppedSd1: null, steppedSd2: null, seamedSd1: null, seamedSd2: null })
+        );
+        T.ok(
+          'the control still publishes an ellipse whose long axis is not under its short one',
+          clean.sd1 > 0 && clean.sd2 > 0 && clean.sd2 >= clean.sd1,
+          JSON.stringify({ sd1: clean.sd1, sd2: clean.sd2 })
+        );
+        T.ok('and a 5 min dropout keeps the pair, because a gap is coverage and not a discontinuity', holed.sd1 > 0 && holed.sd2 >= holed.sd1, JSON.stringify({ sd1: holed.sd1, sd2: holed.sd2 }));
         T.ok(
           '\u2026with the cross-check block keyed on the step it measured, and no hole beside it',
           !!stepped.clockSeams && stepped.clockSeams.n >= 1 && stepped.clockSeams.boundMs === 60000 && stepped.clockGaps === null,
@@ -885,6 +902,65 @@
           'cpapdex-edf.js now carries a resync bound — if it grew a second clock, this pin is stale and the seam plant must be re-run for it'
         );
       }
+    });
+
+    /* ── THE APP ROAD TAKES THE SAME READ ────────────────────────────────────────────────────────
+       Residue `2026-11-06-the-pulsedex-app-road-publishes-whole-record-variability-over-a-seam`.
+       `pulsedex-app.js` duplicates the compute math for the browser road, so the refusal above is a
+       SECOND implementation, and the suite cannot drive this one: `calculate()` reads the DOM. These
+       are source assertions, the same instrument the four-median and export-shape groups already use
+       on this pair of roads, and the reason they exist is this defect: the app copy held the seam
+       verdict and read every field of it but `refuses`, so the whole record published an SDNN over a
+       step the 5-min windows beside it had already refused. The three surfaces are in scope because
+       a `null` reaching them was coerced — `v + 'ms'` prints `"nullms"`, and `null >= 50` is false,
+       which graded absence RED rather than neutral. */
+    group('∅ clock seam — the app road and its three surfaces take the same refusal', 'pulsedex-app · pulsedex-render · pulsedex-overview · absence', function (T) {
+      var src = env.sources || {};
+      var app = src['pulsedex-app.js'] || '',
+        dsp = src['pulsedex-dsp.js'] || '',
+        rnd = src['pulsedex-render.js'] || '',
+        ovw = src['pulsedex-overview.js'] || '';
+      if (!app.trim() || !dsp.trim() || !rnd.trim() || !ovw.trim()) {
+        T.skip('the PulseDex road sources', 'sources not provided in this runner');
+        return;
+      }
+
+      T.ok(
+        'the app road reads the `refuses` field of the verdict it already builds, rather than a second detector',
+        /_pdSeam\.refuses/.test(app) && /_pdSeam\.refuses/.test(dsp) && !/PD_RESYNC_BOUND_MS/.test(app),
+        'the app road either ignores the field or invented its own bound'
+      );
+      T.ok(
+        'the whole-record trio refuses on that read',
+        /sdnn = _pdRefuses \? null : std\(a\)/.test(app) && /rm = _pdRefuses \? null : rmssd\(a\)/.test(app) && /pn = _pdRefuses \? null : pnn50\(a\)/.test(app),
+        'one of sdnn / rmssd / pnn50 still publishes over a seam'
+      );
+      T.ok('and names the SAME reason the export road names', /hrvReason: _pdRefuses \? 'clock-seam' : null/.test(app) && /'clock-seam'/.test(dsp), 'the two roads disagree on the reason string');
+      T.ok(
+        'nothing calls `.toFixed` on a value that can now be null',
+        !/\+\s*(sdnn|rm|pn|dispSd|dispRm|dispPn|sfg|efc|vo2a)\.toFixed/.test(app),
+        'an unguarded toFixed throws on the refusal instead of publishing it'
+      );
+      T.ok(
+        'the eight composites refuse together, because `stressEst(null, null)` returns 100 and `cohEst` returns NaN',
+        /_hrvRefused = cRm == null \|\| cSd == null/.test(app) && /_hrvRefused \? null : stressEst/.test(app) && /_hrvRefused \? null : cohEst/.test(app) && /_hrvRefused \? null : \+efcIdx/.test(app),
+        'a composite still reads a refused input'
+      );
+      T.ok(
+        'the KPI strip prints an em-dash instead of concatenating the absence into its unit',
+        /_kv = /.test(rnd) && !/\br\.(sdnn|rmssd|sdann|dispSd|dispRm) \+ '/.test(rnd),
+        'a KPI still coerces a null into a string'
+      );
+      T.ok(
+        'and grades absence NEUTRAL rather than red, since a threshold test on null is false',
+        /v == null \? 'neutral'/.test(rnd) && /== null \? 'neutral' :/.test(ovw) && /== null \? '' :/.test(ovw),
+        'absence still falls through a grade ternary'
+      );
+      T.ok(
+        'the overview hero says why no score stands, rather than scoring zero',
+        /_noScore/.test(ovw) && /not one continuous stretch/.test(ovw),
+        'the readiness hero still renders a score over a refused record'
+      );
     });
 
     /* ── §U3 THE MID-FILE SEAM ────────────────────────────────────────────────────────────────────
