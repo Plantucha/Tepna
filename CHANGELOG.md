@@ -30,6 +30,87 @@ changesets.)
 
 ---
 
+## [2.28.0] — 2026-11-06
+
+### Added
+- Alert when a night ends on the charger, a device runs unworn, or a device streams on its charger. (`NTFY-ALERT-WIRING-2026-11-03-BRIEF.md`)
+- Publish which node moved the fused apnea index, by leave-one-out over the nodes it reads. (`VERDICT-CONTRIBUTIONS-2026-10-04-BRIEF.md`)
+- Give §3.4's epoch-level SQI AUC a producer, and re-cut the panel from it. `ppi-jitter-vs-ecg.mjs --sqi` ranks the node's own per-beat SQI against §3.3's catastrophic label within each night; the carried 0.763 re-cuts to 0.863 and does not reproduce.
+- The new gate `tools/sidecar-census.mjs` names the writer of each capture-host sidecar and every reader. It also names what each reader does when the sidecar is absent. A new sidecar with no registry entry reds `npm run check`.
+- Push an alert when a ring or Verity battery wears out, or when the ring battery gauge turns unsteady. (`NTFY-ALERT-WIRING-2026-11-03-BRIEF.md`)
+- Hold the absent-sidecar path of three capture-host readers with a test, so an absence cannot become a zero and stay green.
+- ECGDex reads the box's `…_ECGSEAMS.txt` clock-seam sidecar and refuses the epoch a recorded seam (`SEAM-SIDECAR-CONSUMPTION-2026-11-03-BRIEF.md`)
+- `tools/update-watch.mjs` compares the fleet's software with its latest releases and posts each update that is ready to the agent board. A daily user timer runs it. The root wrapper `tools/systemd/tepna-update` gives the Ollama and apt updates a fixed, checksum-verified path that the owner can permit without a password.
+- Carry the upstream node's `recording.validity` through HRVDex, and publish HRVDex's own. An ECGDex or (`SEAM-SIDECAR-NODE-COVERAGE-2026-11-06-BRIEF.md`)
+- Read the capture-host `_ACCSEAMS` clock-seam sidecar in MotionDex. A recorded seam now refuses the (`SEAM-SIDECAR-CONSUMPTION-2026-11-03-BRIEF.md`)
+- PpgDex reads the box's `…_PPGSEAMS.txt` clock-seam sidecar, places each recorded seam on its own (`SEAM-SIDECAR-CONSUMPTION-2026-11-03-BRIEF.md`)
+- Read the capture-host `_PPISEAMS` and `_HRSEAMS` clock-seam sidecars in PulseDex. A row whose device (`SEAM-SIDECAR-CONSUMPTION-2026-11-03-BRIEF.md`)
+
+### Changed
+- Print the consensus-polarity dissent shape beside every PAT and trio figure. A reader now sees which
+- Report what an unconfirmed pinned span set would refuse in both PAT legs, with a named reason beside every absence.
+- Hand the box's validity sidecar to the parsers in eight night readers, and print its four-state tally beside each tool's numbers.
+- The search fast lane now upserts every changed repo and external file every 15 minutes, not only board posts.
+- Classify a stale-brief self-test needle failure by re-running the same command once.
+- Re-record every reachable mutation-ledger entry under the pinned mutmut generator.
+- Read each pinned exemption in the sample-validity ratchet out of the sources. The writer's own stream table answers the gyro and magn pins, and a one-hop trace answers the synthetic ones.
+
+### Fixed
+- Name the cause at PpgDex's parse floor, so a zero-byte stream reads as an absence rather than a wrong column layout.
+- Open the radio-clock sidecar line-buffered, so a working file never reads as zero bytes.
+- The loss audit calls a ring end a doff when the ring battery rises 6 % or more in the 10 minutes after the end. (`SOLID-NIGHT-2026-09-23-BRIEF.md`)
+- Size the `relevance (browser-gates)` cap over its censored cap-kill rather than over one page's max.
+- Refuse a secret scan whose run and whose copy of the gate sit in different checkouts, so the verdict
+- Carry the parsed run sidecar on both ACC parsers, so a consumer tells an unread sidecar
+- Check that each contributions row's `emits` producer reaches the figure file that row names.
+- Report the pinned spans the PPG sidecar placed in the beat-correspondence audit, and refuse a foot every channel pinned.
+- Read this lane's slice of the adoption registry as a blocking leg of `capture-host/check.sh`.
+- Sample a `pull_request`-only CI job through its own workflow runs, and carry the sample window beside every figure.
+- Keep the per-device clock logs out of the night's device data.
+- Give the two PPG corpus readers a capture identity rule. A walk that read nothing now refuses under its own reason. The night cap counts nights.
+- Hand the shared PAT ECG extractor and its two local copies the `_ECGRUNS.txt` sidecar at position two.
+- ECGDex publishes no host-axis rate over a drawn device column, and names the cause.
+- Split a radio-clock floor line at every empty window, so no rate spans unobserved time. (`RADIO-DELAY-FLOOR-2026-11-03-BRIEF.md`)
+- Read the radio sidecar's stamped link establishment in the floor reader, and publish the marker's absence beside every rate.
+- Gate a `decides` producer on a test that runs it, and declare the three gated only by name.
+- Print the hook's own text whenever a stale-brief self-test leg judges that text and fails.
+- Count the "linked but recording nothing" minutes from the link, not from an off time that a night-ended note or a completed pull already licensed.
+- Compare a live file only with the same writer opening, so a discarded and reopened ring writer no longer reads as a replaced file.
+- Make `--max-nights` select whole nights by the parsed clock in four corpus tools. A night recorded as two sessions no longer spends two of the budget.
+- Write a night's QC summary and verdicts into the folder its band names, not the folder the poller judged.
+- Read the radio-clock sidecar's `anchor_epoch` column and cut the host axis at a stamped link establishment. Publish the marker's absence beside every answer.
+- Resolve the tree `tools/run-check.mjs` gates from the run, not from the tool's own path, and refuse a disagreement with exit 2.
+- Read a night's host clock log under the stamped name the box writes, so the seam cause reaches it.
+- Hand the RUNS sidecar to every `tools/` reader holding a PPG or ECG stream path, and name the withholding where a sweep rewrites those bytes.
+- Route the box's `_ECGSEAMS.txt` clock-seam sidecar through the browser drop path into ECGDex. (`SEAM-SIDECAR-CONSUMPTION-2026-11-03-BRIEF.md`)
+- Keep a Verity file that reports no pulse on any PPI row from setting the worn end.
+- Restore the generated paths a rebase rebuilt inside the walker's own checkout.
+- Add the daemon worn verdict from the night WORN.csv to each H10 and Verity wear end.
+- Refuse to remove a merged worktree that holds the only copy of a path its branch added.
+- Hand the four accelerometer readers in `tools/` the time-keyed `_ACCRUNS.txt` sidecar beside each fragment. A span the box recorded as one held value no longer reaches a motion grid as stillness.
+- Resolve a headerless PPG file’s column layout once by vote, so one junk row cannot shift it.
+- Hold the old inode across a test's file replacement, so a reused inode cannot red the loss guard.
+- Mark the bins of a recorded accelerometer run unmeasured in the PAT motion envelope.
+- The PAT feasibility worker now records the consensus-polarity SHAPE it read a night under, and the focus panel prints it beside the foot count. A one-against-one tie no longer reads as agreement on that surface.
+- Count a capture once in the PPG foot-consensus corpus walk, not once per capture tree.
+- Refuse the PulseDex whole-record HRV trio, its composites and its Poincare pair on the browser road when a clock seam splits the recording.
+- Keep PulseDex whole-record HRV over a dropout; refuse a backward host step or a 20-hour hole.
+- Roll each radio-clock log at the local midnight. A finished night then has no writer in its folder.
+- Give the clock-seam scanner the ACC writer's device stamp and no PPI stamp at all.
+- Withhold the shared timing block's rate quote over a drawn or unmeasured device column.
+- Device-filter the runs, seams and accruns sidecar lanes, so no foreign device's sidecar reaches an ECG drop.
+- Rebase each part's run sidecar onto the concatenated axis in the sigma-window derivation. Withhold the spans when the parse and the sidecar disagree on the sample count.
+- Fold a sigma-window night's parts on parsed records, so a break between parts stays visible. The ECG leg now takes its rate from the DSP parser.
+- Record a generated-mutants size only when a run saw its generation finish.
+- Refuse a guarded-doc edit when the stale-brief guard's own candidate reader could not run.
+- Record the consensus-polarity shape the trio worker's Verity corner was read under, and print it under the night page's per-corner source KPI.
+- Make the two fusion legs print the consensus-polarity SHAPE beside their re-detection count. A one-against-one tie no longer reads as agreement in either leg's summary.
+- `tools/update-watch.mjs` marks an update ready only when the latest release is newer than the install. On 2026-11-06 the watch offered claude-code 2.1.319 → 2.1.318 as READY, because npm's latest tag trailed the installed version. A new `compareVersions` orders two versions by SemVer, with a pre-release below its release. A model digest is not a version, so a digest source keeps the old rule.
+- Treat a Verity file with a pulse on under 1 PPI row in 20 as not worn. Stray pulse rows then set no false worn end.
+- Commit the generated trees rebase-safe rebuilt, so a walker rebase never pushes a base-resolved bundle.
+
+---
+
 ## [2.27.0] — 2026-11-04
 
 ### Added
@@ -3864,7 +3945,8 @@ and establishes the release-governance layer over it.
 - **The shared test suite** (`Dex-Test-Suite.html` + `tests/dex-tests.js`) and the build/provenance
   manifests.
 
-[Unreleased]: https://github.com/Plantucha/Tepna/compare/v2.27.0...HEAD
+[Unreleased]: https://github.com/Plantucha/Tepna/compare/v2.28.0...HEAD
+[2.28.0]: https://github.com/Plantucha/Tepna/compare/v2.27.0...v2.28.0
 [2.27.0]: https://github.com/Plantucha/Tepna/compare/v2.26.0...v2.27.0
 [2.26.0]: https://github.com/Plantucha/Tepna/compare/v2.25.0...v2.26.0
 [2.25.0]: https://github.com/Plantucha/Tepna/compare/v2.24.0...v2.25.0
