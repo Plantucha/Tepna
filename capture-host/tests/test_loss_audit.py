@@ -4560,14 +4560,16 @@ def test_AN_UNWORN_VERITY_FILE_AFTER_A_DOFF_DOES_NOT_SET_THE_WORN_END(tmp_path):
     assert second == {
         "file": off.name,
         "usable": False,
-        "reason": "not worn: the device reports no pulse on any of its 30 PPI rows",
+        "reason": "not worn: the device reports a pulse on 0 of its 30 PPI rows, under 1 in 20",
         "ppi_rows": 30,
         "ppi_pulse_rows": 0,
     }
     assert w["worn_end"] == {"at": first["worn_end_at"], "reason": "doff", "file": worn.name}
-    # ONE pulse row keeps the file: worn for part of its span is never dropped
-    _ppi(str(off_ppi), [0] * 29 + [58], t0=t1)
+    # THE BOUND IS 1 ROW IN 20: 2 pulse rows of 40 (5 %) keep the file, 1 of 40 does not
+    _ppi(str(off_ppi), [0] * 38 + [58, 61], t0=t1)
     assert loss_audit.wear_ends(str(d), "VeritySense")["worn_end"]["file"] == off.name
+    _ppi(str(off_ppi), [0] * 39 + [58], t0=t1)
+    assert loss_audit.wear_ends(str(d), "VeritySense")["worn_end"]["file"] == worn.name
     # under the floor, blank hrs and torn rows are no witness: the end is judged as before
     _ppi(str(off_ppi), [0] * 29 + ["", "x"], t0=t1)
     assert loss_audit.verity_ppi_pulse(str(off_ppi)) == (29, 0)
@@ -4585,6 +4587,26 @@ def test_AN_UNWORN_VERITY_FILE_AFTER_A_DOFF_DOES_NOT_SET_THE_WORN_END(tmp_path):
     off_ppi.unlink()
     assert loss_audit.verity_ppi_pulse(str(off_ppi)) is None
     assert loss_audit.wear_ends(str(d), "VeritySense")["worn_end"]["file"] == off.name
+
+
+def test_A_FEW_STRAY_PULSE_ROWS_DO_NOT_KEEP_AN_UNWORN_VERITY_FILE(tmp_path):
+    """Residue `2026-11-06-a-few-stray-pulse-rows-keep-an-unworn-verity-file`. MEASURED on the capture box
+    2026-11-06: an off-body Verity file reported a pulse on 15 of 2782 PPI rows (0.54 %). The first rule
+    took the 0, so the file stayed usable and set a false worn end. Its shape here: 2 of 400 rows."""
+    d = tmp_path / "captures" / "2026-09-23"
+    d.mkdir(parents=True)
+    worn = d / "Polar_VeritySense_0C30_20260923230000_PPG.txt"
+    _ppg(str(worn), 370, 20, lambda t: 37.0 if t < 360 else 111.0)  # ends with the removal signature
+    _ppi(str(d / "Polar_VeritySense_0C30_20260923230000_PPI.txt"), [60] * 300)
+    t1 = W0 + dt.timedelta(seconds=390)
+    off = d / "Polar_VeritySense_0C30_20260923230630_PPG.txt"
+    _ppg(str(off), 400, 20, lambda t: 37.0, t0=t1)
+    _ppi(str(d / "Polar_VeritySense_0C30_20260923230630_PPI.txt"), [0] * 200 + [64] + [0] * 198 + [70], t0=t1)
+    w = loss_audit.wear_ends(str(d), "VeritySense")
+    second = w["ends"][1]
+    assert second["usable"] is False and second["ppi_rows"] == 400 and second["ppi_pulse_rows"] == 2
+    assert second["reason"] == "not worn: the device reports a pulse on 2 of its 400 PPI rows, under 1 in 20"
+    assert w["worn_end"] == {"at": w["ends"][0]["worn_end_at"], "reason": "doff", "file": worn.name}
 
 
 # ── verity_ppi_pulse: the row and pulse counts, one case per kind of row (mutate-diff on #4401) ────────

@@ -93,6 +93,7 @@ __all__ = [
     "GENERATION_CAP_FRACTION",
     "UNKNOWN_SIZE_WORKERS",
     "mutants_size_record",
+    "size_record_refusal",
     "merge_mutants_size",
     "generation_cap_sec",
     "available_bytes_from_meminfo",
@@ -1877,6 +1878,35 @@ def mutants_size_record(text, generator):
         if isinstance(size, int) and not isinstance(size, bool) and size > 0:
             out[(module, src_hash)] = size
     return out
+
+
+def size_record_refusal(record):
+    """Why this run's generated-mutants size must not be remembered, or None when it measures the module.
+
+    The record's own note forbids a number no reader can tell from a measured one, and a generation
+    killed at its phase cap writes exactly that. `mutants_bytes` stats a file the generator may have
+    closed hours earlier, or may have been midway through: generation walks every source file, so the
+    cap can fire long after this module's turn. The record cannot say which happened, and a truncated
+    file reads identically to a whole one.
+
+    So §∅ keeps the absence. The next run reads UNKNOWN and takes `UNKNOWN_SIZE_WORKERS`, where a floor
+    stored as a measurement affords more workers than the population fits — the over-commit that cap
+    exists to prevent.
+
+    A RESULTS-pass timeout is NOT this case: generation finished, the file is whole, and its size
+    describes the module. `generation_finished` is the one field that decides it, and an absent field
+    reads as unfinished, because a record written before that field existed cannot claim completion."""
+    if not record.get("mutant_generation"):
+        return "the run names no source hash, so a size recorded here would key to nothing"
+    if not record.get("mutants_bytes"):
+        return "the run left no generated-mutants file to measure"
+    if not record.get("generation_finished"):
+        return (
+            "generation did not finish, so the mutants file is a floor rather than this module's size "
+            "— a killed generation can close a file early or halfway, and the record cannot say which. "
+            "Raise the cap and record again; the next run then refuses before generating."
+        )
+    return None
 
 
 def merge_mutants_size(text, module, src_hash, generated_bytes, measured_at, host, generator):
