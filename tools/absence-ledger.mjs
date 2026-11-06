@@ -116,6 +116,11 @@ export function rowProblem(row) {
  *    is stored. A seed that matches no finding is a REFUSAL, not a silent no-op. ─────────────────── */
 export const SEEDS = [
   {
+    at: 'pat-align.js:53',
+    state: 'fixed',
+    note: 'the envelope grid starts UNMEASURED and a sample is what makes a bin a measurement, so a bin no accelerometer sample reached is NaN rather than a zero-fill; `findAnchors` takes its mean and sigma over the measured bins, `lagAtAnchor` refuses an anchor window carrying one and drops B-side holes from the overlap count, and `pat-dip-validate` publishes its quiet share over the measured bins with the coverage beside it. The recorded `_ACCRUNS.txt` runs are marked by the same mechanism (row 2026-11-05-the-pat-motion-envelope-ignores-the-acc-blanking-spans-it-is-handed). Plant: tests/dex-tests.js group PAT-align, the §∅ held-run legs (2026-11-06, Heron)'
+  },
+  {
     at: 'capture-host/cpap_live.py:67',
     state: 'fixed',
     note: 'a NEGATIVE detector age (host clock step between publish and serve) is None, not 0, so live_view reports unknown rather than fresh. Plant: test_cpap_live detector_age_s future-stamp assertion (2026-10-04, Wren)'

@@ -806,20 +806,45 @@ function accRuns(spans, { cls = 'variable' } = {}) {
     same(held._blankSpans, cut._blankSpans, `${name} reads the 2026-09-08 \`class=held\` generation identically — the span and \`min_run\` are the keys, never the class word`);
   }
 
-  /* ── CONTROL · THE CARRIER IS WIRED AND THE PAT GRID DOES NOT YET READ IT ────────
-     `PATAlign.envelope` bins |acc| against its own EMA and never looks at `_blankSpans`, so a held
-     run still enters the grid — as a near-zero deviation, i.e. as stillness. That is §∅ exactly, and
-     it is a PUBLISHED number in `pat-dip-validate`'s quiet split. The two grids below are asserted
-     EQUAL to pin that gap where a reader will find it: row
-     2026-11-05-the-pat-motion-envelope-ignores-the-acc-blanking-spans-it-is-handed owns the fix, and
-     when it lands this assertion is the one that must change. */
+  /* ── THE CARRIER IS WIRED AND THE PAT GRID NOW READS IT ──────────────────────────
+     This leg asserted the two grids EQUAL until 2026-11-05, to pin the gap where a reader would find
+     it. Row 2026-11-05-the-pat-motion-envelope-ignores-the-acc-blanking-spans-it-is-handed closed it:
+     a held run repeats one value, so its deviation from the EMA is ~0 and the bin read as the quietest
+     in the night. The bin now holds NaN, because a bin of genuine stillness is a legal zero and `0`
+     cannot carry an absence. The span is the key, so the two grids differ EXACTLY over it. */
   const rowsBare = PPGDSP.parseSensorXYZ(txt);
   const rowsCut = PPGDSP.parseSensorXYZ(txt, { runsText: accRuns([SPAN]) });
   const t1 = rowsBare[rowsBare.length - 1].tMs;
   const envBare = PATAlign.envelope(rowsBare, ACC_T0, t1, {});
   const envCut = PATAlign.envelope(rowsCut, ACC_T0, t1, {});
+  const DT_DEF = 50;
   ok(envBare && envBare.length > 20, `ANTI-VACUITY · the envelope has bins to compare (${envBare && envBare.length})`);
-  same(Array.from(envCut), Array.from(envBare), 'CONTROL · the motion envelope is UNCHANGED by the spans it is now handed — the sidecar reaches the parser, and no PAT consumer honours it yet');
+  ok(
+    Array.from(envBare).every((x) => Number.isFinite(x)),
+    'the bare grid carries NO unmeasured bin — the sidecar is the only thing that marks one'
+  );
+  const unmeas = [];
+  for (let i = 0; i < envCut.length; i++) if (!Number.isFinite(envCut[i])) unmeas.push(i);
+  ok(unmeas.length > 0, `the sidecar-fed grid marks the held run UNMEASURED (${unmeas.length} bin(s) of ${envCut.length})`);
+  const spanHi = SPAN.t0Ms + SPAN.durMs;
+  ok(
+    unmeas.every((i) => ACC_T0 + (i + 1) * DT_DEF > SPAN.t0Ms && ACC_T0 + i * DT_DEF < spanHi),
+    'every unmeasured bin overlaps the recorded span, and no other bin is touched'
+  );
+  const outside = [];
+  for (let i = 0; i < envCut.length; i++) if (Number.isFinite(envCut[i])) outside.push(envCut[i] === envBare[i]);
+  ok(outside.length > 20 && outside.every((x) => x === true), `outside the span the two grids agree bin for bin (${outside.length} measured bin(s))`);
+  /* WHAT THIS FILE CAN AND CANNOT SAY. Its stream VARIES across the span — the sidecar names the run,
+     the synthetic bytes do not repeat a value — so the numbers over those bins are ordinary signal
+     here, and no claim about stillness is available. What IS available is the defect's essential
+     property: every one of those bins carried a finite number into each statistic downstream, from a
+     stretch the box had already reported as unmeasured. The mechanism itself — the EMA converging on
+     a repeated value, and the step at the run's onset — is planted and measured in `dex-tests.js`,
+     over bytes that actually hold. */
+  ok(
+    unmeas.every((i) => Number.isFinite(envBare[i])),
+    `ANTI-VACUITY · the bare grid carried a finite number over all ${unmeas.length} of those bins, into every statistic downstream`
+  );
 }
 
 if (fails.length) {
