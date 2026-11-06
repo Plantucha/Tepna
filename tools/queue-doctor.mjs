@@ -161,7 +161,7 @@ export function staleRequiredRuns(required, runs) {
 }
 
 /** Classify ONE pr snapshot. `required` is the ruleset's required contexts; `null` means unreadable. */
-export function classify(pr, required, nowMs) {
+export function classify(pr, required, nowMs, opts = {}) {
   if (pr.state !== 'OPEN') return { k: 'gone', why: `state=${pr.state}` };
   if (pr.isDraft) return { k: 'skip', why: 'draft' };
 
@@ -243,7 +243,22 @@ export function classify(pr, required, nowMs) {
   /* Green. Everything below is a flavour of STUCK — the state with no name. */
   const idleMin = pr.updatedAtMs ? (nowMs - pr.updatedAtMs) / 60000 : 0;
   if (pr.mergeState === 'BEHIND') {
-    if (!pr.autoMerge) return { k: 'stuck-unarmed', why: 'green + BEHIND but auto-merge NOT armed — updating cannot land it', idleMin };
+    /* 🔴 UNARMED IS THE NORMAL STATE OF EVERY PR IN KODIAK'S QUEUE, so "arm auto-merge" names neither
+       a defect nor a remedy. `.kodiak.toml` sets `require_automerge_label = false`, and Kodiak updates
+       the FRONT of its serial queue as part of merging it, so a green BEHIND PR behind a mid-CI one is
+       serialising, not stalling (CLAUDE.md §5). Measured twice: #2865 and #2866 read GREEN AND STUCK
+       while Kodiak had merged #2863 ninety seconds earlier, and #4475 read the same on 2026-11-06
+       while the walker logged it `ready green, behind main` with `actions: none` behind two older PRs.
+       The header above calls arming under `strict` a DEADLOCK — so this rung printed the one remedy
+       this same file argues against, and `--report` exited 1 over a healthy queue.
+       The flag is the CALLER's measurement (config + merge-bot liveness), never a guess here: only an
+       explicit `true` reclassifies, so an unread probe keeps the pre-Kodiak verdict. */
+    if (!pr.autoMerge) {
+      if (opts.kodiakOwnsDrain === true) {
+        return { k: 'serialising', why: "green + BEHIND + unarmed — Kodiak updates the front of its serial queue in turn, so unarmed is that queue's normal state", idleMin };
+      }
+      return { k: 'stuck-unarmed', why: 'green + BEHIND but auto-merge NOT armed — updating cannot land it', idleMin };
+    }
     return { k: 'stuck-behind', why: `green + BEHIND + armed, idle ${idleMin.toFixed(0)}m`, idleMin };
   }
   if (pr.mergeState === 'UNKNOWN') return { k: 'computing', why: 'GitHub still computing mergeability' };
@@ -260,6 +275,9 @@ export function classify(pr, required, nowMs) {
  * `wedged` is a PR whose required context holds a stale non-success run the rollup hides: no arming
  * and no update clears it, only a re-run of the duplicate.
  * `--report` is clean only when ALL FIVE are empty.
+ * `serialising` is deliberately in NONE of them: a green BEHIND unarmed PR inside Kodiak's queue is
+ * the queue working, so naming it as attention is how this tool told four sessions to arm a mechanism
+ * that adds nothing. The report still PRINTS it, under its own heading, as information.
  */
 export function attention(classified) {
   return {
@@ -269,6 +287,19 @@ export function attention(classified) {
     wedged: classified.filter((c) => c.k === 'wedged'),
     dirty: classified.filter((c) => c.k === 'dirty' || c.k === 'dirty-display')
   };
+}
+
+/**
+ * Does `.kodiak.toml` declare a queue where UNARMED is the normal state? Pure, so the rule is
+ * gate-backed. `require_automerge_label = false` IS that declaration: every non-draft PR without a
+ * blocking label is in Kodiak's queue whether a human armed it or not. A commented-out line declares
+ * nothing.
+ * @param {unknown} tomlText
+ * @returns {boolean}
+ */
+export function kodiakConfigSaysUnarmed(tomlText) {
+  if (typeof tomlText !== 'string') return false;
+  return /^[^#\n]*require_automerge_label\s*=\s*false\b/m.test(tomlText);
 }
 
 /**
@@ -367,6 +398,31 @@ export function pick(classified) {
 
 const gh = (a) => execFileSync('gh', a, { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 });
 const git = (a) => execFileSync('git', a, { encoding: 'utf8', maxBuffer: 8 * 1024 * 1024, timeout: 120000, stdio: ['ignore', 'pipe', 'pipe'] });
+
+/**
+ * Is Kodiak the merger HERE — measured, not assumed? `.kodiak.toml` is INERT until the owner installs
+ * the App, so the config alone proves nothing and the last merge names the merger.
+ * ∅: a probe that did not read returns `null`, never `false` — `false` would read as "a human merges
+ * here", which is the claim this function exists to stop guessing.
+ * @returns {boolean|null}
+ */
+function kodiakOwnsDrain() {
+  let cfg = null;
+  try {
+    cfg = readFileSync(join(git(['rev-parse', '--show-toplevel']).trim(), '.kodiak.toml'), 'utf8');
+  } catch {
+    return false;
+  }
+  if (!kodiakConfigSaysUnarmed(cfg)) return false;
+  try {
+    const rows = JSON.parse(gh(['pr', 'list', '--state', 'merged', '--limit', '1', '--json', 'mergedBy']));
+    const login = Array.isArray(rows) && rows[0] && rows[0].mergedBy ? rows[0].mergedBy.login : null;
+    if (typeof login !== 'string' || login === '') return null;
+    return /kodiak/i.test(login);
+  } catch {
+    return null;
+  }
+}
 
 /* The probe behind dirtyVerdict(). It fetches the base branch and the PR head first, so the merge
    reads what GitHub reads and not a stale remote-tracking ref, and it pins the head to the OID `gh`
@@ -515,7 +571,8 @@ function main() {
   }
   const unreadable = prs.filter((p) => !p.readable);
   const now = Date.now();
-  const classified = prs.filter((p) => p.readable).map((p) => ({ pr: p, ...classify(p, required, now) }));
+  const kodiak = kodiakOwnsDrain();
+  const classified = prs.filter((p) => p.readable).map((p) => ({ pr: p, ...classify(p, required, now, { kodiakOwnsDrain: kodiak }) }));
 
   const { stuck, failing, cancelled, wedged, dirty } = attention(classified);
   const stamp = new Date(now).toISOString().slice(11, 19);
@@ -527,6 +584,14 @@ function main() {
     for (const c of stuck) console.log(`    #${c.pr.number}  ${c.why}  — ${c.pr.title.slice(0, 52)}`);
   } else {
     console.log(`${stamp}  no PR is green-and-stuck (${classified.length} open)`);
+  }
+
+  /* SERIALISING IS INFORMATION, NOT ATTENTION. It prints so the queue's shape stays visible, and it
+     sits outside `attention()` so `--report` does not exit 1 over Kodiak doing its job. */
+  const serialising = classified.filter((c) => c.k === 'serialising');
+  if (serialising.length) {
+    console.log(`${stamp}  ↻ SERIALISING: ${serialising.length} PR(s) green + BEHIND + unarmed while Kodiak drains its queue — information, not attention`);
+    for (const c of serialising) console.log(`    #${c.pr.number}  ${c.why}  — ${c.pr.title.slice(0, 52)}`);
   }
   /* A RED PR IS NOT AN IDLE QUEUE. classify() says so (`failing`); the report must too. */
   if (failing.length) {
@@ -561,7 +626,20 @@ function main() {
 
   const unarmed = stuck.filter((c) => c.k === 'stuck-unarmed');
   if (unarmed.length) {
-    console.log(`    → ${unarmed.length} need a human: arm auto-merge (\`gh pr merge <N> --auto --squash\`); updating cannot land them.`);
+    /* THE REMEDY FOLLOWS THE MERGER. Under a live Kodiak, arming adds nothing (CLAUDE.md §5) and the
+       question is the bot's queue; with no bot, arming is the pre-Kodiak path this tool was built for;
+       with the probe unread, the tool says it could not look rather than picking one. */
+    if (kodiak === true) {
+      console.log(
+        `    → ${unarmed.length} green and unarmed while the merge bot is LIVE: Kodiak merges unarmed PRs, so arming adds nothing — read its queue instead (\`gh pr list --state merged --limit 1 --json mergedBy\`).`
+      );
+    } else if (kodiak === null) {
+      console.log(
+        `    → ${unarmed.length} unarmed, and the merge-bot probe did NOT read: if Kodiak is installed, arming adds nothing (CLAUDE.md §5) — probe it with \`gh pr list --state merged --limit 1 --json mergedBy\`.`
+      );
+    } else {
+      console.log(`    → ${unarmed.length} need a human: arm auto-merge (\`gh pr merge <N> --auto --squash\`); updating cannot land them.`);
+    }
   }
 
   if (REPORT) process.exit(stuck.length || failing.length || cancelled.length || wedged.length || dirty.length ? 1 : 0);
