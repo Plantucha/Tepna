@@ -413,3 +413,137 @@ def test_TWO_seams_in_one_instance_count_as_two(tmp_path):
     sc.close()
     assert sc.seams == 2 and len(_rows(sc)) == 2, (sc.seams, _rows(sc))
     assert "seams=2" in open(sc.path).read(), "the final line carries the count it made"
+
+
+# ── THE DEVICE COLUMN'S PROVENANCE ────────────────────────────────────────────────────────────────
+# Row `2026-11-06-the-seam-sidecar-cannot-tell-a-drawn-device-axis-from-a-clock`. Every parameter line
+# read `basis=device-minus-host`, for a real oscillator and for a grid the host drew alike, and 36 of
+# the 58 seams recorded corpus-wide sit on the drawn one. `basis` keeps stating the arithmetic; the new
+# key states what the device column IS.
+
+
+def test_an_undeclared_axis_reads_unknown_and_never_device_clock(tmp_path):
+    """§∅ in the metadata: nobody said is its own answer, not a clock."""
+    sc = _sc(tmp_path)
+    sc.feed(T0, 1_000_000_000)
+    sc.close()
+    head = open(sc.path).read().split("\n")[0]
+    assert "device_axis=unknown" in head, head
+    assert "device_axis=device-clock" not in head, "an absent declaration must never read as a clock"
+    assert "basis=device-minus-host" in head, "the arithmetic statement stays true and stays put"
+
+
+def test_a_declared_drawn_axis_reaches_the_parameter_line(tmp_path):
+    """The ring's `ppg1` case: the host draws the device column, so the file says so."""
+    sc = writers._SeamSidecar(str(tmp_path / "X_PPG.txt"), "ppg1", device_axis=writers.DEVICE_AXIS_HOST_DRAWN)
+    sc.feed(T0, 1_000_000_000)
+    sc.close()
+    head = open(sc.path).read().split("\n")[0]
+    assert "device_axis=host-drawn" in head, head
+
+
+def test_a_declared_clock_axis_reaches_the_parameter_line(tmp_path):
+    """The Polar PMD case: the frame carries its own ns-since-2000 counter."""
+    sc = writers._SeamSidecar(str(tmp_path / "X_ECG.txt"), "ecg", device_axis=writers.DEVICE_AXIS_CLOCK)
+    sc.feed(T0, 1_000_000_000)
+    sc.close()
+    assert "device_axis=device-clock" in open(sc.path).read().split("\n")[0]
+
+
+def test_an_axis_outside_the_named_set_refuses_rather_than_ship_as_metadata(tmp_path):
+    """A typo is a programming error, never a third reading of the axis."""
+    with pytest.raises(ValueError, match="device_axis="):
+        writers._SeamSidecar(str(tmp_path / "X_ECG.txt"), "ecg", device_axis="host_drawn")
+
+
+def test_the_stream_writer_hands_its_declaration_to_the_sidecar(tmp_path):
+    """The production path: one producer declares, and the sidecar it owns writes what it was told."""
+    p = str(tmp_path / "X_ECG.txt")
+    w = writers.StreamWriter(p, "ecg", fsync=False, device_axis=writers.DEVICE_AXIS_HOST_DRAWN)
+    w.write_ecg(T0, 1_000_000_000, 0.0, -20001)
+    w.close()
+    assert "device_axis=host-drawn" in open(p[:-4] + "SEAMS.txt").read().split("\n")[0]
+
+
+def test_every_capture_side_stream_writer_declares_what_its_device_column_is():
+    """A WIRING GATE OVER THE SYNTAX TREE, not over the text.
+
+    `capture.py` carries a comment naming `StreamWriter(..., "ppg1")`, so a text scan reads a
+    construction that is prose. `ast` reads the calls the module actually makes. The population is
+    asserted too: a walk that found no construction must not read as a pass (§🧾).
+    """
+    import ast
+
+    src = module_source("capture.py")
+    found = []
+    for node in ast.walk(ast.parse(src)):
+        if not isinstance(node, ast.Call):
+            continue
+        fn = node.func
+        name = fn.attr if isinstance(fn, ast.Attribute) else getattr(fn, "id", None)
+        if name != "StreamWriter":
+            continue
+        kw = {k.arg for k in node.keywords if k.arg}
+        found.append((node.lineno, "device_axis" in kw))
+    assert len(found) >= 5, f"the walk examined {len(found)} construction(s), so it proved nothing"
+    undeclared = [ln for ln, ok in found if not ok]
+    assert not undeclared, f"capture.py builds a StreamWriter with no device_axis at line(s) {undeclared}"
+
+
+# ── THE FOUR BOUNDARIES THE MUTATION GATE FOUND UNOBSERVED (2026-11-06, #4468) ──────────────────
+# `mutate_diff.py --base origin/main` reported 14 survivors across `__init__` and `_ensure`. Ten are
+# equivalent and carry a probe in `tools/mutate-equivalence.json`. These four are not: each one
+# changes a file on disk, and three of them pin a contract this class's own text already claims.
+
+
+def test_a_stream_whose_name_is_not_txt_keeps_its_WHOLE_path_as_the_base(tmp_path):
+    """`base = path[:-4] if path.endswith(".txt") else path` — the else-arm had no test.
+
+    The ring writes `…_SPO2.csv`, so the non-`.txt` arm is reachable from production. Dropping the
+    guard truncates four characters off every name and silently renames the sidecar."""
+    sc = writers._SeamSidecar(str(tmp_path / "X_SPO2.csv"), "spo2")
+    assert sc.path == str(tmp_path / "X_SPO2.csvSEAMS.txt")
+    assert not sc.path.endswith("X_SPO2SEAMS.txt")
+
+
+def test_a_ZERO_BYTE_sidecar_still_gets_its_header(tmp_path):
+    """`getsize(path) > 0`, not `>= 0`. A 0-byte file is the one absence this class keeps honest.
+
+    An existing 0-byte sidecar is not a resume: it carries no header, so appending to it leaves a
+    file that never says what it is — the exact box failure the `_ensure` text records."""
+    sc = _sc(tmp_path)
+    open(sc.path, "w").close()
+    assert os.path.getsize(sc.path) == 0
+    sc.feed(T0, 1_000_000_000)
+    sc.close()
+    body = open(sc.path).read()
+    assert "rule=clock-seam" in body
+    assert "phone_ts;idx;device_step_ms" in body
+
+
+def test_a_ONE_BYTE_sidecar_resumes_and_keeps_that_byte(tmp_path):
+    """`getsize(path) > 0`, not `> 1`. One byte is bytes, so the file resumes and is never truncated.
+
+    Reading the bound as `> 1` opens "w" on a file that holds a row, which discards it."""
+    sc = _sc(tmp_path)
+    with open(sc.path, "w") as fh:
+        fh.write("x")
+    sc.feed(T0, 1_000_000_000)
+    sc.close()
+    body = open(sc.path).read()
+    assert body.startswith("x")
+    assert "rule=clock-seam" not in body
+
+
+def test_an_open_that_FAILS_reports_failure_and_closes_quietly(tmp_path):
+    """`self._fh = None` on OSError, never a falsy handle. `_ensure` returns `self._fh is not None`.
+
+    A sentinel that is not None claims the open succeeded, and then `close` writes its final line
+    into a string. A sidecar that cannot open must not stop the recording it annotates."""
+    sc = _sc(tmp_path)
+    os.mkdir(sc.path)  # open(…, "w") on a directory raises IsADirectoryError, an OSError
+    assert sc._ensure() is False
+    assert sc._fh is None
+    sc.feed(T0, 1_000_000_000)
+    sc.close()
+    assert sc.seams == 0
