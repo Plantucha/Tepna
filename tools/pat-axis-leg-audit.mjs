@@ -46,7 +46,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { dissentStampLine, dissentStampOf, dissentTallyLine, signsOf } from './consensus-dissent-core.mjs';
+import { dissentStampLine, dissentStampOf, dissentTallyLine, refpickOf, signsOf } from './consensus-dissent-core.mjs';
 import { refuseUnknownArgvOrExit, isCliEntry } from './argv-guard.mjs';
 import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
 
@@ -206,14 +206,9 @@ async function main() {
     const signsBefore = signsOf(per);
     const corrected = PPGDSP.applyConsensusPolarity(per, (i, sgn) => PPGDSP.detectChannel(rec.ch[i], rec.fs, sgn));
     const pol = dissentStampOf(signsBefore, corrected);
-    let refIdx = 0;
-    let best = -1;
-    per.forEach((p, i) => {
-      if (p.peaks.length > best) {
-        best = p.peaks.length;
-        refIdx = i;
-      }
-    });
+    /* The reference pick, NAMED at the site so the census reads a declaration rather than a loop
+       shape, and a tie stops hiding: `consensus-dissent-core.mjs#refpickOf`. Same pick. */
+    const refIdx = refpickOf(per, 'peak-argmax').idx;
     /* @polarity-decision applies
        The feet whose index-to-time conversion this audits now come from the whole channel set. */
     const feet = PPGDSP.consensusBeats(per, refIdx, rec.fs).feet;

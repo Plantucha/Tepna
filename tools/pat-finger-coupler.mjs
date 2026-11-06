@@ -38,7 +38,7 @@
  */
 import { readdirSync, readFileSync, statSync, existsSync } from 'node:fs';
 import { join, basename } from 'node:path';
-import { dissentStampOf, dissentTallyLine, signsOf } from './consensus-dissent-core.mjs';
+import { dissentStampOf, dissentTallyLine, refpickOf, signsOf } from './consensus-dissent-core.mjs';
 import { loadDsps, getDsps, ecgRpeakTimes, ppgFootTimes, legacyMatchRate, strictMatchRate, circShift, rawLags, median, STRICT_W_MS } from './pat-matchrate-strict.mjs';
 import { isCliEntry } from './argv-guard.mjs';
 import { notANight, populationVerdict, snapshotNights } from './corpus-scope-core.mjs';
@@ -116,14 +116,9 @@ function ppgFiducialTimes(text, which, runsText) {
     polaritySigns,
     PPGDSP.applyConsensusPolarity(per, (i, sgn) => PPGDSP.detectChannel(rec.ch[i], rec.fs, sgn))
   );
-  let refIdx = 0,
-    best = -1;
-  per.forEach((p, i) => {
-    if (p.peaks.length > best) {
-      best = p.peaks.length;
-      refIdx = i;
-    }
-  });
+  /* The reference pick, NAMED at the site so the census reads a declaration rather than a loop
+     shape, and a tie stops hiding: `consensus-dissent-core.mjs#refpickOf`. Same pick. */
+  const refIdx = refpickOf(per, 'peak-argmax').idx;
   /* @polarity-decision applies
      One channel makes the apply a no-op `consensusSign` enforces, and a two-channel export needs no edit here. */
   const cons = PPGDSP.consensusBeats(per, refIdx, rec.fs);
