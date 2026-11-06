@@ -554,7 +554,7 @@
     diff: ['measured', 'pairwise difference of two measured HR series on the aligned grid'],
     corr: ['measured', 'Pearson r of two measured HR series on the aligned grid'],
     count: ['measured', 'seconds on the aligned three-way grid — a count'],
-    source: ['measured', 'which file each corner was read from — a fact about the inputs'],
+    source: ['measured', 'which file each corner was read from, and the polarity condition the Verity channel set was read under — facts about the inputs'],
     hat: ['experimental', 'three-cornered hat σ̂ — assumes independent corner errors; not validated against a reference'],
     gate: ['experimental', "the suite's own corner gates (Verity harmonic, H10 lead) — a rule, not a measurement"],
     gateEv: ['measured', 'median Verity HR ÷ median H10 HR over the aligned grid — a ratio of two measured medians, which is the number the Verity harmonic gate ruled on'],
@@ -651,6 +651,34 @@
      (`gate`, experimental); the RATIO it ruled on is arithmetic over two measured HR medians (`gateEv`,
      measured). One badge on the card would publish the weaker grade over a measured number, or the
      stronger one over a rule. */
+  /* ── THE POLARITY CONDITION THE VERITY CORNER WAS READ UNDER (CLAUDE.md §∅) ───────────────────────
+     Row 2026-11-05-the-two-bundle-workers-still-discard-the-polarity-return: the worker ran
+     `applyConsensusPolarity` over the three Verity LEDs and threw the return away, so this page drew a
+     σ̂ without being able to say whether a channel behind it had been re-detected upside down. The
+     stamp now rides the payload and lands under `kSource`, which is this page's statement about its
+     inputs, so it inherits that card's `source` badge rather than asking for one of its own (§🎫).
+     🔴 EACH SHAPE GETS ITS OWN SENTENCE BECAUSE THE SHAPE NAME ALONE MISLEADS. A bare `tie` beside
+     "nothing corrected" reads as agreement, and it is the opposite: the pass abstains on a 1-1 split
+     exactly as it abstains on a unanimous set, and returns 0 from both. `unanimous` is the only shape
+     that means the channels agreed.
+     The vocabulary is `consensus-dissent.js` SHAPES, and `pat-feasibility.js` holds the other copy of
+     this table. Neither page loads that module, so the suite pins both key sets against the core's
+     list: a renamed shape reds there rather than falling through to a blank line here. */
+  /* PURE, so a planted stamp is testable with no DOM — the `gateRatioText` precedent below. */
+  const POL_TEXT = {
+    unanimous: (pol) => pol.channels + ' LEDs unanimous — nothing corrected',
+    majority: (pol) => pol.channels + '-LED majority overruled ' + pol.corrected + ' channel' + (pol.corrected === 1 ? '' : 's') + ' [' + pol.dissenters.join(',') + ']',
+    tie: (pol) => pol.channels + '-LED tie — nothing corrected, and a tie is not agreement',
+    unsigned: () => 'no channel carried a sign — nothing corrected',
+    alone: () => 'one channel — nobody to agree with'
+  };
+  function polarityText(pol) {
+    /* ∅ No stamp is not agreement: a PPI or device-HR corner never met a channel set, and a result
+       produced before the worker recorded a stamp says so rather than reading as unanimous. */
+    if (!pol || !pol.shape) return 'Verity polarity: not read';
+    const f = POL_TEXT[pol.shape];
+    return 'Verity polarity: ' + (f ? f(pol) : 'unrecognised shape ' + String(pol.shape));
+  }
   /* PURE, so the §∅ branch is testable with no DOM — the `verityFailureClass` precedent in the worker. */
   function gateRatioText(hrRatio) {
     return hrRatio == null || !isFinite(hrRatio) ? null : 'HR\u00d7' + hrRatio.toFixed(2) + ' vs ECG — median Verity / median H10';
@@ -833,7 +861,7 @@
     kpi('kMethod', 'not solved', real.reason || 'no result', 'bad');
     kpi('kGate', real.failure ? 'Verity: ' + real.failure : '—', real.failure ? 'the Verity gate skipped the night' : '', real.failure ? 'warn' : '');
     gateEvidence(real);
-    kpi('kSource', '—', '');
+    kpi('kSource', '—', polarityText(real.polarity));
     kpi('kSum', '—', '');
     kpi('kR', '—', '');
     for (const id of CARDS) setEmpty(id, 'This night could not be solved — ' + (real.reason || 'no result'), true);
@@ -958,7 +986,7 @@
     kpi(
       'kSource',
       short(real.h10Source) + ' · ' + short(real.source) + ' · ' + short(real.o2Source),
-      'H10 ' + (real.h10Source || '—') + ' · Verity ' + (real.source || '—') + ' · O2Ring ' + (real.o2Source || '—'),
+      'H10 ' + (real.h10Source || '—') + ' · Verity ' + (real.source || '—') + ' · O2Ring ' + (real.o2Source || '—') + ' · ' + polarityText(real.polarity),
       ''
     );
     const o2k = {
@@ -1220,6 +1248,7 @@
       reason: real.skip ? real.reason || null : null,
       n: real.n == null ? null : real.n,
       source: real.source || null,
+      polarity: real.polarity || null,
       sigma: real.sigma || null,
       ci: dv ? dv.ci : null,
       neg: real.neg == null ? null : real.neg,
