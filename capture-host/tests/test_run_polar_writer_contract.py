@@ -24,6 +24,7 @@ interval=850 ms, error=5 — so a transposition FAILS rather than coincidentally
 """
 
 import asyncio
+import os
 import sys
 
 import capture
@@ -201,3 +202,38 @@ def test_PPI_and_HR_carry_NO_device_clock_column(tmp_path, monkeypatch):
         assert "sensor timestamp" not in header, (
             f"{suffix} must NOT carry a device-clock column — it has no usable device clock: {header}"
         )
+
+
+# ── the seam sidecar: which sessions may leave one behind ──────────────────────────────────
+def _session_files(tmp_path):
+    return [f for _d, _s, fs in os.walk(str(tmp_path)) for f in fs]
+
+
+def test_a_PPI_session_opens_NO_seam_sidecar_because_PPI_has_no_device_clock(tmp_path, monkeypatch):
+    """PLANT, and the sibling of `test_an_HR_session_opens_NO_seam_sidecar_because_HR_has_no_device_clock`.
+    The dispatch passed `smp.sensor_ns` for PPI, and the PMD spec fixes that frame field at 0 for this
+    measurement. `_SeamSidecar.feed` treats only `None` as absence, so a zero opened the file and every
+    PPI dropout past the bound wrote a row claiming a clock seam.
+
+    Measured over the box archive on 2026-11-06: 18 of 55 recorded seam rows are PPI, each at idx 1,
+    each `device_step_ms` within 1 us of zero against a host gap of 61 s to 145 s. THE FIXTURE FRAME
+    CARRIES A NONZERO ns, which is what makes this a plant rather than a tautology: the file must stay
+    absent because the call site refuses the stamp, not because the stamp happened to be zero."""
+    _run(monkeypatch, tmp_path, ["ppi"], [T._ppi_frame()])
+    files = _session_files(tmp_path)
+    assert any(f.endswith("_PPI.txt") for f in files), files  # the PPI stream did record
+    assert not [f for f in files if f.endswith("PPISEAMS.txt")], files
+
+
+def test_an_ACC_session_DOES_leave_a_seam_sidecar(tmp_path, monkeypatch):
+    """THE CONTROL FOR THE TEST ABOVE, and a plant of its own. ACC was the one PMD writer with no seam
+    feed, so `_ACCSEAMS.txt` had no producer at all while MotionDex has read that name since #4453.
+    ACC emits its device clock as its own column, so the two clocks are both present and can disagree.
+
+    An absent sidecar and a sidecar that looked and found nothing are different facts, and only the
+    second one is a measurement. This asserts the file exists; `test_seam_sidecar.py` asserts what its
+    honest-empty form says."""
+    _run(monkeypatch, tmp_path, ["acc"], [T._acc_frame()])
+    files = _session_files(tmp_path)
+    assert any(f.endswith("_ACC.txt") for f in files), files
+    assert [f for f in files if f.endswith("ACCSEAMS.txt")], files

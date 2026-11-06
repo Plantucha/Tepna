@@ -1024,12 +1024,22 @@ SEAM_BOUND_MS = 60000
 # the seam sidecar so a new device-clocked writer cannot be added silently unfed.
 #
 # ⚠️ DELIBERATELY ABSENT, both measured 2026-09-16, neither an oversight:
-#   · `feed()` (the run-sidecar/ACC path) takes only `phone` — there is no device clock to disagree
-#     with, so a seam is not expressible there, not merely unmeasured.
+#   · `_RunSidecar.feed()` takes only `phone` — there is no device clock to disagree with, so a seam
+#     is not expressible there, not merely unmeasured.
 #   · CPAP/AS11 carry NO device counter at all (`sensor_ns` appears nowhere in cpap_live.py or
 #     cpap_job.py), so a CPAP seam is a different object and this file does not pretend to cover it.
+# ⚠️ `write_acc` JOINED THIS SET ON 2026-11-06, and it was absent for the wrong reason. The bullet
+# above once read "the run-sidecar/ACC path", which conflates `_RunSidecar.feed` with the ACC WRITER.
+# They are different objects. `write_acc` takes a `sensor_ns` and emits it as its own column, and
+# `capture.py` hands it the PMD frame's real device clock, so ACC carries two clocks that can
+# disagree. The gate below therefore passed for eight writers while the ninth never looked, which is
+# the one outcome a named set exists to prevent. Measured over the box archive, 2026-11-06: 264 seam
+# sidecars over five stream spellings and NOT ONE named `acc`, while MotionDex has read `_ACCSEAMS`
+# since #4453. The ring's own raw ACC still hands `None` (the `accraw` row in capture.py), and `feed`
+# returns at its first line for that sample.
 SEAM_FED_WRITERS = (
     "write_ecg",
+    "write_acc",
     "write_pletha",
     "write_ppg",
     "write_ppg2w",
@@ -1932,6 +1942,11 @@ class StreamWriter:
         self._row(f"{_phone_ts(phone)};{sensor_ns};{self._rel_ms(sensor_ns)};{uv}\n", phone)
 
     def write_acc(self, phone: _dt.datetime, sensor_ns: int | None, t_ms: float, x: int, y: int, z: int) -> None:
+        # ACC carries the SAME two clocks the other PMD streams do, and this row emits both of them.
+        # The seam feed was absent here alone, which reads as "this stream has no seams" rather than
+        # "nobody looked" — the §∅ distinction `SEAM_FED_WRITERS` exists to keep. The ring's raw ACC
+        # hands `None`, and `feed` returns at its first line for that sample.
+        self._seams.feed(phone, sensor_ns)
         self._row(f"{_phone_ts(phone)};{_ns_col(sensor_ns)};{x};{y};{z}\n", phone)
         # ACC feeds the run sidecar like the optical streams do. It was CREATING a sidecar and never
         # feeding it — `RUN_MIN_BY_STREAM` carries `acc`/`accraw`, so the file existed, said
@@ -2001,11 +2016,24 @@ class StreamWriter:
         self._seams.feed(phone, sensor_ns)
         self._row(f"{_phone_ts(phone)};{sensor_ns};{x:.6g};{y:.6g};{z:.6g}\n", phone)
 
-    def write_ppi(self, phone: _dt.datetime, sensor_ns: int, hr: int, pp_ms: int, err_ms: int, flags: int) -> None:
+    def write_ppi(
+        self, phone: _dt.datetime, sensor_ns: int | None, hr: int, pp_ms: int, err_ms: int, flags: int
+    ) -> None:
         # One row per beat, in PSL's PPI column ORDER: interval FIRST, hr LAST, and NO device-clock column.
         # `sensor_ns` is accepted for call-site compatibility and deliberately not emitted — PPI frames
-        # carry no usable device clock (every row the box has written has sensor_ns == 0), which is what
-        # nightqc.file_span_sec already assumes when it says "HR/RR/PPI carry no device clock".
+        # carry no usable device clock, which is what nightqc.file_span_sec already assumes when it says
+        # "HR/RR/PPI carry no device clock".
+        #
+        # ⚠️ THE LIVE PATH NOW HANDS `None`, and a literal zero was the §∅ defect. `polar_pmd` reads the
+        # PPI frame's timestamp field, which the PMD spec fixes at 0 for this measurement, so the call
+        # site used to pass a stamp of zero and the sidecar opened on it. `feed` treats only `None` as
+        # absence, so every PPI dropout past the bound wrote a row claiming a clock seam. Measured over
+        # the box archive, 2026-11-06: 18 of the 55 recorded seam rows are PPI, every one at idx 1, each
+        # `device_step_ms` within 1 us of zero against host gaps of 61 s to 145 s. Their `host_offset_ms`
+        # reads the full host epoch, which is what a device stamp of zero looks like, while the same
+        # nights' ECG rows read 946684800xxx, the real ns-since-2000 offset. `write_hr` closed the
+        # identical defect at 875bb6954cdb. The feed STAYS: a later opcode carrying a clock reaches it,
+        # and dropping it would hide the wiring from `SEAM_FED_WRITERS`.
         self._seams.feed(phone, sensor_ns)
         self._row(
             f"{_phone_ts(phone)};{pp_ms};{err_ms};{flags & 1};{(flags >> 1) & 1};{(flags >> 2) & 1};{hr}\n", phone
