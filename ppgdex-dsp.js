@@ -286,6 +286,48 @@
     return null;
   }
 
+  /* ── ONE LAYOUT PER FILE, VOTED (residue `2026-11-04-a-headerless-ppg-row-resolves-its-own-layout-and-swallows-the-junk`) ──
+     `ppgColsByTail` ran INSIDE the row loop, so a row carrying a junk field resolved its own SHIFTED
+     layout, and the row-atomic validation then checked the columns that shifted layout claims. The row
+     passed rather than dropping, the `sensor timestamp [ns]` value entered a channel array, and `nCh`,
+     `dual` and `ch0Col` were reassigned from it for every row that followed. Measured over a
+     four-thousand-row synthetic: one junk field on one row read `ch0[100]=1818181760` where the clean
+     input reads 1002, with every row kept and no NaN. The same input WITH a header drops the two dirty
+     rows, and that is the behaviour this restores.
+
+     A header names the layout once, so the headerless path owes one answer too. The lock is a VOTE over
+     the file's own rows rather than the first row that resolves, because a single junk row at the head
+     would otherwise fix the shifted layout for the whole file. Neither bound below is a threshold on the
+     data: `PPG_TAIL_VOTE_ROWS` bounds the ballot and `PPG_TAIL_VOTE_SCAN` bounds the walk, so the cost
+     stays flat whatever the file's length. A tie keeps the first signature seen. */
+  const PPG_TAIL_VOTE_ROWS = 64;
+  const PPG_TAIL_VOTE_SCAN = 512;
+  function ppgTailSig(c) {
+    return c.chIdx.join(',') + '|' + c.amb;
+  }
+  function ppgColsByTailVote(lines, fromLi, minFields) {
+    const tally = [];
+    let rows = 0;
+    for (let li = fromLi; li < lines.length && li < fromLi + PPG_TAIL_VOTE_SCAN && rows < PPG_TAIL_VOTE_ROWS; li++) {
+      const line = lines[li].trim();
+      if (!line || line.charCodeAt(0) === 35) continue;
+      const p = line.split(';');
+      if (p.length < minFields) continue;
+      const c = ppgColsByTail(p);
+      if (!c) continue;
+      rows++;
+      const k = ppgTailSig(c);
+      let e = null;
+      for (let j = 0; j < tally.length; j++) if (tally[j].k === k) e = tally[j];
+      if (e) e.votes++;
+      else tally.push({ k, cols: c, votes: 1 });
+    }
+    if (!tally.length) return null;
+    let best = tally[0];
+    for (let j = 1; j < tally.length; j++) if (tally[j].votes > best.votes) best = tally[j];
+    return { cols: best.cols, votes: best.votes, rows, dissent: rows - best.votes };
+  }
+
   /* ── O2Ring `156` BEAT MARKER (DEVICE-RATE-TRUTH §2; was "PPG_INVALID sentinel", §2.4 / PR #212) ──
      156 (0x9C) is a row the firmware INSERTS once per detected beat — it is NOT a missing-sample
      sentinel, and the old name asserted the opposite. The distinction is not cosmetic: a sentinel
@@ -916,6 +958,13 @@
       preResyncAnchorsDropped = 0;
     const resyncs = [];
     let pcols = null;
+    /* The headerless layout, locked ONCE by the vote above. `tailVoted` records that the ballot already
+       ran, so a file whose head holds no resolvable row does not re-run it per row. */
+    let tailCols = /** @type {any} */ (null);
+    let tailLock = null,
+      tailVoted = false,
+      tailVoteRows = 0,
+      tailDissent = 0;
     /* WHY THE SCAN COUNTS WHAT IT REJECTED (§∅, residue 2026-11-04-an-empty-ppg-stream-is-refused-as-a-wrong-column-layout). The `n < 10` refusal below carried ONE message for four different inputs, and the
        message named the two expected column layouts. A zero-byte stream therefore reported that its
        columns were wrong. Measured on the archive's 2026-11-01 night: 22 of 165 files hold zero bytes,
@@ -959,10 +1008,36 @@
       }
       rowsSeen++;
       if (p.length < minFields) continue;
-      const pc = pcols || ppgColsByTail(p);
+      /* ONE LAYOUT PER FILE. A header resolves `pcols` once; with no header the ballot locks `tailCols`
+         once, and no later row re-resolves. A row that disagrees with the locked layout now fails the
+         row-atomic validation below and drops, exactly as it does under a header. When the walk's bound
+         finds no resolvable row at all, the first row that does resolve locks the layout by itself —
+         still one layout for the file, which is the invariant this restores. */
+      if (!pcols && !tailCols) {
+        if (!tailVoted) {
+          tailVoted = true;
+          const vote = ppgColsByTailVote(lines, li, minFields);
+          if (vote) {
+            tailCols = vote.cols;
+            tailLock = 'tail-vote';
+            tailVoteRows = vote.rows;
+            tailDissent = vote.dissent;
+          }
+        }
+        if (!tailCols) {
+          const one = ppgColsByTail(p);
+          if (one) {
+            tailCols = one;
+            tailLock = 'tail-first';
+            tailVoteRows = 1;
+            tailDissent = 0;
+          }
+        }
+      }
+      const pc = pcols || tailCols;
       if (!pc) continue;
       rowsShaped++;
-      // The layout the ACCEPTED rows actually carry (a headerless file resolves per-row via the tail).
+      // The layout the ACCEPTED rows carry: a header names it once, a headerless file votes for it once.
       nCh = pc.chIdx.length;
       dual = !!pc.dual;
       ch0Col = pc.chIdx[0];
@@ -1602,6 +1677,14 @@
          is the ∅ disclosure: nobody said, so the host axis here is this build's floor and not a
          clock the capture host earned. */
       timebaseSource,
+      /* THE LAYOUT PROVENANCE, present only when no header named the columns, so every header-carrying
+         file keeps today's bytes. `layoutSource` is 'tail-vote' when the ballot decided and
+         'tail-first' when no row in the walk's bound resolved and a single later row locked it.
+         `layoutDissent` counts the ballot's rows that resolved a DIFFERENT signature, so a reader sees
+         that the file disagreed with itself rather than inferring agreement from silence. */
+      layoutSource: tailLock || undefined,
+      layoutVoteRows: tailLock ? tailVoteRows : undefined,
+      layoutDissent: tailLock ? tailDissent : undefined,
       /* THE RATE THE HOST CORRECTION IS ABOUT (residue row
          `2026-10-29-the-timing-block-publishes-every-fact-about-the-rate-except-the-rate`). `fs`
          above is what every consumer spends; these three say where it came from. `fsRaw` is the rate
