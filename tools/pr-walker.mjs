@@ -377,6 +377,50 @@ export function cleanWorktree(g, generated) {
   return `restored: ${parsed.length} generated path(s)`;
 }
 
+/* The message is the bird's own PR history, so it says what moved and why. */
+const REBUILD_COMMIT_MSG =
+  'build: rebuild the generated trees this rebase auto-resolved\n\n' +
+  'rebase-safe resolved every conflicting generated path to the base, then rebuilt each\n' +
+  'one from source. The rebuild is no part of the rebased commits, so this commit carries\n' +
+  'it and the pushed branch holds no base-resolved artifact.\n';
+
+/* ── THE REBUILD MUST RIDE THE PUSH ────────────────────────────────────────────────────────────
+   Measured 2026-11-04 (#4369): `rebase-safe` resolves a conflict in a GENERATED path to the base,
+   rebuilds every generated tree from source, and then PRINTS a `git commit --amend` line. It commits
+   nothing. The pass pushed the rebase without the rebuild, so `OverDex.html` reached the branch
+   carrying the base bytes while the four other carriers of the same source read the change. The
+   bird's own PR then reds `build:check` for a resolution the bird never made.
+
+   The partition is cleanWorktree's: `generatedSet()` names the rebuilt paths, and a dirty path
+   outside that set is somebody's work. An untracked path IS committed here, because a rebuild adds a
+   generated file and nothing restores one — which is why cleanWorktree refuses the same shape. A
+   rename still refuses: no rebuild renames. A refusal returns before the push, so the branch stays
+   as the bird left it. */
+export function commitRebuild(g, generated) {
+  const dirty = () =>
+    String(g('status', '--porcelain') || '')
+      .split('\n')
+      .filter((l) => l.trim());
+  const rows = dirty();
+  if (!rows.length) return 'nothing-to-commit';
+  if (!generated) return 'refused: the generated set is unreadable, so every rebuilt path reads as source';
+  const unquote = (q) => (/^".*"$/.test(q) ? q.slice(1, -1) : q);
+  const parsed = rows.map((l) => ({ code: l.slice(0, 2), path: unquote(l.slice(3).split(' -> ').pop().trim()) }));
+  const other = parsed.filter((r) => r.code.includes('R') || !generated.has(r.path));
+  if (other.length) {
+    const named = other
+      .slice(0, 4)
+      .map((r) => r.path)
+      .join(', ');
+    return `refused: ${other.length} rebuilt path(s) outside the generated set: ${named}`;
+  }
+  g('add', '--', ...parsed.map((r) => r.path));
+  g('commit', '-m', REBUILD_COMMIT_MSG);
+  const left = dirty();
+  if (left.length) return `still-dirty: ${left.length} path(s) survived the commit`;
+  return `committed: ${parsed.length} generated path(s)`;
+}
+
 function rebaseBranch(a, wt) {
   const g = (...args) => sh('git', args, { cwd: wt });
   if (!wt || !existsSync(path.join(wt, '.git'))) return 'no-worktree';
@@ -394,6 +438,10 @@ function rebaseBranch(a, wt) {
     if (g('rev-parse', 'HEAD').trim() !== a.headSha) return 'moved';
     step = 'rebase-safe';
     sh('node', ['tools/rebase-safe.mjs'], { cwd: wt });
+    step = 'rebuild-commit';
+    const rb = commitRebuild(g, generatedSet());
+    console.error(`pr-walker: the rebuild this rebase owed — ${rb}`);
+    if (!/^(nothing-to-commit|committed)/.test(rb)) return `stopped:rebuild-commit: ${rb}`;
     step = 'push';
     g('push', '-q', `--force-with-lease=${a.branch}:${a.headSha}`, 'origin', `HEAD:refs/heads/${a.branch}`);
     return `pushed:${g('rev-parse', 'HEAD').trim()}`;
@@ -637,7 +685,7 @@ function selftest() {
     const g = (...args) => {
       calls.push(args.join(' '));
       if (args[0] === 'status') return cur.join('\n');
-      if (args[0] === 'checkout') {
+      if (args[0] === 'checkout' || args[0] === 'commit') {
         cur = after || [];
         return '';
       }
@@ -684,6 +732,39 @@ function selftest() {
   eq(cleanWorktree(g7, GEN), 'still-dirty: 1 path(s) survived the restore', 'a restore that changed nothing says so rather than reading clean');
   const g8 = fakeGit(['R  old.html -> "PAT Feasibility.html"']);
   eq(/^refused: /.test(cleanWorktree(g8, GEN)), true, 'a rename into a generated path is refused, not restored');
+  /* ── commitRebuild: the rebuild rides the push, or nothing is pushed ── */
+  const c1 = fakeGit([]);
+  eq(commitRebuild(c1, GEN), 'nothing-to-commit', 'a rebase that moved no artifact commits nothing');
+  eq(
+    c1.calls.some((c) => c.startsWith('commit')),
+    false,
+    'a clean tree is never committed'
+  );
+  const c2 = fakeGit([' M "PAT Feasibility.html"', ' M OxyDex.html']);
+  eq(commitRebuild(c2, GEN), 'committed: 2 generated path(s)', 'two rebuilt bundles ride the push');
+  eq(c2.calls.includes('add -- PAT Feasibility.html OxyDex.html'), true, 'the add is quoted out and passed by path');
+  eq(
+    c2.calls.some((c) => c.startsWith('commit -m build: rebuild')),
+    true,
+    'the commit names itself as the rebuild'
+  );
+  const c3 = fakeGit(['?? docs/TOOLS-INDEX.md']);
+  eq(commitRebuild(c3, GEN), 'committed: 1 generated path(s)', 'an untracked generated path is committed — a rebuild adds one');
+  const c4 = fakeGit([' M ecgdex-dsp.js']);
+  eq(commitRebuild(c4, GEN), 'refused: 1 rebuilt path(s) outside the generated set: ecgdex-dsp.js', 'a dirty source file is refused by name');
+  eq(
+    c4.calls.some((c) => c.startsWith('commit')),
+    false,
+    'a refusal commits nothing'
+  );
+  const c5 = fakeGit([' M OxyDex.html', ' M tests/dex-tests.js']);
+  eq(/^refused: 1 /.test(commitRebuild(c5, GEN)), true, 'one source path among rebuilt ones refuses the whole set');
+  const c6 = fakeGit([' M OxyDex.html']);
+  eq(commitRebuild(c6, null), 'refused: the generated set is unreadable, so every rebuilt path reads as source', 'an unreadable builder list fails closed');
+  const c7 = fakeGit(['R  old.html -> "PAT Feasibility.html"']);
+  eq(/^refused: /.test(commitRebuild(c7, GEN)), true, 'a rename into a generated path is refused — no rebuild renames');
+  const c8 = fakeGit([' M OxyDex.html'], [' M OxyDex.html']);
+  eq(commitRebuild(c8, GEN), 'still-dirty: 1 path(s) survived the commit', 'a commit that left the path dirty says so rather than reading committed');
   console.log(`all ${ran} selftests passed`);
 }
 
