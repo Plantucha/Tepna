@@ -7,6 +7,18 @@
       "measuredAt": "2026-09-28",
       "host": "rig-x870"
     },
+    "alerts.py@a7dbd272b41b": {
+      "generatedBytes": 1796362,
+      "measuredAt": "2026-11-06",
+      "host": "rig-x870",
+      "generator": "3.8.1"
+    },
+    "capture.py@2cc37ce9ca12": {
+      "generatedBytes": 580524661,
+      "measuredAt": "2026-11-06",
+      "host": "rig-x870",
+      "generator": "3.8.1"
+    },
     "capture.py@7cf809a4bbf4": {
       "generatedBytes": 562427047,
       "measuredAt": "2026-09-28",
@@ -17,15 +29,39 @@
       "measuredAt": "2026-09-28",
       "host": "rig-x870"
     },
+    "clock_offset.py@77d90cd7b5a2": {
+      "generatedBytes": 1054422,
+      "measuredAt": "2026-11-06",
+      "host": "rig-x870",
+      "generator": "3.8.1"
+    },
     "loss_audit.py@54cacbcf505b": {
       "generatedBytes": 8892661,
       "measuredAt": "2026-09-28",
       "host": "rig-x870"
     },
+    "loss_audit.py@5bc3fd1b37f7": {
+      "generatedBytes": 19143953,
+      "measuredAt": "2026-11-06",
+      "host": "rig-x870",
+      "generator": "3.8.1"
+    },
+    "mmeta.py@573db4bb45dd": {
+      "generatedBytes": 583670,
+      "measuredAt": "2026-11-06",
+      "host": "rig-x870",
+      "generator": "3.8.1"
+    },
     "mmeta.py@7de3fed2f948": {
       "generatedBytes": 362016,
       "measuredAt": "2026-09-28",
       "host": "rig-x870"
+    },
+    "mutation_diff.py@00ee43b1fe26": {
+      "generatedBytes": 17008714,
+      "measuredAt": "2026-11-06",
+      "host": "rig-x870",
+      "generator": "3.8.1"
     },
     "mutation_diff.py@9e5cd1afd61e": {
       "generatedBytes": 9073144,
@@ -44,13 +80,20 @@
     },
     "mutation_pure.py@95350b4c7ea5": {
       "generatedBytes": 82781,
-      "measuredAt": "2026-09-28",
-      "host": "rig-x870"
+      "measuredAt": "2026-11-06",
+      "host": "rig-x870",
+      "generator": "3.8.1"
     },
     "night_report.py@b5053c46bcd2": {
       "generatedBytes": 1070002,
       "measuredAt": "2026-09-28",
       "host": "rig-x870"
+    },
+    "night_report.py@cf646a16c378": {
+      "generatedBytes": 1069906,
+      "measuredAt": "2026-11-06",
+      "host": "rig-x870",
+      "generator": "3.8.1"
     },
     "nightqc.py@30b4905be29a": {
       "generatedBytes": 53791656,
@@ -62,6 +105,18 @@
       "measuredAt": "2026-09-28",
       "host": "rig-x870"
     },
+    "nightqc.py@f4f925414629": {
+      "generatedBytes": 79198324,
+      "measuredAt": "2026-11-06",
+      "host": "rig-x870",
+      "generator": "3.8.1"
+    },
+    "probe_oxyii_0x03.py@7c8b01a60a7f": {
+      "generatedBytes": 3250023,
+      "measuredAt": "2026-11-06",
+      "host": "rig-x870",
+      "generator": "3.8.1"
+    },
     "probe_oxyii_0x03.py@eb385f6bbd59": {
       "generatedBytes": 2524582,
       "measuredAt": "2026-10-19",
@@ -71,6 +126,18 @@
       "generatedBytes": 3688680,
       "measuredAt": "2026-09-28",
       "host": "rig-x870"
+    },
+    "solid_night_inputs.py@9f31d9446bb9": {
+      "generatedBytes": 18722922,
+      "measuredAt": "2026-11-06",
+      "host": "rig-x870",
+      "generator": "3.8.1"
+    },
+    "writers.py@b6b76a47f48b": {
+      "generatedBytes": 9490676,
+      "measuredAt": "2026-11-06",
+      "host": "rig-x870",
+      "generator": "3.8.1"
     },
     "writers.py@f01709fdb834": {
       "generatedBytes": 8056208,
