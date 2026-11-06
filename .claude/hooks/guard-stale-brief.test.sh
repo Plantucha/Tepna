@@ -937,6 +937,36 @@ if [ "$_worst" = 0 ]; then echo "  ok    the hatch drains a payload past pipe-ma
 else echo "  FAIL  the writer into the hatched hook exited $_worst (141 = SIGPIPE, the hook never read it)"; fail=$((fail+1)); fi
 
 echo
+echo "### §3c — a candidate reader that could not run is not a reader that found nothing"
+# Residue 2026-11-06-the-stale-brief-guard-reads-an-empty-candidate-set-as-no-candidate. `sort -u`
+# runs at exactly two places in the hook, both of them the candidate pipeline, so a stub that
+# cannot run names the blind reader and touches nothing else. The legs pair on ONE property: the
+# same write denies with the reader working and with it broken, and a read allows either way.
+BLIND="$TMP/blindbin"
+mkdir -p "$BLIND"
+printf '#!/bin/sh\nexit 3\n' > "$BLIND/sort"
+chmod +x "$BLIND/sort"
+runcmd_blind() { # runcmd_blind <command string> ; the same drive, under a sort that cannot run
+  jq -nc --arg c "$1" '{tool_input:{command:$c}}' | PATH="$BLIND:$PATH" bash "$H" >/dev/null 2>&1
+  [ $? -eq 2 ] && echo DENY || echo ALLOW
+}
+expectblind() { # expectblind <want> <label> <command>
+  local got; got="$(runcmd_blind "$3")"
+  if [ "$got" = "$1" ]; then printf '  ok    %-58s %s\n' "$2" "$got"
+  else printf '  FAIL  %-58s got %s, want %s\n' "$2" "$got" "$1"; fail=$((fail+1)); fi
+}
+saysof_blind() { # saysof_blind <command string> ; the hook's stderr under the broken reader
+  jq -nc --arg c "$1" '{tool_input:{command:$c}}' | PATH="$BLIND:$PATH" bash "$H" 2>&1 >/dev/null
+}
+expectblind DENY  "a write to a stale brief, candidate reader broken" "sed -i 's/a/b/' briefs/SHARED-BRIEF.md"
+expectcmd   DENY  "the same write with the reader working"            "sed -i 's/a/b/' briefs/SHARED-BRIEF.md"
+expectblind ALLOW "a read of a stale brief, candidate reader broken"  "grep -n 'v1' briefs/SHARED-BRIEF.md | head"
+_blindsays="$(saysof_blind "sed -i 's/a/b/' briefs/SHARED-BRIEF.md")"
+expectsays PRESENT "the denial names the reader that could not look"  "WHAT COULD NOT LOOK" "$_blindsays"
+expectsays PRESENT "the denial carries the status it read"            "exited 3" "$_blindsays"
+expectsays PRESENT "the denial sends the reader at the box, not the diff" "it is not your command" "$_blindsays"
+
+echo
 if [ "$fail" -eq 0 ]; then
   echo "PASS — every DENY paired with an ALLOW that differs in one property"
 else
