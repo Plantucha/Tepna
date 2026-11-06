@@ -2881,7 +2881,7 @@ def test_the_size_record_round_trips_and_a_hash_MISS_IS_ABSENT():
     assert rec[("capture.py", "7cf809a4bbf4")] == 562427047
     assert rec.get(("capture.py", "8c405e68387e")) is None, "a different source hash must not inherit a size"
     assert rec.get(("other.py", "7cf809a4bbf4")) is None, "a different module must not inherit it either"
-    # …and a different "generator": "3.8.1"ERATOR must not inherit it either: the size is whatever that generator wrote
+    # …and a different GENERATOR must not inherit it either: the size is whatever that generator wrote
     assert M.mutants_size_record(text, "3.8.0") == {}, "a size from another mutmut is not this tree's size"
 
 
@@ -2945,7 +2945,7 @@ def test_the_committed_record_in_this_tree_parses_and_is_keyed_to_real_modules()
     """The file itself, not a fixture: a record nobody can parse is a record that silently stops helping,
     and the keys must name modules this tree actually has.
 
-    Reading it is "generator": "3.8.1"ERATOR-SCOPED, so the two halves are checked separately. The structure is checked
+    Reading it is GENERATOR-SCOPED, so the two halves are checked separately. The structure is checked
     on the file, and the read is checked against the generator each entry names. An entry written before
     the field existed names none, and nothing retro-stamps it: which mutmut measured it is not written
     anywhere, and inferring it from the pin's git history would be a manufactured provenance (§∅). Such

@@ -8,11 +8,25 @@
       "measuredAt": "2026-10-17",
       "host": "rig-x870"
     },
+    "acq_evidence_o2ring.py@eea59c99b1b9": {
+      "statsSec": 21.3,
+      "cleanSec": 7.7,
+      "measuredAt": "2026-11-06",
+      "host": "rig-x870",
+      "generator": "3.8.1"
+    },
     "alerts.py@022aecd321dc": {
       "statsSec": 50.7,
       "cleanSec": 39.7,
       "measuredAt": "2026-10-17",
       "host": "rig-x870"
+    },
+    "alerts.py@e3a007a88838": {
+      "statsSec": 74.1,
+      "cleanSec": 59.4,
+      "measuredAt": "2026-11-06",
+      "host": "rig-x870",
+      "generator": "3.8.1"
     },
     "clock_offset.py@4435903b0536": {
       "statsSec": 70.8,
@@ -20,17 +34,45 @@
       "measuredAt": "2026-10-17",
       "host": "rig-x870"
     },
+    "clock_offset.py@51d7168a9365": {
+      "statsSec": 18.6,
+      "cleanSec": 44.9,
+      "measuredAt": "2026-11-06",
+      "host": "rig-x870",
+      "generator": "3.8.1"
+    },
     "cpap_spool_decode.py@43e8149b1116": {
       "statsSec": 8.3,
       "cleanSec": 0.2,
       "measuredAt": "2026-10-18",
       "host": "rig-x870"
     },
+    "cpap_spool_decode.py@b4e3183b3ea7": {
+      "statsSec": 13.4,
+      "cleanSec": 0.8,
+      "measuredAt": "2026-11-06",
+      "host": "rig-x870",
+      "generator": "3.8.1"
+    },
     "localstamp.py@18d83e5995de": {
       "statsSec": 1.1,
       "cleanSec": 0.5,
       "measuredAt": "2026-10-17",
       "host": "rig-x870"
+    },
+    "localstamp.py@1d1fd8bd3c14": {
+      "statsSec": 13.9,
+      "cleanSec": 11.9,
+      "measuredAt": "2026-11-06",
+      "host": "rig-x870",
+      "generator": "3.8.1"
+    },
+    "mmeta.py@304a2acdf892": {
+      "statsSec": 71.2,
+      "cleanSec": 61.3,
+      "measuredAt": "2026-11-06",
+      "host": "rig-x870",
+      "generator": "3.8.1"
     },
     "mmeta.py@c05fd5911842": {
       "statsSec": 42.4,
@@ -39,10 +81,12 @@
       "host": "rig-x870"
     },
     "probe_oxyii_0x03.py@72f2e9e44d08": {
-      "statsSec": 14.4,
-      "cleanSec": 1.1,
-      "measuredAt": "2026-10-19",
-      "host": "rig-x870"
+      "statsSec": 37.4,
+      "cleanSec": 2.9,
+      "measuredAt": "2026-11-06",
+      "host": "rig-x870",
+      "generator": "3.8.1",
+      "supersedes": 14.4
     }
   }
 }
