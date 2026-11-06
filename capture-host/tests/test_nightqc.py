@@ -5201,7 +5201,7 @@ def test_the_recorded_offset_is_read_BY_HEADER_NAME_not_by_position(tmp_path):
 
 def _recovered(night):
     files = nightqc.scan_night(night)
-    data = [f for f in files if f["stream"] not in nightqc._SIDECAR_TAGS]
+    data = [f for f in files if not nightqc.is_sidecar(f["stream"])]
     return nightqc.recover_writer_offset(night, data), data
 
 
