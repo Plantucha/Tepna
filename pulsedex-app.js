@@ -698,14 +698,26 @@ function calculate() {
 
   progress(35, 'Computing metrics…');
 
+  /* The seams the box recorded at ARRIVAL, placed on this record's beat axis (§4). TWO consumers
+     read one verdict. A 5-min window spanning a seam refuses and publishes its reason instead of
+     metrics over two stretches of signal, which `windowAnalysis` already does for a detected seam and
+     this hands it the recorded ones under the same shape. The WHOLE-RECORD figures refuse as well,
+     because a record carrying a seam is not one continuous stretch of signal (owner ruling
+     2026-09-17). `pulsedex-dsp.js` reads this same `refuses` field into its own `clockSeam`, so the
+     two roads of this node refuse together instead of disagreeing on one recording.
+     `_pdSeamScanWith` returns the scan it was given when nothing was placed, so a stream with no
+     sidecar keeps today's numbers byte-for-byte. */
+  const _pdSeam = pdSeamVerdict(parsed, parsed.tsMs);
+  const _pdRefuses = _pdSeam.refuses;
+
   // ── whole-record metrics ──
   const meanRR = mean(a),
-    sdnn = std(a),
-    rm = rmssd(a),
-    pn = pnn50(a),
+    sdnn = _pdRefuses ? null : std(a),
+    rm = _pdRefuses ? null : rmssd(a),
+    pn = _pdRefuses ? null : pnn50(a),
     nn50 = nn50c(a);
   const hr = +(60000 / meanRR).toFixed(1),
-    cv = +((sdnn / meanRR) * 100).toFixed(2);
+    cv = sdnn == null ? null : +((sdnn / meanRR) * 100).toFixed(2);
   const mx = +mxdmn(a).toFixed(1),
     mo = modeV(a),
     amo = +amo50(a, mo).toFixed(1);
@@ -721,12 +733,6 @@ function calculate() {
     dispHr = hr,
     dispPn = pn,
     dispMeanRR = meanRR;
-  /* The seams the box recorded at ARRIVAL, placed on this record's beat axis (§4). A 5-min window
-     spanning one refuses and publishes its reason instead of metrics over two stretches of signal
-     (owner ruling 2026-09-17) — `windowAnalysis` already does that for a detected seam, and this hands
-     it the recorded ones under the same shape. `_pdSeamScanWith` returns the scan it was given when
-     nothing was placed, so a stream with no sidecar keeps today's numbers byte-for-byte. */
-  const _pdSeam = pdSeamVerdict(parsed, parsed.tsMs);
   if (longRec) {
     progress(50, 'Windowing ' + (durSec / 3600).toFixed(1) + ' h into 5-min epochs…');
     win = windowAnalysis(a, times, 300, { scan: _pdSeamScanWith(null, _pdSeam.seamIdx, parsed.tsMs), t0Ms: parsed.t0Ms });
@@ -813,23 +819,30 @@ function calculate() {
   const cMx = +mxdmn(gSeg).toFixed(1),
     cMo = modeV(gSeg),
     cAmo = +amo50(gSeg, cMo).toFixed(1);
-  const cCv = +((cSd / cMeanRR) * 100).toFixed(2);
-  const expSd1 = +sd1(cRm).toFixed(2),
-    expSd2 = +sd2(cSd, cRm).toFixed(2);
-  const stress = stressEst(cSd, cRm),
-    hrv = hrvEst(cSd, cRm, cPn),
-    energy = energyEst(cSd, cRm),
-    focus = focusEst(cSd, cRm),
-    coh = cohEst(cRm, cSd);
+  const cCv = cSd == null ? null : +((cSd / cMeanRR) * 100).toFixed(2);
+  const expSd1 = cRm == null ? null : +sd1(cRm).toFixed(2),
+    expSd2 = cSd == null || cRm == null ? null : +sd2(cSd, cRm).toFixed(2);
+  /* The composites refuse on the SAME refusal, mirroring `pulsedex-dsp.js`. `cRm`/`cSd` are null
+     exactly when the variability metrics refused: on a long recording they hold the surviving window
+     medians and survive a seam, and on a short one they ARE the refused whole-record pair. Feeding a
+     null into the estimators fabricates rather than failing — `stressEst` returns 100 as the
+     1.2295*null term vanishes into its clamp, `hrvEst` returns 0, `energyEst` 1, `focusEst` 0,
+     `cohEst` NaN. The composite is null and `hrvReason` below names why. */
+  const _hrvRefused = cRm == null || cSd == null;
+  const stress = _hrvRefused ? null : stressEst(cSd, cRm),
+    hrv = _hrvRefused ? null : hrvEst(cSd, cRm, cPn),
+    energy = _hrvRefused ? null : energyEst(cSd, cRm),
+    focus = _hrvRefused ? null : focusEst(cSd, cRm),
+    coh = _hrvRefused ? null : cohEst(cRm, cSd);
   const satP = ans.psns >= 100,
     satE = energy >= 100; // ceiling-saturation flags
-  const sd1v = +sd1(rm).toFixed(2),
-    sd2v = +sd2(sdnn, rm).toFixed(2);
-  const lnrm = +lnR(cRm).toFixed(3);
+  const sd1v = rm == null ? null : +sd1(rm).toFixed(2),
+    sd2v = sdnn == null || rm == null ? null : +sd2(sdnn, rm).toFixed(2);
+  const lnrm = cRm == null ? null : +lnR(cRm).toFixed(3);
   const lfhfv = winSpec ? winSpec.lfhf : ls.lfhf;
   const hfnu = +nu(sp.hf, sp.hf + sp.lf).toFixed(1),
     lfnu = +nu(sp.lf, sp.hf + sp.lf).toFixed(1);
-  const ell = +(Math.PI * sd1v * sd2v).toFixed(1);
+  const ell = sd1v == null || sd2v == null ? null : +(Math.PI * sd1v * sd2v).toFixed(1);
   /* `.toFixed()` on an uncomputable index would throw, so each of these three now null-guards at the
      call site (DA-V §2.6 F16). Absence propagates as null all the way to the render row, which prints
      an em-dash — the value never becomes a number anywhere along the way. */
@@ -858,15 +871,15 @@ function calculate() {
   const elev = _pp.elev || 0;
   const altFactor = altVO2Factor(elev); // ≤1 above 1500 m
   const vo2b = +(vo2Base(rhrEff, hrmaxEff) * altFactor).toFixed(1);
-  const vo2a = +vo2Adj(vo2b, lnrm).toFixed(1);
-  const efc = +efcIdx(energy, focus, coh).toFixed(1);
+  const vo2a = lnrm == null ? null : +vo2Adj(vo2b, lnrm).toFixed(1);
+  const efc = _hrvRefused ? null : +efcIdx(energy, focus, coh).toFixed(1);
   const crs = _r1(crsIdx(coh, cRm, cPn, stress), 4);
   const absV = _r1(absIdx(ans.psns, ans.sns), 3);
   /* `fe` divides by `ans.sns + 1`, and `null + 1 === 1` — so an absent sympathetic estimate silently
      became a divisor of 1 and `fe` came out equal to `focus`, a real-looking number derived from a
      measurement that does not exist (DA-V §2.6 F16, same family as absIdx above). */
-  const sfg = stress - focus,
-    fe = ans.sns == null || !isFinite(ans.sns) ? null : +(focus / (ans.sns + 1)).toFixed(3);
+  const sfg = _hrvRefused ? null : stress - focus,
+    fe = _hrvRefused || ans.sns == null || !isFinite(ans.sns) ? null : +(focus / (ans.sns + 1)).toFixed(3);
   // PNS Efficiency = rMSSD/(SDNN·pNN50-fraction) — divide by the pNN50 FRACTION (cPn/100),
   // matching HRVDex's reference formula (hrvdex-dsp.js d_pns_eff). Omitting the /100 rendered
   // values 100× too small (0.0140 vs HRVDex's 1.3955 on identical RR truth). Guard mirrors
@@ -914,17 +927,20 @@ function calculate() {
     /* THE SEAM CHANNEL for `pdBuildNodeExport`, which publishes it unconditionally — without this the
        drop road's export would read `no-seam-sidecar` on a night whose sidecar this road just read. */
     seamState: _pdSeam.ann,
+    /* ∅ the reason NAMED beside the absence — an absent HRV figure a reader cannot explain is only
+       half of the refusal, and `pulsedex-dsp.js` publishes the same key. */
+    hrvReason: _pdRefuses ? 'clock-seam' : null,
     N,
     meanRR: +meanRR.toFixed(1),
     hr,
-    sdnn: +sdnn.toFixed(2),
-    rmssd: +rm.toFixed(2),
-    pnn50: +pn.toFixed(1),
+    sdnn: _r1(sdnn, 2),
+    rmssd: _r1(rm, 2),
+    pnn50: _r1(pn, 1),
     nn50,
-    dispRm: +dispRm.toFixed(2),
-    dispSd: +dispSd.toFixed(2),
+    dispRm: _r1(dispRm, 2),
+    dispSd: _r1(dispSd, 2),
     dispHr: +dispHr.toFixed(1),
-    dispPn: +dispPn.toFixed(1),
+    dispPn: _r1(dispPn, 1),
     dispMeanRR: +dispMeanRR.toFixed(1),
     cv,
     mx,
@@ -953,7 +969,7 @@ function calculate() {
     satE,
     sd1: sd1v,
     sd2: sd2v,
-    sd1sd2: +(sd1v / (sd2v || 1)).toFixed(3),
+    sd1sd2: sd1v == null || sd2v == null ? null : +(sd1v / (sd2v || 1)).toFixed(3),
     ellArea: ell,
     lnrmssd: lnrm,
     lfhf: lfhfv,
@@ -975,7 +991,7 @@ function calculate() {
     efc,
     crs,
     abs: absV,
-    sfg: +sfg.toFixed(1),
+    sfg: _r1(sfg, 1),
     fe,
     pnse,
     otr,
