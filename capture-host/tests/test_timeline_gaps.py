@@ -750,7 +750,7 @@ def test_a_file_STILL_BEING_WRITTEN_at_a_daemon_restart_keeps_the_window_it_fill
     host stamps only `span_sec` is absent, so `… or f.get(None)` collapses instead. One file shape
     cannot tell all four apart — measured, not assumed."""
     d = _clamped_night(tmp_path, host_only=host_only)
-    data = [f for f in nightqc.scan_night(str(d)) if f["stream"] not in nightqc._SIDECAR_TAGS]
+    data = [f for f in nightqc.scan_night(str(d)) if not nightqc.is_sidecar(f["stream"])]
     assert data[0].get(clock) == 111.0, f"the fixture must state the extent via {clock}: {data[0]}"
 
     seams = sorted(nightqc.daemon_starts(str(d), offset_sec=None)["stamps"])
@@ -847,7 +847,7 @@ def test_a_night_whose_files_ALL_LACK_a_stamp_has_no_earliest_rather_than_crashi
     (d / "Polar_H10_02849638_ECG.txt").write_text(  # no 14-digit stamp anywhere in the name
         "Phone timestamp;sensor timestamp [ns];channel 0\n" + "\n".join(rows) + "\n"
     )
-    data = [f for f in nightqc.scan_night(str(d)) if f["stream"] not in nightqc._SIDECAR_TAGS]
+    data = [f for f in nightqc.scan_night(str(d)) if not nightqc.is_sidecar(f["stream"])]
     assert data and all(f["session"] is None for f in data), (
         f"the fixture must yield files with NO session, or the guard is not reached: {data}"
     )
