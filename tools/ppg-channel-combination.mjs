@@ -83,6 +83,7 @@ import { dedupeByIdentity, gitCommitOf, notCovered, populationVerdict, ruleLine,
    tools applying it cannot drift apart; this spelling stays because callers already import it here. */
 export { dedupeByIdentity };
 import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
+import { dissentStampOf, dissentTallyLine, signsOf } from './consensus-dissent-core.mjs';
 import { median, quantile, sd } from './ppi-match.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -711,7 +712,15 @@ for (const f of files) {
      strengthen. The shipped consensus pass settles it before any weight is solved, so this measures
      combination and not the polarity bug. */
   const perChannel = keepIdx.map((c) => P.detectChannel(rec.ch[c], rec.fs));
+  /* ∅ A ZERO FROM THIS PASS IS FIVE DIFFERENT FACTS — a unanimous set, a 1-1 tie, channels carrying
+     no sign and a single-channel stream all return 0, and only the first means the channels agreed.
+     This leg recorded the count alone, so its "files where the pass acted first" line reported every
+     tie as agreement (row 2026-11-05-two-consensus-legs-record-a-count-with-no-shape). The signs are
+     read BEFORE the pass: after it the dissenter carries the majority sign and every file reads
+     unanimous. */
+  const polaritySigns = signsOf(perChannel);
   const polarityActed = P.applyConsensusPolarity(perChannel, (i, sgn) => P.detectChannel(rec.ch[keepIdx[i]], rec.fs, sgn));
+  const polarity = dissentStampOf(polaritySigns, polarityActed);
   const bps = perChannel.map((pc) => pc.bp);
   const plan = blockPlan(rec.n, rec.fs);
   if (!plan.length) {
@@ -734,7 +743,7 @@ for (const f of files) {
     continue;
   }
   const mAdv = (v, c) => median(mine.map((r) => r.adv[v][c]));
-  fileRows.push({ rec: name, blocks: mine.length, polarityActed });
+  fileRows.push({ rec: name, blocks: mine.length, polarityActed, polarity });
   const pair = (v) => `${(mAdv(v, 'spectral') ?? 0).toFixed(3)}/${(mAdv(v, 'dispersion') ?? 0).toFixed(3)}`;
   console.log(
     `${basename(name).slice(0, 44).padEnd(44)}  ${rec.fs.toFixed(1).padStart(5)}  ${String(mine.length).padStart(6)}  ${(median(mine.map((r) => r.chRho)) ?? 0).toFixed(3)}  ${median(
@@ -824,8 +833,12 @@ if (blocks.length) {
   const wAbs = blocks.map((r) => r.wGev.map(Math.abs).sort((a, b) => b - a));
   console.log(`  GEV dominant-weight median ${median(wAbs.map((w) => w[0])).toFixed(3)}  ·  smallest-weight median ${median(wAbs.map((w) => w[w.length - 1])).toFixed(3)}`);
   console.log(`  PCA-1 dominant-weight median ${median(blocks.map((r) => Math.max(...r.wPca.map(Math.abs)))).toFixed(3)}  (1/sqrt(3) = 0.577 is the equal-weight mean)`);
-  console.log(`  files where the shipped polarity pass acted first: ${fileRows.filter((r) => r.polarityActed > 0).length} of ${fileRows.length}`);
 }
+/* ∅ THE POLARITY REPORT SITS OUTSIDE THE BLOCK BRANCH. The count above used to print only where a
+   block scored, and the complement of a count is not agreement: the tally names every class, so a
+   reader can see how many files the pass abstained on for a reason other than unanimity. */
+console.log(`  files where the shipped polarity pass acted first: ${fileRows.filter((r) => r.polarity.corrected > 0).length} of ${fileRows.length}`);
+console.log(dissentTallyLine(fileRows.map((r) => r.polarity)));
 console.log(`\n  excluded by reason (§∅, never a zero): ${JSON.stringify(excluded)}`);
 const vline = validityLine(validity);
 if (vline) console.log(`  ${vline}`);

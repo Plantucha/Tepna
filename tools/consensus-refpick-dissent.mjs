@@ -512,7 +512,7 @@ function selftest() {
   fail += ok(dissentOf([null, null]).shape === 'unsigned', 'a record whose channels carry no sign reads unsigned');
   fail += ok(dissentOf([1]).shape === 'alone', 'one channel has nobody to agree with, so it is never unanimous');
   fail += ok(signsOf([{ sign: -1 }, null]).join() === '-1,', 'a channel the detector could not orient stays null, never a sign');
-  /* The stamp and the pooled tally the nine PAT legs print. ∅ The classes a reader could confuse are
+  /* The stamp and the pooled tally every PAT leg prints beside its own figures. ∅ The classes a reader could confuse are
      what these pin: a tie is not agreement, and a stream nobody read is not a unanimous one. */
   fail += ok(dissentStampOf([1, 1, -1], 1).corrected === 1 && dissentStampOf([1, 1, -1], 1).shape === 'majority', 'a stamp carries the shape and the channels re-detected');
   fail += ok(dissentStampOf([1, 1, 1], undefined).corrected === null, 'a stamp made with no count reads null, never a zero it did not measure');
