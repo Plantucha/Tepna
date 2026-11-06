@@ -1,0 +1,38 @@
+#!/bin/sh
+# SPDX-FileCopyrightText: Copyright 2026 Michal Planicka
+# SPDX-License-Identifier: Apache-2.0
+# tepna-update — the ONLY commands a fleet session may run as root without a password (owner, 2026-11-05).
+# Root-owned and mode 755 in /usr/local/sbin, so no session can edit what sudo runs.
+# Fixed actions only. It takes no path, package name or URL from its caller.
+#   sudo -n /usr/local/sbin/tepna-update ollama   # newest stable Ollama release, checksum-verified
+#   sudo -n /usr/local/sbin/tepna-update apt      # apt-get update + upgrade of installed packages
+# It never reboots. A kernel or GPU-driver upgrade waits for the owner's reboot.
+set -eu
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+case "${1:-}" in
+ollama)
+  # Newest NON-pre-release tag, from GitHub's "latest" endpoint (it skips pre-releases).
+  V=$(curl -fsSL https://api.github.com/repos/ollama/ollama/releases/latest | sed -n 's/.*"tag_name": *"\(v[0-9][^"]*\)".*/\1/p' | head -1)
+  [ -n "$V" ] || { echo "tepna-update: no release tag read" >&2; exit 1; }
+  T=$(mktemp -d); trap 'rm -rf "$T"' EXIT; cd "$T"
+  for f in ollama-linux-amd64.tar.zst ollama-linux-amd64-rocm.tar.zst sha256sum.txt; do
+    curl -fsSLO "https://github.com/ollama/ollama/releases/download/$V/$f"
+  done
+  grep -E '(\./)?ollama-linux-amd64(-rocm)?\.tar\.zst$' sha256sum.txt | sed 's#  \./#  #' | sha256sum -c -
+  echo "tepna-update: installing ollama $V (was $(/usr/local/bin/ollama --version 2>/dev/null | tail -1))"
+  systemctl stop ollama
+  rm -rf /usr/local/lib/ollama
+  tar --zstd -C /usr/local -xf ollama-linux-amd64.tar.zst
+  tar --zstd -C /usr/local -xf ollama-linux-amd64-rocm.tar.zst
+  systemctl start ollama
+  sleep 3
+  /usr/local/bin/ollama --version
+  ;;
+apt)
+  apt-get update -q
+  DEBIAN_FRONTEND=noninteractive apt-get -y -q -o Dpkg::Options::=--force-confold upgrade
+  [ -f /var/run/reboot-required ] && echo "tepna-update: a reboot is required — the owner decides when"
+  ;;
+*)
+  echo "usage: tepna-update ollama|apt" >&2; exit 2 ;;
+esac
