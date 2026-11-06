@@ -5394,6 +5394,76 @@
   ],
   "writers.py": [
     {
+      "brief": "BLE-TIMEBASE-AT-THE-EDGE \u00a71.4 \u2014 _SeamSidecar lazy open and resume (#4468)",
+      "class": "no-distinguishing-input",
+      "key": "- self._prev_ns: int | None = None | + self._prev_ns: int | None = \"\"",
+      "probe": "Ran the ORIGINAL and each MUTATED module over one battery of 960 _SeamSidecar sessions on 2026-11-06: 4 streams x .txt/.csv x 5 planted file states (absent, 0 bytes, 1 byte, header+row, CRLF header) x seeded/unseeded x no note / note before open / note after open x 4 sample shapes (seam, clean, one sample, no device clock). Each module was loaded from its own copy with bytecode off. Compared the sidecar file by SHA-256 and by length, plus seams, examined, opened and device_axis. 0 of 960 sessions differed, for every one of the ten mutants this battery covers.",
+      "why": "`self._prev_ns` and `self._prev_phone_ms` are read ONLY as a conjunction \u2014 `if self._prev_ns is not None and self._prev_phone_ms is not None:` \u2014 and `feed` assigns both together on adjacent lines. So ONE sentinel alone never moves that branch: unseeded, the other member is still None and the `and` is False either way; seeded, `__init__` overwrites both from the seed before any read. The entry above this one records the same pairing for the `and`/`or` mutant of the reader."
+    },
+    {
+      "brief": "BLE-TIMEBASE-AT-THE-EDGE \u00a71.4 \u2014 _SeamSidecar lazy open and resume (#4468)",
+      "class": "no-distinguishing-input",
+      "key": "- self._prev_phone_ms: float | None = None | + self._prev_phone_ms: float | None = \"\"",
+      "probe": "Ran the ORIGINAL and each MUTATED module over one battery of 960 _SeamSidecar sessions on 2026-11-06: 4 streams x .txt/.csv x 5 planted file states (absent, 0 bytes, 1 byte, header+row, CRLF header) x seeded/unseeded x no note / note before open / note after open x 4 sample shapes (seam, clean, one sample, no device clock). Each module was loaded from its own copy with bytecode off. Compared the sidecar file by SHA-256 and by length, plus seams, examined, opened and device_axis. 0 of 960 sessions differed, for every one of the ten mutants this battery covers.",
+      "why": "`self._prev_ns` and `self._prev_phone_ms` are read ONLY as a conjunction \u2014 `if self._prev_ns is not None and self._prev_phone_ms is not None:` \u2014 and `feed` assigns both together on adjacent lines. So ONE sentinel alone never moves that branch: unseeded, the other member is still None and the `and` is False either way; seeded, `__init__` overwrites both from the seed before any read. The entry above this one records the same pairing for the `and`/`or` mutant of the reader."
+    },
+    {
+      "brief": "BLE-TIMEBASE-AT-THE-EDGE \u00a71.4 \u2014 _SeamSidecar lazy open and resume (#4468)",
+      "class": "no-distinguishing-input",
+      "key": "- self._opened = False | + self._opened = None",
+      "probe": "Ran the ORIGINAL and each MUTATED module over one battery of 960 _SeamSidecar sessions on 2026-11-06: 4 streams x .txt/.csv x 5 planted file states (absent, 0 bytes, 1 byte, header+row, CRLF header) x seeded/unseeded x no note / note before open / note after open x 4 sample shapes (seam, clean, one sample, no device clock). Each module was loaded from its own copy with bytecode off. Compared the sidecar file by SHA-256 and by length, plus seams, examined, opened and device_axis. 0 of 960 sessions differed, for every one of the ten mutants this battery covers.",
+      "why": "`_opened` has two readers and both test it for TRUTH: `if self._opened:` in `_ensure`, and `self._opened and os.path.exists(self.path)` in the `opened` property. None and False are both falsy, and `_ensure` assigns True before any other code can read it."
+    },
+    {
+      "brief": "BLE-TIMEBASE-AT-THE-EDGE \u00a71.4 \u2014 _SeamSidecar lazy open and resume (#4468)",
+      "class": "no-distinguishing-input",
+      "key": "- self._pmd_note: str | None = None | + self._pmd_note: str | None = \"\"",
+      "probe": "Ran the ORIGINAL and each MUTATED module over one battery of 960 _SeamSidecar sessions on 2026-11-06: 4 streams x .txt/.csv x 5 planted file states (absent, 0 bytes, 1 byte, header+row, CRLF header) x seeded/unseeded x no note / note before open / note after open x 4 sample shapes (seam, clean, one sample, no device clock). Each module was loaded from its own copy with bytecode off. Compared the sidecar file by SHA-256 and by length, plus seams, examined, opened and device_axis. 0 of 960 sessions differed, for every one of the ten mutants this battery covers.",
+      "why": "`_pmd_note`'s only reader is `_flush_pmd_note`, which returns early on `note is None or self._fh is None` and otherwise writes `note` to the file. An empty string passes the None test and then writes ZERO bytes, so no file and no counter can tell it from None."
+    },
+    {
+      "brief": "BLE-TIMEBASE-AT-THE-EDGE \u00a71.4 \u2014 _SeamSidecar lazy open and resume (#4468)",
+      "class": "no-distinguishing-input",
+      "key": "- self._fh = open(self.path, \"a\" if resumed else \"w\", buffering=1 << 16, newline=\"\\n\") | + self._fh = open(self.path, \"a\" if resumed else \"w\", buffering=1 << 16, newline=None)",
+      "probe": "Ran the ORIGINAL and each MUTATED module over one battery of 960 _SeamSidecar sessions on 2026-11-06: 4 streams x .txt/.csv x 5 planted file states (absent, 0 bytes, 1 byte, header+row, CRLF header) x seeded/unseeded x no note / note before open / note after open x 4 sample shapes (seam, clean, one sample, no device clock). Each module was loaded from its own copy with bytecode off. Compared the sidecar file by SHA-256 and by length, plus seams, examined, opened and device_axis. 0 of 960 sessions differed, for every one of the ten mutants this battery covers.",
+      "why": "On POSIX `os.linesep` is `\\n`, so a text stream opened with `newline=None`, or with the keyword dropped, translates `\\n` to the same byte. The pin states the intent; no input here observes it. Same family as the open()-keyword survivors already recorded for this file \u2014 residue `2026-10-20-seven-open-keyword-mutants-survive-in-writers`."
+    },
+    {
+      "brief": "BLE-TIMEBASE-AT-THE-EDGE \u00a71.4 \u2014 _SeamSidecar lazy open and resume (#4468)",
+      "class": "no-distinguishing-input",
+      "key": "- self._fh = open(self.path, \"a\" if resumed else \"w\", buffering=1 << 16, newline=\"\\n\") | + self._fh = open(self.path, \"a\" if resumed else \"w\", newline=\"\\n\")",
+      "probe": "Ran the ORIGINAL and each MUTATED module over one battery of 960 _SeamSidecar sessions on 2026-11-06: 4 streams x .txt/.csv x 5 planted file states (absent, 0 bytes, 1 byte, header+row, CRLF header) x seeded/unseeded x no note / note before open / note after open x 4 sample shapes (seam, clean, one sample, no device clock). Each module was loaded from its own copy with bytecode off. Compared the sidecar file by SHA-256 and by length, plus seams, examined, opened and device_axis. 0 of 960 sessions differed, for every one of the ten mutants this battery covers.",
+      "why": "`buffering` is a performance knob and nothing here reads a partial buffer: every comparison happens after `close()` flushes, so 1 << 16, 1 << 17, 2 << 16 and the default leave identical bytes. `1 << 17` and `2 << 16` are also the SAME NUMBER (131072), so two of these mutants cannot be distinguished from each other by any input."
+    },
+    {
+      "brief": "BLE-TIMEBASE-AT-THE-EDGE \u00a71.4 \u2014 _SeamSidecar lazy open and resume (#4468)",
+      "class": "no-distinguishing-input",
+      "key": "- self._fh = open(self.path, \"a\" if resumed else \"w\", buffering=1 << 16, newline=\"\\n\") | + self._fh = open(self.path, \"a\" if resumed else \"w\", buffering=1 << 16, )",
+      "probe": "Ran the ORIGINAL and each MUTATED module over one battery of 960 _SeamSidecar sessions on 2026-11-06: 4 streams x .txt/.csv x 5 planted file states (absent, 0 bytes, 1 byte, header+row, CRLF header) x seeded/unseeded x no note / note before open / note after open x 4 sample shapes (seam, clean, one sample, no device clock). Each module was loaded from its own copy with bytecode off. Compared the sidecar file by SHA-256 and by length, plus seams, examined, opened and device_axis. 0 of 960 sessions differed, for every one of the ten mutants this battery covers.",
+      "why": "On POSIX `os.linesep` is `\\n`, so a text stream opened with `newline=None`, or with the keyword dropped, translates `\\n` to the same byte. The pin states the intent; no input here observes it. Same family as the open()-keyword survivors already recorded for this file \u2014 residue `2026-10-20-seven-open-keyword-mutants-survive-in-writers`."
+    },
+    {
+      "brief": "BLE-TIMEBASE-AT-THE-EDGE \u00a71.4 \u2014 _SeamSidecar lazy open and resume (#4468)",
+      "class": "no-distinguishing-input",
+      "key": "- self._fh = open(self.path, \"a\" if resumed else \"w\", buffering=1 << 16, newline=\"\\n\") | + self._fh = open(self.path, \"a\" if (resumed) or True else \"w\", buffering=1 << 16, newline=\"\\n\")",
+      "probe": "Ran the ORIGINAL and each MUTATED module over one battery of 960 _SeamSidecar sessions on 2026-11-06: 4 streams x .txt/.csv x 5 planted file states (absent, 0 bytes, 1 byte, header+row, CRLF header) x seeded/unseeded x no note / note before open / note after open x 4 sample shapes (seam, clean, one sample, no device clock). Each module was loaded from its own copy with bytecode off. Compared the sidecar file by SHA-256 and by length, plus seams, examined, opened and device_axis. 0 of 960 sessions differed, for every one of the ten mutants this battery covers.",
+      "why": "`resumed` is `os.path.exists(self.path) and os.path.getsize(self.path) > 0`, so `\"w\"` is reached only when the file is absent or holds 0 bytes. On an absent file `\"a\"` creates it; on a 0-byte file `\"a\"` and `\"w\"` both start writing at byte 0. The fourth state \u2014 a file that holds bytes while `resumed` is False \u2014 is unreachable by construction, and the two tests added with this entry pin the 0-byte and 1-byte boundaries that decide `resumed`."
+    },
+    {
+      "brief": "BLE-TIMEBASE-AT-THE-EDGE \u00a71.4 \u2014 _SeamSidecar lazy open and resume (#4468)",
+      "class": "no-distinguishing-input",
+      "key": "- self._fh = open(self.path, \"a\" if resumed else \"w\", buffering=1 << 16, newline=\"\\n\") | + self._fh = open(self.path, \"a\" if resumed else \"w\", buffering=2 << 16, newline=\"\\n\")",
+      "probe": "Ran the ORIGINAL and each MUTATED module over one battery of 960 _SeamSidecar sessions on 2026-11-06: 4 streams x .txt/.csv x 5 planted file states (absent, 0 bytes, 1 byte, header+row, CRLF header) x seeded/unseeded x no note / note before open / note after open x 4 sample shapes (seam, clean, one sample, no device clock). Each module was loaded from its own copy with bytecode off. Compared the sidecar file by SHA-256 and by length, plus seams, examined, opened and device_axis. 0 of 960 sessions differed, for every one of the ten mutants this battery covers.",
+      "why": "`buffering` is a performance knob and nothing here reads a partial buffer: every comparison happens after `close()` flushes, so 1 << 16, 1 << 17, 2 << 16 and the default leave identical bytes. `1 << 17` and `2 << 16` are also the SAME NUMBER (131072), so two of these mutants cannot be distinguished from each other by any input."
+    },
+    {
+      "brief": "BLE-TIMEBASE-AT-THE-EDGE \u00a71.4 \u2014 _SeamSidecar lazy open and resume (#4468)",
+      "class": "no-distinguishing-input",
+      "key": "- self._fh = open(self.path, \"a\" if resumed else \"w\", buffering=1 << 16, newline=\"\\n\") | + self._fh = open(self.path, \"a\" if resumed else \"w\", buffering=1 << 17, newline=\"\\n\")",
+      "probe": "Ran the ORIGINAL and each MUTATED module over one battery of 960 _SeamSidecar sessions on 2026-11-06: 4 streams x .txt/.csv x 5 planted file states (absent, 0 bytes, 1 byte, header+row, CRLF header) x seeded/unseeded x no note / note before open / note after open x 4 sample shapes (seam, clean, one sample, no device clock). Each module was loaded from its own copy with bytecode off. Compared the sidecar file by SHA-256 and by length, plus seams, examined, opened and device_axis. 0 of 960 sessions differed, for every one of the ten mutants this battery covers.",
+      "why": "`buffering` is a performance knob and nothing here reads a partial buffer: every comparison happens after `close()` flushes, so 1 << 16, 1 << 17, 2 << 16 and the default leave identical bytes. `1 << 17` and `2 << 16` are also the SAME NUMBER (131072), so two of these mutants cannot be distinguished from each other by any input."
+    },
+    {
       "class": "no-distinguishing-input",
       "key": "- if self._prev_ns is not None and self._prev_phone_ms is not None: | + if self._prev_ns is not None or self._prev_phone_ms is not None:",
       "probe": "tests/test_seam_sidecar.py — the whole file: every test feeds a fresh instance, so both members are None on the first sample and set on every one after.",

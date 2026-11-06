@@ -488,3 +488,62 @@ def test_every_capture_side_stream_writer_declares_what_its_device_column_is():
     assert len(found) >= 5, f"the walk examined {len(found)} construction(s), so it proved nothing"
     undeclared = [ln for ln, ok in found if not ok]
     assert not undeclared, f"capture.py builds a StreamWriter with no device_axis at line(s) {undeclared}"
+
+
+# ── THE FOUR BOUNDARIES THE MUTATION GATE FOUND UNOBSERVED (2026-11-06, #4468) ──────────────────
+# `mutate_diff.py --base origin/main` reported 14 survivors across `__init__` and `_ensure`. Ten are
+# equivalent and carry a probe in `tools/mutate-equivalence.json`. These four are not: each one
+# changes a file on disk, and three of them pin a contract this class's own text already claims.
+
+
+def test_a_stream_whose_name_is_not_txt_keeps_its_WHOLE_path_as_the_base(tmp_path):
+    """`base = path[:-4] if path.endswith(".txt") else path` — the else-arm had no test.
+
+    The ring writes `…_SPO2.csv`, so the non-`.txt` arm is reachable from production. Dropping the
+    guard truncates four characters off every name and silently renames the sidecar."""
+    sc = writers._SeamSidecar(str(tmp_path / "X_SPO2.csv"), "spo2")
+    assert sc.path == str(tmp_path / "X_SPO2.csvSEAMS.txt")
+    assert not sc.path.endswith("X_SPO2SEAMS.txt")
+
+
+def test_a_ZERO_BYTE_sidecar_still_gets_its_header(tmp_path):
+    """`getsize(path) > 0`, not `>= 0`. A 0-byte file is the one absence this class keeps honest.
+
+    An existing 0-byte sidecar is not a resume: it carries no header, so appending to it leaves a
+    file that never says what it is — the exact box failure the `_ensure` text records."""
+    sc = _sc(tmp_path)
+    open(sc.path, "w").close()
+    assert os.path.getsize(sc.path) == 0
+    sc.feed(T0, 1_000_000_000)
+    sc.close()
+    body = open(sc.path).read()
+    assert "rule=clock-seam" in body
+    assert "phone_ts;idx;device_step_ms" in body
+
+
+def test_a_ONE_BYTE_sidecar_resumes_and_keeps_that_byte(tmp_path):
+    """`getsize(path) > 0`, not `> 1`. One byte is bytes, so the file resumes and is never truncated.
+
+    Reading the bound as `> 1` opens "w" on a file that holds a row, which discards it."""
+    sc = _sc(tmp_path)
+    with open(sc.path, "w") as fh:
+        fh.write("x")
+    sc.feed(T0, 1_000_000_000)
+    sc.close()
+    body = open(sc.path).read()
+    assert body.startswith("x")
+    assert "rule=clock-seam" not in body
+
+
+def test_an_open_that_FAILS_reports_failure_and_closes_quietly(tmp_path):
+    """`self._fh = None` on OSError, never a falsy handle. `_ensure` returns `self._fh is not None`.
+
+    A sentinel that is not None claims the open succeeded, and then `close` writes its final line
+    into a string. A sidecar that cannot open must not stop the recording it annotates."""
+    sc = _sc(tmp_path)
+    os.mkdir(sc.path)  # open(…, "w") on a directory raises IsADirectoryError, an OSError
+    assert sc._ensure() is False
+    assert sc._fh is None
+    sc.feed(T0, 1_000_000_000)
+    sc.close()
+    assert sc.seams == 0
