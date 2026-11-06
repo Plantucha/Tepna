@@ -50,6 +50,15 @@
       "stability": null,
       "reason": null,
       "resyncs": null
+    },
+    "validity": {
+      "seams": null,
+      "seamsExamined": null,
+      "seamsPlaced": null,
+      "seamsUnplaced": null,
+      "seamsBoundMs": null,
+      "seamsStream": "acc",
+      "seamsReason": "no-seam-sidecar"
     }
   },
   "motion": {
