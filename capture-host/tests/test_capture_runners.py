@@ -10046,6 +10046,44 @@ def test_the_by_design_set_is_exactly_PPI_and_cites_the_vendor():
     assert capture._NO_SAMPLE_TIME_BY_DESIGN == pmd.NO_SAMPLE_TIME_BY_DESIGN
 
 
+def test_a_PPI_arrival_row_BLANKS_both_device_stamp_columns(tmp_path, monkeypatch):
+    """∅ THE ARTIFACT MUST NOT CARRY A STAMP THE VENDOR LEAVES UNDEFINED.
+
+    `PmdArrivalLogWriter` blanks absence by contract, and this sidecar exists for
+    `min(arrival - first_sensor_ns)`. A PPI frame's stamp is fixed at 0, so handing the field through
+    published a device time of 2000-01-01 under a column that means a device clock. The row still
+    lands, because the arrival itself is a real measurement of the link."""
+    _polar_common(monkeypatch)
+    c = FlexPolarClient(data_frames=[_ppi_frame(ns=0)], start_status=0x00)
+    _inject_connect(monkeypatch, c)
+    _stop_after(monkeypatch, 1)
+    _run(capture.run_polar(_pdev(streams=["ppi"]), str(tmp_path)))
+    lines = list((tmp_path / "captures").rglob("*_PMDARRIVAL.csv"))[0].read_text().splitlines()
+    rows = [ln.split(";") for ln in lines[1:] if ln.strip()]
+    assert rows, "the arrival row must still land — the arrival is a real measurement"
+    for f in rows:
+        assert f[2] == "ppi", f
+        assert f[3] == "" and f[4] == "", (f, "a stream with no sample time must blank both ns columns")
+        assert f[5].isdigit() and int(f[5]) >= 1, (f, "n_samples still counts what was delivered")
+        assert f[0].startswith("20") and "T" in f[0], (f, "the arrival keeps its phone-timestamp shape")
+
+
+def test_the_blank_is_keyed_on_the_MEASUREMENT_and_not_on_a_stamp_of_zero(tmp_path, monkeypatch):
+    """🔴 THE SHAPE A VALUE-KEYED FIX WOULD GET WRONG. The vendor's words are "either zero or it
+    is missing", so a PPI frame carrying a NON-zero stamp still has no sample time. A guard reading
+    `== 0` would publish that number as a device clock, which is §∅'s value-membership error."""
+    _polar_common(monkeypatch)
+    c = FlexPolarClient(data_frames=[_ppi_frame(ns=1_000_000_000)], start_status=0x00)
+    _inject_connect(monkeypatch, c)
+    _stop_after(monkeypatch, 1)
+    _run(capture.run_polar(_pdev(streams=["ppi"]), str(tmp_path)))
+    lines = list((tmp_path / "captures").rglob("*_PMDARRIVAL.csv"))[0].read_text().splitlines()
+    rows = [ln.split(";") for ln in lines[1:] if ln.strip()]
+    assert rows, "the plant must have reached the writer, or this asserts nothing"
+    for f in rows:
+        assert f[3] == "" and f[4] == "", (f, "a non-zero PPI stamp is still no sample time")
+
+
 def test_the_H10_on_a_chest_with_a_FULL_flat_battery_is_worn_not_docked(tmp_path, monkeypatch):
     """THE 2026-09-22 NIGHT. A fresh CR2025 sits at 100 % for days; after 45 min flat the flat-at-full
     rule (written for the Verity's dock) set `charging: True`, charging outranked the heartbeat vote of
