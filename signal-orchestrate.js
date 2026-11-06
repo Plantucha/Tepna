@@ -463,6 +463,8 @@
   // one recording identically), so no chicken-and-egg with the not-yet-parsed frame's t0Ms.
   // 'runs' is the validity sidecar — `…_PPGRUNS.txt` for PPG, `…_ECGRUNS.txt` for ECG (one writer emits both) — SAMPLE-VALIDITY-ENVELOPE §3.2; its TEXT rides
   // to each node's adapter as ctx.companions.runs and from there into parsePPG / parseECGText(text, { runsText }).
+  // 'seams' is the clock-seam sidecar — `…_ECGSEAMS.txt` for ECG and `…_PPGSEAMS.txt` for PPG — and it rides the same road as
+  // ctx.companions.seams into parseECGText / parsePPG, so an orchestrated night refuses over a recorded seam (SEAM-SIDECAR-CONSUMPTION §4).
   /* `spo2` joined 2026-09-25: the O2Ring's raw dual-wavelength waveform is SELF-CALIBRATED against the
      ring's own 1 Hz series, so without that companion `spo2WaveformTrend` refuses by design — the
      Unifier could route the waveform correctly (#3075) and still never produce a trend.
@@ -475,7 +477,7 @@
      that fails by looking like it worked, and the fix costs one word. */
   var _COMPANION_KINDS = {
     ecg: ['rr', 'hr', 'acc', 'runs', 'accruns', 'seams'],
-    ppg: ['acc', 'gyro', 'magn', 'ppi', 'runs', 'accruns'],
+    ppg: ['acc', 'gyro', 'magn', 'ppi', 'runs', 'accruns', 'seams'],
     spo2: ['spo2', 'ppg2wruns'],
     acc: ['accruns', 'gyro', 'magn']
   };
@@ -502,9 +504,12 @@
        per stream, so `_ACCSEAMS`, `_HRSEAMS` and `_PPISEAMS` exist beside this one, and a shared
        slot would let nearest-stamp replace the ECG's own seams with the ACC's. Tested before `_ECG`,
        which cannot match it anyway (no boundary before SEAMS), exactly as `_ECGRUNS` is. Only the
-       ECG spelling returns a kind here: a sidecar this node cannot place must not arrive as one it
-       can. */
+       ECG and PPG spellings return a kind here: a sidecar no node can place must not arrive as one
+       that can. `_PPGSEAMS` joined on 2026-11-06, when PpgDex gained `parsePpgSeams` and placed the
+       rows on its own sample axis; `_PPISEAMS`, `_HRSEAMS` and `_ACCSEAMS` still name streams no node
+       places, and they keep their absence of a kind. */
     if (/_ECGSEAMS\b|_ECGSEAMS\./.test(u)) return 'seams';
+    if (/_PPGSEAMS\b|_PPGSEAMS\./.test(u)) return 'seams';
     /* The O2Ring's raw dual-wavelength lane, and its sidecar takes its OWN kind for the reason the
        block above states — one device, two sidecars, and a shared slot is a silent replacement.
        `_PPG2WRUNS` is tested FIRST because the sidecar name is built by APPENDING to the stream

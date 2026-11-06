@@ -7365,7 +7365,14 @@
         deviceRR: input.deviceRR || null,
         deviceHR: input.deviceHR || null,
         deviceACC: input.deviceACC || null,
-        accFs: input.accFs || null
+        accFs: input.accFs || null,
+        /* THE SEAM SIDECAR, carried across the frame boundary by `polar-h10-ecg` (SEAM-SIDECAR-CONSUMPTION
+           §4). This branch rebuilds the rec from the frame, so a key the adapter carried and this rebuild
+           omitted would be a sidecar read and then discarded. `null` when the drop carried none, which
+           `_ecgSeamState` reads as 'no-seam-sidecar' — UNKNOWN, never a clean night. */
+        seamsSidecar: input.seamsSidecar || null,
+        recordedSeams: input.recordedSeams || null,
+        recordedSeamsReason: input.recordedSeamsReason || null
       };
     } else if (input && input.int16 != null && input.fs != null) {
       rec = input; // already a parsed rec (app / synthetic / test path)

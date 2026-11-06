@@ -122,6 +122,18 @@
         prov
       );
 
+      /* …AND THE SEAM SIDECAR'S PARSE CROSSES THE FRAME BOUNDARY, because `ECGDex.compute()` REBUILDS
+         the analyze-rec from `samples` and drops anything this adapter does not carry — the §2(b)
+         companion idiom below, applied to validity. Without these keys the sidecar read above would be
+         parsed and then thrown away, so an orchestrated night would read seams UNKNOWN although its drop
+         carried the file. Present only when a sidecar parsed, so a drop without one builds a
+         byte-identical frame. */
+      if (rec.seamsSidecar) {
+        frame.seamsSidecar = rec.seamsSidecar;
+        frame.recordedSeams = rec.recordedSeams;
+        if (rec.recordedSeamsReason) frame.recordedSeamsReason = rec.recordedSeamsReason;
+      }
+
       // COMPANION-BUNDLE INGEST (ECG-PPG-FOLLOWUPS-HANDOFF §2(b)). The host pairs the matched device
       // `*_RR/_HR/_ACC` sidecars by stamp and hands their TEXT via ctx.companions = { rr, hr, acc };
       // parse them with the DSP-resident parsers (by reference, never copied) and attach to the frame so

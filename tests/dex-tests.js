@@ -46133,7 +46133,9 @@
         // PPG companion kind. Deliberate contract change — this line pinned the enumeration as the invariant.
         // 'accruns' joined 2026-09-25 — the ACC companion's OWN sidecar, a kind of its own so it can
         // never occupy the primary's `runs` slot. Corrected, not relaxed: still an exact set compare.
-        T.ok('  companionKinds(ppg) = acc/gyro/magn/ppi/runs/accruns', JSON.stringify(ORCH.companionKinds('ppg')) === JSON.stringify(['acc', 'gyro', 'magn', 'ppi', 'runs', 'accruns']));
+        // 'seams' joined 2026-11-06 (SEAM-SIDECAR-CONSUMPTION §4), when PpgDex gained a reader for the
+        // box's `…_PPGSEAMS.txt` — the ECG lane above carries it since #4406. Still an exact set compare.
+        T.ok('  companionKinds(ppg) = acc/gyro/magn/ppi/runs/accruns/seams', JSON.stringify(ORCH.companionKinds('ppg')) === JSON.stringify(['acc', 'gyro', 'magn', 'ppi', 'runs', 'accruns', 'seams']));
         T.ok('  a no-sidecar drop pairs nothing → null', ORCH.pairCompanions('ecg', 'lone_20260617_010000_ECG.txt', [{ name: 'lone_20260617_010000_ECG.txt', text: 'ECG' }]) === null);
 
         // §1 (ECG-INGEST-FOLLOWUPS) — DEVICE-ID companion filter (the cross-host analogue of the app fix).
@@ -47492,6 +47494,293 @@
       var src = env.sources || {};
       if (src['motiondex-app.js']) T.ok('motiondex-app · routes `_ACCRUNS` to its ACC runs slot', /_ACCRUNS/.test(src['motiondex-app.js']) && /chestAccRuns/.test(src['motiondex-app.js']));
     });
+    /* ════ SEAM-SIDECAR-CONSUMPTION §4 · THE PPG LEG (2026-11-06, residue row
+       `2026-11-05-four-clock-carrying-nodes-still-read-no-seam-sidecar`) ════════════════════════
+       The groups above wired ECGDex. `capture-host/writers.py` constructs a `_SeamSidecar` for EVERY
+       device-clocked stream, so a Verity night writes `…_PPGSEAMS.txt` beside its waveform, and
+       PpgDex read none of it: `dex-ingest.ppgKind` sent the name to 'skip' (`_PPG\b` cannot match
+       `_PPGSEAMS` — no word boundary before SEAMS), `signal-orchestrate` carried no PPG seam lane, and
+       the node's own `clockResyncs` scan was the only seam instrument in the export.
+
+       🔴 THE TWO INSTRUMENTS DISAGREE BY CONSTRUCTION, and that is why the sidecar is worth reading:
+       `clockResyncs` is a DATA finding (a counter step in the written stream), while the sidecar is an
+       ARRIVAL finding (the two clocks compared at the notification). A seam the box saw at arrival can
+       leave no step in the bytes, so the node's own scan reading zero is not evidence of a clean night.
+       The owner ruled on 2026-11-05: a night with no sidecar reads seams UNKNOWN, never zero, and a
+       window spanning a recorded seam refuses. */
+    group(
+      'SEAM-SIDECAR-CONSUMPTION §4 — the _PPGSEAMS sidecar reaches PpgDex, and a box-recorded seam refuses what a resync refuses',
+      'ppgdex-dsp · dex-ingest · signal-orchestrate · adapters · ppgdex-app · absence · §∅',
+      function (T) {
+        var P = env.PPGDSP || env.PpgDex;
+        /* A HEADER ALONE is not a parsable PPG stream — `parsePPG` throws on a file with no data row,
+           by design (§∅: an empty capture is an ABSENCE, not a layout error). So the reader legs run
+           over a 20-row stub: short enough to stay free, long enough that the parse returns a record. */
+        var HDR =
+          'Phone timestamp;sensor timestamp [ns];channel 0;channel 1;channel 2;ambient\n' +
+          (function () {
+            var rr = [],
+              tz = Date.UTC(2026, 5, 17, 1, 0, 0);
+            for (var q = 0; q < 20; q++) rr.push(new Date(tz + Math.round(q * 18.18)).toISOString().replace('Z', '') + ';' + (1000000000000 + q * 18181818) + ';100;100;100;3');
+            return rr.join('\n') + '\n';
+          })();
+        /* The writer's own shape, as `_SeamSidecar._ensure` + `feed` + `close` emit it: a parameter line
+           stating the rule AND the bound, the 7-column header, one row per seam, one `# final` per
+           writer session — and a night that reconnected carries several, which is why they are summed. */
+        var SC = [
+          '# stream=ppg rule=clock-seam bound_ms=250 unit=ms basis=device-minus-host',
+          'phone_ts;idx;device_step_ms;phone_delta_ms;residual_ms;host_offset_ms;at_rel_ms',
+          '2026-06-17T01:05:00.000;413;240000.0;7.7;239992.3;-12.0;312000.0',
+          '# final stream=ppg seams=1 examined=50000',
+          '# final stream=ppg seams=0 examined=39999'
+        ].join('\n');
+        // ── THE READER ────────────────────────────────────────────────────────────────────────────
+        if (P && typeof P.parsePPG === 'function') {
+          var bare = P.parsePPG(HDR),
+            withSc = P.parsePPG(HDR, { seamsText: SC });
+          T.ok('parsePPG · ONE argument is byte-identical — no seam fields appear', bare.seamsSidecar === undefined && bare.recordedSeams === undefined);
+          T.eq('parsePPG · the sidecar publishes its OWN bound, so a reader can tell WHICH threshold looked', withSc.seamsSidecar.boundMs, 250);
+          T.eq('parsePPG · …and its rule and basis, as written', withSc.seamsSidecar.rule + ' ' + withSc.seamsSidecar.basis, 'clock-seam device-minus-host');
+          T.ok(
+            'parsePPG · a sidecar stating its bound is comparable; one without a parameter line is not',
+            withSc.seamsSidecar.comparable === true &&
+              P.parsePPG(HDR, { seamsText: 'phone_ts;idx;device_step_ms;phone_delta_ms;residual_ms;host_offset_ms;at_rel_ms' }).seamsSidecar.comparable === false
+          );
+          T.eq(
+            'parsePPG · the seam is kept on the HOST axis — the one a device-clock step does not break',
+            withSc.recordedSeams.length + '@' + withSc.recordedSeams[0].tMs,
+            '1@' + Date.UTC(2026, 5, 17, 1, 5, 0, 0)
+          );
+          T.eq('parsePPG · the device step and residual are carried as the box measured them', withSc.recordedSeams[0].deviceStepMs + '/' + withSc.recordedSeams[0].residualMs, '240000/239992.3');
+          /* `idx` and `at_rel_ms` are DIAGNOSTICS and must never become the placement: `at_rel_ms` is
+             measured on the device axis the seam just broke, and `idx` is a per-writer-session counter
+             that restarts at every reconnect while the file appends. Pinned so a later edit that starts
+             placing on either has to delete this leg deliberately. */
+          T.eq('parsePPG · `idx` and `at_rel_ms` are carried, as diagnostics only', withSc.recordedSeams[0].idx + '/' + withSc.recordedSeams[0].atRelMs, '413/312000');
+          T.eq(
+            'parsePPG · every `# final` line is SUMMED, so a reconnecting night reports its whole examined population',
+            withSc.seamsSidecar.seamsReported + '/' + withSc.seamsSidecar.examined,
+            '1/89999'
+          );
+          /* The wrong-companion case a stamp-nearest pick can hand over: the box writes `_ACCSEAMS`,
+             `_PPISEAMS` and `_HRSEAMS` beside this one, and each declares its own stream. An ECG
+             sidecar is refused the same way — this node places on its own sample axis, not a beat one. */
+          var wrong = P.parsePPG(HDR, { seamsText: SC.replace('stream=ppg rule', 'stream=ecg rule') });
+          T.eq("parsePPG · an ECG sidecar's rows are not this stream's, and the refusal is counted", wrong.seamsSidecar.rejected + '/' + wrong.seamsSidecar.dataRows, '1/1');
+          T.eq('∅ · rows present and NONE placed yields null, never an empty list that reads as a seam-free stream', wrong.recordedSeams, null);
+          T.ok('∅ · …with the reason naming the stream that went unplaced', /stream=ecg/.test(String(wrong.recordedSeamsReason)), String(wrong.recordedSeamsReason));
+          /* §∅ — the MEASURED zero. The box examined 89,999 intervals and recorded no seam, which is a
+             real observation and must not read like an unread channel. */
+          var zero = P.parsePPG(HDR, {
+            seamsText: [
+              '# stream=ppg rule=clock-seam bound_ms=250 unit=ms basis=device-minus-host',
+              'phone_ts;idx;device_step_ms;phone_delta_ms;residual_ms;host_offset_ms;at_rel_ms',
+              '# final stream=ppg seams=0 examined=89999'
+            ].join('\n')
+          });
+          T.ok(
+            '∅ · an EMPTY but comparable sidecar is "looked and found nothing", not "never looked"',
+            Array.isArray(zero.recordedSeams) && zero.recordedSeams.length === 0 && zero.seamsSidecar.examined === 89999 && zero.seamsSidecar.placedNone === false
+          );
+          var ragged = P.parsePPG(HDR, {
+            seamsText: SC.replace('2026-06-17T01:05:00.000;413;240000.0;7.7;239992.3;-12.0;312000.0', '2026-06-17T01:05:00.000;413;240000.0\nnot-a-stamp;414;240000.0;7.7;239992.3;-12.0;312000.0')
+          });
+          T.eq(
+            'parsePPG · a short row is MALFORMED and a stampless row is REJECTED — counted apart, never dropped silently',
+            ragged.seamsSidecar.malformed + '/' + ragged.seamsSidecar.rejected,
+            '1/1'
+          );
+          T.ok('parsePPG · …and the unparseable host stamp is named', /unparsed host stamp/.test(String(ragged.recordedSeamsReason)), String(ragged.recordedSeamsReason));
+          T.ok(
+            'attachPpgSeams · the helper hands the SAME record back, so every road shares one body',
+            typeof P.attachPpgSeams === 'function' && P.attachPpgSeams(bare, { seamsText: SC }) === bare && !!bare.seamsSidecar
+          );
+          T.ok('attachPpgSeams · a null record is handed back, never thrown on', typeof P.attachPpgSeams === 'function' && P.attachPpgSeams(null, { seamsText: SC }) === null);
+        } else T.skip('PPGDSP.parsePPG unavailable');
+        // ── THE PLACEMENT, on this node's own sample axis ─────────────────────────────────────────
+        if (P && typeof P.placeRecordedPpgSeams === 'function') {
+          var N = 2400,
+            relSec = new Float64Array(N);
+          for (var i = 0; i < N; i++) relSec[i] = i * 0.5;
+          var t0 = 1000,
+            at = function (k) {
+              return t0 + relSec[k] * 1000;
+            };
+          T.eq(
+            'placeRecordedPpgSeams · a seam lands on the FIRST SAMPLE AT OR AFTER its host stamp',
+            JSON.stringify(P.placeRecordedPpgSeams([{ tMs: at(400) }], t0, relSec, N)),
+            JSON.stringify({ seamIdx: [400], placed: 1, unplaced: 0 })
+          );
+          T.eq(
+            'CONTROL · a seam after the last sample is UNPLACED, never clamped onto `n - 1`',
+            JSON.stringify(P.placeRecordedPpgSeams([{ tMs: at(N - 1) + 1000 }], t0, relSec, N)),
+            JSON.stringify({ seamIdx: [], placed: 0, unplaced: 1 })
+          );
+          T.eq(
+            '∅ · a stampless recording has no axis to place on, and the row is COUNTED rather than guessed',
+            JSON.stringify(P.placeRecordedPpgSeams([{ tMs: at(400) }], null, relSec, N)),
+            JSON.stringify({ seamIdx: [], placed: 0, unplaced: 1 })
+          );
+          T.eq(
+            '∅ · a non-finite stamp is unplaced too — never `0`, which is a legal instant',
+            JSON.stringify(P.placeRecordedPpgSeams([{ tMs: Number.NaN }], t0, relSec, N)),
+            JSON.stringify({ seamIdx: [], placed: 0, unplaced: 1 })
+          );
+          /* ONE MERGED PASS, not a scan per row — a real night's `_ECGSEAMS.txt` carried 178 rows and a
+             per-row scan over a 3 M-sample night is half a billion comparisons. Out-of-order rows are
+             sorted first, so the shared cursor cannot miss the earlier seam. */
+          T.eq(
+            'placeRecordedPpgSeams · several seams place in ONE pass, in axis order whatever the row order',
+            JSON.stringify(P.placeRecordedPpgSeams([{ tMs: at(900) }, { tMs: at(400) }], t0, relSec, N)),
+            JSON.stringify({ seamIdx: [400, 900], placed: 2, unplaced: 0 })
+          );
+        } else T.skip('PPGDSP.placeRecordedPpgSeams unavailable');
+        // ── THE ANNOTATION AND THE REFUSAL, on a real parsed recording ────────────────────────────
+        if (P && typeof P.analyze === 'function' && typeof P.compute === 'function' && typeof P.parsePPG === 'function') {
+          var FS = 55,
+            DUR = 600,
+            T0 = Date.UTC(2026, 5, 17, 1, 0, 0),
+            rows = ['Phone timestamp;sensor timestamp [ns];channel 0;channel 1;channel 2;ambient'];
+          for (var k = 0; k < DUR * FS; k++) {
+            var tt = k / FS,
+              vv = Math.round(-500000 + Math.exp(-Math.pow(((tt % 1) - 0.15) / 0.07, 2)) * 1500);
+            rows.push(
+              new Date(T0 + Math.round((k * 1000) / FS)).toISOString().replace('Z', '') +
+                ';' +
+                Math.round((k * 1e9) / FS) +
+                ';' +
+                vv +
+                ';' +
+                Math.round(vv * 0.98) +
+                ';' +
+                Math.round(vv * 1.02) +
+                ';-650000'
+            );
+          }
+          var text = rows.join('\n') + '\n';
+          var seamAt = function (ms) {
+            return [
+              '# stream=ppg rule=clock-seam bound_ms=250 unit=ms basis=device-minus-host',
+              'phone_ts;idx;device_step_ms;phone_delta_ms;residual_ms;host_offset_ms;at_rel_ms',
+              new Date(T0 + ms).toISOString().replace('Z', '') + ';413;240000.0;7.7;239992.3;-12.0;312000.0',
+              '# final stream=ppg seams=1 examined=50000'
+            ].join('\n');
+          };
+          var rNone = P.analyze(P.parsePPG(text));
+          T.eq('OWNER RULING 2026-11-05 · a recording with NO seam sidecar reads as seams UNKNOWN', rNone.seams.seams + '/' + rNone.seams.reason, 'null/no-seam-sidecar');
+          T.ok('…and never as `0`, the one answer §∅ forbids for an unmeasured channel', rNone.seams.seams === null && rNone.recordedSeamSamples === null);
+          var expNone = P.compute(text);
+          T.eq(
+            '…and the export says so UNCONDITIONALLY — a silent export is what the ruling refuses',
+            expNone.recording.validity.seams + '/' + expNone.recording.validity.seamsReason,
+            'null/no-seam-sidecar'
+          );
+          var rMid = P.analyze(P.parsePPG(text, { seamsText: seamAt(300000) }));
+          T.eq('a seam the box recorded INSIDE the recording is placed on a sample', rMid.seams.seams + '/' + rMid.seams.placed + '/' + rMid.seams.reason, '1/1/null');
+          T.ok('…and it drives the node’s OWN seam verdict, so the refusals a resync fires now fire for it', rMid.clockSeam === true && rMid.cvhrReason === 'clock-seam' && rMid.cvhrIndex === null);
+          T.ok('…and the sample it landed on is published, so a consumer sees WHERE the refusal came from', Array.isArray(rMid.recordedSeamSamples) && rMid.recordedSeamSamples.length === 1);
+          T.eq('…while the recording with no sidecar refuses nothing — the control that keeps this from reading as a blanket refusal', rNone.clockSeam, false);
+          var expMid = P.compute(text, { seamsText: seamAt(300000) });
+          T.eq(
+            'the export carries the box’s count, this node’s placement and the bound that looked',
+            [expMid.recording.validity.seams, expMid.recording.validity.seamsPlaced, expMid.recording.validity.seamsBoundMs].join('/'),
+            '1/1/250'
+          );
+          T.eq('…and the examined population the box reported, so a zero can be told from an unread channel', expMid.recording.validity.seamsExamined, 50000);
+          /* A row the box recorded that this node could not place is NOT a refusal that ran, and
+             `reason: null` beside a non-zero count would read as one. */
+          var rPast = P.analyze(P.parsePPG(text, { seamsText: seamAt(DUR * 1000 + 60000) }));
+          T.eq(
+            '∅ · a recorded seam OUTSIDE the recording is counted and named, never clamped into a refusal',
+            rPast.seams.seams + '/' + rPast.seams.placed + '/' + rPast.seams.reason,
+            '1/0/seams-unplaced-on-axis'
+          );
+          T.eq('CONTROL · …and it refuses nothing, because an over-refusal reads exactly like a correct one', rPast.clockSeam, false);
+        } else T.skip('PPGDSP.analyze/compute unavailable');
+        // ── THE DROP LANE: dex-ingest routes it, the planner keeps it to its own device ────────────
+        var DI = env.DexIngest,
+          SO = env.SignalOrchestrate;
+        var VS = 'Polar_VS_BBBB_20260617_010001_',
+          H10 = 'Polar_H10_AAAA_20260617_010000_';
+        if (DI && typeof DI.ppgKind === 'function' && typeof DI.planIngestPpg === 'function') {
+          T.eq('ppgKind · `_PPGSEAMS.txt` is the seams COMPANION, not a PPG primary and not a skip', DI.ppgKind(VS + 'PPGSEAMS.txt'), 'seams');
+          /* `planIngest` fails open (`byKind[kind] || byKind.ppg`), so a kind with no bucket does not
+             merely miss its lane: it lands in the PRIMARY waveform bucket and is then set aside as a
+             duplicate of the `_PPG.txt` it shares a device and a stamp with. */
+          T.eq('control · and it is NOT the primary — the fails-open trap this lane exists to avoid', DI.ppgKind(VS + 'PPG.txt'), 'ppg');
+          T.eq('control · `_PPISEAMS.txt` still has no kind — a sidecar this node cannot place must not arrive as one it can', DI.ppgKind(VS + 'PPISEAMS.txt'), 'skip');
+          T.eq('control · `_ECGSEAMS.txt` is still set aside in the PPG node', DI.ppgKind(H10 + 'ECGSEAMS.txt'), 'skip');
+          var nmS = function (n, t) {
+            return { name: n, text: t || '' };
+          };
+          var planS = DI.planIngestPpg([nmS(VS + 'PPG.txt'), nmS(VS + 'PPGSEAMS.txt', '# stream=ppg'), nmS(H10 + 'ECG.txt'), nmS(H10 + 'ECGSEAMS.txt')]);
+          var eligS = planS.eligibleByPrimary[VS + 'PPG.txt'] || {};
+          T.ok('planIngestPpg · the Sense `_PPGSEAMS` is eligible for the Sense `_PPG`', !!(eligS.seams && eligS.seams.length === 1 && eligS.seams[0].name === VS + 'PPGSEAMS.txt'));
+          T.ok(
+            'planIngestPpg · the lane is device-filtered in the SAME pass as every other companion kind — no foreign-device sidecar reaches it',
+            planS.ppgPrimaries.length === 1 &&
+              !(eligS.seams || []).some(function (f) {
+                return f.name.indexOf('H10') >= 0;
+              })
+          );
+        } else T.skip('DexIngest.ppgKind/planIngestPpg unavailable');
+        if (SO && typeof SO.pairCompanions === 'function') {
+          var compsS = SO.pairCompanions('ppg', VS + 'PPG.txt', [
+            { name: VS + 'PPG.txt', text: 'x' },
+            { name: VS + 'PPGSEAMS.txt', text: '# stream=ppg rule=clock-seam bound_ms=250' }
+          ]);
+          T.eq('pairCompanions · ppg gets `seams` = the sidecar text', compsS && compsS.seams, '# stream=ppg rule=clock-seam bound_ms=250');
+          T.eq('streamKind · `_PPGSEAMS` is the seams lane, and `_PPG` is still the waveform', SO.streamKind(VS + 'PPGSEAMS.txt') + '/' + SO.streamKind(VS + 'PPG.txt'), 'seams/ppg');
+          T.eq('CONTROL · `_ACCSEAMS` still has no lane — no node places it', SO.streamKind(VS + 'ACCSEAMS.txt'), null);
+        } else T.skip('SignalOrchestrate.pairCompanions unavailable');
+        // ── THE CALLERS, so a future edit cannot quietly unwire the path ──────────────────────────
+        var srcS = env.sources || {};
+        if (srcS['signal-orchestrate.js'])
+          T.ok(
+            'signal-orchestrate · the PPG companion list carries `seams` beside `runs` and `accruns`',
+            /ppg:\s*\[[^\]]*'runs'[^\]]*'accruns'[^\]]*'seams'[^\]]*\]/.test(srcS['signal-orchestrate.js'])
+          );
+        if (srcS['ppgdex-app.js'])
+          T.ok(
+            'source-mirror · ppgdex-app.js picks the `seams` sidecar before the parse and records which file fed it',
+            /pickNearestByStamp\(\(plan\.eligibleByPrimary\[pf\.name\] \|\| \{\}\)\.seams/.test(srcS['ppgdex-app.js']) && /companions\.seams\s*=/.test(srcS['ppgdex-app.js'])
+          );
+        /* 🔴 THE FRAME BOUNDARY — the second road, and the shape #4413 paid for one node over. Both
+           `compute()`s REBUILD the analyze-rec from the frame's own samples, so a sidecar the adapter
+           parsed and did not carry on the frame is read and then discarded: an orchestrated night
+           would report seams UNKNOWN although its drop carried the file. Pinned on BOTH nodes. */
+        [
+          ['adapters/polar-sense-ppg.js', 'polar-sense-ppg'],
+          ['adapters/o2ring-ppg.js', 'o2ring-ppg'],
+          ['adapters/polar-h10-ecg.js', 'polar-h10-ecg']
+        ].forEach(function (pair) {
+          var s = srcS[pair[0]];
+          if (typeof s !== 'string') {
+            T.skip(pair[0] + ' source not in env.sources');
+            return;
+          }
+          T.ok('source-mirror · ' + pair[1] + ' passes ctx.companions.seams into the PRIMARY parse', /companions\.seams/.test(s) && /seamsText:\s*seamsText/.test(s));
+          T.ok(
+            'source-mirror · ' + pair[1] + ' CARRIES the parsed sidecar across the frame boundary',
+            /frame\.seamsSidecar\s*=\s*rec\.seamsSidecar/.test(s) && /frame\.recordedSeams\s*=\s*rec\.recordedSeams/.test(s)
+          );
+        });
+        [
+          ['ppgdex-dsp.js', 'PpgDex'],
+          ['ecgdex-dsp.js', 'ECGDex']
+        ].forEach(function (pair) {
+          var s = srcS[pair[0]];
+          if (typeof s !== 'string') {
+            T.skip(pair[0] + ' source not in env.sources');
+            return;
+          }
+          T.ok(
+            'source-mirror · ' + pair[1] + '.compute RESTORES the carried sidecar in its frame branch',
+            /seamsSidecar:\s*input\.seamsSidecar/.test(s) && /recordedSeams:\s*input\.recordedSeams/.test(s)
+          );
+        });
+      }
+    );
 
     /* The ACC COMPANION leg of §3.2 — the sidecar of a companion, which is a different ingest shape
        from the two legs before it. The defect it prevents is sharper than an unread file: posture is

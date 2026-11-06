@@ -56,6 +56,14 @@
       "n": 3,
       "source": "ble-dropout"
     },
+    "validity": {
+      "seams": null,
+      "seamsExamined": null,
+      "seamsPlaced": null,
+      "seamsUnplaced": null,
+      "seamsBoundMs": null,
+      "seamsReason": "no-seam-sidecar"
+    },
     "hostAxis": {
       "ok": true,
       "anchors": 9,
@@ -98,8 +106,8 @@
       },
       "sourceChannel": "Verity:ppg",
       "code": {
-        "manifestHash": "0728d4357018",
-        "computeHash": "ed3083fcee98"
+        "manifestHash": "bc4d5b916739",
+        "computeHash": "0a10fb1c31a6"
       },
       "evidence": {
         "envelopeRef": null,
@@ -128,8 +136,8 @@
       },
       "sourceChannel": "Verity:ppg",
       "code": {
-        "manifestHash": "0728d4357018",
-        "computeHash": "ed3083fcee98"
+        "manifestHash": "bc4d5b916739",
+        "computeHash": "0a10fb1c31a6"
       },
       "evidence": {
         "envelopeRef": null,
