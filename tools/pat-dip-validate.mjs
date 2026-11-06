@@ -36,6 +36,13 @@ import { loadDsps, getDsps } from './pat-matchrate-strict.mjs';
 import { isCliEntry, positionalArgs, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 import { notANight, populationVerdict, snapshotNights } from './corpus-scope-core.mjs';
 import { eraCoverage, eraCoverageLine, eraOfNights } from './fold-generation.mjs';
+import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
+
+/* §∅ — the Verity ACC fragment's validity travels out of band in `<base>_ACCRUNS.txt`, TIME-keyed by
+   the writer's own stamp, so a parser that drops implausible rows cannot slide it. An ABSENT sidecar
+   is validity UNKNOWN, never "no blanking runs": the tally names all four states. */
+const VALIDITY = {};
+const runsOf = (streamPath, stream) => readRunsSidecar(streamPath, stream, { tally: VALIDITY }).runsText;
 
 /* ONE spec, read twice: the guard refuses an undeclared flag with it, and `positionalArgs`
    skips each valued flag's VALUE with it, so a flag written before the positional cannot be
@@ -192,7 +199,10 @@ function main() {
       let acc = null;
       for (const f of readdirSync(join(ROOT, night)).filter((x) => /(?:VeritySense|Polar_Sense).*_ACC\.txt$/i.test(x))) {
         try {
-          const sArr = PPGDSP.parseSensorXYZ(readFileSync(join(ROOT, night, f), 'utf8'));
+          const accPath = join(ROOT, night, f);
+          const raw = readFileSync(accPath, 'utf8');
+          const runsText = runsOf(accPath, 'ACC');
+          const sArr = runsText ? PPGDSP.parseSensorXYZ(raw, { runsText }) : PPGDSP.parseSensorXYZ(raw);
           if (!sArr || !sArr.length || sArr[0].tMs == null) continue;
           const ov = Math.min(spanHi, sArr[sArr.length - 1].tMs) - Math.max(spanLo, sArr[0].tMs);
           if (ov > (acc?.ov ?? 0)) acc = { ov, samples: sArr };
@@ -291,6 +301,8 @@ function main() {
       rows.filter((r) => !r.skip).map((r) => r.night)
     )
   );
+  const validity = validityLine(VALIDITY);
+  if (validity) console.error('  ' + validity);
   if (AS_JSON) {
     console.log(JSON.stringify({ offered: popBefore.n, population, rows, era: ERA }, null, 1));
     return;
