@@ -29510,12 +29510,44 @@
         }
       };
 
-      /* A HEADERLESS file must still parse — the layout is resolved per-row from the tail. This is a
-         real Polar Sensor Logger case (a file whose header line was trimmed), and the mutant that
+      /* A HEADERLESS file must still parse — its layout is VOTED once over the file's own rows. This is
+         a real Polar Sensor Logger case (a file whose header line was trimmed), and the mutant that
          breaks it turns the whole file into "No PPG samples parsed". */
       var noHdr = tryParse(mk(10, 6, false));
-      T.ok('a headerless 6-column file parses via per-row tail resolution', noHdr.ok, noHdr.msg);
+      T.ok('a headerless 6-column file parses, and one ballot resolves its layout', noHdr.ok, noHdr.msg);
       T.eq('…and yields all three optical channels', noHdr.ok && noHdr.r.ch.length, 3);
+      T.eq('…and it names the ballot as the layout source', noHdr.ok && noHdr.r.layoutSource, 'tail-vote');
+      T.eq('…which read every row of the file', noHdr.ok && noHdr.r.layoutVoteRows, 10);
+      T.eq('…and no row disagreed', noHdr.ok && noHdr.r.layoutDissent, 0);
+      /* THE SAME FILE WITH A HEADER PUBLISHES NO LAYOUT PROVENANCE. A header names the columns, so a
+         header-carrying file keeps today's export bytes and no committed fixture moves. */
+      var withHdr = tryParse(mk(10, 6, true));
+      T.eq('a header-carrying file publishes no layout source', withHdr.ok && withHdr.r.layoutSource, undefined);
+
+      /* ONE JUNK FIELD CANNOT RESOLVE ITS OWN LAYOUT (residue
+         `2026-11-04-a-headerless-ppg-row-resolves-its-own-layout-and-swallows-the-junk`). A row whose
+         ambient field is unreadable leaves five numeric fields, which the tail rule reads as
+         `ns;ch0;ch1;ch2` — so the per-row resolver admitted the sensor counter into ch0 and KEPT the
+         row. Under one voted layout that row fails the row-atomic validation and drops, which is what
+         the same file with a header already did. */
+      var dirtyRows = mk(12, 6, false).split('\n');
+      dirtyRows[5] = dirtyRows[5].replace(/;[^;]*$/, ';junk');
+      var dirty = tryParse(dirtyRows.join('\n'));
+      T.ok('a headerless file with one junk ambient field still parses', dirty.ok, dirty.msg);
+      T.eq('…and drops exactly that row', dirty.ok && dirty.r.n, 11);
+      /* ANTI-VACUITY: the junk row really does resolve a DIFFERENT signature, so the legs above sit over
+         a file that exercises the defect rather than over a clean one. */
+      T.eq('…and the ballot counts the row that disagreed', dirty.ok && dirty.r.layoutDissent, 1);
+      T.eq('…over the whole file, so the ballot examined the junk row', dirty.ok && dirty.r.layoutVoteRows, 12);
+      var ch0lo = Infinity,
+        ch0hi = -Infinity;
+      if (dirty.ok) {
+        for (var di = 0; di < dirty.r.ch[0].length; di++) {
+          if (dirty.r.ch[0][di] < ch0lo) ch0lo = dirty.r.ch[0][di];
+          if (dirty.r.ch[0][di] > ch0hi) ch0hi = dirty.r.ch[0][di];
+        }
+      }
+      T.ok('…so the sensor counter never reaches ch0', ch0lo > 190000 && ch0hi < 210000, 'ch0 spans ' + ch0lo + '…' + ch0hi);
 
       /* The row-count floor, from BOTH sides. n=10 is the documented minimum; n=9 must be refused.
          Only a test at exactly 10 can tell `n < 10` from `n <= 10`. */

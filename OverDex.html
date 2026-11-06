@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="5975b025b73a" data-compute-hash="b84b48d6af0d"><head>
+<html lang="en" data-manifest-hash="ea52c2734fbe" data-compute-hash="0cb866a31154"><head>
 <!--
   OverDex.html — Tepna
   Copyright 2026 Michal Planicka
@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+iskltdbf7/UUg8Y6ZfcamkqkNKvnVyfhKrlKyBzwKE=' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-3/HsgCQxURL00rDh+EmOmq0F0ioCR/hbMcDbSllmrIo=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-480RdBeZewCrcxw2IlPN/CrrdfcwPb+/JfQh96aaM6U=' 'sha256-4H9qbwJg0Px/ddF5s19lSEh0lobH/6PK1pgCZ+NZiHI=' 'sha256-4x5BnKH9piufA7hVq723OwzUv2QMcSlcEOAm82ya0kg=' 'sha256-6f85C28BTIAdWBrVBSCTqiDlgEUZZvCfBlJGXVI6LrA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-E4rPcQgBrpmaKtJOAz/8RO4ZVPZ0d4+8Kr6NXg6n+Jc=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HTmNkc/vDF3Ym/EUa75ySntJ4FAHQb01t0iLmgRqwK8=' 'sha256-IOGPMbRcH864r7zf4ZB3jn1uFqtYSY8DqWp2YdgZWag=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-LLgboXd2yVxQuxadbV6/XakvyuElnwPqqeK60I9qEBg=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+GOwyapZo2sScGH+5cJoo6b5+LlHTxZUL5ktDzHwXI=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-XeM139aCzQDSzEaQuQBVa+zEhnOSgXP/4pqlC0h9wO4=' 'sha256-ZXcSUPmdNX+PI5tNnnDW/vQNEDiDXjF3XV977vxYNoU=' 'sha256-fOxAcG4FGOYjHtLk+7Sbd1mzABUQSzPGmybpbJk9b6c=' 'sha256-hCZmwNAMDLPZEMYHAYpzoPETSnimg1oHWWjZImdKqxM=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-jHB+Vbnq13/OqiREytNt1VT0oXPXPmhrehzKnnu7PDA=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-yVk7BEgxIDoYcriZXH8GN6SLrb6NgVjsklX7DlxsMc0='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+iskltdbf7/UUg8Y6ZfcamkqkNKvnVyfhKrlKyBzwKE=' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-3/HsgCQxURL00rDh+EmOmq0F0ioCR/hbMcDbSllmrIo=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-480RdBeZewCrcxw2IlPN/CrrdfcwPb+/JfQh96aaM6U=' 'sha256-4H9qbwJg0Px/ddF5s19lSEh0lobH/6PK1pgCZ+NZiHI=' 'sha256-4x5BnKH9piufA7hVq723OwzUv2QMcSlcEOAm82ya0kg=' 'sha256-5eO+mYUkbbhqLuHKbUAH3cahjdBJnfqL4WZZOe3BwbI=' 'sha256-6f85C28BTIAdWBrVBSCTqiDlgEUZZvCfBlJGXVI6LrA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-E4rPcQgBrpmaKtJOAz/8RO4ZVPZ0d4+8Kr6NXg6n+Jc=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HTmNkc/vDF3Ym/EUa75ySntJ4FAHQb01t0iLmgRqwK8=' 'sha256-IOGPMbRcH864r7zf4ZB3jn1uFqtYSY8DqWp2YdgZWag=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-LLgboXd2yVxQuxadbV6/XakvyuElnwPqqeK60I9qEBg=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+GOwyapZo2sScGH+5cJoo6b5+LlHTxZUL5ktDzHwXI=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-XeM139aCzQDSzEaQuQBVa+zEhnOSgXP/4pqlC0h9wO4=' 'sha256-ZXcSUPmdNX+PI5tNnnDW/vQNEDiDXjF3XV977vxYNoU=' 'sha256-fOxAcG4FGOYjHtLk+7Sbd1mzABUQSzPGmybpbJk9b6c=' 'sha256-hCZmwNAMDLPZEMYHAYpzoPETSnimg1oHWWjZImdKqxM=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-jHB+Vbnq13/OqiREytNt1VT0oXPXPmhrehzKnnu7PDA=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -30002,6 +30002,48 @@ __exports.GlucoDex = window.GlucoDex;
     return null;
   }
 
+  /* ── ONE LAYOUT PER FILE, VOTED (residue `2026-11-04-a-headerless-ppg-row-resolves-its-own-layout-and-swallows-the-junk`) ──
+     `ppgColsByTail` ran INSIDE the row loop, so a row carrying a junk field resolved its own SHIFTED
+     layout, and the row-atomic validation then checked the columns that shifted layout claims. The row
+     passed rather than dropping, the `sensor timestamp [ns]` value entered a channel array, and `nCh`,
+     `dual` and `ch0Col` were reassigned from it for every row that followed. Measured over a
+     four-thousand-row synthetic: one junk field on one row read `ch0[100]=1818181760` where the clean
+     input reads 1002, with every row kept and no NaN. The same input WITH a header drops the two dirty
+     rows, and that is the behaviour this restores.
+
+     A header names the layout once, so the headerless path owes one answer too. The lock is a VOTE over
+     the file's own rows rather than the first row that resolves, because a single junk row at the head
+     would otherwise fix the shifted layout for the whole file. Neither bound below is a threshold on the
+     data: `PPG_TAIL_VOTE_ROWS` bounds the ballot and `PPG_TAIL_VOTE_SCAN` bounds the walk, so the cost
+     stays flat whatever the file's length. A tie keeps the first signature seen. */
+  const PPG_TAIL_VOTE_ROWS = 64;
+  const PPG_TAIL_VOTE_SCAN = 512;
+  function ppgTailSig(c) {
+    return c.chIdx.join(',') + '|' + c.amb;
+  }
+  function ppgColsByTailVote(lines, fromLi, minFields) {
+    const tally = [];
+    let rows = 0;
+    for (let li = fromLi; li < lines.length && li < fromLi + PPG_TAIL_VOTE_SCAN && rows < PPG_TAIL_VOTE_ROWS; li++) {
+      const line = lines[li].trim();
+      if (!line || line.charCodeAt(0) === 35) continue;
+      const p = line.split(';');
+      if (p.length < minFields) continue;
+      const c = ppgColsByTail(p);
+      if (!c) continue;
+      rows++;
+      const k = ppgTailSig(c);
+      let e = null;
+      for (let j = 0; j < tally.length; j++) if (tally[j].k === k) e = tally[j];
+      if (e) e.votes++;
+      else tally.push({ k, cols: c, votes: 1 });
+    }
+    if (!tally.length) return null;
+    let best = tally[0];
+    for (let j = 1; j < tally.length; j++) if (tally[j].votes > best.votes) best = tally[j];
+    return { cols: best.cols, votes: best.votes, rows, dissent: rows - best.votes };
+  }
+
   /* ── O2Ring `156` BEAT MARKER (DEVICE-RATE-TRUTH §2; was "PPG_INVALID sentinel", §2.4 / PR #212) ──
      156 (0x9C) is a row the firmware INSERTS once per detected beat — it is NOT a missing-sample
      sentinel, and the old name asserted the opposite. The distinction is not cosmetic: a sentinel
@@ -30632,6 +30674,13 @@ __exports.GlucoDex = window.GlucoDex;
       preResyncAnchorsDropped = 0;
     const resyncs = [];
     let pcols = null;
+    /* The headerless layout, locked ONCE by the vote above. `tailVoted` records that the ballot already
+       ran, so a file whose head holds no resolvable row does not re-run it per row. */
+    let tailCols = /** @type {any} */ (null);
+    let tailLock = null,
+      tailVoted = false,
+      tailVoteRows = 0,
+      tailDissent = 0;
     /* WHY THE SCAN COUNTS WHAT IT REJECTED (§∅, residue 2026-11-04-an-empty-ppg-stream-is-refused-as-a-wrong-column-layout). The `n < 10` refusal below carried ONE message for four different inputs, and the
        message named the two expected column layouts. A zero-byte stream therefore reported that its
        columns were wrong. Measured on the archive's 2026-11-01 night: 22 of 165 files hold zero bytes,
@@ -30675,10 +30724,36 @@ __exports.GlucoDex = window.GlucoDex;
       }
       rowsSeen++;
       if (p.length < minFields) continue;
-      const pc = pcols || ppgColsByTail(p);
+      /* ONE LAYOUT PER FILE. A header resolves `pcols` once; with no header the ballot locks `tailCols`
+         once, and no later row re-resolves. A row that disagrees with the locked layout now fails the
+         row-atomic validation below and drops, exactly as it does under a header. When the walk's bound
+         finds no resolvable row at all, the first row that does resolve locks the layout by itself —
+         still one layout for the file, which is the invariant this restores. */
+      if (!pcols && !tailCols) {
+        if (!tailVoted) {
+          tailVoted = true;
+          const vote = ppgColsByTailVote(lines, li, minFields);
+          if (vote) {
+            tailCols = vote.cols;
+            tailLock = 'tail-vote';
+            tailVoteRows = vote.rows;
+            tailDissent = vote.dissent;
+          }
+        }
+        if (!tailCols) {
+          const one = ppgColsByTail(p);
+          if (one) {
+            tailCols = one;
+            tailLock = 'tail-first';
+            tailVoteRows = 1;
+            tailDissent = 0;
+          }
+        }
+      }
+      const pc = pcols || tailCols;
       if (!pc) continue;
       rowsShaped++;
-      // The layout the ACCEPTED rows actually carry (a headerless file resolves per-row via the tail).
+      // The layout the ACCEPTED rows carry: a header names it once, a headerless file votes for it once.
       nCh = pc.chIdx.length;
       dual = !!pc.dual;
       ch0Col = pc.chIdx[0];
@@ -31318,6 +31393,14 @@ __exports.GlucoDex = window.GlucoDex;
          is the ∅ disclosure: nobody said, so the host axis here is this build's floor and not a
          clock the capture host earned. */
       timebaseSource,
+      /* THE LAYOUT PROVENANCE, present only when no header named the columns, so every header-carrying
+         file keeps today's bytes. `layoutSource` is 'tail-vote' when the ballot decided and
+         'tail-first' when no row in the walk's bound resolved and a single later row locked it.
+         `layoutDissent` counts the ballot's rows that resolved a DIFFERENT signature, so a reader sees
+         that the file disagreed with itself rather than inferring agreement from silence. */
+      layoutSource: tailLock || undefined,
+      layoutVoteRows: tailLock ? tailVoteRows : undefined,
+      layoutDissent: tailLock ? tailDissent : undefined,
       /* THE RATE THE HOST CORRECTION IS ABOUT (residue row
          `2026-10-29-the-timing-block-publishes-every-fact-about-the-rate-except-the-rate`). `fs`
          above is what every consumer spends; these three say where it came from. `fsRaw` is the rate
