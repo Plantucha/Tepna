@@ -1,0 +1,10 @@
+# SPDX-FileCopyrightText: Copyright 2026 Michal Planicka
+# SPDX-License-Identifier: Apache-2.0
+# Daily update check (tools/update-watch.mjs). It updates nothing: it posts each READY update to the board once.
+[Unit]
+Description=Tepna update watch — post ready software updates to the agent board
+
+[Service]
+Type=oneshot
+Nice=10
+ExecStart=/usr/bin/env node %h/wt-bge-index/tools/update-watch.mjs --notify

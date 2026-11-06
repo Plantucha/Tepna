@@ -22604,6 +22604,165 @@
             return a.tMs >= t0 && a.corr > 0;
           })
       );
+
+      /* ════ ∅ A HELD RUN IS NOT STILLNESS (row 2026-11-05-the-pat-motion-envelope-ignores-the-acc-
+         blanking-spans-it-is-handed) ═══════════════════════════════════════════════════════════════
+         The box's `_ACCRUNS.txt` names every stretch it recorded as one repeated value, and the two
+         ACC parsers hang those stretches on the row array as `_blankSpans`. The bytes below actually
+         hold — the fixture in `tests/trio-fold-validity-tests.mjs` only carries the sidecar, so the
+         mechanism is measured here and the wiring there. */
+      var HOLD0 = 540000,
+        HOLD1 = 600000; // a 60 s hold inside the quiet stretch between the 470 s and 700 s movements
+      var held = (function () {
+        var out = mkSamples(moves, 0, 1),
+          hv = null;
+        for (var hi = 0; hi < out.length; hi++) {
+          var rel = out[hi].tMs - t0;
+          if (rel < HOLD0 || rel >= HOLD1) continue;
+          if (hv == null) hv = out[hi].v;
+          out[hi].v = hv; // the device repeats its last reading, which is what the run records
+        }
+        return out;
+      })();
+      var eHeld = envOf(held);
+      var binsIn = function (lo, hi) {
+        var o = [];
+        for (var b = Math.ceil(lo / DT); b < Math.floor(hi / DT); b++) o.push(b);
+        return o;
+      };
+      var medAt = function (ix, g) {
+        var v = ix
+          .map(function (b) {
+            return g[b];
+          })
+          .sort(function (x, y) {
+            return x - y;
+          });
+        return v[v.length >> 1];
+      };
+      /* The first 4 s are skipped on both sides: the EMA needs ~1/alpha samples to converge on the
+         repeated value, so the onset is a transient and the claim is about the BODY of the run. */
+      var holdBins = binsIn(HOLD0 + 4000, HOLD1),
+        quietBins = binsIn(664000, 696000);
+      var medHold = medAt(holdBins, eHeld),
+        medQuiet = medAt(quietBins, eHeld);
+      T.ok('∅ ANTI-VACUITY · the comparison has bins on both sides', holdBins.length > 400 && quietBins.length > 400, holdBins.length + ' vs ' + quietBins.length);
+      T.ok(
+        '∅ the held run reads as STILLNESS in the bare grid — an order below the quiet bins beside it',
+        medQuiet > 0 && medHold * 10 < medQuiet,
+        'hold ' + medHold.toExponential(2) + ' vs quiet ' + medQuiet.toExponential(2)
+      );
+      var heldCut = held.slice();
+      heldCut._blankSpans = [{ t0Ms: t0 + HOLD0, t1Ms: t0 + HOLD1 }];
+      var eCut = envOf(heldCut);
+      var cutUnmeas = [],
+        cutDiff = 0;
+      for (var ci = 0; ci < eCut.length; ci++) {
+        if (!isFinite(eCut[ci])) cutUnmeas.push(ci);
+        else if (eCut[ci] !== eHeld[ci]) cutDiff++;
+      }
+      /* The two absences are asserted SEPARATELY. Every bin overlapping the recorded span is
+         unmeasured; every OTHER unmeasured bin is one no sample reached, which on this stream is the
+         single trailing bin past the last sample. */
+      var spanBins = [];
+      for (var sb = 0; sb < eCut.length; sb++) if ((sb + 1) * DT > HOLD0 && sb * DT < HOLD1) spanBins.push(sb);
+      var sampled = DUR / DT; // one sample per bin, so bins 0…sampled-1 received one
+      T.ok(
+        '∅ the span the box recorded is marked UNMEASURED, bin for bin',
+        spanBins.length > 1000 &&
+          spanBins.every(function (b) {
+            return !isFinite(eCut[b]);
+          }),
+        spanBins.length + ' bin(s) in the span'
+      );
+      T.ok(
+        '…and every other unmeasured bin is one NO SAMPLE reached, with every measured bin unchanged',
+        cutDiff === 0 &&
+          cutUnmeas.every(function (b) {
+            return ((b + 1) * DT > HOLD0 && b * DT < HOLD1) || b >= sampled;
+          }),
+        cutDiff + ' value(s) moved · ' + cutUnmeas.length + ' marked of ' + eCut.length
+      );
+      /* ∅ THE OTHER ABSENCE, AND THE REASON `0` COULD NOT CARRY EITHER. A bin no sample reached kept
+         the zero-fill of a fresh Float32Array — the open `aggregate-over-absence` finding at
+         `audits/ABSENCE-SURVEY-2026-09-22.json` key 5edad595bddc. It cannot be told from a bin of
+         GENUINE stillness, which is a real measurement and a legal 0: a motionless device reports
+         exactly no deviation from its own baseline. Both are planted below, on one stream. */
+      var constV = [];
+      for (var cv = 0; cv < 400; cv++) constV.push({ tMs: t0 + cv * DT, v: 1.25 });
+      var eConst = P.envelope(constV, t0, t0 + 600 * DT, { dtMs: DT });
+      T.ok(
+        '∅ a bin of GENUINE stillness is a finite 0 — a motionless device is a measurement',
+        eConst &&
+          eConst[10] === 0 &&
+          isFinite(eConst[10]) &&
+          Array.from(eConst.slice(0, 400)).every(function (x) {
+            return x === 0;
+          }),
+        eConst && eConst[10]
+      );
+      T.ok(
+        '∅ …and a bin NO SAMPLE reached is unmeasured on the same grid, never that same 0',
+        eConst &&
+          Array.from(eConst.slice(401)).every(function (x) {
+            return !isFinite(x);
+          }),
+        eConst && eConst.slice(401).length + ' bin(s) past the last sample'
+      );
+      var bareAgain = A.slice();
+      bareAgain._blankSpans = [];
+      T.eq('a sidecar naming NO run changes nothing — the bytes of a clean night are untouched', JSON.stringify(Array.from(envOf(bareAgain))), JSON.stringify(Array.from(eA)));
+
+      /* THE THRESHOLD IS THE FIRST CASUALTY. `findAnchors` takes a mean and a σ over the grid, so a
+         NaN left in it silences the whole night, and a `0` substituted for one pulls the mean DOWN
+         and manufactures anchors. Marking a stretch with no movement in it must leave the anchor set
+         exactly where it was. */
+      var quietMark = A.slice();
+      quietMark._blankSpans = [{ t0Ms: t0 + HOLD0, t1Ms: t0 + 660000 }];
+      var aQuiet = P.findAnchors(envOf(quietMark), { dtMs: DT });
+      T.eq('∅ marking a MOVEMENT-FREE stretch unmeasured leaves the anchor set untouched — mean and σ ran over the measured bins', JSON.stringify(aQuiet), JSON.stringify(anch));
+      /* And the other direction: an anchor cannot be certified a local maximum against bins nobody
+         measured. `env[k] > env[c]` is false against a NaN, so a hole beside a peak would otherwise
+         read as the cleanest anchor on the stream. The span below sits 100 ms past the 260 s lurch —
+         outside the movement, inside the ±12-bin window. */
+      var nearMark = A.slice();
+      nearMark._blankSpans = [{ t0Ms: t0 + 260500, t1Ms: t0 + 260580 }];
+      var aNear = P.findAnchors(envOf(nearMark), { dtMs: DT });
+      var lostOne = anch.filter(function (b) {
+        return aNear.indexOf(b) < 0;
+      });
+      T.ok(
+        '∅ an anchor whose local window touches an unmeasured bin is REFUSED — and only that one',
+        aNear.length === anch.length - 1 && lostOne.length === 1 && Math.abs(lostOne[0] * DT - 260000) < 600,
+        JSON.stringify({ bare: anch.length, near: aNear.length, lost: lostOne })
+      );
+      /* A refusal, never a silent offset: mark the windows of all but one movement and the aligner
+         runs out of anchors. */
+      var starved = A.slice();
+      starved._blankSpans = moves.slice(1).map(function (mv) {
+        return { t0Ms: t0 + mv - 200, t1Ms: t0 + mv + 200 };
+      });
+      var st = P.alignByAnchors(envOf(starved), envOf(mkSamples(moves, 0, 2)), t0, { dtMs: DT });
+      T.ok('∅ an envelope whose anchors are all unmeasured REFUSES with a reason, not an offset of 0', st.ok === false && /too few/.test(st.reason || ''), JSON.stringify(st.reason));
+
+      /* SPAN HYGIENE. The writer emits one row per CHANNEL, so x/y/z spans of one event arrive
+         overlapping and out of order; a row that cannot be read is dropped rather than applied. */
+      var messy = A.slice();
+      messy._blankSpans = [
+        { t0Ms: t0 + 600000, t1Ms: t0 + 640000 },
+        { t0Ms: t0 + 540000, t1Ms: t0 + 610000 }, // unsorted, and overlapping the row above
+        { t0Ms: t0 + 700000, t1Ms: t0 + 690000 }, // t1 before t0 — dropped, never applied
+        { t0Ms: t0 + 800000, t1Ms: Number.NaN } // non-finite — dropped
+      ];
+      var eMessy = envOf(messy);
+      var mergedOk = true;
+      for (var mi = binsIn(540000, 640000)[0]; mi <= binsIn(540000, 640000).slice(-1)[0]; mi++) if (isFinite(eMessy[mi])) mergedOk = false;
+      T.ok('∅ overlapping and unsorted spans merge into one unmeasured stretch', mergedOk);
+      T.ok(
+        '…and an unreadable span row is DROPPED, not applied',
+        isFinite(eMessy[Math.floor(695000 / DT)]) && isFinite(eMessy[Math.floor(805000 / DT)]),
+        'reversed ' + eMessy[Math.floor(695000 / DT)] + ' · non-finite ' + eMessy[Math.floor(805000 / DT)]
+      );
     });
 
     /* ════ 6 · METRIC REGISTRY infra (cohesion §2/§3) ════ */
@@ -47852,9 +48011,11 @@
            the stream NAME — gyro and magn ask for none, because the name is derived from the path's
            `_<stream>.txt` tail and a gyro path handed 'ACC' would name another stream's validity.
            `tests/trio-fold-validity-tests.mjs` executes both parsers over a synthetic 26 Hz stream in
-           both writer generations (`class=held` beside `class=variable`), and pins the CONTROL that
-           `PATAlign.envelope` still ignores the spans it is handed — row
-           2026-11-05-the-pat-motion-envelope-ignores-the-acc-blanking-spans-it-is-handed owns that.
+           both writer generations (`class=held` beside `class=variable`). Its CONTROL held the two PAT
+           grids EQUAL until 2026-11-05, when row
+           2026-11-05-the-pat-motion-envelope-ignores-the-acc-blanking-spans-it-is-handed closed:
+           `PATAlign.envelope` now marks a recorded run's bins NaN, and that leg asserts the two grids
+           differ exactly over the span. The §∅ group above plants the mechanism over bytes that hold.
            The two files left parse no file as written: `derive-sigma-window` parses a CONCATENATION
            of a night's parts, which no single file's sidecar addresses, and `geometry-passthrough`
            parses text it generates itself, beside which no box wrote anything. So the `tools/` half of

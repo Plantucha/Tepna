@@ -3152,6 +3152,18 @@
    },
    "note": "XERJ-HYBRID-SEARCH: --json prints ONE tepna.verdict/1 over real past Rule-0 queries. PASS only if the pre-stated acceptance holds (hybrid hit@5 >= bge AND fewer bytes to answer); a worse score is SHORTFALL, a measurement rather than a failure, and NOT_RUN over an empty query set. The SAMPLE command is --verdict-sample because a real run scores 52 queries and bge alone is ~3 s each, which would make this check time out."
   },
+  "tools/update-watch.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/update-watch.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "UPDATE-WATCH: prints ONE tepna.verdict/1 over the fleet software sources (criterion updates_ready lte 0). PASS = every source read is current or still soaking; FAIL = at least one update is READY; UNKNOWN when no source could be read. The sample command is --verdict-sample because a live run reads the network."
+  },
   "tools/xerj-load.mjs": {
    "bin": "decides",
    "status": "adopted",
