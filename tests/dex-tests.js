@@ -48505,6 +48505,80 @@
        label rather than an absent one, and that label rides into every event's meta.position and
        weights OSA confidence downstream. Measured on the planted night below: a blanked 5 minutes in
        the middle of a supine night reported `lateral` — a posture change the wearer never made. */
+    /* ════ SEAM-SIDECAR-NODE-COVERAGE §6.1 — THE OXYDEX LEG IS AN ANNOTATION, NEVER A READER ═════
+       (board #3933, the D17 seam audit; the four groups above are ECGDex #4406, PpgDex #4441,
+       MotionDex #4453 and PulseDex.) Four nodes publish the `recording.validity` seam keys and
+       OxyDex published NOTHING, so a consumer folding the fleet read this node's silence as a clean
+       night — the one reading the owner's 2026-11-05 ruling and D17 both forbid.
+
+       WHY NO READER. OxyDex ingests one capture-host primary whose writer sits in
+       `SEAM_FED_WRITERS` (`write_ppg2w` → `…_PPG2W.txt`), and the ring hands that writer no device
+       stamp, so the sidecar never opens (measured 2026-11-06, Osprey, the brief's own header). A
+       reader would parse a file the box never writes, and the PulseDex leg above measures what a
+       blind mirror costs: refusals manufactured from reduced coverage. This node states the absence
+       in the pre-stated vocabulary and refuses nothing.
+
+       THE TWO OBSERVERS STAY APART. `recording.timing.seams` is this node's OWN U3 tripwire count,
+       licensed as a second observer by `dex-export.js:296-303`; `recording.validity.seams` is the
+       box sidecar's placed count. A consumer reading one for the other reads the box's silence as a
+       scan result that ran. */
+    group('SEAM-SIDECAR-NODE-COVERAGE §6.1 — the OxyDex export states its seam-sidecar channel as UNKNOWN', 'oxydex-dsp · clock-contract · absence · §∅', function (T) {
+      var O = env.OxyDex;
+      T.ok('OxyDex namespace co-loaded (env.OxyDex.compute)', !!(O && typeof O.compute === 'function'));
+      if (!(O && typeof O.compute === 'function')) {
+        T.skip('env.OxyDex.compute unavailable — the seam annotation is unexamined');
+        return;
+      }
+      var ot0 = U(2026, 5, 12, 23, 0, 0),
+        samples = [];
+      for (var si = 0; si < 1200; si++) {
+        var sdip = si % 600 >= 580 ? -8 : 0;
+        samples.push({ tMs: ot0 + si * 1000, spo2: 96 + sdip, hr: 58 + (si % 5) + (sdip ? 6 : 0), motion: 0 });
+      }
+      var oe = O.compute({ signalType: 'spo2', samples: samples });
+      T.ok('OxyDex.compute(frame) → non-null export', !!oe);
+      var v = oe && oe.recording ? oe.recording.validity : null;
+      /* 🔴 THE BLOCK IS UNCONDITIONAL. A block that appears only when a sidecar was read lets a
+           reader count absent blocks as clean nights — the zero this ruling exists to forbid. The
+           input here carries no sidecar of any kind, which is the whole point. */
+      T.ok('🔴 the export carries the seam block although no sidecar reached the node', !!v && typeof v === 'object');
+      /* Read the content legs against a FALLBACK, never inside `if (v)`: against the pre-fix
+         source every one of them must FAIL, and a leg that silently goes unrun proves nothing. */
+      var vv = v && typeof v === 'object' ? v : {};
+      {
+        T.eq('OWNER RULING 2026-11-05 · the channel reads UNKNOWN under its own named reason', vv.seams + '/' + vv.seamsReason, 'null/no-seam-sidecar');
+        /* ∅ A join cannot tell an explicit `null` from an absent key, so read the keys. */
+        T.ok(
+          '∅ every count key is PRESENT and explicitly null, so nothing reads as measured',
+          'seams' in vv &&
+            vv.seams === null &&
+            'seamsExamined' in vv &&
+            vv.seamsExamined === null &&
+            'seamsPlaced' in vv &&
+            vv.seamsPlaced === null &&
+            'seamsUnplaced' in vv &&
+            vv.seamsUnplaced === null &&
+            'seamsBoundMs' in vv &&
+            vv.seamsBoundMs === null
+        );
+        T.ok(
+          'the reason is one the vocabulary already states, never a fifth term coined here',
+          ['no-seam-sidecar', 'seam-rows-unplaced', 'seams-unplaced-on-axis', 'seam-basis-no-device-clock'].indexOf(vv.seamsReason) >= 0,
+          vv.seamsReason
+        );
+      }
+      /* 🔴 TWO OBSERVERS, TWO BLOCKS. The node's own tripwire count must not reach the sidecar's
+           keys, and the sidecar's silence must not reach the tripwire's. */
+      var tb = oe && oe.recording ? oe.recording.timing : null;
+      T.ok('CONTROL · the node still publishes its OWN timing block beside the new one', !!tb && typeof tb === 'object' && 'seams' in tb);
+      T.ok('🔴 the two blocks are different objects, so no key is shared by reference', !!(tb && v) && tb !== v);
+      T.ok('🔴 the U3 tripwire count never lands in the sidecar block, whatever the scan said', !v || v.seams === null, tb ? 'timing.seams=' + tb.seams : 'no timing block');
+      T.ok('CONTROL · the rest of the export is untouched (source still spo2)', !!(oe && oe.recording && oe.recording.source === 'spo2'));
+      /* SOURCE MIRROR — the assignment is unconditional in the source, not merely unconditional for
+           this one input. A later `if` around it is the defect returning. */
+      T.ok('the DSP assigns the block with no condition guarding it', /_out\.recording\.validity = Object\.assign\(\{\}, _out\.recording\.validity, \{/.test(String(O.compute)));
+    });
+
     group('SAMPLE-VALIDITY-ENVELOPE §3.2 — the ACC companion sidecar, and a held ACC cannot stamp a posture', 'dex-ingest · signal-orchestrate · adapters · ecgdex-dsp · absence', function (T) {
       var DI = env.DexIngest,
         SO = env.SignalOrchestrate,

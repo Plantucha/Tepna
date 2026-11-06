@@ -11336,6 +11336,32 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     if (night.rtcOffsetS != null && isFinite(night.rtcOffsetS)) _out.recording.rtcOffsetS = night.rtcOffsetS;
     if (night.rtcVerifiedAtMs != null && isFinite(night.rtcVerifiedAtMs)) _out.recording.rtcVerifiedAtMs = night.rtcVerifiedAtMs;
     if (night.rtcResetSuspect) _out.recording.rtcResetSuspect = true;
+    /* ── WHETHER A SEAM SIDECAR WAS READ AT ALL — UNCONDITIONALLY ────────────────────────────
+       Owner ruling 2026-11-05 (board #3569), re-stated as D17 on 2026-11-06: a recording with no
+       seam sidecar reads seam status UNKNOWN, never seam-free, and an export silent about the
+       channel is exactly what the ruling refuses. ECGDex established this field set (#4406) and
+       PpgDex, MotionDex and PulseDex mirror it; this node published nothing, so a consumer folding
+       the fleet read OxyDex's silence as a clean night (audited at board #3933 under
+       SEAM-SIDECAR-NODE-COVERAGE-2026-11-06 §6.1, whose remedy is this ANNOTATION, never a reader).
+       WHY NO READER. OxyDex ingests one capture-host primary whose writer sits in
+       `SEAM_FED_WRITERS` — `write_ppg2w` → `…_PPG2W.txt` — and the ring hands that writer no device
+       stamp, so the sidecar never opens (measured 2026-11-06, Osprey, that brief's header). A reader
+       would parse a file the box never writes, and PulseDex's `_HRSEAMS` leg shows what a blind
+       mirror costs: refusals manufactured from reduced coverage, against the owner's 2026-09-17
+       ruling. So this node states the absence in the pre-stated vocabulary and refuses nothing.
+       NOT THE U3 TRIPWIRE. That count is this node's OWN notion of a seam and travels in
+       `timing.seams` above, licensed as a second observer by `dex-export.js:296-303`. Two observers,
+       two blocks: a consumer reading one for the other reads the box's silence as a scan result.
+       Assigned LAST and UNCONDITIONALLY, so it moves every OxyDex fixture BY ORDER — a block that
+       appears only when a sidecar was read lets a reader count absent blocks as clean nights. */
+    _out.recording.validity = Object.assign({}, _out.recording.validity, {
+      seams: null,
+      seamsExamined: null,
+      seamsPlaced: null,
+      seamsUnplaced: null,
+      seamsBoundMs: null,
+      seamsReason: 'no-seam-sidecar'
+    });
     return _out;
   };
   OxyDex.computeNight = oxyComputeNight;

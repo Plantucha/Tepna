@@ -24,7 +24,7 @@
       "dex-escape.js": "f0d38619047a",
       "oxydex-util.js": "5cc642ee790b",
       "oxydex-profile.js": "3496a101178a",
-      "oxydex-dsp.js": "f87d8a04d882"
+      "oxydex-dsp.js": "efd4441e8ece"
     },
     "pulse": {
       "synth-gen.js": "a653cf5afb78",
@@ -116,11 +116,18 @@
       "old": "cefdbfad2e72",
       "new": "410ccd8abf45",
       "reason": "residue 2026-11-06-the-pulsedex-app-road-publishes-whole-record-variability-over-a-seam: the Poincare pair refuses with the whole-record trio, so `sd2` no longer publishes 0 beside a real `sd1`. A statement moved, so the yield was RE-CUT at paper scale, not re-stamped: 233 tx / 239 flat, unchanged."
+    },
+    {
+      "date": "2026-11-06",
+      "file": "oxydex-dsp.js",
+      "old": "f87d8a04d882",
+      "new": "efd4441e8ece",
+      "reason": "SEAM-SIDECAR-NODE-COVERAGE 6.1: every OxyDex export now states its seam-sidecar channel as UNKNOWN under `no-seam-sidecar`. The export gained keys and no measured value moved, so the yield was RE-CUT at paper scale, not re-stamped on an inertness argument: 233 tx / 239 flat, unchanged. My first re-cut measured nothing: `analysis-rerun.mjs` boots the committed analysis page, which still inlined this node's old DSP, so `build-analysis.mjs` ran first and the re-cut repeated over the rebuilt page."
     }
   ],
-  "measuredAt": "2026-11-06T17:52:22.640Z",
+  "measuredAt": "2026-11-06T23:37:34.678Z",
   "producedBy": {
     "tool": "tools/treatment-response-yield-pin.mjs",
-    "commit": "9736a1979"
+    "commit": "9954acb88"
   }
 }
