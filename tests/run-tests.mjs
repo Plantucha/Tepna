@@ -641,6 +641,10 @@ function readSources() {
     // The fold itself is gated by source scan: it routes the O2Ring finger pleth and owns the trio
     // completeness count, and neither is reachable by executing anything from here.
     'tools/trio-batch.mjs',
+    /* The two night merges moved out of trio-batch on 2026-11-06 so a second tool could call them.
+       `tests/trio-fold-merge-tests.mjs` executes them; the provenance-carry scan reads them here,
+       because a fold drops every field its fresh object does not name and that is a TEXT property. */
+    'tools/trio-fold-merge.mjs',
     /* CROSS-DEVICE-DRIFT-AND-CLOSURE §5 — `closeTriple` mirrors `fitClockClosure`'s tolerance rule
        because one is bundled and the other is not. Two copies of a threshold drift apart silently, so
        the closure-identity gate reads the rule out of BOTH files as text and compares them. */

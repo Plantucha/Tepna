@@ -18089,19 +18089,28 @@
        ride the single-fragment path for free (mergeEcg returns the rec itself), but the MULTI-fragment
        merge builds a fresh object, and anything not named there is dropped — which is the fold path,
        i.e. exactly the surface the 84 unnoticed 2019-origin nights taught us to annotate. Source-scan
-       like the sibling groups, because trio-batch's merge closures are not importable from a test;
-       the scan anchors on the merged-return fold rules, not mere identifier occurrence. */
+       like the sibling groups, the scan anchors on the merged-return fold rules, not mere identifier
+       occurrence. ⚠ THE SCAN FOLLOWED ITS SUBJECT on 2026-11-06: both merges moved to
+       `tools/trio-fold-merge.mjs`, so a second tool can call them, and this group read a file that
+       no longer holds them. `tests/trio-fold-merge-tests.mjs` now EXECUTES these same three rules;
+       the scan stays as the ratchet, and asserts trio-batch does not re-derive the merge beside it. */
     group('trio-batch mergeEcg carries deviceEpoch + timingSource across the merge', 'trio-batch · clock-contract · source-scan', function (T) {
       var S = env.sources || {};
+      var tfm = S['tools/trio-fold-merge.mjs'];
       var tb = S['tools/trio-batch.mjs'] || S['trio-batch.mjs'];
-      if (tb == null) {
-        T.skip('trio-batch source wired', 'not in env.sources — the scan would read nothing');
+      if (tfm == null) {
+        T.skip('trio-fold-merge source wired', 'not in env.sources — the scan would read nothing');
         return;
       }
-      var m = tb.indexOf('const mergeEcg');
-      var end = tb.indexOf('const mergePpg', m);
-      var body = m >= 0 && end > m ? tb.slice(m, end) : '';
+      var m = tfm.indexOf('export function mergeEcg');
+      var end = tfm.indexOf('export function mergePpg', m);
+      var body = m >= 0 && end > m ? tfm.slice(m, end) : '';
       T.ok('mergeEcg found', body.length > 0);
+      T.ok(
+        'and trio-batch imports it rather than re-deriving the fold beside it',
+        tb == null || (/from\s+'\.\/trio-fold-merge\.mjs'/.test(tb) && !/const mergeEcg/.test(tb)),
+        'the caller keeps a second copy of the merge'
+      );
       T.ok(
         'the merged rec names deviceEpoch (plausible = EVERY fragment plausible)',
         /deviceEpoch[\s\S]{0,600}?parts\.every\(\s*\(r\)\s*=>\s*r\.deviceEpoch\.plausible\s*\)/.test(body),
@@ -18119,6 +18128,14 @@
         '…and clockResyncs re-based onto the merged axis (idx + offset, atRelMs + fragment start)',
         /r\.clockResyncs[\s\S]{0,200}?idx:\s*c\.idx\s*\+\s*idx[\s\S]{0,120}?atRelMs:\s*c\.atRelMs\s*\+/.test(body) && /^\s*clockResyncs,\s*$/m.test(body),
         'no clockResyncs carry in mergeEcg'
+      );
+      /* §∅ on the fold's own output (2026-11-06): `clock.js` publishes `deviceDrawn` per fragment, so
+         a merged object that does not name it hands a refusing consumer `undefined` for "not drawn".
+         Worst fragment speaks, and it stays ADDITIVE — the timingSource line above is unchanged. */
+      T.ok(
+        '…and deviceDrawn folded worst-fragment-first, additively',
+        /deviceDrawn\s*===\s*true[\s\S]{0,200}?deviceDrawn\s*===\s*false[\s\S]{0,400}?deviceDrawn:\s*drawn/.test(body),
+        'no deviceDrawn fold in mergeEcg return — a folded night reads undefined where a fragment read true'
       );
     });
 

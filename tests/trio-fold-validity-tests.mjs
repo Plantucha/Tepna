@@ -189,11 +189,15 @@ same(validityLine({ absent: 'two' }), null, 'a non-numeric count is no count');
 /* ── THE FOLD CALLS IT ── */
 const here = dirname(fileURLToPath(import.meta.url));
 const tb = readFileSync(join(here, '..', 'tools', 'trio-batch.mjs'), 'utf8');
-ok(/import\s*\{[^}]*\bmergeBlankingSpans\b[^}]*\}\s*from\s*'\.\/trio-fold-validity\.mjs'/.test(tb), 'trio-batch.mjs imports mergeBlankingSpans');
-ok(/import\s*\{[^}]*\bmergePinnedSpans\b[^}]*\}\s*from\s*'\.\/trio-fold-validity\.mjs'/.test(tb), 'trio-batch.mjs imports mergePinnedSpans');
-ok(/blankingSpans: blank \? blank\.spans : undefined/.test(tb), 'the merged ECG record publishes blankingSpans');
-ok(/blankingSpansReason: blank\.reason/.test(tb), 'the merged ECG record publishes the refusal reason beside the spans');
-ok(/spans: pinned\.spans,/.test(tb), 'the merged PPG record publishes spans');
+/* The CALLER moved: both merges are `tools/trio-fold-merge.mjs` since 2026-11-06, extracted so a
+   second tool could fold a night the same way. The pin follows the import. */
+const tfmSrc = readFileSync(join(here, '..', 'tools', 'trio-fold-merge.mjs'), 'utf8');
+ok(/import\s*\{[^}]*\bmergeBlankingSpans\b[^}]*\}\s*from\s*'\.\/trio-fold-validity\.mjs'/.test(tfmSrc), 'trio-fold-merge.mjs imports mergeBlankingSpans');
+ok(/import\s*\{[^}]*\bmergePinnedSpans\b[^}]*\}\s*from\s*'\.\/trio-fold-validity\.mjs'/.test(tfmSrc), 'trio-fold-merge.mjs imports mergePinnedSpans');
+ok(/mergeBlankingSpans\(recs\)/.test(tfmSrc) && /mergePinnedSpans\(recs, nch\)/.test(tfmSrc), 'and calls both on the fragments it folds');
+ok(/blankingSpans: blank \? blank\.spans : undefined/.test(tfmSrc), 'the merged ECG record publishes blankingSpans');
+ok(/blankingSpansReason: blank\.reason/.test(tfmSrc), 'the merged ECG record publishes the refusal reason beside the spans');
+ok(/spans: pinned\.spans,/.test(tfmSrc), 'the merged PPG record publishes spans');
 ok(/ECGDex\.parseECGLines\(readLinesBounded\(f\.full\), \{ runsText: readRuns\(f\.full, 'ECG'\) \}\)/.test(tb), 'the fold hands _ECGRUNS.txt to the ECG parser');
 ok(
   (tb.match(/PpgDex\.parsePPG\(readFileSync\(f\.full, 'utf8'\), \{ runsText: readRuns\(f\.full, 'PPG'\) \}\)/g) || []).length === 2,
@@ -858,9 +862,14 @@ function accRuns(spans, { cls = 'variable' } = {}) {
 }
 
 /* ── THE SAME AXIS RULE ON THE SIDECAR TEXT ───────────────────────────────────────────────────────
-   `tools/derive-sigma-window.mjs` hands the detectors one CONCATENATION of a night's parts, so there
-   is no per-fragment record to merge and the rebase has to happen on the sidecar bytes. These are
-   that rule's plants, built from the writer's real shape: column 1 holds the CHANNEL whatever the
+   This rule rebases a night's sidecar BYTES, for a caller that hands the detectors one concatenation
+   of the night's parts rather than one record per part. ⚠ NO PRODUCTION CALLER AS OF 2026-11-06:
+   `tools/derive-sigma-window.mjs` was that caller, and it now parses each part on its own and folds
+   the records through `tools/trio-fold-merge.mjs`, so each sidecar addresses its own part's frame and
+   nothing needs rebasing. The rule and its plants stay because they are correct and because a text
+   join is the shape a future importer of a pre-split capture lands in; its disposition is a residue
+   row rather than a deletion inside a PR about something else. These plants are built from the
+   writer's real shape: column 1 holds the CHANNEL whatever the
    header calls it (`ecg [uV]`), which is why ownership is keyed on the file's own
    `# stream=<s> channel=<c>` pairing and not on a literal. */
 const RULE = '# stream=ecg rule=stuck min_run=30 t_stuck=200 merge_gap_max=8';

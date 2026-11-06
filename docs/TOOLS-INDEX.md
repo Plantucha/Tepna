@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**325 tools** · 324 with a purpose line · **1 without**
+**327 tools** · 326 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -242,6 +242,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`qwen-agent.mjs`](../tools/qwen-agent.mjs) | READ-ONLY LOCAL-MODEL AGENT — owner-directed 2026-08-27: "make sure qwen will read CLAUDE.md and have access to bge and other stuff so it can behave like normal Claude coder." |
 | [`qwen-mypy-fix.mjs`](../tools/qwen-mypy-fix.mjs) | the mypy burn-down FIX lane (PYTHON-TYPES-AND-FORMAT §P2, qwen half). |
 | [`r5-hr-reference.mjs`](../tools/r5-hr-reference.mjs) | R5 (TCH-REFERENCE-VALIDATION §7) on the HR triplet — and the answer is that IT CANNOT BE RUN. |
+| [`read-lines-bounded.mjs`](../tools/read-lines-bounded.mjs) | ONE BOUNDED LINE READER, FOR EVERY TOOL THAT HANDS A RAW STREAM TO A DSP |
 | [`reanchor-equivalence.mjs`](../tools/reanchor-equivalence.mjs) | THE CLASSIFICATION DECAYS BECAUSE ITS KEY CONTAINS A LINE NUMBER. |
 | [`rebase-safe.mjs`](../tools/rebase-safe.mjs) | REBASE ONTO origin/main WITHOUT SILENTLY REVERTING SOURCE. WHY THIS EXISTS. |
 | [`regen-cpap-goldens.mjs`](../tools/regen-cpap-goldens.mjs) | Regenerate CPAPDex's committed node-export fixtures by RE-RUNNING THE REAL MODULES on their committed inputs and re-exporting — never by hand-editing a value (CLAUDE.md §🔏). |
@@ -314,6 +315,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`trio-batch.mjs`](../tools/trio-batch.mjs) | TRIO BATCH — raw Polar Sensor Logger + O2Ring capture folder → per-night trio node-exports, in the exact shape `tools/tch-multinight.mjs --dir` ingests (one subdir per night, three… |
 | [`trio-eligible-nights.mjs`](../tools/trio-eligible-nights.mjs) | THE TRIO-ELIGIBLE NIGHT POPULATION, PRODUCED FROM THE COMMITTED TREE. |
 | [`trio-fold-clock.mjs`](../tools/trio-fold-clock.mjs) | A FOLDED NIGHT KEEPS THE CLOCK ANNOTATIONS OF ITS FRAGMENTS `mergePpg` in `tools/trio-batch.mjs` builds a fresh record, and it carried neither `offsetSegments` nor `clockResyncs`. |
+| [`trio-fold-merge.mjs`](../tools/trio-fold-merge.mjs) | A NIGHT'S FRAGMENTS MERGE ON PARSED RECORDS, AND EVERY TOOL OWES THE SAME MERGE |
 | [`trio-fold-validity.mjs`](../tools/trio-fold-validity.mjs) | A FOLDED NIGHT KEEPS THE VALIDITY OF ITS FRAGMENTS The box writes a `…RUNS.txt` validity sidecar beside each raw stream: `_ECGRUNS.txt` beside the H10 `_ECG.txt`, `_PPGRUNS.txt` beside the… |
 | [`trio-power-headless.mjs`](../tools/trio-power-headless.mjs) | run the sensor-trio power sweep headlessly, ON THE GPU. WHY. |
 | [`unit-health.mjs`](../tools/unit-health.mjs) | unit-health — the dead-man's switch for the rig's systemd user timers. |

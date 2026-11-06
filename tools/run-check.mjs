@@ -107,6 +107,8 @@ export const STEPS = [
   'test:fold-provenance',
   'test:trio-fold-clock',
   'test:trio-fold-validity',
+  'test:trio-fold-merge',
+  'test:read-lines-bounded',
   'test:seqnet-port',
   'test:stage-lab-core',
   'test:oxydex-stager',
