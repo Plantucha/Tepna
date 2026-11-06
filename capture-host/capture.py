@@ -4267,13 +4267,28 @@ async def run_polar(dev: dict, root: str):
                         # false arm is unreachable — it showed up as the one partial branch under
                         # `--cov-branch` and a test for it could only have been a lie. The try/except is
                         # the real guard, and it is the one that matters.
+                        # ∅ A PPI FRAME'S SAMPLE TIME IS UNDEFINED BY THE VENDOR, AND THIS WRITER
+                        # BLANKS ABSENCE BY CONTRACT. `PmdArrivalLogWriter.write` reads
+                        # `"" if v is None else str(v)`, commented "blank, never a fabricated 0". The
+                        # PMD spec fixes a PPI frame's stamp at 0, so handing the field through put a
+                        # device time of 2000-01-01 in the column this sidecar exists for:
+                        # `min(arrival - first_sensor_ns)`. Both readers refuse that zero today by its
+                        # VALUE — `nightqc` at `dev_ns <= 0` and `jitterfloor` by an axis whose deltas
+                        # never advance — and §∅ names a value-keyed defence the wrong rail. Declare the
+                        # absence at the producer and leave both guards as depth.
+                        #
+                        # KEYED ON THE MEASUREMENT, NEVER ON THE NUMBER. `_NO_SAMPLE_TIME_BY_DESIGN`
+                        # carries the vendor's own rule, whose words are "either zero or it is missing".
+                        # So a PPI frame that happens to carry a non-zero stamp still has no sample
+                        # time, and a test drives exactly that shape.
+                        _no_dev_time = meas in _NO_SAMPLE_TIME_BY_DESIGN
                         try:
                             arr_wr.write(
                                 arrival,
                                 name,
                                 pmd.MEAS_NAME.get(meas, meas),
-                                samples[0].sensor_ns,
-                                samples[-1].sensor_ns,
+                                None if _no_dev_time else samples[0].sensor_ns,
+                                None if _no_dev_time else samples[-1].sensor_ns,
                                 len(samples),
                             )
                         except Exception:  # telemetry must never disturb the data callback
