@@ -52,7 +52,7 @@ import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import vm from 'node:vm';
-import { dissentStampOf, signsOf } from './consensus-dissent-core.mjs';
+import { dissentStampOf, refpickOf, signsOf } from './consensus-dissent-core.mjs';
 import { CFD_FRAC, fractionAmplitudeIndex, halfAmplitudeIndex } from './pat-fiducial.mjs';
 import { isCliEntry } from './argv-guard.mjs';
 import { snapshotNights, populationVerdict, notANight } from './corpus-scope-core.mjs';
@@ -327,14 +327,9 @@ function ppgFootTimes(text, runsText, opts) {
   const polaritySigns = signsOf(per);
   const flipped = PPGDSP.applyConsensusPolarity(per, (i, sgn) => PPGDSP.detectChannel(rec.ch[i], rec.fs, sgn));
   const polarity = dissentStampOf(polaritySigns, flipped);
-  let refIdx = 0,
-    best = -1;
-  per.forEach((p, i) => {
-    if (p.peaks.length > best) {
-      best = p.peaks.length;
-      refIdx = i;
-    }
-  });
+  /* The reference pick, NAMED at the site so the census reads a declaration rather than a loop
+     shape, and a tie stops hiding: `consensus-dissent-core.mjs#refpickOf`. Same pick. */
+  const refIdx = refpickOf(per, 'peak-argmax').idx;
   let cons = PPGDSP.consensusBeats(per, refIdx, rec.fs);
   /* §∅ A FOOT EVERY CHANNEL WAS PINNED THROUGH IS NOT A BEAT — #4069, ported 2026-11-01.
      `rec.spans` is per optical channel and `parsePPG` publishes it with or without a sidecar, so the

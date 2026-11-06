@@ -110,3 +110,49 @@ export function dissentTallyLine(stamps) {
   if (t.unread) parts.push(`${t.unread} not read`);
   return '  ' + parts.join(' · ');
 }
+
+/* ── the reference pick, named ────────────────────────────────────────────────────────────────── */
+
+/* 🔴 A PICK RULE WRITTEN AS A LOOP IS A RULE NOBODY DECLARED. Row
+   2026-11-03-three-pick-rules-disagree-on-the-consensus-reference-on-thirty-seven-nights measured
+   three live rules across the 13 `consensusBeats` call sites, disagreeing about which channel is the
+   reference on 37 of 54 nights. Eight ported legs each carried their own copy of ONE argmax loop, so
+   `consensus-refpick-dissent.mjs` could only INFER each rule from the loop shape, and a figure a leg
+   published carried no statement of the rule its feet were derived under. A site that calls
+   `refpickOf(per, 'peak-argmax')` states its rule in code, where the census reads a declaration
+   instead of guessing from a comparison. Convergence onto the shipped rule is the other half of that
+   row: it is a decision about published figures, not a refactor, and this changes no pick.
+
+   The loop it replaces, verbatim in all eight legs: `let refIdx = 0, best = -1;` and then
+   `if (p.peaks.length > best)`. The strict `>` keeps the FIRST channel of a tie, which `ties` counts
+   rather than hides.
+
+   ∅ A TIE IS A PICK BY CHANNEL ORDER, NOT BY EVIDENCE. Two channels carrying the same peak count
+   leave the reference to the order the file happens to list them in. `ties` is how many other
+   channels matched the winner, so a leg can report that its reference was arbitrary among equals.
+
+   ∅ A SET WITH NO READABLE SCORE HAS NO ARGMAX. Those loops opened at `best = -1`, so a channel set
+   where nothing carries a countable score still left the pick at index 0 — channel 0 chosen having
+   measured nothing. `idx` is `null` there, and a caller that indexes the pick throws on the null
+   rather than deriving every foot on a channel no pass scored. No live leg reaches it: a detected
+   channel carries a `peaks` array, and an empty one scores a real 0. */
+export const REFPICK_RULES = ['peak-argmax'];
+
+export function refpickOf(perChannel, rule) {
+  if (!REFPICK_RULES.includes(rule)) throw new TypeError(`refpickOf: unknown pick rule ${JSON.stringify(rule)} (known: ${REFPICK_RULES.join(', ')})`);
+  const channels = perChannel ? perChannel.length : 0;
+  let idx = null;
+  let score = null;
+  let ties = 0;
+  for (let i = 0; i < channels; i++) {
+    const pc = perChannel[i];
+    const s = pc && pc.peaks ? pc.peaks.length : null;
+    if (!Number.isFinite(s)) continue;
+    if (score === null || s > score) {
+      score = s;
+      idx = i;
+      ties = 0;
+    } else if (s === score) ties++;
+  }
+  return { rule, idx, score, ties, channels };
+}
