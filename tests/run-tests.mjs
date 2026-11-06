@@ -71,6 +71,10 @@ import { docsConstantsPins, pinnedByDocsConstants, resolveSourcedClaim } from '.
 import * as claimSource from '../tools/claim-source.mjs';
 import { CHECKS as DOCS_CONSTANTS_CHECKS } from '../tools/docs-constants.mjs';
 import { elementBlocks } from '../tools/strip-markup.mjs';
+/* The node-lane dissent core, imported so the suite can hold the BROWSER lane's labelling
+   (`consensus-dissent.js`) equal to it. Two lanes name the same five abstentions or the suite reds —
+   row 2026-11-05-the-two-bundle-workers-still-discard-the-polarity-return. */
+import { DISSENT_SHAPES as CORE_DISSENT_SHAPES, dissentOf as coreDissentOf } from '../tools/consensus-dissent-core.mjs';
 import * as argvReads from '../tools/argv-reads.mjs';
 import * as corpusReads from '../tools/corpus-reads.mjs';
 import * as trioNightsMod from '../tools/trio-eligible-nights.mjs';
@@ -765,6 +769,12 @@ function readSources() {
     'hrvdex-render.js',
     'pat-gate.js',
     'pat-align.js',
+    /* The browser lane's dissent labelling, listed in BOTH lanes the day it was written. The
+       source-visibility ratchet counts a root `*.js` in neither lane as invisible BY CONSTRUCTION,
+       and it red on the day this file appeared: `build-analysis.mjs` inlines it into the PAT pages
+       through `workerSource()`, which emits a blob string rather than a `data-inline-src` block, so
+       the bundle walk that reads a spine file for free cannot see it. */
+    'consensus-dissent.js',
     // Worker SOURCE text for the anti-inertness scan: pat-gate's clock refusals are only as real as the
     // arguments its one runtime caller passes, and that caller is a Web Worker no behavioural test can
     // drive (O2RING-PHASE4-PREMISE-REVIEW §4).
@@ -2819,9 +2829,18 @@ async function main() {
     // collide with integrator-dsp.js's bare parseTimestamp/mean (loaded above). This is what
     // lets the Phase-9 compute() FUNCTIONAL floor run in Node CI, not just the browser rig (-II §3).
     ctx.__DEX_NAMESPACED__ = true;
-    ['oxydex-util.js', 'pulsedex-dsp.js', 'oxydex-dsp.js', 'oxydex-accuracy.js', 'hrvdex-dsp.js', 'glucodex-dsp.js', 'pat-gate.js', 'signal-orchestrate.js', 'dex-coload.js'].forEach((f) =>
-      loadInto(ctx, f)
-    );
+    [
+      'oxydex-util.js',
+      'pulsedex-dsp.js',
+      'oxydex-dsp.js',
+      'oxydex-accuracy.js',
+      'hrvdex-dsp.js',
+      'glucodex-dsp.js',
+      'pat-gate.js',
+      'consensus-dissent.js',
+      'signal-orchestrate.js',
+      'dex-coload.js'
+    ].forEach((f) => loadInto(ctx, f));
   } catch (e) {
     console.error(paint('SETUP ERROR: ' + e.message, C.red));
     process.exit(2);
@@ -3223,6 +3242,10 @@ async function main() {
     SignalAdapters: ctx.SignalAdapters,
     EventCoupling: ctx.EventCoupling,
     PATGate: ctx.PATGate,
+    ConsensusDissent: ctx.ConsensusDissent,
+    /* Node-lane only: the browser suite has no `tools/` import, so a group comparing the two lanes
+       skips there rather than asserting over an absent half. */
+    coreDissent: { dissentOf: coreDissentOf, SHAPES: CORE_DISSENT_SHAPES },
     SignalOrchestrate: ctx.SignalOrchestrate,
     DexCoload: ctx.DexCoload,
     DexIngest: ctx.DexIngest,

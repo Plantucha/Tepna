@@ -850,6 +850,29 @@
     return muted(v.source + ': ' + bits.join(' · '));
   }
 
+  /* §∅ A ZERO FROM THE CONSENSUS-POLARITY PASS IS FIVE DIFFERENT FACTS, and this surface used to
+     carry none of them — the worker threw the pass's return away, so a reader of this night's lag
+     could not tell whether the ankle stream behind it was corrected (row
+     2026-11-05-the-two-bundle-workers-still-discard-the-polarity-return). Only `unanimous` means
+     the three LEDs agreed: a 1-1 tie, unsigned channels and a single channel all leave the count at
+     0. Prose beside the foot count it qualifies, in the shape `validityNote` above already uses, so
+     it inherits that number's badge rather than planting a second, unbadged one (§🎫, badge the
+     series not the caption). An unknown shape prints itself rather than a reassuring default. */
+  function polarityNote(pol) {
+    var muted = function (txt) {
+      return ' <span class="muted">[' + txt + ']</span>';
+    };
+    /* ∅ No stamp is not agreement. A result produced before the worker recorded one says so. */
+    if (!pol || !pol.shape) return muted('consensus polarity not read');
+    var ch = pol.channels;
+    if (pol.shape === 'majority') return muted('polarity: ' + ch + '-LED majority overruled ' + pol.corrected + ' channel' + (pol.corrected === 1 ? '' : 's') + ' [' + pol.dissenters.join(',') + ']');
+    if (pol.shape === 'unanimous') return muted('polarity: ' + ch + ' LEDs unanimous, nothing corrected');
+    if (pol.shape === 'tie') return muted('polarity: ' + ch + '-LED tie, nothing corrected — a tie is not agreement');
+    if (pol.shape === 'unsigned') return muted('polarity: no channel carried a sign, nothing corrected');
+    if (pol.shape === 'alone') return muted('polarity: one channel, nobody to agree with');
+    return muted('polarity: unrecognised shape ' + escHtml(String(pol.shape)));
+  }
+
   function renderFocus(m) {
     var cp = m.cp,
       sc = m.sc;
@@ -875,6 +898,7 @@
       m.ppg.n +
       ' feet' +
       validityNote(m.ppg.validity) +
+      polarityNote(m.ppg.polarity) +
       ' @ ' +
       m.ppg.fs +
       ' Hz';
