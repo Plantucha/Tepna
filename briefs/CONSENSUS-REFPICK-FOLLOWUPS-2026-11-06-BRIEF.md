@@ -71,11 +71,31 @@ Osprey decided this under CLAUDE.md §7 and the owner may overrule it.
 - **Never widen `REFPICK_RULES` without a parity leg.** The helper refuses a rule it does not implement, and that refusal is the guard.
 - **Never read a `byRule` count as agreement.** It counts sites, not nights, and the nights are where the rules part.
 
-## 5 · One defect found on the way, and not fixed here
+## 5 · One hazard found on the way, measured, and not a defect
 
-`tools/ppg-foot-consensus-e1.mjs` and `tools/ppg-fusion-e3.mjs` both write
-`const refIdx = Math.max(0, keepIdx.indexOf(sel.idx));`. The shipped pick runs over every channel
-while `keepIdx` holds only the distinct ones, so a pick that was de-duplicated away reads `-1` and
-the clamp lands on **channel 0**. That is absence read as an index (§∅), and it needs a reachability
-measurement over the corpus before anyone changes it. It rides its own residue row in the next
-ledger PR.
+`tools/ppg-foot-consensus-e1.mjs:559` and `tools/ppg-fusion-e3.mjs:505` both write
+`const refIdx = Math.max(0, keepIdx.indexOf(sel.idx));`. An earlier draft of this section called that
+a live §∅ defect, on the reasoning that the pick runs over every channel while `keepIdx` holds only
+the distinct ones, so a de-duplicated pick reads `-1` and the clamp lands on channel 0. **That read
+was wrong, and the clamp cannot fire.** Osprey withdrew the finding on 2026-11-06.
+
+`sameChannel` (`ppgdex-dsp.js:2391`) compares sample by sample, so a dropped duplicate is byte
+identical to the channel `distinctChannelIdx` kept. `channelSNR` is pure in the samples and `rec.fs`,
+so both copies score the same number. `pickChannel` scans ascending and advances only on a strict
+`s.snr > bestScore`, so the first member of an equality class always wins — and that first member is
+the kept one.
+
+Three further paths close as well. When no channel scores finite, `best` keeps its initial 0, and
+index 0 is always kept. `detectChannel` is pure, since `bandpass` allocates, so nothing mutates
+`rec0.ch` between the de-dup at e1:545 and the pick at e1:558. And two arrays holding `NaN` at one
+position never compare same, so a duplicate carrying `NaN` is kept rather than dropped.
+
+A probe over the real module ran seven constructed records: the duplicate as the best channel, the
+duplicate pair leading, the best duplicated at the end, a duplicate straddling a distinct channel, all
+three identical, every channel flat, and a distinct control. The clamp fired in **0 of 7**, and
+`indexOf` returned the pick's own position every time.
+
+**What remains is conditional, and it is why this section stays.** The clamp becomes reachable the day
+`pickChannel` relaxes its comparison, or `sameChannel` grows a tolerance so that a near-duplicate gets
+dropped. Nothing downstream separates a real position 0 from a repaired `-1`, so the failure would be
+silent. A reader who changes either function owes this line a second look.
