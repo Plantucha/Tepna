@@ -102,15 +102,21 @@ same(mergeOffsetSegments([{ n: 10, t0Ms: 0, offsetSegments: [seg(null, 500)] }],
 
 /* ── THE WIRING, so the rule cannot be un-called without a red ────────────────────────────────── */
 const here = dirname(fileURLToPath(import.meta.url));
+/* The CALLER moved: `mergePpg` is `tools/trio-fold-merge.mjs` since 2026-11-06, extracted so a
+   second tool could fold a night the same way. So the pin follows the import rather than the file it
+   used to sit in, and both files are read: the merge must call the rule, and `trio-batch.mjs` must
+   not grow a second copy of it. */
 const tb = readFileSync(join(here, '..', 'tools', 'trio-batch.mjs'), 'utf8');
+const tfm = readFileSync(join(here, '..', 'tools', 'trio-fold-merge.mjs'), 'utf8');
 const imports = (src, k) => new RegExp(`import\\s*\\{[^}]*\\b${k}\\b[^}]*\\}\\s*from\\s*'\\./trio-fold-clock\\.mjs'`).test(src);
 const localDef = (src, k) => new RegExp(`(^|\\n)\\s*(export\\s+)?(const\\s+${k}\\s*=|function\\s+${k}\\s*\\()`).test(src);
 for (const k of ['mergeClockResyncs', 'mergeOffsetSegments']) {
-  ok(imports(tb, k), `trio-batch.mjs imports ${k} from ./trio-fold-clock.mjs`);
-  ok(!localDef(tb, k), `trio-batch.mjs does not re-derive ${k} locally`);
+  ok(imports(tfm, k), `trio-fold-merge.mjs imports ${k} from ./trio-fold-clock.mjs`);
+  ok(!localDef(tfm, k), `trio-fold-merge.mjs does not re-derive ${k} locally`);
+  ok(!localDef(tb, k), `trio-batch.mjs does not re-derive ${k} locally either`);
 }
-ok(/clockResyncs: mergeClockResyncs\(recs\)/.test(tb), 'the merged PPG record publishes clockResyncs');
-ok(/offsetSegments: mergeOffsetSegments\(recs, base\.t0Ms\)/.test(tb), 'the merged PPG record publishes offsetSegments');
+ok(/clockResyncs: mergeClockResyncs\(recs\)/.test(tfm), 'the merged PPG record publishes clockResyncs');
+ok(/offsetSegments: mergeOffsetSegments\(recs, base\.t0Ms\)/.test(tfm), 'the merged PPG record publishes offsetSegments');
 
 if (fails.length) {
   console.error(`trio-fold-clock: ${fails.length} FAILED of ${pass + fails.length}`);

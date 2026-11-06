@@ -26,6 +26,11 @@ import { MOTIONUI } from './motiondex-render.js';
        ACC it belongs to. Claimed BEFORE streamKindFromName, which returns null for it (it is not a
        waveform and must never become one), so without this line the file is silently dropped. */
     if (/_ACCRUNS\b|_ACCRUNS\./i.test(name)) return isH10 ? 'chestAccRuns' : 'accRuns';
+    /* SEAM-SIDECAR-CONSUMPTION §4 — the `…_ACCSEAMS.txt` clock-seam sidecar feeds the SEAMS slot of
+       the ACC it belongs to. Claimed here for the same reason: `streamKindFromName` returns null for
+       it (`_(ACC|GYRO|MAGN?)\b` cannot match `_ACCSEAMS` — no boundary before SEAMS), so without
+       this line the box's seam record is silently dropped and this node reads the night as clean. */
+    if (/_ACCSEAMS\b|_ACCSEAMS\./i.test(name)) return isH10 ? 'chestAccSeams' : 'accSeams';
     var kind = MOTIONDSP.streamKindFromName(name); // 'acc' | 'gyro' | 'mag' | null
     if (!kind) return null;
     if (kind === 'acc') return isH10 ? 'chestAcc' : 'acc';

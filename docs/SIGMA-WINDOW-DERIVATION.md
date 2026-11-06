@@ -46,13 +46,19 @@ The raw waveforms are **large** (a full overnight PPG part-set is millions of ro
 ECG ~130 Hz). Derive headlessly, in a context that can load the production detectors and stream the
 parts — **not** inside the analysis tool, which only ingests the finished 1-Hz files.
 
-1. **Concatenate the night's parts in order** (`part01of15` → `part15of15`, etc.). Keep the header
-   from part 1; drop repeated headers.
-2. **Parse timestamps with the Clock Contract** — the Polar export's `Phone timestamp` column is
-   ISO-8601 no-zone (`2026-06-15T21:53:27.809`). Regex it into floating ms (`Date.UTC(...)`); **never**
-   `new Date(str)`. Use the *phone* timestamp column for the wall clock (the `sensor timestamp [ns]`
-   is a monotonic device counter, not civil time).
-3. **Run the detector unchanged on the concatenated record:**
+1. **Fold the night's parts on PARSED RECORDS, never on text.** Parse each part with its own
+   production parser (`ECGDSP.parseECGLines`, `PPGDSP.parsePPG`) and merge the records with
+   `tools/trio-fold-merge.mjs`, which sorts the fragments by `t0Ms` — so the order the parts are
+   named in does not matter. Joining the text keeps one part's header and one `t0Ms`, which hands
+   both detectors a break between parts as continuous signal; and the worst per-stream union in this
+   corpus is 775 MB, past V8's maximum string, so the text form does not scale either.
+2. **Timestamps come from the Clock Contract parser the DSP module already carries** — never from a
+   parser written beside the tool. The Polar export's `Phone timestamp` column is ISO-8601 no-zone
+   (`2026-06-15T21:53:27.809`) and `parseTimestamp` regexes it into floating ms; **never**
+   `new Date(str)`. The *phone* column is the wall clock (the `sensor timestamp [ns]` is a monotonic
+   device counter, not civil time), and the module's parser is also what applies the host-axis `fs`
+   correction and detects a clock resync — a local parser silently takes neither.
+3. **Run the detector unchanged on the folded record:**
    - **Verity:** `PPGDSP.analyze(rec)` → per-beat times + `sqi[]`. Keep beats with SQI above the gate
      the committed file used (SQI ≈ 0.95–1.0). Resample surviving beats to **1-Hz mean instantaneous
      HR**; write `sqiMean` per second.
@@ -152,8 +158,10 @@ node tools/derive-sigma-window.mjs \
   --date 2026-06-16 --out uploads
 ```
 
-(If a night's PPG/ECG was exported in multiple parts, repeat `--ppg` / `--ecg` once per part in
-order — the script concatenates them.) The script prints `meanSQI` and the derived second-count for
+(If a night's PPG/ECG was exported in multiple parts, repeat `--ppg` / `--ecg` once per part — the
+script parses each part and folds the records, and the merge sorts them by `t0Ms`, so the order on
+the command line does not matter. The silence between two parts stays visible as an ECG `gaps` entry
+and as a hole in PPG `relSec`, and is never filled.) The script prints `meanSQI` and the derived second-count for
 each leg; expect Verity `meanSQI` ≈ 0.9–1.0 on a clean resting night. Doing **all four** takes N from
 1 → 5 windows, which flips the reported CI from within-window to **across-window** and lets the
 uncorrelated-error assumption be tested directly — the paper's "recommended" tier.

@@ -9366,6 +9366,247 @@ window.IntegratorDSP = {
     return out;
   }
 
+  /* ════ THE BOX'S CLOCK-SEAM SIDECAR FOR THE ACC STREAM ══════════════════════════════════════════
+     SEAM-SIDECAR-CONSUMPTION §4, residue row
+     `2026-11-05-four-clock-carrying-nodes-still-read-no-seam-sidecar`. `capture-host/writers.py`
+     constructs a `_SeamSidecar` for EVERY device-clocked stream, so an H10 or Verity night writes
+     `…_ACCSEAMS.txt` beside its `…_ACC.txt`, and this node read none of it: `motiondex-app.js`
+     classified the name to `null` and dropped the file, and `signal-orchestrate` carried no ACC seam
+     lane, so the counter-step scan below was the node's only seam instrument.
+
+     🔴 THE TWO INSTRUMENTS DISAGREE BY CONSTRUCTION, which is why the sidecar is worth reading.
+     `_clockResyncs` is a DATA finding — a step in the device counter the file carries. The sidecar is
+     an ARRIVAL finding — the two clocks compared when the notification landed. A seam the box saw at
+     arrival can leave no step in the bytes, so this node's own scan reading zero is not evidence of a
+     clean night. The owner ruled on 2026-11-05: a night with no sidecar reads seams UNKNOWN, never
+     zero, and a window spanning a recorded seam refuses.
+
+     The reader is NODE-LOCAL, beside `parsePpgSeams` and `parseEcgSeams` rather than shared with
+     them: the three place on three different axes — a sample axis here, a sample axis at another
+     rate on PpgDex, a beat axis on ECGDex — and the format is the cheap half. `idx` and `at_rel_ms`
+     are carried as DIAGNOSTICS and must never become the placement: `at_rel_ms` is measured on the
+     device axis the seam just broke, and `idx` is a per-writer-session counter that restarts at every
+     reconnect while the file appends. */
+  function parseAccSeams(text) {
+    if (typeof text !== 'string' || !text) return null;
+    var out = /** @type {any} */ ({
+      params: null,
+      rule: null,
+      stream: null,
+      boundMs: null,
+      basis: null,
+      sessions: [],
+      seamsReported: null,
+      examined: null,
+      rows: [],
+      dataRows: 0,
+      malformed: 0,
+      rejected: 0,
+      rejectedReasons: [],
+      sawHeader: false,
+      comparable: false,
+      placedNone: false
+    });
+    var lines = String(text).split(/\r?\n/);
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i].trim();
+      if (!line) continue;
+      if (line.charAt(0) === '#') {
+        /* The parameter line is the one carrying BOTH `stream=` and `bound_ms=`. Keyed on the PAIR
+           because the writer's `# pmd stream=…` and `# final stream=…` lines also carry a stream, and
+           a first-comment-wins rule would read the negotiated PMD rate as the seam threshold. */
+        if (!out.params && /\bstream=/.test(line) && /\bbound_ms=/.test(line)) {
+          out.params = line.replace(/^#\s*/, '');
+          var st = /\bstream=(\S+)/.exec(line);
+          if (st) out.stream = st[1].trim().toLowerCase();
+          var bm = /\bbound_ms=(\d+(?:\.\d+)?)/.exec(line);
+          if (bm) out.boundMs = +bm[1];
+          var rl = /\brule=(\S+)/.exec(line);
+          if (rl) out.rule = rl[1].trim();
+          var bs = /\bbasis=(\S+)/.exec(line);
+          if (bs) out.basis = bs[1].trim();
+          continue;
+        }
+        /* `# final stream=<s> seams=<n> examined=<m>` — ONE per writer session, so a night that
+           reconnected carries many. SUMMED, never replaced: the last line alone describes the last
+           session only. */
+        var fseams = /\bseams=(\d+)/.exec(line);
+        var fexam = /\bexamined=(\d+)/.exec(line);
+        if (fseams && fexam) {
+          out.sessions.push({ seams: +fseams[1], examined: +fexam[1] });
+          out.seamsReported = (out.seamsReported || 0) + +fseams[1];
+          out.examined = (out.examined || 0) + +fexam[1];
+        } else if (/^#\s*final\b/.test(line)) out.malformed++;
+        continue;
+      }
+      if (/^phone_ts\s*;/.test(line)) {
+        out.sawHeader = true;
+        continue;
+      }
+      var c = line.split(';');
+      if (c.length < 7) {
+        out.malformed++;
+        continue;
+      }
+      out.dataRows++;
+      /* THE WRONG COMPANION IS REFUSED BY WHAT THE FILE SAYS IT IS, never by the name it arrived
+         under: the pairing that hands this text in reads a filename, and a stamp-nearest pick can
+         hand over another stream's sidecar from the same device. A `_PPGSEAMS.txt` declares
+         `stream=ppg` in its own header. A sidecar that names no stream is taken at the caller's
+         word — discarding a real observation over a missing header is the worse error. */
+      if (out.stream != null && !/^acc/.test(out.stream)) {
+        out.rejected++;
+        if (out.rejectedReasons.indexOf('stream=' + out.stream) < 0) out.rejectedReasons.push('stream=' + out.stream);
+        continue;
+      }
+      /* The host stamp goes through the ONE parser (§🔒.2) — the writer formats it as zone-free local
+         civil time, which IS `tMs`, and `new Date(str)` would read it as an instant in the viewer's
+         zone. */
+      var ts = parseTimestamp((c[0] || '').trim());
+      if (!ts || ts.tMs == null || !isFinite(ts.tMs)) {
+        out.rejected++;
+        if (out.rejectedReasons.indexOf('unparsed host stamp') < 0) out.rejectedReasons.push('unparsed host stamp');
+        continue;
+      }
+      var dev = +c[2],
+        pd = +c[3],
+        resid = +c[4],
+        hoff = +c[5],
+        arel = +c[6],
+        idx = +c[1];
+      out.rows.push({
+        tMs: ts.tMs,
+        offsetMin: ts.offsetMin != null ? ts.offsetMin : null,
+        idx: isFinite(idx) ? idx : null,
+        deviceStepMs: isFinite(dev) ? dev : null,
+        phoneDeltaMs: isFinite(pd) ? pd : null,
+        residualMs: isFinite(resid) ? resid : null,
+        hostOffsetMs: isFinite(hoff) ? hoff : null,
+        atRelMs: isFinite(arel) ? arel : null
+      });
+    }
+    /* ∅ — ROWS PRESENT AND NONE KEPT IS NOT A SEAM-FREE STREAM: an empty row list and an unusable
+       one read identically downstream unless this flag carries the difference. */
+    out.placedNone = out.dataRows > 0 && out.rows.length === 0;
+    /* A sidecar that states the bound its rows came from can be compared with anything; one that does
+       not is a row list at an unknown threshold. */
+    out.comparable = out.boundMs != null;
+    return out;
+  }
+
+  /* Attaches a parsed seam sidecar to a ROW ARRAY and hands the same array back. One body, so the
+     browser drop road, `compute()`'s text road and the orchestrated frame road reach the same
+     validity — the lesson #4413 paid for one node over, where a sidecar wired into the parser missed
+     the app's worker road entirely. The same idiom as `_runsSidecar`: hung on the row array, so no
+     consumer signature changes and a stream with no sidecar keeps today's bytes exactly.
+
+     `seams` is the `…_ACCSEAMS.txt` BYTES, or an already-parsed sidecar — the frame road hands the
+     object across, because `emitAccNodeExport` rebuilds the compute input from the frame and a key it
+     did not carry would be a sidecar read and then discarded. */
+  function attachAccSeams(rows, seams) {
+    if (!rows) return rows;
+    var sc = typeof seams === 'string' ? parseAccSeams(seams) : seams && typeof seams === 'object' && Array.isArray(seams.rows) ? seams : null;
+    if (!sc) return rows;
+    rows._seamsSidecar = sc;
+    /* §∅ — `[]` is the honest answer for a sidecar that examined intervals and recorded no seam, and
+       the WRONG answer for one whose rows this reader could not keep. `null` is the absence, and the
+       reason names what went unplaced. */
+    rows._recordedSeams = sc.placedNone ? null : sc.rows;
+    if (sc.placedNone) rows._recordedSeamsReason = 'seam sidecar rows unplaced: ' + (sc.rejectedReasons.join(', ') || 'malformed rows only');
+    return rows;
+  }
+
+  /* PLACES THE SEAMS THE BOX RECORDED ON THIS NODE'S OWN SAMPLE AXIS. Pure and exported, so the
+     placement is testable without a synthetic overnight recording. A seam lands on the FIRST ROW AT
+     OR AFTER its host stamp, the rule `placeRecordedSeams` (ECGDex) and `placeRecordedPpgSeams`
+     (PpgDex) already use, and the axis is `relSecOf` — the one position this node measures anything
+     on, so a seam index and an epoch index describe the same instant.
+
+     Three states are counted, never guessed:
+       · no axis (no `t0Ms`, no rows) → every row unplaced
+       · a non-finite stamp           → that row unplaced
+       · a stamp after the last row    → unplaced, NOT clamped to `n - 1`
+     The last one is the trap: clamping would refuse the whole record over a seam that lies outside
+     it, and an over-refusal reads exactly like a correct one.
+
+     ONE MERGED PASS over the rows rather than a scan per seam — a real night's `_ECGSEAMS.txt`
+     carried 178 rows, and a per-row scan over a multi-million-row ACC night is hundreds of millions
+     of comparisons. The shared cursor assumes the axis is non-decreasing, which `parseSensorXYZ`
+     guarantees (its segment re-anchor keeps `relNs` monotone). A row whose position resolves to
+     `null` is stepped over rather than placed on: an unstamped row is not an instant. */
+  function placeRecordedAccSeams(recordedSeams, rows, t0Ms, baseMs) {
+    var out = { seamIdx: /** @type {number[]} */ ([]), placed: 0, unplaced: 0 };
+    if (!Array.isArray(recordedSeams) || !recordedSeams.length) return out;
+    var N = rows && rows.length ? rows.length : 0;
+    var stamps = [];
+    for (var i = 0; i < recordedSeams.length; i++) {
+      var tMs = recordedSeams[i] && recordedSeams[i].tMs;
+      if (t0Ms == null || !isFinite(t0Ms) || tMs == null || !isFinite(tMs) || !(N > 0)) {
+        out.unplaced++;
+        continue;
+      }
+      stamps.push(tMs);
+    }
+    stamps.sort(function (a, b) {
+      return a - b;
+    });
+    var k = 0;
+    for (var j = 0; j < stamps.length; j++) {
+      while (k < N) {
+        var sec = relSecOf(rows[k], t0Ms, baseMs);
+        if (sec != null && t0Ms + sec * 1000 >= stamps[j]) break;
+        k++;
+      }
+      if (k >= N) {
+        out.unplaced += stamps.length - j;
+        break;
+      }
+      out.seamIdx.push(k);
+      out.placed++;
+    }
+    return out;
+  }
+
+  /* The seam channel's state for one stream, in the vocabulary the owner's ruling fixes — the same
+     five states and the same key names ECGDex and PpgDex publish, so a reader of the folded corpus
+     compares three nodes without a translation table:
+       · no sidecar at all        → { seams: null,  reason: 'no-seam-sidecar' }   — UNKNOWN, never 0
+       · read, rows placed        → { seams: n, examined: m, placed: p, reason: null }
+       · read, rows unusable      → { seams: null, placed: 0, reason: 'seam-rows-unplaced' }
+       · read, no row at all      → { seams: 0, examined: m, reason: null }       — a MEASURED zero
+       · read, rows off the axis   → { seams: n, placed: p, reason: 'seams-unplaced-on-axis' }
+     `seams` counts every row this reader kept, placed or not, because the FILE recorded them either
+     way; `placed` is what reached the refusal, and the two differing is itself the finding. `stream`
+     is MotionDex's own key: up to four streams arrive and one export block speaks, the discipline
+     `clockAxis.stream` already follows, so the state names which stream it describes. */
+  function _mdSeamState(rows, placed, unplaced, stream) {
+    var sc = rows && rows._seamsSidecar;
+    if (!sc) return { seams: null, examined: null, placed: null, unplaced: null, boundMs: null, stream: stream || null, reason: 'no-seam-sidecar' };
+    if (sc.placedNone) {
+      return {
+        seams: null,
+        examined: sc.examined != null ? sc.examined : null,
+        placed: 0,
+        unplaced: sc.dataRows,
+        boundMs: sc.boundMs != null ? sc.boundMs : null,
+        stream: stream || null,
+        reason: 'seam-rows-unplaced'
+      };
+    }
+    return {
+      seams: sc.rows.length,
+      examined: sc.examined != null ? sc.examined : null,
+      placed: placed,
+      unplaced: unplaced,
+      boundMs: sc.boundMs != null ? sc.boundMs : null,
+      stream: stream || null,
+      /* A ROW THAT REACHED NO SAMPLE IS NOT A SEAM THAT REFUSED ANYTHING, and `reason: null` beside a
+         non-zero `seams` would read as "the refusal ran". Named rather than left to `placed`, because
+         a consumer that reads the count and not the pair is the whole failure mode here. */
+      reason: unplaced > 0 ? 'seams-unplaced-on-axis' : null
+    };
+  }
+
   function parseSensorXYZ(text, opts) {
     var lines = String(text || '').split(/\r?\n/);
     var out = [];
@@ -9488,6 +9729,10 @@ window.IntegratorDSP = {
       out._runsSidecar = _runs;
       if (_runs.spans.length) out._blankSpans = _runs.spans;
     }
+    /* …and the CLOCK-SEAM sidecar on the same footing (SEAM-SIDECAR-CONSUMPTION §4). `opts.seamsText`
+       is the `…_ACCSEAMS.txt` companion's bytes when the drop or the pairing carried one; absent it
+       `attachAccSeams` hangs nothing and this stream's bytes do not move. */
+    attachAccSeams(out, opts && opts.seamsText);
     out._kind = headerKind ? headerKind.kind : null;
     out._unit = headerKind ? headerKind.unit : null;
     /* §2.2 — cross-examine the declared unit against gravity. The oracle REPORTS; it never rescales,
@@ -9826,7 +10071,13 @@ window.IntegratorDSP = {
     /* the parser hangs the seam list on the row array itself (`out._clockResyncs`, :289), so the
        signal is already in scope here — no signature change, and no new parameter for a caller to
        forget to pass. */
-    var _seam = !!(accRows && accRows._clockResyncs && accRows._clockResyncs.length);
+    /* …AND THE SEAMS THE BOX RECORDED AT ARRIVAL, which the counter-step scan cannot see (see
+       `parseAccSeams`). Both instruments feed ONE verdict, so a recorded seam refuses exactly what a
+       resync refuses: §∅'s owner ruling 2026-09-17 keys on the discontinuity, not on which
+       instrument found it. A row the reader could not place refuses nothing — an over-refusal reads
+       exactly like a correct one, and `_mdSeamState` names the unplaced rows instead. */
+    var _recSeams = placeRecordedAccSeams(accRows && accRows._recordedSeams, accRows, t0Ms, baseMs);
+    var _seam = !!(accRows && accRows._clockResyncs && accRows._clockResyncs.length) || _recSeams.placed > 0;
     /* ── §∅ A BLANKING RUN FABRICATES STILLNESS, AND `seen` CANNOT SEE IT ────────────────────────
        The coverage guard above exists because "an uncovered epoch scores counts=0 ⇒ moving=false ⇒
        counted as IMMOBILE, i.e. a recording gap fabricates stillness". A recorded blanking run does
@@ -9902,6 +10153,10 @@ window.IntegratorDSP = {
          second spelling of one fact. */
       immobileFrac: _seam ? null : covered ? immobile / covered : null,
       ...(_seam ? { immobileFracReason: 'clock-seam' } : {}),
+      /* The ROWS the box's seams landed on, so a consumer sees WHERE the refusal came from and not
+         only that it fired. Present only when a sidecar placed one, so every stream without one
+         keeps today's bytes. */
+      ...(_recSeams.placed ? { recordedSeamSamples: _recSeams.seamIdx } : {}),
       /* Present only when a sidecar reported one, so every stream without one keeps today's bytes.
          The COUNT is published rather than folded away: a denominator that shrank silently is the
          shape §∅ objects to, and a reader can see how much of the night the box called absent. */
@@ -10599,12 +10854,16 @@ window.IntegratorDSP = {
   //  input: { acc, gyro, mag, chestAcc }  (each = raw file text OR pre-parsed rows)
   //  acc/gyro/mag = the wrist/arm Verity streams; chestAcc = the H10 effort channel.
   // ════════════════════════════════════════════════════════════════════════
-  function asRows(v, runsText) {
+  function asRows(v, runsText, seams) {
     if (!v) return null;
     // `runsText` is the matching `…_ACCRUNS.txt` when the drop carried one. LAST and optional: absent
     // it, this is the exact single-argument call as before and no stream's bytes move.
-    if (typeof v === 'string') return runsText ? parseSensorXYZ(v, { runsText: runsText }) : parseSensorXYZ(v);
-    if (Array.isArray(v)) return v;
+    // `seams` is the `…_ACCSEAMS.txt` clock-seam sidecar on the same footing — bytes on the text road,
+    // an already-parsed sidecar on the frame road, and `attachAccSeams` reads both (§4).
+    if (typeof v === 'string') return runsText || seams ? parseSensorXYZ(v, { runsText: runsText, seamsText: seams }) : parseSensorXYZ(v);
+    /* A PRE-PARSED stream arrives from the orchestrated road, where the adapter already ran the
+       parser — so the sidecar attaches HERE for that road rather than being lost at the boundary. */
+    if (Array.isArray(v)) return seams ? attachAccSeams(v, seams) : v;
     return null;
   }
   /* THE DURATION IS MEASURED OR IT IS UNKNOWN — it is never divided out of an assumed rate.
@@ -10653,10 +10912,10 @@ window.IntegratorDSP = {
 
   function compute(input) {
     input = input || {};
-    var acc = asRows(input.acc, input.accRuns),
+    var acc = asRows(input.acc, input.accRuns, input.accSeams),
       gyro = asRows(input.gyro),
       mag = asRows(input.mag),
-      chest = asRows(input.chestAcc, input.chestAccRuns);
+      chest = asRows(input.chestAcc, input.chestAccRuns, input.chestAccSeams);
     /* ∅ AN UNDETERMINED UNIT IS NOT MILLI-G. The parse boundary above already refuses to guess —
        `inferAccUnit` ends `return null; // nothing gravity-like — do not guess`, and `_unit` is left
        null when neither the header nor the magnitude oracle could decide. Defaulting to 'mg' HERE
@@ -10695,6 +10954,15 @@ window.IntegratorDSP = {
     var sqi = motionSQI(posSrc, posUnit);
     var sqiActivity = actiSrc === posSrc ? sqi : motionSQI(actiSrc, actiUnit);
 
+    /* THE SEAM CHANNEL'S STATE FOR THE STREAM THE REFUSAL RAN ON. `immobileFrac` is the metric a
+       recorded seam refuses, and it is derived from `actiSrc`, so that is the stream this export
+       describes — named in the state rather than left for a reader to infer. Computed whether or not
+       a sidecar arrived: an export silent about the channel reads as a night with no seams, which is
+       what the owner's 2026-11-05 ruling refuses. */
+    var _actiName = actiSrc === acc ? 'acc' : actiSrc === chest ? 'chestAcc' : null;
+    var _actiSeams = placeRecordedAccSeams(actiSrc && actiSrc._recordedSeams, actiSrc, t0Ms, streamBaseMs(actiSrc));
+    var _seamAnn = _mdSeamState(actiSrc, _actiSeams.placed, _actiSeams.unplaced, _actiName);
+
     var _mdDomAx = _mdDominantStream([
       { name: 'acc', rows: acc },
       { name: 'chestAcc', rows: chest },
@@ -10711,6 +10979,9 @@ window.IntegratorDSP = {
          reading the shared timing block has to be told the difference between a node that found no
          step and a node that never looked, which is why this is `null` ONLY when no stream parsed. */
       clockResyncs: _mdResyncCount([acc, chest, gyro, mag]),
+      /* THE ARRIVAL instrument beside the DATA one above — see `parseAccSeams` for why the two
+         disagree by construction, and `_mdSeamState` for the five states. */
+      seams: _seamAnn,
       /* THE HOST-DISCIPLINED AXIS OF THE DOMINANT STREAM (U4 of the same brief). `hostAxis` is the
          raw `DexClock.hostAxis` return — `buildNodeExport` forwards it to `DexExport.timingBlock`,
          which owns the nine-key shape and the null discipline; `clockAxis` is the published remainder
@@ -11063,12 +11334,34 @@ window.IntegratorDSP = {
     /* See `_mdExportAxis`. Assigned rather than inlined above because the suite's seam gate reads the
        literal `out.recording.hostAxis` out of this source and compares its fields against ECGDex's. */
     if (summary.exportAxis) out.recording.hostAxis = summary.exportAxis;
+    /* WHETHER A SEAM SIDECAR WAS READ AT ALL — UNCONDITIONALLY, the field set and the spelling
+       ECGDex's `recording.validity` block established and PpgDex mirrors, so one reader folds three
+       nodes. Owner ruling 2026-11-05: a night with no seam sidecar reads seams UNKNOWN, never as zero
+       seams. This MOVES the committed bytes of every MotionDex export, the provenance fixture
+       included, because an export silent about the channel is exactly what the ruling refuses. A
+       measured zero carries NO reason; an absence carries `no-seam-sidecar`. */
+    var seamAnn =
+      summary && summary.seams && typeof summary.seams === 'object'
+        ? summary.seams
+        : { seams: null, examined: null, placed: null, unplaced: null, boundMs: null, stream: null, reason: 'no-seam-sidecar' };
+    out.recording.validity = Object.assign({}, out.recording.validity, {
+      seams: seamAnn.seams,
+      seamsExamined: seamAnn.examined,
+      seamsPlaced: seamAnn.placed,
+      seamsUnplaced: seamAnn.unplaced,
+      seamsBoundMs: seamAnn.boundMs,
+      seamsStream: seamAnn.stream,
+      seamsReason: seamAnn.reason
+    });
     return out;
   }
 
   // ─── public API (dual-mode: window attach for classic co-load + ESM tail) ───
   global.MOTIONDSP = {
     parseSensorXYZ: parseSensorXYZ,
+    parseAccSeams: parseAccSeams,
+    attachAccSeams: attachAccSeams,
+    placeRecordedAccSeams: placeRecordedAccSeams,
     streamKindFromHeader: streamKindFromHeader,
     streamKindFromName: streamKindFromName,
     bodyPosition: bodyPosition,

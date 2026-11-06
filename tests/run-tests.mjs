@@ -641,6 +641,10 @@ function readSources() {
     // The fold itself is gated by source scan: it routes the O2Ring finger pleth and owns the trio
     // completeness count, and neither is reachable by executing anything from here.
     'tools/trio-batch.mjs',
+    /* The two night merges moved out of trio-batch on 2026-11-06 so a second tool could call them.
+       `tests/trio-fold-merge-tests.mjs` executes them; the provenance-carry scan reads them here,
+       because a fold drops every field its fresh object does not name and that is a TEXT property. */
+    'tools/trio-fold-merge.mjs',
     /* CROSS-DEVICE-DRIFT-AND-CLOSURE §5 — `closeTriple` mirrors `fitClockClosure`'s tolerance rule
        because one is bundled and the other is not. Two copies of a threshold drift apart silently, so
        the closure-identity gate reads the rule out of BOTH files as text and compares them. */
@@ -704,6 +708,12 @@ function readSources() {
     'ppgdex-app.js',
     'pulsedex-app.js',
     'pulsedex-render.js',
+    /* MotionDex's APP, the last node app missing from either lane (2026-11-06). Every other node's
+       `*-app.js` is listed in BOTH lanes; this one was in NEITHER, so a source-mirror assertion about
+       the node's drop lane read nothing anywhere and passed VACUOUSLY — the same hole
+       `motiondex-dsp.js` had above, one file later. Listed here and in Dex-Test-Suite.html's
+       SOURCE_FILES together; both lanes or neither. */
+    'motiondex-app.js',
     'motiondex-render.js',
     /* EEGDex's staging engine. Added with the file itself: the `no NEW unscannable source layer`
        ratchet exists precisely so a new runtime source cannot ship invisible to every lane, and it
