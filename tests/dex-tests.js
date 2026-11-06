@@ -46719,6 +46719,46 @@
       var pEs = DI.planIngest([nm('Polar_H10_AAAA_20260617_010000_ACC.txt')], { partKey: pk, activeDeviceKey: 'POLAR_H10_AAAA' });
       T.eq('(e) a same-device sidecar attaches to the active recording', JSON.stringify(laneNames(pEs.companionLanes.acc)), JSON.stringify([['Polar_H10_AAAA_20260617_010000_ACC.txt']]));
 
+      /* (g) the three SIDECAR lanes take the same device filter as rr/hr/acc. Before 2026-11-06 a drop
+         of two H10 sessions set the foreign `_ACC` aside and KEPT the foreign `_ECGSEAMS`, and
+         `_pickSidecarFor` then paired that seam file to the other device's primary by nearest stamp. */
+      var pG = DI.planIngest(
+        [
+          nm('Polar_H10_AAAA_20260617_233000_ECG.txt'),
+          nm('Polar_H10_BBBB_20260617_234000_ECGSEAMS.txt'),
+          nm('Polar_H10_BBBB_20260617_234000_ECGRUNS.txt'),
+          nm('Polar_H10_BBBB_20260617_234000_ACCRUNS.txt'),
+          nm('Polar_H10_BBBB_20260617_234000_ACC.txt')
+        ],
+        { partKey: pk }
+      );
+      T.eq('(g) the foreign SEAMS sidecar never reaches its lane', pG.companionLanes.seams.length, 0);
+      T.eq('(g) the foreign RUNS sidecar never reaches its lane', pG.companionLanes.runs.length, 0);
+      T.eq('(g) the foreign ACCRUNS sidecar never reaches its lane', pG.companionLanes.accruns.length, 0);
+      T.eq(
+        '(g) all four foreign companions are set aside as otherdevice (one drop, ONE outcome)',
+        pG.skipped.filter(function (s) {
+          return s.kind === 'otherdevice';
+        }).length,
+        4
+      );
+      // the ANTI-VACUITY control: the SAME three shapes on the anchor's OWN device still attach.
+      var pGo = DI.planIngest(
+        [
+          nm('Polar_H10_AAAA_20260617_233000_ECG.txt'),
+          nm('Polar_H10_AAAA_20260617_233000_ECGSEAMS.txt'),
+          nm('Polar_H10_AAAA_20260617_233000_ECGRUNS.txt'),
+          nm('Polar_H10_AAAA_20260617_233000_ACCRUNS.txt')
+        ],
+        { partKey: pk }
+      );
+      T.eq('(g) the own-device SEAMS sidecar still attaches', JSON.stringify(laneNames(pGo.companionLanes.seams)), JSON.stringify([['Polar_H10_AAAA_20260617_233000_ECGSEAMS.txt']]));
+      T.eq('(g) the own-device RUNS sidecar still attaches', JSON.stringify(laneNames(pGo.companionLanes.runs)), JSON.stringify([['Polar_H10_AAAA_20260617_233000_ECGRUNS.txt']]));
+      T.eq('(g) the own-device ACCRUNS sidecar still attaches', JSON.stringify(laneNames(pGo.companionLanes.accruns)), JSON.stringify([['Polar_H10_AAAA_20260617_233000_ACCRUNS.txt']]));
+      // a device-LESS sidecar carries no device id, so it stays eligible and the stamp pick decides.
+      var pGb = DI.planIngest([nm('Polar_H10_AAAA_20260617_233000_ECG.txt'), nm('capture_ECGSEAMS.txt')], { partKey: pk });
+      T.eq('(g) a device-less sidecar stays eligible (the nearest-stamp pick disambiguates)', pGb.companionLanes.seams.length, 1);
+
       // (f) the app CONSUMES planIngest (single source, no drifting second copy of the orchestration).
       var app = (env.sources || {})['ecgdex-app.js'] || '';
       if (app) {
