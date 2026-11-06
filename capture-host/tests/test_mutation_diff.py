@@ -3020,6 +3020,41 @@ def test_ONE_malformed_row_does_not_drop_every_row_after_it():
     assert rec == {("good.py", "abc123abc123"): 7, ("zzz.py", "def456def456"): 9}, rec
 
 
+def test_a_KILLED_GENERATION_records_NO_size_because_the_figure_is_a_floor():
+    """A generation killed at its phase cap still closed a `mutants/<module>` file, and `run_one` stats
+    it. Generation walks every source file, so the cap can fire long after this module's file closed —
+    or midway through writing it — and the two read identically. §∅: the record keeps the absence, so
+    the next run reads UNKNOWN and takes `UNKNOWN_SIZE_WORKERS` instead of a floor's worker count."""
+    killed = {"mutant_generation": "2cc37ce9ca12", "mutants_bytes": 580524661, "generation_finished": False}
+    why = M.size_record_refusal(killed)
+    assert why, "a size from a generation nobody saw finish is not a measurement of the module"
+    assert "floor" in why, f"the reason must say what the figure IS, not only that it was refused: {why}"
+    # And the field is read, not inferred from the presence of a timeout reason: a record written before
+    # `generation_finished` existed cannot claim completion either.
+    assert M.size_record_refusal({"mutant_generation": "aaa", "mutants_bytes": 1}), "absent reads unfinished"
+
+
+def test_a_FINISHED_generation_records_its_size_even_when_the_RESULTS_pass_timed_out():
+    """The two phases are not one. A results-pass timeout leaves the mutants file whole, so its size
+    describes the module and the next run may refuse before generating. Refusing here would throw away
+    the only measurement a 580 MB module ever offers, and that is the #3202 over-commit again."""
+    whole = {"mutant_generation": "2cc37ce9ca12", "mutants_bytes": 580524661, "generation_finished": True}
+    assert M.size_record_refusal(whole) is None, "a finished generation measured the module"
+    assert M.size_record_refusal({**whole, "results_timed_out": "the results read hit its cap"}) is None
+
+
+def test_the_three_refusals_are_DISTINCT_so_a_reader_learns_WHICH_case_this_was():
+    """An operator who asked for a record and got none needs the reason, and one borrowed reason for
+    three causes is §∅ at the message layer. A run with no source hash keys to nothing, a run that
+    generated nothing has no file to measure, and a killed generation has a file it cannot vouch for."""
+    nohash = M.size_record_refusal({"mutants_bytes": 10, "generation_finished": True})
+    nofile = M.size_record_refusal({"mutant_generation": "aaa", "generation_finished": True})
+    killed = M.size_record_refusal({"mutant_generation": "aaa", "mutants_bytes": 10})
+    assert nohash and nofile and killed, (nohash, nofile, killed)
+    assert len({nohash, nofile, killed}) == 3, "three causes, three reasons"
+    assert "source hash" in nohash and "measure" in nofile
+
+
 def test_the_module_is_everything_before_the_FIRST_at_sign():
     """`partition` → `rpartition` survived, and the two disagree only on a key with more than one `@`. The
     documented key is `<module>@<hash>`, so the hash is the LAST field and the module is the first — but a

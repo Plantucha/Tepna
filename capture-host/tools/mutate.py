@@ -113,6 +113,7 @@ from mutation_diff import (  # noqa: E402  (after the sys.path fix above)
     installed_generator,
     pinned_generator,
     merge_mutants_size,
+    size_record_refusal,
     merge_prework,
     mutants_size_record,
     PREWORK_FILE,
@@ -899,7 +900,11 @@ def run_one(
     try:
         _grew = _mutants_file.stat().st_size
         out["mutants_bytes"] = _grew
-        if _grew > 0:
+        # AND ONLY A FINISHED GENERATION IS REMEMBERED. `size_record_refusal` reads the record this
+        # function has just filled in, so the note and the committed record answer the same question
+        # in the same place: a generation killed at its phase cap leaves a figure that cannot be told
+        # from a whole one, and §∅ keeps that absence rather than storing a floor.
+        if not size_record_refusal(out):
             _size_note.write_text(f"{_grew}\n", encoding="utf-8")
     except OSError:
         pass  # deliberate: the note is an optimisation for the next run, not part of this verdict
@@ -1016,27 +1021,33 @@ def main(argv=None) -> int:
             tests_override=[x.strip() for x in a.tests.split(",")] if a.tests else None,
         )
         records.append(r)
-        if a.record_sizes and r.get("mutants_bytes") and r.get("mutant_generation"):
-            # Written only on request: the record is committed, so an ordinary run must not dirty the
-            # tree. The measurement is whatever the generator actually wrote, keyed to the source hash
-            # this run generated FROM — never carried across hashes.
-            _sf = HERE / "tools" / SIZES_FILE
-            _sf.write_text(
-                merge_mutants_size(
-                    _sf.read_text(encoding="utf-8") if _sf.exists() else "",
-                    m,
-                    r["mutant_generation"],
-                    r["mutants_bytes"],
-                    time.strftime("%Y-%m-%d"),
-                    platform.node(),
-                    installed_generator(),
-                ),
-                encoding="utf-8",
-            )
-            print(
-                f"  recorded {r['mutants_bytes']} bytes for {m}@{r['mutant_generation']} in tools/{SIZES_FILE}",
-                flush=True,
-            )
+        if a.record_sizes:
+            _why_size = size_record_refusal(r)
+            if _why_size:
+                # ∅ NAME THE REFUSAL. A silent non-write reads as a recorded size to an operator
+                # who asked for one, and the next run spends its whole budget rediscovering it.
+                print(f"  did not record a size for {m}: {_why_size}", flush=True)
+            else:
+                # Written only on request: the record is committed, so an ordinary run must not dirty the
+                # tree. The measurement is whatever the generator actually wrote, keyed to the source hash
+                # this run generated FROM — never carried across hashes.
+                _sf = HERE / "tools" / SIZES_FILE
+                _sf.write_text(
+                    merge_mutants_size(
+                        _sf.read_text(encoding="utf-8") if _sf.exists() else "",
+                        m,
+                        r["mutant_generation"],
+                        r["mutants_bytes"],
+                        time.strftime("%Y-%m-%d"),
+                        platform.node(),
+                        installed_generator(),
+                    ),
+                    encoding="utf-8",
+                )
+                print(
+                    f"  recorded {r['mutants_bytes']} bytes for {m}@{r['mutant_generation']} in tools/{SIZES_FILE}",
+                    flush=True,
+                )
         if a.record_prework and r.get("stats_sec") and r.get("clean_run_sec") and r.get("tests"):
             # Keyed to the SELECTION this run actually used, and written only when the run observed
             # both phase boundaries: a run killed in generation has `stats_sec` None and records
