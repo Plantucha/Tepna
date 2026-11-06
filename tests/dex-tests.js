@@ -27194,7 +27194,12 @@
          than a handler body, which is where this page reads every other aggregate key. ⚠️ This key was DEAD here
          once (2026-09-27, the dead-key leg above found it) and was deleted rather than surfaced; the ratchet's own
          rule is that it must not be re-opened to admit a dead key, and this bump admits a SURFACED one. */
-      var UNDECIDED_EXPECTED = { 'pat-feasibility-worker.js': 27, 'sensor-trio-worker.js': 37, 'qrs-equiv-worker.js': 2, 'qrs-yield-worker.js': 1 };
+      /* sensor-trio-worker.js 37 -> 38 on 2026-11-06 (row 2026-11-05-the-two-bundle-workers-still-discard-the-polarity-return,
+         slice 2): the payload gains `polarity`, the consensus-polarity stamp the Verity corner was read under. The
+         night page reads it in its `polarityText` helper and prints it under the per-corner source KPI, which is
+         where that page reads every other fact about its inputs. Surfaced on purpose: a worker key no consumer
+         reads is what the dead-key leg above would have called dead. */
+      var UNDECIDED_EXPECTED = { 'pat-feasibility-worker.js': 27, 'sensor-trio-worker.js': 38, 'qrs-equiv-worker.js': 2, 'qrs-yield-worker.js': 1 };
       Object.keys(UNDECIDED_EXPECTED).forEach(function (w2) {
         T.eq(
           w2 + ' · helper-reached (UNDECIDABLE) key count',
@@ -54206,9 +54211,15 @@
       if (!wk || !pg) return;
 
       /* THE PRODUCER. The skip return carries the ratio inline; the success payload carries it as its own
-         depth-1 line. Two sites, and the second is the one this row re-opened. */
-      T.ok('the skip result still carries the ratio', /hrRatio:\s*hrRatio,\s*reason:/.test(wk));
-      T.ok('the success payload carries the ratio again', /\n\s*hrRatio: hrRatio\n/.test(wk), 'the key that row 2026-09-27 found dead here is now the KPI’s evidence — a consumer reads it below');
+         depth-1 line. Two sites, and the second is the one this row re-opened.
+         ⚠️ BOTH LEGS ONCE PINNED THE KEY'S NEIGHBOURS, and both red on 2026-11-06 when the polarity stamp
+         landed beside them — `polarity: Vpol` between `hrRatio` and `reason:` on the skip, and a comma
+         after `hrRatio: hrRatio` on the payload. Neither change touched this surface. A control that
+         pins a call's whole text reds on every addition around it, which trains a reader to edit the
+         control rather than read it. These ask only that each exit carries the key. */
+      var iSkip = wk.indexOf('failure: _fail');
+      T.ok('the skip result still carries the ratio', iSkip > 0 && /hrRatio:\s*hrRatio\b/.test(wk.slice(iSkip, iSkip + 240)));
+      T.ok('the success payload carries the ratio again', /\n\s*hrRatio: hrRatio[,\n]/.test(wk), 'the key that row 2026-09-27 found dead here is now the KPI’s evidence — a consumer reads it below');
       T.ok('…and the payload says WHY it is back, not just that it is', /a consumer reads it this time/.test(wk));
 
       /* THE CONSUMER. The dead-key gate above asks whether any consumer reads `.hrRatio`; these two legs
@@ -54998,6 +55009,71 @@
         T.ok('the page SURFACES the stamp beside the foot count it qualifies', /polarityNote\(m\.ppg\.polarity\)/.test(csrc));
         T.ok('...and an absent stamp prints "not read" rather than agreement', /consensus polarity not read/.test(csrc));
         T.ok('...and a tie says so in words, not as a bare zero', /a tie is not agreement/.test(csrc));
+      }
+
+      /* ── THE SECOND BUNDLE WORKER, same row, different surface ────────────────────────────────────
+         `sensor-trio-worker.js` runs the pass over the three Verity LEDs and its PPG corner feeds a
+         σ̂ rather than a foot table, so the stamp lands under the night page's per-corner source KPI.
+         The order assertions are the ones that matter: a stamp read after the pass is a fabricated
+         unanimity, and that is the defect, not a missing field. */
+      var tsrc = (env.sources && env.sources['sensor-trio-worker.js']) || '';
+      if (!tsrc) {
+        T.skip('sensor-trio-worker.js source unavailable — trio wiring check skipped');
+      } else {
+        var tSigns = tsrc.indexOf('ConsensusDissent.signsOf(perCh)');
+        var tPass = tsrc.search(/applyConsensusPolarity\(perCh,\s*function/);
+        var tStamp = tsrc.indexOf('ConsensusDissent.stampOf(polSigns');
+        T.ok('the trio worker reads the signs through ConsensusDissent.signsOf', tSigns > 0);
+        T.ok('it still CALLS the pass (deleting the call must not pass)', tPass > 0);
+        T.ok('the signs are read BEFORE the pass runs', tSigns > 0 && tPass > 0 && tSigns < tPass);
+        T.ok('...and the stamp is built after it, from those pre-pass signs', tStamp > tPass);
+        T.ok('the pass return is ASSIGNED, not discarded (the whole row)', /var polCorrected = PPGDSP\.applyConsensusPolarity\(perCh/.test(tsrc));
+        /* The dep the labelling needs. A worker whose module never loads reports "not read" on the
+           surface, which is honest; a worker that never lists it reports that on EVERY night. */
+        T.ok("the dep list carries 'consensus-dissent.js'", /'ecgdex-dsp\.js', 'consensus-dissent\.js'/.test(tsrc));
+        /* BOTH exits carry it: the solved payload and the Verity-unreliable SKIP, which is the verdict
+           a reader most needs the polarity condition beside. */
+        T.eq('the stamp reaches both payload exits (solved + Verity-unreliable skip)', (tsrc.match(/polarity: Vpol/g) || []).length, 2);
+        var iVpol = tsrc.indexOf('var Vpol = V && V.polarity');
+        var iUnwrap = tsrc.indexOf('if (V && V.hr) V = V.hr;');
+        T.ok('the stamp is read off the wrapper BEFORE the HR map replaces it', iVpol > 0 && iUnwrap > 0 && iVpol < iUnwrap);
+        /* ∅ The ring's raw pleth runs through the SAME function and is one channel, so its stamp is
+           `alone` by construction. Publishing it beside a null Verity stamp would be the empty
+           container §∅ forbids, so only the Verity one ships — pinned so a later hand does not add it
+           back without deciding. */
+        T.ok('only the Verity corner publishes a stamp (the ring pleth is one channel)', tsrc.indexOf('polarity: Opol') < 0);
+      }
+
+      /* ── THE TWO PAGE TABLES ARE HELD TO THE CORE'S CLOSED SET ────────────────────────────────────
+         Neither page loads `consensus-dissent.js`, so each writes its own sentence per shape and a
+         third copy of a vocabulary is free to drift. What must not drift is the KEY SET: a shape the
+         core renames falls through to a blank sub-line or an "unrecognised shape" string, which is a
+         surface that says nothing on the one night it matters. Equality both ways, so a page that
+         drops `tie` reds as loudly as one that invents a sixth name. */
+      var nsrc = (env.sources && env.sources['sensor-trio-night.js']) || '';
+      if (!nsrc) {
+        T.skip('sensor-trio-night.js source unavailable — surface check skipped');
+      } else {
+        T.ok('the night page surfaces the stamp under the per-corner source KPI', /polarityText\(real\.polarity\)/.test(nsrc));
+        T.eq('...on BOTH render paths (a skipped night keeps the Verity gate verdict)', (nsrc.match(/polarityText\(real\.polarity\)/g) || []).length, 2);
+        T.ok('...and an absent stamp prints "not read" rather than agreement', /Verity polarity: not read/.test(nsrc));
+        T.ok('...and a tie says so in words, not as a bare zero', /a tie is not agreement/.test(nsrc));
+        T.ok('the export carries it beside the source it qualifies', /polarity: real\.polarity \|\| null/.test(nsrc));
+        var tblBlock = nsrc.match(/const POL_TEXT = \{([\s\S]*?)\n  \};/);
+        T.ok('the night page declares a per-shape table this gate can read', !!tblBlock);
+        if (tblBlock) {
+          var nightKeys = (tblBlock[1].match(/^\s{4}(\w+):/gm) || []).map(function (x) {
+            return x.trim().replace(':', '');
+          });
+          T.eq('the night page names exactly the core vocabulary', nightKeys.slice().sort().join(','), CD.SHAPES.slice().sort().join(','));
+        }
+        var patKeys = {};
+        (csrc.match(/pol\.shape === '(\w+)'/g) || []).forEach(function (x) {
+          patKeys[x.replace(/.*'(\w+)'.*/, '$1')] = true;
+        });
+        /* The PAT page branches on each name explicitly and keeps a fall-through for anything else, so
+           its tested set is the whole vocabulary. An equality, so a dropped branch reds too. */
+        T.eq('the PAT page names exactly the core vocabulary', Object.keys(patKeys).sort().join(','), CD.SHAPES.slice().sort().join(','));
       }
     });
 

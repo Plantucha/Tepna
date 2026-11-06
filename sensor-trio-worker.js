@@ -62,7 +62,7 @@ function loadScript(url) {
    and wrong for the hat — the hat is this worker's whole subject. A failure here propagates. */
 loadScript('analysis-stats.js');
 try {
-  ['kernel-constants.js', 'clock.js', 'ppgdex-dsp.js', 'ecgdex-dsp.js'].forEach(loadScript);
+  ['kernel-constants.js', 'clock.js', 'ppgdex-dsp.js', 'ecgdex-dsp.js', 'consensus-dissent.js'].forEach(loadScript);
   HAVE_ECGDSP = typeof ECGDSP !== 'undefined' && ECGDSP && typeof ECGDSP.parseECG === 'function' && typeof ECGDSP.bandpass === 'function' && typeof ECGDSP.detectPeaks === 'function';
   HAVE_PPGDSP =
     typeof PPGDSP !== 'undefined' &&
@@ -866,10 +866,24 @@ function ppgHrMapReal(text, onPhase, runsText) {
     }
     /* CONSENSUS POLARITY — the order follows `analyze` (apply, then pick). This site picks by
        bandpassed VARIANCE, which a sign flip leaves unchanged, so the order decides nothing here;
-       the vote below is what moves. The call is a no-op on a unanimous set and on a 1-1 split. */
-    PPGDSP.applyConsensusPolarity(perCh, function (i, sgn) {
+       the vote below is what moves. The call is a no-op on a unanimous set and on a 1-1 split.
+       ∅ READ THE SIGNS BEFORE THE PASS. The pass rewrites the dissenting channel to carry the
+       majority sign, so a read taken after it reports every set unanimous — row
+       2026-11-05-two-consensus-legs-record-a-count-with-no-shape states that for the printed legs,
+       and the return count alone cannot separate a 1-1 tie from agreement, because the pass
+       abstains on both and returns 0. */
+    var polSigns = ConsensusDissent.signsOf(perCh);
+    var polMaj = PPGDSP.consensusSign(polSigns);
+    var polCorrected = PPGDSP.applyConsensusPolarity(perCh, function (i, sgn) {
       return PPGDSP.detectChannel(rec.ch[i], rec.fs, sgn);
     });
+    /* The labelling is PROVENANCE, not the measurement, so its absence nulls the stamp and never the
+       corner: `stampLine(null)` reads "consensus polarity: not read" on the surface. The asymmetry
+       with `pat-feasibility-worker.js`, which calls the same module unguarded, is this function's own
+       `catch` — it swallows a throw into `self.__ppgErr` and returns null, which drops the corner and
+       skips the night. That is the silent disablement CLAUDE.md §👥.3 warns about, and a visible
+       "not read" is the opposite of it. */
+    var polStamp = typeof ConsensusDissent !== 'undefined' && ConsensusDissent ? ConsensusDissent.stampOf(polSigns, polMaj, polCorrected) : null;
     var sel = 0,
       best = -1;
     for (ci = 0; ci < perCh.length; ci++) {
@@ -972,7 +986,11 @@ function ppgHrMapReal(text, onPhase, runsText) {
             t0
           )
         : null;
-    return { hr: out, conf: conf };
+    /* ∅ The polarity condition this stream was read under, beside the HR it produced. The ring's raw
+       pleth also arrives here and is ONE channel, so its stamp reads `alone` by construction and the
+       handler publishes only the Verity one — a two-key container holding a derivable constant and a
+       null is the empty container §∅ forbids. */
+    return { hr: out, conf: conf, polarity: polStamp };
   } catch (e) {
     self.__ppgErr = (e && e.message) || '' + e;
     return null;
@@ -1099,6 +1117,10 @@ async function runRealNight(m) {
     var Hconf = H && H.conf ? H.conf : null;
     if (H && H.hr) H = H.hr;
     var Vconf = V && V.conf ? V.conf : null;
+    /* Read off the wrapper BEFORE it is unwrapped, and only for the raw-pleth path: the PPI and
+       device-HR fallbacks are bare Maps the device's own detector produced, where no channel set and
+       no vote exist, so this stays null and `source` names the reason. */
+    var Vpol = V && V.polarity ? V.polarity : null;
     if (V && V.hr) V = V.hr;
     if (!O || !H || !V) return { skip: true, reason: 'no ' + (!O ? 'O2 ' : '') + (!H ? 'H10 ' : '') + (!V ? 'Verity-HR' : '') };
     pg('aligning + solving TCH');
@@ -1178,7 +1200,11 @@ async function runRealNight(m) {
           : _fail === 'harmonic-half'
             ? 'Verity HR is a SUB-harmonic of truth (\u00d7' + hrRatio.toFixed(2) + ' vs ECG) \u2014 OUR DETECTOR is missing beats; the sensor is fine'
             : 'Verity HR lands near no multiple of truth \u2014 genuinely poor PPG contact / all-night motion';
-      return { skip: true, failure: _fail, hrRatio: hrRatio, reason: 'Verity unreliable (' + _sig + ') \u2014 ' + _why };
+      /* The stamp rides the SKIP too, and this is the skip that needs it most: the verdict is about the
+         Verity stream, and a reader cannot tell a harmonic-double read over a corrected stream from one
+         read over a stream whose channels never agreed. `hrRatio` ships on this path for the same
+         reason (row 2026-09-27-verity-gate-verdict-has-no-number-behind-it). */
+      return { skip: true, failure: _fail, hrRatio: hrRatio, polarity: Vpol, reason: 'Verity unreliable (' + _sig + ') \u2014 ' + _why };
     }
     // H10 corner gate (sibling of the Verity gate above): an ECG-lead fault yields a large POSITIVE σ_h10
     // that TCH reports honestly but that is not a device σ. Null ONLY the H10 corner (its independent error
@@ -1234,7 +1260,13 @@ async function runRealNight(m) {
          makes it worthless. The SKIP result carries the same field for the same reason, test-pinned.
          §∅: `median(hh) <= 0` leaves it `null`, never 1 and never 0. The gate still rules there
          (`verityFailureClass(null)` reads `poor-contact`), so the surface must say the number is absent. */
-      hrRatio: hrRatio
+      hrRatio: hrRatio,
+      /* ∅ THE POLARITY CONDITION THE VERITY CORNER WAS READ UNDER — row
+         2026-11-05-the-two-bundle-workers-still-discard-the-polarity-return. The pass ran at
+         `ppgHrMapReal` and its return was thrown away, so a page drawing this night's σ̂ could not say
+         whether the stream behind it had a channel re-detected. `sensor-trio-night.js` renders it under
+         the per-corner source KPI, which is where the page states every other fact about its inputs. */
+      polarity: Vpol
     };
     if (m.wantSeries) {
       out.hh = hh;
