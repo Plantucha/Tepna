@@ -4628,3 +4628,47 @@ def test_verity_ppi_pulse_reads_past_a_byte_that_is_not_utf_8(tmp_path):
     f = tmp_path / "Polar_VeritySense_ABCD0001_20261105000000_PPI.txt"
     f.write_bytes(b"Phone timestamp;hr [bpm]\n\xff\xfe;64\nt;66\n")
     assert loss_audit.verity_ppi_pulse(str(f)) == (2, 2)
+
+
+# ── the worn loss stops at the worn end ─────────────────────────────────────────────────────────────────
+def test_A_GAP_AFTER_THE_WORN_END_IS_NOT_WORN_LOSS(tmp_path):
+    """MEASURED on the capture box 2026-11-06: night 2026-11-05's Verity came off at 04:22:55 with 0 gaps
+    in its main file. The gaps of two later files, both judged not worn, read as 30.1 worn minutes lost
+    and FAILED the night. Its shape here: a 61 s boundary gap starts exactly at the worn end."""
+    d = tmp_path / "captures" / "2026-09-23"
+    d.mkdir(parents=True)
+    _ppg(str(d / "Polar_VeritySense_0C30_20260923230000_PPG.txt"), 370, 20, lambda t: 37.0 if t < 360 else 111.0)
+    _ppi(str(d / "Polar_VeritySense_0C30_20260923230000_PPI.txt"), [60] * 300)
+    t1 = W0 + dt.timedelta(seconds=430)
+    _ppg(str(d / "Polar_VeritySense_0C30_20260923230710_PPG.txt"), 400, 20, lambda t: 37.0, t0=t1)
+    _ppi(str(d / "Polar_VeritySense_0C30_20260923230710_PPI.txt"), [0] * 400, t0=t1)
+    a = loss_audit.audit_night(str(d), [{"name": "Sense", "model": "VeritySense"}], journal=lambda *x: [])
+    v = a["devices"]["Sense"]
+    assert v["wear"]["worn_end"]["at"] == "2026-09-23T23:06:09" and v["wear"]["worn_end"]["reason"] == "doff"
+    assert v["lost_min"] == 1.0 and [g["at"] for g in v["gaps"]] == ["2026-09-23T23:06:09"]
+    assert v["worn_lost_min"] == 0.0 and v["after_worn_end_min"] == 1.0
+    assert v["span_min"] == 12.8 and v["worn_span_min"] == 6.2, "the unworn file adds no worn span"
+    r = loss_audit.night_verdict(a, night_dir=str(d))["result"]
+    assert r["worn_lost_min"] == 0.0 and r["worn_span_min"] == 6.2 and r["worn_but_not_recorded_fraction"] == 0.0
+
+
+def test_after_worn_end_s_takes_the_tail_of_a_gap_across_the_end():
+    end = dt.datetime(2026, 9, 23, 4, 0, 0)
+    before = (end - dt.timedelta(seconds=100), 30.0)  # ends 70 s before the end: all worn
+    across = (end - dt.timedelta(seconds=20), 50.0)  # 20 s worn, 30 s after
+    at_end = (end, 40.0)  # starts at the end: all after
+    assert loss_audit.after_worn_end_s([before, across, at_end], end) == 70.0
+    assert loss_audit.after_worn_end_s([before], end) == 0.0
+    assert loss_audit.after_worn_end_s([across, at_end], None) == 0.0
+
+
+def test_span_before_s_clips_each_file_at_the_worn_end_and_skips_an_unstamped_one():
+    t = dt.datetime(2026, 9, 23, 4, 0, 0)
+    scans = [
+        ("a", {"first": t, "last": t + dt.timedelta(seconds=600), "span": 600.0}),
+        ("b", {"first": t + dt.timedelta(seconds=700), "last": t + dt.timedelta(seconds=900), "span": 200.0}),
+        ("c", {"first": None, "last": None, "span": 0.0}),
+    ]
+    assert loss_audit.span_before_s(scans, t + dt.timedelta(seconds=750)) == 650.0
+    assert loss_audit.span_before_s(scans, t + dt.timedelta(seconds=300)) == 300.0
+    assert loss_audit.span_before_s(scans, None) == 800.0
