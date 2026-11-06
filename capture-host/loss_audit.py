@@ -1566,10 +1566,18 @@ VERITY_MIN_EPOCHS = 30  # the derivation's floor for a Verity file
 #   Box census 2026-08-02..2026-11-05, 117 Verity PPI files with >= 30 rows, share of rows with hr > 0:
 #   103 at >= 90 %, 4 at 10..90 % (lowest 19.9 %), none above 0 and under 10 %, 10 at EXACTLY 0. All 10
 #   read a PPG ambient median from -322,939 to +346,857; that night's worn file reads -214. The rule takes
-#   the 0, not a threshold: one pulse row keeps the file, so a file worn for part of its span stays.
 #   An absent PPI file, a header-only one ("often header-only", CLAUDE.md) or one under the floor is NO
 #   witness (None), and the end is judged as before.
+# THE RULE IS A SHARE, NOT THE 0 (residue `2026-11-06-a-few-stray-pulse-rows-keep-an-unworn-verity-file`).
+#   The first rule took the 0: one pulse row kept the file. On 2026-11-06 the Verity came off at 04:22,
+#   and its 05:24 file streamed 43 min on a desk. Its PPI reported a pulse on 15 of 2782 rows (0.54 %),
+#   so the file stayed usable, a stray daemon "worn" row set its end at 06:07:47, and night 2026-11-05
+#   read a false FAIL on four off-body gaps. Box census 2026-10-01..2026-11-06, 39 Verity PPI files with
+#   >= 300 rows: 3 at 0..0.54 %, 36 at >= 95.5 %, none between. With the 2026-11-05 census (lowest
+#   partly-worn file 19.9 %, none above 0 and under 10 %) the pre-stated bound is 1 in 20: a file with a
+#   pulse on under 5 % of its rows was not worn. A file worn for a fifth of its span still stays.
 VERITY_NO_PULSE_MIN_ROWS = 30
+VERITY_WORN_MIN_PULSE_PER = 20  # a pulse on under 1 row in 20 (5 %) is a file off the body
 WEAR_RELINK_S = 1800.0  # the label: a next file within 30 min is a reconnect
 _ACC_TAIL_BYTES = 262_144  # the final epoch's ACC rows sit in the last ~25 KB at 52 Hz; 256 KB is generous
 _ACC_MIN_ROWS = 50  # fewer ACC rows in the final epoch is not a motion measurement
@@ -1749,13 +1757,13 @@ def _wear_end(path: str, night_dir: str, model: str) -> dict:
         return {"file": base, "usable": False, "reason": f"under {floor} epochs of {WEAR_EPOCH_S:.0f} s"}
     if model != "H10":
         ppi = verity_ppi_pulse(path[: -len("_PPG.txt")] + "_PPI.txt")
-        if ppi is not None and ppi[0] >= VERITY_NO_PULSE_MIN_ROWS and ppi[1] == 0:
+        if ppi is not None and ppi[0] >= VERITY_NO_PULSE_MIN_ROWS and ppi[1] * VERITY_WORN_MIN_PULSE_PER < ppi[0]:
             return {
                 "file": base,
                 "usable": False,
-                "reason": f"not worn: the device reports no pulse on any of its {ppi[0]} PPI rows",
+                "reason": f"not worn: the device reports a pulse on {ppi[1]} of its {ppi[0]} PPI rows, under 1 in 20",
                 "ppi_rows": ppi[0],
-                "ppi_pulse_rows": 0,
+                "ppi_pulse_rows": ppi[1],
             }
     gap, no_stamp = _relink_gap(night_dir, pattern, last)
     if model == "H10":
