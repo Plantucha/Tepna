@@ -906,6 +906,25 @@ def _stream(anchors=((10, 1_000_000), (11, 1_050_000), (12, 1_100_000)), acls=((
     return out
 
 
+def test_A_RUN_ROLLS_A_DEVICES_FILE_AT_MIDNIGHT_SO_NO_FINISHED_NIGHT_STAYS_OPEN(tmp_path):
+    """Residue `2026-11-06-a-radio-clock-log-holds-a-finished-night-open`. MEASURED on the capture box
+    2026-11-06: one log per device per run, opened at 06:50 the day before, still wrote at 11:00 and held
+    that night's folder open (board #3840). Two rows 24 h apart now go to two files."""
+    opened = []
+
+    def open_writer(address):
+        opened.append(address)
+        return rc.SidecarWriter(str(tmp_path / rc.sidecar_name(f"2026090{len(opened)}T030000", address)))
+
+    day = 86_400 * 10**9
+    got = rc.run(_stream(acls=((1_051_300_000,), (1_101_300_000,), (1_051_300_000 + day,))), _collector(), open_writer)
+    assert opened == [H10, H10] and got["rolled"] == 1 and got["rows"] == 3
+    first = (tmp_path / rc.sidecar_name("20260901T030000", H10)).read_text(encoding="utf-8").splitlines()
+    second = (tmp_path / rc.sidecar_name("20260902T030000", H10)).read_text(encoding="utf-8").splitlines()
+    assert len(first) == 3 and len(second) == 2, "two rows on the first date, one on the next"
+    assert first[1][:10] == first[2][:10] != second[1][:10]
+
+
 def test_run_writes_one_file_per_device_and_reports_its_telemetry(tmp_path):
     made = {}
 
