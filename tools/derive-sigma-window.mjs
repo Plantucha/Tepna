@@ -39,6 +39,7 @@
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
+import { mergeRunsTexts, readRunsSidecar, runsTextPlaceable, runsTextSpans, validityLine } from './trio-fold-validity.mjs';
 
 // ── tiny arg parser ───────────────────────────────────────────────────────
 const args = process.argv.slice(2);
@@ -75,19 +76,65 @@ const PPGDSP = globalThis.PPGDSP,
   ECGDSP = globalThis.ECGDSP;
 
 const sFloorMs = (ms) => Math.floor(ms / 1000) * 1000;
-// concat parts, keeping the header from the first only
+// concat parts, keeping the header from the first only. `rows` is each part's DATA-row count, which
+// is the frame a run sidecar's `first_index` is written in — `mergedRunsText` below rebases on it.
 function concatParts(paths) {
   let head = '',
     body = '';
+  const rows = [];
   paths.forEach((p, i) => {
     const t = readFileSync(p, 'utf8');
     const nl = t.indexOf('\n');
-    if (i === 0) {
-      head = t.slice(0, nl + 1);
-      body += t.slice(nl + 1);
-    } else body += t.slice(nl + 1);
+    if (i === 0) head = t.slice(0, nl + 1);
+    const part = t.slice(nl + 1);
+    rows.push(countRows(part));
+    body += part;
   });
-  return head + body;
+  return { text: head + body, rows };
+}
+// Data rows in one part's body, counted WITHOUT splitting: these parts are 150–350 MB and a split
+// would hold ~7 M strings beside the text it was taken from.
+function countRows(body) {
+  let n = 0,
+    i = 0;
+  for (;;) {
+    const j = body.indexOf('\n', i);
+    if (j < 0) {
+      if (i < body.length) n++;
+      break;
+    }
+    if (j > i) n++;
+    i = j + 1;
+  }
+  return n;
+}
+
+/* ── the `…RUNS.txt` validity companions, on the CONCATENATED axis ──────────────────────────────
+   The box writes each optical and ECG stream's constant-run spans BESIDE the stream (§∅,
+   `capture-host/writers.py _RunSidecar`), addressed by SAMPLE INDEX into that one file
+   (`first_index`). A night handed to the detectors as one concatenation therefore needs every part
+   after the first rebased by the data rows ahead of it, which is what this does. Four things can
+   happen per part and the tally printed at the end names which: a part whose sidecar is absent,
+   unreadable or unnamed contributes nothing and is validity UNKNOWN over its stretch, never a clean
+   one — passing the sidecar is not reporting its absence. */
+const validity = {};
+function mergedRunsText(paths, stream, rows) {
+  const sidecars = paths.map((pth) => readRunsSidecar(pth, stream, { tally: validity }));
+  for (const sc of sidecars) if (sc.state !== 'read' && sc.reason) console.log(`[${stream}] ${sc.reason}`);
+  const merged = mergeRunsTexts(sidecars, rows);
+  for (const n of merged.notices) console.log(`[${stream}] ${n}`);
+  if (merged.dropped) console.log(`[${stream}] ${merged.dropped} sidecar row(s) carried no placeable first_index — dropped, not placed`);
+  return merged.text;
+}
+/* The rebase is exact only while the parse keeps every data row counted here, which
+   `runsTextPlaceable` checks against the parse rather than assuming. A mismatch is reported in the
+   tool's own words and the spans are withheld: a span placed on the wrong seconds is worse than one
+   withheld. */
+function spansPlaceable(stream, parts, parsedSamples) {
+  if (runsTextPlaceable(parts.rows, parsedSamples)) return true;
+  const rows = parts.rows.reduce((a, b) => a + b, 0);
+  console.log(`[${stream}] ${parts.rows.length} parts: ${rows} data row(s) against ${parsedSamples} parsed sample(s) — the sidecar's indices do not address this parse, spans WITHHELD`);
+  return false;
 }
 // bucket per-beat (timeMs, hr, sqi) → 1-Hz mean rows
 function toOneHz(beats) {
@@ -112,7 +159,15 @@ function toOneHz(beats) {
 // ── Verity: raw PPG → PPGDSP → SQI-gated 1-Hz HR ───────────────────────────
 if (ppg.length) {
   console.log(`[PPG] ${ppg.length} part(s) → PPGDSP…`);
-  const rec = PPGDSP.parsePPG(concatParts(ppg));
+  const parts = concatParts(ppg);
+  const runsText = mergedRunsText(ppg, 'PPG', parts.rows);
+  let rec = PPGDSP.parsePPG(parts.text, { runsText });
+  /* The sidecar reaches this parse as a WITNESS against its own pinned-run derivation (`ppgdex-dsp.js`
+     §P5 clause 2 — the box's run detector and this node's rail detector answer different questions and
+     the comparison is the point). An index that does not address this parse would make that comparison
+     report an agreement nobody measured, so the night is re-parsed with the witness WITHHELD rather
+     than by stripping a field the parse also fills from the data. */
+  if (runsText && !spansPlaceable('PPG', parts, rec.n)) rec = PPGDSP.parsePPG(parts.text, { runsText: null });
   const res = PPGDSP.analyze(rec);
   const peakSec = res.beatTimes || [],
     sqi = res.sqi || [],
@@ -145,7 +200,11 @@ if (ppg.length) {
 }
 
 // ── H10: raw ECG → ECGDSP (Pan-Tompkins) → 1-Hz HR ─────────────────────────
-function parseECG(text) {
+/* `opts.runsText` is the night's merged `_ECGRUNS.txt` bytes when its parts carried one. Its spans
+   ride the record as `blankingSpans`, which is where `ECGDSP.analyze` reads recorded absence and
+   converts it to the seconds frame its epochs use. Without them a recorded blanking run enters
+   Pan-Tompkins as signal: 0 µV is a legal ECG sample, so validity can only travel out of band (§∅). */
+function parseECG(text, opts) {
   // columns: Phone timestamp ; sensor ts [ns] ; timestamp [ms] ; ecg [uV]
   const L = text.split(/\r?\n/);
   const uv = [];
@@ -176,11 +235,35 @@ function parseECG(text) {
     n++;
   }
   const fs = firstRelMs != null && lastRelMs != null && lastRelMs > firstRelMs ? (n - 1) / ((lastRelMs - firstRelMs) / 1000) : 130;
-  return { int16: Int16Array.from(uv), fs: Math.round(fs * 100) / 100, t0Ms: t0 };
+  const runs = runsTextSpans(opts && opts.runsText, 'ecg');
+  return {
+    int16: Int16Array.from(uv),
+    fs: Math.round(fs * 100) / 100,
+    t0Ms: t0,
+    /* Absent when no part carried a sidecar, so a sidecar-less night keeps today's record shape;
+       `null` plus a reason when rows arrived and none could be placed. `parseECGText` states the
+       same two facts the same way. */
+    ...(runs ? { blankingSpans: runs.placedNone ? null : runs.spans } : {}),
+    ...(runs && runs.placedNone ? { blankingSpansReason: `sidecar rows unplaced: ${runs.rejected.join(', ') || 'malformed rows only'}` } : {})
+  };
 }
 if (ecg.length) {
   console.log(`[ECG] ${ecg.length} part(s) → ECGDSP (fs auto)…`);
-  const rec = parseECG(concatParts(ecg));
+  const parts = concatParts(ecg);
+  const runsText = mergedRunsText(ecg, 'ECG', parts.rows);
+  const rec = parseECG(parts.text, { runsText });
+  if (!spansPlaceable('ECG', parts, rec.int16.length)) {
+    rec.blankingSpans = null;
+    rec.blankingSpansReason = 'the sidecar indices do not address this concatenation (see the line above)';
+  }
+  /* What the sidecar PLACED, beside the numbers it conditions: an unplaced span list reads exactly
+     like a stream the box recorded no absence in, so the two are printed apart (§∅). `analyze` turns
+     these samples into the seconds its epochs refuse on. */
+  if (rec.blankingSpansReason) console.log(`[ECG] blanking: no span was placed — ${rec.blankingSpansReason}`);
+  else if (Array.isArray(rec.blankingSpans)) {
+    const bs = rec.blankingSpans.reduce((a, b) => a + (b && b.n > 0 ? b.n : 0), 0);
+    console.log(`[ECG] blanking: ${rec.blankingSpans.length} recorded span(s), ${bs} sample(s) of ${rec.int16.length}${rec.int16.length ? ` (${((100 * bs) / rec.int16.length).toFixed(2)} %)` : ''}`);
+  }
   const res = ECGDSP.analyze(rec);
   const tt = res.tt || [],
     nn = res.nn || [],
@@ -202,4 +285,8 @@ if (ecg.length) {
   console.log(`[ECG] fs≈${rec.fs} · ${rows.length} 1-Hz s → ${f}`);
 }
 
+/* Passing the sidecar is not reporting its absence (§∅): most of this corpus predates the writer, so
+   most parts read `absent` and an absent sidecar is validity UNKNOWN over that stretch. */
+const _validityLine = validityLine(validity);
+if (_validityLine) console.log(_validityLine);
 console.log('done. Append a TRIOS entry in sigma-no-reference-analysis.js and re-run the analysis tool.');
