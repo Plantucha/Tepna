@@ -37,6 +37,11 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { NIGHT_RE, notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
 import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
+/* The ECG axis arithmetic is single-sourced in `pat-matchrate-strict.mjs` for row
+   2026-09-26-pat-ecg-index-axis-is-not-the-h10-sample-clock: this tool held a private `t0 + i/fs`,
+   so no axis request could reach it. `rPeakTimesOnAxis` is pure in the parsed record, so this
+   import loads no second DSP spine beside the realm below. */
+import { rPeakTimesOnAxis } from './pat-matchrate-strict.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DexBuild = createRequire(import.meta.url)(path.join(ROOT, 'tools', 'build-core.js'));
@@ -47,6 +52,17 @@ const arg = (k, d) => {
 };
 const DIR = arg('--dir', null);
 const ONLY = arg('--night', null);
+const ECG_AXIS = arg('--ecg-axis', 'linear'); /* owner ruling 2026-11-06: measure first, so the
+   default stays the index form every published PAT number was computed on. */
+
+/* A typoed axis must refuse at the front door. Both night loops below absorb a throw out of
+   `beatsECG` and attribute it to the detector, so without this check `--ecg-axis bogus` reads as a
+   night whose detector failed and the run still exits 0 over 0 scored windows — a verdict about
+   something never examined. */
+if (ECG_AXIS !== 'linear' && ECG_AXIS !== 'piecewise' && ECG_AXIS !== 'counter') {
+  console.error(`--ecg-axis is linear, piecewise or counter, never ${ECG_AXIS}`);
+  process.exit(2);
+}
 /* THE SAMPLE SITS ABOVE THE `--dir` REFUSAL, because the adoption gate has to read one verdict
    object on a box holding no nights, and this file decides at module evaluation. */
 if (argv.includes('--verdict-sample')) {
@@ -155,7 +171,7 @@ function beatsECG(file) {
   if (!rec || !rec.int16 || !rec.int16.length || !rec.t0Ms) return null;
   const idx = ECG.detectPeaks(rec.int16, ECG.bandpass(rec.int16, rec.fs), rec.fs);
   if (!idx || idx.length < 100) return null;
-  const t = idx.map((i) => rec.t0Ms + (i / rec.fs) * 1000);
+  const t = Array.from(rPeakTimesOnAxis(rec, idx, { axis: ECG_AXIS }));
   const durMin = (t[t.length - 1] - t[0]) / 60000;
   return { t, bpm: t.length / durMin, fs: rec.fs };
 }

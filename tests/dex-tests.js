@@ -51951,14 +51951,42 @@
       var d = SS.verdictFor({ findings: [], commits: 2, privateTerms: 'configured', commit: 'abc1234' });
       T.eq('a diff green counts the commits it walked and names that walk', [d.status, d.population.checked, d.result.walk], ['PASS', 2, 'diff']);
       T.eq('…and carries no file count, because it opened no tree', d.result.walked, null);
-      var t = SS.verdictFor({ findings: [], commits: 0, privateTerms: 'configured', commit: 'abc1234', walk: 'tree', walked: 3401 });
+      var t = SS.verdictFor({ findings: [], commits: 0, privateTerms: 'configured', commit: 'abc1234', walk: 'tree', walked: 3401, dropped: [] });
       T.eq('a tree green counts the files it walked and names that walk', [t.status, t.population.checked, t.result.walk, t.result.walked], ['PASS', 3401, 'tree', 3401]);
+
+      /* ── The tree verdict counted findings from files its own population dropped.
+         `dir` reads the DIRECTORY, so the scanner reaches git-ignored paths — a virtualenv, a cache —
+         that `ls-files --cached --others --exclude-standard` never names. The verdict counted those
+         findings against a population of WALKED files, so one object described two file sets: measured
+         on the rig, 2932 findings over a population of 3448, and 2677 of them in 2520 files the walk
+         list drops. The partition below is the filter, and the dropped count keeps it visible. ── */
+      var FAR = [
+        { rule: 'private-ipv4', file: '/r/capture-host/.venv/lib/x.py', line: 2, commit: null },
+        { rule: 'home-path', file: '/r/capture-host/.venv/lib/x.py', line: 3, commit: null }
+      ];
+      var part = SS.partitionByWalk([{ rule: 'private-term', file: '/r/kept.txt', line: 1, commit: null }].concat(FAR), new Set(['kept.txt']), '/r');
+      T.eq('the walk list keeps its own file and drops the ignored path', [part.kept.length, part.dropped.length], [1, 2]);
+      T.eq('…and both sides read repo-relative, so no home path is printed', [part.kept[0].file, part.dropped[0].file], ['kept.txt', 'capture-host/.venv/lib/x.py']);
+      var one = SS.verdictFor({ findings: part.kept, commits: 0, privateTerms: 'configured', commit: 'abc1234', walk: 'tree', walked: 3401, dropped: part.dropped });
+      T.eq('ONE verdict, ONE population: the findings come from the walked set', [one.result.findings, one.result.files, one.population.checked], [1, 1, 3401]);
+      T.eq('…and what the filter removed is published, never silent', [one.result.droppedFindings, one.result.droppedFiles], [2, 1]);
+      T.eq(
+        'a drop alone never fails the gate: an ignored path is no repo leak',
+        SS.verdictFor({ findings: [], commits: 0, privateTerms: 'configured', commit: 'abc1234', walk: 'tree', walked: 3401, dropped: FAR }).status,
+        'PASS'
+      );
+      T.eq(
+        'CONTROL · a diff verdict publishes neither dropped key, because its report is the diff',
+        [one.result.droppedFindings, t.result.droppedFindings, d.result.droppedFindings],
+        [2, 0, undefined]
+      );
+      T.eq('a path under a sibling directory that shares the prefix stays absolute', SS.relPathIn('/root2/a.txt', '/root'), '/root2/a.txt');
 
       var V = env.Verdict;
       if (!V) T.skip('env.Verdict provided to the runner', 'the contract validator is not wired');
       else {
         T.ok('the tree verdict validates under tepna.verdict/1', V.validate(t).ok, JSON.stringify((V.validate(t) || {}).errors || []));
-        var ft = SS.verdictFor({ findings: FIND, commits: 0, privateTerms: 'configured', commit: 'abc1234', walk: 'tree', walked: 9 });
+        var ft = SS.verdictFor({ findings: FIND, commits: 0, privateTerms: 'configured', commit: 'abc1234', walk: 'tree', walked: 9, dropped: [] });
         T.ok('…and so does a tree FAIL', V.validate(ft).ok, JSON.stringify((V.validate(ft) || {}).errors || []));
         T.ok('a tree FAIL counts the walked files in its reason', /9 walked file/.test(String(ft.reason)), String(ft.reason));
         /* A tree finding is HISTORY. Telling the author to rewrite their branch would be wrong advice
@@ -52001,6 +52029,18 @@
         'a tree verdict with no file count is refused, not published over an unstated population',
         threw(function () {
           SS.verdictFor({ findings: [], commits: 0, privateTerms: null, commit: null, walk: 'tree' });
+        })
+      );
+      T.ok(
+        'a tree verdict with no dropped set is refused, because a default of 0 would claim a drop of none',
+        threw(function () {
+          SS.verdictFor({ findings: [], commits: 0, privateTerms: null, commit: null, walk: 'tree', walked: 9 });
+        })
+      );
+      T.ok(
+        'a partition against an absent walk list is refused, not read as a list of nothing',
+        threw(function () {
+          SS.partitionByWalk([], ['kept.txt'], '/r');
         })
       );
       T.ok(
