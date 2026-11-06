@@ -917,11 +917,14 @@ def test_A_RUN_ROLLS_A_DEVICES_FILE_AT_MIDNIGHT_SO_NO_FINISHED_NIGHT_STAYS_OPEN(
         return rc.SidecarWriter(str(tmp_path / rc.sidecar_name(f"2026090{len(opened)}T030000", address)))
 
     day = 86_400 * 10**9
-    got = rc.run(_stream(acls=((1_051_300_000,), (1_101_300_000,), (1_051_300_000 + day,))), _collector(), open_writer)
-    assert opened == [H10, H10] and got["rolled"] == 1 and got["rows"] == 3
+    acls = ((1_051_300_000,), (1_101_300_000,), (1_051_300_000 + day,), (1_051_300_000 + 2 * day,))
+    got = rc.run(_stream(acls=acls), _collector(), open_writer)
+    assert opened == [H10, H10, H10] and got["rows"] == 4
+    assert got["rolled"] == 2, "each midnight counts once, so a run across two midnights rolls twice"
     first = (tmp_path / rc.sidecar_name("20260901T030000", H10)).read_text(encoding="utf-8").splitlines()
     second = (tmp_path / rc.sidecar_name("20260902T030000", H10)).read_text(encoding="utf-8").splitlines()
-    assert len(first) == 3 and len(second) == 2, "two rows on the first date, one on the next"
+    third = (tmp_path / rc.sidecar_name("20260903T030000", H10)).read_text(encoding="utf-8").splitlines()
+    assert len(first) == 3 and len(second) == 2 and len(third) == 2, "two rows on the first date, one on each next"
     assert first[1][:10] == first[2][:10] != second[1][:10]
 
 
