@@ -59,14 +59,33 @@
           { usable: false, reason: 'polar-rr: no parseRRInput in scope (load PulseDex DSP in isolation)' },
           { adapter: 'polar-rr', vendor: VENDOR, device: DEVICE }
         );
-      var raw = parseRR(text);
-      return root.SignalFrame.toSignalFrame('rr', raw, {
+      /* SEAM-SIDECAR-CONSUMPTION §4 — the box's clock-seam sidecar beside this interval stream, under
+         the kind the pairing gave it. TWO spellings reach an `rr` primary and they are ONE channel
+         here: a Verity PPI stream is paired with `_PPISEAMS` and an H10 RR stream with `_HRSEAMS`
+         (the HR writer owns the `_RR.txt` sibling, so the sidecar carries the HR spelling). Each
+         declares its own `stream=` and `parsePdSeams` refuses a foreign one, so taking whichever
+         arrived cannot cross the streams. The owner ruled on 2026-11-05 that a night with no sidecar
+         reads seams UNKNOWN, so this is the difference between an annotated unknown and a fabricated
+         zero on the orchestrated road. */
+      var comp = ctx.companions || {};
+      var seamsText = typeof comp.ppiseams === 'string' ? comp.ppiseams : typeof comp.hrseams === 'string' ? comp.hrseams : null;
+      var raw = seamsText ? parseRR(text, { seamsText: seamsText }) : parseRR(text);
+      var frame = root.SignalFrame.toSignalFrame('rr', raw, {
         adapter: 'polar-rr',
         vendor: VENDOR,
         device: DEVICE,
         files: ctx.files || null,
         warnings: []
       });
+      /* THE PARSED SIDECAR, CARRIED ACROSS THE FRAME BOUNDARY (§4). `emitRRNodeExport` rebuilds the
+         compute input from this frame, so a key hung only on the parse result would be a sidecar read
+         and then discarded on the orchestrated road — the gap #4441 closed on two nodes. */
+      if (raw && raw._seamsSidecar) {
+        frame.seamsSidecar = raw._seamsSidecar;
+        frame.recordedSeams = raw._recordedSeams;
+        if (raw._recordedSeamsReason) frame.recordedSeamsReason = raw._recordedSeamsReason;
+      }
+      return frame;
     }
   });
 })(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this);

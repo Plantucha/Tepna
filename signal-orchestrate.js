@@ -130,7 +130,16 @@
     if (!(pw && pw.PulseDex && typeof pw.PulseDex.compute === 'function')) throw new Error('signal-orchestrate: PulseDex.compute unavailable (co-load the namespaced pulsedex-dsp.js)');
     var ingest = { adapter: frame.provenance.adapter, vendor: frame.provenance.vendor, device: frame.provenance.device, via: frame.provenance.via || 'signal-orchestrate' };
     return pw.PulseDex.compute(
-      { intervals: (frame && frame.intervals) || [], tsMs: frame.tsMs, t0Ms: frame.t0Ms != null ? frame.t0Ms : null, offsetMin: frame.offsetMin != null ? frame.offsetMin : null },
+      /* `seamsSidecar` crosses the frame boundary HERE: this object IS the compute input, rebuilt from
+         the frame, so a sidecar the adapter parsed and hung on the frame reaches `_pdNormalizeRRInput`
+         only because this line carries it (§4, the #4441 gap). */
+      {
+        intervals: (frame && frame.intervals) || [],
+        tsMs: frame.tsMs,
+        t0Ms: frame.t0Ms != null ? frame.t0Ms : null,
+        offsetMin: frame.offsetMin != null ? frame.offsetMin : null,
+        seamsSidecar: (frame && frame.seamsSidecar) || null
+      },
       { kernel: pw.DexKernel || root.DexKernel || null, ingest: ingest }
     );
   }
@@ -489,7 +498,14 @@
     ecg: ['rr', 'hr', 'acc', 'runs', 'accruns', 'seams'],
     ppg: ['acc', 'gyro', 'magn', 'ppi', 'runs', 'accruns', 'seams'],
     spo2: ['spo2', 'ppg2wruns'],
-    acc: ['accruns', 'gyro', 'magn', 'accseams']
+    acc: ['accruns', 'gyro', 'magn', 'accseams'],
+    /* AN INTERVAL PRIMARY HAS ONE COMPANION CHANNEL AND TWO SPELLINGS FOR IT (§4). A Verity PPI
+       stream is paired with `_PPISEAMS`, an H10 RR stream with `_HRSEAMS` — the HR writer owns the
+       `_RR.txt` sibling, so its sidecar carries the HR spelling — and a device writes one of the two,
+       never both. Separate kinds because a kind IS the slot name (`out[kind]`), the discipline
+       `streamKind` states: one shared slot would let nearest-stamp pick between a Verity's PPI seams
+       and its PPG seams on the same device at the same stamp. */
+    rr: ['ppiseams', 'hrseams']
   };
   // DEEP-AUDIT-II §10.2 — a sidecar is written in the SAME recording session (its filename stamp is
   // minutes from the primary's). A candidate whose nearest stamp is more than a day away is a
@@ -517,9 +533,15 @@
        spelling some node can PLACE returns a kind here: a sidecar no node can place must not arrive
        as one that can. `_PPGSEAMS` joined on 2026-11-06, when PpgDex gained `parsePpgSeams` and
        placed the rows on its own sample axis; `_PPISEAMS` and `_HRSEAMS` still name streams no node
-       places, and they keep their absence of a kind. */
+       places, and they keep their absence of a kind. `_PPISEAMS` and `_HRSEAMS` joined on 2026-11-06
+       under kinds of their own, when PulseDex gained `parsePdSeams` and placed their rows on its beat
+       axis — the fourth and last node leg. */
     if (/_ECGSEAMS\b|_ECGSEAMS\./.test(u)) return 'seams';
     if (/_PPGSEAMS\b|_PPGSEAMS\./.test(u)) return 'seams';
+    /* The interval streams' seam sidecars, one kind each. Tested before `_PPI` and `_HR`, which cannot
+       match them anyway (no boundary before SEAMS), exactly as `_ECGRUNS` is tested before `_ECG`. */
+    if (/_PPISEAMS\b|_PPISEAMS\./.test(u)) return 'ppiseams';
+    if (/_HRSEAMS\b|_HRSEAMS\./.test(u)) return 'hrseams';
     /* THE ACC STREAM'S SEAM SIDECAR, under a kind of its OWN — `accseams`, never the primaries'
        `seams`. MotionDex gained `parseAccSeams` on 2026-11-06 and places these rows on its own
        sample axis, so the file now has a node; and the slot discipline two blocks up decides the
