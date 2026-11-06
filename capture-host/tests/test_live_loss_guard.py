@@ -71,9 +71,7 @@ def test_a_file_REPLACED_under_the_same_name_is_reported(tmp_path):
     w = _writer(tmp_path)
     try:
         _, snap = writers.live_loss_check()
-        os.unlink(w.path)
-        with open(w.path, "w") as fh:  # same name, a different file
-            fh.write("x" * 10_000)
+        _replaced_in_place(w.path, "x" * 10_000)  # same name, a different file
         findings, _ = writers.live_loss_check(snap)
         assert [f["kind"] for f in findings] == ["replaced"] and "inode" in findings[0]["detail"]
     finally:
@@ -104,9 +102,7 @@ def test_a_writer_closed_DISCARDED_and_reopened_on_its_path_is_a_new_baseline(tm
     try:
         findings, snap2 = writers.live_loss_check(snap)
         assert findings == [] and again.path in snap2
-        os.unlink(again.path)
-        with open(again.path, "w") as fh:  # the SAME opening replaced later is still loss
-            fh.write("x" * 100)
+        _replaced_in_place(again.path, "x" * 100)  # the SAME opening replaced later is still loss
         findings, _ = writers.live_loss_check(snap2)
         assert [f["kind"] for f in findings] == ["replaced"]
     finally:
@@ -144,6 +140,25 @@ def _planted(tmp_path, name, body, token):
     return path
 
 
+def _replaced_in_place(path, body):
+    """Replace `path` with a different file under the same name, and return the new inode.
+
+    A held descriptor keeps the old inode allocated across the unlink, so the filesystem cannot hand
+    the same number back. A reused number makes `live_loss_check` read a size change instead of a
+    replacement, which reds the caller for a reason that is not the caller's. The GitHub runner did
+    exactly that on 2026-11-06, where both numbers read 9442844 and the finding said `30 -> 5 bytes`
+    (row 2026-11-06-the-live-loss-guard-test-forbids-inode-reuse).
+    """
+    with open(path, "rb") as held:
+        old_ino = os.fstat(held.fileno()).st_ino
+        os.unlink(path)
+        with open(path, "w") as fh:
+            fh.write(body)
+        new_ino = os.stat(path).st_ino
+    assert new_ino != old_ino, "the held descriptor did not keep the old inode: the number came back"
+    return new_ino
+
+
 def test_closing_a_writer_drops_exactly_one_from_the_count_and_its_opening(tmp_path, monkeypatch):
     """One close is one writer: the count falls by 1, never more, and the opening leaves both maps.
     A close on a token that never opened raises no KeyError."""
@@ -172,10 +187,7 @@ def test_every_finding_carries_its_exact_detail_and_prior_size(tmp_path):
         late = _planted(tmp_path, "a_late.txt", "x", -20261114)  # sorts first, no prior look
         os.unlink(gone)
         old_ino = snap[swap][1]
-        os.unlink(swap)
-        with open(swap, "w") as fh:
-            fh.write("y" * 5)
-        new_ino = os.stat(swap).st_ino
+        new_ino = _replaced_in_place(swap, "y" * 5)
         with open(cut, "r+") as fh:
             fh.truncate(7)
         findings, snap2 = writers.live_loss_check(snap)
@@ -189,3 +201,40 @@ def test_every_finding_carries_its_exact_detail_and_prior_size(tmp_path):
     finally:
         for t in (-20261110, -20261111, -20261112, -20261113, -20261114):
             writers._writer_closed(t)
+
+
+def test_no_test_here_replaces_a_file_without_holding_its_inode():
+    """The flake was a SHAPE, and three tests here shared it, so a scanner holds the shape out.
+
+    A raw unlink followed by a create lets the filesystem hand the freed inode back, and
+    `live_loss_check` then reads a size change where the test wanted a replacement. Every such site
+    goes through `_replaced_in_place`, which holds the old inode across the unlink.
+
+    The scanner builds its own needles by concatenation, because a pattern written whole would match
+    this function's source and count itself. It names its population too, so a scan that examined
+    nothing cannot read as a pass.
+    """
+    needle = "os.unlink" + "("
+    wmode = '"' + "w" + '"'
+    with open(__file__, encoding="utf-8") as fh:
+        src = fh.read().splitlines()
+    inside = ""
+    unlinks = []
+    raw = []
+    calls = []
+    for i, line in enumerate(src):
+        stripped = line.lstrip()
+        if stripped.startswith("def "):
+            inside = stripped[4:].split("(")[0]
+        if "_replaced_in_place(" in line and not stripped.startswith("def "):
+            calls.append(i + 1)
+        if needle not in line:
+            continue
+        unlinks.append(i + 1)
+        if inside == "_replaced_in_place":
+            continue
+        if any("open(" in later and wmode in later for later in src[i + 1 : i + 4]):
+            raw.append(i + 1)
+    assert len(unlinks) >= 5, f"the scan read {len(unlinks)} unlink site(s), too few for this file"
+    assert len(calls) >= 3, f"the held-descriptor helper has {len(calls)} caller(s), expected 3 or more"
+    assert raw == [], f"an unlink and a create with no held descriptor at line(s) {raw}"
