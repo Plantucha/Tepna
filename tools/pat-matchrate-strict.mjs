@@ -506,7 +506,11 @@ function bestAccFor(dir, deviceRe, t0, t1) {
   for (const c of nearInTime(dir, deviceRe, t0, t1, 3)) {
     let s;
     try {
-      s = PPGDSP.parseSensorXYZ(readFileSync(c.f, 'utf8'));
+      const raw = readFileSync(c.f, 'utf8');
+      /* §∅ — `<base>_ACCRUNS.txt` is TIME-keyed (writer stamp + `dur_ms`), so the parser dropping an
+         implausible row cannot slide it; an absent sidecar is UNKNOWN and the tally says so. */
+      const runsText = runsOf(c.f, 'ACC');
+      s = runsText ? PPGDSP.parseSensorXYZ(raw, { runsText }) : PPGDSP.parseSensorXYZ(raw);
     } catch {
       continue;
     }
@@ -847,6 +851,11 @@ if (IS_CLI && argv.includes('--verdict-sample')) {
     (ONLY ? ` · --night ${ONLY} left ${popBefore.n - nights.length} offered night(s) unread` : '') +
     (population.reason ? `\n  ${population.reason}` : '');
 
+  /* The tally goes to STDERR before the branch: under `--json` stdout is one document, and the ACC
+     leg wired here reports through this same tally, so a JSON run must not swallow it. */
+  const validity = validityLine(VALIDITY);
+  if (validity) console.error('  ' + validity);
+
   if (JSON_OUT) {
     /* Stdout stays ONE JSON document — this tool gets piped into `jq` — so the verdict rides inside
        the tool's own object and the human line goes to stderr. */
@@ -885,7 +894,5 @@ if (IS_CLI && argv.includes('--verdict-sample')) {
     }
     console.log(`\n${popLine}`);
     console.log(`selected but not scored: ${unscored.length ? unscored.join(', ') : 'none'}`);
-    const validity = validityLine(VALIDITY);
-    if (validity) console.log('  ' + validity);
   }
 }
