@@ -50859,6 +50859,49 @@
       T.eq('an UNARMED stuck PR is never updated (it needs a human to arm it)', pk([C('stuck-unarmed', 1, 99)]).action, 'none');
     });
 
+    /* ── queue-doctor: UNARMED IS THE NORMAL STATE OF KODIAK'S QUEUE, so it is not an attention
+       state. Measured on #4475 (2026-11-06) and on #2865/#2866 (2026-08-28): the report named a green
+       BEHIND unarmed PR GREEN AND STUCK and told a human to arm auto-merge — the remedy this file's own
+       header calls a DEADLOCK under `strict`, and CLAUDE.md §5 calls a no-op under Kodiak. The flag is
+       the CALLER's measurement of config plus merge-bot liveness; only an explicit `true` reclassifies,
+       so an unread probe keeps the pre-Kodiak verdict. */
+    group('Queue-doctor — a green BEHIND unarmed PR under Kodiak serialises, and arming is never its remedy', 'tools · queue-doctor-kodiak', function (T) {
+      var cl = env.qdClassify,
+        att = env.qdAttention,
+        cfg = env.qdKodiakConfig;
+      if (typeof cl !== 'function' || typeof att !== 'function' || typeof cfg !== 'function') {
+        T.skip('queue-doctor Kodiak rung is wired into this lane', 'browser lane cannot import tools/queue-doctor.mjs');
+        return;
+      }
+      var NOW = 1755000000000;
+      var REQ = ['test'];
+      var GREEN = [{ name: 'test', bucket: 'pass' }];
+      var mk = function (o) {
+        var b = { number: 1, title: 't', state: 'OPEN', isDraft: false, mergeState: 'BEHIND', autoMerge: false, updatedAtMs: NOW - 90 * 60000, checks: GREEN };
+        for (var k in o) b[k] = o[k];
+        return b;
+      };
+      var wrap = function (o, opts) {
+        var pr = mk(o);
+        var r = opts === undefined ? cl(pr, REQ, NOW) : cl(pr, REQ, NOW, opts);
+        r.pr = pr;
+        return r;
+      };
+      T.eq('under a live Kodiak a green BEHIND unarmed PR serialises', wrap({}, { kodiakOwnsDrain: true }).k, 'serialising');
+      T.eq('…and serialising is in NO attention set', att([wrap({}, { kodiakOwnsDrain: true })]).stuck.length, 0);
+      T.eq('with no merge bot the pre-Kodiak verdict stands', wrap({}, { kodiakOwnsDrain: false }).k, 'stuck-unarmed');
+      T.eq('an UNREAD probe is not a merger, so it keeps that verdict too', wrap({}, { kodiakOwnsDrain: null }).k, 'stuck-unarmed');
+      T.eq('a caller passing no options at all is unchanged', wrap({}, undefined).k, 'stuck-unarmed');
+      T.eq('…and THAT one is attention (non-vacuity)', att([wrap({}, undefined)]).stuck.length, 1);
+      T.eq('an ARMED behind PR is untouched by the flag', wrap({ autoMerge: true }, { kodiakOwnsDrain: true }).k, 'stuck-behind');
+      T.eq('a green CURRENT unarmed PR still asks for a look', wrap({ mergeState: 'CLEAN' }, { kodiakOwnsDrain: true }).k, 'stuck-unarmed');
+      /* THE DECLARATION IS A CONFIG LINE, and a commented line declares nothing. */
+      T.ok('the repo config declares an unarmed queue', cfg('[merge]\nrequire_automerge_label = false\n'));
+      T.ok('a commented declaration is not one', !cfg('# require_automerge_label = false\n'));
+      T.ok('the opposite setting is not one either', !cfg('require_automerge_label = true\n'));
+      T.ok('an absent config is not a declaration', !cfg(null));
+    });
+
     /* ── queue-doctor: a RED PR is named, not read as an idle queue (residue
        2026-09-23-queue-doctor-is-silent-on-a-red-abandoned-pr). classify() returned `failing` all
        along; the report block and `--report`'s exit code looked at the stuck set alone. */
