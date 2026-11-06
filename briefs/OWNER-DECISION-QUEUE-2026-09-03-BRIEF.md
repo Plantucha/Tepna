@@ -370,6 +370,11 @@ it, which is the cheapest possible moment to ask.
 > is replaced. (2) Row `2026-09-26-pat-ecg-index-axis-is-not-the-h10-sample-clock`: **measure first**.
 > The `ecgRpeakTimes` default stays `linear` until a measurement explains the worse 07-24 narrowSD
 > under the measured axis.
+>
+> **HRVDex under D17, 2026-11-06 (owner, in chat to Kestrel).** HRVDex **refuses** a transcribed
+> vendor summary when its upstream recording carries a seam: the value reads `null` with reason
+> `clock-seam`. D17 binds unconditionally, and a whole-night summary spans the discontinuity. This
+> reverses the annotate-only contract that #4469 shipped; Magpie raised it at board #3933.
 
 ## 3 · Not the owner's — 18 briefs waiting on SESSIONS
 
