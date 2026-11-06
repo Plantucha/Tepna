@@ -48431,7 +48431,7 @@
             /* the guarded else-arm `rt ? parse(t, { runsText: rt }) : parse(t)` is the wired shape: with no
              sidecar there is nothing to pass, so it counts with the arm that carries one */
             var guarded = /\{\s*runsText\b[^;]*\}\s*\)\s*:\s*[\w$.]*$/.test(c.slice(Math.max(0, m.index - 240), m.index));
-            out.push({ name: m[1], carries: guarded || /\brunsText\b/.test(c.slice(start, end)) });
+            out.push({ name: m[1], carries: guarded || /\brunsText\b/.test(c.slice(start, end)), arg: c.slice(start, end), at: m.index });
           }
           return out;
         }
@@ -48549,6 +48549,194 @@
           if (PIN[f][1].indexOf('OPEN') >= 0) open += PIN[f][0];
         });
         T.ok('the pinned set is stated with its reasons (' + (Object.keys(PIN).length + TOOLS_PIN.files) + ' files, ' + open + ' calls in files with an OPEN entry)', Object.keys(PIN).length > 0);
+
+        /* ── and every pin's REASON is MACHINE-CHECKED, not prose (2026-11-06) ────────────────────────
+           `open` above reads 0, so every pin left claims a STRUCTURAL exemption — and the done-when then
+           rests entirely on those sentences being true, which a reader had to take on trust. Two classes
+           carry all of them and both are readable out of the sources: a stream the box writes no sidecar
+           for (the writer's own `RUN_MIN_BY_STREAM`, which is where `gyro` and `magn` are absent), and
+           text the file composes itself (a one-hop trace from the argument to a builder defined in this
+           population). A pin whose reason falls in neither class, and does not say OPEN against a residue
+           row, reds — so a new exemption cannot enter this gate as prose. */
+        function reasonClass(r) {
+          if (/\bOPEN\b/.test(String(r))) return 'open'; /* a deferral, owned by a residue row and counted above */
+          if (/no RUNS writer for the stream/.test(String(r))) return 'no-writer';
+          if (/\bsynthetic\b|generates itself/.test(String(r))) return 'own-text';
+          return null;
+        }
+        [
+          ['a deferral against a residue row', 'OPEN — nobody hands it over', 'open'],
+          ['a stream the box writes no sidecar for', 'GYRO, MAGN: no RUNS writer for the stream', 'no-writer'],
+          ["the tool's own text", TOOLS_PIN.reason, 'own-text'],
+          ['synthetic input', SYNTH, 'own-text'],
+          ['prose this gate cannot check', 'not worth wiring for now', null]
+        ].forEach(function (p) {
+          T.eq('reason class · ' + p[0], reasonClass(p[1]), p[2]);
+        });
+        var unchecked = [];
+        Object.keys(PIN).forEach(function (f) {
+          if (!reasonClass(PIN[f][1])) unchecked.push(f);
+        });
+        if (!reasonClass(TOOLS_PIN.reason)) unchecked.push('tools/ · TOOLS_PIN');
+        T.ok(
+          'every pin states a reason THIS GATE CHECKS',
+          unchecked.length === 0,
+          "name the stream the box writes no sidecar for, or the file's own text, or say OPEN against a residue row: " + unchecked.join(' · ')
+        );
+
+        /* ── class `no-writer`: read it out of the WRITER, never off the pin ── */
+        var writerSrc = code((env.sources || {})['capture-host/writers.py'] || '');
+        var tbl = /RUN_MIN_BY_STREAM\s*=\s*\{([\s\S]*?)\n\}/.exec(writerSrc);
+        var written = tbl
+          ? (tbl[1].match(/"[a-z0-9]+"\s*:/g) || []).map(function (k) {
+              return k.replace(/[^a-z0-9]/g, '');
+            })
+          : [];
+        if (written.length < 5) {
+          T.skip('capture-host/writers.py RUN_MIN_BY_STREAM in env.sources', 'not wired — an unread table makes every absent stream read as exempt');
+        } else {
+          /* the discriminator: a table the scan misread would report every stream absent, and the pins
+             below would all pass vacuously */
+          ['acc', 'ecg', 'ppg'].forEach(function (s) {
+            T.ok('the writer DOES emit a sidecar for `' + s + '`', written.indexOf(s) >= 0, 'keys read: ' + written.join(' · '));
+          });
+          ['gyro', 'magn'].forEach(function (s) {
+            T.ok('…and emits none for `' + s + '`', written.indexOf(s) < 0, 'the stream has a writer now — wire the pinned calls and drop the pin: ' + written.join(' · '));
+          });
+          /* The call names its stream in the identifier it reads — `comp.gyro`, `gyroF.text` — and the
+             app abbreviates MAGN to `mag`, so the spellings are listed here while the EXEMPTION itself
+             is read from the writer above. Longest spelling wins, or `accraw` would read as `acc`. */
+          var SPELLINGS = { accraw: ['accraw'], acc: ['acc'], ecg: ['ecg'], gyro: ['gyro'], magn: ['magn', 'mag'], ppg2w: ['ppg2w'], ppg1: ['ppg1'], ppg: ['ppg'] };
+          function streamOf(arg) {
+            var a = String(arg).toLowerCase(),
+              best = null;
+            Object.keys(SPELLINGS).forEach(function (s) {
+              SPELLINGS[s].forEach(function (sp) {
+                if (a.indexOf(sp) >= 0 && (!best || sp.length > best.len)) best = { stream: s, len: sp.length };
+              });
+            });
+            return best ? best.stream : null;
+          }
+          [
+            ['an abbreviated magnetometer read', 'magF.text', 'magn'],
+            ['a gyroscope read', 'comp.gyro', 'gyro'],
+            ['the raw ACC spelling beats the Polar one', 'accrawF.text', 'accraw'],
+            ['a stream-less argument', 'pf.text', null]
+          ].forEach(function (p) {
+            T.eq('stream name · ' + p[0], streamOf(p[1]), p[2]);
+          });
+          Object.keys(PIN)
+            .sort()
+            .forEach(function (f) {
+              if (reasonClass(PIN[f][1]) !== 'no-writer') return;
+              var bare = calls(FILES[f] || '').filter(function (x) {
+                return !x.carries;
+              });
+              T.eq('`' + f + '` · the no-writer pin covers every bare call', bare.length, PIN[f][0]);
+              bare.forEach(function (x, i) {
+                var stream = streamOf(x.arg);
+                T.ok(
+                  '`' + f + '` · bare ' + x.name + ' ' + (i + 1) + ' names its stream (' + (stream || '—') + ')',
+                  !!stream,
+                  'the argument reads `' + String(x.arg).slice(0, 60) + '` — an unnamed stream cannot be checked against the writer'
+                );
+                T.ok('…and the writer emits no sidecar for `' + stream + '`', !!stream && written.indexOf(stream) < 0, 'that stream is in RUN_MIN_BY_STREAM — the pin is stale, not structural');
+              });
+            });
+        }
+
+        /* ── class `own-text`: trace the argument to a BUILDER, one hop ──
+           A builder is named `synth…` / `…render…` and is CALLED; the argument either is that call or is
+           an identifier assigned from it on the way in. The last assignment wins, so a read off disk
+           cannot inherit an earlier synthetic one. The builder must then be DEFINED in this population
+           and compose its text, because "no box wrote a sidecar beside it" is only true of bytes nothing
+           read from a file. */
+        var CODE = {};
+        function codeOf(f) {
+          if (!CODE[f]) CODE[f] = code(FILES[f] || '');
+          return CODE[f];
+        }
+        var BUILDER = /(?:^|[\s=(,!])((?:[A-Za-z_$][\w$]*\.)?(?:synth|render)[\w$]*)\s*\(/i;
+        function builderOf(src, c) {
+          var direct = BUILDER.exec(String(c.arg));
+          if (direct) return direct[1];
+          var id = /^\s*([A-Za-z_$][\w$]*)\s*$/.exec(String(c.arg).split(',')[0]);
+          if (!id) return null;
+          var head = src.slice(0, c.at),
+            re = new RegExp('\\b(?:var|let|const)?\\s*' + id[1] + '\\s*=\\s*(?!=)([^;\\n]+)', 'g'),
+            last = null,
+            m;
+          while ((m = re.exec(head))) last = m[1];
+          if (!last) return null;
+          var b = BUILDER.exec(last);
+          return b ? b[1] : null;
+        }
+        /* the calling file first: two tools define a `synthEcg`, and alphabetical order resolved the
+           caller's own builder to the other file's copy */
+        function defOf(name, prefer) {
+          var leaf = String(name).replace(/^.*\./, ''),
+            re = new RegExp('function\\s+' + leaf + '\\s*\\(');
+          var order = Object.keys(FILES).sort();
+          if (prefer && FILES[prefer]) order = [prefer].concat(order);
+          for (const f of order) {
+            var c = codeOf(f),
+              hit = re.exec(c);
+            if (!hit) continue;
+            var brace = c.indexOf('{', hit.index);
+            if (brace < 0) continue;
+            var depth = 0,
+              end = c.length;
+            for (const [k, ch] of Array.from(c.slice(brace)).entries()) {
+              if (ch === '{') depth++;
+              else if (ch === '}') depth--;
+              if (depth === 0) {
+                end = brace + k;
+                break;
+              }
+            }
+            return { file: f, body: c.slice(brace, end + 1) };
+          }
+          return null;
+        }
+        var READS_BYTES = /\breadFileSync\b|\breadFile\b|\bfetch\s*\(|\bFileReader\b|require\(\s*['"]fs|from\s+['"]node:fs/;
+        var COMPOSES = /\.join\s*\(|\+=/;
+        /* the trace must DISCRIMINATE in both directions before it exempts anything */
+        [
+          ['the builder is the argument', 'var r = parsePPG(SYNTH.renderPPG(tl, win));', 'SYNTH.renderPPG'],
+          ['an identifier assigned from the builder', 'var text = SYNTH.renderPPG(tl, win);\nvar r = parsePPG(text);', 'SYNTH.renderPPG'],
+          ['a file-local synth function', 'var r = parseECG(synthEcg(10, {}));', 'synthEcg'],
+          ['text read off disk traces to NO builder', "var text = fs.readFileSync(p, 'utf8');\nvar r = parsePPG(text);", null],
+          ['an unassigned identifier traces to none', 'var r = parsePPG(text);', null],
+          ['the LAST assignment wins', "var t = SYNTH.renderPPG(a, b);\nt = fs.readFileSync(p, 'utf8');\nvar r = parsePPG(t);", null]
+        ].forEach(function (p) {
+          var c = calls(p[1])[0];
+          T.eq('builder trace · ' + p[0], builderOf(code(p[1]), c), p[2]);
+        });
+        var ownFiles = [];
+        Object.keys(seen)
+          .sort()
+          .forEach(function (f) {
+            var cls = f.indexOf('tools/') === 0 ? reasonClass(TOOLS_PIN.reason) : PIN[f] ? reasonClass(PIN[f][1]) : null;
+            if (cls === 'own-text') ownFiles.push(f);
+          });
+        T.ok('the own-text class names the files it exempts (' + ownFiles.length + ')', ownFiles.length >= 4, 'the trace below would judge nothing: ' + ownFiles.join(' · '));
+        ownFiles.forEach(function (f) {
+          calls(FILES[f])
+            .filter(function (x) {
+              return !x.carries;
+            })
+            .forEach(function (x, i) {
+              var b = builderOf(codeOf(f), x),
+                d = b ? defOf(b, f) : null;
+              T.ok(
+                '`' + f + '` · bare ' + x.name + ' ' + (i + 1) + ' takes its text from a builder (' + (b || '—') + ')',
+                !!b,
+                'the argument reads `' + String(x.arg).slice(0, 60) + '` — bytes off a file have a sidecar to pass'
+              );
+              T.ok('…and that builder is defined in this population (' + (d ? d.file : '—') + ')', !!d, 'an unfound builder is a name, not evidence');
+              T.ok('…and it composes its text instead of reading bytes', !!d && COMPOSES.test(d.body) && !READS_BYTES.test(d.body), 'a builder that reads a file was handed bytes a box wrote beside');
+            });
+        });
       }
     );
 
