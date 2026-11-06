@@ -46075,7 +46075,9 @@
       T.eq('  as signalType acc', rc && rc.best && rc.best.signalType, 'acc');
       var rr = SA.route({ name: 'Polar_H10_AAAA_20260617_010000_ACCRUNS.txt' }, 'start;end\n');
       T.ok('  the ACCRUNS validity sidecar is never a polar-acc primary', !(rr && rr.best && rr.best.adapter && rr.best.adapter.id === 'polar-acc'));
-      T.ok('  companionKinds(acc) = accruns/gyro/magn', JSON.stringify(ORCH.companionKinds('acc')) === JSON.stringify(['accruns', 'gyro', 'magn']));
+      /* `accseams` joined the list on 2026-11-06 with MotionDex's seam leg, and it is its OWN kind:
+         a kind IS the slot name in `pairCompanions`, and the ECG primary already carries `seams`. */
+      T.ok('  companionKinds(acc) = accruns/gyro/magn/accseams', JSON.stringify(ORCH.companionKinds('acc')) === JSON.stringify(['accruns', 'gyro', 'magn', 'accseams']));
       T.ok('  canEmit(acc) — MotionDex is a compute host', ORCH.canEmit('acc') === true);
       var ad = rc.best.adapter;
       var fc = SA.runAdapter(ad, chestT, { files: [chestN], parseSensorXYZ: MD.parseSensorXYZ }),
@@ -47731,7 +47733,12 @@
           ]);
           T.eq('pairCompanions · ppg gets `seams` = the sidecar text', compsS && compsS.seams, '# stream=ppg rule=clock-seam bound_ms=250');
           T.eq('streamKind · `_PPGSEAMS` is the seams lane, and `_PPG` is still the waveform', SO.streamKind(VS + 'PPGSEAMS.txt') + '/' + SO.streamKind(VS + 'PPG.txt'), 'seams/ppg');
-          T.eq('CONTROL · `_ACCSEAMS` still has no lane — no node places it', SO.streamKind(VS + 'ACCSEAMS.txt'), null);
+          /* `_ACCSEAMS` gained a lane later the same day, when MotionDex gained `parseAccSeams` — and it
+           is `accseams`, NOT this `seams`, so it can never be picked for a PPG or ECG primary's own
+           seam slot. The group below owns that leg; this stays as the control that the two kinds are
+           distinct. `_PPISEAMS` and `_HRSEAMS` still name streams no node places. */
+          T.eq('CONTROL · `_ACCSEAMS` takes a kind of its OWN, never this lane', SO.streamKind(VS + 'ACCSEAMS.txt'), 'accseams');
+          T.eq('CONTROL · `_PPISEAMS` still has no lane — no node places it', SO.streamKind(VS + 'PPISEAMS.txt'), null);
         } else T.skip('SignalOrchestrate.pairCompanions unavailable');
         // ── THE CALLERS, so a future edit cannot quietly unwire the path ──────────────────────────
         var srcS = env.sources || {};
@@ -47778,6 +47785,252 @@
             'source-mirror · ' + pair[1] + '.compute RESTORES the carried sidecar in its frame branch',
             /seamsSidecar:\s*input\.seamsSidecar/.test(s) && /recordedSeams:\s*input\.recordedSeams/.test(s)
           );
+        });
+      }
+    );
+
+    /* ════ SEAM-SIDECAR-CONSUMPTION §4 · THE MOTION LEG (2026-11-06, residue row
+       `2026-11-05-four-clock-carrying-nodes-still-read-no-seam-sidecar`) ═══════════════════════════
+       The two groups above wired ECGDex and PpgDex. `capture-host/writers.py` constructs a
+       `_SeamSidecar` for EVERY device-clocked stream, so an H10 or Verity night writes
+       `…_ACCSEAMS.txt` beside its `…_ACC.txt`, and MotionDex read none of it: the app's `slotFor`
+       resolved the name through `streamKindFromName`, which returns null for it (`_(ACC|GYRO|MAGN?)\b`
+       cannot match `_ACCSEAMS` — no word boundary before SEAMS), so the drop silently discarded the
+       file; and `signal-orchestrate` carried no ACC seam lane, so `_clockResyncs` was the node's only
+       seam instrument.
+
+       🔴 THE TWO INSTRUMENTS DISAGREE BY CONSTRUCTION, and that is why the sidecar is worth reading:
+       `_clockResyncs` is a DATA finding (a step in the device counter the file carries), while the
+       sidecar is an ARRIVAL finding (the two clocks compared at the notification). A seam the box saw
+       at arrival can leave no step in the bytes, so the node's own scan reading zero is not evidence
+       of a clean night. Owner ruling 2026-11-05: a night with no sidecar reads seams UNKNOWN, never
+       zero, and a window spanning a recorded seam refuses.
+
+       🔴 AND THE FILE TAKES A KIND OF ITS OWN — `accseams`, never the primaries' `seams`. An ECG
+       primary's companion list already carries `seams`, and a kind IS the slot name in
+       `pairCompanions`, so a shared spelling would make the ACC's sidecar a candidate for the ECG's
+       own seam slot on the same device, where nearest-stamp decides between two identical stamps.
+       That is `_ACCRUNS` → `accruns`'s measured lesson (2026-09-25) one sidecar later. */
+    group(
+      'SEAM-SIDECAR-CONSUMPTION §4 — the _ACCSEAMS sidecar reaches MotionDex, and a box-recorded seam refuses the immobile fraction',
+      'motiondex-dsp · motiondex-app · signal-orchestrate · adapters · absence · §∅',
+      function (T) {
+        var M = env.MOTIONDSP;
+        var ACCHDR = 'Phone timestamp;sensor timestamp [ns];X [mg];Y [mg];Z [mg]';
+        var T0 = Date.UTC(2026, 5, 17, 1, 0, 0);
+        var accText = function (nRows, hz) {
+          var rr = [ACCHDR];
+          for (var q = 0; q < nRows; q++) {
+            var ms = Math.round((q * 1000) / hz);
+            rr.push(new Date(T0 + ms).toISOString().replace('Z', '') + ';' + Math.round((q * 1e9) / hz) + ';' + (q % 3) + ';' + (1 + (q % 2)) + ';' + (1000 + (q % 4)));
+          }
+          return rr.join('\n') + '\n';
+        };
+        /* The writer's own shape, as `_SeamSidecar._ensure` + `feed` + `close` emit it: a parameter
+           line stating the rule AND the bound, the 7-column header, one row per seam, one `# final`
+           per writer session — and a night that reconnected carries several, which is why they sum. */
+        var SC = [
+          '# stream=acc rule=clock-seam bound_ms=250 unit=ms basis=device-minus-host',
+          'phone_ts;idx;device_step_ms;phone_delta_ms;residual_ms;host_offset_ms;at_rel_ms',
+          '2026-06-17T01:05:00.000;413;240000.0;7.7;239992.3;-12.0;312000.0',
+          '# final stream=acc seams=1 examined=50000',
+          '# final stream=acc seams=0 examined=39999'
+        ].join('\n');
+        // ── THE READER ────────────────────────────────────────────────────────────────────────────
+        if (M && typeof M.parseSensorXYZ === 'function' && typeof M.parseAccSeams === 'function') {
+          var stub = accText(20, 26);
+          var bare = M.parseSensorXYZ(stub),
+            withSc = M.parseSensorXYZ(stub, { seamsText: SC });
+          T.ok('parseSensorXYZ · ONE argument is byte-identical — no seam fields appear', bare._seamsSidecar === undefined && bare._recordedSeams === undefined);
+          T.eq('parseSensorXYZ · the sidecar publishes its OWN bound, so a reader can tell WHICH threshold looked', withSc._seamsSidecar.boundMs, 250);
+          T.eq('parseSensorXYZ · …and its rule and basis, as written', withSc._seamsSidecar.rule + ' ' + withSc._seamsSidecar.basis, 'clock-seam device-minus-host');
+          T.ok(
+            'parseAccSeams · a sidecar stating its bound is comparable; one without a parameter line is not',
+            withSc._seamsSidecar.comparable === true && M.parseAccSeams('phone_ts;idx;device_step_ms;phone_delta_ms;residual_ms;host_offset_ms;at_rel_ms').comparable === false
+          );
+          T.eq(
+            'parseAccSeams · the seam is kept on the HOST axis — the one a device-clock step does not break',
+            withSc._recordedSeams.length + '@' + withSc._recordedSeams[0].tMs,
+            '1@' + Date.UTC(2026, 5, 17, 1, 5, 0, 0)
+          );
+          T.eq(
+            'parseAccSeams · the device step and residual are carried as the box measured them',
+            withSc._recordedSeams[0].deviceStepMs + '/' + withSc._recordedSeams[0].residualMs,
+            '240000/239992.3'
+          );
+          /* `idx` and `at_rel_ms` are DIAGNOSTICS and must never become the placement: `at_rel_ms` is
+             measured on the device axis the seam just broke, and `idx` is a per-writer-session counter
+             that restarts at every reconnect while the file appends. Pinned so a later edit that
+             starts placing on either has to delete this leg deliberately. */
+          T.eq('parseAccSeams · `idx` and `at_rel_ms` are carried, as diagnostics only', withSc._recordedSeams[0].idx + '/' + withSc._recordedSeams[0].atRelMs, '413/312000');
+          T.eq(
+            'parseAccSeams · every `# final` line is SUMMED, so a reconnecting night reports its whole examined population',
+            withSc._seamsSidecar.seamsReported + '/' + withSc._seamsSidecar.examined,
+            '1/89999'
+          );
+          /* The wrong-companion case a stamp-nearest pick can hand over: the box writes `_PPGSEAMS`,
+             `_ECGSEAMS` and `_PPISEAMS` beside this one, and each declares its own stream. */
+          var wrong = M.parseSensorXYZ(stub, { seamsText: SC.replace('stream=acc rule', 'stream=ppg rule') });
+          T.eq("parseAccSeams · a PPG sidecar's rows are not this stream's, and the refusal is counted", wrong._seamsSidecar.rejected + '/' + wrong._seamsSidecar.dataRows, '1/1');
+          T.eq('∅ · rows present and NONE kept yields null, never an empty list that reads as a seam-free stream', wrong._recordedSeams, null);
+          T.ok('∅ · …with the reason naming the stream that went unplaced', /stream=ppg/.test(String(wrong._recordedSeamsReason)), String(wrong._recordedSeamsReason));
+          /* §∅ — the MEASURED zero. The box examined 89,999 intervals and recorded no seam, which is a
+             real observation and must not read like an unread channel. */
+          var zero = M.parseAccSeams(
+            [
+              '# stream=acc rule=clock-seam bound_ms=250 unit=ms basis=device-minus-host',
+              'phone_ts;idx;device_step_ms;phone_delta_ms;residual_ms;host_offset_ms;at_rel_ms',
+              '# final stream=acc seams=0 examined=89999'
+            ].join('\n')
+          );
+          T.ok('∅ · an EMPTY but comparable sidecar is "looked and found nothing", not "never looked"', zero.rows.length === 0 && zero.examined === 89999 && zero.placedNone === false);
+          var ragged = M.parseSensorXYZ(stub, {
+            seamsText: SC.replace('2026-06-17T01:05:00.000;413;240000.0;7.7;239992.3;-12.0;312000.0', '2026-06-17T01:05:00.000;413;240000.0\nnot-a-stamp;414;240000.0;7.7;239992.3;-12.0;312000.0')
+          });
+          T.eq(
+            'parseAccSeams · a short row is MALFORMED and a stampless row is REJECTED — counted apart, never dropped silently',
+            ragged._seamsSidecar.malformed + '/' + ragged._seamsSidecar.rejected,
+            '1/1'
+          );
+          T.ok('parseAccSeams · …and the unparseable host stamp is named', /unparsed host stamp/.test(String(ragged._recordedSeamsReason)), String(ragged._recordedSeamsReason));
+          if (typeof M.attachAccSeams === 'function') {
+            T.ok('attachAccSeams · the helper hands the SAME row array back, so every road shares one body', M.attachAccSeams(bare, SC) === bare && !!bare._seamsSidecar);
+            T.ok('attachAccSeams · an already-parsed sidecar attaches too — the frame road hands the object, not the bytes', !!M.attachAccSeams([], M.parseAccSeams(SC))._seamsSidecar);
+            T.ok('attachAccSeams · a null stream is handed back, never thrown on', M.attachAccSeams(null, SC) === null);
+          } else T.skip('MOTIONDSP.attachAccSeams unavailable');
+        } else T.skip('MOTIONDSP.parseSensorXYZ/parseAccSeams unavailable');
+        // ── THE PLACEMENT, on this node's own sample axis ─────────────────────────────────────────
+        if (M && typeof M.placeRecordedAccSeams === 'function') {
+          var N = 2400,
+            rows = [],
+            t0 = T0;
+          for (var i = 0; i < N; i++) rows.push({ relNs: i * 5e8, tMs: t0 + i * 500, x: 0, y: 0, z: 1000 });
+          var at = function (k) {
+            return t0 + k * 500;
+          };
+          T.eq(
+            'placeRecordedAccSeams · a seam lands on the FIRST ROW AT OR AFTER its host stamp',
+            JSON.stringify(M.placeRecordedAccSeams([{ tMs: at(400) }], rows, t0, t0)),
+            JSON.stringify({ seamIdx: [400], placed: 1, unplaced: 0 })
+          );
+          T.eq(
+            'CONTROL · a seam after the last row is UNPLACED, never clamped onto `n - 1`',
+            JSON.stringify(M.placeRecordedAccSeams([{ tMs: at(N - 1) + 1000 }], rows, t0, t0)),
+            JSON.stringify({ seamIdx: [], placed: 0, unplaced: 1 })
+          );
+          T.eq(
+            '∅ · a stampless recording has no axis to place on, and the row is COUNTED rather than guessed',
+            JSON.stringify(M.placeRecordedAccSeams([{ tMs: at(400) }], rows, null, null)),
+            JSON.stringify({ seamIdx: [], placed: 0, unplaced: 1 })
+          );
+          T.eq(
+            '∅ · a non-finite stamp is unplaced too — never `0`, which is a legal instant',
+            JSON.stringify(M.placeRecordedAccSeams([{ tMs: Number.NaN }], rows, t0, t0)),
+            JSON.stringify({ seamIdx: [], placed: 0, unplaced: 1 })
+          );
+          /* ONE MERGED PASS, not a scan per row — a real night's `_ECGSEAMS.txt` carried 178 rows and
+             an ACC night runs to millions of samples. Out-of-order rows are sorted first, so the
+             shared cursor cannot miss the earlier seam. */
+          T.eq(
+            'placeRecordedAccSeams · several seams place in ONE pass, in axis order whatever the row order',
+            JSON.stringify(M.placeRecordedAccSeams([{ tMs: at(900) }, { tMs: at(400) }], rows, t0, t0)),
+            JSON.stringify({ seamIdx: [400, 900], placed: 2, unplaced: 0 })
+          );
+        } else T.skip('MOTIONDSP.placeRecordedAccSeams unavailable');
+        // ── THE ANNOTATION AND THE REFUSAL, on a real computed recording ──────────────────────────
+        if (M && typeof M.compute === 'function' && typeof M.buildNodeExport === 'function') {
+          var HZ = 26,
+            DUR = 300,
+            text = accText(HZ * DUR, HZ);
+          var seamAt = function (ms) {
+            return [
+              '# stream=acc rule=clock-seam bound_ms=250 unit=ms basis=device-minus-host',
+              'phone_ts;idx;device_step_ms;phone_delta_ms;residual_ms;host_offset_ms;at_rel_ms',
+              new Date(T0 + ms).toISOString().replace('Z', '') + ';413;240000.0;7.7;239992.3;-12.0;312000.0',
+              '# final stream=acc seams=1 examined=50000'
+            ].join('\n');
+          };
+          var sNone = M.compute({ acc: text });
+          T.eq('OWNER RULING 2026-11-05 · a recording with NO seam sidecar reads as seams UNKNOWN', sNone.seams.seams + '/' + sNone.seams.reason, 'null/no-seam-sidecar');
+          T.ok('…and never as `0`, the one answer §∅ forbids for an unmeasured channel', sNone.seams.seams === null);
+          T.ok('CONTROL · …and it refuses nothing, so the refusal below is not a blanket one', typeof sNone.activity.immobileFrac === 'number' && sNone.activity.immobileFracReason === undefined);
+          T.eq(
+            '…and the export says so UNCONDITIONALLY — a silent export is what the ruling refuses',
+            M.buildNodeExport(sNone).recording.validity.seams + '/' + M.buildNodeExport(sNone).recording.validity.seamsReason,
+            'null/no-seam-sidecar'
+          );
+          var sMid = M.compute({ acc: text, accSeams: seamAt(150000) });
+          T.eq('a seam the box recorded INSIDE the recording is placed on a sample', sMid.seams.seams + '/' + sMid.seams.placed + '/' + sMid.seams.reason, '1/1/null');
+          T.ok('…and it drives the node’s OWN seam verdict, so the refusal a resync fires now fires for it', sMid.activity.immobileFrac === null && sMid.activity.immobileFracReason === 'clock-seam');
+          T.ok(
+            '…and the sample it landed on is published, so a consumer sees WHERE the refusal came from',
+            Array.isArray(sMid.activity.recordedSeamSamples) && sMid.activity.recordedSeamSamples.length === 1
+          );
+          T.ok('CONTROL · the MAGNITUDE metric is left published — §∅ refuses a span, not every number', typeof sMid.activity.movementIndex === 'number');
+          var vMid = M.buildNodeExport(sMid).recording.validity;
+          T.eq('the export carries the box’s count, this node’s placement and the bound that looked', [vMid.seams, vMid.seamsPlaced, vMid.seamsBoundMs].join('/'), '1/1/250');
+          T.eq('…and the examined population the box reported, so a zero can be told from an unread channel', vMid.seamsExamined, 50000);
+          T.eq('…and WHICH of up to four streams the state describes, the discipline `clockAxis.stream` already follows', vMid.seamsStream, 'acc');
+          /* A row the box recorded that this node could not place is NOT a refusal that ran, and
+             `reason: null` beside a non-zero count would read as one. */
+          var sPast = M.compute({ acc: text, accSeams: seamAt(DUR * 1000 + 60000) });
+          T.eq(
+            '∅ · a recorded seam OUTSIDE the recording is counted and named, never clamped into a refusal',
+            sPast.seams.seams + '/' + sPast.seams.placed + '/' + sPast.seams.reason,
+            '1/0/seams-unplaced-on-axis'
+          );
+          T.ok('CONTROL · …and it refuses nothing, because an over-refusal reads exactly like a correct one', typeof sPast.activity.immobileFrac === 'number');
+          /* THE CHEST STRAP IS A SECOND DEVICE WITH A SECOND CRYSTAL, so its sidecar rides its own
+             slot. Pinned because one shared slot is how the ACC's seams would reach the chest's
+             state — the collision the `accseams` kind exists to prevent, one layer in. */
+          var sChest = M.compute({ chestAcc: text, chestAccSeams: seamAt(150000) });
+          T.eq('the chest ACC reads its OWN sidecar slot, and the state names that stream', sChest.seams.placed + '/' + sChest.seams.stream, '1/chestAcc');
+        } else T.skip('MOTIONDSP.compute/buildNodeExport unavailable');
+        // ── THE DROP LANE AND THE ORCHESTRATED ROAD ───────────────────────────────────────────────
+        var SO = env.SignalOrchestrate;
+        var VS = 'Polar_VS_BBBB_20260617_010001_',
+          H10 = 'Polar_H10_AAAA_20260617_010000_';
+        if (SO && typeof SO.streamKind === 'function' && typeof SO.companionKinds === 'function' && typeof SO.pairCompanions === 'function') {
+          T.eq('streamKind · `_ACCSEAMS` is the ACC seam lane, and `_ACC` is still the stream', SO.streamKind(VS + 'ACCSEAMS.txt') + '/' + SO.streamKind(VS + 'ACC.txt'), 'accseams/acc');
+          T.ok('companionKinds · the acc primary carries it beside `accruns`', SO.companionKinds('acc').indexOf('accseams') >= 0);
+          var compsA = SO.pairCompanions('acc', VS + 'ACC.txt', [
+            { name: VS + 'ACC.txt', text: 'x' },
+            { name: VS + 'ACCSEAMS.txt', text: '# stream=acc rule=clock-seam bound_ms=250' }
+          ]);
+          T.eq('pairCompanions · acc gets `accseams` = the sidecar text', compsA && compsA.accseams, '# stream=acc rule=clock-seam bound_ms=250');
+          /* 🔴 THE SLOT CONTROL. `seams` is the ECG's own kind, and a kind IS the slot name here, so a
+             shared spelling would let this same-device `_ACCSEAMS` be picked as the ECG's seams when
+             its stamp is the nearer one. It must not reach that slot at all. */
+          var compsE = SO.pairCompanions('ecg', H10 + 'ECG.txt', [
+            { name: H10 + 'ECG.txt', text: 'x' },
+            { name: H10 + 'ACCSEAMS.txt', text: '# stream=acc rule=clock-seam bound_ms=250' }
+          ]);
+          T.ok('CONTROL · the ACC sidecar never reaches an ECG primary’s own `seams` slot', !compsE || compsE.seams == null);
+          /* The device filter, in the SAME pass as every other companion kind: an H10 sidecar is not
+             the Verity's, even when its stamp is the nearer one. */
+          var compsX = SO.pairCompanions('acc', VS + 'ACC.txt', [
+            { name: VS + 'ACC.txt', text: 'x' },
+            { name: H10 + 'ACCSEAMS.txt', text: '# stream=acc' }
+          ]);
+          T.ok('CONTROL · a foreign-device `_ACCSEAMS` is refused by the device filter', !compsX || compsX.accseams == null);
+        } else T.skip('SignalOrchestrate.streamKind/pairCompanions unavailable');
+        // ── THE CALLERS, so a future edit cannot quietly unwire the path ──────────────────────────
+        var srcS = env.sources || {};
+        [
+          ['signal-orchestrate.js', /acc:\s*\[[^\]]*'accruns'[^\]]*'accseams'[^\]]*\]/, 'the acc companion list carries `accseams` beside `accruns`'],
+          ['signal-orchestrate.js', /input\[slot \+ 'Seams'\]\s*=\s*f\.seamsSidecar/, 'emitAccNodeExport CARRIES the parsed sidecar across the frame boundary'],
+          ['adapters/polar-acc.js', /comp\.accseams[\s\S]{0,200}seamsText:\s*seamsText/, 'polar-acc passes ctx.companions.accseams into the PRIMARY parse'],
+          ['adapters/polar-acc.js', /frame\.seamsSidecar\s*=\s*rows\._seamsSidecar/, 'polar-acc hangs the parsed sidecar on the frame as well as the rows'],
+          ['motiondex-dsp.js', /asRows\(input\.acc, input\.accRuns, input\.accSeams\)/, 'MotionDex.compute reads the sidecar slot for the wrist ACC'],
+          ['motiondex-dsp.js', /asRows\(input\.chestAcc, input\.chestAccRuns, input\.chestAccSeams\)/, '…and the chest one, which is a second device with a second crystal'],
+          ['motiondex-app.js', /_ACCSEAMS[\s\S]{0,80}'chestAccSeams'[\s\S]{0,20}'accSeams'/, 'the browser drop lane claims the file before streamKindFromName nulls it']
+        ].forEach(function (row) {
+          var s = srcS[row[0]];
+          if (typeof s !== 'string') {
+            T.skip(row[0] + ' source not in env.sources');
+            return;
+          }
+          T.ok('source-mirror · ' + row[2], row[1].test(s));
         });
       }
     );

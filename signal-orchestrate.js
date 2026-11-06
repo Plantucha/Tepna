@@ -347,6 +347,12 @@
       var slot = f.site === 'chest' ? 'chestAcc' : 'acc';
       if (input[slot]) return; // one stream per slot; a second same-site frame is not merged
       input[slot] = f.samples;
+      /* 🔴 THE FRAME BOUNDARY. This rebuilds MotionDex's compute input from the frame, so a sidecar
+         the adapter parsed and this rebuild omitted would be read and then discarded — the shape
+         #4441 fixed one node over. `polar-acc` hangs the parsed sidecar on the row array AND on the
+         frame; the slot carries it explicitly, so the input does not depend on array properties
+         surviving the hand-off. */
+      if (f.seamsSidecar) input[slot + 'Seams'] = f.seamsSidecar;
       if (f.site !== 'chest') {
         if (f.gyro) input.gyro = f.gyro;
         if (f.mag) input.mag = f.mag;
@@ -465,6 +471,10 @@
   // to each node's adapter as ctx.companions.runs and from there into parsePPG / parseECGText(text, { runsText }).
   // 'seams' is the clock-seam sidecar — `…_ECGSEAMS.txt` for ECG and `…_PPGSEAMS.txt` for PPG — and it rides the same road as
   // ctx.companions.seams into parseECGText / parsePPG, so an orchestrated night refuses over a recorded seam (SEAM-SIDECAR-CONSUMPTION §4).
+  // 'accseams' is the ACC stream's own clock-seam sidecar (`…_ACCSEAMS.txt`), which rides to polar-acc as
+  // ctx.companions.accseams and into parseSensorXYZ(text, { seamsText }). It keeps a kind of its own for the
+  // reason 'accruns' does: an ECG primary carries 'seams' too, and one slot shared by two of a device's sidecars
+  // lets nearest-stamp hand the ECG the ACC's seams.
   /* `spo2` joined 2026-09-25: the O2Ring's raw dual-wavelength waveform is SELF-CALIBRATED against the
      ring's own 1 Hz series, so without that companion `spo2WaveformTrend` refuses by design — the
      Unifier could route the waveform correctly (#3075) and still never produce a trend.
@@ -479,7 +489,7 @@
     ecg: ['rr', 'hr', 'acc', 'runs', 'accruns', 'seams'],
     ppg: ['acc', 'gyro', 'magn', 'ppi', 'runs', 'accruns', 'seams'],
     spo2: ['spo2', 'ppg2wruns'],
-    acc: ['accruns', 'gyro', 'magn']
+    acc: ['accruns', 'gyro', 'magn', 'accseams']
   };
   // DEEP-AUDIT-II §10.2 — a sidecar is written in the SAME recording session (its filename stamp is
   // minutes from the primary's). A candidate whose nearest stamp is more than a day away is a
@@ -503,13 +513,20 @@
        2026-11-05). Its OWN kind for the reason the block above states — the box writes one sidecar
        per stream, so `_ACCSEAMS`, `_HRSEAMS` and `_PPISEAMS` exist beside this one, and a shared
        slot would let nearest-stamp replace the ECG's own seams with the ACC's. Tested before `_ECG`,
-       which cannot match it anyway (no boundary before SEAMS), exactly as `_ECGRUNS` is. Only the
-       ECG and PPG spellings return a kind here: a sidecar no node can place must not arrive as one
-       that can. `_PPGSEAMS` joined on 2026-11-06, when PpgDex gained `parsePpgSeams` and placed the
-       rows on its own sample axis; `_PPISEAMS`, `_HRSEAMS` and `_ACCSEAMS` still name streams no node
+       which cannot match it anyway (no boundary before SEAMS), exactly as `_ECGRUNS` is. Only a
+       spelling some node can PLACE returns a kind here: a sidecar no node can place must not arrive
+       as one that can. `_PPGSEAMS` joined on 2026-11-06, when PpgDex gained `parsePpgSeams` and
+       placed the rows on its own sample axis; `_PPISEAMS` and `_HRSEAMS` still name streams no node
        places, and they keep their absence of a kind. */
     if (/_ECGSEAMS\b|_ECGSEAMS\./.test(u)) return 'seams';
     if (/_PPGSEAMS\b|_PPGSEAMS\./.test(u)) return 'seams';
+    /* THE ACC STREAM'S SEAM SIDECAR, under a kind of its OWN — `accseams`, never the primaries'
+       `seams`. MotionDex gained `parseAccSeams` on 2026-11-06 and places these rows on its own
+       sample axis, so the file now has a node; and the slot discipline two blocks up decides the
+       spelling. An ECG primary's companion list already carries `seams`, and a kind IS the slot name
+       here, so returning `seams` would make `_ACCSEAMS` a candidate for the ECG's own seam slot on
+       the same device, where nearest-stamp picks between two identical stamps. */
+    if (/_ACCSEAMS\b|_ACCSEAMS\./.test(u)) return 'accseams';
     /* The O2Ring's raw dual-wavelength lane, and its sidecar takes its OWN kind for the reason the
        block above states — one device, two sidecars, and a shared slot is a silent replacement.
        `_PPG2WRUNS` is tested FIRST because the sidecar name is built by APPENDING to the stream

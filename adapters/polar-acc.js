@@ -9,7 +9,8 @@
  * ────────────────────────────────────────────────────────────────────────
  * Polar H10 chest strap + Verity Sense armband accelerometer streams, as Polar Sensor Logger
  * (com.j_ware.polarsensorlogger) or the capture host writes them: `…_ACC.txt` with a declared
- * `[mg]` unit, plus the optional `…_ACCRUNS.txt` validity sidecar and, for the Verity, `…_GYRO`
+ * `[mg]` unit, plus the optional `…_ACCRUNS.txt` validity sidecar, the `…_ACCSEAMS.txt` clock-seam
+ * sidecar and, for the Verity, `…_GYRO`
  * and `…_MAGN` streams. The ACC is MotionDex's own signal; before this adapter OverDex set it
  * aside and MotionDex was reachable only from a hand-exported node-export JSON.
  *
@@ -83,7 +84,11 @@
       if (!parse) return root.SignalFrame.toSignalFrame('acc', { usable: false, reason: 'polar-acc: no parseSensorXYZ in scope (co-load motiondex-dsp.js)' }, prov);
       var comp = ctx.companions && typeof ctx.companions === 'object' ? ctx.companions : {};
       // SAMPLE-VALIDITY-ENVELOPE §3.2 — the sidecar rides in under its own kind; absent it, the one-argument call.
-      var rows = comp.accruns ? parse(text, { runsText: comp.accruns }) : parse(text);
+      // SEAM-SIDECAR-CONSUMPTION §4 — and the clock-seam sidecar beside it, under `accseams` for the
+      // slot reason signal-orchestrate's streamKind states. MotionDex places these rows on its own
+      // sample axis, so an orchestrated night refuses over a seam the box recorded at arrival.
+      var seamsText = typeof comp.accseams === 'string' ? comp.accseams : null;
+      var rows = comp.accruns || seamsText ? parse(text, { runsText: comp.accruns || null, seamsText: seamsText }) : parse(text);
       rows = Array.isArray(rows) ? rows : [];
       var t0 = null;
       for (var i = 0; i < rows.length; i++) {
@@ -106,6 +111,14 @@
         prov
       );
       frame.site = site;
+      /* THE PARSED SIDECAR, CARRIED ACROSS THE FRAME BOUNDARY (§4). `emitAccNodeExport` rebuilds the
+         compute input from this frame, so a key hung only on the row array would be a sidecar read
+         and then discarded on the orchestrated road. */
+      if (rows._seamsSidecar) {
+        frame.seamsSidecar = rows._seamsSidecar;
+        frame.recordedSeams = rows._recordedSeams;
+        if (rows._recordedSeamsReason) frame.recordedSeamsReason = rows._recordedSeamsReason;
+      }
       // the Verity's other IMU streams: parsed by the same parser, attached beside the ACC. A bad one warns.
       ['gyro', 'magn'].forEach(function (k) {
         if (!comp[k]) return;
