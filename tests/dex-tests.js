@@ -23935,6 +23935,38 @@
       T.ok('…and a drawn axis under-claims to host however independent it reads', DE.timingBlock({ hostAxis: axDrawnTrue, resyncs: [] }).timingSource === 'host');
       T.ok('…while a node-supplied verdict still outranks the axis field', DE.timingBlock({ hostAxis: axDrawnTrue, drawn: false, resyncs: [] }).timingSource === 'device+host');
 
+      /* ── 4c · §∅ A RATE OVER A DRAWN OR UNMEASURED COLUMN IS AN ABSENCE ───────────────────────────
+         Residue row `2026-11-03-the-shared-timing-block-quotes-a-rate-over-a-drawn-axis`. The block
+         held the verdict already — it under-claims `timingSource` to `host` and names the drawn
+         column in `reason` — and published `ppm` beside that sentence anyway. A column written as
+         `index × an assumed rate` has no oscillator, so the divergence against it measures the
+         writer's arithmetic. All three axis-carrying publishers null the pair at their own boundary;
+         these legs make the shared block refuse to quote one, so a ninth node inherits the rule.
+         THE CONTROL IS THE MEASURED AXIS, asserted by VALUE: a guard that nulled every rate would
+         pass every leg above and lose the measurement this block exists to carry. */
+      var drawnOut = DE.timingBlock({ hostAxis: axDrawnTrue, resyncs: [], seams: [] });
+      T.ok('§∅ a drawn device column publishes no rate', drawnOut.ppm === null, String(drawnOut.ppm));
+      T.ok('…nor the unsmoothed twin of one', drawnOut.spanPpm === null, String(drawnOut.spanPpm));
+      T.ok('…and the null is not bare — the drawn cause is named', /synthesised counter|DRAWN/.test(drawnOut.reason || ''), String(drawnOut.reason));
+      var unmeasOut = DE.timingBlock({ hostAxis: ax, resyncs: [], seams: [] });
+      T.ok('§∅ an UNMEASURED verdict publishes no rate either — it is not "it is a clock"', unmeasOut.ppm === null && unmeasOut.spanPpm === null, JSON.stringify(unmeasOut));
+      T.ok('…and says the column was never tested', /is a clock is UNMEASURED/.test(unmeasOut.reason || ''), String(unmeasOut.reason));
+      var junkOut = DE.timingBlock({ hostAxis: axDrawnFalse, drawn: 1, resyncs: [], seams: [] });
+      T.ok('a non-boolean verdict is UNMEASURED, never a truthy yes-or-no', junkOut.ppm === null && /UNMEASURED/.test(junkOut.reason || ''), JSON.stringify(junkOut));
+      var measOut = DE.timingBlock({ hostAxis: axDrawnFalse, resyncs: [], seams: [] });
+      T.ok('CONTROL · a column measured to be real still quotes its rate, to the digit', measOut.ppm === 12.5 && measOut.spanPpm === 11.9, JSON.stringify(measOut));
+      T.ok('CONTROL · …and a node-supplied drawn:false quotes it over a drawn axis, as the source does', DE.timingBlock({ hostAxis: axDrawnTrue, drawn: false, resyncs: [], seams: [] }).ppm === 12.5);
+      T.ok('CONTROL · the twelve keys are unchanged — the guard adds no conditional key', String(Object.keys(drawnOut)) === String(KEYS), String(Object.keys(drawnOut)));
+      /* A REFUSED AXIS IS A THIRD STATE, and it was already null: the guard must not borrow its
+         sentence, because "the spine refused" and "the column is not a clock" have different
+         remedies. */
+      var refusedAx = DE.timingBlock({ hostAxis: { ok: false, reason: 'too few anchors', n: 2, ppm: 9 }, resyncs: [], seams: [] });
+      T.ok(
+        'a refused axis publishes no rate and keeps its own reason',
+        refusedAx.ppm === null && /too few anchors/.test(refusedAx.reason || '') && !/UNMEASURED/.test(refusedAx.reason || ''),
+        String(refusedAx.reason)
+      );
+
       /* ── THE SANITISERS, PINNED AT THEIR EDGES ──
          `_tbNum` and `_tbCount` are the only place a caller's junk becomes a published number, and §∅
          says a value nobody measured is `null` — never a coerced one. Six inputs pin that, and each was
@@ -23951,7 +23983,9 @@
         '§∅ a numeric STRING is not a measurement — isFinite() alone would have taken it',
         DE.timingBlock({ hostAxis: { ok: true, n: 9, spanMs: '5', independent: true }, resyncs: [] }).spanMs === null
       );
-      T.ok('§∅ NaN is not a measurement either', DE.timingBlock({ hostAxis: { ok: true, n: 9, ppm: NaN, independent: true }, resyncs: [] }).ppm === null);
+      /* `drawn: false` is load-bearing here: without it the drawn-rate guard below nulls `ppm`
+         whatever `_tbNum` does, and this leg stops examining the sanitiser it is about. */
+      T.ok('§∅ NaN is not a measurement either', DE.timingBlock({ hostAxis: { ok: true, n: 9, ppm: NaN, independent: true }, drawn: false, resyncs: [] }).ppm === null);
       T.ok('a plain number IS a count and survives untouched', DE.timingBlock({ resyncs: 3 }).resyncs === 3);
       T.ok('…a numeric string is not one', DE.timingBlock({ resyncs: '3' }).resyncs === null);
       T.ok('…and neither is a negative count', DE.timingBlock({ resyncs: -1 }).resyncs === null);
@@ -24123,6 +24157,7 @@
          tolerate them, so an absent block there is the tolerance under test rather than a defect. Hand-
          writing the block into them would delete the only pre-contract exports this suite reads.
          Both sets owe the SHAPE wherever a block is present. */
+      var quoted = 0;
       function check(where, rec, required) {
         var tb = rec.timing;
         if (tb == null) {
@@ -24142,6 +24177,21 @@
         var positive = absent.length === 0 && tb.timingSource === 'device+host' && tb.independent === true;
         T.ok(where + ' · §∅ a null measurement owes a reason', absent.length === 0 || (typeof tb.reason === 'string' && tb.reason.length > 0), absent.join(',') + ' → ' + String(tb.reason));
         T.ok(where + ' · a fully positive block carries no reason', !positive || tb.reason === null, String(tb.reason));
+        /* ── §∅ A PUBLISHED RATE OWES A DEVICE COLUMN MEASURED TO BE REAL (section 4c) ──
+           The committed side of the drawn-rate guard. Where a block quotes a `ppm`, the axis block
+           beside it must carry no drawn marker: `deviceDrawn:true` and `ppmReason` are written only
+           over a drawn or unmeasured column, so either one beside a quoted rate is the defect the
+           row named. This is also the measurement behind the guard's byte-neutrality — 10 of these
+           blocks quote a rate, and all 10 sit over a column their publisher measured. */
+        if (tb.ppm != null) {
+          quoted++;
+          var ha = rec.hostAxis || null;
+          T.ok(
+            where + ' · §∅ a quoted rate sits over a device column measured to be real',
+            !(ha && (ha.deviceDrawn === true || ha.ppmReason !== undefined)),
+            'deviceDrawn=' + String(ha && ha.deviceDrawn) + ' ppmReason=' + String(ha && ha.ppmReason)
+          );
+        }
       }
       function walk(where, json, required) {
         if (!json || typeof json !== 'object') return 0;
@@ -24173,6 +24223,10 @@
          nodes (OxyDex's golden is a NIGHT ELEMENT, not an envelope, so its coverage is leg 6's). */
       T.ok('the fixture leg actually examined regenerated node-exports', seen >= 15, seen + ' examined');
       T.ok('…and the frozen pre-contract samples were read, not skipped past', frozen >= 2, frozen + ' examined');
+      /* ANTI-VACUITY for the leg above: a guard that nulled every rate would leave nothing to check
+         and the drawn-rate control would pass by examining nothing. The floor is the regenerated set
+         measured 2026-11-05 over this repo's committed node-exports. */
+      T.ok('…and the quoted-rate control examined the blocks that carry one', quoted >= 5, quoted + ' quote a rate');
     });
 
     /* ════ 8b · SECURITY — untrusted filename → innerHTML is escaped (SECURITY-REMEDIATION A) ════ */
@@ -36670,9 +36724,11 @@
         JSON.stringify(exD.recording.hostAxis.drawnColumn)
       );
       T.eq('the control one derivative up was ALREADY null here', exD.recording.hostAxis.stability, null);
-      /* The shared block is `dex-export.js timingBlock`, and this unit edits no spine: the block
-         reads `ppm` off the object the node hands it, so a disciplined view carries through. */
-      T.eq('§∅ the SHARED block agrees, through the spine and with no spine edit', exD.recording.timing.ppm, null);
+      /* The shared block is `dex-export.js timingBlock`. It reads `ppm` off the object the node hands
+         it, so this node's disciplined view carries through — and since 2026-11-05 the block refuses
+         to quote a rate over a drawn or unmeasured column on its own account too, so the two
+         agreements are independent of each other rather than one riding the other. */
+      T.eq('§∅ the SHARED block agrees, at the node boundary and at its own', exD.recording.timing.ppm, null);
       T.eq('…and so does its span rate', exD.recording.timing.spanPpm, null);
       T.ok(
         '…the drawn sentence was already in the shared reason, so the null is not bare there either',

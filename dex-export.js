@@ -375,6 +375,11 @@
        sentence is quoted where it wrote one; a node that passed `opts.drawn` by hand, and an axis
        object older than those fields, get the fallback instead. */
     if (ok && drawn === true) why.push(ax.drawnReason || 'the device axis is drawn — a synthesised counter, not a clock, so there is no second timebase to discipline the rate against');
+    /* THE UNMEASURED HALF OF THE SAME TRI-STATE. The clause above fires on a verdict; this one fires
+       on the ABSENCE of one, and §∅ owes a sentence wherever a measurement goes null below. An axis
+       that published no `deviceDrawn`, and a node that forwarded a non-boolean, were never tested,
+       and "never tested" must not collapse into "it is a clock". */
+    if (ok && drawn !== true && drawn !== false) why.push('whether the device column is a clock is UNMEASURED, so no rate is published against it');
     if (ok && ax.independent === false) why.push(ax.inertReason || 'host ≡ device — the host column tracks the device column inside one stamp quantum, so it is not an independent clock');
 
     var resyncs = _tbCount(opts.resyncs);
@@ -421,13 +426,41 @@
        stock string would read as a measurement this block never made. */
     if (rateApplied === false && typeof opts.rateReason === 'string' && opts.rateReason) why.push('the rate correction did not reach the published rate: ' + opts.rateReason);
 
+    /* ── A RATE OVER A DRAWN OR UNMEASURED DEVICE COLUMN IS AN ABSENCE (§∅; residue row
+       `2026-11-03-the-shared-timing-block-quotes-a-rate-over-a-drawn-axis`) ──
+       `ppm` and `spanPpm` are the divergence of the host clock from the DEVICE column. A column
+       written as `index × an assumed rate` has no oscillator behind it, so that divergence describes
+       the writer's arithmetic and not a crystal. This block already held the verdict: it routes a
+       drawn or unmeasured axis to `timingSource:'host'` and writes the cause into `reason` — and then
+       published the number beside that sentence.
+       TRI-STATE, and the middle state is not "it is a clock": `false` is the only verdict that
+       quotes a rate, because an axis that published none was never tested.
+       THIS IS A BACKSTOP, NOT THE FIRST LINE. All three axis-carrying publishers already null both
+       figures at their own boundary (`ppgdex-dsp.js` `:1824`, `ecgdex-dsp.js` `_ecgPubRate`,
+       `motiondex-dsp.js` `_mdPubRate`), and each names the measurement at `clock.js:623-640` for
+       keeping it there: folding `deviceDrawn` into the spine's own `ok`/`independent` was tried and
+       reverted, because a synthetic fixture legitimately uses a uniform device axis and is
+       indistinguishable from a fabricated one. THAT MEASUREMENT DOES NOT BIND THIS GUARD — it
+       touches neither `ok` nor `independent` nor the correction, only the QUOTE, at the publication
+       boundary the row names. A ninth node that forwards a raw axis inherits the discipline here
+       instead of re-deriving it a fourth time.
+       MEASURED BYTE-NEUTRAL over the 449 committed node-exports: 10 publish a rate and every one of
+       them carries a `deviceDrawn` verdict of `false` at its publisher, 2 carry `true` and already
+       publish nulls, and 13 carry no axis at all. The fixture leg of the parity group holds that.
+       NO `drawnColumn` KEY HERE, deliberately, and against the row's stated remedy shape. Every
+       caller nulls the figures upstream, so this block never holds the numbers one would carry: a
+       `drawnColumn` of two nulls is an empty container standing in for an absence, the shape §∅
+       forbids. The figures survive where they were measured, under `recording.hostAxis.drawnColumn`,
+       and the twelve-key parity this block exists to keep gains no conditional key. */
+    var quotable = ok && drawn === false;
+
     return {
       timingSource: src,
       independent: independent,
       anchors: ok ? _tbCount(ax.n != null ? ax.n : ax.anchors) : null,
       spanMs: ok ? _tbNum(ax.spanMs) : null,
-      ppm: ok ? _tbNum(ax.ppm) : null,
-      spanPpm: ok ? _tbNum(ax.spanPpm) : null,
+      ppm: quotable ? _tbNum(ax.ppm) : null,
+      spanPpm: quotable ? _tbNum(ax.spanPpm) : null,
       resyncs: resyncs,
       seams: seams,
       rate: rate,
