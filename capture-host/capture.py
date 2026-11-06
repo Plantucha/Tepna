@@ -16,6 +16,13 @@ import build_id
 from writers import (
     ContactLedger,
     StreamWriter,
+    # Imported BY NAME, never through the module alias. `run_polar` binds a LOCAL dict under the
+    # same name as this module, so an attribute read of that alias inside the runner raises
+    # AttributeError, and the link's own except clause reports it as a link error. Measured
+    # 2026-11-06: the attribute form reded 127 tests across 12 files and printed no NameError.
+    DEVICE_AXIS_ABSENT,
+    DEVICE_AXIS_CLOCK,
+    DEVICE_AXIS_HOST_DRAWN,
     Spo2CsvWriter,
     LinkLogWriter,
     OxyFrameLogWriter,
@@ -4121,7 +4128,9 @@ async def run_polar(dev: dict, root: str):
                     p = os.path.join(
                         ndir, capture_filename(dev["vendor"], dev["model"], dev["device_id"], started, stream, ext)
                     )
-                    return StreamWriter(p, stream)
+                    # Every PMD stream carries the frame's own ns-since-2000 counter, so the
+                    # device column on this path is a real oscillator.
+                    return StreamWriter(p, stream, device_axis=DEVICE_AXIS_CLOCK)
 
                 tag = _dev_tag(dev)
                 # PACKET-ARRIVAL SIDECAR (PAT-PACKET-ARRIVAL). The per-sample `phone` stamps this
@@ -6959,7 +6968,15 @@ async def run_oxyii(dev: dict, root: str):
                 # Same grace as the Polars' not-worn drop, so `power.drop_not_worn_sec` moves both.
                 _ring_gate = RingRecordGate(_DROP_NOT_WORN_SEC)
                 ppgwr = (
-                    StreamWriter(ppg_path, "ppg1", timebase=_tb, contact=contact_ledger)
+                    # The device column here is `O2PpgGrid.frame`, which the HOST draws, so the
+                    # sidecar says so rather than let a reader take the residual for two clocks.
+                    StreamWriter(
+                        ppg_path,
+                        "ppg1",
+                        timebase=_tb,
+                        contact=contact_ledger,
+                        device_axis=DEVICE_AXIS_HOST_DRAWN,
+                    )
                     if "ppg" in (dev.get("streams") or ["spo2", "ppg"])
                     else None
                 )
@@ -6970,14 +6987,16 @@ async def run_oxyii(dev: dict, root: str):
                 # rides this stream too (O2RING-ADAPTIVE-TIMEBASE-FOLLOWUPS §1a).
                 rtcwr = RingClockLogWriter(rtclog_path)
                 ppg2wr = (
-                    StreamWriter(ppg2w_path, "ppg2w", timebase=_tb) if "ppg2w" in (dev.get("streams") or []) else None
+                    StreamWriter(ppg2w_path, "ppg2w", timebase=_tb, device_axis=DEVICE_AXIS_ABSENT)
+                    if "ppg2w" in (dev.get("streams") or [])
+                    else None
                 )
                 # cmd 0x03, the single-channel lossless pleth. Opt-in per device exactly as ppg2w is:
                 # it is ~125 rows/s of extra file and one more control write per poll, and the ring's
                 # restart-storm analysis names OUR PRESENCE as what keeps the ring restarting — so this
                 # must never be on by default.
                 plethawr = (
-                    StreamWriter(pletha_path, "pletha", timebase=_tb)
+                    StreamWriter(pletha_path, "pletha", timebase=_tb, device_axis=DEVICE_AXIS_ABSENT)
                     if "pletha" in (dev.get("streams") or [])
                     else None
                 )
@@ -6998,7 +7017,9 @@ async def run_oxyii(dev: dict, root: str):
                 # spent for nothing, and a card with no file behind it is data that exists only until
                 # the page closes. Same `_tb` as its siblings: the timebase decision is per DEVICE.
                 accrawwr = (
-                    StreamWriter(accraw_path, "accraw", timebase=_tb) if "acc" in (dev.get("streams") or []) else None
+                    StreamWriter(accraw_path, "accraw", timebase=_tb, device_axis=DEVICE_AXIS_ABSENT)
+                    if "acc" in (dev.get("streams") or [])
+                    else None
                 )
                 # Byte-11 identification experiment (see writers.OxyFrameLogWriter). ~1 Hz, ~1 MB/night,
                 # and a SIDECAR so the vendor SpO2 CSV layout OxyDex parses stays byte-identical.

@@ -68,12 +68,15 @@ mkdir -p "$DEST" "$(dirname "$LOG")"
 # --ignore-existing is deliberately NOT used: a re-pulled file that changed upstream (a re-export,
 # a repaired night) should refresh here. Without --delete, nothing is ever removed.
 # --exclude='*.part' keeps in-flight captures out (they land complete on the next run).
+# --no-perms: rsync never chmods the destination. On the Synology a chmod replaces a folder's ACL
+# with plain mode bits, so `-a` alone stripped the inherited ACL and locked the NFS user out
+# (rsync exit 23, daily from 2026-10-31). New files take the destination's inherited ACL instead.
 {
   echo "== archive-pull $(date -Is) =="
   # RC captured via || so `set -e` cannot abort the block mid-log — a failed pull must still
   # write its EXIT line and destination counts, or the log truncates exactly when it matters.
   RC=0
-  rsync -a --no-owner --no-group \
+  rsync -a --no-owner --no-group --no-perms \
         --exclude='*.part' --exclude='*.tmp' \
         --timeout=300 \
         "$SRC" "$DEST/" || RC=$?

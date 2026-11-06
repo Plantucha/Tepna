@@ -44,7 +44,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 import { createRequire } from 'node:module';
-import { dissentStampLine, dissentStampOf, signsOf } from './consensus-dissent-core.mjs';
+import { dissentStampLine, dissentStampOf, refpickOf, signsOf } from './consensus-dissent-core.mjs';
 import { gitShort } from './verdict-emit.mjs';
 import { isCliEntry, positionalArgs, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 import { populationVerdict, snapshotEntries } from './corpus-scope-core.mjs';
@@ -498,14 +498,9 @@ function ppgFootTimes(text, runsText) {
     signsBefore,
     PPGDSP.applyConsensusPolarity(per, (i, sgn) => PPGDSP.detectChannel(rec.ch[i], rec.fs, sgn))
   );
-  let refIdx = 0,
-    best = -1;
-  per.forEach((p, i) => {
-    if (p.peaks.length > best) {
-      best = p.peaks.length;
-      refIdx = i;
-    }
-  });
+  /* The reference pick, NAMED at the site so the census reads a declaration rather than a loop
+     shape, and a tie stops hiding: `consensus-dissent-core.mjs#refpickOf`. Same pick. */
+  const refIdx = refpickOf(per, 'peak-argmax').idx;
   /* @polarity-decision applies
      The edit distance now compares a train the whole channel set voted on against the ECG’s. */
   const cons = PPGDSP.consensusBeats(per, refIdx, rec.fs);

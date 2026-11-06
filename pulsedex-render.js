@@ -104,17 +104,23 @@ function renderKPI(r) {
     useHr = r.longRec ? r.dispHr : r.hr;
   const sfx = r.longRec ? ' (med)' : '';
   const hrStat = (v) => (v < 35 ? 'bad' : v <= 80 ? 'ok' : v <= 95 ? 'warn' : 'bad'); // low resting HR is GOOD
+  /* ∅ A whole record that refused reaches the hero as null (`hrvReason`, `pulsedex-app.js`), and the
+     old literals read it as a measurement: `null + 'ms'` prints "nullms", `null >= 50` grades an
+     absence a CONCERN, and `(r.sdann || 0) + 'ms'` printed a measured "0ms" for a night that never
+     had three windows. Absence prints an em-dash and grades neutral. */
+  const _kv = (v, u) => (v == null ? '—' : v + (u || ''));
+  const _ks = (v, ok, warn) => (v == null ? 'neutral' : v >= ok ? 'ok' : v >= warn ? 'warn' : 'bad');
   const items = [
-    { l: 'HRV Score', v: r.hrv, sub: '0–100', s: r.hrv >= 50 ? 'ok' : r.hrv >= 35 ? 'warn' : 'bad' },
-    { l: 'Stress', v: r.stress, sub: 'lower better', s: r.stress <= 45 ? 'ok' : r.stress <= 60 ? 'warn' : 'bad' },
+    { l: 'HRV Score', v: _kv(r.hrv), sub: '0–100', s: _ks(r.hrv, 50, 35) },
+    { l: 'Stress', v: _kv(r.stress), sub: 'lower better', s: r.stress == null ? 'neutral' : r.stress <= 45 ? 'ok' : r.stress <= 60 ? 'warn' : 'bad' },
     { l: 'Mean HR' + sfx, v: useHr, sub: 'bpm', s: hrStat(useHr) },
-    { l: 'rMSSD' + sfx, v: useRm + 'ms', sub: '≥30 good', s: useRm >= 30 ? 'ok' : useRm >= 20 ? 'warn' : 'bad' },
-    { l: 'SDNN' + sfx, v: useSd + 'ms', sub: r.longRec ? '5-min' : '≥50 good', s: useSd >= 50 ? 'ok' : useSd >= 30 ? 'warn' : 'bad' },
-    { l: 'pNN50' + sfx, v: usePn + '%', sub: '≥15% good', s: usePn >= 15 ? 'ok' : usePn >= 5 ? 'warn' : 'bad' },
-    r.longRec ? { l: 'SDANN', v: (r.sdann || 0) + 'ms', sub: 'long-rec', s: 'neutral' } : { l: 'Energy', v: r.energy, sub: 'est', s: r.energy >= 60 ? 'ok' : r.energy >= 40 ? 'warn' : 'bad' },
+    { l: 'rMSSD' + sfx, v: _kv(useRm, 'ms'), sub: '≥30 good', s: _ks(useRm, 30, 20) },
+    { l: 'SDNN' + sfx, v: _kv(useSd, 'ms'), sub: r.longRec ? '5-min' : '≥50 good', s: _ks(useSd, 50, 30) },
+    { l: 'pNN50' + sfx, v: _kv(usePn, '%'), sub: '≥15% good', s: _ks(usePn, 15, 5) },
+    r.longRec ? { l: 'SDANN', v: _kv(r.sdann, 'ms'), sub: 'long-rec', s: 'neutral' } : { l: 'Energy', v: _kv(r.energy), sub: 'est', s: _ks(r.energy, 60, 40) },
     { l: 'Coverage', v: r.coverage + '%', sub: 'data captured', s: r.coverage >= 95 ? 'ok' : r.coverage >= 85 ? 'warn' : 'bad' },
     { l: 'Artifacts', v: r.artifactPct + '%', sub: 'corrected', s: r.artifactPct < 2 ? 'ok' : r.artifactPct < 8 ? 'warn' : 'bad' },
-    { l: 'VO₂ adj', v: r.vo2adj, sub: 'ml/kg/min', s: 'neutral' }
+    { l: 'VO₂ adj', v: _kv(r.vo2adj), sub: 'ml/kg/min', s: 'neutral' }
   ];
   const g = document.getElementById('kpiGrid');
   g.innerHTML = items
@@ -156,7 +162,7 @@ function reRender() {
     r.elev = _pp.elev || 0;
     r.altFactor = +altVO2Factor(r.elev).toFixed(3);
     r.vo2base = +(vo2Base(r.rhrEff, r.hrmaxEff) * r.altFactor).toFixed(1);
-    r.vo2adj = +vo2Adj(r.vo2base, r.lnrmssd).toFixed(1);
+    r.vo2adj = r.lnrmssd == null ? null : +vo2Adj(r.vo2base, r.lnrmssd).toFixed(1);
     const gtIn = _pp.vo2gt;
     r.vo2gt = gtIn > 0 ? +Number(gtIn).toFixed(1) : null;
     renderContext(r);
@@ -196,7 +202,7 @@ function renderANS(r) {
 
 // ─── RENDER FULL TABLE ────────────────────────────────────────────────────────
 function renderTable(r) {
-  const sc = (v, ok, warn) => (v >= ok ? 'ok' : v >= warn ? 'warn' : 'bad');
+  const sc = (v, ok, warn) => (v == null ? 'neutral' : v >= ok ? 'ok' : v >= warn ? 'warn' : 'bad');
   const hrStat = (v) => (v < 35 ? 'bad' : v <= 80 ? 'ok' : v <= 95 ? 'warn' : 'bad'); // low resting/sleep HR is GOOD
   const short = (r.mode === 'morning' || r.mode === 'spot') && r.durMin < 5;
   const insuf = (st) => (short ? 'neutral' : st);
@@ -250,7 +256,7 @@ function renderTable(r) {
     ['SD2', r.sd2, 'ms', '≥50', sc(r.sd2, 50, 30), 'Poincaré long-axis'],
     ['SD1/SD2', r.sd1sd2, 'ratio', '0.25–0.5', 'neutral', 'Short vs long-term balance'],
     ['Ellipse Area', r.ellArea, 'ms²', '—', 'neutral', 'π·SD1·SD2 complexity proxy'],
-    ['ln(rMSSD)', r.lnrmssd, '—', '≥3.5', r.lnrmssd >= 3.5 ? 'ok' : r.lnrmssd >= 3.1 ? 'warn' : 'bad', 'Log-RMSSD readiness'],
+    ['ln(rMSSD)', r.lnrmssd, '—', '≥3.5', r.lnrmssd == null ? 'neutral' : r.lnrmssd >= 3.5 ? 'ok' : r.lnrmssd >= 3.1 ? 'warn' : 'bad', 'Log-RMSSD readiness'],
     [
       'Baevsky SI',
       r.si != null ? r.si : '—',
@@ -264,11 +270,11 @@ function renderTable(r) {
     ['VO₂ base', r.vo2base, 'ml/kg/min', '—', 'neutral', 'Uth–Sørensen HR ratio'],
     ['VO₂ adj', r.vo2adj, 'ml/kg/min', '—', 'neutral', 'HRV-adjusted VO₂ proxy'],
     ['VO₂ GT', r.vo2gt || '—', 'ml/kg/min', 'lab', 'neutral', 'Ground truth (if entered)'],
-    ['Stress est', r.stress, '0–100', '<50', r.stress <= 45 ? 'ok' : r.stress <= 60 ? 'warn' : 'bad', 'Welltory-style estimate'],
-    ['HRV Score', r.hrv, '0–100', '>50', r.hrv >= 50 ? 'ok' : r.hrv >= 35 ? 'warn' : 'bad', 'Welltory-style estimate'],
-    ['Energy est', r.satE ? '100 (max)' : r.energy, '0–100', '>60', r.energy >= 60 ? 'ok' : r.energy >= 40 ? 'warn' : 'bad', 'Welltory-style estimate' + (r.satE ? ' · saturated (off-scale)' : '')],
-    ['Focus est', r.focus, '0–100', '>55', r.focus >= 55 ? 'ok' : r.focus >= 35 ? 'warn' : 'bad', 'Welltory-style estimate'],
-    ['Coherence', r.coherence, '0–100', '>50', r.coherence >= 50 ? 'ok' : r.coherence >= 30 ? 'warn' : 'bad', 'Welltory-style estimate'],
+    ['Stress est', r.stress, '0–100', '<50', r.stress == null ? 'neutral' : r.stress <= 45 ? 'ok' : r.stress <= 60 ? 'warn' : 'bad', 'Welltory-style estimate'],
+    ['HRV Score', r.hrv, '0–100', '>50', sc(r.hrv, 50, 35), 'Welltory-style estimate'],
+    ['Energy est', r.satE ? '100 (max)' : r.energy, '0–100', '>60', sc(r.energy, 60, 40), 'Welltory-style estimate' + (r.satE ? ' · saturated (off-scale)' : '')],
+    ['Focus est', r.focus, '0–100', '>55', sc(r.focus, 55, 35), 'Welltory-style estimate'],
+    ['Coherence', r.coherence, '0–100', '>50', sc(r.coherence, 50, 30), 'Welltory-style estimate'],
     ['ANS SNS', _ansTxt(r.sns), '0–100', '<40', r.sns == null ? 'neutral' : r.sns <= 40 ? 'ok' : r.sns <= 60 ? 'warn' : 'bad', 'Sympathetic activation'],
     [
       'ANS PSNS',
@@ -280,11 +286,11 @@ function renderTable(r) {
     ],
     ['SNS bal', _ansTxt(r.snsBal), 'ratio', '<1.5', 'neutral', 'LF/HF-based sympathetic ratio'],
     ['PSNS bal', _ansTxt(r.psnsBal), 'ratio', '>0.7', 'neutral', 'HF/LF-based parasympathetic'],
-    ['EFC Readiness', r.efc, '0–100', '>60', r.efc >= 60 ? 'ok' : r.efc >= 40 ? 'warn' : 'bad', 'Energy×0.4+Focus×0.3+Coh×0.3'],
+    ['EFC Readiness', r.efc, '0–100', '>60', sc(r.efc, 60, 40), 'Energy×0.4+Focus×0.3+Coh×0.3'],
     ['Cardiac CRS', r.crs != null ? r.crs : '—', 'a.u.', '>0.05', r.crs == null ? '' : r.crs >= 0.05 ? 'ok' : r.crs >= 0.02 ? 'warn' : 'bad', '(Coh·rMSSD·pNN50)/Stress×1000'],
     ['ABS', r.abs != null ? r.abs : '—', '−1..+1', '~0', r.abs == null ? '' : Math.abs(r.abs) <= 0.3 ? 'ok' : Math.abs(r.abs) <= 0.6 ? 'warn' : 'bad', 'Autonomic Balance Score'],
-    ['Stress-Focus', r.sfg, 'pts', '≈0', Math.abs(r.sfg) <= 10 ? 'ok' : Math.abs(r.sfg) <= 25 ? 'warn' : 'bad', 'Stress−Focus gap'],
-    ['Focus Effic', r.fe, 'a.u.', '>0.3', r.fe >= 0.3 ? 'ok' : r.fe >= 0.15 ? 'warn' : 'bad', 'Focus/(SNS+1)'],
+    ['Stress-Focus', r.sfg, 'pts', '≈0', r.sfg == null ? 'neutral' : Math.abs(r.sfg) <= 10 ? 'ok' : Math.abs(r.sfg) <= 25 ? 'warn' : 'bad', 'Stress−Focus gap'],
+    ['Focus Effic', r.fe, 'a.u.', '>0.3', sc(r.fe, 0.3, 0.15), 'Focus/(SNS+1)'],
     ['PNS Effic', r.pnse === null ? '—' : r.pnse, 'a.u.', '<4', r.pnse === null ? 'neutral' : r.pnse < 4 ? 'ok' : r.pnse < 7 ? 'warn' : 'bad', 'rMSSD/(SDNN·pNN50)'],
     ['OTR', r.otr === null ? '—' : r.otr, 'a.u.', '<8', r.otr === null ? 'neutral' : r.otr < 8 ? 'ok' : r.otr < 15 ? 'warn' : 'bad', 'Overtraining risk proxy'],
     ['RSA Proxy', r.rsa, 'a.u.', '—', 'neutral', 'HF/MeanRR² RSA proxy'],
@@ -358,7 +364,7 @@ function renderTable(r) {
     .map(
       ([m, v, u, nr, s, n]) => `<tr>
     <td class="fmt-m" style="color:var(--text2);font-weight:600;font-family:Inter,sans-serif">${evBadge(m)}${m}</td>
-    <td class="${s}">${v}</td>
+    <td class="${s}">${v == null ? '—' : v}</td>
     <td style="color:var(--text3)">${u}</td>
     <td style="color:var(--text3)">${nr}</td>
     <td class="${s}">${{ ok: '✅ Good', warn: '⚠️ Watch', bad: '❌ Concern', neutral: '—' }[s] || s}</td>
@@ -482,7 +488,7 @@ function renderWTTable(r) {
   const wtRow = findWTRow(dateStr);
   const baseHdr = welltoryData && welltoryData.header.length ? welltoryData.header : WT_COLS;
   document.getElementById('wtHead').innerHTML = WT_COLS.map((h) => `<th>${h}</th>`).join('');
-  const rawCols = WT_COLS.map((h) => (obj[h] !== undefined ? obj[h] : '—'));
+  const rawCols = WT_COLS.map((h) => (obj[h] === undefined || obj[h] === null ? '—' : obj[h]));
   const wtCols = WT_COLS.map((h) => {
     const i = baseHdr.indexOf(h);
     return wtRow && i >= 0 && wtRow[i] !== undefined && wtRow[i] !== '' ? wtRow[i] : '—';
