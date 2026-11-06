@@ -54,10 +54,43 @@ export function normVersion(s) {
   return m ? m[1] : null;
 }
 
+/** SemVer order of two version strings: -1, 0 or 1, or null when either is not a version (a model digest).
+ * A pre-release sorts below its release; dot-separated pre-release parts compare numerically when both are digits. */
+export function compareVersions(a, b) {
+  const pa = normVersion(a);
+  const pb = normVersion(b);
+  if (pa == null || pb == null) return null;
+  const [ca, prea] = pa.split('+')[0].split(/-(.*)/s);
+  const [cb, preb] = pb.split('+')[0].split(/-(.*)/s);
+  const na = ca.split('.').map(Number);
+  const nb = cb.split('.').map(Number);
+  for (let i = 0; i < 3; i++) if (na[i] !== nb[i]) return na[i] < nb[i] ? -1 : 1;
+  if (!prea && !preb) return 0;
+  if (!prea) return 1;
+  if (!preb) return -1;
+  const xa = prea.split('.');
+  const xb = preb.split('.');
+  for (let i = 0; i < Math.max(xa.length, xb.length); i++) {
+    if (xa[i] === undefined) return -1;
+    if (xb[i] === undefined) return 1;
+    const da = /^\d+$/.test(xa[i]);
+    const db = /^\d+$/.test(xb[i]);
+    if (da && db && Number(xa[i]) !== Number(xb[i])) return Number(xa[i]) < Number(xb[i]) ? -1 : 1;
+    if (da !== db) return da ? -1 : 1;
+    if (!da && xa[i] !== xb[i]) return xa[i] < xb[i] ? -1 : 1;
+  }
+  return 0;
+}
+
 /** The readiness rule above. `publishedMs` null → soak from `firstSeenMs`; both null → not ready. */
 export function readiness({ installed, latest, publishedMs, firstSeenMs, prerelease, allowPre, soakDays, nowMs }) {
   if (installed == null || latest == null) return { ready: false, why: 'unread' };
   if (installed === latest) return { ready: false, why: 'current' };
+  // A registry's "latest" can trail the install (2026-11-06: `claude update` installed 2.1.319 while npm's
+  // latest tag still read 2.1.318, and the watch offered the downgrade as READY). Only a NEWER release is an update.
+  const order = compareVersions(installed, latest);
+  if (order === 0) return { ready: false, why: 'current' };
+  if (order === 1) return { ready: false, why: 'installed is newer' };
   if (prerelease && !allowPre) return { ready: false, why: 'pre-release' };
   const since = publishedMs ?? firstSeenMs;
   if (since == null) return { ready: false, why: 'age unknown' };
@@ -235,6 +268,12 @@ function selftest() {
   ok(!readiness({ ...base, publishedMs: null }).ready, 'an unknown age is never read as old');
   ok(readiness({ ...base, publishedMs: null, firstSeenMs: now - 4 * DAY }).ready, 'an undated release soaks from first sight');
   ok(!readiness({ ...base, installed: null }).ready, 'an unread install is not ready');
+  ok(!readiness({ ...base, installed: '2.1.319', latest: '2.1.318' }).ready, 'an older registry release is never ready (the 2.1.319 → 2.1.318 offer)');
+  ok(readiness({ ...base, installed: '2.1.9', latest: '2.1.10' }).ready, 'versions compare by number, not as text');
+  ok(compareVersions('0.5.0-rc.100', '0.5.0-rc.101') === -1, 'a pre-release number compares as a number');
+  ok(compareVersions('0.40.15-rc2', '0.40.15') === -1, 'a pre-release sorts below its release');
+  ok(compareVersions('sha256:abc', '1.0.0') === null, 'a digest is not a version');
+  ok(readiness({ ...base, installed: 'aaaa', latest: 'bbbb', publishedMs: null, firstSeenMs: now - 4 * DAY }).ready, 'two different digests still read as an update');
   const p = promptText({ name: 'x', installed: '1', latest: '2', why: '3 d old', published: 'd', notes: 'u', quiet: 'q', steps: ['s'], owner: 'sudo' });
   ok(p.includes('needs the owner') && p.includes('Do not run them'), 'an owner step tells the session not to run it');
   ok(/^4\. Post the result/m.test(p), 'the steps number on from the two fixed checks');
