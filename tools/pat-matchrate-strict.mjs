@@ -181,6 +181,32 @@ function ecgCounterTimeMs(rec, pos) {
   const scale = ha && ha.applied === true && Number.isFinite(ha.ppm) ? 1 + ha.ppm * 1e-6 : 1;
   return rec.t0Ms + dev * scale;
 }
+/* THE AXIS ARITHMETIC, ONE COPY ────────────────────────────────────────────────────────────
+   Row 2026-09-26-pat-ecg-index-axis-is-not-the-h10-sample-clock names three PAT tools that time R
+   peaks through a private `t0 + i/fs`, so no axis request can reach them: the H10's samples per
+   counter second is not one number (130.027-130.033 worn, 129.92-130.00 once the strap is off), and
+   the index form times the worn beats fast by the off-body share of the file. This function is the
+   ONE place that maps sample positions to wall-clock ms. `ecgRpeakTimes` below calls it, and so do
+   `pat-hrv-windows.mjs` and `pat-window-scaling.mjs`, whose private copies the row named.
+   It is PURE in `rec` — `t0Ms`, `fs`, `tMsAt` and `devMsAt` all ride on the parsed record — so a
+   caller that already built its own headless realm imports it without loading a second DSP spine.
+   The DEFAULT stays `linear`. Owner ruling 2 (2026-11-06) is measure first: the flip waits on what
+   2026-07-24's worse narrowSD is, and until then no caller's number moves by taking this path. */
+function rPeakTimesOnAxis(rec, positions, opts) {
+  const axis = opts && opts.axis ? opts.axis : 'linear';
+  if (axis !== 'linear' && axis !== 'piecewise' && axis !== 'counter') throw new Error('rPeakTimesOnAxis: axis is linear, piecewise or counter, never ' + axis);
+  const piecewise = axis === 'piecewise';
+  const counter = axis === 'counter';
+  if (piecewise && typeof rec.tMsAt !== 'function') throw new Error("rPeakTimesOnAxis: the piecewise axis needs the record's own tMsAt");
+  const t = new Float64Array(positions.length);
+  for (let i = 0; i < positions.length; i++) t[i] = piecewise ? rec.tMsAt(positions[i]) : counter ? ecgCounterTimeMs(rec, positions[i]) : rec.t0Ms + (positions[i] / rec.fs) * 1000;
+  /* The linear axis is monotone in the index by construction, so only the two device-clock forms can
+     break sortedness, and a train that broke it is a wrong answer rather than a noisy one. */
+  if (piecewise || counter) {
+    for (let i = 1; i < t.length; i++) if (!(t[i] >= t[i - 1])) throw new Error(`${axis} ECG axis broke sortedness at beat ${i}`);
+  }
+  return t;
+}
 /* ── @port-from pat-feasibility-worker.js#ecgRpeakTimes ──────────────────────────────
    @port-sha a0779492738e
    RECONCILED 2026-11-05 against that source text, for row
@@ -234,8 +260,6 @@ function ecgRpeakTimes(text, runsTextOrOpts, optsThird) {
   const blankRanges = PATGate.runRanges(rec.blankingSpans);
   const blanked = PATGate.dropInRuns(detected, blankRanges);
   const peaks = blanked.kept;
-  const piecewise = opts && opts.axis === 'piecewise';
-  const counter = opts && opts.axis === 'counter';
   /* `refine`: sub-sample R positions through `ECGDSP.refinePeaks` (exported in #2487 for
      `pat-feasibility-worker.js`, which took them the same day). Without it this leg quantises every
      R to a whole sample — 7.7 ms at 130 Hz — on an axis whose PPG side has been fractional since
@@ -243,11 +267,9 @@ function ecgRpeakTimes(text, runsTextOrOpts, optsThird) {
      `--ecg-refine` turns it on, and PAT-FORENSICS-AXIS-LEG-ASYMMETRY's last box is the paired run. */
   const refined = opts && opts.refine && typeof ECGDSP.refinePeaks === 'function' ? ECGDSP.refinePeaks(bp, peaks, rec.fs).refIdx : null;
   const posAt = (k) => (refined && Number.isFinite(refined[k]) ? refined[k] : peaks[k]);
-  const t = new Float64Array(peaks.length);
-  for (let i = 0; i < peaks.length; i++) t[i] = piecewise ? rec.tMsAt(posAt(i)) : counter ? ecgCounterTimeMs(rec, posAt(i)) : rec.t0Ms + (posAt(i) / rec.fs) * 1000;
-  if (piecewise || counter) {
-    for (let i = 1; i < t.length; i++) if (!(t[i] >= t[i - 1])) throw new Error(`${opts.axis} ECG axis broke sortedness at beat ${i}`);
-  }
+  const positions = new Float64Array(peaks.length);
+  for (let i = 0; i < peaks.length; i++) positions[i] = posAt(i);
+  const t = rPeakTimesOnAxis(rec, positions, { axis: opts && opts.axis ? opts.axis : null });
   return {
     t0Ms: rec.t0Ms,
     fs: rec.fs,
@@ -781,7 +803,7 @@ function getDsps() {
   loadDsps();
   return { ECGDSP, PPGDSP, PATAlign, DexClock, PATGate };
 }
-export { loadDsps, getDsps, ecgRpeakTimes, ecgCounterTimeMs, ppgFootTimes, median, quantile, BIN_MIN };
+export { loadDsps, getDsps, ecgRpeakTimes, ecgCounterTimeMs, rPeakTimesOnAxis, ppgFootTimes, median, quantile, BIN_MIN };
 /* Night selection and clock alignment, so the fiducial comparison runs on exactly the pair and the
    offsets this tool would have used. Forking either would make the two legs incomparable — which is
    the whole failure `pat-finger-coupler.mjs`'s note above was written to avoid. Additive. */
