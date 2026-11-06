@@ -1049,6 +1049,34 @@ SEAM_FED_WRITERS = (
     "write_hr",
 )
 
+# WHAT THE DEVICE COLUMN IS, declared by the producer that fills it. `basis=device-minus-host` states
+# the ARITHMETIC truthfully — this writer does subtract the device column from the host column — and it
+# cannot state what that column IS. One stream fills it from a grid the HOST drew: the ring's `ppg1`
+# device stamp comes from `O2PpgGrid.frame` in capture.py, which anchors on host arrival and steps by a
+# measured nominal rate, so a residual against it compares the host with itself. 36 of the 58 seams
+# recorded corpus-wide sit on that one stream (measured 2026-11-06, row
+# `2026-11-06-the-seam-sidecar-cannot-tell-a-drawn-device-axis-from-a-clock`), so the DOMINANT case is
+# the drawn one, and the parameter line used to read the same for a grid and for an oscillator.
+#
+# NOT KEYED ON THE STREAM NAME, and that is the measured part. `ppg1` is the ring today and `ppg` is
+# the Verity, which is a naming coincidence rather than a rule — the same reading cost a day on
+# `SEAM_FED_WRITERS`, whose exclusion named a stream where the defect sat in a symbol. The producer
+# that fills the column declares what it filled it with.
+#
+# §∅: an undeclared stream reads UNKNOWN, never `device-clock`. A default that reads as a clock turns
+# "nobody declared this" into "a clock was here", which is absence-as-value in the metadata itself.
+#
+# ABSENT AND UNKNOWN ARE DIFFERENT ANSWERS, which is the same §∅ line one level up. A producer that
+# hands `None` for every sample declares NO-DEVICE-COLUMN: the ring's `ppg2w`, `pletha` and raw `acc`
+# rows all do, so their sidecar never opens and the value never reaches a file. UNKNOWN is what an
+# undeclared producer gets, and it means nobody said. A gate below reads capture.py's own syntax tree
+# and refuses a `StreamWriter` construction that declares neither.
+DEVICE_AXIS_CLOCK = "device-clock"
+DEVICE_AXIS_HOST_DRAWN = "host-drawn"
+DEVICE_AXIS_ABSENT = "no-device-column"
+DEVICE_AXIS_UNKNOWN = "unknown"
+DEVICE_AXES = (DEVICE_AXIS_CLOCK, DEVICE_AXIS_HOST_DRAWN, DEVICE_AXIS_ABSENT, DEVICE_AXIS_UNKNOWN)
+
 
 class _SeamSidecar:
     """Device-clock DISCONTINUITIES for one stream, written BESIDE it, never into it.
@@ -1075,7 +1103,12 @@ class _SeamSidecar:
     """
 
     def __init__(
-        self, path: str, stream: str, seed: "tuple[int, float] | None" = None, first_ns: "int | None" = None
+        self,
+        path: str,
+        stream: str,
+        seed: "tuple[int, float] | None" = None,
+        first_ns: "int | None" = None,
+        device_axis: "str | None" = None,
     ) -> None:
         """`seed` = (sensor_ns, phone_ms) of the LAST row already on disk when this sidecar resumes.
 
@@ -1108,6 +1141,12 @@ class _SeamSidecar:
             self._prev_ns, self._prev_phone_ms = seed
             if self._first_ns is None:
                 self._first_ns = seed[0]  # the resumed axis starts at the last pre-seam sample
+        # A TYPO MUST NOT SHIP AS METADATA. An absent declaration reads UNKNOWN, which is a named
+        # absence; a declaration outside the named set is a programming error rather than a third
+        # reading of the axis, so it raises here where the producer can see it.
+        if device_axis is not None and device_axis not in DEVICE_AXES:
+            raise ValueError(f"device_axis={device_axis!r} is not one of {DEVICE_AXES}")
+        self.device_axis = device_axis or DEVICE_AXIS_UNKNOWN
         self._opened = False
         self._pmd_note: str | None = None
         # Annotated, not inferred: a bare `= None` types the attribute as `None`, so every later
@@ -1151,7 +1190,8 @@ class _SeamSidecar:
                 # The file reproduces itself: a consumer reads the bound that PRODUCED these rows
                 # rather than whatever the default has moved to since.
                 self._fh.write(
-                    f"# stream={self.stream} rule=clock-seam bound_ms={SEAM_BOUND_MS} unit=ms basis=device-minus-host\n"
+                    f"# stream={self.stream} rule=clock-seam bound_ms={SEAM_BOUND_MS} unit=ms"
+                    f" basis=device-minus-host device_axis={self.device_axis}\n"
                 )
                 self._fh.write("phone_ts;idx;device_step_ms;phone_delta_ms;residual_ms;host_offset_ms;at_rel_ms\n")
             self._flush_pmd_note()  # negotiated before the first sample; write it under the header
@@ -1789,6 +1829,7 @@ class StreamWriter:
         fsync: bool = True,
         timebase: str | None = None,
         contact: "ContactLedger | None" = None,
+        device_axis: "str | None" = None,
     ):
         self.path = path
         self._health = _FlushHealth(path)
@@ -1903,6 +1944,7 @@ class StreamWriter:
             stream,
             seed=_last_row_clocks(path) if self.resumed else None,
             first_ns=self._first_ns,
+            device_axis=device_axis,
         )
         self._flush_interval = flush_interval
         self._fsync = fsync

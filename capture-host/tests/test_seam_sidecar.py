@@ -413,3 +413,78 @@ def test_TWO_seams_in_one_instance_count_as_two(tmp_path):
     sc.close()
     assert sc.seams == 2 and len(_rows(sc)) == 2, (sc.seams, _rows(sc))
     assert "seams=2" in open(sc.path).read(), "the final line carries the count it made"
+
+
+# ── THE DEVICE COLUMN'S PROVENANCE ────────────────────────────────────────────────────────────────
+# Row `2026-11-06-the-seam-sidecar-cannot-tell-a-drawn-device-axis-from-a-clock`. Every parameter line
+# read `basis=device-minus-host`, for a real oscillator and for a grid the host drew alike, and 36 of
+# the 58 seams recorded corpus-wide sit on the drawn one. `basis` keeps stating the arithmetic; the new
+# key states what the device column IS.
+
+
+def test_an_undeclared_axis_reads_unknown_and_never_device_clock(tmp_path):
+    """§∅ in the metadata: nobody said is its own answer, not a clock."""
+    sc = _sc(tmp_path)
+    sc.feed(T0, 1_000_000_000)
+    sc.close()
+    head = open(sc.path).read().split("\n")[0]
+    assert "device_axis=unknown" in head, head
+    assert "device_axis=device-clock" not in head, "an absent declaration must never read as a clock"
+    assert "basis=device-minus-host" in head, "the arithmetic statement stays true and stays put"
+
+
+def test_a_declared_drawn_axis_reaches_the_parameter_line(tmp_path):
+    """The ring's `ppg1` case: the host draws the device column, so the file says so."""
+    sc = writers._SeamSidecar(str(tmp_path / "X_PPG.txt"), "ppg1", device_axis=writers.DEVICE_AXIS_HOST_DRAWN)
+    sc.feed(T0, 1_000_000_000)
+    sc.close()
+    head = open(sc.path).read().split("\n")[0]
+    assert "device_axis=host-drawn" in head, head
+
+
+def test_a_declared_clock_axis_reaches_the_parameter_line(tmp_path):
+    """The Polar PMD case: the frame carries its own ns-since-2000 counter."""
+    sc = writers._SeamSidecar(str(tmp_path / "X_ECG.txt"), "ecg", device_axis=writers.DEVICE_AXIS_CLOCK)
+    sc.feed(T0, 1_000_000_000)
+    sc.close()
+    assert "device_axis=device-clock" in open(sc.path).read().split("\n")[0]
+
+
+def test_an_axis_outside_the_named_set_refuses_rather_than_ship_as_metadata(tmp_path):
+    """A typo is a programming error, never a third reading of the axis."""
+    with pytest.raises(ValueError, match="device_axis="):
+        writers._SeamSidecar(str(tmp_path / "X_ECG.txt"), "ecg", device_axis="host_drawn")
+
+
+def test_the_stream_writer_hands_its_declaration_to_the_sidecar(tmp_path):
+    """The production path: one producer declares, and the sidecar it owns writes what it was told."""
+    p = str(tmp_path / "X_ECG.txt")
+    w = writers.StreamWriter(p, "ecg", fsync=False, device_axis=writers.DEVICE_AXIS_HOST_DRAWN)
+    w.write_ecg(T0, 1_000_000_000, 0.0, -20001)
+    w.close()
+    assert "device_axis=host-drawn" in open(p[:-4] + "SEAMS.txt").read().split("\n")[0]
+
+
+def test_every_capture_side_stream_writer_declares_what_its_device_column_is():
+    """A WIRING GATE OVER THE SYNTAX TREE, not over the text.
+
+    `capture.py` carries a comment naming `StreamWriter(..., "ppg1")`, so a text scan reads a
+    construction that is prose. `ast` reads the calls the module actually makes. The population is
+    asserted too: a walk that found no construction must not read as a pass (§🧾).
+    """
+    import ast
+
+    src = module_source("capture.py")
+    found = []
+    for node in ast.walk(ast.parse(src)):
+        if not isinstance(node, ast.Call):
+            continue
+        fn = node.func
+        name = fn.attr if isinstance(fn, ast.Attribute) else getattr(fn, "id", None)
+        if name != "StreamWriter":
+            continue
+        kw = {k.arg for k in node.keywords if k.arg}
+        found.append((node.lineno, "device_axis" in kw))
+    assert len(found) >= 5, f"the walk examined {len(found)} construction(s), so it proved nothing"
+    undeclared = [ln for ln, ok in found if not ok]
+    assert not undeclared, f"capture.py builds a StreamWriter with no device_axis at line(s) {undeclared}"
