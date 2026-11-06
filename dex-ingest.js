@@ -217,6 +217,16 @@
        Claimed FIRST: `_PPG\b` does not match it (no boundary before RUNS), and without this line it
        fell through to the bare-name default and was queued as a PPG PRIMARY (measured 2026-09-25). */
     if (/_PPGRUNS\b|_PPGRUNS\./.test(u)) return 'runs';
+    /* The clock-seam sidecar (`…_PPGSEAMS.txt`, capture-host `writers.py` `_SeamSidecar`, which every
+       device-clocked writer builds) is PpgDex's 'seams' companion, exactly as `_ECGSEAMS.txt` is
+       ECGDex's one classifier up. Claimed HERE on the same reasoning as `_PPGRUNS`: `_PPG\b` does not
+       match `_PPGSEAMS` (no word boundary before SEAMS), so until this line `nonSignalName` set the
+       file aside as 'skip' and the box's own record of a clock discontinuity never reached the node
+       that computes across it (residue row
+       2026-11-05-four-clock-carrying-nodes-still-read-no-seam-sidecar). ONLY the PPG spelling is
+       claimed here: `_PPISEAMS` and `_HRSEAMS` name streams this node does not place, and they keep
+       their 'skip'. */
+    if (/_PPGSEAMS\b|_PPGSEAMS\./.test(u)) return 'seams';
     if (/_ACCRUNS\b|_ACCRUNS\./.test(u)) return 'accruns'; // the ACC companion's sidecar, distinct from 'runs'
     if (/_PPG\b|_PPG\./.test(u)) return 'ppg';
     if (/_ACC\b|_ACC\./.test(u)) return 'acc';
@@ -543,15 +553,20 @@
       return sf ? (typeof sf.get === 'function' ? sf.get(name) : sf[name]) : undefined;
     };
     items = Array.isArray(items) ? items : [];
-    var COMPANION = ['acc', 'gyro', 'magn', 'ppi', 'marker', 'runs', 'accruns'];
+    var COMPANION = ['acc', 'gyro', 'magn', 'ppi', 'marker', 'runs', 'accruns', 'seams'];
     // (1) classify by name (the SAME ppgKind the app + routing-table test use); a name-'ppg' item the
     //     caller's content-sniff flagged foreign (sniffedForeign) is set aside with its sniffed kind.
     //     'runs' is the `_PPGRUNS.txt` validity sidecar (SAMPLE-VALIDITY-ENVELOPE §3.2) — device-eligible
     //     like every other companion; the app picks the nearest by FILENAME stamp because its text must
     //     reach parsePPG itself, before a parsed rec.t0Ms exists.
+    //     'seams' is the `_PPGSEAMS.txt` clock-seam sidecar (SEAM-SIDECAR-CONSUMPTION §4) and rides the
+    //     same road for the same reason — its text reaches parsePPG, so the pick is by filename stamp.
+    //     EVERY kind in COMPANION is device-filtered by the one `_isDeviceEligible` pass at (3) below,
+    //     so a new lane here cannot inherit the enumerated-kind gap that ECG's `planIngest` step (5)
+    //     carries (row 2026-11-05-three-sidecar-lanes-skip-the-device-id-companion-filter).
     var ppgCand = [],
       hr = [],
-      comp = { acc: [], gyro: [], magn: [], ppi: [], marker: [], runs: [], accruns: [] },
+      comp = { acc: [], gyro: [], magn: [], ppi: [], marker: [], runs: [], accruns: [], seams: [] },
       skipped = [];
     items.forEach(function (it) {
       var k = ppgKind(it.name);
