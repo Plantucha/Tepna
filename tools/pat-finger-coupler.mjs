@@ -41,7 +41,7 @@ import { join, basename } from 'node:path';
 import { dissentStampOf, dissentTallyLine, refpickOf, signsOf } from './consensus-dissent-core.mjs';
 import { loadDsps, getDsps, ecgRpeakTimes, ppgFootTimes, legacyMatchRate, strictMatchRate, circShift, rawLags, median, STRICT_W_MS } from './pat-matchrate-strict.mjs';
 import { isCliEntry } from './argv-guard.mjs';
-import { notANight, populationVerdict, snapshotNights } from './corpus-scope-core.mjs';
+import { notANight, populationVerdict, snapshotNights, coverageIdentity } from './corpus-scope-core.mjs';
 import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
 
 /* ── THE VALIDITY SIDECAR RIDES WITH THE STREAM ─────────────────────────────────────────────
@@ -250,10 +250,14 @@ function main() {
   });
   /* Named against the SELECTED set: under `--night` the rest of the offer was never a candidate. A
      night with several pairs counts as scored when ANY of its rows scored. */
-  const unscored = notANight(
-    { n: nights.length, nights },
-    rows.map((r) => ({ night: r.night, ok: !r.skip }))
-  );
+  const coveredRows = rows.map((r) => ({ night: r.night, ok: !r.skip }));
+  const unscored = notANight({ n: nights.length, nights }, coveredRows);
+  /* THE PRINTED FIGURE ANSWERS TO THE ARITHMETIC (#4506), AND THE LOOP SHAPE IS WHY IT MAY. The night
+     loop reads `pairsIn`, which returns the single best-overlapping pair or none, so each night pushes
+     at most one row and `scored.length` on the summary line beside `nights.length` counts nights, not
+     pairs. Were `pairsIn` ever to return a pair per session, this call would start throwing on the
+     first night that carried two — which is the behaviour to keep. */
+  coverageIdentity({ n: nights.length, nights }, coveredRows, unscored, { printedScored: coveredRows.filter((r) => r.ok).length });
   if (JSON_OUT) {
     console.log(JSON.stringify({ offered: popBefore.n, selected: nights.length, population, rows }, null, 1));
     return;
