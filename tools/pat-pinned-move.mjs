@@ -173,10 +173,15 @@ export async function loadWorker() {
   sb.importScripts = noop;
   const ctx = vm.createContext(sb);
   ctx.__DEX_NAMESPACED__ = true;
-  const files = [...PPG_REALM, 'pat-gate.js', 'pat-align.js', 'analysis-stats.js', 'ecgdex-dsp.js', 'pat-feasibility-worker.js'];
+  /* 🔴 `consensus-dissent.js` IS PART OF THE WORKER'S SPINE. `pat-feasibility-worker.js`
+     ppgFootTimes calls `ConsensusDissent.signsOf` UNGUARDED since #4433 (2026-11-05). With the module
+     absent, every recording threw a ReferenceError and was refused, so the tool measured nothing for
+     two days while its selftest stayed green. #4487 fixed the same omission in the HR reference tool.
+     A file in this list that is not on disk THROWS: a skipped module is the same silent disablement. */
+  const files = [...PPG_REALM, 'pat-gate.js', 'pat-align.js', 'analysis-stats.js', 'ecgdex-dsp.js', 'consensus-dissent.js', 'pat-feasibility-worker.js'];
   for (const f of files) {
     const p = join(ROOT, f);
-    if (!existsSync(p)) continue;
+    if (!existsSync(p)) throw new Error(`${TOOL}: the realm list names ${f}, which is not on disk`);
     vm.runInContext(classicify(readFileSync(p, 'utf8')), ctx, { filename: f });
   }
   if (typeof sb.ppgFootTimes !== 'function') throw new Error(`${TOOL}: the worker loaded but exposes no ppgFootTimes — the co-load list moved`);
@@ -318,7 +323,7 @@ function maskPath(p) {
 }
 
 /* ── selftest ────────────────────────────────────────────────────────────────────────────────── */
-function selftest() {
+async function selftest() {
   let ran = 0;
   const ok = (what, cond) => {
     ran++;
@@ -398,6 +403,35 @@ function selftest() {
   ok('∅ an empty list yields an empty sample, never a fabricated member', sampleOf([], 5).length === 0);
   ok('a masked name carries no serial', !/S\dAW/.test(maskPath('/x/Wellue_O2Ring-S_S4AW1234_20260824052358_PPG.txt')));
   ok('a masked name still names the vendor', maskPath('/x/Polar_VeritySense_0C301E3F_1_PPG.txt').startsWith('Polar:'));
+  /* ══ THE REALM CARRIES THE WHOLE WORKER SPINE — MEASURED, NOT LISTED ══════════════════════════
+     A list of expected module names drifts from the worker. This leg runs both legs of `moveOne`
+     over a synthetic 3-LED pulse in the real realm, so the next shared-module addition reds here
+     with its own ReferenceError. Before this leg the selftest never entered the realm. */
+  {
+    const SFS = 135,
+      SSECS = 90,
+      SHZ = 1.1;
+    const rows = ['Phone timestamp;sensor timestamp [ns];channel 0;channel 1;channel 2;ambient'];
+    for (let i = 0; i < SFS * SSECS; i++) {
+      const t = i / SFS;
+      const iso = new Date(Date.UTC(2026, 8, 28, 21, 0, 0) + Math.round(t * 1000)).toISOString().replace('Z', '');
+      const beat = Math.sin(2 * Math.PI * SHZ * t) + 0.3 * Math.sin(4 * Math.PI * SHZ * t);
+      const v = (g) => Math.round(-300000 + g * 4000 * beat);
+      rows.push(`${iso};${(843960926087160899n + BigInt(Math.round(t * 1e9))).toString()};${v(1)};${v(0.9)};${v(1.1)};-614694`);
+    }
+    const worker = await loadWorker();
+    let moved = null,
+      err = null;
+    try {
+      moved = moveOne(worker, rows.join('\n'));
+    } catch (e) {
+      err = String((e && e.message) || e);
+    }
+    ok(`both legs run over a synthetic 3-LED pulse in the real realm, so it carries every module ppgFootTimes dereferences — threw: ${err || 'nothing'}`, err === null);
+    ok('the shipped leg counts feet on the synthetic pulse', moved != null && Number.isFinite(moved.feetShipped) && moved.feetShipped > 0);
+    ok('the realm defines ConsensusDissent by name — the module whose absence refused every recording', typeof worker.ConsensusDissent !== 'undefined');
+    ok('CONTROL · a name no file defines reads undefined in the same realm, so the leg above is not vacuous', typeof worker.NoSuchModuleInThisRealm === 'undefined');
+  }
   console.log(`selftest: all ${ran} assertions passed`);
 }
 
@@ -422,7 +456,7 @@ const valueOf = (f) => {
 async function main() {
   refuseUnknownArgvOrExit(argv, { valued: ['--limit', '--tree'], boolean: ['--check', '--json', '--selftest', '--verdict-sample'] }, { tool: 'pat-pinned-move' });
   if (has('--selftest')) {
-    selftest();
+    await selftest();
     process.exit(process.exitCode || 0);
   }
   if (has('--verdict-sample')) {
