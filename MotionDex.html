@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="74e3698eaafa" data-compute-hash="e12c33e9eb0b">
+<html lang="en" data-manifest-hash="b8b99ea5d49d" data-compute-hash="0f2a5559ffd6">
 <head>
 <!--
   MotionDex.src.html — Tepna
@@ -12,7 +12,7 @@
 <!-- CSP: browser-enforces the no-network invariant. connect-src 'none' blocks every outbound request;
      script-src is STRICT ('self' + per-inline-script sha256, NO 'unsafe-inline'). MotionDex ships zero
      inline scripts (all init lives in motiondex-app.js), so the hash list is empty by construction. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-LFUuThFphtJbs7xcxi6ccAB4tRpfMsn5CPS3sr9f3SQ=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-LNL2HIbq1MolWykSbNRcVM1IXWPE1b23gr8wWMcU+sA=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-VgFoFKGHbDum9MonvKIxKk4wlpWldkoFTOwZIibLUu4=' 'sha256-bIhKcpZRJ/ZzKulROPoeorGxddt3ajAjGiOPqmDw7ik=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-hCZmwNAMDLPZEMYHAYpzoPETSnimg1oHWWjZImdKqxM='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DnGTW/7MgYxGDBRvOr+XhGHLMZ65NfLlXlAKT/D+Gl0=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-LFUuThFphtJbs7xcxi6ccAB4tRpfMsn5CPS3sr9f3SQ=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-QZbSesvrcZfyvOVkoWZ4J0kWWkv9uBUjAVCIwyZIFmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-bIhKcpZRJ/ZzKulROPoeorGxddt3ajAjGiOPqmDw7ik=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-hCZmwNAMDLPZEMYHAYpzoPETSnimg1oHWWjZImdKqxM='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>MotionDex — Motion / IMU Analyzer · v2.28.0</title>
@@ -7925,6 +7925,31 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
     return { conf: Math.round(conf * 100) / 100, flags: flags, clipFrac: clipFrac, flatFrac: flatFrac, offFrac: offFrac };
   }
 
+  /* ── ∅ · A PLACEHOLDER SQI IS NOT A QUALITY OF ZERO ───────────────────────────────────────────
+     `motionSQI` returns `{ conf: 0, flags: ['no-data'] }` under ten rows, and
+     `{ conf: 0, flags: ['unit-unknown'] }` over magnitudes of unknown scale. INSIDE the summary the
+     flags carry that reason out of band, so the summary itself is honest. The export projected the
+     BARE conf under the `sqi` key and the flags stopped at that boundary. (The old line is NOT quoted
+     here: a suite leg asserts this file no longer contains it, and a comment holding it would pass
+     that leg over the very projection it guards.) The computed path reaches a real 0 as well — `clamp(1 - clipFrac*5 - flatFrac -
+     offFrac*2, 0, 1)` bottoms out on a clipped or flatlined stream — so a consumer could not tell
+     ten absent rows from the worst quality this node can MEASURE. The 2026-08-31
+     ungated-surface sweep recorded this projection as the live path and called its safety a
+     property of the producer, which is what §∅ refuses.
+
+     The value and the node's OWN reason token travel together. A measured conf keeps its number and
+     reads `reason: null` — A MEASURED 0 IS A MEASUREMENT and stays published. */
+  var MD_SQI_ABSENT_FLAGS = ['no-data', 'unit-unknown'];
+  function sqiExportPair(s) {
+    if (!s || typeof s !== 'object') return { value: null, reason: 'no-sqi-block' };
+    var flags = Array.isArray(s.flags) ? s.flags : [];
+    for (var i = 0; i < MD_SQI_ABSENT_FLAGS.length; i++) {
+      if (flags.indexOf(MD_SQI_ABSENT_FLAGS[i]) >= 0) return { value: null, reason: MD_SQI_ABSENT_FLAGS[i] };
+    }
+    // an sqi block that carries no finite conf states that, rather than publishing `null` unexplained
+    return typeof s.conf === 'number' && isFinite(s.conf) ? { value: s.conf, reason: null } : { value: null, reason: 'no-conf' };
+  }
+
   // ════════════════════════════════════════════════════════════════════════
   //  COMPUTE — orchestrate the single-signal motion metrics
   //  input: { acc, gyro, mag, chestAcc }  (each = raw file text OR pre-parsed rows)
@@ -8307,6 +8332,9 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
     opts = opts || {};
     var kfmt = opts.kernel ? { version: opts.kernel.VERSION, hash: opts.kernel.HASH } : typeof DexKernel !== 'undefined' && DexKernel ? { version: DexKernel.VERSION, hash: DexKernel.HASH } : null;
     var t0 = summary.t0Ms;
+    // ONE evaluation per stream, read by the posture_change conf below and by the two export fields
+    var sqiPos = sqiExportPair(summary.sqi),
+      sqiAct = sqiExportPair(summary.sqiActivity);
     var events = [];
     // position-transition events (impulse per posture change) — the fusion currency
     var track = summary.position && summary.position.track;
@@ -8320,7 +8348,10 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
             tMs: seg.tStartMs,
             impulse: 'posture_change',
             node: 'MotionDex',
-            conf: summary.sqi ? summary.sqi.conf : null,
+            /* the same pair: a posture_change under a placeholder SQI carries no confidence, and
+               `crossnight-envelope.js:278` declares `conf` 0..1 OR null. Both placeholder states also
+               refuse the position block, so no event reaches this line under either one today. */
+            conf: sqiPos.value,
             meta: { position: seg.pos }
           });
           prev = seg.pos;
@@ -8398,12 +8429,15 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
         effortSeries: summary.effort && summary.effort.series ? summary.effort.series : null,
         effortCadenceSec: summary.effort ? summary.effort.cadenceSec : null,
         effortFloorG: summary.effort ? summary.effort.floorG : null,
-        sqi: summary.sqi ? summary.sqi.conf : null,
+        sqi: sqiPos.value,
+        // the reason beside the value, UNCONDITIONALLY and `null` on a measured night (§∅, see sqiExportPair)
+        sqiReason: sqiPos.reason,
         // DEEP-AUDIT-II §7.5 — per-stream SQI. `sqi` above qualifies the posture/chest source (and the
         // posture_change event conf); `sqiActivity` qualifies the WRIST stream the actigraphy metrics
         // (immobileFrac / movementIndex / activitySeries) are derived from. Equal to `sqi` on a
         // single-stream night; a consumer trusts the movement metrics against THIS, not the chest SQI.
-        sqiActivity: summary.sqiActivity ? summary.sqiActivity.conf : null
+        sqiActivity: sqiAct.value,
+        sqiActivityReason: sqiAct.reason
       },
       ganglior_events: events
     };
@@ -8621,6 +8655,76 @@ __exports.MotionDex = window.MotionDex;
     return '<div class="mx-spark">' + bars + '</div>';
   }
 
+  /* ── D17 · THE NODE'S OWN REFUSALS AND UNEXAMINED CHANNELS ──────────────
+     `motiondex-dsp.js` writes six reason families over 17 sites and this file read NONE of them.
+     `:1089` nulls `immobileFrac` on a device-clock seam and writes `immobileFracReason: 'clock-seam'`
+     beside the null; `pos`/`act` refuse a whole block as `{ hasData: false, reason: 'unit-unknown' }`.
+     Both drew the same em-dash a night with no covered epoch draws, and a refused block drew the same
+     nothing a stream that never arrived draws. A refusal nobody renders reads as a clean result.
+
+     FOUR STATES, never two: a refusal names its reason · an unexamined channel reads UNKNOWN · a
+     recorded count annotates · a MEASURED zero stays silent, because a note on every clean night is
+     noise. Every token is the node's OWN spelling, never a borrowed word standing in for it.
+     Decision mine under CLAUDE.md §7, posted to the board as #4090. */
+  /* A state with no token renders NO value element: an empty `<b>` is a container standing where a
+     value would go, and the count such a state carries already sits in its own label. */
+  function mxNote(label, value, sentence) {
+    return '<div class="mx-row"><span>' + esc(label) + '</span>' + (value == null ? '' : '<b><code>' + esc(value) + '</code></b>') + '</div>' + '<div class="kpi-sub">' + esc(sentence) + '</div>';
+  }
+
+  function _mxProvenanceNote(summary) {
+    if (!summary || typeof summary !== 'object') return '';
+    var pos = summary.position || {},
+      act = summary.activity || {},
+      out = '';
+
+    // ── a refused BLOCK: the card above it renders nothing, which is what a missing stream renders ──
+    if (pos.hasData === false && pos.reason)
+      out += mxNote('⏱ Position block refused', pos.reason, 'The node published no dwell track for this recording. The absent Position card is a refusal, not a stream that never arrived.');
+    if (act.hasData === false && act.reason)
+      out += mxNote('⏱ Actigraphy block refused', act.reason, 'The node published no epoch track for this recording. The absent Actigraphy card is a refusal, not a stream that never arrived.');
+
+    // ── a refused FIGURE beside the figures that stand ──
+    if (act.immobileFracReason)
+      out += mxNote(
+        '⏱ Immobile time refused',
+        act.immobileFracReason,
+        'A device-clock seam crosses this recording, so the immobile fraction over it describes no continuous stretch of signal. The em-dash above is that refusal. Movement index still stands, because a magnitude over covered epochs is not a span.'
+      );
+
+    /* ── the ARRIVAL seam channel. The owner ruled on 2026-11-05 that a night with no sidecar reads
+       UNKNOWN, never seam-free, so a non-finite count states the node's own reason token. ── */
+    var s = summary.seams;
+    if (!s || typeof s !== 'object') {
+      out += mxNote('❓ Seam channel UNKNOWN', null, 'This recording carries no seam channel at all, so nothing examined the box arrival stamps.');
+    } else if (typeof s.seams !== 'number' || !isFinite(s.seams)) {
+      out += mxNote(
+        '❓ Seam channel UNKNOWN',
+        s.reason || null,
+        'The sidecar reader published no seam count, so nothing examined the box arrival stamps. The figures above stand, and an unexamined channel is not a clean one.'
+      );
+    } else if (s.seams > 0) {
+      out += mxNote(
+        '📄 Recorded seams · ' + s.seams,
+        s.reason || null,
+        'The box recorded a gap in the arrival stamps. ' +
+          (typeof s.placed === 'number'
+            ? s.placed + ' of them ' + (s.placed === 1 ? 'lands' : 'land') + ' on this axis.'
+            : 'The reader published no placement for them, so how many land on this axis is UNKNOWN.')
+      );
+    }
+
+    // ── a device-clock STEP the parser found. A measured zero stays silent. ──
+    if (typeof summary.clockResyncs === 'number' && summary.clockResyncs > 0)
+      out += mxNote('📄 Device-clock steps · ' + summary.clockResyncs, null, 'The parser re-anchored the axis at each step, so an epoch index either side of one describes a different clock.');
+
+    // ── reduced COVERAGE annotates (owner ruling 2026-09-17), so the epoch counts above read honestly ──
+    if (typeof act.blankedEpochs === 'number' && act.blankedEpochs > 0)
+      out += mxNote('📄 Blanked epochs · ' + act.blankedEpochs, null, 'The box called these epochs absent. The recorded-epoch counts above cover less of the night than its span.');
+
+    return out;
+  }
+
   // renderSummary(summary) → paints every section of the shared scaffold
   function renderSummary(summary) {
     var grid = $('mxKpiGrid');
@@ -8670,19 +8774,26 @@ __exports.MotionDex = window.MotionDex;
     }
 
     // ── quality ──
-    if (sqi.conf != null) {
-      var q = row('Signal quality', num(sqi.conf, 2) + '×', sqi.flags && sqi.flags.length ? sqi.flags.join(', ') : 'clean');
-      q +=
-        '<div class="mx-row"><span>Streams</span><b>ACC ' +
-        (summary.streams.acc || 0) +
-        ' · GYRO ' +
-        (summary.streams.gyro || 0) +
-        ' · MAGN ' +
-        (summary.streams.mag || 0) +
-        ' · chest ' +
-        (summary.streams.chestAcc || 0) +
-        '</b></div>';
-      q += '<div class="mx-row"><span>Recording span</span><b>' + (summary.durSec ? (summary.durSec / 60).toFixed(0) + ' min' : '—') + '</b></div>';
+    /* The node's refusals LEAD this card, because they qualify every figure above them. A card that
+       opened only on `sqi.conf` would hide a refusal on the very night that earned it, so the note
+       alone is enough to reveal the section. */
+    var prov = _mxProvenanceNote(summary);
+    if (sqi.conf != null || prov) {
+      var q = prov;
+      if (sqi.conf != null) {
+        q += row('Signal quality', num(sqi.conf, 2) + '×', sqi.flags && sqi.flags.length ? sqi.flags.join(', ') : 'clean');
+        q +=
+          '<div class="mx-row"><span>Streams</span><b>ACC ' +
+          (summary.streams.acc || 0) +
+          ' · GYRO ' +
+          (summary.streams.gyro || 0) +
+          ' · MAGN ' +
+          (summary.streams.mag || 0) +
+          ' · chest ' +
+          (summary.streams.chestAcc || 0) +
+          '</b></div>';
+        q += '<div class="mx-row"><span>Recording span</span><b>' + (summary.durSec ? (summary.durSec / 60).toFixed(0) + ' min' : '—') + '</b></div>';
+      }
       fill('mxQualityCard', 'mxQuality', q);
     }
   }
