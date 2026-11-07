@@ -4609,6 +4609,47 @@ def test_A_FEW_STRAY_PULSE_ROWS_DO_NOT_KEEP_AN_UNWORN_VERITY_FILE(tmp_path):
     assert w["worn_end"] == {"at": w["ends"][0]["worn_end_at"], "reason": "doff", "file": worn.name}
 
 
+def test_A_LINK_LOSS_FOLLOWED_BY_AN_UNWORN_RELINK_IS_A_DOFF(tmp_path):
+    """OWNER RULING 2026-11-06. MEASURED on the capture box: night 2026-11-05's Verity link dropped at
+    04:22:55, and the file of the relink 55 s later reported a pulse on 0 of its 3156 PPI rows. The end read
+    `link-loss` and the solid verdict went UNKNOWN. Its shape here: a flat file, then an unworn relink."""
+    d = tmp_path / "captures" / "2026-09-23"
+    d.mkdir(parents=True)
+    worn = d / "Polar_VeritySense_0C30_20260923230000_PPG.txt"
+    _ppg(str(worn), 370, 20, lambda t: 37.0)  # flat to its end: no removal signature
+    _ppi(str(d / "Polar_VeritySense_0C30_20260923230000_PPI.txt"), [60] * 300)
+    t1 = W0 + dt.timedelta(seconds=390)
+    off = d / "Polar_VeritySense_0C30_20260923230630_PPG.txt"
+    _ppg(str(off), 400, 20, lambda t: 37.0, t0=t1)
+    off_ppi = d / "Polar_VeritySense_0C30_20260923230630_PPI.txt"
+    _ppi(str(off_ppi), [0] * 400, t0=t1)
+    w = loss_audit.wear_ends(str(d), "VeritySense")
+    first = w["ends"][0]
+    assert first["reason"] == "doff" and first["doff_witness"] == f"relink-not-worn: {off.name}", first
+    assert w["worn_end"] == {"at": first["worn_end_at"], "reason": "doff", "file": worn.name}
+    # a WORN relink keeps the link loss: the device came back on the body
+    _ppi(str(off_ppi), [60] * 400, t0=t1)
+    w = loss_audit.wear_ends(str(d), "VeritySense")
+    assert [e["reason"] for e in w["ends"]] == ["link-loss", "quiet-end-unclassified"], w["ends"]
+    assert "doff_witness" not in w["ends"][0]
+
+
+def test_only_the_next_file_witnesses_a_link_loss():
+    """A worn file between the link loss and the unworn file keeps the link loss; an unusable end is
+    never relabelled, and the reason text alone is no witness."""
+    ll = {"file": "a", "usable": True, "reason": "link-loss"}
+    worn = {"file": "b", "usable": True, "reason": "link-loss"}
+    off = {"file": "c", "usable": False, "reason": "not worn", "ppi_rows": 40, "ppi_pulse_rows": 0}
+    ends = [ll, worn, off]
+    loss_audit.relink_off_body(ends)
+    assert [e["reason"] for e in ends] == ["link-loss", "doff", "not worn"] and "doff_witness" not in ll
+    short = {"file": "d", "usable": False, "reason": "link-loss"}
+    text_only = {"file": "e", "usable": False, "reason": "not worn: no key"}
+    ends = [short, dict(off), dict(ll), text_only]
+    loss_audit.relink_off_body(ends)
+    assert [e["reason"] for e in ends] == ["link-loss", "not worn", "link-loss", "not worn: no key"]
+
+
 # ── verity_ppi_pulse: the row and pulse counts, one case per kind of row (mutate-diff on #4401) ────────
 def test_verity_ppi_pulse_counts_every_row_and_each_pulse_above_zero(tmp_path):
     """A bad row in the middle is skipped, and the rows after it still count. An hr of 1 is a pulse."""
