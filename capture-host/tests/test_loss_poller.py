@@ -689,3 +689,17 @@ def test_a_night_that_starts_after_midnight_is_judged(tmp_path, monkeypatch):
     monkeypatch.setattr(capture.loss_audit, "write_night", _audit_writer(calls))
     _poll_once(monkeypatch, tmp_path)
     assert calls == ["2026-10-03"], "the 10-04 folder names a band that is still open"
+
+
+def test_a_rejected_name_listed_first_does_not_hide_a_kept_name_after_it(tmp_path, monkeypatch):
+    """`keep` skips ONE name and reads on. The listing order is the filesystem's, so pin both orders."""
+    import nightqc
+
+    d = tmp_path / "2026-10-04"
+    t_in = _file(d, "Polar_H10_0284_20261004002801_ECG.txt", 2026, 10, 4, 6, 0)
+    _file(d, "Polar_H10_0284_20261004120000_ECG.txt", 2026, 10, 4, 13, 0)
+    out, inn = "Polar_H10_0284_20261004120000_ECG.txt", "Polar_H10_0284_20261004002801_ECG.txt"
+    real = os.listdir
+    for order in ([out, inn], [inn, out]):
+        monkeypatch.setattr(nightqc.os, "listdir", lambda p, o=order: o if p == str(d) else real(p))
+        assert nightqc.newest_data_mtime(str(d), keep=lambda n: n == inn) == t_in, order
