@@ -36,7 +36,7 @@
  * ══════════════════════════════════════════════════════════════════════════════════════════════ */
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 
-import { notANight, populationVerdict, snapshotNights } from './corpus-scope-core.mjs';
+import { coverageIdentity, notANight, populationVerdict, snapshotNights } from './corpus-scope-core.mjs';
 import { join } from 'node:path';
 import { halfAmplitudeIndex } from './pat-fiducial.mjs';
 import { MIN_OVERLAP_MIN, alignFeet, bestPair, circShift, loadDsps, median, quantile, rawLags, strictMatchRate } from './pat-matchrate-strict.mjs';
@@ -204,10 +204,12 @@ if (IS_CLI) {
      still gets the set it was computed over. A SKIPPED night scored nothing, so it is NOT covered:
      `notANight` reads `ok === false` and a row without the flag would count as read. */
   const population = populationVerdict(popBefore, snapshotNights(DIR), { tool: 'tools/pat-fiducial-compare.mjs' });
-  const unscored = notANight(
-    { nights },
-    rows.map((r) => ({ night: r.night, ok: !r.skipped }))
-  );
+  const coveredRows = rows.map((r) => ({ night: r.night, ok: !r.skipped }));
+  const unscored = notANight({ nights }, coveredRows);
+  /* THE DIFFERENCE ANSWERS TO THE ARITHMETIC (#4506). The printed count labels MOVEMENT between two
+     snapshots, not coverage, so no printed figure goes in here — the identity binds the named set to
+     the rows this run scored, and a short difference stops it. */
+  coverageIdentity({ nights }, coveredRows, unscored);
   console.error(
     `  population: ${population.status} — ${population.population.checked} night(s) of ${population.population.eligible}` +
       (ONLY ? ` · --only ${ONLY} left ${popBefore.n - nights.length} offered night(s) unread` : '') +
