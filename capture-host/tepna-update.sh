@@ -193,7 +193,7 @@ _streak_read() {
 # reachability analysis does not follow (nor into the calls this makes).
 _streak_stamp() { date -d "@$1" '+%F %T' 2>/dev/null || printf 'unknown'; }
 
-# Send one update-streak alert: `lost|back <n> <first-epoch>`. Exit 0 = delivered or alerts off. Bounded
+# Send one update-streak alert: `lost|back <n> <first-epoch>`. Exit 0 = delivered or no alerting. Bounded
 # by `timeout`, and every failure only warns: an alert must never be the reason the box stops updating.
 # shellcheck disable=SC2329  # reached through the EXIT trap below, which shellcheck's
 # reachability analysis does not follow (nor into the calls this makes).

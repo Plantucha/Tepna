@@ -1258,8 +1258,9 @@ def update_streak_text(due: str, n: int, first_epoch: int, now: float) -> tuple[
 def update_streak_main(argv: list[str], _post=None, now: float | None = None) -> int:
     """`python alerts.py update-streak <config.yaml> lost|back <n> <first-epoch>`.
 
-    Exit 0 when the alert was delivered or alerts are off, 5 when a configured send failed, 2 on bad
-    arguments. The caller latches on 0 only, so a failed send retries on the next run."""
+    Exit 0 when the alert was delivered or no alerting is configured, 3 when the config is there and
+    does not read as a mapping, 5 when a configured send failed, 2 on bad arguments. The caller latches
+    on 0 only, so every refusal retries on the next run."""
     import asyncio
 
     if len(argv) != 5 or argv[0] != "update-streak" or argv[2] not in ("lost", "back"):
@@ -1276,9 +1277,20 @@ def update_streak_main(argv: list[str], _post=None, now: float | None = None) ->
         # Bytes in: YAML detects the encoding itself, so the host locale cannot change the read.
         with open(argv[1], "rb") as fh:
             cfg = yaml.safe_load(fh)
-    except Exception:
-        return 0  # no readable config is no configured alert: alerts off
-    acfg = (cfg.get("alerts") if isinstance(cfg, dict) else None) or {}
+    except FileNotFoundError:
+        return 0  # no config file at all IS the configuration: this box runs no alerting
+    except Exception as exc:
+        # The file is there and it does not read. Whether it configured an alert is UNKNOWN, so this
+        # never answers "alerts off". It names the reason and refuses, which leaves the caller's latch
+        # clear and retries on the next run.
+        _log.warning("alerts: the update-streak config at %s does not read: %s", argv[1], exc)
+        return 3
+    if cfg is not None and not isinstance(cfg, dict):
+        # A document that is not a mapping carries no alerts block it could have carried, so the alert
+        # state is unknown here too. Only an absent file and an empty document mean "none configured".
+        _log.warning("alerts: the update-streak config at %s holds %s, not a mapping", argv[1], type(cfg).__name__)
+        return 3
+    acfg = (cfg.get("alerts") if cfg else None) or {}
     notifier = Notifier(acfg.get("webhook_url"), bool(acfg.get("enabled")), _post=_post)
     if not notifier.enabled:
         return 0

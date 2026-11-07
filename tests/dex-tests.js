@@ -963,6 +963,71 @@
       );
     });
 
+    /* ── THE REST OF THE SAME SWEEP ────────────────────────────────────────────────────────────────
+       The group above added `_kc` and `_kn` to `renderKpiGridPx` and its comment said one grader and
+       one formatter keep absence as absence on every refusable card. Seven tiles in the same array
+       still graded a bare comparison, and two of those still built their value by concatenation.
+       Measured on the published absence form — `siCalc` returns null and `_r1` passes it through —
+       the seven read: Baevsky SI good, Artifacts good, HF n.u. bad, Coverage bad, LF/HF warn, ABS
+       warn and Resp Rate warn. So an absent Baevsky SI painted a card GREEN. The legs below call the
+       real module-scope helpers in the render realm, then pin each tile's own expression in source,
+       because a helper can be right while no tile calls it. */
+    group('∅ PulseDex overview tiles — an absence is neutral, never a band', 'pulsedex-overview · absence · render-harness', function (T) {
+      var K = env.PXKPI;
+      if (!K || typeof K._kc !== 'function' || typeof K._kd !== 'function' || typeof K._kn !== 'function') {
+        T.skip(
+          'env.PXKPI wired (the overview module executes in the render realm)',
+          'Node-lane only (run-tests.mjs executes pulsedex-overview.js headless); the browser lane runs it in iframe rigs so it SKIPs'
+        );
+      } else {
+        // ── the ascending grader ──
+        T.eq('_kc returns neutral for a null', K._kc(null, 35, 20), 'neutral');
+        T.eq('_kc returns neutral for an undefined, which the bare comparison graded bad', K._kc(undefined, 35, 20), 'neutral');
+        T.eq('CONTROL · _kc still grades a measured value above the good cut', K._kc(40, 35, 20), 'good');
+        T.eq('CONTROL · _kc still grades a measured value between the cuts', K._kc(25, 35, 20), 'warn');
+        T.eq('CONTROL · _kc still grades a measured value below the warn cut', K._kc(10, 35, 20), 'bad');
+        T.eq('a MEASURED zero keeps its grade — ABS at 0 is warn, not neutral', K._kc(0, 0, -0.3), 'warn');
+
+        // ── the descending grader, which the Baevsky SI tile needs ──
+        T.eq('_kd returns neutral for a null', K._kd(null, 150, 250), 'neutral');
+        T.eq('_kd returns neutral for an undefined', K._kd(undefined, 150, 250), 'neutral');
+        T.eq('CONTROL · _kd still grades a measured SI below the good cut', K._kd(100, 150, 250), 'good');
+        T.eq('CONTROL · _kd still grades a measured SI between the cuts', K._kd(200, 150, 250), 'warn');
+        T.eq('CONTROL · _kd still grades a measured SI above the warn cut', K._kd(300, 150, 250), 'bad');
+        T.eq('a MEASURED zero keeps its grade — an SI of 0 is good, not neutral', K._kd(0, 150, 250), 'good');
+        T.ok('the mechanism the raw form had: a null compares below the good cut', null < 150, 'null < 150 evaluates ' + (null < 150));
+
+        // ── the formatter ──
+        T.eq('_kn returns null for a null, so the emitter can print its em-dash', K._kn(null), null);
+        T.eq('_kn returns null for an undefined', K._kn(undefined), null);
+        T.eq('CONTROL · _kn still formats a measured zero as its own number', K._kn(0), '0');
+        T.eq('CONTROL · _kn still formats a measured value', K._kn(97), '97');
+        T.ok('the mechanism the raw form had: a concatenation makes the string null', null + '' === 'null', 'a concatenated null reads ' + JSON.stringify(null + ''));
+
+        // ── each tile calls one of them (a right helper no tile calls is still the defect) ──
+        var ovw = (env.sources || {})['pulsedex-overview.js'] || '';
+        if (!ovw.trim()) {
+          T.skip('the overview source', 'sources not provided in this runner');
+        } else {
+          T.ok('ANTI-VACUITY · the KPI array is in the source this leg reads', ovw.indexOf("l: 'Baevsky SI'") > 0, 'the SI tile sits at offset ' + ovw.indexOf("l: 'Baevsky SI'"));
+          T.ok('the Baevsky SI tile grades through _kd', /c: _kd\(r\.si, 150, 250\)/.test(ovw), (ovw.match(/c: _kd\(r\.si[^)]*\)/) || ['no _kd call on the SI tile'])[0]);
+          T.ok('the HF n.u. tile grades through _kc', /c: _kc\(r\.hfnu, 35, 20\)/.test(ovw), (ovw.match(/c: _kc\(r\.hfnu[^)]*\)/) || ['no _kc call on the HF n.u. tile'])[0]);
+          T.ok('the ABS tile grades through _kc', /c: _kc\(r\.abs, 0, -0\.3\)/.test(ovw), (ovw.match(/c: _kc\(r\.abs[^)]*\)/) || ['no _kc call on the ABS tile'])[0]);
+          T.ok('the LF/HF tile takes the null first', /c: r\.lfhf == null \? 'neutral'/.test(ovw), (ovw.match(/c: r\.lfhf == null \? '\w+'/) || ['no null arm on the LF/HF tile'])[0]);
+          T.ok('the Resp Rate tile takes the null first', /c: r\.respRate == null \? 'neutral'/.test(ovw), (ovw.match(/c: r\.respRate == null \? '\w+'/) || ['no null arm on the Resp Rate tile'])[0]);
+          T.ok('the Coverage tile takes the null first', /c: r\.coverage == null \? 'neutral'/.test(ovw), (ovw.match(/c: r\.coverage == null \? '\w+'/) || ['no null arm on the Coverage tile'])[0]);
+          T.ok(
+            'the Artifacts tile takes the null first',
+            /c: r\.artifactPct == null \? 'neutral'/.test(ovw),
+            (ovw.match(/c: r\.artifactPct == null \? '\w+'/) || ['no null arm on the Artifacts tile'])[0]
+          );
+          T.ok('the Coverage tile formats through _kn', /v: _kn\(r\.coverage\)/.test(ovw), (ovw.match(/v: _kn\(r\.coverage\)/) || ['no _kn call on the Coverage tile'])[0]);
+          T.ok('the Artifacts tile formats through _kn', /v: _kn\(r\.artifactPct\)/.test(ovw), (ovw.match(/v: _kn\(r\.artifactPct\)/) || ['no _kn call on the Artifacts tile'])[0]);
+          T.eq('no tile in the array builds its value by concatenation', (ovw.match(/v: r\.\w+ \+ ''/g) || []).length, 0);
+        }
+      }
+    });
+
     /* ── §U3 THE MID-FILE SEAM ────────────────────────────────────────────────────────────────────
        DEVICE-TIME-HANDLING-2026-10-29 §U3 was sized as though OxyDex, PulseDex and HRVDex had no
        seam handling at all. They do, and it is the premise that was wrong, so this group pins the
@@ -14584,6 +14649,233 @@
           })
           .join(', ') || 'no definition found'
       );
+      /* ══ A PRINTED NIGHT IS A CLAIM ABOUT THE UNIT, AND FOUR TOOLS MADE IT OVER FILES (#4150).
+         `coverageIdentity` binds the ARITHMETIC of every removal namer above. It cannot see the WORD
+         a tool prints beside the number, and four analysis tools declared their population unit as a
+         FILE — `${DEVICE} PPG files`, `H10 ACC files` — and then printed `night(s)` over the same
+         rows. One night holds several recordings, so the two lines disagreed on the unit while
+         quoting one number. `ppi-jitter-vs-ecg.mjs` is the one whose rows really ARE nights, but only
+         under the default merge: `buildUnits` returns one unit per night with merging on and one per
+         FILE under `--no-merge`, so its word follows the mode instead of being fixed either way.
+         A CLAIM IS THE PRINTED TEXT ONLY, AND A PRINT CALL SPANS LINES. The first instrument here
+         read one line at a time and reported ZERO claims in two tools that each print a night,
+         because `console.log(` sat on the line above the template. A scanner that cannot see the text
+         it clears is a pass reported about something never examined, so this one walks each call to
+         its matching paren, keeps the STRING AND TEMPLATE LITERALS only, and strips every
+         interpolation. A `//` note inside a call is not printed. `out.push({ … })` of an object
+         prints nothing. `${nights.length}` names no unit to a reader.
+         THE REMAINDER IS WHAT MAKES THIS A RULE. Every night a reader may be shown is named below
+         with why it is a real one, so the label cannot come back quietly. The two file-unit tools
+         keep exactly ONE each: the `--max-nights` cap line, which reads DATED NIGHTS off the
+         filenames and prints them by name, and so is a true night count over a file-unit read.
+         WHAT THIS DOES NOT FIX: eleven `ppi-jitter-vs-ecg.mjs` lines still write `night` where the
+         unit follows the mode, so each reads wrong under `--no-merge`. They are declared as a CLOSED
+         remainder and counted. The set can shrink. It cannot grow. */
+      var nightClaims = function (text) {
+        var src = String(text || '');
+        var out = [];
+        var re = /console\.log\(|out\.push\(/g;
+        var m;
+        while ((m = re.exec(src))) {
+          var i = m.index + m[0].length - 1;
+          var depth = 0;
+          var j = i;
+          for (; j < src.length; j++) {
+            if (src.charAt(j) === '(') depth++;
+            else if (src.charAt(j) === ')') {
+              depth--;
+              if (depth === 0) break;
+            }
+          }
+          var span = src.slice(i, j + 1);
+          var printed = '';
+          var k = 0;
+          while (k < span.length) {
+            var c = span.charAt(k);
+            if (c === '`' || c === "'" || c === '"') {
+              k++;
+              var dd = 0;
+              while (k < span.length) {
+                if (span.charAt(k) === '\\') {
+                  k += 2;
+                  continue;
+                }
+                if (c === '`' && dd === 0 && span.charAt(k) === '$' && span.charAt(k + 1) === '{') {
+                  dd = 1;
+                  k += 2;
+                  continue;
+                }
+                if (dd > 0) {
+                  if (span.charAt(k) === '{') dd++;
+                  else if (span.charAt(k) === '}') dd--;
+                  k++;
+                  continue;
+                }
+                if (span.charAt(k) === c) break;
+                printed += span.charAt(k);
+                k++;
+              }
+              k++;
+            } else if (c === '/' && span.charAt(k + 1) === '/') {
+              while (k < span.length && span.charAt(k) !== '\n') k++;
+            } else if (c === '/' && span.charAt(k + 1) === '*') {
+              var e = span.indexOf('*/', k);
+              k = e < 0 ? span.length : e + 2;
+            } else k++;
+          }
+          if (/night/i.test(printed)) out.push(printed.replace(/\s+/g, ' ').trim());
+        }
+        return out;
+      };
+      /* THE DECLARED SET, per tool: the only night a reader may be shown, and WHY it is a real one. */
+      var UNIT_CLAIMS = {
+        /* One row per FILE, always. The cap line is still a true night count — it reads DATED NIGHTS
+           off the filenames, prints them by name, and says how many files they left. */
+        'ppg-foot-consensus-e1.mjs': ['the --max-nights cap kept'],
+        'resp-cardiac-suppression-e8.mjs': ['the --max-nights cap kept'],
+        /* This cap ranks files by byte size, and its own line says so. */
+        'ppg-fusion-e3.mjs': ['--max-nights cap, which ranks FILES'],
+        /* Night KEYS off the filenames, two cited external figures, and three statements about what
+           an epoch is. None of these counts a unit the read produced. */
+        'ppi-jitter-vs-ecg.mjs': [
+          'the --max-nights cap kept',
+          "the paper's §3.4 figures",
+          'the PAT path read',
+          'so night UNKNOWN rather than absent',
+          'the full parse placed outside',
+          '--sleep-only kept the nights',
+          'the sleep test could not decide',
+          'distinct night key(s)',
+          'epochs within a night are not independent',
+          'per-night records'
+        ]
+      };
+      /* THE CLOSED REMAINDER: `ppi-jitter-vs-ecg.mjs` lines that still write `night` where the unit
+         follows the merge mode, so each reads wrong under `--no-merge`. Shrinking this list means
+         editing the count leg below with it — that is the ratchet, and the direction is one-way. */
+      var MODE_REMAINDER = [
+        'no night carried both classes',
+        'mean SQI above',
+        'clean-beat share',
+        'nights excluded',
+        'worst night',
+        'not the night',
+        'over nights mean',
+        'normal approximation over NIGHTS',
+        'within-night jitter IQR',
+        'R² over night(s)',
+        'ms reached on'
+      ];
+      var UNIT_TOOLS = Object.keys(UNIT_CLAIMS);
+      var declaredFor = function (tool) {
+        return UNIT_CLAIMS[tool].concat(tool === 'ppi-jitter-vs-ecg.mjs' ? MODE_REMAINDER : []);
+      };
+      T.eq(
+        'every tool the unit rule covers is readable here',
+        UNIT_TOOLS.filter(function (t) {
+          return !(TT['tools/' + t] || '').length;
+        }).join(', '),
+        ''
+      );
+      T.eq(
+        'the scanner reads whole print calls, so it finds every night claim that is real',
+        UNIT_TOOLS.map(function (t) {
+          return t.replace('.mjs', '') + '=' + nightClaims(TT['tools/' + t]).length;
+        }).join(' '),
+        'ppg-foot-consensus-e1=1 resp-cardiac-suppression-e8=1 ppg-fusion-e3=1 ppi-jitter-vs-ecg=21'
+      );
+      T.eq(
+        'no tool prints a night it cannot see — every printed night matches a declared, named source',
+        UNIT_TOOLS.map(function (t) {
+          var dec = declaredFor(t);
+          return nightClaims(TT['tools/' + t])
+            .filter(function (c) {
+              return !dec.some(function (d) {
+                return c.indexOf(d) >= 0;
+              });
+            })
+            .map(function (c) {
+              return t + ': ' + c.slice(0, 70);
+            })
+            .join(' | ');
+        })
+          .filter(Boolean)
+          .join(' || '),
+        ''
+      );
+      T.eq(
+        'the declared set carries no fingerprint that stopped printing',
+        UNIT_TOOLS.map(function (t) {
+          var claims = nightClaims(TT['tools/' + t]);
+          return declaredFor(t)
+            .filter(function (d) {
+              return !claims.some(function (c) {
+                return c.indexOf(d) >= 0;
+              });
+            })
+            .map(function (d) {
+              return t + ': ' + d;
+            })
+            .join(' | ');
+        })
+          .filter(Boolean)
+          .join(' || '),
+        ''
+      );
+      T.eq(
+        'each file-unit tool prints exactly one night, and it is the dated cap line',
+        ['ppg-foot-consensus-e1.mjs', 'resp-cardiac-suppression-e8.mjs']
+          .map(function (t) {
+            var c = nightClaims(TT['tools/' + t]);
+            return t + '=' + c.length + (c.length === 1 && c[0].indexOf('dated night(s)') >= 0 ? ':dated' : ':OTHER');
+          })
+          .join(' '),
+        'ppg-foot-consensus-e1.mjs=1:dated resp-cardiac-suppression-e8.mjs=1:dated'
+      );
+      T.eq(
+        'the mode-dependent remainder is closed, and every entry still prints',
+        MODE_REMAINDER.length +
+          ' declared / ' +
+          nightClaims(TT['tools/ppi-jitter-vs-ecg.mjs']).filter(function (c) {
+            return MODE_REMAINDER.some(function (d) {
+              return c.indexOf(d) >= 0;
+            });
+          }).length +
+          ' printing',
+        '11 declared / 11 printing'
+      );
+      T.eq(
+        'no genuine night claim is also declared as the remainder',
+        UNIT_CLAIMS['ppi-jitter-vs-ecg.mjs']
+          .filter(function (d) {
+            return MODE_REMAINDER.indexOf(d) >= 0;
+          })
+          .join(', '),
+        ''
+      );
+      T.eq('the merging reader takes its unit word from the mode', /const UNIT_WORD = MERGE \? 'night\(s\)' : PPG_UNIT;/.test(TT['tools/ppi-jitter-vs-ecg.mjs'] || ''), true);
+      T.eq('and its count lines read that word', (TT['tools/ppi-jitter-vs-ecg.mjs'] || '').split('${UNIT_WORD}').length - 1 >= 6, true);
+      T.eq(
+        'the line that divides a scored count by an offered count names BOTH units',
+        /\$\{UNIT_WORD\} of the \$\{snap\.n\} offered \$\{snap\.unit\}/.test(TT['tools/ppi-jitter-vs-ecg.mjs'] || ''),
+        true
+      );
+      T.eq(
+        'each file-unit reader prints its own declared unit name beside the scored count',
+        [
+          ['ppg-foot-consensus-e1.mjs', /\$\{scored\.length\} \$\{PPG_UNIT\} scored/],
+          ['ppg-fusion-e3.mjs', /\$\{rows\.length\} \$\{PPG_UNIT\} scored/],
+          ['resp-cardiac-suppression-e8.mjs', /\$\{rows\.length\} \$\{ACC_UNIT\}/]
+        ]
+          .filter(function (p) {
+            return !p[1].test(TT['tools/' + p[0]] || '');
+          })
+          .map(function (p) {
+            return p[0];
+          })
+          .join(', '),
+        ''
+      );
       /* ── A HAND-WRITTEN DEFAULT ANSWER AGREES WITH THE RULE BESIDE IT ─────────────────────────
          Row 2026-10-26-a-hand-written-ruleisdefault-asserts-a-comparison-the-file-never-ran.
          `snapshotNights` computes `ruleIsDefault` on every arm it returns, refusals included, as
@@ -18696,8 +18988,10 @@
     group('trio-batch feeds the O2Ring finger site without breaking the trio count', 'trio-batch · o2ring-finger', function (T) {
       var src = env.sources || {};
       var tb = src['tools/trio-batch.mjs'] || src['trio-batch.mjs'] || '';
+      /* A MISSING INPUT IS A DECLARED SKIP, never a literal-true pass (Muse #4269, T-3): the browser
+         lane carries no `env.sources`, and a pass here hid that the group examined nothing. */
       if (!tb) {
-        T.ok('trio-batch source wired (skipped — not in env.sources)', true);
+        T.skip('trio-batch source wired', 'sources not provided in this runner');
         return;
       }
 
@@ -21380,8 +21674,10 @@
     group('PpgDex says whether the site was observed or assumed', 'ppgdex-dsp · site-provenance', function (T) {
       var P = env.PpgDex;
       var eq = env.equiv && env.equiv.ppgdex && env.equiv.ppgdex.input;
+      /* T-1 (Muse #4269): the equiv input is a gitignored recording, so on a fresh clone this group
+         examines nothing. That is a declared corpus-absent skip, not a pass. */
       if (!(P && typeof P.compute === 'function' && eq)) {
-        T.ok('PpgDex equiv input wired (skipped)', true);
+        T.skip('PpgDex equiv input wired', 'corpus-absent — the PpgDex equiv input is a gitignored recording');
         return;
       }
       var ex = P.compute({ text: eq }, { rich: true });
@@ -21531,10 +21827,12 @@
           T.ok('PpgDex PPI · names the spine that won (foot|peak)', blk.spine === 'foot' || blk.spine === 'peak', blk.spine);
         });
       } else {
-        T.ok('PpgDex equiv input wired (skipped — not available)', true);
+        /* T-2 (Muse #4269): the old pass here and the `|| !eqP` below made this group measure nothing in
+           CI and still read green. Absent input is a declared skip; present input must exercise a block. */
+        T.skip('PpgDex equiv input wired', 'corpus-absent — the PpgDex equiv input is a gitignored recording');
       }
 
-      T.ok('at least one interval series was actually exercised', checked > 0 || !eqP, checked + ' block(s)');
+      if (eqP) T.ok('at least one interval series was actually exercised', checked > 0, checked + ' block(s)');
     });
 
     /* A TIMING FIDUCIAL IS NOT THE CLINICAL DEFINITION.
@@ -36714,6 +37012,106 @@
         'reason=' + JSON.stringify(q.cadenceReason) + ' assumed=' + JSON.stringify(q.cadenceAssumed)
       );
       T.ok('CONTROL · its minute totals are numbers, not null', typeof q.activeMin === 'number' && q.activeMin > 0, 'activeMin=' + JSON.stringify(q.activeMin));
+    });
+
+    group('GlucoDex surfaces NAME the cadence refusal — never a null, never a zero (§∅)', 'glucodex-render · glucodex-app · absence · render-harness', function (T) {
+      var G = env.GLUDSP,
+        U = env.GLUUI;
+      if (!G || typeof G.analyze !== 'function' || !U || typeof U.cadText !== 'function') {
+        T.skip(
+          'render harness globals wired (env.GLUUI.cadText + env.GLUDSP.analyze)',
+          'Node-lane only (run-tests.mjs executes *-render.js headless); the browser lane runs render in iframe rigs so it SKIPs'
+        );
+      } else {
+        /* THE SAME TWO EXPORTS THE DSP GROUP ABOVE USES, so the surface legs and the publisher legs
+           describe ONE record. The daily export is the refusal: no delta in (0, 240) min, so
+           `cadence`, `activeMin` and `durDays` are all null and `cadenceReason` names why. */
+        var day = 86400000,
+          t0 = Date.UTC(2026, 5, 1, 8, 0, 0);
+        var tMs = [],
+          vMgdl = [];
+        for (var i = 0; i < 10; i++) {
+          tMs.push(t0 + i * day);
+          vMgdl.push(100 + i);
+        }
+        var ref = G.analyze({ tMs: tMs, vMgdl: vMgdl, unit: 'mg/dL', t0Ms: t0 }, null, {});
+        var t5 = [],
+          v5 = [];
+        for (var k = 0; k < 200; k++) {
+          t5.push(t0 + k * 5 * 60000);
+          v5.push(100 + (k % 40));
+        }
+        var meas = G.analyze({ tMs: t5, vMgdl: v5, unit: 'mg/dL', t0Ms: t0 }, null, {});
+        /* The third state is a record with a null rate and NO reason — what an export written before
+           the node named its token looks like. It is NOT the same claim as "unmeasurable", so the
+           surface must not borrow that word for it. */
+        var unk = { cadence: null, activeMin: null, durDays: null };
+
+        T.eq('the refusal is the state the helpers see', U.cadState(ref), 'refused');
+        T.eq('a measured rate is the measured state', U.cadState(meas), 'measured');
+        T.eq('a null with no reason is UNKNOWN, not refused', U.cadState(unk), 'unknown');
+
+        T.eq('the token is the node’s own word, taken off `cadenceReason`', U.cadToken(ref), 'cadence-unmeasurable');
+        T.eq('a measured record carries no token', U.cadToken(meas), null);
+
+        T.ok('a refused cadence never prints the string `null`', U.cadText(ref).indexOf('null') < 0, 'cadText=' + JSON.stringify(U.cadText(ref)));
+        T.eq('…it IS the token, printed bare — no label in front of it', U.cadText(ref), 'cadence-unmeasurable');
+        T.eq('CONTROL · a measured cadence prints the number and nothing extra', U.cadText(meas), '5-min cadence');
+        T.ok('an UNKNOWN record says UNKNOWN and does NOT borrow the refusal token', U.cadText(unk) === 'cadence UNKNOWN', 'cadText=' + JSON.stringify(U.cadText(unk)));
+
+        T.ok('a withheld day count never prints `NaN` or a fabricated figure', /^active days withheld \u2014 cadence-unmeasurable$/.test(U.durText(ref)), 'durText=' + JSON.stringify(U.durText(ref)));
+        T.ok('CONTROL · a measured day count is the number', /^[0-9.]+ days active$/.test(U.durText(meas)), 'durText=' + JSON.stringify(U.durText(meas)));
+
+        /* THE FABRICATED ZERO. `Math.round(null / 60) + 'h'` is `0h` — a figure that reads exactly
+           like a measured one and was printed on the KPI tile, in the hero line and in the profile
+           badge. A refused minute total has no hours to print. */
+        T.ok('a null minute total never prints as `0h`', U.activeText(ref) !== '0h' && U.activeText(ref) !== '0 h', 'activeText=' + JSON.stringify(U.activeText(ref)));
+        T.eq('…it states that there is no rate behind it', U.activeText(ref), 'no rate');
+        T.eq('CONTROL · a measured 200-cell 5-min export keeps its hours', U.activeText(meas), Math.round(meas.activeMin / 60) + 'h');
+        T.ok(
+          'CONTROL · a measured ZERO stays a number, it is not swept up as absence',
+          U.activeText({ activeMin: 0, cadence: 5 }) === '0h',
+          'activeText=' + JSON.stringify(U.activeText({ activeMin: 0, cadence: 5 }))
+        );
+
+        T.eq('CONTROL · a measured record gets NO refusal note (a note on it is noise)', U.cadNote(meas), '');
+        T.ok('the refusal note names the token', U.cadNote(ref).indexOf('cadence-unmeasurable') >= 0, 'len=' + U.cadNote(ref).length);
+        T.ok(
+          '…and the step the grid used, as an ASSUMPTION beside it',
+          U.cadNote(ref).indexOf(ref.cadenceAssumed + '-min') >= 0 && /ASSUMPTION/.test(U.cadNote(ref)),
+          'assumed=' + JSON.stringify(ref.cadenceAssumed)
+        );
+        T.ok('the UNKNOWN note does not name a token it does not have', U.cadNote(unk).indexOf('undefined') < 0 && U.cadNote(unk).indexOf('UNKNOWN') >= 0, 'note=' + JSON.stringify(U.cadNote(unk)));
+
+        /* ── THE SCOPE'S GRID STEP ─────────────────────────────────────────────────────────────
+           `series` publishes the MEASUREMENT and not the grid step, so the viewport read the field
+           the node nulls. `Math.round(1440 / null)` is `Infinity`, so the default 24 h view became
+           the whole record — a silent change of what the reader is looking at, with no warning and
+           no error. The grid's own spacing is the step, and the scope measures it there.
+           `setData` is driven over a stand-in receiver because the real one owns a canvas. */
+        var stepMin = (ref.series.gT[1] - ref.series.gT[0]) / 60000;
+        T.eq('the refused record still HAS a grid, spaced by the assumed step', stepMin, 5);
+        T.eq('…while the field the viewport used to read is null', ref.series.cadence, null);
+        var rec = {
+          resize: function () {},
+          draw: function () {},
+          drawMini: function () {}
+        };
+        U.GlucoScope.prototype.setData.call(rec, ref);
+        T.eq('the scope takes its step off the grid, not off the measurement', rec.cad, 5);
+        T.ok('…and says the step is known', rec.stepKnown === true, 'stepKnown=' + JSON.stringify(rec.stepKnown));
+        T.ok('the record is longer than one day, so the two answers differ', rec.N > 288, 'N=' + rec.N);
+        T.eq('the default view is ONE day of cells, not the whole record', rec.view.span, Math.min(rec.N, 288));
+        T.eq('…anchored at its end', rec.view.start, rec.N - rec.view.span);
+        var recM = {
+          resize: function () {},
+          draw: function () {},
+          drawMini: function () {}
+        };
+        U.GlucoScope.prototype.setData.call(recM, meas);
+        T.eq('CONTROL · a measured export reads the same step off the same grid', recM.cad, 5);
+        T.eq('CONTROL · a record shorter than a day is shown whole', recM.view.span, recM.N);
+      }
     });
 
     group('GlucoDex applySessionCorrections — levelling and de-drift, signed (mutation bootstrap)', 'glucodex-dsp · known-answer · mutation-pinned', function (T) {

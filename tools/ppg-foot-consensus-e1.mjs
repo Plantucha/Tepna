@@ -455,8 +455,8 @@ const ecgOffer = dedupeByIdentity(all.filter((f) => /H10.*_ECG\.txt$/i.test(f.p)
 const ecgs = ecgOffer.kept;
 
 console.log('PPGDEX-ALGORITHM-DEEP-DIVE §6 · E-1 — foot-domain consensus vs the shipped peak vote');
-console.log(`device: ${DEVICE}   foot tol: ±${TOL_MS} ms   min agree: ${MIN_AGREE}/3   ${SLEEP_ONLY ? '(sleep nights only)' : '(all nights)'}\n`);
-console.log('night                                   nCh  drop_pk%  drop_ft%  PPV_pk%  PPV_ft%  rec_pk%  rec_ft%  jit_pk  jit_ft');
+console.log(`device: ${DEVICE}   foot tol: ±${TOL_MS} ms   min agree: ${MIN_AGREE}/3   ${SLEEP_ONLY ? '(only recordings inside a sleep window)' : '(all recordings)'}\n`);
+console.log('file                                    nCh  drop_pk%  drop_ft%  PPV_pk%  PPV_ft%  rec_pk%  rec_ft%  jit_pk  jit_ft');
 
 // Score one beat train (absolute ms) against the ECG, epoch by epoch.
 function score(beatMs, eBeats, lo, hi) {
@@ -708,13 +708,13 @@ function printPopulation() {
    line such a run printed, so the one case where the population is the whole story was the one case
    that reported none. */
 if (!scored.length) {
-  console.log('\nno night scored — E-1 cannot be adjudicated on this corpus.');
+  console.log(`\nno ${PPG_UNIT} scored — E-1 cannot be adjudicated on this corpus.`);
   printPopulation();
   process.exit(0);
 }
 const col = (k) => scored.map((r) => r[k]).filter((v) => v != null);
 const fmt = (a, d = 2) => (a.length ? `median ${median(a).toFixed(d)}  IQR ${quantile(a, 0.25).toFixed(d)}–${quantile(a, 0.75).toFixed(d)}` : 'n/a');
-console.log(`\n${scored.length} night(s) scored\n`);
+console.log(`\n${scored.length} ${PPG_UNIT} scored\n`);
 console.log(`  1-of-3 drop rate   peak vote  ${fmt(col('dropA'))} %`);
 console.log(`                     FOOT vote  ${fmt(col('dropB'))} %`);
 console.log(`  PPV @75 ms         peak vote  ${fmt(col('ppvA'))} %`);
@@ -731,7 +731,7 @@ console.log(`\n  Δ median   drop ${dDrop >= 0 ? '+' : ''}${dDrop.toFixed(2)} pp
 console.log(`\n  E-1 verdict: ${dPPV >= -0.5 && dDrop < 0 ? 'drop rate recovered without a PPV cost' : dPPV < -0.5 ? 'PPV FELL — E-1 fails its own precondition' : 'no drop-rate recovery'}`);
 const split = scored.filter((r) => r.offsetSplit);
 const signOnly = scored.filter((r) => r.signSplit && !r.offsetSplit);
-console.log(`\n  CHANNEL PEAK-OFFSET SPLIT: ${split.length} of ${scored.length} night(s) — one LED lands off the vote window`);
+console.log(`\n  CHANNEL PEAK-OFFSET SPLIT: ${split.length} of ${scored.length} ${PPG_UNIT} — one LED lands off the vote window`);
 for (const r of split) {
   console.log(`    ${r.name.padEnd(40)} sign ${r.signs.join('/')}  peak offset vs ch0 (ms) ${r.pkOff.map((o) => (o == null ? 'n/a' : o.toFixed(1))).join('/')}  kept3/3=${r.kept33}`);
 }
@@ -740,11 +740,11 @@ if (split.length) {
   console.log(`    ^ diagnosed BEFORE the shipped consensus-polarity pass (E-5); ${fixed} of ${split.length} resolved by it`);
   console.log('      (kept3/3 > 0 after correction). A row still reading kept3/3 = 0 here would be a');
   console.log('      REGRESSION — the pass exists precisely to make that impossible.');
-  console.log(`    A further ${signOnly.length} night(s) differ in SIGN with peaks still aligned — so an inverted`);
+  console.log(`    A further ${signOnly.length} ${PPG_UNIT} differ in SIGN with peaks still aligned — so an inverted`);
   console.log('    sign is correlated with, but not sufficient for, the failure.');
 }
 console.log(
-  `  Per-night median inter-channel foot offsets (samples): ${scored
+  `  Per-file median inter-channel foot offsets (samples): ${scored
     .map((r) => (r.offs || []).map((o) => o.toFixed(1)).join('/'))
     .slice(0, 6)
     .join('  ')}`

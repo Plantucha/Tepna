@@ -387,7 +387,7 @@ def _sh_spy(monkeypatch, results=None):
     """Record every shelled command; `results` maps a substring -> (rc, out)."""
     calls = []
 
-    def fake(argv, timeout, sudo=False):
+    def fake(argv, timeout, sudo=False, quiet=False):
         calls.append((" ".join(argv), sudo))
         for frag, rv in (results or {}).items():
             if frag in " ".join(argv):
@@ -873,3 +873,29 @@ def test_a_server_that_declares_nothing_usable_reports_zero_not_a_crash(monkeypa
 
     _urlopen_script(monkeypatch, [b"body"], headers={"Content-Length": "not-a-number"})
     assert ch.EzShare("http://card")._get("http://card/x", want_length=True) == (b"body", 0)
+
+
+@pytest.mark.parametrize("out,detail", [("", "no output"), ("first line\nlast line\n", "last line")])
+@pytest.mark.parametrize("leaked", [[], [4242, 7]])
+def test_wpa_down_names_the_interface_the_code_and_the_last_output_line(monkeypatch, caplog, out, detail, leaked):
+    """Both teardown verdicts carry the interface, the return code and the last line of output. The
+    leak check asks about the interface it tears down. Mutate-diff on #4535 found these unobserved."""
+    import logging
+
+    _sh_spy(monkeypatch, {"wpa_cli": (255, out)})
+    asked = []
+    monkeypatch.setattr(ch, "_live_supplicants", lambda iface: asked.append(iface) or leaked)
+    with caplog.at_level(logging.INFO):
+        assert ch._wpa_down("wlp1s0") is False
+    assert asked == ["wlp1s0"]
+    if leaked:
+        want = (
+            f"cpap: wpa_cli terminate failed on wlp1s0 (rc=255, {detail}) — supplicant STILL RUNNING as pid(s) 4242, 7"
+        )
+    else:
+        want = (
+            f"cpap: wpa_cli terminate returned rc=255 on wlp1s0 ({detail}) — no supplicant is bound to it, "
+            "so there was nothing to terminate"
+        )
+    msgs = [r.getMessage() for r in caplog.records if "terminate" in r.getMessage()]
+    assert msgs == [want], msgs
