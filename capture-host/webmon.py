@@ -615,6 +615,17 @@ def make_app(
                 # What disciplined THIS BOX's clock. The devices inherit host time, so an undisciplined
                 # host silently makes every stamp wrong-but-consistent — this is the evidence, not a guess.
                 "host_clock": status.get("host_clock"),
+                # THE BOX'S OWN CLOCK, as `status_loop` stamps it each round. The Tonight (QC) tile
+                # differences it against `qc.night_window.end` to answer "between nights", and BOTH sides
+                # must be this host's clock: a browser differencing its own clock against the band prints
+                # the result as a verdict about the night. Published since the tile's guard landed
+                # 2026-10-12 and forwarded by nothing until now, so `typeof heartbeatMs === 'number'` was
+                # always false and the daytime "11 gaps" that guard exists to stop still read.
+                #
+                # ⚠️ `find_unwired.py` counts this key as CONSUMED because `monitor.html` names it, so the
+                # scanner is blind to a gap in THIS layer by construction. The key-set assertion in
+                # `tests/test_webmon_state_contract.py` is the guard that is not.
+                "heartbeat_ms": status.get("heartbeat_ms"),
                 # Box-health blocks the guardrail pollers publish: free disk + retention, and tonight's
                 # capture-completeness QC. Present only once their poller has run (null before then).
                 "storage": status.get("storage"),
@@ -717,6 +728,13 @@ def make_app(
                 # `settles_in_s` beside it — rather than leaving the PREVIOUS night's verdict standing
                 # under the previous night's date, which is what an operator met every morning between
                 # doff and the audit.
+                # THE NIGHT SEAL (CAPTURE-NIGHT-SEAL §13): armed or refused, the card key the patient
+                # holds, and each settled night's seal verdict. The seal ENDPOINTS read `status` here
+                # directly, so re-display and rotate always worked server-side; the CARD read `STATE.seal`
+                # and got null on every box, so an ARMED box printed "off" with an invented cause and both
+                # §13 operator actions stayed disabled. Null while the poller never armed — `seal.enabled`
+                # false, or the arming not yet done — and `{armed: false, error}` when sealbox refused.
+                "seal": status.get("seal"),
                 "solid": status.get("solid"),
             }
         )

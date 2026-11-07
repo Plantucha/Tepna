@@ -598,12 +598,22 @@ window.evBadge = evBadge;
     const sy = (l) => H - P.b - (l / 3) * (H - P.t - P.b);
     let path = '',
       segs = '';
+    // AN UNSTAGED EPOCH DRAWS NOTHING. `yOf[null]` is undefined, so this drew y="NaN" with
+    // fill="undefined" — a rect the browser discards, which is the right picture reached the wrong
+    // way and leaves the connecting path jumping across the gap as though a stage were there. The
+    // band is left empty and the path BREAKS, and the unstaged minutes are stated on the card.
+    let penDown = false;
     for (let i = 0; i < n; i++) {
+      if (stages[i].stage == null) {
+        penDown = false;
+        continue;
+      }
       const x0 = sx(stages[i].tMin),
         x1 = sx(i < n - 1 ? stages[i + 1].tMin : xmx),
         y = sy(yOf[stages[i].stage]);
       segs += `<rect x="${x0.toFixed(1)}" y="${(y - 3).toFixed(1)}" width="${Math.max(0.6, x1 - x0).toFixed(1)}" height="6" fill="${colOf[stages[i].stage]}" opacity=".85"/>`;
-      path += (i ? 'L' : 'M') + x0.toFixed(1) + ' ' + y.toFixed(1) + ' L' + x1.toFixed(1) + ' ' + y.toFixed(1) + ' ';
+      path += (penDown ? 'L' : 'M') + x0.toFixed(1) + ' ' + y.toFixed(1) + ' L' + x1.toFixed(1) + ' ' + y.toFixed(1) + ' ';
+      penDown = true;
     }
     return `<svg viewBox="0 0 ${W} ${H}" role="img" style="width:100%;height:auto">
     ${lvls.map((l, i) => `<text x="${P.l - 8}" y="${(sy(i) + 3).toFixed(1)}" fill="${C.dim}" font-size="9.5" text-anchor="end" font-family="IBM Plex Mono,monospace">${l}</text><line x1="${P.l}" y1="${sy(i).toFixed(1)}" x2="${W - P.r}" y2="${sy(i).toFixed(1)}" stroke="${C.grid}"/>`).join('')}

@@ -371,6 +371,8 @@ def test_the_top_level_blocks_are_projected_verbatim(tmp_path):
         "archive": {"verified": True},
         "cpap": {"state": "ok", "files": 5},
         "live_loss": {"open_files": 4},
+        "heartbeat_ms": 1750000123456,
+        "seal": {"armed": True, "box_id": "vigil", "key_id": 2, "nights": {}},
         "ble": {"ops": {"connect/H10": {"attempts": 4}}, "retries": {}, "backoff_rate": {}},
         "solid": {
             "night": "2026-09-23",
@@ -396,6 +398,8 @@ def test_the_top_level_blocks_are_projected_verbatim(tmp_path):
     assert body["archive"] == {"verified": True}
     assert body["cpap"] == {"state": "ok", "files": 5}
     assert body["live_loss"] == {"open_files": 4}
+    assert body["heartbeat_ms"] == 1750000123456, "the BOX clock the Tonight tile differences the band against"
+    assert body["seal"] == st["seal"], "the whole seal block, so the card can tell armed from refused"
     assert body["ble"] == st["ble"], "counters, retries and the windowed backoff rate, all three"
     assert body["solid"] == st["solid"], "the whole verdict, not a re-derived summary"
     assert set(body) == {
@@ -469,14 +473,23 @@ def test_the_top_level_blocks_are_projected_verbatim(tmp_path):
         # monitor"), so the capture-quality programme's own nightly answer was the
         # one number no operator could see.
         "solid",
+        # THE BOX'S OWN CLOCK and THE NIGHT SEAL. Both were published and unforwarded, and both had a
+        # READER already written against them, which is what makes this pair different from the blocks
+        # above: the Tonight tile's between-nights guard tested `typeof heartbeatMs === 'number'` and
+        # always got false, and the seal card read `STATE.seal`, got null on every box, and printed
+        # "off" with an invented cause while both CAPTURE-NIGHT-SEAL §13 buttons stayed disabled.
+        # `find_unwired.py` cannot see either gap — it counts a key as consumed once `monitor.html`
+        # names it, so a reader with no forwarder reads as wired. This set is the guard that is not.
+        "heartbeat_ms",
+        "seal",
     }
 
 
 def test_the_top_level_blocks_are_null_before_their_pollers_run(tmp_path):
     body = _state(tmp_path, [DEV], {})
-    for k in ("host_clock", "storage", "qc", "host", "archive", "cpap", "alerts", "solid"):
+    for k in ("host_clock", "storage", "qc", "host", "archive", "cpap", "alerts", "solid", "heartbeat_ms", "seal"):
         assert k in body, f"{k} must be present-and-null, never absent"
-    for k in ("storage", "qc", "host", "archive", "cpap", "solid"):
+    for k in ("storage", "qc", "host", "archive", "cpap", "solid", "heartbeat_ms", "seal"):
         assert body[k] is None
 
 

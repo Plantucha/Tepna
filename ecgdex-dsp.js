@@ -2479,10 +2479,26 @@
       1.0
     );
     const mot = (e) => (motionByTMin ? motionByTMin.get(e.tMin.toFixed(1)) : undefined);
+    /* THREE OF THE FOUR STAGE TESTS NEED A NIGHT-RELATIVE RMSSD, AND `null` PASSED THEM.
+       `null < rmMed * 0.85` evaluates as `0 < …`, so an epoch whose pairs were ALL gapped satisfied
+       both suppressed-RMSSD tests: it staged REM above the LF/HF gate and Wake below it, and it
+       could never reach Light or Deep — the absence always produced a stage. Probed on a 20-epoch
+       synthetic: one null epoch above the gate reported 5 min of REM where the same epoch measured
+       at 40 reported Light, and a four-epoch null run below the gate reported 20 min of Wake
+       against four Light in the control. The REM half is the worse of the two, because the smoother
+       below exempts the minority stages by design, so it PROTECTED the fabricated REM epoch while a
+       lone fabricated Wake epoch would have been smoothed away.
+       Without a measured RMSSD, or without a reference to judge it against, none of the three can
+       fire, and the residual `Light` is then a positive claim resting on tests that never ran. Such
+       an epoch REFUSES — a null stage plus the token naming which half was absent. The HR arm of
+       Wake reads `hrZ` only, so an epoch THAT arm decides keeps its stage: a refusal is for an
+       epoch nothing could classify, not for every epoch with a gap in it. */
+    const rmReason = (e) => (rmMed == null ? 'rmssd-reference-absent' : e.rmssd == null ? 'rmssd-absent' : null);
     const raw = epochs.map((e) => {
       const hrZ = (e.hr - hrMed) / hrSd;
       const lfhf = e.lfhf;
       const m = mot(e);
+      const rmOk = rmReason(e) == null;
       let stage;
       /* ORDER MATTERS MORE THAN ANY THRESHOLD HERE (REM-STAGING-REDESIGN §4c).
          REM and Wake share their HRV signature — elevated HR, suppressed RMSSD — so a Wake branch
@@ -2501,9 +2517,14 @@
       // `m == null` (no accelerometer observed this epoch) does NOT veto: absence of an observation is
       // not evidence of stillness OR of movement, and refusing REM there would reinstate the old
       // Wake-swallows-REM behaviour on every ACC-less recording.
-      else if (lfhf > lfhfGate && e.rmssd < rmMed * 0.85 && !(m != null && m >= 35)) stage = 'REM';
-      else if (hrZ > 1.1 || e.rmssd < rmMed * 0.45) stage = 'Wake';
-      else if (e.rmssd > rmMed * 1.12 && e.hr < hrMed) stage = 'Deep';
+      else if (rmOk && lfhf != null && lfhf > lfhfGate && e.rmssd < rmMed * 0.85 && !(m != null && m >= 35)) stage = 'REM';
+      // The two Wake arms were one `||`. Split so the HR arm survives an absent RMSSD — it never
+      // read one. Both still produce Wake, and both still sit AFTER REM, which is the order the
+      // block above protects.
+      else if (hrZ > 1.1) stage = 'Wake';
+      else if (rmOk && e.rmssd < rmMed * 0.45) stage = 'Wake';
+      else if (rmOk && e.rmssd > rmMed * 1.12 && e.hr < hrMed) stage = 'Deep';
+      else if (!rmOk) stage = null;
       else stage = 'Light';
       return stage;
     });
@@ -2518,7 +2539,11 @@
     const order = { Wake: 3, REM: 2, Light: 1, Deep: 0 };
     const sm = raw.slice();
     for (let i = 1; i < raw.length - 1; i++) {
-      if (raw[i - 1] === raw[i + 1] && raw[i] !== raw[i - 1] && (raw[i] === 'Light' || raw[i] === 'Wake')) sm[i] = raw[i - 1];
+      // A REFUSAL IS NOT A NEIGHBOUR TO VOTE WITH. Two nulls are `===`, so a MEASURED Light or Wake
+      // epoch between two refusals would be overwritten with a refusal — the smoother deleting a
+      // measurement, which is the reverse of its purpose. A refused epoch is itself never a
+      // candidate, because null is neither 'Light' nor 'Wake'.
+      if (raw[i - 1] != null && raw[i - 1] === raw[i + 1] && raw[i] !== raw[i - 1] && (raw[i] === 'Light' || raw[i] === 'Wake')) sm[i] = raw[i - 1];
     }
     /* MINIMUM REM BOUT — DESIGNED, MEASURED, AND DELIBERATELY NOT SHIPPED (§4c, the (b) half).
        The idea is sound: a real REM period runs 5-25 min, so a single isolated epoch is more likely
@@ -2533,7 +2558,14 @@
        and suppressing the little signal there is would trade a visible under-count for a silent zero.
        So it waits for the weighted-score detector (brief §3). Recorded here rather than in a branch
        nobody reads, because the measurement is the reason. */
-    return epochs.map((e, i) => ({ tMin: e.tMin, stage: sm[i], y: order[sm[i]] }));
+    /* `order[null]` is `undefined`, which would ship as an unplotted NaN rather than as an absence.
+       The reason key is added ONLY on a refusal, so a staged epoch does not carry a dangling token. */
+    return epochs.map((e, i) => {
+      const stage = sm[i];
+      const o = { tMin: e.tMin, stage, y: stage == null ? null : order[stage] };
+      if (stage == null) o.stageReason = rmReason(e);
+      return o;
+    });
   }
 
   // ════════════════════════════════════════════════════════════════════════
@@ -2655,6 +2687,13 @@
     // sleep stage transitions as lower-priority events (model confidence, quality-neutral)
     let prev = null;
     for (const s of stages) {
+      /* A REFUSAL IS NOT A TRANSITION. `'stage_' + null.toLowerCase()` throws, and moving `prev` to
+         null would make the next measured epoch emit a transition into the stage it was already in.
+         Skipping without moving `prev` means Light · refused · Light emits nothing, and
+         Light · refused · Wake emits the one transition that did happen. The per-epoch absence
+         travels on the export's `stage: null` + `stageReason`, which is where a consumer reads it —
+         an invented `stage_unknown` impulse would add a vocabulary no consumer knows. */
+      if (s.stage == null) continue;
       if (s.stage !== prev) {
         events.push({ t: clock(s.tMin * 60), tMs: tmsAt(s.tMin * 60), impulse: 'stage_' + s.stage.toLowerCase(), node: 'ECGDex', conf: 0.7, sqi: null, meta: {} });
         prev = s.stage;
@@ -3238,10 +3277,16 @@
     const events = gangliorEvents(cvhr, ambulatory ? [] : stages, rec.t0Ms != null ? rec.t0Ms : null, sqi, times, epochPos, _accEx ? _accEx.movementOnsets : null);
 
     // sleep stage summary
+    /* A REFUSED EPOCH IS AN UNSTAGED MINUTE, NOT A STAGE. `stageMin[null] += dur` would write an
+       `undefined` key and leave every real bucket intact, so the night's minutes would silently stop
+       summing to its duration. The refused span is counted and PUBLISHED beside the stages: §∅ — a
+       discontinuity refuses, reduced coverage annotates, and this is the annotation. */
     const stageMin = { Wake: 0, REM: 0, Light: 0, Deep: 0 };
+    let unstagedMin = 0;
     stages.forEach((s, i) => {
       const dur = i < stages.length - 1 ? stages[i + 1].tMin - s.tMin : 5;
-      stageMin[s.stage] += dur;
+      if (s.stage == null) unstagedMin += dur;
+      else stageMin[s.stage] += dur;
     });
     const totSleep = stageMin.REM + stageMin.Light + stageMin.Deep;
 
@@ -3441,6 +3486,7 @@
       epochsRefused,
       stages,
       stageMin,
+      unstagedMin: +unstagedMin.toFixed(0),
       totSleep: +totSleep.toFixed(0),
       // `denomSec` rides along (F3): this reshape is an ALLOWLIST, so a field detectCVHR returns and
       // the export reads is dead unless it is named here — the analyze-level assertion is what shows it.
@@ -3496,7 +3542,15 @@
       const med = seg.length ? seg[seg.length >> 1] : 0;
       const dev = med ? Math.abs(vals[i] - med) / med : 0;
       if (vals[i] < 300 || vals[i] > 2000 || dev > 0.2) {
-        out[i] = med || out[i - 1] || 1000;
+        /* ⚠️ `|| 1000` was a FABRICATION — a hardcoded 60 bpm written into the DEVICE series exactly
+           where the ±5-beat neighbourhood held nothing to interpolate from, and it then flowed into
+           devRMSSD, devSDNN and every self-vs-device delta this function reports. buildNN's twin
+           already states the rule for the self series: keep the measured value and FLAG it, which
+           says "do not trust this" without inventing a heart rate. Same order of fallbacks as the
+           twin — local median, then the neighbour either side — and `nc` still counts the beat, so
+           `devEctopyCorrected` reports it. */
+        const repl = med || out[i - 1] || vals[i + 1];
+        if (repl) out[i] = repl;
         nc++;
       }
     }
@@ -4870,6 +4924,11 @@
     // Additive (contract rule: new data via a NEW field, never by changing an existing shape) —
     // the staging rules and the motion index are now gateable in their own right.
     stageSleep,
+    /* Additive, same reason the three above give: the stage emitter was PSEUDO-TESTED — reachable
+       only through a full raw-ECG `analyze` run, which cannot plant a refused epoch and so cannot
+       pin what the bus does with one. A null stage used to throw here on `.toLowerCase()`, and the
+       leg that proves it no longer does needs to call this directly. */
+    gangliorEvents,
     epochMotion,
     stampEpochPositions,
     bandpass,
@@ -7357,7 +7416,7 @@
       out.sleep = amb
         ? { suppressed: true, suppressedReason: (r.sleepSuppressed && r.sleepSuppressed.suppressedReason) || 'high-activity / ambulatory', stages: null }
         : lng
-          ? { totalSleepMin: nz(r.totSleep), stageMinutes: r.stageMin || null }
+          ? { totalSleepMin: nz(r.totSleep), stageMinutes: r.stageMin || null, unstagedMin: nz(r.unstagedMin) }
           : null;
       // ECGDEX AUDIT F — the Integrator's adaptEnvelopeNode('ECGDex') reads json.apnea.cvhrIndex and
       // json.hrvStability.mean_lnRMSSD_slope, but this orchestrate-routed rich export OMITTED both

@@ -2173,7 +2173,12 @@ function renderSealStatus(){
   const s = (STATE&&STATE.seal)||null; const el = $('#stSeal'); if(!el) return;
   const on = !!(s&&s.armed);
   $('#sealShowCard').disabled = !on; $('#sealRotate').disabled = !on;
-  if(!s){ el.innerHTML = 'off — <code>seal.enabled</code> is false (the owner\'s switch: a night written into a folder a sync client may watch)'; return; }
+  // ABSENT IS NOT A CAUSE. The daemon writes no `seal` block in two states — `seal.enabled` is false,
+  // and the poller has not armed yet — and this surface cannot tell them apart, so it names the
+  // absence and both states rather than asserting one. It asserted the first on EVERY box until
+  // `webmon.state()` forwarded the key, including on an armed one.
+  if(!s){ el.innerHTML = 'no seal block — either <code>seal.enabled</code> is false (the owner\'s switch: '
+    + 'a night written into a folder a sync client may watch) or the poller has not armed yet'; return; }
   if(!on){ el.innerHTML = `<span class="bad">not armed</span> — ${esc(s.error||'')}`; return; }
   const nights = Object.entries(s.nights||{}).sort().reverse().slice(0,7)
     .map(([n,v])=>`${esc(n)} <span class="${v.status==='PASS'?'ok':(v.status==='NOT_APPLICABLE'?'':'bad')}">${esc(v.status)}</span>${v.revision?' r'+v.revision:''}`).join(' · ');
