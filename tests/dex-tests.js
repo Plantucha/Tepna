@@ -42217,6 +42217,112 @@
             T.eq('CDCS §3.1 · …nor does an absent clockSkew block', _csEval(null), false);
           }
 
+          /* ── D17 · A VETOED RECORDING MUST NOT LEAVE THE READER WITH SILENCE ──────────────────────
+             The banner above fires on a FINDING. `detectClockSkew` vetoes a rec that recorded a clock
+             seam or whose node declared an RTC reset, so a night whose every rec was vetoed produced
+             NO finding and the app printed nothing — the same screen a night of agreeing clocks draws.
+             §∅: an output over absent input reports the absence. The guard lift above cannot see this,
+             because the defect is the ABSENCE of a second block rather than a weakened guard.
+             Lifted and EXECUTED out of the shipped source, like the guard above: a regex on the
+             spelling would pass over `return []` at the top of the function. */
+          var _liftFn = function (src, name) {
+            var a = src.indexOf('function ' + name + '(');
+            if (a < 0) return null;
+            var o = src.indexOf('{', a);
+            if (o < 0) return null;
+            var depth = 0;
+            for (var c = o; c < src.length; c++) {
+              if (src[c] === '{') depth++;
+              else if (src[c] === '}') {
+                depth--;
+                if (depth === 0) return src.slice(a, c + 1);
+              }
+            }
+            return null;
+          };
+          var _silSrc = _liftFn(iaSrc, 'skewSilenceLines');
+          T.ok(
+            'D17 · integrator-app carries a skew-silence surface at all',
+            !!_silSrc,
+            _silSrc ? _silSrc.length + ' chars lifted' : 'no skewSilenceLines() in integrator-app.js — a fully vetoed night reads as agreement'
+          );
+          /* A FALLBACK so the remaining legs still EXAMINE something when the function is absent:
+             a leg that throws on a missing symbol reports one red and runs none of the behaviour. */
+          var _silFn = null;
+          if (_silSrc) {
+            try {
+              _silFn = new Function('return (' + _silSrc + ');')();
+            } catch (_e) {
+              _silFn = null;
+            }
+          }
+          T.ok('D17 · …and it lifts into a callable function', typeof _silFn === 'function', typeof _silFn);
+          if (typeof _silFn === 'function') {
+            var _seamVeto = { node: 'ECGDex', source: 'clock-seam', seams: 2, seamsReason: 'sidecar', note: 'ECGDex recorded 2 clock seam(s) on this rec — excluded from anchor fits.' };
+            var _rtcVeto = { node: 'OxyDex', source: 'rtc-reset-suspect', note: 'OxyDex RTC reset-suspect on this rec — placement UNMEASURED (excluded from anchor fits).' };
+            var _clean = { findings: [], vetoes: [], seamCensus: [{ node: 'ECGDex', seams: 0, seamsReason: 'sidecar-read', vetoed: false }] };
+            var _lines = _silFn({ findings: [], vetoes: [_seamVeto, _rtcVeto], seamCensus: [] });
+            T.ok('D17 · every veto reaches the reader, one line per rec per source', _lines.length >= 2, _lines.length + ' line(s)');
+            T.ok(
+              'D17 · …and each line carries the DSP note, so the node and the cause are named',
+              _lines.some(function (l) {
+                return l.indexOf('ECGDex recorded 2 clock seam(s)') >= 0;
+              }) &&
+                _lines.some(function (l) {
+                  return l.indexOf('OxyDex RTC reset-suspect') >= 0;
+                }),
+              _lines.join(' | ')
+            );
+            T.ok(
+              'D17 · a pass that refused EVERY rec says the quiet is refusal, not agreement',
+              _lines.some(function (l) {
+                return /NOT agreement/.test(l);
+              }),
+              _lines.join(' | ')
+            );
+            var _withFinding = _silFn({ findings: [{ node: 'ECGDex', offsetSec: -2340 }], vetoes: [_seamVeto], seamCensus: [] });
+            T.ok(
+              'D17 · …and that line stays away when a finding already spoke',
+              !_withFinding.some(function (l) {
+                return /NOT agreement/.test(l);
+              }) && _withFinding.length === 1,
+              _withFinding.join(' | ')
+            );
+            /* THREE STATES, NEVER TWO. A measured 0 is a clean scan and must stay quiet, or the
+               banner fires every night and a reader stops reading it. */
+            T.eq('D17 · a MEASURED seams:0 census draws no line', _silFn(_clean).length, 0);
+            var _unk = _silFn({
+              findings: [],
+              vetoes: [],
+              seamCensus: [
+                { node: 'OxyDex', seams: null, seamsReason: 'no-seam-sidecar', vetoed: false },
+                { node: 'GlucoDex', seams: null, seamsReason: 'upstream-emitted-no-validity', vetoed: false }
+              ]
+            });
+            T.ok(
+              'D17 · an UNKNOWN channel is stated, grouped by the node own reason token',
+              _unk.length === 1 && /UNKNOWN/.test(_unk[0]) && _unk[0].indexOf('no-seam-sidecar') >= 0 && _unk[0].indexOf('upstream-emitted-no-validity') >= 0,
+              _unk.join(' | ')
+            );
+            T.ok(
+              'D17 · …naming both nodes, so a reader cannot read one state over two streams',
+              _unk.length === 1 && _unk[0].indexOf('OxyDex') >= 0 && _unk[0].indexOf('GlucoDex') >= 0,
+              _unk.join(' | ')
+            );
+            T.eq('D17 · an absent clockSkew block throws nothing and says nothing', _silFn(null).length, 0);
+            T.eq('D17 · …and a block with no keys at all behaves the same', _silFn({}).length, 0);
+          }
+          /* THE CALL SITE IS THE OTHER HALF: a helper nobody calls prints nothing. It must sit
+             OUTSIDE the `cs.findings` guard, because the case it answers is that guard being false. */
+          var _callIdx = iaSrc.indexOf('skewSilenceLines(cs)');
+          var _guardIdx = iaSrc.indexOf('cs.findings');
+          var _renderIdx = iaSrc.indexOf('R.renderAll(');
+          T.ok(
+            'D17 · the app CALLS the surface before it renders, outside the finding guard',
+            _callIdx > 0 && _renderIdx > _callIdx && /warnAll\.push\(_silence\[/.test(iaSrc),
+            'call=' + _callIdx + ' guard=' + _guardIdx + ' render=' + _renderIdx
+          );
+
           /* ── DEEP-AUDIT-II §10.4 · the app must RELEASE what the recording took ────────────────────
              `ECGDSP.planCompanionGraft` is a pure function and is well gated (12 assertions). The half
              that was blind is the APP's obligation to write `remaining` back: mutation-checked, dropping
