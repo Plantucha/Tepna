@@ -387,7 +387,7 @@ def _sh_spy(monkeypatch, results=None):
     """Record every shelled command; `results` maps a substring -> (rc, out)."""
     calls = []
 
-    def fake(argv, timeout, sudo=False):
+    def fake(argv, timeout, sudo=False, quiet=False):
         calls.append((" ".join(argv), sudo))
         for frag, rv in (results or {}).items():
             if frag in " ".join(argv):

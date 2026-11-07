@@ -25,8 +25,8 @@ class Recorder:
         self.calls = []
         self.reply = reply
 
-    def __call__(self, argv, timeout, sudo=False):
-        self.calls.append({"argv": list(argv), "timeout": timeout, "sudo": sudo})
+    def __call__(self, argv, timeout, sudo=False, quiet=False):
+        self.calls.append({"argv": list(argv), "timeout": timeout, "sudo": sudo, "quiet": quiet})
         return self.reply(argv) if callable(self.reply) else self.reply
 
     def argv(self, program):
@@ -211,3 +211,15 @@ def test_the_nmcli_branch_hardens_the_named_profile_before_raising_it(monkeypatc
 
     assert ch.wifi_up("ezshare", timeout=33.0, iface="wlan9") is True
     assert seen == [("harden", "ezshare"), ("nmcli", ["connection", "up", "ezshare"], 33.0)]
+
+
+def test_only_the_teardown_terminate_is_quiet(monkeypatch):
+    """MEASURED on the capture box 2026-11-07: the teardown's terminate warned at each daemon start,
+    and the next line said nothing was bound. `_wpa_down` judges that failure itself, so only its
+    terminate asks `_sh` for quiet. The flush and the link-down keep their warnings."""
+    rec = Recorder(reply=lambda argv: (255, "Failed to connect") if argv[0] == "wpa_cli" else (0, ""))
+    monkeypatch.setattr(ch, "_sh", rec)
+    monkeypatch.setattr(ch, "_live_supplicants", lambda iface: [])
+    ch._wpa_down("wlp1s0")
+    quiet = [c["argv"][0] + " " + c["argv"][-1] for c in rec.calls if c["quiet"]]
+    assert quiet == ["wpa_cli terminate"], rec.calls
