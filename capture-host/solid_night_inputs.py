@@ -790,7 +790,11 @@ def continuity(audit: dict, audit_dev: dict, start, end, spans: dict[str, tuple]
     inside = []
     for g in gaps:
         at = _dt.datetime.fromisoformat(g["at"])
-        if start <= at <= end:
+        # HALF-OPEN AT THE WORN END. A gap's `at` is the last row before it, so the seconds it lost run
+        # AFTER `at`. A gap that starts AT the worn end lost nothing inside the worn interval. MEASURED on
+        # the capture box 2026-11-07: night 2026-11-06's Verity ended at its doff, 06:03:02, the last row
+        # of its file. The 86 s to the relink file started on that row, and the band read it as a FAIL.
+        if start <= at < end:
             inside.append((str(g["cause"]), float(g["s"])))
     worn_s = (end - start).total_seconds()
     regress = sorted({c for c, _ in inside if c in DAEMON_REGRESSION})
@@ -2514,9 +2518,9 @@ def restart_gaps(audit_dev: dict | None, start, end) -> dict | None:
         for g in rows
         if isinstance(g, dict)
         and g.get("cause") == RESTART
-        # THE BAND'S OWN POPULATION, CLOSED AT BOTH ENDS, because this field has to count exactly what
-        # `continuity` counted — it reads `start <= at <= end` four screens up.
-        and start <= _dt.datetime.fromisoformat(g["at"]) <= end
+        # THE BAND'S OWN POPULATION, half-open at the worn end, because this field has to count exactly
+        # what `continuity` counted — it reads `start <= at < end` four screens up.
+        and start <= _dt.datetime.fromisoformat(g["at"]) < end
     ]
     if not found:
         return None

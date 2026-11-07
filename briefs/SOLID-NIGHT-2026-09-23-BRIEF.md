@@ -232,6 +232,11 @@ evidence".
 - **The PPI not-worn rule runs before the epoch floor**, so a relink file under 30 epochs with no pulse
   still witnesses the doff before it. Census 2026-11-07 over 106 night folders: 5 Verity worn ends moved
   3 to 32 min earlier. Four of them land within 71 s of a sibling device's doff, and one is 9 min after.
+- **The continuity band reads the worn interval half-open: `start <= at < end`** (Wren, 2026-11-07). A
+  gap's `at` is the last row before it, so its seconds run after `at`. A gap that starts AT the worn end lost
+  nothing while the device was worn. On night 2026-11-06 the Verity's worn end was its last row, 06:03:02,
+  and the 86 s to the relink file started there, so the band FAILed. `restart_gaps` counts the same
+  population. Census 2026-11-07 of the written audits: 3 gaps sat on a worn end, all Verity, and 1 FAILed.
 - **Two inputs this night showed are NOT wear evidence.** (i) The daemon's not-worn detection **did not
   fire** for the H10 in those 27½ min (Wren is filing the row). (ii) The loss audit's `lost_min` measures
   GAPS: its 0.0 for the H10 was right about gaps and silent about wear. The verdict needs both — continuity
