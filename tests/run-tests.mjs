@@ -71,7 +71,7 @@ import { classify as commitShape, classifyRootAdd as commitShapeRootAdd, KNOWN_R
 import { docsConstantsPins, pinnedByDocsConstants, resolveSourcedClaim } from '../tools/claim-source.mjs';
 import * as claimSource from '../tools/claim-source.mjs';
 import { CHECKS as DOCS_CONSTANTS_CHECKS } from '../tools/docs-constants.mjs';
-import { elementBlocks } from '../tools/strip-markup.mjs';
+import { elementBlocks, stripTags } from '../tools/strip-markup.mjs';
 /* The node-lane dissent core, imported so the suite can hold the BROWSER lane's labelling
    (`consensus-dissent.js`) equal to it. Two lanes name the same five abstentions or the suite reds —
    row 2026-11-05-the-two-bundle-workers-still-discard-the-polarity-return. */
@@ -3847,6 +3847,7 @@ async function main() {
     trioEra: readTrioEra(), // row 2026-10-12 — which trio exports carry a recorded code era, committed + live
     YieldPin, // the pin's own selection replay + closure comparator, executed by the suite rather than re-implemented
     elementBlocks, // strip-markup's index scan — the group drives it over every end-tag spelling
+    stripTags, // the same file's text extractor — a group reading rendered markup back never writes its own tag pattern
     fixtures: readFixtures(),
     equiv: readEquiv(),
     odiPilot: readOdiPilot(),

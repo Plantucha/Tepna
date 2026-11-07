@@ -71861,9 +71861,15 @@
         );
         return;
       }
+      /* THE TAG STRIP IS `tools/strip-markup.mjs`'s INDEX SCAN, NOT A PATTERN OF OUR OWN. That file's
+         header records the finding: each regex spelling tried there satisfied the example in the
+         previous CodeQL alert and left the class open. A one-shot tag strip by pattern is reported
+         the same way, and this helper was reported that way on the PR that introduced it. The group
+         is node-lane only — it SKIPs above — so `env.stripTags` is always wired where it is read. */
+      var deTag = env.stripTags;
       var kVals = function (html) {
         var o = [];
-        for (const m of html.matchAll(/<div class="kpi-val[^"]*">([\s\S]*?)<\/div>/g)) o.push(m[1].replace(/<[^>]*>/g, ''));
+        for (const m of html.matchAll(/<div class="kpi-val[^"]*">([\s\S]*?)<\/div>/g)) o.push(deTag(m[1]));
         return o;
       };
       var kSubs = function (html) {
