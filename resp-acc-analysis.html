@@ -1610,6 +1610,20 @@ function _recHasRecordedSeam(r) {
   return !!(r && typeof r.seams === 'number' && isFinite(r.seams) && r.seams >= 1);
 }
 
+/* THE PAIR-LEVEL REFUSAL, FOR BOTH DECLARED CLOCK DEFECTS (board #3989). `detectClockSkew` vetoes a
+   rec from the event-pair estimator on EITHER a recorded seam or a node-declared `rtcResetSuspect`,
+   and `_beatSkewCheck` read only the first — so one declared defect refused the event-pair lag and
+   was spent by the beat-level drift fit, the exact asymmetry the comment above warns about. A
+   reset's own offset is unmeasured by definition, so a fit across it carries that unmeasured jump
+   in BOTH the offset and the rate it reports.
+   PRECEDENCE: a rec carrying both reports `clock-seam` in the pair's single `reason` field. Nothing
+   is lost by the choice, because `detectClockSkew.vetoes` records one entry per rec PER SOURCE. */
+function _pairRefusalReason(A, B) {
+  if (_recHasRecordedSeam(A) || _recHasRecordedSeam(B)) return 'clock-seam';
+  if ((A && A.rtcResetSuspect === true) || (B && B.rtcResetSuspect === true)) return 'rtc-reset-suspect';
+  return null;
+}
+
 function adaptEnvelopeNode(json, node, filename) {
   var r = _eventsFromEnvelope(json, node);
   var t0Ms = r.t0Ms,
@@ -8396,13 +8410,14 @@ function _beatSkewCheck(recs, pairs, opts) {
     for (var j = i + 1; j < withBeats.length; j++) {
       var A = withBeats[i],
         B = withBeats[j];
-      /* A PAIR WHOSE EITHER SIDE CARRIES A RECORDED SEAM REFUSES BEFORE THE FIT (D17).
+      /* A PAIR WHOSE EITHER SIDE CARRIES A DECLARED CLOCK DEFECT REFUSES BEFORE THE FIT (D17, #3989).
          `fitClockDrift` fits an offset AND a rate across the whole span, so a device-clock step
          inside it lands in both numbers — and `confident:true` over a stepped span is the shape
          §∅ and the 2026-09-17 ruling both refuse. Published on the SAME KEYS as the no-fit arm
          below rather than dropped from `out`: a pair silently missing is indistinguishable from a
          pair nobody could build, and `reason` is the field that carries that difference. */
-      if (_recHasRecordedSeam(A) || _recHasRecordedSeam(B)) {
+      var refusal = _pairRefusalReason(A, B);
+      if (refusal) {
         out.push({
           a: A.node,
           b: B.node,
@@ -8413,7 +8428,7 @@ function _beatSkewCheck(recs, pairs, opts) {
           maxDriftPpm: null,
           spanMin: null,
           confident: false,
-          reason: 'clock-seam'
+          reason: refusal
         });
         continue;
       }

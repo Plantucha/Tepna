@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="94e30a32c0f7" data-compute-hash="9724c8e12298"><head>
+<html lang="en" data-manifest-hash="0c21d6afbf02" data-compute-hash="bda78a2a400e"><head>
 <!--
   Integrator.src.html — Tepna
   Copyright 2026 Michal Planicka
@@ -9,7 +9,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'self' (NOT 'none') — this bundle fetches committed LOCAL sample files; 'self' still blocks every REMOTE origin. object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3iB4lzrbRxmRZUz4H81l5CaU0a1ycVM2F7BN46YZpzU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BH58u01qWhNePsiOK1+lcUp7rfOKHeAk0TqZU5vE4VM=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-aUdm/7EmRqa2iiXr8zBekMiJhlqW7z51cZBG+7OCko8=' 'sha256-fGkqo1InzXusfon2RDMp9a98flNCFaw3TSbxCC/xJUA=' 'sha256-hCZmwNAMDLPZEMYHAYpzoPETSnimg1oHWWjZImdKqxM=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-uPBXSh8bOW0EIESjeEN3ZVzHDWjVCQ1RSoTzI4m2jM0='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-84iaFiqUEftz4fuLv5KHfze6SsmT/jwwfMKpygTi4HQ=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BH58u01qWhNePsiOK1+lcUp7rfOKHeAk0TqZU5vE4VM=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-aUdm/7EmRqa2iiXr8zBekMiJhlqW7z51cZBG+7OCko8=' 'sha256-fGkqo1InzXusfon2RDMp9a98flNCFaw3TSbxCC/xJUA=' 'sha256-hCZmwNAMDLPZEMYHAYpzoPETSnimg1oHWWjZImdKqxM=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-uPBXSh8bOW0EIESjeEN3ZVzHDWjVCQ1RSoTzI4m2jM0='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>Integrator · Fusion Layer · v2.28.0</title>
@@ -7225,6 +7225,20 @@ function _recHasRecordedSeam(r) {
   return !!(r && typeof r.seams === 'number' && isFinite(r.seams) && r.seams >= 1);
 }
 
+/* THE PAIR-LEVEL REFUSAL, FOR BOTH DECLARED CLOCK DEFECTS (board #3989). `detectClockSkew` vetoes a
+   rec from the event-pair estimator on EITHER a recorded seam or a node-declared `rtcResetSuspect`,
+   and `_beatSkewCheck` read only the first — so one declared defect refused the event-pair lag and
+   was spent by the beat-level drift fit, the exact asymmetry the comment above warns about. A
+   reset's own offset is unmeasured by definition, so a fit across it carries that unmeasured jump
+   in BOTH the offset and the rate it reports.
+   PRECEDENCE: a rec carrying both reports `clock-seam` in the pair's single `reason` field. Nothing
+   is lost by the choice, because `detectClockSkew.vetoes` records one entry per rec PER SOURCE. */
+function _pairRefusalReason(A, B) {
+  if (_recHasRecordedSeam(A) || _recHasRecordedSeam(B)) return 'clock-seam';
+  if ((A && A.rtcResetSuspect === true) || (B && B.rtcResetSuspect === true)) return 'rtc-reset-suspect';
+  return null;
+}
+
 function adaptEnvelopeNode(json, node, filename) {
   var r = _eventsFromEnvelope(json, node);
   var t0Ms = r.t0Ms,
@@ -14011,13 +14025,14 @@ function _beatSkewCheck(recs, pairs, opts) {
     for (var j = i + 1; j < withBeats.length; j++) {
       var A = withBeats[i],
         B = withBeats[j];
-      /* A PAIR WHOSE EITHER SIDE CARRIES A RECORDED SEAM REFUSES BEFORE THE FIT (D17).
+      /* A PAIR WHOSE EITHER SIDE CARRIES A DECLARED CLOCK DEFECT REFUSES BEFORE THE FIT (D17, #3989).
          `fitClockDrift` fits an offset AND a rate across the whole span, so a device-clock step
          inside it lands in both numbers — and `confident:true` over a stepped span is the shape
          §∅ and the 2026-09-17 ruling both refuse. Published on the SAME KEYS as the no-fit arm
          below rather than dropped from `out`: a pair silently missing is indistinguishable from a
          pair nobody could build, and `reason` is the field that carries that difference. */
-      if (_recHasRecordedSeam(A) || _recHasRecordedSeam(B)) {
+      var refusal = _pairRefusalReason(A, B);
+      if (refusal) {
         out.push({
           a: A.node,
           b: B.node,
@@ -14028,7 +14043,7 @@ function _beatSkewCheck(recs, pairs, opts) {
           maxDriftPpm: null,
           spanMin: null,
           confident: false,
-          reason: 'clock-seam'
+          reason: refusal
         });
         continue;
       }

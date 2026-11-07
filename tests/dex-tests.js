@@ -48721,6 +48721,93 @@
       T.ok('the fusion publishes the census with no condition guarding it', /seamCensus: skew\.seamCensus \|\| \[\]/.test(String(D.runFusion)));
     });
 
+    /* ════ THE RTC ANALOGUE — A DECLARED RESET REFUSES THE BEAT FIT TOO (board #3989) ═════════════
+       Found while closing lane 4 above, reported, and fixed here. `detectClockSkew` has vetoed a
+       `rtcResetSuspect` rec from the event-pair estimator since FINISHED-WORK-IMPROVEMENTS §A 2b,
+       and `_beatSkewCheck` read no such flag — so ONE declared clock defect refused the event-pair
+       lag and was SPENT by the beat-level drift fit. A reset's own offset is unmeasured by
+       definition, so a fit across it carries that unmeasured jump in both the offset and the rate
+       it publishes, and `confident:true` over it is the shape §∅ refuses.
+       The legs gate the refusal, its KEYS, the precedence when one rec carries BOTH defects, and a
+       clean control — because a guard that refuses every pair passes a refusal test on its own. */
+    group('A declared RTC reset refuses the beat-level drift fit, as a recorded seam does', 'integrator-dsp · clock-contract · absence · §∅', function (T) {
+      var D = env.IntegratorDSP;
+      var _have = !!(D && typeof D.detectClockSkew === 'function');
+      T.ok('IntegratorDSP.detectClockSkew co-loaded', _have);
+      if (!_have) {
+        T.skip('IntegratorDSP.detectClockSkew unavailable — the beat-level refusal is unexamined');
+        return;
+      }
+      var t0 = U(2026, 5, 10, 22, 0, 0);
+      /* Two nodes with a long, clean beat series each: the pair IS buildable, so every refusal
+         below is a decision the guard made rather than a pair that never existed. */
+      var mkBeatRec = function (node, over) {
+        var n = 900,
+          arr = new Float64Array(n);
+        for (var i = 0; i < n; i++) arr[i] = t0 + i * 1000;
+        var r = { node: node, dateUnknown: false, events: [], seams: 0, seamsReason: null, beats: { n: n, tMs: arr } };
+        return Object.assign(r, over || {});
+      };
+      var bcClean = D.detectClockSkew([mkBeatRec('ECGDex'), mkBeatRec('PpgDex')], {}).beatCheck,
+        bcRtc = D.detectClockSkew([mkBeatRec('ECGDex', { rtcResetSuspect: true }), mkBeatRec('PpgDex')], {}).beatCheck,
+        bcBoth = D.detectClockSkew([mkBeatRec('ECGDex', { rtcResetSuspect: true, seams: 2 }), mkBeatRec('PpgDex')], {}).beatCheck;
+      T.ok(
+        'ANTI-VACUITY · all three pairs were built, so each verdict below is a decision',
+        !!(bcClean && (bcClean.pairs || []).length === 1 && bcRtc && (bcRtc.pairs || []).length === 1 && bcBoth && (bcBoth.pairs || []).length === 1),
+        JSON.stringify([((bcClean && bcClean.pairs) || []).length, ((bcRtc && bcRtc.pairs) || []).length, ((bcBoth && bcBoth.pairs) || []).length])
+      );
+      var rp = (bcRtc && bcRtc.pairs && bcRtc.pairs[0]) || {},
+        cp = (bcClean && bcClean.pairs && bcClean.pairs[0]) || {};
+      T.eq('🔴 a pair whose side declared an RTC reset refuses the drift fit', rp.reason, 'rtc-reset-suspect');
+      T.eq('…and it does NOT claim confidence over the unmeasured jump', rp.confident, false);
+      T.ok(
+        '🔴 the refusal carries the SAME KEYS as the no-fit arm, each an explicit null',
+        'offsetSec' in rp &&
+          rp.offsetSec === null &&
+          'driftPpm' in rp &&
+          rp.driftPpm === null &&
+          'wrappedDriftPpm' in rp &&
+          rp.wrappedDriftPpm === null &&
+          'wrappedConcentration' in rp &&
+          rp.wrappedConcentration === null &&
+          'maxDriftPpm' in rp &&
+          rp.maxDriftPpm === null &&
+          'spanMin' in rp &&
+          rp.spanMin === null,
+        JSON.stringify(Object.keys(rp))
+      );
+      T.ok(
+        'CONTROL · two clean recs reach the fit, whose own arm answers — the guard refuses a defect, not every pair',
+        cp.reason !== 'rtc-reset-suspect' && cp.reason !== 'clock-seam' && 'driftPpm' in cp,
+        JSON.stringify(cp.reason || null)
+      );
+      T.eq('PRECEDENCE · a rec carrying BOTH defects reports the seam in the single reason field', ((bcBoth && bcBoth.pairs && bcBoth.pairs[0]) || {}).reason, 'clock-seam');
+      /* …and the precedence costs nothing, because the rec-level vetoes carry one entry PER SOURCE. */
+      var vb = D.detectClockSkew([mkBeatRec('ECGDex', { rtcResetSuspect: true, seams: 2 }), mkBeatRec('PpgDex')], {}).vetoes || [];
+      T.eq(
+        '🔴 both declared defects survive separately in the rec-level vetoes',
+        vb
+          .map(function (v) {
+            return v.node + ':' + v.source;
+          })
+          .sort()
+          .join(','),
+        'ECGDex:clock-seam,ECGDex:rtc-reset-suspect'
+      );
+      /* THE ANTI-FORK LEG, stated behaviourally because `_beatSkewCheck` is module-private: ONE
+         declared defect must refuse at BOTH observers. This is the assertion that fails the day an
+         edit teaches one estimator a defect the other still spends. */
+      var skRtc = D.detectClockSkew([mkBeatRec('ECGDex', { rtcResetSuspect: true }), mkBeatRec('PpgDex')], {});
+      T.ok(
+        '🔴 one declared reset refuses at BOTH observers — vetoed from the event pairing AND refused by the beat fit',
+        (skRtc.vetoes || []).some(function (v) {
+          return v.node === 'ECGDex' && v.source === 'rtc-reset-suspect';
+        }) &&
+          (skRtc.pairs || []).length === 0 &&
+          ((skRtc.beatCheck && skRtc.beatCheck.pairs && skRtc.beatCheck.pairs[0]) || {}).reason === 'rtc-reset-suspect',
+        JSON.stringify({ vetoes: (skRtc.vetoes || []).length, pairs: (skRtc.pairs || []).length })
+      );
+    });
     group('SAMPLE-VALIDITY-ENVELOPE §3.2 — the ACC companion sidecar, and a held ACC cannot stamp a posture', 'dex-ingest · signal-orchestrate · adapters · ecgdex-dsp · absence', function (T) {
       var DI = env.DexIngest,
         SO = env.SignalOrchestrate,
