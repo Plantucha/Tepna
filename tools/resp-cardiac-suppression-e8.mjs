@@ -22,7 +22,7 @@
  * much of it is left AFTER the filter the estimator already applies". That is a ratio, and it is
  * measurable without building anything.
  *
- * SO THIS MEASURES, per night:
+ * SO THIS MEASURES, per H10 ACC FILE (never per night — one night can hold several):
  *   f_HR         from the paired H10 ECG (shipped ECGDSP detector, median RR) — the true rate, not a
  *                spectral guess off the accelerometer, which would be circular
  *   before/after cardiac power at f_HR and 2f_HR relative to the respiratory peak, on the SAME
@@ -297,7 +297,7 @@ const accs = _cap.kept;
 
 console.log('MOTIONDEX-RESPIRATORY-RATE-FOLLOWUPS §8 — is there cardiac energy left to notch?');
 console.log(`grid ${FSC} Hz · respiratory band ${RESP_LO}-${RESP_HI} Hz · f_HR from the paired H10 ECG\n`);
-console.log('night                                   f_HR    respHz   BEFORE band-pass        AFTER band-pass');
+console.log('file                                    f_HR    respHz   BEFORE band-pass        AFTER band-pass');
 console.log('                                        (Hz)             fHR_dB   2fHR_dB        fHR_dB   2fHR_dB');
 
 const rows = [];
@@ -415,13 +415,13 @@ function printPopulation() {
    line such a run printed, so the one case where the population is the whole story was the one case
    that reported none. */
 if (!rows.length) {
-  console.log('\nno night scored — §8 cannot be adjudicated on this corpus.');
+  console.log(`\nno ${ACC_UNIT} scored — §8 cannot be adjudicated on this corpus.`);
   printPopulation();
   process.exit(0);
 }
 const col = (k) => rows.map((r) => r[k]);
 const fmt = (a) => `median ${median(a).toFixed(1)}  IQR ${quantile(a, 0.25).toFixed(1)}–${quantile(a, 0.75).toFixed(1)}`;
-console.log(`\n${rows.length} night(s)\n`);
+console.log(`\n${rows.length} ${ACC_UNIT}\n`);
 console.log(`  cardiac : respiratory-peak power, in dB (negative = cardiac is BELOW the respiratory peak)`);
 console.log(`    at f_HR    before band-pass  ${fmt(col('bF'))} dB`);
 console.log(`               AFTER  band-pass  ${fmt(col('aF'))} dB`);
@@ -429,7 +429,7 @@ console.log(`    at 2f_HR   before band-pass  ${fmt(col('b2'))} dB`);
 console.log(`               AFTER  band-pass  ${fmt(col('a2'))} dB`);
 console.log(`\n  f_HR ${fmt(col('fHR').map((v) => v * 1))} Hz   ·   respiratory peak ${fmt(col('respHz'))} Hz`);
 const worst = Math.max(...col('aF'), ...col('a2'));
-console.log(`\n  WORST post-filter cardiac ratio on any night: ${worst.toFixed(1)} dB`);
+console.log(`\n  WORST post-filter cardiac ratio across the ${ACC_UNIT}: ${worst.toFixed(1)} dB`);
 console.log('  A notch can only recover what survives the filter already applied. Read that number');
 console.log('  against the respiratory peak it would have to compete with — the estimator picks the');
 console.log('  LARGEST peak in 0.13-0.5 Hz, so a component this far down cannot move the pick.');

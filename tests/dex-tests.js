@@ -14552,6 +14552,149 @@
           })
           .join(', ') || 'no definition found'
       );
+      /* ══ A PRINTED NIGHT IS A CLAIM ABOUT THE UNIT, AND FOUR TOOLS MADE IT OVER FILES (#4150).
+         `coverageIdentity` binds the ARITHMETIC of every removal namer above. It cannot see the WORD
+         a tool prints beside the number, and four analysis tools declared their population unit as a
+         FILE — `${DEVICE} PPG files`, `H10 ACC files` — and then printed `night(s)` over the same
+         rows. One night holds several recordings, so the two lines disagreed on the unit while
+         quoting one number. `ppi-jitter-vs-ecg.mjs` is the one whose rows really ARE nights, but only
+         under the default merge: `buildUnits` returns one unit per night with merging on and one per
+         FILE under `--no-merge`, so its word has to follow the mode rather than being fixed either
+         way.
+         A CLAIM IS THE PRINTED TEXT ONLY. `${nights.length}` is an identifier and names nothing to a
+         reader, so the scanner strips every interpolation before it looks.
+         THE REMAINDER IS WHAT MAKES THIS A RULE. Each tool's genuine night claims are named below and
+         nothing else may print one, so a later edit cannot reintroduce the label quietly. For the two
+         tools that can only ever see a file the declared set is EMPTY, and that emptiness is the
+         ratchet. */
+      var nightClaims = function (text) {
+        var lines = String(text || '').split('\n');
+        var out = [];
+        for (var i = 0; i < lines.length; i++) {
+          var line = lines[i];
+          if (!/console\.log|out\.push/.test(line)) continue;
+          var bare = '';
+          var depth = 0;
+          for (var j = 0; j < line.length; j++) {
+            if (depth === 0 && line.charAt(j) === '$' && line.charAt(j + 1) === '{') {
+              depth = 1;
+              j++;
+              continue;
+            }
+            if (depth > 0) {
+              if (line.charAt(j) === '{') depth++;
+              else if (line.charAt(j) === '}') depth--;
+            } else bare += line.charAt(j);
+          }
+          if (/night/i.test(bare)) out.push(bare.replace(/\s+/g, ' ').trim());
+        }
+        return out;
+      };
+      /* THE DECLARED SET, per tool: the only night a reader may be shown, and WHY it is a real one. */
+      var UNIT_CLAIMS = {
+        /* One row per FILE, always — neither tool holds any merge, so neither can see a night. */
+        'ppg-foot-consensus-e1.mjs': [],
+        'resp-cardiac-suppression-e8.mjs': [],
+        /* The cap's own flag is called `--max-nights` and the line says it ranks FILES. */
+        'ppg-fusion-e3.mjs': ['--max-nights'],
+        /* Four from `nightAucs`, which groups epochs by `r.night`; two head-read night keys; and the
+           per-epoch CSV, whose first column IS a night key. */
+        'ppi-jitter-vs-ecg.mjs': [
+          'no night carried both classes',
+          'mean SQI',
+          'clean-beat share',
+          'nights excluded',
+          'night key(s) the full parse placed outside',
+          'distinct night key(s)',
+          'per-night records'
+        ]
+      };
+      var unitTools = Object.keys(UNIT_CLAIMS).sort();
+      T.eq(
+        'ANTI-VACUITY · every tool the unit rule covers is readable here',
+        unitTools
+          .filter(function (t) {
+            return !TT['tools/' + t];
+          })
+          .join(', '),
+        ''
+      );
+      T.ok(
+        'ANTI-VACUITY · the scanner finds the night claims that are real, so an empty remainder is a measurement',
+        nightClaims(TT['tools/ppi-jitter-vs-ecg.mjs']).length === 7,
+        nightClaims(TT['tools/ppi-jitter-vs-ecg.mjs']).length + ' claim(s) in the one tool that may make them'
+      );
+      T.eq(
+        'no tool prints a night it cannot see — every printed night matches a declared, named source',
+        unitTools
+          .map(function (t) {
+            var allow = UNIT_CLAIMS[t];
+            var stray = nightClaims(TT['tools/' + t]).filter(function (c) {
+              for (var i = 0; i < allow.length; i++) if (c.indexOf(allow[i]) >= 0) return false;
+              return true;
+            });
+            return stray.length ? t + ': ' + stray.join(' | ') : '';
+          })
+          .filter(Boolean)
+          .join(' · '),
+        ''
+      );
+      T.eq(
+        'the declared set carries no fingerprint that stopped printing, because a stale entry excuses nothing',
+        unitTools
+          .map(function (t) {
+            var claims = nightClaims(TT['tools/' + t]);
+            var dead = UNIT_CLAIMS[t].filter(function (a) {
+              for (var i = 0; i < claims.length; i++) if (claims[i].indexOf(a) >= 0) return false;
+              return true;
+            });
+            return dead.length ? t + ': ' + dead.join(', ') : '';
+          })
+          .filter(Boolean)
+          .join(' · '),
+        ''
+      );
+      T.eq(
+        'the two tools with no merge print no night at all, and that empty remainder is the rule',
+        ['ppg-foot-consensus-e1.mjs', 'resp-cardiac-suppression-e8.mjs']
+          .map(function (t) {
+            var c = nightClaims(TT['tools/' + t]);
+            return c.length ? t + ' (' + c.length + ')' : '';
+          })
+          .filter(Boolean)
+          .join(' · '),
+        ''
+      );
+      /* THE MODE-DEPENDENT WORD, and that every count line reads it rather than a fixed label. */
+      var ppiText = TT['tools/ppi-jitter-vs-ecg.mjs'] || '';
+      T.ok(
+        'the merging reader takes its unit word from the mode, because `--no-merge` makes a row a file',
+        /const UNIT_WORD = MERGE \? 'night\(s\)' : PPG_UNIT;/.test(ppiText),
+        'UNIT_WORD declared beside the unit name'
+      );
+      T.ok('and its count lines read that word', (ppiText.match(/\$\{UNIT_WORD\}/g) || []).length >= 6, (ppiText.match(/\$\{UNIT_WORD\}/g) || []).length + ' site(s)');
+      T.ok(
+        'the line that divides a scored count by an offered count names BOTH units, since they differ under merging',
+        /scored \$\{nights\.length\} \$\{UNIT_WORD\} of the \$\{snap\.n\} offered \$\{snap\.unit\}/.test(ppiText),
+        'both units named on the scored-of-offered line'
+      );
+      /* THE THREE TOOLS THAT CAN ONLY SEE A FILE SAY SO where they report the count. */
+      T.eq(
+        'each file-unit reader prints its own declared unit name beside the scored count',
+        [
+          ['ppg-foot-consensus-e1.mjs', /\$\{scored\.length\} \$\{PPG_UNIT\} scored/],
+          ['ppg-fusion-e3.mjs', /\$\{rows\.length\} \$\{PPG_UNIT\} scored/],
+          ['resp-cardiac-suppression-e8.mjs', /\$\{rows\.length\} \$\{ACC_UNIT\}/]
+        ]
+          .filter(function (p) {
+            return !p[1].test(TT['tools/' + p[0]] || '');
+          })
+          .map(function (p) {
+            return p[0];
+          })
+          .join(', '),
+        ''
+      );
       /* ── A HAND-WRITTEN DEFAULT ANSWER AGREES WITH THE RULE BESIDE IT ─────────────────────────
          Row 2026-10-26-a-hand-written-ruleisdefault-asserts-a-comparison-the-file-never-ran.
          `snapshotNights` computes `ruleIsDefault` on every arm it returns, refusals included, as

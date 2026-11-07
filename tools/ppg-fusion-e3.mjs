@@ -474,8 +474,8 @@ function score(beatMs, eBeats, lo, hi) {
 }
 
 console.log('PPGDEX-ALGORITHM-DEEP-DIVE §6 · E-3 — waveform fusion re-scored on PPI jitter, shipped detector');
-console.log(`device: ${DEVICE}   ${SLEEP_ONLY ? '(sleep nights only)' : '(all nights)'}\n`);
-console.log('night                                   pol  shape      jit_cons  jit_sing  jit_mean  jit_pca   ppv_cons  ppv_mean  ppv_pca   pca weights');
+console.log(`device: ${DEVICE}   ${SLEEP_ONLY ? '(only recordings inside a sleep window)' : '(all recordings)'}\n`);
+console.log('file                                    pol  shape      jit_cons  jit_sing  jit_mean  jit_pca   ppv_cons  ppv_mean  ppv_pca   pca weights');
 
 const rows = [];
 for (const f of ppgs) {
@@ -587,13 +587,13 @@ function printPopulation() {
    line such a run printed, so the one case where the population is the whole story was the one case
    that reported none. */
 if (!rows.length) {
-  console.log('\nno night scored — E-3 cannot be adjudicated on this corpus.');
+  console.log(`\nno ${PPG_UNIT} scored — E-3 cannot be adjudicated on this corpus.`);
   printPopulation();
   process.exit(0);
 }
 const col = (k, m) => rows.map((r) => (m === 'ppv' ? r.s[k].ppv * 100 : m === 'rec' ? (r.s[k].rec == null ? null : r.s[k].rec * 100) : r.s[k].jit)).filter((v) => v != null);
 const fmt = (a) => (a.length ? `median ${median(a).toFixed(2)}  IQR ${quantile(a, 0.25).toFixed(2)}–${quantile(a, 0.75).toFixed(2)}` : 'n/a');
-console.log(`\n${rows.length} night(s) scored\n`);
+console.log(`\n${rows.length} ${PPG_UNIT} scored\n`);
 for (const [k, label] of [
   ['cons', 'consensus (SHIPPED)'],
   ['sing', 'best single channel'],
@@ -621,11 +621,11 @@ console.log('  ^ §3.1 found the GEV beamformer collapsing to [0.0006, 0.0397, -
 console.log('    channel selection". PCA-1 does NOT: ~0.577 each = 1/sqrt(3), the equal-weight mean.');
 console.log('    With rho = 0.94-0.99 the leading eigenvector IS the average, so mean-of-3 and PCA-1');
 console.log('    return identical beat trains. Collapse is a property of GEVD, not of the geometry.');
-console.log(`\n  Nights where the shipped polarity pass acted first: ${rows.filter((r) => r.polarity.corrected > 0).length} of ${rows.length}`);
+console.log(`\n  ${PPG_UNIT} where the shipped polarity pass acted first: ${rows.filter((r) => r.polarity.corrected > 0).length} of ${rows.length}`);
 /* ∅ THE COMPLEMENT OF THAT COUNT IS NOT AGREEMENT. The tally names every class, so a reader can see
    how many nights the pass abstained on for a reason other than unanimity. */
 console.log(dissentTallyLine(rows.map((r) => r.polarity)));
-console.log('  (without it a mean-of-3 on those nights CANCELS the pulse — fusion cannot be measured');
+console.log('  (without it a mean-of-3 on those files CANCELS the pulse — fusion cannot be measured');
 console.log('   until polarity is settled, which is why E-5 was a prerequisite for this experiment.)');
 
 printPopulation();
