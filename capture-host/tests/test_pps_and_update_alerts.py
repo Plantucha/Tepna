@@ -162,8 +162,6 @@ def test_update_streak_main_is_a_success_when_alerts_are_off_or_unconfigured(tmp
     assert (
         alerts.update_streak_main(["update-streak", str(tmp_path / "absent.yaml"), "back", "2", "1"], _post=never) == 0
     )
-    (tmp_path / "list.yaml").write_text("- a\n")
-    assert alerts.update_streak_main(["update-streak", str(tmp_path / "list.yaml"), "back", "2", "1"], _post=never) == 0
 
 
 def test_update_streak_main_refuses_bad_arguments(tmp_path):
@@ -375,14 +373,33 @@ def test_update_streak_main_judges_at_the_given_now_not_the_wall_clock(tmp_path,
 
 
 def test_update_streak_main_reads_a_latin1_comment_as_bytes(tmp_path):
-    """A config byte that is not UTF-8 makes the YAML read fail whatever the host locale: alerts off."""
+    """A config byte that is not UTF-8 fails the YAML read whatever the host locale: the same refusal."""
 
     async def never(url, payload, headers=None):
-        raise AssertionError("no post from an unreadable config")
+        raise AssertionError("no post from a config that does not read")
 
     p = tmp_path / "latin1.yaml"
     p.write_bytes(b"# m\xfcller\nalerts:\n  enabled: true\n  webhook_url: https://hook.invalid/t\n")
-    assert alerts.update_streak_main(["update-streak", str(p), "back", "2", "1"], _post=never) == 0
+    assert alerts.update_streak_main(["update-streak", str(p), "back", "2", "1"], _post=never) == 3
+
+
+def test_update_streak_main_refuses_a_config_it_cannot_read_as_a_mapping(tmp_path, caplog):
+    """A config that does not read leaves the alert state unknown, so it refuses and names the reason."""
+    import logging
+
+    async def never(url, payload, headers=None):
+        raise AssertionError("no post from a config that does not read")
+
+    caplog.set_level(logging.WARNING)
+    (tmp_path / "list.yaml").write_text("- a\n")
+    lst = ["update-streak", str(tmp_path / "list.yaml"), "back", "2", "1"]
+    assert alerts.update_streak_main(lst, _post=never) == 3
+    (tmp_path / "torn.yaml").write_text("alerts: [\n")
+    torn = ["update-streak", str(tmp_path / "torn.yaml"), "back", "2", "1"]
+    assert alerts.update_streak_main(torn, _post=never) == 3
+    msgs = [r.getMessage() for r in caplog.records]
+    assert len(msgs) == 2, msgs
+    assert "holds list, not a mapping" in msgs[0] and "does not read" in msgs[1]
 
 
 def test_update_streak_main_reads_a_utf16_config_through_its_byte_order_mark(tmp_path):
