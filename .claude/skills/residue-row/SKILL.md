@@ -23,6 +23,11 @@ Rules: `CLAUDE.md` §📌. Shape and vocabulary are gate-checked (`tools/residue
   `fixed #<that same PR>`, the number read back from `gh pr view`, never typed. Touching *other* rows
   — closing someone else's, or one this PR does not fix — rides a separate RESIDUE-only PR, one in
   flight at a time.
+- **A fix for a row already on main names it on a `Residue-fixed: <key>` line in the PR body** (one
+  line, keys separated by spaces or commas). After the merge, `tools/pr-walker.mjs` opens the
+  RESIDUE-only draft PR that writes `fixed #<your PR>` in that row's state cell. It edits a row only
+  if the row reads exactly `OPEN` on main, and it keeps one closure PR in flight. A key that you only
+  mention in prose closes nothing. A typo is reported once on the landing page and closes nothing.
 
 ## Measured
 
