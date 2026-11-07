@@ -744,7 +744,7 @@ if (split.length) {
   console.log('    sign is correlated with, but not sufficient for, the failure.');
 }
 console.log(
-  `  Per-night median inter-channel foot offsets (samples): ${scored
+  `  Per-file median inter-channel foot offsets (samples): ${scored
     .map((r) => (r.offs || []).map((o) => o.toFixed(1)).join('/'))
     .slice(0, 6)
     .join('  ')}`
