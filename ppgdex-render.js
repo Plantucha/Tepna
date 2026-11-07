@@ -126,6 +126,62 @@ window.evBadge = evBadge;
       }
       return best;
     }
+    /* ── THE Y SCALE IS PER-WINDOW, NOT PER-RECORDING ──────────────────────────────────────────
+       `setData` measures the whole recording's min/max, and that used to be the scale for every
+       view. One motion or contact spike therefore set the scale for the whole night, so a normal
+       pulse drew as a flat ripple while the systolic dots still sat on it (owner report
+       2026-11-07, a Verity night beside an O2Ring night that drew correctly). ECGScope carried the
+       same defect and got this fix on 2026-10-18; PPGScope was cloned from it before then.
+       The scale comes from the window the view draws, read from the SAME source the trace reads:
+       raw int16 at factor 1, the envelope's `mins`/`maxs` above it. Percentile-clipped at
+       0.5/99.5 so a spike INSIDE the window cannot flatten the pulses beside it, and `draw` clips
+       to the plot box. A degenerate window keeps the old ±100 pad. The MINI-MAP keeps the
+       whole-recording scale: it is the overview that shows where the spike is.
+       Cached by `start|span|factor`, so panning cannot jitter the baseline. */
+    _viewScale(start, span, f) {
+      const key = start + '|' + span + '|' + f;
+      if (this._vsKey === key) return this._vs;
+      const CAP = 20000;
+      const lows = [],
+        highs = [];
+      if (f === 1) {
+        const i0 = Math.max(0, Math.floor(start)),
+          i1 = Math.min(this.N - 1, Math.ceil(start + span));
+        const step = Math.max(1, Math.floor((i1 - i0 + 1) / CAP));
+        for (let i = i0; i <= i1; i += step) {
+          lows.push(this.int16[i]);
+          highs.push(this.int16[i]);
+        }
+      } else {
+        const env = this.pyr[f];
+        const b0 = Math.max(0, Math.floor(start / f)),
+          b1 = Math.min(env.mins.length - 1, Math.ceil((start + span) / f));
+        const step = Math.max(1, Math.floor((b1 - b0 + 1) / CAP));
+        for (let b = b0; b <= b1; b += step) {
+          lows.push(env.mins[b]);
+          highs.push(env.maxs[b]);
+        }
+      }
+      let out;
+      if (!lows.length) {
+        out = { lo: this.yLo, hi: this.yHi };
+      } else {
+        lows.sort((a, b) => a - b);
+        highs.sort((a, b) => a - b);
+        const q = (arr, pr) => arr[Math.min(arr.length - 1, Math.max(0, Math.round(pr * (arr.length - 1))))];
+        let lo = q(lows, 0.005),
+          hi = q(highs, 0.995);
+        if (!(hi > lo)) {
+          lo = lows[0];
+          hi = highs[highs.length - 1];
+        }
+        const pad = (hi - lo) * 0.1 || 100;
+        out = { lo: lo - pad, hi: hi + pad };
+      }
+      this._vsKey = key;
+      this._vs = out;
+      return out;
+    }
     draw() {
       if (!this.int16) return;
       const ctx = this.ctx,
@@ -140,7 +196,10 @@ window.evBadge = evBadge;
         plotW = W - padL - padR,
         plotH = H - padT - padB;
       const { start, span } = this.view;
-      const sy = (v) => padT + ((this.yHi - v) / (this.yHi - this.yLo)) * plotH;
+      const spp = (span / plotW) * dpr,
+        f = this._pickLevel(spp);
+      const vs = this._viewScale(start, span, f);
+      const sy = (v) => padT + ((vs.hi - v) / (vs.hi - vs.lo)) * plotH;
       const secStart = this._secAt(start),
         secEnd = this._secAt(start + span),
         secSpan = secEnd - secStart || span / this.fs;
@@ -176,9 +235,12 @@ window.evBadge = evBadge;
           }
         }
       }
-      // waveform via envelope
-      const spp = (span / plotW) * dpr,
-        f = this._pickLevel(spp);
+      // waveform via envelope — CLIPPED to the plot box: the window scale can leave a percentile-
+      // clipped spike outside it, and the path must stop at the axis, not paint over it
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(padL, padT, plotW, plotH);
+      ctx.clip();
       ctx.strokeStyle = C.teal;
       ctx.lineWidth = 1.2 * dpr;
       ctx.beginPath();
@@ -231,6 +293,7 @@ window.evBadge = evBadge;
           }
         }
       }
+      ctx.restore();
     }
     drawMini() {
       if (!this.mctx) return;
