@@ -14412,11 +14412,6 @@
         'oracle-ecg-firmware-rr.mjs',
         'oracle-ppg-device-beats.mjs',
         'oxy-hr-bias.mjs',
-        'pat-connection-stability.mjs',
-        'pat-dip-validate.mjs',
-        'pat-finger-coupler.mjs',
-        'pat-hrv-windows.mjs',
-        'pat-matchrate-strict.mjs',
         'ppg-channel-combination.mjs',
         'ppg-foot-consensus-e1.mjs',
         'ppg-fusion-e3.mjs',
@@ -14475,6 +14470,27 @@
           return /coverageIdentity\([^;]*printedScored/.test(TT['tools/' + t] || '');
         }).join(', '),
         'pat-drift-attribution.mjs, pat-ecg-axis-residual.mjs, pat-ppg-ppg-control.mjs, pat-residual-structure.mjs, pat-window-scaling.mjs'
+      );
+      var COV_SLICE2 = ['pat-connection-stability.mjs', 'pat-dip-validate.mjs', 'pat-finger-coupler.mjs', 'pat-hrv-windows.mjs', 'pat-matchrate-strict.mjs'];
+      T.eq(
+        'the last five PAT readers off the backlog carry the identity, which finishes that family',
+        COV_SLICE2.filter(function (t) {
+          return !hasIdentity(t);
+        }).join(', '),
+        ''
+      );
+      /* ONLY A COUNT OF DISTINCT NIGHTS MAY BE HANDED OVER. Three of the five push exactly one row per
+         night — pat-finger-coupler among them, because `pairsIn` returns the single best-overlapping
+         pair or none — so each gives the identity the figure its own line publishes. The other two
+         publish `population.checked`, which is the intersection of two snapshots and labels MOVEMENT,
+         so they pass the difference alone. Pinning which two stay out is what stops a later edit from
+         handing a movement count to a coverage identity. */
+      T.eq(
+        'three of the five hand the printed scored count over, and the two that publish a movement count do not',
+        COV_SLICE2.filter(function (t) {
+          return /coverageIdentity\([^;]*printedScored/.test(TT['tools/' + t] || '');
+        }).join(', '),
+        'pat-dip-validate.mjs, pat-finger-coupler.mjs, pat-hrv-windows.mjs'
       );
       T.ok(
         'the identity has ONE definition, in corpus-scope-core.mjs beside the namer it checks',
