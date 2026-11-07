@@ -389,6 +389,11 @@
    "status": "exempt",
    "reason": "Test for probe-night verdict display, prints verdict words in assertions"
   },
+  "capture-host/tests/test_monitor_seal_card.py": {
+   "bin": "test",
+   "status": "exempt",
+   "reason": "Test for the night-seal card, prints each night's seal verdict word in its fixtures"
+  },
   "capture-host/tests/test_monitor_solid_night.py": {
    "bin": "test",
    "status": "exempt"
