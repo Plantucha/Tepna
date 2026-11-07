@@ -279,6 +279,9 @@
       rejectedReasons: [],
       sawHeader: false,
       comparable: false,
+      /* Whether the sidecar's HEADER names a stream this node reads. See the assignment after the row
+         loop for why the row-loop refusal cannot answer this. */
+      streamKnown: true,
       placedNone: false
     });
     var lines = String(text).split(/\r?\n/);
@@ -365,6 +368,16 @@
     /* A sidecar that states the bound its rows came from can be compared with anything; one that does
        not is a row list at an unknown threshold. */
     out.comparable = out.boundMs != null;
+    /* ⚠ THE WRONG-COMPANION REFUSAL IN THE ROW LOOP ABOVE SITS AFTER `dataRows++`, so a foreign
+       sidecar carrying no data row never reaches it. Measured 2026-11-07 over the box archive: 259
+       of 263 real sidecars read `seams=0`, so that rail guards the rare file and passes the common
+       one. The header names the stream before the loop opens, so the fact belongs here, and
+       `_mdSeamState` reads it. An unnamed stream stays the caller's word, exactly as the loop's own
+       comment argues. PulseDex has carried the same header-level fact as `basisKnown` since its
+       reader landed; that name also folds in whether the stream can hold a device clock, which is a
+       PulseDex fact, so this one is named for the single thing it decides. */
+    out.streamKnown = out.stream == null || /^acc/.test(out.stream);
+
     return out;
   }
 
@@ -442,13 +455,14 @@
   }
 
   /* The seam channel's state for one stream, in the vocabulary the owner's ruling fixes — the same
-     five states and the same key names ECGDex and PpgDex publish, so a reader of the folded corpus
+     states and the same key names ECGDex and PpgDex publish, so a reader of the folded corpus
      compares three nodes without a translation table:
        · no sidecar at all        → { seams: null,  reason: 'no-seam-sidecar' }   — UNKNOWN, never 0
        · read, rows placed        → { seams: n, examined: m, placed: p, reason: null }
        · read, rows unusable      → { seams: null, placed: 0, reason: 'seam-rows-unplaced' }
        · read, no row at all      → { seams: 0, examined: m, reason: null }       — a MEASURED zero
        · read, rows off the axis   → { seams: n, placed: p, reason: 'seams-unplaced-on-axis' }
+       · foreign stream declared   → { seams: null, sidecarStream: s, reason: 'seam-foreign-stream' }
      `seams` counts every row this reader kept, placed or not, because the FILE recorded them either
      way; `placed` is what reached the refusal, and the two differing is itself the finding. `stream`
      is MotionDex's own key: up to four streams arrive and one export block speaks, the discipline
@@ -465,6 +479,28 @@
         boundMs: sc.boundMs != null ? sc.boundMs : null,
         stream: stream || null,
         reason: 'seam-rows-unplaced'
+      };
+    }
+    /* A FOREIGN SIDECAR IS NOT A MEASURED ZERO ABOUT THIS STREAM (∅). The arm below publishes
+       `seams: sc.rows.length` with `reason: null`, and over a sidecar that declares another stream
+       and happens to carry no row that reads as a measured seam-free stream. `examined` would carry
+       the OTHER stream's interval count beside it, which is the same absence-as-value one level up.
+       `sidecarStream` names what the file said it was, so a reader sees the reason rather than
+       inferring it from a count it cannot attribute.
+
+       `=== false` RATHER THAN `!`: the frame road hands an already-parsed sidecar object across, and
+       an object a previous build produced carries no `streamKnown` key at all. An absent key is not
+       a foreign stream, so it keeps today's reading (∅ — absence is not a value). */
+    if (sc.streamKnown === false) {
+      return {
+        seams: null,
+        examined: null,
+        placed: 0,
+        unplaced: 0,
+        boundMs: sc.boundMs != null ? sc.boundMs : null,
+        stream: stream || null,
+        sidecarStream: sc.stream || null,
+        reason: 'seam-foreign-stream'
       };
     }
     return {
@@ -1854,7 +1890,7 @@
          step and a node that never looked, which is why this is `null` ONLY when no stream parsed. */
       clockResyncs: _mdResyncCount([acc, chest, gyro, mag]),
       /* THE ARRIVAL instrument beside the DATA one above — see `parseAccSeams` for why the two
-         disagree by construction, and `_mdSeamState` for the five states. */
+         disagree by construction, and `_mdSeamState` for the states it publishes. */
       seams: _seamAnn,
       /* THE HOST-DISCIPLINED AXIS OF THE DOMINANT STREAM (U4 of the same brief). `hostAxis` is the
          raw `DexClock.hostAxis` return — `buildNodeExport` forwards it to `DexExport.timingBlock`,
@@ -2227,6 +2263,13 @@
       seamsStream: seamAnn.stream,
       seamsReason: seamAnn.reason
     });
+    /* …AND WHICH STREAM THE FILE ITSELF DECLARED, when that is not this one. Assigned
+       CONDITIONALLY, like `coverage` and `clockResyncs` above, so a clean export's bytes do not
+       move: the owner's ruling asks that the CHANNEL be stated unconditionally, which `seams` and
+       `seamsReason` already do. This key is the diagnostic beside the reason — without it a reader
+       of `seam-foreign-stream` cannot tell WHICH companion arrived, and the count it would have
+       inferred belongs to another stream (∅). */
+    if (seamAnn.sidecarStream != null) out.recording.validity.seamsSidecarStream = seamAnn.sidecarStream;
     return out;
   }
 

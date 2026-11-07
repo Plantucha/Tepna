@@ -47562,6 +47562,64 @@
           rC.seams.seams + '/' + rC.seams.placed + '/' + rC.seams.reason,
           '1/0/seams-unplaced-on-axis'
         );
+        /* ⚠ A FOREIGN SIDECAR THAT CARRIES NO DATA ROW read as a MEASURED ZERO about this
+           stream, with the OTHER stream's `examined` count beside it — measured 2026-11-07 over
+           the box archive, where 259 of 263 real sidecars report `seams=0`. The row loop's
+           wrong-companion refusal sits after `dataRows++`, so a file with no row never reaches it.
+           `streamKnown` answers from the HEADER instead, before the loop opens. */
+        var FOREIGN0 = [
+          '# stream=acc rule=clock-seam bound_ms=250 unit=ms basis=device-minus-host',
+          'phone_ts;idx;device_step_ms;phone_delta_ms;residual_ms;host_offset_ms;at_rel_ms',
+          '# final stream=acc seams=0 examined=89999'
+        ].join('\n');
+        var fsc = E.parseECG(HDR, { seamsText: FOREIGN0 });
+        T.ok('∅ · the HEADER alone decides whether the sidecar is this stream, so a zero-row file is judged too', fsc.seamsSidecar.streamKnown === false && fsc.seamsSidecar.dataRows === 0);
+        var synF = E.genSynthetic({ durSec: 1200, seed: 7 });
+        synF.seamsSidecar = fsc.seamsSidecar;
+        synF.recordedSeams = fsc.recordedSeams;
+        var rF = E.analyze(synF);
+        T.eq(
+          '∅ · a foreign stream is NOT a measured zero about this one, and the reason names it',
+          rF.seams.seams + '/' + rF.seams.examined + '/' + rF.seams.reason + '/' + rF.seams.sidecarStream,
+          'null/null/seam-foreign-stream/acc'
+        );
+        T.eq(
+          '…and the export states the channel UNKNOWN and names the stream the FILE declared',
+          String(rF.seams.seams) + '/' + rF.seams.reason + '/' + rF.seams.sidecarStream,
+          'null/seam-foreign-stream/acc'
+        );
+        /* CONTROL · the same bytes under this stream's own name keep the measured zero. */
+        var zsc = E.parseECG(HDR, { seamsText: FOREIGN0.replace(/stream=acc/g, 'stream=ecg') });
+        var synZ = E.genSynthetic({ durSec: 1200, seed: 7 });
+        synZ.seamsSidecar = zsc.seamsSidecar;
+        synZ.recordedSeams = zsc.recordedSeams;
+        T.eq(
+          'CONTROL · the same file under its OWN stream name still reads as a MEASURED zero',
+          (function () {
+            var s = E.analyze(synZ).seams;
+            return s.seams + '/' + s.examined + '/' + String(s.reason);
+          })(),
+          '0/89999/null'
+        );
+        /* CONTROL · a foreign sidecar that DOES carry a row keeps the row rail's own answer. */
+        var rsc = E.parseECG(HDR, { seamsText: SC.replace('stream=ecg rule', 'stream=acc rule') });
+        var synR = E.genSynthetic({ durSec: 1200, seed: 7 });
+        synR.seamsSidecar = rsc.seamsSidecar;
+        synR.recordedSeams = rsc.recordedSeams;
+        T.eq('CONTROL · a foreign sidecar WITH a row still reads `seam-rows-unplaced`, so the row rail is untouched', E.analyze(synR).seams.reason, 'seam-rows-unplaced');
+        /* ∅ · the frame road hands an ALREADY-PARSED sidecar across, and an object a previous
+           build produced carries no `streamKnown` key at all. An absent key is not a foreign stream. */
+        var synL = E.genSynthetic({ durSec: 1200, seed: 7 });
+        synL.seamsSidecar = { boundMs: 250, examined: 89999, rows: [], placedNone: false, dataRows: 0 };
+        synL.recordedSeams = [];
+        T.eq(
+          '∅ · a sidecar object with NO `streamKnown` key keeps the measured zero, never the foreign refusal',
+          (function () {
+            var s = E.analyze(synL).seams;
+            return s.seams + '/' + String(s.reason);
+          })(),
+          '0/null'
+        );
       } else T.skip('ECGDSP.genSynthetic/analyze/compute unavailable');
       // ── THE CALLERS, so a future edit cannot quietly unwire the path (a reader with no caller) ──
       var src = env.sources || {};
@@ -47966,6 +48024,41 @@
             '1/0/seams-unplaced-on-axis'
           );
           T.eq('CONTROL · …and it refuses nothing, because an over-refusal reads exactly like a correct one', rPast.clockSeam, false);
+          /* ⚠ A FOREIGN SIDECAR THAT CARRIES NO DATA ROW read as a MEASURED ZERO about this
+             stream, with the OTHER stream's `examined` count beside it — measured 2026-11-07 over
+             the box archive, where 259 of 263 real sidecars report `seams=0`. The row loop's
+             wrong-companion refusal sits after `dataRows++`, so a file with no row never reaches it.
+             `streamKnown` answers from the HEADER instead, before the loop opens. */
+          var FOREIGN0 = [
+            '# stream=ecg rule=clock-seam bound_ms=250 unit=ms basis=device-minus-host',
+            'phone_ts;idx;device_step_ms;phone_delta_ms;residual_ms;host_offset_ms;at_rel_ms',
+            '# final stream=ecg seams=0 examined=89999'
+          ].join('\n');
+          var pFor = P.parsePPG(text, { seamsText: FOREIGN0 });
+          T.ok('∅ · the HEADER alone decides whether the sidecar is this stream, so a zero-row file is judged too', pFor.seamsSidecar.streamKnown === false && pFor.seamsSidecar.dataRows === 0);
+          var rFor = P.analyze(pFor);
+          T.eq(
+            '∅ · a foreign stream is NOT a measured zero about this one, and the reason names it',
+            rFor.seams.seams + '/' + rFor.seams.examined + '/' + rFor.seams.reason + '/' + rFor.seams.sidecarStream,
+            'null/null/seam-foreign-stream/ecg'
+          );
+          var vFor = P.compute(text, { seamsText: FOREIGN0 }).recording.validity;
+          T.eq(
+            '…and the export states the channel UNKNOWN and names the stream the FILE declared',
+            String(vFor.seams) + '/' + vFor.seamsReason + '/' + vFor.seamsSidecarStream,
+            'null/seam-foreign-stream/ecg'
+          );
+          var rOwn = P.analyze(P.parsePPG(text, { seamsText: FOREIGN0.replace(/stream=ecg/g, 'stream=ppg') }));
+          T.eq('CONTROL · the same file under its OWN stream name still reads as a MEASURED zero', rOwn.seams.seams + '/' + rOwn.seams.examined + '/' + String(rOwn.seams.reason), '0/89999/null');
+          var rRow = P.analyze(P.parsePPG(text, { seamsText: seamAt(300000).replace(/stream=ppg/g, 'stream=ecg') }));
+          T.eq('CONTROL · a foreign sidecar WITH a row still reads `seam-rows-unplaced`, so the row rail is untouched', rRow.seams.reason, 'seam-rows-unplaced');
+          /* ∅ · the frame road hands an ALREADY-PARSED sidecar across, and an object a previous
+             build produced carries no `streamKnown` key at all. An absent key is not a foreign stream. */
+          var pLeg = P.parsePPG(text);
+          pLeg.seamsSidecar = { boundMs: 250, examined: 89999, rows: [], placedNone: false, dataRows: 0 };
+          pLeg.recordedSeams = [];
+          var rLeg = P.analyze(pLeg);
+          T.eq('∅ · a sidecar object with NO `streamKnown` key keeps the measured zero, never the foreign refusal', rLeg.seams.seams + '/' + String(rLeg.seams.reason), '0/null');
         } else T.skip('PPGDSP.analyze/compute unavailable');
         // ── THE DROP LANE: dex-ingest routes it, the planner keeps it to its own device ────────────
         var DI = env.DexIngest,
@@ -48259,6 +48352,40 @@
              state — the collision the `accseams` kind exists to prevent, one layer in. */
           var sChest = M.compute({ chestAcc: text, chestAccSeams: seamAt(150000) });
           T.eq('the chest ACC reads its OWN sidecar slot, and the state names that stream', sChest.seams.placed + '/' + sChest.seams.stream, '1/chestAcc');
+          /* ⚠ A FOREIGN SIDECAR THAT CARRIES NO DATA ROW read as a MEASURED ZERO about this
+             stream, with the OTHER stream's `examined` count beside it — measured 2026-11-07 over
+             the box archive, where 259 of 263 real sidecars report `seams=0`. The row loop's
+             wrong-companion refusal sits after `dataRows++`, so a file with no row never reaches it.
+             `streamKnown` answers from the HEADER instead, before the loop opens. */
+          var FOREIGN0 = [
+            '# stream=ppg rule=clock-seam bound_ms=250 unit=ms basis=device-minus-host',
+            'phone_ts;idx;device_step_ms;phone_delta_ms;residual_ms;host_offset_ms;at_rel_ms',
+            '# final stream=ppg seams=0 examined=89999'
+          ].join('\n');
+          T.ok(
+            '∅ · the HEADER alone decides whether the sidecar is this stream, so a zero-row file is judged too',
+            M.parseAccSeams(FOREIGN0).streamKnown === false && M.parseAccSeams(FOREIGN0).dataRows === 0
+          );
+          var sFor = M.compute({ acc: text, accSeams: FOREIGN0 });
+          T.eq(
+            '∅ · a foreign stream is NOT a measured zero about this one, and the reason names it',
+            sFor.seams.seams + '/' + sFor.seams.examined + '/' + sFor.seams.reason + '/' + sFor.seams.sidecarStream,
+            'null/null/seam-foreign-stream/ppg'
+          );
+          var vFor = M.buildNodeExport(sFor).recording.validity;
+          T.eq(
+            '…and the export names BOTH streams: the one this node read, and the one the FILE declared',
+            String(vFor.seams) + '/' + vFor.seamsReason + '/' + vFor.seamsStream + '/' + vFor.seamsSidecarStream,
+            'null/seam-foreign-stream/acc/ppg'
+          );
+          var sOwn = M.compute({ acc: text, accSeams: FOREIGN0.replace(/stream=ppg/g, 'stream=acc') });
+          T.eq('CONTROL · the same file under its OWN stream name still reads as a MEASURED zero', sOwn.seams.seams + '/' + sOwn.seams.examined + '/' + String(sOwn.seams.reason), '0/89999/null');
+          var sRow = M.compute({ acc: text, accSeams: seamAt(150000).replace(/stream=acc/g, 'stream=ppg') });
+          T.eq('CONTROL · a foreign sidecar WITH a row still reads `seam-rows-unplaced`, so the row rail is untouched', sRow.seams.reason, 'seam-rows-unplaced');
+          /* ∅ · the frame road hands an ALREADY-PARSED sidecar across, and an object a previous
+             build produced carries no `streamKnown` key at all. An absent key is not a foreign stream. */
+          var sLeg = M.compute({ acc: text, accSeams: { boundMs: 250, examined: 89999, rows: [], placedNone: false, dataRows: 0, rejectedReasons: [] } });
+          T.eq('∅ · a sidecar object with NO `streamKnown` key keeps the measured zero, never the foreign refusal', sLeg.seams.seams + '/' + String(sLeg.seams.reason), '0/null');
         } else T.skip('MOTIONDSP.compute/buildNodeExport unavailable');
         // ── THE DROP LANE AND THE ORCHESTRATED ROAD ───────────────────────────────────────────────
         var SO = env.SignalOrchestrate;
@@ -70297,6 +70424,70 @@
             T.eq('DA-III-F §1.3 · …and is still clamped at 100', _pct(140), 100);
           }
         }
+        /* ── D17 §PD · the reason reaches the reader, not only the export ───────────────────────────
+           `renderKPI` prints an em-dash for a refused figure, so a clock seam, a short reading and an
+           absent input all drew the same glyph. `pulsedex-app.js` writes `hrvReason` and its own
+           comment calls an unexplained absence "only half of the refusal". These legs lift
+           `seamContextNote` out of the SHIPPED SOURCE and execute it, the §1.3 idiom above, because a
+           regex on its spelling passes over a planted `return ''`. */
+        if (_prSrc == null) {
+          T.ok('D17 §PD · pulsedex-render.js source is readable', false, 'not in env.sources — this gate cannot run');
+        } else {
+          var _liftDecl = function (src, name) {
+            var k = src.indexOf('function ' + name + '(');
+            if (k < 0) return null;
+            var b = src.indexOf('{', k),
+              d = 0;
+            for (var j = b; j < src.length; j++) {
+              if (src[j] === '{') d++;
+              else if (src[j] === '}' && --d === 0) return src.slice(k, j + 1);
+            }
+            return null;
+          };
+          var _noteSrc = _liftDecl(_prSrc, 'seamContextNote');
+          T.ok('D17 §PD · `seamContextNote` is present in the shipped render source', _noteSrc != null, _noteSrc == null ? 'not found' : _noteSrc.length + ' chars');
+          var _note = null;
+          if (_noteSrc) {
+            try {
+              _note = new Function('escapeHTML', 'return (' + _noteSrc + ');')(function (x) {
+                return String(x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+              });
+            } catch (_e) {
+              _note = null;
+            }
+          }
+          T.ok('D17 §PD · …and it lifts and builds as a callable function', typeof _note === 'function', typeof _note);
+          if (typeof _note === 'function') {
+            var _ref = _note({ hrvReason: 'clock-seam' });
+            T.ok("D17 §PD · a refused record names the node's OWN reason token to the reader", _ref.indexOf('clock-seam') >= 0, JSON.stringify(_ref).slice(0, 160));
+            T.ok('D17 §PD · …and says the figures refused rather than measured low', /refused/i.test(_ref), JSON.stringify(_ref).slice(0, 160));
+            /* THREE STATES. A sidecar the box wrote and this node could not place is UNKNOWN; a
+               MEASURED zero and a stream with no sidecar at all both stay silent, deliberately. */
+            var _unk = _note({ hrvReason: null, seamState: { seams: null, reason: 'seam-rows-unplaced' } });
+            T.ok('D17 §PD · an undecidable sidecar reads UNKNOWN and names its token', _unk.indexOf('UNKNOWN') >= 0 && _unk.indexOf('seam-rows-unplaced') >= 0, JSON.stringify(_unk).slice(0, 160));
+            T.eq('D17 §PD · a stream with no sidecar at all stays out of the banner', _note({ hrvReason: null, seamState: { seams: null, reason: 'no-seam-sidecar' } }), '');
+            T.eq('D17 §PD · a MEASURED zero draws no banner line', _note({ hrvReason: null, seamState: { seams: 0, reason: null } }), '');
+            T.eq('D17 §PD · a record with no seam state at all draws none either', _note({}), '');
+            T.eq('D17 §PD · an absent record draws none', _note(null), '');
+            /* PRECEDENCE: a record can carry both. The refusal is the stronger statement and the one
+               that explains the em-dashes, so it wins the single line. */
+            var _both = _note({ hrvReason: 'clock-seam', seamState: { seams: null, reason: 'seam-rows-unplaced' } });
+            T.ok('D17 §PD · a record carrying both states reports the REFUSAL', _both.indexOf('clock-seam') >= 0 && _both.indexOf('seam-rows-unplaced') < 0, JSON.stringify(_both).slice(0, 160));
+            T.ok(
+              'D17 §PD · a reason token reaches the markup escaped, never as live tags',
+              _note({ hrvReason: '<b>x</b>' }).indexOf('<b>x</b>') < 0,
+              JSON.stringify(_note({ hrvReason: '<b>x</b>' })).slice(0, 160)
+            );
+          }
+          /* The call site is the other half: a perfect note nobody renders is the very defect this
+             unit fixes, one layer up. */
+          T.ok(
+            'D17 §PD · the context banner renders the note beside its own caveats',
+            /const notes = \[note, alt, pbNote, seamContextNote\(r\)\]/.test(_prSrc),
+            'call site not found in renderContext'
+          );
+        }
+
         // ── OxyDex mean-SpO₂ KPI color: ok≥95 / warn≥92 / bad (HIGH; a lowered cut paints a hypoxic night green) ──
         var oxKpiClass = function (mean) {
           var html = env.OxyDex.reviewView({ events: [], nights: [{ stats: { meanSpo2: mean, minSpo2: mean - 3 } }] }, [{ stats: { meanSpo2: mean, minSpo2: mean - 3 } }]);

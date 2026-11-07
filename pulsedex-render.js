@@ -34,6 +34,41 @@ function evBadge(label, fallback) {
 const _ansTxt = (v) => (v == null ? '—' : v);
 const _ansPct = (v) => (v == null ? 0 : Math.min(100, v));
 
+/* ── WHY A WHOLE-RECORD FIGURE IS ABSENT (D17, owner 2026-11-06) ──────────────────────────────
+   `renderKPI` prints an em-dash for a refused figure, and an em-dash is the same glyph for a clock
+   seam, a short reading and an absent input. The record already carries the reason: the drop road
+   writes `hrvReason` and the comment beside it in `pulsedex-app.js` calls an unexplained absence
+   "only half of the refusal". No surface read that key, so the reader got the half.
+
+   THREE STATES, NEVER TWO, and the node's own token in every one of them.
+   - A refusal names `hrvReason`, which is what `pdSeamVerdict` decided, never a reason this layer
+     picked.
+   - A sidecar the box wrote and this node could not decide states UNKNOWN, under the owner's
+     2026-11-05 ruling that an unexamined channel is not a seam-free one.
+   - `no-seam-sidecar` stays OUT of the banner. A hand-dropped RR file carries no sidecar at all, so
+     that token would print on nearly every reading and teach the reader to skip the line; the export
+     states it for a consumer that needs it. A MEASURED zero stays silent too, for the same reason.
+   Decision mine under CLAUDE.md §7, posted to the board. */
+function seamContextNote(r) {
+  if (!r) return '';
+  if (r.hrvReason) {
+    return (
+      '⏱ <b>Whole-record HRV refused</b> — <code>' +
+      escapeHTML(String(r.hrvReason)) +
+      '</code>. The figures below that read “—” are absent for that reason, not low. A record carrying a clock seam is not one continuous stretch of signal, so an average over it would span two.'
+    );
+  }
+  const st = r.seamState;
+  if (st && (st.seams === null || st.seams === undefined) && st.reason && st.reason !== 'no-seam-sidecar') {
+    return (
+      '⏱ The recorded-seam channel reads <b>UNKNOWN</b> — <code>' +
+      escapeHTML(String(st.reason)) +
+      '</code>. The box wrote a seam sidecar for this stream and this reading could not place it, so an unexamined channel is not a clean one.'
+    );
+  }
+  return '';
+}
+
 // ─── RENDER CONTEXT BANNER ────────────────────────────────────────────────────
 function renderContext(r) {
   const el = document.getElementById('ctxBanner');
@@ -60,7 +95,7 @@ function renderContext(r) {
       r.pb.frac +
       '). Common at altitude — it inflates VLF/LF and confounds LF/HF, Resp Rate and the SNS/PSNS split. Treat spectral & composite metrics with caution.';
   }
-  const notes = [note, alt, pbNote]
+  const notes = [note, alt, pbNote, seamContextNote(r)]
     .filter(Boolean)
     .map((n) => `<div class="ctx-note">${n}</div>`)
     .join('');
