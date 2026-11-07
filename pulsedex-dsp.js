@@ -806,6 +806,8 @@
       stream: null,
       boundMs: null,
       basis: null,
+      // the header's own `device_axis=` token, or null when it carried none — see the lift below
+      deviceAxis: null,
       sessions: [],
       seamsReported: null,
       examined: null,
@@ -839,6 +841,16 @@
           if (rl) out.rule = rl[1].trim();
           const bs = /\bbasis=(\S+)/.exec(line);
           if (bs) out.basis = bs[1].trim();
+          /* `device_axis=` NAMES WHAT THE DEVICE COLUMN IS, and the writer has emitted it on every
+             parameter line since #4468 (`capture-host/writers.py` `DEVICE_AXES`). Four declared
+             values: `device-clock`, `host-drawn`, `no-device-column` and `unknown`. A sidecar
+             written before that commit carries NO such token, and that absence is `null` rather
+             than the writer's own `unknown` — a declared `unknown` is the writer saying it looked,
+             and collapsing the two is absence-as-value (§∅). The token travels VERBATIM: a value
+             outside the declared set is the writer's programming error, and a reader that folded it
+             into a default would hide it. */
+          const da = /\bdevice_axis=(\S+)/.exec(line);
+          if (da) out.deviceAxis = da[1].trim();
           continue;
         }
         /* `# final stream=<s> seams=<n> examined=<m>` — ONE per writer session, so a night that
@@ -1015,12 +1027,22 @@
      `seams: null, seamsFlatRows: 3` learns that the sidecar fired three times and that none of the
      three was a clock seam — which no other key in the set can say. `seam-basis-no-device-clock` is
      the fourth reason beside the ruling's three, and it is the one that does NOT license a refusal. */
+  /* `deviceAxis` carries the sidecar header's own `device_axis=` token through every state above,
+     so a consumer of a seam never has to assume the device column was a clock. 36 of 58 recorded
+     seams corpus-wide sit on a stream whose device stamp is a HOST-DRAWN grid, so the dominant case
+     is the one a `basis=device-minus-host` line cannot name (residue row
+     2026-11-06-the-seam-sidecar-cannot-tell-a-drawn-device-axis-from-a-clock). It is published
+     UNCONDITIONALLY, `null` included: a key present only when the header declared an axis cannot
+     tell "the sidecar said nothing" from "this reader does not report the axis", which is the very
+     confusion the row logs. A drawn axis still carries real discontinuities of the axis this node
+     places samples on, so no refusal here changes — the provenance travels BESIDE the count. */
   function _pdSeamState(src, placed, unplaced) {
     const sc = src && src._seamsSidecar;
-    if (!sc) return { seams: null, examined: null, placed: null, unplaced: null, flatRows: null, boundMs: null, stream: null, reason: 'no-seam-sidecar' };
+    if (!sc) return { deviceAxis: null, seams: null, examined: null, placed: null, unplaced: null, flatRows: null, boundMs: null, stream: null, reason: 'no-seam-sidecar' };
     if (sc.placedNone) {
       return {
         seams: null,
+        deviceAxis: sc.deviceAxis != null ? sc.deviceAxis : null,
         examined: sc.examined != null ? sc.examined : null,
         placed: 0,
         unplaced: sc.dataRows,
@@ -1036,6 +1058,7 @@
     if (sc.decidableRows === 0 && !(sc.flatRows === 0 && sc.basisKnown)) {
       return {
         seams: null,
+        deviceAxis: sc.deviceAxis != null ? sc.deviceAxis : null,
         examined: sc.examined != null ? sc.examined : null,
         placed: 0,
         unplaced: 0,
@@ -1047,6 +1070,7 @@
     }
     return {
       seams: sc.decidableRows,
+      deviceAxis: sc.deviceAxis != null ? sc.deviceAxis : null,
       examined: sc.examined != null ? sc.examined : null,
       placed: placed,
       unplaced: unplaced,
@@ -2116,6 +2140,7 @@
           seamsFlatRows: _vSeam.flatRows,
           seamsBoundMs: _vSeam.boundMs,
           seamsStream: _vSeam.stream,
+          seamsDeviceAxis: _vSeam.deviceAxis,
           seamsReason: _vSeam.reason
         }
       },

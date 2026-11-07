@@ -782,8 +782,46 @@ export function headNightKeyWith({ parse, runsOf = null, bytes = HEAD_BYTES, t0O
   };
 }
 
+/* 🔴 A MEMBER THIS FUNCTION CANNOT KEY IS A REFUSAL, NEVER A COVERAGE OF ZERO (§∅). The set
+   arithmetic reads `row[key]`, so a list of bare NAMES keys nothing at all: every offered member
+   falls through to the difference, and the caller prints "offered but not scored: <the whole offer>"
+   one line under its own "N scored". Measured 2026-11-07 over the five callers that passed names —
+   `pat-window-oracle.mjs`, `pat-three-corner.mjs`, `pat-literature-spec.mjs`, `pat-per-led.mjs` and
+   `ppg-foot-residual-sweep.mjs` each printed that contradiction inside one paragraph (board #4054).
+   Fourteen other call sites carry a comment warning about the shape, which is the tell that a
+   comment is not an enforcement.
+
+   SO THE UNKEYABLE SHAPE THROWS, AND THE MESSAGE NAMES THE INDEX, THE KEY AND THE SHAPE — never the
+   value, because a member name can be corpus data. A string, a number, an array, an object without
+   the key and an object whose key is empty or non-finite all fail to answer "was this member
+   covered", and answering it anyway with the whole offer is the manufactured finding §∅ forbids.
+
+   A ROW WHOSE OWN READ FAILED IS CHECKED TOO, before `ok === false` removes it. A failed read that
+   names no member tells a reader nothing, and naming the removal is this function's whole job. */
+export function unkeyableReason(row, key = 'night') {
+  if (row === null || row === undefined) return `it is ${String(row)}`;
+  if (Array.isArray(row)) return `it is an array of ${row.length}, which carries no '${key}'`;
+  if (typeof row !== 'object') return `it is a ${typeof row}, not a row — pass rows carrying '${key}', never bare names`;
+  if (!(key in row)) {
+    const ks = Object.keys(row);
+    return `it is an object with no '${key}' — its keys are ${ks.length ? ks.slice(0, 8).join(', ') : 'none'}`;
+  }
+  const v = row[key];
+  if (typeof v === 'string') return v.length ? null : `its '${key}' is an empty string`;
+  if (typeof v === 'number') return Number.isFinite(v) ? null : `its '${key}' is a non-finite number`;
+  return `its '${key}' is ${v === null ? 'null' : typeof v}`;
+}
+
 export function notCovered(offer, covered, { key = 'night' } = {}) {
-  const scored = new Set((covered || []).filter((r) => r && r.ok !== false).map((r) => r[key]));
+  const rows = covered || [];
+  const scored = new Set();
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    const why = unkeyableReason(row, key);
+    if (why) throw new TypeError(`notCovered: member ${i} of ${rows.length} cannot be keyed on '${key}' — ${why}`);
+    if (row.ok === false) continue;
+    scored.add(row[key]);
+  }
   return membersOf(offer).filter((n) => !scored.has(n));
 }
 
