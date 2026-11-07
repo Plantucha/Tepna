@@ -62416,6 +62416,96 @@
     });
 
     /* ════ 19 · PPGDex limb posture from ACC (parity, down-weighted) ════ */
+    /* ════ §∅ · THE PPGDEX POSTURE WINDOW THAT WAS NEVER SCORED ═══════════════════════════════════
+       `postureDetailAtSec` refused a window with too little gravity coverage and returned
+       `{ position: 'unknown', conf: 0, magInterf: false }`. Both numbers read as measurements: the
+       confidence clamp reaches a real 0 whenever no axis dominates, and `false` is this node's own
+       word for "the magnetometer saw a clean field". The epoch export then carried both, and the
+       §3a guard beside it (`post ? !!post.magInterf : null`) only caught an ABSENT posture block —
+       a REFUSED one is truthy, so every refused window counted in `magInterferencePct`'s
+       denominator as evidence of cleanliness. Four states, never two: a refusal names its own
+       token, an unexaminable channel is null, and a measured 0 stays a measurement. */
+    group('PpgDex posture — a refused window names its reason, and a measured 0 stays a measurement (§∅)', 'ppgdex-dsp · posture · absence', function (T) {
+      var P = env.PPGDSP;
+      if (!(P && typeof P.analyzeMotion === 'function')) {
+        T.ok('PPGDSP.analyzeMotion available', false);
+        return;
+      }
+      var fs = 25,
+        durSec = 1800;
+      var mkAcc = function (gx, gy, gz, untilSec) {
+        var rows = [];
+        for (var i = 0; i < fs * untilSec; i++) rows.push({ x: gx, y: gy, z: gz, relNs: (i / fs) * 1e9 });
+        return rows;
+      };
+      // gravity covers the first 600 s; the rest of the night carries no ACC sample at all
+      var m = P.analyzeMotion(mkAcc(20, -15, 990, 600), null, 0, durSec);
+      T.ok('CONTROL · the motion block has data, else every leg below is vacuous', m.hasData === true, 'hasData=' + m.hasData);
+      T.ok('CONTROL · postureDetailAtSec is exposed', typeof m.postureDetailAtSec === 'function');
+      var covered = m.postureDetailAtSec(60, 90),
+        refused = m.postureDetailAtSec(1200, 1230);
+
+      T.ok('CONTROL · a covered window IS scored — its conf is a number', typeof covered.conf === 'number' && covered.conf > 0, 'conf=' + covered.conf);
+      T.eq('CONTROL · …and it is supine, so the window was really read', covered.position, 'supine');
+      T.eq('a measured window states no reason', covered.reason, null);
+      T.eq('a window with too little gravity coverage publishes NO confidence', refused.conf, null);
+      T.eq('…and NAMES why, so it is distinguishable from a measured zero', refused.reason, 'low-gravity-coverage');
+      T.eq('…and its magnetometer channel is null, not the node word for a clean field', refused.magInterf, null);
+      T.ok('…and the reason key is always present, so no reader infers a state from an absent key', 'reason' in covered && 'reason' in refused);
+      T.eq('the position string contract is unchanged — a refusal still reads unknown', refused.position, 'unknown');
+      T.eq('…including through postureAtSec, which back-compat consumers call', m.postureAtSec(1200, 1230), 'unknown');
+
+      /* THE DECISIVE PAIR. A gravity vector with no dominant axis is SCORED and its confidence
+         rounds to 0 by the clamp at `(dom - 0.577) / (1 - 0.577)`. Before the fix this epoch and
+         the refused one above published the same two numbers. */
+      var flat = P.analyzeMotion(mkAcc(577, 577, 577, 600), null, 0, 600);
+      var zero = flat.postureDetailAtSec(60, 90);
+      T.eq('a vector with no dominant axis is MEASURED at 0, not refused', zero.conf, 0);
+      T.eq('…and states no reason, which is what separates it from the refusal', zero.reason, null);
+      T.ok(
+        '…so the two states differ in the export even though both read unknown',
+        zero.conf !== refused.conf && zero.reason !== refused.reason,
+        'zero=' + JSON.stringify(zero.conf) + '/' + zero.reason + ' refused=' + JSON.stringify(refused.conf) + '/' + refused.reason
+      );
+
+      // ── the magnetometer channel, measured against a session that HAS one ──
+      var magRows = [];
+      for (var k = 0; k < 10 * 300; k++) magRows.push({ x: 0.2, y: 0.1, z: 0.44, relNs: (k / 10) * 1e9 });
+      var mm = P.analyzeMotion(mkAcc(20, -15, 990, 600), null, 0, 600, magRows);
+      var magSeen = mm.postureDetailAtSec(60, 90),
+        magBlind = mm.postureDetailAtSec(400, 430);
+      T.ok('CONTROL · a window holding magnetometer samples reports a BOOLEAN interference flag', typeof magSeen.magInterf === 'boolean', 'magInterf=' + magSeen.magInterf);
+      T.eq('a window with under three magnetometer samples reports null, not a clean field', magBlind.magInterf, null);
+      T.ok('CONTROL · …while its posture is still measured, so only the mag channel refused', typeof magBlind.conf === 'number' && magBlind.conf > 0, 'conf=' + magBlind.conf);
+      T.eq('CONTROL · and that window states no posture reason', magBlind.reason, null);
+
+      // ── the epoch export, end to end on the committed rich pair ──
+      var eq = env.equiv && env.equiv.ppgdex_rich;
+      if (eq && eq.input && env.PpgDex && typeof env.PpgDex.compute === 'function') {
+        var ep = (env.PpgDex.compute({ text: eq.input }, { rich: true }).timeseries || {}).epochs || [];
+        T.ok('CONTROL · the committed rich export carries at least one epoch', ep.length > 0, 'epochs=' + ep.length);
+        if (ep.length) {
+          T.eq('an epoch with no posture datum at all NAMES that state', ep[0].positionReason, 'no-posture-datum');
+          T.eq('CONTROL · …and still publishes no confidence', ep[0].positionConf, null);
+          T.eq('CONTROL · …and no interference reading', ep[0].magInterference, null);
+        }
+      } else {
+        T.skip('committed PpgDex rich input present', 'env.equiv.ppgdex_rich absent — the epoch legs cannot run here');
+      }
+
+      // ── the projection itself, read off the shipped source ──
+      var src = (env.sources || {})['ppgdex-dsp.js'] || '';
+      T.ok('CONTROL · the shipped DSP source is readable', src.length > 1000, 'len=' + src.length);
+      T.ok('the epoch carries the reason only on a refusal, as bandReason does', /\.\.\.\(positionReason \? \{ positionReason: positionReason \} : \{\}\)/.test(src));
+      T.ok('the §3a guard now rejects a REFUSED posture block, not only an absent one', /magInterference: post && post\.magInterf != null \? !!post\.magInterf : null/.test(src));
+      T.ok(
+        'the export seam names the token too — its projection is a whitelist, so an upstream label ships inert without this',
+        /\.\.\.\(e\.positionReason \? \{ positionReason: e\.positionReason \} : \{\}\)/.test(src)
+      );
+      T.ok('no refusal in the posture path returns the clean-field word any more', !/magInterf: false/.test(src));
+      T.ok('…and none returns a zero confidence', !/conf: 0,/.test(src));
+    });
+
     group('PPGDex limb posture from ACC', 'ppgdex-dsp', function (T) {
       var P = env.PPGDSP;
       if (!(P && typeof P.analyzeMotion === 'function')) {
