@@ -18923,8 +18923,10 @@
     group('trio-batch feeds the O2Ring finger site without breaking the trio count', 'trio-batch · o2ring-finger', function (T) {
       var src = env.sources || {};
       var tb = src['tools/trio-batch.mjs'] || src['trio-batch.mjs'] || '';
+      /* A MISSING INPUT IS A DECLARED SKIP, never a literal-true pass (Muse #4269, T-3): the browser
+         lane carries no `env.sources`, and a pass here hid that the group examined nothing. */
       if (!tb) {
-        T.ok('trio-batch source wired (skipped — not in env.sources)', true);
+        T.skip('trio-batch source wired', 'sources not provided in this runner');
         return;
       }
 
@@ -21607,8 +21609,10 @@
     group('PpgDex says whether the site was observed or assumed', 'ppgdex-dsp · site-provenance', function (T) {
       var P = env.PpgDex;
       var eq = env.equiv && env.equiv.ppgdex && env.equiv.ppgdex.input;
+      /* T-1 (Muse #4269): the equiv input is a gitignored recording, so on a fresh clone this group
+         examines nothing. That is a declared corpus-absent skip, not a pass. */
       if (!(P && typeof P.compute === 'function' && eq)) {
-        T.ok('PpgDex equiv input wired (skipped)', true);
+        T.skip('PpgDex equiv input wired', 'corpus-absent — the PpgDex equiv input is a gitignored recording');
         return;
       }
       var ex = P.compute({ text: eq }, { rich: true });
@@ -21758,10 +21762,12 @@
           T.ok('PpgDex PPI · names the spine that won (foot|peak)', blk.spine === 'foot' || blk.spine === 'peak', blk.spine);
         });
       } else {
-        T.ok('PpgDex equiv input wired (skipped — not available)', true);
+        /* T-2 (Muse #4269): the old pass here and the `|| !eqP` below made this group measure nothing in
+           CI and still read green. Absent input is a declared skip; present input must exercise a block. */
+        T.skip('PpgDex equiv input wired', 'corpus-absent — the PpgDex equiv input is a gitignored recording');
       }
 
-      T.ok('at least one interval series was actually exercised', checked > 0 || !eqP, checked + ' block(s)');
+      if (eqP) T.ok('at least one interval series was actually exercised', checked > 0, checked + ' block(s)');
     });
 
     /* A TIMING FIDUCIAL IS NOT THE CLINICAL DEFINITION.
