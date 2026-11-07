@@ -42217,6 +42217,112 @@
             T.eq('CDCS §3.1 · …nor does an absent clockSkew block', _csEval(null), false);
           }
 
+          /* ── D17 · A VETOED RECORDING MUST NOT LEAVE THE READER WITH SILENCE ──────────────────────
+             The banner above fires on a FINDING. `detectClockSkew` vetoes a rec that recorded a clock
+             seam or whose node declared an RTC reset, so a night whose every rec was vetoed produced
+             NO finding and the app printed nothing — the same screen a night of agreeing clocks draws.
+             §∅: an output over absent input reports the absence. The guard lift above cannot see this,
+             because the defect is the ABSENCE of a second block rather than a weakened guard.
+             Lifted and EXECUTED out of the shipped source, like the guard above: a regex on the
+             spelling would pass over `return []` at the top of the function. */
+          var _liftFn = function (src, name) {
+            var a = src.indexOf('function ' + name + '(');
+            if (a < 0) return null;
+            var o = src.indexOf('{', a);
+            if (o < 0) return null;
+            var depth = 0;
+            for (var c = o; c < src.length; c++) {
+              if (src[c] === '{') depth++;
+              else if (src[c] === '}') {
+                depth--;
+                if (depth === 0) return src.slice(a, c + 1);
+              }
+            }
+            return null;
+          };
+          var _silSrc = _liftFn(iaSrc, 'skewSilenceLines');
+          T.ok(
+            'D17 · integrator-app carries a skew-silence surface at all',
+            !!_silSrc,
+            _silSrc ? _silSrc.length + ' chars lifted' : 'no skewSilenceLines() in integrator-app.js — a fully vetoed night reads as agreement'
+          );
+          /* A FALLBACK so the remaining legs still EXAMINE something when the function is absent:
+             a leg that throws on a missing symbol reports one red and runs none of the behaviour. */
+          var _silFn = null;
+          if (_silSrc) {
+            try {
+              _silFn = new Function('return (' + _silSrc + ');')();
+            } catch (_e) {
+              _silFn = null;
+            }
+          }
+          T.ok('D17 · …and it lifts into a callable function', typeof _silFn === 'function', typeof _silFn);
+          if (typeof _silFn === 'function') {
+            var _seamVeto = { node: 'ECGDex', source: 'clock-seam', seams: 2, seamsReason: 'sidecar', note: 'ECGDex recorded 2 clock seam(s) on this rec — excluded from anchor fits.' };
+            var _rtcVeto = { node: 'OxyDex', source: 'rtc-reset-suspect', note: 'OxyDex RTC reset-suspect on this rec — placement UNMEASURED (excluded from anchor fits).' };
+            var _clean = { findings: [], vetoes: [], seamCensus: [{ node: 'ECGDex', seams: 0, seamsReason: 'sidecar-read', vetoed: false }] };
+            var _lines = _silFn({ findings: [], vetoes: [_seamVeto, _rtcVeto], seamCensus: [] });
+            T.ok('D17 · every veto reaches the reader, one line per rec per source', _lines.length >= 2, _lines.length + ' line(s)');
+            T.ok(
+              'D17 · …and each line carries the DSP note, so the node and the cause are named',
+              _lines.some(function (l) {
+                return l.indexOf('ECGDex recorded 2 clock seam(s)') >= 0;
+              }) &&
+                _lines.some(function (l) {
+                  return l.indexOf('OxyDex RTC reset-suspect') >= 0;
+                }),
+              _lines.join(' | ')
+            );
+            T.ok(
+              'D17 · a pass that refused EVERY rec says the quiet is refusal, not agreement',
+              _lines.some(function (l) {
+                return /NOT agreement/.test(l);
+              }),
+              _lines.join(' | ')
+            );
+            var _withFinding = _silFn({ findings: [{ node: 'ECGDex', offsetSec: -2340 }], vetoes: [_seamVeto], seamCensus: [] });
+            T.ok(
+              'D17 · …and that line stays away when a finding already spoke',
+              !_withFinding.some(function (l) {
+                return /NOT agreement/.test(l);
+              }) && _withFinding.length === 1,
+              _withFinding.join(' | ')
+            );
+            /* THREE STATES, NEVER TWO. A measured 0 is a clean scan and must stay quiet, or the
+               banner fires every night and a reader stops reading it. */
+            T.eq('D17 · a MEASURED seams:0 census draws no line', _silFn(_clean).length, 0);
+            var _unk = _silFn({
+              findings: [],
+              vetoes: [],
+              seamCensus: [
+                { node: 'OxyDex', seams: null, seamsReason: 'no-seam-sidecar', vetoed: false },
+                { node: 'GlucoDex', seams: null, seamsReason: 'upstream-emitted-no-validity', vetoed: false }
+              ]
+            });
+            T.ok(
+              'D17 · an UNKNOWN channel is stated, grouped by the node own reason token',
+              _unk.length === 1 && /UNKNOWN/.test(_unk[0]) && _unk[0].indexOf('no-seam-sidecar') >= 0 && _unk[0].indexOf('upstream-emitted-no-validity') >= 0,
+              _unk.join(' | ')
+            );
+            T.ok(
+              'D17 · …naming both nodes, so a reader cannot read one state over two streams',
+              _unk.length === 1 && _unk[0].indexOf('OxyDex') >= 0 && _unk[0].indexOf('GlucoDex') >= 0,
+              _unk.join(' | ')
+            );
+            T.eq('D17 · an absent clockSkew block throws nothing and says nothing', _silFn(null).length, 0);
+            T.eq('D17 · …and a block with no keys at all behaves the same', _silFn({}).length, 0);
+          }
+          /* THE CALL SITE IS THE OTHER HALF: a helper nobody calls prints nothing. It must sit
+             OUTSIDE the `cs.findings` guard, because the case it answers is that guard being false. */
+          var _callIdx = iaSrc.indexOf('skewSilenceLines(cs)');
+          var _guardIdx = iaSrc.indexOf('cs.findings');
+          var _renderIdx = iaSrc.indexOf('R.renderAll(');
+          T.ok(
+            'D17 · the app CALLS the surface before it renders, outside the finding guard',
+            _callIdx > 0 && _renderIdx > _callIdx && /warnAll\.push\(_silence\[/.test(iaSrc),
+            'call=' + _callIdx + ' guard=' + _guardIdx + ' render=' + _renderIdx
+          );
+
           /* ── DEEP-AUDIT-II §10.4 · the app must RELEASE what the recording took ────────────────────
              `ECGDSP.planCompanionGraft` is a pure function and is well gated (12 assertions). The half
              that was blind is the APP's obligation to write `remaining` back: mutation-checked, dropping
@@ -48505,6 +48611,309 @@
        label rather than an absent one, and that label rides into every event's meta.position and
        weights OSA confidence downstream. Measured on the planted night below: a blanked 5 minutes in
        the middle of a supine night reported `lateral` — a posture change the wearer never made. */
+    /* ════ SEAM-SIDECAR-NODE-COVERAGE §6.1 — THE OXYDEX LEG IS AN ANNOTATION, NEVER A READER ═════
+       (board #3933, the D17 seam audit; the four groups above are ECGDex #4406, PpgDex #4441,
+       MotionDex #4453 and PulseDex.) Four nodes publish the `recording.validity` seam keys and
+       OxyDex published NOTHING, so a consumer folding the fleet read this node's silence as a clean
+       night — the one reading the owner's 2026-11-05 ruling and D17 both forbid.
+
+       WHY NO READER. OxyDex ingests one capture-host primary whose writer sits in
+       `SEAM_FED_WRITERS` (`write_ppg2w` → `…_PPG2W.txt`), and the ring hands that writer no device
+       stamp, so the sidecar never opens (measured 2026-11-06, Osprey, the brief's own header). A
+       reader would parse a file the box never writes, and the PulseDex leg above measures what a
+       blind mirror costs: refusals manufactured from reduced coverage. This node states the absence
+       in the pre-stated vocabulary and refuses nothing.
+
+       THE TWO OBSERVERS STAY APART. `recording.timing.seams` is this node's OWN U3 tripwire count,
+       licensed as a second observer by `dex-export.js:296-303`; `recording.validity.seams` is the
+       box sidecar's placed count. A consumer reading one for the other reads the box's silence as a
+       scan result that ran. */
+    group('SEAM-SIDECAR-NODE-COVERAGE §6.1 — the OxyDex export states its seam-sidecar channel as UNKNOWN', 'oxydex-dsp · clock-contract · absence · §∅', function (T) {
+      var O = env.OxyDex;
+      T.ok('OxyDex namespace co-loaded (env.OxyDex.compute)', !!(O && typeof O.compute === 'function'));
+      if (!(O && typeof O.compute === 'function')) {
+        T.skip('env.OxyDex.compute unavailable — the seam annotation is unexamined');
+        return;
+      }
+      var ot0 = U(2026, 5, 12, 23, 0, 0),
+        samples = [];
+      for (var si = 0; si < 1200; si++) {
+        var sdip = si % 600 >= 580 ? -8 : 0;
+        samples.push({ tMs: ot0 + si * 1000, spo2: 96 + sdip, hr: 58 + (si % 5) + (sdip ? 6 : 0), motion: 0 });
+      }
+      var oe = O.compute({ signalType: 'spo2', samples: samples });
+      T.ok('OxyDex.compute(frame) → non-null export', !!oe);
+      var v = oe && oe.recording ? oe.recording.validity : null;
+      /* 🔴 THE BLOCK IS UNCONDITIONAL. A block that appears only when a sidecar was read lets a
+           reader count absent blocks as clean nights — the zero this ruling exists to forbid. The
+           input here carries no sidecar of any kind, which is the whole point. */
+      T.ok('🔴 the export carries the seam block although no sidecar reached the node', !!v && typeof v === 'object');
+      /* Read the content legs against a FALLBACK, never inside `if (v)`: against the pre-fix
+         source every one of them must FAIL, and a leg that silently goes unrun proves nothing. */
+      var vv = v && typeof v === 'object' ? v : {};
+      {
+        T.eq('OWNER RULING 2026-11-05 · the channel reads UNKNOWN under its own named reason', vv.seams + '/' + vv.seamsReason, 'null/no-seam-sidecar');
+        /* ∅ A join cannot tell an explicit `null` from an absent key, so read the keys. */
+        T.ok(
+          '∅ every count key is PRESENT and explicitly null, so nothing reads as measured',
+          'seams' in vv &&
+            vv.seams === null &&
+            'seamsExamined' in vv &&
+            vv.seamsExamined === null &&
+            'seamsPlaced' in vv &&
+            vv.seamsPlaced === null &&
+            'seamsUnplaced' in vv &&
+            vv.seamsUnplaced === null &&
+            'seamsBoundMs' in vv &&
+            vv.seamsBoundMs === null
+        );
+        T.ok(
+          'the reason is one the vocabulary already states, never a fifth term coined here',
+          ['no-seam-sidecar', 'seam-rows-unplaced', 'seams-unplaced-on-axis', 'seam-basis-no-device-clock'].indexOf(vv.seamsReason) >= 0,
+          vv.seamsReason
+        );
+      }
+      /* 🔴 TWO OBSERVERS, TWO BLOCKS. The node's own tripwire count must not reach the sidecar's
+           keys, and the sidecar's silence must not reach the tripwire's. */
+      var tb = oe && oe.recording ? oe.recording.timing : null;
+      T.ok('CONTROL · the node still publishes its OWN timing block beside the new one', !!tb && typeof tb === 'object' && 'seams' in tb);
+      T.ok('🔴 the two blocks are different objects, so no key is shared by reference', !!(tb && v) && tb !== v);
+      T.ok('🔴 the U3 tripwire count never lands in the sidecar block, whatever the scan said', !v || v.seams === null, tb ? 'timing.seams=' + tb.seams : 'no timing block');
+      T.ok('CONTROL · the rest of the export is untouched (source still spo2)', !!(oe && oe.recording && oe.recording.source === 'spo2'));
+      /* SOURCE MIRROR — the assignment is unconditional in the source, not merely unconditional for
+           this one input. A later `if` around it is the defect returning. */
+      T.ok('the DSP assigns the block with no condition guarding it', /_out\.recording\.validity = Object\.assign\(\{\}, _out\.recording\.validity, \{/.test(String(O.compute)));
+    });
+
+    /* ════ D17 LANE 4 — THE INTEGRATOR READS THE SEAM CHANNEL AND HONOURS IT ══════════════════════
+       (board #3933, brief `SEAM-SIDECAR-CONSUMPTION-2026-11-03-BRIEF.md`;
+       the five node groups above are ECGDex #4406, PpgDex #4441, MotionDex #4453, PulseDex #4456 and
+       OxyDex #4485.) Five nodes publish `recording.validity` and the fusion read none of it. The
+       adapter lifted the RTC-verification trio out of that same block and dropped the seam keys, so
+       every seam the box recorded stopped at the fusion boundary and a fused night read as clean.
+
+       THE OWNER RULED on 2026-11-06 (D17): a seam is MANDATORY — every consumer reads the channel
+       and honours it, and a value across a seam refuses under the 2026-09-17 ruling.
+
+       WHAT HONOURING IT MEANS HERE, and it is not refusing everything. Two estimators in this file
+       answer a whole-recording question with ONE number: `estimateEventLag` fits one lag, and
+       `fitClockDrift` fits an offset plus a rate. A recorded seam is a discontinuity inside that
+       span, so one number describes neither side — the discontinuity case, not a short window. The
+       fused physiology is untouched, because each node already refused its own seam-spanning windows.
+
+       THREE STATES, NEVER TWO. A positive count refuses. A MEASURED `0` keeps every number. `null`
+       is UNKNOWN and keeps them too, because the owner's 2026-11-05 ruling reads an unexamined
+       channel as unknown rather than as a seam — and the census is what makes that unknown visible.
+
+       THE FUSION PUBLISH SITE rides the committed fixtures: `clockSkew.seamCensus` is unconditional,
+       so every regenerated Integrator golden carries it. Driving a whole fusion here to re-read one
+       key would cost a corpus for a leg the goldens already pin, so the source mirror stands in. */
+    group('D17 LANE 4 — the Integrator reads the node-export seam channel and vetoes a seamed clock fit', 'integrator-dsp · clock-contract · absence · §∅', function (T) {
+      var D = env.IntegratorDSP;
+      var _have = !!(D && typeof D.normalizeFile === 'function' && typeof D.detectClockSkew === 'function');
+      T.ok('IntegratorDSP namespace co-loaded (normalizeFile + detectClockSkew)', _have);
+      if (!_have) {
+        T.skip('IntegratorDSP.normalizeFile / detectClockSkew unavailable — the seam reader is unexamined');
+        return;
+      }
+      var t0 = U(2026, 5, 10, 22, 0, 0);
+      /* A node export the adapter accepts, carrying the validity block under test. `vb === undefined`
+         plants NO block at all, which is the legacy-export case. */
+      var mkExp = function (vb) {
+        var recBlock = { startEpochMs: t0, contentId: 'c1' };
+        if (vb !== undefined) recBlock.validity = vb;
+        return {
+          schema: { name: 'ganglior.node-export', node: 'ECGDex', bus: 'ganglior' },
+          recording: recBlock,
+          ganglior_events: [{ t: '22:10:00', impulse: 'desat_event', node: 'ECGDex', conf: 0.9 }]
+        };
+      };
+      var recOf = function (vb) {
+        var r = D.normalizeFile(mkExp(vb), 'ECGDex_x.node-export.json');
+        return (r && r.recs && r.recs[0]) || null;
+      };
+      var rMeasured = recOf({ seams: 3, seamsExamined: 100, seamsPlaced: 3, seamsReason: null }),
+        rClean = recOf({ seams: 0, seamsReason: null }),
+        rUnknown = recOf({ seams: null, seamsReason: 'no-seam-sidecar' }),
+        rNoBlock = recOf(undefined),
+        rEmpty = recOf({});
+      T.ok('ANTI-VACUITY · the adapter produced a rec for all five inputs', !!(rMeasured && rClean && rUnknown && rNoBlock && rEmpty));
+      /* Read every content leg against a FALLBACK, never inside an `if`: against the pre-fix source
+         each one must FAIL, and a leg that silently goes unrun proves nothing. */
+      var m = rMeasured || {},
+        c = rClean || {},
+        u = rUnknown || {},
+        nb = rNoBlock || {},
+        em = rEmpty || {};
+      T.eq('🔴 a MEASURED count crosses the fusion boundary', m.seams + '/' + m.seamsReason, '3/null');
+      /* ∅ A measured 0 is a scan that RAN. Folding it into `null` would lose the one state the
+         vocabulary separates from a scan nobody performed. */
+      T.ok('∅ a MEASURED zero arrives as 0, never as null', 'seams' in c && c.seams === 0, String(c.seams));
+      T.eq('OWNER RULING 2026-11-05 · an unexamined channel travels with the reason its node named', u.seams + '/' + u.seamsReason, 'null/no-seam-sidecar');
+      T.ok('∅ a legacy export with no validity block is UNKNOWN under its own reason, not a clean night', 'seams' in nb && nb.seams === null && nb.seamsReason === 'upstream-emitted-no-validity');
+      T.ok('🔴 an EMPTY block takes the named-absence path, because {} reads as looked-and-clean', 'seams' in em && em.seams === null && em.seamsReason === 'upstream-emitted-no-validity');
+      T.ok('the absence reason is HRVDex vocabulary, never a second spelling coined here', nb.seamsReason === 'upstream-emitted-no-validity' && em.seamsReason === nb.seamsReason);
+      /* ── THE EVENT-LAG ESTIMATOR ──────────────────────────────────────────────────────────── */
+      var mkRec = function (node, seams, reason) {
+        var ev = [];
+        for (var i = 0; i < 12; i++) ev.push({ tMs: t0 + i * 600000, impulse: 'desat_event', node: node });
+        return { node: node, dateUnknown: false, events: ev, seams: seams, seamsReason: reason };
+      };
+      var skClean = D.detectClockSkew([mkRec('ECGDex', 0, null), mkRec('PpgDex', 0, null)], {}),
+        skSeam = D.detectClockSkew([mkRec('ECGDex', 2, null), mkRec('PpgDex', 0, null)], {}),
+        skUnknown = D.detectClockSkew([mkRec('ECGDex', null, 'no-seam-sidecar'), mkRec('PpgDex', 0, null)], {});
+      T.eq('ANTI-VACUITY · the clean pair IS estimated, so the veto is not refusing everything', (skClean.pairs || []).length, 1);
+      T.eq(
+        '🔴 a recorded seam vetoes the event-lag estimator, naming the count',
+        (skSeam.vetoes || [])
+          .map(function (v) {
+            return v.node + ':' + v.source + ':' + v.seams;
+          })
+          .join(','),
+        'ECGDex:clock-seam:2'
+      );
+      T.eq('🔴 and the vetoed rec reaches no pair, so it cannot drag a partner estimate', (skSeam.pairs || []).length, 0);
+      T.eq('CONTROL · a measured zero is vetoed by nothing', (skClean.vetoes || []).length, 0);
+      T.eq('OWNER RULING 2026-11-05 · UNKNOWN estimates rather than refusing', (skUnknown.vetoes || []).length + '/' + (skUnknown.pairs || []).length, '0/1');
+      /* ── THE CENSUS, THE PART THAT MAKES AN UNKNOWN VISIBLE ───────────────────────────────── */
+      T.ok('🔴 the census ships on EVERY call, so a fusion silent about the channel cannot read as clean', Array.isArray(skClean.seamCensus) && skClean.seamCensus.length === 2);
+      var ce =
+        (skUnknown.seamCensus || []).filter(function (e) {
+          return e.node === 'ECGDex';
+        })[0] || {};
+      T.ok('∅ an unexamined channel is an explicit null in the census, with its reason beside it', 'seams' in ce && ce.seams === null && ce.seamsReason === 'no-seam-sidecar' && ce.vetoed === false);
+      T.eq(
+        'a seamed rec is marked vetoed in the census, so the refusal is readable there too',
+        (
+          (skSeam.seamCensus || []).filter(function (e) {
+            return e.node === 'ECGDex';
+          })[0] || {}
+        ).vetoed,
+        true
+      );
+      /* ── THE BEAT-LEVEL DRIFT FIT, WHICH THE EVENT VETO DOES NOT REACH ────────────────────── */
+      var mkBeatRec = function (node, seams) {
+        var n = 900,
+          arr = new Float64Array(n);
+        for (var i = 0; i < n; i++) arr[i] = t0 + i * 1000;
+        return { node: node, dateUnknown: false, events: [], seams: seams, seamsReason: null, beats: { n: n, tMs: arr } };
+      };
+      var bcSeam = D.detectClockSkew([mkBeatRec('ECGDex', 2), mkBeatRec('PpgDex', 0)], {}).beatCheck,
+        bcClean = D.detectClockSkew([mkBeatRec('ECGDex', 0), mkBeatRec('PpgDex', 0)], {}).beatCheck;
+      T.ok('ANTI-VACUITY · both beat pairs were built, so the refusal below is a decision', !!(bcSeam && (bcSeam.pairs || []).length === 1 && bcClean && (bcClean.pairs || []).length === 1));
+      var bp = (bcSeam && bcSeam.pairs && bcSeam.pairs[0]) || {};
+      T.eq('🔴 a beat pair spanning a recorded seam refuses the drift fit', bp.reason, 'clock-seam');
+      T.ok(
+        '🔴 the refusal carries the SAME KEYS as the no-fit arm, each explicitly null',
+        'offsetSec' in bp &&
+          bp.offsetSec === null &&
+          'driftPpm' in bp &&
+          bp.driftPpm === null &&
+          'wrappedDriftPpm' in bp &&
+          bp.wrappedDriftPpm === null &&
+          'wrappedConcentration' in bp &&
+          bp.wrappedConcentration === null &&
+          'maxDriftPpm' in bp &&
+          bp.maxDriftPpm === null &&
+          'spanMin' in bp &&
+          bp.spanMin === null &&
+          bp.confident === false
+      );
+      T.ok('CONTROL · a pair with no recorded seam is not refused under that reason', (((bcClean || {}).pairs || [])[0] || {}).reason !== 'clock-seam');
+      /* SOURCE MIRRORS — one predicate for both estimators, and an unconditional publish. A seam
+         test that differed between the two observers would let a rec be refused by one and spent by
+         the other, which no output leg above can see. */
+      T.ok('ONE predicate guards both estimators', /_recHasRecordedSeam/.test(String(D.detectClockSkew)));
+      T.ok('the fusion publishes the census with no condition guarding it', /seamCensus: skew\.seamCensus \|\| \[\]/.test(String(D.runFusion)));
+    });
+
+    /* ════ THE RTC ANALOGUE — A DECLARED RESET REFUSES THE BEAT FIT TOO (board #3989) ═════════════
+       Found while closing lane 4 above, reported, and fixed here. `detectClockSkew` has vetoed a
+       `rtcResetSuspect` rec from the event-pair estimator since FINISHED-WORK-IMPROVEMENTS §A 2b,
+       and `_beatSkewCheck` read no such flag — so ONE declared clock defect refused the event-pair
+       lag and was SPENT by the beat-level drift fit. A reset's own offset is unmeasured by
+       definition, so a fit across it carries that unmeasured jump in both the offset and the rate
+       it publishes, and `confident:true` over it is the shape §∅ refuses.
+       The legs gate the refusal, its KEYS, the precedence when one rec carries BOTH defects, and a
+       clean control — because a guard that refuses every pair passes a refusal test on its own. */
+    group('A declared RTC reset refuses the beat-level drift fit, as a recorded seam does', 'integrator-dsp · clock-contract · absence · §∅', function (T) {
+      var D = env.IntegratorDSP;
+      var _have = !!(D && typeof D.detectClockSkew === 'function');
+      T.ok('IntegratorDSP.detectClockSkew co-loaded', _have);
+      if (!_have) {
+        T.skip('IntegratorDSP.detectClockSkew unavailable — the beat-level refusal is unexamined');
+        return;
+      }
+      var t0 = U(2026, 5, 10, 22, 0, 0);
+      /* Two nodes with a long, clean beat series each: the pair IS buildable, so every refusal
+         below is a decision the guard made rather than a pair that never existed. */
+      var mkBeatRec = function (node, over) {
+        var n = 900,
+          arr = new Float64Array(n);
+        for (var i = 0; i < n; i++) arr[i] = t0 + i * 1000;
+        var r = { node: node, dateUnknown: false, events: [], seams: 0, seamsReason: null, beats: { n: n, tMs: arr } };
+        return Object.assign(r, over || {});
+      };
+      var bcClean = D.detectClockSkew([mkBeatRec('ECGDex'), mkBeatRec('PpgDex')], {}).beatCheck,
+        bcRtc = D.detectClockSkew([mkBeatRec('ECGDex', { rtcResetSuspect: true }), mkBeatRec('PpgDex')], {}).beatCheck,
+        bcBoth = D.detectClockSkew([mkBeatRec('ECGDex', { rtcResetSuspect: true, seams: 2 }), mkBeatRec('PpgDex')], {}).beatCheck;
+      T.ok(
+        'ANTI-VACUITY · all three pairs were built, so each verdict below is a decision',
+        !!(bcClean && (bcClean.pairs || []).length === 1 && bcRtc && (bcRtc.pairs || []).length === 1 && bcBoth && (bcBoth.pairs || []).length === 1),
+        JSON.stringify([((bcClean && bcClean.pairs) || []).length, ((bcRtc && bcRtc.pairs) || []).length, ((bcBoth && bcBoth.pairs) || []).length])
+      );
+      var rp = (bcRtc && bcRtc.pairs && bcRtc.pairs[0]) || {},
+        cp = (bcClean && bcClean.pairs && bcClean.pairs[0]) || {};
+      T.eq('🔴 a pair whose side declared an RTC reset refuses the drift fit', rp.reason, 'rtc-reset-suspect');
+      T.eq('…and it does NOT claim confidence over the unmeasured jump', rp.confident, false);
+      T.ok(
+        '🔴 the refusal carries the SAME KEYS as the no-fit arm, each an explicit null',
+        'offsetSec' in rp &&
+          rp.offsetSec === null &&
+          'driftPpm' in rp &&
+          rp.driftPpm === null &&
+          'wrappedDriftPpm' in rp &&
+          rp.wrappedDriftPpm === null &&
+          'wrappedConcentration' in rp &&
+          rp.wrappedConcentration === null &&
+          'maxDriftPpm' in rp &&
+          rp.maxDriftPpm === null &&
+          'spanMin' in rp &&
+          rp.spanMin === null,
+        JSON.stringify(Object.keys(rp))
+      );
+      T.ok(
+        'CONTROL · two clean recs reach the fit, whose own arm answers — the guard refuses a defect, not every pair',
+        cp.reason !== 'rtc-reset-suspect' && cp.reason !== 'clock-seam' && 'driftPpm' in cp,
+        JSON.stringify(cp.reason || null)
+      );
+      T.eq('PRECEDENCE · a rec carrying BOTH defects reports the seam in the single reason field', ((bcBoth && bcBoth.pairs && bcBoth.pairs[0]) || {}).reason, 'clock-seam');
+      /* …and the precedence costs nothing, because the rec-level vetoes carry one entry PER SOURCE. */
+      var vb = D.detectClockSkew([mkBeatRec('ECGDex', { rtcResetSuspect: true, seams: 2 }), mkBeatRec('PpgDex')], {}).vetoes || [];
+      T.eq(
+        '🔴 both declared defects survive separately in the rec-level vetoes',
+        vb
+          .map(function (v) {
+            return v.node + ':' + v.source;
+          })
+          .sort()
+          .join(','),
+        'ECGDex:clock-seam,ECGDex:rtc-reset-suspect'
+      );
+      /* THE ANTI-FORK LEG, stated behaviourally because `_beatSkewCheck` is module-private: ONE
+         declared defect must refuse at BOTH observers. This is the assertion that fails the day an
+         edit teaches one estimator a defect the other still spends. */
+      var skRtc = D.detectClockSkew([mkBeatRec('ECGDex', { rtcResetSuspect: true }), mkBeatRec('PpgDex')], {});
+      T.ok(
+        '🔴 one declared reset refuses at BOTH observers — vetoed from the event pairing AND refused by the beat fit',
+        (skRtc.vetoes || []).some(function (v) {
+          return v.node === 'ECGDex' && v.source === 'rtc-reset-suspect';
+        }) &&
+          (skRtc.pairs || []).length === 0 &&
+          ((skRtc.beatCheck && skRtc.beatCheck.pairs && skRtc.beatCheck.pairs[0]) || {}).reason === 'rtc-reset-suspect',
+        JSON.stringify({ vetoes: (skRtc.vetoes || []).length, pairs: (skRtc.pairs || []).length })
+      );
+    });
     group('SAMPLE-VALIDITY-ENVELOPE §3.2 — the ACC companion sidecar, and a held ACC cannot stamp a posture', 'dex-ingest · signal-orchestrate · adapters · ecgdex-dsp · absence', function (T) {
       var DI = env.DexIngest,
         SO = env.SignalOrchestrate,
@@ -51877,14 +52286,42 @@
       var d = SS.verdictFor({ findings: [], commits: 2, privateTerms: 'configured', commit: 'abc1234' });
       T.eq('a diff green counts the commits it walked and names that walk', [d.status, d.population.checked, d.result.walk], ['PASS', 2, 'diff']);
       T.eq('…and carries no file count, because it opened no tree', d.result.walked, null);
-      var t = SS.verdictFor({ findings: [], commits: 0, privateTerms: 'configured', commit: 'abc1234', walk: 'tree', walked: 3401 });
+      var t = SS.verdictFor({ findings: [], commits: 0, privateTerms: 'configured', commit: 'abc1234', walk: 'tree', walked: 3401, dropped: [] });
       T.eq('a tree green counts the files it walked and names that walk', [t.status, t.population.checked, t.result.walk, t.result.walked], ['PASS', 3401, 'tree', 3401]);
+
+      /* ── The tree verdict counted findings from files its own population dropped.
+         `dir` reads the DIRECTORY, so the scanner reaches git-ignored paths — a virtualenv, a cache —
+         that `ls-files --cached --others --exclude-standard` never names. The verdict counted those
+         findings against a population of WALKED files, so one object described two file sets: measured
+         on the rig, 2932 findings over a population of 3448, and 2677 of them in 2520 files the walk
+         list drops. The partition below is the filter, and the dropped count keeps it visible. ── */
+      var FAR = [
+        { rule: 'private-ipv4', file: '/r/capture-host/.venv/lib/x.py', line: 2, commit: null },
+        { rule: 'home-path', file: '/r/capture-host/.venv/lib/x.py', line: 3, commit: null }
+      ];
+      var part = SS.partitionByWalk([{ rule: 'private-term', file: '/r/kept.txt', line: 1, commit: null }].concat(FAR), new Set(['kept.txt']), '/r');
+      T.eq('the walk list keeps its own file and drops the ignored path', [part.kept.length, part.dropped.length], [1, 2]);
+      T.eq('…and both sides read repo-relative, so no home path is printed', [part.kept[0].file, part.dropped[0].file], ['kept.txt', 'capture-host/.venv/lib/x.py']);
+      var one = SS.verdictFor({ findings: part.kept, commits: 0, privateTerms: 'configured', commit: 'abc1234', walk: 'tree', walked: 3401, dropped: part.dropped });
+      T.eq('ONE verdict, ONE population: the findings come from the walked set', [one.result.findings, one.result.files, one.population.checked], [1, 1, 3401]);
+      T.eq('…and what the filter removed is published, never silent', [one.result.droppedFindings, one.result.droppedFiles], [2, 1]);
+      T.eq(
+        'a drop alone never fails the gate: an ignored path is no repo leak',
+        SS.verdictFor({ findings: [], commits: 0, privateTerms: 'configured', commit: 'abc1234', walk: 'tree', walked: 3401, dropped: FAR }).status,
+        'PASS'
+      );
+      T.eq(
+        'CONTROL · a diff verdict publishes neither dropped key, because its report is the diff',
+        [one.result.droppedFindings, t.result.droppedFindings, d.result.droppedFindings],
+        [2, 0, undefined]
+      );
+      T.eq('a path under a sibling directory that shares the prefix stays absolute', SS.relPathIn('/root2/a.txt', '/root'), '/root2/a.txt');
 
       var V = env.Verdict;
       if (!V) T.skip('env.Verdict provided to the runner', 'the contract validator is not wired');
       else {
         T.ok('the tree verdict validates under tepna.verdict/1', V.validate(t).ok, JSON.stringify((V.validate(t) || {}).errors || []));
-        var ft = SS.verdictFor({ findings: FIND, commits: 0, privateTerms: 'configured', commit: 'abc1234', walk: 'tree', walked: 9 });
+        var ft = SS.verdictFor({ findings: FIND, commits: 0, privateTerms: 'configured', commit: 'abc1234', walk: 'tree', walked: 9, dropped: [] });
         T.ok('…and so does a tree FAIL', V.validate(ft).ok, JSON.stringify((V.validate(ft) || {}).errors || []));
         T.ok('a tree FAIL counts the walked files in its reason', /9 walked file/.test(String(ft.reason)), String(ft.reason));
         /* A tree finding is HISTORY. Telling the author to rewrite their branch would be wrong advice
@@ -51927,6 +52364,18 @@
         'a tree verdict with no file count is refused, not published over an unstated population',
         threw(function () {
           SS.verdictFor({ findings: [], commits: 0, privateTerms: null, commit: null, walk: 'tree' });
+        })
+      );
+      T.ok(
+        'a tree verdict with no dropped set is refused, because a default of 0 would claim a drop of none',
+        threw(function () {
+          SS.verdictFor({ findings: [], commits: 0, privateTerms: null, commit: null, walk: 'tree', walked: 9 });
+        })
+      );
+      T.ok(
+        'a partition against an absent walk list is refused, not read as a list of nothing',
+        threw(function () {
+          SS.partitionByWalk([], ['kept.txt'], '/r');
         })
       );
       T.ok(
@@ -71884,6 +72333,107 @@
       T.ok('the export publishes the block unconditionally', /validity:\s*_hrvValidityBlock\(dated\)/.test(src));
       T.ok('provenance fields are copied outside the numeric filter', /HRV_PROV_FIELDS\.forEach/.test(src));
       T.ok('no empty-object default stands in for an absent block', !/_upValidity\s*=\s*\{\s*\}/.test(src) && !/validity:\s*\{\s*\}/.test(src));
+    });
+
+    /* ── A TRANSCRIBED SUMMARY OVER A SEAMED NIGHT REFUSES ───────────────────────────────────────
+       Owner ruling 2026-11-06, relayed to the fleet as board #3941 over the seam-consumer audit at
+       #3933. HRVDex carried the upstream's seam count BESIDE a value it transcribed across that
+       seam, and the annotate-only contract of #4469 let the number stand. §∅'s 2026-09-17 line is
+       that a discontinuity refuses and reduced coverage annotates, so the value now reads `null`
+       under `clock-seam`.
+       The legs gate the refusal AND its three non-triggers. A refusal that also fires on a MEASURED
+       zero, on a channel nobody examined, or on a row with no upstream block at all would fabricate
+       the absence this ruling exists to name — and it would pass a one-sided test. */
+    group('HRVDex refuses a transcribed vendor summary over a seamed upstream night', 'hrvdex-dsp · clock-contract · fabricated-absence', function (T) {
+      var B = (env.HRVDex && env.HRVDex._bare) || env.HRVDex || null;
+      if (!B || typeof B._envToSeed !== 'function' || typeof B.hrvBuildNodeExport !== 'function') {
+        T.skip('HRVDex ingest + export helpers available', 'HRVDex not co-loaded in this runner');
+        return;
+      }
+      function vOf(seams, placed, reason) {
+        return { seams: seams, seamsExamined: 50000, seamsPlaced: placed, seamsUnplaced: 0, seamsBoundMs: 60000, seamsReason: reason };
+      }
+      function envOf(tMs, validity, rmssd) {
+        var rec = { startEpochMs: tMs, offsetMin: null, durationMin: 480 };
+        if (validity !== undefined) rec.validity = validity;
+        return {
+          schema: { name: 'ganglior.node-export', node: 'ECGDex' },
+          recording: rec,
+          hrv: { time: { hr: 55, meanRR: 1090, sdnn: 62, rmssd: rmssd == null ? 40 : rmssd, pnn50: 12 }, frequency: { totalPower: 2000, hf: 500, lf: 900, vlf: 600 } }
+        };
+      }
+      var t0 = Date.UTC(2026, 5, 10, 22, 0, 0);
+      var seamed = B._envToSeed(envOf(t0, vOf(2, 2, null)));
+      var stood = B._envToSeed(envOf(t0, vOf(0, 0, null)));
+
+      // The refusal list is read off the node, so this test enumerates the contract rather than
+      // retyping it. A local fallback keeps the behaviour legs below running when the export is
+      // absent — a thrown group reports ONE failure and examines nothing else.
+      T.ok('the node publishes the refusal list and its reason vocabulary', Array.isArray(B.HRV_VALUE_FIELDS) && Array.isArray(B.HRV_VALUE_REASONS));
+      var VALUE_FIELDS = Array.isArray(B.HRV_VALUE_FIELDS)
+        ? B.HRV_VALUE_FIELDS
+        : (B.HRV_SEED_FIELDS || []).filter(function (k) {
+            return k !== '_spanMin';
+          });
+
+      // ── THE REFUSAL ──
+      var left = VALUE_FIELDS.filter(function (k) {
+        return seamed[k] != null;
+      });
+      T.eq('every transcribed number reads null over a recorded seam', left.join(',') || 'none', 'none');
+      T.eq('…under the one spelling the fleet uses for this fact', seamed._valueReason, 'clock-seam');
+      T.eq('the envelope LENGTH survives the refusal — it is not a value measured over the signal', seamed._spanMin, 480);
+      T.ok('the upstream block itself survives, so the evidence outlives the refusal', JSON.stringify(seamed._upValidity) === JSON.stringify(vOf(2, 2, null)));
+      T.ok('the refusal list is the seed list minus that one length field', VALUE_FIELDS.length === B.HRV_SEED_FIELDS.length - 1 && VALUE_FIELDS.indexOf('_spanMin') < 0);
+
+      // ── THE THREE NON-TRIGGERS: a refusal that fires here fabricates an absence ──
+      T.ok('a MEASURED zero keeps the numbers, with no reason beside them', stood._rmssd === 40 && stood._sdnn === 62 && stood._hr === 55 && stood._valueReason === null);
+      var unknown = B._envToSeed(envOf(t0, vOf(null, null, 'no-seam-sidecar')));
+      T.ok('a channel nobody examined keeps them too — UNKNOWN is not a seam', unknown._rmssd === 40 && unknown._valueReason === null);
+      var bare = B._envToSeed(envOf(t0, undefined));
+      T.ok('a row with no upstream block at all keeps them', bare._rmssd === 40 && bare._valueReason === null);
+      var unplaced = B._envToSeed(envOf(t0, vOf(1, 0, 'seam-rows-unplaced')));
+      T.eq('a seam the upstream could not PLACE still refuses — an unplaced seam is still recorded', unplaced._rmssd + '/' + unplaced._valueReason, 'null/clock-seam');
+
+      // ── THE EXPORT, and the rollup that counts this node's own refusals ──
+      var rows = [seamed, stood].map(function (sd) {
+        return B._rowFromSeed(sd);
+      });
+      var out = B.hrvBuildNodeExport(rows, { generated: 'fixed' });
+      var ms = out.measurements || [];
+      // `[null].join()` and `[undefined].join()` both read '', so a joined string cannot tell an
+      // explicit null from a key the export never wrote. Read the keys.
+      var m0 = ms[0] || {};
+      T.ok('the refused measurement publishes an explicit null for every transcribed number', 'rmssd' in m0 && m0.rmssd === null && 'sdnn' in m0 && m0.sdnn === null && 'sd1' in m0 && m0.sd1 === null);
+      T.eq('…and names why, in the one spelling', m0.valueReason, 'clock-seam');
+      var m1 = ms[1] || {};
+      T.ok('the measurement beside it stands, with an explicit null reason', m1.rmssd === 40 && 'valueReason' in m1 && m1.valueReason === null);
+      T.eq('the refused measurement still re-publishes its upstream block', JSON.stringify(ms[0] && ms[0].validity), JSON.stringify(vOf(2, 2, null)));
+      T.eq('the rollup counts the refusals it made', (out.recording.validity || {}).seamRefusedMeasurements, 1);
+
+      // ── NO IMPULSE OVER A REFUSED VALUE, and the same numbers unrefused still fire one ──
+      var evRefused = B.hrvEventsFromRows([B._rowFromSeed(B._envToSeed(envOf(t0, vOf(1, 1, null), 12)))]);
+      var evKept = B.hrvEventsFromRows([B._rowFromSeed(B._envToSeed(envOf(t0, vOf(0, 0, null), 12)))]);
+      T.eq('a refused row emits no hrv_low impulse, where the same rMSSD unrefused emits one', evRefused.length + '/' + evKept.length, '0/1');
+
+      // ── PERSISTENCE: the reason is a STRING, so the numeric seed filter would drop it ──
+      var back = B._rowFromSeed(JSON.parse(JSON.stringify(B._seedFromRow(rows[0]))));
+      T.eq('the refusal reason survives storage', back._valueReason, 'clock-seam');
+      T.ok('…and the refused numbers do not come back', back._rmssd == null && back._sdnn == null);
+
+      // ── The vocabulary is pre-stated and closed, like every other reason list in this node ──
+      T.eq('the value-reason vocabulary is pre-stated and closed', JSON.stringify(B.HRV_VALUE_REASONS || null), '["clock-seam"]');
+      T.ok('…and the reason this node emits is in it', (B.HRV_VALUE_REASONS || []).indexOf(seamed._valueReason) >= 0);
+
+      // ── Source mirror: the two edits a later change would silently undo ──
+      var src2 = (env.sources || {})['hrvdex-dsp.js'];
+      if (src2 == null) {
+        T.ok('hrvdex-dsp.js source available', false, 'not in env.sources');
+        return;
+      }
+      T.ok('the refusal list is DERIVED from the seed list, never retyped', /HRV_VALUE_FIELDS\s*=\s*HRV_SEED_FIELDS\.filter/.test(src2));
+      T.ok('the reason rides with the provenance fields, outside the numeric filter', /'_valueReason'/.test(src2) && /HRV_PROV_FIELDS = \[[^\]]*_valueReason/.test(src2));
+      T.ok('a positive count refuses and a zero does not', /seamRefused = upSeams != null && upSeams >= 1/.test(src2));
     });
 
     /* ════ GlucoDex synthetic patient-coherence — DexPatientGen → renderGlucoAll → parseCSV ════

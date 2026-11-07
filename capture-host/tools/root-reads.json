@@ -12,6 +12,15 @@
       ]
     },
     {
+      "path": ".github/workflows/tests.yml",
+      "found": [
+        "traced"
+      ],
+      "how": [
+        "read"
+      ]
+    },
+    {
       "path": "CPAPDex.src.html",
       "found": [
         "traced"
@@ -121,6 +130,16 @@
     },
     {
       "path": "briefs/CAPTURE-LOSS-PRECEDENCE-AUDIT-2026-09-22-BRIEF.md",
+      "found": [
+        "traced",
+        "named"
+      ],
+      "how": [
+        "read"
+      ]
+    },
+    {
+      "path": "briefs/RESIDUE.md",
       "found": [
         "traced",
         "named"

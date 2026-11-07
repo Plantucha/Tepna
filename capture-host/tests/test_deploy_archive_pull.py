@@ -115,3 +115,134 @@ def test_never_chmods_an_existing_destination_folder(tmp_path):
     assert proc.returncode == 0, proc.stderr
     assert (dest / "2026-11-06" / "night.edf").read_bytes() == b"n"
     assert (dest / "2026-11-06").stat().st_mode & 0o777 == 0o777
+
+
+def test_the_pull_names_a_writable_destination_before_rsync_runs(tmp_path):
+    """The probe is a line in the log on EVERY run, not only a failing one: an operator reading a
+    green pull still learns that the destination admitted a write."""
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "a.edf").write_bytes(b"1")
+    dest = tmp_path / "dest"
+    log = tmp_path / "pull.log"
+
+    proc = _run(src, dest, log)
+
+    assert proc.returncode == 0, proc.stderr
+    text = log.read_text()
+    # A fresh destination has no night yet, so the second depth is `none` rather than a guess (§∅).
+    assert "dest-writable: root=yes newest-night=none" in text
+
+
+def test_the_pull_probes_the_newest_night_not_only_the_root(tmp_path):
+    """The measured failure was PER-NIGHT — 33 of the 35 night errors named a per-night marker — so a
+    root-only probe would have reported a writable destination on the very tree that refused.
+
+    This case is also the whole argument for a probe rather than an exit code: a root refusal and a
+    per-night refusal reach the operator as the same single exit code. This test therefore asserts
+    the probe line alone. It asserts NOTHING about rsync's exit, because what rsync manages against a
+    refused tree is rsync's business and it varies with the host."""
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "a.edf").write_bytes(b"1")
+    dest = tmp_path / "dest"
+    night = dest / "2026-10-31"
+    night.mkdir(parents=True)
+    log = tmp_path / "pull.log"
+    night.chmod(0o555)
+    try:
+        _run(src, dest, log)
+    finally:
+        night.chmod(0o755)
+
+    text = log.read_text()
+    assert "dest-writable: root=yes newest-night=NO" in text
+    assert "the DESTINATION refused a probe write before rsync ran" in text
+
+
+def test_an_unwritable_destination_is_named_beside_the_exit_code(tmp_path):
+    """The one fact behind 59 error lines appeared in none of them. It appears here, next to the exit
+    code an operator reads, and it names the step that fixes it."""
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "a.edf").write_bytes(b"1")
+    dest = tmp_path / "dest"
+    dest.mkdir()
+    log = tmp_path / "pull.log"
+    dest.chmod(0o555)
+    try:
+        _run(src, dest, log)
+    finally:
+        dest.chmod(0o755)
+
+    text = log.read_text()
+    assert "dest-writable: root=NO" in text
+    assert "the DESTINATION refused a probe write before rsync ran" in text
+    assert "restore the inherited ACL" in text
+    # The exit code is reported, never asserted away. What rsync manages against a refused tree
+    # varies with the host, and the fact an operator needs holds whatever it manages.
+    assert "rsync EXIT=" in text
+
+
+def test_the_remedy_names_the_acl_restore_and_never_a_chmod(tmp_path):
+    """#4474 measured that a chmod on the Synology replaces a folder's inherited ACL with plain mode
+    bits, and that rsync's own chmod under `-a` is what locked this uid out. So the remedy line must
+    name the ACL restore and must not send an operator to a mode change, which would re-apply the
+    mechanism behind the outage."""
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "a.edf").write_bytes(b"1")
+    dest = tmp_path / "dest"
+    dest.mkdir()
+    log = tmp_path / "pull.log"
+    dest.chmod(0o555)
+    try:
+        _run(src, dest, log)
+    finally:
+        dest.chmod(0o755)
+
+    # The filter carries the script's own prefix. A bare "remedy" matched four lines, because
+    # pytest names tmp_path after this test and every path-bearing line then carried the word.
+    remedy = [ln for ln in log.read_text().splitlines() if ln.startswith("archive-pull: remedy")]
+    assert len(remedy) == 1, remedy
+    assert "restore the inherited ACL" in remedy[0]
+    assert "never a chmod" in remedy[0]
+    assert "chmod g+" not in remedy[0]
+    assert "archive-dest-grant" not in log.read_text()
+
+
+def test_a_writable_destination_gets_no_remedy_line(tmp_path):
+    """A remedy printed beside a green run teaches an operator to ignore it. The line appears only
+    when the probe actually refused."""
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "a.edf").write_bytes(b"1")
+    dest = tmp_path / "dest"
+    log = tmp_path / "pull.log"
+
+    proc = _run(src, dest, log)
+
+    assert proc.returncode == 0, proc.stderr
+    text = log.read_text()
+    assert "remedy" not in text
+    assert "refused a probe write" not in text
+
+
+def test_the_probe_leaves_nothing_behind_in_the_archive(tmp_path):
+    """There is no `--delete` here, so a probe file this script forgets lives in the archive forever
+    and counts as an archived file in the pull's own verdict."""
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "a.edf").write_bytes(b"1")
+    dest = tmp_path / "dest"
+    dest.mkdir()
+    stale = dest / ".tepna-dest-probe.99999"
+    stale.write_text("left by a killed run")
+    log = tmp_path / "pull.log"
+
+    proc = _run(src, dest, log)
+
+    assert proc.returncode == 0, proc.stderr
+    assert not list(dest.glob(".tepna-dest-probe*"))
+    assert not stale.exists()
+    assert "dest files: 1" in log.read_text()

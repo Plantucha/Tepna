@@ -785,7 +785,18 @@ def test_the_STAGED_set_is_THE_UNION_of_the_two_instruments():
     (`found: ["traced", "named"]`): `tests/test_mutation_baseline.py` opens the committed survivor record
     to measure the inherited split against the real document rather than a hand-built copy of it. The
     rest of the distance to 2026-10-28's 9.49 / 17.71 MB is files that grew since, summed over the
-    entries on both days and not attributed to this one."""
+    entries on both days and not attributed to this one.
+
+    Re-measured 2026-11-06: 37 static, 58 declared, 58 staged, 12.32 MB static / 21.23 MB union. TWO paths
+    arrive. `briefs/RESIDUE.md` (1.80 MB) is a REAL read found by both instruments: `test_check_script.py`
+    reads the one `not-required` merge-hold declaration's cited row and holds it to an OPEN state, so an
+    advisory CI job cannot keep an excuse the ledger has closed. `.github/workflows/tests.yml` (0.02 MB) is
+    a read this fold PREDATES rather than one that arrived with it — the adoption leg declared that
+    workflow as its CI home on 2026-11-05, the path is CONSTRUCTED through `CI_WORKFLOW`, and the static
+    instrument cannot see a constructed path. So it stayed out of the manifest and out of every scratch,
+    which left that leg's parity test skipping inside one. It is the SECOND dotted read, and the assertion
+    below now names both. The rest of the distance to 2026-10-31's 9.96 / 18.36 MB is files that grew
+    since, summed over the entries on both days and not attributed here."""
     from pathlib import Path
     import pytest
 
@@ -797,10 +808,11 @@ def test_the_STAGED_set_is_THE_UNION_of_the_two_instruments():
     staged = mutation_diff.staged_root_reads(here)
     assert set(staged) == static | declared
     counts = (len(static), len(declared), len(staged))
-    assert counts == (36, 56, 56), counts
+    assert counts == (37, 58, 58), counts
     # A static read the manifest omits means the manifest is stale: re-run the trace and re-fold it.
     assert static - declared == set(), static - declared
     assert ".github/workflows/capture-host-ci.yml" in staged, staged
+    assert ".github/workflows/tests.yml" in staged, staged
 
 
 def test_the_REAL_suite_has_exactly_the_root_reads_we_know_about():
@@ -894,11 +906,17 @@ def test_the_REAL_suite_has_exactly_the_root_reads_we_know_about():
     # python re-implementation of its histogram would be a second copy of the rule, free to drift. The
     # same shape as the `tools/mutate.mjs` note above (residue
     # 2026-10-28-the-qualifier-uniqueness-test-compares-entries-to-each-other-not-to-the-generator).
+    # 2026-11-06: ONE new REAL read, `briefs/RESIDUE.md` (1.80 MB, measured). `test_check_script.py`
+    # reads the row cited by the one CI job that holds no merge, and holds that row to an OPEN state: a
+    # closed row means the ruleset moved or the claim lapsed, and either way the excuse stopped being
+    # true. A read, not a mention — the ledger's own state is the expiry date, so a copy of the row here
+    # would pin a sentence rather than the record.
     assert got == [
         "Dex-Test-Suite.html",
         "README.md",
         "briefs/BLE-SNIFFER-DUTY-CYCLE-2026-09-07-BRIEF.md",
         "briefs/CAPTURE-LOSS-PRECEDENCE-AUDIT-2026-09-22-BRIEF.md",
+        "briefs/RESIDUE.md",
         "briefs/SOLID-NIGHT-2026-09-23-BRIEF.md",
         "clock.js",
         "cpapdex-dsp.js",

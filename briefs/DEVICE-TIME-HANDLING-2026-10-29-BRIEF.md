@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-11-03 (O1, O2, U1, U3, U4, U5, U6 and U7 done; **U2 in progress** — verified 2026-11-03, Heron: the previous header had U2 and U7 the wrong way round. U7 meets all three of its boxes in the tree — `capture-host/as11_clock.py:255` sets `ENVELOPE_WINDOW_S = 12 * 3600.0`, `offset_for_envelope` publishes `anchors`, `span_s` and `window_s` beside the value, and `capture-host/tests/test_as11_clock_envelope.py` reads it back. U2 meets none of its three: no producer exists for the sub-2400 s fragment measurement its own first step names, so the `fs` change at `ppgdex-dsp.js` has nothing to beat. Neither #4303 nor #4311 discharges U7 — #4303 reads a firmware-default clock as a reset and #4311 publishes the raw adjacent host-device step, which U2 can use as a diagnostic.) · ⚠️ **API-LANE TRIAGE 2026-11-04 — RE-VERIFIED BY MAGPIE, NOT TAKEN ON ITS WORD.** The managed-agent lane read this brief at `4ca6b91cc` and reported fifteen acceptance items: ten met, none open, five blocked. I re-ran the cited check behind every MET item in my own tree and **every one reproduces** (five named test groups, two file citations, one git citation, one reader over a committed artefact, one capture-host pytest selection). An empty `-k` or `--group=` filter exits 0. So I read the collected count and the plan line, never the exit code, and none of them collected nothing. **The OPEN and BLOCKED verdicts stay the lane's self-report, unverified here.** The remainder the lane reports is five items, which its own batch file lists. · **Created:** 2026-10-29
+**Status:** DONE — 2026-11-06 (every unit and both owner decisions meet their boxes. **U2 — verified 2026-11-06, Heron:** §2's U2 records the three checks. Each check reads a path in this tree, and no code moves. My 2026-11-03 header read U2 as unmet, because no producer for the fragment measurement entered the tree. The measuring session kept its harness in a scratchpad. So the measurement exists where the producer does not.) · ⚠️ **API-LANE TRIAGE 2026-11-04 — RE-VERIFIED BY MAGPIE, NOT TAKEN ON ITS WORD.** The managed-agent lane read this brief at `4ca6b91cc` and reported fifteen acceptance items: ten met, none open, five blocked. I re-ran the cited check behind every MET item in my own tree and **every one reproduces** (five named test groups, two file citations, one git citation, one reader over a committed artefact, one capture-host pytest selection). An empty `-k` or `--group=` filter exits 0. So I read the collected count and the plan line, never the exit code, and none of them collected nothing. **The OPEN and BLOCKED verdicts stay the lane's self-report, unverified here.** The remainder the lane reports is five items, which its own batch file lists. · **Created:** 2026-10-29
 
 # Brief — better time handling on every device
 
@@ -78,9 +78,25 @@ Search: `per-beat correctionAt instead of fs ppm rescale` → `DEVICE-RATE-TRUTH
 - This folds into Heron's confirmed next unit (board #2178–#2180, the PpgDex span flag). Its first step
   stands: measure the sub-2400 s fragments alone against the ECG, with today's correction and without it.
 
-- [ ] Fragment measurement against the ECG, before any code
-- [ ] A change to `fs` at `:1253`–`:1254` lands only if it beats today's `fs/(1+ppm)` on that measurement
-- [ ] Sub-2400 s rate annotated, never refused (decided #2180)
+- [x] Fragment measurement against the ECG, before any code
+- [x] A change to `fs` at `:1253`–`:1254` lands only if it beats today's `fs/(1+ppm)` on that measurement
+- [x] Sub-2400 s rate annotated, never refused (decided #2180)
+**Verified 2026-11-06 (Heron).** This unit lands no code. Each box below names a path in this tree.
+
+- Box 1 — `PPGDEX-SUBFLOOR-RATE-TEST-2026-10-29-BRIEF.md` reads DONE — 2026-10-29.
+- It measured 288 ring fragments that build a host axis under the span floor.
+- 11 of them share a scorable 5-minute bin with an H10 ECG, over 26 bins.
+- There the two arms sit 0.013 bpm apart, against a 0.861 bpm pooled error.
+- So the ECG cannot referee an `fs` change at that fragment length.
+- Box 2 — no `fs` change landed, so the condition never opened.
+- The division still sits ungated at `ppgdex-dsp.js:1676`.
+- The comment above it cites the owner's order at board #2180.
+- `:1680` publishes `rateAppliedToFs`, which makes the 0.01 Hz erasure visible.
+- Box 3 — a sub-floor rate annotates and never refuses.
+- `ppgdex-dsp.js:895` reads `rate: rated ? 'measured' : 'unknown'` per segment.
+- Its `rateReason` names the span: `spans N s, under the 2400 s a rate needs`.
+- `:7616` carries the whole-file twin with the same reason.
+- The box text above dates from 2026-10-29. `:1253`–`:1254` now read `:1676` and `:1679`.
 
 ### U3 · A clock-seam tripwire for OxyDex, PulseDex and HRVDex — **Osprey**
 
@@ -175,7 +191,7 @@ Search: `RADIO-CLOCK-SIDECAR-2026-09-07` (the owner flashed the firmware on 2026
 
 - [x] Spread per night, population and window stated, one `tepna.verdict/1` object
 
-### U7 · AS11 per-EDF re-anchor at ingest — **Heron, IN-PROGRESS**
+### U7 · AS11 per-EDF re-anchor at ingest — **Heron, DONE 2026-11-03**
 
 Search: `AS11 per-EDF re-anchor ingest` → `AS11-CLOCK-DISCIPLINE-2026-08-24` (DONE; per-EDF placement +
 ingest re-anchor carried as #1956's follow-up).
@@ -195,13 +211,21 @@ ingest re-anchor carried as #1956's follow-up).
   on `now`, so the function stays pure. It publishes `anchors`, `span_s` and `window_s` beside the
   value. A window holding fewer than two anchors returns `null`, never a zero and never the history.
 
+**Verified 2026-11-03 (Heron), re-read 2026-11-06.** Three paths carry it.
+
+- `capture-host/as11_clock.py:255` sets `ENVELOPE_WINDOW_S = 12 * 3600.0`.
+- `offset_for_envelope` publishes `anchors`, `span_s` and `window_s` beside the value.
+- `capture-host/tests/test_as11_clock_envelope.py` reads those three fields back.
+- Neither #4303 nor #4311 discharges this unit. #4303 reads a firmware-default clock as a reset.
+- #4311 publishes the raw adjacent host-device step, which U2 keeps as a diagnostic.
+
 ## 3 · Assignment and order
 
 | unit | bird | touches | order |
 |---|---|---|---|
 | U5 | Magpie | `dex-export.js` (spine, 9 bundles) | 1st, alone — DONE |
 | U3 | Osprey | `oxydex-dsp.js`, `pulsedex-dsp.js`, `hrvdex-dsp.js` | any time; rebase after U5 |
-| U2 | Heron | `ppgdex-dsp.js` | measurement now; code after U1 — IN PROGRESS, 0 of 3 boxes |
+| U2 | Heron | `ppgdex-dsp.js` | measurement done, no code — DONE 2026-11-06, all 3 boxes |
 | U1 | Kestrel | nothing: measured, no code (2026-10-30) | done |
 | U6 | Wren | box read-only | DONE 2026-11-02 |
 | U4 | Magpie | `motiondex-dsp.js` | after U5 merges |

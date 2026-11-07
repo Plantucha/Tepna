@@ -278,6 +278,58 @@ function _eventsFromEnvelope(json, node) {
   return { t0Ms: t0Ms, events: events };
 }
 
+/* ── THE NODE'S RECORDED-SEAM CHANNEL, READ AT THE FUSION BOUNDARY (board finding #3933, brief
+   `SEAM-SIDECAR-CONSUMPTION-2026-11-03-BRIEF.md`) ──────────────────────────────────────────────
+   Five nodes publish `recording.validity`: the box-recorded seam count, the population their scan
+   examined, and the named reason a count is absent (`ecgdex-dsp.js`, `ppgdex-dsp.js`,
+   `motiondex-dsp.js`, `pulsedex-dsp.js`, `oxydex-dsp.js`). The owner ruled on 2026-11-06 (D17) that
+   a seam is MANDATORY: every consumer reads the channel and honours it, and a value across a seam
+   refuses under the 2026-09-17 ruling. This adapter read the RTC-verification trio out of that same
+   block and dropped the seam annotation, so every seam the box recorded stopped at this boundary and
+   a fused night read as clean.
+
+   THE READER CONTRACT IS HRVDex'S, VERBATIM (`hrvdex-dsp.js:579-586`), down to the reason word — one
+   vocabulary across both consumers, because a second spelling for one fact makes a reader ask which
+   observer refused.
+   - An EMPTY block is not an annotation. `{}` reads as "looked, clean", so it takes the named-absence
+     path rather than the measured one.
+   - `seamsPlaced` is NOT consulted. An upstream that recorded a seam it could not place on its own
+     axis still recorded a discontinuity inside this span, and a span that cannot say WHERE the seam
+     falls cannot say its numbers avoid it.
+   - A MEASURED `0` is a scan that ran and found nothing, and it keeps every number.
+   - `null` is UNKNOWN, never seam-free (the owner's 2026-11-05 ruling). It carries the node's own
+     reason, so a consumer separates a channel nobody examined from a node that published nothing. */
+function _nodeSeamChannel(json) {
+  var v = json && json.recording && json.recording.validity;
+  var ok = v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length ? v : null;
+  return {
+    seams: ok && typeof ok.seams === 'number' && isFinite(ok.seams) ? ok.seams : null,
+    seamsReason: ok ? (typeof ok.seamsReason === 'string' && ok.seamsReason ? ok.seamsReason : null) : 'upstream-emitted-no-validity'
+  };
+}
+
+/* ONE PREDICATE FOR BOTH ESTIMATORS BELOW. A positive count is the refusal; `0` and `null` are not,
+   for the two different reasons `_nodeSeamChannel` states. Written once because a seam test that
+   differs between the event estimator and the beat check would let a rec be refused by one observer
+   and spent by the other. */
+function _recHasRecordedSeam(r) {
+  return !!(r && typeof r.seams === 'number' && isFinite(r.seams) && r.seams >= 1);
+}
+
+/* THE PAIR-LEVEL REFUSAL, FOR BOTH DECLARED CLOCK DEFECTS (board #3989). `detectClockSkew` vetoes a
+   rec from the event-pair estimator on EITHER a recorded seam or a node-declared `rtcResetSuspect`,
+   and `_beatSkewCheck` read only the first — so one declared defect refused the event-pair lag and
+   was spent by the beat-level drift fit, the exact asymmetry the comment above warns about. A
+   reset's own offset is unmeasured by definition, so a fit across it carries that unmeasured jump
+   in BOTH the offset and the rate it reports.
+   PRECEDENCE: a rec carrying both reports `clock-seam` in the pair's single `reason` field. Nothing
+   is lost by the choice, because `detectClockSkew.vetoes` records one entry per rec PER SOURCE. */
+function _pairRefusalReason(A, B) {
+  if (_recHasRecordedSeam(A) || _recHasRecordedSeam(B)) return 'clock-seam';
+  if ((A && A.rtcResetSuspect === true) || (B && B.rtcResetSuspect === true)) return 'rtc-reset-suspect';
+  return null;
+}
+
 function adaptEnvelopeNode(json, node, filename) {
   var r = _eventsFromEnvelope(json, node);
   var t0Ms = r.t0Ms,
@@ -734,6 +786,7 @@ function adaptEnvelopeNode(json, node, filename) {
       })
     };
   }
+  var _seamCh = _nodeSeamChannel(json);
   var _envRecs = [
     {
       node: node,
@@ -789,6 +842,10 @@ function adaptEnvelopeNode(json, node, filename) {
       rtcOffsetS: json.recording && json.recording.rtcOffsetS != null && isFinite(json.recording.rtcOffsetS) ? json.recording.rtcOffsetS : null,
       rtcVerifiedAtMs: json.recording && json.recording.rtcVerifiedAtMs != null && isFinite(json.recording.rtcVerifiedAtMs) ? json.recording.rtcVerifiedAtMs : null,
       rtcResetSuspect: !!(json.recording && json.recording.rtcResetSuspect),
+      /* THE RECORDED-SEAM CHANNEL (see `_nodeSeamChannel` above). BOTH keys ride on every rec,
+         measured or not, so no consumer downstream can read an absent key as a clean night. */
+      seams: _seamCh.seams,
+      seamsReason: _seamCh.seamsReason,
       /* §F6 — a SLIM beat array, so beat-level timing is reachable inside the fusion.
          P9 above dropped the whole `json` because keeping multi-MB timeseries alive per recording
          bloated multi-night batches, and that decision stands: this carries beat INSTANTS only, as a
@@ -6873,8 +6930,47 @@ function detectClockSkew(recs, opts) {
         note: r.node + ' RTC reset-suspect on this rec — placement UNMEASURED (excluded from anchor fits).'
       };
     });
+  /* ── A RECORDED SEAM VETOES THE SAME ESTIMATOR, FOR THE SAME REASON (D17, owner 2026-11-06) ────
+     `estimateEventLag` fits ONE lag for a whole recording, so it answers "how far is this node's
+     clock out" with a single number. A seam the box recorded is a discontinuity INSIDE that span:
+     the recording holds two stretches whose offsets need not agree, and one lag describes neither.
+     The owner's 2026-09-17 ruling decides the shape — a discontinuity refuses, reduced coverage
+     annotates — and a whole-recording offset across a seam is the discontinuity case, not a short
+     window. VETOED rather than estimated-and-flagged, because a seamed rec left in the pairing also
+     drags a PARTNER's estimate toward it; that is the reasoning the reset-suspect veto above carries.
+     `seams === 0` is a measured clean scan and estimates normally. `null` is UNKNOWN and also
+     estimates, because the 2026-11-05 ruling reads an unexamined channel as unknown rather than as a
+     seam — and `seamCensus` below publishes that unknown, so it is never silent. */
+  (recs || []).forEach(function (r) {
+    if (!_recHasRecordedSeam(r)) return;
+    vetoes.push({
+      node: r.node,
+      source: 'clock-seam',
+      seams: r.seams,
+      seamsReason: r.seamsReason != null ? String(r.seamsReason) : null,
+      note: r.node + ' recorded ' + r.seams + ' clock seam(s) on this rec — one whole-recording offset describes neither side of a discontinuity (excluded from anchor fits).'
+    });
+  });
+  /* ── THE CHANNEL IS STATED FOR EVERY REC, UNCONDITIONALLY (D17) ────────────────────────────────
+     Always present, exactly like `findings` beside it, so a consumer tells "checked, clean" from
+     "never checked" and from "this node published nothing". A census that appeared only when a seam
+     was recorded would let a reader count absent entries as clean nights, which is the zero the
+     2026-11-05 ruling exists to forbid. `seams` is the node's own count or an explicit `null`, never
+     a 0 standing in for an absent scan (§∅). */
+  var seamCensus = (recs || [])
+    .filter(function (r) {
+      return !!r;
+    })
+    .map(function (r) {
+      return {
+        node: r.node,
+        seams: typeof r.seams === 'number' && isFinite(r.seams) ? r.seams : null,
+        seamsReason: r.seamsReason != null ? String(r.seamsReason) : null,
+        vetoed: _recHasRecordedSeam(r)
+      };
+    });
   var dated = (recs || []).filter(function (r) {
-    return r && !r.dateUnknown && !r.rtcResetSuspect && r.events && r.events.length;
+    return r && !r.dateUnknown && !r.rtcResetSuspect && !_recHasRecordedSeam(r) && r.events && r.events.length;
   });
   var times = function (r) {
     return r.events
@@ -6988,7 +7084,7 @@ function detectClockSkew(recs, opts) {
       note: r.node + ' RTC readback declares clock ' + Math.abs(Math.round(o)) + 's ' + (o > 0 ? 'BEHIND' : 'AHEAD OF') + ' host — declared, not silently corrected.'
     });
   });
-  return { pairs: pairs, findings: findings, beatCheck: _beatSkewCheck(recs, pairs, opts), vetoes: vetoes };
+  return { pairs: pairs, findings: findings, beatCheck: _beatSkewCheck(recs, pairs, opts), vetoes: vetoes, seamCensus: seamCensus };
 }
 
 /* ── BEAT-LEVEL CORROBORATION OF THE EVENT-DERIVED SKEW (§F6) ──────────────────────────────────────
@@ -7020,6 +7116,28 @@ function _beatSkewCheck(recs, pairs, opts) {
     for (var j = i + 1; j < withBeats.length; j++) {
       var A = withBeats[i],
         B = withBeats[j];
+      /* A PAIR WHOSE EITHER SIDE CARRIES A DECLARED CLOCK DEFECT REFUSES BEFORE THE FIT (D17, #3989).
+         `fitClockDrift` fits an offset AND a rate across the whole span, so a device-clock step
+         inside it lands in both numbers — and `confident:true` over a stepped span is the shape
+         §∅ and the 2026-09-17 ruling both refuse. Published on the SAME KEYS as the no-fit arm
+         below rather than dropped from `out`: a pair silently missing is indistinguishable from a
+         pair nobody could build, and `reason` is the field that carries that difference. */
+      var refusal = _pairRefusalReason(A, B);
+      if (refusal) {
+        out.push({
+          a: A.node,
+          b: B.node,
+          offsetSec: null,
+          driftPpm: null,
+          wrappedDriftPpm: null,
+          wrappedConcentration: null,
+          maxDriftPpm: null,
+          spanMin: null,
+          confident: false,
+          reason: refusal
+        });
+        continue;
+      }
       var fit = fitClockDrift(Array.prototype.slice.call(A.beats.tMs), Array.prototype.slice.call(B.beats.tMs), {});
       if (!fit || fit.offsetMs == null) {
         /* SAME KEYS ON THE REFUSAL ARM. A shape that changes with the outcome makes a consumer's
@@ -7522,6 +7640,10 @@ function runFusion(recs, opts) {
       pairs: skew.pairs,
       fits: skewFits,
       beatCheck: skew.beatCheck || null,
+      /* UNCONDITIONAL, unlike `vetoes` beside it (D17). `vetoes` is absent when nothing was refused,
+         which is readable because a refusal names itself; the CENSUS is the opposite case — its
+         absence is exactly the silence the owner's ruling forbids, so it ships even empty. */
+      seamCensus: skew.seamCensus || [],
       vetoes: skew.vetoes && skew.vetoes.length ? skew.vetoes : undefined
     },
     hrSource: hrSource,
