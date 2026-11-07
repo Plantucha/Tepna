@@ -39,7 +39,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { notANight, populationVerdict, snapshotNights } from './corpus-scope-core.mjs';
+import { coverageIdentity, notANight, populationVerdict, snapshotNights } from './corpus-scope-core.mjs';
 
 const argv = process.argv.slice(2);
 const arg = (k, d) => {
@@ -310,6 +310,9 @@ for (const r of rejectLog) console.log(`    ✗ ${r}`);
    on the one path that reaches the end — and the runs that need it most are the short ones. */
 const population = populationVerdict(popBefore, snapshotNights(TRIO), { tool: 'tools/eqc-run.mjs' });
 const unscored = notANight(popBefore, covered);
+/* THE DIFFERENCE ANSWERS TO THE ARITHMETIC (#4506). The line above prints `used ${used} nights`, and
+   `used` is incremented on exactly the rows pushed with `ok: true`. */
+coverageIdentity(popBefore, covered, unscored, { printedScored: used });
 console.log(`  offered but not scored: ${unscored.length ? unscored.join(', ') : 'none'}`);
 console.log(JSON.stringify(population));
 

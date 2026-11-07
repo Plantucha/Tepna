@@ -39,7 +39,7 @@ import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 import { eraCoverage, eraCoverageLine, eraOfNights } from './fold-generation.mjs';
-import { NIGHT_RE, gitCommitOf, notCovered, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
+import { NIGHT_RE, coverageIdentity, gitCommitOf, notCovered, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
 
 /* Realm builder lifted verbatim from tools/cpap-corpus.mjs — imported there it would run that
    file's CLI main, so it is duplicated rather than imported. Keep the two in step. */
@@ -292,11 +292,11 @@ function printPopulation() {
   if (populationRule) console.log(populationRule);
   /* A COUNT of the nights that joined nothing names nothing to chase. A night falls out here when
      `joinNight` refuses it on data — no flow events under that key, or no Deep window to score. */
-  const missed = notCovered(
-    snap,
-    [...READ].map((n) => ({ night: n })),
-    { key: 'night' }
-  );
+  const joined = [...READ].map((n) => ({ night: n }));
+  const missed = notCovered(snap, joined, { key: 'night' });
+  /* THE DIFFERENCE ANSWERS TO THE ARITHMETIC (#4506). `READ` is a Set, so its size
+     is the distinct nights that joined, and the line above prints it as the scored figure. */
+  coverageIdentity(snap, joined, missed, { key: 'night', printedScored: READ.size });
   if (missed.length) console.log(`  ${missed.length} offered night(s) joined nothing, by name: ${missed.slice(0, 8).join(' · ')}${missed.length > 8 ? ` · … (+${missed.length - 8})` : ''}`);
   console.log('POPULATION ' + JSON.stringify(population));
 }
