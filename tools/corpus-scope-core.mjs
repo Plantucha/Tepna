@@ -788,8 +788,9 @@ export function headNightKeyWith({ parse, runsOf = null, bytes = HEAD_BYTES, t0O
    one line under its own "N scored". Measured 2026-11-07 over the five callers that passed names —
    `pat-window-oracle.mjs`, `pat-three-corner.mjs`, `pat-literature-spec.mjs`, `pat-per-led.mjs` and
    `ppg-foot-residual-sweep.mjs` each printed that contradiction inside one paragraph (board #4054).
-   Fourteen other call sites carry a comment warning about the shape, which is the tell that a
-   comment is not an enforcement.
+   The helper takes 69 calls across 47 tools outside this module, and ELEVEN of them carry a comment
+   naming this exact hazard in the helper's own words, which is the tell that a comment is not an
+   enforcement (census corrected at board #4070; the first reading said fourteen).
 
    SO THE UNKEYABLE SHAPE THROWS, AND THE MESSAGE NAMES THE INDEX, THE KEY AND THE SHAPE — never the
    value, because a member name can be corpus data. A string, a number, an array, an object without
@@ -829,6 +830,56 @@ export function notCovered(offer, covered, { key = 'night' } = {}) {
  *  which is the whole point of the row above. A record population passes `key: 'record'`. */
 export function notANight(offer, covered) {
   return notCovered(offer, covered);
+}
+
+/* 🔴 A WRONG SHAPE THROWS; A WRONG COUNT STILL PRINTS. `notCovered` above refuses a member it cannot
+   KEY, and says nothing about a member it never SAW. A caller that passes well-formed rows and a
+   short scored list gets an arithmetically wrong coverage line and no symptom — the same defect as
+   board #4054 wearing its other face. The suite pinned the identity for seven tools by name, the
+   four trio-night readers and the three CPAP-corpus readers, and the census of 2026-11-07 reads 12
+   of the 47 calling tools carrying it: all five callers #4502 repaired sat in the other 35.
+
+   THE IDENTITY IS offered − scored === unscored, OVER THE SAME THREE VALUES THE LINE PRINTS. A tool
+   passes what it handed `notCovered`, what came back, and the figure it is about to print, so the
+   arithmetic binds the prose to the computation rather than to the author's eye.
+
+   A SCORED MEMBER THE OFFER NEVER HELD IS ITS OWN FINDING, not a rounding error: it means the run
+   scored something the population line never offered, so the difference and the printed count can
+   agree while both describe the wrong set. It travels as a COUNT, never as a name, because a member
+   name can be corpus data.
+
+   THE MESSAGE NAMES EVERY FIGURE IT COMPARED. A throw reading "the arithmetic disagrees" costs the
+   next reader the whole derivation; these name the offer, the distinct scored set, the difference,
+   the members outside the offer and the failed reads. */
+export function coverageIdentity(offer, covered, unscored, { key = 'night', printedScored = null } = {}) {
+  if (!Array.isArray(unscored)) throw new TypeError(`coverageIdentity needs the array notCovered returned, not a ${unscored === null ? 'null' : typeof unscored}`);
+  const members = membersOf(offer);
+  const offered = members.length;
+  const held = new Set(members);
+  const inOffer = new Set();
+  const outside = new Set();
+  const rows = covered || [];
+  let failed = 0;
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    const why = unkeyableReason(row, key);
+    if (why) throw new TypeError(`coverageIdentity: member ${i} of ${rows.length} cannot be keyed on '${key}' — ${why}`);
+    if (row.ok === false) {
+      failed++;
+      continue;
+    }
+    if (held.has(row[key])) inOffer.add(row[key]);
+    else outside.add(row[key]);
+  }
+  const scored = inOffer.size;
+  const out = { offered, scored, unscored: unscored.length, outside: outside.size, failed, printedScored };
+  if (unscored.length + scored !== offered)
+    throw new Error(`coverage identity: ${offered} offered − ${scored} scored ≠ ${unscored.length} unscored — ${outside.size} scored member(s) the offer never held, ${failed} failed read(s)`);
+  if (printedScored != null && printedScored !== scored + outside.size)
+    throw new Error(
+      `coverage identity: the line prints ${printedScored} scored where the arithmetic counts ${scored + outside.size} distinct scored member(s) — ${outside.size} outside the offer, ${failed} failed read(s), ${Math.max(0, rows.length - failed - scored - outside.size)} duplicate(s)`
+    );
+  return out;
 }
 
 /** The tool tree's commit, WITH THE REASON a lookup actually failed. `null` with no reason is the

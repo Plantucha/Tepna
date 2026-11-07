@@ -56,7 +56,7 @@ import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dissentStampOf, dissentTallyLine, refpickOf, signsOf } from './consensus-dissent-core.mjs';
-import { NIGHT_RE, notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
+import { NIGHT_RE, coverageIdentity, notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
 import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
 
 /* ── THE VALIDITY SIDECAR RIDES WITH THE STREAM ─────────────────────────────────────────────
@@ -493,6 +493,8 @@ const population = populationVerdict(popBefore, snapshotNights(DIR, { re: NIGHT_
   evidence: ['tools/pat-literature-spec.mjs']
 });
 const unscored = notANight({ n: nights.length, nights }, covered);
+/* THE IDENTITY BINDS THE PRINTED FIGURE TO THE ARITHMETIC (board #4088). */
+coverageIdentity({ n: nights.length, nights }, covered, unscored, { printedScored: covered.length });
 console.log(
   `\n  population: ${popBefore.n} offered under ${DIR} · ${nights.length} selected · ${covered.length} scored · movement ${population.status}${ONLY ? ` · --night left ${popBefore.n - nights.length} offered night(s) unread` : ''}${population.reason ? ' — ' + population.reason : ''}`
 );

@@ -52,6 +52,7 @@ import {
   classifyRoot,
   dedupeRoots,
   digestNights,
+  coverageIdentity,
   expandHome,
   gitCommitOf,
   nightCensusVerdict,
@@ -567,6 +568,64 @@ function selftest() {
     ok('the key is a parameter, so a record caller is judged on ITS key', unkeyableReason({ record: 'a' }, 'record') === null && /no 'record'/.test(String(unkeyableReason({ night: 'a' }, 'record'))));
     ok('CONTROL · an empty covered list is not an unkeyable one', notANight(offered, []).length === 3 && why(() => notANight(offered, [])) === null);
     ok('CONTROL · an absent covered list still answers, because no member was offered to key', why(() => notANight(offered, null)) === null);
+
+    /* ── AND A WRONG COUNT IS AS SILENT AS A WRONG SHAPE WAS ───────────────────────────────────
+       Board #4088. The refusal above catches a member the arithmetic cannot KEY; a caller passing
+       well-formed rows and a SHORT scored list still printed a coverage line that does not add up.
+       The suite pinned the identity for seven tools by name, and the census of 2026-11-07 reads 12
+       of 47 calling tools carrying it — every one of the five callers #4502 repaired sat outside
+       that set. `coverageIdentity` is the one definition, so a tool binds its printed figure to the
+       computation rather than to the author's eye. */
+    const held = coverageIdentity(offered, [{ night: '2026-07-25' }], notANight(offered, [{ night: '2026-07-25' }]), { printedScored: 1 });
+    ok('the identity holds on a run whose scored list and difference agree', held.offered === 3 && held.scored === 1 && held.unscored === 2, JSON.stringify(held));
+    const shortMsg = why(() => coverageIdentity(offered, [{ night: '2026-07-25' }], []));
+    ok('a difference that does not account for the offer throws, where it used to print', shortMsg != null && /coverage identity/.test(shortMsg), String(shortMsg));
+    ok('…and the message names all three figures it compared', shortMsg != null && /3 offered − 1 scored ≠ 0 unscored/.test(shortMsg), String(shortMsg));
+    const outsideRun = coverageIdentity(offered, [{ night: '2099-01-01' }], notANight(offered, [{ night: '2099-01-01' }]), { printedScored: 1 });
+    ok(
+      'a scored member the offer never held satisfies the difference and is counted on its own',
+      outsideRun.outside === 1 && outsideRun.scored === 0 && outsideRun.unscored === 3,
+      JSON.stringify(outsideRun)
+    );
+    const printMsg = why(() => coverageIdentity(offered, [{ night: '2026-07-25' }], notANight(offered, [{ night: '2026-07-25' }]), { printedScored: 2 }));
+    ok(
+      'a printed figure the arithmetic cannot reach throws, which is the contradiction a reader sees',
+      printMsg != null && /prints 2 scored where the arithmetic counts 1/.test(printMsg),
+      String(printMsg)
+    );
+    const dupMsg = why(() => coverageIdentity(offered, [{ night: '2026-07-25' }, { night: '2026-07-25' }], notANight(offered, [{ night: '2026-07-25' }]), { printedScored: 2 }));
+    ok('a member scored twice is named as a duplicate, never as a second night', dupMsg != null && /1 duplicate/.test(dupMsg), String(dupMsg));
+    const failedRun = coverageIdentity(offered, [{ night: '2026-07-25', ok: false }], notANight(offered, [{ night: '2026-07-25', ok: false }]));
+    ok('a failed read rides the result as its own count, because it covered nothing', failedRun.failed === 1 && failedRun.scored === 0 && failedRun.unscored === 3, JSON.stringify(failedRun));
+    ok(
+      'an unkeyable member refuses here too, under this function’s own name',
+      /coverageIdentity: member 0 of 1 cannot be keyed/.test(String(why(() => coverageIdentity(offered, ['2026-07-25'], [])))),
+      String(why(() => coverageIdentity(offered, ['2026-07-25'], [])))
+    );
+    ok(
+      'the difference must BE the array the helper returned, never a count',
+      /needs the array notCovered returned, not a number/.test(String(why(() => coverageIdentity(offered, [], 3)))),
+      String(why(() => coverageIdentity(offered, [], 3)))
+    );
+    ok(
+      '…and a null difference names itself, because an absent read is not an empty one',
+      /not a null/.test(String(why(() => coverageIdentity(offered, [], null)))),
+      String(why(() => coverageIdentity(offered, [], null)))
+    );
+    ok('the message never carries a member VALUE here either, because a night name can be corpus data', shortMsg != null && shortMsg.indexOf('2026-07-25') < 0, String(shortMsg));
+    /* CONTROL · the three shapes that must NOT throw. */
+    ok(
+      'CONTROL · a caller that prints no scored figure passes none, and the difference alone is judged',
+      why(() => coverageIdentity(offered, [{ night: '2026-07-25' }], notANight(offered, [{ night: '2026-07-25' }]))) === null
+    );
+    ok('CONTROL · an offer that enumerated nothing is consistent with an empty read', JSON.stringify(coverageIdentity({ n: 0, nights: [] }, [], [], { printedScored: 0 }).offered) === '0');
+    ok(
+      'CONTROL · a record population is judged on ITS key, so the night default does not bind it',
+      coverageIdentity({ members: ['a', 'b'], unit: 'records' }, [{ record: 'a' }], notCovered({ members: ['a', 'b'], unit: 'records' }, [{ record: 'a' }], { key: 'record' }), {
+        key: 'record',
+        printedScored: 1
+      }).scored === 1
+    );
 
     /* ── A POPULATION WHOSE UNIT IS NOT A NIGHT ────────────────────────────────────────────────
        Row 2026-10-21-forty-one-corpus-enumerators-report-no-population. `tools/stage-lab.mjs` walks

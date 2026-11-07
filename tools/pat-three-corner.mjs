@@ -61,7 +61,7 @@ import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { ecgCounterTimeMs } from './pat-matchrate-strict.mjs';
-import { NIGHT_RE, notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
+import { NIGHT_RE, coverageIdentity, notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
 import { printVerdict, undeclaredVerdict } from './verdict-undeclared.mjs';
 import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
 
@@ -414,6 +414,8 @@ const population = populationVerdict(popBefore, SAMPLE ? popBefore : snapshotNig
   evidence: ['tools/pat-three-corner.mjs']
 });
 const unscoredNights = notANight({ n: nights.length, nights }, scoredNights);
+/* THE IDENTITY BINDS THE PRINTED FIGURE TO THE ARITHMETIC (board #4088). */
+coverageIdentity({ n: nights.length, nights }, scoredNights, unscoredNights, { printedScored: scoredNights.length });
 say(
   `  population: ${popBefore.ok ? popBefore.n + ' offered under ' + DIR : 'NOT ENUMERATED — ' + popBefore.reason} · ${nights.length} selected · ${scoredNights.length} scored · movement ${population.status}${ONLY ? ` · --night left ${popBefore.n - nights.length} offered night(s) unread` : ''}${population.reason ? ' — ' + population.reason : ''}`
 );
