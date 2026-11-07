@@ -40,7 +40,7 @@ import { join } from 'node:path';
 import { bestPairOver, fragmentBounds } from './acc-select-compare.mjs';
 import { getDsps, loadDsps, median, quantile } from './pat-matchrate-strict.mjs';
 import { isCliEntry } from './argv-guard.mjs';
-import { notANight, populationVerdict, snapshotNights } from './corpus-scope-core.mjs';
+import { coverageIdentity, notANight, populationVerdict, snapshotNights } from './corpus-scope-core.mjs';
 import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
 
 const argv = process.argv.slice(2);
@@ -263,10 +263,11 @@ if (IS_CLI) {
      other 96 nights were never a candidate for this run, and the clause above already states how
      many the selection left unread. Naming them here would bury the one fact a reader can chase —
      which SELECTED night was offered and scored nothing. */
-  const unscored = notANight(
-    { n: nights.length, nights },
-    rows.map((r) => ({ night: r.night, ok: !r.skipped }))
-  );
+  const scoredRows = rows.map((r) => ({ night: r.night, ok: !r.skipped }));
+  const unscored = notANight({ n: nights.length, nights }, scoredRows);
+  /* THE DIFFERENCE ANSWERS TO THE ARITHMETIC (#4506). The line below prints
+     `${used.length} measured`, which is the scored figure, NOT the movement status beside it. */
+  coverageIdentity({ n: nights.length, nights }, scoredRows, unscored, { printedScored: used.length });
   /* The status labels MOVEMENT, not coverage: `checked` is the intersection of the two snapshots,
      and reading it as a measured count would publish the whole offer as measured. */
   console.error(

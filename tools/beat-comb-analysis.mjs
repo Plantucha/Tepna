@@ -79,7 +79,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createRequire } from 'node:module';
 import { refuseUnknownArgvOrExit, isCliEntry } from './argv-guard.mjs';
-import { notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
+import { coverageIdentity, notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
 
 /* The closure identity + the four-state verdict, from the module `trio-batch` already routes its
    clock lines through. Imported rather than reimplemented: a second copy of "when is a ppm a
@@ -366,6 +366,10 @@ function runDir(dir, which) {
      that path is exactly where a reader most needs to know how big the offer was. */
   const population = populationVerdict(popBefore, snapshotNights(dir, { re: ANY_DIR_RE }), { tool: TOOL, evidence: [TOOL] });
   const unscored = notANight(popBefore, covered);
+  /* THE DIFFERENCE ANSWERS TO THE ARITHMETIC (#4506). The difference alone: the
+     count beside it is `population.checked`, which labels MOVEMENT between two listings, and
+     `tallied` below counts the nights that reached a verdict rather than the nights read. */
+  coverageIdentity(popBefore, covered, unscored);
   console.log(`\n  population: ${population.status} — ${population.population.checked} of ${population.population.eligible} night folder(s)` + (population.reason ? `\n  ${population.reason}` : ''));
   console.log(`  offered but not scored: ${unscored.length ? unscored.join(', ') : 'none'}`);
   if (!seen) {

@@ -43,7 +43,7 @@ import path from 'node:path';
 import readline from 'node:readline';
 import { createRequire } from 'node:module';
 import { isCliEntry, positionalArgs, refuseUnknownArgvOrExit } from './argv-guard.mjs';
-import { NIGHT_RE, gitCommitOf, notCovered, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
+import { NIGHT_RE, coverageIdentity, gitCommitOf, notCovered, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
 
 /* ONE spec, read twice: the guard refuses an undeclared flag with it, and `positionalArgs`
    skips each valued flag's VALUE with it, so a flag written before the positional cannot be
@@ -495,6 +495,9 @@ async function main() {
      a `sensor timestamp [ns]` column — so its absence from the roll-up is a property of the night,
      not of the clock. */
   const missed = notCovered(snap, rows, { key: 'night' });
+  /* THE DIFFERENCE ANSWERS TO THE ARITHMETIC (#4506). A night can carry
+     several device rows, so the printed figure is `scoredNights.size` — the DISTINCT nights scored. */
+  coverageIdentity(snap, rows, missed, { key: 'night', printedScored: scoredNights.size });
   if (missed.length)
     console.log(`  ${missed.length} offered night(s) carry no host-stamped stream, by name: ${missed.slice(0, 8).join(' · ')}${missed.length > 8 ? ` · … (+${missed.length - 8})` : ''}`);
   console.log('POPULATION ' + JSON.stringify(population));

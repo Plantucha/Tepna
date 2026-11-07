@@ -214,9 +214,20 @@ export function toleratedFindings(night, cmp) {
   return [
     ...cmp.extraRenamed.map((e) => `${night}: extra in copy, the source holds these bytes at another path: ${e.path} was renamed to ${e.sourcePath}`),
     ...cmp.extraEmpty.map((p) => `${night}: extra in copy, zero bytes: ${p}`),
-    ...cmp.extraBytes.map((p) => `${night}: extra in copy, carries bytes: ${p}`),
+    ...cmp.extraBytes.map((p) =>
+      cmp.extraBytesContentMatch.includes(p) ? `${night}: extra in copy, carries bytes the source also holds, and no rename is provable: ${p}` : `${night}: extra in copy, carries bytes: ${p}`
+    ),
     ...cmp.differDerived.map((p) => `${night}: differs, derived verdict: ${p}`)
   ];
+}
+
+// A capture file whose stream never wrote a sample is a header and nothing
+// else, so the same 33 to 243 bytes repeat across sessions and across streams.
+// A re-stamp, by contrast, moves the 14-digit stamp and holds the rest of the
+// name. This rule blanks every 14-digit run so a caller can ask whether two
+// paths are one name under two stamps.
+export function stampBlankedPath(path) {
+  return path.replace(/\d{14}/g, '<stamp>');
 }
 
 /* ── the pure comparison ──────────────────────────────────────────────── */
@@ -242,16 +253,31 @@ export function compareTrees(source, dest) {
   // The byte count must be non-zero. Every empty file shares one sha256, so a
   // zero-byte extra would match any zero-byte source file and read as a
   // rename it never was.
+  // A content match alone proves no rename either. Measured 2026-11-07 over
+  // the rig's 92 manifests: 62 nights hold a content-identical group whose
+  // names differ only in the 14-digit stamp, 1588 files in all, and every such
+  // group's largest member reads 33 to 243 bytes. So a rename must pass two
+  // tests. The paths agree once stampBlankedPath blanks their stamps, and the
+  // source match is unique — two stamps of one name carrying one byte string
+  // name no single origin. A content match that fails either test keeps its
+  // own tolerated line, which names no source path.
   const srcByBytes = new Map();
   for (const f of source) {
     if (f.bytes === 0) continue;
     const k = `${f.sha256}:${f.bytes}`;
-    if (!srcByBytes.has(k)) srcByBytes.set(k, f.path);
+    const held = srcByBytes.get(k);
+    if (held) held.push(f.path);
+    else srcByBytes.set(k, [f.path]);
   }
-  const renamedSource = (p) => {
+  const srcByContent = (p) => {
     const df = dMap.get(p);
-    if (df.bytes === 0) return null;
-    return srcByBytes.get(`${df.sha256}:${df.bytes}`) ?? null;
+    if (df.bytes === 0) return [];
+    return srcByBytes.get(`${df.sha256}:${df.bytes}`) ?? [];
+  };
+  const renamedSource = (p) => {
+    const blanked = stampBlankedPath(p);
+    const named = srcByContent(p).filter((q) => stampBlankedPath(q) === blanked);
+    return named.length === 1 ? named[0] : null;
   };
   const extraRenamed = extra
     .filter((p) => renamedSource(p) !== null)
@@ -259,6 +285,7 @@ export function compareTrees(source, dest) {
     .sort((a, b) => (a.path < b.path ? -1 : 1));
   const extraEmpty = extra.filter((p) => dMap.get(p).bytes === 0);
   const extraBytes = extra.filter((p) => dMap.get(p).bytes !== 0 && renamedSource(p) === null);
+  const extraBytesContentMatch = extraBytes.filter((p) => srcByContent(p).length > 0);
   const differDerived = differ.filter((p) => isDerivedNightArtifact(p));
   const differRaw = differ.filter((p) => !isDerivedNightArtifact(p));
   return {
@@ -268,6 +295,7 @@ export function compareTrees(source, dest) {
     extraRenamed,
     extraEmpty: extraEmpty.sort(),
     extraBytes: extraBytes.sort(),
+    extraBytesContentMatch: extraBytesContentMatch.sort(),
     differDerived: differDerived.sort(),
     differRaw: differRaw.sort()
   };
@@ -303,6 +331,7 @@ export function toleratedBlock(cmp) {
     'extra-renamed': cmp.extraRenamed,
     'extra-empty': cmp.extraEmpty,
     'extra-bytes': cmp.extraBytes,
+    'extra-bytes-content-match': cmp.extraBytesContentMatch,
     'differs-derived': cmp.differDerived
   };
 }
@@ -562,18 +591,22 @@ export async function selftest() {
     );
     t('every class is published, including the empty ones', Object.keys(emptyClasses()).length === 6 && ALL_CLASSES.every((c) => emptyClasses()[c] === 0));
 
-    // A re-stamp: the copy holds the source's bytes under the pre-rename name.
+    // A re-stamp: the copy holds the source's bytes under the earlier stamp,
+    // and the two paths are one name once a rule blanks their stamps.
     const cmpR = compareTrees(
-      [{ path: 'new-name.txt', bytes: 9, sha256: 'aa' }],
+      [{ path: 'AAAA_20261014151000_PPG.txt', bytes: 9, sha256: 'aa' }],
       [
-        { path: 'new-name.txt', bytes: 9, sha256: 'aa' },
-        { path: 'old-name.txt', bytes: 9, sha256: 'aa' }
+        { path: 'AAAA_20261014151000_PPG.txt', bytes: 9, sha256: 'aa' },
+        { path: 'AAAA_20261014063118_PPG.txt', bytes: 9, sha256: 'aa' }
       ]
     );
     const clsR = findingClasses(cmpR);
-    t('an extra whose bytes sit in the source under another name reads as a rename', clsR['extra-renamed'] === 1 && clsR['extra-bytes'] === 0);
-    t('the rename finding names the path it was renamed to', toleratedFindings('n', cmpR)[0].includes('old-name.txt was renamed to new-name.txt'));
+    t('an extra whose bytes sit in the source under another stamp reads as a rename', clsR['extra-renamed'] === 1 && clsR['extra-bytes'] === 0);
+    t('the rename finding names the path it was renamed to', toleratedFindings('n', cmpR)[0].includes('AAAA_20261014063118_PPG.txt was renamed to AAAA_20261014151000_PPG.txt'));
     t('a rename is no blocking finding', blockingFindings('n', cmpR).length === 0);
+    t('the stamp rule reads two stamps of one name as one path', stampBlankedPath('AAAA_20261014151000_PPG.txt') === stampBlankedPath('AAAA_20261014063118_PPG.txt'));
+    t('the stamp rule keeps two stream names apart', stampBlankedPath('AAAA_20261014063118_PPG.txt') !== stampBlankedPath('AAAA_20261014063118_ACC.txt'));
+    t('the stamp rule leaves a stampless name alone', stampBlankedPath('a.bin') === 'a.bin');
     // The control: every empty file shares one sha256, so a zero-byte extra
     // must never borrow a zero-byte source file's identity.
     const cmpZ = compareTrees(
@@ -584,6 +617,44 @@ export async function selftest() {
       ]
     );
     t('a zero-byte extra never reads as a rename', findingClasses(cmpZ)['extra-renamed'] === 0 && findingClasses(cmpZ)['extra-empty'] === 1);
+    // The control the content test never had: a header repeats across streams,
+    // so one byte string under two stream names proves no rename.
+    const cmpX = compareTrees(
+      [{ path: 'AAAA_20261014063118_PPG.txt', bytes: 33, sha256: 'hh' }],
+      [
+        { path: 'AAAA_20261014063118_PPG.txt', bytes: 33, sha256: 'hh' },
+        { path: 'CCCC_20261101221500_HR.txt', bytes: 33, sha256: 'hh' }
+      ]
+    );
+    const clsX = findingClasses(cmpX);
+    t('a content match under two stream names reads as no rename', clsX['extra-renamed'] === 0 && clsX['extra-bytes'] === 1);
+    t('the unprovable match says so and names no source path', toleratedFindings('n', cmpX)[0].includes('no rename is provable') && !toleratedFindings('n', cmpX)[0].includes('renamed to'));
+    t('the manifest holds the unprovable match apart', toleratedBlock(cmpX)['extra-bytes-content-match'].join() === 'CCCC_20261101221500_HR.txt');
+    // Two stamps of one name carrying one byte string name no single origin.
+    const cmpA = compareTrees(
+      [
+        { path: 'AAAA_20261014063118_PPG.txt', bytes: 33, sha256: 'hh' },
+        { path: 'AAAA_20261014151000_PPG.txt', bytes: 33, sha256: 'hh' }
+      ],
+      [
+        { path: 'AAAA_20261014063118_PPG.txt', bytes: 33, sha256: 'hh' },
+        { path: 'AAAA_20261014151000_PPG.txt', bytes: 33, sha256: 'hh' },
+        { path: 'AAAA_20261014221500_PPG.txt', bytes: 33, sha256: 'hh' }
+      ]
+    );
+    t('an ambiguous source match reads as no rename', findingClasses(cmpA)['extra-renamed'] === 0 && findingClasses(cmpA)['extra-bytes'] === 1);
+    // An extra the source never held keeps the line that claims nothing.
+    const cmpP = compareTrees(
+      [{ path: 'kept.bin', bytes: 20, sha256: 'k1' }],
+      [
+        { path: 'kept.bin', bytes: 20, sha256: 'k1' },
+        { path: 'gained.bin', bytes: 5, sha256: 'g1' }
+      ]
+    );
+    t(
+      'an extra the source never held keeps the plain line',
+      toleratedFindings('n', cmpP)[0] === 'n: extra in copy, carries bytes: gained.bin' && toleratedBlock(cmpP)['extra-bytes-content-match'].length === 0
+    );
 
     // night3 held night2's date until 2026-11-06, so its source still carried
     // night2's missing file and the extra never decided the verdict.
