@@ -40,6 +40,7 @@
       "seamsPlaced": null,
       "seamsUnplaced": null,
       "seamsBoundMs": null,
+      "seamsDeviceAxis": null,
       "seamsReason": "no-seam-sidecar"
     },
     "hostAxis": {
@@ -84,8 +85,8 @@
       },
       "sourceChannel": "Verity:ppg",
       "code": {
-        "manifestHash": "c0b9b87e64ab",
-        "computeHash": "01ea68ca88ef"
+        "manifestHash": "40fde6a2f792",
+        "computeHash": "e73b3967a0c2"
       },
       "evidence": {
         "envelopeRef": null,
@@ -114,8 +115,8 @@
       },
       "sourceChannel": "Verity:ppg",
       "code": {
-        "manifestHash": "c0b9b87e64ab",
-        "computeHash": "01ea68ca88ef"
+        "manifestHash": "40fde6a2f792",
+        "computeHash": "e73b3967a0c2"
       },
       "evidence": {
         "envelopeRef": null,

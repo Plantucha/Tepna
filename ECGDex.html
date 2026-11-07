@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="fae95ed86a3f" data-compute-hash="470f75486e94">
+<html lang="en" data-manifest-hash="d6d0c38ad02f" data-compute-hash="20f0fc641ca4">
 <head>
 <!--
   ECGDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-2BDRZ6VKh8OkZurNHffDYcwBtBuhz/p2tofi1tuMXLQ=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-GqrnNigMc0SYuN1maUQ6Pm3Rya+6j3qzWcWU6gM7zLY=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-OYhJ2lXxS4wvs/p9vz2DXCv4ugnCLSczizK2sAuh0LM=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-hCZmwNAMDLPZEMYHAYpzoPETSnimg1oHWWjZImdKqxM=' 'sha256-kCIXFB+Oh+fPXQK0n5wv9ysz8QHUPT7/BBvnQcqS+u0=' 'sha256-ndwAaS7rxPDbDdTDUAApFCDBcXWisKUftg+0xzuxsoI=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rKaNN0Ty7SX+P/hqThFsDPpnNNxRWZ1qeyOfye3zhi8=' 'sha256-tddD0f4n4/0SctOR+t6ziGNCiH/GZ6G3Q5Iib/iByoM=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-2BDRZ6VKh8OkZurNHffDYcwBtBuhz/p2tofi1tuMXLQ=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-GDJdyOEClWxoL0K0Skp9oX6/WQPEEFXe/jaVpIzearI=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-OYhJ2lXxS4wvs/p9vz2DXCv4ugnCLSczizK2sAuh0LM=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-hCZmwNAMDLPZEMYHAYpzoPETSnimg1oHWWjZImdKqxM=' 'sha256-kCIXFB+Oh+fPXQK0n5wv9ysz8QHUPT7/BBvnQcqS+u0=' 'sha256-ndwAaS7rxPDbDdTDUAApFCDBcXWisKUftg+0xzuxsoI=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rKaNN0Ty7SX+P/hqThFsDPpnNNxRWZ1qeyOfye3zhi8=' 'sha256-tddD0f4n4/0SctOR+t6ziGNCiH/GZ6G3Q5Iib/iByoM=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>ECGDex — Raw ECG Analyzer · v2.28.0</title>
@@ -15451,6 +15451,8 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       stream: null,
       boundMs: null,
       basis: null,
+      // the header's own `device_axis=` token, or null when it carried none — see the lift below
+      deviceAxis: null,
       sessions: [],
       seamsReported: null,
       examined: null,
@@ -15485,6 +15487,16 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
           if (rl) out.rule = rl[1].trim();
           var bs = /\bbasis=(\S+)/.exec(line);
           if (bs) out.basis = bs[1].trim();
+          /* `device_axis=` NAMES WHAT THE DEVICE COLUMN IS, and the writer has emitted it on every
+             parameter line since #4468 (`capture-host/writers.py` `DEVICE_AXES`). Four declared
+             values: `device-clock`, `host-drawn`, `no-device-column` and `unknown`. A sidecar
+             written before that commit carries NO such token, and that absence is `null` rather
+             than the writer's own `unknown` — a declared `unknown` is the writer saying it looked,
+             and collapsing the two is absence-as-value (§∅). The token travels VERBATIM: a value
+             outside the declared set is the writer's programming error, and a reader that folded it
+             into a default would hide it. */
+          var da = /\bdevice_axis=(\S+)/.exec(line);
+          if (da) out.deviceAxis = da[1].trim();
           continue;
         }
         /* `# final stream=<s> seams=<n> examined=<m>` — ONE per writer session, so a night that
@@ -15608,12 +15620,22 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
      `seams` counts the rows this reader placed on the host axis plus the ones it could not, because
      the file RECORDED them either way — `placed` is what reached the epoch engine, and the two
      differing is itself the finding. */
+  /* `deviceAxis` carries the sidecar header's own `device_axis=` token through every state above,
+     so a consumer of a seam never has to assume the device column was a clock. 36 of 58 recorded
+     seams corpus-wide sit on a stream whose device stamp is a HOST-DRAWN grid, so the dominant case
+     is the one a `basis=device-minus-host` line cannot name (residue row
+     2026-11-06-the-seam-sidecar-cannot-tell-a-drawn-device-axis-from-a-clock). It is published
+     UNCONDITIONALLY, `null` included: a key present only when the header declared an axis cannot
+     tell "the sidecar said nothing" from "this reader does not report the axis", which is the very
+     confusion the row logs. A drawn axis still carries real discontinuities of the axis this node
+     places samples on, so no refusal here changes — the provenance travels BESIDE the count. */
   function _ecgSeamState(rec, placed, unplaced) {
     var sc = rec && rec.seamsSidecar;
-    if (!sc) return { seams: null, examined: null, placed: null, unplaced: null, boundMs: null, reason: 'no-seam-sidecar' };
+    if (!sc) return { deviceAxis: null, seams: null, examined: null, placed: null, unplaced: null, boundMs: null, reason: 'no-seam-sidecar' };
     if (sc.placedNone) {
       return {
         seams: null,
+        deviceAxis: sc.deviceAxis != null ? sc.deviceAxis : null,
         examined: sc.examined != null ? sc.examined : null,
         placed: 0,
         unplaced: sc.dataRows,
@@ -15634,6 +15656,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     if (sc.streamKnown === false) {
       return {
         seams: null,
+        deviceAxis: sc.deviceAxis != null ? sc.deviceAxis : null,
         examined: null,
         placed: 0,
         unplaced: 0,
@@ -15644,6 +15667,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     }
     return {
       seams: sc.rows.length,
+      deviceAxis: sc.deviceAxis != null ? sc.deviceAxis : null,
       examined: sc.examined != null ? sc.examined : null,
       placed: placed,
       unplaced: unplaced,
@@ -16637,13 +16661,14 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
        absence carries `no-seam-sidecar`: a consumer that cannot tell them apart reads an unread
        sidecar as a clean night, which is the defect one stream over in residue row
        2026-11-01-no-folded-artefact-names-an-unread-ecg-sidecar. */
-    var seamAnn = r && r.seams && typeof r.seams === 'object' ? r.seams : { seams: null, examined: null, placed: null, unplaced: null, boundMs: null, reason: 'no-seam-sidecar' };
+    var seamAnn = r && r.seams && typeof r.seams === 'object' ? r.seams : { deviceAxis: null, seams: null, examined: null, placed: null, unplaced: null, boundMs: null, reason: 'no-seam-sidecar' };
     out.recording.validity = Object.assign({}, out.recording.validity, {
       seams: seamAnn.seams,
       seamsExamined: seamAnn.examined,
       seamsPlaced: seamAnn.placed,
       seamsUnplaced: seamAnn.unplaced,
       seamsBoundMs: seamAnn.boundMs,
+      seamsDeviceAxis: seamAnn.deviceAxis,
       seamsReason: seamAnn.reason
     });
     /* …AND WHICH STREAM THE FILE ITSELF DECLARED, when that is not this one. Assigned

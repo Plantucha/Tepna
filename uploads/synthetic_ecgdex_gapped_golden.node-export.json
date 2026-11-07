@@ -88,6 +88,7 @@
       "seamsPlaced": null,
       "seamsUnplaced": null,
       "seamsBoundMs": null,
+      "seamsDeviceAxis": null,
       "seamsReason": "no-seam-sidecar"
     }
   },
@@ -104,8 +105,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "fae95ed86a3f",
-        "computeHash": "470f75486e94"
+        "manifestHash": "d6d0c38ad02f",
+        "computeHash": "20f0fc641ca4"
       },
       "evidence": {
         "envelopeRef": null,
@@ -134,8 +135,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "fae95ed86a3f",
-        "computeHash": "470f75486e94"
+        "manifestHash": "d6d0c38ad02f",
+        "computeHash": "20f0fc641ca4"
       },
       "evidence": {
         "envelopeRef": null,
@@ -164,8 +165,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "fae95ed86a3f",
-        "computeHash": "470f75486e94"
+        "manifestHash": "d6d0c38ad02f",
+        "computeHash": "20f0fc641ca4"
       },
       "evidence": {
         "envelopeRef": null,
@@ -194,8 +195,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "fae95ed86a3f",
-        "computeHash": "470f75486e94"
+        "manifestHash": "d6d0c38ad02f",
+        "computeHash": "20f0fc641ca4"
       },
       "evidence": {
         "envelopeRef": null,
@@ -226,8 +227,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "fae95ed86a3f",
-        "computeHash": "470f75486e94"
+        "manifestHash": "d6d0c38ad02f",
+        "computeHash": "20f0fc641ca4"
       },
       "evidence": {
         "envelopeRef": null,
