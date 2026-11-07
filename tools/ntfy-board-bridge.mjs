@@ -50,6 +50,42 @@ const AB = `${HOME}/.local/bin/agent-board`;
 /* A STALLED STREAM RECONNECTS. 150 s is three missed keepalives, so it cannot fire on a quiet link. */
 export const STALL_MS = 150000;
 export const RE_CLOSE = /recovered|back under|serving again|resolved|cleared/i;
+/** A title keys an episode whole up to this length; the old 40 joined two alerts that shared a prefix. */
+export const EPISODE_TITLE_MAX = 200;
+
+/**
+ * THE EVENT TIME, NOT THE ARRIVAL TIME (Muse #4267, B-4). ntfy stamps `time` in epoch seconds when the
+ * publisher sends. A stalled stream delivers late, and a clock started at arrival shortened both
+ * escalation stages by the delay and misstated "First seen" on the owner page. An absent or implausible
+ * stamp falls back to arrival, and the fallback is the only place `now` enters.
+ */
+export function eventMs(msg, now) {
+  const t = Number(msg && msg.time);
+  if (!Number.isFinite(t) || t <= 0) return now;
+  const ms = t * 1000;
+  return ms > now ? now : ms;
+}
+
+/**
+ * WHICH TRACKED URGENTS THE ACK LIST RETIRES (Muse #4267, B-3). A successful `acks` run whose output
+ * holds lines but no line in the known shape is a format shift, not an empty queue. The old sweep read
+ * it as "nothing pending" and retired every tracked urgent with no page and no log. Now it refuses:
+ * `{ refuse }` keeps every escalation armed. An empty output is a real empty queue, so it retires, and
+ * the caller logs each retirement by id.
+ */
+export function planRetire(out, trackedIds, kAcked) {
+  const lines = String(out || '')
+    .split('\n')
+    .filter((l) => l.trim());
+  const shaped = lines.filter((l) => /^#\d+ \S+ by \S+/.test(l));
+  if (lines.length && !shaped.length) return { refuse: `acks output unparseable (${lines.length} line(s), 0 in the known shape)`, retire: [] };
+  const pending = new Set();
+  for (const l of shaped) {
+    const m = l.match(/^#(\d+) decision by ntfy-bridge\b/);
+    if (m) pending.add(Number(m[1]));
+  }
+  return { refuse: null, retire: trackedIds.filter((id) => !pending.has(id) || kAcked.has(id)) };
+}
 
 /** Assigned by `main()`. The exported rules never read it — they take the config as an argument. */
 let cfg = null;
@@ -115,7 +151,9 @@ export function classify(domain, msg, conf) {
   const birds = conf.birds;
   if (domain === 'vigil') {
     const base = { thread: threads.vigil, bird: birds.vigil, publisher: 'vigil alerts.py' };
-    if (/disk/i.test(T)) return { ...base, cls: /low|full|critical/i.test(X) ? 'urgent' : 'routine', key: 'vigil:disk', coTo: [birds.network], latch: true };
+    /* A RECOVERY CLOSES ITS EPISODE (Muse #4267, B-1). The disk rule returned before any close test, so a
+       recovery sat under the latched episode and the episode ate every later disk urgent until a restart. */
+    if (/disk/i.test(T)) return { ...base, cls: RE_CLOSE.test(X) ? 'close' : /low|full|critical/i.test(X) ? 'urgent' : 'routine', key: 'vigil:disk', coTo: [birds.network], latch: true };
     if (/serves nothing/i.test(T)) return { ...base, cls: RE_CLOSE.test(T) ? 'close' : 'urgent', key: 'vigil:ring', latch: true };
     if (/sensor/i.test(T) || /offline|silent/i.test(T)) return { ...base, cls: RE_CLOSE.test(T) ? 'close' : 'latched', key: `vigil:sensor:${deviceOf(M)}`, latch: true };
     /* THE SOLID-NIGHT VERDICT SITS ABOVE THE `sidecar` RULE ON PURPOSE (owner 2026-11-03). The judge's
@@ -123,15 +161,17 @@ export function classify(domain, msg, conf) {
        night and status, a note to the capture bird's mailbox. */
     const sn = T.match(/^Tepna: night (\d{4}-\d{2}-\d{2}) ([A-Z_]+)$/);
     if (sn) return { ...base, publisher: 'vigil solid-night judge', cls: 'routine', key: `vigil:solid:${sn[1]}:${sn[2]}`, latch: true };
-    if (/lost|sidecar|crashed|harvest failed/i.test(X)) return { ...base, cls: 'urgent', key: `vigil:crit:${T.slice(0, 40)}`, latch: true };
+    /* The WHOLE title keys the episode (B-6): a 40-character slice joined two alerts with one prefix. */
+    if (/lost|sidecar|crashed|harvest failed/i.test(X)) return { ...base, cls: 'urgent', key: `vigil:crit:${T.slice(0, EPISODE_TITLE_MAX)}`, latch: true };
     return { ...base, cls: 'routine', key: 'vigil:info', latch: false };
   }
   if (/nebula-sync/i.test(X)) return { thread: threads.network, bird: birds.network, publisher: 'nebula-sync', cls: /FAILED/i.test(X) ? 'urgent' : 'routine', key: 'net:nebula', latch: true };
   if (domain === 'network') {
     const base = { thread: threads.network, bird: birds.network, publisher: 'watchdog' };
-    if (/disk/i.test(T)) return { ...base, cls: 'urgent', key: 'net:disk', latch: true };
+    /* B-1: a disk recovery closed nothing here and opened a fresh urgent with its own 30/90 min ladder. */
+    if (/disk/i.test(T)) return { ...base, cls: RE_CLOSE.test(X) ? 'close' : 'urgent', key: 'net:disk', latch: true };
     if (RE_CLOSE.test(X)) return { ...base, cls: 'close', key: 'net:watch', latch: true };
-    if (/fail|down|critical|error|offline/i.test(X)) return { ...base, cls: 'urgent', key: `net:watch:${T.slice(0, 40)}`, latch: true };
+    if (/fail|down|critical|error|offline/i.test(X)) return { ...base, cls: 'urgent', key: `net:watch:${T.slice(0, EPISODE_TITLE_MAX)}`, latch: true };
     return { ...base, cls: 'routine', key: 'net:info', latch: false };
   }
   const base = { thread: threads.rig, bird: birds.rig };
@@ -221,7 +261,8 @@ async function handle(domain, topicName, msg) {
   state.lastId[topicName] = msg.id;
   const m = unwrap(msg);
   const c = classify(domain, m, cfg);
-  const when = new Date((m.time || Date.now() / 1000) * 1000).toISOString();
+  const at = eventMs(m, Date.now());
+  const when = new Date(at).toISOString();
   const stateWord = c.cls === 'close' ? 'RECOVERED' : c.cls === 'urgent' ? 'OPEN · urgent' : 'OPEN';
   const body =
     `## ${m.title || '(no title)'}\n\n- **State:** ${stateWord}\n- **Owner:** @${c.bird}` +
@@ -245,14 +286,18 @@ async function handle(domain, topicName, msg) {
     return;
   }
   if (c.latch && c.key.startsWith('vigil:sensor') && state.closedAt[c.key] && Date.now() - state.closedAt[c.key] < 2 * 3600e3) {
-    state.episodes[c.key] = { at: Date.now(), domain };
+    /* B-5: the merge is deliberate (a flapping sensor posts once), but it is COUNTED, and the episode
+       keeps the event time rather than restarting at arrival. */
+    state.episodes[c.key] = { at, domain };
+    state.suppressed += 1;
+    state.reopenMerged = (state.reopenMerged || 0) + 1;
     log('sensor reopen <2h merged', c.key);
     persist();
     return;
   }
   if (c.cls === 'urgent') {
     const id = await post(c.thread, body, 'decision', [c.bird, ...(c.coTo || [])]);
-    if (id) state.tracked[id] = { key: c.key, bird: c.bird, domain, title: m.title || '', message: (m.message || '').slice(0, 3000), at: Date.now(), esc: 0 };
+    if (id) state.tracked[id] = { key: c.key, bird: c.bird, domain, title: m.title || '', message: (m.message || '').slice(0, 3000), at, esc: 0 };
     /* A publisher that tags an alert `owner-critical` pages the owner at once, not after 90 min. */
     if (id && Array.isArray(m.tags) && m.tags.includes('owner-critical')) {
       const pg = ownerPage(id, state.tracked[id], 'The publisher marked this alert owner-critical. The bird has it too.');
@@ -263,7 +308,7 @@ async function handle(domain, topicName, msg) {
     /* Every domain's notes go to that domain's bird, so the nudge pings each bird. */
     await post(c.thread, body, 'note', [c.bird]);
   }
-  if (c.latch) state.episodes[c.key] = { at: Date.now(), domain };
+  if (c.latch) state.episodes[c.key] = { at, domain };
   state.lastCycleAt = Date.now();
   persist();
 }
@@ -279,14 +324,16 @@ async function ackSweep() {
     log('acks failed', e.message);
     return;
   }
-  const pending = new Set([...out.matchAll(/#(\d+) decision by ntfy-bridge/g)].map((m) => Number(m[1])));
-  const kAcked = await kestrelAcked(Object.keys(state.tracked).map(Number));
+  const ids = Object.keys(state.tracked).map(Number);
+  const kAcked = await kestrelAcked(ids);
+  const plan = planRetire(out, ids, kAcked);
+  if (plan.refuse) log('ackSweep refused to retire:', plan.refuse, `· ${ids.length} tracked kept armed`);
+  for (const id of plan.retire) {
+    log('retired tracked urgent', id, state.tracked[id] && state.tracked[id].key, kAcked.has(id) ? '(kestrel ack)' : '(acked on the board)');
+    delete state.tracked[id];
+  }
   for (const [idS, tr] of Object.entries(state.tracked)) {
     const id = Number(idS);
-    if (!pending.has(id) || kAcked.has(id)) {
-      delete state.tracked[idS];
-      continue;
-    }
     const ageMin = (Date.now() - tr.at) / 60000;
     const isTest = /test|drill/i.test(`${tr.key} ${tr.title || ''}`);
     if (ageMin > 30 && tr.esc === 0) {
@@ -471,6 +518,47 @@ function selftest() {
   ok('a sensor alert keys the device episode', sensor.key === 'vigil:sensor:Polar H10', sensor.key);
   const recovered = classify('vigil', { title: 'Tepna: sensor recovered', message: 'Polar H10 is recording again' }, conf);
   ok('the recovery closes the episode the silence opened', recovered.cls === 'close' && recovered.key === sensor.key, [recovered.cls, recovered.key]);
+
+  /* 6 · A DISK RECOVERY CLOSES ITS EPISODE in every domain (Muse #4267, B-1). */
+  const vDisk = classify('vigil', { title: 'Tepna: disk low', message: '4 % free on the captures volume' }, conf);
+  const vDiskOk = classify('vigil', { title: 'Tepna: disk recovered', message: 'back under the threshold' }, conf);
+  ok('the vigil disk alert still pages', vDisk.cls === 'urgent' && vDisk.key === 'vigil:disk', [vDisk.cls, vDisk.key]);
+  ok('a vigil disk recovery closes the vigil disk episode', vDiskOk.cls === 'close' && vDiskOk.key === vDisk.key, [vDiskOk.cls, vDiskOk.key]);
+  const nDisk = classify('network', { title: 'Disk full on nas', message: '95 %' }, conf);
+  const nDiskOk = classify('network', { title: 'Disk recovered on nas', message: '70 %' }, conf);
+  ok('the network disk alert still pages', nDisk.cls === 'urgent' && nDisk.key === 'net:disk', [nDisk.cls, nDisk.key]);
+  ok('a network disk recovery closes, and opens no new urgent', nDiskOk.cls === 'close' && nDiskOk.key === nDisk.key, [nDiskOk.cls, nDiskOk.key]);
+  const rDiskOk = classify('rig', { title: 'Disk recovered', message: '/srv/data back under 85 %' }, conf);
+  ok('the control: the rig disk rule closed before this change and still closes', rDiskOk.cls === 'close', rDiskOk.cls);
+
+  /* 7 · THE WHOLE TITLE KEYS AN EPISODE (B-6). Two titles with one 40-character prefix are two episodes. */
+  const pre = 'Tepna: harvest failed on the capture box ';
+  const c1 = classify('vigil', { title: `${pre}night A`, message: '' }, conf);
+  const c2 = classify('vigil', { title: `${pre}night B`, message: '' }, conf);
+  ok('two crit titles sharing a 40-character prefix key two episodes', pre.length > 40 && c1.key !== c2.key, [c1.key, c2.key]);
+  const w1 = classify('network', { title: `${pre}down A`, message: '' }, conf);
+  const w2 = classify('network', { title: `${pre}down B`, message: '' }, conf);
+  ok('two watch titles sharing a 40-character prefix key two episodes', w1.key !== w2.key, [w1.key, w2.key]);
+
+  /* 8 · THE EVENT TIME STARTS THE CLOCK (B-4). */
+  const now = 1_800_000_000_000;
+  ok('a stamped message keeps its publish time', eventMs({ time: 1_799_999_100 }, now) === 1_799_999_100_000, eventMs({ time: 1_799_999_100 }, now));
+  ok('an absent stamp falls back to arrival', eventMs({}, now) === now, eventMs({}, now));
+  ok('a stamp in the future is clamped to arrival', eventMs({ time: 1_900_000_000 }, now) === now, eventMs({ time: 1_900_000_000 }, now));
+  ok('a junk stamp falls back to arrival', eventMs({ time: 'x' }, now) === now, eventMs({ time: 'x' }, now));
+
+  /* 9 · AN UNPARSEABLE ACK LIST RETIRES NOTHING (B-3). */
+  const none = new Set();
+  const live1 = '#11 decision by ntfy-bridge in #13 (40 min) waits for @finch: Disk full\n#12 decision by kestrel in #7 (3 min) waits for @all: x';
+  const pl = planRetire(live1, [11, 22], none);
+  ok('a pending id stays tracked', !pl.retire.includes(11), pl.retire);
+  ok('an id gone from the list retires', pl.retire.includes(22), pl.retire);
+  ok('a kestrel ack retires a pending id', planRetire(live1, [11], new Set([11])).retire.includes(11));
+  const shifted = planRetire('Pending acknowledgements:\n  11 · ntfy-bridge · Disk full', [11, 22], none);
+  ok('a format-shifted list refuses', typeof shifted.refuse === 'string' && shifted.retire.length === 0, shifted);
+  const empty = planRetire('', [11], none);
+  ok('the control: an empty list is an empty queue and retires', empty.refuse === null && empty.retire.includes(11), empty);
+  ok("another bird's decision with the same id shape does not count as the bridge's", planRetire('#11 decision by kestrel in #7 (1 min)', [11], none).retire.includes(11));
 
   /* 5 · THE CONFIG IS AN ARGUMENT, so a rule cannot reach the installed file. */
   ok('the rules read no module-level config', cfg === null, cfg);
