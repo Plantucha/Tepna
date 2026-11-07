@@ -70496,7 +70496,7 @@
       T.ok('…because minute ticks are whole minutes', U.scopeAxisTick(600) % 60 === 0 && U.scopeAxisTick(3600) % 60 === 0, 'ticks: ' + U.scopeAxisTick(600) + ', ' + U.scopeAxisTick(3600));
     });
 
-    group('Render execution — surfaced-value known-answer (§RN harness)', 'glucodex-render · oxydex-render · cpapdex-render · hrvdex-render · render-harness', function (T) {
+    group('Render execution — surfaced-value known-answer (§RN harness)', 'glucodex-render · oxydex-render · cpapdex-render · hrvdex-render · motiondex-render · render-harness', function (T) {
       if (!env.GluDisp || !env.OxyDex || typeof env.OxyDex.reviewView !== 'function' || !env.CpapRender || typeof env.CpapRender.renderReviewView !== 'function') {
         T.skip(
           'render harness globals wired (env.GluDisp / OxyDex.reviewView / CpapRender.renderReviewView)',
@@ -70869,6 +70869,102 @@
             'D17 §HRV · the alert panel renders the lines, over the LOADED set',
             _hvCall,
             _hvCall ? 'call site present in renderAlerts, keyed on allRows' : 'no call site — the tally reaches no reader'
+          );
+        }
+
+        /* ── D17 §MX · MotionDex states its refusals and its unexamined channels ───────────────
+           `motiondex-dsp.js:1089` nulls `immobileFrac` on a device-clock seam and writes
+           `immobileFracReason: 'clock-seam'` beside the null; `:924` and `:974` refuse a whole
+           block as `{ hasData: false, reason: 'unit-unknown' }`. This render file read NONE of the
+           six reason families the DSP writes, so a refused figure drew the same em-dash a night
+           with no covered epoch draws, and a refused block drew the same nothing a stream that
+           never arrived draws. The legs lift the functions out of the SHIPPED SOURCE and execute
+           them, because a regex on the spelling passes over a planted `return ''`. */
+        var _mxSrc = (env.sources || {})['motiondex-render.js'];
+        if (_mxSrc == null) {
+          T.ok('D17 §MX · motiondex-render.js source is readable', false, 'not in env.sources — this gate cannot run');
+        } else {
+          var _mxLift = function (src, name) {
+            var k = src.indexOf('function ' + name + '(');
+            if (k < 0) return null;
+            var b = src.indexOf('{', k),
+              d = 0;
+            for (var j = b; j < src.length; j++) {
+              if (src[j] === '{') d++;
+              else if (src[j] === '}' && --d === 0) return src.slice(k, j + 1);
+            }
+            return null;
+          };
+          var _mxNames = ['esc', 'mxNote', '_mxProvenanceNote'];
+          var _mxParts = _mxNames.map(function (nm) {
+            return _mxLift(_mxSrc, nm);
+          });
+          var _mxAbsent = _mxNames.filter(function (nm, i) {
+            return _mxParts[i] == null;
+          });
+          T.ok('D17 §MX · the provenance functions are present in the shipped render source', _mxAbsent.length === 0, _mxAbsent.length ? 'not found: ' + _mxAbsent.join(', ') : 'all three lifted');
+          var _mxProv = null;
+          if (!_mxAbsent.length) {
+            try {
+              _mxProv = new Function(_mxParts.join('\n') + '\nreturn _mxProvenanceNote;')();
+            } catch (_e2) {
+              _mxProv = null;
+            }
+          }
+          T.ok('D17 §MX · …and they lift and build as a callable function', typeof _mxProv === 'function', typeof _mxProv);
+          if (typeof _mxProv === 'function') {
+            /* A MEASURED ZERO STAYS SILENT (owner ruling 2026-09-17 read through §∅): a note on
+               every clean night is noise, and noise is how a real line goes unread. */
+            var _mxClean = { position: { hasData: true }, activity: { hasData: true, immobileFrac: 0.4 }, seams: { seams: 0, examined: 3, reason: null }, clockResyncs: 0 };
+            T.eq('D17 §MX · a night measured clean on every channel draws no note', _mxProv(_mxClean), '');
+            T.eq('D17 §MX · an absent summary draws none', _mxProv(null), '');
+            T.eq('D17 §MX · a non-object summary draws none', _mxProv('x'), '');
+            // ── the refused FIGURE: the KPI and the card row both print pct(null) === '—' ──
+            var _mxSeam = _mxProv({
+              position: { hasData: true },
+              activity: { hasData: true, immobileFrac: null, immobileFracReason: 'clock-seam', blankedEpochs: 7 },
+              seams: { seams: 2, placed: 2, reason: null },
+              clockResyncs: 1
+            });
+            T.ok("D17 §MX · a refused immobile fraction names the node's OWN token", _mxSeam.indexOf('clock-seam') >= 0, _mxSeam.slice(0, 200));
+            T.ok('D17 §MX · …and tells the reader the em-dash above IS that refusal', /em-dash above is that refusal/.test(_mxSeam), _mxSeam.slice(0, 300));
+            /* The DSP leaves `movementIndex` published on purpose — a magnitude is not a span — so
+               the note must not read as a refusal of the whole card. */
+            T.ok('D17 §MX · …and says the movement index still stands', /Movement index still stands/.test(_mxSeam), _mxSeam.slice(0, 400));
+            // ── reduced COVERAGE annotates, so the epoch counts beside the figures read honestly ──
+            T.ok('D17 §MX · blanked epochs annotate with their count', _mxSeam.indexOf('Blanked epochs · 7') >= 0, _mxSeam.slice(0, 600));
+            T.ok('D17 §MX · a device-clock step annotates with its count', _mxSeam.indexOf('Device-clock steps · 1') >= 0, _mxSeam.slice(0, 600));
+            T.ok('D17 §MX · a recorded seam count annotates with its placement', /Recorded seams · 2/.test(_mxSeam) && /2 of them land on this axis/.test(_mxSeam), _mxSeam.slice(0, 600));
+            /* A DISCONTINUITY REFUSES, REDUCED COVERAGE ANNOTATES — so the refusal must lead the
+               three annotations that only qualify the figures. */
+            T.ok('D17 §MX · the refusal leads the annotations under it', _mxSeam.indexOf('Immobile time refused') < _mxSeam.indexOf('Blanked epochs'), _mxSeam.slice(0, 120));
+            // ── a refused BLOCK: the card renders nothing, exactly as an absent stream renders ──
+            var _mxBlk = _mxProv({ position: { hasData: false, reason: 'unit-unknown' }, activity: { hasData: false, reason: 'unit-unknown' }, seams: { seams: 0, reason: null } });
+            T.ok('D17 §MX · a refused position block names its reason', /Position block refused/.test(_mxBlk) && _mxBlk.indexOf('unit-unknown') >= 0, _mxBlk.slice(0, 300));
+            T.ok('D17 §MX · a refused actigraphy block names its reason', /Actigraphy block refused/.test(_mxBlk), _mxBlk.slice(0, 400));
+            T.ok('D17 §MX · …and says the absent card is a refusal, not a stream that never arrived', /not a stream that never arrived/.test(_mxBlk), _mxBlk.slice(0, 400));
+            /* THE OWNER RULED 2026-11-05: a night with no sidecar reads UNKNOWN, never seam-free. */
+            var _mxUnk = _mxProv({ position: { hasData: true }, activity: { hasData: true }, seams: { seams: null, reason: 'no-seam-sidecar' }, clockResyncs: 0 });
+            T.ok('D17 §MX · a sidecar that published no count reads UNKNOWN', /Seam channel UNKNOWN/.test(_mxUnk), _mxUnk.slice(0, 300));
+            T.ok("D17 §MX · …under the reader's own token, never a word this layer invented", _mxUnk.indexOf('no-seam-sidecar') >= 0, _mxUnk.slice(0, 300));
+            T.ok('D17 §MX · …and says the figures above still stand', /figures above stand/.test(_mxUnk), _mxUnk.slice(0, 300));
+            var _mxNoCh = _mxProv({ position: { hasData: true }, activity: { hasData: true } });
+            T.ok('D17 §MX · a summary carrying no seam channel at all reads UNKNOWN', /Seam channel UNKNOWN/.test(_mxNoCh), _mxNoCh.slice(0, 300));
+            T.ok('D17 §MX · …and states no token, because the node declared none', _mxNoCh.indexOf('<code>') < 0, _mxNoCh.slice(0, 300));
+            /* AN UNPLACED COUNT IS UNKNOWN, NOT ZERO — the §∅ shape a reader must not read as a
+               measurement the sidecar reader never made. */
+            var _mxUnpl = _mxProv({ position: { hasData: true }, activity: { hasData: true }, seams: { seams: 3, placed: null, reason: null } });
+            T.ok('D17 §MX · a seam count with no placement reads UNKNOWN, never "placed none"', /placed none/.test(_mxUnpl) === false && /is UNKNOWN/.test(_mxUnpl), _mxUnpl.slice(0, 300));
+            var _mxEsc = _mxProv({ position: { hasData: true }, activity: { hasData: true, immobileFracReason: '<b>x</b>' }, seams: { seams: 0, reason: null } });
+            T.ok('D17 §MX · a reason token reaches the markup escaped, never as live tags', _mxEsc.indexOf('<b>x</b>') < 0 && _mxEsc.indexOf('&lt;b&gt;x&lt;/b&gt;') >= 0, _mxEsc.slice(0, 300));
+          }
+          /* The call site is the other half: a perfect note nobody renders is this very defect. And
+             the card has to OPEN on the note alone, or a refusal hides on the night that earned it. */
+          var _mxCall = /var prov = _mxProvenanceNote\(summary\)/.test(_mxSrc) && /if \(sqi\.conf != null \|\| prov\) \{/.test(_mxSrc) && /var q = prov;/.test(_mxSrc);
+          T.ok(
+            'D17 §MX · the quality card renders the note and opens on the note alone',
+            _mxCall,
+            _mxCall ? 'call site present, card revealed by the note' : 'no call site — the note reaches no reader'
           );
         }
 
