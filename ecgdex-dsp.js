@@ -2559,7 +2559,7 @@
     const tmsAt = (sec) => (hasT0 ? t0Ms + Math.round(sec * 1000) : null);
     // body position at a given second: the covering 5-min epoch's posture (companion ACC).
     // null when no ACC was loaded, so consumers can distinguish 'no data' from 'unknown posture'.
-    const posAt = (sec) => {
+    const posEntryAt = (sec) => {
       if (!epochPos || !epochPos.length) return null;
       const m = sec / 60;
       let best = null,
@@ -2567,14 +2567,23 @@
       for (const p of epochPos) {
         const d = Math.abs(p.tMin + 2.5 - m);
         if (m >= p.tMin && m < p.tMin + 5) {
-          return p.position;
+          return p;
         }
         if (d < bd) {
           bd = d;
           best = p;
         }
       }
-      return best ? best.position : null;
+      return best;
+    };
+    const posAt = (sec) => {
+      const p = posEntryAt(sec);
+      return p ? p.position : null;
+    };
+    // the token the epoch refused under, or null when the posture is a measurement.
+    const posReasonAt = (sec) => {
+      const p = posEntryAt(sec);
+      return p && p.reason ? p.reason : null;
     };
     // local SQI near a time
     const sqiAt = (sec) => {
@@ -2617,6 +2626,7 @@
        start and `peakTMs` for the autonomic surge itself, and say which one a latency is measured
        against. */
     for (const ev of cvhr.events) {
+      const _posWhy = posReasonAt(ev.sec);
       events.push({
         t: clock(ev.sec),
         tMs: tmsAt(ev.sec),
@@ -2633,6 +2643,9 @@
           // silently bimodalised every cross-channel latency measured against this channel.
           peakTMs: ev.periodSec != null ? tmsAt(ev.sec + ev.periodSec) : null,
           position: posAt(ev.sec), // supine posture worsens OSA → fusion can weight osaConf/AHI
+          // present only on a refusal, as the node writes bandReason: a fusion weighting posture by
+          // 'unknown' can now tell a refused window from one scored and matched to no class.
+          ...(_posWhy ? { positionReason: _posWhy } : {}),
           osaLabel: null,
           osaConf: null, // reserved: Almarshad 2026 transformer (Phase 2)
           deltaSBP: null
@@ -4089,10 +4102,18 @@
     if (!epochs || !epochs.length) return [];
     const fs = accFs || 4;
     if (!deviceACC || deviceACC.length < fs * 30) {
+      /* §∅ — TWO ABSENCES, NOT ONE. A night with no companion ACC and a night whose ACC is too
+         short to fill one window both stamped 'unknown' and named nothing, so the state a reader
+         can act on — load the companion — read exactly like a stream that arrived and fell short.
+         `posAt` below promises the distinction in its own comment ("null when no ACC was loaded");
+         this return has always handed it a POPULATED list of 'unknown' instead, so the promise was
+         never kept for a single epoch. */
+      const why = !deviceACC || !deviceACC.length ? 'no-acc-stream' : 'acc-too-short';
       epochs.forEach((e) => {
         e.position = 'unknown';
+        e.positionReason = why;
       });
-      return epochs.map((e) => ({ tMin: e.tMin, position: 'unknown' }));
+      return epochs.map((e) => ({ tMin: e.tMin, position: 'unknown', reason: why }));
     }
     const xs = deviceACC.map((d) => d.x),
       ys = deviceACC.map((d) => d.y),
@@ -4124,10 +4145,19 @@
          refusal reuses it rather than minting a second spelling; the REASON is what distinguishes
          an absence the box recorded from one we merely lacked samples for. */
       const _blanked = _blankMs.length > 0 && _epochTouchesBlank(e, off, ecgT0Ms, _blankMs);
-      const pos = _blanked ? 'unknown' : ex.length > fs * 30 ? _normPosition(_posture(median(ex), median(ey), median(ez)).label) : 'unknown';
+      const _thin = !_blanked && ex.length <= fs * 30;
+      const pos = _blanked || _thin ? 'unknown' : _normPosition(_posture(median(ex), median(ey), median(ez)).label);
+      /* Three states share the 'unknown' spelling and only the reason separates them: a run the box
+         recorded, a window this node lacked samples for, and a gravity vector scored against every
+         class and matched to none. The third names nothing, because a scored vector is a
+         measurement. The key is DELETED on a measured epoch rather than left in place: a late
+         companion re-stamps these same epoch objects (ecgdex-app.js), so a reason from the ACC-less
+         first pass would otherwise outlive the state that earned it. */
+      const why = _blanked ? 'blanking-run' : _thin ? 'low-acc-coverage' : null;
       e.position = pos;
-      if (_blanked) e.positionReason = 'blanking-run';
-      out.push({ tMin: e.tMin, position: pos });
+      if (why) e.positionReason = why;
+      else delete e.positionReason;
+      out.push({ tMin: e.tMin, position: pos, reason: why });
     }
     return out;
   }
@@ -7281,7 +7311,12 @@
             sqi: nz(e.sqi),
             beats: e.n == null ? null : e.n,
             motionIndex: _mot == null ? null : _mot,
-            position: e.position || 'unknown'
+            position: e.position || 'unknown',
+            /* The reason rides this seam as well, because the exported epoch is built separately
+               from the internal one and a field added only to the builder never leaves the node —
+               that is exactly how `hrStat` shipped inert above. Present only on a refusal, so a
+               measured epoch keeps a byte-stable shape. */
+            ...(e.positionReason ? { positionReason: e.positionReason } : {})
           };
         }),
         sleepStages:

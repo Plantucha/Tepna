@@ -433,15 +433,22 @@ self.onmessage = async (e) => {
             DEVICE_ACC._relBase = false;
           }
           const ep = DSP.stampEpochPositions(RESULT.epochs, DEVICE_ACC, ACC_FS, RESULT.t0Ms, RESULT.durSec);
-          const posAt = (sec) => {
+          const posEntryAt = (sec) => {
             const m = sec / 60;
             for (const p of ep) {
-              if (m >= p.tMin && m < p.tMin + 5) return p.position;
+              if (m >= p.tMin && m < p.tMin + 5) return p;
             }
-            return ep.length ? ep[ep.length - 1].position : null;
+            return ep.length ? ep[ep.length - 1] : null;
           };
           (RESULT.events || []).forEach((ev) => {
-            if (ev.impulse === 'autonomic_surge' && ev.meta && ev._sec != null) ev.meta.position = posAt(ev._sec);
+            if (ev.impulse === 'autonomic_surge' && ev.meta && ev._sec != null) {
+              const p = posEntryAt(ev._sec);
+              ev.meta.position = p ? p.position : null;
+              // the first pass ran ACC-less and wrote 'no-acc-stream' on every event; the companion
+              // has now answered, so a stale token has to GO rather than survive its own state.
+              if (p && p.reason) ev.meta.positionReason = p.reason;
+              else delete ev.meta.positionReason;
+            }
           });
         }
         renderACCComparison(RESULT);
