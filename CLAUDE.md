@@ -296,7 +296,9 @@ line after any SPDX comment:
   `YYYY-MM-DD-short-slug` (never a counter), source = a brief (which gets `**Residue:** <key>` on its
   status line), a repo path, or `#NNNN` — the real origin, never the nearest brief. You append a row
   and close it (`fixed #NNNN` or `→ \`<NAME>-BRIEF.md\``), and you never edit one. Only the session
-  picking a row up creates a `-FOLLOWUPS-` brief.
+  picking a row up creates a `-FOLLOWUPS-` brief. **A fix for a row that is already on main declares
+  it on a `Residue-fixed: <key>` line in the PR body.** After the merge, the walker opens the
+  RESIDUE-only PR that writes `fixed #<your PR>`, so no session spends a unit on that cell.
 - 🔴 **PICK A ROW UP FROM THE REF, NEVER FROM YOUR WORKING COPY** (*why → RATIONALE §📌*). Every
   landing PR appends to the ledger, so a checkout is behind it most of the time and the scan still
   returns a well-formed table with no line saying the file is old — **four sessions in two days
