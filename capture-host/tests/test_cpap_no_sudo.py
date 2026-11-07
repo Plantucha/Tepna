@@ -274,7 +274,7 @@ def test_an_uncreatable_control_dir_warns_and_does_not_raise(monkeypatch, caplog
     # this the isdir() check passes on a leftover directory and the warning never fires — the test
     # would depend on whether a previous run happened to create it.
     monkeypatch.setattr(cpap_harvest.os.path, "isdir", lambda _p: False)
-    monkeypatch.setattr(cpap_harvest, "_sh", lambda argv, t, sudo=False: (1, "stubbed"))
+    monkeypatch.setattr(cpap_harvest, "_sh", lambda argv, t, sudo=False, quiet=False: (1, "stubbed"))
     with caplog.at_level("WARNING"):
         ok = cpap_harvest._wpa_up("wlp1s0", "ez Share", "88888888", "192.168.4.2/24", 5.0)
     assert ok is False
@@ -335,7 +335,9 @@ def test_the_poll_prefers_sysfs_and_never_shells_out_when_it_answers(monkeypatch
     the filesystem — its own reading is covered above; what is under test here is the PREFERENCE."""
     monkeypatch.setattr(cpap_harvest, "associated", lambda iface, sysfs="/sys/class/net": True)
     calls = []
-    monkeypatch.setattr(cpap_harvest, "_sh", lambda argv, t, sudo=False: (calls.append(argv[0]), (0, ""))[1])
+    monkeypatch.setattr(
+        cpap_harvest, "_sh", lambda argv, t, sudo=False, quiet=False: (calls.append(argv[0]), (0, ""))[1]
+    )
     assert cpap_harvest._wpa_up("wlan9", "ez Share", "pw", "192.168.4.2/24", 5.0) is True
     assert "wpa_cli" not in calls, f"wpa_cli must not be consulted when /sys answered: {calls}"
     assert "ip" in calls, "the address must still be assigned"
@@ -363,7 +365,9 @@ def test_an_inherited_supplicant_can_still_associate(monkeypatch):
     monkeypatch.setattr(
         cpap_harvest,
         "_sh",
-        lambda argv, t, sudo=False: (1, "nl80211: deinit ifname=wlan9") if argv[0] == "wpa_supplicant" else (0, ""),
+        lambda argv, t, sudo=False, quiet=False: (
+            (1, "nl80211: deinit ifname=wlan9") if argv[0] == "wpa_supplicant" else (0, "")
+        ),
     )
     assert cpap_harvest._wpa_up("wlan9", "ez Share", "pw", "192.168.4.2/24", 5.0) is True
 

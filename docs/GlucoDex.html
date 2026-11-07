@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="b71ef6865d8f" data-compute-hash="460201d76600">
+<html lang="en" data-manifest-hash="83f37390309d" data-compute-hash="460201d76600">
 <head>
 <!--
   GlucoDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+iskltdbf7/UUg8Y6ZfcamkqkNKvnVyfhKrlKyBzwKE=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-4gr1AFPOVqvkbjF26J/mVl+7/g1uOSE83ww/EQIo5bU=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-RX0HMY6N7TblHdA7zhcG9yrxp94BBx8pbWjtYUJrsDA=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-bV9puip5cXhdmdjTxLQSmozaij4ixCzmMm4aPQpZ5Og=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-eidMuu8Ahm8YoSjl85IVc5StyfxwVTzyjJIaVCprjfo=' 'sha256-hCZmwNAMDLPZEMYHAYpzoPETSnimg1oHWWjZImdKqxM=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-qzpUtdWH1TlUe+keMoviP5ddzz3oKD3bFygdJMXw118='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+iskltdbf7/UUg8Y6ZfcamkqkNKvnVyfhKrlKyBzwKE=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-UvDbDts3+neURbz5qbvya/0mru+OeoZ1uY5iEk8wSUw=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-bV9puip5cXhdmdjTxLQSmozaij4ixCzmMm4aPQpZ5Og=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-hCZmwNAMDLPZEMYHAYpzoPETSnimg1oHWWjZImdKqxM=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-qO3ylT8ZcYfRnec/7L/gIvJzwj3nEH4AIZneevqETHU=' 'sha256-qzpUtdWH1TlUe+keMoviP5ddzz3oKD3bFygdJMXw118=' 'sha256-xeo/SvJn5pePZ1SM5sKHX3dRwul+yLMPUvGj5yOK8ns='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>GlucoDex — Continuous Glucose Analyzer · v2.28.0</title>
@@ -9352,6 +9352,70 @@ window.evBadge = evBadge;
   // ════════════════════════════════════════════════════════════════════════
   //  GlucoScope — interactive canvas glucose trace
   // ════════════════════════════════════════════════════════════════════════
+  /* ── §∅ · THE CADENCE REFUSAL, NAMED WHEREVER A SURFACE READS IT ─────────────────────────────
+     `glucodex-dsp.js:455` publishes `cadence: null` beside `cadenceReason` when NO inter-sample
+     delta lands in (0, 240) min — a daily or a spot export. #3399 landed that half, and `:1557`
+     carries the token out of `analyze` so a consumer can tell an unmeasurable rate from a field
+     this version does not populate. No surface read it: measured 2026-11-07 on `bf0477c1e`, the
+     readers of `cadenceReason` over app, render, cross and registry numbered ZERO, and the same
+     refusal nulls `activeMin` and `durDays`, which the app read unguarded — `durDays.toFixed(1)`
+     THREW inside `renderContext`, `Math.round(activeMin / 60) + 'h'` printed a fabricated `0h`,
+     and `${cadence}-min` printed the string `null-min`.
+     These five helpers are the ONE place that decides what a refused rate looks like, so a new card
+     inherits the wording instead of re-deriving it. Three states, the house shape:
+       · MEASURED — the number, and nothing extra. A refusal note on a measured record is noise.
+       · REFUSED  — the node's OWN token, never a word invented here.
+       · UNKNOWN  — a null with no reason riding along (an export written before #3399). It says
+                    UNKNOWN, because "we do not know why" is not the same claim as "unmeasurable".
+     A measured zero is impossible here: `cadence` is a median of deltas strictly above 0. */
+  const CAD_UNKNOWN = 'UNKNOWN';
+  function cadToken(r) {
+    const why = r && r.cadenceReason;
+    if (typeof why !== 'string') return null;
+    const tok = why.split(':')[0].trim();
+    return tok || null;
+  }
+  function cadState(r) {
+    if (r && r.cadence != null) return 'measured';
+    return cadToken(r) ? 'refused' : 'unknown';
+  }
+  function cadText(r) {
+    if (cadState(r) === 'measured') return r.cadence + '-min cadence';
+    // The token is printed bare: it already reads as a phrase about the cadence, and a label in
+    // front of it ('cadence cadence-unmeasurable') stutters on every surface that uses it.
+    return cadToken(r) || 'cadence ' + CAD_UNKNOWN;
+  }
+  function durText(r) {
+    if (r && r.durDays != null) return r.durDays.toFixed(1) + ' days active';
+    return 'active days withheld \u2014 ' + (cadToken(r) || CAD_UNKNOWN);
+  }
+  function activeText(r) {
+    const m = r && r.activeMin;
+    if (m != null) return m >= 1440 ? (m / 1440).toFixed(1) + 'd' : Math.round(m / 60) + 'h';
+    return cadState(r) === 'refused' ? 'no rate' : CAD_UNKNOWN;
+  }
+  /* The card-leading note. It names the token AND the step the grid actually used, because that
+     step is what every cell position, every AGP bin and the scope viewport are built on — a reader
+     who is told only that the rate is absent cannot tell what the picture below is spaced by. */
+  function cadNote(r) {
+    const st = cadState(r);
+    if (st === 'measured') return '';
+    const step = r && r.cadenceAssumed != null ? r.cadenceAssumed + '-min' : 'an unnamed';
+    if (st === 'refused')
+      return (
+        '<div class="ctx-note" style="color:var(--amber)">⚠ <b>Cadence not measurable</b> — <code>' +
+        cadToken(r) +
+        '</code>. No inter-sample delta of this export falls in (0, 240) min, so every minute total derived from a rate is withheld: active time, active days and any coverage figure built on them. The grid below is spaced by ' +
+        step +
+        ' cells, named as an ASSUMPTION so it is not read back as a measurement — the glucose values, the span and the day clock are unaffected.</div>'
+      );
+    return (
+      '<div class="ctx-note" style="color:var(--amber)">⚠ <b>Cadence ' +
+      CAD_UNKNOWN +
+      '</b> — this record carries no measured rate and no reason for its absence, so it was written before the node named one. Minute totals derived from a rate are withheld.</div>'
+    );
+  }
+
   class GlucoScope {
     constructor(canvas, mini) {
       this.canvas = canvas;
@@ -9367,15 +9431,27 @@ window.evBadge = evBadge;
       const s = r.series;
       this.s = s;
       this.N = s.N;
-      this.cad = s.cadence;
+      /* 🔴 §∅ — `this.cad` IS THE GRID STEP, NOT THE MEASURED CADENCE. Every use below converts
+         CELLS to minutes, and the cells sit `stepMs` apart (`glucodex-dsp.js:466`), where `step`
+         falls back to 5 min precisely when the cadence was never measurable. So `series.cadence` is
+         `null` on exactly the records the scope must still draw, and reading it here made
+         `Math.round(1440 / null)` = `Infinity`: the default 24 h view silently became the whole
+         record, and the readout's `N × cad` span read `NaN`. The spacing of `gT` IS that step, so
+         the scope measures it off the grid it was handed instead of off a field the node may null.
+         The DSP guarantees two cells (`wantN = Math.max(2, …)`); the guard below refuses to invent a
+         step if one ever arrives with fewer. */
+      const stepMin = s.N >= 2 && s.gT && Number.isFinite(s.gT[1] - s.gT[0]) ? (s.gT[1] - s.gT[0]) / 60000 : null;
+      this.cad = stepMin;
+      this.stepKnown = stepMin != null && stepMin > 0;
       this.gT = s.gT;
       this.gV = s.gV;
       this.gF = s.gF;
       this.FLAG = s.FLAG;
       this.yLo = 40;
       this.yHi = Math.max(260, r.max + 20);
-      // default view: last 24h (or all if shorter)
-      const dayCells = Math.min(this.N, Math.round(1440 / this.cad));
+      // default view: last 24h (or all if shorter). With no derivable step the whole record IS the
+      // view — `this.N` is the cell count itself, not a figure computed from a rate we do not have.
+      const dayCells = this.stepKnown ? Math.min(this.N, Math.round(1440 / this.cad)) : this.N;
       this.view = { start: Math.max(0, this.N - dayCells), span: dayCells };
       this.resize();
       this.draw();
@@ -9876,7 +9952,27 @@ window.evBadge = evBadge;
     return `<div class="rg-track"><div class="rg-fill" style="width:${Math.max(3, Math.min(100, pct))}%;background:${col}"></div><div class="rg-marker" style="left:${Math.max(0, Math.min(100, pct))}%"></div></div>`;
   }
 
-  global.GLUUI = { GlucoScope, agpChart, tirBar, lineChart, dayOverlay, distribution, fusionScatter, riskGauge, COLORS: C, BAND, CUT, disp: GluDisp };
+  global.GLUUI = {
+    GlucoScope,
+    agpChart,
+    tirBar,
+    lineChart,
+    dayOverlay,
+    distribution,
+    fusionScatter,
+    riskGauge,
+    cadToken,
+    cadState,
+    cadText,
+    durText,
+    activeText,
+    cadNote,
+    CAD_UNKNOWN,
+    COLORS: C,
+    BAND,
+    CUT,
+    disp: GluDisp
+  };
   global.GluDisp = GluDisp;
 })(window);
 
@@ -10196,7 +10292,9 @@ __exports.GLUUI = window.GLUUI;
     wrap.innerHTML =
       `<div class="readiness-hero" style="--readiness-color:${css}">` +
       `<div class="readiness-hero-label">Glycemic Stability</div>` +
-      `<div class="readiness-date-badge">${r.source === 'synthetic' ? 'synthetic' : 'recorded'} · ${r.durDays >= 1 ? r.durDays.toFixed(1) + ' days' : Math.round(r.activeMin / 60) + ' h'} · ${r.tierLabel}</div>` +
+      // §∅ — the same fabricated `0 h` the hero line printed: `durDays >= 1` is false for a null
+      // and the else-branch divided one. `GLUUI.durText` names the node's own token instead.
+      `<div class="readiness-date-badge">${r.source === 'synthetic' ? 'synthetic' : 'recorded'} · ${r.durDays != null && r.durDays < 1 ? Math.round(r.activeMin / 60) + ' h' : global.GLUUI.durText(r)} · ${r.tierLabel}</div>` +
       `<div class="readiness-score" style="color:${css}">${score}</div>` +
       `<div class="readiness-tier">${tier}</div>` +
       `<div class="readiness-scores-grid">${subsHtml}</div>` +
@@ -11733,7 +11831,10 @@ __require('glucodex-profile.js');
         'Analyzed ' +
           r.nReadings.toLocaleString() +
           ' readings · ' +
-          (r.durDays >= 1 ? r.durDays.toFixed(1) + ' days' : Math.round(r.activeMin / 60) + ' h') +
+          /* §∅ — `durDays >= 1` is FALSE for a null, and the old else-branch then printed
+             `Math.round(null / 60) + ' h'` = `0 h`: a fabricated zero standing in for a day count the
+             node withheld. `UI.durText` states the refusal and names the node's token. */
+          (r.durDays != null && r.durDays < 1 ? Math.round(r.activeMin / 60) + ' h' : UI.durText(r)) +
           ' · ' +
           r.pctActive +
           '% sensor active · GMI ' +
@@ -11959,7 +12060,9 @@ __require('glucodex-profile.js');
     }
     SCOPE.light = document.body.classList.contains('light');
     SCOPE.setData(r);
-    updateScopeReadout(SCOPE.view, r.cadence, r.series.N, r.series.gT);
+    /* The readout converts CELLS to minutes, so it takes the scope's own grid step — `r.cadence`
+       is the measurement and is null on an unmeasurable export, which made the span read `NaN`. */
+    updateScopeReadout(SCOPE.view, SCOPE.cad, r.series.N, r.series.gT);
 
     if (window.GLUProfile) window.GLUProfile.render(r); // personalises r + hero (before KPI/table use it)
     renderContext(r);
@@ -11982,8 +12085,8 @@ __require('glucodex-profile.js');
       '<br>' +
       r.nReadings.toLocaleString() +
       ' readings · ' +
-      r.cadence +
-      '-min · GMI ' +
+      UI.cadText(r) +
+      ' · GMI ' +
       r.gmi +
       '%' +
       '<br>' +
@@ -11991,7 +12094,10 @@ __require('glucodex-profile.js');
       '% sensor active';
   }
 
-  function updateScopeReadout(view, cad, N, gT) {
+  /* `stepMin` is the GRID step (the cell spacing), never the measured cadence: both figures below
+     are cell counts converted to time, and the grid exists even when the rate was unmeasurable. */
+  function updateScopeReadout(view, stepMin, N, gT) {
+    const cad = stepMin;
     const t0 = gT[Math.max(0, Math.floor(view.start))],
       t1 = gT[Math.min(N - 1, Math.floor(view.start + view.span))];
     const spanH = (view.span * cad) / 60;
@@ -12014,6 +12120,9 @@ __require('glucodex-profile.js');
       notes =
         '<div class="ctx-note">Full TIR/TAR/TBR, MAGE, CONGA, GVP and dawn-phenomenon are valid at this length. AGP percentile bands shown but firm up at ≥14 days (international consensus).</div>';
     else notes = '<div class="ctx-note">≥14 days — the AGP reporting standard. Percentile envelope, MODD and a robust GMI are all on solid footing.</div>';
+    /* §∅ — the refusal note LEADS the banner, so a withheld rate cannot hide behind the tier prose
+       that a measured record shows. It is empty on a measured cadence, by construction. */
+    notes = UI.cadNote(r) + notes;
     let calibNote = '';
     if (r.calib) {
       if (r.calib.applied)
@@ -12023,7 +12132,7 @@ __require('glucodex-profile.js');
     }
     $('ctxBanner').innerHTML = `<div class="ctx-main">
       <div><div class="ctx-mode">${r.tierLabel} recording</div>
-      <div class="ctx-why">${r.durDays.toFixed(1)} days active · ${r.nReadings.toLocaleString()} readings · ${r.cadence}-min cadence · ${r.pctActive}% sensor active</div></div>
+      <div class="ctx-why">${UI.durText(r)} · ${r.nReadings.toLocaleString()} readings · ${UI.cadText(r)} · ${r.pctActive}% sensor active</div></div>
       <div class="ctx-conf ${tierColor}">${r.tierMsg}</div>
     </div>${notes}${calibNote}`;
     $('ctxBanner').style.display = 'flex';
@@ -12214,7 +12323,7 @@ __require('glucodex-profile.js');
     $('qualityCard').innerHTML = `
     <div class="q-grid">
       <div class="q-stat">${evBadge('Sensor active')}<div class="q-val ${r.pctActive >= 70 ? 'ok' : r.pctActive >= 50 ? 'warn' : 'bad'}">${r.pctActive}%</div><div class="q-lbl">Sensor active</div><div class="q-sub">AGP needs ≥70%</div></div>
-      <div class="q-stat"><div class="q-val neutral">${r.activeMin >= 1440 ? (r.activeMin / 1440).toFixed(1) + 'd' : Math.round(r.activeMin / 60) + 'h'}</div><div class="q-lbl">${evBadge('Active time')}Active time</div><div class="q-sub">of ${(r.spanMin / 1440).toFixed(1)}d span${r.nGaps ? ` · ${r.nGaps} gap${r.nGaps === 1 ? '' : 's'}` : ''}</div></div>
+      <div class="q-stat"><div class="q-val neutral">${UI.activeText(r)}</div><div class="q-lbl">${evBadge('Active time')}Active time</div><div class="q-sub">${r.activeMin == null ? UI.cadText(r) + ' · minutes need a measured rate' : `of ${(r.spanMin / 1440).toFixed(1)}d span${r.nGaps ? ` · ${r.nGaps} gap${r.nGaps === 1 ? '' : 's'}` : ''}`}</div></div>
       <div class="q-stat"><div class="q-val ${r.warmupMin > 0 ? 'warn' : 'ok'}">${r.warmupMin}m</div><div class="q-lbl">${evBadge('Warm-up suppressed')}Warm-up suppressed</div><div class="q-sub">fresh-sensor low/garbage</div></div>
       <div class="q-stat"><div class="q-val ${r.compMin > 0 ? 'warn' : 'ok'}">${r.compMin}m</div><div class="q-lbl">${evBadge('Compression lows')}Compression lows</div><div class="q-sub">flagged · not deleted</div></div>
     </div>
@@ -12229,9 +12338,9 @@ __require('glucodex-profile.js');
       UI.tirBar(r.tir) +
       `<div class="q-note" style="margin-top:10px"><b>Time in Tight Range (70–140)</b>: <b style="color:${r.titr >= 50 ? 'var(--green)' : r.titr >= 30 ? 'var(--amber)' : 'var(--red)'}">${r.titr}%</b> — the stricter 2023-consensus target (vs ${r.tir.tir}% in the standard 70–180 range). A useful stretch goal once standard TIR is solid.</div>`;
     $('agpBody').innerHTML =
-      `<div class="mini-h">${evBadge('Mean glucose')}Ambulatory Glucose Profile <span class="mini-sub">median (teal) · IQR 25–75 · 10–90 band · ${r.durDays.toFixed(1)} days stacked onto one 24-h clock</span></div>` +
+      `<div class="mini-h">${evBadge('Mean glucose')}Ambulatory Glucose Profile <span class="mini-sub">median (teal) · IQR 25–75 · 10–90 band · ${r.durDays == null ? UI.durText(r) + ',' : r.durDays.toFixed(1) + ' days'} stacked onto one 24-h clock</span></div>` +
       UI.agpChart(r.hourly, { W: 720, H: 230 }) +
-      `<div class="q-note" style="margin-top:8px">Every day's readings collapsed onto a single 24-h day: the <b>teal line</b> is the median glucose at each time, the darker band the middle 50% (IQR), the lighter band the 10–90th percentile spread. The green zone is the ${window.GluDisp.range(70, 180)} ${window.GluDisp.label()} target. ${r.tier !== 'agp' ? '<b>Bands shown but provisional</b> — the AGP standard wants ≥14 days; with ' + r.durDays.toFixed(1) + ' days they will tighten as more data accrues.' : '≥14 days — bands meet the AGP reporting standard.'}</div>`;
+      `<div class="q-note" style="margin-top:8px">Every day's readings collapsed onto a single 24-h day: the <b>teal line</b> is the median glucose at each time, the darker band the middle 50% (IQR), the lighter band the 10–90th percentile spread. The green zone is the ${window.GluDisp.range(70, 180)} ${window.GluDisp.label()} target. ${r.tier !== 'agp' ? '<b>Bands shown but provisional</b> — the AGP standard wants ≥14 days; with ' + (r.durDays == null ? UI.durText(r) + ' they cannot be sized' : r.durDays.toFixed(1) + ' days they will tighten as more data accrues') + '.' : '≥14 days — bands meet the AGP reporting standard.'}</div>`;
     $('agpSection').style.display = 'block';
   }
 
@@ -12965,7 +13074,8 @@ __require('glucodex-profile.js');
     const rows = [
       ['Source', r.source === 'synthetic' ? 'Synthetic CGM (demo)' : 'CGM file', '—', '—', 'neutral', 'One signal in — glucose'],
       ['Tier', r.tierLabel, '—', '—', 'neutral', r.tierMsg],
-      ['Active duration', r.durDays.toFixed(1), 'days', '—', 'neutral', r.cadence + '-min cadence'],
+      // §∅ — the VALUE cell is the figure or the state word; the note cell names the node's token.
+      ['Active duration', r.durDays == null ? UI.activeText(r) : r.durDays.toFixed(1), r.durDays == null ? '—' : 'days', '—', 'neutral', UI.cadText(r)],
       ['Sensor active', r.pctActive, '%', '≥70', r.pctActive >= 70 ? 'ok' : r.pctActive >= 50 ? 'warn' : 'bad', 'AGP validity floor'],
       ['Compression flagged', r.compMin, 'min', '—', r.compMin > 0 ? 'warn' : 'ok', 'Positional nocturnal artifact · held out of TBR'],
       ['Data confidence', r.dataQualityConf, '×', '≥0.85', r.dqLabel === 'high' ? 'ok' : r.dqLabel === 'moderate' ? 'warn' : 'bad', 'Scales stability-score interpretation'],

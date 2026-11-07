@@ -116,3 +116,29 @@ def test_any_other_failure_is_1_and_carries_the_exception(recorded_run):
     assert "PermissionError" in out and "nope" in out, (
         "repr(e), not repr(None) — the arm that catches everything must say what it caught"
     )
+
+
+@pytest.mark.parametrize("quiet", [False, True])
+def test_a_quiet_failure_logs_at_debug_and_a_loud_one_at_warning(recorded_run, completed, caplog, quiet):
+    """MEASURED on the capture box 2026-11-07: a teardown terminate with no socket warned at each start.
+    A quiet caller logs its own verdict, so `_sh` drops the failure line to DEBUG for it."""
+    import logging
+
+    recorded_run.reply = lambda argv: completed(255, "", "Failed to connect to non-global ctrl_ifname")
+    with caplog.at_level(logging.DEBUG):
+        assert ch._sh(["wpa_cli", "terminate"], 1, quiet=quiet)[0] == 255
+    levels = [r.levelname for r in caplog.records if "rc=255" in r.getMessage()]
+    assert levels == (["DEBUG"] if quiet else ["WARNING"]), levels
+
+
+def test_the_failure_line_names_four_words_the_code_the_kind_and_160_characters(recorded_run, completed, caplog):
+    """The operator reads this line at 3 a.m., so every field in it is asserted, not only its level.
+    Code 127 classifies as `missing`, which proves the kind reads the real return code."""
+    import logging
+
+    recorded_run.reply = lambda argv: completed(127, "x" * 200, "")
+    argv = ["wpa_cli", "-p", "/d", "-s", "/d", "-i", "w", "terminate"]
+    with caplog.at_level(logging.WARNING):
+        ch._sh(argv, 1, sudo=True)
+    msgs = [r.getMessage() for r in caplog.records if "rc=127" in r.getMessage()]
+    assert msgs == ["cpap: sudo -n wpa_cli -p -> rc=127 [missing] " + "x" * 160], msgs
