@@ -708,6 +708,85 @@ def _recording_files(night_dir: str, pattern: str, scope: dict | None, stamps: f
     return got
 
 
+# ── WEAR OVER A STREAM: the daemon's own decisions, read beside a cell that would read as loss ──────
+# MEASURED on the capture box 2026-11-07: an unworn Verity on a desk streamed from 17:04, and the Nights
+# view showed that evening as a red night, "25 frag · 92 % lost". Every one of the daemon's WORN.csv
+# decisions over that stream said not worn. The holes were the off-body stream, not a link losing a
+# worn night. The cell now carries the seconds each decision held, so the page can say "not worn".
+_SERIAL = re.compile(r"_([0-9A-Za-z]+)_\d{14}_")
+_WORN_MEMO: dict[tuple[str, int, int], dict[str, list[tuple[float, bool | None]]]] = {}
+
+
+def _worn_changes(path: str) -> dict[str, list[tuple[float, bool | None]]]:
+    """{serial: [(floating s, worn)]} from one WORN.csv, kept only where the decision CHANGES.
+
+    The serial is the last word of the `device` cell ("Polar Sense <serial>"), the same token the
+    stream's file name carries. A blank `worn` cell is an abstention and reads as None (§∅). A torn row
+    holds no decision and is skipped. Memoised by path, size and mtime: the file grows all night."""
+    try:
+        st = os.stat(path)
+    except OSError:
+        return {}
+    key = (path, st.st_size, st.st_mtime_ns)
+    hit = _WORN_MEMO.get(key)
+    if hit is not None:
+        return hit
+    out: dict[str, list[tuple[float, bool | None]]] = {}
+    try:
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            head = fh.readline().rstrip("\r\n").split(";")
+            if not all(k in head for k in ("Phone timestamp", "device", "worn")):
+                return {}
+            i_t, i_d, i_w = head.index("Phone timestamp"), head.index("device"), head.index("worn")
+            for line in fh:
+                parts = line.rstrip("\r\n").split(";")
+                try:
+                    t = _floating_of(_dt.datetime.fromisoformat(parts[i_t]))
+                    words, cell = parts[i_d].split(), parts[i_w]
+                except (IndexError, ValueError):
+                    continue  # a torn row or an unparseable stamp holds no decision
+                if not words or cell not in ("", "0", "1"):
+                    continue
+                worn = None if cell == "" else cell == "1"
+                seq = out.setdefault(words[-1], [])
+                if not seq or seq[-1][1] is not worn:
+                    seq.append((t, worn))
+    except OSError:
+        return {}
+    for k in [k for k in _WORN_MEMO if k[0] == path]:
+        del _WORN_MEMO[k]  # one entry per path: a growing file must not leave every old size behind
+    _WORN_MEMO[key] = out
+    return out
+
+
+def worn_seconds(dirs: list[str], serial: str, t0: float, t1: float) -> dict | None:
+    """{worn_s, unworn_s, unknown_s} over [t0, t1] for one device, from the daemon's WORN.csv decisions.
+
+    Each decision holds until the next one. Before the first decision the state is unknown, never
+    not-worn. None when no folder holds a decision for this serial: no reading is not a zero (§∅)."""
+    import writers as _w  # the cycle-free import site; `writers` does not import this module
+
+    seq = sorted(
+        (c for d in dirs for c in _worn_changes(os.path.join(d, _w.WORN_NAME)).get(serial, [])),
+        key=lambda c: c[0],
+    )
+    if not seq or t1 <= t0:
+        return None
+    acc = {True: 0.0, False: 0.0, None: 0.0}
+    state: bool | None = None
+    at = t0
+    for t, worn in seq:
+        if t <= t0:
+            state = worn
+            continue
+        if t >= t1:
+            break
+        acc[state] += t - at
+        at, state = t, worn
+    acc[state] += t1 - at
+    return {"worn_s": round(acc[True], 1), "unworn_s": round(acc[False], 1), "unknown_s": round(acc[None], 1)}
+
+
 def night_entry(
     root: str, night_dir: str, deadline: float | None = None, stamps: frozenset[float] | None = None
 ) -> dict:
@@ -825,6 +904,16 @@ def night_entry(
                 hours = span_hours(f)
                 if hours is not None:
                     stats, pending = cached_stats(root, f, deadline)
+        wear = None
+        # Only a cell that would read as loss pays for the wear read: a full cell has nothing to explain.
+        if (
+            stats
+            and stats["coverage"] < 0.95
+            and (m := _SERIAL.search(os.path.basename(f)))
+            and (end := _tail_stamp(f)) is not None
+        ):
+            t1 = _floating_of(end)
+            wear = worn_seconds(_scope_parts(night_dir, scope)[0], m.group(1), t1 - stats["span_s"], t1)
         out[node] = {
             "bytes": sum(os.path.getsize(f) for f in files),
             "hours": hours,
@@ -842,6 +931,8 @@ def night_entry(
             "pending": pending,
             "files": [os.path.relpath(f, root) for f in files],
             "loadable": node not in NOT_LOADABLE,
+            # The daemon's wear decisions over the primary stream, read only when coverage < 95 %.
+            "wear": wear,
         }
 
     # ⚠️ THESE TWO TAKE THE SCOPE AND THE FILTER TOO, and I first wired only the node cells — which left

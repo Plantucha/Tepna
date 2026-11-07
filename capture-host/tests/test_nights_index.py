@@ -2676,3 +2676,106 @@ def test_a_directory_inside_a_date_keyed_folder_is_not_a_night_file(tmp_path):
     root = str(tmp_path)
     os.makedirs(os.path.join(root, "captures", "cpap", "DATALOG", "20261008", "20261008_220000_BRP.edf"))
     assert ni.index_nights(root, budget_s=None) == []
+
+
+# ── wear over a stream: not worn is not loss (measured on the capture box 2026-11-07) ──────────────────
+_WORN_HEAD = "Phone timestamp;device;address;worn;why;trigger;votes\n"
+
+
+def _worn_row(stamp, worn, serial="TEST0009"):
+    return f"2026-11-07T{stamp}.000;Polar Sense {serial};AA:BB:CC:DD:EE:01;{worn};x;change;\n"
+
+
+def _f(hms):
+    return ni._floating_of(_dt.datetime.fromisoformat(f"2026-11-07T{hms}"))
+
+
+def test_worn_changes_keeps_only_the_changes_per_serial_and_skips_torn_rows(tmp_path):
+    p = tmp_path / "WORN.csv"
+    p.write_text(
+        _WORN_HEAD
+        + _worn_row("18:00:00", 0)
+        + _worn_row("18:01:00", 0)
+        + "torn\n"
+        + "2026-11-07T18:01:30.000;;AA:BB:CC:DD:EE:01;1;x;change;\n"
+        + "2026-11-07T18:01:40.000;Polar Sense TEST0009;AA:BB:CC:DD:EE:01;2;x;change;\n"
+        + _worn_row("18:02:00", "")
+        + _worn_row("18:03:00", 1)
+        + _worn_row("18:04:00", 1, serial="0001")
+    )
+    got = ni._worn_changes(str(p))
+    assert got == {
+        "TEST0009": [(_f("18:00:00"), False), (_f("18:02:00"), None), (_f("18:03:00"), True)],
+        "0001": [(_f("18:04:00"), True)],
+    }
+
+
+def test_worn_changes_memo_reads_a_grown_file_again_and_keeps_one_entry(tmp_path):
+    p = tmp_path / "WORN.csv"
+    p.write_text(_WORN_HEAD + _worn_row("18:00:00", 0))
+    first = ni._worn_changes(str(p))
+    assert ni._worn_changes(str(p)) is first, "an unchanged file is read once"
+    with open(p, "a") as fh:
+        fh.write(_worn_row("18:05:00", 1))
+    assert ni._worn_changes(str(p))["TEST0009"][-1] == (_f("18:05:00"), True)
+    assert sum(1 for k in ni._WORN_MEMO if k[0] == str(p)) == 1
+
+
+def test_worn_changes_reads_nothing_from_an_absent_file_a_foreign_header_or_a_directory(tmp_path):
+    assert ni._worn_changes(str(tmp_path / "absent.csv")) == {}
+    q = tmp_path / "other.csv"
+    q.write_text("a;b;c\n1;2;3\n")
+    assert ni._worn_changes(str(q)) == {}
+    d = tmp_path / "dir.csv"
+    d.mkdir()
+    assert ni._worn_changes(str(d)) == {}
+
+
+def test_worn_seconds_holds_each_decision_until_the_next_and_calls_the_time_before_any_unknown(tmp_path):
+    (tmp_path / "WORN.csv").write_text(
+        _WORN_HEAD + _worn_row("18:00:10", 0) + _worn_row("18:00:40", 1) + _worn_row("18:02:00", 0)
+    )
+    got = ni.worn_seconds([str(tmp_path)], "TEST0009", _f("18:00:00"), _f("18:01:00"))
+    assert got == {"worn_s": 20.0, "unworn_s": 30.0, "unknown_s": 10.0}
+
+
+def test_worn_seconds_takes_the_decision_in_force_at_the_start_and_stops_at_the_end(tmp_path):
+    (tmp_path / "WORN.csv").write_text(_WORN_HEAD + _worn_row("17:00:00", 0) + _worn_row("19:00:00", 1))
+    got = ni.worn_seconds([str(tmp_path)], "TEST0009", _f("18:00:00"), _f("18:10:00"))
+    assert got == {"worn_s": 0.0, "unworn_s": 600.0, "unknown_s": 0.0}
+
+
+def test_worn_seconds_is_none_without_a_decision_or_over_an_empty_span(tmp_path):
+    (tmp_path / "WORN.csv").write_text(_WORN_HEAD + _worn_row("18:00:00", 0))
+    assert ni.worn_seconds([str(tmp_path)], "0001", _f("18:00:00"), _f("18:10:00")) is None
+    assert ni.worn_seconds([str(tmp_path / "none")], "TEST0009", _f("18:00:00"), _f("18:10:00")) is None
+    assert ni.worn_seconds([str(tmp_path)], "TEST0009", _f("18:10:00"), _f("18:10:00")) is None
+
+
+def _desk_night(root, worn_cells, segments=((0, 100), (400, 100))):
+    """A Verity PPG stream with holes and the daemon's WORN.csv beside it, in an evening folder."""
+    nd = root / "captures" / "2026-11-07"
+    nd.mkdir(parents=True)
+    _stream(nd / "Polar_VeritySense_TEST0009_20261107180000_PPG.txt", list(segments), start="2026-11-07T18:00:00")
+    (nd / "WORN.csv").write_text(_WORN_HEAD + "".join(_worn_row(t, w) for t, w in worn_cells))
+    return nd
+
+
+def test_an_unworn_stream_with_holes_carries_its_not_worn_seconds(tmp_path):
+    """MEASURED on the capture box 2026-11-07: a Verity on a desk read "25 frag · 92 % lost" as a night."""
+    nd = _desk_night(tmp_path, [("17:59:00", 0), ("18:03:00", 0)])
+    v = ni.night_entry(str(tmp_path), str(nd), deadline=None)["PPGDex"]
+    assert v["coverage"] < 0.95
+    assert v["wear"] == {"worn_s": 0.0, "unworn_s": v["span_s"], "unknown_s": 0.0}
+
+
+def test_a_worn_stream_with_holes_keeps_its_worn_seconds(tmp_path):
+    nd = _desk_night(tmp_path, [("18:00:00", 1)])
+    v = ni.night_entry(str(tmp_path), str(nd), deadline=None)["PPGDex"]
+    assert v["wear"]["worn_s"] == v["span_s"] and v["wear"]["unworn_s"] == 0.0
+
+
+def test_a_full_stream_reads_no_wear(tmp_path):
+    nd = _desk_night(tmp_path, [("18:00:00", 0)], segments=((0, 300),))
+    v = ni.night_entry(str(tmp_path), str(nd), deadline=None)["PPGDex"]
+    assert v["coverage"] == 1.0 and v["wear"] is None
