@@ -6,6 +6,8 @@ active night untouched, a daemon-caused night logged as a warning, one bad night
 import asyncio
 import concurrent.futures.process  # lazily loaded by the package; an xdist worker may not have touched it
 import json
+
+import pytest
 import os
 import time
 
@@ -58,7 +60,9 @@ def test_loss_poller_audits_settled_nights_once_and_skips_the_active_one(tmp_pat
         _run(capture.loss_poller({"loss_audit": {"poll_sec": 1}, "devices": []}, str(tmp_path)))
     assert calls == ["2026-09-18"], calls  # once, not per tick; the active night skipped
     assert capture.STATUS["loss"]["2026-09-18"]["daemon_caused_min"] == 3.0
-    assert any("3 min of the night's gaps were the daemon's own doing" in r.getMessage() for r in caplog.records)
+    assert any(
+        "3.0 min of the night's gaps were the daemon's own doing (no bar)" in r.getMessage() for r in caplog.records
+    )
     # the night's files change ⇒ audited again
     d = tmp_path / "captures" / "2026-09-18"
     # The night's DATA must be newer than its audit AND still old enough to be settled, so the audit's
@@ -73,6 +77,19 @@ def test_loss_poller_audits_settled_nights_once_and_skips_the_active_one(tmp_pat
     assert sum("the daemon's own doing" in r.getMessage() for r in caplog.records) == 1
     capture._STOP.clear()
     capture._STOP = asyncio.Event()
+
+
+@pytest.mark.parametrize("dc", [0.3, 0.6])
+def test_a_daemon_caused_fraction_of_a_minute_on_a_pass_night_logs_its_own_figure_and_no_none(caplog, dc):
+    """MEASURED on the capture box 2026-11-07: night 2026-10-18 logged "0 min of the night's gaps were the
+    daemon's own doing (None)". The figure was under half a minute, and a PASS verdict has no reason."""
+    loss = {"status": "PASS", "at": "2026-11-07T00:00:00Z", "daemon_caused_min": dc, "reason": None}
+    r = {"night": "2026-10-18", "loss": loss, "loss_error": None, "solid_error": None, "solid": None}
+    with caplog.at_level("WARNING"):
+        assert capture._publish_loss(r) is False
+    msgs = [x.getMessage() for x in caplog.records if "own doing" in x.getMessage()]
+    assert msgs == [f"loss-audit: 2026-10-18 — {dc:.1f} min of the night's gaps were the daemon's own doing"], msgs
+    capture.STATUS.get("loss", {}).pop("2026-10-18", None)
 
 
 def test_loss_poller_survives_a_failing_night(tmp_path, monkeypatch, caplog):
@@ -643,3 +660,63 @@ def test_a_fragment_still_recording_before_its_band_opens_is_not_the_pending_nig
     monkeypatch.setattr(capture.loss_audit, "write_night", _audit_writer([]))
     _poll_once(monkeypatch, tmp_path, devices=_cfg_devices())
     assert capture.STATUS["solid"]["night"] == "2026-10-02"
+
+
+# ---- a night that starts after midnight is judged (residue
+# `2026-11-07-a-night-that-starts-after-midnight-is-never-judged`) ----
+
+
+def _file(d, name, *ymdhm):
+    import datetime as dt
+
+    d.mkdir(parents=True, exist_ok=True)
+    f = d / name
+    f.write_text("Phone timestamp;x\n")
+    t = dt.datetime(*ymdhm).timestamp()
+    os.utime(str(f), (t, t))
+    return t
+
+
+def test_the_recording_newest_mtime_reads_the_next_day_inside_the_band(tmp_path):
+    import solid_night_inputs as sni
+
+    cap = tmp_path / "captures"
+    d, nxt = cap / "2026-10-03", cap / "2026-10-04"
+    _file(d, "Tepna_20261003000018_LINK.csv", 2026, 10, 4, 9, 0)  # a sidecar: the box, not data
+    assert sni.recording_newest_mtime(str(d)) is None
+    t_in = _file(nxt, "Polar_H10_0284_20261004002801_ECG.txt", 2026, 10, 4, 6, 0)
+    _file(nxt, "Polar_H10_0284_20261004120000_ECG.txt", 2026, 10, 4, 13, 0)  # the next band: not this night
+    assert sni.recording_newest_mtime(str(d)) == t_in
+    t_own = _file(d, "Polar_H10_0284_20261003220000_ECG.txt", 2026, 10, 4, 7, 0)
+    assert sni.recording_newest_mtime(str(d)) == t_own, "the newest of the two folders"
+    other = tmp_path / "not-a-date"
+    t_x = _file(other, "Polar_H10_0284_20261003220000_ECG.txt", 2026, 10, 4, 5, 0)
+    assert sni.recording_newest_mtime(str(other)) == t_x
+
+
+def test_a_night_that_starts_after_midnight_is_judged(tmp_path, monkeypatch):
+    """MEASURED on the capture box 2026-11-07: the 2026-10-03 folder held only sidecars, the H10 began at
+    00:28 in the 2026-10-04 folder, and the night was never judged."""
+    cap = tmp_path / "captures"
+    _file(cap / "2026-10-03", "Tepna_20261003000018_LINK.csv", 2026, 10, 4, 9, 0)
+    _file(cap / "2026-10-04", "Polar_H10_0284_20261004002801_ECG.txt", 2026, 10, 4, 7, 0)
+    _at(monkeypatch, 2026, 10, 4, 10, 30)
+    monkeypatch.setattr(capture, "STATUS", {})
+    calls = []
+    monkeypatch.setattr(capture.loss_audit, "write_night", _audit_writer(calls))
+    _poll_once(monkeypatch, tmp_path)
+    assert calls == ["2026-10-03"], "the 10-04 folder names a band that is still open"
+
+
+def test_a_rejected_name_listed_first_does_not_hide_a_kept_name_after_it(tmp_path, monkeypatch):
+    """`keep` skips ONE name and reads on. The listing order is the filesystem's, so pin both orders."""
+    import nightqc
+
+    d = tmp_path / "2026-10-04"
+    t_in = _file(d, "Polar_H10_0284_20261004002801_ECG.txt", 2026, 10, 4, 6, 0)
+    _file(d, "Polar_H10_0284_20261004120000_ECG.txt", 2026, 10, 4, 13, 0)
+    out, inn = "Polar_H10_0284_20261004120000_ECG.txt", "Polar_H10_0284_20261004002801_ECG.txt"
+    real = os.listdir
+    for order in ([out, inn], [inn, out]):
+        monkeypatch.setattr(nightqc.os, "listdir", lambda p, o=order: o if p == str(d) else real(p))
+        assert nightqc.newest_data_mtime(str(d), keep=lambda n: n == inn) == t_in, order

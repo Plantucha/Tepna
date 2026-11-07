@@ -61,7 +61,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry } from './argv-guard.mjs';
-import { notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
+import { coverageIdentity, notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
 import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
 
 /* ── THE VALIDITY SIDECAR RIDES WITH THE STREAM ─────────────────────────────────────────────
@@ -282,6 +282,9 @@ function printPopulation(pop, snap, rows) {
   const rl = ruleLine({ result: { rule: snap.rule, ruleRejectedNightShaped: snap.rejectedNightShaped, ruleAdmittedNonNight: snap.admittedNonNight } });
   if (rl) console.log(rl);
   const bare = notANight(snap, rows);
+  /* THE DIFFERENCE ANSWERS TO THE ARITHMETIC (#4506). The difference alone: the count
+     printed above is `pop.population.checked`, the MOVEMENT figure, not a coverage count. */
+  coverageIdentity(snap, rows, bare);
   if (bare.length)
     console.log(`  the read removed ${bare.length} of ${snap.n}, holding no scorable Wellue _PPG.txt: ${bare.slice(0, 12).join(', ')}${bare.length > 12 ? `, … (+${bare.length - 12})` : ''}`);
 }

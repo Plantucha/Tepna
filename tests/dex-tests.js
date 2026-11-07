@@ -14400,17 +14400,7 @@
           return k.replace('tools/', '');
         })
         .sort();
-      var COV_BACKLOG = [
-        'acc-select-compare.mjs',
-        'acc-shared-movement.mjs',
-        'beat-comb-analysis.mjs',
-        'cvhr-fold-rescore.mjs',
-        'deep-flow-join.mjs',
-        'device-stability.mjs',
-        'eqc-run.mjs',
-        'oracle-ecg-firmware-rr.mjs',
-        'oracle-ppg-device-beats.mjs'
-      ];
+      var COV_BACKLOG = [];
       var hasIdentity = function (t) {
         return /coverageIdentity\(|population arithmetic/.test(TT['tools/' + t] || '');
       };
@@ -14539,6 +14529,48 @@
         /coverageIdentity\([^;]*key: p\.key/.test(TT['tools/oxy-hr-bias.mjs'] || ''),
         'oxy-hr-bias.mjs keys the identity per leg'
       );
+      var COV_SLICE5 = [
+        'acc-select-compare.mjs',
+        'acc-shared-movement.mjs',
+        'beat-comb-analysis.mjs',
+        'cvhr-fold-rescore.mjs',
+        'deep-flow-join.mjs',
+        'device-stability.mjs',
+        'eqc-run.mjs',
+        'oracle-ecg-firmware-rr.mjs',
+        'oracle-ppg-device-beats.mjs'
+      ];
+      T.eq(
+        'the last nine readers off the backlog carry the identity',
+        COV_SLICE5.filter(function (t) {
+          return !hasIdentity(t);
+        }).join(', '),
+        ''
+      );
+      /* AN EMPTY BACKLOG IS THE RATCHET. The leg above this family admits a removal namer that
+         carries no identity ONLY while its name sits in the backlog, so an empty backlog is what
+         turns that leg into a rule over the whole tools tree. A later tool that names a removal now
+         reds until it answers to its own arithmetic, and the exemption cannot be re-opened quietly. */
+      T.eq('the backlog is empty, so every removal namer in the tree answers to its own arithmetic', COV_BACKLOG.join(', '), '');
+      /* SIX OF THE NINE PUBLISH A SCORED COUNT, AND EACH HANDS ITS OWN OVER. beat-comb-analysis and
+         the two oracles print `population.checked` or a tally, and both of those label MOVEMENT, so
+         they pass the difference alone. Pinning which three stay out is what stops a later edit from
+         feeding a movement count to a coverage identity. */
+      T.eq(
+        'six of the nine hand the printed scored count over, and the three that publish a movement count do not',
+        COV_SLICE5.filter(function (t) {
+          return /coverageIdentity\([^;]*printedScored/.test(TT['tools/' + t] || '');
+        }).join(', '),
+        'acc-select-compare.mjs, acc-shared-movement.mjs, cvhr-fold-rescore.mjs, deep-flow-join.mjs, device-stability.mjs, eqc-run.mjs'
+      );
+      /* A DISTINCT-NIGHT COUNT IS THE ONLY ONE THIS READER MAY HAND OVER. device-stability pushes
+         several device rows per night, so the row count is not a coverage count, and it hands the
+         identity its distinct-night Set instead. */
+      T.ok(
+        'the reader with several rows per night hands over a distinct-night count',
+        /coverageIdentity\([^;]*printedScored: scoredNights\.size/.test(TT['tools/device-stability.mjs'] || ''),
+        'device-stability.mjs hands over the distinct-night Set'
+      );
       T.ok(
         'the identity has ONE definition, in corpus-scope-core.mjs beside the namer it checks',
         Object.keys(TT)
@@ -14551,6 +14583,233 @@
             return /export function coverageIdentity\s*\(/.test(TT[k] || '');
           })
           .join(', ') || 'no definition found'
+      );
+      /* ══ A PRINTED NIGHT IS A CLAIM ABOUT THE UNIT, AND FOUR TOOLS MADE IT OVER FILES (#4150).
+         `coverageIdentity` binds the ARITHMETIC of every removal namer above. It cannot see the WORD
+         a tool prints beside the number, and four analysis tools declared their population unit as a
+         FILE — `${DEVICE} PPG files`, `H10 ACC files` — and then printed `night(s)` over the same
+         rows. One night holds several recordings, so the two lines disagreed on the unit while
+         quoting one number. `ppi-jitter-vs-ecg.mjs` is the one whose rows really ARE nights, but only
+         under the default merge: `buildUnits` returns one unit per night with merging on and one per
+         FILE under `--no-merge`, so its word follows the mode instead of being fixed either way.
+         A CLAIM IS THE PRINTED TEXT ONLY, AND A PRINT CALL SPANS LINES. The first instrument here
+         read one line at a time and reported ZERO claims in two tools that each print a night,
+         because `console.log(` sat on the line above the template. A scanner that cannot see the text
+         it clears is a pass reported about something never examined, so this one walks each call to
+         its matching paren, keeps the STRING AND TEMPLATE LITERALS only, and strips every
+         interpolation. A `//` note inside a call is not printed. `out.push({ … })` of an object
+         prints nothing. `${nights.length}` names no unit to a reader.
+         THE REMAINDER IS WHAT MAKES THIS A RULE. Every night a reader may be shown is named below
+         with why it is a real one, so the label cannot come back quietly. The two file-unit tools
+         keep exactly ONE each: the `--max-nights` cap line, which reads DATED NIGHTS off the
+         filenames and prints them by name, and so is a true night count over a file-unit read.
+         WHAT THIS DOES NOT FIX: eleven `ppi-jitter-vs-ecg.mjs` lines still write `night` where the
+         unit follows the mode, so each reads wrong under `--no-merge`. They are declared as a CLOSED
+         remainder and counted. The set can shrink. It cannot grow. */
+      var nightClaims = function (text) {
+        var src = String(text || '');
+        var out = [];
+        var re = /console\.log\(|out\.push\(/g;
+        var m;
+        while ((m = re.exec(src))) {
+          var i = m.index + m[0].length - 1;
+          var depth = 0;
+          var j = i;
+          for (; j < src.length; j++) {
+            if (src.charAt(j) === '(') depth++;
+            else if (src.charAt(j) === ')') {
+              depth--;
+              if (depth === 0) break;
+            }
+          }
+          var span = src.slice(i, j + 1);
+          var printed = '';
+          var k = 0;
+          while (k < span.length) {
+            var c = span.charAt(k);
+            if (c === '`' || c === "'" || c === '"') {
+              k++;
+              var dd = 0;
+              while (k < span.length) {
+                if (span.charAt(k) === '\\') {
+                  k += 2;
+                  continue;
+                }
+                if (c === '`' && dd === 0 && span.charAt(k) === '$' && span.charAt(k + 1) === '{') {
+                  dd = 1;
+                  k += 2;
+                  continue;
+                }
+                if (dd > 0) {
+                  if (span.charAt(k) === '{') dd++;
+                  else if (span.charAt(k) === '}') dd--;
+                  k++;
+                  continue;
+                }
+                if (span.charAt(k) === c) break;
+                printed += span.charAt(k);
+                k++;
+              }
+              k++;
+            } else if (c === '/' && span.charAt(k + 1) === '/') {
+              while (k < span.length && span.charAt(k) !== '\n') k++;
+            } else if (c === '/' && span.charAt(k + 1) === '*') {
+              var e = span.indexOf('*/', k);
+              k = e < 0 ? span.length : e + 2;
+            } else k++;
+          }
+          if (/night/i.test(printed)) out.push(printed.replace(/\s+/g, ' ').trim());
+        }
+        return out;
+      };
+      /* THE DECLARED SET, per tool: the only night a reader may be shown, and WHY it is a real one. */
+      var UNIT_CLAIMS = {
+        /* One row per FILE, always. The cap line is still a true night count — it reads DATED NIGHTS
+           off the filenames, prints them by name, and says how many files they left. */
+        'ppg-foot-consensus-e1.mjs': ['the --max-nights cap kept'],
+        'resp-cardiac-suppression-e8.mjs': ['the --max-nights cap kept'],
+        /* This cap ranks files by byte size, and its own line says so. */
+        'ppg-fusion-e3.mjs': ['--max-nights cap, which ranks FILES'],
+        /* Night KEYS off the filenames, two cited external figures, and three statements about what
+           an epoch is. None of these counts a unit the read produced. */
+        'ppi-jitter-vs-ecg.mjs': [
+          'the --max-nights cap kept',
+          "the paper's §3.4 figures",
+          'the PAT path read',
+          'so night UNKNOWN rather than absent',
+          'the full parse placed outside',
+          '--sleep-only kept the nights',
+          'the sleep test could not decide',
+          'distinct night key(s)',
+          'epochs within a night are not independent',
+          'per-night records'
+        ]
+      };
+      /* THE CLOSED REMAINDER: `ppi-jitter-vs-ecg.mjs` lines that still write `night` where the unit
+         follows the merge mode, so each reads wrong under `--no-merge`. Shrinking this list means
+         editing the count leg below with it — that is the ratchet, and the direction is one-way. */
+      var MODE_REMAINDER = [
+        'no night carried both classes',
+        'mean SQI above',
+        'clean-beat share',
+        'nights excluded',
+        'worst night',
+        'not the night',
+        'over nights mean',
+        'normal approximation over NIGHTS',
+        'within-night jitter IQR',
+        'R² over night(s)',
+        'ms reached on'
+      ];
+      var UNIT_TOOLS = Object.keys(UNIT_CLAIMS);
+      var declaredFor = function (tool) {
+        return UNIT_CLAIMS[tool].concat(tool === 'ppi-jitter-vs-ecg.mjs' ? MODE_REMAINDER : []);
+      };
+      T.eq(
+        'every tool the unit rule covers is readable here',
+        UNIT_TOOLS.filter(function (t) {
+          return !(TT['tools/' + t] || '').length;
+        }).join(', '),
+        ''
+      );
+      T.eq(
+        'the scanner reads whole print calls, so it finds every night claim that is real',
+        UNIT_TOOLS.map(function (t) {
+          return t.replace('.mjs', '') + '=' + nightClaims(TT['tools/' + t]).length;
+        }).join(' '),
+        'ppg-foot-consensus-e1=1 resp-cardiac-suppression-e8=1 ppg-fusion-e3=1 ppi-jitter-vs-ecg=21'
+      );
+      T.eq(
+        'no tool prints a night it cannot see — every printed night matches a declared, named source',
+        UNIT_TOOLS.map(function (t) {
+          var dec = declaredFor(t);
+          return nightClaims(TT['tools/' + t])
+            .filter(function (c) {
+              return !dec.some(function (d) {
+                return c.indexOf(d) >= 0;
+              });
+            })
+            .map(function (c) {
+              return t + ': ' + c.slice(0, 70);
+            })
+            .join(' | ');
+        })
+          .filter(Boolean)
+          .join(' || '),
+        ''
+      );
+      T.eq(
+        'the declared set carries no fingerprint that stopped printing',
+        UNIT_TOOLS.map(function (t) {
+          var claims = nightClaims(TT['tools/' + t]);
+          return declaredFor(t)
+            .filter(function (d) {
+              return !claims.some(function (c) {
+                return c.indexOf(d) >= 0;
+              });
+            })
+            .map(function (d) {
+              return t + ': ' + d;
+            })
+            .join(' | ');
+        })
+          .filter(Boolean)
+          .join(' || '),
+        ''
+      );
+      T.eq(
+        'each file-unit tool prints exactly one night, and it is the dated cap line',
+        ['ppg-foot-consensus-e1.mjs', 'resp-cardiac-suppression-e8.mjs']
+          .map(function (t) {
+            var c = nightClaims(TT['tools/' + t]);
+            return t + '=' + c.length + (c.length === 1 && c[0].indexOf('dated night(s)') >= 0 ? ':dated' : ':OTHER');
+          })
+          .join(' '),
+        'ppg-foot-consensus-e1.mjs=1:dated resp-cardiac-suppression-e8.mjs=1:dated'
+      );
+      T.eq(
+        'the mode-dependent remainder is closed, and every entry still prints',
+        MODE_REMAINDER.length +
+          ' declared / ' +
+          nightClaims(TT['tools/ppi-jitter-vs-ecg.mjs']).filter(function (c) {
+            return MODE_REMAINDER.some(function (d) {
+              return c.indexOf(d) >= 0;
+            });
+          }).length +
+          ' printing',
+        '11 declared / 11 printing'
+      );
+      T.eq(
+        'no genuine night claim is also declared as the remainder',
+        UNIT_CLAIMS['ppi-jitter-vs-ecg.mjs']
+          .filter(function (d) {
+            return MODE_REMAINDER.indexOf(d) >= 0;
+          })
+          .join(', '),
+        ''
+      );
+      T.eq('the merging reader takes its unit word from the mode', /const UNIT_WORD = MERGE \? 'night\(s\)' : PPG_UNIT;/.test(TT['tools/ppi-jitter-vs-ecg.mjs'] || ''), true);
+      T.eq('and its count lines read that word', (TT['tools/ppi-jitter-vs-ecg.mjs'] || '').split('${UNIT_WORD}').length - 1 >= 6, true);
+      T.eq(
+        'the line that divides a scored count by an offered count names BOTH units',
+        /\$\{UNIT_WORD\} of the \$\{snap\.n\} offered \$\{snap\.unit\}/.test(TT['tools/ppi-jitter-vs-ecg.mjs'] || ''),
+        true
+      );
+      T.eq(
+        'each file-unit reader prints its own declared unit name beside the scored count',
+        [
+          ['ppg-foot-consensus-e1.mjs', /\$\{scored\.length\} \$\{PPG_UNIT\} scored/],
+          ['ppg-fusion-e3.mjs', /\$\{rows\.length\} \$\{PPG_UNIT\} scored/],
+          ['resp-cardiac-suppression-e8.mjs', /\$\{rows\.length\} \$\{ACC_UNIT\}/]
+        ]
+          .filter(function (p) {
+            return !p[1].test(TT['tools/' + p[0]] || '');
+          })
+          .map(function (p) {
+            return p[0];
+          })
+          .join(', '),
+        ''
       );
       /* ── A HAND-WRITTEN DEFAULT ANSWER AGREES WITH THE RULE BESIDE IT ─────────────────────────
          Row 2026-10-26-a-hand-written-ruleisdefault-asserts-a-comparison-the-file-never-ran.
@@ -18664,8 +18923,10 @@
     group('trio-batch feeds the O2Ring finger site without breaking the trio count', 'trio-batch · o2ring-finger', function (T) {
       var src = env.sources || {};
       var tb = src['tools/trio-batch.mjs'] || src['trio-batch.mjs'] || '';
+      /* A MISSING INPUT IS A DECLARED SKIP, never a literal-true pass (Muse #4269, T-3): the browser
+         lane carries no `env.sources`, and a pass here hid that the group examined nothing. */
       if (!tb) {
-        T.ok('trio-batch source wired (skipped — not in env.sources)', true);
+        T.skip('trio-batch source wired', 'sources not provided in this runner');
         return;
       }
 
@@ -21348,8 +21609,10 @@
     group('PpgDex says whether the site was observed or assumed', 'ppgdex-dsp · site-provenance', function (T) {
       var P = env.PpgDex;
       var eq = env.equiv && env.equiv.ppgdex && env.equiv.ppgdex.input;
+      /* T-1 (Muse #4269): the equiv input is a gitignored recording, so on a fresh clone this group
+         examines nothing. That is a declared corpus-absent skip, not a pass. */
       if (!(P && typeof P.compute === 'function' && eq)) {
-        T.ok('PpgDex equiv input wired (skipped)', true);
+        T.skip('PpgDex equiv input wired', 'corpus-absent — the PpgDex equiv input is a gitignored recording');
         return;
       }
       var ex = P.compute({ text: eq }, { rich: true });
@@ -21499,10 +21762,12 @@
           T.ok('PpgDex PPI · names the spine that won (foot|peak)', blk.spine === 'foot' || blk.spine === 'peak', blk.spine);
         });
       } else {
-        T.ok('PpgDex equiv input wired (skipped — not available)', true);
+        /* T-2 (Muse #4269): the old pass here and the `|| !eqP` below made this group measure nothing in
+           CI and still read green. Absent input is a declared skip; present input must exercise a block. */
+        T.skip('PpgDex equiv input wired', 'corpus-absent — the PpgDex equiv input is a gitignored recording');
       }
 
-      T.ok('at least one interval series was actually exercised', checked > 0 || !eqP, checked + ' block(s)');
+      if (eqP) T.ok('at least one interval series was actually exercised', checked > 0, checked + ' block(s)');
     });
 
     /* A TIMING FIDUCIAL IS NOT THE CLINICAL DEFINITION.
@@ -52505,12 +52770,93 @@
         /DRIFT/.test(page([quietCur], { nonDraft: 1, cap: 4, alerts: [] }, [], DM({ readable: false, missing: [], extra: [] }))),
         false
       );
-      /* ── the signature comment (owner, 2026-11-01: "it will sign everything what it does") ──── */
+      /* ── the journal says each thing once (measured 2020-01-07: 1878 lines over 221 passes in 6 h,
+         one alert repeated 29 times) ───────────────────────────────────────────────────────── */
+      var fa = env.pwFreshAlerts,
+        jt = env.pwJournalText;
+      if (typeof fa === 'function' && typeof jt === 'function') {
+        var AR = [{ number: 7, headSha: SHA }];
+        var A1 = { number: 7, kind: 'red', why: 'test red after 1 rerun(s)' };
+        var f1 = fa([A1], AR, {});
+        T.eq('a first-seen alert is fresh', f1.fresh.length, 1);
+        var f2 = fa([A1], AR, f1.seen);
+        T.eq('the same alert on the same head is not fresh again', f2.fresh.length, 0);
+        T.eq('a new head makes the alert fresh again', fa([A1], [{ number: 7, headSha: 'f'.repeat(40) }], f1.seen).fresh.length, 1);
+        T.eq('a closed PR drops out of the seen set', Object.keys(fa([], [], f1.seen).seen).length, 0);
+        var PG = 'pr-walker pass 2020-01-07T18:00:00Z · open 1\n#7 ready red      required red: test\nactions: none\nALERT #7 red: test red after 1 rerun(s)\n';
+        var j1 = jt(PG, f1.fresh, null);
+        T.ok('a fresh alert prints in the journal', /\nALERT #7 red/.test(j1.text));
+        var j2 = jt(PG.replace('18:00:00Z', '18:01:30Z'), f2.fresh, null);
+        T.ok('a standing alert collapses to a count', !/\nALERT #7/.test(j2.text) && /1 standing alert\(s\) unchanged/.test(j2.text));
+        var j3 = jt(PG.replace('18:00:00Z', '18:03:00Z'), f2.fresh, j2.body);
+        T.eq('a pass that changed nothing prints one line', j3.text, 'pr-walker pass 2020-01-07T18:03:00Z · unchanged\n');
+        T.ok('CONTROL: a changed row prints the full body', /\n#7 ready green/.test(jt(PG.replace('red      required red: test', 'green    green, current'), f2.fresh, j2.body).text));
+      } else T.skip('journal dedup wired', 'pwFreshAlerts absent in this lane');
+
+      /* ── a merged fix closes its own residue row (measured 2020-01-07: #4528 and #4524, two of the
+         five newest commits, were whole units spent on one state cell) ─────────────────────── */
+      var prf = env.pwParseResidueFixed,
+        pcl = env.pwPlanClosures,
+        crt = env.pwCloseRowsText,
+        cbd = env.pwClosureBody;
+      if (typeof prf === 'function' && typeof pcl === 'function' && typeof crt === 'function') {
+        T.eq('a declaration line names its keys', prf('x\nResidue-fixed: `2020-01-07-a-b`, 2020-01-06-c\ny').join(' '), '2020-01-07-a-b 2020-01-06-c');
+        T.eq('a key merely mentioned in prose closes nothing', prf('This relates to 2020-01-07-a-b.').length, 0);
+        T.eq('a malformed key is dropped', prf('Residue-fixed: not-a-key').length, 0);
+        var LED = [
+          '| key | logged | source | defect | evidence | state |',
+          '|---|---|---|---|---|---|',
+          '| 2020-01-07-a-b | 2020-01-07 | `x.js` | **d.** | e | OPEN |',
+          '| 2020-01-06-c | 2020-01-06 | `y.js` | **d.** | e | fixed #10 |',
+          '| 2020-01-05-d | 2020-01-05 | `z.js` | **d. OPEN here** | e | OPEN |'
+        ].join('\n');
+        var MG = [{ number: 42, body: 'Residue-fixed: 2020-01-07-a-b 2020-01-06-c 2020-01-01-zz' }];
+        var pc1 = pcl(MG, LED, {}, NOW);
+        T.eq(
+          'an OPEN declared row is planned for closure by its PR',
+          pc1.close
+            .map(function (c) {
+              return c.key + '#' + c.number;
+            })
+            .join(','),
+          '2020-01-07-a-b#42'
+        );
+        T.eq(
+          'a closed row and an absent key each get one note',
+          pc1.notes
+            .map(function (n) {
+              return n.key;
+            })
+            .join(','),
+          '2020-01-06-c,2020-01-01-zz'
+        );
+        T.eq('a row already handled is not planned again', pcl(MG, LED, { '2020-01-07-a-b': 'pr:99', '2020-01-06-c': 'note:x', '2020-01-01-zz': 'note:y' }, NOW).close.length, 0);
+        T.eq('a failed attempt waits an hour', pcl(MG, LED, { '2020-01-07-a-b': 'failed:x@' + (NOW - 10 * MIN) }, NOW).close.length, 0);
+        T.eq('…and retries after it', pcl(MG, LED, { '2020-01-07-a-b': 'failed:x@' + (NOW - 61 * MIN) }, NOW).close.length, 1);
+        var cr1 = crt(LED, pc1.close);
+        T.ok('only the state cell moves', /\| e \| fixed #42 \|$/m.test(cr1.text) && cr1.changed.join() === '2020-01-07-a-b');
+        T.eq(
+          'exactly one line changed',
+          cr1.text.split('\n').filter(function (l, i) {
+            return l !== LED.split('\n')[i];
+          }).length,
+          1
+        );
+        T.ok('an unnamed OPEN row stays OPEN', /\*\*d\. OPEN here\*\* \| e \| OPEN \|$/m.test(cr1.text));
+        T.eq('CONTROL: a row not reading OPEN is not edited', crt(LED, [{ key: '2020-01-06-c', number: 42 }]).changed.length, 0);
+        if (typeof cbd === 'function') {
+          var bd = cbd(cr1.changed, pc1.close);
+          T.ok('the closure body carries the Rule 0 line first and the trailer', /^Rule 0: /.test(bd) && /\nFleet-Session: pr-walker/.test(bd));
+          T.ok('the closure body names each row and its state', /\| `2020-01-07-a-b` \| `fixed #42` \|/.test(bd));
+        }
+      } else T.skip('residue closure wired', 'pwPlanClosures absent in this lane');
+
+      /* ── the signature comment (owner, 2020-01-01: "it will sign everything what it does") ──── */
       var sg = env.pwSignature;
-      var AT = '2026-11-01T11:45:09.000Z';
+      var AT = '2020-01-01T11:45:09.000Z';
       T.ok(
         'an undraft is signed with the walker, the action and the UTC time',
-        /^🚶 \*\*The fleet walker marked this PR ready for review \(undrafted\)\*\* at 11:45 UTC, 2026-11-01\.\n\nReason: green draft, pool 1\/4\.\n/.test(
+        /^🚶 \*\*The fleet walker marked this PR ready for review \(undrafted\)\*\* at 11:45 UTC, 2020-01-01\.\n\nReason: green draft, pool 1\/4\.\n/.test(
           sg({ op: 'ready', number: 3, result: 'ok', why: 'green draft, pool 1/4' }, AT)
         )
       );

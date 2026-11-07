@@ -28,7 +28,11 @@
  *           updated (`gh pr update-branch`), one per pass — queue-doctor's rule, same reason
  *   merge   a green, current, non-draft PR Kodiak has left for KODIAK_IDLE_MIN is merged by SHA
  *   alert   stuck, red-after-rerun, hand-rebase and a required check pending over STALE_PENDING_MIN
- *           are written to the landing page the board shows and to the journal
+ *           are written to the landing page the board shows and, ONCE per (PR, kind, head), to the
+ *           journal — a pass that changed nothing prints one line (`journalText`)
+ *   close   a merged PR whose body carries `Residue-fixed: <key>` for a row that reads `OPEN` on
+ *           main gets a RESIDUE-only draft PR writing `fixed #<that PR>` in the state cell, one
+ *           walker closure PR in flight at a time (`planClosures`, `closeRowsText`)
  * SIGNED. Every action that changed a PR leaves one comment on it naming the walker, the action, the UTC
  * time and the reason (owner, 2026-11-01: "it will sign everything what it does … It will increase
  * visibility"). A failed or dry-run action signs nothing; a comment that cannot post never changes the
@@ -298,13 +302,17 @@ export function snapshot() {
     };
   });
   let mainMovedAtMs = 0;
+  /* The 30 newest merges carry the `Residue-fixed:` declarations; null (never []) when unreadable, so
+     a failed read plans no closure instead of reading as "nothing merged". */
+  let merged = null;
   try {
-    const m = JSON.parse(gh(['pr', 'list', '--state', 'merged', '--limit', '1', '--json', 'mergedAt']));
-    mainMovedAtMs = m.length ? Date.parse(m[0].mergedAt) : 0;
+    const m = JSON.parse(gh(['pr', 'list', '--state', 'merged', '--limit', '30', '--json', 'number,body,mergedAt']));
+    mainMovedAtMs = m.length ? Math.max(...m.map((x) => Date.parse(x.mergedAt) || 0)) : 0;
+    merged = m.map((x) => ({ number: x.number, body: x.body || '' }));
   } catch {
     mainMovedAtMs = 0;
   }
-  return { prs, required: requiredContexts(), mainMovedAtMs };
+  return { prs, required: requiredContexts(), mainMovedAtMs, merged };
 }
 
 const STATE_DIR = path.join(homedir(), '.local', 'state', 'tepna', 'pr-walker');
@@ -467,6 +475,56 @@ function rebaseBranch(a, wt) {
   }
 }
 
+/* The closure PR is built in the walker's OWN checkout, detached at origin/main, and the checkout is
+   detached back to origin/main afterwards whatever happened — the rebase step's discipline. */
+export function closureCommitMessage(changed, close) {
+  const by = new Map(close.map((c) => [c.key, c.number]));
+  return [
+    `Close ${changed.length} residue row(s) that merged PRs declared fixed`,
+    '',
+    ...changed.map((k) => `- ${k}: fixed #${by.get(k)}`),
+    '',
+    'Fleet-Session: pr-walker (unattended, tools/pr-walker.mjs)'
+  ].join('\n');
+}
+function closeResidue(close, wt, nowMs) {
+  const g = (...args) => sh('git', args, { cwd: wt });
+  if (!wt || !existsSync(path.join(wt, '.git'))) return { result: 'no-worktree', changed: [] };
+  if (g('status', '--porcelain').trim()) return { result: 'dirty: the walker checkout was not clean', changed: [] };
+  const branch = `${CLOSE_BRANCH_PREFIX}${close[0].number}-${nowMs.toString(36).slice(-5)}`;
+  let step = 'fetch';
+  try {
+    g('fetch', '-q', 'origin', 'main');
+    step = 'checkout';
+    g('checkout', '-q', '--detach', 'origin/main');
+    const file = path.join(wt, 'briefs', 'RESIDUE.md');
+    const r = closeRowsText(readFileSync(file, 'utf8'), close);
+    if (r.refused) return { result: `refused: ${r.refused}`, changed: [] };
+    if (!r.changed.length) return { result: 'nothing-to-close', changed: [] };
+    writeFileSync(file, r.text);
+    step = 'commit';
+    g('add', '--', 'briefs/RESIDUE.md');
+    g('commit', '-q', '-m', closureCommitMessage(r.changed, close));
+    step = 'push';
+    g('push', '-q', 'origin', `HEAD:refs/heads/${branch}`);
+    step = 'pr';
+    const title = `Close ${r.changed.length} residue row(s) that merged PRs declared fixed`;
+    const url = gh(['pr', 'create', '--draft', '--base', 'main', '--head', branch, '--title', title, '--body', closureBody(r.changed, close)]).trim();
+    return { result: `opened:${url.split('/').pop()}`, changed: r.changed };
+  } catch (e) {
+    return { result: stepResult(step, e), changed: [] };
+  } finally {
+    try {
+      g('checkout', '-q', '--', 'briefs/RESIDUE.md');
+    } catch {}
+    try {
+      g('checkout', '-q', '--detach', 'origin/main');
+    } catch (e) {
+      console.error(`pr-walker: the detach to origin/main failed — ${stepResult('detach', e)}`);
+    }
+  }
+}
+
 export function act(actions, state, opts) {
   const done = [];
   for (const a of actions) {
@@ -545,6 +603,127 @@ export function landingPage(rows, planned, done, meta) {
   return `${L.join('\n')}\n`;
 }
 
+/* ── THE JOURNAL SAYS EACH THING ONCE ──────────────────────────────────────────────────────────
+   Measured 2026-11-07 over 6 h of `journalctl --user -u tepna-pr-walker.service`: 221 passes wrote
+   1878 lines, and the same alert for #4503 stood in 29 of them, #4526 in 22. Every bird that reads
+   the journal to learn what the walker did pays for every repeat. `landing.md` keeps the FULL page,
+   because it is a state view the board renders. The journal is a change log, so it gets:
+     - an alert line only the first time its (PR, kind, head) is seen, then a count of standing ones;
+     - one short line for a pass whose page body, after that collapse, equals the previous pass. */
+export function alertKey(al, rows) {
+  const r = (rows || []).find((x) => x.number === al.number);
+  return `${al.number}|${al.kind}|${(r && r.headSha) || ''}`;
+}
+export function freshAlerts(alerts, rows, seen) {
+  const open = new Set((rows || []).map((r) => r.number));
+  const next = {};
+  for (const [k, v] of Object.entries(seen || {})) if (open.has(Number.parseInt(k, 10))) next[k] = v;
+  const fresh = [];
+  for (const al of alerts || []) {
+    const k = alertKey(al, rows);
+    if (!(k in next)) fresh.push(al);
+    next[k] = true;
+  }
+  return { fresh, seen: next };
+}
+export function journalText(page, fresh, prevBody) {
+  const keep = new Set((fresh || []).map((al) => `ALERT #${al.number} ${al.kind}: ${al.why}`));
+  const lines = String(page || '')
+    .split('\n')
+    .filter((l) => l !== '');
+  const head = lines[0] || '';
+  const standing = lines.filter((l) => l.startsWith('ALERT ') && !keep.has(l)).length;
+  const body = lines.slice(1).filter((l) => !l.startsWith('ALERT ') || keep.has(l));
+  if (standing) body.push(`(${standing} standing alert(s) unchanged — full list in landing.md)`);
+  const bodyText = body.join('\n');
+  const at = (/^pr-walker pass (\S+)/.exec(head) || [])[1] || '?';
+  if (prevBody != null && bodyText === prevBody) return { text: `pr-walker pass ${at} · unchanged\n`, body: bodyText };
+  return { text: `${[head, ...body].join('\n')}\n`, body: bodyText };
+}
+
+/* ── A MERGED FIX CLOSES ITS OWN RESIDUE ROW ───────────────────────────────────────────────────
+   Measured 2026-11-07: two of the five newest commits on main (#4528, #4524) were a bird's whole
+   work unit spent editing one state cell after its fix merged. The fix PR now DECLARES the row on a
+   `Residue-fixed: <key>` line in its body, and after the merge the walker opens the RESIDUE-only PR
+   that writes `fixed #<that PR>`. Only the declaration counts — a key the body merely mentions closes
+   nothing — and only a row that reads exactly `OPEN` on main is edited. Nothing else moves. */
+export const RESIDUE_FIXED_RE = /^Residue-fixed:\s*(.+)$/gm;
+export const RESIDUE_KEY_RE = /^\d{4}-\d{2}-\d{2}-[a-z0-9][a-z0-9-]*$/;
+export const CLOSE_BRANCH_PREFIX = 'claude/residue-close-walker-';
+export function parseResidueFixed(body) {
+  const keys = [];
+  for (const m of String(body || '').matchAll(RESIDUE_FIXED_RE))
+    for (const k of m[1].split(/[\s,]+/).map((s) => s.replace(/`/g, '').trim())) if (RESIDUE_KEY_RE.test(k) && !keys.includes(k)) keys.push(k);
+  return keys;
+}
+export function residueStates(text) {
+  const out = new Map();
+  for (const line of String(text || '').split('\n')) {
+    if (!line.startsWith('| ')) continue;
+    const cells = line.split(' | ');
+    const key = cells[0].slice(2).trim();
+    if (!RESIDUE_KEY_RE.test(key)) continue;
+    out.set(key, cells[cells.length - 1].replace(/\s*\|\s*$/, '').trim());
+  }
+  return out;
+}
+/* merged: [{ number, body }]; done: { key: 'pr:<n>' | 'failed:…@<ms>' }. Returns the rows to close
+   and a note for each declared key that cannot close, so a typo is said once, not looped on. */
+export function planClosures(merged, residueText, done, nowMs, retryMin = 60) {
+  const states = residueStates(residueText);
+  const close = [];
+  const notes = [];
+  for (const pr of merged || []) {
+    for (const key of parseResidueFixed(pr.body)) {
+      const d = (done || {})[key];
+      if (d && !/^failed:/.test(d)) continue;
+      if (d && nowMs - Number(d.split('@').pop()) < retryMin * 60000) continue;
+      const st = states.get(key);
+      if (st === undefined) notes.push({ key, number: pr.number, why: 'no such row on main' });
+      else if (st !== 'OPEN') notes.push({ key, number: pr.number, why: `row already reads ${st}` });
+      else if (!close.some((c) => c.key === key)) close.push({ key, number: pr.number });
+    }
+  }
+  return { close, notes };
+}
+/* Edit ONLY the state cell of each named row, and refuse if any other byte would move. */
+export function closeRowsText(text, close) {
+  const want = new Map((close || []).map((c) => [c.key, c.number]));
+  const changed = [];
+  const lines = String(text).split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (!line.startsWith('| ')) continue;
+    const key = line.slice(2).split(' | ')[0].trim();
+    if (!want.has(key) || !/ \| OPEN \|$/.test(line)) continue;
+    lines[i] = line.replace(/ \| OPEN \|$/, ` | fixed #${want.get(key)} |`);
+    changed.push(key);
+  }
+  const out = lines.join('\n');
+  const before = String(text).split('\n');
+  const moved = lines.filter((l, i) => l !== before[i]).length;
+  if (moved !== changed.length) return { text, changed: [], refused: `${moved} line(s) moved for ${changed.length} closure(s)` };
+  return { text: out, changed, refused: null };
+}
+export function closureBody(changed, close) {
+  const by = new Map(close.map((c) => [c.key, c.number]));
+  return [
+    `Rule 0: no search — the walker closes rows that merged PRs declared on a \`Residue-fixed:\` line → ${[...new Set(changed.map((k) => `#${by.get(k)}`))].join(' · ')}`,
+    '',
+    '## What this PR does',
+    '',
+    'This PR edits only the state cell of each row below in `briefs/RESIDUE.md`. Each merged PR named its row on a `Residue-fixed:` line, and the row read `OPEN` on main.',
+    '',
+    '| row | state |',
+    '|---|---|',
+    ...changed.map((k) => `| \`${k}\` | \`fixed #${by.get(k)}\` |`),
+    '',
+    'The fix PR is the evidence for each row. Revert this PR if a fix did not discharge its row.',
+    '',
+    'Fleet-Session: pr-walker (unattended, tools/pr-walker.mjs)'
+  ].join('\n');
+}
+
 export function pass(opts) {
   const snap = snapshot();
   const state = loadState();
@@ -561,19 +740,53 @@ export function pass(opts) {
   const done = act(planned.actions, state, { ...opts, at: new Date(now).toISOString() });
   if (!opts.dryRun) saveState(state);
   const drift = fallbackDrift(snap.required);
-  const page = landingPage(rows, planned, done, {
-    at: new Date(now).toISOString(),
-    drift,
-    requiredSource: snap.required.length ? `ruleset(${snap.required.length})` : 'UNREADABLE — the mirror plus every reported check'
-  });
+  /* Residue closures: plan from the merged bodies against main's ledger, act only when no walker
+     closure PR is already open (one RESIDUE-only closure PR in flight). */
+  state.closed ||= {};
+  const resLines = [];
+  let led = null;
+  try {
+    led = sh('git', ['show', 'origin/main:briefs/RESIDUE.md'], { cwd: opts.worktree });
+  } catch {
+    led = null;
+  }
+  if (snap.merged && led) {
+    const pc = planClosures(snap.merged, led, state.closed, now);
+    for (const n of pc.notes) {
+      resLines.push(`RESIDUE #${n.number} declared ${n.key}: ${n.why} — nothing closed`);
+      if (!opts.dryRun) state.closed[n.key] = `note:${n.why}`;
+    }
+    if (pc.close.length) {
+      const inFlight = snap.prs.find((p) => (p.branch || '').startsWith(CLOSE_BRANCH_PREFIX));
+      if (inFlight) resLines.push(`RESIDUE ${pc.close.length} closure(s) wait: walker closure PR #${inFlight.number} is open`);
+      else if (opts.dryRun) resLines.push(`RESIDUE would close: ${pc.close.map((c) => `${c.key} → fixed #${c.number}`).join(' · ')}`);
+      else {
+        const cr = closeResidue(pc.close, opts.worktree, now);
+        const ok = /^opened:/.test(cr.result);
+        for (const c of pc.close) state.closed[c.key] = ok && cr.changed.includes(c.key) ? `pr:${cr.result.slice(7)}` : `failed:${cr.result}@${now}`;
+        resLines.push(`RESIDUE closure ${pc.close.map((c) => c.key).join(', ')} → ${cr.result}`);
+      }
+    }
+  } else resLines.push(`RESIDUE closures not planned: ${!snap.merged ? 'merged PRs unreadable' : 'main ledger unreadable'}`);
+  const page =
+    landingPage(rows, planned, done, {
+      at: new Date(now).toISOString(),
+      drift,
+      requiredSource: snap.required.length ? `ruleset(${snap.required.length})` : 'UNREADABLE — the mirror plus every reported check'
+    }) + resLines.map((l) => `${l}\n`).join('');
+  const fa = freshAlerts(planned.alerts, rows, state.alertSeen);
+  const jt = journalText(page, fa.fresh, state.journalBody);
   if (!opts.dryRun) {
+    state.alertSeen = fa.seen;
+    state.journalBody = jt.body;
+    saveState(state);
     try {
       mkdirSync(BOARD_DIR, { recursive: true });
       writeFileSync(path.join(BOARD_DIR, 'landing.md'), page);
     } catch {}
   }
-  if (opts.json) console.log(JSON.stringify({ at: now, rows, actions: done, alerts: planned.alerts, drift }));
-  else process.stdout.write(page);
+  if (opts.json) console.log(JSON.stringify({ at: now, rows, actions: done, alerts: planned.alerts, drift, residue: resLines }));
+  else process.stdout.write(opts.dryRun ? page : jt.text);
   return { rows, done, alerts: planned.alerts };
 }
 

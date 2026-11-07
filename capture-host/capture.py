@@ -10916,7 +10916,9 @@ async def loss_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" =
             # no capture file at all (tomorrow's sidecar-only folder, every night at midnight).
             _settled: "dict[str, float]" = {}
             for _n in every:
-                _m = await asyncio.to_thread(nightqc.newest_data_mtime, os.path.join(captures, _n))
+                # THE RECORDING'S DATA, across its folder set: a night that starts after midnight keeps every
+                # capture file in the next day's folder (`solid_night_inputs.recording_newest_mtime`).
+                _m = await asyncio.to_thread(solid_night_inputs.recording_newest_mtime, os.path.join(captures, _n))
                 # AND THE BAND THE FOLDER NAMES HAS CLOSED. Settled data alone judged a morning-only folder
                 # before its own band opened (vigil 2026-11-03: UNKNOWN over 0 of 0, announced on ntfy).
                 # `solid_night_inputs.band_phase` carries the measurement; the night before already reads
@@ -11016,11 +11018,15 @@ def _publish_loss(r: dict) -> bool:
         }
         dc = r["loss"]["daemon_caused_min"] or 0
         if dc:
+            # ONE DECIMAL, AND A REASON ONLY WHEN THE VERDICT HAS ONE. MEASURED on the capture box
+            # 2026-11-07: "%.0f" printed "0 min" for night 2026-10-18, under half a minute, and a PASS
+            # verdict carries no reason, so the line ended in "(None)".
+            why = r["loss"]["reason"]
             log.warning(
-                "loss-audit: %s — %.0f min of the night's gaps were the daemon's own doing (%s)",
+                "loss-audit: %s — %.1f min of the night's gaps were the daemon's own doing%s",
                 night,
                 dc,
-                r["loss"]["reason"],
+                f" ({why})" if why else "",
             )
     if r["loss_error"]:
         # The batch stopped at this night, exactly as the in-process loop did when the audit raised. The

@@ -33,7 +33,7 @@
  * ══════════════════════════════════════════════════════════════════════════════════════════════ */
 import { closeSync, openSync, readSync, readdirSync, existsSync, statSync } from 'node:fs';
 
-import { notANight, populationVerdict, snapshotNights } from './corpus-scope-core.mjs';
+import { coverageIdentity, notANight, populationVerdict, snapshotNights } from './corpus-scope-core.mjs';
 import { join } from 'node:path';
 import { getDsps, loadDsps, median } from './pat-matchrate-strict.mjs';
 import { isCliEntry } from './argv-guard.mjs';
@@ -218,10 +218,11 @@ if (IS_CLI) {
      still gets the set it was computed over. A SKIPPED night scored nothing, so it is NOT covered:
      `notANight` reads `ok === false` and a row without the flag would count as read. */
   const population = populationVerdict(popBefore, snapshotNights(DIR), { tool: 'tools/acc-select-compare.mjs' });
-  const unscored = notANight(
-    { nights },
-    rows.map((r) => ({ night: r.night, ok: !r.skipped }))
-  );
+  const scoredRows = rows.map((r) => ({ night: r.night, ok: !r.skipped }));
+  const unscored = notANight({ nights }, scoredRows);
+  /* THE DIFFERENCE ANSWERS TO THE ARITHMETIC (#4506). The JSON below publishes
+     `measured: used.length` as the scored count, so that figure is held to the rows the read scored. */
+  coverageIdentity({ nights }, scoredRows, unscored, { printedScored: used.length });
   console.error(
     `  population: ${population.status} — ${population.population.checked} night(s) of ${population.population.eligible}` +
       (ONLY ? ` · --only ${ONLY} left ${popBefore.n - nights.length} offered night(s) unread` : '') +

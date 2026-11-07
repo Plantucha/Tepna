@@ -223,6 +223,25 @@ evidence".
   audit's `relink_off_body` now reads such a `link-loss` end as `doff`, with `doff_witness:
   relink-not-worn: <file>`. The witness is the stream's NEXT file only. Census 2026-11-06 over 142 night
   folders: 2 link-loss ends had an unworn next file, and each was its night's worn end.
+- **A Verity end now has three removal witnesses** (owner 2026-11-07: a removal like the H10, a dock like
+  the ring, and a power-off by hand). The
+  `pulse-tail` witness reads the PPI rows: after the last run of 30 rows with a pulse, 30 more rows over
+  60 s or more carry none. It moves the worn end back to the last row of that run. The `charger` witness
+  is the ring's dock rule over the Verity's own LINK battery rows. The `final-epoch` witness is the
+  unchanged removal signature, which also covers a Verity switched off by hand.
+- **The PPI not-worn rule runs before the epoch floor**, so a relink file under 30 epochs with no pulse
+  still witnesses the doff before it. Census 2026-11-07 over 106 night folders: 5 Verity worn ends moved
+  3 to 32 min earlier. Four of them land within 71 s of a sibling device's doff, and one is 9 min after.
+- **The continuity band reads the worn interval half-open: `start <= at < end`** (Wren, 2026-11-07). A
+  gap's `at` is the last row before it, so its seconds run after `at`. A gap that starts AT the worn end lost
+  nothing while the device was worn. On night 2026-11-06 the Verity's worn end was its last row, 06:03:02,
+  and the 86 s to the relink file started there, so the band FAILed. `restart_gaps` counts the same
+  population. Census 2026-11-07 of the written audits: 3 gaps sat on a worn end, all Verity, and 1 FAILed.
+- **The `rtc` band reads the recording's folders, like the seam band** (Wren, 2026-11-07). `rtc_events`
+  now reads the logs in `_scope_dirs` whose session starts inside the night's band. Night 2026-11-06
+  began after midnight, so the ring's log for its worn interval sat in the next day's folder. The band
+  read the judged folder alone and gave UNKNOWN over 0 reads. Census 2026-11-07 over the 20 nights whose
+  audit records a ring worn end: 19 stay PASS, and 2026-11-06 moves from UNKNOWN to PASS.
 - **Two inputs this night showed are NOT wear evidence.** (i) The daemon's not-worn detection **did not
   fire** for the H10 in those 27½ min (Wren is filing the row). (ii) The loss audit's `lost_min` measures
   GAPS: its 0.0 for the H10 was right about gaps and silent about wear. The verdict needs both — continuity

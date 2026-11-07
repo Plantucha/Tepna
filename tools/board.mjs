@@ -257,9 +257,13 @@ function walkerQueue() {
   }
 }
 
+/* A FETCH CAP IS NOT A TOTAL (Muse #4267, N-2). When gh returns exactly the cap, more PRs may exist,
+   so the count prints as "40+". */
+export const PR_FETCH_CAP = 40;
+
 function prs() {
   try {
-    const raw = sh('gh', ['pr', 'list', '--state', 'open', '--limit', '40', '--json', 'number,title,isDraft,mergeStateStatus,statusCheckRollup,updatedAt'], { cwd: REPO });
+    const raw = sh('gh', ['pr', 'list', '--state', 'open', '--limit', String(PR_FETCH_CAP), '--json', 'number,title,isDraft,mergeStateStatus,statusCheckRollup,updatedAt'], { cwd: REPO });
     const list = JSON.parse(raw).map((p) => {
       const buckets = {};
       for (const c of p.statusCheckRollup || []) {
@@ -279,7 +283,14 @@ function prs() {
       .sort((a, b) => (a.updatedAt < b.updatedAt ? -1 : 1))
       .map((p) => p.number);
     const order = queued.length ? queued : nonDraft;
-    return { ok: true, list, walkerOrder: order, walkerSource: queued.length ? 'walker queue file' : 'Kodiak order of the non-drafts (no walker queue file)', openNonDraft: nonDraft.length };
+    return {
+      ok: true,
+      list,
+      capped: list.length >= PR_FETCH_CAP,
+      walkerOrder: order,
+      walkerSource: queued.length ? 'walker queue file' : 'Kodiak order of the non-drafts (no walker queue file)',
+      openNonDraft: nonDraft.length
+    };
   } catch (e) {
     return fail(`gh pr list failed: ${e.message}`);
   }
@@ -1424,7 +1435,7 @@ export function summarize(b) {
   const u = b.usage24h;
   const tok = u.ok ? `${(u.fleetTokens / 1e6).toFixed(1)}M fresh/24h` : 'usage unread';
   const bud = b.budget.ok ? `plan ${b.budget.label}${b.budget.stale ? ' (STALE)' : ''}` : b.budget.weekReset ? 'plan %: week reset, new week unread' : 'plan %: not reported';
-  const pr = b.prs.ok ? `${b.prs.openNonDraft} open` : 'PRs unread';
+  const pr = b.prs.ok ? `${b.prs.openNonDraft}${b.prs.capped ? '+' : ''} open` : 'PRs unread';
   const rel = b.release.ok ? `v${String(b.release.lastTag).replace(/^v/, '')} +${b.release.commitsSince}c/${b.release.ageDays}d` : 'release unread';
   const red = b.banners.filter((x) => x.level === 'red');
   return [
@@ -1648,7 +1659,7 @@ ${banners}
 <div class="status-cards">
 <div class="mini-card"><h3>daemon</h3><p class="big ${b.vigilHealth.ok && b.vigilHealth.active === 'active' ? 'ok' : 'bad'}">${b.vigilHealth.ok ? esc(b.vigilHealth.active) : 'unknown'}</p></div>
 <div class="mini-card"><h3>streak</h3><p class="big ${b.solidNights.ok && b.solidNights.streak > 0 ? 'ok' : 'warn'}">${b.solidNights.ok ? b.solidNights.streak : '?'}</p></div>
-<div class="mini-card"><h3>open PRs</h3><p class="big">${b.prs.ok ? b.prs.list.length : '?'}</p></div>
+<div class="mini-card"><h3>open PRs</h3><p class="big">${b.prs.ok ? `${b.prs.list.length}${b.prs.capped ? '+' : ''}` : '?'}</p></div>
 <div class="mini-card"><h3>weekly</h3><p class="big ${b.budget.ok && !b.budget.stale ? '' : 'warn'}">${b.budget.ok ? esc(b.budget.label) : '?'}</p></div>
 <div class="mini-card"><h3>release</h3><p class="big">${b.releaseCount.ok ? b.releaseCount.commitsLeft + 'c/' + b.releaseCount.daysLeft + 'd' : '?'}</p></div>
 </div>

@@ -416,6 +416,24 @@ def band_of(night_dir: str):
     return _nqc.night_band(cast(float, probe))
 
 
+def recording_newest_mtime(night_dir: str) -> float | None:
+    """Newest mtime among the capture files of the RECORDING this folder names: its own capture files, and
+    the next day's files whose session starts inside its band. None when there is none.
+
+    MEASURED on the capture box 2026-11-07: the night of 2026-10-03 began after midnight. Its H10 file set
+    opened at 00:28 in the 2026-10-04 folder, and the 2026-10-03 folder held only sidecars. The loss poller
+    read `nightqc.newest_data_mtime` over the folder alone, found no capture file, and never judged the
+    night: no LOSS-AUDIT, no SOLID-VERDICT. The judge itself reads both folders (`recording_scope`); the
+    eligibility test now reads the same set, so a night that starts after midnight is judged like any other."""
+    band = band_of(night_dir)
+    found = [_nqc.newest_data_mtime(night_dir)]
+    if band is not None:
+        nxt = cast(str, _next_day_dir(night_dir))  # a date folder always names its next day
+        found.append(_nqc.newest_data_mtime(nxt, keep=lambda n: in_band(n, band)))
+    known = [m for m in found if m is not None]
+    return max(known) if known else None
+
+
 def band_phase(night_dir: str, now: _dt.datetime) -> str | None:
     """Where `now` sits against the band this folder NAMES: `before`, `open` or `closed`. None without a date.
 
@@ -772,7 +790,11 @@ def continuity(audit: dict, audit_dev: dict, start, end, spans: dict[str, tuple]
     inside = []
     for g in gaps:
         at = _dt.datetime.fromisoformat(g["at"])
-        if start <= at <= end:
+        # HALF-OPEN AT THE WORN END. A gap's `at` is the last row before it, so the seconds it lost run
+        # AFTER `at`. A gap that starts AT the worn end lost nothing inside the worn interval. MEASURED on
+        # the capture box 2026-11-07: night 2026-11-06's Verity ended at its doff, 06:03:02, the last row
+        # of its file. The 86 s to the relink file started on that row, and the band read it as a FAIL.
+        if start <= at < end:
             inside.append((str(g["cause"]), float(g["s"])))
     worn_s = (end - start).total_seconds()
     regress = sorted({c for c, _ in inside if c in DAEMON_REGRESSION})
@@ -1927,7 +1949,19 @@ def rtc_events(night_dir: str, model: str) -> list[tuple[_dt.datetime, str, floa
     if tag is None:
         return out
     prefix = MODELS[model]["prefix"]
-    for path in sorted(glob.glob(os.path.join(night_dir, f"{prefix}*_{tag}.csv"))):
+    # THE RECORDING'S FOLDERS, NOT THE NIGHT FOLDER ALONE, and only the sessions that start inside the
+    # night's band: the same set the seam band's RTC reader takes. MEASURED on the capture box
+    # 2026-11-07: night 2026-11-06 began after midnight, and the ring's log for its worn interval sat in
+    # the 2026-11-07 folder. This reader globbed 2026-11-06 alone, found only that morning's logs, and
+    # the band read UNKNOWN over 0 reads.
+    band = band_of(night_dir)
+    paths = sorted(
+        f
+        for d in _scope_dirs(night_dir)
+        for f in glob.glob(os.path.join(d, f"{prefix}*_{tag}.csv"))
+        if in_band(f, band)
+    )
+    for path in paths:
         try:
             fh = open(path, encoding="utf-8", errors="replace")
         except OSError:
@@ -2003,6 +2037,10 @@ def rtc_band(night_dir: str, model: str, start, end) -> dict:
     reads = [(t, v) for t, k, v in ev if k == "read" and v is not None and start <= t <= end]
     clear = [(t, v) for t, v in reads if all(abs((t - p).total_seconds()) > RTC_PUSH_SETTLE_S for p in pushes)]
     excluded = len(reads) - len(clear)
+    if not reads:
+        # NO READ IS NOT A READ NEAR A PUSH. The reason below claimed "all 0 read(s) sit within 60 s of a
+        # push" over a night whose logs held no read inside the worn interval at all.
+        return _decision("UNKNOWN", "no read inside the worn interval, so the RTC was never measured there")
     if not clear:
         return _decision(
             "UNKNOWN",
@@ -2496,9 +2534,9 @@ def restart_gaps(audit_dev: dict | None, start, end) -> dict | None:
         for g in rows
         if isinstance(g, dict)
         and g.get("cause") == RESTART
-        # THE BAND'S OWN POPULATION, CLOSED AT BOTH ENDS, because this field has to count exactly what
-        # `continuity` counted — it reads `start <= at <= end` four screens up.
-        and start <= _dt.datetime.fromisoformat(g["at"]) <= end
+        # THE BAND'S OWN POPULATION, half-open at the worn end, because this field has to count exactly
+        # what `continuity` counted — it reads `start <= at < end` four screens up.
+        and start <= _dt.datetime.fromisoformat(g["at"]) < end
     ]
     if not found:
         return None

@@ -37,7 +37,13 @@ for bird in kestrel heron osprey magpie finch wren; do
   state="$(printf '%s' "$agents" | jq -r --arg n "$bird" '.result.agents[]? | select(.name == $n) | .agent_status // empty' | head -1)"
   if [ -z "$state" ]; then echo "$bird: no live session"; continue; fi
   # Unread = the per-subscription counts plus the addressed-only count `status` prints.
-  unread="$("$BOARD" --as "$bird" status 2>/dev/null | grep -oE '([0-9]+) unread|unread entries: [0-9]+' | grep -oE '[0-9]+' | awk '{s+=$1} END {print s+0}')"
+  # A STATUS THAT CANNOT BE READ IS NOT ZERO UNREAD (Muse #4267, N-1). A failed run, or output with no
+  # count line in the known shape, used to sum to 0 and skip the nudge. `status` prints a count line per
+  # subscription, so a readable status always holds one.
+  if ! st="$("$BOARD" --as "$bird" status 2>/dev/null)"; then echo "$bird: board status failed — unread unknown, no nudge"; continue; fi
+  counts="$(printf '%s' "$st" | grep -oE '([0-9]+) unread|unread entries: [0-9]+' | grep -oE '[0-9]+')"
+  if [ -z "$counts" ]; then echo "$bird: board status has no count line — unread unknown, no nudge"; continue; fi
+  unread="$(printf '%s\n' "$counts" | awk '{s+=$1} END {print s+0}')"
   case "$state" in
     idle|done) ;;
     blocked) echo "$bird: blocked on a dialog, $unread unread — left for the owner"; continue ;;

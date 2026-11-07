@@ -5287,6 +5287,15 @@
       "note": "PROBED AT THIS CALL SITE, not transferred. The same mutation text in `clocks` has its own pair of entries with its own probe, and this file's history records that a claim does not carry between call sites because the mutation looks the same — there the consumer is `float(p[2])` alone, here it is also an exact membership test on `c[1]`."
     },
     {
+      "brief": "SOLID-NIGHT-2026-09-23, residue 2026-11-07-a-night-that-starts-after-midnight-is-never-judged (#4503), 2026-11-07",
+      "class": "no-distinguishing-input",
+      "key": "- nxt = cast(str, _next_day_dir(night_dir)) # a date folder always names its next day | + nxt = cast(None, _next_day_dir(night_dir)) # a date folder always names its next day",
+      "function": "recording_newest_mtime",
+      "op": "type-argument substitution inside `typing.cast`, which is the identity at runtime",
+      "probe": "No probe is possible and none is owed: the mutated subexpression's VALUE is `_next_day_dir(night_dir)` on both sides, so every input is a non-distinguishing input. The same argument as the `band_of` entry in this module, re-read 2026-11-07 against `typing.cast`'s source in the gate's interpreter.",
+      "why": "`typing.cast` IS THE IDENTITY FUNCTION AT RUNTIME. Its body is `return val`, so `cast(None, v)` returns `v` whatever the first argument says. The first argument is read by the TYPE CHECKER only, so no input to this module can distinguish the mutant. mypy in the same `check.sh` owns the mutation: `nxt` then types as None and the next call's `str` parameter reports an error. FALSIFY THIS by finding any first argument to `cast` that changes its return value."
+    },
+    {
       "brief": "NIGHTQC-FLOATING-BAND (#3663) — every night band edge built in the floating frame, 2026-10-19",
       "class": "no-distinguishing-input",
       "key": "- return _nqc.night_band(cast(float, probe)) | + return _nqc.night_band(cast(None, probe))",

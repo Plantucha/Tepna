@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 # Per-unit session launcher
 
-**state:** RUNNING
+**state:** DONE
 **unit:** Build the handoff contract and `tools/unit-launch.sh`, so one session runs one unit and exits.
 **bird:** heron
 **branch:** claude/unit-launch-hrn

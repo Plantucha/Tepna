@@ -3994,19 +3994,24 @@ def test_the_DECLARED_PAUSE_is_STILL_COUNTED_by_the_LOSS_AUDIT(tmp_path):
 # interval's two edges, a status word asserted nowhere, and a reason asserted by fragment.
 
 
-def test_the_GAP_INTERVAL_IS_CLOSED_at_both_ends(tmp_path):
-    """`start <= at <= end` — a gap starting exactly when the strap went on, or exactly when it came
-    off, is INSIDE the worn interval. Both edges need their own plant: the band counts gaps by number
-    as well as by seconds, so one dropped at an edge changes a FAIL into a PASS silently."""
+def test_the_GAP_INTERVAL_IS_HALF_OPEN_closed_at_the_start_open_at_the_end(tmp_path):
+    """`start <= at < end` — a gap starting exactly when the strap went on is INSIDE the worn interval,
+    and so is one a millisecond before the worn end. A gap starting AT the worn end lost its seconds
+    after the strap came off. Each edge needs its own plant: the band counts gaps by number as well as
+    by seconds, so one dropped or added at an edge changes the verdict silently."""
     worn_start, worn_end = T0, dt.datetime.fromisoformat("2026-09-20T23:03:00")
-    for at, where in ((worn_start, "the worn start"), (worn_end, "the worn end")):
-        d = tmp_path / f"edge-{at:%H%M%S}"
+    for at, where in (
+        (worn_start, "the worn start"),
+        (worn_end - dt.timedelta(milliseconds=1), "just before the worn end"),
+    ):
+        d = tmp_path / f"edge-{at:%H%M%S%f}"
         d.mkdir()
         out = _cont(d, gaps=[(at.isoformat(), 11.0, si.DECLARED_PAUSE)])
         assert out["reason"] and "explained discontinuity" in out["reason"], f"{where}: {out}"
-    # and one millisecond outside either edge is NOT counted
+    # and a gap at the worn end, or one millisecond outside either edge, is NOT counted
     for at, where in (
         (worn_start - dt.timedelta(milliseconds=1), "before the worn start"),
+        (worn_end, "at the worn end"),
         (worn_end + dt.timedelta(milliseconds=1), "after the worn end"),
     ):
         d = tmp_path / f"out-{abs(hash(where)) % 9999}"
@@ -5576,6 +5581,36 @@ def test_EVERY_SESSION_LOG_IS_READ_because_the_ring_writes_one_per_session(tmp_p
     assert len(si.rtc_events(str(tmp_path), "O2Ring-S")) == 3, "both logs were read"
 
 
+def test_THE_RTC_LOG_OF_A_NIGHT_THAT_STARTS_AFTER_MIDNIGHT_IS_READ_from_the_mornings_folder(tmp_path):
+    """MEASURED on the capture box 2026-11-07: night 2026-11-06 began after midnight. The ring's log for
+    its worn interval sat in the next day's folder, and the band read UNKNOWN over 0 reads. Two
+    distractors hold a reset each: the judged folder's own morning log, which belongs to the night before,
+    and a midday log in the next folder. Neither starts inside the night's band, so neither counts."""
+    night, morning = tmp_path / "2026-09-20", tmp_path / "2026-09-21"
+    night.mkdir()
+    morning.mkdir()
+    _rtclog(night, [(-18 * 3600.0, "reset", None)], name="Wellue_O2Ring-S_S8AW2100_20260920050000")
+    rows = [(5400.0, "push", None), (9000.0, "read", -0.4), (16200.0, "read", -0.6)]
+    _rtclog(morning, rows, name="Wellue_O2Ring-S_S8AW2100_20260921003000")
+    _rtclog(morning, [(14 * 3600.0, "reset", None)], name="Wellue_O2Ring-S_S8AW2100_20260921130000")
+    ev = si.rtc_events(str(night), "O2Ring-S")
+    assert [k for _, k, _ in ev] == ["push", "read", "read"], ev
+    out = si.rtc_band(str(night), "O2Ring-S", T0, T0 + dt.timedelta(hours=8))
+    assert out["status"] != "FAIL" and "RESET" not in str(out["reason"]), out
+    assert "0 read" not in str(out["reason"]), out
+
+
+def test_A_NIGHT_WITH_NO_RTC_READ_IN_THE_WORN_INTERVAL_SAYS_SO(tmp_path):
+    """ "all 0 read(s) sit within 60 s of a push" described reads that did not exist. No read is its own
+    reason, and it stays UNKNOWN."""
+    _rtclog(tmp_path, [(0.0, "push", None), (-3600.0, "read", -0.5)], name=RING_BASE)
+    out = si.rtc_band(str(tmp_path), "O2Ring-S", T0, T0 + dt.timedelta(hours=8))
+    assert out == {
+        "status": "UNKNOWN",
+        "reason": "no read inside the worn interval, so the RTC was never measured there",
+    }
+
+
 def test_RTC_EVENTS_FOR_A_DEVICE_THAT_LOGS_NONE_IS_EMPTY_not_a_crash(tmp_path):
     """`MODELS[model]["rtc"] is None` — a Polar keeps no RTC log, and asking for its events must return
     an empty list rather than globbing for a tag that does not exist. `rtc_band` short-circuits to
@@ -6834,7 +6869,8 @@ def test_restart_gaps_counts_what_the_band_excluded_and_names_the_interval():
     rows = [
         ("2026-09-20T23:00:00", 104.0, "daemon:restart"),  # ON the start edge — the band counts it
         ("2026-09-20T23:05:00", 51.0, "daemon:restart"),
-        ("2026-09-20T23:10:00", 7.0, "daemon:restart"),  # ON the end edge — the band counts it too
+        ("2026-09-20T23:10:00", 7.0, "daemon:restart"),  # ON the end edge: it lost its seconds after it
+        ("2026-09-20T23:09:59.999", 7.0, "daemon:restart"),  # a millisecond before the end — inside
         ("2026-09-20T23:10:01", 99.0, "daemon:restart"),  # one second past the end: outside
         ("2026-09-20T23:02:00", 60.0, "unattributed"),  # not a restart
     ]
@@ -6845,6 +6881,16 @@ def test_restart_gaps_counts_what_the_band_excluded_and_names_the_interval():
         "from": "2026-09-20T23:00:00",
         "to": "2026-09-20T23:10:00",
     }
+
+
+def test_A_GAP_THAT_STARTS_AT_THE_DOFF_IS_NOT_A_CONTINUITY_FAILURE(tmp_path):
+    """MEASURED on the capture box 2026-11-07: night 2026-11-06 FAILed on one unattributed 86 s gap of the
+    Verity. The gap started at 06:03:02, the worn end and the last row of the worn file, and ran to the
+    relink file. It lost nothing while the device was worn."""
+    assert _cont(tmp_path, gaps=[("2026-09-20T23:03:00", 86.0, "unattributed")]) == {"status": "PASS", "reason": None}
+    d = tmp_path / "inside"  # the control: the same gap one second earlier lies inside and fails the band
+    d.mkdir()
+    assert _cont(d, gaps=[("2026-09-20T23:02:59", 86.0, "unattributed")])["status"] == "FAIL"
 
 
 def test_restart_gaps_REFUSES_A_HALF_OPEN_INTERVAL_even_when_the_rows_HOLD_a_restart():
