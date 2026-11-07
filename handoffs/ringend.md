@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 # Handoff: the live ring envelope ends at its last row
 
-**state:** IN-PROGRESS
+**state:** DONE
 **unit:** Fix row `2026-10-27-the-live-ring-envelope-ends-a-file-by-one-episodes-row-count`.
 **bird:** wren
 **branch:** claude/ringend-wrn
