@@ -62,7 +62,8 @@ import {
   populationVerdict,
   ruleLine,
   snapshotEntries,
-  snapshotNights
+  snapshotNights,
+  unkeyableReason
 } from './corpus-scope-core.mjs';
 export * from './corpus-scope-core.mjs';
 
@@ -510,6 +511,62 @@ function selftest() {
     ok('CONTROL · the same row with ok true is covered, so the two shapes read differently', notANight(offered, [{ night: '2026-07-25', ok: true }]).join(',') === '2026-07-26,logs');
     ok('CONTROL · an offer that enumerated nothing names no removal', notANight({ n: 0, nights: [] }, []).length === 0);
     ok('a covered night the offer never held cannot appear: the difference runs offer minus read', notANight(offered, [{ night: '2099-01-01' }]).length === 3);
+
+    /* ── AND A MEMBER THE ARITHMETIC CANNOT KEY IS A REFUSAL, NEVER A ZERO COVERAGE ────────────
+       Board #4054. `notCovered` reads `row[key]`, so a list of bare NAMES keys nothing and every
+       offered member falls through to the difference — which printed "6 scored" and "offered but not
+       scored: <all six>" inside one paragraph of the window oracle. Five callers passed names.
+       The legs below pin the five unkeyable shapes, the reason text each one gets, and the one thing
+       the message may never carry: the member's own value, which can be corpus data. */
+    const why = (f) => {
+      try {
+        f();
+        return null;
+      } catch (e) {
+        return String((e && e.message) || e);
+      }
+    };
+    const nameMsg = why(() => notANight(offered, ['2026-07-25']));
+    ok('a bare NAME refuses rather than covering nothing', nameMsg != null && /cannot be keyed on 'night'/.test(nameMsg), String(nameMsg));
+    ok("…and the reason names the shape it got, not a guess at the caller's intent", nameMsg != null && /it is a string, not a row/.test(nameMsg), String(nameMsg));
+    ok('…and the index and the member count travel with it, so a mixed list is chaseable', nameMsg != null && /member 0 of 1/.test(nameMsg), String(nameMsg));
+    ok('…and the message never carries the member VALUE, because a member name can be corpus data', nameMsg != null && nameMsg.indexOf('2026-07-25') < 0, String(nameMsg));
+    ok('a number refuses too, and is named as one', /it is a number, not a row/.test(String(why(() => notANight(offered, [17])))), String(why(() => notANight(offered, [17]))));
+    ok(
+      'an array refuses, because a positional tuple carries no key',
+      /it is an array of 3, which carries no 'night'/.test(String(why(() => notANight(offered, [[1, 2, 3]])))),
+      String(why(() => notANight(offered, [[1, 2, 3]])))
+    );
+    const objMsg = why(() => notANight(offered, [{ label: '2026-07-25', rows: 4 }]));
+    ok('an object without the key refuses, and names the keys it does carry', objMsg != null && /no 'night' — its keys are label, rows/.test(objMsg), String(objMsg));
+    ok(
+      'an empty-string key refuses, because it names no member',
+      /its 'night' is an empty string/.test(String(why(() => notANight(offered, [{ night: '' }])))),
+      String(why(() => notANight(offered, [{ night: '' }])))
+    );
+    ok('a null member refuses rather than being dropped in silence', /it is null/.test(String(why(() => notANight(offered, [null])))), String(why(() => notANight(offered, [null]))));
+    ok(
+      'a non-finite numeric key refuses',
+      /its 'night' is a non-finite number/.test(String(why(() => notCovered({ members: [1, 2] }, [{ night: Number.NaN }])))),
+      'a NaN key would join the scored set and cover nothing'
+    );
+    /* THE FAILED ROW IS CHECKED BEFORE `ok === false` REMOVES IT. A read that failed and names no
+       member tells a reader nothing, and naming the removal is this function's whole job. */
+    ok(
+      'a failed row that names no member refuses, rather than being removed unexamined',
+      /member 0 of 1 cannot be keyed/.test(String(why(() => notANight(offered, [{ ok: false }])))),
+      String(why(() => notANight(offered, [{ ok: false }])))
+    );
+    /* CONTROL · the keyed shapes above still answer, and the reason namer says so directly. */
+    ok('CONTROL · a keyed row is keyable, so the refusal is not blanket', unkeyableReason({ night: '2026-07-25' }) === null);
+    ok('CONTROL · a numeric key is keyable, because a record population may be numbered', unkeyableReason({ night: 12 }) === null);
+    ok(
+      'CONTROL · a failed row that NAMES its member is keyable, and the ok filter removes it',
+      unkeyableReason({ night: '2026-07-25', ok: false }) === null && notANight(offered, [{ night: '2026-07-25', ok: false }]).length === 3
+    );
+    ok('the key is a parameter, so a record caller is judged on ITS key', unkeyableReason({ record: 'a' }, 'record') === null && /no 'record'/.test(String(unkeyableReason({ night: 'a' }, 'record'))));
+    ok('CONTROL · an empty covered list is not an unkeyable one', notANight(offered, []).length === 3 && why(() => notANight(offered, [])) === null);
+    ok('CONTROL · an absent covered list still answers, because no member was offered to key', why(() => notANight(offered, null)) === null);
 
     /* ── A POPULATION WHOSE UNIT IS NOT A NIGHT ────────────────────────────────────────────────
        Row 2026-10-21-forty-one-corpus-enumerators-report-no-population. `tools/stage-lab.mjs` walks
