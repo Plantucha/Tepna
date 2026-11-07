@@ -6,6 +6,8 @@ active night untouched, a daemon-caused night logged as a warning, one bad night
 import asyncio
 import concurrent.futures.process  # lazily loaded by the package; an xdist worker may not have touched it
 import json
+
+import pytest
 import os
 import time
 
@@ -58,7 +60,9 @@ def test_loss_poller_audits_settled_nights_once_and_skips_the_active_one(tmp_pat
         _run(capture.loss_poller({"loss_audit": {"poll_sec": 1}, "devices": []}, str(tmp_path)))
     assert calls == ["2026-09-18"], calls  # once, not per tick; the active night skipped
     assert capture.STATUS["loss"]["2026-09-18"]["daemon_caused_min"] == 3.0
-    assert any("3 min of the night's gaps were the daemon's own doing" in r.getMessage() for r in caplog.records)
+    assert any(
+        "3.0 min of the night's gaps were the daemon's own doing (no bar)" in r.getMessage() for r in caplog.records
+    )
     # the night's files change ⇒ audited again
     d = tmp_path / "captures" / "2026-09-18"
     # The night's DATA must be newer than its audit AND still old enough to be settled, so the audit's
@@ -73,6 +77,19 @@ def test_loss_poller_audits_settled_nights_once_and_skips_the_active_one(tmp_pat
     assert sum("the daemon's own doing" in r.getMessage() for r in caplog.records) == 1
     capture._STOP.clear()
     capture._STOP = asyncio.Event()
+
+
+@pytest.mark.parametrize("dc", [0.3, 0.6])
+def test_a_daemon_caused_fraction_of_a_minute_on_a_pass_night_logs_its_own_figure_and_no_none(caplog, dc):
+    """MEASURED on the capture box 2026-11-07: night 2026-10-18 logged "0 min of the night's gaps were the
+    daemon's own doing (None)". The figure was under half a minute, and a PASS verdict has no reason."""
+    loss = {"status": "PASS", "at": "2026-11-07T00:00:00Z", "daemon_caused_min": dc, "reason": None}
+    r = {"night": "2026-10-18", "loss": loss, "loss_error": None, "solid_error": None, "solid": None}
+    with caplog.at_level("WARNING"):
+        assert capture._publish_loss(r) is False
+    msgs = [x.getMessage() for x in caplog.records if "own doing" in x.getMessage()]
+    assert msgs == [f"loss-audit: 2026-10-18 — {dc:.1f} min of the night's gaps were the daemon's own doing"], msgs
+    capture.STATUS.get("loss", {}).pop("2026-10-18", None)
 
 
 def test_loss_poller_survives_a_failing_night(tmp_path, monkeypatch, caplog):

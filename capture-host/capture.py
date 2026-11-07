@@ -11018,11 +11018,15 @@ def _publish_loss(r: dict) -> bool:
         }
         dc = r["loss"]["daemon_caused_min"] or 0
         if dc:
+            # ONE DECIMAL, AND A REASON ONLY WHEN THE VERDICT HAS ONE. MEASURED on the capture box
+            # 2026-11-07: "%.0f" printed "0 min" for night 2026-10-18, under half a minute, and a PASS
+            # verdict carries no reason, so the line ended in "(None)".
+            why = r["loss"]["reason"]
             log.warning(
-                "loss-audit: %s — %.0f min of the night's gaps were the daemon's own doing (%s)",
+                "loss-audit: %s — %.1f min of the night's gaps were the daemon's own doing%s",
                 night,
                 dc,
-                r["loss"]["reason"],
+                f" ({why})" if why else "",
             )
     if r["loss_error"]:
         # The batch stopped at this night, exactly as the in-process loop did when the audit raised. The
