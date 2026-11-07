@@ -3153,13 +3153,20 @@ def test_the_dropped_entries_are_NAMED_so_the_absence_is_not_a_first_run():
 def test_the_tool_passes_the_generator_at_every_ledger_boundary():
     """The contract is only closed if the CALLERS carry it: a reader that defaults the generator, or a
     writer that omits it, puts the hazard back one layer along. Both halves are source-pinned, as
-    `test_the_gate_both_reads_the_record_and_reports_the_absence` pins the prework pair."""
+    `test_the_gate_both_reads_the_record_and_reports_the_absence` pins the prework pair.
+
+    The size reader moved INTO this module as `remembered_mutants_size`, so half of this pin now reads
+    the function instead of the tool's text: the tool must hand the generator over at the boundary, and
+    the naming of a dropped entry is covered code rather than a string in `tools/`."""
+    import inspect
+
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     with open(os.path.join(root, "tools", "mutate.py"), encoding="utf-8") as fh:
         src = fh.read()
     assert "installed_generator()" in src, "the tool must read the generator it is running"
-    assert "generator_mismatches(" in src, "a dropped entry must be named, not silently absent"
-    assert "mutants_size_record(_sizes_text, _gen)" in src, "the reader is called WITH the generator"
+    assert "installed_generator(), module, src_hash, SIZES_FILE" in src, "the reader is called WITH the generator"
+    named = inspect.getsource(M.remembered_mutants_size)
+    assert "generator_mismatches(" in named, "a dropped entry must be named, not silently absent"
     with open(os.path.join(root, "tools", "mutate_diff.py"), encoding="utf-8") as fh:
         gsrc = fh.read()
     assert "installed_generator()" in gsrc, "the gate reads the prework record under its own generator"
@@ -5008,3 +5015,78 @@ def test_a_record_run_refuses_before_the_campaign_when_the_generator_is_not_the_
         "the guard moved after the campaign, so a caller learns the run records nothing only once the "
         "generation it paid for is already done"
     )
+
+
+_SIZES = '{"sizes": {"capture.py@abc123abc123": {"generatedBytes": 562000000, "generator": "3.8.1"}}}'
+
+
+def test_the_committed_record_is_the_ONE_memory_and_names_itself_in_the_basis():
+    """A run that has not generated yet asks what this module generated last time. Only the committed
+    record can answer: it is the one memory the host keeps and the only one CI ever has, because every
+    CI run is a fresh scratch. The basis names the file and the generator, so a reader of the plan can
+    tell a remembered measurement from this run's own `stat`."""
+    size, basis = M.remembered_mutants_size(_SIZES, "3.8.1", "capture.py", "abc123abc123", "mutation-sizes.json")
+    assert size == 562000000, size
+    assert basis == "committed record (mutation-sizes.json, mutmut 3.8.1)", basis
+
+
+def test_no_mutmut_means_the_record_cannot_describe_this_tree_and_the_basis_says_so():
+    """With no generator installed, no entry in the record describes what THIS tree would generate, so
+    every entry is dropped. §∅ names that absence rather than letting it read as a first run on this
+    hash — and 0 is what makes `run_one` take `UNKNOWN_SIZE_WORKERS` instead of a size it never had."""
+    size, basis = M.remembered_mutants_size(_SIZES, None, "capture.py", "abc123abc123", "mutation-sizes.json")
+    assert size == 0, size
+    assert basis == "unknown (no mutmut installed, so no record can describe this tree)", basis
+
+
+def test_an_entry_measured_by_ANOTHER_generator_is_absence_that_names_the_generator():
+    """The size is whatever that generator wrote, so an entry from another one is not a measurement of
+    this tree. Dropping it silently turns a stale number into an unexplained absence, which reads as a
+    first run on this hash — the reason `generator_mismatches` exists."""
+    size, basis = M.remembered_mutants_size(_SIZES, "3.9.0", "capture.py", "abc123abc123", "mutation-sizes.json")
+    assert size == 0, size
+    assert basis == "unknown (the record measured capture.py under mutmut 3.8.1, not 3.9.0)", basis
+
+
+def test_an_entry_with_no_generator_field_names_an_unnamed_generator_never_a_blank():
+    """An entry written before the field existed is not retro-stamped, so its generator reads None. A
+    basis saying "under mutmut , not 3.8.1" would read as a parsing fault; the absence gets a name."""
+    text = '{"sizes": {"capture.py@abc123abc123": {"generatedBytes": 5}}}'
+    size, basis = M.remembered_mutants_size(text, "3.8.1", "capture.py", "abc123abc123", "mutation-sizes.json")
+    assert size == 0, size
+    assert basis == "unknown (the record measured capture.py under mutmut an unnamed generator, not 3.8.1)", basis
+
+
+def test_a_MISS_on_this_source_hash_is_a_bare_unknown_never_the_nearest_entry():
+    """A size from a different version of the source is a guess wearing a measurement's clothes, so a
+    hash the record has never seen is absence with nothing to explain — the first run on that hash."""
+    size, basis = M.remembered_mutants_size(_SIZES, "3.8.1", "capture.py", "ffffffffffff", "mutation-sizes.json")
+    assert size == 0, size
+    assert basis == "unknown", basis
+
+
+def test_the_basis_VOCABULARY_holds_no_scratch_note_because_no_run_could_read_one():
+    """Row `2026-11-06-the-scratch-size-note-is-written-where-no-run-can-read-it`: a host-local note
+    beside the scratch stood first in this order, and its basis string `scratch note` shipped
+    unreachable. The note dies with the scratch, and a scratch that survives carries the generated file
+    the caller stats directly, so the leg answered in no run. This function is handed no note, and these
+    four bases are everything a plan can now publish."""
+    import inspect
+
+    assert "note" not in str(inspect.signature(M.remembered_mutants_size))
+    cases = [
+        (_SIZES, "3.8.1", "capture.py", "abc123abc123"),
+        (_SIZES, None, "capture.py", "abc123abc123"),
+        (_SIZES, "3.9.0", "capture.py", "abc123abc123"),
+        (_SIZES, "3.8.1", "capture.py", "ffffffffffff"),
+        ("", "3.8.1", "capture.py", "abc123abc123"),
+        ("not json at all", "3.8.1", "capture.py", "abc123abc123"),
+    ]
+    bases = {M.remembered_mutants_size(*c, "mutation-sizes.json")[1] for c in cases}
+    assert not any("scratch" in b for b in bases), bases
+    assert bases == {
+        "committed record (mutation-sizes.json, mutmut 3.8.1)",
+        "unknown (no mutmut installed, so no record can describe this tree)",
+        "unknown (the record measured capture.py under mutmut 3.8.1, not 3.9.0)",
+        "unknown",
+    }, bases

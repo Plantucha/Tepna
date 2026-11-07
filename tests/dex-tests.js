@@ -14412,13 +14412,8 @@
         'oracle-ecg-firmware-rr.mjs',
         'oracle-ppg-device-beats.mjs',
         'oxy-hr-bias.mjs',
-        'ppg-channel-combination.mjs',
-        'ppg-foot-consensus-e1.mjs',
-        'ppg-fusion-e3.mjs',
         'ppg-gap-bridge-scan.mjs',
-        'ppg2w-spo2-fit.mjs',
         'ppi-jitter-vs-ecg.mjs',
-        'resp-cardiac-suppression-e8.mjs',
         'stage-lab.mjs'
       ];
       var hasIdentity = function (t) {
@@ -14491,6 +14486,36 @@
           return /coverageIdentity\([^;]*printedScored/.test(TT['tools/' + t] || '');
         }).join(', '),
         'pat-dip-validate.mjs, pat-finger-coupler.mjs, pat-hrv-windows.mjs'
+      );
+      var COV_SLICE3 = ['ppg-channel-combination.mjs', 'ppg-foot-consensus-e1.mjs', 'ppg-fusion-e3.mjs', 'ppg2w-spo2-fit.mjs', 'resp-cardiac-suppression-e8.mjs'];
+      T.eq(
+        'the five PPG and respiration readers off the backlog carry the identity',
+        COV_SLICE3.filter(function (t) {
+          return !hasIdentity(t);
+        }).join(', '),
+        ''
+      );
+      /* EVERY ONE OF THE FIVE PUBLISHES A SCORED COUNT, so every one hands it over. The figure is the
+         file count for four of them and the DISTINCT night count for ppg2w-spo2-fit, whose own line
+         prints a session count beside it — one night can carry several usable pairs, so handing the
+         session count over would throw. */
+      T.eq(
+        'all five hand the printed scored count to the identity',
+        COV_SLICE3.filter(function (t) {
+          return !/coverageIdentity\([^;]*printedScored/.test(TT['tools/' + t] || '');
+        }).join(', '),
+        ''
+      );
+      /* THE UNIT IS PART OF THE ARITHMETIC. These are the first callers to drive the identity over a
+         population that is not a night: four key on a RECORDING, so a `key: 'night'` slipped into one
+         of them would compare file paths against night names and the difference would read as total
+         absence rather than as a defect. */
+      T.eq(
+        'four of the five key the identity on a recording, and only the night-unit reader keys on a night',
+        COV_SLICE3.filter(function (t) {
+          return /coverageIdentity\([^;]*key: 'rec'/.test(TT['tools/' + t] || '');
+        }).join(', '),
+        'ppg-channel-combination.mjs, ppg-foot-consensus-e1.mjs, ppg-fusion-e3.mjs, resp-cardiac-suppression-e8.mjs'
       );
       T.ok(
         'the identity has ONE definition, in corpus-scope-core.mjs beside the namer it checks',
@@ -49372,6 +49397,99 @@
       var src = env.sources || {};
       if (src['adapters/polar-h10-ecg.js'])
         T.ok('polar-h10-ecg · passes comp.accruns into parseDeviceACC', /comp\.accruns \? ecg\.parseDeviceACC\(comp\.acc, \{ runsText: comp\.accruns \}\)/.test(src['adapters/polar-h10-ecg.js']));
+    });
+
+    /* §∅ · THE ECGDEX EPOCH THAT READ 'unknown' AND SAID NOTHING
+       (residue 2026-11-07-an-ecgdex-epoch-position-reads-unknown-with-no-reason-for-too-few-samples).
+       `stampEpochPositions` wrote `positionReason` under ONE branch, the recorded blanking run. Three
+       other paths reached the same 'unknown' and named nothing: no companion ACC at all, an ACC too
+       short for a single window, and a window this node lacked samples for. The shipped rich golden
+       carries `position: 'unknown'` with no reason for exactly the first of those. `posAt`'s own
+       comment claimed the distinction ("null when no ACC was loaded") while the early return handed
+       it a populated list of 'unknown', so no consumer could keep it.
+       Four states, never two: each refusal names its own token, and a gravity vector scored against
+       every class and matched to none stays SILENT, because that is a measurement. */
+    group('ECGDex posture — each refusal names its token, a scored vector stays silent (§∅)', 'ecgdex-dsp · posture · absence', function (T) {
+      var E = env.ECGDSP || env.ECGDex;
+      if (!E || typeof E.stampEpochPositions !== 'function') {
+        T.skip('ECGDSP.stampEpochPositions unavailable');
+        return;
+      }
+      var fs = 4,
+        t0 = Date.UTC(2026, 10, 7, 1, 0, 0);
+      var mkAcc = function (nSec) {
+        var a = [];
+        for (var i = 0; i < fs * nSec; i++) {
+          var ss = i / fs;
+          a.push({ tsMs: t0 + Math.round(ss * 1000), relNs: Math.round(ss * 1e9), x: Math.round(30 * Math.sin(ss / 7)), y: Math.round(20 * Math.cos(ss / 9)), z: 1000 });
+        }
+        return a;
+      };
+      var mkEp = function (mins) {
+        return mins.map(function (m) {
+          return { tMin: m };
+        });
+      };
+
+      // 1 · NO COMPANION AT ALL — the one state a reader can act on.
+      var none = mkEp([0, 5]);
+      var noneList = E.stampEpochPositions(none, null, fs, t0, 600);
+      T.eq('no ACC loaded · the epoch still refuses', none[0].position, 'unknown');
+      T.eq('…and names the companion that never arrived', none[0].positionReason, 'no-acc-stream');
+      T.eq('…on every epoch, not just the first', none[1].positionReason, 'no-acc-stream');
+      T.eq('…and the position list carries the same token for the event path', noneList[0] && noneList[0].reason, 'no-acc-stream');
+
+      // 2 · A STREAM THAT ARRIVED AND FELL SHORT is a different state, and reads differently.
+      var shortEp = mkEp([0]);
+      E.stampEpochPositions(shortEp, mkAcc(20), fs, t0, 600);
+      T.eq('an ACC too short for one window refuses', shortEp[0].position, 'unknown');
+      T.eq('…under its OWN token, never the absent-stream one', shortEp[0].positionReason, 'acc-too-short');
+
+      // 3 · THE DECISIVE PAIR — one call, one stream, a measured epoch beside a starved one.
+      var pair = mkEp([0, 25]);
+      var pairList = E.stampEpochPositions(pair, mkAcc(600), fs, t0, 1800);
+      T.eq('the covered epoch is MEASURED', pair[0].position, 'supine');
+      T.ok('…and says nothing, because a scored vector is a measurement', !('positionReason' in pair[0]));
+      T.eq('the epoch past the end of the stream refuses', pair[1].position, 'unknown');
+      T.eq('…and names its own shortfall', pair[1].positionReason, 'low-acc-coverage');
+      T.eq('…while the measured entry in the list carries a null reason, not a token', pairList[0] && pairList[0].reason, null);
+
+      // 4 · THE STALE TOKEN — a late companion re-stamps the SAME epoch objects (ecgdex-app.js).
+      var late = mkEp([0, 5]);
+      E.stampEpochPositions(late, null, fs, t0, 600);
+      T.eq('first pass, ACC-less · the token is written', late[0].positionReason, 'no-acc-stream');
+      E.stampEpochPositions(late, mkAcc(600), fs, t0, 600);
+      T.eq('the companion lands · the posture is scored', late[0].position, 'supine');
+      T.ok('…and the stale token is GONE, not left outliving its state', !('positionReason' in late[0]));
+
+      // 5 · THE RECORDED RUN still names itself — the one branch that already did.
+      var acc = mkAcc(1200);
+      acc._blankSpans = [{ t0Ms: t0 + 300000, t1Ms: t0 + 600000 }];
+      var held = mkEp([0, 5, 10]);
+      E.stampEpochPositions(held, acc, fs, t0, 1200);
+      T.eq('a blanked epoch keeps its recorded-run token', held[1].positionReason, 'blanking-run');
+      T.ok('…and its neighbours stay silent', !('positionReason' in held[0]) && !('positionReason' in held[2]));
+
+      // 6 · END TO END — the export seam is a whitelist, so the token has to be named there too.
+      var eq = env.equiv && env.equiv.ecgdex_rich;
+      if (eq && eq.input && typeof E.compute === 'function') {
+        var out = E.compute({ text: eq.input }, { rich: true });
+        var eps = out && out.timeseries && out.timeseries.epochs;
+        T.ok('the rich export carries epochs', !!(eps && eps.length));
+        if (eps && eps.length) {
+          T.eq('…the first one refused this posture for want of a companion', eps[0].position, 'unknown');
+          T.eq('…and the EXPORTED epoch now names it, so the seam is not a whitelist that drops it', eps[0].positionReason, 'no-acc-stream');
+        }
+      } else T.skip('committed ECGDex rich input present', 'synthetic_ecgdex_h10.txt is COMMITTED, so this must run everywhere including CI');
+
+      // 7 · SOURCE MIRRORS — each leg fails when its site comes back.
+      var src = (env.sources && env.sources['ecgdex-dsp.js']) || '';
+      if (src) {
+        T.ok('the measured epoch DELETES the key rather than keeping a stale one', /else delete e\.positionReason;/.test(src));
+        T.ok('the export seam projects the token, present only on a refusal', /\.\.\.\(e\.positionReason \? \{ positionReason: e\.positionReason \} : \{\}\)/.test(src));
+        T.ok('the surge event carries it under the same rule', /\.\.\.\(_posWhy \? \{ positionReason: _posWhy \} : \{\}\)/.test(src));
+        T.ok('CONTROL · no branch stamps a refusal token on a scored vector', !/reason = 'scored/.test(src));
+      } else T.skip('ecgdex-dsp.js source unavailable');
     });
 
     /* done-when 4, the four product-node legs (residue 2026-10-17-sample-parsers-called-without-their-sidecar).

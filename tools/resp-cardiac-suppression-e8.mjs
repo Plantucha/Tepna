@@ -48,7 +48,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, relative } from 'node:path';
 import { median, quantile } from './ppi-match.mjs';
-import { capByNights, gitCommitOf, headNightKeyWith, notCovered, populationVerdict, ruleLine, snapshotEntries } from './corpus-scope-core.mjs';
+import { capByNights, coverageIdentity, gitCommitOf, headNightKeyWith, notCovered, populationVerdict, ruleLine, snapshotEntries } from './corpus-scope-core.mjs';
 import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -397,6 +397,10 @@ function printPopulation() {
   console.log(`  the read scored ${rows.length} of the ${snap.n} offered under ${DIR}${snap.ok ? '' : ` · ${snap.reason}`}`);
   const missed = notCovered(snap, rows, { key: 'rec' });
   if (missed.length) console.log(`  it removed ${missed.length}, by name: ${missed.slice(0, 8).join(' · ')}${missed.length > 8 ? ` · … (+${missed.length - 8})` : ''}`);
+  /* THE DIFFERENCE ANSWERS TO THE ARITHMETIC (#4506). The unit here is a RECORDING, not a night,
+     and the printed count is what a reader takes away, so it is handed over. A second path keyed to
+     one recording would make that length exceed the distinct count, and this is where it says so. */
+  coverageIdentity(snap, rows, missed, { key: 'rec', printedScored: rows.length });
   /* THE CAP'S OWN UNIT, STATED. The old line said `largest first` over a count of files under a flag
      named for nights, which describes two different selections at once. */
   if (accs.length < snap.n)

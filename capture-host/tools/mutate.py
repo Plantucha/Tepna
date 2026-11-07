@@ -108,14 +108,13 @@ from mutation_diff import (  # noqa: E402  (after the sys.path fix above)
     generation_cap_sec,
     generation_timeout_reason,
     results_timeout_reason,
-    generator_mismatches,
     generator_pin_refusal,
     installed_generator,
     pinned_generator,
     merge_mutants_size,
     size_record_refusal,
     merge_prework,
-    mutants_size_record,
+    remembered_mutants_size,
     PREWORK_FILE,
     selection_hash,
     stats_pass_seconds,
@@ -647,45 +646,28 @@ def run_one(
     # small module to nothing. Generated size goes as the sum over functions of (mutants x function
     # length), which a module with a few huge functions explodes. So: measure, remember, or say UNKNOWN.
     _mutants_file = work / "mutants" / module
-    _size_note = scratch / ".mutants-bytes"
     _size_basis = "generated"
     try:
         _mutants_bytes = _mutants_file.stat().st_size
     except OSError:
         # Not generated yet. Fall back to what THIS module generated last time — a REMEMBERED
-        # measurement, never a guess from the source. Two places remember, in order:
-        #   1. the scratch note, which survives only on this host;
-        #   2. the COMMITTED record, which is the only one CI ever has, because every CI run is a fresh
-        #      scratch. Without it each capture.py PR spends its whole generation budget rediscovering
-        #      that capture.py generates 562 MB and fits nowhere.
-        # A hash miss is ABSENT, not the nearest entry: a size from a different version of the source is
-        # a guess wearing a measurement's clothes. So is a size from a different GENERATOR, because the
-        # size is whatever that generator wrote — and that absence is NAMED here rather than left to
-        # read as a first run on this hash.
-        _mutants_bytes, _size_basis = 0, "unknown"
+        # measurement, never a guess from the source. ONE place remembers: the COMMITTED record, which
+        # is also the only one CI ever has, because every CI run is a fresh scratch. Without it each
+        # capture.py PR spends its whole generation budget rediscovering that capture.py generates
+        # 562 MB and fits nowhere.
+        #
+        # A host-local note beside the scratch used to stand FIRST in that order and answered in no run:
+        # it dies with the scratch, and a scratch that survives carries the generated file this branch
+        # has just failed to stat. The decision now sits in `mutation_diff.remembered_mutants_size`,
+        # inside the coverage denominator, where tests enumerate the basis vocabulary — rather than here
+        # in `tools/`, where an unreachable basis string shipped unnoticed.
         try:
-            _mutants_bytes, _size_basis = int(_size_note.read_text(encoding="utf-8").strip()), "scratch note"
-        except (OSError, ValueError):
-            _gen = installed_generator()
-            try:
-                _sizes_text = (HERE / "tools" / SIZES_FILE).read_text(encoding="utf-8")
-            except OSError:
-                _sizes_text = ""
-            _rec = mutants_size_record(_sizes_text, _gen)
-            _known = _rec.get((module, src_hash))
-            if _known:
-                _mutants_bytes, _size_basis = _known, f"committed record ({SIZES_FILE}, mutmut {_gen})"
-            else:
-                # ∅ NAME THE ABSENCE. A record entry dropped for naming another generator must not read
-                # as a first run on this hash: membership says an entry exists, and its value names the
-                # generator that measured it — None for an entry written before the field existed.
-                _stale = generator_mismatches(_sizes_text, "sizes", _gen)
-                _skey = f"{module}@{src_hash}"
-                if _gen is None:
-                    _size_basis = "unknown (no mutmut installed, so no record can describe this tree)"
-                elif _skey in _stale:
-                    _by = _stale[_skey] or "an unnamed generator"
-                    _size_basis = f"unknown (the record measured {module} under mutmut {_by}, not {_gen})"
+            _sizes_text = (HERE / "tools" / SIZES_FILE).read_text(encoding="utf-8")
+        except OSError:
+            _sizes_text = ""
+        _mutants_bytes, _size_basis = remembered_mutants_size(
+            _sizes_text, installed_generator(), module, src_hash, SIZES_FILE
+        )
     try:
         with open("/proc/meminfo", encoding="utf-8") as _fh:
             _avail = available_bytes_from_meminfo(_fh.read())
@@ -894,20 +876,14 @@ def run_one(
         "tail": tail,
         "work": str(work),
     }
-    # REMEMBER THE SIZE, so the NEXT run on this module can refuse before generating rather than after.
-    # A measurement carried forward, never a projection from the source: the note is keyed to the scratch,
-    # which is keyed to the module's source hash, so a source change cannot inherit a stale size.
+    # MEASURE WHAT THIS RUN GENERATED. The committed record is the one memory that carries it forward,
+    # and `--record-sizes` writes it; `size_record_refusal` gates that write AT THE MERGE, where the
+    # operator who asked for a record also reads the refusal's reason. A generation killed at its phase
+    # cap leaves a figure nobody can tell from a whole one, and §∅ keeps that absence there, once.
     try:
-        _grew = _mutants_file.stat().st_size
-        out["mutants_bytes"] = _grew
-        # AND ONLY A FINISHED GENERATION IS REMEMBERED. `size_record_refusal` reads the record this
-        # function has just filled in, so the note and the committed record answer the same question
-        # in the same place: a generation killed at its phase cap leaves a figure that cannot be told
-        # from a whole one, and §∅ keeps that absence rather than storing a floor.
-        if not size_record_refusal(out):
-            _size_note.write_text(f"{_grew}\n", encoding="utf-8")
+        out["mutants_bytes"] = _mutants_file.stat().st_size
     except OSError:
-        pass  # deliberate: the note is an optimisation for the next run, not part of this verdict
+        pass  # deliberate: an absent generated file is an absent size, which the record names as absence
     if res_timed_out:
         # Ordered BEFORE the generation reason only in the record, not in priority: the two cannot both
         # be true (a run killed in generation never reaches this pass), and the gate reads whichever is
