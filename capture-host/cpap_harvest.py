@@ -486,10 +486,13 @@ def helper_failure_kind(rc: int, out: str) -> str:
     return "failed"  # a genuine non-zero from the tool, cause unclassified
 
 
-def _sh(argv: list[str], timeout: float, sudo: bool = False) -> tuple[int, str]:
+def _sh(argv: list[str], timeout: float, sudo: bool = False, quiet: bool = False) -> tuple[int, str]:
     """Run one command, bounded, never raising. `sudo -n` (non-interactive) because this runs from a
     daemon with nobody to answer a password prompt — a missing sudoers rule must fail fast and loudly,
-    not hang until the run deadline."""
+    not hang until the run deadline.
+
+    `quiet=True` logs an ordinary failure at DEBUG, for a caller that reads the return code and logs
+    its own verdict. A CRASHED privilege layer still logs at ERROR."""
     cmd = ["sudo", "-n", *argv] if sudo else argv
     try:
         p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
@@ -498,7 +501,7 @@ def _sh(argv: list[str], timeout: float, sudo: bool = False) -> tuple[int, str]:
             kind = helper_failure_kind(p.returncode, out)
             # CRASHED is the one worth raising the voice for: it means the privilege layer is broken, so
             # every other helper this cycle will fail too and the cause is not in this codebase.
-            (log.error if kind == "crashed" else log.warning)(
+            (log.error if kind == "crashed" else log.debug if quiet else log.warning)(
                 "cpap: %s -> rc=%d [%s] %s", " ".join(cmd[:4]), p.returncode, kind, out[:160]
             )
         return p.returncode, out
@@ -807,7 +810,11 @@ def _wpa_down(iface: str, root: str | None = None) -> bool:
     # only because the vigil box uplinks over wired eno1; on a Wi-Fi box the CPAP harvest's teardown
     # would have taken the network down with it.
     wdir = _wpa_dir(root)
-    rc, out = _sh(_wpa_cli(wdir, iface, "terminate"), 10, sudo=True)
+    # QUIET, BECAUSE THE VERDICT IS BELOW. Measured on the capture box 2026-11-07: each daemon start
+    # logged "wpa_cli -p -> rc=255 [failed]" at WARNING, and the next line said at INFO that no
+    # supplicant was bound, so there was nothing to terminate. The branch below asks the process table
+    # and warns only for a real leak.
+    rc, out = _sh(_wpa_cli(wdir, iface, "terminate"), 10, sudo=True, quiet=True)
     _sh(["ip", "link", "set", iface, "down"], 10, sudo=True)
     # DO NOT SWALLOW IT. This used to `return True` unconditionally, so a terminate that never worked
     # reported a clean teardown and the harvest reported `ok: true` over a leaked root process. Measured
