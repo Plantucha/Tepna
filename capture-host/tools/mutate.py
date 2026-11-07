@@ -101,6 +101,7 @@ from mutation_diff import (  # noqa: E402  (after the sys.path fix above)
     stage_capture_host_view,
     stage_root_reads,
     staged_root_reads,
+    unstageable_root_reads,
     GENERATION_DONE_RE,
     mark_generation_complete,
     scratch_generation_reusable,
@@ -362,6 +363,30 @@ def clean_run_seconds(tests: list[str]) -> tuple[float, bool]:
     return elapsed, r.returncode == 0
 
 
+def _publish_absent_root_reads(tree, names) -> list[str]:
+    """Name the declared root reads no staging could answer, and say on stderr what the gap costs.
+
+    A SKIP IS NOT A PASS, one layer below the module-level rule in this file's header. A test that
+    reads one of these paths skips or fails inside the scratch, so every mutant it would have killed
+    survives and reads like an honest survivor (`mutation_diff.unstageable_root_reads`).
+
+    This prints and never refuses: a declared corpus path is honestly absent on a box holding no
+    corpus, and a refusal would red the gate there. The list reaches the verdict object either way —
+    an empty one is the positive control that says the question WAS asked.
+    """
+    absent = unstageable_root_reads(tree, names)
+    if absent:
+        shown = ", ".join(absent[:8])
+        more = f" (+{len(absent) - 8} more)" if len(absent) > 8 else ""
+        print(
+            f"  ! {len(absent)} declared root read(s) reached no scratch: {shown}{more}"
+            " — a test reading one of these skips inside the scratch, and a skip kills no mutant",
+            file=sys.stderr,
+            flush=True,
+        )
+    return absent
+
+
 def run_one(
     module: str,
     only: str | None = None,
@@ -545,6 +570,7 @@ def run_one(
         # A reused scratch refreshes the root reads too — the same drift class as the siblings.
         plan["root_reads"] = staged_root_reads(HERE)
         plan["root_reads_staged"] = stage_root_reads(HERE, work, plan["root_reads"])
+        plan["root_reads_absent"] = _publish_absent_root_reads(HERE, plan["root_reads"])
         # AND THE READ BACK DOWN. A staged root tool resolves `capture-host/<path>`, which the flattened
         # scratch has no answer for until these two links exist (`stage_capture_host_view`).
         plan["capture_host_view"] = stage_capture_host_view(work)
@@ -571,6 +597,7 @@ def run_one(
         # the static derivation unioned with the traced manifest).
         plan["root_reads"] = staged_root_reads(HERE)
         plan["root_reads_staged"] = stage_root_reads(HERE, work, plan["root_reads"])
+        plan["root_reads_absent"] = _publish_absent_root_reads(HERE, plan["root_reads"])
         # AND THE READ BACK DOWN. A staged root tool resolves `capture-host/<path>`, which the flattened
         # scratch has no answer for until these two links exist (`stage_capture_host_view`).
         plan["capture_host_view"] = stage_capture_host_view(work)
@@ -1074,6 +1101,7 @@ def main(argv=None) -> int:
                 "reused_scratch",
                 "scratch_id",
                 "mutant_generation",
+                "root_reads_absent",
                 "WARNING",
                 "work",
             )

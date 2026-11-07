@@ -71382,11 +71382,13 @@
       // the session count pluralises on ===1; a !== slip reads "1 sessions"
       T.ok('renderKPIs · 1 session is singular', /1 session</.test(CR.renderKPIs({ metrics: {}, therapyHours: 5, nSessions: 1 })));
       T.ok('renderKPIs · 2 sessions is plural', /2 sessions</.test(CR.renderKPIs({ metrics: {}, therapyHours: 5, nSessions: 2 })));
-      // no oximeter ⇒ an HONEST n/a tile, never a 0.0 ODI graded ok
+      /* no oximeter ⇒ an HONEST n/a tile, never a 0.0 ODI graded ok.
+         §∅ — the sub read "no oximeter" for every absence and now names WHICH one. This night
+         carries no session at all, so the lane never ran. The n/a itself is unchanged. */
       var _noOxi = CR.renderKPIs({ metrics: {}, therapyHours: 5, nSessions: 1 });
       T.ok(
-        'renderKPIs · with no oximeter the ODI tile reads "n/a · no oximeter" — not a fabricated 0.0/hr',
-        /n\/a<\/div>/.test(_noOxi) && /no oximeter/.test(_noOxi),
+        'renderKPIs · with no oximetry the ODI tile reads an HONEST n/a that names the absence — not a fabricated 0.0/hr',
+        /n\/a<\/div>/.test(_noOxi) && /no session recorded/.test(_noOxi),
         (/(n\/a|0\.0)/.exec(_noOxi) || [''])[0]
       );
       // the mode string reaches a tile sub — and goes through esc()
@@ -71555,7 +71557,10 @@
       T.eq('oximetryCard · SpO₂ mean 92 is warn, 91.9 is bad — a different band from the nadir in the same units', oSev({ spo2Mean: 92 })[3] + '/' + oSev({ spo2Mean: 91.9 })[3], 'warn/bad');
       T.eq("oximetryCard · pulse median carries NO band — an ungraded metric stays neutral, it does not inherit its neighbour's", oSev({ pulseMedian: 55 })[4], 'neutral');
       var noOxi = CR.oximetryCard({ metrics: {}, sessions: [{ oximetry: { available: false } }] });
-      T.ok('oximetryCard · no oximeter ⇒ a STATED absence, explicitly "not fabricated", with no graded tiles at all', /No oximeter connected/.test(noOxi) && !/m-val/.test(noOxi), noOxi.slice(0, 90));
+      /* §∅ — this used to read /No oximeter connected/. The card now names the lane's OWN token, so a
+         reason-less refusal says it stated none and a low-coverage night is no longer called unplugged.
+         The promise this leg really guards — a stated absence with no graded tiles — is unchanged. */
+      T.ok('oximetryCard · a refusal ⇒ a STATED absence, explicitly "not fabricated", with no graded tiles at all', /not fabricated/.test(noOxi) && !/m-val/.test(noOxi), noOxi.slice(0, 90));
 
       /* ══ WAVE 5 · `crossNodeCard` — THE SAME FOUR BANDS, A SECOND TIME, 370 LINES AWAY ══════════
          `oximetryCard` grades the AirSense's own SA2 lane; `crossNodeCard` grades oximetry BORROWED
@@ -71855,6 +71860,171 @@
       }
     });
 
+    /* ══════ CPAPDex §∅ — EVERY ABSENCE NAMES ITS OWN CAUSE ═════════════════════════════════════
+       `cpapdex-dsp.js` writes four refusal families: `no-spo2-channel` / `oximeter-not-connected` /
+       `low-coverage` on the oximetry lane (:740, :756), `breathRateReason` beside a null breaths/min
+       (:898) and `usageReason: 'no-pressure-channel'` on the night (:1081, :1237, :1492).
+       `grep -cE "Reason" cpapdex-render.js` read **0** before this group, so:
+       • the usage KPI drew `night.therapyHours` — the RECORDING ENVELOPE — under a label the
+         registry defines as "Total mask-on hours (pressure > 0)", on the very night the DSP had
+         refused to measure them, and the adherence chip then graded that envelope against 4 h;
+       • the oximetry card told ONE story for every absence ("the SA2 read its not-connected
+         sentinel"), so a night refused for LOW COVERAGE read as an unplugged accessory — a cause
+         the data never stated — and a night with no oximetry block at all read the same;
+       • the breath-rate tile drew the em-dash a session with no flow channel draws.
+       The §∅ line each leg holds: a refusal names its own token, an unexamined channel says it was
+       never examined, and a MEASURED value stays silent. */
+    group('CPAPDex refusals — each absence names its own token, a measured lane stays silent (§∅)', 'cpapdex-render · §∅ · known-answer', function (T) {
+      var CR = env.CpapRender;
+      if (!CR || typeof CR.renderKPIs !== 'function' || typeof CR.oximetryCard !== 'function' || typeof CR.ventCard !== 'function' || typeof CR.renderNight !== 'function') {
+        T.skip(
+          'CpapRender refusal surfaces wired (renderKPIs · oximetryCard · ventCard · renderNight)',
+          'Node-lane only (run-tests.mjs executes *-render.js headless); the browser lane runs render in iframe rigs so it SKIPs'
+        );
+        return;
+      }
+      var kVals = function (html) {
+        var o = [];
+        for (const m of html.matchAll(/<div class="kpi-val[^"]*">([\s\S]*?)<\/div>/g)) o.push(m[1].replace(/<[^>]*>/g, ''));
+        return o;
+      };
+      var kSubs = function (html) {
+        var o = [];
+        for (const m of html.matchAll(/<div class="kpi-sub">([\s\S]*?)<\/div>/g)) o.push(m[1]);
+        return o;
+      };
+      var night = function (metrics, sessions) {
+        var ss = sessions || [{}, {}];
+        return { metrics: metrics || {}, sessions: ss, nSessions: ss.length, therapyHours: 6.2, t0Ms: 0 };
+      };
+
+      /* ── the decisive pair · ONE key apart ───────────────────────────────────────────────────
+         Two nights identical but for `usageReason`. The refused one must name its token and must
+         NOT publish the envelope under the usage label; the measured one must be byte-unchanged
+         from what it drew before this group existed. One leg cannot separate a render that states
+         every night from one that states none — this pair can. */
+      var refusedUsage = CR.renderKPIs(night({ usageReason: 'no-pressure-channel', usageUnknownSessions: 2 }));
+      var measuredUsage = CR.renderKPIs(night({ residualAHI: 3 }));
+      T.eq('renderKPIs · a refused usage draws an em-dash, not the recording envelope, under "Usage Hours"', kVals(refusedUsage)[1], '—');
+      T.eq('renderKPIs · …while a measured night still draws its hours — the pair differs by `usageReason` alone', kVals(measuredUsage)[1], '6.2hr');
+      T.ok('renderKPIs · the refused sub names the DSP token', /no-pressure-channel/.test(kSubs(refusedUsage)[1]), kSubs(refusedUsage)[1]);
+      T.ok('renderKPIs · …the unmeasured session count', /2 of 2 sessions unmeasured/.test(kSubs(refusedUsage)[1]), kSubs(refusedUsage)[1]);
+      T.ok('renderKPIs · …and the envelope, labelled as recorded time rather than as usage', /6\.2 h recorded/.test(kSubs(refusedUsage)[1]), kSubs(refusedUsage)[1]);
+      T.ok('renderKPIs · a measured usage says nothing about a refusal — silence is the §∅ answer for a value', !/unmeasured|no-pressure-channel/.test(measuredUsage));
+      T.ok('renderKPIs · the refusal reaches the reader as WORDS as well as a token — the sub is not a bare slug', /carries no pressure channel/.test(kSubs(refusedUsage)[1]), kSubs(refusedUsage)[1]);
+
+      /* ── the ODI tile's `n/a` sub · three absences that are not the same absence ─────────────── */
+      var odiSub = function (sessions) {
+        return kSubs(CR.renderKPIs(night({}, sessions)))[4];
+      };
+      T.eq('renderKPIs · ODI n/a · no oximetry block at all ⇒ the lane never ran, which is not a clean lane', odiSub([{}]), 'no oximetry block · lane never ran');
+      T.eq('renderKPIs · ODI n/a · a lane that ran and refused quotes its own token', odiSub([{ oximetry: { available: false, reason: 'low-coverage' } }]), 'low-coverage');
+      T.eq('renderKPIs · ODI n/a · no session to read is a third state again', odiSub([]), 'no session recorded');
+      T.eq(
+        'renderKPIs · ODI n/a · a refused session beside a block-less one reports BOTH, not the first it meets',
+        odiSub([{ oximetry: { available: false, reason: 'no-spo2-channel' } }, {}]),
+        'no-spo2-channel · 1 without an oximetry block'
+      );
+
+      /* ── oximetryCard · the hardcoded story is the defect ────────────────────────────────────
+         The card used to print "the AirSense SA2 channel read the device's not-connected sentinel
+         for the whole recording" whatever the lane had said. For `low-coverage` that sentence is a
+         fabricated cause: the oximeter WAS connected and wrote too few valid samples to rate. */
+      var lowCov = CR.oximetryCard(night({}, [{ oximetry: { available: false, reason: 'low-coverage', coverage: 0.2 } }]));
+      T.ok('oximetryCard · a low-coverage refusal names low-coverage', /low-coverage/.test(lowCov));
+      T.ok('oximetryCard · …and no longer tells the not-connected story the data never stated', !/not-connected sentinel/.test(lowCov), lowCov.slice(0, 140));
+      T.ok(
+        'oximetryCard · the not-connected sentinel still gets its own words when the lane DID report it',
+        /not-connected sentinel/.test(CR.oximetryCard(night({}, [{ oximetry: { available: false, reason: 'oximeter-not-connected' } }])))
+      );
+      T.ok(
+        'oximetryCard · two sessions refusing for different reasons name BOTH tokens',
+        (function () {
+          var h = CR.oximetryCard(night({}, [{ oximetry: { available: false, reason: 'no-spo2-channel' } }, { oximetry: { available: false, reason: 'low-coverage' } }]));
+          return /no-spo2-channel/.test(h) && /low-coverage/.test(h);
+        })()
+      );
+      T.ok(
+        'oximetryCard · a session carrying NO oximetry block is counted beside the refusals, never folded into them',
+        /1 session carry no oximetry block at all/.test(CR.oximetryCard(night({}, [{ oximetry: { available: false, reason: 'low-coverage' } }, {}])))
+      );
+      var unexamined = CR.oximetryCard(night({}, [{}, {}]));
+      T.ok('oximetryCard · every session block-less ⇒ the lane DID NOT RUN, stated as unexamined', /did not run/.test(unexamined) && /unexamined/.test(unexamined));
+      T.ok('oximetryCard · …and an unexamined lane is never described as measured and clean', /not measured and found clean/.test(unexamined));
+      T.ok('oximetryCard · a night with no session says so rather than blaming the oximeter', /No session to read/.test(CR.oximetryCard(night({}, []))));
+      T.ok(
+        'oximetryCard · every absence branch keeps the "not fabricated" promise',
+        [lowCov, unexamined, CR.oximetryCard(night({}, []))].every(function (h) {
+          return /not fabricated/.test(h);
+        })
+      );
+      T.ok(
+        'oximetryCard · a refusal that states no reason says THAT, rather than inheriting a neighbour’s cause',
+        /stated no reason/.test(CR.oximetryCard(night({}, [{ oximetry: { available: false } }])))
+      );
+      T.ok(
+        'oximetryCard · an unknown token prints verbatim — the map adds words, it never picks the nearest story',
+        /probe-fell-off/.test(CR.oximetryCard(night({}, [{ oximetry: { available: false, reason: 'probe-fell-off' } }])))
+      );
+      T.ok(
+        'oximetryCard · a lane that PRODUCED values is not a refusal — the five tiles render and no token appears',
+        (function () {
+          var h = CR.oximetryCard(night({}, [{ oximetry: { available: true, coverage: 0.9, odi: 3, t90Pct: 0.5, spo2Nadir: 92, spo2Mean: 96, pulseMedian: 58 } }]));
+          return /m-val/.test(h) && !/refusal|unexamined|not fabricated/.test(h);
+        })()
+      );
+
+      /* ── ventCard · the breath rate the DSP refused to divide ────────────────────────────────── */
+      var vNo = CR.ventCard(night({}, [{ metrics: { breathCount: 420, breathRateReason: 'mask never on — no measured time to divide by' } }]));
+      T.ok('ventCard · a refused breaths/min carries the DSP’s own sentence, not a bare em-dash', /mask never on/.test(vNo));
+      T.ok('ventCard · a measured breaths/min carries no reason at all', !/m-sub/.test(CR.ventCard(night({}, [{ metrics: { breathRate: 14.2 } }]))));
+
+      /* ── the hero · a refused usage buys no adherence verdict ────────────────────────────────
+         `night.therapyHours >= 4` graded the envelope. On a night whose usage the DSP refused that
+         chip answered a question nobody could measure, in the direction that reads as compliance. */
+      var heroRef = CR.renderNight({ metrics: { residualAHI: 3, usageReason: 'no-pressure-channel' }, therapyHours: 6.2, nSessions: 2, t0Ms: 0, sessions: [] });
+      var heroOk = CR.renderNight({ metrics: { residualAHI: 3 }, therapyHours: 6.2, nSessions: 2, t0Ms: 0, sessions: [] });
+      T.ok('heroCard · a refused usage draws no "≥4 h compliant" verdict over the recording envelope', !/≥4 h compliant/.test(heroRef));
+      T.ok('heroCard · …it states the refusal instead', /usage unmeasured/.test(heroRef) && /no-pressure-channel/.test(heroRef));
+      T.ok('heroCard · …and drops the Usage subscore, which would grade the same envelope again', !/rs-label">Usage</.test(heroRef));
+      T.ok('heroCard · a measured night keeps its compliance chip and its Usage subscore unchanged', /≥4 h compliant/.test(heroOk) && /rs-label">Usage</.test(heroOk));
+
+      /* ── CONTROL · no branch stamps a refusal onto a measured night ──────────────────────────
+         Every surface above, driven with values present. A patch that printed its token
+         unconditionally would pass every leg so far and red this one. */
+      var clean =
+        CR.renderKPIs(night({ residualAHI: 3, largeLeakPct: 1 }, [{ oximetry: { available: true, coverage: 0.9, odi: 3 } }])) +
+        CR.ventCard(night({}, [{ metrics: { breathRate: 14.2, respRateMedian: 14 } }])) +
+        CR.oximetryCard(night({}, [{ oximetry: { available: true, coverage: 0.9, odi: 3, t90Pct: 0.5, spo2Nadir: 92, spo2Mean: 96, pulseMedian: 58 } }])) +
+        heroOk;
+      T.ok(
+        'CONTROL · a fully measured night emits no refusal token on ANY of the four surfaces',
+        !/no-pressure-channel|no-spo2-channel|low-coverage|oximeter-not-connected|unmeasured|did not run/.test(clean)
+      );
+
+      /* ── source mirrors · the render reads the keys the DSP writes ───────────────────────────── */
+      var srcOf = function (f) {
+        return ((env.sources || {})[f] || '')
+          .split('\n')
+          .filter(function (ln) {
+            var t = ln.trim();
+            return t.indexOf('//') !== 0 && t.indexOf('*') !== 0 && t.indexOf('/*') !== 0;
+          })
+          .join('\n');
+      };
+      var rSrc = srcOf('cpapdex-render.js'),
+        dSrc = srcOf('cpapdex-dsp.js');
+      T.ok('source · cpapdex-dsp.js writes usageReason and the render reads it', /usageReason/.test(dSrc) && /nm\.usageReason/.test(rSrc));
+      T.ok('source · cpapdex-dsp.js writes breathRateReason and the render reads it', /breathRateReason/.test(dSrc) && /m\.breathRateReason/.test(rSrc));
+      T.ok(
+        'source · the oximetry lane’s three tokens all live in the render’s vocabulary',
+        ['no-spo2-channel', 'oximeter-not-connected', 'low-coverage'].every(function (t) {
+          return dSrc.indexOf(t) >= 0 && rSrc.indexOf(t) >= 0;
+        })
+      );
+      T.ok('source · CONTROL · the render never hardcodes the not-connected sentence outside its own token entry', (rSrc.match(/not-connected sentinel/g) || []).length === 1);
+    });
+
     /* ════ CPAPDex CARD SURFACE II — the rest of the reachable builders (CLOCK-MUTATION-AUDIT §7.4) ════
      Wave 1 (the group above) took `cpapdex-render.js` from 0/12 sampled to 61/319 exhaustive and recorded a
      ceiling: "150 pure HTML builders still unasserted, 108 canvas/DOM unreachable". **That split was wrong
@@ -71944,9 +72114,9 @@
       };
       T.ok(
         'oximetryCard · no oximeter ⇒ the n/a shield that says the values are NOT fabricated',
-        /not fabricated/.test(CR.oximetryCard({ sessions: [] })) && /No oximeter connected/.test(CR.oximetryCard({ sessions: [] }))
+        /not fabricated/.test(CR.oximetryCard({ sessions: [] })) && /No session to read/.test(CR.oximetryCard({ sessions: [] }))
       );
-      T.ok('oximetryCard · an oximetry block present but marked unavailable takes the SAME honest branch', /No oximeter connected/.test(oxiCard({ available: false, odi: 20 })));
+      T.ok('oximetryCard · an oximetry block present but marked unavailable takes the SAME honest branch', /No usable oximetry this night/.test(oxiCard({ available: false, odi: 20 })));
       var ox = mSev2(oxiCard({ available: true, coverage: 0.876, odi: 20, t90Pct: 8, spo2Nadir: 88, spo2Mean: 93, pulseMedian: 60 }));
       T.eq('oximetryCard · ODI 20 bad · T90 8 % bad · nadir 88 % warn · mean 93 % warn · pulse unbanded', ox.join(','), 'bad,bad,warn,warn,neutral');
       // a GOOD night must not read the same — nadir/mean are higher-better, so high values are ok
