@@ -977,21 +977,32 @@ def _complete_ratio(rows: int, expected: float, basis: str) -> dict:
     return _decision("FAIL", f"{rows} rows against {expected:.0f} expected {basis} = {100 * ratio:.2f} %")
 
 
-def has_rows(path: str) -> bool:
-    """Does this waveform file hold a single DATA row? Stops at the first one.
+def row_state(path: str) -> str:
+    """Does this waveform file hold a single DATA row? `"rows"`, `"empty"` or `"unreadable"`.
 
     O(1) on a real stream: a night's ECG is ~160 MB and this reads one line of it. The comment and
     header lines a writer emits before the first sample are not data — an `# timebase=` line and a
-    `Phone timestamp;…` header are the file saying what it WOULD contain."""
+    `Phone timestamp;…` header are the file saying what it WOULD contain.
+
+    🔴 THREE STATES, BECAUSE A FILE WE CANNOT OPEN IS NOT AN EMPTY ONE (§∅). This read answered a
+    plain `bool` until 2026-11-07 and caught `OSError` as `False`, so a waveform the audit could not
+    open joined the `empty` list and `validity` reported it as `empty-session` — a reason that
+    ASSERTS the session recorded nothing. `stream_files` enumerated the path moments earlier, so an
+    `OSError` here means a permission, an I/O fault or a race with a delete, and never an absence of
+    rows. The predecessor's own comment promised that "the caller says what that means"; the one
+    caller did not, which is why the state is now the return value and not a lost branch.
+
+    A token rather than `bool | None`: `None` is falsy, so `if not has_rows(f)` kept reading an
+    unreadable file as empty and the next caller to write that line would have restored the defect."""
     try:
         with open(path, encoding="utf-8", errors="replace") as fh:
             for line in fh:
                 if line.startswith("#") or line.startswith("Phone") or not line.strip():
                     continue
-                return True
+                return "rows"
     except OSError:
-        return False  # a file we cannot open holds no row we can see; the caller says what that means
-    return False
+        return "unreadable"
+    return "empty"
 
 
 def _sidecar_unflushed(waveform: str) -> bool:
@@ -1036,7 +1047,18 @@ def validity(night_dir: str, model: str) -> dict:
     files = [f for w in MODELS[model]["waveforms"] for f in stream_files(night_dir, model, w)]
     if not files:
         return _decision("UNKNOWN", "no waveform file this night, so no sidecar could be checked")
-    empty = [os.path.basename(f) for f in files if not has_rows(f)]
+    states = {f: row_state(f) for f in files}
+    # 🔴 AN UNREADABLE WAVEFORM REFUSES THE BAND; IT NEVER JOINS `empty`. The sidecar read below does
+    # the same for an `OSError` on its own file, and this is that rule applied one layer earlier: the
+    # audit cannot count rows it cannot read, so it states that instead of asserting a count of zero.
+    unreadable = sorted(os.path.basename(f) for f, s in states.items() if s == "unreadable")
+    if unreadable:
+        return _decision(
+            "UNKNOWN",
+            f"{len(unreadable)} waveform file(s) cannot be read, so this night holds no row count for "
+            f"them ({', '.join(unreadable)}) — a file the audit cannot open is not an empty session",
+        )
+    empty = [os.path.basename(f) for f, s in states.items() if s == "empty"]
     # 🔴 A 0-BYTE SIDECAR BESIDE A WAVEFORM WITH ROWS IS A SESSION STILL BEING WRITTEN, NOT A BLIND
     # FLOOR. `_RunSidecar` writes its `min_run=` header into a 64 KB buffer at construction, and
     # `StreamWriter.flush()` flushes the waveform and its `_RR` sibling and NOT `_runs` — so the header
