@@ -14380,6 +14380,101 @@
         return /export function notANight\s*\(/.test(TT[k] || '');
       });
       T.eq('the removal namer is defined once, and in corpus-scope-core.mjs', namerDefs.sort().join(', '), 'tools/corpus-scope-core.mjs');
+      /* ── AND THE DIFFERENCE IT RETURNS MUST ACCOUNT FOR THE WHOLE OFFER ──────────────────────
+         Board #4088, after #4502. `notCovered` refuses a member it cannot KEY and says nothing about
+         a member it never SAW: a caller passing well-formed rows and a SHORT scored list prints a
+         coverage line that does not add up, with no symptom at all. The identity `offered − scored
+         === unscored` used to sit in seven tools by name — the four trio-night readers and the three
+         CPAP-corpus readers — and the census of 2026-11-07 read 12 of 47 calling tools carrying it.
+         All five callers #4502 repaired sat in the other 35, which is how they stayed wrong through a
+         green gate.
+         THE BACKLOG IS A RATCHET, SO IT MAY ONLY SHRINK. A name that keeps the hazard stays listed; a
+         name that adopts `coverageIdentity` leaves, and a listed name that is no longer a caller reds
+         as STALE rather than sitting there excusing nothing. This is the only reader that sees the
+         whole calling population at once. */
+      var covCallers = Object.keys(TT)
+        .filter(function (k) {
+          return /^tools\//.test(k) && !/^tools\/corpus-scope/.test(k) && /notANight\(|notCovered\(/.test(TT[k] || '');
+        })
+        .map(function (k) {
+          return k.replace('tools/', '');
+        })
+        .sort();
+      var COV_BACKLOG = [
+        'acc-select-compare.mjs',
+        'acc-shared-movement.mjs',
+        'beat-comb-analysis.mjs',
+        'cvhr-fold-rescore.mjs',
+        'deep-flow-join.mjs',
+        'device-stability.mjs',
+        'edge-settle.mjs',
+        'eqc-run.mjs',
+        'oracle-ecg-firmware-rr.mjs',
+        'oracle-ppg-device-beats.mjs',
+        'oxy-hr-bias.mjs',
+        'pat-connection-stability.mjs',
+        'pat-dip-validate.mjs',
+        'pat-drift-attribution.mjs',
+        'pat-ecg-axis-residual.mjs',
+        'pat-fiducial-compare.mjs',
+        'pat-finger-coupler.mjs',
+        'pat-hrv-windows.mjs',
+        'pat-matchrate-strict.mjs',
+        'pat-ppg-ppg-control.mjs',
+        'pat-residual-structure.mjs',
+        'pat-window-scaling.mjs',
+        'ppg-channel-combination.mjs',
+        'ppg-foot-consensus-e1.mjs',
+        'ppg-fusion-e3.mjs',
+        'ppg-gap-bridge-scan.mjs',
+        'ppg2w-spo2-fit.mjs',
+        'ppi-jitter-vs-ecg.mjs',
+        'resp-cardiac-suppression-e8.mjs',
+        'stage-lab.mjs'
+      ];
+      var hasIdentity = function (t) {
+        return /coverageIdentity\(|population arithmetic/.test(TT['tools/' + t] || '');
+      };
+      T.ok('ANTI-VACUITY · the calling population is the whole tools tree, not a hand-named set', covCallers.length >= 40, covCallers.length + ' tool(s) call the removal namer');
+      T.eq(
+        'every tool that names a removal also throws on the identity, or sits in the shrinking backlog',
+        covCallers
+          .filter(function (t) {
+            return !hasIdentity(t) && COV_BACKLOG.indexOf(t) < 0;
+          })
+          .join(', '),
+        ''
+      );
+      T.eq('the backlog carries no name that already adopted the identity, so it only shrinks', COV_BACKLOG.filter(hasIdentity).join(', '), '');
+      T.eq(
+        'the backlog carries no name that stopped calling the namer, because a stale entry excuses nothing',
+        COV_BACKLOG.filter(function (t) {
+          return covCallers.indexOf(t) < 0;
+        }).join(', '),
+        ''
+      );
+      T.eq(
+        'the five callers #4502 proved wrong carry the identity rather than the backlog',
+        ['pat-window-oracle.mjs', 'pat-three-corner.mjs', 'pat-literature-spec.mjs', 'pat-per-led.mjs', 'ppg-foot-residual-sweep.mjs']
+          .filter(function (t) {
+            return !hasIdentity(t);
+          })
+          .join(', '),
+        ''
+      );
+      T.ok(
+        'the identity has ONE definition, in corpus-scope-core.mjs beside the namer it checks',
+        Object.keys(TT)
+          .filter(function (k) {
+            return /export function coverageIdentity\s*\(/.test(TT[k] || '');
+          })
+          .join(', ') === 'tools/corpus-scope-core.mjs',
+        Object.keys(TT)
+          .filter(function (k) {
+            return /export function coverageIdentity\s*\(/.test(TT[k] || '');
+          })
+          .join(', ') || 'no definition found'
+      );
       /* ── A HAND-WRITTEN DEFAULT ANSWER AGREES WITH THE RULE BESIDE IT ─────────────────────────
          Row 2026-10-26-a-hand-written-ruleisdefault-asserts-a-comparison-the-file-never-ran.
          `snapshotNights` computes `ruleIsDefault` on every arm it returns, refusals included, as

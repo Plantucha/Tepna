@@ -74,7 +74,7 @@ import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry } from './argv-guard.mjs';
-import { NIGHT_RE, notANight, populationVerdict, producedByOf, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
+import { NIGHT_RE, coverageIdentity, notANight, populationVerdict, producedByOf, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
 import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
 
 /* ── THE VALIDITY SIDECAR RIDES WITH THE STREAM ─────────────────────────────────────────────
@@ -1549,6 +1549,9 @@ async function main() {
     evidence: ['tools/pat-window-oracle.mjs']
   });
   const unscoredNights = notANight({ n: nights.length, nights }, scoredNights);
+  /* THE IDENTITY BINDS THE PRINTED FIGURE TO THE ARITHMETIC (board #4088). Sessions mode prints no
+     night count, so it passes none. */
+  coverageIdentity({ n: nights.length, nights }, scoredNights, unscoredNights, { printedScored: SESSIONS ? null : scoredNights.length });
   console.log(
     `\npopulation: ${popBefore.ok ? popBefore.n + ' night(s) offered under ' + DIR : 'NOT ENUMERATED — ' + popBefore.reason} · ${SESSIONS ? units.length + ' session(s) scored, 0 nights (sessions mode)' : scoredNights.length + ' scored'} · movement ${population.status}${population.reason ? ' — ' + population.reason : ''}`
   );

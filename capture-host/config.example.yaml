@@ -511,3 +511,41 @@ geo:
   record_position: false  # PRIVACY: false records ELEVATION ONLY. The analysis has no use for
                           # latitude/longitude, and a medical recording carrying coordinates to metre
                           # precision is a disclosure nobody asked for. Opt in deliberately or not at all
+
+# ── LOOP-STALL ATTRIBUTION — two instruments, both OFF by default ─────────────────────────────────────
+# `loop_monitor` counts the stalls. These two name the cause: `slow_callback` names the CALLBACK that
+# held the loop, and `stall_sampler` names the WORK in an executor thread. Residue row
+# `2026-09-25-qc-poll-still-stalls-the-loop-without-tracing` asks for exactly that, and its own NEXT
+# clause calls for "a PER-CALLBACK instrument ... the name and duration of any callback over a
+# threshold". Both instruments ship. Until this block existed, no configuration file named either one.
+#
+# WHY THIS FILE IS THE ONLY DECLARATION. Neither key sits in `settings_schema.SETTINGS`, so the web
+# monitor cannot write them and offers no way to discover them. `heap_probe` does sit there, which is
+# why that instrument needs no entry here. A reader of this file previously had to open `capture.py`
+# to learn that these two names exist at all.
+#
+# FLIPPING `enabled` HERE ARMS NOTHING. The daemon reads its settings from the box's own
+# `config.yaml`, and `capture-host/.gitignore` keeps that file out of this repository. The owner flips
+# the box copy, per the arming convention `briefs/CPAP-AS11-BLE-WIRE-NOW-2026-09-07-BRIEF.md` states:
+# default-off here, flipped on the box by the owner's go. Both gates return at once while disabled,
+# so the wiring runs every night and never waits for the night someone needs it.
+#
+# 🔴 NEVER ARM EITHER ONE ON A NIGHT THAT ALSO RUNS THE HEAP PROBE. The probe's tracemalloc cost
+# measured a 19.4x tax on loop stalls: 737 stalls in 116 min of tracing against 37 in the 113 min
+# after. A night that arms both reads the probe's own tax as the residual these two exist to name.
+# So the arming takes two nights, in a stated order, and never one.
+#
+# WHAT EACH ONE COSTS WHILE ARMED. `slow_callback` wraps every handle dispatch, measured at +0.26 us
+# per callback and 1.20x dispatch. `stall_sampler` runs one thread that wakes every 50 ms, reads a
+# single float, and takes no lock, so it can never itself be the reason the loop waits.
+slow_callback:
+  enabled: false
+  threshold_ms: 100       # a callback holding the loop this long is logged BY NAME. ONE definition of
+                          # "a stall", shared with `loop_monitor` — a test asserts the two agree, so a
+                          # drift here would count one thing while the attribution named another
+stall_sampler:
+  enabled: false
+  threshold_ms: 500       # a stall this long writes ONE row naming every thread to
+                          # `<night>/STALLS.jsonl`, beside that night's captures
+  max_rows: 200           # per night. The cap travels in the row, so a reader never mistakes a capped
+                          # file for the night's whole set
