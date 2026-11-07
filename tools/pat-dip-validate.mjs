@@ -34,7 +34,7 @@ import { createRequire } from 'node:module';
 import { anklePair } from './pat-dip-index.mjs';
 import { loadDsps, getDsps } from './pat-matchrate-strict.mjs';
 import { isCliEntry, positionalArgs, refuseUnknownArgvOrExit } from './argv-guard.mjs';
-import { notANight, populationVerdict, snapshotNights } from './corpus-scope-core.mjs';
+import { notANight, populationVerdict, snapshotNights, coverageIdentity } from './corpus-scope-core.mjs';
 import { eraCoverage, eraCoverageLine, eraOfNights } from './fold-generation.mjs';
 import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
 
@@ -315,10 +315,15 @@ function main() {
     tool: 'tools/pat-dip-validate.mjs',
     evidence: ['tools/pat-dip-validate.mjs']
   });
-  const unscored = notANight(
-    popBefore,
-    rows.map((r) => ({ night: r.night, ok: !r.skip }))
-  );
+  const coveredRows = rows.map((r) => ({ night: r.night, ok: !r.skip }));
+  const unscored = notANight(popBefore, coveredRows);
+  /* ONE ROW PER NIGHT is what makes this figure handable: the night loop pushes exactly one row on
+     every path, so the count the line publishes IS a count of distinct scored nights. */
+  const scored = rows.filter((r) => !r.skip).length;
+  /* THE PRINTED FIGURE ANSWERS TO THE ARITHMETIC (#4506). The identity holds the scored count to the
+     members this run actually read: a short difference, a night the offer never held or a printed
+     figure that disagrees stops the run, where before the line printed and said nothing. */
+  coverageIdentity(popBefore, coveredRows, unscored, { printedScored: scored });
   /* A PARTIAL-LEG READ CANNOT REACH THE THREE-LEG STAMP RULE, so it owes the era of ITS OWN nights
      (row 2026-10-27-partial-leg-consumers-read-exports-with-no-recorded-code-era). §∅: the data is
      present and the PROVENANCE is absent, so the number stands and the line names what is unrecorded. */
@@ -348,7 +353,6 @@ function main() {
   /* THE TRIPLE IS ABOUT MOVEMENT, NOT ABOUT COVERAGE, so the status is labelled as such. `checked`
      is the intersection of the two snapshots — nights that were there throughout — and reading it
      as "scored" would publish 97 scored nights for a run that scored none. */
-  const scored = rows.filter((r) => !r.skip).length;
   console.log(`\npopulation: ${popBefore.n} night(s) offered under ${ROOT} · ${scored} scored · movement ${population.status}${population.reason ? ' — ' + population.reason : ''}`);
   console.log(`offered but not scored: ${unscored.length ? unscored.join(', ') : 'none'}`);
   console.log(eraCoverageLine(ERA));

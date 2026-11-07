@@ -55,7 +55,7 @@ import vm from 'node:vm';
 import { dissentStampOf, refpickOf, signsOf } from './consensus-dissent-core.mjs';
 import { CFD_FRAC, fractionAmplitudeIndex, halfAmplitudeIndex } from './pat-fiducial.mjs';
 import { isCliEntry } from './argv-guard.mjs';
-import { snapshotNights, populationVerdict, notANight } from './corpus-scope-core.mjs';
+import { snapshotNights, populationVerdict, notANight, coverageIdentity } from './corpus-scope-core.mjs';
 import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
 
 /* ── THE VALIDITY SIDECAR RIDES WITH THE STREAM ─────────────────────────────────────────────
@@ -866,10 +866,12 @@ if (IS_CLI && argv.includes('--verdict-sample')) {
     tool: 'tools/pat-matchrate-strict.mjs',
     evidence: ['tools/pat-matchrate-strict.mjs']
   });
-  const unscored = notANight(
-    { nights },
-    rows.map((r) => ({ night: r.night, ok: !r.skipped }))
-  );
+  const coveredRows = rows.map((r) => ({ night: r.night, ok: !r.skipped }));
+  const unscored = notANight({ nights }, coveredRows);
+  /* THE DIFFERENCE ANSWERS TO THE ARITHMETIC (#4506). The printed count labels MOVEMENT between two
+     snapshots, not coverage, so no printed figure goes in here — the identity binds the named set to
+     the rows this run scored, and a short difference stops it. */
+  coverageIdentity({ nights }, coveredRows, unscored);
   const popLine =
     `population: ${population.status} — ${population.population.checked} night(s) covered of ${population.population.eligible}` +
     (ONLY ? ` · --night ${ONLY} left ${popBefore.n - nights.length} offered night(s) unread` : '') +

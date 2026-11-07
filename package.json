@@ -55,6 +55,7 @@
     "verify:codegen": "node codegen/dex-gen.js codegen/manifests/eegdex.manifest.json --check codegen/generated/eegdex-reference.html && node codegen/dex-registry-gen.js codegen/manifests/eegdex.manifest.json | cmp - codegen/generated/eegdex-registry.js",
     "verify:tools-index": "node tools/tools-index.mjs --check",
     "verify:workflow-timeouts": "node tools/workflow-timeout-guard.mjs",
+    "verify:required-contexts": "node tools/required-contexts.mjs",
     "verify:verdict-adoption": "node tools/verdict-adoption.mjs --check",
     "verify:absence-regression": "node tools/absence-regression.mjs --base origin/main",
   "verify:astgrep": "node tools/astgrep-gate.mjs",
