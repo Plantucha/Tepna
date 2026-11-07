@@ -383,7 +383,7 @@ def test_update_streak_main_reads_a_latin1_comment_as_bytes(tmp_path):
     assert alerts.update_streak_main(["update-streak", str(p), "back", "2", "1"], _post=never) == 3
 
 
-def test_update_streak_main_refuses_a_config_it_cannot_read_as_a_mapping(tmp_path, caplog):
+def test_update_streak_main_refuses_a_config_it_cannot_read_as_a_mapping(tmp_path, caplog, monkeypatch):
     """A config that does not read leaves the alert state unknown, so it refuses and names the reason."""
     import logging
 
@@ -397,9 +397,21 @@ def test_update_streak_main_refuses_a_config_it_cannot_read_as_a_mapping(tmp_pat
     (tmp_path / "torn.yaml").write_text("alerts: [\n")
     torn = ["update-streak", str(tmp_path / "torn.yaml"), "back", "2", "1"]
     assert alerts.update_streak_main(torn, _post=never) == 3
+    # A raiser whose text this test owns. It is here because a YAML error quotes the config path
+    # itself, so only a reason this test chose can observe BOTH values the log line interpolates.
+    import yaml
+
+    def boom(_fh):
+        raise RuntimeError("the probe reason")
+
+    monkeypatch.setattr(yaml, "safe_load", boom)
+    assert alerts.update_streak_main(torn, _post=never) == 3
     msgs = [r.getMessage() for r in caplog.records]
-    assert len(msgs) == 2, msgs
-    assert "holds list, not a mapping" in msgs[0] and "does not read" in msgs[1]
+    assert len(msgs) == 3, msgs
+    at = "alerts: the update-streak config at"
+    assert msgs[0] == f"{at} {tmp_path / 'list.yaml'} holds list, not a mapping"
+    assert msgs[1].startswith(f"{at} {tmp_path / 'torn.yaml'} does not read: ")
+    assert msgs[2] == f"{at} {tmp_path / 'torn.yaml'} does not read: the probe reason"
 
 
 def test_update_streak_main_reads_a_utf16_config_through_its_byte_order_mark(tmp_path):
