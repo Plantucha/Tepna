@@ -885,6 +885,39 @@ function selftest() {
   ok(at('fs\n    .readdir', 'Sync(dir)') < 0, 'ONE WALK · the scored nights come out of the snapshot, so no second enumeration of the root can disagree with the verdict');
   ok(iClose > iRows, 'ORDERING · the closing snapshot is taken after the scoring loop, not beside the opening one');
   ok(iCut < iSelect, 'ORDERING · the intersection narrows the rows before any population is selected from them');
+  /* ══ THE REALM CARRIES THE WHOLE WORKER SPINE — MEASURED, NOT LISTED ═══════════════════════════
+     `sensor-trio-worker.js` ppgHrMapReal calls `ConsensusDissent.signsOf` UNGUARDED inside a
+     try/catch that writes `self.__ppgErr` and returns null. One missing file in the realm's load list
+     therefore nulls the Verity corner on EVERY night, and each night reads "a corner produced no HR
+     map", which is a sentence about the recording. Measured 2026-11-06 over the box captures root
+     before the fix: checked 0 of 114 eligible, medians null, while the published 2026-10-18 record
+     scored 54 of 94.
+
+     A LIST OF EXPECTED NAMES WOULD DRIFT FROM THE WORKER. This leg runs the corner over a synthetic
+     3-LED pulse and reads the error the worker recorded itself, so the next shared-module addition
+     reds here carrying its own ReferenceError. */
+  {
+    const SFS = 135,
+      SSECS = 90,
+      SHZ = 1.1;
+    const rows = ['Phone timestamp;sensor timestamp [ns];channel 0;channel 1;channel 2;ambient'];
+    for (let i = 0; i < SFS * SSECS; i++) {
+      const t = i / SFS;
+      const iso = new Date(Date.UTC(2026, 8, 28, 21, 0, 0) + Math.round(t * 1000)).toISOString().replace('Z', '');
+      const beat = Math.sin(2 * Math.PI * SHZ * t) + 0.3 * Math.sin(4 * Math.PI * SHZ * t);
+      const v = (g) => Math.round(-300000 + g * 4000 * beat);
+      rows.push(iso + ';' + (843960926087160899n + BigInt(Math.round(t * 1e9))).toString() + ';' + v(1) + ';' + v(0.9) + ';' + v(1.1) + ';-614694');
+    }
+    const rctx = loadRealm('host', REF_AXIS_DEFAULT);
+    rctx.__synthPPG = rows.join('\n');
+    const synthMap = vm.runInContext('ppgHrMapReal(__synthPPG)', rctx);
+    const synthErr = rctx.__ppgErr;
+    ok(synthErr == null, 'the worker records NO error building a Verity HR map in this realm — a missing module reads here as its own throw: ' + (synthErr ? String(synthErr).slice(0, 120) : 'none'));
+    ok(!!synthMap, 'the Verity corner produces an HR map over a synthetic 3-LED pulse, so this realm carries every module ppgHrMapReal dereferences');
+    ok(vm.runInContext('typeof ConsensusDissent', rctx) !== 'undefined', 'the realm defines ConsensusDissent by name — the module whose absence nulled the Verity corner on every night in the corpus');
+    ok(vm.runInContext('typeof NoSuchModuleInThisRealm', rctx) === 'undefined', 'CONTROL · a name no file defines reads undefined in the same realm, so the leg above is not vacuous');
+  }
+
   console.log(fails.length ? `SELFTEST FAIL (${fails.length}/${ran})\n  ${fails.join('\n  ')}` : `SELFTEST PASS (${ran}/${ran})`);
   return fails.length ? 1 : 0;
 }
@@ -923,7 +956,15 @@ function loadRealm(axis, refAxis) {
   ctx.globalThis = ctx;
   ctx.importScripts = () => {};
   ctx.postMessage = () => {};
-  for (const f of ['clock.js', 'kernel-constants.js', 'metric-registry.js', 'analysis-stats.js', 'ecgdex-dsp.js', 'ppgdex-dsp.js', 'sensor-trio-worker.js'])
+  /* 🔴 `consensus-dissent.js` IS PART OF THE SPINE THIS WORKER NEEDS. `sensor-trio-worker.js`
+     ppgHrMapReal calls `ConsensusDissent.signsOf` UNGUARDED, inside a try/catch that writes
+     `self.__ppgErr` and returns null. With the module absent every night threw a ReferenceError, the
+     catch swallowed it, the Verity corner read null and the night was refused as "a corner produced no
+     HR map" — measured 2026-11-06 over the box captures root: checked 0 of 114 eligible, medians null,
+     while the published 2026-10-18 record scored 54. §👥.3's silent disablement, one realm list behind
+     a shared-module addition. The sibling realms in `beat-correspondence.mjs`,
+     `pat-literature-spec.mjs` and `pat-matchrate-strict.mjs` already load it. */
+  for (const f of ['clock.js', 'kernel-constants.js', 'metric-registry.js', 'analysis-stats.js', 'ecgdex-dsp.js', 'ppgdex-dsp.js', 'consensus-dissent.js', 'sensor-trio-worker.js'])
     vm.runInContext(DexBuild.classicify(fs.readFileSync(path.join(ROOT, f), 'utf8')), ctx, { filename: f });
   /* The realm carries `clock.js`, so every parser below disciplines its own axis unless this says
      otherwise. The patch also RECORDS each call, which is how a night reports whether the device had a
@@ -1000,6 +1041,7 @@ export function scoreNightDir(ctx, dir) {
     const H = unwrap(fn('ecgHrMap')(ecgTxt));
     tag('verity');
     const V = unwrap(fn('ppgHrMapReal')(fs.readFileSync(f.ppg, 'utf8')));
+    const vErr = ctx.__ppgErr || null;
     tag('o2');
     let O = null,
       o2Source = null;
@@ -1016,7 +1058,18 @@ export function scoreNightDir(ctx, dir) {
       O = fn('o2PulseMap')(fs.readFileSync(f.spo2, 'utf8'));
       if (O) o2Source = 'ring·SpO2-csv';
     }
-    if (!H || !V || !O) return { night, axis, ok: false, reason: 'a corner produced no HR map (' + (!H ? 'H10 ' : '') + (!V ? 'Verity ' : '') + (!O ? 'O2Ring' : '') + ')' };
+    if (!H || !V || !O) {
+      /* NAME THE THROW. A bare "a corner produced no HR map" reported a ReferenceError in this
+         realm's own load list as a fact about the recording, and 114 nights of it read as a corpus
+         with no Verity data. The worker records each failure in `__ecgErr` / `__ppgErr`; a refusal
+         that does not quote them says nothing a reader can act on. */
+      const why = [
+        !H ? 'H10' + (ctx.__ecgErr ? ': ' + String(ctx.__ecgErr).slice(0, 90) : '') : null,
+        !V ? 'Verity' + (vErr ? ': ' + String(vErr).slice(0, 90) : '') : null,
+        !O ? 'O2Ring' : null
+      ].filter(Boolean);
+      return { night, axis, ok: false, reason: 'a corner produced no HR map (' + why.join(' · ') + ')' };
+    }
     const s = scoreSeries(REF, H, V, O);
     return {
       night,
