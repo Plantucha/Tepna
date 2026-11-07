@@ -960,6 +960,7 @@ def test_a_verity_end_is_judged_on_its_final_clock_aligned_epoch(tmp_path):
     w = loss_audit.wear_ends(str(d), "VeritySense")
     (e,) = w["ends"]
     assert e["reason"] == "doff" and e["final_amb_ratio"] == 3.0 and e["final_acc_sd"] is None
+    assert e["doff_witness"] == "final-epoch" and e["pulse_tail"] is None and e["dock"] is None
     assert e["final_epoch_at"] == "2026-09-23T23:06:00" and e["worn_end_at"] == e["end_at"]
     # dark AND still (ambient flat) but the arm moves: the ACC half of the rule, from the ACC file's tail
     _ppg(str(ppg), 370, 20, lambda t: 37.0)
@@ -978,7 +979,7 @@ def test_a_verity_end_is_judged_on_its_final_clock_aligned_epoch(tmp_path):
     _wave(str(acc), 370, 10, lambda t: 2.0, header="h", cols=3)
     (d / "Polar_VeritySense_0C30_20260923231000_PPG.txt").write_text("Phone timestamp;x\n")
     e = loss_audit.wear_ends(str(d), "VeritySense")["ends"][0]
-    assert e["reason"] == "link-loss" and e["final_acc_sd"] < 150
+    assert e["reason"] == "link-loss" and e["final_acc_sd"] < 150 and "doff_witness" not in e
     # too few ACC rows in the final epoch is not a motion measurement
     _wave(str(acc), 365, 5, lambda t: 400.0, header="h", cols=3)
     assert loss_audit._final_acc_sd(str(acc), dt.datetime(2026, 9, 23, 23, 6, 0)) is None
@@ -4648,6 +4649,138 @@ def test_only_the_next_file_witnesses_a_link_loss():
     ends = [short, dict(off), dict(ll), text_only]
     loss_audit.relink_off_body(ends)
     assert [e["reason"] for e in ends] == ["link-loss", "not worn", "link-loss", "not worn: no key"]
+
+
+# ── the Verity end: removal like the H10, charger like the ring, power-off by the final epoch (owner 2026-11-07)
+def _sense_link(d, rows, device="Polar Sense ABCD0001"):
+    """A LINK sidecar with one row per `(seconds after W0, battery)` for the named device."""
+    with open(d / "Tepna_20260923225900_LINK.csv", "w") as fh:
+        fh.write("# adapter=00:00:00:00:00:02 hci=hci0\n" + LINK_HDR)
+        for s, b in rows:
+            t = (W0 + dt.timedelta(seconds=s)).isoformat(timespec="milliseconds")
+            fh.write(f"{t};{device};1;-60;{b};0;0;1;AA:BB:CC:DD:EE:01\n")
+
+
+def test_A_VERITY_TAKEN_OFF_AND_LEFT_STREAMING_ENDS_AT_ITS_LAST_WORN_PULSE(tmp_path):
+    """OWNER 2026-11-07: "Verity should be handled in same way for removing like h10". MEASURED on the
+    capture box: night 2026-11-06's Verity streamed on for 3 min off the body. Its PPI rows carry no pulse
+    after 05:59:48, except a 16-row blip while the armband was handled. The final epoch lay still, so the
+    end read `link-loss`. Its shape here: 300 s worn, 100 s off, a 16-row blip, 150 s off."""
+    d = tmp_path / "captures" / "2026-09-23"
+    d.mkdir(parents=True)
+    _ppg(str(d / "Polar_VeritySense_0C30_20260923230000_PPG.txt"), 570, 20, lambda t: 37.0)  # a still final epoch
+    ppi = d / "Polar_VeritySense_0C30_20260923230000_PPI.txt"
+    _ppi(str(ppi), [70] * 300 + [0] * 100 + [55] * 16 + [0] * 150)
+    w = loss_audit.wear_ends(str(d), "VeritySense")
+    (e,) = w["ends"]
+    assert e["reason"] == "doff" and e["doff_witness"] == "pulse-tail", e
+    assert e["worn_end_at"] == "2026-09-23T23:04:59" and e["end_at"] > e["worn_end_at"], e
+    assert e["pulse_tail"]["worn_until"] == "2026-09-23T23:04:59" and e["pulse_tail"]["tail_rows"] == 266
+    assert w["worn_end"]["at"] == "2026-09-23T23:04:59" and w["worn_end"]["reason"] == "doff"
+    # a blip of 30 pulse rows IS a worn stretch: the worn end moves to its last row
+    _ppi(str(ppi), [70] * 300 + [0] * 100 + [55] * 30 + [0] * 136)
+    assert loss_audit.wear_ends(str(d), "VeritySense")["ends"][0]["worn_end_at"] == "2026-09-23T23:07:09"
+    # worn to the file's end: no tail, no witness, and the end is judged as before
+    _ppi(str(ppi), [70] * 566)
+    (e,) = loss_audit.wear_ends(str(d), "VeritySense")["ends"]
+    assert e["reason"] == "quiet-end-unclassified" and "doff_witness" not in e, e
+    assert e["pulse_tail"]["tail_off"] is False and e["worn_end_at"] == e["end_at"]
+    # no PPI file: no tail record, and the end is judged as before
+    ppi.unlink()
+    (e,) = loss_audit.wear_ends(str(d), "VeritySense")["ends"]
+    assert e["pulse_tail"] is None and e["reason"] == "quiet-end-unclassified"
+
+
+def test_the_verity_tail_needs_a_30_row_worn_run_and_30_rows_over_60_s_after_it():
+    def t(k):
+        return W0 + dt.timedelta(seconds=k)
+
+    worn = [(t(k), True) for k in range(30)]
+    off = [(t(30 + k), False) for k in range(30)]
+    assert loss_audit.verity_tail(worn + off, t(89)) == {
+        "worn_until": "2026-09-23T23:00:29",
+        "tail_rows": 30,
+        "tail_off_s": 60,
+        "tail_off": True,
+    }
+    assert loss_audit.verity_tail(worn + off[:29], t(89))["tail_off"] is False  # 29 rows after the run
+    assert loss_audit.verity_tail(worn + off, t(88))["tail_off"] is False  # 59 s after the run
+    assert loss_audit.verity_tail(worn[1:] + off, t(89)) is None  # a run of 29 is no worn stretch
+    assert loss_audit.verity_tail([(t(k), k != 29) for k in range(59)], t(89)) is None  # 29, a gap, 29
+    assert loss_audit.verity_tail([], t(0)) is None
+
+
+def test_verity_ppi_rows_reads_each_stamp_and_pulse_and_skips_what_it_cannot_read(tmp_path):
+    f = tmp_path / "Polar_VeritySense_ABCD0001_20261105000000_PPI.txt"
+    f.write_bytes(
+        b"Phone timestamp;hr [bpm]\r\n2026-11-05T00:00:00.000;72\r\nx;60\r\n2026-11-05T00:00:01.000;\r\n"
+        b"2026-11-05T00:00:02.000\r\n2026-11-05T00:00:03.000;0\r\n2026-11-05T00:00:04.000;1\r\n"
+    )
+    assert loss_audit.verity_ppi_rows(str(f)) == [
+        (dt.datetime(2026, 11, 5, 0, 0, 0), True),
+        (dt.datetime(2026, 11, 5, 0, 0, 3), False),
+        (dt.datetime(2026, 11, 5, 0, 0, 4), True),
+    ]
+    # a byte that is not UTF-8 tears its own row only: the rows around it still read
+    f.write_bytes(b"Phone timestamp;hr [bpm]\n2026-11-05T00:00:00.000;72\n\xff\xfe;9\n2026-11-05T00:00:01.000;0\n")
+    assert loss_audit.verity_ppi_rows(str(f)) == [
+        (dt.datetime(2026, 11, 5, 0, 0, 0), True),
+        (dt.datetime(2026, 11, 5, 0, 0, 1), False),
+    ]
+    f.write_text("Phone timestamp;PP-interval [ms]\n2026-11-05T00:00:00.000;900\n")
+    assert loss_audit.verity_ppi_rows(str(f)) is None
+    f.unlink()
+    assert loss_audit.verity_ppi_rows(str(f)) is None
+
+
+def test_A_VERITY_PUT_ON_ITS_CHARGER_IS_A_DOFF_LIKE_THE_RING(tmp_path):
+    """OWNER 2026-11-07: "for charging like O2ring". The ring's charger rule, read off the Verity's own
+    LINK battery rows: a rise of 6 points within 600 s of the end is the dock."""
+    d = tmp_path / "captures" / "2026-09-23"
+    d.mkdir(parents=True)
+    _ppg(str(d / "Polar_VeritySense_0C30_20260923230000_PPG.txt"), 370, 20, lambda t: 37.0)
+    ppi = d / "Polar_VeritySense_0C30_20260923230000_PPI.txt"
+    _ppi(str(ppi), [60] * 370)  # worn to its end: no pulse tail
+    _sense_link(d, [(300, 55), (600, 61)])
+    (e,) = loss_audit.wear_ends(str(d), "VeritySense")["ends"]
+    assert e["reason"] == "doff" and e["doff_witness"] == "charger" and e["dock"]["docked"] is True, e
+    assert e["worn_end_at"] == e["end_at"]
+    # no battery series at all: no dock read, so no dock record (a caller may pass None)
+    ppg = str(d / "Polar_VeritySense_0C30_20260923230000_PPG.txt")
+    e = loss_audit._wear_end(ppg, str(d), "VeritySense", None)
+    assert e["dock"] is None and e["reason"] == "quiet-end-unclassified", e
+    # 5 points is no dock
+    _sense_link(d, [(300, 55), (600, 60)])
+    (e,) = loss_audit.wear_ends(str(d), "VeritySense")["ends"]
+    assert e["reason"] == "quiet-end-unclassified" and "doff_witness" not in e, e
+    # the ring's battery rows are not the Verity's
+    _sense_link(d, [(300, 55), (600, 61)], device="Wellue O2Ring-S")
+    (e,) = loss_audit.wear_ends(str(d), "VeritySense")["ends"]
+    assert e["reason"] == "quiet-end-unclassified" and e["dock"] is None, e
+    # a pulse tail outranks the charger: it also moves the worn end back
+    _sense_link(d, [(300, 55), (600, 61)])
+    _ppi(str(ppi), [60] * 200 + [0] * 170)
+    (e,) = loss_audit.wear_ends(str(d), "VeritySense")["ends"]
+    assert e["doff_witness"] == "pulse-tail" and e["dock"]["docked"] is True
+    assert e["worn_end_at"] == "2026-09-23T23:03:19"
+
+
+def test_A_SHORT_UNWORN_RELINK_FILE_STILL_WITNESSES_THE_DOFF(tmp_path):
+    """The PPI not-worn rule runs before the epoch floor. A relink file under 30 epochs whose PPI rows
+    carry no pulse is an unworn file, so the link loss before it is a doff."""
+    d = tmp_path / "captures" / "2026-09-23"
+    d.mkdir(parents=True)
+    worn = d / "Polar_VeritySense_0C30_20260923230000_PPG.txt"
+    _ppg(str(worn), 370, 20, lambda t: 37.0)  # flat to its end: no removal signature
+    _ppi(str(d / "Polar_VeritySense_0C30_20260923230000_PPI.txt"), [60] * 370)
+    t1 = W0 + dt.timedelta(seconds=390)
+    off = d / "Polar_VeritySense_0C30_20260923230630_PPG.txt"
+    _ppg(str(off), 120, 20, lambda t: 37.0, t0=t1)  # 12 epochs: under the floor
+    _ppi(str(d / "Polar_VeritySense_0C30_20260923230630_PPI.txt"), [0] * 40, t0=t1)
+    w = loss_audit.wear_ends(str(d), "VeritySense")
+    first, second = w["ends"]
+    assert second["usable"] is False and second["ppi_rows"] == 40 and second["ppi_pulse_rows"] == 0, second
+    assert first["reason"] == "doff" and first["doff_witness"] == f"relink-not-worn: {off.name}", first
 
 
 # ── verity_ppi_pulse: the row and pulse counts, one case per kind of row (mutate-diff on #4401) ────────

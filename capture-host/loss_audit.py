@@ -1601,6 +1601,9 @@ VERITY_MIN_EPOCHS = 30  # the derivation's floor for a Verity file
 #   pulse on under 5 % of its rows was not worn. A file worn for a fifth of its span still stays.
 VERITY_NO_PULSE_MIN_ROWS = 30
 VERITY_WORN_MIN_PULSE_PER = 20  # a pulse on under 1 row in 20 (5 %) is a file off the body
+VERITY_TAIL_RUN_ROWS = 30  # a worn stretch: this many PPI rows in a row, each with a pulse
+VERITY_TAIL_OFF_S = 60.0  # the H10's tail run (H10_TAIL_RUN_EPOCHS x WEAR_EPOCH_S): a removal, not a blip
+_VERITY_LINK_DEVICE = "Polar Sense"
 WEAR_RELINK_S = 1800.0  # the label: a next file within 30 min is a reconnect
 _ACC_TAIL_BYTES = 262_144  # the final epoch's ACC rows sit in the last ~25 KB at 52 Hz; 256 KB is generous
 _ACC_MIN_ROWS = 50  # fewer ACC rows in the final epoch is not a motion measurement
@@ -1745,6 +1748,58 @@ def verity_ppi_pulse(ppi_path: str) -> tuple[int, int] | None:
     return rows, pulse
 
 
+def verity_ppi_rows(ppi_path: str) -> list[tuple[_dt.datetime, bool]] | None:
+    """`[(row stamp, hr above 0)]` for one Verity `_PPI.txt` in file order, or None when the file is absent or
+    carries no `hr [bpm]` column. A row without a readable stamp or hr is absent and is skipped."""
+    if not os.path.exists(ppi_path):
+        return None
+    out: list[tuple[_dt.datetime, bool]] = []
+    with open(ppi_path, errors="replace") as fh:
+        head = [c.strip() for c in fh.readline().split(";")]
+        if "hr [bpm]" not in head:
+            return None
+        i = head.index("hr [bpm]")
+        for line in fh:
+            parts = line.split(";")
+            try:
+                out.append((_dt.datetime.fromisoformat(parts[0]), int(parts[i]) > 0))
+            except (IndexError, ValueError):
+                continue  # a torn row, a repeated header: no stamp or no hr, so no row
+    return out
+
+
+def verity_tail(rows: list[tuple[_dt.datetime, bool]], last: _dt.datetime) -> dict | None:
+    """The Verity removal tail, the H10's tail rule read off the device's own pulse flags. PURE.
+
+    OWNER 2026-11-07: "Verity should be handled in same way for removing like h10". MEASURED on the capture
+    box: night 2026-11-06's Verity was taken off at about 06:00 and streamed on, off the body, until 06:03:02.
+    Its PPI rows carry a pulse up to 05:59:48 and none after, except 16 rows from 06:01:53 to 06:02:08 while
+    the armband was handled. The final-epoch rule read the last 10 s, saw an armband lying still, and the
+    end read `link-loss`.
+
+    The worn stretch is the last run of VERITY_TAIL_RUN_ROWS pulse rows in a row, so a handling blip under
+    that length does not count as wear. The end is a removal when, after that run, the file holds at least
+    VERITY_NO_PULSE_MIN_ROWS PPI rows and runs on for VERITY_TAIL_OFF_S. `None` when no worn run exists:
+    the file-level not-worn rule owns that case."""
+    run = 0
+    worn_i = None
+    for i, (_, pulse) in enumerate(rows):
+        run = run + 1 if pulse else 0
+        if run >= VERITY_TAIL_RUN_ROWS:
+            worn_i = i
+    if worn_i is None:
+        return None
+    worn_until = rows[worn_i][0]
+    tail_rows = len(rows) - worn_i - 1
+    off_s = (last - worn_until).total_seconds()
+    return {
+        "worn_until": worn_until.isoformat(timespec="seconds"),
+        "tail_rows": tail_rows,
+        "tail_off_s": round(off_s),
+        "tail_off": tail_rows >= VERITY_NO_PULSE_MIN_ROWS and off_s >= VERITY_TAIL_OFF_S,
+    }
+
+
 def _relink_gap(night_dir: str, pattern: str, end: _dt.datetime) -> tuple[float | None, int]:
     """`(seconds from end to this stream's next file, count of sibling names carrying no start stamp)`.
 
@@ -1771,13 +1826,9 @@ def _relink_gap(night_dir: str, pattern: str, end: _dt.datetime) -> tuple[float 
     return ((min(later) - end).total_seconds() if later else None), unreadable
 
 
-def _wear_end(path: str, night_dir: str, model: str) -> dict:
+def _wear_end(path: str, night_dir: str, model: str, battery: list[tuple[_dt.datetime, int]] | None = None) -> dict:
     pattern, cols = _WEAR_STREAM[model]
     base = os.path.basename(path)
-    ep, last = epoch_stats(path, cols)
-    floor = H10_MIN_EPOCHS if model == "H10" else VERITY_MIN_EPOCHS
-    if len(ep) < floor or last is None:
-        return {"file": base, "usable": False, "reason": f"under {floor} epochs of {WEAR_EPOCH_S:.0f} s"}
     if model != "H10":
         ppi = verity_ppi_pulse(path[: -len("_PPG.txt")] + "_PPI.txt")
         if ppi is not None and ppi[0] >= VERITY_NO_PULSE_MIN_ROWS and ppi[1] * VERITY_WORN_MIN_PULSE_PER < ppi[0]:
@@ -1788,6 +1839,10 @@ def _wear_end(path: str, night_dir: str, model: str) -> dict:
                 "ppi_rows": ppi[0],
                 "ppi_pulse_rows": ppi[1],
             }
+    ep, last = epoch_stats(path, cols)
+    floor = H10_MIN_EPOCHS if model == "H10" else VERITY_MIN_EPOCHS
+    if len(ep) < floor or last is None:
+        return {"file": base, "usable": False, "reason": f"under {floor} epochs of {WEAR_EPOCH_S:.0f} s"}
     gap, no_stamp = _relink_gap(night_dir, pattern, last)
     if model == "H10":
         t = h10_tail([e[2] for e in ep])
@@ -1801,14 +1856,34 @@ def _wear_end(path: str, night_dir: str, model: str) -> dict:
         final = ep[-1]
         amb = final[2] / med if med > 0 else None
         acc = _final_acc_sd(path[: -len("_PPG.txt")] + "_ACC.txt", final[0])
-        doff = verity_end_doff(amb, acc)
-        worn_end = last  # the Verity stops ~10 s after removal: the removal IS the final epoch
+        rows = verity_ppi_rows(path[: -len("_PPG.txt")] + "_PPI.txt")
+        tail = verity_tail(rows, last) if rows else None
+        # THREE REMOVAL WITNESSES, the strongest first (owner 2026-11-07: "removing like h10, charging
+        # like O2ring, and turning off manually"). A pulse tail is the device's own measurement and also
+        # moves the worn end back to the last worn row. A battery that rose is a charger, as for the ring.
+        # The final-epoch rule stays for a Verity switched off or pulled off: it stops ~10 s after.
+        dock = ring_dock_witness(battery, last) if battery else None
+        worn_end = last
+        witness: str | None  # every branch below assigns it
+        if tail is not None and tail["tail_off"]:
+            doff = True
+            worn_end = _dt.datetime.fromisoformat(tail["worn_until"])
+            witness = "pulse-tail"
+        elif dock is not None and dock["docked"]:
+            doff, witness = True, "charger"
+        else:
+            doff = verity_end_doff(amb, acc)
+            witness = "final-epoch" if doff else None
         detail = {
             "epochs": len(ep),
             "final_epoch_at": final[0].isoformat(timespec="seconds"),
             "final_amb_ratio": None if amb is None else round(amb, 2),
             "final_acc_sd": None if acc is None else round(acc, 1),
+            "pulse_tail": tail,
+            "dock": dock,
         }
+        if witness is not None:
+            detail["doff_witness"] = witness
     return {
         "file": base,
         "usable": True,
@@ -1863,8 +1938,8 @@ def ring_dock_witness(series: list[tuple[_dt.datetime, int]], spo2_last: _dt.dat
     }
 
 
-def _ring_battery(night_dir: str) -> tuple[list[tuple[_dt.datetime, int]], list[str]]:
-    """The ring's `(stamp, battery %)` rows from the recording's LINK sidecars, sorted, and every sidecar it could
+def _ring_battery(night_dir: str, device: str = _RING_LINK_DEVICE) -> tuple[list[tuple[_dt.datetime, int]], list[str]]:
+    """The device's (the ring's by default) `(stamp, battery %)` rows from the recording's LINK sidecars, sorted, and every sidecar it could
     not read, by name. An empty `battery_pct` is absent and is skipped, never read as 0."""
     series: list[tuple[_dt.datetime, int]] = []
     unreadable: list[str] = []
@@ -1880,7 +1955,7 @@ def _ring_battery(night_dir: str) -> tuple[list[tuple[_dt.datetime, int]], list[
                     continue  # a sidecar written before the battery column landed
                 for line in fh:
                     p = line.rstrip("\n").split(";")
-                    if len(p) <= max(i_ts, i_dev, i_b) or _RING_LINK_DEVICE not in p[i_dev]:
+                    if len(p) <= max(i_ts, i_dev, i_b) or device not in p[i_dev]:
                         continue
                     try:
                         series.append((_dt.datetime.fromisoformat(p[i_ts]), int(p[i_b])))
@@ -1954,11 +2029,16 @@ def wear_ends(night_dir: str, model: str, address: str | None = None) -> dict:
         return {"available": False, "reason": f"no wear-end rule for model {model!r}"}
     files = _recording_glob(night_dir, spec[0])
     contact = _ring_contact(files) if ring else []
-    battery, link_unreadable = _ring_battery(night_dir) if ring else ([], [])
+    if ring:
+        battery, link_unreadable = _ring_battery(night_dir)
+    elif model == "VeritySense":
+        battery, link_unreadable = _ring_battery(night_dir, _VERITY_LINK_DEVICE)
+    else:
+        battery, link_unreadable = [], []
     ends = []
     for f in files:
         try:
-            ends.append(_ring_end(f, night_dir, contact, battery) if ring else _wear_end(f, night_dir, model))
+            ends.append(_ring_end(f, night_dir, contact, battery) if ring else _wear_end(f, night_dir, model, battery))
         except OSError as exc:
             ends.append({"file": os.path.basename(f), "usable": False, "reason": f"unreadable: {exc!r}"})
     relink_off_body(ends)
