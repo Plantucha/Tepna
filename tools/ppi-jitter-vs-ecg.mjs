@@ -184,7 +184,7 @@ import {
   ppiJitterMs,
   rateAgreement
 } from './ppi-match.mjs';
-import { capByNights, dedupeByIdentity, gitCommitOf, headNightKeyWith, nightKeyOf, notCovered, populationVerdict, ruleLine, snapshotEntries } from './corpus-scope-core.mjs';
+import { capByNights, coverageIdentity, dedupeByIdentity, gitCommitOf, headNightKeyWith, nightKeyOf, notCovered, populationVerdict, ruleLine, snapshotEntries } from './corpus-scope-core.mjs';
 import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
 
 /* ── THE VALIDITY SIDECAR RIDES WITH THE STREAM (row 2026-10-17-sample-parsers-called-without-their-sidecar) ──
@@ -2307,6 +2307,10 @@ function printPopulation() {
   console.log(`  the read scored ${nights.length} of the ${snap.n} offered under ${DIR}${snap.ok ? '' : ` · ${snap.reason}`}`);
   const missed = notCovered(snap, nights, { key: 'rec' });
   if (missed.length) console.log(`  it removed ${missed.length}, by name: ${missed.slice(0, 8).join(' · ')}${missed.length > 8 ? ` · … (+${missed.length - 8})` : ''}`);
+  /* THE DIFFERENCE ANSWERS TO THE ARITHMETIC (#4506). The unit is a RECORDING, whatever the array
+     is called: one night can hold several, and the scored line above counts rows. A second row on
+     one recording would push that line past the distinct count. */
+  coverageIdentity(snap, nights, missed, { key: 'rec', printedScored: nights.length });
   /* STATE THE RULE THE CAP APPLIED, not just its size. A selection is not a rule (tests/dex-tests.js
      § the population snapshot), so the line names the unit it counted, the order it took them in and
      every night it left — by name, because a count names nothing to chase. */

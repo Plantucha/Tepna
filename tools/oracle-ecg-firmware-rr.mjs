@@ -129,7 +129,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry } from './argv-guard.mjs';
-import { digestNights, notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
+import { coverageIdentity, digestNights, notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
 import { printVerdict } from './verdict-emit.mjs';
 import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
 
@@ -1129,6 +1129,9 @@ function printPopulation(v, union, pairs) {
   const rl = ruleLine(v && v.result ? v : { result: { rule: union.rule, ruleRejectedNightShaped: union.rejectedNightShaped, ruleAdmittedNonNight: union.admittedNonNight } });
   if (rl) console.log(rl);
   const bare = notANight(union, pairs);
+  /* THE DIFFERENCE ANSWERS TO THE ARITHMETIC (#4506). The difference alone: the only
+     count printed above is `v.population.checked`, which labels MOVEMENT between two listings. */
+  coverageIdentity(union, pairs, bare);
   if (bare.length)
     console.log(`  the read removed ${bare.length} of ${dirs(union.n)}, holding no H10 ECG+RR pair: ${bare.slice(0, 12).join(', ')}${bare.length > 12 ? `, … (+${bare.length - 12})` : ''}`);
 }

@@ -48,7 +48,7 @@ import { fileURLToPath } from 'node:url';
 import { ECG_FILES, PPG_FILES, hostWindowMs, realm } from './gap-s-sweep.mjs';
 import { ivIntersect, ivSpan, mergeIv } from './trio-anchor.mjs';
 import { isCliEntry } from './argv-guard.mjs';
-import { notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
+import { coverageIdentity, notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
 import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
 /* ── THE VALIDITY SIDECAR RIDES WITH THE STREAM ─────────────────────────────────────────────────────
    Row 2026-10-17-sample-parsers-called-without-their-sidecar: this tool read a night's samples and
@@ -493,6 +493,9 @@ function main(argv) {
      every path below it — a `const` arrow called above its own declaration is a guaranteed dead-zone
      throw, which is the shape of row 2026-10-28-the-cvhr-cost-phase-publishes-a-population-before-the-publisher-exists. */
   const uncontrolled = notANight(popBefore, committed);
+  /* THE DIFFERENCE ANSWERS TO THE ARITHMETIC (#4506). The line below prints
+     `${committed.length} named by the control`, so the control's own row count answers to the offer. */
+  coverageIdentity(popBefore, committed, uncontrolled, { printedScored: committed.length });
   console.log(
     `  offered: ${popBefore.n} night director${popBefore.n === 1 ? 'y' : 'ies'} under ${tree}; ${committed.length} named by the control` +
       (uncontrolled.length ? `; ${uncontrolled.length} offered and never scored, because the control does not name them: ${uncontrolled.join(', ')}` : '; every offered night is named by the control')
