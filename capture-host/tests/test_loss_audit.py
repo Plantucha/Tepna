@@ -4672,3 +4672,27 @@ def test_span_before_s_clips_each_file_at_the_worn_end_and_skips_an_unstamped_on
     assert loss_audit.span_before_s(scans, t + dt.timedelta(seconds=750)) == 650.0
     assert loss_audit.span_before_s(scans, t + dt.timedelta(seconds=300)) == 300.0
     assert loss_audit.span_before_s(scans, None) == 800.0
+
+
+def _worn_end_before_the_night(monkeypatch, at="2026-09-20T00:00:00"):
+    """Every gap of the night then lies after the worn end, so `after_worn_end_min` reads them all."""
+    monkeypatch.setattr(loss_audit, "wear_ends", lambda *a, **k: {"worn_end": {"at": at, "reason": "doff"}})
+
+
+def test_after_worn_end_min_is_the_gap_minutes_at_one_decimal(tmp_path, monkeypatch):
+    """A 401 s gap after the worn end reads 6.7 min: seconds over 60, rounded to one decimal (mutate-diff, #4478)."""
+    _worn_end_before_the_night(monkeypatch)
+    d = _night(tmp_path, holes=((100, 500),))
+    dev = loss_audit.audit_night(d, DEV, journal=lambda *a: [])["devices"]["Polar H10 0284"]
+    assert [g["s"] for g in dev["gaps"]] == [401.0], dev["gaps"]
+    assert dev["after_worn_end_min"] == 6.7 and dev["worn_span_min"] == 0.0, dev
+
+
+def test_an_unwitnessed_gap_after_the_worn_end_is_not_subtracted_twice(tmp_path, monkeypatch):
+    """`lost_min` already leaves an unwitnessed gap out, so the minutes after the worn end leave it out too.
+    Otherwise the worn loss would go below zero (mutate-diff, #4478)."""
+    _worn_end_before_the_night(monkeypatch)
+    d = _ring_stall_night(tmp_path, witness="absent")
+    dev = loss_audit.audit_night(d, RING_DEV, journal=lambda *a: [])["devices"]["Ring"]
+    assert [g["witness"] for g in dev["gaps"]] == ["unwitnessed"], dev["gaps"]
+    assert dev["unwitnessed_min"] == 0.2 and dev["after_worn_end_min"] == 0.0, dev
