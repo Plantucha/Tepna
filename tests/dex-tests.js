@@ -963,6 +963,71 @@
       );
     });
 
+    /* ── THE REST OF THE SAME SWEEP ────────────────────────────────────────────────────────────────
+       The group above added `_kc` and `_kn` to `renderKpiGridPx` and its comment said one grader and
+       one formatter keep absence as absence on every refusable card. Seven tiles in the same array
+       still graded a bare comparison, and two of those still built their value by concatenation.
+       Measured on the published absence form — `siCalc` returns null and `_r1` passes it through —
+       the seven read: Baevsky SI good, Artifacts good, HF n.u. bad, Coverage bad, LF/HF warn, ABS
+       warn and Resp Rate warn. So an absent Baevsky SI painted a card GREEN. The legs below call the
+       real module-scope helpers in the render realm, then pin each tile's own expression in source,
+       because a helper can be right while no tile calls it. */
+    group('∅ PulseDex overview tiles — an absence is neutral, never a band', 'pulsedex-overview · absence · render-harness', function (T) {
+      var K = env.PXKPI;
+      if (!K || typeof K._kc !== 'function' || typeof K._kd !== 'function' || typeof K._kn !== 'function') {
+        T.skip(
+          'env.PXKPI wired (the overview module executes in the render realm)',
+          'Node-lane only (run-tests.mjs executes pulsedex-overview.js headless); the browser lane runs it in iframe rigs so it SKIPs'
+        );
+      } else {
+        // ── the ascending grader ──
+        T.eq('_kc returns neutral for a null', K._kc(null, 35, 20), 'neutral');
+        T.eq('_kc returns neutral for an undefined, which the bare comparison graded bad', K._kc(undefined, 35, 20), 'neutral');
+        T.eq('CONTROL · _kc still grades a measured value above the good cut', K._kc(40, 35, 20), 'good');
+        T.eq('CONTROL · _kc still grades a measured value between the cuts', K._kc(25, 35, 20), 'warn');
+        T.eq('CONTROL · _kc still grades a measured value below the warn cut', K._kc(10, 35, 20), 'bad');
+        T.eq('a MEASURED zero keeps its grade — ABS at 0 is warn, not neutral', K._kc(0, 0, -0.3), 'warn');
+
+        // ── the descending grader, which the Baevsky SI tile needs ──
+        T.eq('_kd returns neutral for a null', K._kd(null, 150, 250), 'neutral');
+        T.eq('_kd returns neutral for an undefined', K._kd(undefined, 150, 250), 'neutral');
+        T.eq('CONTROL · _kd still grades a measured SI below the good cut', K._kd(100, 150, 250), 'good');
+        T.eq('CONTROL · _kd still grades a measured SI between the cuts', K._kd(200, 150, 250), 'warn');
+        T.eq('CONTROL · _kd still grades a measured SI above the warn cut', K._kd(300, 150, 250), 'bad');
+        T.eq('a MEASURED zero keeps its grade — an SI of 0 is good, not neutral', K._kd(0, 150, 250), 'good');
+        T.ok('the mechanism the raw form had: a null compares below the good cut', null < 150, 'null < 150 evaluates ' + (null < 150));
+
+        // ── the formatter ──
+        T.eq('_kn returns null for a null, so the emitter can print its em-dash', K._kn(null), null);
+        T.eq('_kn returns null for an undefined', K._kn(undefined), null);
+        T.eq('CONTROL · _kn still formats a measured zero as its own number', K._kn(0), '0');
+        T.eq('CONTROL · _kn still formats a measured value', K._kn(97), '97');
+        T.ok('the mechanism the raw form had: a concatenation makes the string null', null + '' === 'null', 'a concatenated null reads ' + JSON.stringify(null + ''));
+
+        // ── each tile calls one of them (a right helper no tile calls is still the defect) ──
+        var ovw = (env.sources || {})['pulsedex-overview.js'] || '';
+        if (!ovw.trim()) {
+          T.skip('the overview source', 'sources not provided in this runner');
+        } else {
+          T.ok('ANTI-VACUITY · the KPI array is in the source this leg reads', ovw.indexOf("l: 'Baevsky SI'") > 0, 'the SI tile sits at offset ' + ovw.indexOf("l: 'Baevsky SI'"));
+          T.ok('the Baevsky SI tile grades through _kd', /c: _kd\(r\.si, 150, 250\)/.test(ovw), (ovw.match(/c: _kd\(r\.si[^)]*\)/) || ['no _kd call on the SI tile'])[0]);
+          T.ok('the HF n.u. tile grades through _kc', /c: _kc\(r\.hfnu, 35, 20\)/.test(ovw), (ovw.match(/c: _kc\(r\.hfnu[^)]*\)/) || ['no _kc call on the HF n.u. tile'])[0]);
+          T.ok('the ABS tile grades through _kc', /c: _kc\(r\.abs, 0, -0\.3\)/.test(ovw), (ovw.match(/c: _kc\(r\.abs[^)]*\)/) || ['no _kc call on the ABS tile'])[0]);
+          T.ok('the LF/HF tile takes the null first', /c: r\.lfhf == null \? 'neutral'/.test(ovw), (ovw.match(/c: r\.lfhf == null \? '\w+'/) || ['no null arm on the LF/HF tile'])[0]);
+          T.ok('the Resp Rate tile takes the null first', /c: r\.respRate == null \? 'neutral'/.test(ovw), (ovw.match(/c: r\.respRate == null \? '\w+'/) || ['no null arm on the Resp Rate tile'])[0]);
+          T.ok('the Coverage tile takes the null first', /c: r\.coverage == null \? 'neutral'/.test(ovw), (ovw.match(/c: r\.coverage == null \? '\w+'/) || ['no null arm on the Coverage tile'])[0]);
+          T.ok(
+            'the Artifacts tile takes the null first',
+            /c: r\.artifactPct == null \? 'neutral'/.test(ovw),
+            (ovw.match(/c: r\.artifactPct == null \? '\w+'/) || ['no null arm on the Artifacts tile'])[0]
+          );
+          T.ok('the Coverage tile formats through _kn', /v: _kn\(r\.coverage\)/.test(ovw), (ovw.match(/v: _kn\(r\.coverage\)/) || ['no _kn call on the Coverage tile'])[0]);
+          T.ok('the Artifacts tile formats through _kn', /v: _kn\(r\.artifactPct\)/.test(ovw), (ovw.match(/v: _kn\(r\.artifactPct\)/) || ['no _kn call on the Artifacts tile'])[0]);
+          T.eq('no tile in the array builds its value by concatenation', (ovw.match(/v: r\.\w+ \+ ''/g) || []).length, 0);
+        }
+      }
+    });
+
     /* ── §U3 THE MID-FILE SEAM ────────────────────────────────────────────────────────────────────
        DEVICE-TIME-HANDLING-2026-10-29 §U3 was sized as though OxyDex, PulseDex and HRVDex had no
        seam handling at all. They do, and it is the premise that was wrong, so this group pins the
