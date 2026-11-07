@@ -12,11 +12,14 @@
 #   · the night is resolved PER ROW — a watch armed at 21:00 outlives the night boundary
 #   · a stall with nowhere to file it still reaches the JOURNAL, rather than returning quietly
 #   · the config's threshold and cap reach the sampler, not just the log line
+#   · the example documents the key OFF and its threshold and cap EQUAL the code defaults
 import asyncio
 import json
+import os
 import threading
 
 import pytest
+import yaml
 
 import capture
 import stallsampler as ss
@@ -174,3 +177,18 @@ def test_the_defaults_come_from_the_MODULE_so_the_two_files_cannot_disagree(capl
 
 def test_the_shipped_defaults_are_the_BRIEFS_figures():
     assert (ss.THRESHOLD_MS, ss.MAX_ROWS, ss.BEAT_INTERVAL_S, ss.TOP_FRAMES) == (500.0, 200, 0.05, 6)
+
+
+def test_config_example_documents_the_key_OFF_and_its_defaults_match_the_code():
+    """The threshold and the cap reach the sampler from config, so a documented number that drifts
+    from the module constant tells an operator the wrong thing about a night they already recorded."""
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    path = os.path.join(here, "config.example.yaml")
+    text = open(path, encoding="utf-8").read()
+    doc = yaml.safe_load(text)["stall_sampler"]
+    assert doc["enabled"] is False, "arming is the owner's call on the box, never a repo default"
+    assert float(doc["threshold_ms"]) == ss.THRESHOLD_MS, doc
+    assert int(doc["max_rows"]) == ss.MAX_ROWS, doc
+    block = text[text.index("stall_sampler:") :]
+    assert "STALLS.jsonl" in block, "the example must name where a row lands"
+    assert "capped" in block, "and that the cap travels in the row"

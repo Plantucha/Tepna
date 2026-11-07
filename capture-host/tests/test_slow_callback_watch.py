@@ -17,10 +17,13 @@
 #   · NO STATUS key: the first version published an aggregate and `find_unwired --check` red it as
 #     "published by capture.py and read by nothing" — the journal line is the property, not a dashboard
 #   · the OVERHEAD, asserted as a number rather than described in a comment
+#   · the example documents the key OFF and its threshold EQUALS the code default
 import asyncio
+import os
 import time
 
 import pytest
+import yaml
 
 import capture
 
@@ -240,3 +243,18 @@ def test_the_task_INSTALLS_when_enabled_and_RESTORES_when_the_process_stops(capl
     msgs = " ".join(r.getMessage() for r in caplog.records)
     assert "slow-callback watch: ON" in msgs and "250 ms" in msgs, msgs
     assert "restored" in msgs
+
+
+def test_config_example_documents_the_key_OFF_and_its_threshold_matches_the_code():
+    """Board #2289 named the cost of this instrument's absence from `settings_schema.SETTINGS`: no
+    source scan compares the code default against a documented one. Both numbers sit in one
+    assertion now, so a change to `_SLOW_CB_MS` that leaves the example alone reds here."""
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    path = os.path.join(here, "config.example.yaml")
+    text = open(path, encoding="utf-8").read()
+    doc = yaml.safe_load(text)["slow_callback"]
+    assert doc["enabled"] is False, "arming is the owner's call on the box, never a repo default"
+    assert float(doc["threshold_ms"]) == capture._SLOW_CB_MS, doc
+    prose = text[max(0, text.index("slow_callback:") - 2200) : text.index("slow_callback:")]
+    assert "ARMS NOTHING" in prose, "the example must say that a flip here reaches no box"
+    assert "HEAP PROBE" in prose, "the two-night ordering is the claim most likely to rot"
