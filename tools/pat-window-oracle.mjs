@@ -656,6 +656,37 @@ function selftest() {
     ok(V.validate(sh).ok && V.validate(arm({})).ok, 'every emitted arm validates under verdict.js');
   }
 
+  /* ── THE JSON ROW IS COMPARABLE ACROSS RUNS ────────────────────────────────────────────────
+     The row is the API (§🧾). These legs hold it to carrying (a) the count behind every spread and
+     (b) the knobs that decide the number, because the defect they close published `narrowSd` alone
+     and a reader compared two axes as one quantity. */
+  {
+    const resJ = { mode: 405, modeB: 325, modeBInPhys: true, modeN: 495, modeInPhys: true, modeNInPhys: true, narrowN: 1462, narrowSd: 15.1, fullN: 2910, fullSd: 39.0, nullN: 1301, nullSd: 61.1 };
+    const vJ = { admissibility: 'both-in', tallyKey: 'SIGNAL RECOVERED', refused: false };
+    const runIdx = { searchMax: 2000, halfWidth: 100, fiducial: 'foot', ecgAxis: 'linear', refine: true };
+    const rowIdx = jsonRow('2026-07-24', false, resJ, vJ, runIdx);
+    const POP_KEYS = ['narrowN', 'narrowSd', 'fullN', 'fullSd', 'nullN', 'nullSd'];
+    const KNOB_KEYS = ['ecgAxis', 'halfWidth', 'fiducial', 'refine', 'searchMax'];
+    /* ANTI-VACUITY: the two lists are the subject of this leg, so an empty one would pass every
+       assertion below while checking nothing. */
+    ok(POP_KEYS.length === 6 && KNOB_KEYS.length === 5, `the key lists must be populated, got ${POP_KEYS.length}/${KNOB_KEYS.length}`);
+    for (const k of POP_KEYS) ok(rowIdx[k] === resJ[k], `the row must carry ${k} from the night's own result, got ${rowIdx[k]}`);
+    for (const k of KNOB_KEYS) ok(rowIdx[k] === runIdx[k], `the row must carry ${k} from the run, got ${rowIdx[k]}`);
+    ok(rowIdx.night === '2026-07-24' && rowIdx.session === undefined, 'a night row keys on night');
+    ok(jsonRow('s1', true, resJ, vJ, runIdx).session === 's1', 'a session row keys on session');
+    /* THE KNOBS COME FROM THE RUN, never from a default this function restates: a second run with
+       every knob changed must change every knob field, and no population field. */
+    const runCnt = { searchMax: 1500, halfWidth: 300, fiducial: 'cfd', ecgAxis: 'counter', refine: false };
+    const rowCnt = jsonRow('2026-07-24', false, resJ, vJ, runCnt);
+    for (const k of KNOB_KEYS) ok(rowCnt[k] === runCnt[k] && rowCnt[k] !== rowIdx[k], `${k} must travel from the run, got ${rowCnt[k]} against ${rowIdx[k]}`);
+    for (const k of POP_KEYS) ok(rowCnt[k] === rowIdx[k], `${k} is the night's, not the run's — it must not move with a knob`);
+    /* §∅ AN ABSENT FIELD IS null, NEVER undefined: `JSON.stringify` DROPS an undefined value, so a
+       row that lost a count would publish as a row that never had one. */
+    const bare = jsonRow('x', false, { mode: 1 }, vJ, null);
+    for (const k of POP_KEYS.concat(KNOB_KEYS)) ok(bare[k] === null, `an absent ${k} must serialise as null, got ${String(bare[k])}`);
+    ok(Object.keys(JSON.parse(JSON.stringify(bare))).length === Object.keys(bare).length, 'no field may vanish through JSON — an undefined would');
+  }
+
   /* THE COUNT IS INCREMENTED BY THE ASSERTION HELPER, never typed. It used to be `const TOTAL = 45`
      interpolated into the print, which reads as a computed figure and is not one: adding the seven
      admissibility assertions below left it printing 45/45, and `selftest-all.mjs`'s static half
@@ -981,6 +1012,53 @@ export function pickPair(dir, files) {
   return { eF, pF };
 }
 
+/* ── THE MACHINE-READABLE ROW CARRIES ITS POPULATION AND ITS KNOBS ─────────────────────────────
+   §🧾 the object is the API and the prose explains it, but this row published `narrowSd` with no
+   count beside it, no untruncated `fullSd`, and no word of which ECG axis, half-width or fiducial
+   produced it. `narrowSd` is a spread over the lags inside ±halfWidth of the mode, so the
+   POPULATION is one of the things a knob changes, and two rows from two runs can state two
+   numbers measured over two different beat sets while reading as one quantity.
+
+   Measured 2026-11-07 over the six frozen box nights (board #4036): 2026-07-24 reads narrowSd 15.1
+   over 1462 lags on the index axis and 20.7 over 1653 on the counter axis — and at a half-width
+   where both axes admit the IDENTICAL 2910 lags the counter axis is the better of the two, 39.9
+   against 35.3. The night's `fullSd`, which truncates nothing, improves 39.0 → 35.3. A pre-stated
+   bar read that first pair as a regression, because the row it compared carried neither the count
+   nor the full spread nor the axis. The human table printed narrowN and fullSd all along.
+
+   ADDITIVE: every field the row already carried keeps its name and its value, and `run` supplies
+   the knobs rather than this function restating a default. */
+export function jsonRow(label, isSession, res, v, run) {
+  const r = run || {};
+  return {
+    [isSession ? 'session' : 'night']: label,
+    searchMax: r.searchMax ?? null,
+    /* THE KNOBS THAT DECIDE THE NUMBER, so a reader never compares two axes as one. */
+    ecgAxis: r.ecgAxis ?? null,
+    halfWidth: r.halfWidth ?? null,
+    fiducial: r.fiducial ?? null,
+    refine: r.refine ?? null,
+    mode: res.mode ?? null,
+    modeB: res.modeB ?? null,
+    modeBInPhys: res.modeBInPhys ?? null,
+    admissibility: v.admissibility,
+    modeN: res.modeN ?? null,
+    modeInPhys: res.modeInPhys ?? null,
+    modeNInPhys: res.modeNInPhys ?? null,
+    /* THE POPULATION BESIDE EVERY SPREAD. `narrowN` is what `narrowSd` describes, `fullN` what
+       `fullSd` describes, `nullN` what `nullSd` describes — §∅, a spread with no count states
+       nothing a later reader can hold a bar against. */
+    narrowN: res.narrowN ?? null,
+    narrowSd: res.narrowSd ?? null,
+    fullN: res.fullN ?? null,
+    fullSd: res.fullSd ?? null,
+    nullN: res.nullN ?? null,
+    nullSd: res.nullSd ?? null,
+    verdict: v.tallyKey,
+    refused: v.refused
+  };
+}
+
 async function main() {
   const argv = process.argv.slice(2);
   if (argv.includes('--selftest')) process.exit(selftest() ? 0 : 1);
@@ -1016,6 +1094,8 @@ async function main() {
     return;
   }
   const JSON_OUT = argv.includes('--json');
+  /* ONE record of the knobs, so every row states the run that produced it. */
+  const RUN = { searchMax: SMAX, halfWidth: HW, fiducial: FID, ecgAxis: AXIS, refine: REFINE };
   const jsonRows = [];
   if (!DIR || !existsSync(DIR) || !['foot', 'cfd', 'half'].includes(FID) || !['linear', 'counter', 'piecewise'].includes(AXIS)) {
     console.error('usage: node tools/pat-window-oracle.mjs --selftest | --dir <captures root> [--half-width 100] [--fiducial foot|cfd|half] [--ecg-axis linear|counter|piecewise] [--no-ecg-refine]');
@@ -1127,22 +1207,7 @@ async function main() {
     if (!SESSIONS) scoredNights.push(n);
     adm[v.admissibility == null ? 'bModeAbsent' : ADM_KEY[v.admissibility]] += 1;
     if (v.admissibility === 'A-in-B-out' || v.admissibility === 'A-out-B-in') admFlipped.push(`${n} ${v.admissibility} ${res.mode.toFixed(0)}→${res.modeB.toFixed(0)}`);
-    if (JSON_OUT)
-      jsonRows.push({
-        [SESSIONS ? 'session' : 'night']: n,
-        searchMax: SMAX,
-        mode: res.mode ?? null,
-        modeB: res.modeB ?? null,
-        modeBInPhys: res.modeBInPhys ?? null,
-        admissibility: v.admissibility,
-        modeN: res.modeN ?? null,
-        modeInPhys: res.modeInPhys ?? null,
-        modeNInPhys: res.modeNInPhys ?? null,
-        narrowSd: res.narrowSd ?? null,
-        nullSd: res.nullSd ?? null,
-        verdict: v.tallyKey,
-        refused: v.refused
-      });
+    if (JSON_OUT) jsonRows.push(jsonRow(n, SESSIONS, res, v, RUN));
     /* maxStepMs beside every piecewise row (frozen condition c): a mid-file step smears across one
        anchor gap under piecewise and can itself move a half-mode — discovered here, not post-hoc. */
     const axisNote = AXIS === 'piecewise' ? `  [maxStep ${E.maxStepMs == null ? 'n/a' : E.maxStepMs.toFixed(0) + ' ms'}]` : '';

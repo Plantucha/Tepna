@@ -217,6 +217,12 @@ evidence".
   final 10 s); the ring's last SpO₂ row at 04:21:29 then "ring started a new recording session" at
   04:21:40 (finger out); the H10 as above. The 30-min clause stays as the fallback when no signature is
   found.
+- **An off-body relink is device-positive doff evidence too** (owner ruling 2026-11-06: "Night is obviously
+  solid. Detection should be better"). On 2026-11-05 the Verity link dropped at 04:22:55 with no removal
+  signature. The relink file started 55 s later and reported a pulse on 0 of its 3156 PPI rows. The loss
+  audit's `relink_off_body` now reads such a `link-loss` end as `doff`, with `doff_witness:
+  relink-not-worn: <file>`. The witness is the stream's NEXT file only. Census 2026-11-06 over 142 night
+  folders: 2 link-loss ends had an unworn next file, and each was its night's worn end.
 - **Two inputs this night showed are NOT wear evidence.** (i) The daemon's not-worn detection **did not
   fire** for the H10 in those 27½ min (Wren is filing the row). (ii) The loss audit's `lost_min` measures
   GAPS: its 0.0 for the H10 was right about gaps and silent about wear. The verdict needs both — continuity
