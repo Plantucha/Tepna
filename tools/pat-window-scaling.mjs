@@ -35,7 +35,7 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { NIGHT_RE, notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
+import { coverageIdentity, NIGHT_RE, notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
 import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
 /* The ECG axis arithmetic is single-sourced in `pat-matchrate-strict.mjs` for row
    2026-09-26-pat-ecg-index-axis-is-not-the-h10-sample-clock: this tool held a private `t0 + i/fs`,
@@ -323,6 +323,10 @@ const population = populationVerdict(popBefore, snapshotNights(DIR, { re: NIGHT_
 /* Named against the SELECTED set: under `--night` the rest of the offer was never a candidate, and
    the line above already states how many nights the selection left unread. */
 const unscored = notANight({ n: nights.length, nights }, covered);
+/* THE PRINTED FIGURE ANSWERS TO THE ARITHMETIC (#4506). The identity holds the scored count to the
+   members this run actually read: a short difference, a duplicate night or a member the offer never
+   held stops the run, where before the line printed and said nothing. */
+coverageIdentity({ n: nights.length, nights }, covered, unscored, { printedScored: covered.length });
 console.log(
   `\n  population: ${popBefore.n} offered under ${DIR} · ${nights.length} selected · ${covered.length} scored · movement ${population.status}${ONLY ? ` · --night left ${popBefore.n - nights.length} offered night(s) unread` : ''}${population.reason ? ' — ' + population.reason : ''}`
 );

@@ -53,7 +53,7 @@ import { dissentStampOf, dissentTallyLine, refpickOf, signsOf } from './consensu
 import { loadDsps, getDsps, median, quantile, BIN_MIN } from './pat-matchrate-strict.mjs';
 import { printVerdict, undeclaredVerdict, verdictSample } from './verdict-undeclared.mjs';
 import { isCliEntry } from './argv-guard.mjs';
-import { gitCommitOf, notCovered, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
+import { coverageIdentity, gitCommitOf, notCovered, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
 import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
 
 const argv = process.argv.slice(2);
@@ -344,6 +344,10 @@ function main() {
        offered nights this run never scored, and a COUNT names nothing to chase. Both causes land
        here: the `--only` cap and the nights holding no ring/ankle pair. */
     const missed = notCovered(snap, bests, { key: 'night' });
+    /* THE PRINTED FIGURE ANSWERS TO THE ARITHMETIC (#4506). `bests.length` is the scored count this
+       line publishes, so the identity holds it to the members read and stops a run whose offer, scored
+       count and missed list cannot all be true at once. */
+    coverageIdentity(snap, bests, missed, { printedScored: bests.length });
     if (missed.length) console.log(`  it scored ${missed.length} offered night(s) not at all, by name: ${missed.slice(0, 8).join(' · ')}${missed.length > 8 ? ` · … (+${missed.length - 8})` : ''}`);
     console.log('POPULATION ' + JSON.stringify(population));
   };
