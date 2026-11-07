@@ -36949,6 +36949,106 @@
       T.ok('CONTROL · its minute totals are numbers, not null', typeof q.activeMin === 'number' && q.activeMin > 0, 'activeMin=' + JSON.stringify(q.activeMin));
     });
 
+    group('GlucoDex surfaces NAME the cadence refusal — never a null, never a zero (§∅)', 'glucodex-render · glucodex-app · absence · render-harness', function (T) {
+      var G = env.GLUDSP,
+        U = env.GLUUI;
+      if (!G || typeof G.analyze !== 'function' || !U || typeof U.cadText !== 'function') {
+        T.skip(
+          'render harness globals wired (env.GLUUI.cadText + env.GLUDSP.analyze)',
+          'Node-lane only (run-tests.mjs executes *-render.js headless); the browser lane runs render in iframe rigs so it SKIPs'
+        );
+      } else {
+        /* THE SAME TWO EXPORTS THE DSP GROUP ABOVE USES, so the surface legs and the publisher legs
+           describe ONE record. The daily export is the refusal: no delta in (0, 240) min, so
+           `cadence`, `activeMin` and `durDays` are all null and `cadenceReason` names why. */
+        var day = 86400000,
+          t0 = Date.UTC(2026, 5, 1, 8, 0, 0);
+        var tMs = [],
+          vMgdl = [];
+        for (var i = 0; i < 10; i++) {
+          tMs.push(t0 + i * day);
+          vMgdl.push(100 + i);
+        }
+        var ref = G.analyze({ tMs: tMs, vMgdl: vMgdl, unit: 'mg/dL', t0Ms: t0 }, null, {});
+        var t5 = [],
+          v5 = [];
+        for (var k = 0; k < 200; k++) {
+          t5.push(t0 + k * 5 * 60000);
+          v5.push(100 + (k % 40));
+        }
+        var meas = G.analyze({ tMs: t5, vMgdl: v5, unit: 'mg/dL', t0Ms: t0 }, null, {});
+        /* The third state is a record with a null rate and NO reason — what an export written before
+           the node named its token looks like. It is NOT the same claim as "unmeasurable", so the
+           surface must not borrow that word for it. */
+        var unk = { cadence: null, activeMin: null, durDays: null };
+
+        T.eq('the refusal is the state the helpers see', U.cadState(ref), 'refused');
+        T.eq('a measured rate is the measured state', U.cadState(meas), 'measured');
+        T.eq('a null with no reason is UNKNOWN, not refused', U.cadState(unk), 'unknown');
+
+        T.eq('the token is the node’s own word, taken off `cadenceReason`', U.cadToken(ref), 'cadence-unmeasurable');
+        T.eq('a measured record carries no token', U.cadToken(meas), null);
+
+        T.ok('a refused cadence never prints the string `null`', U.cadText(ref).indexOf('null') < 0, 'cadText=' + JSON.stringify(U.cadText(ref)));
+        T.eq('…it IS the token, printed bare — no label in front of it', U.cadText(ref), 'cadence-unmeasurable');
+        T.eq('CONTROL · a measured cadence prints the number and nothing extra', U.cadText(meas), '5-min cadence');
+        T.ok('an UNKNOWN record says UNKNOWN and does NOT borrow the refusal token', U.cadText(unk) === 'cadence UNKNOWN', 'cadText=' + JSON.stringify(U.cadText(unk)));
+
+        T.ok('a withheld day count never prints `NaN` or a fabricated figure', /^active days withheld \u2014 cadence-unmeasurable$/.test(U.durText(ref)), 'durText=' + JSON.stringify(U.durText(ref)));
+        T.ok('CONTROL · a measured day count is the number', /^[0-9.]+ days active$/.test(U.durText(meas)), 'durText=' + JSON.stringify(U.durText(meas)));
+
+        /* THE FABRICATED ZERO. `Math.round(null / 60) + 'h'` is `0h` — a figure that reads exactly
+           like a measured one and was printed on the KPI tile, in the hero line and in the profile
+           badge. A refused minute total has no hours to print. */
+        T.ok('a null minute total never prints as `0h`', U.activeText(ref) !== '0h' && U.activeText(ref) !== '0 h', 'activeText=' + JSON.stringify(U.activeText(ref)));
+        T.eq('…it states that there is no rate behind it', U.activeText(ref), 'no rate');
+        T.eq('CONTROL · a measured 200-cell 5-min export keeps its hours', U.activeText(meas), Math.round(meas.activeMin / 60) + 'h');
+        T.ok(
+          'CONTROL · a measured ZERO stays a number, it is not swept up as absence',
+          U.activeText({ activeMin: 0, cadence: 5 }) === '0h',
+          'activeText=' + JSON.stringify(U.activeText({ activeMin: 0, cadence: 5 }))
+        );
+
+        T.eq('CONTROL · a measured record gets NO refusal note (a note on it is noise)', U.cadNote(meas), '');
+        T.ok('the refusal note names the token', U.cadNote(ref).indexOf('cadence-unmeasurable') >= 0, 'len=' + U.cadNote(ref).length);
+        T.ok(
+          '…and the step the grid used, as an ASSUMPTION beside it',
+          U.cadNote(ref).indexOf(ref.cadenceAssumed + '-min') >= 0 && /ASSUMPTION/.test(U.cadNote(ref)),
+          'assumed=' + JSON.stringify(ref.cadenceAssumed)
+        );
+        T.ok('the UNKNOWN note does not name a token it does not have', U.cadNote(unk).indexOf('undefined') < 0 && U.cadNote(unk).indexOf('UNKNOWN') >= 0, 'note=' + JSON.stringify(U.cadNote(unk)));
+
+        /* ── THE SCOPE'S GRID STEP ─────────────────────────────────────────────────────────────
+           `series` publishes the MEASUREMENT and not the grid step, so the viewport read the field
+           the node nulls. `Math.round(1440 / null)` is `Infinity`, so the default 24 h view became
+           the whole record — a silent change of what the reader is looking at, with no warning and
+           no error. The grid's own spacing is the step, and the scope measures it there.
+           `setData` is driven over a stand-in receiver because the real one owns a canvas. */
+        var stepMin = (ref.series.gT[1] - ref.series.gT[0]) / 60000;
+        T.eq('the refused record still HAS a grid, spaced by the assumed step', stepMin, 5);
+        T.eq('…while the field the viewport used to read is null', ref.series.cadence, null);
+        var rec = {
+          resize: function () {},
+          draw: function () {},
+          drawMini: function () {}
+        };
+        U.GlucoScope.prototype.setData.call(rec, ref);
+        T.eq('the scope takes its step off the grid, not off the measurement', rec.cad, 5);
+        T.ok('…and says the step is known', rec.stepKnown === true, 'stepKnown=' + JSON.stringify(rec.stepKnown));
+        T.ok('the record is longer than one day, so the two answers differ', rec.N > 288, 'N=' + rec.N);
+        T.eq('the default view is ONE day of cells, not the whole record', rec.view.span, Math.min(rec.N, 288));
+        T.eq('…anchored at its end', rec.view.start, rec.N - rec.view.span);
+        var recM = {
+          resize: function () {},
+          draw: function () {},
+          drawMini: function () {}
+        };
+        U.GlucoScope.prototype.setData.call(recM, meas);
+        T.eq('CONTROL · a measured export reads the same step off the same grid', recM.cad, 5);
+        T.eq('CONTROL · a record shorter than a day is shown whole', recM.view.span, recM.N);
+      }
+    });
+
     group('GlucoDex applySessionCorrections — levelling and de-drift, signed (mutation bootstrap)', 'glucodex-dsp · known-answer · mutation-pinned', function (T) {
       var G = env.GLUDSP;
       if (!G || typeof G.analyze !== 'function') {

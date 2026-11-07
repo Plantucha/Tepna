@@ -111,6 +111,70 @@ window.evBadge = evBadge;
   // ════════════════════════════════════════════════════════════════════════
   //  GlucoScope — interactive canvas glucose trace
   // ════════════════════════════════════════════════════════════════════════
+  /* ── §∅ · THE CADENCE REFUSAL, NAMED WHEREVER A SURFACE READS IT ─────────────────────────────
+     `glucodex-dsp.js:455` publishes `cadence: null` beside `cadenceReason` when NO inter-sample
+     delta lands in (0, 240) min — a daily or a spot export. #3399 landed that half, and `:1557`
+     carries the token out of `analyze` so a consumer can tell an unmeasurable rate from a field
+     this version does not populate. No surface read it: measured 2026-11-07 on `bf0477c1e`, the
+     readers of `cadenceReason` over app, render, cross and registry numbered ZERO, and the same
+     refusal nulls `activeMin` and `durDays`, which the app read unguarded — `durDays.toFixed(1)`
+     THREW inside `renderContext`, `Math.round(activeMin / 60) + 'h'` printed a fabricated `0h`,
+     and `${cadence}-min` printed the string `null-min`.
+     These five helpers are the ONE place that decides what a refused rate looks like, so a new card
+     inherits the wording instead of re-deriving it. Three states, the house shape:
+       · MEASURED — the number, and nothing extra. A refusal note on a measured record is noise.
+       · REFUSED  — the node's OWN token, never a word invented here.
+       · UNKNOWN  — a null with no reason riding along (an export written before #3399). It says
+                    UNKNOWN, because "we do not know why" is not the same claim as "unmeasurable".
+     A measured zero is impossible here: `cadence` is a median of deltas strictly above 0. */
+  const CAD_UNKNOWN = 'UNKNOWN';
+  function cadToken(r) {
+    const why = r && r.cadenceReason;
+    if (typeof why !== 'string') return null;
+    const tok = why.split(':')[0].trim();
+    return tok || null;
+  }
+  function cadState(r) {
+    if (r && r.cadence != null) return 'measured';
+    return cadToken(r) ? 'refused' : 'unknown';
+  }
+  function cadText(r) {
+    if (cadState(r) === 'measured') return r.cadence + '-min cadence';
+    // The token is printed bare: it already reads as a phrase about the cadence, and a label in
+    // front of it ('cadence cadence-unmeasurable') stutters on every surface that uses it.
+    return cadToken(r) || 'cadence ' + CAD_UNKNOWN;
+  }
+  function durText(r) {
+    if (r && r.durDays != null) return r.durDays.toFixed(1) + ' days active';
+    return 'active days withheld \u2014 ' + (cadToken(r) || CAD_UNKNOWN);
+  }
+  function activeText(r) {
+    const m = r && r.activeMin;
+    if (m != null) return m >= 1440 ? (m / 1440).toFixed(1) + 'd' : Math.round(m / 60) + 'h';
+    return cadState(r) === 'refused' ? 'no rate' : CAD_UNKNOWN;
+  }
+  /* The card-leading note. It names the token AND the step the grid actually used, because that
+     step is what every cell position, every AGP bin and the scope viewport are built on — a reader
+     who is told only that the rate is absent cannot tell what the picture below is spaced by. */
+  function cadNote(r) {
+    const st = cadState(r);
+    if (st === 'measured') return '';
+    const step = r && r.cadenceAssumed != null ? r.cadenceAssumed + '-min' : 'an unnamed';
+    if (st === 'refused')
+      return (
+        '<div class="ctx-note" style="color:var(--amber)">⚠ <b>Cadence not measurable</b> — <code>' +
+        cadToken(r) +
+        '</code>. No inter-sample delta of this export falls in (0, 240) min, so every minute total derived from a rate is withheld: active time, active days and any coverage figure built on them. The grid below is spaced by ' +
+        step +
+        ' cells, named as an ASSUMPTION so it is not read back as a measurement — the glucose values, the span and the day clock are unaffected.</div>'
+      );
+    return (
+      '<div class="ctx-note" style="color:var(--amber)">⚠ <b>Cadence ' +
+      CAD_UNKNOWN +
+      '</b> — this record carries no measured rate and no reason for its absence, so it was written before the node named one. Minute totals derived from a rate are withheld.</div>'
+    );
+  }
+
   class GlucoScope {
     constructor(canvas, mini) {
       this.canvas = canvas;
@@ -126,15 +190,27 @@ window.evBadge = evBadge;
       const s = r.series;
       this.s = s;
       this.N = s.N;
-      this.cad = s.cadence;
+      /* 🔴 §∅ — `this.cad` IS THE GRID STEP, NOT THE MEASURED CADENCE. Every use below converts
+         CELLS to minutes, and the cells sit `stepMs` apart (`glucodex-dsp.js:466`), where `step`
+         falls back to 5 min precisely when the cadence was never measurable. So `series.cadence` is
+         `null` on exactly the records the scope must still draw, and reading it here made
+         `Math.round(1440 / null)` = `Infinity`: the default 24 h view silently became the whole
+         record, and the readout's `N × cad` span read `NaN`. The spacing of `gT` IS that step, so
+         the scope measures it off the grid it was handed instead of off a field the node may null.
+         The DSP guarantees two cells (`wantN = Math.max(2, …)`); the guard below refuses to invent a
+         step if one ever arrives with fewer. */
+      const stepMin = s.N >= 2 && s.gT && Number.isFinite(s.gT[1] - s.gT[0]) ? (s.gT[1] - s.gT[0]) / 60000 : null;
+      this.cad = stepMin;
+      this.stepKnown = stepMin != null && stepMin > 0;
       this.gT = s.gT;
       this.gV = s.gV;
       this.gF = s.gF;
       this.FLAG = s.FLAG;
       this.yLo = 40;
       this.yHi = Math.max(260, r.max + 20);
-      // default view: last 24h (or all if shorter)
-      const dayCells = Math.min(this.N, Math.round(1440 / this.cad));
+      // default view: last 24h (or all if shorter). With no derivable step the whole record IS the
+      // view — `this.N` is the cell count itself, not a figure computed from a rate we do not have.
+      const dayCells = this.stepKnown ? Math.min(this.N, Math.round(1440 / this.cad)) : this.N;
       this.view = { start: Math.max(0, this.N - dayCells), span: dayCells };
       this.resize();
       this.draw();
@@ -635,7 +711,27 @@ window.evBadge = evBadge;
     return `<div class="rg-track"><div class="rg-fill" style="width:${Math.max(3, Math.min(100, pct))}%;background:${col}"></div><div class="rg-marker" style="left:${Math.max(0, Math.min(100, pct))}%"></div></div>`;
   }
 
-  global.GLUUI = { GlucoScope, agpChart, tirBar, lineChart, dayOverlay, distribution, fusionScatter, riskGauge, COLORS: C, BAND, CUT, disp: GluDisp };
+  global.GLUUI = {
+    GlucoScope,
+    agpChart,
+    tirBar,
+    lineChart,
+    dayOverlay,
+    distribution,
+    fusionScatter,
+    riskGauge,
+    cadToken,
+    cadState,
+    cadText,
+    durText,
+    activeText,
+    cadNote,
+    CAD_UNKNOWN,
+    COLORS: C,
+    BAND,
+    CUT,
+    disp: GluDisp
+  };
   global.GluDisp = GluDisp;
 })(window);
 
