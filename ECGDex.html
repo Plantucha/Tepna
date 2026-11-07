@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="d6d0c38ad02f" data-compute-hash="20f0fc641ca4">
+<html lang="en" data-manifest-hash="aa2bf8c0696b" data-compute-hash="2b3f26b8070b">
 <head>
 <!--
   ECGDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-2BDRZ6VKh8OkZurNHffDYcwBtBuhz/p2tofi1tuMXLQ=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-GDJdyOEClWxoL0K0Skp9oX6/WQPEEFXe/jaVpIzearI=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-OYhJ2lXxS4wvs/p9vz2DXCv4ugnCLSczizK2sAuh0LM=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-hCZmwNAMDLPZEMYHAYpzoPETSnimg1oHWWjZImdKqxM=' 'sha256-kCIXFB+Oh+fPXQK0n5wv9ysz8QHUPT7/BBvnQcqS+u0=' 'sha256-ndwAaS7rxPDbDdTDUAApFCDBcXWisKUftg+0xzuxsoI=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rKaNN0Ty7SX+P/hqThFsDPpnNNxRWZ1qeyOfye3zhi8=' 'sha256-tddD0f4n4/0SctOR+t6ziGNCiH/GZ6G3Q5Iib/iByoM=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-2BDRZ6VKh8OkZurNHffDYcwBtBuhz/p2tofi1tuMXLQ=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-AclD5+EAgh6KEB5xbRcUFRTzRF5kEQtZSeuLmp7GgAU=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-hCZmwNAMDLPZEMYHAYpzoPETSnimg1oHWWjZImdKqxM=' 'sha256-kCIXFB+Oh+fPXQK0n5wv9ysz8QHUPT7/BBvnQcqS+u0=' 'sha256-nL/NrgUgSt8ZH264OwSHZDiv32vzogarMZZJ4Wb2MlI=' 'sha256-ndwAaS7rxPDbDdTDUAApFCDBcXWisKUftg+0xzuxsoI=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rKaNN0Ty7SX+P/hqThFsDPpnNNxRWZ1qeyOfye3zhi8=' 'sha256-tddD0f4n4/0SctOR+t6ziGNCiH/GZ6G3Q5Iib/iByoM=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>ECGDex — Raw ECG Analyzer · v2.28.0</title>
@@ -12113,7 +12113,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     const tmsAt = (sec) => (hasT0 ? t0Ms + Math.round(sec * 1000) : null);
     // body position at a given second: the covering 5-min epoch's posture (companion ACC).
     // null when no ACC was loaded, so consumers can distinguish 'no data' from 'unknown posture'.
-    const posAt = (sec) => {
+    const posEntryAt = (sec) => {
       if (!epochPos || !epochPos.length) return null;
       const m = sec / 60;
       let best = null,
@@ -12121,14 +12121,23 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       for (const p of epochPos) {
         const d = Math.abs(p.tMin + 2.5 - m);
         if (m >= p.tMin && m < p.tMin + 5) {
-          return p.position;
+          return p;
         }
         if (d < bd) {
           bd = d;
           best = p;
         }
       }
-      return best ? best.position : null;
+      return best;
+    };
+    const posAt = (sec) => {
+      const p = posEntryAt(sec);
+      return p ? p.position : null;
+    };
+    // the token the epoch refused under, or null when the posture is a measurement.
+    const posReasonAt = (sec) => {
+      const p = posEntryAt(sec);
+      return p && p.reason ? p.reason : null;
     };
     // local SQI near a time
     const sqiAt = (sec) => {
@@ -12171,6 +12180,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
        start and `peakTMs` for the autonomic surge itself, and say which one a latency is measured
        against. */
     for (const ev of cvhr.events) {
+      const _posWhy = posReasonAt(ev.sec);
       events.push({
         t: clock(ev.sec),
         tMs: tmsAt(ev.sec),
@@ -12187,6 +12197,9 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
           // silently bimodalised every cross-channel latency measured against this channel.
           peakTMs: ev.periodSec != null ? tmsAt(ev.sec + ev.periodSec) : null,
           position: posAt(ev.sec), // supine posture worsens OSA → fusion can weight osaConf/AHI
+          // present only on a refusal, as the node writes bandReason: a fusion weighting posture by
+          // 'unknown' can now tell a refused window from one scored and matched to no class.
+          ...(_posWhy ? { positionReason: _posWhy } : {}),
           osaLabel: null,
           osaConf: null, // reserved: Almarshad 2026 transformer (Phase 2)
           deltaSBP: null
@@ -13643,10 +13656,18 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     if (!epochs || !epochs.length) return [];
     const fs = accFs || 4;
     if (!deviceACC || deviceACC.length < fs * 30) {
+      /* §∅ — TWO ABSENCES, NOT ONE. A night with no companion ACC and a night whose ACC is too
+         short to fill one window both stamped 'unknown' and named nothing, so the state a reader
+         can act on — load the companion — read exactly like a stream that arrived and fell short.
+         `posAt` below promises the distinction in its own comment ("null when no ACC was loaded");
+         this return has always handed it a POPULATED list of 'unknown' instead, so the promise was
+         never kept for a single epoch. */
+      const why = !deviceACC || !deviceACC.length ? 'no-acc-stream' : 'acc-too-short';
       epochs.forEach((e) => {
         e.position = 'unknown';
+        e.positionReason = why;
       });
-      return epochs.map((e) => ({ tMin: e.tMin, position: 'unknown' }));
+      return epochs.map((e) => ({ tMin: e.tMin, position: 'unknown', reason: why }));
     }
     const xs = deviceACC.map((d) => d.x),
       ys = deviceACC.map((d) => d.y),
@@ -13678,10 +13699,19 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
          refusal reuses it rather than minting a second spelling; the REASON is what distinguishes
          an absence the box recorded from one we merely lacked samples for. */
       const _blanked = _blankMs.length > 0 && _epochTouchesBlank(e, off, ecgT0Ms, _blankMs);
-      const pos = _blanked ? 'unknown' : ex.length > fs * 30 ? _normPosition(_posture(median(ex), median(ey), median(ez)).label) : 'unknown';
+      const _thin = !_blanked && ex.length <= fs * 30;
+      const pos = _blanked || _thin ? 'unknown' : _normPosition(_posture(median(ex), median(ey), median(ez)).label);
+      /* Three states share the 'unknown' spelling and only the reason separates them: a run the box
+         recorded, a window this node lacked samples for, and a gravity vector scored against every
+         class and matched to none. The third names nothing, because a scored vector is a
+         measurement. The key is DELETED on a measured epoch rather than left in place: a late
+         companion re-stamps these same epoch objects (ecgdex-app.js), so a reason from the ACC-less
+         first pass would otherwise outlive the state that earned it. */
+      const why = _blanked ? 'blanking-run' : _thin ? 'low-acc-coverage' : null;
       e.position = pos;
-      if (_blanked) e.positionReason = 'blanking-run';
-      out.push({ tMin: e.tMin, position: pos });
+      if (why) e.positionReason = why;
+      else delete e.positionReason;
+      out.push({ tMin: e.tMin, position: pos, reason: why });
     }
     return out;
   }
@@ -16835,7 +16865,12 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
             sqi: nz(e.sqi),
             beats: e.n == null ? null : e.n,
             motionIndex: _mot == null ? null : _mot,
-            position: e.position || 'unknown'
+            position: e.position || 'unknown',
+            /* The reason rides this seam as well, because the exported epoch is built separately
+               from the internal one and a field added only to the builder never leaves the node —
+               that is exactly how `hrStat` shipped inert above. Present only on a refusal, so a
+               measured epoch keeps a byte-stable shape. */
+            ...(e.positionReason ? { positionReason: e.positionReason } : {})
           };
         }),
         sleepStages:
@@ -21072,15 +21107,22 @@ self.onmessage = async (e) => {
             DEVICE_ACC._relBase = false;
           }
           const ep = DSP.stampEpochPositions(RESULT.epochs, DEVICE_ACC, ACC_FS, RESULT.t0Ms, RESULT.durSec);
-          const posAt = (sec) => {
+          const posEntryAt = (sec) => {
             const m = sec / 60;
             for (const p of ep) {
-              if (m >= p.tMin && m < p.tMin + 5) return p.position;
+              if (m >= p.tMin && m < p.tMin + 5) return p;
             }
-            return ep.length ? ep[ep.length - 1].position : null;
+            return ep.length ? ep[ep.length - 1] : null;
           };
           (RESULT.events || []).forEach((ev) => {
-            if (ev.impulse === 'autonomic_surge' && ev.meta && ev._sec != null) ev.meta.position = posAt(ev._sec);
+            if (ev.impulse === 'autonomic_surge' && ev.meta && ev._sec != null) {
+              const p = posEntryAt(ev._sec);
+              ev.meta.position = p ? p.position : null;
+              // the first pass ran ACC-less and wrote 'no-acc-stream' on every event; the companion
+              // has now answered, so a stale token has to GO rather than survive its own state.
+              if (p && p.reason) ev.meta.positionReason = p.reason;
+              else delete ev.meta.positionReason;
+            }
           });
         }
         renderACCComparison(RESULT);
