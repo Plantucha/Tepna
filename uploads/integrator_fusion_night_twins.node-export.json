@@ -122,6 +122,32 @@
             "peakOverFloor": 4.59,
             "skewed": false
           }
+        ],
+        "seamCensus": [
+          {
+            "node": "OxyDex",
+            "seams": null,
+            "seamsReason": "upstream-emitted-no-validity",
+            "vetoed": false
+          },
+          {
+            "node": "ECGDex",
+            "seams": null,
+            "seamsReason": "upstream-emitted-no-validity",
+            "vetoed": false
+          },
+          {
+            "node": "PpgDex",
+            "seams": null,
+            "seamsReason": "upstream-emitted-no-validity",
+            "vetoed": false
+          },
+          {
+            "node": "MotionDex",
+            "seams": null,
+            "seamsReason": "upstream-emitted-no-validity",
+            "vetoed": false
+          }
         ]
       },
       "confirmedApneaIndex": 5,
@@ -2014,6 +2040,32 @@
             "peakOverFloor": 2,
             "skewed": false
           }
+        ],
+        "seamCensus": [
+          {
+            "node": "OxyDex",
+            "seams": null,
+            "seamsReason": "upstream-emitted-no-validity",
+            "vetoed": false
+          },
+          {
+            "node": "ECGDex",
+            "seams": null,
+            "seamsReason": "upstream-emitted-no-validity",
+            "vetoed": false
+          },
+          {
+            "node": "PpgDex",
+            "seams": null,
+            "seamsReason": "upstream-emitted-no-validity",
+            "vetoed": false
+          },
+          {
+            "node": "MotionDex",
+            "seams": null,
+            "seamsReason": "upstream-emitted-no-validity",
+            "vetoed": false
+          }
         ]
       },
       "confirmedApneaIndex": 0.63,
@@ -2885,7 +2937,27 @@
         },
         "findings": [],
         "fits": {},
-        "pairs": []
+        "pairs": [],
+        "seamCensus": [
+          {
+            "node": "ECGDex",
+            "seams": null,
+            "seamsReason": "upstream-emitted-no-validity",
+            "vetoed": false
+          },
+          {
+            "node": "PpgDex",
+            "seams": null,
+            "seamsReason": "upstream-emitted-no-validity",
+            "vetoed": false
+          },
+          {
+            "node": "OxyDex",
+            "seams": null,
+            "seamsReason": "upstream-emitted-no-validity",
+            "vetoed": false
+          }
+        ]
       },
       "confirmedApneaIndex": null,
       "confirmedApneaIndexContributions": null,

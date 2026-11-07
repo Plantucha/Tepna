@@ -48579,6 +48579,148 @@
       T.ok('the DSP assigns the block with no condition guarding it', /_out\.recording\.validity = Object\.assign\(\{\}, _out\.recording\.validity, \{/.test(String(O.compute)));
     });
 
+    /* ════ D17 LANE 4 — THE INTEGRATOR READS THE SEAM CHANNEL AND HONOURS IT ══════════════════════
+       (board #3933, brief `SEAM-SIDECAR-CONSUMPTION-2026-11-03-BRIEF.md`;
+       the five node groups above are ECGDex #4406, PpgDex #4441, MotionDex #4453, PulseDex #4456 and
+       OxyDex #4485.) Five nodes publish `recording.validity` and the fusion read none of it. The
+       adapter lifted the RTC-verification trio out of that same block and dropped the seam keys, so
+       every seam the box recorded stopped at the fusion boundary and a fused night read as clean.
+
+       THE OWNER RULED on 2026-11-06 (D17): a seam is MANDATORY — every consumer reads the channel
+       and honours it, and a value across a seam refuses under the 2026-09-17 ruling.
+
+       WHAT HONOURING IT MEANS HERE, and it is not refusing everything. Two estimators in this file
+       answer a whole-recording question with ONE number: `estimateEventLag` fits one lag, and
+       `fitClockDrift` fits an offset plus a rate. A recorded seam is a discontinuity inside that
+       span, so one number describes neither side — the discontinuity case, not a short window. The
+       fused physiology is untouched, because each node already refused its own seam-spanning windows.
+
+       THREE STATES, NEVER TWO. A positive count refuses. A MEASURED `0` keeps every number. `null`
+       is UNKNOWN and keeps them too, because the owner's 2026-11-05 ruling reads an unexamined
+       channel as unknown rather than as a seam — and the census is what makes that unknown visible.
+
+       THE FUSION PUBLISH SITE rides the committed fixtures: `clockSkew.seamCensus` is unconditional,
+       so every regenerated Integrator golden carries it. Driving a whole fusion here to re-read one
+       key would cost a corpus for a leg the goldens already pin, so the source mirror stands in. */
+    group('D17 LANE 4 — the Integrator reads the node-export seam channel and vetoes a seamed clock fit', 'integrator-dsp · clock-contract · absence · §∅', function (T) {
+      var D = env.IntegratorDSP;
+      var _have = !!(D && typeof D.normalizeFile === 'function' && typeof D.detectClockSkew === 'function');
+      T.ok('IntegratorDSP namespace co-loaded (normalizeFile + detectClockSkew)', _have);
+      if (!_have) {
+        T.skip('IntegratorDSP.normalizeFile / detectClockSkew unavailable — the seam reader is unexamined');
+        return;
+      }
+      var t0 = U(2026, 5, 10, 22, 0, 0);
+      /* A node export the adapter accepts, carrying the validity block under test. `vb === undefined`
+         plants NO block at all, which is the legacy-export case. */
+      var mkExp = function (vb) {
+        var recBlock = { startEpochMs: t0, contentId: 'c1' };
+        if (vb !== undefined) recBlock.validity = vb;
+        return {
+          schema: { name: 'ganglior.node-export', node: 'ECGDex', bus: 'ganglior' },
+          recording: recBlock,
+          ganglior_events: [{ t: '22:10:00', impulse: 'desat_event', node: 'ECGDex', conf: 0.9 }]
+        };
+      };
+      var recOf = function (vb) {
+        var r = D.normalizeFile(mkExp(vb), 'ECGDex_x.node-export.json');
+        return (r && r.recs && r.recs[0]) || null;
+      };
+      var rMeasured = recOf({ seams: 3, seamsExamined: 100, seamsPlaced: 3, seamsReason: null }),
+        rClean = recOf({ seams: 0, seamsReason: null }),
+        rUnknown = recOf({ seams: null, seamsReason: 'no-seam-sidecar' }),
+        rNoBlock = recOf(undefined),
+        rEmpty = recOf({});
+      T.ok('ANTI-VACUITY · the adapter produced a rec for all five inputs', !!(rMeasured && rClean && rUnknown && rNoBlock && rEmpty));
+      /* Read every content leg against a FALLBACK, never inside an `if`: against the pre-fix source
+         each one must FAIL, and a leg that silently goes unrun proves nothing. */
+      var m = rMeasured || {},
+        c = rClean || {},
+        u = rUnknown || {},
+        nb = rNoBlock || {},
+        em = rEmpty || {};
+      T.eq('🔴 a MEASURED count crosses the fusion boundary', m.seams + '/' + m.seamsReason, '3/null');
+      /* ∅ A measured 0 is a scan that RAN. Folding it into `null` would lose the one state the
+         vocabulary separates from a scan nobody performed. */
+      T.ok('∅ a MEASURED zero arrives as 0, never as null', 'seams' in c && c.seams === 0, String(c.seams));
+      T.eq('OWNER RULING 2026-11-05 · an unexamined channel travels with the reason its node named', u.seams + '/' + u.seamsReason, 'null/no-seam-sidecar');
+      T.ok('∅ a legacy export with no validity block is UNKNOWN under its own reason, not a clean night', 'seams' in nb && nb.seams === null && nb.seamsReason === 'upstream-emitted-no-validity');
+      T.ok('🔴 an EMPTY block takes the named-absence path, because {} reads as looked-and-clean', 'seams' in em && em.seams === null && em.seamsReason === 'upstream-emitted-no-validity');
+      T.ok('the absence reason is HRVDex vocabulary, never a second spelling coined here', nb.seamsReason === 'upstream-emitted-no-validity' && em.seamsReason === nb.seamsReason);
+      /* ── THE EVENT-LAG ESTIMATOR ──────────────────────────────────────────────────────────── */
+      var mkRec = function (node, seams, reason) {
+        var ev = [];
+        for (var i = 0; i < 12; i++) ev.push({ tMs: t0 + i * 600000, impulse: 'desat_event', node: node });
+        return { node: node, dateUnknown: false, events: ev, seams: seams, seamsReason: reason };
+      };
+      var skClean = D.detectClockSkew([mkRec('ECGDex', 0, null), mkRec('PpgDex', 0, null)], {}),
+        skSeam = D.detectClockSkew([mkRec('ECGDex', 2, null), mkRec('PpgDex', 0, null)], {}),
+        skUnknown = D.detectClockSkew([mkRec('ECGDex', null, 'no-seam-sidecar'), mkRec('PpgDex', 0, null)], {});
+      T.eq('ANTI-VACUITY · the clean pair IS estimated, so the veto is not refusing everything', (skClean.pairs || []).length, 1);
+      T.eq(
+        '🔴 a recorded seam vetoes the event-lag estimator, naming the count',
+        (skSeam.vetoes || [])
+          .map(function (v) {
+            return v.node + ':' + v.source + ':' + v.seams;
+          })
+          .join(','),
+        'ECGDex:clock-seam:2'
+      );
+      T.eq('🔴 and the vetoed rec reaches no pair, so it cannot drag a partner estimate', (skSeam.pairs || []).length, 0);
+      T.eq('CONTROL · a measured zero is vetoed by nothing', (skClean.vetoes || []).length, 0);
+      T.eq('OWNER RULING 2026-11-05 · UNKNOWN estimates rather than refusing', (skUnknown.vetoes || []).length + '/' + (skUnknown.pairs || []).length, '0/1');
+      /* ── THE CENSUS, THE PART THAT MAKES AN UNKNOWN VISIBLE ───────────────────────────────── */
+      T.ok('🔴 the census ships on EVERY call, so a fusion silent about the channel cannot read as clean', Array.isArray(skClean.seamCensus) && skClean.seamCensus.length === 2);
+      var ce =
+        (skUnknown.seamCensus || []).filter(function (e) {
+          return e.node === 'ECGDex';
+        })[0] || {};
+      T.ok('∅ an unexamined channel is an explicit null in the census, with its reason beside it', 'seams' in ce && ce.seams === null && ce.seamsReason === 'no-seam-sidecar' && ce.vetoed === false);
+      T.eq(
+        'a seamed rec is marked vetoed in the census, so the refusal is readable there too',
+        (
+          (skSeam.seamCensus || []).filter(function (e) {
+            return e.node === 'ECGDex';
+          })[0] || {}
+        ).vetoed,
+        true
+      );
+      /* ── THE BEAT-LEVEL DRIFT FIT, WHICH THE EVENT VETO DOES NOT REACH ────────────────────── */
+      var mkBeatRec = function (node, seams) {
+        var n = 900,
+          arr = new Float64Array(n);
+        for (var i = 0; i < n; i++) arr[i] = t0 + i * 1000;
+        return { node: node, dateUnknown: false, events: [], seams: seams, seamsReason: null, beats: { n: n, tMs: arr } };
+      };
+      var bcSeam = D.detectClockSkew([mkBeatRec('ECGDex', 2), mkBeatRec('PpgDex', 0)], {}).beatCheck,
+        bcClean = D.detectClockSkew([mkBeatRec('ECGDex', 0), mkBeatRec('PpgDex', 0)], {}).beatCheck;
+      T.ok('ANTI-VACUITY · both beat pairs were built, so the refusal below is a decision', !!(bcSeam && (bcSeam.pairs || []).length === 1 && bcClean && (bcClean.pairs || []).length === 1));
+      var bp = (bcSeam && bcSeam.pairs && bcSeam.pairs[0]) || {};
+      T.eq('🔴 a beat pair spanning a recorded seam refuses the drift fit', bp.reason, 'clock-seam');
+      T.ok(
+        '🔴 the refusal carries the SAME KEYS as the no-fit arm, each explicitly null',
+        'offsetSec' in bp &&
+          bp.offsetSec === null &&
+          'driftPpm' in bp &&
+          bp.driftPpm === null &&
+          'wrappedDriftPpm' in bp &&
+          bp.wrappedDriftPpm === null &&
+          'wrappedConcentration' in bp &&
+          bp.wrappedConcentration === null &&
+          'maxDriftPpm' in bp &&
+          bp.maxDriftPpm === null &&
+          'spanMin' in bp &&
+          bp.spanMin === null &&
+          bp.confident === false
+      );
+      T.ok('CONTROL · a pair with no recorded seam is not refused under that reason', (((bcClean || {}).pairs || [])[0] || {}).reason !== 'clock-seam');
+      /* SOURCE MIRRORS — one predicate for both estimators, and an unconditional publish. A seam
+         test that differed between the two observers would let a rec be refused by one and spent by
+         the other, which no output leg above can see. */
+      T.ok('ONE predicate guards both estimators', /_recHasRecordedSeam/.test(String(D.detectClockSkew)));
+      T.ok('the fusion publishes the census with no condition guarding it', /seamCensus: skew\.seamCensus \|\| \[\]/.test(String(D.runFusion)));
+    });
+
     group('SAMPLE-VALIDITY-ENVELOPE §3.2 — the ACC companion sidecar, and a held ACC cannot stamp a posture', 'dex-ingest · signal-orchestrate · adapters · ecgdex-dsp · absence', function (T) {
       var DI = env.DexIngest,
         SO = env.SignalOrchestrate,
