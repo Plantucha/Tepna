@@ -130,6 +130,76 @@
     return '<div class="mx-spark">' + bars + '</div>';
   }
 
+  /* ── D17 · THE NODE'S OWN REFUSALS AND UNEXAMINED CHANNELS ──────────────
+     `motiondex-dsp.js` writes six reason families over 17 sites and this file read NONE of them.
+     `:1089` nulls `immobileFrac` on a device-clock seam and writes `immobileFracReason: 'clock-seam'`
+     beside the null; `pos`/`act` refuse a whole block as `{ hasData: false, reason: 'unit-unknown' }`.
+     Both drew the same em-dash a night with no covered epoch draws, and a refused block drew the same
+     nothing a stream that never arrived draws. A refusal nobody renders reads as a clean result.
+
+     FOUR STATES, never two: a refusal names its reason · an unexamined channel reads UNKNOWN · a
+     recorded count annotates · a MEASURED zero stays silent, because a note on every clean night is
+     noise. Every token is the node's OWN spelling, never a borrowed word standing in for it.
+     Decision mine under CLAUDE.md §7, posted to the board as #4090. */
+  /* A state with no token renders NO value element: an empty `<b>` is a container standing where a
+     value would go, and the count such a state carries already sits in its own label. */
+  function mxNote(label, value, sentence) {
+    return '<div class="mx-row"><span>' + esc(label) + '</span>' + (value == null ? '' : '<b><code>' + esc(value) + '</code></b>') + '</div>' + '<div class="kpi-sub">' + esc(sentence) + '</div>';
+  }
+
+  function _mxProvenanceNote(summary) {
+    if (!summary || typeof summary !== 'object') return '';
+    var pos = summary.position || {},
+      act = summary.activity || {},
+      out = '';
+
+    // ── a refused BLOCK: the card above it renders nothing, which is what a missing stream renders ──
+    if (pos.hasData === false && pos.reason)
+      out += mxNote('⏱ Position block refused', pos.reason, 'The node published no dwell track for this recording. The absent Position card is a refusal, not a stream that never arrived.');
+    if (act.hasData === false && act.reason)
+      out += mxNote('⏱ Actigraphy block refused', act.reason, 'The node published no epoch track for this recording. The absent Actigraphy card is a refusal, not a stream that never arrived.');
+
+    // ── a refused FIGURE beside the figures that stand ──
+    if (act.immobileFracReason)
+      out += mxNote(
+        '⏱ Immobile time refused',
+        act.immobileFracReason,
+        'A device-clock seam crosses this recording, so the immobile fraction over it describes no continuous stretch of signal. The em-dash above is that refusal. Movement index still stands, because a magnitude over covered epochs is not a span.'
+      );
+
+    /* ── the ARRIVAL seam channel. The owner ruled on 2026-11-05 that a night with no sidecar reads
+       UNKNOWN, never seam-free, so a non-finite count states the node's own reason token. ── */
+    var s = summary.seams;
+    if (!s || typeof s !== 'object') {
+      out += mxNote('❓ Seam channel UNKNOWN', null, 'This recording carries no seam channel at all, so nothing examined the box arrival stamps.');
+    } else if (typeof s.seams !== 'number' || !isFinite(s.seams)) {
+      out += mxNote(
+        '❓ Seam channel UNKNOWN',
+        s.reason || null,
+        'The sidecar reader published no seam count, so nothing examined the box arrival stamps. The figures above stand, and an unexamined channel is not a clean one.'
+      );
+    } else if (s.seams > 0) {
+      out += mxNote(
+        '📄 Recorded seams · ' + s.seams,
+        s.reason || null,
+        'The box recorded a gap in the arrival stamps. ' +
+          (typeof s.placed === 'number'
+            ? s.placed + ' of them ' + (s.placed === 1 ? 'lands' : 'land') + ' on this axis.'
+            : 'The reader published no placement for them, so how many land on this axis is UNKNOWN.')
+      );
+    }
+
+    // ── a device-clock STEP the parser found. A measured zero stays silent. ──
+    if (typeof summary.clockResyncs === 'number' && summary.clockResyncs > 0)
+      out += mxNote('📄 Device-clock steps · ' + summary.clockResyncs, null, 'The parser re-anchored the axis at each step, so an epoch index either side of one describes a different clock.');
+
+    // ── reduced COVERAGE annotates (owner ruling 2026-09-17), so the epoch counts above read honestly ──
+    if (typeof act.blankedEpochs === 'number' && act.blankedEpochs > 0)
+      out += mxNote('📄 Blanked epochs · ' + act.blankedEpochs, null, 'The box called these epochs absent. The recorded-epoch counts above cover less of the night than its span.');
+
+    return out;
+  }
+
   // renderSummary(summary) → paints every section of the shared scaffold
   function renderSummary(summary) {
     var grid = $('mxKpiGrid');
@@ -179,19 +249,26 @@
     }
 
     // ── quality ──
-    if (sqi.conf != null) {
-      var q = row('Signal quality', num(sqi.conf, 2) + '×', sqi.flags && sqi.flags.length ? sqi.flags.join(', ') : 'clean');
-      q +=
-        '<div class="mx-row"><span>Streams</span><b>ACC ' +
-        (summary.streams.acc || 0) +
-        ' · GYRO ' +
-        (summary.streams.gyro || 0) +
-        ' · MAGN ' +
-        (summary.streams.mag || 0) +
-        ' · chest ' +
-        (summary.streams.chestAcc || 0) +
-        '</b></div>';
-      q += '<div class="mx-row"><span>Recording span</span><b>' + (summary.durSec ? (summary.durSec / 60).toFixed(0) + ' min' : '—') + '</b></div>';
+    /* The node's refusals LEAD this card, because they qualify every figure above them. A card that
+       opened only on `sqi.conf` would hide a refusal on the very night that earned it, so the note
+       alone is enough to reveal the section. */
+    var prov = _mxProvenanceNote(summary);
+    if (sqi.conf != null || prov) {
+      var q = prov;
+      if (sqi.conf != null) {
+        q += row('Signal quality', num(sqi.conf, 2) + '×', sqi.flags && sqi.flags.length ? sqi.flags.join(', ') : 'clean');
+        q +=
+          '<div class="mx-row"><span>Streams</span><b>ACC ' +
+          (summary.streams.acc || 0) +
+          ' · GYRO ' +
+          (summary.streams.gyro || 0) +
+          ' · MAGN ' +
+          (summary.streams.mag || 0) +
+          ' · chest ' +
+          (summary.streams.chestAcc || 0) +
+          '</b></div>';
+        q += '<div class="mx-row"><span>Recording span</span><b>' + (summary.durSec ? (summary.durSec / 60).toFixed(0) + ' min' : '—') + '</b></div>';
+      }
       fill('mxQualityCard', 'mxQuality', q);
     }
   }
