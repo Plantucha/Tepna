@@ -4232,6 +4232,15 @@ def test_an_UNREADABLE_WAVEFORM_REFUSES_THE_NIGHT_rather_than_counting_as_EMPTY(
     assert "1 waveform file(s) cannot be read" in out["reason"], out["reason"]
     assert "_ACC.txt" in out["reason"], out["reason"]
     assert "empty-session" not in out["reason"], out["reason"]
+    # TWO, because the count and the join separator sit inside an f-string and the mutation gate does
+    # not demand a test for a token inside a literal. One file observes neither: `len(unreadable)`
+    # could read a hardcoded 1 and the `", "` between names never appears. Both are what an operator
+    # reads to size the problem, so both get a leg.
+    (tmp_path / "Polar_VeritySense_0C301E3F_20261004213001_ACC.txt").mkdir()
+    out = si.validity(str(tmp_path), "VeritySense")
+    assert out["status"] == "UNKNOWN", out
+    assert "2 waveform file(s) cannot be read" in out["reason"], out["reason"]
+    assert "_20261004213000_ACC.txt, Polar" in out["reason"], "both names, comma-separated"
 
 
 def test_a_SESSION_STILL_BEING_WRITTEN_is_NOT_YET_JUDGEABLE_never_UNKNOWN(tmp_path):
