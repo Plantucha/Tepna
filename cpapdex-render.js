@@ -98,6 +98,61 @@ import { CpapDsp } from './cpapdex-dsp.js';
     );
   }
 
+  /* ── §∅ refusal vocabulary ───────────────────────────────────────────────
+     A refusal reaches the reader as the DSP wrote it. This map adds words to a
+     token, never a cause: an unknown token prints verbatim rather than borrowing
+     the nearest story. Returns plain text — every call site escapes it. */
+  var CP_REASON_TEXT = {
+    'no-spo2-channel': 'the recording carries no SpO\u2082 channel',
+    'oximeter-not-connected': 'the SA2 channel read the device\u2019s not-connected sentinel',
+    'low-coverage': 'too few valid SpO\u2082 samples to rate',
+    'oximeter-pulse-absent': 'the oximeter wrote no pulse channel',
+    'no-pressure-channel': 'the recording carries no pressure channel',
+    unstated: 'the lane refused and stated no reason'
+  };
+  function _cpReason(token) {
+    if (token == null) return '';
+    var t = String(token);
+    return CP_REASON_TEXT[t] ? CP_REASON_TEXT[t] + ' (' + t + ')' : t;
+  }
+  /* The night's oximetry state, read from the sessions' own blocks. A lane that
+     produced a value is not a refusal and returns null, so a measured night says
+     nothing. Three refusal shapes stay apart: a session that refused and named a
+     token, a session carrying no oximetry block at all (the lane never ran, which
+     is not a lane that ran and found nothing), and a night with no session to ask. */
+  function _cpOximetryState(night) {
+    var ss = (night && night.sessions) || [];
+    if (!ss.length) return { kind: 'no-sessions', tokens: [], missing: 0, n: 0 };
+    for (var i = 0; i < ss.length; i++) if (ss[i] && ss[i].oximetry && ss[i].oximetry.available) return null;
+    var tokens = [],
+      missing = 0;
+    ss.forEach(function (s) {
+      if (!s || !s.oximetry) {
+        missing++;
+        return;
+      }
+      var t = s.oximetry.reason == null ? 'unstated' : String(s.oximetry.reason);
+      if (tokens.indexOf(t) < 0) tokens.push(t);
+    });
+    return { kind: tokens.length ? 'refused' : 'unexamined', tokens: tokens, missing: missing, n: ss.length };
+  }
+  function _cpTokenList(st) {
+    return st.tokens
+      .map(function (t) {
+        return _cpReason(t);
+      })
+      .join('; ');
+  }
+  /* The ODI tile's sub when the fusion lane published no ODI. It states which of the
+     three absences this is, so `n/a` never reads as one cause it may not have. */
+  function _cpOdiSub(night) {
+    var st = _cpOximetryState(night);
+    if (!st) return 'oximetry present \u00b7 no ODI from the fusion lane';
+    if (st.kind === 'no-sessions') return 'no session recorded';
+    if (st.kind === 'unexamined') return 'no oximetry block \u00b7 lane never ran';
+    return st.tokens.join(' \u00b7 ') + (st.missing ? ' \u00b7 ' + st.missing + ' without an oximetry block' : '');
+  }
+
   /* ════════════════════════════════════════════════════════════════════════
    KPI GRID
    ════════════════════════════════════════════════════════════════════════ */
@@ -129,7 +184,27 @@ import { CpapDsp } from './cpapdex-dsp.js';
     var out = '';
     var ahiS = sev(5, 15, nm.residualAHI, true);
     out += kpiTile('residualAHI', fnum(nm.residualAHI, 1) + '<span class="kpi-u">/hr</span>', ahiS, 'device-scored');
-    out += kpiTile('usageHours', fnum(night.therapyHours, 1) + '<span class="kpi-u">hr</span>', sev(4, 2, night.therapyHours), night.nSessions + ' session' + (night.nSessions === 1 ? '' : 's'));
+    /* §∅ — `usageHours` is mask-on hours (pressure > 0). When the DSP could not measure
+       them it publishes `usageReason` and nulls the pooled figure; drawing the recording
+       envelope under this label would answer the refused question with a different one.
+       The value refuses, the sub names the node's token, and the envelope is labelled. */
+    if (nm.usageReason)
+      out += kpiTile(
+        'usageHours',
+        '<span style="color:var(--text4)">\u2014</span>',
+        'neutral',
+        _cpReason(nm.usageReason) +
+          ' \u00b7 ' +
+          (nm.usageUnknownSessions || night.nSessions) +
+          ' of ' +
+          night.nSessions +
+          ' session' +
+          (night.nSessions === 1 ? '' : 's') +
+          ' unmeasured \u00b7 ' +
+          fnum(night.therapyHours, 1) +
+          ' h recorded'
+      );
+    else out += kpiTile('usageHours', fnum(night.therapyHours, 1) + '<span class="kpi-u">hr</span>', sev(4, 2, night.therapyHours), night.nSessions + ' session' + (night.nSessions === 1 ? '' : 's'));
     out += kpiTile('medianPressure', fnum(nm.medianPressure, 1) + '<span class="kpi-u">cmH₂O</span>', 'neutral', (s0.mode || '—') + ' · p95 ' + fnum(nm.p95Pressure, 1));
     out += kpiTile('largeLeakPct', fnum(nm.largeLeakPct, 1) + '<span class="kpi-u">%</span>', sev(2, 5, nm.largeLeakPct, true), 'median ' + fnum(nm.medianLeak, 1) + ' L/min');
     if (cross && cross.oximetryAvailable) out += kpiTile('odi', fnum(cross.odi, 1) + '<span class="kpi-u">/hr</span>', sev(5, 15, cross.odi, true), 'SA2 · self-gated');
@@ -142,7 +217,9 @@ import { CpapDsp } from './cpapdex-dsp.js';
         '<div class="kpi-val" style="color:var(--text4)">' +
         'n/a</div><div class="kpi-label">' +
         esc(lbl('odi')) +
-        '</div><div class="kpi-sub">no oximeter</div></div>';
+        '</div><div class="kpi-sub">' +
+        esc(_cpOdiSub(night)) +
+        '</div></div>';
     out += kpiTile('periodicBreathingPct', fnum(nm.periodicBreathingPct, 1) + '<span class="kpi-u">%</span>', sev(2, 10, nm.periodicBreathingPct, true), 'Cheyne-Stokes / PB');
     // DEVICE SUMMARY (STR.edf) — device-DECLARED mode + prescription + device-scored RERA/CSR. Only
     // shown when a STR.edf was loaded; every value badged; the device declaration sits beside (never
@@ -367,7 +444,10 @@ import { CpapDsp } from './cpapdex-dsp.js';
       cardHead('Ventilation & Flow', '25 Hz flow + 0.5 Hz detail', 'respRateMedian') +
       '<div class="metric-grid">' +
       metricTile('respRateMedian', fnum(m.respRateMedian, 1)) +
-      metricTile('breathRate', fnum(m.breathRate, 1)) +
+      /* §∅ — the DSP nulls a breaths/min it had no measured denominator for and writes
+         `breathRateReason` beside the null. Without it the tile drew the em-dash a session
+         with no flow channel draws. A measured rate carries no reason and stays silent. */
+      metricTile('breathRate', fnum(m.breathRate, 1), null, m.breathRateReason || null) +
       metricTile('ieRatio', fnum(m.ieRatio, 2)) +
       metricTile('tidVolMedian', fnum(m.tidVolMedian, 2)) +
       metricTile('minVentMedian', fnum(m.minVentMedian, 1)) +
@@ -382,13 +462,28 @@ import { CpapDsp } from './cpapdex-dsp.js';
       return s.oximetry && s.oximetry.available;
     })[0];
     if (!oxiS) {
-      return (
-        '<div class="card">' +
-        cardHead('Oximetry QC Lane', 'SA2 · self-gated peer of O2Ring', 'odi') +
-        '<div class="qc-empty"><div class="qc-shield">🛡</div><div><b>No oximeter connected this night.</b> ' +
-        'The AirSense SA2 channel read the device&rsquo;s &ldquo;not connected&rdquo; sentinel for the whole recording, so ODI / T90 / SpO₂ are <b>n/a</b> — not fabricated. ' +
-        'Plug in the SpO₂ accessory and the self-gated desaturation lane lights up automatically.</div></div></div>'
-      );
+      /* §∅ — this branch told ONE story ("the SA2 read its not-connected sentinel") for every
+         absence. The lane writes four: no SpO₂ channel in the file, the device's not-connected read,
+         coverage under the floor, and no oximetry block at all. A night refused for low coverage
+         read as a night with the accessory unplugged, which is a cause the data never stated. */
+      var st = _cpOximetryState(night);
+      var body;
+      if (!st || st.kind === 'no-sessions')
+        body = '<b>No session to read.</b> This night carries no CPAP session, so the oximetry lane never ran. ODI / T90 / SpO\u2082 are unexamined \u2014 not fabricated.';
+      else if (st.kind === 'unexamined')
+        body =
+          '<b>The oximetry lane did not run.</b> ' +
+          st.n +
+          ' session' +
+          (st.n === 1 ? '' : 's') +
+          ' carry no oximetry block at all, so ODI / T90 / SpO\u2082 are <b>unexamined</b> \u2014 not measured and found clean, and not fabricated.';
+      else
+        body =
+          '<b>No usable oximetry this night.</b> Each session states its own refusal: ' +
+          esc(_cpTokenList(st)) +
+          (st.missing ? '; ' + st.missing + ' session' + (st.missing === 1 ? '' : 's') + ' carry no oximetry block at all' : '') +
+          '. ODI / T90 / SpO\u2082 are <b>n/a</b> \u2014 not fabricated.';
+      return '<div class="card">' + cardHead('Oximetry QC Lane', 'SA2 · self-gated peer of O2Ring', 'odi') + '<div class="qc-empty"><div class="qc-shield">🛡</div><div>' + body + '</div></div></div>';
     }
     var o = oxiS.oximetry;
     return (
@@ -873,14 +968,18 @@ import { CpapDsp } from './cpapdex-dsp.js';
         esc(label) +
         '</div></div>';
     };
-    sub(night.therapyHours, ' h', 'Usage', 'usageHours', sev(4, 2, night.therapyHours));
+    /* §∅ — a refused usage buys no Usage subscore and no adherence verdict: both would
+       grade the recording envelope under a label the registry defines as mask-on hours. */
+    if (!nm.usageReason) sub(night.therapyHours, ' h', 'Usage', 'usageHours', sev(4, 2, night.therapyHours));
     sub(nm.largeLeakPct, '%', 'Large Leak', 'largeLeakPct', sev(2, 5, nm.largeLeakPct, true));
     sub(nm.medianPressure, '', 'Med. Pressure', 'medianPressure', 'neutral');
     if (cross && cross.oximetryAvailable && cross.odi != null) sub(cross.odi, '/h', 'ODI', 'odi', sev(5, 15, cross.odi, true));
     else sub(nm.centralIndex, '/h', 'Central', 'centralIndex', sev(5, 10, nm.centralIndex, true));
 
     var chips = '';
-    if (night.therapyHours != null) {
+    if (nm.usageReason) {
+      chips += '<div class="readiness-zone-chip warn">\u26a0 usage unmeasured \u00b7 ' + esc(_cpReason(nm.usageReason)) + '</div>';
+    } else if (night.therapyHours != null) {
       var compOk = night.therapyHours >= 4;
       chips += '<div class="readiness-zone-chip ' + (compOk ? 'ok' : 'warn') + '">' + (compOk ? '✓ ≥4 h compliant' : '⚠ under 4 h') + '</div>';
     }

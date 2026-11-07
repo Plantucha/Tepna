@@ -1274,3 +1274,65 @@ def test_the_tool_keys_reuse_on_the_marker_and_writes_it_on_mutmuts_completion_l
     from_marker = src[src.index("if GENERATION_DONE_RE.search(line):") :]
     done_branch = until_anchor(from_marker, "return", where="tools/mutate.py (the completion branch)")
     assert "_gen_done.add(True)" in done_branch and "mark_generation_complete(scratch)" in done_branch
+
+
+# ── A DECLARED READ THE ROOT CANNOT ANSWER IS NAMED, NEVER DROPPED IN SILENCE ─────────────────────
+#
+# `test_a_named_root_file_that_does_not_exist_is_skipped_not_fabricated` above pins the SKIP, and the
+# skip is right: staging a file the root does not hold would fabricate one. What no leg pinned is the
+# RECORD. The stager's only output is a copy count over two destinations, minus each shadowed name's
+# second copy, so no reader can derive its expected value — and `root_reads_staged` reached no reader
+# in the repo at all. A test that reads the absent path SKIPS inside the scratch (seven legs in
+# `test_relevance_filter.py` skip by design), and a skip kills no mutant, so every survivor it leaves
+# reads like an honest one. Row `2026-11-06-a-constructed-workflow-read-reached-no-mutation-scratch`.
+
+
+def test_unstageable_root_reads_names_every_declared_read_the_root_cannot_answer(tmp_path):
+    """An absent name, a nested absent name and a DIRECTORY at the declared path all belong in the set:
+    `shutil.copy2` cannot answer a read with a directory either. Only a real file leaves the set."""
+    root, tree = _tree_with_root_read(tmp_path)
+    names = ["ecgdex-dsp.js", "absent.js", "docs", "deep/also_absent.txt"]
+    assert mutation_diff.unstageable_root_reads(tree, names) == ["absent.js", "deep/also_absent.txt", "docs"]
+    assert mutation_diff.unstageable_root_reads(tree, ["ecgdex-dsp.js", "README.md"]) == []
+
+
+def test_the_stager_skips_exactly_the_names_the_absent_set_reports(tmp_path):
+    """ONE `is_file()` claim serves both the skip and the record, because the stager CALLS the predicate
+    instead of repeating it. Two copies of one claim with nothing comparing them is the shape #4515
+    gated. Pinned as agreement: the present name costs two copies, and the two absent ones cost none."""
+    root, tree = _tree_with_root_read(tmp_path)
+    work = tmp_path / "scratch" / "work"
+    work.mkdir(parents=True)
+    names = ["ecgdex-dsp.js", "absent.js", "docs"]
+    assert mutation_diff.unstageable_root_reads(tree, names) == ["absent.js", "docs"]
+    assert mutation_diff.stage_root_reads(tree, work, names) == 2
+    assert (work / "ecgdex-dsp.js").is_file() and (work.parent / "ecgdex-dsp.js").is_file()
+    assert not (work / "absent.js").exists() and not (work / "docs").exists()
+    # AND THE SINGLE CLAIM IS STRUCTURAL, NOT BEHAVIOURAL. Two copies of one `is_file()` test agree
+    # with each other until one of them moves, so the agreement above cannot see a duplicate at all.
+    # Read the stager's own source — `inspect`, not the file's text, so a move cannot red this.
+    import inspect
+
+    stager = inspect.getsource(mutation_diff.stage_root_reads)
+    assert "unstageable_root_reads(tree, names)" in stager, stager
+    assert "is_file" not in stager, "the stager must call the predicate, never repeat it"
+
+
+def test_the_tool_publishes_the_absent_set_at_both_staging_sites_and_in_the_verdict():
+    """`tools/mutate.py` is outside the coverage floor, so the WIRING is pinned here. BOTH staging
+    branches publish the set — the reused scratch and the fresh one — and the key sits inside the
+    verdict projection, where a reader of the decision object meets it. An empty list on a clean run is
+    the positive control: it says the question was asked."""
+    import pathlib
+
+    src = (pathlib.Path(__file__).resolve().parents[1] / "tools" / "mutate.py").read_text()
+    published = 'plan["root_reads_absent"] = _publish_absent_root_reads(HERE, plan["root_reads"])'
+    assert src.count(published) == 2, src.count(published)
+    whitelist = until_anchor(
+        src[src.index('                "module",\n') :],
+        '                "work",\n',
+        where="tools/mutate.py (the verdict key set)",
+    )
+    assert '"root_reads_absent",' in whitelist, whitelist
+    # and the printed line states the cost, because a name with no consequence beside it gets read past
+    assert "a skip kills no mutant" in src
