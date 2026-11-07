@@ -967,6 +967,12 @@ self.onmessage = async (e) => {
           return `<div class="sl-stat"><span class="sl-dot" style="background:${col}"></span>${st} <b>${sm[st].toFixed(0)}m</b><span class="sl-pct">${pct}</span></div>`;
         })
         .join('');
+      /* The four stage chips sum to the staged span, not to the night. An unstaged span used to
+         leave the arithmetic short with nothing on the card saying why, so the reader attributed the
+         shortfall to rounding. It is named here, beside the chips it is absent from. */
+      if (r.unstagedMin > 0)
+        $('sleepStats').innerHTML +=
+          `<div class="sl-stat"><span class="sl-dot" style="background:${UI.COLORS.dim}"></span>Unstaged <b>${r.unstagedMin.toFixed(0)}m</b><span class="sl-pct"> · no RMSSD to stage on</span></div>`;
       $('hypnoCard').style.display = 'block';
     } else $('hypnoCard').style.display = 'none';
 

@@ -88488,6 +88488,154 @@
       T.eq('the hypnograms differ on EXACTLY the planted movement epochs, nowhere else', differ, movingIdx.length);
     });
 
+    /* ══ AN ABSENT RMSSD USED TO STAGE THE EPOCH, AND IT COULD ONLY EVER STAGE IT (#4271, #4289).
+       `null < rmMed * 0.85` evaluates as `0 < …`, so three of the four stage tests accepted an epoch
+       whose pairs were all gapped: it took REM above the LF/HF gate and Wake below it, and it could
+       never reach Light or Deep. The absence always produced a stage, and never the quiet one.
+       EVERY LEG BELOW IS A PAIR. The plant is held fixed and only the RMSSD moves: measured LOW it
+       must still produce the stage, which proves the branch is reachable with this plant, and ABSENT
+       it must refuse. A one-sided leg here would pass against a stager that had simply stopped
+       staging, which is the other way to fabricate a night. */
+    group('an absent RMSSD refuses the epoch — it never stages it (B-F7 and the Wake arm beside it)', 'ecgdex-dsp · staging · absence-as-value', function (T) {
+      var D = env.ECGDSP;
+      if (!D || typeof D.stageSleep !== 'function') {
+        T.skip('env.ECGDSP.stageSleep available', 'ECGDSP.stageSleep not exposed in this runner');
+        return;
+      }
+      var mk = function (n, f) {
+        var a = [];
+        for (var k = 0; k < n; k++) a.push({ tMin: k * 5, hr: 58, rmssd: 45, lfhf: 0.8, sdnn: 60, sqi: 0.9, n: 300, ...f(k) });
+        return a;
+      };
+      var stageAt = function (eps, i) {
+        return D.stageSleep(eps, null)[i];
+      };
+      var countStage = function (eps, name) {
+        return D.stageSleep(eps, null).filter(function (x) {
+          return x.stage === name;
+        }).length;
+      };
+
+      // ── 1 · THE REM ARM. Epoch 10 clears the LF/HF gate; only its RMSSD moves. ──
+      var remPlant = function (rm) {
+        return mk(60, function (k) {
+          return k === 10 ? { lfhf: 2.4, rmssd: rm } : {};
+        });
+      };
+      T.eq('ANTI-VACUITY · measured LOW, the plant still stages REM — the branch IS reachable here', stageAt(remPlant(18), 10).stage, 'REM');
+      T.eq('…and ABSENT, the same plant refuses instead of staging REM', stageAt(remPlant(null), 10).stage, null);
+      T.eq('…so the night reports NO REM minute built out of an absence', countStage(remPlant(null), 'REM'), 0);
+
+      // ── 2 · THE WAKE ARM. Flat LF/HF, so REM cannot fire anywhere; a RUN of four defeats the
+      //      smoother, which erases only singletons. This arm is the sibling #4271 does not name. ──
+      var wakePlant = function (rm) {
+        return mk(60, function (k) {
+          return k >= 9 && k <= 12 ? { rmssd: rm } : {};
+        });
+      };
+      T.eq('ANTI-VACUITY · measured LOW, the four-epoch run still stages Wake', countStage(wakePlant(18), 'Wake'), 4);
+      T.eq('…and ABSENT, the same run refuses — no Wake built out of an absence', countStage(wakePlant(null), 'Wake'), 0);
+      T.eq('…the refused run is still four epochs long, not dropped from the hypnogram', D.stageSleep(wakePlant(null), null).length, 60);
+
+      // ── 3 · THE REFUSAL NAMES WHICH HALF WAS ABSENT, and the two causes are different. ──
+      T.eq("the epoch's own absence is named", stageAt(remPlant(null), 10).stageReason, 'rmssd-absent');
+      var noRef = mk(60, function () {
+        return { rmssd: null };
+      });
+      T.eq('a night where NOTHING measured an RMSSD names the absent REFERENCE, a distinct token', stageAt(noRef, 10).stageReason, 'rmssd-reference-absent');
+      T.ok('…and the two tokens are not the same string', stageAt(remPlant(null), 10).stageReason !== stageAt(noRef, 10).stageReason, 'both read ' + String(stageAt(noRef, 10).stageReason));
+      T.eq('a STAGED epoch carries no reason key at all — the token is not a field that lingers', 'stageReason' in stageAt(remPlant(18), 10), false);
+
+      // ── 4 · A PARTIAL DECISION IS STILL A DECISION. The HR arm of Wake never read an RMSSD, so an
+      //      epoch THAT arm decides keeps its stage. A refusal is for an epoch nothing could call. ──
+      var hrPlant = mk(60, function (k) {
+        return { rmssd: null, hr: k === 10 ? 95 : 58 };
+      });
+      T.eq('the HR arm still decides Wake with no RMSSD anywhere in the night', stageAt(hrPlant, 10).stage, 'Wake');
+      T.eq('…and that epoch is a measurement, so it carries no refusal token', 'stageReason' in stageAt(hrPlant, 10), false);
+
+      // ── 5 · SHAPE. `order[null]` is undefined, which plots as a NaN rather than as an absence. ──
+      T.eq('a refused epoch publishes y:null, never undefined', stageAt(remPlant(null), 10).y, null);
+      T.ok('…while a staged epoch still publishes its level', typeof stageAt(remPlant(18), 10).y === 'number', 'y=' + String(stageAt(remPlant(18), 10).y));
+      var all = D.stageSleep(remPlant(null), null);
+      T.eq(
+        'every epoch is either staged or refused — the tally has no third case to drop',
+        all.filter(function (x) {
+          return x.stage == null ? x.y === null && typeof x.stageReason === 'string' : typeof x.y === 'number';
+        }).length,
+        all.length
+      );
+
+      // ── 6 · THE SMOOTHER MUST NOT VOTE WITH A REFUSAL. Two nulls are `===`, so a MEASURED epoch
+      //      between two refusals would be overwritten with a refusal — a deleted measurement. ──
+      var sandwich = mk(60, function (k) {
+        return k === 9 || k === 11 ? { rmssd: null } : {};
+      });
+      T.eq('a measured epoch between two refusals keeps its stage', stageAt(sandwich, 10).stage, 'Light');
+      T.eq('…and keeps no refusal token', 'stageReason' in stageAt(sandwich, 10), false);
+
+      // ── 7 · THE BUS. `'stage_' + null.toLowerCase()` threw; moving `prev` to null would have
+      //      emitted a transition into the stage the night was already in. ──
+      if (typeof D.gangliorEvents !== 'function') T.skip('env.ECGDSP.gangliorEvents available', 'gangliorEvents not exposed in this runner');
+      else {
+        var busOf = function (stages) {
+          return D.gangliorEvents({ index: null, events: [] }, stages, 0, null, null, null, null)
+            .filter(function (e) {
+              return e.impulse.indexOf('stage_') === 0;
+            })
+            .map(function (e) {
+              return e.impulse;
+            })
+            .join(',');
+        };
+        T.eq(
+          'a refusal between two epochs of the SAME stage emits no transition',
+          busOf([
+            { tMin: 0, stage: 'Light' },
+            { tMin: 5, stage: null, stageReason: 'rmssd-absent' },
+            { tMin: 10, stage: 'Light' }
+          ]),
+          'stage_light'
+        );
+        T.eq(
+          '…and across a refusal the one transition that DID happen still emits',
+          busOf([
+            { tMin: 0, stage: 'Light' },
+            { tMin: 5, stage: null, stageReason: 'rmssd-absent' },
+            { tMin: 10, stage: 'Wake' }
+          ]),
+          'stage_light,stage_wake'
+        );
+        T.eq(
+          'ANTI-VACUITY · with no refusal in it the same series emits both transitions',
+          busOf([
+            { tMin: 0, stage: 'Light' },
+            { tMin: 5, stage: 'Wake' },
+            { tMin: 10, stage: 'Light' }
+          ]),
+          'stage_light,stage_wake,stage_light'
+        );
+      }
+
+      // ── 8 · B-F1 · THE DEVICE-RR CORRECTOR INVENTED 60 bpm. Reachable only where the whole
+      //      ±5-beat neighbourhood failed the range gate, which is where the record is least
+      //      trustworthy. Measured on origin/main: a device reporting 2500 ms throughout — 24 bpm —
+      //      came back as devHR 60.0 with the ENTIRE series replaced by the fabricated 1000 ms. ──
+      if (typeof D.validateRR !== 'function') T.skip('env.ECGDSP.validateRR available', 'validateRR not exposed in this runner');
+      else {
+        var dev = [],
+          slf = [];
+        for (var j = 0; j < 12; j++) {
+          dev.push({ rr: 2500 });
+          slf.push(800);
+        }
+        var vr = D.validateRR(slf, dev);
+        T.eq('ANTI-VACUITY · the plant is reachable — every device beat failed the range gate', vr.devEctopyCorrected, 12);
+        T.eq('the corrector keeps the MEASURED device interval instead of writing 1000 ms', vr.devMean, 2500);
+        T.eq('…so the reported device HR is the 24 bpm the device sent, not a fabricated 60', vr.devHR, 24);
+      }
+    });
+
     group('ECGDex synthetic oracle — REM is atonic, and says so (§4a/§4b)', 'ecgdex-dsp · synthetic · oracle', function (T) {
       var E = env.ECGDSP;
       if (!E || typeof E.genSynthetic !== 'function' || typeof E.analyze !== 'function' || typeof E.epochMotion !== 'function') {
