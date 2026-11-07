@@ -251,17 +251,26 @@ jobs:
       # is covered the moment it grows the flag.
       - name: Analysis-tool selftests (planted-truth known answers)
         run: |
-          found=0; failed=0
+          found=0; failed=0; skipped=0
           for f in $(grep -rln -- '--selftest' tools/*.mjs | sort); do
             found=$((found+1))
             printf '%-44s' "$f"
             if node "$f" --selftest > /tmp/selftest.log 2>&1; then
-              echo 'PASS'
+              # A SELFTEST THAT EXAMINED NOTHING IS NOT A PASS (Muse #4269, T-4). A tool whose parser is
+              # an absent devDependency exits 0 and prints "0 leg(s) examined"; read the message.
+              if grep -q '0 leg(s) examined' /tmp/selftest.log; then skipped=$((skipped+1)); echo 'SKIP (0 legs examined)'; else echo 'PASS'; fi
             else
               failed=$((failed+1)); echo 'FAIL'; sed 's/^/    | /' /tmp/selftest.log
             fi
           done
-          echo "--- $found tool selftest(s), $failed failed"
+          echo "--- $found tool selftest(s), $failed failed, $skipped examined nothing"
+          # CEILING on the skips: flag-exit-scan and flag-exit-drive need acorn, which this job does not
+          # install. A third tool that skips here is a new hole, not a pass.
+          MAX_SKIPPED=2
+          if [ "$skipped" -gt "$MAX_SKIPPED" ]; then
+            echo "selftest SKIPS rose: $skipped examined nothing, ceiling $MAX_SKIPPED"
+            exit 1
+          fi
           # A tool quietly LOSING its --selftest must not read as success — which is what the old
           # `-ge 10` could not do: it found 156 and asserted 10, so FIFTEEN TIMES the floor could
           # vanish and the step still passed. Measured 2026-10-11. A floor that far below the
