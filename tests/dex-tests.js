@@ -70481,10 +70481,98 @@
           }
           /* The call site is the other half: a perfect note nobody renders is the very defect this
              unit fixes, one layer up. */
+          var _pdCall = /const notes = \[note, alt, pbNote, seamContextNote\(r\)\]/.test(_prSrc);
           T.ok(
             'D17 §PD · the context banner renders the note beside its own caveats',
-            /const notes = \[note, alt, pbNote, seamContextNote\(r\)\]/.test(_prSrc),
-            'call site not found in renderContext'
+            _pdCall,
+            _pdCall ? 'call site present in renderContext' : 'no call site in renderContext — the note reaches no reader'
+          );
+        }
+
+        /* ── D17 §OX · the OxyDex night card states its seam channel, and what it cost ───────────
+           `oxydex-dsp.js` DROPS a five-minute epoch that straddles a recorded seam and lists it on
+           `night.clockSeamRefusals`. The motion chart draws one bar per surviving epoch, so a
+           refused epoch and an unmeasured one drew the same nothing. #4485 put the channel in the
+           export; no OxyDex surface read it. These legs lift `_o2SeamNote` out of the SHIPPED
+           SOURCE and execute it, because a regex on its spelling passes over a planted `return ''`. */
+        var _oxSrc = (env.sources || {})['oxydex-render.js'];
+        if (_oxSrc == null) {
+          T.ok('D17 §OX · oxydex-render.js source is readable', false, 'not in env.sources — this gate cannot run');
+        } else {
+          var _oxLift = function (src, name) {
+            var k = src.indexOf('function ' + name + '(');
+            if (k < 0) return null;
+            var b = src.indexOf('{', k),
+              d = 0;
+            for (var j = b; j < src.length; j++) {
+              if (src[j] === '{') d++;
+              else if (src[j] === '}' && --d === 0) return src.slice(k, j + 1);
+            }
+            return null;
+          };
+          var _oxNoteSrc = _oxLift(_oxSrc, '_o2SeamNote');
+          T.ok('D17 §OX · `_o2SeamNote` is present in the shipped render source', _oxNoteSrc != null, _oxNoteSrc == null ? 'not found' : _oxNoteSrc.length + ' chars');
+          var _oxNote = null;
+          if (_oxNoteSrc) {
+            try {
+              _oxNote = new Function('escHTML', 'return (' + _oxNoteSrc + ');')(function (x) {
+                return String(x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+              });
+            } catch (_e) {
+              _oxNote = null;
+            }
+          }
+          T.ok('D17 §OX · …and it lifts and builds as a callable function', typeof _oxNote === 'function', typeof _oxNote);
+          if (typeof _oxNote === 'function') {
+            var _oxRef = _oxNote({
+              clockSeamRefusals: [{ series: 'tchEpochs', tMin: 120, reason: 'clock-seam', seams: 1 }],
+              clockSeamScan: { scanned: true, reason: null, seams: 1 }
+            });
+            T.ok("D17 §OX · a refused epoch names the node's OWN reason token to the reader", _oxRef.indexOf('clock-seam') >= 0, JSON.stringify(_oxRef).slice(0, 200));
+            T.ok('D17 §OX · …and says refused, with the minute the reader can find on the chart', /refused/i.test(_oxRef) && _oxRef.indexOf('120') >= 0, JSON.stringify(_oxRef).slice(0, 200));
+            T.ok(
+              'D17 §OX · one refusal reads singular, two read plural',
+              /1 five-minute epoch refused/.test(_oxRef) &&
+                /2 five-minute epochs refused/.test(
+                  _oxNote({
+                    clockSeamRefusals: [
+                      { series: 'tchEpochs', tMin: 120, reason: 'clock-seam' },
+                      { series: 'tchEpochs', tMin: 300, reason: 'clock-seam' }
+                    ]
+                  })
+                ),
+              JSON.stringify(_oxRef).slice(0, 200)
+            );
+            /* FOUR STATES. A scan the node could not run is UNKNOWN; a seam that cost no epoch is
+               ANNOTATED because the whole-night means still cross it; a measured zero is silent. */
+            var _oxUnk = _oxNote({ clockSeamScan: { scanned: false, reason: 'seam-module-absent', seams: null } });
+            T.ok(
+              'D17 §OX · a scan the node could not run reads UNKNOWN and names its token',
+              _oxUnk.indexOf('UNKNOWN') >= 0 && _oxUnk.indexOf('seam-module-absent') >= 0,
+              JSON.stringify(_oxUnk).slice(0, 200)
+            );
+            var _oxAnn = _oxNote({ clockSeamScan: { scanned: true, reason: null, seams: 2 } });
+            T.ok('D17 §OX · a seam that refused no epoch is still stated to the reader', _oxAnn.indexOf('2 recorded clock seams') >= 0, JSON.stringify(_oxAnn).slice(0, 200));
+            T.ok('D17 §OX · …and that line says the whole-night figures cross it', /means across the seam/.test(_oxAnn), JSON.stringify(_oxAnn).slice(0, 200));
+            T.eq('D17 §OX · a MEASURED zero draws no line at all', _oxNote({ clockSeamScan: { scanned: true, reason: null, seams: 0 } }), '');
+            T.eq('D17 §OX · a night with no seam scan at all draws none', _oxNote({}), '');
+            T.eq('D17 §OX · an absent night draws none', _oxNote(null), '');
+            /* PRECEDENCE: a night carrying refusals AND an annotatable seam count reports the
+               REFUSAL, the stronger statement and the one that explains the absent bars. */
+            T.ok('D17 §OX · a night carrying both states reports the REFUSAL', _oxRef.indexOf('refused') >= 0 && _oxRef.indexOf('means across the seam') < 0, JSON.stringify(_oxRef).slice(0, 200));
+            T.ok(
+              'D17 §OX · a reason token reaches the markup escaped, never as live tags',
+              _oxNote({ clockSeamScan: { scanned: false, reason: '<b>x</b>', seams: null } }).indexOf('<b>x</b>') < 0,
+              JSON.stringify(_oxNote({ clockSeamScan: { scanned: false, reason: '<b>x</b>', seams: null } })).slice(0, 200)
+            );
+          }
+          /* The call site is the other half: a perfect note nobody renders is the very defect this
+             unit fixes, one layer up. */
+          var _oxCall = /html \+= _o2SeamNote\(n\);/.test(_oxSrc);
+          T.ok(
+            'D17 §OX · the night card renders the note above every figure in it',
+            _oxCall,
+            _oxCall ? 'call site present in nightDetail' : 'no call site in nightDetail — the note reaches no reader'
           );
         }
 
