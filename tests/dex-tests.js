@@ -85610,6 +85610,86 @@
       );
     });
 
+    /* ════ §∅ MX · THE EXPORT PUBLISHES A PLACEHOLDER SQI AS null AND NAMES ITS REASON ════
+     `motionSQI` returns `conf: 0` with `flags: ['no-data']` under ten rows and `['unit-unknown']` over
+     magnitudes of unknown scale. The flags held that reason INSIDE the summary, and the export projected
+     the bare number — so a consumer read `sqi: 0`, which the computed path also reaches on a clipped or
+     flatlined stream. These legs hold the four states apart: a placeholder nulls the value and names the
+     node's own token, a MEASURED conf (0 included) keeps its number under `reason: null`, an absent block
+     says so, and both reason keys ship UNCONDITIONALLY. ════ */
+    group('MotionDex export — a placeholder SQI is null with its reason, a measured 0 is a value (§∅)', 'motiondex-dsp · sqi · absence', function (T) {
+      var MD = env.MOTIONDSP;
+      if (!(MD && typeof MD.buildNodeExport === 'function' && typeof MD.genSyntheticACC === 'function')) {
+        T.skip('MOTIONDSP.buildNodeExport + genSyntheticACC available', 'motiondex-dsp not wired in this lane');
+        return;
+      }
+      var t0 = U(2026, 5, 10, 22, 0, 0);
+      function mx(sqi, sqiActivity, extra) {
+        var sum = { t0Ms: t0, sqi: sqi, sqiActivity: sqiActivity };
+        if (extra) for (var k in extra) sum[k] = extra[k];
+        return MD.buildNodeExport(sum).motion || {};
+      }
+
+      // ── 1 · the two placeholder states name their own token and publish NO number ──
+      var noData = mx({ conf: 0, flags: ['no-data'] }, { conf: 0, flags: ['no-data'] });
+      T.eq('a no-data SQI exports sqi null, never 0', noData.sqi, null);
+      T.eq('a no-data SQI exports the node own token', noData.sqiReason, 'no-data');
+      T.eq('a no-data activity SQI exports null too', noData.sqiActivity, null);
+      T.eq('a no-data activity SQI names its token', noData.sqiActivityReason, 'no-data');
+      var unitUnknown = mx({ conf: 0, flags: ['unit-unknown'] }, { conf: 0, flags: ['unit-unknown'] });
+      T.eq('a unit-unknown SQI exports sqi null', unitUnknown.sqi, null);
+      T.eq('a unit-unknown SQI exports its own token, not a borrowed one', unitUnknown.sqiReason, 'unit-unknown');
+
+      // ── 2 · a MEASURED zero is a measurement: it keeps its number and states no reason ──
+      var measuredZero = mx({ conf: 0, flags: ['clip', 'flatline'] }, { conf: 0, flags: ['flatline'] });
+      T.eq('a MEASURED conf of 0 stays published as 0', measuredZero.sqi, 0);
+      T.eq('a measured conf states no reason', measuredZero.sqiReason, null);
+      T.eq('a measured activity conf of 0 stays published', measuredZero.sqiActivity, 0);
+
+      // ── 3 · an absent block, and a block carrying no finite conf, each say which ──
+      var absent = mx(null, null);
+      T.eq('an absent SQI block exports null', absent.sqi, null);
+      T.eq('an absent SQI block names itself', absent.sqiReason, 'no-sqi-block');
+      var noConf = mx({ conf: NaN, flags: [] }, { flags: [] });
+      T.eq('a non-finite conf exports null', noConf.sqi, null);
+      T.eq('a non-finite conf names no-conf', noConf.sqiReason, 'no-conf');
+      T.eq('an sqi block with no conf key names no-conf', noConf.sqiActivityReason, 'no-conf');
+
+      // ── 4 · the two streams are independent, and both reason keys ship on EVERY export ──
+      var mixed = mx({ conf: 0.91, flags: [] }, { conf: 0, flags: ['no-data'] });
+      T.eq('a measured posture SQI survives a placeholder activity SQI', mixed.sqi, 0.91);
+      T.eq('the measured posture SQI states no reason', mixed.sqiReason, null);
+      T.eq('the placeholder activity SQI nulls its own value', mixed.sqiActivity, null);
+      T.eq('the placeholder activity SQI names its token', mixed.sqiActivityReason, 'no-data');
+      T.ok('sqiReason ships on a measured export too', Object.prototype.hasOwnProperty.call(mixed, 'sqiReason'), 'keys=' + Object.keys(mixed).length);
+      T.ok('sqiActivityReason ships unconditionally', Object.prototype.hasOwnProperty.call(measuredZero, 'sqiActivityReason'), 'reason=' + measuredZero.sqiActivityReason);
+
+      // ── 5 · the posture_change event conf reads the same pair; null is legal per crossnight-envelope ──
+      var track = [
+        { pos: 'supine', tStartMs: t0 },
+        { pos: 'left', tStartMs: t0 + 60000 }
+      ];
+      var evPlaceholder = MD.buildNodeExport({ t0Ms: t0, sqi: { conf: 0, flags: ['no-data'] }, position: { track: track } }).ganglior_events;
+      T.ok('a posture_change under a placeholder SQI carries conf null, not 0', evPlaceholder.length >= 1 && evPlaceholder[0].conf === null, 'conf=' + (evPlaceholder[0] && evPlaceholder[0].conf));
+      var evMeasured = MD.buildNodeExport({ t0Ms: t0, sqi: { conf: 0.77, flags: [] }, position: { track: track } }).ganglior_events;
+      T.ok('a measured SQI still stamps the event conf', evMeasured.length >= 1 && evMeasured[0].conf === 0.77, 'conf=' + (evMeasured[0] && evMeasured[0].conf));
+
+      // ── 6 · end to end: a real clean stream keeps its measured numbers and reports no reason ──
+      var clean = MD.compute({ acc: MD.genSyntheticACC({ sec: 120, hz: 26, brpm: 15, seed: 7 }) });
+      var cleanExp = MD.buildNodeExport(clean).motion || {};
+      T.ok('a real clean stream exports a numeric sqi', typeof cleanExp.sqi === 'number' && cleanExp.sqi > 0.5, 'sqi=' + cleanExp.sqi);
+      T.eq('a real clean stream states no sqi reason', cleanExp.sqiReason, null);
+      T.eq('a real clean stream states no activity sqi reason', cleanExp.sqiActivityReason, null);
+
+      // ── 7 · the projection reads the pair, so no call site re-derives the bare conf ──
+      var src = env.sources && env.sources['motiondex-dsp.js'];
+      T.ok('the source is readable for the call-site check', typeof src === 'string' && src.length > 1000, 'len=' + (src ? src.length : 0));
+      if (typeof src === 'string') {
+        T.ok('the export projects the pair, never summary.sqi.conf directly', /sqi: sqiPos\.value,/.test(src) && !/sqi: summary\.sqi \? summary\.sqi\.conf : null/.test(src), 'projection');
+        T.ok('the event conf reads the same pair', /conf: sqiPos\.value,/.test(src), 'event conf');
+      }
+    });
+
     /* ════ MotionDex source-selection is DIFFERENTIATED — position←chest, actigraphy←wrist (MOTIONDEX-BUILD-FOLLOWUPS §4) ════
      compute() prefers the CHEST for body-position (torso frame) and the WRIST acc for actigraphy (de-gravitated
      activity is a wrist signal). The equiv golden feeds ONE ACC to both slots, so it exercises but does not

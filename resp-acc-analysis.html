@@ -11031,6 +11031,31 @@ window.IntegratorDSP = {
     return { conf: Math.round(conf * 100) / 100, flags: flags, clipFrac: clipFrac, flatFrac: flatFrac, offFrac: offFrac };
   }
 
+  /* ── ∅ · A PLACEHOLDER SQI IS NOT A QUALITY OF ZERO ───────────────────────────────────────────
+     `motionSQI` returns `{ conf: 0, flags: ['no-data'] }` under ten rows, and
+     `{ conf: 0, flags: ['unit-unknown'] }` over magnitudes of unknown scale. INSIDE the summary the
+     flags carry that reason out of band, so the summary itself is honest. The export projected the
+     BARE conf under the `sqi` key and the flags stopped at that boundary. (The old line is NOT quoted
+     here: a suite leg asserts this file no longer contains it, and a comment holding it would pass
+     that leg over the very projection it guards.) The computed path reaches a real 0 as well — `clamp(1 - clipFrac*5 - flatFrac -
+     offFrac*2, 0, 1)` bottoms out on a clipped or flatlined stream — so a consumer could not tell
+     ten absent rows from the worst quality this node can MEASURE. The 2026-08-31
+     ungated-surface sweep recorded this projection as the live path and called its safety a
+     property of the producer, which is what §∅ refuses.
+
+     The value and the node's OWN reason token travel together. A measured conf keeps its number and
+     reads `reason: null` — A MEASURED 0 IS A MEASUREMENT and stays published. */
+  var MD_SQI_ABSENT_FLAGS = ['no-data', 'unit-unknown'];
+  function sqiExportPair(s) {
+    if (!s || typeof s !== 'object') return { value: null, reason: 'no-sqi-block' };
+    var flags = Array.isArray(s.flags) ? s.flags : [];
+    for (var i = 0; i < MD_SQI_ABSENT_FLAGS.length; i++) {
+      if (flags.indexOf(MD_SQI_ABSENT_FLAGS[i]) >= 0) return { value: null, reason: MD_SQI_ABSENT_FLAGS[i] };
+    }
+    // an sqi block that carries no finite conf states that, rather than publishing `null` unexplained
+    return typeof s.conf === 'number' && isFinite(s.conf) ? { value: s.conf, reason: null } : { value: null, reason: 'no-conf' };
+  }
+
   // ════════════════════════════════════════════════════════════════════════
   //  COMPUTE — orchestrate the single-signal motion metrics
   //  input: { acc, gyro, mag, chestAcc }  (each = raw file text OR pre-parsed rows)
@@ -11413,6 +11438,9 @@ window.IntegratorDSP = {
     opts = opts || {};
     var kfmt = opts.kernel ? { version: opts.kernel.VERSION, hash: opts.kernel.HASH } : typeof DexKernel !== 'undefined' && DexKernel ? { version: DexKernel.VERSION, hash: DexKernel.HASH } : null;
     var t0 = summary.t0Ms;
+    // ONE evaluation per stream, read by the posture_change conf below and by the two export fields
+    var sqiPos = sqiExportPair(summary.sqi),
+      sqiAct = sqiExportPair(summary.sqiActivity);
     var events = [];
     // position-transition events (impulse per posture change) — the fusion currency
     var track = summary.position && summary.position.track;
@@ -11426,7 +11454,10 @@ window.IntegratorDSP = {
             tMs: seg.tStartMs,
             impulse: 'posture_change',
             node: 'MotionDex',
-            conf: summary.sqi ? summary.sqi.conf : null,
+            /* the same pair: a posture_change under a placeholder SQI carries no confidence, and
+               `crossnight-envelope.js:278` declares `conf` 0..1 OR null. Both placeholder states also
+               refuse the position block, so no event reaches this line under either one today. */
+            conf: sqiPos.value,
             meta: { position: seg.pos }
           });
           prev = seg.pos;
@@ -11504,12 +11535,15 @@ window.IntegratorDSP = {
         effortSeries: summary.effort && summary.effort.series ? summary.effort.series : null,
         effortCadenceSec: summary.effort ? summary.effort.cadenceSec : null,
         effortFloorG: summary.effort ? summary.effort.floorG : null,
-        sqi: summary.sqi ? summary.sqi.conf : null,
+        sqi: sqiPos.value,
+        // the reason beside the value, UNCONDITIONALLY and `null` on a measured night (§∅, see sqiExportPair)
+        sqiReason: sqiPos.reason,
         // DEEP-AUDIT-II §7.5 — per-stream SQI. `sqi` above qualifies the posture/chest source (and the
         // posture_change event conf); `sqiActivity` qualifies the WRIST stream the actigraphy metrics
         // (immobileFrac / movementIndex / activitySeries) are derived from. Equal to `sqi` on a
         // single-stream night; a consumer trusts the movement metrics against THIS, not the chest SQI.
-        sqiActivity: summary.sqiActivity ? summary.sqiActivity.conf : null
+        sqiActivity: sqiAct.value,
+        sqiActivityReason: sqiAct.reason
       },
       ganglior_events: events
     };
