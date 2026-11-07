@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="acc1e166c97d" data-compute-hash="490dcf511b6e">
+<html lang="en" data-manifest-hash="74e3698eaafa" data-compute-hash="e12c33e9eb0b">
 <head>
 <!--
   MotionDex.src.html — Tepna
@@ -12,7 +12,7 @@
 <!-- CSP: browser-enforces the no-network invariant. connect-src 'none' blocks every outbound request;
      script-src is STRICT ('self' + per-inline-script sha256, NO 'unsafe-inline'). MotionDex ships zero
      inline scripts (all init lives in motiondex-app.js), so the hash list is empty by construction. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-LFUuThFphtJbs7xcxi6ccAB4tRpfMsn5CPS3sr9f3SQ=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-LNL2HIbq1MolWykSbNRcVM1IXWPE1b23gr8wWMcU+sA=' 'sha256-P/tBtXKqLL1HemGGrvPqNx5HeJs+NN87whSvSLLn+X0=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-bIhKcpZRJ/ZzKulROPoeorGxddt3ajAjGiOPqmDw7ik=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-hCZmwNAMDLPZEMYHAYpzoPETSnimg1oHWWjZImdKqxM='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-LFUuThFphtJbs7xcxi6ccAB4tRpfMsn5CPS3sr9f3SQ=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-LNL2HIbq1MolWykSbNRcVM1IXWPE1b23gr8wWMcU+sA=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-VgFoFKGHbDum9MonvKIxKk4wlpWldkoFTOwZIibLUu4=' 'sha256-bIhKcpZRJ/ZzKulROPoeorGxddt3ajAjGiOPqmDw7ik=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-hCZmwNAMDLPZEMYHAYpzoPETSnimg1oHWWjZImdKqxM='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>MotionDex — Motion / IMU Analyzer · v2.28.0</title>
@@ -6411,6 +6411,8 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
       stream: null,
       boundMs: null,
       basis: null,
+      // the header's own `device_axis=` token, or null when it carried none — see the lift below
+      deviceAxis: null,
       sessions: [],
       seamsReported: null,
       examined: null,
@@ -6444,6 +6446,16 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
           if (rl) out.rule = rl[1].trim();
           var bs = /\bbasis=(\S+)/.exec(line);
           if (bs) out.basis = bs[1].trim();
+          /* `device_axis=` NAMES WHAT THE DEVICE COLUMN IS, and the writer has emitted it on every
+             parameter line since #4468 (`capture-host/writers.py` `DEVICE_AXES`). Four declared
+             values: `device-clock`, `host-drawn`, `no-device-column` and `unknown`. A sidecar
+             written before that commit carries NO such token, and that absence is `null` rather
+             than the writer's own `unknown` — a declared `unknown` is the writer saying it looked,
+             and collapsing the two is absence-as-value (§∅). The token travels VERBATIM: a value
+             outside the declared set is the writer's programming error, and a reader that folded it
+             into a default would hide it. */
+          var da = /\bdevice_axis=(\S+)/.exec(line);
+          if (da) out.deviceAxis = da[1].trim();
           continue;
         }
         /* `# final stream=<s> seams=<n> examined=<m>` — ONE per writer session, so a night that
@@ -6609,12 +6621,22 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
      way; `placed` is what reached the refusal, and the two differing is itself the finding. `stream`
      is MotionDex's own key: up to four streams arrive and one export block speaks, the discipline
      `clockAxis.stream` already follows, so the state names which stream it describes. */
+  /* `deviceAxis` carries the sidecar header's own `device_axis=` token through every state above,
+     so a consumer of a seam never has to assume the device column was a clock. 36 of 58 recorded
+     seams corpus-wide sit on a stream whose device stamp is a HOST-DRAWN grid, so the dominant case
+     is the one a `basis=device-minus-host` line cannot name (residue row
+     2026-11-06-the-seam-sidecar-cannot-tell-a-drawn-device-axis-from-a-clock). It is published
+     UNCONDITIONALLY, `null` included: a key present only when the header declared an axis cannot
+     tell "the sidecar said nothing" from "this reader does not report the axis", which is the very
+     confusion the row logs. A drawn axis still carries real discontinuities of the axis this node
+     places samples on, so no refusal here changes — the provenance travels BESIDE the count. */
   function _mdSeamState(rows, placed, unplaced, stream) {
     var sc = rows && rows._seamsSidecar;
-    if (!sc) return { seams: null, examined: null, placed: null, unplaced: null, boundMs: null, stream: stream || null, reason: 'no-seam-sidecar' };
+    if (!sc) return { deviceAxis: null, seams: null, examined: null, placed: null, unplaced: null, boundMs: null, stream: stream || null, reason: 'no-seam-sidecar' };
     if (sc.placedNone) {
       return {
         seams: null,
+        deviceAxis: sc.deviceAxis != null ? sc.deviceAxis : null,
         examined: sc.examined != null ? sc.examined : null,
         placed: 0,
         unplaced: sc.dataRows,
@@ -6636,6 +6658,7 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
     if (sc.streamKnown === false) {
       return {
         seams: null,
+        deviceAxis: sc.deviceAxis != null ? sc.deviceAxis : null,
         examined: null,
         placed: 0,
         unplaced: 0,
@@ -6647,6 +6670,7 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
     }
     return {
       seams: sc.rows.length,
+      deviceAxis: sc.deviceAxis != null ? sc.deviceAxis : null,
       examined: sc.examined != null ? sc.examined : null,
       placed: placed,
       unplaced: unplaced,
@@ -8395,7 +8419,7 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
     var seamAnn =
       summary && summary.seams && typeof summary.seams === 'object'
         ? summary.seams
-        : { seams: null, examined: null, placed: null, unplaced: null, boundMs: null, stream: null, reason: 'no-seam-sidecar' };
+        : { deviceAxis: null, seams: null, examined: null, placed: null, unplaced: null, boundMs: null, stream: null, reason: 'no-seam-sidecar' };
     out.recording.validity = Object.assign({}, out.recording.validity, {
       seams: seamAnn.seams,
       seamsExamined: seamAnn.examined,
@@ -8403,6 +8427,7 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
       seamsUnplaced: seamAnn.unplaced,
       seamsBoundMs: seamAnn.boundMs,
       seamsStream: seamAnn.stream,
+      seamsDeviceAxis: seamAnn.deviceAxis,
       seamsReason: seamAnn.reason
     });
     /* …AND WHICH STREAM THE FILE ITSELF DECLARED, when that is not this one. Assigned

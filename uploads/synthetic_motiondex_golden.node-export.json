@@ -58,6 +58,7 @@
       "seamsUnplaced": null,
       "seamsBoundMs": null,
       "seamsStream": "acc",
+      "seamsDeviceAxis": null,
       "seamsReason": "no-seam-sidecar"
     }
   },

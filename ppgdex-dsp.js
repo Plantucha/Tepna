@@ -949,6 +949,8 @@
       stream: null,
       boundMs: null,
       basis: null,
+      // the header's own `device_axis=` token, or null when it carried none — see the lift below
+      deviceAxis: null,
       sessions: [],
       seamsReported: null,
       examined: null,
@@ -982,6 +984,16 @@
           if (rl) out.rule = rl[1].trim();
           const bs = /\bbasis=(\S+)/.exec(line);
           if (bs) out.basis = bs[1].trim();
+          /* `device_axis=` NAMES WHAT THE DEVICE COLUMN IS, and the writer has emitted it on every
+             parameter line since #4468 (`capture-host/writers.py` `DEVICE_AXES`). Four declared
+             values: `device-clock`, `host-drawn`, `no-device-column` and `unknown`. A sidecar
+             written before that commit carries NO such token, and that absence is `null` rather
+             than the writer's own `unknown` — a declared `unknown` is the writer saying it looked,
+             and collapsing the two is absence-as-value (§∅). The token travels VERBATIM: a value
+             outside the declared set is the writer's programming error, and a reader that folded it
+             into a default would hide it. */
+          const da = /\bdevice_axis=(\S+)/.exec(line);
+          if (da) out.deviceAxis = da[1].trim();
           continue;
         }
         /* `# final stream=<s> seams=<n> examined=<m>` — ONE per writer session, so a night that
@@ -1118,12 +1130,22 @@
        · foreign stream declared  → { seams: null, sidecarStream: s, reason: 'seam-foreign-stream' }
      `seams` counts every row this reader kept, placed or not, because the FILE recorded them either
      way; `placed` is what reached the refusal, and the two differing is itself the finding. */
+  /* `deviceAxis` carries the sidecar header's own `device_axis=` token through every state above,
+     so a consumer of a seam never has to assume the device column was a clock. 36 of 58 recorded
+     seams corpus-wide sit on a stream whose device stamp is a HOST-DRAWN grid, so the dominant case
+     is the one a `basis=device-minus-host` line cannot name (residue row
+     2026-11-06-the-seam-sidecar-cannot-tell-a-drawn-device-axis-from-a-clock). It is published
+     UNCONDITIONALLY, `null` included: a key present only when the header declared an axis cannot
+     tell "the sidecar said nothing" from "this reader does not report the axis", which is the very
+     confusion the row logs. A drawn axis still carries real discontinuities of the axis this node
+     places samples on, so no refusal here changes — the provenance travels BESIDE the count. */
   function _ppgSeamState(rec, placed, unplaced) {
     const sc = rec && rec.seamsSidecar;
-    if (!sc) return { seams: null, examined: null, placed: null, unplaced: null, boundMs: null, reason: 'no-seam-sidecar' };
+    if (!sc) return { deviceAxis: null, seams: null, examined: null, placed: null, unplaced: null, boundMs: null, reason: 'no-seam-sidecar' };
     if (sc.placedNone) {
       return {
         seams: null,
+        deviceAxis: sc.deviceAxis != null ? sc.deviceAxis : null,
         examined: sc.examined != null ? sc.examined : null,
         placed: 0,
         unplaced: sc.dataRows,
@@ -1144,6 +1166,7 @@
     if (sc.streamKnown === false) {
       return {
         seams: null,
+        deviceAxis: sc.deviceAxis != null ? sc.deviceAxis : null,
         examined: null,
         placed: 0,
         unplaced: 0,
@@ -1154,6 +1177,7 @@
     }
     return {
       seams: sc.rows.length,
+      deviceAxis: sc.deviceAxis != null ? sc.deviceAxis : null,
       examined: sc.examined != null ? sc.examined : null,
       placed: placed,
       unplaced: unplaced,
@@ -7408,13 +7432,14 @@
        fixtures were regenerated with it. A measured zero carries NO reason and an absence carries
        `no-seam-sidecar`: the consumer that cannot tell them apart reads an unread sidecar as a clean
        night. Key names mirror `ecgdex-dsp.js` so the folded corpus needs no translation table. */
-    var seamAnn = r && r.seams && typeof r.seams === 'object' ? r.seams : { seams: null, examined: null, placed: null, unplaced: null, boundMs: null, reason: 'no-seam-sidecar' };
+    var seamAnn = r && r.seams && typeof r.seams === 'object' ? r.seams : { deviceAxis: null, seams: null, examined: null, placed: null, unplaced: null, boundMs: null, reason: 'no-seam-sidecar' };
     out.recording.validity = Object.assign({}, out.recording.validity, {
       seams: seamAnn.seams,
       seamsExamined: seamAnn.examined,
       seamsPlaced: seamAnn.placed,
       seamsUnplaced: seamAnn.unplaced,
       seamsBoundMs: seamAnn.boundMs,
+      seamsDeviceAxis: seamAnn.deviceAxis,
       seamsReason: seamAnn.reason
     });
     /* …AND WHICH STREAM THE FILE ITSELF DECLARED, when that is not this one. Assigned
