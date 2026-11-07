@@ -73,19 +73,16 @@ export const LEDGER_PATH = 'briefs/RESIDUE.md';
    a sweep would have to decide what a `row:` property means in code it does not own, which is the
    reason that tool gives for keeping its own legs local. The drift guard sits there too — its
    selftest asserts every gap row appears below, so a gap entry that goes away takes its pin with
-   it. A pin is not a reason to leave a defect unfixed: it says the REMEDY is not a state change. */
-export const PINNED_OPEN = [
-  {
-    row: '2026-10-20-the-published-tch-reference-figures-ride-the-mismatched-axis',
-    by: 'tools/tch-reference-record.mjs',
-    why: 'four PUBLISHED_FIELD_GAP entries name it, and a gap entry must name an OPEN row'
-  },
-  {
-    row: '2026-11-01-the-published-records-predate-the-producer-commit-note',
-    by: 'tools/tch-reference-record.mjs',
-    why: 'the producerCommitNote gap entry names it, so a close would orphan the gap it excuses'
-  }
-];
+   it. A pin is not a reason to leave a defect unfixed: it says the REMEDY is not a state change.
+
+   🔴 THE LIST IS EMPTY, AND EMPTY IS THE SUCCESS STATE. It held two rows while the published TCH
+   reference record lacked five provenance fields the producer writes. Re-publishing the record wrote
+   all five, so both `PUBLISHED_FIELD_GAP` entries closed and both pins went with them in the same
+   diff. A pin kept past its gap is a line nobody reads that makes the list look considered, which is
+   the failure mode of every allowlist in this repo. So nothing here is a floor on the list's SIZE:
+   the selftest plants a pin map to prove the counting code can still see one, and holds the shipped
+   list to shape at whatever size it has. An empty list means no check holds a row open today. */
+export const PINNED_OPEN = [];
 const PINNED_BY_ROW = new Map(PINNED_OPEN.map((e) => [e.row, e]));
 
 /**
@@ -747,7 +744,11 @@ export function pickupVerdict(drift, ctx) {
       /* Informational, and NOT gated on git or on a citing read: the pin is read from this tool's
          own declared list, so it counts whatever the open set holds. A pinned row cannot be closed
          without reding the check that names it, which is the one lead a picker must not chase. */
-      openPinnedByCheck: drift.openOnRef.filter((k) => PINNED_BY_ROW.has(k)).length,
+      /* `ctx.pins` OVERRIDES THE SHIPPED MAP, for the selftest only. The pinned list empties the day
+         the last `PUBLISHED_FIELD_GAP` entry closes, and a leg that can only count a SHIPPED pin
+         stops examining anything at that moment while printing the same green. The legs plant a map
+         here; the default stays this tool's own declared list. */
+      openPinnedByCheck: drift.openOnRef.filter((k) => (ctx.pins instanceof Map ? ctx.pins : PINNED_BY_ROW).has(k)).length,
       /* Part of the status, unlike every informational count above it. */
       unparsed: unreadable,
       behindCommits: ctx.behind,
@@ -1316,27 +1317,44 @@ if (IS_CLI && process.argv.includes('--selftest')) {
     assert(pickupVerdict(d0, { behind: 0, base: 'b', commit: 'abc1234', namedByCode: 3 }).result.openNamedByCode === 3, 'the verdict carries the lead count');
     const pv0 = pickupVerdict(d0, { behind: 0, base: 'b', commit: 'abc1234' });
     assert(pv0.result.openNamedByCode === null && pv0.status === 'PASS', 'no code read is null, never 0, and a lead never moves the status');
-    /* THE PIN. Every leg below reads the SHIPPED list, never a fixture, because the list is the
-       claim: a pin that holds only in a fixture tells a picker nothing. */
-    assert(PINNED_OPEN.length >= 2, `ANTI-VACUITY · the pinned list carries entries (${PINNED_OPEN.length})`);
-    assert(
-      PINNED_OPEN.every((e) => KEY_PARSES.test(e.row) && /^tools\/.+\.mjs$/.test(e.by) && e.why.length > 20),
-      'every pin names a parseable row, the tool whose check holds it, and a why'
-    );
+    /* 🔴 THE FLOOR CANNOT BE THE LIST'S SIZE, BECAUSE AN EMPTY PIN LIST IS THE SUCCESS STATE.
+       Every pin here was held by a `PUBLISHED_FIELD_GAP` entry in `tools/tch-reference-record.mjs`,
+       and that gap closes the moment the record is re-published. A `>= 2` floor would then force a
+       session to keep a spent pin alive to stay green, and a spent allowlist entry is the failure
+       mode of every allowlist in this repo. So the counting legs read a PLANTED map through
+       `ctx.pins`, the shape legs read the SHIPPED list at whatever size it has, and one leg per
+       shipped member keeps the original claim while there is a member to claim it over. */
+    const PIN_SHAPE = (e) => KEY_PARSES.test(e.row) && /^tools\/.+\.mjs$/.test(e.by) && e.why.length > 20;
+    assert(PINNED_OPEN.every(PIN_SHAPE), 'every pin names a parseable row, the tool whose check holds it, and a why');
     assert(new Set(PINNED_OPEN.map((e) => e.row)).size === PINNED_OPEN.length, 'no row is pinned twice');
-    const PIN = PINNED_OPEN[0].row;
-    const dPin = pickupDrift([row(PIN), row(A)].join('\n'), [row(PIN), row(A)].join('\n'));
-    assert(pickupVerdict(dPin, { behind: 0, base: 'b', commit: 'abc1234' }).result.openPinnedByCheck === 1, 'the verdict counts a pinned row in the open set');
     assert(
-      pickupVerdict(d0, { behind: 0, base: 'b', commit: 'abc1234' }).result.openPinnedByCheck === 0,
+      PIN_SHAPE({ row: '1970-01-01-a-planted-pin-row', by: 'tools/tch-reference-record.mjs', why: 'CONTROL · a planted pin the shape test must accept' }),
+      'ANTI-VACUITY · the shape test ACCEPTS a well-formed pin, so the leg over the shipped list can fail'
+    );
+    assert(!PIN_SHAPE({ row: 'not-a-residue-key', by: 'tools/x.mjs', why: 'too short' }), 'CONTROL · the shape test REJECTS a malformed pin');
+    const PIN = '1970-01-01-a-planted-pin-row';
+    const PIN_PLANT = new Map([[PIN, { row: PIN, by: 'tools/tch-reference-record.mjs', why: 'CONTROL · a planted pin, so the counting legs hold at any size of the shipped list' }]]);
+    const dPin = pickupDrift([row(PIN), row(A)].join('\n'), [row(PIN), row(A)].join('\n'));
+    assert(pickupVerdict(dPin, { behind: 0, base: 'b', commit: 'abc1234', pins: PIN_PLANT }).result.openPinnedByCheck === 1, 'the verdict counts a pinned row in the open set');
+    assert(
+      pickupVerdict(d0, { behind: 0, base: 'b', commit: 'abc1234', pins: PIN_PLANT }).result.openPinnedByCheck === 0,
       'CONTROL · an open set holding no pinned row counts none, so the count reads the list and not the size'
     );
+    assert(
+      pickupVerdict(dPin, { behind: 0, base: 'b', commit: 'abc1234' }).result.openPinnedByCheck === (PINNED_BY_ROW.has(PIN) ? 1 : 0),
+      'the DEFAULT read is the shipped list, so the plant above never becomes the claim'
+    );
+    for (const e of PINNED_OPEN) {
+      const dShipped = pickupDrift([row(e.row), row(A)].join('\n'), [row(e.row), row(A)].join('\n'));
+      assert(pickupVerdict(dShipped, { behind: 0, base: 'b', commit: 'abc1234' }).result.openPinnedByCheck === 1, `the verdict counts the SHIPPED pin ${e.row} in the open set`);
+    }
     assert(
       pickupDrift([row(PIN, 'd', 'fixed #1')].join('\n'), [row(PIN, 'd', 'fixed #1')].join('\n')).openOnRef.length === 0 &&
         pickupVerdict(pickupDrift([row(PIN, 'd', 'fixed #1')].join('\n'), [row(PIN, 'd', 'fixed #1')].join('\n')), {
           behind: 0,
           base: 'b',
-          commit: 'abc1234'
+          commit: 'abc1234',
+          pins: PIN_PLANT
         }).result.openPinnedByCheck === 0,
       'a pinned row that is NOT open counts none here — this tool reports the pin, it does not enforce it'
     );

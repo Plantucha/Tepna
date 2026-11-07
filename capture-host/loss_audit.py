@@ -1406,6 +1406,26 @@ def attribute_gaps(gaps, events, spans=None) -> list[tuple[_dt.datetime, float, 
     return [(r["at"], r["s"], r["cause"]) for r in attribute_gaps_detail(gaps, events, spans=spans)]
 
 
+def after_worn_end_s(gaps, end: _dt.datetime | None) -> float:
+    """Seconds of these `(start, seconds)` gaps that fall AFTER the worn end: all of a gap that starts at or
+    past it, and the tail of a gap across it. No worn end ⇒ 0 — the whole list stays worn loss, as before.
+
+    MEASURED on the capture box 2026-11-06: night 2026-11-05's Verity came off at 04:22:55, and its main file
+    holds 0 gaps. Two later files, both judged not worn, held 30.1 min of gaps, and the audit counted all of
+    them as worn loss and FAILED the night. A gap after the device came off is not signal the wearer lost."""
+    if end is None:
+        return 0.0
+    return sum(g - max(0.0, min(g, (end - at).total_seconds())) for at, g in gaps)
+
+
+def span_before_s(scans, end: _dt.datetime | None) -> float:
+    """Seconds of recorded span up to the worn end, file by file: the denominator that matches
+    `after_worn_end_s`. No worn end ⇒ every file's own span, as before."""
+    if end is None:
+        return sum(sc["span"] for _n, sc in scans)
+    return sum(max(0.0, (min(sc["last"], end) - sc["first"]).total_seconds()) for _n, sc in scans if sc["first"])
+
+
 def by_cause_of(per_gap) -> dict[str, float]:
     """Minutes per cause, summed from `attribute_gaps`' list — the one list both published keys come from."""
     out: dict[str, float] = {}
@@ -2232,6 +2252,17 @@ def audit_night(
         unwitnessed = sum(r["s"] for r, w in zip(detail, recs) if w.get("witness") == "unwitnessed") / 60.0
         lost = sum(by_cause.values()) - unwitnessed
         worn = _has_worn_evidence(night_dir, model)
+        # THE WORN LOSS STOPS AT THE WORN END (`after_worn_end_s`). `lost_min` and `by_cause` still cover
+        # every gap; only the number the night is judged on, and its span, end where the wear ends.
+        wear = wear_ends(night_dir, model, address or None)
+        end_at = (wear.get("worn_end") or {}).get("at")
+        end = _dt.datetime.fromisoformat(end_at) if end_at else None
+        after = (
+            after_worn_end_s(
+                [(r["at"], r["s"]) for r, w in zip(detail, recs) if w.get("witness") != "unwitnessed"], end
+            )
+            / 60.0
+        )
         out["devices"][name] = {
             "primary": pat,
             # the LARGEST fragment, kept under its old name so a reader of an older ledger is not misled
@@ -2298,10 +2329,14 @@ def audit_night(
             "delays": [{"at": t.isoformat(timespec="seconds"), "s": round(g, 1), "device_ns": d} for t, g, d in delays],
             "delayed_min": round(sum(g for _, g, _ in delays) / 60.0, 1),
             "worn_evidence": worn,
-            "worn_lost_min": round(lost, 1) if worn else (0.0 if worn is False else None),
+            "worn_lost_min": round(lost - after, 1) if worn else (0.0 if worn is False else None),
+            # the gap minutes after the worn end, kept out of `worn_lost_min` and named here
+            "after_worn_end_min": round(after, 1),
+            # the recorded span up to the worn end: what `night_verdict` divides `worn_lost_min` by
+            "worn_span_min": round(span_before_s(scans, end) / 60.0, 1),
             "daemon_caused_min": round(sum(v for k, v in by_cause.items() if k.startswith("daemon:")), 1),
             # where the WORN interval ends, per device, with its reason — gaps above are not wear
-            "wear": wear_ends(night_dir, model, address or None),
+            "wear": wear,
         }
     return out
 
@@ -2336,7 +2371,12 @@ def night_verdict(audit: dict, *, night_dir: str, commit: str | None = None) -> 
     excluded = len(devs) - len(checked)
     pop = {"checked": len(checked), "eligible": len(devs), "excluded": excluded}
     evidence = [TOOL, os.path.join(night_dir, AUDIT_NAME), "journalctl -u tepna-capture"]
-    worn_span = sum(v["span_min"] for v in checked.values() if v.get("worn_evidence"))
+    # `worn_span_min` from an audit that writes it; an older LOSS-AUDIT.json has only `span_min`
+    worn_span = sum(
+        v["worn_span_min"] if "worn_span_min" in v else v["span_min"]
+        for v in checked.values()
+        if v.get("worn_evidence")
+    )
     worn_lost = sum(v["worn_lost_min"] or 0.0 for v in checked.values() if v.get("worn_evidence"))
     frac = round(worn_lost / worn_span, 4) if worn_span > 0 else None
     # EXPECTED devices that left no primary file. Excluded from `checked` (nothing to measure) but never

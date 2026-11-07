@@ -53,7 +53,7 @@
  *
  * USAGE
  *   node tools/tch-reference-record.mjs --host <host run.json> --wall <wall run.json> [--date YYYY-MM-DD]
- *   node tools/tch-reference-record.mjs --host h.json --wall w.json --out analysis/published-numbers/tch-firmware-reference-2026-10-18.json --js codegen/generated/tch-reference-record.js
+ *   node tools/tch-reference-record.mjs --host h.json --wall w.json --out analysis/published-numbers/tch-firmware-reference-2026-11-06.json --js codegen/generated/tch-reference-record.js
  *   node tools/tch-reference-record.mjs --selftest | --verdict-sample
  */
 
@@ -82,7 +82,7 @@ export const CI_MIN_NIGHTS = 2 * MIN_NIGHTS;
 export const DRIFT_LINE = 0.05;
 export const CORPUS_PLACEHOLDER = '<box captures root>/**/{*_ECG.txt,*_RR.txt,*_PPG.txt,*_SPO2.csv}';
 export const TWIN_GLOBAL = 'TCH_REFERENCE_RECORD';
-export const SUPERSEDES = 'analysis/published-numbers/tch-firmware-reference-2026-09-26.json';
+export const SUPERSEDES = 'analysis/published-numbers/tch-firmware-reference-2026-10-18.json';
 export const BRIEF = 'briefs/TCH-REFERENCE-POPULATIONS-2026-10-13-BRIEF.md';
 
 const r3 = (x) => (Number.isFinite(x) ? Math.round(x * 1000) / 1000 : null);
@@ -427,6 +427,77 @@ export function scrubVerdict(rec, meta = {}) {
   });
 }
 
+/* ── BOTH REFERENCE AXES, SIDE BY SIDE ──────────────────────────────────────────────────────────────
+   Owner ruling 2026-11-06 (board #3934 item 1): the record publishes BOTH legs, the device figures
+   kept and the corrected figures beside them with labels, replacing no published figure. The record
+   stated ONE reference axis until now, and `briefs/TCH-REFERENCE-AXIS-MATCH-2026-10-20-BRIEF.md` §7
+   held the other leg in prose, where nothing recomputes it.
+
+   A leg is keyed by the axis its own runs DECLARE, never by the flag that carried them, so a pair
+   mislabelled at the command line cannot publish under the wrong label. A leg the producer was not
+   given reads `null` beside a named reason — §∅: never an empty block, and never the other leg's
+   numbers. */
+export const REF_LEGS = ['device', 'corrected'];
+export const REF_LEG_LABEL = {
+  device: 'device axis — the status quo: the two-detector reference rides the raw device counter (ecgdex-dsp.js analyze)',
+  corrected: "corrected axis — the reference rides the record's own tMsAt, the axis the H10 corner already rides, which is what makes the H10 leg a same-axis comparison"
+};
+export const REF_LEGS_NOTE =
+  'the same corpus read twice, once per REFERENCE axis, labelled. Each leg carries its own scored population, its own pooled medians and its own host-minus-wall paired drift, so the two are read side by side and neither replaces the other. The canonical leg named by referenceAxisCanonical is the one every other field in this record is computed from';
+export function referenceAxisLeg(hostRun, wallRun) {
+  if (!hostRun || !wallRun) return null;
+  const H = (hostRun.verdicts || []).find((v) => v.population && v.population.name === 'all');
+  const res = (H && H.result) || {};
+  const med = res.medians || {};
+  const scored = okRows(hostRun)
+    .map((r) => r.night)
+    .sort();
+  const medians = {};
+  for (const k of KEYS) medians[k] = med[k] ? { trueSd: r3(med[k].trueSd), hat: r3(med[k].classic), bias: r3(med[k].bias) } : null;
+  return {
+    referenceAxis: runReferenceAxis(hostRun),
+    label: REF_LEG_LABEL[runReferenceAxis(hostRun)] || null,
+    nightsScored: H && H.population ? H.population.checked : null,
+    nightsEligible: H && H.population ? H.population.eligible : null,
+    dateFirst: scored[0] || null,
+    dateLast: scored[scored.length - 1] || null,
+    classicPassFraction: r3(res.classicPassFraction),
+    medians,
+    inBand: inBandCounts(hostRun),
+    pairedDrift: pairedDrift(hostRun, wallRun)
+  };
+}
+export function referenceAxisLegs(runs) {
+  const out = { note: REF_LEGS_NOTE, device: null, corrected: null, absent: null };
+  for (const [h, w] of [
+    [runs.host, runs.wall],
+    [runs.hostCorrected, runs.wallCorrected]
+  ]) {
+    const leg = referenceAxisLeg(h, w);
+    if (leg && REF_LEGS.indexOf(leg.referenceAxis) >= 0 && !out[leg.referenceAxis]) out[leg.referenceAxis] = leg;
+  }
+  const missing = REF_LEGS.filter((l) => !out[l]);
+  out.absent = missing.length ? missing.join(' · ') + ' — the producer was given no run pair on that reference axis, so this record publishes no figure for it' : null;
+  return out;
+}
+/* The second pair is OPTIONAL, and every way of getting it wrong is named rather than averaged into
+   the first pair. A one-sided pair cannot carry a paired drift; two pairs on the SAME reference axis
+   are not a side-by-side, they are one leg published twice. */
+export function refLegsRefusal(runs) {
+  if (!runs.hostCorrected && !runs.wallCorrected) return null;
+  if (!runs.hostCorrected || !runs.wallCorrected) return 'the second reference-axis leg needs BOTH --host-corrected and --wall-corrected — one run alone carries no paired drift';
+  for (const ax of AXES) {
+    const key = ax === 'host' ? 'hostCorrected' : 'wallCorrected';
+    const got = runs[key].detail && runs[key].detail.axis;
+    if (got !== ax) return `--${ax}-corrected names a run whose detail.axis is ${JSON.stringify(got)} — a σ is not comparable across clock axes, so the two may not be swapped`;
+  }
+  if (runReferenceAxis(runs.hostCorrected) !== runReferenceAxis(runs.wallCorrected))
+    return `the --*-corrected pair built its reference on the ${runReferenceAxis(runs.hostCorrected)} and ${runReferenceAxis(runs.wallCorrected)} axes — run both on one --reference-axis, or its drift carries two changes at once`;
+  if (runReferenceAxis(runs.hostCorrected) === runReferenceAxis(runs.host))
+    return `both pairs built their reference on the ${runReferenceAxis(runs.host)} axis — a side-by-side needs two DIFFERENT reference axes, never one leg published twice`;
+  return null;
+}
+
 /* ── the record ─────────────────────────────────────────────────────────────────────────────────── */
 export function buildRecord(runs, meta = {}) {
   const axes = {};
@@ -455,7 +526,7 @@ export function buildRecord(runs, meta = {}) {
     producerCommit: meta.commit || null,
     producerCommitNote: PRODUCER_COMMIT_NOTE,
     invocation:
-      'node tools/tch-reference-record.mjs --host <host run of tools/tch-firmware-reference.mjs --axis host --solid auto --json> --wall <the same with --axis wall> --out <this file> --js codegen/generated/tch-reference-record.js',
+      'node tools/tch-reference-record.mjs --host <host run of tools/tch-firmware-reference.mjs --axis host --solid auto --json> --wall <the same with --axis wall> --out <this file> --js codegen/generated/tch-reference-record.js, plus --host-corrected/--wall-corrected for the second reference-axis leg',
     generated: meta.generated || new Date().toISOString().slice(0, 10),
     supersedes: SUPERSEDES,
     brief: BRIEF,
@@ -480,6 +551,7 @@ export function buildRecord(runs, meta = {}) {
     band: { abs: BAND_ABS, rel: BAND_REL, passFraction: PASS_FRAC, minNights: MIN_NIGHTS },
     axes,
     pairedDrift: drift,
+    referenceAxisLegs: referenceAxisLegs(runs),
     /* TWO SPANS, NAMED. `claims.dateFirst/dateLast` is the span of the nights that were SCORED and is
        the pair that belongs beside `nightsScored`; each verdict's own `population.first/last` is the
        ELIGIBLE span, which is wider because a night can be eligible and refused. The card prints the
@@ -752,19 +824,99 @@ function selftest() {
        field, which is provenance and must survive. What must not survive is a SECOND mention: a prose
        sentence or a card constant still pointing at the retired run. So the count is pinned to the
        inlined record's own, rather than to zero (a zero here would red on correct provenance). */
-    const retired = (html.match(/tch-firmware-reference-2026-09-26\.json/g) || []).length;
-    const inRecord = (twinSource(rec, 'x.json').match(/tch-firmware-reference-2026-09-26\.json/g) || []).length;
+    /* COUNTED BY SPLITTING ON THE LITERAL, never by a regex built from it. A `new RegExp` over an
+       escaped basename escapes `.` and leaves a backslash unescaped, which `js/incomplete-sanitization`
+       reds as a high-severity alert — correctly, because the escape is partial. A split needs no
+       escape at all, so there is no sanitiser to get wrong. */
+    const retiredName = path.basename(SUPERSEDES);
+    const countOf = (text) => text.split(retiredName).length - 1;
+    const retired = countOf(html);
+    const inRecord = countOf(twinSource(rec, 'x.json'));
     ok(retired === inRecord && inRecord === 1, 'the superseded record is named once, as provenance, and nowhere else in the page (page ' + retired + ', record ' + inRecord + ')');
   } else {
     ok(false, 'sensor-trio-night.html is not beside this tool — the card-wiring legs examined nothing (§4b)');
   }
 
-  const twin = twinSource(rec, 'analysis/published-numbers/tch-firmware-reference-2026-10-18.json');
+  const twin = twinSource(rec, 'analysis/published-numbers/tch-firmware-reference-2026-11-06.json');
   ok(/@generated by tools\/tch-reference-record\.mjs/.test(twin) && /DO NOT EDIT/.test(twin), 'the twin says it is generated and by what');
   ok(/SPDX-License-Identifier: Apache-2\.0/.test(twin), 'the twin carries the SPDX header');
   const sandbox = { window: {} };
   new Function('window', twin.replace(/^#!.*\n/, ''))(sandbox.window);
   ok(JSON.stringify(sandbox.window[TWIN_GLOBAL]) === JSON.stringify(rec), 'the twin evaluates to the record, field for field');
+
+  /* ══ BOTH REFERENCE AXES, SIDE BY SIDE ═══════════════════════════════════════════════════════════
+     The owner ruled that the record publishes both legs. These legs hold three things: each leg's
+     figures come from its OWN runs, a leg that was not measured is null beside a reason rather than an
+     empty block, and the filing is by the axis the runs DECLARE rather than by the flag that carried
+     them. */
+  {
+    const hostC = corr(synthRun('host', { shift: 0.02 }));
+    const wallC = corr(synthRun('wall', { shift: 0 }));
+    const both = referenceAxisLegs({ host, wall, hostCorrected: hostC, wallCorrected: wallC });
+    ok(both.device && both.corrected && both.absent === null, 'both pairs ⇒ both legs published and nothing absent');
+    ok(both.device.referenceAxis === 'device' && both.corrected.referenceAxis === 'corrected', 'each leg names its own reference axis');
+    ok(
+      both.device.label !== both.corrected.label && /device axis/.test(both.device.label) && /corrected axis/.test(both.corrected.label),
+      'each leg carries its own label, so a reader never has to infer which figure is which'
+    );
+    /* ANTI-VACUITY · the two legs are measured, not copied: the planted drifts differ by construction. */
+    ok(
+      both.device.pairedDrift.corners.h10.medianAbs === 0.5 && both.corrected.pairedDrift.corners.h10.medianAbs === 0.02,
+      'each leg drifts its OWN host/wall pair — planted 0.5 and 0.02 bpm read back as themselves (' +
+        both.device.pairedDrift.corners.h10.medianAbs +
+        ' / ' +
+        both.corrected.pairedDrift.corners.h10.medianAbs +
+        ')'
+    );
+    ok(both.device.pairedDrift.refused === null && both.corrected.pairedDrift.refused === null, 'neither leg is internally mixed, so neither drift is refused');
+    ok(both.device.nightsScored === 24 && both.device.dateFirst === '2026-09-01' && both.device.classicPassFraction === 0.7, "the leg reads its own run's scored population and pooled fraction");
+    /* §∅ — ABSENCE IS NAMED, NEVER AN EMPTY BLOCK AND NEVER THE OTHER LEG'S NUMBERS. */
+    const one = referenceAxisLegs({ host, wall });
+    ok(
+      one.device && one.corrected === null && /corrected/.test(one.absent || ''),
+      'one pair ⇒ the measured leg published, the other null with a reason naming it (' + (one.absent || 'no reason').slice(0, 44) + '…)'
+    );
+    ok(JSON.stringify(one.corrected) === 'null', 'CONTROL · the absent leg is literally null, not an empty object a reader could mistake for a measurement');
+    /* THE FILING IS BY DECLARATION. Hand the corrected pair in as the FIRST pair and the device pair
+       as the second: a producer keyed by flag name would publish each under the wrong label. */
+    const swapped = referenceAxisLegs({ host: hostC, wall: wallC, hostCorrected: host, wallCorrected: wall });
+    ok(
+      swapped.device.referenceAxis === 'device' && swapped.corrected.referenceAxis === 'corrected' && swapped.corrected.pairedDrift.corners.h10.medianAbs === 0.02,
+      'a pair handed in under the other flag still files under the axis it declares'
+    );
+    /* An axis name outside the published set is filed nowhere and reported absent, rather than
+       inventing a third leg no reader has a label for. */
+    const oddH = { ...host, detail: { ...host.detail, referenceAxis: 'vendor' } };
+    const odd = referenceAxisLegs({ host: oddH, wall: { ...wall, detail: { ...wall.detail, referenceAxis: 'vendor' } } });
+    ok(
+      odd.device === null && odd.corrected === null && /device/.test(odd.absent) && /corrected/.test(odd.absent),
+      'CONTROL · an unpublished reference-axis name files no leg and both legs read absent'
+    );
+
+    /* The refusals. Every way of handing in a bad second pair is named at the front door, so no leg is
+       averaged into the first pair or published twice under two labels. */
+    ok(
+      refLegsRefusal({ host, wall }) === null && refLegsRefusal({ host, wall, hostCorrected: hostC, wallCorrected: wallC }) === null,
+      'ANTI-VACUITY · no second pair and a good second pair both pass'
+    );
+    ok(/BOTH --host-corrected and --wall-corrected/.test(refLegsRefusal({ host, wall, hostCorrected: hostC }) || ''), 'a one-sided second pair is refused — one run carries no paired drift');
+    ok(/may not be swapped/.test(refLegsRefusal({ host, wall, hostCorrected: wallC, wallCorrected: hostC }) || ''), 'a second pair with its clock axes swapped is refused');
+    ok(/two changes at once/.test(refLegsRefusal({ host, wall, hostCorrected: hostC, wallCorrected: wall }) || ''), 'a second pair mixed across reference axes is refused');
+    ok(
+      /never one leg published twice/.test(refLegsRefusal({ host, wall, hostCorrected: synthRun('host', { shift: 0.02 }), wallCorrected: synthRun('wall', { shift: 0 }) }) || ''),
+      'two pairs on the SAME reference axis are refused — that is one leg twice, not a side-by-side'
+    );
+
+    /* The record carries the block, and the canonical leg is the one every other field came from. */
+    const recBoth = buildRecord({ host, wall, hostCorrected: hostC, wallCorrected: wallC }, { commit: 'abc1234', at: '2026-11-06T00:00:00Z', generated: '2026-11-06' });
+    ok(!!recBoth.referenceAxisLegs && recBoth.referenceAxisLegs.note.length > 40, 'the record publishes the side-by-side block with a note saying what the two legs are');
+    ok(
+      recBoth.referenceAxisLegs[recBoth.referenceAxisCanonical] !== null &&
+        recBoth.referenceAxisLegs[recBoth.referenceAxisCanonical].pairedDrift.corners.h10.medianAbs === recBoth.pairedDrift.corners.h10.medianAbs,
+      'the canonical leg of the block is the one the record-level pairedDrift was computed from — the two can never disagree'
+    );
+    ok(privateDataFindings(recBoth).findings.length === 0, 'the side-by-side block adds no corpus path, night list or per-night row to the record');
+  }
 
   /* ══ THE COMMITTED RECORD AGAINST THE PRODUCER THAT WOULD WRITE IT TODAY ═════════════════════════
      Every other check in this file compares a FRESHLY BUILT record with its own twin. Both sides move
@@ -789,17 +941,14 @@ function selftest() {
      cut, so unlike the axis fields it is not an unmeasured fact. Writing it in would still EDIT a
      published record, which is the one thing a record may never suffer, so it waits for the same
      re-publication. Keying the list to one row would have filed it under the axis defect. */
-  const PUBLISHED_FIELD_GAP = {
-    top: {
-      referenceAxisCanonical: { row: '2026-10-20-the-published-tch-reference-figures-ride-the-mismatched-axis', declared: '2026-10-26' },
-      referenceAxisNote: { row: '2026-10-20-the-published-tch-reference-figures-ride-the-mismatched-axis', declared: '2026-10-26' },
-      producerCommitNote: { row: '2026-11-01-the-published-records-predate-the-producer-commit-note', declared: '2026-11-01' }
-    },
-    pairedDrift: {
-      referenceAxis: { row: '2026-10-20-the-published-tch-reference-figures-ride-the-mismatched-axis', declared: '2026-10-26' },
-      refused: { row: '2026-10-20-the-published-tch-reference-figures-ride-the-mismatched-axis', declared: '2026-10-26' }
-    }
-  };
+  /* 🔴 THE GAP IS EMPTY, AND EMPTY IS WHAT THE RATCHET BELOW WAS BUILT TO FORCE. Five entries sat
+     here while the published record predated the fields the producer writes: the two reference-axis
+     keys, the two `pairedDrift` keys, and `producerCommitNote`. Re-publishing the record wrote all
+     five, so every entry closed in the same diff, and the two pins they held in
+     `tools/residue-ids.mjs` PINNED_OPEN went with them. Nothing below is a floor on this object's
+     SIZE: the plants carry the anti-vacuity, so a list that empties cannot force a session to keep a
+     spent exemption alive to stay green. */
+  const PUBLISHED_FIELD_GAP = { top: {}, pairedDrift: {} };
   /* 🔴 A RATCHET KEYED TO A ROW DIES WITH THAT ROW. The ratchet below reds the day the record is
      re-published, so an exemption cannot outlive its fix. Nothing guarded the OTHER end. The
      `producerCommitNote` entry named `2026-10-21-a-producer-commit-can-name-a-tree-it-never-held`
@@ -814,7 +963,8 @@ function selftest() {
     const named = Object.entries(PUBLISHED_FIELD_GAP.top)
       .map(([k, v]) => ['top.' + k, v])
       .concat(Object.entries(PUBLISHED_FIELD_GAP.pairedDrift).map(([k, v]) => ['pairedDrift.' + k, v]));
-    ok(named.length >= 3, 'ANTI-VACUITY · the gap list carries entries whose rows can be resolved (' + named.length + ')');
+    /* NO `named.length >= N` HERE. The gap is allowed to be empty, and the plants below are what
+       keep the two legs over the real list from passing by vacuity. */
     const ledgerPath = path.join(ROOT, LEDGER_PATH);
     if (fs.existsSync(ledgerPath)) {
       const rows = parseRows(fs.readFileSync(ledgerPath, 'utf8'));
@@ -835,7 +985,6 @@ function selftest() {
          statement beside the row, so this leg holds the two lists together: a gap entry whose row
          is not declared there would pin a row silently, which is the failure the row below names. */
       const pinned = new Set(PINNED_OPEN.map((e) => e.row));
-      ok(pinned.size >= 2, 'ANTI-VACUITY · the pinned list carries entries (' + pinned.size + ')');
       const unpublished = [...new Set(named.map(([, v]) => v.row))].filter((r) => !pinned.has(r));
       ok(
         unpublished.length === 0,
@@ -895,6 +1044,13 @@ function selftest() {
         .filter(([, v]) => !(v && /^20\d\d-\d\d-\d\d$/.test(v.declared) && /^20\d\d-\d\d-[\w-]+$/.test(v.row)))
         .map(([k]) => k);
       ok(unattributed.length === 0, 'every held-back field names its row and the date it was declared — unattributed: ' + (unattributed.join(', ') || 'none'));
+      /* CONTROL · the attribution read goes vacuous on an empty gap, so one plant proves it can
+         still see an entry that names no row and no date. The predicate is the same expression. */
+      const attributed = (v) => !!(v && /^20\d\d-\d\d-\d\d$/.test(v.declared) && /^20\d\d-\d\d-[\w-]+$/.test(v.row));
+      ok(!attributed({ declared: 'soon', row: 'a-row' }) && !attributed({}), 'CONTROL · an entry with no date and no parseable row reads unattributed');
+      /* The planted key is dated BELOW the ledger's own floor, so `tools/residue-citations.mjs`
+         reads it as a fixture rather than as a citation of a row that does not exist. */
+      ok(attributed({ declared: '2026-10-26', row: '2026-01-02-a-planted-row' }), 'ANTI-VACUITY · a well-formed entry reads attributed, so the leg above can fail');
       /* §∅ — the record may omit the axis, and it may state it; what it may not do is carry it empty. */
       ok(
         !('referenceAxisCanonical' in pub) || (typeof pub.referenceAxisCanonical === 'string' && pub.referenceAxisCanonical.length > 0),
@@ -925,6 +1081,7 @@ async function main(argv) {
   const wallPath = arg('--wall');
   if (!hostPath || !wallPath) {
     console.error('usage: node tools/tch-reference-record.mjs --host <host run.json> --wall <wall run.json> [--date YYYY-MM-DD] [--out <record.json>] [--js <twin.js>]');
+    console.error('       the second reference-axis leg is optional: [--host-corrected <run.json>] [--wall-corrected <run.json>], both or neither');
     console.error('       node tools/tch-reference-record.mjs --selftest | --verdict-sample');
     return 2;
   }
@@ -948,6 +1105,15 @@ async function main(argv) {
     );
     return 2;
   }
+  const hostCorrPath = arg('--host-corrected');
+  const wallCorrPath = arg('--wall-corrected');
+  if (hostCorrPath) runs.hostCorrected = readRun(hostCorrPath);
+  if (wallCorrPath) runs.wallCorrected = readRun(wallCorrPath);
+  const legRefusal = refLegsRefusal(runs);
+  if (legRefusal) {
+    console.error(legRefusal);
+    return 2;
+  }
   const out = arg('--out');
   const rec = buildRecord(runs, { commit, generated: arg('--date') || undefined, out: out || undefined });
   const scrub = rec.result.verdicts[0];
@@ -962,7 +1128,7 @@ async function main(argv) {
   if (!out && !js) console.log(JSON.stringify(rec, null, 1));
   else {
     console.error(
-      `record: ${rec.claims.nightsScored} night(s) scored of ${rec.claims.nightsEligible}, ${rec.claims.dateFirst} → ${rec.claims.dateLast} · axis ${rec.axisCanonical} · reference axis ${rec.referenceAxisCanonical}`
+      `record: ${rec.claims.nightsScored} night(s) scored of ${rec.claims.nightsEligible}, ${rec.claims.dateFirst} → ${rec.claims.dateLast} · axis ${rec.axisCanonical} · reference axis ${rec.referenceAxisCanonical} · legs ${REF_LEGS.filter((l) => rec.referenceAxisLegs[l]).join('+') || 'none'}`
     );
     for (const v of rec.result.verdicts) console.error(`  ${v.gate.padEnd(38)} ${v.status}${v.reason ? ' — ' + v.reason : ''}`);
     console.error(`  wrote ${[out, js].filter(Boolean).join(' + ')}`);

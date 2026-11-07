@@ -19583,6 +19583,39 @@
         'referenceAxisCanonical: ' + JSON.stringify(rec.referenceAxisCanonical)
       );
 
+      /* BOTH REFERENCE-AXIS LEGS. The record now publishes a `referenceAxisLegs` block per reference
+         axis, and the card prints them side by side. The owner's ruling is that neither leg replaces
+         the other, so these legs hold the card to naming BOTH and to refusing a leg it cannot read —
+         §∅, a leg with no computable Δσ says so instead of printing a number. */
+      T.ok('the card reads both reference-axis legs from the record', /referenceAxisLegs/.test(card), 'the side-by-side clause must come from the record, not from this file');
+      T.ok(
+        'the card never defaults an absent legs block',
+        !/referenceAxisLegs\s*\)?\s*(?:\|\||\?\?)\s*[[{'"]/.test(card),
+        '§∅ — a `referenceAxisLegs || {}` would publish an empty side-by-side clause as though the record had stated two legs'
+      );
+      var mLeg = card.match(/const tchLegDrift = \(leg\) => \{\n([\s\S]+?)\n  \};/);
+      T.ok('ANTI-VACUITY · the per-leg drift reader was located in the card', !!mLeg, mLeg ? mLeg[1].length + ' chars of body' : 'tchLegDrift not found — the four executed legs below would not run');
+      if (mLeg) {
+        var drift = new Function('leg', mLeg[1]);
+        T.ok(
+          'a leg with a finite H10 median reports the figure and the paired count',
+          drift({ pairedDrift: { corners: { h10: { medianAbs: 0.5, n: 7 } } } }) === '0.5 bpm over 7 paired night(s)',
+          String(drift({ pairedDrift: { corners: { h10: { medianAbs: 0.5, n: 7 } } } }))
+        );
+        T.ok('a leg carrying no paired drift SAYS so, never zero', /no H10/.test(drift({})), String(drift({})));
+        T.ok('a null median is an absence, not a number', /no H10/.test(drift({ pairedDrift: { corners: { h10: { medianAbs: null, n: 7 } } } })), 'ø');
+        T.ok(
+          'CONTROL · a zero median is a real measurement and still prints',
+          drift({ pairedDrift: { corners: { h10: { medianAbs: 0, n: 7 } } } }).indexOf('0 bpm') === 0,
+          'a 0 bpm agreement is a figure, so the leg above keys on null and not on falsiness'
+        );
+      }
+      T.ok(
+        'the record either publishes the legs block or omits the key — never carries it empty',
+        !('referenceAxisLegs' in rec) || (typeof rec.referenceAxisLegs === 'object' && rec.referenceAxisLegs !== null && Object.keys(rec.referenceAxisLegs).length > 0),
+        'referenceAxisLegs keys: ' + JSON.stringify(Object.keys(rec.referenceAxisLegs || {}))
+      );
+
       /* THE LEG THAT WOULD HAVE CAUGHT THE ORIGINAL DEFECT: the composed slice — from the reference
          comment to the end of the composition — may hold no pooled figure as a literal. Decimals are
          banned outright; the only multi-digit integer allowed is the 100 of a percentage. */
