@@ -13,6 +13,17 @@ const { parseTimestamp, triIdxGrade } = window.PulseDex._bare;
 // vocabulary here rather than re-deriving the cut-points, so there is still exactly one decision.
 const _triCls = (g) => (g === 'ok' ? 'good' : g);
 
+/* ∅ KPI GRADERS AND FORMATTER — module scope, so the suite can call them directly.
+   The emitter in `renderKpiGridPx` already prints an em-dash for a null, but a string
+   concatenation hands it the STRING "null", which its own null test cannot catch. And a grade written as a bare
+   comparison reads an absence as a BAND: `null < 150` is true, so a refused Baevsky SI graded
+   GOOD, and an absent artifact share came out green as well. Measured over the seven unguarded
+   tiles: 2 green, 2 red, 3 amber, and `_kd` plus the explicit arms below return `neutral` for
+   all seven. `_kc` rises, `_kd` falls; both take the null first. */
+const _kc = (v, good, warn) => (v == null ? 'neutral' : v > good ? 'good' : v > warn ? 'warn' : 'bad');
+const _kd = (v, good, warn) => (v == null ? 'neutral' : v < good ? 'good' : v < warn ? 'warn' : 'bad');
+const _kn = (v) => (v == null ? null : v + '');
+
 // ── profile inputs ───────────────────────────────────────────────────────────
 function pxProfile() {
   const DP = window.DexProfile;
@@ -478,11 +489,7 @@ function renderKpiGridPx(r) {
   }
   const vei = r.dispRm == null ? null : +(r.dispRm / r.dispHr).toFixed(2);
   const D = (cur, key, inv) => (cur != null && prev && isFinite(prev[key]) ? { d: cur - prev[key], inv: !!inv } : null);
-  /* ∅ The emitter below already prints an em-dash for a null, but `v + ''` hands it the STRING
-     "null" and the old grades read an absence as the bottom band — a refused record came out red.
-     One grader and one formatter, so absence stays absence on every refusable card. */
-  const _kc = (v, good, warn) => (v == null ? 'neutral' : v > good ? 'good' : v > warn ? 'warn' : 'bad');
-  const _kn = (v) => (v == null ? null : v + '');
+  /* ∅ `_kc`, `_kd` and `_kn` live at module scope — one grader pair and one formatter. */
   const _kpn = r.longRec ? r.dispPn : r.pnn50;
   const K = [
     { l: 'HRV Score', v: r.hrv, s: 'vs prev', c: _kc(r.hrv, 45, 33), delta: D(r.hrv, 'hrv') },
@@ -490,26 +497,26 @@ function renderKpiGridPx(r) {
     { l: 'rMSSD', v: _kn(r.dispRm), s: 'ms · parasymp.', c: _kc(r.dispRm, 35, 20), delta: D(r.dispRm, 'rmssd'), u: 'ms' },
     { l: 'Stress', v: r.stress, s: 'HRV score', c: r.stress == null ? 'neutral' : r.stress < 45 ? 'good' : r.stress < 65 ? 'warn' : 'bad', delta: D(r.stress, 'stress', 1) },
     { l: 'Energy', v: r.energy, s: 'HRV score', c: _kc(r.energy, 55, 35), delta: D(r.energy, 'energy') },
-    { l: 'Baevsky SI', v: r.si, s: '<150 normal', c: r.si < 150 ? 'good' : r.si < 250 ? 'warn' : 'bad' },
-    { l: 'LF/HF', v: r.lfhf, s: '0.5–2.0 optimal', c: r.lfhf > 0.4 && r.lfhf < 2.5 ? 'good' : 'warn' },
+    { l: 'Baevsky SI', v: r.si, s: '<150 normal', c: _kd(r.si, 150, 250) },
+    { l: 'LF/HF', v: r.lfhf, s: '0.5–2.0 optimal', c: r.lfhf == null ? 'neutral' : r.lfhf > 0.4 && r.lfhf < 2.5 ? 'good' : 'warn' },
     { l: 'Recov Index', v: ari != null ? ari : '—', s: ariSub, c: ari == null ? 'neutral' : ari > 1 ? 'good' : ari > 0.85 ? 'warn' : 'bad' },
     { l: 'Coherence', v: r.coherence, s: 'PulseDex-native', c: _kc(r.coherence, 60, 30) },
     { l: 'SDNN Z', v: sdz != null ? sdz : '—', s: sdzSub, c: sdz == null ? 'neutral' : sdz > -0.5 ? 'good' : sdz > -1.5 ? 'warn' : 'bad' },
     { l: 'SD1/SD2', v: r.sd1sd2, s: '0.25–0.5 typical', c: r.sd1sd2 == null ? 'neutral' : r.sd1sd2 > 0.2 && r.sd1sd2 < 0.5 ? 'good' : 'warn' },
-    { l: 'HF n.u.', v: r.hfnu, s: 'parasympathetic %', c: r.hfnu > 35 ? 'good' : r.hfnu > 20 ? 'warn' : 'bad' },
+    { l: 'HF n.u.', v: r.hfnu, s: 'parasympathetic %', c: _kc(r.hfnu, 35, 20) },
     { l: 'VO₂max Est', v: r.vo2adj, s: 'ml/kg/min', c: r.vo2adj == null ? 'neutral' : r.vo2adj >= 45 ? 'good' : r.vo2adj >= 40 ? 'warn' : 'bad' },
     /* SBP Est / DBP Est rows REMOVED 2026-06-21 (external-review WP-A) — cuffless BP from HRV. */
-    { l: 'ABS', v: r.abs, s: '−1=SNS +1=PSNS', c: r.abs > 0 ? 'good' : r.abs > -0.3 ? 'warn' : 'bad' },
+    { l: 'ABS', v: r.abs, s: '−1=SNS +1=PSNS', c: _kc(r.abs, 0, -0.3) },
     { l: 'Vagal Eff', v: vei, s: 'rMSSD/HR', c: _kc(vei, 0.55, 0.4) },
     { l: 'EFC Ready', v: r.efc, s: 'readiness 0–100', c: _kc(r.efc, 60, 40) },
     { l: 'DFA α1', v: r.dfa1 == null ? '—' : r.dfa1, s: 'fractal scaling', c: r.dfa1 == null ? 'neutral' : r.dfa1 >= 0.9 && r.dfa1 <= 1.2 ? 'good' : r.dfa1 < 0.75 || r.dfa1 > 1.5 ? 'bad' : 'warn' },
     { l: 'SampEn', v: r.sampen == null ? '—' : r.sampen, s: 'complexity', c: r.sampen == null ? 'neutral' : r.sampen >= 1 ? 'good' : r.sampen >= 0.6 ? 'warn' : 'bad' },
     { l: 'Tri Index', v: r.triIdx, s: r.triIdxNorm === true ? 'geometric HRV' : 'geometric HRV · span < 20 min, ungraded', c: _triCls(triIdxGrade(r.triIdx, r.triIdxSpanMin)) },
     { l: 'Decel Cap', v: r.dc == null ? '—' : r.dc, s: 'ms · vagal', c: r.dc == null ? 'neutral' : r.dc >= 4.5 ? 'good' : r.dc >= 2.5 ? 'warn' : 'bad', u: 'ms' },
-    { l: 'Resp Rate', v: r.respRate, s: 'br/min (RSA)', c: r.respRate >= 10 && r.respRate <= 20 ? 'good' : 'warn' },
+    { l: 'Resp Rate', v: r.respRate, s: 'br/min (RSA)', c: r.respRate == null ? 'neutral' : r.respRate >= 10 && r.respRate <= 20 ? 'good' : 'warn' },
     { l: 'pNN50', v: _kn(_kpn), s: 'beat-pair %', c: _kpn == null ? 'neutral' : _kpn >= 15 ? 'good' : _kpn >= 5 ? 'warn' : 'bad', u: '%' },
-    { l: 'Coverage', v: r.coverage + '', s: 'data captured', c: r.coverage >= 95 ? 'good' : r.coverage >= 85 ? 'warn' : 'bad', u: '%' },
-    { l: 'Artifacts', v: r.artifactPct + '', s: 'corrected', c: r.artifactPct < 2 ? 'good' : r.artifactPct < 8 ? 'warn' : 'bad', u: '%' }
+    { l: 'Coverage', v: _kn(r.coverage), s: 'data captured', c: r.coverage == null ? 'neutral' : r.coverage >= 95 ? 'good' : r.coverage >= 85 ? 'warn' : 'bad', u: '%' },
+    { l: 'Artifacts', v: _kn(r.artifactPct), s: 'corrected', c: r.artifactPct == null ? 'neutral' : r.artifactPct < 2 ? 'good' : r.artifactPct < 8 ? 'warn' : 'bad', u: '%' }
   ];
   if (r.longRec && r.sdann != null) K.push({ l: 'SDANN', v: r.sdann, s: 'long-recording', c: r.sdann > 50 ? 'good' : r.sdann > 30 ? 'warn' : 'bad', u: 'ms' });
 
@@ -679,6 +686,7 @@ function applyAgeNorms(ideal) {
 // expose for inline handlers + the cross-file surface (ESM-MIGRATION deep-3: overview is now an
 // ES module, so pulsedex-render / -app resolve these as bare globals through window at call time)
 Object.assign(window, {
+  PXKPI: { _kc, _kd, _kn },
   onProfileInput,
   toggleProfilePanel,
   applyAgeNorms,
