@@ -416,6 +416,24 @@ def band_of(night_dir: str):
     return _nqc.night_band(cast(float, probe))
 
 
+def recording_newest_mtime(night_dir: str) -> float | None:
+    """Newest mtime among the capture files of the RECORDING this folder names: its own capture files, and
+    the next day's files whose session starts inside its band. None when there is none.
+
+    MEASURED on the capture box 2026-11-07: the night of 2026-10-03 began after midnight. Its H10 file set
+    opened at 00:28 in the 2026-10-04 folder, and the 2026-10-03 folder held only sidecars. The loss poller
+    read `nightqc.newest_data_mtime` over the folder alone, found no capture file, and never judged the
+    night: no LOSS-AUDIT, no SOLID-VERDICT. The judge itself reads both folders (`recording_scope`); the
+    eligibility test now reads the same set, so a night that starts after midnight is judged like any other."""
+    band = band_of(night_dir)
+    found = [_nqc.newest_data_mtime(night_dir)]
+    if band is not None:
+        nxt = cast(str, _next_day_dir(night_dir))  # a date folder always names its next day
+        found.append(_nqc.newest_data_mtime(nxt, keep=lambda n: in_band(n, band)))
+    known = [m for m in found if m is not None]
+    return max(known) if known else None
+
+
 def band_phase(night_dir: str, now: _dt.datetime) -> str | None:
     """Where `now` sits against the band this folder NAMES: `before`, `open` or `closed`. None without a date.
 

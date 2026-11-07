@@ -643,3 +643,49 @@ def test_a_fragment_still_recording_before_its_band_opens_is_not_the_pending_nig
     monkeypatch.setattr(capture.loss_audit, "write_night", _audit_writer([]))
     _poll_once(monkeypatch, tmp_path, devices=_cfg_devices())
     assert capture.STATUS["solid"]["night"] == "2026-10-02"
+
+
+# ---- a night that starts after midnight is judged (residue
+# `2026-11-07-a-night-that-starts-after-midnight-is-never-judged`) ----
+
+
+def _file(d, name, *ymdhm):
+    import datetime as dt
+
+    d.mkdir(parents=True, exist_ok=True)
+    f = d / name
+    f.write_text("Phone timestamp;x\n")
+    t = dt.datetime(*ymdhm).timestamp()
+    os.utime(str(f), (t, t))
+    return t
+
+
+def test_the_recording_newest_mtime_reads_the_next_day_inside_the_band(tmp_path):
+    import solid_night_inputs as sni
+
+    cap = tmp_path / "captures"
+    d, nxt = cap / "2026-10-03", cap / "2026-10-04"
+    _file(d, "Tepna_20261003000018_LINK.csv", 2026, 10, 4, 9, 0)  # a sidecar: the box, not data
+    assert sni.recording_newest_mtime(str(d)) is None
+    t_in = _file(nxt, "Polar_H10_0284_20261004002801_ECG.txt", 2026, 10, 4, 6, 0)
+    _file(nxt, "Polar_H10_0284_20261004120000_ECG.txt", 2026, 10, 4, 13, 0)  # the next band: not this night
+    assert sni.recording_newest_mtime(str(d)) == t_in
+    t_own = _file(d, "Polar_H10_0284_20261003220000_ECG.txt", 2026, 10, 4, 7, 0)
+    assert sni.recording_newest_mtime(str(d)) == t_own, "the newest of the two folders"
+    other = tmp_path / "not-a-date"
+    t_x = _file(other, "Polar_H10_0284_20261003220000_ECG.txt", 2026, 10, 4, 5, 0)
+    assert sni.recording_newest_mtime(str(other)) == t_x
+
+
+def test_a_night_that_starts_after_midnight_is_judged(tmp_path, monkeypatch):
+    """MEASURED on the capture box 2026-11-07: the 2026-10-03 folder held only sidecars, the H10 began at
+    00:28 in the 2026-10-04 folder, and the night was never judged."""
+    cap = tmp_path / "captures"
+    _file(cap / "2026-10-03", "Tepna_20261003000018_LINK.csv", 2026, 10, 4, 9, 0)
+    _file(cap / "2026-10-04", "Polar_H10_0284_20261004002801_ECG.txt", 2026, 10, 4, 7, 0)
+    _at(monkeypatch, 2026, 10, 4, 10, 30)
+    monkeypatch.setattr(capture, "STATUS", {})
+    calls = []
+    monkeypatch.setattr(capture.loss_audit, "write_night", _audit_writer(calls))
+    _poll_once(monkeypatch, tmp_path)
+    assert calls == ["2026-10-03"], "the 10-04 folder names a band that is still open"
