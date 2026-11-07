@@ -93,7 +93,20 @@ export const BY_DESIGN = new Map([
   ['herdr.service', "herdr's own unit"],
   ['openclaw-gateway.service', "the claw gateway's own unit"],
   ['finch-labbackup-daily.service', "Finch's lab backup; Finch-owned, not Tepna estate"],
-  ['finch-labbackup-daily.timer', "Finch's lab backup; Finch-owned, not Tepna estate"]
+  ['finch-labbackup-daily.timer', "Finch's lab backup; Finch-owned, not Tepna estate"],
+  ['finch-gpu-health.service', "Finch's GPU health probe; Finch-owned, not Tepna estate"],
+  ['finch-gpu-health.timer', "Finch's GPU health probe; Finch-owned, not Tepna estate"],
+  ['finch-mirror-open-datasets.service', "Finch's open-datasets NAS mirror; Finch-owned, not Tepna estate"],
+  ['finch-mirror-open-datasets.timer', "Finch's open-datasets NAS mirror; Finch-owned, not Tepna estate"],
+  ['disk-watch.service', 'rig disk headroom watchdog; host-local script carries the ntfy topic'],
+  ['disk-watch.timer', 'rig disk headroom watchdog; host-local script carries the ntfy topic'],
+  ['hc-ping.service', 'dead-man switch ping; host-local script carries the health-check URL'],
+  ['hc-ping.timer', 'dead-man switch ping; host-local script carries the health-check URL'],
+  ['ntfy-board-bridge.service', 'ntfy-to-board alert bridge; host-local script carries the ntfy topic'],
+  ['smart-log.service', 'rig SMART trend log (owner, 2026-11-07); host ops, not Tepna estate'],
+  ['smart-log.timer', 'rig SMART trend log (owner, 2026-11-07); host ops, not Tepna estate'],
+  ['snt-update.service', 'SomnoTrace index refresh; a separate project, not Tepna estate'],
+  ['snt-update.timer', 'SomnoTrace index refresh; a separate project, not Tepna estate']
 ]);
 
 export const isUnitFile = (name) => UNIT_SUFFIXES.some((s) => name.endsWith(s));
