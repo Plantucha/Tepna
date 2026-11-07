@@ -70264,6 +70264,70 @@
             T.eq('DA-III-F §1.3 · …and is still clamped at 100', _pct(140), 100);
           }
         }
+        /* ── D17 §PD · the reason reaches the reader, not only the export ───────────────────────────
+           `renderKPI` prints an em-dash for a refused figure, so a clock seam, a short reading and an
+           absent input all drew the same glyph. `pulsedex-app.js` writes `hrvReason` and its own
+           comment calls an unexplained absence "only half of the refusal". These legs lift
+           `seamContextNote` out of the SHIPPED SOURCE and execute it, the §1.3 idiom above, because a
+           regex on its spelling passes over a planted `return ''`. */
+        if (_prSrc == null) {
+          T.ok('D17 §PD · pulsedex-render.js source is readable', false, 'not in env.sources — this gate cannot run');
+        } else {
+          var _liftDecl = function (src, name) {
+            var k = src.indexOf('function ' + name + '(');
+            if (k < 0) return null;
+            var b = src.indexOf('{', k),
+              d = 0;
+            for (var j = b; j < src.length; j++) {
+              if (src[j] === '{') d++;
+              else if (src[j] === '}' && --d === 0) return src.slice(k, j + 1);
+            }
+            return null;
+          };
+          var _noteSrc = _liftDecl(_prSrc, 'seamContextNote');
+          T.ok('D17 §PD · `seamContextNote` is present in the shipped render source', _noteSrc != null, _noteSrc == null ? 'not found' : _noteSrc.length + ' chars');
+          var _note = null;
+          if (_noteSrc) {
+            try {
+              _note = new Function('escapeHTML', 'return (' + _noteSrc + ');')(function (x) {
+                return String(x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+              });
+            } catch (_e) {
+              _note = null;
+            }
+          }
+          T.ok('D17 §PD · …and it lifts and builds as a callable function', typeof _note === 'function', typeof _note);
+          if (typeof _note === 'function') {
+            var _ref = _note({ hrvReason: 'clock-seam' });
+            T.ok("D17 §PD · a refused record names the node's OWN reason token to the reader", _ref.indexOf('clock-seam') >= 0, JSON.stringify(_ref).slice(0, 160));
+            T.ok('D17 §PD · …and says the figures refused rather than measured low', /refused/i.test(_ref), JSON.stringify(_ref).slice(0, 160));
+            /* THREE STATES. A sidecar the box wrote and this node could not place is UNKNOWN; a
+               MEASURED zero and a stream with no sidecar at all both stay silent, deliberately. */
+            var _unk = _note({ hrvReason: null, seamState: { seams: null, reason: 'seam-rows-unplaced' } });
+            T.ok('D17 §PD · an undecidable sidecar reads UNKNOWN and names its token', _unk.indexOf('UNKNOWN') >= 0 && _unk.indexOf('seam-rows-unplaced') >= 0, JSON.stringify(_unk).slice(0, 160));
+            T.eq('D17 §PD · a stream with no sidecar at all stays out of the banner', _note({ hrvReason: null, seamState: { seams: null, reason: 'no-seam-sidecar' } }), '');
+            T.eq('D17 §PD · a MEASURED zero draws no banner line', _note({ hrvReason: null, seamState: { seams: 0, reason: null } }), '');
+            T.eq('D17 §PD · a record with no seam state at all draws none either', _note({}), '');
+            T.eq('D17 §PD · an absent record draws none', _note(null), '');
+            /* PRECEDENCE: a record can carry both. The refusal is the stronger statement and the one
+               that explains the em-dashes, so it wins the single line. */
+            var _both = _note({ hrvReason: 'clock-seam', seamState: { seams: null, reason: 'seam-rows-unplaced' } });
+            T.ok('D17 §PD · a record carrying both states reports the REFUSAL', _both.indexOf('clock-seam') >= 0 && _both.indexOf('seam-rows-unplaced') < 0, JSON.stringify(_both).slice(0, 160));
+            T.ok(
+              'D17 §PD · a reason token reaches the markup escaped, never as live tags',
+              _note({ hrvReason: '<b>x</b>' }).indexOf('<b>x</b>') < 0,
+              JSON.stringify(_note({ hrvReason: '<b>x</b>' })).slice(0, 160)
+            );
+          }
+          /* The call site is the other half: a perfect note nobody renders is the very defect this
+             unit fixes, one layer up. */
+          T.ok(
+            'D17 §PD · the context banner renders the note beside its own caveats',
+            /const notes = \[note, alt, pbNote, seamContextNote\(r\)\]/.test(_prSrc),
+            'call site not found in renderContext'
+          );
+        }
+
         // ── OxyDex mean-SpO₂ KPI color: ok≥95 / warn≥92 / bad (HIGH; a lowered cut paints a hypoxic night green) ──
         var oxKpiClass = function (mean) {
           var html = env.OxyDex.reviewView({ events: [], nights: [{ stats: { meanSpo2: mean, minSpo2: mean - 3 } }] }, [{ stats: { meanSpo2: mean, minSpo2: mean - 3 } }]);
