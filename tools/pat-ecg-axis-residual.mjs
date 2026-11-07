@@ -40,7 +40,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { overlapSplit } from './pat-window-oracle.mjs';
 import { isCliEntry } from './argv-guard.mjs';
-import { notANight, populationVerdict, snapshotNights } from './corpus-scope-core.mjs';
+import { coverageIdentity, notANight, populationVerdict, snapshotNights } from './corpus-scope-core.mjs';
 import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
 
 /* ── THE VALIDITY SIDECAR RIDES WITH THE STREAM ─────────────────────────────────────────────
@@ -240,6 +240,10 @@ async function main() {
     evidence: ['tools/pat-ecg-axis-residual.mjs']
   });
   const unscored = notANight({ n: nights.length, nights }, covered);
+  /* THE PRINTED FIGURE ANSWERS TO THE ARITHMETIC (#4506). The identity holds the scored count to the
+     members this run actually read: a short difference, a duplicate night or a member the offer never
+     held stops the run, where before the line printed and said nothing. */
+  coverageIdentity({ n: nights.length, nights }, covered, unscored, { printedScored: covered.length });
   console.log(
     `\npopulation: ${popBefore.n} offered under ${DIR} · ${nights.length} named · ${covered.length} scored · movement ${population.status} · --night left ${Math.max(0, popBefore.n - nights.length + absentFromOffer.length)} offered night(s) unread${population.reason ? ' — ' + population.reason : ''}`
   );

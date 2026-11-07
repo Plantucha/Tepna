@@ -14414,15 +14414,9 @@
         'oxy-hr-bias.mjs',
         'pat-connection-stability.mjs',
         'pat-dip-validate.mjs',
-        'pat-drift-attribution.mjs',
-        'pat-ecg-axis-residual.mjs',
-        'pat-fiducial-compare.mjs',
         'pat-finger-coupler.mjs',
         'pat-hrv-windows.mjs',
         'pat-matchrate-strict.mjs',
-        'pat-ppg-ppg-control.mjs',
-        'pat-residual-structure.mjs',
-        'pat-window-scaling.mjs',
         'ppg-channel-combination.mjs',
         'ppg-foot-consensus-e1.mjs',
         'ppg-fusion-e3.mjs',
@@ -14461,6 +14455,26 @@
           })
           .join(', '),
         ''
+      );
+      var COV_SLICE = ['pat-drift-attribution.mjs', 'pat-ecg-axis-residual.mjs', 'pat-fiducial-compare.mjs', 'pat-ppg-ppg-control.mjs', 'pat-residual-structure.mjs', 'pat-window-scaling.mjs'];
+      T.eq(
+        'the six PAT readers wired off the backlog carry the identity',
+        COV_SLICE.filter(function (t) {
+          return !hasIdentity(t);
+        }).join(', '),
+        ''
+      );
+      /* A TOOL THAT PRINTS A SCORED COUNT MUST HAND IT OVER. Five of the six publish `covered.length`
+         or `bests.length` as that count, so the identity gets `printedScored` and can catch a figure
+         the members cannot reach. pat-fiducial-compare prints a MOVEMENT count instead, so it passes
+         the difference alone, and pinning that asymmetry is what stops a later edit from feeding the
+         wrong number in. */
+      T.eq(
+        'five of the six hand the printed scored count to the identity, and the sixth prints a movement count instead',
+        COV_SLICE.filter(function (t) {
+          return /coverageIdentity\([^;]*printedScored/.test(TT['tools/' + t] || '');
+        }).join(', '),
+        'pat-drift-attribution.mjs, pat-ecg-axis-residual.mjs, pat-ppg-ppg-control.mjs, pat-residual-structure.mjs, pat-window-scaling.mjs'
       );
       T.ok(
         'the identity has ONE definition, in corpus-scope-core.mjs beside the namer it checks',
