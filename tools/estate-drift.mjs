@@ -105,8 +105,10 @@ export const BY_DESIGN = new Map([
   ['ntfy-board-bridge.service', 'ntfy-to-board alert bridge; host-local script carries the ntfy topic'],
   ['smart-log.service', 'rig SMART trend log (owner, 2026-11-07); host ops, not Tepna estate'],
   ['smart-log.timer', 'rig SMART trend log (owner, 2026-11-07); host ops, not Tepna estate'],
-  ['snt-update.service', 'SomnoTrace index refresh; a separate project, not Tepna estate'],
-  ['snt-update.timer', 'SomnoTrace index refresh; a separate project, not Tepna estate']
+  ['snt-update.service', 'sibling project index refresh; another project, not Tepna estate'],
+  ['snt-update.timer', 'sibling project index refresh; another project, not Tepna estate'],
+  ['homelab-health.service', 'home-network health checks to ntfy (owner, 2026-11-07); host ops, not Tepna estate'],
+  ['homelab-health.timer', 'home-network health checks to ntfy (owner, 2026-11-07); host ops, not Tepna estate']
 ]);
 
 export const isUnitFile = (name) => UNIT_SUFFIXES.some((s) => name.endsWith(s));
