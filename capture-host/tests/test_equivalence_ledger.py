@@ -258,7 +258,7 @@ RATCHET = {
     # used to find 0 of 28 runs differing. A killed mutant needs no excuse.
     "radioclock.py": 6,
     "solid_night.py": 2,
-    "solid_night_inputs.py": 33,
+    "solid_night_inputs.py": 34,
     "stallsampler.py": 2,
     "storage_targets.py": 2,
     "telemetry.py": 1,

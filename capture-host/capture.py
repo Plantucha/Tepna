@@ -10916,7 +10916,9 @@ async def loss_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" =
             # no capture file at all (tomorrow's sidecar-only folder, every night at midnight).
             _settled: "dict[str, float]" = {}
             for _n in every:
-                _m = await asyncio.to_thread(nightqc.newest_data_mtime, os.path.join(captures, _n))
+                # THE RECORDING'S DATA, across its folder set: a night that starts after midnight keeps every
+                # capture file in the next day's folder (`solid_night_inputs.recording_newest_mtime`).
+                _m = await asyncio.to_thread(solid_night_inputs.recording_newest_mtime, os.path.join(captures, _n))
                 # AND THE BAND THE FOLDER NAMES HAS CLOSED. Settled data alone judged a morning-only folder
                 # before its own band opened (vigil 2026-11-03: UNKNOWN over 0 of 0, announced on ntfy).
                 # `solid_night_inputs.band_phase` carries the measurement; the night before already reads

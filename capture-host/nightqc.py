@@ -26,7 +26,7 @@ import allan
 import clock_offset
 import polar_pmd
 import writers
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from datetime import datetime, timedelta, timezone
 from localstamp import LocalStampResolver, fold_candidates_ms
 
@@ -1874,7 +1874,7 @@ def data_quiet_s(night_dir: str, _now=_time.time) -> float | None:
     return None if m is None else max(0.0, _now() - m)
 
 
-def newest_data_mtime(night_dir: str) -> float | None:
+def newest_data_mtime(night_dir: str, keep: Callable[[str], bool] | None = None) -> float | None:
     """Newest mtime among this folder's DEVICE-CAPTURE files, or None if it holds none.
 
     Sidecars are excluded deliberately, and that exclusion is the whole point. LINK/CLOCK roll on the
@@ -1897,6 +1897,8 @@ def newest_data_mtime(night_dir: str) -> float | None:
         parsed = parse_capture_name(n)
         if not parsed or parsed[0] in _SIDECAR_TAGS:
             continue
+        if keep is not None and not keep(n):
+            continue  # `keep` narrows by NAME: `solid_night_inputs.recording_newest_mtime` passes band membership
         p = os.path.join(night_dir, n)
         try:
             if os.path.isfile(p):
