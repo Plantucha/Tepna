@@ -731,6 +731,30 @@
      down is not the tool's default axis, so this returns null and the clause says so rather than
      printing a value the record never stated. */
   const tchRefAxis = () => (TCHREC && typeof TCHREC.referenceAxisCanonical === 'string' && TCHREC.referenceAxisCanonical ? TCHREC.referenceAxisCanonical : null);
+  const tchLegs = () => (TCHREC && TCHREC.referenceAxisLegs && typeof TCHREC.referenceAxisLegs === 'object' ? TCHREC.referenceAxisLegs : null);
+  /* BOTH REFERENCE-AXIS LEGS, SIDE BY SIDE, under the owner ruling the producer tool cites by date —
+     NO DATE HERE, because a digit inside this composed slice reds the leg in `tests/dex-tests.js` that
+     bans a typed pooled figure, and that leg cannot tell a date from a night count. The record stated ONE reference
+     axis, so a reader could not see what the other one measured and had no reason to doubt the two
+     agree. A record that publishes one leg only says WHICH, by name, rather than leaving the gap
+     silent. An older record carries no block at all, and then this clause says nothing — the
+     reference-axis sentence above already reports that absence. */
+  const tchLegDrift = (leg) => {
+    const h = leg && leg.pairedDrift && leg.pairedDrift.corners && leg.pairedDrift.corners.h10;
+    return h && Number.isFinite(h.medianAbs) ? h.medianAbs + ' bpm over ' + h.n + ' paired night(s)' : 'no H10 Δσ this leg could compute';
+  };
+  const tchLegClause = () => {
+    const L = tchLegs();
+    if (!L) return '';
+    const parts = ['device', 'corrected'].filter((k) => L[k]).map((k) => '<b>' + esc(k) + '</b> ' + esc(tchLegDrift(L[k])));
+    if (!parts.length) return ' <b>No reference-axis leg is published here:</b> ' + esc(L.absent || 'the record states no reason') + '.';
+    return (
+      ' <b>Both reference axes, side by side:</b> the H10 median |Δσ| between the host and wall clock axes reads ' +
+      parts.join(' and ') +
+      '. ' +
+      (L.absent ? esc(L.absent) + '.' : 'Neither leg replaces the other, and the pooled figures above are the canonical leg.')
+    );
+  };
   const TCH_REFUSED = 'reference note REFUSED — the published record did not load, so no pooled figure is shown';
   function validationLine(k) {
     const ib = TCHAX && TCHAX.inBand && TCHAX.inBand[k];
@@ -825,7 +849,8 @@
       (tchRefAxis()
         ? '<code>' + esc(tchRefAxis()) + '</code>'
         : '<b>not recorded</b> — this record does not state which timebase the reference itself rode, so whether the comparison is same-axis is unknown') +
-      '.';
+      '.' +
+      tchLegClause();
   }
   function hero(k, real, derive) {
     const v = $('hero-' + k + '-val'),
