@@ -52437,12 +52437,93 @@
         /DRIFT/.test(page([quietCur], { nonDraft: 1, cap: 4, alerts: [] }, [], DM({ readable: false, missing: [], extra: [] }))),
         false
       );
-      /* ── the signature comment (owner, 2026-11-01: "it will sign everything what it does") ──── */
+      /* ── the journal says each thing once (measured 2020-01-07: 1878 lines over 221 passes in 6 h,
+         one alert repeated 29 times) ───────────────────────────────────────────────────────── */
+      var fa = env.pwFreshAlerts,
+        jt = env.pwJournalText;
+      if (typeof fa === 'function' && typeof jt === 'function') {
+        var AR = [{ number: 7, headSha: SHA }];
+        var A1 = { number: 7, kind: 'red', why: 'test red after 1 rerun(s)' };
+        var f1 = fa([A1], AR, {});
+        T.eq('a first-seen alert is fresh', f1.fresh.length, 1);
+        var f2 = fa([A1], AR, f1.seen);
+        T.eq('the same alert on the same head is not fresh again', f2.fresh.length, 0);
+        T.eq('a new head makes the alert fresh again', fa([A1], [{ number: 7, headSha: 'f'.repeat(40) }], f1.seen).fresh.length, 1);
+        T.eq('a closed PR drops out of the seen set', Object.keys(fa([], [], f1.seen).seen).length, 0);
+        var PG = 'pr-walker pass 2020-01-07T18:00:00Z · open 1\n#7 ready red      required red: test\nactions: none\nALERT #7 red: test red after 1 rerun(s)\n';
+        var j1 = jt(PG, f1.fresh, null);
+        T.ok('a fresh alert prints in the journal', /\nALERT #7 red/.test(j1.text));
+        var j2 = jt(PG.replace('18:00:00Z', '18:01:30Z'), f2.fresh, null);
+        T.ok('a standing alert collapses to a count', !/\nALERT #7/.test(j2.text) && /1 standing alert\(s\) unchanged/.test(j2.text));
+        var j3 = jt(PG.replace('18:00:00Z', '18:03:00Z'), f2.fresh, j2.body);
+        T.eq('a pass that changed nothing prints one line', j3.text, 'pr-walker pass 2020-01-07T18:03:00Z · unchanged\n');
+        T.ok('CONTROL: a changed row prints the full body', /\n#7 ready green/.test(jt(PG.replace('red      required red: test', 'green    green, current'), f2.fresh, j2.body).text));
+      } else T.skip('journal dedup wired', 'pwFreshAlerts absent in this lane');
+
+      /* ── a merged fix closes its own residue row (measured 2020-01-07: #4528 and #4524, two of the
+         five newest commits, were whole units spent on one state cell) ─────────────────────── */
+      var prf = env.pwParseResidueFixed,
+        pcl = env.pwPlanClosures,
+        crt = env.pwCloseRowsText,
+        cbd = env.pwClosureBody;
+      if (typeof prf === 'function' && typeof pcl === 'function' && typeof crt === 'function') {
+        T.eq('a declaration line names its keys', prf('x\nResidue-fixed: `2020-01-07-a-b`, 2020-01-06-c\ny').join(' '), '2020-01-07-a-b 2020-01-06-c');
+        T.eq('a key merely mentioned in prose closes nothing', prf('This relates to 2020-01-07-a-b.').length, 0);
+        T.eq('a malformed key is dropped', prf('Residue-fixed: not-a-key').length, 0);
+        var LED = [
+          '| key | logged | source | defect | evidence | state |',
+          '|---|---|---|---|---|---|',
+          '| 2020-01-07-a-b | 2020-01-07 | `x.js` | **d.** | e | OPEN |',
+          '| 2020-01-06-c | 2020-01-06 | `y.js` | **d.** | e | fixed #10 |',
+          '| 2020-01-05-d | 2020-01-05 | `z.js` | **d. OPEN here** | e | OPEN |'
+        ].join('\n');
+        var MG = [{ number: 42, body: 'Residue-fixed: 2020-01-07-a-b 2020-01-06-c 2020-01-01-zz' }];
+        var pc1 = pcl(MG, LED, {}, NOW);
+        T.eq(
+          'an OPEN declared row is planned for closure by its PR',
+          pc1.close
+            .map(function (c) {
+              return c.key + '#' + c.number;
+            })
+            .join(','),
+          '2020-01-07-a-b#42'
+        );
+        T.eq(
+          'a closed row and an absent key each get one note',
+          pc1.notes
+            .map(function (n) {
+              return n.key;
+            })
+            .join(','),
+          '2020-01-06-c,2020-01-01-zz'
+        );
+        T.eq('a row already handled is not planned again', pcl(MG, LED, { '2020-01-07-a-b': 'pr:99', '2020-01-06-c': 'note:x', '2020-01-01-zz': 'note:y' }, NOW).close.length, 0);
+        T.eq('a failed attempt waits an hour', pcl(MG, LED, { '2020-01-07-a-b': 'failed:x@' + (NOW - 10 * MIN) }, NOW).close.length, 0);
+        T.eq('…and retries after it', pcl(MG, LED, { '2020-01-07-a-b': 'failed:x@' + (NOW - 61 * MIN) }, NOW).close.length, 1);
+        var cr1 = crt(LED, pc1.close);
+        T.ok('only the state cell moves', /\| e \| fixed #42 \|$/m.test(cr1.text) && cr1.changed.join() === '2020-01-07-a-b');
+        T.eq(
+          'exactly one line changed',
+          cr1.text.split('\n').filter(function (l, i) {
+            return l !== LED.split('\n')[i];
+          }).length,
+          1
+        );
+        T.ok('an unnamed OPEN row stays OPEN', /\*\*d\. OPEN here\*\* \| e \| OPEN \|$/m.test(cr1.text));
+        T.eq('CONTROL: a row not reading OPEN is not edited', crt(LED, [{ key: '2020-01-06-c', number: 42 }]).changed.length, 0);
+        if (typeof cbd === 'function') {
+          var bd = cbd(cr1.changed, pc1.close);
+          T.ok('the closure body carries the Rule 0 line first and the trailer', /^Rule 0: /.test(bd) && /\nFleet-Session: pr-walker/.test(bd));
+          T.ok('the closure body names each row and its state', /\| `2020-01-07-a-b` \| `fixed #42` \|/.test(bd));
+        }
+      } else T.skip('residue closure wired', 'pwPlanClosures absent in this lane');
+
+      /* ── the signature comment (owner, 2020-01-01: "it will sign everything what it does") ──── */
       var sg = env.pwSignature;
-      var AT = '2026-11-01T11:45:09.000Z';
+      var AT = '2020-01-01T11:45:09.000Z';
       T.ok(
         'an undraft is signed with the walker, the action and the UTC time',
-        /^🚶 \*\*The fleet walker marked this PR ready for review \(undrafted\)\*\* at 11:45 UTC, 2026-11-01\.\n\nReason: green draft, pool 1\/4\.\n/.test(
+        /^🚶 \*\*The fleet walker marked this PR ready for review \(undrafted\)\*\* at 11:45 UTC, 2020-01-01\.\n\nReason: green draft, pool 1\/4\.\n/.test(
           sg({ op: 'ready', number: 3, result: 'ok', why: 'green draft, pool 1/4' }, AT)
         )
       );
