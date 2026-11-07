@@ -43,7 +43,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dissentStampOf, dissentTallyLine, signsOf } from './consensus-dissent-core.mjs';
 import { isCliEntry } from './argv-guard.mjs';
-import { NIGHT_RE, notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
+import { NIGHT_RE, coverageIdentity, notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
 import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
 /* ── THE VALIDITY SIDECAR RIDES WITH THE STREAM ─────────────────────────────────────────────────────
    Row 2026-10-17-sample-parsers-called-without-their-sidecar: this tool read a night's samples and
@@ -563,6 +563,8 @@ async function main() {
   /* ROWS, NOT NAMES: `notANight` keys on `row.night` and refuses a bare name (board #4054). */
   const scored = rows.map((r) => ({ night: r.night, ok: true }));
   const unscored = notANight({ n: dateDirs.length, nights: dateDirs }, scored);
+  /* THE IDENTITY BINDS THE PRINTED FIGURE TO THE ARITHMETIC (board #4088). */
+  coverageIdentity({ n: dateDirs.length, nights: dateDirs }, scored, unscored, { printedScored: scored.length });
   console.log(
     `\n  population: ${popBefore.n} night-shaped name(s) under ${DIR} · layout ${dateDirs.length ? 'night directories' : 'flat mirror'} · ${perNight.size} night(s) offered by the layout · ${scored.length} scored · movement ${population.status}${population.reason ? ' — ' + population.reason : ''}`
   );
