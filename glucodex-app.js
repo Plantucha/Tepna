@@ -175,7 +175,10 @@ import './glucodex-profile.js';
         'Analyzed ' +
           r.nReadings.toLocaleString() +
           ' readings · ' +
-          (r.durDays >= 1 ? r.durDays.toFixed(1) + ' days' : Math.round(r.activeMin / 60) + ' h') +
+          /* §∅ — `durDays >= 1` is FALSE for a null, and the old else-branch then printed
+             `Math.round(null / 60) + ' h'` = `0 h`: a fabricated zero standing in for a day count the
+             node withheld. `UI.durText` states the refusal and names the node's token. */
+          (r.durDays != null && r.durDays < 1 ? Math.round(r.activeMin / 60) + ' h' : UI.durText(r)) +
           ' · ' +
           r.pctActive +
           '% sensor active · GMI ' +
@@ -401,7 +404,9 @@ import './glucodex-profile.js';
     }
     SCOPE.light = document.body.classList.contains('light');
     SCOPE.setData(r);
-    updateScopeReadout(SCOPE.view, r.cadence, r.series.N, r.series.gT);
+    /* The readout converts CELLS to minutes, so it takes the scope's own grid step — `r.cadence`
+       is the measurement and is null on an unmeasurable export, which made the span read `NaN`. */
+    updateScopeReadout(SCOPE.view, SCOPE.cad, r.series.N, r.series.gT);
 
     if (window.GLUProfile) window.GLUProfile.render(r); // personalises r + hero (before KPI/table use it)
     renderContext(r);
@@ -424,8 +429,8 @@ import './glucodex-profile.js';
       '<br>' +
       r.nReadings.toLocaleString() +
       ' readings · ' +
-      r.cadence +
-      '-min · GMI ' +
+      UI.cadText(r) +
+      ' · GMI ' +
       r.gmi +
       '%' +
       '<br>' +
@@ -433,7 +438,10 @@ import './glucodex-profile.js';
       '% sensor active';
   }
 
-  function updateScopeReadout(view, cad, N, gT) {
+  /* `stepMin` is the GRID step (the cell spacing), never the measured cadence: both figures below
+     are cell counts converted to time, and the grid exists even when the rate was unmeasurable. */
+  function updateScopeReadout(view, stepMin, N, gT) {
+    const cad = stepMin;
     const t0 = gT[Math.max(0, Math.floor(view.start))],
       t1 = gT[Math.min(N - 1, Math.floor(view.start + view.span))];
     const spanH = (view.span * cad) / 60;
@@ -456,6 +464,9 @@ import './glucodex-profile.js';
       notes =
         '<div class="ctx-note">Full TIR/TAR/TBR, MAGE, CONGA, GVP and dawn-phenomenon are valid at this length. AGP percentile bands shown but firm up at ≥14 days (international consensus).</div>';
     else notes = '<div class="ctx-note">≥14 days — the AGP reporting standard. Percentile envelope, MODD and a robust GMI are all on solid footing.</div>';
+    /* §∅ — the refusal note LEADS the banner, so a withheld rate cannot hide behind the tier prose
+       that a measured record shows. It is empty on a measured cadence, by construction. */
+    notes = UI.cadNote(r) + notes;
     let calibNote = '';
     if (r.calib) {
       if (r.calib.applied)
@@ -465,7 +476,7 @@ import './glucodex-profile.js';
     }
     $('ctxBanner').innerHTML = `<div class="ctx-main">
       <div><div class="ctx-mode">${r.tierLabel} recording</div>
-      <div class="ctx-why">${r.durDays.toFixed(1)} days active · ${r.nReadings.toLocaleString()} readings · ${r.cadence}-min cadence · ${r.pctActive}% sensor active</div></div>
+      <div class="ctx-why">${UI.durText(r)} · ${r.nReadings.toLocaleString()} readings · ${UI.cadText(r)} · ${r.pctActive}% sensor active</div></div>
       <div class="ctx-conf ${tierColor}">${r.tierMsg}</div>
     </div>${notes}${calibNote}`;
     $('ctxBanner').style.display = 'flex';
@@ -656,7 +667,7 @@ import './glucodex-profile.js';
     $('qualityCard').innerHTML = `
     <div class="q-grid">
       <div class="q-stat">${evBadge('Sensor active')}<div class="q-val ${r.pctActive >= 70 ? 'ok' : r.pctActive >= 50 ? 'warn' : 'bad'}">${r.pctActive}%</div><div class="q-lbl">Sensor active</div><div class="q-sub">AGP needs ≥70%</div></div>
-      <div class="q-stat"><div class="q-val neutral">${r.activeMin >= 1440 ? (r.activeMin / 1440).toFixed(1) + 'd' : Math.round(r.activeMin / 60) + 'h'}</div><div class="q-lbl">${evBadge('Active time')}Active time</div><div class="q-sub">of ${(r.spanMin / 1440).toFixed(1)}d span${r.nGaps ? ` · ${r.nGaps} gap${r.nGaps === 1 ? '' : 's'}` : ''}</div></div>
+      <div class="q-stat"><div class="q-val neutral">${UI.activeText(r)}</div><div class="q-lbl">${evBadge('Active time')}Active time</div><div class="q-sub">${r.activeMin == null ? UI.cadText(r) + ' · minutes need a measured rate' : `of ${(r.spanMin / 1440).toFixed(1)}d span${r.nGaps ? ` · ${r.nGaps} gap${r.nGaps === 1 ? '' : 's'}` : ''}`}</div></div>
       <div class="q-stat"><div class="q-val ${r.warmupMin > 0 ? 'warn' : 'ok'}">${r.warmupMin}m</div><div class="q-lbl">${evBadge('Warm-up suppressed')}Warm-up suppressed</div><div class="q-sub">fresh-sensor low/garbage</div></div>
       <div class="q-stat"><div class="q-val ${r.compMin > 0 ? 'warn' : 'ok'}">${r.compMin}m</div><div class="q-lbl">${evBadge('Compression lows')}Compression lows</div><div class="q-sub">flagged · not deleted</div></div>
     </div>
@@ -671,9 +682,9 @@ import './glucodex-profile.js';
       UI.tirBar(r.tir) +
       `<div class="q-note" style="margin-top:10px"><b>Time in Tight Range (70–140)</b>: <b style="color:${r.titr >= 50 ? 'var(--green)' : r.titr >= 30 ? 'var(--amber)' : 'var(--red)'}">${r.titr}%</b> — the stricter 2023-consensus target (vs ${r.tir.tir}% in the standard 70–180 range). A useful stretch goal once standard TIR is solid.</div>`;
     $('agpBody').innerHTML =
-      `<div class="mini-h">${evBadge('Mean glucose')}Ambulatory Glucose Profile <span class="mini-sub">median (teal) · IQR 25–75 · 10–90 band · ${r.durDays.toFixed(1)} days stacked onto one 24-h clock</span></div>` +
+      `<div class="mini-h">${evBadge('Mean glucose')}Ambulatory Glucose Profile <span class="mini-sub">median (teal) · IQR 25–75 · 10–90 band · ${r.durDays == null ? UI.durText(r) + ',' : r.durDays.toFixed(1) + ' days'} stacked onto one 24-h clock</span></div>` +
       UI.agpChart(r.hourly, { W: 720, H: 230 }) +
-      `<div class="q-note" style="margin-top:8px">Every day's readings collapsed onto a single 24-h day: the <b>teal line</b> is the median glucose at each time, the darker band the middle 50% (IQR), the lighter band the 10–90th percentile spread. The green zone is the ${window.GluDisp.range(70, 180)} ${window.GluDisp.label()} target. ${r.tier !== 'agp' ? '<b>Bands shown but provisional</b> — the AGP standard wants ≥14 days; with ' + r.durDays.toFixed(1) + ' days they will tighten as more data accrues.' : '≥14 days — bands meet the AGP reporting standard.'}</div>`;
+      `<div class="q-note" style="margin-top:8px">Every day's readings collapsed onto a single 24-h day: the <b>teal line</b> is the median glucose at each time, the darker band the middle 50% (IQR), the lighter band the 10–90th percentile spread. The green zone is the ${window.GluDisp.range(70, 180)} ${window.GluDisp.label()} target. ${r.tier !== 'agp' ? '<b>Bands shown but provisional</b> — the AGP standard wants ≥14 days; with ' + (r.durDays == null ? UI.durText(r) + ' they cannot be sized' : r.durDays.toFixed(1) + ' days they will tighten as more data accrues') + '.' : '≥14 days — bands meet the AGP reporting standard.'}</div>`;
     $('agpSection').style.display = 'block';
   }
 
@@ -1407,7 +1418,8 @@ import './glucodex-profile.js';
     const rows = [
       ['Source', r.source === 'synthetic' ? 'Synthetic CGM (demo)' : 'CGM file', '—', '—', 'neutral', 'One signal in — glucose'],
       ['Tier', r.tierLabel, '—', '—', 'neutral', r.tierMsg],
-      ['Active duration', r.durDays.toFixed(1), 'days', '—', 'neutral', r.cadence + '-min cadence'],
+      // §∅ — the VALUE cell is the figure or the state word; the note cell names the node's token.
+      ['Active duration', r.durDays == null ? UI.activeText(r) : r.durDays.toFixed(1), r.durDays == null ? '—' : 'days', '—', 'neutral', UI.cadText(r)],
       ['Sensor active', r.pctActive, '%', '≥70', r.pctActive >= 70 ? 'ok' : r.pctActive >= 50 ? 'warn' : 'bad', 'AGP validity floor'],
       ['Compression flagged', r.compMin, 'min', '—', r.compMin > 0 ? 'warn' : 'ok', 'Positional nocturnal artifact · held out of TBR'],
       ['Data confidence', r.dataQualityConf, '×', '≥0.85', r.dqLabel === 'high' ? 'ok' : r.dqLabel === 'moderate' ? 'warn' : 'bad', 'Scales stability-score interpretation'],
