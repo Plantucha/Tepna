@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="40fde6a2f792" data-compute-hash="e73b3967a0c2">
+<html lang="en" data-manifest-hash="32bc3681202e" data-compute-hash="dc308f761c74">
 <head>
 <!--
   PpgDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-2TPnVRy1WBa60u8MTnWKBJypGyj/d+1Vya7Hvtt4OO8=' 'sha256-3IUQgcSOji2CeRMbcMgIbQ+j+8z6+T9s9DeZGqBO7KA=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-NjntMXCQa7Ujm45zxhn5RagnUXecQAsomLdGhIqDXRg=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-hCZmwNAMDLPZEMYHAYpzoPETSnimg1oHWWjZImdKqxM=' 'sha256-iSJakZ8u7vdsb5/lEQLbgJLpYi1QeexABMUmx9FZt6A=' 'sha256-jzJnte+elEp/YL/dKPBjUNceuZl7x6OYEPLRBoCkuNA=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rCirk2YDG5hFUST54QihtO4S/eA0Q5IdiVoSV+cCE9U=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw=' 'sha256-z8IJkvGtS/6EXJq/GTxC7f6JF6g2ecKNz4bxeNHWj4c='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-3IUQgcSOji2CeRMbcMgIbQ+j+8z6+T9s9DeZGqBO7KA=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Dhq83zI2md+We8Ro7a9o2DKtvCqYRUB8hYK2tYwJhAQ=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-NjntMXCQa7Ujm45zxhn5RagnUXecQAsomLdGhIqDXRg=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-hCZmwNAMDLPZEMYHAYpzoPETSnimg1oHWWjZImdKqxM=' 'sha256-iSJakZ8u7vdsb5/lEQLbgJLpYi1QeexABMUmx9FZt6A=' 'sha256-jzJnte+elEp/YL/dKPBjUNceuZl7x6OYEPLRBoCkuNA=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rCirk2YDG5hFUST54QihtO4S/eA0Q5IdiVoSV+cCE9U=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw=' 'sha256-z8IJkvGtS/6EXJq/GTxC7f6JF6g2ecKNz4bxeNHWj4c='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>PpgDex — Raw Wrist-PPG Analyzer · v2.28.0</title>
@@ -13007,14 +13007,20 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
         return tiltHeading(median(sx), median(sy), median(sz), g);
       }
       // calibration-free interference: field wobble within a (still) window, or |B| off baseline
+      /* ∅ BOTH REFUSALS HERE USED TO RETURN `false`, which this node publishes as "the
+         magnetometer saw a clean field". No magnetometer and a window holding under three samples
+         are not clean fields; they are windows nothing examined. `null` leaves them out of
+         `magInterferencePct`'s denominator, which `:6251` already keys on `!= null`. A null cannot
+         reach the lateral L/R confidence bonus below, because `headingAtSec` refuses the same
+         window on the same sample floor, so `base` never carries the L/R split there. */
       function magInterfAtSec(s0, s1) {
-        if (!magState.has) return false;
+        if (!magState.has) return null;
         const v = [];
         for (let i = 0; i < magState.ss.length; i++) {
           const s = magState.ss[i];
           if (s != null && s >= s0 && s < s1) v.push(magState.mag[i]);
         }
-        if (v.length < 3) return false;
+        if (v.length < 3) return null;
         const sd = std(v),
           md = median(v),
           bg = magState.base || 1;
@@ -13049,10 +13055,16 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       postureDetailAtSec = (s0, s1) => {
         const g = gravMed(s0, s1);
         const need = (accRows.length / durSec) * 30; // need ≥30 s of gravity samples
-        if (!g || g.n < need / gStride) return { position: 'unknown', conf: 0, heading: null, magInterf: false };
+        /* ∅ A WINDOW WITH TOO LITTLE GRAVITY COVERAGE WAS NEVER SCORED. The `conf: 0` this
+           returned read as a measurement, and `:4778`'s clamp reaches a real 0 whenever no axis
+           dominates, so no value test could separate the two. The interference member carried this
+           node's own word for a clean field about a window nothing examined, which is the reading the
+           §3a note below the epoch export already called a bug. This leg quotes no removed line,
+           because a suite check reads the source for it. The refusal names itself instead. */
+        if (!g || g.n < need / gStride) return { position: 'unknown', conf: null, heading: null, magInterf: null, reason: 'low-gravity-coverage' };
         let base = _normPositionPPG(_posturePPG(g.x, g.y, g.z));
         const heading = magState.has ? headingAtSec(s0, s1) : null;
-        const magInterf = magState.has ? magInterfAtSec(s0, s1) : false;
+        const magInterf = magState.has ? magInterfAtSec(s0, s1) : null; // ∅ no magnetometer is not a clean field
         // split merged 'lateral' into L/R using heading offset from the supine/upright datum
         if (base === 'lateral' && heading != null && refHeading != null && !magInterf) {
           let d = heading - refHeading;
@@ -13067,7 +13079,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
         conf *= Math.max(0.3, Math.min(1, (g.n * gStride) / need));
         if (magState.has && !magInterf && (base === 'lateral_L' || base === 'lateral_R')) conf = Math.min(1, conf * 1.05 + 0.05);
         if (magInterf) conf *= 0.6;
-        return { position: base, conf: r2(conf), heading: heading != null ? Math.round(((heading % 360) + 360) % 360) : null, magInterf };
+        return { position: base, conf: r2(conf), heading: heading != null ? Math.round(((heading % 360) + 360) % 360) : null, magInterf, reason: null };
       };
       postureAtSec = (s0, s1) => postureDetailAtSec(s0, s1).position; // string contract (back-compat)
     }
@@ -13954,6 +13966,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       const pi = perfWindow ? perfWindow(e0, e0 + epLen) : null;
       const post = motion && motion.postureDetailAtSec ? motion.postureDetailAtSec(e0, e0 + epLen) : null;
       const position = post ? post.position : 'unknown';
+      const positionReason = post ? post.reason : 'no-posture-datum';
       // §5: mean 3-LED agreement across this epoch's beats (null when single-channel session)
       let ledAgreementPct = null;
       if (agreeI) {
@@ -13991,11 +14004,17 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
         ledAgreementPct,
         position,
         positionConf: post ? post.conf : null,
+        /* ∅ 'unknown' covers three states, and only a token separates them: no posture datum at
+           all, a window refused for gravity coverage, and a vector this node DID score against every
+           posture class and matched to none. The third stays silent, because it is a measurement.
+           The key follows `bandReason` above and ECGDex's own `positionReason`: present only on a
+           refusal, so a fully measured epoch keeps a byte-stable shape. */
+        ...(positionReason ? { positionReason: positionReason } : {}),
         headingDeg: post ? post.heading : null,
         /* §3a tri-state: `false` used to mean BOTH "the magnetometer saw a clean field" and "there is
            no posture datum for this epoch", and the second reading sat in `magInterferencePct`'s
            denominator as evidence of cleanliness. null = not measured. */
-        magInterference: post ? !!post.magInterf : null
+        magInterference: post && post.magInterf != null ? !!post.magInterf : null
       });
     }
     return epochs;
@@ -16385,6 +16404,10 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
             ledAgreementPct: nz(e.ledAgreementPct),
             position: e.position || 'unknown',
             positionConf: nz(e.positionConf),
+            /* The seam above says it: this projection is a whitelist, so the refusal token the epoch
+               now carries leaves the node only because it is named here. Present only on a refusal,
+               which keeps a fully measured epoch byte-stable. */
+            ...(e.positionReason ? { positionReason: e.positionReason } : {}),
             headingDeg: nz(e.headingDeg),
             // §3a: `!!` collapsed "no posture datum" into "clean field". Tri-state survives the export.
             magInterference: e.magInterference == null ? null : !!e.magInterference
