@@ -6,6 +6,13 @@ does the unit. The session writes the file back with `**state:** DONE`. The sess
 
 `tools/unit-launch.sh` reads a handoff file and launches that session.
 
+## Start a unit in one turn
+
+Run `node tools/unit-start.mjs handoffs/<unit-slug>.md` first. The tool prints six sections in one
+output: the handoff fields, the ref and the branch, the Rule 0 hits for the `doc-search` field, the
+OPEN residue rows on `origin/main` that name a path in the handoff, the open PRs on the branch suffix,
+and the board inbox. A section that cannot read its source prints `unread:` and the reason.
+
 ## Where a handoff lives
 
 Write the file at `handoffs/<unit-slug>.md`. Use a short kebab-case slug. The slug names the unit, not

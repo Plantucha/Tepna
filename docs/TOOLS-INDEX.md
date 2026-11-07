@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**328 tools** · 327 with a purpose line · **1 without**
+**329 tools** · 328 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -320,6 +320,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`trio-fold-validity.mjs`](../tools/trio-fold-validity.mjs) | A FOLDED NIGHT KEEPS THE VALIDITY OF ITS FRAGMENTS The box writes a `…RUNS.txt` validity sidecar beside each raw stream: `_ECGRUNS.txt` beside the H10 `_ECG.txt`, `_PPGRUNS.txt` beside the… |
 | [`trio-power-headless.mjs`](../tools/trio-power-headless.mjs) | run the sensor-trio power sweep headlessly, ON THE GPU. WHY. |
 | [`unit-health.mjs`](../tools/unit-health.mjs) | unit-health — the dead-man's switch for the rig's systemd user timers. |
+| [`unit-start.mjs`](../tools/unit-start.mjs) | unit-start — everything a session needs to open a work unit, printed by ONE command. |
 | [`update-watch.mjs`](../tools/update-watch.mjs) | UPDATE WATCH — compare the software the fleet runs on this machine with its latest release, and hand each update that is READY to a session as a prompt on the agent board (owner,… |
 | [`usage-guard.mjs`](../tools/usage-guard.mjs) | USAGE GUARD — what the fleet has SPENT, measured, and what nobody can measure, said so. |
 | [`validate-exports.mjs`](../tools/validate-exports.mjs) | run the SHIPPED `validateNodeExport()` over every committed node export. |
