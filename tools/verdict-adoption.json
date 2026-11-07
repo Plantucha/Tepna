@@ -2551,6 +2551,18 @@
    "status": "exempt",
    "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
   },
+  "tools/required-contexts.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/required-contexts.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the required-context set is recorded twice in this tree and nothing compared the two copies (residue 2026-11-06-the-required-context-set-reads-eleven-where-a-row-records-nine). The walker already reads the live ruleset on every pass and prints a DRIFT line against its own mirror, so that half is NOT re-built here; what had no reader is the capture-host constant, and the two copies against each other. Criterion pre-stated: any context in one recorded copy and not in the other reds the gate. The comparison needs NO token, which is why it can sit in check and in CI. The live ruleset leg is optional (--live) and reports NOT_RUN with its reason when it cannot read, never PASS. A copy whose symbol is absent, or which parses to an EMPTY set, is EXCLUDED and the gate exits 2, because two empty sets compare equal."
+  },
   "tools/residue-citations.mjs": {
    "bin": "decides",
    "status": "adopted",
