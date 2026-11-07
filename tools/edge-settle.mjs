@@ -62,7 +62,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { corpusSearch } from './regen-goldens-core.mjs';
 import { isCliEntry } from './argv-guard.mjs';
-import { notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
+import { coverageIdentity, notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
@@ -412,6 +412,10 @@ function main(argv) {
     if (n.rows.length) scanned.push(n);
   }
   const rowless = notANight(popBefore, scanned);
+  /* THE DIFFERENCE ANSWERS TO THE ARITHMETIC (#4506). The summary below publishes `scanned`, so
+     that count is what the identity is handed: a night read twice would push the published figure
+     past the distinct count, and this is where it would say so. */
+  coverageIdentity(popBefore, scanned, rowless, { printedScored: scanned.length });
   const { nights, unstamped, excludedLegs } = partition(scanned, pooled);
   if (!nights.length && unstamped.length) {
     console.error(`edge-settle: ${unstamped.length} night(s) under ${root} and not one carries a .trio-stamp, so the fold completed on none of them.`);

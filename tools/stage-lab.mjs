@@ -47,7 +47,7 @@ import { fileURLToPath } from 'node:url';
 import * as Core from './stage-lab-core.mjs';
 import { makeRealm } from './nsrr-stage-validate.mjs';
 import { isCliEntry } from './argv-guard.mjs';
-import { notCovered, populationVerdict, snapshotEntries } from './corpus-scope-core.mjs';
+import { coverageIdentity, notCovered, populationVerdict, snapshotEntries } from './corpus-scope-core.mjs';
 import { makeRealm as makeEcgRealm } from './ecg-physionet-differential.mjs'; // v16: the suite's own Pan–Tompkins for ECG-derived pulse
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -711,6 +711,15 @@ async function cmdFeatures(a) {
     `  population: ${popBefore.n} record(s) offered under ${dir} · ${ids.length} selected · ${count() - errs} cached · movement ${population.status}${population.reason ? ' — ' + population.reason : ''}`
   );
   console.log(`  offered but not selected: ${unread.length ? unread.join(', ') : 'none'}`);
+  /* THE DIFFERENCE ANSWERS TO THE ARITHMETIC (#4506). `--limit` is a selection, so the selected
+     count is the scored one and the cached count beside it is a different figure. A record selected
+     twice would push the printed selection past the distinct count. */
+  coverageIdentity(
+    popBefore,
+    ids.map((id) => ({ record: id })),
+    unread,
+    { key: 'record', printedScored: ids.length }
+  );
   console.log('POPULATION ' + JSON.stringify(population));
 }
 
