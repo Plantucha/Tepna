@@ -4719,14 +4719,20 @@
         return tiltHeading(median(sx), median(sy), median(sz), g);
       }
       // calibration-free interference: field wobble within a (still) window, or |B| off baseline
+      /* ∅ BOTH REFUSALS HERE USED TO RETURN `false`, which this node publishes as "the
+         magnetometer saw a clean field". No magnetometer and a window holding under three samples
+         are not clean fields; they are windows nothing examined. `null` leaves them out of
+         `magInterferencePct`'s denominator, which `:6251` already keys on `!= null`. A null cannot
+         reach the lateral L/R confidence bonus below, because `headingAtSec` refuses the same
+         window on the same sample floor, so `base` never carries the L/R split there. */
       function magInterfAtSec(s0, s1) {
-        if (!magState.has) return false;
+        if (!magState.has) return null;
         const v = [];
         for (let i = 0; i < magState.ss.length; i++) {
           const s = magState.ss[i];
           if (s != null && s >= s0 && s < s1) v.push(magState.mag[i]);
         }
-        if (v.length < 3) return false;
+        if (v.length < 3) return null;
         const sd = std(v),
           md = median(v),
           bg = magState.base || 1;
@@ -4761,10 +4767,16 @@
       postureDetailAtSec = (s0, s1) => {
         const g = gravMed(s0, s1);
         const need = (accRows.length / durSec) * 30; // need ≥30 s of gravity samples
-        if (!g || g.n < need / gStride) return { position: 'unknown', conf: 0, heading: null, magInterf: false };
+        /* ∅ A WINDOW WITH TOO LITTLE GRAVITY COVERAGE WAS NEVER SCORED. The `conf: 0` this
+           returned read as a measurement, and `:4778`'s clamp reaches a real 0 whenever no axis
+           dominates, so no value test could separate the two. The interference member carried this
+           node's own word for a clean field about a window nothing examined, which is the reading the
+           §3a note below the epoch export already called a bug. This leg quotes no removed line,
+           because a suite check reads the source for it. The refusal names itself instead. */
+        if (!g || g.n < need / gStride) return { position: 'unknown', conf: null, heading: null, magInterf: null, reason: 'low-gravity-coverage' };
         let base = _normPositionPPG(_posturePPG(g.x, g.y, g.z));
         const heading = magState.has ? headingAtSec(s0, s1) : null;
-        const magInterf = magState.has ? magInterfAtSec(s0, s1) : false;
+        const magInterf = magState.has ? magInterfAtSec(s0, s1) : null; // ∅ no magnetometer is not a clean field
         // split merged 'lateral' into L/R using heading offset from the supine/upright datum
         if (base === 'lateral' && heading != null && refHeading != null && !magInterf) {
           let d = heading - refHeading;
@@ -4779,7 +4791,7 @@
         conf *= Math.max(0.3, Math.min(1, (g.n * gStride) / need));
         if (magState.has && !magInterf && (base === 'lateral_L' || base === 'lateral_R')) conf = Math.min(1, conf * 1.05 + 0.05);
         if (magInterf) conf *= 0.6;
-        return { position: base, conf: r2(conf), heading: heading != null ? Math.round(((heading % 360) + 360) % 360) : null, magInterf };
+        return { position: base, conf: r2(conf), heading: heading != null ? Math.round(((heading % 360) + 360) % 360) : null, magInterf, reason: null };
       };
       postureAtSec = (s0, s1) => postureDetailAtSec(s0, s1).position; // string contract (back-compat)
     }
@@ -5666,6 +5678,7 @@
       const pi = perfWindow ? perfWindow(e0, e0 + epLen) : null;
       const post = motion && motion.postureDetailAtSec ? motion.postureDetailAtSec(e0, e0 + epLen) : null;
       const position = post ? post.position : 'unknown';
+      const positionReason = post ? post.reason : 'no-posture-datum';
       // §5: mean 3-LED agreement across this epoch's beats (null when single-channel session)
       let ledAgreementPct = null;
       if (agreeI) {
@@ -5703,11 +5716,17 @@
         ledAgreementPct,
         position,
         positionConf: post ? post.conf : null,
+        /* ∅ 'unknown' covers three states, and only a token separates them: no posture datum at
+           all, a window refused for gravity coverage, and a vector this node DID score against every
+           posture class and matched to none. The third stays silent, because it is a measurement.
+           The key follows `bandReason` above and ECGDex's own `positionReason`: present only on a
+           refusal, so a fully measured epoch keeps a byte-stable shape. */
+        ...(positionReason ? { positionReason: positionReason } : {}),
         headingDeg: post ? post.heading : null,
         /* §3a tri-state: `false` used to mean BOTH "the magnetometer saw a clean field" and "there is
            no posture datum for this epoch", and the second reading sat in `magInterferencePct`'s
            denominator as evidence of cleanliness. null = not measured. */
-        magInterference: post ? !!post.magInterf : null
+        magInterference: post && post.magInterf != null ? !!post.magInterf : null
       });
     }
     return epochs;
@@ -8097,6 +8116,10 @@
             ledAgreementPct: nz(e.ledAgreementPct),
             position: e.position || 'unknown',
             positionConf: nz(e.positionConf),
+            /* The seam above says it: this projection is a whitelist, so the refusal token the epoch
+               now carries leaves the node only because it is named here. Present only on a refusal,
+               which keeps a fully measured epoch byte-stable. */
+            ...(e.positionReason ? { positionReason: e.positionReason } : {}),
             headingDeg: nz(e.headingDeg),
             // §3a: `!!` collapsed "no posture datum" into "clean field". Tri-state survives the export.
             magInterference: e.magInterference == null ? null : !!e.magInterference
