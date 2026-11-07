@@ -3206,6 +3206,7 @@ async function main() {
     // RENDER-HARNESS (§RN) — executed render globals (OxyDex/PulseDex above already carry .reviewView +
     // PulseDex.tanakaHRmax); GluDisp/CpapRender + the hoisted classifiers hang off bare window.
     GluDisp: ctx.GluDisp,
+    GLUUI: ctx.GLUUI,
     CpapRender: ctx.CpapRender,
     HrvRmssdClass: ctx.hrvRmssdClass,
     OxySpo2NightCV: ctx.oxySpo2NightCV,
