@@ -5581,6 +5581,36 @@ def test_EVERY_SESSION_LOG_IS_READ_because_the_ring_writes_one_per_session(tmp_p
     assert len(si.rtc_events(str(tmp_path), "O2Ring-S")) == 3, "both logs were read"
 
 
+def test_THE_RTC_LOG_OF_A_NIGHT_THAT_STARTS_AFTER_MIDNIGHT_IS_READ_from_the_mornings_folder(tmp_path):
+    """MEASURED on the capture box 2026-11-07: night 2026-11-06 began after midnight. The ring's log for
+    its worn interval sat in the next day's folder, and the band read UNKNOWN over 0 reads. Two
+    distractors hold a reset each: the judged folder's own morning log, which belongs to the night before,
+    and a midday log in the next folder. Neither starts inside the night's band, so neither counts."""
+    night, morning = tmp_path / "2026-09-20", tmp_path / "2026-09-21"
+    night.mkdir()
+    morning.mkdir()
+    _rtclog(night, [(-18 * 3600.0, "reset", None)], name="Wellue_O2Ring-S_S8AW2100_20260920050000")
+    rows = [(5400.0, "push", None), (9000.0, "read", -0.4), (16200.0, "read", -0.6)]
+    _rtclog(morning, rows, name="Wellue_O2Ring-S_S8AW2100_20260921003000")
+    _rtclog(morning, [(14 * 3600.0, "reset", None)], name="Wellue_O2Ring-S_S8AW2100_20260921130000")
+    ev = si.rtc_events(str(night), "O2Ring-S")
+    assert [k for _, k, _ in ev] == ["push", "read", "read"], ev
+    out = si.rtc_band(str(night), "O2Ring-S", T0, T0 + dt.timedelta(hours=8))
+    assert out["status"] != "FAIL" and "RESET" not in str(out["reason"]), out
+    assert "0 read" not in str(out["reason"]), out
+
+
+def test_A_NIGHT_WITH_NO_RTC_READ_IN_THE_WORN_INTERVAL_SAYS_SO(tmp_path):
+    """ "all 0 read(s) sit within 60 s of a push" described reads that did not exist. No read is its own
+    reason, and it stays UNKNOWN."""
+    _rtclog(tmp_path, [(0.0, "push", None), (-3600.0, "read", -0.5)], name=RING_BASE)
+    out = si.rtc_band(str(tmp_path), "O2Ring-S", T0, T0 + dt.timedelta(hours=8))
+    assert out == {
+        "status": "UNKNOWN",
+        "reason": "no read inside the worn interval, so the RTC was never measured there",
+    }
+
+
 def test_RTC_EVENTS_FOR_A_DEVICE_THAT_LOGS_NONE_IS_EMPTY_not_a_crash(tmp_path):
     """`MODELS[model]["rtc"] is None` — a Polar keeps no RTC log, and asking for its events must return
     an empty list rather than globbing for a tag that does not exist. `rtc_band` short-circuits to

@@ -1949,7 +1949,19 @@ def rtc_events(night_dir: str, model: str) -> list[tuple[_dt.datetime, str, floa
     if tag is None:
         return out
     prefix = MODELS[model]["prefix"]
-    for path in sorted(glob.glob(os.path.join(night_dir, f"{prefix}*_{tag}.csv"))):
+    # THE RECORDING'S FOLDERS, NOT THE NIGHT FOLDER ALONE, and only the sessions that start inside the
+    # night's band: the same set the seam band's RTC reader takes. MEASURED on the capture box
+    # 2026-11-07: night 2026-11-06 began after midnight, and the ring's log for its worn interval sat in
+    # the 2026-11-07 folder. This reader globbed 2026-11-06 alone, found only that morning's logs, and
+    # the band read UNKNOWN over 0 reads.
+    band = band_of(night_dir)
+    paths = sorted(
+        f
+        for d in _scope_dirs(night_dir)
+        for f in glob.glob(os.path.join(d, f"{prefix}*_{tag}.csv"))
+        if in_band(f, band)
+    )
+    for path in paths:
         try:
             fh = open(path, encoding="utf-8", errors="replace")
         except OSError:
@@ -2025,6 +2037,10 @@ def rtc_band(night_dir: str, model: str, start, end) -> dict:
     reads = [(t, v) for t, k, v in ev if k == "read" and v is not None and start <= t <= end]
     clear = [(t, v) for t, v in reads if all(abs((t - p).total_seconds()) > RTC_PUSH_SETTLE_S for p in pushes)]
     excluded = len(reads) - len(clear)
+    if not reads:
+        # NO READ IS NOT A READ NEAR A PUSH. The reason below claimed "all 0 read(s) sit within 60 s of a
+        # push" over a night whose logs held no read inside the worn interval at all.
+        return _decision("UNKNOWN", "no read inside the worn interval, so the RTC was never measured there")
     if not clear:
         return _decision(
             "UNKNOWN",

@@ -237,6 +237,11 @@ evidence".
   nothing while the device was worn. On night 2026-11-06 the Verity's worn end was its last row, 06:03:02,
   and the 86 s to the relink file started there, so the band FAILed. `restart_gaps` counts the same
   population. Census 2026-11-07 of the written audits: 3 gaps sat on a worn end, all Verity, and 1 FAILed.
+- **The `rtc` band reads the recording's folders, like the seam band** (Wren, 2026-11-07). `rtc_events`
+  now reads the logs in `_scope_dirs` whose session starts inside the night's band. Night 2026-11-06
+  began after midnight, so the ring's log for its worn interval sat in the next day's folder. The band
+  read the judged folder alone and gave UNKNOWN over 0 reads. Census 2026-11-07 over the 20 nights whose
+  audit records a ring worn end: 19 stay PASS, and 2026-11-06 moves from UNKNOWN to PASS.
 - **Two inputs this night showed are NOT wear evidence.** (i) The daemon's not-worn detection **did not
   fire** for the H10 in those 27½ min (Wren is filing the row). (ii) The loss audit's `lost_min` measures
   GAPS: its 0.0 for the H10 was right about gaps and silent about wear. The verdict needs both — continuity
