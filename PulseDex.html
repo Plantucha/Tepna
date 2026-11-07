@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="cf5177e796d4" data-compute-hash="8c8f95f4a302"><head>
+<html lang="en" data-manifest-hash="810e5dd88a2f" data-compute-hash="8c8f95f4a302"><head>
 <!--
   PulseDex.src.html — Tepna
   Copyright 2026 Michal Planicka
@@ -9,7 +9,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+NGT9igKGrZW9fjS64h59GFnDM8WWk2fYU1LdsWth7A=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-1guj4HFcatABnfRfnxeGisCEql9GXUHFLGRjoSG++hU=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8apwlofJfUR69RHDOhnCEEb2iZChE22v6tW8KgD0FqE=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DQbtdpqLddlv4j/hJzsWo7QMTThZW+feswRtrFG+4JU=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-hCZmwNAMDLPZEMYHAYpzoPETSnimg1oHWWjZImdKqxM=' 'sha256-nghmP9jMX0rAyZ78QklkJKcGr9ZiroYj+56iLDFYjLY=' 'sha256-pQefnEZNjqmxxWncFQnVdrC7oxfY3sV1fOmeIPmCIlk=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-sH2zcem3XO98hxUUreAPps78dztWHR1+8dPrGCperK0='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+NGT9igKGrZW9fjS64h59GFnDM8WWk2fYU1LdsWth7A=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-1guj4HFcatABnfRfnxeGisCEql9GXUHFLGRjoSG++hU=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8apwlofJfUR69RHDOhnCEEb2iZChE22v6tW8KgD0FqE=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DQbtdpqLddlv4j/hJzsWo7QMTThZW+feswRtrFG+4JU=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-hCZmwNAMDLPZEMYHAYpzoPETSnimg1oHWWjZImdKqxM=' 'sha256-nghmP9jMX0rAyZ78QklkJKcGr9ZiroYj+56iLDFYjLY=' 'sha256-oQiv/JcsqKMpBBIPaf/M2qRuUZICKjyhALXAYGfzvZ0=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-sH2zcem3XO98hxUUreAPps78dztWHR1+8dPrGCperK0='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>PulseDex — Raw RR Analyzer · v2.28.0</title>
@@ -9808,6 +9808,41 @@ function evBadge(label, fallback) {
 const _ansTxt = (v) => (v == null ? '—' : v);
 const _ansPct = (v) => (v == null ? 0 : Math.min(100, v));
 
+/* ── WHY A WHOLE-RECORD FIGURE IS ABSENT (D17, owner 2026-11-06) ──────────────────────────────
+   `renderKPI` prints an em-dash for a refused figure, and an em-dash is the same glyph for a clock
+   seam, a short reading and an absent input. The record already carries the reason: the drop road
+   writes `hrvReason` and the comment beside it in `pulsedex-app.js` calls an unexplained absence
+   "only half of the refusal". No surface read that key, so the reader got the half.
+
+   THREE STATES, NEVER TWO, and the node's own token in every one of them.
+   - A refusal names `hrvReason`, which is what `pdSeamVerdict` decided, never a reason this layer
+     picked.
+   - A sidecar the box wrote and this node could not decide states UNKNOWN, under the owner's
+     2026-11-05 ruling that an unexamined channel is not a seam-free one.
+   - `no-seam-sidecar` stays OUT of the banner. A hand-dropped RR file carries no sidecar at all, so
+     that token would print on nearly every reading and teach the reader to skip the line; the export
+     states it for a consumer that needs it. A MEASURED zero stays silent too, for the same reason.
+   Decision mine under CLAUDE.md §7, posted to the board. */
+function seamContextNote(r) {
+  if (!r) return '';
+  if (r.hrvReason) {
+    return (
+      '⏱ <b>Whole-record HRV refused</b> — <code>' +
+      escapeHTML(String(r.hrvReason)) +
+      '</code>. The figures below that read “—” are absent for that reason, not low. A record carrying a clock seam is not one continuous stretch of signal, so an average over it would span two.'
+    );
+  }
+  const st = r.seamState;
+  if (st && (st.seams === null || st.seams === undefined) && st.reason && st.reason !== 'no-seam-sidecar') {
+    return (
+      '⏱ The recorded-seam channel reads <b>UNKNOWN</b> — <code>' +
+      escapeHTML(String(st.reason)) +
+      '</code>. The box wrote a seam sidecar for this stream and this reading could not place it, so an unexamined channel is not a clean one.'
+    );
+  }
+  return '';
+}
+
 // ─── RENDER CONTEXT BANNER ────────────────────────────────────────────────────
 function renderContext(r) {
   const el = document.getElementById('ctxBanner');
@@ -9834,7 +9869,7 @@ function renderContext(r) {
       r.pb.frac +
       '). Common at altitude — it inflates VLF/LF and confounds LF/HF, Resp Rate and the SNS/PSNS split. Treat spectral & composite metrics with caution.';
   }
-  const notes = [note, alt, pbNote]
+  const notes = [note, alt, pbNote, seamContextNote(r)]
     .filter(Boolean)
     .map((n) => `<div class="ctx-note">${n}</div>`)
     .join('');

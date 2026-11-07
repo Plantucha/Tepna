@@ -19583,6 +19583,39 @@
         'referenceAxisCanonical: ' + JSON.stringify(rec.referenceAxisCanonical)
       );
 
+      /* BOTH REFERENCE-AXIS LEGS. The record now publishes a `referenceAxisLegs` block per reference
+         axis, and the card prints them side by side. The owner's ruling is that neither leg replaces
+         the other, so these legs hold the card to naming BOTH and to refusing a leg it cannot read —
+         §∅, a leg with no computable Δσ says so instead of printing a number. */
+      T.ok('the card reads both reference-axis legs from the record', /referenceAxisLegs/.test(card), 'the side-by-side clause must come from the record, not from this file');
+      T.ok(
+        'the card never defaults an absent legs block',
+        !/referenceAxisLegs\s*\)?\s*(?:\|\||\?\?)\s*[[{'"]/.test(card),
+        '§∅ — a `referenceAxisLegs || {}` would publish an empty side-by-side clause as though the record had stated two legs'
+      );
+      var mLeg = card.match(/const tchLegDrift = \(leg\) => \{\n([\s\S]+?)\n  \};/);
+      T.ok('ANTI-VACUITY · the per-leg drift reader was located in the card', !!mLeg, mLeg ? mLeg[1].length + ' chars of body' : 'tchLegDrift not found — the four executed legs below would not run');
+      if (mLeg) {
+        var drift = new Function('leg', mLeg[1]);
+        T.ok(
+          'a leg with a finite H10 median reports the figure and the paired count',
+          drift({ pairedDrift: { corners: { h10: { medianAbs: 0.5, n: 7 } } } }) === '0.5 bpm over 7 paired night(s)',
+          String(drift({ pairedDrift: { corners: { h10: { medianAbs: 0.5, n: 7 } } } }))
+        );
+        T.ok('a leg carrying no paired drift SAYS so, never zero', /no H10/.test(drift({})), String(drift({})));
+        T.ok('a null median is an absence, not a number', /no H10/.test(drift({ pairedDrift: { corners: { h10: { medianAbs: null, n: 7 } } } })), 'ø');
+        T.ok(
+          'CONTROL · a zero median is a real measurement and still prints',
+          drift({ pairedDrift: { corners: { h10: { medianAbs: 0, n: 7 } } } }).indexOf('0 bpm') === 0,
+          'a 0 bpm agreement is a figure, so the leg above keys on null and not on falsiness'
+        );
+      }
+      T.ok(
+        'the record either publishes the legs block or omits the key — never carries it empty',
+        !('referenceAxisLegs' in rec) || (typeof rec.referenceAxisLegs === 'object' && rec.referenceAxisLegs !== null && Object.keys(rec.referenceAxisLegs).length > 0),
+        'referenceAxisLegs keys: ' + JSON.stringify(Object.keys(rec.referenceAxisLegs || {}))
+      );
+
       /* THE LEG THAT WOULD HAVE CAUGHT THE ORIGINAL DEFECT: the composed slice — from the reference
          comment to the end of the composition — may hold no pooled figure as a literal. Decimals are
          banned outright; the only multi-digit integer allowed is the 100 of a percentage. */
@@ -42216,6 +42249,112 @@
             T.eq('CDCS §3.1 · …and an empty finding list does NOT fire it', _csEval({ findings: [] }), false);
             T.eq('CDCS §3.1 · …nor does an absent clockSkew block', _csEval(null), false);
           }
+
+          /* ── D17 · A VETOED RECORDING MUST NOT LEAVE THE READER WITH SILENCE ──────────────────────
+             The banner above fires on a FINDING. `detectClockSkew` vetoes a rec that recorded a clock
+             seam or whose node declared an RTC reset, so a night whose every rec was vetoed produced
+             NO finding and the app printed nothing — the same screen a night of agreeing clocks draws.
+             §∅: an output over absent input reports the absence. The guard lift above cannot see this,
+             because the defect is the ABSENCE of a second block rather than a weakened guard.
+             Lifted and EXECUTED out of the shipped source, like the guard above: a regex on the
+             spelling would pass over `return []` at the top of the function. */
+          var _liftFn = function (src, name) {
+            var a = src.indexOf('function ' + name + '(');
+            if (a < 0) return null;
+            var o = src.indexOf('{', a);
+            if (o < 0) return null;
+            var depth = 0;
+            for (var c = o; c < src.length; c++) {
+              if (src[c] === '{') depth++;
+              else if (src[c] === '}') {
+                depth--;
+                if (depth === 0) return src.slice(a, c + 1);
+              }
+            }
+            return null;
+          };
+          var _silSrc = _liftFn(iaSrc, 'skewSilenceLines');
+          T.ok(
+            'D17 · integrator-app carries a skew-silence surface at all',
+            !!_silSrc,
+            _silSrc ? _silSrc.length + ' chars lifted' : 'no skewSilenceLines() in integrator-app.js — a fully vetoed night reads as agreement'
+          );
+          /* A FALLBACK so the remaining legs still EXAMINE something when the function is absent:
+             a leg that throws on a missing symbol reports one red and runs none of the behaviour. */
+          var _silFn = null;
+          if (_silSrc) {
+            try {
+              _silFn = new Function('return (' + _silSrc + ');')();
+            } catch (_e) {
+              _silFn = null;
+            }
+          }
+          T.ok('D17 · …and it lifts into a callable function', typeof _silFn === 'function', typeof _silFn);
+          if (typeof _silFn === 'function') {
+            var _seamVeto = { node: 'ECGDex', source: 'clock-seam', seams: 2, seamsReason: 'sidecar', note: 'ECGDex recorded 2 clock seam(s) on this rec — excluded from anchor fits.' };
+            var _rtcVeto = { node: 'OxyDex', source: 'rtc-reset-suspect', note: 'OxyDex RTC reset-suspect on this rec — placement UNMEASURED (excluded from anchor fits).' };
+            var _clean = { findings: [], vetoes: [], seamCensus: [{ node: 'ECGDex', seams: 0, seamsReason: 'sidecar-read', vetoed: false }] };
+            var _lines = _silFn({ findings: [], vetoes: [_seamVeto, _rtcVeto], seamCensus: [] });
+            T.ok('D17 · every veto reaches the reader, one line per rec per source', _lines.length >= 2, _lines.length + ' line(s)');
+            T.ok(
+              'D17 · …and each line carries the DSP note, so the node and the cause are named',
+              _lines.some(function (l) {
+                return l.indexOf('ECGDex recorded 2 clock seam(s)') >= 0;
+              }) &&
+                _lines.some(function (l) {
+                  return l.indexOf('OxyDex RTC reset-suspect') >= 0;
+                }),
+              _lines.join(' | ')
+            );
+            T.ok(
+              'D17 · a pass that refused EVERY rec says the quiet is refusal, not agreement',
+              _lines.some(function (l) {
+                return /NOT agreement/.test(l);
+              }),
+              _lines.join(' | ')
+            );
+            var _withFinding = _silFn({ findings: [{ node: 'ECGDex', offsetSec: -2340 }], vetoes: [_seamVeto], seamCensus: [] });
+            T.ok(
+              'D17 · …and that line stays away when a finding already spoke',
+              !_withFinding.some(function (l) {
+                return /NOT agreement/.test(l);
+              }) && _withFinding.length === 1,
+              _withFinding.join(' | ')
+            );
+            /* THREE STATES, NEVER TWO. A measured 0 is a clean scan and must stay quiet, or the
+               banner fires every night and a reader stops reading it. */
+            T.eq('D17 · a MEASURED seams:0 census draws no line', _silFn(_clean).length, 0);
+            var _unk = _silFn({
+              findings: [],
+              vetoes: [],
+              seamCensus: [
+                { node: 'OxyDex', seams: null, seamsReason: 'no-seam-sidecar', vetoed: false },
+                { node: 'GlucoDex', seams: null, seamsReason: 'upstream-emitted-no-validity', vetoed: false }
+              ]
+            });
+            T.ok(
+              'D17 · an UNKNOWN channel is stated, grouped by the node own reason token',
+              _unk.length === 1 && /UNKNOWN/.test(_unk[0]) && _unk[0].indexOf('no-seam-sidecar') >= 0 && _unk[0].indexOf('upstream-emitted-no-validity') >= 0,
+              _unk.join(' | ')
+            );
+            T.ok(
+              'D17 · …naming both nodes, so a reader cannot read one state over two streams',
+              _unk.length === 1 && _unk[0].indexOf('OxyDex') >= 0 && _unk[0].indexOf('GlucoDex') >= 0,
+              _unk.join(' | ')
+            );
+            T.eq('D17 · an absent clockSkew block throws nothing and says nothing', _silFn(null).length, 0);
+            T.eq('D17 · …and a block with no keys at all behaves the same', _silFn({}).length, 0);
+          }
+          /* THE CALL SITE IS THE OTHER HALF: a helper nobody calls prints nothing. It must sit
+             OUTSIDE the `cs.findings` guard, because the case it answers is that guard being false. */
+          var _callIdx = iaSrc.indexOf('skewSilenceLines(cs)');
+          var _guardIdx = iaSrc.indexOf('cs.findings');
+          var _renderIdx = iaSrc.indexOf('R.renderAll(');
+          T.ok(
+            'D17 · the app CALLS the surface before it renders, outside the finding guard',
+            _callIdx > 0 && _renderIdx > _callIdx && /warnAll\.push\(_silence\[/.test(iaSrc),
+            'call=' + _callIdx + ' guard=' + _guardIdx + ' render=' + _renderIdx
+          );
 
           /* ── DEEP-AUDIT-II §10.4 · the app must RELEASE what the recording took ────────────────────
              `ECGDSP.planCompanionGraft` is a pure function and is well gated (12 assertions). The half
@@ -70285,6 +70424,70 @@
             T.eq('DA-III-F §1.3 · …and is still clamped at 100', _pct(140), 100);
           }
         }
+        /* ── D17 §PD · the reason reaches the reader, not only the export ───────────────────────────
+           `renderKPI` prints an em-dash for a refused figure, so a clock seam, a short reading and an
+           absent input all drew the same glyph. `pulsedex-app.js` writes `hrvReason` and its own
+           comment calls an unexplained absence "only half of the refusal". These legs lift
+           `seamContextNote` out of the SHIPPED SOURCE and execute it, the §1.3 idiom above, because a
+           regex on its spelling passes over a planted `return ''`. */
+        if (_prSrc == null) {
+          T.ok('D17 §PD · pulsedex-render.js source is readable', false, 'not in env.sources — this gate cannot run');
+        } else {
+          var _liftDecl = function (src, name) {
+            var k = src.indexOf('function ' + name + '(');
+            if (k < 0) return null;
+            var b = src.indexOf('{', k),
+              d = 0;
+            for (var j = b; j < src.length; j++) {
+              if (src[j] === '{') d++;
+              else if (src[j] === '}' && --d === 0) return src.slice(k, j + 1);
+            }
+            return null;
+          };
+          var _noteSrc = _liftDecl(_prSrc, 'seamContextNote');
+          T.ok('D17 §PD · `seamContextNote` is present in the shipped render source', _noteSrc != null, _noteSrc == null ? 'not found' : _noteSrc.length + ' chars');
+          var _note = null;
+          if (_noteSrc) {
+            try {
+              _note = new Function('escapeHTML', 'return (' + _noteSrc + ');')(function (x) {
+                return String(x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+              });
+            } catch (_e) {
+              _note = null;
+            }
+          }
+          T.ok('D17 §PD · …and it lifts and builds as a callable function', typeof _note === 'function', typeof _note);
+          if (typeof _note === 'function') {
+            var _ref = _note({ hrvReason: 'clock-seam' });
+            T.ok("D17 §PD · a refused record names the node's OWN reason token to the reader", _ref.indexOf('clock-seam') >= 0, JSON.stringify(_ref).slice(0, 160));
+            T.ok('D17 §PD · …and says the figures refused rather than measured low', /refused/i.test(_ref), JSON.stringify(_ref).slice(0, 160));
+            /* THREE STATES. A sidecar the box wrote and this node could not place is UNKNOWN; a
+               MEASURED zero and a stream with no sidecar at all both stay silent, deliberately. */
+            var _unk = _note({ hrvReason: null, seamState: { seams: null, reason: 'seam-rows-unplaced' } });
+            T.ok('D17 §PD · an undecidable sidecar reads UNKNOWN and names its token', _unk.indexOf('UNKNOWN') >= 0 && _unk.indexOf('seam-rows-unplaced') >= 0, JSON.stringify(_unk).slice(0, 160));
+            T.eq('D17 §PD · a stream with no sidecar at all stays out of the banner', _note({ hrvReason: null, seamState: { seams: null, reason: 'no-seam-sidecar' } }), '');
+            T.eq('D17 §PD · a MEASURED zero draws no banner line', _note({ hrvReason: null, seamState: { seams: 0, reason: null } }), '');
+            T.eq('D17 §PD · a record with no seam state at all draws none either', _note({}), '');
+            T.eq('D17 §PD · an absent record draws none', _note(null), '');
+            /* PRECEDENCE: a record can carry both. The refusal is the stronger statement and the one
+               that explains the em-dashes, so it wins the single line. */
+            var _both = _note({ hrvReason: 'clock-seam', seamState: { seams: null, reason: 'seam-rows-unplaced' } });
+            T.ok('D17 §PD · a record carrying both states reports the REFUSAL', _both.indexOf('clock-seam') >= 0 && _both.indexOf('seam-rows-unplaced') < 0, JSON.stringify(_both).slice(0, 160));
+            T.ok(
+              'D17 §PD · a reason token reaches the markup escaped, never as live tags',
+              _note({ hrvReason: '<b>x</b>' }).indexOf('<b>x</b>') < 0,
+              JSON.stringify(_note({ hrvReason: '<b>x</b>' })).slice(0, 160)
+            );
+          }
+          /* The call site is the other half: a perfect note nobody renders is the very defect this
+             unit fixes, one layer up. */
+          T.ok(
+            'D17 §PD · the context banner renders the note beside its own caveats',
+            /const notes = \[note, alt, pbNote, seamContextNote\(r\)\]/.test(_prSrc),
+            'call site not found in renderContext'
+          );
+        }
+
         // ── OxyDex mean-SpO₂ KPI color: ok≥95 / warn≥92 / bad (HIGH; a lowered cut paints a hypoxic night green) ──
         var oxKpiClass = function (mean) {
           var html = env.OxyDex.reviewView({ events: [], nights: [{ stats: { meanSpo2: mean, minSpo2: mean - 3 } }] }, [{ stats: { meanSpo2: mean, minSpo2: mean - 3 } }]);

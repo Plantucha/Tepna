@@ -19,6 +19,55 @@
   var TOL = 120; // match tolerance seconds (configurable)
   var _longDirty = false; // longitudinal store changed since last render
 
+  /* ── WHAT THE SKEW PASS REFUSED TO EXAMINE (D17, owner 2026-11-06) ────────────────────────────
+     The banner above fires on a FINDING. A recording the pass VETOED produces no finding, so a
+     night whose every rec was excluded printed nothing at all and read exactly like a night whose
+     clocks agree. That is the silent absence §∅ forbids: an output over absent input reports the
+     absence. `detectClockSkew` already writes one reader-ready `note` per rec PER SOURCE into
+     `vetoes`, and `seamCensus` states the channel for every rec — so this surfaces what the DSP
+     decided and invents no judgement of its own.
+     THREE STATES, NEVER TWO. A positive seam count is a refusal and rides in `vetoes`. A MEASURED
+     `0` is a clean scan and stays silent here, because a banner on every clean night is noise. A
+     `null` is UNKNOWN, and the owner's 2026-11-05 ruling reads an unexamined channel as unknown
+     rather than as seam-free, so it gets a line of its own naming the node and the node's reason. */
+  function skewSilenceLines(cs) {
+    var out = [];
+    if (!cs) return out;
+    var vetoes = cs.vetoes || [];
+    for (var i = 0; i < vetoes.length; i++) {
+      var v = vetoes[i] || {};
+      out.push('\u23f1 ' + (v.note || (v.node || '(unknown node)') + ' excluded from the clock-skew pass (' + (v.source || 'unstated reason') + ').'));
+    }
+    /* Grouped by the node's OWN reason token, never a reason this layer picked: `no-seam-sidecar`
+       and `upstream-emitted-no-validity` are different states, and a reader who cannot tell them
+       apart cannot tell a stream the box never scans from a node that published nothing. */
+    var unknown = {};
+    var unknownAny = false;
+    var census = cs.seamCensus || [];
+    for (var c = 0; c < census.length; c++) {
+      var e = census[c] || {};
+      if (e.seams !== null && e.seams !== undefined) continue;
+      var why = e.seamsReason != null ? String(e.seamsReason) : 'reason unstated';
+      if (!unknown[why]) unknown[why] = [];
+      unknown[why].push(e.node || '(unknown node)');
+      unknownAny = true;
+    }
+    if (unknownAny) {
+      var byReason = [];
+      for (var k in unknown) {
+        if (Object.prototype.hasOwnProperty.call(unknown, k)) byReason.push(unknown[k].join(' + ') + ' (' + k + ')');
+      }
+      out.push('\u23f1 The recorded-seam channel reads UNKNOWN for ' + byReason.join(', ') + ' — an unexamined channel is not a clean one, so a seam may sit inside a fused span.');
+    }
+    /* The one line a reader needs when NOTHING came back: the pass ran, it refused, and the quiet
+       above is refusal rather than agreement. Only when no finding survived, because a night with
+       both a finding and a veto already shows the reader that the pass spoke. */
+    if (vetoes.length && !(cs.findings && cs.findings.length)) {
+      out.push('\u23f1 The clock-skew pass compared nothing after excluding ' + vetoes.length + ' recording(s), so the absence of a correction above is NOT agreement between the clocks.');
+    }
+    return out;
+  }
+
   function recompute() {
     FUSION = D.runFusion(RECS, { toleranceSec: TOL });
     R.renderChips(RECS, removeAt, clearAll);
@@ -99,6 +148,10 @@
         }
       });
     }
+    /* OUTSIDE the `cs.findings` guard above, deliberately: the case this answers is the one where
+       that guard is false because every rec was vetoed. */
+    var _silence = skewSilenceLines(cs);
+    for (var _s = 0; _s < _silence.length; _s++) warnAll.push(_silence[_s]);
     R.renderAll(RECS, FUSION, warnAll);
     if (L) {
       try {
