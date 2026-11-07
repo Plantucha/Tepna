@@ -3697,12 +3697,40 @@ def tree_shadowed(tree, names) -> list[str]:
     return sorted({name for name in names if (tree / name).is_file()})
 
 
+def unstageable_root_reads(tree, names) -> list[str]:
+    """The declared names the ROOT holds no regular file for, so no staging can answer them.
+
+    🔴 A DROP IN SILENCE IS WHAT LETS A SCRATCH SKIP READ AS A PASS. `stage_root_reads` skips a name the
+    root cannot provide, on the stated reasoning that the read then fails inside the scratch exactly as
+    it would in the tree. That reasoning holds for a read that FAILS. It does not hold for a test
+    written to SKIP on the absence: the suite inside the scratch is then SMALLER than the suite whose
+    clean run licensed the budget, every mutant those tests would have killed survives, and each
+    survivor reads like an honest one. Measured 2026-11-06, row
+    `2026-11-06-a-constructed-workflow-read-reached-no-mutation-scratch`: the adoption leg builds its
+    workflow path through `CI_WORKFLOW`, the static instrument could not name it, no scratch staged the
+    file, and that test skipped inside one.
+
+    THE PREDICATE LIVES HERE AND THE STAGER CALLS IT, so the skip and the record can never disagree. A
+    second copy of this `is_file()` claim is the two-copies-of-one-claim shape #4515 gated.
+
+    This NAMES an absence and never refuses. A declared corpus path is honestly absent on a box that
+    holds no corpus, so refusing here would red the gate on every such box — CLAUDE.md §∅ wants the
+    absence named with its reason instead. A directory at the declared path belongs in this set too,
+    because `shutil.copy2` cannot answer a read with one either."""
+    from pathlib import Path
+
+    root = Path(tree).resolve().parent
+    return sorted({name for name in names if not (root / name).is_file()})
+
+
 def stage_root_reads(tree, work, names) -> int:
     """Copy each root file in `names` to BOTH places a `tests/../..`-shaped read resolves from: `work/`
     (the mutants run executes `work/mutants/tests/`, whose grandparent's parent is `work/`) and
     `work/..` (the clean baseline executes `work/tests/`). Returns copies made. A name that is not a
     regular file in the root is skipped, never fabricated — the read will then fail exactly as it
-    would in the tree, which is the honest outcome.
+    would in the tree, which is the honest outcome for a read that FAILS. It is not the
+    honest outcome for a test that SKIPS on the absence, so `unstageable_root_reads` names that
+    set and the caller publishes it; read its docstring for what the gap costs.
 
     A name `tree_shadowed` names is staged to `work/..` ONLY: see that function for why the tree's own
     file must survive inside the tree."""
@@ -3713,10 +3741,11 @@ def stage_root_reads(tree, work, names) -> int:
     work = Path(work)
     root = tree.resolve().parent
     shadowed = set(tree_shadowed(tree, names))
+    unstageable = set(unstageable_root_reads(tree, names))
     n = 0
     for name in names:
         src = root / name
-        if not src.is_file():
+        if name in unstageable:
             continue
         dests = (work.parent,) if name in shadowed else (work, work.parent)
         for dest in dests:
