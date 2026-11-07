@@ -14407,14 +14407,9 @@
         'cvhr-fold-rescore.mjs',
         'deep-flow-join.mjs',
         'device-stability.mjs',
-        'edge-settle.mjs',
         'eqc-run.mjs',
         'oracle-ecg-firmware-rr.mjs',
-        'oracle-ppg-device-beats.mjs',
-        'oxy-hr-bias.mjs',
-        'ppg-gap-bridge-scan.mjs',
-        'ppi-jitter-vs-ecg.mjs',
-        'stage-lab.mjs'
+        'oracle-ppg-device-beats.mjs'
       ];
       var hasIdentity = function (t) {
         return /coverageIdentity\(|population arithmetic/.test(TT['tools/' + t] || '');
@@ -14516,6 +14511,33 @@
           return /coverageIdentity\([^;]*key: 'rec'/.test(TT['tools/' + t] || '');
         }).join(', '),
         'ppg-channel-combination.mjs, ppg-foot-consensus-e1.mjs, ppg-fusion-e3.mjs, resp-cardiac-suppression-e8.mjs'
+      );
+      var COV_SLICE4 = ['edge-settle.mjs', 'oxy-hr-bias.mjs', 'ppg-gap-bridge-scan.mjs', 'ppi-jitter-vs-ecg.mjs', 'stage-lab.mjs'];
+      T.eq(
+        'the five readers whose populations are not one night of one unit carry the identity',
+        COV_SLICE4.filter(function (t) {
+          return !hasIdentity(t);
+        }).join(', '),
+        ''
+      );
+      /* FOUR OF THE FIVE PUBLISH A SCORED COUNT, AND EACH HANDS ITS OWN OVER. ppg-gap-bridge-scan
+         publishes `population.checked`, the intersection of two snapshots, which labels MOVEMENT, so
+         it passes the difference alone. Pinning which one stays out is what stops a later edit from
+         feeding a movement count to a coverage identity. */
+      T.eq(
+        'four of the five hand the printed scored count over, and the one that publishes a movement count does not',
+        COV_SLICE4.filter(function (t) {
+          return /coverageIdentity\([^;]*printedScored/.test(TT['tools/' + t] || '');
+        }).join(', '),
+        'edge-settle.mjs, oxy-hr-bias.mjs, ppi-jitter-vs-ecg.mjs, stage-lab.mjs'
+      );
+      /* ONE CALL SITE CAN SERVE SEVERAL POPULATIONS. oxy-hr-bias loops over legs, and each leg carries
+         its own offer and its own key, so its identity reads `key: p.key` rather than a literal — a
+         literal there would hold every leg to one unit. */
+      T.ok(
+        'the multi-leg reader keys its identity on the leg, not on a literal unit',
+        /coverageIdentity\([^;]*key: p\.key/.test(TT['tools/oxy-hr-bias.mjs'] || ''),
+        'oxy-hr-bias.mjs keys the identity per leg'
       );
       T.ok(
         'the identity has ONE definition, in corpus-scope-core.mjs beside the namer it checks',
@@ -71861,9 +71883,15 @@
         );
         return;
       }
+      /* THE TAG STRIP IS `tools/strip-markup.mjs`'s INDEX SCAN, NOT A PATTERN OF OUR OWN. That file's
+         header records the finding: each regex spelling tried there satisfied the example in the
+         previous CodeQL alert and left the class open. A one-shot tag strip by pattern is reported
+         the same way, and this helper was reported that way on the PR that introduced it. The group
+         is node-lane only — it SKIPs above — so `env.stripTags` is always wired where it is read. */
+      var deTag = env.stripTags;
       var kVals = function (html) {
         var o = [];
-        for (const m of html.matchAll(/<div class="kpi-val[^"]*">([\s\S]*?)<\/div>/g)) o.push(m[1].replace(/<[^>]*>/g, ''));
+        for (const m of html.matchAll(/<div class="kpi-val[^"]*">([\s\S]*?)<\/div>/g)) o.push(deTag(m[1]));
         return o;
       };
       var kSubs = function (html) {

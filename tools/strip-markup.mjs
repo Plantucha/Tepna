@@ -100,6 +100,69 @@ export function stripElement(html, tag) {
   }
 }
 
+/* A `<` OPENS A TAG ONLY BEFORE A LETTER, `/`, `!` OR `?` — the HTML tokenizer's own rule, and the
+   reason `stripTags` below is not a pattern. In `a < b <span>c</span>` a pattern reaching for the next
+   `>` eats ` b <span` and returns `a c`; the tokenizer reads that first `<` as TEXT, because a space
+   cannot begin a tag name. */
+function tagStarts(ch) {
+  return ch !== undefined && /[A-Za-z!/?]/.test(ch);
+}
+
+/* The index of the `>` that ends the tag opened just after `<`, tracking quote state, or `-1` when the
+   tag never closes. `<a title="a>b">` holds a `>` INSIDE an attribute value, which ends the tag early
+   for anything that scans for a bare `>`. */
+function tagEnd(src, i) {
+  let q = '';
+  for (let j = i; j < src.length; j++) {
+    const c = src[j];
+    if (q) {
+      if (c === q) q = '';
+    } else if (c === '"' || c === "'") q = c;
+    else if (c === '>') return j;
+  }
+  return -1;
+}
+
+/* Remove the TAGS and KEEP their content — the complement of `stripElement`, which removes an element
+   together with everything inside it.
+
+   ⚠️ THIS IS A TEXT EXTRACTOR, NEVER A SANITIZER. Callers read rendered markup back as prose: a KPI
+   value, a registry label, a guide heading. Nothing renders the result. Running it over untrusted
+   input and then rendering that is the `js/incomplete-multi-character-sanitization` defect under a new
+   name — compose `stripCode` first if a script or style BODY must not reach the text either.
+
+   It lives here because the pattern form is written out at several sites in this repo and CodeQL rates
+   each of them high, which is the shape the regex escaper had before `tools/regex-escape-core.mjs`
+   became its one home (residue `2026-10-30-the-regex-escaper-is-copied-seven-times-and-exported-twice`).
+   A copied pattern carries its gaps forward; a scan has none to copy.
+
+   An UNTERMINATED tag drops its tail, which is what a browser does with one at end of input.
+
+   IT DOES NOT ITERATE TO A FIXPOINT, and that is the one place it parts company with `norm` in
+   `motiondex-registry.js` and `parseGuide` in `tools/formula-constant-audit.mjs`, which both loop
+   until the text stops shrinking. A loop is right for a SANITIZER, because a single pattern pass over
+   `<<b>b>` leaves `<b>` behind and a renderer would then read it as a tag. It is wrong for a text
+   extractor: the tokenizer reads that input as the text `<`, the tag `<b>` and the text `b>`, so
+   `<b>` IS the text, and looping deletes characters the document displays. */
+export function stripTags(html) {
+  const src = String(html);
+  let out = '';
+  let i = 0;
+  for (;;) {
+    const a = src.indexOf('<', i);
+    if (a === -1) return out + src.slice(i);
+    if (!tagStarts(src[a + 1])) {
+      out += src.slice(i, a + 1);
+      i = a + 1;
+      continue;
+    }
+    out += src.slice(i, a);
+    const gt = tagEnd(src, a + 1);
+    if (gt === -1) return out;
+    i = gt + 1;
+  }
+}
+
 /** Strip both element types the prose readers must never see. */
 export function stripCode(html) {
   return stripElement(stripElement(html, 'script'), 'style');
@@ -152,6 +215,23 @@ export function selfTest() {
   eq(B(`<${S}>var s = "</${S}able>";</${S}>`)[0].body === `var s = "</${S}able>";`, 'a body containing `</scriptable>` is not cut short');
   eq(B(`<${S}>unterminated`).length === 0, 'an unterminated element yields NO block rather than a guessed one');
   eq(B(`<${S} data-inline-src="a.js"`).length === 0, 'an open tag that never closes yields no block');
+
+  /* ── stripTags · the text extractor, over what a pattern gets wrong ──────────────────────────── */
+  eq(stripTags('6.2<span class="kpi-u">hr</span>') === '6.2hr', 'stripTags keeps the content and drops the tags');
+  eq(stripTags('<span style="color:var(--text4)">—</span>') === '—', '…including a tag whose attribute holds parentheses');
+  eq(stripTags('plain') === 'plain', 'text with no tag is unchanged');
+  eq(stripTags('') === '', 'the empty string is unchanged');
+  eq(stripTags('a < b') === 'a < b', 'a `<` before a SPACE is text, not the start of a tag');
+  eq(stripTags('a < b <i>c</i>') === 'a < b c', '…and that text `<` does not swallow the real tag after it');
+  eq(stripTags('<a title="a>b">x</a>') === 'x', 'a `>` INSIDE an attribute value does not end the tag');
+  eq(stripTags("<a title='a>b'>x</a>") === 'x', '…in single quotes too');
+  eq(stripTags('keep<span class="x') === 'keep', 'an UNTERMINATED tag drops its tail rather than leaking it');
+  eq(stripTags('<br/>a<br />b') === 'ab', 'self-closing tags, spaced or not, are dropped');
+  eq(stripTags('<!-- c -->x') === 'x', 'a comment opens with `!` and is dropped');
+  eq(stripTags(`<${S}>var x=1;</${S}>keep`) === 'var x=1;keep', 'stripTags is NOT a sanitizer: it keeps a script BODY, which is why stripCode exists');
+  eq(stripTags(stripCode(`<${S}>var x=1;</${S}>keep`)) === 'keep', '…and composing stripCode first is the spelling that drops it');
+  eq(stripTags('<<b>b>') === '<b>', 'the scan does NOT loop to a fixpoint: the tokenizer reads text, a tag, then text, so `<b>` IS what that input displays');
+  eq(stripTags(null) === 'null', 'a non-string is stringified rather than thrown at');
   return n;
 }
 
