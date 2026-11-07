@@ -63,6 +63,7 @@
       "seamsFlatRows": null,
       "seamsBoundMs": null,
       "seamsStream": null,
+      "seamsDeviceAxis": null,
       "seamsReason": "no-seam-sidecar"
     }
   },

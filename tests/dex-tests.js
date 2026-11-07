@@ -47620,6 +47620,32 @@
           })(),
           '0/null'
         );
+        /* 🔴 `device_axis=` — THE PROVENANCE THE WRITER DECLARES AND NO READER READ (#4468).
+           `capture-host/writers.py` states one of four declared values on every parameter line it writes.
+           36 of 58 recorded seams corpus-wide sit on a HOST-DRAWN device grid, which is the dominant case
+           (residue row `2026-11-06-the-seam-sidecar-cannot-tell-a-drawn-device-axis-from-a-clock`). A
+           `basis=device-minus-host` line cannot name that, so every consumer of a seam had to assume the
+           device column was a clock. The token travels verbatim, and the ABSENCE of it is `null` rather
+           than the writer's own `unknown`: a declared `unknown` is the writer saying it looked. */
+        var axText = function (v) {
+          return SC.replace('basis=device-minus-host', 'basis=device-minus-host device_axis=' + v);
+        };
+        var axSyn = function (v) {
+          var s = E.genSynthetic({ durSec: 1200, seed: 7 }),
+            p = E.parseECG(HDR, { seamsText: v == null ? SC : axText(v) });
+          s.seamsSidecar = p.seamsSidecar;
+          s.recordedSeams = p.recordedSeams;
+          return s;
+        };
+        T.eq('parseECG · the sidecar’s own `device_axis=` token travels VERBATIM to the reader', E.parseECG(HDR, { seamsText: axText('host-drawn') }).seamsSidecar.deviceAxis, 'host-drawn');
+        T.eq('parseECG · a declared `unknown` is the writer saying it LOOKED, and is kept as written', E.parseECG(HDR, { seamsText: axText('unknown') }).seamsSidecar.deviceAxis, 'unknown');
+        T.ok('∅ · a sidecar written before the declaration shipped carries NO token, and that absence is `null`', E.parseECG(HDR, { seamsText: SC }).seamsSidecar.deviceAxis === null);
+        T.eq('…the state carries it, so a seam count is never read as a device-clock step by default', E.analyze(axSyn('host-drawn')).seams.deviceAxis, 'host-drawn');
+        T.eq('…and the export publishes it beside the count', E.compute(axSyn('host-drawn')).recording.validity.seamsDeviceAxis, 'host-drawn');
+        T.ok(
+          '🔴 the key is UNCONDITIONAL · a night with NO sidecar carries it as `null`, so a reader that omits it cannot pass for one that read none',
+          'seamsDeviceAxis' in expA.recording.validity && expA.recording.validity.seamsDeviceAxis === null
+        );
       } else T.skip('ECGDSP.genSynthetic/analyze/compute unavailable');
       // ── THE CALLERS, so a future edit cannot quietly unwire the path (a reader with no caller) ──
       var src = env.sources || {};
@@ -48059,6 +48085,29 @@
           pLeg.recordedSeams = [];
           var rLeg = P.analyze(pLeg);
           T.eq('∅ · a sidecar object with NO `streamKnown` key keeps the measured zero, never the foreign refusal', rLeg.seams.seams + '/' + String(rLeg.seams.reason), '0/null');
+          /* 🔴 `device_axis=` — THE PROVENANCE THE WRITER DECLARES AND NO READER READ (#4468).
+             `capture-host/writers.py` states one of four declared values on every parameter line it writes.
+             36 of 58 recorded seams corpus-wide sit on a HOST-DRAWN device grid, which is the dominant case
+             (residue row `2026-11-06-the-seam-sidecar-cannot-tell-a-drawn-device-axis-from-a-clock`). A
+             `basis=device-minus-host` line cannot name that, so every consumer of a seam had to assume the
+             device column was a clock. The token travels verbatim, and the ABSENCE of it is `null` rather
+             than the writer's own `unknown`: a declared `unknown` is the writer saying it looked. */
+          var axText = function (v) {
+            return seamAt(300000).replace('basis=device-minus-host', 'basis=device-minus-host device_axis=' + v);
+          };
+          T.eq('parsePPG · the sidecar’s own `device_axis=` token travels VERBATIM to the reader', P.parsePPG(text, { seamsText: axText('host-drawn') }).seamsSidecar.deviceAxis, 'host-drawn');
+          T.eq('parsePPG · a declared `unknown` is the writer saying it LOOKED, and is kept as written', P.parsePPG(text, { seamsText: axText('unknown') }).seamsSidecar.deviceAxis, 'unknown');
+          T.ok('∅ · a sidecar written before the declaration shipped carries NO token, and that absence is `null`', P.parsePPG(text, { seamsText: seamAt(300000) }).seamsSidecar.deviceAxis === null);
+          T.eq(
+            '…the state carries it, so a seam count is never read as a device-clock step by default',
+            P.analyze(P.parsePPG(text, { seamsText: axText('host-drawn') })).seams.deviceAxis,
+            'host-drawn'
+          );
+          T.eq('…and the export publishes it beside the count', P.compute(text, { seamsText: axText('host-drawn') }).recording.validity.seamsDeviceAxis, 'host-drawn');
+          T.ok(
+            '🔴 the key is UNCONDITIONAL · a night with NO sidecar carries it as `null`, so a reader that omits it cannot pass for one that read none',
+            'seamsDeviceAxis' in expNone.recording.validity && expNone.recording.validity.seamsDeviceAxis === null
+          );
         } else T.skip('PPGDSP.analyze/compute unavailable');
         // ── THE DROP LANE: dex-ingest routes it, the planner keeps it to its own device ────────────
         var DI = env.DexIngest,
@@ -48386,6 +48435,26 @@
              build produced carries no `streamKnown` key at all. An absent key is not a foreign stream. */
           var sLeg = M.compute({ acc: text, accSeams: { boundMs: 250, examined: 89999, rows: [], placedNone: false, dataRows: 0, rejectedReasons: [] } });
           T.eq('∅ · a sidecar object with NO `streamKnown` key keeps the measured zero, never the foreign refusal', sLeg.seams.seams + '/' + String(sLeg.seams.reason), '0/null');
+          /* 🔴 `device_axis=` — THE PROVENANCE THE WRITER DECLARES AND NO READER READ (#4468).
+             `capture-host/writers.py` states one of four declared values on every parameter line it writes.
+             36 of 58 recorded seams corpus-wide sit on a HOST-DRAWN device grid, which is the dominant case
+             (residue row `2026-11-06-the-seam-sidecar-cannot-tell-a-drawn-device-axis-from-a-clock`). A
+             `basis=device-minus-host` line cannot name that, so every consumer of a seam had to assume the
+             device column was a clock. The token travels verbatim, and the ABSENCE of it is `null` rather
+             than the writer's own `unknown`: a declared `unknown` is the writer saying it looked. */
+          var axText = function (v) {
+            return seamAt(150000).replace('basis=device-minus-host', 'basis=device-minus-host device_axis=' + v);
+          };
+          T.eq('parseAccSeams · the sidecar’s own `device_axis=` token travels VERBATIM to the reader', M.parseAccSeams(axText('host-drawn')).deviceAxis, 'host-drawn');
+          T.eq('parseAccSeams · a declared `unknown` is the writer saying it LOOKED, and is kept as written', M.parseAccSeams(axText('unknown')).deviceAxis, 'unknown');
+          T.ok('∅ · a sidecar written before the declaration shipped carries NO token, and that absence is `null`', M.parseAccSeams(seamAt(150000)).deviceAxis === null);
+          var sAx = M.compute({ acc: text, accSeams: axText('host-drawn') });
+          T.eq('…the state carries it, so a seam count is never read as a device-clock step by default', sAx.seams.deviceAxis, 'host-drawn');
+          T.eq('…and the export publishes it beside the count', M.buildNodeExport(sAx).recording.validity.seamsDeviceAxis, 'host-drawn');
+          T.ok(
+            '🔴 the key is UNCONDITIONAL · a night with NO sidecar carries it as `null`, so a reader that omits it cannot pass for one that read none',
+            'seamsDeviceAxis' in M.buildNodeExport(sNone).recording.validity && M.buildNodeExport(sNone).recording.validity.seamsDeviceAxis === null
+          );
         } else T.skip('MOTIONDSP.compute/buildNodeExport unavailable');
         // ── THE DROP LANE AND THE ORCHESTRATED ROAD ───────────────────────────────────────────────
         var SO = env.SignalOrchestrate;
@@ -48682,6 +48751,35 @@
             '🔴 the ORCHESTRATED road reaches the same refusal — the parsed sidecar crosses the frame rebuild',
             fr.sdnn + '/' + fr.hrvReason + '/' + pdBuildNodeExport(fr).recording.validity.seamsPlaced,
             'null/clock-seam/1'
+          );
+          /* 🔴 `device_axis=` — THE PROVENANCE THE WRITER DECLARES AND NO READER READ (#4468).
+             `capture-host/writers.py` states one of four declared values on every parameter line it writes.
+             36 of 58 recorded seams corpus-wide sit on a HOST-DRAWN device grid, which is the dominant case
+             (residue row `2026-11-06-the-seam-sidecar-cannot-tell-a-drawn-device-axis-from-a-clock`). A
+             `basis=device-minus-host` line cannot name that, so every consumer of a seam had to assume the
+             device column was a clock. The token travels verbatim, and the ABSENCE of it is `null` rather
+             than the writer's own `unknown`: a declared `unknown` is the writer saying it looked. */
+          var axText = function (dev, v) {
+            return seamText('ppi', dev, '7.7', 4500).replace('basis=device-minus-host', 'basis=device-minus-host device_axis=' + v);
+          };
+          T.eq('parsePdSeams · the sidecar’s own `device_axis=` token travels VERBATIM to the reader', parsePdSeams(axText('240000.0', 'host-drawn')).deviceAxis, 'host-drawn');
+          T.eq('parsePdSeams · a declared `unknown` is the writer saying it LOOKED, and is kept as written', parsePdSeams(axText('240000.0', 'unknown')).deviceAxis, 'unknown');
+          T.ok('∅ · a sidecar written before the declaration shipped carries NO token, and that absence is `null`', parsePdSeams(seamText('ppi', '240000.0', '7.7', 4500)).deviceAxis === null);
+          var cAx = pdComputeResult(parseRRInput(rrText(40), { seamsText: axText('240000.0', 'host-drawn') }));
+          T.eq('…the state carries it, so a seam count is never read as a device-clock step by default', cAx.seamState.deviceAxis, 'host-drawn');
+          T.eq('…and the export publishes it beside the count', pdBuildNodeExport(cAx).recording.validity.seamsDeviceAxis, 'host-drawn');
+          /* 🔴 THE MEASURED CASE THIS NODE ALREADY REFUSES. A flat device axis is named by the
+             reader’s own reason, and the header’s declaration states WHY the axis is flat. The two answers
+             are independent, so both publish. */
+          var cFlatAx = pdComputeResult(parseRRInput(rrText(40), { seamsText: axText('-0.001', 'host-drawn') }));
+          T.eq(
+            '🔴 a FLAT axis keeps its own refusal AND states the declared axis beside it',
+            pdBuildNodeExport(cFlatAx).recording.validity.seamsDeviceAxis + '/' + pdBuildNodeExport(cFlatAx).recording.validity.seamsReason,
+            'host-drawn/seam-basis-no-device-clock'
+          );
+          T.ok(
+            '🔴 the key is UNCONDITIONAL · a night with NO sidecar carries it as `null`, so a reader that omits it cannot pass for one that read none',
+            'seamsDeviceAxis' in vNone && vNone.seamsDeviceAxis === null
           );
         } else T.skip('PulseDSP.pdComputeResult/pdBuildNodeExport unavailable');
         // ── THE WINDOW, which is what the ruling names ────────────────────────────────────────────
@@ -49245,13 +49343,17 @@
            so `validity.seams*` is the one annotation EVERY ECGDex export carries and the four
            committed fixtures were regenerated for it. What this control still guards is unchanged:
            the BLANKING keys stay conditional, so a sidecar that parsed and a parse with no sidecar
-           at all both leave `blankingSpans`/`blankingSpansReason` off the export. */
+           at all both leave `blankingSpans`/`blankingSpansReason` off the export.
+           SEVEN keys since 2026-11-07: `seamsDeviceAxis` publishes the sidecar's own `device_axis=`
+           token, and it is unconditional for the same reason the other six are. A reader that omitted
+           the key on a night with no sidecar would be indistinguishable from a reader that never
+           looked, so the absence is `null` on the key rather than the key's own absence. */
         var vKeys = function (x) {
           return Object.keys((x && x.recording && x.recording.validity) || {})
             .sort()
             .join(',');
         };
-        var SEAM_ONLY = 'seams,seamsBoundMs,seamsExamined,seamsPlaced,seamsReason,seamsUnplaced';
+        var SEAM_ONLY = 'seams,seamsBoundMs,seamsDeviceAxis,seamsExamined,seamsPlaced,seamsReason,seamsUnplaced';
         T.ok(
           "control · a sidecar that PARSED adds no blanking key, and neither does a parse without one — `validity` holds §4.4's unconditional seam keys alone",
           vKeys(E.compute({ text: etxt, runsText: ERUNS })) === SEAM_ONLY && vKeys(E.compute(etxt)) === SEAM_ONLY,
@@ -70299,7 +70401,7 @@
       T.ok('…because minute ticks are whole minutes', U.scopeAxisTick(600) % 60 === 0 && U.scopeAxisTick(3600) % 60 === 0, 'ticks: ' + U.scopeAxisTick(600) + ', ' + U.scopeAxisTick(3600));
     });
 
-    group('Render execution — surfaced-value known-answer (§RN harness)', 'glucodex-render · oxydex-render · cpapdex-render · render-harness', function (T) {
+    group('Render execution — surfaced-value known-answer (§RN harness)', 'glucodex-render · oxydex-render · cpapdex-render · hrvdex-render · render-harness', function (T) {
       if (!env.GluDisp || !env.OxyDex || typeof env.OxyDex.reviewView !== 'function' || !env.CpapRender || typeof env.CpapRender.renderReviewView !== 'function') {
         T.skip(
           'render harness globals wired (env.GluDisp / OxyDex.reviewView / CpapRender.renderReviewView)',
@@ -70573,6 +70675,105 @@
             'D17 §OX · the night card renders the note above every figure in it',
             _oxCall,
             _oxCall ? 'call site present in nightDetail' : 'no call site in nightDetail — the note reaches no reader'
+          );
+        }
+
+        /* ── D17 §HRV · HRVDex states its refusals and its unexamined channels ────────────────
+           `hrvdex-dsp.js:586-627` nulls EVERY value field on a measurement whose upstream block
+           recorded a clock seam, and writes `_valueReason` beside the nulls. It also records why a
+           row carries no upstream block at all. This render file read neither key, so a refused
+           row drew the same em-dash and the same chart hole as a Welltory column that never
+           existed. The legs lift the three functions out of the SHIPPED SOURCE and execute them
+           together, because a regex on the spelling passes over a planted `return []`. */
+        var _hvSrc = (env.sources || {})['hrvdex-render.js'];
+        if (_hvSrc == null) {
+          T.ok('D17 §HRV · hrvdex-render.js source is readable', false, 'not in env.sources — this gate cannot run');
+        } else {
+          var _hvLift = function (src, name) {
+            var k = src.indexOf('function ' + name + '(');
+            if (k < 0) return null;
+            var b = src.indexOf('{', k),
+              d = 0;
+            for (var j = b; j < src.length; j++) {
+              if (src[j] === '{') d++;
+              else if (src[j] === '}' && --d === 0) return src.slice(k, j + 1);
+            }
+            return null;
+          };
+          var _hvParts = ['_hrvEsc', '_hrvTallyLine', '_hrvProvenanceAlerts'].map(function (nm) {
+            return _hvLift(_hvSrc, nm);
+          });
+          var _hvAbsent = ['_hrvEsc', '_hrvTallyLine', '_hrvProvenanceAlerts'].filter(function (nm, i) {
+            return _hvParts[i] == null;
+          });
+          T.ok(
+            'D17 §HRV · the three provenance functions are present in the shipped render source',
+            _hvAbsent.length === 0,
+            _hvAbsent.length ? 'not found: ' + _hvAbsent.join(', ') : 'all three lifted'
+          );
+          var _hvProv = null;
+          if (!_hvAbsent.length) {
+            try {
+              _hvProv = new Function(_hvParts.join('\n') + '\nreturn _hrvProvenanceAlerts;')();
+            } catch (_e) {
+              _hvProv = null;
+            }
+          }
+          T.ok('D17 §HRV · …and they lift and build as a callable function', typeof _hvProv === 'function', typeof _hvProv);
+          if (typeof _hvProv === 'function') {
+            var _hvClean = { _upValidity: { seams: 0, seamsReason: null }, _valueReason: null };
+            var _hvRefRows = [{ _upValidity: { seams: 2 }, _valueReason: 'clock-seam' }, { _upValidity: { seams: 1 }, _valueReason: 'clock-seam' }, _hvClean];
+            var _hvRef = _hvProv(_hvRefRows);
+            var _hvRefMsg = _hvRef.length ? _hvRef[0].msg : '';
+            T.eq('D17 §HRV · two refused rows beside a clean one raise exactly one line', _hvRef.length, 1);
+            T.ok("D17 §HRV · …which names the node's OWN reason token", _hvRefMsg.indexOf('clock-seam') >= 0, _hvRefMsg.slice(0, 200));
+            /* THE POPULATION TRAVELS WITH THE COUNT (§🧾). "2 refused" alone cannot say whether the
+               reader is looking at a broken night or at two rows out of three hundred. */
+            T.ok('D17 §HRV · …and states its population, not a bare count', _hvRefMsg.indexOf('2 of 3 measurements refused') >= 0, _hvRefMsg.slice(0, 200));
+            T.eq('D17 §HRV · a refusal reads red, the strongest the panel draws', _hvRef.length ? _hvRef[0].type : 'NONE', 'red');
+            /* FOUR STATES, never two. An upstream block that reports no seam COUNT examined
+               nothing — the numbers stand and the reader still learns the channel is UNKNOWN. */
+            var _hvUnk = _hvProv([{ _upValidity: { seams: null, seamsReason: 'no-seam-sidecar' } }, _hvClean]);
+            var _hvUnkMsg = _hvUnk.length ? _hvUnk[0].msg : '';
+            T.ok('D17 §HRV · an upstream block with no seam count reads UNKNOWN', _hvUnkMsg.indexOf('UNKNOWN seam channel') >= 0, _hvUnkMsg.slice(0, 200));
+            T.ok("D17 §HRV · …under the UPSTREAM's own token, never a word this node invented", _hvUnkMsg.indexOf('no-seam-sidecar') >= 0, _hvUnkMsg.slice(0, 200));
+            T.ok('D17 §HRV · …and says those numbers still stand', /numbers stand/.test(_hvUnkMsg), _hvUnkMsg.slice(0, 200));
+            var _hvNoB = _hvProv([{ _upValidity: null, _upReason: 'upstream-emitted-no-validity' }, _hvClean]);
+            var _hvNoBMsg = _hvNoB.length ? _hvNoB[0].msg : '';
+            T.ok('D17 §HRV · a row with no upstream block at all gets its own line', _hvNoBMsg.indexOf('no upstream validity block') >= 0, _hvNoBMsg.slice(0, 200));
+            T.ok('D17 §HRV · …naming why the block never arrived', _hvNoBMsg.indexOf('upstream-emitted-no-validity') >= 0, _hvNoBMsg.slice(0, 200));
+            var _hvFallback = _hvProv([{ _upValidity: null, _upReason: null }]);
+            T.ok(
+              'D17 §HRV · an unstated upstream reason falls back to the node vocabulary',
+              (_hvFallback.length ? _hvFallback[0].msg : '').indexOf('upstream-unknown') >= 0,
+              JSON.stringify(_hvFallback).slice(0, 200)
+            );
+            /* A MEASURED ZERO STAYS SILENT (owner ruling 2026-09-17 read through §∅): a banner on
+               every clean dataset is noise, and noise is how a real line goes unread. */
+            T.eq('D17 §HRV · a measured zero across every row draws no line', _hvProv([_hvClean, _hvClean]).length, 0);
+            T.eq('D17 §HRV · an empty set draws none', _hvProv([]).length, 0);
+            T.eq('D17 §HRV · an absent set draws none', _hvProv(null).length, 0);
+            /* ORDER: the refusal qualifies every clinical line under it, so it leads. */
+            var _hvAll = _hvProv([{ _valueReason: 'clock-seam' }, { _upValidity: { seams: null, seamsReason: 'no-seam-scan' } }, { _upValidity: null, _upReason: 'upstream-emitted-no-validity' }]);
+            T.eq('D17 §HRV · all three states together raise three lines', _hvAll.length, 3);
+            T.ok(
+              'D17 §HRV · …with the refusal leading',
+              _hvAll.length === 3 && _hvAll[0].msg.indexOf('refused') >= 0,
+              _hvAll
+                .map(function (a) {
+                  return a.type;
+                })
+                .join(',')
+            );
+            var _hvEsc = _hvProv([{ _upValidity: { seams: null, seamsReason: '<b>x</b>' } }]);
+            T.ok('D17 §HRV · an upstream token reaches the markup escaped, never as live tags', (_hvEsc.length ? _hvEsc[0].msg : '').indexOf('<b>x</b>') < 0, JSON.stringify(_hvEsc).slice(0, 200));
+          }
+          /* The call site is the other half: a perfect tally nobody renders is this very defect. */
+          var _hvCall = /_prov\.length\) alerts\.unshift\.apply\(alerts, _prov\)/.test(_hvSrc) && /_hrvProvenanceAlerts\(typeof allRows/.test(_hvSrc);
+          T.ok(
+            'D17 §HRV · the alert panel renders the lines, over the LOADED set',
+            _hvCall,
+            _hvCall ? 'call site present in renderAlerts, keyed on allRows' : 'no call site — the tally reaches no reader'
           );
         }
 

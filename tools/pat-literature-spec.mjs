@@ -481,7 +481,8 @@ for (const n of nights) {
           : '  pinned spans unsized')
   );
   ALL.push(...c.lags);
-  covered.push(n);
+  /* ROWS, NOT NAMES: `notANight` keys on `row.night` and refuses a bare name (board #4054). */
+  covered.push({ night: n, ok: true });
   polStamps.push(P.polarity);
 }
 console.log('  ' + '-'.repeat(88));

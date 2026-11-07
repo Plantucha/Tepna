@@ -32,7 +32,7 @@
       "kernel-constants.js": "0050ad3f9dc7",
       "clock.js": "2ca8a192dde5",
       "clock-seam.js": "eca421bd5c5e",
-      "pulsedex-dsp.js": "410ccd8abf45"
+      "pulsedex-dsp.js": "f19dd9bdc51d"
     }
   },
   "yield": {
@@ -125,9 +125,9 @@
       "reason": "SEAM-SIDECAR-NODE-COVERAGE 6.1: every OxyDex export now states its seam-sidecar channel as UNKNOWN under `no-seam-sidecar`. The export gained keys and no measured value moved, so the yield was RE-CUT at paper scale, not re-stamped on an inertness argument: 233 tx / 239 flat, unchanged. My first re-cut measured nothing: `analysis-rerun.mjs` boots the committed analysis page, which still inlined this node's old DSP, so `build-analysis.mjs` ran first and the re-cut repeated over the rebuilt page."
     }
   ],
-  "measuredAt": "2026-11-06T23:37:34.678Z",
+  "measuredAt": "2026-11-07T04:37:17.659Z",
   "producedBy": {
     "tool": "tools/treatment-response-yield-pin.mjs",
-    "commit": "9954acb88"
+    "commit": "2d014c63f"
   }
 }

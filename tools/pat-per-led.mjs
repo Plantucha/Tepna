@@ -353,7 +353,8 @@ for (const n of nights) {
   const rep = (v) => (v > 0 ? `${Math.sqrt(v).toFixed(2)} ms` : `REFUSED (negative variance) — the LEDs are not independent`);
   console.log(`     TCH fiducial jitter:  LED0 ${rep(a2)} · LED1 ${rep(b2)} · LED2 ${rep(c2)}`);
   console.log(`     → literature fiducial term for comparison: 5.69 ms (intersecting-tangent RMSE)\n`);
-  covered.push(n);
+  /* ROWS, NOT NAMES: `notANight` keys on `row.night` and refuses a bare name (board #4054). */
+  covered.push({ night: n, ok: true });
 }
 
 /* THE POPULATION THIS RUN COVERED. The status labels MOVEMENT of the night population under the run,

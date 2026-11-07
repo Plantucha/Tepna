@@ -402,7 +402,8 @@ for (const n of nights) {
     LAG[k].push(...nightL[k]);
   }
   CLOSE.push(...nightC);
-  scoredNights.push(n);
+  /* ROWS, NOT NAMES: `notANight` keys on `row.night` and refuses a bare name (board #4054). */
+  scoredNights.push({ night: n, ok: true });
 }
 
 say('  ' + '-'.repeat(80));

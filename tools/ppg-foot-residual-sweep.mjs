@@ -560,7 +560,8 @@ async function main() {
     tool: 'tools/ppg-foot-residual-sweep.mjs',
     evidence: ['tools/ppg-foot-residual-sweep.mjs']
   });
-  const scored = rows.map((r) => r.night);
+  /* ROWS, NOT NAMES: `notANight` keys on `row.night` and refuses a bare name (board #4054). */
+  const scored = rows.map((r) => ({ night: r.night, ok: true }));
   const unscored = notANight({ n: dateDirs.length, nights: dateDirs }, scored);
   console.log(
     `\n  population: ${popBefore.n} night-shaped name(s) under ${DIR} · layout ${dateDirs.length ? 'night directories' : 'flat mirror'} · ${perNight.size} night(s) offered by the layout · ${scored.length} scored · movement ${population.status}${population.reason ? ' — ' + population.reason : ''}`

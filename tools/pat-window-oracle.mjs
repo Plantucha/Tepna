@@ -1523,7 +1523,8 @@ async function main() {
       continue;
     }
     tally[v.tallyKey] = (tally[v.tallyKey] || 0) + 1;
-    if (!SESSIONS) scoredNights.push(n);
+    /* ROWS, NOT NAMES: `notANight` keys on `row.night` and refuses a bare name (board #4054). */
+    if (!SESSIONS) scoredNights.push({ night: n, ok: true });
     adm[v.admissibility == null ? 'bModeAbsent' : ADM_KEY[v.admissibility]] += 1;
     if (v.admissibility === 'A-in-B-out' || v.admissibility === 'A-out-B-in') admFlipped.push(`${n} ${v.admissibility} ${res.mode.toFixed(0)}→${res.modeB.toFixed(0)}`);
     /* THE CENSUS RUNS ON THE SAME TWO TRAINS THE SPREAD WAS MEASURED OVER, and takes the split
