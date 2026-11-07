@@ -158,6 +158,162 @@ export function band(x, nullSd) {
   return 'NO RECOVERY';
 }
 
+/* ── COHERENCE: WHICH STRETCH DOES THE NIGHT'S ONE SPREAD DESCRIBE? ───────────────────────────────
+   Measured 2026-11-07 on 2026-08-17 (board #4051). That night pairs ONE PPG candidate of 344 with
+   its ECG, over 5.03 h of a 5.04 h record, so the pair is forced and right. Its published narrowSd
+   of 18.0 at n=1700 is a real figure — and so is the 58.5 the same code reads over the whole
+   overlap, because the two are NOT the same quantity. Binned by quarter hour, the R→foot lag holds
+   an IQR of 15 to 26 ms for 75 minutes and then opens to 509 ms, its median wandering 400 to 735 ms.
+   Slicing the trains and re-running `oracleNight` measures both ends: the first 75 minutes score
+   narrowSd 21.7 at n=1915 with fullSd 19.3, the whole overlap 58.5 with fullSd 131.4.
+
+   So the night carries TWO REGIMES and the oracle publishes one spread over it. Owner ruling
+   2026-09-17 (§∅) splits the two cases: a DISCONTINUITY refuses, reduced COVERAGE annotates. This
+   census ANNOTATES. It moves no verdict and no published number — it states what the published
+   number covers, and leaves refuse-versus-score to a later owner decision that can read it.
+
+   §🧾 THE BAR IS PRE-STATED AND COMES FROM THE CONTROL NIGHT, NEVER FROM 08-17. The control
+   2026-08-12 holds quarter-hour bins between 8 and 25 ms, so `COH_IQR_MAX` is that control's worst
+   bin doubled. A bar read off the night it judges would be UNKNOWN, not PASS.
+
+   §∅ A BIN WITH TOO FEW LAGS IS `null`, NEVER INCOHERENT. A sparse bin was not measured, and
+   calling it incoherent manufactures a finding out of absence. Such bins count as
+   `binsUnjudgeable`, and the selftest asserts
+   `binsCoherent + binsIncoherent + binsUnjudgeable === binsTotal`. */
+export const COH_BIN_MS = 900000; // a quarter hour — the resolution the 08-17 census read
+export const COH_IQR_MAX = 50; // ms, the control night's worst bin doubled
+export const COH_BIN_MIN_N = 120; // lags below which a bin is UNJUDGEABLE, never incoherent
+
+/* Linear-interpolated quantile over an ALREADY SORTED array. */
+export function quantileSorted(s, q) {
+  if (!s.length) return Number.NaN;
+  if (s.length === 1) return s[0];
+  const i = (s.length - 1) * q;
+  const lo = Math.floor(i);
+  const hi = Math.ceil(i);
+  return lo === hi ? s[lo] : s[lo] + (s[hi] - s[lo]) * (i - lo);
+}
+
+/* The census. Pure: it reads two trains and the run's own bounds, and writes nothing.
+   `opts.mid` is `oracleNight`'s split, so the census can also report the stretch the night's
+   spread was actually measured over. A bin that STRADDLES the split belongs to the earlier side —
+   its first beat decides — so the scored count never claims a bin it only partly covers. */
+export function coherenceCensus(rTimes, fTimes, opts = {}) {
+  const binMs = opts.binMs ?? COH_BIN_MS;
+  const iqrBar = opts.iqrBar ?? COH_IQR_MAX;
+  const minN = opts.minN ?? COH_BIN_MIN_N;
+  const maxMs = opts.maxMs ?? MODE_SEARCH_MAX;
+  const mid = Number.isFinite(opts.mid) ? opts.mid : null;
+  /* §∅ EVERY ABSENT FIELD IS `null` IN BOTH SHAPES, so a refused census serialises as a row that
+     states its absence rather than a row that lost its fields. */
+  const absent = {
+    ok: false,
+    binMs,
+    iqrBar,
+    minN,
+    bins: [],
+    binsTotal: null,
+    binsCoherent: null,
+    binsIncoherent: null,
+    binsUnjudgeable: null,
+    scoredBins: null,
+    scoredCoherent: null,
+    coveredMin: null,
+    coherentMin: null,
+    longestRunMin: null
+  };
+  if (!rTimes.length || !fTimes.length) return { ...absent, reason: 'empty-train' };
+  /* `rawLags` returns lags WITHOUT their beat times, so this walk keeps its own: the bin a lag
+     belongs to is a property of WHEN its beat happened, and that return value drops it. */
+  const t0 = rTimes[0];
+  const byBin = new Map();
+  let first = null;
+  let last = null;
+  let j = 0;
+  for (const r of rTimes) {
+    while (j < fTimes.length && fTimes[j] < r) j++;
+    if (j >= fTimes.length) break;
+    const lag = fTimes[j] - r;
+    if (!(lag >= 0 && lag <= maxMs)) continue;
+    const k = Math.floor((r - t0) / binMs);
+    let b = byBin.get(k);
+    if (!b) {
+      b = { lags: [], inScored: mid == null ? null : r >= mid, firstMs: r, lastMs: r };
+      byBin.set(k, b);
+    }
+    b.lags.push(lag);
+    b.lastMs = r;
+    if (first == null) first = r;
+    last = r;
+  }
+  if (!byBin.size) return { ...absent, reason: 'no-paired-lags' };
+  const keys = Array.from(byBin.keys()).sort((a, b) => a - b);
+  const bins = [];
+  let binsCoherent = 0;
+  let binsIncoherent = 0;
+  let binsUnjudgeable = 0;
+  let coherentMin = 0;
+  let run = 0;
+  let longest = 0;
+  let prevK = null;
+  for (const k of keys) {
+    /* A GAP IN THE RECORDING BREAKS THE RUN. Two coherent bins either side of a missing quarter
+       hour are not one 45-minute stretch of the quantity — §∅'s discontinuity, at bin resolution. */
+    if (prevK != null && k !== prevK + 1) run = 0;
+    prevK = k;
+    const b = byBin.get(k);
+    const srt = b.lags.slice().sort((x, y) => x - y);
+    const iqr = quantileSorted(srt, 0.75) - quantileSorted(srt, 0.25);
+    const coherent = srt.length >= minN ? iqr <= iqrBar : null;
+    /* 🔴 A BIN'S MINUTES ARE ITS OWN SIGNAL, NEVER ITS NOMINAL WIDTH. Counting a bin as a full
+       quarter hour made the FIRST live run print `longest run 180 min of 166 covered` on the
+       control night — a figure larger than the span it describes, because the last bin is partial
+       and a recording does not end on a bin boundary. Measured 2026-11-07, before this unit's
+       first push. `coherentMin` and `longestRunMin` now sum each bin's first-to-last paired beat,
+       so neither can exceed `coveredMin`, and the selftest holds that bound. */
+    const spanMin = (b.lastMs - b.firstMs) / 60000;
+    if (coherent === true) {
+      binsCoherent += 1;
+      coherentMin += spanMin;
+      run += spanMin;
+      if (run > longest) longest = run;
+    } else {
+      if (coherent === false) binsIncoherent += 1;
+      else binsUnjudgeable += 1;
+      run = 0;
+    }
+    bins.push({ fromMin: (k * binMs) / 60000, spanMin, n: srt.length, median: quantileSorted(srt, 0.5), iqr, coherent, inScored: b.inScored });
+  }
+  const scored = mid == null ? null : bins.filter((b) => b.inScored === true);
+  return {
+    ok: true,
+    reason: null,
+    binMs,
+    iqrBar,
+    minN,
+    bins,
+    binsTotal: bins.length,
+    binsCoherent,
+    binsIncoherent,
+    binsUnjudgeable,
+    scoredBins: scored == null ? null : scored.length,
+    scoredCoherent: scored == null ? null : scored.filter((b) => b.coherent === true).length,
+    coveredMin: (last - first) / 60000,
+    coherentMin,
+    longestRunMin: longest
+  };
+}
+
+/* One human line beside the night's own row. The machine reader takes the same figures off
+   `jsonRow`; this one is for the person reading the table. */
+export function cohLine(coh) {
+  if (!coh) return null;
+  if (!coh.ok) return `coherence: NOT MEASURED — ${coh.reason}`;
+  const q = (coh.binMs / 60000).toFixed(0);
+  const sc = coh.scoredBins == null ? '' : ` · scored stretch ${coh.scoredCoherent} of ${coh.scoredBins}`;
+  return `coherence: ${coh.binsCoherent} of ${coh.binsTotal} ${q}-min bin(s) at or under ${coh.iqrBar} ms IQR · ${coh.binsIncoherent} over it · ${coh.binsUnjudgeable} under ${coh.minN} lags · longest run ${coh.longestRunMin.toFixed(0)} min of ${coh.coveredMin.toFixed(0)} covered${sc}`;
+}
+
 /* One channel-night. Refuses — never throws — so a bad night cannot kill a corpus run.
    ⚠️ A refusal is NAMED: `{ refusal: '<reason>' }`, never a bare null. The bare-null era printed one
    fixed message ("too few beats") for five different causes, and the catch-swallowed variant of the
@@ -656,6 +812,182 @@ function selftest() {
     ok(V.validate(sh).ok && V.validate(arm({})).ok, 'every emitted arm validates under verdict.js');
   }
 
+  /* ── THE JSON ROW IS COMPARABLE ACROSS RUNS ────────────────────────────────────────────────
+     The row is the API (§🧾). These legs hold it to carrying (a) the count behind every spread and
+     (b) the knobs that decide the number, because the defect they close published `narrowSd` alone
+     and a reader compared two axes as one quantity. */
+  {
+    const resJ = { mode: 405, modeB: 325, modeBInPhys: true, modeN: 495, modeInPhys: true, modeNInPhys: true, narrowN: 1462, narrowSd: 15.1, fullN: 2910, fullSd: 39.0, nullN: 1301, nullSd: 61.1 };
+    const vJ = { admissibility: 'both-in', tallyKey: 'SIGNAL RECOVERED', refused: false };
+    const runIdx = { searchMax: 2000, halfWidth: 100, fiducial: 'foot', ecgAxis: 'linear', refine: true };
+    const rowIdx = jsonRow('2026-07-24', false, resJ, vJ, runIdx);
+    const POP_KEYS = ['narrowN', 'narrowSd', 'fullN', 'fullSd', 'nullN', 'nullSd'];
+    const KNOB_KEYS = ['ecgAxis', 'halfWidth', 'fiducial', 'refine', 'searchMax'];
+    /* ANTI-VACUITY: the two lists are the subject of this leg, so an empty one would pass every
+       assertion below while checking nothing. */
+    ok(POP_KEYS.length === 6 && KNOB_KEYS.length === 5, `the key lists must be populated, got ${POP_KEYS.length}/${KNOB_KEYS.length}`);
+    for (const k of POP_KEYS) ok(rowIdx[k] === resJ[k], `the row must carry ${k} from the night's own result, got ${rowIdx[k]}`);
+    for (const k of KNOB_KEYS) ok(rowIdx[k] === runIdx[k], `the row must carry ${k} from the run, got ${rowIdx[k]}`);
+    ok(rowIdx.night === '2026-07-24' && rowIdx.session === undefined, 'a night row keys on night');
+    ok(jsonRow('s1', true, resJ, vJ, runIdx).session === 's1', 'a session row keys on session');
+    /* THE KNOBS COME FROM THE RUN, never from a default this function restates: a second run with
+       every knob changed must change every knob field, and no population field. */
+    const runCnt = { searchMax: 1500, halfWidth: 300, fiducial: 'cfd', ecgAxis: 'counter', refine: false };
+    const rowCnt = jsonRow('2026-07-24', false, resJ, vJ, runCnt);
+    for (const k of KNOB_KEYS) ok(rowCnt[k] === runCnt[k] && rowCnt[k] !== rowIdx[k], `${k} must travel from the run, got ${rowCnt[k]} against ${rowIdx[k]}`);
+    for (const k of POP_KEYS) ok(rowCnt[k] === rowIdx[k], `${k} is the night's, not the run's — it must not move with a knob`);
+    /* §∅ AN ABSENT FIELD IS null, NEVER undefined: `JSON.stringify` DROPS an undefined value, so a
+       row that lost a count would publish as a row that never had one. */
+    const bare = jsonRow('x', false, { mode: 1 }, vJ, null);
+    for (const k of POP_KEYS.concat(KNOB_KEYS)) ok(bare[k] === null, `an absent ${k} must serialise as null, got ${String(bare[k])}`);
+    ok(Object.keys(JSON.parse(JSON.stringify(bare))).length === Object.keys(bare).length, 'no field may vanish through JSON — an undefined would');
+  }
+
+  /* ── THE COHERENCE CENSUS ────────────────────────────────────────────────────────────────────
+     Trains built to make the pairing unambiguous: RR runs 1200 to 1600 ms and every planted lag
+     stays under 1200 ms, so the nearest-forward foot is always the beat's own and no leg below can
+     pass on a mispairing. */
+  {
+    let cs = 11;
+    const crnd = () => {
+      cs = (cs * 1103515245 + 12345) & 0x7fffffff;
+      return (cs / 0x7fffffff - 0.5) * 2;
+    };
+    const trainR = (nBeats) => {
+      const out = [];
+      let tt = 0;
+      for (let i = 0; i < nBeats; i++) {
+        tt += 1400 + crnd() * 200;
+        out.push(tt);
+      }
+      return out;
+    };
+    const TIGHT = (i) => 700 + crnd() * 8;
+    const WIDE = (i) => 700 + 500 * Math.sin(i / 40);
+    const feet = (rs, lagOf, fromIdx = 0) => rs.map((r, i) => r + (i < fromIdx ? TIGHT(i) : lagOf(i))).sort((x, y) => x - y);
+
+    /* A WHOLLY COHERENT NIGHT: every bin under the bar, no incoherent bin, and the longest run is
+       the whole covered stretch. */
+    const Rc = trainR(5000);
+    const cohC = coherenceCensus(Rc, feet(Rc, TIGHT), { mid: null });
+    ok(cohC.ok === true && cohC.reason === null, `a paired train must census, got ${cohC.reason}`);
+    ok(cohC.binsTotal >= 7, `5000 beats at ~1.4 s must fill at least 7 quarter hours, got ${cohC.binsTotal}`);
+    ok(cohC.binsIncoherent === 0, `an 8 ms-jitter train has no incoherent bin, got ${cohC.binsIncoherent}`);
+    ok(cohC.binsCoherent === cohC.binsTotal, `every bin must be coherent, got ${cohC.binsCoherent} of ${cohC.binsTotal}`);
+    ok(cohC.longestRunMin === cohC.coherentMin, `one unbroken run must equal the coherent total, got ${cohC.longestRunMin} against ${cohC.coherentMin}`);
+    ok(Math.abs(cohC.bins[0].median - 700) < 20, `the planted 700 ms lag must be the bin median, got ${cohC.bins[0].median}`);
+    ok(cohC.bins[0].iqr < 20, `an 8 ms jitter must read a tight IQR, got ${cohC.bins[0].iqr}`);
+
+    /* A WHOLLY INCOHERENT NIGHT: the same procedure, a lag that wanders 200 to 1200 ms. */
+    const Ri = trainR(5000);
+    const cohI = coherenceCensus(Ri, feet(Ri, WIDE), {});
+    ok(cohI.ok === true && cohI.binsCoherent === 0, `a wandering lag must leave no coherent bin, got ${cohI.binsCoherent}`);
+    ok(cohI.binsIncoherent === cohI.binsTotal, `every judged bin must be incoherent, got ${cohI.binsIncoherent} of ${cohI.binsTotal}`);
+    ok(cohI.longestRunMin === 0 && cohI.coherentMin === 0, `no coherent stretch means zero minutes, got ${cohI.longestRunMin}/${cohI.coherentMin}`);
+
+    /* THE 08-17 SHAPE: coherent at the start, incoherent after. This is the leg the unit exists for
+       — the night the oracle publishes ONE spread over. */
+    const Rm = trainR(5000);
+    const cohM = coherenceCensus(Rm, feet(Rm, WIDE, 640), {});
+    ok(cohM.binsCoherent > 0 && cohM.binsIncoherent > 0, `a two-regime night must show both, got ${cohM.binsCoherent}/${cohM.binsIncoherent}`);
+    ok(cohM.coherentMin < cohM.coveredMin / 2, `the coherent stretch must be the minority here, got ${cohM.coherentMin} of ${cohM.coveredMin}`);
+    ok(cohM.bins[0].coherent === true && cohM.bins[cohM.binsTotal - 1].coherent === false, 'the census must place the coherent stretch at the start');
+
+    /* THE POPULATION IDENTITY, on all three (§🧾 `checked + excluded = eligible`). */
+    for (const [nm, c] of [
+      ['coherent', cohC],
+      ['incoherent', cohI],
+      ['mixed', cohM]
+    ]) {
+      ok(
+        c.binsCoherent + c.binsIncoherent + c.binsUnjudgeable === c.binsTotal,
+        `${nm}: the three bin counts must sum to the total, got ${c.binsCoherent}+${c.binsIncoherent}+${c.binsUnjudgeable} against ${c.binsTotal}`
+      );
+      ok(c.bins.length === c.binsTotal, `${nm}: binsTotal must be the rows it reports, got ${c.binsTotal} against ${c.bins.length}`);
+      /* 🔴 NO MINUTE FIGURE MAY EXCEED THE SPAN IT DESCRIBES. The first live run of this census
+         printed `longest run 180 min of 166 covered` on the control night, because a partial last
+         bin counted as a full quarter hour. These two bounds are that defect's guard. */
+      ok(c.coherentMin <= c.coveredMin, `${nm}: coherent minutes cannot exceed the covered span, got ${c.coherentMin} of ${c.coveredMin}`);
+      ok(c.longestRunMin <= c.coveredMin, `${nm}: the longest run cannot exceed the covered span, got ${c.longestRunMin} of ${c.coveredMin}`);
+      ok(
+        c.bins.every((b) => b.spanMin <= c.binMs / 60000),
+        `${nm}: no bin may span more than its own width`
+      );
+    }
+
+    /* §∅ A SPARSE BIN IS `null`, NEVER INCOHERENT. The tail bin below holds 40 lags of the SAME
+       tight jitter, so a detector that judged it would call it coherent and a detector that
+       guessed would call it incoherent; the right answer is that it was not measured. */
+    const Rs = trainR(683);
+    const cohS = coherenceCensus(Rs, feet(Rs, TIGHT), {});
+    const tail = cohS.bins[cohS.binsTotal - 1];
+    ok(tail.n < cohS.minN, `the leg needs a sparse tail bin, got ${tail.n} lags against the ${cohS.minN} floor`);
+    ok(tail.coherent === null, `a sparse bin must read null, got ${String(tail.coherent)}`);
+    ok(cohS.binsUnjudgeable === 1 && cohS.binsIncoherent === 0, `the sparse bin counts as unjudgeable, never incoherent, got ${cohS.binsUnjudgeable}/${cohS.binsIncoherent}`);
+
+    /* A GAP BREAKS THE RUN. Two coherent bins, a missing quarter hour, then three more: the longest
+       run is three bins, not five — §∅'s discontinuity at bin resolution. */
+    const Rg = trainR(5000).filter((t) => t < 2 * COH_BIN_MS || t >= 3 * COH_BIN_MS);
+    const cohG = coherenceCensus(Rg, feet(Rg, TIGHT), {});
+    ok(cohG.binsCoherent >= 4, `the gap leg needs coherent bins either side, got ${cohG.binsCoherent}`);
+    ok(cohG.longestRunMin < cohG.coherentMin, `a gap must leave the longest run short of the total, got ${cohG.longestRunMin} against ${cohG.coherentMin}`);
+
+    /* THE BAR IS A KNOB THAT TRAVELS WITH THE ANSWER, not a constant this function restates: the
+       coherent train read against a 2 ms bar must flip, and the census must say which bar it used. */
+    const cohTight = coherenceCensus(Rc, feet(Rc, TIGHT), { iqrBar: 2 });
+    ok(cohTight.iqrBar === 2 && cohTight.binsCoherent === 0, `a 2 ms bar must flip the coherent train, got ${cohTight.binsCoherent} coherent at bar ${cohTight.iqrBar}`);
+    ok(cohC.iqrBar === COH_IQR_MAX && cohC.binMs === COH_BIN_MS && cohC.minN === COH_BIN_MIN_N, 'the default census must report the pre-stated bar, bin and floor');
+
+    /* THE SCORED STRETCH. With no split the census cannot say which bins the spread covered, and
+       §∅ makes that `null` rather than all of them or none. */
+    ok(cohC.scoredBins === null && cohC.bins.every((b) => b.inScored === null), 'with no split every scored field must be null');
+    const mid = Rc[Math.floor(Rc.length / 2)];
+    const cohSplit = coherenceCensus(Rc, feet(Rc, TIGHT), { mid });
+    ok(cohSplit.scoredBins > 0 && cohSplit.scoredBins < cohSplit.binsTotal, `a mid-train split must claim some bins and not all, got ${cohSplit.scoredBins} of ${cohSplit.binsTotal}`);
+    ok(cohSplit.scoredCoherent === cohSplit.scoredBins, `on the coherent train every scored bin is coherent, got ${cohSplit.scoredCoherent} of ${cohSplit.scoredBins}`);
+    ok(cohSplit.bins.filter((b) => b.inScored === true).length === cohSplit.scoredBins, 'the scored count must be the rows that say so');
+
+    /* AN EMPTY TRAIN REFUSES AND NAMES THE REASON — it does not report zero coherent bins, which a
+       reader would hold against a bar. */
+    const cohE = coherenceCensus([], feet(Rc, TIGHT), {});
+    ok(cohE.ok === false && cohE.reason === 'empty-train', `an empty train must refuse by name, got ${cohE.reason}`);
+    ok(cohE.binsTotal === null && cohE.binsCoherent === null && cohE.coveredMin === null, 'a refused census nulls every count');
+    ok(coherenceCensus([1, 2, 3], [0], {}).reason === 'no-paired-lags', 'two trains that pair nothing must refuse by their own name');
+    ok(String(cohLine(cohE)).includes('empty-train'), 'the human line must carry the refusal reason');
+    ok(String(cohLine(cohC)).includes(`${cohC.binsCoherent} of ${cohC.binsTotal}`), 'the human line must carry the coherent count beside its population');
+
+    /* THE ROW CARRIES THE CENSUS. Same discipline as the population and knob fields above: the
+       values travel from the census, an absent census serialises as nulls, and the key list is
+       asserted populated so an empty one cannot pass this leg. */
+    const resC = { mode: 300, narrowN: 10, narrowSd: 5, fullN: 20, fullSd: 6, nullN: 10, nullSd: 50 };
+    const vC = { tallyKey: 'SIGNAL RECOVERED', refused: false, admissibility: 'A-in-B-in' };
+    const COH_ROW = {
+      cohBinMs: 'binMs',
+      cohIqrBar: 'iqrBar',
+      cohMinN: 'minN',
+      cohBins: 'binsTotal',
+      cohCoherent: 'binsCoherent',
+      cohIncoherent: 'binsIncoherent',
+      cohUnjudgeable: 'binsUnjudgeable',
+      cohScoredBins: 'scoredBins',
+      cohScoredCoherent: 'scoredCoherent',
+      cohCoveredMin: 'coveredMin',
+      cohCoherentMin: 'coherentMin',
+      cohLongestRunMin: 'longestRunMin',
+      cohReason: 'reason'
+    };
+    const COH_ROW_KEYS = Object.keys(COH_ROW);
+    ok(COH_ROW_KEYS.length === 13, `the census key list must be populated, got ${COH_ROW_KEYS.length}`);
+    const rowM = jsonRow('2026-08-17', false, resC, vC, null, cohSplit);
+    for (const k of COH_ROW_KEYS) ok(rowM[k] === cohSplit[COH_ROW[k]], `the row must carry ${k} from the census, got ${String(rowM[k])} against ${String(cohSplit[COH_ROW[k]])}`);
+    const rowNo = jsonRow('2026-08-17', false, resC, vC, null);
+    for (const k of COH_ROW_KEYS) ok(rowNo[k] === null, `an absent census must serialise ${k} as null, got ${String(rowNo[k])}`);
+    ok(Object.keys(JSON.parse(JSON.stringify(rowNo))).length === Object.keys(rowNo).length, 'no census field may vanish through JSON — an undefined would');
+    /* THE CENSUS IS ADDITIVE: it must not move a figure the row already published. */
+    for (const k of ['narrowN', 'narrowSd', 'fullN', 'fullSd', 'nullN', 'nullSd', 'mode', 'verdict'])
+      ok(rowM[k] === rowNo[k], `${k} must not move with the census, got ${String(rowM[k])} against ${String(rowNo[k])}`);
+  }
+
   /* THE COUNT IS INCREMENTED BY THE ASSERTION HELPER, never typed. It used to be `const TOTAL = 45`
      interpolated into the print, which reads as a computed figure and is not one: adding the seven
      admissibility assertions below left it printing 45/45, and `selftest-all.mjs`'s static half
@@ -981,6 +1313,71 @@ export function pickPair(dir, files) {
   return { eF, pF };
 }
 
+/* ── THE MACHINE-READABLE ROW CARRIES ITS POPULATION AND ITS KNOBS ─────────────────────────────
+   §🧾 the object is the API and the prose explains it, but this row published `narrowSd` with no
+   count beside it, no untruncated `fullSd`, and no word of which ECG axis, half-width or fiducial
+   produced it. `narrowSd` is a spread over the lags inside ±halfWidth of the mode, so the
+   POPULATION is one of the things a knob changes, and two rows from two runs can state two
+   numbers measured over two different beat sets while reading as one quantity.
+
+   Measured 2026-11-07 over the six frozen box nights (board #4036): 2026-07-24 reads narrowSd 15.1
+   over 1462 lags on the index axis and 20.7 over 1653 on the counter axis — and at a half-width
+   where both axes admit the IDENTICAL 2910 lags the counter axis is the better of the two, 39.9
+   against 35.3. The night's `fullSd`, which truncates nothing, improves 39.0 → 35.3. A pre-stated
+   bar read that first pair as a regression, because the row it compared carried neither the count
+   nor the full spread nor the axis. The human table printed narrowN and fullSd all along.
+
+   ADDITIVE: every field the row already carried keeps its name and its value, and `run` supplies
+   the knobs rather than this function restating a default. */
+export function jsonRow(label, isSession, res, v, run, coh) {
+  const r = run || {};
+  const c = coh || {};
+  return {
+    [isSession ? 'session' : 'night']: label,
+    searchMax: r.searchMax ?? null,
+    /* THE KNOBS THAT DECIDE THE NUMBER, so a reader never compares two axes as one. */
+    ecgAxis: r.ecgAxis ?? null,
+    halfWidth: r.halfWidth ?? null,
+    fiducial: r.fiducial ?? null,
+    refine: r.refine ?? null,
+    mode: res.mode ?? null,
+    modeB: res.modeB ?? null,
+    modeBInPhys: res.modeBInPhys ?? null,
+    admissibility: v.admissibility,
+    modeN: res.modeN ?? null,
+    modeInPhys: res.modeInPhys ?? null,
+    modeNInPhys: res.modeNInPhys ?? null,
+    /* THE POPULATION BESIDE EVERY SPREAD. `narrowN` is what `narrowSd` describes, `fullN` what
+       `fullSd` describes, `nullN` what `nullSd` describes — §∅, a spread with no count states
+       nothing a later reader can hold a bar against. */
+    narrowN: res.narrowN ?? null,
+    narrowSd: res.narrowSd ?? null,
+    fullN: res.fullN ?? null,
+    fullSd: res.fullSd ?? null,
+    nullN: res.nullN ?? null,
+    nullSd: res.nullSd ?? null,
+    /* WHAT STRETCH THE SPREADS ABOVE DESCRIBE. A night that holds the quantity for 75 minutes of
+       five hours gives a real narrowSd over a population that is not one regime, and nothing in
+       this row said so before these fields (board #4051). The three bin counts sum to `cohBins` by
+       construction, so a reader can check the census against itself. */
+    cohBinMs: c.binMs ?? null,
+    cohIqrBar: c.iqrBar ?? null,
+    cohMinN: c.minN ?? null,
+    cohBins: c.binsTotal ?? null,
+    cohCoherent: c.binsCoherent ?? null,
+    cohIncoherent: c.binsIncoherent ?? null,
+    cohUnjudgeable: c.binsUnjudgeable ?? null,
+    cohScoredBins: c.scoredBins ?? null,
+    cohScoredCoherent: c.scoredCoherent ?? null,
+    cohCoveredMin: c.coveredMin ?? null,
+    cohCoherentMin: c.coherentMin ?? null,
+    cohLongestRunMin: c.longestRunMin ?? null,
+    cohReason: c.reason ?? null,
+    verdict: v.tallyKey,
+    refused: v.refused
+  };
+}
+
 async function main() {
   const argv = process.argv.slice(2);
   if (argv.includes('--selftest')) process.exit(selftest() ? 0 : 1);
@@ -1016,6 +1413,8 @@ async function main() {
     return;
   }
   const JSON_OUT = argv.includes('--json');
+  /* ONE record of the knobs, so every row states the run that produced it. */
+  const RUN = { searchMax: SMAX, halfWidth: HW, fiducial: FID, ecgAxis: AXIS, refine: REFINE };
   const jsonRows = [];
   if (!DIR || !existsSync(DIR) || !['foot', 'cfd', 'half'].includes(FID) || !['linear', 'counter', 'piecewise'].includes(AXIS)) {
     console.error('usage: node tools/pat-window-oracle.mjs --selftest | --dir <captures root> [--half-width 100] [--fiducial foot|cfd|half] [--ecg-axis linear|counter|piecewise] [--no-ecg-refine]');
@@ -1127,28 +1526,18 @@ async function main() {
     if (!SESSIONS) scoredNights.push(n);
     adm[v.admissibility == null ? 'bModeAbsent' : ADM_KEY[v.admissibility]] += 1;
     if (v.admissibility === 'A-in-B-out' || v.admissibility === 'A-out-B-in') admFlipped.push(`${n} ${v.admissibility} ${res.mode.toFixed(0)}→${res.modeB.toFixed(0)}`);
-    if (JSON_OUT)
-      jsonRows.push({
-        [SESSIONS ? 'session' : 'night']: n,
-        searchMax: SMAX,
-        mode: res.mode ?? null,
-        modeB: res.modeB ?? null,
-        modeBInPhys: res.modeBInPhys ?? null,
-        admissibility: v.admissibility,
-        modeN: res.modeN ?? null,
-        modeInPhys: res.modeInPhys ?? null,
-        modeNInPhys: res.modeNInPhys ?? null,
-        narrowSd: res.narrowSd ?? null,
-        nullSd: res.nullSd ?? null,
-        verdict: v.tallyKey,
-        refused: v.refused
-      });
+    /* THE CENSUS RUNS ON THE SAME TWO TRAINS THE SPREAD WAS MEASURED OVER, and takes the split
+       back off the result so the two agree by construction rather than by a recomputation that the
+       next fix here would desynchronise (the lesson `oracleNight` records above its own split). */
+    const coh = coherenceCensus(Array.from(E.times), fTimes, { mid: res.mid });
+    if (JSON_OUT) jsonRows.push(jsonRow(n, SESSIONS, res, v, RUN, coh));
     /* maxStepMs beside every piecewise row (frozen condition c): a mid-file step smears across one
        anchor gap under piecewise and can itself move a half-mode — discovered here, not post-hoc. */
     const axisNote = AXIS === 'piecewise' ? `  [maxStep ${E.maxStepMs == null ? 'n/a' : E.maxStepMs.toFixed(0) + ' ms'}]` : '';
     console.log(
       `${n}  ${res.mode.toFixed(0).padStart(5)}  ${String(res.narrowN).padStart(5)}  ${res.narrowSd.toFixed(1).padStart(8)}  ${res.fullSd.toFixed(1).padStart(8)}  ${res.nullSd.toFixed(1).padStart(8)}   ${v.label}${axisNote}`
     );
+    console.log('    ' + cohLine(coh));
   }
   /* THE POPULATION THIS RUN COVERED, printed beside the tally it qualifies. `status` labels MOVEMENT
      of the night population under the run, never coverage; the rule line names what the rule refused.

@@ -70401,7 +70401,7 @@
       T.ok('…because minute ticks are whole minutes', U.scopeAxisTick(600) % 60 === 0 && U.scopeAxisTick(3600) % 60 === 0, 'ticks: ' + U.scopeAxisTick(600) + ', ' + U.scopeAxisTick(3600));
     });
 
-    group('Render execution — surfaced-value known-answer (§RN harness)', 'glucodex-render · oxydex-render · cpapdex-render · render-harness', function (T) {
+    group('Render execution — surfaced-value known-answer (§RN harness)', 'glucodex-render · oxydex-render · cpapdex-render · hrvdex-render · render-harness', function (T) {
       if (!env.GluDisp || !env.OxyDex || typeof env.OxyDex.reviewView !== 'function' || !env.CpapRender || typeof env.CpapRender.renderReviewView !== 'function') {
         T.skip(
           'render harness globals wired (env.GluDisp / OxyDex.reviewView / CpapRender.renderReviewView)',
@@ -70583,10 +70583,197 @@
           }
           /* The call site is the other half: a perfect note nobody renders is the very defect this
              unit fixes, one layer up. */
+          var _pdCall = /const notes = \[note, alt, pbNote, seamContextNote\(r\)\]/.test(_prSrc);
           T.ok(
             'D17 §PD · the context banner renders the note beside its own caveats',
-            /const notes = \[note, alt, pbNote, seamContextNote\(r\)\]/.test(_prSrc),
-            'call site not found in renderContext'
+            _pdCall,
+            _pdCall ? 'call site present in renderContext' : 'no call site in renderContext — the note reaches no reader'
+          );
+        }
+
+        /* ── D17 §OX · the OxyDex night card states its seam channel, and what it cost ───────────
+           `oxydex-dsp.js` DROPS a five-minute epoch that straddles a recorded seam and lists it on
+           `night.clockSeamRefusals`. The motion chart draws one bar per surviving epoch, so a
+           refused epoch and an unmeasured one drew the same nothing. #4485 put the channel in the
+           export; no OxyDex surface read it. These legs lift `_o2SeamNote` out of the SHIPPED
+           SOURCE and execute it, because a regex on its spelling passes over a planted `return ''`. */
+        var _oxSrc = (env.sources || {})['oxydex-render.js'];
+        if (_oxSrc == null) {
+          T.ok('D17 §OX · oxydex-render.js source is readable', false, 'not in env.sources — this gate cannot run');
+        } else {
+          var _oxLift = function (src, name) {
+            var k = src.indexOf('function ' + name + '(');
+            if (k < 0) return null;
+            var b = src.indexOf('{', k),
+              d = 0;
+            for (var j = b; j < src.length; j++) {
+              if (src[j] === '{') d++;
+              else if (src[j] === '}' && --d === 0) return src.slice(k, j + 1);
+            }
+            return null;
+          };
+          var _oxNoteSrc = _oxLift(_oxSrc, '_o2SeamNote');
+          T.ok('D17 §OX · `_o2SeamNote` is present in the shipped render source', _oxNoteSrc != null, _oxNoteSrc == null ? 'not found' : _oxNoteSrc.length + ' chars');
+          var _oxNote = null;
+          if (_oxNoteSrc) {
+            try {
+              _oxNote = new Function('escHTML', 'return (' + _oxNoteSrc + ');')(function (x) {
+                return String(x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+              });
+            } catch (_e) {
+              _oxNote = null;
+            }
+          }
+          T.ok('D17 §OX · …and it lifts and builds as a callable function', typeof _oxNote === 'function', typeof _oxNote);
+          if (typeof _oxNote === 'function') {
+            var _oxRef = _oxNote({
+              clockSeamRefusals: [{ series: 'tchEpochs', tMin: 120, reason: 'clock-seam', seams: 1 }],
+              clockSeamScan: { scanned: true, reason: null, seams: 1 }
+            });
+            T.ok("D17 §OX · a refused epoch names the node's OWN reason token to the reader", _oxRef.indexOf('clock-seam') >= 0, JSON.stringify(_oxRef).slice(0, 200));
+            T.ok('D17 §OX · …and says refused, with the minute the reader can find on the chart', /refused/i.test(_oxRef) && _oxRef.indexOf('120') >= 0, JSON.stringify(_oxRef).slice(0, 200));
+            T.ok(
+              'D17 §OX · one refusal reads singular, two read plural',
+              /1 five-minute epoch refused/.test(_oxRef) &&
+                /2 five-minute epochs refused/.test(
+                  _oxNote({
+                    clockSeamRefusals: [
+                      { series: 'tchEpochs', tMin: 120, reason: 'clock-seam' },
+                      { series: 'tchEpochs', tMin: 300, reason: 'clock-seam' }
+                    ]
+                  })
+                ),
+              JSON.stringify(_oxRef).slice(0, 200)
+            );
+            /* FOUR STATES. A scan the node could not run is UNKNOWN; a seam that cost no epoch is
+               ANNOTATED because the whole-night means still cross it; a measured zero is silent. */
+            var _oxUnk = _oxNote({ clockSeamScan: { scanned: false, reason: 'seam-module-absent', seams: null } });
+            T.ok(
+              'D17 §OX · a scan the node could not run reads UNKNOWN and names its token',
+              _oxUnk.indexOf('UNKNOWN') >= 0 && _oxUnk.indexOf('seam-module-absent') >= 0,
+              JSON.stringify(_oxUnk).slice(0, 200)
+            );
+            var _oxAnn = _oxNote({ clockSeamScan: { scanned: true, reason: null, seams: 2 } });
+            T.ok('D17 §OX · a seam that refused no epoch is still stated to the reader', _oxAnn.indexOf('2 recorded clock seams') >= 0, JSON.stringify(_oxAnn).slice(0, 200));
+            T.ok('D17 §OX · …and that line says the whole-night figures cross it', /means across the seam/.test(_oxAnn), JSON.stringify(_oxAnn).slice(0, 200));
+            T.eq('D17 §OX · a MEASURED zero draws no line at all', _oxNote({ clockSeamScan: { scanned: true, reason: null, seams: 0 } }), '');
+            T.eq('D17 §OX · a night with no seam scan at all draws none', _oxNote({}), '');
+            T.eq('D17 §OX · an absent night draws none', _oxNote(null), '');
+            /* PRECEDENCE: a night carrying refusals AND an annotatable seam count reports the
+               REFUSAL, the stronger statement and the one that explains the absent bars. */
+            T.ok('D17 §OX · a night carrying both states reports the REFUSAL', _oxRef.indexOf('refused') >= 0 && _oxRef.indexOf('means across the seam') < 0, JSON.stringify(_oxRef).slice(0, 200));
+            T.ok(
+              'D17 §OX · a reason token reaches the markup escaped, never as live tags',
+              _oxNote({ clockSeamScan: { scanned: false, reason: '<b>x</b>', seams: null } }).indexOf('<b>x</b>') < 0,
+              JSON.stringify(_oxNote({ clockSeamScan: { scanned: false, reason: '<b>x</b>', seams: null } })).slice(0, 200)
+            );
+          }
+          /* The call site is the other half: a perfect note nobody renders is the very defect this
+             unit fixes, one layer up. */
+          var _oxCall = /html \+= _o2SeamNote\(n\);/.test(_oxSrc);
+          T.ok(
+            'D17 §OX · the night card renders the note above every figure in it',
+            _oxCall,
+            _oxCall ? 'call site present in nightDetail' : 'no call site in nightDetail — the note reaches no reader'
+          );
+        }
+
+        /* ── D17 §HRV · HRVDex states its refusals and its unexamined channels ────────────────
+           `hrvdex-dsp.js:586-627` nulls EVERY value field on a measurement whose upstream block
+           recorded a clock seam, and writes `_valueReason` beside the nulls. It also records why a
+           row carries no upstream block at all. This render file read neither key, so a refused
+           row drew the same em-dash and the same chart hole as a Welltory column that never
+           existed. The legs lift the three functions out of the SHIPPED SOURCE and execute them
+           together, because a regex on the spelling passes over a planted `return []`. */
+        var _hvSrc = (env.sources || {})['hrvdex-render.js'];
+        if (_hvSrc == null) {
+          T.ok('D17 §HRV · hrvdex-render.js source is readable', false, 'not in env.sources — this gate cannot run');
+        } else {
+          var _hvLift = function (src, name) {
+            var k = src.indexOf('function ' + name + '(');
+            if (k < 0) return null;
+            var b = src.indexOf('{', k),
+              d = 0;
+            for (var j = b; j < src.length; j++) {
+              if (src[j] === '{') d++;
+              else if (src[j] === '}' && --d === 0) return src.slice(k, j + 1);
+            }
+            return null;
+          };
+          var _hvParts = ['_hrvEsc', '_hrvTallyLine', '_hrvProvenanceAlerts'].map(function (nm) {
+            return _hvLift(_hvSrc, nm);
+          });
+          var _hvAbsent = ['_hrvEsc', '_hrvTallyLine', '_hrvProvenanceAlerts'].filter(function (nm, i) {
+            return _hvParts[i] == null;
+          });
+          T.ok(
+            'D17 §HRV · the three provenance functions are present in the shipped render source',
+            _hvAbsent.length === 0,
+            _hvAbsent.length ? 'not found: ' + _hvAbsent.join(', ') : 'all three lifted'
+          );
+          var _hvProv = null;
+          if (!_hvAbsent.length) {
+            try {
+              _hvProv = new Function(_hvParts.join('\n') + '\nreturn _hrvProvenanceAlerts;')();
+            } catch (_e) {
+              _hvProv = null;
+            }
+          }
+          T.ok('D17 §HRV · …and they lift and build as a callable function', typeof _hvProv === 'function', typeof _hvProv);
+          if (typeof _hvProv === 'function') {
+            var _hvClean = { _upValidity: { seams: 0, seamsReason: null }, _valueReason: null };
+            var _hvRefRows = [{ _upValidity: { seams: 2 }, _valueReason: 'clock-seam' }, { _upValidity: { seams: 1 }, _valueReason: 'clock-seam' }, _hvClean];
+            var _hvRef = _hvProv(_hvRefRows);
+            var _hvRefMsg = _hvRef.length ? _hvRef[0].msg : '';
+            T.eq('D17 §HRV · two refused rows beside a clean one raise exactly one line', _hvRef.length, 1);
+            T.ok("D17 §HRV · …which names the node's OWN reason token", _hvRefMsg.indexOf('clock-seam') >= 0, _hvRefMsg.slice(0, 200));
+            /* THE POPULATION TRAVELS WITH THE COUNT (§🧾). "2 refused" alone cannot say whether the
+               reader is looking at a broken night or at two rows out of three hundred. */
+            T.ok('D17 §HRV · …and states its population, not a bare count', _hvRefMsg.indexOf('2 of 3 measurements refused') >= 0, _hvRefMsg.slice(0, 200));
+            T.eq('D17 §HRV · a refusal reads red, the strongest the panel draws', _hvRef.length ? _hvRef[0].type : 'NONE', 'red');
+            /* FOUR STATES, never two. An upstream block that reports no seam COUNT examined
+               nothing — the numbers stand and the reader still learns the channel is UNKNOWN. */
+            var _hvUnk = _hvProv([{ _upValidity: { seams: null, seamsReason: 'no-seam-sidecar' } }, _hvClean]);
+            var _hvUnkMsg = _hvUnk.length ? _hvUnk[0].msg : '';
+            T.ok('D17 §HRV · an upstream block with no seam count reads UNKNOWN', _hvUnkMsg.indexOf('UNKNOWN seam channel') >= 0, _hvUnkMsg.slice(0, 200));
+            T.ok("D17 §HRV · …under the UPSTREAM's own token, never a word this node invented", _hvUnkMsg.indexOf('no-seam-sidecar') >= 0, _hvUnkMsg.slice(0, 200));
+            T.ok('D17 §HRV · …and says those numbers still stand', /numbers stand/.test(_hvUnkMsg), _hvUnkMsg.slice(0, 200));
+            var _hvNoB = _hvProv([{ _upValidity: null, _upReason: 'upstream-emitted-no-validity' }, _hvClean]);
+            var _hvNoBMsg = _hvNoB.length ? _hvNoB[0].msg : '';
+            T.ok('D17 §HRV · a row with no upstream block at all gets its own line', _hvNoBMsg.indexOf('no upstream validity block') >= 0, _hvNoBMsg.slice(0, 200));
+            T.ok('D17 §HRV · …naming why the block never arrived', _hvNoBMsg.indexOf('upstream-emitted-no-validity') >= 0, _hvNoBMsg.slice(0, 200));
+            var _hvFallback = _hvProv([{ _upValidity: null, _upReason: null }]);
+            T.ok(
+              'D17 §HRV · an unstated upstream reason falls back to the node vocabulary',
+              (_hvFallback.length ? _hvFallback[0].msg : '').indexOf('upstream-unknown') >= 0,
+              JSON.stringify(_hvFallback).slice(0, 200)
+            );
+            /* A MEASURED ZERO STAYS SILENT (owner ruling 2026-09-17 read through §∅): a banner on
+               every clean dataset is noise, and noise is how a real line goes unread. */
+            T.eq('D17 §HRV · a measured zero across every row draws no line', _hvProv([_hvClean, _hvClean]).length, 0);
+            T.eq('D17 §HRV · an empty set draws none', _hvProv([]).length, 0);
+            T.eq('D17 §HRV · an absent set draws none', _hvProv(null).length, 0);
+            /* ORDER: the refusal qualifies every clinical line under it, so it leads. */
+            var _hvAll = _hvProv([{ _valueReason: 'clock-seam' }, { _upValidity: { seams: null, seamsReason: 'no-seam-scan' } }, { _upValidity: null, _upReason: 'upstream-emitted-no-validity' }]);
+            T.eq('D17 §HRV · all three states together raise three lines', _hvAll.length, 3);
+            T.ok(
+              'D17 §HRV · …with the refusal leading',
+              _hvAll.length === 3 && _hvAll[0].msg.indexOf('refused') >= 0,
+              _hvAll
+                .map(function (a) {
+                  return a.type;
+                })
+                .join(',')
+            );
+            var _hvEsc = _hvProv([{ _upValidity: { seams: null, seamsReason: '<b>x</b>' } }]);
+            T.ok('D17 §HRV · an upstream token reaches the markup escaped, never as live tags', (_hvEsc.length ? _hvEsc[0].msg : '').indexOf('<b>x</b>') < 0, JSON.stringify(_hvEsc).slice(0, 200));
+          }
+          /* The call site is the other half: a perfect tally nobody renders is this very defect. */
+          var _hvCall = /_prov\.length\) alerts\.unshift\.apply\(alerts, _prov\)/.test(_hvSrc) && /_hrvProvenanceAlerts\(typeof allRows/.test(_hvSrc);
+          T.ok(
+            'D17 §HRV · the alert panel renders the lines, over the LOADED set',
+            _hvCall,
+            _hvCall ? 'call site present in renderAlerts, keyed on allRows' : 'no call site — the tally reaches no reader'
           );
         }
 

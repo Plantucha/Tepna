@@ -2995,6 +2995,70 @@ function nightTraces(n) {
   return html;
 }
 
+/* ── WHAT THE SEAM CHANNEL SAYS, AND WHAT IT COST (D17, owner 2026-11-06) ────────────────────────
+   `oxydex-dsp.js` honours the 2026-09-17 ruling: a five-minute epoch straddling a recorded clock
+   seam publishes no value. The node DROPS that epoch from `tchEpochs` and lists it on
+   `night.clockSeamRefusals` with its own token. The motion chart draws one bar per surviving epoch,
+   and its own comment reads "An epoch with no motion reading draws no bar" — so a refused epoch and
+   an unmeasured one draw the same nothing. #4485 put the channel in the export; no surface read it.
+
+   FOUR STATES, NEVER TWO, each in the node's own vocabulary.
+   - A refusal names the count, the series and the node's `reason`, never one this layer picked.
+   - A seam that cost no epoch is ANNOTATED, because the whole-night means still cross it.
+   - A scan the node could not run states UNKNOWN, under the owner's 2026-11-05 ruling that an
+     unexamined channel is not a seam-free one. EVERY refused scan prints here, unlike PulseDex's
+     `no-seam-sidecar` (#4494): OxyDex scans the recording's OWN stamps, so a refused scan is an
+     anomaly on a raw night rather than the ordinary shape of the input.
+   - A MEASURED zero stays silent. A banner on every clean night teaches the reader to skip the line.
+   Decision mine under CLAUDE.md §7, posted to the board. */
+function _o2SeamNote(n) {
+  if (!n || typeof n !== 'object') return '';
+  var ref = Array.isArray(n.clockSeamRefusals) ? n.clockSeamRefusals : [];
+  if (ref.length) {
+    var tok = ref[0] && ref[0].reason ? String(ref[0].reason) : 'clock-seam';
+    var mins = ref
+      .map(function (r) {
+        return r && r.tMin != null ? String(r.tMin) : '?';
+      })
+      .join(', ');
+    return (
+      '<div class="sec-section"><div class="metric cite-note">⏱ <b>' +
+      ref.length +
+      ' five-minute epoch' +
+      (ref.length === 1 ? '' : 's') +
+      ' refused</b> — <code>' +
+      escHTML(tok) +
+      '</code>, at minute ' +
+      escHTML(mins) +
+      '. A recorded clock seam splits the epoch, so it no longer spans one continuous five minutes, and the motion chart draws no bar for it. That blank is a refusal, not a quiet body.' +
+      (n.clockSeamScan && typeof n.clockSeamScan.seams === 'number' ? ' The scan read ' + n.clockSeamScan.seams + ' seam' + (n.clockSeamScan.seams === 1 ? '' : 's') + ' in this recording.' : '') +
+      '</div></div>'
+    );
+  }
+  var sc = n.clockSeamScan;
+  if (sc && sc.scanned === false) {
+    return (
+      '<div class="sec-section"><div class="metric cite-note">⏱ The recorded-seam channel reads <b>UNKNOWN</b> — <code>' +
+      escHTML(String(sc.reason || 'no-seam-scan')) +
+      '</code>. This reading could not examine its own stamps for a clock seam, and an unexamined channel is not a clean one.</div></div>'
+    );
+  }
+  /* A SEAM THAT COST NO EPOCH STILL CROSSES EVERY WHOLE-NIGHT FIGURE. The epoch road refuses what
+     straddles a seam; mean SpO2, ODI and T90 are means over the whole recording and keep their
+     value. That is the annotation side of the 2026-09-17 ruling, so the reader is told rather than
+     left to read a seam-free night. */
+  if (sc && sc.scanned === true && typeof sc.seams === 'number' && sc.seams > 0) {
+    return (
+      '<div class="sec-section"><div class="metric cite-note">⏱ This recording carries <b>' +
+      sc.seams +
+      ' recorded clock seam' +
+      (sc.seams === 1 ? '' : 's') +
+      '</b>. No five-minute epoch straddles one, so none refused. The whole-night figures below are means across the seam.</div></div>'
+    );
+  }
+  return '';
+}
+
 function nightDetail(n, idx) {
   var s = n.stats || {},
     html = '';
@@ -3007,6 +3071,9 @@ function nightDetail(n, idx) {
   if (_dur) html += '<div class="ndh-dur">' + _dur + '</div>';
   html += '<div class="ndh-file">📄 ' + sanitizeFname(n.fname) + '</div>';
   html += '</div>';
+
+  // D17 — the recorded-seam channel, and the epochs it cost, stated above every figure below it.
+  html += _o2SeamNote(n);
 
   // ACQ-EVIDENCE-CONTRACT Phase C — read-only acquisition panel when a `.meta.json` envelope was paired.
   try {
