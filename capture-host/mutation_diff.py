@@ -93,6 +93,7 @@ __all__ = [
     "GENERATION_CAP_FRACTION",
     "UNKNOWN_SIZE_WORKERS",
     "mutants_size_record",
+    "remembered_mutants_size",
     "size_record_refusal",
     "merge_mutants_size",
     "generation_cap_sec",
@@ -1878,6 +1879,33 @@ def mutants_size_record(text, generator):
         if isinstance(size, int) and not isinstance(size, bool) and size > 0:
             out[(module, src_hash)] = size
     return out
+
+
+def remembered_mutants_size(text, generator, module, src_hash, record_name):
+    """The size this module generated last time, from the COMMITTED record ALONE, as `(bytes, basis)`.
+
+    ONE memory, not two. A host-local note beside the scratch stood first in this order and answered in
+    no run: the note dies with the scratch that holds it, and a scratch that survives still carries the
+    generated `mutants/<module>` the caller stats directly, so the note's own basis string reached no
+    reader (row `2026-11-06-the-scratch-size-note-is-written-where-no-run-can-read-it`). The committed
+    record is the memory a run has, and the only one CI ever has, because every CI run is a fresh
+    scratch.
+
+    §∅ THROUGHOUT: an absent size is 0 with a basis that NAMES why, never the nearest entry and never a
+    projection from the source — measured 21.0x to 657.0x across 11 scratches, so no single ratio holds.
+    A miss on this source hash is absence, an entry measured by another generator is absence too, and
+    the basis says which happened rather than letting both read as a first run on this hash."""
+    known = mutants_size_record(text, generator).get((module, src_hash))
+    if known:
+        return known, f"committed record ({record_name}, mutmut {generator})"
+    if generator is None:
+        return 0, "unknown (no mutmut installed, so no record can describe this tree)"
+    stale = generator_mismatches(text, "sizes", generator)
+    key = f"{module}@{src_hash}"
+    if key in stale:
+        by = stale[key] or "an unnamed generator"
+        return 0, f"unknown (the record measured {module} under mutmut {by}, not {generator})"
+    return 0, "unknown"
 
 
 def size_record_refusal(record):
