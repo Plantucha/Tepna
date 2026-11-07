@@ -4721,6 +4721,12 @@ def test_verity_ppi_rows_reads_each_stamp_and_pulse_and_skips_what_it_cannot_rea
         (dt.datetime(2026, 11, 5, 0, 0, 3), False),
         (dt.datetime(2026, 11, 5, 0, 0, 4), True),
     ]
+    # a byte that is not UTF-8 tears its own row only: the rows around it still read
+    f.write_bytes(b"Phone timestamp;hr [bpm]\n2026-11-05T00:00:00.000;72\n\xff\xfe;9\n2026-11-05T00:00:01.000;0\n")
+    assert loss_audit.verity_ppi_rows(str(f)) == [
+        (dt.datetime(2026, 11, 5, 0, 0, 0), True),
+        (dt.datetime(2026, 11, 5, 0, 0, 1), False),
+    ]
     f.write_text("Phone timestamp;PP-interval [ms]\n2026-11-05T00:00:00.000;900\n")
     assert loss_audit.verity_ppi_rows(str(f)) is None
     f.unlink()
@@ -4739,6 +4745,10 @@ def test_A_VERITY_PUT_ON_ITS_CHARGER_IS_A_DOFF_LIKE_THE_RING(tmp_path):
     (e,) = loss_audit.wear_ends(str(d), "VeritySense")["ends"]
     assert e["reason"] == "doff" and e["doff_witness"] == "charger" and e["dock"]["docked"] is True, e
     assert e["worn_end_at"] == e["end_at"]
+    # no battery series at all: no dock read, so no dock record (a caller may pass None)
+    ppg = str(d / "Polar_VeritySense_0C30_20260923230000_PPG.txt")
+    e = loss_audit._wear_end(ppg, str(d), "VeritySense", None)
+    assert e["dock"] is None and e["reason"] == "quiet-end-unclassified", e
     # 5 points is no dock
     _sense_link(d, [(300, 55), (600, 60)])
     (e,) = loss_audit.wear_ends(str(d), "VeritySense")["ends"]

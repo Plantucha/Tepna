@@ -1864,7 +1864,7 @@ def _wear_end(path: str, night_dir: str, model: str, battery: list[tuple[_dt.dat
         # The final-epoch rule stays for a Verity switched off or pulled off: it stops ~10 s after.
         dock = ring_dock_witness(battery, last) if battery else None
         worn_end = last
-        witness = None
+        witness: str | None  # every branch below assigns it
         if tail is not None and tail["tail_off"]:
             doff = True
             worn_end = _dt.datetime.fromisoformat(tail["worn_until"])
