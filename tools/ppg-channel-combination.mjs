@@ -78,7 +78,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { basename, dirname, join, relative } from 'node:path';
 import { createRequire } from 'node:module';
-import { dedupeByIdentity, gitCommitOf, notCovered, populationVerdict, ruleLine, snapshotEntries } from './corpus-scope-core.mjs';
+import { coverageIdentity, dedupeByIdentity, gitCommitOf, notCovered, populationVerdict, ruleLine, snapshotEntries } from './corpus-scope-core.mjs';
 /* RE-EXPORTED, NOT RE-IMPLEMENTED. The identity rule moved to the shared module so that the three
    tools applying it cannot drift apart; this spelling stays because callers already import it here. */
 export { dedupeByIdentity };
@@ -849,6 +849,10 @@ const rl = ruleLine(population);
 if (rl) console.log(`  ${rl}`);
 const missed = notCovered(snapBefore, fileRows, { key: 'rec' });
 if (missed.length) console.log(`  it reported over none of ${missed.length}, by name: ${missed.slice(0, 8).join(' · ')}${missed.length > 8 ? ` · … (+${missed.length - 8})` : ''}`);
+/* THE DIFFERENCE ANSWERS TO THE ARITHMETIC (#4506). The figure handed over is the polarity line's own
+   denominator, which is the file count this run scored — NOT the `population.checked` above it, which
+   is the intersection of two snapshots and labels MOVEMENT across the run rather than coverage. */
+coverageIdentity(snapBefore, fileRows, missed, { key: 'rec', printedScored: fileRows.length });
 /* THE CAP IS A CAUSE, AND A COUNT OF UNREPORTED FILES NAMES NO CAUSE. Most of what `notCovered`
    lists above left under the cap rather than under a per-file exclusion, and the two are different
    facts about the population. */
