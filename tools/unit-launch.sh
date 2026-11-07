@@ -208,7 +208,9 @@ fi
 # --- 4 · the first prompt -----------------------------------------------------------------------
 # The second sentence is load-bearing. The first smoke run wrote `state: DONE` and committed nothing,
 # because only the README carries the exit path and the session was never pointed at it (2026-10-11).
-PROMPT="Read handoffs/$SLUG.md and start. Read handoffs/README.md for the exit path."
+# The first command prints the handoff, the ref, the Rule 0 hits, the matching residue rows, the
+# bird's open PRs and its board inbox in one turn, so the session does not spend six turns on them.
+PROMPT="Run node tools/unit-start.mjs handoffs/$SLUG.md and start. Read handoffs/README.md for the exit path."
 PROMPTED=0
 if [ "$DO_PROMPT" -eq 0 ]; then
   note "--no-prompt: send it yourself with: herdr agent prompt $AGENT \"$PROMPT\" --wait"
