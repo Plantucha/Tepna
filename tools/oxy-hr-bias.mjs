@@ -46,7 +46,7 @@ import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { eraCoverage, eraCoverageLine, eraOfNights } from './fold-generation.mjs';
-import { gitCommitOf, notCovered, populationVerdict, ruleLine, snapshotEntries, snapshotNights } from './corpus-scope-core.mjs';
+import { coverageIdentity, gitCommitOf, notCovered, populationVerdict, ruleLine, snapshotEntries, snapshotNights } from './corpus-scope-core.mjs';
 
 const req = createRequire(import.meta.url);
 /* DERIVE the root from this file, never `process.cwd()` (the PR #686 class, gate-enforced): a tool run
@@ -159,6 +159,15 @@ function publishAndExit() {
       );
       console.log(`   ${r.leg} scored ${r.names.length} of the ${open.n} offered`);
       if (miss.length) console.log(`   ${r.leg} did not score ${miss.length}, by name: ${miss.slice(0, 8).join(' · ')}${miss.length > 8 ? ` (+${miss.length - 8} more)` : ''}`);
+      /* THE DIFFERENCE ANSWERS TO THE ARITHMETIC (#4506), ONCE PER LEG. Each leg carries its own
+         offer and its own key, so the identity is per population and never shared: the figure this
+         leg printed is the figure this leg is held to. */
+      coverageIdentity(
+        open,
+        r.names.map((x) => ({ [p.key]: x })),
+        miss,
+        { key: p.key, printedScored: r.names.length }
+      );
     }
     /* The object beside the prose, per §🧾 — the prose explains, this is the API. */
     console.log('POPULATION ' + JSON.stringify(population));

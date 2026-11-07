@@ -45,7 +45,7 @@ import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import vm from 'node:vm';
 import { isCliEntry, positionalArgs, refuseUnknownArgvOrExit } from './argv-guard.mjs';
-import { notCovered, populationVerdict, snapshotEntries } from './corpus-scope-core.mjs';
+import { coverageIdentity, notCovered, populationVerdict, snapshotEntries } from './corpus-scope-core.mjs';
 import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
 /* ── THE VALIDITY SIDECAR RIDES WITH THE STREAM ─────────────────────────────────────────────────────
    Row 2026-10-17-sample-parsers-called-without-their-sidecar: this tool read a night's samples and
@@ -389,11 +389,12 @@ const summary = {
    failed counts as unscored instead of covered by membership alone. In explicit-paths mode the two
    snapshots are the same object BY CONSTRUCTION: argv cannot move between two reads of it. */
 const population = populationVerdict(offer, argvPaths.length ? offer : snapshotEntries(DIR, { list: listPpgFiles, unit: 'ppg-files' }), { tool: TOOL, evidence: [TOOL] });
-const unscored = notCovered(
-  offer,
-  offer.members.map((p) => ({ path: p, ok: scoredOk.has(p) })),
-  { key: 'path' }
-).map((p) => basename(p));
+const coveredPaths = offer.members.map((p) => ({ path: p, ok: scoredOk.has(p) }));
+const unscored = notCovered(offer, coveredPaths, { key: 'path' }).map((p) => basename(p));
+/* THE DIFFERENCE ANSWERS TO THE ARITHMETIC (#4506). NO printed figure goes in here: the only count
+   this run publishes is `population.checked`, the intersection of two snapshots, which labels
+   MOVEMENT rather than coverage. So the identity binds the named set to the rows the run scored. */
+coverageIdentity(offer, coveredPaths, unscored, { key: 'path' });
 
 if (AS_JSON) {
   console.log(JSON.stringify({ population, summary, unscored, dropped, rows }, null, 2));
