@@ -316,6 +316,11 @@
       "anchored": null,
       "readBy": "Osprey",
       "note": "`nightStampOf` at 567 slices the 14-digit run itself and returns `YYYY-MM-DD`, which keys the night and bounds the window by string order in `inWindow` at 596. The file computes no instant at all — no `Date.UTC`, no `strptime`, no owner call — so §∅ leaves `anchored` null. The reader range-validates the components and returns null for an undated name, so an undated capture is excluded by name rather than dated into the window."
+    },
+    "tools/archive-manifest.mjs": {
+      "reads": ["identifier"],
+      "anchored": null,
+      "note": "READ 2026-11-07. `stampBlankedPath` at 230 blanks every 14-digit run so `compareTrees` can ask whether two copy paths are one name under two stamps. The digits key a session and nothing else: the file computes no instant, calls no stamp owner, and never parses the run, so §∅ leaves `anchored` null. A rename test needs the name shape alone, and a blanked path is never a date."
     }
   }
 }
