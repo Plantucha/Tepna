@@ -14412,13 +14412,8 @@
         'oracle-ecg-firmware-rr.mjs',
         'oracle-ppg-device-beats.mjs',
         'oxy-hr-bias.mjs',
-        'ppg-channel-combination.mjs',
-        'ppg-foot-consensus-e1.mjs',
-        'ppg-fusion-e3.mjs',
         'ppg-gap-bridge-scan.mjs',
-        'ppg2w-spo2-fit.mjs',
         'ppi-jitter-vs-ecg.mjs',
-        'resp-cardiac-suppression-e8.mjs',
         'stage-lab.mjs'
       ];
       var hasIdentity = function (t) {
@@ -14491,6 +14486,36 @@
           return /coverageIdentity\([^;]*printedScored/.test(TT['tools/' + t] || '');
         }).join(', '),
         'pat-dip-validate.mjs, pat-finger-coupler.mjs, pat-hrv-windows.mjs'
+      );
+      var COV_SLICE3 = ['ppg-channel-combination.mjs', 'ppg-foot-consensus-e1.mjs', 'ppg-fusion-e3.mjs', 'ppg2w-spo2-fit.mjs', 'resp-cardiac-suppression-e8.mjs'];
+      T.eq(
+        'the five PPG and respiration readers off the backlog carry the identity',
+        COV_SLICE3.filter(function (t) {
+          return !hasIdentity(t);
+        }).join(', '),
+        ''
+      );
+      /* EVERY ONE OF THE FIVE PUBLISHES A SCORED COUNT, so every one hands it over. The figure is the
+         file count for four of them and the DISTINCT night count for ppg2w-spo2-fit, whose own line
+         prints a session count beside it — one night can carry several usable pairs, so handing the
+         session count over would throw. */
+      T.eq(
+        'all five hand the printed scored count to the identity',
+        COV_SLICE3.filter(function (t) {
+          return !/coverageIdentity\([^;]*printedScored/.test(TT['tools/' + t] || '');
+        }).join(', '),
+        ''
+      );
+      /* THE UNIT IS PART OF THE ARITHMETIC. These are the first callers to drive the identity over a
+         population that is not a night: four key on a RECORDING, so a `key: 'night'` slipped into one
+         of them would compare file paths against night names and the difference would read as total
+         absence rather than as a defect. */
+      T.eq(
+        'four of the five key the identity on a recording, and only the night-unit reader keys on a night',
+        COV_SLICE3.filter(function (t) {
+          return /coverageIdentity\([^;]*key: 'rec'/.test(TT['tools/' + t] || '');
+        }).join(', '),
+        'ppg-channel-combination.mjs, ppg-foot-consensus-e1.mjs, ppg-fusion-e3.mjs, resp-cardiac-suppression-e8.mjs'
       );
       T.ok(
         'the identity has ONE definition, in corpus-scope-core.mjs beside the namer it checks',
