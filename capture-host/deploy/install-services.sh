@@ -47,6 +47,18 @@ else
   echo "  ⚠ fold unit absent from $FOLD_SRC — skipped"
 fi
 
+say "1e/5  daily 31-day stitched result"
+# The same fence as the fold. Exit 3 (a manifest night changed in the last 30 min) is success.
+if [ -f "$FOLD_SRC/tepna-stitch31.service" ] && [ -f "$FOLD_SRC/tepna-stitch31.timer" ]; then
+  install -m644 "$FOLD_SRC/tepna-stitch31.service" /etc/systemd/system/tepna-stitch31.service
+  install -m644 "$FOLD_SRC/tepna-stitch31.timer"   /etc/systemd/system/tepna-stitch31.timer
+  systemctl daemon-reload
+  systemctl enable --now tepna-stitch31.timer
+  echo "  ✓ 31-day timer enabled ($(systemctl show tepna-stitch31.timer -p NextElapseUSecRealtime --value 2>/dev/null || echo 'next firing unknown'))"
+else
+  echo "  ⚠ 31-day unit absent from $FOLD_SRC — skipped"
+fi
+
 say "1b/5  unattended deploy completion (VIGIL-AUTO-UPDATE)"
 # Installed from the repo for the same reason as the capture unit above — a hand-placed copy is a file
 # nothing keeps in step. The updater it schedules runs UNPRIVILEGED as vigil and cannot write /etc; the

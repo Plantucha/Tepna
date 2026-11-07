@@ -1,0 +1,34 @@
+# tepna-capture — the daily 31-day stitched result (SYSTEM scope)
+# Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
+#
+# Runs `tools/stitch-31d-run.mjs` for the two tools it implements, so the monitor's 31-day page has a
+# RESULT.json to serve. Unprivileged as vigil, inside the same fence as the fold: capture outranks it.
+# Exit 3 is the runner's quiet guard (a manifest night changed in the last 30 min): success, retried
+# at the next firing. Exit 2 (no MANIFEST.json) stays a failure, because nothing stitched means the
+# night verdicts never passed and the operator should see it.
+[Unit]
+Description=Tepna — daily 31-day stitched result (3corner, 3corner_fused)
+Documentation=file:/opt/tepna/tools/stitch-31d-run.mjs
+
+[Service]
+Type=oneshot
+User=vigil
+Group=vigil
+WorkingDirectory=/opt/tepna
+ExecStart=/usr/bin/node tools/stitch-31d-run.mjs 3corner
+ExecStart=/usr/bin/node tools/stitch-31d-run.mjs 3corner_fused
+
+MemoryMax=4G
+MemorySwapMax=0
+OOMScoreAdjust=500
+Nice=19
+CPUWeight=20
+IOSchedulingClass=idle
+
+SuccessExitStatus=0 3
+TimeoutStartSec=3600
+
+ProtectSystem=strict
+ReadWritePaths=/srv/tepna/stitched
+ProtectHome=true
+NoNewPrivileges=yes
