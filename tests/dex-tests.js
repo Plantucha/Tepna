@@ -14400,17 +14400,7 @@
           return k.replace('tools/', '');
         })
         .sort();
-      var COV_BACKLOG = [
-        'acc-select-compare.mjs',
-        'acc-shared-movement.mjs',
-        'beat-comb-analysis.mjs',
-        'cvhr-fold-rescore.mjs',
-        'deep-flow-join.mjs',
-        'device-stability.mjs',
-        'eqc-run.mjs',
-        'oracle-ecg-firmware-rr.mjs',
-        'oracle-ppg-device-beats.mjs'
-      ];
+      var COV_BACKLOG = [];
       var hasIdentity = function (t) {
         return /coverageIdentity\(|population arithmetic/.test(TT['tools/' + t] || '');
       };
@@ -14538,6 +14528,48 @@
         'the multi-leg reader keys its identity on the leg, not on a literal unit',
         /coverageIdentity\([^;]*key: p\.key/.test(TT['tools/oxy-hr-bias.mjs'] || ''),
         'oxy-hr-bias.mjs keys the identity per leg'
+      );
+      var COV_SLICE5 = [
+        'acc-select-compare.mjs',
+        'acc-shared-movement.mjs',
+        'beat-comb-analysis.mjs',
+        'cvhr-fold-rescore.mjs',
+        'deep-flow-join.mjs',
+        'device-stability.mjs',
+        'eqc-run.mjs',
+        'oracle-ecg-firmware-rr.mjs',
+        'oracle-ppg-device-beats.mjs'
+      ];
+      T.eq(
+        'the last nine readers off the backlog carry the identity',
+        COV_SLICE5.filter(function (t) {
+          return !hasIdentity(t);
+        }).join(', '),
+        ''
+      );
+      /* AN EMPTY BACKLOG IS THE RATCHET. The leg above this family admits a removal namer that
+         carries no identity ONLY while its name sits in the backlog, so an empty backlog is what
+         turns that leg into a rule over the whole tools tree. A later tool that names a removal now
+         reds until it answers to its own arithmetic, and the exemption cannot be re-opened quietly. */
+      T.eq('the backlog is empty, so every removal namer in the tree answers to its own arithmetic', COV_BACKLOG.join(', '), '');
+      /* SIX OF THE NINE PUBLISH A SCORED COUNT, AND EACH HANDS ITS OWN OVER. beat-comb-analysis and
+         the two oracles print `population.checked` or a tally, and both of those label MOVEMENT, so
+         they pass the difference alone. Pinning which three stay out is what stops a later edit from
+         feeding a movement count to a coverage identity. */
+      T.eq(
+        'six of the nine hand the printed scored count over, and the three that publish a movement count do not',
+        COV_SLICE5.filter(function (t) {
+          return /coverageIdentity\([^;]*printedScored/.test(TT['tools/' + t] || '');
+        }).join(', '),
+        'acc-select-compare.mjs, acc-shared-movement.mjs, cvhr-fold-rescore.mjs, deep-flow-join.mjs, device-stability.mjs, eqc-run.mjs'
+      );
+      /* A DISTINCT-NIGHT COUNT IS THE ONLY ONE THIS READER MAY HAND OVER. device-stability pushes
+         several device rows per night, so the row count is not a coverage count, and it hands the
+         identity its distinct-night Set instead. */
+      T.ok(
+        'the reader with several rows per night hands over a distinct-night count',
+        /coverageIdentity\([^;]*printedScored: scoredNights\.size/.test(TT['tools/device-stability.mjs'] || ''),
+        'device-stability.mjs hands over the distinct-night Set'
       );
       T.ok(
         'the identity has ONE definition, in corpus-scope-core.mjs beside the namer it checks',
