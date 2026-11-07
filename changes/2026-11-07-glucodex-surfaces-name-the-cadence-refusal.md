@@ -1,7 +1,7 @@
 ---
 bump: patch
-type: fix
-brief: briefs/ABSENCE-SURVEY-2026-09-22-BRIEF.md
+type: fixed
+brief: ABSENCE-SURVEY-2026-09-22-BRIEF.md
 ---
 
 Each GlucoDex surface that reads the nullable cadence chain now names the node's own token.
@@ -16,4 +16,5 @@ whole record.
 
 Five helpers in the render module decide what a refused rate looks like, in three states. A measured
 value prints the number and nothing extra. A refusal prints the node's own token. A null with no
-reason prints UNKNOWN, because that is a different claim. The scope measures its step from the grid, where the cells sit one step apart.
+reason prints UNKNOWN, because that is a different claim.
+The scope measures its step from the grid, where the cells sit one step apart.
