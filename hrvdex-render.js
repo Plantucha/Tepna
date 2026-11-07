@@ -583,6 +583,110 @@ function renderKPIs(rows) {
 }
 
 /* ===== ALERTS ===== */
+/* D17 — THE REFUSALS AND THE UNEXAMINED CHANNELS, STATED WHERE THE FIGURES ARE.
+   `hrvdex-dsp.js` nulls every value field on a measurement whose upstream recorded a clock seam,
+   and writes `_valueReason` beside the nulls. It also records why a row carries no upstream
+   validity block at all. Across this whole file nothing read either key, so a refused row drew the
+   same em-dash and the same chart hole as a source column that never existed. FOUR states, never
+   two: a refusal, an upstream block that examined nothing, an absent block, and a measured clean
+   row that stays silent. The population is the LOADED set, not the window filter, because a
+   refusal does not move when the reader changes the window — and `renderAlerts` already keys on
+   `allRows` for the same reason. Decision mine under CLAUDE.md §7, posted to the board as #4056. */
+function _hrvEsc(s) {
+  return String(s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+
+// A reason tally reaches the reader as the node's OWN tokens with their counts — never one
+// borrowed word standing in for several upstream sentences.
+function _hrvTallyLine(tally) {
+  return Object.keys(tally)
+    .sort()
+    .map(function (k) {
+      return '<code>' + _hrvEsc(k) + '</code> ' + tally[k];
+    })
+    .join(', ');
+}
+
+function _hrvProvenanceAlerts(rows) {
+  var all = Array.isArray(rows)
+    ? rows.filter(function (r) {
+        return r && typeof r === 'object';
+      })
+    : [];
+  if (!all.length) return [];
+  var refused = {};
+  var unexamined = {};
+  var noBlock = {};
+  var nRef = 0;
+  var nUnex = 0;
+  var nNoBlock = 0;
+  all.forEach(function (r) {
+    var v = r._upValidity && typeof r._upValidity === 'object' ? r._upValidity : null;
+    if (typeof r._valueReason === 'string' && r._valueReason) {
+      nRef++;
+      refused[r._valueReason] = (refused[r._valueReason] || 0) + 1;
+      return;
+    }
+    if (!v) {
+      nNoBlock++;
+      var why = typeof r._upReason === 'string' && r._upReason ? r._upReason : 'upstream-unknown';
+      noBlock[why] = (noBlock[why] || 0) + 1;
+      return;
+    }
+    /* `seams` absent or non-finite is the UNKNOWN channel (owner ruling 2026-11-05) — the numbers
+       stand, and the reader still learns nobody examined those stamps. A finite `0` falls through
+       to silence: a measured clean row earns no line. */
+    if (typeof v.seams !== 'number' || !isFinite(v.seams)) {
+      nUnex++;
+      var tok = typeof v.seamsReason === 'string' && v.seamsReason ? v.seamsReason : 'upstream-unknown';
+      unexamined[tok] = (unexamined[tok] || 0) + 1;
+    }
+  });
+  var out = [];
+  if (nRef)
+    out.push({
+      type: 'red',
+      icon: '⏱',
+      msg:
+        '<strong>' +
+        nRef +
+        ' of ' +
+        all.length +
+        ' measurements refused</strong> — ' +
+        _hrvTallyLine(refused) +
+        '. An upstream node recorded a clock seam inside the span, so this node published no value for that measurement. The blanks below are refusals, not an absent column.'
+    });
+  if (nUnex)
+    out.push({
+      type: 'yellow',
+      icon: '❓',
+      msg:
+        '<strong>' +
+        nUnex +
+        ' of ' +
+        all.length +
+        ' measurements carry an UNKNOWN seam channel</strong> — ' +
+        _hrvTallyLine(unexamined) +
+        '. The upstream block reports no seam count, so nothing examined those stamps. Their numbers stand, and an unexamined channel is not a clean one.'
+    });
+  if (nNoBlock)
+    out.push({
+      type: 'yellow',
+      icon: '\u{1f4c4}',
+      msg:
+        '<strong>' +
+        nNoBlock +
+        ' of ' +
+        all.length +
+        ' measurements carry no upstream validity block</strong> — ' +
+        _hrvTallyLine(noBlock) +
+        '. This node cannot say whether a clock seam crosses those spans.'
+    });
+  return out;
+}
+
 function renderAlerts(rows) {
   // v2.9: use the chronologically latest measurement for alerts,
   // not the last of the morning-filtered kpiRows (which may be days old).
@@ -628,6 +732,11 @@ function renderAlerts(rows) {
     alerts.push({ type: 'green', icon: '✅', msg: `<strong>Optimal Coherence + Energy</strong> — Coherence ${r._coherence}, Energy ${r._energy}. Excellent HRV regulation today.` });
   if (r.d_ari > 1.1)
     alerts.push({ type: 'green', icon: '🔋', msg: `<strong>Recovery above baseline</strong> — rMSSD ${(r.d_ari * 100 - 100).toFixed(0)}% above 7-day mean. Good day for higher intensity training.` });
+
+  /* D17 — the node's own refusals and unexamined channels lead, because they qualify every
+     clinical line under them and every figure on the page. */
+  var _prov = _hrvProvenanceAlerts(typeof allRows !== 'undefined' ? allRows : rows);
+  if (_prov.length) alerts.unshift.apply(alerts, _prov);
 
   if (alerts.length) {
     panel.classList.add('show');
