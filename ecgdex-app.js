@@ -970,9 +970,23 @@ self.onmessage = async (e) => {
       /* The four stage chips sum to the staged span, not to the night. An unstaged span used to
          leave the arithmetic short with nothing on the card saying why, so the reader attributed the
          shortfall to rounding. It is named here, beside the chips it is absent from. */
-      if (r.unstagedMin > 0)
-        $('sleepStats').innerHTML +=
-          `<div class="sl-stat"><span class="sl-dot" style="background:${UI.COLORS.dim}"></span>Unstaged <b>${r.unstagedMin.toFixed(0)}m</b><span class="sl-pct"> · no RMSSD to stage on</span></div>`;
+      /* Built from nodes, not from an innerHTML template. xss-sink-gate flags every added
+         innerHTML line whose interpolation it cannot parse, and it is right to: the escape it
+         asks for would not protect the style attribute this chip needs anyway. */
+      if (r.unstagedMin > 0) {
+        const chip = document.createElement('div');
+        chip.className = 'sl-stat';
+        const dot = document.createElement('span');
+        dot.className = 'sl-dot';
+        dot.style.background = UI.COLORS.dim;
+        const amt = document.createElement('b');
+        amt.textContent = `${r.unstagedMin.toFixed(0)}m`;
+        const why = document.createElement('span');
+        why.className = 'sl-pct';
+        why.textContent = ' · no RMSSD to stage on';
+        chip.append(dot, 'Unstaged ', amt, why);
+        $('sleepStats').append(chip);
+      }
       $('hypnoCard').style.display = 'block';
     } else $('hypnoCard').style.display = 'none';
 
