@@ -47,7 +47,7 @@ import { readdirSync, existsSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { loadDsps, ecgRpeakTimes, ppgFootTimes, median } from './pat-matchrate-strict.mjs';
 import { isCliEntry, positionalArgs, refuseUnknownArgvOrExit } from './argv-guard.mjs';
-import { snapshotNights, populationVerdict, notANight } from './corpus-scope-core.mjs';
+import { snapshotNights, populationVerdict, notANight, coverageIdentity } from './corpus-scope-core.mjs';
 import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
 
 /* ── THE VALIDITY SIDECAR RIDES WITH THE STREAM ─────────────────────────────────────────────
@@ -316,10 +316,12 @@ function main() {
     tool: 'tools/pat-connection-stability.mjs',
     evidence: ['tools/pat-connection-stability.mjs']
   });
-  const unscored = notANight(
-    popBefore,
-    rows.map((r) => ({ night: r.night, ok: !r.skip }))
-  );
+  const coveredRows = rows.map((r) => ({ night: r.night, ok: !r.skip }));
+  const unscored = notANight(popBefore, coveredRows);
+  /* THE DIFFERENCE ANSWERS TO THE ARITHMETIC (#4506). The printed count labels MOVEMENT between two
+     snapshots, not coverage, so no printed figure goes in here — the identity binds the named set to
+     the rows this run scored, and a short difference stops it. */
+  coverageIdentity(popBefore, coveredRows, unscored);
   if (AS_JSON) {
     /* Stdout stays ONE JSON document — this tool gets piped into `jq` — so the verdict rides inside
        the tool's own object rather than beside it. */
