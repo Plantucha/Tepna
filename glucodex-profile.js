@@ -308,7 +308,9 @@
     wrap.innerHTML =
       `<div class="readiness-hero" style="--readiness-color:${css}">` +
       `<div class="readiness-hero-label">Glycemic Stability</div>` +
-      `<div class="readiness-date-badge">${r.source === 'synthetic' ? 'synthetic' : 'recorded'} · ${r.durDays >= 1 ? r.durDays.toFixed(1) + ' days' : Math.round(r.activeMin / 60) + ' h'} · ${r.tierLabel}</div>` +
+      // §∅ — the same fabricated `0 h` the hero line printed: `durDays >= 1` is false for a null
+      // and the else-branch divided one. `GLUUI.durText` names the node's own token instead.
+      `<div class="readiness-date-badge">${r.source === 'synthetic' ? 'synthetic' : 'recorded'} · ${r.durDays != null && r.durDays < 1 ? Math.round(r.activeMin / 60) + ' h' : global.GLUUI.durText(r)} · ${r.tierLabel}</div>` +
       `<div class="readiness-score" style="color:${css}">${score}</div>` +
       `<div class="readiness-tier">${tier}</div>` +
       `<div class="readiness-scores-grid">${subsHtml}</div>` +

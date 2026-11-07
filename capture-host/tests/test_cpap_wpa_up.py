@@ -235,7 +235,7 @@ def test_a_process_that_merely_mentions_wpa_supplicant_is_not_one():
 
 def test_a_failed_terminate_with_a_LIVE_supplicant_still_warns(monkeypatch, caplog):
     """The 2026-07-29 leak. This must not go quiet — it is the reason the warning exists."""
-    monkeypatch.setattr(ch, "_sh", lambda argv, t, sudo=False: (255, "boom"))
+    monkeypatch.setattr(ch, "_sh", lambda argv, t, sudo=False, quiet=False: (255, "boom"))
     monkeypatch.setattr(ch, "_live_supplicants", lambda iface: [4242])
     with caplog.at_level("INFO"):
         ch._wpa_down("wlp1s0", "/tmp/root")
@@ -247,7 +247,7 @@ def test_a_failed_terminate_with_a_LIVE_supplicant_still_warns(monkeypatch, capl
 def test_a_failed_terminate_with_NO_supplicant_does_not_cry_wolf(monkeypatch, caplog):
     """The live-box case: no control socket, nothing bound to the interface, nothing to terminate."""
     monkeypatch.setattr(
-        ch, "_sh", lambda argv, t, sudo=False: (255, "Failed to connect to non-global ctrl_ifname: wlp1s0")
+        ch, "_sh", lambda argv, t, sudo=False, quiet=False: (255, "Failed to connect to non-global ctrl_ifname: wlp1s0")
     )
     monkeypatch.setattr(ch, "_live_supplicants", lambda iface: [])
     with caplog.at_level("INFO"):
@@ -261,7 +261,7 @@ def test_a_failed_terminate_with_NO_supplicant_does_not_cry_wolf(monkeypatch, ca
 def test_the_return_value_still_reports_the_failure(monkeypatch):
     """Quieter is not the same as swallowed. `_wpa_down` used to `return True` unconditionally, which is
     the defect the loud warning replaced; the rc must still reach the caller either way."""
-    monkeypatch.setattr(ch, "_sh", lambda argv, t, sudo=False: (255, "x"))
+    monkeypatch.setattr(ch, "_sh", lambda argv, t, sudo=False, quiet=False: (255, "x"))
     monkeypatch.setattr(ch, "_live_supplicants", lambda iface: [])
     assert ch._wpa_down("wlp1s0", "/tmp/root") is False
 
