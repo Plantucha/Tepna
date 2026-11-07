@@ -967,6 +967,63 @@ expectsays PRESENT "the denial carries the status it read"            "exited 3"
 expectsays PRESENT "the denial sends the reader at the box, not the diff" "it is not your command" "$_blindsays"
 
 echo
+echo "### §3d — an awk reader that could not run is not a reader that found nothing"
+# Residue 2026-11-06-the-stale-brief-guard-loses-three-write-shape-arms-with-no-awk. Four readers in
+# the hook are `awk`: the program-text tokenizer, and the three arms that read `WT_SCAN`. Each one
+# prints NOTHING when it cannot run, and nothing is the same text a clean program produces. Two
+# stubs part the two halves, because only the `WT_SCAN` calls carry a `guarded=` assignment.
+AWKREAL="$(command -v awk)"
+AWKSCAN="$TMP/awkscanblind"
+mkdir -p "$AWKSCAN"
+printf '#!/bin/sh\nfor a in "$@"; do case "$a" in guarded=*) exit 3 ;; esac; done\nexec %s "$@"\n' \
+  "$AWKREAL" > "$AWKSCAN/awk"
+AWKDEAD="$TMP/awkdead"
+mkdir -p "$AWKDEAD"
+printf '#!/bin/sh\nexit 3\n' > "$AWKDEAD/awk"
+chmod +x "$AWKSCAN/awk" "$AWKDEAD/awk"
+runcmd_awk() { # runcmd_awk <stub dir> <command string>
+  jq -nc --arg c "$2" '{tool_input:{command:$c}}' | PATH="$1:$PATH" bash "$H" >/dev/null 2>&1
+  [ $? -eq 2 ] && echo DENY || echo ALLOW
+}
+expectawk() { # expectawk <want> <stub dir> <label> <command string>
+  local got; got="$(runcmd_awk "$2" "$4")"
+  if [ "$got" = "$1" ]; then printf '  ok    %-58s %s\n' "$3" "$got"
+  else printf '  FAIL  %-58s got %s, want %s\n' "$3" "$got" "$1"; fail=$((fail+1)); fi
+}
+saysof_awk() { # saysof_awk <stub dir> <command string> ; the hook's stderr under that stub
+  jq -nc --arg c "$2" '{tool_input:{command:$c}}' | PATH="$1:$PATH" bash "$H" 2>&1 >/dev/null
+}
+# THE BUILT TARGET IS THE ISOLATING CASE. Its program text spells no guarded path — `briefs/` alone
+# does not match `GUARDED_RE` — so arm 1's gate never opens and the scan's affirmative verdict is
+# the ONLY reader of this class. A scan that cannot run used to leave it silent, which is a pass.
+_awk_built="python3 - <<'PY'
+d = 'briefs/'
+open(d + 'SHARED-BRIEF.md', 'w').write('v3')
+PY"
+expectawk DENY  "$AWKSCAN" "the built target, write-target scan broken"  "$_awk_built"
+expectcmd DENY             "the same built target with the scan working"  "$_awk_built"
+# …and the broken scan denies nothing it was never asked about: both commands below carry no
+# program text at all, so no arm calls the scan and the sentinel stays unset.
+expectawk ALLOW "$AWKSCAN" "a read of a stale brief, scan broken"        "grep -n 'v1' briefs/SHARED-BRIEF.md | head"
+expectawk ALLOW "$AWKSCAN" "a write to a brief that did NOT move, scan broken" "sed -i 's/a/b/' briefs/OTHER-BRIEF.md"
+# THE DEAD TOKENIZER TAKES EVERY ARM WITH IT, because `prog_text` arrives empty and all three gates
+# ask the program text a question. This write denied before the stub and allowed under it.
+_awk_prog="python3 -c \"import pathlib; pathlib.Path('briefs/SHARED-BRIEF.md').write_text('v3')\""
+expectawk DENY  "$AWKDEAD" "a pathlib write to a stale brief, tokenizer dead" "$_awk_prog"
+expectcmd DENY             "the same write with the tokenizer working"         "$_awk_prog"
+# The tokenizer's blindness is gated on the command naming an interpreter. With none, its output
+# would be empty either way, so these two keep the answer they have on every working box.
+expectawk ALLOW "$AWKDEAD" "a read of a stale brief, tokenizer dead"     "grep -n 'v1' briefs/SHARED-BRIEF.md | head"
+expectawk ALLOW "$AWKDEAD" "a command naming no interpreter, tokenizer dead" "ls -la briefs"
+_awkd_msg="$(saysof_awk "$AWKDEAD" "$_awk_prog")"
+expectsays PRESENT "the denial names the reader that could not look"     "WHAT COULD NOT LOOK" "$_awkd_msg"
+expectsays PRESENT "…and names the tokenizer rather than a candidate reader" "program-text tokenizer" "$_awkd_msg"
+expectsays PRESENT "…and carries the status it read"                      "exited 3" "$_awkd_msg"
+_awks_msg="$(saysof_awk "$AWKSCAN" "$_awk_built")"
+expectsays PRESENT "the scan's own blindness names the scan"              "write-target scan" "$_awks_msg"
+expectsays ABSENT  "…and does not borrow the tokenizer's wording"         "program-text tokenizer" "$_awks_msg"
+
+echo
 if [ "$fail" -eq 0 ]; then
   echo "PASS — every DENY paired with an ALLOW that differs in one property"
 else

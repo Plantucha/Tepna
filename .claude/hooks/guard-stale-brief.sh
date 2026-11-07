@@ -600,6 +600,26 @@ cmd_outside="$cmd_outside$_sp_rest"
 #    WITH THIS ONE. Line 1 is the inline program payload, as before. Line 2 is the interpreter's
 #    own ARGUMENT LIST: every non-flag token after an interpreter name that the payload did not
 #    consume. The argv arm in `looks_like_write` reads line 2, and `emit()` fills both.
+# ── §∅ ONE READER DEEPER — THE awk READERS CARRY NO VERDICT FOR THEIR OWN ABSENCE ───────────
+#    Residue 2026-11-06-the-stale-brief-guard-loses-three-write-shape-arms-with-no-awk. Four readers
+#    in this hook are `awk`: this tokenizer, and the three `WT_SCAN` arms below. An `awk` that cannot
+#    run prints NOTHING, and nothing is the same text a clean program produces — so the tokenizer
+#    handed every arm an EMPTY payload and the three arms read no verdict line. Arm 1 fell back to
+#    its pre-scan rule, arms 2 and 3 returned silently, and those two are the only readers of the
+#    built-target and argv classes. The hook allowed, and printed nothing.
+#
+#    SO THE TOKENIZER PRINTS ITS OWN SENTINEL, `@TOK-OK@`, AS A THIRD LINE. Counting lines cannot do
+#    it: `$( )` strips trailing newlines, so an empty `argvout` leaves a two-line program printing
+#    one line, and a clean run and a dead one count the same. A non-empty LAST line survives that
+#    stripping, and it also parts a truncated run from a complete one. Status 0 alone would miss
+#    both. `prog_blind` is the sentinel for every other shape.
+#
+#    IT IS GATED ON THE COMMAND CARRYING AN INTERPRETER AT ALL. With no interpreter token the
+#    tokenizer's output would be empty either way, so its blindness costs nothing there and a
+#    refusal would deny `ls` on a box with a broken `awk`. The gate OVER-matches deliberately
+#    (`node_modules` carries `node`): a broken `awk` is a broken box, and this hook names it.
+INTERP_RE='(python3?|node|perl|ruby|php)'
+prog_blind=""
 _tok_out="$(printf '%s' "$cmd_outside" | awk '
   BEGIN { q = ""; tok = ""; want = 0; interp = 0; out = ""; argvout = "" }
   function emit() {
@@ -622,8 +642,15 @@ _tok_out="$(printf '%s' "$cmd_outside" | awk '
     }
     emit()
   }
-  END { print out; print argvout }
+  END { print out; print argvout; print "@TOK-OK@" }
 ')"
+_tok_st=$?
+_tok_end="$(printf '%s\n' "$_tok_out" | sed -n '$p')"
+if [ "$_tok_st" -ne 0 ] || [ "$_tok_end" != '@TOK-OK@' ]; then
+  if printf '%s' "$cmd_outside" | grep -qE "$INTERP_RE"; then
+    prog_blind="the program-text tokenizer (\`awk\`) exited $_tok_st and never printed its own end sentinel, so no interpreter payload in this command was ever read"
+  fi
+fi
 prog_text="$_hd_kept $(printf '%s\n' "$_tok_out" | sed -n 1p)"
 argv_text="$(printf '%s\n' "$_tok_out" | sed -n 2p)"
 
@@ -650,6 +677,41 @@ read_cands() { # read_cands <text> ; sets `cands`, and `reader_blind` when a rea
   [ "$gst" -gt 1 ] && reader_blind="the guarded-path reader exited $gst over the text it was handed, so this command was never scanned for a guarded doc"
   [ "$sst" -ne 0 ] && reader_blind="the candidate sort exited $sst, so a path the reader did find cannot reach the comparison"
   return 0
+}
+# ── WT_SCAN'S OWN ABSENCE — `UNEXAMINED` IS THE LINE IT CANNOT PRINT ─────────────────────────
+#    The scan answers with ONE line carrying one of three prefixes. Anything else — no line, a
+#    signal, a syntax error, 127 — is the scan saying nothing, and no `case` label named that state.
+#    `UNEXAMINED` names it here, and `prog_blind` carries it to the terminal check, which is the one
+#    place an empty candidate set and a blind reader already part.
+#
+#    ONE RUN ANSWERS ALL THREE ARMS. They feed identical stdin and the same pattern, so the three
+#    invocations this replaced were one answer computed three times.
+#
+#    ⚠ IT PUBLISHES THROUGH A VARIABLE, NEVER THROUGH STDOUT. The three arms read the verdict by
+#    command substitution, and a sentinel set inside `$( )` dies with the subshell that wrote it —
+#    which is the same reason the scan could not carry one out before. So `wt_verdict` is the
+#    answer and `prog_blind` is the sentinel, and both are set in the CALLER's shell.
+wt_scan_cached=""
+wt_scan_input=""
+wt_verdict=""
+wt_scan() { # wt_scan <program text> ; sets `wt_verdict` to DENY … | ALLOW n | NOWRITE | UNEXAMINED
+  local out st
+  if [ -n "$wt_scan_cached" ] && [ "$wt_scan_input" = "$1" ]; then
+    wt_verdict="$wt_scan_cached"
+    return 0
+  fi
+  out="$(printf '%s' "$1" | awk -v guarded="$(printf '%s' "$GUARDED_RE" | sed 's/\\/\\\\/g')" "$WT_SCAN" 2>/dev/null)"
+  st=$?
+  case "$out" in
+    "DENY "* | "ALLOW "* | NOWRITE) : ;;
+    *)
+      out=UNEXAMINED
+      prog_blind="the write-target scan (\`awk\`) exited $st and printed no verdict line, so the built-target and argv arms read nothing at all"
+      ;;
+  esac
+  wt_scan_input="$1"
+  wt_scan_cached="$out"
+  wt_verdict="$out"
 }
 looks_like_write() {
   # A RUN OF ≥3 '>' IS A CONFLICT MARKER, NOT A REDIRECT — strip those runs before the redirect
@@ -701,13 +763,18 @@ looks_like_write() {
     #    variable. One level of literal resolution is what makes it possible: the scan resolves
     #    `L = "briefs/X-BRIEF.md"` and judges the resolved value, and a target it CANNOT resolve
     #    denies. So the variable case the row protects keeps denying, by the same rule.
-    scan="$(printf '%s' "$2" | awk -v guarded="$(printf '%s' "$GUARDED_RE" | sed 's/\\/\\\\/g')" "$WT_SCAN" 2>/dev/null)"
+    wt_scan "$2"
+    scan="$wt_verdict"
     case "$scan" in
       "DENY "*) write_shape="${scan#DENY }"; write_from_prog=1; return 0 ;;
       "ALLOW "*) return 1 ;;
+      # The scan said nothing. `wt_scan` has recorded that, and the pre-scan rule below still runs.
+      UNEXAMINED) : ;;
     esac
-    # NOWRITE, or an awk that could not run: the rule that shipped before the scan, unchanged. The
-    # scan can only SUBTRACT denials, never add one, so a box without awk keeps the old behaviour.
+    # NOWRITE, or UNEXAMINED: the rule that shipped before the scan, unchanged. HERE the scan can
+    # only SUBTRACT denials, so this arm keeps its old answer either way. Arms 2 and 3 below have no
+    # pre-scan rule to fall back to, which is why `wt_scan` records the blindness rather than
+    # leaving it silent — their silence used to BE the pass.
     verb="$(printf '%s' "$2" | grep -oE "$WRITE_VERB_RE" | head -1)"
     if [ -n "$verb" ]; then
       write_shape="an interpreter write verb, matched as \`$verb\`, which the target scan does not model"
@@ -740,7 +807,8 @@ looks_like_write() {
   #    arm that denied without publishing would exit on an empty set and say nothing.
   if [ -n "$(printf '%s' "$2" | tr -d '[:space:]')" ]; then
     local bscan bval
-    bscan="$(printf '%s' "$2" | awk -v guarded="$(printf '%s' "$GUARDED_RE" | sed 's/\\/\\\\/g')" "$WT_SCAN" 2>/dev/null)"
+    wt_scan "$2"
+    bscan="$wt_verdict"
     case "$bscan" in
       "DENY a write whose target IS a guarded path: "*)
         bval="${bscan#DENY a write whose target IS a guarded path: }"
@@ -774,7 +842,8 @@ looks_like_write() {
   if [ -n "$3" ] && printf '%s' "$3" | grep -qE "$GUARDED_RE" &&
     [ -n "$(printf '%s' "$2" | tr -d '[:space:]')" ]; then
     local ascan
-    ascan="$(printf '%s' "$2" | awk -v guarded="$(printf '%s' "$GUARDED_RE" | sed 's/\\/\\\\/g')" "$WT_SCAN" 2>/dev/null)"
+    wt_scan "$2"
+    ascan="$wt_verdict"
     case "$ascan" in
       "DENY "*)
         if printf '%s' "${ascan#DENY }" | grep -qE "$ARGV_TARGET_RE"; then
@@ -817,17 +886,21 @@ if [ -z "$cands" ]; then
   # ⚠ THE ONE PLACE WHERE AN EMPTY SET AND A BLIND READER PART. A reader that ran and found nothing
   #   is this hook's commonest ALLOW, because most commands name no guarded doc. A reader that could
   #   not run answered nothing at all, and allowing there passes the write this hook exists to deny.
-  [ -z "$reader_blind" ] && exit 0
+  #   `read_cands` clears `reader_blind` on every call, so the awk readers keep their own sentinel.
+  [ -z "$reader_blind" ] && [ -z "$prog_blind" ] && exit 0
+  blind_what="$reader_blind${reader_blind:+ · }$prog_blind"
   cat >&2 <<EOF
 BLOCKED: this hook could not read your command for a guarded doc, so it refuses rather than pass one.
 
-WHAT COULD NOT LOOK: $reader_blind
+WHAT COULD NOT LOOK: $blind_what
 WHY THIS COMMAND READS AS A WRITE: ${write_shape:-the tool payload names a guarded path directly}
 
 An empty candidate set and a reader that never ran used to read as one state here, which left the
-edit this hook exists to deny. The readers are \`grep -oE\` over the command text and then \`sort -u\`.
-Both run on every box, so this message says one of them failed on THIS box — a shadowed PATH entry,
-an exhausted process table, a full /tmp. That is where to look, and it is not your command.
+edit this hook exists to deny. Four readers can go blind here: \`grep -oE\` over the command text,
+the \`sort -u\` behind it, and the two \`awk\` readers of interpreter program text — the tokenizer and
+the write-target scan. All four run on every box, so the line above names the one that failed on THIS
+box — a shadowed PATH entry, an exhausted process table, a full /tmp. Look there:
+it is not your command.
 
 If you have read the upstream commits and are deliberately writing over them, say so:
 
