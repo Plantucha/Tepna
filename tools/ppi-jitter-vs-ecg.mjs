@@ -156,6 +156,13 @@ export function nocturnalCoverage(spans) {
 }
 const DEVICE = String(opt('--device', 'o2ring')).toLowerCase();
 const PPG_UNIT = `${DEVICE} PPG files`;
+
+/* THE PRINTED UNIT IS THE MODE'S UNIT. `buildUnits` returns one unit per NIGHT under the default and
+   one per FILE under `--no-merge`, so a line that says `night(s)` in both modes is wrong in one of
+   them. Every count line below reads this word. The population denominator keeps `snap.unit`, which
+   is a FILE count in BOTH modes, so a line that divides one by the other now names both units
+   instead of quoting one word over two populations (#4150). */
+const UNIT_WORD = MERGE ? 'night(s)' : PPG_UNIT;
 /* ⚠️ THE SAME DEVICE IS NAMED TWO WAYS, and matching only one reports an EMPTY corpus as no data.
    The Verity Sense appears as `Polar_VeritySense_<serial>` when the capture host wrote it and as
    `Polar_Sense_<serial>` when Polar Sensor Logger did — identical serial (`0C301E3F` on this corpus),
@@ -1655,7 +1662,7 @@ const ecgs = _ecgOffer.kept;
 if (!FIDUCIAL) {
   console.log('O2RING-FINGER-HRV-VALIDATION §3 — PPI-jitter sd vs paired H10 ECG (per-epoch alignment)');
   console.log('device: ' + (DEVICE === 'verity' ? 'Polar Verity Sense (WRIST — the deep-dive reference leg)' : "Wellue O2Ring (FINGER — this brief's subject)") + '\n');
-  console.log('night                                        eps  jitter_sd  match%  ratio  refBpm  drop   lag_ms   RMSSD_f  RMSSD_e  bias%   sdnnRob%');
+  console.log(`${(MERGE ? 'night' : 'file').padEnd(45)}eps  jitter_sd  match%  ratio  refBpm  drop   lag_ms   RMSSD_f  RMSSD_e  bias%   sdnnRob%`);
 }
 
 /* Build the UNITS to score. Merged: one unit per NIGHT, its beat train the union of every session's
@@ -2304,7 +2311,7 @@ function printPopulation() {
   );
   const rl = ruleLine(population);
   if (rl) console.log(rl);
-  console.log(`  the read scored ${nights.length} of the ${snap.n} offered under ${DIR}${snap.ok ? '' : ` · ${snap.reason}`}`);
+  console.log(`  the read scored ${nights.length} ${UNIT_WORD} of the ${snap.n} offered ${snap.unit} under ${DIR}${snap.ok ? '' : ` · ${snap.reason}`}`);
   const missed = notCovered(snap, nights, { key: 'rec' });
   if (missed.length) console.log(`  it removed ${missed.length}, by name: ${missed.slice(0, 8).join(' · ')}${missed.length > 8 ? ` · … (+${missed.length - 8})` : ''}`);
   /* THE DIFFERENCE ANSWERS TO THE ARITHMETIC (#4506). The unit is a RECORDING, whatever the array
@@ -2349,7 +2356,7 @@ function printPopulation() {
    line such a run printed, so the one case where the population is the whole story was the one case
    that reported none. */
 if (!nights.length) {
-  console.log('\nno night produced ≥' + MIN_EPOCHS + ' comparable epochs — nothing to report.');
+  console.log(`\nno ${UNIT_WORD} produced ≥${MIN_EPOCHS} comparable epochs — nothing to report.`);
   printPopulation();
   if (SQI_ARM) emitSqiVerdict(sqiReport(allEp));
   process.exit(0);
@@ -2359,7 +2366,7 @@ const Bs = nights.filter((n) => n.bias != null).map((n) => n.bias);
 const S = nights.filter((n) => n.sdnnBias != null).map((n) => n.sdnnBias);
 const R = nights.map((n) => n.rate * 100);
 const fmt = (a) => (a.length ? `median ${median(a).toFixed(2)}  IQR ${quantile(a, 0.25).toFixed(2)}–${quantile(a, 0.75).toFixed(2)}` : 'n/a');
-console.log(`\n${nights.length} night(s) with ≥${MIN_EPOCHS} comparable epochs\n`);
+console.log(`\n${nights.length} ${UNIT_WORD} with ≥${MIN_EPOCHS} comparable epochs\n`);
 /* The reference is DEVICE-KEYED and repeats the device name on the line. It used to print
    "[Verity wrist reference: 5.92 ms]" beside whatever `--device` selected — and `--device` defaults to
    o2ring, so a finger median printed next to a wrist reference as if the two were a matched pair.
@@ -2444,7 +2451,7 @@ console.log(
 const epNights = nights.filter((n) => n.epN > 0);
 const kNights = nights.filter((n) => n.kfit);
 if (!epNights.length) {
-  console.log(`\nper-epoch arm: no night produced a scored epoch — ${nights.reduce((a, n) => a + (n.epRef.boundary || 0), 0)} window(s) crossed a session boundary`);
+  console.log(`\nper-epoch arm: no ${UNIT_WORD} produced a scored epoch — ${nights.reduce((a, n) => a + (n.epRef.boundary || 0), 0)} window(s) crossed a session boundary`);
 } else {
   const ERM = epNights.map((n) => n.epRmBias);
   const ESD = epNights.filter((n) => n.epSdBias != null).map((n) => n.epSdBias);
@@ -2455,7 +2462,7 @@ if (!epNights.length) {
   const MA = nights.filter((n) => n.mae != null).map((n) => n.mae);
   const PB = nights.filter((n) => n.ppiBias != null).map((n) => n.ppiBias);
   const SE = nights.filter((n) => n.sens != null).map((n) => n.sens * 100);
-  console.log(`\n── THE PER-EPOCH ARM — ${allEp.length} epoch(s) over ${epNights.length} night(s) ──\n`);
+  console.log(`\n── THE PER-EPOCH ARM — ${allEp.length} epoch(s) over ${epNights.length} ${UNIT_WORD}, carrying ${new Set(allEp.map((e) => e.night)).size} distinct night key(s) ──\n`);
   console.log(
     `  ${'night'.padEnd(26)} ${'eps'.padStart(4)} ${'rMSSD bias %'.padStart(12)} ${'SDNN bias %'.padStart(11)} ${'k'.padStart(6)} ${'R²'.padStart(6)} ${'MAE ms'.padStart(7)} ${'PPI bias'.padStart(9)} ${'sens %'.padStart(7)}`
   );
@@ -2463,7 +2470,9 @@ if (!epNights.length) {
     console.log(
       `  ${n.name.slice(0, 26).padEnd(26)} ${String(n.epN).padStart(4)} ${n.epRmBias.toFixed(1).padStart(12)} ${(n.epSdBias == null ? '—' : n.epSdBias.toFixed(1)).padStart(11)} ${(n.kfit ? n.kfit.k.toFixed(2) : '—').padStart(6)} ${(n.kfit && n.kfit.r2 != null ? n.kfit.r2.toFixed(3) : '—').padStart(6)} ${(n.mae == null ? '—' : n.mae.toFixed(2)).padStart(7)} ${(n.ppiBias == null ? '—' : n.ppiBias.toFixed(2)).padStart(9)} ${(n.sens == null ? '—' : (n.sens * 100).toFixed(1)).padStart(7)}`
     );
-  console.log(`\n  per-epoch rMSSD bias      ${fmt(ERM)} %      [median over nights of each night's median epoch; the whole-record figure above is ${Bs.length ? median(Bs).toFixed(2) : 'n/a'} %]`);
+  console.log(
+    `\n  per-epoch rMSSD bias      ${fmt(ERM)} %      [median over ${UNIT_WORD} of each unit's median epoch; the whole-record figure above is ${Bs.length ? median(Bs).toFixed(2) : 'n/a'} %]`
+  );
   /* THE NIGHT-LEVEL DISTRIBUTION, because the median is not the claim on its own. A right-skewed set of
      nights has a mean nowhere near its median, and the limits of agreement are the figure a reader of a
      method paper actually needs. Computed over NIGHTS, never over epochs: epochs inside a night are not
@@ -2482,7 +2491,7 @@ if (!epNights.length) {
      to each successive difference at the low end, and correlated jitter across neighbouring intervals
      drives it up. A k OUTSIDE that band is the interesting result, which is why the band is printed
      beside it rather than used to filter anything. */
-  console.log(`  k  (rMSSD²f = rMSSD²e + k·σ²)  ${fmt(KS)}      over ${kNights.length}/${epNights.length} night(s) with ≥${MIN_KFIT_EPOCHS} epochs   [theory: 2 ≤ k ≤ 6]`);
+  console.log(`  k  (rMSSD²f = rMSSD²e + k·σ²)  ${fmt(KS)}      over ${kNights.length}/${epNights.length} ${UNIT_WORD} with ≥${MIN_KFIT_EPOCHS} epochs   [theory: 2 ≤ k ≤ 6]`);
   console.log(
     `  R² of that fit            ${R2.length ? `median ${median(R2).toFixed(3)}  IQR ${quantile(R2, 0.25).toFixed(3)}–${quantile(R2, 0.75).toFixed(3)}  worst ${Math.min(...R2).toFixed(3)}` : 'n/a'}   [the INCREMENT's variance — does jitter explain the gap]`
   );
@@ -2505,7 +2514,7 @@ if (!epNights.length) {
   /* THE RANGES ACROSS NIGHTS, in one line, because a method paper's table quotes them and a reader
      cannot derive a range from a median and an IQR. Printed together so the table has ONE source. */
   const rng = (a) => (a.length ? `${Math.min(...a).toFixed(2)}–${Math.max(...a).toFixed(2)}` : 'n/a');
-  console.log(`  ranges across nights      jitter ${rng(J)} ms · MAE ${rng(MA)} ms · PPI bias ${rng(PB)} ms · sens ${rng(SE)} % · PPV ${rng(R)} % · per-epoch rMSSD bias ${rng(ERM)} %`);
+  console.log(`  ranges across ${UNIT_WORD}      jitter ${rng(J)} ms · MAE ${rng(MA)} ms · PPI bias ${rng(PB)} ms · sens ${rng(SE)} % · PPV ${rng(R)} % · per-epoch rMSSD bias ${rng(ERM)} %`);
   /* THE POOLED FIT, DESCRIPTIVE ONLY and labelled as such on the line itself. It answers a different
      question from the per-night median — one slope over every epoch in the corpus, with nights of many
      epochs weighted more — and the label travels with the number because a pooled figure read as the

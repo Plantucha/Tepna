@@ -14584,6 +14584,233 @@
           })
           .join(', ') || 'no definition found'
       );
+      /* ══ A PRINTED NIGHT IS A CLAIM ABOUT THE UNIT, AND FOUR TOOLS MADE IT OVER FILES (#4150).
+         `coverageIdentity` binds the ARITHMETIC of every removal namer above. It cannot see the WORD
+         a tool prints beside the number, and four analysis tools declared their population unit as a
+         FILE — `${DEVICE} PPG files`, `H10 ACC files` — and then printed `night(s)` over the same
+         rows. One night holds several recordings, so the two lines disagreed on the unit while
+         quoting one number. `ppi-jitter-vs-ecg.mjs` is the one whose rows really ARE nights, but only
+         under the default merge: `buildUnits` returns one unit per night with merging on and one per
+         FILE under `--no-merge`, so its word follows the mode instead of being fixed either way.
+         A CLAIM IS THE PRINTED TEXT ONLY, AND A PRINT CALL SPANS LINES. The first instrument here
+         read one line at a time and reported ZERO claims in two tools that each print a night,
+         because `console.log(` sat on the line above the template. A scanner that cannot see the text
+         it clears is a pass reported about something never examined, so this one walks each call to
+         its matching paren, keeps the STRING AND TEMPLATE LITERALS only, and strips every
+         interpolation. A `//` note inside a call is not printed. `out.push({ … })` of an object
+         prints nothing. `${nights.length}` names no unit to a reader.
+         THE REMAINDER IS WHAT MAKES THIS A RULE. Every night a reader may be shown is named below
+         with why it is a real one, so the label cannot come back quietly. The two file-unit tools
+         keep exactly ONE each: the `--max-nights` cap line, which reads DATED NIGHTS off the
+         filenames and prints them by name, and so is a true night count over a file-unit read.
+         WHAT THIS DOES NOT FIX: eleven `ppi-jitter-vs-ecg.mjs` lines still write `night` where the
+         unit follows the mode, so each reads wrong under `--no-merge`. They are declared as a CLOSED
+         remainder and counted. The set can shrink. It cannot grow. */
+      var nightClaims = function (text) {
+        var src = String(text || '');
+        var out = [];
+        var re = /console\.log\(|out\.push\(/g;
+        var m;
+        while ((m = re.exec(src))) {
+          var i = m.index + m[0].length - 1;
+          var depth = 0;
+          var j = i;
+          for (; j < src.length; j++) {
+            if (src.charAt(j) === '(') depth++;
+            else if (src.charAt(j) === ')') {
+              depth--;
+              if (depth === 0) break;
+            }
+          }
+          var span = src.slice(i, j + 1);
+          var printed = '';
+          var k = 0;
+          while (k < span.length) {
+            var c = span.charAt(k);
+            if (c === '`' || c === "'" || c === '"') {
+              k++;
+              var dd = 0;
+              while (k < span.length) {
+                if (span.charAt(k) === '\\') {
+                  k += 2;
+                  continue;
+                }
+                if (c === '`' && dd === 0 && span.charAt(k) === '$' && span.charAt(k + 1) === '{') {
+                  dd = 1;
+                  k += 2;
+                  continue;
+                }
+                if (dd > 0) {
+                  if (span.charAt(k) === '{') dd++;
+                  else if (span.charAt(k) === '}') dd--;
+                  k++;
+                  continue;
+                }
+                if (span.charAt(k) === c) break;
+                printed += span.charAt(k);
+                k++;
+              }
+              k++;
+            } else if (c === '/' && span.charAt(k + 1) === '/') {
+              while (k < span.length && span.charAt(k) !== '\n') k++;
+            } else if (c === '/' && span.charAt(k + 1) === '*') {
+              var e = span.indexOf('*/', k);
+              k = e < 0 ? span.length : e + 2;
+            } else k++;
+          }
+          if (/night/i.test(printed)) out.push(printed.replace(/\s+/g, ' ').trim());
+        }
+        return out;
+      };
+      /* THE DECLARED SET, per tool: the only night a reader may be shown, and WHY it is a real one. */
+      var UNIT_CLAIMS = {
+        /* One row per FILE, always. The cap line is still a true night count — it reads DATED NIGHTS
+           off the filenames, prints them by name, and says how many files they left. */
+        'ppg-foot-consensus-e1.mjs': ['the --max-nights cap kept'],
+        'resp-cardiac-suppression-e8.mjs': ['the --max-nights cap kept'],
+        /* This cap ranks files by byte size, and its own line says so. */
+        'ppg-fusion-e3.mjs': ['--max-nights cap, which ranks FILES'],
+        /* Night KEYS off the filenames, two cited external figures, and three statements about what
+           an epoch is. None of these counts a unit the read produced. */
+        'ppi-jitter-vs-ecg.mjs': [
+          'the --max-nights cap kept',
+          "the paper's §3.4 figures",
+          'the PAT path read',
+          'so night UNKNOWN rather than absent',
+          'the full parse placed outside',
+          '--sleep-only kept the nights',
+          'the sleep test could not decide',
+          'distinct night key(s)',
+          'epochs within a night are not independent',
+          'per-night records'
+        ]
+      };
+      /* THE CLOSED REMAINDER: `ppi-jitter-vs-ecg.mjs` lines that still write `night` where the unit
+         follows the merge mode, so each reads wrong under `--no-merge`. Shrinking this list means
+         editing the count leg below with it — that is the ratchet, and the direction is one-way. */
+      var MODE_REMAINDER = [
+        'no night carried both classes',
+        'mean SQI above',
+        'clean-beat share',
+        'nights excluded',
+        'worst night',
+        'not the night',
+        'over nights mean',
+        'normal approximation over NIGHTS',
+        'within-night jitter IQR',
+        'R² over night(s)',
+        'ms reached on'
+      ];
+      var UNIT_TOOLS = Object.keys(UNIT_CLAIMS);
+      var declaredFor = function (tool) {
+        return UNIT_CLAIMS[tool].concat(tool === 'ppi-jitter-vs-ecg.mjs' ? MODE_REMAINDER : []);
+      };
+      T.eq(
+        'every tool the unit rule covers is readable here',
+        UNIT_TOOLS.filter(function (t) {
+          return !(TT['tools/' + t] || '').length;
+        }).join(', '),
+        ''
+      );
+      T.eq(
+        'the scanner reads whole print calls, so it finds every night claim that is real',
+        UNIT_TOOLS.map(function (t) {
+          return t.replace('.mjs', '') + '=' + nightClaims(TT['tools/' + t]).length;
+        }).join(' '),
+        'ppg-foot-consensus-e1=1 resp-cardiac-suppression-e8=1 ppg-fusion-e3=1 ppi-jitter-vs-ecg=21'
+      );
+      T.eq(
+        'no tool prints a night it cannot see — every printed night matches a declared, named source',
+        UNIT_TOOLS.map(function (t) {
+          var dec = declaredFor(t);
+          return nightClaims(TT['tools/' + t])
+            .filter(function (c) {
+              return !dec.some(function (d) {
+                return c.indexOf(d) >= 0;
+              });
+            })
+            .map(function (c) {
+              return t + ': ' + c.slice(0, 70);
+            })
+            .join(' | ');
+        })
+          .filter(Boolean)
+          .join(' || '),
+        ''
+      );
+      T.eq(
+        'the declared set carries no fingerprint that stopped printing',
+        UNIT_TOOLS.map(function (t) {
+          var claims = nightClaims(TT['tools/' + t]);
+          return declaredFor(t)
+            .filter(function (d) {
+              return !claims.some(function (c) {
+                return c.indexOf(d) >= 0;
+              });
+            })
+            .map(function (d) {
+              return t + ': ' + d;
+            })
+            .join(' | ');
+        })
+          .filter(Boolean)
+          .join(' || '),
+        ''
+      );
+      T.eq(
+        'each file-unit tool prints exactly one night, and it is the dated cap line',
+        ['ppg-foot-consensus-e1.mjs', 'resp-cardiac-suppression-e8.mjs']
+          .map(function (t) {
+            var c = nightClaims(TT['tools/' + t]);
+            return t + '=' + c.length + (c.length === 1 && c[0].indexOf('dated night(s)') >= 0 ? ':dated' : ':OTHER');
+          })
+          .join(' '),
+        'ppg-foot-consensus-e1.mjs=1:dated resp-cardiac-suppression-e8.mjs=1:dated'
+      );
+      T.eq(
+        'the mode-dependent remainder is closed, and every entry still prints',
+        MODE_REMAINDER.length +
+          ' declared / ' +
+          nightClaims(TT['tools/ppi-jitter-vs-ecg.mjs']).filter(function (c) {
+            return MODE_REMAINDER.some(function (d) {
+              return c.indexOf(d) >= 0;
+            });
+          }).length +
+          ' printing',
+        '11 declared / 11 printing'
+      );
+      T.eq(
+        'no genuine night claim is also declared as the remainder',
+        UNIT_CLAIMS['ppi-jitter-vs-ecg.mjs']
+          .filter(function (d) {
+            return MODE_REMAINDER.indexOf(d) >= 0;
+          })
+          .join(', '),
+        ''
+      );
+      T.eq('the merging reader takes its unit word from the mode', /const UNIT_WORD = MERGE \? 'night\(s\)' : PPG_UNIT;/.test(TT['tools/ppi-jitter-vs-ecg.mjs'] || ''), true);
+      T.eq('and its count lines read that word', (TT['tools/ppi-jitter-vs-ecg.mjs'] || '').split('${UNIT_WORD}').length - 1 >= 6, true);
+      T.eq(
+        'the line that divides a scored count by an offered count names BOTH units',
+        /\$\{UNIT_WORD\} of the \$\{snap\.n\} offered \$\{snap\.unit\}/.test(TT['tools/ppi-jitter-vs-ecg.mjs'] || ''),
+        true
+      );
+      T.eq(
+        'each file-unit reader prints its own declared unit name beside the scored count',
+        [
+          ['ppg-foot-consensus-e1.mjs', /\$\{scored\.length\} \$\{PPG_UNIT\} scored/],
+          ['ppg-fusion-e3.mjs', /\$\{rows\.length\} \$\{PPG_UNIT\} scored/],
+          ['resp-cardiac-suppression-e8.mjs', /\$\{rows\.length\} \$\{ACC_UNIT\}/]
+        ]
+          .filter(function (p) {
+            return !p[1].test(TT['tools/' + p[0]] || '');
+          })
+          .map(function (p) {
+            return p[0];
+          })
+          .join(', '),
+        ''
+      );
       /* ── A HAND-WRITTEN DEFAULT ANSWER AGREES WITH THE RULE BESIDE IT ─────────────────────────
          Row 2026-10-26-a-hand-written-ruleisdefault-asserts-a-comparison-the-file-never-ran.
          `snapshotNights` computes `ruleIsDefault` on every arm it returns, refusals included, as
