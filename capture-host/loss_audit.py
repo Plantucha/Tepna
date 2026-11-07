@@ -1485,6 +1485,9 @@ def _has_worn_evidence(night_dir: str, model: str) -> bool | None:
 #                             removal burst in the final epoch; ring: the paired PPG2W file's off-finger tail)
 #   `link-loss`               no removal signature, and the same stream's next file starts within
 #                             WEAR_RELINK_S — the external label the thresholds below were validated against
+#                             (a link-loss end whose next file the PPI judges NOT WORN is relabelled
+#                             `doff`, witness `relink-not-worn`: the device relinked off the body —
+#                             `relink_off_body`, owner ruling 2026-11-06)
 #   `quiet-end-unclassified`  neither: no signature and no reconnect. Stated, not guessed.
 #   `quiet-end-relink-undetermined`
 #                             no signature, and the reconnect search read a sibling name carrying no
@@ -1958,6 +1961,7 @@ def wear_ends(night_dir: str, model: str, address: str | None = None) -> dict:
             ends.append(_ring_end(f, night_dir, contact, battery) if ring else _wear_end(f, night_dir, model))
         except OSError as exc:
             ends.append({"file": os.path.basename(f), "usable": False, "reason": f"unreadable: {exc!r}"})
+    relink_off_body(ends)
     if address:
         rows = daemon_worn_rows(night_dir, address)
         for e in ends:
@@ -1985,6 +1989,24 @@ def _ring_contact(spo2_files: list[str]) -> list[dict]:
     for d in sorted(by_dir):
         out.extend(nightqc.ppg2w_contact_quality(d, only=frozenset(by_dir[d])))
     return out
+
+
+def relink_off_body(ends: list[dict]) -> None:
+    """A usable `link-loss` end becomes a `doff` when the stream's next file is judged not worn by its PPI.
+
+    OWNER RULING 2026-11-06 ("Night is obviously solid. Detection should be better"). MEASURED on the
+    capture box: night 2026-11-05's Verity link dropped at 04:22:55 with no removal signature. The next
+    file started 55 s later and reported a pulse on 0 of its 3156 PPI rows. The device relinked off the
+    body, so the wear had ended by the link loss: the end is a doff, not "doff or loss" (SOLID-NIGHT §3.3).
+    The worn end stays the last stamped row of the worn file, which is the conservative edge.
+
+    The witness is the not-worn record's own `ppi_pulse_rows` key, never its reason text. Only the NEXT
+    end counts: a worn file between the two keeps the link loss. Census 2026-11-06 over 142 night folders:
+    2 link-loss ends had an unworn next file, and each was its night's worn end."""
+    for e, nxt in zip(ends, ends[1:]):
+        if e["usable"] and e["reason"] == "link-loss" and "ppi_pulse_rows" in nxt:
+            e["reason"] = "doff"
+            e["doff_witness"] = f"relink-not-worn: {nxt['file']}"
 
 
 def worn_end_of(ends: list[dict]) -> dict | None:
