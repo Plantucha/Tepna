@@ -824,9 +824,14 @@ function selftest() {
        field, which is provenance and must survive. What must not survive is a SECOND mention: a prose
        sentence or a card constant still pointing at the retired run. So the count is pinned to the
        inlined record's own, rather than to zero (a zero here would red on correct provenance). */
-    const retiredRe = new RegExp(path.basename(SUPERSEDES).replace(/\./g, '\\.'), 'g');
-    const retired = (html.match(retiredRe) || []).length;
-    const inRecord = (twinSource(rec, 'x.json').match(retiredRe) || []).length;
+    /* COUNTED BY SPLITTING ON THE LITERAL, never by a regex built from it. A `new RegExp` over an
+       escaped basename escapes `.` and leaves a backslash unescaped, which `js/incomplete-sanitization`
+       reds as a high-severity alert — correctly, because the escape is partial. A split needs no
+       escape at all, so there is no sanitiser to get wrong. */
+    const retiredName = path.basename(SUPERSEDES);
+    const countOf = (text) => text.split(retiredName).length - 1;
+    const retired = countOf(html);
+    const inRecord = countOf(twinSource(rec, 'x.json'));
     ok(retired === inRecord && inRecord === 1, 'the superseded record is named once, as provenance, and nowhere else in the page (page ' + retired + ', record ' + inRecord + ')');
   } else {
     ok(false, 'sensor-trio-night.html is not beside this tool — the card-wiring legs examined nothing (§4b)');
