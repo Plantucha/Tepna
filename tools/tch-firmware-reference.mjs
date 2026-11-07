@@ -918,6 +918,34 @@ function selftest() {
     ok(vm.runInContext('typeof NoSuchModuleInThisRealm', rctx) === 'undefined', 'CONTROL · a name no file defines reads undefined in the same realm, so the leg above is not vacuous');
   }
 
+  /* EVERY ROW THE SCORER RETURNS NAMES ITS REFERENCE AXIS, or it reads `device` under
+     `REF_AXIS_DEFAULT`. `main` filters the row set on that field, so a corrected-axis run DROPS an
+     axisless row from its OWN population, and a `--ledger` files a corrected-axis measurement under
+     the device key that the filter's comment says is never a substitute.
+
+     Measured 2026-11-06 over the box captures root: the no-HR-map path was the one return site here
+     that named no axis, and the three nights it refused left the corrected leg reporting 71 scored
+     of 111 eligible where both device legs read 71 of 114. `corpus-population` read PASS with one
+     digest over all three runs, and `checked + excluded = eligible` held inside each verdict, so
+     nothing in the output said a night had left the population. */
+  {
+    const selfSrc = fs.readFileSync(path.join(HERE, 'tch-firmware-reference.mjs'), 'utf8');
+    /* THE ANCHORS ARE SPLIT LITERALS ON PURPOSE. Written whole, each one occurs in this leg's own
+       source AHEAD of the declaration it means to find, so the slice started here and swallowed the
+       plants below — the scan then named a planted row as a real defect. */
+    const i0 = selfSrc.indexOf('export function ' + 'scoreNightDir(ctx, dir)');
+    const i1 = selfSrc.indexOf('\nasync function ' + 'main(argv)', i0 + 1);
+    const scorer = i0 >= 0 && i1 > i0 ? selfSrc.slice(i0, i1) : '';
+    ok(scorer.length > 2000, 'ANTI-VACUITY · the scorer source is located, ' + scorer.length + ' chars between its own two anchors — a leg over an empty slice examines nothing');
+    const rets = scorer.match(/return \{[^}]*\bnight\b[^}]*\}/g) || [];
+    ok(rets.length >= 4, 'ANTI-VACUITY · the scan reads ' + rets.length + ' row-shaped return site(s) in the scorer, refusals and the scored row together');
+    const axisless = rets.filter((r) => !/referenceAxis/.test(r));
+    ok(axisless.length === 0, 'every row the scorer returns names its reference axis — axisless: ' + (axisless.map((r) => r.slice(0, 70)).join(' | ') || 'none'));
+    const planted = ["return { night, axis, ok: false, reason: 'x' }", 'return { night, axis, referenceAxis: refAxis, ok: true }'];
+    const caught = planted.filter((r) => (r.match(/return \{[^}]*\bnight\b[^}]*\}/) || [''])[0] && !/referenceAxis/.test(r));
+    ok(caught.length === 1 && caught[0] === planted[0], 'CONTROL · the same scan over a PLANTED pair names the axisless row and only that one, so the leg above can fail');
+  }
+
   console.log(fails.length ? `SELFTEST FAIL (${fails.length}/${ran})\n  ${fails.join('\n  ')}` : `SELFTEST PASS (${ran}/${ran})`);
   return fails.length ? 1 : 0;
 }
@@ -1068,7 +1096,7 @@ export function scoreNightDir(ctx, dir) {
         !V ? 'Verity' + (vErr ? ': ' + String(vErr).slice(0, 90) : '') : null,
         !O ? 'O2Ring' : null
       ].filter(Boolean);
-      return { night, axis, ok: false, reason: 'a corner produced no HR map (' + why.join(' · ') + ')' };
+      return { night, axis, referenceAxis: refAxis, ok: false, reason: 'a corner produced no HR map (' + why.join(' · ') + ')' };
     }
     const s = scoreSeries(REF, H, V, O);
     return {
