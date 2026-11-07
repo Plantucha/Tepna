@@ -65,7 +65,7 @@ import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry } from './argv-guard.mjs';
-import { NIGHT_RE, notANight, populationVerdict, producedByOf, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
+import { coverageIdentity, NIGHT_RE, notANight, populationVerdict, producedByOf, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
 import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
 
 /* ── THE VALIDITY SIDECAR RIDES WITH THE STREAM ─────────────────────────────────────────────
@@ -464,6 +464,10 @@ async function main() {
   /* Named against the SELECTED set: under `--only` the rest of the offer was never a candidate, and
      the line above already states how many nights the selection left unread. */
   const unscored = notANight({ n: selected.length, nights: selected }, covered);
+  /* THE PRINTED FIGURE ANSWERS TO THE ARITHMETIC (#4506). The identity holds the scored count to the
+     members this run actually read: a short difference, a duplicate night or a member the offer never
+     held stops the run, where before the line printed and said nothing. */
+  coverageIdentity({ n: selected.length, nights: selected }, covered, unscored, { printedScored: covered.length });
   /* The status labels MOVEMENT, not coverage: `checked` is the intersection of the two snapshots,
      and reading it as a scored count would publish the whole offer as scored. */
   console.log(
