@@ -1111,16 +1111,16 @@ def test_TWO_GENUINELY_SEPARATE_NIGHTS_STAY_TWO_ROWS(tmp_path):
 
 
 def test_a_DATE_KEYED_tree_is_not_expanded_across_folders(tmp_path):
-    """⚠️ THE CPAP TREES ARE ROOT-RELATIVE AND CARRY NO SESSION STAMP, so they are deliberately left on
-    the old path. `session_epoch` returns None for them (its docstring says why), meaning there is no
-    start to judge membership by — globbing them across a second date would file one day's tree under
-    another night on the strength of a guess, which is the fabrication this change exists to remove."""
+    """⚠️ THE CPAP TREES ARE ROOT-RELATIVE, and `session_epoch` returns None for them (its docstring says
+    why). Since 2026-11-07 the reader looks in folder D+1 too, because a file NAME carries its session
+    start (`cpap_edf_writer.datalog_night`). An evening session in D+1 belongs to night D+1, so it stays
+    out of night D: the second folder is read by stamp, never by a guess."""
     root = str(tmp_path)
     os.makedirs(os.path.join(root, "2026-10-09"), exist_ok=True)
     for ymd in ("20261009", "20261010"):
         d = os.path.join(root, "cpap", "DATALOG", ymd)
         os.makedirs(d, exist_ok=True)
-        open(os.path.join(d, f"{ymd}_000000_BRP.edf"), "w").write("x" * 100)
+        open(os.path.join(d, f"{ymd}_220000_BRP.edf"), "w").write("x" * 100)
     cell = ni.night_entry(root, os.path.join(root, "2026-10-09")).get("CPAPDex")
     assert cell and all("20261009" in f for f in cell["files"]), cell
 
@@ -1183,7 +1183,7 @@ def test_a_DATE_KEYED_night_with_no_session_stamp_anywhere_still_gets_a_row(tmp_
     night that was never captured"."""
     root = str(tmp_path)
     os.makedirs(os.path.join(root, "captures", "2026-10-07"), exist_ok=True)
-    _edf(os.path.join(root, "captures", "cpap", "DATALOG", "20261007", "20261007_000000_BRP.edf"))
+    _edf(os.path.join(root, "captures", "cpap", "DATALOG", "20261007", "20261007_220000_BRP.edf"))
     rows = ni.index_nights(root, budget_s=None)
     assert [r["night"] for r in rows] == ["2026-10-07"], rows
     assert rows[0]["CPAPDex"], rows[0]
@@ -2628,3 +2628,51 @@ def test_a_HEAD_SCAN_OF_ZERO_LINES_reports_no_span_rather_than_raising(tmp_path)
     _w(f, "2026-10-09T22:00:00.000;1\n2026-10-09T23:00:00.000;2\n")
     assert ni.span_hours(f, head_lines=0) is None
     assert ni.span_hours(f) == 1.0
+
+
+# ── the date-keyed CPAP trees are read by sleep day, not by folder (owner, 2026-11-07) ──────────────
+def test_a_session_after_midnight_in_the_next_days_folder_lists_under_its_evening(tmp_path):
+    """MEASURED on the capture box 2026-11-07: the stream filed a 01:00 session in folder D+1. The
+    Nights view listed a CPAP-only row for D+1 and showed D with the card's copy only."""
+    root = str(tmp_path)
+    cap = os.path.join(root, "captures")
+    _edf(os.path.join(cap, "cpap-ble", "DATALOG", "20261107", "20261107_010018_BRP.edf"))
+    _edf(os.path.join(cap, "cpap-ble", "DATALOG", "20261107", "20261107_221500_BRP.edf"))
+    rows = ni.index_nights(root, budget_s=None)
+    assert [r["night"] for r in rows] == ["2026-11-06", "2026-11-07"], rows
+    d6 = os.path.join(cap, "2026-11-06")
+    os.makedirs(d6)
+    assert ni.night_entry(cap, d6)["CPAPDex"]["files"] == ["cpap-ble/DATALOG/20261107/20261107_010018_BRP.edf"]
+    d7 = os.path.join(cap, "2026-11-07")
+    os.makedirs(d7)
+    assert ni.night_entry(cap, d7)["CPAPDex"]["files"] == ["cpap-ble/DATALOG/20261107/20261107_221500_BRP.edf"]
+
+
+def test_the_sleep_day_reads_two_folders_and_keeps_a_stampless_file_with_its_own(tmp_path):
+    """Folder D holds the evening and folder D+1 the late start. A file with no stamp stays with its
+    folder, and a folder of only late starts claims no row of its own."""
+    root = str(tmp_path)
+    cap = os.path.join(root, "captures")
+    _edf(os.path.join(cap, "cpap", "DATALOG", "20261106", "20261106_221500_BRP.edf"))
+    _edf(os.path.join(cap, "cpap", "DATALOG", "20261106", "STR.edf"))
+    _edf(os.path.join(cap, "cpap", "DATALOG", "20261107", "20261107_015956_BRP.edf"))
+    assert [r["night"] for r in ni.index_nights(root, budget_s=None)] == ["2026-11-06"]
+    d6 = os.path.join(cap, "2026-11-06")
+    os.makedirs(d6)
+    assert ni.night_entry(cap, d6)["CPAPDex"]["files"] == [
+        "cpap/DATALOG/20261106/20261106_221500_BRP.edf",
+        "cpap/DATALOG/20261106/STR.edf",
+        "cpap/DATALOG/20261107/20261107_015956_BRP.edf",
+    ]
+
+
+def test_folder_days_names_the_folder_and_the_day_after_or_the_folder_alone():
+    assert ni._folder_days("20261231") == ["20261231", "20270101"]
+    assert ni._folder_days("unsorted") == ["unsorted"]
+
+
+def test_a_directory_inside_a_date_keyed_folder_is_not_a_night_file(tmp_path):
+    """Only a file names a sleep day. A folder that holds a subdirectory alone claims no row."""
+    root = str(tmp_path)
+    os.makedirs(os.path.join(root, "captures", "cpap", "DATALOG", "20261008", "20261008_220000_BRP.edf"))
+    assert ni.index_nights(root, budget_s=None) == []
