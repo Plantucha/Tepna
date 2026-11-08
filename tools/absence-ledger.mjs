@@ -47,6 +47,22 @@
  * "gone" over-counted fixes by ~3.5× on the only population small enough to check
  * (`audits/COUNTING-ZERO-POPULATION-SURVEY-2026-09-29.md`).
  *
+ * ── THE STATE IS KEYED TO THE PRODUCER, AND THE CONSUMER CARRIES NO ROW ────────────────────────
+ * A finding names a PRODUCING line, so a fix at the producer closes its row while a consumer that
+ * reads the same null as a number keeps no row of its own. Measured: the sleep-stability component in
+ * `oxydex-dsp.js` read a nulled hypoxic-burden rate as `((15 - hb.rate) / 15) * 100`, which clamps to a
+ * perfect 100, so a night with no measured second scored 81 and "Good" — and the producer's own row
+ * already read `fixed`. #4562 repaired four such consumers and closed ZERO findings, because the drain,
+ * the ratchet and `npm run verify:absence` have no site to close.
+ *
+ * Each finding does carry a `consumer` field naming where the value is read, so the CENSUS below counts
+ * what the survey itself named. It is a LOWER BOUND, because prose is not a schema, and it reports what
+ * it could not read rather than folding that into a zero (§∅): a finding whose consumer field names no
+ * `file:line` is counted apart. Today 287 of 290 findings name at least one site, 330 distinct sites in
+ * all, and 15 of those 330 are themselves a keyed finding — so 315 consumer sites sit outside everything
+ * this tool can state. The ratchet keeps deciding the PRODUCER drain; the census rides in its verdict so
+ * that an `open: 0` can never be read as the class being drained.
+ *
  *   node tools/absence-ledger.mjs             # verify: re-key and compare against the committed file
  *   node tools/absence-ledger.mjs --write     # (re)write the sidecar
  *   node tools/absence-ledger.mjs --selftest  # the properties below
@@ -109,6 +125,96 @@ export function rowProblem(row) {
     return 'accepted-with-reason carries no reason — an acceptance whose argument is not written down is a finding somebody gave up on';
   }
   return null;
+}
+
+/* ── THE CONSUMER CENSUS. Pure over the survey; reads no file. ──────────────────────────────────── */
+
+/** A `path:line` written anywhere in consumer prose. The path may be absolute or home-rooted, because
+ *  the survey recorded what each agent typed. */
+const CONSUMER_PATH = /((?:[~A-Za-z0-9_.-]+\/)*[A-Za-z0-9_.-]+\.(?:js|mjs|py|html|json|md|txt|css|sh)):(\d+)/g;
+
+/** A bare `line N` or `lines N`, which names a line in the FINDING'S OWN file. 14 findings name their
+ *  consumer only this way, and dropping them would under-report the census it exists to measure. */
+const CONSUMER_BARE_LINE = /\bline[s]? (\d+)/g;
+
+/** The repo directories a recorded path may be rooted above. */
+export const REPO_TOPS = ['capture-host/', 'tools/', 'tests/', 'audits/', 'briefs/', 'docs/', 'changes/', 'licensing/', 'analysis/', 'papers/', 'provenance/'];
+
+/** Reduce a recorded path to a repo-relative one. A path rooted outside the repo keeps only its
+ *  basename: a checkout location is one agent's machine, never part of a site's identity. */
+export function repoRelative(path) {
+  const p = String(path ?? '');
+  if (!p.includes('/')) return p;
+  for (const top of REPO_TOPS) {
+    const i = p.indexOf(top);
+    if (i >= 0) return p.slice(i);
+  }
+  if (p.startsWith('~/') || p.startsWith('/')) return p.split('/').pop();
+  return p;
+}
+
+/** The consumer sites ONE finding names, as `file:line` strings. Pure. The bare-line form resolves
+ *  against the finding's own file, which is where a same-file consumer lives. */
+export function consumerSitesOf(finding) {
+  const prose = String(finding?.consumer ?? '');
+  const fromPath = new Set();
+  const fromBareLine = new Set();
+  let m;
+  CONSUMER_PATH.lastIndex = 0;
+  while ((m = CONSUMER_PATH.exec(prose)) !== null) fromPath.add(`${repoRelative(m[1])}:${m[2]}`);
+  CONSUMER_BARE_LINE.lastIndex = 0;
+  while ((m = CONSUMER_BARE_LINE.exec(prose)) !== null) fromBareLine.add(`${finding?.file}:${m[1]}`);
+  return { fromPath: [...fromPath], fromBareLine: [...fromBareLine] };
+}
+
+const basenameSite = (site) => {
+  const i = site.lastIndexOf(':');
+  return `${site.slice(0, i).split('/').pop()}${site.slice(i)}`;
+};
+
+/** How much of the consumer side this tool can state. Pure over the confirmed findings.
+ *
+ *  `sitesWithRow` matches a site against the keyed findings by repo-relative path first and by basename
+ *  second, so a path the survey wrote relative to a subtree still matches. The basename arm found 0 more
+ *  sites on the committed artifact, which is what makes `sitesWithoutRow` a count rather than a bound.
+ *
+ *  `findingsNamingNoSite` is the part the census could NOT read. It is reported, never summed into a
+ *  zero: 3 findings describe their consumer in prose that names no line at all. */
+export function consumerCensus(confirmed) {
+  const findings = confirmed ?? [];
+  const exact = new Set(findings.map((f) => `${f.file}:${f.line}`));
+  const byBasename = new Set([...exact].map(basenameSite));
+  const sites = new Set();
+  let namingAPath = 0;
+  let namingABareLineOnly = 0;
+  let namingNoSite = 0;
+  for (const f of findings) {
+    const { fromPath, fromBareLine } = consumerSitesOf(f);
+    for (const s of fromPath) sites.add(s);
+    for (const s of fromBareLine) sites.add(s);
+    /* The three arms partition the findings: a path (with or without a bare line beside it), a bare
+       line and nothing else, or no line at all. A finding carrying both must land in ONE arm or the
+       published halves stop adding up. */
+    if (fromPath.length) namingAPath += 1;
+    else if (fromBareLine.length) namingABareLineOnly += 1;
+    else namingNoSite += 1;
+  }
+  let withRow = 0;
+  for (const s of sites) {
+    if (exact.has(s) || byBasename.has(basenameSite(s))) withRow += 1;
+  }
+  return {
+    _note:
+      "A LOWER BOUND read out of the survey's own `consumer` prose. The state above is keyed to the PRODUCING line, so a consumer site that is not itself a finding carries no state and no ratchet.",
+    findings: findings.length,
+    findingsNamingASite: findings.length - namingNoSite,
+    findingsNamingNoSite: namingNoSite,
+    findingsNamingASiteByPath: namingAPath,
+    findingsNamingASiteByBareLineOnly: namingABareLineOnly,
+    sites: sites.size,
+    sitesWithRow: withRow,
+    sitesWithoutRow: sites.size - withRow
+  };
 }
 
 /* ── THE SEEDS. Hand-read 2026-09-29; see the audit named in the header. Keyed by file+line ONLY here,
@@ -750,11 +856,19 @@ export function build(survey, seeds = SEEDS) {
       '',
       'Everything not hand-read is `open`. "The snippet no longer matches the file" is NOT evidence of a fix:',
       'measured 2026-09-29, an automated reclaim over-counted fixes by ~3.5x on the only population small',
-      'enough to verify. See audits/COUNTING-ZERO-POPULATION-SURVEY-2026-09-29.md.'
+      'enough to verify. See audits/COUNTING-ZERO-POPULATION-SURVEY-2026-09-29.md.',
+      '',
+      'EVERY STATE HERE IS A STATE ABOUT A PRODUCING LINE. A consumer that reads the same absent value as',
+      'a number is not a finding, carries no key and gets no state, so a `fixed` row says nothing about it.',
+      'consumerCensus below counts the consumer sites the survey ITSELF named, which is the only part of',
+      'that population this file can state.'
     ],
     source: 'audits/ABSENCE-SURVEY-2026-09-22.json',
     states: STATES,
     counts: { findings: entries.length, ...tally },
+    /* The consumer side, which the states above do not cover. Derived from the survey only, so this
+       stays pure and the byte-identity gate keeps covering it. */
+    consumerCensus: consumerCensus(survey.confirmed),
     entries
   };
 }
@@ -764,7 +878,11 @@ const render = (o) => `${JSON.stringify(o, null, 1)}\n`;
 /** The ONE verdict this tool emits. Pure given its inputs, so the selftest exercises the real shape.
  *  `ceiling` is the committed ratchet number; `built` is the rebuilt state; `identical` says whether the
  *  committed state file matched that rebuild. Every finding is examined to decide whether it is open, so
- *  the population is all of them — the open count is the RESULT, not the population. */
+ *  the population is all of them — the open count is the RESULT, not the population.
+ *
+ *  THE POPULATION IS PRODUCING LINES. It is every finding and no consumer, because a consumer of an
+ *  absent value is not a finding and has no key to hold a state. `result.consumer` carries the census so
+ *  that a reader of `open: 0` cannot take the producer drain for the class being drained. */
 export function ratchetVerdictObject({ ceiling, built, identical }) {
   const open = built.counts.open;
   const findings = built.counts.findings;
@@ -790,7 +908,17 @@ export function ratchetVerdictObject({ ceiling, built, identical }) {
     scope: 'internal',
     population: { checked: findings, eligible: findings, excluded: 0 },
     criterion: { name: 'open_absence_findings', threshold: Number.isInteger(ceiling) ? ceiling : 0, unit: 'findings', direction: 'eq' },
-    result: status === 'UNKNOWN' ? null : { open, ceiling, fixed: built.counts.fixed, accepted: built.counts['accepted-with-reason'] },
+    result:
+      status === 'UNKNOWN'
+        ? null
+        : {
+            open,
+            ceiling,
+            fixed: built.counts.fixed,
+            accepted: built.counts['accepted-with-reason'],
+            /* OUTSIDE the population above, and reported for exactly that reason. */
+            consumer: built.consumerCensus ?? null
+          },
     evidence: ['audits/ABSENCE-SURVEY-2026-09-22-STATE.json', 'audits/ABSENCE-SURVEY-2026-09-22-RATCHET.json'],
     reason
   });
@@ -873,12 +1001,52 @@ export function selftest() {
   const committed = readCeiling();
   ok(committed === undefined || rv(committed) === 'PASS', 'the committed ceiling equals the open count');
 
+  /* 9 · THE CONSUMER CENSUS. The arithmetic closes, the two readers behave, a site named twice is one
+   *     site, and a finding whose prose names no line is reported apart from a zero. */
+  ok(repoRelative('~/wt-x/capture-host/night_report.py') === 'capture-host/night_report.py', 'a home-rooted path reduces to the repo path');
+  ok(repoRelative('/elsewhere/vendor/thing.py') === 'thing.py', 'a path rooted outside the repo keeps only its basename');
+  ok(repoRelative('oxydex-dsp.js') === 'oxydex-dsp.js', 'a bare root file is already repo-relative');
+  const siteOne = consumerSitesOf({ file: 'a.js', consumer: 'read at tools/b.mjs:42' });
+  ok(siteOne.fromPath.length === 1 && siteOne.fromPath[0] === 'tools/b.mjs:42', 'a path:line in the prose is one site');
+  ok(siteOne.fromBareLine.length === 0, 'a path:line is not also counted as a bare line');
+  const siteBare = consumerSitesOf({ file: 'a.js', consumer: 'stability() line 898 publishes it' });
+  ok(siteBare.fromPath.length === 0 && siteBare.fromBareLine[0] === 'a.js:898', "a bare line ref resolves against the finding's own file");
+  ok(consumerSitesOf({ file: 'a.js', consumer: 'folded into the published summary' }).fromPath.length === 0, 'prose naming no line yields no site');
+  const cen = consumerCensus([
+    { file: 'a.js', line: 1, consumer: 'read at b.js:9' },
+    { file: 'c.js', line: 2, consumer: 'also read at b.js:9' },
+    { file: 'd.js', line: 3, consumer: 'folded into the summary' },
+    { file: 'e.js', line: 4, consumer: 'read at a.js:1' },
+    { file: 'f.js', line: 5, consumer: 'read at b.js:9 and again at line 77' },
+    { file: 'g.js', line: 6, consumer: 'published at line 12' }
+  ]);
+  ok(cen.sites === 4, 'one site named by two findings is counted once');
+  ok(cen.findingsNamingNoSite === 1, 'a finding naming no site is counted apart');
+  ok(cen.findingsNamingASite === 5, 'the two halves of the finding population add up');
+  ok(cen.findingsNamingASiteByPath === 4 && cen.findingsNamingASiteByBareLineOnly === 1, 'a finding naming both a path and a bare line lands in the path arm alone');
+  ok(cen.findingsNamingASiteByPath + cen.findingsNamingASiteByBareLineOnly + cen.findingsNamingNoSite === cen.findings, 'the three reader arms partition the findings');
+  ok(cen.sitesWithRow === 1 && cen.sitesWithoutRow === 3, 'a consumer site that is itself a finding is told from one that is not');
+  const real = built.consumerCensus;
+  ok(real.findings === built.counts.findings, 'the census population is every finding');
+  ok(real.findingsNamingASite + real.findingsNamingNoSite === real.findings, 'every finding is either naming a site or counted apart');
+  ok(real.sitesWithRow + real.sitesWithoutRow === real.sites, 'every named site is told to carry a row or not');
+  ok(
+    real.findingsNamingASiteByPath + real.findingsNamingASiteByBareLineOnly + real.findingsNamingNoSite === real.findings,
+    'the committed census partitions every finding across its three reader arms'
+  );
+  ok(real.sitesWithoutRow > 0, 'the committed survey names consumer sites that carry no row — the reason this census exists');
+  const rvFull = ratchetVerdictObject({ ceiling: n, built, identical: true });
+  /* Null-safe on purpose: a census dropped out of the verdict must FAIL this leg, not crash it. */
+  ok(rvFull.result.consumer?.sites === real.sites, 'the verdict publishes the census beside its producer population');
+  ok(rvFull.population.checked === real.findings, 'the verdict population counts producers, not the census sites');
+
   if (fail.length) {
     console.error(`✗ absence-ledger selftest: ${fail.length} failed`);
     for (const f of fail) console.error(`    ${f}`);
     return 1;
   }
   console.log(`  absence-ledger: ${built.counts.findings} findings — ${built.counts.fixed} fixed · ` + `${built.counts['accepted-with-reason']} accepted · ${built.counts.open} open`);
+  console.log(`  consumer census: ${built.consumerCensus.sites} sites named, ${built.consumerCensus.sitesWithoutRow} of them with no row`);
   console.log(`  all ${ran} selftests passed`);
   return 0;
 }
@@ -895,6 +1063,11 @@ function main(argv) {
     } else {
       const mark = v.status === 'PASS' ? '✓' : '✗';
       console.log(`  ${mark} absence-survey ratchet ${v.status}: ${b.counts.open} open of ${b.counts.findings}` + (v.reason ? ` — ${v.reason}` : ''));
+      const cc = b.consumerCensus;
+      console.log(
+        `    consumer sites named by the survey and held by nothing: ${cc.sitesWithoutRow} of ${cc.sites} sites` +
+          ` (${cc.sitesWithRow} are themselves a finding; ${cc.findingsNamingNoSite} findings name no line)`
+      );
       console.log(JSON.stringify(v));
     }
     return v.status === 'PASS' ? 0 : 1;
