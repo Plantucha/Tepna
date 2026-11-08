@@ -305,18 +305,57 @@ function readAt(ref, relPath) {
   return null;
 }
 
+/* A SHORTENED PATH AND A FOREIGN ONE BOTH SHARE A BASENAME, AND ONLY THE TAIL TELLS THEM APART.
+   `trySpellings` guesses ten prefixes, so a row citing `tch-pooled-hat-2026-10-03.json` for the
+   tracked `analysis/published-numbers/tch-pooled-hat-2026-10-03.json` resolved nowhere. The basename
+   arm then read "some tracked file carries this basename" as evidence that THIS repo held the cited
+   path, which is the claim `off-tree` was split out to deny. A tracked path that ENDS WITH the cited
+   path AT A DIRECTORY BOUNDARY is that same file under a fuller spelling, and the match is decided by
+   the tracked set rather than guessed. A path the cited one is NOT a tail of shares only a basename:
+   `tmp/mut-<hash>/work/mutants/mutation_diff.py` against `capture-host/mutation_diff.py` names a
+   mutmut scratch tree this repo never tracked. The boundary is load-bearing — without the leading
+   slash, `diff.py` would match `mutation_diff.py` and resolve a citation onto a file it never named. */
+export function suffixCandidates(relPath, candidates) {
+  const q = String(relPath || '').replace(/^\.\//, '');
+  if (!q) return [];
+  return (candidates || []).filter((c) => c === q || c.endsWith(`/${q}`));
+}
+
+/* THE READER TRIES THE TAIL AFTER THE TEN SPELLINGS, AND ONLY WHEN IT IS UNIQUE. A row that omits
+   the leading directories of a file this repo really tracks names a READABLE file, so the right
+   answer is the line judgement and not a report of rot. Two tracked tails are an ambiguity this tool
+   must not pick between, so the citation stays unresolved and the bin split decides it. This wrapper
+   is exported because the composition is the behaviour: it sat inside `main` for one commit, where no
+   selftest could reach it and the only proof it worked was a hand-run report. */
+export function tailReader(readOne, trackedList) {
+  return (p) => {
+    const direct = readOne(p);
+    if (direct !== null || !trackedList) return direct;
+    const tails = suffixCandidates(p, trackedList);
+    return tails.length === 1 ? readOne(tails[0]) : null;
+  };
+}
+
 /* ONE UNRESOLVED PATH, TWO UNLIKE THINGS, AND THE EVIDENCE DECIDES WHICH. `prov` is what a
    provenance probe returned for this path: `carried` is whether ANY tried spelling appears in this
    repo's history, and `candidates` are tracked files sharing its basename. ∅ `carried === null` is
    the question nobody could ask — no probe, or a shallow clone — and it keeps the citation in
    `missing-file`, the class that decides `--strict`. Only a history that was READ and came back
    empty, with no basename candidate either, may move a citation out of the defect sum. */
-export function binMissing(prov) {
+export function binMissing(prov, relPath = null) {
   if (!prov || prov.carried === null || prov.carried === undefined) return { verdict: 'missing-file', why: 'the provenance probe did not run, so this path is judged as rot' };
   if (prov.carried) return { verdict: 'missing-file', why: `this repo's history carries ${prov.at || 'this path'}` };
   const candidates = prov.candidates || [];
-  if (candidates.length) return { verdict: 'missing-file', why: `a tracked file carries this basename: ${candidates.slice(0, 3).join(', ')}`, candidates };
-  return { verdict: 'off-tree', why: 'no spelling of this path is in the history and no tracked file carries its basename' };
+  if (!candidates.length) return { verdict: 'off-tree', why: 'no spelling of this path is in the history and no tracked file carries its basename' };
+  /* ∅ FAIL CLOSED WHEN THE TAIL CANNOT BE TESTED. A caller that passes no path leaves the two unlike
+     cases folded, so the citation keeps the defect class rather than being demoted on a basename. */
+  if (relPath === null) return { verdict: 'missing-file', why: `a tracked file carries this basename: ${candidates.slice(0, 3).join(', ')}`, candidates };
+  const suffix = suffixCandidates(relPath, candidates);
+  if (suffix.length) return { verdict: 'missing-file', why: `a tracked file sits at this path under a fuller spelling: ${suffix.slice(0, 3).join(', ')}`, candidates: suffix };
+  return {
+    verdict: 'off-tree',
+    why: `no spelling of this path is in the history, and the tracked file sharing its basename sits where this path is not a tail of it: ${candidates.slice(0, 3).join(', ')}`
+  };
 }
 
 /* THE EXIT CODE READS THE CLASSES THIS FILE RANKS AS DEFECTS. `--strict` read `r.moved.length`
@@ -434,7 +473,7 @@ export function sweep(rows, reader, provenance = null, isTracked = null) {
       const j0 = judge(c, lines(c.path), ids);
       /* The judgement is pure and reads a file; the SPLIT of its missing bin reads the repo, so it
          happens here, where the probe lives. `byVerdict` counts the final class. */
-      const j = j0.verdict === 'missing-file' ? { ...j0, ...binMissing(prov(c.path)) } : j0;
+      const j = j0.verdict === 'missing-file' ? { ...j0, ...binMissing(prov(c.path), c.path) } : j0;
       report.byVerdict[j.verdict] = (report.byVerdict[j.verdict] || 0) + 1;
       if (j.verdict === 'moved') report.moved.push({ key: row.key, state: row.state, cite: `${c.path}:${c.line}`, now: j.now });
       else if (j.verdict === 'missing-file') report.missing.push({ key: row.key, cite: `${c.path}:${c.line}`, why: j.why });
@@ -600,14 +639,77 @@ function selftest() {
       return b.verdict === 'missing-file' && b.why.includes('Unifier.html (9d93ca3a)');
     })()
   );
+  /* THIS LEG ONCE READ "a tracked basename makes it a repo file cited under the wrong directory".
+     That is the inference the tail rule denies, so the leg now pins what it really covers: a caller
+     passing NO path cannot test the tail, and the citation fails closed into the defect class. */
   check(
-    'a tracked basename makes it a repo file cited under the wrong directory, and the reason names the candidate',
+    '∅ a caller that passes no path cannot test the tail, so the citation stays in the defect class',
     (() => {
       const b = binMissing({ carried: false, candidates: ['analysis/published-numbers/hat.json'] });
       return b.verdict === 'missing-file' && b.why.includes('analysis/published-numbers/hat.json');
     })()
   );
   check('ONLY a history that was read and came back empty, with no candidate, scores off-tree', binMissing({ carried: false, candidates: [] }).verdict === 'off-tree');
+  /* ── A SHORTENED PATH IS NOT A FOREIGN ONE (row
+     2026-11-08-the-basename-arm-folds-a-scratch-path-and-an-abbreviated-one-into-rot) ────────────
+     The two live members of the old basename arm are the two cases below, written as literals. */
+  check(
+    'a bare basename resolves to the one tracked file it is the tail of',
+    JSON.stringify(suffixCandidates('hat.json', ['analysis/published-numbers/hat.json'])) === '["analysis/published-numbers/hat.json"]'
+  );
+  check(
+    'a FOREIGN directory sharing only the basename is no tail, so it resolves to nothing',
+    suffixCandidates('tmp/mut-6a9e/work/mutants/mutation_diff.py', ['capture-host/mutation_diff.py']).length === 0
+  );
+  check(
+    'BOUNDARY · the tail must start at a directory separator, or `diff.py` would claim `mutation_diff.py`',
+    suffixCandidates('diff.py', ['capture-host/mutation_diff.py']).length === 0 && suffixCandidates('mutation_diff.py', ['capture-host/mutation_diff.py']).length === 1
+  );
+  check('TWO tracked files sharing the tail are an ambiguity, and both are returned rather than one picked', suffixCandidates('hat.json', ['a/hat.json', 'b/hat.json']).length === 2);
+  check(
+    'a tail match keeps the citation a defect, and the reason names the fuller spelling, not the basename',
+    (() => {
+      const b = binMissing({ carried: false, candidates: ['analysis/published-numbers/hat.json'] }, 'hat.json');
+      return b.verdict === 'missing-file' && b.why.includes('fuller spelling') && b.why.includes('analysis/published-numbers/hat.json');
+    })()
+  );
+  check(
+    'a basename-only match scores off-tree, and the reason says the cited path is no tail of it',
+    (() => {
+      const b = binMissing({ carried: false, candidates: ['capture-host/mutation_diff.py'] }, 'tmp/mut-6a9e/work/mutants/mutation_diff.py');
+      return b.verdict === 'off-tree' && /not a tail/.test(b.why) && b.why.includes('capture-host/mutation_diff.py');
+    })()
+  );
+  check(
+    'CONTROL · a history that CARRIED the path is rot whatever the tail says — the tail never overrides it',
+    binMissing({ carried: true, candidates: ['capture-host/mutation_diff.py'], at: 'x (abc1234)' }, 'tmp/mut-6a9e/work/mutants/mutation_diff.py').verdict === 'missing-file'
+  );
+  {
+    /* The reader composition, which sat unreachable inside `main` for one commit. */
+    const served = ['alpha', 'beta', 'gamma'];
+    const one = (q) => (q === 'analysis/published-numbers/hat.json' ? served : null);
+    check('tailReader resolves a citation written at the bare basename through the one tracked tail', tailReader(one, ['analysis/published-numbers/hat.json'])('hat.json') === served);
+    check('tailReader refuses TWO tracked tails and returns null, so the bin split decides it', tailReader(one, ['a/hat.json', 'b/hat.json'])('hat.json') === null);
+    check('tailReader with NO tracked list passes the direct read through unchanged', tailReader(one, null)('analysis/published-numbers/hat.json') === served);
+    check(
+      'tailReader never reinterprets a path that already read — the direct answer wins',
+      tailReader((q) => (q === 'hat.json' ? served : null), ['analysis/published-numbers/hat.json'])('hat.json') === served
+    );
+    /* END TO END, and the control is the same ledger read WITHOUT the tracked list: one line
+       judgement against the real file, against one report of rot. */
+    const abbrev = parseRows('| 2026-11-08-tail | 2026-11-08 | `x` | the `beta` at hat.json:2 | ok | OPEN |');
+    const probeT = () => ({ carried: false, candidates: ['analysis/published-numbers/hat.json'] });
+    const rTail = sweep(abbrev, tailReader(one, ['analysis/published-numbers/hat.json']), probeT);
+    check('END TO END · a citation at a shortened path is judged against the file it names', rTail.byVerdict.anchored === 1 && strictFailures(rTail) === 0);
+    const rNoList = sweep(abbrev, tailReader(one, null), probeT);
+    check('CONTROL · with no tracked list the same citation reads as a defect, so the tail is what moved it', rNoList.byVerdict['missing-file'] === 1 && strictFailures(rNoList) === 1);
+    /* THE OTHER MEMBER, END TO END. A foreign directory sharing the basename must LEAVE the defect
+       sum as off-tree. Under the pre-fix arm the same plant resolves onto the tracked file and reads
+       a line out of it, so this leg is the one that separates a repair from a wrong resolution. */
+    const foreign = parseRows('| 2026-11-08-foreign | 2026-11-08 | `x` | the `beta` at tmp/mut-6a9e/work/mutants/hat.json:2 | ok | OPEN |');
+    const rF = sweep(foreign, tailReader(one, ['analysis/published-numbers/hat.json']), probeT);
+    check('END TO END · a foreign path sharing a basename scores off-tree and leaves the defect sum', rF.citations === 1 && rF.byVerdict['off-tree'] === 1 && strictFailures(rF) === 0);
+  }
   {
     /* Two citations, one of each kind, through the whole sweep. */
     const two = parseRows(
@@ -775,7 +877,12 @@ function main() {
     rows = addedRows(rows, parseRows(baseText));
   }
   const { probe, trackedSet, reason: probeReason } = repoProvenance(ref);
-  const r = sweep(rows, (p) => readAt(ref, p), probe, trackedSet ? (q) => trackedSet.has(q) : null);
+  const r = sweep(
+    rows,
+    tailReader((p) => readAt(ref, p), trackedSet ? [...trackedSet] : null),
+    probe,
+    trackedSet ? (q) => trackedSet.has(q) : null
+  );
   const v = verdictFor(r, commitSha(), { base, ref });
   /* `Verdict.validate` answers `{ ok, errors }`. A truth test on `.length` would read `undefined`
      and never fire, which is CLAUDE.md §4b: a check reporting a verdict about what it never read. */
@@ -819,7 +926,7 @@ function main() {
     }
     if (r.offTree.length) {
       console.log(
-        `\n  OFF TREE (${r.offTree.length}) — the path resolves nowhere, no spelling of it appears in this repo's history, and no tracked file carries its basename. A row may cite the standard library, an installed package or a vendor config; such a pointer is not a defect in THIS repo, and it does not decide --strict:`
+        `\n  OFF TREE (${r.offTree.length}) — the path resolves nowhere, no spelling of it appears in this repo's history, and no tracked file sits at a path this one is a tail of. A row may cite the standard library, an installed package or a vendor config; such a pointer is not a defect in THIS repo, and it does not decide --strict:`
       );
       for (const o of r.offTree) console.log(`    ${o.cite}  (${o.key}, ${o.state})`);
     }
