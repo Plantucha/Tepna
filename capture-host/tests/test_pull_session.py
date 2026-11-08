@@ -914,6 +914,34 @@ def test_a_completed_download_records_the_full_ledger_lifecycle(tmp_path, monkey
     assert committed["size"] == len(blob)
 
 
+def test_an_UNREADABLE_LEDGER_LINE_is_NAMED_before_the_plan_is_built(tmp_path, monkeypatch, capsys):
+    """🔴 The plan decides per session whether bytes already on disk can be trusted, and it reads the
+    ledger to do it. `load_rows` skips a line it cannot parse, which is right for an append-only
+    history — but until now it dropped that line in silence, so a plan built on less than the full
+    history reported nothing. The count reaches the operator, and the pull continues."""
+    ts = "20260719010000"
+    blob = b"\x01\x03" + b"z" * 90
+    _seed(tmp_path, inv.make_row(DEV, "20260101000000", inv.COMMITTED, at=1.0))
+    with open(str(tmp_path / "inventory.jsonl"), "a", encoding="utf-8") as fh:
+        fh.write("{a line the kill left half-written\n")
+    _install(monkeypatch, FakeRing([ts], blob))
+    _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "latest", 0, None, "0000"))
+    out = capsys.readouterr().out
+    assert "ledger: 1 unreadable line(s) beside 1 row(s)" in out, out
+    assert "PARTIAL history" in out
+
+
+def test_a_CLEAN_ledger_says_nothing_about_a_partial_history(tmp_path, monkeypatch, capsys):
+    """The other arm, and it is the one that matters on every healthy night: a warning that fires when
+    nothing was dropped trains the operator to ignore it."""
+    ts = "20260719010000"
+    blob = b"\x01\x03" + b"z" * 90
+    _seed(tmp_path, inv.make_row(DEV, "20260101000000", inv.COMMITTED, at=1.0))
+    _install(monkeypatch, FakeRing([ts], blob))
+    _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "latest", 0, None, "0000"))
+    assert "PARTIAL history" not in capsys.readouterr().out
+
+
 def test_a_finalized_download_classifies_VERIFIED_before_committing(tmp_path, monkeypatch):
     """A file that carries the Format-A finalisation sub-magic reaches VERIFIED (not merely PARTIAL) in
     the ledger before its COMMITTED row — the distinction the transactional layer exists to keep."""

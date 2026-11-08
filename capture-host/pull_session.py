@@ -242,7 +242,18 @@ async def _pull_once(
         # skip is now a property of the ledger (a COMMITTED row whose bytes still match), and the plan can
         # also recover a verified-but-never-committed file without re-pulling it over the slow BLE link.
         ledger_path = os.path.join(out_dir, "inventory.jsonl")
-        rows = oxy_inventory.load_rows(ledger_path)
+        # The tolerance is read, not assumed. `load_rows` skips a line it cannot parse, which is right
+        # for an append-only history, and until now it dropped that line without telling anyone. The
+        # plan below decides per session whether bytes already on disk can be trusted, so a history
+        # that lost rows is a plan built on less than it reports. One line, and the pull continues.
+        ledger_stats: dict = {}
+        rows = oxy_inventory.load_rows(ledger_path, ledger_stats)
+        if ledger_stats.get("skipped"):
+            print(
+                f"  ⚠ ledger: {ledger_stats['skipped']} unreadable line(s) beside "
+                f"{ledger_stats['kept']} row(s) — the plan reads a PARTIAL history",
+                flush=True,
+            )
 
         # PRE-PASS: apply the containment + stamp guards ONCE (unchanged behaviour — an escaping or
         # non-stamp `which` is dropped here and never becomes a path), and build the two maps plan() needs:

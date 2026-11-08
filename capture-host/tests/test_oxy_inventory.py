@@ -244,6 +244,91 @@ def test_load_skips_a_torn_final_line_instead_of_refusing_the_file(tmp_path):
     assert [r["id"] for r in rows] == ["R/20260101000000", "R/2"]
 
 
+def test_an_append_after_a_TORN_line_loses_the_tear_and_NOTHING_ELSE(tmp_path):
+    """🔴 THE DEFECT THIS CLOSES (residue 2026-11-07, Muse's hunt finding 11). Appending after a torn
+    final line used to FUSE the two rows onto one line. `load_rows` could not parse the fusion, so the
+    complete new row died with the torn one — two records lost for one tear, where the reader's own
+    docstring promises at worst one.
+
+    Both halves are asserted, because only the pair separates the guard from a truncation: the new row
+    PARSES, and the torn fragment is STILL ON DISK. The history never rewrites itself."""
+    led = str(tmp_path / "inventory.jsonl")
+    inv.append_row(led, inv.make_row("R", "20260101000000", inv.DISCOVERED, at=1.0))
+    with open(led, "a", encoding="utf-8") as fh:
+        fh.write('{"id":"R/torn","state":"PART')  # the kill landed here
+    inv.append_row(led, inv.make_row("R", "20260102000000", inv.COMMITTED, at=2.0))
+    assert [r["id"] for r in inv.load_rows(led)] == ["R/20260101000000", "R/20260102000000"]
+    assert '{"id":"R/torn","state":"PART\n' in open(led, encoding="utf-8").read(), (
+        "the torn bytes stay, on a line of their own — the guard separates, it does not truncate"
+    )
+
+
+def test_the_guard_adds_NO_byte_when_the_tail_is_already_clean(tmp_path):
+    """The file's BYTES are the assertion, not its parsed rows. A guard that fires on every append
+    writes a blank line that `load_rows` skips in silence, so no row-level assertion can see it — and
+    a probe reading the wrong byte, or comparing against the wrong one, fires exactly that way."""
+    led = str(tmp_path / "inventory.jsonl")
+    inv.append_row(led, inv.make_row("R", "20260101000000", inv.DISCOVERED, at=1.0))
+    inv.append_row(led, inv.make_row("R", "20260102000000", inv.COMMITTED, at=2.0))
+    body = open(led, encoding="utf-8").read()
+    assert body.count("\n") == 2, body
+    assert "\n\n" not in body, "a spurious separator before a row whose predecessor ended cleanly"
+
+
+def test_a_ZERO_BYTE_ledger_is_not_a_torn_tail(tmp_path):
+    """An existing file of length 0 has no last byte to read. The size test is what keeps the probe
+    off it; without that test the seek runs past the start of the file and raises."""
+    led = str(tmp_path / "inventory.jsonl")
+    open(led, "wb").close()
+    assert os.path.getsize(led) == 0, "the precondition this test exists for"
+    inv.append_row(led, inv.make_row("R", "20260101000000", inv.DISCOVERED, at=1.0))
+    assert open(led, encoding="utf-8").read().count("\n") == 1
+    assert [r["id"] for r in inv.load_rows(led)] == ["R/20260101000000"]
+
+
+def test_the_row_is_FSYNCED_so_a_power_cut_cannot_drop_a_regression(tmp_path, monkeypatch):
+    """A row that reached the OS survives a kill of this process. It does not survive the box losing
+    power, and that loss is NOT safe-sided: a dropped PARTIAL row leaves the ledger reading VERIFIED
+    for a file we already found corrupt, and `current()` can honour the regression only if it is there.
+
+    ⚠️ Counted BY INODE, not by call count. `writers` runs a process-global fsync worker, so an
+    unrelated barrier can land inside this test (see `conftest._no_fsync_barrier_spans_tests`). The
+    inode of THIS ledger is the witness that the barrier was ours, and exactly once."""
+    led = str(tmp_path / "inventory.jsonl")
+    synced: list[int] = []
+    real = os.fsync
+    monkeypatch.setattr(os, "fsync", lambda fd: (synced.append(os.fstat(fd).st_ino), real(fd))[1])
+    inv.append_row(led, inv.make_row("R", "20260101000000", inv.COMMITTED, at=1.0))
+    assert synced.count(os.stat(led).st_ino) == 1, synced
+
+
+def test_load_REPORTS_what_its_tolerance_dropped(tmp_path):
+    """The skip is right; the silence was the defect. A caller that reads two rows cannot tell a
+    two-row ledger from a two-row ledger beside four lines nobody could read."""
+    led = str(tmp_path / "inventory.jsonl")
+    inv.append_row(led, inv.make_row("R", "20260101000000", inv.DISCOVERED, at=1.0))
+    with open(led, "a", encoding="utf-8") as fh:
+        fh.write("\n")  # a blank line carried no record, so it lost none
+        fh.write("{not json at all\n")
+        fh.write('"a bare string"\n')
+        fh.write('{"no":"id"}\n')
+        fh.write('{"id":"R/2","state":"DISCOVERED"}\n')
+        fh.write('{"id":"R/3","state":"PART')
+    stats: dict = {}
+    rows = inv.load_rows(led, stats)
+    assert [r["id"] for r in rows] == ["R/20260101000000", "R/2"]
+    assert stats == {"kept": 2, "skipped": 4}, "two parsed, four dropped, and the blank line is neither"
+
+
+def test_a_ledger_it_could_not_OPEN_reports_NEITHER_count(tmp_path):
+    """🔴 §∅ IN THE REPORT ITSELF. A `0` here would say "I read the ledger and every line parsed" —
+    and it would read identically to an empty ledger, which is the normal state of a first pull. The
+    file was never opened, so neither count exists, and `null` is the only honest answer."""
+    stats: dict = {"kept": "untouched", "skipped": "untouched"}
+    assert inv.load_rows(str(tmp_path), stats) == [], "a directory is not a ledger"
+    assert stats == {"kept": None, "skipped": None}
+
+
 def test_load_of_an_absent_ledger_is_empty_not_an_error(tmp_path):
     assert inv.load_rows(str(tmp_path / "nope.jsonl")) == []
 
