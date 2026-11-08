@@ -1,0 +1,15 @@
+# tepna-capture — the 31-day stitched result's timer (SYSTEM scope; see the .service header)
+# Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
+#
+# 14:00 local, owner yes 2026-11-07: after the 13:00 SD harvest and the 13:30 archive, when nothing is
+# worn. Persistent=true runs a firing the box slept through at the next boot.
+[Unit]
+Description=Tepna — daily 31-day stitched result timer (daytime)
+
+[Timer]
+OnCalendar=*-*-* 14:00:00
+RandomizedDelaySec=10min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

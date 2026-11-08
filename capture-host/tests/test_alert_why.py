@@ -140,7 +140,7 @@ def test_the_start_reason(prev, boot, git, want):
 
 
 # ── the wire: the alert poller ──────────────────────────────────────────────────────────────────────
-def _poll(tmp_path, monkeypatch, *, saved=None, hour=12, strap_records=False, polls=3):
+def _poll(tmp_path, monkeypatch, *, saved=None, hour=12, strap_records=False, strap_unworn=False, polls=3):
     """Run the alert poller on a ring that is off and a strap; return the alerts it sent."""
     if saved is not None:
         p = tmp_path / "captures" / alerts.QUIET_STATE_NAME
@@ -154,6 +154,9 @@ def _poll(tmp_path, monkeypatch, *, saved=None, hour=12, strap_records=False, po
         capture._IDLE_TIMER_NAMED.discard(nm)
     if strap_records:
         capture._LAST_DATA[_STRAP] = _MONO
+    capture._WORN_SINCE.pop(_dev(_STRAP)["address"], None)
+    if strap_unworn:
+        capture._WORN_SINCE[_dev(_STRAP)["address"]] = _MONO - 600
     sent = []
 
     class _N:
@@ -186,6 +189,7 @@ def _poll(tmp_path, monkeypatch, *, saved=None, hour=12, strap_records=False, po
         for nm in (_RING, _STRAP):
             capture._LAST_DATA.pop(nm, None)
             capture.STATUS["devices"].pop(nm, None)
+        capture._WORN_SINCE.pop(_dev(_STRAP)["address"], None)
     assert calls["n"] >= polls
     return sent
 
@@ -217,6 +221,16 @@ def test_an_evening_wear_of_another_device_begins_a_night_and_the_alarm_returns(
     assert sent == [("Tepna: sensor offline", f"{_RING} has been offline for ~0 min — capture is missing it.")]
     saved = _saved_state(tmp_path)
     assert saved["night_began"] == _WALL and saved["ended"] == {}
+
+
+@pytest.mark.sets_capture_events
+def test_an_evening_stream_from_a_device_that_is_not_worn_does_not_begin_a_night(tmp_path, monkeypatch):
+    """MEASURED on the capture box 2026-11-07: a Sense on a desk, not worn since 17:41, relinked at 18:07.
+    Its stream began a night, and the ring and the strap sent "offline for ~5 min" at 18:12."""
+    sent = _poll(tmp_path, monkeypatch, saved=_ENDED_8H_AGO, hour=18, strap_records=True, strap_unworn=True)
+    assert "Tepna: sensor offline" not in [t for t, _ in sent], sent
+    saved = _saved_state(tmp_path)
+    assert saved["night_began"] is None and saved["ended"] == _ENDED_8H_AGO["ended"]
 
 
 @pytest.mark.sets_capture_events

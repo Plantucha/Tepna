@@ -71267,6 +71267,44 @@
       T.ok('…because minute ticks are whole minutes', U.scopeAxisTick(600) % 60 === 0 && U.scopeAxisTick(3600) % 60 === 0, 'ticks: ' + U.scopeAxisTick(600) + ', ' + U.scopeAxisTick(3600));
     });
 
+    /* ════ PPGScope Y SCALE IS PER-WINDOW — owner report 2026-11-07 ════
+       A Verity night drew as a flat line with the systolic dots sitting on it, while an O2Ring night
+       beside it drew a clean pulse. PPGScope scaled every view to the whole recording's min/max, so
+       one motion spike set the scale for the night. ECGScope had the same defect (fixed 2026-10-18);
+       PPGScope was cloned from it before then. These legs drive `_viewScale` on a synthetic pulse with
+       a spike 300x its amplitude: the window scale must follow the pulse, not the spike. */
+    group('PPGScope y scale follows the window, not the whole night', 'ppgdex-render · render-harness · known-answer', function (T) {
+      var U = env.PPGUI;
+      if (!U || !U.PPGScope || typeof U.PPGScope.prototype._viewScale !== 'function' || typeof U.buildEnvelope !== 'function') {
+        T.skip('env.PPGUI.PPGScope._viewScale available', 'PPGUI not co-loaded in this runner');
+        return;
+      }
+      var N = 20000,
+        a = new Int16Array(N);
+      for (var i = 0; i < N; i++) a[i] = Math.round(100 * Math.sin((2 * Math.PI * i) / 50));
+      a[15000] = 30000; // the one motion spike, far from the default view
+      a[5000] = 30000; // and one INSIDE a window of 1000 samples
+      var s = { N: N, int16: a, pyr: { 8: U.buildEnvelope(a, 8) }, yLo: -33000, yHi: 33000 };
+      var vs = function (st, sp, f) {
+        s._vsKey = null;
+        return U.PPGScope.prototype._viewScale.call(s, st, sp, f);
+      };
+      var w = vs(0, 1000, 1);
+      T.ok('a spike-free window scales to the pulse (±100 + 10 % pad), not the night-wide ±30000', w.hi < 200 && w.lo > -200 && w.hi > 100 && w.lo < -100, JSON.stringify(w));
+      var k = vs(4500, 1000, 1);
+      T.ok('one spike sample INSIDE the window is percentile-clipped — the pulse still fills the plot', k.hi < 200, JSON.stringify(k));
+      var e = vs(0, 8000, 8);
+      T.ok('an envelope level reads its own mins/maxs and clips the in-window spike the same way', e.hi < 200 && e.lo > -200, JSON.stringify(e));
+      s.int16 = new Int16Array(N);
+      var d = vs(0, 1000, 1);
+      T.eq('a flat window keeps the ±100 pad rather than dividing by zero', [d.lo, d.hi].join(','), '-100,100');
+      s.int16 = a;
+      s._vsKey = null;
+      var c1 = U.PPGScope.prototype._viewScale.call(s, 0, 1000, 1),
+        c2 = U.PPGScope.prototype._viewScale.call(s, 0, 1000, 1);
+      T.ok('a repeated view returns the cached scale, so panning back cannot jitter the baseline', c1 === c2);
+    });
+
     group('Render execution — surfaced-value known-answer (§RN harness)', 'glucodex-render · oxydex-render · cpapdex-render · hrvdex-render · motiondex-render · render-harness', function (T) {
       if (!env.GluDisp || !env.OxyDex || typeof env.OxyDex.reviewView !== 'function' || !env.CpapRender || typeof env.CpapRender.renderReviewView !== 'function') {
         T.skip(
