@@ -202,6 +202,15 @@ PAGE_CAP_PER_DAY = 3  # hard cap on counted pages per day; daemon-down and low-d
 _UNSET = object()  # configure() sentinel: "leave the board destination as it is"
 
 
+def streamed_this_night(first_sample: float | None, night_began: float | None) -> bool:
+    """PURE: did this device stream earlier this night — the one definition the cluster arm
+    and the tier share (Kestrel ruling #4340 on #4559). `first_sample` is the start of the
+    device's current recording episode (`stream_since` in the poller); `night_began` is the
+    start of the latest night. A device with no sample this night is "not started", not
+    "absent": it earns no page and no BOARD line from the cluster arm."""
+    return first_sample is not None and (night_began is None or first_sample >= night_began)
+
+
 def absence_tier(
     down_sec: float,
     *,
@@ -247,14 +256,28 @@ def classify_absence(
         return TIER_PAGE
 
 
-def is_clustered(starts: list[float], index: int, window_sec: float, n: int) -> bool:
+def is_clustered(starts: list[float], index: int, window_sec: float, n: int, started: list[bool] | None = None) -> bool:
     """PURE: does starts[index] belong to a cluster — some window of `window_sec`, anchored at a
     member's own start, holding at least `n` episode starts including this one? Anchoring at member
     starts is what keeps a spread trio (0 s, 800 s, 1600 s at a 900 s window) from counting: no
-    single 15-minute window holds all three, so none of them pages on the cluster bar."""
+    single 15-minute window holds all three, so none of them pages on the cluster bar.
+
+    `started` (Kestrel ruling #4340) is a parallel list: True where that episode's device
+    streamed earlier the same night and then stopped. A device that has not yet streamed is
+    "not started", not "absent": it neither joins nor anchors a cluster, so a startup trio —
+    devices connecting one by one over several minutes — never pages on the cluster bar.
+    None keeps the old all-count behaviour."""
     s = starts[index]
-    for a in starts:
-        if a <= s <= a + window_sec and sum(1 for b in starts if a <= b <= a + window_sec) >= n:
+    if started is not None and not started[index]:
+        return False
+    for j, a in enumerate(starts):
+        if started is not None and not started[j]:
+            continue
+        if (
+            a <= s <= a + window_sec
+            and sum(1 for k, b in enumerate(starts) if (started is None or started[k]) and a <= b <= a + window_sec)
+            >= n
+        ):
             return True
     return False
 

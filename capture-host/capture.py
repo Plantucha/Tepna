@@ -10303,15 +10303,20 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
                     down_list = [(n2, down_since[n2]) for n2 in alerted]
                     starts = [s for _, s in down_list]
                     idx = [n2 for n2, _ in down_list].index(name)
+                    # CLUSTER ARM, Kestrel ruling #4340: only devices that streamed earlier
+                    # this night and then stopped count. A device that has not yet streamed
+                    # is "not started", not "absent" — it neither joins nor anchors a cluster.
+                    started = [alerts.streamed_this_night(stream_since.get(n2), night_began) for n2, _ in down_list]
                     cluster_size = (
-                        len(starts) if alerts.is_clustered(starts, idx, cluster_window, cluster_devices) else 0
+                        sum(started)
+                        if alerts.is_clustered(starts, idx, cluster_window, cluster_devices, started=started)
+                        else 0
                     )
                     wall_start = _now() - _dt.timedelta(seconds=now - down_since[name])
                     in_window = alerts.begins_a_night(wall_start.hour) or (
                         night_began is not None and down_since[name] >= night_began
                     )
-                    first = stream_since.get(name)
-                    streamed = first is not None and (night_began is None or first >= night_began)
+                    streamed = alerts.streamed_this_night(stream_since.get(name), night_began)
                     tier = alerts.classify_absence(
                         now - down_since[name],
                         in_window=in_window,

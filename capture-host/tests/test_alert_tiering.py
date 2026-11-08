@@ -78,6 +78,93 @@ def test_is_clustered_ignores_a_far_outlier():
     assert [alerts.is_clustered(starts, i, 900, 3) for i in range(4)] == [True, True, True, False]
 
 
+# ── the cluster arm counts only devices that streamed this night (Kestrel ruling #4340) ──
+
+
+def test_streamed_this_night_needs_a_sample_this_night():
+    assert alerts.streamed_this_night(None, None) is False
+    assert alerts.streamed_this_night(None, 1000.0) is False
+
+
+def test_streamed_this_night_needs_the_sample_at_or_after_night_began():
+    assert alerts.streamed_this_night(900.0, 1000.0) is False
+    assert alerts.streamed_this_night(1000.0, 1000.0) is True
+    assert alerts.streamed_this_night(1500.0, 1000.0) is True
+
+
+def test_streamed_this_night_without_a_night_start_any_sample_counts():
+    assert alerts.streamed_this_night(500.0, None) is True
+
+
+def test_is_clustered_unstarted_member_breaks_the_trio():
+    # Three starts inside one window, but one device never streamed: the other two
+    # are a pair, not a cluster — whichever member is unstarted.
+    starts = [1000.0, 1400.0, 1800.0]
+    assert [alerts.is_clustered(starts, i, 900, 3, started=[True, True, False]) for i in range(3)] == [
+        False,
+        False,
+        False,
+    ]
+    assert [alerts.is_clustered(starts, i, 900, 3, started=[True, False, True]) for i in range(3)] == [
+        False,
+        False,
+        False,
+    ]
+    assert [alerts.is_clustered(starts, i, 900, 3, started=[False, True, True]) for i in range(3)] == [
+        False,
+        False,
+        False,
+    ]
+
+
+def test_is_clustered_started_trio_still_clusters():
+    starts = [1000.0, 1400.0, 1800.0]
+    assert [alerts.is_clustered(starts, i, 900, 3, started=[True, True, True]) for i in range(3)] == [
+        True,
+        True,
+        True,
+    ]
+
+
+def test_is_clustered_unstarted_anchor_cannot_complete_a_started_pair():
+    # The unstarted device sits between the two started ones: without the filter its
+    # start anchors the window and all three count. With the filter the started pair
+    # is two devices in a window, not a cluster.
+    starts = [1000.0, 1300.0, 1600.0]
+    assert [alerts.is_clustered(starts, i, 900, 3, started=[True, False, True]) for i in range(3)] == [
+        False,
+        False,
+        False,
+    ]
+    assert [alerts.is_clustered(starts, i, 900, 3) for i in range(3)] == [True, True, True]
+
+
+def test_is_clustered_skips_an_unstarted_anchor_for_a_later_one():
+    # The first start belongs to a device that never streamed. Skipping it must
+    # not end the search: the three started devices behind it still form a cluster.
+    starts = [0.0, 100.0, 200.0, 300.0]
+    assert [alerts.is_clustered(starts, i, 900, 3, started=[False, True, True, True]) for i in range(4)] == [
+        False,
+        True,
+        True,
+        True,
+    ]
+
+
+def test_is_clustered_window_edge_is_inclusive_for_the_count():
+    # The third start sits exactly one window after the anchor. The window is
+    # closed, so the count still reaches three.
+    starts = [0.0, 450.0, 900.0]
+    assert alerts.is_clustered(starts, 0, 900, 3, started=[True, True, True]) is True
+
+
+def test_is_clustered_window_edge_is_inclusive_for_the_member():
+    # The member itself sits exactly one window after the anchor. The window is
+    # closed, so it still belongs to the cluster.
+    starts = [0.0, 450.0, 900.0]
+    assert alerts.is_clustered(starts, 2, 900, 3, started=[True, True, True]) is True
+
+
 # ── the board streak (TICKET) ────────────────────────────────────────────────────────
 
 _D1 = dt.date(2026, 10, 29)
@@ -292,8 +379,12 @@ class _Rec:
         return self.board_ok if tier == alerts.TIER_BOARD else self.page_ok
 
 
-def _drive(tmp_path, monkeypatch, steps, cfg_alerts, fake):
-    """Run alert_poller over scripted steps: (mono_advance, wall, recording)."""
+def _drive(tmp_path, monkeypatch, steps, cfg_alerts, fake, names=("Ring",)):
+    """Run alert_poller over scripted steps: (mono_advance, wall, recording).
+
+    `recording` is a bool for the single-device case or a {name: bool} map for
+    several devices; `names` lists the devices the poller walks.
+    """
     mono = [10000.0]
     wall = [steps[0][1]]
     state = {"i": 0}
@@ -302,12 +393,15 @@ def _drive(tmp_path, monkeypatch, steps, cfg_alerts, fake):
         adv, w, rec = steps[i]
         mono[0] += adv
         wall[0] = w
-        if rec:
-            capture.STATUS["devices"]["Ring"] = {"connected": True}
-            capture._LAST_DATA["Ring"] = mono[0]
-        else:
-            capture.STATUS["devices"]["Ring"] = {"connected": False}
-            capture._LAST_DATA.pop("Ring", None)
+        if isinstance(rec, bool):
+            rec = {names[0]: rec}
+        for n in names:
+            if rec.get(n):
+                capture.STATUS["devices"][n] = {"connected": True}
+                capture._LAST_DATA[n] = mono[0]
+            else:
+                capture.STATUS["devices"][n] = {"connected": False}
+                capture._LAST_DATA.pop(n, None)
 
     async def fake_sleep(_s):
         i = state["i"]
@@ -322,7 +416,7 @@ def _drive(tmp_path, monkeypatch, steps, cfg_alerts, fake):
     cfg = {
         "root": str(tmp_path),
         "alerts": cfg_alerts,
-        "devices": [{"name": "Ring", "address": "AA:BB:CC:DD:EE:FF"}],
+        "devices": [{"name": n, "address": "AA:BB:CC:DD:EE:%02X" % (0xF0 + j)} for j, n in enumerate(names)],
     }
     monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
     monkeypatch.setattr(capture._time, "monotonic", lambda: mono[0])
@@ -332,10 +426,11 @@ def _drive(tmp_path, monkeypatch, steps, cfg_alerts, fake):
     try:
         _run(capture.alert_poller(cfg, fake))
     finally:
-        capture._LAST_DATA.pop("Ring", None)
-        capture._LAST_PULL_OK.pop("Ring", None)
-        capture._IDLE_TIMER_NAMED.discard("Ring")
-        capture.STATUS["devices"].pop("Ring", None)
+        for n in names:
+            capture._LAST_DATA.pop(n, None)
+            capture._LAST_PULL_OK.pop(n, None)
+            capture._IDLE_TIMER_NAMED.discard(n)
+            capture.STATUS["devices"].pop(n, None)
         capture._STOP.clear()
     return fake
 
@@ -370,6 +465,65 @@ def test_poller_never_pages_a_device_that_did_not_stream(tmp_path, monkeypatch):
     steps = [(0, _W, False), (1000, _W, False), (1000, _W, False)]
     _drive(tmp_path, monkeypatch, steps, _BASE, fake)
     assert fake.sent == [("Tepna: sensor offline", alerts.TIER_BOARD)]
+
+
+_CLUSTER = {"poll_sec": 1, "offline_sec": 0, "offline_page_sec": 3600}
+_TRIO = ("Ring", "Strap", "Sense")
+
+
+def test_poller_startup_trio_never_pages_on_the_cluster_bar(tmp_path, monkeypatch):
+    # Kestrel ruling #4340: three devices down from the night start, none having
+    # streamed, are "not started", not a cluster — BOARD edges only, no page,
+    # even though all three went down inside 15 minutes.
+    fake = _Rec()
+    steps = [
+        (0, _W, {n: False for n in _TRIO}),
+        (10, _W, {n: False for n in _TRIO}),
+        (200, _W, {n: False for n in _TRIO}),
+        (200, _W, {n: False for n in _TRIO}),
+    ]
+    _drive(tmp_path, monkeypatch, steps, _CLUSTER, fake, names=_TRIO)
+    edges = [s for s in fake.sent if s == ("Tepna: sensor offline", alerts.TIER_BOARD)]
+    pages = [s for s in fake.sent if s[1] == alerts.TIER_PAGE]
+    assert len(edges) == 3
+    assert pages == []
+
+
+def test_poller_mixed_trio_needs_three_started_devices_to_page(tmp_path, monkeypatch):
+    # The discriminating case for ruling #4340: two devices streamed and stopped,
+    # the third never streamed. The old cluster count (all three down inside 15
+    # minutes) paged the two started devices; the rule counts started devices
+    # only, so two is a pair, not a cluster — no page for anyone.
+    fake = _Rec()
+    steps = [
+        (0, _W, {"Ring": True, "Strap": True, "Sense": False}),  # two stream, one not yet
+        (10, _W, {n: False for n in _TRIO}),  # all three down: edges fire
+        (200, _W, {n: False for n in _TRIO}),  # still below the duration bar
+        (200, _W, {n: False for n in _TRIO}),
+    ]
+    _drive(tmp_path, monkeypatch, steps, _CLUSTER, fake, names=_TRIO)
+    edges = [s for s in fake.sent if s == ("Tepna: sensor offline", alerts.TIER_BOARD)]
+    pages = [s for s in fake.sent if s[1] == alerts.TIER_PAGE]
+    assert len(edges) == 3
+    assert pages == []
+
+
+def test_poller_started_trio_pages_on_the_cluster_bar(tmp_path, monkeypatch):
+    # The same three devices, streamed first and then all stopping inside 15
+    # minutes: each earns its one PAGE on the cluster bar, far below the
+    # duration bar (3600 s here, the devices are down ~30 s).
+    fake = _Rec()
+    steps = [
+        (0, _W, {n: True for n in _TRIO}),  # all streaming: the night begins
+        (10, _W, {n: False for n in _TRIO}),  # all stop: edges fire, below the bar
+        (10, _W, {n: False for n in _TRIO}),  # the cluster completes: pages fire
+        (10, _W, {n: False for n in _TRIO}),  # still absent: nothing more
+    ]
+    _drive(tmp_path, monkeypatch, steps, _CLUSTER, fake, names=_TRIO)
+    edges = [s for s in fake.sent if s == ("Tepna: sensor offline", alerts.TIER_BOARD)]
+    pages = [s for s in fake.sent if s == ("Tepna: sensor offline", alerts.TIER_PAGE)]
+    assert len(edges) == 3
+    assert len(pages) == 3
 
 
 def test_poller_never_pages_outside_the_capture_window(tmp_path, monkeypatch):
