@@ -4603,6 +4603,8 @@ _CLOCKLESS_BY_DESIGN = {
     "test_summarize_coverage_uses_configured_rate_and_skips_unknown": "asserts the configured-rate denominator and the skip when no rate is known",
     # THE FALLBACK ITSELF.
     "test_a_clockless_file_falls_back_to_the_session_span_and_SAYS_SO": "its claim IS that a clockless file falls back and reports `span_basis: session`",
+    # #4458 survivor kill: the pooled span runs from a filename stamp to an mtime, so no device clock takes part.
+    "test_a_sidecar_next_door_does_not_join_a_cross_midnight_pool": "session-span pool from filename stamps and mtimes; the claim is that a sidecar does not stretch it",
 }
 
 
@@ -5201,7 +5203,7 @@ def test_the_recorded_offset_is_read_BY_HEADER_NAME_not_by_position(tmp_path):
 
 def _recovered(night):
     files = nightqc.scan_night(night)
-    data = [f for f in files if f["stream"] not in nightqc._SIDECAR_TAGS]
+    data = [f for f in files if not nightqc.is_sidecar(f["stream"])]
     return nightqc.recover_writer_offset(night, data), data
 
 
@@ -7032,3 +7034,89 @@ def test_night_label_falls_back_to_the_folder_without_a_window():
     assert nightqc.night_label(no_folder) == "2026-11-02"
     no_off = dict(_digest_summ(_EVE_1102, None), writer_offset=None)
     assert nightqc.digest_night(no_off) == "2026-11-02"
+
+
+# ── mutate-diff on #4458: the STARTS reader and the previous-day sidecar filter ─────────────────────────────
+def test_daemon_starts_reads_the_row_after_a_torn_row(tmp_path):
+    """A torn row is skipped, and the reader goes on. A full row after it still counts."""
+    import writers
+
+    night = str(tmp_path / "2026-08-15")
+    os.makedirs(night)
+    t = _dtmod.datetime.strptime("20260815030000", "%Y%m%d%H%M%S").timestamp()
+    with open(os.path.join(night, writers.STARTS_NAME), "w", encoding="utf-8") as fh:
+        fh.write("Phone timestamp;pid;git;dirty;adapter\n")
+        fh.write("torn;row\n")
+        fh.write(_starts_stamp(t) + ";400443;2cd12712;no;AA:BB:CC:DD:EE:01\n")
+    got = nightqc.daemon_starts(night, files=[], offset_sec=0.0)
+    assert got["starts"] == 1 and len(got["stamps"]) == 1, got
+
+
+def test_daemon_starts_opens_the_sidecar_as_utf_8(tmp_path, monkeypatch):
+    """The box writes STARTS.csv in UTF-8. The reader names the codec, so the locale of the reader cannot
+    change what it reads."""
+    import builtins
+
+    import writers
+
+    night = str(tmp_path / "2026-08-15")
+    os.makedirs(night)
+    with open(os.path.join(night, writers.STARTS_NAME), "w", encoding="utf-8") as fh:
+        fh.write("Phone timestamp;pid;git;dirty;adapter\n")
+    seen = []
+
+    def spy(path, *a, **kw):
+        if str(path).endswith(writers.STARTS_NAME):
+            seen.append(kw.get("encoding"))
+        return builtins.open(path, *a, **kw)
+
+    monkeypatch.setattr(nightqc, "open", spy, raising=False)
+    nightqc.daemon_starts(night, files=[], offset_sec=0.0)
+    assert seen == ["utf-8"], seen
+
+
+def _prev_day_sidecar_only(tmp_path, post_stamp, post_rows):
+    """Yesterday's folder holds one RUNS sidecar and no samples. Its mtime runs into tonight's session."""
+    from datetime import datetime as _dt2
+
+    d28 = str(tmp_path / "2026-07-28")
+    os.makedirs(d28)
+    d29 = str(tmp_path / "2026-07-29")
+    os.makedirs(d29)
+    post = _dt2.strptime(post_stamp, "%Y%m%d%H%M%S").timestamp()
+    side = os.path.join(d28, "Polar_H10_02849638_20260728220542_ACCRUNS.txt")
+    with open(side, "w") as fh:
+        fh.write("start_idx;end_idx;value\n0;40;1\n")
+    os.utime(side, (post - 60, post - 60))
+    _utime(_cap(d29, f"Polar_H10_02849638_{post_stamp}_HR.txt", post_rows), post + post_rows)
+    return d29
+
+
+def test_a_sidecar_alone_next_door_does_not_pool_a_small_hours_session(tmp_path):
+    """Tonight opens past the clock gate, so the probe asks the neighbour. A RUNS sidecar is not samples,
+    so it cannot make the neighbour contiguous."""
+    d29 = _prev_day_sidecar_only(tmp_path, "20260729010859", 1800)
+    s = _summarize(d29, [{"name": "H10", "device_id": "02849638", "streams": ["hr"]}])
+    assert s["searched_dirs"] == ["2026-07-29"], s["searched_dirs"]
+
+
+def test_a_sidecar_next_door_does_not_join_a_cross_midnight_pool(tmp_path, _tz):
+    """Tonight opens at 00:15, so the clock test pools. The samples of both halves set the span. A RUNS
+    sidecar rewritten at 03:00 in the neighbour folder does not stretch it."""
+    from datetime import datetime as _dt2
+
+    d21 = str(tmp_path / "2026-07-21")
+    os.makedirs(d21)
+    d22 = str(tmp_path / "2026-07-22")
+    os.makedirs(d22)
+    pre = _dt2.strptime("20260721233000", "%Y%m%d%H%M%S").timestamp()
+    post = _dt2.strptime("20260722001500", "%Y%m%d%H%M%S").timestamp()
+    _utime(_cap(d21, "Polar_H10_02849638_20260721233000_HR.txt", 1800), pre + 1800)
+    _utime(_cap(d22, "Polar_H10_02849638_20260722001500_HR.txt", 1500), post + 1500)
+    side = os.path.join(d21, "Polar_H10_02849638_20260721233000_ACCRUNS.txt")
+    with open(side, "w") as fh:
+        fh.write("start_idx;end_idx;value\n0;40;1\n")
+    os.utime(side, (pre + 12600, pre + 12600))
+    s = _summarize(d22, [{"name": "H10", "device_id": "02849638", "streams": ["hr"]}])
+    assert s["searched_dirs"] == ["2026-07-22", "2026-07-21"], s["searched_dirs"]
+    assert s["span_sec"] == 4200, (s["span_sec"], "23:30 to 00:40, not to the sidecar write at 03:00")

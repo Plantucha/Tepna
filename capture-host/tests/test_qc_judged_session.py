@@ -21,6 +21,8 @@ import os
 import sys
 from datetime import datetime as _dt
 
+import pytest
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import nightqc  # noqa: E402
 import datetime as _wrapdt
@@ -585,3 +587,68 @@ def test_CLOCK_LOGS_AFTER_THE_NIGHT_DO_NOT_STRETCH_ITS_SPAN(tmp_path):
     assert r["span_sec"] == 900, (r["span_sec"], "the night's own 15 min, not the morning's clock logs")
     assert r["joined_gaps"] == [] and r["empty_joined"] == [], (r["joined_gaps"], r["empty_joined"])
     assert {"RTCLOG", "RADIOCLOCK"} <= set(r["sidecars"]), (r["sidecars"], "they are named, not dropped")
+
+
+def _stream_sidecars_around_the_night(tmp_path, arrival=True, runs=True):
+    """The 2026-11-06 shape: per-stream sidecars on both sides of a night's samples.
+
+    The judged session is H10 ECG 04:00->04:15. Before it, a Verity that cannot start writes a
+    header-only `_PMDARRIVAL.csv` every 20 min from 02:00. After it, the H10's `_ACCRUNS.txt`, stamped
+    with the ECG's own start, is rewritten at 06:00 when the daemon stops. Absolute stamps only."""
+    d = str(tmp_path / "2026-08-15")
+    judged = _dt.strptime("20260815040000", "%Y%m%d%H%M%S").timestamp()
+    _rows(d, "Polar_H10_ABCD0001_20260815040000_ECG.txt", 900, judged + 900)
+    if arrival:
+        for k in range(6):
+            name = f"Polar_VeritySense_ABCD0002_20260815{2 + k // 3:02d}{(k % 3) * 20:02d}00_PMDARRIVAL.csv"
+            path = os.path.join(d, name)
+            with open(path, "w") as fh:
+                fh.write("Phone timestamp;device;meas;first_sensor_ns;last_sensor_ns;n_samples;first_sample_idx\n")
+            start = judged - 7200 + k * 1200
+            os.utime(path, (start + 60, start + 60))
+    if runs:
+        path = os.path.join(d, "Polar_H10_ABCD0001_20260815040000_ACCRUNS.txt")
+        with open(path, "w") as fh:
+            fh.write("start_idx;end_idx;value\n0;40;1\n")
+        os.utime(path, (judged + 7200, judged + 7200))
+    return d
+
+
+def test_A_HEADER_ONLY_ARRIVAL_LOG_DOES_NOT_OPEN_THE_NIGHT_EARLY(tmp_path):
+    """Changeset `2026-11-06-stream-sidecars-night-span`. On the box the Verity's failed starts
+    opened night 2026-11-05 at 16:03, 2.5 h before anyone wore a device."""
+    r = _summarize(_stream_sidecars_around_the_night(tmp_path, runs=False), _DEV)
+    assert r["span_sec"] == 900, (r["span_sec"], "the night's own 15 min, not the arrival logs before it")
+    assert r["judged_session"]["start"] == r["sessions"][0]["start"], (r["sessions"], "one session: the ECG")
+
+
+def test_A_RUNS_SIDECAR_REWRITTEN_AT_THE_DAEMON_STOP_DOES_NOT_STRETCH_THE_NIGHT(tmp_path):
+    """The same residue, the other end: RUNS sidecars rewritten at the 08:55 stop held the session open
+    from 06:09, when the last sample came."""
+    r = _summarize(_stream_sidecars_around_the_night(tmp_path, arrival=False), _DEV)
+    assert r["span_sec"] == 900, (r["span_sec"], "the night's own 15 min, not the RUNS file's last write")
+
+
+def test_both_stream_sidecars_together_leave_the_span_at_the_samples(tmp_path):
+    r = _summarize(_stream_sidecars_around_the_night(tmp_path), _DEV)
+    assert r["span_sec"] == 900 and len(r["sessions"]) == 1, (r["span_sec"], r["sessions"])
+
+
+@pytest.mark.parametrize(
+    ("tag", "sidecar"),
+    [
+        ("PMDARRIVAL", True),
+        ("ACCRUNS", True),
+        ("PPGSEAMS", True),
+        ("ACC.TXT.META", True),
+        ("LINK", True),
+        ("RTCLOG", True),
+        ("ECG", False),
+        ("PPG", False),
+        ("ACC", False),
+        ("SPO2", False),
+        (None, False),
+    ],
+)
+def test_is_sidecar_names_every_kind_of_file_the_box_writes_about_a_stream(tag, sidecar):
+    assert nightqc.is_sidecar(tag) is sidecar, tag
