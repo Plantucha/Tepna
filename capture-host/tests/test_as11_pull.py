@@ -260,6 +260,109 @@ def test_round_raises_on_start_spool_error():
         _run(P.pull_spool_round(dev.write, dev.recv_frame, _seal, _unseal, "Summary", FROM_DT))
 
 
+# ══ THE FRAGMENT SEQUENCE — a short body must never commit ══════════════════════════════════════════
+#
+# The round used to join over `sorted(chunks)`, so a LOST notification produced a short body with no
+# error and `cpap_spool.sync_once` committed a cursor past bytes it never received. Each test below
+# feeds one malformed sequence and asserts the round REFUSES. The refusal is what keeps the cursor
+# where it was.
+
+
+def test_round_refuses_a_GAPPED_fragment_sequence():
+    # seq 1 never arrived. The old join read `[0, 2]`, concatenated 6 of 9 bytes and returned clean.
+    dev = FakeAS11(
+        [
+            _enc({"id": 14, "result": {"spoolId": 5}}),
+            _frag(0, b"AAA", "SPOOL_INCOMPLETE"),
+            _frag(2, b"CCC", "SPOOL_COMPLETE_NO_MORE_DATA"),
+        ]
+    )
+    with pytest.raises(P.As11Error, match=r"invalid fragment sequence: \[0, 2\]"):
+        _run(P.pull_spool_round(dev.write, dev.recv_frame, _seal, _unseal, "Summary", FROM_DT))
+
+
+def test_round_refuses_a_REPEATED_fragment_sequence():
+    # a dict keyed by seq kept ONE of the two and lost the other fragment with no count anywhere.
+    dev = FakeAS11(
+        [
+            _enc({"id": 14, "result": {"spoolId": 5}}),
+            _frag(0, b"AAA", "SPOOL_INCOMPLETE"),
+            _frag(1, b"BBB", "SPOOL_INCOMPLETE"),
+            _frag(1, b"CCC", "SPOOL_COMPLETE_NO_MORE_DATA"),
+        ]
+    )
+    with pytest.raises(P.As11Error, match=r"invalid fragment sequence: \[0, 1, 1\]"):
+        _run(P.pull_spool_round(dev.write, dev.recv_frame, _seal, _unseal, "Summary", FROM_DT))
+
+
+def test_round_refuses_a_sequence_that_does_not_START_AT_ZERO():
+    # the first fragment went absent. A check over the RANGE alone reads `[1, 2]` as contiguous, and
+    # the body is still short. The vendor reference pins the base at 0, so this round refuses.
+    dev = FakeAS11(
+        [
+            _enc({"id": 14, "result": {"spoolId": 5}}),
+            _frag(1, b"BBB", "SPOOL_INCOMPLETE"),
+            _frag(2, b"CCC", "SPOOL_COMPLETE_NO_MORE_DATA"),
+        ]
+    )
+    with pytest.raises(P.As11Error, match=r"invalid fragment sequence: \[1, 2\]"):
+        _run(P.pull_spool_round(dev.write, dev.recv_frame, _seal, _unseal, "Summary", FROM_DT))
+
+
+def test_round_refuses_a_REORDERED_fragment_sequence():
+    # DECISION, and a reviewable one: the old `sorted()` join accepted this and returned the right
+    # bytes. The join now walks arrival order, so an out-of-order pair refuses instead. One ATT bearer
+    # delivers notifications in order, so a reorder here means the link is not what we think it is.
+    dev = FakeAS11(
+        [
+            _enc({"id": 14, "result": {"spoolId": 5}}),
+            _frag(1, b"BBB", "SPOOL_INCOMPLETE"),
+            _frag(0, b"AAA", "SPOOL_COMPLETE_NO_MORE_DATA"),
+        ]
+    )
+    with pytest.raises(P.As11Error, match=r"invalid fragment sequence: \[1, 0\]"):
+        _run(P.pull_spool_round(dev.write, dev.recv_frame, _seal, _unseal, "Summary", FROM_DT))
+
+
+def test_round_refuses_DATA_that_carries_no_seq():
+    # `p["seq"]` raised KeyError here, and a KeyError escapes every `As11Error` handler on the path.
+    # `.get("seq", -1)` reads an absent number as upstream reads it, so the sequence check names it.
+    dev = FakeAS11(
+        [
+            _enc({"id": 14, "result": {"spoolId": 5}}),
+            _enc(
+                {
+                    "jsonrpc": "2.0",
+                    "method": "SpoolFragment",
+                    "params": {
+                        "spoolId": 5,
+                        "data": base64.b64encode(b"q").decode(),
+                        "status": "SPOOL_COMPLETE_NO_MORE_DATA",
+                    },
+                }
+            ),
+        ]
+    )
+    with pytest.raises(P.As11Error, match=r"invalid fragment sequence: \[-1\]"):
+        _run(P.pull_spool_round(dev.write, dev.recv_frame, _seal, _unseal, "Summary", FROM_DT))
+
+
+def test_round_accepts_a_DATA_LESS_fragment_between_two_data_fragments():
+    # The control for the four refusals above. A data-less fragment carries no sequence obligation —
+    # upstream appends nothing for one — so seq 7 here is ignored and the two data fragments join.
+    # Without this test the sequence check could refuse every legitimate empty fragment unnoticed.
+    dev = FakeAS11(
+        [
+            _enc({"id": 14, "result": {"spoolId": 5}}),
+            _frag(0, b"AA", "SPOOL_INCOMPLETE"),
+            _frag(7, None, "SPOOL_INCOMPLETE"),
+            _frag(1, b"BB", "SPOOL_COMPLETE_NO_MORE_DATA"),
+        ]
+    )
+    body, more, _nxt = _run(P.pull_spool_round(dev.write, dev.recv_frame, _seal, _unseal, "Summary", FROM_DT))
+    assert body == b"AABB" and more is False
+
+
 # ── pull_spool (multi-round) ─────────────────────────────────────────────────
 def test_pull_spool_single_round():
     dev = FakeAS11(
