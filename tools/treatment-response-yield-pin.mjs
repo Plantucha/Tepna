@@ -57,7 +57,8 @@
  */
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
@@ -97,6 +98,42 @@ export function selectionCounts(CohortGen, { nSubj, minN, seedCap }) {
     seed++;
   }
   return { txCandidates: tx, flatCandidates: flat, seedsScanned: seed, filledTarget: tx >= nSubj && flat >= nSubj };
+}
+
+/* ── THE SCALE CHECK · the run must state the cohort it ran, or the skipped counts cross two cohorts ─
+   `selectionCounts` replays the selector at `CONFIG`, so `txSkipped = txCandidates − nIntervention`
+   subtracts a 900-candidate replay from whatever the rerun answered. Both terms are only comparable
+   while the run WAS at `CONFIG`. Measured 2026-11-07 (board finding #4343;
+   the ledger row for it rides a RESIDUE-only PR, and a key cited before its row lands reds
+   `verify:residue-citations`): a page-default run of 45 per arm
+   answered 10 tx / 17 flat, and this tool wrote `txSkipped 890` — 890 subjects the run never examined,
+   published as 890 the detectors rejected, beside a yield that read as a collapse from 233 and was a
+   change of scale. The page publishes `targetSubj` for this reason, and §∅ governs the older run that
+   does not: an unstated cohort is a REFUSAL with its own token, never a match by default.
+
+   `minNights` gets the same treatment. The rerun inventory's own comment records that the page
+   defaults to 6 against the paper's 10, and that the difference changes who qualifies. The pin wrote
+   it as `config.minNightsObserved` beside the stated `minN` and compared the two nowhere. */
+export const SCALE_REASONS = ['cohort-size-absent', 'cohort-size-mismatch', 'min-nights-absent', 'min-nights-mismatch'];
+
+export function scaleCheck(R, config = CONFIG) {
+  const mk = (reason, field, ran, stated) => ({
+    ok: false,
+    reason,
+    field,
+    ran,
+    stated,
+    message:
+      ran == null
+        ? 'the rerun result does not state its ' + field + ', so the skipped counts cannot be derived — re-run the current page, which publishes it'
+        : 'the rerun ran at ' + field + ' ' + ran + ' and the pinned configuration states ' + stated + ' — the skipped counts would cross two cohorts'
+  });
+  if (R == null) return mk('cohort-size-absent', 'targetSubj', null, config.nSubj);
+  if (R.targetSubj == null) return mk('cohort-size-absent', 'targetSubj', null, config.nSubj);
+  if (R.targetSubj !== config.nSubj) return mk('cohort-size-mismatch', 'targetSubj', R.targetSubj, config.nSubj);
+  if (R.minNights == null) return mk('min-nights-absent', 'minNights', null, config.minN);
+  if (R.minNights !== config.minN) return mk('min-nights-mismatch', 'minNights', R.minNights, config.minN);
+  return { ok: true, reason: null, field: null, ran: R.targetSubj, stated: config.nSubj, message: null };
 }
 
 /* `cohort-gen.js` is a browser global module; load it the way the suite does rather than importing. */
@@ -266,6 +303,61 @@ function selftest() {
   ok('moved: an unchanged closure names nothing', movedFiles(a, a).length === 0);
   ok('moved: a file ADDED to the realm is named too, not silently tolerated', movedFiles(a, { oxy: { 'x.js': '111', 'y.js': '222', 'z.js': '333' } }).length === 1);
 
+  /* ── THE SCALE CHECK · each case names its own token, and the measured defect is the first leg ──── */
+  const paper = { targetSubj: 900, minNights: 10, nIntervention: 233, nFlatControl: 239 };
+  const dflt = { targetSubj: 45, minNights: 10, nIntervention: 10, nFlatControl: 17 };
+  ok('scale: THE DEFECT · the page-default run of 45 per arm is refused, not pinned', scaleCheck(dflt).reason === 'cohort-size-mismatch', JSON.stringify(scaleCheck(dflt)));
+  ok(
+    'scale: …and the refusal names both cohort sizes, so the reader sees a scale and not a collapse',
+    /\b45\b/.test(scaleCheck(dflt).message) && /\b900\b/.test(scaleCheck(dflt).message),
+    scaleCheck(dflt).message
+  );
+  ok('scale CONTROL · the paper-scale run passes, and says what it ran at', scaleCheck(paper).ok === true && scaleCheck(paper).ran === 900, JSON.stringify(scaleCheck(paper)));
+  ok(
+    'scale: a run that states no cohort size gets its OWN token, never the mismatch one',
+    scaleCheck({ minNights: 10, nIntervention: 233 }).reason === 'cohort-size-absent',
+    JSON.stringify(scaleCheck({ minNights: 10 }))
+  );
+  ok(
+    'scale: …and that refusal quotes no ran-at number, because none was measured',
+    scaleCheck({ minNights: 10 }).ran === null && !/\b45\b|\b900\b/.test(scaleCheck({ minNights: 10 }).message.replace(/targetSubj/g, '')),
+    scaleCheck({ minNights: 10 }).message
+  );
+  ok(
+    'scale: the page default of 6 minimum nights is refused under its own token',
+    scaleCheck({ targetSubj: 900, minNights: 6 }).reason === 'min-nights-mismatch',
+    JSON.stringify(scaleCheck({ targetSubj: 900, minNights: 6 }))
+  );
+  ok('scale: an absent minimum-nights field is refused, never read as the stated 10', scaleCheck({ targetSubj: 900 }).reason === 'min-nights-absent', JSON.stringify(scaleCheck({ targetSubj: 900 })));
+  ok('scale: a null result refuses rather than throwing', scaleCheck(null).ok === false, JSON.stringify(scaleCheck(null)));
+  ok(
+    'scale: each of the four cases carries its own declared token, by name',
+    JSON.stringify([scaleCheck(dflt).reason, scaleCheck({ minNights: 10 }).reason, scaleCheck({ targetSubj: 900, minNights: 6 }).reason, scaleCheck({ targetSubj: 900 }).reason]) ===
+      JSON.stringify(['cohort-size-mismatch', 'cohort-size-absent', 'min-nights-mismatch', 'min-nights-absent']),
+    JSON.stringify(SCALE_REASONS)
+  );
+  ok(
+    'scale: a zero cohort size is a MEASURED zero and still mismatches, rather than reading as absent',
+    scaleCheck({ targetSubj: 0, minNights: 10 }).reason === 'cohort-size-mismatch',
+    JSON.stringify(scaleCheck({ targetSubj: 0, minNights: 10 }))
+  );
+
+  /* ── THE WIRING · the refusal has to be on the path that WRITES, not only exported ───────────────
+     `scaleCheck` green in isolation is the shape the defect already had: the numbers were all
+     available and nothing on the writing path read them. So `main` runs here against a default-scale
+     rerun file, and the leg is the exit code plus the ABSENCE of an output file. */
+  const tmpIn = join(tmpdir(), 'tepna-pin-scale-in.json');
+  const tmpOut = join(tmpdir(), 'tepna-pin-scale-out.json');
+  writeFileSync(tmpIn, JSON.stringify({ tools: { [CONFIG.page]: { ms: 1200, result: dflt } } }));
+  if (existsSync(tmpOut)) rmSync(tmpOut);
+  const rc = main(['--rerun', tmpIn, '--out', tmpOut]);
+  ok('wiring: the CLI refuses a default-scale rerun with exit 2', rc === 2, String(rc));
+  ok('wiring: …and writes no pin, so the previous measurement stands', !existsSync(tmpOut), tmpOut);
+  writeFileSync(tmpIn, JSON.stringify({ tools: { [CONFIG.page]: { ms: 1200, result: { nIntervention: 233, nFlatControl: 239, minNights: 10 } } } }));
+  ok('wiring: a rerun that states no cohort size is refused by the CLI too', main(['--rerun', tmpIn, '--out', tmpOut]) === 2 && !existsSync(tmpOut), 'refused');
+  rmSync(tmpIn, { force: true });
+  rmSync(tmpOut, { force: true });
+
   /* The pin carries the decomposition, not just the two counts. */
   const P = buildPin({
     nIntervention: 233,
@@ -378,6 +470,13 @@ function main(argv) {
   if (R == null || R.nIntervention == null || R.nFlatControl == null) {
     console.error('the rerun result carries no nIntervention/nFlatControl — refusing to write a pin over a run that examined nothing');
     console.error('  looked for tools["' + CONFIG.page + '"].result in ' + rerunPath);
+    return 2;
+  }
+  const scale = scaleCheck(R);
+  if (!scale.ok) {
+    console.error('refusing to write a pin over a run at a different configuration (' + scale.reason + '):');
+    console.error('  ' + scale.message);
+    console.error('  re-run: node tools/analysis-rerun.mjs --only ' + CONFIG.page + ' --paper-scale --out <rerun.json>');
     return 2;
   }
   const CG = loadCohortGen();

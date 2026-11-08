@@ -360,8 +360,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "d460e54ff209",
-          "computeHash": "74afac7e76b7"
+          "manifestHash": "70aaf667c119",
+          "computeHash": "0027272621ec"
         },
         "evidence": {
           "envelopeRef": "20260919224526",
@@ -388,8 +388,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "d460e54ff209",
-          "computeHash": "74afac7e76b7"
+          "manifestHash": "70aaf667c119",
+          "computeHash": "0027272621ec"
         },
         "evidence": {
           "envelopeRef": "20260919224526",
@@ -416,8 +416,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "d460e54ff209",
-          "computeHash": "74afac7e76b7"
+          "manifestHash": "70aaf667c119",
+          "computeHash": "0027272621ec"
         },
         "evidence": {
           "envelopeRef": "20260919224526",
@@ -444,8 +444,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "d460e54ff209",
-          "computeHash": "74afac7e76b7"
+          "manifestHash": "70aaf667c119",
+          "computeHash": "0027272621ec"
         },
         "evidence": {
           "envelopeRef": "20260919224526",
@@ -617,7 +617,10 @@
       "pred3pQ": "Q1(low)"
     },
     "desSev": {
-      "desSev": 0
+      "desSev": 0,
+      "desSevReason": null,
+      "desSevCoveredSec": 0,
+      "desSevAbsentSec": 0
     },
     "ctPrecise": {
       "ct90s": 0,
@@ -685,7 +688,10 @@
       "spo2Ac1": {
         "ac1": 0.951,
         "ac1Label": "Sustained (hypoventilation)",
-        "basis": "wholeRecord"
+        "basis": "wholeRecord",
+        "nMeasured": 25660,
+        "nTotal": 25660,
+        "nPairs": 25659
       },
       "hrFreqBands": {
         "hrBandsN": 25200,
@@ -736,7 +742,9 @@
       "hrFlatlines": {
         "flatlineCount": 23,
         "maxFlatlineSec": 54,
-        "flatlineLabel": "Frequent (firmware artifact)"
+        "flatlineLabel": "Frequent (firmware artifact)",
+        "nMeasured": 25660,
+        "nTotal": 25660
       },
       "spo2Ceiling": {
         "ceilingRuns": 2,
