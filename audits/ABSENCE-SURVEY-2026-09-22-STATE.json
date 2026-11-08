@@ -10,7 +10,12 @@
   "",
   "Everything not hand-read is `open`. \"The snippet no longer matches the file\" is NOT evidence of a fix:",
   "measured 2026-09-29, an automated reclaim over-counted fixes by ~3.5x on the only population small",
-  "enough to verify. See audits/COUNTING-ZERO-POPULATION-SURVEY-2026-09-29.md."
+  "enough to verify. See audits/COUNTING-ZERO-POPULATION-SURVEY-2026-09-29.md.",
+  "",
+  "EVERY STATE HERE IS A STATE ABOUT A PRODUCING LINE. A consumer that reads the same absent value as",
+  "a number is not a finding, carries no key and gets no state, so a `fixed` row says nothing about it.",
+  "consumerCensus below counts the consumer sites the survey ITSELF named, which is the only part of",
+  "that population this file can state."
  ],
  "source": "audits/ABSENCE-SURVEY-2026-09-22.json",
  "states": [
@@ -23,6 +28,17 @@
   "open": 175,
   "fixed": 112,
   "accepted-with-reason": 3
+ },
+ "consumerCensus": {
+  "_note": "A LOWER BOUND read out of the survey's own `consumer` prose. The state above is keyed to the PRODUCING line, so a consumer site that is not itself a finding carries no state and no ratchet.",
+  "findings": 290,
+  "findingsNamingASite": 287,
+  "findingsNamingNoSite": 3,
+  "findingsNamingASiteByPath": 273,
+  "findingsNamingASiteByBareLineOnly": 14,
+  "sites": 330,
+  "sitesWithRow": 15,
+  "sitesWithoutRow": 315
  },
  "entries": [
   {
