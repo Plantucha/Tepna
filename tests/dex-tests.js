@@ -17625,7 +17625,18 @@
         'out.rowKeys = M.rowKeys("| 2026-01-02-alpha-beta-gamma | logged | s | d | e | OPEN |\\ntext 2026-01-02-alpha-beta-gamma\\n");',
         'out.window = M.CITE_WINDOW;',
         'var real = M.run(' + JSON.stringify(root) + ');',
-        'out.real = { citations: real.citations, files: real.files, rows: real.rows, undeclared: real.undeclared.length, near: real.near.length, stale: real.stale.length, declared: real.declared, floorReal: real.floor, orphans: real.orphanOwners.length, examined: real.ownerReasonsExamined };',
+        'out.real = { citations: real.citations, files: real.files, rows: real.rows, undeclared: real.undeclared.length, near: real.near.length, stale: real.stale.length, declared: real.declared, floorReal: real.floor, orphans: real.orphanOwners.length, examined: real.ownerReasonsExamined, offered: real.filesOffered, read: real.filesRead, unreadable: real.unreadable.length, exempt: real.filesExempt };',
+        /* THE FILE POPULATION, AND THE ONE FILE THE SCAN COULD NOT OPEN. Row
+           2026-11-07-residue-citations-skips-an-unreadable-file-and-claims-0-excluded: the read sat in a
+           `catch` that ran `continue` under a population keyed on CITATIONS with `excluded: 0`, so an
+           unopened file left no trace at all. The plant hands the scan one path the tree does not hold,
+           which throws where a real EACCES throws. A 7-hex sha, because `validate` reads the commit. */
+        'var goneRun = M.run(' + JSON.stringify(root) + ', { files: ["tools/no-such-file-the-citation-scan-cannot-open.mjs"], baseline: { entries: [], exemptPaths: [] } });',
+        'out.gone = { offered: goneRun.filesOffered, read: goneRun.filesRead, codes: goneRun.unreadable.map(function (u) { return u.code; }) };',
+        'var goneV = M.verdictFor(goneRun, "ab1c2d3");',
+        'out.goneVerdict = { status: goneV.status, population: goneV.population, named: /no-such-file-the-citation-scan-cannot-open\\.mjs ENOENT/.test(goneV.reason) };',
+        'var realV = M.verdictFor(real, "ab1c2d3");',
+        'out.realVerdict = { status: realV.status, population: realV.population };',
         'out.selfExempt = M.run(' +
           JSON.stringify(root) +
           ', { files: ["tools/residue-citations.mjs", "tools/residue-citations-baseline.json"], baseline: { entries: [], exemptPaths: [] } }).citations;',
@@ -17720,6 +17731,27 @@
       /* §∅ · the live baseline names no owner today, so the count is reported rather than read as a
          pass over a population of nothing. The legs above are what carries the rule. */
       T.ok('the owner population is reported as a count, examined or not', typeof R.real.examined === 'number', String(R.real.examined));
+
+      /* A FILE NOBODY COULD READ IS AN EXCLUSION, NOT A CLEAN SCAN.
+         The population is keyed on the unit the scan SELECTS over, which is files, and the citations it
+         scored sit in `result` beside it. The declared exemptions — the ledger, the baseline and the
+         tool itself — are a rule boundary like the ledger floor, so they are counted and stay outside
+         `eligible`, where `excluded` is reserved for a file the scan could not reach. */
+      T.eq('an unreadable eligible file is held with its errno', R.gone.codes, ['ENOENT']);
+      T.eq('…offered to the scan, and never read', [R.gone.offered, R.gone.read], [1, 0]);
+      T.eq('…so the verdict answers UNKNOWN over the file it never opened', R.goneVerdict.status, 'UNKNOWN');
+      T.eq('…and the population excludes it', R.goneVerdict.population, { checked: 0, eligible: 1, excluded: 1 });
+      T.ok('…with the reason naming the path and the errno', R.goneVerdict.named, 'the ENOENT path reaches the reason string');
+      /* CONTROL · the committed tree reads whole, so the legs above measure the unreadable arm against
+         a real sweep that excludes nothing, never against an empty one. */
+      T.eq('CONTROL · every eligible file in the committed tree reads', R.real.unreadable, 0);
+      T.eq('…so the real population closes on its own offer', R.real.read, R.real.offered);
+      T.ok(
+        '…over an offer wider than the files that carry a citation',
+        R.real.offered > R.real.files && R.real.exempt >= 3,
+        'offered=' + R.real.offered + ' carriers=' + R.real.files + ' exempt=' + R.real.exempt
+      );
+      T.eq('…and the committed tree passes with nothing excluded', [R.realVerdict.status, R.realVerdict.population.excluded], ['PASS', 0]);
     });
     /* ════ AND THE PREDICATE ITSELF MUST SURVIVE A SYMLINK TO THE TOOL (board #685, 2026-10-21) ══════
        The house predicate compared `import.meta.url` with `pathToFileURL(process.argv[1]).href`. Node
