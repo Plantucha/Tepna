@@ -186,6 +186,128 @@ async def _http_post(url: str, payload: dict, headers: dict | None = None) -> bo
             return 200 <= resp.status < 300
 
 
+# ── TIERS: PAGE vs BOARD, SPLIT AT THE SOURCE (Kestrel ruling #2614 on consult #2612) ─────────────
+# Measured before the split: 229 pushes in 7 days against an owner budget of at most 3 notices a
+# day. The poller was already edge-triggered, so the volume was edge COUNT across devices, not flap
+# spam — tiering decides which edges reach the phone; it does not de-flap. PAGE goes to the phone
+# topic, BOARD to a second topic only the fleet bridge reads, and the split is here at the source
+# because the phone has no filter (ruling (c)).
+TIER_PAGE = "page"
+TIER_BOARD = "board"
+OFFLINE_PAGE_SEC = 1800  # the 30-minute bar: one sensor absent this long may page
+PAGE_CLUSTER_DEVICES = 3  # …or this many configured devices absent inside the cluster window
+PAGE_CLUSTER_WINDOW_SEC = 900  # the 15-minute cluster window
+PAGE_CAP_PER_DAY = 3  # hard cap on counted pages per day; daemon-down and low-disk are exempt
+
+_UNSET = object()  # configure() sentinel: "leave the board destination as it is"
+
+
+def streamed_this_night(first_sample: float | None, night_began: float | None) -> bool:
+    """PURE: did this device stream earlier this night — the one definition the cluster arm
+    and the tier share (Kestrel ruling #4340 on #4559). `first_sample` is the start of the
+    device's current recording episode (`stream_since` in the poller); `night_began` is the
+    start of the latest night. A device with no sample this night is "not started", not
+    "absent": it earns no page and no BOARD line from the cluster arm."""
+    return first_sample is not None and (night_began is None or first_sample >= night_began)
+
+
+def absence_tier(
+    down_sec: float,
+    *,
+    in_window: bool,
+    streamed: bool,
+    cluster_size: int,
+    page_sec: float = OFFLINE_PAGE_SEC,
+    cluster_devices: int = PAGE_CLUSTER_DEVICES,
+) -> str:
+    """PURE: which tier an absence episode has earned. PAGE needs the capture window AND a device
+    that streamed in that window (amendment 1 — a Verity on its charger at noon is no page), plus
+    one of the two bars: the duration bar, or the cluster bar. Anything else is BOARD: the edge is
+    recorded where the fleet works, it just does not buzz the phone."""
+    if not (in_window and streamed):
+        return TIER_BOARD
+    if down_sec >= page_sec or cluster_size >= cluster_devices:
+        return TIER_PAGE
+    return TIER_BOARD
+
+
+def classify_absence(
+    down_sec: float,
+    *,
+    in_window: bool,
+    streamed: bool,
+    cluster_size: int,
+    page_sec: float = OFFLINE_PAGE_SEC,
+    cluster_devices: int = PAGE_CLUSTER_DEVICES,
+) -> str:
+    """`absence_tier` with the ruling's failure direction (amendment 3): a classifier that throws
+    must not hide the alert, so any error answers PAGE and leaves a log line behind."""
+    try:
+        return absence_tier(
+            down_sec,
+            in_window=in_window,
+            streamed=streamed,
+            cluster_size=cluster_size,
+            page_sec=page_sec,
+            cluster_devices=cluster_devices,
+        )
+    except Exception as e:
+        _log.warning("alert tier classification failed (%r) — treating the alert as PAGE", e)
+        return TIER_PAGE
+
+
+def is_clustered(starts: list[float], index: int, window_sec: float, n: int, started: list[bool] | None = None) -> bool:
+    """PURE: does starts[index] belong to a cluster — some window of `window_sec`, anchored at a
+    member's own start, holding at least `n` episode starts including this one? Anchoring at member
+    starts is what keeps a spread trio (0 s, 800 s, 1600 s at a 900 s window) from counting: no
+    single 15-minute window holds all three, so none of them pages on the cluster bar.
+
+    `started` (Kestrel ruling #4340) is a parallel list: True where that episode's device
+    streamed earlier the same night and then stopped. A device that has not yet streamed is
+    "not started", not "absent": it neither joins nor anchors a cluster, so a startup trio —
+    devices connecting one by one over several minutes — never pages on the cluster bar.
+    None keeps the old all-count behaviour."""
+    s = starts[index]
+    if started is not None and not started[index]:
+        return False
+    for j, a in enumerate(starts):
+        if started is not None and not started[j]:
+            continue
+        if (
+            a <= s <= a + window_sec
+            and sum(1 for k, b in enumerate(starts) if (started is None or started[k]) and a <= b <= a + window_sec)
+            >= n
+        ):
+            return True
+    return False
+
+
+class BoardStreak:
+    """Per-device consecutive-day streaks of BOARD-tier absence days. When the run containing a
+    noted day reaches `days`, note() returns True exactly once for that run — the poller turns it
+    into one TICKET board message (consult item 3). State is in memory: a daemon restart forgets
+    the streak, the same disclosed limit the page cap carries."""
+
+    def __init__(self, days: int = 3):
+        self.days = days
+        self._seen: dict[str, set[_datetime.date]] = {}
+        self._fired: set[tuple[str, _datetime.date]] = set()
+
+    def note(self, device: str, day: _datetime.date) -> bool:
+        seen = self._seen.setdefault(device, set())
+        seen.add(day)
+        start = day
+        while start - _datetime.timedelta(days=1) in seen:
+            start -= _datetime.timedelta(days=1)
+        end = day
+        while end + _datetime.timedelta(days=1) in seen:
+            end += _datetime.timedelta(days=1)
+        if (end - start).days + 1 >= self.days and (device, start) not in self._fired:
+            self._fired.add((device, start))
+            return True
+        return False
+
+
 class Notifier:
     """Edge-triggered webhook notifier. `send()` is a no-op unless both enabled and a URL are present;
     `key`+`dedupe_sec` suppress a repeat of the SAME alert within a window so one flapping sensor cannot
@@ -198,8 +320,20 @@ class Notifier:
         _post=None,
         emails: list[str] | None = None,
         context: str = "",
+        board_url: str | None = None,
+        page_cap_per_day: int = PAGE_CAP_PER_DAY,
+        _today=None,
     ):
         self.url = url
+        # TIERING (#2614): `url` is the PAGE destination (the phone topic); `board_url` is the
+        # BOARD destination (a second topic only the bridge reads). `_enabled_flag` is the raw
+        # config flag: `enabled` below folds in the PAGE url, but a board-only state still needs
+        # the flag to know alerting is on at all.
+        self.board_url = board_url
+        self._enabled_flag = bool(enabled)
+        self._page_cap = page_cap_per_day
+        self._today = _today or _datetime.date.today
+        self._page_counts: dict[_datetime.date, int] = {}  # counted pages delivered per local day
         self.emails: list[str] = list(emails or [])  # ntfy `Email:` recipients for `send(..., email=True)`
         self.enabled = bool(enabled and url)
         self.context = context  # rich-alert schema v1: Where/Handle footer, appended by send()
@@ -222,6 +356,19 @@ class Notifier:
         self.last_error: str | None = None  # why the last attempt failed; None once one succeeds
         self.last_title: str | None = None
         self.email_failed = 0  # extra-address publishes that did not arrive; the push itself did
+        self.board_delivered = 0  # the board-tier subset of `delivered`
+        self.board_failed = 0  # the board-tier subset of `failed`
+        self.cap_held = 0  # counted pages the daily cap rerouted to the board (or to the journal)
+
+    def _pages_on(self, day: _datetime.date) -> int:
+        """Counted pages delivered on `day`. A day with no entry has delivered none — the
+        entry is written by the delivery itself, so absence here is a measured zero."""
+        return self._page_counts[day] if day in self._page_counts else 0
+
+    @property
+    def board_ready(self) -> bool:
+        """A BOARD send can land: alerting is switched on and a board destination is configured."""
+        return bool(self._enabled_flag and self.board_url)
 
     def stats(self) -> dict:
         """What the monitor shows. A notifier that has never delivered anything reports
@@ -237,6 +384,11 @@ class Notifier:
             "last_title": self.last_title,
             "emails": len(self.emails),
             "email_failed": self.email_failed,
+            "board_configured": bool(self.board_url),
+            "board_delivered": self.board_delivered,
+            "board_failed": self.board_failed,
+            "pages_today": self._pages_on(self._today()),
+            "cap_held": self.cap_held,
         }
 
     async def send(
@@ -248,18 +400,48 @@ class Notifier:
         dedupe_sec: float = 0.0,
         now: float = 0.0,
         email: bool = False,
+        tier: str = TIER_PAGE,
+        cap_counted: bool = False,
+        cap_exempt: bool = False,
     ) -> bool:
         """Fire one alert. Returns True only if it was actually delivered.
 
         `email=True` also asks ntfy to email the stored addresses (the `Email:` header): the first on
         the push, the rest through `mail_topic_url` once the push is delivered. With no address stored,
-        the alert goes out as a plain push."""
+        the alert goes out as a plain push.
+
+        `tier` picks the destination (#2614): PAGE posts to `url` (the phone topic), BOARD to
+        `board_url` — or to `url` when no board destination is configured, so a box that has not
+        set one keeps today's single-topic behaviour and the split takes effect when it does.
+        A counted PAGE (`cap_counted`, and not `cap_exempt` — daemon-down and low-disk are exempt)
+        stops at the daily cap: past it the alert is NOT dropped, it is delivered to the board
+        with a line saying the cap held it, or, with no board destination configured, logged at
+        WARNING and counted as handled — the journal is the record of last resort."""
+        board = tier == TIER_BOARD
+        if board:
+            dest = self.board_url or self.url
+            if not (self._enabled_flag and dest):
+                return False
         # ONE condition, not two: `enabled` is set as `bool(enabled and url)` in both `__init__` and
         # `configure`, so "enabled" already implies a URL — but that invariant lived across two
         # attributes and only a reader could see it. Stating it here makes it checkable, and mypy
         # stops reading `self.url` as possibly-None at the post below. Behaviour is unchanged.
-        if not (self.enabled and self.url):
+        elif not (self.enabled and self.url):
             return False
+        else:
+            dest = self.url
+        counted = not board and cap_counted and not cap_exempt
+        today = self._today() if counted else None
+        if counted and today is not None and self._pages_on(today) >= self._page_cap:
+            self.cap_held += 1
+            if self.board_ready:
+                held_message = (
+                    f"{message}\n\nHeld by the daily page cap ({self._page_cap} per day) — "
+                    "sent to the board instead of the phone."
+                )
+                return await self.send(title, held_message, key=key, dedupe_sec=dedupe_sec, now=now, tier=TIER_BOARD)
+            _log.warning("alert %r held by the daily page cap; no board destination configured", title)
+            return True
         if key is not None and dedupe_sec > 0:
             last = self._last.get(key)
             if last is not None and (now - last) < dedupe_sec:
@@ -271,8 +453,8 @@ class Notifier:
             if self.context:
                 message = f"{message}\n\n{self.context}"
             payload = {"title": title, "message": message}
-            post_url, body = ntfy_publish(self.url, payload)
-            if email and self.emails:
+            post_url, body = ntfy_publish(dest, payload)
+            if email and self.emails and not board:
                 ok = bool(await self._post(post_url, body, headers={"Email": self.emails[0]}))
             else:
                 ok = bool(await self._post(post_url, body))
@@ -285,21 +467,29 @@ class Notifier:
             # need not be.
             _log.warning("alert %r not delivered: %r", title, e)
             self.failed += 1
+            if board:
+                self.board_failed += 1
             self.last_error = f"{type(e).__name__}: {e}"
             return False
         if not ok:
             _log.warning("alert %r rejected by the webhook (non-2xx)", title)
             self.failed += 1
+            if board:
+                self.board_failed += 1
             self.last_error = "rejected by the webhook (non-2xx)"
             return False
         # LOGGED AT INFO ON SUCCESS TOO. Absence of a failure line is not evidence of delivery — that
         # asymmetry is what made 32 alerts unaccountable.
         _log.info("alert %r delivered", title)
         self.delivered += 1
+        if board:
+            self.board_delivered += 1
+        elif counted and today is not None:
+            self._page_counts[today] = self._pages_on(today) + 1
         self.last_ok = _time.time()
         self.last_error = None
-        if email:
-            await self._email_the_rest(self.url, payload)
+        if email and not board:
+            await self._email_the_rest(dest, payload)
         return True
 
     async def _email_the_rest(self, url: str, payload: dict) -> None:
@@ -321,7 +511,7 @@ class Notifier:
         """Forget a dedupe key so the NEXT occurrence alerts immediately (call when a sensor recovers)."""
         self._last.pop(key, None)
 
-    def configure(self, url: str | None, enabled: bool) -> None:
+    def configure(self, url: str | None, enabled: bool, board_url=_UNSET) -> None:
         """Re-point the notifier at runtime, so a monitor edit applies WITHOUT restarting the daemon.
 
         Restarting to pick up a webhook change would drop every BLE link mid-night, which is a far worse
@@ -336,8 +526,12 @@ class Notifier:
         clicking Save twice cannot be used to bypass dedupe.
         """
         changed = (url != self.url) or (bool(enabled and url) != self.enabled)
+        if board_url is not _UNSET:
+            changed = changed or (board_url != self.board_url)
+            self.board_url = board_url
         self.url = url
         self.enabled = bool(enabled and url)
+        self._enabled_flag = bool(enabled)
         if changed:
             self._last.clear()
 
