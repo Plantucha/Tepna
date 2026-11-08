@@ -148,13 +148,37 @@ async def pull_spool_round(write, recv_frame, seal, unseal, spool_type, from_dt,
 
     `from_dt` is REQUIRED (hardware-confirmed — see as11_link.start_spool). StartSpool opens the
     reader; PullSpoolFragments drives SpoolFragment notifications whose Base64 `data` is reassembled
-    in strict `seq` order until a terminal status.
+    until a terminal status. The data-carrying fragments MUST arrive as the run `0 … n-1`; anything
+    else raises rather than joining, so a lost notification can never commit a short body.
     """
     await _send_enc(write, seal, L.start_spool(spool_type, from_dt, rpc_id=start_id))
     started = await _await_result(recv_frame, start_id, unseal)
     spool_id = started["spoolId"]
     await _send_enc(write, seal, L.pull_spool_fragments(spool_id, rpc_id=pull_id))
-    chunks: dict[int, bytes] = {}
+    # ── THE FRAGMENT SEQUENCE IS ASSERTED, NOT ASSUMED ────────────────────────────────────────────
+    #
+    # 🔴 THE DEFECT THIS EXISTS TO FIX (residue 2026-11-07, board #4237 finding 9). This loop kept the
+    # fragments in a dict keyed by `seq` and joined them over `sorted(chunks)`. A LOST notification
+    # therefore produced a SHORT body with no error and no count, the round committed, and
+    # `cpap_spool.sync_once` advanced the committed cursor PAST bytes that never arrived — a hole no
+    # later pass re-reads, because the cursor it would resume from already sits beyond it. A REPEATED
+    # `seq` read the same way: the dict kept one copy and the join silently dropped a whole fragment.
+    #
+    # The vendor reference states the rule asserted here (`as11_spool.py`, `SpoolError`: "returned an
+    # invalid fragment sequence"): one round's DATA-CARRYING fragments arrive as `0 … n-1`, in order.
+    # So the join walks ARRIVAL ORDER and refuses any other sequence — which covers a gap, a repeat,
+    # a reorder, and data carried with no `seq` at all (`-1` via `.get`, as upstream reads it). A
+    # data-less fragment carries no sequence obligation, exactly as upstream appends nothing for one,
+    # so the terminal empty round still reads clean.
+    #
+    # ⚠️ IT RAISES `As11Error`, AND THAT IS A DECISION rather than the only reading. `sync_once` calls
+    # an `As11Error` a PROTOCOL failure and STOPS the driver, while a lost notification is really
+    # TRANSPORT, which re-pulls the same cursor next pass. Two reasons for this class: every existing
+    # caller catches `As11Error` (`cpap_shadow_runner`, both probes, capture.py's shadow loop), so a
+    # new class escapes all of them; and BOTH classifications leave the cursor where it was, so the
+    # hole never opens either way. `fault_kind` answers None here, which the taxonomy above requires —
+    # a kind we did not establish is not a kind we may invent.
+    frags: list[tuple[object, bytes]] = []
     while True:
         msg = await _read_json(recv_frame, unseal)
         if msg.get("method") != "SpoolFragment":
@@ -165,11 +189,14 @@ async def pull_spool_round(write, recv_frame, seal, unseal, spool_type, from_dt,
             raise As11Error(f"spool {spool_type}: data unavailable")
         data = p.get("data")
         if data:
-            chunks[p["seq"]] = base64.b64decode(data)
+            frags.append((p.get("seq", -1), base64.b64decode(data)))
         if status in _ROUND_DONE:
             more = status == "SPOOL_COMPLETE_MORE_DATA_PENDING"
             nxt = p["nextSpoolAddress"][spool_type]["fromDateTime"] if more else None
-            body = b"".join(chunks[s] for s in sorted(chunks))
+            seqs = [s for s, _d in frags]
+            if seqs != list(range(len(seqs))):
+                raise As11Error(f"spool {spool_type}: invalid fragment sequence: {seqs}")
+            body = b"".join(d for _s, d in frags)
             return body, more, nxt
 
 
