@@ -85,7 +85,7 @@
       "signal": "IMU",
       "device": "Polar Verity Sense · H10",
       "app": "MotionDex.html",
-      "guide": null,
+      "guide": "MotionDex Reference.html",
       "summary": "Raw IMU → body position, actigraphy, motion quality.",
       "deploy": false
     },

@@ -24674,6 +24674,7 @@
         { doc: 'PulseDex Reference.html', reg: env.PULSE_REGISTRY, resolver: env.PulseRegistry },
         { doc: 'HRVDex Reference.html', reg: env.HRV_REGISTRY, resolver: env.HrvRegistry },
         { doc: 'GlucoDex Reference.html', reg: env.GLU_REGISTRY, resolver: env.GlucoRegistry },
+        { doc: 'MotionDex Reference.html', reg: env.MOTION_REGISTRY, resolver: env.MotionRegistry },
         // EEGDex: a GENERATED node (codegen/dex-gen.js + dex-registry-gen.js from ONE manifest).
         // Wired in to prove the manifest→registry→guide single-source: the guide's ev-corner
         // grades, joined via the GENERATED EegRegistry.idForLabel, must equal the GENERATED
