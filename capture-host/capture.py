@@ -4838,6 +4838,20 @@ async def run_polar(dev: dict, root: str):
                                 _set(name, sdk_mode=await _exit_sdk_mode(_ctrl, name))
                         for meas in list(writers):
                             await _ctrl(pmd.stop_cmd(meas))  # clear any stale stream from a prior session
+                            if meas == pmd.PPI and STATUS["devices"].get(name, {}).get("sdk_mode") is True:
+                                # NO PPI IN SDK MODE. Polar documents that a Verity in SDK mode serves no
+                                # PPI and no HR. The START answers `invalid_state`, which reads as
+                                # transient, so the writer stayed and the stall watchdog watched a stream
+                                # that cannot flow. Measured on the capture box 2026-11-08: 211 links
+                                # dropped at 90 s each, and the holes held 14.3 % of the night's PPG.
+                                log.info("%s ppi not requested: the device serves no PPI in SDK mode", name)
+                                if writers[meas].resumed:
+                                    writers[meas].close()
+                                else:
+                                    writers[meas].discard()
+                                del writers[meas]
+                                BUS.unregister(_live_key(pmd.MEAS_NAME[meas], tag))
+                                continue
                             # Ask the device what settings it offers, then START from THOSE (fixed table is a
                             # fallback). Devices differ: Verity ACC isn't 200 Hz, MAG needs a range, etc.
                             settings = pmd.parse_settings_response(await _ctrl(pmd.get_settings_cmd(meas)))
