@@ -2393,6 +2393,9 @@ def make_app(
         [
             web.get("/", index),
             web.get("/stitched-31d.html", stitched_page),
+            # The monitor links through /monitor, which Caddy strips. This alias serves the same link on a
+            # direct webmon origin, where nothing strips the prefix.
+            web.get("/monitor/stitched-31d.html", stitched_page),
             web.get("/api/stitched/{tool}", stitched_result),
             web.get("/api/state", state),
             web.get("/api/version", version_get),
