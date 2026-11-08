@@ -24,6 +24,15 @@
   function num(v, d) {
     return v == null || !isFinite(v) ? '—' : Number(v).toFixed(d == null ? 1 : d);
   }
+  /* §∅ — THE ABSENCE SUBLABEL NAMES ITS OWN REASON. This slot held the literal 'no chest ACC' for
+     every absent rate, so a chest stream that recorded and carried no respiration read as a missing
+     sensor. The producer owns the reason (`respRateReason`), and the reader states it. */
+  function respAbsenceWhy(eff) {
+    if (!eff) return 'no chest ACC';
+    if (eff.respRateReason === 'no-respiratory-effort') return 'no respiratory effort';
+    if (eff.reason === 'unit-unknown') return 'ACC unit unknown';
+    return 'no chest ACC';
+  }
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
@@ -217,7 +226,7 @@
     k += kpi('Supine time', pos.hasData ? pct(pos.supineFrac) : '—', 'positional-OSA target ↓');
     k += kpi('Immobile time', act.hasData ? pct(act.immobileFrac) : '—', 'below movement threshold');
     k += kpi('Movement index', act.hasData ? num(act.movementIndex, 2) : '—', 'per-epoch activity');
-    k += kpi('Respiratory rate', eff.hasData ? num(eff.rateBrpm, 1) + ' br/min' : '—', eff.hasData ? eff.nBreaths + ' breaths' : 'no chest ACC');
+    k += kpi('Respiratory rate', eff.hasData ? num(eff.rateBrpm, 1) + ' br/min' : '—', eff.hasData ? eff.nBreaths + ' breaths' : respAbsenceWhy(eff));
     k += kpi('Signal quality', sqi.conf != null ? num(sqi.conf, 2) + '×' : '—', sqi.flags && sqi.flags.length ? sqi.flags.join(', ') : 'clean');
     if (grid) grid.innerHTML = k;
     var kt = $('mxKPI');

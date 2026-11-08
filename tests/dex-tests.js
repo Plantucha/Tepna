@@ -87490,6 +87490,108 @@
     });
 
     /* ════ The new rate fields are ADDITIVE — every legacy effort field survives (CLAUDE.md §🧪) ════ */
+    /* ════ MotionDex publishes NO respiratory rate over a signal with no respiratory effort ════
+     Row `2026-11-08-motiondex-respiratory-rate-reports-19-on-a-constant-signal`. A constant chest
+     stream produced 19.0 br/min beside this same summary's `nBreaths` 0 and `amplitudeG` 0, and the
+     19 reached the KPI, the effort card and the node export.
+
+     THE MECHANISM IS THE TRACKER'S PRIOR, NOT THE SPECTRUM. `respiratoryRate` feeds a FLAT likelihood
+     for an UNCOVERED window, so `respViterbi`'s transition prior carries the state across the hole —
+     right for a sensor that stopped. The coverage mask marks a constant signal as RECORDED, so it
+     never takes that path: `respWindowSpectrum` returns a degenerate spectrum, and the prior then
+     supplies a self-consistent ridge whose confidence clears `confMin`. Measured on this fixture:
+     29 per-epoch rate entries at coverage 0.862, every one of them the prior.
+
+     So the abstention belongs at the SUMMARY, where the effort terms are in hand, and the ridge
+     tracker is left alone. The criterion is a CONJUNCTION — no zero crossing, no band RMS above
+     `EFFORT_FLOOR_G`, and no epoch marked present. Any one term alone would null a weak but real
+     night. The planted control below holds every number it had before the change, which is what
+     makes the conjunction safe. ════ */
+    group('MotionDex respiratory rate abstains on a signal with no effort (§∅)', 'motiondex-dsp · motiondex-render · resp-rate · §∅', function (T) {
+      var MD = env.MOTIONDSP;
+      if (!(MD && typeof MD.respiratoryEffort === 'function' && typeof MD.respiratoryRate === 'function' && typeof MD.parseSensorXYZ === 'function' && typeof MD.genSyntheticACC === 'function')) {
+        T.skip('MOTIONDSP.respiratoryEffort + respiratoryRate + parseSensorXYZ + genSyntheticACC available', 'motiondex-dsp not wired in this lane');
+        return;
+      }
+      // 15 min of a perfectly constant chest reading — the row's own shape, at 26 Hz.
+      var hzK = 26,
+        secK = 900,
+        t0K = Date.UTC(2026, 5, 10, 23, 0, 0),
+        flat = [];
+      for (var i = 0; i < hzK * secK; i++) {
+        flat.push({ relNs: i * (1e9 / hzK), tMs: t0K + (i * 1000) / hzK, x: 12, y: -4, z: 1000 });
+      }
+      var eff = MD.respiratoryEffort(flat, t0K, secK, 'mg') || {};
+
+      // ANTI-VACUITY — the spectral stage still CLAIMS a rate on this input, so the test exercises
+      // the live path. Were this leg to go quiet the group would pass over a detector that refused
+      // for its own reasons, and would say nothing about the summary.
+      var spec = MD.respiratoryRate(flat, t0K, 'mg') || {};
+      T.ok(
+        'the ridge tracker still reports a rate on the flat signal (the defect is live)',
+        spec.hasData === true && spec.medianBrpm != null && isFinite(spec.medianBrpm),
+        'specHasData=' + spec.hasData + ' median=' + spec.medianBrpm
+      );
+
+      // the self-contradiction that identified the row
+      T.eq('no breath crosses zero on a constant signal', eff.nBreaths, 0);
+      T.eq('and the band RMS is 0 g', eff.amplitudeG, 0);
+      var presentK = 0;
+      for (var a = 0; a < (eff.series || []).length; a++) if (eff.series[a].present === true) presentK++;
+      T.eq('and no epoch is marked present', presentK, 0);
+      T.ok(
+        'the presence track still COVERS the night (absent, never not-recorded)',
+        (eff.series || []).length > 0 &&
+          eff.series.filter(function (s) {
+            return s.present === null;
+          }).length === 0,
+        'epochs=' + (eff.series || []).length
+      );
+
+      // the abstention itself
+      T.eq('rateBrpm is null — not 19, and not 0', eff.rateBrpm, null);
+      T.eq('hasData is false', eff.hasData, false);
+      T.eq('the reason is NAMED, never borrowed', eff.respRateReason, 'no-respiratory-effort');
+      T.eq('no method is claimed for a rate that was not measured', eff.respRateMethod, null);
+      T.eq('the per-epoch rate track goes with it — every entry was the prior', (eff.rateSeries || []).length, 0);
+      T.eq('and the coverage it would have quoted goes too', eff.rateCoverage, 0);
+
+      // THE CONTROL — a planted 15 br/min night keeps every number it had.
+      var real = MD.parseSensorXYZ(MD.genSyntheticACC({ sec: 900, hz: 26, brpm: 15, seed: 11 }));
+      var effR = MD.respiratoryEffort(real, real[0].tMs, 900, 'mg') || {};
+      T.approx('CONTROL · a planted 15 br/min night still publishes its rate', effR.rateBrpm, 15.1, 0.5);
+      T.eq('CONTROL · and claims no absence reason', effR.respRateReason, null);
+      T.ok('CONTROL · its per-epoch rate track survives', (effR.rateSeries || []).length > 0, 'rateSeries=' + (effR.rateSeries || []).length);
+      var presentR = 0;
+      for (var b = 0; b < (effR.series || []).length; b++) if (effR.series[b].present === true) presentR++;
+      T.ok('CONTROL · and its epochs clear the effort floor — the term that separates the two', presentR > 0, 'presentEpochs=' + presentR);
+
+      /* The reason has to LEAVE the node, or a consumer invents one. That is residue
+         `2026-09-02-motiondex-respratemethod-unexported` one field over. */
+      var dsrc = (env.sources || {})['motiondex-dsp.js'] || '';
+      if (dsrc) {
+        T.ok('the node export carries respRateReason beside respRateBrpm', /respRateReason:\s*summary\.effort/.test(dsrc), 'no respRateReason in the export reshape');
+      } else {
+        T.skip('motiondex-dsp.js source available', 'source text not wired in this lane');
+      }
+      /* The KPI sublabel said `no chest ACC` for EVERY absent rate, which is false for a chest
+         stream that recorded and carried no respiration. The reader must state the producer's reason. */
+      var rsrc = (env.sources || {})['motiondex-render.js'] || '';
+      if (rsrc) {
+        /* ANCHORED TO THE KPI LINE. A bare /respAbsenceWhy\(eff\)/ over the whole file matches the
+           HELPER'S OWN DECLARATION, so the leg passed over a reverted call site under a plant
+           (measured 2026-11-08, plant 3 of this unit): the source held the helper and the hardcoded
+           string at once. Read the line that decides. */
+        var kpiLine = (rsrc.match(/k \+= kpi\('Respiratory rate'[^\n]*/) || [''])[0];
+        T.ok('the Respiratory rate KPI line is present (anti-vacuity for the two legs below)', kpiLine.length > 0, "no `kpi('Respiratory rate'` line in motiondex-render.js");
+        T.ok('its absence sublabel reads the named reason', /respAbsenceWhy\(eff\)/.test(kpiLine), kpiLine.trim() || 'line not found');
+        T.ok('…and no longer hardcodes a sensor-absence string', !/no chest ACC/.test(kpiLine), kpiLine.trim() || 'line not found');
+        T.ok('the helper answers for a flat chest stream', /function respAbsenceWhy/.test(rsrc) && /no respiratory effort/.test(rsrc), 'no flat-signal arm in respAbsenceWhy');
+      } else {
+        T.skip('motiondex-render.js source available', 'source text not wired in this lane');
+      }
+    });
+
     group('MotionDex effort keeps its legacy return shape while adding the rate series', 'motiondex-dsp · effort · back-compat', function (T) {
       var MD = env.MOTIONDSP;
       if (!(MD && typeof MD.respiratoryEffort === 'function' && typeof MD.genSyntheticACC === 'function')) {

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="b8b99ea5d49d" data-compute-hash="0f2a5559ffd6">
+<html lang="en" data-manifest-hash="e5c1f3504be3" data-compute-hash="8110443d3d3a">
 <head>
 <!--
   MotionDex.src.html — Tepna
@@ -12,7 +12,7 @@
 <!-- CSP: browser-enforces the no-network invariant. connect-src 'none' blocks every outbound request;
      script-src is STRICT ('self' + per-inline-script sha256, NO 'unsafe-inline'). MotionDex ships zero
      inline scripts (all init lives in motiondex-app.js), so the hash list is empty by construction. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DnGTW/7MgYxGDBRvOr+XhGHLMZ65NfLlXlAKT/D+Gl0=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-LFUuThFphtJbs7xcxi6ccAB4tRpfMsn5CPS3sr9f3SQ=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-QZbSesvrcZfyvOVkoWZ4J0kWWkv9uBUjAVCIwyZIFmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-bIhKcpZRJ/ZzKulROPoeorGxddt3ajAjGiOPqmDw7ik=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-hCZmwNAMDLPZEMYHAYpzoPETSnimg1oHWWjZImdKqxM='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-LFUuThFphtJbs7xcxi6ccAB4tRpfMsn5CPS3sr9f3SQ=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-bIhKcpZRJ/ZzKulROPoeorGxddt3ajAjGiOPqmDw7ik=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-hCZmwNAMDLPZEMYHAYpzoPETSnimg1oHWWjZImdKqxM=' 'sha256-pyBgyl0sPS3CCYHHKy+ex/zF2QRIR/Y28sDOZOJMAWY=' 'sha256-vuQvMRKB92NWdFjcGEEMZ4B6e+kfJ3I1q9HsdUkk8gU='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>MotionDex — Motion / IMU Analyzer · v2.29.0</title>
@@ -7869,9 +7869,39 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
     if (isFinite(rate)) legacyRate = Math.round(rate * 10) / 10;
     var outRate = legacyRate;
     var method = 'acc-zero-crossing';
-    if (spec.hasData && spec.medianBrpm != null) {
+
+    /* ── §∅ — A RATE OVER A SIGNAL WITH NO RESPIRATORY EFFORT IS THE TRACKER'S PRIOR ──────────────
+       `respiratoryRate` feeds a FLAT likelihood for an UNCOVERED window, so the Viterbi transition
+       prior carries the state across the hole. That is right for a sensor that was off. The coverage
+       mask marks a CONSTANT signal as recorded, so it never takes that path: `respWindowSpectrum`
+       returns a degenerate spectrum, and the prior then supplies a self-consistent ridge at high
+       confidence. Row `2026-11-08-motiondex-respiratory-rate-reports-19-on-a-constant-signal`
+       measured 19 br/min at 1 h and at 30 min, beside THIS SAME summary reporting `nBreaths` 0 and
+       `amplitudeG` 0. The summary contradicted itself, and every surface carried the 19.
+
+       THE CRITERION IS A CONJUNCTION, and that is deliberate. Any one term alone would null a weak
+       but real night: a low-amplitude chest placement clears no floor, and a smooth waveform crosses
+       zero rarely. All three together describe a flat signal. So the rate abstains only where the
+       zero-crossing count, the band RMS and the per-epoch presence flags ALL say nothing happened.
+
+       The reason is NAMED, never borrowed. `no-respiratory-effort` is not `no chest ACC`: the stream
+       is present and recorded, and it carries no respiration. */
+    var effortPresentEpochs = 0;
+    for (var pe = 0; pe < series.length; pe++) if (series[pe].present === true) effortPresentEpochs++;
+    var noEffort = breaths === 0 && effortPresentEpochs === 0 && !(rms >= EFFORT_FLOOR_G);
+    var rateReason = null;
+
+    if (spec.hasData && spec.medianBrpm != null && !noEffort) {
       outRate = spec.medianBrpm;
       method = spec.method;
+    }
+    if (noEffort) {
+      /* NOT 0, and NOT the prior. A zero rate is a legal measurement elsewhere, so absence travels
+         as null plus the reason, and the per-epoch track goes with it — every one of its epochs is
+         the prior, not an observation. */
+      outRate = null;
+      method = null;
+      rateReason = 'no-respiratory-effort';
     }
 
     return {
@@ -7884,10 +7914,11 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
       cadenceSec: EFFORT_CAD_SEC,
       floorG: EFFORT_FLOOR_G,
       // ── added 2026-07-21 (additive; every field above is unchanged) ──
-      rateSeries: spec.hasData ? spec.series : [],
+      rateSeries: spec.hasData && !noEffort ? spec.series : [],
       rateEpochSec: RR_HOP_SEC,
-      rateCoverage: spec.hasData ? Math.round(spec.coverage * 1e3) / 1e3 : 0,
+      rateCoverage: spec.hasData && !noEffort ? Math.round(spec.coverage * 1e3) / 1e3 : 0,
       respRateMethod: method,
+      respRateReason: rateReason,
       rateBrpmLegacy: legacyRate
     };
   }
@@ -8424,6 +8455,12 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
            cannot be attributed is the thing §6A's box claimed to deliver. Emitted beside the value it
            describes so the two cannot separate again. */
         respRateMethod: summary.effort ? summary.effort.respRateMethod || null : null,
+        /* THE REASON THE RATE IS ABSENT, beside the absence itself. Row
+           `2026-09-02-motiondex-respratemethod-unexported` is the same defect one field over: a value
+           whose attribution cannot leave the node gets one invented downstream. A null rate with no
+           reason reads as "MotionDex had no chest ACC", which is wrong for a chest stream that
+           recorded and carried no respiration. */
+        respRateReason: summary.effort ? summary.effort.respRateReason || null : null,
         // effort-presence series — a MotionDex standalone read AND the Integrator apnea-typing input (§1.1).
         // Coverage-honest: an epoch's `present` is null where chest ACC was not recording, never a false absent.
         effortSeries: summary.effort && summary.effort.series ? summary.effort.series : null,
@@ -8548,6 +8585,15 @@ __exports.MotionDex = window.MotionDex;
   }
   function num(v, d) {
     return v == null || !isFinite(v) ? '—' : Number(v).toFixed(d == null ? 1 : d);
+  }
+  /* §∅ — THE ABSENCE SUBLABEL NAMES ITS OWN REASON. This slot held the literal 'no chest ACC' for
+     every absent rate, so a chest stream that recorded and carried no respiration read as a missing
+     sensor. The producer owns the reason (`respRateReason`), and the reader states it. */
+  function respAbsenceWhy(eff) {
+    if (!eff) return 'no chest ACC';
+    if (eff.respRateReason === 'no-respiratory-effort') return 'no respiratory effort';
+    if (eff.reason === 'unit-unknown') return 'ACC unit unknown';
+    return 'no chest ACC';
   }
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
@@ -8742,7 +8788,7 @@ __exports.MotionDex = window.MotionDex;
     k += kpi('Supine time', pos.hasData ? pct(pos.supineFrac) : '—', 'positional-OSA target ↓');
     k += kpi('Immobile time', act.hasData ? pct(act.immobileFrac) : '—', 'below movement threshold');
     k += kpi('Movement index', act.hasData ? num(act.movementIndex, 2) : '—', 'per-epoch activity');
-    k += kpi('Respiratory rate', eff.hasData ? num(eff.rateBrpm, 1) + ' br/min' : '—', eff.hasData ? eff.nBreaths + ' breaths' : 'no chest ACC');
+    k += kpi('Respiratory rate', eff.hasData ? num(eff.rateBrpm, 1) + ' br/min' : '—', eff.hasData ? eff.nBreaths + ' breaths' : respAbsenceWhy(eff));
     k += kpi('Signal quality', sqi.conf != null ? num(sqi.conf, 2) + '×' : '—', sqi.flags && sqi.flags.length ? sqi.flags.join(', ') : 'clean');
     if (grid) grid.innerHTML = k;
     var kt = $('mxKPI');

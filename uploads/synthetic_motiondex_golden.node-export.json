@@ -105,6 +105,7 @@
     "activityCadenceSec": 30,
     "respRateBrpm": 15.1,
     "respRateMethod": "acc-spectral-viterbi",
+    "respRateReason": null,
     "effortSeries": [
       {
         "tMs": 1781128800000,
