@@ -326,7 +326,7 @@ def _capture_events_are_not_leaked(request):
 # leaks left at teardown by legitimate tests: `_LAST_DATA` 4137, `_IDLE_TIMER_NAMED` 261, `_LAST_PULL_OK` 6.
 # A tripwire would convict all of them. (That sweep measured PRESENCE at teardown, not authorship — it
 # names the test that ran, not necessarily the one that wrote the key.)
-_RUNNER_STATE_GLOBALS = ("_LAST_DATA", "_LAST_PULL_OK", "_IDLE_TIMER_NAMED")
+_RUNNER_STATE_GLOBALS = ("_LAST_DATA", "_LAST_PULL_OK", "_IDLE_TIMER_NAMED", "_SILENT_BEHIND_LIVE")
 
 
 @_pytest.fixture(autouse=True)

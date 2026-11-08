@@ -524,7 +524,7 @@ def build(
     prefers the device's configured rate over a model nominal. Grading against the nominal is what
     reported a complete night as `acc 24%` on 2026-07-25."""
     files = nightqc.scan_night(night_dir)
-    data = [f for f in files if f["stream"] not in nightqc._SIDECAR_TAGS]
+    data = [f for f in files if not nightqc.is_sidecar(f["stream"])]
     # THE NIGHT CROSSES MIDNIGHT; THE FOLDER DOES NOT. night_dir() rolls by SESSION START date, so a
     # night that began at 22:26 leaves its first hours in yesterday's folder. Reading one directory
     # showed only the post-midnight half — every device's line appeared to start in the middle of the
@@ -574,7 +574,7 @@ def build(
         # of this folder's. Additive: the clock test still pools on its own, so nothing that pooled stops.
         if not _pool and earliest is not None and nightqc.prev_probe_window(earliest, midnight):
             if prev and os.path.isdir(prev):
-                prev_data = [f for f in nightqc.scan_night(prev) if f["stream"] not in nightqc._SIDECAR_TAGS]
+                prev_data = [f for f in nightqc.scan_night(prev) if not nightqc.is_sidecar(f["stream"])]
                 _prev_ids = {id(f) for f in prev_data}
                 _probe_seams = sorted(
                     {t for d in (prev, night_dir) for t in nightqc.daemon_starts(d, offset_sec=_offset)["stamps"]}
@@ -585,7 +585,7 @@ def build(
                 )
         if _pool and prev and os.path.isdir(prev):
             if prev_data is None:
-                prev_data = [f for f in nightqc.scan_night(prev) if f["stream"] not in nightqc._SIDECAR_TAGS]
+                prev_data = [f for f in nightqc.scan_night(prev) if not nightqc.is_sidecar(f["stream"])]
             data = prev_data + data
             dirs.insert(0, prev)
     link = read_link_samples(dirs)

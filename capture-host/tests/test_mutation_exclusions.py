@@ -653,8 +653,11 @@ def test_the_covered_function_count_is_MEASURED_from_the_ast_not_quoted():
     # state, runs `battery_health.update` off the loop, sends each due alert and latches only a
     # delivered one. It is async because it awaits the notifier; the rules live in battery_health.py.
     # +1, the whole delta. Merged onto `_report_dir` above, so this one counts from 346.
+    # 347 → 348 on 2026-11-08 (owner, "Fix it" on the Verity stall loop): `stall_verdict`, which judges
+    # a stall as ok, excuse or teardown. It is pure, so the 8 tests in test_capture.py judge it without a
+    # link. The hold loop in run_polar acts on its answer. +1, the whole delta.
     # `moduleFunctionsAtDeclaration` stays where it is, per the note above.
-    assert n == 347, f"capture.py now defines {n} functions — update the declaration's note deliberately"
+    assert n == 348, f"capture.py now defines {n} functions — update the declaration's note deliberately"
 
 
 def test_count_functions_counts_nested_and_methods_and_refuses_nothing():

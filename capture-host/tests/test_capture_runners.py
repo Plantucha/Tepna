@@ -4696,6 +4696,94 @@ def test_run_polar_stall_baseline_resets_when_rows_advance(tmp_path, monkeypatch
     assert len(starts) == 1, f"a delivering stream was torn down: {c.writes!r}"
 
 
+def _silent_ecg_live_hr(monkeypatch, feed_ecg_from_start=None):
+    """An H10 whose HR flows on every hold tick while its ECG stays silent. With `feed_ecg_from_start`,
+    ECG frames start to flow once that many STARTs have been written."""
+    _polar_common(monkeypatch)
+    c = FlexPolarClient(data_frames=[], start_status=0x00, hr_frame=bytes([0x06, 60]))
+    _inject_connect(monkeypatch, c)
+    clock = {"t": 0.0}
+    monkeypatch.setattr(capture._time, "monotonic", lambda: clock.__setitem__("t", clock["t"] + 50.0) or clock["t"])
+    calls = {"n": 0}
+
+    async def ticking_sleep(_secs):
+        calls["n"] += 1
+        hr = c.cbs.get(capture.HR_UUID)
+        if hr:
+            hr(0, bytearray([0x06, 60]))
+        starts = sum(1 for w in c.writes if w and w[0] == 0x02)
+        data = c.cbs.get(pmd.PMD_DATA)
+        if feed_ecg_from_start and starts >= feed_ecg_from_start and data:
+            data(0, bytearray(_ecg_frame()))
+        if calls["n"] >= 30:
+            capture._STOP.set()
+
+    monkeypatch.setattr(capture.asyncio, "sleep", ticking_sleep)
+    return c
+
+
+def test_run_polar_keeps_the_link_when_the_same_stream_is_silent_after_a_re_negotiation(tmp_path, monkeypatch, caplog):
+    """MEASURED on the capture box 2026-11-08: a Verity stream that ACKs START and never delivers tore
+    the link down every ~100 s, and each reconnect cut a hole in the live PPG. One re-negotiation stays;
+    the second silence of the same stream behind a live sibling keeps the link."""
+    c = _silent_ecg_live_hr(monkeypatch)
+    with caplog.at_level("WARNING", logger="capture"):
+        _run(capture.run_polar(_pdev(streams=["ecg", "hr"]), str(tmp_path)))
+    starts = [w for w in c.writes if w and w[0] == 0x02]
+    assert len(starts) == 2, f"expected one re-negotiation, then a kept link: {len(starts)} STARTs"
+    assert caplog.text.count("keeping the link") == 1, "the excused stream must leave the watch, not re-fire"
+    assert capture._SILENT_BEHIND_LIVE == {"24:AC:AC:02:84:96": frozenset({"ecg"})}
+
+
+def test_run_polar_forgets_a_silence_once_the_stream_delivers_again(tmp_path, monkeypatch):
+    c = _silent_ecg_live_hr(monkeypatch, feed_ecg_from_start=2)
+    _run(capture.run_polar(_pdev(streams=["ecg", "hr"]), str(tmp_path)))
+    starts = [w for w in c.writes if w and w[0] == 0x02]
+    assert len(starts) == 2, f"a delivering stream was torn down: {len(starts)} STARTs"
+    assert capture._SILENT_BEHIND_LIVE == {"24:AC:AC:02:84:96": frozenset()}
+
+
+@pytest.mark.parametrize("resumed", [False, True])
+def test_run_polar_requests_no_ppi_in_sdk_mode_and_keeps_the_link(tmp_path, monkeypatch, caplog, resumed):
+    """MEASURED on the capture box 2026-11-08: a Verity in SDK mode refuses PPI, as Polar documents. The
+    empty PPI writer stayed watched, and the stall watchdog dropped each link after 90 s. A resumed PPI
+    file holds earlier sessions, so the daemon closes it and keeps it."""
+    _polar_common(monkeypatch)
+    _orig_init = capture.StreamWriter.__init__
+
+    def _init(self, path, stream, *a, **k):
+        _orig_init(self, path, stream, *a, **k)
+        if stream == "ppi" and resumed:
+            self.resumed = True
+
+    monkeypatch.setattr(capture.StreamWriter, "__init__", _init)
+    c = FakePolarClient(start_status=0x00)
+    _inject_connect(monkeypatch, c)
+    clock = {"t": 0.0}
+    monkeypatch.setattr(capture._time, "monotonic", lambda: clock.__setitem__("t", clock["t"] + 50.0) or clock["t"])
+    calls = {"n": 0}
+
+    async def ticking_sleep(_secs):
+        calls["n"] += 1
+        data = c.cbs.get(pmd.PMD_DATA)
+        if data:
+            data(0, bytearray(_ecg_frame()))
+        if calls["n"] >= 30:
+            capture._STOP.set()
+
+    monkeypatch.setattr(capture.asyncio, "sleep", ticking_sleep)
+    dev = _pdev(streams=["ecg", "ppi"], sdk_mode=True)
+    with caplog.at_level("INFO", logger="tepna-capture"):
+        _run(capture.run_polar(dev, str(tmp_path)))
+    ppi_starts = [w for w in c.writes if len(w) > 1 and w[0] == 0x02 and w[1] == pmd.PPI]
+    ecg_starts = [w for w in c.writes if len(w) > 1 and w[0] == 0x02 and w[1] == pmd.ECG]
+    assert ppi_starts == [], "a device in SDK mode serves no PPI, so the daemon must not ask"
+    assert len(ecg_starts) == 1, f"the live link was torn down: {len(ecg_starts)} ECG STARTs"
+    assert "serves no PPI in SDK mode" in caplog.text
+    assert "silent for" not in caplog.text
+    assert bool(list(tmp_path.rglob("*_PPI.txt"))) is resumed, "a new empty set goes; a resumed one stays"
+
+
 def test_keep_running_backoff_doubles_between_crashes(monkeypatch):
     """Repeated crashes back off instead of hot-looping — a task that cannot start must not spin the CPU
     all night."""
