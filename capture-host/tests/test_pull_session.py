@@ -10,8 +10,10 @@
 # frames go through the real Reassembler and the real decoder. Nothing about the protocol is stubbed out.
 
 import asyncio
+import io
 import json
 import os
+import sys
 
 import pytest
 
@@ -940,6 +942,42 @@ def test_a_CLEAN_ledger_says_nothing_about_a_partial_history(tmp_path, monkeypat
     _install(monkeypatch, FakeRing([ts], blob))
     _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "latest", 0, None, "0000"))
     assert "PARTIAL history" not in capsys.readouterr().out
+
+
+class _FlushSpy(io.StringIO):
+    """A stdout that keeps the buffer as it stood at every `flush()`. `capsys` reports what reached
+    stdout, never WHEN it left the buffer, so it cannot see this property at all."""
+
+    def __init__(self):
+        super().__init__()
+        self.at_flush: list[str] = []
+
+    def flush(self):
+        self.at_flush.append(self.getvalue())
+
+
+def test_the_PARTIAL_HISTORY_warning_LEAVES_THE_BUFFER_when_it_is_written(tmp_path, monkeypatch):
+    """`flush=True` is load-bearing on that line, as it is on every progress line in this module. The
+    pull's next write can be minutes of BLE away. A warning held in a block-buffered pipe to the
+    journal reaches the operator after the decision it was meant to inform, or never, if the pull
+    dies holding it.
+
+    The assertion is the TIMING, which is the only part the kwarg controls: at the flush that follows
+    the warning, the warning is the LAST text in the buffer. Drop the flush and a later line carries
+    it out, so the buffer then ends with that line instead."""
+    ts = "20260719010000"
+    blob = b"\x01\x03" + b"z" * 90
+    _seed(tmp_path, inv.make_row(DEV, "20260101000000", inv.COMMITTED, at=1.0))
+    with open(str(tmp_path / "inventory.jsonl"), "a", encoding="utf-8") as fh:
+        fh.write("{a line the kill left half-written\n")
+    _install(monkeypatch, FakeRing([ts], blob))
+    spy = _FlushSpy()
+    monkeypatch.setattr(sys, "stdout", spy)
+    _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "latest", 0, None, "0000"))
+    assert "PARTIAL history" in spy.getvalue(), "the warning never reached stdout at all"
+    assert any(b.rstrip("\n").endswith("PARTIAL history") for b in spy.at_flush), (
+        "the warning was written and left in the buffer — a later flushed line carried it out"
+    )
 
 
 def test_a_finalized_download_classifies_VERIFIED_before_committing(tmp_path, monkeypatch):

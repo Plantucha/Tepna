@@ -286,6 +286,20 @@ def test_a_ZERO_BYTE_ledger_is_not_a_torn_tail(tmp_path):
     assert [r["id"] for r in inv.load_rows(led)] == ["R/20260101000000"]
 
 
+def test_a_ONE_BYTE_torn_fragment_is_still_a_torn_tail(tmp_path):
+    """The size test's own boundary, and a tear really can leave one byte — the kill landed after the
+    first `{` reached the disk. `> 0` reads that byte and separates. `> 1` skips the probe, the next
+    row fuses onto the fragment, and the defect the guard exists to stop is back for files of exactly
+    one byte."""
+    led = str(tmp_path / "inventory.jsonl")
+    with open(led, "wb") as fh:
+        fh.write(b"{")
+    assert os.path.getsize(led) == 1, "the precondition this test exists for"
+    inv.append_row(led, inv.make_row("R", "20260101000000", inv.COMMITTED, at=1.0))
+    assert [r["id"] for r in inv.load_rows(led)] == ["R/20260101000000"]
+    assert open(led, encoding="utf-8").read().startswith("{\n"), "the fragment keeps its own line"
+
+
 def test_the_row_is_FSYNCED_so_a_power_cut_cannot_drop_a_regression(tmp_path, monkeypatch):
     """A row that reached the OS survives a kill of this process. It does not survive the box losing
     power, and that loss is NOT safe-sided: a dropped PARTIAL row leaves the ledger reading VERIFIED
