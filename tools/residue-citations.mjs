@@ -61,6 +61,7 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════ */
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
@@ -91,11 +92,16 @@ const TEXT_EXT = new Set(['.js', '.mjs', '.cjs', '.py', '.sh', '.md', '.json', '
 
 /* ── reading the tree ──────────────────────────────────────────────────────────────────────────── */
 
+/* A tracked path the working tree has deleted is not in the population: the tree being scanned
+   removed it on purpose, so it holds no citation and no read is owed. `release.mjs` stamps a release
+   by deleting every consumed changeset before `npm run check` runs, and after #4571 the scan read
+   each of those deletions as an unreadable file and answered UNKNOWN, which held the v2.29.0 release
+   at its gate on 2026-11-08 with 80 ENOENT paths. A file that is present and cannot be opened
+   (EACCES) still counts as excluded. */
 export function trackedFiles(repo) {
-  const out = execFileSync('git', ['-C', repo, 'ls-files', '-z'], { maxBuffer: 1 << 28 });
-  return String(out)
-    .split('\0')
-    .filter((p) => p && TEXT_EXT.has(path.extname(p)));
+  const ls = (...a) => String(execFileSync('git', ['-C', repo, 'ls-files', '-z', ...a], { maxBuffer: 1 << 28 })).split('\0');
+  const deleted = new Set(ls('--deleted'));
+  return ls().filter((p) => p && !deleted.has(p) && TEXT_EXT.has(path.extname(p)));
 }
 
 export function rowKeys(ledgerText) {
@@ -558,6 +564,24 @@ function selftest() {
      carries both. An UNKNOWN here would hide a citation the gate did resolve against no row. */
   const vBoth = verdictFor({ ...gone, undeclared: [{ cited: 'k', at: 'f:1' }], unresolvedKeys: 1, declared: 1, rows: 1 }, 'abc');
   ok('CONTROL · a finding beside an unread file is still FAIL', vBoth.status, 'FAIL');
+
+  /* A TRACKED FILE THE TREE DELETED IS OUTSIDE THE OFFER. A scratch repo tracks two files and the
+     working tree deletes one, the shape `release.mjs` leaves after it consumes the changesets. */
+  const scratch = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'rcite-'));
+  try {
+    const g = (...a) => execFileSync('git', ['-C', scratch, ...a], { stdio: 'pipe' });
+    g('init', '-q');
+    fs.writeFileSync(path.join(scratch, 'kept.md'), 'x\n');
+    fs.writeFileSync(path.join(scratch, 'consumed.md'), 'x\n');
+    g('add', 'kept.md', 'consumed.md');
+    fs.unlinkSync(path.join(scratch, 'consumed.md'));
+    ok('a tracked file deleted in the working tree is not offered', trackedFiles(scratch), ['kept.md']);
+    /* CONTROL · with the file restored, both are offered, so the leg above is the deletion's doing. */
+    fs.writeFileSync(path.join(scratch, 'consumed.md'), 'x\n');
+    ok('CONTROL · the restored file is offered again', trackedFiles(scratch).sort(), ['consumed.md', 'kept.md']);
+  } finally {
+    fs.rmSync(scratch, { recursive: true, force: true });
+  }
   ok('…and that reason names the unread file too', /ENOENT/.test(vBoth.reason), true);
   /* CONTROL · the readable case is untouched: the sweep that read its whole offer excludes nothing. */
   ok('CONTROL · a sweep that read every eligible file excludes nothing', verdictFor({ ...blank, orphanOwners: [] }, 'abc').population, {
