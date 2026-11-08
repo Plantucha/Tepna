@@ -51902,6 +51902,23 @@
         return orient.indexOf(n) < 0;
       });
       T.ok('every shipped bundle is named in ORIENTATION.md (roster not stale)', missing.length === 0, 'missing: ' + missing.join(', '));
+      /* The map carries a SECOND volatile roster: the adapter name list. It named 8 of the 12 files in
+       adapters/ and omitted resmed-edf, o2ring-ppg, o2ring-ppg2w and polar-acc (Muse's hunt, board
+       #4248 D-2; row 2026-11-07-orientation-adapter-map-omits-four-adapters). env.sources is a real
+       readdirSync walk of adapters/ (run-tests.mjs readSources), so the Node lane sees every file as
+       it lands; the browser lane provides no sources and skips rather than shrinking the gate. */
+      var adapterFiles = Object.keys(env.sources || {}).filter(function (k) {
+        return /^adapters\/[a-z0-9-]+\.js$/.test(k);
+      });
+      if (!adapterFiles.length) {
+        T.skip('every adapter file is named in the ORIENTATION adapter map', 'sources not provided in this runner');
+      } else {
+        T.ok('derived the adapter set from env.sources', adapterFiles.length >= 8, adapterFiles.length + ' adapter file(s) walked');
+        var unmapped = adapterFiles.filter(function (k) {
+          return orient.indexOf(k.replace(/^adapters\//, '').replace(/\.js$/, '')) < 0;
+        });
+        T.ok('every adapter file is named in the ORIENTATION adapter map', unmapped.length === 0, 'absent from the map: ' + unmapped.join(', '));
+      }
     });
 
     /* ════ DEMO-INPUTS — a shipped demo must never depend on a gitignored file ════
