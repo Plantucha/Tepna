@@ -191,3 +191,23 @@ def test_the_unworn_alert_reads_its_grace_from_the_config(poll):
     assert poll(steps, acfg={"not_worn_sec": 0}) == []
     off = [(1000, ON, 1000, 0), (1100, ON, 1100, 0)]
     assert poll(off, _N(ok=False, enabled=False)) == ["Tepna: " + NM + " not worn"], "alerts off still latch"
+
+
+# ── a stream judged not worn does not re-arm the night note ────────────────────────────────────────────
+OFF = {"connected": False}
+_NIGHT = [(1000, ON, 1000, None), (4700, ON, 4700, None), (4800, OFF, 4700, 4750)]  # worn 1 h, doffed, off
+_DESK = [(5100, ON, 5100, 4750), (5150, DOCK, 5150, 4750), (5200, OFF, 5150, 4750)]  # unworn, docked, off
+
+
+def test_an_unworn_charger_stream_after_the_night_sends_no_second_note(poll):
+    """MEASURED on the capture box 2026-11-08: the Sense's night ended at 08:06 with one note. From 08:12 it
+    streamed on its charger, judged not worn. The dock popped that episode, so at 08:33 the silence had an
+    unknown span and the box sent "night ended" a second time."""
+    capture._LAST_PULL_OK[NM] = 4000
+    assert poll(_NIGHT + _DESK) == ["Tepna: " + NM + " night ended"]
+
+
+def test_a_worn_stream_after_the_desk_re_arms_the_note_for_the_next_night(poll):
+    capture._LAST_PULL_OK[NM] = 4000
+    later = [(9000, ON, 9000, None), (12700, ON, 12700, None), (12800, OFF, 12700, 12750)]
+    assert poll(_NIGHT + _DESK + later) == ["Tepna: " + NM + " night ended"] * 2
