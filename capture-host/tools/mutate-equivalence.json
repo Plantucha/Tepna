@@ -5907,6 +5907,14 @@
       "key": "- with open(path, \"a\", newline=\"\\n\") as fh: | + with open(path, \"a\", ) as fh:",
       "probe": "MEASURED 2026-11-08 (Heron): ran the real module and a copy with the kwarg dropped on this `open`, over 42 input shapes — 7 call shapes (worn true, worn false, worn abstain, clocksync, starts, pmdneg, pmdneg with an unreadable menu) x 6 file shapes (fresh, called twice, an existing empty file, a one-byte file, a DIRECTORY where the sidecar belongs, a FILE where the night folder belongs) — comparing the return values, the WARNING record list with the temp directory normalised, and the sidecar bytes. Three adversarial controls over the same harness DID differ: `getsize(path) > 0` to `>= 0` at 3 of 42, `str(device or \"\")` to `str(None)` at 8 of 42, and deleting the WORN warning line at 6 of 42. 0 of 42 differed.",
       "why": "In text mode `newline=None` translates a written `\\n` to `os.linesep`, which is `\\n` on every platform this package runs on. The capture-host is Linux and CI is Linux, so no input separates them. The same argument already excuses the `newline` kwarg on this helper's three sibling append writers."
+    },
+    {
+      "brief": "residue 2026-11-07-the-seam-sidecar-swallows-four-failures-unlogged",
+      "class": "no-distinguishing-input",
+      "function": "_SeamSidecar.__init__",
+      "key": "- self._warned = False | + self._warned = None",
+      "probe": "MEASURED 2026-11-08 (Heron): ran the original and the mutant over 32 input combinations — failing feed samples in {0, 1, 2, 37} x a failing note before them in {no, yes} x a succeeding feed between them in {no, yes} x a failing close in {no, yes} — comparing the full WARNING record list with the temp directory normalised, the `failures`, `seams` and `examined` counters, and the sidecar file bytes. 0 of 32 differed. The flag has exactly one read, `if not self._warned`, and exactly one later write, `= True`, so False and None enter that read identically.",
+      "why": "The latch is a two-state flag read only for truthiness. None and False are both falsy, so no sequence of failures can separate them. An assertion that told them apart would pin the attribute's TYPE rather than any behaviour of the sidecar."
     }
   ],
   "solid_night.py": [
