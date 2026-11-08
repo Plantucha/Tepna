@@ -29,7 +29,14 @@
 # FAILS OPEN. No agent-board, no herdr, an unreadable transcript, any error: exit 0. A
 # board outage must never stop a session from working.
 #
-# Hatch: CLAUDE_ALLOW_NO_BOARD_POST=1 lets a stop through without the finish post.
+#                         It also blocks the stop ONCE while a decision addressed to this
+#                         bird waits for its ack (owner, 2026-11-07: "make ack bite"). The board
+#                         re-delivers an unacked decision every 15 minutes, but only for 7 days,
+#                         and a delivery asks for nothing: 66 acks stood open that day. This
+#                         check reads every age, and names each entry and the ack command.
+#
+# Hatches: CLAUDE_ALLOW_NO_BOARD_POST=1 lets a stop through without the finish post.
+#          CLAUDE_ALLOW_UNACKED=1 lets a stop through with an ack still owed.
 # ═══════════════════════════════════════════════════════════════════════════════
 set -uo pipefail
 
@@ -75,22 +82,13 @@ if [ ! -f "$mark" ]; then
     mkdir -p "$(dirname "$mark")" 2>/dev/null && : > "$mark"
 fi
 
-case "$mode" in
-  inbox)
-    event="$(printf '%s' "$payload" | jq -r '.hook_event_name // empty' 2>/dev/null)"
-    interval="${BOARD_HOOK_INTERVAL:-300}"
-    [ "$event" = "UserPromptSubmit" ] && interval=0
-    printf '%s' "$payload" | "$BOARD" --as "$name" hook --interval "$interval" 2>/dev/null
-    exit 0
-    ;;
-  finish)
-    [ "${CLAUDE_ALLOW_NO_BOARD_POST:-}" = 1 ] && exit 0
-    active="$(printf '%s' "$payload" | jq -r '.stop_hook_active // false' 2>/dev/null)"
-    [ "$active" = "true" ] && exit 0
-    transcript="$(printf '%s' "$payload" | jq -r '.transcript_path // empty' 2>/dev/null)"
-    [ -n "$transcript" ] && [ -r "$transcript" ] || exit 0
-    # The last finishing command and the last board post, by position in this transcript.
-    owed="$(python3 -I - "$transcript" <<'PY' 2>/dev/null
+# The finishing command this session ran after its last board post, or nothing.
+finish_post_owed() {
+  [ "${CLAUDE_ALLOW_NO_BOARD_POST:-}" = 1 ] && return 0
+  local transcript owed
+  transcript="$(printf '%s' "$payload" | jq -r '.transcript_path // empty' 2>/dev/null)"
+  [ -n "$transcript" ] && [ -r "$transcript" ] || return 0
+  owed="$(python3 -I - "$transcript" <<'PY' 2>/dev/null
 import json, re, sys
 FINISH = re.compile(r"\bgh\s+pr\s+(create|ready)\b|tools/wt-done\.mjs")
 POST = re.compile(r"agent-board\b.*\s(post|new)\s|tools/board-note\.mjs\b")
@@ -143,9 +141,67 @@ with open(sys.argv[1], encoding="utf-8", errors="replace") as fh:
 print(what if last_finish > last_post else "")
 PY
 )"
-    [ -n "$owed" ] || exit 0
-    reason="Board post owed: this session ran \`$owed\` after its last board post. Post a short finish note before you stop: what you finished, the PR number and its state, and what is next. Command: node tools/board-note.mjs --as $name note.md (it lints, then posts to thread 8). Next time, chain that command onto the finishing command in the same call and no block fires. Set CLAUDE_ALLOW_NO_BOARD_POST=1 only when the owner says no post is wanted."
-    jq -n --arg r "$reason" '{decision: "block", reason: $r}'
+  printf '%s' "$owed"
+}
+
+# Every open decision that names this bird (or a group it belongs to) and still lacks its
+# ack, at EVERY age. `Board.open_acks` defaults to a 7-day window, which hid 43 of 53 open
+# entries on 2026-11-07, so this passes a 100-year window. It loads the board module itself,
+# read-only, so the rule that decides "acked" stays the board's own. A decision the bird wrote
+# is not owed by it. Any error prints nothing: the hook fails open.
+acks_owed() {
+  [ "${CLAUDE_ALLOW_UNACKED:-}" = 1 ] && return 0
+  local py="${AGENT_BOARD_PY:-$(readlink -f "$BOARD" 2>/dev/null)}"
+  [ -n "$py" ] && [ -r "$py" ] || return 0
+  python3 -I - "$py" "$name" <<'PY' 2>/dev/null
+import importlib.machinery, importlib.util, sys
+
+path, me = sys.argv[1], sys.argv[2]
+try:
+    loader = importlib.machinery.SourceFileLoader("agent_board_hook", path)
+    spec = importlib.util.spec_from_loader("agent_board_hook", loader)
+    mod = importlib.util.module_from_spec(spec)
+    loader.exec_module(mod)
+    board = mod.Board(read_only=True)
+    items = board.open_acks(max_age_days=36500)
+    with board.reading() as conn:
+        aliases, member_of = board._identity(conn, me, "")
+except Exception:
+    sys.exit(0)
+mine = set(aliases) | set(member_of)
+owed = [
+    it for it in items
+    if str(it.get("author", "")).casefold() not in aliases and mine & set(it["ack"]["missing"])
+]
+for it in owed[:10]:
+    body = " ".join(str(it.get("body", "")).split())[:100]
+    print(f"- #{it['id']} by {it.get('author', '?')} in thread {it.get('thread_id', '?')}: {body}")
+if len(owed) > 10:
+    print(f"- and {len(owed) - 10} more: agent-board --as {me} acks --mine")
+PY
+}
+
+case "$mode" in
+  inbox)
+    event="$(printf '%s' "$payload" | jq -r '.hook_event_name // empty' 2>/dev/null)"
+    interval="${BOARD_HOOK_INTERVAL:-300}"
+    [ "$event" = "UserPromptSubmit" ] && interval=0
+    printf '%s' "$payload" | "$BOARD" --as "$name" hook --interval "$interval" 2>/dev/null
+    exit 0
+    ;;
+  finish)
+    active="$(printf '%s' "$payload" | jq -r '.stop_hook_active // false' 2>/dev/null)"
+    [ "$active" = "true" ] && exit 0
+    reasons=""
+    post="$(finish_post_owed)"
+    [ -n "$post" ] && reasons="Board post owed: this session ran \`$post\` after its last board post. Post a short finish note before you stop: what you finished, the PR number and its state, and what is next. Command: node tools/board-note.mjs --as $name note.md (it lints, then posts to thread 8). Next time, chain that command onto the finishing command in the same call and no block fires. Set CLAUDE_ALLOW_NO_BOARD_POST=1 only when the owner says no post is wanted."
+    acks="$(acks_owed)"
+    if [ -n "$acks" ]; then
+      [ -n "$reasons" ] && reasons="$reasons"$'\n\n'
+      reasons="${reasons}Ack owed: these decisions are addressed to you and wait for your ack. Read each one, then ack it with a one-line note that says what you will do. Command: agent-board --as $name ack <id> --note \"…\". Read one with: agent-board --as $name read <thread> --since <id-1>. Set CLAUDE_ALLOW_UNACKED=1 only when the owner says so."$'\n'"$acks"
+    fi
+    [ -n "$reasons" ] || exit 0
+    jq -n --arg r "$reasons" '{decision: "block", reason: $r}'
     exit 0
     ;;
 esac
