@@ -7221,7 +7221,9 @@ def test_the_refusal_counts_LOST_WRITES_and_calls_none_of_them_a_seam(tmp_path):
         ],
     )
     reason = si.clocks(str(tmp_path), "H10")["reason"]
-    assert "2 failed write" in reason, reason
+    # THE COUNT CARRIES ITS SIGN. `"2 failed write" in reason` also matches `-2 failed write(s)`,
+    # so a sign flip in the summation survived it. The verb pins the token that precedes the count.
+    assert "reports 2 failed write(s)" in reason, reason
     assert "2 seam" not in reason, ("the count is writes, not seams", reason)
     assert "note" in reason, ("both causes are named, because the field cannot separate them", reason)
 
@@ -7240,7 +7242,9 @@ def test_failures_are_SUMMED_across_sessions_not_taken_from_one_final_line(tmp_p
         ],
     )
     reason = si.clocks(str(tmp_path), "H10")["reason"]
-    assert "3 failed write" in reason, reason
+    # Pinned with the verb, for the reason the arm above states: a substring of the count alone
+    # reads the same under a sign flip.
+    assert "reports 3 failed write(s)" in reason, reason
 
 
 def test_a_SECOND_sidecar_reporting_a_lost_write_is_reached(tmp_path):

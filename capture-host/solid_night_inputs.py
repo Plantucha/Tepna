@@ -1161,7 +1161,10 @@ def clocks(night_dir: str, model: str) -> dict:
         # row therefore reads exactly like a night that had no seam — the manufactured negative of §∅.
         # The field cannot say WHICH write was lost, so the reason names both and counts neither as a
         # seam. 0 of 1671 final lines over 292 archived sidecars carry a non-zero count (2026-11-08).
-        if failures:
+        # §∅ IN THE TEST ITSELF: `is not None` separates an ABSENT field from a reported ZERO, which a
+        # bare truthiness test conflates. Both answer PASS, for two different reasons — the writer did
+        # not report, against the writer looked and lost nothing — and only the explicit form says so.
+        if failures is not None and failures > 0:
             return _decision(
                 "UNKNOWN",
                 f"`{os.path.basename(seams)}` reports {failures} failed write(s) on its own final "
