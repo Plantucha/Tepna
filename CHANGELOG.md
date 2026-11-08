@@ -30,6 +30,96 @@ changesets.)
 
 ---
 
+## [2.29.0] — 2026-11-08
+
+### Added
+- Check that each capture-host gate leg's CI step sits in a job which holds the merge.
+- A daily systemd timer on the capture box runs the 31-day 3corner and 3corner_fused results at 14:00.
+- Probe the archive destination at two depths before rsync runs, naming an unwritable one in the log.
+- Document the two loop-stall instruments in the example config at their code defaults, both off.
+- Make the window oracle report the quarter-hour coherence of every stretch it scores.
+- Red the gate when the two recorded required-context copies disagree.
+- Publish both reference-axis legs of the TCH firmware record side by side, each labelled, replacing no published figure. Name the reference axis on the no-HR-map refusal row, which dropped three refused nights from the corrected-axis population.
+- Publish the seam sidecar's own declared device axis beside every seam count, four nodes.
+- `tools/unit-start.mjs` prints what a session reads at the start of a unit in one output. The output has six sections:
+- The PR walker now closes a residue row when a merged PR declares it on a `Residue-fixed:` line.
+- The 3-in-15 cluster arm counts only devices that streamed earlier the same night. (`NTFY-ALERT-WIRING-2026-11-03-BRIEF.md`)
+- Split vigil push alerts into PAGE and BOARD tiers at the source. (`NTFY-ALERT-WIRING-2026-11-03-BRIEF.md`)
+- The ntfy bridge subscribes to a per-domain board topic. The config names it under the top-level boardTopics key. A message on that topic posts to the domain thread as a note. It enters no episode, no tracked urgent and no escalation ladder. This completes the bridge side of the alert tiering in PR 4559. The vigil board topic value lives only in the host-local bridge config. (`NTFY-ALERT-WIRING-2026-11-03-BRIEF.md`)
+
+### Changed
+- Name the consensus reference-pick rule at each of the eight ported PAT call sites, so the census reads a declaration rather than a loop shape. (`CONSENSUS-REFPICK-FOLLOWUPS-2026-11-06-BRIEF.md`)
+- HRVDex refuses a transcribed vendor summary when its upstream recording carries a seam. (`SEAM-SIDECAR-NODE-COVERAGE-2026-11-06-BRIEF.md`)
+- Every OxyDex export now carries the `recording.validity` seam keys, as UNKNOWN under `no-seam-sidecar`. (`SEAM-SIDECAR-NODE-COVERAGE-2026-11-06-BRIEF.md`)
+- Single-source the PAT ECG axis arithmetic as `rPeakTimesOnAxis`. `pat-hrv-windows.mjs` and `pat-window-scaling.mjs` drop their private `t0 + i/fs` copies and take `--ecg-axis`. Both tools refuse an unknown axis name at the front door. The default stays `linear`, so no published number moves.
+- Name the device column's provenance in every clock-seam sidecar's parameter line.
+- The Integrator now reads the `recording.validity` seam channel five nodes publish, and honours it. (`SEAM-SIDECAR-CONSUMPTION-2026-11-03-BRIEF.md`)
+- Name 15 host-local rig units as by-design in the estate-drift check. Finch's two timers, the alert and dead-man scripts, the SMART log, the home-network health check and a sibling project's index refresh are not Tepna estate. The rig findings drop from 51 to 38, and every remaining finding is a Tepna unit.
+- Give every window-oracle JSON row the count behind each spread and the knobs that decided it.
+
+### Fixed
+- Refuse an archived night only on an absent file or a differing raw stream. Every other finding names its own class.
+- Stop the archive pull from changing folder permissions on the Synology. The change removed the folder ACL and made every pull exit 23.
+- Blank both device-stamp columns in a PPI arrival row, where the vendor leaves the sample time undefined.
+- Classify a green BEHIND unarmed PR as serialising when a live Kodiak owns the drain. The report now names that queue wait as information, and it never advises the arm this file's own header calls a deadlock.
+- Count a secret-scan tree verdict over the walk list alone, and publish the findings it drops.
+- `_beatSkewCheck` now refuses a beat pair whose side declared `rtcResetSuspect`, under that reason. (`SEAM-SIDECAR-CONSUMPTION-2026-11-03-BRIEF.md`)
+- The Integrator's clock-skew banner fires on a finding. A recording the pass vetoes produces no finding, so a night whose every recording carried a recorded seam or a declared RTC reset printed nothing. That blank screen reads exactly like a night whose clocks agree. (`SEAM-SIDECAR-CONSUMPTION-2026-11-03-BRIEF.md`)
+- Stop the loss audit counting gaps after a device's worn end as worn loss.
+- Count a gap that starts at the worn end as outside the worn interval. (`SOLID-NIGHT-2026-09-23-BRIEF.md`)
+- Begin a night only from a device that is worn, so a sensor on a desk does not end the quiet licence of the others.
+- Three suite groups now record a declared skip when their input is absent. Before, each recorded a literal-true pass, and the skip allow-list never saw it. The CI selftest step now counts a tool that examined 0 legs as a skip, with a ceiling of 2. The findings come from Muse's hunt, board #4269.
+- ECGDex refuses a sleep epoch whose RMSSD is absent, rather than staging it REM or Wake from that absence.
+- Read a Verity link-loss end as a doff when the device relinks off the body. (`SOLID-NIGHT-2026-09-23-BRIEF.md`)
+- Prove a rename before the archive manifest names one, by stamp-blanked name equality and a unique source match.
+- The ntfy bridge closes a disk recovery in every domain. It keeps every escalation armed when it cannot parse the ack list. The escalation clock now starts at the publish time, and two alerts whose titles share 40 characters are two episodes.
+- Bind every coverage line to its own arithmetic: `coverageIdentity` throws when the difference or the printed figure does not account for the whole offer.
+- Bind the last nine corpus readers to their own coverage arithmetic.
+- Bind five PPG and respiration readers to their own coverage arithmetic, over a recording unit rather than a night.
+- Bind the last five PAT readers to their own coverage arithmetic: each one throws when its offer, its scored count and its unscored list disagree.
+- Bind five selection and leg readers to their own coverage arithmetic.
+- Bind six PAT readers to their own coverage arithmetic: each throws when its offer, scored count and unscored list cannot all hold.
+- File each CPAP stream session under its noon-to-noon sleep day, and read the date-keyed CPAP trees by the stamp in each file name. (`CPAP-BLE-CAPTURE-2026-08-21-BRIEF.md`)
+- CPAPDex writes four refusal families and the display read none of them. The oximetry card told one story for every absence. It named the device's not-connected sentinel even on a night the lane refused for low coverage. That sentence states a cause the recording never carried. (`SEAM-SIDECAR-CONSUMPTION-2026-11-03-BRIEF.md`)
+- Refuse a seam count when the sidecar declares another stream, so a foreign file never reads as a measured zero.
+- Four analysis tools declared their population unit as a file and then printed that same count as `night(s)`.
+- Each GlucoDex surface that reads the nullable cadence chain now names the node's own token. (`ABSENCE-SURVEY-2026-09-22-BRIEF.md`)
+- HRVDex nulls every value on a measurement whose upstream node recorded a clock seam, and it writes the reason beside the nulls. No HRVDex surface read that reason. A refused row drew the same em-dash and the same chart hole as a source column that never carried the metric. (`SEAM-SIDECAR-CONSUMPTION-2026-11-03-BRIEF.md`)
+- Judge a night whose recording starts after midnight in the next day folder.
+- Publish the enumeration beside the Polar recording list, so a cut walk cannot read as the whole device.
+- MotionDex refuses the immobile fraction when a device-clock seam crosses the recording, and it names the reason beside the null. It refuses a whole position or actigraphy block when the accelerometer unit stays unknown, and it names that reason too. The render file read none of those keys. A refused figure drew the em-dash a night with no covered epoch draws, and a refused block drew the nothing an absent stream draws. (`SEAM-SIDECAR-CONSUMPTION-2026-11-03-BRIEF.md`)
+- OxyDex refuses a five-minute epoch that straddles a recorded clock seam. It drops that epoch from the motion series and lists it in the export. The night card drew one bar per surviving epoch, so a refused epoch looked exactly like an unmeasured one. (`SEAM-SIDECAR-CONSUMPTION-2026-11-03-BRIEF.md`)
+- The PAT pinned-span tool's headless realm now loads `consensus-dissent.js`. Since #4433 the worker calls `ConsensusDissent` with no guard, so every recording threw a ReferenceError and the tool refused it. The loader now throws on an absent realm file, where it skipped the file before. A new selftest leg runs both legs over a synthetic pulse in the real realm.
+- Refuse a coverage member the population arithmetic cannot key, rather than reading the whole offer as unscored.
+- The PpgDex waveform explorer now scales the y-axis to the visible window, not to the whole night.
+- PulseDex refuses its whole-record HRV figures on a recorded clock seam and writes the reason into the record as `hrvReason`. No render surface read that key. (`SEAM-SIDECAR-CONSUMPTION-2026-11-03-BRIEF.md`)
+- # PulseDex overview tiles name the absence (`ABSENCE-SURVEY-2026-09-22-BRIEF.md`)
+- Name an unreadable waveform in the solid-night band rather than counting it as an empty session.
+- Name the declared root reads no mutation scratch could stage, so a skipped test cannot read as a pass.
+- Remove the mutation scratch size note no run could read, and test the committed record it leaves alone.
+- Deny the write a blind `awk` reader in the stale-brief guard never read.
+- Read rendered markup back through strip-markup's index scan, so no test helper writes its own tag pattern.
+- The HR reference tool's headless realm now loads `consensus-dissent.js`. Without it `ppgHrMapReal` threw a ReferenceError that its own catch swallowed. The Verity corner read null, so every night refused with no HR map. The run scored 0 of 114 eligible nights over the box captures root. A refusal now quotes the error the worker recorded.
+- Link the 31-day page through the monitor prefix, so the button opens the page and not a 404.
+- Log the daemon-caused loss to one decimal, with a reason only when the verdict has one. (`CAPTURE-LOSS-PRECEDENCE-AUDIT-2026-09-22-BRIEF.md`)
+- An ECGDex epoch wrote a posture reason under one branch only, the recorded blanking run. Three other paths reached the same `unknown` and named nothing. They are no companion accelerometer at all, a stream too short for one window, and a window this node lacked samples for. The shipped rich fixture carries the first of those as a bare `unknown`. The position lookup promised the distinction in its own comment. The early return handed it a populated list of `unknown` instead, so no consumer could keep it. (`SEAM-SIDECAR-CONSUMPTION-2026-11-03-BRIEF.md`)
+- The MotionDex signal-quality helper returns a confidence of zero for a stream it could not score. Fewer than ten rows read `no-data`, and magnitudes of unknown scale read `unit-unknown`. Inside the node those reasons travel beside the number, so the summary stays honest. (`SEAM-SIDECAR-CONSUMPTION-2026-11-03-BRIEF.md`)
+- A PpgDex posture window with too little gravity coverage was never scored. It returned a confidence of zero and a magnetometer flag of false, and the epoch export carried both. The confidence clamp reaches a real zero whenever no axis dominates, so no value test could separate the two states. The false flag is this node's own word for a clean field, asserted about a window nothing examined. (`SEAM-SIDECAR-CONSUMPTION-2026-11-03-BRIEF.md`)
+- Read the ring's clock logs from every folder of the recording. (`SOLID-NIGHT-2026-09-23-BRIEF.md`)
+- Log the CPAP teardown terminate quietly, and warn only when a supplicant survives. (`CPAP-AUTOHARVEST-FOLLOWUPS-II-2026-08-03-BRIEF.md`)
+- Read a Verity removal from its pulse tail and a Verity dock from its battery rise. (`SOLID-NIGHT-2026-09-23-BRIEF.md`)
+- Take the superseded loss verdict off disk when the audit cannot write its replacement.
+- Refuse a box-update alert config that gives no key-value block, so the alert latch stays clear.
+- Forward the box clock and the night seal to the monitor, so both readers stop reading null.
+- The board hook now blocks a fleet session's stop once while a decision addressed to that session waits for its ack. The block lists each entry with its thread and gives the ack command.
+- Count each file the citation scan cannot read as excluded, and name its path and its errno.
+- Score CPAP adherence over the nights that carry a usage datum, and state that population on the tile.
+- Refuse four OxyDex metrics that read an absent second as a number, and stop the DesSev surfaces grading a refusal green. (`ABSENCE-SURVEY-2026-09-22-BRIEF.md`)
+- Refuse to write the treatment-response yield pin over a re-cut at a different cohort size, and publish that size in the page result.
+- The PR walker counts a re-run attempt before it calls GitHub. Before this fix, a failed call skipped the counter. The next pass then re-ran the same head again, about every 90 seconds. On 2026-11-07, #4550 took four failed re-runs on one head. A failed re-run now spends the head's one re-run, and the next pass hands the red to a coder.
+
+---
+
 ## [2.28.0] — 2026-11-06
 
 ### Added
@@ -3945,7 +4035,8 @@ and establishes the release-governance layer over it.
 - **The shared test suite** (`Dex-Test-Suite.html` + `tests/dex-tests.js`) and the build/provenance
   manifests.
 
-[Unreleased]: https://github.com/Plantucha/Tepna/compare/v2.28.0...HEAD
+[Unreleased]: https://github.com/Plantucha/Tepna/compare/v2.29.0...HEAD
+[2.29.0]: https://github.com/Plantucha/Tepna/compare/v2.28.0...v2.29.0
 [2.28.0]: https://github.com/Plantucha/Tepna/compare/v2.27.0...v2.28.0
 [2.27.0]: https://github.com/Plantucha/Tepna/compare/v2.26.0...v2.27.0
 [2.26.0]: https://github.com/Plantucha/Tepna/compare/v2.25.0...v2.26.0
