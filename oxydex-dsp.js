@@ -4526,7 +4526,15 @@
        bug the note above s2 exists to prevent. Drop the component instead. */
     var s3 = stats.motionPct == null ? null : Math.max(0, Math.min(100, Math.round(((2.0 - stats.motionPct) / 1.8) * 100)));
     var s4 = Math.max(0, Math.min(100, Math.round(((20 - osc.episodeCount) / 20) * 100)));
-    var s5 = Math.max(0, Math.min(100, Math.round(((15 - hb.rate) / 15) * 100)));
+    /* ∅ ABSENCE-SURVEY 19200c666fc3 — THE CONSUMER HALF OF A FINDING THE DRAIN COUNTS AS FIXED.
+       That digest nulls `hb.rate` at the producer, and the drain ledger reads `fixed`. This line then
+       read the null as the BEST hypoxic burden the scale can express, so the night still scored on a
+       number nobody measured. `hb.rate` is null when no second carried a measured SpO2, and
+       `(15 - null) / 15` is a PERFECT 100 — absence scores the best hypoxic-burden subscore the
+       scale can express. s1, s2, s3 and s6 each carry this guard already; s5 was the one component
+       missed. The renormalizer below drops a null component, so the night scores on what it
+       measured. */
+    var s5 = hb == null || hb.rate == null ? null : Math.max(0, Math.min(100, Math.round(((15 - hb.rate) / 15) * 100)));
     // ∅ ABSENCE-SURVEY 131d841e27b4: t95pct is null with no measured SpO2, and `(20 - null) / 20` is a perfect 100.
     var s6 = stats.t95pct == null ? null : Math.max(0, Math.min(100, Math.round(((20 - stats.t95pct) / 20) * 100)));
     /* Renormalize over the components actually MEASURED, generalizing the s2-only branch this
@@ -5570,26 +5578,49 @@
   function computeSpO2Autocorr(rows) {
     var n = rows.length;
     if (n < 300) return null;
-    var USE = n; // §C1: whole record - ac1 is global and O(n); the 3600 cap bought nothing
+    // §C1: whole record - ac1 is global and O(n); the 3600 cap bought nothing.
+    /* §∅: `s` held the raw column, nulls included. `a + null` is `a`, so the mean summed absent
+       seconds as nothing while still dividing by them, and `(null - m)` is `-m`, so each absence
+       contributed a full squared deviation to both sums. A lag-1 autocorrelation also needs its two
+       samples ADJACENT: a pair straddling an absent second is not a lag-1 pair, so the pair is
+       dropped rather than closed over the gap. Probe: flat 98 for 300 s then absence read as
+       oscillation. */
     var s = rows.map(function (r) {
       return r.spo2;
     });
-    var m =
-      s.reduce(function (a, b) {
-        return a + b;
-      }, 0) / USE;
+    function _ok(v) {
+      return v != null && isFinite(v);
+    }
+    var sum = 0,
+      nMeasured = 0;
+    for (var mi = 0; mi < n; mi++) {
+      if (_ok(s[mi])) {
+        sum += s[mi];
+        nMeasured++;
+      }
+    }
+    // §∅: re-floor on the MEASURED count, as computeSpO2Shape does.
+    if (nMeasured < 300) return null;
+    var m = sum / nMeasured;
     var num = 0,
-      den = 0;
-    for (var i = 0; i < USE - 1; i++) {
+      den = 0,
+      pairs = 0;
+    for (var i = 0; i < n - 1; i++) {
+      if (!_ok(s[i]) || !_ok(s[i + 1])) continue;
       num += (s[i] - m) * (s[i + 1] - m);
       den += (s[i] - m) * (s[i] - m);
+      pairs++;
     }
-    if (den === 0) return null;
+    if (den === 0 || pairs < 1) return null;
     var ac1 = +(num / den).toFixed(3);
     return {
       ac1: ac1,
       ac1Label: ac1 > 0.95 ? 'Sustained (hypoventilation)' : ac1 > 0.85 ? 'Persistent' : ac1 < 0.5 ? 'Oscillating (PB pattern)' : 'Transient',
-      basis: 'wholeRecord' // §C1 disclosure
+      basis: 'wholeRecord', // §C1 disclosure
+      // §∅: coverage beside the value — the correlation is over adjacent MEASURED pairs only
+      nMeasured: nMeasured,
+      nTotal: n,
+      nPairs: pairs
     };
   }
 
@@ -6171,25 +6202,49 @@
   function computeHRFlatlines(rows) {
     var n = rows.length;
     if (n < 60) return null;
+    /* §∅: the run test was `rows[i].hr === rows[i - 1].hr`, and `null === null` is TRUE, so a
+       channel that never reported read as one long flatline. Probe: 70 all-null HR rows returned
+       flatlineCount 1, maxFlatlineSec 70 and the label "Occasional" — a firmware-artifact verdict
+       over a channel with no firmware output at all. An absent sample equals nothing; it ENDS the
+       run, because the two measured samples around it are not adjacent in the signal. */
     var flatCount = 0,
       maxFlat = 0,
-      run = 1;
-    for (var i = 1; i < n; i++) {
-      if (rows[i].hr === rows[i - 1].hr) {
-        run++;
-      } else {
-        if (run >= 30) {
-          flatCount++;
-          if (run > maxFlat) maxFlat = run;
-        }
+      run = 0,
+      nMeasured = 0,
+      prev = null;
+    function _closeRun() {
+      if (run >= 30) {
+        flatCount++;
+        if (run > maxFlat) maxFlat = run;
+      }
+      run = 0;
+    }
+    for (var i = 0; i < n; i++) {
+      var hv = rows[i].hr;
+      if (hv == null || !isFinite(hv)) {
+        _closeRun();
+        prev = null;
+        continue;
+      }
+      nMeasured++;
+      if (prev != null && hv === prev) run++;
+      else {
+        _closeRun();
         run = 1;
       }
+      prev = hv;
     }
-    if (run >= 30) {
-      flatCount++;
-      if (run > maxFlat) maxFlat = run;
-    }
-    return { flatlineCount: flatCount, maxFlatlineSec: maxFlat, flatlineLabel: flatCount > 5 ? 'Frequent (firmware artifact)' : flatCount > 0 ? 'Occasional' : 'None' };
+    _closeRun();
+    // §∅: re-floor on the MEASURED count, as computeSpO2Shape does — 60 absent rows are not a record.
+    if (nMeasured < 60) return null;
+    return {
+      flatlineCount: flatCount,
+      maxFlatlineSec: maxFlat,
+      flatlineLabel: flatCount > 5 ? 'Frequent (firmware artifact)' : flatCount > 0 ? 'Occasional' : 'None',
+      // §∅: coverage beside the value — the runs are over measured seconds only
+      nMeasured: nMeasured,
+      nTotal: n
+    };
   }
 
   // ── O. SpO2 Ceiling Artifact ──────────────────────────────────────
@@ -7629,7 +7684,7 @@
     var n = rows.length;
     /* REFUSE (§2.6). `desSev` is `emerging`, goodDirection `down` — 0 is the best value it can
        report, so under a minute of data it published the most reassuring possible answer. */
-    if (n < 60) return { desSev: null };
+    if (n < 60) return { desSev: null, desSevReason: 'record-too-short', desSevCoveredSec: 0, desSevAbsentSec: 0 };
     // Desaturation area (Kulkas) — area = Σ per-second deficit vs each event's onset baseline,
     // scored over the CANONICAL ODI event set.
     //
@@ -7651,19 +7706,39 @@
     // profile's re-shaped events drop it and keep `nadir`+`depth` — from which the onset
     // baseline is recoverable exactly. Without this the subtraction is NaN, every `d > 0`
     // is false, and the index reports a silent, confident 0.
-    var totalArea = 0;
+    /* §∅: `base - null` is `base`, which is > 0, so every ABSENT second inside an event added the
+       full baseline to the area. Probe: one event over 10 absent seconds returned desSev 980,
+       against 0 for the same ten seconds measured. An absent second contributes no area, and the
+       seconds that did contribute are reported beside the value. */
+    var totalArea = 0,
+      coveredSec = 0,
+      absentSec = 0;
     _evts.forEach(function (e) {
       var base = e.baseline != null ? e.baseline : e.nadir != null && e.depth != null ? e.nadir + e.depth : null;
       if (base == null || !isFinite(base)) return;
       for (var k = e.startIdx; k < e.endIdx; k++) {
-        var d = base - spo2[k];
+        var sv = spo2[k];
+        if (sv == null || !isFinite(sv)) {
+          absentSec++;
+          continue;
+        }
+        coveredSec++;
+        var d = base - sv;
         if (d > 0) totalArea += d;
       }
     });
     // Normalize: area in %-seconds → %-min/hr
     var durationHr = n / 3600;
-    var desSev = durationHr > 0 ? +(totalArea / 60 / durationHr).toFixed(2) : 0;
-    return { desSev: desSev };
+    /* §∅: the `: 0` arm published a severity of zero for a record with no duration to divide by —
+       the reassuring answer for a question never asked. Both refusals now NAME themselves, and an
+       event set whose every second is absent refuses rather than reporting the 0 it measured over
+       nothing. No events at all is a real zero, and keeps its number. */
+    var desSev = null,
+      desSevReason = null;
+    if (!(durationHr > 0)) desSevReason = 'no-duration';
+    else if (_evts.length && coveredSec === 0) desSevReason = 'event-seconds-absent';
+    else desSev = +(totalArea / 60 / durationHr).toFixed(2);
+    return { desSev: desSev, desSevReason: desSevReason, desSevCoveredSec: coveredSec, desSevAbsentSec: absentSec };
   }
 
   // CT90 / CT89 / CT88 per-second (precise, already in tIdx but now surfaced as distinct fields)
