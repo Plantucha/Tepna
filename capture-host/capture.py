@@ -1501,7 +1501,7 @@ def defense_warnings(
         out.append(
             "USB autosuspend is ENABLED on the BLE adapter (power/control=auto) — an RTL8761B dongle can "
             "firmware-wedge under load (cost ~110 min on 2026-07-23). Install "
-            "systemd/50-tepna-btdongle.rules (see README 'Install') to disable it."
+            "systemd/99-tepna-btdongle.rules (see README 'Install') to disable it."
         )
     if capeff_hex is not None:
         try:
