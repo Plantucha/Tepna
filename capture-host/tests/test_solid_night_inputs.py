@@ -7181,3 +7181,106 @@ def test_sixty_seconds_under_stalls_fail_the_band_on_minutes(tmp_path):
 
 def test_the_judge_and_the_audit_spell_the_stall_cause_alike():
     assert si.LOOP_STALL == _la.LOOP_STALL
+
+
+# ── `clocks` reads the sidecar's own `failures=` count ──────────────────────────────────────────────
+# Four control arms below RED without the consumer: a lost write leaves both row counts intact, so the
+# band answered PASS over a file that says on its own final line that it lost the evidence.
+
+
+def test_a_sidecar_that_reports_a_FAILED_WRITE_is_refused_not_believed(tmp_path):
+    """The manufactured negative of §∅. `writers.py` counts `failures` after a seam row or a `# pmd`
+    note raises, and both handlers swallow — an annotation must never end a recording. `seams` follows
+    its row, so a row that never landed keeps `claimed == rows`; `examined` precedes the write, so it
+    still counts the sample. A night that lost every seam row therefore read exactly like a night with
+    no seam."""
+    _seams_raw(
+        tmp_path,
+        [
+            "# stream=ecg rule=clock-seam bound_ms=60000 unit=ms basis=device-minus-host",
+            "phone_ts;idx",
+            "# final stream=ecg seams=0 examined=74605 failures=1",
+        ],
+    )
+    got = si.clocks(str(tmp_path), "H10")
+    assert got["status"] == "UNKNOWN", ("a file that reports a lost write cannot answer the band", got)
+    assert "ECGSEAMS" in got["reason"], got["reason"]
+
+
+def test_the_refusal_counts_LOST_WRITES_and_calls_none_of_them_a_seam(tmp_path):
+    """The field cannot say WHICH write was lost — a seam row and a `# pmd` note increment the same
+    counter. So the reason names both causes and converts the count into neither. `2 seams were lost`
+    would be a measurement the file does not carry, and the band must not claim the clock was never
+    compared either: 74,605 comparisons did happen."""
+    _seams_raw(
+        tmp_path,
+        [
+            "# stream=ecg rule=clock-seam bound_ms=60000 unit=ms basis=device-minus-host",
+            "phone_ts;idx",
+            "# final stream=ecg seams=0 examined=74605 failures=2",
+        ],
+    )
+    reason = si.clocks(str(tmp_path), "H10")["reason"]
+    # THE COUNT CARRIES ITS SIGN. `"2 failed write" in reason` also matches `-2 failed write(s)`,
+    # so a sign flip in the summation survived it. The verb pins the token that precedes the count.
+    assert "reports 2 failed write(s)" in reason, reason
+    assert "2 seam" not in reason, ("the count is writes, not seams", reason)
+    assert "note" in reason, ("both causes are named, because the field cannot separate them", reason)
+
+
+def test_failures_are_SUMMED_across_sessions_not_taken_from_one_final_line(tmp_path):
+    """A resumed file-set writes one `# final` per writer instance, exactly as `examined` is summed.
+    2 then 1 discriminates three readings: the sum is 3, the first line alone says 2, and the last line
+    alone says 1."""
+    _seams_raw(
+        tmp_path,
+        [
+            "# stream=ecg rule=clock-seam bound_ms=60000 unit=ms basis=device-minus-host",
+            "phone_ts;idx",
+            "# final stream=ecg seams=0 examined=74605 failures=2",
+            "# final stream=ecg seams=0 examined=3577 failures=1",
+        ],
+    )
+    reason = si.clocks(str(tmp_path), "H10")["reason"]
+    # Pinned with the verb, for the reason the arm above states: a substring of the count alone
+    # reads the same under a sign flip.
+    assert "reports 3 failed write(s)" in reason, reason
+
+
+def test_a_SECOND_sidecar_reporting_a_lost_write_is_reached(tmp_path):
+    """EVERY sidecar of the band is read before the band answers. The old loop decided inside itself,
+    so the first file with `examined > 0` returned PASS and the files after it were never opened. The
+    ACC sidecar here sorts first and is clean; the ECG one reports the loss."""
+    _seams_raw(tmp_path, ["phone_ts;idx", "# final stream=acc seams=0 examined=10"], stream="ACC")
+    _seams_raw(tmp_path, ["phone_ts;idx", "# final stream=ecg seams=0 examined=10 failures=1"])
+    got = si.clocks(str(tmp_path), "H10")
+    assert got["status"] == "UNKNOWN", ("a refusal the second file earns must be reachable", got)
+    assert "ECGSEAMS" in got["reason"], got["reason"]
+
+
+def test_a_sidecar_with_NO_failures_field_keeps_todays_answer(tmp_path):
+    """ADDITIVE, and §∅: a sidecar written before `writers.py` published the field carries two groups,
+    not three. An absent field is null — it says the writer did not report, which is not the claim that
+    no write was lost. Reading it as a zero would be the same manufacture one layer up."""
+    _seams_raw(
+        tmp_path,
+        [
+            "# stream=ecg rule=clock-seam bound_ms=60000 unit=ms basis=device-minus-host",
+            "phone_ts;idx",
+            "# final stream=ecg seams=0 examined=74605",
+        ],
+    )
+    assert si.clocks(str(tmp_path), "H10")["status"] == "PASS", "74,605 comparisons, nothing reported"
+
+
+def test_a_reported_ZERO_passes(tmp_path):
+    """The positive arm of the same field: the writer looked and lost nothing."""
+    _seams_raw(
+        tmp_path,
+        [
+            "# stream=ecg rule=clock-seam bound_ms=60000 unit=ms basis=device-minus-host",
+            "phone_ts;idx",
+            "# final stream=ecg seams=0 examined=74605 failures=0",
+        ],
+    )
+    assert si.clocks(str(tmp_path), "H10")["status"] == "PASS"
