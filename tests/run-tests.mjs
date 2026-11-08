@@ -83,6 +83,7 @@ import { elementBlocks, stripTags } from '../tools/strip-markup.mjs';
    row 2026-11-05-the-two-bundle-workers-still-discard-the-polarity-return. */
 import { DISSENT_SHAPES as CORE_DISSENT_SHAPES, dissentOf as coreDissentOf } from '../tools/consensus-dissent-core.mjs';
 import * as argvReads from '../tools/argv-reads.mjs';
+import { checkLooseArgv, isCliEntry } from '../tools/argv-guard.mjs';
 import * as corpusReads from '../tools/corpus-reads.mjs';
 import * as trioNightsMod from '../tools/trio-eligible-nights.mjs';
 import * as foldGenMod from '../tools/fold-generation.mjs';
@@ -172,6 +173,48 @@ const DexBuild = require(join(ROOT, 'tools', 'build-core.js'));
 
 const C = { reset: '\x1b[0m', red: '\x1b[31m', green: '\x1b[32m', dim: '\x1b[2m', bold: '\x1b[1m', yellow: '\x1b[33m', cyan: '\x1b[36m' };
 const paint = (s, c) => (process.stdout.isTTY ? c + s + C.reset : s);
+
+/* ════ EVERY TOKEN THIS RUNNER READS, IN ONE TABLE — AND A REFUSAL FOR THE REST ═══════════════════
+   Row 2026-11-08-release-and-run-tests-never-call-the-argv-guard. Each flag below was read by its own
+   hand-rolled regex and nothing held the SET, so a token no regex matched was indistinguishable from
+   an absent one: `node tests/run-tests.mjs --help` ran the whole suite, and a mistyped `--grup=oxydex`
+   ran it too, 20 minutes of work reported as a clean green over a filter the caller never got.
+   `checkArgv` cannot judge this grammar — it refuses the joined `--flag=value` form, which is this
+   runner's own idiom (`--shard=1/6` is what CI's matrix passes) — so `checkLooseArgv` does, and the
+   table is the single declaration both it and `--help` read. A new flag goes HERE first; a read with
+   no row refuses the flag it reads. ════ */
+const RUN_TESTS_FLAGS = [
+  { names: ['group', 'g', 'only'], value: 'required', help: '<pat>      only matching groups (comma = OR) — a dev convenience, never the gate' },
+  { names: ['group-index'], value: 'required', help: '<n[,n]>    groups by 0-based declaration index' },
+  { names: ['shard'], value: 'required', help: '<i/N>      shard i of N; the union of all N IS the full gate' },
+  { names: ['jobs', 'job'], value: 'optional', valuePattern: /^(\d+|auto)$/i, help: '[N|auto]   fork N children over the shard plan CI uses' },
+  { names: ['interval-coverage'], value: 'required', help: '<out.json> per-group interval coverage via the V8 inspector' },
+  { names: ['json'], help: '           machine-readable results instead of the human report' },
+  { names: ['list'], help: '           declare every group, execute none' },
+  { names: ['timings', 'timing'], help: '           report the slowest groups' },
+  { names: ['quiet', 'q'], help: '           failures only (the default under CI)' },
+  { names: ['verbose', 'no-quiet'], help: '           the whole tree, even under CI' },
+  { names: ['no-progress'], help: '           no live progress line' },
+  { names: ['verify-drafts'], help: "           run the draft-surface verifier in this suite's realm" },
+  { names: ['help', 'h'], help: '           this list' }
+];
+if (isCliEntry(import.meta.url)) {
+  const rtArgv = process.argv.slice(2);
+  const spell = (f) => f.names.map((n) => (n.length === 1 ? '-' : '--') + n).join('/');
+  if (rtArgv.some((a) => /^--?h(elp)?$/i.test(a))) {
+    console.log('usage: node tests/run-tests.mjs [flags]      # with no flag: the whole suite, which IS the gate');
+    for (const f of RUN_TESTS_FLAGS) console.log('  ' + spell(f).padEnd(26) + f.help);
+    console.log('  DEX_GROUP / DEX_SHARD / DEX_JOBS / DEX_TIMINGS / DEX_PROGRESS carry the same values.');
+    process.exit(0);
+  }
+  const rtCheck = checkLooseArgv(rtArgv, RUN_TESTS_FLAGS);
+  if (!rtCheck.ok) {
+    console.error('✗ tests/run-tests.mjs: ' + rtCheck.reason);
+    console.error('  accepted: ' + RUN_TESTS_FLAGS.map(spell).join(' '));
+    console.error('  NO group ran — this is a usage error (exit 2), not a failing suite (exit 1).');
+    process.exit(2);
+  }
+}
 
 /* Section filter (SECTION-SCOPED-RUNS 2026-07-01): `node tests/run-tests.mjs --group=oxydex`
    (aliases -g / --only, or the DEX_GROUP env var) runs ONLY the groups whose title/tag match
