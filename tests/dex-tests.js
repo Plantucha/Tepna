@@ -214,6 +214,38 @@
     });
   }
 
+  /* ⏱ A CHILD KILLED BY A SIGNAL EXAMINED NOTHING — row
+     2026-11-08-seven-control-legs-read-a-killed-child-as-a-failed-selftest.
+     `env.probeToolArgv` and `env.importToolInChild` both return `signal` beside `status`, and no
+     site in this suite read it. Every CONTROL leg that asserted `status` equals 0 therefore printed
+     `got null · want 0` when the box killed the child, which is a verdict about a tool from a leg
+     that never saw the tool run. Magpie discriminated it on one tree: at high load the leg froze its
+     dependent and left 32 of 53 steps unrun, and the same tree at load 20.96 passed the same leg at
+     the same log line. The child runs 5.54 s against a 25 s cap, so the cap is not the cause.
+     CLAUDE.md §4c asks for `⏱ UNEXAMINED <producer>` for this class. The VERDICT does not move — a
+     kill still reds, because laundering it into a pass is the worse defect — only the ATTRIBUTION.
+     `tools/trio-batch.mjs` already reads a null code as a signalled death.
+     Returns null when the child reported an exit code, else why it reported none. */
+  function dexUnexamined(r) {
+    if (!r || typeof r !== 'object') return 'the probe returned no result object';
+    if (r.status !== null && r.status !== undefined) return null;
+    if (r.signal) return 'the child died on ' + r.signal + ' and never reported an exit code';
+    return 'the child reported no exit code and no signal';
+  }
+
+  /* Assert a probe child's exit code, and name a kill as a kill. `want` defaults to 0. Returns true
+     only when the child ran AND answered with the wanted code, so a caller may guard on it. */
+  function dexExitWas(T, label, r, producer, want) {
+    var wanted = want === undefined ? 0 : want;
+    var why = dexUnexamined(r);
+    if (why) {
+      T.ok('⏱ UNEXAMINED ' + producer + ' — ' + why, false, 'CLAUDE.md §4c: this leg looked at nothing, so it carries no verdict about ' + producer);
+      return false;
+    }
+    T.eq(label, r.status, wanted);
+    return r.status === wanted;
+  }
+
   function runDexTests(env) {
     env = env || {};
     var GROUPS = [];
@@ -15623,6 +15655,57 @@
       T.ok('CONTROL · the same scan MATCHES a planted copy of the retracted claim', '# produce two copies on one spindle, the exact failure'.indexOf('one spindle') !== -1, 'planted text matches');
     });
 
+    /* ⏱ A KILLED CHILD IS NOT A FAILED SELFTEST — row
+       2026-11-08-seven-control-legs-read-a-killed-child-as-a-failed-selftest. The eight CONTROL legs
+       in this file route through `dexExitWas` now. This group holds the discriminator itself, so an
+       edit that drops the signal read reds HERE, rather than at high box load on an unrelated PR. */
+    group('a probe child killed by a signal reads as UNEXAMINED, not as a failed selftest', 'tools · probe · unexamined', function (T) {
+      var probe = env.probeToolArgv;
+      if (!probe) {
+        T.skip('env.probeToolArgv provided to the runner', 'Node-lane only (spawns a tool in a temp cwd) — the browser lane cannot spawn');
+        return;
+      }
+      /* A REAL KILL, never a synthetic object: a 1 ms cap cannot outlast node's own startup, so
+         `spawnSync` kills the child and reports a signal with no exit code. */
+      var killed = probe('tools/corpus-census.mjs', ['--selftest'], { timeoutMs: 1 });
+      T.eq('ANTI-VACUITY · a 1 ms cap really does kill the child, which reports no exit code', killed.status, null);
+      T.ok('…and spawnSync names the signal that killed it', typeof killed.signal === 'string' && killed.signal.length > 0, String(killed.signal));
+      T.ok('the discriminator calls that result UNEXAMINED', /never reported an exit code/.test(String(dexUnexamined(killed))), String(dexUnexamined(killed)));
+      /* CONTROL · the rule this replaces, asserted on the same object, so the fix is not a matter of
+         opinion: `status === 0` reads this killed child as a tool whose own selftest failed. */
+      T.ok('CONTROL · the old rule reads the kill as a failed selftest', killed.status !== 0, 'got ' + String(killed.status) + ' · want 0 — the line the fleet used to read');
+      /* A child that ANSWERED is left alone, so the helper excuses nothing by itself. */
+      var ran = probe('tools/corpus-census.mjs', ['--selftest']);
+      T.eq('a child that answered is not UNEXAMINED', dexUnexamined(ran), null);
+      /* The wrapper's own arms run through a SINK T. Calling it with the killed result against the
+         real T would red this group by design, which is the point of the wrapper. */
+      var sink = [];
+      var fake = {
+        ok: function (l, c, d) {
+          sink.push({ kind: 'ok', label: l, cond: c, detail: d });
+        },
+        eq: function (l, a, b) {
+          sink.push({ kind: 'eq', label: l, got: a, want: b });
+        }
+      };
+      var killedVerdict = dexExitWas(fake, 'CONTROL · a tool passes its own selftest', killed, 'tools/corpus-census.mjs');
+      T.eq('a killed child emits exactly one leg', sink.length, 1);
+      T.ok('…and the leg names UNEXAMINED and the producer', /UNEXAMINED tools\/corpus-census\.mjs/.test(String(sink[0].label)), String(sink[0].label));
+      T.ok('…and it names the signal that killed the child', String(sink[0].label).indexOf(String(killed.signal)) >= 0, String(sink[0].label));
+      T.eq('…and it reports a FAILURE, never a pass', sink[0].cond, false);
+      T.eq('…and the wrapper answers false, so a caller can guard on it', killedVerdict, false);
+      T.ok('…and it cites the rule that asks for this', String(sink[0].detail).indexOf('§4c') >= 0, String(sink[0].detail));
+      sink.length = 0;
+      var ranVerdict = dexExitWas(fake, 'CONTROL · a tool passes its own selftest', ran, 'tools/corpus-census.mjs');
+      T.eq('a child that answered routes to the ordinary exit-code assertion', sink[0].kind, 'eq');
+      T.eq('…with the exit code the child reported', sink[0].got, 0);
+      T.eq('…against the wanted 0', sink[0].want, 0);
+      T.eq('…and the wrapper answers true', ranVerdict, true);
+      /* The other shapes a probe can hand back, and the one that must stay a real verdict. */
+      T.ok('an absent result object is UNEXAMINED too', /no result object/.test(String(dexUnexamined(null))), String(dexUnexamined(null)));
+      T.ok('a null code with no signal is UNEXAMINED and says which', /no exit code and no signal/.test(String(dexUnexamined({ status: null }))), String(dexUnexamined({ status: null })));
+      T.eq('a NON-ZERO exit code is a real verdict and stays one', dexUnexamined({ status: 2 }), null);
+    });
     group('the four tch corpus readers publish their population without a corpus', 'tools · corpus-reads · verdict-sample', function (T) {
       var TT = env.toolTexts;
       if (!TT) {
@@ -15796,7 +15879,7 @@
       T.eq('…and the refusal wrote nothing either', empty.wrote, []);
       /* CONTROL · the exit code is derived, so the pure arm is asserted on both sides. */
       var self = probe(REL, ['--selftest']);
-      T.eq('CONTROL · the tool’s own selftest of the exit-code arms passes', self.status, 0);
+      dexExitWas(T, 'CONTROL · the tool’s own selftest of the exit-code arms passes', self, REL);
       T.ok('…and says how many it ran', /SELFTEST PASS \((\d+)\/\1\)/.test(String(self.out)), String(self.out).slice(0, 160));
     });
     /* ════ FIVE SINGLE-ROOT ENUMERATORS, FIVE POPULATIONS ═══════════════════════════════════════
@@ -16535,7 +16618,7 @@
         ['tools/corpus-census.mjs', /all (\d+) selftests passed/]
       ].forEach(function (row) {
         var r = probe(row[0], ['--selftest']);
-        T.eq('CONTROL · ' + row[0] + ' passes its own selftest', r.status, 0);
+        dexExitWas(T, 'CONTROL · ' + row[0] + ' passes its own selftest', r, row[0]);
         var m = row[1].exec(String(r.out));
         T.ok('…in the summary line selftest-all parses, with a counted number of assertions', m != null && Number(m[1]) > 0, String(r.out).slice(-160));
       });
@@ -16674,10 +16757,10 @@
       /* CONTROL · the two tools that carry their own selftest still pass it, so the exit-code arms
          are asserted from inside as well as from here. */
       var pbSelf = probe('tools/pb-fusion-blast.mjs', ['--selftest']);
-      T.eq('CONTROL · pb-fusion-blast passes its own selftest', pbSelf.status, 0);
+      dexExitWas(T, 'CONTROL · pb-fusion-blast passes its own selftest', pbSelf, 'tools/pb-fusion-blast.mjs');
       T.ok('…and says so in the line selftest-all reads', /selftest: all green/.test(String(pbSelf.out)), String(pbSelf.out).slice(0, 160));
       var tchSelf = probe('tools/tch-pooled-hat.mjs', ['--selftest']);
-      T.eq('CONTROL · tch-pooled-hat passes its own selftest', tchSelf.status, 0);
+      dexExitWas(T, 'CONTROL · tch-pooled-hat passes its own selftest', tchSelf, 'tools/tch-pooled-hat.mjs');
       T.ok('…and counts the assertions it ran', /(\d+) passed, 0 failed/.test(String(tchSelf.out)), String(tchSelf.out).slice(0, 160));
     });
     /* ════ THREE CPAP-CORPUS READERS PUBLISH THE ENUMERATION THEY WALKED ═══════════════════════
@@ -16819,10 +16902,10 @@
       /* CONTROL · the two tools that carry their own selftest still pass it, so nothing above was
          bought by breaking a known-answer suite that already existed. */
       var oxySelf = probe('tools/cpap-oxy-couple.mjs', ['--selftest']);
-      T.eq('CONTROL · cpap-oxy-couple passes its own selftest', oxySelf.status, 0);
+      dexExitWas(T, 'CONTROL · cpap-oxy-couple passes its own selftest', oxySelf, 'tools/cpap-oxy-couple.mjs');
       T.ok('…and says so in the line selftest-all reads', /all \d+ selftests passed/.test(String(oxySelf.out)), String(oxySelf.out).slice(0, 160));
       var sa2Self = probe('tools/cpap-sa2-agreement.mjs', ['--selftest']);
-      T.eq('CONTROL · cpap-sa2-agreement passes its own selftest', sa2Self.status, 0);
+      dexExitWas(T, 'CONTROL · cpap-sa2-agreement passes its own selftest', sa2Self, 'tools/cpap-sa2-agreement.mjs');
       T.ok('…and counts the assertions it ran', /\d+ passed, 0 failed/.test(String(sa2Self.out)), String(sa2Self.out).slice(0, 160));
     });
     /* ════ THREE NSRR COHORT READERS PUBLISH THE RECORD SET THEY WERE OFFERED ══════════════════
@@ -17015,7 +17098,7 @@
       ['tools/nsrr-oxydex-odi.mjs', 'tools/nsrr-criterion-sweep.mjs', 'tools/nsrr-stage-validate.mjs'].forEach(function (rel) {
         var stem = rel.replace(/^.*\//, '');
         var self = probe(rel, ['--selftest']);
-        T.eq('CONTROL · ' + rel + ' passes its own selftest', self.status, 0);
+        dexExitWas(T, 'CONTROL · ' + rel + ' passes its own selftest', self, rel);
         var counted = /(\d+)\s+(passed|assertion)/.test(String(self.out));
         var ratcheted = ratchet.indexOf("'" + stem + "'") >= 0;
         T.ok('…and either counts the assertions it ran or is a declared member of the ratchet', counted || ratcheted, 'neither: ' + String(self.out).slice(-200));
@@ -94001,7 +94084,7 @@
         var mutPath = P.join(dir, 'defect-bench.mjs');
         fs.writeFileSync(mutPath, mutant);
         var ctl = env.nodeSpawnSync(process.execPath, [toolPath, '--selftest'], { cwd: dir, encoding: 'utf8', timeout: 60000 });
-        T.eq('CONTROL · the unmodified tool passes its own selftest', ctl.status, 0);
+        dexExitWas(T, 'CONTROL · the unmodified tool passes its own selftest', ctl, 'tools/defect-bench.mjs');
         var mut = env.nodeSpawnSync(process.execPath, [mutPath, '--selftest'], { cwd: dir, encoding: 'utf8', timeout: 60000 });
         T.ok(
           'the mutant ran its selftest rather than crashing on an import',
