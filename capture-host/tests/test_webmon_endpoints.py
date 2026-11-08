@@ -15,6 +15,10 @@ from aiohttp.test_utils import TestClient, TestServer
 
 from tests.test_webmon_api import H10, RING, _mk, _serve
 
+# A COMPLETE enumeration, for a stub standing in for `polar_psftp.list_recordings_ex` in a test
+# whose subject is not the walk. The four keys are that function's published shape.
+_COMPLETE = {"truncated_dirs": [], "unreadable_dirs": [], "unlisted": 0, "complete": True}
+
 
 import pytest
 
@@ -152,9 +156,9 @@ def test_timesync_all_records_a_host_sync_failure(tmp_path, monkeypatch):
 
 def test_polar_recordings_lists_via_the_offline_path(tmp_path, monkeypatch):
     async def fake_list(address, adapter=None):
-        return [{"session": "/U/0/1/", "size": 1234}]
+        return [{"session": "/U/0/1/", "size": 1234}], _COMPLETE
 
-    monkeypatch.setattr(webmon.polar_psftp, "list_recordings", fake_list)
+    monkeypatch.setattr(webmon.polar_psftp, "list_recordings_ex", fake_list)
 
     async def pause(addr, fn):
         return await fn()
@@ -167,6 +171,31 @@ def test_polar_recordings_lists_via_the_offline_path(tmp_path, monkeypatch):
 
     status, body = _serve(app, go)
     assert status == 200 and body["ok"] is True and body["recordings"][0]["size"] == 1234
+    assert body["complete"] is True, "a complete walk says so, or the flag is no signal"
+
+
+# §∅ RESIDUE row `2026-11-07-list-recordings-publishes-a-partial-list-as-ok`. The browser branches
+# on `ok`, and `ok` is about the TRANSPORT: a cut walk still reached the device. So the population
+# travels on its own key, and a reader can tell "that is all there is" from "that is all we saw".
+def test_polar_recordings_says_so_when_the_walk_came_back_CUT(tmp_path, monkeypatch):
+    cut = {"truncated_dirs": ["/U/0/"], "unreadable_dirs": [], "unlisted": 1, "complete": False}
+
+    async def fake_list(address, adapter=None):
+        return [{"session": "/U/0/1/", "size": 1234}], cut
+
+    monkeypatch.setattr(webmon.polar_psftp, "list_recordings_ex", fake_list)
+    app, *_ = _mk(tmp_path, polar_pause=None)
+
+    async def go(c):
+        r = await c.get("/api/polar/recordings", params={"address": H10["address"]})
+        return r.status, await r.json()
+
+    status, body = _serve(app, go)
+    assert status == 200, "the device answered, so this is not a transport failure"
+    assert body["ok"] is True, "`ok` keeps its transport meaning — the link worked"
+    assert body["complete"] is False, "and the population says the list is a floor"
+    assert body["listing"] == cut, "the two lists say WHICH absence it was, not merely that there was one"
+    assert body["recordings"][0]["size"] == 1234, "what DID arrive is still returned"
 
 
 def test_polar_pull_downloads_via_the_offline_path(tmp_path, monkeypatch):
@@ -192,9 +221,9 @@ def test_polar_run_without_a_pause_hook_runs_directly(tmp_path, monkeypatch):
     """When the daemon supplies no polar_pause, _polar_run must still execute the op directly."""
 
     async def fake_list(address, adapter=None):
-        return [{"session": "/U/0/1/", "size": 1}]
+        return [{"session": "/U/0/1/", "size": 1}], _COMPLETE
 
-    monkeypatch.setattr(webmon.polar_psftp, "list_recordings", fake_list)
+    monkeypatch.setattr(webmon.polar_psftp, "list_recordings_ex", fake_list)
     app, *_ = _mk(tmp_path, polar_pause=None)
 
     async def go(c):
@@ -246,7 +275,7 @@ def test_polar_recordings_surfaces_a_generic_error_as_502(tmp_path, monkeypatch)
     async def boom(a, adapter=None):
         raise RuntimeError("psftp died")
 
-    monkeypatch.setattr(webmon.polar_psftp, "list_recordings", boom)
+    monkeypatch.setattr(webmon.polar_psftp, "list_recordings_ex", boom)
     app, *_ = _mk(tmp_path, polar_pause=None)  # direct path, no pause wrapper
 
     async def go(c):
@@ -336,7 +365,7 @@ def test_polar_recordings_surfaces_a_busy_slot_as_409(tmp_path, monkeypatch):
     async def busy(a, adapter=None):
         raise offline_lock.OfflineBusy("H10")
 
-    monkeypatch.setattr(webmon.polar_psftp, "list_recordings", busy)
+    monkeypatch.setattr(webmon.polar_psftp, "list_recordings_ex", busy)
     app, *_ = _mk(tmp_path, polar_pause=None)
 
     async def go(c):

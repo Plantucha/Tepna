@@ -451,18 +451,39 @@
    crossNight math is CPAPCross.crossNightBlock (shared envelope shape + local
    crossNight engine) — null if that module isn't bundled (DSP stays standalone). */
   function buildLongitudinal(nights) {
-    if (!nights || !nights.length) return { compliancePct: null, nights: 0, usageTrend7d: null, ahiTrend30d: null, crossNight: null, mode: null, modeEnvIqr: null, modeNights: 0 };
+    if (!nights || !nights.length)
+      return {
+        compliancePct: null,
+        complianceNights: 0,
+        complianceReason: 'no-nights',
+        nights: 0,
+        usageTrend7d: null,
+        ahiTrend30d: null,
+        crossNight: null,
+        mode: null,
+        modeEnvIqr: null,
+        modeNights: 0
+      };
     var usageH = function (n) {
       return n.therapyHours != null ? n.therapyHours : n.metrics ? n.metrics.usageHours : null;
     };
     var ahiOf = function (n) {
       return n.metrics ? n.metrics.residualAHI : n.residualAHI != null ? n.residualAHI : null;
     };
+    /* ∅ A NIGHT WITH NO USAGE DATUM WAS NEVER SCORED, so it leaves the DENOMINATOR
+     instead of counting against adherence. `usageH` already yields nothing for such a night,
+     but the old ratio still divided by every loaded night, so one unmeasured night read as
+     one night below the 4 h line. Reduced coverage ANNOTATES (CLAUDE.md §∅): the percentage
+     publishes the population it scored, and it refuses with its own token when it scored
+     nothing. `cpapdex-cross.js compliancePct` carries the same shape. */
+    var scored = nights.filter(function (n) {
+      return usageH(n) != null;
+    }).length;
     var qualifying = nights.filter(function (n) {
       var h = usageH(n);
       return h != null && h >= 4;
     }).length;
-    var compliancePct = +((qualifying / nights.length) * 100).toFixed(1);
+    var compliancePct = scored ? +((qualifying / scored) * 100).toFixed(1) : null;
     // chronological ascending by floating t0Ms (null t0 keeps input order, sorted last)
     var chrono = nights
       .slice()
@@ -504,6 +525,8 @@
     var lm = classifyModeLongitudinal(chrono);
     return {
       compliancePct: compliancePct,
+      complianceNights: scored,
+      complianceReason: scored ? null : 'no-usage-datum',
       nights: nights.length,
       usageTrend7d: usageTrend7d,
       ahiTrend30d: ahiTrend30d,

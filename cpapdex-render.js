@@ -690,6 +690,14 @@ import { CpapDsp } from './cpapdex-dsp.js';
     return -1;
   }
 
+  /* ∅ The tile subtitle carries the population the percentage scored, and names the node's
+   own reason when it scored nothing. A bare "≥4 h nights" over a window holding unmeasured
+   nights reads as though every loaded night had counted. */
+  function complianceSub(lng) {
+    if (lng.compliancePct == null) return lng.complianceReason || 'not scored';
+    return lng.complianceNights != null && lng.complianceNights < lng.nights ? '≥4 h of ' + lng.complianceNights + ' scored nights' : '≥4 h nights';
+  }
+
   function renderHistory(nights) {
     if (!nights || nights.length < 2 || !D.buildLongitudinal) return '';
     var lng = D.buildLongitudinal(nights);
@@ -703,7 +711,7 @@ import { CpapDsp } from './cpapdex-dsp.js';
       evBadge('nights') +
       nights.length +
       '</div><div class="kpi-label">Nights</div></div>' +
-      kpiTile('compliancePct', fnum(lng.compliancePct, 0) + '<span class="kpi-u">%</span>', sev(70, 50, lng.compliancePct), '≥4 h nights') +
+      kpiTile('compliancePct', fnum(lng.compliancePct, 0) + '<span class="kpi-u">%</span>', sev(70, 50, lng.compliancePct), complianceSub(lng)) +
       '<div class="kpi ' +
       utCls +
       '"><div class="kpi-val ' +
