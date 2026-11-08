@@ -5851,6 +5851,62 @@
       "key": "- self._fh = open(path, \"a\" if self.resumed else \"w\", buffering=1 << 16, newline=\"\\n\") | + self._fh = open(path, \"a\" if self.resumed else \"w\", buffering=1 << 17, newline=\"\\n\")",
       "probe": "MEASURED 2026-10-28 (Heron): built a real mutant copy of writers.py per survivor, patched BY LINE NUMBER so no sibling writer's identical line moved, and ran one battery through the original and all eight — 82 observations over 8 scenarios (absent / empty / one-byte / prior-night file; device present and absent; 3 rows and 20 rows; cadence 0.0 and held at 1e9). Each observation is the file's sha256 after every write, after `flush()` and after `close()`, plus `resumed`, `path`, the health record's path, `rows`, `rows_lost` and `flush_failures`. 0 of 82 differed, for every one of the eight. `os.linesep` reads '\\n' on this box, and `1 << 17` == `2 << 16` == 131072, both printed in that run.",
       "why": "A buffer SIZE has no observable consequence: every reader of this file opens it after a `flush()` or a `close()`, and both empty the buffer whatever its capacity. What it changes is how often the kernel is called. A burst bigger than the smaller buffer inside ONE flush interval would reach the disk sooner — this axis writes a handful of lifecycle transitions a night and the writer flushes on its cadence, so the cadence bounds what is unwritten, not the capacity. The same argument already excuses this family on five sibling writers in this module."
+    },
+    {
+      "brief": "residue 2026-11-07-the-writer-append-family-logs-failures-at-debug-only",
+      "class": "no-distinguishing-input",
+      "function": "append_clock_sync_event",
+      "key": "- path = \"\" | + path = None",
+      "probe": "MEASURED 2026-11-08 (Heron): ran the real module and a text-mutated copy with all four `path = \"\"` guards replaced by `path = None`, over 42 input shapes — 7 call shapes (worn true, worn false, worn abstain, clocksync, starts, pmdneg, pmdneg with an unreadable menu) x 6 file shapes (fresh, called twice, an existing empty file, a one-byte file, a DIRECTORY where the sidecar belongs, a FILE where the night folder belongs) — comparing the return values, the WARNING record list with the temp directory normalised, and the sidecar bytes. Three adversarial controls over the same harness DID differ: `getsize(path) > 0` to `>= 0` at 3 of 42, `str(device or \"\")` to `str(None)` at 8 of 42, and deleting the WORN warning line at 6 of 42. 0 of 42 differed.",
+      "why": "`path` has exactly one read, `path or root` in the handler, and every non-raising path reassigns it before that read. `\"\"` and `None` are both falsy, so the read yields `root` either way. An assertion that separated them would pin the local's TYPE rather than any behaviour of the writer."
+    },
+    {
+      "brief": "residue 2026-11-07-the-writer-append-family-logs-failures-at-debug-only",
+      "class": "no-distinguishing-input",
+      "function": "append_daemon_start",
+      "key": "- path = \"\" | + path = None",
+      "probe": "MEASURED 2026-11-08 (Heron): ran the real module and a text-mutated copy with all four `path = \"\"` guards replaced by `path = None`, over 42 input shapes — 7 call shapes (worn true, worn false, worn abstain, clocksync, starts, pmdneg, pmdneg with an unreadable menu) x 6 file shapes (fresh, called twice, an existing empty file, a one-byte file, a DIRECTORY where the sidecar belongs, a FILE where the night folder belongs) — comparing the return values, the WARNING record list with the temp directory normalised, and the sidecar bytes. Three adversarial controls over the same harness DID differ: `getsize(path) > 0` to `>= 0` at 3 of 42, `str(device or \"\")` to `str(None)` at 8 of 42, and deleting the WORN warning line at 6 of 42. 0 of 42 differed.",
+      "why": "`path` has exactly one read, `path or root` in the handler, and every non-raising path reassigns it before that read. `\"\"` and `None` are both falsy, so the read yields `root` either way. An assertion that separated them would pin the local's TYPE rather than any behaviour of the writer."
+    },
+    {
+      "brief": "residue 2026-11-07-the-writer-append-family-logs-failures-at-debug-only",
+      "class": "no-distinguishing-input",
+      "function": "append_pmd_negotiation",
+      "key": "- path = \"\" | + path = None",
+      "probe": "MEASURED 2026-11-08 (Heron): ran the real module and a text-mutated copy with all four `path = \"\"` guards replaced by `path = None`, over 42 input shapes — 7 call shapes (worn true, worn false, worn abstain, clocksync, starts, pmdneg, pmdneg with an unreadable menu) x 6 file shapes (fresh, called twice, an existing empty file, a one-byte file, a DIRECTORY where the sidecar belongs, a FILE where the night folder belongs) — comparing the return values, the WARNING record list with the temp directory normalised, and the sidecar bytes. Three adversarial controls over the same harness DID differ: `getsize(path) > 0` to `>= 0` at 3 of 42, `str(device or \"\")` to `str(None)` at 8 of 42, and deleting the WORN warning line at 6 of 42. 0 of 42 differed.",
+      "why": "`path` has exactly one read, `path or root` in the handler, and every non-raising path reassigns it before that read. `\"\"` and `None` are both falsy, so the read yields `root` either way. An assertion that separated them would pin the local's TYPE rather than any behaviour of the writer."
+    },
+    {
+      "brief": "residue 2026-11-07-the-writer-append-family-logs-failures-at-debug-only",
+      "class": "no-distinguishing-input",
+      "function": "append_worn_decision",
+      "key": "- path = \"\" | + path = None",
+      "probe": "MEASURED 2026-11-08 (Heron): ran the real module and a text-mutated copy with all four `path = \"\"` guards replaced by `path = None`, over 42 input shapes — 7 call shapes (worn true, worn false, worn abstain, clocksync, starts, pmdneg, pmdneg with an unreadable menu) x 6 file shapes (fresh, called twice, an existing empty file, a one-byte file, a DIRECTORY where the sidecar belongs, a FILE where the night folder belongs) — comparing the return values, the WARNING record list with the temp directory normalised, and the sidecar bytes. Three adversarial controls over the same harness DID differ: `getsize(path) > 0` to `>= 0` at 3 of 42, `str(device or \"\")` to `str(None)` at 8 of 42, and deleting the WORN warning line at 6 of 42. 0 of 42 differed.",
+      "why": "`path` has exactly one read, `path or root` in the handler, and every non-raising path reassigns it before that read. `\"\"` and `None` are both falsy, so the read yields `root` either way. An assertion that separated them would pin the local's TYPE rather than any behaviour of the writer."
+    },
+    {
+      "brief": "residue 2026-11-07-the-writer-append-family-logs-failures-at-debug-only",
+      "class": "no-distinguishing-input",
+      "function": "append_worn_decision",
+      "key": "- resumed = False | + resumed = None",
+      "probe": "MEASURED 2026-11-08 (Heron): ran the real module and a copy with the except branch's `resumed = False` replaced by `resumed = None`, over 42 input shapes — 7 call shapes (worn true, worn false, worn abstain, clocksync, starts, pmdneg, pmdneg with an unreadable menu) x 6 file shapes (fresh, called twice, an existing empty file, a one-byte file, a DIRECTORY where the sidecar belongs, a FILE where the night folder belongs) — comparing the return values, the WARNING record list with the temp directory normalised, and the sidecar bytes. Three adversarial controls over the same harness DID differ: `getsize(path) > 0` to `>= 0` at 3 of 42, `str(device or \"\")` to `str(None)` at 8 of 42, and deleting the WORN warning line at 6 of 42. 0 of 42 differed.",
+      "why": "The flag is read only for truthiness, in `if not resumed`. `False` and `None` are both falsy, so the header decision is the same. The sibling mutant `resumed = True` is killable and the suite kills it, because it suppresses the header on a fresh file."
+    },
+    {
+      "brief": "residue 2026-11-07-the-writer-append-family-logs-failures-at-debug-only",
+      "class": "no-distinguishing-input",
+      "function": "append_worn_decision",
+      "key": "- with open(path, \"a\", newline=\"\\n\") as fh: | + with open(path, \"a\", newline=None) as fh:",
+      "probe": "MEASURED 2026-11-08 (Heron): ran the real module and a copy with `newline=None` on this `open`, over 42 input shapes — 7 call shapes (worn true, worn false, worn abstain, clocksync, starts, pmdneg, pmdneg with an unreadable menu) x 6 file shapes (fresh, called twice, an existing empty file, a one-byte file, a DIRECTORY where the sidecar belongs, a FILE where the night folder belongs) — comparing the return values, the WARNING record list with the temp directory normalised, and the sidecar bytes. Three adversarial controls over the same harness DID differ: `getsize(path) > 0` to `>= 0` at 3 of 42, `str(device or \"\")` to `str(None)` at 8 of 42, and deleting the WORN warning line at 6 of 42. 0 of 42 differed.",
+      "why": "In text mode `newline=None` translates a written `\\n` to `os.linesep`, which is `\\n` on every platform this package runs on. The capture-host is Linux and CI is Linux, so no input separates them. The same argument already excuses the `newline` kwarg on this helper's three sibling append writers."
+    },
+    {
+      "brief": "residue 2026-11-07-the-writer-append-family-logs-failures-at-debug-only",
+      "class": "no-distinguishing-input",
+      "function": "append_worn_decision",
+      "key": "- with open(path, \"a\", newline=\"\\n\") as fh: | + with open(path, \"a\", ) as fh:",
+      "probe": "MEASURED 2026-11-08 (Heron): ran the real module and a copy with the kwarg dropped on this `open`, over 42 input shapes — 7 call shapes (worn true, worn false, worn abstain, clocksync, starts, pmdneg, pmdneg with an unreadable menu) x 6 file shapes (fresh, called twice, an existing empty file, a one-byte file, a DIRECTORY where the sidecar belongs, a FILE where the night folder belongs) — comparing the return values, the WARNING record list with the temp directory normalised, and the sidecar bytes. Three adversarial controls over the same harness DID differ: `getsize(path) > 0` to `>= 0` at 3 of 42, `str(device or \"\")` to `str(None)` at 8 of 42, and deleting the WORN warning line at 6 of 42. 0 of 42 differed.",
+      "why": "In text mode `newline=None` translates a written `\\n` to `os.linesep`, which is `\\n` on every platform this package runs on. The capture-host is Linux and CI is Linux, so no input separates them. The same argument already excuses the `newline` kwarg on this helper's three sibling append writers."
     }
   ],
   "solid_night.py": [

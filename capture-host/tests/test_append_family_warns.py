@@ -194,3 +194,97 @@ def test_a_PMDNEG_append_with_an_UNREADABLE_MENU_falls_back_to_the_ROOT(tmp_path
     assert "acc" in m, m
     assert root in m, f"with no path to name, the line names the capture root: {m!r}"
     assert "ValueError" in m, m
+
+
+# ── THE HEADER DISCIPLINE THESE FOUR SHARE ────────────────────────────────────────────────────────
+#
+# The mutation gate's unit is the FUNCTION, so touching the log line in each of these four put their
+# whole bodies back in scope and surfaced gaps older than this unit. They are real gaps, not noise:
+# each one below is a line whose mutant left the suite green. An existing but EMPTY file is the case
+# all four share — a daemon that created the file and died before its first row must not leave a
+# headerless CSV behind, and `nightqc` and `loss_audit` both read the header to find their columns.
+
+
+def _lines(path: str) -> list[str]:
+    return open(path, encoding="utf-8").read().splitlines()
+
+
+def test_an_EMPTY_CLOCKSYNC_file_still_gets_its_HEADER(tmp_path):
+    """`fresh` asks `getsize(path) == 0`, so an existing empty file is still fresh."""
+    root = str(tmp_path)
+    p = os.path.join(writers.night_dir(root, WHEN), writers.CLOCKSYNC_NAME)
+    open(p, "w").close()
+    assert writers.append_clock_sync_event(root, WHEN, "H10", "AA:BB", "synced", skew_s=0.5) is True
+    got = _lines(p)
+    assert got[0] == writers._CLOCKSYNC_HEADER.rstrip("\n"), got[:2]
+    assert len(got) == 2, got
+
+
+def test_an_EMPTY_PMDNEG_file_still_gets_its_HEADER(tmp_path):
+    root = str(tmp_path)
+    p = os.path.join(writers.night_dir(root, WHEN), writers.PMDNEG_NAME)
+    open(p, "w").close()
+    ok = writers.append_pmd_negotiation(
+        root,
+        WHEN,
+        "Polar Sense",
+        "AA:BB",
+        "ppg",
+        requested=176,
+        offered=[130, 176],
+        chosen=176,
+        ack="ok",
+        how="negotiated",
+    )
+    assert ok is True
+    got = _lines(p)
+    assert got[0] == writers._PMDNEG_HEADER.rstrip("\n"), got[:2]
+    assert len(got) == 2, got
+
+
+def test_a_PMDNEG_row_carries_the_DEVICE_and_the_ADDRESS_verbatim(tmp_path):
+    """`str(device or "")` is a §∅ blank for an absent name, not a discard of a present one. Nothing
+    asserted the present case, so a mutant writing `str(None)` or `str(device and "")` stayed green."""
+    root = str(tmp_path)
+    ok = writers.append_pmd_negotiation(
+        root,
+        WHEN,
+        "Polar Sense",
+        "AA:BB",
+        "ppg",
+        requested=176,
+        offered=[130, 176],
+        chosen=176,
+        ack="ok",
+        how="negotiated",
+    )
+    assert ok is True
+    p = os.path.join(root, "captures", DATE, writers.PMDNEG_NAME)
+    cells = _lines(p)[1].split(";")
+    assert cells[1] == "Polar Sense", cells
+    assert cells[2] == "AA:BB", cells
+
+
+def test_an_EMPTY_WORN_file_still_gets_its_HEADER(tmp_path):
+    """`resumed` asks `getsize(path) > 0`. A mutant asking `>= 0` reads an empty file as resumed and
+    writes the first row with no header above it."""
+    root = str(tmp_path)
+    p = os.path.join(writers.night_dir(root, WHEN), writers.WORN_NAME)
+    open(p, "w").close()
+    assert writers.append_worn_decision(root, WHEN, "H10", "AA:BB", True, "acc", "change") is True
+    got = _lines(p)
+    assert got[0].startswith("Phone timestamp;device;address;worn;"), got[:2]
+    assert len(got) == 2, got
+
+
+def test_a_ONE_BYTE_WORN_file_is_RESUMED_and_never_re_headed(tmp_path):
+    """The other side of the same threshold. A torn write can leave one byte, and `> 1` would then
+    re-head a file that already holds content — the truncation this writer exists to prevent."""
+    root = str(tmp_path)
+    p = os.path.join(writers.night_dir(root, WHEN), writers.WORN_NAME)
+    with open(p, "w") as fh:
+        fh.write("x")
+    assert writers.append_worn_decision(root, WHEN, "H10", "AA:BB", True, "acc", "change") is True
+    body = open(p, encoding="utf-8").read()
+    assert "Phone timestamp" not in body, f"a non-empty file is continued, never re-headed: {body!r}"
+    assert body.startswith("x"), body

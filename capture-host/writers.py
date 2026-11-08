@@ -2708,8 +2708,9 @@ def append_worn_decision(root, when, device, address, worn, why, trigger: str, v
         path = os.path.join(d, WORN_NAME)
         # APPEND, NEVER TRUNCATE — OxyLifeWriter's lesson, which cost a night's rows on every daemon
         # restart, and this daemon restarts 11-15 times a day. A non-empty file is continued, never
-        # re-headed; the emptiness test is the one the sibling writers use.
-        resumed = False
+        # re-headed; the emptiness test is the one the sibling writers use. There is no initialiser
+        # above the `try`: both of its branches assign, so one would be dead code, and a dead
+        # initialiser is a line no assertion can ever reach.
         try:
             resumed = os.path.getsize(path) > 0
         except OSError:
