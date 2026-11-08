@@ -263,8 +263,12 @@ def test_an_absent_configured_rate_is_an_empty_field_not_a_zero(tmp_path):
     assert "configured=0" not in line, "absence is empty, never a zero (§∅)"
 
 
-def test_a_write_failure_on_the_note_does_not_end_the_recording(tmp_path):
-    """An annotation must never end a recording — the same rule `feed` and `close` already follow."""
+def test_a_write_failure_on_the_note_does_not_end_the_recording(tmp_path, caplog):
+    """An annotation must never end a recording — the same rule `feed` and `close` already follow.
+
+    The note is taken off `_pmd_note` before the write, so a failure here loses it for good. Until
+    2026-11-08 it was lost in silence, and the file carried no sign that a negotiated rate was ever
+    offered to it."""
     import writers
 
     sc = writers._SeamSidecar(str(tmp_path / "X_ECG.txt"), "ecg")
@@ -276,5 +280,15 @@ def test_a_write_failure_on_the_note_does_not_end_the_recording(tmp_path):
             raise OSError("disk full")
 
     sc._fh = _Boom()  # type: ignore[assignment]
-    sc.note_pmd(rate=176, offered=[130, 176], configured=176, default=130)  # must not raise
+    with caplog.at_level("WARNING"):
+        # TWICE, because `note_pmd`'s own docstring says a reconnect RE-negotiates. Two lost notes
+        # must count as two: a counter that merely goes non-zero cannot report how much the file lost.
+        sc.note_pmd(rate=176, offered=[130, 176], configured=176, default=130)  # must not raise
+        sc.note_pmd(rate=130, offered=[130, 176], configured=130, default=130)
     sc._fh = None
+    said = [r.getMessage() for r in caplog.records if "note not written" in r.getMessage()]
+    assert len(said) == 2 and all(sc.path in m for m in said), said
+    # BOTH halves of the line, or a handler that names no cause reads as a pass. The plant carries no
+    # errno, so `_write_error_name` yields the exception type name.
+    assert all("OSError" in m for m in said), said
+    assert sc.failures == 2, "a lost note counts, so the final line cannot read as a clean file"

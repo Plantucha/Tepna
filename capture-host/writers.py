@@ -1134,6 +1134,17 @@ class _SeamSidecar:
         self.stream = stream
         self.seams = 0
         self.examined = 0
+        # A SWALLOWED FAILURE IS STILL AN EVENT. Every handler below stays non-fatal on purpose — an
+        # annotation never ends the recording it annotates — but until 2026-11-08 four of them
+        # discarded the failure with no log line and no count. `seams` counts rows that REACHED the
+        # file, so a sample the sidecar could not process leaves the final line reporting none over a
+        # stream that had one, and nothing anywhere said so. A non-zero count means THIS FILE IS
+        # INCOMPLETE and its seam count is a floor. The note path feeds the same counter: it cannot
+        # hide a seam, so it only ever makes the file look worse than it is, which is the safe
+        # direction. The count rides the file, where a night's consumer reads it; the first failure
+        # also reaches the log, where the box operator reads it.
+        self.failures = 0
+        self._warned = False
         self._prev_ns: int | None = None
         self._prev_phone_ms: float | None = None
         self._first_ns: int | None = first_ns
@@ -1195,7 +1206,11 @@ class _SeamSidecar:
                 )
                 self._fh.write("phone_ts;idx;device_step_ms;phone_delta_ms;residual_ms;host_offset_ms;at_rel_ms\n")
             self._flush_pmd_note()  # negotiated before the first sample; write it under the header
-        except OSError:  # a sidecar that cannot open must not stop the recording it annotates
+        except OSError as e:  # a sidecar that cannot open must not stop the recording it annotates
+            # The open is the one failure with no file of its own to record it, so the log is its only
+            # channel. `_write_error_name` gives the symbolic errno because ENOSPC, EIO and EROFS want
+            # three different answers at 3am.
+            _log.warning("seam sidecar could not open %s: %s", self.path, _write_error_name(e))
             self._fh = None
         return self._fh is not None
 
@@ -1252,8 +1267,11 @@ class _SeamSidecar:
             return
         try:
             self._fh.write(note)
-        except Exception:  # noqa: BLE001 - an annotation must never end a recording
-            pass
+        except Exception as e:  # noqa: BLE001 - an annotation must never end a recording
+            # The note was taken off `_pmd_note` above, so a failure here loses it for good. One line
+            # per note at most, so this one is not latched.
+            self.failures += 1
+            _log.warning("seam sidecar note not written to %s: %s", self.path, _write_error_name(e))
 
     def feed(self, phone, sensor_ns: int | None) -> None:
         """One sample's two clocks. A seam is where they DISAGREE — not where either jumps alone.
@@ -1291,8 +1309,14 @@ class _SeamSidecar:
                     self.seams += 1
             self._prev_ns = sensor_ns
             self._prev_phone_ms = phone_ms
-        except Exception:  # noqa: BLE001 - an annotation must never end a recording; the
-            pass  # stream row was already written by the caller either way
+        except Exception as e:  # noqa: BLE001 - an annotation must never end a recording; the
+            # LATCHED, because this runs on the BLE notify path at the stream's own rate. A persistent
+            # fault would otherwise emit one log line per sample — millions over a night — so the first
+            # failure speaks and the rest are counted. `close` puts the count on the file.
+            self.failures += 1  # the stream row was already written by the caller either way
+            if not self._warned:
+                self._warned = True
+                _log.warning("seam sidecar write failed on %s: %s", self.path, _write_error_name(e))
 
     def close(self) -> None:
         # A stream that never carried a device clock has NO FILE, deliberately — see `_ensure`. Only a
@@ -1300,10 +1324,16 @@ class _SeamSidecar:
         if self._fh is None:
             return
         try:
-            self._fh.write(f"# final stream={self.stream} seams={self.seams} examined={self.examined}\n")
+            # The failure count rides the final line because THE LOG IS BOX-LOCAL and a night's
+            # consumer never reads it. Without it a stream whose only seam row failed to land reads
+            # exactly like a stream that had no seam — a manufactured negative (§∅).
+            # `solid_night_inputs._FINAL` matches a prefix of this line, so the new field is additive.
+            self._fh.write(
+                f"# final stream={self.stream} seams={self.seams} examined={self.examined} failures={self.failures}\n"
+            )
             self._fh.close()
-        except Exception:  # noqa: BLE001 - closing an annotation cannot fail a night
-            pass
+        except Exception as e:  # noqa: BLE001 - closing an annotation cannot fail a night
+            _log.warning("seam sidecar close failed for %s: %s", self.path, _write_error_name(e))
         finally:
             self._fh = None
 

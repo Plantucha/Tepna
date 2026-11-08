@@ -82,7 +82,7 @@ def test_an_honest_empty_file_SAYS_it_looked(tmp_path):
         sc.feed(T0 + dt.timedelta(milliseconds=8 * i), 1_000_000_000 + 8_000_000 * i)
     sc.close()
     body = open(sc.path).read()
-    assert "# final stream=ppg seams=0 examined=2" in body
+    assert "# final stream=ppg seams=0 examined=2 failures=0" in body
     assert "bound_ms=60000" in body, "the file must carry the bound that produced its rows"
 
 
@@ -123,9 +123,13 @@ def test_the_uncovered_paths_are_uncovered_ON_PURPOSE():
     assert "sensor_ns" not in m.group(0), "if _RunSidecar.feed gained a device clock, revisit this"
 
 
-def test_a_sidecar_that_cannot_OPEN_does_not_stop_the_recording(tmp_path, monkeypatch):
+def test_a_sidecar_that_cannot_OPEN_does_not_stop_the_recording(tmp_path, monkeypatch, caplog):
     """The annotation is subordinate to the stream. A read-only volume must cost the seam record, not
-    the night — and `_ensure` must not retry per sample on the notification path."""
+    the night — and `_ensure` must not retry per sample on the notification path.
+
+    The open is the one failure with no file of its own to record it, so the log is its only channel.
+    Until 2026-11-08 it had none, and a stream whose sidecar never opened looked exactly like a stream
+    that carried no device clock."""
     sc = _sc(tmp_path)
 
     def boom(*_a, **_k):
@@ -135,13 +139,17 @@ def test_a_sidecar_that_cannot_OPEN_does_not_stop_the_recording(tmp_path, monkey
     import builtins
 
     monkeypatch.setattr(builtins, "open", boom)
-    for i in range(3):
-        sc.feed(T0 + dt.timedelta(milliseconds=8 * i), 1_000_000_000 + 8_000_000 * i)
+    with caplog.at_level("WARNING"):
+        for i in range(3):
+            sc.feed(T0 + dt.timedelta(milliseconds=8 * i), 1_000_000_000 + 8_000_000 * i)
     assert sc.seams == 0
     assert sc._opened is True, "it tried once and must not retry every sample on the notify path"
+    said = [r.getMessage() for r in caplog.records if "could not open" in r.getMessage()]
+    assert len(said) == 1, said  # once, for the same reason the open is attempted once
+    assert sc.path in said[0] and "OSError" in said[0], said[0]
 
 
-def test_a_broken_clock_value_does_not_reach_the_capture_path(tmp_path, monkeypatch):
+def test_a_broken_clock_value_does_not_reach_the_capture_path(tmp_path, monkeypatch, caplog):
     """`phone` comes from the device path and is not guaranteed well-formed. Whatever it is, the stream
     row was already written by the caller — an annotation cannot be allowed to undo that."""
     sc = _sc(tmp_path)
@@ -151,12 +159,17 @@ def test_a_broken_clock_value_does_not_reach_the_capture_path(tmp_path, monkeypa
         def timestamp(self):
             raise ValueError("not a clock")
 
-    sc.feed(Bad(), 1_000_000_000 + 8_000_000)  # must not raise
+    with caplog.at_level("WARNING"):
+        sc.feed(Bad(), 1_000_000_000 + 8_000_000)  # must not raise
     sc.close()
     assert sc.seams == 0
+    assert sc.failures == 1, "the sample went unexamined, so the seam count is a floor"
+    said = [r.getMessage() for r in caplog.records if "write failed" in r.getMessage()]
+    # The box runs several sidecars at once, so a line that names no file names no sidecar.
+    assert len(said) == 1 and "ValueError" in said[0] and sc.path in said[0], said
 
 
-def test_a_failing_CLOSE_cannot_fail_a_night(tmp_path, monkeypatch):
+def test_a_failing_CLOSE_cannot_fail_a_night(tmp_path, monkeypatch, caplog):
     """Last resort: the final line could not be written. The recording is already complete by then."""
     sc = _sc(tmp_path)
     sc.feed(T0, 1_000_000_000)
@@ -170,8 +183,12 @@ def test_a_failing_CLOSE_cannot_fail_a_night(tmp_path, monkeypatch):
             raise OSError("and so did the handle")
 
     sc._fh = BadFH()
-    sc.close()  # must not raise
+    with caplog.at_level("WARNING"):
+        sc.close()  # must not raise
     assert sc._fh is None, "the handle is released even when closing it failed"
+    said = [r.getMessage() for r in caplog.records if "close failed" in r.getMessage()]
+    assert len(said) == 1 and sc.path in said[0], said
+    assert "OSError" in said[0], said[0]  # the cause, not just the fact
 
 
 # ── THE RECONNECT BOUNDARY IS EXAMINED (2026-09-22) ─────────────────────────────────────────────
@@ -364,6 +381,44 @@ def test_PLANT_a_row_write_that_RAISES_leaves_the_count_equal_to_the_rows(tmp_pa
         _rows(sc),
     )
     assert sc.seams == 0, "the row never reached the file, so there is nothing to count"
+    assert sc.failures == 1, "and the file must say so, or the zero above reads as a measurement"
+    body = open(sc.path).read()
+    assert f"seams=0 examined={sc.examined} failures=1" in body, body
+
+
+def test_a_PERSISTENT_write_fault_SPEAKS_ONCE_and_COUNTS_THE_REST(tmp_path, caplog):
+    """`feed` runs on the BLE notify path at the stream's own rate, so one log line per failed sample
+    would be millions of records over a night — the log flood is itself a box failure. The first
+    failure speaks, the rest are counted, and the count reaches the file where a consumer reads it.
+
+    The plant is a handle that always raises ENOSPC, driven by a device clock that steps 100 s on
+    every sample, well past the 60 s bound, so every sample reaches the write."""
+    sc = _sc(tmp_path)
+    for i in range(3):
+        sc.feed(T0 + dt.timedelta(milliseconds=8 * i), 1_000_000_000 + 8_000_000 * i)
+    real = sc._fh
+
+    class _AlwaysBad:
+        def write(self, *_a):
+            raise OSError(28, "no space left on device")
+
+        def __getattr__(self, n):
+            return getattr(real, n)
+
+    sc._fh = _AlwaysBad()
+    with caplog.at_level("WARNING"):
+        for i in range(3, 40):
+            sc.feed(T0 + dt.timedelta(milliseconds=8 * i), 1_000_000_000 + i * 100_000_000_000)
+    sc._fh = real
+    sc.close()
+
+    said = [r.getMessage() for r in caplog.records if "write failed" in r.getMessage()]
+    assert len(said) == 1, f"37 failed samples must not write 37 log records: {len(said)}"
+    assert "ENOSPC" in said[0], said[0]  # the symbolic errno, not a count and not str(exc)
+    assert sc.path in said[0], said[0]  # and the file it happened to
+    assert sc.failures == 37, sc.failures
+    assert sc.seams == 0, "no row reached the file"
+    assert "seams=0 examined=39 failures=37" in open(sc.path).read()
 
 
 def test_the_seam_row_publishes_its_two_DERIVED_columns_exactly(tmp_path):
