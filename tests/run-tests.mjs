@@ -2966,18 +2966,35 @@ async function main() {
   // same bare names already in the shared realm (classicify leaks top-level decls). Wrapping each in an IIFE
   // scopes those decls while the `window.X`/`global.X` attaches (GluDisp · OxyDex.reviewView · CpapRender ·
   // PulseDex.reviewView) still escape to the sandbox. Deps (their DSP · dex-escape) are already loaded above.
-  ['glucodex-render.js', 'oxydex-render.js', 'cpapdex-render.js', 'hrvdex-render.js', 'pulsedex-render.js', 'pulsedex-overview.js', 'ecgdex-render.js', 'ppgdex-render.js', 'oxydex-fusion.js'].forEach(
-    (f) => {
-      try {
-        const p = join(ROOT, f);
-        if (!existsSync(p)) return;
-        const code = DexBuild.classicify(readFileSync(p, 'utf8'));
-        vm.runInContext('(function(){\n' + code + '\n})();', ctx, { filename: f });
-      } catch (e) {
-        console.error(paint('  ! render module failed to load: ' + f + ' — ' + e.message, C.yellow));
-      }
+  /* motiondex-render.js JOINED THE LIST on 2026-11-08 (residue
+     2026-11-08-motiondex-render-is-executed-by-no-gate). Its text was in both lanes' SOURCE_FILES and
+     its name was in this group's own label, and no lane EXECUTED it: a throw planted at the top of
+     renderSummary left 104 render groups and the full lane green. A source-text scan reads what a file
+     SAYS; only an executed module answers what it DOES. It is a clean `(function(global){…})(window)`
+     IIFE over MotionRegistry, and `document.getElementById` returns null here, so every fill() no-ops
+     and the module paints nothing — the harness can call renderSummary for its THROW, and the pure
+     builders it exports for their VALUES. */
+  [
+    'glucodex-render.js',
+    'oxydex-render.js',
+    'cpapdex-render.js',
+    'hrvdex-render.js',
+    'pulsedex-render.js',
+    'pulsedex-overview.js',
+    'ecgdex-render.js',
+    'ppgdex-render.js',
+    'motiondex-render.js',
+    'oxydex-fusion.js'
+  ].forEach((f) => {
+    try {
+      const p = join(ROOT, f);
+      if (!existsSync(p)) return;
+      const code = DexBuild.classicify(readFileSync(p, 'utf8'));
+      vm.runInContext('(function(){\n' + code + '\n})();', ctx, { filename: f });
+    } catch (e) {
+      console.error(paint('  ! render module failed to load: ' + f + ' — ' + e.message, C.yellow));
     }
-  );
+  });
 
   /* PAT-UNDER-PERBLOCK-ALIGNMENT §4 — the strict-matchRate statistics. NODE-ONLY (an .mjs
      orchestrator, not a bundled module), so the browser lane skips the group. The tool guards its
@@ -3235,6 +3252,7 @@ async function main() {
     // §RN last finding — the two ECGScope time-axis helpers, hoisted out of the canvas draw so the
     // node lane can pin the tick spacing and the label text without a canvas shim.
     ECGUI: ctx.ECGUI,
+    MOTIONUI: ctx.MOTIONUI, // §RN: MotionDex's render layer — executed above, so a throw in it reds
     PPGUI: ctx.PPGUI, // PPGScope's per-window y-scale (owner report 2026-11-07: a flat Verity trace)
     IntegratorDSP: ctx.IntegratorDSP,
     IntegratorTCH: ctx.IntegratorTCH,
