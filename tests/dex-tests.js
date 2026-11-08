@@ -82930,6 +82930,14 @@
       T.ok('release.mjs · --status reaches release-land.mjs instead of stamping', /no release-land run recorded|^remaining:|\nremaining:/m.test(String(relSt.out)), String(relSt.out).slice(0, 260));
       T.ok('…and nothing of the stamp step ran', !/This was the STAMP step only|Stamped v/.test(String(relSt.out)), String(relSt.out).slice(0, 260));
       T.ok('…at exit 0 (a report) or 1 (no run recorded on this machine), never 2', relSt.status === 0 || relSt.status === 1, 'status=' + relSt.status + ' out=' + String(relSt.out).slice(0, 160));
+      /* release-land.mjs itself (Osprey, board #4749): every unread token fell through to a fresh run.
+         The probe carries `--dry-run` for the reason above — a regressed guard previews, never releases. */
+      var landBad = probeL('tools/release-land.mjs', ['--statu', '--dry-run']);
+      T.eq('release-land.mjs · a mistyped flag exits 2', landBad.status, 2);
+      T.ok('…naming the token and the flag meant', /--statu\b/.test(String(landBad.out)) && /--status/.test(String(landBad.out)), String(landBad.out).slice(0, 220));
+      T.ok('…and no plan was printed', !/DRY RUN/.test(String(landBad.out)), String(landBad.out).slice(0, 220));
+      var landFwd = probeL('tools/release-land.mjs', ['--status', '--skip-gates']);
+      T.ok('CONTROL · a flag release.mjs forwards is accepted, never refused', landFwd.status !== 2, 'status=' + landFwd.status + ' out=' + String(landFwd.out).slice(0, 160));
       var rtHelp = probeL('tests/run-tests.mjs', ['--help']);
       T.eq('run-tests.mjs · --help exits 0', rtHelp.status, 0);
       T.ok('…printing a usage line that names the runner', /^usage: node tests\/run-tests\.mjs/m.test(String(rtHelp.out)), String(rtHelp.out).slice(0, 160));
