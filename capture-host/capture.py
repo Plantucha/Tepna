@@ -2789,6 +2789,13 @@ O2_PLETHA_WHY = (
 )
 
 _STREAM_STALL_S = 90.0  # started-stream silence before the session is torn down; stream.stall_sec (0 = off)
+# addr -> the streams whose last teardown was a silence BEHIND A LIVE SIBLING. Measured on the capture box
+# 2026-11-08: in SDK mode with PPG at 176 Hz, the Verity ACKed START acc on every link but sent no ACC row
+# after 00:41. Each 90 s of ACC silence tore down the whole link, about 33 times an hour, and every
+# reconnect cut an 8 to 10 s hole in the PPG (12 to 17 % of each hourly file lost). One re-negotiation
+# stays, because it is what frees a stream that a dead subscriber still holds. When the SAME streams fall
+# silent again behind a live sibling, that re-negotiation has already failed, so the link is kept.
+_SILENT_BEHIND_LIVE: dict[str, frozenset] = {}
 # Re-bond cadence for a Polar whose BlueZ bond has vanished mid-session. Every 5th reconnect, up to 72
 # attempts — at the observed ~70 s reconnect period that is one try every ~6 min for 7 h. Sized to span
 # a WHOLE NIGHT on purpose: the 2026-07-29 loss would have needed a retry four hours after the bond went
@@ -3655,6 +3662,23 @@ def any_stream_stalled(last_changes, now, grace) -> bool:
     is 90 s, far longer than the slowest real stream's inter-row gap (even 1 Hz HR advances ~90 rows), so
     only a truly dead stream fires. False when off (grace<=0) or nothing has started (empty/all-None)."""
     return bool(grace and grace > 0 and any(stream_is_stalled(lc, now, grace) for lc in (last_changes or [])))
+
+
+def stall_verdict(last_changes, now, grace, streams, silent_before) -> tuple[str, list, frozenset]:
+    """PURE: what the hold loop does about silence. ("ok", [], empty) when no stream is stalled.
+    ("excuse", stalled, silent) when a sibling is still live AND the last teardown already re-negotiated
+    this same silent set: a second teardown buys nothing and costs every live stream a hole.
+    Otherwise ("teardown", stalled, remember). `remember` is the silent set when a sibling was live and
+    empty when none was, because a link on which nothing flows is a link fault, not one dead stream.
+    A sibling counts as live only when it has started and is not stalled; an excused stream (None) is not."""
+    if not any_stream_stalled(last_changes, now, grace):
+        return "ok", [], frozenset()
+    stalled = [i for i, lc in enumerate(last_changes) if stream_is_stalled(lc, now, grace)]
+    live = any(lc is not None and i not in stalled for i, lc in enumerate(last_changes))
+    silent = frozenset(streams[i] for i in stalled)
+    if live and silent <= silent_before:
+        return "excuse", stalled, silent
+    return "teardown", stalled, silent if live else frozenset()
 
 
 def _current_night(captures: str, settle_sec: float) -> str | None:
@@ -4814,6 +4838,20 @@ async def run_polar(dev: dict, root: str):
                                 _set(name, sdk_mode=await _exit_sdk_mode(_ctrl, name))
                         for meas in list(writers):
                             await _ctrl(pmd.stop_cmd(meas))  # clear any stale stream from a prior session
+                            if meas == pmd.PPI and STATUS["devices"].get(name, {}).get("sdk_mode") is True:
+                                # NO PPI IN SDK MODE. Polar documents that a Verity in SDK mode serves no
+                                # PPI and no HR. The START answers `invalid_state`, which reads as
+                                # transient, so the writer stayed and the stall watchdog watched a stream
+                                # that cannot flow. Measured on the capture box 2026-11-08: 211 links
+                                # dropped at 90 s each, and the holes held 14.3 % of the night's PPG.
+                                log.info("%s ppi not requested: the device serves no PPI in SDK mode", name)
+                                if writers[meas].resumed:
+                                    writers[meas].close()
+                                else:
+                                    writers[meas].discard()
+                                del writers[meas]
+                                BUS.unregister(_live_key(pmd.MEAS_NAME[meas], tag))
+                                continue
                             # Ask the device what settings it offers, then START from THOSE (fixed table is a
                             # fallback). Devices differ: Verity ACC isn't 200 Hz, MAG needs a range, etc.
                             settings = pmd.parse_settings_response(await _ctrl(pmd.get_settings_cmd(meas)))
@@ -5187,7 +5225,7 @@ async def run_polar(dev: dict, root: str):
                 # PER-STREAM silence timers (VIGIL-DEEP-ANALYSIS §2C). One shared timer let a live sibling
                 # mask a dead stream; each stream now carries its own so a single dead one is caught.
                 _base = _time.monotonic()
-                last_change = [_base for _ in watched]
+                last_change: list[float | None] = [_base for _ in watched]
                 while (
                     client.is_connected
                     and not _STOP.is_set()
@@ -5206,6 +5244,10 @@ async def run_polar(dev: dict, root: str):
                         if rows_now[_i] != last_rows[_i]:
                             last_change[_i] = _mono
                             flowed = True
+                            _was = _SILENT_BEHIND_LIVE.get(addr, frozenset())
+                            if watched[_i].stream in _was:
+                                # It delivers again, so its next silence earns a fresh re-negotiation.
+                                _SILENT_BEHIND_LIVE[addr] = _was - {watched[_i].stream}
                     last_rows = rows_now
                     if flowed:
                         note_data(name, _mono)  # evidence for the alert loop that this link is EARNING its
@@ -5216,7 +5258,27 @@ async def run_polar(dev: dict, root: str):
                         # viable session; reset the reconnect backoff. A later drop
                         # then recovers fast; a connect that never streams leaves
                         # the floor to grow.
-                    if any_stream_stalled(last_change, _time.monotonic(), _STREAM_STALL_S):
+                    _act, _idx, _silent = stall_verdict(
+                        last_change,
+                        _time.monotonic(),
+                        _STREAM_STALL_S,
+                        [w.stream for w in watched],
+                        _SILENT_BEHIND_LIVE.get(addr, frozenset()),
+                    )
+                    if _act == "excuse":
+                        for _i in _idx:
+                            last_change[_i] = None  # its first row re-arms it, if one ever comes
+                        _named = ", ".join(sorted(_silent))
+                        _set(name, last_error=f"{_named} silent behind a live link — link kept")
+                        log.warning(
+                            "%s: %s silent for %.0fs again after a re-negotiation — keeping the link for the "
+                            "streams that still deliver",
+                            name,
+                            _named,
+                            _STREAM_STALL_S,
+                        )
+                    elif _act == "teardown":
+                        _SILENT_BEHIND_LIVE[addr] = _silent
                         stalled = True
                         _set(name, last_error=f"a stream silent {_STREAM_STALL_S:.0f}s — re-negotiating the streams")
                         log.warning(

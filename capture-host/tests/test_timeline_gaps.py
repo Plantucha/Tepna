@@ -750,7 +750,7 @@ def test_a_file_STILL_BEING_WRITTEN_at_a_daemon_restart_keeps_the_window_it_fill
     host stamps only `span_sec` is absent, so `… or f.get(None)` collapses instead. One file shape
     cannot tell all four apart — measured, not assumed."""
     d = _clamped_night(tmp_path, host_only=host_only)
-    data = [f for f in nightqc.scan_night(str(d)) if f["stream"] not in nightqc._SIDECAR_TAGS]
+    data = [f for f in nightqc.scan_night(str(d)) if not nightqc.is_sidecar(f["stream"])]
     assert data[0].get(clock) == 111.0, f"the fixture must state the extent via {clock}: {data[0]}"
 
     seams = sorted(nightqc.daemon_starts(str(d), offset_sec=None)["stamps"])
@@ -847,7 +847,7 @@ def test_a_night_whose_files_ALL_LACK_a_stamp_has_no_earliest_rather_than_crashi
     (d / "Polar_H10_02849638_ECG.txt").write_text(  # no 14-digit stamp anywhere in the name
         "Phone timestamp;sensor timestamp [ns];channel 0\n" + "\n".join(rows) + "\n"
     )
-    data = [f for f in nightqc.scan_night(str(d)) if f["stream"] not in nightqc._SIDECAR_TAGS]
+    data = [f for f in nightqc.scan_night(str(d)) if not nightqc.is_sidecar(f["stream"])]
     assert data and all(f["session"] is None for f in data), (
         f"the fixture must yield files with NO session, or the guard is not reached: {data}"
     )
@@ -1252,3 +1252,31 @@ def test_the_CLOCK_test_pools_at_EXACTLY_one_gap_WHERE_THE_PROBE_CANNOT(tmp_path
         "exactly one gap after midnight did not pool, so the inclusive bound is unobserved here"
     )
     assert out["t1"] - out["t0"] == 14.0, f"got a {out['t1'] - out['t0']} s window — 9 s means tonight alone"
+
+
+# ── mutate-diff on #4458: a sidecar in the previous folder is not samples ─────────────────────────────────────
+def test_the_probe_does_not_pool_a_previous_day_that_holds_only_a_sidecar(tmp_path):
+    """Yesterday holds a RUNS sidecar and no samples. Its last write at 01:30 does not make it contiguous."""
+    tonight = _small_hours_pair(tmp_path, prev_exists=False)
+    y = tmp_path / "2026-07-24"
+    y.mkdir(parents=True)
+    side = y / "Polar_H10_02849638_20260724235900_ACCRUNS.txt"
+    side.write_text("start_idx;end_idx;value\n0;40;1\n")
+    os.utime(side, (_floating_epoch("20260725013000") + _DECLARED["offset_sec"],) * 2)
+    out = timeline.build(str(tonight), _DEV, writer_offset=_DECLARED)
+    assert out["t1"] - out["t0"] == 9.0, f"got {out['t1'] - out['t0']} s, so a sidecar pooled the previous day"
+
+
+def test_a_clock_pooled_previous_day_brings_its_samples_not_its_sidecar(tmp_path):
+    """Tonight opens at midnight, so the clock test pools. Yesterday holds a 23:00 session and a RUNS
+    sidecar stamped 22:30, inside one session gap. The window opens at the samples, 23:00, not at 22:30."""
+    import datetime as _dt
+
+    y = _day(tmp_path, "2026-07-24", "230000")
+    side = y / "Polar_H10_02849638_20260724223000_ACCRUNS.txt"
+    side.write_text("start_idx;end_idx;value\n0;40;1\n")
+    os.utime(side, (_floating_epoch("20260724223100"),) * 2)
+    tonight = _day(tmp_path, "2026-07-25", "000000")
+    out = timeline.build(str(tonight), _DEV)
+    opened = _dt.datetime.fromtimestamp(out["t0"], _dt.UTC)
+    assert (opened.day, opened.hour, opened.minute) == (24, 23, 0), f"the window opens at {opened}, not at 23:00"

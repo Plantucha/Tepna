@@ -733,3 +733,61 @@ def test_the_autopull_arming_line_fires_when_NOT_ARMED(caplog):
 # Recorded here because I re-derived the question and the answer already existed one test file over,
 # which is the cost this repo keeps paying. The gate caught the contradiction: my line reddened THEIR
 # assertion, which is what a deliberate decision defended by a test is supposed to do.
+
+
+# ── stall_verdict: one re-negotiation per silence behind a live sibling, then keep the link ─────────────
+def test_stall_verdict_is_ok_while_nothing_is_stalled():
+    assert capture.stall_verdict([0.0, 0.0], 50.0, 90, ["acc", "ppg"], frozenset()) == ("ok", [], frozenset())
+
+
+def test_stall_verdict_is_ok_when_the_watchdog_is_off():
+    assert capture.stall_verdict([0.0, 0.0], 500.0, 0, ["acc", "ppg"], frozenset({"acc"}))[0] == "ok"
+
+
+def test_the_first_silence_behind_a_live_sibling_tears_down_and_remembers_it():
+    assert capture.stall_verdict([0.0, 80.0], 100.0, 90, ["acc", "ppg"], frozenset()) == (
+        "teardown",
+        [0],
+        frozenset({"acc"}),
+    )
+
+
+def test_the_same_silence_after_a_re_negotiation_keeps_the_link():
+    """MEASURED on the capture box 2026-11-08: the Verity ACKed START acc and sent no ACC row, so every
+    teardown came back to the same silence while the PPG flowed."""
+    assert capture.stall_verdict([0.0, 80.0], 100.0, 90, ["acc", "ppg"], frozenset({"acc"})) == (
+        "excuse",
+        [0],
+        frozenset({"acc"}),
+    )
+
+
+def test_a_stream_silent_at_exactly_the_grace_is_judged_not_excused_early():
+    assert capture.stall_verdict([10.0, 80.0], 100.0, 90, ["acc", "ppg"], frozenset({"acc"}))[0] == "excuse"
+    assert capture.stall_verdict([10.1, 80.0], 100.0, 90, ["acc", "ppg"], frozenset({"acc"}))[0] == "ok"
+
+
+def test_a_link_where_nothing_flows_tears_down_and_remembers_nothing():
+    """A link fault is not one dead stream: the memory must not excuse the next session."""
+    assert capture.stall_verdict([0.0, 0.0], 100.0, 90, ["acc", "ppg"], frozenset({"acc", "ppg"})) == (
+        "teardown",
+        [0, 1],
+        frozenset(),
+    )
+
+
+def test_a_newly_silent_stream_beside_an_old_one_earns_a_re_negotiation():
+    assert capture.stall_verdict([0.0, 0.0, 80.0], 100.0, 90, ["acc", "ppg", "hr"], frozenset({"acc"})) == (
+        "teardown",
+        [0, 1],
+        frozenset({"acc", "ppg"}),
+    )
+
+
+def test_an_excused_stream_is_not_a_live_sibling():
+    """None is a stream the loop already excused. It cannot vouch that the link still delivers."""
+    assert capture.stall_verdict([None, 0.0], 100.0, 90, ["acc", "ppg"], frozenset({"ppg"})) == (
+        "teardown",
+        [1],
+        frozenset(),
+    )
