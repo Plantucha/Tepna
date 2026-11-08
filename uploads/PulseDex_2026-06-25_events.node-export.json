@@ -92,6 +92,181 @@
       "sd2": 16.43
     }
   },
+  "timeseries": {
+    "epochs": [
+      {
+        "tMin": 0,
+        "hr": 66.7,
+        "hrStat": "rate-of-mean",
+        "rmssd": 44,
+        "sdnn": 22,
+        "pnn50": 0,
+        "meanRR": 900
+      },
+      {
+        "tMin": 5,
+        "hr": 66.7,
+        "hrStat": "rate-of-mean",
+        "rmssd": 44,
+        "sdnn": 22,
+        "pnn50": 0,
+        "meanRR": 899.9
+      },
+      {
+        "tMin": 10,
+        "hr": 66.7,
+        "hrStat": "rate-of-mean",
+        "rmssd": 44,
+        "sdnn": 22,
+        "pnn50": 0,
+        "meanRR": 900.1
+      },
+      {
+        "tMin": 15,
+        "hr": 66.7,
+        "hrStat": "rate-of-mean",
+        "rmssd": 44,
+        "sdnn": 22,
+        "pnn50": 0,
+        "meanRR": 900
+      },
+      {
+        "tMin": 20,
+        "hr": 66.7,
+        "hrStat": "rate-of-mean",
+        "rmssd": 44,
+        "sdnn": 22,
+        "pnn50": 0,
+        "meanRR": 899.9
+      },
+      {
+        "tMin": 25,
+        "hr": 66.7,
+        "hrStat": "rate-of-mean",
+        "rmssd": 44,
+        "sdnn": 22,
+        "pnn50": 0,
+        "meanRR": 900.1
+      },
+      {
+        "tMin": 30,
+        "hr": 70.6,
+        "hrStat": "rate-of-mean",
+        "rmssd": 10,
+        "sdnn": 5,
+        "pnn50": 0,
+        "meanRR": 850
+      },
+      {
+        "tMin": 35,
+        "hr": 66.7,
+        "hrStat": "rate-of-mean",
+        "rmssd": 44,
+        "sdnn": 22,
+        "pnn50": 0,
+        "meanRR": 900
+      },
+      {
+        "tMin": 40,
+        "hr": 66.7,
+        "hrStat": "rate-of-mean",
+        "rmssd": 44,
+        "sdnn": 22,
+        "pnn50": 0,
+        "meanRR": 900.1
+      },
+      {
+        "tMin": 45,
+        "hr": 66.7,
+        "hrStat": "rate-of-mean",
+        "rmssd": 44,
+        "sdnn": 22,
+        "pnn50": 0,
+        "meanRR": 899.9
+      },
+      {
+        "tMin": 50,
+        "hr": 66.7,
+        "hrStat": "rate-of-mean",
+        "rmssd": 44,
+        "sdnn": 22,
+        "pnn50": 0,
+        "meanRR": 900
+      },
+      {
+        "tMin": 55,
+        "hr": 66.7,
+        "hrStat": "rate-of-mean",
+        "rmssd": 44,
+        "sdnn": 22,
+        "pnn50": 0,
+        "meanRR": 900.1
+      },
+      {
+        "tMin": 60,
+        "hr": 66.7,
+        "hrStat": "rate-of-mean",
+        "rmssd": 44,
+        "sdnn": 22,
+        "pnn50": 0,
+        "meanRR": 899.9
+      },
+      {
+        "tMin": 65,
+        "hr": 66.7,
+        "hrStat": "rate-of-mean",
+        "rmssd": 44,
+        "sdnn": 22,
+        "pnn50": 0,
+        "meanRR": 900
+      },
+      {
+        "tMin": 70,
+        "hr": 66.7,
+        "hrStat": "rate-of-mean",
+        "rmssd": 44,
+        "sdnn": 22,
+        "pnn50": 0,
+        "meanRR": 900.1
+      },
+      {
+        "tMin": 75,
+        "hr": 66.7,
+        "hrStat": "rate-of-mean",
+        "rmssd": 44,
+        "sdnn": 22,
+        "pnn50": 0,
+        "meanRR": 899.9
+      },
+      {
+        "tMin": 80,
+        "hr": 66.7,
+        "hrStat": "rate-of-mean",
+        "rmssd": 44,
+        "sdnn": 22,
+        "pnn50": 0,
+        "meanRR": 900
+      },
+      {
+        "tMin": 85,
+        "hr": 66.7,
+        "hrStat": "rate-of-mean",
+        "rmssd": 44,
+        "sdnn": 22,
+        "pnn50": 0,
+        "meanRR": 900.1
+      },
+      {
+        "tMin": 90,
+        "hr": 66.7,
+        "hrStat": "rate-of-mean",
+        "rmssd": 44,
+        "sdnn": 22.1,
+        "pnn50": 0,
+        "meanRR": 899.8
+      }
+    ]
+  },
   "summary": {
     "stress": 48,
     "hrvScore": 52,
