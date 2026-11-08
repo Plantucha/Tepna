@@ -1820,6 +1820,7 @@ def make_app(
         return {
             "enabled": bool(a.get("enabled")) and bool(url),
             "configured": bool(url),
+            "board_configured": bool(a.get("board_webhook_url")),
             "hint": alerts.webhook_hint(url),
             # The addresses are personal data: a first letter and a domain each, never an address.
             "emails": [alerts.email_hint(e) for e in alerts.configured_emails(a.get("emails"))],
@@ -1880,6 +1881,14 @@ def make_app(
             )
         except alerts.AlertsError as e:
             return web.json_response({"ok": False, "error": str(e)}, status=400)
+        try:
+            board_url = (
+                alerts.validate_webhook_url(body["board_webhook_url"])
+                if "board_webhook_url" in body
+                else (a.get("board_webhook_url") or "")
+            )
+        except alerts.AlertsError as e:
+            return web.json_response({"ok": False, "error": str(e)}, status=400)
         emails, err = _edit_emails(body, alerts.configured_emails(a.get("emails")))
         if err is not None:
             return web.json_response({"ok": False, "error": err[1]}, status=err[0])
@@ -1892,13 +1901,19 @@ def make_app(
             a["webhook_url"] = url
         else:
             a.pop("webhook_url", None)
+        if board_url:
+            a["board_webhook_url"] = board_url
+        else:
+            a.pop("board_webhook_url", None)
         # Cannot be enabled with nothing to fire at — the same rule Notifier applies, kept in the stored
         # config too so a restart reads back exactly what the UI is showing.
         a["enabled"] = enabled and bool(url)
         if not _save():
             return web.json_response({"ok": False, "error": "config write failed (disk?)"}, status=500)
         if notifier is not None:
-            notifier.configure(url or None, a["enabled"])  # live — no restart, no dropped BLE links
+            notifier.configure(
+                url or None, a["enabled"], board_url=board_url or None
+            )  # live — no restart, no dropped BLE links
             notifier.emails = list(emails)
         return web.json_response({"ok": True, **_alerts_cfg()})
 
