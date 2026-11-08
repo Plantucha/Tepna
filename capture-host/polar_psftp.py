@@ -684,9 +684,23 @@ async def recording_control(
     return await _once()
 
 
-async def list_recordings(address: str, adapter: str | None = None) -> list[dict]:
+async def list_recordings_ex(address: str, adapter: str | None = None) -> tuple[list[dict], dict]:
     """Enumerate real recordings on the device: exercise sessions (/U/0/DATE/E/TIME/) and offline
-    recordings (/U/0/DATE/R/TIME/). Returns one dict per session with its files + total bytes."""
+    recordings (/U/0/DATE/R/TIME/). Returns (sessions, enumeration): one dict per session with its
+    files + total bytes, and a block saying whether that list is the WHOLE list.
+
+    §∅ THE ENUMERATION SAYS WHETHER IT IS COMPLETE. Two absences reached this function and died in
+    it. A directory whose listing came back CUT SHORT landed in `fs.truncated_dirs`, which nothing
+    here read; a path whose own listing RAISED arrives as a -1 size and was dropped by the
+    `size >= 0` filter below, taking every file under it with it. Either one shortens what this
+    function reports, and the bare `list[dict]` had no field in which a reader could tell a
+    short list from a device that holds fewer recordings. Measured on the injected tree (board
+    #4237, finding 10): a truncated root listing returned 1 session of 2 with no marker, and a root
+    listing that raised returned an empty list no different from an empty device.
+
+    `pull_recording` one function down already answers this for the files INSIDE a session — the §∅
+    block at its verdict reads "a positive verdict is published only over answered reads". This is
+    the same rule one level up, where the walk decides which sessions exist at all."""
 
     async def _once():
         async with PolarPsFtp(address, adapter) as fs:
@@ -707,11 +721,14 @@ async def list_recordings(address: str, adapter: str | None = None) -> list[dict
                         r[0],
                     )
             log.info("PS-FTP %s: walk complete — %d entries in %.1fs", address, len(rows), time.monotonic() - t0)
-            return rows
+            # The cut is read INSIDE the context manager, because `fs` does not outlive it. A retry
+            # replaces both halves together, so the counts always describe the attempt that answered.
+            return rows, list(fs.truncated_dirs)
 
-    rows = await _with_retry(_once, per_attempt_timeout=_LIST_ATTEMPT_TIMEOUT_S)
+    rows, truncated_dirs = await _with_retry(_once, per_attempt_timeout=_LIST_ATTEMPT_TIMEOUT_S)
     # a session dir = a time-folder (6 digits) directly under an E/ or R/ segment
     sessions: dict[str, dict] = {}
+    unreadable_dirs: list[str] = []
     for full, size, is_dir in rows:
         segs = [s for s in full.split("/") if s]
         # find a 6-digit time segment whose parent is E or R
@@ -722,9 +739,35 @@ async def list_recordings(address: str, adapter: str | None = None) -> list[dict
                 if not is_dir and size >= 0:
                     sessions[sess]["files"].append({"name": full[len(sess) :], "path": full, "size": size})
                     sessions[sess]["total_bytes"] += size
+                elif not is_dir:
+                    # A -1 size is a path whose own listing RAISED: `walk` yields it that way so a
+                    # caller can tell an unreadable subtree from an empty one. The `size >= 0` filter
+                    # dropped it, and with it every file under it, so the session reads smaller than
+                    # it is — and when the row IS the session directory, the session reads EMPTY.
+                    # `pull_recording` names the same rows `unreadable_dirs`; so does this.
+                    unreadable_dirs.append(full)
                 break
     out = sorted(sessions.values(), key=lambda s: (s.get("date") or "", s.get("time") or ""))
-    return out
+    enumeration = {
+        "truncated_dirs": truncated_dirs,
+        "unreadable_dirs": unreadable_dirs,
+        # ONE number a caller can branch on, beside the two lists that say WHICH absence it was.
+        "unlisted": len(truncated_dirs) + len(unreadable_dirs),
+        "complete": not truncated_dirs and not unreadable_dirs,
+    }
+    if not enumeration["complete"]:
+        # LOUD and unconditional, so a caller that never reads the second half of the tuple still
+        # leaves a trace. A silent short list is what let a four-entry listing stand as the device's
+        # filesystem for a week (VERITY-OFFLINE-VS-STREAMING, the probe's truncation verdict).
+        log.warning(
+            "PS-FTP %s: the recording list is INCOMPLETE — %d director(ies) came back cut short, "
+            "%d would not list at all. %d session(s) is a floor, not the device's total.",
+            address,
+            len(truncated_dirs),
+            len(unreadable_dirs),
+            len(out),
+        )
+    return out, enumeration
 
 
 async def pull_recording(
@@ -899,13 +942,37 @@ def main():
 
     async def run():
         if a.cmd == "list":
-            recs = await list_recordings(a.address, a.adapter)
-            print(json.dumps(recs, indent=2))
-            print(f"\n{len(recs)} recording(s).")
+            recs, enumeration = await list_recordings_ex(a.address, a.adapter)
+            print(json.dumps({"recordings": recs, "enumeration": enumeration}, indent=2))
+            if enumeration["complete"]:
+                print(f"\n{len(recs)} recording(s).")
+            else:
+                # The count alone read as the device's total. It is a floor whenever the walk was cut,
+                # so the line that carries the number carries the reason too.
+                print(
+                    f"\n{len(recs)} recording(s) — AT LEAST. "
+                    f"{len(enumeration['truncated_dirs'])} director(ies) came back cut short and "
+                    f"{len(enumeration['unreadable_dirs'])} would not list at all, "
+                    f"so this list is incomplete."
+                )
         # No `else`: the subparser is `required=True` with exactly these two names, so argparse has
         # already exited on anything else and the both-false arm cannot be reached.
         elif a.cmd == "pull":  # pragma: no branch
-            sessions = [a.session] if a.session else [r["path"] for r in await list_recordings(a.address, a.adapter)]
+            if a.session:
+                sessions = [a.session]
+            else:
+                # §∅ PULLING "ALL" OVER A CUT LIST BACKS UP A SUBSET. This arm is the one an operator
+                # runs by hand to empty a device before wiping it, so the stdout it reads has to say
+                # whether the set it just pulled was the whole set.
+                recs, enumeration = await list_recordings_ex(a.address, a.adapter)
+                sessions = [r["path"] for r in recs]
+                if not enumeration["complete"]:
+                    print(
+                        f"WARNING: this pull covers {len(sessions)} session(s) — AT LEAST. "
+                        f"{len(enumeration['truncated_dirs'])} director(ies) came back cut short and "
+                        f"{len(enumeration['unreadable_dirs'])} would not list at all, so the device "
+                        f"may hold recordings this pull never saw. Do not wipe it on this run."
+                    )
             for s in sessions:
                 out = os.path.join(a.out, s.strip("/").replace("/", "_"))
                 print(f"pulling {s} -> {out}")
