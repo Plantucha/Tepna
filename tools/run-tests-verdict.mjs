@@ -45,6 +45,25 @@ export function groupChild(g) {
   return { name: g.title, provenance: 'assertions', status, n: { pass, fail, skip } };
 }
 
+/* THE EXIT CODE OWED THE OBJECT ONE ARM — residue
+   2026-11-08-a-zero-assertion-group-reads-unknown-and-exits-0. The runner's tally counts a failing
+   ASSERTION, and a group gutted to an early return emits none, so a group that decided NOTHING read
+   UNKNOWN in the object and 0 at the shell. CRITERION above already says it: UNKNOWN is never green.
+   §3d warns against an exit code derived from the WHOLE object ("nobody 'fixes' a runner to exit on
+   the object and breaks every caller"), and this keeps the warning — every other status reaches the
+   shell exactly as before. A DEAD shard needs no arm here: `runForked` already exits 2 on one.
+   A child DECIDED when its status is PASS, FAIL or NOT_APPLICABLE. Anything else decided nothing:
+   UNKNOWN (a group with no assertions), or an undeclared NOT_RUN — which at the union is a shard that
+   selected zero groups, or one that died. Both NOT_RUN arms are held elsewhere today (`runForked`
+   exits 2 on a dead shard; a declared filter puts an empty shard in `declaredExcluded`, never here),
+   so naming them costs nothing and keeps the arm closed if either path moves.
+   Returns { name, status } per undecided child, so the caller can print both. */
+const DECIDED = new Set(['PASS', 'FAIL', 'NOT_APPLICABLE']);
+export function undecidedChildren(verdict) {
+  const kids = (verdict && verdict.result && verdict.result.children) || [];
+  return kids.filter((c) => c && !DECIDED.has(c.status)).map((c) => ({ name: c.name, status: c.status || 'NOT_RUN' }));
+}
+
 /* The object for ONE process — a full serial run, a --group= run, or one shard's run. */
 export function suiteVerdict({ groups, totalGroups, groupFilter = null, groupIndices = null, shard = null, skipViolations = [] }, { commit, commitReason, at } = {}) {
   const children = groups.map(groupChild);
@@ -277,6 +296,33 @@ function selftest() {
     AT
   );
   eq(fu3.status, 'UNKNOWN', '§3d control · the same shards with NO filter known to the union ⇒ UNKNOWN (an empty shard nobody declared)');
+  /* the exit arm — residue 2026-11-08-a-zero-assertion-group-reads-unknown-and-exits-0 */
+  eq(JSON.stringify(undecidedChildren(unk)), JSON.stringify([{ name: 'empty', status: 'UNKNOWN' }]), 'exit arm plant · an empty group is named as undecided, with its status');
+  eq(undecidedChildren(full).length, 0, 'exit arm control · a run whose groups all decided is undecided over nothing');
+  eq(
+    undecidedChildren(suiteVerdict({ groups: [G('a', 3), G('c', 0, 0, 2)], totalGroups: 2 }, AT)).length,
+    0,
+    'exit arm control · a DECLARED-skips-only group decided (NOT_APPLICABLE), so it is not undecided'
+  );
+  eq(undecidedChildren(red).length, 0, 'exit arm control · a FAILING group decided, and the assertion tally already reds it');
+  eq(
+    JSON.stringify(undecidedChildren(fu3)),
+    JSON.stringify([{ name: 'shard 2/2', status: 'NOT_RUN' }]),
+    'exit arm plant · a shard that selected ZERO groups under no filter is undecided at the union, named'
+  );
+  eq(JSON.stringify(undecidedChildren(fu2)), JSON.stringify([]), 'exit arm control · the SAME empty shard under a filter the union knows is a DECLARED exclusion, not an undecided child');
+  eq(
+    JSON.stringify(undecidedChildren(dead)),
+    JSON.stringify([{ name: 'shard 2/2', status: 'NOT_RUN' }]),
+    'exit arm plant · a DEAD shard decided nothing too (runForked exits 2 before this arm reads it)'
+  );
+  eq(undecidedChildren(null).length, 0, 'exit arm control · no object (--list) is not an undecided group');
+  eq(undecidedChildren({ status: 'UNKNOWN' }).length, 0, 'exit arm control · an object with no result names no child');
+  eq(
+    undecidedChildren({ result: { children: [{ name: 'x', status: 'SHORTFALL' }] } }).length,
+    1,
+    'exit arm plant · any status outside PASS/FAIL/NOT_APPLICABLE is undecided — the set is an allow-list, not a denylist'
+  );
   const sample = verdictSample();
   eq(sample.status === 'UNKNOWN' && sample.population.checked === 2 && sample.producedBy.commit === null, true, '§3d · --verdict-sample: three shards, one dead ⇒ UNKNOWN over 2/3, no commit');
   console.log(`all ${n} selftests passed`);
