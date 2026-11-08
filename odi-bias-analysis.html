@@ -3726,7 +3726,16 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
 
     // Fallback: if header detection failed or columns not found, try auto-detect from first data row
     var firstDataIdx = headerLine ? headerIdx + 1 : 0;
-    if (timeCol < 0 || spo2Col < 0 || hrCol < 0) {
+    /* 🔴 §∅ — A HEADER THAT NAMES ITS COLUMNS IS NEVER RE-READ BY POSITION (tracer audit #4706, TR-1).
+       The fallback below assigns time/SpO₂/HR/motion as `j, j+1, j+2, j+3`. It used to run whenever
+       ANY one of time/SpO₂/HR was unnamed, so a header `Time,Oxygen Level,Motion` (an O2Ring CSV with
+       no pulse column) re-read the Motion column as HR. A still night (motion 0) failed the 20–250 bpm
+       check on every row and parsed EMPTY; a restless one kept the rows whose motion count looked like
+       a pulse and published motion counts as HR. Measured on motion 0,58,3,200,0: 2 rows kept, HR 58
+       and 200, motion null. So the fallback now runs only when the header named NONE of the three:
+       a column the header leaves out is ABSENT (its cells read null), never borrowed from a neighbour. */
+    var _headerNamed = timeCol >= 0 || spo2Col >= 0 || hrCol >= 0;
+    if (!_headerNamed) {
       // Try rows until we find a valid one
       for (var i = firstDataIdx; i < Math.min(firstDataIdx + 5, lines.length); i++) {
         var parts = lines[i].trim().split(',');
@@ -3745,10 +3754,10 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       }
     }
 
-    // Last resort defaults
+    // Last resort defaults — only for an unrecognised layout; a named header keeps its absences.
     if (timeCol < 0) timeCol = 0;
-    if (spo2Col < 0) spo2Col = 1;
-    if (hrCol < 0) hrCol = 2;
+    if (!_headerNamed && spo2Col < 0) spo2Col = 1;
+    if (!_headerNamed && hrCol < 0) hrCol = 2;
 
     var rows = [];
     var _anchorMs = fileMeta ? _o2DateAnchorMs(fileMeta.fname, fileMeta.file) : null;
@@ -3769,8 +3778,8 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       var p = lines[i].trim().split(DELIM);
       if (p.length < 3) continue;
       var tStr = timeCol < p.length ? p[timeCol].trim() : '';
-      var sStr = spo2Col < p.length ? p[spo2Col].trim() : '';
-      var hStr = hrCol < p.length ? p[hrCol].trim() : '';
+      var sStr = spo2Col >= 0 && spo2Col < p.length ? p[spo2Col].trim() : '';
+      var hStr = hrCol >= 0 && hrCol < p.length ? p[hrCol].trim() : '';
       /* NO MOTION COLUMN IS ABSENCE, NOT STILLNESS (DEEP-AUDIT-V §2.3 F15 — bug class 3a).
          This defaulted to the STRING '0' whenever the file carried no Motion column (a 3-column
          oximeter CSV — a supported OxyDex input, `oxydex-spo2` detects it at 0.8) or the row was too

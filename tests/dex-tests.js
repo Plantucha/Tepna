@@ -45941,6 +45941,56 @@
       }
     });
 
+    /* TRACER AUDIT #4706 TR-1 — a header that names its columns is never re-read by position.
+       `Time,Oxygen Level,Motion` (an O2Ring CSV with no pulse column) used to fall through to the
+       positional fallback, which read Motion as HR: motion 0,58,3,200,0 kept 2 of 5 rows with HR 58
+       and 200. A column the header leaves out is absent; the rows and their other columns survive. */
+    group('OxyDex parseCSV keeps a named header and nulls the column it leaves out (TR-1)', 'oxydex-dsp · fabricated-absence · regression', function (T) {
+      var OM = env.OxyDex && (env.OxyDex._bare || env.OxyDex);
+      if (!(OM && typeof OM.parseCSV === 'function')) {
+        T.skip('OxyDex.parseCSV available', 'oxydex-dsp not wired in this lane');
+        return;
+      }
+      var st = ['20:21:36', '20:21:37', '20:21:38', '20:21:39', '20:21:40'];
+      var mot = [0, 58, 3, 200, 0];
+      var noHr =
+        'Time,Oxygen Level,Motion\n' +
+        st
+          .map(function (t, i) {
+            return t + ' 13/08/2026,95,' + mot[i];
+          })
+          .join('\n') +
+        '\n';
+      var r = OM.parseCSV(noHr, { fname: 'x_SPO2.csv' });
+      T.eq('no pulse column · every row survives', r.length, 5);
+      T.eq(
+        'no pulse column · HR is null on every row',
+        r.filter(function (x) {
+          return x.hr === null;
+        }).length,
+        5
+      );
+      T.eq(
+        'no pulse column · motion keeps its own column',
+        JSON.stringify(
+          r.map(function (x) {
+            return x.motion;
+          })
+        ),
+        JSON.stringify(mot)
+      );
+      var ctrl = OM.parseCSV('Time,Oxygen Level,Pulse Rate,Motion\n20:21:36 13/08/2026,96,52,0\n20:21:37 13/08/2026,95,53,4\n', { fname: 'x_SPO2.csv' });
+      T.eq(
+        'control · a full header still maps HR',
+        JSON.stringify(
+          ctrl.map(function (x) {
+            return [x.spo2, x.hr, x.motion];
+          })
+        ),
+        '[[96,52,0],[95,53,4]]'
+      );
+    });
+
     /* DEEP-AUDIT-V §2.3 — TWO MORE OxyDex FABRICATED ABSENCES, both bug class 3a, both found by
        asking the §3a question of an input rather than of a series: WHAT DOES THIS SAY WHEN THE
        SENSOR WAS NEVER THERE?
@@ -72322,6 +72372,135 @@
             _mxCall ? 'call site present, card revealed by the note' : 'no call site — the note reaches no reader'
           );
         }
+
+        /* ── MotionDex RENDER · EXECUTED, not read as text ────────────────────────────────────────
+           residue 2026-11-08-motiondex-render-is-executed-by-no-gate. This group's own label has
+           named motiondex-render since it was written, and the harness never executed the file: the
+           three legs above read its SOURCE TEXT, so a throw planted at the top of renderSummary left
+           every render group and the full lane green. The file is executed now, and these legs read
+           the module instead of the text — the call for its throw, the exported builders for the
+           values they surface. The first leg is FAIL-CLOSED: it reds where the group's skip guard
+           cannot see a MOTIONUI that failed to load, because the harness only prints a yellow line. */
+        T.ok(
+          'MOTIONUI is wired — motiondex-render.js is EXECUTED by this harness, not read as text',
+          !!env.MOTIONUI && typeof env.MOTIONUI.renderSummary === 'function' && typeof env.MOTIONUI.positionBar === 'function' && typeof env.MOTIONUI.effortPresentPct === 'function',
+          env.MOTIONUI ? Object.keys(env.MOTIONUI).join(',') : 'MOTIONUI undefined — the module did not execute'
+        );
+        var MXU = env.MOTIONUI || {};
+        /* effortPresentPct · the COVERAGE-HONEST denominator (∅ ABSENCE IS NULL). An epoch with no
+           chest ACC carries present:null and is EXCLUDED from the denominator; counting it as absent
+           would read 50 % here and understate every effort night the chest strap did not cover. */
+        T.eq(
+          'effortPresentPct · 2 present of 3 RECORDED epochs = 67 % (the present:null epoch leaves the denominator, so not 50 %)',
+          MXU.effortPresentPct ? MXU.effortPresentPct([{ present: true }, { present: false }, { present: null }, { present: true }]) : 'NO-FN',
+          67
+        );
+        T.eq(
+          'effortPresentPct · a series that recorded NOTHING is null, never 0 % (∅ absence is null)',
+          MXU.effortPresentPct ? MXU.effortPresentPct([{ present: null }, { present: null }]) : 'NO-FN',
+          null
+        );
+        T.eq('effortPresentPct · an absent series is null too', MXU.effortPresentPct ? MXU.effortPresentPct(null) : 'NO-FN', null);
+        /* positionBar · the dwell bar's segment ORDER and its zero handling. A posture at 0 dwell
+           draws no segment and no legend entry, so the bar cannot show a posture the night never held. */
+        var mxBar = MXU.positionBar ? MXU.positionBar({ supine: 0.5, left: 0.25, prone: 0, upright: 0.25 }) : '';
+        T.eq(
+          'positionBar · segments draw in POS_ORDER (supine → left → right → prone → upright), skipping every posture at 0 dwell',
+          (mxBar.match(/mx-seg mx-seg-([a-z]+)/g) || []).join('|'),
+          'mx-seg mx-seg-supine|mx-seg mx-seg-left|mx-seg mx-seg-upright'
+        );
+        T.ok('positionBar · 0.5 supine dwell reads "50%" in the segment title and the legend', (mxBar.match(/Supine 50%/g) || []).length === 2, mxBar.slice(0, 120));
+        T.eq('positionBar · no dwell track draws no bar at all (an empty string, not an empty bar)', MXU.positionBar ? MXU.positionBar(null) : 'NO-FN', '');
+        /* activitySpark / effortSpark · THREE states, never two (the file's own comment: "a gap is not
+           stillness"). A not-recording epoch is HATCHED; a MEASURED zero still draws its 8 % floor, so
+           the eye can tell an epoch the box never covered from one it covered and found still. */
+        var mxSpark = MXU.activitySpark
+          ? MXU.activitySpark([
+              { count: 10, moving: true },
+              { count: 0, moving: false },
+              { count: null, moving: null }
+            ])
+          : '';
+        T.eq(
+          'activitySpark · moving / still / NOT RECORDING draw three different classes, in order',
+          (mxSpark.match(/class="mx-sp( mx-sp-[a-z]+)?"/g) || []).join('|'),
+          'class="mx-sp"|class="mx-sp mx-sp-off"|class="mx-sp mx-sp-nul"'
+        );
+        T.ok(
+          'activitySpark · a measured count of 0 keeps the 8 % floor while the not-recording epoch draws full height',
+          /height:8%/.test(mxSpark) && /mx-sp-nul" style="height:100%/.test(mxSpark),
+          mxSpark.slice(0, 80)
+        );
+        T.ok('activitySpark · the not-recording epoch says "not recording", never "still"', /title="not recording"/.test(mxSpark) && (mxSpark.match(/still/g) || []).length === 1, mxSpark.slice(-90));
+        var mxEff = MXU.effortSpark
+          ? MXU.effortSpark([
+              { amp: 0.01, present: true },
+              { amp: 0, present: false },
+              { amp: null, present: null }
+            ])
+          : '';
+        T.ok('effortSpark · the no-coverage epoch is hatched and says "no chest ACC", not "effort absent"', /mx-sp-nul/.test(mxEff) && /title="no chest ACC"/.test(mxEff), mxEff.slice(-90));
+        /* renderSummary · THE CALL. This is the leg Muse's planted throw escaped: nothing invoked the
+           function, so its body could not fail. getElementById returns null in this realm, so every
+           fill() no-ops and the assertion is about the COMPUTATION — the KPI grid, the four cards and
+           _mxProvenanceNote's refusal states, which no exported builder reaches. */
+        var mxCall = function (sm) {
+          try {
+            if (!MXU.renderSummary) return 'NO-FN';
+            MXU.renderSummary(sm);
+            return 'ok';
+          } catch (e) {
+            return 'threw: ' + (e && e.message);
+          }
+        };
+        T.eq(
+          'renderSummary · a full summary paints every section without throwing (a throw at the top of it passed every lane before this leg)',
+          mxCall({
+            streams: { acc: 1200, gyro: 400, mag: 0, chestAcc: 600 },
+            durSec: 28800,
+            position: { hasData: true, supineFrac: 0.42, dwellFrac: { supine: 0.42, left: 0.3, right: 0.28 }, track: new Array(960) },
+            activity: {
+              hasData: true,
+              totalCounts: 812.5,
+              movementIndex: 0.85,
+              immobileFrac: 0.73,
+              coveredEpochs: 940,
+              epochs: [
+                { count: 10, moving: true },
+                { count: null, moving: null }
+              ],
+              blankedEpochs: 20
+            },
+            effort: {
+              hasData: true,
+              rateBrpm: 14.2,
+              nBreaths: 3400,
+              amplitudeG: 0.0123,
+              series: [
+                { amp: 0.01, present: true },
+                { amp: null, present: null }
+              ]
+            },
+            sqi: { conf: 0.91, flags: [] },
+            seams: { seams: 2, placed: 1, reason: 'arrival-gap' },
+            clockResyncs: 1
+          }),
+          'ok'
+        );
+        T.eq(
+          'renderSummary · a summary whose blocks REFUSED still paints, so _mxProvenanceNote states each reason instead of throwing',
+          mxCall({
+            streams: { acc: 1200, chestAcc: 0 },
+            durSec: 600,
+            position: { hasData: false, reason: 'unit-unknown' },
+            activity: { hasData: false, reason: 'unit-unknown', immobileFracReason: 'clock-seam' },
+            effort: { hasData: false },
+            sqi: {}
+          }),
+          'ok'
+        );
+        T.eq('renderSummary · no IMU samples at all takes the empty-state path without throwing', mxCall({ streams: { acc: 0, chestAcc: 0 } }), 'ok');
+        T.eq('renderSummary · an absent summary is the same refusal, never a crash', mxCall(null), 'ok');
 
         // ── OxyDex mean-SpO₂ KPI color: ok≥95 / warn≥92 / bad (HIGH; a lowered cut paints a hypoxic night green) ──
         var oxKpiClass = function (mean) {
