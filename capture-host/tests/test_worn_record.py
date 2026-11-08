@@ -126,6 +126,7 @@ def test_a_semicolon_or_newline_in_a_reason_cannot_split_the_row(tmp_path):
     )
     (row,) = _rows(str(tmp_path))
     assert len(row) == 7 and row[4] == "not worn, because reasons" and row[6] == "note=a,b"
+    assert row[3] == "0", f"this call reported NOT-WORN, which is `0` and never `1`: {row[3]!r}"
 
 
 def test_no_root_and_an_unwritable_root_return_False_and_never_raise(tmp_path):

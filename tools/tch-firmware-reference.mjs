@@ -951,7 +951,12 @@ function selftest() {
 }
 
 /* ── corpus side: the page's own worker functions in a headless realm ─────────────────────────── */
-function loadRealm(axis, refAxis) {
+/* EXPORTED because a second realm list is how the Verity corner goes null. The load list above is
+   the one place that tracks what `sensor-trio-worker.js` dereferences, and `consensus-dissent.js`
+   proved the cost of a copy that fell one module behind it: every night threw, the catch swallowed
+   the throw, and 114 nights read as a corpus with no Verity data. `tools/stitch-31d-run.mjs` reads
+   the same realm rather than carrying its own list. */
+export function loadRealm(axis, refAxis) {
   const DexBuild = req(path.join(ROOT, 'tools', 'build-core.js'));
   const ctx = vm.createContext({
     console: { log() {}, warn() {}, error() {} },

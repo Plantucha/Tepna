@@ -355,7 +355,7 @@
     'p-envelope': 'pressureEnvIqr',
     'epr delta': 'eprDelta',
     epr: 'eprDelta',
-    'epr Δ': 'eprDelta',
+    'epr δ': 'eprDelta',
     '95th-%ile epap': 'epap95',
     '95th-percentile epap': 'epap95',
     epap95: 'epap95',
