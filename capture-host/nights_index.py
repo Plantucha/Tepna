@@ -27,6 +27,7 @@ import re
 import stat
 import time
 
+import cpap_edf_writer
 import nightqc
 
 # analyzer -> (input globs relative to the night dir — `{ymd}` for the CPAP trees keyed by date —, the
@@ -636,6 +637,16 @@ def _scope_parts(night_dir: str, scope: dict | None) -> tuple[list[str], object]
     return [night_dir], None
 
 
+def _folder_days(ymd: str) -> list[str]:
+    """`[ymd, the day after]`, the two DATALOG folders that can hold sleep day `ymd`. A name that is not
+    a date reads its own folder alone."""
+    try:
+        nxt = _dt.datetime.strptime(ymd, "%Y%m%d").date() + _dt.timedelta(days=1)
+    except ValueError:
+        return [ymd]
+    return [ymd, nxt.strftime("%Y%m%d")]
+
+
 def _expand(root: str, night_dir: str, pattern: str, scope: dict | None = None) -> list[str]:
     ymd = os.path.basename(night_dir).replace("-", "")
     if "/" in pattern:
@@ -643,7 +654,17 @@ def _expand(root: str, night_dir: str, pattern: str, scope: dict | None = None) 
         # session stamp at all (`session_epoch` returns None for them and says why), so there is no start
         # to judge membership by, and globbing them across a second date would file one day's tree under
         # another night on the strength of a guess.
-        return sorted(p for p in glob.glob(os.path.join(root, pattern.format(ymd=ymd))) if os.path.isfile(p))
+        #
+        # 🔴 EXCEPT THAT THE FILE NAME CARRIES THE SESSION START, and the folder can be one day late. The
+        # stream writer keyed its folder by calendar date until 2026-11-07, so a 01:00 session sits in
+        # folder D+1. Both folders are read, and each file goes to the sleep day its own stamp names
+        # (`cpap_edf_writer.datalog_night`). A file with no stamp stays with its folder.
+        return sorted(
+            p
+            for day in _folder_days(ymd)
+            for p in glob.glob(os.path.join(root, pattern.format(ymd=day)))
+            if os.path.isfile(p) and (cpap_edf_writer.datalog_night(p) or day) == ymd
+        )
     dirs, band = _scope_parts(night_dir, scope)
     return _expand_recording(dirs, band, pattern)
 
@@ -1063,11 +1084,16 @@ def _recordings(
     stampless: set[str] = set()
     for pat in ("cpap/DATALOG/????????", "cpap-ble/DATALOG/????????"):
         for d in glob.glob(os.path.join(captures, pat)):
-            ymd = os.path.basename(d)
-            if os.path.isdir(d) and any(os.path.isfile(f) for f in glob.glob(os.path.join(d, "*"))):
-                # `ymd[6:]`, not `[6:8]`: the glob is `????????` so the two are identical and `[6:9]`
-                # survived the gate. An end index that cannot differ is a mutant site for nothing.
-                stampless.add(f"{ymd[:4]}-{ymd[4:6]}-{ymd[6:]}")
+            folder = os.path.basename(d)
+            # EACH FILE NAMES ITS OWN SLEEP DAY. A 01:00 session the stream filed in folder D+1 made a
+            # CPAP-only phantom row for D+1 (owner, 2026-11-07: "cpap is on wrong day"). `_expand` reads
+            # the same key, so the row and its files agree.
+            for f in glob.glob(os.path.join(d, "*")):
+                if os.path.isfile(f):
+                    ymd = cpap_edf_writer.datalog_night(f) or folder
+                    # `ymd[6:]`, not `[6:8]`: a key is 8 digits, so the two are identical and `[6:9]`
+                    # survived the gate. An end index that cannot differ is a mutant site for nothing.
+                    stampless.add(f"{ymd[:4]}-{ymd[4:6]}-{ymd[6:]}")
     for t in sorted(spans):
         # NO `if band is None` GUARD — `nightqc.night_band` has no such return. Measured: for a stamp
         # before 18:00 it anchors to the PREVIOUS evening, so every plausible epoch gets a band and the

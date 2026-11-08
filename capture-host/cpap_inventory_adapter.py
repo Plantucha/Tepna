@@ -30,6 +30,7 @@ from __future__ import annotations
 import json
 import os
 
+import cpap_edf_writer
 import cpap_inventory
 
 # The QC-SUMMARY key and the journal file, both owned by the oracle rather than invented here.
@@ -88,9 +89,16 @@ def envelope_nights(envelope_root: str) -> tuple[list[str], bool]:
     nights = _listdir(os.path.join(envelope_root, "DATALOG"))
     if nights is None:
         return [], False
-    return [
-        n for n in nights if any(e.endswith(".edf") for e in _listdir(os.path.join(envelope_root, "DATALOG", n)) or [])
-    ], True
+    # Each EDF names its own sleep day (`cpap_edf_writer.datalog_night`). Before 2026-11-07 the stream
+    # filed a 01:00 session in folder D+1, and the inventory listed D+1 as a stream night with no card
+    # night beside it. A file with no stamp keeps its folder.
+    got = {
+        cpap_edf_writer.datalog_night(e) or n
+        for n in nights
+        for e in _listdir(os.path.join(envelope_root, "DATALOG", n)) or []
+        if e.endswith(".edf")
+    }
+    return sorted(got), True
 
 
 def decoded_spool_days(spool_root: str) -> list[str] | None:

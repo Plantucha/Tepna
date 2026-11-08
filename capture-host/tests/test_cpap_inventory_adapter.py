@@ -471,3 +471,16 @@ def test_a_bus_only_box_reconciles_without_manufacturing_envelope_findings(tmp_p
     )
     assert [x["state"] for x in r["records"]] == ["NOT-DIAGNOSABLE"]
     assert r["records"][0]["unconsulted"] == ["envelopes"]
+
+
+def test_a_stream_night_is_the_sleep_day_its_edf_names_not_its_folder(tmp_path):
+    """Measured on the capture box 2026-11-07: the stream filed a 01:00 session in folder D+1, and the
+    inventory listed D+1 as a stream night with no card night. A name with no stamp keeps its folder."""
+    _, env = _tree(tmp_path, datalog=[], envelopes=["20261105"])
+    late = os.path.join(env, "DATALOG", "20261107")
+    os.makedirs(late)
+    open(os.path.join(late, "20261107_010018_BRP.edf"), "w").close()
+    plain = os.path.join(env, "DATALOG", "20261108")
+    os.makedirs(plain)
+    open(os.path.join(plain, "session.edf"), "w").close()
+    assert ad.envelope_nights(env) == (["20261105", "20261106", "20261108"], True)
