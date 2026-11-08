@@ -93,8 +93,10 @@ a routing bug once and both tools inherit it.
 - **Adapter layer (CORE)** — `signal-frame.js` (the `SignalFrame` type + `validateFrame`),
   `signal-spec.js` (signal-type registry: rr/ecg/spo2/cgm/ppg/hrv/cpap/…), `signal-adapters.js`
   (`registerAdapter` / `detect` / `route`), and `adapters/*.js` (one file per vendor format —
-  `polar-rr`, `coospo-rr`, `wahoo-rr`, `polar-h10-ecg`, `polar-sense-ppg`, `libre-cgm`, `oxydex-spo2`,
-  `welltory-summary`). `signal-orchestrate.js` drives a frame through a node's headless `compute()`.
+  `polar-rr`, `coospo-rr`, `wahoo-rr`, `polar-h10-ecg`, `polar-sense-ppg`, `polar-acc`, `o2ring-ppg`,
+  `o2ring-ppg2w`, `libre-cgm`, `oxydex-spo2`, `resmed-edf`, `welltory-summary`). The suite reds when a
+  file in `adapters/` is absent from that list. `signal-orchestrate.js` drives a frame through a node's
+  headless `compute()`.
 - **Kernel** — `kernel-constants.js` → `DexKernel.HASH` (content hash of shared physiology constants,
   stamped into exports to catch cross-deployment drift). Loaded first everywhere.
 - **Evidence badges** — `metric-registry.js` (injects badge CSS; `BADGE_CSS`) + `dex-badges.css`
