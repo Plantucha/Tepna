@@ -4303,6 +4303,123 @@ def test_the_device_that_defines_the_session_end_gets_a_boundary_but_no_reason(t
     assert h["worn_end_at"] == "2026-09-24T04:21:47", "and the wear boundary is still published"
 
 
+# ── THE OFF-BODY TAIL — published as its own measurement, and the span is NOT cut at the doff ──────
+def test_the_OFF_BODY_TAIL_is_published_and_the_SPAN_IS_NOT_CUT_at_the_doff(tmp_path, _tz):
+    """🔴 THE DECISION THIS PINS (board #4724): the tail is published, and the span is NOT cut.
+
+    The 09-23 H10 came off at 04:21:47 and its file ran to 04:49:58 — a tail of 1691 s, the 28 min
+    that held 2,766 of the night's 2,767 "PVCs" (#3001). A span cut at the doff leaves 18398 s against
+    the SAME 40179 rows, so `coverage` would read 1.0919: the coverage-above-one defect #4625 fixed,
+    manufactured on every night whose doff the audit names. The device sent those rows, so the span
+    stays the capture extent and the tail reads beside it.
+
+    ⚠️ The `_tz` parametrization is the arithmetic itself, not decoration. `device_end` is an mtime and
+    `worn_end_at` is a civil stamp, so the subtraction goes through the night's writer offset. A
+    reader's-zone parse reads 1691 in CI and 16091 on the rig, for the same night."""
+    s = nightqc.summarize(_night_0923(tmp_path), _DEV_0923, _wear("H10", "2026-09-24T04:21:47", "doff"))
+    by = {d["name"]: d for d in s["devices"]}
+    assert by["H10"]["off_body_tail_s"] == 1691, "the same number in every zone the fixture runs in"
+    assert by["H10"]["off_body_tail_reason"] is None
+    assert by["H10"]["stopped_early_s"] == 0, "and the span is untouched: it still ends the session"
+    assert by["H10"]["coverage"] == {"ecg": 1.0}, "where the cut this rejects would read 1.0919"
+    assert by["H10"]["device_end"] == by["H10"]["session_end"], "this device's last write ENDS the session"
+    assert by["Verity"]["device_end"] < by["Verity"]["session_end"], "and one that stopped early sits below"
+    # §∅: a device the audit says nothing about carries a REASON, never a tail of 0.
+    assert by["Ring"]["off_body_tail_s"] is None
+    assert by["Ring"]["off_body_tail_reason"] == "the audit names no wear end for this device"
+
+
+def test_a_wear_end_that_is_not_a_DOFF_measures_no_tail(tmp_path, _tz):
+    """`solid_night_inputs.worn_interval` draws the same line (§3.3): a doff and a loss look alike at
+    the stream, so a tail measured from either names off-body time the audit could not establish. The
+    reason carries the end it refused, so a reader sees WHICH one."""
+    s = nightqc.summarize(
+        _night_0923(tmp_path), _DEV_0923, _wear("H10", "2026-09-24T04:21:47", "quiet-end-unclassified")
+    )
+    h = next(d for d in s["devices"] if d["name"] == "H10")
+    assert h["off_body_tail_s"] is None
+    assert h["off_body_tail_reason"] == (
+        "the wear end is `quiet-end-unclassified`, which a doff and a loss share (§3.3)"
+    )
+
+
+@pytest.mark.parametrize(
+    ("dev", "off", "reason"),
+    [
+        (
+            {"name": "H10", "device_end": None},
+            0.0,
+            "this device has no numeric last write to measure a tail against",
+        ),
+        (
+            {"name": "H10", "device_end": "1790225398"},
+            0.0,
+            "this device has no numeric last write to measure a tail against",
+        ),
+        (
+            {"name": "H10", "device_end": 1790225398},
+            None,
+            "the night's writer offset was not recovered, so a civil wear end cannot meet an mtime",
+        ),
+    ],
+    ids=["no-file", "non-numeric-end", "no-offset"],
+)
+def test_the_tail_refuses_with_a_NAMED_reason_rather_than_reading_zero(dev, off, reason):
+    """THREE WAYS THE TAIL CANNOT BE PLACED, and none of them is 0 s off the body (§∅). A device with
+    no file has no last write. A summary a reader loaded from JSON may hold a last write that is not a
+    number, which is just as absent. A night whose writer offset was not recovered has no number that
+    raises a civil stamp into the mtime frame, so the two terms never meet."""
+    got = nightqc.attach_wear(
+        {"devices": [dict(dev)], "writer_offset": {"offset_sec": off}},
+        _wear("H10", "2026-09-24T04:21:47", "doff"),
+    )
+    assert got["devices"][0]["off_body_tail_s"] is None
+    assert got["devices"][0]["off_body_tail_reason"] == reason
+
+
+def test_an_unusable_wear_stamp_reads_null_and_a_BACKWARDS_tail_reads_zero():
+    """The two edges of the arithmetic. An unparseable stamp is absence, so it reads null with its own
+    reason rather than a guess. A device whose last write PRECEDES its own wear end stopped before it
+    came off — `stopped_early_s` is the quantity for that — so the tail floors at 0 and never runs
+    backwards. A negative tail would read as off-body time before the removal."""
+    bad = nightqc.attach_wear(
+        {"devices": [{"name": "H10", "device_end": 1790225398}], "writer_offset": {"offset_sec": 0.0}},
+        _wear("H10", "not a stamp", "doff"),
+    )["devices"][0]
+    assert bad["off_body_tail_s"] is None
+    assert bad["off_body_tail_reason"] == "the wear end `not a stamp` is not an ISO-8601 civil stamp"
+    early = nightqc.attach_wear(
+        {"devices": [{"name": "H10", "device_end": 1790225398 - 600}], "writer_offset": {"offset_sec": 0.0}},
+        _wear("H10", "2026-09-24T04:49:58", "doff"),
+    )["devices"][0]
+    assert early["off_body_tail_s"] == 0, "floored, never negative"
+    assert early["off_body_tail_reason"] is None
+
+
+def test_an_EMPTY_wear_stamp_reads_THE_ABSENT_END_rather_than_a_bad_stamp():
+    """An `at` of `""` is the audit saying nothing, so it takes the absent-end refusal and never
+    reaches the parser. A guard that rejected only a non-string would carry the empty stamp into
+    `fromisoformat` and blame the stamp, where the fault is that no end was recorded at all."""
+    got = nightqc.attach_wear(
+        {"devices": [{"name": "H10", "device_end": 1790225398}], "writer_offset": {"offset_sec": 0.0}},
+        _wear("H10", "", "doff"),
+    )["devices"][0]
+    assert got["off_body_tail_s"] is None
+    assert got["off_body_tail_reason"] == "the audit names no wear end for this device"
+
+
+def test_the_WRITER_OFFSET_RAISES_the_civil_wear_end_into_the_mtime_frame():
+    """🔴 THE SIGN IS THE WHOLE FRAME CORRECTION. `recover_writer_offset` measures the number that
+    raises a floating civil stamp into the mtime frame, so the offset is ADDED to the wear end before
+    the subtraction. These two stamps sit 1691 s apart inside one frame. At an offset of 600 s the tail
+    reads 1091 s, and the opposite sign reads 2291 s — ten minutes of off-body time that never ran."""
+    got = nightqc.attach_wear(
+        {"devices": [{"name": "H10", "device_end": 1790225398}], "writer_offset": {"offset_sec": 600.0}},
+        _wear("H10", "2026-09-24T04:21:47", "doff"),
+    )["devices"][0]
+    assert got["off_body_tail_s"] == 1091, "the offset raises the wear end; the other sign reads 2291"
+
+
 def test_an_unclassified_quiet_end_travels_verbatim(tmp_path, _tz):
     """`quiet-end-unclassified` is the wear unit saying it COULD NOT TELL. Shortening or mapping it here
     would turn "I do not know" into a verdict, so it passes through exactly as written."""
