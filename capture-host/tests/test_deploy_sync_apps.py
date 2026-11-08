@@ -386,6 +386,39 @@ def test_the_deploy_runs_the_check():
     assert "check-system-files.sh" in body
 
 
+def test_the_deploy_installs_no_udev_rule_of_its_own():
+    """Two owners for one udev rule is how the LOSING copy survived (found 2026-11-07, board #4252).
+
+    Step 2c installs the tracked systemd/99-tepna-btdongle.rules. Step 5 then wrote its own copy as
+    50-tepna-btdongle.rules, the prefix the tracked file's header says loses to Ubuntu's
+    60-autosuspend.rules — and step 2c ran under `|| true`, so a failed install left the losing file
+    as the only rule on the box and the dongle autosuspended again. That is the exact condition that
+    cost about 110 minutes of capture on 2026-07-23."""
+    body = open(os.path.join(HERE, "deploy", "deploy-vigil.sh"), encoding="utf-8").read()
+    assert "tee /etc/udev/rules.d/" not in body, (
+        "deploy-vigil.sh must not write a udev rule — check-system-files.sh installs the tracked one"
+    )
+    tracked = set(os.listdir(os.path.join(HERE, "systemd")))
+    for name in sorted(set(re.findall(r"/etc/udev/rules\.d/(\S+\.rules)", body))):
+        if name in tracked:
+            continue
+        assert f"rm -f /etc/udev/rules.d/{name}" in body, (
+            f"deploy-vigil.sh names {name}, which the repo does not track. It may only DELETE such a "
+            f"file, never install one."
+        )
+
+
+def test_the_deploy_swallows_no_failed_etc_install():
+    """`|| true` on step 2c turned a failed /etc install into a silent success, which is what let a
+    stale or losing udev rule stand with the deploy reporting nothing."""
+    lines = open(os.path.join(HERE, "deploy", "deploy-vigil.sh"), encoding="utf-8").read().splitlines()
+    hit = [i for i, ln in enumerate(lines) if "check-system-files.sh" in ln and "--install" in ln]
+    assert len(hit) == 1, f"expected one /etc install call, found {len(hit)}"
+    call = "\n".join(lines[hit[0] : hit[0] + 2])
+    assert "|| true" not in call, "a failed /etc install must be reported, not swallowed"
+    assert "FAILED" in call, "the failure branch must say so loudly"
+
+
 # ══ THE CHECKER WAS WATCHING THE WRONG FILE (2026-07-26, same day it shipped) ══════════════════════
 # It compared `systemd/tepna-capture.service` and reported "✓ same but for site keys". The box installs
 # `deploy/tepna-capture.service` — a DIFFERENT file that is byte-identical to /etc. The site-key
