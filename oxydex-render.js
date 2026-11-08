@@ -2378,10 +2378,13 @@ function setGCSmooth(k) {
 function nrKpi(label, val, cls) {
   return '<div class="nr-kpi"><div class="nr-kpi-label">' + evBadge(label) + label + '</div><div class="nr-kpi-val ' + stsCls(cls) + '">' + val + '</div></div>';
 }
-function nrChip(label, val, cls) {
+function nrChip(label, val, cls, title) {
   // metric chips carry an evidence dot BEFORE the label; flag/alert chips (empty val) stay bare
   var b = val !== '' && val != null && typeof evBadge === 'function' ? evBadge(label) : '';
-  return '<span class="nr-chip ' + stsCls(cls) + '">' + b + '<span class="chip-label">' + label + '</span> ' + val + '</span>';
+  /* §∅: `title` is optional and LAST, so every existing call is unchanged. It carries the
+     REASON a refused metric gives for its em-dash, which a bare — cannot say on its own. */
+  var t = title ? ' title="' + String(title).replace(/"/g, '&quot;') + '"' : '';
+  return '<span class="nr-chip ' + stsCls(cls) + '"' + t + '>' + b + '<span class="chip-label">' + label + '</span> ' + val + '</span>';
 }
 function nightRowInner(n) {
   var s = n.stats || {};
@@ -2437,7 +2440,19 @@ function nightRowInner(n) {
   // same night could read green on the chip and warn on the card beside it. {5,15,30} is
   // canonical: on the corrected 37-night scale (0.24–17.6 %-min/hr) it separates 26 good /
   // 10 warn / 1 high, whereas {10,25} collapses the entire corpus into green-or-warn.
-  if (n.desSev) chipsArr.push(nrChip('DesSev', n.desSev.desSev, n.desSev.desSev < 5 ? 'g' : n.desSev.desSev < 15 ? 'w' : 'r'));
+  /* §∅: `null < 5` is TRUE, so a REFUSED desaturation severity painted the reassuring GREEN
+     band — the one answer the night had not earned. `computeDesSev` names its refusal
+     (`record-too-short`, `no-duration`, `event-seconds-absent`), so the chip shows the em-dash
+     under a neutral class and carries that name. A MEASURED 0 keeps its number and its green. */
+  if (n.desSev)
+    chipsArr.push(
+      nrChip(
+        'DesSev',
+        n.desSev.desSev != null ? n.desSev.desSev : '—',
+        n.desSev.desSev == null ? '' : n.desSev.desSev < 5 ? 'g' : n.desSev.desSev < 15 ? 'w' : 'r',
+        n.desSev.desSev == null ? 'refused · ' + (n.desSev.desSevReason || 'reason-absent') : ''
+      )
+    );
   // Research-tier chips
   if (n.dfa) chipsArr.push(nrChip('DFA', n.dfa.alpha1, n.dfa.alpha1 > 0.85 ? 'g' : n.dfa.alpha1 > 0.6 ? 'w' : 'r'));
   if (n.ssi) chipsArr.push(nrChip('SSI', n.ssi.ssi, n.ssi.ssi < 0.5 ? 'g' : n.ssi.ssi < 1.5 ? 'w' : 'r'));
@@ -3588,7 +3603,16 @@ function nightDetail(n, idx) {
       'research'
     );
   }
-  if (n.desSev) html += metric('DesSev', n.desSev.desSev, '%-min/hr (Kulkas)', n.desSev.desSev < 5 ? 'good' : n.desSev.desSev < 15 ? 'warn' : 'bad', 'research');
+  /* §∅: the twin of the chip above — `null < 5` graded a refusal "good". The tile states the
+     refusal where the unit would go, so the reason is on the surface and not only in the export. */
+  if (n.desSev)
+    html += metric(
+      'DesSev',
+      n.desSev.desSev != null ? n.desSev.desSev : '—',
+      n.desSev.desSev != null ? '%-min/hr (Kulkas)' : 'refused · ' + (n.desSev.desSevReason || 'reason-absent'),
+      n.desSev.desSev == null ? '' : n.desSev.desSev < 5 ? 'good' : n.desSev.desSev < 15 ? 'warn' : 'bad',
+      'research'
+    );
   html += '</div>';
   if (n.ctPrec) {
     var cp2 = n.ctPrec;
