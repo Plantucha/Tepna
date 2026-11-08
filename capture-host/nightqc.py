@@ -553,6 +553,53 @@ def _worn_end_at(wear: dict | None, name: object) -> str | None:
     return at if isinstance(at, str) and at else None
 
 
+def _off_body_tail(
+    wear: dict | None, name: object, device_end: object, offset_sec: float | None
+) -> tuple[int | None, str | None]:
+    """`(seconds, None)` or `(None, reason)` — how long this device kept writing after it came off.
+
+    🔴 THE SPAN IS NOT CUT, AND THAT IS THE DECISION THIS HELPER CARRIES (board #4724). Measured
+    2026-11-08 on the 09-23 fixture geometry: the H10 ends the session, its doff stands 1691 s before
+    its last write, and `span_sec` reads 20089 over 40179 rows at `coverage` 1.0. A span cut at the
+    doff leaves 18398 s against the SAME 40179 rows, so coverage reads 1.0919 — the coverage-above-one
+    class #4625 fixed, manufactured on every night whose doff the audit does name. The device sent
+    those rows, so the span keeps them, and the tail stands beside it.
+
+    ⚠️ THE TWO TERMS ARE IN DIFFERENT FRAMES, which is why `offset_sec` is an argument and not a
+    convenience. `device_end` is an `mtime` — an absolute instant. `worn_end_at` is a CIVIL stamp,
+    because every `worn_end` in `loss_audit` comes from a data row or a filename and never from an
+    mtime. Subtracting the one from the other needs the writer's UTC offset, and `recover_writer_offset`
+    is the one place that offset comes from (§🔒 §1, and `_session_of`'s own frame correction). Reading
+    the civil stamp through the READER's zone instead puts the rig 4 h from CI on the same night.
+
+    §∅: the tail is a measurement, or it is `null` with a named reason, never 0. A night whose offset
+    was not recovered has no tail of 0 s. It has a tail nobody could place, and a reader must read the
+    two apart. FLOORED AT ZERO: a device whose last write precedes its own wear end stopped before it
+    came off, which `stopped_early_s` already reports.
+    """
+    # `or {}` rather than the `if end else` the two readers above use: this function reads a SECOND
+    # field off the same block, and mypy cannot carry a narrowing of `end` across the `at` guard.
+    end = _worn_end(wear, name) or {}
+    at = end.get("at")
+    if not isinstance(at, str) or not at:
+        return None, "the audit names no wear end for this device"
+    reason = end.get("reason")
+    if reason != "doff":
+        return None, f"the wear end is `{reason}`, which a doff and a loss share (§3.3)"
+    # `object` rather than `float | None`: this field arrives from a summary dict, which a reader may
+    # have loaded from QC-SUMMARY.json, so a non-number is as absent as a None and both read the same
+    # refusal. The check also narrows the type for the arithmetic below.
+    if not isinstance(device_end, int | float):
+        return None, "this device has no numeric last write to measure a tail against"
+    if offset_sec is None:
+        return None, "the night's writer offset was not recovered, so a civil wear end cannot meet an mtime"
+    try:
+        worn = calendar.timegm(datetime.fromisoformat(at).timetuple())
+    except ValueError:
+        return None, f"the wear end `{at}` is not an ISO-8601 civil stamp"
+    return max(0, round(device_end - (worn + offset_sec))), None
+
+
 def _folder_date(night_dir: str):
     """The datetime.date a YYYY-MM-DD night folder is named for, or None if the basename isn't a date."""
     try:
@@ -4071,6 +4118,11 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None, wri
                 "span_sec": round(dev_span) if dev_span else None,
                 "stopped_early_s": stopped_early_s,
                 "session_end": (round(_cur_end) if (_cur_end is not None and span is not None) else None),
+                # THIS device's own last write, where `session_end` is the whole session's. Published
+                # because `stopped_early_s` is their DIFFERENCE, and a difference cannot be read back
+                # into its two terms: a reader holding only the pair cannot place the device's own end
+                # on the clock. `off_body_tail_s` below is measured against this field.
+                "device_end": (round(_dev_end) if _dev_end is not None else None),
                 # WHY it stopped, from `loss_audit.wear_ends`'s `worn_end.reason` — NEVER
                 # inferred here, and `None` still means "not determined" rather than "no
                 # reason". Three things this deliberately does not do:
@@ -4089,6 +4141,12 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None, wri
                 # 28 min before its file did; that window held 2,766 of the night's 2,767
                 # "PVCs" (#3001). Without this field a reader has to join two files to see it.
                 "worn_end_at": None,
+                # The off-body tail as its own MEASURED quantity: `device_end` − the doff, floored at
+                # zero. The span is not cut at the doff, and `_off_body_tail`'s docstring carries the
+                # measurement that rejected the cut (coverage 1.0919, board #4724). `None` here is
+                # always paired with a reason in the next field, never with a 0 (§∅).
+                "off_body_tail_s": None,
+                "off_body_tail_reason": None,
                 "silent_sec": silent,
                 "rtc": rtc,
                 "datfit": datfit,
@@ -4642,6 +4700,11 @@ def attach_wear(summary: dict, wear: dict | None) -> dict:
         if dev.get("stopped_early_s"):
             dev["stopped_early_reason"] = _worn_end_reason(wear, name)
         dev["worn_end_at"] = _worn_end_at(wear, name)
+        _end = dev.get("device_end")
+        # The offset comes off the summary itself, so the join stays PURE and `attach_wear` stays the
+        # one place wear reaches a summary. `night_window` reads the same field the same way.
+        _off = (summary.get("writer_offset") or {}).get("offset_sec")
+        dev["off_body_tail_s"], dev["off_body_tail_reason"] = _off_body_tail(wear, name, _end, _off)
     return summary
 
 
