@@ -4581,7 +4581,7 @@ def test_supervise_surfaces_a_runner_crash_on_the_device_card(monkeypatch):
     sent = []
 
     class _N:
-        async def send(self, title, body):
+        async def send(self, title, body, **kw):
             sent.append((title, body))
 
     async def boom(_dev, _root):

@@ -9883,7 +9883,9 @@ async def storage_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None
                 log.warning("storage: LOW — only %s GB free (%s%%).%s", rep["free_gb"], rep["free_pct"], extra)
                 if notifier:
                     await notifier.send(
-                        "Tepna: disk low", f"Only {rep['free_gb']} GB free ({rep['free_pct']}%)." + extra
+                        "Tepna: disk low",
+                        f"Only {rep['free_gb']} GB free ({rep['free_pct']}%)." + extra,
+                        cap_exempt=True,
                     )
             elif not rep["low"]:
                 if low_alerted:
@@ -9944,11 +9946,19 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
     # The dock and wear alerts (`alerts.not_worn_while_running`); `alerts.not_worn_sec: 0` turns the
     # not-worn alert off. Each latch holds for one episode: one dock, or one not-worn stretch.
     not_worn_grace = float(acfg.get("not_worn_sec", alerts.NOT_WORN_ALERT_SEC))
+    # TIERING (#2614): how an absence episode earns a PAGE after its BOARD edge — the duration bar,
+    # the cluster bar, and the TICKET streak of board days. The page cap itself lives in the
+    # Notifier (`alerts.page_cap_per_day`): it is the one object every sender shares.
+    page_sec = float(acfg.get("offline_page_sec", alerts.OFFLINE_PAGE_SEC))
+    cluster_devices = int(acfg.get("cluster_devices", alerts.PAGE_CLUSTER_DEVICES))
+    cluster_window = float(acfg.get("cluster_window_sec", alerts.PAGE_CLUSTER_WINDOW_SEC))
+    streak = alerts.BoardStreak(days=int(acfg.get("board_ticket_days", 3)))
     dock_since: dict[str, float] = {}
     dock_stream_alerted: set[str] = set()
     not_worn_alerted: set[str] = set()
     down_since: dict[str, float] = {}
     alerted: set[str] = set()
+    paged: set[str] = set()  # episodes whose absence has already earned (and used) its one PAGE
     # NIGHT-ENDED NOTES (owner 2026-11-01: "Night is done sensors are off you should got notifications").
     # `stream_since` is the monotonic time of the first sample of the current recording episode, so the
     # span to the last sample says how long the device recorded. `ended_noted` latches one note per
@@ -10012,6 +10022,7 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
                     f"{name} battery reads {pct} %. "
                     + ("Replace or charge it before the next night." if crit else "Plan a replacement or a charge."),
                     email=crit,
+                    cap_counted=True,
                 )
                 if delivered or not notifier.enabled:
                     batt_latch[name] = nxt
@@ -10025,7 +10036,7 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
                 pct, need, dst.get("charging"), wall.hour
             ):
                 log.warning("alert: %s battery reads %s %%, below the %s %% a night can use", name, pct, need)
-                delivered = await notifier.send(*alerts.night_battery_text(name, pct, need or 0))
+                delivered = await notifier.send(*alerts.night_battery_text(name, pct, need or 0), cap_counted=True)
                 if delivered or not notifier.enabled:
                     night_short_sent[name] = night_key
             # IMPOSTOR-SHAPE (VIGIL-BLUETOOTH-ADVERSARIAL-AUDIT §6.2 Mitigation C). The oxyii session sets
@@ -10040,6 +10051,7 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
                     delivered = await notifier.send(
                         "Tepna: ring identity mismatch",
                         f"{name}: {mm}. Data from this link is suspect until the serial matches.",
+                        cap_counted=True,
                     )
                     if delivered or not notifier.enabled:
                         identity_alerted.add(name)
@@ -10054,13 +10066,19 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
             if bar:
                 if name not in barren_alerted:
                     log.warning("alert: %s — %s", name, bar)
-                    delivered = await notifier.send("Tepna: ring connects but serves nothing", f"{name}: {bar}.")
+                    delivered = await notifier.send(
+                        "Tepna: ring connects but serves nothing", f"{name}: {bar}.", cap_counted=True
+                    )
                     if delivered or not notifier.enabled:
                         barren_alerted.add(name)
             elif name in barren_alerted:
                 barren_alerted.discard(name)
                 log.info("alert: %s is serving frames again", name)
-                await notifier.send("Tepna: ring serving again", f"{name} delivered frames on its latest connect.")
+                await notifier.send(
+                    "Tepna: ring serving again",
+                    f"{name} delivered frames on its latest connect.",
+                    tier=alerts.TIER_BOARD,
+                )
             connected = bool(STATUS["devices"].get(name, {}).get("connected"))
             if connected:
                 ever_connected.add(name)
@@ -10092,9 +10110,12 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
                             dock_stream_alerted.add(name)
                 if name in alerted:
                     alerted.discard(name)
+                    paged.discard(name)
                     log.info("alert: %s is on its charger", name)
                     await notifier.send(
-                        "Tepna: sensor on charger", f"{name} is on its charger, so it is not recording."
+                        "Tepna: sensor on charger",
+                        f"{name} is on its charger, so it is not recording.",
+                        tier=alerts.TIER_BOARD,
                     )
                 continue
             dock_since.pop(name, None)  # off the dock: the next dock is a new episode
@@ -10128,8 +10149,13 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
                 box_held.discard(name)  # flowing samples mean the box is not holding the link
                 if name in alerted:  # it had alerted → tell the operator it is back
                     alerted.discard(name)
+                    paged.discard(name)
                     log.info("alert: %s recording again", name)
-                    await notifier.send("Tepna: sensor recovered", f"{name} is recording again.")
+                    await notifier.send(
+                        "Tepna: sensor recovered",
+                        f"{name} is recording again.",
+                        tier=alerts.TIER_BOARD,
+                    )
             else:
                 down_since.setdefault(name, now)
                 if alerts.offline_alert_suppressed(d.get("optional"), name in ever_connected):
@@ -10240,14 +10266,76 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
                     # The journal FIRST, unconditionally — a box with no webhook has no other surface,
                     # and a box whose webhook is broken must still leave the event behind.
                     log.warning("alert: %s has been %s for ~%d min — capture is missing it", name, how, mins)
+                    # THE EDGE GOES TO THE BOARD (#2614) — the fleet surface, not the phone. The
+                    # page is a separate, later decision (the escalation below). Latch on the
+                    # OUTCOME, as before: a failed board POST is retried next poll, not treated as
+                    # "the operator has been told"; with alerting off there is nothing to retry
+                    # and the journal line above is the record — re-logging every 60 s all night
+                    # would be noise.
                     delivered = await notifier.send(
-                        "Tepna: sensor offline", f"{name} has been {how} for ~{mins} min — capture is missing it."
+                        "Tepna: sensor offline",
+                        f"{name} has been {how} for ~{mins} min — capture is missing it.",
+                        tier=alerts.TIER_BOARD,
                     )
-                    # Latch on the OUTCOME. A failed POST must be retried next poll, not treated as
-                    # "the operator has been told". `not notifier.enabled` still latches: with alerting
-                    # off there is nothing to retry, and re-logging every 60 s all night is noise.
                     if delivered or not notifier.enabled:
                         alerted.add(name)
+                        # TICKET (consult item 3): a device whose board-tier days streak across
+                        # nights is owed one board decision, not another silent night.
+                        if streak.note(name, night_key):
+                            log.warning(
+                                "alert: %s has missed %d nights in a row at board tier — ticket",
+                                name,
+                                streak.days,
+                            )
+                            await notifier.send(
+                                f"Tepna: ticket — {name} offline {streak.days} nights running",
+                                f"{name} has hit the board tier on {streak.days} consecutive nights. "
+                                "Decide whether it is out of service or still expected, so its "
+                                "absence stops being nightly weather.",
+                                tier=alerts.TIER_BOARD,
+                            )
+                # THE PAGE, WHEN THE ABSENCE EARNS IT (#2614). Re-evaluated every poll for an
+                # episode the board has already seen: the duration bar or the cluster bar, inside
+                # the capture window, for a device that streamed in that window. The window test
+                # is the episode's own start — inside the night hours, or at/after `night_began`,
+                # the start of the night a worn device actually began (never the clock alone).
+                if name in alerted and name not in paged:
+                    down_list = [(n2, down_since[n2]) for n2 in alerted]
+                    starts = [s for _, s in down_list]
+                    idx = [n2 for n2, _ in down_list].index(name)
+                    cluster_size = (
+                        len(starts) if alerts.is_clustered(starts, idx, cluster_window, cluster_devices) else 0
+                    )
+                    wall_start = _now() - _dt.timedelta(seconds=now - down_since[name])
+                    in_window = alerts.begins_a_night(wall_start.hour) or (
+                        night_began is not None and down_since[name] >= night_began
+                    )
+                    first = stream_since.get(name)
+                    streamed = first is not None and (night_began is None or first >= night_began)
+                    tier = alerts.classify_absence(
+                        now - down_since[name],
+                        in_window=in_window,
+                        streamed=streamed,
+                        cluster_size=cluster_size,
+                        page_sec=page_sec,
+                        cluster_devices=cluster_devices,
+                    )
+                    if tier == alerts.TIER_PAGE:
+                        mins = int((now - down_since[name]) / 60)
+                        how = "offline" if not connected else "linked but recording nothing"
+                        log.warning(
+                            "alert: %s has been %s for ~%d min — the absence has earned a page",
+                            name,
+                            how,
+                            mins,
+                        )
+                        delivered = await notifier.send(
+                            "Tepna: sensor offline",
+                            f"{name} has been {how} for ~{mins} min — capture is missing it.",
+                            cap_counted=True,
+                        )
+                        if delivered or not notifier.enabled:
+                            paged.add(name)
         # Save only on a change, so an idle box does not rewrite the file every poll.
         key = (dict(_LAST_PULL_OK), dict(ended_at), night_began)
         if quiet_path and key != saved_key:
@@ -10719,7 +10807,9 @@ async def qc_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = N
                     import cpap_harvest
 
                     digest_sent_date = cpap_harvest.window_start_date(_dnow, digest_hour, 3)
-                    await notifier.send("Tepna night QC", _line, key=f"qc-digest-{digest_sent_date}")
+                    await notifier.send(
+                        "Tepna night QC", _line, key=f"qc-digest-{digest_sent_date}", tier=alerts.TIER_BOARD
+                    )
             # A SENSOR THAT IS CONNECTED AND SENDING NOTHING. Distinct from `missing` (which means
             # "produced nothing all night" and therefore cannot see a mid-night freeze) and from the
             # offline alert (which needs the link to actually drop). This is the 2026-07-25 Verity:
@@ -10753,6 +10843,7 @@ async def qc_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = N
                         "Tepna: sensor connected but silent",
                         f"{_name} has sent no data for ~{int(_sil / 60)} min while the night is still "
                         f"recording. The link is up, so this is not a dropout.",
+                        cap_counted=True,
                     )
 
             # A DEAD PACKET-ARRIVAL SIDECAR, which nothing else can see. The sidecar write is wrapped in
@@ -10782,6 +10873,7 @@ async def qc_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = N
                         "Tepna: packet-arrival sidecar dead",
                         f"{_msg}. Sample data is still being written, so this will not show up as a "
                         f"dropout — but the timing sidecar for this stream is producing nothing.",
+                        cap_counted=True,
                     )
             if summ.get("scope_suspect"):
                 # A SCOPE RESULT, NOT A DEVICE FAULT (nightqc's scope_suspect holds the reasoning).
@@ -10809,6 +10901,7 @@ async def qc_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = N
                         "Tepna: night has a gap",
                         f"{nightqc.night_label(summ)}: no data on {', '.join(summ['missing'])} "
                         f"{int(waited / 3600)}h into the night.",
+                        cap_counted=True,
                     )
             latch_now = alerts.qc_latch_to_save(digest_sent_date, alerted)
             if latch_now != latch_saved:
@@ -12587,6 +12680,7 @@ async def _cpap_loop(
                     "Tepna: CPAP harvest failed",
                     f"The {at_hour:02d}:00 harvest could not read the card: {e!r}. Last night's therapy "
                     f"data is not on the box.",
+                    cap_counted=True,
                 )
             # The card was NOT consulted — `ez.listing()` raised before the walk could complete, so
             # there is no `res` and `barren` was never evaluated. A completed walk that found nothing
@@ -12721,6 +12815,7 @@ async def _cpap_loop(
                     f"The {at_hour:02d}:00 harvest reached the end of its walk having fetched no files "
                     f"and skipped none. The card is unreachable or empty — last night's therapy data "
                     f"is not on the box.",
+                    cap_counted=True,
                 )
 
 
@@ -14083,7 +14178,7 @@ async def keep_running(make_coro, label: str, notifier: "alerts.Notifier | None"
             if on_error is not None:
                 on_error(f"{e!r} — restarting in {delay}s")
             if notifier is not None:
-                await notifier.send(f"Tepna: {label} crashed", f"{e!r} — restarting in {delay}s.")
+                await notifier.send(f"Tepna: {label} crashed", f"{e!r} — restarting in {delay}s.", cap_exempt=True)
             await asyncio.sleep(delay)
             delay = min(delay * 2, 300)
 
@@ -16456,6 +16551,8 @@ async def main():
     notifier = alerts.Notifier(
         _acfg.get("webhook_url"),
         enabled=bool(_acfg.get("enabled")),
+        board_url=_acfg.get("board_webhook_url"),
+        page_cap_per_day=int(_acfg.get("page_cap_per_day", alerts.PAGE_CAP_PER_DAY)),
         emails=alerts.configured_emails(_acfg.get("emails")),
         # Rich-alert schema v1 Where/Handle footer: host and captures root are read at runtime so
         # the text stays true on any install computer; the board line names this deployment's
@@ -16651,6 +16748,7 @@ async def main():
     await notifier.send(
         "Tepna: capture started",
         f"tepna-capture is up with {len(cfg.get('devices', []))} device(s). It started because {start_why}.",
+        cap_exempt=True,
     )
     await _STOP.wait()
     sdnotify.sd_notify("STOPPING=1")
