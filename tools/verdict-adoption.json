@@ -727,7 +727,7 @@
     ],
     "key": "verdict"
    },
-   "note": "the test RUNNER (VERDICT-CONTRACT \u00a73d, adopted #2835 through tools/run-tests-verdict.mjs, which holds the pure builders and their 35 plants): one object per process \u2014 a group is a child, an assertion is not; --group=/--shard= are declared exclusions \u21d2 filtered; the --jobs union aggregates the shard objects, a dead shard \u21d2 UNKNOWN. The cmd is a real, corpus-free filtered run; the object it emits carries filtered:true and the consumer rule, and validity is all this gate asserts of it. The --json payload wraps the object under `verdict` (emits.key), a superset of the shape verify-shard-union reads."
+   "note": "the test RUNNER (VERDICT-CONTRACT \u00a73d, adopted #2835 through tools/run-tests-verdict.mjs, which holds the pure builders and their 49 plants): one object per process \u2014 a group is a child, an assertion is not; --group=/--shard= are declared exclusions \u21d2 filtered; the --jobs union aggregates the shard objects, a dead shard \u21d2 UNKNOWN. The cmd is a real, corpus-free filtered run; the object it emits carries filtered:true and the consumer rule, and validity is all this gate asserts of it. The --json payload wraps the object under `verdict` (emits.key), a superset of the shape verify-shard-union reads."
   },
   "tests/seqnet-port-tests.mjs": {
    "bin": "test",
