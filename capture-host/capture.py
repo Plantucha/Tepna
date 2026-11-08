@@ -11580,7 +11580,7 @@ async def pull_polar_offline_all(dev: dict, root: str) -> dict:
     link (capture pauses, then resumes). Idempotent: pull_recording skips a file already on disk at the
     same size, so a repeat pull only fetches genuinely new bytes — true as of 2026-08-01; this docstring
     asserted it for months while the code re-downloaded the whole flash every time (audit F3b).
-    Returns {sessions, pulled, new_files, short, unenumerated, unanswered_sessions, ok}. A truncated
+    Returns {sessions, pulled, new_files, short, unenumerated, unanswered_sessions, unlisted, ok}. A truncated
     file is reported, never counted as
     pulled: these onboard recordings are the backup for a lossy live link, so one that looks complete
     and is not is the worst outcome available here."""
@@ -11592,7 +11592,13 @@ async def pull_polar_offline_all(dev: dict, root: str) -> dict:
 
     async def _op():
         hci = await adapter_hci()
-        sessions = await polar_psftp.list_recordings(address, adapter=hci)
+        # §∅ THE SESSION LIST IS ITSELF A READ THAT CAN COME BACK SHORT. `unenumerated` below counts
+        # directory cuts INSIDE each session, and `unanswered_sessions` counts a session that returned
+        # no manifest — but both are folded over the sessions this walk happened to see. A truncated
+        # root listing shortened that set and reached no axis here, so `ok` read true over a session
+        # population of unknown size (board #4237, finding 10).
+        sessions, listing = await polar_psftp.list_recordings_ex(address, adapter=hci)
+        unlisted = int(listing.get("unlisted") or 0)
         pulled, new_files, short = 0, [], []
         unenumerated, unanswered_sessions = 0, 0
         for sess in sessions:
@@ -11645,14 +11651,15 @@ async def pull_polar_offline_all(dev: dict, root: str) -> dict:
                 len(short),
                 "; ".join(short[:3]),
             )
-        if unenumerated or unanswered_sessions:
+        if unenumerated or unanswered_sessions or unlisted:
             log.warning(
                 "%s: pull ran over an INCOMPLETE file set — %d unenumerated director(ies), "
-                "%d session(s) returned no manifest. `ok` is false because the set is of "
-                "unknown size, not because a file was short.",
+                "%d session(s) returned no manifest, %d listing cut(s). `ok` is false because the "
+                "set is of unknown size, not because a file was short.",
                 dev.get("name") or address,
                 unenumerated,
                 unanswered_sessions,
+                unlisted,
             )
         return {
             "sessions": len(sessions),
@@ -11661,7 +11668,11 @@ async def pull_polar_offline_all(dev: dict, root: str) -> dict:
             "short": short,
             "unenumerated": unenumerated,
             "unanswered_sessions": unanswered_sessions,
-            "ok": not short and not unenumerated and not unanswered_sessions,
+            # A separate axis, because the three absences answer different questions: how many
+            # directories inside a session were cut, how many sessions gave no manifest, and whether
+            # the SET OF SESSIONS is the whole set.
+            "unlisted": unlisted,
+            "ok": not short and not unenumerated and not unanswered_sessions and not unlisted,
         }
 
     # `presence_check_s` for the SAME reason the clock sync passes it: this runs unattended on a loop

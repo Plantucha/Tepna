@@ -29,6 +29,10 @@ import probe_verity_survey as psv
 PPG, ACC = pmd.PPG, pmd.ACC
 POLAR_EPOCH = _dt.datetime(2000, 1, 1)
 
+# A COMPLETE enumeration, for a stub standing in for `polar_psftp.list_recordings_ex` in a test
+# whose subject is not the walk. The four keys are that function's published shape.
+_COMPLETE = {"truncated_dirs": [], "unreadable_dirs": [], "unlisted": 0, "complete": True}
+
 
 def _run(c):
     return asyncio.run(c)
@@ -520,20 +524,27 @@ def test_an_unknown_setting_id_is_still_reported_by_number():
 # ══ phase 4 · the flash ══════════════════════════════════════════════════════════════════════════════
 
 
-def _patch_psftp(monkeypatch, recs=None, listing_error=None, pull_error=None):
+def _patch_psftp(monkeypatch, recs=None, listing_error=None, pull_error=None, enumeration=None):
+    # Both stubs record every argument they were handed. Seven mutants drop one of those arguments,
+    # and a stub that keeps none of them cannot see any of the seven.
+    seen = {"list": [], "pull": []}
+
     async def lst(_a, _ad):
+        seen["list"].append((_a, _ad))
         if listing_error:
             raise RuntimeError(listing_error)
-        return recs or []
+        return recs or [], (enumeration or _COMPLETE)
 
     async def pull(_a, session, dest, _ad):
+        seen["pull"].append((_a, session, dest, _ad))
         if pull_error:
             raise RuntimeError(pull_error)
         os.makedirs(dest, exist_ok=True)
         return {"files": [{"name": "PPG.REC", "bytes": 77434, "ok": True, "extra": "dropped"}]}
 
-    monkeypatch.setattr(psv.psftp, "list_recordings", lst)
+    monkeypatch.setattr(psv.psftp, "list_recordings_ex", lst)
     monkeypatch.setattr(psv.psftp, "pull_recording", pull)
+    return seen
 
 
 def test_the_flash_listing_is_reported_without_a_pull_dir(monkeypatch):
@@ -541,6 +552,28 @@ def test_the_flash_listing_is_reported_without_a_pull_dir(monkeypatch):
     out = {}
     _run(psv.phase_flash("AA:BB", None, None, out))
     assert out["flash"]["n_recordings"] == 1 and "pulled" not in out["flash"]
+
+
+def test_the_flash_listing_publishes_its_own_POPULATION(monkeypatch):
+    """§∅ RESIDUE row `2026-11-07-list-recordings-publishes-a-partial-list-as-ok`. `n_recordings`
+    alone read as the device's total, and a reader quoted exactly such a short list as the device's
+    filesystem for a week (VERITY-OFFLINE-VS-STREAMING §1). A survey publishes its population."""
+    cut = {"truncated_dirs": ["/U/0/"], "unreadable_dirs": [], "unlisted": 1, "complete": False}
+    _patch_psftp(monkeypatch, recs=[{"path": "/U/0/20260803/R/120000/"}], enumeration=cut)
+    out = {}
+    _run(psv.phase_flash("AA:BB", None, None, out))
+    assert out["flash"]["n_recordings"] == 1, "what DID arrive is still counted"
+    assert out["flash"]["recordings_complete"] is False, "and the count says it is a floor"
+    assert out["flash"]["enumeration"] == cut
+
+
+def test_a_CLEAN_flash_listing_reports_a_complete_population(monkeypatch):
+    """The positive control — an always-false flag is no signal."""
+    _patch_psftp(monkeypatch, recs=[{"path": "/U/0/20260803/R/120000/"}])
+    out = {}
+    _run(psv.phase_flash("AA:BB", None, None, out))
+    assert out["flash"]["recordings_complete"] is True
+    assert out["flash"]["enumeration"]["unlisted"] == 0
 
 
 def test_a_failed_listing_is_an_error_on_the_phase_not_a_crash(monkeypatch):
@@ -557,6 +590,44 @@ def test_each_session_lands_in_its_own_flattened_directory(monkeypatch, tmp_path
     p = out["flash"]["pulled"][0]
     assert p["dir"].endswith("U_0_20260803_R_120000")
     assert p["files"] == [{"name": "PPG.REC", "bytes": 77434, "ok": True}]
+
+
+def test_the_FLASH_PHASE_CARRIES_EVERY_ARGUMENT_IT_WAS_GIVEN(monkeypatch, tmp_path):
+    """Seven mutants drop an argument on the way to the device and the suite stayed green.
+
+    They drop the address or the adapter from the listing call, the address, the session path or the
+    adapter from each pull, `pull_dir` itself from the destination, and the rows from the published
+    record. A box runs three radios, so an unpinned adapter surveys the wrong device. A destination
+    with no `pull_dir` writes every session into the process working directory. `endswith` on the
+    flattened session name cannot see that one, because the prefix is the part that moved."""
+    seen = _patch_psftp(monkeypatch, recs=[{"path": "/U/0/20260803/R/120000/"}])
+    out = {}
+    pull_dir = str(tmp_path / "pull")
+    _run(psv.phase_flash("AA:BB", "hci1", pull_dir, out))
+
+    dest = os.path.join(pull_dir, "U_0_20260803_R_120000")
+    assert seen["list"] == [("AA:BB", "hci1")], "the listing call carries the address and the adapter"
+    assert seen["pull"] == [("AA:BB", "/U/0/20260803/R/120000/", dest, "hci1")]
+    assert out["flash"]["pulled"][0]["dir"] == dest, "the destination keeps its parent directory"
+    assert out["flash"]["listing"] == [{"path": "/U/0/20260803/R/120000/"}], "the rows reach the record"
+
+
+def test_a_FAILED_PHASE_NAMES_THE_EXCEPTION_CLASS_not_NoneType(monkeypatch, tmp_path):
+    """Two mutants swap `type(exc).__name__` for `type(None).__name__`, so every failure in this phase
+    reports itself as `NoneType`.
+
+    The message survived both mutants and the class did not. The class is what tells a BLE timeout
+    from a protocol refusal, and this phase runs unattended against a device that is often half
+    reachable."""
+    _patch_psftp(monkeypatch, listing_error="link wedged")
+    out = {}
+    _run(psv.phase_flash("AA:BB", None, None, out))
+    assert out["flash"]["error"] == "list failed: RuntimeError: link wedged"
+
+    _patch_psftp(monkeypatch, recs=[{"path": "/U/0/20260803/R/120000/"}], pull_error="disconnected")
+    out = {}
+    _run(psv.phase_flash("AA:BB", None, str(tmp_path), out))
+    assert out["flash"]["pulled"][0]["error"] == "RuntimeError: disconnected"
 
 
 def test_a_failed_pull_does_not_lose_the_listing(monkeypatch, tmp_path):
