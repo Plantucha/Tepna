@@ -61,6 +61,7 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════ */
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
@@ -91,11 +92,16 @@ const TEXT_EXT = new Set(['.js', '.mjs', '.cjs', '.py', '.sh', '.md', '.json', '
 
 /* ── reading the tree ──────────────────────────────────────────────────────────────────────────── */
 
+/* A tracked path the working tree has deleted is not in the population: the tree being scanned
+   removed it on purpose, so it holds no citation and no read is owed. `release.mjs` stamps a release
+   by deleting every consumed changeset before `npm run check` runs, and after #4571 the scan read
+   each of those deletions as an unreadable file and answered UNKNOWN, which held the v2.29.0 release
+   at its gate on 2026-11-08 with 80 ENOENT paths. A file that is present and cannot be opened
+   (EACCES) still counts as excluded. */
 export function trackedFiles(repo) {
-  const out = execFileSync('git', ['-C', repo, 'ls-files', '-z'], { maxBuffer: 1 << 28 });
-  return String(out)
-    .split('\0')
-    .filter((p) => p && TEXT_EXT.has(path.extname(p)));
+  const ls = (...a) => String(execFileSync('git', ['-C', repo, 'ls-files', '-z', ...a], { maxBuffer: 1 << 28 })).split('\0');
+  const deleted = new Set(ls('--deleted'));
+  return ls().filter((p) => p && !deleted.has(p) && TEXT_EXT.has(path.extname(p)));
 }
 
 export function rowKeys(ledgerText) {
@@ -327,15 +333,44 @@ export function run(repo, opts) {
   const declared = new Map((base.entries || []).map((e) => [e.key, e]));
 
   const cites = [];
+  /* ∅ A FILE NOBODY COULD READ IS NOT A FILE HOLDING NO CITATION. The read sat in a `catch` that
+     ran `continue`, and the verdict's population was keyed on CITATIONS with a literal `excluded: 0`,
+     so a file this process could not open left no trace anywhere. A citation inside it is not a
+     citation the scan declined to score; it is a citation the scan never saw, and `checked === eligible`
+     published that as a clean sweep. Each unreadable path is now held with its errno, and the
+     population counts the unit this loop SELECTS over — files — so an unopened file lands in
+     `excluded` exactly as the `continue` excluded it.
+     Row 2026-11-07-residue-citations-skips-an-unreadable-file-and-claims-0-excluded.
+
+     THE DECLARED EXEMPTIONS ARE NOT ELIGIBLE. `exempt` names the ledger, the baseline and this tool by
+     rule, the way the ledger floor names a date: they sit outside the set the gate binds, never inside
+     it as members the scan failed to reach. They are counted and reported, and they stay out of
+     `eligible`. The cite-word fast path is the opposite case: that file WAS read and the regex IS the
+     examination, so it counts as checked and is reported beside the carriers. */
+  const unreadable = [];
+  let filesExempt = 0;
+  let filesOffered = 0;
+  let filesRead = 0;
+  let filesNoCiteWord = 0;
   for (const rel of o.files || trackedFiles(repo)) {
-    if (exempt.has(rel)) continue;
+    if (exempt.has(rel)) {
+      filesExempt += 1;
+      continue;
+    }
+    filesOffered += 1;
     let text;
     try {
       text = fs.readFileSync(path.join(repo, rel), 'utf8');
-    } catch (_e) {
+    } catch (e) {
+      /* The errno, never the message: a node message carries the absolute path of whoever ran the gate. */
+      unreadable.push({ file: rel, code: (e && e.code) || 'UNKNOWN' });
       continue;
     }
-    if (!CITE_WORDS.test(text)) continue;
+    filesRead += 1;
+    if (!CITE_WORDS.test(text)) {
+      filesNoCiteWord += 1;
+      continue;
+    }
     for (const c of scanText(rel, text, keys, { floor })) cites.push(c);
   }
 
@@ -354,6 +389,11 @@ export function run(repo, opts) {
     rows: keys.length,
     floor,
     files: new Set(cites.map((c) => c.file)).size,
+    filesOffered,
+    filesRead,
+    filesExempt,
+    filesNoCiteWord,
+    unreadable,
     citations: cites.length,
     distinct: new Set(cites.map((c) => c.cited)).size,
     byKind: {
@@ -379,20 +419,34 @@ export function run(repo, opts) {
 
 export function verdictFor(r, commit) {
   const orphans = (r.orphanOwners || []).length;
+  const unreadable = r.unreadable || [];
   const bad = r.undeclared.length + r.near.length + r.stale.length + orphans;
   const reasons = [];
   if (r.undeclared.length) reasons.push(`${r.undeclared.length} unresolved citation(s) outside the baseline`);
   if (r.near.length) reasons.push(`${r.near.length} citation(s) name a row and miss its key`);
   if (r.stale.length) reasons.push(`${r.stale.length} baseline key(s) resolve now and owe a removal`);
   if (orphans) reasons.push(`${orphans} baseline reason(s) name a row that is closed or absent`);
+  if (unreadable.length)
+    reasons.push(`${unreadable.length} eligible file(s) could not be read (${unreadable.map((u) => `${u.file} ${u.code}`).join(', ')}), so the scan did not examine its whole population`);
+  /* THREE STATUSES, AND THE MIDDLE ONE IS THE ROW. A finding is FAIL whatever else happened, and the
+     unread file rides that reason beside it. With no finding and a file the scan could not open, the
+     gate cannot say that no citation is unresolved — the file it never read may hold one — so it
+     answers UNKNOWN and names the path and the errno. PASS is left for a sweep that read every
+     eligible file. */
+  const status = bad > 0 ? 'FAIL' : unreadable.length > 0 ? 'UNKNOWN' : 'PASS';
   return Verdict.make({
     gate: 'residue-citations',
-    status: bad === 0 ? 'PASS' : 'FAIL',
+    status,
     scope: 'internal',
-    population: { checked: r.citations, eligible: r.citations, excluded: 0 },
+    population: { checked: r.filesRead, eligible: r.filesOffered, excluded: unreadable.length },
     criterion: { name: 'unresolved_citations', threshold: 0, unit: 'citations', direction: 'lte' },
     result: {
       ...r.byKind,
+      citations: r.citations,
+      filesWithACitation: r.files,
+      filesWithoutCiteWord: r.filesNoCiteWord,
+      filesExemptByRule: r.filesExempt,
+      unreadableFiles: unreadable,
       unresolvedKeys: r.unresolvedKeys,
       undeclared: r.undeclared.length,
       staleBaseline: r.stale.length,
@@ -402,7 +456,7 @@ export function verdictFor(r, commit) {
       rows: r.rows
     },
     evidence: [LEDGER, 'tools/residue-citations.mjs', BASELINE],
-    reason: bad === 0 ? null : reasons.join('; '),
+    reason: status === 'PASS' ? null : reasons.join('; '),
     producedBy: { tool: 'tools/residue-citations.mjs', commit }
   });
 }
@@ -466,12 +520,78 @@ function selftest() {
 
   /* The wiring, not just the reader: an orphan alone must carry the verdict to FAIL with a named
      reason, because a check whose finding never reaches the status examines nothing. */
-  const blank = { byKind: {}, unresolvedKeys: 0, undeclared: [], near: [], stale: [], declared: 1, rows: 1, citations: 1 };
+  const blank = {
+    byKind: {},
+    unresolvedKeys: 0,
+    undeclared: [],
+    near: [],
+    stale: [],
+    declared: 1,
+    rows: 1,
+    citations: 1,
+    files: 1,
+    filesOffered: 1,
+    filesRead: 1,
+    filesExempt: 0,
+    filesNoCiteWord: 0,
+    unreadable: []
+  };
   const vOrphan = verdictFor({ ...blank, orphanOwners: [{ key: 'k', owner: 'o', why: 'names no row in the ledger' }] }, 'abc');
   ok('one orphaned owner fails the verdict', vOrphan.status, 'FAIL');
   ok('the orphan count reaches the verdict result', vOrphan.result.orphanedOwners, 1);
   ok('the orphan names itself in the reason', /baseline reason/.test(vOrphan.reason), true);
   ok('no orphan leaves the verdict passing', verdictFor({ ...blank, orphanOwners: [] }, 'abc').status, 'PASS');
+
+  /* ∅ AN UNREADABLE ELIGIBLE FILE IS AN EXCLUSION, NOT A CLEAN SCAN. The path below is handed to the
+     scan as its whole offer and the tree does not hold it, so the read throws where a real EACCES or a
+     vanished tracked file throws. Row
+     2026-11-07-residue-citations-skips-an-unreadable-file-and-claims-0-excluded. */
+  const gone = run(REPO, { files: ['tools/no-such-file-the-citation-scan-cannot-open.mjs'], baseline: { entries: [], exemptPaths: [] } });
+  ok(
+    'an unreadable eligible file is held with its errno',
+    gone.unreadable.map((u) => u.code),
+    ['ENOENT']
+  );
+  ok('…and it is offered, never read', [gone.filesOffered, gone.filesRead], [1, 0]);
+  /* A 7-hex sha, because this leg runs `validate`, which reads `producedBy.commit` as the contract
+     spells it: the other legs above read a status alone and never reach that invariant. */
+  const vGone = verdictFor(gone, 'ab1c2d3');
+  ok('…the verdict cannot pass over a file it never opened', vGone.status, 'UNKNOWN');
+  ok('…and the population excludes it', vGone.population, { checked: 0, eligible: 1, excluded: 1 });
+  ok('…the reason names the path and the errno', /no-such-file-the-citation-scan-cannot-open\.mjs ENOENT/.test(vGone.reason), true);
+  ok('…and the object is valid under the contract', Verdict.validate(vGone).ok, true);
+  /* CONTROL · a finding outranks the unread file, because FAIL is the stronger answer and the reason
+     carries both. An UNKNOWN here would hide a citation the gate did resolve against no row. */
+  const vBoth = verdictFor({ ...gone, undeclared: [{ cited: 'k', at: 'f:1' }], unresolvedKeys: 1, declared: 1, rows: 1 }, 'abc');
+  ok('CONTROL · a finding beside an unread file is still FAIL', vBoth.status, 'FAIL');
+
+  /* A TRACKED FILE THE TREE DELETED IS OUTSIDE THE OFFER. A scratch repo tracks two files and the
+     working tree deletes one, the shape `release.mjs` leaves after it consumes the changesets. */
+  const scratch = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'rcite-'));
+  try {
+    const g = (...a) => execFileSync('git', ['-C', scratch, ...a], { stdio: 'pipe' });
+    g('init', '-q');
+    fs.writeFileSync(path.join(scratch, 'kept.md'), 'x\n');
+    fs.writeFileSync(path.join(scratch, 'consumed.md'), 'x\n');
+    g('add', 'kept.md', 'consumed.md');
+    fs.unlinkSync(path.join(scratch, 'consumed.md'));
+    ok('a tracked file deleted in the working tree is not offered', trackedFiles(scratch), ['kept.md']);
+    /* CONTROL · with the file restored, both are offered, so the leg above is the deletion's doing. */
+    fs.writeFileSync(path.join(scratch, 'consumed.md'), 'x\n');
+    ok('CONTROL · the restored file is offered again', trackedFiles(scratch).sort(), ['consumed.md', 'kept.md']);
+  } finally {
+    fs.rmSync(scratch, { recursive: true, force: true });
+  }
+  ok('…and that reason names the unread file too', /ENOENT/.test(vBoth.reason), true);
+  /* CONTROL · the readable case is untouched: the sweep that read its whole offer excludes nothing. */
+  ok('CONTROL · a sweep that read every eligible file excludes nothing', verdictFor({ ...blank, orphanOwners: [] }, 'abc').population, {
+    checked: 1,
+    eligible: 1,
+    excluded: 0
+  });
+  /* CONTROL · the exemptions are a rule boundary, so they are reported and stay out of `eligible`. */
+  const selfOnly = run(REPO, { files: ['tools/residue-citations.mjs', BASELINE], baseline: { entries: [], exemptPaths: [] } });
+  ok('a file exempt by rule is counted outside the eligible set', [selfOnly.filesExempt, selfOnly.filesOffered, selfOnly.unreadable.length], [2, 0, 0]);
 
   /* ANTI-VACUITY. The check is worth nothing if no live baseline line names an owner, so the real
      pair must examine at least one reason, and every row the real baseline names must exist. */
@@ -529,6 +649,9 @@ if (isCliEntry(import.meta.url)) {
       console.log(JSON.stringify({ ...r, cites: has('--all') ? r.cites : undefined }, null, 1));
     } else {
       console.log(`residue-citations: ${r.citations} citation(s) over ${r.files} file(s) against ${r.rows} row(s), floor ${r.floor}`);
+      console.log(
+        `  population: ${r.filesRead} of ${r.filesOffered} eligible file(s) read, ${r.unreadable.length} unreadable, ${r.filesNoCiteWord} with no citation word, ${r.filesExempt} exempt by rule`
+      );
       const k = r.byKind;
       console.log(`  exact ${k.exact} · joined ${k.joined} · prefix ${k.prefix} · near ${k.near} · ambiguous ${k.ambiguous} · dangling ${k.dangling} (${r.declared} declared)`);
       for (const c of r.undeclared) {
@@ -539,9 +662,13 @@ if (isCliEntry(import.meta.url)) {
       for (const key of r.stale) console.log(`  ✗ baseline names ${key}, which resolves now — remove the line`);
       for (const o of r.orphanOwners) console.log(`  ✗ the baseline line for ${o.key} ${o.why} (${o.owner}) — the debt has no living owner`);
       if (!r.ownerReasonsExamined) console.log('  · no baseline line names an owning row, so the owner check examined nothing');
+      for (const u of r.unreadable) console.log(`  ✗ ${u.file} could not be read (${u.code}) — not scanned, and counted as excluded`);
       if (has('--all')) for (const c of r.cites) console.log(`  ${c.kind.padEnd(9)} ${c.at} ${c.cited}`);
       console.log(`\nVERDICT (tepna.verdict/1): ${JSON.stringify(v)}`);
     }
-    process.exit(v.status === 'PASS' ? 0 : 1);
+    /* §4c's two exits: 1 means the gate looked and a citation missed, 2 means it could not look —
+       an eligible file it never opened leaves the sweep unfinished, and a reader who sees exit 1 would
+       go hunting for the citation instead of the file. */
+    process.exit(v.status === 'PASS' ? 0 : v.status === 'UNKNOWN' ? 2 : 1);
   }
 }

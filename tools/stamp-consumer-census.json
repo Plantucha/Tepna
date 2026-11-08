@@ -124,6 +124,14 @@
       "anchored": null,
       "note": "Prose in `file_stamp` naming the two unanchored `_(\\d{14})_` searches it replaced. The writer itself is the stamp's source, not a reader of it. READ AGAIN 2026-10-27: line 756 calls `file_stamp` to decide whether a candidate filename carries a stamp at all, which is an accept test performed by the owner. The definition at 707 is the owner itself and is not a call."
     },
+    "capture-host/cpap_edf_writer.py": {
+      "reads": [
+        "time"
+      ],
+      "anchored": false,
+      "readBy": "Wren",
+      "note": "READ 2026-11-07 (Wren), the day the reader entered the tree in #4550. `datalog_night` takes the `YYYYMMDD_HH` digits that start a ResMed session name and gives the sleep-day folder: `strptime` validates the date, and an hour before 12 moves it to the previous evening. A name with no valid stamp returns None. The SD-card layout splits the stamp 8+6 and no capture-host owner reads that layout, so the file slices the digits itself and `anchored` is false. The stamp at 168 is written here from the device components, so the writer is also the stamp's source."
+    },
     "clock.js": {
       "reads": [
         "time"

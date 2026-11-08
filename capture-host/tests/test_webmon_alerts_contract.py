@@ -92,6 +92,7 @@ def test_get_never_returns_the_url_only_whether_and_where(tmp_path):
     assert body == {
         "enabled": True,
         "configured": True,
+        "board_configured": False,
         "hint": "https://hooks.slack.com",
         "emails": [],
         "emails_max": 5,
@@ -123,6 +124,7 @@ def test_an_unconfigured_box_says_so_rather_than_looking_healthy(tmp_path):
     assert _get(tmp_path) == {
         "enabled": False,
         "configured": False,
+        "board_configured": False,
         "hint": "",
         "emails": [],
         "emails_max": 5,
@@ -149,6 +151,7 @@ def test_an_explicit_empty_string_clears_it(tmp_path):
         "ok": True,
         "enabled": False,
         "configured": False,
+        "board_configured": False,
         "hint": "",
         "emails": [],
         "emails_max": 5,
@@ -268,3 +271,24 @@ def test_a_config_that_cannot_be_written_is_a_500_not_a_silent_success(tmp_path)
         return out
 
     assert _serve(app, go)["status"] == 500
+
+
+# ── the board destination follows the same contract (#2614) ─────────────────────────────────────
+
+
+def test_the_board_url_is_stored_but_never_returned(tmp_path):
+    """The BOARD tier's webhook is the same kind of credential as the page one: settable,
+    never readable back — the response says only THAT one is configured."""
+    (res, cfg) = _post(tmp_path, {"board_webhook_url": SECRET, "enabled": True, "webhook_url": SECRET})
+    assert res["status"] == 200
+    assert cfg["alerts"]["board_webhook_url"] == SECRET
+    assert SECRET not in repr(res["json"]), res["json"]
+    assert res["json"]["board_configured"] is True
+
+
+def test_a_rejected_board_url_is_a_400_and_is_not_quoted_back(tmp_path):
+    bad = "ftp://hooks.example.com/board-secret-here"
+    (res, cfg) = _post(tmp_path, {"board_webhook_url": bad})
+    assert res["status"] == 400
+    assert "board-secret-here" not in repr(res["json"]), res["json"]
+    assert "board_webhook_url" not in cfg.get("alerts", {})

@@ -413,9 +413,14 @@ def _settings_from_start(cmd: bytes) -> dict:
 async def phase_flash(address, adapter, pull_dir, out):
     got = {}
     try:
-        recs = await psftp.list_recordings(address, adapter)
+        recs, enumeration = await psftp.list_recordings_ex(address, adapter)
         got["listing"] = recs
         got["n_recordings"] = len(recs)
+        # §∅ A SURVEY PUBLISHES ITS POPULATION. `n_recordings` alone read as the device's total, and
+        # a reader quoted exactly such a short list as the device's filesystem for a week
+        # (VERITY-OFFLINE-VS-STREAMING §1). The count now says whether it is a total or a floor.
+        got["enumeration"] = enumeration
+        got["recordings_complete"] = enumeration["complete"]
     except Exception as exc:  # noqa: BLE001
         got["error"] = f"list failed: {type(exc).__name__}: {exc}"
         out["flash"] = got

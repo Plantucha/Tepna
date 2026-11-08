@@ -14,6 +14,7 @@ set -uo pipefail
 # population is `.claude/hooks/` itself. A leg that WANTS the hatch sets it inline, per leg,
 # which an `unset` at the top of the file does not touch.
 unset CLAUDE_ALLOW_NO_BOARD_POST
+unset CLAUDE_ALLOW_UNACKED
 HOOK="$(cd "$(dirname "$0")" && pwd)/board-hook.sh"
 # ⚠ THE WRITER-FATE PAYLOAD IS SIZED FROM THE KERNEL, NOT FROM A ROUND NUMBER. `--probe-bytes`
 # returns four times this box's `fs.pipe-max-size` with a 4 MiB floor, and nothing past that
@@ -38,6 +39,9 @@ case " $* " in *" hook "*) echo '{"hookSpecificOutput":{"additionalContext":"boa
 FAKE
 chmod +x "$T/board"
 export AGENT_BOARD_BIN="$T/board" AGENT_BOARD_DIR="$T/dir" HERDR_ENV=0
+# The ack check loads the board MODULE. Every leg above the ack block reads no module, so no
+# leg can owe an ack by accident; the ack legs point AGENT_BOARD_PY at a fake module.
+export AGENT_BOARD_PY="$T/no-module.py"
 mkdir -p "$T/dir"
 
 bash_use() { printf '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":"%s"}}]}}\n' "$1"; }
@@ -92,6 +96,43 @@ got="$(stop false "$T/missing.jsonl" | bash "$HOOK" finish; echo "rc=$?")"
 check "an unreadable transcript fails open" "rc=0" "$got"
 got="$(stop false "$tr" | AGENT_BOARD_BIN="$T/none" bash "$HOOK" finish; echo "rc=$?")"
 check "no agent-board installed fails open" "rc=0" "$got"
+
+echo "### ACK OWED"
+# A fake board module. It returns its open acks only when the caller asks for 3650 days or more,
+# so a hook that kept the board's 7-day default would read an empty list and the block leg reds.
+cat > "$T/fakeboard.py" <<'FAKEPY'
+import contextlib, json, os
+class Board:
+    def __init__(self, read_only=False):
+        assert read_only
+    def open_acks(self, max_age_days=7):
+        return json.load(open(os.environ["FAKE_ACKS"])) if max_age_days >= 3650 else []
+    @contextlib.contextmanager
+    def reading(self):
+        yield None
+    def _identity(self, conn, agent, jobdir="", groups=None):
+        return {agent}, set(os.environ.get("FAKE_GROUPS", "").split())
+FAKEPY
+printf '[{"id":77,"thread_id":8,"author":"heron","body":"@magpie take the slot","ack":{"missing":["magpie"]}}]' > "$T/a-me.json"
+printf '[{"id":78,"thread_id":8,"author":"heron","body":"@all read this","ack":{"missing":["all"]}}]' > "$T/a-all.json"
+printf '[{"id":79,"thread_id":8,"author":"heron","body":"@wren only","ack":{"missing":["wren"]}}]' > "$T/a-other.json"
+printf '[{"id":80,"thread_id":8,"author":"magpie","body":"@all mine","ack":{"missing":["all"]}}]' > "$T/a-own.json"
+: > "$T/empty.jsonl"
+ackrun() { stop "$1" "$T/empty.jsonl" | AGENT_BOARD_PY="$T/fakeboard.py" FAKE_ACKS="$2" FAKE_GROUPS="${3:-}" ${4:+env "$4"} bash "$HOOK" finish; }
+check "an ack addressed to this bird: block" "block" "$(ackrun false "$T/a-me.json" | jq -r .decision)"
+check "…the reason names the entry" "1" "$(ackrun false "$T/a-me.json" | jq -r .reason | grep -c '#77 by heron in thread 8')"
+check "…and the ack command" "1" "$(ackrun false "$T/a-me.json" | jq -r .reason | grep -c 'agent-board --as magpie ack <id>')"
+check "an ack addressed to a group this bird is in: block" "block" "$(ackrun false "$T/a-all.json" all | jq -r .decision)"
+check "the same group, bird not a member: no block" "" "$(ackrun false "$T/a-all.json")"
+check "an ack owed by another bird: no block" "" "$(ackrun false "$T/a-other.json" all)"
+check "a decision this bird wrote: no block" "" "$(ackrun false "$T/a-own.json" all)"
+check "stop_hook_active: let the second stop through" "" "$(ackrun true "$T/a-me.json")"
+check "the hatch lets it through" "" "$(ackrun false "$T/a-me.json" "" CLAUDE_ALLOW_UNACKED=1)"
+check "a module that will not load fails open" "rc=0" "$(stop false "$T/empty.jsonl" | AGENT_BOARD_PY="$T/board" bash "$HOOK" finish; echo "rc=$?")"
+{ bash_use "gh pr create --base main"; } > "$T/both.jsonl"
+got="$(stop false "$T/both.jsonl" | AGENT_BOARD_PY="$T/fakeboard.py" FAKE_ACKS="$T/a-me.json" bash "$HOOK" finish | jq -r .reason)"
+check "a post and an ack both owed: one block names both" "2" "$(printf '%s' "$got" | grep -cE '^(Board post owed|Ack owed)')"
+check "the post hatch leaves the ack check armed" "block" "$(ackrun false "$T/a-me.json" "" CLAUDE_ALLOW_NO_BOARD_POST=1 | jq -r .decision)"
 
 echo "### A HEREDOC BODY IS DATA, NOT A COMMAND"
 # The detector reads the command TEXT, so a note that QUOTES a finishing path used to count as

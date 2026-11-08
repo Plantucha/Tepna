@@ -1820,6 +1820,7 @@ def make_app(
         return {
             "enabled": bool(a.get("enabled")) and bool(url),
             "configured": bool(url),
+            "board_configured": bool(a.get("board_webhook_url")),
             "hint": alerts.webhook_hint(url),
             # The addresses are personal data: a first letter and a domain each, never an address.
             "emails": [alerts.email_hint(e) for e in alerts.configured_emails(a.get("emails"))],
@@ -1880,6 +1881,14 @@ def make_app(
             )
         except alerts.AlertsError as e:
             return web.json_response({"ok": False, "error": str(e)}, status=400)
+        try:
+            board_url = (
+                alerts.validate_webhook_url(body["board_webhook_url"])
+                if "board_webhook_url" in body
+                else (a.get("board_webhook_url") or "")
+            )
+        except alerts.AlertsError as e:
+            return web.json_response({"ok": False, "error": str(e)}, status=400)
         emails, err = _edit_emails(body, alerts.configured_emails(a.get("emails")))
         if err is not None:
             return web.json_response({"ok": False, "error": err[1]}, status=err[0])
@@ -1892,13 +1901,19 @@ def make_app(
             a["webhook_url"] = url
         else:
             a.pop("webhook_url", None)
+        if board_url:
+            a["board_webhook_url"] = board_url
+        else:
+            a.pop("board_webhook_url", None)
         # Cannot be enabled with nothing to fire at — the same rule Notifier applies, kept in the stored
         # config too so a restart reads back exactly what the UI is showing.
         a["enabled"] = enabled and bool(url)
         if not _save():
             return web.json_response({"ok": False, "error": "config write failed (disk?)"}, status=500)
         if notifier is not None:
-            notifier.configure(url or None, a["enabled"])  # live — no restart, no dropped BLE links
+            notifier.configure(
+                url or None, a["enabled"], board_url=board_url or None
+            )  # live — no restart, no dropped BLE links
             notifier.emails = list(emails)
         return web.json_response({"ok": True, **_alerts_cfg()})
 
@@ -2247,8 +2262,16 @@ def make_app(
         if not _polar_dev(address):
             return web.json_response({"ok": False, "error": "unknown or non-Polar address"}, status=400)
         try:
-            recs = await _polar_run(address, lambda: polar_psftp.list_recordings(address))
-            return web.json_response({"ok": True, "recordings": recs})
+            recs, listing = await _polar_run(address, lambda: polar_psftp.list_recordings_ex(address))
+            # §∅ `ok` KEEPS ITS TRANSPORT MEANING and `complete` carries the population. A cut walk
+            # still reached the device, so flipping `ok` would report a link failure that did not
+            # happen — the same ruling the USB probe took, where `ok` stays true on a truncated
+            # listing and the verdict line is what stops a reader citing the subset as the device's
+            # filesystem. The counts travel beside it, so a caller can tell "that is all there is"
+            # from "that is all we could see".
+            return web.json_response(
+                {"ok": True, "complete": listing["complete"], "listing": listing, "recordings": recs}
+            )
         except offline_lock.OfflineBusy as e:
             return web.json_response({"ok": False, "busy": e.holder, "error": str(e)}, status=409)
         except Exception as e:
@@ -2393,6 +2416,9 @@ def make_app(
         [
             web.get("/", index),
             web.get("/stitched-31d.html", stitched_page),
+            # The monitor links through /monitor, which Caddy strips. This alias serves the same link on a
+            # direct webmon origin, where nothing strips the prefix.
+            web.get("/monitor/stitched-31d.html", stitched_page),
             web.get("/api/stitched/{tool}", stitched_result),
             web.get("/api/state", state),
             web.get("/api/version", version_get),

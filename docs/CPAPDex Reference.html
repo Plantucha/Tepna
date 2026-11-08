@@ -378,7 +378,7 @@ body.light .mob-drawer-panel{background:#FFFFFF}
 <span class="ev-corner ev-measured" title="Measured &#x2014; Total mask-on hours (pressure &gt; 0), direct recording stat"></span></div>
 <div class="mc">
   <div class="mh"><div class="mi"><span class="ma">30-Day Compliance</span><span class="mf">Nights Meeting &#x2265; 4 h Usage</span></div><span class="mt tc">Core</span></div>
-  <p class="md">Percentage of nights in the trailing 30 days with at least 4 hours of use &#x2014; the adherence figure insurers and clinicians track.</p><div class="fb"><div class="fl">Formula</div><div class="ft">Compliance = nights(&#x2265;4 h) / nights_30d &#xD7; 100</div></div><div class="nt-wrap"><table class="nt"><tr><th>Compliance</th><th>Read</th></tr><tr class="bd"><td>&lt;&#x202F;50%</td><td class="nr">Poor</td></tr><tr class="wn"><td>50&#x2013;70%</td><td class="nr">Below CMS threshold</td></tr><tr class="ok"><td>70&#x2013;85%</td><td class="nr">Adequate</td></tr><tr class="ok"><td>&gt;&#x202F;85%</td><td class="nr">Excellent</td></tr></table></div>
+  <p class="md">Percentage of nights in the trailing 30 days with at least 4 hours of use &#x2014; the adherence figure insurers and clinicians track. A night that carries no usage datum was never scored, so it leaves both sides of the ratio and the tile states how many nights the percentage covers.</p><div class="fb"><div class="fl">Formula</div><div class="ft">Compliance = nights(&#x2265;4 h) / nights_scored &#xD7; 100</div></div><div class="nt-wrap"><table class="nt"><tr><th>Compliance</th><th>Read</th></tr><tr class="bd"><td>&lt;&#x202F;50%</td><td class="nr">Poor</td></tr><tr class="wn"><td>50&#x2013;70%</td><td class="nr">Below CMS threshold</td></tr><tr class="ok"><td>70&#x2013;85%</td><td class="nr">Adequate</td></tr><tr class="ok"><td>&gt;&#x202F;85%</td><td class="nr">Excellent</td></tr></table></div>
 <span class="ev-corner ev-validated" title="Validated &#x2014; Nights &#x2265;4 h / 30 d. CMS PAP adherence: &#x2265;4 h on &#x2265;70% of nights across any 90-day window"></span></div>
 <div class="mc" data-tier="secondary">
   <div class="mh"><div class="mi"><span class="ma">Mask-On Latency</span><span class="mf">Time to First Delivered Pressure</span></div><span class="mt ta">Advanced</span></div>
@@ -948,6 +948,6 @@ document.querySelectorAll('.mob-drawer-panel .nav a').forEach(function(a){ a.add
   <div class="dxl-seg"><span class="dxl-spdx"><span class="k">licence</span><span class="v">Apache-2.0</span></span></div>
 </div>
 
-<div data-tepna-ver style="position:fixed;right:8px;bottom:8px;z-index:2147483000;font:600 11px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:#dbeafe;background:rgba(15,23,34,.82);border:1px solid rgba(120,170,220,.4);border-radius:999px;padding:2px 9px;letter-spacing:.03em;box-shadow:0 1px 4px rgba(0,0,0,.3);pointer-events:none;user-select:none" title="Tepna suite version">v2.28.0</div>
+<div data-tepna-ver style="position:fixed;right:8px;bottom:8px;z-index:2147483000;font:600 11px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:#dbeafe;background:rgba(15,23,34,.82);border:1px solid rgba(120,170,220,.4);border-radius:999px;padding:2px 9px;letter-spacing:.03em;box-shadow:0 1px 4px rgba(0,0,0,.3);pointer-events:none;user-select:none" title="Tepna suite version">v2.29.0</div>
 </body>
 </html>

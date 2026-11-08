@@ -2182,6 +2182,168 @@
       }
     });
 
+    /* ══ FOUR OXYDEX CONSUMERS READ AN ABSENT SECOND AS A NUMBER, AND THREE PUBLISHED A LABEL ══
+       ABSENCE-SURVEY rows 48 to 51, finding #4271. Every one of the four fails toward the REASSURING
+       answer, which is what makes this a class and not four bugs: a flatline verdict over a channel
+       that never reported, "Sustained (hypoventilation)" over 300 absent seconds, a PERFECT hypoxic
+       burden subscore, and a desaturation area built out of baseline.
+
+       EVERY LEG BELOW IS A PAIR. The defect case and a measured control sit together, because a
+       consumer that simply stopped answering would pass a one-sided leg — and that is the other way
+       to fabricate a night. Each control below was measured byte-identical on `origin/main`. */
+    group('OxyDex §∅ — four consumers read an absent second as a number (ABSENCE-SURVEY 48-51)', 'oxydex-dsp · absence-as-value · survey-rows-48-51', function (T) {
+      var _oda = env.OxyDex || env.OxyDSP || env.OXYDSP;
+      var OD = (_oda && _oda._bare) || _oda;
+      var need = ['computeDesSev', 'computeHRFlatlines', 'computeSleepStabilityScore', 'computeSpO2Autocorr'];
+      var missing = need.filter(function (k) {
+        return !OD || typeof OD[k] !== 'function';
+      });
+      if (missing.length) {
+        T.ok('OxyDSP exposes the four surveyed consumers', false, 'absent: ' + missing.join(',') + ' — this group cannot run and must not read as a pass');
+        return;
+      }
+      var rowsOf = function (len, f) {
+        var out = [];
+        for (var i = 0; i < len; i++) out.push({ spo2: f(i), hr: 60 });
+        return out;
+      };
+      var hrRowsOf = function (len, f) {
+        var out = [];
+        for (var i = 0; i < len; i++) out.push({ spo2: 98, hr: f(i) });
+        return out;
+      };
+
+      /* ── A-5 · computeDesSev ── `base - null` is `base`, which is > 0, so every absent second inside
+         an event added the FULL baseline to the area. Measured on `origin/main`: one event over ten
+         absent seconds returned desSev 490 against 40 for the same ten seconds measured. */
+      var evt = { events: [{ startIdx: 50, endIdx: 60, baseline: 98, nadir: 90, depth: 8, duration: 10 }] };
+      var dAbsent = OD.computeDesSev(
+        rowsOf(120, function (i) {
+          return i >= 50 && i < 60 ? null : 98;
+        }),
+        null,
+        evt,
+        4
+      );
+      var dMeas = OD.computeDesSev(
+        rowsOf(120, function (i) {
+          return i >= 50 && i < 60 ? 90 : 98;
+        }),
+        null,
+        evt,
+        4
+      );
+      T.eq('A-5 · an event whose every second is absent refuses — it does not report an area built of baseline', dAbsent.desSev, null);
+      T.eq('A-5 · …and the refusal NAMES itself, so a reader is not left guessing', dAbsent.desSevReason, 'event-seconds-absent');
+      T.eq('A-5 · …and the absent seconds are counted, never hidden', dAbsent.desSevAbsentSec, 10);
+      T.eq('A-5 CONTROL · the SAME event measured still scores 40, unchanged from the ref', dMeas.desSev, 40);
+      T.eq('A-5 CONTROL · …and reports the ten seconds it covered', dMeas.desSevCoveredSec, 10);
+      T.eq(
+        'A-5 CONTROL · no events at all keeps its REAL zero — a clean night looked and found nothing',
+        OD.computeDesSev(
+          rowsOf(120, function () {
+            return 98;
+          }),
+          null,
+          { events: [] },
+          4
+        ).desSev,
+        0
+      );
+
+      /* ── A-2 · computeHRFlatlines ── the run test was `rows[i].hr === rows[i - 1].hr`, and
+         `null === null` is TRUE. Measured on `origin/main`: 70 all-null HR rows returned
+         flatlineCount 1, maxFlatlineSec 70 and the label "Occasional". */
+      var fAbsent = OD.computeHRFlatlines(
+        hrRowsOf(70, function () {
+          return null;
+        })
+      );
+      var fReal = OD.computeHRFlatlines(
+        hrRowsOf(70, function (i) {
+          return i < 40 ? 60 : 55 + (i % 3);
+        })
+      );
+      var fSplit = OD.computeHRFlatlines(
+        hrRowsOf(70, function (i) {
+          return i === 35 ? null : 60;
+        })
+      );
+      T.eq('A-2 · 70 all-absent HR rows refuse — a channel that never reported is not a firmware artifact', fAbsent, null);
+      T.eq('A-2 CONTROL · a REAL 40 s flatline is still found', fReal.flatlineCount, 1);
+      T.eq('A-2 CONTROL · …at its true length, unchanged from the ref', fReal.maxFlatlineSec, 40);
+      T.eq('A-2 CONTROL · …and the label it earned', fReal.flatlineLabel, 'Occasional');
+      T.eq('A-2 · one absent sample ENDS the run rather than bridging it — two runs, not one', fSplit.flatlineCount, 2);
+      T.eq('A-2 · …so neither half claims the whole span', fSplit.maxFlatlineSec, 35);
+      T.eq('A-2 · coverage sits beside the value — 69 of 70 seconds carried an HR', fSplit.nMeasured, 69);
+      T.eq('A-2 · …against the offered total', fSplit.nTotal, 70);
+
+      /* ── A-4 · computeSleepStabilityScore s5 ── `(15 - null) / 15` clamps to a PERFECT 100. s1, s2,
+         s3 and s6 each carry this guard; s5 was the one missed. Measured on `origin/main`: the
+         absent night scored 81 "Good" on a hypoxic-burden subscore of 100. */
+      var ST = { spo2Std: 1.0, motionPct: 1.0, t95pct: 5 },
+        HRV = { hrFloor: 50 },
+        OSC = { episodeCount: 2 };
+      var sAbsent = OD.computeSleepStabilityScore(ST, HRV, OSC, { rate: null });
+      var sMeas = OD.computeSleepStabilityScore(ST, HRV, OSC, { rate: 5 });
+      T.eq('A-4 · an absent hypoxic burden drops its subscore instead of scoring a perfect 100', sAbsent.components.hypoxicBurden, null);
+      T.eq('A-4 · …so the night no longer grades "Good" off the absence', sAbsent.grade, 'Fair');
+      T.eq('A-4 CONTROL · a MEASURED rate of 5 scores exactly as it did on the ref', sMeas.components.hypoxicBurden, 67);
+      T.eq('A-4 CONTROL · …and the night score is unmoved', sMeas.score, 74);
+      T.ok('A-4 · the absent night scores BELOW the measured-burden night it used to beat', sAbsent.score > sMeas.score && sAbsent.score < 81, 'absent=' + sAbsent.score + ' measured=' + sMeas.score);
+
+      /* ── A-13 · computeSpO2Autocorr ── the mean divided by every second while absent seconds added
+         nothing, and `(null - m)` is `-m`, so each absence contributed a full squared deviation.
+         Measured on `origin/main`: 300 varying measured seconds read ac1 -0.497 "Oscillating" ALONE,
+         and 0.996 "Sustained (hypoventilation)" with 300 absent seconds appended. The absence flipped
+         the clinical label to the opposite pole. */
+      var vary = function (i) {
+        return 97 + (i % 3);
+      };
+      var aPadded = OD.computeSpO2Autocorr(
+        rowsOf(600, function (i) {
+          return i < 300 ? vary(i) : null;
+        })
+      );
+      var aAlone = OD.computeSpO2Autocorr(rowsOf(300, vary));
+      T.eq('A-13 · 300 absent seconds appended do not move ac1 off the measured answer', aPadded.ac1, aAlone.ac1);
+      T.eq('A-13 · …nor the clinical label, which used to flip to the opposite pole', aPadded.ac1Label, aAlone.ac1Label);
+      T.eq('A-13 CONTROL · the measured 300 alone reads what it read on the ref', aAlone.ac1, -0.497);
+      T.eq('A-13 · coverage beside the value — measured seconds', aPadded.nMeasured, 300);
+      T.eq('A-13 · …offered seconds', aPadded.nTotal, 600);
+      T.eq('A-13 · …and ADJACENT measured pairs, which is what a lag-1 correlation needs', aPadded.nPairs, 299);
+      T.eq(
+        'A-13 · a record whose measured part is under the 300 s floor refuses on the MEASURED count',
+        OD.computeSpO2Autocorr(
+          rowsOf(600, function (i) {
+            return i < 299 ? vary(i) : null;
+          })
+        ),
+        null
+      );
+
+      /* ── THE SURFACE ── A-5's refusal reaches a reader through two `oxydex-render.js` sites, and
+         `null < 5` is TRUE in both, so the refusal used to paint the GREEN band. Source assertions,
+         because the node runner holds the render layer as text; the browser gate draws it. */
+      var rnd = (env.sources || {})['oxydex-render.js'];
+      if (typeof rnd !== 'string' || !rnd.length) {
+        T.ok('oxydex-render.js source provided', false, 'runner passed no oxydex-render.js — the three legs below cannot run and must not read as a pass');
+      } else {
+        var _flat = rnd.replace(/\s+/g, ' ');
+        T.ok(
+          'SURFACE · neither DesSev site grades the value without first asking whether it was measured',
+          !/nrChip\( ?'DesSev', ?n\.desSev\.desSev, /.test(_flat) && !/metric\( ?'DesSev', ?n\.desSev\.desSev, /.test(_flat),
+          'a DesSev surface still passes the raw value straight into a band comparison'
+        );
+        T.ok('SURFACE · and both NAME the refusal they draw, so the em-dash is not mute', (_flat.match(/desSevReason/g) || []).length >= 2, 'fewer than two surfaces read desSevReason');
+        T.ok(
+          'SURFACE CONTROL · the measured bands SURVIVE — the fix guards the grading, it does not delete it',
+          /n\.desSev\.desSev < 5 \? 'g'/.test(_flat) && /n\.desSev\.desSev < 5 \? 'good'/.test(_flat),
+          'a measured DesSev lost its good/warn/bad banding'
+        );
+      }
+    });
+
     group('OxyDex §∅ — processNight reports an unmeasured SpO2/HR night as null, never 0', 'oxydex-dsp · absence-as-value · primary-builder', function (T) {
       var _od = env.OxyDex || env.OxyDSP || env.OXYDSP;
       var OD = (_od && _od._bare) || _od;
@@ -17463,7 +17625,18 @@
         'out.rowKeys = M.rowKeys("| 2026-01-02-alpha-beta-gamma | logged | s | d | e | OPEN |\\ntext 2026-01-02-alpha-beta-gamma\\n");',
         'out.window = M.CITE_WINDOW;',
         'var real = M.run(' + JSON.stringify(root) + ');',
-        'out.real = { citations: real.citations, files: real.files, rows: real.rows, undeclared: real.undeclared.length, near: real.near.length, stale: real.stale.length, declared: real.declared, floorReal: real.floor, orphans: real.orphanOwners.length, examined: real.ownerReasonsExamined };',
+        'out.real = { citations: real.citations, files: real.files, rows: real.rows, undeclared: real.undeclared.length, near: real.near.length, stale: real.stale.length, declared: real.declared, floorReal: real.floor, orphans: real.orphanOwners.length, examined: real.ownerReasonsExamined, offered: real.filesOffered, read: real.filesRead, unreadable: real.unreadable.length, exempt: real.filesExempt };',
+        /* THE FILE POPULATION, AND THE ONE FILE THE SCAN COULD NOT OPEN. Row
+           2026-11-07-residue-citations-skips-an-unreadable-file-and-claims-0-excluded: the read sat in a
+           `catch` that ran `continue` under a population keyed on CITATIONS with `excluded: 0`, so an
+           unopened file left no trace at all. The plant hands the scan one path the tree does not hold,
+           which throws where a real EACCES throws. A 7-hex sha, because `validate` reads the commit. */
+        'var goneRun = M.run(' + JSON.stringify(root) + ', { files: ["tools/no-such-file-the-citation-scan-cannot-open.mjs"], baseline: { entries: [], exemptPaths: [] } });',
+        'out.gone = { offered: goneRun.filesOffered, read: goneRun.filesRead, codes: goneRun.unreadable.map(function (u) { return u.code; }) };',
+        'var goneV = M.verdictFor(goneRun, "ab1c2d3");',
+        'out.goneVerdict = { status: goneV.status, population: goneV.population, named: /no-such-file-the-citation-scan-cannot-open\\.mjs ENOENT/.test(goneV.reason) };',
+        'var realV = M.verdictFor(real, "ab1c2d3");',
+        'out.realVerdict = { status: realV.status, population: realV.population };',
         'out.selfExempt = M.run(' +
           JSON.stringify(root) +
           ', { files: ["tools/residue-citations.mjs", "tools/residue-citations-baseline.json"], baseline: { entries: [], exemptPaths: [] } }).citations;',
@@ -17558,6 +17731,27 @@
       /* §∅ · the live baseline names no owner today, so the count is reported rather than read as a
          pass over a population of nothing. The legs above are what carries the rule. */
       T.ok('the owner population is reported as a count, examined or not', typeof R.real.examined === 'number', String(R.real.examined));
+
+      /* A FILE NOBODY COULD READ IS AN EXCLUSION, NOT A CLEAN SCAN.
+         The population is keyed on the unit the scan SELECTS over, which is files, and the citations it
+         scored sit in `result` beside it. The declared exemptions — the ledger, the baseline and the
+         tool itself — are a rule boundary like the ledger floor, so they are counted and stay outside
+         `eligible`, where `excluded` is reserved for a file the scan could not reach. */
+      T.eq('an unreadable eligible file is held with its errno', R.gone.codes, ['ENOENT']);
+      T.eq('…offered to the scan, and never read', [R.gone.offered, R.gone.read], [1, 0]);
+      T.eq('…so the verdict answers UNKNOWN over the file it never opened', R.goneVerdict.status, 'UNKNOWN');
+      T.eq('…and the population excludes it', R.goneVerdict.population, { checked: 0, eligible: 1, excluded: 1 });
+      T.ok('…with the reason naming the path and the errno', R.goneVerdict.named, 'the ENOENT path reaches the reason string');
+      /* CONTROL · the committed tree reads whole, so the legs above measure the unreadable arm against
+         a real sweep that excludes nothing, never against an empty one. */
+      T.eq('CONTROL · every eligible file in the committed tree reads', R.real.unreadable, 0);
+      T.eq('…so the real population closes on its own offer', R.real.read, R.real.offered);
+      T.ok(
+        '…over an offer wider than the files that carry a citation',
+        R.real.offered > R.real.files && R.real.exempt >= 3,
+        'offered=' + R.real.offered + ' carriers=' + R.real.files + ' exempt=' + R.real.exempt
+      );
+      T.eq('…and the committed tree passes with nothing excluded', [R.realVerdict.status, R.realVerdict.population.excluded], ['PASS', 0]);
     });
     /* ════ AND THE PREDICATE ITSELF MUST SURVIVE A SYMLINK TO THE TOOL (board #685, 2026-10-21) ══════
        The house predicate compared `import.meta.url` with `pathToFileURL(process.argv[1]).href`. Node
@@ -29992,6 +30186,92 @@
       T.ok('PLANT · a changed oxydex-dsp.js is reported, and by name', pm.length === 1 && pm[0].indexOf('oxy/oxydex-dsp.js') === 0 && pm[0].indexOf('planted00000') > 0, JSON.stringify(pm));
     });
 
+    /* ── THE PIN MUST KNOW WHICH COHORT IT IS PINNING (board finding #4343) ───────────────────────
+       `selectionCounts` replays the selector at the stated `nSubj 900`, and the pin publishes
+       `txSkipped = txCandidates - nIntervention`. The second term comes from the rerun file on the
+       command line, and nothing compared the two cohorts. Measured 2026-11-07: the page default of 45
+       per arm answered 10 tx / 17 flat, and the tool wrote `txSkipped 890` — 890 subjects the run
+       never examined, published as 890 the detectors rejected, beside a yield that read as a collapse
+       from 233 and was a change of scale. The page now publishes `targetSubj`, and the refusals below
+       each carry their own token, because an absent cohort size and a wrong one are different states. */
+    group('treatment-response · pin scale — the run states the cohort it ran, or the pin refuses', 'treatment-response · pin · scale · absence · regression', function (T) {
+      var YP = env.YieldPin;
+      var psrc = (env.sources && env.sources['treatment-response-analysis.js']) || '';
+      var pin = env.treatmentYieldPin;
+      if (!YP || typeof YP.scaleCheck !== 'function') {
+        T.skip('the pin module is loadable', 'Node-lane only — run-tests.mjs imports tools/treatment-response-yield-pin.mjs; the browser suite does not');
+        return;
+      }
+      var paper = { targetSubj: 900, minNights: 10, nIntervention: 233, nFlatControl: 239 };
+      var dflt = { targetSubj: 45, minNights: 10, nIntervention: 10, nFlatControl: 17 };
+
+      T.eq('THE DEFECT · a page-default run of 45 per arm is refused, not pinned', YP.scaleCheck(dflt).reason, 'cohort-size-mismatch', JSON.stringify(YP.scaleCheck(dflt)));
+      T.ok(
+        '…and the refusal names both cohort sizes, so the reader sees a scale and not a collapse',
+        /\b45\b/.test(YP.scaleCheck(dflt).message) && /\b900\b/.test(YP.scaleCheck(dflt).message),
+        YP.scaleCheck(dflt).message
+      );
+      T.ok('CONTROL · the paper-scale run passes, and states what it ran at', YP.scaleCheck(paper).ok === true && YP.scaleCheck(paper).ran === 900, JSON.stringify(YP.scaleCheck(paper)));
+      T.eq(
+        'a run that states no cohort size gets its OWN token, never the mismatch one',
+        YP.scaleCheck({ minNights: 10 }).reason,
+        'cohort-size-absent',
+        JSON.stringify(YP.scaleCheck({ minNights: 10 }))
+      );
+      T.eq('…and no number is quoted as the cohort it ran, because none was measured', String(YP.scaleCheck({ minNights: 10 }).ran), 'null', JSON.stringify(YP.scaleCheck({ minNights: 10 })));
+      T.eq(
+        'the page default of 6 minimum nights is refused under its own token',
+        YP.scaleCheck({ targetSubj: 900, minNights: 6 }).reason,
+        'min-nights-mismatch',
+        JSON.stringify(YP.scaleCheck({ targetSubj: 900, minNights: 6 }))
+      );
+      T.eq(
+        'an absent minimum-nights field is refused, never read as the stated 10',
+        YP.scaleCheck({ targetSubj: 900 }).reason,
+        'min-nights-absent',
+        JSON.stringify(YP.scaleCheck({ targetSubj: 900 }))
+      );
+      T.eq(
+        'a MEASURED zero cohort size still mismatches rather than reading as absent',
+        YP.scaleCheck({ targetSubj: 0, minNights: 10 }).reason,
+        'cohort-size-mismatch',
+        JSON.stringify(YP.scaleCheck({ targetSubj: 0, minNights: 10 }))
+      );
+      T.ok('a null result refuses rather than throwing', YP.scaleCheck(null).ok === false, JSON.stringify(YP.scaleCheck(null)));
+      /* The four cases against the four tokens BY NAME. A distinctness count would have passed a
+         `null` in the set, which is the tolerance this group exists to remove. */
+      T.eq(
+        'each of the four cases carries its own declared token, by name',
+        JSON.stringify([YP.scaleCheck(dflt).reason, YP.scaleCheck({ minNights: 10 }).reason, YP.scaleCheck({ targetSubj: 900, minNights: 6 }).reason, YP.scaleCheck({ targetSubj: 900 }).reason]),
+        JSON.stringify(['cohort-size-mismatch', 'cohort-size-absent', 'min-nights-mismatch', 'min-nights-absent']),
+        JSON.stringify(YP.SCALE_REASONS)
+      );
+      T.eq(
+        '…and the declared set is exactly those four',
+        JSON.stringify((YP.SCALE_REASONS || []).slice().sort()),
+        JSON.stringify(['cohort-size-absent', 'cohort-size-mismatch', 'min-nights-absent', 'min-nights-mismatch']),
+        JSON.stringify(YP.SCALE_REASONS)
+      );
+
+      /* THE OTHER HALF · the refusal is only serviceable while the page publishes the field. A page
+         edit that drops it would turn every future re-stamp into `cohort-size-absent`, which is the
+         honest failure but not a workable one, so it reds HERE instead. */
+      var publishes = !!psrc && /RESULT = \{[\s\S]{0,900}?targetSubj: targetSubj/.test(psrc);
+      T.ok(
+        'the page publishes the cohort size it ran at, inside the result it exports',
+        publishes,
+        psrc ? 'targetSubj in the RESULT literal: ' + publishes : 'treatment-response-analysis.js not in env.sources'
+      );
+      T.ok('ANTI-VACUITY · the page source read is the real one, long enough to hold the result literal', psrc.length > 20000 && psrc.indexOf('window.TREATMENT_RESPONSE') > 0, String(psrc.length));
+      if (pin && pin.config)
+        T.eq(
+          'the pin on disk satisfies the check it now applies to its input',
+          JSON.stringify([pin.config.nSubj, pin.config.minNightsObserved, pin.config.minN]),
+          JSON.stringify([900, 10, 10]),
+          JSON.stringify(pin.config)
+        );
+    });
+
     group('PpgDex loadOwnExport — whose export is this, and how many nights', 'ppgdex-dsp · known-answer · mutation-pinned', function (T) {
       var P = env.PpgDex || env.PPGDSP;
       if (!P || typeof P.loadOwnExport !== 'function') {
@@ -38530,6 +38810,86 @@
       T.eq('a bare array is refused', N([]), null);
     });
 
+    /* ════ CPAPDex ADHERENCE — ∅ the ratio scores the nights it measured ════
+     `compliancePct` is a RATIO, so an absence can enter it on either side. Two sites did.
+     `cpapdex-cross.js` read an absent usage datum as `0` hours, which made a night nobody
+     measured a night below the 4 h line. `cpapdex-dsp.js` never fabricated the hours, but it
+     divided by every LOADED night, so the same night still counted against adherence. The
+     owner's rule for this shape is that reduced coverage ANNOTATES: the number stands over the
+     population it scored, and that population travels beside it. A measured 0 h night is a real
+     night below the line and keeps counting — that is the control these legs protect. */
+    group('∅ CPAPDex adherence — an unscored night leaves the ratio, and the tile states its population', 'cpapdex-dsp · cpapdex-cross · cpapdex-render · absence', function (T) {
+      var D = env.CpapDsp || env.CPAPDSP;
+      var CP = env.CPAPCross;
+      var CR = env.CpapRender;
+      if (!D || typeof D.buildLongitudinal !== 'function') {
+        T.skip('CpapDsp.buildLongitudinal', 'CPAPDex not co-loaded in this runner');
+        return;
+      }
+
+      /* 1 · the DSP producer, which the KPI tile reads. */
+      var two = [{ therapyHours: 7 }, { therapyHours: 5 }];
+      var plusBlank = [{ therapyHours: 7 }, { therapyHours: 5 }, {}];
+      T.eq('two scored nights, both ≥4 h → 100 %', D.buildLongitudinal(two).compliancePct, 100);
+      T.eq('∅ a third night with NO usage datum does not drag it to 66.7 %', D.buildLongitudinal(plusBlank).compliancePct, 100);
+      T.eq('∅ and the ratio publishes the population it scored', D.buildLongitudinal(plusBlank).complianceNights, 2);
+      T.eq('the loaded-night count still reports every night handed in', D.buildLongitudinal(plusBlank).nights, 3);
+      T.eq('∅ nothing scored → the value refuses', D.buildLongitudinal([{}, {}]).compliancePct, null);
+      T.eq('∅ and it names its own reason', D.buildLongitudinal([{}, {}]).complianceReason, 'no-usage-datum');
+      T.eq('∅ no nights at all names a DIFFERENT reason', D.buildLongitudinal([]).complianceReason, 'no-nights');
+      T.eq('a fully scored window carries no reason at all', D.buildLongitudinal(two).complianceReason, null);
+
+      /* CONTROL · a MEASURED zero is a measurement. It scores, and it sits below the line. */
+      var withZero = [{ therapyHours: 7 }, { therapyHours: 0 }];
+      T.eq('CONTROL · a measured 0 h night IS scored and IS below the line', JSON.stringify([D.buildLongitudinal(withZero).compliancePct, D.buildLongitudinal(withZero).complianceNights]), '[50,2]');
+      T.eq('CONTROL · a metrics.usageHours of 0 scores too', D.buildLongitudinal([{ metrics: { usageHours: 0 } }]).complianceNights, 1);
+      T.eq('∅ a metrics object carrying no usageHours is NOT scored', D.buildLongitudinal([{ metrics: { residualAHI: 4 } }]).complianceNights, 0);
+
+      /* 2 · the exported cross-night twin. No module in the repo calls it today, so this suite is
+         its only consumer; the rule binds it because the export is public. */
+      if (CP && typeof CP.compliancePct === 'function') {
+        T.eq('∅ cross · an unscored night leaves BOTH sides of the ratio', CP.compliancePct([{ therapyHours: 7 }, { therapyHours: 5 }, {}], 4), 100);
+        T.eq('∅ cross · nothing scored → null, never 0 %', CP.compliancePct([{}, {}], 4), null);
+        T.eq('CONTROL · cross · a measured 0 h night still gives 50 %', CP.compliancePct([{ therapyHours: 7 }, { therapyHours: 0 }], 4), 50);
+        T.eq('CONTROL · cross · a night exactly ON the threshold still counts', CP.compliancePct([{ therapyHours: 4 }], 4), 100);
+      } else {
+        T.skip('CPAPCross.compliancePct', 'cpapdex-cross.js not co-loaded in this runner');
+      }
+
+      /* 3 · the surface. The subtitle states the scored population when it is short of the window. */
+      if (CR && typeof CR.renderHistory === 'function') {
+        var mk = function (dayIdx, hours) {
+          return { t0Ms: Date.UTC(2026, 0, 1 + dayIdx, 22, 0, 0), therapyHours: hours, nSessions: 1, metrics: { residualAHI: 3, largeLeakPct: 2 }, sessions: [{}] };
+        };
+        var short = CR.renderHistory([mk(0, 7), mk(1, 5), mk(2, null)]);
+        T.ok('∅ the tile states the scored population when a night went unscored', /2 scored nights/.test(short), (/(\d+) scored nights/.exec(short) || [])[1]);
+        T.ok('∅ …and the percentage is the one over those 2 nights, not over 3', /100<span class="kpi-u">%<\/span>/.test(short));
+        var full = CR.renderHistory([mk(0, 7), mk(1, 5)]);
+        T.ok('CONTROL · a fully scored window keeps the plain subtitle', /≥4 h nights/.test(full) && !/scored nights/.test(full));
+      } else {
+        T.skip('CpapRender.renderHistory', 'cpapdex-render.js not co-loaded in this runner');
+      }
+
+      /* 4 · source legs — neither coercion may come back. */
+      var xsrc = (env.sources || {})['cpapdex-cross.js'] || '';
+      var dsrc = (env.sources || {})['cpapdex-dsp.js'] || '';
+      if (xsrc) {
+        T.eq('∅ source · the cross-night usage read falls back to no number', (xsrc.match(/metrics\.usageHours\s*:\s*0\b/g) || []).length, 0);
+        T.ok('∅ source · it leaves an absent datum out explicitly', /if \(h == null\) return;/.test(xsrc));
+      } else {
+        T.skip('env.sources["cpapdex-cross.js"]', 'source text not exposed in this runner');
+      }
+      if (dsrc) {
+        T.ok('∅ source · the DSP divides by the scored population', /qualifying \/ scored/.test(dsrc));
+        T.eq('∅ source · nothing divides by the loaded night count', (dsrc.match(/qualifying \/ nights\.length/g) || []).length, 0);
+      } else {
+        T.skip('env.sources["cpapdex-dsp.js"]', 'source text not exposed in this runner');
+      }
+
+      /* 5 · anti-vacuity — the legs above ran real code. */
+      T.ok('ANTI-VACUITY · buildLongitudinal returned a real block', D.buildLongitudinal(two).nights === 2 && typeof D.buildLongitudinal(two).compliancePct === 'number');
+    });
+
     group('CPAPDex quality — ∅ an UNASSESSED mask seal is not a perfect one, and an absent mode is not CPAP', 'cpapdex-dsp · cpapdex-fusion · absence', function (T) {
       var D = env.CpapDsp || env.CPAPDSP;
       var F = env.CpapFusion;
@@ -44207,8 +44567,16 @@
       T.eq('B.computeSpO2Autocorr("") → "true"', JSON.stringify(out === null), 'true');
       out = B.computeHRFlatlines('');
       T.eq('B.computeHRFlatlines("") → "true"', JSON.stringify(out === null), 'true');
+      /* ∅ REPLACED, NOT DELETED — the same treatment the `autoArousalIdx` note above records, and
+         for the same reason. `0` is not a row array: `(0).length` is `undefined`, `undefined < 60`
+         is FALSE, so the old floor let it through and the function returned
+         `{ flatlineCount: 0, maxFlatlineSec: 0, flatlineLabel: 'None' }` — a clean "no flatlines"
+         verdict over an input it never examined. This draft came from the mutation bank, and it
+         states the violation AS THE SPEC, which this brief's header warns of for 2 of 384 drafts.
+         The floor now re-measures on the MEASURED count, so the refusal its six siblings on the
+         lines above already require applies here too. */
       out = B.computeHRFlatlines(0);
-      T.eq('B.computeHRFlatlines(0) → "0"', JSON.stringify(out.flatlineCount), '0');
+      T.eq('B.computeHRFlatlines(0) → refuses, as its six siblings do (§∅: nothing examined, no verdict)', JSON.stringify(out === null), 'true');
       out = B.computeSpO2Shape('');
       T.eq('B.computeSpO2Shape("") → "true"', JSON.stringify(out === null), 'true');
       out = B.computeLCSP('');
@@ -58590,7 +58958,10 @@
      keeps the four discoverability surfaces (README table · DOCS-INDEX at-a-glance · sitemap · about.json/
      JSON-LD) from silently drifting as EEGDex/SpiroDex land: every DEPLOYED node's app + reference guide,
      every content page, and every deployed fusion app must appear in the sitemap (%20-decoded). Planned
-     nodes (app:null) are skipped. Zero dependency, test-layer only. Positive controls included. ════ */
+     nodes (app:null) are skipped, and so is a node declaring `deploy: false` — it ships in the repo and
+     is deliberately not published, the state `fusion[]` already carried. That declaration is HELD, not
+     trusted: a declared-unserved app that does resolve in the sitemap reds, so the flag cannot hide a
+     page that is in fact published. Zero dependency, test-layer only. Positive controls included. ════ */
     group('Discoverability cohesion — roster ≡ sitemap (REPO-DISCOVERABILITY §5.2)', 'discoverability · cohesion', function (T) {
       var D = env.discoverability;
       if (!D || !D.manifestText || !D.sitemapText) {
@@ -58620,28 +58991,59 @@
       }
       var paths = sitemapPaths(D.sitemapText),
         nPaths = Object.keys(paths).length;
+      /* Pure over its two arguments, so the controls below run the REAL rule against a planted roster
+         instead of a second copy of it. A rule that only ever sees the repo's own manifest cannot show
+         that its skips are skips rather than holes. */
+      function rosterMisses(m, pathSet) {
+        var out = [];
+        (m.nodes || []).forEach(function (n) {
+          if (n.planned || !n.app) return;
+          if (n.deploy === false) {
+            if (pathSet[n.app]) out.push(n.id + ' declares deploy:false and IS served as ' + n.app);
+            return;
+          }
+          if (!pathSet[n.app]) out.push(n.id + ' app ' + n.app);
+          if (!n.guide) out.push(n.id + ' has null guide');
+          else if (!pathSet[n.guide]) out.push(n.id + ' guide "' + n.guide + '"');
+        });
+        (m.content || []).forEach(function (c) {
+          if (!pathSet[c.href]) out.push('content ' + c.href);
+        });
+        (m.fusion || []).forEach(function (f) {
+          if (f.deploy === false) {
+            if (pathSet[f.app]) out.push('fusion ' + f.app + ' declares deploy:false and IS served');
+            return;
+          }
+          if (!pathSet[f.app]) out.push('fusion ' + f.app);
+        });
+        return out;
+      }
       var deployedNodes = (man.nodes || []).filter(function (n) {
-        return !n.planned && n.app;
+        return !n.planned && n.app && n.deploy !== false;
       });
       T.ok('sitemap lists ≥ one page per deployed node app+guide (' + nPaths + ' urls)', nPaths >= deployedNodes.length * 2, nPaths + ' urls, ' + deployedNodes.length + ' deployed nodes');
-      var miss = [];
-      deployedNodes.forEach(function (n) {
-        if (!paths[n.app]) miss.push(n.id + ' app ' + n.app);
-        if (!n.guide) miss.push(n.id + ' has null guide');
-        else if (!paths[n.guide]) miss.push(n.id + ' guide "' + n.guide + '"');
-      });
-      (man.content || []).forEach(function (c) {
-        if (!paths[c.href]) miss.push('content ' + c.href);
-      });
-      (man.fusion || []).forEach(function (f) {
-        if (f.deploy === false) return;
-        if (!paths[f.app]) miss.push('fusion ' + f.app);
-      });
+      var miss = rosterMisses(man, paths);
       T.ok(
         'every deployed node (app + reference guide), content page & deployed fusion app resolves in the sitemap',
         miss.length === 0,
         miss.length ? 'missing: ' + miss.slice(0, 8).join(', ') : 'all ' + deployedNodes.length + ' nodes + content + fusion resolve'
       );
+      /* The roster carries a node per app in the repo; the public surfaces carry only what the site
+         serves. A node with no reference guide has no page to link, and a URL built from that field
+         publishes `<site>/null` — absence rendered as a value (CLAUDE.md §∅). It shipped in both
+         generated surfaces the day MotionDex joined the roster, so the generator now filters and this
+         holds the output. */
+      var G = D.generated || {};
+      var siteRoot = ((man.site || {}).url || 'https://tepna.net/').replace(/\/*$/, '/');
+      Object.keys(G).forEach(function (rel) {
+        if (G[rel] == null) {
+          T.ok('generated surface ' + rel + ' was read (the null-url check is not vacuous)', false, 'absent — run tools/build-docs.mjs');
+          return;
+        }
+        var hits = G[rel].split(siteRoot + 'null').length - 1;
+        T.ok('no url in ' + rel + ' is built from an absent field (' + siteRoot + 'null)', hits === 0, hits + ' occurrence(s)');
+      });
+      T.ok('positive control: the null-url scan finds a planted one', ('{"url":"' + siteRoot + 'null"}').split(siteRoot + 'null').length - 1 === 1);
       var ids = (man.nodes || []).map(function (n) {
         return n.id;
       });
@@ -58650,6 +59052,24 @@
       var demo = sitemapPaths('<loc>https://tepna.net/OxyDex%20Reference.html</loc>\n<loc>https://tepna.net/OxyDex.html</loc>');
       T.ok('positive control: %20 decodes so a spaced guide name resolves', demo['OxyDex Reference.html'] === 1 && demo['OxyDex.html'] === 1);
       T.ok('positive control: a page absent from the sitemap is detected', !demo['NotThere.html']);
+      /* The deploy:false skip, controlled in all three directions — the same planted roster read
+         against the same empty page set, so only the flag differs. */
+      var plantedNode = { id: 'PlantDex', app: 'PlantDex.html', guide: 'PlantDex Reference.html' };
+      var plantedOff = { id: 'PlantDex', app: 'PlantDex.html', guide: null, deploy: false };
+      T.ok(
+        'control: an unserved node WITHOUT deploy:false is reported (the skip is not the rule)',
+        rosterMisses({ nodes: [plantedNode] }, {}).join(' | ') === 'PlantDex app PlantDex.html | PlantDex guide "PlantDex Reference.html"'
+      );
+      T.ok('control: the same node WITH deploy:false is skipped, null guide and all', rosterMisses({ nodes: [plantedOff] }, {}).length === 0);
+      T.ok(
+        'control: a deploy:false node that IS served reds (the flag cannot hide a published page)',
+        rosterMisses({ nodes: [plantedOff] }, { 'PlantDex.html': 1 }).join('') === 'PlantDex declares deploy:false and IS served as PlantDex.html'
+      );
+      T.ok(
+        'control: a served node with a null guide is reported',
+        rosterMisses({ nodes: [{ id: 'PlantDex', app: 'PlantDex.html', guide: null }] }, { 'PlantDex.html': 1 }).join('') === 'PlantDex has null guide'
+      );
+      T.ok('control: a deploy:false FUSION app that IS served reds too', rosterMisses({ fusion: [{ id: 'PlantFuse', app: 'PlantFuse.html', deploy: false }] }, { 'PlantFuse.html': 1 }).length === 1);
     });
 
     /* ════ HOST EMIT ALLOWLIST — ecg/ppg/cgm now emit in the live hosts (HOST-EMIT-ALLOWLIST-2026-06-27).
@@ -83788,6 +84208,67 @@
       );
     });
 
+    /* ════ AN ALIAS KEY THE NORMALISER CAN NEVER PRODUCE IS A DEAD ROW IN THE TABLE ════
+       Every node resolver normalises the caller's label BEFORE it reads its alias table
+       (`idForLabel` → `_norm` lowercases, strips tags and collapses whitespace → `ALIAS[k]`). So a
+       key that is not ALREADY in normalised form is never the string the lookup asks for, and the
+       row is unreachable by construction — no caller, no label and no spelling reaches it.
+       Measured on `origin/main` 2026-11-08 over 773 keys in 9 tables: exactly ONE such key,
+       `cpapdex-registry.js`'s `'epr Δ'`, written with U+0394, the CAPITAL delta. `idForLabel('epr Δ')`
+       and `idForLabel('EPR Δ')` both answered null, and so would every other spelling of it, because
+       the entry's own label is `'EPR Delta'` and the lazy label index therefore indexes `'epr delta'`.
+       A null there is not an absent badge: `badgeForLabel` falls through to `MetricRegistry.entry`'s
+       synthetic `experimental` entry, so the surface gets a FABRICATED tier over a metric its own
+       registry grades `measured` — the §🎫 failure this file's neighbouring groups exist to catch.
+       Nothing surfaced it because the sibling key `'epr delta'` resolved all along.
+       THE ASSERTION IS THE TABLE'S OWN PROMISE — a key resolves to the id it declares. That form
+       needs no second copy of `_norm`, and it exempts nothing by hand: ECGDex's `'correctionRate'`
+       key is also a registry id, so the raw-id fast path answers it and the row passes honestly,
+       while a key no path can reach reds.
+       NOT asserted, deliberately: case folding of a key. `'bσ(ln rmssd)'` uppercased round-trips to
+       `'bς(ln rmssd)'`, because Unicode lowercases a word-final Σ to ς, so an ALL-CAPS spelling of a
+       sigma label does not resolve. No surface renders one, and the promise gated here is the
+       declared key, not every spelling of it. Saying so beats a gate that borrows that scope. */
+    group('every alias key resolves to the id its own table declares', 'badges · registry · alias-reachability', function (T) {
+      var NODES = [
+        { node: 'OxyDex', reg: env.OxyRegistry },
+        { node: 'ECGDex', reg: env.EcgRegistry },
+        { node: 'PpgDex', reg: env.PpgRegistry },
+        { node: 'CPAPDex', reg: env.CpapRegistry },
+        { node: 'PulseDex', reg: env.PulseRegistry },
+        { node: 'HRVDex', reg: env.HrvRegistry },
+        { node: 'GlucoDex', reg: env.GlucoRegistry },
+        { node: 'MotionDex', reg: env.MotionRegistry },
+        { node: 'EEGDex', reg: env.EegRegistry }
+      ].filter(function (n) {
+        return n.reg && n.reg.ALIAS && typeof n.reg.idForLabel === 'function';
+      });
+      /* ANTI-VACUITY. A filter that collects nothing passes every assertion under it (§4b), so the
+         resolver set, the key count and the resolver's own refusal are asserted before the sweep. */
+      T.ok('ANTI-VACUITY · resolvers with an alias table are wired', NODES.length >= 8, NODES.length + ' resolver(s)');
+      if (NODES.length < 8) return;
+      var examined = 0,
+        dead = [];
+      NODES.forEach(function (n) {
+        var keys = Object.keys(n.reg.ALIAS);
+        T.ok(n.node + ' declares alias keys', keys.length > 0, keys.length + ' key(s)');
+        keys.forEach(function (k) {
+          examined++;
+          var got = n.reg.idForLabel(k);
+          if (got !== n.reg.ALIAS[k]) {
+            dead.push(n.node + ' ' + JSON.stringify(k) + ' → ' + JSON.stringify(got) + ', declares ' + JSON.stringify(n.reg.ALIAS[k]));
+          }
+        });
+      });
+      T.ok('ANTI-VACUITY · the sweep examined the fleet of keys', examined >= 650, examined + ' key(s) over ' + NODES.length + ' table(s)');
+      T.ok(
+        'CONTROL · a token no table declares resolves to null',
+        NODES.every(function (n) {
+          return n.reg.idForLabel('zzz-no-such-label-9f3') == null;
+        })
+      );
+      T.eq('every alias key resolves to its declared id', dead, []);
+    });
     /* REFERENCE-GUIDE-AUDIT dimension 5 (offline half) — in-page navigation must actually navigate.
        The guides are hand-authored static HTML with a quick-jump nav; an `href="#x"` whose `id` was
        renamed or deleted fails SILENTLY — the browser scrolls nowhere and the reader concludes the
@@ -91255,9 +91736,14 @@
         }
         /* mutant: cmp >= → >  @ if (h >= thresholdH) ok++;
          qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The function correctly calculates compliance percentage when all elements meet the threshold condition */
+        /* ∅ REWRITTEN 2026-11-08: the original call passed `[1, 2, 3]` — three bare numbers carrying
+         no usage datum — and expected 100 %. That answer existed only because an absent datum fell
+         back to 0 h and `0 >= 0` held, so the property pinned the very coercion that was the defect.
+         These two nights are MEASURED and sit exactly on the threshold, so the `>= → >` mutant still
+         flips the result from 100 to 0 and the kill survives. */
         {
-          var out = NS.compliancePct([1, 2, 3], 0);
-          T.eq('NS.compliancePct([1,2,3],0) → out', JSON.stringify(out), '100');
+          var out = NS.compliancePct([{ therapyHours: 4 }, { therapyHours: 4 }], 4);
+          T.eq('NS.compliancePct(two nights at exactly 4 h, 4) → out', JSON.stringify(out), '100');
         }
         /* mutant: bool && → ||  @ return n && n.t0Ms != null ? n.t0Ms : null;
          qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The function correctly returns null when input is null, instead of throwing an error. */

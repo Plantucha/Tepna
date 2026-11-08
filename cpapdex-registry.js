@@ -85,7 +85,7 @@
       goodDirection: 'up',
       depth: 'basic',
       evidence: 'validated',
-      cite: 'Nights ≥4 h / 30 d. CMS PAP adherence: ≥4 h on ≥70% of nights across any 90-day window'
+      cite: 'Nights ≥4 h / nights with a usage datum, over a 30 d window. CMS PAP adherence: ≥4 h on ≥70% of nights across any 90-day window'
     },
     maskOnLatency: { label: 'Mask-On Latency', unit: 'min', goodDirection: 'down', depth: 'advanced', evidence: 'measured', cite: 'Time to first delivered pressure — direct' },
 
@@ -355,7 +355,7 @@
     'p-envelope': 'pressureEnvIqr',
     'epr delta': 'eprDelta',
     epr: 'eprDelta',
-    'epr Δ': 'eprDelta',
+    'epr δ': 'eprDelta',
     '95th-%ile epap': 'epap95',
     '95th-percentile epap': 'epap95',
     epap95: 'epap95',

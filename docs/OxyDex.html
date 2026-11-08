@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="d460e54ff209" data-compute-hash="74afac7e76b7">
+<html lang="en" data-manifest-hash="70aaf667c119" data-compute-hash="0027272621ec">
 <head>
 <!--
   OxyDex.src.html — Tepna
@@ -10,10 +10,10 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-3+T/ar3EZVk36//Zv52rHgbUF+4QZZdJyqAYvpowbmk=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CNkm2h+ZlrSYYzoGx9OxoFo/k2UmcAbaZ9Bd72GM4as=' 'sha256-D0YR9+62Fd3hUFRoEZhA/MkKslQirmZQg7KMBHKpICk=' 'sha256-E1IsN6aDCUvHb/53fIyPoB7AQMLdRp5olYowv/ZbZ6A=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-IzcwkooQwGS8n8qOSQo274lMIi1h0pMAZ3Hlq4W7Dmc=' 'sha256-JoxRGhEzSV7+qbLuz7cdaMnPy/cw1BxtKJexRdu17R0=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-OlU0jGA0OnZ42Fdafhb1v9ikML39C1Hlaiwi6Hnx54g=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-QyURGUmKmbpEGz6vtt+poPueeRE901i4IjiyZIbxJNo=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-XqyVux6nZ1GoEpXw5HlJF6/fUCrzC+aJ4dGKEuYCK0w=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-hCZmwNAMDLPZEMYHAYpzoPETSnimg1oHWWjZImdKqxM=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-s5jQgZ2dCmcNdTTy5gLqyiwkCVbXvuldnqeO/1M79kk=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-3+T/ar3EZVk36//Zv52rHgbUF+4QZZdJyqAYvpowbmk=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CNkm2h+ZlrSYYzoGx9OxoFo/k2UmcAbaZ9Bd72GM4as=' 'sha256-D0YR9+62Fd3hUFRoEZhA/MkKslQirmZQg7KMBHKpICk=' 'sha256-E1IsN6aDCUvHb/53fIyPoB7AQMLdRp5olYowv/ZbZ6A=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-MxmfTjK4rIAHcT6quDxqfVOP5C2/xbu5OVUNyHlynvM=' 'sha256-OlU0jGA0OnZ42Fdafhb1v9ikML39C1Hlaiwi6Hnx54g=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-QyURGUmKmbpEGz6vtt+poPueeRE901i4IjiyZIbxJNo=' 'sha256-RakplvxWfb8RuLMYcGo7529UPJkZlrpGeYqBNSNqmkA=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-XqyVux6nZ1GoEpXw5HlJF6/fUCrzC+aJ4dGKEuYCK0w=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-hCZmwNAMDLPZEMYHAYpzoPETSnimg1oHWWjZImdKqxM=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-s5jQgZ2dCmcNdTTy5gLqyiwkCVbXvuldnqeO/1M79kk=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
-<title>OxyDex — Nocturnal Oximetry Analyzer · v2.28.0</title>
+<title>OxyDex — Nocturnal Oximetry Analyzer · v2.29.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
 <style data-inline-src="licensing/dex-license.css">/*
  * dex-license.css — reusable Tepna license / attribution stamp styles
@@ -6132,7 +6132,7 @@ body.light .oxy-projcard { background:#fff; border-color:rgba(0,0,0,.07); }
     <div class="logo-badge"><svg viewBox="0 0 100 100" aria-hidden="true" style="width:23px;height:23px" fill="none" stroke="#06121A" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"><polyline points="15,33 52,33 60,15 66,49 71,33 86,33"/><line x1="49" y1="33" x2="49" y2="86"/></svg></div>
     <div>
       <div class="logo-title">OxyDex</div>
-      <div class="logo-sub">v2.28.0 · Tepna</div>
+      <div class="logo-sub">v2.29.0 · Tepna</div>
     </div>
   </div>
   <hr class="sidebar-logo-rule">
@@ -6172,7 +6172,7 @@ body.light .oxy-projcard { background:#fff; border-color:rgba(0,0,0,.07); }
 
 <div class="topbar">
   <div>
-    <div class="topbar-title">OxyDex <span class="version-badge">v2.28.0</span></div>
+    <div class="topbar-title">OxyDex <span class="version-badge">v2.29.0</span></div>
     <div class="topbar-sub" id="topbarSub">Nocturnal oximetry · SpO₂ · HR · HRV · 75+ metrics · Tepna</div>
   </div>
   <div class="topbar-actions">
@@ -18662,7 +18662,15 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
        bug the note above s2 exists to prevent. Drop the component instead. */
     var s3 = stats.motionPct == null ? null : Math.max(0, Math.min(100, Math.round(((2.0 - stats.motionPct) / 1.8) * 100)));
     var s4 = Math.max(0, Math.min(100, Math.round(((20 - osc.episodeCount) / 20) * 100)));
-    var s5 = Math.max(0, Math.min(100, Math.round(((15 - hb.rate) / 15) * 100)));
+    /* ∅ ABSENCE-SURVEY 19200c666fc3 — THE CONSUMER HALF OF A FINDING THE DRAIN COUNTS AS FIXED.
+       That digest nulls `hb.rate` at the producer, and the drain ledger reads `fixed`. This line then
+       read the null as the BEST hypoxic burden the scale can express, so the night still scored on a
+       number nobody measured. `hb.rate` is null when no second carried a measured SpO2, and
+       `(15 - null) / 15` is a PERFECT 100 — absence scores the best hypoxic-burden subscore the
+       scale can express. s1, s2, s3 and s6 each carry this guard already; s5 was the one component
+       missed. The renormalizer below drops a null component, so the night scores on what it
+       measured. */
+    var s5 = hb == null || hb.rate == null ? null : Math.max(0, Math.min(100, Math.round(((15 - hb.rate) / 15) * 100)));
     // ∅ ABSENCE-SURVEY 131d841e27b4: t95pct is null with no measured SpO2, and `(20 - null) / 20` is a perfect 100.
     var s6 = stats.t95pct == null ? null : Math.max(0, Math.min(100, Math.round(((20 - stats.t95pct) / 20) * 100)));
     /* Renormalize over the components actually MEASURED, generalizing the s2-only branch this
@@ -19706,26 +19714,49 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
   function computeSpO2Autocorr(rows) {
     var n = rows.length;
     if (n < 300) return null;
-    var USE = n; // §C1: whole record - ac1 is global and O(n); the 3600 cap bought nothing
+    // §C1: whole record - ac1 is global and O(n); the 3600 cap bought nothing.
+    /* §∅: `s` held the raw column, nulls included. `a + null` is `a`, so the mean summed absent
+       seconds as nothing while still dividing by them, and `(null - m)` is `-m`, so each absence
+       contributed a full squared deviation to both sums. A lag-1 autocorrelation also needs its two
+       samples ADJACENT: a pair straddling an absent second is not a lag-1 pair, so the pair is
+       dropped rather than closed over the gap. Probe: flat 98 for 300 s then absence read as
+       oscillation. */
     var s = rows.map(function (r) {
       return r.spo2;
     });
-    var m =
-      s.reduce(function (a, b) {
-        return a + b;
-      }, 0) / USE;
+    function _ok(v) {
+      return v != null && isFinite(v);
+    }
+    var sum = 0,
+      nMeasured = 0;
+    for (var mi = 0; mi < n; mi++) {
+      if (_ok(s[mi])) {
+        sum += s[mi];
+        nMeasured++;
+      }
+    }
+    // §∅: re-floor on the MEASURED count, as computeSpO2Shape does.
+    if (nMeasured < 300) return null;
+    var m = sum / nMeasured;
     var num = 0,
-      den = 0;
-    for (var i = 0; i < USE - 1; i++) {
+      den = 0,
+      pairs = 0;
+    for (var i = 0; i < n - 1; i++) {
+      if (!_ok(s[i]) || !_ok(s[i + 1])) continue;
       num += (s[i] - m) * (s[i + 1] - m);
       den += (s[i] - m) * (s[i] - m);
+      pairs++;
     }
-    if (den === 0) return null;
+    if (den === 0 || pairs < 1) return null;
     var ac1 = +(num / den).toFixed(3);
     return {
       ac1: ac1,
       ac1Label: ac1 > 0.95 ? 'Sustained (hypoventilation)' : ac1 > 0.85 ? 'Persistent' : ac1 < 0.5 ? 'Oscillating (PB pattern)' : 'Transient',
-      basis: 'wholeRecord' // §C1 disclosure
+      basis: 'wholeRecord', // §C1 disclosure
+      // §∅: coverage beside the value — the correlation is over adjacent MEASURED pairs only
+      nMeasured: nMeasured,
+      nTotal: n,
+      nPairs: pairs
     };
   }
 
@@ -20307,25 +20338,49 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
   function computeHRFlatlines(rows) {
     var n = rows.length;
     if (n < 60) return null;
+    /* §∅: the run test was `rows[i].hr === rows[i - 1].hr`, and `null === null` is TRUE, so a
+       channel that never reported read as one long flatline. Probe: 70 all-null HR rows returned
+       flatlineCount 1, maxFlatlineSec 70 and the label "Occasional" — a firmware-artifact verdict
+       over a channel with no firmware output at all. An absent sample equals nothing; it ENDS the
+       run, because the two measured samples around it are not adjacent in the signal. */
     var flatCount = 0,
       maxFlat = 0,
-      run = 1;
-    for (var i = 1; i < n; i++) {
-      if (rows[i].hr === rows[i - 1].hr) {
-        run++;
-      } else {
-        if (run >= 30) {
-          flatCount++;
-          if (run > maxFlat) maxFlat = run;
-        }
+      run = 0,
+      nMeasured = 0,
+      prev = null;
+    function _closeRun() {
+      if (run >= 30) {
+        flatCount++;
+        if (run > maxFlat) maxFlat = run;
+      }
+      run = 0;
+    }
+    for (var i = 0; i < n; i++) {
+      var hv = rows[i].hr;
+      if (hv == null || !isFinite(hv)) {
+        _closeRun();
+        prev = null;
+        continue;
+      }
+      nMeasured++;
+      if (prev != null && hv === prev) run++;
+      else {
+        _closeRun();
         run = 1;
       }
+      prev = hv;
     }
-    if (run >= 30) {
-      flatCount++;
-      if (run > maxFlat) maxFlat = run;
-    }
-    return { flatlineCount: flatCount, maxFlatlineSec: maxFlat, flatlineLabel: flatCount > 5 ? 'Frequent (firmware artifact)' : flatCount > 0 ? 'Occasional' : 'None' };
+    _closeRun();
+    // §∅: re-floor on the MEASURED count, as computeSpO2Shape does — 60 absent rows are not a record.
+    if (nMeasured < 60) return null;
+    return {
+      flatlineCount: flatCount,
+      maxFlatlineSec: maxFlat,
+      flatlineLabel: flatCount > 5 ? 'Frequent (firmware artifact)' : flatCount > 0 ? 'Occasional' : 'None',
+      // §∅: coverage beside the value — the runs are over measured seconds only
+      nMeasured: nMeasured,
+      nTotal: n
+    };
   }
 
   // ── O. SpO2 Ceiling Artifact ──────────────────────────────────────
@@ -21765,7 +21820,7 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     var n = rows.length;
     /* REFUSE (§2.6). `desSev` is `emerging`, goodDirection `down` — 0 is the best value it can
        report, so under a minute of data it published the most reassuring possible answer. */
-    if (n < 60) return { desSev: null };
+    if (n < 60) return { desSev: null, desSevReason: 'record-too-short', desSevCoveredSec: 0, desSevAbsentSec: 0 };
     // Desaturation area (Kulkas) — area = Σ per-second deficit vs each event's onset baseline,
     // scored over the CANONICAL ODI event set.
     //
@@ -21787,19 +21842,39 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     // profile's re-shaped events drop it and keep `nadir`+`depth` — from which the onset
     // baseline is recoverable exactly. Without this the subtraction is NaN, every `d > 0`
     // is false, and the index reports a silent, confident 0.
-    var totalArea = 0;
+    /* §∅: `base - null` is `base`, which is > 0, so every ABSENT second inside an event added the
+       full baseline to the area. Probe: one event over 10 absent seconds returned desSev 980,
+       against 0 for the same ten seconds measured. An absent second contributes no area, and the
+       seconds that did contribute are reported beside the value. */
+    var totalArea = 0,
+      coveredSec = 0,
+      absentSec = 0;
     _evts.forEach(function (e) {
       var base = e.baseline != null ? e.baseline : e.nadir != null && e.depth != null ? e.nadir + e.depth : null;
       if (base == null || !isFinite(base)) return;
       for (var k = e.startIdx; k < e.endIdx; k++) {
-        var d = base - spo2[k];
+        var sv = spo2[k];
+        if (sv == null || !isFinite(sv)) {
+          absentSec++;
+          continue;
+        }
+        coveredSec++;
+        var d = base - sv;
         if (d > 0) totalArea += d;
       }
     });
     // Normalize: area in %-seconds → %-min/hr
     var durationHr = n / 3600;
-    var desSev = durationHr > 0 ? +(totalArea / 60 / durationHr).toFixed(2) : 0;
-    return { desSev: desSev };
+    /* §∅: the `: 0` arm published a severity of zero for a record with no duration to divide by —
+       the reassuring answer for a question never asked. Both refusals now NAME themselves, and an
+       event set whose every second is absent refuses rather than reporting the 0 it measured over
+       nothing. No events at all is a real zero, and keeps its number. */
+    var desSev = null,
+      desSevReason = null;
+    if (!(durationHr > 0)) desSevReason = 'no-duration';
+    else if (_evts.length && coveredSec === 0) desSevReason = 'event-seconds-absent';
+    else desSev = +(totalArea / 60 / durationHr).toFixed(2);
+    return { desSev: desSev, desSevReason: desSevReason, desSevCoveredSec: coveredSec, desSevAbsentSec: absentSec };
   }
 
   // CT90 / CT89 / CT88 per-second (precise, already in tIdx but now surfaced as distinct fields)
@@ -26281,10 +26356,13 @@ function setGCSmooth(k) {
 function nrKpi(label, val, cls) {
   return '<div class="nr-kpi"><div class="nr-kpi-label">' + evBadge(label) + label + '</div><div class="nr-kpi-val ' + stsCls(cls) + '">' + val + '</div></div>';
 }
-function nrChip(label, val, cls) {
+function nrChip(label, val, cls, title) {
   // metric chips carry an evidence dot BEFORE the label; flag/alert chips (empty val) stay bare
   var b = val !== '' && val != null && typeof evBadge === 'function' ? evBadge(label) : '';
-  return '<span class="nr-chip ' + stsCls(cls) + '">' + b + '<span class="chip-label">' + label + '</span> ' + val + '</span>';
+  /* §∅: `title` is optional and LAST, so every existing call is unchanged. It carries the
+     REASON a refused metric gives for its em-dash, which a bare — cannot say on its own. */
+  var t = title ? ' title="' + String(title).replace(/"/g, '&quot;') + '"' : '';
+  return '<span class="nr-chip ' + stsCls(cls) + '"' + t + '>' + b + '<span class="chip-label">' + label + '</span> ' + val + '</span>';
 }
 function nightRowInner(n) {
   var s = n.stats || {};
@@ -26340,7 +26418,19 @@ function nightRowInner(n) {
   // same night could read green on the chip and warn on the card beside it. {5,15,30} is
   // canonical: on the corrected 37-night scale (0.24–17.6 %-min/hr) it separates 26 good /
   // 10 warn / 1 high, whereas {10,25} collapses the entire corpus into green-or-warn.
-  if (n.desSev) chipsArr.push(nrChip('DesSev', n.desSev.desSev, n.desSev.desSev < 5 ? 'g' : n.desSev.desSev < 15 ? 'w' : 'r'));
+  /* §∅: `null < 5` is TRUE, so a REFUSED desaturation severity painted the reassuring GREEN
+     band — the one answer the night had not earned. `computeDesSev` names its refusal
+     (`record-too-short`, `no-duration`, `event-seconds-absent`), so the chip shows the em-dash
+     under a neutral class and carries that name. A MEASURED 0 keeps its number and its green. */
+  if (n.desSev)
+    chipsArr.push(
+      nrChip(
+        'DesSev',
+        n.desSev.desSev != null ? n.desSev.desSev : '—',
+        n.desSev.desSev == null ? '' : n.desSev.desSev < 5 ? 'g' : n.desSev.desSev < 15 ? 'w' : 'r',
+        n.desSev.desSev == null ? 'refused · ' + (n.desSev.desSevReason || 'reason-absent') : ''
+      )
+    );
   // Research-tier chips
   if (n.dfa) chipsArr.push(nrChip('DFA', n.dfa.alpha1, n.dfa.alpha1 > 0.85 ? 'g' : n.dfa.alpha1 > 0.6 ? 'w' : 'r'));
   if (n.ssi) chipsArr.push(nrChip('SSI', n.ssi.ssi, n.ssi.ssi < 0.5 ? 'g' : n.ssi.ssi < 1.5 ? 'w' : 'r'));
@@ -27491,7 +27581,16 @@ function nightDetail(n, idx) {
       'research'
     );
   }
-  if (n.desSev) html += metric('DesSev', n.desSev.desSev, '%-min/hr (Kulkas)', n.desSev.desSev < 5 ? 'good' : n.desSev.desSev < 15 ? 'warn' : 'bad', 'research');
+  /* §∅: the twin of the chip above — `null < 5` graded a refusal "good". The tile states the
+     refusal where the unit would go, so the reason is on the surface and not only in the export. */
+  if (n.desSev)
+    html += metric(
+      'DesSev',
+      n.desSev.desSev != null ? n.desSev.desSev : '—',
+      n.desSev.desSev != null ? '%-min/hr (Kulkas)' : 'refused · ' + (n.desSev.desSevReason || 'reason-absent'),
+      n.desSev.desSev == null ? '' : n.desSev.desSev < 5 ? 'good' : n.desSev.desSev < 15 ? 'warn' : 'bad',
+      'research'
+    );
   html += '</div>';
   if (n.ctPrec) {
     var cp2 = n.ctPrec;
@@ -33817,6 +33916,6 @@ function toggleResearchAccordion(el) {
      sink that only survived because it ran on DOMContentLoaded, already fired in
      the bundle). Dropping raw-at-rest removes both the storage and the payload. -->
 
-<div data-tepna-ver style="position:fixed;right:8px;bottom:8px;z-index:2147483000;font:600 11px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:#dbeafe;background:rgba(15,23,34,.82);border:1px solid rgba(120,170,220,.4);border-radius:999px;padding:2px 9px;letter-spacing:.03em;box-shadow:0 1px 4px rgba(0,0,0,.3);pointer-events:none;user-select:none" title="Tepna suite version">v2.28.0</div>
+<div data-tepna-ver style="position:fixed;right:8px;bottom:8px;z-index:2147483000;font:600 11px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:#dbeafe;background:rgba(15,23,34,.82);border:1px solid rgba(120,170,220,.4);border-radius:999px;padding:2px 9px;letter-spacing:.03em;box-shadow:0 1px 4px rgba(0,0,0,.3);pointer-events:none;user-select:none" title="Tepna suite version">v2.29.0</div>
 </body>
 </html>

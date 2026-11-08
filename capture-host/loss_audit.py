@@ -2624,11 +2624,45 @@ def write_night(
     vpath = os.path.join(night_dir, VERDICT_NAME)
     # BEFORE the replace, and never fatal: an unrecordable withdrawal must not stop the night getting
     # its correct verdict. A first verdict withdraws nothing and returns None.
-    _verdict.withdraw(vpath, os.path.join(night_dir, WITHDRAWN_NAME), obj, reason=REAUDITED)
+    #
+    # §∅ THE RETURN VALUE IS THE ONLY REPORT OF A FAILED WITHDRAWAL. `verdict.withdraw` is append-only
+    # and never fatal, so it reports an unwritable record as `recorded: False` with `record_error` in
+    # the entry it returns, and that entry is the only place the failure appears. This call discarded
+    # it until 2026-11-08, so a superseded LOSS verdict whose withdrawal record never reached disk left
+    # no trace anywhere. A log line is not the remedy here: this module holds no logger, and `qc_child`
+    # runs it in a SPAWNED child whose logger has no handler, so a warning would reach nobody. The
+    # published verdict carries the entry instead, exactly as `solid_night` does one layer up.
+    withdrawn = _verdict.withdraw(vpath, os.path.join(night_dir, WITHDRAWN_NAME), obj, reason=REAUDITED)
+    if withdrawn is not None:
+        if obj.get("result") is not None:
+            obj["result"]["withdrew"] = withdrawn
+        elif withdrawn.get("recorded") is False:
+            # A crash verdict carries `result: null`, and inventing a result to hold this entry would
+            # publish a measurement nobody made (§∅). So the failure joins the one free-text field such
+            # a verdict already owns. `validate` demands `reason: null` on a PASS, and a PASS always
+            # carries a result, so this branch never reaches one.
+            obj["reason"] = (
+                f"{obj['reason']}; the superseded verdict's withdrawal record did not reach disk: {withdrawn['record_error']}"
+            )
     try:
         _verdict.write(vpath, obj)
     except (OSError, ValueError):
-        pass  # the object is returned to the caller either way; the file is the convenience
+        # 🔴 A FAILED PUBLISH MUST NOT LEAVE THE SUPERSEDED CLAIM READING AS CURRENT (§∅). The
+        # withdrawal above already recorded the prior verdict as replaced, so a file that survives a
+        # failed write states a claim this night has retracted — and `stitch_31d._verdict_status`
+        # reads exactly this file. This branch was `pass` until 2026-11-07, so the stale claim stayed
+        # and nothing anywhere said the publish had failed. The object still reaches the caller.
+        #
+        # TAKING IT OFF DISK IS NOT A WEAKER LOG LINE. `sealbox` and `nightqc.write_verdicts` both
+        # log this same failure and this module cannot: it holds no logger, and `qc_child` runs it in
+        # a SPAWNED child whose logger has no handler, so a warning here would reach nobody. Absence
+        # is a state every reader already answers — `qc_child.compose_due` composes nothing over an
+        # absent verdict, and `solid_night.code_moved` reads it as "no verdict yet" — so the next
+        # poll re-judges the night, and it converges rather than carrying a retracted claim.
+        try:
+            os.remove(vpath)
+        except OSError:
+            pass  # nothing was published, or the folder refuses us: the WITHDRAWN record is the trail
     return obj
 
 

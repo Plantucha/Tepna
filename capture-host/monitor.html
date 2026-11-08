@@ -395,7 +395,7 @@ body.light #view-nights{ --n-track:rgba(0,0,0,.08); --n-hatch:rgba(0,0,0,.10); -
 .ng.low{background:color-mix(in srgb,var(--n-low) 22%,transparent);color:var(--n-low);}
 .ng.rec{background:color-mix(in srgb,var(--n-rec) 16%,transparent);color:var(--n-rec);}
 .ng.unk{border:1px dashed var(--n-unk);color:var(--n-unk);}
-.ng.none{background:repeating-linear-gradient(135deg,var(--n-hatch) 0 3px,transparent 3px 6px);color:var(--text4);}
+.ng.none,.ng.unworn{background:repeating-linear-gradient(135deg,var(--n-hatch) 0 3px,transparent 3px 6px);color:var(--text4);}
 .ng.probe{background:color-mix(in srgb,var(--blue) 18%,transparent);color:var(--blue);}
 .nov{overflow-x:auto;}
 .novg{display:grid;grid-template-columns:86px repeat(var(--n-days,31),minmax(9px,1fr));gap:3px;align-items:center;min-width:380px;}
@@ -406,7 +406,7 @@ body.light #view-nights{ --n-track:rgba(0,0,0,.08); --n-hatch:rgba(0,0,0,.10); -
 .nsq{all:unset;cursor:pointer;aspect-ratio:1;border-radius:3px;min-height:9px;}
 .nsq.ok{background:var(--n-ok);opacity:.55;}.nsq.part{background:var(--n-part);}.nsq.low{background:var(--n-low);}
 .nsq.rec{background:var(--n-rec);opacity:.4;}.nsq.unk{box-shadow:inset 0 0 0 1px var(--n-unk);}
-.nsq.none{background:repeating-linear-gradient(135deg,var(--n-hatch) 0 2px,transparent 2px 4px);}
+.nsq.none,.nsq.unworn{background:repeating-linear-gradient(135deg,var(--n-hatch) 0 2px,transparent 2px 4px);}
 .nsq.probe{background:var(--blue);opacity:.55;}
 .nights-wrap{overflow-x:auto;margin:0 -6px;}
 table.nights{width:100%;border-collapse:separate;border-spacing:0;font-variant-numeric:tabular-nums;}
@@ -1525,7 +1525,7 @@ const NIGHT_FUSED = [
   {name:'PAT',          sub:'ECG → pulse arrival',        node:'PAT', needs:['h10','verity'], stitch:'pat_h10_verity'},
   {name:'PAT fused',    sub:'classic beside fused',       node:'PAT fused', needs:['h10','verity','ringppg'], stitch:'pat_fused'},
 ];
-const NIGHT_GLYPH = {ok:'✓', part:'◐', low:'✕', rec:'●', unk:'?', none:'–', probe:'◔'};
+const NIGHT_GLYPH = {ok:'✓', part:'◐', low:'✕', rec:'●', unk:'?', none:'–', probe:'◔', unworn:'○'};
 let NIGHTS_TAB = 'dev';
 const NIGHTS_OPEN_MONTHS = new Set();
 const nWd = d => ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][new Date(d+'T00:00:00Z').getUTCDay()];
@@ -1549,8 +1549,13 @@ function nCls(n, d){
   if(!v || !nHas(n, d.k)) return 'none';
   if(v.pending) return 'unk';
   if(v.coverage==null) return v.hours ? 'rec' : 'unk';
+  if(nUnworn(v)) return 'unworn';
   return v.coverage>=0.95 ? 'ok' : v.coverage>=0.6 ? 'part' : 'low';
 }
+/* NOT WORN IS NOT LOSS (2026-11-07): an unworn Verity on a desk streamed all evening, and its holes read
+   as "92 % lost". `v.wear` holds the seconds each of the daemon's WORN.csv decisions held over the stream
+   (nights_index.worn_seconds). No worn second and at least one not-worn second reads as not worn. */
+function nUnworn(v){ const w = v && v.wear; return !!w && w.worn_s===0 && w.unworn_s>0; }
 function nLost(v){
   if(v.gaps_s==null || !v.span_s) return '';
   const p = 100*v.gaps_s/v.span_s;
@@ -1595,7 +1600,7 @@ function nDevCell(n, d){
   if(c==='none' && d.k==='verity'){ const ring = nRingPpgCell(n); if(ring) return ring; }
   if(c==='none') return `<td><div class="ncell none off" title="${esc(d.name)} recorded nothing this night"><div class="top"><i class="ng none">–</i>—</div><div class="sub">not recorded</div><div class="nbar"></div></div></td>`;
   const w = v.coverage!=null ? Math.round(100*v.coverage) : Math.round(100*Math.min(1,(v.hours||0)/nSpan(n)));
-  const sub = v.pending ? 'counting…' : v.fragments!=null ? `${v.fragments} frag · ${nLost(v)}` : (c==='rec' ? 'recorded' : 'not measured yet');
+  const sub = v.pending ? 'counting…' : c==='unworn' ? `not worn · ${Math.round(v.wear.unworn_s/60)} min` : v.fragments!=null ? `${v.fragments} frag · ${nLost(v)}` : (c==='rec' ? 'recorded' : 'not measured yet');
   const tag = v.loadable ? `data-night="${esc(nRowKey(n))}" data-node="${esc(d.node)}" title="open ${esc(d.node)} with this night loaded"` : `title="${esc(NIGHT_WHY_NOT[d.node]||'shown, not offered')}"`;
   return `<td><button type="button" class="ncell${v.loadable?'':' off'}" ${tag}><span class="top"><i class="ng ${c}">${NIGHT_GLYPH[c]}</i>${esc(nHrs(v.hours))}</span><span class="sub ${c==='part'||c==='low'?c:''}">${esc(sub)}</span><span class="nbar"><i class="${c}" style="width:${w}%"></i></span></button></td>`;
 }
@@ -1713,7 +1718,7 @@ function renderNights(){
     ? 'One square per device per night, coloured by how much of the night that device covered; the first row is the box\'s solid-night verdict. Click a square to jump to its row.'
     : 'One square per tool per night: green when every input it needs was recorded. Click a square to jump to its row.';
   $('#nightsLegend').innerHTML = '<span><b>Solid night:</b></span><span><i class="ng ok">✓</i>solid</span><span><i class="ng low">✕</i>not solid</span><span><i class="ng unk">?</i>unknown</span><span><i class="ng probe">◔</i>probe night</span><span><i class="ng none">–</i>not judged</span><span style="flex-basis:100%;height:0"></span>'
-    + (dev ? '<span><i class="ng ok">✓</i>≥ 95 % covered</span><span><i class="ng part">◐</i>60–95 %</span><span><i class="ng low">✕</i>&lt; 60 %</span><span><i class="ng rec">●</i>recorded, coverage not measured</span><span><i class="ng unk">?</i>not measured yet</span><span><i class="ng none">–</i>not recorded</span>'
+    + (dev ? '<span><i class="ng ok">✓</i>≥ 95 % covered</span><span><i class="ng part">◐</i>60–95 %</span><span><i class="ng low">✕</i>&lt; 60 %</span><span><i class="ng rec">●</i>recorded, coverage not measured</span><span><i class="ng unworn">○</i>not worn</span><span><i class="ng unk">?</i>not measured yet</span><span><i class="ng none">–</i>not recorded</span>'
            : '<span><i class="ng ok">✓</i>every input on disk</span><span><i class="ng rec">●</i>inputs on disk, opens on rig</span><span><i class="ng none">–</i>an input is missing</span>');
   $('#nightsTitle').textContent = dev ? 'Every night, by device' : 'Every night, fused and derived';
   $('#nightsWhy').textContent = dev
@@ -1741,7 +1746,9 @@ function renderNights(){
   $('#nightsTable').innerHTML = h;
   // 31-day stitched buttons: event delegation (headers re-render each time).
   $('#nightsTable').querySelectorAll('button.s31').forEach(function(b){
-    b.onclick = function(){ window.open('/stitched-31d.html?tool='+encodeURIComponent(b.dataset.stitch), '_blank'); };
+    // THROUGH THE /monitor PREFIX. Caddy serves the site root from the app folder, and only /monitor* reaches
+    // webmon. A root link 404'd on the box (owner, 2026-11-07: a click on "31-day" opened a 404 page).
+    b.onclick = function(){ window.open('/monitor/stitched-31d.html?tool='+encodeURIComponent(b.dataset.stitch), '_blank'); };
   });
   nLoadSolid(rows.map(n=>n.night));   // every night's verdict: the folded months count them too
 }

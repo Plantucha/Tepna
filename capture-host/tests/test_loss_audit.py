@@ -3501,6 +3501,132 @@ def test_a_REPLACED_loss_verdict_is_recorded_before_the_overwrite(tmp_path):
     assert json.load(open(os.path.join(d, "LOSS-VERDICT.json")))["producedBy"]["commit"] == "def5678"
 
 
+def test_the_PUBLISHED_verdict_carries_the_withdrawal_it_made(tmp_path):
+    """`2026-11-07-write-night-discards-the-withdrawal-outcome`. `verdict.withdraw` is append-only and
+    never fatal, so the entry it returns is the only report of whether the record reached disk. This
+    call threw that entry away. `solid_night` keeps it in `result.withdrew` one layer up, and this
+    audit now does the same."""
+    d = _night(tmp_path)
+    first = loss_audit.write_night(d, DEV, commit="abc1234", journal=lambda *a: [], clock_events=lambda *a: [])
+    assert "withdrew" not in (first["result"] or {}), "a first verdict withdraws nothing"
+
+    second = loss_audit.write_night(d, DEV, commit="def5678", journal=lambda *a: [], clock_events=lambda *a: [])
+    published = json.load(open(os.path.join(d, "LOSS-VERDICT.json"), encoding="utf-8"))
+    w = published["result"]["withdrew"]
+    assert w["recorded"] is True and "record_error" not in w
+    assert w["withdrawn"]["commit"] == "abc1234" and w["replaced_by"]["commit"] == "def5678"
+    assert second["result"]["withdrew"] == w, "the caller's object and the file say the same thing"
+
+
+def test_an_UNWRITABLE_WITHDRAWAL_RECORD_REACHES_THE_PUBLISHED_VERDICT(tmp_path):
+    """The whole point of the return value. A FOLDER named `LOSS-VERDICT-WITHDRAWN.jsonl` fails the
+    append, so `withdraw` reports `recorded: False` with its `record_error`, and the replacement still
+    publishes. Before this, a superseded claim could vanish with no trace of either fact."""
+    d = _night(tmp_path)
+    wpath = os.path.join(d, "LOSS-VERDICT-WITHDRAWN.jsonl")
+    loss_audit.write_night(d, DEV, commit="abc1234", journal=lambda *a: [], clock_events=lambda *a: [])
+    os.mkdir(wpath)  # the record cannot take an append, and the replacement must proceed anyway
+
+    second = loss_audit.write_night(d, DEV, commit="def5678", journal=lambda *a: [], clock_events=lambda *a: [])
+    published = json.load(open(os.path.join(d, "LOSS-VERDICT.json"), encoding="utf-8"))
+    w = published["result"]["withdrew"]
+    assert w["recorded"] is False, "a bare `recorded: True` would claim a record that is not there"
+    assert w["record_error"] and w["withdrawn"]["commit"] == "abc1234"
+    assert second["producedBy"]["commit"] == "def5678", "the night still gets its correct verdict"
+    assert os.path.isdir(wpath), "nothing reached the folder"
+
+
+def test_a_CRASH_VERDICT_NAMES_THE_WITHDRAWAL_IT_COULD_NOT_RECORD(tmp_path, monkeypatch):
+    """A crash carries `result: null`, so the entry has nowhere to sit. A result invented to hold it
+    would publish a measurement nobody made (§∅), so the failure joins the reason — the one free-text
+    field such a verdict owns. `validate` demands `reason: null` on a PASS, and a PASS always carries a
+    result, so this branch never reaches one."""
+    d = _night(tmp_path)
+    wpath = os.path.join(d, "LOSS-VERDICT-WITHDRAWN.jsonl")
+    loss_audit.write_night(d, DEV, commit="abc1234", journal=lambda *a: [], clock_events=lambda *a: [])
+    os.mkdir(wpath)
+
+    def boom(*a, **k):
+        raise RuntimeError("the audit fell over")
+
+    monkeypatch.setattr(loss_audit, "audit_night", boom)
+    obj = loss_audit.write_night(d, DEV, commit="def5678", journal=lambda *a: [], clock_events=lambda *a: [])
+
+    assert obj["status"] == "UNKNOWN" and obj["result"] is None
+    assert "the audit fell over" in obj["reason"], "the crash still names itself"
+    assert "withdrawal record did not reach disk" in obj["reason"]
+    published = json.load(open(os.path.join(d, "LOSS-VERDICT.json"), encoding="utf-8"))
+    assert published["reason"] == obj["reason"], "the file says what the caller was told"
+
+
+def test_a_FAILED_PUBLISH_TAKES_THE_SUPERSEDED_CLAIM_OFF_DISK(tmp_path):
+    """`2026-11-07-loss-audit-swallows-a-failed-verdict-write`. The withdrawal above runs BEFORE the
+    replace, so a failed write left the night holding a claim it had already retracted, and `pass` said
+    nothing about it. `stitch_31d._verdict_status` reads exactly this file.
+
+    The `.tmp` path is a FOLDER here, so the real `verdict.write` fails on its own rather than under a
+    patch. `sealbox` and `nightqc.write_verdicts` log this failure and this module cannot — it holds no
+    logger and `qc_child` spawns it — so it takes the retracted claim off disk instead."""
+    d = _night(tmp_path)
+    vpath = os.path.join(d, "LOSS-VERDICT.json")
+    loss_audit.write_night(d, DEV, commit="abc1234", journal=lambda *a: [], clock_events=lambda *a: [])
+    assert json.load(open(vpath, encoding="utf-8"))["producedBy"]["commit"] == "abc1234"
+
+    os.mkdir(vpath + ".tmp")  # the writer cannot open its own temporary file
+    second = loss_audit.write_night(d, DEV, commit="def5678", journal=lambda *a: [], clock_events=lambda *a: [])
+
+    assert not os.path.exists(vpath), "the retracted claim still reads as this night's current verdict"
+    assert second["producedBy"]["commit"] == "def5678", "the caller still gets the verdict it asked for"
+    wpath = os.path.join(d, "LOSS-VERDICT-WITHDRAWN.jsonl")
+    assert os.path.exists(wpath), "the withdrawal record is the only trail left, so it must survive"
+
+
+def test_a_FIRST_PUBLISH_THAT_FAILS_LEAVES_NO_VERDICT_AND_DOES_NOT_RAISE(tmp_path):
+    """A first verdict published nothing, so no retracted claim sits on disk and `os.remove` raises
+    `FileNotFoundError`. `write_night` still hands its verdict back: an unwritable file is not a crash,
+    and this function's own promise is that nothing raises past one."""
+    d = _night(tmp_path)
+    vpath = os.path.join(d, "LOSS-VERDICT.json")
+    os.mkdir(vpath + ".tmp")
+
+    obj = loss_audit.write_night(d, DEV, commit="abc1234", journal=lambda *a: [], clock_events=lambda *a: [])
+
+    assert obj["gate"] == "night-loss" and not os.path.exists(vpath)
+
+
+def test_WHEN_THE_CLAIM_CANNOT_COME_OFF_DISK_THE_VERDICT_STILL_REACHES_THE_CALLER(tmp_path):
+    """A FOLDER named `LOSS-VERDICT.json` fails both halves at once: `os.replace` cannot put the new
+    verdict there, and `os.remove` cannot take the folder away. The audit reports its verdict anyway,
+    because the return value is then the one place this night is described."""
+    d = _night(tmp_path)
+    vpath = os.path.join(d, "LOSS-VERDICT.json")
+    os.mkdir(vpath)
+
+    obj = loss_audit.write_night(d, DEV, commit="abc1234", journal=lambda *a: [], clock_events=lambda *a: [])
+
+    assert obj["producedBy"]["commit"] == "abc1234"
+    assert os.path.isdir(vpath), "the folder the audit could not remove is still standing"
+
+
+def test_a_VERDICT_THE_WRITER_REFUSES_ALSO_COMES_OFF_DISK(tmp_path, monkeypatch):
+    """The handler catches `ValueError` beside `OSError`, because `verdict.write` validates before it
+    writes a byte. No folder fixture reaches that arm — only an object the writer refuses does — so this
+    is the one leg here that patches the writer."""
+    d = _night(tmp_path)
+    vpath = os.path.join(d, "LOSS-VERDICT.json")
+    loss_audit.write_night(d, DEV, commit="abc1234", journal=lambda *a: [], clock_events=lambda *a: [])
+    assert os.path.exists(vpath)
+
+    def refuse(path, obj):
+        raise ValueError("a verdict this writer refuses")
+
+    monkeypatch.setattr(loss_audit._verdict, "write", refuse)
+    obj = loss_audit.write_night(d, DEV, commit="def5678", journal=lambda *a: [], clock_events=lambda *a: [])
+
+    assert obj["producedBy"]["commit"] == "def5678"
+    assert not os.path.exists(vpath), "a refused verdict left the retracted claim reading as current"
+
+
 # ---------------------------------------------------------------------------------------------------
 # SAMPLES, NOT SECONDS — residue `2026-09-27-sample-shortfall-without-a-time-gap-is-unmeasured`.
 #

@@ -1029,13 +1029,16 @@ class _FakePsFtp:
     """Stands in for the polar_psftp module inside pull_polar_offline_all (imported at call time, so a
     sys.modules injection is what reaches it)."""
 
-    def __init__(self, sessions, files=None, short=None):
+    def __init__(self, sessions, files=None, short=None, listing=None):
         self._sessions, self._files = sessions, files or {}
         self._short = short or {}
+        # The enumeration the walk publishes beside the sessions. A COMPLETE one by default, so a
+        # test whose subject is the pull says nothing about the walk; `listing=` plants a cut one.
+        self._listing = listing or {"truncated_dirs": [], "unreadable_dirs": [], "unlisted": 0, "complete": True}
         self.pulled = []
 
-    async def list_recordings(self, address, adapter=None):
-        return self._sessions
+    async def list_recordings_ex(self, address, adapter=None):
+        return self._sessions, self._listing
 
     async def pull_recording(self, address, path, out_dir, adapter=None, device_id=None):
         self.pulled.append((path, out_dir))
@@ -1082,6 +1085,30 @@ def test_PLANT_an_unenumerated_session_refuses_the_aggregate_verdict(tmp_path, m
     assert res["unenumerated"] == 2
     assert res["ok"] is False, "a producer-side refusal must reach the caller, not be recomputed away"
     assert res["new_files"] == ["ECG.txt"], "what DID answer is still reported"
+
+
+# ── §∅ · THE SET OF SESSIONS IS ITSELF A READ THAT CAN COME BACK SHORT (2026-11-07) ────────────
+# RESIDUE row `2026-11-07-list-recordings-publishes-a-partial-list-as-ok`. The two plants above
+# count absences INSIDE each session, but both fold over the sessions the walk happened to see. A
+# cut root listing shortened that set and reached no axis here, so this pull reported `ok` over a
+# session population of unknown size — and its `ok` is what stamps `_LAST_PULL_OK`, which licenses
+# `alerts.powered_off_after_pull` to call the device safely emptied.
+def test_PLANT_a_CUT_SESSION_LIST_refuses_the_aggregate_verdict(tmp_path, monkeypatch, caplog):
+    fake = _FakePsFtp(
+        sessions=[{"path": "/U/0/A/", "date": "20260725", "time": "220000"}],
+        files={"/U/0/A/": ["ECG.txt"]},
+        listing={"truncated_dirs": ["/U/0/"], "unreadable_dirs": [], "unlisted": 1, "complete": False},
+    )
+    with caplog.at_level("WARNING"):
+        res = _offline_all(tmp_path, monkeypatch, fake)
+    assert res["short"] == [] and res["unenumerated"] == 0 and res["unanswered_sessions"] == 0, (
+        "every per-session axis is clean — the refusal is about the SET OF SESSIONS"
+    )
+    assert res["unlisted"] == 1, "the cut travels on its own axis, not folded into the others"
+    assert res["ok"] is False, "a pull over a session set of unknown size cannot report ok"
+    assert res["new_files"] == ["ECG.txt"], "what DID answer is still pulled and reported"
+    warn = " ".join(r.getMessage() for r in caplog.records)
+    assert "INCOMPLETE file set" in warn and "1 listing cut(s)" in warn
 
 
 def test_PLANT_a_session_that_returned_no_manifest_is_counted_not_ignored(tmp_path, monkeypatch):
@@ -1141,6 +1168,7 @@ def test_every_onboard_recording_is_pulled_into_its_own_stamped_directory(tmp_pa
         "short": [],
         "unenumerated": 0,
         "unanswered_sessions": 0,
+        "unlisted": 0,
         "ok": True,
     }
     outs = [o for _p, o in fake.pulled]
