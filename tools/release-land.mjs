@@ -76,7 +76,7 @@ import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { isCliEntry } from './argv-guard.mjs';
+import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 import { escapeRe } from './regex-escape-core.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -602,7 +602,17 @@ function status() {
   return st.failed ? 1 : rem.length ? 2 : 0;
 }
 
+/* THE FLAGS THIS TOOL READS, held as one set so a token outside it is refused before anything runs.
+   Every read below falls through to `newState` → `run`, so `--statu` used to START THE WHOLE CHAIN
+   (Osprey, board #4749). `--foreground` and `--skip-gates` are read by nothing here; release.mjs
+   forwards them (`launchFull`, `delegateToLand`), so they pass rather than refuse a launch. */
+const ARGV_SPEC = {
+  boolean: ['--status', '--dry-run', '--resume', '--selftest', '--foreground', '--skip-gates'],
+  valued: ['--attach', '--session', '--timeout-min', '--grace-min', '--interval-s']
+};
+
 function main(argv) {
+  refuseUnknownArgvOrExit(argv, ARGV_SPEC, { tool: 'tools/release-land.mjs' });
   if (argv.includes('--status')) return status();
   const ai = argv.indexOf('--attach');
   if (ai !== -1) {

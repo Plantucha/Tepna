@@ -49676,6 +49676,120 @@
        live and tested, because a firmware that starts stamping PPI makes those rows decidable with no
        code change. Owner ruling 2026-11-05 still binds the absence: no sidecar reads UNKNOWN, never
        zero, and the block is on EVERY export. */
+    /* ════ THE RR NODE REACHES THE FUSION LAYER — `timeseries.epochs` ═══════════════════════════
+       Row `2026-11-08-the-pulsedex-export-carries-no-epoch-series`. The export published
+       `recording.windows` as a COUNT, so `integrator-dsp.js:735` lifted 0 epochs for the RR node,
+       the three-cornered-hat fit reported 0 channels, and nothing named the loss. The contract is
+       INTEGRATOR-THREE-CORNERED-HAT §2, and ECGDex and PpgDex already satisfy it.
+
+       THE LEG THAT IS ABOUT THE DEFECT IS THE INTEGRATOR LEG, not the shape of the node export. A
+       node can publish a well-formed array that the fusion layer drops, because the reader is a
+       WHITELIST: that is how `hrStat` shipped inert from ECGDex while every golden read `undefined`.
+       So the group runs the export through `adaptEnvelopeNode` and reads `series.hrvEpochs`, and it
+       keeps a CONTROL that deletes the block and asserts 0 epochs — the state this row describes. */
+    group('the PulseDex export carries a per-epoch series, and the Integrator fuses it', 'pulsedex-dsp · integrator-dsp · node-export · fusion · §∅', function (T) {
+      var P = env.PULSEDSP || env.PulseDex;
+      var pick = function (k) {
+        return P && (P[k] || (P._bare && P._bare[k]));
+      };
+      var parseRRInput = pick('parseRRInput'),
+        pdComputeResult = pick('pdComputeResult'),
+        pdBuildNodeExport = pick('pdBuildNodeExport');
+      /* FAIL CLOSED. A skip here would hide the very wiring this group exists to assert, which is
+           the hollow-gate failure mode this suite has measured more than once. */
+      if (!(typeof parseRRInput === 'function' && typeof pdComputeResult === 'function' && typeof pdBuildNodeExport === 'function')) {
+        T.eq('the PulseDex DSP exposes its RR reader, its compute and its export builder', 'absent', 'present');
+        return;
+      }
+      var T0 = Date.UTC(2026, 5, 17, 1, 0, 0);
+      /* REAL variability, so a null or a zero is distinguishable from a measurement — a flat series
+           would satisfy a `!= null` assertion by accident. */
+      var rrText = function (n) {
+        var L = ['Phone timestamp;RR-interval [ms]'],
+          at = 0;
+        for (var q = 0; q < n; q++) {
+          var ms = 900 + (q % 7) * 30;
+          L.push(new Date(T0 + at).toISOString().replace('Z', '') + ';' + ms);
+          at += ms;
+        }
+        return L.join('\n') + '\n';
+      };
+      /* `windowAnalysis` runs only on a LONG record (`classifyRecording` at :1399 needs 90 min), so
+           the fixture is ~105 min of beats. A 20-minute stub carries no window and would have made
+           this group assert the absence instead of the series. */
+      var r = pdComputeResult(parseRRInput(rrText(6400)));
+      var exp = pdBuildNodeExport(r);
+      var eps = exp.timeseries && exp.timeseries.epochs;
+      T.ok(
+        'the export publishes `timeseries.epochs`, one entry per analysable window',
+        Array.isArray(eps) && eps.length === exp.recording.windows && eps.length >= 3,
+        JSON.stringify([Array.isArray(eps) ? eps.length : null, exp.recording.windows])
+      );
+      if (Array.isArray(eps) && eps.length) {
+        var bad = eps.filter(function (e) {
+          return !(e && isFinite(e.tMin) && isFinite(e.hr) && isFinite(e.rmssd) && e.rmssd > 0);
+        });
+        T.eq('every epoch carries a finite minute, a finite HR and a positive rMSSD', bad.length, 0, JSON.stringify(bad.slice(0, 2)));
+        var stats = eps
+          .map(function (e) {
+            return e.hrStat;
+          })
+          .filter(function (v, i, a) {
+            return a.indexOf(v) === i;
+          });
+        /* The whitelist at `integrator-dsp.js:752` reads this string and nothing else says WHICH
+             statistic the node's `hr` is. `rate-of-mean` is `60000/mean(RR)`, the statistic ECGDex
+             and PpgDex declare, so the HR-hat differences three legs that answer one question. */
+        T.eq('…and declares one HR statistic, the one the other two interval nodes declare', JSON.stringify(stats), '["rate-of-mean"]');
+        T.ok(
+          'the epoch REPORTS the window, it does not recompute it',
+          eps[0].hr === r.windows[0].hr && eps[0].rmssd === r.windows[0].rmssd && eps[0].tMin === r.windows[0].tMin,
+          JSON.stringify([eps[0], r.windows[0]])
+        );
+        /* §∅ — an RR stream carries no accelerometer, so the key is ABSENT. A `motionIndex: 0`
+             would read as a measured still minute and would enter the co-motion rho as data. */
+        T.eq(
+          'no `motionIndex` key on an RR node — absence, never a zero',
+          eps.filter(function (e) {
+            return Object.prototype.hasOwnProperty.call(e, 'motionIndex');
+          }).length,
+          0
+        );
+      }
+      /* A record with no analysable window carries NO field, rather than an empty array a consumer
+           would read as "measured, and flat". */
+      var short = pdBuildNodeExport(pdComputeResult(parseRRInput(rrText(60))));
+      T.eq('a record with no analysable window carries no `timeseries` key at all', JSON.stringify([short.recording.windows, short.timeseries === undefined]), '[0,true]');
+      // ── 🔴 THE DEFECT'S OWN LEG: the fusion layer, with the control that reproduces the row ───
+      if (typeof env.adaptEnvelopeNode === 'function') {
+        /* The adapter answers with a LIST of recs (or a `{recs}` carrier), never one rec — the same
+             unwrap every other end-to-end leg in this file performs. Reading `.series` off the
+             carrier reads `undefined` and would have made this leg assert the defect it is about. */
+        var _unwrap = function (a) {
+          return Array.isArray(a) ? a[0] : a && a.recs && a.recs[0];
+        };
+        var rec = _unwrap(env.adaptEnvelopeNode(JSON.parse(JSON.stringify(exp)), 'PulseDex', 'pulsedex_synth_rr.json'));
+        var fused = rec && rec.series ? rec.series.hrvEpochs : null;
+        T.ok(
+          '🔴 the Integrator now lifts the RR node epochs into `series.hrvEpochs`',
+          Array.isArray(fused) && fused.length === eps.length && fused.length >= 3,
+          JSON.stringify(Array.isArray(fused) ? fused.length : fused)
+        );
+        if (Array.isArray(fused) && fused.length) {
+          T.ok(
+            '…with the label and the wall clock the fit needs, and a null motion leg',
+            fused[0].hrStat === 'rate-of-mean' && fused[0].rmssd > 0 && fused[0].motion === null && fused[0].tMs === exp.recording.startEpochMs + fused[0].tMin * 60000,
+            JSON.stringify(fused[0])
+          );
+        }
+        var blind = JSON.parse(JSON.stringify(exp));
+        delete blind.timeseries;
+        var recBlind = _unwrap(env.adaptEnvelopeNode(blind, 'PulseDex', 'pulsedex_synth_rr.json'));
+        var fusedBlind = recBlind && recBlind.series ? recBlind.series.hrvEpochs : null;
+        T.ok('CONTROL · the export WITHOUT the block fuses 0 epochs, which is the state the row describes', !(fusedBlind && fusedBlind.length), JSON.stringify(fusedBlind || null));
+      } else T.eq('env.adaptEnvelopeNode reaches this realm, so the fusion leg can run', 'absent', 'present');
+    });
+
     group(
       'SEAM-SIDECAR-CONSUMPTION §4 — the _PPISEAMS/_HRSEAMS sidecars reach PulseDex, and a flat device axis refuses nothing',
       'pulsedex-dsp · pulsedex-app · signal-orchestrate · adapters · absence · §∅',
@@ -82930,6 +83044,14 @@
       T.ok('release.mjs · --status reaches release-land.mjs instead of stamping', /no release-land run recorded|^remaining:|\nremaining:/m.test(String(relSt.out)), String(relSt.out).slice(0, 260));
       T.ok('…and nothing of the stamp step ran', !/This was the STAMP step only|Stamped v/.test(String(relSt.out)), String(relSt.out).slice(0, 260));
       T.ok('…at exit 0 (a report) or 1 (no run recorded on this machine), never 2', relSt.status === 0 || relSt.status === 1, 'status=' + relSt.status + ' out=' + String(relSt.out).slice(0, 160));
+      /* release-land.mjs itself (Osprey, board #4749): every unread token fell through to a fresh run.
+         The probe carries `--dry-run` for the reason above — a regressed guard previews, never releases. */
+      var landBad = probeL('tools/release-land.mjs', ['--statu', '--dry-run']);
+      T.eq('release-land.mjs · a mistyped flag exits 2', landBad.status, 2);
+      T.ok('…naming the token and the flag meant', /--statu\b/.test(String(landBad.out)) && /--status/.test(String(landBad.out)), String(landBad.out).slice(0, 220));
+      T.ok('…and no plan was printed', !/DRY RUN/.test(String(landBad.out)), String(landBad.out).slice(0, 220));
+      var landFwd = probeL('tools/release-land.mjs', ['--status', '--skip-gates']);
+      T.ok('CONTROL · a flag release.mjs forwards is accepted, never refused', landFwd.status !== 2, 'status=' + landFwd.status + ' out=' + String(landFwd.out).slice(0, 160));
       var rtHelp = probeL('tests/run-tests.mjs', ['--help']);
       T.eq('run-tests.mjs · --help exits 0', rtHelp.status, 0);
       T.ok('…printing a usage line that names the runner', /^usage: node tests\/run-tests\.mjs/m.test(String(rtHelp.out)), String(rtHelp.out).slice(0, 160));
