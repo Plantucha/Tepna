@@ -10115,8 +10115,12 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
             if recording:
                 if name in down_since or name not in stream_since:
                     stream_since[name] = now  # a new episode starts here
-                    if alerts.begins_a_night(_now().hour):
-                        night_began = now  # a worn device in the evening: a night began
+                    # A WORN device in the evening begins a night; a device on a desk does not. Measured
+                    # on the capture box 2026-11-07: a Sense judged not worn since 17:41 relinked at 18:07
+                    # and streamed. That stream began a night, which ended the licence of the ring and the
+                    # strap, and both sent "offline for ~5 min" at 18:12. Unknown wear still counts as worn.
+                    if worn_since is None and alerts.begins_a_night(_now().hour):
+                        night_began = now
                 ended_noted.discard(name)
                 ended_at.pop(name, None)
                 down_since.pop(name, None)
