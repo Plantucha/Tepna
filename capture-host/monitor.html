@@ -1554,8 +1554,16 @@ function nCls(n, d){
 }
 /* NOT WORN IS NOT LOSS (2026-11-07): an unworn Verity on a desk streamed all evening, and its holes read
    as "92 % lost". `v.wear` holds the seconds each of the daemon's WORN.csv decisions held over the stream
-   (nights_index.worn_seconds). No worn second and at least one not-worn second reads as not worn. */
-function nUnworn(v){ const w = v && v.wear; return !!w && w.worn_s===0 && w.unworn_s>0; }
+   (nights_index.worn_seconds). No worn second and at least one not-worn second reads as not worn.
+   UNKNOWN TIME IS NOT NOT-WORN (2026-11-08, hunt X2-2): a stream lost for hours with one late not-worn
+   decision held 97.9 % unknown time and still read as not worn, so a lost night hid as a desk. The
+   unknown share of the decided-or-not time must stay at or under 5 %, the same tolerance as the 95 %
+   coverage grade. An unknown_s that is not a number is absent, never 0, so the cell keeps its loss grade. */
+function nUnworn(v){
+  const w = v && v.wear;
+  return !!w && w.worn_s===0 && w.unworn_s>0 && Number.isFinite(w.unknown_s)
+    && w.unknown_s <= 0.05*(w.unworn_s + w.unknown_s);
+}
 function nLost(v){
   if(v.gaps_s==null || !v.span_s) return '';
   const p = 100*v.gaps_s/v.span_s;
