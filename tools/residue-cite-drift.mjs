@@ -97,6 +97,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry } from './argv-guard.mjs';
+import { escapeRe } from './regex-escape-core.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 /* `verdict.js` is CommonJS and sits at the repo root; this is the idiom `tools/residue-citations.mjs` uses. */
@@ -189,7 +190,10 @@ const STOP = new Set([
   'line',
   'lines'
 ]);
-const PATHLIKE = /\.(py|js|mjs|md|html|json|sh|yml|yaml|toml|css|txt)$/;
+/* ∅ ONE EXTENSION LIST FEEDS BOTH THE REJECTION AND THE TAIL, so the two cannot drift apart. */
+const EXTS = 'py|js|mjs|md|html|json|sh|yml|yaml|toml|css|txt';
+const PATHLIKE = new RegExp(`\\.(${EXTS})$`);
+const BARE_EXT = new RegExp(`^(${EXTS})$`);
 
 export function parseRows(ledgerText) {
   const out = [];
@@ -227,18 +231,48 @@ export function identifiers(rowText) {
     }
     for (const t of span.match(TOKEN_RE) || []) {
       add(t);
-      if (t.includes('.')) add(t.split('.').pop()); // `mod.alpha` → also `alpha`
+      /* ∅ THE TAIL OF A REJECTED FILENAME IS NOT AN IDENTIFIER. `tri_device_nights.json` is
+         rejected as path-like, and then its own tail admitted `json`, which stood as an anchor on
+         any line that names any JSON file. Measured 2026-11-08 over 1302 rows: mjs×553, json×219,
+         txt×97, html×96, yml×28, yaml×12, toml×5, css×3. */
+      if (t.includes('.')) {
+        const tail = t.split('.').pop(); // `mod.alpha` → also `alpha`
+        if (!BARE_EXT.test(tail)) add(tail);
+      }
     }
   }
   return [...ids];
 }
 
 /* The judgement, pure: one citation against the file's lines and the row's identifiers. */
+/* ∅ AN IDENTIFIER OCCURS WHERE IT STANDS ON ITS OWN, NEVER INSIDE A LONGER WORD. A bare `includes`
+   read `file` out of `fileURLToPath`, `fixture` out of `fixtureNames`, `pat` out of `path` and `dex`
+   out of `index`, so a short identifier anchored a citation to a line that never names it. Measured
+   2026-11-08: 33 of 249 anchored citations held no standalone occurrence on the cited line.
+   `_` is a word character, so `pull_session` still fails inside `foo_pull_session`; `-`, `.`, `(`
+   and a backtick are not, so `trio-batch`, `mod.alpha` and `foo(` still match. A quoted-string
+   identifier can open or close on a non-word character, which carries no boundary, so each end is
+   guarded on its own. */
+const BOUND = new Map();
+export function occursIn(id, text) {
+  if (!id || !text) return false;
+  let re = BOUND.get(id);
+  if (!re) {
+    const lead = /^[A-Za-z0-9_]/.test(id) ? '\\b' : '';
+    const tail = /[A-Za-z0-9_]$/.test(id) ? '\\b' : '';
+    /* The metacharacter class has ONE home (`tools/regex-escape-core.mjs`), and a gate reds a
+       second copy of it in this tree. */
+    re = new RegExp(`${lead}${escapeRe(id)}${tail}`);
+    BOUND.set(id, re);
+  }
+  return re.test(text);
+}
+
 export function judge(cite, fileLines, ids) {
   if (fileLines === null) return { verdict: 'missing-file' };
   if (cite.line < 1 || cite.line > fileLines.length) return { verdict: 'beyond-eof', length: fileLines.length };
   const at = fileLines[cite.line - 1];
-  const hit = ids.filter((id) => at.includes(id));
+  const hit = ids.filter((id) => occursIn(id, at));
   if (hit.length) return { verdict: 'anchored', ids: hit };
   // Only a CODE-SHAPED identifier can testify that the line moved — snake_case, dotted, camelCase or a
   // literal string. A plain word (`ambient`, `reconcile`, `ABSENCE`) occurs in prose and comments all
@@ -247,7 +281,7 @@ export function judge(cite, fileLines, ids) {
   const now = {};
   for (const id of specific) {
     const where = [];
-    for (let i = 0; i < fileLines.length && where.length < 4; i++) if (fileLines[i].includes(id)) where.push(i + 1);
+    for (let i = 0; i < fileLines.length && where.length < 4; i++) if (occursIn(id, fileLines[i])) where.push(i + 1);
     if (where.length) now[id] = where;
   }
   if (Object.keys(now).length) return { verdict: 'moved', now };
@@ -570,6 +604,38 @@ function selftest() {
   check('a row with NO identifiers is unanchored, never anchored by vacuity', judge({ line: 5 }, file, []).verdict === 'unanchored');
   check('a PLAIN-WORD identifier (`alpha`, `beta`) cannot testify to a move — unanchored, not moved', judge({ line: 4 }, file, ['alpha', 'beta']).verdict === 'unanchored');
   check('…but it still anchors when it IS on the cited line', judge({ line: 2 }, file, ['def']).verdict === 'anchored');
+  /* ════ AN IDENTIFIER MUST STAND ON ITS OWN ════════════════════════════════════════════════
+     Measured 2026-11-08 over 1302 rows: 33 of 249 anchored citations held no standalone occurrence
+     on the line they cite, and two more anchored on nothing but a file extension. The legs under
+     `occursIn` are the ones that separate this reader from a bare `includes`; the rest pin the
+     forms that a boundary test can break — a word character inside an identifier, a non-word
+     character beside one, a literal dot, and a tail that is a real name. */
+  check('∅ an interior substring is not an occurrence: `file` is not in `fileURLToPath`', !occursIn('file', 'const HERE = dirname(fileURLToPath(import.meta.url));'));
+  check(
+    '∅ nor is `fixture` in `fixtureNames`, `pat` in `path`, or `dex` in `index`',
+    !occursIn('fixture', 'export function embeddedStampCount(fixtureNames, root) {') &&
+      !occursIn('pat', 'the corrected path put both accelerometers on the phone stamps') &&
+      !occursIn('dex', 'that index also carries the run fragments')
+  );
+  check('`_` is a word character, so `pull_session` does not occur inside `foo_pull_session`', !occursIn('pull_session', 'await foo_pull_session(db)'));
+  check(
+    '…and `-`, `.`, `(` and a backtick carry a boundary, so a hyphenated or dotted name still occurs',
+    occursIn('trio-batch', 'reads `tools/trio-batch.mjs` as a signalled death') && occursIn('mod.alpha', 'x = mod.alpha();') && occursIn('readFile', 'readFile(u)')
+  );
+  check("a dotted identifier's dot is a literal, never any character", !occursIn('mod.alpha', 'modxalpha()'));
+  check('a quoted-string identifier that ends on a non-word character still occurs', occursIn('--cov-fail-under', 'pytest -q --cov-fail-under=100'));
+  check('judge: an interior substring no longer anchors the citation', judge({ line: 1 }, toLines('const HERE = dirname(fileURLToPath(u));\n'), ['file']).verdict !== 'anchored');
+  check('judge: a standalone identifier on the cited line still anchors', judge({ line: 1 }, toLines('const HERE = readFile(u);\n'), ['readFile']).verdict === 'anchored');
+  check(
+    'judge: the MOVED search is bounded too, so an interior match elsewhere is not a move',
+    judge({ line: 1 }, toLines('a\nconst x = pull_sessionFactory();\n'), ['pull_session']).verdict === 'unanchored'
+  );
+  check('∅ the tail of a path-like token is not an identifier: `analysis/a.json` yields no `json`', !identifiers('cites `analysis/a.json#result/count` here').includes('json'));
+  check(
+    '…and EVERY extension the rejection knows is rejected as a bare tail, because one list feeds both',
+    'py js mjs md html json sh yml yaml toml css txt'.split(' ').every((e) => !identifiers(`cites \`a/b.${e}\` here`).includes(e))
+  );
+  check('…while a tail that is a real name still yields it (`mod.alpha` → `alpha`)', identifiers('cites `mod.alpha()` here').includes('alpha'));
   // the sweep over a synthetic ledger, with a reader that serves one file
   const ledger = [
     '| 2026-09-20-a | 2026-09-20 | `x.py` | cites `beta` at `mod.py:5` and `gamma` at `mod.py:3` | ok | OPEN |',
