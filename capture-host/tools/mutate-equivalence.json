@@ -5851,6 +5851,14 @@
       "key": "- self._fh = open(path, \"a\" if self.resumed else \"w\", buffering=1 << 16, newline=\"\\n\") | + self._fh = open(path, \"a\" if self.resumed else \"w\", buffering=1 << 17, newline=\"\\n\")",
       "probe": "MEASURED 2026-10-28 (Heron): built a real mutant copy of writers.py per survivor, patched BY LINE NUMBER so no sibling writer's identical line moved, and ran one battery through the original and all eight — 82 observations over 8 scenarios (absent / empty / one-byte / prior-night file; device present and absent; 3 rows and 20 rows; cadence 0.0 and held at 1e9). Each observation is the file's sha256 after every write, after `flush()` and after `close()`, plus `resumed`, `path`, the health record's path, `rows`, `rows_lost` and `flush_failures`. 0 of 82 differed, for every one of the eight. `os.linesep` reads '\\n' on this box, and `1 << 17` == `2 << 16` == 131072, both printed in that run.",
       "why": "A buffer SIZE has no observable consequence: every reader of this file opens it after a `flush()` or a `close()`, and both empty the buffer whatever its capacity. What it changes is how often the kernel is called. A burst bigger than the smaller buffer inside ONE flush interval would reach the disk sooner — this axis writes a handful of lifecycle transitions a night and the writer flushes on its cadence, so the cadence bounds what is unwritten, not the capacity. The same argument already excuses this family on five sibling writers in this module."
+    },
+    {
+      "brief": "residue 2026-11-07-the-seam-sidecar-swallows-four-failures-unlogged",
+      "class": "no-distinguishing-input",
+      "function": "_SeamSidecar.__init__",
+      "key": "- self._warned = False | + self._warned = None",
+      "probe": "MEASURED 2026-11-08 (Heron): ran the original and the mutant over 32 input combinations — failing feed samples in {0, 1, 2, 37} x a failing note before them in {no, yes} x a succeeding feed between them in {no, yes} x a failing close in {no, yes} — comparing the full WARNING record list with the temp directory normalised, the `failures`, `seams` and `examined` counters, and the sidecar file bytes. 0 of 32 differed. The flag has exactly one read, `if not self._warned`, and exactly one later write, `= True`, so False and None enter that read identically.",
+      "why": "The latch is a two-state flag read only for truthiness. None and False are both falsy, so no sequence of failures can separate them. An assertion that told them apart would pin the attribute's TYPE rather than any behaviour of the sidecar."
     }
   ],
   "solid_night.py": [
