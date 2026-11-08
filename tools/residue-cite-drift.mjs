@@ -230,16 +230,31 @@ export function trySpellings(relPath) {
   ];
 }
 
+/* A FILE'S LINE COUNT IS NOT ITS SPLIT LENGTH. A text ending in a newline — nearly every tracked
+   file — splits into one MORE element than it has lines, and that last element is the empty string
+   after the final newline. Both consumers of this array read the count as the file's length: the
+   `beyond-eof` bound at `judge`, and the `moved` scan. So a raw split made the bound permissive by
+   exactly one phantom line, and made the length this tool PRINTS one too large — the number a
+   reader uses to repair the pointer. Measured 2026-11-08 on `oxydex-profile.js`: the report said
+   683 where the file holds 682 lines. Exactly ONE trailing empty element is dropped, so a file that
+   really ends in a blank line keeps that blank line. The 45 selftest plants never saw this, because
+   each builds its `fileLines` array by hand and so never carries the artefact the reader adds. */
+export function toLines(text) {
+  const parts = text.split('\n');
+  if (parts.length && parts[parts.length - 1] === '') parts.pop();
+  return parts;
+}
+
 function readAt(ref, relPath) {
   const tryPaths = trySpellings(relPath);
   for (const p of tryPaths) {
     try {
       if (ref === 'worktree') {
         const f = path.join(REPO, p);
-        if (fs.existsSync(f)) return fs.readFileSync(f, 'utf8').split('\n');
+        if (fs.existsSync(f)) return toLines(fs.readFileSync(f, 'utf8'));
         continue;
       }
-      return execFileSync('git', ['show', `${ref}:${p}`], { cwd: REPO, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 64 << 20 }).split('\n');
+      return toLines(execFileSync('git', ['show', `${ref}:${p}`], { cwd: REPO, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 64 << 20 }));
     } catch {
       /* not at this path under this ref — try the next spelling */
     }
@@ -421,6 +436,19 @@ function selftest() {
   check('PLANT moved: `import pull_session` cited at :1 is now at :8 — reported with where it is', moved.verdict === 'moved' && JSON.stringify(moved.now) === JSON.stringify({ pull_session: [8] }));
   check('unanchored: the row names nothing that occurs in the file — not judged as drift', judge({ line: 2 }, file, ['gamma']).verdict === 'unanchored');
   check('beyond-eof', judge({ line: 99 }, file, ['beta']).verdict === 'beyond-eof');
+
+  /* THE PHANTOM LAST LINE. `readAt` used a raw `split('\n')`, so a newline-terminated file — nearly
+     every tracked file — produced one element more than it has lines. The legs below pin the reader's
+     contract, and the control pins what the defect WAS, because every plant above hand-builds its
+     array and so could never observe it. */
+  check('toLines: a newline-terminated text yields its lines, not one more', JSON.stringify(toLines('a\nb\n')) === '["a","b"]');
+  check('toLines: a text with no final newline is unchanged', JSON.stringify(toLines('a\nb')) === '["a","b"]');
+  check('toLines: a file that really ends in a blank line KEEPS it — exactly one empty is dropped', JSON.stringify(toLines('a\nb\n\n')) === '["a","b",""]');
+  check('toLines: empty text is zero lines', JSON.stringify(toLines('')) === '[]');
+  check('CONTROL · the raw split was long by one, and toLines is not', 'a\nb\n'.split('\n').length === 3 && toLines('a\nb\n').length === 2);
+  const eof = judge({ line: 3 }, toLines('a\nb\n'), ['x']);
+  check('beyond-eof: the line after the last one cannot resolve, and the REPORTED length is the real one', eof.verdict === 'beyond-eof' && eof.length === 2);
+  check('anchored: the real last line of a newline-terminated file still resolves', judge({ line: 2 }, toLines('a\nbeta\n'), ['beta']).verdict === 'anchored');
   check('missing-file', judge({ line: 1 }, null, ['beta']).verdict === 'missing-file');
   check('a row with NO identifiers is unanchored, never anchored by vacuity', judge({ line: 5 }, file, []).verdict === 'unanchored');
   check('a PLAIN-WORD identifier (`alpha`, `beta`) cannot testify to a move — unanchored, not moved', judge({ line: 4 }, file, ['alpha', 'beta']).verdict === 'unanchored');
