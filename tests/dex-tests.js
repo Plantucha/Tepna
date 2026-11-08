@@ -2182,6 +2182,168 @@
       }
     });
 
+    /* ══ FOUR OXYDEX CONSUMERS READ AN ABSENT SECOND AS A NUMBER, AND THREE PUBLISHED A LABEL ══
+       ABSENCE-SURVEY rows 48 to 51, finding #4271. Every one of the four fails toward the REASSURING
+       answer, which is what makes this a class and not four bugs: a flatline verdict over a channel
+       that never reported, "Sustained (hypoventilation)" over 300 absent seconds, a PERFECT hypoxic
+       burden subscore, and a desaturation area built out of baseline.
+
+       EVERY LEG BELOW IS A PAIR. The defect case and a measured control sit together, because a
+       consumer that simply stopped answering would pass a one-sided leg — and that is the other way
+       to fabricate a night. Each control below was measured byte-identical on `origin/main`. */
+    group('OxyDex §∅ — four consumers read an absent second as a number (ABSENCE-SURVEY 48-51)', 'oxydex-dsp · absence-as-value · survey-rows-48-51', function (T) {
+      var _oda = env.OxyDex || env.OxyDSP || env.OXYDSP;
+      var OD = (_oda && _oda._bare) || _oda;
+      var need = ['computeDesSev', 'computeHRFlatlines', 'computeSleepStabilityScore', 'computeSpO2Autocorr'];
+      var missing = need.filter(function (k) {
+        return !OD || typeof OD[k] !== 'function';
+      });
+      if (missing.length) {
+        T.ok('OxyDSP exposes the four surveyed consumers', false, 'absent: ' + missing.join(',') + ' — this group cannot run and must not read as a pass');
+        return;
+      }
+      var rowsOf = function (len, f) {
+        var out = [];
+        for (var i = 0; i < len; i++) out.push({ spo2: f(i), hr: 60 });
+        return out;
+      };
+      var hrRowsOf = function (len, f) {
+        var out = [];
+        for (var i = 0; i < len; i++) out.push({ spo2: 98, hr: f(i) });
+        return out;
+      };
+
+      /* ── A-5 · computeDesSev ── `base - null` is `base`, which is > 0, so every absent second inside
+         an event added the FULL baseline to the area. Measured on `origin/main`: one event over ten
+         absent seconds returned desSev 490 against 40 for the same ten seconds measured. */
+      var evt = { events: [{ startIdx: 50, endIdx: 60, baseline: 98, nadir: 90, depth: 8, duration: 10 }] };
+      var dAbsent = OD.computeDesSev(
+        rowsOf(120, function (i) {
+          return i >= 50 && i < 60 ? null : 98;
+        }),
+        null,
+        evt,
+        4
+      );
+      var dMeas = OD.computeDesSev(
+        rowsOf(120, function (i) {
+          return i >= 50 && i < 60 ? 90 : 98;
+        }),
+        null,
+        evt,
+        4
+      );
+      T.eq('A-5 · an event whose every second is absent refuses — it does not report an area built of baseline', dAbsent.desSev, null);
+      T.eq('A-5 · …and the refusal NAMES itself, so a reader is not left guessing', dAbsent.desSevReason, 'event-seconds-absent');
+      T.eq('A-5 · …and the absent seconds are counted, never hidden', dAbsent.desSevAbsentSec, 10);
+      T.eq('A-5 CONTROL · the SAME event measured still scores 40, unchanged from the ref', dMeas.desSev, 40);
+      T.eq('A-5 CONTROL · …and reports the ten seconds it covered', dMeas.desSevCoveredSec, 10);
+      T.eq(
+        'A-5 CONTROL · no events at all keeps its REAL zero — a clean night looked and found nothing',
+        OD.computeDesSev(
+          rowsOf(120, function () {
+            return 98;
+          }),
+          null,
+          { events: [] },
+          4
+        ).desSev,
+        0
+      );
+
+      /* ── A-2 · computeHRFlatlines ── the run test was `rows[i].hr === rows[i - 1].hr`, and
+         `null === null` is TRUE. Measured on `origin/main`: 70 all-null HR rows returned
+         flatlineCount 1, maxFlatlineSec 70 and the label "Occasional". */
+      var fAbsent = OD.computeHRFlatlines(
+        hrRowsOf(70, function () {
+          return null;
+        })
+      );
+      var fReal = OD.computeHRFlatlines(
+        hrRowsOf(70, function (i) {
+          return i < 40 ? 60 : 55 + (i % 3);
+        })
+      );
+      var fSplit = OD.computeHRFlatlines(
+        hrRowsOf(70, function (i) {
+          return i === 35 ? null : 60;
+        })
+      );
+      T.eq('A-2 · 70 all-absent HR rows refuse — a channel that never reported is not a firmware artifact', fAbsent, null);
+      T.eq('A-2 CONTROL · a REAL 40 s flatline is still found', fReal.flatlineCount, 1);
+      T.eq('A-2 CONTROL · …at its true length, unchanged from the ref', fReal.maxFlatlineSec, 40);
+      T.eq('A-2 CONTROL · …and the label it earned', fReal.flatlineLabel, 'Occasional');
+      T.eq('A-2 · one absent sample ENDS the run rather than bridging it — two runs, not one', fSplit.flatlineCount, 2);
+      T.eq('A-2 · …so neither half claims the whole span', fSplit.maxFlatlineSec, 35);
+      T.eq('A-2 · coverage sits beside the value — 69 of 70 seconds carried an HR', fSplit.nMeasured, 69);
+      T.eq('A-2 · …against the offered total', fSplit.nTotal, 70);
+
+      /* ── A-4 · computeSleepStabilityScore s5 ── `(15 - null) / 15` clamps to a PERFECT 100. s1, s2,
+         s3 and s6 each carry this guard; s5 was the one missed. Measured on `origin/main`: the
+         absent night scored 81 "Good" on a hypoxic-burden subscore of 100. */
+      var ST = { spo2Std: 1.0, motionPct: 1.0, t95pct: 5 },
+        HRV = { hrFloor: 50 },
+        OSC = { episodeCount: 2 };
+      var sAbsent = OD.computeSleepStabilityScore(ST, HRV, OSC, { rate: null });
+      var sMeas = OD.computeSleepStabilityScore(ST, HRV, OSC, { rate: 5 });
+      T.eq('A-4 · an absent hypoxic burden drops its subscore instead of scoring a perfect 100', sAbsent.components.hypoxicBurden, null);
+      T.eq('A-4 · …so the night no longer grades "Good" off the absence', sAbsent.grade, 'Fair');
+      T.eq('A-4 CONTROL · a MEASURED rate of 5 scores exactly as it did on the ref', sMeas.components.hypoxicBurden, 67);
+      T.eq('A-4 CONTROL · …and the night score is unmoved', sMeas.score, 74);
+      T.ok('A-4 · the absent night scores BELOW the measured-burden night it used to beat', sAbsent.score > sMeas.score && sAbsent.score < 81, 'absent=' + sAbsent.score + ' measured=' + sMeas.score);
+
+      /* ── A-13 · computeSpO2Autocorr ── the mean divided by every second while absent seconds added
+         nothing, and `(null - m)` is `-m`, so each absence contributed a full squared deviation.
+         Measured on `origin/main`: 300 varying measured seconds read ac1 -0.497 "Oscillating" ALONE,
+         and 0.996 "Sustained (hypoventilation)" with 300 absent seconds appended. The absence flipped
+         the clinical label to the opposite pole. */
+      var vary = function (i) {
+        return 97 + (i % 3);
+      };
+      var aPadded = OD.computeSpO2Autocorr(
+        rowsOf(600, function (i) {
+          return i < 300 ? vary(i) : null;
+        })
+      );
+      var aAlone = OD.computeSpO2Autocorr(rowsOf(300, vary));
+      T.eq('A-13 · 300 absent seconds appended do not move ac1 off the measured answer', aPadded.ac1, aAlone.ac1);
+      T.eq('A-13 · …nor the clinical label, which used to flip to the opposite pole', aPadded.ac1Label, aAlone.ac1Label);
+      T.eq('A-13 CONTROL · the measured 300 alone reads what it read on the ref', aAlone.ac1, -0.497);
+      T.eq('A-13 · coverage beside the value — measured seconds', aPadded.nMeasured, 300);
+      T.eq('A-13 · …offered seconds', aPadded.nTotal, 600);
+      T.eq('A-13 · …and ADJACENT measured pairs, which is what a lag-1 correlation needs', aPadded.nPairs, 299);
+      T.eq(
+        'A-13 · a record whose measured part is under the 300 s floor refuses on the MEASURED count',
+        OD.computeSpO2Autocorr(
+          rowsOf(600, function (i) {
+            return i < 299 ? vary(i) : null;
+          })
+        ),
+        null
+      );
+
+      /* ── THE SURFACE ── A-5's refusal reaches a reader through two `oxydex-render.js` sites, and
+         `null < 5` is TRUE in both, so the refusal used to paint the GREEN band. Source assertions,
+         because the node runner holds the render layer as text; the browser gate draws it. */
+      var rnd = (env.sources || {})['oxydex-render.js'];
+      if (typeof rnd !== 'string' || !rnd.length) {
+        T.ok('oxydex-render.js source provided', false, 'runner passed no oxydex-render.js — the three legs below cannot run and must not read as a pass');
+      } else {
+        var _flat = rnd.replace(/\s+/g, ' ');
+        T.ok(
+          'SURFACE · neither DesSev site grades the value without first asking whether it was measured',
+          !/nrChip\( ?'DesSev', ?n\.desSev\.desSev, /.test(_flat) && !/metric\( ?'DesSev', ?n\.desSev\.desSev, /.test(_flat),
+          'a DesSev surface still passes the raw value straight into a band comparison'
+        );
+        T.ok('SURFACE · and both NAME the refusal they draw, so the em-dash is not mute', (_flat.match(/desSevReason/g) || []).length >= 2, 'fewer than two surfaces read desSevReason');
+        T.ok(
+          'SURFACE CONTROL · the measured bands SURVIVE — the fix guards the grading, it does not delete it',
+          /n\.desSev\.desSev < 5 \? 'g'/.test(_flat) && /n\.desSev\.desSev < 5 \? 'good'/.test(_flat),
+          'a measured DesSev lost its good/warn/bad banding'
+        );
+      }
+    });
+
     group('OxyDex §∅ — processNight reports an unmeasured SpO2/HR night as null, never 0', 'oxydex-dsp · absence-as-value · primary-builder', function (T) {
       var _od = env.OxyDex || env.OxyDSP || env.OXYDSP;
       var OD = (_od && _od._bare) || _od;
@@ -17463,7 +17625,18 @@
         'out.rowKeys = M.rowKeys("| 2026-01-02-alpha-beta-gamma | logged | s | d | e | OPEN |\\ntext 2026-01-02-alpha-beta-gamma\\n");',
         'out.window = M.CITE_WINDOW;',
         'var real = M.run(' + JSON.stringify(root) + ');',
-        'out.real = { citations: real.citations, files: real.files, rows: real.rows, undeclared: real.undeclared.length, near: real.near.length, stale: real.stale.length, declared: real.declared, floorReal: real.floor, orphans: real.orphanOwners.length, examined: real.ownerReasonsExamined };',
+        'out.real = { citations: real.citations, files: real.files, rows: real.rows, undeclared: real.undeclared.length, near: real.near.length, stale: real.stale.length, declared: real.declared, floorReal: real.floor, orphans: real.orphanOwners.length, examined: real.ownerReasonsExamined, offered: real.filesOffered, read: real.filesRead, unreadable: real.unreadable.length, exempt: real.filesExempt };',
+        /* THE FILE POPULATION, AND THE ONE FILE THE SCAN COULD NOT OPEN. Row
+           2026-11-07-residue-citations-skips-an-unreadable-file-and-claims-0-excluded: the read sat in a
+           `catch` that ran `continue` under a population keyed on CITATIONS with `excluded: 0`, so an
+           unopened file left no trace at all. The plant hands the scan one path the tree does not hold,
+           which throws where a real EACCES throws. A 7-hex sha, because `validate` reads the commit. */
+        'var goneRun = M.run(' + JSON.stringify(root) + ', { files: ["tools/no-such-file-the-citation-scan-cannot-open.mjs"], baseline: { entries: [], exemptPaths: [] } });',
+        'out.gone = { offered: goneRun.filesOffered, read: goneRun.filesRead, codes: goneRun.unreadable.map(function (u) { return u.code; }) };',
+        'var goneV = M.verdictFor(goneRun, "ab1c2d3");',
+        'out.goneVerdict = { status: goneV.status, population: goneV.population, named: /no-such-file-the-citation-scan-cannot-open\\.mjs ENOENT/.test(goneV.reason) };',
+        'var realV = M.verdictFor(real, "ab1c2d3");',
+        'out.realVerdict = { status: realV.status, population: realV.population };',
         'out.selfExempt = M.run(' +
           JSON.stringify(root) +
           ', { files: ["tools/residue-citations.mjs", "tools/residue-citations-baseline.json"], baseline: { entries: [], exemptPaths: [] } }).citations;',
@@ -17558,6 +17731,27 @@
       /* §∅ · the live baseline names no owner today, so the count is reported rather than read as a
          pass over a population of nothing. The legs above are what carries the rule. */
       T.ok('the owner population is reported as a count, examined or not', typeof R.real.examined === 'number', String(R.real.examined));
+
+      /* A FILE NOBODY COULD READ IS AN EXCLUSION, NOT A CLEAN SCAN.
+         The population is keyed on the unit the scan SELECTS over, which is files, and the citations it
+         scored sit in `result` beside it. The declared exemptions — the ledger, the baseline and the
+         tool itself — are a rule boundary like the ledger floor, so they are counted and stay outside
+         `eligible`, where `excluded` is reserved for a file the scan could not reach. */
+      T.eq('an unreadable eligible file is held with its errno', R.gone.codes, ['ENOENT']);
+      T.eq('…offered to the scan, and never read', [R.gone.offered, R.gone.read], [1, 0]);
+      T.eq('…so the verdict answers UNKNOWN over the file it never opened', R.goneVerdict.status, 'UNKNOWN');
+      T.eq('…and the population excludes it', R.goneVerdict.population, { checked: 0, eligible: 1, excluded: 1 });
+      T.ok('…with the reason naming the path and the errno', R.goneVerdict.named, 'the ENOENT path reaches the reason string');
+      /* CONTROL · the committed tree reads whole, so the legs above measure the unreadable arm against
+         a real sweep that excludes nothing, never against an empty one. */
+      T.eq('CONTROL · every eligible file in the committed tree reads', R.real.unreadable, 0);
+      T.eq('…so the real population closes on its own offer', R.real.read, R.real.offered);
+      T.ok(
+        '…over an offer wider than the files that carry a citation',
+        R.real.offered > R.real.files && R.real.exempt >= 3,
+        'offered=' + R.real.offered + ' carriers=' + R.real.files + ' exempt=' + R.real.exempt
+      );
+      T.eq('…and the committed tree passes with nothing excluded', [R.realVerdict.status, R.realVerdict.population.excluded], ['PASS', 0]);
     });
     /* ════ AND THE PREDICATE ITSELF MUST SURVIVE A SYMLINK TO THE TOOL (board #685, 2026-10-21) ══════
        The house predicate compared `import.meta.url` with `pathToFileURL(process.argv[1]).href`. Node
@@ -29990,6 +30184,92 @@
       planted.oxy['oxydex-dsp.js'] = 'planted00000';
       var pm = YieldPin.movedFiles(pin.detector, planted);
       T.ok('PLANT · a changed oxydex-dsp.js is reported, and by name', pm.length === 1 && pm[0].indexOf('oxy/oxydex-dsp.js') === 0 && pm[0].indexOf('planted00000') > 0, JSON.stringify(pm));
+    });
+
+    /* ── THE PIN MUST KNOW WHICH COHORT IT IS PINNING (board finding #4343) ───────────────────────
+       `selectionCounts` replays the selector at the stated `nSubj 900`, and the pin publishes
+       `txSkipped = txCandidates - nIntervention`. The second term comes from the rerun file on the
+       command line, and nothing compared the two cohorts. Measured 2026-11-07: the page default of 45
+       per arm answered 10 tx / 17 flat, and the tool wrote `txSkipped 890` — 890 subjects the run
+       never examined, published as 890 the detectors rejected, beside a yield that read as a collapse
+       from 233 and was a change of scale. The page now publishes `targetSubj`, and the refusals below
+       each carry their own token, because an absent cohort size and a wrong one are different states. */
+    group('treatment-response · pin scale — the run states the cohort it ran, or the pin refuses', 'treatment-response · pin · scale · absence · regression', function (T) {
+      var YP = env.YieldPin;
+      var psrc = (env.sources && env.sources['treatment-response-analysis.js']) || '';
+      var pin = env.treatmentYieldPin;
+      if (!YP || typeof YP.scaleCheck !== 'function') {
+        T.skip('the pin module is loadable', 'Node-lane only — run-tests.mjs imports tools/treatment-response-yield-pin.mjs; the browser suite does not');
+        return;
+      }
+      var paper = { targetSubj: 900, minNights: 10, nIntervention: 233, nFlatControl: 239 };
+      var dflt = { targetSubj: 45, minNights: 10, nIntervention: 10, nFlatControl: 17 };
+
+      T.eq('THE DEFECT · a page-default run of 45 per arm is refused, not pinned', YP.scaleCheck(dflt).reason, 'cohort-size-mismatch', JSON.stringify(YP.scaleCheck(dflt)));
+      T.ok(
+        '…and the refusal names both cohort sizes, so the reader sees a scale and not a collapse',
+        /\b45\b/.test(YP.scaleCheck(dflt).message) && /\b900\b/.test(YP.scaleCheck(dflt).message),
+        YP.scaleCheck(dflt).message
+      );
+      T.ok('CONTROL · the paper-scale run passes, and states what it ran at', YP.scaleCheck(paper).ok === true && YP.scaleCheck(paper).ran === 900, JSON.stringify(YP.scaleCheck(paper)));
+      T.eq(
+        'a run that states no cohort size gets its OWN token, never the mismatch one',
+        YP.scaleCheck({ minNights: 10 }).reason,
+        'cohort-size-absent',
+        JSON.stringify(YP.scaleCheck({ minNights: 10 }))
+      );
+      T.eq('…and no number is quoted as the cohort it ran, because none was measured', String(YP.scaleCheck({ minNights: 10 }).ran), 'null', JSON.stringify(YP.scaleCheck({ minNights: 10 })));
+      T.eq(
+        'the page default of 6 minimum nights is refused under its own token',
+        YP.scaleCheck({ targetSubj: 900, minNights: 6 }).reason,
+        'min-nights-mismatch',
+        JSON.stringify(YP.scaleCheck({ targetSubj: 900, minNights: 6 }))
+      );
+      T.eq(
+        'an absent minimum-nights field is refused, never read as the stated 10',
+        YP.scaleCheck({ targetSubj: 900 }).reason,
+        'min-nights-absent',
+        JSON.stringify(YP.scaleCheck({ targetSubj: 900 }))
+      );
+      T.eq(
+        'a MEASURED zero cohort size still mismatches rather than reading as absent',
+        YP.scaleCheck({ targetSubj: 0, minNights: 10 }).reason,
+        'cohort-size-mismatch',
+        JSON.stringify(YP.scaleCheck({ targetSubj: 0, minNights: 10 }))
+      );
+      T.ok('a null result refuses rather than throwing', YP.scaleCheck(null).ok === false, JSON.stringify(YP.scaleCheck(null)));
+      /* The four cases against the four tokens BY NAME. A distinctness count would have passed a
+         `null` in the set, which is the tolerance this group exists to remove. */
+      T.eq(
+        'each of the four cases carries its own declared token, by name',
+        JSON.stringify([YP.scaleCheck(dflt).reason, YP.scaleCheck({ minNights: 10 }).reason, YP.scaleCheck({ targetSubj: 900, minNights: 6 }).reason, YP.scaleCheck({ targetSubj: 900 }).reason]),
+        JSON.stringify(['cohort-size-mismatch', 'cohort-size-absent', 'min-nights-mismatch', 'min-nights-absent']),
+        JSON.stringify(YP.SCALE_REASONS)
+      );
+      T.eq(
+        '…and the declared set is exactly those four',
+        JSON.stringify((YP.SCALE_REASONS || []).slice().sort()),
+        JSON.stringify(['cohort-size-absent', 'cohort-size-mismatch', 'min-nights-absent', 'min-nights-mismatch']),
+        JSON.stringify(YP.SCALE_REASONS)
+      );
+
+      /* THE OTHER HALF · the refusal is only serviceable while the page publishes the field. A page
+         edit that drops it would turn every future re-stamp into `cohort-size-absent`, which is the
+         honest failure but not a workable one, so it reds HERE instead. */
+      var publishes = !!psrc && /RESULT = \{[\s\S]{0,900}?targetSubj: targetSubj/.test(psrc);
+      T.ok(
+        'the page publishes the cohort size it ran at, inside the result it exports',
+        publishes,
+        psrc ? 'targetSubj in the RESULT literal: ' + publishes : 'treatment-response-analysis.js not in env.sources'
+      );
+      T.ok('ANTI-VACUITY · the page source read is the real one, long enough to hold the result literal', psrc.length > 20000 && psrc.indexOf('window.TREATMENT_RESPONSE') > 0, String(psrc.length));
+      if (pin && pin.config)
+        T.eq(
+          'the pin on disk satisfies the check it now applies to its input',
+          JSON.stringify([pin.config.nSubj, pin.config.minNightsObserved, pin.config.minN]),
+          JSON.stringify([900, 10, 10]),
+          JSON.stringify(pin.config)
+        );
     });
 
     group('PpgDex loadOwnExport — whose export is this, and how many nights', 'ppgdex-dsp · known-answer · mutation-pinned', function (T) {
@@ -44207,8 +44487,16 @@
       T.eq('B.computeSpO2Autocorr("") → "true"', JSON.stringify(out === null), 'true');
       out = B.computeHRFlatlines('');
       T.eq('B.computeHRFlatlines("") → "true"', JSON.stringify(out === null), 'true');
+      /* ∅ REPLACED, NOT DELETED — the same treatment the `autoArousalIdx` note above records, and
+         for the same reason. `0` is not a row array: `(0).length` is `undefined`, `undefined < 60`
+         is FALSE, so the old floor let it through and the function returned
+         `{ flatlineCount: 0, maxFlatlineSec: 0, flatlineLabel: 'None' }` — a clean "no flatlines"
+         verdict over an input it never examined. This draft came from the mutation bank, and it
+         states the violation AS THE SPEC, which this brief's header warns of for 2 of 384 drafts.
+         The floor now re-measures on the MEASURED count, so the refusal its six siblings on the
+         lines above already require applies here too. */
       out = B.computeHRFlatlines(0);
-      T.eq('B.computeHRFlatlines(0) → "0"', JSON.stringify(out.flatlineCount), '0');
+      T.eq('B.computeHRFlatlines(0) → refuses, as its six siblings do (§∅: nothing examined, no verdict)', JSON.stringify(out === null), 'true');
       out = B.computeSpO2Shape('');
       T.eq('B.computeSpO2Shape("") → "true"', JSON.stringify(out === null), 'true');
       out = B.computeLCSP('');

@@ -26,6 +26,12 @@
  * file, in a test, in a fixture or in a post, and the start-up log says `(name withheld)`. The three
  * rule functions take the config as an argument for the same reason: the selftest fabricates one.
  *
+ * BOARD TIER. A domain may name a second topic under the top-level `boardTopics` key: the messages
+ * the tiering split publishes below the page bar. The bridge posts them to the domain's thread as
+ * notes and nothing more — no episode, no tracked urgent, no ladder, no owner page. The key is
+ * top-level for the same reason `ownerTopic` is: an entry under `topics` would subscribe as an
+ * escalated domain of its own.
+ *
  * USAGE
  *   node tools/ntfy-board-bridge.mjs             # run the bridge; needs the installed config
  *   BRIDGE_DRY_RUN=1 node tools/ntfy-board-bridge.mjs   # classify and log, post nothing
@@ -182,6 +188,20 @@ export function classify(domain, msg, conf) {
   return { ...base, cls: 'routine', key: 'rig:info', latch: false };
 }
 
+/**
+ * THE BOARD TIER'S SEAM (pure, so the selftest can hold it). `boardTopics` is a TOP-LEVEL config
+ * key, sibling to `ownerTopic`: a board topic listed under `topics` would subscribe as a domain of
+ * its own, and its notes would enter the escalation ladder the tier exists to stay below.
+ */
+export function boardSubscriptions(conf) {
+  return Object.entries((conf && conf.boardTopics) || {}).filter(([, topicName]) => topicName);
+}
+
+/** A board message goes where the domain's alerts go: its thread, its bird. */
+export function boardTarget(domain, conf) {
+  return { thread: conf.threads[domain], bird: conf.birds[domain] };
+}
+
 /* ── THE RUNNING HALF. Nothing below executes on import. ──────────────────────────────────────── */
 
 function persist() {
@@ -250,7 +270,7 @@ function ownerPage(id, tr, why) {
   return { title, body };
 }
 
-async function handle(domain, topicName, msg) {
+async function handle(domain, topicName, msg, opts = {}) {
   if (msg.event !== 'message') return;
   /* `since=<id>` can hand back a message already handled (measured 2026-11-01: a restart re-posted a
      7 h old alert twice), so skip a seen id. */
@@ -260,6 +280,19 @@ async function handle(domain, topicName, msg) {
   if (state.seen.length > 500) state.seen.splice(0, state.seen.length - 500);
   state.lastId[topicName] = msg.id;
   const m = unwrap(msg);
+  if (opts.board) {
+    /* BOARD TIER: post the note and stop. No classify, no episode, no tracked urgent — the ladder
+       below must never see these, or a held page would page the owner at 90 minutes anyway. */
+    const t = boardTarget(domain, cfg);
+    const body =
+      `## ${m.title || '(no title)'}\n\n- **State:** BOARD — for the record; no ack, no escalation\n- **Owner:** @${t.bird}\n` +
+      `- **Domain:** ${domain} · **Tier:** board\n` +
+      `- **Publisher:** ntfy ${domain} board stream — original message below, verbatim\n\n${m.message || ''}`;
+    await post(t.thread, body, 'note', [t.bird]);
+    state.lastCycleAt = Date.now();
+    persist();
+    return;
+  }
   const c = classify(domain, m, cfg);
   const at = eventMs(m, Date.now());
   const when = new Date(at).toISOString();
@@ -357,7 +390,7 @@ async function ackSweep() {
   persist();
 }
 
-function consume(domain, topicName) {
+function consume(domain, topicName, opts = {}) {
   const since = state.lastId[topicName] || String(Math.floor(Date.now() / 1000));
   const url = `https://ntfy.sh/${topicName}/json?since=${encodeURIComponent(since)}`;
   let req = null;
@@ -385,20 +418,20 @@ function consume(domain, topicName) {
         } catch {
           continue;
         }
-        handle(domain, topicName, msg).catch((e) => log('handle error', e.message));
+        handle(domain, topicName, msg, opts).catch((e) => log('handle error', e.message));
       }
     });
     res.on('end', () => {
       watch.clear();
       log('stream ended', domain);
-      setTimeout(() => consume(domain, topicName), 5000);
+      setTimeout(() => consume(domain, topicName, opts), 5000);
     });
   });
   watch.arm();
   req.on('error', (e) => {
     watch.clear();
     log('stream error', domain, e.message);
-    setTimeout(() => consume(domain, topicName), 15000);
+    setTimeout(() => consume(domain, topicName, opts), 15000);
   });
 }
 
@@ -419,6 +452,10 @@ function main() {
       log('subscribing', domain, 'topic (name withheld)');
       consume(domain, topicName);
     }
+  }
+  for (const [domain, topicName] of boardSubscriptions(cfg)) {
+    log('subscribing', domain, 'board topic (name withheld)');
+    consume(domain, topicName, { board: true });
   }
   setInterval(ackSweep, 5 * 60000);
   setTimeout(ackSweep, 10000);
@@ -559,6 +596,19 @@ function selftest() {
   const empty = planRetire('', [11], none);
   ok('the control: an empty list is an empty queue and retires', empty.refuse === null && empty.retire.includes(11), empty);
   ok("another bird's decision with the same id shape does not count as the bridge's", planRetire('#11 decision by kestrel in #7 (1 min)', [11], none).retire.includes(11));
+
+  /* 10 · THE BOARD TIER. handle() routes a board message away before classify() runs, so it can
+     enter no episode, no tracked urgent and no ladder — a source-level property of that branch. The
+     pure seam the branch stands on is what is tested here. */
+  ok('a config with no boardTopics subscribes to no board topic', boardSubscriptions(conf).length === 0, boardSubscriptions(conf));
+  const confB = { ...conf, boardTopics: { vigil: 'invented-board-topic', rig: '' } };
+  ok(
+    'board subscriptions read the top-level boardTopics key and skip an empty name',
+    JSON.stringify(boardSubscriptions(confB)) === JSON.stringify([['vigil', 'invented-board-topic']]),
+    boardSubscriptions(confB)
+  );
+  const bt = boardTarget('vigil', conf);
+  ok('the board target is the domain thread and the domain bird', bt.thread === 901 && bt.bird === 'wren', bt);
 
   /* 5 · THE CONFIG IS AN ARGUMENT, so a rule cannot reach the installed file. */
   ok('the rules read no module-level config', cfg === null, cfg);
