@@ -1790,6 +1790,35 @@
         "SEAM-SIDECAR-NODE-COVERAGE-2026-11-06-BRIEF.md"
       ],
       "notes": ""
+    },
+    {
+      "version": "2.29.0",
+      "date": "2026-11-08",
+      "bump": "minor",
+      "name": "",
+      "manifestHashes": {
+        "ECGDex": "de22ea7b37b2",
+        "OxyDex": "70aaf667c119",
+        "PulseDex": "297fd52325e9",
+        "GlucoDex": "83f37390309d",
+        "PpgDex": "3191c50f85d4",
+        "HRVDex": "4b27cff93445",
+        "CPAPDex": "bb3acab67cb9",
+        "Integrator": "3969b3bfb294",
+        "MotionDex": "b8b99ea5d49d"
+      },
+      "briefs": [
+        "CONSENSUS-REFPICK-FOLLOWUPS-2026-11-06-BRIEF.md",
+        "SEAM-SIDECAR-NODE-COVERAGE-2026-11-06-BRIEF.md",
+        "SEAM-SIDECAR-CONSUMPTION-2026-11-03-BRIEF.md",
+        "SOLID-NIGHT-2026-09-23-BRIEF.md",
+        "CPAP-BLE-CAPTURE-2026-08-21-BRIEF.md",
+        "ABSENCE-SURVEY-2026-09-22-BRIEF.md",
+        "CAPTURE-LOSS-PRECEDENCE-AUDIT-2026-09-22-BRIEF.md",
+        "CPAP-AUTOHARVEST-FOLLOWUPS-II-2026-08-03-BRIEF.md",
+        "NTFY-ALERT-WIRING-2026-11-03-BRIEF.md"
+      ],
+      "notes": ""
     }
   ]
 }
