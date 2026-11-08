@@ -235,3 +235,24 @@ def test_the_round_closure_hands_pull_spool_round_its_arguments_IN_ORDER():
 
     assert out["body"] == (b"body", False, None)
     assert seen["args"] == ("write", "recv", "seal", "unseal", "Summary", "2026-08-01T00:00:00.000Z")
+
+
+# ── THE CONTROL ARM, AS A MECHANISM ─────────────────────────────────────────
+# This file's header reports a revert that its author ran once, by hand, on one tree. Nothing in the
+# repo re-ran it, so the sentence could outlive the property it attests. `tests/_plant.py` plants the
+# revert inside the suite instead, and refuses unless the planted code reaches the interpreter.
+def test_the_midnight_WRAP_rule_is_LOAD_BEARING_under_its_own_revert():
+    from tests._plant import plant_source, planted
+
+    name = "cpap_spool_caller.py"
+    revert = plant_source(name, "(int(at_hour) + i) % 24", "(int(at_hour) + i)")
+    with planted(name, revert) as p:
+        assert "window_hours" in p.changed, "the plant must move window_hours, not merely the file"
+        # The scar: arithmetic on a value that is modulo 24. 23:00 + 2 h becomes the hour 24.
+        assert p.module.window_hours(23, 2) == {23, 24}
+        # And this is the cost, which the hour set alone does not show. The spool window now
+        # overlaps a 00:00 harvest and `harvest_conflict` cannot see it, so arming would accept the
+        # config that the rule exists to refuse.
+        assert p.module.harvest_conflict(23, 2, 0, 1) == []
+    assert C.window_hours(23, 2) == {23, 0}, "the restore put the real rule back"
+    assert C.harvest_conflict(23, 2, 0, 1) == [0], "and the conflict is visible again"
