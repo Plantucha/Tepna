@@ -21,6 +21,20 @@ import polar_psftp as ps
 _COMPLETE = {"truncated_dirs": [], "unreadable_dirs": [], "unlisted": 0, "complete": True}
 
 
+def _refuse_enumeration(monkeypatch):
+    """A pull of a NAMED session must never walk the device. This patch says so loudly.
+
+    The tripwire is also what keeps this file fast. Mutant 64 inverts `a.cmd == "list"`, so a pull
+    enters the listing arm. With the real `list_recordings_ex` reachable from there, the bounded
+    attempt burns 75 s in each covering test, and the mutation gate reports a killable mutant as
+    UNDECIDED rather than killed. A test that tolerates an unasked walk hides both faults."""
+
+    async def unused_list(addr, adapter=None):
+        raise AssertionError("a named session must not trigger a device-wide walk")
+
+    monkeypatch.setattr(ps, "list_recordings_ex", unused_list)
+
+
 # ── response framing (device → host), the mirror of _read_response ──────────────────────────────────
 def _response_data_packets(data: bytes, mtu: int = 20) -> list[bytes]:
     """Frame `data` as a multi-packet PS-FTP response ending in LAST. byte0 = seq<<4 | status<<1 | next,
@@ -668,6 +682,7 @@ def test_main_pull_prints_the_file_manifest(monkeypatch, tmp_path, capsys):
         return {"files": [{"name": "BPM.GZ", "bytes": 12, "ok": True}], "total_bytes": 12}
 
     monkeypatch.setattr(ps, "pull_recording", fake_pull)
+    _refuse_enumeration(monkeypatch)
     import sys as _sys
 
     monkeypatch.setattr(
@@ -2104,6 +2119,7 @@ def test_the_pull_cli_marks_a_truncated_file_as_a_mismatch(monkeypatch, tmp_path
         }
 
     monkeypatch.setattr(ps, "pull_recording", fake_pull)
+    _refuse_enumeration(monkeypatch)
     _argv(monkeypatch, "--address", "AA:BB", "pull", "--session", "/U/0/20260719/E/034500/", "--out", str(tmp_path))
     ps.main()
     lines = capsys.readouterr().out.splitlines()
@@ -2466,13 +2482,10 @@ def test_a_pull_of_ONE_named_session_does_not_enumerate_the_device(monkeypatch, 
     """`--session` names the work, so no walk runs and no completeness question arises. A tripwire:
     enumerating here would spend a PS-FTP walk the operator did not ask for, on a 23-byte-MTU link."""
 
-    async def unused_list(addr, adapter=None):
-        raise AssertionError("a named session must not trigger a device-wide walk")
-
     async def fake_pull(addr, session, out, adapter=None):
         return {"files": [], "total_bytes": 0}
 
-    monkeypatch.setattr(ps, "list_recordings_ex", unused_list)
+    _refuse_enumeration(monkeypatch)
     monkeypatch.setattr(ps, "pull_recording", fake_pull)
     _argv(monkeypatch, "--address", "AA:BB", "pull", "--session", "/U/0/20260719/E/034500/", "--out", str(tmp_path))
     ps.main()
