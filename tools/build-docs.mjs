@@ -370,7 +370,14 @@ const pageTitle = (rel) => {
     return rel;
   }
 };
-const live = manifest.nodes.filter((n) => !n.planned);
+/* The public surfaces describe what the SITE SERVES, which is not the whole roster. Two node states
+   reach no served page: a planned node has no app yet, and a node with `deploy: false` ships in the
+   repo and is deliberately not published (the same field `fusion[]` already carries). A third state
+   has no reference page: `guide: null`. A URL built from a null guide publishes `<site>/null` —
+   absence rendered as a value (CLAUDE.md §∅), which is what this filter pair exists to stop. The
+   prose list names every served node; only the two URL projections need a guide. */
+const served = manifest.nodes.filter((n) => !n.planned && n.deploy !== false);
+const guided = served.filter((n) => n.guide);
 
 function buildSitemap() {
   return (
@@ -409,8 +416,8 @@ function buildAbout() {
         license: manifest.site.licenseUrl,
         author: { '@type': 'Person', name: manifest.site.author },
         disclaimer: manifest.site.intendedUse,
-        featureList: ['100% local — no network, no upload, no account', 'Evidence-graded metrics (every number carries a trust badge)', ...live.map((n) => `${n.id}: ${n.signal} — ${n.summary}`)],
-        softwareHelp: live.map((n) => ({ '@type': 'WebPage', name: `${n.id} technical reference`, url: manifest.site.url + encodeURI(n.guide) }))
+        featureList: ['100% local — no network, no upload, no account', 'Evidence-graded metrics (every number carries a trust badge)', ...served.map((n) => `${n.id}: ${n.signal} — ${n.summary}`)],
+        softwareHelp: guided.map((n) => ({ '@type': 'WebPage', name: `${n.id} technical reference`, url: manifest.site.url + encodeURI(n.guide) }))
       },
       null,
       2
@@ -427,7 +434,7 @@ function buildLlms() {
     '',
     '## Reference guides (per node)'
   ];
-  for (const n of live) L.push(`- [${n.id}](${manifest.site.url}${encodeURI(n.guide)}): ${n.signal} — ${n.summary}`);
+  for (const n of guided) L.push(`- [${n.id}](${manifest.site.url}${encodeURI(n.guide)}): ${n.signal} — ${n.summary}`);
   L.push('', '## Overview');
   for (const c of manifest.content) L.push(`- [${c.label}](${manifest.site.url}${encodeURI(c.href)})`);
   L.push('', '## Authoritative context (source repository)');
