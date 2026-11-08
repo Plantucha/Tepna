@@ -251,11 +251,16 @@ def test_the_failure_path_LOGS_the_exception_it_swallowed(tmp_path, caplog):
     file is open, so this exercises the real except branch rather than a missing directory. Both the
     message and the ARGUMENT are asserted, because dropping either still logs something: a mutant that
     logs `%r` with no argument, or the exception as the format string, leaves a line with no exception
-    in it — which is a trace that cannot be acted on."""
-    caplog.set_level(logging.DEBUG, logger=writers._log.name)
-    ok, _path = _start(tmp_path, pid=object())
+    in it — which is a trace that cannot be acted on.
+
+    The level is pinned at WARNING, not DEBUG: `journal_logging.py` installs the daemon's root logger
+    at INFO, so this line spoke to nobody until 2026-11-08 (residue
+    2026-11-07-the-writer-append-family-logs-failures-at-debug-only)."""
+    caplog.set_level(logging.WARNING, logger=writers._log.name)
+    ok, path = _start(tmp_path, pid=object())
     assert ok is False, "a bad pid must be swallowed, not raised into the daemon"
-    assert "STARTS append failed:" in caplog.text, f"the message names what failed: {caplog.text!r}"
+    assert "STARTS append failed" in caplog.text, f"the message names what failed: {caplog.text!r}"
+    assert path in caplog.text, f"and the file it happened to: {caplog.text!r}"
     assert "TypeError" in caplog.text, (
         f"the SWALLOWED EXCEPTION must appear — a line without it says only that something went wrong: {caplog.text!r}"
     )
