@@ -84208,6 +84208,67 @@
       );
     });
 
+    /* ════ AN ALIAS KEY THE NORMALISER CAN NEVER PRODUCE IS A DEAD ROW IN THE TABLE ════
+       Every node resolver normalises the caller's label BEFORE it reads its alias table
+       (`idForLabel` → `_norm` lowercases, strips tags and collapses whitespace → `ALIAS[k]`). So a
+       key that is not ALREADY in normalised form is never the string the lookup asks for, and the
+       row is unreachable by construction — no caller, no label and no spelling reaches it.
+       Measured on `origin/main` 2026-11-08 over 773 keys in 9 tables: exactly ONE such key,
+       `cpapdex-registry.js`'s `'epr Δ'`, written with U+0394, the CAPITAL delta. `idForLabel('epr Δ')`
+       and `idForLabel('EPR Δ')` both answered null, and so would every other spelling of it, because
+       the entry's own label is `'EPR Delta'` and the lazy label index therefore indexes `'epr delta'`.
+       A null there is not an absent badge: `badgeForLabel` falls through to `MetricRegistry.entry`'s
+       synthetic `experimental` entry, so the surface gets a FABRICATED tier over a metric its own
+       registry grades `measured` — the §🎫 failure this file's neighbouring groups exist to catch.
+       Nothing surfaced it because the sibling key `'epr delta'` resolved all along.
+       THE ASSERTION IS THE TABLE'S OWN PROMISE — a key resolves to the id it declares. That form
+       needs no second copy of `_norm`, and it exempts nothing by hand: ECGDex's `'correctionRate'`
+       key is also a registry id, so the raw-id fast path answers it and the row passes honestly,
+       while a key no path can reach reds.
+       NOT asserted, deliberately: case folding of a key. `'bσ(ln rmssd)'` uppercased round-trips to
+       `'bς(ln rmssd)'`, because Unicode lowercases a word-final Σ to ς, so an ALL-CAPS spelling of a
+       sigma label does not resolve. No surface renders one, and the promise gated here is the
+       declared key, not every spelling of it. Saying so beats a gate that borrows that scope. */
+    group('every alias key resolves to the id its own table declares', 'badges · registry · alias-reachability', function (T) {
+      var NODES = [
+        { node: 'OxyDex', reg: env.OxyRegistry },
+        { node: 'ECGDex', reg: env.EcgRegistry },
+        { node: 'PpgDex', reg: env.PpgRegistry },
+        { node: 'CPAPDex', reg: env.CpapRegistry },
+        { node: 'PulseDex', reg: env.PulseRegistry },
+        { node: 'HRVDex', reg: env.HrvRegistry },
+        { node: 'GlucoDex', reg: env.GlucoRegistry },
+        { node: 'MotionDex', reg: env.MotionRegistry },
+        { node: 'EEGDex', reg: env.EegRegistry }
+      ].filter(function (n) {
+        return n.reg && n.reg.ALIAS && typeof n.reg.idForLabel === 'function';
+      });
+      /* ANTI-VACUITY. A filter that collects nothing passes every assertion under it (§4b), so the
+         resolver set, the key count and the resolver's own refusal are asserted before the sweep. */
+      T.ok('ANTI-VACUITY · resolvers with an alias table are wired', NODES.length >= 8, NODES.length + ' resolver(s)');
+      if (NODES.length < 8) return;
+      var examined = 0,
+        dead = [];
+      NODES.forEach(function (n) {
+        var keys = Object.keys(n.reg.ALIAS);
+        T.ok(n.node + ' declares alias keys', keys.length > 0, keys.length + ' key(s)');
+        keys.forEach(function (k) {
+          examined++;
+          var got = n.reg.idForLabel(k);
+          if (got !== n.reg.ALIAS[k]) {
+            dead.push(n.node + ' ' + JSON.stringify(k) + ' → ' + JSON.stringify(got) + ', declares ' + JSON.stringify(n.reg.ALIAS[k]));
+          }
+        });
+      });
+      T.ok('ANTI-VACUITY · the sweep examined the fleet of keys', examined >= 650, examined + ' key(s) over ' + NODES.length + ' table(s)');
+      T.ok(
+        'CONTROL · a token no table declares resolves to null',
+        NODES.every(function (n) {
+          return n.reg.idForLabel('zzz-no-such-label-9f3') == null;
+        })
+      );
+      T.eq('every alias key resolves to its declared id', dead, []);
+    });
     /* REFERENCE-GUIDE-AUDIT dimension 5 (offline half) — in-page navigation must actually navigate.
        The guides are hand-authored static HTML with a quick-jump nav; an `href="#x"` whose `id` was
        renamed or deleted fails SILENTLY — the browser scrolls nowhere and the reader concludes the
