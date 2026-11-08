@@ -1999,6 +1999,40 @@ def test_the_cli_refuses_to_run_without_the_arguments_it_needs(monkeypatch, tmp_
         assert e.value.code == 2, f"argparse must reject {missing!r}"
 
 
+def test_the_CLI_HELP_DESCRIBES_EVERY_OPTION_IT_TAKES(monkeypatch, capsys):
+    """Nine mutants blank a `help=` string or the parser description, and the suite stayed green.
+
+    The help text is the whole interface for an operator holding a device he must empty before a wipe.
+    `--session` is the one that says an omitted value pulls EVERYTHING, and `--address` is the one
+    that says the device must already be bonded. Argparse wraps at the terminal width, so each string
+    is compared with its whitespace collapsed."""
+    cases = (
+        (
+            ["--address", "AA:BB", "--help"],
+            (
+                "Polar PS-FTP: list / pull onboard offline recordings",
+                "BLE MAC of the Polar device (must be bonded)",
+                "BlueZ adapter e.g. hci1 (omit = default)",
+            ),
+        ),
+        (
+            ["--address", "AA:BB", "pull", "--help"],
+            (
+                "session dir e.g. /U/0/20260716/E/170114/ (omit = pull all recordings)",
+                "output directory",
+            ),
+        ),
+    )
+    for argv, wanted in cases:
+        _argv(monkeypatch, *argv)
+        with pytest.raises(SystemExit) as e:
+            ps.main()
+        assert e.value.code == 0, f"--help exits clean for {argv!r}"
+        flat = " ".join(capsys.readouterr().out.split())
+        for text in wanted:
+            assert text in flat, f"{text!r} absent from the help for {argv!r}"
+
+
 def test_the_listing_cli_passes_the_address_and_adapter_through(monkeypatch, capsys):
     """Mutants 68-71: the address or the adapter silently dropped on the way to `list_recordings`. On a
     box with three BLE radios an unpinned adapter is a listing of the wrong device, or of nothing."""
@@ -2018,6 +2052,10 @@ def test_the_listing_cli_passes_the_address_and_adapter_through(monkeypatch, cap
         "enumeration": _COMPLETE,
     }
     assert out.rstrip().endswith("1 recording(s).")
+    # Mutants 74/76/81 drop the indent or widen it. `json.loads` reads every shape, so the assertion
+    # above cannot see it. An operator reads this on a 23-byte-MTU box over ssh; one long line is the
+    # difference between spotting a short session list and scrolling past it.
+    assert '\n  "recordings": [' in out, "the record is pretty-printed at two spaces"
 
 
 def test_a_pull_of_every_session_gives_each_one_its_own_directory(monkeypatch, tmp_path, capsys):
@@ -2276,6 +2314,24 @@ def _plant_list_dir(monkeypatch, *, raises=None, truncates=None):
     monkeypatch.setattr(ps.PolarPsFtp, "list_dir_ex", patched)
 
 
+def test_a_SIX_DIGIT_DIRECTORY_OUTSIDE_E_OR_R_IS_NOT_A_SESSION(monkeypatch):
+    """Mutants 53 and 54 loosen the session test. One accepts any 6-digit segment wherever it sits,
+    the other accepts any 6-character segment at all.
+
+    A session is a 6-digit time folder directly under `E/` or `R/`. The device root holds other
+    things, and `walk` yields a directory's own row whether or not it descends into it, so a stray
+    `/U/0/123456/` reaches this loop. Under the mutants it reads as a recording, and an operator then
+    pulls a path the device never recorded. The file rows cannot catch either mutant: the loop breaks
+    at the first match, which is the real time folder."""
+    c = _fs_with_one_session()
+    c.dirs["/U/0/"] = [("20260719/", 0), ("123456/", 0), ("SYSTEM/", 0)]
+    _install(monkeypatch, c)
+    sessions, enum = _run(ps.list_recordings_ex("AA:BB"))
+
+    assert [s["path"] for s in sessions] == ["/U/0/20260719/E/034500/"], "only the E/ time folder is a session"
+    assert enum["complete"] is True, "nothing was cut — the strays are simply not sessions"
+
+
 def test_PLANT_a_TRUNCATED_listing_refuses_the_complete_verdict(monkeypatch, caplog):
     """The measured case: `/U/0/` came back 4 entries of 6, one of the two cut entries a session dir
     holding 22 recordings. The walk recorded it and this function reported a clean list anyway."""
@@ -2292,6 +2348,9 @@ def test_PLANT_a_TRUNCATED_listing_refuses_the_complete_verdict(monkeypatch, cap
     # The warning is the trace a caller that reads only the first half of the tuple still leaves.
     warn = " ".join(r.getMessage() for r in caplog.records if r.levelname == "WARNING")
     assert "INCOMPLETE" in warn and "floor" in warn
+    # Mutant 140 drops the address from the warning's arguments. A box runs three radios and several
+    # devices, so a warning that names no device says only that SOMETHING came back cut.
+    assert "AA:BB" in warn, "the warning names the device it is about"
 
 
 def test_PLANT_a_session_whose_listing_RAISED_refuses_the_complete_verdict(monkeypatch, caplog):
