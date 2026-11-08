@@ -24,6 +24,9 @@ requirement (live and spool CONVERGE on one canonical record) has never been exe
    `max_spool_size` conservative. Record verbatim: fragment count, sizes, `seq` gaps, continuation
    behaviour, terminal status, wall time. This converts the assembler from tested to witnessed — log
    every deviation between real fragments and the fixtures it was built against as a numbered finding.
+   Record the `seq` of every DATA-LESS fragment too, because `as11_pull.py` now refuses a round whose
+   data fragments do not read `0 … n-1`. If the device numbers data-less fragments in the same run, a
+   valid round reads `[0, 2]` and the refusal is a false positive.
 2. **Feed the assembler the real fragments** and emit its evidence envelope. UNKNOWN stays UNKNOWN;
    no field is defaulted to pass. If the assembler needs changes, they ship with planted-control
    tests per the round-2 discipline (every fix verified by re-applying the defect).
