@@ -2454,13 +2454,41 @@ function nightRowInner(n) {
       )
     );
   // Research-tier chips
-  if (n.dfa) chipsArr.push(nrChip('DFA', n.dfa.alpha1, n.dfa.alpha1 > 0.85 ? 'g' : n.dfa.alpha1 > 0.6 ? 'w' : 'r'));
+  /* §∅: `null > 0.85` and `null > 0.6` are both FALSE, so a REFUSED DFA fit painted the ALARM
+     band — a graded verdict over an absence, and in the alarm direction. `computeDFA` returns
+     `alpha1: null` on a degenerate fit (fewer than two scales, or a non-finite log term), which
+     is its one null path, so the chip shows the em-dash under a neutral class and names it.
+     The producer already ships `dfaLabel: '—'` for the same absence. */
+  if (n.dfa)
+    chipsArr.push(
+      nrChip(
+        'DFA',
+        n.dfa.alpha1 != null ? n.dfa.alpha1 : '—',
+        n.dfa.alpha1 == null ? '' : n.dfa.alpha1 > 0.85 ? 'g' : n.dfa.alpha1 > 0.6 ? 'w' : 'r',
+        n.dfa.alpha1 == null ? 'refused · degenerate-fit' : ''
+      )
+    );
   if (n.ssi) chipsArr.push(nrChip('SSI', n.ssi.ssi, n.ssi.ssi < 0.5 ? 'g' : n.ssi.ssi < 1.5 ? 'w' : 'r'));
   if (n.rolling) chipsArr.push(nrChip('CDI', n.rolling.cdi + '/h', n.rolling.cdi < 5 ? 'g' : n.rolling.cdi < 15 ? 'w' : 'r'));
   if (n.hypLoad) chipsArr.push(nrChip('HypLoad', n.hypLoad.hypoxicLoad, n.hypLoad.hypoxicLoad < 1 ? 'g' : n.hypLoad.hypoxicLoad < 5 ? 'w' : 'r'));
   if (n.recIdx) chipsArr.push(nrChip('RecIdx', n.recIdx.recoveryIndex, n.recIdx.recoveryIndex > 1.5 ? 'g' : n.recIdx.recoveryIndex > 0.8 ? 'w' : 'r'));
   if (n.oxyCrash) chipsArr.push(nrChip('OxyCrash', n.oxyCrash.oxyCrashRate + '/h', n.oxyCrash.oxyCrashRate < 2 ? 'g' : n.oxyCrash.oxyCrashRate < 5 ? 'w' : 'r'));
-  if (n.ahiEst) chipsArr.push(nrChip('AHI', n.ahiEst.ahiODI4, n.ahiEst.ahiODI4 < 5 ? 'g' : n.ahiEst.ahiODI4 < 15 ? 'w' : 'r'));
+  /* §∅: `null < 5` is TRUE, so a REFUSED AHI estimate painted the reassuring GREEN band and
+     printed the literal text `null` — the same chip a MEASURED 0 renders. `computeAHIestimates`
+     sets `ahiODI4` to null when ODI-4 stays absent, which is its one null path, and it always
+     returns the object, so `if (n.ahiEst)` cannot stand in for the guard. The em-dash carries
+     the absent input by name. The sibling consumers are already safe: `computeSmartSummary`'s
+     own `push` drops a null value, so neither the severity driver nor the lead text can grade
+     this absence — the night row was the one consumer that did. */
+  if (n.ahiEst)
+    chipsArr.push(
+      nrChip(
+        'AHI',
+        n.ahiEst.ahiODI4 != null ? n.ahiEst.ahiODI4 : '—',
+        n.ahiEst.ahiODI4 == null ? '' : n.ahiEst.ahiODI4 < 5 ? 'g' : n.ahiEst.ahiODI4 < 15 ? 'w' : 'r',
+        n.ahiEst.ahiODI4 == null ? 'refused · odi4-absent' : ''
+      )
+    );
   // flags (always show — status-coded, short)
   var flagChips = (n.flags || [])
     .map(function (f) {
