@@ -2689,7 +2689,19 @@ function readDiscoverability() {
   const manP = join(ROOT, 'suite.manifest.json'),
     smP = join(ROOT, 'docs', 'sitemap.xml');
   if (!existsSync(manP) || !existsSync(smP)) return null;
-  return { manifestText: readFileSync(manP, 'utf8'), sitemapText: readFileSync(smP, 'utf8') };
+  /* about.json and llms.txt come from the same roster and carry the only URLs built from a per-node
+     field, so they are the surfaces where a null guide can be published as `<site>/null`. Absent is
+     tolerated: the group says WHICH surface it could not read rather than passing over nothing. */
+  const abP = join(ROOT, 'docs', 'about.json'),
+    llP = join(ROOT, 'docs', 'llms.txt');
+  return {
+    manifestText: readFileSync(manP, 'utf8'),
+    sitemapText: readFileSync(smP, 'utf8'),
+    generated: {
+      'docs/about.json': existsSync(abP) ? readFileSync(abP, 'utf8') : null,
+      'docs/llms.txt': existsSync(llP) ? readFileSync(llP, 'utf8') : null
+    }
+  };
 }
 
 function readDocs() {

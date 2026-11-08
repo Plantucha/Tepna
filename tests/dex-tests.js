@@ -58958,7 +58958,10 @@
      keeps the four discoverability surfaces (README table · DOCS-INDEX at-a-glance · sitemap · about.json/
      JSON-LD) from silently drifting as EEGDex/SpiroDex land: every DEPLOYED node's app + reference guide,
      every content page, and every deployed fusion app must appear in the sitemap (%20-decoded). Planned
-     nodes (app:null) are skipped. Zero dependency, test-layer only. Positive controls included. ════ */
+     nodes (app:null) are skipped, and so is a node declaring `deploy: false` — it ships in the repo and
+     is deliberately not published, the state `fusion[]` already carried. That declaration is HELD, not
+     trusted: a declared-unserved app that does resolve in the sitemap reds, so the flag cannot hide a
+     page that is in fact published. Zero dependency, test-layer only. Positive controls included. ════ */
     group('Discoverability cohesion — roster ≡ sitemap (REPO-DISCOVERABILITY §5.2)', 'discoverability · cohesion', function (T) {
       var D = env.discoverability;
       if (!D || !D.manifestText || !D.sitemapText) {
@@ -58988,28 +58991,59 @@
       }
       var paths = sitemapPaths(D.sitemapText),
         nPaths = Object.keys(paths).length;
+      /* Pure over its two arguments, so the controls below run the REAL rule against a planted roster
+         instead of a second copy of it. A rule that only ever sees the repo's own manifest cannot show
+         that its skips are skips rather than holes. */
+      function rosterMisses(m, pathSet) {
+        var out = [];
+        (m.nodes || []).forEach(function (n) {
+          if (n.planned || !n.app) return;
+          if (n.deploy === false) {
+            if (pathSet[n.app]) out.push(n.id + ' declares deploy:false and IS served as ' + n.app);
+            return;
+          }
+          if (!pathSet[n.app]) out.push(n.id + ' app ' + n.app);
+          if (!n.guide) out.push(n.id + ' has null guide');
+          else if (!pathSet[n.guide]) out.push(n.id + ' guide "' + n.guide + '"');
+        });
+        (m.content || []).forEach(function (c) {
+          if (!pathSet[c.href]) out.push('content ' + c.href);
+        });
+        (m.fusion || []).forEach(function (f) {
+          if (f.deploy === false) {
+            if (pathSet[f.app]) out.push('fusion ' + f.app + ' declares deploy:false and IS served');
+            return;
+          }
+          if (!pathSet[f.app]) out.push('fusion ' + f.app);
+        });
+        return out;
+      }
       var deployedNodes = (man.nodes || []).filter(function (n) {
-        return !n.planned && n.app;
+        return !n.planned && n.app && n.deploy !== false;
       });
       T.ok('sitemap lists ≥ one page per deployed node app+guide (' + nPaths + ' urls)', nPaths >= deployedNodes.length * 2, nPaths + ' urls, ' + deployedNodes.length + ' deployed nodes');
-      var miss = [];
-      deployedNodes.forEach(function (n) {
-        if (!paths[n.app]) miss.push(n.id + ' app ' + n.app);
-        if (!n.guide) miss.push(n.id + ' has null guide');
-        else if (!paths[n.guide]) miss.push(n.id + ' guide "' + n.guide + '"');
-      });
-      (man.content || []).forEach(function (c) {
-        if (!paths[c.href]) miss.push('content ' + c.href);
-      });
-      (man.fusion || []).forEach(function (f) {
-        if (f.deploy === false) return;
-        if (!paths[f.app]) miss.push('fusion ' + f.app);
-      });
+      var miss = rosterMisses(man, paths);
       T.ok(
         'every deployed node (app + reference guide), content page & deployed fusion app resolves in the sitemap',
         miss.length === 0,
         miss.length ? 'missing: ' + miss.slice(0, 8).join(', ') : 'all ' + deployedNodes.length + ' nodes + content + fusion resolve'
       );
+      /* The roster carries a node per app in the repo; the public surfaces carry only what the site
+         serves. A node with no reference guide has no page to link, and a URL built from that field
+         publishes `<site>/null` — absence rendered as a value (CLAUDE.md §∅). It shipped in both
+         generated surfaces the day MotionDex joined the roster, so the generator now filters and this
+         holds the output. */
+      var G = D.generated || {};
+      var siteRoot = ((man.site || {}).url || 'https://tepna.net/').replace(/\/*$/, '/');
+      Object.keys(G).forEach(function (rel) {
+        if (G[rel] == null) {
+          T.ok('generated surface ' + rel + ' was read (the null-url check is not vacuous)', false, 'absent — run tools/build-docs.mjs');
+          return;
+        }
+        var hits = G[rel].split(siteRoot + 'null').length - 1;
+        T.ok('no url in ' + rel + ' is built from an absent field (' + siteRoot + 'null)', hits === 0, hits + ' occurrence(s)');
+      });
+      T.ok('positive control: the null-url scan finds a planted one', ('{"url":"' + siteRoot + 'null"}').split(siteRoot + 'null').length - 1 === 1);
       var ids = (man.nodes || []).map(function (n) {
         return n.id;
       });
@@ -59018,6 +59052,24 @@
       var demo = sitemapPaths('<loc>https://tepna.net/OxyDex%20Reference.html</loc>\n<loc>https://tepna.net/OxyDex.html</loc>');
       T.ok('positive control: %20 decodes so a spaced guide name resolves', demo['OxyDex Reference.html'] === 1 && demo['OxyDex.html'] === 1);
       T.ok('positive control: a page absent from the sitemap is detected', !demo['NotThere.html']);
+      /* The deploy:false skip, controlled in all three directions — the same planted roster read
+         against the same empty page set, so only the flag differs. */
+      var plantedNode = { id: 'PlantDex', app: 'PlantDex.html', guide: 'PlantDex Reference.html' };
+      var plantedOff = { id: 'PlantDex', app: 'PlantDex.html', guide: null, deploy: false };
+      T.ok(
+        'control: an unserved node WITHOUT deploy:false is reported (the skip is not the rule)',
+        rosterMisses({ nodes: [plantedNode] }, {}).join(' | ') === 'PlantDex app PlantDex.html | PlantDex guide "PlantDex Reference.html"'
+      );
+      T.ok('control: the same node WITH deploy:false is skipped, null guide and all', rosterMisses({ nodes: [plantedOff] }, {}).length === 0);
+      T.ok(
+        'control: a deploy:false node that IS served reds (the flag cannot hide a published page)',
+        rosterMisses({ nodes: [plantedOff] }, { 'PlantDex.html': 1 }).join('') === 'PlantDex declares deploy:false and IS served as PlantDex.html'
+      );
+      T.ok(
+        'control: a served node with a null guide is reported',
+        rosterMisses({ nodes: [{ id: 'PlantDex', app: 'PlantDex.html', guide: null }] }, { 'PlantDex.html': 1 }).join('') === 'PlantDex has null guide'
+      );
+      T.ok('control: a deploy:false FUSION app that IS served reds too', rosterMisses({ fusion: [{ id: 'PlantFuse', app: 'PlantFuse.html', deploy: false }] }, { 'PlantFuse.html': 1 }).length === 1);
     });
 
     /* ════ HOST EMIT ALLOWLIST — ecg/ppg/cgm now emit in the live hosts (HOST-EMIT-ALLOWLIST-2026-06-27).
