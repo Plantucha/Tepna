@@ -4696,6 +4696,53 @@ def test_run_polar_stall_baseline_resets_when_rows_advance(tmp_path, monkeypatch
     assert len(starts) == 1, f"a delivering stream was torn down: {c.writes!r}"
 
 
+def _silent_ecg_live_hr(monkeypatch, feed_ecg_from_start=None):
+    """An H10 whose HR flows on every hold tick while its ECG stays silent. With `feed_ecg_from_start`,
+    ECG frames start to flow once that many STARTs have been written."""
+    _polar_common(monkeypatch)
+    c = FlexPolarClient(data_frames=[], start_status=0x00, hr_frame=bytes([0x06, 60]))
+    _inject_connect(monkeypatch, c)
+    clock = {"t": 0.0}
+    monkeypatch.setattr(capture._time, "monotonic", lambda: clock.__setitem__("t", clock["t"] + 50.0) or clock["t"])
+    calls = {"n": 0}
+
+    async def ticking_sleep(_secs):
+        calls["n"] += 1
+        hr = c.cbs.get(capture.HR_UUID)
+        if hr:
+            hr(0, bytearray([0x06, 60]))
+        starts = sum(1 for w in c.writes if w and w[0] == 0x02)
+        data = c.cbs.get(pmd.PMD_DATA)
+        if feed_ecg_from_start and starts >= feed_ecg_from_start and data:
+            data(0, bytearray(_ecg_frame()))
+        if calls["n"] >= 30:
+            capture._STOP.set()
+
+    monkeypatch.setattr(capture.asyncio, "sleep", ticking_sleep)
+    return c
+
+
+def test_run_polar_keeps_the_link_when_the_same_stream_is_silent_after_a_re_negotiation(tmp_path, monkeypatch, caplog):
+    """MEASURED on the capture box 2026-11-08: a Verity stream that ACKs START and never delivers tore
+    the link down every ~100 s, and each reconnect cut a hole in the live PPG. One re-negotiation stays;
+    the second silence of the same stream behind a live sibling keeps the link."""
+    c = _silent_ecg_live_hr(monkeypatch)
+    with caplog.at_level("WARNING", logger="capture"):
+        _run(capture.run_polar(_pdev(streams=["ecg", "hr"]), str(tmp_path)))
+    starts = [w for w in c.writes if w and w[0] == 0x02]
+    assert len(starts) == 2, f"expected one re-negotiation, then a kept link: {len(starts)} STARTs"
+    assert caplog.text.count("keeping the link") == 1, "the excused stream must leave the watch, not re-fire"
+    assert capture._SILENT_BEHIND_LIVE == {"24:AC:AC:02:84:96": frozenset({"ecg"})}
+
+
+def test_run_polar_forgets_a_silence_once_the_stream_delivers_again(tmp_path, monkeypatch):
+    c = _silent_ecg_live_hr(monkeypatch, feed_ecg_from_start=2)
+    _run(capture.run_polar(_pdev(streams=["ecg", "hr"]), str(tmp_path)))
+    starts = [w for w in c.writes if w and w[0] == 0x02]
+    assert len(starts) == 2, f"a delivering stream was torn down: {len(starts)} STARTs"
+    assert capture._SILENT_BEHIND_LIVE == {"24:AC:AC:02:84:96": frozenset()}
+
+
 def test_keep_running_backoff_doubles_between_crashes(monkeypatch):
     """Repeated crashes back off instead of hot-looping — a task that cannot start must not spin the CPU
     all night."""
