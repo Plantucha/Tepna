@@ -1741,7 +1741,9 @@ function renderNights(){
   $('#nightsTable').innerHTML = h;
   // 31-day stitched buttons: event delegation (headers re-render each time).
   $('#nightsTable').querySelectorAll('button.s31').forEach(function(b){
-    b.onclick = function(){ window.open('/stitched-31d.html?tool='+encodeURIComponent(b.dataset.stitch), '_blank'); };
+    // THROUGH THE /monitor PREFIX. Caddy serves the site root from the app folder, and only /monitor* reaches
+    // webmon. A root link 404'd on the box (owner, 2026-11-07: a click on "31-day" opened a 404 page).
+    b.onclick = function(){ window.open('/monitor/stitched-31d.html?tool='+encodeURIComponent(b.dataset.stitch), '_blank'); };
   });
   nLoadSolid(rows.map(n=>n.night));   // every night's verdict: the folded months count them too
 }

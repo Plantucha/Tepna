@@ -236,6 +236,10 @@ your diff.
   `--group=` filter that matches nothing reads as a pass); push before writing the changeset and PR body;
   `git merge origin/main` locally and push once rather than `gh pr update-branch` + a second push.
 - **WIP cap: ≤ 4 open non-draft PRs repo-wide.** A finished unit waits for a slot.
+- **One open PR per coder, draft or not** (owner, 2026-11-07). The walker rebased #4458 23 times in
+  36 h, because one bird held four PRs that all conflicted on the same ledger merge. Finish and land
+  one PR before you open the next. The fleet's one RESIDUE-only PR and the walker's own closure PRs
+  do not count against a coder.
 - **Collect when** the pool has drained AND (`pend=0` OR wedged against that workflow's own history)
   AND every required check has a terminal SUCCESS/SKIPPED conclusion — a cancelled check reads as
   `pend=0`. Never supersede a queued `tests` run under ~3 h. Check the pool before an update:
@@ -299,6 +303,11 @@ line after any SPDX comment:
   picking a row up creates a `-FOLLOWUPS-` brief. **A fix for a row that is already on main declares
   it on a `Residue-fixed: <key>` line in the PR body.** After the merge, the walker opens the
   RESIDUE-only PR that writes `fixed #<your PR>`, so no session spends a unit on that cell.
+- 🔴 **A code PR does not touch `briefs/RESIDUE.md`** (owner, 2026-11-07, reversing the 2026-10-12
+  ruling that let a PR carry its own row). In one day, 28 of 68 merges touched the ledger, and each
+  one put every open PR with a row into conflict. The walker rebased one PR 21 times. A fix that ships
+  needs no row, because its changeset records it. Log a finding you do not fix in a RESIDUE-only PR,
+  and close a row through `Residue-fixed:`. Only one RESIDUE-only PR is in flight across the fleet.
 - 🔴 **PICK A ROW UP FROM THE REF, NEVER FROM YOUR WORKING COPY** (*why → RATIONALE §📌*). Every
   landing PR appends to the ledger, so a checkout is behind it most of the time and the scan still
   returns a well-formed table with no line saying the file is old — **four sessions in two days
