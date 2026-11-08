@@ -1,4 +1,4 @@
-# 50-tepna-btdongle.rules — disable USB autosuspend on the Tepna bedside Bluetooth dongle.
+# 99-tepna-btdongle.rules — disable USB autosuspend on the Tepna bedside Bluetooth dongle.
 #
 # ROOT-CAUSE FIX (VIGIL-OVERNIGHT-FINDINGS-2026-07-24-BRIEF.md §P0.1). The TP-Link UB500 (RTL8761B,
 # USB 2357:0604) firmware-hangs when the kernel USB-autosuspends it under an active BLE workload — the
