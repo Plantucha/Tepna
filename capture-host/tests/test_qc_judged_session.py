@@ -615,7 +615,7 @@ def _stream_sidecars_around_the_night(tmp_path, arrival=True, runs=True):
 
 
 def test_A_HEADER_ONLY_ARRIVAL_LOG_DOES_NOT_OPEN_THE_NIGHT_EARLY(tmp_path):
-    """Residue `2026-11-06-stream-sidecars-set-the-night-span`. On the box the Verity's failed starts
+    """Changeset `2026-11-06-stream-sidecars-night-span`. On the box the Verity's failed starts
     opened night 2026-11-05 at 16:03, 2.5 h before anyone wore a device."""
     r = _summarize(_stream_sidecars_around_the_night(tmp_path, runs=False), _DEV)
     assert r["span_sec"] == 900, (r["span_sec"], "the night's own 15 min, not the arrival logs before it")
