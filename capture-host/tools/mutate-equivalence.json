@@ -3381,6 +3381,46 @@
   ],
   "oxy_inventory.py": [
     {
+      "line": 157,
+      "before": "torn = False",
+      "op": "literal False → None",
+      "class": "no-distinguishing-input",
+      "key": "- torn = False | + torn = None",
+      "brief": "OXYII-ACQUISITION-CHARTER G1",
+      "why": "`torn` has exactly ONE reader — `if torn:` six lines below — and it is read for its truth value alone. False and None are both falsy, so the guard takes the same arm for either and the bytes on disk are identical. ⚠ §∅ is not in play here, and the direction is worth stating: the initial value carries a MEASURED fact, that a file which does not exist or holds no bytes has no torn tail, so False is the right word and None would be the wrong one for identical behaviour. A wrong word no consumer can read is not a test gap.",
+      "probe": "MEASURED 2026-11-08 (Heron): every occurrence of `torn` in the module is one of three — the initialiser (line 157), the measurement inside the probe block (line 161) and the single reader `if torn:` (line 163). `grep -c 'torn ==\\|torn is\\|not torn'` returns 0, so no comparison against False, None or any sentinel exists in the module or its tests."
+    },
+    {
+      "line": 161,
+      "before": "torn = probe.read(1) != b\"\\n\"",
+      "op": "read(1) → read(None)",
+      "class": "no-distinguishing-input",
+      "key": "- torn = probe.read(1) != b\"\\n\" | + torn = probe.read(None) != b\"\\n\"",
+      "brief": "OXYII-ACQUISITION-CHARTER G1",
+      "why": "read(None) reads to EOF. The seek pins the remaining length to ONE byte: the handle sits one byte from the end, so a read of 1, of 2, or of the whole remainder returns that same byte and the comparison against b\"\\n\" is the same comparison. The distinguishing input would need a tail longer than the seek leaves, so no file shape is one.",
+      "probe": "MEASURED 2026-11-08 (Heron): read the last byte through read(1), read(2) and read(None) after `seek(-1, os.SEEK_END)` over three file shapes — a one-byte torn fragment (b'{'), a clean tail ending in a newline, and a 19-byte torn fragment. Every count returned the IDENTICAL byte in every shape: b'{', b'\\n', b'T'."
+    },
+    {
+      "line": 161,
+      "before": "torn = probe.read(1) != b\"\\n\"",
+      "op": "read(1) → read(2)",
+      "class": "no-distinguishing-input",
+      "key": "- torn = probe.read(1) != b\"\\n\" | + torn = probe.read(2) != b\"\\n\"",
+      "brief": "OXYII-ACQUISITION-CHARTER G1",
+      "why": "read(2) returns the one byte that is left. The seek pins the remaining length to ONE byte: the handle sits one byte from the end, so a read of 1, of 2, or of the whole remainder returns that same byte and the comparison against b\"\\n\" is the same comparison. The distinguishing input would need a tail longer than the seek leaves, so no file shape is one.",
+      "probe": "MEASURED 2026-11-08 (Heron): read the last byte through read(1), read(2) and read(None) after `seek(-1, os.SEEK_END)` over three file shapes — a one-byte torn fragment (b'{'), a clean tail ending in a newline, and a 19-byte torn fragment. Every count returned the IDENTICAL byte in every shape: b'{', b'\\n', b'T'."
+    },
+    {
+      "line": 162,
+      "before": "with open(ledger_path, \"a\", encoding=\"utf-8\") as fh:",
+      "op": "kwarg encoding=\"utf-8\" → removed, comma kept",
+      "class": "untestable-by-design",
+      "key": "- with open(ledger_path, \"a\", encoding=\"utf-8\") as fh: | + with open(ledger_path, \"a\", ) as fh:",
+      "brief": "OXYII-ACQUISITION-CHARTER G1",
+      "why": "The explicit encoding is REAL and worth keeping — the ledger is UTF-8 by intent and holds device-supplied filenames — but on this platform the default IS UTF-8, so no in-process assertion can distinguish the mutant: the bytes on disk are identical. The property is only observable with interpreter flags set at STARTUP, i.e. in a subprocess. ⚠️ This is the THIRD rendering mutmut produces for ONE op on this line: the two recorded above are `encoding=None` and the kwarg removed with its comma, and this one is the kwarg removed leaving the comma. The argument does not change with the rendering, and the same probe kills all three. The shape surfaced only now because `append_row` became a CHANGED FUNCTION for the first time since the entries above were written, and the gate judges the function, not the line.",
+      "probe": "tests/test_oxy_inventory.py::test_the_ledger_names_its_encoding_under_warn_default_encoding — runs the module under `-X warn_default_encoding -W error::EncodingWarning` in a subprocess; verified to fail for both shapes (encoding=None and the omitted argument) by hand-planting each"
+    },
+    {
       "brief": "OXYII-ACQUISITION-CHARTER G2",
       "class": "no-distinguishing-input",
       "key": "- with open(ledger_path, encoding=\"utf-8\") as fh: | + with open(ledger_path, encoding=None) as fh:",
