@@ -6066,6 +6066,71 @@ def test_the_session_partition_is_DISJOINT_BUT_MAY_TOUCH(tmp_path):
         assert a1 == b0, (ss, "…and this fixture makes them TOUCH, which is what the boundary family needs")
 
 
+def _seam_spanning_night(tmp_path):
+    """A night whose judged run is CLAMPED to a daemon seam while its only file keeps writing for another
+    hour, and whose second run opens after that file closed.
+
+    The shape is load-bearing in three ways. The seam must fall INSIDE the long file (200 s into a 3600 s
+    file), or nothing is clamped. The long file must hold the most rows, or `judged_session` picks the
+    other run and the clamp is invisible. The later run must open AFTER the long file's last write, so the
+    hole between the two runs covers time this device demonstrably recorded in. Files carry a device clock
+    because `dev_span` engages only when every file of the device states its own span."""
+    import writers
+
+    night = str(tmp_path / "2026-09-24")
+    os.makedirs(night)
+    t0 = _floating_at_hour("20260924000000", 2)
+    seam = t0 + 200
+    for open_at, n in ((t0, 3600), (t0 + 3660, 300)):
+        name = "Polar_H10_02849638_" + _floating_stampname(open_at) + "_ECG.txt"
+        with open(os.path.join(night, name), "w") as fh:
+            fh.write("Phone timestamp;sensor timestamp [ns];channel 0\n")
+            fh.write("\n".join(f";{i}000000000;1" for i in range(n)) + "\n")
+        _utime(os.path.join(night, name), open_at + n)
+    with open(os.path.join(night, writers.STARTS_NAME), "w") as fh:
+        fh.write("Phone timestamp;pid;git;dirty;adapter\n")
+        fh.write(_starts_stamp(seam) + ";400443;2cd12712;no;F4:CE:36:2E:CD:98\n")
+    devs = [{"name": "H10", "device_id": "02849638", "streams": ["ecg"]}]
+    return night, devs, t0, seam
+
+
+def test_a_file_WRITING_ACROSS_A_SEAM_is_not_charged_a_HOLE_IT_FILLED(tmp_path):
+    """A run clamped to a daemon seam must not charge its device for the time its own file kept writing.
+
+    MEASURED on this fixture before the fix: `coverage 7.82` and `session_coverage 7.8` for 3900 rows
+    over a published `span_sec` of 499, a 58 min joined hole of which 1 min was silent, and a night
+    `span_sec` of 500 for a night holding 3900 s of rows. A received-over-expected ratio cannot exceed
+    1, so the number refuted itself on the surface it was read from — the same self-refutation the `ppi`
+    1.07 comment records, reached through a different door. Residue
+    `2026-11-06-a-file-across-a-restart-seam-gives-coverage-above-one`, seen on the box's night of
+    2026-11-05 at 1.03 and 1.04.
+
+    The sessions are asserted FIRST and unchanged, because the clamp is correct and the fix must not
+    touch it: `merge_sessions` keeps the partition disjoint, and only the hole between the two runs
+    moves. Every figure below is a quantity a reader of `QC-SUMMARY.json` sees."""
+    night, devs, t0, seam = _seam_spanning_night(tmp_path)
+    s = _summarize_floating(night, devs)
+    ss = [(x["start"] - t0, x["end"] - t0) if isinstance(x, dict) else (x[0] - t0, x[1] - t0) for x in s["sessions"]]
+    assert ss == [(0.0, 200.0), (3660.0, 3960.0)], (ss, "the clamp itself must be untouched")
+
+    assert s["night_gap_min"] == 1, (s["night_gap_min"], s["joined_gaps"])
+    assert len(s["joined_gaps"]) == 1, s["joined_gaps"]
+    # The hole must OPEN at the last write, not at the seam the run was clamped to. `_hhmm` of the last
+    # write is the only thing separating the two, and the 58 min width is the defect's own signature.
+    _opens = f"{nightqc._hhmm(t0 + 3600)}->{nightqc._hhmm(t0 + 3660)} 1min gap"
+    assert s["joined_gaps"][0].startswith(_opens), (s["joined_gaps"][0], _opens)
+    # The seam is 3400 s earlier, so a hole opening there is the defect and reads 58min wide.
+    assert nightqc._hhmm(t0 + 200) not in s["joined_gaps"][0], s["joined_gaps"][0]
+
+    d = s["devices"][0]
+    assert d["streams"]["ecg"] == 3900, d["streams"]
+    assert d["span_basis"]["ecg"] == "device", (d["span_basis"], "the device-span denominator must engage")
+    assert d["span_sec"] == 3899, (d["span_sec"], "the device's own extent, minus only the silent minute")
+    assert d["coverage"]["ecg"] == 1.0, d["coverage"]
+    assert d["session_coverage"]["ecg"] == 1.0, d["session_coverage"]
+    assert s["span_sec"] == 3900, (s["span_sec"], "a night holding 3900 s of rows cannot span 500 s")
+
+
 def _floating_at_hour(stamp, hour):
     """The FLOATING second of `hour`:00 on `stamp`'s date — the frame a band edge is in.
 
