@@ -2624,7 +2624,26 @@ def write_night(
     vpath = os.path.join(night_dir, VERDICT_NAME)
     # BEFORE the replace, and never fatal: an unrecordable withdrawal must not stop the night getting
     # its correct verdict. A first verdict withdraws nothing and returns None.
-    _verdict.withdraw(vpath, os.path.join(night_dir, WITHDRAWN_NAME), obj, reason=REAUDITED)
+    #
+    # §∅ THE RETURN VALUE IS THE ONLY REPORT OF A FAILED WITHDRAWAL. `verdict.withdraw` is append-only
+    # and never fatal, so it reports an unwritable record as `recorded: False` with `record_error` in
+    # the entry it returns, and that entry is the only place the failure appears. This call discarded
+    # it until 2026-11-08, so a superseded LOSS verdict whose withdrawal record never reached disk left
+    # no trace anywhere. A log line is not the remedy here: this module holds no logger, and `qc_child`
+    # runs it in a SPAWNED child whose logger has no handler, so a warning would reach nobody. The
+    # published verdict carries the entry instead, exactly as `solid_night` does one layer up.
+    withdrawn = _verdict.withdraw(vpath, os.path.join(night_dir, WITHDRAWN_NAME), obj, reason=REAUDITED)
+    if withdrawn is not None:
+        if obj.get("result") is not None:
+            obj["result"]["withdrew"] = withdrawn
+        elif withdrawn.get("recorded") is False:
+            # A crash verdict carries `result: null`, and inventing a result to hold this entry would
+            # publish a measurement nobody made (§∅). So the failure joins the one free-text field such
+            # a verdict already owns. `validate` demands `reason: null` on a PASS, and a PASS always
+            # carries a result, so this branch never reaches one.
+            obj["reason"] = (
+                f"{obj['reason']}; the superseded verdict's withdrawal record did not reach disk: {withdrawn['record_error']}"
+            )
     try:
         _verdict.write(vpath, obj)
     except (OSError, ValueError):
