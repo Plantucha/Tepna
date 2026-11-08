@@ -34,7 +34,8 @@ say "2c/8  /etc must match the repo"
 # unprotected — with `systemctl status` green the whole time, because the file was present and only
 # its CONTENT was old. MANAGED files are installed; the site-templated unit is only reported, because
 # the repo's copy names a user this box does not have and installing it would stop capture.
-sudo bash "$DEST/capture-host/deploy/check-system-files.sh" --install || true
+sudo bash "$DEST/capture-host/deploy/check-system-files.sh" --install ||
+  echo "   ✗ /etc install FAILED — the udev rules and units are STALE (see above)"
 
 say "3/8  python venv"
 cd "$DEST/capture-host"
@@ -47,15 +48,14 @@ say "4/8  data dirs"
 sudo mkdir -p "$DATA/captures" "$DATA/app" /var/log/tepna
 sudo chown -R "$USER:$USER" "$DATA" /var/log/tepna
 
-say "5/8  USB autosuspend rules (BOTH radios, so an A/B test is not rigged)"
-sudo tee /etc/udev/rules.d/50-tepna-btdongle.rules >/dev/null <<'RULES'
-# TP-Link UB500 / RTL8761B — the documented firmware-hang trigger (VIGIL-OVERNIGHT-FINDINGS §P0.1)
-ACTION=="add", SUBSYSTEM=="usb", ATTR{idVendor}=="2357", ATTR{idProduct}=="0604", TEST=="power/control", ATTR{power/control}="on"
-ACTION=="add", SUBSYSTEM=="usb", ATTR{idVendor}=="2357", ATTR{idProduct}=="0604", TEST=="power/autosuspend_delay_ms", ATTR{power/autosuspend_delay_ms}="-1"
-# Intel (8260/8265/AX200) — the M900's internal radio. Same treatment, or the A/B comparison is rigged.
-ACTION=="add", SUBSYSTEM=="usb", ATTR{idVendor}=="8087", TEST=="power/control", ATTR{power/control}="on"
-ACTION=="add", SUBSYSTEM=="usb", ATTR{idVendor}=="8087", TEST=="power/autosuspend_delay_ms", ATTR{power/autosuspend_delay_ms}="-1"
-RULES
+say "5/8  USB autosuspend — drop any stale 50- rule, then arm BOTH radios now"
+# ONE OWNER FOR THIS RULE: step 2c installs the tracked systemd/99-tepna-btdongle.rules, which covers
+# both radios and more. Until 2026-11-08 this step ALSO wrote its own copy as 50-tepna-btdongle.rules,
+# and that prefix loses: udev applies rules in lexical order, and Ubuntu's own
+# /usr/lib/udev/rules.d/60-autosuspend.rules runs after a 50- file and sets power/control back to
+# `auto`. The tracked file's own header tells the operator to delete that copy, so the deploy does it.
+# A box deployed before 2026-11-08 still carries the losing file.
+sudo rm -f /etc/udev/rules.d/50-tepna-btdongle.rules
 sudo udevadm control --reload
 sudo udevadm trigger --action=add --attr-match=idVendor=2357 || true
 sudo udevadm trigger --action=add --attr-match=idVendor=8087 || true

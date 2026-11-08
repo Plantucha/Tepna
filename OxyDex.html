@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="70aaf667c119" data-compute-hash="0027272621ec">
+<html lang="en" data-manifest-hash="8e13fefb7db7" data-compute-hash="0027272621ec">
 <head>
 <!--
   OxyDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-3+T/ar3EZVk36//Zv52rHgbUF+4QZZdJyqAYvpowbmk=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CNkm2h+ZlrSYYzoGx9OxoFo/k2UmcAbaZ9Bd72GM4as=' 'sha256-D0YR9+62Fd3hUFRoEZhA/MkKslQirmZQg7KMBHKpICk=' 'sha256-E1IsN6aDCUvHb/53fIyPoB7AQMLdRp5olYowv/ZbZ6A=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-MxmfTjK4rIAHcT6quDxqfVOP5C2/xbu5OVUNyHlynvM=' 'sha256-OlU0jGA0OnZ42Fdafhb1v9ikML39C1Hlaiwi6Hnx54g=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-QyURGUmKmbpEGz6vtt+poPueeRE901i4IjiyZIbxJNo=' 'sha256-RakplvxWfb8RuLMYcGo7529UPJkZlrpGeYqBNSNqmkA=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-XqyVux6nZ1GoEpXw5HlJF6/fUCrzC+aJ4dGKEuYCK0w=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-hCZmwNAMDLPZEMYHAYpzoPETSnimg1oHWWjZImdKqxM=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-s5jQgZ2dCmcNdTTy5gLqyiwkCVbXvuldnqeO/1M79kk=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-3+T/ar3EZVk36//Zv52rHgbUF+4QZZdJyqAYvpowbmk=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CNkm2h+ZlrSYYzoGx9OxoFo/k2UmcAbaZ9Bd72GM4as=' 'sha256-D0YR9+62Fd3hUFRoEZhA/MkKslQirmZQg7KMBHKpICk=' 'sha256-E1IsN6aDCUvHb/53fIyPoB7AQMLdRp5olYowv/ZbZ6A=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-MxmfTjK4rIAHcT6quDxqfVOP5C2/xbu5OVUNyHlynvM=' 'sha256-OlU0jGA0OnZ42Fdafhb1v9ikML39C1Hlaiwi6Hnx54g=' 'sha256-PGmJfjKvZ0eLaZTiqVcM0VxIeXgD+SiyMgKjojYvRX0=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-QyURGUmKmbpEGz6vtt+poPueeRE901i4IjiyZIbxJNo=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-XqyVux6nZ1GoEpXw5HlJF6/fUCrzC+aJ4dGKEuYCK0w=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-hCZmwNAMDLPZEMYHAYpzoPETSnimg1oHWWjZImdKqxM=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-s5jQgZ2dCmcNdTTy5gLqyiwkCVbXvuldnqeO/1M79kk=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>OxyDex — Nocturnal Oximetry Analyzer · v2.29.0</title>
@@ -26432,13 +26432,41 @@ function nightRowInner(n) {
       )
     );
   // Research-tier chips
-  if (n.dfa) chipsArr.push(nrChip('DFA', n.dfa.alpha1, n.dfa.alpha1 > 0.85 ? 'g' : n.dfa.alpha1 > 0.6 ? 'w' : 'r'));
+  /* §∅: `null > 0.85` and `null > 0.6` are both FALSE, so a REFUSED DFA fit painted the ALARM
+     band — a graded verdict over an absence, and in the alarm direction. `computeDFA` returns
+     `alpha1: null` on a degenerate fit (fewer than two scales, or a non-finite log term), which
+     is its one null path, so the chip shows the em-dash under a neutral class and names it.
+     The producer already ships `dfaLabel: '—'` for the same absence. */
+  if (n.dfa)
+    chipsArr.push(
+      nrChip(
+        'DFA',
+        n.dfa.alpha1 != null ? n.dfa.alpha1 : '—',
+        n.dfa.alpha1 == null ? '' : n.dfa.alpha1 > 0.85 ? 'g' : n.dfa.alpha1 > 0.6 ? 'w' : 'r',
+        n.dfa.alpha1 == null ? 'refused · degenerate-fit' : ''
+      )
+    );
   if (n.ssi) chipsArr.push(nrChip('SSI', n.ssi.ssi, n.ssi.ssi < 0.5 ? 'g' : n.ssi.ssi < 1.5 ? 'w' : 'r'));
   if (n.rolling) chipsArr.push(nrChip('CDI', n.rolling.cdi + '/h', n.rolling.cdi < 5 ? 'g' : n.rolling.cdi < 15 ? 'w' : 'r'));
   if (n.hypLoad) chipsArr.push(nrChip('HypLoad', n.hypLoad.hypoxicLoad, n.hypLoad.hypoxicLoad < 1 ? 'g' : n.hypLoad.hypoxicLoad < 5 ? 'w' : 'r'));
   if (n.recIdx) chipsArr.push(nrChip('RecIdx', n.recIdx.recoveryIndex, n.recIdx.recoveryIndex > 1.5 ? 'g' : n.recIdx.recoveryIndex > 0.8 ? 'w' : 'r'));
   if (n.oxyCrash) chipsArr.push(nrChip('OxyCrash', n.oxyCrash.oxyCrashRate + '/h', n.oxyCrash.oxyCrashRate < 2 ? 'g' : n.oxyCrash.oxyCrashRate < 5 ? 'w' : 'r'));
-  if (n.ahiEst) chipsArr.push(nrChip('AHI', n.ahiEst.ahiODI4, n.ahiEst.ahiODI4 < 5 ? 'g' : n.ahiEst.ahiODI4 < 15 ? 'w' : 'r'));
+  /* §∅: `null < 5` is TRUE, so a REFUSED AHI estimate painted the reassuring GREEN band and
+     printed the literal text `null` — the same chip a MEASURED 0 renders. `computeAHIestimates`
+     sets `ahiODI4` to null when ODI-4 stays absent, which is its one null path, and it always
+     returns the object, so `if (n.ahiEst)` cannot stand in for the guard. The em-dash carries
+     the absent input by name. The sibling consumers are already safe: `computeSmartSummary`'s
+     own `push` drops a null value, so neither the severity driver nor the lead text can grade
+     this absence — the night row was the one consumer that did. */
+  if (n.ahiEst)
+    chipsArr.push(
+      nrChip(
+        'AHI',
+        n.ahiEst.ahiODI4 != null ? n.ahiEst.ahiODI4 : '—',
+        n.ahiEst.ahiODI4 == null ? '' : n.ahiEst.ahiODI4 < 5 ? 'g' : n.ahiEst.ahiODI4 < 15 ? 'w' : 'r',
+        n.ahiEst.ahiODI4 == null ? 'refused · odi4-absent' : ''
+      )
+    );
   // flags (always show — status-coded, short)
   var flagChips = (n.flags || [])
     .map(function (f) {

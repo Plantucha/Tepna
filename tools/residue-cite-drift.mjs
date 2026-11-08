@@ -111,6 +111,44 @@ const arg = (f, d) => {
 
 /* A citation: an optional backtick, a path with an extension, `:line`, an optional `-line2` range. */
 const CITE_RE = /`?((?:[A-Za-z0-9_.-]+\/)*[A-Za-z0-9_.-]+\.(?:py|js|mjs|sh|md|html|json|yml|yaml|toml|css|txt)):(\d+)(?:-(\d+))?`?/g;
+/* ⚠️ CITE_RE'S PATH CLASS HOLDS NO SPACE AND NO APOSTROPHE, AND 68 TRACKED PATHS CARRY ONE.
+   Measured 2026-11-08 over `git ls-files`: 0 of those 68 read back whole through CITE_RE alone. The
+   regex matches the TAIL that begins after the last unreadable character, so the citation silently
+   becomes a pointer at some other path — and the error goes in BOTH directions:
+     · 50 of 68 truncate onto nothing tracked, so a live file is reported as rot or as off-tree;
+     · 18 of 68 truncate onto a DIFFERENT TRACKED FILE — every `wiring/How It's Wired - OxyDex.html`
+       reads as `OxyDex.html` — and the judge then scores drift against the wrong file and publishes
+       `anchored` or `moved`. That half is silent, and it names a real path, so nothing in the report
+       looks wrong.
+   The ledger already pays the loud half. `briefs/RESIDUE.md` cites `Data Unifier.html:412`, a file of
+   44705 lines; the match is `Unifier.html:412`; and a bare `Unifier.html` really did sit on main,
+   added by `d0e67d0cb` as the product of a SHELL WORD-SPLIT on the same filename and deleted at
+   `9d93ca3ac`. So the provenance probe finds the phantom, answers `carried`, and `binMissing` bins the
+   citation `missing-file` — the one class that decides `--strict`. One of that bin's 3 members is an
+   artifact of this regex.
+   THE REPAIR RESOLVES, IT DOES NOT WIDEN THE CLASS. Widening the path class to admit a space makes the
+   match swallow the prose to its left, so instead the match is EXTENDED leftward and an extension is
+   kept only when it names a path the judged tree really tracks. Prose cannot win, because prose is not
+   tracked. The longest tracked candidate wins, which is what repairs the 18 — `OxyDex.html` is tracked
+   and `wiring/How It's Wired - OxyDex.html` is tracked and longer. Without a tracked set the function
+   answers exactly as it did before, so the pure callers and the selftest keep reading one behaviour.
+   A space-bearing path the tree does NOT track still truncates; no text-only rule can tell that case
+   from prose, and the selftest pins it as the known limit rather than guessing. */
+const PATH_EXTEND_CH = /[A-Za-z0-9_.\u2019'\/ -]/;
+const PATH_EXTEND_WINDOW = 120;
+
+export function extendCitedPath(rowText, startIdx, matched, isTracked) {
+  if (!isTracked) return matched;
+  let best = isTracked(matched) ? matched : null;
+  const floor = Math.max(0, startIdx - PATH_EXTEND_WINDOW);
+  for (let i = startIdx; i > floor && PATH_EXTEND_CH.test(rowText[i - 1]); ) {
+    i--;
+    const cand = rowText.slice(i, startIdx) + matched;
+    if (isTracked(cand)) best = cand; // keep scanning: the LONGEST tracked candidate wins
+  }
+  return best || matched;
+}
+
 /* What the author anchored the line to: every identifier-shaped token inside a backticked span (so
    `import pull_session` yields `pull_session`, `foo(bar)` yields `foo`), plus quoted strings. */
 const SPAN_RE = /`([^`\n]{1,160})`|"([^"`\n]{3,80})"|'([^'`\n]{3,80})'/g;
@@ -164,9 +202,14 @@ export function parseRows(ledgerText) {
   return out;
 }
 
-export function citations(rowText) {
+export function citations(rowText, isTracked = null) {
   const out = [];
-  for (const m of rowText.matchAll(CITE_RE)) out.push({ path: m[1], line: +m[2], to: m[3] ? +m[3] : null });
+  for (const m of rowText.matchAll(CITE_RE)) {
+    /* m[0] may open with a backtick, so the path's own start is found inside the match, never at
+       `m.index`. Extending from the wrong index would prepend the backtick and track nothing. */
+    const startIdx = m.index + m[0].indexOf(m[1]);
+    out.push({ path: extendCitedPath(rowText, startIdx, m[1], isTracked), line: +m[2], to: m[3] ? +m[3] : null });
+  }
   return out;
 }
 
@@ -230,16 +273,31 @@ export function trySpellings(relPath) {
   ];
 }
 
+/* A FILE'S LINE COUNT IS NOT ITS SPLIT LENGTH. A text ending in a newline — nearly every tracked
+   file — splits into one MORE element than it has lines, and that last element is the empty string
+   after the final newline. Both consumers of this array read the count as the file's length: the
+   `beyond-eof` bound at `judge`, and the `moved` scan. So a raw split made the bound permissive by
+   exactly one phantom line, and made the length this tool PRINTS one too large — the number a
+   reader uses to repair the pointer. Measured 2026-11-08 on `oxydex-profile.js`: the report said
+   683 where the file holds 682 lines. Exactly ONE trailing empty element is dropped, so a file that
+   really ends in a blank line keeps that blank line. The 45 selftest plants never saw this, because
+   each builds its `fileLines` array by hand and so never carries the artefact the reader adds. */
+export function toLines(text) {
+  const parts = text.split('\n');
+  if (parts.length && parts[parts.length - 1] === '') parts.pop();
+  return parts;
+}
+
 function readAt(ref, relPath) {
   const tryPaths = trySpellings(relPath);
   for (const p of tryPaths) {
     try {
       if (ref === 'worktree') {
         const f = path.join(REPO, p);
-        if (fs.existsSync(f)) return fs.readFileSync(f, 'utf8').split('\n');
+        if (fs.existsSync(f)) return toLines(fs.readFileSync(f, 'utf8'));
         continue;
       }
-      return execFileSync('git', ['show', `${ref}:${p}`], { cwd: REPO, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 64 << 20 }).split('\n');
+      return toLines(execFileSync('git', ['show', `${ref}:${p}`], { cwd: REPO, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 64 << 20 }));
     } catch {
       /* not at this path under this ref — try the next spelling */
     }
@@ -352,7 +410,7 @@ export function readLedgerAt(ref) {
   }
 }
 
-export function sweep(rows, reader, provenance = null) {
+export function sweep(rows, reader, provenance = null, isTracked = null) {
   const cache = new Map();
   const provCache = new Map();
   const prov = (q) => {
@@ -371,7 +429,7 @@ export function sweep(rows, reader, provenance = null) {
   const report = { rows: rows.length, citations: 0, byVerdict: {}, moved: [], unanchored: [], beyondEof: [], missing: [], offTree: [], provenanceProbe: provenance ? 'read' : 'not-run' };
   for (const row of rows) {
     const ids = identifiers(row.text);
-    for (const c of citations(row.text)) {
+    for (const c of citations(row.text, isTracked)) {
       report.citations++;
       const j0 = judge(c, lines(c.path), ids);
       /* The judgement is pure and reads a file; the SPLIT of its missing bin reads the repo, so it
@@ -415,12 +473,60 @@ function selftest() {
         { path: 'tools/x.mjs', line: 10, to: 12 }
       ])
   );
+  /* ════ ONE CONTROL PER FORM THE READER MUST HANDLE ═══════════════════════════════════════════
+     An unreadable form yields errors in BOTH directions — a false defect loudly and a false pass
+     silently — and the silent half is the one no reconciliation against a count will catch (memory
+     `a-reader-that-cannot-read-a-form-owes-that-word`, Osprey #3983). So each form below is a leg,
+     the back-compatible no-oracle path is a leg, and the KNOWN LIMIT is a leg rather than a guess. */
+  const TRACKED = new Set(['Data Unifier.html', 'OxyDex.html', "wiring/How It's Wired - OxyDex.html", 'tools/x.mjs', 'capture.py']);
+  const tr = (q) => TRACKED.has(q);
+  check('a space-bearing path inside backticks extends to the tracked whole, not to its tail', citations('see `Data Unifier.html:412` now', tr)[0].path === 'Data Unifier.html');
+  check(
+    'THE SILENT HALF · the LONGEST tracked candidate wins, so the citation does not land on another real file',
+    citations("see `wiring/How It's Wired - OxyDex.html:40`", tr)[0].path === "wiring/How It's Wired - OxyDex.html" &&
+      citations("see `wiring/How It's Wired - OxyDex.html:40`")[0].path === 'OxyDex.html'
+  );
+  check(
+    'CONTROL · prose to the left never wins, because prose is not tracked',
+    citations('as described in the live Data Unifier.html:412 file', tr)[0].path === 'Data Unifier.html' && citations('the file tools/x.mjs:10 holds it', tr)[0].path === 'tools/x.mjs'
+  );
+  check(
+    'CONTROL · with no tracked oracle the answer is byte-identical to the unextended one',
+    JSON.stringify(citations('see `Data Unifier.html:412` and tools/x.mjs:10-12.')) ===
+      JSON.stringify([
+        { path: 'Unifier.html', line: 412, to: null },
+        { path: 'tools/x.mjs', line: 10, to: 12 }
+      ])
+  );
+  check('THE DECLARED LIMIT · a space-bearing path the tree does NOT track still truncates, and is not guessed at', citations('see `Some Deleted File.html:9`', tr)[0].path === 'File.html');
+  check('CONTROL · a path with no space is untouched while the oracle is present', citations('see `capture.py:5306`', tr)[0].path === 'capture.py');
+  /* The second half uses an ALWAYS-TRACKED oracle, which is the only way to make the window the
+     binding constraint: a real oracle stops the walk at the first untracked candidate, so it would
+     pass whatever the cap were, and the leg would examine nothing. */
+  check(
+    'the extension never reaches past its window, so a long prose line cannot be scanned without bound',
+    citations('x'.repeat(400) + ' Data Unifier.html:412', tr)[0].path === 'Data Unifier.html' &&
+      extendCitedPath('y'.repeat(300) + 'Unifier.html', 300, 'Unifier.html', () => true).length === PATH_EXTEND_WINDOW + 'Unifier.html'.length
+  );
   check('anchored: the identifier is on the cited line', judge({ line: 5 }, file, ['beta']).verdict === 'anchored');
   // THE PLANT — the residue's own example: the import cited at one line now lives at another
   const moved = judge({ line: 1 }, file, ['pull_session']);
   check('PLANT moved: `import pull_session` cited at :1 is now at :8 — reported with where it is', moved.verdict === 'moved' && JSON.stringify(moved.now) === JSON.stringify({ pull_session: [8] }));
   check('unanchored: the row names nothing that occurs in the file — not judged as drift', judge({ line: 2 }, file, ['gamma']).verdict === 'unanchored');
   check('beyond-eof', judge({ line: 99 }, file, ['beta']).verdict === 'beyond-eof');
+
+  /* THE PHANTOM LAST LINE. `readAt` used a raw `split('\n')`, so a newline-terminated file — nearly
+     every tracked file — produced one element more than it has lines. The legs below pin the reader's
+     contract, and the control pins what the defect WAS, because every plant above hand-builds its
+     array and so could never observe it. */
+  check('toLines: a newline-terminated text yields its lines, not one more', JSON.stringify(toLines('a\nb\n')) === '["a","b"]');
+  check('toLines: a text with no final newline is unchanged', JSON.stringify(toLines('a\nb')) === '["a","b"]');
+  check('toLines: a file that really ends in a blank line KEEPS it — exactly one empty is dropped', JSON.stringify(toLines('a\nb\n\n')) === '["a","b",""]');
+  check('toLines: empty text is zero lines', JSON.stringify(toLines('')) === '[]');
+  check('CONTROL · the raw split was long by one, and toLines is not', 'a\nb\n'.split('\n').length === 3 && toLines('a\nb\n').length === 2);
+  const eof = judge({ line: 3 }, toLines('a\nb\n'), ['x']);
+  check('beyond-eof: the line after the last one cannot resolve, and the REPORTED length is the real one', eof.verdict === 'beyond-eof' && eof.length === 2);
+  check('anchored: the real last line of a newline-terminated file still resolves', judge({ line: 2 }, toLines('a\nbeta\n'), ['beta']).verdict === 'anchored');
   check('missing-file', judge({ line: 1 }, null, ['beta']).verdict === 'missing-file');
   check('a row with NO identifiers is unanchored, never anchored by vacuity', judge({ line: 5 }, file, []).verdict === 'unanchored');
   check('a PLAIN-WORD identifier (`alpha`, `beta`) cannot testify to a move — unanchored, not moved', judge({ line: 4 }, file, ['alpha', 'beta']).verdict === 'unanchored');
@@ -603,9 +709,14 @@ function repoProvenance(ref) {
     shallow = git(['rev-parse', '--is-shallow-repository']).trim() === 'true';
     tracked = (ref === 'worktree' ? git(['ls-files']) : git(['ls-tree', '-r', '--name-only', ref])).split('\n').filter(Boolean);
   } catch {
-    return { probe: null, reason: 'git could not be read' };
+    return { probe: null, trackedSet: null, reason: 'git could not be read' };
   }
-  if (shallow) return { probe: null, reason: 'the clone is shallow, so its history cannot answer whether a path ever existed' };
+  /* The tracked set rides OUT of here because this is the one place that already enumerates the
+     judged tree, and it describes the same tree as the basenames below — one answer, one ref. A
+     shallow clone still yields it: `ls-files`/`ls-tree` need no history, so the path extension keeps
+     working where the provenance probe cannot. */
+  const trackedSet = new Set(tracked);
+  if (shallow) return { probe: null, trackedSet, reason: 'the clone is shallow, so its history cannot answer whether a path ever existed' };
   const byBase = new Map();
   for (const f of tracked) {
     const b = f.slice(f.lastIndexOf('/') + 1);
@@ -638,7 +749,7 @@ function repoProvenance(ref) {
     }
     return { carried: true, candidates, at };
   };
-  return { probe, reason: null };
+  return { probe, trackedSet, reason: null };
 }
 
 function main() {
@@ -663,8 +774,8 @@ function main() {
     }
     rows = addedRows(rows, parseRows(baseText));
   }
-  const { probe, reason: probeReason } = repoProvenance(ref);
-  const r = sweep(rows, (p) => readAt(ref, p), probe);
+  const { probe, trackedSet, reason: probeReason } = repoProvenance(ref);
+  const r = sweep(rows, (p) => readAt(ref, p), probe, trackedSet ? (q) => trackedSet.has(q) : null);
   const v = verdictFor(r, commitSha(), { base, ref });
   /* `Verdict.validate` answers `{ ok, errors }`. A truth test on `.length` would read `undefined`
      and never fire, which is CLAUDE.md §4b: a check reporting a verdict about what it never read. */

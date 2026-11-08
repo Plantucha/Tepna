@@ -19,6 +19,8 @@
 # a DST transition can be exercised in a second.
 
 import datetime as dt
+import os
+import re
 import types
 
 import pytest
@@ -501,8 +503,21 @@ def test_every_disarmed_defense_is_reported_not_just_the_first():
 
 
 def test_autosuspend_auto_warns_about_the_wedge_prevention():
+    """The warning hands the operator an install path, so it must name a file the tree HOLDS.
+
+    It said `systemd/50-tepna-btdongle.rules` until 2026-11-08, and this assertion pinned that string
+    verbatim. The repo retired the 50- prefix on 2026-07-25, because udev applies rules in lexical
+    order and Ubuntu's own 60-autosuspend.rules runs after a 50- file and sets power/control back to
+    `auto`. So the suite stayed green for months over a remediation step naming a path the tree had
+    dropped. Read the name off disk and that pin cannot come back."""
     ws = capture.defense_warnings("auto", "0000000000000800")
-    assert len(ws) == 1 and "autosuspend is ENABLED" in ws[0] and "50-tepna-btdongle.rules" in ws[0]
+    assert len(ws) == 1 and "autosuspend is ENABLED" in ws[0]
+    m = re.search(r"systemd/(\S+\.rules)", ws[0])
+    assert m, f"the warning names no rules file for the operator to install: {ws[0]}"
+    systemd = os.path.join(os.path.dirname(os.path.abspath(capture.__file__)), "systemd")
+    assert os.path.exists(os.path.join(systemd, m.group(1))), (
+        f"the warning says to install systemd/{m.group(1)}, which this tree does not hold"
+    )
 
 
 def test_zero_capeff_warns_the_recovery_ladder_is_disarmed():
