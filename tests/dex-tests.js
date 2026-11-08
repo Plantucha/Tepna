@@ -45941,6 +45941,56 @@
       }
     });
 
+    /* TRACER AUDIT #4706 TR-1 — a header that names its columns is never re-read by position.
+       `Time,Oxygen Level,Motion` (an O2Ring CSV with no pulse column) used to fall through to the
+       positional fallback, which read Motion as HR: motion 0,58,3,200,0 kept 2 of 5 rows with HR 58
+       and 200. A column the header leaves out is absent; the rows and their other columns survive. */
+    group('OxyDex parseCSV keeps a named header and nulls the column it leaves out (TR-1)', 'oxydex-dsp · fabricated-absence · regression', function (T) {
+      var OM = env.OxyDex && (env.OxyDex._bare || env.OxyDex);
+      if (!(OM && typeof OM.parseCSV === 'function')) {
+        T.skip('OxyDex.parseCSV available', 'oxydex-dsp not wired in this lane');
+        return;
+      }
+      var st = ['20:21:36', '20:21:37', '20:21:38', '20:21:39', '20:21:40'];
+      var mot = [0, 58, 3, 200, 0];
+      var noHr =
+        'Time,Oxygen Level,Motion\n' +
+        st
+          .map(function (t, i) {
+            return t + ' 13/08/2026,95,' + mot[i];
+          })
+          .join('\n') +
+        '\n';
+      var r = OM.parseCSV(noHr, { fname: 'x_SPO2.csv' });
+      T.eq('no pulse column · every row survives', r.length, 5);
+      T.eq(
+        'no pulse column · HR is null on every row',
+        r.filter(function (x) {
+          return x.hr === null;
+        }).length,
+        5
+      );
+      T.eq(
+        'no pulse column · motion keeps its own column',
+        JSON.stringify(
+          r.map(function (x) {
+            return x.motion;
+          })
+        ),
+        JSON.stringify(mot)
+      );
+      var ctrl = OM.parseCSV('Time,Oxygen Level,Pulse Rate,Motion\n20:21:36 13/08/2026,96,52,0\n20:21:37 13/08/2026,95,53,4\n', { fname: 'x_SPO2.csv' });
+      T.eq(
+        'control · a full header still maps HR',
+        JSON.stringify(
+          ctrl.map(function (x) {
+            return [x.spo2, x.hr, x.motion];
+          })
+        ),
+        '[[96,52,0],[95,53,4]]'
+      );
+    });
+
     /* DEEP-AUDIT-V §2.3 — TWO MORE OxyDex FABRICATED ABSENCES, both bug class 3a, both found by
        asking the §3a question of an input rather than of a series: WHAT DOES THIS SAY WHEN THE
        SENSOR WAS NEVER THERE?
