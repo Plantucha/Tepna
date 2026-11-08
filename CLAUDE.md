@@ -299,6 +299,11 @@ line after any SPDX comment:
   picking a row up creates a `-FOLLOWUPS-` brief. **A fix for a row that is already on main declares
   it on a `Residue-fixed: <key>` line in the PR body.** After the merge, the walker opens the
   RESIDUE-only PR that writes `fixed #<your PR>`, so no session spends a unit on that cell.
+- 🔴 **A code PR does not touch `briefs/RESIDUE.md`** (owner, 2026-11-07, reversing the 2026-10-12
+  ruling that let a PR carry its own row). In one day, 28 of 68 merges touched the ledger, and each
+  one put every open PR with a row into conflict. The walker rebased one PR 21 times. A fix that ships
+  needs no row, because its changeset records it. Log a finding you do not fix in a RESIDUE-only PR,
+  and close a row through `Residue-fixed:`. Only one RESIDUE-only PR is in flight across the fleet.
 - 🔴 **PICK A ROW UP FROM THE REF, NEVER FROM YOUR WORKING COPY** (*why → RATIONALE §📌*). Every
   landing PR appends to the ledger, so a checkout is behind it most of the time and the scan still
   returns a well-formed table with no line saying the file is old — **four sessions in two days
