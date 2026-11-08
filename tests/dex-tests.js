@@ -30154,6 +30154,92 @@
       T.ok('PLANT · a changed oxydex-dsp.js is reported, and by name', pm.length === 1 && pm[0].indexOf('oxy/oxydex-dsp.js') === 0 && pm[0].indexOf('planted00000') > 0, JSON.stringify(pm));
     });
 
+    /* ── THE PIN MUST KNOW WHICH COHORT IT IS PINNING (board finding #4343) ───────────────────────
+       `selectionCounts` replays the selector at the stated `nSubj 900`, and the pin publishes
+       `txSkipped = txCandidates - nIntervention`. The second term comes from the rerun file on the
+       command line, and nothing compared the two cohorts. Measured 2026-11-07: the page default of 45
+       per arm answered 10 tx / 17 flat, and the tool wrote `txSkipped 890` — 890 subjects the run
+       never examined, published as 890 the detectors rejected, beside a yield that read as a collapse
+       from 233 and was a change of scale. The page now publishes `targetSubj`, and the refusals below
+       each carry their own token, because an absent cohort size and a wrong one are different states. */
+    group('treatment-response · pin scale — the run states the cohort it ran, or the pin refuses', 'treatment-response · pin · scale · absence · regression', function (T) {
+      var YP = env.YieldPin;
+      var psrc = (env.sources && env.sources['treatment-response-analysis.js']) || '';
+      var pin = env.treatmentYieldPin;
+      if (!YP || typeof YP.scaleCheck !== 'function') {
+        T.skip('the pin module is loadable', 'Node-lane only — run-tests.mjs imports tools/treatment-response-yield-pin.mjs; the browser suite does not');
+        return;
+      }
+      var paper = { targetSubj: 900, minNights: 10, nIntervention: 233, nFlatControl: 239 };
+      var dflt = { targetSubj: 45, minNights: 10, nIntervention: 10, nFlatControl: 17 };
+
+      T.eq('THE DEFECT · a page-default run of 45 per arm is refused, not pinned', YP.scaleCheck(dflt).reason, 'cohort-size-mismatch', JSON.stringify(YP.scaleCheck(dflt)));
+      T.ok(
+        '…and the refusal names both cohort sizes, so the reader sees a scale and not a collapse',
+        /\b45\b/.test(YP.scaleCheck(dflt).message) && /\b900\b/.test(YP.scaleCheck(dflt).message),
+        YP.scaleCheck(dflt).message
+      );
+      T.ok('CONTROL · the paper-scale run passes, and states what it ran at', YP.scaleCheck(paper).ok === true && YP.scaleCheck(paper).ran === 900, JSON.stringify(YP.scaleCheck(paper)));
+      T.eq(
+        'a run that states no cohort size gets its OWN token, never the mismatch one',
+        YP.scaleCheck({ minNights: 10 }).reason,
+        'cohort-size-absent',
+        JSON.stringify(YP.scaleCheck({ minNights: 10 }))
+      );
+      T.eq('…and no number is quoted as the cohort it ran, because none was measured', String(YP.scaleCheck({ minNights: 10 }).ran), 'null', JSON.stringify(YP.scaleCheck({ minNights: 10 })));
+      T.eq(
+        'the page default of 6 minimum nights is refused under its own token',
+        YP.scaleCheck({ targetSubj: 900, minNights: 6 }).reason,
+        'min-nights-mismatch',
+        JSON.stringify(YP.scaleCheck({ targetSubj: 900, minNights: 6 }))
+      );
+      T.eq(
+        'an absent minimum-nights field is refused, never read as the stated 10',
+        YP.scaleCheck({ targetSubj: 900 }).reason,
+        'min-nights-absent',
+        JSON.stringify(YP.scaleCheck({ targetSubj: 900 }))
+      );
+      T.eq(
+        'a MEASURED zero cohort size still mismatches rather than reading as absent',
+        YP.scaleCheck({ targetSubj: 0, minNights: 10 }).reason,
+        'cohort-size-mismatch',
+        JSON.stringify(YP.scaleCheck({ targetSubj: 0, minNights: 10 }))
+      );
+      T.ok('a null result refuses rather than throwing', YP.scaleCheck(null).ok === false, JSON.stringify(YP.scaleCheck(null)));
+      /* The four cases against the four tokens BY NAME. A distinctness count would have passed a
+         `null` in the set, which is the tolerance this group exists to remove. */
+      T.eq(
+        'each of the four cases carries its own declared token, by name',
+        JSON.stringify([YP.scaleCheck(dflt).reason, YP.scaleCheck({ minNights: 10 }).reason, YP.scaleCheck({ targetSubj: 900, minNights: 6 }).reason, YP.scaleCheck({ targetSubj: 900 }).reason]),
+        JSON.stringify(['cohort-size-mismatch', 'cohort-size-absent', 'min-nights-mismatch', 'min-nights-absent']),
+        JSON.stringify(YP.SCALE_REASONS)
+      );
+      T.eq(
+        '…and the declared set is exactly those four',
+        JSON.stringify((YP.SCALE_REASONS || []).slice().sort()),
+        JSON.stringify(['cohort-size-absent', 'cohort-size-mismatch', 'min-nights-absent', 'min-nights-mismatch']),
+        JSON.stringify(YP.SCALE_REASONS)
+      );
+
+      /* THE OTHER HALF · the refusal is only serviceable while the page publishes the field. A page
+         edit that drops it would turn every future re-stamp into `cohort-size-absent`, which is the
+         honest failure but not a workable one, so it reds HERE instead. */
+      var publishes = !!psrc && /RESULT = \{[\s\S]{0,900}?targetSubj: targetSubj/.test(psrc);
+      T.ok(
+        'the page publishes the cohort size it ran at, inside the result it exports',
+        publishes,
+        psrc ? 'targetSubj in the RESULT literal: ' + publishes : 'treatment-response-analysis.js not in env.sources'
+      );
+      T.ok('ANTI-VACUITY · the page source read is the real one, long enough to hold the result literal', psrc.length > 20000 && psrc.indexOf('window.TREATMENT_RESPONSE') > 0, String(psrc.length));
+      if (pin && pin.config)
+        T.eq(
+          'the pin on disk satisfies the check it now applies to its input',
+          JSON.stringify([pin.config.nSubj, pin.config.minNightsObserved, pin.config.minN]),
+          JSON.stringify([900, 10, 10]),
+          JSON.stringify(pin.config)
+        );
+    });
+
     group('PpgDex loadOwnExport — whose export is this, and how many nights', 'ppgdex-dsp · known-answer · mutation-pinned', function (T) {
       var P = env.PpgDex || env.PPGDSP;
       if (!P || typeof P.loadOwnExport !== 'function') {
