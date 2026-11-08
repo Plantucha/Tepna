@@ -16,6 +16,10 @@ import pytest
 
 import polar_psftp as ps
 
+# A COMPLETE enumeration, for a stub standing in for `list_recordings_ex` in a test whose
+# subject is not the walk. The four keys are the published shape (`list_recordings_ex`).
+_COMPLETE = {"truncated_dirs": [], "unreadable_dirs": [], "unlisted": 0, "complete": True}
+
 
 # ── response framing (device → host), the mirror of _read_response ──────────────────────────────────
 def _response_data_packets(data: bytes, mtu: int = 20) -> list[bytes]:
@@ -358,10 +362,18 @@ def test_get_local_time_round_trips_the_device_clock(monkeypatch):
 
 
 # ── module-level list_recordings / pull_recording ───────────────────────────────────────────────────
+def _list(address, adapter=None):
+    """The sessions alone. `list_recordings_ex` returns (sessions, enumeration) and there is no other
+    shape — a wrapper that dropped the second half is exactly what let a cut list read as whole. The
+    tests below are about what the walk FOUND; the ones that are about completeness unpack both."""
+    sessions, _enumeration = _run(ps.list_recordings_ex(address, adapter))
+    return sessions
+
+
 def test_list_recordings_groups_files_into_a_session(monkeypatch):
     c = _fs_with_one_session()
     _install(monkeypatch, c)
-    out = _run(ps.list_recordings("AA:BB"))
+    out = _list("AA:BB")
     assert len(out) == 1
     assert out[0]["total_bytes"] == 12 + 34
 
@@ -512,9 +524,9 @@ def test_with_retry_reraises_after_exhausting_attempts(monkeypatch):
 # ── main() CLI ──────────────────────────────────────────────────────────────────────────────────────
 def test_main_list(monkeypatch, capsys):
     async def fake_list(addr, adapter=None):
-        return [{"path": "/U/0/20260719/E/034500/", "total_bytes": 46, "start_local": "2026-07-19T03:45:00"}]
+        return [{"path": "/U/0/20260719/E/034500/", "total_bytes": 46, "start_local": "2026-07-19T03:45:00"}], _COMPLETE
 
-    monkeypatch.setattr(ps, "list_recordings", fake_list)
+    monkeypatch.setattr(ps, "list_recordings_ex", fake_list)
     import sys as _sys
 
     monkeypatch.setattr(_sys, "argv", ["polar_psftp.py", "--address", "AA:BB", "list"])
@@ -526,13 +538,13 @@ def test_main_pull(monkeypatch, tmp_path):
     seen = {}
 
     async def fake_list(addr, adapter=None):
-        return [{"path": "/U/0/20260719/E/034500/"}]
+        return [{"path": "/U/0/20260719/E/034500/"}], _COMPLETE
 
     async def fake_pull(addr, session, out, adapter=None):
         seen["session"] = session
         return {"files": [], "total_bytes": 0}
 
-    monkeypatch.setattr(ps, "list_recordings", fake_list)
+    monkeypatch.setattr(ps, "list_recordings_ex", fake_list)
     monkeypatch.setattr(ps, "pull_recording", fake_pull)
     import sys as _sys
 
@@ -830,7 +842,7 @@ def test_an_unpruned_walk_still_visits_everything(monkeypatch):
 def test_list_recordings_still_finds_the_session_through_the_prune(monkeypatch):
     c = _fs_with_a_big_unrelated_subtree()
     _install(monkeypatch, c)
-    got = _run(ps.list_recordings("AA:BB"))
+    got = _list("AA:BB")
     assert [s["path"] for s in got] == ["/U/0/20260719/E/034500/"]
     assert got[0]["total_bytes"] == 12 + 34
 
@@ -915,7 +927,7 @@ def test_without_a_timeout_the_retry_behaves_exactly_as_before():
 def test_list_recordings_actually_prunes_the_unrelated_subtree(monkeypatch):
     c = _fs_with_a_big_unrelated_subtree()
     _install(monkeypatch, c)
-    _run(ps.list_recordings("AA:BB"))
+    _list("AA:BB")
     assert "/U/0/" in c.requested, "the root is still listed"
     assert not [p for p in c.requested if p.startswith("/U/0/S/")], (
         "list_recordings walked into S/ — the prune is not wired in, only available"
@@ -931,7 +943,7 @@ def test_the_prune_is_propagated_into_the_recursion(monkeypatch):
     c.dirs["/U/0/20260719/X/"] = [("JUNK/", 0)]
     c.dirs["/U/0/20260719/X/JUNK/"] = [("BIG.BPB", 9999)]
     _install(monkeypatch, c)
-    _run(ps.list_recordings("AA:BB"))
+    _list("AA:BB")
     assert not [p for p in c.requested if p.startswith("/U/0/20260719/X/")], (
         "descend was not passed down — pruning stops at the first level"
     )
@@ -965,7 +977,7 @@ def test_the_walk_reports_progress_and_completion(monkeypatch, caplog):
     c.dirs["/U/0/20260719/E/034500/"] = [(f"F{i:03d}.GZ", 1) for i in range(60)]
     _install(monkeypatch, c)
     with caplog.at_level("INFO", logger="polar_psftp"):
-        _run(ps.list_recordings("AA:BB"))
+        _list("AA:BB")
     msgs = [r.getMessage() for r in caplog.records]
     assert any("walked 25 entries" in m for m in msgs), "progress must appear every 25 entries"
     assert any("walked 50 entries" in m for m in msgs)
@@ -1055,7 +1067,7 @@ def test_list_recordings_bounds_each_attempt(monkeypatch):
     monkeypatch.setattr(ps, "_with_retry", spy)
     c = _fs_with_one_session()
     _install(monkeypatch, c)
-    _run(ps.list_recordings("AA:BB"))
+    _list("AA:BB")
     assert seen.get("per_attempt_timeout") == ps._LIST_ATTEMPT_TIMEOUT_S
 
 
@@ -1065,7 +1077,7 @@ def test_the_progress_log_names_the_device(monkeypatch, caplog):
     c.dirs["/U/0/20260719/E/034500/"] = [(f"F{i:03d}.GZ", 1) for i in range(30)]
     _install(monkeypatch, c)
     with caplog.at_level("INFO", logger="polar_psftp"):
-        _run(ps.list_recordings("24:AC:AC:0C:30:1E"))
+        _list("24:AC:AC:0C:30:1E")
     assert any("24:AC:AC:0C:30:1E" in r.getMessage() for r in caplog.records)
 
 
@@ -1081,14 +1093,14 @@ def _fs_with_two_sessions():
 def test_sessions_come_back_in_chronological_order(monkeypatch):
     c = _fs_with_two_sessions()
     _install(monkeypatch, c)
-    got = _run(ps.list_recordings("AA:BB"))
+    got = _list("AA:BB")
     assert [s["path"] for s in got] == ["/U/0/20260716/R/170114/", "/U/0/20260719/E/034500/"]
 
 
 def test_each_session_carries_its_own_files_and_byte_total(monkeypatch):
     c = _fs_with_two_sessions()
     _install(monkeypatch, c)
-    got = {s["path"]: s for s in _run(ps.list_recordings("AA:BB"))}
+    got = {s["path"]: s for s in _list("AA:BB")}
     r = got["/U/0/20260716/R/170114/"]
     assert sorted(f["name"] for f in r["files"]) == ["ACC.GZ", "PPG.GZ"]
     assert r["total_bytes"] == 12
@@ -1099,7 +1111,7 @@ def test_both_recording_kinds_are_found(monkeypatch):
     """E/ is an exercise session, R/ an offline recording — the backup path depends on R/."""
     c = _fs_with_two_sessions()
     _install(monkeypatch, c)
-    kinds = {s["path"].split("/")[4] for s in _run(ps.list_recordings("AA:BB"))}
+    kinds = {s["path"].split("/")[4] for s in _list("AA:BB")}
     assert kinds == {"E", "R"}
 
 
@@ -1116,7 +1128,7 @@ def test_the_adapter_is_passed_through_to_the_client(monkeypatch):
     monkeypatch.setattr(ps.PolarPsFtp, "__init__", spy)
     c = _fs_with_one_session()
     _install(monkeypatch, c)
-    _run(ps.list_recordings("AA:BB", "hci2"))
+    _list("AA:BB", "hci2")
     assert seen["adapter"] == "hci2"
 
 
@@ -1128,7 +1140,7 @@ def test_the_progress_line_itself_names_the_device_and_where_it_is(monkeypatch, 
     c.dirs["/U/0/20260719/E/034500/"] = [(f"F{i:03d}.GZ", 1) for i in range(30)]
     _install(monkeypatch, c)
     with caplog.at_level("INFO", logger="polar_psftp"):
-        _run(ps.list_recordings("24:AC:AC:0C:30:1E"))
+        _list("24:AC:AC:0C:30:1E")
     prog = [r.getMessage() for r in caplog.records if "walked" in r.getMessage()]
     assert prog, "no progress line at all"
     assert "24:AC:AC:0C:30:1E" in prog[0], "which device"
@@ -1189,7 +1201,7 @@ def test_the_listing_asks_for_the_address_it_was_given(monkeypatch):
     monkeypatch.setattr(ps.PolarPsFtp, "__init__", spy)
     c = _fs_with_one_session()
     _install(monkeypatch, c)
-    _run(ps.list_recordings("24:AC:AC:0C:30:1E"))
+    _list("24:AC:AC:0C:30:1E")
     assert seen["address"] == "24:AC:AC:0C:30:1E"
 
 
@@ -1201,7 +1213,7 @@ def test_both_log_lines_carry_an_elapsed_time(monkeypatch, caplog):
     c.dirs["/U/0/20260719/E/034500/"] = [(f"F{i:03d}.GZ", 1) for i in range(30)]
     _install(monkeypatch, c)
     with caplog.at_level("INFO", logger="polar_psftp"):
-        _run(ps.list_recordings("AA:BB"))
+        _list("AA:BB")
     msgs = [r.getMessage() for r in caplog.records]
     prog = next(m for m in msgs if "walked" in m)
     done = next(m for m in msgs if "walk complete" in m)
@@ -1223,7 +1235,7 @@ def test_sessions_on_the_same_day_are_ordered_by_time(monkeypatch):
     c.dirs["/U/0/20260719/E/"] = [("034500/", 0), ("011500/", 0)]  # out of order
     c.dirs["/U/0/20260719/E/011500/"] = [("EARLY.GZ", 3)]
     _install(monkeypatch, c)
-    got = [s["path"] for s in _run(ps.list_recordings("AA:BB"))]
+    got = [s["path"] for s in _list("AA:BB")]
     assert got == ["/U/0/20260719/E/011500/", "/U/0/20260719/E/034500/"]
 
 
@@ -1235,7 +1247,7 @@ def test_a_zero_byte_file_is_listed_rather_than_silently_dropped(monkeypatch):
     c = _fs_with_one_session()
     c.dirs["/U/0/20260719/E/034500/"] = [("BPM.GZ", 12), ("EMPTY.GZ", 0)]
     _install(monkeypatch, c)
-    got = _run(ps.list_recordings("AA:BB"))
+    got = _list("AA:BB")
     names = sorted(f["name"] for f in got[0]["files"])
     assert names == ["BPM.GZ", "EMPTY.GZ"], "the empty recording must still be reported"
     assert got[0]["total_bytes"] == 12
@@ -1254,7 +1266,7 @@ def test_the_completion_line_also_names_the_device(monkeypatch, caplog):
     c = _fs_with_one_session()
     _install(monkeypatch, c)
     with caplog.at_level("INFO", logger="polar_psftp"):
-        _run(ps.list_recordings("24:AC:AC:0C:30:1E"))
+        _list("24:AC:AC:0C:30:1E")
     done = next(r.getMessage() for r in caplog.records if "walk complete" in r.getMessage())
     assert "24:AC:AC:0C:30:1E" in done
 
@@ -1974,7 +1986,7 @@ def test_the_cli_refuses_to_run_without_the_arguments_it_needs(monkeypatch, tmp_
     async def unused_list(addr, adapter=None):
         raise AssertionError("argparse should have exited before any device work")
 
-    monkeypatch.setattr(ps, "list_recordings", unused_list)
+    monkeypatch.setattr(ps, "list_recordings_ex", unused_list)
 
     for missing in (
         ["list"],  # no --address
@@ -1994,14 +2006,17 @@ def test_the_listing_cli_passes_the_address_and_adapter_through(monkeypatch, cap
 
     async def fake_list(addr, adapter=None):
         seen["args"] = (addr, adapter)
-        return [{"path": "/U/0/20260719/E/034500/", "total_bytes": 46}]
+        return [{"path": "/U/0/20260719/E/034500/", "total_bytes": 46}], _COMPLETE
 
-    monkeypatch.setattr(ps, "list_recordings", fake_list)
+    monkeypatch.setattr(ps, "list_recordings_ex", fake_list)
     _argv(monkeypatch, "--address", "24:AC:AC:0C:30:1E", "--adapter", "hci1", "list")
     ps.main()
     assert seen["args"] == ("24:AC:AC:0C:30:1E", "hci1")
     out = capsys.readouterr().out
-    assert json.loads(out.split("\n\n")[0]) == [{"path": "/U/0/20260719/E/034500/", "total_bytes": 46}]
+    assert json.loads(out.split("\n\n")[0]) == {
+        "recordings": [{"path": "/U/0/20260719/E/034500/", "total_bytes": 46}],
+        "enumeration": _COMPLETE,
+    }
     assert out.rstrip().endswith("1 recording(s).")
 
 
@@ -2016,13 +2031,13 @@ def test_a_pull_of_every_session_gives_each_one_its_own_directory(monkeypatch, t
 
     async def fake_list(addr, adapter=None):
         listed.append((addr, adapter))  # mutants 85-88 drop these, and the first pass did not look
-        return [{"path": "/U/0/20260719/E/034500/"}, {"path": "/U/0/20260720/R/221500/"}]
+        return [{"path": "/U/0/20260719/E/034500/"}, {"path": "/U/0/20260720/R/221500/"}], _COMPLETE
 
     async def fake_pull(addr, session, out, adapter=None):
         seen.append((addr, session, out, adapter))
         return {"files": [], "total_bytes": 0}
 
-    monkeypatch.setattr(ps, "list_recordings", fake_list)
+    monkeypatch.setattr(ps, "list_recordings_ex", fake_list)
     monkeypatch.setattr(ps, "pull_recording", fake_pull)
     _argv(monkeypatch, "--address", "24:AC:AC:0C:30:1E", "--adapter", "hci1", "pull", "--out", str(tmp_path))
     ps.main()
@@ -2234,3 +2249,171 @@ def test_a_failing_envelope_never_costs_the_pull_its_manifest_or_its_sidecar(mon
     assert "/U/0/20260719/E/034500/" in failed, "the line must name WHICH session lost its envelope"
     written = {p.name for p in tmp_path.rglob("*") if p.is_file()}
     assert "BPM.GZ" in written and "PLETH.GZ" in written
+
+
+# ── §∅ · THE RECORDING LIST SAYS WHETHER IT IS THE WHOLE LIST (2026-11-07) ─────────────────────
+# RESIDUE row `2026-11-07-list-recordings-publishes-a-partial-list-as-ok`. `list_recordings`
+# returned a bare `list[dict]`, so a caller held no field in which a short list differs from a
+# device that holds fewer recordings. Both absences were already detected and then dropped here: a
+# directory cut short landed in `fs.truncated_dirs`, which nothing read, and a directory whose own
+# listing raised arrived as a -1 size and was filtered away by `size >= 0`. `pull_recording` one
+# function down answers exactly this for the files INSIDE a session; these plants hold the
+# enumeration to the same contract one level up, where the walk decides which sessions exist at all.
+#
+# Both plant the REAL producer, `list_dir_ex`, rather than wrapping `walk` — `walk` recurses into
+# itself, so a wrapper fires once per level and plants four absences on this tree, not one.
+
+
+def _plant_list_dir(monkeypatch, *, raises=None, truncates=None):
+    real = ps.PolarPsFtp.list_dir_ex
+
+    async def patched(self, path):
+        if path == raises:
+            raise RuntimeError("the device never answered this directory")
+        entries, truncated = await real(self, path)
+        return entries, (True if path == truncates else truncated)
+
+    monkeypatch.setattr(ps.PolarPsFtp, "list_dir_ex", patched)
+
+
+def test_PLANT_a_TRUNCATED_listing_refuses_the_complete_verdict(monkeypatch, caplog):
+    """The measured case: `/U/0/` came back 4 entries of 6, one of the two cut entries a session dir
+    holding 22 recordings. The walk recorded it and this function reported a clean list anyway."""
+    _install(monkeypatch, _fs_with_one_session())
+    _plant_list_dir(monkeypatch, truncates="/U/0/")
+    with caplog.at_level("WARNING", logger="polar_psftp"):
+        sessions, enum = _run(ps.list_recordings_ex("AA:BB"))
+
+    assert [s["path"] for s in sessions] == ["/U/0/20260719/E/034500/"], "what DID arrive is still returned"
+    assert enum["truncated_dirs"] == ["/U/0/"], "the cut path is named, not merely counted"
+    assert enum["unreadable_dirs"] == []
+    assert enum["unlisted"] == 1
+    assert enum["complete"] is False, "a walk that was cut cannot report a complete list"
+    # The warning is the trace a caller that reads only the first half of the tuple still leaves.
+    warn = " ".join(r.getMessage() for r in caplog.records if r.levelname == "WARNING")
+    assert "INCOMPLETE" in warn and "floor" in warn
+
+
+def test_PLANT_a_session_whose_listing_RAISED_refuses_the_complete_verdict(monkeypatch, caplog):
+    """The worst shape of this defect. The session's OWN listing raised, so it holds no files and no
+    bytes — and the old return value made that indistinguishable from a session the device started
+    and stopped with no data, which is a real and common state on these devices."""
+    _install(monkeypatch, _fs_with_one_session())
+    _plant_list_dir(monkeypatch, raises="/U/0/20260719/E/034500/")
+    with caplog.at_level("WARNING", logger="polar_psftp"):
+        sessions, enum = _run(ps.list_recordings_ex("AA:BB"))
+
+    assert enum["unreadable_dirs"] == ["/U/0/20260719/E/034500/"], "the path is named, not merely counted"
+    assert enum["truncated_dirs"] == []
+    assert enum["unlisted"] == 1
+    assert enum["complete"] is False
+    # The session is still reported, and it reads EMPTY — which is why `complete` has to carry the
+    # difference. Nothing here invents a byte count for files that never arrived.
+    assert [s["path"] for s in sessions] == ["/U/0/20260719/E/034500/"]
+    assert sessions[0]["files"] == [] and sessions[0]["total_bytes"] == 0
+    warn = " ".join(r.getMessage() for r in caplog.records if r.levelname == "WARNING")
+    assert "1 would not list at all" in warn
+
+
+def test_CONTROL_a_clean_listing_still_reports_complete(monkeypatch, caplog):
+    """The refusal must not fire on the ordinary case, and the WARNING must not either — a line that
+    prints on every run is no signal. The positive control for both halves."""
+    _install(monkeypatch, _fs_with_one_session())
+    with caplog.at_level("WARNING", logger="polar_psftp"):
+        sessions, enum = _run(ps.list_recordings_ex("AA:BB"))
+    assert len(sessions) == 1 and sessions[0]["total_bytes"] == 12 + 34
+    assert enum == {"truncated_dirs": [], "unreadable_dirs": [], "unlisted": 0, "complete": True}
+    assert [r for r in caplog.records if "INCOMPLETE" in r.getMessage()] == []
+
+
+def test_the_older_single_value_shape_still_answers_a_caller_that_does_not_decide(monkeypatch):
+    """`list_recordings` is the wrapper the call sites that decide nothing still use. It must return
+    the SESSIONS, not the tuple — a caller handed the pair would read the enumeration as a recording."""
+    _install(monkeypatch, _fs_with_one_session())
+    out = _list("AA:BB")
+    assert isinstance(out, list)
+    assert [s["path"] for s in out] == ["/U/0/20260719/E/034500/"]
+
+
+def test_the_listing_CLI_says_the_count_is_a_FLOOR_when_the_walk_was_cut(monkeypatch, capsys):
+    """The CLI's own line is where an operator reads the number. `N recording(s).` after a cut walk
+    states the device's total; it is a floor, so the line carrying the number carries the reason."""
+
+    async def fake_list(addr, adapter=None):
+        return [{"path": "/U/0/20260719/E/034500/"}], {
+            "truncated_dirs": ["/U/0/"],
+            "unreadable_dirs": ["/U/0/20260719/R/"],
+            "unlisted": 2,
+            "complete": False,
+        }
+
+    monkeypatch.setattr(ps, "list_recordings_ex", fake_list)
+    _argv(monkeypatch, "--address", "AA:BB", "list")
+    ps.main()
+    out = capsys.readouterr().out
+    assert "1 recording(s) — AT LEAST." in out, "the count must not stand alone after a cut walk"
+    assert "1 director(ies) came back cut short" in out
+    assert "1 would not list at all" in out
+    assert json.loads(out.split("\n\n")[0])["enumeration"]["complete"] is False
+
+
+def test_the_pull_CLI_refuses_to_call_a_CUT_LIST_a_full_BACKUP(monkeypatch, tmp_path, capsys):
+    """`pull` with no `--session` is the arm an operator runs by hand to empty a device before wiping
+    it. Over a cut list it backs up a subset, and stdout said nothing — the operator reads the pulling
+    lines and the byte totals, not the module's logger."""
+    pulled = []
+
+    async def fake_list(addr, adapter=None):
+        return [{"path": "/U/0/20260719/E/034500/"}], {
+            "truncated_dirs": ["/U/0/"],
+            "unreadable_dirs": [],
+            "unlisted": 1,
+            "complete": False,
+        }
+
+    async def fake_pull(addr, session, out, adapter=None):
+        pulled.append(session)
+        return {"files": [], "total_bytes": 0}
+
+    monkeypatch.setattr(ps, "list_recordings_ex", fake_list)
+    monkeypatch.setattr(ps, "pull_recording", fake_pull)
+    _argv(monkeypatch, "--address", "AA:BB", "pull", "--out", str(tmp_path))
+    ps.main()
+
+    out = capsys.readouterr().out
+    assert "AT LEAST" in out, "the session count this pull covered is a floor, and must say so"
+    assert "Do not wipe it on this run." in out, "the actionable half — this is a pre-wipe backup"
+    assert pulled == ["/U/0/20260719/E/034500/"], "what DID answer is still pulled"
+
+
+def test_the_pull_CLI_says_NOTHING_about_completeness_on_a_clean_list(monkeypatch, tmp_path, capsys):
+    """The positive control. A warning that prints on every pull is one an operator stops reading."""
+
+    async def fake_list(addr, adapter=None):
+        return [{"path": "/U/0/20260719/E/034500/"}], _COMPLETE
+
+    async def fake_pull(addr, session, out, adapter=None):
+        return {"files": [], "total_bytes": 0}
+
+    monkeypatch.setattr(ps, "list_recordings_ex", fake_list)
+    monkeypatch.setattr(ps, "pull_recording", fake_pull)
+    _argv(monkeypatch, "--address", "AA:BB", "pull", "--out", str(tmp_path))
+    ps.main()
+    out = capsys.readouterr().out
+    assert "AT LEAST" not in out and "WARNING" not in out
+
+
+def test_a_pull_of_ONE_named_session_does_not_enumerate_the_device(monkeypatch, tmp_path):
+    """`--session` names the work, so no walk runs and no completeness question arises. A tripwire:
+    enumerating here would spend a PS-FTP walk the operator did not ask for, on a 23-byte-MTU link."""
+
+    async def unused_list(addr, adapter=None):
+        raise AssertionError("a named session must not trigger a device-wide walk")
+
+    async def fake_pull(addr, session, out, adapter=None):
+        return {"files": [], "total_bytes": 0}
+
+    monkeypatch.setattr(ps, "list_recordings_ex", unused_list)
+    monkeypatch.setattr(ps, "pull_recording", fake_pull)
+    _argv(monkeypatch, "--address", "AA:BB", "pull", "--session", "/U/0/20260719/E/034500/", "--out", str(tmp_path))
+    ps.main()

@@ -29,6 +29,10 @@ import probe_verity_survey as psv
 PPG, ACC = pmd.PPG, pmd.ACC
 POLAR_EPOCH = _dt.datetime(2000, 1, 1)
 
+# A COMPLETE enumeration, for a stub standing in for `polar_psftp.list_recordings_ex` in a test
+# whose subject is not the walk. The four keys are that function's published shape.
+_COMPLETE = {"truncated_dirs": [], "unreadable_dirs": [], "unlisted": 0, "complete": True}
+
 
 def _run(c):
     return asyncio.run(c)
@@ -520,11 +524,11 @@ def test_an_unknown_setting_id_is_still_reported_by_number():
 # ══ phase 4 · the flash ══════════════════════════════════════════════════════════════════════════════
 
 
-def _patch_psftp(monkeypatch, recs=None, listing_error=None, pull_error=None):
+def _patch_psftp(monkeypatch, recs=None, listing_error=None, pull_error=None, enumeration=None):
     async def lst(_a, _ad):
         if listing_error:
             raise RuntimeError(listing_error)
-        return recs or []
+        return recs or [], (enumeration or _COMPLETE)
 
     async def pull(_a, session, dest, _ad):
         if pull_error:
@@ -532,7 +536,7 @@ def _patch_psftp(monkeypatch, recs=None, listing_error=None, pull_error=None):
         os.makedirs(dest, exist_ok=True)
         return {"files": [{"name": "PPG.REC", "bytes": 77434, "ok": True, "extra": "dropped"}]}
 
-    monkeypatch.setattr(psv.psftp, "list_recordings", lst)
+    monkeypatch.setattr(psv.psftp, "list_recordings_ex", lst)
     monkeypatch.setattr(psv.psftp, "pull_recording", pull)
 
 
@@ -541,6 +545,28 @@ def test_the_flash_listing_is_reported_without_a_pull_dir(monkeypatch):
     out = {}
     _run(psv.phase_flash("AA:BB", None, None, out))
     assert out["flash"]["n_recordings"] == 1 and "pulled" not in out["flash"]
+
+
+def test_the_flash_listing_publishes_its_own_POPULATION(monkeypatch):
+    """§∅ RESIDUE row `2026-11-07-list-recordings-publishes-a-partial-list-as-ok`. `n_recordings`
+    alone read as the device's total, and a reader quoted exactly such a short list as the device's
+    filesystem for a week (VERITY-OFFLINE-VS-STREAMING §1). A survey publishes its population."""
+    cut = {"truncated_dirs": ["/U/0/"], "unreadable_dirs": [], "unlisted": 1, "complete": False}
+    _patch_psftp(monkeypatch, recs=[{"path": "/U/0/20260803/R/120000/"}], enumeration=cut)
+    out = {}
+    _run(psv.phase_flash("AA:BB", None, None, out))
+    assert out["flash"]["n_recordings"] == 1, "what DID arrive is still counted"
+    assert out["flash"]["recordings_complete"] is False, "and the count says it is a floor"
+    assert out["flash"]["enumeration"] == cut
+
+
+def test_a_CLEAN_flash_listing_reports_a_complete_population(monkeypatch):
+    """The positive control — an always-false flag is no signal."""
+    _patch_psftp(monkeypatch, recs=[{"path": "/U/0/20260803/R/120000/"}])
+    out = {}
+    _run(psv.phase_flash("AA:BB", None, None, out))
+    assert out["flash"]["recordings_complete"] is True
+    assert out["flash"]["enumeration"]["unlisted"] == 0
 
 
 def test_a_failed_listing_is_an_error_on_the_phase_not_a_crash(monkeypatch):

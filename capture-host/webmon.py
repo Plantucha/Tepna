@@ -2247,8 +2247,16 @@ def make_app(
         if not _polar_dev(address):
             return web.json_response({"ok": False, "error": "unknown or non-Polar address"}, status=400)
         try:
-            recs = await _polar_run(address, lambda: polar_psftp.list_recordings(address))
-            return web.json_response({"ok": True, "recordings": recs})
+            recs, listing = await _polar_run(address, lambda: polar_psftp.list_recordings_ex(address))
+            # §∅ `ok` KEEPS ITS TRANSPORT MEANING and `complete` carries the population. A cut walk
+            # still reached the device, so flipping `ok` would report a link failure that did not
+            # happen — the same ruling the USB probe took, where `ok` stays true on a truncated
+            # listing and the verdict line is what stops a reader citing the subset as the device's
+            # filesystem. The counts travel beside it, so a caller can tell "that is all there is"
+            # from "that is all we could see".
+            return web.json_response(
+                {"ok": True, "complete": listing["complete"], "listing": listing, "recordings": recs}
+            )
         except offline_lock.OfflineBusy as e:
             return web.json_response({"ok": False, "busy": e.holder, "error": str(e)}, status=409)
         except Exception as e:

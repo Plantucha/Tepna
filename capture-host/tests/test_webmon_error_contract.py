@@ -27,6 +27,10 @@ from aiohttp.test_utils import TestClient, TestServer
 
 from tests.test_webmon_api import H10, _mk, _serve
 
+# A COMPLETE enumeration, for a stub standing in for `polar_psftp.list_recordings_ex` in a test
+# whose subject is not the walk. The four keys are that function's published shape.
+_COMPLETE = {"truncated_dirs": [], "unreadable_dirs": [], "unlisted": 0, "complete": True}
+
 
 @pytest.fixture(autouse=True)
 def _no_real_bluetoothctl(monkeypatch):
@@ -608,7 +612,7 @@ def test_a_polar_listing_that_raises_reports_the_exception_as_a_bad_gateway(tmp_
     async def boom(*a, **k):
         raise ConnectionError("device disconnected mid-discovery")
 
-    monkeypatch.setattr(polar_psftp, "list_recordings", boom)
+    monkeypatch.setattr(polar_psftp, "list_recordings_ex", boom)
     app, *_ = _mk(tmp_path, devices=[polar])
 
     async def go(c):
@@ -631,7 +635,7 @@ def test_a_polar_listing_that_is_busy_reports_the_holder_of_the_lock(tmp_path, m
     async def busy(*a, **k):
         raise offline_lock.OfflineBusy("o2ring pull")
 
-    monkeypatch.setattr(polar_psftp, "list_recordings", busy)
+    monkeypatch.setattr(polar_psftp, "list_recordings_ex", busy)
     app, *_ = _mk(tmp_path, devices=[polar])
 
     async def go(c):
@@ -979,10 +983,10 @@ def test_the_pre_pull_bond_check_uses_the_PINNED_radio(tmp_path, monkeypatch):
         return True
 
     async def fake_list(address, adapter=None):
-        return [{"session": "/U/0/1/", "size": 1}]
+        return [{"session": "/U/0/1/", "size": 1}], _COMPLETE
 
     monkeypatch.setattr(webmon.bonding, "ensure_bonded", fake_ensure)
-    monkeypatch.setattr(webmon.polar_psftp, "list_recordings", fake_list)
+    monkeypatch.setattr(webmon.polar_psftp, "list_recordings_ex", fake_list)
     app, *_ = _mk(tmp_path)
     # GET /api/polar/recordings — it routes through `_polar_run`, which is where ensure_bonded lives.
     _serve(app, lambda c: c.get("/api/polar/recordings", params={"address": H10["address"]}))
