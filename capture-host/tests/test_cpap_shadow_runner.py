@@ -7,6 +7,8 @@
 
 import asyncio
 
+import pytest
+
 
 import as11_pull
 import cpap_shadow_runner as R
@@ -280,6 +282,44 @@ def test_loop_connect_failure_skips_cycle():
     assert cells[4] == "unreachable" and cells[7] == "False"
     assert cells[5] == "OSError"  # the error CLASS, so a persistent fault is identifiable
     assert cells[8] == "", "fg_state must be BLANK — it was not observed"
+
+
+@pytest.mark.parametrize("raised", [OSError("connect refused"), RuntimeError("Device was not found.")])
+def test_a_cancel_that_a_poll_swallows_still_stops_the_loop(raised):
+    """MEASURED on the capture box, 5 daemon stops from 2026-11-07 19:04: the cancel landed in the AS11
+    connect, which raised BleakDeviceNotFoundError instead. The loop slept 30 s, past the 15 s stop."""
+    sw, cw = _Writer(), _Writer()
+    slept = []
+
+    async def sleep(s):
+        slept.append(s)
+
+    async def fake_poll(**_kw):
+        asyncio.current_task().cancel()
+        try:
+            await asyncio.sleep(0)
+        except asyncio.CancelledError:
+            pass  # the callee swallows the cancel, as the bleak connect does
+        raise raised
+
+    with pytest.raises(asyncio.CancelledError):
+        _run(
+            R.run_shadow_loop(
+                connect=None,
+                creds=CREDS,
+                supervisor=None,
+                is_capturing=lambda: False,
+                session_writer=sw,
+                clock_writer=cw,
+                host_epoch=_epochs(),
+                sleep=sleep,
+                poll_interval_s=30.0,
+                should_stop=_stopper(5),
+                poll_cycle=fake_poll,
+            )
+        )
+    assert slept == [], "a stopping loop must not sleep the poll interval"
+    assert sw.rows == [], "a poll cut short by the stop is not an unreachable machine"
 
 
 def test_poll_cycle_surfaces_a_bad_connect_contract_as_the_real_error_not_NameError():
