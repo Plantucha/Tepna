@@ -1028,6 +1028,23 @@ def test_stitched_page_serves_the_results_page(tmp_path):
     _serve(app, go)
 
 
+def test_the_monitor_links_the_31_day_page_through_the_monitor_prefix_and_both_paths_serve_it(tmp_path):
+    """Measured on the capture box 2026-11-07: the 31-day button opened `/stitched-31d.html`, and Caddy
+    serves the site root from the app folder, so the click returned 404. Only `/monitor*` reaches webmon."""
+    mon = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "monitor.html")).read()
+    assert "window.open('/monitor/stitched-31d.html?tool='" in mon
+    assert "window.open('/stitched-31d.html" not in mon
+    app, *_ = _mk(tmp_path)
+
+    async def go(c):
+        for path in ("/monitor/stitched-31d.html", "/stitched-31d.html"):
+            r = await c.get(path + "?tool=3corner")
+            assert r.status == 200, path
+            assert "<title>31-day stitched" in await r.text()
+
+    _serve(app, go)
+
+
 def test_stitched_result_rejects_an_unknown_tool(tmp_path):
     app, *_ = _mk(tmp_path)
 
