@@ -230,7 +230,14 @@ o2ring:                   # Wellue O2Ring-S / T8520 specifics.
 alerts:
   enabled: false
   webhook_url: ""         # e.g. https://ntfy.sh/your-private-topic   (an ntfy topic: JSON publish at the root; other URLs: {"title","message"} JSON)
+  board_webhook_url: ""   # the BOARD tier's destination: a second topic only the fleet bridge reads.
+                          # Offline edges, recoveries and the QC digest go here, not to the phone.
   offline_sec: 300        # a configured sensor offline this long → alert (edge-triggered; no flap spam)
+  offline_page_sec: 1800  # …and absent this long (inside the capture window, having streamed in it)
+                          # the absence also PAGEs the phone topic. 3+ devices absent inside
+                          # cluster_window_sec page on the cluster bar instead.
+  page_cap_per_day: 3     # hard cap on counted pages per day; past it a page goes to the board
+                          # with a held line. Daemon and low-disk alerts are exempt.
   poll_sec: 60
 
 # ── Per-night QC summary (optional) ───────────────────────────────────────────────────────────────────
