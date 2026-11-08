@@ -1169,3 +1169,33 @@ def test_a_cell_with_no_worn_second_reads_not_worn_instead_of_loss():
     cls = _extract_fn(html, "nCls", "\nfunction nUnworn")
     assert cls.index("if(nUnworn(v)) return \x27unworn\x27;") < cls.index("v.coverage>=0.95"), "asked before the grade"
     assert "unworn:" in html.split("const NIGHT_GLYPH = ", 1)[1].split(";", 1)[0], "the cell has a glyph"
+
+
+def test_a_cell_whose_wear_is_mostly_unknown_keeps_its_loss_grade():
+    """Hunt X2-2, 2026-11-08: an 8 h span with worn 0, not worn 600 s and unknown 28 200 s read "not worn".
+    Unknown time is lost time, not desk time, so the not-worn reading needs unknown at or under 5 %."""
+    import json
+    import shutil
+    import subprocess
+
+    import pytest
+
+    node = shutil.which("node")
+    if not node:  # pragma: no cover - ubuntu-latest always has node; a dev box might not
+        pytest.skip("node is not installed")
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    html = open(os.path.join(here, "monitor.html"), encoding="utf-8").read()
+    fn = _extract_fn(html, "nUnworn", "\nfunction nLost")
+    cases = [
+        {"wear": {"worn_s": 0, "unworn_s": 600, "unknown_s": 28200}},
+        {"wear": {"worn_s": 0, "unworn_s": 950, "unknown_s": 50}},
+        {"wear": {"worn_s": 0, "unworn_s": 949, "unknown_s": 51}},
+        {"wear": {"worn_s": 0, "unworn_s": 600, "unknown_s": None}},
+        {"wear": {"worn_s": 0, "unworn_s": 600}},
+    ]
+    prog = fn + "\nconsole.log(JSON.stringify(" + json.dumps(cases) + ".map(nUnworn)));"
+    r = subprocess.run([node, "-e", prog], capture_output=True, text=True, timeout=30)
+    assert r.returncode == 0, r.stderr
+    assert json.loads(r.stdout) == [False, True, False, False, False], (
+        "mostly unknown, exactly 5 %, just over 5 %, unknown null, unknown absent"
+    )
