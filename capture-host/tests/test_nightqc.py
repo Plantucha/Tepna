@@ -6131,6 +6131,56 @@ def test_a_file_WRITING_ACROSS_A_SEAM_is_not_charged_a_HOLE_IT_FILLED(tmp_path):
     assert s["span_sec"] == 3900, (s["span_sec"], "a night holding 3900 s of rows cannot span 500 s")
 
 
+def test_the_JOINED_HOLE_is_placed_in_the_WRITERS_frame_and_not_the_READERS(tmp_path):
+    """The floating twin of the test above, and the only shape of input that can see the frame argument.
+
+    `file_interval(f, offset_sec)` defaults `offset_sec` to 0.0, which is the ABSOLUTE frame, where a
+    file ends at its `mtime`. On a night whose writer offset no vote could recover the frame is
+    FLOATING, and a file ends at its own last stamp plus its own recorded duration. The two agree
+    whenever the mtime sits on the last sample, so every absolute fixture reads the same number with the
+    argument dropped and cannot see it. This night separates them: the long file carries 3600 device
+    seconds and its last write lands 30 min after its last sample, which is the frozen stream the box
+    really produces.
+
+    MEASURED 2026-11-08 with the argument dropped: the hole read `23:30->23:31 1min gap` with
+    `night_gap_min` 1, against `22:59->23:31 31min gap` and 31 here. So the mutant charges the night a
+    1 min hole for 31 min of silence, and the denominator moves the other way.
+
+    Two premises this night rests on, both stated rather than assumed. The files carry NO last-row civil
+    stamp, so only the extent basis votes, the two votes disagree (1801 s against 0 s) and the offset
+    stays unrecovered. And `os.utime` sets the mtime directly for that same reason, where `_utime` would
+    write a stamp, make the vote unanimous and recover 0.0.
+    """
+    import writers
+
+    night = str(tmp_path / "2026-09-24")
+    os.makedirs(night)
+    t0 = _floating_at_hour("20260924000000", 2)
+    seam = t0 + 200
+    for open_at, n, mtime in ((t0, 3600, t0 + 5400.0), (t0 + 5460, 300, t0 + 5760.0)):
+        name = "Polar_H10_02849638_" + _floating_stampname(open_at) + "_ECG.txt"
+        path = os.path.join(night, name)
+        with open(path, "w") as fh:
+            fh.write("Phone timestamp;sensor timestamp [ns];channel 0\n")
+            fh.write("\n".join(f";{i}000000000;1" for i in range(n)) + "\n")
+        os.utime(path, (mtime, mtime))
+    with open(os.path.join(night, writers.STARTS_NAME), "w") as fh:
+        fh.write("Phone timestamp;pid;git;dirty;adapter\n")
+        fh.write(_starts_stamp(seam) + ";400443;2cd12712;no;F4:CE:36:2E:CD:98\n")
+    devs = [{"name": "H10", "device_id": "02849638", "streams": ["ecg"]}]
+
+    s = nightqc.summarize(night, devs)
+    # The premise, read back from the summary rather than trusted: no offset, so the floating frame.
+    assert s["writer_offset"]["offset_sec"] is None, s["writer_offset"]
+    assert s["writer_offset"]["frame"] == "floating", s["writer_offset"]
+    assert len(s["joined_gaps"]) == 1, s["joined_gaps"]
+    _line = s["joined_gaps"][0]
+    assert _line.startswith(f"{nightqc._hhmm(t0 + 3599)}->{nightqc._hhmm(t0 + 5460)} 31min gap"), _line
+    # The mtime is the ABSOLUTE frame's end, and this night is not in that frame.
+    assert nightqc._hhmm(t0 + 5400) not in _line, _line
+    assert s["night_gap_min"] == 31, s["night_gap_min"]
+
+
 def _floating_at_hour(stamp, hour):
     """The FLOATING second of `hour`:00 on `stamp`'s date — the frame a band edge is in.
 
