@@ -298,7 +298,10 @@ A5_GAP_FLOOR_MS = A5_GAP_FLOOR_S * 1000.0
 _SENSOR_NS_COL = "sensor timestamp [ns]"
 
 _PMD_RATE = re.compile(r"^# pmd stream=\S+ negotiated=yes rate=(\d+(?:\.\d+)?)\b")
-_FINAL = re.compile(r"^# final stream=\S+ seams=(\d+) examined=(\d+)")
+_FINAL = re.compile(r"^# final stream=\S+ seams=(\d+) examined=(\d+)(?: failures=(\d+))?")
+# The third group is OPTIONAL because a sidecar written before `writers.py` published the field
+# carries only two. An absent field is NULL, never a zero (CLAUDE.md §∅): it says the writer did
+# not report, which is not the same claim as "no write was lost".
 _MIN_RUN = re.compile(r"\bmin_run=(\d+)\b")
 _DECLARED_HZ = re.compile(r"@(\d+(?:\.\d+)?)Hz$")
 # The rate came from the NAME of the signal, not from a record of what the device and host agreed. A
@@ -1116,19 +1119,28 @@ def clocks(night_dir: str, model: str) -> dict:
         for f in glob.glob(os.path.join(d, f"{prefix}*SEAMS.txt"))
         if in_band(f, _band)
     )
+    _seen: list[tuple[str, int, int, int, int | None]] = []
     for seams in _seams:
         rows = claimed = 0
         examined = 0
+        failures: int | None = None
         with open(seams, encoding="utf-8", errors="replace") as fh:
             for line in fh:
                 m = _FINAL.match(line)
                 if m:
                     claimed += int(m.group(1))
                     examined += int(m.group(2))
+                    if m.group(3) is not None:
+                        failures = (failures or 0) + int(m.group(3))
                 elif line.startswith("#") or line.startswith("phone_ts"):
                     continue
                 elif line.strip():
                     rows += 1
+        _seen.append((seams, rows, claimed, examined, failures))
+    # EVERY sidecar of the band is read BEFORE the band answers. The old loop decided inside itself, so
+    # the first file with `examined > 0` returned PASS and the files after it were never opened — a
+    # refusal that the second sidecar earns was unreachable.
+    for seams, rows, claimed, examined, failures in _seen:
         # A TRIPWIRE, not a measurement. The final lines COUNT the rows above them — one writer instance
         # writes both, and since the count now follows the row it cannot run ahead of them. If a reader
         # ever finds them disagreeing, one of the two is describing a file it did not write, and neither
@@ -1141,8 +1153,25 @@ def clocks(night_dir: str, model: str) -> dict:
                 f"`{os.path.basename(seams)}` claims {claimed} seam(s) over "
                 f"{rows} row(s) — its rows and its own totals disagree",
             )
-        if examined > 0:
-            return _decision("PASS")
+        # THE FILE'S OWN REPORT OF WRITES THAT DID NOT LAND. `writers.py` counts a `failures` whenever a
+        # seam row (`_SeamSidecar.feed`) or a `# pmd` note (`_flush_note`) raises, and both handlers
+        # swallow on purpose — an annotation must never end a recording. Neither row count can see that
+        # loss: `seams` follows its row, so a row that never landed leaves `claimed == rows`, and
+        # `examined` precedes the write, so it still counts the sample. A sidecar that lost every seam
+        # row therefore reads exactly like a night that had no seam — the manufactured negative of §∅.
+        # The field cannot say WHICH write was lost, so the reason names both and counts neither as a
+        # seam. 0 of 1671 final lines over 292 archived sidecars carry a non-zero count (2026-11-08).
+        # §∅ IN THE TEST ITSELF: `is not None` separates an ABSENT field from a reported ZERO, which a
+        # bare truthiness test conflates. Both answer PASS, for two different reasons — the writer did
+        # not report, against the writer looked and lost nothing — and only the explicit form says so.
+        if failures is not None and failures > 0:
+            return _decision(
+                "UNKNOWN",
+                f"`{os.path.basename(seams)}` reports {failures} failed write(s) on its own final "
+                f"line — each one lost a seam row or a note, so what the file does not show is unknown",
+            )
+    if any(examined > 0 for _s, _r, _c, examined, _f in _seen):
+        return _decision("PASS")
     _rband = band_of(night_dir)
     _rtcs = sorted(
         f
