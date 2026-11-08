@@ -2628,7 +2628,22 @@ def write_night(
     try:
         _verdict.write(vpath, obj)
     except (OSError, ValueError):
-        pass  # the object is returned to the caller either way; the file is the convenience
+        # 🔴 A FAILED PUBLISH MUST NOT LEAVE THE SUPERSEDED CLAIM READING AS CURRENT (§∅). The
+        # withdrawal above already recorded the prior verdict as replaced, so a file that survives a
+        # failed write states a claim this night has retracted — and `stitch_31d._verdict_status`
+        # reads exactly this file. This branch was `pass` until 2026-11-07, so the stale claim stayed
+        # and nothing anywhere said the publish had failed. The object still reaches the caller.
+        #
+        # TAKING IT OFF DISK IS NOT A WEAKER LOG LINE. `sealbox` and `nightqc.write_verdicts` both
+        # log this same failure and this module cannot: it holds no logger, and `qc_child` runs it in
+        # a SPAWNED child whose logger has no handler, so a warning here would reach nobody. Absence
+        # is a state every reader already answers — `qc_child.compose_due` composes nothing over an
+        # absent verdict, and `solid_night.code_moved` reads it as "no verdict yet" — so the next
+        # poll re-judges the night, and it converges rather than carrying a retracted claim.
+        try:
+            os.remove(vpath)
+        except OSError:
+            pass  # nothing was published, or the folder refuses us: the WITHDRAWN record is the trail
     return obj
 
 

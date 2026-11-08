@@ -1,6 +1,6 @@
 ---
 name: residue-row
-description: Use when logging a verified defect to briefs/RESIDUE.md or closing a residue row — the row shape, the key format, the closed state vocabulary the gate accepts, and which rows travel with a fix versus riding a separate RESIDUE-only PR. Use when filing a finding you are not fixing now, and when a merged fix needs its row closed.
+description: Use when logging a verified defect to briefs/RESIDUE.md or closing a residue row — the row shape, the key format, the closed state vocabulary the gate accepts, and why a code PR carries no row and what rides a RESIDUE-only PR instead. Use when filing a finding you are not fixing now, and when a merged fix needs its row closed.
 ---
 
 # Residue rows
@@ -19,10 +19,9 @@ Rules: `CLAUDE.md` §📌. Shape and vocabulary are gate-checked (`tools/residue
   honestly. `<ref>` points at the answer: the `#NNNN` that recorded the measurement, a ledger key, or a
   backticked brief. A bare `answered` reds check8b; a `<ref>` that resolves to nothing reds check8j. It
   needs no corroborating row, because an answer does not claim the defect never existed.
-- **A row whose whole life is this PR travels inside it** — logged and closed as
-  `fixed #<that same PR>`, the number read back from `gh pr view`, never typed. Touching *other* rows
-  — closing someone else's, or one this PR does not fix — rides a separate RESIDUE-only PR, one in
-  flight at a time.
+- **A code PR does not touch `RESIDUE.md`** (owner, 2026-11-07, reversing the 2026-10-12 ruling
+  that let a PR carry its own row). A fix that ships needs no row, because its changeset records it.
+  A finding that you do not fix goes in a RESIDUE-only PR. Only one is in flight across the fleet.
 - **A fix for a row already on main names it on a `Residue-fixed: <key>` line in the PR body** (one
   line, keys separated by spaces or commas). After the merge, `tools/pr-walker.mjs` opens the
   RESIDUE-only draft PR that writes `fixed #<your PR>` in that row's state cell. It edits a row only
@@ -33,9 +32,9 @@ Rules: `CLAUDE.md` §📌. Shape and vocabulary are gate-checked (`tools/residue
 
 Closing **other** rows in the same commit as a fix made the PR DIRTY and it got **zero workflow runs**
 while other rows kept landing (#3400, 2026-10-11): every PR appends to the end of `RESIDUE.md`, so two PRs that
-both touch it conflict. That cost is what splits other closures out — it is not an argument against the
-row that is *about* this PR, which adds no second conflict surface (owner ruling 2026-10-12; #3462
-carried its own row and landed CLEAN).
+both touch it conflict. The 2026-10-12 ruling let a PR carry the row that was about itself. The owner reversed it on
+2026-11-07: in one day 28 of 68 merges touched `RESIDUE.md`, every one of them put each open PR with a
+row into conflict, and the walker rebased #4458 21 times and #4503 7 times.
 
 An annotated state cell (`fixed #3401 (mechanism refuted)`) failed the gate: the field is
 machine-readable, so the explanation goes in the evidence cell **of a row you are writing for the first
