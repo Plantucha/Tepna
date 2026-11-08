@@ -527,23 +527,29 @@ function closeResidue(close, wt, nowMs) {
 
 export function act(actions, state, opts) {
   const done = [];
+  /* `opts.gh` stands in for the GitHub CLI in the selftest only. */
+  const run = opts.gh || gh;
   for (const a of actions) {
     let result = 'ok';
     try {
       if (opts.dryRun) result = 'dry-run';
-      else if (a.op === 'ready') gh(['pr', 'ready', String(a.number)]);
+      else if (a.op === 'ready') run(['pr', 'ready', String(a.number)]);
       else if (a.op === 'rerun') {
-        for (const id of a.runIds) gh(['run', 'rerun', id, '--failed']);
+        /* 🔴 COUNT THE ATTEMPT BEFORE THE CALL. The counter used to follow the call, so a throw
+           ("run … cannot be rerun") skipped it and the next pass retried the same head again —
+           measured 2026-11-07: #4550 four failed re-runs on one head, one every pass. */
         state.reruns[a.headSha] = (state.reruns[a.headSha] || 0) + 1;
+        for (const id of a.runIds) run(['run', 'rerun', id, '--failed']);
       } else if (a.op === 'rerun-all') {
-        /* No `--failed`. A cancelled run has no failed jobs to re-run — see `plan`'s measurement. */
-        for (const id of a.runIds) gh(['run', 'rerun', id]);
+        /* No `--failed`. A cancelled run has no failed jobs to re-run — see `plan`'s measurement.
+           The attempt counts before the call, as in `rerun` above. */
         state.reruns[a.headSha] = (state.reruns[a.headSha] || 0) + 1;
+        for (const id of a.runIds) run(['run', 'rerun', id]);
       } else if (a.op === 'rebase') {
         result = rebaseBranch(a, opts.worktree);
         state.rebased[a.headSha] = result;
-      } else if (a.op === 'update') gh(['pr', 'update-branch', String(a.number)]);
-      else if (a.op === 'merge') gh(['pr', 'merge', String(a.number), '--squash', '--match-head-commit', a.headSha]);
+      } else if (a.op === 'update') run(['pr', 'update-branch', String(a.number)]);
+      else if (a.op === 'merge') run(['pr', 'merge', String(a.number), '--squash', '--match-head-commit', a.headSha]);
     } catch (e) {
       result = `failed: ${String(e.stderr || e.message || e)
         .split('\n')[0]
@@ -553,7 +559,7 @@ export function act(actions, state, opts) {
     const body = opts.dryRun ? null : signature(row, opts.at || new Date().toISOString());
     if (body) {
       try {
-        gh(['pr', 'comment', String(a.number), '--body', body]);
+        run(['pr', 'comment', String(a.number), '--body', body]);
         row.signed = true;
       } catch {
         row.signed = false;
@@ -978,6 +984,26 @@ function selftest() {
   eq(/^refused: /.test(commitRebuild(c7, GEN)), true, 'a rename into a generated path is refused — no rebuild renames');
   const c8 = fakeGit([' M OxyDex.html'], [' M OxyDex.html']);
   eq(commitRebuild(c8, GEN), 'still-dirty: 1 path(s) survived the commit', 'a commit that left the path dirty says so rather than reading committed');
+  {
+    /* A re-run that THROWS still spends the head's one re-run, so the next pass alerts, not retries. */
+    const sha = 'f'.repeat(40);
+    const red = classify(mk({ isDraft: false, headSha: sha, checks: [{ name: 'test', bucket: 'fail', link: 'https://github.com/x/y/actions/runs/42/job/7' }, G[1]] }), req);
+    const st = { reruns: {}, rebased: {} };
+    const calls = [];
+    const throwing = (args) => {
+      calls.push(args.join(' '));
+      throw new Error('run 42 cannot be rerun');
+    };
+    const first = plan([red], st, { nowMs: 0, mainMovedAtMs: 0, cap: 4 });
+    eq(first.actions.map((a) => a.op).join(','), 'rerun', 'red head plans one rerun');
+    const done = act(first.actions, st, { gh: throwing, at: '2026-11-07T00:00:00Z' });
+    eq(/^failed: run 42 cannot be rerun/.test(done[0].result), true, 'the throw is reported as failed');
+    eq(st.reruns[sha], 1, 'a failed rerun still counts against the head');
+    eq(calls.length, 1, 'no signature comment for a failed rerun');
+    const second = plan([red], st, { nowMs: 0, mainMovedAtMs: 0, cap: 4 });
+    eq(second.actions.length, 0, 'second pass on the same head plans no rerun');
+    eq(second.alerts.map((a) => a.kind).join(','), 'red', 'second pass hands the red to a coder');
+  }
   console.log(`all ${ran} selftests passed`);
 }
 
