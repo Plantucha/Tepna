@@ -82778,6 +82778,177 @@
       }
     });
 
+    /* ════ THE RELEASE FRONT DOOR AND THE RUNNER REFUSE A TOKEN THEY NEVER READ ═══════════════════
+       Row 2026-11-08-release-and-run-tests-never-call-the-argv-guard (Muse's audit). Both tools read
+       their flags with `args.includes` or a per-flag regex and NEITHER held the set, so a token nobody
+       looks up was indistinguishable from an absent one — and in both the fall-through branch is the
+       expensive one:
+         · `node tools/release.mjs --status` STAMPED v2.29.1, appended RELEASE-MANIFEST.json, rewrote
+           CHANGELOG.md and UNLINKED 21 `changes/*.md` files (Muse, 2026-11-08, reverted by hand).
+           `--status` and `--resume` are documented on that tool by `CLAUDE.md` §📦 and read only by
+           release-land.mjs, so they are FORWARDED now rather than refused.
+         · `node tests/run-tests.mjs --help` ran the whole suite, ~20 min, for a caller asking what the
+           flags are. `checkArgv` cannot judge that grammar — it refuses the joined `--flag=value` form,
+           which is the runner's OWN idiom (`--shard=1/6` is what CI's matrix passes) — so
+           `checkLooseArgv` does, over one declared flag table that `--help` prints.
+       EVERY release.mjs PROBE CARRIES `--dry-run`. `probeToolArgv` reports what was written in its TEMP
+       CWD and both tools write to the REPO root, so `wrote: []` cannot be the write check here: the
+       `--dry-run` token is, and it makes a regression of the guard a harmless preview instead of a
+       release cut from inside the suite. ════ */
+    group('release.mjs and run-tests.mjs refuse a token they never read', 'tools · argv · execution', function (T) {
+      /* ── A · THE PREDICATE, evaluated in a realm (the module is pure) ──────────────────────── */
+      var TSl = env.toolSources;
+      var vmL = typeof require === 'function' ? require('node:vm') : null;
+      if (!TSl || !vmL) {
+        T.skip('env.toolSources + node:vm', 'Node-lane only (run-tests.mjs readToolSources; realm-loading) — the browser lane carries neither');
+      } else {
+        var srcL = TSl['argv-guard.mjs'];
+        T.ok('tools/argv-guard.mjs is readable', !!srcL, 'the guard module is missing');
+        if (srcL) {
+          var realmL = { module: { exports: {} } };
+          realmL.exports = realmL.module.exports;
+          vmL.createContext(realmL);
+          vmL.runInContext(
+            String(srcL)
+              .replace(/^export /gm, '')
+              .replace(/^import .*$/gm, '') + '\n;exports.checkLooseArgv = checkLooseArgv; exports.checkArgv = checkArgv;',
+            realmL
+          );
+          var loose = realmL.exports.checkLooseArgv,
+            strict = realmL.exports.checkArgv;
+          var TBL = [
+            { names: ['group', 'g', 'only'], value: 'required' },
+            { names: ['jobs', 'job'], value: 'optional', valuePattern: /^(\d+|auto)$/i },
+            { names: ['json'] },
+            { names: ['no-progress'] }
+          ];
+          /* THE DIVERGENCE THAT MAKES A SECOND CHECKER NECESSARY, asserted both ways round. */
+          T.ok('the joined `--group=oxydex` form PASSES the loose checker', loose(['--group=oxydex'], TBL).ok === true, JSON.stringify(loose(['--group=oxydex'], TBL)));
+          T.ok(
+            'CONTROL · and `checkArgv` refuses that same token, which is why the runner could not adopt it',
+            strict(['--group=oxydex'], { valued: ['--group'] }).ok === false,
+            'if the strict checker accepted it, this second predicate would be dead code'
+          );
+          T.ok('the spaced form passes', loose(['--group', 'oxydex'], TBL).ok === true, JSON.stringify(loose(['--group', 'oxydex'], TBL)));
+          T.ok('a single-dash alias passes', loose(['-g', 'oxydex'], TBL).ok === true, JSON.stringify(loose(['-g', 'oxydex'], TBL)));
+          T.ok('the case of the flag does not matter', loose(['--GROUP=oxydex', '--JSON'], TBL).ok === true, JSON.stringify(loose(['--GROUP=oxydex', '--JSON'], TBL)));
+          T.ok('an aliased spelling passes', loose(['--only', 'oxydex'], TBL).ok === true, JSON.stringify(loose(['--only', 'oxydex'], TBL)));
+          T.ok('an empty argv passes', loose([], TBL).ok === true, 'nothing to refuse');
+          /* ARITY IS NOT POLICED, and `npm run test:shard` is why: it is literally
+             `node tests/run-tests.mjs --shard` with the value arriving in DEX_SHARD. */
+          T.ok('a valued flag with NOTHING after it passes — an env var may carry the value', loose(['--group'], TBL).ok === true, JSON.stringify(loose(['--group'], TBL)));
+          T.ok('an optional value may be absent', loose(['--jobs'], TBL).ok === true, JSON.stringify(loose(['--jobs'], TBL)));
+          T.ok('…present as a number', loose(['--jobs', '4', '--json'], TBL).ok === true, JSON.stringify(loose(['--jobs', '4', '--json'], TBL)));
+          T.ok('…or present as the word auto', loose(['--jobs', 'auto'], TBL).ok === true, JSON.stringify(loose(['--jobs', 'auto'], TBL)));
+          /* A FLAG IS NEVER SWALLOWED AS THE PREVIOUS FLAG'S VALUE: if `--json` were consumed here, the
+             trailing bare token would be read as legal and the caller would lose the filter in silence. */
+          var swallow = loose(['--group', '--jsonn'], TBL);
+          T.ok(
+            'a dash-leading token is not consumed as a value — the MISTYPED flag behind one is still refused',
+            swallow.ok === false,
+            JSON.stringify(swallow) + ' — `--jsonn` was swallowed as the group name, so the typo it exists to catch read as legal'
+          );
+          T.ok('…and the refusal names that token', /--jsonn/.test(swallow.reason || ''), swallow.reason);
+          var swallow2 = loose(['--jobs', '--json', 'oxydex'], TBL);
+          T.ok('…and the bare token after two flags is refused as a positional', swallow2.ok === false && /oxydex/.test(swallow2.reason || ''), JSON.stringify(swallow2));
+          /* ── THE PLANT: the measured slips ───────────────────────────────────────────────────── */
+          var typo = loose(['--grup=oxydex'], TBL);
+          T.ok('PLANT · a mistyped flag is REFUSED', typo.ok === false, 'the token nobody reads was accepted, which is the defect');
+          T.ok('PLANT · …the refusal names the token', /--grup=oxydex/.test(typo.reason || ''), typo.reason);
+          T.ok('PLANT · …and suggests the flag that was meant', /--group/.test(typo.reason || ''), typo.reason);
+          var pos = loose(['oxydex'], TBL);
+          T.ok('PLANT · a bare positional is REFUSED — this runner takes no positional', pos.ok === false, JSON.stringify(pos));
+          var dash = loose(['-'], TBL);
+          T.ok('PLANT · a bare dash is refused in the stdin words, not with a flag suggestion', dash.ok === false && /stdin/.test(dash.reason || ''), dash.reason);
+          var joined = loose(['--json=1'], TBL);
+          T.ok('PLANT · a value on a flag that takes none is REFUSED', joined.ok === false && /takes no value/.test(joined.reason || ''), joined.reason);
+        }
+      }
+      /* ── B · THE TWO CLIs, in a child ──────────────────────────────────────────────────────── */
+      var probeL = env.probeToolArgv;
+      if (!probeL) {
+        T.skip('env.probeToolArgv provided to the runner', 'Node-lane only (spawns in a temp cwd) — the browser lane cannot spawn');
+        return;
+      }
+      var relBad = probeL('tools/release.mjs', ['--statu', '--dry-run']);
+      T.eq('release.mjs · a mistyped flag exits 2, not 0 and not 1', relBad.status, 2);
+      T.ok('…and the refusal names the token and the flag meant', /--statu\b/.test(String(relBad.out)) && /--status/.test(String(relBad.out)), String(relBad.out).slice(0, 220));
+      T.ok('…and it is a refusal, not a stack trace', !/\n\s+at\s|node:fs:\d/.test(String(relBad.out)), String(relBad.out).slice(0, 220));
+      T.ok('…and the stamp step never began', !/This was the STAMP step only/.test(String(relBad.out)), String(relBad.out).slice(0, 220));
+      /* THE FORWARD, proved by what it prints: release-land's own report, never release.mjs's stamp. */
+      var relSt = probeL('tools/release.mjs', ['--status', '--dry-run']);
+      T.ok('release.mjs · --status reaches release-land.mjs instead of stamping', /no release-land run recorded|^remaining:|\nremaining:/m.test(String(relSt.out)), String(relSt.out).slice(0, 260));
+      T.ok('…and nothing of the stamp step ran', !/This was the STAMP step only|Stamped v/.test(String(relSt.out)), String(relSt.out).slice(0, 260));
+      T.ok('…at exit 0 (a report) or 1 (no run recorded on this machine), never 2', relSt.status === 0 || relSt.status === 1, 'status=' + relSt.status + ' out=' + String(relSt.out).slice(0, 160));
+      var rtHelp = probeL('tests/run-tests.mjs', ['--help']);
+      T.eq('run-tests.mjs · --help exits 0', rtHelp.status, 0);
+      T.ok('…printing a usage line that names the runner', /^usage: node tests\/run-tests\.mjs/m.test(String(rtHelp.out)), String(rtHelp.out).slice(0, 160));
+      T.ok('…and NO group ran — the measured defect was the whole suite', !/^1\.\.\d+/m.test(String(rtHelp.out)), String(rtHelp.out).slice(-200));
+      var rtBad = probeL('tests/run-tests.mjs', ['--nonsense-9f3']);
+      T.eq('run-tests.mjs · an unknown flag exits 2 — a usage error, not a failing suite', rtBad.status, 2);
+      T.ok('…naming the token', /--nonsense-9f3/.test(String(rtBad.out)), String(rtBad.out).slice(0, 220));
+      T.ok('…and no group ran', !/^1\.\.\d+/m.test(String(rtBad.out)), String(rtBad.out).slice(-200));
+      var rtPos = probeL('tests/run-tests.mjs', ['oxydex']);
+      T.eq('run-tests.mjs · a bare positional exits 2 too (the group filter is a FLAG)', rtPos.status, 2);
+      /* ── C · THE TABLE AND THE READS CANNOT DRIFT ───────────────────────────────────────────────
+         A flag table is a second declaration of what the code reads, and a second declaration rots the
+         way a usage line does (row 2026-10-21-eight-usage-lines-promised-a-flag-no-code-reads). So the
+         spellings are DERIVED from the runner's own flag regexes and from its `argv.includes` literals,
+         and every one must be named in `--help` — which prints the table. A read with no row would
+         refuse the flag it reads; a row with no read would advertise a flag nothing does. */
+      var HTl = env.harnessTexts;
+      var nodeLaneL = typeof process !== 'undefined' && process && process.env != null;
+      if (!HTl || !HTl['tests/run-tests.mjs']) {
+        if (nodeLaneL) T.ok('env.harnessTexts carries tests/run-tests.mjs', false, 'absent — the drift half examined nothing');
+        return;
+      }
+      var rtSrc = HTl['tests/run-tests.mjs'];
+      var expand = function (s) {
+        var m = s.match(/^([a-z-]*)\(([a-z-]+)\)\?$/);
+        if (m) return [m[1], m[1] + m[2]];
+        var k = s.match(/^([a-z-]*)([a-z])\?$/);
+        if (k) return [k[1], k[1] + k[2]];
+        return [s];
+      };
+      var derived = {};
+      (rtSrc.match(/\/\^--\?[^/\n]*\//g) || []).forEach(function (pat) {
+        var body = pat
+          .replace(/^\/\^--\?/, '')
+          .replace(/\/$/, '')
+          .replace(/\(\?:/g, '(')
+          .replace(/\(=\|\$\)/g, '')
+          .replace(/=\(\.\+\)\$/g, '')
+          .replace(/\$$/, '');
+        body
+          .replace(/^\((.*)\)$/, '$1')
+          .split('|')
+          .forEach(function (alt) {
+            expand(alt).forEach(function (n) {
+              if (/^[a-z][a-z-]*$/.test(n)) derived[n] = 1;
+            });
+          });
+      });
+      (rtSrc.match(/argv\.includes\('--[a-z][a-z-]*'\)/g) || []).forEach(function (hit) {
+        derived[hit.replace(/^.*'--/, '').replace(/'\)$/, '')] = 1;
+      });
+      var names = Object.keys(derived).sort();
+      T.ok("ANTI-VACUITY · the runner's own flag reads were found, not an empty set", names.length >= 12, names.length + ' derived: ' + names.join(' '));
+      var helpText = String(rtHelp.out);
+      var unadvertised = names.filter(function (n) {
+        return helpText.indexOf((n.length === 1 ? '-' : '--') + n) < 0;
+      });
+      T.eq('every flag the runner READS is named in --help', unadvertised.join(' '), '');
+      var advertised = {};
+      (helpText.match(/(?:^|[\s/])(--?[a-z][a-z-]*)/gm) || []).forEach(function (h) {
+        advertised[h.replace(/^[\s/]+/, '')] = 1;
+      });
+      var unread = Object.keys(advertised)
+        .sort()
+        .filter(function (f) {
+          return rtSrc.indexOf(f.replace(/^-+/, '')) < 0;
+        });
+      T.eq('and every flag --help advertises appears in the runner', unread.join(' '), '');
+    });
     group('every tool resolves repo code from its OWN checkout (PR #686 class)', 'tools · source-scan · portability', function (T) {
       var TS = env.toolSources;
       if (!TS) {
