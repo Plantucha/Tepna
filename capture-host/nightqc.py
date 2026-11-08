@@ -54,6 +54,25 @@ log = logging.getLogger("tepna-capture")
 # 2026-11-05: the per-device clock logs joined the set (`writers.DEVICE_CLOCK_SIDECAR_TAGS`).
 _SIDECAR_TAGS = set(writers.NOT_DEVICE_DATA_TAGS)
 
+# 🔴 A PER-STREAM SIDECAR IS NOT THE DEVICE'S DATA EITHER, and it set the night's span until 2026-11-06.
+# Each stream may carry files that the box writes ABOUT it: the packet-arrival log (`_PMDARRIVAL.csv`),
+# the held-value and seam witnesses (`_ACCRUNS.txt`, `_PPGSEAMS.txt`, ...) and the `.meta.json` beside a
+# stream file. Their tags vary with the stream, so a fixed set cannot hold them; a suffix rule can.
+# MEASURED on vigil, night 2026-11-05: a Verity that failed to start wrote a header-only arrival log
+# every 9 min from 16:03, and the devices began at 18:34, so the session opened 2.5 h early. The RUNS
+# sidecars, rewritten when the daemon stopped at 08:55, stretched the last session from 06:09 to 08:55.
+# Every device read 60 to 69 % of a night it recorded whole.
+_STREAM_SIDECAR_SUFFIXES = ("PMDARRIVAL", "RUNS", "SEAMS", ".META")
+
+
+def is_sidecar(tag: object) -> bool:
+    """True when a parsed capture-name tag names a file the box writes, not samples a device sent.
+
+    The one test for "device data" that `summarize`, `daemon_starts`, `newest_data_mtime` and
+    `timeline` share, so no two of them can disagree about what a session is made of."""
+    return tag in _SIDECAR_TAGS or (isinstance(tag, str) and tag.endswith(_STREAM_SIDECAR_SUFFIXES))
+
+
 # ⚠️ A NAME-KEYED GUARD WAS ADDED HERE AND THE MUTATION GATE REFUTED IT. I wrote
 # `_DAEMON_FIXED_NAMES = {"OXYLIFE.csv"}` beside the tag above and claimed in the commit that "both
 # halves are needed". They are not: `or n in _DAEMON_FIXED_NAMES` survived mutation to `and`
@@ -1790,9 +1809,7 @@ def daemon_starts(night_dir: str, files: list[dict] | None = None, offset_sec: f
     spans = [
         iv[:2]
         for iv in (
-            file_interval(f, offset_sec)
-            for f in (files or [])
-            if f.get("rows") and f.get("stream") not in _SIDECAR_TAGS
+            file_interval(f, offset_sec) for f in (files or []) if f.get("rows") and not is_sidecar(f.get("stream"))
         )
         if iv is not None
     ]
@@ -1895,7 +1912,7 @@ def newest_data_mtime(night_dir: str, keep: Callable[[str], bool] | None = None)
         if n == _SUMMARY_NAME:
             continue
         parsed = parse_capture_name(n)
-        if not parsed or parsed[0] in _SIDECAR_TAGS:
+        if not parsed or is_sidecar(parsed[0]):
             continue
         if keep is not None and not keep(n):
             continue  # `keep` narrows by NAME: `solid_night_inputs.recording_newest_mtime` passes band membership
@@ -3437,7 +3454,7 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None, wri
     2026-09-23 night (H10 5.0 s, Verity 1.9 s), which is worth paying once beside the caller's own
     audit rather than every time anything summarizes a night."""
     scanned = scan_night(night_dir)
-    data = [f for f in scanned if f["stream"] not in _SIDECAR_TAGS]
+    data = [f for f in scanned if not is_sidecar(f["stream"])]
     # THE WRITER'S UTC OFFSET, recovered once and threaded into everything that turns a floating stamp
     # into an instant (`recover_writer_offset` holds the measurement, the floor and the refusal). Over
     # THIS folder's files only, deliberately: the offset is a property of the BOX, a pooled neighbour is
@@ -3493,7 +3510,7 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None, wri
             # unlike the proxy it does not care how long the reconnect took.
             # _prev_day_dir cannot be None here: prev_probe_window already required a parseable
             # midnight, which is the same folder-name parse. No dead guard for an unreachable state.
-            prev_data = [f for f in scan_night(_prev_day_dir(night_dir)) if f["stream"] not in _SIDECAR_TAGS]
+            prev_data = [f for f in scan_night(_prev_day_dir(night_dir)) if not is_sidecar(f["stream"])]
             if prev_data:
                 # No lower bound, deliberately: a NEGATIVE difference means the neighbour was still
                 # writing when this folder's earliest session opened — devices overlapping across the
@@ -3530,7 +3547,7 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None, wri
         if prev:
             searched.append(prev)
             if prev_data is None:
-                prev_data = [f for f in scan_night(prev) if f["stream"] not in _SIDECAR_TAGS]
+                prev_data = [f for f in scan_night(prev) if not is_sidecar(f["stream"])]
             data = prev_data + data
             # POOLED FILES BRING THEIR OWN SEAMS. The pre-midnight half's restarts are recorded in the
             # PREVIOUS folder's sidecar, so segmenting the pooled set on this folder's starts alone would
