@@ -734,12 +734,13 @@ def _worn_changes(path: str) -> dict[str, list[tuple[float, bool | None]]]:
     out: dict[str, list[tuple[float, bool | None]]] = {}
     try:
         with open(path, encoding="utf-8", errors="replace") as fh:
-            head = fh.readline().rstrip("\r\n").split(";")
+            # Each cell is stripped, so a CRLF line or a padded cell still names its column and its decision.
+            head = [c.strip() for c in fh.readline().split(";")]
             if not all(k in head for k in ("Phone timestamp", "device", "worn")):
                 return {}
             i_t, i_d, i_w = head.index("Phone timestamp"), head.index("device"), head.index("worn")
             for line in fh:
-                parts = line.rstrip("\r\n").split(";")
+                parts = [c.strip() for c in line.split(";")]
                 try:
                     t = _floating_of(_dt.datetime.fromisoformat(parts[i_t]))
                     words, cell = parts[i_d].split(), parts[i_w]
@@ -776,11 +777,9 @@ def worn_seconds(dirs: list[str], serial: str, t0: float, t1: float) -> dict | N
     state: bool | None = None
     at = t0
     for t, worn in seq:
-        if t <= t0:
-            state = worn
-            continue
-        if t >= t1:
-            break
+        # A decision before the span takes force at t0, and one after it at t1. A clamp, not a compare:
+        # the decision ON an edge then adds zero seconds either way, so no boundary is left to choose.
+        t = min(max(t, t0), t1)
         acc[state] += t - at
         at, state = t, worn
     acc[state] += t1 - at

@@ -2779,3 +2779,89 @@ def test_a_full_stream_reads_no_wear(tmp_path):
     nd = _desk_night(tmp_path, [("18:00:00", 0)], segments=((0, 300),))
     v = ni.night_entry(str(tmp_path), str(nd), deadline=None)["PPGDex"]
     assert v["coverage"] == 1.0 and v["wear"] is None
+
+
+# ── the wear read: one case per mutant that mutate-diff found on #4556 ─────────────────────────────────
+def test_worn_changes_reads_a_crlf_file_with_padded_cells_and_worn_in_the_last_column(tmp_path):
+    p = tmp_path / "WORN.csv"
+    p.write_bytes(
+        b"Phone timestamp ; device ;worn \r\n"
+        b"2026-11-07T18:00:00.000; Polar Sense TEST0009 ; 0 \r\n"
+        b"2026-11-07T18:01:00.000;Polar Sense TEST0009;1\r\n"
+    )
+    assert ni._worn_changes(str(p)) == {"TEST0009": [(_f("18:00:00"), False), (_f("18:01:00"), True)]}
+
+
+def test_worn_changes_reads_past_a_byte_that_is_not_utf_8(tmp_path):
+    """A torn byte in another column costs nothing: the reader replaces it and keeps the decision."""
+    p = tmp_path / "WORN.csv"
+    p.write_bytes(
+        _WORN_HEAD.encode() + b"2026-11-07T18:00:00.000;Polar Sense TEST0009;AA:BB:CC:DD:EE:01;1;\xff\xfe;x;\n"
+    )
+    assert ni._worn_changes(str(p)) == {"TEST0009": [(_f("18:00:00"), True)]}
+
+
+def test_worn_seconds_adds_each_return_to_a_state(tmp_path):
+    (tmp_path / "WORN.csv").write_text(
+        _WORN_HEAD
+        + _worn_row("18:00:10", 0)
+        + _worn_row("18:00:20", 1)
+        + _worn_row("18:00:30", 0)
+        + _worn_row("18:00:40", 1)
+    )
+    got = ni.worn_seconds([str(tmp_path)], "TEST0009", _f("18:00:00"), _f("18:01:00"))
+    assert got == {"worn_s": 30.0, "unworn_s": 20.0, "unknown_s": 10.0}
+
+
+def test_worn_seconds_rounds_each_share_to_a_tenth_of_a_second(tmp_path):
+    (tmp_path / "WORN.csv").write_text(
+        _WORN_HEAD
+        + "2026-11-07T18:00:10.340;Polar Sense TEST0009;AA:BB:CC:DD:EE:01;0;x;change;\n"
+        + "2026-11-07T18:00:40.710;Polar Sense TEST0009;AA:BB:CC:DD:EE:01;1;x;change;\n"
+    )
+    got = ni.worn_seconds([str(tmp_path)], "TEST0009", _f("18:00:00"), _f("18:01:00"))
+    assert got == {"worn_s": 19.3, "unworn_s": 30.4, "unknown_s": 10.3}
+
+
+def test_worn_seconds_orders_two_folders_by_time_alone_and_keeps_the_folder_order_on_a_tie(tmp_path):
+    """Two folders decide at one instant. The later folder's decision is the one in force."""
+    a, b = tmp_path / "a", tmp_path / "b"
+    a.mkdir()
+    b.mkdir()
+    (a / "WORN.csv").write_text(_WORN_HEAD + _worn_row("17:00:00", 1))
+    (b / "WORN.csv").write_text(_WORN_HEAD + _worn_row("17:00:00", 0))
+    got = ni.worn_seconds([str(a), str(b)], "TEST0009", _f("18:00:00"), _f("18:10:00"))
+    assert got == {"worn_s": 0.0, "unworn_s": 600.0, "unknown_s": 0.0}
+
+
+def test_a_cell_at_exactly_95_percent_reads_no_wear(tmp_path, monkeypatch):
+    nd = _desk_night(tmp_path, [("17:59:00", 0)])
+    real = ni.cached_stats
+    monkeypatch.setattr(ni, "cached_stats", lambda c, p, d: ({**real(c, p, d)[0], "coverage": 0.95}, False))
+    assert ni.night_entry(str(tmp_path), str(nd), deadline=None)["PPGDex"]["wear"] is None
+
+
+def test_the_wear_read_follows_the_row_stamps_to_the_stream_it_measures(tmp_path):
+    """The row's stamps pick the stream: a larger full stream of another session is not this row's."""
+    nd = _desk_night(tmp_path, [("17:59:00", 0)])
+    other = nd / "Polar_VeritySense_TEST0009_20261107200000_PPG.txt"
+    _stream(other, [(0, 900)], start="2026-11-07T20:00:00")
+    mine = ni.session_epoch("Polar_VeritySense_TEST0009_20261107180000_PPG.txt")
+    v = ni.night_entry(str(tmp_path), str(nd), deadline=None, stamps=frozenset({mine}))["PPGDex"]
+    assert v["coverage"] < 0.95 and v["wear"]["unworn_s"] == v["span_s"]
+
+
+def test_the_wear_read_finds_a_worn_file_in_the_next_date_folder_of_the_recording(tmp_path):
+    """A Verity set that starts after midnight keeps its bytes and its WORN.csv under the next date."""
+    d7, d8 = tmp_path / "2026-11-07", tmp_path / "2026-11-08"
+    d7.mkdir()
+    d8.mkdir()
+    (d7 / "Wellue_O2Ring-S_ABC_20261107212546_SPO2.csv").write_text("x" * 587000)
+    _stream(
+        d8 / "Polar_VeritySense_TEST0009_20261108014748_PPG.txt", [(0, 100), (400, 100)], start="2026-11-08T01:47:48"
+    )
+    (d8 / "WORN.csv").write_text(
+        _WORN_HEAD + "2026-11-08T01:40:00.000;Polar Sense TEST0009;AA:BB:CC:DD:EE:01;0;x;change;\n"
+    )
+    v = ni.night_entry(str(tmp_path), str(d7), deadline=None)["PPGDex"]
+    assert v["wear"] == {"worn_s": 0.0, "unworn_s": v["span_s"], "unknown_s": 0.0}
