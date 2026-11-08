@@ -510,6 +510,13 @@
     RESULT = {
       generated: new Date().toISOString(),
       minNights: minNights,
+      /* The cohort size this run SCANNED FOR, per arm. `nIntervention` below is how many of them
+         survived the detectors, so the two numbers answer different questions and a consumer that
+         holds only the second cannot tell a small run from a heavily skipped one. The pinned-yield
+         tool subtracts its own 900-candidate replay from `nIntervention` to name the detector-side
+         skips, and without this field that subtraction silently crosses two cohort sizes
+         (board finding #4343). */
+      targetSubj: targetSubj,
       nIntervention: TX.length,
       nFlatControl: FLAT.length,
       framing:
