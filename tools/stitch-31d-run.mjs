@@ -72,12 +72,14 @@ function parseArgs(argv) {
 // A running capture means the solid-night set may change mid-compute.
 /* ONE WALK, NOT TWO. The guard listed the captures root by hand while the population verdict
    snapshotted the same root a few lines later, so the two could disagree about which nights exist and
-   the published population would describe neither. The caller hands its snapshot in. */
+   the published population would describe neither. The caller hands in the nights the run READS: the
+   manifest's. Measured on the capture box 2026-11-07: the guard read the newest three night folders, and
+   the daemon writes box logs (CLOCK, LINK, RADIOCLOCK) into the open folder all day. So the run refused
+   at every hour, and no RESULT.json was ever written. */
 function captureActive(capturesDir, nights) {
   const cutoff = Date.now() - QUIET_SEC * 1000;
   try {
-    // Check only the newest few nights; older ones never change.
-    for (const n of nights.slice(-3)) {
+    for (const n of nights) {
       const nd = join(capturesDir, n);
       let entries;
       try {
@@ -414,6 +416,22 @@ async function selftest() {
   const medH = median(okF.map((e) => e.sigma.h10));
   ok('11 per-night median h10=4.0', medH === 4.0, `got ${medH}`);
 
+  // The quiet guard reads the nights it is handed, every one of them, and nothing else.
+  const { utimesSync } = await import('node:fs');
+  const cap = join(dir, 'captures');
+  const old = (Date.now() - 2 * QUIET_SEC * 1000) / 1000;
+  const listed = ['2026-10-01', '2026-10-02', '2026-10-03', '2026-10-04'];
+  for (const n of [...listed, '2026-11-07']) {
+    mkdirSync(join(cap, n), { recursive: true });
+    writeFileSync(join(cap, n, 'x.csv'), 'x\n');
+    utimesSync(join(cap, n, 'x.csv'), old, old);
+  }
+  writeFileSync(join(cap, '2026-11-07', 'CLOCK.csv'), 'box log\n');
+  ok('12 a fresh box log in a night outside the list does not refuse', captureActive(cap, listed) === false);
+  writeFileSync(join(cap, '2026-10-01', 'VERDICT.json'), '{}\n');
+  ok('13 a fresh write in the first of four listed nights refuses', captureActive(cap, listed) === true);
+  ok('14 an empty list refuses nothing', captureActive(cap, []) === false);
+
   console.log(fail === 0 ? `\n  all ${pass} selftests passed` : `\n  ${pass} passed, ${fail} failed`);
   if (fail > 0) process.exit(1);
 }
@@ -463,15 +481,15 @@ function main() {
   const sidecarsPath = join(toolDir, 'SIDECARS.json');
 
   const popBefore = snapshotNights(args.capturesDir);
-  if (!args.force && captureActive(args.capturesDir, popBefore.nights)) {
-    console.error('capture is active (recent writes in captures/); refusing. Use --force to override.');
-    process.exit(3);
-  }
   if (!existsSync(manifestPath)) {
     console.error(`no MANIFEST.json at ${manifestPath}; run the stitcher first`);
     process.exit(2);
   }
   const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+  if (!args.force && captureActive(args.capturesDir, manifest.nights || [])) {
+    console.error('a manifest night changed in the last 30 min (a re-judge or an archive); refusing. Use --force to override.');
+    process.exit(3);
+  }
   const sidecars = existsSync(sidecarsPath) ? JSON.parse(readFileSync(sidecarsPath, 'utf8')) : { sidecars: {} };
 
   let result;
