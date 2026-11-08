@@ -24674,6 +24674,7 @@
         { doc: 'PulseDex Reference.html', reg: env.PULSE_REGISTRY, resolver: env.PulseRegistry },
         { doc: 'HRVDex Reference.html', reg: env.HRV_REGISTRY, resolver: env.HrvRegistry },
         { doc: 'GlucoDex Reference.html', reg: env.GLU_REGISTRY, resolver: env.GlucoRegistry },
+        { doc: 'MotionDex Reference.html', reg: env.MOTION_REGISTRY, resolver: env.MotionRegistry },
         // EEGDex: a GENERATED node (codegen/dex-gen.js + dex-registry-gen.js from ONE manifest).
         // Wired in to prove the manifest→registry→guide single-source: the guide's ev-corner
         // grades, joined via the GENERATED EegRegistry.idForLabel, must equal the GENERATED
@@ -44768,6 +44769,48 @@
         return m && UNREACHABLE.indexOf(m[1]) >= 0;
       }).length;
       T.ok('ANTI-VACUITY · the scan still matches the shape (the exempt sites are found)', exemptSeen === UNREACHABLE.length, exemptSeen + ' of ' + UNREACHABLE.length);
+
+      /* ── ∅ · A REFUSED NIGHT-ROW CHIP MUST NOT CARRY A GRADED VERDICT ───────────────────
+         The research-tier chips took the same coercion as the cards above, from both sides at once.
+         `nrChip` prints the VALUE it is handed, so a null rendered the literal text `null`, and the
+         CLASS came from a comparison against that same null: the AHI chip read `null < 5` TRUE and
+         landed the reassuring GREEN band, while the DFA chip read both of its comparisons FALSE and
+         landed the ALARM band. Each field has exactly ONE producer null path — `ahiODI4` when ODI-4
+         stays absent, `alpha1` on a degenerate fit — and in both the CONTAINER still exists, so
+         `if (n.ahiEst)` and `if (n.dfa)` cannot stand in for the guard.
+         KEYED TO THE FIELD, never to a count: the sibling chips (SSI, CDI, HypLoad, RecIdx,
+         OxyCrash) are exempt because their containers go null as a WHOLE on the self-ingest path,
+         which the `if` already catches. A field-level null inside a present container is the shape
+         this scan exists for. The other consumers of `ahiODI4` are already safe —
+         `computeSmartSummary`'s own `push` drops a null value — so the night row was the one
+         surface that graded it. */
+      var _cflat = R.replace(/\s+/g, ' ');
+      var CHIP_FIELDS = ['ahiODI4', 'alpha1'];
+      var gradedChips = [];
+      var chipSeen = 0;
+      lines.forEach(function (ln, i) {
+        CHIP_FIELDS.forEach(function (f) {
+          if (!new RegExp('\\.' + f + '\\s*(>=|<=|>|<)').test(ln)) return;
+          chipSeen++;
+          if (/!=\s*null|!==\s*null|==\s*null|===\s*null|\?\?/.test(ln)) return;
+          gradedChips.push(i + 1 + ': ' + ln.trim().slice(0, 72));
+        });
+      });
+      T.ok('ANTI-VACUITY · the chip scan still finds both graded fields', chipSeen >= 2, chipSeen + ' graded line(s)');
+      T.eq('no night-row chip computes a class from a REFUSED research metric', gradedChips, []);
+      T.ok(
+        '…and each refused chip shows the em-dash, never the literal text null',
+        /n\.ahiEst\.ahiODI4 != null \? n\.ahiEst\.ahiODI4 : '—'/.test(_cflat) && /n\.dfa\.alpha1 != null \? n\.dfa\.alpha1 : '—'/.test(_cflat),
+        'a chip still hands nrChip the raw nullable value'
+      );
+      T.ok('…and NAMES the refusal it draws, so the em-dash is not mute', /refused · odi4-absent/.test(_cflat) && /refused · degenerate-fit/.test(_cflat), 'a refused chip draws no reason');
+      T.eq('…because `null > 0.85` is FALSE, so DFA would have read the ALARM band', null > 0.85, false);
+      T.eq('…and `null > 0.6` is FALSE too, so no comparison can rescue it', null > 0.6, false);
+      T.ok(
+        'CONTROL · a MEASURED value still grades on the published thresholds',
+        /n\.ahiEst\.ahiODI4 < 5 \? 'g' : n\.ahiEst\.ahiODI4 < 15 \? 'w' : 'r'/.test(_cflat) && /n\.dfa\.alpha1 > 0\.85 \? 'g' : n\.dfa\.alpha1 > 0\.6 \? 'w' : 'r'/.test(_cflat),
+        'the measured thresholds moved with the fix'
+      );
     });
 
     /* ── §∅ · A RECOVERY THAT WAS NEVER OBSERVED IS NOT A RECOVERY OF ZERO SECONDS ─────────────
