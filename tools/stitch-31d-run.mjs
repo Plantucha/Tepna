@@ -19,16 +19,93 @@ import { readFileSync, writeFileSync, existsSync, readdirSync, statSync } from '
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
+import vm from 'node:vm';
 import { populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
+import { loadRealm } from './tch-firmware-reference.mjs';
+import { readRunsSidecar, runsSidecarPath, validityLine } from './trio-fold-validity.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
 const AS = require(join(ROOT, 'analysis-stats.js'));
+/* ══ ONE PARSER, ONE AXIS ══════════════════════════════════════════════════════
+   §🔒.2 rule 4: a vendor stamp is parsed by regex, never by `Date.parse`, which reads a zoneless
+   stamp as an instant in the VIEWER's zone. The Verity corner below is derived through `parsePPG`,
+   which returns floating wall-clock `tMs`, so the two column corners had to float too: measured on
+   this box (EST), `Date.parse('2026-10-16T23:10:08.000')` and `Date.UTC(2026, 9, 16, 23, 10, 8)`
+   differ by 14400000 ms, and three corners 4 h apart share no second at all. */
+const DexClock = require(join(ROOT, 'clock.js'));
 
 const STITCHED_DEFAULT = '/srv/tepna/stitched';
 const CAPTURES_DEFAULT = '/srv/tepna/captures';
 const GAP_MARKER = '#GAP';
 const QUIET_SEC = 1800; // no file writes in captures/ for 30 min = quiet
+
+/* ══ THE VERITY CORNER IS DERIVED, NEVER READ OFF A COLUMN ══════════════════════════════
+   CLAUDE.md "Honest HR": the Verity onboard `_HR.txt` is all-zero and `_PPI.txt` is often
+   header-only, so the Verity corner is DERIVED from the raw `_PPG.txt` — PPGDSP 3-LED consensus,
+   then `buildPPI`, then Malik `correctRR`. This leg used to ask that raw file for an `HR` column and
+   then for a `pulse` column. The raw file carries three optical channels and ambient light and
+   neither name, so both reads failed, every night read `parse-error`, and the run published "no
+   night produced a hat" and exit 1 — a sentence about the recordings, over a column that was never
+   there (row 2026-11-07-the-3corner-verity-leg-reads-raw-ppg-for-hr).
+
+   THE DERIVATION IS NOT REIMPLEMENTED HERE. `sensor-trio-worker.js ppgHrMapReal` is the shipped
+   chain, and `tch-firmware-reference.mjs loadRealm` is the realm that carries every module it
+   dereferences. A second load list here is the drift that nulled this same corner on 114 nights
+   when one realm fell behind `consensus-dissent.js`. */
+const PPG_MAX_BYTES = 400e6; // V8 caps one string near 512 MB: refuse by name, never throw mid-run
+
+function ppgTooLarge(bytes) {
+  return Number.isFinite(bytes) && bytes > PPG_MAX_BYTES;
+}
+
+/* The worker's HR map is keyed in epoch SECONDS (`secFloor` divides by 1000), and every pair list in
+   this tool is `[epochMs, value]`, which `toPerSecond` floors by 1000 again. The multiply is what
+   keeps one night's three corners on one axis. */
+function hrMapToPairs(hr) {
+  const pairs = [];
+  for (const [sec, v] of hr) if (Number.isFinite(sec) && Number.isFinite(v)) pairs.push([sec * 1000, v]);
+  return pairs;
+}
+
+/* One night's Verity HR from its raw PPG. Returns `{ pairs, gaps }` like `parseNightFile`, or
+   `{ pairs: [], gaps: 0, error }` naming the stage that refused — never a zero-filled corner. */
+function verityHrFromPPG(realm, ppgPath, validity) {
+  let size = null;
+  try {
+    size = statSync(ppgPath).size;
+  } catch (e) {
+    return { pairs: [], gaps: 0, error: `verity PPG unreadable (${(e && e.code) || 'stat failed'})` };
+  }
+  if (ppgTooLarge(size)) return { pairs: [], gaps: 0, error: `verity PPG ${size} bytes over the ${PPG_MAX_BYTES} byte read bound` };
+  let text;
+  try {
+    text = readFileSync(ppgPath, 'utf8');
+  } catch (e) {
+    return { pairs: [], gaps: 0, error: `verity PPG unreadable (${(e && e.code) || 'read failed'})` };
+  }
+  /* A file that NAMES its columns and names no optical channel is not raw PPG, and the chain's own
+     "parsePPG empty" would not say which file it was handed. A headerless layout is left to the
+     parser, which votes on the layout itself. */
+  const nl = text.indexOf('\n');
+  const head = nl > 0 ? text.slice(0, nl) : text.slice(0, 200);
+  if (/timestamp/i.test(head) && !/channel\s*\d/i.test(head)) {
+    return { pairs: [], gaps: 0, error: `not raw PPG: header is [${head.trim().slice(0, 120)}] and names no optical channel` };
+  }
+  // ∅ Validity travels out of band. An absent sidecar is UNKNOWN validity, never "no blanking".
+  const sc = readRunsSidecar(ppgPath, 'PPG', { tally: validity });
+  realm.__ppgText = text;
+  realm.__ppgRuns = sc.runsText;
+  const out = vm.runInContext('ppgHrMapReal(__ppgText, null, __ppgRuns)', realm);
+  realm.__ppgText = null; // a night of raw PPG is hundreds of MB: do not hold it across nights
+  const hr = out && out.hr ? out.hr : out;
+  if (!hr || typeof hr.entries !== 'function' || !hr.size) {
+    /* NAME THE THROW. The worker records its own failing stage in `__ppgErr`, and a bare refusal
+       would report a missing module or a flat signal as a fact about the night. */
+    return { pairs: [], gaps: 0, error: `verity HR map: ${realm.__ppgErr || 'no map and no reason'}` };
+  }
+  return { pairs: hrMapToPairs(hr), gaps: 0 };
+}
 
 function usage() {
   console.error('usage: node tools/stitch-31d-run.mjs <tool> [--force] [--stitched-dir <dir>] [--captures-dir <dir>]');
@@ -128,7 +205,8 @@ function parseStitched(path, tsCol, valCol, delimiter) {
     } // null gap: absent, not zero
     const cells = line.split(delimiter);
     if (cells.length <= Math.max(ti, vi)) continue;
-    const ts = Date.parse(cells[ti].trim());
+    const stamp = DexClock.parseTimestamp(cells[ti].trim());
+    const ts = stamp ? stamp.tMs : NaN; // no stamp is absent, never now (§🔒.2 rule 6)
     const val = parseFloat(cells[vi].trim());
     if (!Number.isFinite(ts) || !Number.isFinite(val)) continue; // malformed row: skip, not zero
     pairs.push([ts, val]);
@@ -251,12 +329,28 @@ function findNightInput(nightDir, pattern) {
 }
 
 function run3CornerPerNight(toolDir, manifest, sidecars, capturesDir) {
+  const validity = {}; // the four sidecar states, tallied across the nights this run reads
   const result = {
     tool: '3corner',
     at: new Date().toISOString(),
     model: 'per-night-then-aggregate',
     nights: [],
+    validity,
     error: null
+  };
+
+  /* One realm for the run, built on first use: a night that never reaches the Verity leg pays
+     nothing for it, and a realm that cannot be built refuses by name on every night. */
+  let realm = null,
+    realmErr = null;
+  const verityRealm = () => {
+    if (realm || realmErr) return realm;
+    try {
+      realm = loadRealm('host', 'device');
+    } catch (e) {
+      realmErr = (e && e.message) || String(e);
+    }
+    return realm;
   };
 
   const nights = manifest.nights || [];
@@ -295,13 +389,23 @@ function run3CornerPerNight(toolDir, manifest, sidecars, capturesDir) {
       perNight.push(entry);
       continue;
     }
-    let hp = parseNightFile(hrPath, 'timestamp', 'HR [bpm]', ';');
-    let vp = parseNightFile(ppgPath, 'timestamp', 'HR', ';');
-    if (vp.error) vp = parseNightFile(ppgPath, 'timestamp', 'pulse', ';');
+    const hp = parseNightFile(hrPath, 'timestamp', 'HR [bpm]', ';');
     const op = parseNightFile(spo2Path, 'Time', 'Pulse Rate', ',');
-    if (hp.error || vp.error || op.error) {
+    // The two summary corners first: they are a column read, and the Verity derivation is not.
+    if (hp.error || op.error) {
       entry.status = 'parse-error';
-      entry.error = hp.error || vp.error || op.error;
+      entry.error = hp.error || op.error;
+      perNight.push(entry);
+      continue;
+    }
+    const rlm = verityRealm();
+    const vp = rlm ? verityHrFromPPG(rlm, ppgPath, validity) : { pairs: [], gaps: 0, error: `verity realm: ${realmErr}` };
+    if (vp.error) {
+      /* A DERIVATION THAT REFUSED, NOT A COLUMN THAT WAS MISSING. The two were one status, so a
+         Verity stage failure read as a malformed file and the reason was the h10 leg's or the o2
+         leg's by precedence. */
+      entry.status = 'verity-no-hr';
+      entry.error = vp.error;
       perNight.push(entry);
       continue;
     }
@@ -432,6 +536,69 @@ async function selftest() {
   ok('13 a fresh write in the first of four listed nights refuses', captureActive(cap, listed) === true);
   ok('14 an empty list refuses nothing', captureActive(cap, []) === false);
 
+  /* ══ THE VERITY CORNER: DERIVED FROM RAW PPG, OR REFUSED BY NAME ═══════════════════════════════
+     The fixture is the shape `tch-firmware-reference.mjs` runs its own realm leg over: 90 s of a
+     1.1 Hz three-LED pulse with ambient light, the layout a Polar Sensor Logger `_PPG.txt` carries. */
+  const SFS = 135,
+    SSECS = 90,
+    SHZ = 1.1;
+  const ppgRows = ['Phone timestamp;sensor timestamp [ns];channel 0;channel 1;channel 2;ambient'];
+  for (let i = 0; i < SFS * SSECS; i++) {
+    const t = i / SFS;
+    const iso = new Date(Date.UTC(2026, 9, 16, 23, 10, 8) + Math.round(t * 1000)).toISOString().replace('Z', '');
+    const beat = Math.sin(2 * Math.PI * SHZ * t) + 0.3 * Math.sin(4 * Math.PI * SHZ * t);
+    const v = (g) => Math.round(-300000 + g * 4000 * beat);
+    ppgRows.push(`${iso};${(843960926087160899n + BigInt(Math.round(t * 1e9))).toString()};${v(1)};${v(0.9)};${v(1.1)};-614694`);
+  }
+  const ppgPath = join(toolDir, 'n_PPG.txt');
+  writeFileSync(ppgPath, ppgRows.join('\n') + '\n');
+  const vHr = parseNightFile(ppgPath, 'timestamp', 'HR', ';');
+  const vPulse = parseNightFile(ppgPath, 'timestamp', 'pulse', ';');
+  ok('15 CONTROL · the column read this leg replaced fails on the same file, in both spellings — the logged defect', !!vHr.error && !!vPulse.error, `${vHr.error} / ${vPulse.error}`);
+  const vTally = {};
+  let realm = null,
+    realmErr = null;
+  try {
+    realm = loadRealm('host', 'device');
+  } catch (e) {
+    realmErr = (e && e.message) || String(e);
+  }
+  ok('16 the trio realm builds, so the legs below examine the shipped chain', !!realm, realmErr || '');
+  const vNew = realm ? verityHrFromPPG(realm, ppgPath, vTally) : { pairs: [], error: realmErr };
+  ok('17 the Verity corner is DERIVED from the raw PPG: pairs, no error', !vNew.error && vNew.pairs.length >= 30, vNew.error || `${vNew.pairs.length} pairs`);
+  ok(
+    '18 the derived pairs are epoch MILLISECONDS, so toPerSecond keys them by the same second',
+    vNew.pairs.length > 0 && vNew.pairs.every(([t]) => t > 1e12) && toPerSecond(vNew.pairs).size === vNew.pairs.length,
+    `${toPerSecond(vNew.pairs).size} of ${vNew.pairs.length}`
+  );
+  ok('19 an absent runs sidecar reads as validity UNKNOWN, never "no blanking"', vTally.absent === 1 && !vTally.read, JSON.stringify(vTally));
+  const notPpg = join(toolDir, 'nothr_PPG.txt');
+  writeFileSync(notPpg, 'Phone timestamp;HR [bpm];\n2026-10-16T23:10:08.000;90\n');
+  const vRef = realm ? verityHrFromPPG(realm, notPpg, {}) : { pairs: [], error: 'no realm' };
+  ok('20 a column-named file with no optical channel refuses by name and yields no pairs', /names no optical channel/.test(vRef.error || '') && vRef.pairs.length === 0, vRef.error);
+  const shortPpg = join(toolDir, 'short_PPG.txt');
+  writeFileSync(shortPpg, ppgRows.slice(0, 1 + SFS * 3).join('\n') + '\n');
+  const vShort = realm ? verityHrFromPPG(realm, shortPpg, {}) : { pairs: [], error: 'no realm' };
+  ok(
+    "21 a stream too short to beat-detect quotes the worker's OWN stage, never a bare refusal",
+    !!vShort.error && /parsePPG|consensus|buildPPI|beats|clean/.test(vShort.error) && vShort.pairs.length === 0,
+    vShort.error
+  );
+  ok('22 the runs companion follows the <base>_<STREAM>RUNS.txt spelling', runsSidecarPath('/c/n_PPG.txt', 'PPG') === '/c/n_PPGRUNS.txt');
+  ok('23 the size bound refuses one byte over it and passes an ordinary night', ppgTooLarge(PPG_MAX_BYTES + 1) === true && ppgTooLarge(statSync(ppgPath).size) === false);
+
+  /* ══ EVERY CORNER ON THE FLOATING WALL-CLOCK AXIS ══════════════════════════════════════════════
+     The derived Verity corner floats, so a `Date.parse` column corner sat a whole UTC offset away
+     and the three shared no second. These two legs read the same stamp the fixture wrote. */
+  const wall = Date.UTC(2026, 9, 16, 23, 10, 8);
+  ok('24 a zoneless column stamp parses to floating wall-clock ms, not to the viewer offset', r1.pairs[0][0] === wall, `${r1.pairs[0][0]} vs ${wall}`);
+  ok(
+    '25 CONTROL · `Date.parse` disagrees with that axis by this box offset, which is the defect',
+    Date.parse('2026-10-16T23:10:08.000') - wall === new Date(wall).getTimezoneOffset() * 60000,
+    `${Date.parse('2026-10-16T23:10:08.000') - wall} ms`
+  );
+  ok('26 an O2Ring space-separated stamp lands on the same axis', r2.pairs[0][0] === wall, `${r2.pairs[0][0]} vs ${wall}`);
+
   console.log(fail === 0 ? `\n  all ${pass} selftests passed` : `\n  ${pass} passed, ${fail} failed`);
   if (fail > 0) process.exit(1);
 }
@@ -515,11 +682,15 @@ function main() {
   );
   const populationRule = ruleLine(population);
   if (populationRule) console.log(populationRule);
+  const vline = validityLine(result.validity);
+  if (vline) console.log(vline);
   console.log('POPULATION ' + JSON.stringify(population));
 
   const outPath = join(toolDir, 'RESULT.json');
   writeFileSync(outPath, JSON.stringify(result, null, 2) + '\n');
-  console.log(`wrote ${outPath}: ${result.error ? 'ERROR: ' + result.error : `n=${result.n} overlap_s=${result.overlap_s}`}`);
+  /* The per-night model never set `n` or `overlap_s`, and no run had ever reached this line: the
+     Verity leg refused every night, so the success branch printed two `undefined`s unseen. */
+  console.log(`wrote ${outPath}: ${result.error ? 'ERROR: ' + result.error : `nights=${result.n_nights} gaps=${result.n_gaps} overlap_s=${result.overlap_s_total}`}`);
   process.exit(result.error ? 1 : 0);
 }
 
