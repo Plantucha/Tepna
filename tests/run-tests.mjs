@@ -2715,6 +2715,7 @@ function readDocs() {
     'PulseDex Reference.html',
     'HRVDex Reference.html',
     'GlucoDex Reference.html',
+    'MotionDex Reference.html',
     'ORIENTATION.md',
     /* TRIO-POWER-N15-FINDINGS §181 — the sigma-triple gate calls the planted σ and this paper's
        published tables "ONE ATOMIC UNIT … change both, or neither", but it only ever compared three
