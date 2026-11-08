@@ -134,6 +134,66 @@ export function refuseUnknownArgvOrExit(argv, spec, { tool = 'this tool' } = {})
 }
 
 /**
+ * THE SAME REFUSAL FOR A LOOSE FLAG GRAMMAR — one dash or two, `=` or a space, case-insensitive.
+ *
+ * `checkArgv` above cannot serve `tests/run-tests.mjs`: it refuses the joined `--flag=value` form
+ * outright, and that form IS the harness's idiom (`--shard=1/6` is what CI's matrix passes, `--group=`
+ * holds 96 call sites in this repo). So the harness read its flags by hand-rolled regex and nothing
+ * refused a token no regex matched — row 2026-11-08-release-and-run-tests-never-call-the-argv-guard,
+ * whose second half is `tests/run-tests.mjs --help` RUNNING THE FULL SUITE, 20 minutes of work for a
+ * caller who asked what the flags are.
+ *
+ * Each entry is `{ names, value, valuePattern }`: every accepted spelling of one flag, whether it takes
+ * a value, and for an optional value the shape that is one.
+ *
+ * ARITY IS NOT POLICED HERE, and that is deliberate rather than lax. The harness lets an ENV VAR supply
+ * what a flag omits — `DEX_SHARD`, `DEX_GROUP`, `DEX_JOBS` — and `npm run test:shard` is literally
+ * `node tests/run-tests.mjs --shard` with the value arriving from the environment. A guard that
+ * demanded a value for every valued flag would refuse a documented invocation, which is a worse defect
+ * than the one it fixes. This decides ONE question: is every token something the tool reads?
+ *
+ * A value is consumed only when it does NOT start with a dash, so `--group --json` leaves `--json` a
+ * flag rather than swallowing it as a group name.
+ *
+ * @param {string[]} argv the tokens after the script path
+ * @param {{names: string[], value?: 'none'|'required'|'optional', valuePattern?: RegExp}[]} flags
+ * @returns {{ok: true} | {ok: false, reason: string}}
+ */
+export function checkLooseArgv(argv, flags) {
+  const canonical = flags.map((f) => '--' + f.names[0]);
+  const find = (bare) => flags.find((f) => f.names.some((n) => n.toLowerCase() === bare.toLowerCase()));
+  for (let i = 0; i < argv.length; i++) {
+    const tok = argv[i];
+    if (!tok.startsWith('-')) {
+      return { ok: false, reason: `unexpected argument ${JSON.stringify(tok)} — this tool takes flags only` };
+    }
+    /* A BARE `-` NAMES STDIN, and it is answered here in the same words `checkArgv` uses rather than
+       falling through to the prefix suggester, which answers "did you mean --jobs?" because every
+       canonical flag starts with the two characters a lone dash shares with them. */
+    if (tok === '-') {
+      return { ok: false, reason: '`-` names stdin, and this tool reads none — pass a flag instead' };
+    }
+    const bare = tok.replace(/^--?/, '').split('=')[0];
+    const f = find(bare);
+    if (!f) {
+      const near = nearestFlag('--' + bare.toLowerCase(), canonical);
+      return { ok: false, reason: `unknown flag ${tok}${near ? ` — did you mean ${near}?` : ''}` };
+    }
+    const value = f.value || 'none';
+    if (tok.includes('=')) {
+      if (value === 'none') return { ok: false, reason: `${tok} — --${f.names[0]} takes no value` };
+      continue;
+    }
+    if (value === 'none') continue;
+    const next = argv[i + 1];
+    if (next === undefined || next.startsWith('-')) continue; // an env var may carry it (see above)
+    if (value === 'optional' && f.valuePattern && !f.valuePattern.test(next)) continue;
+    i++; // consume the value, so it is never read as a token of its own
+  }
+  return { ok: true };
+}
+
+/**
  * THE POSITIONAL ARGUMENTS, with each valued flag's value left out.
  *
  * `argv.find((a) => !a.startsWith('--'))` is the tree's idiom for "my one positional", and it is

@@ -21,6 +21,8 @@
  *     node tools/release.mjs            # the STAMP step alone (what --full runs inside its worktree)
  *     node tools/release.mjs --dry-run  # preview; write nothing
  *     node tools/release.mjs --skip-gates   # dev only: skip the pre-flight gate run
+ *     node tools/release.mjs --status   # where a --full chain stands (release-land.mjs reports)
+ *     node tools/release.mjs --resume   # continue a chain that stopped (release-land.mjs runs it)
  *
  * `--full` exists because the eleven steps AFTER the stamp were done by hand on every release and
  * on v2.10.0 four of them went wrong (bare `build.mjs` builds nothing; staging deleted changesets;
@@ -34,16 +36,32 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
-import { isCliEntry } from './argv-guard.mjs';
+import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
 // P3 — the per-app manifestHash snapshot comes from the reassembled provenance/ fragments.
 const ProvenanceLedger = require(join(ROOT, 'provenance-ledger.js'));
 const args = process.argv.slice(2);
+/* REFUSE AN UNKNOWN TOKEN BEFORE THE STAMP RUNS. This tool imported `isCliEntry` alone and read its
+   flags with `args.includes`, so a token nobody looks up was indistinguishable from an absent one and
+   the default branch is THE ONE THAT WRITES: it bumps `suite.manifest.json`, appends
+   `RELEASE-MANIFEST.json`, rewrites `CHANGELOG.md` and `README.md`, and UNLINKS every consumed
+   changeset. Muse typed `node tools/release.mjs --status` on 2026-11-08, which stamped v2.29.1 and
+   consumed 21 `changes/*.md` files before the tree was reverted by hand (row
+   2026-11-08-release-and-run-tests-never-call-the-argv-guard). Exit 2 says the caller typed it wrong;
+   exit 1 stays what a failed release means. */
+if (isCliEntry(import.meta.url)) {
+  refuseUnknownArgvOrExit(args, { boolean: ['--dry-run', '--skip-gates', '--full', '--status', '--resume'] }, { tool: 'tools/release.mjs' });
+}
 const DRY = args.includes('--dry-run');
 const SKIP_GATES = args.includes('--skip-gates');
 const FULL = args.includes('--full');
+/* `--status` and `--resume` are documented on THIS tool (`CLAUDE.md` §📦) and read only by
+   release-land.mjs, so they are forwarded rather than refused: the front door answers for the whole
+   chain, exactly as `--full` does. ATTACHED, unlike `--full` — a status report and a resumed chain are
+   both things the caller waits for, and the child's exit code is the answer. */
+const DELEGATED = args.includes('--status') || args.includes('--resume');
 
 /* --full: hand the whole chain to release-land.mjs as a DETACHED process and return at once. The
    chain outlives any operator tool-loop timeout (measured cap: 10 min; the chain: 45–90 min), so it
@@ -57,6 +75,10 @@ function launchFull() {
   const child = spawn(process.execPath, [join(ROOT, 'tools', 'release-land.mjs'), '--foreground', ...pass], { cwd: ROOT, detached: true, stdio: ['ignore', fd, fd] });
   child.unref();
   console.log('release-land launched, pid ' + child.pid + '\n  log:    ' + logFile + '\n  status: node tools/release-land.mjs --status');
+}
+function delegateToLand() {
+  const r = spawnSync(process.execPath, [join(ROOT, 'tools', 'release-land.mjs'), ...args], { cwd: ROOT, stdio: 'inherit' });
+  process.exit(r.status === null ? 1 : r.status);
 }
 const p = (...a) => join(ROOT, ...a);
 const readJSON = (f) => JSON.parse(readFileSync(p(f), 'utf8'));
@@ -372,4 +394,8 @@ function main() {
    `doc-search.mjs`'s `isEntryPoint` resolves rather than string-compares). Swept 2026-08-19 after
    `device-stability.mjs` was found unimportable for the sibling reason: of 143 `tools/*.mjs`, 48
    guarded, 90 have no entry point at all, and a handful executed on import. */
-if (isCliEntry(import.meta.url)) FULL ? launchFull() : main();
+if (isCliEntry(import.meta.url)) {
+  if (DELEGATED) delegateToLand();
+  else if (FULL) launchFull();
+  else main();
+}

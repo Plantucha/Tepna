@@ -6183,6 +6183,121 @@ def test_the_session_partition_is_DISJOINT_BUT_MAY_TOUCH(tmp_path):
         assert a1 == b0, (ss, "…and this fixture makes them TOUCH, which is what the boundary family needs")
 
 
+def _seam_spanning_night(tmp_path):
+    """A night whose judged run is CLAMPED to a daemon seam while its only file keeps writing for another
+    hour, and whose second run opens after that file closed.
+
+    The shape is load-bearing in three ways. The seam must fall INSIDE the long file (200 s into a 3600 s
+    file), or nothing is clamped. The long file must hold the most rows, or `judged_session` picks the
+    other run and the clamp is invisible. The later run must open AFTER the long file's last write, so the
+    hole between the two runs covers time this device demonstrably recorded in. Files carry a device clock
+    because `dev_span` engages only when every file of the device states its own span."""
+    import writers
+
+    night = str(tmp_path / "2026-09-24")
+    os.makedirs(night)
+    t0 = _floating_at_hour("20260924000000", 2)
+    seam = t0 + 200
+    for open_at, n in ((t0, 3600), (t0 + 3660, 300)):
+        name = "Polar_H10_02849638_" + _floating_stampname(open_at) + "_ECG.txt"
+        with open(os.path.join(night, name), "w") as fh:
+            fh.write("Phone timestamp;sensor timestamp [ns];channel 0\n")
+            fh.write("\n".join(f";{i}000000000;1" for i in range(n)) + "\n")
+        _utime(os.path.join(night, name), open_at + n)
+    with open(os.path.join(night, writers.STARTS_NAME), "w") as fh:
+        fh.write("Phone timestamp;pid;git;dirty;adapter\n")
+        fh.write(_starts_stamp(seam) + ";400443;2cd12712;no;F4:CE:36:2E:CD:98\n")
+    devs = [{"name": "H10", "device_id": "02849638", "streams": ["ecg"]}]
+    return night, devs, t0, seam
+
+
+def test_a_file_WRITING_ACROSS_A_SEAM_is_not_charged_a_HOLE_IT_FILLED(tmp_path):
+    """A run clamped to a daemon seam must not charge its device for the time its own file kept writing.
+
+    MEASURED on this fixture before the fix: `coverage 7.82` and `session_coverage 7.8` for 3900 rows
+    over a published `span_sec` of 499, a 58 min joined hole of which 1 min was silent, and a night
+    `span_sec` of 500 for a night holding 3900 s of rows. A received-over-expected ratio cannot exceed
+    1, so the number refuted itself on the surface it was read from — the same self-refutation the `ppi`
+    1.07 comment records, reached through a different door. Residue
+    `2026-11-06-a-file-across-a-restart-seam-gives-coverage-above-one`, seen on the box's night of
+    2026-11-05 at 1.03 and 1.04.
+
+    The sessions are asserted FIRST and unchanged, because the clamp is correct and the fix must not
+    touch it: `merge_sessions` keeps the partition disjoint, and only the hole between the two runs
+    moves. Every figure below is a quantity a reader of `QC-SUMMARY.json` sees."""
+    night, devs, t0, seam = _seam_spanning_night(tmp_path)
+    s = _summarize_floating(night, devs)
+    ss = [(x["start"] - t0, x["end"] - t0) if isinstance(x, dict) else (x[0] - t0, x[1] - t0) for x in s["sessions"]]
+    assert ss == [(0.0, 200.0), (3660.0, 3960.0)], (ss, "the clamp itself must be untouched")
+
+    assert s["night_gap_min"] == 1, (s["night_gap_min"], s["joined_gaps"])
+    assert len(s["joined_gaps"]) == 1, s["joined_gaps"]
+    # The hole must OPEN at the last write, not at the seam the run was clamped to. `_hhmm` of the last
+    # write is the only thing separating the two, and the 58 min width is the defect's own signature.
+    _opens = f"{nightqc._hhmm(t0 + 3600)}->{nightqc._hhmm(t0 + 3660)} 1min gap"
+    assert s["joined_gaps"][0].startswith(_opens), (s["joined_gaps"][0], _opens)
+    # The seam is 3400 s earlier, so a hole opening there is the defect and reads 58min wide.
+    assert nightqc._hhmm(t0 + 200) not in s["joined_gaps"][0], s["joined_gaps"][0]
+
+    d = s["devices"][0]
+    assert d["streams"]["ecg"] == 3900, d["streams"]
+    assert d["span_basis"]["ecg"] == "device", (d["span_basis"], "the device-span denominator must engage")
+    assert d["span_sec"] == 3899, (d["span_sec"], "the device's own extent, minus only the silent minute")
+    assert d["coverage"]["ecg"] == 1.0, d["coverage"]
+    assert d["session_coverage"]["ecg"] == 1.0, d["session_coverage"]
+    assert s["span_sec"] == 3900, (s["span_sec"], "a night holding 3900 s of rows cannot span 500 s")
+
+
+def test_the_JOINED_HOLE_is_placed_in_the_WRITERS_frame_and_not_the_READERS(tmp_path):
+    """The floating twin of the test above, and the only shape of input that can see the frame argument.
+
+    `file_interval(f, offset_sec)` defaults `offset_sec` to 0.0, which is the ABSOLUTE frame, where a
+    file ends at its `mtime`. On a night whose writer offset no vote could recover the frame is
+    FLOATING, and a file ends at its own last stamp plus its own recorded duration. The two agree
+    whenever the mtime sits on the last sample, so every absolute fixture reads the same number with the
+    argument dropped and cannot see it. This night separates them: the long file carries 3600 device
+    seconds and its last write lands 30 min after its last sample, which is the frozen stream the box
+    really produces.
+
+    MEASURED 2026-11-08 with the argument dropped: the hole read `23:30->23:31 1min gap` with
+    `night_gap_min` 1, against `22:59->23:31 31min gap` and 31 here. So the mutant charges the night a
+    1 min hole for 31 min of silence, and the denominator moves the other way.
+
+    Two premises this night rests on, both stated rather than assumed. The files carry NO last-row civil
+    stamp, so only the extent basis votes, the two votes disagree (1801 s against 0 s) and the offset
+    stays unrecovered. And `os.utime` sets the mtime directly for that same reason, where `_utime` would
+    write a stamp, make the vote unanimous and recover 0.0.
+    """
+    import writers
+
+    night = str(tmp_path / "2026-09-24")
+    os.makedirs(night)
+    t0 = _floating_at_hour("20260924000000", 2)
+    seam = t0 + 200
+    for open_at, n, mtime in ((t0, 3600, t0 + 5400.0), (t0 + 5460, 300, t0 + 5760.0)):
+        name = "Polar_H10_02849638_" + _floating_stampname(open_at) + "_ECG.txt"
+        path = os.path.join(night, name)
+        with open(path, "w") as fh:
+            fh.write("Phone timestamp;sensor timestamp [ns];channel 0\n")
+            fh.write("\n".join(f";{i}000000000;1" for i in range(n)) + "\n")
+        os.utime(path, (mtime, mtime))
+    with open(os.path.join(night, writers.STARTS_NAME), "w") as fh:
+        fh.write("Phone timestamp;pid;git;dirty;adapter\n")
+        fh.write(_starts_stamp(seam) + ";400443;2cd12712;no;F4:CE:36:2E:CD:98\n")
+    devs = [{"name": "H10", "device_id": "02849638", "streams": ["ecg"]}]
+
+    s = nightqc.summarize(night, devs)
+    # The premise, read back from the summary rather than trusted: no offset, so the floating frame.
+    assert s["writer_offset"]["offset_sec"] is None, s["writer_offset"]
+    assert s["writer_offset"]["frame"] == "floating", s["writer_offset"]
+    assert len(s["joined_gaps"]) == 1, s["joined_gaps"]
+    _line = s["joined_gaps"][0]
+    assert _line.startswith(f"{nightqc._hhmm(t0 + 3599)}->{nightqc._hhmm(t0 + 5460)} 31min gap"), _line
+    # The mtime is the ABSOLUTE frame's end, and this night is not in that frame.
+    assert nightqc._hhmm(t0 + 5400) not in _line, _line
+    assert s["night_gap_min"] == 31, s["night_gap_min"]
+
+
 def _floating_at_hour(stamp, hour):
     """The FLOATING second of `hour`:00 on `stamp`'s date — the frame a band edge is in.
 

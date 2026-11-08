@@ -3743,11 +3743,39 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None, wri
         _cur_end = max(s[1] for s in _judged)
         _judged_start = _judged[0][0]
         # Merged sessions are disjoint and ordered, so each consecutive pair names one hole.
+        #
+        # 🔴 THE HOLE STARTS AT THE LAST WRITE, NOT AT THE RUN'S CLAMPED END. `merge_sessions` ends a run
+        # at the daemon seam inside it, so a file still being written across that seam leaves its run
+        # ending while the device kept recording. The stretch from the seam to the next run is then
+        # charged as a hole over time the device demonstrably filled, and `_gap_sec_inside` subtracts it
+        # from the very denominator those rows are counted against — so coverage rises ABOVE 1, which is
+        # a received-over-expected ratio refuting itself on the surface it is read from (§∅, and the same
+        # self-refutation the `ppi` 1.07 comment above records). MEASURED 2026-11-08 on a one-device
+        # night: a 3600 s file opening 200 s before a seam, with a second run opening after it closed,
+        # published `coverage 7.82` over `span_sec 499` for 3900 rows, a 58 min hole of which 1 min was
+        # silent, and a night span of 500 s for a night holding 3900 s of rows. Residue
+        # `2026-11-06-a-file-across-a-restart-seam-gives-coverage-above-one`, seen first on the box's
+        # night of 2026-11-05 at 1.03 and 1.04.
+        #
+        # THE REMEDY CORRECTS THE DENOMINATOR AND KEEPS EVERY ROW. Dropping the post-seam rows is the
+        # other direction and it is the wrong one: those rows WERE received, and `dev_span`'s own comment
+        # records why a shortened span inflates coverage rather than reporting an absence. `timeline.build`
+        # already took this shape for its window, where the same clamp made a 111 s file report a 40 s
+        # night (`test_a_file_STILL_BEING_WRITTEN_at_a_daemon_restart_keeps_the_window_it_filled`).
+        #
+        # INERT WHERE NOTHING WAS CLAMPED: `merge_sessions` ends an unclamped run at `max(file end)`, so
+        # `_a_end` equals `_a[1]` and every quantity here is the value it was. Only a clamped run moves.
         for _a, _b in zip(_judged, _judged[1:]):
-            _join_gap_spans.append((_a[1], _b[0]))
-            _joined_gap_sec += _b[0] - _a[1]
+            _a_ivs = [iv for iv in (file_interval(f, _off["offset_sec"]) for f in _a[2]) if iv is not None]
+            _a_end = max([_a[1], *(iv[1] for iv in _a_ivs)])
+            # A file that wrote PAST the next run's own start leaves no hole at all, so this floors at
+            # zero: a negative width would read back as a negative `night_gap_min`, and the span itself
+            # is built from the floored width rather than from `_b[0]` for the same reason.
+            _hole = max(0.0, _b[0] - _a_end)
+            _join_gap_spans.append((_a_end, _a_end + _hole))
+            _joined_gap_sec += _hole
             _line = (
-                f"{_hhmm(_a[1])}->{_hhmm(_b[0])} {round((_b[0] - _a[1]) / 60)}min gap; "
+                f"{_hhmm(_a_end)}->{_hhmm(_b[0])} {round(_hole / 60)}min gap; "
                 f"{known_rows(_b[2])} rows joined into the night's coverage [in-night joined]"
             )
             gaps.append(_line)
