@@ -4189,22 +4189,58 @@ def test_a_CLEAN_NIGHT_WITH_NO_EMPTY_SESSION_still_PASSES_SILENTLY(tmp_path):
     assert si.validity(str(tmp_path), "VeritySense") == {"status": "PASS", "reason": None}
 
 
-def test_has_rows_STOPS_AT_THE_FIRST_ROW_and_reads_neither_comment_nor_header(tmp_path):
-    """`has_rows` is O(1) on a real stream — a night's ECG is ~160 MB and this reads one line of it. The
+def test_row_state_STOPS_AT_THE_FIRST_ROW_and_reads_neither_comment_nor_header(tmp_path):
+    """`row_state` is O(1) on a real stream — a night's ECG is ~160 MB and this reads one line of it. The
     writer's `# timebase=` comment and `Phone timestamp;…` header are the file saying what it WOULD
     contain, so neither counts as a sample."""
     p = tmp_path / "x.txt"
     p.write_text("")
-    assert si.has_rows(str(p)) is False, "0 bytes"
+    assert si.row_state(str(p)) == "empty", "0 bytes"
     p.write_text("Phone timestamp;sensor timestamp [ns];channel 0\n")
-    assert si.has_rows(str(p)) is False, "a header is not a sample"
+    assert si.row_state(str(p)) == "empty", "a header is not a sample"
     p.write_text("# timebase=host\nPhone timestamp;x\n")
-    assert si.has_rows(str(p)) is False, "nor is a comment"
+    assert si.row_state(str(p)) == "empty", "nor is a comment"
     p.write_text("# timebase=host\nPhone timestamp;x\n\n   \n")
-    assert si.has_rows(str(p)) is False, "nor are blank lines"
+    assert si.row_state(str(p)) == "empty", "nor are blank lines"
     p.write_text("# timebase=host\nPhone timestamp;x\n2026-10-04T23:00:00.000;1\n")
-    assert si.has_rows(str(p)) is True
-    assert si.has_rows(str(tmp_path / "absent.txt")) is False, "a file we cannot open holds no row we can see"
+    assert si.row_state(str(p)) == "rows"
+
+
+def test_a_FILE_THE_READ_CANNOT_OPEN_IS_UNREADABLE_and_NEVER_EMPTY(tmp_path):
+    """🔴 THE DEFECT THIS UNIT REPAIRS, PLANTED BOTH WAYS. This read answered a plain `bool` and caught
+    `OSError` as `False`, so a waveform the audit could not open joined the `empty` list and the band
+    reported it as `empty-session` — a reason that ASSERTS the session recorded nothing.
+
+    Two fixtures, because the two causes read alike through a boolean and apart through a token: an
+    absent path, and a DIRECTORY named like a waveform file. The second is what reaches the band —
+    `stream_files` globs without an `isfile` filter, so a directory is enumerated and the open raises
+    `IsADirectoryError`, an `OSError` subclass. It needs no `chmod`, so it plants the same way for root."""
+    assert si.row_state(str(tmp_path / "absent.txt")) == "unreadable", "absent is not empty"
+    d = tmp_path / "Polar_VeritySense_0C301E3F_20261004213000_ACC.txt"
+    d.mkdir()
+    assert si.row_state(str(d)) == "unreadable", "a directory holds no row and is not an empty session"
+
+
+def test_an_UNREADABLE_WAVEFORM_REFUSES_THE_NIGHT_rather_than_counting_as_EMPTY(tmp_path):
+    """The band states what it could not read and names the file. The old boolean folded this path into
+    `empty`, so a night with one unreadable waveform and one real session PASSED and said the
+    unreadable one `recorded nothing` — a manufactured count of zero over a file nobody examined."""
+    _session(tmp_path, "20261004213000", rows=5)
+    (tmp_path / "Polar_VeritySense_0C301E3F_20261004213000_ACC.txt").mkdir()
+    out = si.validity(str(tmp_path), "VeritySense")
+    assert out["status"] == "UNKNOWN", out
+    assert "1 waveform file(s) cannot be read" in out["reason"], out["reason"]
+    assert "_ACC.txt" in out["reason"], out["reason"]
+    assert "empty-session" not in out["reason"], out["reason"]
+    # TWO, because the count and the join separator sit inside an f-string and the mutation gate does
+    # not demand a test for a token inside a literal. One file observes neither: `len(unreadable)`
+    # could read a hardcoded 1 and the `", "` between names never appears. Both are what an operator
+    # reads to size the problem, so both get a leg.
+    (tmp_path / "Polar_VeritySense_0C301E3F_20261004213001_ACC.txt").mkdir()
+    out = si.validity(str(tmp_path), "VeritySense")
+    assert out["status"] == "UNKNOWN", out
+    assert "2 waveform file(s) cannot be read" in out["reason"], out["reason"]
+    assert "_20261004213000_ACC.txt, Polar" in out["reason"], "both names, comma-separated"
 
 
 def test_a_SESSION_STILL_BEING_WRITTEN_is_NOT_YET_JUDGEABLE_never_UNKNOWN(tmp_path):
@@ -4256,7 +4292,7 @@ def test_a_NIGHT_OF_ONLY_LIVE_SESSIONS_is_UNKNOWN_and_says_which_kind(tmp_path):
     assert "0 empty session(s), 1 still being written" in out["reason"], out["reason"]
 
 
-def test_HAS_ROWS_and_the_SIDECAR_READER_both_DECLARE_their_encoding(tmp_path):
+def test_ROW_STATE_and_the_SIDECAR_READER_both_DECLARE_their_encoding(tmp_path):
     """`encoding="utf-8"` asserted on the CALL for both readers this unit adds. `-X
     warn_default_encoding` with `-W error::EncodingWarning` makes every `open()` that leaves `encoding`
     unset — or explicitly None — raise, so the assertion holds on a UTF-8 machine and a C-locale one
@@ -4269,11 +4305,11 @@ def test_HAS_ROWS_and_the_SIDECAR_READER_both_DECLARE_their_encoding(tmp_path):
 
     _session(tmp_path, "20261004213000", rows=3)
     wav = str(tmp_path / "Polar_VeritySense_0C301E3F_20261004213000_PPG.txt")
-    assert si.has_rows(wav) is True
+    assert si.row_state(wav) == "rows"
     assert si.validity(str(tmp_path), "VeritySense")["status"] == "PASS"
     src = (
         "import solid_night_inputs as si\n"
-        f"assert si.has_rows({wav!r}) is True\n"
+        f"assert si.row_state({wav!r}) == 'rows'\n"
         f"assert si.validity({str(tmp_path)!r}, 'VeritySense')['status'] == 'PASS'\n"
     )
     r = subprocess.run(
@@ -4291,14 +4327,14 @@ def test_BOTH_READERS_REPLACE_an_undecodable_byte_rather_than_dying_on_it(tmp_pa
     the default `errors=None` is STRICT — a `UnicodeDecodeError` is not an `OSError`, so it would
     escape these readers and take the night's whole verdict with it rather than skipping a line.
 
-    Both readers are covered because both open a file this unit put in the path: `has_rows` the waveform
+    Both readers are covered because both open a file this unit put in the path: `row_state` the waveform
     and `validity` the sidecar."""
     _session(tmp_path, "20261004213000", rows=3)
     wav = tmp_path / "Polar_VeritySense_0C301E3F_20261004213000_PPG.txt"
     runs = tmp_path / "Polar_VeritySense_0C301E3F_20261004213000_PPGRUNS.txt"
     with open(wav, "wb") as fh:
         fh.write(b"Phone timestamp;x\n2026-10-04T23:00:00.000;\xff\xfe5\n")
-    assert si.has_rows(str(wav)) is True, "an undecodable byte is a row, not a crash"
+    assert si.row_state(str(wav)) == "rows", "an undecodable byte is a row, not a crash"
     with open(runs, "wb") as fh:
         fh.write(b"# stream=ppg rule=stuck min_run=30 \xff\xfe\nPhone timestamp;stream\n")
     out = si.validity(str(tmp_path), "VeritySense")
