@@ -458,12 +458,17 @@
   function compliancePct(nights, thresholdH) {
     thresholdH = thresholdH == null ? 4 : thresholdH;
     if (!nights || !nights.length) return null;
-    var ok = 0;
+    var ok = 0,
+      scored = 0;
     nights.forEach(function (n) {
-      var h = n.therapyHours != null ? n.therapyHours : n.metrics ? n.metrics.usageHours : 0;
+      /* ∅ An absent usage datum is not a night of no therapy: it leaves BOTH sides of the
+       ratio. The fallback here used to make such a night a scored night below the line. */
+      var h = n.therapyHours != null ? n.therapyHours : n.metrics ? n.metrics.usageHours : null;
+      if (h == null) return;
+      scored++;
       if (h >= thresholdH) ok++;
     });
-    return +((ok / nights.length) * 100).toFixed(1);
+    return scored ? +((ok / scored) * 100).toFixed(1) : null;
   }
 
   /* ── Cross-night device-SETTING change-point detector (FOLLOWUPS-II §P8 KNOWN GAP) ──
