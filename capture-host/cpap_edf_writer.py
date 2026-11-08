@@ -166,7 +166,7 @@ class EdfSink:
             ss,
         )
         stamp = f"{y:04d}{mo:02d}{d:02d}_{hh:02d}{mm:02d}{ss:02d}"
-        night = f"{y:04d}{mo:02d}{d:02d}"
+        night = datalog_night(stamp)  # the sleep day, as the SD card files it: see `datalog_night`
         base = self._out_root if self._verified else os.path.join(self._out_root, self.PENDING)
         night_dir = os.path.join(base, "DATALOG", night)
         os.makedirs(night_dir, exist_ok=True)
@@ -234,6 +234,32 @@ def device_stamp_to_tms(iso):
         return None
     y, mo, d, hh, mm, ss = parts
     return calendar.timegm((y, mo, d, hh, mm, ss, 0, 0, 0)) * 1000.0
+
+
+# A RESMED SLEEP DAY RUNS NOON TO NOON, labelled by the evening date. The SD card files a 01:59 session
+# under the previous evening's folder, and the owner's 2026-10-13 night-key ruling uses the same window
+# (`nightqc._KEY_BEGIN_H`). Measured on the capture box 2026-11-07: this writer keyed the folder by the
+# calendar date, so a session that began at 01:00 sat one day late, and the Nights view listed a CPAP-only
+# phantom night. 7 of 76 stream BRPs were one day late; 0 of 361 SD-card BRPs were.
+_SLEEP_DAY_BEGIN_H = 12
+_STAMP_RE = re.compile(r"^(\d{8})_(\d{2})\d{4}")
+
+
+def datalog_night(name):
+    """The `DATALOG/<YYYYMMDD>` folder a session belongs to, from the stamp that starts its file name.
+
+    A stamp before noon belongs to the previous evening. A name with no valid stamp returns None, and
+    the caller keeps the folder it found the file in: an absent stamp is never guessed."""
+    m = _STAMP_RE.match(os.path.basename(name or ""))
+    if not m:
+        return None
+    try:
+        day = datetime.datetime.strptime(m.group(1), "%Y%m%d").date()
+    except ValueError:
+        return None
+    if int(m.group(2)) < _SLEEP_DAY_BEGIN_H:
+        day -= datetime.timedelta(days=1)
+    return day.strftime("%Y%m%d")
 
 
 def _start_components(iso):

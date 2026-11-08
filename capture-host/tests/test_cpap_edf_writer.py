@@ -327,3 +327,65 @@ def test_a_batch_carrying_ONE_channel_is_skipped_for_BOTH_so_flow_and_pressure_s
     assert sink.unpaired_batches == 2
     edf = cpap_edf.read_edf(open(sink.path, "rb").read())
     assert edf.n_records == 1, "only the paired batch reaches the file"
+
+
+# ── the DATALOG folder is the sleep day, as the SD card files it (capture box, 2026-11-07) ──────────
+@pytest.mark.parametrize(
+    ("start", "folder"),
+    [
+        ("2026-11-07T01:00:18", "20261106"),  # the measured case: after midnight, the evening before
+        ("2026-11-07T11:59:59", "20261106"),
+        ("2026-11-07T12:00:00", "20261107"),
+        ("2026-11-06T22:14:05", "20261106"),
+        ("2026-11-01T00:59:00", "20261031"),  # the month turns back
+        ("2027-01-01T03:00:00", "20261231"),  # the year turns back
+    ],
+)
+def test_the_folder_is_the_noon_to_noon_sleep_day_the_sd_card_uses(tmp_path, start, folder):
+    sink = W.EdfSink(str(tmp_path / "x"), SERIAL)
+    _run(sink, 2, start=start)
+    stamp = start.replace("-", "").replace(":", "").replace("T", "_")
+    assert sink.path == str(tmp_path / "x" / W.EdfSink.PENDING / "DATALOG" / folder / f"{stamp}_BRP.edf")
+
+
+@pytest.mark.parametrize(
+    ("name", "night"),
+    [
+        ("20261107_010018_BRP.edf", "20261106"),
+        ("DATALOG/20261107/20261107_010018_BRP.edf", "20261106"),
+        ("20261107_120000_PLD.edf", "20261107"),
+        ("20261107_115959.crc", "20261106"),
+        ("notes.txt", None),
+        ("2026110_010018_BRP.edf", None),
+        ("20261399_010018_BRP.edf", None),  # no such month: refused, not rolled
+        ("20261107-010018_BRP.edf", None),
+        ("", None),
+        (None, None),
+    ],
+)
+def test_datalog_night_reads_the_stamp_or_returns_none(name, night):
+    assert W.datalog_night(name) == night
+
+
+# ── _set_start: the provenance line and a second session in one sleep-day folder (mutate-diff on #4550) ──
+def test_the_start_logs_the_device_stamp_and_the_civil_components_it_wrote(tmp_path, caplog):
+    """The log line holds the raw stamp and each written component, so a later zone question has its record."""
+    caplog.set_level(logging.INFO, logger=W._log.name)
+    sink = W.EdfSink(str(tmp_path / "x"), SERIAL)
+    _run(sink, 1, start="2026-11-07T01:02:03")
+    assert sink._start_iso == "2026-11-07T01:02:03"
+    want = (
+        "CPAP EDF start: device stamp 2026-11-07T01:02:03 resolved to local civil 2026-11-07 01:02:03 "
+        "(SD-card/OSCAR convention)"
+    )
+    assert want in caplog.messages, caplog.messages
+
+
+def test_two_sessions_of_one_sleep_day_share_the_folder_that_already_exists(tmp_path):
+    """The second session of a night finds its folder made by the first one, and writes beside it."""
+    first = W.EdfSink(str(tmp_path / "x"), SERIAL)
+    _run(first, 1, start="2026-11-06T22:14:05")
+    second = W.EdfSink(str(tmp_path / "x"), SERIAL)
+    _run(second, 1, start="2026-11-07T01:00:18")
+    folder = tmp_path / "x" / W.EdfSink.PENDING / "DATALOG" / "20261106"
+    assert sorted(os.listdir(folder)) == ["20261106_221405_BRP.edf", "20261107_010018_BRP.edf"]
