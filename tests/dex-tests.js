@@ -38810,6 +38810,86 @@
       T.eq('a bare array is refused', N([]), null);
     });
 
+    /* ════ CPAPDex ADHERENCE — ∅ the ratio scores the nights it measured ════
+     `compliancePct` is a RATIO, so an absence can enter it on either side. Two sites did.
+     `cpapdex-cross.js` read an absent usage datum as `0` hours, which made a night nobody
+     measured a night below the 4 h line. `cpapdex-dsp.js` never fabricated the hours, but it
+     divided by every LOADED night, so the same night still counted against adherence. The
+     owner's rule for this shape is that reduced coverage ANNOTATES: the number stands over the
+     population it scored, and that population travels beside it. A measured 0 h night is a real
+     night below the line and keeps counting — that is the control these legs protect. */
+    group('∅ CPAPDex adherence — an unscored night leaves the ratio, and the tile states its population', 'cpapdex-dsp · cpapdex-cross · cpapdex-render · absence', function (T) {
+      var D = env.CpapDsp || env.CPAPDSP;
+      var CP = env.CPAPCross;
+      var CR = env.CpapRender;
+      if (!D || typeof D.buildLongitudinal !== 'function') {
+        T.skip('CpapDsp.buildLongitudinal', 'CPAPDex not co-loaded in this runner');
+        return;
+      }
+
+      /* 1 · the DSP producer, which the KPI tile reads. */
+      var two = [{ therapyHours: 7 }, { therapyHours: 5 }];
+      var plusBlank = [{ therapyHours: 7 }, { therapyHours: 5 }, {}];
+      T.eq('two scored nights, both ≥4 h → 100 %', D.buildLongitudinal(two).compliancePct, 100);
+      T.eq('∅ a third night with NO usage datum does not drag it to 66.7 %', D.buildLongitudinal(plusBlank).compliancePct, 100);
+      T.eq('∅ and the ratio publishes the population it scored', D.buildLongitudinal(plusBlank).complianceNights, 2);
+      T.eq('the loaded-night count still reports every night handed in', D.buildLongitudinal(plusBlank).nights, 3);
+      T.eq('∅ nothing scored → the value refuses', D.buildLongitudinal([{}, {}]).compliancePct, null);
+      T.eq('∅ and it names its own reason', D.buildLongitudinal([{}, {}]).complianceReason, 'no-usage-datum');
+      T.eq('∅ no nights at all names a DIFFERENT reason', D.buildLongitudinal([]).complianceReason, 'no-nights');
+      T.eq('a fully scored window carries no reason at all', D.buildLongitudinal(two).complianceReason, null);
+
+      /* CONTROL · a MEASURED zero is a measurement. It scores, and it sits below the line. */
+      var withZero = [{ therapyHours: 7 }, { therapyHours: 0 }];
+      T.eq('CONTROL · a measured 0 h night IS scored and IS below the line', JSON.stringify([D.buildLongitudinal(withZero).compliancePct, D.buildLongitudinal(withZero).complianceNights]), '[50,2]');
+      T.eq('CONTROL · a metrics.usageHours of 0 scores too', D.buildLongitudinal([{ metrics: { usageHours: 0 } }]).complianceNights, 1);
+      T.eq('∅ a metrics object carrying no usageHours is NOT scored', D.buildLongitudinal([{ metrics: { residualAHI: 4 } }]).complianceNights, 0);
+
+      /* 2 · the exported cross-night twin. No module in the repo calls it today, so this suite is
+         its only consumer; the rule binds it because the export is public. */
+      if (CP && typeof CP.compliancePct === 'function') {
+        T.eq('∅ cross · an unscored night leaves BOTH sides of the ratio', CP.compliancePct([{ therapyHours: 7 }, { therapyHours: 5 }, {}], 4), 100);
+        T.eq('∅ cross · nothing scored → null, never 0 %', CP.compliancePct([{}, {}], 4), null);
+        T.eq('CONTROL · cross · a measured 0 h night still gives 50 %', CP.compliancePct([{ therapyHours: 7 }, { therapyHours: 0 }], 4), 50);
+        T.eq('CONTROL · cross · a night exactly ON the threshold still counts', CP.compliancePct([{ therapyHours: 4 }], 4), 100);
+      } else {
+        T.skip('CPAPCross.compliancePct', 'cpapdex-cross.js not co-loaded in this runner');
+      }
+
+      /* 3 · the surface. The subtitle states the scored population when it is short of the window. */
+      if (CR && typeof CR.renderHistory === 'function') {
+        var mk = function (dayIdx, hours) {
+          return { t0Ms: Date.UTC(2026, 0, 1 + dayIdx, 22, 0, 0), therapyHours: hours, nSessions: 1, metrics: { residualAHI: 3, largeLeakPct: 2 }, sessions: [{}] };
+        };
+        var short = CR.renderHistory([mk(0, 7), mk(1, 5), mk(2, null)]);
+        T.ok('∅ the tile states the scored population when a night went unscored', /2 scored nights/.test(short), (/(\d+) scored nights/.exec(short) || [])[1]);
+        T.ok('∅ …and the percentage is the one over those 2 nights, not over 3', /100<span class="kpi-u">%<\/span>/.test(short));
+        var full = CR.renderHistory([mk(0, 7), mk(1, 5)]);
+        T.ok('CONTROL · a fully scored window keeps the plain subtitle', /≥4 h nights/.test(full) && !/scored nights/.test(full));
+      } else {
+        T.skip('CpapRender.renderHistory', 'cpapdex-render.js not co-loaded in this runner');
+      }
+
+      /* 4 · source legs — neither coercion may come back. */
+      var xsrc = (env.sources || {})['cpapdex-cross.js'] || '';
+      var dsrc = (env.sources || {})['cpapdex-dsp.js'] || '';
+      if (xsrc) {
+        T.eq('∅ source · the cross-night usage read falls back to no number', (xsrc.match(/metrics\.usageHours\s*:\s*0\b/g) || []).length, 0);
+        T.ok('∅ source · it leaves an absent datum out explicitly', /if \(h == null\) return;/.test(xsrc));
+      } else {
+        T.skip('env.sources["cpapdex-cross.js"]', 'source text not exposed in this runner');
+      }
+      if (dsrc) {
+        T.ok('∅ source · the DSP divides by the scored population', /qualifying \/ scored/.test(dsrc));
+        T.eq('∅ source · nothing divides by the loaded night count', (dsrc.match(/qualifying \/ nights\.length/g) || []).length, 0);
+      } else {
+        T.skip('env.sources["cpapdex-dsp.js"]', 'source text not exposed in this runner');
+      }
+
+      /* 5 · anti-vacuity — the legs above ran real code. */
+      T.ok('ANTI-VACUITY · buildLongitudinal returned a real block', D.buildLongitudinal(two).nights === 2 && typeof D.buildLongitudinal(two).compliancePct === 'number');
+    });
+
     group('CPAPDex quality — ∅ an UNASSESSED mask seal is not a perfect one, and an absent mode is not CPAP', 'cpapdex-dsp · cpapdex-fusion · absence', function (T) {
       var D = env.CpapDsp || env.CPAPDSP;
       var F = env.CpapFusion;
@@ -91543,9 +91623,14 @@
         }
         /* mutant: cmp >= → >  @ if (h >= thresholdH) ok++;
          qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The function correctly calculates compliance percentage when all elements meet the threshold condition */
+        /* ∅ REWRITTEN 2026-11-08: the original call passed `[1, 2, 3]` — three bare numbers carrying
+         no usage datum — and expected 100 %. That answer existed only because an absent datum fell
+         back to 0 h and `0 >= 0` held, so the property pinned the very coercion that was the defect.
+         These two nights are MEASURED and sit exactly on the threshold, so the `>= → >` mutant still
+         flips the result from 100 to 0 and the kill survives. */
         {
-          var out = NS.compliancePct([1, 2, 3], 0);
-          T.eq('NS.compliancePct([1,2,3],0) → out', JSON.stringify(out), '100');
+          var out = NS.compliancePct([{ therapyHours: 4 }, { therapyHours: 4 }], 4);
+          T.eq('NS.compliancePct(two nights at exactly 4 h, 4) → out', JSON.stringify(out), '100');
         }
         /* mutant: bool && → ||  @ return n && n.t0Ms != null ? n.t0Ms : null;
          qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The function correctly returns null when input is null, instead of throwing an error. */
