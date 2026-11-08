@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="89e225575503" data-compute-hash="180f2fa3d106"><head>
+<html lang="en" data-manifest-hash="d9304d234057" data-compute-hash="15be563b2aff"><head>
 <!--
   OverDex.html — Tepna
   Copyright 2026 Michal Planicka
@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+iskltdbf7/UUg8Y6ZfcamkqkNKvnVyfhKrlKyBzwKE=' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-84iaFiqUEftz4fuLv5KHfze6SsmT/jwwfMKpygTi4HQ=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Dhq83zI2md+We8Ro7a9o2DKtvCqYRUB8hYK2tYwJhAQ=' 'sha256-DnGTW/7MgYxGDBRvOr+XhGHLMZ65NfLlXlAKT/D+Gl0=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-JoxRGhEzSV7+qbLuz7cdaMnPy/cw1BxtKJexRdu17R0=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-LLgboXd2yVxQuxadbV6/XakvyuElnwPqqeK60I9qEBg=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-XeM139aCzQDSzEaQuQBVa+zEhnOSgXP/4pqlC0h9wO4=' 'sha256-dgeNNgvmycPeSEUGLICqZuMLJBgTyXQyNtSuwLmdvPA=' 'sha256-hCZmwNAMDLPZEMYHAYpzoPETSnimg1oHWWjZImdKqxM=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qaWiUgQghQdu3FtPtOQiBnDaunyCvA2pe885uwbamRg=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-rm/YlVmogQnelQDIazZyRCXgoAFvC1Ffha1wQ4dVrFc=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+iskltdbf7/UUg8Y6ZfcamkqkNKvnVyfhKrlKyBzwKE=' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-84iaFiqUEftz4fuLv5KHfze6SsmT/jwwfMKpygTi4HQ=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Dhq83zI2md+We8Ro7a9o2DKtvCqYRUB8hYK2tYwJhAQ=' 'sha256-DnGTW/7MgYxGDBRvOr+XhGHLMZ65NfLlXlAKT/D+Gl0=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-LLgboXd2yVxQuxadbV6/XakvyuElnwPqqeK60I9qEBg=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MxmfTjK4rIAHcT6quDxqfVOP5C2/xbu5OVUNyHlynvM=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-XeM139aCzQDSzEaQuQBVa+zEhnOSgXP/4pqlC0h9wO4=' 'sha256-dgeNNgvmycPeSEUGLICqZuMLJBgTyXQyNtSuwLmdvPA=' 'sha256-hCZmwNAMDLPZEMYHAYpzoPETSnimg1oHWWjZImdKqxM=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qaWiUgQghQdu3FtPtOQiBnDaunyCvA2pe885uwbamRg=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-rm/YlVmogQnelQDIazZyRCXgoAFvC1Ffha1wQ4dVrFc=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -19025,7 +19025,15 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
        bug the note above s2 exists to prevent. Drop the component instead. */
     var s3 = stats.motionPct == null ? null : Math.max(0, Math.min(100, Math.round(((2.0 - stats.motionPct) / 1.8) * 100)));
     var s4 = Math.max(0, Math.min(100, Math.round(((20 - osc.episodeCount) / 20) * 100)));
-    var s5 = Math.max(0, Math.min(100, Math.round(((15 - hb.rate) / 15) * 100)));
+    /* ∅ ABSENCE-SURVEY 19200c666fc3 — THE CONSUMER HALF OF A FINDING THE DRAIN COUNTS AS FIXED.
+       That digest nulls `hb.rate` at the producer, and the drain ledger reads `fixed`. This line then
+       read the null as the BEST hypoxic burden the scale can express, so the night still scored on a
+       number nobody measured. `hb.rate` is null when no second carried a measured SpO2, and
+       `(15 - null) / 15` is a PERFECT 100 — absence scores the best hypoxic-burden subscore the
+       scale can express. s1, s2, s3 and s6 each carry this guard already; s5 was the one component
+       missed. The renormalizer below drops a null component, so the night scores on what it
+       measured. */
+    var s5 = hb == null || hb.rate == null ? null : Math.max(0, Math.min(100, Math.round(((15 - hb.rate) / 15) * 100)));
     // ∅ ABSENCE-SURVEY 131d841e27b4: t95pct is null with no measured SpO2, and `(20 - null) / 20` is a perfect 100.
     var s6 = stats.t95pct == null ? null : Math.max(0, Math.min(100, Math.round(((20 - stats.t95pct) / 20) * 100)));
     /* Renormalize over the components actually MEASURED, generalizing the s2-only branch this
@@ -20069,26 +20077,49 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
   function computeSpO2Autocorr(rows) {
     var n = rows.length;
     if (n < 300) return null;
-    var USE = n; // §C1: whole record - ac1 is global and O(n); the 3600 cap bought nothing
+    // §C1: whole record - ac1 is global and O(n); the 3600 cap bought nothing.
+    /* §∅: `s` held the raw column, nulls included. `a + null` is `a`, so the mean summed absent
+       seconds as nothing while still dividing by them, and `(null - m)` is `-m`, so each absence
+       contributed a full squared deviation to both sums. A lag-1 autocorrelation also needs its two
+       samples ADJACENT: a pair straddling an absent second is not a lag-1 pair, so the pair is
+       dropped rather than closed over the gap. Probe: flat 98 for 300 s then absence read as
+       oscillation. */
     var s = rows.map(function (r) {
       return r.spo2;
     });
-    var m =
-      s.reduce(function (a, b) {
-        return a + b;
-      }, 0) / USE;
+    function _ok(v) {
+      return v != null && isFinite(v);
+    }
+    var sum = 0,
+      nMeasured = 0;
+    for (var mi = 0; mi < n; mi++) {
+      if (_ok(s[mi])) {
+        sum += s[mi];
+        nMeasured++;
+      }
+    }
+    // §∅: re-floor on the MEASURED count, as computeSpO2Shape does.
+    if (nMeasured < 300) return null;
+    var m = sum / nMeasured;
     var num = 0,
-      den = 0;
-    for (var i = 0; i < USE - 1; i++) {
+      den = 0,
+      pairs = 0;
+    for (var i = 0; i < n - 1; i++) {
+      if (!_ok(s[i]) || !_ok(s[i + 1])) continue;
       num += (s[i] - m) * (s[i + 1] - m);
       den += (s[i] - m) * (s[i] - m);
+      pairs++;
     }
-    if (den === 0) return null;
+    if (den === 0 || pairs < 1) return null;
     var ac1 = +(num / den).toFixed(3);
     return {
       ac1: ac1,
       ac1Label: ac1 > 0.95 ? 'Sustained (hypoventilation)' : ac1 > 0.85 ? 'Persistent' : ac1 < 0.5 ? 'Oscillating (PB pattern)' : 'Transient',
-      basis: 'wholeRecord' // §C1 disclosure
+      basis: 'wholeRecord', // §C1 disclosure
+      // §∅: coverage beside the value — the correlation is over adjacent MEASURED pairs only
+      nMeasured: nMeasured,
+      nTotal: n,
+      nPairs: pairs
     };
   }
 
@@ -20670,25 +20701,49 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
   function computeHRFlatlines(rows) {
     var n = rows.length;
     if (n < 60) return null;
+    /* §∅: the run test was `rows[i].hr === rows[i - 1].hr`, and `null === null` is TRUE, so a
+       channel that never reported read as one long flatline. Probe: 70 all-null HR rows returned
+       flatlineCount 1, maxFlatlineSec 70 and the label "Occasional" — a firmware-artifact verdict
+       over a channel with no firmware output at all. An absent sample equals nothing; it ENDS the
+       run, because the two measured samples around it are not adjacent in the signal. */
     var flatCount = 0,
       maxFlat = 0,
-      run = 1;
-    for (var i = 1; i < n; i++) {
-      if (rows[i].hr === rows[i - 1].hr) {
-        run++;
-      } else {
-        if (run >= 30) {
-          flatCount++;
-          if (run > maxFlat) maxFlat = run;
-        }
+      run = 0,
+      nMeasured = 0,
+      prev = null;
+    function _closeRun() {
+      if (run >= 30) {
+        flatCount++;
+        if (run > maxFlat) maxFlat = run;
+      }
+      run = 0;
+    }
+    for (var i = 0; i < n; i++) {
+      var hv = rows[i].hr;
+      if (hv == null || !isFinite(hv)) {
+        _closeRun();
+        prev = null;
+        continue;
+      }
+      nMeasured++;
+      if (prev != null && hv === prev) run++;
+      else {
+        _closeRun();
         run = 1;
       }
+      prev = hv;
     }
-    if (run >= 30) {
-      flatCount++;
-      if (run > maxFlat) maxFlat = run;
-    }
-    return { flatlineCount: flatCount, maxFlatlineSec: maxFlat, flatlineLabel: flatCount > 5 ? 'Frequent (firmware artifact)' : flatCount > 0 ? 'Occasional' : 'None' };
+    _closeRun();
+    // §∅: re-floor on the MEASURED count, as computeSpO2Shape does — 60 absent rows are not a record.
+    if (nMeasured < 60) return null;
+    return {
+      flatlineCount: flatCount,
+      maxFlatlineSec: maxFlat,
+      flatlineLabel: flatCount > 5 ? 'Frequent (firmware artifact)' : flatCount > 0 ? 'Occasional' : 'None',
+      // §∅: coverage beside the value — the runs are over measured seconds only
+      nMeasured: nMeasured,
+      nTotal: n
+    };
   }
 
   // ── O. SpO2 Ceiling Artifact ──────────────────────────────────────
@@ -22128,7 +22183,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     var n = rows.length;
     /* REFUSE (§2.6). `desSev` is `emerging`, goodDirection `down` — 0 is the best value it can
        report, so under a minute of data it published the most reassuring possible answer. */
-    if (n < 60) return { desSev: null };
+    if (n < 60) return { desSev: null, desSevReason: 'record-too-short', desSevCoveredSec: 0, desSevAbsentSec: 0 };
     // Desaturation area (Kulkas) — area = Σ per-second deficit vs each event's onset baseline,
     // scored over the CANONICAL ODI event set.
     //
@@ -22150,19 +22205,39 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     // profile's re-shaped events drop it and keep `nadir`+`depth` — from which the onset
     // baseline is recoverable exactly. Without this the subtraction is NaN, every `d > 0`
     // is false, and the index reports a silent, confident 0.
-    var totalArea = 0;
+    /* §∅: `base - null` is `base`, which is > 0, so every ABSENT second inside an event added the
+       full baseline to the area. Probe: one event over 10 absent seconds returned desSev 980,
+       against 0 for the same ten seconds measured. An absent second contributes no area, and the
+       seconds that did contribute are reported beside the value. */
+    var totalArea = 0,
+      coveredSec = 0,
+      absentSec = 0;
     _evts.forEach(function (e) {
       var base = e.baseline != null ? e.baseline : e.nadir != null && e.depth != null ? e.nadir + e.depth : null;
       if (base == null || !isFinite(base)) return;
       for (var k = e.startIdx; k < e.endIdx; k++) {
-        var d = base - spo2[k];
+        var sv = spo2[k];
+        if (sv == null || !isFinite(sv)) {
+          absentSec++;
+          continue;
+        }
+        coveredSec++;
+        var d = base - sv;
         if (d > 0) totalArea += d;
       }
     });
     // Normalize: area in %-seconds → %-min/hr
     var durationHr = n / 3600;
-    var desSev = durationHr > 0 ? +(totalArea / 60 / durationHr).toFixed(2) : 0;
-    return { desSev: desSev };
+    /* §∅: the `: 0` arm published a severity of zero for a record with no duration to divide by —
+       the reassuring answer for a question never asked. Both refusals now NAME themselves, and an
+       event set whose every second is absent refuses rather than reporting the 0 it measured over
+       nothing. No events at all is a real zero, and keeps its number. */
+    var desSev = null,
+      desSevReason = null;
+    if (!(durationHr > 0)) desSevReason = 'no-duration';
+    else if (_evts.length && coveredSec === 0) desSevReason = 'event-seconds-absent';
+    else desSev = +(totalArea / 60 / durationHr).toFixed(2);
+    return { desSev: desSev, desSevReason: desSevReason, desSevCoveredSec: coveredSec, desSevAbsentSec: absentSec };
   }
 
   // CT90 / CT89 / CT88 per-second (precise, already in tIdx but now surfaced as distinct fields)
