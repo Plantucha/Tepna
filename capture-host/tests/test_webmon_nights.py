@@ -861,9 +861,9 @@ def test_the_nights_view_is_the_owner_approved_design():
         where="monitor.html (the end of the NIGHT_GLYPH literal)",
     )
     glyphs = dict(re.findall(r"(\w+):'([^']+)'", glyph_table))
-    assert set(glyphs) == {"ok", "part", "low", "rec", "unk", "none", "probe"} and len(set(glyphs.values())) == 7, (
-        glyphs
-    )
+    assert (
+        set(glyphs) == {"ok", "part", "low", "rec", "unk", "none", "probe", "unworn"} and len(set(glyphs.values())) == 8
+    ), glyphs
     # a 404 is "not judged"; a folder this page cannot reach is "unavailable here" — never collapsed
     assert "r.status===404" in html and "'unavailable here'" in html and "'not judged'" in html
     # the CPAP's EDF carries no coverage: it reads RECORDED, never a coverage it was not measured to have
@@ -1139,3 +1139,33 @@ def test_a_night_with_nothing_to_load_says_so():
     assert "threw" not in got, got
     assert got["CLICKED"] == 0, got
     assert got["TOASTS"] == [{"m": "nothing to load for hat on 2026-09-19", "bad": True}], got
+
+
+def test_a_cell_with_no_worn_second_reads_not_worn_instead_of_loss():
+    """MEASURED on the capture box 2026-11-07: an unworn Verity on a desk read "25 frag · 92 % lost".
+    `nUnworn` is run on the shipped source; `nCls` must ask it before it grades coverage."""
+    import json
+    import shutil
+    import subprocess
+
+    import pytest
+
+    node = shutil.which("node")
+    if not node:  # pragma: no cover - ubuntu-latest always has node; a dev box might not
+        pytest.skip("node is not installed")
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    html = open(os.path.join(here, "monitor.html"), encoding="utf-8").read()
+    fn = _extract_fn(html, "nUnworn", "\nfunction nLost")
+    cases = [
+        {"wear": None},
+        {"wear": {"worn_s": 0, "unworn_s": 600, "unknown_s": 0}},
+        {"wear": {"worn_s": 5, "unworn_s": 600, "unknown_s": 0}},
+        {"wear": {"worn_s": 0, "unworn_s": 0, "unknown_s": 600}},
+    ]
+    prog = fn + "\nconsole.log(JSON.stringify(" + json.dumps(cases) + ".map(nUnworn)));"
+    r = subprocess.run([node, "-e", prog], capture_output=True, text=True, timeout=30)
+    assert r.returncode == 0, r.stderr
+    assert json.loads(r.stdout) == [False, True, False, False], "only a stream with no worn second and a not-worn one"
+    cls = _extract_fn(html, "nCls", "\nfunction nUnworn")
+    assert cls.index("if(nUnworn(v)) return \x27unworn\x27;") < cls.index("v.coverage>=0.95"), "asked before the grade"
+    assert "unworn:" in html.split("const NIGHT_GLYPH = ", 1)[1].split(";", 1)[0], "the cell has a glyph"
