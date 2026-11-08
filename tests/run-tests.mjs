@@ -95,7 +95,7 @@ import { attenuateAndRecover, buildTemplate as beatBuildTemplate } from '../tool
 import * as deviceStability from '../tools/device-stability.mjs';
 import * as beatCorrespondence from '../tools/beat-correspondence.mjs';
 import * as circularStats from '../tools/circular-stats.mjs';
-import { suiteVerdict, unionVerdict } from '../tools/run-tests-verdict.mjs';
+import { suiteVerdict, undecidedChildren, unionVerdict } from '../tools/run-tests-verdict.mjs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { basename, dirname, join, resolve } from 'node:path';
 import vm from 'node:vm';
@@ -4025,7 +4025,11 @@ async function main() {
         }))
       })
     );
-    const failed = LIST_ONLY ? 0 : groups.reduce((a, g) => a + g.tests.filter((t) => !t.pass && !t.skip).length, 0);
+    /* A GROUP THAT DECIDED NOTHING IS NOT A PASS (residue
+       2026-11-08-a-zero-assertion-group-reads-unknown-and-exits-0). The reduce counts a failing
+       ASSERTION; a group gutted to an early return emits none, so this lane exited 0 over an UNKNOWN
+       object — in a filtered run, under --jobs, and in the CI shard shape. */
+    const failed = (LIST_ONLY ? 0 : groups.reduce((a, g) => a + g.tests.filter((t) => !t.pass && !t.skip).length, 0)) + undecidedChildren(verdict).length;
     // exitCode + return, NOT process.exit(): Node's stdout is ASYNC to a pipe (sync only to a file/TTY),
     // so process.exit() right after a ~140 KB console.log TRUNCATES it mid-write. Redirecting to a file
     // hid this; spawnSync (a pipe) got a half-written payload and "valid run, unparseable JSON". Setting
@@ -4135,6 +4139,23 @@ async function main() {
     console.log(paint('  A skip is neither pass nor fail: this leg stopped being checked and the gate would still be green.', C.dim));
     for (const v of skipViolations) console.log(paint('  ✕ ', C.red) + '[' + v.group + '] ' + v.test + (v.detail ? paint('  — ' + v.detail, C.yellow) : ''));
     console.log(paint('  → If this skip is intended, declare it in tests/expected-skips.json (and justify it — you are shrinking the gate).', C.yellow));
+  }
+
+  /* ── UNDECIDED GROUPS ─────────────────────────────────────────────────────────────────────
+     A group with no assertions decided nothing: the object calls it UNKNOWN, and UNKNOWN is never
+     green. The tally above counts a failing ASSERTION, so a group gutted to an early return added
+     nothing to it and the run exited 0 (residue
+     2026-11-08-a-zero-assertion-group-reads-unknown-and-exits-0, measured by Muse in a filtered run,
+     under --jobs, and in the CI shard shape --shard=3/6). Counted into `fail` exactly as the skip
+     budget is, so the footer and the exit code say the same thing. */
+  const undecided = undecidedChildren(verdict);
+  if (undecided.length) {
+    fail += undecided.length;
+    console.log('\n' + paint('▸ UNDECIDED — ' + undecided.length + ' group(s) emitted ZERO assertions', C.red));
+    console.log(paint('  A group that decided nothing is not a pass: it stopped being a gate, and the object reads UNKNOWN.', C.dim));
+    for (const c of undecided.slice(0, 10)) console.log(paint('  ✕ ', C.red) + c.name + paint('  — ' + c.status, C.yellow));
+    if (undecided.length > 10) console.log(paint('    … and ' + (undecided.length - 10) + ' more', C.dim));
+    console.log(paint('  → A leg that cannot run owes a DECLARED skip (tests/expected-skips.json), never an empty group body.', C.yellow));
   }
 
   /* ── COVERAGE (G1) ────────────────────────────────────────────────────────────────────────
