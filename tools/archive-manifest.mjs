@@ -336,6 +336,19 @@ export function toleratedBlock(cmp) {
   };
 }
 
+// A manifest certifies the files it lists, so a manifest that lists none
+// certifies nothing. Measured 2026-11-08 on the rig: the 2026-10-31 night
+// carried a `copy-only-backfill` manifest with `file_count: 0`, written while
+// the pull's destination refused every write, and that night now holds 93
+// files in the copy. A `verify` against such a manifest holds 0 baseline files
+// against 93 in the copy, reads all 93 as extras, and returns PASS — success
+// reported about a copy it never examined. So a zero-file manifest is an
+// ABSENT baseline (§∅), never a clean one, and all three modes below read it
+// as absent.
+export function certifiesNothing(manifest) {
+  return !manifest || !Array.isArray(manifest.files) || manifest.files.length === 0;
+}
+
 /* ── environment ──────────────────────────────────────────────────────── */
 
 function parseSrc() {
@@ -425,6 +438,12 @@ async function doWrite(night, { quiet = false } = {}) {
     return { status: 'FAIL', reason: `source night not found: ${night}`, findings: [`${night}: source missing`] };
   }
   const sourceFiles = await hashSourceNight(src, night);
+  // An existing source night that holds no file gives nothing to certify. It
+  // reads NOT_RUN rather than a manifest of zero files, so a later sync revisits
+  // the night instead of trusting an empty certificate.
+  if (!sourceFiles.length) {
+    return { status: 'NOT_RUN', reason: `source night holds no file: ${night}`, findings: [], checked: 0 };
+  }
   const destFiles = await hashLocalTree(join(dest, night));
   const cmp = compareTrees(sourceFiles, destFiles);
   const bad = blockingFindings(night, cmp);
@@ -452,6 +471,9 @@ async function doVerify(night, { quiet = false } = {}) {
   if (unusable) return { status: 'NOT_RUN', reason: unusable, findings: [], checked: 0 };
   const manifest = await readManifest(night);
   if (!manifest) return { status: 'FAIL', findings: [`${night}: no manifest`], checked: 1 };
+  if (certifiesNothing(manifest)) {
+    return { status: 'NOT_RUN', reason: `the manifest for ${night} lists no file, so it certifies nothing`, findings: [], checked: 0 };
+  }
   const destFiles = await hashLocalTree(join(dest, night));
   const cmp = compareTrees(manifest.files, destFiles);
   const bad = blockingFindings(night, cmp);
@@ -483,7 +505,8 @@ async function doSync() {
   const classes = emptyClasses();
   let checked = 0;
   for (const night of nights) {
-    if (await readManifest(night)) continue;
+    const have = await readManifest(night);
+    if (have && !certifiesNothing(have)) continue;
     checked++;
     const probe = await probeSourceNight(src, night);
     if (probe === 'error') {
@@ -495,6 +518,10 @@ async function doSync() {
       if (r.status !== 'PASS') findings.push(...(r.findings || [`${night}: ${r.reason || r.status}`]));
     } else {
       const destFiles = await hashLocalTree(join(dest, night));
+      if (!destFiles.length) {
+        findings.push(`${night}: the copy holds no file and the source no longer holds the night, so there is no baseline to certify`);
+        continue;
+      }
       const manifest = buildManifest({ night, basis: 'copy-only-backfill', source: null, files: destFiles });
       await writeManifest(manifest);
       console.log(`${night}: manifest written · ${manifest.file_count} files · basis copy-only-backfill`);
@@ -723,6 +750,42 @@ export async function selftest() {
     } finally {
       process.env.PATH = savedPath;
     }
+
+    // ── a manifest over zero files certifies nothing ───────────────────
+    // These run in their own src, dest and manifest dir, because doSync walks
+    // every night in a dest, and the nights above hold deliberate failures.
+    const src2 = join(base, 'src2');
+    const dest2 = join(base, 'dest2');
+    const man2 = join(base, 'man2');
+    await mkdir(src2, { recursive: true });
+    await mkdir(man2, { recursive: true });
+    for (const n of ['2026-02-01', '2026-02-02', '2026-02-03']) await mkdir(join(dest2, n), { recursive: true });
+    await wf(join(dest2, '2026-02-02', 'a.bin'), Buffer.alloc(9, 7));
+    await wf(join(dest2, '2026-02-03', 'a.bin'), Buffer.alloc(9, 7));
+    await wf(
+      join(man2, '2026-02-03.json'),
+      JSON.stringify({ kind: 'tepna.archive-manifest/1', night: '2026-02-03', basis: 'copy-only-backfill', source: null, file_count: 0, total_bytes: 0, tolerated: null, files: [] })
+    );
+    process.env.TEPNA_ARCHIVE_SRC = src2;
+    process.env.TEPNA_ARCHIVE_DEST = dest2;
+    process.env.TEPNA_ARCHIVE_MANIFEST_DIR = man2;
+
+    t('a manifest listing no file certifies nothing', certifiesNothing({ files: [] }) && certifiesNothing(null) && !certifiesNothing({ files: [{ path: 'a' }] }));
+    const vz = await doVerify('2026-02-03', { quiet: true });
+    t('verify reads a zero-file manifest as an absent baseline, never a pass', vz.status === 'NOT_RUN' && vz.reason.includes('certifies nothing'));
+
+    const rs = await doSync();
+    t('sync writes no manifest for a night whose copy holds no file', (await readManifest('2026-02-01')) === null);
+    t('sync names that night rather than passing over it', rs.status === 'FAIL' && rs.findings.some((f) => f.startsWith('2026-02-01: ')));
+    const man02 = await readManifest('2026-02-02');
+    t('sync still backfills a night whose copy holds files', !!man02 && man02.basis === 'copy-only-backfill' && man02.file_count === 1);
+    const man03 = await readManifest('2026-02-03');
+    t('sync replaces a manifest that certified nothing once the copy holds files', !!man03 && man03.file_count === 1);
+
+    await mkdir(join(src2, '2026-02-04'), { recursive: true });
+    await mkdir(join(dest2, '2026-02-04'), { recursive: true });
+    const rw0 = await doWrite('2026-02-04', { quiet: true });
+    t('write refuses to certify a source night that holds no file', rw0.status === 'NOT_RUN' && (await readManifest('2026-02-04')) === null);
 
     const v = verdictOf({ status: 'PASS', findings: [], checked: 1 });
     t('verdict validates as tepna.verdict/1', v && v.gate === 'archive-manifest');
