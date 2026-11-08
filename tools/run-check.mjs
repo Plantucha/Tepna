@@ -132,6 +132,30 @@ export const STEPS = [
   'test:hooks'
 ];
 
+/* ── THE REVERSE DIRECTION ─────────────────────────────────────────────────────────────────────
+   The selftest below asserts that every STEPS entry resolves to a real npm script, which catches a
+   typo. It cannot catch the opposite: a gate script that `package.json` DECLARES and STEPS OMITS.
+   Such a script runs in no `npm run check`, reds nothing, and reads as covered because its name
+   sits in `package.json` beside the ones that do run. Residue
+   `2026-11-07-run-check-misses-a-verify-script-absent-from-steps`, logged from Muse's hunt.
+
+   A gate script is one the suite entry point owns: the `verify:` family plus `build:check`. The
+   other families are deliberately outside this runner — `test:` steps appear in STEPS by their own
+   names, and `gates:browser`, `pseudo:check` or `release` are not part of the unattended gate.
+   An omission that is DELIBERATE goes in STEPS_EXEMPT with its reason written here. The set is
+   empty today, because all 35 declared gate scripts are in STEPS. */
+export const GATE_SCRIPT_RE = /^(?:verify:|build:check$)/;
+export const STEPS_EXEMPT = new Set([]);
+
+/** Gate scripts that `scripts` declares, STEPS omits, and no exemption excuses. Sorted, so the
+    failure message is stable. Pure, so the selftest can plant one. */
+export function gateScriptsMissingFromSteps(scripts = {}, steps = STEPS, exempt = STEPS_EXEMPT) {
+  const inSteps = new Set(steps);
+  return Object.keys(scripts)
+    .filter((s) => GATE_SCRIPT_RE.test(s) && !inSteps.has(s) && !exempt.has(s))
+    .sort();
+}
+
 /* The real executor. Exported so the selftest can prove the default path is THIS and not a stub —
    an injected collaborator and an injected no-op are the same syntax, and only one of them means
    the caller is wired up. */
@@ -291,6 +315,26 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
   const missing = STEPS.filter((s) => !pkg.scripts || !pkg.scripts[s]);
   ok('every STEPS entry resolves to a real npm script', missing.length === 0, 'missing: ' + missing.join(', '));
   ok('STEPS is non-empty and has no duplicates', STEPS.length > 0 && new Set(STEPS).size === STEPS.length);
+
+  /* THE REVERSE LEG — a gate script declared in package.json and absent from STEPS runs in no
+     `npm run check`. The forward leg above cannot see it, because it reads STEPS and never the
+     script list. */
+  const unrun = gateScriptsMissingFromSteps(pkg.scripts || {});
+  ok('every declared gate script appears in STEPS (the reverse direction)', unrun.length === 0, 'declared but run by no step: ' + unrun.join(', '));
+  ok(
+    'plant · a declared verify: script absent from STEPS is NAMED',
+    JSON.stringify(gateScriptsMissingFromSteps({ 'verify:docs': 'x', 'verify:__planted__': 'x', lint: 'x' }, ['verify:docs', 'lint'])) === JSON.stringify(['verify:__planted__'])
+  );
+  ok('plant · build:check absent from STEPS is NAMED', JSON.stringify(gateScriptsMissingFromSteps({ 'build:check': 'x' }, [])) === JSON.stringify(['build:check']));
+  ok('control · a script outside the gate family is NOT named', gateScriptsMissingFromSteps({ release: 'x', 'pseudo:check': 'x', 'check:dex': 'x', 'test:par': 'x' }, []).length === 0);
+  ok(
+    'plant · an exempt name is withheld and its neighbour is still named',
+    JSON.stringify(gateScriptsMissingFromSteps({ 'verify:a': 'x', 'verify:b': 'x' }, [], new Set(['verify:a']))) === JSON.stringify(['verify:b'])
+  );
+  /* A tripwire on the exemption itself: a stale exempt name would excuse a script nobody declares
+     any more, so the first exemption written here is held to a real script. */
+  const staleExempt = [...STEPS_EXEMPT].filter((s) => !(pkg.scripts && pkg.scripts[s]));
+  ok('every STEPS_EXEMPT entry is still a declared script', staleExempt.length === 0, 'stale: ' + staleExempt.join(', '));
   ok('package.json check delegates to this runner', /run-check\.mjs/.test((pkg.scripts && pkg.scripts.check) || ''), pkg.scripts && pkg.scripts.check);
 
   /* THE DEFAULT EXECUTOR IS REAL. Injecting `exec` in every test above proves the reporting works;
