@@ -10,6 +10,7 @@ and low-disk exempt, classifier failure to PAGE.
 
 import asyncio
 import datetime as dt
+import logging
 
 
 import alerts
@@ -355,6 +356,175 @@ def test_stats_do_not_leak_either_url():
     st = n.stats()
     assert _PAGE not in str(st) and _BOARD not in str(st)
     assert st["board_configured"] is True
+
+
+# ── mutation kills (CI #4559, mutate-diff 28 survivors, 2026-11-07) ─────────────────
+# Each test pins one behaviour the diff-scoped mutation gate proved unobserved: change
+# the line and the suite must go red. A survivor is a test gap, not a shrug.
+
+
+def test_classify_absence_passes_cluster_devices_through():
+    # mutmut_12 dropped the cluster_devices kwarg, so the default (3) answered instead.
+    assert (
+        alerts.classify_absence(0, in_window=True, streamed=True, cluster_size=2, cluster_devices=2) == alerts.TIER_PAGE
+    )
+    assert (
+        alerts.classify_absence(0, in_window=True, streamed=True, cluster_size=2, cluster_devices=3)
+        == alerts.TIER_BOARD
+    )
+
+
+def test_classify_absence_failure_logs_the_exception(caplog):
+    # mutmut_14/15/16 rewrote the fail-to-PAGE warning: the exception, the reason, the arg.
+    with caplog.at_level(logging.WARNING, logger="alerts"):
+        assert alerts.classify_absence(None, in_window=True, streamed=True, cluster_size=1) == alerts.TIER_PAGE
+    warnings = [r for r in caplog.records if r.levelname == "WARNING"]
+    assert warnings, "the fail-to-PAGE path must leave a log line behind"
+    text = warnings[-1].getMessage()
+    assert "TypeError" in text
+    assert "treating the alert as PAGE" in text
+    assert "(%r)" not in text
+
+
+def test_is_clustered_counts_a_member_on_the_window_edge():
+    # mutmut_4/9 turned the inclusive edge into an exclusive one, on the member and the count.
+    assert alerts.is_clustered([0.0, 900.0], 1, 900, 2) is True
+    assert alerts.is_clustered([0.0, 900.0], 0, 900, 2) is True
+
+
+def test_streak_default_is_three_days():
+    # mutmut_1 moved the default from 3 to 4.
+    assert alerts.BoardStreak().days == 3
+
+
+def test_streak_gap_day_breaks_the_run_even_when_noted_out_of_order():
+    # A gap day breaks the run: d1-d2 plus a separate d4 is not a 3-day streak.
+    s = alerts.BoardStreak()
+    assert s.note("Ring", _D4) is False
+    assert s.note("Ring", _D1) is False
+    assert s.note("Ring", _D2) is False  # d3 is absent: the run is 2 days, not 4
+
+
+def test_streak_two_day_run_does_not_fire_when_the_earlier_day_is_noted_last():
+    # mutmut_24 stepped the run end by 2 days: noting d1 with d2 already seen walked
+    # the end past d2 to d3 and counted a 2-day run as 3.
+    s = alerts.BoardStreak()
+    assert s.note("Ring", _D2) is False
+    assert s.note("Ring", _D1) is False  # the run is d1-d2: 2 days, under the 3-day bar
+
+
+def test_configure_board_url_change_clears_the_dedupe_ledger():
+    # mutmut_8/9/10 broke the `changed` flag, so a board-only re-point kept silencing the
+    # first alert to the new destination.
+    p = _Poster()
+    n = _notifier(p)
+    assert _run(n.send("Tepna: a", "b", key="k", dedupe_sec=3600, now=1000)) is True
+    n.configure(_PAGE, True, board_url="https://hooks.example/board2/topic")
+    assert _run(n.send("Tepna: a", "b", key="k", dedupe_sec=3600, now=1001)) is True
+    assert len(p.calls) == 2
+
+
+def test_board_send_with_the_flag_off_posts_nothing():
+    # mutmut_11 turned the guard's `and` into `or`, so a switched-off notifier posted.
+    p = _Poster()
+    n = alerts.Notifier(_PAGE, enabled=False, _post=p, board_url=_BOARD)
+    assert _run(n.send("Tepna: x", "b", tier=alerts.TIER_BOARD)) is False
+    assert p.calls == []
+    assert n.stats()["failed"] == 0
+
+
+def test_exempt_page_never_reads_the_clock():
+    # mutmut_24 called _today() even when the page was exempt, so the clock decided nothing.
+    calls = []
+
+    def _recording_today():
+        calls.append(1)
+        return _D1
+
+    p = _Poster()
+    n = _notifier(p, page_cap_per_day=1, _today=_recording_today)
+    assert _run(n.send("Tepna: disk low", "b", cap_counted=True, cap_exempt=True)) is True
+    assert calls == []
+
+
+def test_cap_held_counts_every_held_page():
+    # mutmut_30 reset the counter to 1 instead of adding, so the second held page vanished.
+    p = _Poster()
+    n = alerts.Notifier(_PAGE, enabled=True, _post=p, page_cap_per_day=1)
+    assert _run(n.send("Tepna: a", "b", cap_counted=True)) is True
+    assert _run(n.send("Tepna: a", "b", cap_counted=True)) is True
+    assert _run(n.send("Tepna: a", "b", cap_counted=True)) is True
+    assert n.stats()["cap_held"] == 2
+
+
+def test_held_page_forwards_title_key_dedupe_and_now():
+    # mutmut_36/38/39/40/44/45/46 rewrote the recursive board send's arguments one at a time.
+    p = _Poster()
+    n = _notifier(p, page_cap_per_day=1)
+    assert _run(n.send("Tepna: a", "b", cap_counted=True, now=1000)) is True
+    assert _run(n.send("Tepna: held", "m", cap_counted=True, key="k", dedupe_sec=60, now=1000)) is True
+    assert [u for u, _ in p.calls] == [_PAGE, _BOARD]
+    assert p.calls[1][1]["title"] == "Tepna: held"
+    assert "Held by the daily page cap" in p.calls[1][1]["message"]
+    assert n._last.get("k") == 1000
+    # Past the forwarded 60-second window the next held page still delivers.
+    assert _run(n.send("Tepna: held", "m", cap_counted=True, key="k", dedupe_sec=60, now=1200)) is True
+    assert [u for u, _ in p.calls] == [_PAGE, _BOARD, _BOARD]
+
+
+def test_held_page_without_a_board_destination_logs_the_title(caplog):
+    # mutmut_49/50/51 rewrote the journal warning: the title, the reason, the arg.
+    p = _Poster()
+    n = alerts.Notifier(_PAGE, enabled=True, _post=p, page_cap_per_day=1)
+    assert _run(n.send("Tepna: a", "b", cap_counted=True)) is True
+    with caplog.at_level(logging.WARNING, logger="alerts"):
+        assert _run(n.send("Tepna: held", "b", cap_counted=True)) is True
+    warnings = [r for r in caplog.records if r.levelname == "WARNING"]
+    assert warnings, "a held page with no board destination must leave a log line behind"
+    text = warnings[-1].getMessage()
+    assert "Tepna: held" in text
+    assert "no board destination configured" in text
+    assert "(%r)" not in text
+
+
+def test_board_failures_count_each_attempt():
+    # mutmut_114/130 reset the counter to 1 instead of adding, at both failure sites.
+    p = _Poster(ok=False)
+    n = _notifier(p)
+    assert _run(n.send("Tepna: x", "b", tier=alerts.TIER_BOARD)) is False
+    assert _run(n.send("Tepna: x", "b", tier=alerts.TIER_BOARD)) is False
+    assert n.stats()["board_failed"] == 2
+
+    class _RaisingPoster:
+        def __init__(self):
+            self.calls = 0
+
+        async def __call__(self, url, payload, headers=None):
+            self.calls += 1
+            raise RuntimeError("boom")
+
+    r = _RaisingPoster()
+    m = _notifier(r)
+    assert _run(m.send("Tepna: x", "b", tier=alerts.TIER_BOARD)) is False
+    assert _run(m.send("Tepna: x", "b", tier=alerts.TIER_BOARD)) is False
+    assert m.stats()["board_failed"] == 2
+
+
+def test_board_deliveries_count_each_delivery():
+    # mutmut_146 reset the counter to 1 instead of adding.
+    p = _Poster()
+    n = _notifier(p)
+    assert _run(n.send("Tepna: x", "b", tier=alerts.TIER_BOARD)) is True
+    assert _run(n.send("Tepna: y", "b", tier=alerts.TIER_BOARD)) is True
+    assert n.stats()["board_delivered"] == 2
+
+
+def test_counted_page_with_no_clock_date_counts_nothing():
+    # mutmut_149 turned the count guard's `and` into `or`, so a page counted with no date.
+    p = _Poster()
+    n = _notifier(p, _today=lambda: None)
+    assert _run(n.send("Tepna: a", "b", cap_counted=True)) is True
+    assert n.stats()["pages_today"] == 0
 
 
 # ── the poller: board edge, page escalation, ticket ──────────────────────────────────
