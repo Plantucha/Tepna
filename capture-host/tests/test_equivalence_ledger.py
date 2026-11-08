@@ -322,13 +322,36 @@ def _load():
         return json.load(fh)
 
 
+def _py_key(e):
+    """A PYTHON-side entry's identity: its `key` AND its optional `function` qualifier.
+
+    🔴 The qualifier is part of what the classifier matches on, so it is part of the identity. An entry
+    is matched on `key` (`mutation_diff.diff_key`) and then on `function`
+    (`mutation_diff.entry_matches_function`): an entry with no `function` speaks for the whole module,
+    and one that carries it speaks for that function and no other. So two entries sharing a key and
+    naming DIFFERENT functions are two different claims over two different mutants — delete either and
+    a survivor goes unexcused.
+
+    This helper read `key` alone until 2026-11-08, which modelled the matcher as it stood before the
+    qualifier landed (residues `2026-10-04-an-equivalence-key-cannot-name-its-function` and
+    `2026-10-05-a-mutant-key-is-not-unique-within-a-module-for-a-bare-statement-mutation`). The model
+    stayed green because no module had yet needed two qualified entries over one key. `writers.py` is
+    the first: four append helpers each carry the statement `path = ""`, so one bare-statement mutation
+    keys all four identically, and the alternative — a single unqualified entry — is the module-wide
+    excuse those two residues were filed about.
+
+    The JS lane already keys its qualifier into identity, as `(fn, op, before, after)` in
+    `test_a_FUNCTION_QUALIFIER_is_unique_within_its_module`. This is the same rule for this lane."""
+    return ("key", e["key"], e.get("function") or "")
+
+
 def _identity(e):
     """An entry's identity UNDER ITS OWN SHAPE. Python-side entries are matched on the whitespace-
-    normalised diff (`mutation_diff.diff_key`) and carry `key`; JS-side entries are matched by
-    `tools/mutate.mjs` on `(line, op, before)` and carry no `key` at all. Reading one shape's field off
-    the other is the whole defect this file was written for."""
+    normalised diff (`mutation_diff.diff_key`) plus the optional `function` qualifier, and carry `key`;
+    JS-side entries are matched by `tools/mutate.mjs` on `(line, op, before)` and carry no `key` at all.
+    Reading one shape's field off the other is the whole defect this file was written for."""
     if "key" in e:
-        return ("key", e["key"])
+        return _py_key(e)
     return ("js", e.get("line"), e.get("op"), e.get("before"), e.get("after"))
 
 
@@ -342,9 +365,12 @@ def _matcher_key(e):
     ⚠️ Residue 2026-10-12-equivalence-matcher-coarseness-is-in-the-python-model-not-the-js-matcher: this
     function used to model the sibling as keying on the triple, and a green test asserted a cost the real
     matcher does not have. `test_the_MODEL_reads_the_same_key_as_the_JS_matcher` now reads the sibling's
-    source rather than trusting this model."""
+    source rather than trusting this model.
+
+    A PYTHON-side entry is a different matcher: `diff_key` for the key, then `entry_matches_function`
+    for the qualifier. `_py_key` carries both — see its own note."""
     if "key" in e:
-        return ("key", e["key"])
+        return _py_key(e)
     after = e.get("after")
     return ("js", e.get("line"), e.get("op"), e.get("before"), "" if after is None else after)
 
@@ -381,7 +407,11 @@ def test_every_entry_carries_an_IDENTITY_under_its_own_shape():
 def test_an_identity_is_UNIQUE_within_its_module():
     """Two entries with one identity are the same entry twice — one of them is dead weight, and it is the
     shape a merge leaves when it re-adds an entry it already kept. Measured 2026-09-29 on the restored
-    file: 0 across all 596 entries, so this is an invariant and not an aspiration."""
+    file: 0 across all 596 entries, so this is an invariant and not an aspiration.
+
+    A merge duplicate repeats the `function` qualifier along with the key, so reading the qualifier into
+    the identity (`_py_key`, 2026-11-08) costs this test nothing it ever caught. The case below pins
+    both arms, because an identity widened with no test is a gate with one less tooth."""
     led = _load()
     dupes = []
     for mod, entries in led.items():
@@ -394,6 +424,40 @@ def test_an_identity_is_UNIQUE_within_its_module():
                 dupes.append(f"{mod}: entries [{seen[ident]}] and [{i}] share one identity {str(ident)[:90]}")
             seen[ident] = i
     assert not dupes, "duplicated identities:\n  " + "\n  ".join(dupes)
+
+
+def test_a_FUNCTION_QUALIFIER_separates_two_claims_over_ONE_python_KEY():
+    """🔴 The arms of the widening above, pinned on synthetic entries so this test owns its own population.
+
+    A bare-statement mutation keys identically wherever the statement appears, and `writers.py` holds
+    `path = ""` in four append helpers. Under `diff_key` alone those are one key, and the classifier
+    separates them with `entry_matches_function`. So the identity must separate them too:
+
+      · one key and no qualifier, twice — ONE identity, and the duplicate test above must still red it;
+      · one key and the SAME qualifier, twice — ONE identity, which is the merge-duplicate shape;
+      · one key and DIFFERENT qualifiers — TWO identities, because each excuses a different mutant;
+      · one key, qualified against unqualified — TWO identities: module-wide and one function are
+        different claims, and residue
+        `2026-10-05-a-mutant-key-is-not-unique-within-a-module-for-a-bare-statement-mutation` is the
+        cost of reading them as one."""
+    k = '- path = "" | + path = None'
+    bare = {"key": k, "class": "no-distinguishing-input"}
+    worn = dict(bare, function="append_worn_decision")
+    starts = dict(bare, function="append_daemon_start")
+
+    assert _identity(bare) == _identity(dict(bare)), "one key and no qualifier is one identity"
+    assert _identity(worn) == _identity(dict(worn)), "one key and one qualifier is one identity"
+    assert _identity(worn) != _identity(starts), (
+        "two qualifiers over one key are two claims — `entry_matches_function` excuses only its own"
+    )
+    assert _identity(worn) != _identity(bare), (
+        "a module-wide entry and a qualified one are different claims over different populations"
+    )
+    assert _matcher_key(worn) != _matcher_key(starts), "the matcher model must separate them as well"
+    # An empty `function` is the absent case, never a fifth value: `entry_matches_function` reads
+    # `if not want` and speaks for the module, so the identity must read the two the same way.
+    assert _identity(dict(bare, function="")) == _identity(bare), "an empty qualifier is an absent one"
+    assert _identity(dict(bare, function=None)) == _identity(bare), "a null qualifier is an absent one"
 
 
 def test_the_ENTRY_COUNT_per_module_never_silently_DROPS():
@@ -468,7 +532,9 @@ def test_the_COARSE_TRIPLE_collisions_are_counted_and_the_MATCHER_KEY_resolves_e
 
 
 def _triple_of_js(e):
-    return ("key", e["key"]) if "key" in e else _triple(e)
+    """The coarse triple for a JS entry; for a Python entry its own full identity, which is as coarse as
+    that lane gets. So `COARSE_TRIPLE_COLLISIONS` stays a census of the JS lane alone."""
+    return _py_key(e) if "key" in e else _triple(e)
 
 
 def test_the_MODEL_reads_the_same_key_as_the_JS_matcher():

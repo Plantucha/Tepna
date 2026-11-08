@@ -2690,6 +2690,25 @@ def worn_votes_cell(votes) -> str:
     return ",".join(parts)
 
 
+# ── THE APPEND FAMILY SPEAKS AT WARNING, AND THAT IS A MEASUREMENT ──────────────────────────────
+# Every one of these four helpers is NEVER-RAISES observability, and every production caller discards
+# the bool they return (16 call sites in `capture.py`, 0 that branch on it). So the journal is the
+# only report a failed append has. Until 2026-11-08 three of them spoke at DEBUG and one said nothing
+# at all, and `journal_logging.py` installs the daemon's root logger at INFO — so a DEBUG line is
+# FILTERED BEFORE IT LEAVES THE PROCESS. The level was not "quiet". It was zero trace.
+#
+# WHY NOT MAKE THE CALLERS READ THE BOOL. A caller can do nothing with a False that this line does not
+# already do, and it would do it further from the failure and without the errno. `record_worn_decision`
+# deliberately advances `_WORN_RECORD` whether or not the row landed, because that state tracks what
+# was DECIDED; gating it on the write would retry on every decision instead.
+#
+# WHY NO LATCH, unlike `_SeamSidecar.feed`. Three of these write a handful of rows a night. The fourth
+# runs on `_WORN_RECORD_EVERY_S = 60.0` per device, so a fault lasting a whole night costs about 960
+# lines — ordinary daemon cadence, not the stream-rate flood that earned the sidecar's latch. A broken
+# disk is exactly the event worth a line a minute.
+#
+# `%r` STAYS instead of `_write_error_name`: these handlers also catch TypeError and ValueError, where
+# the message is the whole diagnosis, and an OSError's repr already prints `[Errno 28] No space left`.
 def append_worn_decision(root, when, device, address, worn, why, trigger: str, votes=None) -> bool:
     """Append ONE worn decision to the night's own `WORN.csv`. Returns whether a row was written.
 
@@ -2709,17 +2728,19 @@ def append_worn_decision(root, when, device, address, worn, why, trigger: str, v
     daemon that stopped publishing look identical in the file — which is the shape that made the ring's
     `examined` counter necessary one sidecar over.
 
-    Never raises: evidence must not take capture down."""
+    Never raises: evidence must not take capture down, and a failed row is reported at WARNING."""
     if not root:
         return False
+    path = ""
     try:
         d = night_dir(root, when)
         os.makedirs(d, exist_ok=True)
         path = os.path.join(d, WORN_NAME)
         # APPEND, NEVER TRUNCATE — OxyLifeWriter's lesson, which cost a night's rows on every daemon
         # restart, and this daemon restarts 11-15 times a day. A non-empty file is continued, never
-        # re-headed; the emptiness test is the one the sibling writers use.
-        resumed = False
+        # re-headed; the emptiness test is the one the sibling writers use. There is no initialiser
+        # above the `try`: both of its branches assign, so one would be dead code, and a dead
+        # initialiser is a line no assertion can ever reach.
         try:
             resumed = os.path.getsize(path) > 0
         except OSError:
@@ -2744,7 +2765,8 @@ def append_worn_decision(root, when, device, address, worn, why, trigger: str, v
                 + "\n"
             )
         return True
-    except Exception:
+    except Exception as e:  # noqa: BLE001 - evidence must not take capture down
+        _log.warning("WORN append failed for %s: %r", path or root, e)
         return False
 
 
@@ -2796,13 +2818,15 @@ def append_clock_sync_event(
       across calls; `nightqc.newest_data_mtime` excludes it from data-ranking by construction (it
       matches no capture-name pattern), so the 00:00 decoy-folder trap does not apply.
     · NEVER RAISES. Evidence must never take capture down — the same rule the PMD frame dump keeps.
-      Returns False (logged at debug) when the row could not be written; callers do not branch on it.
+      Returns False, logged at WARNING, when the row could not be written. No caller branches on it,
+      so that line is the only report the failure has. See the banner above this family.
 
     Keyed by the EVENT's wall date (`night_dir(root, when)`) — the LINK/CLOCK sidecar convention: a
     cross-midnight session leaves the late rows in the next date's folder, and the QC/fold layer
     already reads neighbouring folders as one session."""
     if not root:
         return False
+    path = ""
     try:
         path = os.path.join(night_dir(root, when), CLOCKSYNC_NAME)
         fresh = not os.path.exists(path) or os.path.getsize(path) == 0
@@ -2825,7 +2849,7 @@ def append_clock_sync_event(
             )
         return True
     except OSError as e:
-        _log.debug("CLOCKSYNC append failed (%s): %r", event, e)
+        _log.warning("CLOCKSYNC append failed (%s) for %s: %r", event, path or root, e)
         return False
 
 
@@ -2852,6 +2876,7 @@ def append_daemon_start(
     raises."""
     if not root:
         return False
+    path = ""
     try:
         path = os.path.join(night_dir(root, when), STARTS_NAME)
         fresh = not os.path.exists(path) or os.path.getsize(path) == 0
@@ -2874,7 +2899,7 @@ def append_daemon_start(
             )
         return True
     except (OSError, TypeError, ValueError) as e:
-        _log.debug("STARTS append failed: %r", e)
+        _log.warning("STARTS append failed for %s: %r", path or root, e)
         return False
 
 
@@ -2913,6 +2938,7 @@ def append_pmd_negotiation(
     """
     if not root:
         return False
+    path = ""
     try:
         if offered is None:
             offered_s = ""  # nothing was read — not an empty menu (§∅)
@@ -2941,7 +2967,7 @@ def append_pmd_negotiation(
             )
         return True
     except (OSError, TypeError, ValueError) as e:
-        _log.debug("PMDNEG append failed (%s %s): %r", device, stream, e)
+        _log.warning("PMDNEG append failed (%s %s) for %s: %r", device, stream, path or root, e)
         return False
 
 
