@@ -216,6 +216,9 @@ def stalled_protection(
 # file was SOLID-VERDICT.json. The re-judge walks one night about every 30 min, so each deploy would
 # raise one false alarm per night it reaches. The names are the writers' own constants; a test holds
 # the two lists equal. `_MARKER` is this module's own push stamp.
+# The CPAP reconciler's journal is one of them. Measured on the capture box 2026-11-08: the 13:00 harvest
+# appended CPAP-INVENTORY.jsonl to the 2026-11-07 folder, and at 13:01 this named that night "held
+# open", with device data quiet 7.6 h. The journal was the only fresh file.
 _BOX_DERIVED = frozenset(
     {
         "SOLID-VERDICT.json",
@@ -227,6 +230,7 @@ _BOX_DERIVED = frozenset(
         "QC-VERDICT.json",
         "BACKCHECK-VERDICT.json",
         "ADAPTERHCI-VERDICT.json",
+        "CPAP-INVENTORY.jsonl",
         _MARKER,
     }
 )

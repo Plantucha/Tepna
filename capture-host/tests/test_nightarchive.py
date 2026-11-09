@@ -646,8 +646,20 @@ def test_stalled_protection_ignores_the_box_rewriting_its_own_verdicts_on_an_old
     assert [(r["night"], r["any_age_sec"]) for r in rows] == [("2026-10-01", 2.0)], rows
 
 
+def test_stalled_protection_ignores_the_cpap_journal_a_daytime_harvest_appends(tmp_path):
+    """MEASURED on the capture box 2026-11-08: the 13:00 CPAP harvest appended CPAP-INVENTORY.jsonl to the
+    2026-11-07 folder. At 13:01 the box alerted "a finished night is held open", data quiet 7.6 h."""
+    cap = str(tmp_path / "captures")
+    now = 100_000.0
+    d = _night(cap, "2026-11-07", {_DEV: "x", "CPAP-INVENTORY.jsonl": "{}"})
+    _touch(os.path.join(d, _DEV), now - 7.6 * 3600)
+    _touch(os.path.join(d, "CPAP-INVENTORY.jsonl"), now - 56)
+    assert _stalled(cap, 60.0, _now=lambda: now) == []
+
+
 def test_the_box_derived_names_are_the_writers_own_constants():
     import adapter_hci
+    import cpap_inventory_adapter
     import loss_audit
     import solid_night
     import solid_night_inputs
@@ -663,6 +675,7 @@ def test_the_box_derived_names_are_the_writers_own_constants():
         nightarchive.nightqc._QC_VERDICT_NAME,
         nightarchive.nightqc._BACKCHECK_VERDICT_NAME,
         adapter_hci.VERDICT_NAME,
+        cpap_inventory_adapter.JOURNAL_NAME,
         nightarchive._MARKER,
     }
     assert nightarchive._BOX_DERIVED == writers_say
