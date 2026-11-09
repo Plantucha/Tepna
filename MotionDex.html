@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="da6c3a6cf3d4" data-compute-hash="f100a6f2cc3a">
+<html lang="en" data-manifest-hash="de679b1f2efb" data-compute-hash="fac79761d9a0">
 <head>
 <!--
   MotionDex.src.html — Tepna
@@ -12,7 +12,7 @@
 <!-- CSP: browser-enforces the no-network invariant. connect-src 'none' blocks every outbound request;
      script-src is STRICT ('self' + per-inline-script sha256, NO 'unsafe-inline'). MotionDex ships zero
      inline scripts (all init lives in motiondex-app.js), so the hash list is empty by construction. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-LFUuThFphtJbs7xcxi6ccAB4tRpfMsn5CPS3sr9f3SQ=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-bIhKcpZRJ/ZzKulROPoeorGxddt3ajAjGiOPqmDw7ik=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-hCZmwNAMDLPZEMYHAYpzoPETSnimg1oHWWjZImdKqxM=' 'sha256-pyBgyl0sPS3CCYHHKy+ex/zF2QRIR/Y28sDOZOJMAWY=' 'sha256-xfK1VFFnA/N/GsReLhVXzZ3etVtqyfAUmI4oFMKr9SY='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-LFUuThFphtJbs7xcxi6ccAB4tRpfMsn5CPS3sr9f3SQ=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-bIhKcpZRJ/ZzKulROPoeorGxddt3ajAjGiOPqmDw7ik=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-hCZmwNAMDLPZEMYHAYpzoPETSnimg1oHWWjZImdKqxM=' 'sha256-pyBgyl0sPS3CCYHHKy+ex/zF2QRIR/Y28sDOZOJMAWY=' 'sha256-wK9fP+fYfi661IypDOgrAoxGZS8mGJfe9l/9288cTZQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>MotionDex — Motion / IMU Analyzer · v2.29.0</title>
@@ -6294,6 +6294,40 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
     if (nums.length < 3) return null;
     return { x: nums[nums.length - 3], y: nums[nums.length - 2], z: nums[nums.length - 1], ns: 1, phone: 0 };
   }
+  /* THE TAIL COLUMN MAP PINS ONCE, FROM A BOUNDED PREFIX — never per row.
+     `xyzColsByTail` reads the last three NUMERIC fields of the row it gets. On a HEADERLESS file the
+     caller used to re-run it for every row, so one non-numeric axis field left two numeric axis fields
+     and the map SHIFTED by one column: the device timestamp became `x`. Every value stayed finite, so
+     no finite check could see it. Row `2026-11-08-a-headerless-acc-row-with-a-junk-axis-shifts-the-axes`
+     owns that defect. Measured on the 6-column layout, the shifted triple is also PLAUSIBLE
+     (`[20, -206, 756]` mg from a `timestamp [ms]` column), so a range test cannot see it either.
+     The pin reads at most 32 data rows and takes the FIRST row with the MOST numeric fields. A row
+     with a junk axis field has one fewer, so it can never pin the map. A strict "every field numeric"
+     test would be wrong instead: a phone stamp that `parseFloat` refuses would then pin nothing and
+     lose the whole file. After the pin, a junk field yields NaN at the RIGHT column, and the finite
+     check drops the row and counts it. */
+  var XYZ_TAIL_PIN_ROWS = 32;
+  function xyzColsPinnedFromPrefix(lines) {
+    var best = null,
+      bestNums = -1,
+      seen = 0;
+    for (var i = 0; i < lines.length && seen < XYZ_TAIL_PIN_ROWS; i++) {
+      var t = String(lines[i]).trim();
+      if (!t || /timestamp/i.test(t)) continue;
+      var p = t.split(';');
+      if (p.length < 5) continue;
+      seen++;
+      var n = 0;
+      for (var k = 0; k < p.length; k++) {
+        if (isFinite(parseFloat(p[k]))) n++;
+      }
+      if (n > bestNums) {
+        bestNums = n;
+        best = p;
+      }
+    }
+    return best ? xyzColsByTail(best) : null;
+  }
   /* Full-scale bounds per stream kind — the widest range the hardware can express, so a real reading
      is never rejected and a decode artifact never survives. ACC 16 g (the widest Polar/Verity ACC
      range), GYRO 2000 dps, MAG 4900 µT (and 49 G before the Gauss→µT normalisation below).
@@ -6697,7 +6731,9 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
     var resyncs = [];
     var headerKind = null;
     var cols = null;
+    var tailCols = xyzColsPinnedFromPrefix(lines);
     var nImplausible = 0;
+    var nUnmapped = 0;
     for (var li = 0; li < lines.length; li++) {
       var t = lines[li].trim();
       if (!t) continue;
@@ -6708,8 +6744,11 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
       }
       var p = t.split(';');
       if (p.length < 5) continue;
-      var c = cols || xyzColsByTail(p);
-      if (!c) continue;
+      var c = cols || tailCols;
+      if (!c) {
+        nUnmapped++;
+        continue;
+      }
       var x = parseFloat(p[c.x]);
       if (!isFinite(x)) continue; // skips a stray header row too
       var y = parseFloat(p[c.y]),
@@ -6791,6 +6830,9 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
       out.push({ relNs: relNs, tMs: ts ? ts.tMs : null, x: x, y: y, z: z });
     }
     out._implausibleDropped = nImplausible;
+    /* Unconditional, like `_nonFiniteDropped`: a reader must tell "every row had a column map" from
+       "nobody counted". A row counted here reached the parser with no usable column map at all. */
+    out._unmappedDropped = nUnmapped;
     /* Present only when it happened, so every clean stream keeps today's bytes (§1.1). Each entry:
        { idx, deviceStepMs, phoneDeltaMs (null when the seam stamps did not parse) }. */
     if (resyncs.length) out._clockResyncs = resyncs;

@@ -4250,6 +4250,40 @@
     if (nums.length < 3) return null;
     return { x: nums[nums.length - 3], y: nums[nums.length - 2], z: nums[nums.length - 1], ns: 1, phone: 0 };
   }
+  /* THE TAIL COLUMN MAP PINS ONCE, FROM A BOUNDED PREFIX — never per row.
+     `xyzColsByTail` reads the last three NUMERIC fields of the row it gets. On a HEADERLESS file the
+     caller used to re-run it for every row, so one non-numeric axis field left two numeric axis fields
+     and the map SHIFTED by one column: the device timestamp became `x`. Every value stayed finite, so
+     no finite check could see it. Row `2026-11-08-a-headerless-acc-row-with-a-junk-axis-shifts-the-axes`
+     owns that defect. Measured on the 6-column layout, the shifted triple is also PLAUSIBLE
+     (`[20, -206, 756]` mg from a `timestamp [ms]` column), so a range test cannot see it either.
+     The pin reads at most 32 data rows and takes the FIRST row with the MOST numeric fields. A row
+     with a junk axis field has one fewer, so it can never pin the map. A strict "every field numeric"
+     test would be wrong instead: a phone stamp that `parseFloat` refuses would then pin nothing and
+     lose the whole file. After the pin, a junk field yields NaN at the RIGHT column, and the finite
+     check drops the row and counts it. */
+  var XYZ_TAIL_PIN_ROWS = 32;
+  function xyzColsPinnedFromPrefix(lines) {
+    var best = null,
+      bestNums = -1,
+      seen = 0;
+    for (var i = 0; i < lines.length && seen < XYZ_TAIL_PIN_ROWS; i++) {
+      var t = String(lines[i]).trim();
+      if (!t || /timestamp/i.test(t)) continue;
+      var p = t.split(';');
+      if (p.length < 5) continue;
+      seen++;
+      var n = 0;
+      for (var k = 0; k < p.length; k++) {
+        if (isFinite(parseFloat(p[k]))) n++;
+      }
+      if (n > bestNums) {
+        bestNums = n;
+        best = p;
+      }
+    }
+    return best ? xyzColsByTail(best) : null;
+  }
   /* §3.2 — the `…_ACCRUNS.txt` validity sidecar as wall-clock spans, one per recorded blanking run.
      A node-local copy of ECGDex's `parseAccRunsTimed`: nodes never import each other (ARCHITECTURE
      -PRINCIPLES §2). Column 0 is the run's first-sample stamp, column 5 its duration in ms. A row that
@@ -4287,6 +4321,8 @@
     const out = [];
     let ns0 = null;
     let cols = null;
+    const tailCols = xyzColsPinnedFromPrefix(lines);
+    let nUnmapped = 0;
     /* Same mid-file resync split as parsePPG above and as MotionDex's function OF THE SAME NAME.
        ⚠️ This is a node-local copy, not shared code — nodes never import each other (ARCHITECTURE
        -PRINCIPLES §2) and PpgDex does not inline motiondex-dsp.js. It is deliberately NOT held
@@ -4310,8 +4346,11 @@
       }
       const p = t.split(';');
       if (p.length < 5) continue;
-      const c = cols || xyzColsByTail(p);
-      if (!c) continue;
+      const c = cols || tailCols;
+      if (!c) {
+        nUnmapped++;
+        continue;
+      }
       const x = parseFloat(p[c.x]);
       if (!isFinite(x)) continue;
       const y = parseFloat(p[c.y]),
@@ -4373,6 +4412,9 @@
     /* Unconditional, like the twin's `_implausibleDropped`: a reader must tell "nothing was dropped"
        from "this parser does not count", and a key that appears only when non-zero cannot. */
     /** @type {any} */ (out)._nonFiniteDropped = nNonFinite;
+    /* Unconditional, like `_nonFiniteDropped`: a reader must tell "every row had a column map" from
+       "nobody counted". A row counted here reached the parser with no usable column map at all. */
+    /** @type {any} */ (out)._unmappedDropped = nUnmapped;
     const _accRuns = parseAccRunsTimed(opts && opts.runsText);
     /* §∅ — A SIDECAR THAT FOUND NO RUN IS A MEASUREMENT, AND ITS ABSENCE IS NOT. Spans alone
        cannot carry that difference, so `_runsSidecar` rides beside them and is present exactly when a
