@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="f7a2ba6cdb19" data-compute-hash="460ffb896a5c">
+<html lang="en" data-manifest-hash="357d646bb0bb" data-compute-hash="0a235243e04c">
 <head>
 <!--
   OxyDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CNkm2h+ZlrSYYzoGx9OxoFo/k2UmcAbaZ9Bd72GM4as=' 'sha256-D/gy6mVrVyLsBTGH3bqXGSDAHfHPALNNh5GY/90wWSI=' 'sha256-D0YR9+62Fd3hUFRoEZhA/MkKslQirmZQg7KMBHKpICk=' 'sha256-E1IsN6aDCUvHb/53fIyPoB7AQMLdRp5olYowv/ZbZ6A=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-QyURGUmKmbpEGz6vtt+poPueeRE901i4IjiyZIbxJNo=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-XqyVux6nZ1GoEpXw5HlJF6/fUCrzC+aJ4dGKEuYCK0w=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-fHhzdzpcyyDp2wZahreASbSqNTutakABREfHNTgRsvk=' 'sha256-hCZmwNAMDLPZEMYHAYpzoPETSnimg1oHWWjZImdKqxM=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-mIkYdY2JZ9YGD4IobKqAjFiq1Sr9QMIvGcl7BQmoQGc=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-s5jQgZ2dCmcNdTTy5gLqyiwkCVbXvuldnqeO/1M79kk=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es=' 'sha256-ynByqFMQEb/9Jyj15EK7Xt1L6wyGZyNOFcqBrDJHJ68='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9MXGbNTKgNSwjCivTwP1TLBG1mXpMgJTaOaVdHOR7aQ=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CNkm2h+ZlrSYYzoGx9OxoFo/k2UmcAbaZ9Bd72GM4as=' 'sha256-D/gy6mVrVyLsBTGH3bqXGSDAHfHPALNNh5GY/90wWSI=' 'sha256-D0YR9+62Fd3hUFRoEZhA/MkKslQirmZQg7KMBHKpICk=' 'sha256-E1IsN6aDCUvHb/53fIyPoB7AQMLdRp5olYowv/ZbZ6A=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-QyURGUmKmbpEGz6vtt+poPueeRE901i4IjiyZIbxJNo=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-XqyVux6nZ1GoEpXw5HlJF6/fUCrzC+aJ4dGKEuYCK0w=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-fHhzdzpcyyDp2wZahreASbSqNTutakABREfHNTgRsvk=' 'sha256-hCZmwNAMDLPZEMYHAYpzoPETSnimg1oHWWjZImdKqxM=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-o/OfUTUMD6JSfOaWMPWGW0J7rY0WOrfnPef9LcNj85g=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-s5jQgZ2dCmcNdTTy5gLqyiwkCVbXvuldnqeO/1M79kk=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>OxyDex — Nocturnal Oximetry Analyzer · v2.29.0</title>
@@ -16355,8 +16355,23 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
      the number describes.
      Scattered dropouts ANNOTATE and a discontinuity refuses (owner ruling 2026-09-17). 70 absent rows
      of 27,600 are scattered, so the night keeps its spectrum and publishes `coveredN` beside `spanN`.
-     This function cannot yet separate a long contiguous absent RUN from scattered dropouts, and such a
-     run is a discontinuity. That half is named on the fleet board and is not fixed here. */
+     THE SHAPE OF THE ABSENCE IS NOW PUBLISHED, and the remedy is NOT a run-length refusal. Measured
+     2026-11-09 over 24 synthetic nights of 27,600 samples at 1 Hz (AR(1) rho 0.98, a planted cycle on a
+     tested bin), one contiguous absent run swept 0 to 800 s, against the same absent count scattered:
+
+       one run 0 to 800 s (0 to 2.90 % absent)   fabrications 0/24 at every length, cycle found 24/24
+       the same count scattered (60 to 600 s)    fabrications 0/24 at every length, cycle found 24/24
+       the run at the start / middle / end       fabrications 0/24 each,            cycle found 24/24
+       a cycle in the first 40 % plus an 800 s hole   snr p50 165.2, against 161.1 with no hole
+       the row's own case, a 2400 s hole         REFUSED (8.70 % absent, over the 3 % floor)
+
+     The floor caps TOTAL absence at 3 %, so on a 7.67 h night it already bounds any single run to about
+     14 minutes, and a 40 min hole at 98 % coverage needs a 33 h record. So nothing measurable survives
+     for a run-length threshold to prevent, and a threshold with no measured harm behind it is a number
+     nobody can defend. What DID survive is the REASON: a night cut in two was reported as
+     `coverage-below-floor`, which describes dropout dust. Below the floor the reason is now named from
+     the shape (see the refusal), and above it `absentRunMaxN` travels beside `coveredN` so a consumer
+     can tell one hole from scattered dust itself. */
   function computeSpO2FFT(rows, fs) {
     var spo2 = rows.map(function (r) {
       return r.spo2;
@@ -16368,11 +16383,19 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     var covered = 0,
       sum = 0,
       pi;
+    /* The SHAPE of the absence, not only its amount: `absentRunMaxN` is the longest CONTIGUOUS absent
+       stretch, which is what separates two readings of one night from one reading of two stretches. */
+    var absentRunMaxN = 0,
+      _run = 0;
     for (pi = 0; pi < n; pi++) {
       if (typeof spo2[pi] === 'number' && isFinite(spo2[pi])) {
         present[pi] = 1;
         covered++;
         sum += spo2[pi];
+        _run = 0;
+      } else {
+        _run++;
+        if (_run > absentRunMaxN) absentRunMaxN = _run;
       }
     }
     // The floor reads the COVERED count, never the span: a 27,600-row night that measured 400 samples
@@ -16383,6 +16406,12 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
        the gaps. The short-night case above returns null, which is the shape every consumer already
        reads for it. */
     if (covered / n < _FFT_MIN_COVERAGE) {
+      /* ∅ THE REASON IS NAMED, NEVER BORROWED (owner ruling 2026-09-17; residue
+         2026-11-09-the-spo2-spectrum-reads-a-gap-run-as-reduced-coverage). `coverage-below-floor`
+         describes dropout dust. A night whose absence is mostly ONE stretch was not dropped out, it
+         was cut in two, and a consumer told `coverage-below-floor` about it reads the wrong defect.
+         PRE-STATED CRITERION, decided before the measurement below: the dominant shape is the one
+         holding the MAJORITY of the absent samples. */
       return {
         peakFreqHz: null,
         peakCycSec: null,
@@ -16393,8 +16422,9 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
         rhoLag1: null,
         coveredN: covered,
         spanN: n,
+        absentRunMaxN: absentRunMaxN,
         detected: false,
-        reason: 'coverage-below-floor'
+        reason: absentRunMaxN * 2 >= n - covered ? 'absence-run' : 'coverage-below-floor'
       };
     }
     var RATE = fs > 0 ? fs : 1; // SpO2 rows are 1 Hz; the argument keeps that testable
@@ -16471,6 +16501,8 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       // night, and no consumer must infer coverage from the span.
       coveredN: covered,
       spanN: n,
+      /* The absence's SHAPE beside its amount. 0 on a night that measured every sample. */
+      absentRunMaxN: absentRunMaxN,
       detected: ok,
       // The key is always present, so a consumer reads a reason or `null`, and never `undefined`.
       reason: null
@@ -33415,6 +33447,11 @@ function exportCSV() {
       // coverage annotates). CONDITIONAL, so a night with a reading in every row exports as before.
       if (typeof n.fft.coveredN === 'number' && typeof n.fft.spanN === 'number' && n.fft.coveredN < n.fft.spanN) {
         lines.push('  FFT Covered Samples,' + n.fft.coveredN, '  FFT Span Samples,' + n.fft.spanN);
+        // The SHAPE of that absence beside its amount: the same 600 absent samples are one 10 min hole
+        // or dust over the night, and the two are different readings of the same coverage.
+        if (typeof n.fft.absentRunMaxN === 'number') {
+          lines.push('  FFT Longest Absent Run (samples),' + n.fft.absentRunMaxN);
+        }
       }
       // A REFUSAL READS AS A REFUSAL. An empty peak beside a reason says the night was examined and
       // the spectrum was not published; an empty peak alone reads as "no cycle cleared the background".

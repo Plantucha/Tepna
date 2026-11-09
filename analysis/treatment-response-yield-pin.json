@@ -24,7 +24,7 @@
       "dex-escape.js": "f0d38619047a",
       "oxydex-util.js": "5cc642ee790b",
       "oxydex-profile.js": "3496a101178a",
-      "oxydex-dsp.js": "88a13aaa8774"
+      "oxydex-dsp.js": "1a0df4a4722e"
     },
     "pulse": {
       "synth-gen.js": "a653cf5afb78",
@@ -144,11 +144,18 @@
       "old": "2ef485cdb9ce",
       "new": "88a13aaa8774",
       "reason": "residue 2026-11-08-absent-oxydex-hr-takes-the-present-channels-out-of-the-export: a 5-min epoch under the 60-sample HR floor now publishes hr null with its hrN count and KEEPS its motion, and the timeseries block ships whenever any one of epochs / spo2 / hr exists. Before this, a night that cleared no HR floor exported no block at all, so the 1 Hz SpO2 series left the node with it. Statements moved, so the yield was RE-CUT at paper scale, not re-stamped: 233 tx / 239 flat, identical to the entry this one closes. The treatment-response detectors read ODI-4 and rMSSD, not the epoch grid, which is why the measurement does not move. This entry closes 2ef485cdb9ce, which the entry above opens, so the oxydex-dsp.js chain is continuous from there forward. The tool still appends no note of its own, and PR #4692 logs that as a separate finding with the four unrecorded moves it found on main."
+    },
+    {
+      "date": "2026-11-09",
+      "file": "oxydex-dsp.js",
+      "old": "88a13aaa8774",
+      "new": "1a0df4a4722e",
+      "reason": "residue 2026-11-09-the-spo2-spectrum-reads-a-gap-run-as-reduced-coverage: computeSpO2FFT now publishes absentRunMaxN, the longest contiguous absent run, and names a refusal that one hole caused as absence-run. The spectrum is not a treatment-response input, and the re-cut measured the SAME 233 tx / 239 flat under the moved closure, so the yield is unchanged and this entry records the move only."
     }
   ],
-  "measuredAt": "2026-11-09T11:39:12.199Z",
+  "measuredAt": "2026-11-09T15:29:30.256Z",
   "producedBy": {
     "tool": "tools/treatment-response-yield-pin.mjs",
-    "commit": "fd07b5d4e"
+    "commit": "c81139511"
   }
 }

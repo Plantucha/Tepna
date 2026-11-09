@@ -370,8 +370,8 @@
       },
       "sourceChannel": "O2Ring:spo2",
       "code": {
-        "manifestHash": "f7a2ba6cdb19",
-        "computeHash": "460ffb896a5c"
+        "manifestHash": "357d646bb0bb",
+        "computeHash": "0a235243e04c"
       },
       "evidence": {
         "envelopeRef": null,
@@ -399,8 +399,8 @@
       },
       "sourceChannel": "O2Ring:spo2",
       "code": {
-        "manifestHash": "f7a2ba6cdb19",
-        "computeHash": "460ffb896a5c"
+        "manifestHash": "357d646bb0bb",
+        "computeHash": "0a235243e04c"
       },
       "evidence": {
         "envelopeRef": null,
@@ -428,8 +428,8 @@
       },
       "sourceChannel": "O2Ring:spo2",
       "code": {
-        "manifestHash": "f7a2ba6cdb19",
-        "computeHash": "460ffb896a5c"
+        "manifestHash": "357d646bb0bb",
+        "computeHash": "0a235243e04c"
       },
       "evidence": {
         "envelopeRef": null,
@@ -457,8 +457,8 @@
       },
       "sourceChannel": "O2Ring:spo2",
       "code": {
-        "manifestHash": "f7a2ba6cdb19",
-        "computeHash": "460ffb896a5c"
+        "manifestHash": "357d646bb0bb",
+        "computeHash": "0a235243e04c"
       },
       "evidence": {
         "envelopeRef": null,
@@ -1251,8 +1251,9 @@
       "rhoLag1": null,
       "coveredN": 5400,
       "spanN": 7200,
+      "absentRunMaxN": 1800,
       "detected": false,
-      "reason": "coverage-below-floor"
+      "reason": "absence-run"
     },
     "hrEnt": {
       "sampEn": 0.0371,
