@@ -649,7 +649,7 @@
       label: 'CS Score',
       unit: '/3',
       goodDirection: 'down',
-      depth: 'secondary',
+      depth: 'advanced',
       evidence: 'experimental',
       cite: 'Constructed 0-3 indicator count for CSR-like breathing (cycle 40-130 s + BLUNTED_AROUSAL + CRC<0.2 + low-ODI/high-PB). Not a likelihood and not validated: night-level agreement with CPAP PB scoring was kappa -0.039'
     },
@@ -665,7 +665,7 @@
       label: 'Clustering Index',
       unit: '',
       goodDirection: 'down',
-      depth: 'secondary',
+      depth: 'advanced',
       evidence: 'heuristic',
       cite: 'Fraction of desaturation nadirs in the second half of the recording; the >0.6 / <0.4 reading is a rule of thumb'
     },
@@ -673,7 +673,7 @@
       label: 'Desaturation Asymmetry',
       unit: 'ratio',
       goodDirection: 'down',
-      depth: 'secondary',
+      depth: 'advanced',
       evidence: 'heuristic',
       cite: "|mean dip slope| / |mean recovery slope| (oxydex-dsp.js:2360); the >1.5 abrupt / <0.7 gradual bands are this suite's own"
     },
@@ -681,7 +681,7 @@
       label: 'Dip Slope',
       unit: '%/s',
       goodDirection: 'up',
-      depth: 'secondary',
+      depth: 'advanced',
       evidence: 'heuristic',
       cite: 'Mean rate of fall from baseline to nadir, negative %/s — descriptive of the detected event set, no validated cut'
     },
@@ -697,7 +697,7 @@
       label: 'HR CV',
       unit: '%',
       goodDirection: 'down',
-      depth: 'secondary',
+      depth: 'advanced',
       evidence: 'heuristic',
       cite: 'SD/mean x100 of motion-free HR — an SDNN proxy normalised by rate, not an HRV standard'
     },
@@ -713,7 +713,7 @@
       label: 'HR Nadir Timing',
       unit: 'h',
       goodDirection: '',
-      depth: 'secondary',
+      depth: 'advanced',
       evidence: 'measured',
       cite: "Ground (Kestrel, 2026-09-02): registry precedent `minSpo2` ('lowest recorded — direct reading'); the 5-min smoothing window is named above and does not make the readout a threshold. Hour from recording start of the lowest 5-min smoothed HR — a readout of sensed HR, no model"
     },
@@ -737,7 +737,7 @@
       label: 'Intra-Night NSI',
       unit: '',
       goodDirection: 'down',
-      depth: 'secondary',
+      depth: 'advanced',
       evidence: 'experimental',
       cite: 'The Nocturnal Stress Index computed over three 90-min epochs — a bespoke composite, per-epoch'
     },
@@ -753,7 +753,7 @@
       label: 'Longest Clean Run',
       unit: 'min',
       goodDirection: 'up',
-      depth: 'secondary',
+      depth: 'advanced',
       evidence: 'heuristic',
       cite: 'Longest uninterrupted run of SpO2 > 95% (oxydex-dsp.js:1481) — a single tuned threshold; it does not test motion or artifact flags'
     },
@@ -761,7 +761,7 @@
       label: 'MODL',
       unit: '%',
       goodDirection: 'up',
-      depth: 'secondary',
+      depth: 'advanced',
       evidence: 'measured',
       cite: "Ground (Kestrel, 2026-09-02): registry precedent `nadirDepth` ('mean depth of those nadirs, in the sensed unit', measured) — a mean of sensed values over a threshold-defined set; the threshold belongs to the DETECTION metric (odi3), not to the mean. Mean SpO2 of samples inside detected desaturation events — a readout of sensed SpO2 over the detected set"
     },
@@ -769,7 +769,7 @@
       label: 'Motion Bursts',
       unit: 'count',
       goodDirection: 'down',
-      depth: 'secondary',
+      depth: 'advanced',
       evidence: 'heuristic',
       cite: 'Count of motion runs lasting >=3 consecutive samples (oxydex-dsp.js:1465) — a tuned minimum length'
     },
@@ -785,7 +785,7 @@
       label: 'Post-Dip HR Response',
       unit: 'bpm',
       goodDirection: 'up',
-      depth: 'secondary',
+      depth: 'advanced',
       evidence: 'measured',
       cite: 'Mean HR difference between each desaturation nadir and 60 s later — a difference of sensed HR at defined offsets'
     },
@@ -817,7 +817,7 @@
       label: 'Recovery Slope',
       unit: '%/s',
       goodDirection: 'up',
-      depth: 'secondary',
+      depth: 'advanced',
       evidence: 'heuristic',
       cite: 'Mean rate of resaturation from nadir to event close — descriptive of the detected event set'
     },
@@ -825,7 +825,7 @@
       label: 'Sleep Pressure Index (SPI)',
       unit: '',
       goodDirection: 'down',
-      depth: 'secondary',
+      depth: 'advanced',
       evidence: 'experimental',
       cite: 'Ground (Kestrel, 2026-09-02): §🎫 composite→experimental. Weighted composite of WASO (0.4), motion bursts (0.15) and sleep-onset latency — a bespoke construction with authored weights'
     },
@@ -849,7 +849,7 @@
       label: 'SpO₂ Nadir Timing',
       unit: 'h',
       goodDirection: '',
-      depth: 'secondary',
+      depth: 'advanced',
       evidence: 'measured',
       cite: 'Hours from recording start of the first and last detected desaturation nadir — a readout of event times'
     },
@@ -865,7 +865,7 @@
       label: 'SpO₂–HR Decoupling %',
       unit: '%',
       goodDirection: 'down',
-      depth: 'secondary',
+      depth: 'advanced',
       evidence: 'experimental',
       cite: 'Percentage of 30-s windows in which SpO2 and HR move in opposite directions (oxydex-dsp.js:1654) — a constructed agreement statistic, not a sensed quantity'
     },
@@ -881,7 +881,7 @@
       label: 'Stable SpO₂ Windows',
       unit: 'count',
       goodDirection: 'up',
-      depth: 'secondary',
+      depth: 'advanced',
       evidence: 'heuristic',
       cite: 'Count of 5-min windows with SpO2 SD < 1% (oxydex-dsp.js:1566) — a single tuned threshold'
     },
@@ -889,7 +889,7 @@
       label: 'UARS Score',
       unit: '/3',
       goodDirection: 'down',
-      depth: 'secondary',
+      depth: 'advanced',
       evidence: 'experimental',
       cite: 'Constructed 0-3 indicator count for upper-airway resistance (cycle <40 s + AAI>=3 + low-ODI/oscillations + SFI>=2). Not a likelihood and not validated'
     },
@@ -897,7 +897,7 @@
       label: 'Vagal Index',
       unit: '',
       goodDirection: 'up',
-      depth: 'secondary',
+      depth: 'advanced',
       evidence: 'experimental',
       cite: 'Ground (Kestrel, 2026-09-02): §🎫 composite→experimental. Weighted composite of pNN3, HR floor and longest clean run — a bespoke construction with authored weights'
     },
@@ -905,7 +905,7 @@
       label: 'Worst 10-min SpO₂',
       unit: '%',
       goodDirection: 'up',
-      depth: 'secondary',
+      depth: 'advanced',
       evidence: 'measured',
       cite: 'Lowest mean SpO2 over any 10-min sliding window — a readout of sensed SpO2'
     },
@@ -913,7 +913,7 @@
       label: 'Worst 30-min T95',
       unit: '%',
       goodDirection: 'down',
-      depth: 'secondary',
+      depth: 'advanced',
       evidence: 'heuristic',
       cite: 'Highest T95 over any 30-min rolling window; T95 itself is a threshold statistic (time below 95%)'
     }
