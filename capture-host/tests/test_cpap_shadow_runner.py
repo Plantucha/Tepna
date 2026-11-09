@@ -524,3 +524,64 @@ def test_A_HOOK_THAT_RAISES_DOES_NOT_BECOME_A_SECOND_FAILURE():
         raise RuntimeError("hook exploded")
 
     R._notify_unreachable(_boom, OSError("boom"))  # must not raise
+
+
+def test_the_loop_hands_each_seam_exactly_what_it_was_given(caplog):
+    """Pin every argument the loop forwards, over one failure of each kind and then one success.
+
+    The mutation gate scores the whole of `run_shadow_loop` when a PR changes it, and 24 mutants that
+    replace a forwarded argument with None, or drop it, survived the tests above: they asserted that
+    a seam was CALLED, not WHAT it was handed. Each assertion below names the seam it pins."""
+    sw, cw = _Writer(), _Writer()
+    connect, supervisor = object(), object()
+    host_epoch = _epochs(start=1000.0, step=0.0)
+    decision, anchor = object(), (1000.0, 990.0)
+    os_err, other_err = OSError("connect refused"), RuntimeError("Device was not found.")
+    script = [os_err, other_err, (decision, anchor, (1000.0, "2026-11-08T23:59:50Z", 990.0))]
+    polls, slept, cycles, unreachable = [], [], [], []
+
+    async def fake_poll(**kw):
+        polls.append(kw)
+        step = script[len(polls) - 1]
+        if isinstance(step, BaseException):
+            raise step
+        return step
+
+    async def sleep(s):
+        slept.append(s)
+
+    with caplog.at_level("WARNING", logger=R.log.name):
+        _run(
+            R.run_shadow_loop(
+                connect=connect,
+                creds=CREDS,
+                supervisor=supervisor,
+                is_capturing=lambda: False,
+                session_writer=sw,
+                clock_writer=cw,
+                host_epoch=host_epoch,
+                sleep=sleep,
+                poll_interval_s=30.0,
+                should_stop=_stopper(3),
+                on_cycle=lambda d, a: cycles.append((d, a)),
+                on_unreachable=unreachable.append,
+                poll_cycle=fake_poll,
+            )
+        )
+    # poll_cycle: all four seams, by identity, on every poll. A failed poll continues to the next one.
+    assert polls == [{"connect": connect, "creds": CREDS, "supervisor": supervisor, "host_epoch": host_epoch}] * 3
+    # on_unreachable: the exception object itself, once per failed poll, in order.
+    assert unreachable == [os_err, other_err]
+    # sleep: the configured interval after each of the three polls.
+    assert slept == [30.0, 30.0, 30.0]
+    # log: the generic branch names the exception class and its text.
+    assert [r.getMessage() for r in caplog.records] == [
+        "AS11 shadow poll failed (RuntimeError: Device was not found.) — skipping cycle"
+    ]
+    # session_writer: two unreachable rows, then the decision itself.
+    assert [type(r[0]).__name__ for r in sw.rows[:2]] == ["UnreachableRow", "UnreachableRow"]
+    assert sw.rows[2] == (decision,)
+    # clock_writer: every column of the clock row, and the offset host minus device.
+    assert cw.rows == [(R._utc_iso(1000.0), 1000.0, "2026-11-08T23:59:50Z", 990.0, 10.0)]
+    # on_cycle: the decision and the anchor of the successful poll.
+    assert cycles == [(decision, anchor)]
