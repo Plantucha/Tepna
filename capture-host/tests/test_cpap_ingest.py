@@ -147,14 +147,14 @@ def test_summary_is_a_flat_stable_dict():
 
 
 def test_the_DEFAULT_record_publishes_its_unmeasured_categories_as_None():
-    """The shape a real night produces today: nothing writes `stalls` or `post_drop_tail`, so both are
-    None rather than 0, and the summary says which categories the total does not cover.
+    """The shape a real night produces today: nothing writes `overflow`, `stalls` or `post_drop_tail`,
+    so all three are None rather than 0, and the summary says which categories the total does not cover.
 
     A zero here would read as "counted, and none happened" — the same sentence `_counter` in
     `acq_evidence_cpap` uses — when nothing looked."""
     s = GapCounters().summary()
-    assert s["stalls"] is None and s["post_drop_tail"] is None
-    assert s["lost_coverage_missing"] == ["stalls", "post_drop_tail"]
+    assert s["overflow"] is None and s["stalls"] is None and s["post_drop_tail"] is None
+    assert s["lost_coverage_missing"] == ["overflow", "stalls", "post_drop_tail"]
     assert s["total_lost"] == 0, "no loss measured is still a real 0 for the categories that ARE counted"
 
 
@@ -259,11 +259,15 @@ def test_sink_slow_counts_the_writes_that_could_HAVE_STALLED_the_loop():
 
 def test_a_MEASURED_stall_leaves_the_unmeasured_list_while_post_drop_tail_stays():
     """`stalls` gained a detector (`cpap_continuity.ContinuityTracker.stalls`, written on by
-    `cpap_stream.stream_to_bus`); `post_drop_tail` did not. So the list names one, not two — and a
-    measured 0 counts as measured, because 0 here is "compared, and nothing was lost"."""
+    `cpap_stream.stream_to_bus`); `overflow` and `post_drop_tail` did not. So the list names two of
+    three — and a measured 0 counts as measured, because 0 here is "compared, and nothing was lost".
+
+    ⚠️ THESE TWO ASSERTIONS READ `["post_drop_tail"]` UNTIL 2026-11-09, which is the defect in
+    one line. `overflow` carried an `int = 0` default, so it never entered the list and never looked
+    unmeasured (residue 2026-11-08-cpap-transport-overflow-has-no-live-writer)."""
     c = GapCounters(stalls=0)
-    assert c.lost_coverage == ["post_drop_tail"]
-    assert c.summary()["lost_coverage_missing"] == ["post_drop_tail"]
+    assert c.lost_coverage == ["overflow", "post_drop_tail"]
+    assert c.summary()["lost_coverage_missing"] == ["overflow", "post_drop_tail"]
     assert c.total_lost == 0, "a stall is an event on the device clock, never an addend in a frame total"
     assert GapCounters(stalls=4).total_lost == 0, "still not in the total — the consumer sums it"
 
@@ -301,12 +305,103 @@ def test_the_probe_is_read_for_TRUTH_so_an_instant_counts_as_well_as_a_flag():
     assert c.post_drop_tail == 1
 
 
-def test_BOTH_unmeasured_categories_now_have_writers_so_the_list_can_empty():
-    """The state this unit exists to reach: `lost_coverage` empty means every category was LOOKED FOR,
-    which is what `acq_evidence_cpap` requires before it will stamp COMPLETE. It is not the same claim
-    as "nothing was lost" — `total_lost` answers that, and these two stay outside it."""
+def test_the_TWO_WIRED_categories_empty_their_own_slots_and_overflow_is_what_remains():
+    """`lost_coverage` empty means every category was LOOKED FOR, which is what `acq_evidence_cpap`
+    requires before it will stamp COMPLETE. It is not the same claim as "nothing was lost" —
+    `total_lost` answers that, and these two stay outside it.
+
+    ⚠️ THIS ASSERTED AN EMPTY LIST HERE, under a name that called its two categories BOTH of
+    them. There are three. `stalls` and `post_drop_tail` have writers on the production pump and
+    `overflow` has none, so the list keeps one name. An empty list now needs a queue, and
+    `test_constructing_the_queue_turns_overflow_from_unmeasured_into_a_counted_zero` pins that."""
     c = GapCounters(stalls=0)
     c.note_link_down_frame(False)
-    assert c.lost_coverage == []
-    assert c.summary()["lost_coverage_missing"] == []
+    assert c.lost_coverage == ["overflow"]
+    assert c.summary()["lost_coverage_missing"] == ["overflow"]
     assert c.summary()["post_drop_tail"] == 0
+
+
+# ── `overflow` IS UNMEASURED ON THE PRODUCTION PUMP, AND SAYS SO ─────────────────────────────────
+# Residue 2026-11-08-cpap-transport-overflow-has-no-live-writer. `overflow` kept an `int = 0` default
+# while its only writer, `BoundedIngestQueue`, is created by no non-test module. So every live night
+# published 0 for a category nothing had looked at, and `acq_evidence_cpap` summed that 0 into
+# `transport_gaps` under a comment claiming a live writer. Its neighbours `stalls` and `post_drop_tail`
+# were fixed for the same defect in W2(a); this field was left behind.
+#
+# 🔴 THE CASE AGAINST A STRUCTURAL ZERO, because it is the tempting answer. The live pump awaits the
+# sink inline, so it holds no queue and cannot drop a frame that way. That argument is about the CODE.
+# A 0 in this record is the sentence `_counter` states — "counted, and none happened" — and no counter
+# existed to say it. A reader cannot tell the two apart from the number, which is §∅ exactly.
+
+
+def test_NO_PRODUCTION_MODULE_CREATES_THE_BOUNDED_QUEUE_which_is_why_overflow_is_None():
+    """🔴 THE PREMISE OF THIS SECTION, PINNED AS A TEST RATHER THAN LEFT AS A COMMENT.
+
+    The row that found this defect had to run the census by hand, and the brief that deferred the
+    wiring recorded the same fact in prose two months earlier. Prose does not red when it goes stale,
+    so the next session repeats the census. This does not.
+
+    When it fails, the queue has been wired and `overflow` has a real writer: give the field its `0`
+    default back, drop it from `lost_coverage`, and re-read this section."""
+    import pathlib
+
+    root = pathlib.Path(__file__).resolve().parent.parent
+    files = sorted(root.glob("*.py")) + sorted(root.glob("deploy/**/*.py"))
+    assert files, "the census scanned nothing, so it proved nothing"
+    hits = {p.name: ("BoundedIngestQueue(" in p.read_text(encoding="utf-8")) for p in files}
+    assert not any(hits.values()), f"a module now creates the bounded queue: {[n for n, h in hits.items() if h]}"
+
+
+def test_an_unmeasured_overflow_is_NOT_summed_into_total_lost():
+    """The addend half. `total_lost` is documented as summing only terms that can move, and `overflow`
+    could not move. A total that silently adds an absent category is the "lie with more addends" the
+    property's own docstring refuses."""
+    c = GapCounters(malformed=4)
+    assert c.overflow is None, "the live pump's own shape: nothing wired a queue"
+    assert c.total_lost == 4, "malformed alone; an absent category contributes nothing, not zero"
+    assert "overflow" in c.lost_coverage, "and the reader is told which category the total misses"
+
+
+def test_constructing_the_queue_turns_overflow_from_unmeasured_into_a_counted_zero():
+    """The mirror error, guarded. A field that stayed None on a WIRED pump would be the same §∅ failure
+    pointing the other way, and `offer` would raise on the first drop instead of counting it.
+
+    Constructing the queue is the moment a counter begins to exist, so that is where `0` is earned."""
+    c = GapCounters()
+    assert c.overflow is None and "overflow" in c.lost_coverage
+    q = BoundedIngestQueue(capacity=2, counters=c)
+    assert c.overflow == 0, "a queue exists, so a drop is now countable: 0 means counted and none happened"
+    assert "overflow" not in c.lost_coverage, "and the category leaves the uncovered list"
+    assert q.offer("a") is True and q.offer("b") is True
+    assert q.offer("c") is False
+    assert c.overflow == 1 and c.total_lost == 1
+    # A SECOND drop must ADD. One drop alone cannot tell `+= 1` from `= 1`, and the mutation gate
+    # named that survivor on the first push of this unit.
+    assert q.offer("d") is False
+    assert c.overflow == 2 and c.total_lost == 2, "and the count now reaches the total it belongs in"
+
+
+def test_a_drop_whose_counter_was_blanked_after_construction_REFUSES():
+    """The control for `offer`'s refusal. Nothing in the tree blanks the field after a queue starts
+    the counter, so this plants the state by hand. It earns the refusal its place: without it the
+    only honest alternatives are an `or 0`, which re-fabricates the zero ∅ forbids, or a silent
+    `TypeError` from the increment."""
+    c = GapCounters()
+    q = BoundedIngestQueue(capacity=1, counters=c)
+    assert c.overflow == 0
+    q.offer("x")
+    c.overflow = None
+    with pytest.raises(AssertionError, match="before the queue started it"):
+        q.offer("y")
+
+
+def test_a_queue_handed_counters_that_already_counted_does_not_reset_them():
+    """The bound on the line above: it must START a counter, never ZERO one. A second queue over the
+    same record — or a queue built after a drop was already folded in — would otherwise erase the
+    loss it exists to record."""
+    c = GapCounters()
+    first = BoundedIngestQueue(capacity=1, counters=c)
+    first.offer("x")
+    assert first.offer("y") is False and c.overflow == 1
+    BoundedIngestQueue(capacity=1, counters=c)
+    assert c.overflow == 1, "the recorded drop survived a second queue over the same counters"
