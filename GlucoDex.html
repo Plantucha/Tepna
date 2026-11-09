@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="f60e776dfd4f" data-compute-hash="7fcb0330808e">
+<html lang="en" data-manifest-hash="38562483324a" data-compute-hash="160ccc75fbe8">
 <head>
 <!--
   GlucoDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-UvDbDts3+neURbz5qbvya/0mru+OeoZ1uY5iEk8wSUw=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-bV9puip5cXhdmdjTxLQSmozaij4ixCzmMm4aPQpZ5Og=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-eqhMkaKkI0DeDYeFRr158XI1OLlvfo+v/yXmogvQqzI=' 'sha256-hCZmwNAMDLPZEMYHAYpzoPETSnimg1oHWWjZImdKqxM=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-qO3ylT8ZcYfRnec/7L/gIvJzwj3nEH4AIZneevqETHU=' 'sha256-qzpUtdWH1TlUe+keMoviP5ddzz3oKD3bFygdJMXw118=' 'sha256-xeo/SvJn5pePZ1SM5sKHX3dRwul+yLMPUvGj5yOK8ns='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-UvDbDts3+neURbz5qbvya/0mru+OeoZ1uY5iEk8wSUw=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-bV9puip5cXhdmdjTxLQSmozaij4ixCzmMm4aPQpZ5Og=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-eqhMkaKkI0DeDYeFRr158XI1OLlvfo+v/yXmogvQqzI=' 'sha256-hCZmwNAMDLPZEMYHAYpzoPETSnimg1oHWWjZImdKqxM=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-qO3ylT8ZcYfRnec/7L/gIvJzwj3nEH4AIZneevqETHU=' 'sha256-qzpUtdWH1TlUe+keMoviP5ddzz3oKD3bFygdJMXw118=' 'sha256-xeo/SvJn5pePZ1SM5sKHX3dRwul+yLMPUvGj5yOK8ns='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>GlucoDex — Continuous Glucose Analyzer · v2.29.0</title>
@@ -3592,6 +3592,12 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
  * @property {string|null}  kernelHash  DexKernel.HASH at parse time
  * @property {string[]}     warnings    non-fatal notes
  *
+ * @typedef {Object} SignalFrameCounts   what the interval parser removed, each null when unreported
+ * @property {number|null} nRaw       intervals the parser read
+ * @property {number|null} nUsable    intervals inside the physiological range
+ * @property {number|null} nBlocked   intervals the parser blocked as artifacts
+ * @property {number|null} timeRatio  summed intervals over the stamped span
+ *
  * @typedef {Object} SignalFrame   The ONLY thing DSP should consume (brief §2.2).
  * @property {('rr'|'ecg'|'spo2'|'cgm'|'eeg'|'flow'|'hr'|'acc'|'hrv')} signalType  a SignalSpec key
  * @property {('intervals'|'samples')} kind
@@ -3604,6 +3610,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
  * @property {number|null}  sqi         0..1 signal-quality, or null — SEPARATE axis from conf
  * @property {boolean}      usable
  * @property {string|null}  reason      human string when usable=false
+ * @property {SignalFrameCounts|null} counts  the parser's removal counts; null for a samples frame
  * @property {string|null}  contentId   EXPORT-IDENTITY §2.1: optional content-addressed recording digest
  *                                      (12 hex chars), identity-free, deterministic; null = no usable payload
  * @property {SignalFrameProvenance} provenance
@@ -3768,6 +3775,9 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
   //                usable, reason, ...}. Samples: {samples, fs, t0Ms, tsMs, ...}.
   //   ctx        : { adapter, vendor, device, files, warnings } provenance the
   //                adapter knows about itself; merged into frame.provenance.
+  function _count(v) {
+    return typeof v === 'number' && isFinite(v) && v >= 0 && Math.floor(v) === v ? v : null;
+  }
   function toSignalFrame(signalType, raw, ctx) {
     ctx = ctx || {};
     raw = raw || {};
@@ -3787,6 +3797,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       sqi: raw.sqi === undefined ? null : raw.sqi, // quality-neutral by default; separate axis from conf
       usable: usable,
       reason: raw.reason === undefined ? null : raw.reason, // honesty: human string when usable=false
+      counts: /** @type {SignalFrameCounts|null} */ (null), // interval frames only — set below
       provenance: {
         adapter: ctx.adapter || raw.adapter || null,
         vendor: ctx.vendor || null,
@@ -3802,6 +3813,16 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     if (kind === 'intervals') {
       var iv = raw.intervals != null ? raw.intervals : raw.vals;
       frame.intervals = iv && iv.length != null ? Array.prototype.slice.call(iv) : null;
+      // THE COUNTS THAT SAY HOW MANY INTERVALS THE PARSER REMOVED travel with the intervals it kept
+      // (residue 2026-11-08-tosignalframe-drops-the-pulsedex-artifact-counts). The frame used to
+      // carry the survivors alone, so a consumer could not tell 300 clean intervals from 300 left
+      // over out of 3000. A count the parser did not report is null, never 0 (§∅).
+      frame.counts = {
+        nRaw: _count(raw.nRaw),
+        nUsable: _count(raw.nUsable),
+        nBlocked: _count(raw.nBlocked),
+        timeRatio: typeof raw.timeRatio === 'number' && isFinite(raw.timeRatio) ? raw.timeRatio : null
+      };
     } else if (kind === 'samples') {
       frame.samples = raw.samples != null ? raw.samples : null;
       frame.fs = raw.fs === undefined ? null : raw.fs;

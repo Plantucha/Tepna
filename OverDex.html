@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="e318330f3e88" data-compute-hash="c2faddd90c68"><head>
+<html lang="en" data-manifest-hash="65d04695ef6a" data-compute-hash="46d9d1d8b213"><head>
 <!--
   OverDex.html — Tepna
   Copyright 2026 Michal Planicka
@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/IzZXLnhKeyKbML+9Kto456TToGDl1/uC3f7wQonamU=' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-4KsRTgVuaYcMUNL8LhUau/rNzFP6NRbvBy2QbxNGFzw=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-84iaFiqUEftz4fuLv5KHfze6SsmT/jwwfMKpygTi4HQ=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-TJnsXppIrR2fDEg9roXHwHuaiAym8hL+7tyg9r6NlEw=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-XeM139aCzQDSzEaQuQBVa+zEhnOSgXP/4pqlC0h9wO4=' 'sha256-eqhMkaKkI0DeDYeFRr158XI1OLlvfo+v/yXmogvQqzI=' 'sha256-hCZmwNAMDLPZEMYHAYpzoPETSnimg1oHWWjZImdKqxM=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pmoo1WosGTcNO+J90mDbRecVE3qzne/xByjNGn2ERxY=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-qtwV6UdWMEOsPilOs3Mrd9jysCoMp0m5MgxuB5HkI8o=' 'sha256-rm/YlVmogQnelQDIazZyRCXgoAFvC1Ffha1wQ4dVrFc=' 'sha256-wK9fP+fYfi661IypDOgrAoxGZS8mGJfe9l/9288cTZQ=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/IzZXLnhKeyKbML+9Kto456TToGDl1/uC3f7wQonamU=' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-4KsRTgVuaYcMUNL8LhUau/rNzFP6NRbvBy2QbxNGFzw=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-84iaFiqUEftz4fuLv5KHfze6SsmT/jwwfMKpygTi4HQ=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-TJnsXppIrR2fDEg9roXHwHuaiAym8hL+7tyg9r6NlEw=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-XeM139aCzQDSzEaQuQBVa+zEhnOSgXP/4pqlC0h9wO4=' 'sha256-eqhMkaKkI0DeDYeFRr158XI1OLlvfo+v/yXmogvQqzI=' 'sha256-hCZmwNAMDLPZEMYHAYpzoPETSnimg1oHWWjZImdKqxM=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pmoo1WosGTcNO+J90mDbRecVE3qzne/xByjNGn2ERxY=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-qtwV6UdWMEOsPilOs3Mrd9jysCoMp0m5MgxuB5HkI8o=' 'sha256-rm/YlVmogQnelQDIazZyRCXgoAFvC1Ffha1wQ4dVrFc=' 'sha256-wK9fP+fYfi661IypDOgrAoxGZS8mGJfe9l/9288cTZQ=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -11947,6 +11947,12 @@ window.IntegratorDSP = {
  * @property {string|null}  kernelHash  DexKernel.HASH at parse time
  * @property {string[]}     warnings    non-fatal notes
  *
+ * @typedef {Object} SignalFrameCounts   what the interval parser removed, each null when unreported
+ * @property {number|null} nRaw       intervals the parser read
+ * @property {number|null} nUsable    intervals inside the physiological range
+ * @property {number|null} nBlocked   intervals the parser blocked as artifacts
+ * @property {number|null} timeRatio  summed intervals over the stamped span
+ *
  * @typedef {Object} SignalFrame   The ONLY thing DSP should consume (brief §2.2).
  * @property {('rr'|'ecg'|'spo2'|'cgm'|'eeg'|'flow'|'hr'|'acc'|'hrv')} signalType  a SignalSpec key
  * @property {('intervals'|'samples')} kind
@@ -11959,6 +11965,7 @@ window.IntegratorDSP = {
  * @property {number|null}  sqi         0..1 signal-quality, or null — SEPARATE axis from conf
  * @property {boolean}      usable
  * @property {string|null}  reason      human string when usable=false
+ * @property {SignalFrameCounts|null} counts  the parser's removal counts; null for a samples frame
  * @property {string|null}  contentId   EXPORT-IDENTITY §2.1: optional content-addressed recording digest
  *                                      (12 hex chars), identity-free, deterministic; null = no usable payload
  * @property {SignalFrameProvenance} provenance
@@ -12123,6 +12130,9 @@ window.IntegratorDSP = {
   //                usable, reason, ...}. Samples: {samples, fs, t0Ms, tsMs, ...}.
   //   ctx        : { adapter, vendor, device, files, warnings } provenance the
   //                adapter knows about itself; merged into frame.provenance.
+  function _count(v) {
+    return typeof v === 'number' && isFinite(v) && v >= 0 && Math.floor(v) === v ? v : null;
+  }
   function toSignalFrame(signalType, raw, ctx) {
     ctx = ctx || {};
     raw = raw || {};
@@ -12142,6 +12152,7 @@ window.IntegratorDSP = {
       sqi: raw.sqi === undefined ? null : raw.sqi, // quality-neutral by default; separate axis from conf
       usable: usable,
       reason: raw.reason === undefined ? null : raw.reason, // honesty: human string when usable=false
+      counts: /** @type {SignalFrameCounts|null} */ (null), // interval frames only — set below
       provenance: {
         adapter: ctx.adapter || raw.adapter || null,
         vendor: ctx.vendor || null,
@@ -12157,6 +12168,16 @@ window.IntegratorDSP = {
     if (kind === 'intervals') {
       var iv = raw.intervals != null ? raw.intervals : raw.vals;
       frame.intervals = iv && iv.length != null ? Array.prototype.slice.call(iv) : null;
+      // THE COUNTS THAT SAY HOW MANY INTERVALS THE PARSER REMOVED travel with the intervals it kept
+      // (residue 2026-11-08-tosignalframe-drops-the-pulsedex-artifact-counts). The frame used to
+      // carry the survivors alone, so a consumer could not tell 300 clean intervals from 300 left
+      // over out of 3000. A count the parser did not report is null, never 0 (§∅).
+      frame.counts = {
+        nRaw: _count(raw.nRaw),
+        nUsable: _count(raw.nUsable),
+        nBlocked: _count(raw.nBlocked),
+        timeRatio: typeof raw.timeRatio === 'number' && isFinite(raw.timeRatio) ? raw.timeRatio : null
+      };
     } else if (kind === 'samples') {
       frame.samples = raw.samples != null ? raw.samples : null;
       frame.fs = raw.fs === undefined ? null : raw.fs;

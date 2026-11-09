@@ -43,6 +43,12 @@
  * @property {string|null}  kernelHash  DexKernel.HASH at parse time
  * @property {string[]}     warnings    non-fatal notes
  *
+ * @typedef {Object} SignalFrameCounts   what the interval parser removed, each null when unreported
+ * @property {number|null} nRaw       intervals the parser read
+ * @property {number|null} nUsable    intervals inside the physiological range
+ * @property {number|null} nBlocked   intervals the parser blocked as artifacts
+ * @property {number|null} timeRatio  summed intervals over the stamped span
+ *
  * @typedef {Object} SignalFrame   The ONLY thing DSP should consume (brief §2.2).
  * @property {('rr'|'ecg'|'spo2'|'cgm'|'eeg'|'flow'|'hr'|'acc'|'hrv')} signalType  a SignalSpec key
  * @property {('intervals'|'samples')} kind
@@ -55,6 +61,7 @@
  * @property {number|null}  sqi         0..1 signal-quality, or null — SEPARATE axis from conf
  * @property {boolean}      usable
  * @property {string|null}  reason      human string when usable=false
+ * @property {SignalFrameCounts|null} counts  the parser's removal counts; null for a samples frame
  * @property {string|null}  contentId   EXPORT-IDENTITY §2.1: optional content-addressed recording digest
  *                                      (12 hex chars), identity-free, deterministic; null = no usable payload
  * @property {SignalFrameProvenance} provenance
@@ -219,6 +226,9 @@
   //                usable, reason, ...}. Samples: {samples, fs, t0Ms, tsMs, ...}.
   //   ctx        : { adapter, vendor, device, files, warnings } provenance the
   //                adapter knows about itself; merged into frame.provenance.
+  function _count(v) {
+    return typeof v === 'number' && isFinite(v) && v >= 0 && Math.floor(v) === v ? v : null;
+  }
   function toSignalFrame(signalType, raw, ctx) {
     ctx = ctx || {};
     raw = raw || {};
@@ -238,6 +248,7 @@
       sqi: raw.sqi === undefined ? null : raw.sqi, // quality-neutral by default; separate axis from conf
       usable: usable,
       reason: raw.reason === undefined ? null : raw.reason, // honesty: human string when usable=false
+      counts: /** @type {SignalFrameCounts|null} */ (null), // interval frames only — set below
       provenance: {
         adapter: ctx.adapter || raw.adapter || null,
         vendor: ctx.vendor || null,
@@ -253,6 +264,16 @@
     if (kind === 'intervals') {
       var iv = raw.intervals != null ? raw.intervals : raw.vals;
       frame.intervals = iv && iv.length != null ? Array.prototype.slice.call(iv) : null;
+      // THE COUNTS THAT SAY HOW MANY INTERVALS THE PARSER REMOVED travel with the intervals it kept
+      // (residue 2026-11-08-tosignalframe-drops-the-pulsedex-artifact-counts). The frame used to
+      // carry the survivors alone, so a consumer could not tell 300 clean intervals from 300 left
+      // over out of 3000. A count the parser did not report is null, never 0 (§∅).
+      frame.counts = {
+        nRaw: _count(raw.nRaw),
+        nUsable: _count(raw.nUsable),
+        nBlocked: _count(raw.nBlocked),
+        timeRatio: typeof raw.timeRatio === 'number' && isFinite(raw.timeRatio) ? raw.timeRatio : null
+      };
     } else if (kind === 'samples') {
       frame.samples = raw.samples != null ? raw.samples : null;
       frame.fs = raw.fs === undefined ? null : raw.fs;
