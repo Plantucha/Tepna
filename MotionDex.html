@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="de679b1f2efb" data-compute-hash="fac79761d9a0">
+<html lang="en" data-manifest-hash="5b850c673a4a" data-compute-hash="fac79761d9a0">
 <head>
 <!--
   MotionDex.src.html — Tepna
@@ -12,7 +12,7 @@
 <!-- CSP: browser-enforces the no-network invariant. connect-src 'none' blocks every outbound request;
      script-src is STRICT ('self' + per-inline-script sha256, NO 'unsafe-inline'). MotionDex ships zero
      inline scripts (all init lives in motiondex-app.js), so the hash list is empty by construction. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-LFUuThFphtJbs7xcxi6ccAB4tRpfMsn5CPS3sr9f3SQ=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-bIhKcpZRJ/ZzKulROPoeorGxddt3ajAjGiOPqmDw7ik=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-hCZmwNAMDLPZEMYHAYpzoPETSnimg1oHWWjZImdKqxM=' 'sha256-pyBgyl0sPS3CCYHHKy+ex/zF2QRIR/Y28sDOZOJMAWY=' 'sha256-wK9fP+fYfi661IypDOgrAoxGZS8mGJfe9l/9288cTZQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-1zVlEXb8s+1rMCY16et54bJkj1EDY3ZlxVcToe+omgM=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-LFUuThFphtJbs7xcxi6ccAB4tRpfMsn5CPS3sr9f3SQ=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-bIhKcpZRJ/ZzKulROPoeorGxddt3ajAjGiOPqmDw7ik=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-hCZmwNAMDLPZEMYHAYpzoPETSnimg1oHWWjZImdKqxM=' 'sha256-wK9fP+fYfi661IypDOgrAoxGZS8mGJfe9l/9288cTZQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>MotionDex — Motion / IMU Analyzer · v2.29.0</title>
@@ -8694,6 +8694,21 @@ __exports.MotionDex = window.MotionDex;
     return '<div class="mx-row"><span>' + evBadge(label) + ' ' + esc(label) + '</span><b>' + esc(val) + (sub ? '</b> <span class="kpi-sub">' + esc(sub) + '</span>' : '</b>') + '</div>';
   }
 
+  /* ∅ — THE STATED POPULATION IS THE DENOMINATOR THAT WAS USED, NEVER THE TRACK LENGTH.
+     `bodyPosition()` divides every dwell fraction by COVERED epochs (motiondex-dsp.js:1008), and its
+     track keeps a dense `unknown` entry for each NON-RECORDING epoch, so `track.length` is the SPAN.
+     The row printed "of N epochs" from that span, so every gap overstated the population the percent
+     describes: a 60 s supine file under a 180 s span read "of 6 epochs" for a 2-epoch measurement.
+     Row 2026-11-08-motiondex-supine-row-states-the-wrong-denominator owns the defect. The span is
+     still worth the reader's attention, so it stays BESIDE the population, never as it. An absent
+     `coveredEpochs` is NAMED here, because a substituted span is a population nobody measured. */
+  function positionPop(pos) {
+    var cov = pos && pos.coveredEpochs;
+    if (typeof cov !== 'number' || !isFinite(cov)) return 'recorded epoch count absent';
+    var span = pos.track ? pos.track.length : null;
+    return cov + ' recorded epochs' + (typeof span === 'number' && span > cov ? ' of ' + span + ' in the span' : '');
+  }
+
   // fraction of RECORDED (present!=null) epochs in which effort was present — coverage-honest:
   // no-chest-ACC epochs (present:null) are excluded from the denominator, never scored as absent.
   function effortPresentPct(series) {
@@ -8852,7 +8867,7 @@ __exports.MotionDex = window.MotionDex;
     if (kt) kt.style.display = '';
 
     // ── position ──
-    if (pos.hasData) fill('mxPositionCard', 'mxPosition', positionBar(pos.dwellFrac) + row('Supine time', pct(pos.supineFrac), 'of ' + (pos.track ? pos.track.length : 0) + ' epochs'));
+    if (pos.hasData) fill('mxPositionCard', 'mxPosition', positionBar(pos.dwellFrac) + row('Supine time', pct(pos.supineFrac), positionPop(pos)));
 
     // ── effort (incl. the per-epoch presence series — standalone read + the fusion's input) ──
     if (eff.hasData) {
@@ -8901,7 +8916,7 @@ __exports.MotionDex = window.MotionDex;
     }
   }
 
-  global.MOTIONUI = { renderSummary: renderSummary, positionBar: positionBar, effortSpark: effortSpark, activitySpark: activitySpark, effortPresentPct: effortPresentPct };
+  global.MOTIONUI = { renderSummary: renderSummary, positionBar: positionBar, effortSpark: effortSpark, activitySpark: activitySpark, effortPresentPct: effortPresentPct, positionPop: positionPop };
 })(window);
 
 // ESM-from-birth dual-mode (mirrors glucodex-render): the IIFE attaches window.MOTIONUI for the
