@@ -515,9 +515,24 @@ import { PPGUI } from './ppgdex-render.js';
       tach.length > 2
         ? UI.lineChart(tach, UI.COLORS.teal, { W: 680, H: 170, med: r.meanRR, xfmt: (x) => x.toFixed(1) + 'm' })
         : `<div class="q-note" style="padding:24px 8px;text-align:center">Too few pulse intervals to plot a tachogram.</div>`;
-    $('poincareBody').innerHTML = UI.poincare(r.poincareNN || r.nn, r.sd1, r.sd2);
+    /* ∅ — AN ABSENT POINCARE AXIS IS NAMED, NEVER "null ms" AND NEVER A MEASURED 0 ms².
+       `poincare()` in ppgdex-dsp.js refuses under 3 intervals and nulls sd1, sd2, sd1sd2 and ellArea
+       TOGETHER. This line interpolated all four raw, so the refusal reached the reader as
+       "SD1 null ms", and `(r.ellArea || 0)` turned the fourth into "area 0 ms²" — a collapsed
+       ellipse stated as a measurement, which is the shape §∅ asks a reviewer to read as a bug. Row
+       2026-11-08-ppgdex-poincare-line-prints-null-and-an-absent-area-as-zero owns the defect.
+       The reason stays THIS layer's own: the app names the interval count only when the count is what
+       refused, and otherwise states the pair is absent without borrowing the DSP's reason. */
+    const pcDash = '<span class="dim">—</span>';
+    const pcOk = (v) => v != null && isFinite(v);
+    const pcv = (v) => (pcOk(v) ? `<b>${v}</b>` : pcDash);
+    const pcArea = r.ellArea == null || !isFinite(r.ellArea) ? pcDash : `<b>${r.ellArea.toLocaleString()}</b>`;
+    const pcNN = r.poincareNN || r.nn || [];
+    const pcSvg = UI.poincare(pcNN, r.sd1, r.sd2);
+    $('poincareBody').innerHTML = pcSvg || `<div class="q-note" style="padding:24px 8px;text-align:center">Too few pulse intervals to plot a Poincaré cloud.</div>`;
     $('poincareStats').innerHTML =
-      `${evBadge('SD1')}SD1 <b>${r.sd1}</b> ms · ${evBadge('SD2')}SD2 <b>${r.sd2}</b> ms · ${evBadge('SD1/SD2')}SD1/SD2 <b>${r.sd1sd2}</b> · area <b>${(r.ellArea || 0).toLocaleString()}</b> ms²`;
+      `${evBadge('SD1')}SD1 ${pcv(r.sd1)} ms · ${evBadge('SD2')}SD2 ${pcv(r.sd2)} ms · ${evBadge('SD1/SD2')}SD1/SD2 ${pcv(r.sd1sd2)} · area ${pcArea} ms²` +
+      (pcOk(r.sd1) && pcOk(r.sd2) ? '' : ` <span class="dim">· no Poincaré pair${pcNN.length < 3 ? ` — ${pcNN.length} pulse interval${pcNN.length === 1 ? '' : 's'}` : ''}</span>`);
     if (r.epochs.length >= 3) {
       const rmPts = r.epochs.map((e) => ({ x: e.tMin, y: e.rmssd })),
         hrPts = r.epochs.map((e) => ({ x: e.tMin, y: e.hr }));

@@ -490,6 +490,12 @@ window.evBadge = evBadge;
     }
     const cx = sc(m),
       cy = scY(m);
+    /* ∅ — AN ABSENT AXIS DRAWS NO ELLIPSE. `null / (mx - mn)` is 0 in JS, so a refused SD1/SD2
+       pair rendered rx=0 ry=0: a zero-area ellipse at the cloud's centre, which a reader takes for a
+       measured collapse of variability rather than for "nobody measured it". The cloud is real data
+       and stays drawn; the ellipse is the part that was not measured, so it is omitted and the stats
+       line beside the chart names the absence. */
+    const haveAxes = sd1v != null && sd2v != null && isFinite(sd1v) && isFinite(sd2v);
     const ex = (sd2v / (mx - mn)) * (W - 2 * P),
       ey = (sd1v / (mx - mn)) * (H - 2 * P);
     return `<svg viewBox="0 0 ${W} ${H}" role="img" style="width:100%;height:auto;max-width:340px;margin:0 auto;display:block">
@@ -497,7 +503,7 @@ window.evBadge = evBadge;
     <line x1="${P}" y1="${H - P}" x2="${W - P}" y2="${H - P}" stroke="${C.axis}"/>
     <line x1="${P}" y1="${P}" x2="${P}" y2="${H - P}" stroke="${C.axis}"/>
     ${dots}
-    <g transform="rotate(-45 ${cx} ${cy})"><ellipse cx="${cx}" cy="${cy}" rx="${Math.abs(ex).toFixed(1)}" ry="${Math.abs(ey).toFixed(1)}" fill="rgba(88,166,255,.10)" stroke="${C.blue}" stroke-width="1.4"/></g>
+    ${haveAxes ? `<g transform="rotate(-45 ${cx} ${cy})"><ellipse cx="${cx}" cy="${cy}" rx="${Math.abs(ex).toFixed(1)}" ry="${Math.abs(ey).toFixed(1)}" fill="rgba(88,166,255,.10)" stroke="${C.blue}" stroke-width="1.4"/></g>` : ''}
     <text x="${W / 2}" y="${H - 8}" fill="${C.dim}" font-size="10" text-anchor="middle" font-family="ui-monospace,monospace">PPIₙ (ms)</text>
     <text x="12" y="${H / 2}" fill="${C.dim}" font-size="10" text-anchor="middle" font-family="ui-monospace,monospace" transform="rotate(-90 12 ${H / 2})">PPIₙ₊₁ (ms)</text>
   </svg>`;

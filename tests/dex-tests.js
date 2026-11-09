@@ -72385,6 +72385,84 @@
        one motion spike set the scale for the night. ECGScope had the same defect (fixed 2026-10-18);
        PPGScope was cloned from it before then. These legs drive `_viewScale` on a synthetic pulse with
        a spike 300x its amplitude: the window scale must follow the pulse, not the spike. */
+    /* ∅ — THE POINCARE CARD REPORTS ITS OWN ABSENCE, IN BOTH TWINS. Each node nulls sd1, sd2,
+       sd1sd2 and ellArea TOGETHER when the pair cannot be computed, and all three surfaces of the card
+       published that refusal as a measurement: PpgDex printed "SD1 null ms" and `area 0 ms2` from an
+       `|| 0` fallback, ECGDex raised a TypeError out of `r.ellArea.toLocaleString()` and left every
+       later chart unrendered, and BOTH renders drew the ellipse from `null / (mx - mn)`, which is 0 in
+       JS — rx=0 ry=0 at the cloud's centre, which reads as a measured collapse of variability. Row
+       2026-11-08-ppgdex-poincare-line-prints-null-and-an-absent-area-as-zero owns the PpgDex half; the
+       ECGDex line is its twin. The cloud is real data and must survive; the ellipse and the four
+       numbers are what nobody measured. */
+    group('PpgDex + ECGDex ∅ — an absent Poincare pair draws no ellipse and prints no null', 'ppgdex-render · ecgdex-render · ppgdex-app · ecgdex-app · absence · render-harness', function (T) {
+      var nn = [800, 824, 806, 838, 812, 830, 818];
+      var P = env.PPGUI,
+        E = env.ECGUI;
+      if (!P || typeof P.poincare !== 'function' || !E || typeof E.poincare !== 'function') {
+        T.skip('env.PPGUI.poincare + env.ECGUI.poincare available', 'render modules not co-loaded in this runner');
+      } else {
+        var cnt = function (s2, re) {
+          return (String(s2).match(re) || []).length;
+        };
+        var pOk = P.poincare(nn, 12.4, 40.2),
+          eOk = E.poincare(nn, 12.4, 40.2);
+        T.ok(
+          'control (anti-vacuity): a MEASURED pair draws the cloud and the ellipse in both twins',
+          cnt(pOk, /<circle/g) >= 5 && pOk.indexOf('<ellipse') >= 0 && cnt(eOk, /<circle/g) >= 5 && eOk.indexOf('<ellipse') >= 0,
+          JSON.stringify({ pDots: cnt(pOk, /<circle/g), pEll: cnt(pOk, /<ellipse/g), eDots: cnt(eOk, /<circle/g), eEll: cnt(eOk, /<ellipse/g) })
+        );
+        var pNo = P.poincare(nn, null, null),
+          eNo = E.poincare(nn, null, null);
+        T.ok(
+          '🔴 an absent PAIR draws NO ellipse, and the cloud — which is real data — stays drawn',
+          cnt(pNo, /<ellipse/g) === 0 && cnt(eNo, /<ellipse/g) === 0 && cnt(pNo, /<circle/g) >= 5 && cnt(eNo, /<circle/g) >= 5,
+          JSON.stringify({ pEll: cnt(pNo, /<ellipse/g), eEll: cnt(eNo, /<ellipse/g), pDots: cnt(pNo, /<circle/g), eDots: cnt(eNo, /<circle/g) })
+        );
+        T.ok(
+          '…so no zero-size ellipse reaches the reader, which is how the absence used to be drawn',
+          pNo.indexOf('rx="0.0"') < 0 && eNo.indexOf('rx="0.0"') < 0,
+          JSON.stringify({ p: pNo.indexOf('rx="0.0"'), e: eNo.indexOf('rx="0.0"') })
+        );
+        T.ok(
+          'ONE absent axis is enough — an ellipse needs both, whichever one is missing',
+          cnt(P.poincare(nn, 12.4, null), /<ellipse/g) === 0 && cnt(E.poincare(nn, null, 40.2), /<ellipse/g) === 0,
+          JSON.stringify({ pSd2Absent: cnt(P.poincare(nn, 12.4, null), /<ellipse/g), eSd1Absent: cnt(E.poincare(nn, null, 40.2), /<ellipse/g) })
+        );
+      }
+      var src = env.sources || {};
+      var pa = src['ppgdex-app.js'] || '',
+        ea = src['ecgdex-app.js'] || '';
+      if (!pa || !ea) {
+        T.skip('ppgdex-app.js + ecgdex-app.js sources available', 'not in env.sources — list them in BOTH lanes');
+      } else {
+        var c2 = function (hay, re) {
+          return (hay.match(re) || []).length;
+        };
+        T.ok(
+          'the legs below read the line they are about (anti-vacuity)',
+          pa.indexOf("$('poincareStats')") >= 0 && ea.indexOf("$('poincareStats')") >= 0,
+          JSON.stringify({ p: pa.indexOf("$('poincareStats')"), e: ea.indexOf("$('poincareStats')") })
+        );
+        T.ok(
+          '🔴 neither app states an absent ellipse area as a measured number',
+          pa.indexOf('(r.ellArea || 0).toLocaleString()') < 0 && ea.indexOf('area <b>${r.ellArea.toLocaleString()}</b>') < 0,
+          JSON.stringify({ ppgFallback: pa.indexOf('(r.ellArea || 0).toLocaleString()'), ecgUnguarded: ea.indexOf('area <b>${r.ellArea.toLocaleString()}</b>') })
+        );
+        T.ok(
+          '…and neither interpolates a raw axis any more, which is what printed the string "null"',
+          pa.indexOf('SD1 <b>${r.sd1}</b>') < 0 && ea.indexOf('SD1 <b>${r.sd1}</b>') < 0,
+          JSON.stringify({ p: pa.indexOf('SD1 <b>${r.sd1}</b>'), e: ea.indexOf('SD1 <b>${r.sd1}</b>') })
+        );
+        /* the CALL sites, one per app: a count of the helper's NAME alone would also count each app's
+           own `const pcv = ...` declaration and pass with both uses deleted (measured 2026-11-08 on
+           the ACC column-map leg). */
+        var axes = c2(pa, /pcv\(r\.sd1\)/g) + c2(ea, /pcv\(r\.sd1\)/g);
+        var area = c2(pa, /r\.ellArea == null \|\| !isFinite\(r\.ellArea\)/g) + c2(ea, /r\.ellArea == null \|\| !isFinite\(r\.ellArea\)/g);
+        var named = c2(pa, /no Poincaré pair/g) + c2(ea, /no Poincaré pair/g);
+        T.ok('both apps route every axis and the area through one absence guard, and NAME the absence', axes === 2 && area === 2 && named === 2, 'axes=' + axes + ' area=' + area + ' named=' + named);
+      }
+    });
+
     group('PPGScope y scale follows the window, not the whole night', 'ppgdex-render · render-harness · known-answer', function (T) {
       var U = env.PPGUI;
       if (!U || !U.PPGScope || typeof U.PPGScope.prototype._viewScale !== 'function' || typeof U.buildEnvelope !== 'function') {
