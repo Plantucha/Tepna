@@ -213,6 +213,13 @@ RATCHET = {
     "cpap_continuity.py": 1,
     "cpap_edf.py": 0,
     "cpap_edf_writer.py": 6,
+    # cpap_ingest.py is NEW at 1 on 2026-11-09 (residue
+    # 2026-11-08-cpap-transport-overflow-has-no-live-writer): nulling `GapCounters.overflow` put
+    # `BoundedIngestQueue.offer` in the gate's scope, which surfaced `> self.max_depth` ->
+    # `>= self.max_depth` on a line the diff never touched. `max_depth` is a high-water mark and the
+    # guarded statement writes back the value the field already holds, so the two operators differ
+    # only where the assignment is a no-op. Probed over 40,423 offer/drain steps, 0 differing.
+    "cpap_ingest.py": 1,
     "cpap_live.py": 1,
     "cpap_record.py": 2,
     "cpap_spool.py": 3,
