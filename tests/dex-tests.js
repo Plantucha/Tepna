@@ -73397,10 +73397,32 @@
       /* ── ventCard · flow limitation (10,25) vs snoring (5,15) on one shared input ─────────────────
          8 % is ok as flow-limitation but already warn as snoring. Order: respRate · breathRate · ieRatio
          · tidVol · minVent · flowLimitedPct · snorePct — only the last two are graded. */
-      var vt = mSev(CR.ventCard(night({}, { sessions: [{ metrics: { flowLimitedPct: 8, snorePct: 8 } }] })));
+      var vt = mSev(CR.ventCard(night({ flowLimitedPct: 8, snorePct: 8 })));
       T.eq('ventCard · 8 % is ok for flow-limitation but warn for snoring (10,25 vs 5,15)', vt[5] + '/' + vt[6], 'ok/warn');
       T.eq('ventCard · the five unbanded ventilation metrics stay neutral — no fabricated grading', vt.slice(0, 5).join(','), 'neutral,neutral,neutral,neutral,neutral');
-      T.eq('ventCard · reads its metrics from sessions[0], not from night.metrics (an absent session ⇒ every tile "—")', mVal(CR.ventCard(night({ flowLimitedPct: 8 }))).join(''), '———————');
+      /* Re-aimed 2026-11-09 (residue 2026-11-08-cpapdex-night-cards-draw-session-one-metrics): the card
+         now reads the pooled night, so a value present only on sessions[0] draws nothing. */
+      T.eq(
+        'ventCard · reads the pooled night.metrics, not sessions[0] (a session-only value ⇒ every tile "—")',
+        mVal(CR.ventCard(night({}, { sessions: [{ metrics: { respRateMedian: 14, breathRate: 14, ieRatio: 0.5, tidVolMedian: 0.5, minVentMedian: 7, flowLimitedPct: 8, snorePct: 8 } }] }))).join(''),
+        '———————'
+      );
+
+      /* ── the night cards · a two-session night draws the POOLED night, never session 1 ───────────
+         residue 2026-11-08-cpapdex-night-cards-draw-session-one-metrics. Session 1 and the pool carry
+         different values for every key, so a card that reads sessions[0] prints the wrong number here. */
+      var two = night(
+        { eprDelta: 2.5, epap95: 9.1, respRateMedian: 15.5, breathRate: 15.2, ieRatio: 0.61, tidVolMedian: 0.52, minVentMedian: 7.7, flowLimitedPct: 12, snorePct: 3 },
+        { sessions: [{ metrics: { eprDelta: 1, epap95: 6, respRateMedian: 11, breathRate: 11, ieRatio: 0.4, tidVolMedian: 0.3, minVentMedian: 5, flowLimitedPct: 2, snorePct: 20 } }, { metrics: {} }] }
+      );
+      var pv = mVal(CR.pressureCard(two));
+      T.eq('pressureCard · a two-session night draws the pooled EPR delta and EPAP p95', pv[3] + '|' + pv[4], '2.5|9.1');
+      T.eq('ventCard · a two-session night draws the pooled ventilation tiles', mVal(CR.ventCard(two)).join('|'), '15.5|15.2|0.61|0.52|7.7|12.0|3.0');
+      T.ok(
+        'ventCard · a pooled null rate names each session reason once',
+        /mask never on/.test(CR.ventCard(night({}, { sessions: [{ metrics: { breathRateReason: 'mask never on' } }, { metrics: { breathRateReason: 'mask never on' } }] })))
+      );
+      T.ok('ventCard · a measured pooled rate carries no session reason', !/m-sub/.test(CR.ventCard(night({ breathRate: 14.2 }, { sessions: [{ metrics: { breathRateReason: 'mask never on' } }] }))));
 
       /* ── renderKPIs · sev()'s POLARITY, which is the one flag in the whole signature ──────────────
          `sev(good, warn, val, lower)`: therapy HOURS pass sev(4,2,h) with NO lower flag — higher is
@@ -73577,9 +73599,9 @@
         'warn/bad'
       );
 
-      // ventCard · flow limitation (10,25) warn edge, read out of sessions[0] like the rest of the card.
+      // ventCard · flow limitation (10,25) warn edge, read out of the pooled night like the rest of the card.
       var vSess = function (v) {
-        return mSev(CR.ventCard(night({}, { sessions: [{ metrics: { flowLimitedPct: v } }] })))[5];
+        return mSev(CR.ventCard(night({ flowLimitedPct: v })))[5];
       };
       T.eq('ventCard · flow-limitation exactly 25 % is warn, 25.1 % is bad', vSess(25) + '/' + vSess(25.1), 'warn/bad');
 

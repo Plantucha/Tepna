@@ -255,7 +255,7 @@ const PP_CASES = [];
   PP_CASES.push([rows(30).replace(/;/g, ','), undefined]); // comma-separated
   PP_CASES.push([rows(30).replace(/;/g, '\t'), undefined]);
   PP_CASES.push([rows(30, { startMs: 86399500 }), undefined]); // rolls midnight
-  for (const raw of ['', ' ', '\n', '\r\n', ';;;;;', 'a;b;c;d;e;f', '1;2;3;4;5;6', 'null', '0', '"q";"r";"s"', HDR6 + '\n' + HDR6, 'Phone timestamp\n2026-07-01 00:00:00', ' '])
+  for (const raw of ['', ' ', '\n', '\r\n', ';;;;;', 'a;b;c;d;e;f', '1;2;3;4;5;6', 'null', '0', '"q";"r";"s"', HDR6 + '\n' + HDR6, 'Phone timestamp\n2026-07-01 00:00:00', '\x00\x01'])
     PP_CASES.push([raw, undefined]);
   PP_CASES.push([null, undefined]);
   PP_CASES.push([undefined, undefined]);
