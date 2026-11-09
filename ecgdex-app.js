@@ -745,8 +745,7 @@ self.onmessage = async (e) => {
     const pcv = (v) => (pcOk(v) ? `<b>${v}</b>` : pcDash);
     const pcArea = r.ellArea == null || !isFinite(r.ellArea) ? pcDash : `<b>${r.ellArea.toLocaleString()}</b>`;
     const pcNN = r.poincareNN || r.nn || [];
-    const pcSvg = UI.poincare(pcNN, r.sd1, r.sd2);
-    $('poincareBody').innerHTML = pcSvg || `<div class="q-note" style="padding:24px 8px;text-align:center">Too few RR intervals to plot a Poincaré cloud.</div>`;
+    $('poincareBody').innerHTML = UI.poincare(r.poincareNN || r.nn, r.sd1, r.sd2);
     $('poincareStats').innerHTML =
       `SD1 ${pcv(r.sd1)} ms · SD2 ${pcv(r.sd2)} ms · SD1/SD2 ${pcv(r.sd1sd2)} · area ${pcArea} ms²` +
       (pcOk(r.sd1) && pcOk(r.sd2) ? '' : ` <span class="dim">· no Poincaré pair${pcNN.length < 3 ? ` — ${pcNN.length} RR interval${pcNN.length === 1 ? '' : 's'}` : ''}</span>`) +
