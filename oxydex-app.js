@@ -337,15 +337,23 @@ function exportCSV() {
       );
     }
     if (n.hrProf) {
+      // ∅ — an empty cell for a metric the night could not measure, never the text "null", and the
+      // covered count beside it only where the pulse was short of the span.
+      var _hpv = function (v) {
+        return v == null ? '' : v;
+      };
       lines.push(
         '',
         'HR PROFILE',
-        '  Circadian Score (bpm),' + n.hrProf.circadianScore,
-        '  Deceleration Capacity (bpm),' + n.hrProf.decCapacity,
-        '  Approx Entropy (ApEn),' + n.hrProf.apEn,
+        '  Circadian Score (bpm),' + _hpv(n.hrProf.circadianScore),
+        '  Deceleration Capacity (bpm),' + _hpv(n.hrProf.decCapacity),
+        '  Approx Entropy (ApEn),' + _hpv(n.hrProf.apEn),
         '  Bradycardia Events,' + n.hrProf.bradyCount,
         '  Tachycardia Events,' + n.hrProf.tachyCount
       );
+      if (n.hrProf.hrCoveredN != null && n.hrProf.hrSpanN != null && n.hrProf.hrCoveredN < n.hrProf.hrSpanN) {
+        lines.push('  HR Covered Rows,' + n.hrProf.hrCoveredN, '  HR Span Rows,' + n.hrProf.hrSpanN);
+      }
     }
     if (n.cross) {
       lines.push(
