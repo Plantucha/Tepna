@@ -43555,6 +43555,47 @@
       // contrast: the LIGHT export omits both → the Integrator degrades to null (never fabricates).
       T.ok('LIGHT export → summary.cvhrIndex null (apnea block absent, not fabricated)', !!(rLight && rLight.summary && rLight.summary.cvhrIndex == null));
       T.ok('LIGHT export → summary.autonomicInstabilitySlope null (hrvStability absent)', !!(rLight && rLight.summary && rLight.summary.autonomicInstabilitySlope == null));
+      /* THE STAGE EXPORT, END TO END (residue 2026-11-07-the-ecgdex-stage-export-has-no-end-to-end-leg).
+         Every other suite line that names `stageMinutes`, `totalSleepMin` or `unstagedMin` feeds a
+         hand-typed literal to a consumer, and the stager groups call `stageSleep` directly. So a field the
+         PRODUCER renamed or dropped left all of them green. These legs read the block that `compute`
+         itself writes, on the same 3 h night, and then read it again through the Integrator. */
+      var _sl = rich.sleep;
+      T.ok('rich: sleep block present and not suppressed on a non-ambulatory night', !!(_sl && _sl.suppressed !== true), _sl ? Object.keys(_sl).join(',') : 'MISSING');
+      var _sm = (_sl && _sl.stageMinutes) || null;
+      T.ok(
+        'rich: sleep.stageMinutes carries the four stages as finite minutes',
+        !!_sm &&
+          ['Wake', 'REM', 'Light', 'Deep'].every(function (k) {
+            return typeof _sm[k] === 'number' && isFinite(_sm[k]) && _sm[k] >= 0;
+          }),
+        _sm ? JSON.stringify(_sm) : 'no stageMinutes'
+      );
+      // Anti-vacuity: a night with no sleep would satisfy every shape leg above with zeros.
+      T.ok('rich: sleep.totalSleepMin is a positive number (the night staged)', !!(_sl && typeof _sl.totalSleepMin === 'number' && _sl.totalSleepMin > 0), _sl && _sl.totalSleepMin);
+      T.ok(
+        'rich: totalSleepMin is REM + Light + Deep, rounded (Wake is not sleep)',
+        !!(_sm && _sl.totalSleepMin === Math.round(_sm.REM + _sm.Light + _sm.Deep)),
+        _sm && _sl.totalSleepMin + ' vs ' + (_sm.REM + _sm.Light + _sm.Deep)
+      );
+      T.ok(
+        'rich: sleep.unstagedMin is a finite, non-negative number (PR 4548 added it)',
+        !!(_sl && typeof _sl.unstagedMin === 'number' && isFinite(_sl.unstagedMin) && _sl.unstagedMin >= 0),
+        _sl && _sl.unstagedMin
+      );
+      // The consumer reads the same block: the Integrator's T2 fractions divide by totalSleepMin.
+      var _tot = _sl && _sl.totalSleepMin;
+      T.ok(
+        'Integrator reads the stage block: summary.remFraction is REM / totalSleepMin',
+        !!(rRich && rRich.summary && _sm && _tot > 0 && rRich.summary.remFraction === +(_sm.REM / _tot).toFixed(3)),
+        rRich && rRich.summary && 'remFraction=' + rRich.summary.remFraction
+      );
+      T.ok(
+        '  and summary.deepFraction is Deep / totalSleepMin, on the sleep basis',
+        !!(rRich && rRich.summary && _sm && _tot > 0 && rRich.summary.deepFraction === +(_sm.Deep / _tot).toFixed(3) && rRich.summary.remFractionBasis === 'sleep'),
+        rRich && rRich.summary && 'deepFraction=' + rRich.summary.deepFraction + ' basis=' + rRich.summary.remFractionBasis
+      );
+      T.ok('LIGHT export → summary.remFraction null (sleep block absent, not fabricated)', !!(rLight && rLight.summary && rLight.summary.remFraction == null));
     });
 
     /* ════ 12d-rich-ppg · INTEGRATOR ingests the RICH PpgDex orchestrate export — option (a)
