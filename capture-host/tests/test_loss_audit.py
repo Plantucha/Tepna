@@ -4857,6 +4857,13 @@ def test_five_minutes_of_not_worn_decisions_end_a_wear_at_their_first_stamp():
     # a not-worn run BEFORE the wear started ends nothing
     w = _wear([_dw(0, False), _dw(400, True)], 900)
     assert (w["wear"], w["ended_at"]) == (True, None)
+    w = _wear([_dw(0, False), _dw(100, False, True), _dw(110, True), _dw(500, False)], 900)
+    assert (w["ended_at"], w["ended_by"]) == ("2026-09-23T23:08:20", "not-worn"), "skipped rows come first"
+    # a run of several decisions starts at its first one
+    w = _wear([_dw(0, True), _dw(200, True), _dw(400, False), _dw(500, False)], 900)
+    assert (w["wear"], w["ended_at"], w["ended_by"]) == (True, "2026-09-23T23:06:40", "not-worn"), w
+    # a decision on the span start is in the span
+    assert _wear([_dw(0, True)], 300)["wear"] is True
 
 
 def test_an_abstention_is_no_decision():
@@ -4893,7 +4900,7 @@ def test_apply_daemon_wear_excludes_a_file_with_no_wear_and_moves_an_ended_wear(
         (d.replace(hour=7, minute=2), False, "n", None),
         (d.replace(hour=10, minute=5), False, "n", None),
     ]
-    ends = [night, desk, bare, gone, odd]
+    ends = [gone, odd, bare, desk, night]  # every skipped end before the changed one
     loss_audit.apply_daemon_wear(ends, rows)
     assert (night["usable"], night["worn_end_at"], night["reason"], night["doff_witness"]) == (
         True,
@@ -4906,6 +4913,11 @@ def test_apply_daemon_wear_excludes_a_file_with_no_wear_and_moves_an_ended_wear(
     assert bare == _end(bare["file"], "2026-09-24T09:30:00"), "no decision in its span: unchanged"
     assert "daemon_no_wear" not in gone and gone["reason"] == "link-loss", "an unusable end is not read"
     assert odd == _end("not-a-capture.txt", "2026-09-24T11:00:00")
+    # a daemon end on the worn end itself changes nothing
+    same = _end("Polar_VeritySense_ABCD0001_20260923230000_PPG.txt", "2026-09-24T04:00:00", "link-loss")
+    same["worn_end_at"] = "2026-09-24T03:30:00"
+    loss_audit.apply_daemon_wear([same], rows)
+    assert (same["reason"], "doff_witness" in same) == ("link-loss", False), same
     # an existing doff keeps its own witness, and a later daemon end never moves the end later
     kept = _end("Polar_VeritySense_ABCD0001_20260923230000_PPG.txt", "2026-09-24T04:00:00", "doff")
     kept["worn_end_at"] = "2026-09-24T02:00:00"
@@ -4941,10 +4953,13 @@ def test_daemon_wear_rows_read_the_charging_vote(tmp_path):
             ("2026-09-23T23:01:00", me, "0", "n", "fs=176,charging=True"),
             ("2026-09-23T23:02:00", me, "", "a", "fs=176"),
             ("2026-09-23T23:03:00", me, "0", "n", "charging=maybe"),
+            ("2026-09-23T23:04:00", me, "0", "n", "charging=True=x, charging=True\r"),
         ],
     )
+    with open(d / "WORN.csv", "a", encoding="utf-8") as fh:
+        fh.write(f"2026-09-23T23:05:00;Polar Sense ABCD0001;{me};1;w;change\n")  # no votes cell at all
     rows = loss_audit.daemon_worn_rows(str(d), me)
-    assert [r[3] for r in rows] == [False, True, None, None]
+    assert [r[3] for r in rows] == [False, True, None, None, True, None]
     assert loss_audit.daemon_worn_rows(str(tmp_path), me) is None
     # a file without the votes column still reads, with no charging vote
     with open(d / "WORN.csv", "w", encoding="utf-8") as fh:

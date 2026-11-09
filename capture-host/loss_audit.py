@@ -2104,31 +2104,31 @@ def daemon_wear_in_file(
     span = [r for r in rows if start <= r[0] <= end and (r[1] is not None or r[3] is True)]
     if not span:
         return None
-    held_to = [r[0] for r in span[1:]] + [end]
-    run_from: _dt.datetime | None = None
-    wear_from: _dt.datetime | None = None
-    for (t, worn, _why, charging), until in zip(span, held_to):
-        if worn is True and charging is not True:
-            run_from = run_from or t
-            if (until - run_from).total_seconds() >= sustain_s:
-                wear_from = run_from
-        else:
-            run_from = None
-    out = {"wear": wear_from is not None, "decisions": len(span), "ended_at": None, "ended_by": None}
-    if wear_from is None:
-        return out
-    off_from: _dt.datetime | None = None
-    for (t, worn, _why, charging), until in zip(span, held_to):
-        if t < wear_from:
+    held = list(zip(span, [r[0] for r in span[1:]] + [end]))
+    run_i: int | None = None  # the index of the first decision of the current worn run
+    wear_i: int | None = None  # the index of the first decision of the last wear
+    for i, ((t, worn, _why, charging), until) in enumerate(held):
+        if worn is not True or charging is True:
+            run_i = None
             continue
+        if run_i is None:
+            run_i = i
+        if (until - span[run_i][0]).total_seconds() >= sustain_s:
+            wear_i = run_i
+    out = {"wear": wear_i is not None, "decisions": len(span), "ended_at": None, "ended_by": None}
+    if wear_i is None:
+        return out
+    off_i: int | None = None  # the index of the first decision of the current not-worn run
+    for i, ((t, worn, _why, charging), until) in enumerate(held[wear_i + 1 :], start=wear_i + 1):  # the first is worn
         if charging is True:
             return dict(out, ended_at=t.isoformat(timespec="seconds"), ended_by="charger")
         if worn is True:
-            off_from = None
-        else:  # a not-worn decision: the span holds no abstention
-            off_from = off_from or t
-            if (until - off_from).total_seconds() >= sustain_s:
-                return dict(out, ended_at=off_from.isoformat(timespec="seconds"), ended_by="not-worn")
+            off_i = None
+            continue
+        if off_i is None:  # a not-worn decision: the span holds no abstention
+            off_i = i
+        if (until - span[off_i][0]).total_seconds() >= sustain_s:
+            return dict(out, ended_at=span[off_i][0].isoformat(timespec="seconds"), ended_by="not-worn")
     return out
 
 
@@ -2196,9 +2196,11 @@ _WORN_COLS = ("Phone timestamp", "address", "worn", "why")
 def _vote_charging(cell: str) -> bool | None:
     """The `charging=` vote of one `WORN.csv` votes cell. PURE. None when the cell names no charging vote."""
     for part in cell.split(","):
-        k, _, v = part.partition("=")
-        if k.strip() == "charging" and v.strip() in ("True", "False"):
-            return v.strip() == "True"
+        vote = part.strip()  # strip: the last cell of a CRLF line carries the line end
+        if vote == "charging=True":
+            return True
+        if vote == "charging=False":
+            return False
     return None
 
 
