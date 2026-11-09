@@ -66,7 +66,8 @@ class _N:
 
 @pytest.fixture
 def poll(monkeypatch):
-    """Run the poller over `steps`: each is (monotonic now, status dict, last-data mono, worn-since)."""
+    """Run the poller over `steps`: each is (monotonic now, status dict, last-data mono, worn-since), and
+    an optional fifth item, the monotonic time of a pull that completed by that poll."""
     keep = {k: dict(v) if isinstance(v, dict) else v for k, v in capture.STATUS["devices"].items()}
 
     def go(steps, notifier=None, acfg=None):
@@ -74,7 +75,9 @@ def poll(monkeypatch):
         it = {"i": -1}
 
         def apply(i):
-            now, st, last, ws = steps[i]
+            now, st, last, ws, *pull = steps[i]
+            if pull:
+                capture._LAST_PULL_OK[NM] = pull[0]
             capture.STATUS["devices"][NM] = st
             if last is None:
                 capture._LAST_DATA.pop(NM, None)
@@ -209,5 +212,7 @@ def test_an_unworn_charger_stream_after_the_night_sends_no_second_note(poll):
 
 def test_a_worn_stream_after_the_desk_re_arms_the_note_for_the_next_night(poll):
     capture._LAST_PULL_OK[NM] = 4000
-    later = [(9000, ON, 9000, None), (12700, ON, 12700, None), (12800, OFF, 12700, 12750)]
+    # The second night's doff pull completes at 12760. The 4000 pull came before that stream began, so it
+    # licenses no silence of it (measured on the capture box 2026-11-08, see powered_off_after_pull).
+    later = [(9000, ON, 9000, None), (12700, ON, 12700, None), (12800, OFF, 12700, 12750, 12760)]
     assert poll(_NIGHT + _DESK + later) == ["Tepna: " + NM + " night ended"] * 2

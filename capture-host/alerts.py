@@ -1334,7 +1334,10 @@ def start_reason(prev, boot_id: str | None, git: str | None) -> str:
 
 
 def powered_off_after_pull(
-    last_pull_ok_sec: float | None, now: float, expiry_sec: float = RING_IDLE_EXPECT_MAX_S
+    last_pull_ok_sec: float | None,
+    now: float,
+    expiry_sec: float = RING_IDLE_EXPECT_MAX_S,
+    stream_began_sec: float | None = None,
 ) -> bool:
     """Is a non-advertising device in its EXPECTED post-doff power-off, rather than genuinely missing?
 
@@ -1353,8 +1356,16 @@ def powered_off_after_pull(
       sleep session, shorter than a day left uncharged.
 
     `last_pull_ok_sec` is the monotonic time of the last SUCCESSFUL pull for this device, or None if it
-    has never had one (never pulled, or every attempt failed) — in which case this is never expected."""
+    has never had one (never pulled, or every attempt failed) — in which case this is never expected.
+
+    · **The pull must FOLLOW the stream.** `stream_began_sec` is the monotonic start of the stream that
+      went silent, or None when no stream is known. A pull before that start collected an earlier
+      session, not this one. Measured on the capture box 2026-11-08: the Sense pull completed at 21:10
+      and its stream began at 21:19. At about 04:16 the box sent "powered off after a completed pull"
+      for a night that no pull had collected."""
     if last_pull_ok_sec is None:
+        return False
+    if stream_began_sec is not None and last_pull_ok_sec < stream_began_sec:
         return False
     age = now - last_pull_ok_sec
     return 0 <= age < expiry_sec

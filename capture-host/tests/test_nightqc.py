@@ -699,6 +699,49 @@ def test_summarize_optional_device_absence_is_not_missing_and_stays_ok(tmp_path,
     assert s["optional_absent"] == ["COOSPO:hr"]  # but it is still recorded as known-and-absent
 
 
+_PMDNEG_HEAD = "Phone timestamp;device;address;stream;requested_hz;offered_hz;chosen_hz;ack;how\n"
+
+
+def _pmdneg(night, *ppg_hz):
+    rows = "".join(
+        f"2026-07-19T22:00:0{i};Sense;00:00:00:00:00:01;ppg;{hz};28,44,55,135,176;{hz};ok;negotiated\n"
+        for i, hz in enumerate(ppg_hz)
+    )
+    with open(os.path.join(night, "PMDNEG.csv"), "w", encoding="utf-8") as fh:
+        fh.write(_PMDNEG_HEAD + rows)
+
+
+def test_sdk_mode_witnessed_needs_EVERY_agreed_ppg_start_above_55(tmp_path):
+    a, b, c = (str(tmp_path / n) for n in ("a", "b", "c"))
+    for nd in (a, b, c):
+        os.makedirs(nd)
+    _pmdneg(a, 176)
+    with open(os.path.join(a, "PMDNEG.csv"), "a", encoding="utf-8") as fh:
+        fh.write("2026-07-19T22:01:00;Sense;00:00:00:00:00:01;acc;52;26,52;52;ok;negotiated\n")
+        fh.write("2026-07-19T22:01:01;Other;00:00:00:00:00:02;ppg;176;55,176;;ok;negotiated\n")
+    _pmdneg(b, 55)
+    assert nightqc.sdk_mode_witnessed([a]) == {"Sense"}, "an ACC row and a PPG row with no rate witness nothing"
+    assert nightqc.sdk_mode_witnessed([b]) == set()
+    assert nightqc.sdk_mode_witnessed([a, b]) == set(), "one 55 Hz start in the night"
+    assert nightqc.sdk_mode_witnessed([c]) == set(), "no sidecar is no witness"
+
+
+@pytest.mark.parametrize("hz, served", [(176, False), (55, True)])
+def test_summarize_puts_an_SDK_mode_ppi_in_not_served_not_missing(tmp_path, hz, served):
+    """MEASURED on the capture box 2026-11-08: the Sense started PPG at 176 Hz (SDK mode), served no PPI,
+    and the QC digest reported a FAIL for it. At 55 Hz an absent PPI is still a gap."""
+    night = str(tmp_path / "2026-07-19")
+    os.makedirs(night)
+    _cap(night, "Polar_Sense_ABCD0001_20260719220000_PPG.txt", 100)
+    _pmdneg(night, hz)
+    s = nightqc.summarize(night, [{"name": "Sense", "device_id": "ABCD0001", "streams": ["ppg", "ppi"]}])
+    if served:
+        assert "Sense:ppi" in s["missing"] and s["not_served"] == []
+    else:
+        assert "Sense:ppi" not in s["missing"], s["missing"]
+        assert s["not_served"] == ["Sense:ppi (SDK mode: PPG started above 55 Hz)"]
+
+
 def test_summarize_a_NON_optional_absence_still_fails(tmp_path, _tz):
     night = str(tmp_path / "2026-07-19")
     os.makedirs(night)
@@ -4679,6 +4722,9 @@ _TIME_CLAIM_WORDS = (
 )
 
 _CLOCKLESS_BY_DESIGN = {
+    # The rate is the one the device agreed to in PMDNEG.csv, and the claim is a zero-row stream. No
+    # device clock takes part in either.
+    "test_summarize_puts_an_SDK_mode_ppi_in_not_served_not_missing": "the rate comes from the PMDNEG.csv sidecar; the claim is which list holds a zero-row stream",
     # #3266 survivor kills. Both are SESSION-level: a span from a filename stamp to an mtime, and coverage
     # as rows over that span against the EXPECTED rate — no device clock takes part in either.
     "test_a_degraded_line_ROUNDS_its_percent_and_never_truncates_it": "session-span coverage against the expected rate; the claim is the printed percent",
