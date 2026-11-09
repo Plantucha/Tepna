@@ -2324,6 +2324,16 @@
       T.eq('A-4 CONTROL · …and the night score is unmoved', sMeas.score, 74);
       T.ok('A-4 · the absent night scores BELOW the measured-burden night it used to beat', sAbsent.score > sMeas.score && sAbsent.score < 81, 'absent=' + sAbsent.score + ' measured=' + sMeas.score);
 
+      /* ── A-4b · computeSleepStabilityScore s4 ── `(20 - null) / 20` clamped to a PERFECT 100 (residue
+         2026-11-08-sleep-stability-s4-reads-a-null-episode-count-as-perfect). An absent count now drops
+         the subscore, and the renormalizer scores the night on the five terms it measured. */
+      var s4Absent = OD.computeSleepStabilityScore(ST, HRV, { episodeCount: null }, { rate: 5 });
+      var s4NoOsc = OD.computeSleepStabilityScore(ST, HRV, null, { rate: 5 });
+      T.eq('A-4b · an absent episode count drops its subscore instead of scoring a perfect 100', s4Absent.components.pb, null);
+      T.eq('A-4b · …and a null osc object reads the same, with no throw', s4NoOsc.components.pb, null);
+      T.eq('A-4b · the night scores on the five measured terms (the ref read 76 off the absence)', s4Absent.score, 71);
+      T.eq('A-4b CONTROL · a MEASURED count of 2 still scores 90', sMeas.components.pb, 90);
+
       /* ── A-13 · computeSpO2Autocorr ── the mean divided by every second while absent seconds added
          nothing, and `(null - m)` is `-m`, so each absence contributed a full squared deviation.
          Measured on `origin/main`: 300 varying measured seconds read ac1 -0.497 "Oscillating" ALONE,
