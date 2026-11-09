@@ -252,21 +252,35 @@ def classify_absence(
     cluster_size: int,
     page_sec: float = OFFLINE_PAGE_SEC,
     cluster_devices: int = PAGE_CLUSTER_DEVICES,
-) -> str:
-    """`absence_tier` with the ruling's failure direction (amendment 3): a classifier that throws
-    must not hide the alert, so any error answers PAGE and leaves a log line behind."""
+) -> tuple[str, bool]:
+    """`absence_tier` with the ruling's failure direction (amendment 3), plus the fact the caller
+    needs: `(tier, undecided)`. `undecided` is True only when the classifier threw.
+
+    🔴 THE SECOND MEMBER IS THE POINT. A thrown classifier answers PAGE so the alert is not
+    hidden, but the tier it answers is a FALLBACK, not a measurement — nothing decided that this
+    absence earned a page (§∅). A caller that cannot tell the two apart spends the daily page cap
+    on it, and at the cap `send` answers True with a WARNING line and no page, so the caller
+    latches the episode as paged and the one alert the ruling protects never buzzes. Row
+    `2026-11-08-the-page-cap-overrides-the-classifier-failure-direction`.
+
+    So an undecided tier travels as a FACT, and the caller sends it `cap_exempt`, beside
+    daemon-down and low disk. The cap is a budget over alerts whose tier the classifier DECIDED.
+    """
     try:
-        return absence_tier(
-            down_sec,
-            in_window=in_window,
-            streamed=streamed,
-            cluster_size=cluster_size,
-            page_sec=page_sec,
-            cluster_devices=cluster_devices,
+        return (
+            absence_tier(
+                down_sec,
+                in_window=in_window,
+                streamed=streamed,
+                cluster_size=cluster_size,
+                page_sec=page_sec,
+                cluster_devices=cluster_devices,
+            ),
+            False,
         )
     except Exception as e:
         _log.warning("alert tier classification failed (%r) — treating the alert as PAGE", e)
-        return TIER_PAGE
+        return TIER_PAGE, True
 
 
 def is_clustered(starts: list[float], index: int, window_sec: float, n: int, started: list[bool] | None = None) -> bool:
