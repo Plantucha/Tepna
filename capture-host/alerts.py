@@ -1490,8 +1490,9 @@ def update_streak_main(argv: list[str], _post=None, now: float | None = None) ->
     """`python alerts.py update-streak <config.yaml> lost|back <n> <first-epoch>`.
 
     Exit 0 when the alert was delivered or no alerting is configured, 3 when the config is there and
-    does not read as a mapping, 5 when a configured send failed, 2 on bad arguments. The caller latches
-    on 0 only, so every refusal retries on the next run."""
+    either the document or its `alerts` block does not read as a mapping, 5 when a configured send
+    failed, 2 on bad arguments. The caller latches on 0 only, so every refusal retries on the next
+    run."""
     import asyncio
 
     if len(argv) != 5 or argv[0] != "update-streak" or argv[2] not in ("lost", "back"):
@@ -1521,7 +1522,25 @@ def update_streak_main(argv: list[str], _post=None, now: float | None = None) ->
         # state is unknown here too. Only an absent file and an empty document mean "none configured".
         _log.warning("alerts: the update-streak config at %s holds %s, not a mapping", argv[1], type(cfg).__name__)
         return 3
-    acfg = (cfg.get("alerts") if cfg else None) or {}
+    raw = cfg.get("alerts") if cfg else None
+    if raw is not None and not isinstance(raw, dict):
+        # 🔴 THE NESTED BLOCK REPEATS THE HAZARD THE DOCUMENT-LEVEL CHECK ABOVE ANSWERS. Row
+        # `2026-11-08-update-streak-raises-on-a-nested-non-mapping-alerts-block`. `alerts: "on"` parses
+        # as a mapping document, so the check above passes it, and the old `or {}` then handed a
+        # truthy string to `.get` and raised `AttributeError` out of this function. A falsy
+        # non-mapping such as `alerts: []` took the other half of the same defect: `or {}` read a
+        # malformed block as "no alerting configured" and returned 0, which the caller LATCHES.
+        #
+        # Neither reading is available. A block that is not a mapping carries no `enabled` and no
+        # `webhook_url`, so whether this box alerts is UNKNOWN, never off (§∅). It refuses with the
+        # same exit 3 the document-level case uses, and the next run retries.
+        _log.warning(
+            "alerts: the update-streak config at %s holds an alerts block of %s, not a mapping",
+            argv[1],
+            type(raw).__name__,
+        )
+        return 3
+    acfg = raw or {}
     notifier = Notifier(acfg.get("webhook_url"), bool(acfg.get("enabled")), _post=_post)
     if not notifier.enabled:
         return 0
