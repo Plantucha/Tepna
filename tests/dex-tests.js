@@ -90192,6 +90192,24 @@
         return { t: r.t, hr: r.hr, spo2: r.spo2, motion: 0 };
       });
       T.ok('B2 · CONTROL · with motion read the estimate still exists', !!B.computeSleepStageProxy(rows0));
+      /* ∅ the window bookkeeping. A skipped window is counted under the name of the absence that
+         dropped it, and the counts close over the windows the loop offered. Before this, the output
+         published `classifiedWindows` only while the HR COLUMN held an absent sample, so a night
+         with a complete HR column and an unreadable motion span named nothing. */
+      var spFull = B.computeSleepStageProxy(rows0);
+      T.eq('B2 · a fully examined night publishes no window annotation', JSON.stringify(!!spFull && spFull.offeredWindows === undefined && spFull.classifiedWindows === undefined), 'true');
+      var rowsHole = rows0.map(function (r, i) {
+        return i >= 600 && i < 1200 ? { t: r.t, hr: r.hr, spo2: r.spo2, motion: null } : r;
+      });
+      var spHole = B.computeSleepStageProxy(rowsHole);
+      T.ok(
+        'B2 · an unreadable motion span names itself, over a complete HR column',
+        !!spHole && spHole.motionAbsentWindows > 0 && spHole.offeredWindows > 0,
+        'spHole=' + JSON.stringify(spHole && { cls: spHole.classifiedWindows, off: spHole.offeredWindows, mot: spHole.motionAbsentWindows, hr: spHole.hrSparseWindows })
+      );
+      if (spHole && spHole.offeredWindows != null) {
+        T.eq('B2 · every offered window is classified or named as a skip', spHole.classifiedWindows + spHole.motionAbsentWindows + spHole.hrSparseWindows, spHole.offeredWindows);
+      }
       // d465645b6edd — an unentered age is ASSUMED, named, and costs confidence
       var vA = B.computeVO2maxEstimate(rows0, { rmssd: 2, hrFloor: 52 }, null, null, undefined);
       var vE = B.computeVO2maxEstimate(rows0, { rmssd: 2, hrFloor: 52 }, null, null, 49);
