@@ -536,6 +536,14 @@ tr.nflash td{animation:nflash 1.4s ease-out;}
         <div class="data-pill idle" id="rdPill"><span class="data-dot"></span> <span id="rdText">Radio —</span></div>
         <div class="sidebar-data-info" id="rdDetail"></div>
       </div>
+      <!-- THE O2RING POWER AXIS (`oxy_power.py`). webmon forwarded this block on the day it was
+           written and nothing drew it, so the axis reached the daemon's own JSON and no operator
+           (residue 2026-11-08-the-monitor-reads-no-o2ring-power-block). -->
+      <div class="sidebar-data-card" style="margin-bottom:8px" id="pwCard" hidden
+           title="Each O2Ring's power axis: the state that owns its radio, the battery band, the scan cadence that state selects, and the counters behind them &mdash; connects, harvests, deferrals and the last attempt with its failure class. Not the Radio card above: that ranks reconnect distress per link, this says who holds the radio and why.">
+        <div class="data-pill idle" id="pwPill"><span class="data-dot"></span> <span id="pwText">Power —</span></div>
+        <div class="sidebar-data-info" id="pwDetail"></div>
+      </div>
       <div class="sidebar-data-card" style="margin-bottom:8px" id="hlCard" hidden
            title="The daemon's own event loop: every BLE notification and every host stamp runs on it, so a stall here delays EVERY live stream at once. Also which recovery/pause gates are held, and background tasks that have crashed and been restarted.">
         <div class="data-pill idle" id="hlPill"><span class="data-dot"></span> <span id="hlText">Loop —</span></div>
@@ -2524,6 +2532,83 @@ function renderRadioDistress(rd, adapterV, switches){
     .join('\n');
 }
 
+// ── THE O2RING POWER AXIS — `oxy_power.py` snapshots, forwarded as `s.power` ─────────────────
+// Per ring: the state that owns the radio, the battery band, the scan cadence that state selects and
+// the §21 counters. webmon forwarded the block on the day it was written and nothing drew it, so the
+// axis reached the daemon's own JSON and no operator (residue
+// 2026-11-08-the-monitor-reads-no-o2ring-power-block).
+//
+// 🔴 EVERY STATE STRING HERE IS THE PRODUCER'S. The Radio card above was written against a guessed
+// vocabulary, so a real DISTRESSED verdict ranked below ok, the worst-pick chose a healthy sibling,
+// and a storm drew as "Radio ok · N links". The tables below hold `oxy_power.PowerState` and
+// `oxy_power.BatteryBand` values, and test_monitor_power_axis.py pins every key against the module.
+
+// A duration, not an age: `agoSecs` prints "ago", and these are spans the daemon accumulated.
+function pwDur(s){
+  if(s == null) return '';
+  return s < 90 ? Math.round(s)+'s' : s < 5400 ? Math.round(s/60)+'m' : (s/3600).toFixed(1)+'h';
+}
+
+// PURE, and it returns TEXT rather than markup — the shell below writes it with textContent, so no
+// string from the box can carry HTML into the page. Pure also means it runs under node in its test.
+function powerVerdict(power){
+  const names = Object.keys(power || {});
+  if(!names.length) return null;   // null until a ring's capture task has started: never a fake ok
+  // Severity, worst ring first. A dead battery outranks a failure pause: the pause retries, the
+  // battery ends the night. RESOURCE_WAIT is ordinary — another device holds the radio — so it tints
+  // the card and never reds it.
+  const pwSev = {pw_error_backoff: 3, pw_cooldown: 2, pw_resource_wait: 1};
+  const pwBattSev = {critical: 4, low: 2};
+  const sev = n => {
+    const x = power[n] || {};
+    return Math.max(pwBattSev[(x.cache || {}).battery] || 0, pwSev[x.state] || 0);
+  };
+  const lab = x => x && x.state ? String(x.state).replace(/^pw_/, '').replace(/_/g, ' ') : 'state unknown';
+  let worst = names[0];
+  for(const n of names) if(sev(n) > sev(worst)) worst = n;
+  const v = power[worst] || {}, ca = v.cache || {}, c = v.counters || {}, s = sev(worst);
+  // `battery` carries the producer's own UNKNOWN band, so an unreadable battery says so rather than
+  // reading as a full one (∅ — an absent band is never a number and never a calm default).
+  const bits = ['battery ' + (ca.battery || 'unknown')];
+  if(v.radio_on === true || v.radio_on === false) bits.push(v.radio_on ? 'radio on' : 'radio off');
+  if(v.scan_policy) bits.push('scan ' + v.scan_policy);
+  // The DENOMINATOR beside each count, so "no failures" can be told from "never tried".
+  if(c.connect_attempts != null) bits.push('connects ' + (c.connect_successes || 0) + '/' + c.connect_attempts);
+  if(c.harvest_attempts != null) bits.push('harvests ' + (c.harvests_ok || 0) + '/' + c.harvest_attempts);
+  const def = (c.deferrals_live || 0) + (c.deferrals_busy || 0) + (c.deferrals_policy || 0);
+  if(def) bits.push(def + ' deferral' + (def === 1 ? '' : 's'));
+  if(c.connection_seconds) bits.push('linked ' + pwDur(c.connection_seconds));
+  const la = v.last_attempt;
+  if(la) bits.push('last ' + (la.trigger || '?')
+    + (la.ok ? ' ok' : ' FAILED' + (la.failure ? ' (' + la.failure + ')' : '')));
+  return {
+    cls: s >= 3 ? 'bad' : s >= 1 ? 'idle' : 'ok',
+    text: s ? 'Power · ' + worst + ' ' + lab(v)
+            : 'Power ok · ' + names.length + ' ring' + (names.length === 1 ? '' : 's') + ' · ' + lab(v),
+    detail: bits.join(' · '),
+    // EVERY ring on hover, not only the worst: one ring in backoff must not hide the other's band.
+    title: names.map(n => {
+      const x = power[n] || {}, xc = x.cache || {};
+      return n + ': ' + lab(x) + ' · battery ' + (xc.battery || 'unknown')
+        + (x.scan_policy ? ' · scan ' + x.scan_policy : '')
+        + (xc.generation != null ? ' · appearance ' + xc.generation : '')
+        + (xc.last_failure ? ' · last failure ' + xc.last_failure : '');
+    }).join('\n'),
+  };
+}
+
+function renderPower(power){
+  const card = $('#pwCard'), pill = $('#pwPill'), txt = $('#pwText'), det = $('#pwDetail');
+  if(!card) return;
+  const v = powerVerdict(power);
+  if(!v){ card.hidden = true; return; }
+  card.hidden = false;
+  pill.className = 'data-pill ' + v.cls;
+  txt.textContent = v.text;      // textContent, never innerHTML: these strings come from the box
+  det.textContent = v.detail;
+  det.title = v.title;
+}
+
 // The daemon's load and gates, as one sidebar card. Verdict order: a loop stall ≥ 1 s in the current
 // run outranks a held gate, which outranks a crashed task — a stall is already costing every stream
 // its host stamps; a gate merely defers connects; a crash has been restarted. Hidden until the loop
@@ -3073,6 +3158,7 @@ async function loadState(){
   renderStoragePill(s.storage);   // sidebar: visible in every view
   renderAutopull(s.autopull);
   renderRadioDistress(s.radio_distress, s.radio_distress_adapter, s.radio_switches);
+  renderPower(s.power);
   renderHostLoad(s.loop, s.gates, s.tasks);
   renderBle(s.ble);
   renderLiveLoss(s.live_loss);
