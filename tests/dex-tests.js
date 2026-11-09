@@ -37898,6 +37898,83 @@
       T.ok('seam: epochs still carry tri-state moving', Array.isArray(b.epochs) && b.epochs.length === a.epochs.length);
     });
 
+    /* ════ THE REASON LEAVES THE NODE — row
+       `2026-11-08-the-motiondex-clock-seam-reason-is-lost-in-the-export` ═══════════════════════════
+       The group above pins the PRODUCER: `actigraphy` nulls `immobileFrac` on a clock seam and writes
+       `immobileFracReason` beside it. That reason reached the live page and stopped there, so review
+       mode and the Integrator read the null alone — and a null with no reason reads as a stream that
+       never arrived. These legs run the whole road, `compute` → `buildNodeExport`, because the defect
+       sat in the RESHAPE and no producer-level leg can see it.
+
+       MEASURED third state, stated here and NOT repaired: an all-blanked night also nulls the fraction
+       and names no reason (`hasData` true, `coveredEpochs` 0). The exported `activitySeries` still
+       separates it — 40 epochs, 0 with a non-null `moving` — so a consumer that counts the track can
+       tell the two absences apart, and this field alone cannot. The last three legs pin that
+       separability, so it cannot regress while the naming stays open. */
+    group('MotionDex §∅ — the clock-seam reason reaches the node-export, beside the value it refuses', 'motiondex-dsp · absence · clock-seam · node-export', function (T) {
+      var M = env.MOTIONDSP || (env.MotionDex && env.MotionDex._bare);
+      if (!M || typeof M.compute !== 'function' || typeof M.buildNodeExport !== 'function') {
+        T.skip('MOTIONDSP compute + buildNodeExport available', 'MotionDex not co-loaded in this runner');
+        return;
+      }
+      /* `compute` reads the unit off the ROW ARRAY (`acc._unit`). Without it `actigraphy` refuses with
+         `unit-unknown` and publishes no fraction at all, which makes every leg below vacuous. */
+      var rows = function () {
+        var r = [];
+        for (var i = 0; i < 1200; i++) {
+          var mov = i % 120 < 30 ? 0.08 : 0.001; // alternating active / still epochs
+          r.push({ tMs: i * 1000, x: 0, y: 0, z: 1 + (i % 2 ? mov : -mov) });
+        }
+        r._unit = 'g';
+        return r;
+      };
+      var clean = rows();
+      var seamed = rows();
+      seamed._clockResyncs = [{ idx: 600, deviceStepMs: 86000, phoneDeltaMs: 8 }];
+      var blanked = rows();
+      blanked._blankSpans = [{ t0Ms: 0, t1Ms: 1200000 }];
+
+      var sClean = M.compute({ acc: clean });
+      var sSeam = M.compute({ acc: seamed });
+      var exClean = M.buildNodeExport(sClean, {});
+      var exSeam = M.buildNodeExport(sSeam, {});
+      var exBlank = M.buildNodeExport(M.compute({ acc: blanked }), {});
+
+      // ANTI-VACUITY — the block every leg reads must exist, or each one asserts over `undefined`
+      T.ok('the export carries a motion block', !!(exClean && exClean.motion), 'no motion block');
+      T.ok(
+        'and the producer already names the seam — the defect was the RESHAPE, not the guard',
+        !!(sSeam.activity && sSeam.activity.immobileFracReason === 'clock-seam'),
+        'summary reason=' + String(sSeam.activity && sSeam.activity.immobileFracReason)
+      );
+
+      /* POSITIVE CONTROL — a measured night exports the value, and the key is PRESENT and null. That
+         is the `sqiReason` discipline: a consumer can tell "no reason" from "key absent". */
+      T.ok('control: a seamless night exports a fraction', exClean.motion.immobileFrac != null, 'immobileFrac=' + String(exClean.motion.immobileFrac));
+      T.ok('control: the reason key is present on that night', 'immobileFracReason' in exClean.motion);
+      T.eq('control: and it reads null, never a borrowed token', exClean.motion.immobileFracReason, null);
+
+      // THE ROW ITSELF
+      T.eq('seam: the exported fraction is refused', exSeam.motion.immobileFrac, null);
+      T.eq('seam: the reason travels beside it, verbatim as PpgDex spells it', exSeam.motion.immobileFracReason, 'clock-seam');
+      var dsrc = (env.sources || {})['motiondex-dsp.js'] || '';
+      if (dsrc) {
+        T.ok('the reshape READS the producer field and derives no second verdict', /immobileFracReason:\s*summary\.activity/.test(dsrc), 'no immobileFracReason in the export reshape');
+      } else {
+        T.skip('the reshape reads the producer field', 'motiondex-dsp.js source not exposed by this runner');
+      }
+
+      // THE MEASURED THIRD ABSENCE — separable by the track, unnamed by this field
+      var cov = function (ex) {
+        return (ex.motion.activitySeries || []).filter(function (e) {
+          return e.moving !== null;
+        }).length;
+      };
+      T.eq('no coverage: an all-blanked night also nulls the fraction', exBlank.motion.immobileFrac, null);
+      T.eq('no coverage: and its exported track covers nothing, which is what separates the two', cov(exBlank), 0);
+      T.ok('seam: while the seamed night exported a covered track — the two absences are not one state', cov(exSeam) > 0, 'coveredEpochs=' + cov(exSeam));
+    });
+
     /* ════ MotionDex host-disciplined axis — DEVICE-TIME-HANDLING U4, Clock Contract §7 ═══════════
        MotionDex detected a device-counter step and corrected nothing, so every position it publishes
        rode the device crystal. It now builds `DexClock.hostAxis` from anchors AFTER the last resync
