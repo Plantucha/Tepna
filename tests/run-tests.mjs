@@ -96,7 +96,7 @@ import { attenuateAndRecover, buildTemplate as beatBuildTemplate } from '../tool
 import * as deviceStability from '../tools/device-stability.mjs';
 import * as beatCorrespondence from '../tools/beat-correspondence.mjs';
 import * as circularStats from '../tools/circular-stats.mjs';
-import { suiteVerdict, undecidedChildren, unionVerdict } from '../tools/run-tests-verdict.mjs';
+import { suiteVerdict, undecidedChildren, undeclaredSkipCount, unionVerdict } from '../tools/run-tests-verdict.mjs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { basename, dirname, join, resolve } from 'node:path';
 import vm from 'node:vm';
@@ -4090,7 +4090,10 @@ async function main() {
        2026-11-08-a-zero-assertion-group-reads-unknown-and-exits-0). The reduce counts a failing
        ASSERTION; a group gutted to an early return emits none, so this lane exited 0 over an UNKNOWN
        object — in a filtered run, under --jobs, and in the CI shard shape. */
-    const failed = (LIST_ONLY ? 0 : groups.reduce((a, g) => a + g.tests.filter((t) => !t.pass && !t.skip).length, 0)) + undecidedChildren(verdict).length;
+    /* AN UNDECLARED SKIP REDS THIS LANE TOO (residue 2026-11-08-the-json-lane-exits-0-on-an-undeclared-skip).
+       The human lane below adds each skip-budget violation to `fail`; this lane did not, so the same
+       input exited 0 here and 1 there, under an object that reads FAIL. */
+    const failed = (LIST_ONLY ? 0 : groups.reduce((a, g) => a + g.tests.filter((t) => !t.pass && !t.skip).length, 0)) + undecidedChildren(verdict).length + undeclaredSkipCount(verdict);
     // exitCode + return, NOT process.exit(): Node's stdout is ASYNC to a pipe (sync only to a file/TTY),
     // so process.exit() right after a ~140 KB console.log TRUNCATES it mid-write. Redirecting to a file
     // hid this; spawnSync (a pipe) got a half-written payload and "valid run, unparseable JSON". Setting

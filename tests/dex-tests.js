@@ -27951,6 +27951,28 @@
        immediately, a swap inside the 8 reds on the set pin, and wiring one in forces the cap down.
 
        Node-lane only (env.sourceVisibility is fs-read); the browser SKIPs, mirroring docs-ledger. */
+    group('EEGDex median averages the two middles on an even count', 'eegdex · median · known-answer', function (T) {
+      /* Residue 2026-11-08-eegdex-median-takes-the-upper-middle. EEGDex ships no bundle, so this leg
+         lifts `median` out of the source text and runs it. An even count used to return the UPPER
+         middle (median([1, 2, 3, 4]) read 3, not 2.5), and the stager normalises EMG and EOG tone by it. */
+      var src = env.sources && env.sources['eegdex-dsp.js'];
+      if (!src) {
+        T.skip('eegdex-dsp.js source available', 'eegdex-dsp.js not in env.sources');
+        return;
+      }
+      var a = src.indexOf('function median(a) {'),
+        b = a < 0 ? -1 : src.indexOf('\n  }\n', a);
+      T.ok('the median function was found in eegdex-dsp.js', a >= 0 && b > a);
+      if (!(a >= 0 && b > a)) return;
+      var median = new Function(src.slice(a, b + 4) + '\nreturn median;')();
+      T.eq('even count: median([1, 2, 3, 4]) is 2.5', median([1, 2, 3, 4]), 2.5);
+      T.eq('even count, unsorted input: median([4, 1, 3, 2]) is 2.5', median([4, 1, 3, 2]), 2.5);
+      T.eq('odd count: median([3, 1, 2]) is 2', median([3, 1, 2]), 2);
+      T.eq('null and non-finite values drop before the middle: median([1, null, NaN, 3]) is 2', median([1, null, NaN, 3]), 2);
+      T.eq('an input with no finite value is null, not 0 or NaN', median([null, NaN]), null);
+      T.eq('an empty input is null', median([]), null);
+    });
+
     group('Every runtime source layer is readable by at least one lane', 'cohesion · source-visibility · ratchet', function (T) {
       var SV = env.sourceVisibility;
       if (!SV || !env.sources) {
@@ -57556,6 +57578,69 @@
           var hits = dsp.match(/\bUP\.[A-Za-z_]+|\b[A-Za-z]+Profile\.[A-Za-z_]+|\bup[A-Z][A-Za-z0-9]+\(/g) || [];
           T.ok('F14 · …and ' + n + 'dex-dsp.js does not reach it (no UP.* / *Profile.* / up*() reach-ins)', hits.length === 0, hits.slice(0, 5).join(' '));
         });
+        /* The one `*-overview.js` module rests on the same kind of claim as the profile entries, so it
+           is pinned the same way — by source, not by prose. A reach-in reds here instead of blinding the
+           gate, and the second assertion pins the DECISION to name the file rather than the suffix. */
+        T.ok('F14 · pulsedex-overview.js is EXCLUDED from the closure (display-only, pinned below)', !MG.isComputeAsset('pulsedex-overview.js'));
+        T.ok(
+          'F14 · …and the SUFFIX stays unclaimed — an unnamed future *-overview.js still fails CLOSED',
+          MG.isComputeAsset('ecgdex-overview.js'),
+          'a /-overview\\.js$/ suffix would excuse a module nobody has measured'
+        );
+        var ovSrc = S14['pulsedex-overview.js'],
+          pxDsp = S14['pulsedex-dsp.js'];
+        if (typeof ovSrc !== 'string' || typeof pxDsp !== 'string') T.skip('F14 · …and pulsedex-dsp.js does not reach it', 'pulsedex-overview.js / pulsedex-dsp.js not in env.sources');
+        else {
+          var ovNames = [];
+          ovSrc.split('\n').forEach(function (ln) {
+            var mo = /^(?:async\s+)?function\s+([A-Za-z_$][\w$]*)/.exec(ln) || /^(?:const|let|var)\s+([A-Za-z_$][\w$]*)/.exec(ln);
+            if (mo) ovNames.push(mo[1]);
+          });
+          var reach = ovNames.filter(function (nm) {
+            return new RegExp('\\b' + nm.replace(/\$/g, '\\$') + '\\b').test(pxDsp);
+          });
+          T.ok(
+            "F14 · …and pulsedex-dsp.js reads none of the overview module's top-level names",
+            ovNames.length > 10 && reach.length === 0,
+            ovNames.length <= 10 ? 'only ' + ovNames.length + ' names extracted — the scan examined almost nothing' : 'read: ' + reach.slice(0, 5).join(' ')
+          );
+          /* The module publishes its global surface two ways: one `window.X =` write, and one
+             `Object.assign(window, {…})` call. A `window\.X\s*=` pattern sees only the first, and that
+             is how the first version of this leg came to claim a surface of ONE name. Read both. */
+          var gNames = [];
+          (ovSrc.match(/(?:window|globalThis)\.([A-Za-z_$][\w$]*)\s*=[^=]/g) || []).forEach(function (hit) {
+            var mg2 = /\.([A-Za-z_$][\w$]*)\s*=/.exec(hit);
+            if (mg2) gNames.push(mg2[1]);
+          });
+          var oa = /Object\.assign\(\s*(?:window|globalThis)\s*,\s*\{/.exec(ovSrc);
+          if (oa) {
+            var depth = 0,
+              lit = '';
+            for (var gk = oa.index + oa[0].length - 1; gk < ovSrc.length; gk++) {
+              var gch = ovSrc.charAt(gk);
+              if (gch === '{' || gch === '[' || gch === '(') {
+                depth++;
+                if (depth === 1) continue;
+              } else if (gch === '}' || gch === ']' || gch === ')') {
+                depth--;
+                if (depth === 0) break;
+              }
+              if (depth === 1) lit += gch;
+            }
+            lit.split(',').forEach(function (seg) {
+              var mk = /^\s*([A-Za-z_$][\w$]*)\s*(?::|$)/.exec(seg);
+              if (mk) gNames.push(mk[1]);
+            });
+          }
+          var gReach = gNames.filter(function (nm) {
+            return new RegExp('\\b' + nm.replace(/\$/g, '\\$') + '\\b').test(pxDsp);
+          });
+          T.ok(
+            'F14 · …and no name the module publishes on the global object is read by the DSP',
+            gNames.length >= 10 && gReach.length === 0,
+            gNames.length < 10 ? 'only ' + gNames.length + ' global name(s) extracted — the scan examined almost nothing' : gNames.length + ' published, read: ' + gReach.join(' ')
+          );
+        }
       }
 
       // ── §2 · build.mjs is FORBIDDEN to author the claim; verify-fixtures.mjs is the only writer
