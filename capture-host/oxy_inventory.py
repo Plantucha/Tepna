@@ -145,33 +145,71 @@ def append_row(ledger_path: str, row: dict) -> None:
     # empty, so its `parent and` arm was dead too. The mutation gate found all four as survivors; the
     # fix is deleting the branch, not asserting around it.
     os.makedirs(os.path.dirname(os.path.abspath(ledger_path)), exist_ok=True)
+    # 🔴 THE NEWLINE GUARD. A kill mid-`write` leaves a final line with no newline. An append after
+    # that tear FUSES the two rows into one line, `load_rows` cannot parse it, and the complete NEW
+    # row is lost with the torn one — TWO records for one tear, against the one `load_rows` promises
+    # its callers. The guard puts the torn fragment on a line of its own, where the reader skips
+    # exactly it and nothing else.
+    # ⚠️ IT SEPARATES, IT DOES NOT TRUNCATE. `writers.StreamWriter` cuts a torn tail back to the last
+    # newline before it appends, which is right for a CSV stream that a strict parser reads. This file
+    # is the history and its reader is tolerant by design, so the torn bytes stay on disk to be read
+    # by a human. The probe is BINARY because the last byte is the question, not the last character.
+    torn = False
+    if os.path.exists(ledger_path) and os.path.getsize(ledger_path) > 0:
+        with open(ledger_path, "rb") as probe:
+            probe.seek(-1, os.SEEK_END)
+            torn = probe.read(1) != b"\n"
     with open(ledger_path, "a", encoding="utf-8") as fh:
+        if torn:
+            fh.write("\n")
         fh.write(json.dumps(row, sort_keys=True) + "\n")
+        # The barrier, for the same reason `oxy_transfer` fsyncs the .dat before it adopts it. A row
+        # that reached the OS survives a kill of this process; it does not survive the box losing
+        # power, and the loss is not safe-sided. A dropped COMMITTED row makes a drain re-pull, which
+        # costs BLE time only — but a dropped PARTIAL row leaves the ledger reading VERIFIED for a
+        # file we already found corrupt, and `current()` honours the regression only if it is there.
+        fh.flush()
+        os.fsync(fh.fileno())
 
 
-def load_rows(ledger_path: str) -> list[dict]:
+def load_rows(ledger_path: str, stats: dict | None = None) -> list[dict]:
     """Every row, oldest first. A malformed line is SKIPPED, not fatal.
 
     ⚠️ Tolerant on purpose, and the reason is the append-only design: a kill mid-`write` can leave a
     torn final line, and refusing to read the ledger because of it would turn a recoverable partial
     write into a total loss of history — the opposite of what append-only is for. A torn line is at
-    worst one lost record, and the recording it described is still on disk to be re-classified."""
+    worst one lost record, and the recording it described is still on disk to be re-classified.
+
+    `stats`, when a caller hands one in, is filled with `kept` and `skipped` — the tolerance's own
+    report. Without it the drop stays silent, and a caller cannot tell three rows from three rows
+    beside four it could not read."""
     rows: list[dict] = []
+    skipped = 0
     try:
         with open(ledger_path, encoding="utf-8") as fh:
             for line in fh:
                 line = line.strip()
                 if not line:
-                    continue
+                    continue  # a blank line carried no record, so it lost none
                 try:
                     obj = json.loads(line)
                 except ValueError:
+                    skipped += 1
                     continue  # a half-written JSONL line is the normal tail of a log being
                     # appended to right now; the next read gets it once it is complete
                 if isinstance(obj, dict) and "id" in obj:
                     rows.append(obj)
+                else:
+                    skipped += 1
     except OSError:
+        if stats is not None:
+            # §∅. The file was never opened, so NEITHER count exists. A `0` here would report "I read
+            # the ledger and every line parsed", which is the manufactured negative the rule forbids —
+            # and it reads identically to an empty ledger, which is the normal first-pull state.
+            stats.update(kept=None, skipped=None)
         return []
+    if stats is not None:
+        stats.update(kept=len(rows), skipped=skipped)
     return rows
 
 

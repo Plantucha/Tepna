@@ -3281,7 +3281,16 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
 
     // Fallback: if header detection failed or columns not found, try auto-detect from first data row
     var firstDataIdx = headerLine ? headerIdx + 1 : 0;
-    if (timeCol < 0 || spo2Col < 0 || hrCol < 0) {
+    /* 🔴 §∅ — A HEADER THAT NAMES ITS COLUMNS IS NEVER RE-READ BY POSITION (tracer audit #4706, TR-1).
+       The fallback below assigns time/SpO₂/HR/motion as `j, j+1, j+2, j+3`. It used to run whenever
+       ANY one of time/SpO₂/HR was unnamed, so a header `Time,Oxygen Level,Motion` (an O2Ring CSV with
+       no pulse column) re-read the Motion column as HR. A still night (motion 0) failed the 20–250 bpm
+       check on every row and parsed EMPTY; a restless one kept the rows whose motion count looked like
+       a pulse and published motion counts as HR. Measured on motion 0,58,3,200,0: 2 rows kept, HR 58
+       and 200, motion null. So the fallback now runs only when the header named NONE of the three:
+       a column the header leaves out is ABSENT (its cells read null), never borrowed from a neighbour. */
+    var _headerNamed = timeCol >= 0 || spo2Col >= 0 || hrCol >= 0;
+    if (!_headerNamed) {
       // Try rows until we find a valid one
       for (var i = firstDataIdx; i < Math.min(firstDataIdx + 5, lines.length); i++) {
         var parts = lines[i].trim().split(',');
@@ -3300,10 +3309,10 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       }
     }
 
-    // Last resort defaults
+    // Last resort defaults — only for an unrecognised layout; a named header keeps its absences.
     if (timeCol < 0) timeCol = 0;
-    if (spo2Col < 0) spo2Col = 1;
-    if (hrCol < 0) hrCol = 2;
+    if (!_headerNamed && spo2Col < 0) spo2Col = 1;
+    if (!_headerNamed && hrCol < 0) hrCol = 2;
 
     var rows = [];
     var _anchorMs = fileMeta ? _o2DateAnchorMs(fileMeta.fname, fileMeta.file) : null;
@@ -3324,8 +3333,8 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       var p = lines[i].trim().split(DELIM);
       if (p.length < 3) continue;
       var tStr = timeCol < p.length ? p[timeCol].trim() : '';
-      var sStr = spo2Col < p.length ? p[spo2Col].trim() : '';
-      var hStr = hrCol < p.length ? p[hrCol].trim() : '';
+      var sStr = spo2Col >= 0 && spo2Col < p.length ? p[spo2Col].trim() : '';
+      var hStr = hrCol >= 0 && hrCol < p.length ? p[hrCol].trim() : '';
       /* NO MOTION COLUMN IS ABSENCE, NOT STILLNESS (DEEP-AUDIT-V §2.3 F15 — bug class 3a).
          This defaulted to the STRING '0' whenever the file carried no Motion column (a 3-column
          oximeter CSV — a supported OxyDex input, `oxydex-spo2` detects it at 0.8) or the row was too
@@ -14353,6 +14362,40 @@ const OxyDex = window.OxyDex;
        no-sidecar state rather than as zero seams — `_pdSeamState(null, …)` IS that state, so the
        default is the function's own answer and not a literal that could drift from it. */
     const _vSeam = r.seamState || _pdSeamState(null, 0, 0);
+    /* ── THE PER-EPOCH SERIES, SO THE FUSION LAYER CAN SEE THIS NODE ────────────────────────────
+       Row `2026-11-08-the-pulsedex-export-carries-no-epoch-series`: this export published
+       `recording.windows` as a COUNT and carried no `timeseries`, so `integrator-dsp.js:735` lifted
+       0 epochs for the RR node, its three-cornered-hat fit reported 0 channels, and nothing named
+       the loss. INTEGRATOR-THREE-CORNERED-HAT §2 states the contract: a node publishes
+       `timeseries.epochs[]`, the Integrator lifts it into `rec.series.hrvEpochs`, and a node with no
+       epoch grid carries none.
+
+       THE INTEGRATOR'S MAP IS A WHITELIST (`tMin`, `rmssd`, `hr`, `hrStat`, `motionIndex` —
+       `integrator-dsp.js:747`), so a label has to travel HERE or it never leaves the node. ECGDex
+       shipped `hrStat` inert exactly that way, and every committed golden read `undefined`
+       (`ecgdex-dsp.js:7364`). `rate-of-mean` is this node's honest statistic, because
+       `windowAnalysis` computes `hr = 60000 / mean(RR)` (:1452) — the same statistic ECGDex and
+       PpgDex (`ppgdex-dsp.js:5696`) declare. Without the label the HR-hat differences three legs
+       that do not agree on the question.
+
+       NO `motionIndex`: an RR stream carries no accelerometer, so the key stays ABSENT rather than
+       zero (§∅), and the Integrator's co-motion rho simply has no leg from this node.
+
+       A window the seam scan refused never entered `r.windows`, because it describes two stretches
+       of signal (owner ruling 2026-09-17). `recording.clockSeamWindows` lists it with its reason, so
+       the hole in this series is reported THERE and is never interpolated here. */
+    const _pdEpNz = (v) => (v != null && isFinite(v) ? v : null);
+    const _pdEpochs = (r.windows || [])
+      .filter((w) => w && w.tMin != null && isFinite(w.tMin))
+      .map((w) => ({
+        tMin: w.tMin,
+        hr: _pdEpNz(w.hr),
+        hrStat: 'rate-of-mean',
+        rmssd: _pdEpNz(w.rmssd),
+        sdnn: _pdEpNz(w.sdnn),
+        pnn50: _pdEpNz(w.pnn),
+        meanRR: _pdEpNz(w.meanRR)
+      }));
     return {
       kernel: opts.kernel ? { version: opts.kernel.VERSION, hash: opts.kernel.HASH } : null,
       schema,
@@ -14430,6 +14473,9 @@ const OxyDex = window.OxyDex;
         frequency: { lf: r.lf, hf: r.hf, vlf: r.vlf, lfhf: r.lfhf },
         poincare: { sd1: r.sd1, sd2: r.sd2 }
       },
+      /* ATTACHED ONLY WHEN NON-EMPTY, so a record with no analysable window carries no field,
+         rather than an empty array a consumer would read as "measured, and flat". */
+      ...(_pdEpochs.length ? { timeseries: { epochs: _pdEpochs } } : {}),
       summary: { stress: r.stress, hrvScore: r.hrv, energy: r.energy, focus: r.focus, snsBal: r.snsBal, psnsBal: r.psnsBal },
       ganglior_events: ev,
       reserved: { doc: 'Awaiting other fleet nodes; null until available.', glucoseCorrelation: null, glucoseSource: 'GlucoDex' }

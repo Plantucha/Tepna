@@ -2082,6 +2082,40 @@
        no-sidecar state rather than as zero seams — `_pdSeamState(null, …)` IS that state, so the
        default is the function's own answer and not a literal that could drift from it. */
     const _vSeam = r.seamState || _pdSeamState(null, 0, 0);
+    /* ── THE PER-EPOCH SERIES, SO THE FUSION LAYER CAN SEE THIS NODE ────────────────────────────
+       Row `2026-11-08-the-pulsedex-export-carries-no-epoch-series`: this export published
+       `recording.windows` as a COUNT and carried no `timeseries`, so `integrator-dsp.js:735` lifted
+       0 epochs for the RR node, its three-cornered-hat fit reported 0 channels, and nothing named
+       the loss. INTEGRATOR-THREE-CORNERED-HAT §2 states the contract: a node publishes
+       `timeseries.epochs[]`, the Integrator lifts it into `rec.series.hrvEpochs`, and a node with no
+       epoch grid carries none.
+
+       THE INTEGRATOR'S MAP IS A WHITELIST (`tMin`, `rmssd`, `hr`, `hrStat`, `motionIndex` —
+       `integrator-dsp.js:747`), so a label has to travel HERE or it never leaves the node. ECGDex
+       shipped `hrStat` inert exactly that way, and every committed golden read `undefined`
+       (`ecgdex-dsp.js:7364`). `rate-of-mean` is this node's honest statistic, because
+       `windowAnalysis` computes `hr = 60000 / mean(RR)` (:1452) — the same statistic ECGDex and
+       PpgDex (`ppgdex-dsp.js:5696`) declare. Without the label the HR-hat differences three legs
+       that do not agree on the question.
+
+       NO `motionIndex`: an RR stream carries no accelerometer, so the key stays ABSENT rather than
+       zero (§∅), and the Integrator's co-motion rho simply has no leg from this node.
+
+       A window the seam scan refused never entered `r.windows`, because it describes two stretches
+       of signal (owner ruling 2026-09-17). `recording.clockSeamWindows` lists it with its reason, so
+       the hole in this series is reported THERE and is never interpolated here. */
+    const _pdEpNz = (v) => (v != null && isFinite(v) ? v : null);
+    const _pdEpochs = (r.windows || [])
+      .filter((w) => w && w.tMin != null && isFinite(w.tMin))
+      .map((w) => ({
+        tMin: w.tMin,
+        hr: _pdEpNz(w.hr),
+        hrStat: 'rate-of-mean',
+        rmssd: _pdEpNz(w.rmssd),
+        sdnn: _pdEpNz(w.sdnn),
+        pnn50: _pdEpNz(w.pnn),
+        meanRR: _pdEpNz(w.meanRR)
+      }));
     return {
       kernel: opts.kernel ? { version: opts.kernel.VERSION, hash: opts.kernel.HASH } : null,
       schema,
@@ -2159,6 +2193,9 @@
         frequency: { lf: r.lf, hf: r.hf, vlf: r.vlf, lfhf: r.lfhf },
         poincare: { sd1: r.sd1, sd2: r.sd2 }
       },
+      /* ATTACHED ONLY WHEN NON-EMPTY, so a record with no analysable window carries no field,
+         rather than an empty array a consumer would read as "measured, and flat". */
+      ...(_pdEpochs.length ? { timeseries: { epochs: _pdEpochs } } : {}),
       summary: { stress: r.stress, hrvScore: r.hrv, energy: r.energy, focus: r.focus, snsBal: r.snsBal, psnsBal: r.psnsBal },
       ganglior_events: ev,
       reserved: { doc: 'Awaiting other fleet nodes; null until available.', glucoseCorrelation: null, glucoseSource: 'GlucoDex' }
