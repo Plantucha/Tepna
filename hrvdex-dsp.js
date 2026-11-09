@@ -1057,8 +1057,11 @@
       } else r.d_hrv_momentum = NaN;
 
       // Cumulative Recovery Debt: count of ARI < 0.9 days in last 14 days
+      /* A window with NO measured ARI day is absent, not a debt of 0 (§∅). The old line published
+         `.length` over an empty list, so a fortnight of unmeasured days read as a clean, green "0" —
+         the same answer as a fully measured healthy fortnight. Same shape as `d_stress_auc` above. */
       const ari14 = window14.map((x) => x.d_ari).filter((v) => !isNaN(v));
-      r.d_recovery_debt = ari14.filter((v) => v < 0.9).length;
+      r.d_recovery_debt = ari14.length ? ari14.filter((v) => v < 0.9).length : NaN;
     });
   }
 

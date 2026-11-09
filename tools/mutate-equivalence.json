@@ -2312,8 +2312,8 @@
   {
    "line": 973,
    "op": "cmp < → <=",
-   "before": "r.d_recovery_debt = ari14.filter((v) => v < 0.9).length;",
-   "after": "r.d_recovery_debt = ari14.filter((v) => v <= 0.9).length;",
+   "before": "r.d_recovery_debt = ari14.length ? ari14.filter((v) => v < 0.9).length : NaN;",
+   "after": "r.d_recovery_debt = ari14.length ? ari14.filter((v) => v <= 0.9).length : NaN;",
    "class": "no-distinguishing-input",
    "why": "In computeDerived. Original and mutant produced byte-identical output on every input.",
    "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js",

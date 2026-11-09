@@ -41084,6 +41084,36 @@
       T.eq('computeDerived still produces 64 derived columns', produced.length, 64);
     });
 
+    group('HRVDex recovery debt — a window with no measured ARI day is absent, not 0 (residue 2026-11-08)', 'hrvdex-dsp · absence · known-answer', function (T) {
+      var D = (env.HRVDex && env.HRVDex._bare) || env.HRVDex;
+      if (!D || typeof D.computeDerived !== 'function') {
+        T.skip('computeDerived available', 'HRVDex._bare not loaded');
+        return;
+      }
+      /* Row 2026-11-08-hrvdex-recovery-debt-chart-draws-an-absent-value-as-a-green-zero, DSP half.
+         Six consecutive days at rMSSD 50. d_ari needs 4 days in its 7-day window, so days 0-2 carry
+         no ARI and day 3 is the first with one. Before the fix days 0-2 read debt 0. */
+      function mk(day, rmssd) {
+        var t = Date.UTC(2026, 8, 1 + day, 7, 0, 0);
+        return { _tMs: t, _date: new Date(t), _rmssd: rmssd, _sdnn: 60, _meanRR: 950, _hr: 63 };
+      }
+      var rows = [0, 1, 2, 3, 4, 5].map(function (d) {
+        return mk(d, 50);
+      });
+      D.computeDerived(rows);
+      T.ok('day 0: no ARI in the window, so the debt is NaN, not 0', Number.isNaN(rows[0].d_recovery_debt), String(rows[0].d_recovery_debt));
+      T.ok('day 2: still no ARI in the window, so the debt is NaN', Number.isNaN(rows[2].d_recovery_debt), String(rows[2].d_recovery_debt));
+      T.ok('control: day 3 carries a finite ARI', Number.isFinite(rows[3].d_ari), String(rows[3].d_ari));
+      T.eq('control: day 3 has one measured day at ARI 1, so a real debt of 0', rows[3].d_recovery_debt, 0);
+      /* A low day counts. Day 5 at rMSSD 20 sits far under its 7-day mean, so its ARI is under 0.9. */
+      var low = [0, 1, 2, 3, 4, 5].map(function (d) {
+        return mk(d, d === 5 ? 20 : 50);
+      });
+      D.computeDerived(low);
+      T.ok('control: day 5 ARI is under 0.9', low[5].d_ari < 0.9, String(low[5].d_ari));
+      T.eq('control: day 5 counts one debt day', low[5].d_recovery_debt, 1);
+    });
+
     group('HRVDex helper floor — 13 + 2 drafts adopted: numeric honesty, persistence guards, the clock pad (mutation-derived)', 'hrvdex-dsp · known-answer · mutation-pinned', function (T) {
       var H = env.HRVDex && env.HRVDex._bare;
       if (!H || typeof H._hrvNum !== 'function') {
@@ -41373,7 +41403,7 @@
         ['_hr', 'd_hrv_momentum d_sdnn_z d_stress_ac d_vei d_vo2_base d_vo2_delta d_vo2_hrv d_vo2_roll7'],
         ['_meanRR', 'd_csi d_cv_calc d_cvi d_hrv_momentum d_mxdmn_meanrr d_nn50 d_rsa d_sdnn_z d_stress_ac d_vo2_delta'],
         ['_sdnn', 'd_cai d_cv_calc d_dfa_proxy d_hrv_momentum d_ortho d_pns_eff d_rmssd_sdnn d_sd1_sd2 d_sdnn_z d_stress_ac d_vo2_delta'],
-        ['_rmssd', 'd_ari d_cai d_cvi d_hrv_momentum d_lnrmssd d_rmssd_cv7 d_rmssd_delta_pct d_rmssd_rolling_ln d_sdnn_z d_stress_ac d_vo2_delta'],
+        ['_rmssd', 'd_ari d_cai d_cvi d_hrv_momentum d_lnrmssd d_recovery_debt d_rmssd_cv7 d_rmssd_delta_pct d_rmssd_rolling_ln d_sdnn_z d_stress_ac d_vo2_delta'],
         ['_mxdmn', 'd_hrv_momentum d_sdnn_z d_si d_stress_ac d_vo2_delta'],
         ['_pnn50', 'd_hrv_momentum d_pns_eff d_sdnn_z d_stress_ac d_vo2_delta'],
         ['_amo50', 'd_hrv_momentum d_sdnn_z d_si d_stress_ac d_vo2_delta'],
@@ -41432,7 +41462,7 @@
         ['_hr', '49/1533.61769'],
         ['_meanRR', '47/639.765738'],
         ['_sdnn', '46/1539.723031'],
-        ['_rmssd', '46/1541.436879'],
+        ['_rmssd', '45/1541.436879'],
         ['_mxdmn', '52/1616.77845'],
         ['_pnn50', '52/2103.119766'],
         ['_amo50', '52/1617.439607'],
@@ -41602,7 +41632,7 @@
         ['_mode', 'd_hrv_momentum d_sdnn_z d_si d_stress_ac d_vo2_delta'],
         ['_mxdmn', 'd_hrv_momentum d_sdnn_z d_si d_stress_ac d_vo2_delta'],
         ['_meanRR', 'd_csi d_cv_calc d_cvi d_hrv_momentum d_mxdmn_meanrr d_nn50 d_rsa d_sdnn_z d_stress_ac d_vo2_delta'],
-        ['_rmssd', 'd_ari d_cai d_cvi d_hrv_momentum d_lnrmssd d_rmssd_cv7 d_rmssd_delta_pct d_rmssd_rolling_ln d_sdnn_z d_stress_ac d_vo2_delta']
+        ['_rmssd', 'd_ari d_cai d_cvi d_hrv_momentum d_lnrmssd d_recovery_debt d_rmssd_cv7 d_rmssd_delta_pct d_rmssd_rolling_ln d_sdnn_z d_stress_ac d_vo2_delta']
       ];
       for (var i = 0; i < FCASES.length; i++) {
         T.eq('fallback realm · absent ' + FCASES[i][0] + ' → exactly these columns fall to NaN', nf(FCASES[i][0]), FCASES[i][1]);
