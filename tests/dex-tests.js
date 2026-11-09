@@ -35401,6 +35401,21 @@
       T.ok('no CVHR table row calls the index an "apnea autonomic signature"', R.indexOf("— apnea autonomic signature'") === -1);
     });
 
+    group('HRVDex exports revoke every blob URL they create (residue 2026-11-08)', 'hrvdex-app · source · export', function (T) {
+      var R = String((env.sources || {})['hrvdex-app.js'] || '');
+      if (!R) {
+        T.skip('hrvdex-app.js in env.sources', 'not wired in this lane');
+        return;
+      }
+      var created = R.split('URL.createObjectURL(').length - 1;
+      var routed = R.split('_hrvClickAndRevoke(a);').length - 1;
+      var bareClicks = R.split('  a.click();').length - 1;
+      T.ok('ANTI-VACUITY · the app source still creates its three export blob URLs', created >= 3, created + ' created');
+      T.eq('every created blob URL goes through the revoking click', routed, created);
+      T.eq('the helper holds the one bare click in the file', bareClicks, 1);
+      T.ok('the helper revokes the URL it clicked', /function _hrvClickAndRevoke\(a\) \{[\s\S]{0,120}URL\.revokeObjectURL\(url\)/.test(R));
+    });
+
     /* ── §∅ · AN UNDATED RECORDING EXPORTS AN EMPTY DATE, NOT 1970-01-01 ───────────────────────
        `new Date(0)` renders "1970-01-01 00:00:00" — in-band, perfectly valid-looking, and sorted
        before every real recording. The repo already settled this elsewhere WITH TESTS ("no recording
