@@ -61216,6 +61216,43 @@
       T.eq('a marker outside the ±window does not annotate', ef.annotated, false);
     });
 
+    /* ════ GlucoDex excursions — the onset is the step, not the earliest qualifying trough ═══════
+       Residue 2026-11-08-glucodex-excursions-start-140-min-before-the-step. The scan qualifies the
+       EARLIEST trough whose rise over time-to-peak reaches 1.0 mg/dL/min, so a flat 60 mg/dL baseline
+       with a step to 200 at 18:00 dated the excursion 15:40 (140 mg/dL over 140 min). */
+    group('GlucoDex excursions — a planted step is dated at the step, not 140 min early (residue 2026-11-08)', 'glucodex-dsp · excursions · known-answer', function (T) {
+      var G = (env.GLUDSP && env.GLUDSP.analyze && env.GLUDSP) || (env.GlucoDex && env.GlucoDex.analyze && env.GlucoDex) || null;
+      if (!G) {
+        T.skip('GLUDSP.analyze available', 'GLUDSP not co-loaded in this runner');
+        return;
+      }
+      var t0 = Date.UTC(2026, 5, 13, 0, 0, 0);
+      var step = t0 + 18 * 3600000;
+      var tMs = [],
+        vMgdl = [];
+      for (var k = 0; k < 288; k++) {
+        var mins = k * 5;
+        tMs.push(t0 + mins * 60000);
+        vMgdl.push(mins >= 1080 && mins < 1200 ? 200 : 60);
+      }
+      var res = G.analyze({ tMs: tMs, vMgdl: vMgdl, unit: 'mg/dL', t0Ms: tMs[0], source: 'synthetic' }, null, {});
+      var ex = (res && res.excursions) || [];
+      T.eq('the planted step trips exactly one excursion', ex.length, 1);
+      var e = ex[0] || {};
+      /* THE KILL: the old onset read 15:40, 140 min before the step. The last sample still at the
+         baseline is 17:55, so the onset sits within one 5 min cadence of the step. */
+      T.ok(
+        'the onset sits within one cadence of the 18:00 step',
+        e.startMs != null && Math.abs(e.startMs - step) <= 5 * 60000,
+        'startMs=' + (e.startMs != null ? new Date(e.startMs).toISOString().slice(11, 16) : 'null')
+      );
+      T.eq('the peak is the first stepped sample', e.peakMs, step);
+      T.eq('the rise is the full 140 mg/dL step', e.rise, 140);
+      /* The duration and rate are re-derived from the onset, so they describe the step itself. */
+      T.eq('durMin is one cadence, not 140 min', e.durMin, 5);
+      T.eq('the rate is 140 mg/dL over 5 min', e.rateMgMin, 28);
+    });
+
     group('GlucoDex genSynthetic — the generator honours its three options (mutation bootstrap)', 'glucodex-dsp · known-answer · mutation-pinned', function (T) {
       var G = (env.GLUDSP && env.GLUDSP.genSynthetic && env.GLUDSP) || (env.GlucoDex && env.GlucoDex.genSynthetic && env.GlucoDex) || null;
       if (!G) {

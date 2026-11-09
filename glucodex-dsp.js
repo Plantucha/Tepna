@@ -1279,15 +1279,27 @@
       const durMin = (peakI - i) * c.cadence;
       const rate = durMin > 0 ? rise / durMin : 0;
       if (rise >= 45 && rate >= 1.0 && c.gV[i] < 160) {
-        const meal = matchMeal(c.gT[i]);
+        // ── THE ONSET IS THE LAST SAMPLE STILL AT THE TROUGH, NOT THE FIRST TROUGH THAT QUALIFIES ──
+        // The scan above qualifies the EARLIEST trough whose rise over time-to-peak reaches the rate.
+        // On a flat baseline that is a sample long before the rise: a 60 → 200 mg/dL step at 18:00
+        // qualified from 15:40, because 140 mg/dL over 140 min is exactly 1.0 mg/dL/min (residue
+        // 2026-11-08-glucodex-excursions-start-140-min-before-the-step). So the onset walks forward
+        // to the last analysable sample before the peak that is still within the scan's own 10 mg/dL
+        // trough band. Detection, rise and peak are unchanged: a later onset only shortens durMin, so
+        // the rate it re-derives can only rise above the threshold that already passed.
+        let s = i;
+        for (let k = i + 1; k < peakI; k++) if (_ana(c, k) && c.gV[k] <= trough + 10) s = k;
+        const onDurMin = (peakI - s) * c.cadence;
+        const onRate = onDurMin > 0 ? rise / onDurMin : rate;
+        const meal = matchMeal(c.gT[s]);
         evs.push({
-          startMs: c.gT[i],
+          startMs: c.gT[s],
           peakMs: c.gT[peakI],
           trough: Math.round(trough),
           peak: Math.round(peak),
           rise: Math.round(rise),
-          rateMgMin: +rate.toFixed(2),
-          durMin: Math.round(durMin),
+          rateMgMin: +onRate.toFixed(2),
+          durMin: Math.round(onDurMin),
           meal: meal ? meal.label : null,
           mealCat: meal ? meal.category : null,
           annotated: !!meal
