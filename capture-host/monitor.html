@@ -172,8 +172,15 @@ button{font:inherit;}
 .data-pill{display:inline-flex;align-items:center;gap:6px;background:rgba(45,212,191,.1);border:1px solid rgba(45,212,191,.18);
   color:var(--green);padding:4px 10px;border-radius:999px;font-size:11px;font-weight:600;}
 .data-pill.idle{background:rgba(110,133,168,.12);border-color:rgba(110,133,168,.2);color:var(--text3);}
+/* `warn` and `bad` were assigned at eight render sites and defined at none, so every distress pill on
+   this page fell through to the base rule above — the healthy green look. An absent rule is not a
+   neutral rule; it is the §∅ failure in CSS, where absence reads as a value. */
+.data-pill.warn{background:rgba(255,184,77,.12);border-color:rgba(255,184,77,.35);color:var(--amber);}
+.data-pill.bad{background:rgba(255,107,122,.12);border-color:rgba(255,107,122,.45);color:var(--red);}
 .data-dot{width:7px;height:7px;border-radius:50%;background:var(--green);flex-shrink:0;animation:pulse 2.5s ease-in-out infinite;}
 .data-pill.idle .data-dot{background:var(--text4);animation:none;}
+.data-pill.warn .data-dot{background:var(--amber);}
+.data-pill.bad .data-dot{background:var(--red);}
 .pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700;letter-spacing:.03em;}
 .pill-green{background:rgba(45,212,191,.12);color:var(--status-ok);border:1px solid rgba(45,212,191,.2);}
 .pill-amber{background:rgba(245,158,11,.12);color:var(--status-caution);border:1px solid rgba(245,158,11,.2);}
@@ -191,6 +198,9 @@ body.light .section-title::after{background:rgba(0,0,0,.06);}
   overflow:hidden;transition:border-color .2s,transform .15s,box-shadow .15s;animation:cardEntrance .4s ease both;}
 .card h3{font-size:13px;font-weight:700;color:var(--text);margin-bottom:4px;letter-spacing:-.01em;}
 .card .hint{color:var(--text3);font-size:12px;margin-top:var(--sp-3);line-height:1.5;}
+/* A hint that must say its own number is a floor. `.card .hint` sets the grey, so this rule
+   follows it and wins on source order at equal specificity. */
+.hint.warn{color:var(--amber);}
 
 /* ── Overview stream grid ──────────────────────────────────────────────── */
 .ov-strip{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:var(--sp-5);}
@@ -2487,12 +2497,23 @@ function renderAutopull(ap){
   if(!ap || !ap.trigger){ card.hidden = true; return; }
   card.hidden = false;
   const n = ap.new || 0, drained = ap.drained || 0;
-  pill.className = 'data-pill ' + (n ? 'ok' : 'idle');
+  // THE DRAIN OUTCOME IS ITS OWN FACT, AND THE COUNT CANNOT CARRY IT. `drained: 0` reads the same for
+  // a ring with nothing stranded and for a drain the link refused. `capture.py` named that one layer
+  // up and publishes `drain` beside the count; this render read every other field and dropped it, so
+  // a refusal drew the healthy pill and the clean text (row
+  // `2026-11-08-a-partial-drain-keeps-the-power-off-licence-the-contract-withholds`).
+  const drain = typeof ap.drain === 'string' ? ap.drain : '';
+  const held = drain.startsWith('refused') || drain.startsWith('deferred');
+  // `not-attempted` is the ordinary case and says nothing; `ok after N attempt(s)` says the link made
+  // us ask twice, which is worth a reader's eye without being a fault.
+  const notable = drain && drain !== 'ok' && drain !== 'not-attempted';
+  pill.className = 'data-pill ' + (held ? 'warn' : n ? 'ok' : 'idle');
   txt.textContent = `Auto-pull · ${ap.trigger}`;
   // The COUNTS, because "fired" without "and landed what" is the half of the answer that misleads:
   // a trigger that fires nightly and commits nothing reads as healthy on the trigger alone.
   det.textContent = `${n} file${n === 1 ? '' : 's'}`
                   + (drained ? ` · ${drained} stranded fragment${drained === 1 ? '' : 's'} drained` : '')
+                  + (notable ? ` · drain ${drain}` : '')
                   + (ap.last ? ` · ${ap.last.slice(11, 16)}` : '');
 }
 
@@ -3907,8 +3928,29 @@ async function pullRec(address, btn){
     if(!r.ok){ panel.innerHTML = r.busy
       ? '<span class="hint">⏳ '+esc(r.busy)+' is downloading — one device at a time, try again when it finishes.</span>'
       : '<span class="hint">error: '+esc(r.error||'failed')+'</span>'; return; }
-    if(!(r.recordings||[]).length){ panel.innerHTML = '<span class="hint">no onboard recordings stored on this device.</span>'; return; }
-    panel.innerHTML = r.recordings.map(s=>`
+    // §∅ — THE WALK'S POPULATION IS A SEPARATE FACT FROM WHAT THE WALK FOUND. `complete` is false when
+    // a directory came back cut short, or would not list at all, and `webmon` publishes it beside the
+    // sessions for exactly that reason. `polar_psftp.list_recordings_ex` logs the same thing in words:
+    // the count is "a floor, not the device's total". This panel read the sessions alone, so a device
+    // whose every directory refused drew "no onboard recordings stored" — a measured zero over a walk
+    // that measured nothing (row
+    // `2026-11-08-the-monitor-page-reads-no-polar-enumeration-completeness`).
+    const ls = r.listing || {};
+    const cut = (ls.truncated_dirs || []).length, unread = (ls.unreadable_dirs || []).length;
+    const partial = r.complete === false || !!cut || !!unread;
+    const floorNote = partial
+      ? `<span class="hint warn">⚠ a FLOOR, not the device's total — ${cut} director${cut === 1 ? 'y' : 'ies'} came back cut short, ${unread} would not list at all.</span>`
+      : '';
+    const recs = r.recordings || [];
+    if(!recs.length){
+      // TWO DIFFERENT FACTS, and one sentence used to serve both. An empty device is a finished
+      // measurement; a walk that read nothing is the absence of one.
+      panel.innerHTML = partial
+        ? floorNote + '<span class="hint">nothing in that list could be read, so this is NOT an empty device.</span>'
+        : '<span class="hint">no onboard recordings stored on this device.</span>';
+      return;
+    }
+    panel.innerHTML = floorNote + recs.map(s=>`
       <div style="display:flex;align-items:center;gap:.6rem;font-size:.85rem">
         <span style="flex:1">${esc(s.start_local||s.path)} · ${esc(s.kind)} · ${s.files.length} files · ${(s.total_bytes/1024).toFixed(1)} KB</span>
         <button class="btn" onclick='doPull(${esc(JSON.stringify(address))}, ${esc(JSON.stringify(s.path))}, this)'>Download</button>

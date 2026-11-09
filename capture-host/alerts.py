@@ -312,13 +312,19 @@ def is_clustered(starts: list[float], index: int, window_sec: float, n: int, sta
 class BoardStreak:
     """Per-device consecutive-day streaks of BOARD-tier absence days. When the run containing a
     noted day reaches `days`, note() returns True exactly once for that run — the poller turns it
-    into one TICKET board message (consult item 3). State is in memory: a daemon restart forgets
-    the streak, the same disclosed limit the page cap carries."""
+    into one TICKET board message (consult item 3).
+
+    🔴 STATE IS IN MEMORY, SO A RESTART FORGETS THE STREAK — and a run reaching back to the earliest
+    day this process saw is therefore a FLOOR, not a length (§∅). Two board days, a restart, then one
+    more day reads as a run of 1 and fires nothing. note() cannot honestly fire on a run it never
+    saw, so it says so instead: one WARNING names the floor the first time a short run reaches that
+    earliest day. Row `2026-11-08-a-restart-resets-the-page-count-and-board-streak-silently`."""
 
     def __init__(self, days: int = 3):
         self.days = days
         self._seen: dict[str, set[_datetime.date]] = {}
         self._fired: set[tuple[str, _datetime.date]] = set()
+        self._floor_logged: set[tuple[str, _datetime.date]] = set()
 
     def note(self, device: str, day: _datetime.date) -> bool:
         seen = self._seen.setdefault(device, set())
@@ -329,9 +335,22 @@ class BoardStreak:
         end = day
         while end + _datetime.timedelta(days=1) in seen:
             end += _datetime.timedelta(days=1)
-        if (end - start).days + 1 >= self.days and (device, start) not in self._fired:
+        run = (end - start).days + 1
+        if run >= self.days and (device, start) not in self._fired:
             self._fired.add((device, start))
             return True
+        if run < self.days and start == min(seen) and (device, start) not in self._floor_logged:
+            # The run reaches the earliest day this process ever noted for this device, so the days
+            # before it are unknown — the ticket may already be owed and nothing here can prove it.
+            self._floor_logged.add((device, start))
+            _log.warning(
+                "board streak for %s runs %d day(s) from %s, the earliest day this process saw — "
+                "earlier days are unknown, so the run is a floor and the %d-day ticket may be owed",
+                device,
+                run,
+                start.isoformat(),
+                self.days,
+            )
         return False
 
 
@@ -361,6 +380,13 @@ class Notifier:
         self._page_cap = page_cap_per_day
         self._today = _today or _datetime.date.today
         self._page_counts: dict[_datetime.date, int] = {}  # counted pages delivered per local day
+        # 🔴 AN EMPTY LEDGER IS NOT A MEASURED ZERO (§∅). The counts live in memory, so a daemon
+        # restart empties them, and on the day this process started the day's count covers only the
+        # part of the day it has been up for. `_started_on` is the fact that lets every reader tell
+        # a floor from a count. Row
+        # `2026-11-08-a-restart-resets-the-page-count-and-board-streak-silently`.
+        self._started_on = self._today()
+        self._floor_disclosed: set[_datetime.date] = set()  # days whose floor this process has logged
         self.emails: list[str] = list(emails or [])  # ntfy `Email:` recipients for `send(..., email=True)`
         self.enabled = bool(enabled and url)
         self.context = context  # rich-alert schema v1: Where/Handle footer, appended by send()
@@ -398,9 +424,26 @@ class Notifier:
         self.cap_held = 0  # counted pages the daily cap rerouted to the board (or to the journal)
 
     def _pages_on(self, day: _datetime.date) -> int:
-        """Counted pages delivered on `day`. A day with no entry has delivered none — the
-        entry is written by the delivery itself, so absence here is a measured zero."""
+        """Counted pages THIS PROCESS delivered on `day`. A day with no entry has none on record.
+
+        🔴 ON THE START DAY THAT IS A FLOOR, NOT A MEASURED ZERO. The ledger lives in memory and a
+        restart empties it, so pages an earlier process delivered earlier the same day are unknown
+        (§∅). The cap still counts from the floor, which errs toward MORE pages and never fewer, and
+        `_count_is_floor` carries the fact to every reader instead of leaving it in a docstring.
+        """
         return self._page_counts[day] if day in self._page_counts else 0
+
+    def _count_is_floor(self, day: _datetime.date | None) -> bool:
+        """Does `day`'s count cover only part of the day? True on the day this process started, and
+        on any earlier day a backwards clock step can ask about, because the earlier process's pages
+        are unknown. False once a whole day has passed under this process.
+
+        An absent date on either side answers True, because an unknown span is not a covered one
+        (§∅): the clock can refuse a date here, and `send` already treats that as "count nothing".
+        """
+        if day is None or self._started_on is None:
+            return True
+        return day <= self._started_on
 
     @property
     def board_ready(self) -> bool:
@@ -410,7 +453,11 @@ class Notifier:
     def stats(self) -> dict:
         """What the monitor shows. A notifier that has never delivered anything reports
         `last_ok: None`, which is a different state from "delivered a while ago" and must render as
-        one — the same tri-state discipline `sdk_mode_actual` uses."""
+        one — the same tri-state discipline `sdk_mode_actual` uses.
+
+        `pages_today_covers_day` is the §∅ half of `pages_today`: it reads False while this process
+        started today, where 0 means "none since the restart" and NOT "none today"."""
+        today = self._today()
         return {
             "enabled": self.enabled,
             "delivered": self.delivered,
@@ -426,7 +473,8 @@ class Notifier:
             "board_failed": self.board_failed,
             "board_fallback_delivered": self.board_fallback_delivered,
             "board_fallback_failed": self.board_fallback_failed,
-            "pages_today": self._pages_on(self._today()),
+            "pages_today": self._pages_on(today),
+            "pages_today_covers_day": not self._count_is_floor(today),
             "cap_held": self.cap_held,
         }
 
@@ -537,6 +585,18 @@ class Notifier:
             self.board_delivered += 1
         elif counted and today is not None:
             self._page_counts[today] = self._pages_on(today) + 1
+            if self._count_is_floor(today) and today not in self._floor_disclosed:
+                # DISCLOSE THE RESTART WHERE THE NUMBER FIRST DECIDES SOMETHING. The ledger started
+                # empty today, so this count is a floor, and the cap can let more pages through than
+                # its own budget — never fewer. One line per day, at the first counted page.
+                self._floor_disclosed.add(today)
+                _log.info(
+                    "alert page cap: page %d of %d today, counted from a ledger this process started "
+                    "empty — pages delivered before the restart are unknown, so the cap can let more "
+                    "through, never fewer",
+                    self._page_counts[today],
+                    self._page_cap,
+                )
         self.last_ok = _time.time()
         self.last_error = None
         if email and not board:
@@ -1344,9 +1404,17 @@ def powered_off_after_pull(
     True only when a pull for this device SUCCEEDED and that success is recent. Both halves are
     load-bearing and they fail in opposite directions:
 
-    · **The pull must have SUCCEEDED.** A doff whose pull failed or ran partial leaves data on the ring
-      that we still need, so its silence IS something to alert about. Licensing the quiet state on the
-      doff alone would suppress exactly the alert that matters — the night we did not collect.
+    · **The pull must have SUCCEEDED.** A doff whose pull FAILED leaves data on the ring that we still
+      need, so its silence IS something to alert about. Licensing the quiet state on the doff alone
+      would suppress exactly the alert that matters — the night we did not collect.
+
+      "SUCCEEDED" names the PRIMARY pull, and nothing else. `capture.py` writes `_LAST_PULL_OK` at
+      one site, after that pull returns, and never in an `except` arm. A follow-on ledger drain that
+      the link refuses does not retract the licence: the fragments stay on flash, the hourly poller
+      reaches them, and the daemon publishes the refusal as `STATUS["autopull"]["drain"]`. So a
+      partial DRAIN is not a partial PULL. This clause once read the two as one object, and named a
+      half-done pull that no writer produces — which made the contract look broken while the code was
+      right (row `2026-11-08-a-partial-drain-keeps-the-power-off-licence-the-contract-withholds`).
 
     · **It must EXPIRE.** A ring that has not advertised for well past its timer AND past any plausible
       re-wear is no longer explained by the idle timer; it is a flat battery, a ring left in a bag, or a

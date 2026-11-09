@@ -980,7 +980,10 @@
       );
       T.ok(
         'the KPI strip prints an em-dash instead of concatenating the absence into its unit',
-        /_kv = /.test(rnd) && !/\br\.(sdnn|rmssd|sdann|dispSd|dispRm) \+ '/.test(rnd),
+        // The live strip is `renderKpiGridPx` in pulsedex-overview.js. Its formatter keeps a null, and its
+        // emitter prints the em-dash. The old `renderKPI` in pulsedex-render.js had no caller (residue
+        // 2026-11-08-pulsedex-renderkpi-has-no-caller), so this leg reads the surface the reader sees.
+        /const _kn = \(v\) => \(v == null \? null/.test(ovw) && /k\.v === null[^\n]*\? '—' : k\.v/.test(ovw) && !/\br\.(sdnn|rmssd|sdann|dispSd|dispRm) \+ '/.test(rnd + ovw),
         'a KPI still coerces a null into a string'
       );
       T.ok(
@@ -2935,6 +2938,49 @@
       T.ok('a refusal publishes no snr and no threshold, because it computed neither', refused != null && refused.snr === null && refused.threshold === null && refused.bins === 0);
       T.ok('a night inside the floor carries a null reason, never an undefined one', fg != null && fg.reason === null);
 
+      /* ∅ THE SHAPE OF THE ABSENCE, NOT ONLY ITS AMOUNT (row
+         2026-11-09-the-spo2-spectrum-reads-a-gap-run-as-reduced-coverage). The same absent COUNT is one
+         hole or dust over the night, and `coveredN` alone cannot tell a reader which. The sweep behind
+         this (24 nights of 27,600 samples, runs 0 to 800 s against the same count scattered) found 0
+         fabrications at every run length and every position, so a run-length REFUSAL would prevent
+         nothing measurable. What the two shapes owe a consumer is the DISTINCTION, and a refusal owes
+         its own reason. */
+      function hole(rows, start, len) {
+        var o = rows.slice(),
+          hi;
+        for (hi = 0; hi < len; hi++) o[start + hi] = { spo2: null };
+        return o;
+      }
+      var runIn = OD.computeSpO2FFT(hole(flat, 400, 30));
+      T.ok(
+        'a 30-sample hole inside the floor publishes, and states the run beside the coverage',
+        runIn != null && runIn.reason === null && runIn.coveredN === 1170 && runIn.spanN === 1200 && runIn.absentRunMaxN === 30,
+        JSON.stringify(runIn)
+      );
+      var dust = OD.computeSpO2FFT(gaps(flat, 40));
+      T.ok(
+        'the same absent count scattered states the SAME coverage and a run of 1, so the two shapes are now distinguishable',
+        dust != null && dust.coveredN === 1170 && dust.absentRunMaxN === 1,
+        JSON.stringify(dust)
+      );
+      // The row's own case: a night cut in two, below the floor. The reason is NAMED, never borrowed.
+      var cut = OD.computeSpO2FFT(hole(flat, 300, 200));
+      T.ok(
+        'a night whose absence is mostly ONE stretch refuses as absence-run, and states the run',
+        cut != null && cut.reason === 'absence-run' && cut.detected === false && cut.coveredN === 1000 && cut.absentRunMaxN === 200,
+        JSON.stringify(cut)
+      );
+      /* CONTROL — the borrowed reason is the TRUTH where the absence really is dust. `refused` above is
+         100 absent samples at stride 12, so its longest run is 1 and it keeps `coverage-below-floor`. A
+         fix that renamed every refusal would read as a pass here and measure nothing. */
+      T.ok(
+        'scattered absence below the floor keeps coverage-below-floor, because that IS its shape',
+        refused != null && refused.reason === 'coverage-below-floor' && refused.absentRunMaxN === 1,
+        JSON.stringify(refused)
+      );
+      // CONTROL — a night that measured every sample states a run of 0, not a null and not a 1.
+      T.eq('a night with a reading in every row states a longest absent run of 0', OD.computeSpO2FFT(flat).absentRunMaxN, 0);
+
       var srcOfF = function (f) {
         return ((env.sources || {})[f] || '')
           .split('\n')
@@ -2965,6 +3011,17 @@
           'guard or line absent'
         );
         T.ok('the export carries the refusal reason, so an empty peak is not read as "no cycle"', /if \(n\.fft\.reason\)/.test(asrc) && asrc.indexOf('FFT Refused') > 0, 'refusal line absent');
+        var namer = (dsrc.match(/absentRunMaxN \* 2 >= n - covered \? 'absence-run' : 'coverage-below-floor'/g) || []).length;
+        T.ok(
+          'the refusal reason is chosen once, by the pre-stated majority-share criterion',
+          namer === 1 && (dsrc.match(/if \(_run > absentRunMaxN\) absentRunMaxN = _run;/g) || []).length === 1,
+          'namer=' + namer
+        );
+        T.ok(
+          'the export names the longest absent run beside the covered samples',
+          asrc.indexOf('FFT Longest Absent Run (samples)') > 0 && /typeof n\.fft\.absentRunMaxN === 'number'/.test(asrc),
+          'run line absent'
+        );
       }
     });
 
@@ -19467,6 +19524,32 @@
        + a functional test against the exposed `OxyDex.parseRingClockLog` /
        `OxyDex._attachRtcVerification` helpers so the matcher's behaviour is pinned, not just its
        presence. */
+    /* Row `2026-11-08-the-default-export-carries-the-upload-filename`: the scrub was opt-in and defaulted
+       OFF, so the file the download button wrote carried the ring's device serial inside
+       `schema.provenance.inputs[].name`. Both apps now default it ON. These legs read the SOURCE, because
+       the flag lives on `window` and the headless lane boots no page. */
+    group('SELF-INGEST §5 · the scrub default is ON, so a shared export carries no serial', 'oxydex-app · cpapdex-app · privacy · source-scan', function (T) {
+      var _s = env.sources || {};
+      var names = ['oxydex-app.js', 'cpapdex-app.js', 'oxydex-render.js', 'oxydex-dsp.js', 'dex-export.js'];
+      var missing = names.filter(function (n) {
+        return !_s[n];
+      });
+      if (missing.length) {
+        T.skip('all five scrub-bearing sources wired', 'absent from env.sources: ' + missing.join(', '));
+        return;
+      }
+      T.eq('oxydex-app.js defaults the flag ON exactly once', (_s['oxydex-app.js'].match(/window\._oxyScrub === undefined\) window\._oxyScrub = true;/g) || []).length, 1);
+      T.eq('cpapdex-app.js defaults the flag ON exactly once', (_s['cpapdex-app.js'].match(/window\._cpapScrub === undefined\) window\._cpapScrub = true;/g) || []).length, 1);
+      /* The box must READ the flag. An unchecked box over a scrubbed export states the opposite of what
+         the download does. */
+      T.eq('the CPAPDex checkbox reads the live default', (_s['cpapdex-app.js'].match(/cb\.checked = !!window\._cpapScrub;/g) || []).length, 1);
+      /* A comment that still says OFF sends the next reader to the wrong conclusion, and five files
+         carried that sentence before this change. */
+      var stale = names.reduce(function (acc, n) {
+        return acc + (_s[n].match(/efault OFF/g) || []).length;
+      }, 0);
+      T.eq('no module still states a default OFF scrub', stale, 0, 'five files carried that sentence');
+    });
     group('OxyDex ring-clock sidecar — the .dat timebase is DECLARED against `_rtclog.csv`, never SHIFTED', 'oxydex-dsp · ring-rtc · source-scan', function (T) {
       var _src = env.sources || {};
       var dsp = _src['oxydex-dsp.js'] || '';
@@ -27948,6 +28031,28 @@
        immediately, a swap inside the 8 reds on the set pin, and wiring one in forces the cap down.
 
        Node-lane only (env.sourceVisibility is fs-read); the browser SKIPs, mirroring docs-ledger. */
+    group('EEGDex median averages the two middles on an even count', 'eegdex · median · known-answer', function (T) {
+      /* Residue 2026-11-08-eegdex-median-takes-the-upper-middle. EEGDex ships no bundle, so this leg
+         lifts `median` out of the source text and runs it. An even count used to return the UPPER
+         middle (median([1, 2, 3, 4]) read 3, not 2.5), and the stager normalises EMG and EOG tone by it. */
+      var src = env.sources && env.sources['eegdex-dsp.js'];
+      if (!src) {
+        T.skip('eegdex-dsp.js source available', 'eegdex-dsp.js not in env.sources');
+        return;
+      }
+      var a = src.indexOf('function median(a) {'),
+        b = a < 0 ? -1 : src.indexOf('\n  }\n', a);
+      T.ok('the median function was found in eegdex-dsp.js', a >= 0 && b > a);
+      if (!(a >= 0 && b > a)) return;
+      var median = new Function(src.slice(a, b + 4) + '\nreturn median;')();
+      T.eq('even count: median([1, 2, 3, 4]) is 2.5', median([1, 2, 3, 4]), 2.5);
+      T.eq('even count, unsorted input: median([4, 1, 3, 2]) is 2.5', median([4, 1, 3, 2]), 2.5);
+      T.eq('odd count: median([3, 1, 2]) is 2', median([3, 1, 2]), 2);
+      T.eq('null and non-finite values drop before the middle: median([1, null, NaN, 3]) is 2', median([1, null, NaN, 3]), 2);
+      T.eq('an input with no finite value is null, not 0 or NaN', median([null, NaN]), null);
+      T.eq('an empty input is null', median([]), null);
+    });
+
     group('Every runtime source layer is readable by at least one lane', 'cohesion · source-visibility · ratchet', function (T) {
       var SV = env.sourceVisibility;
       if (!SV || !env.sources) {
@@ -34115,6 +34220,47 @@
       T.eq('a clean PPI night reports zero blocked', PR(clean).nBlocked, 0);
     });
 
+    /* ════ SignalFrame keeps the parser's removal counts beside the intervals ═══════════════════════
+       Residue 2026-11-08-tosignalframe-drops-the-pulsedex-artifact-counts. toSignalFrame copied the
+       surviving intervals and dropped nRaw, nUsable, nBlocked and timeRatio, so a frame could not say
+       how many intervals the parser removed. */
+    group('SignalFrame — an RR frame carries the parser removal counts (residue 2026-11-08)', 'signal-frame · pulsedex-dsp · regression', function (T) {
+      var SF = env.SignalFrame;
+      var PR = env.PulseDex && env.PulseDex.parseRRInput;
+      if (!SF || typeof SF.toSignalFrame !== 'function' || typeof PR !== 'function') {
+        T.skip('SignalFrame and PulseDex.parseRRInput co-loaded', 'not co-loaded in this runner');
+        return;
+      }
+      var HDR = 'Phone Data RX timestamp;PP-interval [ms];error estimate [ms];blocker;contact;contact;hr [bpm]';
+      var rows = [],
+        t = Date.UTC(2026, 7, 9, 22, 0, 0);
+      for (var i = 0; i < 14; i++) {
+        /* Row 4 is device-blocked and row 8 is out of range (120 ms), so the parser removes one
+           interval by flag and keeps one it does not count as usable. */
+        var v = i === 8 ? 120 : 1000 + (i % 3) * 10;
+        var blk = i === 4 ? 1 : 0;
+        rows.push(new Date(t).toISOString().slice(0, 23) + ';' + v + ';10;' + blk + ';1;1;60');
+        t += v;
+      }
+      var raw = PR(HDR + '\n' + rows.join('\n'));
+      var fr = SF.toSignalFrame('rr', raw, { adapter: 'polar-ppi', vendor: 'Polar' });
+      var c = fr.counts || {};
+      /* THE KILL: on main the frame has no counts, so every leg below reads undefined. */
+      T.eq('nBlocked reaches the frame', c.nBlocked, raw.nBlocked);
+      T.eq('…and it is the one blocked row', c.nBlocked, 1);
+      T.eq('nRaw reaches the frame', c.nRaw, raw.nRaw);
+      T.eq('nUsable reaches the frame', c.nUsable, raw.nUsable);
+      T.ok('…and nUsable is below nRaw, so the out-of-range interval is visible', c.nUsable < c.nRaw, 'nUsable=' + c.nUsable + ' nRaw=' + c.nRaw);
+      T.eq('timeRatio reaches the frame', c.timeRatio, raw.timeRatio == null ? null : raw.timeRatio);
+      T.ok('the frame still validates', SF.validateFrame(fr).ok === true, SF.validateFrame(fr).errors.join('; '));
+      /* CONTROL (§∅): a parser that reports no counts gives null counts, never 0. */
+      var bare = SF.toSignalFrame('rr', { vals: [800, 810, 795], t0Ms: null, usable: false, reason: 'short' }, { adapter: 'x' });
+      T.eq('an unreported count is null, not 0', JSON.stringify(bare.counts), JSON.stringify({ nRaw: null, nUsable: null, nBlocked: null, timeRatio: null }));
+      /* A samples frame removes nothing by interval, so it carries no counts object. */
+      var smp = SF.toSignalFrame('ecg', { samples: [1, 2, 3], fs: 130, t0Ms: null, usable: false, reason: 'short' }, { adapter: 'x' });
+      T.eq('a samples frame carries counts null', smp.counts, null);
+    });
+
     group('PulseDex finding D — parseRRInput resolves file-level DMY/MDY (Coospo/Wahoo MDY)', 'pulsedex-dsp · clock · regression', function (T) {
       var P = env.PulseDex;
       var PR = P && P.parseRRInput;
@@ -38180,6 +38326,48 @@
       }
     );
 
+    /* ── THE TIME-IN-RANGE BAND EDGES ARE PINNED, NOT ASSUMED ──
+       `TIR_CUT` in `glucodex-dsp.js` holds the 2019 consensus cut-points (Battelino 2019, Diabetes
+       Care, doi:10.2337/dci19-0028): below 54, 54 to 69, 70 to 180, 181 to 250, above 250 mg/dL.
+       `registry-defs-parity` checks grades and leaves numeric band constants out, so before this group
+       a changed edge, or a `<` turned into `<=`, passed every gate. Each leg below feeds ONE reading
+       and reads which bucket counted it, so an off-by-one edge names itself. */
+    group('GlucoDex time-in-range edges — 54, 70, 180 and 250 mg/dL, each bucket at its bound', 'glucodex-dsp · known-answer · consensus constant', function (T) {
+      var G = env.GLUDSP || (env.GlucoDex && env.GlucoDex._bare) || env.GlucoDex;
+      if (!G || typeof G.coreMetrics !== 'function') {
+        T.skip('GLUDSP available', 'GlucoDex not co-loaded in this runner');
+        return;
+      }
+      T.eq('TIR_CUT is the 2019 consensus set', JSON.stringify(G.TIR_CUT), '{"vlow":54,"low":70,"high":180,"vhigh":250}');
+      var bucketOf = function (v) {
+        var n = G.coreMetrics([v]).tirN;
+        return Object.keys(n)
+          .filter(function (k) {
+            return n[k] === 1;
+          })
+          .join(',');
+      };
+      // ── each edge, from both sides ──
+      T.eq('53 mg/dL is very low (tbr2)', bucketOf(53), 'tbr2');
+      T.eq('54 mg/dL is low, not very low (tbr1)', bucketOf(54), 'tbr1');
+      T.eq('69 mg/dL is low (tbr1)', bucketOf(69), 'tbr1');
+      T.eq('70 mg/dL is in range: the lower edge is closed', bucketOf(70), 'tir');
+      T.eq('180 mg/dL is in range: the upper edge is closed', bucketOf(180), 'tir');
+      T.eq('180.5 mg/dL is above range (tar1)', bucketOf(180.5), 'tar1');
+      T.eq('181 mg/dL is above range (tar1)', bucketOf(181), 'tar1');
+      T.eq('250 mg/dL is high, not very high (tar1)', bucketOf(250), 'tar1');
+      T.eq('251 mg/dL is very high (tar2)', bucketOf(251), 'tar2');
+      // ── the percentages sum over one mixed day ──
+      var day = G.coreMetrics([53, 60, 70, 120, 180, 200, 251, 300]);
+      T.eq('a mixed set splits 1·1·3·1·2 across the five buckets', JSON.stringify(day.tirN), '{"tbr2":1,"tbr1":1,"tir":3,"tar1":1,"tar2":2}');
+      T.eq('…and reports TIR as 37.5 %', day.tir.tir, 37.5);
+      // ── time in tight range (2023 addition): 70 to 140 closed at both ends ──
+      T.eq('70 mg/dL is in tight range', G.coreMetrics([70]).titr, 100);
+      T.eq('140 mg/dL is in tight range', G.coreMetrics([140]).titr, 100);
+      T.eq('69 mg/dL is not in tight range', G.coreMetrics([69]).titr, 0);
+      T.eq('141 mg/dL is not in tight range', G.coreMetrics([141]).titr, 0);
+    });
+
     group('MotionDex inferAccUnit — three gravity bands, all bounds exclusive (mutation bootstrap)', 'motiondex-dsp · known-answer · mutation-pinned', function (T) {
       var M = env.MOTIONDSP;
       if (!M || typeof M.parseSensorXYZ !== 'function') {
@@ -39444,8 +39632,17 @@
 
       /* 3 · the surface. The subtitle states the scored population when it is short of the window. */
       if (CR && typeof CR.renderHistory === 'function') {
+        /* A real night carries TWO figures: the pooled MASK-ON hours the adherence line scores,
+           and the recording envelope. `hours` is the mask-on figure, and the envelope runs 30 min
+           longer, so a reader that takes the wrong one cannot pass by coincidence. */
         var mk = function (dayIdx, hours) {
-          return { t0Ms: Date.UTC(2026, 0, 1 + dayIdx, 22, 0, 0), therapyHours: hours, nSessions: 1, metrics: { residualAHI: 3, largeLeakPct: 2 }, sessions: [{}] };
+          return {
+            t0Ms: Date.UTC(2026, 0, 1 + dayIdx, 22, 0, 0),
+            therapyHours: hours == null ? null : hours + 0.5,
+            nSessions: 1,
+            metrics: { residualAHI: 3, largeLeakPct: 2, usageHours: hours },
+            sessions: [{}]
+          };
         };
         var short = CR.renderHistory([mk(0, 7), mk(1, 5), mk(2, null)]);
         T.ok('∅ the tile states the scored population when a night went unscored', /2 scored nights/.test(short), (/(\d+) scored nights/.exec(short) || [])[1]);
@@ -39474,6 +39671,155 @@
 
       /* 5 · anti-vacuity — the legs above ran real code. */
       T.ok('ANTI-VACUITY · buildLongitudinal returned a real block', D.buildLongitudinal(two).nights === 2 && typeof D.buildLongitudinal(two).compliancePct === 'number');
+    });
+
+    /* ════ CPAPDex USAGE — a mask-on label draws mask-on hours ════
+     `night.therapyHours` sums each session's `durMin`, and the full-set constructor sets `durMin`
+     from the WALL span ("WALL duration (for off-mask gap math)"). The pooled MASK-ON figure lives
+     in `night.metrics.usageHours`, which the registry defines as "Total mask-on hours
+     (pressure > 0)". Nine readers took the envelope: the night card's `usageHours` tile and its
+     grade, the hero's Usage subscore, the CMS adherence chip, the history rows, review mode's
+     tile, `buildLongitudinal`'s ratio and 7 d trend, and `cpapdex-cross.js`'s metric getter,
+     night weight and `compliancePct`. A night whose mask came off for five hours inside a 7.5 h
+     recording therefore read as compliant. Row
+     `2026-11-07-the-cpap-usage-kpi-draws-the-recording-envelope-under-the-mask-on-label`. */
+    group('CPAPDex usage — the mask-on label draws mask-on hours, never the recording envelope', 'cpapdex-dsp · cpapdex-cross · cpapdex-render · absence', function (T) {
+      var D = env.CpapDsp || env.CPAPDSP;
+      var CP = env.CPAPCross;
+      var CR = env.CpapRender;
+      if (!D || typeof D.buildLongitudinal !== 'function') {
+        T.skip('CpapDsp.buildLongitudinal', 'CPAPDex not co-loaded in this runner');
+        return;
+      }
+
+      /* ONE night, TWO figures that straddle the 4 h line in OPPOSITE directions. Every leg below
+         reds if its reader takes the other figure. */
+      var offMask = function (t0) {
+        return { t0Ms: t0, therapyHours: 7.5, nSessions: 1, metrics: { residualAHI: 3, largeLeakPct: 2, usageHours: 2.5 }, sessions: [{}] };
+      };
+      var worn = function (t0) {
+        return { t0Ms: t0, therapyHours: 7.5, nSessions: 1, metrics: { residualAHI: 3, largeLeakPct: 2, usageHours: 6.5 }, sessions: [{}] };
+      };
+      var T0 = Date.UTC(2026, 0, 1, 22, 0, 0);
+
+      /* 1 · the DSP's adherence ratio and its 7 d usage trend. */
+      T.eq('a mask worn 2.5 h inside a 7.5 h recording is NOT compliant', D.buildLongitudinal([offMask(T0), offMask(T0 + 86400000)]).compliancePct, 0, 'the envelope reads 100 %');
+      T.eq('CONTROL · a mask worn 6.5 h IS compliant', D.buildLongitudinal([worn(T0), worn(T0 + 86400000)]).compliancePct, 100);
+      T.eq('both nights are still scored — this is not an absence', D.buildLongitudinal([offMask(T0), offMask(T0 + 86400000)]).complianceNights, 2);
+      /* The trend slopes over the SAME quantity. Mask-on falls 4 h across two nights while the
+         envelope stands at 7.5 h, so a slope of 0 says it read the envelope. */
+      T.eq('the 7 d usage trend slopes on mask-on hours', D.buildLongitudinal([worn(T0), offMask(T0 + 86400000)]).usageTrend7d, -4);
+
+      /* 2 · the cross-night twin, which the EXPORT publishes. */
+      if (CP && typeof CP.compliancePct === 'function') {
+        T.eq('cross · the same night is not compliant there either', CP.compliancePct([offMask(T0)], 4), 0);
+        T.eq('CONTROL · cross · the worn night is', CP.compliancePct([worn(T0)], 4), 100);
+      } else {
+        T.skip('CPAPCross.compliancePct', 'cpapdex-cross.js not co-loaded in this runner');
+      }
+      /* The cross-night METRIC getter feeds the published series, and the night WEIGHT scales every
+         robust trend. Both read the same figure. */
+      if (CP && CP.CPAP_DEFS && CP.CPAP_DEFS.usageHours && typeof CP.CPAP_DEFS.usageHours.get === 'function') {
+        T.eq('cross · the usageHours series takes the mask-on figure', CP.CPAP_DEFS.usageHours.get(offMask(T0)), 2.5);
+        T.eq('cross · a stub with only therapyHours still reports it', CP.CPAP_DEFS.usageHours.get({ therapyHours: 5 }), 5, 'buildSession sets a stub durMin from mask-on');
+        T.eq('∅ cross · a metrics block with no usageHours reports nothing', CP.CPAP_DEFS.usageHours.get({ metrics: { residualAHI: 3 }, therapyHours: 7 }), null);
+      } else {
+        T.skip('CPAPCross.CPAP_DEFS.usageHours', 'cross defs not on the surface in this runner');
+      }
+
+      /* 3 · the night card's tile. The value and its grade are mask-on; the envelope keeps the sub. */
+      if (CR && typeof CR.renderKPIs === 'function') {
+        var cardOff = CR.renderKPIs(offMask(T0));
+        T.ok('the tile draws the 2.5 h the mask was ON', /2\.5<span class="kpi-u">hr<\/span>/.test(cardOff), 'it drew the 7.5 h envelope');
+        T.eq('nothing on the card reads 7.5 h as the usage VALUE', (cardOff.match(/7\.5<span class="kpi-u">hr<\/span>/g) || []).length, 0);
+        T.ok('…and the envelope is still stated, as a recording', /7\.5 h recorded/.test(cardOff));
+        var cardWorn = CR.renderKPIs(worn(T0));
+        T.ok('CONTROL · a worn night draws its 6.5 h', /6\.5<span class="kpi-u">hr<\/span>/.test(cardWorn));
+      } else {
+        T.skip('CpapRender.renderKPIs', 'cpapdex-render.js not co-loaded in this runner');
+      }
+
+      /* 4 · the hero's Usage subscore and the CMS adherence chip. */
+      if (CR && typeof CR.renderNight === 'function') {
+        var heroOff = '',
+          heroWorn = '';
+        try {
+          heroOff = CR.renderNight(offMask(T0));
+          heroWorn = CR.renderNight(worn(T0));
+        } catch (_e) {
+          heroOff = '';
+        }
+        if (heroOff && heroWorn) {
+          T.ok('the adherence chip reads the mask-on figure', /under 4 h/.test(heroOff), 'the envelope would have said compliant');
+          T.eq('…and no compliant chip appears on that night', (heroOff.match(/4 h compliant/g) || []).length, 0);
+          T.ok('CONTROL · the worn night keeps its compliant chip', /4 h compliant/.test(heroWorn));
+        } else {
+          T.skip('CpapRender.renderNight', 'the night view needs more of the page than this runner builds');
+        }
+      } else {
+        T.skip('CpapRender.renderNight', 'cpapdex-render.js not co-loaded in this runner');
+      }
+
+      /* 5 · the history rows sit under the compliance percentage, so they state its quantity. */
+      if (CR && typeof CR.renderHistory === 'function') {
+        var hist = CR.renderHistory([offMask(T0), worn(T0 + 86400000)]);
+        T.ok('a row states the mask-on hours', /2\.5 h ·/.test(hist), 'the row drew the envelope');
+        T.eq('no row states the 7.5 h envelope', (hist.match(/7\.5 h ·/g) || []).length, 0);
+        T.ok('CONTROL · the worn night keeps its own 6.5 h', /6\.5 h ·/.test(hist));
+        /* ∅ A night that measured no mask-on time says so, instead of borrowing its envelope. */
+        var blank = { t0Ms: T0 + 172800000, therapyHours: 7.5, nSessions: 1, metrics: { residualAHI: 3, largeLeakPct: 2, usageReason: 'no-pressure-channel' }, sessions: [{}] };
+        var histBlank = CR.renderHistory([offMask(T0), blank]);
+        T.ok('∅ an unmeasured night refuses in its row', /—/.test(histBlank) && !/7\.5 h ·/.test(histBlank));
+      } else {
+        T.skip('CpapRender.renderHistory', 'cpapdex-render.js not co-loaded in this runner');
+      }
+
+      /* 6 · review mode renders the EXPORT's stored values, and the export carries both figures. */
+      if (CR && typeof CR.cpapClinicalSummary === 'function') {
+        var mkEl = function (usage) {
+          var el = { recording: { startEpochMs: T0, therapyHours: 7.5 }, metrics: { residualAHI: 3, largeLeakPct: 2 }, oximetry: [] };
+          if (usage != null) el.metrics.usageHours = usage;
+          else el.metrics.usageReason = 'no-pressure-channel';
+          return el;
+        };
+        var revOff = CR.cpapClinicalSummary({ elements: [mkEl(2.5)] });
+        T.ok('review mode draws the stored mask-on figure', /2\.5 h/.test(revOff), 'it drew the stored envelope');
+        T.eq('review mode does not grade the 7.5 h envelope', (revOff.match(/>7\.5 h</g) || []).length, 0);
+        var revBlank = CR.cpapClinicalSummary({ elements: [mkEl(null)] });
+        T.ok('∅ review mode refuses when the export says mask-on went unmeasured', /7\.5 h recorded/.test(revBlank), 'the envelope belongs in the note, not the value');
+      } else {
+        T.skip('CpapRender.cpapClinicalSummary', 'cpapdex-render.js not co-loaded in this runner');
+      }
+
+      /* 7 · source legs — the coercion may not come back anywhere. */
+      var _srcs = env.sources || {};
+      ['cpapdex-dsp.js', 'cpapdex-cross.js', 'cpapdex-render.js'].forEach(function (f) {
+        var s = _srcs[f] || '';
+        if (!s) {
+          T.skip('env.sources["' + f + '"]', 'source text not exposed in this runner');
+          return;
+        }
+        /* The one legal occurrence of that ternary is the back-compat arm INSIDE each file's own
+           resolver, which reaches it only for a `{therapyHours}` stub whose figure is mask-on
+           already. So the leg strips that two-line body, proves the strip hit exactly once, and
+           then demands zero occurrences across every reader above it. The pattern is the COERCION
+           shape alone (`x != null ? x.therapyHours :`), so the sub that states the envelope under
+           its own `h recorded` label stays legal. */
+        var _resolver = /if \(n\.metrics\) return n\.metrics\.usageHours != null \? n\.metrics\.usageHours : null;\s*return n\.therapyHours != null \? n\.therapyHours : null;/g;
+        T.eq(f + ' · carries exactly one usage resolver', (s.match(_resolver) || []).length, 1, 'the strip below reads it');
+        T.eq(
+          f + ' · no reader outside that resolver prefers therapyHours over the mask-on figure',
+          (s.replace(_resolver, '').match(/therapyHours\s*!=\s*null\s*\?\s*[a-z]+\.therapyHours\s*:/g) || []).length,
+          0,
+          'that ternary IS the defect'
+        );
+      });
+
+      /* 8 · anti-vacuity — the two fixtures really do straddle the line. */
+      T.ok(
+        'ANTI-VACUITY · the fixture pair straddles the 4 h line on mask-on and agrees on the envelope',
+        offMask(T0).metrics.usageHours < 4 && worn(T0).metrics.usageHours >= 4 && offMask(T0).therapyHours === worn(T0).therapyHours
+      );
     });
 
     group('CPAPDex quality — ∅ an UNASSESSED mask seal is not a perfect one, and an absent mode is not CPAP', 'cpapdex-dsp · cpapdex-fusion · absence', function (T) {
@@ -43511,6 +43857,47 @@
       // contrast: the LIGHT export omits both → the Integrator degrades to null (never fabricates).
       T.ok('LIGHT export → summary.cvhrIndex null (apnea block absent, not fabricated)', !!(rLight && rLight.summary && rLight.summary.cvhrIndex == null));
       T.ok('LIGHT export → summary.autonomicInstabilitySlope null (hrvStability absent)', !!(rLight && rLight.summary && rLight.summary.autonomicInstabilitySlope == null));
+      /* THE STAGE EXPORT, END TO END (residue 2026-11-07-the-ecgdex-stage-export-has-no-end-to-end-leg).
+         Every other suite line that names `stageMinutes`, `totalSleepMin` or `unstagedMin` feeds a
+         hand-typed literal to a consumer, and the stager groups call `stageSleep` directly. So a field the
+         PRODUCER renamed or dropped left all of them green. These legs read the block that `compute`
+         itself writes, on the same 3 h night, and then read it again through the Integrator. */
+      var _sl = rich.sleep;
+      T.ok('rich: sleep block present and not suppressed on a non-ambulatory night', !!(_sl && _sl.suppressed !== true), _sl ? Object.keys(_sl).join(',') : 'MISSING');
+      var _sm = (_sl && _sl.stageMinutes) || null;
+      T.ok(
+        'rich: sleep.stageMinutes carries the four stages as finite minutes',
+        !!_sm &&
+          ['Wake', 'REM', 'Light', 'Deep'].every(function (k) {
+            return typeof _sm[k] === 'number' && isFinite(_sm[k]) && _sm[k] >= 0;
+          }),
+        _sm ? JSON.stringify(_sm) : 'no stageMinutes'
+      );
+      // Anti-vacuity: a night with no sleep would satisfy every shape leg above with zeros.
+      T.ok('rich: sleep.totalSleepMin is a positive number (the night staged)', !!(_sl && typeof _sl.totalSleepMin === 'number' && _sl.totalSleepMin > 0), _sl && _sl.totalSleepMin);
+      T.ok(
+        'rich: totalSleepMin is REM + Light + Deep, rounded (Wake is not sleep)',
+        !!(_sm && _sl.totalSleepMin === Math.round(_sm.REM + _sm.Light + _sm.Deep)),
+        _sm && _sl.totalSleepMin + ' vs ' + (_sm.REM + _sm.Light + _sm.Deep)
+      );
+      T.ok(
+        'rich: sleep.unstagedMin is a finite, non-negative number (PR 4548 added it)',
+        !!(_sl && typeof _sl.unstagedMin === 'number' && isFinite(_sl.unstagedMin) && _sl.unstagedMin >= 0),
+        _sl && _sl.unstagedMin
+      );
+      // The consumer reads the same block: the Integrator's T2 fractions divide by totalSleepMin.
+      var _tot = _sl && _sl.totalSleepMin;
+      T.ok(
+        'Integrator reads the stage block: summary.remFraction is REM / totalSleepMin',
+        !!(rRich && rRich.summary && _sm && _tot > 0 && rRich.summary.remFraction === +(_sm.REM / _tot).toFixed(3)),
+        rRich && rRich.summary && 'remFraction=' + rRich.summary.remFraction
+      );
+      T.ok(
+        '  and summary.deepFraction is Deep / totalSleepMin, on the sleep basis',
+        !!(rRich && rRich.summary && _sm && _tot > 0 && rRich.summary.deepFraction === +(_sm.Deep / _tot).toFixed(3) && rRich.summary.remFractionBasis === 'sleep'),
+        rRich && rRich.summary && 'deepFraction=' + rRich.summary.deepFraction + ' basis=' + rRich.summary.remFractionBasis
+      );
+      T.ok('LIGHT export → summary.remFraction null (sleep block absent, not fabricated)', !!(rLight && rLight.summary && rLight.summary.remFraction == null));
     });
 
     /* ════ 12d-rich-ppg · INTEGRATOR ingests the RICH PpgDex orchestrate export — option (a)
@@ -44775,6 +45162,81 @@
         T.ok('an export that cannot build it carries NO hr field, not an empty one', none && none.hr == null, JSON.stringify(none && none.hr));
       } else {
         T.skip('timeseries.hr rides the export block', 'OxyDex.buildTimeseriesBlock not on the surface');
+      }
+    });
+
+    group('∅ absent OxyDex HR keeps the channels the night DID measure', 'oxydex-dsp · export-contract · absence · residue-2026-11-08', function (T) {
+      /* The defect (residue 2026-11-08-absent-oxydex-hr-takes-the-present-channels-out-of-the-export):
+         the 5-min epoch builder dropped any window holding under 60 HR samples, and the export block
+         shipped only when at least one epoch survived. On a night whose HR column carries no measured
+         pulse both gates close, so the 1 Hz SpO2 series the device recorded for every second of the
+         night never left the node. Reduced coverage annotates; only a discontinuity refuses. */
+      /* The namespace, NOT `_bare`: that object is a restricted set (oxydex-dsp.js:10045) and
+         carries neither builder, so reading it here reported "not loaded" over a loaded module. */
+      var OX = env.OxyDex || env.OXYDEX;
+      if (!OX || typeof OX.buildEpochSeries !== 'function' || typeof OX.buildTimeseriesBlock !== 'function') {
+        T.ok('OxyDex.buildEpochSeries + buildTimeseriesBlock are reachable', false, 'not loaded — this group cannot run and must not read as a pass');
+      } else {
+        var t0 = Date.UTC(2026, 0, 2, 23, 0, 0);
+        // Four 5-min windows, each a different coverage shape. hrFill/moFill = seconds carrying that channel.
+        var mkRows = function (shapes) {
+          var rows = [];
+          for (var w = 0; w < shapes.length; w++)
+            for (var i = 0; i < 300; i++) {
+              var r = { tMs: t0 + (w * 300 + i) * 1000, spo2: 96 };
+              if (i < shapes[w].hrFill) r.hr = 60 + (i % 3);
+              if (i < shapes[w].moFill) r.motion = 4;
+              rows.push(r);
+            }
+          return rows;
+        };
+        var eps = OX.buildEpochSeries(
+          mkRows([
+            { hrFill: 300, moFill: 300 }, // full coverage — the control
+            { hrFill: 30, moFill: 300 }, // under the floor, motion present
+            { hrFill: 0, moFill: 300 }, // no pulse at all, motion present
+            { hrFill: 0, moFill: 0 } // neither channel — nothing to publish
+          ]),
+          t0
+        );
+        var byMin = {};
+        for (var e = 0; e < eps.length; e++) byMin[eps[e].tMin] = eps[e];
+        T.eq('a window holding neither channel is still dropped, so three of four epochs publish', eps.length, 3);
+        T.ok(
+          'CONTROL · the full-coverage window publishes the SAME mean rate as before, with its covered count beside it',
+          byMin[0] && byMin[0].hr === 61 && byMin[0].hrN === 300 && byMin[0].motionIndex === 4,
+          JSON.stringify(byMin[0])
+        );
+        T.ok(
+          'a window under the 60-sample floor keeps its motion and nulls only the HR',
+          byMin[5] && byMin[5].hr === null && byMin[5].hrN === 30 && byMin[5].motionIndex === 4,
+          JSON.stringify(byMin[5])
+        );
+        T.ok(
+          '…and a window with no pulse at all says so with hrN 0 rather than vanishing',
+          byMin[10] && byMin[10].hr === null && byMin[10].hrN === 0 && byMin[10].motionIndex === 4,
+          JSON.stringify(byMin[10])
+        );
+        T.ok('the dropped window is the one that measured nothing', byMin[15] === undefined, JSON.stringify(Object.keys(byMin)));
+
+        // The export block: one absent member never withholds the others.
+        var sp = [96, 95, null, 97];
+        var noEps = OX.buildTimeseriesBlock([{ tchEpochs: [], spo2Series: sp, hrSeries: null }]);
+        T.ok('a night that cleared no epoch floor STILL exports its SpO2 series', !!noEps && !!noEps.spo2 && noEps.spo2.n === 4, JSON.stringify(noEps && Object.keys(noEps)));
+        T.ok(
+          '…with `epochs` absent rather than empty, and its reason named',
+          !!noEps && noEps.epochs === undefined && noEps.epochsReason === 'no-channel-in-any-epoch',
+          JSON.stringify(noEps && { epochs: noEps.epochs, reason: noEps.epochsReason })
+        );
+        var seamed = OX.buildTimeseriesBlock([{ tchEpochs: [], spo2Series: sp, hrSeries: null, clockSeamRefusals: [{ series: 'tchEpochs', tMin: 5, reason: 'clock-seam', seams: 1 }] }]);
+        T.eq('a seam scan that refused every window names ITS reason, never the coverage one', seamed && seamed.epochsReason, 'clock-seam');
+        var withEps = OX.buildTimeseriesBlock([{ tchEpochs: [{ tMin: 0, hr: 60, hrN: 300, hrStat: 'mean-rate', motionIndex: 0 }], spo2Series: sp, hrSeries: null }]);
+        T.ok(
+          'CONTROL · a night WITH epochs carries no reason field, so the key means what it says',
+          !!withEps && withEps.epochsReason === undefined && withEps.epochs.length === 1,
+          JSON.stringify(withEps && Object.keys(withEps))
+        );
+        T.eq('CONTROL · a night that built none of the three members is still null', OX.buildTimeseriesBlock([{ tchEpochs: [], spo2Series: null, hrSeries: null }]), null);
       }
     });
 
@@ -57238,6 +57700,69 @@
           var hits = dsp.match(/\bUP\.[A-Za-z_]+|\b[A-Za-z]+Profile\.[A-Za-z_]+|\bup[A-Z][A-Za-z0-9]+\(/g) || [];
           T.ok('F14 · …and ' + n + 'dex-dsp.js does not reach it (no UP.* / *Profile.* / up*() reach-ins)', hits.length === 0, hits.slice(0, 5).join(' '));
         });
+        /* The one `*-overview.js` module rests on the same kind of claim as the profile entries, so it
+           is pinned the same way — by source, not by prose. A reach-in reds here instead of blinding the
+           gate, and the second assertion pins the DECISION to name the file rather than the suffix. */
+        T.ok('F14 · pulsedex-overview.js is EXCLUDED from the closure (display-only, pinned below)', !MG.isComputeAsset('pulsedex-overview.js'));
+        T.ok(
+          'F14 · …and the SUFFIX stays unclaimed — an unnamed future *-overview.js still fails CLOSED',
+          MG.isComputeAsset('ecgdex-overview.js'),
+          'a /-overview\\.js$/ suffix would excuse a module nobody has measured'
+        );
+        var ovSrc = S14['pulsedex-overview.js'],
+          pxDsp = S14['pulsedex-dsp.js'];
+        if (typeof ovSrc !== 'string' || typeof pxDsp !== 'string') T.skip('F14 · …and pulsedex-dsp.js does not reach it', 'pulsedex-overview.js / pulsedex-dsp.js not in env.sources');
+        else {
+          var ovNames = [];
+          ovSrc.split('\n').forEach(function (ln) {
+            var mo = /^(?:async\s+)?function\s+([A-Za-z_$][\w$]*)/.exec(ln) || /^(?:const|let|var)\s+([A-Za-z_$][\w$]*)/.exec(ln);
+            if (mo) ovNames.push(mo[1]);
+          });
+          var reach = ovNames.filter(function (nm) {
+            return new RegExp('\\b' + nm.replace(/\$/g, '\\$') + '\\b').test(pxDsp);
+          });
+          T.ok(
+            "F14 · …and pulsedex-dsp.js reads none of the overview module's top-level names",
+            ovNames.length > 10 && reach.length === 0,
+            ovNames.length <= 10 ? 'only ' + ovNames.length + ' names extracted — the scan examined almost nothing' : 'read: ' + reach.slice(0, 5).join(' ')
+          );
+          /* The module publishes its global surface two ways: one `window.X =` write, and one
+             `Object.assign(window, {…})` call. A `window\.X\s*=` pattern sees only the first, and that
+             is how the first version of this leg came to claim a surface of ONE name. Read both. */
+          var gNames = [];
+          (ovSrc.match(/(?:window|globalThis)\.([A-Za-z_$][\w$]*)\s*=[^=]/g) || []).forEach(function (hit) {
+            var mg2 = /\.([A-Za-z_$][\w$]*)\s*=/.exec(hit);
+            if (mg2) gNames.push(mg2[1]);
+          });
+          var oa = /Object\.assign\(\s*(?:window|globalThis)\s*,\s*\{/.exec(ovSrc);
+          if (oa) {
+            var depth = 0,
+              lit = '';
+            for (var gk = oa.index + oa[0].length - 1; gk < ovSrc.length; gk++) {
+              var gch = ovSrc.charAt(gk);
+              if (gch === '{' || gch === '[' || gch === '(') {
+                depth++;
+                if (depth === 1) continue;
+              } else if (gch === '}' || gch === ']' || gch === ')') {
+                depth--;
+                if (depth === 0) break;
+              }
+              if (depth === 1) lit += gch;
+            }
+            lit.split(',').forEach(function (seg) {
+              var mk = /^\s*([A-Za-z_$][\w$]*)\s*(?::|$)/.exec(seg);
+              if (mk) gNames.push(mk[1]);
+            });
+          }
+          var gReach = gNames.filter(function (nm) {
+            return new RegExp('\\b' + nm.replace(/\$/g, '\\$') + '\\b').test(pxDsp);
+          });
+          T.ok(
+            'F14 · …and no name the module publishes on the global object is read by the DSP',
+            gNames.length >= 10 && gReach.length === 0,
+            gNames.length < 10 ? 'only ' + gNames.length + ' global name(s) extracted — the scan examined almost nothing' : gNames.length + ' published, read: ' + gReach.join(' ')
+          );
+        }
       }
 
       // ── §2 · build.mjs is FORBIDDEN to author the claim; verify-fixtures.mjs is the only writer
@@ -61214,6 +61739,43 @@
       var farM = G.analyze({ tMs: tMs, vMgdl: vMgdl, unit: 'mg/dL', t0Ms: tMs[0], source: 'synthetic' }, null, { mealMarkers: [{ label: 'Dinner', category: 'large', minOfDay: 1200 }] });
       var ef = ((farM && farM.excursions) || [])[0] || {};
       T.eq('a marker outside the ±window does not annotate', ef.annotated, false);
+    });
+
+    /* ════ GlucoDex excursions — the onset is the step, not the earliest qualifying trough ═══════
+       Residue 2026-11-08-glucodex-excursions-start-140-min-before-the-step. The scan qualifies the
+       EARLIEST trough whose rise over time-to-peak reaches 1.0 mg/dL/min, so a flat 60 mg/dL baseline
+       with a step to 200 at 18:00 dated the excursion 15:40 (140 mg/dL over 140 min). */
+    group('GlucoDex excursions — a planted step is dated at the step, not 140 min early (residue 2026-11-08)', 'glucodex-dsp · excursions · known-answer', function (T) {
+      var G = (env.GLUDSP && env.GLUDSP.analyze && env.GLUDSP) || (env.GlucoDex && env.GlucoDex.analyze && env.GlucoDex) || null;
+      if (!G) {
+        T.skip('GLUDSP.analyze available', 'GLUDSP not co-loaded in this runner');
+        return;
+      }
+      var t0 = Date.UTC(2026, 5, 13, 0, 0, 0);
+      var step = t0 + 18 * 3600000;
+      var tMs = [],
+        vMgdl = [];
+      for (var k = 0; k < 288; k++) {
+        var mins = k * 5;
+        tMs.push(t0 + mins * 60000);
+        vMgdl.push(mins >= 1080 && mins < 1200 ? 200 : 60);
+      }
+      var res = G.analyze({ tMs: tMs, vMgdl: vMgdl, unit: 'mg/dL', t0Ms: tMs[0], source: 'synthetic' }, null, {});
+      var ex = (res && res.excursions) || [];
+      T.eq('the planted step trips exactly one excursion', ex.length, 1);
+      var e = ex[0] || {};
+      /* THE KILL: the old onset read 15:40, 140 min before the step. The last sample still at the
+         baseline is 17:55, so the onset sits within one 5 min cadence of the step. */
+      T.ok(
+        'the onset sits within one cadence of the 18:00 step',
+        e.startMs != null && Math.abs(e.startMs - step) <= 5 * 60000,
+        'startMs=' + (e.startMs != null ? new Date(e.startMs).toISOString().slice(11, 16) : 'null')
+      );
+      T.eq('the peak is the first stepped sample', e.peakMs, step);
+      T.eq('the rise is the full 140 mg/dL step', e.rise, 140);
+      /* The duration and rate are re-derived from the onset, so they describe the step itself. */
+      T.eq('durMin is one cadence, not 140 min', e.durMin, 5);
+      T.eq('the rate is 140 mg/dL over 5 min', e.rateMgMin, 28);
     });
 
     group('GlucoDex genSynthetic — the generator honours its three options (mutation bootstrap)', 'glucodex-dsp · known-answer · mutation-pinned', function (T) {
@@ -68139,6 +68701,103 @@
       }
     });
 
+    /* ════ THE SCRUB KEEPS THE TIMEBASE AND THE MEASUREMENT BLOCKS (2026-11-09) ════
+       The share-scrub defaults ON from this change, so what it drops is what a user shares. Two
+       measurements set this group. The GATE C leg `app exportJSON() ≡ compute()` in
+       `Dex-Test-Suite.html` reded on #4724 and named `clockSeamScan` and `measurement`, both absent
+       from the app export and present in compute. A sweep of the 28 envelope-shaped node-exports in
+       the corpus then showed `recording.timing` dropped from 28 of 28 and `recording.validity` from
+       20 of 28. So a shared export carried the clinical summary and no timebase provenance, and §∅
+       calls that loss a defect: a reader could not tell one clock from nobody looked. After the five
+       declarations, 27 of the 28 drop nothing, and the one that still drops names only the three
+       identifier routes the scrub exists to remove. This group pins both halves. */
+    group('EXPORT-SCRUB-ALLOWLIST — a scrubbed export keeps its timebase, its seam verdict and its measurement blocks', 'dex-export · export-schema · scrub · timebase · GATE-C', function (T) {
+      var DX = env.DexExport;
+      if (!(DX && typeof DX.scrubExport === 'function')) {
+        T.ok('env.DexExport.scrubExport available', false, 'namespace not wired — gate skipped');
+        return;
+      }
+      var raw = {
+        schema: {
+          name: 'ganglior.node-export',
+          node: 'OxyDex',
+          provenance: { buildHash: 'bh', generated: 'g', inputs: [{ name: 'a_serial_night.csv', bytes: 1234, sha256: 'deadbeef', lastModifiedMs: 1781383783000 }] }
+        },
+        recording: {
+          startEpochMs: 1781383783000,
+          contentId: 'cid',
+          timing: {
+            timingSource: 'device-only',
+            independent: false,
+            anchors: null,
+            spanMs: null,
+            ppm: null,
+            spanPpm: null,
+            resyncs: null,
+            seams: 0,
+            rate: 1,
+            rateRaw: 1,
+            rateApplied: false,
+            reason: 'no host column on this input'
+          },
+          validity: { n: 27599, seams: 0, seamsReason: null, upstreamNodes: ['OxyDex'] },
+          clockSeamScan: { scanned: true, reason: null, n: 27599, seams: 0 },
+          zzUndeclaredRecordingKey: 'r'
+        },
+        nights: [
+          {
+            date: '2026-06-13',
+            file: 'a_serial_night.csv',
+            stats: { meanSpo2: 94.1 },
+            clockSeamScan: { scanned: true, reason: null, n: 27599, seams: 0 },
+            measurement: {
+              meanSpo2: {
+                metricId: 'meanSpo2',
+                value: 94.1,
+                sourceChannel: 'O2Ring:spo2',
+                code: { manifestHash: 'mh', computeHash: 'ch' },
+                evidence: { envelopeRef: '20260612230016', inputHash: 'cid' }
+              }
+            },
+            recording: {
+              startEpochMs: 1781383783000,
+              timing: { timingSource: 'device-only', reason: 'no host column on this input' },
+              validity: { n: 27599 },
+              clockSeamScan: { scanned: true, seams: 0 }
+            },
+            zzUndeclaredElementKey: 'e'
+          }
+        ]
+      };
+      var scr = DX.scrubExport(raw);
+      var el = scr.nights[0];
+
+      // ── the five declarations SURVIVE, read back by value, never by key presence ──
+      T.eq('recording.timing survives whole, twelve keys', Object.keys(scr.recording.timing).length, 12);
+      T.eq('…and its timingSource reads back', scr.recording.timing.timingSource, 'device-only');
+      T.eq('recording.validity survives', scr.recording.validity.n, 27599);
+      T.eq('recording.clockSeamScan survives', scr.recording.clockSeamScan.n, 27599);
+      T.eq('the element keeps its seam verdict', el.clockSeamScan.seams, 0);
+      T.eq('the element keeps its measurement block', el.measurement.meanSpo2.value, 94.1);
+      T.eq('…with the code identity that makes it reproducible', el.measurement.meanSpo2.code.computeHash, 'ch');
+      T.eq('the element recording keeps all three too', [el.recording.timing.timingSource, el.recording.validity.n, el.recording.clockSeamScan.seams].join(), 'device-only,27599,0');
+
+      /* ── ANTI-VACUITY · the scrub still removes what it exists to remove ──
+         An allow-list that declared everything would pass every assertion above. */
+      T.eq('the upload filename is gone from the element', 'file' in el, false);
+      T.eq('the input name, sha256 and mtime are gone', Object.keys(scr.schema.provenance.inputs[0]), ['bytes']);
+      T.eq('an undeclared key is still dropped at both depths', ['zzUndeclaredRecordingKey' in scr.recording, 'zzUndeclaredElementKey' in el].join(), 'false,false');
+      T.eq('and the report names every one of them', scr.schema.scrubDropped, [
+        'nights[].file',
+        'nights[].zzUndeclaredElementKey',
+        'recording.zzUndeclaredRecordingKey',
+        'schema.provenance.inputs[].lastModifiedMs',
+        'schema.provenance.inputs[].name',
+        'schema.provenance.inputs[].sha256'
+      ]);
+      T.eq('the document states it was scrubbed', scr.schema.scrubbed, true);
+    });
+
     /* ════ SELF-INGEST §5 — A PER-ELEMENT ENVELOPE IS SCRUBBED TOO (the shape F13 never planted) ════
        `_scrubElement` scrubbed `el.provenance` and `el.recording` and never visited
        `el.schema.provenance`, while `scrubExport` reduces `schema.provenance` at the TOP level only.
@@ -73025,7 +73684,7 @@
           }
         }
         /* ── D17 §PD · the reason reaches the reader, not only the export ───────────────────────────
-           `renderKPI` prints an em-dash for a refused figure, so a clock seam, a short reading and an
+           `renderKpiGridPx` prints an em-dash for a refused figure, so a clock seam, a short reading and an
            absent input all drew the same glyph. `pulsedex-app.js` writes `hrvReason` and its own
            comment calls an unexplained absence "only half of the refusal". These legs lift
            `seamContextNote` out of the SHIPPED SOURCE and execute it, the §1.3 idiom above, because a
@@ -73659,12 +74318,14 @@
         for (const m of html.matchAll(re)) o.push(m[1] || 'neutral');
         return o;
       };
-      var k = kSev(CR.renderKPIs({ metrics: { residualAHI: 3, largeLeakPct: 1, periodicBreathingPct: 1 }, therapyHours: 6, nSessions: 1 }));
+      /* `usageHours` is the POOLED MASK-ON figure the usage tile grades. `therapyHours` is the
+         recording envelope, and the tile states it in the sub. */
+      var k = kSev(CR.renderKPIs({ metrics: { residualAHI: 3, largeLeakPct: 1, periodicBreathingPct: 1, usageHours: 6 }, therapyHours: 6, nSessions: 1 }));
       T.eq('renderKPIs · a good night: AHI 3 ok (lower-better) AND 6 h ok (higher-better) — the polarities are opposite', k[0] + '/' + k[1], 'ok/ok');
-      var kBad = kSev(CR.renderKPIs({ metrics: { residualAHI: 20, largeLeakPct: 1 }, therapyHours: 1, nSessions: 2 }));
+      var kBad = kSev(CR.renderKPIs({ metrics: { residualAHI: 20, largeLeakPct: 1, usageHours: 1 }, therapyHours: 1, nSessions: 2 }));
       T.eq('renderKPIs · a bad night: AHI 20 bad AND 1 h bad — dropping the `lower` flag would make ONE of these read ok', kBad[0] + '/' + kBad[1], 'bad/bad');
-      T.eq('renderKPIs · 3 h therapy is warn (the 4 h adherence edge, 2 h warn edge)', kSev(CR.renderKPIs({ metrics: {}, therapyHours: 3, nSessions: 1 }))[1], 'warn');
-      T.eq('renderKPIs · therapy exactly 4 h is ok — the adherence threshold is inclusive', kSev(CR.renderKPIs({ metrics: {}, therapyHours: 4, nSessions: 1 }))[1], 'ok');
+      T.eq('renderKPIs · 3 h therapy is warn (the 4 h adherence edge, 2 h warn edge)', kSev(CR.renderKPIs({ metrics: { usageHours: 3 }, therapyHours: 3, nSessions: 1 }))[1], 'warn');
+      T.eq('renderKPIs · therapy exactly 4 h is ok — the adherence threshold is inclusive', kSev(CR.renderKPIs({ metrics: { usageHours: 4 }, therapyHours: 4, nSessions: 1 }))[1], 'ok');
       // KPI_CLS remaps the tile wrapper (ok → "good") while the value keeps "ok". Two different
       // vocabularies in one tile; collapsing them would silently unstyle every good KPI.
       var kpiHtml = CR.renderKPIs({ metrics: { residualAHI: 3 }, therapyHours: 6, nSessions: 1 });
@@ -73674,12 +74335,12 @@
         kpiHtml.slice(0, 120)
       );
       // the session count pluralises on ===1; a !== slip reads "1 sessions"
-      T.ok('renderKPIs · 1 session is singular', /1 session</.test(CR.renderKPIs({ metrics: {}, therapyHours: 5, nSessions: 1 })));
-      T.ok('renderKPIs · 2 sessions is plural', /2 sessions</.test(CR.renderKPIs({ metrics: {}, therapyHours: 5, nSessions: 2 })));
+      T.ok('renderKPIs · 1 session is singular', /1 session\b/.test(CR.renderKPIs({ metrics: { usageHours: 5 }, therapyHours: 5, nSessions: 1 })));
+      T.ok('renderKPIs · 2 sessions is plural', /2 sessions\b/.test(CR.renderKPIs({ metrics: { usageHours: 5 }, therapyHours: 5, nSessions: 2 })));
       /* no oximeter ⇒ an HONEST n/a tile, never a 0.0 ODI graded ok.
          §∅ — the sub read "no oximeter" for every absence and now names WHICH one. This night
          carries no session at all, so the lane never ran. The n/a itself is unchanged. */
-      var _noOxi = CR.renderKPIs({ metrics: {}, therapyHours: 5, nSessions: 1 });
+      var _noOxi = CR.renderKPIs({ metrics: { usageHours: 5 }, therapyHours: 5, nSessions: 1 });
       T.ok(
         'renderKPIs · with no oximetry the ODI tile reads an HONEST n/a that names the absence — not a fabricated 0.0/hr',
         /n\/a<\/div>/.test(_noOxi) && /no session recorded/.test(_noOxi),
@@ -73688,7 +74349,7 @@
       // the mode string reaches a tile sub — and goes through esc()
       T.ok(
         'renderKPIs · the device mode string is HTML-escaped on its way to the tile sub',
-        /&lt;b&gt;/.test(CR.renderKPIs({ metrics: {}, therapyHours: 5, nSessions: 1, sessions: [{ mode: '<b>' }] }))
+        /&lt;b&gt;/.test(CR.renderKPIs({ metrics: { usageHours: 5 }, therapyHours: 5, nSessions: 1, sessions: [{ mode: '<b>' }] }))
       );
 
       /* ── cpapClinicalSummary · a SECOND `sev` with a different signature, and the sort that picks
@@ -73704,8 +74365,13 @@
         for (const m of html.matchAll(re)) o.push({ sev: m[1] || 'neutral', val: m[2] });
         return o;
       };
+      /* The export carries BOTH figures. `hours` is the MASK-ON figure the usage tile draws and
+         grades; the envelope rides `recording.therapyHours`. A leg that passes `usageReason`
+         keeps its refusal, because the refusal arm is read first. */
       var summary = function (metrics, hours, extra) {
-        var el = { recording: { startEpochMs: 1, therapyHours: hours }, metrics: metrics || {} };
+        var mm = metrics || {};
+        if (hours != null && mm.usageHours == null && mm.usageReason == null) mm = Object.assign({}, mm, { usageHours: hours });
+        var el = { recording: { startEpochMs: 1, therapyHours: hours }, metrics: mm };
         for (var kk in extra || {}) el[kk] = extra[kk];
         return CR.cpapClinicalSummary({ elements: [el] });
       };
@@ -73798,7 +74464,7 @@
       // …and its higher-better neighbour's warn edge, which runs the other way.
       T.eq(
         'renderKPIs · therapy exactly 2 h is warn, 1.9 h is bad — a higher-better band, same edge logic inverted',
-        kSev4(CR.renderKPIs({ metrics: {}, therapyHours: 2, nSessions: 1 }))[1] + '/' + kSev4(CR.renderKPIs({ metrics: {}, therapyHours: 1.9, nSessions: 1 }))[1],
+        kSev4(CR.renderKPIs({ metrics: { usageHours: 2 }, therapyHours: 2, nSessions: 1 }))[1] + '/' + kSev4(CR.renderKPIs({ metrics: { usageHours: 1.9 }, therapyHours: 1.9, nSessions: 1 }))[1],
         'warn/bad'
       );
 
@@ -74193,9 +74859,13 @@
         for (const m of html.matchAll(/<div class="kpi-sub">([\s\S]*?)<\/div>/g)) o.push(m[1]);
         return o;
       };
+      /* 6.2 h of MASK-ON time, which is what the usage tile draws. A leg passing `usageReason`
+         keeps its refusal, because the tile reads that arm first. */
       var night = function (metrics, sessions) {
         var ss = sessions || [{}, {}];
-        return { metrics: metrics || {}, sessions: ss, nSessions: ss.length, therapyHours: 6.2, t0Ms: 0 };
+        var mm = metrics || {};
+        if (mm.usageHours == null && mm.usageReason == null) mm = Object.assign({}, mm, { usageHours: 6.2 });
+        return { metrics: mm, sessions: ss, nSessions: ss.length, therapyHours: 6.2, t0Ms: 0 };
       };
 
       /* ── the decisive pair · ONE key apart ───────────────────────────────────────────────────
@@ -74283,7 +74953,7 @@
          `night.therapyHours >= 4` graded the envelope. On a night whose usage the DSP refused that
          chip answered a question nobody could measure, in the direction that reads as compliance. */
       var heroRef = CR.renderNight({ metrics: { residualAHI: 3, usageReason: 'no-pressure-channel' }, therapyHours: 6.2, nSessions: 2, t0Ms: 0, sessions: [] });
-      var heroOk = CR.renderNight({ metrics: { residualAHI: 3 }, therapyHours: 6.2, nSessions: 2, t0Ms: 0, sessions: [] });
+      var heroOk = CR.renderNight({ metrics: { residualAHI: 3, usageHours: 6.2 }, therapyHours: 6.2, nSessions: 2, t0Ms: 0, sessions: [] });
       T.ok('heroCard · a refused usage draws no "≥4 h compliant" verdict over the recording envelope', !/≥4 h compliant/.test(heroRef));
       T.ok('heroCard · …it states the refusal instead', /usage unmeasured/.test(heroRef) && /no-pressure-channel/.test(heroRef));
       T.ok('heroCard · …and drops the Usage subscore, which would grade the same envelope again', !/rs-label">Usage</.test(heroRef));
@@ -74350,7 +75020,7 @@
          vs "a pressure/fit review is warranted"), so a widened band does not just mis-colour a number —
          it tells the reader to do the wrong thing. Asserted on both sides of both edges. */
       var hero = function (ahi, extra) {
-        var n = { metrics: { residualAHI: ahi }, therapyHours: 6, nSessions: 1, t0Ms: 0 };
+        var n = { metrics: { residualAHI: ahi, usageHours: 6 }, therapyHours: 6, nSessions: 1, t0Ms: 0 };
         for (var k in extra || {}) n[k] = extra[k];
         return CR.renderNight(n);
       };
@@ -74373,8 +75043,10 @@
 
       /* the compliance chip is a SECOND, independent 4 h threshold (the summary's findings line is the
          first). Both must agree, and >= is inclusive: exactly 4 h is compliant. */
-      T.ok('heroCard · exactly 4 h reads "≥4 h compliant" — the chip threshold is inclusive', /✓ ≥4 h compliant/.test(hero(3, { therapyHours: 4 })));
-      T.ok('heroCard · 3.9 h reads "under 4 h"', /⚠ under 4 h/.test(hero(3, { therapyHours: 3.9 })));
+      /* The chip scores MASK-ON hours, so the override moves `metrics.usageHours`. The recording
+         envelope stays at 6 h in both legs, which is what the old fixture graded. */
+      T.ok('heroCard · exactly 4 h reads "≥4 h compliant" — the chip threshold is inclusive', /✓ ≥4 h compliant/.test(hero(3, { metrics: { residualAHI: 3, usageHours: 4 } })));
+      T.ok('heroCard · 3.9 h reads "under 4 h"', /⚠ under 4 h/.test(hero(3, { metrics: { residualAHI: 3, usageHours: 3.9 } })));
       /* the CA>OA chip: central-predominant events are the clinically notable pattern, so the chip warns
          only when central EXCEEDS obstructive. Equal indices are not a warning. */
       var chipCls = function (html) {
@@ -74533,12 +75205,15 @@
       }
       var _DAY = 86400000;
       // nights are handed in OLDEST-first here; the table must invert them.
+      /* `hours` is the MASK-ON figure: the compliance ratio, the usage trend and each row all
+         score it. The recording envelope runs 30 min longer, so a reader that takes the envelope
+         cannot satisfy these legs. */
       var mkNight = function (dayIdx, hours, ahi, leak, nSess, spo2) {
         return {
           t0Ms: Date.UTC(2026, 0, 1 + dayIdx, 22, 0, 0),
-          therapyHours: hours,
+          therapyHours: hours == null ? null : hours + 0.5,
           nSessions: nSess == null ? 1 : nSess,
-          metrics: { residualAHI: ahi, largeLeakPct: leak },
+          metrics: { residualAHI: ahi, largeLeakPct: leak, usageHours: hours },
           sessions: spo2 ? [{ oximetry: { available: true } }] : [{}]
         };
       };
@@ -74622,8 +75297,8 @@
          absent block cannot show this: `s.oximetry` is already falsy, so dropping the `.available` half
          of the guard changes nothing. Same shape as the oximetryCard case in wave 2 — found by mutation. */
       var _unavail = CR.renderHistory([
-        { t0Ms: 1, therapyHours: 7, nSessions: 1, metrics: {}, sessions: [{ oximetry: { available: false } }] },
-        { t0Ms: 2, therapyHours: 7, nSessions: 1, metrics: {}, sessions: [{ oximetry: { available: false } }] }
+        { t0Ms: 1, therapyHours: 7.5, nSessions: 1, metrics: { usageHours: 7 }, sessions: [{ oximetry: { available: false } }] },
+        { t0Ms: 2, therapyHours: 7.5, nSessions: 1, metrics: { usageHours: 7 }, sessions: [{ oximetry: { available: false } }] }
       ]);
       T.ok(
         "renderHistory · when EVERY night's oximetry is present-but-unavailable, NO row claims SpO₂ ✓ (the .available half of the guard is load-bearing)",
@@ -74638,7 +75313,10 @@
          its EDGES, and not its decimal places. The findings band is a four-way ladder whose text is the
          thing a clinician reads, so each boundary is asserted on both sides. */
       var summ = function (metrics, hours, extra) {
-        var el = { recording: { startEpochMs: 1000, therapyHours: hours == null ? 6 : hours }, metrics: metrics || {} };
+        var hh = hours == null ? 6 : hours;
+        var mm = metrics || {};
+        if (mm.usageHours == null && mm.usageReason == null) mm = Object.assign({}, mm, { usageHours: hh });
+        var el = { recording: { startEpochMs: 1000, therapyHours: hh }, metrics: mm };
         for (var kk in extra || {}) el[kk] = extra[kk];
         return CR.cpapClinicalSummary({ elements: [el] });
       };
@@ -89353,10 +90031,24 @@
         T.eq('motionIndex is the MEAN motion count (10/60 = 0.167), not the median (0)', eps[0].motionIndex, 0.167);
         T.eq('no rows ⇒ [] (never a fabricated epoch)', bes([], t0).length, 0);
         T.eq('no anchor ⇒ [] — an epoch grid needs a t0', bes(rows, null).length, 0);
-        // one sample short of the ≥60 coverage floor ⇒ that epoch vanishes
+        /* UPDATED 2026-11-09, deliberately (residue
+           2026-11-08-absent-oxydex-hr-takes-the-present-channels-out-of-the-export): the floor
+           governs the HR VALUE, not the window. These 59 rows carry a measured motion of 0 — a
+           reading, not an absence — so the epoch now publishes with `hr: null` and `hrN: 59` beside
+           that motion, instead of taking the motion down with the rate. A window that measured
+           NEITHER channel is still dropped, which is the leg below. */
         var short1 = [];
         for (var s1 = 0; s1 < 59; s1++) short1.push({ tMs: t0 + 300000 + s1 * 1000, hr: 70, motion: 0 });
-        T.eq('a 59-sample epoch is DROPPED — the floor is ≥60', bes(rows.slice(0, 60).concat(short1), t0).length, 1);
+        var shortEps = bes(rows.slice(0, 60).concat(short1), t0);
+        T.eq('a 59-sample epoch KEEPS its window — the ≥60 floor governs the HR value', shortEps.length, 2);
+        T.ok(
+          '…publishing hr null with hrN 59 and the motion it did measure',
+          shortEps[1] && shortEps[1].hr === null && shortEps[1].hrN === 59 && shortEps[1].motionIndex === 0,
+          JSON.stringify(shortEps[1])
+        );
+        var noChan = [];
+        for (var s2 = 0; s2 < 59; s2++) noChan.push({ tMs: t0 + 300000 + s2 * 1000, spo2: 96 });
+        T.eq('a window holding NEITHER channel is still dropped', bes(rows.slice(0, 60).concat(noChan), t0).length, 1);
         /* Pre-anchor rows need FULL coverage of their own to prove they were skipped by `k < 0`
            rather than merely dropped by the coverage floor — with one stray row the two guards are
            indistinguishable, and that mutant survived. 60 rows two epochs early would surface as a
@@ -89500,6 +90192,24 @@
         return { t: r.t, hr: r.hr, spo2: r.spo2, motion: 0 };
       });
       T.ok('B2 · CONTROL · with motion read the estimate still exists', !!B.computeSleepStageProxy(rows0));
+      /* ∅ the window bookkeeping. A skipped window is counted under the name of the absence that
+         dropped it, and the counts close over the windows the loop offered. Before this, the output
+         published `classifiedWindows` only while the HR COLUMN held an absent sample, so a night
+         with a complete HR column and an unreadable motion span named nothing. */
+      var spFull = B.computeSleepStageProxy(rows0);
+      T.eq('B2 · a fully examined night publishes no window annotation', JSON.stringify(!!spFull && spFull.offeredWindows === undefined && spFull.classifiedWindows === undefined), 'true');
+      var rowsHole = rows0.map(function (r, i) {
+        return i >= 600 && i < 1200 ? { t: r.t, hr: r.hr, spo2: r.spo2, motion: null } : r;
+      });
+      var spHole = B.computeSleepStageProxy(rowsHole);
+      T.ok(
+        'B2 · an unreadable motion span names itself, over a complete HR column',
+        !!spHole && spHole.motionAbsentWindows > 0 && spHole.offeredWindows > 0,
+        'spHole=' + JSON.stringify(spHole && { cls: spHole.classifiedWindows, off: spHole.offeredWindows, mot: spHole.motionAbsentWindows, hr: spHole.hrSparseWindows })
+      );
+      if (spHole && spHole.offeredWindows != null) {
+        T.eq('B2 · every offered window is classified or named as a skip', spHole.classifiedWindows + spHole.motionAbsentWindows + spHole.hrSparseWindows, spHole.offeredWindows);
+      }
       // d465645b6edd — an unentered age is ASSUMED, named, and costs confidence
       var vA = B.computeVO2maxEstimate(rows0, { rmssd: 2, hrFloor: 52 }, null, null, undefined);
       var vE = B.computeVO2maxEstimate(rows0, { rmssd: 2, hrFloor: 52 }, null, null, 49);

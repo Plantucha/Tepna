@@ -378,8 +378,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "7f4b02e39f3b",
-          "computeHash": "3115cc6f2dbd"
+          "manifestHash": "40d79fe5b9bc",
+          "computeHash": "e73a9f0ef239"
         },
         "evidence": {
           "envelopeRef": null,
@@ -407,8 +407,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "7f4b02e39f3b",
-          "computeHash": "3115cc6f2dbd"
+          "manifestHash": "40d79fe5b9bc",
+          "computeHash": "e73a9f0ef239"
         },
         "evidence": {
           "envelopeRef": null,
@@ -436,8 +436,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "7f4b02e39f3b",
-          "computeHash": "3115cc6f2dbd"
+          "manifestHash": "40d79fe5b9bc",
+          "computeHash": "e73a9f0ef239"
         },
         "evidence": {
           "envelopeRef": null,
@@ -465,8 +465,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "7f4b02e39f3b",
-          "computeHash": "3115cc6f2dbd"
+          "manifestHash": "40d79fe5b9bc",
+          "computeHash": "e73a9f0ef239"
         },
         "evidence": {
           "envelopeRef": null,
@@ -1202,7 +1202,13 @@
         "plausible": false,
         "plausibilityNote": "REM proxy implausible (78.2% of the recording; physiological ≈20–25%) — the HR-stability estimator over-fires on quiet sleep. Not a high-REM night; treat as unreliable.",
         "remProxyLabel": "Implausible — estimator unreliable",
-        "nremDeepLabel": "Low deep sleep estimate"
+        "nremDeepLabel": "Low deep sleep estimate",
+        "hrCoveredN": 21794,
+        "hrSpanN": 21804,
+        "classifiedWindows": 180,
+        "offeredWindows": 180,
+        "motionAbsentWindows": 0,
+        "hrSparseWindows": 0
       },
       "vo2est": {
         "vo2est": 58.3,
@@ -1478,6 +1484,7 @@
         "rhoLag1": 0.9719,
         "coveredN": 21794,
         "spanN": 21804,
+        "absentRunMaxN": 10,
         "detected": false,
         "reason": null
       },

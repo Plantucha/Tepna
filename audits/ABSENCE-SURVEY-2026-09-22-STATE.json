@@ -38,7 +38,8 @@
   "findingsNamingASiteByBareLineOnly": 14,
   "sites": 330,
   "sitesWithRow": 15,
-  "sitesWithoutRow": 315
+  "sitesWithoutRow": 315,
+  "sitesMatchingARowByBasenameOnly": 0
  },
  "entries": [
   {

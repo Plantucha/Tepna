@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="f7a0416bf0de" data-compute-hash="53d602d1ff94">
+<html lang="en" data-manifest-hash="76313a217df9" data-compute-hash="47bb69f70851">
 <head>
 <!--
   HRVDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0DQHWzcJEMTDK0okzsLrElRNNuIqt6zybEklrP0095E=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8PRBTa79fUaN2zhWDMHlkkyA9S3dSTeqfWILOdsEo0k=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-TJnsXppIrR2fDEg9roXHwHuaiAym8hL+7tyg9r6NlEw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-hCZmwNAMDLPZEMYHAYpzoPETSnimg1oHWWjZImdKqxM=' 'sha256-iJKYeg5xdrMEk8SgzSY/+JuUNx7CM4NtzwbAp3dmTjU=' 'sha256-iPyLk9lz5vEHBgIRxCRO79E+5mxBTZTD8Z35NpXAFnA=' 'sha256-pTsHiG3YU81obvJkalwdmUi5EMJKUcF94zWTj6ccHIo=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-wQSzoNwWpbIfmh9kMjUs40V1eTfx9BQIQe+GNHljJyE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0DQHWzcJEMTDK0okzsLrElRNNuIqt6zybEklrP0095E=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8PRBTa79fUaN2zhWDMHlkkyA9S3dSTeqfWILOdsEo0k=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QU1eFIpXtk89h7OawHFWXJry6pEr0cw5i0Q08kGZz88=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-TJnsXppIrR2fDEg9roXHwHuaiAym8hL+7tyg9r6NlEw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-iJKYeg5xdrMEk8SgzSY/+JuUNx7CM4NtzwbAp3dmTjU=' 'sha256-iPyLk9lz5vEHBgIRxCRO79E+5mxBTZTD8Z35NpXAFnA=' 'sha256-pTsHiG3YU81obvJkalwdmUi5EMJKUcF94zWTj6ccHIo=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-tEgjv8S5vEIsuBLCHAaM5gMw7PHBRH6v+T9vtvc8Yi4=' 'sha256-wQSzoNwWpbIfmh9kMjUs40V1eTfx9BQIQe+GNHljJyE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>HRVDex — Heart Rate Variability Analyzer · v2.29.0</title>
@@ -5025,6 +5025,12 @@ body.light .topbar::after{ opacity:.25; }
  * @property {string|null}  kernelHash  DexKernel.HASH at parse time
  * @property {string[]}     warnings    non-fatal notes
  *
+ * @typedef {Object} SignalFrameCounts   what the interval parser removed, each null when unreported
+ * @property {number|null} nRaw       intervals the parser read
+ * @property {number|null} nUsable    intervals inside the physiological range
+ * @property {number|null} nBlocked   intervals the parser blocked as artifacts
+ * @property {number|null} timeRatio  summed intervals over the stamped span
+ *
  * @typedef {Object} SignalFrame   The ONLY thing DSP should consume (brief §2.2).
  * @property {('rr'|'ecg'|'spo2'|'cgm'|'eeg'|'flow'|'hr'|'acc'|'hrv')} signalType  a SignalSpec key
  * @property {('intervals'|'samples')} kind
@@ -5037,6 +5043,7 @@ body.light .topbar::after{ opacity:.25; }
  * @property {number|null}  sqi         0..1 signal-quality, or null — SEPARATE axis from conf
  * @property {boolean}      usable
  * @property {string|null}  reason      human string when usable=false
+ * @property {SignalFrameCounts|null} counts  the parser's removal counts; null for a samples frame
  * @property {string|null}  contentId   EXPORT-IDENTITY §2.1: optional content-addressed recording digest
  *                                      (12 hex chars), identity-free, deterministic; null = no usable payload
  * @property {SignalFrameProvenance} provenance
@@ -5201,6 +5208,9 @@ body.light .topbar::after{ opacity:.25; }
   //                usable, reason, ...}. Samples: {samples, fs, t0Ms, tsMs, ...}.
   //   ctx        : { adapter, vendor, device, files, warnings } provenance the
   //                adapter knows about itself; merged into frame.provenance.
+  function _count(v) {
+    return typeof v === 'number' && isFinite(v) && v >= 0 && Math.floor(v) === v ? v : null;
+  }
   function toSignalFrame(signalType, raw, ctx) {
     ctx = ctx || {};
     raw = raw || {};
@@ -5220,6 +5230,7 @@ body.light .topbar::after{ opacity:.25; }
       sqi: raw.sqi === undefined ? null : raw.sqi, // quality-neutral by default; separate axis from conf
       usable: usable,
       reason: raw.reason === undefined ? null : raw.reason, // honesty: human string when usable=false
+      counts: /** @type {SignalFrameCounts|null} */ (null), // interval frames only — set below
       provenance: {
         adapter: ctx.adapter || raw.adapter || null,
         vendor: ctx.vendor || null,
@@ -5235,6 +5246,16 @@ body.light .topbar::after{ opacity:.25; }
     if (kind === 'intervals') {
       var iv = raw.intervals != null ? raw.intervals : raw.vals;
       frame.intervals = iv && iv.length != null ? Array.prototype.slice.call(iv) : null;
+      // THE COUNTS THAT SAY HOW MANY INTERVALS THE PARSER REMOVED travel with the intervals it kept
+      // (residue 2026-11-08-tosignalframe-drops-the-pulsedex-artifact-counts). The frame used to
+      // carry the survivors alone, so a consumer could not tell 300 clean intervals from 300 left
+      // over out of 3000. A count the parser did not report is null, never 0 (§∅).
+      frame.counts = {
+        nRaw: _count(raw.nRaw),
+        nUsable: _count(raw.nUsable),
+        nBlocked: _count(raw.nBlocked),
+        timeRatio: typeof raw.timeRatio === 'number' && isFinite(raw.timeRatio) ? raw.timeRatio : null
+      };
     } else if (kind === 'samples') {
       frame.samples = raw.samples != null ? raw.samples : null;
       frame.fs = raw.fs === undefined ? null : raw.fs;
@@ -5507,6 +5528,21 @@ body.light .topbar::after{ opacity:.25; }
       'siteSource',
       'timingSource',
       'hostAxis',
+      /* THE SHARED TIMING BLOCK, THE VALIDITY BLOCK AND THE SEAM SUMMARY (declared 2026-11-09).
+         Measured over the 28 envelope-shaped node-exports in the corpus: the scrub dropped
+         `recording.timing` from 28 of 28, `recording.validity` from 20 of 28 and
+         `recording.clockSeamScan` from 3 of 3 PulseDex exports. So a shared export carried the
+         clinical summary and no timebase provenance at all, and §∅ names that loss a defect: a
+         consumer could not tell one clock from nobody looked. Every key in all three blocks is a
+         count, a rate, an enum or an authored sentence — the twelve `timing` keys are
+         `timingSource`/`independent`/`anchors`/`spanMs`/`ppm`/`spanPpm`/`resyncs`/`seams`/`rate`/
+         `rateRaw`/`rateApplied`/`reason`, and `validity` adds seam counts plus `upstreamNodes`,
+         which names nodes, never devices. The per-seam DETAIL lists (`clockSeams`,
+         `clockSeamRefusals`) stay undeclared: the summary carries the counts, and the detail is
+         unmeasured against the corpus, so it is named in `scrubDropped` rather than waved through. */
+      'timing',
+      'validity',
+      'clockSeamScan',
       'deviceEpoch',
       'unit',
       'sourceUnit',
@@ -5583,7 +5619,21 @@ body.light .topbar::after{ opacity:.25; }
          that committed assertion, and the distinction is worth keeping visible — every key above it
          was read off a real export, this one was read off a test. */
       'ansAge',
-      'hrvScore'
+      'hrvScore',
+      /* `clockSeamScan` and `measurement` (declared 2026-11-09, the GATE C red on #4724). The
+         app-export-against-compute leg in `Dex-Test-Suite.html` reds the moment a night element
+         loses a physiological field, and it named these two: the scrub stripped OxyDex's whole
+         headline measurement block and its seam verdict. `measurement` holds one block per metric
+         id, each `value` + `window` + `code` + `basis` + `quality` + `uncertainty` + `evidence`.
+         Two of its leaves were read before declaring it. `evidence.envelopeRef` is the capture
+         `session_id`, which `capture-host/capture.py:5843` states is the 14-digit START STAMP —
+         the same instant `recording.startEpochMs` already declares. `sourceChannel` is a per-node
+         CONSTANT ('O2Ring:spo2'), so it names a device family that `schema.node` already names and
+         carries no hardware revision; it is not the `model` the header above refuses, which is a
+         revision-bearing device string. `evidence.inputHash` is `contentId`, declared
+         identity-free three blocks up. */
+      'clockSeamScan',
+      'measurement'
     ],
     elementSchema: ['name', 'version', 'node', 'nodeVersion', 'generated', 'doc', 'units', 'provenance', 'scrubbed', 'scrubDropped'],
     elementRecording: [
@@ -5609,7 +5659,12 @@ body.light .topbar::after{ opacity:.25; }
       'therapyHours',
       'sessionCount',
       'sessions',
-      'offMaskGaps'
+      'offMaskGaps',
+      /* The same three as `recording` above, for the same measured reason — a per-element recording
+         block is the same content per night. */
+      'timing',
+      'validity',
+      'clockSeamScan'
     ]
   };
 
@@ -5903,7 +5958,8 @@ body.light .topbar::after{ opacity:.25; }
   // recording.contentId (the identity-free EXPORT-IDENTITY handle). PURE: never mutates the input.
   // ONE implementation for every node (D1) — OxyDex shipped its own oxyScrubExport in the pilot; it
   // folds into this on OxyDex's next re-bundle (leaving it now avoids an export-inert OxyDex churn).
-  // Default OFF at every call site, so a normal export stays byte-identical. DOM-free; node:vm-safe.
+  // The OxyDex and CPAPDex call sites default ON since 2026-11-09, so the file a user shares carries no
+  // serial. DOM-free; node:vm-safe.
   /* THE SCRUB IS ALLOW-LIST DRIVEN (EXPORT-SCRUB-ALLOWLIST §3, owner ruling 2026-10-12). The key
      sets live in `export-schema.js`, which nine bundles carry; this function owns the MECHANISM and
      holds no key knowledge of its own. What the deny-list before it looked like, and why it had to

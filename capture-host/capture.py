@@ -4783,7 +4783,26 @@ async def run_polar(dev: dict, root: str):
                         # write parks the whole device task forever with its link nominally up.
                         try:
                             await asyncio.wait_for(client.write_gatt_char(pmd.PMD_CONTROL, cmd, response=True), timeout)
-                        except Exception:
+                        except Exception as e:
+                            # NAME THE ONE CAUSE SILENCE CANNOT MEAN. Every `b""` this function returns
+                            # reads downstream as NO_ACK, and NO_ACK means "the device did not answer —
+                            # ask again". That is routine: the stale-stream STOP below expects no answer
+                            # at all. A write that FAILED is a different fact — the command never left
+                            # this host, so the device never owed an answer. With no line the two were
+                            # one event (row
+                            # `2026-11-08-a-pmd-control-write-failure-is-swallowed-with-no-log`).
+                            #
+                            # WARNING, like the subscribe failure above, and one line per failure. A
+                            # dedup counter would need state, and state is a second way to lose the
+                            # second event; a write path that keeps failing is a fact that keeps
+                            # repeating. The opcode tells the lines apart.
+                            log.warning(
+                                "%s control write for op %#04x failed (%r) — the command never reached "
+                                "the device, so this NO_ACK is not the device staying quiet",
+                                name,
+                                cmd[0],
+                                e,
+                            )
                             return b""
                         # MATCH THE ANSWER TO THE QUESTION. Taking whatever arrives next assumes the only
                         # traffic on this characteristic is our own responses, in order. `_on_ctrl` above

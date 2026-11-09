@@ -149,6 +149,29 @@
     /^inline:style:/, // the bundle's inline <style> shells
     /-render\.js$/, // <node>-render.js — DOM painting
     /-app\.js$/, // <node>-app.js — host/event wiring
+    /* The one `*-overview.js` module, inlined into `PulseDex.html` alone. It is pinned by its EXACT
+       NAME and not by an `-overview.js` suffix: a suffix is a claim about modules that do not exist
+       yet, and F14 is what such a claim costs. An unnamed future overview module keeps failing CLOSED.
+       Measured 2026-11-09 against origin/main at 5c5adf97d: `PulseDex.html` inlines 27 plain assets, of
+       which 19 were in the closure; none of the other 18 reads any of the module's 22 top-level names.
+       The module publishes 13 names on the global object: `window._pxPanel`, and 12 more through one
+       `Object.assign(window, {…})` call that a `window.X =` pattern cannot see. No compute asset reads
+       any of the 13. All 18 were examined — 16 files, each of which holds the word `function`, and the
+       two inline blocks, which were read in full. The module READS `window.PulseDex._bare` and
+       `window.DexProfile`, where a read cannot move an export.
+       The entry moves `PulseDex.html`'s computeHash once, and then holds it
+       stable across every render-only edit to the module. Pinned to the DSP's source in dex-tests.js
+       (F14), the same way the five profile entries are.
+       An EXPERIMENT tested the claim, as the inverse of the F14 measurement. The `pxProfile()` age
+       default moved from 40 to 25 — the value that feeds `hrmaxEff`, `vo2gt` and `rhrEff` on the render
+       surface through pulsedex-render.js and pulsedex-app.js, which are both display-only too.
+       On base 5c5adf97d, manifestHash moved 34f27ec1cbc2 to 533078f93009 and computeHash held at
+       ea3040ef5c65, and a real-corpus run of tools/verify-fixtures.mjs over 920 tests left 19 of 19
+       fixtures current, so no export byte moved. (The hashes of this entry's own landing state sit in
+       its changeset; a spine re-bundle moves them and does not touch the result above.)
+       Two static reads agree: `pulsedex-dsp.js` holds no occurrence of `age`, and none of the 93 key
+       paths of the committed PulseDex export is a profile-derived field. */
+    /^pulsedex-overview\.js$/,
     /* per-node profile UI (NOT the shared dex-profile.js engine, which feeds metrics). `oxydex-profile.js`
        is deliberately ABSENT from this list: oxydex-dsp.js reads `UP.age` / `UP.hrRestOverride` and calls
        `upVO2category` from it inside compute() (`vo2est`/`karv`), so an edit to its defaults moves the

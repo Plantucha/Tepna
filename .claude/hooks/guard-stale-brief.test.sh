@@ -400,10 +400,23 @@ _recapture() { # _recapture cmd:<command> | file:<path> ; the recipe carries a p
     *) printf 'REFUSE: a recapture recipe with no cmd: or file: prefix' ;;
   esac
 }
+# ── THE READER MUST NOT BE ABLE TO FAIL TO LOOK ──────────────────────────────────
+# Row 2026-11-09-guard-selftest-reads-a-failed-reader-as-an-absent-needle. Every leg below used to
+# pipe its captured text into `grep -qF` and read PRESENT from exit 0, ABSENT from anything else.
+# That reads three states as one word: a reader that exited 2 because it could not run, a reader
+# killed by a signal, and a needle that is honestly absent. classify read the needle TWICE through
+# that shape, so two FAILED reads agreed, it printed STABLE-TEXT, and _cause_note then sent the
+# reader at their own diff. The fix is not a third verdict for a reader that could not look. It is
+# to keep no reader that can fail: a case pattern with the needle QUOTED is a literal substring
+# test in the shell itself. No subprocess, no exit status to collapse, and no pipe to meet SIGPIPE
+# on a text over the 64 KiB buffer. The quotes are load-bearing — unquoted, a * in a needle globs.
+says() { # says <needle> <text> ; 0 = PRESENT, 1 = ABSENT. It cannot report a third thing.
+  case "$2" in *"$1"*) return 0 ;; *) return 1 ;; esac
+}
 classify() { # classify <first text> <retry text> <needle> ; one token naming the cause
   local a=ABSENT b=ABSENT
-  printf '%s' "$1" | grep -qF "$3" && a=PRESENT
-  printf '%s' "$2" | grep -qF "$3" && b=PRESENT
+  says "$3" "$1" && a=PRESENT
+  says "$3" "$2" && b=PRESENT
   if [ -z "$1" ] && [ -z "$2" ]; then printf 'NO-OUTPUT-TWICE'
   elif [ -z "$1" ]; then printf 'FIRST-CAPTURE-EMPTY'
   elif [ "$a" != "$b" ]; then printf 'NOT-REPRODUCIBLE'
@@ -420,7 +433,7 @@ _cause_note() { # _cause_note <token> ; where the token sends the reader
 }
 expectsays() { # expectsays <PRESENT|ABSENT> <label> <needle> <text> [<recapture recipe>]
   local got retry verdict
-  if printf '%s' "$4" | grep -qF "$3"; then got=PRESENT; else got=ABSENT; fi
+  if says "$3" "$4"; then got=PRESENT; else got=ABSENT; fi
   if [ "$got" = "$1" ]; then printf '  ok    %-58s %s\n' "$2" "$got"
   else printf '  FAIL  %-58s got %s, want %s\n' "$2" "$got" "$1"; fail=$((fail+1))
     printf '        needle: %s\n' "$3"; dump_msg "$2" "$4"
@@ -527,12 +540,32 @@ expectis FIRST-CAPTURE-EMPTY "a silent run beside a loud one reads as a cut"    
 expectis NOT-REPRODUCIBLE    "a needle on one run alone reads as the flake"     "$(classify "holds nothing" "holds a needle here" "a needle")"
 expectis STABLE-TEXT         "two runs that agree read as a real difference"    "$(classify "holds nothing" "holds nothing either" "a needle")"
 _live="$(_recapture "cmd:$_argv_cmd")"
-expectis PRESENT             "a live recapture reproduces the argv denial"      "$(printf '%s' "$_live" | grep -qF "target the program reads from its own arguments" && echo PRESENT || echo ABSENT)"
+expectis PRESENT             "a live recapture reproduces the argv denial"      "$(says "target the program reads from its own arguments" "$_live" && echo PRESENT || echo ABSENT)"
 expectis REFUSE              "an unprefixed recipe refuses instead of guessing" "$(_recapture 'briefs/SHARED-BRIEF.md' | cut -d: -f1)"
 for _tok in NO-OUTPUT-TWICE FIRST-CAPTURE-EMPTY NOT-REPRODUCIBLE STABLE-TEXT; do
   if [ -n "$(_cause_note "$_tok")" ]; then echo "  ok    the cause note for $_tok reaches the reader"
   else echo "  FAIL  $_tok carries no cause note, so the token tells a reader nothing"; fail=$((fail+1)); fi
 done
+
+# ⚠ THE READER IS UNDER TEST TOO. The row is
+# 2026-11-09-guard-selftest-reads-a-failed-reader-as-an-absent-needle, and the old shape read a
+# reader that could not look as an absent needle. classify
+# turned two such reads into STABLE-TEXT. These legs pin the three properties the new reader has and
+# the old one did not. The last pair is the regression. It runs the OLD idiom against a reader that
+# exits 2, over a text that HOLDS the needle, and shows which word that produced.
+expectis PRESENT "a needle holding * and [ and ? reads as literal text" \
+  "$(says 'a*b[c]?' 'x a*b[c]? y' && echo PRESENT || echo ABSENT)"
+expectis ABSENT  "…and that needle does not glob onto text it never holds" \
+  "$(says 'a*b[c]?' 'x azzb y' && echo PRESENT || echo ABSENT)"
+_big="$(printf '%0200000d' 0)holds a needle here"
+expectis PRESENT "a 200000-byte text, over the 64 KiB pipe buffer, still reads" \
+  "$(says 'holds a needle here' "$_big" && echo PRESENT || echo ABSENT)"
+_cannot_look() { return 2; } # a reader that FAILED: grep exits 2 on an error, not on a miss
+expectis ABSENT  "THE OLD IDIOM: a reader exiting 2 over text that HOLDS the needle" \
+  "$(printf '%s' 'holds a needle here' | _cannot_look && echo PRESENT || echo ABSENT)"
+expectis PRESENT "…and the new reader reads that same text as PRESENT" \
+  "$(says 'a needle' 'holds a needle here' && echo PRESENT || echo ABSENT)"
+unset _big
 
 echo
 echo "### escape hatch + degenerate inputs"
@@ -902,21 +935,21 @@ bashrun() { # bashrun <command> ; echoes the stderr
   printf '%s' "$js" | bash "$H" 2>&1 >/dev/null
 }
 MSG_PLAIN="$(bashrun "sed -i s/a/b/ briefs/SHARED-BRIEF.md")"
-if printf '%s' "$MSG_PLAIN" | grep -q 'MEASURED AGAINST:'; then echo "  ok    a denial names the tree it measured"
+if says 'MEASURED AGAINST:' "$MSG_PLAIN"; then echo "  ok    a denial names the tree it measured"
 else echo "  FAIL  denial does not name the tree"; fail=$((fail+1));dump_msg "a denial that must name its tree" "$MSG_PLAIN"; fi
-if printf '%s' "$MSG_PLAIN" | grep -qE 'behind origin/main|distance from origin/main unknown'; then echo "  ok    …and how far behind that tree is"
+if says 'behind origin/main' "$MSG_PLAIN" || says 'distance from origin/main unknown' "$MSG_PLAIN"; then echo "  ok    …and how far behind that tree is"
 else echo "  FAIL  denial does not give the distance"; fail=$((fail+1));dump_msg "a denial that must give the distance" "$MSG_PLAIN"; fi
 
 # THE SHAPE THAT DEFEATED IT: a leading cd to an EXISTING dir, then the worktree that does not exist.
 MISSING="$TMP/not-created-yet"
 MSG_WT="$(bashrun "cd $WORK && git worktree add $MISSING && cd $MISSING && sed -i s/a/b/ briefs/SHARED-BRIEF.md")"
-if printf '%s' "$MSG_WT" | grep -q 'THIS BASE IS THE SHARED ROOT'; then echo "  ok    a LATER cd to a not-yet-created tree is still detected (was: only the first cd)"
+if says 'THIS BASE IS THE SHARED ROOT' "$MSG_WT"; then echo "  ok    a LATER cd to a not-yet-created tree is still detected (was: only the first cd)"
 else echo "  FAIL  cd_missing missed a non-first cd — the worktree-creating shape"; fail=$((fail+1));printf '        the directory that must read as missing: %s\n' "$MISSING"; dump_msg "the worktree-creating cd shape" "$MSG_WT"; fi
-if printf '%s' "$MSG_WT" | grep -qF "$MISSING"; then echo "  ok    …and the notice names which directory does not exist yet"
+if says "$MISSING" "$MSG_WT"; then echo "  ok    …and the notice names which directory does not exist yet"
 else echo "  FAIL  notice does not name the missing dir"; fail=$((fail+1));dump_msg "the name of the missing directory" "$MSG_WT"; fi
 # NARROWNESS: an ordinary subdirectory hop to a dir that EXISTS must not be reported as missing.
 MSG_HOP="$(bashrun "cd $WORK && cd briefs && sed -i s/a/b/ SHARED-BRIEF.md")"
-if printf '%s' "$MSG_HOP" | grep -q 'THIS BASE IS THE SHARED ROOT'; then echo "  FAIL  an existing subdirectory hop was reported as a missing tree"; fail=$((fail+1)); dump_msg "an existing subdirectory hop" "$MSG_HOP";
+if says 'THIS BASE IS THE SHARED ROOT' "$MSG_HOP"; then echo "  FAIL  an existing subdirectory hop was reported as a missing tree"; fail=$((fail+1)); dump_msg "an existing subdirectory hop" "$MSG_HOP";
 else echo "  ok    an existing subdirectory hop is NOT reported as a missing tree"; fi
 
 # ⚠ THE HOOK MUST DRAIN STDIN BEFORE THE HATCH EXITS, AND NO LEG ABOVE CAN SEE IT. Every

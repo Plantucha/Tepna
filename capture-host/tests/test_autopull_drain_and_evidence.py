@@ -14,6 +14,8 @@ would trade a proven scope for an unmeasured bound; the follow-on runs when the 
 answered, so reachability is demonstrated rather than assumed.
 """
 
+import re
+
 import oxy_inventory as INV
 
 
@@ -119,6 +121,7 @@ def test_THE_DEAD_STATUS_KEY_IS_GONE():
 # ── the drain's own failure paths, driven through the real poller ─────────────────────────────────
 import asyncio
 
+import alerts
 import capture
 import offline_lock
 from test_presence_wire import A, _arm_presence, _ring_cfg
@@ -296,3 +299,53 @@ def test_a_clean_drain_and_a_busy_slot_are_recorded_as_what_they_are(monkeypatch
         return {"new_files": ["main"]}
 
     assert _drive(monkeypatch, busy).get("drain", "").startswith("deferred: ")
+
+
+# ── the drain outcome has to REACH A READER (residue 2026-11-08-a-partial-drain-keeps-the-power-off-licence-the-contract-withholds) ──
+def test_THE_MONITOR_DRAWS_THE_DRAIN_OUTCOME_AND_NOT_ONLY_THE_COUNT():
+    """`drained: 0` reads the same for a ring with nothing stranded and for a drain the link refused.
+    `capture.py` publishes `drain` to tell those apart, and the render has to read it — a forwarded
+    field nothing draws is evidence that reached no one."""
+    src = module_source("monitor.html")
+    assert "ap.drain" in src, "`drain` is published and forwarded, and the page never reads it"
+    assert "` · drain ${drain}`" in src, "read and never written into the card"
+
+
+def test_A_HELD_DRAIN_DOES_NOT_WEAR_THE_HEALTHY_PILL():
+    """The pill used to read `ok` on any non-zero file count, so a refused drain looked like a clean
+    pull. The outcome now picks the class."""
+    src = module_source("monitor.html")
+    assert "const held = drain.startsWith('refused') || drain.startsWith('deferred')" in src
+    assert "'data-pill ' + (held ? 'warn' : n ? 'ok' : 'idle')" in src
+
+
+def test_EVERY_PILL_CLASS_THIS_PAGE_ASSIGNS_HAS_A_CSS_RULE():
+    """⚠️ THE ABSENT RULE READS AS A VALUE. `warn` and `bad` were assigned at eight sites and defined
+    at none, so each one fell through to `.data-pill` — the healthy green look. A distress pill that
+    renders as healthy is §∅ in CSS, and no test saw it because both halves parse and both halves run.
+
+    `ok` IS the base rule and carries no modifier, by design. Every other token needs its own."""
+    src = module_source("monitor.html")
+    assigned = set()
+    for line in src.splitlines():
+        head, sep, tail = line.partition("'data-pill '")
+        if not sep:
+            continue
+        for m in re.finditer(r"'([a-z]+)'", tail):
+            assigned.add(m.group(1))
+    assert {"ok", "warn", "bad", "idle"} <= assigned, assigned
+    for tok in sorted(assigned - {"ok"}):
+        assert f".data-pill.{tok}{{" in src, f"'{tok}' pills render as the healthy base — no CSS rule"
+
+
+def test_THE_POWER_OFF_LICENCE_NAMES_THE_PULL_IT_KEYS_ON():
+    """The clause said "failed or ran partial", and no writer produces a partial PULL: `_LAST_PULL_OK`
+    moves at one site, after the primary pull returns. A partial DRAIN is a different object, and
+    reading the two as one made the contract look broken while the code was right."""
+    doc = alerts.powered_off_after_pull.__doc__ or ""
+    assert "ran partial" not in doc, "the clause still names a state no writer produces"
+    assert "PRIMARY pull" in doc
+    assert "partial DRAIN is not a partial PULL" in doc
+    # The claim above is about `capture.py`, so hold it against `capture.py`.
+    src = module_source("capture.py")
+    assert src.count('_LAST_PULL_OK[dev.get("name")] = _time.monotonic()') == 1, "more than one writer"

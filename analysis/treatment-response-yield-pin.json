@@ -24,7 +24,7 @@
       "dex-escape.js": "f0d38619047a",
       "oxydex-util.js": "5cc642ee790b",
       "oxydex-profile.js": "3496a101178a",
-      "oxydex-dsp.js": "2ef485cdb9ce"
+      "oxydex-dsp.js": "ac96c6845205"
     },
     "pulse": {
       "synth-gen.js": "a653cf5afb78",
@@ -137,11 +137,39 @@
       "old": "9d293fe86dda",
       "new": "2ef485cdb9ce",
       "reason": "residue 2026-11-08-an-all-empty-hr-column-publishes-zeros-in-the-oxydex-hr-family: every OxyDex HR metric now reads an absent pulse as absent. The HR profile, the quartile trend, the smoothed nadir and the SpO2-HR lag refuse when no row carries a measured pulse, and each states its covered row count beside the value. The cross-correlation needs 60 paired samples at a lag before it quotes one. Statements moved, so the yield was RE-CUT at paper scale, not re-stamped: 233 tx / 239 flat, unchanged. NOTE ON THE CHAIN: this entry opens at 9d293fe86dda, which no earlier entry closes. PR #4680 moved the closure from 41d2c5601b71 to 9d293fe86dda and appended no note, so the chain has a one-step gap there. I read both digests off the pin on origin/main and did not re-cut that step."
+    },
+    {
+      "date": "2026-11-09",
+      "file": "oxydex-dsp.js",
+      "old": "2ef485cdb9ce",
+      "new": "88a13aaa8774",
+      "reason": "residue 2026-11-08-absent-oxydex-hr-takes-the-present-channels-out-of-the-export: a 5-min epoch under the 60-sample HR floor now publishes hr null with its hrN count and KEEPS its motion, and the timeseries block ships whenever any one of epochs / spo2 / hr exists. Before this, a night that cleared no HR floor exported no block at all, so the 1 Hz SpO2 series left the node with it. Statements moved, so the yield was RE-CUT at paper scale, not re-stamped: 233 tx / 239 flat, identical to the entry this one closes. The treatment-response detectors read ODI-4 and rMSSD, not the epoch grid, which is why the measurement does not move. This entry closes 2ef485cdb9ce, which the entry above opens, so the oxydex-dsp.js chain is continuous from there forward. The tool still appends no note of its own, and PR #4692 logs that as a separate finding with the four unrecorded moves it found on main."
+    },
+    {
+      "date": "2026-11-09",
+      "file": "oxydex-dsp.js",
+      "old": "88a13aaa8774",
+      "new": "1a0df4a4722e",
+      "reason": "residue 2026-11-09-the-spo2-spectrum-reads-a-gap-run-as-reduced-coverage: computeSpO2FFT now publishes absentRunMaxN, the longest contiguous absent run, and names a refusal that one hole caused as absence-run. The spectrum is not a treatment-response input, and the re-cut measured the SAME 233 tx / 239 flat under the moved closure, so the yield is unchanged and this entry records the move only."
+    },
+    {
+      "date": "2026-11-09",
+      "file": "oxydex-dsp.js",
+      "old": "5e5ffe017b76",
+      "new": "554a264ba4a5",
+      "reason": "residue 2026-11-09-mini-nsi-counts-absent-spo2-as-a-desaturated-second and 2026-11-09-the-nsi-motion-null-guard-tests-the-whole-column-only: the mini-NSI below-95 share and motion share now divide by their own measured count, each refuses below 60 measured samples, and the epoch average refuses when any leg refuses. The mini-NSI is not a treatment-response input, and the re-cut measured the SAME 233 tx / 239 flat under the moved closure, so the yield is unchanged and this entry records the move only."
+    },
+    {
+      "date": "2026-11-09",
+      "file": "oxydex-dsp.js",
+      "old": "554a264ba4a5",
+      "new": "ac96c6845205",
+      "reason": "residue 2026-11-09-the-rem-share-divides-by-the-span-it-did-not-examine: computeSleepStageProxy now counts the windows it offered and the windows each absence dropped, and it publishes that bookkeeping whenever a window went unexamined. No published value moves. The stage estimate is not a treatment-response input, and the re-cut measured the SAME 233 tx / 239 flat under the moved closure, so this entry records the move only."
     }
   ],
-  "measuredAt": "2026-11-09T10:03:13.145Z",
+  "measuredAt": "2026-11-09T22:23:05.162Z",
   "producedBy": {
     "tool": "tools/treatment-response-yield-pin.mjs",
-    "commit": "fd17db285"
+    "commit": "47ca6cda7"
   }
 }
