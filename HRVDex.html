@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="cbc17aab5bbe" data-compute-hash="53d602d1ff94">
+<html lang="en" data-manifest-hash="f7a0416bf0de" data-compute-hash="53d602d1ff94">
 <head>
 <!--
   HRVDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0DQHWzcJEMTDK0okzsLrElRNNuIqt6zybEklrP0095E=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8PRBTa79fUaN2zhWDMHlkkyA9S3dSTeqfWILOdsEo0k=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-TJnsXppIrR2fDEg9roXHwHuaiAym8hL+7tyg9r6NlEw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-hCZmwNAMDLPZEMYHAYpzoPETSnimg1oHWWjZImdKqxM=' 'sha256-iPyLk9lz5vEHBgIRxCRO79E+5mxBTZTD8Z35NpXAFnA=' 'sha256-pTsHiG3YU81obvJkalwdmUi5EMJKUcF94zWTj6ccHIo=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-wQSzoNwWpbIfmh9kMjUs40V1eTfx9BQIQe+GNHljJyE=' 'sha256-yp99IYcHo3eEDeDkAmSBzj/KMTEKxYTqR3gtVnlGR/o='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0DQHWzcJEMTDK0okzsLrElRNNuIqt6zybEklrP0095E=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8PRBTa79fUaN2zhWDMHlkkyA9S3dSTeqfWILOdsEo0k=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-TJnsXppIrR2fDEg9roXHwHuaiAym8hL+7tyg9r6NlEw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-hCZmwNAMDLPZEMYHAYpzoPETSnimg1oHWWjZImdKqxM=' 'sha256-iJKYeg5xdrMEk8SgzSY/+JuUNx7CM4NtzwbAp3dmTjU=' 'sha256-iPyLk9lz5vEHBgIRxCRO79E+5mxBTZTD8Z35NpXAFnA=' 'sha256-pTsHiG3YU81obvJkalwdmUi5EMJKUcF94zWTj6ccHIo=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-wQSzoNwWpbIfmh9kMjUs40V1eTfx9BQIQe+GNHljJyE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>HRVDex — Heart Rate Variability Analyzer · v2.29.0</title>
@@ -15434,7 +15434,16 @@ function exportCSV() {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = exportName({ node: 'HRVDex', t0Ms: _aT0, kind: 'summary', ext: 'csv', spanDays: _aSpan });
+  _hrvClickAndRevoke(a);
+}
+
+// Every export blob URL is revoked after its download starts, as the sibling apps do (residue
+// 2026-11-08-hrvdex-revokes-none-of-its-export-blob-urls). The delay matches oxydex-app.js: a
+// synchronous revoke can cancel the download in some browsers before it reads the blob.
+function _hrvClickAndRevoke(a) {
   a.click();
+  const url = a.href;
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 // Export download FILENAMES come from the shared dex-export.js exportName() — recording-anchored,
@@ -15461,7 +15470,7 @@ function exportJSONL() {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = exportName({ node: 'HRVDex', t0Ms: _aT0, kind: 'series', ext: 'json', spanDays: _aSpan });
-  a.click();
+  _hrvClickAndRevoke(a);
 }
 
 // ─── GANGLIOR BUS EMIT SHIM (Phase 0 → Phase 9) ───────────────────────────────
@@ -15490,7 +15499,7 @@ function exportGanglior() {
   a.href = URL.createObjectURL(blob);
   // ganglior export covers the FULL recording — anchor + span come from its OWN computed recording block.
   a.download = exportName({ node: 'HRVDex', t0Ms: out.recording.startEpochMs, kind: 'ganglior', ext: 'json', spanDays: out.recording.spanDays });
-  a.click();
+  _hrvClickAndRevoke(a);
   if (typeof setStatus === 'function')
     setStatus('✅ Ganglior bus export — ' + out.ganglior_events.length + ' events from ' + out.recording.measurements + ' measurements. Drop into Integrator to fuse.');
 }
