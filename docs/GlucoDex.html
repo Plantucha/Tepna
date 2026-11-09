@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="83f37390309d" data-compute-hash="460201d76600">
+<html lang="en" data-manifest-hash="f60e776dfd4f" data-compute-hash="7fcb0330808e">
 <head>
 <!--
   GlucoDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+iskltdbf7/UUg8Y6ZfcamkqkNKvnVyfhKrlKyBzwKE=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-UvDbDts3+neURbz5qbvya/0mru+OeoZ1uY5iEk8wSUw=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-bV9puip5cXhdmdjTxLQSmozaij4ixCzmMm4aPQpZ5Og=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-hCZmwNAMDLPZEMYHAYpzoPETSnimg1oHWWjZImdKqxM=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-qO3ylT8ZcYfRnec/7L/gIvJzwj3nEH4AIZneevqETHU=' 'sha256-qzpUtdWH1TlUe+keMoviP5ddzz3oKD3bFygdJMXw118=' 'sha256-xeo/SvJn5pePZ1SM5sKHX3dRwul+yLMPUvGj5yOK8ns='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-UvDbDts3+neURbz5qbvya/0mru+OeoZ1uY5iEk8wSUw=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-bV9puip5cXhdmdjTxLQSmozaij4ixCzmMm4aPQpZ5Og=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-eqhMkaKkI0DeDYeFRr158XI1OLlvfo+v/yXmogvQqzI=' 'sha256-hCZmwNAMDLPZEMYHAYpzoPETSnimg1oHWWjZImdKqxM=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-qO3ylT8ZcYfRnec/7L/gIvJzwj3nEH4AIZneevqETHU=' 'sha256-qzpUtdWH1TlUe+keMoviP5ddzz3oKD3bFygdJMXw118=' 'sha256-xeo/SvJn5pePZ1SM5sKHX3dRwul+yLMPUvGj5yOK8ns='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>GlucoDex — Continuous Glucose Analyzer · v2.29.0</title>
@@ -8215,15 +8215,27 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       const durMin = (peakI - i) * c.cadence;
       const rate = durMin > 0 ? rise / durMin : 0;
       if (rise >= 45 && rate >= 1.0 && c.gV[i] < 160) {
-        const meal = matchMeal(c.gT[i]);
+        // ── THE ONSET IS THE LAST SAMPLE STILL AT THE TROUGH, NOT THE FIRST TROUGH THAT QUALIFIES ──
+        // The scan above qualifies the EARLIEST trough whose rise over time-to-peak reaches the rate.
+        // On a flat baseline that is a sample long before the rise: a 60 → 200 mg/dL step at 18:00
+        // qualified from 15:40, because 140 mg/dL over 140 min is exactly 1.0 mg/dL/min (residue
+        // 2026-11-08-glucodex-excursions-start-140-min-before-the-step). So the onset walks forward
+        // to the last analysable sample before the peak that is still within the scan's own 10 mg/dL
+        // trough band. Detection, rise and peak are unchanged: a later onset only shortens durMin, so
+        // the rate it re-derives can only rise above the threshold that already passed.
+        let s = i;
+        for (let k = i + 1; k < peakI; k++) if (_ana(c, k) && c.gV[k] <= trough + 10) s = k;
+        const onDurMin = (peakI - s) * c.cadence;
+        const onRate = onDurMin > 0 ? rise / onDurMin : rate;
+        const meal = matchMeal(c.gT[s]);
         evs.push({
-          startMs: c.gT[i],
+          startMs: c.gT[s],
           peakMs: c.gT[peakI],
           trough: Math.round(trough),
           peak: Math.round(peak),
           rise: Math.round(rise),
-          rateMgMin: +rate.toFixed(2),
-          durMin: Math.round(durMin),
+          rateMgMin: +onRate.toFixed(2),
+          durMin: Math.round(onDurMin),
           meal: meal ? meal.label : null,
           mealCat: meal ? meal.category : null,
           annotated: !!meal

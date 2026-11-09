@@ -41103,14 +41103,14 @@
       }
     },
     {
-      "t": "12:27:00",
-      "tMs": 1776342420000,
+      "t": "12:52:00",
+      "tMs": 1776343920000,
       "impulse": "glucose_excursion",
       "node": "GlucoDex",
       "conf": 0.95,
       "meta": {
         "riseMgdl": 76,
-        "rateMgMin": 1.01,
+        "rateMgMin": 1.52,
         "peak": 153,
         "meal": "unannotated"
       }
@@ -41208,14 +41208,14 @@
       }
     },
     {
-      "t": "13:42:00",
-      "tMs": 1776951720000,
+      "t": "14:02:00",
+      "tMs": 1776952920000,
       "impulse": "glucose_excursion",
       "node": "GlucoDex",
       "conf": 0.95,
       "meta": {
         "riseMgdl": 56,
-        "rateMgMin": 1.02,
+        "rateMgMin": 1.6,
         "peak": 121,
         "meal": "unannotated"
       }
@@ -41276,14 +41276,14 @@
       }
     },
     {
-      "t": "19:27:00",
-      "tMs": 1777231620000,
+      "t": "19:47:00",
+      "tMs": 1777232820000,
       "impulse": "glucose_excursion",
       "node": "GlucoDex",
       "conf": 0.95,
       "meta": {
         "riseMgdl": 57,
-        "rateMgMin": 1.04,
+        "rateMgMin": 1.63,
         "peak": 137,
         "meal": "unannotated"
       }
