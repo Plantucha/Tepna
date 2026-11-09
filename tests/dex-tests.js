@@ -34115,6 +34115,47 @@
       T.eq('a clean PPI night reports zero blocked', PR(clean).nBlocked, 0);
     });
 
+    /* ════ SignalFrame keeps the parser's removal counts beside the intervals ═══════════════════════
+       Residue 2026-11-08-tosignalframe-drops-the-pulsedex-artifact-counts. toSignalFrame copied the
+       surviving intervals and dropped nRaw, nUsable, nBlocked and timeRatio, so a frame could not say
+       how many intervals the parser removed. */
+    group('SignalFrame — an RR frame carries the parser removal counts (residue 2026-11-08)', 'signal-frame · pulsedex-dsp · regression', function (T) {
+      var SF = env.SignalFrame;
+      var PR = env.PulseDex && env.PulseDex.parseRRInput;
+      if (!SF || typeof SF.toSignalFrame !== 'function' || typeof PR !== 'function') {
+        T.skip('SignalFrame and PulseDex.parseRRInput co-loaded', 'not co-loaded in this runner');
+        return;
+      }
+      var HDR = 'Phone Data RX timestamp;PP-interval [ms];error estimate [ms];blocker;contact;contact;hr [bpm]';
+      var rows = [],
+        t = Date.UTC(2026, 7, 9, 22, 0, 0);
+      for (var i = 0; i < 14; i++) {
+        /* Row 4 is device-blocked and row 8 is out of range (120 ms), so the parser removes one
+           interval by flag and keeps one it does not count as usable. */
+        var v = i === 8 ? 120 : 1000 + (i % 3) * 10;
+        var blk = i === 4 ? 1 : 0;
+        rows.push(new Date(t).toISOString().slice(0, 23) + ';' + v + ';10;' + blk + ';1;1;60');
+        t += v;
+      }
+      var raw = PR(HDR + '\n' + rows.join('\n'));
+      var fr = SF.toSignalFrame('rr', raw, { adapter: 'polar-ppi', vendor: 'Polar' });
+      var c = fr.counts || {};
+      /* THE KILL: on main the frame has no counts, so every leg below reads undefined. */
+      T.eq('nBlocked reaches the frame', c.nBlocked, raw.nBlocked);
+      T.eq('…and it is the one blocked row', c.nBlocked, 1);
+      T.eq('nRaw reaches the frame', c.nRaw, raw.nRaw);
+      T.eq('nUsable reaches the frame', c.nUsable, raw.nUsable);
+      T.ok('…and nUsable is below nRaw, so the out-of-range interval is visible', c.nUsable < c.nRaw, 'nUsable=' + c.nUsable + ' nRaw=' + c.nRaw);
+      T.eq('timeRatio reaches the frame', c.timeRatio, raw.timeRatio == null ? null : raw.timeRatio);
+      T.ok('the frame still validates', SF.validateFrame(fr).ok === true, SF.validateFrame(fr).errors.join('; '));
+      /* CONTROL (§∅): a parser that reports no counts gives null counts, never 0. */
+      var bare = SF.toSignalFrame('rr', { vals: [800, 810, 795], t0Ms: null, usable: false, reason: 'short' }, { adapter: 'x' });
+      T.eq('an unreported count is null, not 0', JSON.stringify(bare.counts), JSON.stringify({ nRaw: null, nUsable: null, nBlocked: null, timeRatio: null }));
+      /* A samples frame removes nothing by interval, so it carries no counts object. */
+      var smp = SF.toSignalFrame('ecg', { samples: [1, 2, 3], fs: 130, t0Ms: null, usable: false, reason: 'short' }, { adapter: 'x' });
+      T.eq('a samples frame carries counts null', smp.counts, null);
+    });
+
     group('PulseDex finding D — parseRRInput resolves file-level DMY/MDY (Coospo/Wahoo MDY)', 'pulsedex-dsp · clock · regression', function (T) {
       var P = env.PulseDex;
       var PR = P && P.parseRRInput;
