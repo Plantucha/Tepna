@@ -113,11 +113,12 @@ function drawChart(canvas, nights){
   });
 }
 
-function renderTool(tool, data){
+function renderTool(tool, data, run){
   var el = document.getElementById('content');
-  if(!data){ el.innerHTML='<div class="card"><p class="err">No result file. The stitch runs when a solid night lands.</p></div>'; return; }
-  if(data.error){ el.innerHTML='<div class="card"><h2>'+esc(tool.label)+'</h2><p class="err">'+esc(data.error)+'</p><p class="note">Computed '+esc(data.at||'unknown')+'.</p></div>'; return; }
-  var agg = data.aggregate||{}, html='';
+  var top = runBanner(run);
+  if(!data){ el.innerHTML=top+'<div class="card"><p class="err">No result file. The stitch runs when a solid night lands.</p></div>'; return; }
+  if(data.error){ el.innerHTML=top+'<div class="card"><h2>'+esc(tool.label)+'</h2><p class="err">'+esc(data.error)+'</p><p class="note">Computed '+esc(data.at||'unknown')+'.</p></div>'; return; }
+  var agg = data.aggregate||{}, html=top;
   html += '<div class="card"><h2>'+esc(tool.label)+' — aggregate across '+data.n_nights+' nights</h2><div class="grid">';
   ['h10','verity','o2'].forEach(function(k){
     var a=agg[k]||{};
@@ -149,14 +150,37 @@ function renderTool(tool, data){
   drawChart(document.getElementById('chart'), data.nights||[]);
 }
 
+/* ⚠️ A REFUSED RUN LEAVES THE OLD RESULT ON DISK. The runner quiet-guard exits 3, the systemd unit
+   lists 3 as a success, and the runner writes no result. So `RESULT.json` keeps the `at` of whichever
+   day last computed, and a reader of the result alone cannot tell a refused day from a day that ran.
+   The marker on `/api/stitched/<tool>/run` states what the LAST run did. §∅: this page reports that
+   absence with the runner's own named reason, rather than guessing it from how old a result looks. */
+function runBanner(run){
+  if(!run){
+    return '<div class="card"><p class="note">No run marker on disk. This page cannot say when the '
+      + 'last run happened, or whether it refused. A runner older than this page writes none.</p></div>';
+  }
+  if(run.outcome==='ok') return '';
+  var left = run.resultAt
+    ? 'The result below carries its own date: '+esc(run.resultAt)+'.'
+    : 'No result sits beside it.';
+  return '<div class="card"><p class="err">The last run '+esc(run.outcome)+' at '+esc(run.at||'unknown')
+    + '. Reason: '+esc(run.reason||'none recorded')+'</p><p class="note">'+left+'</p></div>';
+}
+
 function selectTool(key){
   document.querySelectorAll('#tabs button').forEach(function(b){ b.setAttribute('aria-selected', String(b.dataset.tool===key)); });
   var tool = TOOLS.find(function(t){return t.key===key;});
   document.getElementById('content').innerHTML='<div class="card"><p>Loading\u2026</p></div>';
+  /* The marker is a SEPARATE fact, so its absence never hides the result. A 404 there resolves to
+     null and the banner says so; only the result's own fetch can fail this tab. */
+  var runReq = fetch('/api/stitched/'+key+'/run', {cache:'no-store'})
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .catch(function(){ return null; });
   fetch('/api/stitched/'+key, {cache:'no-store'}).then(function(r){
     if(!r.ok) throw new Error('HTTP '+r.status);
     return r.json();
-  }).then(function(data){ renderTool(tool, data); })
+  }).then(function(data){ return runReq.then(function(run){ renderTool(tool, data, run); }); })
   .catch(function(e){
     document.getElementById('content').innerHTML='<div class="card"><h2>'+esc(tool.label)+'</h2>'
       +'<p>Not yet computed — the stitch runs when a solid night lands.</p>'
