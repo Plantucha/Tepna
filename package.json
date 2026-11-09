@@ -32,6 +32,7 @@
     "test:stage-lab-core": "node tests/stage-lab-core-tests.mjs",
     "test:oxydex-stager": "node tests/oxydex-stager-tests.mjs",
     "test:hypno-export": "node tests/hypno-export-tests.mjs",
+    "test:reconcile": "node tests/reconcile-provenance.mjs --selftest",
     "coverage": "npx -y c8@10.1.2 node tests/run-tests.mjs",
     "coverage:report": "npx -y c8@10.1.2 --reporter=html --reporter=text-summary node tests/run-tests.mjs",
     "coverage:json": "npx -y c8@10.1.2 --reporter=json --report-dir=.mutation-sweeps/cov node tests/run-tests.mjs",
