@@ -695,7 +695,8 @@ function renderAlerts(rows) {
   const alerts = [];
 
   if (r._stress > 70) alerts.push({ type: 'red', icon: '🚨', msg: `<strong>High Stress ${r._stress}</strong> — Today's stress exceeds 70. Consider breathwork or reduced training load.` });
-  if (r._energy < 30) alerts.push({ type: 'red', icon: '⚡', msg: `<strong>Low Energy ${r._energy}</strong> — Energy below 30. Recovery priority day.` });
+  // An absent energy is null, and `null < 30` is true: guard it, or the panel raises 'Low Energy null'.
+  if (Number.isFinite(r._energy) && r._energy < 30) alerts.push({ type: 'red', icon: '⚡', msg: `<strong>Low Energy ${r._energy}</strong> — Energy below 30. Recovery priority day.` });
   if (r.d_si > 250) alerts.push({ type: 'red', icon: '⚠️', msg: `<strong>Baevsky SI ${r.d_si != null ? r.d_si.toFixed(0) : undefined}</strong> — Stress Index exceeds 250. Elevated autonomic load.` });
   // Baevsky unit guard (DexUnits.guardBaevsky) — surface ms-vs-s normalization instead of silently scaling (-III §1)
   if (r.d_si_flagged)
@@ -792,6 +793,12 @@ function mkChart(id, labels, datasets, opts = {}) {
       ...opts.extra
     }
   });
+}
+
+/* Recovery-debt bar colour. A non-finite debt is absent and takes no colour, never the green of 0. */
+function debtColor(v, a) {
+  if (!Number.isFinite(v)) return 'rgba(0,0,0,0)';
+  return v < 3 ? rgba('green', a) : v < 7 ? rgba('yellow', a) : rgba('red', a);
 }
 
 function barChart(id, labels, datasets, opts = {}) {
@@ -1148,9 +1155,10 @@ function renderAllCharts(rows, sm) {
     [
       {
         label: 'Recovery Debt (days)',
-        data: rows.map((r) => r.d_recovery_debt || 0),
-        backgroundColor: rows.map((r) => ((r.d_recovery_debt || 0) < 3 ? rgba('green', 0.6) : (r.d_recovery_debt || 0) < 7 ? rgba('yellow', 0.6) : rgba('red', 0.6))),
-        borderColor: rows.map((r) => ((r.d_recovery_debt || 0) < 3 ? rgba('green', 1) : (r.d_recovery_debt || 0) < 7 ? rgba('yellow', 1) : rgba('red', 1))),
+        // An absent debt stays NaN, a gap, as every sibling chart keeps it. `|| 0` drew it as a green 0 bar.
+        data: rows.map((r) => (Number.isFinite(r.d_recovery_debt) ? r.d_recovery_debt : NaN)),
+        backgroundColor: rows.map((r) => debtColor(r.d_recovery_debt, 0.6)),
+        borderColor: rows.map((r) => debtColor(r.d_recovery_debt, 1)),
         borderWidth: 1
       }
     ],

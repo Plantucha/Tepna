@@ -857,7 +857,10 @@ function selftest() {
     ok(ps && ps.gate === 'corpus-population' && V.validate(ps).ok, 'a run carries a validating `corpus-population` verdict beside its own');
     ok(ps.status === 'PASS' && ps.reason === null, 'a root that does not move during the run reads PASS with no reason');
     ok(ps.population.checked === 2 && ps.population.eligible === 2 && ps.population.excluded === 0, 'the figure is the real night count, and nothing is excluded from a set that did not move');
-    ok(ps.result.n === 2 && ps.result.digest && ps.result.root === popTmp, 'the verdict names the root it enumerated and digests the set, so two runs are comparable');
+    /* `populationVerdict` publishes the root with the home directory written as `~`, so compare the
+       same form. A raw compare red whenever TMPDIR sits under $HOME, which is the fleet's own
+       workaround for the rig's /tmp quota. */
+    ok(ps.result.n === 2 && ps.result.digest && ps.result.root === popTmp.split(os.homedir()).join('~'), 'the verdict names the root it enumerated and digests the set, so two runs are comparable');
     ok(ps.producedBy.commit !== null, 'the commit is read before the verdict is built, never left null in a checkout');
   } finally {
     fs.rmSync(popTmp, { recursive: true, force: true });

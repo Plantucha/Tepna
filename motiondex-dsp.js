@@ -152,6 +152,40 @@
     if (nums.length < 3) return null;
     return { x: nums[nums.length - 3], y: nums[nums.length - 2], z: nums[nums.length - 1], ns: 1, phone: 0 };
   }
+  /* THE TAIL COLUMN MAP PINS ONCE, FROM A BOUNDED PREFIX — never per row.
+     `xyzColsByTail` reads the last three NUMERIC fields of the row it gets. On a HEADERLESS file the
+     caller used to re-run it for every row, so one non-numeric axis field left two numeric axis fields
+     and the map SHIFTED by one column: the device timestamp became `x`. Every value stayed finite, so
+     no finite check could see it. Row `2026-11-08-a-headerless-acc-row-with-a-junk-axis-shifts-the-axes`
+     owns that defect. Measured on the 6-column layout, the shifted triple is also PLAUSIBLE
+     (`[20, -206, 756]` mg from a `timestamp [ms]` column), so a range test cannot see it either.
+     The pin reads at most 32 data rows and takes the FIRST row with the MOST numeric fields. A row
+     with a junk axis field has one fewer, so it can never pin the map. A strict "every field numeric"
+     test would be wrong instead: a phone stamp that `parseFloat` refuses would then pin nothing and
+     lose the whole file. After the pin, a junk field yields NaN at the RIGHT column, and the finite
+     check drops the row and counts it. */
+  var XYZ_TAIL_PIN_ROWS = 32;
+  function xyzColsPinnedFromPrefix(lines) {
+    var best = null,
+      bestNums = -1,
+      seen = 0;
+    for (var i = 0; i < lines.length && seen < XYZ_TAIL_PIN_ROWS; i++) {
+      var t = String(lines[i]).trim();
+      if (!t || /timestamp/i.test(t)) continue;
+      var p = t.split(';');
+      if (p.length < 5) continue;
+      seen++;
+      var n = 0;
+      for (var k = 0; k < p.length; k++) {
+        if (isFinite(parseFloat(p[k]))) n++;
+      }
+      if (n > bestNums) {
+        bestNums = n;
+        best = p;
+      }
+    }
+    return best ? xyzColsByTail(best) : null;
+  }
   /* Full-scale bounds per stream kind — the widest range the hardware can express, so a real reading
      is never rejected and a decode artifact never survives. ACC 16 g (the widest Polar/Verity ACC
      range), GYRO 2000 dps, MAG 4900 µT (and 49 G before the Gauss→µT normalisation below).
@@ -555,7 +589,9 @@
     var resyncs = [];
     var headerKind = null;
     var cols = null;
+    var tailCols = xyzColsPinnedFromPrefix(lines);
     var nImplausible = 0;
+    var nUnmapped = 0;
     for (var li = 0; li < lines.length; li++) {
       var t = lines[li].trim();
       if (!t) continue;
@@ -566,8 +602,11 @@
       }
       var p = t.split(';');
       if (p.length < 5) continue;
-      var c = cols || xyzColsByTail(p);
-      if (!c) continue;
+      var c = cols || tailCols;
+      if (!c) {
+        nUnmapped++;
+        continue;
+      }
       var x = parseFloat(p[c.x]);
       if (!isFinite(x)) continue; // skips a stray header row too
       var y = parseFloat(p[c.y]),
@@ -649,6 +688,9 @@
       out.push({ relNs: relNs, tMs: ts ? ts.tMs : null, x: x, y: y, z: z });
     }
     out._implausibleDropped = nImplausible;
+    /* Unconditional, like `_nonFiniteDropped`: a reader must tell "every row had a column map" from
+       "nobody counted". A row counted here reached the parser with no usable column map at all. */
+    out._unmappedDropped = nUnmapped;
     /* Present only when it happened, so every clean stream keeps today's bytes (§1.1). Each entry:
        { idx, deviceStepMs, phoneDeltaMs (null when the seam stamps did not parse) }. */
     if (resyncs.length) out._clockResyncs = resyncs;

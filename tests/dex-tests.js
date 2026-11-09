@@ -32791,6 +32791,32 @@
       T.ok('hero/bench num() helper keeps its correct (v != null && !isNaN(v)) form', /v != null && !isNaN\(v\)/.test(rnd));
     });
 
+    group('HRVDex render — an absent energy raises no alert and an absent debt draws no bar (residue 2026-11-08)', 'sources', function (T) {
+      var rnd = (env.sources || {})['hrvdex-render.js'];
+      if (!rnd) {
+        T.ok('hrvdex-render.js source provided', false, 'runner passed no hrvdex-render.js');
+        return;
+      }
+      // Rows 2026-11-08-hrvdex-low-energy-alert-fires-on-a-null-energy and
+      // 2026-11-08-hrvdex-recovery-debt-chart-draws-an-absent-value-as-a-green-zero. Whitespace-agnostic.
+      T.ok('the Low Energy alert guards a null energy with Number.isFinite', /Number\.isFinite\(\s*r\._energy\s*\)\s*&&\s*r\._energy\s*<\s*30/.test(rnd));
+      T.ok('no bare `r._energy < 30` test remains (null < 30 is true)', !/if\s*\(\s*r\._energy\s*<\s*30/.test(rnd));
+      T.ok('the recovery-debt chart no longer replaces an absent value with 0', !/d_recovery_debt\s*\|\|\s*0/.test(rnd));
+      // Behaviour: run the colour helper itself. A real 0 is green; null, undefined and NaN take no colour.
+      var m = rnd.match(/function debtColor\(v, a\) \{[\s\S]*?\n\}/);
+      T.ok('debtColor helper present', !!m);
+      if (!m) return;
+      var rgba = function (c, a) {
+        return c + ':' + a;
+      };
+      var debtColor = new Function('rgba', m[0] + '; return debtColor;')(rgba);
+      T.eq('a real debt of 0 is green', debtColor(0, 1), 'green:1');
+      T.eq('a debt of 7 is red', debtColor(7, 1), 'red:1');
+      T.eq('a null debt takes no colour', debtColor(null, 1), 'rgba(0,0,0,0)');
+      T.eq('an undefined debt takes no colour', debtColor(undefined, 1), 'rgba(0,0,0,0)');
+      T.eq('a NaN debt takes no colour', debtColor(NaN, 1), 'rgba(0,0,0,0)');
+    });
+
     /* ════ 9c · HRVDex full-metrics TABLE — every real column is BADGED; graded columns show their TRUE
        grade; dead cuffless-BP columns are gone (Findings I + J) ════
        Finding I: the full-metrics table header was the fleet's ONLY evBadge(label, false) site, so 34 real-
@@ -39466,6 +39492,174 @@
       }
     });
 
+    // Row `2026-11-08-a-headerless-acc-row-with-a-junk-axis-shifts-the-axes` (#4654). The tail
+    // resolver reads the last three NUMERIC fields. Re-run per row, one junk axis field left two
+    // numeric axis fields and the whole map SHIFTED by one column. Every value stayed finite, so the
+    // finite guard from #4652 could not see it, and on the 6-column layout the shifted triple is also
+    // PLAUSIBLE, so the MotionDex range test cannot see it either. The map now pins ONCE.
+    group('PpgDex + MotionDex §∅ — the headerless ACC column map pins once, and never shifts per row', 'ppgdex-dsp · motiondex-dsp · acc-parser · absence', function (T) {
+      var P = env.PPGDSP,
+        M = env.MOTIONDSP;
+      if (!P || typeof P.parseSensorXYZ !== 'function' || !M || typeof M.parseSensorXYZ !== 'function') {
+        T.skip('both ACC parsers available', 'PPGDSP or MOTIONDSP not co-loaded in this runner');
+        return;
+      }
+      // 5-column headerless: phone;ns;X;Y;Z. 6-column headerless: phone;ns;ms;X;Y;Z.
+      function r5(i, y) {
+        return '2026-06-21T06:05:2' + (i % 10) + '.441;' + (835351535554916992 + i * 20000000) + ';' + (10 + i) + ';' + y + ';' + (30 + i) + '\n';
+      }
+      function r6(i, y) {
+        return '2026-07-18T09:58:0' + (i % 10) + '.904;' + (837698283607356689 + i * 20000000) + ';' + (i * 20).toFixed(1) + ';' + (-313 + i) + ';' + y + ';' + (-181 + i) + '\n';
+      }
+      var CLEAN5 = r5(0, 20) + r5(1, 21) + r5(2, 22) + r5(3, 23);
+      var MID5 = r5(0, 20) + r5(1, 'abc') + r5(2, 22) + r5(3, 23);
+      var LEAD5 = r5(0, 'abc') + r5(1, 21) + r5(2, 22) + r5(3, 23);
+      var CLEAN6 = r6(0, -872) + r6(1, -871) + r6(2, -870) + r6(3, -869);
+      var MID6 = r6(0, -872) + r6(1, 'abc') + r6(2, -870) + r6(3, -869);
+
+      // anti-vacuity · the headerless texts reach both parsers, and the clean ones are not degenerate
+      var p5 = P.parseSensorXYZ(CLEAN5),
+        m5 = M.parseSensorXYZ(CLEAN5);
+      T.ok('anti-vacuity · a clean headerless 5-column text parses 4 rows in both nodes', p5.length === 4 && m5.length === 4, 'ppg=' + p5.length + ' motion=' + m5.length);
+      T.ok(
+        'control · the clean 5-column map is the axis tail, not the device counter',
+        p5[0].x === 10 && p5[0].y === 20 && p5[0].z === 30 && m5[0].x === 10,
+        'ppg=' + JSON.stringify([p5[0].x, p5[0].y, p5[0].z])
+      );
+
+      var p6 = P.parseSensorXYZ(CLEAN6),
+        m6 = M.parseSensorXYZ(CLEAN6);
+      T.ok(
+        'control · a clean headerless 6-column text reads XYZ, never the timestamp[ms] column',
+        p6.length === 4 && p6[0].x === -313 && m6.length === 4 && m6[0].x === -313,
+        'ppg=' + JSON.stringify([p6[0].x, p6[0].y, p6[0].z])
+      );
+
+      // the row · one junk axis field must not move a column for ANY row
+      var pMid = P.parseSensorXYZ(MID5),
+        mMid = M.parseSensorXYZ(MID5);
+      T.ok(
+        '5-column · a mid-file junk y no longer shifts x onto the device counter',
+        pMid.every(function (q) {
+          return q.x < 100;
+        }) &&
+          mMid.every(function (q) {
+            return q.x < 100;
+          }),
+        'ppg x=' +
+          JSON.stringify(
+            pMid.map(function (q) {
+              return q.x;
+            })
+          )
+      );
+      T.ok(
+        '5-column · …the junk row is DROPPED and the survivors keep their own axes',
+        pMid.length === 3 && pMid[0].x === 10 && pMid[1].x === 12 && pMid[2].x === 13,
+        'n=' +
+          pMid.length +
+          ' x=' +
+          JSON.stringify(
+            pMid.map(function (q) {
+              return q.x;
+            })
+          )
+      );
+      T.ok(
+        '5-column · …and each node counts the drop under the name it earned',
+        pMid._nonFiniteDropped === 1 && mMid._implausibleDropped === 1,
+        'ppg=' + pMid._nonFiniteDropped + ' motion=' + mMid._implausibleDropped
+      );
+
+      // the pin must not come from a junk row even when it is the FIRST one
+      var pLead = P.parseSensorXYZ(LEAD5);
+      T.ok(
+        '5-column · a LEADING junk row cannot pin the column map',
+        pLead.length === 3 && pLead[0].x === 11 && pLead[2].x === 13,
+        'n=' +
+          pLead.length +
+          ' x=' +
+          JSON.stringify(
+            pLead.map(function (q) {
+              return q.x;
+            })
+          )
+      );
+
+      // the 6-column case is the one no range test can catch: the shifted triple is plausible mg
+      var pMid6 = P.parseSensorXYZ(MID6),
+        mMid6 = M.parseSensorXYZ(MID6);
+      T.ok(
+        '6-column · the junk row no longer ships the PLAUSIBLE shifted triple (ms, X, Z)',
+        pMid6.every(function (q) {
+          return q.x <= -310;
+        }) &&
+          mMid6.every(function (q) {
+            return q.x <= -310;
+          }),
+        'ppg x=' +
+          JSON.stringify(
+            pMid6.map(function (q) {
+              return q.x;
+            })
+          ) +
+          ' motion x=' +
+          JSON.stringify(
+            mMid6.map(function (q) {
+              return q.x;
+            })
+          )
+      );
+      T.ok(
+        '6-column · …it is dropped and counted in both nodes, not silently reshaped',
+        pMid6.length === 3 && pMid6._nonFiniteDropped === 1 && mMid6.length === 3 && mMid6._implausibleDropped === 1,
+        'ppg n=' + pMid6.length + '/' + pMid6._nonFiniteDropped + ' motion n=' + mMid6.length + '/' + mMid6._implausibleDropped
+      );
+
+      // control · a HEADERED file resolves by header and is untouched by the pin
+      var HDR5 = 'Phone timestamp;sensor timestamp [ns];X [mg];Y [mg];Z [mg]\n';
+      var pH = P.parseSensorXYZ(HDR5 + MID5),
+        mH = M.parseSensorXYZ(HDR5 + MID5);
+      T.ok(
+        'control · a headered file still resolves by header, and the pin changes nothing there',
+        pH.length === 3 && pH[0].x === 10 && pH._unmappedDropped === 0 && mH.length === 3,
+        'ppg n=' + pH.length + ' unmapped=' + pH._unmappedDropped
+      );
+
+      // §∅ · a row the parser cannot map at all is counted, not skipped in silence
+      var NOMAP = 'a;b;c;d;e\nf;g;h;i;j\nk;l;m;n;o\n';
+      var pNo = P.parseSensorXYZ(NOMAP),
+        mNo = M.parseSensorXYZ(NOMAP);
+      T.ok(
+        'a row with no usable column map is COUNTED, in both nodes',
+        pNo.length === 0 && pNo._unmappedDropped === 3 && mNo.length === 0 && mNo._unmappedDropped === 3,
+        'ppg=' + pNo._unmappedDropped + ' motion=' + mNo._unmappedDropped
+      );
+      T.ok(
+        '…and the count is UNCONDITIONAL, so a reader can tell 0 from "nobody counted"',
+        Object.prototype.hasOwnProperty.call(p5, '_unmappedDropped') && p5._unmappedDropped === 0 && Object.prototype.hasOwnProperty.call(m5, '_unmappedDropped') && m5._unmappedDropped === 0,
+        'ppg=' + p5._unmappedDropped + ' motion=' + m5._unmappedDropped
+      );
+
+      // the fix is the pin itself, in both parsers — not a caller that filters afterwards
+      var srcs = env.sources || {};
+      var both = (srcs['ppgdex-dsp.js'] || '') + '\u0000' + (srcs['motiondex-dsp.js'] || '');
+      if (srcs['ppgdex-dsp.js'] && srcs['motiondex-dsp.js']) {
+        // the CALL site only: the string also appears in each file's own function declaration, so a
+        // bare name count reads 4 for two parsers and would pass with both call sites deleted.
+        var pinned = (both.match(/tailCols = xyzColsPinnedFromPrefix\(lines\)/g) || []).length;
+        var declared = (both.match(/function xyzColsPinnedFromPrefix\(/g) || []).length;
+        var perRow = (both.match(/cols \|\| xyzColsByTail\(p\)/g) || []).length;
+        T.ok(
+          'both parsers pin the map from a bounded prefix, and neither re-picks it per row',
+          pinned === 2 && declared === 2 && perRow === 0 && (both.match(/XYZ_TAIL_PIN_ROWS = 32/g) || []).length === 2,
+          'pinned=' + pinned + ' declared=' + declared + ' perRow=' + perRow
+        );
+      } else {
+        T.skip('both ACC parser sources available to this runner', 'env.sources lacks one of the two');
+      }
+    });
+
     // A replicated channel must never manufacture optical agreement. Our capture host fans the
     // O2Ring's SINGLE finger pleth across ppg0/1/2 so it routes through the Polar PSL layout with no
     // new parser branch (capture.py) — without the guard those three identical copies vote with
@@ -40890,6 +41084,36 @@
       T.eq('computeDerived still produces 64 derived columns', produced.length, 64);
     });
 
+    group('HRVDex recovery debt — a window with no measured ARI day is absent, not 0 (residue 2026-11-08)', 'hrvdex-dsp · absence · known-answer', function (T) {
+      var D = (env.HRVDex && env.HRVDex._bare) || env.HRVDex;
+      if (!D || typeof D.computeDerived !== 'function') {
+        T.skip('computeDerived available', 'HRVDex._bare not loaded');
+        return;
+      }
+      /* Row 2026-11-08-hrvdex-recovery-debt-chart-draws-an-absent-value-as-a-green-zero, DSP half.
+         Six consecutive days at rMSSD 50. d_ari needs 4 days in its 7-day window, so days 0-2 carry
+         no ARI and day 3 is the first with one. Before the fix days 0-2 read debt 0. */
+      function mk(day, rmssd) {
+        var t = Date.UTC(2026, 8, 1 + day, 7, 0, 0);
+        return { _tMs: t, _date: new Date(t), _rmssd: rmssd, _sdnn: 60, _meanRR: 950, _hr: 63 };
+      }
+      var rows = [0, 1, 2, 3, 4, 5].map(function (d) {
+        return mk(d, 50);
+      });
+      D.computeDerived(rows);
+      T.ok('day 0: no ARI in the window, so the debt is NaN, not 0', Number.isNaN(rows[0].d_recovery_debt), String(rows[0].d_recovery_debt));
+      T.ok('day 2: still no ARI in the window, so the debt is NaN', Number.isNaN(rows[2].d_recovery_debt), String(rows[2].d_recovery_debt));
+      T.ok('control: day 3 carries a finite ARI', Number.isFinite(rows[3].d_ari), String(rows[3].d_ari));
+      T.eq('control: day 3 has one measured day at ARI 1, so a real debt of 0', rows[3].d_recovery_debt, 0);
+      /* A low day counts. Day 5 at rMSSD 20 sits far under its 7-day mean, so its ARI is under 0.9. */
+      var low = [0, 1, 2, 3, 4, 5].map(function (d) {
+        return mk(d, d === 5 ? 20 : 50);
+      });
+      D.computeDerived(low);
+      T.ok('control: day 5 ARI is under 0.9', low[5].d_ari < 0.9, String(low[5].d_ari));
+      T.eq('control: day 5 counts one debt day', low[5].d_recovery_debt, 1);
+    });
+
     group('HRVDex helper floor — 13 + 2 drafts adopted: numeric honesty, persistence guards, the clock pad (mutation-derived)', 'hrvdex-dsp · known-answer · mutation-pinned', function (T) {
       var H = env.HRVDex && env.HRVDex._bare;
       if (!H || typeof H._hrvNum !== 'function') {
@@ -41179,7 +41403,7 @@
         ['_hr', 'd_hrv_momentum d_sdnn_z d_stress_ac d_vei d_vo2_base d_vo2_delta d_vo2_hrv d_vo2_roll7'],
         ['_meanRR', 'd_csi d_cv_calc d_cvi d_hrv_momentum d_mxdmn_meanrr d_nn50 d_rsa d_sdnn_z d_stress_ac d_vo2_delta'],
         ['_sdnn', 'd_cai d_cv_calc d_dfa_proxy d_hrv_momentum d_ortho d_pns_eff d_rmssd_sdnn d_sd1_sd2 d_sdnn_z d_stress_ac d_vo2_delta'],
-        ['_rmssd', 'd_ari d_cai d_cvi d_hrv_momentum d_lnrmssd d_rmssd_cv7 d_rmssd_delta_pct d_rmssd_rolling_ln d_sdnn_z d_stress_ac d_vo2_delta'],
+        ['_rmssd', 'd_ari d_cai d_cvi d_hrv_momentum d_lnrmssd d_recovery_debt d_rmssd_cv7 d_rmssd_delta_pct d_rmssd_rolling_ln d_sdnn_z d_stress_ac d_vo2_delta'],
         ['_mxdmn', 'd_hrv_momentum d_sdnn_z d_si d_stress_ac d_vo2_delta'],
         ['_pnn50', 'd_hrv_momentum d_pns_eff d_sdnn_z d_stress_ac d_vo2_delta'],
         ['_amo50', 'd_hrv_momentum d_sdnn_z d_si d_stress_ac d_vo2_delta'],
@@ -41238,7 +41462,7 @@
         ['_hr', '49/1533.61769'],
         ['_meanRR', '47/639.765738'],
         ['_sdnn', '46/1539.723031'],
-        ['_rmssd', '46/1541.436879'],
+        ['_rmssd', '45/1541.436879'],
         ['_mxdmn', '52/1616.77845'],
         ['_pnn50', '52/2103.119766'],
         ['_amo50', '52/1617.439607'],
@@ -41408,7 +41632,7 @@
         ['_mode', 'd_hrv_momentum d_sdnn_z d_si d_stress_ac d_vo2_delta'],
         ['_mxdmn', 'd_hrv_momentum d_sdnn_z d_si d_stress_ac d_vo2_delta'],
         ['_meanRR', 'd_csi d_cv_calc d_cvi d_hrv_momentum d_mxdmn_meanrr d_nn50 d_rsa d_sdnn_z d_stress_ac d_vo2_delta'],
-        ['_rmssd', 'd_ari d_cai d_cvi d_hrv_momentum d_lnrmssd d_rmssd_cv7 d_rmssd_delta_pct d_rmssd_rolling_ln d_sdnn_z d_stress_ac d_vo2_delta']
+        ['_rmssd', 'd_ari d_cai d_cvi d_hrv_momentum d_lnrmssd d_recovery_debt d_rmssd_cv7 d_rmssd_delta_pct d_rmssd_rolling_ln d_sdnn_z d_stress_ac d_vo2_delta']
       ];
       for (var i = 0; i < FCASES.length; i++) {
         T.eq('fallback realm · absent ' + FCASES[i][0] + ' → exactly these columns fall to NaN', nf(FCASES[i][0]), FCASES[i][1]);
