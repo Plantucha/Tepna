@@ -10975,9 +10975,39 @@ window.IntegratorDSP = {
     if (isFinite(rate)) legacyRate = Math.round(rate * 10) / 10;
     var outRate = legacyRate;
     var method = 'acc-zero-crossing';
-    if (spec.hasData && spec.medianBrpm != null) {
+
+    /* ── §∅ — A RATE OVER A SIGNAL WITH NO RESPIRATORY EFFORT IS THE TRACKER'S PRIOR ──────────────
+       `respiratoryRate` feeds a FLAT likelihood for an UNCOVERED window, so the Viterbi transition
+       prior carries the state across the hole. That is right for a sensor that was off. The coverage
+       mask marks a CONSTANT signal as recorded, so it never takes that path: `respWindowSpectrum`
+       returns a degenerate spectrum, and the prior then supplies a self-consistent ridge at high
+       confidence. Row `2026-11-08-motiondex-respiratory-rate-reports-19-on-a-constant-signal`
+       measured 19 br/min at 1 h and at 30 min, beside THIS SAME summary reporting `nBreaths` 0 and
+       `amplitudeG` 0. The summary contradicted itself, and every surface carried the 19.
+
+       THE CRITERION IS A CONJUNCTION, and that is deliberate. Any one term alone would null a weak
+       but real night: a low-amplitude chest placement clears no floor, and a smooth waveform crosses
+       zero rarely. All three together describe a flat signal. So the rate abstains only where the
+       zero-crossing count, the band RMS and the per-epoch presence flags ALL say nothing happened.
+
+       The reason is NAMED, never borrowed. `no-respiratory-effort` is not `no chest ACC`: the stream
+       is present and recorded, and it carries no respiration. */
+    var effortPresentEpochs = 0;
+    for (var pe = 0; pe < series.length; pe++) if (series[pe].present === true) effortPresentEpochs++;
+    var noEffort = breaths === 0 && effortPresentEpochs === 0 && !(rms >= EFFORT_FLOOR_G);
+    var rateReason = null;
+
+    if (spec.hasData && spec.medianBrpm != null && !noEffort) {
       outRate = spec.medianBrpm;
       method = spec.method;
+    }
+    if (noEffort) {
+      /* NOT 0, and NOT the prior. A zero rate is a legal measurement elsewhere, so absence travels
+         as null plus the reason, and the per-epoch track goes with it — every one of its epochs is
+         the prior, not an observation. */
+      outRate = null;
+      method = null;
+      rateReason = 'no-respiratory-effort';
     }
 
     return {
@@ -10990,10 +11020,11 @@ window.IntegratorDSP = {
       cadenceSec: EFFORT_CAD_SEC,
       floorG: EFFORT_FLOOR_G,
       // ── added 2026-07-21 (additive; every field above is unchanged) ──
-      rateSeries: spec.hasData ? spec.series : [],
+      rateSeries: spec.hasData && !noEffort ? spec.series : [],
       rateEpochSec: RR_HOP_SEC,
-      rateCoverage: spec.hasData ? Math.round(spec.coverage * 1e3) / 1e3 : 0,
+      rateCoverage: spec.hasData && !noEffort ? Math.round(spec.coverage * 1e3) / 1e3 : 0,
       respRateMethod: method,
+      respRateReason: rateReason,
       rateBrpmLegacy: legacyRate
     };
   }
@@ -11530,6 +11561,12 @@ window.IntegratorDSP = {
            cannot be attributed is the thing §6A's box claimed to deliver. Emitted beside the value it
            describes so the two cannot separate again. */
         respRateMethod: summary.effort ? summary.effort.respRateMethod || null : null,
+        /* THE REASON THE RATE IS ABSENT, beside the absence itself. Row
+           `2026-09-02-motiondex-respratemethod-unexported` is the same defect one field over: a value
+           whose attribution cannot leave the node gets one invented downstream. A null rate with no
+           reason reads as "MotionDex had no chest ACC", which is wrong for a chest stream that
+           recorded and carried no respiration. */
+        respRateReason: summary.effort ? summary.effort.respRateReason || null : null,
         // effort-presence series — a MotionDex standalone read AND the Integrator apnea-typing input (§1.1).
         // Coverage-honest: an epoch's `present` is null where chest ACC was not recording, never a false absent.
         effortSeries: summary.effort && summary.effort.series ? summary.effort.series : null,
