@@ -38300,6 +38300,48 @@
       }
     );
 
+    /* ── THE TIME-IN-RANGE BAND EDGES ARE PINNED, NOT ASSUMED ──
+       `TIR_CUT` in `glucodex-dsp.js` holds the 2019 consensus cut-points (Battelino 2019, Diabetes
+       Care, doi:10.2337/dci19-0028): below 54, 54 to 69, 70 to 180, 181 to 250, above 250 mg/dL.
+       `registry-defs-parity` checks grades and leaves numeric band constants out, so before this group
+       a changed edge, or a `<` turned into `<=`, passed every gate. Each leg below feeds ONE reading
+       and reads which bucket counted it, so an off-by-one edge names itself. */
+    group('GlucoDex time-in-range edges — 54, 70, 180 and 250 mg/dL, each bucket at its bound', 'glucodex-dsp · known-answer · consensus constant', function (T) {
+      var G = env.GLUDSP || (env.GlucoDex && env.GlucoDex._bare) || env.GlucoDex;
+      if (!G || typeof G.coreMetrics !== 'function') {
+        T.skip('GLUDSP available', 'GlucoDex not co-loaded in this runner');
+        return;
+      }
+      T.eq('TIR_CUT is the 2019 consensus set', JSON.stringify(G.TIR_CUT), '{"vlow":54,"low":70,"high":180,"vhigh":250}');
+      var bucketOf = function (v) {
+        var n = G.coreMetrics([v]).tirN;
+        return Object.keys(n)
+          .filter(function (k) {
+            return n[k] === 1;
+          })
+          .join(',');
+      };
+      // ── each edge, from both sides ──
+      T.eq('53 mg/dL is very low (tbr2)', bucketOf(53), 'tbr2');
+      T.eq('54 mg/dL is low, not very low (tbr1)', bucketOf(54), 'tbr1');
+      T.eq('69 mg/dL is low (tbr1)', bucketOf(69), 'tbr1');
+      T.eq('70 mg/dL is in range: the lower edge is closed', bucketOf(70), 'tir');
+      T.eq('180 mg/dL is in range: the upper edge is closed', bucketOf(180), 'tir');
+      T.eq('180.5 mg/dL is above range (tar1)', bucketOf(180.5), 'tar1');
+      T.eq('181 mg/dL is above range (tar1)', bucketOf(181), 'tar1');
+      T.eq('250 mg/dL is high, not very high (tar1)', bucketOf(250), 'tar1');
+      T.eq('251 mg/dL is very high (tar2)', bucketOf(251), 'tar2');
+      // ── the percentages sum over one mixed day ──
+      var day = G.coreMetrics([53, 60, 70, 120, 180, 200, 251, 300]);
+      T.eq('a mixed set splits 1·1·3·1·2 across the five buckets', JSON.stringify(day.tirN), '{"tbr2":1,"tbr1":1,"tir":3,"tar1":1,"tar2":2}');
+      T.eq('…and reports TIR as 37.5 %', day.tir.tir, 37.5);
+      // ── time in tight range (2023 addition): 70 to 140 closed at both ends ──
+      T.eq('70 mg/dL is in tight range', G.coreMetrics([70]).titr, 100);
+      T.eq('140 mg/dL is in tight range', G.coreMetrics([140]).titr, 100);
+      T.eq('69 mg/dL is not in tight range', G.coreMetrics([69]).titr, 0);
+      T.eq('141 mg/dL is not in tight range', G.coreMetrics([141]).titr, 0);
+    });
+
     group('MotionDex inferAccUnit — three gravity bands, all bounds exclusive (mutation bootstrap)', 'motiondex-dsp · known-answer · mutation-pinned', function (T) {
       var M = env.MOTIONDSP;
       if (!M || typeof M.parseSensorXYZ !== 'function') {
