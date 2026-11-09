@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="5b850c673a4a" data-compute-hash="fac79761d9a0">
+<html lang="en" data-manifest-hash="b54370dde3c2" data-compute-hash="7d26e3dfb87a">
 <head>
 <!--
   MotionDex.src.html — Tepna
@@ -12,7 +12,7 @@
 <!-- CSP: browser-enforces the no-network invariant. connect-src 'none' blocks every outbound request;
      script-src is STRICT ('self' + per-inline-script sha256, NO 'unsafe-inline'). MotionDex ships zero
      inline scripts (all init lives in motiondex-app.js), so the hash list is empty by construction. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-1zVlEXb8s+1rMCY16et54bJkj1EDY3ZlxVcToe+omgM=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-LFUuThFphtJbs7xcxi6ccAB4tRpfMsn5CPS3sr9f3SQ=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-bIhKcpZRJ/ZzKulROPoeorGxddt3ajAjGiOPqmDw7ik=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-hCZmwNAMDLPZEMYHAYpzoPETSnimg1oHWWjZImdKqxM=' 'sha256-wK9fP+fYfi661IypDOgrAoxGZS8mGJfe9l/9288cTZQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-1zVlEXb8s+1rMCY16et54bJkj1EDY3ZlxVcToe+omgM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-LFUuThFphtJbs7xcxi6ccAB4tRpfMsn5CPS3sr9f3SQ=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-bIhKcpZRJ/ZzKulROPoeorGxddt3ajAjGiOPqmDw7ik=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-hCZmwNAMDLPZEMYHAYpzoPETSnimg1oHWWjZImdKqxM=' 'sha256-wK9fP+fYfi661IypDOgrAoxGZS8mGJfe9l/9288cTZQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>MotionDex — Motion / IMU Analyzer · v2.29.0</title>
@@ -3151,6 +3151,12 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
  * @property {string|null}  kernelHash  DexKernel.HASH at parse time
  * @property {string[]}     warnings    non-fatal notes
  *
+ * @typedef {Object} SignalFrameCounts   what the interval parser removed, each null when unreported
+ * @property {number|null} nRaw       intervals the parser read
+ * @property {number|null} nUsable    intervals inside the physiological range
+ * @property {number|null} nBlocked   intervals the parser blocked as artifacts
+ * @property {number|null} timeRatio  summed intervals over the stamped span
+ *
  * @typedef {Object} SignalFrame   The ONLY thing DSP should consume (brief §2.2).
  * @property {('rr'|'ecg'|'spo2'|'cgm'|'eeg'|'flow'|'hr'|'acc'|'hrv')} signalType  a SignalSpec key
  * @property {('intervals'|'samples')} kind
@@ -3163,6 +3169,7 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
  * @property {number|null}  sqi         0..1 signal-quality, or null — SEPARATE axis from conf
  * @property {boolean}      usable
  * @property {string|null}  reason      human string when usable=false
+ * @property {SignalFrameCounts|null} counts  the parser's removal counts; null for a samples frame
  * @property {string|null}  contentId   EXPORT-IDENTITY §2.1: optional content-addressed recording digest
  *                                      (12 hex chars), identity-free, deterministic; null = no usable payload
  * @property {SignalFrameProvenance} provenance
@@ -3327,6 +3334,9 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
   //                usable, reason, ...}. Samples: {samples, fs, t0Ms, tsMs, ...}.
   //   ctx        : { adapter, vendor, device, files, warnings } provenance the
   //                adapter knows about itself; merged into frame.provenance.
+  function _count(v) {
+    return typeof v === 'number' && isFinite(v) && v >= 0 && Math.floor(v) === v ? v : null;
+  }
   function toSignalFrame(signalType, raw, ctx) {
     ctx = ctx || {};
     raw = raw || {};
@@ -3346,6 +3356,7 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
       sqi: raw.sqi === undefined ? null : raw.sqi, // quality-neutral by default; separate axis from conf
       usable: usable,
       reason: raw.reason === undefined ? null : raw.reason, // honesty: human string when usable=false
+      counts: /** @type {SignalFrameCounts|null} */ (null), // interval frames only — set below
       provenance: {
         adapter: ctx.adapter || raw.adapter || null,
         vendor: ctx.vendor || null,
@@ -3361,6 +3372,16 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
     if (kind === 'intervals') {
       var iv = raw.intervals != null ? raw.intervals : raw.vals;
       frame.intervals = iv && iv.length != null ? Array.prototype.slice.call(iv) : null;
+      // THE COUNTS THAT SAY HOW MANY INTERVALS THE PARSER REMOVED travel with the intervals it kept
+      // (residue 2026-11-08-tosignalframe-drops-the-pulsedex-artifact-counts). The frame used to
+      // carry the survivors alone, so a consumer could not tell 300 clean intervals from 300 left
+      // over out of 3000. A count the parser did not report is null, never 0 (§∅).
+      frame.counts = {
+        nRaw: _count(raw.nRaw),
+        nUsable: _count(raw.nUsable),
+        nBlocked: _count(raw.nBlocked),
+        timeRatio: typeof raw.timeRatio === 'number' && isFinite(raw.timeRatio) ? raw.timeRatio : null
+      };
     } else if (kind === 'samples') {
       frame.samples = raw.samples != null ? raw.samples : null;
       frame.fs = raw.fs === undefined ? null : raw.fs;
