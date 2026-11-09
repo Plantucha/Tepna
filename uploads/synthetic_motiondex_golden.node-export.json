@@ -79,6 +79,7 @@
       "unknown": 0
     },
     "immobileFrac": 1,
+    "immobileFracReason": null,
     "movementIndex": 0,
     "activitySeries": [
       {

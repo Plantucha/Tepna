@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="e5c1f3504be3" data-compute-hash="8110443d3d3a">
+<html lang="en" data-manifest-hash="da6c3a6cf3d4" data-compute-hash="f100a6f2cc3a">
 <head>
 <!--
   MotionDex.src.html — Tepna
@@ -12,7 +12,7 @@
 <!-- CSP: browser-enforces the no-network invariant. connect-src 'none' blocks every outbound request;
      script-src is STRICT ('self' + per-inline-script sha256, NO 'unsafe-inline'). MotionDex ships zero
      inline scripts (all init lives in motiondex-app.js), so the hash list is empty by construction. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-LFUuThFphtJbs7xcxi6ccAB4tRpfMsn5CPS3sr9f3SQ=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-bIhKcpZRJ/ZzKulROPoeorGxddt3ajAjGiOPqmDw7ik=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-hCZmwNAMDLPZEMYHAYpzoPETSnimg1oHWWjZImdKqxM=' 'sha256-pyBgyl0sPS3CCYHHKy+ex/zF2QRIR/Y28sDOZOJMAWY=' 'sha256-vuQvMRKB92NWdFjcGEEMZ4B6e+kfJ3I1q9HsdUkk8gU='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-LFUuThFphtJbs7xcxi6ccAB4tRpfMsn5CPS3sr9f3SQ=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-bIhKcpZRJ/ZzKulROPoeorGxddt3ajAjGiOPqmDw7ik=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-hCZmwNAMDLPZEMYHAYpzoPETSnimg1oHWWjZImdKqxM=' 'sha256-pyBgyl0sPS3CCYHHKy+ex/zF2QRIR/Y28sDOZOJMAWY=' 'sha256-xfK1VFFnA/N/GsReLhVXzZ3etVtqyfAUmI4oFMKr9SY='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>MotionDex — Motion / IMU Analyzer · v2.29.0</title>
@@ -8437,6 +8437,21 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
         supineFrac: summary.position ? summary.position.supineFrac : null,
         dwellFrac: summary.position ? summary.position.dwellFrac : null,
         immobileFrac: summary.activity ? summary.activity.immobileFrac : null,
+        /* THE REASON BESIDE THE REFUSAL (row
+           `2026-11-08-the-motiondex-clock-seam-reason-is-lost-in-the-export`). `:1089` nulls
+           `immobileFrac` on a device-clock seam and writes `immobileFracReason: 'clock-seam'` beside
+           it, because a fraction over a seam describes no continuous stretch of signal. The reason
+           reached the live page (`_mxProvenanceNote`) and stopped there, so review mode and the
+           Integrator read the null alone — and a null with no reason reads as a stream that never
+           arrived.
+
+           UNCONDITIONAL, and `null` on a measured night: that is the `sqiReason` discipline two keys
+           down, and a consumer can then tell "no reason" from "key absent". ⚠️ A night with NO
+           COVERED EPOCH also nulls the fraction and names no reason, so this field cannot yet
+           separate those two absences. The render note above it tells the seam story in prose, so a
+           second token needs its own sentence there. I state that in the PR body rather than borrow
+           the seam's words for it. */
+        immobileFracReason: summary.activity ? summary.activity.immobileFracReason || null : null,
         movementIndex: summary.activity ? summary.activity.movementIndex : null,
         // per-epoch movement track — a MotionDex standalone read (movement timeline) AND the input the
         // Integrator gates HRV with (§2.4). `moving` is TRI-STATE: null = accelerometer not recording,
