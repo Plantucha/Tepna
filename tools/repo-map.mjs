@@ -63,7 +63,7 @@
 
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -459,10 +459,16 @@ export function compactMap(map) {
   return { schema: 'tepna.repo-map/1', at: new Date().toISOString(), root: map.root, totals: map.totals, files };
 }
 
-export function writeMap(compact, { root = ROOT, writeFn = writeFileSync, mkdirFn = mkdirSync } = {}) {
+/* WRITTEN ATOMICALLY. The hourly refresh in `bge-reindex-driver.sh` rewrites the map while sessions
+   search, and `loadRepoMap` turns a half-written file into null, so a search that read mid-write lost
+   its map lines in silence. A temp file in the same directory, then one rename, means a reader sees
+   the old map or the new one, never a torn one. */
+export function writeMap(compact, { root = ROOT, writeFn = writeFileSync, mkdirFn = mkdirSync, renameFn = renameSync } = {}) {
   const p = mapWritePath(root);
   mkdirFn(dirname(p), { recursive: true });
-  writeFn(p, `${JSON.stringify(compact)}\n`);
+  const tmp = `${p}.${process.pid}.tmp`;
+  writeFn(tmp, `${JSON.stringify(compact)}\n`);
+  renameFn(tmp, p);
   return p;
 }
 
@@ -719,6 +725,14 @@ function selftest() {
   eq(!mapLine('a.js', mm, { readFn: readEdited }).line, '…so no symbol list is printed for it (a stale list is worse than none)');
   eq(mapLine('briefs/X-BRIEF.md', mm, { readFn: readFresh }).suppressed === 'not-in-map', 'NON-CODE HIT: a brief is not in the map, so it gets no line');
   eq(mapLine('b.py', mm, { readFn: readFresh }).suppressed === 'unparsed', 'a record with symbols: null is unparsed, which is NOT a file with zero symbols');
+
+  /* ATOMIC WRITE: the bytes go to a temp file, then one rename puts them at the read path. */
+  {
+    const calls = [];
+    const p = writeMap({ schema: 'tepna.repo-map/1', files: {} }, { writeFn: (f) => calls.push(['w', f]), mkdirFn: () => {}, renameFn: (a, b) => calls.push(['r', a, b]) });
+    eq(calls.length === 2 && calls[0][0] === 'w' && calls[0][1] !== p, 'writeMap never writes the bytes at the path a search reads');
+    eq(calls[1][0] === 'r' && calls[1][1] === calls[0][1] && calls[1][2] === p, '…and renames the temp file onto it in one step');
+  }
 
   /* The block, and the note that keeps a suppression from being silent. */
   const blkFresh = mapBlock(['a.js', 'briefs/X-BRIEF.md'], { map: mm, readFn: readFresh }).join('\n');
