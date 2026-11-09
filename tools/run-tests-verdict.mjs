@@ -64,6 +64,16 @@ export function undecidedChildren(verdict) {
   return kids.filter((c) => c && !DECIDED.has(c.status)).map((c) => ({ name: c.name, status: c.status || 'NOT_RUN' }));
 }
 
+/* THE SKIP BUDGET'S SHARE OF AN EXIT CODE (residue 2026-11-08-the-json-lane-exits-0-on-an-undeclared-skip).
+   The human lane adds each undeclared skip to its failure tally. The --json lane counted failing
+   assertions and undecided groups only, so it exited 0 over an object that reads FAIL by the skip
+   budget. This reads the count from the OBJECT, so a forked run counts the union's sum too.
+   An object with no result (`--list`, or a run that ran nothing) carries no skip to count. */
+export function undeclaredSkipCount(verdict) {
+  const n = verdict && verdict.result ? verdict.result.skipViolations : null;
+  return typeof n === 'number' && n > 0 ? n : 0;
+}
+
 /* The object for ONE process — a full serial run, a --group= run, or one shard's run. */
 export function suiteVerdict({ groups, totalGroups, groupFilter = null, groupIndices = null, shard = null, skipViolations = [] }, { commit, commitReason, at } = {}) {
   const children = groups.map(groupChild);
@@ -323,6 +333,25 @@ function selftest() {
     1,
     'exit arm plant · any status outside PASS/FAIL/NOT_APPLICABLE is undecided — the set is an allow-list, not a denylist'
   );
+  /* the skip arm — residue 2026-11-08-the-json-lane-exits-0-on-an-undeclared-skip */
+  eq(undeclaredSkipCount(sv), 1, 'skip arm plant · one undeclared skip in a run with no failing assertion counts 1 toward the exit');
+  eq(undeclaredSkipCount(full), 0, 'skip arm control · a run with no undeclared skip counts 0');
+  eq(
+    undeclaredSkipCount(
+      unionVerdict(
+        [
+          { i: 1, code: 1, verdict: suiteVerdict({ groups: [G('a', 2)], totalGroups: 2, shard: '1/2', skipViolations: [{ group: 'a', test: 'x' }] }, AT) },
+          { i: 2, code: 0, verdict: suiteVerdict({ groups: [G('b', 2)], totalGroups: 2, shard: '2/2' }, AT) }
+        ],
+        2,
+        AT
+      )
+    ),
+    1,
+    'skip arm plant · a forked run counts the union sum of its shards’ undeclared skips'
+  );
+  eq(undeclaredSkipCount(null), 0, 'skip arm control · no object (--list) counts no skip');
+  eq(undeclaredSkipCount({ status: 'NOT_RUN' }), 0, 'skip arm control · an object with no result counts no skip');
   const sample = verdictSample();
   eq(sample.status === 'UNKNOWN' && sample.population.checked === 2 && sample.producedBy.commit === null, true, '§3d · --verdict-sample: three shards, one dead ⇒ UNKNOWN over 2/3, no commit');
   console.log(`all ${n} selftests passed`);
