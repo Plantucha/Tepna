@@ -182,6 +182,13 @@
       "mechanism": "expected-value",
       "reaimed": "2026-11-03",
       "why": "The expected value was the old output: a ppm figure beside rate 'unknown', so one object said both that no rate could be measured and here is the rate."
+    },
+    {
+      "file": "capture-host/tests/test_alert_tiering.py",
+      "quote": "# 🔴 THIS TEST PINNED THE DEFECT. It asserted `board_delivered == 1` over a",
+      "mechanism": "expected-value",
+      "reaimed": null,
+      "why": "It asserted `board_delivered == 1` over a send the board never saw, so the suite held the fabricated count in place."
     }
   ]
 }

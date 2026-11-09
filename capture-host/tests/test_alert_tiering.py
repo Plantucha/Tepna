@@ -250,12 +250,19 @@ def test_send_board_tier_goes_to_the_board_destination():
 def test_send_board_without_a_board_destination_falls_back_to_the_page_topic():
     # The split takes effect when a board destination is configured; until then a BOARD
     # send keeps today's single-topic behaviour instead of going nowhere.
+    #
+    # 🔴 THIS TEST PINNED THE DEFECT. It asserted `board_delivered == 1` over a send the
+    # board never received, so the suite held the fabricated count in place. The route is a
+    # decision and stays; the COUNT moves to the stand-in ledger.
     p = _Poster()
     n = alerts.Notifier(_PAGE, enabled=True, _post=p)
     assert n.board_ready is False
     assert _run(n.send("Tepna: x", "body", tier=alerts.TIER_BOARD)) is True
     assert [u for u, _ in p.calls] == [_PAGE]
-    assert n.stats()["board_delivered"] == 1
+    st = n.stats()
+    assert st["board_delivered"] == 0
+    assert st["board_fallback_delivered"] == 1
+    assert st["delivered"] == 1
 
 
 def test_send_board_with_no_destination_at_all_is_not_delivered():
@@ -750,3 +757,132 @@ def test_a_raising_board_post_is_counted_and_swallowed():
     n = alerts.Notifier(_PAGE, enabled=True, _post=boom, board_url=_BOARD)
     assert _run(n.send("Tepna: x", "b", tier=alerts.TIER_BOARD)) is False
     assert n.stats()["board_failed"] == 1
+
+
+# ── the stand-in route is counted as itself (residue 2026-11-08-a-board-fallback-to-the-phone-
+# counts-as-board-delivery). `alerts.py` chooses `self.board_url or self.url` for a BOARD tier, and
+# the live box has no `board_webhook_url`, so every board edge on it reaches the phone.
+
+
+def test_a_board_edge_on_a_box_with_no_board_destination_is_NOT_a_board_delivery():
+    """The row's defect, stated as the arithmetic a reader does. `board_delivered` answers "the
+    fleet saw this". On the live box it answered that about the owner's phone."""
+    p = _Poster()
+    n = alerts.Notifier(_PAGE, enabled=True, _post=p)
+    for i in range(3):
+        assert _run(n.send(f"Tepna: {i}", "b", tier=alerts.TIER_BOARD)) is True
+    st = n.stats()
+    assert st["board_configured"] is False
+    assert st["board_delivered"] == 0
+    assert st["board_fallback_delivered"] == 3
+    assert st["delivered"] == 3
+    assert [u for u, _ in p.calls] == [_PAGE, _PAGE, _PAGE]
+
+
+def test_a_real_board_destination_keeps_counting_on_the_board_ledger():
+    """The control. Without it the test above also passes with both counters stuck at 0."""
+    p = _Poster()
+    n = _notifier(p)
+    assert _run(n.send("Tepna: x", "b", tier=alerts.TIER_BOARD)) is True
+    assert _run(n.send("Tepna: y", "b", tier=alerts.TIER_BOARD)) is True
+    st = n.stats()
+    assert st["board_delivered"] == 2
+    assert st["board_fallback_failed"] == 0
+    assert st["board_fallback_delivered"] == 0
+
+
+def test_a_stand_in_route_that_is_rejected_counts_on_the_stand_in_ledger():
+    """A board edge that reached NOBODY must still leave a board-tier trace, which is why the pair
+    is symmetric. A second rejection must ADD: one cannot tell `+= 1` from `= 1`."""
+    p = _Poster(ok=False)
+    n = alerts.Notifier(_PAGE, enabled=True, _post=p)
+    assert _run(n.send("Tepna: x", "b", tier=alerts.TIER_BOARD)) is False
+    assert _run(n.send("Tepna: x", "b", tier=alerts.TIER_BOARD)) is False
+    st = n.stats()
+    assert st["board_failed"] == 0
+    assert st["board_fallback_failed"] == 2
+    assert st["failed"] == 2
+
+
+def test_a_stand_in_route_that_raises_counts_on_the_stand_in_ledger():
+    async def boom(url, payload, headers=None):
+        raise OSError("phone topic unreachable")
+
+    n = alerts.Notifier(_PAGE, enabled=True, _post=boom)
+    assert _run(n.send("Tepna: x", "b", tier=alerts.TIER_BOARD)) is False
+    assert _run(n.send("Tepna: y", "b", tier=alerts.TIER_BOARD)) is False
+    st = n.stats()
+    assert st["board_failed"] == 0
+    assert st["board_fallback_failed"] == 2
+
+
+def test_the_delivery_LINE_names_the_route_it_reached(caplog):
+    """The second half of the row: the log named no destination, so the journal could not settle it
+    afterwards either. Three routes, three sentences, asserted on the real log record."""
+    import logging
+
+    caplog.set_level(logging.INFO, logger="tepna-capture")
+
+    p = _Poster()
+    board = _notifier(p)
+    assert _run(board.send("Tepna: real", "b", tier=alerts.TIER_BOARD)) is True
+    assert _run(board.send("Tepna: page", "b")) is True
+    stand_in = alerts.Notifier(_PAGE, enabled=True, _post=p)
+    assert _run(stand_in.send("Tepna: stand-in", "b", tier=alerts.TIER_BOARD)) is True
+
+    lines = [r.getMessage() for r in caplog.records if "delivered to" in r.getMessage()]
+    assert len(lines) == 3, lines
+    assert "'Tepna: real' delivered to the board" in lines[0]
+    assert "'Tepna: page' delivered to the phone" in lines[1]
+    assert "standing in for the board" in lines[2]
+
+
+def test_the_route_name_answers_for_all_three_routes():
+    """The helper on its own. \u26a0\ufe0f THIS IS NOT ENOUGH, and the mutation gate said so: calling the
+    helper directly is exactly the wiring the failure arms lacked. The test below reads the lines."""
+    assert alerts._route_name(alerts.TIER_BOARD, False) == "the board"
+    assert alerts._route_name(alerts.TIER_BOARD, True) == "the phone topic, standing in for the board"
+    assert alerts._route_name(alerts.TIER_PAGE, False) == "the phone"
+    # A PAGE tier has no stand-in route to take, so the flag cannot change its answer.
+    assert alerts._route_name(alerts.TIER_PAGE, True) == "the phone"
+
+
+def test_a_FAILURE_line_names_the_route_too(caplog):
+    """A rejection that names no destination is the same blind spot one arm over, and there are TWO
+    failure arms. The mutation gate replaced `route` with `None` in both and the suite stayed green,
+    because the test above read the helper and nothing read the LINE."""
+    import logging
+
+    caplog.set_level(logging.WARNING, logger="tepna-capture")
+
+    rejected = _Poster(ok=False)
+    assert _run(_notifier(rejected).send("Tepna: a", "b", tier=alerts.TIER_BOARD)) is False
+    stand_in = alerts.Notifier(_PAGE, enabled=True, _post=rejected)
+    assert _run(stand_in.send("Tepna: b", "b", tier=alerts.TIER_BOARD)) is False
+
+    async def boom(url, payload, headers=None):
+        raise OSError("unreachable")
+
+    assert _run(_notifier(boom).send("Tepna: c", "b", tier=alerts.TIER_BOARD)) is False
+    assert _run(alerts.Notifier(_PAGE, enabled=True, _post=boom).send("Tepna: d", "b")) is False
+
+    lines = [r.getMessage() for r in caplog.records]
+    assert "'Tepna: a' rejected by the board (non-2xx)" in lines[0], lines
+    assert "'Tepna: b' rejected by the phone topic, standing in for the board" in lines[1], lines
+    assert "'Tepna: c' not delivered to the board:" in lines[2], lines
+    assert "'Tepna: d' not delivered to the phone:" in lines[3], lines
+    assert "None" not in lines[0] and "None" not in lines[1]
+
+
+def test_the_capped_page_rerouted_to_a_REAL_board_counts_as_a_board_delivery():
+    """The cap reroutes through `send` again with a board tier, and that box HAS a board
+    destination, because `board_ready` guards the reroute. So the stand-in ledger stays empty."""
+    p = _Poster()
+    n = _notifier(p)
+    for i in range(alerts.PAGE_CAP_PER_DAY):
+        assert _run(n.send(f"Tepna: p{i}", "b", cap_counted=True)) is True
+    assert _run(n.send("Tepna: held", "b", cap_counted=True)) is True
+    st = n.stats()
+    assert st["cap_held"] == 1
+    assert st["board_delivered"] == 1
+    assert st["board_fallback_delivered"] == 0

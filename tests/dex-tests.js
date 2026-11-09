@@ -35017,6 +35017,23 @@
        all-clear from zero evidence.
        The vocabulary already existed in the same function: the `n < W + 2` guard returns
        'insufficient', and both consumers already map it to '—' / neutral. */
+    /* ── ECGDex §10 · NO RENDER COPY GRADES THE CVHR INDEX ON AHI CUT-POINTS (residue 2026-11-08) ──
+       The §10 retirement fixed one tile and one table row. Two more copies kept the <5 / <15 AHI
+       ladder and the "apnea" wording: the general KPI tile and the long-record table row. The CVHR
+       index measured r = −0.151 against device-scored AHI, so no copy may colour it by AHI's grades. */
+    group('ECGDex §10 — no render copy grades the CVHR index on AHI cut-points (residue 2026-11-08)', 'ecgdex-app · source · retirement', function (T) {
+      var R = String((env.sources || {})['ecgdex-app.js'] || '');
+      if (!R) {
+        T.skip('ecgdex-app.js in env.sources', 'not wired in this lane');
+        return;
+      }
+      var copies = R.split(/'CVHR [Ii]ndex'/).length - 1;
+      T.ok('ANTI-VACUITY · the app source carries the four CVHR index copies', copies >= 4, copies + ' copies');
+      T.ok('no CVHR copy grades on the AHI ladder (cvhr.index < 5 / < 15)', !/cvhr\.index\s*<\s*(5|15)\b/.test(R));
+      T.ok('no CVHR tile reads "surges/h (apnea)"', R.indexOf('surges/h (apnea)') === -1);
+      T.ok('no CVHR table row calls the index an "apnea autonomic signature"', R.indexOf("— apnea autonomic signature'") === -1);
+    });
+
     /* ── §∅ · AN UNDATED RECORDING EXPORTS AN EMPTY DATE, NOT 1970-01-01 ───────────────────────
        `new Date(0)` renders "1970-01-01 00:00:00" — in-band, perfectly valid-looking, and sorted
        before every real recording. The repo already settled this elsewhere WITH TESTS ("no recording
