@@ -216,7 +216,11 @@
       .sort(function (x, y) {
         return x - y;
       });
-    return v.length ? v[Math.floor(v.length / 2)] : null;
+    if (!v.length) return null;
+    /* Residue 2026-11-08-eegdex-median-takes-the-upper-middle: an even count used to return the UPPER
+       middle, so median([1, 2, 3, 4]) read 3 where every other copy in the suite reads 2.5. */
+    var m = v.length >> 1;
+    return v.length % 2 ? v[m] : (v[m - 1] + v[m]) / 2;
   }
 
   /* ── the stager ────────────────────────────────────────────────────────────
