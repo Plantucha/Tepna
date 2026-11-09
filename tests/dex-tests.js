@@ -84782,8 +84782,8 @@
       ].filter(function (n) {
         return n.reg && n.reg.REGISTRY && UI[n.pre];
       });
-      T.ok('ANTI-VACUITY · node UI sources + registries are wired', NODES.length >= 6, NODES.length + ' node(s) resolvable');
-      if (NODES.length < 6) return;
+      T.ok('ANTI-VACUITY · node UI sources + registries are wired', NODES.length >= 8, NODES.length + ' node(s) resolvable');
+      if (NODES.length < 8) return;
       var strip = function (t) {
         return String(t)
           .replace(/\/\*[\s\S]*?\*\//g, ' ')
@@ -85020,14 +85020,14 @@
         { pre: 'ppgdex', reg: env.PPG_REGISTRY, res: env.PpgRegistry },
         { pre: 'pulsedex', reg: env.PULSE_REGISTRY, res: env.PulseRegistry },
         { pre: 'hrvdex', reg: env.HRV_REGISTRY, res: env.HrvRegistry },
-        { pre: 'glucodex', reg: env.GLU_REGISTRY, res: env.GluRegistry },
+        { pre: 'glucodex', reg: env.GLU_REGISTRY, res: env.GlucoRegistry },
         { pre: 'cpapdex', reg: env.CPAP_REGISTRY, res: env.CpapRegistry },
         { pre: 'motiondex', reg: env.MOTION_REGISTRY, res: env.MotionRegistry }
       ].filter(function (n) {
         return n.reg && n.res && typeof n.res.idForLabel === 'function';
       });
-      T.ok('ANTI-VACUITY · registries + resolvers are wired', NODES.length >= 6, NODES.length + ' node(s)');
-      if (NODES.length < 6) return;
+      T.ok('ANTI-VACUITY · registries + resolvers are wired', NODES.length >= 8, NODES.length + ' node(s)');
+      if (NODES.length < 8) return;
 
       /* ONE LINE IN, ZERO OR MORE {id, implied} OUT. Pure, so the planted controls below exercise the
          same code path the sweep does — a control that tested a copy would certify nothing. */
@@ -85144,8 +85144,8 @@
       /* ANTI-VACUITY. A scan that resolves nothing passes trivially — the exact shape of the audit
          error this gate replaces. Assert the node set, that call sites were actually FOUND, and that
          the resolver really rejects a bogus id (otherwise "all resolve" means nothing). */
-      T.ok('ANTI-VACUITY · node UI sources + registries are wired', NODES.length >= 6, NODES.length + ' node(s) resolvable');
-      if (NODES.length < 6) return;
+      T.ok('ANTI-VACUITY · node UI sources + registries are wired', NODES.length >= 8, NODES.length + ' node(s) resolvable');
+      if (NODES.length < 8) return;
       var strip = function (t) {
         return String(t)
           .replace(/\/\*[\s\S]*?\*\//g, ' ')
@@ -85857,13 +85857,13 @@
         ['CPAP_REGISTRY', env.CPAP_REGISTRY],
         ['PULSE_REGISTRY', env.PULSE_REGISTRY],
         ['HRV_REGISTRY', env.HRV_REGISTRY],
-        ['GLUCO_REGISTRY', env.GLUCO_REGISTRY],
+        ['GLU_REGISTRY', env.GLU_REGISTRY],
         ['MOTION_REGISTRY', env.MOTION_REGISTRY]
       ].filter(function (r) {
         return r[1] && typeof r[1] === 'object';
       });
-      T.ok('ANTI-VACUITY · the node registries are wired', REGS.length >= 6, REGS.length + ' registries');
-      if (REGS.length < 6) return;
+      T.ok('ANTI-VACUITY · the node registries are wired', REGS.length >= 8, REGS.length + ' registries');
+      if (REGS.length < 8) return;
       var DOI = /10\.\d{4,9}\/[^\s"'<>,;)\]]+/g;
       /* Deliberately NARROW. "corrected" alone appears in legitimate physiology (`Malik-corrected`,
          `motion-corrected`); these are phrases that can only be addressed to a maintainer. */
@@ -95233,6 +95233,87 @@
       } finally {
         fs.rmSync(dir, { recursive: true, force: true });
       }
+    });
+
+    /* ════ EVERY DECLARED DEPTH SITS IN THE PUBLISHED VOCABULARY ════
+       `MetricRegistry.DEPTHS` is the whole depth vocabulary. Two fallbacks cover a value outside it.
+       `entry()` coerces an unknown depth to `advanced` and prints no warning, because the warn line
+       fires only when a registry holds no entry at all. `depthToTier` then defaults an unknown depth
+       to `secondary`, which is exactly the attribute `advanced` maps to. So a depth outside the
+       vocabulary renders at the right tier today and reports nothing.
+       Measured 2026-11-09, before the fix in this change: `oxydex-registry.js` declared
+       `depth: 'secondary'` 20 times, and `secondary` is the TIER ATTRIBUTE that `advanced` maps to
+       rather than a depth. Those 20 were the only out-of-vocabulary declarations among 537 across
+       the nine registries. A change to either fallback moves those 20 metrics to another tier in
+       silence, which is what this group now refuses.
+       APPENDED AT THE END OF THE GROUP LIST ON PURPOSE: an insertion higher up shifts every later
+       `--group-index`, and other sessions quote those numbers. */
+    group('every declared registry depth sits in MetricRegistry.DEPTHS', 'registry · depth · vocabulary', function (T) {
+      var MR = env.MetricRegistry;
+      T.ok('ANTI-VACUITY · the engine publishes a depth vocabulary', !!MR && Array.isArray(MR.DEPTHS) && MR.DEPTHS.length === 3, MR && MR.DEPTHS ? MR.DEPTHS.join(', ') : 'absent');
+      if (!MR || !Array.isArray(MR.DEPTHS)) return;
+      var REGS = [
+        ['OXY_REGISTRY', env.OXY_REGISTRY],
+        ['ECG_REGISTRY', env.ECG_REGISTRY],
+        ['PPG_REGISTRY', env.PPG_REGISTRY],
+        ['CPAP_REGISTRY', env.CPAP_REGISTRY],
+        ['PULSE_REGISTRY', env.PULSE_REGISTRY],
+        ['HRV_REGISTRY', env.HRV_REGISTRY],
+        ['GLU_REGISTRY', env.GLU_REGISTRY],
+        ['MOTION_REGISTRY', env.MOTION_REGISTRY],
+        ['EEG_REGISTRY', env.EEG_REGISTRY]
+      ].filter(function (r) {
+        return r[1] && typeof r[1] === 'object';
+      });
+      /* THE FLOOR IS THE DECLARED COUNT, never a lower number. A floor under the array length passes
+         while a renamed key drops a whole node, which is how two sibling legs in this file read 7 of
+         8 nodes until 2026-11-09. */
+      T.ok(
+        'ANTI-VACUITY · every node registry is wired',
+        REGS.length === 9,
+        REGS.length +
+          ' of 9: ' +
+          REGS.map(function (r) {
+            return r[0];
+          }).join(',')
+      );
+      if (REGS.length !== 9) return;
+
+      /* ONE PREDICATE IN, ONE VERDICT OUT, so the planted controls below exercise the same code the
+         sweep runs. A control over a copy would certify nothing. */
+      function outOfVocabulary(e) {
+        return !!e && typeof e === 'object' && e.depth !== undefined && MR.DEPTHS.indexOf(e.depth) < 0;
+      }
+      T.ok('CONTROL · the predicate flags a tier attribute written into the depth field', outOfVocabulary({ depth: 'secondary' }), 'secondary is the attribute advanced maps to, not a depth');
+      T.ok(
+        'CONTROL · …and it accepts each published depth',
+        MR.DEPTHS.every(function (d) {
+          return !outOfVocabulary({ depth: d });
+        }),
+        MR.DEPTHS.join(', ')
+      );
+      T.ok('CONTROL · an entry that declares no depth is not a finding here', !outOfVocabulary({}), 'entry() defaults an absent depth, which is a separate rule');
+
+      var seen = 0,
+        withDepth = 0,
+        bad = [];
+      REGS.forEach(function (pair) {
+        var name = pair[0],
+          reg = pair[1];
+        Object.keys(reg).forEach(function (id) {
+          var e = reg[id];
+          if (!e || typeof e !== 'object') return;
+          seen++;
+          if (e.depth !== undefined) withDepth++;
+          if (outOfVocabulary(e)) bad.push(name + '.' + id + '=' + e.depth);
+        });
+      });
+      T.ok('ANTI-VACUITY · the sweep read the registry population', seen >= 500 && withDepth >= 500, seen + ' entries, ' + withDepth + ' declaring a depth');
+      T.ok(
+        'no registry declares a depth outside MetricRegistry.DEPTHS',
+        bad.length === 0,
+        bad.length ? bad.slice(0, 5).join(' · ') + (bad.length > 5 ? ' (+' + (bad.length - 5) + ' more)' : '') : withDepth + ' declaration(s), all in [' + MR.DEPTHS.join(', ') + ']'
+      );
     });
 
     /* Selection already happened at declaration time (see group() above) — a group that
