@@ -511,6 +511,16 @@ function exportCSV() {
       var _fq = n.fft.peakFreqHz == null ? '' : n.fft.peakFreqHz;
       var _fc = n.fft.peakCycSec == null ? '' : n.fft.peakCycSec;
       lines.push('  FFT Peak Freq (Hz),' + _fq, '  FFT Cycle Length (s),' + _fc);
+      // The COVERED population, where the spectrum describes less than the span (CLAUDE.md ∅: reduced
+      // coverage annotates). CONDITIONAL, so a night with a reading in every row exports as before.
+      if (typeof n.fft.coveredN === 'number' && typeof n.fft.spanN === 'number' && n.fft.coveredN < n.fft.spanN) {
+        lines.push('  FFT Covered Samples,' + n.fft.coveredN, '  FFT Span Samples,' + n.fft.spanN);
+      }
+      // A REFUSAL READS AS A REFUSAL. An empty peak beside a reason says the night was examined and
+      // the spectrum was not published; an empty peak alone reads as "no cycle cleared the background".
+      if (n.fft.reason) {
+        lines.push('  FFT Refused,' + n.fft.reason);
+      }
     }
     if (n.hrEnt) {
       lines.push('  HR SampEn,' + n.hrEnt.sampEn, '  HR SampEn Label,' + n.hrEnt.sampEnLabel);

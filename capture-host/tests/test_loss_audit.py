@@ -3597,7 +3597,13 @@ def test_a_FIRST_PUBLISH_THAT_FAILS_LEAVES_NO_VERDICT_AND_DOES_NOT_RAISE(tmp_pat
 def test_WHEN_THE_CLAIM_CANNOT_COME_OFF_DISK_THE_VERDICT_STILL_REACHES_THE_CALLER(tmp_path):
     """A FOLDER named `LOSS-VERDICT.json` fails both halves at once: `os.replace` cannot put the new
     verdict there, and `os.remove` cannot take the folder away. The audit reports its verdict anyway,
-    because the return value is then the one place this night is described."""
+    because the return value is then the one place this night is described.
+
+    🔴 THIS TEST USED TO ASSERT only that the verdict reaches the caller and that the folder stands.
+    So it passed while the returned object described a publish that never happened, and `qc_child`
+    and a disk reader disagreed with nothing to tell them apart. Row
+    `2026-11-08-a-double-fault-unpublish-leaves-the-old-verdict-on-disk-unreported`. It now reads the
+    `unpublished` entry, which is the only report of the double fault."""
     d = _night(tmp_path)
     vpath = os.path.join(d, "LOSS-VERDICT.json")
     os.mkdir(vpath)
@@ -3605,6 +3611,33 @@ def test_WHEN_THE_CLAIM_CANNOT_COME_OFF_DISK_THE_VERDICT_STILL_REACHES_THE_CALLE
     obj = loss_audit.write_night(d, DEV, commit="abc1234", journal=lambda *a: [], clock_events=lambda *a: [])
 
     assert obj["producedBy"]["commit"] == "abc1234"
+    assert os.path.isdir(vpath), "the folder the audit could not remove is still standing"
+    stale = obj["result"]["unpublished"]
+    assert stale["published"] is False, "a publish that did not happen cannot read as one"
+    assert stale["file"] == "LOSS-VERDICT.json", "the entry names the file a reader would open"
+    assert "Error" in stale["write_error"], f"the write failure names itself: {stale}"
+    assert "Error" in stale["remove_error"], f"the remove failure names itself too: {stale}"
+    assert stale["write_error"] != stale["remove_error"], "two faults, two texts"
+
+
+def test_A_CRASH_VERDICT_WHOSE_STALE_CLAIM_STAYS_ON_DISK_SAYS_SO_IN_ITS_REASON(tmp_path, monkeypatch):
+    """A crash carries `result: null`, so the `unpublished` entry has nowhere to sit. A result invented
+    to hold it would publish a measurement nobody made (§∅), so the double fault joins the reason — the
+    one free-text field such a verdict owns, as the withdrawal entry does on the same shape."""
+    d = _night(tmp_path)
+    vpath = os.path.join(d, "LOSS-VERDICT.json")
+    os.mkdir(vpath)
+
+    def boom(*a, **k):
+        raise RuntimeError("the audit fell over")
+
+    monkeypatch.setattr(loss_audit, "audit_night", boom)
+    obj = loss_audit.write_night(d, DEV, commit="abc1234", journal=lambda *a: [], clock_events=lambda *a: [])
+
+    assert obj["status"] == "UNKNOWN" and obj["result"] is None
+    assert "the audit fell over" in obj["reason"], "the crash still names itself"
+    assert "did not reach LOSS-VERDICT.json" in obj["reason"]
+    assert "stayed on disk" in obj["reason"], f"the reason states the stale claim: {obj['reason']}"
     assert os.path.isdir(vpath), "the folder the audit could not remove is still standing"
 
 

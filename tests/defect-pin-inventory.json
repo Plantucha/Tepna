@@ -189,6 +189,13 @@
       "mechanism": "expected-value",
       "reaimed": null,
       "why": "It asserted `board_delivered == 1` over a send the board never saw, so the suite held the fabricated count in place."
+    },
+    {
+      "file": "capture-host/tests/test_loss_audit.py",
+      "quote": "🔴 THIS TEST USED TO ASSERT only that the verdict reaches the caller an",
+      "mechanism": "predicate-strength",
+      "reaimed": "2026-11-09",
+      "why": "It asserted only that the verdict reaches the caller, so it passed while the returned object described a publish that never happened."
     }
   ]
 }
