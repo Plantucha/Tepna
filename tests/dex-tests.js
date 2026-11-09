@@ -2938,6 +2938,49 @@
       T.ok('a refusal publishes no snr and no threshold, because it computed neither', refused != null && refused.snr === null && refused.threshold === null && refused.bins === 0);
       T.ok('a night inside the floor carries a null reason, never an undefined one', fg != null && fg.reason === null);
 
+      /* ∅ THE SHAPE OF THE ABSENCE, NOT ONLY ITS AMOUNT (row
+         2026-11-09-the-spo2-spectrum-reads-a-gap-run-as-reduced-coverage). The same absent COUNT is one
+         hole or dust over the night, and `coveredN` alone cannot tell a reader which. The sweep behind
+         this (24 nights of 27,600 samples, runs 0 to 800 s against the same count scattered) found 0
+         fabrications at every run length and every position, so a run-length REFUSAL would prevent
+         nothing measurable. What the two shapes owe a consumer is the DISTINCTION, and a refusal owes
+         its own reason. */
+      function hole(rows, start, len) {
+        var o = rows.slice(),
+          hi;
+        for (hi = 0; hi < len; hi++) o[start + hi] = { spo2: null };
+        return o;
+      }
+      var runIn = OD.computeSpO2FFT(hole(flat, 400, 30));
+      T.ok(
+        'a 30-sample hole inside the floor publishes, and states the run beside the coverage',
+        runIn != null && runIn.reason === null && runIn.coveredN === 1170 && runIn.spanN === 1200 && runIn.absentRunMaxN === 30,
+        JSON.stringify(runIn)
+      );
+      var dust = OD.computeSpO2FFT(gaps(flat, 40));
+      T.ok(
+        'the same absent count scattered states the SAME coverage and a run of 1, so the two shapes are now distinguishable',
+        dust != null && dust.coveredN === 1170 && dust.absentRunMaxN === 1,
+        JSON.stringify(dust)
+      );
+      // The row's own case: a night cut in two, below the floor. The reason is NAMED, never borrowed.
+      var cut = OD.computeSpO2FFT(hole(flat, 300, 200));
+      T.ok(
+        'a night whose absence is mostly ONE stretch refuses as absence-run, and states the run',
+        cut != null && cut.reason === 'absence-run' && cut.detected === false && cut.coveredN === 1000 && cut.absentRunMaxN === 200,
+        JSON.stringify(cut)
+      );
+      /* CONTROL — the borrowed reason is the TRUTH where the absence really is dust. `refused` above is
+         100 absent samples at stride 12, so its longest run is 1 and it keeps `coverage-below-floor`. A
+         fix that renamed every refusal would read as a pass here and measure nothing. */
+      T.ok(
+        'scattered absence below the floor keeps coverage-below-floor, because that IS its shape',
+        refused != null && refused.reason === 'coverage-below-floor' && refused.absentRunMaxN === 1,
+        JSON.stringify(refused)
+      );
+      // CONTROL — a night that measured every sample states a run of 0, not a null and not a 1.
+      T.eq('a night with a reading in every row states a longest absent run of 0', OD.computeSpO2FFT(flat).absentRunMaxN, 0);
+
       var srcOfF = function (f) {
         return ((env.sources || {})[f] || '')
           .split('\n')
@@ -2968,6 +3011,17 @@
           'guard or line absent'
         );
         T.ok('the export carries the refusal reason, so an empty peak is not read as "no cycle"', /if \(n\.fft\.reason\)/.test(asrc) && asrc.indexOf('FFT Refused') > 0, 'refusal line absent');
+        var namer = (dsrc.match(/absentRunMaxN \* 2 >= n - covered \? 'absence-run' : 'coverage-below-floor'/g) || []).length;
+        T.ok(
+          'the refusal reason is chosen once, by the pre-stated majority-share criterion',
+          namer === 1 && (dsrc.match(/if \(_run > absentRunMaxN\) absentRunMaxN = _run;/g) || []).length === 1,
+          'namer=' + namer
+        );
+        T.ok(
+          'the export names the longest absent run beside the covered samples',
+          asrc.indexOf('FFT Longest Absent Run (samples)') > 0 && /typeof n\.fft\.absentRunMaxN === 'number'/.test(asrc),
+          'run line absent'
+        );
       }
     });
 
@@ -38245,6 +38299,48 @@
         });
       }
     );
+
+    /* ── THE TIME-IN-RANGE BAND EDGES ARE PINNED, NOT ASSUMED ──
+       `TIR_CUT` in `glucodex-dsp.js` holds the 2019 consensus cut-points (Battelino 2019, Diabetes
+       Care, doi:10.2337/dci19-0028): below 54, 54 to 69, 70 to 180, 181 to 250, above 250 mg/dL.
+       `registry-defs-parity` checks grades and leaves numeric band constants out, so before this group
+       a changed edge, or a `<` turned into `<=`, passed every gate. Each leg below feeds ONE reading
+       and reads which bucket counted it, so an off-by-one edge names itself. */
+    group('GlucoDex time-in-range edges — 54, 70, 180 and 250 mg/dL, each bucket at its bound', 'glucodex-dsp · known-answer · consensus constant', function (T) {
+      var G = env.GLUDSP || (env.GlucoDex && env.GlucoDex._bare) || env.GlucoDex;
+      if (!G || typeof G.coreMetrics !== 'function') {
+        T.skip('GLUDSP available', 'GlucoDex not co-loaded in this runner');
+        return;
+      }
+      T.eq('TIR_CUT is the 2019 consensus set', JSON.stringify(G.TIR_CUT), '{"vlow":54,"low":70,"high":180,"vhigh":250}');
+      var bucketOf = function (v) {
+        var n = G.coreMetrics([v]).tirN;
+        return Object.keys(n)
+          .filter(function (k) {
+            return n[k] === 1;
+          })
+          .join(',');
+      };
+      // ── each edge, from both sides ──
+      T.eq('53 mg/dL is very low (tbr2)', bucketOf(53), 'tbr2');
+      T.eq('54 mg/dL is low, not very low (tbr1)', bucketOf(54), 'tbr1');
+      T.eq('69 mg/dL is low (tbr1)', bucketOf(69), 'tbr1');
+      T.eq('70 mg/dL is in range: the lower edge is closed', bucketOf(70), 'tir');
+      T.eq('180 mg/dL is in range: the upper edge is closed', bucketOf(180), 'tir');
+      T.eq('180.5 mg/dL is above range (tar1)', bucketOf(180.5), 'tar1');
+      T.eq('181 mg/dL is above range (tar1)', bucketOf(181), 'tar1');
+      T.eq('250 mg/dL is high, not very high (tar1)', bucketOf(250), 'tar1');
+      T.eq('251 mg/dL is very high (tar2)', bucketOf(251), 'tar2');
+      // ── the percentages sum over one mixed day ──
+      var day = G.coreMetrics([53, 60, 70, 120, 180, 200, 251, 300]);
+      T.eq('a mixed set splits 1·1·3·1·2 across the five buckets', JSON.stringify(day.tirN), '{"tbr2":1,"tbr1":1,"tir":3,"tar1":1,"tar2":2}');
+      T.eq('…and reports TIR as 37.5 %', day.tir.tir, 37.5);
+      // ── time in tight range (2023 addition): 70 to 140 closed at both ends ──
+      T.eq('70 mg/dL is in tight range', G.coreMetrics([70]).titr, 100);
+      T.eq('140 mg/dL is in tight range', G.coreMetrics([140]).titr, 100);
+      T.eq('69 mg/dL is not in tight range', G.coreMetrics([69]).titr, 0);
+      T.eq('141 mg/dL is not in tight range', G.coreMetrics([141]).titr, 0);
+    });
 
     group('MotionDex inferAccUnit — three gravity bands, all bounds exclusive (mutation bootstrap)', 'motiondex-dsp · known-answer · mutation-pinned', function (T) {
       var M = env.MOTIONDSP;

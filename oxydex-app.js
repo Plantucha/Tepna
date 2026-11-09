@@ -523,6 +523,11 @@ function exportCSV() {
       // coverage annotates). CONDITIONAL, so a night with a reading in every row exports as before.
       if (typeof n.fft.coveredN === 'number' && typeof n.fft.spanN === 'number' && n.fft.coveredN < n.fft.spanN) {
         lines.push('  FFT Covered Samples,' + n.fft.coveredN, '  FFT Span Samples,' + n.fft.spanN);
+        // The SHAPE of that absence beside its amount: the same 600 absent samples are one 10 min hole
+        // or dust over the night, and the two are different readings of the same coverage.
+        if (typeof n.fft.absentRunMaxN === 'number') {
+          lines.push('  FFT Longest Absent Run (samples),' + n.fft.absentRunMaxN);
+        }
       }
       // A REFUSAL READS AS A REFUSAL. An empty peak beside a reason says the night was examined and
       // the spectrum was not published; an empty peak alone reads as "no cycle cleared the background".
