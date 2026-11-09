@@ -75,6 +75,21 @@
     return '<div class="mx-row"><span>' + evBadge(label) + ' ' + esc(label) + '</span><b>' + esc(val) + (sub ? '</b> <span class="kpi-sub">' + esc(sub) + '</span>' : '</b>') + '</div>';
   }
 
+  /* ∅ — THE STATED POPULATION IS THE DENOMINATOR THAT WAS USED, NEVER THE TRACK LENGTH.
+     `bodyPosition()` divides every dwell fraction by COVERED epochs (motiondex-dsp.js:1008), and its
+     track keeps a dense `unknown` entry for each NON-RECORDING epoch, so `track.length` is the SPAN.
+     The row printed "of N epochs" from that span, so every gap overstated the population the percent
+     describes: a 60 s supine file under a 180 s span read "of 6 epochs" for a 2-epoch measurement.
+     Row 2026-11-08-motiondex-supine-row-states-the-wrong-denominator owns the defect. The span is
+     still worth the reader's attention, so it stays BESIDE the population, never as it. An absent
+     `coveredEpochs` is NAMED here, because a substituted span is a population nobody measured. */
+  function positionPop(pos) {
+    var cov = pos && pos.coveredEpochs;
+    if (typeof cov !== 'number' || !isFinite(cov)) return 'recorded epoch count absent';
+    var span = pos.track ? pos.track.length : null;
+    return cov + ' recorded epochs' + (typeof span === 'number' && span > cov ? ' of ' + span + ' in the span' : '');
+  }
+
   // fraction of RECORDED (present!=null) epochs in which effort was present — coverage-honest:
   // no-chest-ACC epochs (present:null) are excluded from the denominator, never scored as absent.
   function effortPresentPct(series) {
@@ -233,7 +248,7 @@
     if (kt) kt.style.display = '';
 
     // ── position ──
-    if (pos.hasData) fill('mxPositionCard', 'mxPosition', positionBar(pos.dwellFrac) + row('Supine time', pct(pos.supineFrac), 'of ' + (pos.track ? pos.track.length : 0) + ' epochs'));
+    if (pos.hasData) fill('mxPositionCard', 'mxPosition', positionBar(pos.dwellFrac) + row('Supine time', pct(pos.supineFrac), positionPop(pos)));
 
     // ── effort (incl. the per-epoch presence series — standalone read + the fusion's input) ──
     if (eff.hasData) {
@@ -282,7 +297,7 @@
     }
   }
 
-  global.MOTIONUI = { renderSummary: renderSummary, positionBar: positionBar, effortSpark: effortSpark, activitySpark: activitySpark, effortPresentPct: effortPresentPct };
+  global.MOTIONUI = { renderSummary: renderSummary, positionBar: positionBar, effortSpark: effortSpark, activitySpark: activitySpark, effortPresentPct: effortPresentPct, positionPop: positionPop };
 })(window);
 
 // ESM-from-birth dual-mode (mirrors glucodex-render): the IIFE attaches window.MOTIONUI for the

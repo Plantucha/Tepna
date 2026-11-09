@@ -88130,6 +88130,63 @@
       T.ok('dwellFrac.supine likewise over covered', pos.dwellFrac && Math.abs(pos.dwellFrac.supine - 1) < 0.01, 'dwellFrac.supine=' + (pos.dwellFrac && pos.dwellFrac.supine));
     });
 
+    /* ════ MotionDex · the supine row states the POPULATION the percent used (residue row) ════
+     `bodyPosition` divides every dwell fraction by COVERED epochs and keeps a dense `unknown` track
+     entry per non-recording epoch, so `track.length` is the recording's SPAN. The row printed
+     "of N epochs" from that span, which overstated the population on every night with a gap: the
+     DEEP-AUDIT-II §7.4 case above (60 s of supine ACC under a 180 s claimed duration) read
+     "of 6 epochs" beside a percent computed over 2. The percent was right and the population beside
+     it was wrong, which is the harder half to catch — a reader checks the number, not its label.
+     Row `2026-11-08-motiondex-supine-row-states-the-wrong-denominator`. The span still reaches the
+     reader, BESIDE the population rather than as it, and an absent `coveredEpochs` is named. ════ */
+    group('MotionDex supine row states the covered-epoch population, never the track span', 'motiondex-render · motiondex-dsp · position · coverage · render-harness', function (T) {
+      var MXU = env.MOTIONUI;
+      if (!MXU) {
+        T.skip('MOTIONUI available', 'motiondex-render not wired in this lane');
+        return;
+      }
+      /* FAIL-CLOSED: a lane that executed the render but lost the helper is a regression, not a skip. */
+      if (typeof MXU.positionPop !== 'function') {
+        T.ok('MOTIONUI.positionPop is wired — the population helper reaches the row', false, 'MOTIONUI keys: ' + Object.keys(MXU).join(','));
+        return;
+      }
+      T.eq('a gapless recording states its covered count alone', MXU.positionPop({ coveredEpochs: 20, track: new Array(20) }), '20 recorded epochs');
+      T.eq('🔴 a gapped recording states the COVERED count, with the span beside it', MXU.positionPop({ coveredEpochs: 12, track: new Array(20) }), '12 recorded epochs of 20 in the span');
+      var gapped = MXU.positionPop({ coveredEpochs: 12, track: new Array(20) });
+      T.ok('🔴 …and the pre-fix wording "of 20 epochs" reaches no reader', gapped.indexOf('of 20 epochs') === -1 && gapped.indexOf('12 recorded') === 0, gapped);
+      /* ∅ — an absent denominator is NAMED. Substituting the span would publish a population nobody
+         measured, which is the same class of defect one layer over. */
+      T.eq('∅ an absent coveredEpochs names the absence', MXU.positionPop({ track: new Array(20) }), 'recorded epoch count absent');
+      T.ok('∅ …and that line carries NO number from the span', /\d/.test(MXU.positionPop({ track: new Array(20) })) === false, MXU.positionPop({ track: new Array(20) }));
+      T.eq('∅ a non-finite count is absent too, never printed', MXU.positionPop({ coveredEpochs: NaN, track: new Array(20) }), 'recorded epoch count absent');
+      T.eq('an absent position object is absent, not a crash', MXU.positionPop(null), 'recorded epoch count absent');
+      /* The real producer, on the §7.4 case: 60 s of supine ACC under a 180 s claimed duration. */
+      var MD = env.MOTIONDSP;
+      if (MD && typeof MD.bodyPosition === 'function' && typeof MD.parseSensorXYZ === 'function' && typeof MD.genSyntheticACC === 'function') {
+        var rows = MD.parseSensorXYZ(MD.genSyntheticACC({ sec: 60, hz: 26, brpm: 15, seed: 3 }));
+        var pos = MD.bodyPosition(rows, rows[0].tMs, 180, 'mg') || {};
+        T.eq('🔴 the real DSP case states 2 covered epochs of 6 in the span, not "of 6 epochs"', MXU.positionPop(pos), '2 recorded epochs of 6 in the span');
+        T.ok(
+          '…and the stated population IS the percent’s own denominator',
+          pos.coveredEpochs > 0 && Math.abs(pos.dwellEpochs.supine / pos.coveredEpochs - pos.supineFrac) < 1e-9,
+          'supine=' + pos.dwellEpochs.supine + ' covered=' + pos.coveredEpochs + ' frac=' + pos.supineFrac
+        );
+      } else {
+        T.skip('MOTIONDSP.bodyPosition + parseSensorXYZ + genSyntheticACC available', 'motiondex-dsp not wired in this lane');
+      }
+      /* The CALL site, not the helper's name: a count of `positionPop` alone also counts its own
+         declaration and its export, so it would pass with the row reverted (measured 2026-11-08 on
+         the ACC column-map leg and again on the Poincaré pair). */
+      var rsrc = (env.sources || {})['motiondex-render.js'];
+      if (!rsrc) {
+        T.ok('motiondex-render.js source is readable', false, 'not in env.sources — this leg cannot run');
+      } else {
+        var call = (rsrc.match(/row\('Supine time', pct\(pos\.supineFrac\), positionPop\(pos\)\)/g) || []).length;
+        var span = (rsrc.match(/pos\.track\.length/g) || []).length;
+        T.ok('the position row reads positionPop, and `pos.track.length` survives only inside it', call === 1 && span === 1, 'call=' + call + ' pos.track.length=' + span);
+      }
+    });
+
     /* ════ MotionDex classifyGravity uses the ECGDex/PPGDex THRESHOLD scheme — sibling divergence (deep-audit finding H) ════
      `classifyGravity` used to classify posture by ARGMAX / Y-priority (`if(ay>=ax&&ay>=az)'upright'; if(ax>=az)
      lateral; else supine/prone`), while the two siblings that read the SAME torso ACC — ECGDex `_posture`, PPGDex
