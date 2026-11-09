@@ -32791,6 +32791,32 @@
       T.ok('hero/bench num() helper keeps its correct (v != null && !isNaN(v)) form', /v != null && !isNaN\(v\)/.test(rnd));
     });
 
+    group('HRVDex render — an absent energy raises no alert and an absent debt draws no bar (residue 2026-11-08)', 'sources', function (T) {
+      var rnd = (env.sources || {})['hrvdex-render.js'];
+      if (!rnd) {
+        T.ok('hrvdex-render.js source provided', false, 'runner passed no hrvdex-render.js');
+        return;
+      }
+      // Rows 2026-11-08-hrvdex-low-energy-alert-fires-on-a-null-energy and
+      // 2026-11-08-hrvdex-recovery-debt-chart-draws-an-absent-value-as-a-green-zero. Whitespace-agnostic.
+      T.ok('the Low Energy alert guards a null energy with Number.isFinite', /Number\.isFinite\(\s*r\._energy\s*\)\s*&&\s*r\._energy\s*<\s*30/.test(rnd));
+      T.ok('no bare `r._energy < 30` test remains (null < 30 is true)', !/if\s*\(\s*r\._energy\s*<\s*30/.test(rnd));
+      T.ok('the recovery-debt chart no longer replaces an absent value with 0', !/d_recovery_debt\s*\|\|\s*0/.test(rnd));
+      // Behaviour: run the colour helper itself. A real 0 is green; null, undefined and NaN take no colour.
+      var m = rnd.match(/function debtColor\(v, a\) \{[\s\S]*?\n\}/);
+      T.ok('debtColor helper present', !!m);
+      if (!m) return;
+      var rgba = function (c, a) {
+        return c + ':' + a;
+      };
+      var debtColor = new Function('rgba', m[0] + '; return debtColor;')(rgba);
+      T.eq('a real debt of 0 is green', debtColor(0, 1), 'green:1');
+      T.eq('a debt of 7 is red', debtColor(7, 1), 'red:1');
+      T.eq('a null debt takes no colour', debtColor(null, 1), 'rgba(0,0,0,0)');
+      T.eq('an undefined debt takes no colour', debtColor(undefined, 1), 'rgba(0,0,0,0)');
+      T.eq('a NaN debt takes no colour', debtColor(NaN, 1), 'rgba(0,0,0,0)');
+    });
+
     /* ════ 9c · HRVDex full-metrics TABLE — every real column is BADGED; graded columns show their TRUE
        grade; dead cuffless-BP columns are gone (Findings I + J) ════
        Finding I: the full-metrics table header was the fleet's ONLY evBadge(label, false) site, so 34 real-
