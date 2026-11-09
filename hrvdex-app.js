@@ -410,7 +410,16 @@ function exportCSV() {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = exportName({ node: 'HRVDex', t0Ms: _aT0, kind: 'summary', ext: 'csv', spanDays: _aSpan });
+  _hrvClickAndRevoke(a);
+}
+
+// Every export blob URL is revoked after its download starts, as the sibling apps do (residue
+// 2026-11-08-hrvdex-revokes-none-of-its-export-blob-urls). The delay matches oxydex-app.js: a
+// synchronous revoke can cancel the download in some browsers before it reads the blob.
+function _hrvClickAndRevoke(a) {
   a.click();
+  const url = a.href;
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 // Export download FILENAMES come from the shared dex-export.js exportName() — recording-anchored,
@@ -437,7 +446,7 @@ function exportJSONL() {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = exportName({ node: 'HRVDex', t0Ms: _aT0, kind: 'series', ext: 'json', spanDays: _aSpan });
-  a.click();
+  _hrvClickAndRevoke(a);
 }
 
 // ─── GANGLIOR BUS EMIT SHIM (Phase 0 → Phase 9) ───────────────────────────────
@@ -466,7 +475,7 @@ function exportGanglior() {
   a.href = URL.createObjectURL(blob);
   // ganglior export covers the FULL recording — anchor + span come from its OWN computed recording block.
   a.download = exportName({ node: 'HRVDex', t0Ms: out.recording.startEpochMs, kind: 'ganglior', ext: 'json', spanDays: out.recording.spanDays });
-  a.click();
+  _hrvClickAndRevoke(a);
   if (typeof setStatus === 'function')
     setStatus('✅ Ganglior bus export — ' + out.ganglior_events.length + ' events from ' + out.recording.measurements + ' measurements. Drop into Integrator to fuse.');
 }
