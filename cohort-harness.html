@@ -7039,7 +7039,10 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
        sensor would have scored the night's stillness top marks, which is the same fabricated-absence
        bug the note above s2 exists to prevent. Drop the component instead. */
     var s3 = stats.motionPct == null ? null : Math.max(0, Math.min(100, Math.round(((2.0 - stats.motionPct) / 1.8) * 100)));
-    var s4 = Math.max(0, Math.min(100, Math.round(((20 - osc.episodeCount) / 20) * 100)));
+    /* ∅ residue 2026-11-08-sleep-stability-s4-reads-a-null-episode-count-as-perfect: `(20 - null) / 20`
+       is a PERFECT 100, so an absent episode count scored the best periodic-breathing subscore. The
+       sole caller passes a finite count today; the guard matches s1, s3, s5 and s6. */
+    var s4 = osc == null || osc.episodeCount == null ? null : Math.max(0, Math.min(100, Math.round(((20 - osc.episodeCount) / 20) * 100)));
     /* ∅ ABSENCE-SURVEY 19200c666fc3 — THE CONSUMER HALF OF A FINDING THE DRAIN COUNTS AS FIXED.
        That digest nulls `hb.rate` at the producer, and the drain ledger reads `fixed`. This line then
        read the null as the BEST hypoxic burden the scale can express, so the night still scored on a
