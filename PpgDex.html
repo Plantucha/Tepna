@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="3191c50f85d4" data-compute-hash="dc308f761c74">
+<html lang="en" data-manifest-hash="a43e73745bcd" data-compute-hash="46776d0a38b7">
 <head>
 <!--
   PpgDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+E7DsZhnmXrG5AjxB/CWGm7AqoIwqw4koEZzGChU1xk=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-3IUQgcSOji2CeRMbcMgIbQ+j+8z6+T9s9DeZGqBO7KA=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Dhq83zI2md+We8Ro7a9o2DKtvCqYRUB8hYK2tYwJhAQ=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-NjntMXCQa7Ujm45zxhn5RagnUXecQAsomLdGhIqDXRg=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-hCZmwNAMDLPZEMYHAYpzoPETSnimg1oHWWjZImdKqxM=' 'sha256-iSJakZ8u7vdsb5/lEQLbgJLpYi1QeexABMUmx9FZt6A=' 'sha256-jzJnte+elEp/YL/dKPBjUNceuZl7x6OYEPLRBoCkuNA=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rCirk2YDG5hFUST54QihtO4S/eA0Q5IdiVoSV+cCE9U=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+E7DsZhnmXrG5AjxB/CWGm7AqoIwqw4koEZzGChU1xk=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-3IUQgcSOji2CeRMbcMgIbQ+j+8z6+T9s9DeZGqBO7KA=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BFFeB7Y4t8b+q4h6qqyvZc45ThsHVxHkglrsTl8Y2hU=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-NjntMXCQa7Ujm45zxhn5RagnUXecQAsomLdGhIqDXRg=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-hCZmwNAMDLPZEMYHAYpzoPETSnimg1oHWWjZImdKqxM=' 'sha256-iSJakZ8u7vdsb5/lEQLbgJLpYi1QeexABMUmx9FZt6A=' 'sha256-jzJnte+elEp/YL/dKPBjUNceuZl7x6OYEPLRBoCkuNA=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rCirk2YDG5hFUST54QihtO4S/eA0Q5IdiVoSV+cCE9U=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>PpgDex — Raw Wrist-PPG Analyzer · v2.29.0</title>
@@ -12588,6 +12588,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       segBaseNs = 0,
       prevRelNs = NaN;
     const resyncs = [];
+    let nNonFinite = 0;
     for (const line of lines) {
       const t = line.trim();
       if (!t) continue;
@@ -12601,6 +12602,23 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       if (!c) continue;
       const x = parseFloat(p[c.x]);
       if (!isFinite(x)) continue;
+      const y = parseFloat(p[c.y]),
+        z = parseFloat(p[c.z]);
+      /* §∅ — DROP AND COUNT, NEVER CLAMP, AND NEVER PUSH A NaN. `x` was finite-checked
+         one line up since this parser was written; `y` and `z` were not, so a non-numeric or empty
+         field entered the series as NaN and every consumer saw a sample the device never sent. Row
+         `2026-11-08-parsesensorxyz-pushes-y-and-z-without-a-finite-check` owns that defect. The
+         remedy is MotionDex's in `parseSensorXYZ` of the same name: drop the row and count it, because
+         a clamped sample is a fabricated reading at the bound.
+         ⚠️ THE COUNT IS A DIFFERENT COUNT FROM THE TWIN'S. MotionDex publishes
+         `_implausibleDropped`, which also holds rows a plausibility test rejected. This node runs no
+         plausibility test, so it publishes `_nonFiniteDropped` and claims only what it checked.
+         ⚠️ THE GUARD SITS AHEAD OF THE CLOCK BOOKKEEPING, as the twin's does. A row we
+         refuse must not inform resync detection or `firstRowTMs`. */
+      if (!isFinite(y) || !isFinite(z)) {
+        nNonFinite++;
+        continue;
+      }
       let relNs = NaN;
       const ts = parseTimestamp(p[c.phone >= 0 ? c.phone : 0]);
       try {
@@ -12637,9 +12655,12 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
         if (firstRowTMs === null) firstRowTMs = ts.tMs;
         prevRowTMs = ts.tMs;
       }
-      out.push({ relNs, tMs: ts ? ts.tMs : null, x, y: parseFloat(p[c.y]), z: parseFloat(p[c.z]) });
+      out.push({ relNs, tMs: ts ? ts.tMs : null, x, y, z });
     }
     if (resyncs.length) /** @type {any} */ (out)._clockResyncs = resyncs;
+    /* Unconditional, like the twin's `_implausibleDropped`: a reader must tell "nothing was dropped"
+       from "this parser does not count", and a key that appears only when non-zero cannot. */
+    /** @type {any} */ (out)._nonFiniteDropped = nNonFinite;
     const _accRuns = parseAccRunsTimed(opts && opts.runsText);
     /* §∅ — A SIDECAR THAT FOUND NO RUN IS A MEASUREMENT, AND ITS ABSENCE IS NOT. Spans alone
        cannot carry that difference, so `_runsSidecar` rides beside them and is present exactly when a
