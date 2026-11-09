@@ -14,6 +14,7 @@ import webmon
 from aiohttp.test_utils import TestClient, TestServer
 
 from tests.test_webmon_api import H10, RING, _mk, _serve
+from _srcscan import block_source, module_source, split_segment, until_anchor
 
 # A COMPLETE enumeration, for a stub standing in for `polar_psftp.list_recordings_ex` in a test
 # whose subject is not the walk. The four keys are that function's published shape.
@@ -196,6 +197,54 @@ def test_polar_recordings_says_so_when_the_walk_came_back_CUT(tmp_path, monkeypa
     assert body["complete"] is False, "and the population says the list is a floor"
     assert body["listing"] == cut, "the two lists say WHICH absence it was, not merely that there was one"
     assert body["recordings"][0]["size"] == 1234, "what DID arrive is still returned"
+
+
+# The API half above has been tested since #4569. The RENDER half had no test at all, and that is
+# where the key went unread: `pullRec` drew `r.recordings` alone, so the panel showed a count over a
+# walk that may have been cut (row `2026-11-08-the-monitor-page-reads-no-polar-enumeration-completeness`).
+# These three scan the page the daemon serves, because no browser runs under this gate.
+_PULLREC = "monitor.html pullRec"
+_EMPTY_ARM = "if(!recs.length)"
+
+
+def _before_the_empty_arm(fn: str) -> str:
+    return until_anchor(fn, _EMPTY_ARM, where=_PULLREC)
+
+
+def _the_empty_arm(fn: str) -> str:
+    arm = split_segment(fn, _EMPTY_ARM, 1, where=_PULLREC)
+    return until_anchor(arm, "return;", where=_PULLREC + " empty arm")
+
+
+def test_THE_RECORDINGS_PANEL_READS_THE_COMPLETENESS_KEY_THE_API_PUBLISHES():
+    fn = block_source("monitor.html", "async function pullRec(")
+    assert "r.complete" in fn, "the panel still draws a count over a walk it never asked about"
+    assert "r.listing" in fn, "and never names WHICH directories went unread"
+    assert "truncated_dirs" in fn
+    assert "unreadable_dirs" in fn
+
+
+def test_A_CUT_WALK_DRAWS_A_FLOOR_AND_NOT_A_TOTAL():
+    fn = block_source("monitor.html", "async function pullRec(")
+    assert "FLOOR" in fn, "a reader cannot tell a floor from a total"
+    assert "hint warn" in fn, "the floor note wears the ordinary grey hint"
+    # The note must reach BOTH arms. A floor over an empty list is the sharper of the two.
+    assert "floorNote" in _before_the_empty_arm(fn), "the note is computed after the branch that needs it"
+    assert "floorNote" in _the_empty_arm(fn), "the empty arm drops the floor note"
+
+
+def test_AN_UNREADABLE_WALK_IS_NOT_AN_EMPTY_DEVICE():
+    fn = block_source("monitor.html", "async function pullRec(")
+    empty = _the_empty_arm(fn)
+    assert "NOT an empty device" in empty, "an unreadable walk still reads as a measured zero"
+    assert "no onboard recordings stored" in empty, "the genuinely empty device lost its own sentence"
+
+
+def test_THE_WARN_HINT_THIS_PAGE_ASSIGNS_HAS_A_CSS_RULE():
+    # The sibling finding from #4699, in its own class: an absent rule reads as a value. A `hint warn`
+    # with no rule draws the ordinary grey, so the floor note would look like any other hint.
+    src = module_source("monitor.html")
+    assert ".hint.warn{" in src, "`hint warn` falls through to the grey `.card .hint` rule"
 
 
 def test_polar_pull_downloads_via_the_offline_path(tmp_path, monkeypatch):

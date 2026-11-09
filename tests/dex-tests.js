@@ -44863,6 +44863,81 @@
       }
     });
 
+    group('∅ absent OxyDex HR keeps the channels the night DID measure', 'oxydex-dsp · export-contract · absence · residue-2026-11-08', function (T) {
+      /* The defect (residue 2026-11-08-absent-oxydex-hr-takes-the-present-channels-out-of-the-export):
+         the 5-min epoch builder dropped any window holding under 60 HR samples, and the export block
+         shipped only when at least one epoch survived. On a night whose HR column carries no measured
+         pulse both gates close, so the 1 Hz SpO2 series the device recorded for every second of the
+         night never left the node. Reduced coverage annotates; only a discontinuity refuses. */
+      /* The namespace, NOT `_bare`: that object is a restricted set (oxydex-dsp.js:10045) and
+         carries neither builder, so reading it here reported "not loaded" over a loaded module. */
+      var OX = env.OxyDex || env.OXYDEX;
+      if (!OX || typeof OX.buildEpochSeries !== 'function' || typeof OX.buildTimeseriesBlock !== 'function') {
+        T.ok('OxyDex.buildEpochSeries + buildTimeseriesBlock are reachable', false, 'not loaded — this group cannot run and must not read as a pass');
+      } else {
+        var t0 = Date.UTC(2026, 0, 2, 23, 0, 0);
+        // Four 5-min windows, each a different coverage shape. hrFill/moFill = seconds carrying that channel.
+        var mkRows = function (shapes) {
+          var rows = [];
+          for (var w = 0; w < shapes.length; w++)
+            for (var i = 0; i < 300; i++) {
+              var r = { tMs: t0 + (w * 300 + i) * 1000, spo2: 96 };
+              if (i < shapes[w].hrFill) r.hr = 60 + (i % 3);
+              if (i < shapes[w].moFill) r.motion = 4;
+              rows.push(r);
+            }
+          return rows;
+        };
+        var eps = OX.buildEpochSeries(
+          mkRows([
+            { hrFill: 300, moFill: 300 }, // full coverage — the control
+            { hrFill: 30, moFill: 300 }, // under the floor, motion present
+            { hrFill: 0, moFill: 300 }, // no pulse at all, motion present
+            { hrFill: 0, moFill: 0 } // neither channel — nothing to publish
+          ]),
+          t0
+        );
+        var byMin = {};
+        for (var e = 0; e < eps.length; e++) byMin[eps[e].tMin] = eps[e];
+        T.eq('a window holding neither channel is still dropped, so three of four epochs publish', eps.length, 3);
+        T.ok(
+          'CONTROL · the full-coverage window publishes the SAME mean rate as before, with its covered count beside it',
+          byMin[0] && byMin[0].hr === 61 && byMin[0].hrN === 300 && byMin[0].motionIndex === 4,
+          JSON.stringify(byMin[0])
+        );
+        T.ok(
+          'a window under the 60-sample floor keeps its motion and nulls only the HR',
+          byMin[5] && byMin[5].hr === null && byMin[5].hrN === 30 && byMin[5].motionIndex === 4,
+          JSON.stringify(byMin[5])
+        );
+        T.ok(
+          '…and a window with no pulse at all says so with hrN 0 rather than vanishing',
+          byMin[10] && byMin[10].hr === null && byMin[10].hrN === 0 && byMin[10].motionIndex === 4,
+          JSON.stringify(byMin[10])
+        );
+        T.ok('the dropped window is the one that measured nothing', byMin[15] === undefined, JSON.stringify(Object.keys(byMin)));
+
+        // The export block: one absent member never withholds the others.
+        var sp = [96, 95, null, 97];
+        var noEps = OX.buildTimeseriesBlock([{ tchEpochs: [], spo2Series: sp, hrSeries: null }]);
+        T.ok('a night that cleared no epoch floor STILL exports its SpO2 series', !!noEps && !!noEps.spo2 && noEps.spo2.n === 4, JSON.stringify(noEps && Object.keys(noEps)));
+        T.ok(
+          '…with `epochs` absent rather than empty, and its reason named',
+          !!noEps && noEps.epochs === undefined && noEps.epochsReason === 'no-channel-in-any-epoch',
+          JSON.stringify(noEps && { epochs: noEps.epochs, reason: noEps.epochsReason })
+        );
+        var seamed = OX.buildTimeseriesBlock([{ tchEpochs: [], spo2Series: sp, hrSeries: null, clockSeamRefusals: [{ series: 'tchEpochs', tMin: 5, reason: 'clock-seam', seams: 1 }] }]);
+        T.eq('a seam scan that refused every window names ITS reason, never the coverage one', seamed && seamed.epochsReason, 'clock-seam');
+        var withEps = OX.buildTimeseriesBlock([{ tchEpochs: [{ tMin: 0, hr: 60, hrN: 300, hrStat: 'mean-rate', motionIndex: 0 }], spo2Series: sp, hrSeries: null }]);
+        T.ok(
+          'CONTROL · a night WITH epochs carries no reason field, so the key means what it says',
+          !!withEps && withEps.epochsReason === undefined && withEps.epochs.length === 1,
+          JSON.stringify(withEps && Object.keys(withEps))
+        );
+        T.eq('CONTROL · a night that built none of the three members is still null', OX.buildTimeseriesBlock([{ tchEpochs: [], spo2Series: null, hrSeries: null }]), null);
+      }
+    });
+
     group('The beat series carry per-beat fused-hat confidence (the `c` of `ms;hr;c`)', 'ecgdex-dsp · ppgdex-dsp · trio · export-contract', function (T) {
       /* Driven off the COMMITTED rich goldens — the same artifacts `verify-provenance` GATE B pins and
          CI re-runs from committed bytes every push, so this cannot go stale unseen. */
@@ -89475,10 +89550,24 @@
         T.eq('motionIndex is the MEAN motion count (10/60 = 0.167), not the median (0)', eps[0].motionIndex, 0.167);
         T.eq('no rows ⇒ [] (never a fabricated epoch)', bes([], t0).length, 0);
         T.eq('no anchor ⇒ [] — an epoch grid needs a t0', bes(rows, null).length, 0);
-        // one sample short of the ≥60 coverage floor ⇒ that epoch vanishes
+        /* UPDATED 2026-11-09, deliberately (residue
+           2026-11-08-absent-oxydex-hr-takes-the-present-channels-out-of-the-export): the floor
+           governs the HR VALUE, not the window. These 59 rows carry a measured motion of 0 — a
+           reading, not an absence — so the epoch now publishes with `hr: null` and `hrN: 59` beside
+           that motion, instead of taking the motion down with the rate. A window that measured
+           NEITHER channel is still dropped, which is the leg below. */
         var short1 = [];
         for (var s1 = 0; s1 < 59; s1++) short1.push({ tMs: t0 + 300000 + s1 * 1000, hr: 70, motion: 0 });
-        T.eq('a 59-sample epoch is DROPPED — the floor is ≥60', bes(rows.slice(0, 60).concat(short1), t0).length, 1);
+        var shortEps = bes(rows.slice(0, 60).concat(short1), t0);
+        T.eq('a 59-sample epoch KEEPS its window — the ≥60 floor governs the HR value', shortEps.length, 2);
+        T.ok(
+          '…publishing hr null with hrN 59 and the motion it did measure',
+          shortEps[1] && shortEps[1].hr === null && shortEps[1].hrN === 59 && shortEps[1].motionIndex === 0,
+          JSON.stringify(shortEps[1])
+        );
+        var noChan = [];
+        for (var s2 = 0; s2 < 59; s2++) noChan.push({ tMs: t0 + 300000 + s2 * 1000, spo2: 96 });
+        T.eq('a window holding NEITHER channel is still dropped', bes(rows.slice(0, 60).concat(noChan), t0).length, 1);
         /* Pre-anchor rows need FULL coverage of their own to prove they were skipped by `k < 0`
            rather than merely dropped by the coverage floor — with one stray row the two guards are
            indistinguishable, and that mutant survived. 60 rows two epochs early would surface as a
