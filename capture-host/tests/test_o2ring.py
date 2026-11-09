@@ -826,8 +826,33 @@ def test_main_replay(monkeypatch, capsys):
 
 
 @pytest.mark.parametrize("encrypted", [False, True])
-def test_main_auth(monkeypatch, encrypted):
-    _main(monkeypatch, ["o2ring.py", "auth"], FakeRing(encrypted=encrypted))
+def test_main_auth(monkeypatch, capsys, encrypted):
+    """`main auth` runs the handshake and then fetches NOTHING. Both firmware arms.
+
+    This test asserted nothing until 2026-11-08 (row 2026-11-08-test-main-auth-asserts-nothing), so it
+    passed for any outcome that did not raise, while every `test_main_*` sibling asserts on output or
+    bytes. The handshake itself belongs to `test_authenticate_new_ring_installs_key_then_hello`. What
+    only the CLI layer can say is that the `auth` subcommand stops at the ack: it is the one subcommand
+    that reads no data, so a shared tail added under the dispatch shows up here first."""
+    dev = FakeRing(encrypted=encrypted)
+    _main(monkeypatch, ["o2ring.py", "auth"], dev)
+    out = capsys.readouterr().out
+    assert "AUTH OK — hello ack:" in out  # the 0xE0 ack is the only auth-success signal
+    assert dev.authed
+    assert dev.bad_requests == 0
+    ops = {op for op, _ in dev.log}
+    assert o2ring.OP_HELLO in ops  # the handshake ran through the CLI, not only in the unit test
+    assert not ops & {
+        o2ring.OP_GET_INFO,
+        o2ring.OP_FILE_LIST,
+        o2ring.OP_FILE_START,
+        o2ring.OP_FILE_DATA,
+        o2ring.OP_FILE_END,
+    }
+    if encrypted:
+        assert "[AES session]" in out  # the CLI acked over AES, so it took the keyed path
+    else:
+        assert "AES" not in out  # a plaintext ring installs no key
 
 
 @pytest.mark.parametrize("encrypted", [False, True])
