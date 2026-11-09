@@ -378,8 +378,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "98cdb34c4649",
-          "computeHash": "9f1d312f757b"
+          "manifestHash": "01674d1cc990",
+          "computeHash": "e0eb2161a0cc"
         },
         "evidence": {
           "envelopeRef": null,
@@ -407,8 +407,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "98cdb34c4649",
-          "computeHash": "9f1d312f757b"
+          "manifestHash": "01674d1cc990",
+          "computeHash": "e0eb2161a0cc"
         },
         "evidence": {
           "envelopeRef": null,
@@ -436,8 +436,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "98cdb34c4649",
-          "computeHash": "9f1d312f757b"
+          "manifestHash": "01674d1cc990",
+          "computeHash": "e0eb2161a0cc"
         },
         "evidence": {
           "envelopeRef": null,
@@ -465,8 +465,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "98cdb34c4649",
-          "computeHash": "9f1d312f757b"
+          "manifestHash": "01674d1cc990",
+          "computeHash": "e0eb2161a0cc"
         },
         "evidence": {
           "envelopeRef": null,
@@ -1404,16 +1404,19 @@
       },
       "spk50Rec": null,
       "stageProxy": {
-        "remProxySec": 17520,
-        "remProxyMin": 292,
-        "remProxyPct": 67,
+        "remProxySec": 17400,
+        "remProxyMin": 290,
+        "remProxyPct": 66.5,
         "nremDeepSec": 0,
         "nremDeepMin": 0,
         "nremDeepPct": 0,
         "plausible": false,
-        "plausibilityNote": "REM proxy implausible (67% of the recording; physiological ≈20–25%) — the HR-stability estimator over-fires on quiet sleep. Not a high-REM night; treat as unreliable.",
+        "plausibilityNote": "REM proxy implausible (66.5% of the recording; physiological ≈20–25%) — the HR-stability estimator over-fires on quiet sleep. Not a high-REM night; treat as unreliable.",
         "remProxyLabel": "Implausible — estimator unreliable",
-        "nremDeepLabel": "Low deep sleep estimate"
+        "nremDeepLabel": "Low deep sleep estimate",
+        "hrCoveredN": 26145,
+        "hrSpanN": 26155,
+        "classifiedWindows": 216
       },
       "vo2est": {
         "vo2est": 58.3,

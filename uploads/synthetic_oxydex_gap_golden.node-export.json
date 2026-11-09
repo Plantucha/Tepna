@@ -370,8 +370,8 @@
       },
       "sourceChannel": "O2Ring:spo2",
       "code": {
-        "manifestHash": "98cdb34c4649",
-        "computeHash": "9f1d312f757b"
+        "manifestHash": "01674d1cc990",
+        "computeHash": "e0eb2161a0cc"
       },
       "evidence": {
         "envelopeRef": null,
@@ -399,8 +399,8 @@
       },
       "sourceChannel": "O2Ring:spo2",
       "code": {
-        "manifestHash": "98cdb34c4649",
-        "computeHash": "9f1d312f757b"
+        "manifestHash": "01674d1cc990",
+        "computeHash": "e0eb2161a0cc"
       },
       "evidence": {
         "envelopeRef": null,
@@ -428,8 +428,8 @@
       },
       "sourceChannel": "O2Ring:spo2",
       "code": {
-        "manifestHash": "98cdb34c4649",
-        "computeHash": "9f1d312f757b"
+        "manifestHash": "01674d1cc990",
+        "computeHash": "e0eb2161a0cc"
       },
       "evidence": {
         "envelopeRef": null,
@@ -457,8 +457,8 @@
       },
       "sourceChannel": "O2Ring:spo2",
       "code": {
-        "manifestHash": "98cdb34c4649",
-        "computeHash": "9f1d312f757b"
+        "manifestHash": "01674d1cc990",
+        "computeHash": "e0eb2161a0cc"
       },
       "evidence": {
         "envelopeRef": null,
@@ -961,16 +961,19 @@
     },
     "spk50Rec": null,
     "stageProxy": {
-      "remProxySec": 0,
-      "remProxyMin": 0,
-      "remProxyPct": 0,
-      "nremDeepSec": 1800,
-      "nremDeepMin": 30,
-      "nremDeepPct": 25,
-      "plausible": true,
-      "plausibilityNote": null,
-      "remProxyLabel": "Low REM estimate (<45min)",
-      "nremDeepLabel": "Moderate"
+      "remProxySec": 3600,
+      "remProxyMin": 60,
+      "remProxyPct": 50,
+      "nremDeepSec": 360,
+      "nremDeepMin": 6,
+      "nremDeepPct": 5,
+      "plausible": false,
+      "plausibilityNote": "REM proxy implausible (50% of the recording; physiological ≈20–25%) — the HR-stability estimator over-fires on quiet sleep. Not a high-REM night; treat as unreliable.",
+      "remProxyLabel": "Implausible — estimator unreliable",
+      "nremDeepLabel": "Low deep sleep estimate",
+      "hrCoveredN": 5400,
+      "hrSpanN": 7200,
+      "classifiedWindows": 43
     },
     "vo2est": {
       "vo2est": 50.9,
@@ -1227,7 +1230,7 @@
       "hrDecelRuns": 0,
       "spo2HrDecouplingPct": 42.9,
       "intraNightNSI": [
-        67,
+        40,
         9
       ]
     },

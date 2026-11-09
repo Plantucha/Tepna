@@ -24,7 +24,7 @@
       "dex-escape.js": "f0d38619047a",
       "oxydex-util.js": "5cc642ee790b",
       "oxydex-profile.js": "3496a101178a",
-      "oxydex-dsp.js": "faf6cf810a91"
+      "oxydex-dsp.js": "bea2269ae01b"
     },
     "pulse": {
       "synth-gen.js": "a653cf5afb78",
@@ -151,18 +151,11 @@
       "old": "88a13aaa8774",
       "new": "1a0df4a4722e",
       "reason": "residue 2026-11-09-the-spo2-spectrum-reads-a-gap-run-as-reduced-coverage: computeSpO2FFT now publishes absentRunMaxN, the longest contiguous absent run, and names a refusal that one hole caused as absence-run. The spectrum is not a treatment-response input, and the re-cut measured the SAME 233 tx / 239 flat under the moved closure, so the yield is unchanged and this entry records the move only."
-    },
-    {
-      "date": "2026-11-09",
-      "file": "oxydex-dsp.js",
-      "old": "1a0df4a4722e",
-      "new": "faf6cf810a91",
-      "reason": "residue 2026-11-08-the-default-export-carries-the-upload-filename: the whole diff for this file is the comment above oxyScrubExport, which records that the call site now defaults the share-scrub ON. No statement moved. The paper-scale re-cut on this tree measured the SAME 233 tx / 239 flat in 548.9 s, so the yield is unchanged and this entry records the move only."
     }
   ],
-  "measuredAt": "2026-11-09T18:09:28.342Z",
+  "measuredAt": "2026-11-09T19:06:28.283Z",
   "producedBy": {
     "tool": "tools/treatment-response-yield-pin.mjs",
-    "commit": "0267c0756"
+    "commit": "896946788"
   }
 }
