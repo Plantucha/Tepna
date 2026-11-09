@@ -1401,9 +1401,17 @@ def powered_off_after_pull(
     True only when a pull for this device SUCCEEDED and that success is recent. Both halves are
     load-bearing and they fail in opposite directions:
 
-    · **The pull must have SUCCEEDED.** A doff whose pull failed or ran partial leaves data on the ring
-      that we still need, so its silence IS something to alert about. Licensing the quiet state on the
-      doff alone would suppress exactly the alert that matters — the night we did not collect.
+    · **The pull must have SUCCEEDED.** A doff whose pull FAILED leaves data on the ring that we still
+      need, so its silence IS something to alert about. Licensing the quiet state on the doff alone
+      would suppress exactly the alert that matters — the night we did not collect.
+
+      "SUCCEEDED" names the PRIMARY pull, and nothing else. `capture.py` writes `_LAST_PULL_OK` at
+      one site, after that pull returns, and never in an `except` arm. A follow-on ledger drain that
+      the link refuses does not retract the licence: the fragments stay on flash, the hourly poller
+      reaches them, and the daemon publishes the refusal as `STATUS["autopull"]["drain"]`. So a
+      partial DRAIN is not a partial PULL. This clause once read the two as one object, and named a
+      half-done pull that no writer produces — which made the contract look broken while the code was
+      right (row `2026-11-08-a-partial-drain-keeps-the-power-off-licence-the-contract-withholds`).
 
     · **It must EXPIRE.** A ring that has not advertised for well past its timer AND past any plausible
       re-wear is no longer explained by the idle timer; it is a flat battery, a ring left in a bag, or a
