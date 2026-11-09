@@ -50,13 +50,14 @@ def test_tier_streamed_gate_blocks_a_device_that_never_streamed():
 
 def test_classify_absence_failure_goes_to_page():
     # A classifier that cannot classify must not hide the alert (ruling amendment 3):
-    # a non-numeric duration raises inside the comparison and the wrapper answers PAGE.
-    assert alerts.classify_absence("soon", in_window=True, streamed=True, cluster_size=1) == alerts.TIER_PAGE
+    # a non-numeric duration raises inside the comparison and the function answers PAGE. The
+    # second member says the tier was NOT decided, and the caller pages past the cap on it.
+    assert alerts.classify_absence("soon", in_window=True, streamed=True, cluster_size=1) == (alerts.TIER_PAGE, True)
 
 
 def test_classify_absence_matches_tier_when_it_can_classify():
-    assert alerts.classify_absence(60, in_window=True, streamed=True, cluster_size=1) == alerts.TIER_BOARD
-    assert alerts.classify_absence(1800, in_window=True, streamed=True, cluster_size=1) == alerts.TIER_PAGE
+    assert alerts.classify_absence(60, in_window=True, streamed=True, cluster_size=1) == (alerts.TIER_BOARD, False)
+    assert alerts.classify_absence(1800, in_window=True, streamed=True, cluster_size=1) == (alerts.TIER_PAGE, False)
 
 
 def test_is_clustered_tight_trio_all_members():
@@ -372,19 +373,20 @@ def test_stats_do_not_leak_either_url():
 
 def test_classify_absence_passes_cluster_devices_through():
     # mutmut_12 dropped the cluster_devices kwarg, so the default (3) answered instead.
-    assert (
-        alerts.classify_absence(0, in_window=True, streamed=True, cluster_size=2, cluster_devices=2) == alerts.TIER_PAGE
+    assert alerts.classify_absence(0, in_window=True, streamed=True, cluster_size=2, cluster_devices=2) == (
+        alerts.TIER_PAGE,
+        False,
     )
-    assert (
-        alerts.classify_absence(0, in_window=True, streamed=True, cluster_size=2, cluster_devices=3)
-        == alerts.TIER_BOARD
+    assert alerts.classify_absence(0, in_window=True, streamed=True, cluster_size=2, cluster_devices=3) == (
+        alerts.TIER_BOARD,
+        False,
     )
 
 
 def test_classify_absence_failure_logs_the_exception(caplog):
     # mutmut_14/15/16 rewrote the fail-to-PAGE warning: the exception, the reason, the arg.
     with caplog.at_level(logging.WARNING, logger="alerts"):
-        assert alerts.classify_absence(None, in_window=True, streamed=True, cluster_size=1) == alerts.TIER_PAGE
+        assert alerts.classify_absence(None, in_window=True, streamed=True, cluster_size=1) == (alerts.TIER_PAGE, True)
     warnings = [r for r in caplog.records if r.levelname == "WARNING"]
     assert warnings, "the fail-to-PAGE path must leave a log line behind"
     text = warnings[-1].getMessage()
@@ -547,12 +549,14 @@ class _Rec:
         if with_board_url:
             self.board_url = "https://hooks.example/board/topic"
         self.sent = []
+        self.kw = []  # the keyword arguments of each send, in the same order as `sent`
         self.board_ok = board_ok
         self.page_ok = page_ok
 
     async def send(self, title, message, **kw):
         tier = kw.get("tier", alerts.TIER_PAGE)
         self.sent.append((title, tier))
+        self.kw.append(dict(kw))
         return self.board_ok if tier == alerts.TIER_BOARD else self.page_ok
 
 
@@ -886,3 +890,59 @@ def test_the_capped_page_rerouted_to_a_REAL_board_counts_as_a_board_delivery():
     assert st["cap_held"] == 1
     assert st["board_delivered"] == 1
     assert st["board_fallback_delivered"] == 0
+
+
+# ── AN UNDECIDED TIER IS A FACT THE CALLER ACTS ON ──────────────────────────────────────────────
+# Row `2026-11-08-the-page-cap-overrides-the-classifier-failure-direction`. A thrown classifier
+# answers PAGE so the alert is not hidden, and the caller used to spend the daily page cap on it.
+# At the cap, with no board destination configured, `send` writes one WARNING line and answers
+# True, so the poller latched the episode as paged and the alert never buzzed.
+
+
+def test_classify_absence_reports_undecided_when_the_classifier_throws(caplog):
+    """The tier it answers is the ruling's failure direction, not a measurement, and the second
+    member says so. The log line stays where it was."""
+    import logging
+
+    caplog.set_level(logging.WARNING)
+    assert alerts.classify_absence("soon", in_window=True, streamed=True, cluster_size=1) == (
+        alerts.TIER_PAGE,
+        True,
+    )
+    assert "alert tier classification failed" in caplog.records[-1].getMessage()
+
+
+def test_poller_pages_an_undecided_tier_exempt_from_the_daily_cap(tmp_path, monkeypatch, caplog):
+    """🔴 THIS IS THE DEFECT. The classifier throws, so the poller sends the page `cap_exempt`, and
+    the cap cannot answer True without delivering it. The WARNING names the undecided tier."""
+    import logging
+
+    def boom(*a, **k):
+        raise TypeError("the tier could not be decided")
+
+    monkeypatch.setattr(alerts, "absence_tier", boom)
+    caplog.set_level(logging.WARNING)
+    fake = _Rec()
+    steps = [(0, _W, True), (10, _W, False)]
+    _drive(tmp_path, monkeypatch, steps, _BASE, fake)
+    pages = [(t, kw) for (t, tier), kw in zip(fake.sent, fake.kw) if tier == alerts.TIER_PAGE]
+    assert pages, fake.sent
+    assert all(kw["cap_exempt"] is True for _, kw in pages), pages
+    assert any("its tier is UNDECIDED" in r.getMessage() for r in caplog.records), [
+        r.getMessage() for r in caplog.records
+    ]
+
+
+def test_poller_pages_a_decided_tier_inside_the_daily_cap(tmp_path, monkeypatch, caplog):
+    """CONTROL. A tier the classifier decided keeps spending the cap, and keeps its own log line."""
+    import logging
+
+    caplog.set_level(logging.WARNING)
+    fake = _Rec()
+    steps = [(0, _W, True), (10, _W, False), (200, _W, False)]
+    _drive(tmp_path, monkeypatch, steps, _BASE, fake)
+    pages = [(t, kw) for (t, tier), kw in zip(fake.sent, fake.kw) if tier == alerts.TIER_PAGE]
+    assert pages, fake.sent
+    assert all(kw["cap_exempt"] is False for _, kw in pages), pages
+    assert any("the absence has earned a page" in r.getMessage() for r in caplog.records)
+    assert not any("UNDECIDED" in r.getMessage() for r in caplog.records)
