@@ -61,6 +61,27 @@ def _counters(**over):
     return c
 
 
+def test_the_FIXTURE_dict_above_INVENTS_NO_KEY_AND_OMITS_NO_LOSS_CATEGORY():
+    """🔴 WHY THIS SUITE COULD NOT SEE THE DEFECT. Nearly every test here drives `assemble_live`
+    from `_counters()`, a hand-built dict. It has carried `"overflow": 0` since it was written, so the
+    suite asserted on a measured overflow that `cpap_ingest` never produces, and a fabricated 0 read
+    as a measurement through 94 green tests (residue
+    2026-11-08-cpap-transport-overflow-has-no-live-writer).
+
+    The dict stays, because most tests here want the fully-measured state COMPLETE needs. Two tests at
+    the end of this file now drive the REAL record. This one pins the dict to that record, so a third
+    source of truth cannot appear: no invented key, and no loss category left out. VALUES differ on
+    purpose — the real default leaves three categories None, and this dict measures them."""
+    import cpap_ingest
+
+    real = cpap_ingest.GapCounters()
+    published = set(real.summary())
+    invented = sorted(set(_counters()) - published)
+    assert not invented, f"keys the real record never publishes: {invented}"
+    for name in real.lost_coverage:
+        assert name in _counters(), f"a loss category the real record can leave unmeasured: {name}"
+
+
 # ── §5 UNKNOWN ≠ ABSENT — the planted controls ─────────────────────────────────
 def test_absent_gap_accounting_is_unknown_not_zero():
     """THE control for §5. With no counters at all the gap fields must be UNKNOWN — a 0 here would
@@ -417,8 +438,10 @@ def test_the_production_pump_emits_the_envelope_after_the_sinks_close():
     assert ev.validation == ae.VALID, "assembled after the sink closed"
     # ABSENCE-SURVEY aa1146c0a994: the PRODUCTION summary leaves stalls / post_drop_tail unmeasured (nothing
     # assigns them), so a clean, lossless session is UNKNOWN — the COMPLETE this asserted was never earned.
+    # `overflow` joined that list on 2026-11-09: its only writer is a queue no production module
+    # builds (residue 2026-11-08-cpap-transport-overflow-has-no-live-writer).
     assert ev.completeness == ae.UNKNOWN
-    assert ev.provenance["unmeasured_loss"] == ["stalls", "post_drop_tail"]
+    assert ev.provenance["unmeasured_loss"] == ["overflow", "stalls", "post_drop_tail"]
     assert ev.artifact_path == "/tmp/cpap-raw-x.jsonl"
     assert ev.provenance["edf_artifact"] == "/tmp/night/x_BRP.edf"
     assert ev.provenance["observed_interval_ms"] == 40, "the DEVICE's observed interval reached it"
@@ -471,11 +494,17 @@ def _data_at(start, *, interval_ms=40):
     )
 
 
-def test_the_production_pump_with_BOTH_WRITERS_LIVE_finally_reaches_COMPLETE():
-    """🔴 THE END OF THE CENSUS. The two categories `lost_coverage` named on every session now have
-    writers — `stalls` from the continuity tracker (#3700) and `post_drop_tail` from the transport's
-    drop probe — so a clean, lossless night on the production pump earns COMPLETE by MEASURING every
-    category, not by the list going quiet."""
+def test_the_production_pump_with_TWO_WRITERS_LIVE_still_stops_SHORT_of_COMPLETE():
+    """Two of the three loss categories have writers — `stalls` from the continuity tracker (#3700)
+    and `post_drop_tail` from the transport's drop probe. Each one empties its own slot, which is what
+    those two wirings bought.
+
+    🔴 THIS TEST CLAIMED THE CENSUS HAD ENDED, under a name that said the pump reaches COMPLETE.
+    It does not. `overflow` is a third category, and its only writer is `BoundedIngestQueue`, which no
+    production module builds. The old assertions read an empty list and COMPLETE because `overflow`
+    defaulted to 0 and sat outside `lost_coverage` altogether — an unlooked-for category that looked
+    measured (residue 2026-11-08-cpap-transport-overflow-has-no-live-writer). So the pump stops one
+    category short of COMPLETE, and names the one."""
     import cpap_continuity
 
     tracker = cpap_continuity.ContinuityTracker()
@@ -501,9 +530,10 @@ def test_the_production_pump_with_BOTH_WRITERS_LIVE_finally_reaches_COMPLETE():
     )
     assert n == 2
     ev = got[0]
-    assert ev.provenance["unmeasured_loss"] == [], "a category still unlooked-for keeps COMPLETE away"
-    assert ev.completeness == ae.COMPLETE
-    assert ev.transport_gaps == 0, "both terms measured and both zero — a number, not UNKNOWN"
+    assert ev.provenance["unmeasured_loss"] == ["overflow"], "the one category with no writer, named"
+    assert ev.completeness == ae.UNKNOWN, "two of three looked for; COMPLETE needs all three"
+    assert ev.transport_gaps == ae.UNKNOWN, "a sum over an unmeasured term is not a number"
+    assert ev.provenance["gap_counters"]["post_drop_tail"] == 0, "the measured half still rides raw"
 
 
 def test_a_COUNTED_TAIL_IS_NOT_LOSS_and_the_drop_is_what_makes_the_night_PARTIAL():
@@ -529,8 +559,12 @@ def test_a_COUNTED_TAIL_IS_NOT_LOSS_and_the_drop_is_what_makes_the_night_PARTIAL
     except Exception:  # noqa: BLE001 — the drop is the point; the envelope is what we assert on
         pass
     ev = got[0]
-    assert ev.transport_gaps >= 1, "the tail was read and not counted"
-    assert ev.provenance["gap_counters"]["post_drop_tail"] >= 1
+    # ⚠️ THIS READ `ev.transport_gaps >= 1` UNTIL 2026-11-09. The tail is MEASURED, but it shares
+    # `transport_gaps` with the unmeasured `overflow`, and `_counter` refuses to publish a partial sum
+    # as a total. So the PROJECTION reads UNKNOWN while the measured count rides untruncated in
+    # `provenance`, which the next line reads. No count is lost; one surface stopped overstating.
+    assert ev.transport_gaps == ae.UNKNOWN, "one unmeasured term makes the SUM unmeasured"
+    assert ev.provenance["gap_counters"]["post_drop_tail"] >= 1, "the tail was read and counted"
     assert ev.provenance["gap_counters"]["total_lost"] == 0, "a delivered tail frame is not lost"
     assert "post_drop_tail" not in ev.provenance["unmeasured_loss"]
     assert ev.completeness == ae.PARTIAL and ev.provenance["stopped_cleanly"] is False
@@ -1155,9 +1189,10 @@ def test_an_UNMEASURED_gap_category_makes_its_aggregate_UNKNOWN_not_zero():
 
 
 def test_a_measured_category_beside_an_unmeasured_one_still_reports():
-    """The bound on the rule above. `overflow` being live must not be erased by `post_drop_tail` being
-    absent anywhere the two are not summed together — otherwise the fix would trade one blind spot for
-    a wider one."""
+    """The bound on the rule above. A term that IS measured must not be erased by an absent one
+    anywhere the two are not summed together — otherwise the fix would trade one blind spot for a wider
+    one. (`overflow` is the absent one on the production pump, not the live one this line once named:
+    residue 2026-11-08-cpap-transport-overflow-has-no-live-writer.)"""
     ev = cpap.assemble_live(_facts(), counters=_counters(malformed=7, post_drop_tail=None))
     assert ev.decode_gaps == 7 and ev.transport_gaps == ae.UNKNOWN
 
@@ -1218,12 +1253,22 @@ def test_the_envelope_carries_None_not_a_default_when_no_tracker_was_wired():
 
 # ── ABSENCE-SURVEY aa1146c0a994: COMPLETE is a claim about EVERY loss category ───────────────────────
 def test_TODAYS_live_summary_shape_is_UNKNOWN_with_the_unmeasured_categories_named():
-    """The real cpap_ingest summary: stalls / post_drop_tail have no writer, so they are None and listed in
-    lost_coverage_missing. A cleanly stopped session with zero counted loss used to read COMPLETE here."""
-    c = _counters(stalls=None, post_drop_tail=None, lost_coverage_missing=["stalls", "post_drop_tail"])
+    """The real cpap_ingest summary: overflow / stalls / post_drop_tail have no writer, so they are None
+    and listed in lost_coverage_missing. A cleanly stopped session with zero counted loss used to read
+    COMPLETE here.
+
+    ⚠️ THIS NAMED TWO CATEGORIES UNTIL 2026-11-09, and it is a HAND-BUILT dict, so it stayed green
+    while the real record disagreed with it. The two tests at the end of this file drive the real
+    record instead (residue 2026-11-08-cpap-transport-overflow-has-no-live-writer)."""
+    c = _counters(
+        overflow=None,
+        stalls=None,
+        post_drop_tail=None,
+        lost_coverage_missing=["overflow", "stalls", "post_drop_tail"],
+    )
     ev = cpap.assemble_live(_facts(), counters=c, stopped_cleanly=True)
     assert ev.completeness == ae.UNKNOWN
-    assert ev.provenance["unmeasured_loss"] == ["stalls", "post_drop_tail"]
+    assert ev.provenance["unmeasured_loss"] == ["overflow", "stalls", "post_drop_tail"]
 
 
 def test_a_summary_WITHOUT_a_total_or_a_coverage_list_is_not_complete():
@@ -1414,3 +1459,55 @@ def test_the_pump_NAMES_the_clocks_instead_of_defaulting_to_UNKNOWN():
         words.append(got[0].clock_status)
     assert words == [ae.CLOCK_DEVICE_AND_HOST, ae.CLOCK_HOST_ONLY]
     assert ae.UNKNOWN not in words, "the default is what this wiring exists to replace"
+
+
+# ── THE PRODUCTION PUMP'S OWN RECORD, NOT A HAND-BUILT DICT ───────────────────────────────────────
+# Residue 2026-11-08-cpap-transport-overflow-has-no-live-writer. Every test above feeds `_counters()`,
+# a dict this file writes, and that dict has carried `"overflow": 0` since it was written. So the
+# surface could publish `transport_gaps` as a measurement for two months while the real pump had no
+# writer for half the category, and no test here disagreed.
+#
+# 🔴 A HELPER DICT CANNOT FALSIFY A CLAIM ABOUT THE REAL RECORD. These two build the counters with
+# `cpap_ingest.GapCounters` instead, which is the object the pump actually hands this assembler.
+
+
+def test_the_REAL_live_record_publishes_transport_gaps_as_UNKNOWN_not_as_a_number():
+    """🔴 THE DEFECT THIS ROW CLOSES, measured through the real record. `transport_gaps` is
+    `overflow + post_drop_tail`. The drop probe gives `post_drop_tail` a writer, so the sum used to
+    publish a NUMBER under a comment saying both halves were measured. Nothing measured `overflow`.
+
+    One unmeasured term makes the sum unmeasured, and the number it replaces was not smaller — it was
+    a claim that a queue had been watched."""
+    import cpap_ingest
+
+    c = cpap_ingest.GapCounters(frames_ok=100, samples_ok=5000, malformed=2, stalls=0)
+    c.note_link_down_frame(False)
+    assert c.post_drop_tail == 0 and c.overflow is None, "the pump's real shape: one half looked, one did not"
+
+    ev = cpap.assemble_live(_facts(), counters=c.summary(), stopped_cleanly=True)
+    assert ev.transport_gaps == ae.UNKNOWN, "a measured tail plus an unmeasured overflow is not a measurement"
+    assert ev.transport_gaps != 0
+    assert ev.decode_gaps == 2, "decode loss was measured and still reports — the absence spreads no further"
+    assert "overflow" in ev.provenance["unmeasured_loss"], "and the envelope names the category nobody watched"
+
+
+def test_the_REAL_live_record_cannot_reach_COMPLETE_while_a_loss_category_is_unwatched():
+    """∅ COMPLETE IS A CLAIM ABOUT EVERY LOSS CATEGORY, and this is the behaviour change the row costs.
+
+    A clean stop with every other category measured used to stamp COMPLETE on the production pump,
+    because `lost_coverage` omitted `overflow` and `unmeasured_loss` therefore came out empty. The
+    claim was earned without watching one of the three transport categories. It now reads UNKNOWN and
+    names the reason, which is the honest word until a queue counts or the category is retired."""
+    import cpap_ingest
+
+    c = cpap_ingest.GapCounters(frames_ok=100, samples_ok=5000, stalls=0)
+    c.note_link_down_frame(False)
+    ev = cpap.assemble_live(_facts(), counters=c.summary(), stopped_cleanly=True)
+    assert ev.completeness == ae.UNKNOWN
+    assert ev.provenance["unmeasured_loss"] == ["overflow"], "exactly one category, named"
+
+    # The bound: wiring a queue is what earns COMPLETE back, and nothing else here moves.
+    cpap_ingest.BoundedIngestQueue(capacity=8, counters=c)
+    ev2 = cpap.assemble_live(_facts(), counters=c.summary(), stopped_cleanly=True)
+    assert ev2.completeness == ae.COMPLETE and ev2.provenance["unmeasured_loss"] == []
+    assert ev2.transport_gaps == 0, "every half counted, and none happened — which is what 0 may say"

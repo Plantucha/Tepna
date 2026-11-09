@@ -98,7 +98,18 @@ class GapCounters:
     # logs — it is not counted here because this layer cannot see it.
     bytes_wire: int = 0
     bytes_json: int = 0
-    overflow: int = 0  # frames dropped because the bounded queue was full (G5)
+    # ⚠️ None, NOT 0 — THE SAME §∅ DEFECT ITS NEIGHBOURS BELOW CARRY, LEFT BEHIND BY W2(a).
+    # `BoundedIngestQueue` is this field's only writer, and NO non-test module creates that class
+    # (`test_cpap_ingest` pins that census), so a live pump published 0 from a dataclass default while
+    # nothing had looked. `stream_to_bus` awaits the sink inline, so the live pump holds no queue that
+    # could drop a frame and counts no drop either.
+    #
+    # ⚠️ A STRUCTURAL IMPOSSIBILITY IS STILL NOT A MEASUREMENT. "No queue exists, so none
+    # overflowed" is an argument about the code; 0 here is the sentence `acq_evidence_cpap._counter`
+    # states — "counted, and none happened" — which only a wired queue may say. The queue sets this to
+    # 0 when it is constructed, which is the moment a counter starts to exist (residue
+    # 2026-11-08-cpap-transport-overflow-has-no-live-writer).
+    overflow: "int | None" = None  # frames dropped because the bounded queue was full (G5) — see above
     # ⚠️ None, NOT 0 — a field with no detector must not report a measurement it has not made (§∅).
     # Measured 2026-09-18: nothing anywhere incremented either one. A reader of `0` concludes no stall
     # and no post-drop tail occurred; the truth was that neither was looked for. A missing field is
@@ -191,8 +202,13 @@ class GapCounters:
         identically `malformed` — a decode-loss number documented as "the honest 'how much did we miss'
         number" and therefore read as covering transport loss too. Summing an unmeasured term does not
         make the total more complete; it makes the total a lie with more addends.
+
+        ⚠️ `overflow` JOINED THAT CLASS, and the fix above missed it. It had no live writer either,
+        so this total read `malformed` plus a dataclass default. It now contributes only when a queue
+        counted; otherwise it is absent and `lost_coverage` names it (residue
+        2026-11-08-cpap-transport-overflow-has-no-live-writer).
         """
-        return self.overflow + self.malformed
+        return self.malformed + (0 if self.overflow is None else self.overflow)
 
     @property
     def lost_coverage(self) -> "list[str]":
@@ -204,8 +220,13 @@ class GapCounters:
         would be the "lie with more addends" `total_lost` above refuses; it leaves this list once it has
         a value and is still outside the total. `sink_errors` is already in that shape. The consumer
         that decides completeness sums the measured categories itself and reads this list for the rest
-        (`acq_evidence_cpap`), which is why the two halves must stay separate here."""
-        return [n for n in ("stalls", "post_drop_tail") if getattr(self, n) is None]
+        (`acq_evidence_cpap`), which is why the two halves must stay separate here.
+
+        ⚠️ `overflow` BELONGS IN THIS LIST AND WAS ABSENT FROM IT, which is what let a live session
+        reach COMPLETE. This list is the whole basis of that claim, so a category missing from it reads
+        as looked-for. Nothing looked for a queue drop on the production pump. Field order, so a reader
+        diffs the list against the dataclass."""
+        return [n for n in ("overflow", "stalls", "post_drop_tail") if getattr(self, n) is None]
 
     def summary(self) -> dict:
         """A flat dict for a sidecar row / status line. Stable key order so a reader diffs two nights."""
@@ -250,6 +271,13 @@ class BoundedIngestQueue:
     def __post_init__(self):
         if self.capacity < 1:
             raise ValueError(f"BoundedIngestQueue capacity must be >= 1, got {self.capacity}")
+        # THE COUNTER STARTS HERE, which is why `GapCounters.overflow` defaults to None. Constructing
+        # this queue is the only event that makes a queue drop countable, so it is the only event that
+        # may turn the field from "nobody looked" into "counted, and none happened". Without this line
+        # `offer` would raise on the first drop, and the field would stay absent on a WIRED pump — the
+        # mirror error of the one it fixes.
+        if self.counters.overflow is None:
+            self.counters.overflow = 0
 
     @property
     def depth(self) -> int:
@@ -258,8 +286,15 @@ class BoundedIngestQueue:
     def offer(self, item) -> bool:
         """Enqueue `item`. Returns True if accepted, False if DROPPED because the queue was full — and a
         drop increments `counters.overflow` so the loss is recorded, never silent. Tracks max_depth for
-        the health surface (spec §29)."""
+        the health surface (spec §29).
+
+        ⚠️ THE REFUSAL BELOW IS NOT DEFENSIVE PADDING. `overflow` is None until a queue starts the
+        counter, and `__post_init__` starts it, so an int is this class's own invariant. An `or 0`
+        here would read as the ∅ defect the field exists to carry, and would quietly re-fabricate the
+        0 that a reader could not tell from a measurement."""
         if len(self._q) >= self.capacity:
+            if self.counters.overflow is None:
+                raise AssertionError("a drop reached the counter before the queue started it")
             self.counters.overflow += 1
             return False
         self._q.append(item)

@@ -2795,9 +2795,11 @@ def test_a_MID_SESSION_STALL_reaches_the_gap_accounting_line_and_the_envelope(ca
         )
     gc = envelopes[-1].provenance["gap_counters"]
     assert gc["stalls"] == 1, "the tracker's count reached the gap-accounting record"
-    assert gc["lost_coverage_missing"] == ["post_drop_tail"], (
-        "stalls leaves the unmeasured list once it has a writer; post_drop_tail stays, and this layer "
-        "cannot measure it (audit §7.3 — the drop boundary is ~230 ms wide and lives in the transport)"
+    assert gc["lost_coverage_missing"] == ["overflow", "post_drop_tail"], (
+        "stalls leaves the unmeasured list once it has a writer; overflow and post_drop_tail stay, and "
+        "this layer measures neither (audit §7.3 — the drop boundary is ~230 ms wide and lives in the "
+        "transport; overflow needs a queue this pump does not build, residue "
+        "2026-11-08-cpap-transport-overflow-has-no-live-writer)"
     )
     lines = [r for r in caplog.records if "gap accounting" in r.getMessage()]
     assert len(lines) == 1 and "'stalls': 1" in lines[0].getMessage()
@@ -2854,7 +2856,7 @@ def test_a_pump_with_NO_tracker_leaves_stalls_UNMEASURED_rather_than_zero():
     )
     gc = envelopes[-1].provenance["gap_counters"]
     assert gc["stalls"] is None
-    assert gc["lost_coverage_missing"] == ["stalls", "post_drop_tail"]
+    assert gc["lost_coverage_missing"] == ["overflow", "stalls", "post_drop_tail"]
 
 
 # ── `stream_to_bus` lines the stall work put back in mutation scope (the unit is the FUNCTION) ──────

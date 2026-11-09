@@ -143,9 +143,15 @@ def assemble_live(
     #
     # ⚠️ IT WAS STRUCTURALLY 0 HERE — both of its terms were dead — and a reader took that as "no
     # transport loss occurred". UNKNOWN said the category was not measured, which was the true
-    # statement. BOTH TERMS NOW HAVE WRITERS on a live BLE stream: `overflow` from the bounded queue
-    # and `post_drop_tail` from the transport's drop probe (`cpap_ingest.note_link_down_frame`). A
-    # number here is now a measurement; UNKNOWN still means a pump that looked for neither. ──
+    # statement. `post_drop_tail` NOW HAS A WRITER on a live BLE stream — the transport's own drop
+    # probe (`cpap_ingest.note_link_down_frame`).
+    #
+    # ⚠️ `overflow` STILL HAS NONE, AND THIS COMMENT CLAIMED IT DID. Its only writer is
+    # `BoundedIngestQueue`, which no non-test module creates, so the claim named a measurement the
+    # production pump never makes. `GapCounters.overflow` now carries that absence as None, so
+    # `_counter` reports this whole CATEGORY as UNKNOWN until a queue counts. A number here measures
+    # both halves; UNKNOWN names at least one half nobody looked at (residue
+    # 2026-11-08-cpap-transport-overflow-has-no-live-writer). ──
     transport_gaps = _counter(counters, "overflow", "post_drop_tail")
     decode_gaps = _counter(counters, "malformed")
 
