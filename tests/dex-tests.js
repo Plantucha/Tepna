@@ -27951,6 +27951,28 @@
        immediately, a swap inside the 8 reds on the set pin, and wiring one in forces the cap down.
 
        Node-lane only (env.sourceVisibility is fs-read); the browser SKIPs, mirroring docs-ledger. */
+    group('EEGDex median averages the two middles on an even count', 'eegdex · median · known-answer', function (T) {
+      /* Residue 2026-11-08-eegdex-median-takes-the-upper-middle. EEGDex ships no bundle, so this leg
+         lifts `median` out of the source text and runs it. An even count used to return the UPPER
+         middle (median([1, 2, 3, 4]) read 3, not 2.5), and the stager normalises EMG and EOG tone by it. */
+      var src = env.sources && env.sources['eegdex-dsp.js'];
+      if (!src) {
+        T.skip('eegdex-dsp.js source available', 'eegdex-dsp.js not in env.sources');
+        return;
+      }
+      var a = src.indexOf('function median(a) {'),
+        b = a < 0 ? -1 : src.indexOf('\n  }\n', a);
+      T.ok('the median function was found in eegdex-dsp.js', a >= 0 && b > a);
+      if (!(a >= 0 && b > a)) return;
+      var median = new Function(src.slice(a, b + 4) + '\nreturn median;')();
+      T.eq('even count: median([1, 2, 3, 4]) is 2.5', median([1, 2, 3, 4]), 2.5);
+      T.eq('even count, unsorted input: median([4, 1, 3, 2]) is 2.5', median([4, 1, 3, 2]), 2.5);
+      T.eq('odd count: median([3, 1, 2]) is 2', median([3, 1, 2]), 2);
+      T.eq('null and non-finite values drop before the middle: median([1, null, NaN, 3]) is 2', median([1, null, NaN, 3]), 2);
+      T.eq('an input with no finite value is null, not 0 or NaN', median([null, NaN]), null);
+      T.eq('an empty input is null', median([]), null);
+    });
+
     group('Every runtime source layer is readable by at least one lane', 'cohesion · source-visibility · ratchet', function (T) {
       var SV = env.sourceVisibility;
       if (!SV || !env.sources) {
