@@ -452,6 +452,10 @@ def test_exempt_page_never_reads_the_clock():
 
     p = _Poster()
     n = _notifier(p, page_cap_per_day=1, _today=_recording_today)
+    # The constructor reads the clock once, to record the day its page ledger started empty (row
+    # `2026-11-08-a-restart-resets-the-page-count-and-board-streak-silently`). This test's claim is
+    # about `send`, so it counts the reads from here.
+    calls.clear()
     assert _run(n.send("Tepna: disk low", "b", cap_counted=True, cap_exempt=True)) is True
     assert calls == []
 
@@ -946,3 +950,141 @@ def test_poller_pages_a_decided_tier_inside_the_daily_cap(tmp_path, monkeypatch,
     assert all(kw["cap_exempt"] is False for _, kw in pages), pages
     assert any("the absence has earned a page" in r.getMessage() for r in caplog.records)
     assert not any("UNDECIDED" in r.getMessage() for r in caplog.records)
+
+
+# ── §∅: the in-memory ledger after a restart ─────────────────────────────────────────
+# Row `2026-11-08-a-restart-resets-the-page-count-and-board-streak-silently`. The limit stood
+# disclosed in a docstring. The EVENT disclosed nothing: a reader of `pages_today: 0` or of a
+# one-day streak could not tell a measured zero from a ledger a restart had just emptied.
+
+
+def test_pages_today_does_not_cover_the_day_this_process_started():
+    """🔴 THIS IS THE DEFECT. 0 pages on the start day is a FLOOR, not a measured zero: an earlier
+    process may have paged before the restart, and nothing told a reader which it was."""
+    p = _Poster()
+    n = alerts.Notifier(_PAGE, enabled=True, _post=p, page_cap_per_day=3, _today=lambda: _D1)
+    st = n.stats()
+    assert st["pages_today"] == 0
+    assert st["pages_today_covers_day"] is False
+
+
+def test_pages_today_covers_a_whole_day_spent_under_one_process():
+    """CONTROL. A whole day has passed under this process, so 0 is a measured zero."""
+    p = _Poster()
+    today = [_D1]
+    n = alerts.Notifier(_PAGE, enabled=True, _post=p, page_cap_per_day=3, _today=lambda: today[0])
+    today[0] = _D2
+    st = n.stats()
+    assert st["pages_today"] == 0
+    assert st["pages_today_covers_day"] is True
+
+
+def test_a_day_before_the_start_day_is_also_a_floor():
+    """A backwards clock step asks about a day this process cannot have counted at all."""
+    p = _Poster()
+    today = [_D2]
+    n = alerts.Notifier(_PAGE, enabled=True, _post=p, page_cap_per_day=3, _today=lambda: today[0])
+    today[0] = _D1
+    assert n.stats()["pages_today_covers_day"] is False
+
+
+def test_the_first_counted_page_on_the_start_day_names_the_floor_once(caplog):
+    """The disclosure lands where the number first decides something: one line per day, at the
+    first counted page, naming the direction the cap can err in."""
+    caplog.set_level(logging.INFO)
+    p = _Poster()
+    n = alerts.Notifier(_PAGE, enabled=True, _post=p, page_cap_per_day=3, _today=lambda: _D1)
+    assert _run(n.send("Tepna: a", "b", cap_counted=True)) is True
+    assert _run(n.send("Tepna: a", "b", cap_counted=True)) is True
+    floors = [r for r in caplog.records if "counted from a ledger this process started" in r.getMessage()]
+    assert len(floors) == 1, [r.getMessage() for r in caplog.records]
+    assert "page 1 of 3" in floors[0].getMessage()
+    assert "never fewer" in floors[0].getMessage()
+
+
+def test_a_counted_page_on_a_later_day_names_no_floor(caplog):
+    caplog.set_level(logging.INFO)
+    p = _Poster()
+    today = [_D1]
+    n = alerts.Notifier(_PAGE, enabled=True, _post=p, page_cap_per_day=3, _today=lambda: today[0])
+    today[0] = _D2
+    assert _run(n.send("Tepna: a", "b", cap_counted=True)) is True
+    assert not [r for r in caplog.records if "counted from a ledger this process started" in r.getMessage()]
+    assert n.stats()["pages_today"] == 1
+
+
+def test_a_short_streak_reaching_the_earliest_day_seen_names_the_floor(caplog):
+    """🔴 THE OTHER HALF. Two board days, a restart, then one more day: the run reads 1 and fires
+    nothing. It cannot honestly fire on days it never saw, so it names the floor instead."""
+    caplog.set_level(logging.WARNING)
+    s = alerts.BoardStreak(days=3)
+    assert s.note("Ring", _D3) is False
+    floors = [r for r in caplog.records if "the earliest day this process saw" in r.getMessage()]
+    assert len(floors) == 1, [r.getMessage() for r in caplog.records]
+    assert "runs 1 day(s)" in floors[0].getMessage()
+    assert _D3.isoformat() in floors[0].getMessage()
+
+
+def test_the_floor_line_is_one_per_run_not_one_per_note(caplog):
+    caplog.set_level(logging.WARNING)
+    s = alerts.BoardStreak(days=3)
+    assert s.note("Ring", _D1) is False
+    assert s.note("Ring", _D1) is False
+    assert s.note("Ring", _D2) is False
+    floors = [r for r in caplog.records if "the earliest day this process saw" in r.getMessage()]
+    assert len(floors) == 1, [r.getMessage() for r in caplog.records]
+    assert "runs 1 day(s)" in floors[0].getMessage()
+
+
+def test_an_earlier_day_noted_later_names_the_new_floor(caplog):
+    """Out of order: the run now starts at the earliest day seen, so the floor is named for that
+    new start. The earliest day is what bounds the unknown, never the latest."""
+    caplog.set_level(logging.WARNING)
+    s = alerts.BoardStreak(days=3)
+    assert s.note("Ring", _D2) is False
+    caplog.clear()
+    assert s.note("Ring", _D1) is False
+    floors = [r for r in caplog.records if "the earliest day this process saw" in r.getMessage()]
+    assert len(floors) == 1, [r.getMessage() for r in caplog.records]
+    assert "runs 2 day(s)" in floors[0].getMessage()
+    assert _D1.isoformat() in floors[0].getMessage()
+
+
+def test_a_run_after_a_gap_names_no_floor(caplog):
+    """CONTROL. This process saw the day before the run start and it was no board day, so the run
+    is a measured length."""
+    caplog.set_level(logging.WARNING)
+    s = alerts.BoardStreak(days=3)
+    assert s.note("Ring", _D1) is False
+    caplog.clear()
+    assert s.note("Ring", _D4) is False
+    assert not [r for r in caplog.records if "the earliest day this process saw" in r.getMessage()]
+
+
+def test_a_refired_day_names_no_floor(caplog):
+    """The floor test only ever sees a run at or above `days` once that run has fired, so it must
+    read strictly below `days`. A complete streak names no floor."""
+    s = alerts.BoardStreak(days=1)
+    assert s.note("Ring", _D1) is True
+    caplog.set_level(logging.WARNING)
+    assert s.note("Ring", _D1) is False
+    assert not [r for r in caplog.records if "the earliest day this process saw" in r.getMessage()]
+
+
+def test_a_clock_that_gives_no_date_leaves_the_count_a_floor():
+    """The clock itself can refuse a date. An unknown span is not a covered one (§∅)."""
+    p = _Poster()
+    n = alerts.Notifier(_PAGE, enabled=True, _post=p, page_cap_per_day=3, _today=lambda: None)
+    st = n.stats()
+    assert st["pages_today"] == 0
+    assert st["pages_today_covers_day"] is False
+
+
+def test_a_clock_absent_only_at_start_leaves_the_count_a_floor():
+    """Either side absent is enough: this process cannot say when it started, so it cannot say
+    that a later day's count covers the whole day."""
+    p = _Poster()
+    today = [None]
+    n = alerts.Notifier(_PAGE, enabled=True, _post=p, page_cap_per_day=3, _today=lambda: today[0])
+    today[0] = _D2
+    assert n.stats()["pages_today_covers_day"] is False
