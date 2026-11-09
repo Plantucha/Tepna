@@ -2646,7 +2646,7 @@ def write_night(
             )
     try:
         _verdict.write(vpath, obj)
-    except (OSError, ValueError):
+    except (OSError, ValueError) as pub_exc:
         # 🔴 A FAILED PUBLISH MUST NOT LEAVE THE SUPERSEDED CLAIM READING AS CURRENT (§∅). The
         # withdrawal above already recorded the prior verdict as replaced, so a file that survives a
         # failed write states a claim this night has retracted — and `stitch_31d._verdict_status`
@@ -2661,8 +2661,39 @@ def write_night(
         # poll re-judges the night, and it converges rather than carrying a retracted claim.
         try:
             os.remove(vpath)
-        except OSError:
-            pass  # nothing was published, or the folder refuses us: the WITHDRAWN record is the trail
+        except OSError as rm_exc:
+            # 🔴 BOTH HALVES FAILED, SO THE RETURN VALUE IS THE ONLY REPORT (§∅). Row
+            # `2026-11-08-a-double-fault-unpublish-leaves-the-old-verdict-on-disk-unreported`. The arm
+            # above argues that absence converges, and it does — but only when the claim comes OFF the
+            # disk. When the remove fails too, the superseded verdict stands on disk reading as
+            # current, `stitch_31d._verdict_status` reads it, and the object this function hands back
+            # described a publish that never happened. `qc_child` and a disk reader then disagree with
+            # nothing to tell them apart.
+            #
+            # `FileNotFoundError` reaches here as well, and it is the honest opposite: a FIRST verdict
+            # published nothing, so no retracted claim sits there. The branch states which case it saw
+            # through the two error texts rather than guessing from the exception class, because an
+            # unwritable folder and an absent file both arrive as `OSError`.
+            #
+            # A log line is not the remedy, for the reason the arm above gives: this module holds no
+            # logger and `qc_child` runs it in a SPAWNED child whose logger has no handler. So the
+            # report rides the object, exactly as the withdrawal entry does.
+            stale = {
+                "published": False,
+                "file": VERDICT_NAME,
+                "write_error": f"{type(pub_exc).__name__}: {pub_exc}",
+                "remove_error": f"{type(rm_exc).__name__}: {rm_exc}",
+            }
+            if obj.get("result") is not None:
+                obj["result"]["unpublished"] = stale
+            else:
+                # A crash verdict carries `result: null`, and a result invented to hold this entry
+                # would publish a measurement nobody made (§∅). So it joins the one free-text field
+                # such a verdict owns, as the withdrawal entry does on the same shape.
+                obj["reason"] = (
+                    f"{obj['reason']}; this verdict did not reach {VERDICT_NAME} and the superseded"
+                    f" claim there stayed on disk: {stale['write_error']}; {stale['remove_error']}"
+                )
     return obj
 
 
