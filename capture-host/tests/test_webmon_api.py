@@ -1082,3 +1082,77 @@ def test_stitched_result_serves_the_computed_result(tmp_path):
         assert await r.json() == payload
 
     _serve(app, go)
+
+
+def test_stitched_run_rejects_an_unknown_tool(tmp_path):
+    app, *_ = _mk(tmp_path)
+
+    async def go(c):
+        r = await c.get("/api/stitched/no-such-tool/run")
+        assert r.status == 404
+        assert await r.json() == {"ok": False, "error": "unknown tool"}
+
+    _serve(app, go)
+
+
+def test_stitched_run_is_absence_before_the_first_run(tmp_path):
+    """§∅. A box whose runner has written no marker yet answers 404 'no run recorded'.
+
+    The page then says that. It does not guess the age of the run from the age of the
+    result, and it does not report the result as current."""
+    app, *_ = _mk(tmp_path)
+
+    async def go(c):
+        r = await c.get("/api/stitched/3corner/run")
+        assert r.status == 404
+        assert await r.json() == {"ok": False, "error": "no run recorded"}
+
+    _serve(app, go)
+
+
+def test_stitched_run_serves_a_refusal_marker(tmp_path):
+    """The marker names what the LAST run did, and `resultAt` dates the result it left.
+
+    🔴 THIS IS THE READING A RESULT ALONE CANNOT GIVE. The runner quiet-guard exits 3,
+    the systemd unit calls 3 a success, and the runner writes no result. So `RESULT.json`
+    keeps the `at` of whichever day last computed. The two stamps differ here on purpose:
+    a reader sees a refusal today over a result from two days back."""
+    app, *_ = _mk(tmp_path)
+    tool_dir = tmp_path / "stitched" / "3corner"
+    tool_dir.mkdir(parents=True)
+    marker = {
+        "schema": "tepna.stitch-run/1",
+        "tool": "3corner",
+        "at": "2026-11-09T04:00:00.000Z",
+        "outcome": "refused",
+        "reason": "a manifest night changed in the last 30 min (a re-judge or an archive)",
+        "resultAt": "2026-11-07T04:00:00.000Z",
+    }
+    (tool_dir / "RUN.json").write_text(json.dumps(marker))
+
+    async def go(c):
+        r = await c.get("/api/stitched/3corner/run")
+        assert r.status == 200
+        assert await r.json() == marker
+
+    _serve(app, go)
+
+
+def test_stitched_run_and_stitched_result_stay_two_endpoints(tmp_path):
+    """CONTROL. The `/run` suffix serves the marker and shadows no result.
+
+    One path keeps serving `RESULT.json` byte-for-byte, so the page's existing parser and
+    the contract above it both hold. The marker rides its own path."""
+    app, *_ = _mk(tmp_path)
+    tool_dir = tmp_path / "stitched" / "3corner"
+    tool_dir.mkdir(parents=True)
+    result = {"ok": True, "tool": "3corner", "at": "2026-11-07T04:00:00.000Z"}
+    marker = {"schema": "tepna.stitch-run/1", "outcome": "ok", "resultAt": result["at"]}
+    (tool_dir / "RESULT.json").write_text(json.dumps(result))
+    (tool_dir / "RUN.json").write_text(json.dumps(marker))
+
+    async def go(c):
+        assert await (await c.get("/api/stitched/3corner")).json() == result
+        assert await (await c.get("/api/stitched/3corner/run")).json() == marker
+
+    _serve(app, go)
