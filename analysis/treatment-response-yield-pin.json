@@ -24,7 +24,7 @@
       "dex-escape.js": "f0d38619047a",
       "oxydex-util.js": "5cc642ee790b",
       "oxydex-profile.js": "3496a101178a",
-      "oxydex-dsp.js": "1a0df4a4722e"
+      "oxydex-dsp.js": "bea2269ae01b"
     },
     "pulse": {
       "synth-gen.js": "a653cf5afb78",
@@ -59,7 +59,7 @@
       "file": "oxydex-dsp.js",
       "old": "a50aa3668d52",
       "new": "67823e8864cb",
-      "reason": "PR #3595: UI-level changes (EDF rejection, stale-metrics warning) \u2014 no DSP computation change"
+      "reason": "PR #3595: UI-level changes (EDF rejection, stale-metrics warning) — no DSP computation change"
     },
     {
       "date": "2026-10-18",
@@ -87,14 +87,14 @@
       "file": "oxydex-dsp.js",
       "old": "8a6d7668203a",
       "new": "92cec4912b7f",
-      "reason": "residue 2026-10-28-the-lint-allow-list-omits-the-rule-that-sees-a-dead-zone-read: the whole diff for this file is one added `// biome-ignore` comment line above the `var OxyDex = typeof OxyDex \u2026` namespace idiom, which arming `correctness/noInvalidUseBeforeDeclaration` needs. No statement moved, so the 233/239 yield is re-stamped and not re-cut."
+      "reason": "residue 2026-10-28-the-lint-allow-list-omits-the-rule-that-sees-a-dead-zone-read: the whole diff for this file is one added `// biome-ignore` comment line above the `var OxyDex = typeof OxyDex …` namespace idiom, which arming `correctness/noInvalidUseBeforeDeclaration` needs. No statement moved, so the 233/239 yield is re-stamped and not re-cut."
     },
     {
       "date": "2026-10-28",
       "file": "pulsedex-dsp.js",
       "old": "c4f4cee79733",
       "new": "d5e923c8081e",
-      "reason": "residue 2026-10-28-the-lint-allow-list-omits-the-rule-that-sees-a-dead-zone-read: the whole diff for this file is one added `// biome-ignore` comment line above the `var PulseDex = typeof PulseDex \u2026` namespace idiom, which arming `correctness/noInvalidUseBeforeDeclaration` needs. No statement moved, so the 233/239 yield is re-stamped and not re-cut."
+      "reason": "residue 2026-10-28-the-lint-allow-list-omits-the-rule-that-sees-a-dead-zone-read: the whole diff for this file is one added `// biome-ignore` comment line above the `var PulseDex = typeof PulseDex …` namespace idiom, which arming `correctness/noInvalidUseBeforeDeclaration` needs. No statement moved, so the 233/239 yield is re-stamped and not re-cut."
     },
     {
       "date": "2026-10-28",
@@ -153,9 +153,9 @@
       "reason": "residue 2026-11-09-the-spo2-spectrum-reads-a-gap-run-as-reduced-coverage: computeSpO2FFT now publishes absentRunMaxN, the longest contiguous absent run, and names a refusal that one hole caused as absence-run. The spectrum is not a treatment-response input, and the re-cut measured the SAME 233 tx / 239 flat under the moved closure, so the yield is unchanged and this entry records the move only."
     }
   ],
-  "measuredAt": "2026-11-09T15:29:30.256Z",
+  "measuredAt": "2026-11-09T19:06:28.283Z",
   "producedBy": {
     "tool": "tools/treatment-response-yield-pin.mjs",
-    "commit": "c81139511"
+    "commit": "896946788"
   }
 }
