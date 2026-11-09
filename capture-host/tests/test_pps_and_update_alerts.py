@@ -426,3 +426,43 @@ def test_update_streak_main_reads_a_utf16_config_through_its_byte_order_mark(tmp
     p.write_text("alerts:\n  enabled: true\n  webhook_url: https://hook.invalid/t\n", encoding="utf-16")
     assert alerts.update_streak_main(["update-streak", str(p), "back", "2", "1"], _post=ok, now=5) == 0
     assert sent == [("https://hook.invalid/", "t")]
+
+
+def test_update_streak_main_refuses_an_alerts_BLOCK_that_is_not_a_mapping(tmp_path, caplog):
+    """The document-level check passes `alerts: "on"`, because that document IS a mapping. The nested
+    block carried the same hazard in both directions. A truthy non-mapping raised `AttributeError`
+    out of the function, and a falsy one read as "no alerting configured" and returned the 0 the
+    caller latches on. Row `2026-11-08-update-streak-raises-on-a-nested-non-mapping-alerts-block`."""
+    import logging
+
+    async def never(url, payload, headers=None):
+        raise AssertionError("no post from a config whose alerts block does not read")
+
+    caplog.set_level(logging.WARNING)
+    at = "alerts: the update-streak config at"
+    for name, body, kind in (
+        ("str.yaml", 'alerts: "on"\n', "str"),
+        ("list.yaml", "alerts: []\n", "list"),
+        ("int.yaml", "alerts: 0\n", "int"),
+    ):
+        p = tmp_path / name
+        p.write_text(body)
+        argv = ["update-streak", str(p), "back", "2", "1"]
+        assert alerts.update_streak_main(argv, _post=never) == 3, f"{name} must refuse, not guess"
+        assert caplog.records[-1].getMessage() == f"{at} {p} holds an alerts block of {kind}, not a mapping"
+    assert len(caplog.records) == 3, [r.getMessage() for r in caplog.records]
+
+
+def test_update_streak_main_still_reads_an_ABSENT_or_EMPTY_alerts_block_as_off(tmp_path):
+    """CONTROL. Only an absent key, an explicit null and an empty mapping mean "none configured".
+    Each of the three is a mapping or the absence of one, so none of them is the malformed block the
+    test above refuses."""
+
+    async def never(url, payload, headers=None):
+        raise AssertionError("no post when alerts are off")
+
+    for name, body in (("absent.yaml", "time: {}\n"), ("null.yaml", "alerts:\n"), ("empty.yaml", "alerts: {}\n")):
+        p = tmp_path / name
+        p.write_text(body)
+        argv = ["update-streak", str(p), "back", "2", "1"]
+        assert alerts.update_streak_main(argv, _post=never) == 0, f"{name} configures no alerting"
