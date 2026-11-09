@@ -19524,6 +19524,32 @@
        + a functional test against the exposed `OxyDex.parseRingClockLog` /
        `OxyDex._attachRtcVerification` helpers so the matcher's behaviour is pinned, not just its
        presence. */
+    /* Row `2026-11-08-the-default-export-carries-the-upload-filename`: the scrub was opt-in and defaulted
+       OFF, so the file the download button wrote carried the ring's device serial inside
+       `schema.provenance.inputs[].name`. Both apps now default it ON. These legs read the SOURCE, because
+       the flag lives on `window` and the headless lane boots no page. */
+    group('SELF-INGEST §5 · the scrub default is ON, so a shared export carries no serial', 'oxydex-app · cpapdex-app · privacy · source-scan', function (T) {
+      var _s = env.sources || {};
+      var names = ['oxydex-app.js', 'cpapdex-app.js', 'oxydex-render.js', 'oxydex-dsp.js', 'dex-export.js'];
+      var missing = names.filter(function (n) {
+        return !_s[n];
+      });
+      if (missing.length) {
+        T.skip('all five scrub-bearing sources wired', 'absent from env.sources: ' + missing.join(', '));
+        return;
+      }
+      T.eq('oxydex-app.js defaults the flag ON exactly once', (_s['oxydex-app.js'].match(/window\._oxyScrub === undefined\) window\._oxyScrub = true;/g) || []).length, 1);
+      T.eq('cpapdex-app.js defaults the flag ON exactly once', (_s['cpapdex-app.js'].match(/window\._cpapScrub === undefined\) window\._cpapScrub = true;/g) || []).length, 1);
+      /* The box must READ the flag. An unchecked box over a scrubbed export states the opposite of what
+         the download does. */
+      T.eq('the CPAPDex checkbox reads the live default', (_s['cpapdex-app.js'].match(/cb\.checked = !!window\._cpapScrub;/g) || []).length, 1);
+      /* A comment that still says OFF sends the next reader to the wrong conclusion, and five files
+         carried that sentence before this change. */
+      var stale = names.reduce(function (acc, n) {
+        return acc + (_s[n].match(/efault OFF/g) || []).length;
+      }, 0);
+      T.eq('no module still states a default OFF scrub', stale, 0, 'five files carried that sentence');
+    });
     group('OxyDex ring-clock sidecar — the .dat timebase is DECLARED against `_rtclog.csv`, never SHIFTED', 'oxydex-dsp · ring-rtc · source-scan', function (T) {
       var _src = env.sources || {};
       var dsp = _src['oxydex-dsp.js'] || '';
@@ -68673,6 +68699,103 @@
         // control · the SAME call with the allow-list passed in produces a scrubbed document
         T.ok('control · the same seam with the allow-list scrubs normally', DX._scrubWith(S, { schema: {}, recording: { contentId: 'c' } }).schema.scrubbed === true);
       }
+    });
+
+    /* ════ THE SCRUB KEEPS THE TIMEBASE AND THE MEASUREMENT BLOCKS (2026-11-09) ════
+       The share-scrub defaults ON from this change, so what it drops is what a user shares. Two
+       measurements set this group. The GATE C leg `app exportJSON() ≡ compute()` in
+       `Dex-Test-Suite.html` reded on #4724 and named `clockSeamScan` and `measurement`, both absent
+       from the app export and present in compute. A sweep of the 28 envelope-shaped node-exports in
+       the corpus then showed `recording.timing` dropped from 28 of 28 and `recording.validity` from
+       20 of 28. So a shared export carried the clinical summary and no timebase provenance, and §∅
+       calls that loss a defect: a reader could not tell one clock from nobody looked. After the five
+       declarations, 27 of the 28 drop nothing, and the one that still drops names only the three
+       identifier routes the scrub exists to remove. This group pins both halves. */
+    group('EXPORT-SCRUB-ALLOWLIST — a scrubbed export keeps its timebase, its seam verdict and its measurement blocks', 'dex-export · export-schema · scrub · timebase · GATE-C', function (T) {
+      var DX = env.DexExport;
+      if (!(DX && typeof DX.scrubExport === 'function')) {
+        T.ok('env.DexExport.scrubExport available', false, 'namespace not wired — gate skipped');
+        return;
+      }
+      var raw = {
+        schema: {
+          name: 'ganglior.node-export',
+          node: 'OxyDex',
+          provenance: { buildHash: 'bh', generated: 'g', inputs: [{ name: 'a_serial_night.csv', bytes: 1234, sha256: 'deadbeef', lastModifiedMs: 1781383783000 }] }
+        },
+        recording: {
+          startEpochMs: 1781383783000,
+          contentId: 'cid',
+          timing: {
+            timingSource: 'device-only',
+            independent: false,
+            anchors: null,
+            spanMs: null,
+            ppm: null,
+            spanPpm: null,
+            resyncs: null,
+            seams: 0,
+            rate: 1,
+            rateRaw: 1,
+            rateApplied: false,
+            reason: 'no host column on this input'
+          },
+          validity: { n: 27599, seams: 0, seamsReason: null, upstreamNodes: ['OxyDex'] },
+          clockSeamScan: { scanned: true, reason: null, n: 27599, seams: 0 },
+          zzUndeclaredRecordingKey: 'r'
+        },
+        nights: [
+          {
+            date: '2026-06-13',
+            file: 'a_serial_night.csv',
+            stats: { meanSpo2: 94.1 },
+            clockSeamScan: { scanned: true, reason: null, n: 27599, seams: 0 },
+            measurement: {
+              meanSpo2: {
+                metricId: 'meanSpo2',
+                value: 94.1,
+                sourceChannel: 'O2Ring:spo2',
+                code: { manifestHash: 'mh', computeHash: 'ch' },
+                evidence: { envelopeRef: '20260612230016', inputHash: 'cid' }
+              }
+            },
+            recording: {
+              startEpochMs: 1781383783000,
+              timing: { timingSource: 'device-only', reason: 'no host column on this input' },
+              validity: { n: 27599 },
+              clockSeamScan: { scanned: true, seams: 0 }
+            },
+            zzUndeclaredElementKey: 'e'
+          }
+        ]
+      };
+      var scr = DX.scrubExport(raw);
+      var el = scr.nights[0];
+
+      // ── the five declarations SURVIVE, read back by value, never by key presence ──
+      T.eq('recording.timing survives whole, twelve keys', Object.keys(scr.recording.timing).length, 12);
+      T.eq('…and its timingSource reads back', scr.recording.timing.timingSource, 'device-only');
+      T.eq('recording.validity survives', scr.recording.validity.n, 27599);
+      T.eq('recording.clockSeamScan survives', scr.recording.clockSeamScan.n, 27599);
+      T.eq('the element keeps its seam verdict', el.clockSeamScan.seams, 0);
+      T.eq('the element keeps its measurement block', el.measurement.meanSpo2.value, 94.1);
+      T.eq('…with the code identity that makes it reproducible', el.measurement.meanSpo2.code.computeHash, 'ch');
+      T.eq('the element recording keeps all three too', [el.recording.timing.timingSource, el.recording.validity.n, el.recording.clockSeamScan.seams].join(), 'device-only,27599,0');
+
+      /* ── ANTI-VACUITY · the scrub still removes what it exists to remove ──
+         An allow-list that declared everything would pass every assertion above. */
+      T.eq('the upload filename is gone from the element', 'file' in el, false);
+      T.eq('the input name, sha256 and mtime are gone', Object.keys(scr.schema.provenance.inputs[0]), ['bytes']);
+      T.eq('an undeclared key is still dropped at both depths', ['zzUndeclaredRecordingKey' in scr.recording, 'zzUndeclaredElementKey' in el].join(), 'false,false');
+      T.eq('and the report names every one of them', scr.schema.scrubDropped, [
+        'nights[].file',
+        'nights[].zzUndeclaredElementKey',
+        'recording.zzUndeclaredRecordingKey',
+        'schema.provenance.inputs[].lastModifiedMs',
+        'schema.provenance.inputs[].name',
+        'schema.provenance.inputs[].sha256'
+      ]);
+      T.eq('the document states it was scrubbed', scr.schema.scrubbed, true);
     });
 
     /* ════ SELF-INGEST §5 — A PER-ELEMENT ENVELOPE IS SCRUBBED TOO (the shape F13 never planted) ════
