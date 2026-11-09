@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="01674d1cc990" data-compute-hash="e0eb2161a0cc">
+<html lang="en" data-manifest-hash="715a67f14560" data-compute-hash="58f7657ae6e1">
 <head>
 <!--
   OxyDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-2yfgygIs9LkanuN0zlVZE00JYquI9prSsiK6Kpj21hE=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9MXGbNTKgNSwjCivTwP1TLBG1mXpMgJTaOaVdHOR7aQ=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CNkm2h+ZlrSYYzoGx9OxoFo/k2UmcAbaZ9Bd72GM4as=' 'sha256-D/gy6mVrVyLsBTGH3bqXGSDAHfHPALNNh5GY/90wWSI=' 'sha256-D0YR9+62Fd3hUFRoEZhA/MkKslQirmZQg7KMBHKpICk=' 'sha256-E1IsN6aDCUvHb/53fIyPoB7AQMLdRp5olYowv/ZbZ6A=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-QyURGUmKmbpEGz6vtt+poPueeRE901i4IjiyZIbxJNo=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-XqyVux6nZ1GoEpXw5HlJF6/fUCrzC+aJ4dGKEuYCK0w=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-fHhzdzpcyyDp2wZahreASbSqNTutakABREfHNTgRsvk=' 'sha256-hCZmwNAMDLPZEMYHAYpzoPETSnimg1oHWWjZImdKqxM=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-s5jQgZ2dCmcNdTTy5gLqyiwkCVbXvuldnqeO/1M79kk=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BVFmtVSyDgaXhCN3qQfKGuYjFNkJrUTlcUB/QC4nRdk=' 'sha256-CNkm2h+ZlrSYYzoGx9OxoFo/k2UmcAbaZ9Bd72GM4as=' 'sha256-D0YR9+62Fd3hUFRoEZhA/MkKslQirmZQg7KMBHKpICk=' 'sha256-E1IsN6aDCUvHb/53fIyPoB7AQMLdRp5olYowv/ZbZ6A=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-LbnHw3AlQocKun+z+XZLWmAZttRgzqvTzz2g69QBQ/M=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QU1eFIpXtk89h7OawHFWXJry6pEr0cw5i0Q08kGZz88=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-QyURGUmKmbpEGz6vtt+poPueeRE901i4IjiyZIbxJNo=' 'sha256-RXcoLAniJKLH34g7G8WWfGMxhney/Cbcc4dvbo8flK8=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-XqyVux6nZ1GoEpXw5HlJF6/fUCrzC+aJ4dGKEuYCK0w=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-fHhzdzpcyyDp2wZahreASbSqNTutakABREfHNTgRsvk=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-s5jQgZ2dCmcNdTTy5gLqyiwkCVbXvuldnqeO/1M79kk=' 'sha256-tEgjv8S5vEIsuBLCHAaM5gMw7PHBRH6v+T9vtvc8Yi4=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>OxyDex — Nocturnal Oximetry Analyzer · v2.29.0</title>
@@ -7332,6 +7332,21 @@ body.light .oxy-projcard { background:#fff; border-color:rgba(0,0,0,.07); }
       'siteSource',
       'timingSource',
       'hostAxis',
+      /* THE SHARED TIMING BLOCK, THE VALIDITY BLOCK AND THE SEAM SUMMARY (declared 2026-11-09).
+         Measured over the 28 envelope-shaped node-exports in the corpus: the scrub dropped
+         `recording.timing` from 28 of 28, `recording.validity` from 20 of 28 and
+         `recording.clockSeamScan` from 3 of 3 PulseDex exports. So a shared export carried the
+         clinical summary and no timebase provenance at all, and §∅ names that loss a defect: a
+         consumer could not tell one clock from nobody looked. Every key in all three blocks is a
+         count, a rate, an enum or an authored sentence — the twelve `timing` keys are
+         `timingSource`/`independent`/`anchors`/`spanMs`/`ppm`/`spanPpm`/`resyncs`/`seams`/`rate`/
+         `rateRaw`/`rateApplied`/`reason`, and `validity` adds seam counts plus `upstreamNodes`,
+         which names nodes, never devices. The per-seam DETAIL lists (`clockSeams`,
+         `clockSeamRefusals`) stay undeclared: the summary carries the counts, and the detail is
+         unmeasured against the corpus, so it is named in `scrubDropped` rather than waved through. */
+      'timing',
+      'validity',
+      'clockSeamScan',
       'deviceEpoch',
       'unit',
       'sourceUnit',
@@ -7408,7 +7423,21 @@ body.light .oxy-projcard { background:#fff; border-color:rgba(0,0,0,.07); }
          that committed assertion, and the distinction is worth keeping visible — every key above it
          was read off a real export, this one was read off a test. */
       'ansAge',
-      'hrvScore'
+      'hrvScore',
+      /* `clockSeamScan` and `measurement` (declared 2026-11-09, the GATE C red on #4724). The
+         app-export-against-compute leg in `Dex-Test-Suite.html` reds the moment a night element
+         loses a physiological field, and it named these two: the scrub stripped OxyDex's whole
+         headline measurement block and its seam verdict. `measurement` holds one block per metric
+         id, each `value` + `window` + `code` + `basis` + `quality` + `uncertainty` + `evidence`.
+         Two of its leaves were read before declaring it. `evidence.envelopeRef` is the capture
+         `session_id`, which `capture-host/capture.py:5843` states is the 14-digit START STAMP —
+         the same instant `recording.startEpochMs` already declares. `sourceChannel` is a per-node
+         CONSTANT ('O2Ring:spo2'), so it names a device family that `schema.node` already names and
+         carries no hardware revision; it is not the `model` the header above refuses, which is a
+         revision-bearing device string. `evidence.inputHash` is `contentId`, declared
+         identity-free three blocks up. */
+      'clockSeamScan',
+      'measurement'
     ],
     elementSchema: ['name', 'version', 'node', 'nodeVersion', 'generated', 'doc', 'units', 'provenance', 'scrubbed', 'scrubDropped'],
     elementRecording: [
@@ -7434,7 +7463,12 @@ body.light .oxy-projcard { background:#fff; border-color:rgba(0,0,0,.07); }
       'therapyHours',
       'sessionCount',
       'sessions',
-      'offMaskGaps'
+      'offMaskGaps',
+      /* The same three as `recording` above, for the same measured reason — a per-element recording
+         block is the same content per night. */
+      'timing',
+      'validity',
+      'clockSeamScan'
     ]
   };
 
@@ -7728,7 +7762,8 @@ body.light .oxy-projcard { background:#fff; border-color:rgba(0,0,0,.07); }
   // recording.contentId (the identity-free EXPORT-IDENTITY handle). PURE: never mutates the input.
   // ONE implementation for every node (D1) — OxyDex shipped its own oxyScrubExport in the pilot; it
   // folds into this on OxyDex's next re-bundle (leaving it now avoids an export-inert OxyDex churn).
-  // Default OFF at every call site, so a normal export stays byte-identical. DOM-free; node:vm-safe.
+  // The OxyDex and CPAPDex call sites default ON since 2026-11-09, so the file a user shares carries no
+  // serial. DOM-free; node:vm-safe.
   /* THE SCRUB IS ALLOW-LIST DRIVEN (EXPORT-SCRUB-ALLOWLIST §3, owner ruling 2026-10-12). The key
      sets live in `export-schema.js`, which nine bundles carry; this function owns the MECHANISM and
      holds no key knowledge of its own. What the deny-list before it looked like, and why it had to
@@ -22744,8 +22779,8 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
   // executed 2026-07-04). The ONE implementation now lives in dex-export.js; this stays a thin OxyDex alias
   // for the app call site + the namespace/back-compat exports + the §7 tests. The shared version is a strict
   // SUPERSET of the old local copy — it ALSO strips device/serial/model from each per-night recording block
-  // in a multi-night series export (a gap the local copy missed). Default OFF at the call site, so a normal
-  // export stays byte-identical; a single-night scrub is byte-identical to the old local result.
+  // in a multi-night series export (a gap the local copy missed). Default ON at the call site since 2026-11-09, so the
+  // file a user shares carries no serial; a single-night scrub is byte-identical to the old local result.
   function oxyScrubExport(envelope) {
     if (typeof DexExport !== 'undefined' && DexExport && typeof DexExport.scrubExport === 'function') return DexExport.scrubExport(envelope);
     if (typeof dexScrubExport === 'function') return dexScrubExport(envelope);
@@ -26361,7 +26396,7 @@ function renderAll() {
       _ebHtml += '<button class="eb-btn eb-json" type="button" data-act="exportJSON">⬇ JSON' + (_review ? ' (derived)' : '') + '</button>';
       _ebHtml += '<button class="eb-btn eb-csv" type="button" data-act="exportCSV">⬇ CSV</button>';
       _ebHtml += '<button class="eb-btn eb-pdf" type="button" data-act="print">' + (_review ? '🖨 Clinical PDF' : '⬇ PDF') + '</button>';
-      // SELF-INGEST §5 — "scrub for sharing" toggle (default OFF): strips the device serial / filename /
+      // SELF-INGEST §5 — "scrub for sharing" toggle (default ON): strips the device serial / filename /
       // input sha256 from the exported JSON while keeping the clinical summary + a coarse build stamp.
       var _scrubOn = !!(typeof window !== 'undefined' && window._oxyScrub);
       _ebHtml +=
@@ -33134,9 +33169,15 @@ function clearAll() {
 // (the night's t0Ms, read via getUTC*), viewer-TZ-independent, controlled-vocab (EXPORT-HYGIENE §2).
 // The old local-clock _exportTs() (new Date() + LOCAL getters = export-click wall-clock, TZ-dependent,
 // naming the wrong night for an overnight recording) is DELETED (EXPORT-HYGIENE-FOLLOWUPS §1).
-// SELF-INGEST §5 — toggle the "scrub for sharing" export mode (default OFF). The export-bar checkbox
-// already reflects the click in the DOM, so this just flips the flag; exportJSON reads it at click time
-// and routes through OxyDex.scrubExport. Sticky as a session preference (harmless with no data loaded).
+// SELF-INGEST §5 — toggle the "scrub for sharing" export mode. The export-bar checkbox already reflects
+// the click in the DOM, so this just flips the flag; exportJSON reads it at click time and routes through
+// OxyDex.scrubExport. Sticky as a session preference (harmless with no data loaded).
+/* THE DEFAULT IS ON since 2026-11-09 (row `2026-11-08-the-default-export-carries-the-upload-filename`).
+   A night's raw upload filename carries the ring's DEVICE SERIAL, and the file a user naturally shares is
+   the one the download button writes. So the shareable form is the default, and the raw provenance stays
+   one click away. `oxydex-render.js` reads this same flag for the checkbox, so the box and the export can
+   never disagree. The flag lives on `window`, so a reload returns to the scrubbed default. */
+if (typeof window !== 'undefined' && window._oxyScrub === undefined) window._oxyScrub = true;
 function oxySetScrub(on) {
   try {
     window._oxyScrub = !!on;
@@ -33235,8 +33276,9 @@ function exportJSON() {
       via: 'OxyDex review-mode re-export'
     };
   }
-  // SELF-INGEST §5 — optional "scrub for sharing" (default OFF): strip device serial / filename / input
-  // sha256 while keeping the clinical summary + a coarse build stamp. OFF → byte-identical to before.
+  // SELF-INGEST §5 — "scrub for sharing" (default ON): strip device serial / filename / input sha256
+  // while keeping the clinical summary + a coarse build stamp. OFF → byte-identical to a pre-2026-11-09
+  // export.
   var _outEnv = typeof window !== 'undefined' && window._oxyScrub && window.OxyDex && typeof OxyDex.scrubExport === 'function' ? OxyDex.scrubExport(_envelope) : _envelope;
   download(
     JSON.stringify(_outEnv, null, 2),
