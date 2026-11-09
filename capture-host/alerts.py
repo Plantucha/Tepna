@@ -202,6 +202,19 @@ PAGE_CAP_PER_DAY = 3  # hard cap on counted pages per day; daemon-down and low-d
 _UNSET = object()  # configure() sentinel: "leave the board destination as it is"
 
 
+def _route_name(tier: str, stand_in: bool) -> str:
+    """Name the destination an alert REACHED, for the log line beside the counter.
+
+    A delivery line that says only "delivered" cannot be told from a board delivery afterwards,
+    and on a box with no `board_webhook_url` every BOARD edge reaches the phone. The journal is
+    the record of last resort, so it has to carry the destination, not the intent."""
+    if tier != TIER_BOARD:
+        return "the phone"
+    if stand_in:
+        return "the phone topic, standing in for the board"
+    return "the board"
+
+
 def streamed_this_night(first_sample: float | None, night_began: float | None) -> bool:
     """PURE: did this device stream earlier this night — the one definition the cluster arm
     and the tier share (Kestrel ruling #4340 on #4559). `first_sample` is the start of the
@@ -358,6 +371,16 @@ class Notifier:
         self.email_failed = 0  # extra-address publishes that did not arrive; the push itself did
         self.board_delivered = 0  # the board-tier subset of `delivered`
         self.board_failed = 0  # the board-tier subset of `failed`
+        # ⚠️ THE DESTINATION, NOT THE TIER. A BOARD alert on a box with no `board_url` goes to the
+        # PHONE topic. `send`'s docstring discloses that fallback, so the ROUTING is a decision.
+        # Counting it as a board delivery is not: the board never saw the alert, and a reader of
+        # `board_delivered` alone cannot tell the two apart. The live box has run exactly that
+        # way since the tier split, because `board_webhook_url` stays unset (board #4509).
+        # These two count the stand-in route on its own, so each counter states what its own
+        # destination did. The pair is symmetric on purpose: without `board_fallback_failed`, a
+        # board edge that reached nobody would leave no board-tier trace at all.
+        self.board_fallback_delivered = 0  # BOARD alerts the PHONE topic took instead
+        self.board_fallback_failed = 0  # the same stand-in route, and it did not arrive
         self.cap_held = 0  # counted pages the daily cap rerouted to the board (or to the journal)
 
     def _pages_on(self, day: _datetime.date) -> int:
@@ -387,6 +410,8 @@ class Notifier:
             "board_configured": bool(self.board_url),
             "board_delivered": self.board_delivered,
             "board_failed": self.board_failed,
+            "board_fallback_delivered": self.board_fallback_delivered,
+            "board_fallback_failed": self.board_fallback_failed,
             "pages_today": self._pages_on(self._today()),
             "cap_held": self.cap_held,
         }
@@ -413,6 +438,8 @@ class Notifier:
         `tier` picks the destination (#2614): PAGE posts to `url` (the phone topic), BOARD to
         `board_url` — or to `url` when no board destination is configured, so a box that has not
         set one keeps today's single-topic behaviour and the split takes effect when it does.
+        That stand-in route counts as `board_fallback_delivered`, NEVER as `board_delivered`,
+        and the delivery line names the route it reached.
         A counted PAGE (`cap_counted`, and not `cap_exempt` — daemon-down and low-disk are exempt)
         stops at the daily cap: past it the alert is NOT dropped, it is delivered to the board
         with a line saying the cap held it, or, with no board destination configured, logged at
@@ -430,6 +457,10 @@ class Notifier:
             return False
         else:
             dest = self.url
+        # THE STAND-IN IS A STATE OF THIS SEND, read once here and used by every arm below, so
+        # no arm can decide the route differently from the arm that logged it.
+        stand_in = board and not self.board_url
+        route = _route_name(tier, stand_in)
         counted = not board and cap_counted and not cap_exempt
         today = self._today() if counted else None
         if counted and today is not None and self._pages_on(today) >= self._page_cap:
@@ -465,24 +496,30 @@ class Notifier:
             # from one that did: the caller latched, the operator was never told, and the journal held
             # nothing to find afterwards either. The alert is lost either way; the RECORD of losing it
             # need not be.
-            _log.warning("alert %r not delivered: %r", title, e)
+            _log.warning("alert %r not delivered to %s: %r", title, route, e)
             self.failed += 1
-            if board:
+            if stand_in:
+                self.board_fallback_failed += 1
+            elif board:
                 self.board_failed += 1
             self.last_error = f"{type(e).__name__}: {e}"
             return False
         if not ok:
-            _log.warning("alert %r rejected by the webhook (non-2xx)", title)
+            _log.warning("alert %r rejected by %s (non-2xx)", title, route)
             self.failed += 1
-            if board:
+            if stand_in:
+                self.board_fallback_failed += 1
+            elif board:
                 self.board_failed += 1
             self.last_error = "rejected by the webhook (non-2xx)"
             return False
         # LOGGED AT INFO ON SUCCESS TOO. Absence of a failure line is not evidence of delivery — that
         # asymmetry is what made 32 alerts unaccountable.
-        _log.info("alert %r delivered", title)
+        _log.info("alert %r delivered to %s", title, route)
         self.delivered += 1
-        if board:
+        if stand_in:
+            self.board_fallback_delivered += 1
+        elif board:
             self.board_delivered += 1
         elif counted and today is not None:
             self._page_counts[today] = self._pages_on(today) + 1
