@@ -214,3 +214,93 @@ def test_the_control_channel_being_unavailable_is_a_WARNING_and_names_the_conseq
         "a control channel that could not be subscribed must warn — the session is degraded from that "
         f"line onward; warnings seen: {[r.getMessage()[:60] for r in caplog.records]}"
     )
+
+
+class RefusedWriteClient(T.FlexPolarClient):
+    """Fails the control write outright. BlueZ refuses a write as readily as it wedges one, and both
+    land in the same `except Exception` arm of `_ctrl`."""
+
+    async def write_gatt_char(self, uuid, cmd, response=False):
+        if uuid == pmd.PMD_CONTROL:
+            raise RuntimeError("control write refused")
+        return await super().write_gatt_char(uuid, cmd, response=response)
+
+
+def _write_warnings(records):
+    """Every WARNING from the control-write arm of `_ctrl`, in order."""
+    return [r for r in records if r.levelname == "WARNING" and "control write for op" in r.getMessage()]
+
+
+def test_a_control_write_that_FAILS_warns_and_says_the_command_never_left_the_host(tmp_path, monkeypatch, caplog):
+    """`_ctrl` returns empty bytes from THREE arms, and empty bytes read downstream as NO_ACK. NO_ACK
+    means "the device did not answer — ask again", which is routine; the stale-stream STOP expects it.
+    A write that failed is the one cause that is NOT the device staying quiet, so it needs a line of
+    its own. Row `2026-11-08-a-pmd-control-write-failure-is-swallowed-with-no-log`."""
+    _tighten(monkeypatch)
+    T._polar_common(monkeypatch)
+    T._inject_connect(monkeypatch, RefusedWriteClient(data_frames=[T._ecg_frame()]))
+    T._stop_after(monkeypatch, 1)
+    with caplog.at_level("WARNING"):
+        assert _drive_bounded(), "a refused control write must not freeze the session either"
+    warn = _write_warnings(caplog.records)
+    assert warn, (
+        "a control write that failed must warn — unlogged it is indistinguishable from the device "
+        f"staying quiet; warnings seen: {[r.getMessage()[:60] for r in caplog.records]}"
+    )
+    msg = warn[0].getMessage()
+    assert "H10" in msg, f"the line must name the device whose write failed; got {msg!r}"
+    assert "control write refused" in msg, f"the line must carry the failure the stack reported; got {msg!r}"
+    assert "never reached" in msg, f"the line must say the command never left the host; got {msg!r}"
+
+
+def test_the_write_failure_line_carries_each_commands_OWN_opcode(tmp_path, monkeypatch, caplog):
+    """The opcode is what tells one failed write from the next in a night's journal. A constant in the
+    format string reads the same on every command, so this run fails every write the negotiation sends
+    and counts the distinct opcodes the lines named."""
+    _tighten(monkeypatch)
+    T._polar_common(monkeypatch)
+    T._inject_connect(monkeypatch, RefusedWriteClient(data_frames=[T._ecg_frame()]))
+    T._stop_after(monkeypatch, 1)
+    with caplog.at_level("WARNING"):
+        assert _drive_bounded(), "a refused control write must not freeze the session either"
+    ops = {m.split("op ")[1].split()[0] for m in (r.getMessage() for r in _write_warnings(caplog.records))}
+    assert len(ops) >= 2, (
+        f"a negotiation whose every write failed must name more than one opcode — one value for all "
+        f"of them is a constant, not the command; saw {sorted(ops)}"
+    )
+
+
+def test_a_control_write_that_HANGS_warns_with_the_TIMEOUT_as_its_reason(tmp_path, monkeypatch, caplog):
+    """The wedge shape, which is the one the bound exists for. The write never completes, `wait_for`
+    raises, and the reason in the line must be the timeout rather than a borrowed one."""
+    _tighten(monkeypatch)
+    T._polar_common(monkeypatch)
+    T._inject_connect(monkeypatch, HangingWriteClient(data_frames=[T._ecg_frame()]))
+    T._stop_after(monkeypatch, 1)
+    with caplog.at_level("WARNING"):
+        assert _drive_bounded(), "run_polar never returned — the control WRITE must be bounded"
+    warn = _write_warnings(caplog.records)
+    assert warn, (
+        "a control write that timed out must warn too — the command never reached the device either; "
+        f"warnings seen: {[r.getMessage()[:60] for r in caplog.records]}"
+    )
+    assert "TimeoutError" in warn[0].getMessage(), (
+        f"the line must name the timeout as the reason, not a borrowed one; got {warn[0].getMessage()!r}"
+    )
+
+
+def test_a_device_that_TAKES_the_write_and_stays_quiet_names_no_write_failure(tmp_path, monkeypatch, caplog):
+    """The other half of the distinction, and the reason the line is worth anything. This client
+    accepts every write and never indicates, so `_ctrl` returns the SAME empty bytes by its
+    reply-timeout arm. No write failed here, so no line may claim one — a warning would put the host's
+    name on the device's silence."""
+    _tighten(monkeypatch)
+    T._polar_common(monkeypatch)
+    T._inject_connect(monkeypatch, SilentControlClient(data_frames=[T._ecg_frame()]))
+    T._stop_after(monkeypatch, 1)
+    with caplog.at_level("WARNING"):
+        assert _drive_bounded(), "run_polar never returned — the indication wait must be bounded"
+    assert _write_warnings(caplog.records) == [], (
+        "the device stayed quiet and every write succeeded, so nothing may report a failed write; "
+        f"saw {[r.getMessage()[:70] for r in _write_warnings(caplog.records)]}"
+    )
