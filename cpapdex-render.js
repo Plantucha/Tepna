@@ -406,9 +406,11 @@ import { CpapDsp } from './cpapdex-dsp.js';
     );
   }
 
+  /* Night cards read the POOLED `night.metrics` (cpapdex-dsp.js `nightMetrics`). They used to read
+     `night.sessions[0].metrics`, so a multi-session night drew session 1 under a night label beside
+     pooled sibling tiles (residue 2026-11-08-cpapdex-night-cards-draw-session-one-metrics). */
   function pressureCard(night) {
     var nm = night.metrics || {};
-    var m = ((night.sessions && night.sessions[0]) || {}).metrics || {};
     return (
       '<div class="card">' +
       cardHead('Pressure & EPR', 'delivered therapy (mask-on)', 'medianPressure') +
@@ -417,8 +419,8 @@ import { CpapDsp } from './cpapdex-dsp.js';
       metricTile('medianPressure', fnum(nm.medianPressure, 1)) +
       metricTile('p95Pressure', fnum(nm.p95Pressure, 1)) +
       metricTile('pressureRange', fnum(nm.pressureRange, 1)) +
-      metricTile('eprDelta', fnum(m.eprDelta, 1)) +
-      metricTile('epap95', fnum(nm.epap95 != null ? nm.epap95 : m.epap95, 1)) +
+      metricTile('eprDelta', fnum(nm.eprDelta, 1)) +
+      metricTile('epap95', fnum(nm.epap95, 1)) +
       '</div></div>'
     );
   }
@@ -437,8 +439,21 @@ import { CpapDsp } from './cpapdex-dsp.js';
     );
   }
 
+  /* The pooled night carries no `breathRateReason`. When the pooled rate is null, every session lacked
+     a rate (the pool divides whenever any session measured one), so each session's own reason is a true
+     statement about this night. Distinct reasons join; none ⇒ the tile stays silent. */
+  function _cpSessionReasons(night, key) {
+    var seen = [];
+    (night.sessions || []).forEach(function (s) {
+      var r = s && s.metrics && s.metrics[key];
+      if (r && seen.indexOf(r) < 0) seen.push(r);
+    });
+    return seen.length ? seen.join(' · ') : null;
+  }
+
   function ventCard(night) {
-    var m = ((night.sessions && night.sessions[0]) || {}).metrics || {};
+    var m = night.metrics || {};
+    var brReason = m.breathRate == null ? m.breathRateReason || _cpSessionReasons(night, 'breathRateReason') : null;
     return (
       '<div class="card">' +
       cardHead('Ventilation & Flow', '25 Hz flow + 0.5 Hz detail', 'respRateMedian') +
@@ -447,7 +462,7 @@ import { CpapDsp } from './cpapdex-dsp.js';
       /* §∅ — the DSP nulls a breaths/min it had no measured denominator for and writes
          `breathRateReason` beside the null. Without it the tile drew the em-dash a session
          with no flow channel draws. A measured rate carries no reason and stays silent. */
-      metricTile('breathRate', fnum(m.breathRate, 1), null, m.breathRateReason || null) +
+      metricTile('breathRate', fnum(m.breathRate, 1), null, brReason) +
       metricTile('ieRatio', fnum(m.ieRatio, 2)) +
       metricTile('tidVolMedian', fnum(m.tidVolMedian, 2)) +
       metricTile('minVentMedian', fnum(m.minVentMedian, 1)) +

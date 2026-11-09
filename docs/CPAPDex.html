@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="cdff31074fdc" data-compute-hash="24b5d8d61f94">
+<html lang="en" data-manifest-hash="660b16d48fdc" data-compute-hash="24b5d8d61f94">
 <head>
 <!--
   CPAPDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'self' (NOT 'none') — this bundle fetches committed LOCAL sample files; 'self' still blocks every REMOTE origin. object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-AfPEIAeXXT0ZHnz8sdwL24OxRTdvfkuPm56Sw1iNfNo=' 'sha256-BxCnNxEAuZzTlwpqE2PYSNlpgU4yA2/KfpkXA2BTOnk=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-Gfm7P9GH3OY25sgO7j4PSXUSUjikqiCZdst7lBcS0jQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-hCZmwNAMDLPZEMYHAYpzoPETSnimg1oHWWjZImdKqxM=' 'sha256-k+RI3eu7O1dogNihbuES+Db93asgjhSxBjBsgNI3xYs=' 'sha256-oaVjhHvjcdrqkyfbPm968/RabR082pvxQ7Yz2Feiikg=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-xRCF20xc2ZvAlPvK8q18VKibUfkPsJxvgv8x35ggFXk='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+w3tpYArZUZPVASR4M6PBh1Gn6bZoESVh8u2h5+poD4=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-AfPEIAeXXT0ZHnz8sdwL24OxRTdvfkuPm56Sw1iNfNo=' 'sha256-BxCnNxEAuZzTlwpqE2PYSNlpgU4yA2/KfpkXA2BTOnk=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-Gfm7P9GH3OY25sgO7j4PSXUSUjikqiCZdst7lBcS0jQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-hCZmwNAMDLPZEMYHAYpzoPETSnimg1oHWWjZImdKqxM=' 'sha256-k+RI3eu7O1dogNihbuES+Db93asgjhSxBjBsgNI3xYs=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-xRCF20xc2ZvAlPvK8q18VKibUfkPsJxvgv8x35ggFXk='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>CPAPDex — PAP Therapy Analyzer · v2.29.0</title>
@@ -10138,9 +10138,11 @@ const { CpapDsp } = __require('cpapdex-dsp.js');
     );
   }
 
+  /* Night cards read the POOLED `night.metrics` (cpapdex-dsp.js `nightMetrics`). They used to read
+     `night.sessions[0].metrics`, so a multi-session night drew session 1 under a night label beside
+     pooled sibling tiles (residue 2026-11-08-cpapdex-night-cards-draw-session-one-metrics). */
   function pressureCard(night) {
     var nm = night.metrics || {};
-    var m = ((night.sessions && night.sessions[0]) || {}).metrics || {};
     return (
       '<div class="card">' +
       cardHead('Pressure & EPR', 'delivered therapy (mask-on)', 'medianPressure') +
@@ -10149,8 +10151,8 @@ const { CpapDsp } = __require('cpapdex-dsp.js');
       metricTile('medianPressure', fnum(nm.medianPressure, 1)) +
       metricTile('p95Pressure', fnum(nm.p95Pressure, 1)) +
       metricTile('pressureRange', fnum(nm.pressureRange, 1)) +
-      metricTile('eprDelta', fnum(m.eprDelta, 1)) +
-      metricTile('epap95', fnum(nm.epap95 != null ? nm.epap95 : m.epap95, 1)) +
+      metricTile('eprDelta', fnum(nm.eprDelta, 1)) +
+      metricTile('epap95', fnum(nm.epap95, 1)) +
       '</div></div>'
     );
   }
@@ -10169,8 +10171,21 @@ const { CpapDsp } = __require('cpapdex-dsp.js');
     );
   }
 
+  /* The pooled night carries no `breathRateReason`. When the pooled rate is null, every session lacked
+     a rate (the pool divides whenever any session measured one), so each session's own reason is a true
+     statement about this night. Distinct reasons join; none ⇒ the tile stays silent. */
+  function _cpSessionReasons(night, key) {
+    var seen = [];
+    (night.sessions || []).forEach(function (s) {
+      var r = s && s.metrics && s.metrics[key];
+      if (r && seen.indexOf(r) < 0) seen.push(r);
+    });
+    return seen.length ? seen.join(' · ') : null;
+  }
+
   function ventCard(night) {
-    var m = ((night.sessions && night.sessions[0]) || {}).metrics || {};
+    var m = night.metrics || {};
+    var brReason = m.breathRate == null ? m.breathRateReason || _cpSessionReasons(night, 'breathRateReason') : null;
     return (
       '<div class="card">' +
       cardHead('Ventilation & Flow', '25 Hz flow + 0.5 Hz detail', 'respRateMedian') +
@@ -10179,7 +10194,7 @@ const { CpapDsp } = __require('cpapdex-dsp.js');
       /* §∅ — the DSP nulls a breaths/min it had no measured denominator for and writes
          `breathRateReason` beside the null. Without it the tile drew the em-dash a session
          with no flow channel draws. A measured rate carries no reason and stays silent. */
-      metricTile('breathRate', fnum(m.breathRate, 1), null, m.breathRateReason || null) +
+      metricTile('breathRate', fnum(m.breathRate, 1), null, brReason) +
       metricTile('ieRatio', fnum(m.ieRatio, 2)) +
       metricTile('tidVolMedian', fnum(m.tidVolMedian, 2)) +
       metricTile('minVentMedian', fnum(m.minVentMedian, 1)) +
