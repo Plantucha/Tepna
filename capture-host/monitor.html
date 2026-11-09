@@ -198,6 +198,9 @@ body.light .section-title::after{background:rgba(0,0,0,.06);}
   overflow:hidden;transition:border-color .2s,transform .15s,box-shadow .15s;animation:cardEntrance .4s ease both;}
 .card h3{font-size:13px;font-weight:700;color:var(--text);margin-bottom:4px;letter-spacing:-.01em;}
 .card .hint{color:var(--text3);font-size:12px;margin-top:var(--sp-3);line-height:1.5;}
+/* A hint that must say its own number is a floor. `.card .hint` sets the grey, so this rule
+   follows it and wins on source order at equal specificity. */
+.hint.warn{color:var(--amber);}
 
 /* ── Overview stream grid ──────────────────────────────────────────────── */
 .ov-strip{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:var(--sp-5);}
@@ -3925,8 +3928,29 @@ async function pullRec(address, btn){
     if(!r.ok){ panel.innerHTML = r.busy
       ? '<span class="hint">⏳ '+esc(r.busy)+' is downloading — one device at a time, try again when it finishes.</span>'
       : '<span class="hint">error: '+esc(r.error||'failed')+'</span>'; return; }
-    if(!(r.recordings||[]).length){ panel.innerHTML = '<span class="hint">no onboard recordings stored on this device.</span>'; return; }
-    panel.innerHTML = r.recordings.map(s=>`
+    // §∅ — THE WALK'S POPULATION IS A SEPARATE FACT FROM WHAT THE WALK FOUND. `complete` is false when
+    // a directory came back cut short, or would not list at all, and `webmon` publishes it beside the
+    // sessions for exactly that reason. `polar_psftp.list_recordings_ex` logs the same thing in words:
+    // the count is "a floor, not the device's total". This panel read the sessions alone, so a device
+    // whose every directory refused drew "no onboard recordings stored" — a measured zero over a walk
+    // that measured nothing (row
+    // `2026-11-08-the-monitor-page-reads-no-polar-enumeration-completeness`).
+    const ls = r.listing || {};
+    const cut = (ls.truncated_dirs || []).length, unread = (ls.unreadable_dirs || []).length;
+    const partial = r.complete === false || !!cut || !!unread;
+    const floorNote = partial
+      ? `<span class="hint warn">⚠ a FLOOR, not the device's total — ${cut} director${cut === 1 ? 'y' : 'ies'} came back cut short, ${unread} would not list at all.</span>`
+      : '';
+    const recs = r.recordings || [];
+    if(!recs.length){
+      // TWO DIFFERENT FACTS, and one sentence used to serve both. An empty device is a finished
+      // measurement; a walk that read nothing is the absence of one.
+      panel.innerHTML = partial
+        ? floorNote + '<span class="hint">nothing in that list could be read, so this is NOT an empty device.</span>'
+        : '<span class="hint">no onboard recordings stored on this device.</span>';
+      return;
+    }
+    panel.innerHTML = floorNote + recs.map(s=>`
       <div style="display:flex;align-items:center;gap:.6rem;font-size:.85rem">
         <span style="flex:1">${esc(s.start_local||s.path)} · ${esc(s.kind)} · ${s.files.length} files · ${(s.total_bytes/1024).toFixed(1)} KB</span>
         <button class="btn" onclick='doPull(${esc(JSON.stringify(address))}, ${esc(JSON.stringify(s.path))}, this)'>Download</button>
