@@ -214,6 +214,38 @@
     });
   }
 
+  /* ⏱ A CHILD KILLED BY A SIGNAL EXAMINED NOTHING — row
+     2026-11-08-seven-control-legs-read-a-killed-child-as-a-failed-selftest.
+     `env.probeToolArgv` and `env.importToolInChild` both return `signal` beside `status`, and no
+     site in this suite read it. Every CONTROL leg that asserted `status` equals 0 therefore printed
+     `got null · want 0` when the box killed the child, which is a verdict about a tool from a leg
+     that never saw the tool run. Magpie discriminated it on one tree: at high load the leg froze its
+     dependent and left 32 of 53 steps unrun, and the same tree at load 20.96 passed the same leg at
+     the same log line. The child runs 5.54 s against a 25 s cap, so the cap is not the cause.
+     CLAUDE.md §4c asks for `⏱ UNEXAMINED <producer>` for this class. The VERDICT does not move — a
+     kill still reds, because laundering it into a pass is the worse defect — only the ATTRIBUTION.
+     `tools/trio-batch.mjs` already reads a null code as a signalled death.
+     Returns null when the child reported an exit code, else why it reported none. */
+  function dexUnexamined(r) {
+    if (!r || typeof r !== 'object') return 'the probe returned no result object';
+    if (r.status !== null && r.status !== undefined) return null;
+    if (r.signal) return 'the child died on ' + r.signal + ' and never reported an exit code';
+    return 'the child reported no exit code and no signal';
+  }
+
+  /* Assert a probe child's exit code, and name a kill as a kill. `want` defaults to 0. Returns true
+     only when the child ran AND answered with the wanted code, so a caller may guard on it. */
+  function dexExitWas(T, label, r, producer, want) {
+    var wanted = want === undefined ? 0 : want;
+    var why = dexUnexamined(r);
+    if (why) {
+      T.ok('⏱ UNEXAMINED ' + producer + ' — ' + why, false, 'CLAUDE.md §4c: this leg looked at nothing, so it carries no verdict about ' + producer);
+      return false;
+    }
+    T.eq(label, r.status, wanted);
+    return r.status === wanted;
+  }
+
   function runDexTests(env) {
     env = env || {};
     var GROUPS = [];
@@ -15623,6 +15655,57 @@
       T.ok('CONTROL · the same scan MATCHES a planted copy of the retracted claim', '# produce two copies on one spindle, the exact failure'.indexOf('one spindle') !== -1, 'planted text matches');
     });
 
+    /* ⏱ A KILLED CHILD IS NOT A FAILED SELFTEST — row
+       2026-11-08-seven-control-legs-read-a-killed-child-as-a-failed-selftest. The eight CONTROL legs
+       in this file route through `dexExitWas` now. This group holds the discriminator itself, so an
+       edit that drops the signal read reds HERE, rather than at high box load on an unrelated PR. */
+    group('a probe child killed by a signal reads as UNEXAMINED, not as a failed selftest', 'tools · probe · unexamined', function (T) {
+      var probe = env.probeToolArgv;
+      if (!probe) {
+        T.skip('env.probeToolArgv provided to the runner', 'Node-lane only (spawns a tool in a temp cwd) — the browser lane cannot spawn');
+        return;
+      }
+      /* A REAL KILL, never a synthetic object: a 1 ms cap cannot outlast node's own startup, so
+         `spawnSync` kills the child and reports a signal with no exit code. */
+      var killed = probe('tools/corpus-census.mjs', ['--selftest'], { timeoutMs: 1 });
+      T.eq('ANTI-VACUITY · a 1 ms cap really does kill the child, which reports no exit code', killed.status, null);
+      T.ok('…and spawnSync names the signal that killed it', typeof killed.signal === 'string' && killed.signal.length > 0, String(killed.signal));
+      T.ok('the discriminator calls that result UNEXAMINED', /never reported an exit code/.test(String(dexUnexamined(killed))), String(dexUnexamined(killed)));
+      /* CONTROL · the rule this replaces, asserted on the same object, so the fix is not a matter of
+         opinion: `status === 0` reads this killed child as a tool whose own selftest failed. */
+      T.ok('CONTROL · the old rule reads the kill as a failed selftest', killed.status !== 0, 'got ' + String(killed.status) + ' · want 0 — the line the fleet used to read');
+      /* A child that ANSWERED is left alone, so the helper excuses nothing by itself. */
+      var ran = probe('tools/corpus-census.mjs', ['--selftest']);
+      T.eq('a child that answered is not UNEXAMINED', dexUnexamined(ran), null);
+      /* The wrapper's own arms run through a SINK T. Calling it with the killed result against the
+         real T would red this group by design, which is the point of the wrapper. */
+      var sink = [];
+      var fake = {
+        ok: function (l, c, d) {
+          sink.push({ kind: 'ok', label: l, cond: c, detail: d });
+        },
+        eq: function (l, a, b) {
+          sink.push({ kind: 'eq', label: l, got: a, want: b });
+        }
+      };
+      var killedVerdict = dexExitWas(fake, 'CONTROL · a tool passes its own selftest', killed, 'tools/corpus-census.mjs');
+      T.eq('a killed child emits exactly one leg', sink.length, 1);
+      T.ok('…and the leg names UNEXAMINED and the producer', /UNEXAMINED tools\/corpus-census\.mjs/.test(String(sink[0].label)), String(sink[0].label));
+      T.ok('…and it names the signal that killed the child', String(sink[0].label).indexOf(String(killed.signal)) >= 0, String(sink[0].label));
+      T.eq('…and it reports a FAILURE, never a pass', sink[0].cond, false);
+      T.eq('…and the wrapper answers false, so a caller can guard on it', killedVerdict, false);
+      T.ok('…and it cites the rule that asks for this', String(sink[0].detail).indexOf('§4c') >= 0, String(sink[0].detail));
+      sink.length = 0;
+      var ranVerdict = dexExitWas(fake, 'CONTROL · a tool passes its own selftest', ran, 'tools/corpus-census.mjs');
+      T.eq('a child that answered routes to the ordinary exit-code assertion', sink[0].kind, 'eq');
+      T.eq('…with the exit code the child reported', sink[0].got, 0);
+      T.eq('…against the wanted 0', sink[0].want, 0);
+      T.eq('…and the wrapper answers true', ranVerdict, true);
+      /* The other shapes a probe can hand back, and the one that must stay a real verdict. */
+      T.ok('an absent result object is UNEXAMINED too', /no result object/.test(String(dexUnexamined(null))), String(dexUnexamined(null)));
+      T.ok('a null code with no signal is UNEXAMINED and says which', /no exit code and no signal/.test(String(dexUnexamined({ status: null }))), String(dexUnexamined({ status: null })));
+      T.eq('a NON-ZERO exit code is a real verdict and stays one', dexUnexamined({ status: 2 }), null);
+    });
     group('the four tch corpus readers publish their population without a corpus', 'tools · corpus-reads · verdict-sample', function (T) {
       var TT = env.toolTexts;
       if (!TT) {
@@ -15796,7 +15879,7 @@
       T.eq('…and the refusal wrote nothing either', empty.wrote, []);
       /* CONTROL · the exit code is derived, so the pure arm is asserted on both sides. */
       var self = probe(REL, ['--selftest']);
-      T.eq('CONTROL · the tool’s own selftest of the exit-code arms passes', self.status, 0);
+      dexExitWas(T, 'CONTROL · the tool’s own selftest of the exit-code arms passes', self, REL);
       T.ok('…and says how many it ran', /SELFTEST PASS \((\d+)\/\1\)/.test(String(self.out)), String(self.out).slice(0, 160));
     });
     /* ════ FIVE SINGLE-ROOT ENUMERATORS, FIVE POPULATIONS ═══════════════════════════════════════
@@ -16535,7 +16618,7 @@
         ['tools/corpus-census.mjs', /all (\d+) selftests passed/]
       ].forEach(function (row) {
         var r = probe(row[0], ['--selftest']);
-        T.eq('CONTROL · ' + row[0] + ' passes its own selftest', r.status, 0);
+        dexExitWas(T, 'CONTROL · ' + row[0] + ' passes its own selftest', r, row[0]);
         var m = row[1].exec(String(r.out));
         T.ok('…in the summary line selftest-all parses, with a counted number of assertions', m != null && Number(m[1]) > 0, String(r.out).slice(-160));
       });
@@ -16674,10 +16757,10 @@
       /* CONTROL · the two tools that carry their own selftest still pass it, so the exit-code arms
          are asserted from inside as well as from here. */
       var pbSelf = probe('tools/pb-fusion-blast.mjs', ['--selftest']);
-      T.eq('CONTROL · pb-fusion-blast passes its own selftest', pbSelf.status, 0);
+      dexExitWas(T, 'CONTROL · pb-fusion-blast passes its own selftest', pbSelf, 'tools/pb-fusion-blast.mjs');
       T.ok('…and says so in the line selftest-all reads', /selftest: all green/.test(String(pbSelf.out)), String(pbSelf.out).slice(0, 160));
       var tchSelf = probe('tools/tch-pooled-hat.mjs', ['--selftest']);
-      T.eq('CONTROL · tch-pooled-hat passes its own selftest', tchSelf.status, 0);
+      dexExitWas(T, 'CONTROL · tch-pooled-hat passes its own selftest', tchSelf, 'tools/tch-pooled-hat.mjs');
       T.ok('…and counts the assertions it ran', /(\d+) passed, 0 failed/.test(String(tchSelf.out)), String(tchSelf.out).slice(0, 160));
     });
     /* ════ THREE CPAP-CORPUS READERS PUBLISH THE ENUMERATION THEY WALKED ═══════════════════════
@@ -16819,10 +16902,10 @@
       /* CONTROL · the two tools that carry their own selftest still pass it, so nothing above was
          bought by breaking a known-answer suite that already existed. */
       var oxySelf = probe('tools/cpap-oxy-couple.mjs', ['--selftest']);
-      T.eq('CONTROL · cpap-oxy-couple passes its own selftest', oxySelf.status, 0);
+      dexExitWas(T, 'CONTROL · cpap-oxy-couple passes its own selftest', oxySelf, 'tools/cpap-oxy-couple.mjs');
       T.ok('…and says so in the line selftest-all reads', /all \d+ selftests passed/.test(String(oxySelf.out)), String(oxySelf.out).slice(0, 160));
       var sa2Self = probe('tools/cpap-sa2-agreement.mjs', ['--selftest']);
-      T.eq('CONTROL · cpap-sa2-agreement passes its own selftest', sa2Self.status, 0);
+      dexExitWas(T, 'CONTROL · cpap-sa2-agreement passes its own selftest', sa2Self, 'tools/cpap-sa2-agreement.mjs');
       T.ok('…and counts the assertions it ran', /\d+ passed, 0 failed/.test(String(sa2Self.out)), String(sa2Self.out).slice(0, 160));
     });
     /* ════ THREE NSRR COHORT READERS PUBLISH THE RECORD SET THEY WERE OFFERED ══════════════════
@@ -17015,7 +17098,7 @@
       ['tools/nsrr-oxydex-odi.mjs', 'tools/nsrr-criterion-sweep.mjs', 'tools/nsrr-stage-validate.mjs'].forEach(function (rel) {
         var stem = rel.replace(/^.*\//, '');
         var self = probe(rel, ['--selftest']);
-        T.eq('CONTROL · ' + rel + ' passes its own selftest', self.status, 0);
+        dexExitWas(T, 'CONTROL · ' + rel + ' passes its own selftest', self, rel);
         var counted = /(\d+)\s+(passed|assertion)/.test(String(self.out));
         var ratcheted = ratchet.indexOf("'" + stem + "'") >= 0;
         T.ok('…and either counts the assertions it ran or is a declared member of the ratchet', counted || ratcheted, 'neither: ' + String(self.out).slice(-200));
@@ -45858,6 +45941,56 @@
       }
     });
 
+    /* TRACER AUDIT #4706 TR-1 — a header that names its columns is never re-read by position.
+       `Time,Oxygen Level,Motion` (an O2Ring CSV with no pulse column) used to fall through to the
+       positional fallback, which read Motion as HR: motion 0,58,3,200,0 kept 2 of 5 rows with HR 58
+       and 200. A column the header leaves out is absent; the rows and their other columns survive. */
+    group('OxyDex parseCSV keeps a named header and nulls the column it leaves out (TR-1)', 'oxydex-dsp · fabricated-absence · regression', function (T) {
+      var OM = env.OxyDex && (env.OxyDex._bare || env.OxyDex);
+      if (!(OM && typeof OM.parseCSV === 'function')) {
+        T.skip('OxyDex.parseCSV available', 'oxydex-dsp not wired in this lane');
+        return;
+      }
+      var st = ['20:21:36', '20:21:37', '20:21:38', '20:21:39', '20:21:40'];
+      var mot = [0, 58, 3, 200, 0];
+      var noHr =
+        'Time,Oxygen Level,Motion\n' +
+        st
+          .map(function (t, i) {
+            return t + ' 13/08/2026,95,' + mot[i];
+          })
+          .join('\n') +
+        '\n';
+      var r = OM.parseCSV(noHr, { fname: 'x_SPO2.csv' });
+      T.eq('no pulse column · every row survives', r.length, 5);
+      T.eq(
+        'no pulse column · HR is null on every row',
+        r.filter(function (x) {
+          return x.hr === null;
+        }).length,
+        5
+      );
+      T.eq(
+        'no pulse column · motion keeps its own column',
+        JSON.stringify(
+          r.map(function (x) {
+            return x.motion;
+          })
+        ),
+        JSON.stringify(mot)
+      );
+      var ctrl = OM.parseCSV('Time,Oxygen Level,Pulse Rate,Motion\n20:21:36 13/08/2026,96,52,0\n20:21:37 13/08/2026,95,53,4\n', { fname: 'x_SPO2.csv' });
+      T.eq(
+        'control · a full header still maps HR',
+        JSON.stringify(
+          ctrl.map(function (x) {
+            return [x.spo2, x.hr, x.motion];
+          })
+        ),
+        '[[96,52,0],[95,53,4]]'
+      );
+    });
+
     /* DEEP-AUDIT-V §2.3 — TWO MORE OxyDex FABRICATED ABSENCES, both bug class 3a, both found by
        asking the §3a question of an input rather than of a series: WHAT DOES THIS SAY WHEN THE
        SENSOR WAS NEVER THERE?
@@ -49543,6 +49676,120 @@
        live and tested, because a firmware that starts stamping PPI makes those rows decidable with no
        code change. Owner ruling 2026-11-05 still binds the absence: no sidecar reads UNKNOWN, never
        zero, and the block is on EVERY export. */
+    /* ════ THE RR NODE REACHES THE FUSION LAYER — `timeseries.epochs` ═══════════════════════════
+       Row `2026-11-08-the-pulsedex-export-carries-no-epoch-series`. The export published
+       `recording.windows` as a COUNT, so `integrator-dsp.js:735` lifted 0 epochs for the RR node,
+       the three-cornered-hat fit reported 0 channels, and nothing named the loss. The contract is
+       INTEGRATOR-THREE-CORNERED-HAT §2, and ECGDex and PpgDex already satisfy it.
+
+       THE LEG THAT IS ABOUT THE DEFECT IS THE INTEGRATOR LEG, not the shape of the node export. A
+       node can publish a well-formed array that the fusion layer drops, because the reader is a
+       WHITELIST: that is how `hrStat` shipped inert from ECGDex while every golden read `undefined`.
+       So the group runs the export through `adaptEnvelopeNode` and reads `series.hrvEpochs`, and it
+       keeps a CONTROL that deletes the block and asserts 0 epochs — the state this row describes. */
+    group('the PulseDex export carries a per-epoch series, and the Integrator fuses it', 'pulsedex-dsp · integrator-dsp · node-export · fusion · §∅', function (T) {
+      var P = env.PULSEDSP || env.PulseDex;
+      var pick = function (k) {
+        return P && (P[k] || (P._bare && P._bare[k]));
+      };
+      var parseRRInput = pick('parseRRInput'),
+        pdComputeResult = pick('pdComputeResult'),
+        pdBuildNodeExport = pick('pdBuildNodeExport');
+      /* FAIL CLOSED. A skip here would hide the very wiring this group exists to assert, which is
+           the hollow-gate failure mode this suite has measured more than once. */
+      if (!(typeof parseRRInput === 'function' && typeof pdComputeResult === 'function' && typeof pdBuildNodeExport === 'function')) {
+        T.eq('the PulseDex DSP exposes its RR reader, its compute and its export builder', 'absent', 'present');
+        return;
+      }
+      var T0 = Date.UTC(2026, 5, 17, 1, 0, 0);
+      /* REAL variability, so a null or a zero is distinguishable from a measurement — a flat series
+           would satisfy a `!= null` assertion by accident. */
+      var rrText = function (n) {
+        var L = ['Phone timestamp;RR-interval [ms]'],
+          at = 0;
+        for (var q = 0; q < n; q++) {
+          var ms = 900 + (q % 7) * 30;
+          L.push(new Date(T0 + at).toISOString().replace('Z', '') + ';' + ms);
+          at += ms;
+        }
+        return L.join('\n') + '\n';
+      };
+      /* `windowAnalysis` runs only on a LONG record (`classifyRecording` at :1399 needs 90 min), so
+           the fixture is ~105 min of beats. A 20-minute stub carries no window and would have made
+           this group assert the absence instead of the series. */
+      var r = pdComputeResult(parseRRInput(rrText(6400)));
+      var exp = pdBuildNodeExport(r);
+      var eps = exp.timeseries && exp.timeseries.epochs;
+      T.ok(
+        'the export publishes `timeseries.epochs`, one entry per analysable window',
+        Array.isArray(eps) && eps.length === exp.recording.windows && eps.length >= 3,
+        JSON.stringify([Array.isArray(eps) ? eps.length : null, exp.recording.windows])
+      );
+      if (Array.isArray(eps) && eps.length) {
+        var bad = eps.filter(function (e) {
+          return !(e && isFinite(e.tMin) && isFinite(e.hr) && isFinite(e.rmssd) && e.rmssd > 0);
+        });
+        T.eq('every epoch carries a finite minute, a finite HR and a positive rMSSD', bad.length, 0, JSON.stringify(bad.slice(0, 2)));
+        var stats = eps
+          .map(function (e) {
+            return e.hrStat;
+          })
+          .filter(function (v, i, a) {
+            return a.indexOf(v) === i;
+          });
+        /* The whitelist at `integrator-dsp.js:752` reads this string and nothing else says WHICH
+             statistic the node's `hr` is. `rate-of-mean` is `60000/mean(RR)`, the statistic ECGDex
+             and PpgDex declare, so the HR-hat differences three legs that answer one question. */
+        T.eq('…and declares one HR statistic, the one the other two interval nodes declare', JSON.stringify(stats), '["rate-of-mean"]');
+        T.ok(
+          'the epoch REPORTS the window, it does not recompute it',
+          eps[0].hr === r.windows[0].hr && eps[0].rmssd === r.windows[0].rmssd && eps[0].tMin === r.windows[0].tMin,
+          JSON.stringify([eps[0], r.windows[0]])
+        );
+        /* §∅ — an RR stream carries no accelerometer, so the key is ABSENT. A `motionIndex: 0`
+             would read as a measured still minute and would enter the co-motion rho as data. */
+        T.eq(
+          'no `motionIndex` key on an RR node — absence, never a zero',
+          eps.filter(function (e) {
+            return Object.prototype.hasOwnProperty.call(e, 'motionIndex');
+          }).length,
+          0
+        );
+      }
+      /* A record with no analysable window carries NO field, rather than an empty array a consumer
+           would read as "measured, and flat". */
+      var short = pdBuildNodeExport(pdComputeResult(parseRRInput(rrText(60))));
+      T.eq('a record with no analysable window carries no `timeseries` key at all', JSON.stringify([short.recording.windows, short.timeseries === undefined]), '[0,true]');
+      // ── 🔴 THE DEFECT'S OWN LEG: the fusion layer, with the control that reproduces the row ───
+      if (typeof env.adaptEnvelopeNode === 'function') {
+        /* The adapter answers with a LIST of recs (or a `{recs}` carrier), never one rec — the same
+             unwrap every other end-to-end leg in this file performs. Reading `.series` off the
+             carrier reads `undefined` and would have made this leg assert the defect it is about. */
+        var _unwrap = function (a) {
+          return Array.isArray(a) ? a[0] : a && a.recs && a.recs[0];
+        };
+        var rec = _unwrap(env.adaptEnvelopeNode(JSON.parse(JSON.stringify(exp)), 'PulseDex', 'pulsedex_synth_rr.json'));
+        var fused = rec && rec.series ? rec.series.hrvEpochs : null;
+        T.ok(
+          '🔴 the Integrator now lifts the RR node epochs into `series.hrvEpochs`',
+          Array.isArray(fused) && fused.length === eps.length && fused.length >= 3,
+          JSON.stringify(Array.isArray(fused) ? fused.length : fused)
+        );
+        if (Array.isArray(fused) && fused.length) {
+          T.ok(
+            '…with the label and the wall clock the fit needs, and a null motion leg',
+            fused[0].hrStat === 'rate-of-mean' && fused[0].rmssd > 0 && fused[0].motion === null && fused[0].tMs === exp.recording.startEpochMs + fused[0].tMin * 60000,
+            JSON.stringify(fused[0])
+          );
+        }
+        var blind = JSON.parse(JSON.stringify(exp));
+        delete blind.timeseries;
+        var recBlind = _unwrap(env.adaptEnvelopeNode(blind, 'PulseDex', 'pulsedex_synth_rr.json'));
+        var fusedBlind = recBlind && recBlind.series ? recBlind.series.hrvEpochs : null;
+        T.ok('CONTROL · the export WITHOUT the block fuses 0 epochs, which is the state the row describes', !(fusedBlind && fusedBlind.length), JSON.stringify(fusedBlind || null));
+      } else T.eq('env.adaptEnvelopeNode reaches this realm, so the fusion leg can run', 'absent', 'present');
+    });
+
     group(
       'SEAM-SIDECAR-CONSUMPTION §4 — the _PPISEAMS/_HRSEAMS sidecars reach PulseDex, and a flat device axis refuses nothing',
       'pulsedex-dsp · pulsedex-app · signal-orchestrate · adapters · absence · §∅',
@@ -51769,6 +52016,23 @@
         return orient.indexOf(n) < 0;
       });
       T.ok('every shipped bundle is named in ORIENTATION.md (roster not stale)', missing.length === 0, 'missing: ' + missing.join(', '));
+      /* The map carries a SECOND volatile roster: the adapter name list. It named 8 of the 12 files in
+       adapters/ and omitted resmed-edf, o2ring-ppg, o2ring-ppg2w and polar-acc (Muse's hunt, board
+       #4248 D-2; row 2026-11-07-orientation-adapter-map-omits-four-adapters). env.sources is a real
+       readdirSync walk of adapters/ (run-tests.mjs readSources), so the Node lane sees every file as
+       it lands; the browser lane provides no sources and skips rather than shrinking the gate. */
+      var adapterFiles = Object.keys(env.sources || {}).filter(function (k) {
+        return /^adapters\/[a-z0-9-]+\.js$/.test(k);
+      });
+      if (!adapterFiles.length) {
+        T.skip('every adapter file is named in the ORIENTATION adapter map', 'sources not provided in this runner');
+      } else {
+        T.ok('derived the adapter set from env.sources', adapterFiles.length >= 8, adapterFiles.length + ' adapter file(s) walked');
+        var unmapped = adapterFiles.filter(function (k) {
+          return orient.indexOf(k.replace(/^adapters\//, '').replace(/\.js$/, '')) < 0;
+        });
+        T.ok('every adapter file is named in the ORIENTATION adapter map', unmapped.length === 0, 'absent from the map: ' + unmapped.join(', '));
+      }
     });
 
     /* ════ DEMO-INPUTS — a shipped demo must never depend on a gitignored file ════
@@ -72240,6 +72504,135 @@
           );
         }
 
+        /* ── MotionDex RENDER · EXECUTED, not read as text ────────────────────────────────────────
+           residue 2026-11-08-motiondex-render-is-executed-by-no-gate. This group's own label has
+           named motiondex-render since it was written, and the harness never executed the file: the
+           three legs above read its SOURCE TEXT, so a throw planted at the top of renderSummary left
+           every render group and the full lane green. The file is executed now, and these legs read
+           the module instead of the text — the call for its throw, the exported builders for the
+           values they surface. The first leg is FAIL-CLOSED: it reds where the group's skip guard
+           cannot see a MOTIONUI that failed to load, because the harness only prints a yellow line. */
+        T.ok(
+          'MOTIONUI is wired — motiondex-render.js is EXECUTED by this harness, not read as text',
+          !!env.MOTIONUI && typeof env.MOTIONUI.renderSummary === 'function' && typeof env.MOTIONUI.positionBar === 'function' && typeof env.MOTIONUI.effortPresentPct === 'function',
+          env.MOTIONUI ? Object.keys(env.MOTIONUI).join(',') : 'MOTIONUI undefined — the module did not execute'
+        );
+        var MXU = env.MOTIONUI || {};
+        /* effortPresentPct · the COVERAGE-HONEST denominator (∅ ABSENCE IS NULL). An epoch with no
+           chest ACC carries present:null and is EXCLUDED from the denominator; counting it as absent
+           would read 50 % here and understate every effort night the chest strap did not cover. */
+        T.eq(
+          'effortPresentPct · 2 present of 3 RECORDED epochs = 67 % (the present:null epoch leaves the denominator, so not 50 %)',
+          MXU.effortPresentPct ? MXU.effortPresentPct([{ present: true }, { present: false }, { present: null }, { present: true }]) : 'NO-FN',
+          67
+        );
+        T.eq(
+          'effortPresentPct · a series that recorded NOTHING is null, never 0 % (∅ absence is null)',
+          MXU.effortPresentPct ? MXU.effortPresentPct([{ present: null }, { present: null }]) : 'NO-FN',
+          null
+        );
+        T.eq('effortPresentPct · an absent series is null too', MXU.effortPresentPct ? MXU.effortPresentPct(null) : 'NO-FN', null);
+        /* positionBar · the dwell bar's segment ORDER and its zero handling. A posture at 0 dwell
+           draws no segment and no legend entry, so the bar cannot show a posture the night never held. */
+        var mxBar = MXU.positionBar ? MXU.positionBar({ supine: 0.5, left: 0.25, prone: 0, upright: 0.25 }) : '';
+        T.eq(
+          'positionBar · segments draw in POS_ORDER (supine → left → right → prone → upright), skipping every posture at 0 dwell',
+          (mxBar.match(/mx-seg mx-seg-([a-z]+)/g) || []).join('|'),
+          'mx-seg mx-seg-supine|mx-seg mx-seg-left|mx-seg mx-seg-upright'
+        );
+        T.ok('positionBar · 0.5 supine dwell reads "50%" in the segment title and the legend', (mxBar.match(/Supine 50%/g) || []).length === 2, mxBar.slice(0, 120));
+        T.eq('positionBar · no dwell track draws no bar at all (an empty string, not an empty bar)', MXU.positionBar ? MXU.positionBar(null) : 'NO-FN', '');
+        /* activitySpark / effortSpark · THREE states, never two (the file's own comment: "a gap is not
+           stillness"). A not-recording epoch is HATCHED; a MEASURED zero still draws its 8 % floor, so
+           the eye can tell an epoch the box never covered from one it covered and found still. */
+        var mxSpark = MXU.activitySpark
+          ? MXU.activitySpark([
+              { count: 10, moving: true },
+              { count: 0, moving: false },
+              { count: null, moving: null }
+            ])
+          : '';
+        T.eq(
+          'activitySpark · moving / still / NOT RECORDING draw three different classes, in order',
+          (mxSpark.match(/class="mx-sp( mx-sp-[a-z]+)?"/g) || []).join('|'),
+          'class="mx-sp"|class="mx-sp mx-sp-off"|class="mx-sp mx-sp-nul"'
+        );
+        T.ok(
+          'activitySpark · a measured count of 0 keeps the 8 % floor while the not-recording epoch draws full height',
+          /height:8%/.test(mxSpark) && /mx-sp-nul" style="height:100%/.test(mxSpark),
+          mxSpark.slice(0, 80)
+        );
+        T.ok('activitySpark · the not-recording epoch says "not recording", never "still"', /title="not recording"/.test(mxSpark) && (mxSpark.match(/still/g) || []).length === 1, mxSpark.slice(-90));
+        var mxEff = MXU.effortSpark
+          ? MXU.effortSpark([
+              { amp: 0.01, present: true },
+              { amp: 0, present: false },
+              { amp: null, present: null }
+            ])
+          : '';
+        T.ok('effortSpark · the no-coverage epoch is hatched and says "no chest ACC", not "effort absent"', /mx-sp-nul/.test(mxEff) && /title="no chest ACC"/.test(mxEff), mxEff.slice(-90));
+        /* renderSummary · THE CALL. This is the leg Muse's planted throw escaped: nothing invoked the
+           function, so its body could not fail. getElementById returns null in this realm, so every
+           fill() no-ops and the assertion is about the COMPUTATION — the KPI grid, the four cards and
+           _mxProvenanceNote's refusal states, which no exported builder reaches. */
+        var mxCall = function (sm) {
+          try {
+            if (!MXU.renderSummary) return 'NO-FN';
+            MXU.renderSummary(sm);
+            return 'ok';
+          } catch (e) {
+            return 'threw: ' + (e && e.message);
+          }
+        };
+        T.eq(
+          'renderSummary · a full summary paints every section without throwing (a throw at the top of it passed every lane before this leg)',
+          mxCall({
+            streams: { acc: 1200, gyro: 400, mag: 0, chestAcc: 600 },
+            durSec: 28800,
+            position: { hasData: true, supineFrac: 0.42, dwellFrac: { supine: 0.42, left: 0.3, right: 0.28 }, track: new Array(960) },
+            activity: {
+              hasData: true,
+              totalCounts: 812.5,
+              movementIndex: 0.85,
+              immobileFrac: 0.73,
+              coveredEpochs: 940,
+              epochs: [
+                { count: 10, moving: true },
+                { count: null, moving: null }
+              ],
+              blankedEpochs: 20
+            },
+            effort: {
+              hasData: true,
+              rateBrpm: 14.2,
+              nBreaths: 3400,
+              amplitudeG: 0.0123,
+              series: [
+                { amp: 0.01, present: true },
+                { amp: null, present: null }
+              ]
+            },
+            sqi: { conf: 0.91, flags: [] },
+            seams: { seams: 2, placed: 1, reason: 'arrival-gap' },
+            clockResyncs: 1
+          }),
+          'ok'
+        );
+        T.eq(
+          'renderSummary · a summary whose blocks REFUSED still paints, so _mxProvenanceNote states each reason instead of throwing',
+          mxCall({
+            streams: { acc: 1200, chestAcc: 0 },
+            durSec: 600,
+            position: { hasData: false, reason: 'unit-unknown' },
+            activity: { hasData: false, reason: 'unit-unknown', immobileFracReason: 'clock-seam' },
+            effort: { hasData: false },
+            sqi: {}
+          }),
+          'ok'
+        );
+        T.eq('renderSummary · no IMU samples at all takes the empty-state path without throwing', mxCall({ streams: { acc: 0, chestAcc: 0 } }), 'ok');
+        T.eq('renderSummary · an absent summary is the same refusal, never a crash', mxCall(null), 'ok');
+
         // ── OxyDex mean-SpO₂ KPI color: ok≥95 / warn≥92 / bad (HIGH; a lowered cut paints a hypoxic night green) ──
         var oxKpiClass = function (mean) {
           var html = env.OxyDex.reviewView({ events: [], nights: [{ stats: { meanSpo2: mean, minSpo2: mean - 3 } }] }, [{ stats: { meanSpo2: mean, minSpo2: mean - 3 } }]);
@@ -82566,6 +82959,185 @@
       }
     });
 
+    /* ════ THE RELEASE FRONT DOOR AND THE RUNNER REFUSE A TOKEN THEY NEVER READ ═══════════════════
+       Row 2026-11-08-release-and-run-tests-never-call-the-argv-guard (Muse's audit). Both tools read
+       their flags with `args.includes` or a per-flag regex and NEITHER held the set, so a token nobody
+       looks up was indistinguishable from an absent one — and in both the fall-through branch is the
+       expensive one:
+         · `node tools/release.mjs --status` STAMPED v2.29.1, appended RELEASE-MANIFEST.json, rewrote
+           CHANGELOG.md and UNLINKED 21 `changes/*.md` files (Muse, 2026-11-08, reverted by hand).
+           `--status` and `--resume` are documented on that tool by `CLAUDE.md` §📦 and read only by
+           release-land.mjs, so they are FORWARDED now rather than refused.
+         · `node tests/run-tests.mjs --help` ran the whole suite, ~20 min, for a caller asking what the
+           flags are. `checkArgv` cannot judge that grammar — it refuses the joined `--flag=value` form,
+           which is the runner's OWN idiom (`--shard=1/6` is what CI's matrix passes) — so
+           `checkLooseArgv` does, over one declared flag table that `--help` prints.
+       EVERY release.mjs PROBE CARRIES `--dry-run`. `probeToolArgv` reports what was written in its TEMP
+       CWD and both tools write to the REPO root, so `wrote: []` cannot be the write check here: the
+       `--dry-run` token is, and it makes a regression of the guard a harmless preview instead of a
+       release cut from inside the suite. ════ */
+    group('release.mjs and run-tests.mjs refuse a token they never read', 'tools · argv · execution', function (T) {
+      /* ── A · THE PREDICATE, evaluated in a realm (the module is pure) ──────────────────────── */
+      var TSl = env.toolSources;
+      var vmL = typeof require === 'function' ? require('node:vm') : null;
+      if (!TSl || !vmL) {
+        T.skip('env.toolSources + node:vm', 'Node-lane only (run-tests.mjs readToolSources; realm-loading) — the browser lane carries neither');
+      } else {
+        var srcL = TSl['argv-guard.mjs'];
+        T.ok('tools/argv-guard.mjs is readable', !!srcL, 'the guard module is missing');
+        if (srcL) {
+          var realmL = { module: { exports: {} } };
+          realmL.exports = realmL.module.exports;
+          vmL.createContext(realmL);
+          vmL.runInContext(
+            String(srcL)
+              .replace(/^export /gm, '')
+              .replace(/^import .*$/gm, '') + '\n;exports.checkLooseArgv = checkLooseArgv; exports.checkArgv = checkArgv;',
+            realmL
+          );
+          var loose = realmL.exports.checkLooseArgv,
+            strict = realmL.exports.checkArgv;
+          var TBL = [
+            { names: ['group', 'g', 'only'], value: 'required' },
+            { names: ['jobs', 'job'], value: 'optional', valuePattern: /^(\d+|auto)$/i },
+            { names: ['json'] },
+            { names: ['no-progress'] }
+          ];
+          /* THE DIVERGENCE THAT MAKES A SECOND CHECKER NECESSARY, asserted both ways round. */
+          T.ok('the joined `--group=oxydex` form PASSES the loose checker', loose(['--group=oxydex'], TBL).ok === true, JSON.stringify(loose(['--group=oxydex'], TBL)));
+          T.ok(
+            'CONTROL · and `checkArgv` refuses that same token, which is why the runner could not adopt it',
+            strict(['--group=oxydex'], { valued: ['--group'] }).ok === false,
+            'if the strict checker accepted it, this second predicate would be dead code'
+          );
+          T.ok('the spaced form passes', loose(['--group', 'oxydex'], TBL).ok === true, JSON.stringify(loose(['--group', 'oxydex'], TBL)));
+          T.ok('a single-dash alias passes', loose(['-g', 'oxydex'], TBL).ok === true, JSON.stringify(loose(['-g', 'oxydex'], TBL)));
+          T.ok('the case of the flag does not matter', loose(['--GROUP=oxydex', '--JSON'], TBL).ok === true, JSON.stringify(loose(['--GROUP=oxydex', '--JSON'], TBL)));
+          T.ok('an aliased spelling passes', loose(['--only', 'oxydex'], TBL).ok === true, JSON.stringify(loose(['--only', 'oxydex'], TBL)));
+          T.ok('an empty argv passes', loose([], TBL).ok === true, 'nothing to refuse');
+          /* ARITY IS NOT POLICED, and `npm run test:shard` is why: it is literally
+             `node tests/run-tests.mjs --shard` with the value arriving in DEX_SHARD. */
+          T.ok('a valued flag with NOTHING after it passes — an env var may carry the value', loose(['--group'], TBL).ok === true, JSON.stringify(loose(['--group'], TBL)));
+          T.ok('an optional value may be absent', loose(['--jobs'], TBL).ok === true, JSON.stringify(loose(['--jobs'], TBL)));
+          T.ok('…present as a number', loose(['--jobs', '4', '--json'], TBL).ok === true, JSON.stringify(loose(['--jobs', '4', '--json'], TBL)));
+          T.ok('…or present as the word auto', loose(['--jobs', 'auto'], TBL).ok === true, JSON.stringify(loose(['--jobs', 'auto'], TBL)));
+          /* A FLAG IS NEVER SWALLOWED AS THE PREVIOUS FLAG'S VALUE: if `--json` were consumed here, the
+             trailing bare token would be read as legal and the caller would lose the filter in silence. */
+          var swallow = loose(['--group', '--jsonn'], TBL);
+          T.ok(
+            'a dash-leading token is not consumed as a value — the MISTYPED flag behind one is still refused',
+            swallow.ok === false,
+            JSON.stringify(swallow) + ' — `--jsonn` was swallowed as the group name, so the typo it exists to catch read as legal'
+          );
+          T.ok('…and the refusal names that token', /--jsonn/.test(swallow.reason || ''), swallow.reason);
+          var swallow2 = loose(['--jobs', '--json', 'oxydex'], TBL);
+          T.ok('…and the bare token after two flags is refused as a positional', swallow2.ok === false && /oxydex/.test(swallow2.reason || ''), JSON.stringify(swallow2));
+          /* ── THE PLANT: the measured slips ───────────────────────────────────────────────────── */
+          var typo = loose(['--grup=oxydex'], TBL);
+          T.ok('PLANT · a mistyped flag is REFUSED', typo.ok === false, 'the token nobody reads was accepted, which is the defect');
+          T.ok('PLANT · …the refusal names the token', /--grup=oxydex/.test(typo.reason || ''), typo.reason);
+          T.ok('PLANT · …and suggests the flag that was meant', /--group/.test(typo.reason || ''), typo.reason);
+          var pos = loose(['oxydex'], TBL);
+          T.ok('PLANT · a bare positional is REFUSED — this runner takes no positional', pos.ok === false, JSON.stringify(pos));
+          var dash = loose(['-'], TBL);
+          T.ok('PLANT · a bare dash is refused in the stdin words, not with a flag suggestion', dash.ok === false && /stdin/.test(dash.reason || ''), dash.reason);
+          var joined = loose(['--json=1'], TBL);
+          T.ok('PLANT · a value on a flag that takes none is REFUSED', joined.ok === false && /takes no value/.test(joined.reason || ''), joined.reason);
+        }
+      }
+      /* ── B · THE TWO CLIs, in a child ──────────────────────────────────────────────────────── */
+      var probeL = env.probeToolArgv;
+      if (!probeL) {
+        T.skip('env.probeToolArgv provided to the runner', 'Node-lane only (spawns in a temp cwd) — the browser lane cannot spawn');
+        return;
+      }
+      var relBad = probeL('tools/release.mjs', ['--statu', '--dry-run']);
+      T.eq('release.mjs · a mistyped flag exits 2, not 0 and not 1', relBad.status, 2);
+      T.ok('…and the refusal names the token and the flag meant', /--statu\b/.test(String(relBad.out)) && /--status/.test(String(relBad.out)), String(relBad.out).slice(0, 220));
+      T.ok('…and it is a refusal, not a stack trace', !/\n\s+at\s|node:fs:\d/.test(String(relBad.out)), String(relBad.out).slice(0, 220));
+      T.ok('…and the stamp step never began', !/This was the STAMP step only/.test(String(relBad.out)), String(relBad.out).slice(0, 220));
+      /* THE FORWARD, proved by what it prints: release-land's own report, never release.mjs's stamp. */
+      var relSt = probeL('tools/release.mjs', ['--status', '--dry-run']);
+      T.ok('release.mjs · --status reaches release-land.mjs instead of stamping', /no release-land run recorded|^remaining:|\nremaining:/m.test(String(relSt.out)), String(relSt.out).slice(0, 260));
+      T.ok('…and nothing of the stamp step ran', !/This was the STAMP step only|Stamped v/.test(String(relSt.out)), String(relSt.out).slice(0, 260));
+      T.ok('…at exit 0 (a report) or 1 (no run recorded on this machine), never 2', relSt.status === 0 || relSt.status === 1, 'status=' + relSt.status + ' out=' + String(relSt.out).slice(0, 160));
+      /* release-land.mjs itself (Osprey, board #4749): every unread token fell through to a fresh run.
+         The probe carries `--dry-run` for the reason above — a regressed guard previews, never releases. */
+      var landBad = probeL('tools/release-land.mjs', ['--statu', '--dry-run']);
+      T.eq('release-land.mjs · a mistyped flag exits 2', landBad.status, 2);
+      T.ok('…naming the token and the flag meant', /--statu\b/.test(String(landBad.out)) && /--status/.test(String(landBad.out)), String(landBad.out).slice(0, 220));
+      T.ok('…and no plan was printed', !/DRY RUN/.test(String(landBad.out)), String(landBad.out).slice(0, 220));
+      var landFwd = probeL('tools/release-land.mjs', ['--status', '--skip-gates']);
+      T.ok('CONTROL · a flag release.mjs forwards is accepted, never refused', landFwd.status !== 2, 'status=' + landFwd.status + ' out=' + String(landFwd.out).slice(0, 160));
+      var rtHelp = probeL('tests/run-tests.mjs', ['--help']);
+      T.eq('run-tests.mjs · --help exits 0', rtHelp.status, 0);
+      T.ok('…printing a usage line that names the runner', /^usage: node tests\/run-tests\.mjs/m.test(String(rtHelp.out)), String(rtHelp.out).slice(0, 160));
+      T.ok('…and NO group ran — the measured defect was the whole suite', !/^1\.\.\d+/m.test(String(rtHelp.out)), String(rtHelp.out).slice(-200));
+      var rtBad = probeL('tests/run-tests.mjs', ['--nonsense-9f3']);
+      T.eq('run-tests.mjs · an unknown flag exits 2 — a usage error, not a failing suite', rtBad.status, 2);
+      T.ok('…naming the token', /--nonsense-9f3/.test(String(rtBad.out)), String(rtBad.out).slice(0, 220));
+      T.ok('…and no group ran', !/^1\.\.\d+/m.test(String(rtBad.out)), String(rtBad.out).slice(-200));
+      var rtPos = probeL('tests/run-tests.mjs', ['oxydex']);
+      T.eq('run-tests.mjs · a bare positional exits 2 too (the group filter is a FLAG)', rtPos.status, 2);
+      /* ── C · THE TABLE AND THE READS CANNOT DRIFT ───────────────────────────────────────────────
+         A flag table is a second declaration of what the code reads, and a second declaration rots the
+         way a usage line does (row 2026-10-21-eight-usage-lines-promised-a-flag-no-code-reads). So the
+         spellings are DERIVED from the runner's own flag regexes and from its `argv.includes` literals,
+         and every one must be named in `--help` — which prints the table. A read with no row would
+         refuse the flag it reads; a row with no read would advertise a flag nothing does. */
+      var HTl = env.harnessTexts;
+      var nodeLaneL = typeof process !== 'undefined' && process && process.env != null;
+      if (!HTl || !HTl['tests/run-tests.mjs']) {
+        if (nodeLaneL) T.ok('env.harnessTexts carries tests/run-tests.mjs', false, 'absent — the drift half examined nothing');
+        return;
+      }
+      var rtSrc = HTl['tests/run-tests.mjs'];
+      var expand = function (s) {
+        var m = s.match(/^([a-z-]*)\(([a-z-]+)\)\?$/);
+        if (m) return [m[1], m[1] + m[2]];
+        var k = s.match(/^([a-z-]*)([a-z])\?$/);
+        if (k) return [k[1], k[1] + k[2]];
+        return [s];
+      };
+      var derived = {};
+      (rtSrc.match(/\/\^--\?[^/\n]*\//g) || []).forEach(function (pat) {
+        var body = pat
+          .replace(/^\/\^--\?/, '')
+          .replace(/\/$/, '')
+          .replace(/\(\?:/g, '(')
+          .replace(/\(=\|\$\)/g, '')
+          .replace(/=\(\.\+\)\$/g, '')
+          .replace(/\$$/, '');
+        body
+          .replace(/^\((.*)\)$/, '$1')
+          .split('|')
+          .forEach(function (alt) {
+            expand(alt).forEach(function (n) {
+              if (/^[a-z][a-z-]*$/.test(n)) derived[n] = 1;
+            });
+          });
+      });
+      (rtSrc.match(/argv\.includes\('--[a-z][a-z-]*'\)/g) || []).forEach(function (hit) {
+        derived[hit.replace(/^.*'--/, '').replace(/'\)$/, '')] = 1;
+      });
+      var names = Object.keys(derived).sort();
+      T.ok("ANTI-VACUITY · the runner's own flag reads were found, not an empty set", names.length >= 12, names.length + ' derived: ' + names.join(' '));
+      var helpText = String(rtHelp.out);
+      var unadvertised = names.filter(function (n) {
+        return helpText.indexOf((n.length === 1 ? '-' : '--') + n) < 0;
+      });
+      T.eq('every flag the runner READS is named in --help', unadvertised.join(' '), '');
+      var advertised = {};
+      (helpText.match(/(?:^|[\s/])(--?[a-z][a-z-]*)/gm) || []).forEach(function (h) {
+        advertised[h.replace(/^[\s/]+/, '')] = 1;
+      });
+      var unread = Object.keys(advertised)
+        .sort()
+        .filter(function (f) {
+          return rtSrc.indexOf(f.replace(/^-+/, '')) < 0;
+        });
+      T.eq('and every flag --help advertises appears in the runner', unread.join(' '), '');
+    });
     group('every tool resolves repo code from its OWN checkout (PR #686 class)', 'tools · source-scan · portability', function (T) {
       var TS = env.toolSources;
       if (!TS) {
@@ -86935,6 +87507,108 @@
     });
 
     /* ════ The new rate fields are ADDITIVE — every legacy effort field survives (CLAUDE.md §🧪) ════ */
+    /* ════ MotionDex publishes NO respiratory rate over a signal with no respiratory effort ════
+     Row `2026-11-08-motiondex-respiratory-rate-reports-19-on-a-constant-signal`. A constant chest
+     stream produced 19.0 br/min beside this same summary's `nBreaths` 0 and `amplitudeG` 0, and the
+     19 reached the KPI, the effort card and the node export.
+
+     THE MECHANISM IS THE TRACKER'S PRIOR, NOT THE SPECTRUM. `respiratoryRate` feeds a FLAT likelihood
+     for an UNCOVERED window, so `respViterbi`'s transition prior carries the state across the hole —
+     right for a sensor that stopped. The coverage mask marks a constant signal as RECORDED, so it
+     never takes that path: `respWindowSpectrum` returns a degenerate spectrum, and the prior then
+     supplies a self-consistent ridge whose confidence clears `confMin`. Measured on this fixture:
+     29 per-epoch rate entries at coverage 0.862, every one of them the prior.
+
+     So the abstention belongs at the SUMMARY, where the effort terms are in hand, and the ridge
+     tracker is left alone. The criterion is a CONJUNCTION — no zero crossing, no band RMS above
+     `EFFORT_FLOOR_G`, and no epoch marked present. Any one term alone would null a weak but real
+     night. The planted control below holds every number it had before the change, which is what
+     makes the conjunction safe. ════ */
+    group('MotionDex respiratory rate abstains on a signal with no effort (§∅)', 'motiondex-dsp · motiondex-render · resp-rate · §∅', function (T) {
+      var MD = env.MOTIONDSP;
+      if (!(MD && typeof MD.respiratoryEffort === 'function' && typeof MD.respiratoryRate === 'function' && typeof MD.parseSensorXYZ === 'function' && typeof MD.genSyntheticACC === 'function')) {
+        T.skip('MOTIONDSP.respiratoryEffort + respiratoryRate + parseSensorXYZ + genSyntheticACC available', 'motiondex-dsp not wired in this lane');
+        return;
+      }
+      // 15 min of a perfectly constant chest reading — the row's own shape, at 26 Hz.
+      var hzK = 26,
+        secK = 900,
+        t0K = Date.UTC(2026, 5, 10, 23, 0, 0),
+        flat = [];
+      for (var i = 0; i < hzK * secK; i++) {
+        flat.push({ relNs: i * (1e9 / hzK), tMs: t0K + (i * 1000) / hzK, x: 12, y: -4, z: 1000 });
+      }
+      var eff = MD.respiratoryEffort(flat, t0K, secK, 'mg') || {};
+
+      // ANTI-VACUITY — the spectral stage still CLAIMS a rate on this input, so the test exercises
+      // the live path. Were this leg to go quiet the group would pass over a detector that refused
+      // for its own reasons, and would say nothing about the summary.
+      var spec = MD.respiratoryRate(flat, t0K, 'mg') || {};
+      T.ok(
+        'the ridge tracker still reports a rate on the flat signal (the defect is live)',
+        spec.hasData === true && spec.medianBrpm != null && isFinite(spec.medianBrpm),
+        'specHasData=' + spec.hasData + ' median=' + spec.medianBrpm
+      );
+
+      // the self-contradiction that identified the row
+      T.eq('no breath crosses zero on a constant signal', eff.nBreaths, 0);
+      T.eq('and the band RMS is 0 g', eff.amplitudeG, 0);
+      var presentK = 0;
+      for (var a = 0; a < (eff.series || []).length; a++) if (eff.series[a].present === true) presentK++;
+      T.eq('and no epoch is marked present', presentK, 0);
+      T.ok(
+        'the presence track still COVERS the night (absent, never not-recorded)',
+        (eff.series || []).length > 0 &&
+          eff.series.filter(function (s) {
+            return s.present === null;
+          }).length === 0,
+        'epochs=' + (eff.series || []).length
+      );
+
+      // the abstention itself
+      T.eq('rateBrpm is null — not 19, and not 0', eff.rateBrpm, null);
+      T.eq('hasData is false', eff.hasData, false);
+      T.eq('the reason is NAMED, never borrowed', eff.respRateReason, 'no-respiratory-effort');
+      T.eq('no method is claimed for a rate that was not measured', eff.respRateMethod, null);
+      T.eq('the per-epoch rate track goes with it — every entry was the prior', (eff.rateSeries || []).length, 0);
+      T.eq('and the coverage it would have quoted goes too', eff.rateCoverage, 0);
+
+      // THE CONTROL — a planted 15 br/min night keeps every number it had.
+      var real = MD.parseSensorXYZ(MD.genSyntheticACC({ sec: 900, hz: 26, brpm: 15, seed: 11 }));
+      var effR = MD.respiratoryEffort(real, real[0].tMs, 900, 'mg') || {};
+      T.approx('CONTROL · a planted 15 br/min night still publishes its rate', effR.rateBrpm, 15.1, 0.5);
+      T.eq('CONTROL · and claims no absence reason', effR.respRateReason, null);
+      T.ok('CONTROL · its per-epoch rate track survives', (effR.rateSeries || []).length > 0, 'rateSeries=' + (effR.rateSeries || []).length);
+      var presentR = 0;
+      for (var b = 0; b < (effR.series || []).length; b++) if (effR.series[b].present === true) presentR++;
+      T.ok('CONTROL · and its epochs clear the effort floor — the term that separates the two', presentR > 0, 'presentEpochs=' + presentR);
+
+      /* The reason has to LEAVE the node, or a consumer invents one. That is residue
+         `2026-09-02-motiondex-respratemethod-unexported` one field over. */
+      var dsrc = (env.sources || {})['motiondex-dsp.js'] || '';
+      if (dsrc) {
+        T.ok('the node export carries respRateReason beside respRateBrpm', /respRateReason:\s*summary\.effort/.test(dsrc), 'no respRateReason in the export reshape');
+      } else {
+        T.skip('motiondex-dsp.js source available', 'source text not wired in this lane');
+      }
+      /* The KPI sublabel said `no chest ACC` for EVERY absent rate, which is false for a chest
+         stream that recorded and carried no respiration. The reader must state the producer's reason. */
+      var rsrc = (env.sources || {})['motiondex-render.js'] || '';
+      if (rsrc) {
+        /* ANCHORED TO THE KPI LINE. A bare /respAbsenceWhy\(eff\)/ over the whole file matches the
+           HELPER'S OWN DECLARATION, so the leg passed over a reverted call site under a plant
+           (measured 2026-11-08, plant 3 of this unit): the source held the helper and the hardcoded
+           string at once. Read the line that decides. */
+        var kpiLine = (rsrc.match(/k \+= kpi\('Respiratory rate'[^\n]*/) || [''])[0];
+        T.ok('the Respiratory rate KPI line is present (anti-vacuity for the two legs below)', kpiLine.length > 0, "no `kpi('Respiratory rate'` line in motiondex-render.js");
+        T.ok('its absence sublabel reads the named reason', /respAbsenceWhy\(eff\)/.test(kpiLine), kpiLine.trim() || 'line not found');
+        T.ok('…and no longer hardcodes a sensor-absence string', !/no chest ACC/.test(kpiLine), kpiLine.trim() || 'line not found');
+        T.ok('the helper answers for a flat chest stream', /function respAbsenceWhy/.test(rsrc) && /no respiratory effort/.test(rsrc), 'no flat-signal arm in respAbsenceWhy');
+      } else {
+        T.skip('motiondex-render.js source available', 'source text not wired in this lane');
+      }
+    });
+
     group('MotionDex effort keeps its legacy return shape while adding the rate series', 'motiondex-dsp · effort · back-compat', function (T) {
       var MD = env.MOTIONDSP;
       if (!(MD && typeof MD.respiratoryEffort === 'function' && typeof MD.genSyntheticACC === 'function')) {
@@ -94001,7 +94675,7 @@
         var mutPath = P.join(dir, 'defect-bench.mjs');
         fs.writeFileSync(mutPath, mutant);
         var ctl = env.nodeSpawnSync(process.execPath, [toolPath, '--selftest'], { cwd: dir, encoding: 'utf8', timeout: 60000 });
-        T.eq('CONTROL · the unmodified tool passes its own selftest', ctl.status, 0);
+        dexExitWas(T, 'CONTROL · the unmodified tool passes its own selftest', ctl, 'tools/defect-bench.mjs');
         var mut = env.nodeSpawnSync(process.execPath, [mutPath, '--selftest'], { cwd: dir, encoding: 'utf8', timeout: 60000 });
         T.ok(
           'the mutant ran its selftest rather than crashing on an import',

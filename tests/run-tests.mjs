@@ -83,6 +83,7 @@ import { elementBlocks, stripTags } from '../tools/strip-markup.mjs';
    row 2026-11-05-the-two-bundle-workers-still-discard-the-polarity-return. */
 import { DISSENT_SHAPES as CORE_DISSENT_SHAPES, dissentOf as coreDissentOf } from '../tools/consensus-dissent-core.mjs';
 import * as argvReads from '../tools/argv-reads.mjs';
+import { checkLooseArgv, isCliEntry } from '../tools/argv-guard.mjs';
 import * as corpusReads from '../tools/corpus-reads.mjs';
 import * as trioNightsMod from '../tools/trio-eligible-nights.mjs';
 import * as foldGenMod from '../tools/fold-generation.mjs';
@@ -95,7 +96,7 @@ import { attenuateAndRecover, buildTemplate as beatBuildTemplate } from '../tool
 import * as deviceStability from '../tools/device-stability.mjs';
 import * as beatCorrespondence from '../tools/beat-correspondence.mjs';
 import * as circularStats from '../tools/circular-stats.mjs';
-import { suiteVerdict, unionVerdict } from '../tools/run-tests-verdict.mjs';
+import { suiteVerdict, undecidedChildren, unionVerdict } from '../tools/run-tests-verdict.mjs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { basename, dirname, join, resolve } from 'node:path';
 import vm from 'node:vm';
@@ -172,6 +173,48 @@ const DexBuild = require(join(ROOT, 'tools', 'build-core.js'));
 
 const C = { reset: '\x1b[0m', red: '\x1b[31m', green: '\x1b[32m', dim: '\x1b[2m', bold: '\x1b[1m', yellow: '\x1b[33m', cyan: '\x1b[36m' };
 const paint = (s, c) => (process.stdout.isTTY ? c + s + C.reset : s);
+
+/* ════ EVERY TOKEN THIS RUNNER READS, IN ONE TABLE — AND A REFUSAL FOR THE REST ═══════════════════
+   Row 2026-11-08-release-and-run-tests-never-call-the-argv-guard. Each flag below was read by its own
+   hand-rolled regex and nothing held the SET, so a token no regex matched was indistinguishable from
+   an absent one: `node tests/run-tests.mjs --help` ran the whole suite, and a mistyped `--grup=oxydex`
+   ran it too, 20 minutes of work reported as a clean green over a filter the caller never got.
+   `checkArgv` cannot judge this grammar — it refuses the joined `--flag=value` form, which is this
+   runner's own idiom (`--shard=1/6` is what CI's matrix passes) — so `checkLooseArgv` does, and the
+   table is the single declaration both it and `--help` read. A new flag goes HERE first; a read with
+   no row refuses the flag it reads. ════ */
+const RUN_TESTS_FLAGS = [
+  { names: ['group', 'g', 'only'], value: 'required', help: '<pat>      only matching groups (comma = OR) — a dev convenience, never the gate' },
+  { names: ['group-index'], value: 'required', help: '<n[,n]>    groups by 0-based declaration index' },
+  { names: ['shard'], value: 'required', help: '<i/N>      shard i of N; the union of all N IS the full gate' },
+  { names: ['jobs', 'job'], value: 'optional', valuePattern: /^(\d+|auto)$/i, help: '[N|auto]   fork N children over the shard plan CI uses' },
+  { names: ['interval-coverage'], value: 'required', help: '<out.json> per-group interval coverage via the V8 inspector' },
+  { names: ['json'], help: '           machine-readable results instead of the human report' },
+  { names: ['list'], help: '           declare every group, execute none' },
+  { names: ['timings', 'timing'], help: '           report the slowest groups' },
+  { names: ['quiet', 'q'], help: '           failures only (the default under CI)' },
+  { names: ['verbose', 'no-quiet'], help: '           the whole tree, even under CI' },
+  { names: ['no-progress'], help: '           no live progress line' },
+  { names: ['verify-drafts'], help: "           run the draft-surface verifier in this suite's realm" },
+  { names: ['help', 'h'], help: '           this list' }
+];
+if (isCliEntry(import.meta.url)) {
+  const rtArgv = process.argv.slice(2);
+  const spell = (f) => f.names.map((n) => (n.length === 1 ? '-' : '--') + n).join('/');
+  if (rtArgv.some((a) => /^--?h(elp)?$/i.test(a))) {
+    console.log('usage: node tests/run-tests.mjs [flags]      # with no flag: the whole suite, which IS the gate');
+    for (const f of RUN_TESTS_FLAGS) console.log('  ' + spell(f).padEnd(26) + f.help);
+    console.log('  DEX_GROUP / DEX_SHARD / DEX_JOBS / DEX_TIMINGS / DEX_PROGRESS carry the same values.');
+    process.exit(0);
+  }
+  const rtCheck = checkLooseArgv(rtArgv, RUN_TESTS_FLAGS);
+  if (!rtCheck.ok) {
+    console.error('✗ tests/run-tests.mjs: ' + rtCheck.reason);
+    console.error('  accepted: ' + RUN_TESTS_FLAGS.map(spell).join(' '));
+    console.error('  NO group ran — this is a usage error (exit 2), not a failing suite (exit 1).');
+    process.exit(2);
+  }
+}
 
 /* Section filter (SECTION-SCOPED-RUNS 2026-07-01): `node tests/run-tests.mjs --group=oxydex`
    (aliases -g / --only, or the DEX_GROUP env var) runs ONLY the groups whose title/tag match
@@ -2966,18 +3009,35 @@ async function main() {
   // same bare names already in the shared realm (classicify leaks top-level decls). Wrapping each in an IIFE
   // scopes those decls while the `window.X`/`global.X` attaches (GluDisp · OxyDex.reviewView · CpapRender ·
   // PulseDex.reviewView) still escape to the sandbox. Deps (their DSP · dex-escape) are already loaded above.
-  ['glucodex-render.js', 'oxydex-render.js', 'cpapdex-render.js', 'hrvdex-render.js', 'pulsedex-render.js', 'pulsedex-overview.js', 'ecgdex-render.js', 'ppgdex-render.js', 'oxydex-fusion.js'].forEach(
-    (f) => {
-      try {
-        const p = join(ROOT, f);
-        if (!existsSync(p)) return;
-        const code = DexBuild.classicify(readFileSync(p, 'utf8'));
-        vm.runInContext('(function(){\n' + code + '\n})();', ctx, { filename: f });
-      } catch (e) {
-        console.error(paint('  ! render module failed to load: ' + f + ' — ' + e.message, C.yellow));
-      }
+  /* motiondex-render.js JOINED THE LIST on 2026-11-08 (residue
+     2026-11-08-motiondex-render-is-executed-by-no-gate). Its text was in both lanes' SOURCE_FILES and
+     its name was in this group's own label, and no lane EXECUTED it: a throw planted at the top of
+     renderSummary left 104 render groups and the full lane green. A source-text scan reads what a file
+     SAYS; only an executed module answers what it DOES. It is a clean `(function(global){…})(window)`
+     IIFE over MotionRegistry, and `document.getElementById` returns null here, so every fill() no-ops
+     and the module paints nothing — the harness can call renderSummary for its THROW, and the pure
+     builders it exports for their VALUES. */
+  [
+    'glucodex-render.js',
+    'oxydex-render.js',
+    'cpapdex-render.js',
+    'hrvdex-render.js',
+    'pulsedex-render.js',
+    'pulsedex-overview.js',
+    'ecgdex-render.js',
+    'ppgdex-render.js',
+    'motiondex-render.js',
+    'oxydex-fusion.js'
+  ].forEach((f) => {
+    try {
+      const p = join(ROOT, f);
+      if (!existsSync(p)) return;
+      const code = DexBuild.classicify(readFileSync(p, 'utf8'));
+      vm.runInContext('(function(){\n' + code + '\n})();', ctx, { filename: f });
+    } catch (e) {
+      console.error(paint('  ! render module failed to load: ' + f + ' — ' + e.message, C.yellow));
     }
-  );
+  });
 
   /* PAT-UNDER-PERBLOCK-ALIGNMENT §4 — the strict-matchRate statistics. NODE-ONLY (an .mjs
      orchestrator, not a bundled module), so the browser lane skips the group. The tool guards its
@@ -3235,6 +3295,7 @@ async function main() {
     // §RN last finding — the two ECGScope time-axis helpers, hoisted out of the canvas draw so the
     // node lane can pin the tick spacing and the label text without a canvas shim.
     ECGUI: ctx.ECGUI,
+    MOTIONUI: ctx.MOTIONUI, // §RN: MotionDex's render layer — executed above, so a throw in it reds
     PPGUI: ctx.PPGUI, // PPGScope's per-window y-scale (owner report 2026-11-07: a flat Verity trace)
     IntegratorDSP: ctx.IntegratorDSP,
     IntegratorTCH: ctx.IntegratorTCH,
@@ -4025,7 +4086,11 @@ async function main() {
         }))
       })
     );
-    const failed = LIST_ONLY ? 0 : groups.reduce((a, g) => a + g.tests.filter((t) => !t.pass && !t.skip).length, 0);
+    /* A GROUP THAT DECIDED NOTHING IS NOT A PASS (residue
+       2026-11-08-a-zero-assertion-group-reads-unknown-and-exits-0). The reduce counts a failing
+       ASSERTION; a group gutted to an early return emits none, so this lane exited 0 over an UNKNOWN
+       object — in a filtered run, under --jobs, and in the CI shard shape. */
+    const failed = (LIST_ONLY ? 0 : groups.reduce((a, g) => a + g.tests.filter((t) => !t.pass && !t.skip).length, 0)) + undecidedChildren(verdict).length;
     // exitCode + return, NOT process.exit(): Node's stdout is ASYNC to a pipe (sync only to a file/TTY),
     // so process.exit() right after a ~140 KB console.log TRUNCATES it mid-write. Redirecting to a file
     // hid this; spawnSync (a pipe) got a half-written payload and "valid run, unparseable JSON". Setting
@@ -4135,6 +4200,23 @@ async function main() {
     console.log(paint('  A skip is neither pass nor fail: this leg stopped being checked and the gate would still be green.', C.dim));
     for (const v of skipViolations) console.log(paint('  ✕ ', C.red) + '[' + v.group + '] ' + v.test + (v.detail ? paint('  — ' + v.detail, C.yellow) : ''));
     console.log(paint('  → If this skip is intended, declare it in tests/expected-skips.json (and justify it — you are shrinking the gate).', C.yellow));
+  }
+
+  /* ── UNDECIDED GROUPS ─────────────────────────────────────────────────────────────────────
+     A group with no assertions decided nothing: the object calls it UNKNOWN, and UNKNOWN is never
+     green. The tally above counts a failing ASSERTION, so a group gutted to an early return added
+     nothing to it and the run exited 0 (residue
+     2026-11-08-a-zero-assertion-group-reads-unknown-and-exits-0, measured by Muse in a filtered run,
+     under --jobs, and in the CI shard shape --shard=3/6). Counted into `fail` exactly as the skip
+     budget is, so the footer and the exit code say the same thing. */
+  const undecided = undecidedChildren(verdict);
+  if (undecided.length) {
+    fail += undecided.length;
+    console.log('\n' + paint('▸ UNDECIDED — ' + undecided.length + ' group(s) emitted ZERO assertions', C.red));
+    console.log(paint('  A group that decided nothing is not a pass: it stopped being a gate, and the object reads UNKNOWN.', C.dim));
+    for (const c of undecided.slice(0, 10)) console.log(paint('  ✕ ', C.red) + c.name + paint('  — ' + c.status, C.yellow));
+    if (undecided.length > 10) console.log(paint('    … and ' + (undecided.length - 10) + ' more', C.dim));
+    console.log(paint('  → A leg that cannot run owes a DECLARED skip (tests/expected-skips.json), never an empty group body.', C.yellow));
   }
 
   /* ── COVERAGE (G1) ────────────────────────────────────────────────────────────────────────
