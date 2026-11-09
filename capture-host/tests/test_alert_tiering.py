@@ -1023,6 +1023,7 @@ def test_a_short_streak_reaching_the_earliest_day_seen_names_the_floor(caplog):
     assert len(floors) == 1, [r.getMessage() for r in caplog.records]
     assert "runs 1 day(s)" in floors[0].getMessage()
     assert _D3.isoformat() in floors[0].getMessage()
+    assert "for Ring runs" in floors[0].getMessage()  # the line names the device the floor is about
 
 
 def test_the_floor_line_is_one_per_run_not_one_per_note(caplog):
