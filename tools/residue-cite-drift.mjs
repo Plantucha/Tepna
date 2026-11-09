@@ -458,7 +458,23 @@ export function verdictFor(r, commit, opts = {}) {
           unanchored: r ? r.unanchored.length : 0,
           beyondEof: r ? r.beyondEof.length : 0,
           moved: r ? r.moved.length : 0,
-          offTree: r ? r.offTree.length : 0
+          offTree: r ? r.offTree.length : 0,
+          /* A COUNT A CONSUMER CANNOT RESOLVE IS NOT A FINDING. The human report names all three
+             defect classes by key and cite, and the verdict published the bare totals beside them, so
+             a verdict reader could locate none of the rows it was told to act on (row
+             `2026-11-08-the-cite-drift-verdict-carries-a-bare-count`). Every defect-class citation now
+             travels here, and `defectSites.length === defectClass` is the identity that keeps the list
+             and its denominator from drifting apart. `moved` is advisory and `off-tree` is external, so
+             neither belongs in a list of what the gate reds on. */
+          defectSites: r
+            ? [
+                /* `state: null` is load-bearing: the `missing-file` report entry carries `why` and no
+                   state, so the field reads null rather than vanishing from one class of entry. */
+                ...r.missing.map((e) => ({ class: 'missing-file', key: e.key, state: e.state ?? null, cite: e.cite })),
+                ...r.unanchored.map((e) => ({ class: 'unanchored', key: e.key, state: e.state, cite: e.cite })),
+                ...r.beyondEof.map((e) => ({ class: 'beyond-eof', key: e.key, state: e.state, cite: e.cite }))
+              ]
+            : []
         },
     evidence: [LEDGER, 'tools/residue-cite-drift.mjs'],
     reason,
@@ -659,6 +675,21 @@ function selftest() {
     Array.isArray(r.unanchored) && r.unanchored.length === 1 && r.unanchored[0].key === '2026-09-20-a' && r.unanchored[0].cite === 'mod.py:3' && r.unanchored[0].state === 'OPEN'
   );
   check('…and it carries why it could not be judged — identifiers read, and how many were code-shaped', r.unanchored[0].tried === 2 && r.unanchored[0].specific === 0);
+  /* THE VERDICT MUST LOCATE WHAT IT COUNTS (row
+     `2026-11-08-the-cite-drift-verdict-carries-a-bare-count`). The human report named all three defect
+     classes while the verdict published the bare totals, so a verdict reader could chase nothing. */
+  const vSites = verdictFor(r, 'deadbeef');
+  check('the verdict lists every defect-class citation it counts', Array.isArray(vSites.result.defectSites) && vSites.result.defectSites.length === vSites.result.defectClass);
+  check(
+    '…by class, key and cite, so a consumer can open the row and the site',
+    vSites.result.defectSites.every((d) => d.class && d.key && /:\d+$/.test(d.cite)) && new Set(vSites.result.defectSites.map((d) => d.class)).size === 3
+  );
+  /* CONTROL · the advisory and external classes stay out of the list the gate reds on. */
+  check('…and never the advisory `moved` or the external `off-tree`', !vSites.result.defectSites.some((d) => d.class === 'moved' || d.class === 'off-tree'));
+  check(
+    'the `missing-file` entry reads a null state rather than dropping the field',
+    vSites.result.defectSites.filter((d) => d.class === 'missing-file').every((d) => 'state' in d)
+  );
   check(
     'the BEYOND-EOF entry names the row, the citation and the length that refutes it',
     r.beyondEof.length === 1 && r.beyondEof[0].key === '2026-09-20-c' && r.beyondEof[0].cite === 'mod.py:99' && r.beyondEof[0].length === 8

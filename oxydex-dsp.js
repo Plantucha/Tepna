@@ -7365,7 +7365,13 @@
     var remSec = 0,
       nremDeepSec = 0,
       classified = 0;
+    /* ∅ the two guards below drop a window for two DIFFERENT absences, and the output used to
+       name neither. Count each one under its own name, because a borrowed reason is not a reason. */
+    var offered = 0,
+      motionAbsentWindows = 0,
+      hrSparseWindows = 0;
     for (var i = WIN; i < n - WIN; i += WIN) {
+      offered++;
       var seg = rows.slice(i, i + WIN);
       // ∅ ABSENCE-SURVEY 12fb862b4f54: a window with an UNREAD motion value is neither still nor moving — it
       // cannot be classified. With none classifiable (no motion column at all), `remPct` was published as 0.0,
@@ -7374,8 +7380,10 @@
         !seg.every(function (r) {
           return r.motion != null && isFinite(r.motion);
         })
-      )
+      ) {
+        motionAbsentWindows++;
         continue;
+      }
       /* ∅ a window whose heart rate nobody measured cannot be classified either, and the criterion
          below is BUILT from HR. It takes the same path as the motion guard above, and before
          `classified++`, so a night with no measured HR reaches `classified === 0` and refuses.
@@ -7399,6 +7407,7 @@
          exists to stop. It is a coverage requirement, never a threshold read off the values it
          judges (§🧾), and it is the same purpose `_FFT_MIN_COVERAGE` serves in this file. */
       if (!_segAvg || _segAvg.n < WIN * STAGE_MIN_HR_COVERAGE) {
+        hrSparseWindows++;
         continue;
       }
       classified++;
@@ -7457,12 +7466,36 @@
        `classifiedWindows` says what the split itself rests on. Conditional assignment, the
        EXPORT-INVARIANCE convention used throughout this file, so a night whose every row carries a
        pulse exports byte-identically.
-       NOT FIXED HERE, and logged rather than carried: a window the MOTION guard above drops is
-       counted nowhere either, so this annotates the HR half of a gap that has two halves. */
+       The gap had two halves, and the MOTION half is now carried below. */
     if (_hrAllAvg.n < n) {
       out.hrCoveredN = _hrAllAvg.n;
       out.hrSpanN = n;
+    }
+    /* ∅ REDUCED COVERAGE ANNOTATES, the second half. `classifiedWindows` used to sit in the block
+       above, so it reached a reader only when the HR COLUMN held an absent sample. A night with a
+       complete HR column and an absent motion column skipped windows and published no key at all.
+       The condition is now the UNION: the sample-level absence that published it before, or a
+       window-level skip. Nothing main publishes disappears. `offeredWindows` travels beside it,
+       because a bare `classifiedWindows` of 226 does not say whether 2 windows went unexamined or
+       2000, and `motionAbsentWindows` plus `hrSparseWindows` say WHICH absence dropped them.
+       Measured 2026-11-09 over 49 O2Ring CSV nights: 0 nights skip a window for motion, 5 skip 1
+       or 2 windows for sparse HR, and the committed `_gap` and `_lossy` files examine 74 % and
+       83 % of their windows. Those two publish `remProxyPct` 50.0 and 56.7, against 69.8 and 70.8
+       over the span they examined, so the dilution reaches 19.8 points with no key naming it.
+       ⚠ THE DENOMINATOR OF `remProxyPct` STAYS `n`, THE WHOLE RECORDING. It is the metric's
+       definition, not an absence: on a night that examines EVERY window the two denominators still
+       differ by 2.3 points, because the loop never offers the first window, the last window or the
+       tail remainder. `REM_CEILING_PCT` is pre-stated against the recording, and
+       `integrator-dsp.js` reads `remProxyPct / 100` as `remFraction`. A new denominator is a
+       change of a metric's identity (§📦 MAJOR), and it needs its own brief.
+       NOT FIXED HERE: no floor guards the examined share. A night that classifies 3 of 228 windows
+       still publishes a share of the recording. A floor read off this corpus would be fitted to the
+       data it judges (§🧾), so the floor needs a pre-stated value nobody has stated. */
+    if (_hrAllAvg.n < n || classified < offered) {
       out.classifiedWindows = classified;
+      out.offeredWindows = offered;
+      out.motionAbsentWindows = motionAbsentWindows;
+      out.hrSparseWindows = hrSparseWindows;
     }
     return out;
   }

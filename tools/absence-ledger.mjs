@@ -174,9 +174,14 @@ const basenameSite = (site) => {
 
 /** How much of the consumer side this tool can state. Pure over the confirmed findings.
  *
- *  `sitesWithRow` matches a site against the keyed findings by repo-relative path first and by basename
- *  second, so a path the survey wrote relative to a subtree still matches. The basename arm found 0 more
- *  sites on the committed artifact, which is what makes `sitesWithoutRow` a count rather than a bound.
+ *  `sitesWithRow` matches a site against the keyed findings BY REPO-RELATIVE PATH ONLY. A basename and
+ *  line that agree are not evidence of the same site: two files of one name in two directories collide
+ *  on `basenameSite`, so folding that arm into the covered count let a collision alone read as coverage
+ *  (row `2026-11-08-the-absence-census-basename-arm-can-count-a-foreign-site-as-covered`). The arm still
+ *  carries a real signal, because a path the survey wrote relative to a subtree matches nothing exactly,
+ *  so it is REPORTED as `sitesMatchingARowByBasenameOnly` — a named subset of `sitesWithoutRow`, never
+ *  summed into coverage. On the committed artifact the arm resolves 0 sites either way, so this changes
+ *  the shape of the claim and no published number.
  *
  *  `findingsNamingNoSite` is the part the census could NOT read. It is reported, never summed into a
  *  zero: 3 findings describe their consumer in prose that names no line at all. */
@@ -200,8 +205,10 @@ export function consumerCensus(confirmed) {
     else namingNoSite += 1;
   }
   let withRow = 0;
+  let byBasenameOnly = 0;
   for (const s of sites) {
-    if (exact.has(s) || byBasename.has(basenameSite(s))) withRow += 1;
+    if (exact.has(s)) withRow += 1;
+    else if (byBasename.has(basenameSite(s))) byBasenameOnly += 1;
   }
   return {
     _note:
@@ -213,7 +220,10 @@ export function consumerCensus(confirmed) {
     findingsNamingASiteByBareLineOnly: namingABareLineOnly,
     sites: sites.size,
     sitesWithRow: withRow,
-    sitesWithoutRow: sites.size - withRow
+    sitesWithoutRow: sites.size - withRow,
+    /* AMBIGUOUS, AND INSIDE `sitesWithoutRow`. A basename-and-line agreement names a site a reader can
+       chase by hand; it does not identify one, so it never counts as coverage. */
+    sitesMatchingARowByBasenameOnly: byBasenameOnly
   };
 }
 
@@ -1026,6 +1036,17 @@ export function selftest() {
   ok(cen.findingsNamingASiteByPath === 4 && cen.findingsNamingASiteByBareLineOnly === 1, 'a finding naming both a path and a bare line lands in the path arm alone');
   ok(cen.findingsNamingASiteByPath + cen.findingsNamingASiteByBareLineOnly + cen.findingsNamingNoSite === cen.findings, 'the three reader arms partition the findings');
   ok(cen.sitesWithRow === 1 && cen.sitesWithoutRow === 3, 'a consumer site that is itself a finding is told from one that is not');
+  /* THE BASENAME ARM IS NOT COVERAGE (row
+     `2026-11-08-the-absence-census-basename-arm-can-count-a-foreign-site-as-covered`). Two files of one
+     name in two directories agree on basename and line, and the agreement identifies nothing. */
+  const cenCollide = consumerCensus([{ file: 'tools/a.js', line: 1, consumer: 'read at other/a.js:1' }]);
+  ok(cenCollide.sites === 1 && cenCollide.sitesWithRow === 0, 'a site matching a row only by basename is not coverage');
+  ok(cenCollide.sitesMatchingARowByBasenameOnly === 1, '…and the census names that ambiguous arm instead of hiding it');
+  ok(cenCollide.sitesWithRow + cenCollide.sitesWithoutRow === cenCollide.sites, '…and the two published halves still add up');
+  /* CONTROL · the same basename at its real path still reads as coverage, so the leg above tests the
+     collision and not the matcher. */
+  const cenExact = consumerCensus([{ file: 'tools/a.js', line: 1, consumer: 'read at tools/a.js:1' }]);
+  ok(cenExact.sitesWithRow === 1 && cenExact.sitesMatchingARowByBasenameOnly === 0, 'control · an exact repo-relative match is coverage');
   const real = built.consumerCensus;
   ok(real.findings === built.counts.findings, 'the census population is every finding');
   ok(real.findingsNamingASite + real.findingsNamingNoSite === real.findings, 'every finding is either naming a site or counted apart');
@@ -1035,6 +1056,7 @@ export function selftest() {
     'the committed census partitions every finding across its three reader arms'
   );
   ok(real.sitesWithoutRow > 0, 'the committed survey names consumer sites that carry no row — the reason this census exists');
+  ok(real.sitesMatchingARowByBasenameOnly <= real.sitesWithoutRow, 'the ambiguous arm is a subset of the uncovered sites, never a third bucket beside them');
   const rvFull = ratchetVerdictObject({ ceiling: n, built, identical: true });
   /* Null-safe on purpose: a census dropped out of the verdict must FAIL this leg, not crash it. */
   ok(rvFull.result.consumer?.sites === real.sites, 'the verdict publishes the census beside its producer population');
