@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="65d04695ef6a" data-compute-hash="46d9d1d8b213"><head>
+<html lang="en" data-manifest-hash="cab4a70e56c3" data-compute-hash="7564182247f6"><head>
 <!--
   OverDex.html — Tepna
   Copyright 2026 Michal Planicka
@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/IzZXLnhKeyKbML+9Kto456TToGDl1/uC3f7wQonamU=' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-4KsRTgVuaYcMUNL8LhUau/rNzFP6NRbvBy2QbxNGFzw=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-84iaFiqUEftz4fuLv5KHfze6SsmT/jwwfMKpygTi4HQ=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-TJnsXppIrR2fDEg9roXHwHuaiAym8hL+7tyg9r6NlEw=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-XeM139aCzQDSzEaQuQBVa+zEhnOSgXP/4pqlC0h9wO4=' 'sha256-eqhMkaKkI0DeDYeFRr158XI1OLlvfo+v/yXmogvQqzI=' 'sha256-hCZmwNAMDLPZEMYHAYpzoPETSnimg1oHWWjZImdKqxM=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pmoo1WosGTcNO+J90mDbRecVE3qzne/xByjNGn2ERxY=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-qtwV6UdWMEOsPilOs3Mrd9jysCoMp0m5MgxuB5HkI8o=' 'sha256-rm/YlVmogQnelQDIazZyRCXgoAFvC1Ffha1wQ4dVrFc=' 'sha256-wK9fP+fYfi661IypDOgrAoxGZS8mGJfe9l/9288cTZQ=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-4KsRTgVuaYcMUNL8LhUau/rNzFP6NRbvBy2QbxNGFzw=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-84iaFiqUEftz4fuLv5KHfze6SsmT/jwwfMKpygTi4HQ=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-TJnsXppIrR2fDEg9roXHwHuaiAym8hL+7tyg9r6NlEw=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-XeM139aCzQDSzEaQuQBVa+zEhnOSgXP/4pqlC0h9wO4=' 'sha256-eqhMkaKkI0DeDYeFRr158XI1OLlvfo+v/yXmogvQqzI=' 'sha256-hCZmwNAMDLPZEMYHAYpzoPETSnimg1oHWWjZImdKqxM=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-mIkYdY2JZ9YGD4IobKqAjFiq1Sr9QMIvGcl7BQmoQGc=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pmoo1WosGTcNO+J90mDbRecVE3qzne/xByjNGn2ERxY=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-qtwV6UdWMEOsPilOs3Mrd9jysCoMp0m5MgxuB5HkI8o=' 'sha256-rm/YlVmogQnelQDIazZyRCXgoAFvC1Ffha1wQ4dVrFc=' 'sha256-wK9fP+fYfi661IypDOgrAoxGZS8mGJfe9l/9288cTZQ=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -23460,10 +23460,12 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     return null;
   }
   // ── Per-epoch cross-node series (INTEGRATOR-THREE-CORNERED-HAT §2 — OxyDex per-epoch HR) ─────────
-  // Bin the cleaned 1 Hz rows into 5-min epochs: hr = MEDIAN pulse-HR (robust to residual spikes),
+  // Bin the cleaned 1 Hz rows into 5-min epochs: hr = MEAN pulse-HR (the estimator measured below;
+  // this header said MEDIAN until 2026-11-09, which the body has not done since the 2026-09-17 ruling),
   // motionIndex = MEAN O2Ring motion count. tMin is node-relative (minutes from t0Ms), matching the
-  // ECG/PpgDex epochs[] grid so the Integrator's alignTriplet lines them up. Epochs with <60 s of HR
-  // coverage are dropped (sparse edge windows). PURE; [] when rows/t0Ms absent. The O2Ring's motion
+  // ECG/PpgDex epochs[] grid so the Integrator's alignTriplet lines them up. A window under 60 s of HR
+  // coverage publishes `hr: null` with its `hrN` count beside it and KEEPS its motion; only a window
+  // that held neither channel is dropped. PURE; [] when rows/t0Ms absent. The O2Ring's motion
   // column makes this the SECOND per-epoch motion series in the HR triplet → unblocks correlated-TCH ρ.
   function oxyBuildEpochSeries(rows, t0Ms) {
     if (!rows || !rows.length || t0Ms == null) return [];
@@ -23504,7 +23506,18 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       })
       .forEach(function (k) {
         var b = bins[k];
-        if (b.hr.length < 60) return; // ≥1 min HR coverage in the 5-min window
+        /* ∅ — REDUCED HR COVERAGE ANNOTATES THE HR VALUE; IT DOES NOT TAKE THE WINDOW'S OTHER
+           CHANNEL WITH IT (owner ruling 2026-09-17; residue
+           2026-11-08-absent-oxydex-hr-takes-the-present-channels-out-of-the-export). An epoch is a
+           stretch of TIME, and this floor is a statement about ONE of its two channels. Returning
+           here published nothing about the motion the device DID record in that window — and on a
+           night whose HR column carries no measured pulse it emptied the array, which took the whole
+           `timeseries` block to null and lost the 1 Hz SpO2 series with it. The floor still governs
+           the VALUE: under 60 samples `hr` is null with its covered count beside it, never a mean
+           over a handful of seconds. A clock seam is the OTHER case and still refuses outright
+           (:3487) — that is a discontinuity, not reduced coverage. */
+        var hrCovered = b.hr.length;
+        if (hrCovered < 60 && !b.mo.length) return;
         /* MEAN, NOT MEDIAN — owner ruling 2026-09-17 (D3), measured in R5-HR-TRIPLET-FOLLOWUPS §3.
            OxyDex has no intervals: `parseCSV` yields a 1 Hz RATE column and nothing else, so
            `60000/mean(RR)` — the statistic ECGDex and PpgDex publish — is not computable here. The
@@ -23531,7 +23544,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
         /* `hrStat` — R5-HR-TRIPLET-FOLLOWUPS. This leg is the ODD ONE on statistic: ECGDex and
            PpgDex both publish 60000/mean(RR), this publishes the median of 1 Hz rates, and the two
            differ by 0.299 bpm on real RR — the size of the bias R5 attributed to the O2Ring itself. */
-        out.push({ tMin: k * 5, hr: mh != null ? +mh.toFixed(1) : null, hrStat: 'mean-rate', motionIndex: mm != null ? +mm.toFixed(3) : null });
+        out.push({ tMin: k * 5, hr: hrCovered >= 60 && mh != null ? +mh.toFixed(1) : null, hrN: hrCovered, hrStat: 'mean-rate', motionIndex: mm != null ? +mm.toFixed(3) : null });
       });
     return out;
   }
@@ -23602,18 +23615,36 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
   // Top-level `timeseries` block — sibling to nights[], where adaptEnvelopeNode reads
   // json.timeseries.epochs[].{hr,motionIndex}. Kept OUT of the per-night element so nights[0] stays
   // byte-identical (the OxyDex equiv fixtures diff nights[0]). Single-recording only (multi-night uses
-  // the crossNight longitudinal path, not per-epoch TCH); null when no epochs.
+  // the crossNight longitudinal path, not per-epoch TCH); null only when the night built NONE of the
+  // three members, never because one of them is absent.
   function oxyBuildTimeseriesBlock(nightsChrono) {
     var n = nightsChrono && nightsChrono.length === 1 ? nightsChrono[0] : null;
-    if (!n || !Array.isArray(n.tchEpochs) || !n.tchEpochs.length) return null;
+    if (!n) return null;
+    /* ∅ — ONE ABSENT MEMBER NEVER WITHHOLDS THE OTHERS (residue
+       2026-11-08-absent-oxydex-hr-takes-the-present-channels-out-of-the-export). The gate used to be
+       `epochs` alone, so a night that cleared no 5-min HR floor published no block at all — and the
+       1 Hz SpO2 series, which the device measured for every second of it, left the node with it. The
+       three members are independent: the block ships when ANY of them exists, each absent one stays
+       absent (never empty) so a reader can tell "this export predates the field" from "this night
+       could not build it", and an absent `epochs` carries its REASON. */
+    var _eps = Array.isArray(n.tchEpochs) && n.tchEpochs.length ? n.tchEpochs : null;
+    var _spSeries = Array.isArray(n.spo2Series) && n.spo2Series.length ? n.spo2Series : null;
+    var _hrSeries = Array.isArray(n.hrSeries) && n.hrSeries.length ? n.hrSeries : null;
+    if (!_eps && !_spSeries && !_hrSeries) return null;
     var block = {
-      doc: '5-min epochs — cross-node feed for three-cornered-hat: hr = median pulse-HR (bpm), motionIndex = mean O2Ring motion count. HR-hat 3rd corner (ECG+PPG+Oxy) + a 2nd per-epoch motion series for the correlated-TCH ρ.',
-      epochs: n.tchEpochs
+      doc: '5-min epochs — cross-node feed for three-cornered-hat: hr = mean pulse-HR (bpm) or null when under 60 covered samples, hrN = the covered sample count, motionIndex = mean O2Ring motion count. HR-hat 3rd corner (ECG+PPG+Oxy) + a 2nd per-epoch motion series for the correlated-TCH ρ. `epochs` is ABSENT, with `epochsReason` naming why, when no window of the night held either channel.'
     };
+    if (_eps) {
+      block.epochs = _eps;
+    } else {
+      /* The named reason, never a borrowed one: a seam scan that refused every window is a
+         DISCONTINUITY, and no coverage floor accounts for it. */
+      block.epochsReason = Array.isArray(n.clockSeamRefusals) && n.clockSeamRefusals.length ? 'clock-seam' : 'no-channel-in-any-epoch';
+    }
     /* ADDITIVE. Consumers that read `epochs` are untouched; `spo2` is a new sibling. Absent rather
        than empty when it cannot be built, so a reader can tell "this export predates the field" from
        "this night had no usable SpO2". */
-    if (Array.isArray(n.spo2Series) && n.spo2Series.length) {
+    if (_spSeries) {
       block.spo2 = {
         doc: 'SpO₂ at the recorded 1 Hz, on a uniform grid from startEpochMs. values[i] is the saturation (%) at startEpochMs + i*1000 ms; null = the device reported no sample for that second — NOT zero and NOT the previous value. Emitted at source rate deliberately: binning is a bandwidth claim this node has not measured.',
         hz: 1,
@@ -23626,7 +23657,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
        ALIGNED per-second HR series, and the worker assigns this corner `cO = 1` outright ("native
        pulse — a smoothed device integer, cannot over-detect ⇒ trust 1"), so the O2Ring needs no
        confidence channel — only this. Absent rather than empty when unbuildable. */
-    if (Array.isArray(n.hrSeries) && n.hrSeries.length) {
+    if (_hrSeries) {
       block.hr = {
         doc: 'Pulse rate at the recorded 1 Hz, on the SAME uniform grid as spo2 (from startEpochMs). values[i] is the rate (bpm) at startEpochMs + i*1000 ms; null = the device reported no usable sample for that second — NOT zero and NOT the previous value. Index-aligned with spo2.values by construction (a row is kept only if BOTH columns parse and clear their sanity bands). This is the per-second series the three-cornered hat consumes; the 5-min epochs[].hr median is a summary of it, not a substitute — and `median(1 Hz rate)` is NOT the statistic ECGDex publishes (`60000/mean(RR)`), a confound worth ~0.3 bpm (R5-HR-TRIPLET-FOLLOWUPS §3), so do not difference the two nodes’ epoch HR and call it a device bias.',
         hz: 1,
