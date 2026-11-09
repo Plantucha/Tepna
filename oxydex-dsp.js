@@ -2140,14 +2140,36 @@
   // re-run the group's null/planted report if the background model changes.
   var _FFT_EST_BG_INFLATION = 2.2;
   var _FFT_CONF = 0.95;
+  /* THE COVERAGE FLOOR, measured the same way as `_FFT_EST_BG_INFLATION` and re-measurable by the same
+     report. An absent sample contributes nothing to a bin, so the gaps act as a window and raise a
+     floor that the AR(1) background cannot describe. The detector then clears its own threshold on a
+     featureless night. Measured 2026-11-09 over 48 AR(1) nights of 1200 samples at rho = 0.98, with a
+     planted 80 s cycle for the positive side, absent samples scattered at random:
+       absent   0 %  0.25 %   1 %   2 %   3 %     5 %     8.33 %
+       false  1/48    1/48  1/48  2/48  2/48    6/48      17/48
+       found 48/48   48/48 48/48 48/48 48/48   48/48      48/48
+     The planted cycle survives every level, so a floor costs no real detection. The fabrication rate
+     holds at the nominal 5 % through 3 % absence and then climbs, so 0.97 is the last honest level.
+     Re-run the group `oxydex · fft-null · absence` null and planted legs if the background model moves. */
+  var _FFT_MIN_COVERAGE = 0.97;
   // The Sidak threshold is computed PER CALL from the bins actually tested — see computeSpO2FFT.
 
-  function _lag1(x, mean) {
+  /* `present` is OPTIONAL and LAST: a caller with no absent samples passes nothing and reads the same
+     number as before. A pair spanning an absent sample is not a lag-1 pair in TIME, so the mask drops
+     the pair rather than closing the gap — a compacted series would make two samples adjacent that the
+     device recorded minutes apart, and the persistence it reports would belong to no recording. */
+  function _lag1(x, mean, present) {
     var num = 0,
       den = 0,
       i;
-    for (i = 0; i < x.length; i++) den += (x[i] - mean) * (x[i] - mean);
-    for (i = 1; i < x.length; i++) num += (x[i] - mean) * (x[i - 1] - mean);
+    for (i = 0; i < x.length; i++) {
+      if (present && !present[i]) continue;
+      den += (x[i] - mean) * (x[i] - mean);
+    }
+    for (i = 1; i < x.length; i++) {
+      if (present && (!present[i] || !present[i - 1])) continue;
+      num += (x[i] - mean) * (x[i - 1] - mean);
+    }
     if (!(den > 0)) return 0;
     var r = num / den;
     // A background needs a POSITIVE persistence; a negative or absurd rho is not a red spectrum, and
@@ -2163,18 +2185,64 @@
     return b.length % 2 ? b[m] : (b[m - 1] + b[m]) / 2;
   }
 
+  /* ∅ — AN ABSENT SAMPLE IS NOT A VALUE, AND IT IS NOT `-mean` EITHER.
+     `rows` carries `spo2: null` wherever the device recorded nothing, and a real O2Ring night held 70
+     absent rows of 27,600 (Muse, row 2026-11-08-the-spo2-spectrum-reads-a-null-sample-as-minus-the-mean).
+     The previous arithmetic read `r.spo2` straight into both halves. A null added 0 to the mean, which
+     pulled the mean below every sample the device measured, and `spo2[t] - mean` evaluated a null to
+     `-mean`, which entered EVERY bin as a large negative sample. Absence became a value inside a
+     published spectrum.
+     The covered samples keep their ORIGINAL index `t`, so the frequency grid stays `k·RATE/n` over the
+     recorded span and no sample moves in time. An absent sample contributes nothing to a bin, instead
+     of a deviation nobody measured, and the power divides by the COVERED count, which is the population
+     the number describes.
+     Scattered dropouts ANNOTATE and a discontinuity refuses (owner ruling 2026-09-17). 70 absent rows
+     of 27,600 are scattered, so the night keeps its spectrum and publishes `coveredN` beside `spanN`.
+     This function cannot yet separate a long contiguous absent RUN from scattered dropouts, and such a
+     run is a discontinuity. That half is named on the fleet board and is not fixed here. */
   function computeSpO2FFT(rows, fs) {
     var spo2 = rows.map(function (r) {
       return r.spo2;
     });
     var n = spo2.length;
-    if (n < 512) return null;
+    /* `typeof` first: `isFinite(null)` is TRUE, because `null` converts to 0, so an `isFinite` test
+       alone admits every absent sample as a reading of zero. */
+    var present = new Uint8Array(n);
+    var covered = 0,
+      sum = 0,
+      pi;
+    for (pi = 0; pi < n; pi++) {
+      if (typeof spo2[pi] === 'number' && isFinite(spo2[pi])) {
+        present[pi] = 1;
+        covered++;
+        sum += spo2[pi];
+      }
+    }
+    // The floor reads the COVERED count, never the span: a 27,600-row night that measured 400 samples
+    // measured 400, and a span-keyed floor would publish a spectrum of 400 readings over 27,600 bins.
+    if (covered < 512) return null;
+    /* ∅ A REFUSAL THAT NAMES ITSELF. Below the coverage floor the night keeps its population and its
+       span, and the peak reads null beside the reason, because a spectrum of this night would report
+       the gaps. The short-night case above returns null, which is the shape every consumer already
+       reads for it. */
+    if (covered / n < _FFT_MIN_COVERAGE) {
+      return {
+        peakFreqHz: null,
+        peakCycSec: null,
+        snr: null,
+        threshold: null,
+        bins: 0,
+        strided: false,
+        rhoLag1: null,
+        coveredN: covered,
+        spanN: n,
+        detected: false,
+        reason: 'coverage-below-floor'
+      };
+    }
     var RATE = fs > 0 ? fs : 1; // SpO2 rows are 1 Hz; the argument keeps that testable
-    var mean =
-      spo2.reduce(function (a, b) {
-        return a + b;
-      }, 0) / n;
-    var rho = _lag1(spo2, mean);
+    var mean = sum / covered;
+    var rho = _lag1(spo2, mean, present);
 
     var kLo = Math.max(1, Math.ceil((_FFT_LO_HZ * n) / RATE));
     var kHi = Math.min(Math.floor(n / 2) - 1, Math.floor((_FFT_HI_HZ * n) / RATE));
@@ -2191,11 +2259,12 @@
         re = 0,
         im = 0;
       for (t = 0; t < n; t++) {
+        if (!present[t]) continue;
         var ang = (2 * Math.PI * k * t) / n;
         re += (spo2[t] - mean) * Math.cos(ang);
         im -= (spo2[t] - mean) * Math.sin(ang);
       }
-      pows.push((re * re + im * im) / n);
+      pows.push((re * re + im * im) / covered);
       var w = (2 * Math.PI * f) / RATE;
       bg.push((1 - rho * rho) / (1 - 2 * rho * Math.cos(w) + rho * rho));
       fss.push(f);
@@ -2240,7 +2309,14 @@
       bins: pows.length,
       strided: stride > 1,
       rhoLag1: +rho.toFixed(4),
-      detected: ok
+      // The POPULATION, beside the verdict: `coveredN` samples carried a reading and `spanN` is the
+      // recorded span. A reader who sees `coveredN < spanN` knows the spectrum describes less than the
+      // night, and no consumer must infer coverage from the span.
+      coveredN: covered,
+      spanN: n,
+      detected: ok,
+      // The key is always present, so a consumer reads a reason or `null`, and never `undefined`.
+      reason: null
     };
   }
 
