@@ -8489,8 +8489,8 @@
   // executed 2026-07-04). The ONE implementation now lives in dex-export.js; this stays a thin OxyDex alias
   // for the app call site + the namespace/back-compat exports + the §7 tests. The shared version is a strict
   // SUPERSET of the old local copy — it ALSO strips device/serial/model from each per-night recording block
-  // in a multi-night series export (a gap the local copy missed). Default OFF at the call site, so a normal
-  // export stays byte-identical; a single-night scrub is byte-identical to the old local result.
+  // in a multi-night series export (a gap the local copy missed). Default ON at the call site since 2026-11-09, so the
+  // file a user shares carries no serial; a single-night scrub is byte-identical to the old local result.
   function oxyScrubExport(envelope) {
     if (typeof DexExport !== 'undefined' && DexExport && typeof DexExport.scrubExport === 'function') return DexExport.scrubExport(envelope);
     if (typeof dexScrubExport === 'function') return dexScrubExport(envelope);

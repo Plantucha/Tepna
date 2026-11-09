@@ -176,7 +176,8 @@
   // recording.contentId (the identity-free EXPORT-IDENTITY handle). PURE: never mutates the input.
   // ONE implementation for every node (D1) — OxyDex shipped its own oxyScrubExport in the pilot; it
   // folds into this on OxyDex's next re-bundle (leaving it now avoids an export-inert OxyDex churn).
-  // Default OFF at every call site, so a normal export stays byte-identical. DOM-free; node:vm-safe.
+  // The OxyDex and CPAPDex call sites default ON since 2026-11-09, so the file a user shares carries no
+  // serial. DOM-free; node:vm-safe.
   /* THE SCRUB IS ALLOW-LIST DRIVEN (EXPORT-SCRUB-ALLOWLIST §3, owner ruling 2026-10-12). The key
      sets live in `export-schema.js`, which nine bundles carry; this function owns the MECHANISM and
      holds no key knowledge of its own. What the deny-list before it looked like, and why it had to

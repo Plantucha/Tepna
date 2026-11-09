@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="f24a9afef47c" data-compute-hash="695a88d494be">
+<html lang="en" data-manifest-hash="286622d25afc" data-compute-hash="7c28c3026c51">
 <head>
 <!--
   CPAPDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'self' (NOT 'none') — this bundle fetches committed LOCAL sample files; 'self' still blocks every REMOTE origin. object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9sBOFR2U9jvs4O86BuLDpmm5h12TUTvIisTFqxneRjc=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-AfPEIAeXXT0ZHnz8sdwL24OxRTdvfkuPm56Sw1iNfNo=' 'sha256-BxCnNxEAuZzTlwpqE2PYSNlpgU4yA2/KfpkXA2BTOnk=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-KVBlk+OHmvOQ8r0QLzpbRznsiMWRI0gM3fjeHujfmVI=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-hCZmwNAMDLPZEMYHAYpzoPETSnimg1oHWWjZImdKqxM=' 'sha256-k+RI3eu7O1dogNihbuES+Db93asgjhSxBjBsgNI3xYs=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-x3UX4ApKTHiJugShQ1GVmGyBMMy+TVh/MmQsqXn3PL4='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4XUKNpQLx4YxENqtNyRBxmiwHQZ/KfG5D6UDh4FlvFc=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9sBOFR2U9jvs4O86BuLDpmm5h12TUTvIisTFqxneRjc=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BxCnNxEAuZzTlwpqE2PYSNlpgU4yA2/KfpkXA2BTOnk=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-KVBlk+OHmvOQ8r0QLzpbRznsiMWRI0gM3fjeHujfmVI=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-k+RI3eu7O1dogNihbuES+Db93asgjhSxBjBsgNI3xYs=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-tEgjv8S5vEIsuBLCHAaM5gMw7PHBRH6v+T9vtvc8Yi4=' 'sha256-x3UX4ApKTHiJugShQ1GVmGyBMMy+TVh/MmQsqXn3PL4='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>CPAPDex — PAP Therapy Analyzer · v2.29.0</title>
@@ -4222,7 +4222,8 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
   // recording.contentId (the identity-free EXPORT-IDENTITY handle). PURE: never mutates the input.
   // ONE implementation for every node (D1) — OxyDex shipped its own oxyScrubExport in the pilot; it
   // folds into this on OxyDex's next re-bundle (leaving it now avoids an export-inert OxyDex churn).
-  // Default OFF at every call site, so a normal export stays byte-identical. DOM-free; node:vm-safe.
+  // The OxyDex and CPAPDex call sites default ON since 2026-11-09, so the file a user shares carries no
+  // serial. DOM-free; node:vm-safe.
   /* THE SCRUB IS ALLOW-LIST DRIVEN (EXPORT-SCRUB-ALLOWLIST §3, owner ruling 2026-10-12). The key
      sets live in `export-schema.js`, which nine bundles carry; this function owns the MECHANISM and
      holds no key knowledge of its own. What the deny-list before it looked like, and why it had to
@@ -12492,6 +12493,10 @@ const { CpapRender } = __require('cpapdex-render.js');
 
   var FILE_TYPES = ['BRP', 'PLD', 'SA2', 'EVE', 'CSL'];
   var NIGHT_GAP_MS = 12 * 60 * 60 * 1000; // clusters >12 h apart belong to DIFFERENT nights
+  /* THE SCRUB DEFAULT IS ON since 2026-11-09 — see the same block in `oxydex-app.js`. It sits at module
+     scope, not inside `wireScrub`, because a page with no export bar still reaches `cpapBuildExport` and
+     would otherwise ship the AirSense filename. `wireScrub` reads it back for the checkbox. */
+  if (typeof window !== 'undefined' && window._cpapScrub === undefined) window._cpapScrub = true;
 
   function $(id) {
     return document.getElementById(id);
@@ -13256,7 +13261,7 @@ const { CpapRender } = __require('cpapdex-render.js');
       // single-night cpapBuildExport IS the ganglior node-export (the fusion currency) → kind 'ganglior'.
       fname = exportName({ node: 'CPAPDex', t0Ms: CURRENT ? CURRENT.t0Ms : null, kind: 'ganglior', ext: 'json' });
     }
-    // SELF-INGEST §5 — optional "scrub for sharing" (default OFF): strip device serial / filename / input
+    // SELF-INGEST §5 — optional "scrub for sharing" (default ON): strip device serial / filename / input
     // sha256 while keeping the clinical summary + a coarse build stamp. OFF → byte-identical to before.
     var outPayload = window._cpapScrub && global.dexScrubExport ? global.dexScrubExport(payload) : payload;
     var blob = new Blob([JSON.stringify(outPayload, null, 2)], { type: 'application/json;charset=utf-8' });
@@ -13445,7 +13450,7 @@ const { CpapRender } = __require('cpapdex-render.js');
         if (eb) eb.classList.remove('show');
         if (input) input.value = '';
       });
-    // SELF-INGEST §5 — inject the "scrub for sharing" toggle into the export bar (default OFF). JS-injected
+    // SELF-INGEST §5 — inject the "scrub for sharing" toggle into the export bar (default ON). JS-injected
     // so the .src.html shell (and thus buildHash) stays put; read at export time via window._cpapScrub.
     (function wireScrub() {
       if (CpapRender && CpapRender.injectSelfIngestCSS)
@@ -13458,6 +13463,7 @@ const { CpapRender } = __require('cpapdex-render.js');
       lbl.className = 'eb-scrub';
       var cb = document.createElement('input');
       cb.type = 'checkbox';
+      cb.checked = !!window._cpapScrub; // the box states the live default, it does not set one
       cb.addEventListener('change', function () {
         window._cpapScrub = !!cb.checked;
       });

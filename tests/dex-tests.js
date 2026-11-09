@@ -19524,6 +19524,32 @@
        + a functional test against the exposed `OxyDex.parseRingClockLog` /
        `OxyDex._attachRtcVerification` helpers so the matcher's behaviour is pinned, not just its
        presence. */
+    /* Row `2026-11-08-the-default-export-carries-the-upload-filename`: the scrub was opt-in and defaulted
+       OFF, so the file the download button wrote carried the ring's device serial inside
+       `schema.provenance.inputs[].name`. Both apps now default it ON. These legs read the SOURCE, because
+       the flag lives on `window` and the headless lane boots no page. */
+    group('SELF-INGEST §5 · the scrub default is ON, so a shared export carries no serial', 'oxydex-app · cpapdex-app · privacy · source-scan', function (T) {
+      var _s = env.sources || {};
+      var names = ['oxydex-app.js', 'cpapdex-app.js', 'oxydex-render.js', 'oxydex-dsp.js', 'dex-export.js'];
+      var missing = names.filter(function (n) {
+        return !_s[n];
+      });
+      if (missing.length) {
+        T.skip('all five scrub-bearing sources wired', 'absent from env.sources: ' + missing.join(', '));
+        return;
+      }
+      T.eq('oxydex-app.js defaults the flag ON exactly once', (_s['oxydex-app.js'].match(/window\._oxyScrub === undefined\) window\._oxyScrub = true;/g) || []).length, 1);
+      T.eq('cpapdex-app.js defaults the flag ON exactly once', (_s['cpapdex-app.js'].match(/window\._cpapScrub === undefined\) window\._cpapScrub = true;/g) || []).length, 1);
+      /* The box must READ the flag. An unchecked box over a scrubbed export states the opposite of what
+         the download does. */
+      T.eq('the CPAPDex checkbox reads the live default', (_s['cpapdex-app.js'].match(/cb\.checked = !!window\._cpapScrub;/g) || []).length, 1);
+      /* A comment that still says OFF sends the next reader to the wrong conclusion, and five files
+         carried that sentence before this change. */
+      var stale = names.reduce(function (acc, n) {
+        return acc + (_s[n].match(/efault OFF/g) || []).length;
+      }, 0);
+      T.eq('no module still states a default OFF scrub', stale, 0, 'five files carried that sentence');
+    });
     group('OxyDex ring-clock sidecar — the .dat timebase is DECLARED against `_rtclog.csv`, never SHIFTED', 'oxydex-dsp · ring-rtc · source-scan', function (T) {
       var _src = env.sources || {};
       var dsp = _src['oxydex-dsp.js'] || '';
