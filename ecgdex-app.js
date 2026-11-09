@@ -734,9 +734,21 @@ self.onmessage = async (e) => {
     for (let i = 0; i < r.nn.length; i += stepT) tach.push({ x: r.tt[i] / 60, y: r.nn[i] });
     $('tachoBody').innerHTML = UI.lineChart(tach, UI.COLORS.teal, { W: 680, H: 170, med: r.medianRR, xfmt: (x) => x.toFixed(0) + 'm' });
     // poincaré — plot the exact array SD1/SD2 were computed from (ellipse matches cloud)
+    /* ∅ — THE SAME LINE AS PpgDex's, WITH A HARDER FAILURE: `r.ellArea.toLocaleString()` THROWS.
+       ecgdex-dsp.js nulls sd1sd2 and ellArea together whenever either axis is absent (its own comment
+       there calls the `|| 1` denominator a fabrication), so a refused pair reached this line as null,
+       and the unguarded `.toLocaleString()` raises a TypeError inside renderCharts — every chart
+       after it then stays unrendered. SD1, SD2 and the ratio printed "null ms" beside it. Twin of row
+       2026-11-08-ppgdex-poincare-line-prints-null-and-an-absent-area-as-zero. */
+    const pcDash = '<span class="dim">—</span>';
+    const pcOk = (v) => v != null && isFinite(v);
+    const pcv = (v) => (pcOk(v) ? `<b>${v}</b>` : pcDash);
+    const pcArea = r.ellArea == null || !isFinite(r.ellArea) ? pcDash : `<b>${r.ellArea.toLocaleString()}</b>`;
+    const pcNN = r.poincareNN || r.nn || [];
     $('poincareBody').innerHTML = UI.poincare(r.poincareNN || r.nn, r.sd1, r.sd2);
     $('poincareStats').innerHTML =
-      `SD1 <b>${r.sd1}</b> ms · SD2 <b>${r.sd2}</b> ms · SD1/SD2 <b>${r.sd1sd2}</b> · area <b>${r.ellArea.toLocaleString()}</b> ms²` +
+      `SD1 ${pcv(r.sd1)} ms · SD2 ${pcv(r.sd2)} ms · SD1/SD2 ${pcv(r.sd1sd2)} · area ${pcArea} ms²` +
+      (pcOk(r.sd1) && pcOk(r.sd2) ? '' : ` <span class="dim">· no Poincaré pair${pcNN.length < 3 ? ` — ${pcNN.length} RR interval${pcNN.length === 1 ? '' : 's'}` : ''}</span>`) +
       (r.poincareRep ? ` <span style="opacity:.6">· representative 5-min window</span>` : '');
     // rMSSD trend (epochs)
     if (r.epochs.length >= 3) {
