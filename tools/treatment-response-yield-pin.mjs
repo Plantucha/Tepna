@@ -180,6 +180,136 @@ export function movedFiles(pinned, current) {
   return moved;
 }
 
+/* ── THE CHAIN THE NOTES MAKE ──────────────────────────────────────────────────
+   `history[]` is the one place the repo records WHY a closure digest moved, and nothing asked for a
+   note. Measured over this pin at `2811ba8af`: the two detector files passed through 28 digests since
+   the chain's first note, and 14 of those moves carry no note. Three unrecorded ones are shared-spine
+   commits that moved both realms at once, so one PR owed two notes.
+
+   So a re-cut compares the digest it is about to write against the last note's `new`, per file. A HEAD
+   gap is the move this run owes a note for. An INTERNAL gap is a move the record already lost, and no
+   later run can answer it. The two are reported apart, because asking a session to explain someone
+   else's edit invites a guessed reason, and a guessed reason is worse than an absent one.
+
+   A note names a BARE basename, while a closure is per realm. The two realms agree on every shared
+   file today. A basename whose realms hold DIFFERENT digests is AMBIGUOUS and gets no head entry,
+   because no note in this shape can say which realm moved. */
+function digestsByName(detector) {
+  const byName = new Map();
+  for (const realm of Object.keys(detector || {})) {
+    const d = detector[realm];
+    if (!d) continue;
+    for (const f of Object.keys(d)) {
+      if (!byName.has(f)) byName.set(f, new Map());
+      const holders = byName.get(f);
+      if (!holders.has(d[f])) holders.set(d[f], []);
+      holders.get(d[f]).push(realm);
+    }
+  }
+  return byName;
+}
+
+/* One digest, or `null` when the realms disagree — the AMBIGUOUS case, which no comparison may
+   collapse by picking a side. */
+const oneDigest = (holders) => (holders && holders.size === 1 ? [...holders][0] : null);
+
+export function chainGaps(detector, history, prevDetector) {
+  const notes = (Array.isArray(history) ? history : []).filter((e) => e && typeof e === 'object' && typeof e.file === 'string');
+  const byFile = new Map();
+  for (const e of notes) {
+    if (!byFile.has(e.file)) byFile.set(e.file, []);
+    byFile.get(e.file).push(e);
+  }
+  const internal = [];
+  for (const [file, es] of byFile) {
+    for (let i = 0; i + 1 < es.length; i++) {
+      if (es[i].new !== es[i + 1].old) {
+        internal.push({ file, closes: es[i].new ?? null, reopens: es[i + 1].old ?? null, after: es[i].date ?? null, before: es[i + 1].date ?? null });
+      }
+    }
+  }
+  const byName = digestsByName(detector);
+  /* THE MOVE THIS RUN MAKES, against the pin it is about to overwrite. An absent previous pin is no
+     record of a move rather than none, so `moves` is `null` and the run says it cannot name its own. */
+  let moves = null;
+  if (prevDetector) {
+    moves = [];
+    const prevByName = digestsByName(prevDetector);
+    for (const [file, holders] of byName) {
+      const cur = oneDigest(holders);
+      if (!cur || cur[0] == null) continue;
+      const prv = oneDigest(prevByName.get(file));
+      const was = prv ? prv[0] : null;
+      if (was === cur[0]) continue;
+      moves.push({ file, realms: cur[1], old: was, new: cur[0] });
+    }
+  }
+  const head = [];
+  const uncovered = [];
+  const ambiguous = [];
+  for (const [file, holders] of byName) {
+    if (holders.size > 1) {
+      ambiguous.push({ file, holds: [...holders].map(([digest, realms]) => ({ digest: digest ?? null, realms })) });
+      continue;
+    }
+    const [digest, realms] = [...holders][0];
+    if (digest == null) continue;
+    const es = byFile.get(file) || [];
+    if (!es.length) {
+      uncovered.push(file);
+      continue;
+    }
+    const last = es[es.length - 1];
+    if (last.new === digest) continue;
+    head.push({ file, realms, pinned: digest, lastNote: last.new ?? null, noteDate: last.date ?? null });
+  }
+  return { moves, head, internal, uncovered, ambiguous };
+}
+
+/* The lines the session reads. Pure, so a selftest can assert the gap reaches the text rather than
+   asserting that a `console.log` was reached. A clean chain prints nothing. */
+export function formatChain(gaps, out, today) {
+  const L = [];
+  const skeleton = (file, old, now) => '    ' + JSON.stringify({ date: today, file, old, new: now, reason: '<why it moved, and whether the counts changed>' }) + ',';
+  if (gaps.moves === null) {
+    L.push('  ⓘ no earlier pin stood at ' + out + ', so this run cannot name the move it just made.');
+  } else if (gaps.moves.length) {
+    L.push('  ⚠ this run moved ' + gaps.moves.length + ' closure digest(s). Append one note per line to `history[]` in ' + out + ':');
+    for (const g of gaps.moves) L.push(skeleton(g.file, g.old, g.new));
+  }
+  if (gaps.head.length) {
+    L.push('  ⚠ ' + gaps.head.length + ' file(s) carry notes that close at a digest this pin does not hold, so a move went unrecorded:');
+    for (const g of gaps.head) L.push('    ' + g.file + ' (' + g.realms.join(', ') + ')  pin ' + g.pinned + '  last note ' + g.lastNote + ' on ' + g.noteDate);
+  }
+  if (gaps.internal.length) {
+    L.push('  ⓘ ' + gaps.internal.length + ' earlier gap(s) this run cannot answer — the record lost them, and a guessed reason is worse than none:');
+    for (const g of gaps.internal) {
+      L.push('    ' + g.file + '  ' + g.closes + ' → (no note) → ' + g.reopens + '  between ' + g.after + ' and ' + g.before);
+    }
+  }
+  if (gaps.uncovered.length) {
+    L.push('  ⓘ ' + gaps.uncovered.length + ' closure file(s) the chain has never covered, which is not evidence that they moved: ' + gaps.uncovered.join(' '));
+  }
+  if (gaps.ambiguous.length) {
+    L.push('  ⚠ ' + gaps.ambiguous.length + ' file(s) whose realms hold different digests, which a bare-basename note cannot name:');
+    for (const g of gaps.ambiguous) {
+      L.push('    ' + g.file + '  ' + g.holds.map((h) => h.realms.join('+') + ' ' + h.digest).join('  ·  '));
+    }
+  }
+  return L;
+}
+
+/* The `detector` of the pin this run is about to overwrite, read beside its `history`. */
+export function detectorOnDisk(path, read) {
+  try {
+    const prev = JSON.parse(read(path));
+    const d = prev && prev.detector;
+    return d && typeof d === 'object' ? d : null;
+  } catch {
+    return null;
+  }
+}
+
 /* The three yields this pin exists because of. Appended to, never rewritten: the point of the row is
    that a single number replaced another with nothing recording that it had. */
 export const HISTORY = [
@@ -424,6 +554,58 @@ function selftest() {
     String(PH.history.length) + '/' + String(P.history.length)
   );
 
+  /* ── THE CHAIN ─ every gap shape, planted, plus the two the tool must NOT read as a gap ───── */
+  const cgA = { date: '2026-11-01', file: 'oxydex-dsp.js', old: 'aaaaaaaaaaaa', new: 'bbbbbbbbbbbb', reason: 'r1' };
+  const cgB = { date: '2026-11-02', file: 'oxydex-dsp.js', old: 'bbbbbbbbbbbb', new: 'cccccccccccc', reason: 'r2' };
+  const cgC = { date: '2026-11-03', file: 'oxydex-dsp.js', old: 'dddddddddddd', new: 'eeeeeeeeeeee', reason: 'r3' };
+  const cgD = (oxy) => ({ oxy, pulse: null });
+  const cgAt = cgD({ 'oxydex-dsp.js': 'cccccccccccc' });
+  const cg1 = chainGaps(cgAt, [HISTORY[0], cgA, cgB], cgAt);
+  ok('chain: a note closing at the pinned digest is no gap, and an unmoved closure is no move', cg1.head.length === 0 && cg1.internal.length === 0 && cg1.moves.length === 0, JSON.stringify(cg1));
+  const cg2 = chainGaps(cgD({ 'oxydex-dsp.js': 'ffffffffffff' }), [cgA, cgB], cgAt);
+  ok(
+    'chain: the move this run makes is named with the digest the previous pin held',
+    cg2.moves.length === 1 && cg2.moves[0].old === 'cccccccccccc' && cg2.moves[0].new === 'ffffffffffff' && cg2.moves[0].realms.join() === 'oxy',
+    JSON.stringify(cg2.moves)
+  );
+  ok('chain: that same move also reads as a HEAD gap, because no note closes at the new digest', cg2.head.length === 1 && cg2.head[0].lastNote === 'cccccccccccc', JSON.stringify(cg2.head));
+  const cg3 = chainGaps(cgD({ 'oxydex-dsp.js': 'ffffffffffff' }), [], cgD({}));
+  ok('chain: a file the previous pin did not carry reads old null, never a borrowed digest', cg3.moves.length === 1 && cg3.moves[0].old === null, JSON.stringify(cg3.moves));
+  ok('chain: a closure file with NO note is UNCOVERED, which is not evidence that it moved', cg3.uncovered.join() === 'oxydex-dsp.js' && cg3.head.length === 0, JSON.stringify(cg3));
+  const cg4 = chainGaps(cgD({ 'oxydex-dsp.js': 'eeeeeeeeeeee' }), [cgA, cgB, cgC], cgD({ 'oxydex-dsp.js': 'eeeeeeeeeeee' }));
+  ok(
+    'chain: a break between two notes is INTERNAL, and this run owes nothing for it',
+    cg4.internal.length === 1 && cg4.internal[0].closes === 'cccccccccccc' && cg4.internal[0].reopens === 'dddddddddddd' && cg4.moves.length === 0,
+    JSON.stringify(cg4)
+  );
+  const cg5 = chainGaps({ oxy: { 'clock.js': '111111111111' }, pulse: { 'clock.js': '222222222222' } }, [], { oxy: { 'clock.js': '000000000000' }, pulse: { 'clock.js': '000000000000' } });
+  ok(
+    'chain: a basename whose realms disagree is AMBIGUOUS, and neither a head nor a move is invented for it',
+    cg5.ambiguous.length === 1 && cg5.head.length === 0 && cg5.moves.length === 0,
+    JSON.stringify(cg5.ambiguous)
+  );
+  const cg6 = chainGaps(cgD({ 'oxydex-dsp.js': null }), [], cgD({ 'oxydex-dsp.js': 'cccccccccccc' }));
+  ok('chain: an absent file is not a moved closure', cg6.head.length === 0 && cg6.moves.length === 0 && cg6.uncovered.length === 0, JSON.stringify(cg6));
+  const cg7 = chainGaps(cgAt, [null, 7, 'x', HISTORY[1], cgA, cgB], cgAt);
+  ok('chain: a fileless or non-object history member is skipped rather than read as a note', cg7.head.length === 0 && cg7.internal.length === 0, JSON.stringify(cg7));
+  const cg8 = chainGaps(cgD({ 'oxydex-dsp.js': 'bbbbbbbbbbbb' }), [cgA, cgB], cgD({ 'oxydex-dsp.js': 'bbbbbbbbbbbb' }));
+  ok(
+    'chain DECOY · an EARLIER note closing at the pinned digest is not the head, so the gap stands',
+    cg8.head.length === 1 && cg8.head[0].pinned === 'bbbbbbbbbbbb' && cg8.head[0].lastNote === 'cccccccccccc',
+    JSON.stringify(cg8.head)
+  );
+  const cg9 = chainGaps(cgAt, [cgA, cgB]);
+  ok('chain: with no previous pin, moves is null rather than an empty list (∅)', cg9.moves === null, JSON.stringify(cg9.moves));
+  const cgT9 = formatChain(cg9, 'analysis/pin.json', '2026-11-09');
+  ok('chain: and the text says the run cannot name its own move', cgT9.length === 1 && cgT9[0].includes('cannot name the move'), JSON.stringify(cgT9));
+  const cgT2 = formatChain(cg2, 'analysis/pin.json', '2026-11-09');
+  ok(
+    'chain: the move reaches the printed text as a note skeleton the session can paste',
+    cgT2.some((l) => l.includes('"old":"cccccccccccc"') && l.includes('"new":"ffffffffffff"') && l.includes('"reason"')),
+    JSON.stringify(cgT2.length)
+  );
+  ok('chain: a clean chain prints nothing', formatChain(cg1, 'analysis/pin.json', '2026-11-09').length === 0, 'silent');
+
   /* The real generator, at the real configuration — the number the pin is built on. */
   const CG = loadCohortGen();
   ok('the real CohortGen loads outside a browser', !!(CG && typeof CG.sampleProfile === 'function'), CG ? CG.VERSION : 'null');
@@ -490,6 +672,7 @@ function main(argv) {
   const out = arg('--out', PIN);
   /* Read the record BEFORE overwriting it: the hand-written notes live only in the file. */
   const prevHistory = historyOnDisk(out, (p) => readFileSync(p, 'utf8'));
+  const prevDetector = detectorOnDisk(out, (p) => readFileSync(p, 'utf8'));
   const history = mergeHistory(prevHistory, HISTORY);
   const pin = buildPin({
     nIntervention: R.nIntervention,
@@ -508,6 +691,7 @@ function main(argv) {
   );
   console.log('  yield      ' + pin.yield.nIntervention + ' tx / ' + pin.yield.nFlatControl + ' flat  (skipped ' + pin.yield.txSkipped + ' / ' + pin.yield.flatSkipped + ' by the detectors)');
   console.log('  history    ' + HISTORY.length + ' derived + ' + (history.length - HISTORY.length) + ' preserved from the file this run overwrote');
+  for (const line of formatChain(chainGaps(detector, history, prevDetector), out, pin.measuredAt.slice(0, 10))) console.log(line);
   return 0;
 }
 
