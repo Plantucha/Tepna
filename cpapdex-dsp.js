@@ -464,8 +464,18 @@
         modeEnvIqr: null,
         modeNights: 0
       };
+    /* §∅ — MASK-ON HOURS AND THE RECORDING ENVELOPE ARE TWO QUANTITIES, and adherence scores the
+     first. `therapyHours` sums each session's `durMin`, and the full-set constructor sets `durMin`
+     from the WALL span (see the "WALL duration (for off-mask gap math)" comment below). So a night
+     whose mask came off for three hours scored compliant on its envelope. A real night carries its
+     pooled mask-on figure in `metrics.usageHours`, which is null when any session went unmeasured,
+     so such a night leaves the denominator instead of counting against adherence. A back-compat
+     `{therapyHours}` stub holds no metrics block, and its only figure comes from `buildSession`,
+     where `durMin = prepared.usageHours * 60` — mask-on already. Row
+     `2026-11-07-the-cpap-usage-kpi-draws-the-recording-envelope-under-the-mask-on-label`. */
     var usageH = function (n) {
-      return n.therapyHours != null ? n.therapyHours : n.metrics ? n.metrics.usageHours : null;
+      if (n.metrics) return n.metrics.usageHours != null ? n.metrics.usageHours : null;
+      return n.therapyHours != null ? n.therapyHours : null;
     };
     var ahiOf = function (n) {
       return n.metrics ? n.metrics.residualAHI : n.residualAHI != null ? n.residualAHI : null;

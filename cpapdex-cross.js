@@ -348,6 +348,21 @@
     return sum / live.length;
   }
   // CPAPDex outcome metric defs — each an OUTCOME with a clear good-direction.
+  /* §∅ — THE NIGHT'S USAGE IS ITS POOLED MASK-ON FIGURE, never its recording envelope.
+   `night.therapyHours` sums wall spans, so every reader below once graded, weighed or counted
+   the envelope under a label the registry defines as "Total mask-on hours (pressure > 0)".
+   `metrics.usageHours` is null when a session went unmeasured, and a null leaves the population
+   rather than scoring as a night below the line. A back-compat `{therapyHours}` stub carries no
+   metrics block, and its figure comes from `buildSession`, where `durMin` is mask-on already.
+   `cpapdex-dsp.js buildLongitudinal` holds the same helper, because this module resolves lazily
+   and may be absent. Row
+   `2026-11-07-the-cpap-usage-kpi-draws-the-recording-envelope-under-the-mask-on-label`. */
+  function nightUsageHours(n) {
+    if (!n) return null;
+    if (n.metrics) return n.metrics.usageHours != null ? n.metrics.usageHours : null;
+    return n.therapyHours != null ? n.therapyHours : null;
+  }
+
   var CPAP_DEFS = {
     residualAHI: {
       good: 'down',
@@ -364,7 +379,7 @@
       unit: 'hr',
       evidence: 'measured',
       get: function (n) {
-        return n.therapyHours != null ? n.therapyHours : n.metrics ? n.metrics.usageHours : null;
+        return nightUsageHours(n);
       }
     },
     largeLeakPct: {
@@ -404,9 +419,9 @@
   function nightTms(n) {
     return n && n.t0Ms != null ? n.t0Ms : null;
   }
-  // weight each night by therapy-hour completeness (a 40-min session weighs less than a full night)
+  // weight each night by MASK-ON completeness (a 40-min session weighs less than a full night)
   function nightWeight(n) {
-    var h = n.therapyHours != null ? n.therapyHours : n.metrics ? n.metrics.usageHours : null;
+    var h = nightUsageHours(n);
     return h != null ? Math.max(0.05, Math.min(1, h / 6)) : 1;
   }
 
@@ -463,7 +478,7 @@
     nights.forEach(function (n) {
       /* ∅ An absent usage datum is not a night of no therapy: it leaves BOTH sides of the
        ratio. The fallback here used to make such a night a scored night below the line. */
-      var h = n.therapyHours != null ? n.therapyHours : n.metrics ? n.metrics.usageHours : null;
+      var h = nightUsageHours(n);
       if (h == null) return;
       scored++;
       if (h >= thresholdH) ok++;
