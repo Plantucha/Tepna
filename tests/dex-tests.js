@@ -57424,7 +57424,42 @@
             ovNames.length > 10 && reach.length === 0,
             ovNames.length <= 10 ? 'only ' + ovNames.length + ' names extracted — the scan examined almost nothing' : 'read: ' + reach.slice(0, 5).join(' ')
           );
-          T.ok('F14 · …and its one global write `_pxPanel` is read by no DSP', !/_pxPanel/.test(pxDsp));
+          /* The module publishes its global surface two ways: one `window.X =` write, and one
+             `Object.assign(window, {…})` call. A `window\.X\s*=` pattern sees only the first, and that
+             is how the first version of this leg came to claim a surface of ONE name. Read both. */
+          var gNames = [];
+          (ovSrc.match(/(?:window|globalThis)\.([A-Za-z_$][\w$]*)\s*=[^=]/g) || []).forEach(function (hit) {
+            var mg2 = /\.([A-Za-z_$][\w$]*)\s*=/.exec(hit);
+            if (mg2) gNames.push(mg2[1]);
+          });
+          var oa = /Object\.assign\(\s*(?:window|globalThis)\s*,\s*\{/.exec(ovSrc);
+          if (oa) {
+            var depth = 0,
+              lit = '';
+            for (var gk = oa.index + oa[0].length - 1; gk < ovSrc.length; gk++) {
+              var gch = ovSrc.charAt(gk);
+              if (gch === '{' || gch === '[' || gch === '(') {
+                depth++;
+                if (depth === 1) continue;
+              } else if (gch === '}' || gch === ']' || gch === ')') {
+                depth--;
+                if (depth === 0) break;
+              }
+              if (depth === 1) lit += gch;
+            }
+            lit.split(',').forEach(function (seg) {
+              var mk = /^\s*([A-Za-z_$][\w$]*)\s*(?::|$)/.exec(seg);
+              if (mk) gNames.push(mk[1]);
+            });
+          }
+          var gReach = gNames.filter(function (nm) {
+            return new RegExp('\\b' + nm.replace(/\$/g, '\\$') + '\\b').test(pxDsp);
+          });
+          T.ok(
+            'F14 · …and no name the module publishes on the global object is read by the DSP',
+            gNames.length >= 10 && gReach.length === 0,
+            gNames.length < 10 ? 'only ' + gNames.length + ' global name(s) extracted — the scan examined almost nothing' : gNames.length + ' published, read: ' + gReach.join(' ')
+          );
         }
       }
 
