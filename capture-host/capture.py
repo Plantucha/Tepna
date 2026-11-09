@@ -421,7 +421,13 @@ _BLE_SETUP_TIMEOUT_S = 10.0
 def _bounded_setup(coro):
     """Bound a post-connect GATT setup await (start_notify / auth+setup writes). A timeout RAISES out of
     the runner's try so `except/finally` closes the writers and the loop retries on a fresh link — never
-    a silent all-night freeze at `connected=True`."""
+    a silent all-night freeze at `connected=True`.
+
+    ⚠️ ONE CALLER BOUNDS A LIVE SESSION, NOT A SETUP STEP. `_cpap_ble_connect`'s `write` closure
+    lives for the whole AS11 session, and `as11_pull` sends every command through it, so retuning
+    `_BLE_SETUP_TIMEOUT_S` retunes that write bound as well. Deliberate — one constant, one meaning: no
+    post-connect GATT await on any runner is unbounded. Stated here because the name says "setup" and
+    that call site is not one (residue 2026-11-08-the-cpap-connect-path-awaits-gatt-setup-unbounded)."""
     return asyncio.wait_for(coro, _BLE_SETUP_TIMEOUT_S)
 
 
@@ -16279,8 +16285,15 @@ async def _cpap_ble_connect(
     raises and the link is still thrown away once. Two independent chances at a per-connect race, and
     the cheaper one goes first.
 
-    The only un-unit-tested code in the CPAP stream path: real bleak connect + notify plumbing, which
-    CI has no radio to exercise. Everything it feeds (session, stream, bus push, lifecycle) is tested.
+    ITS BLEAK EDGE has no unit test: the real connect and notify plumbing run only on the box, because
+    CI has no radio. Everything it feeds (session, stream, bus push, lifecycle) is tested.
+
+    ⚠️ THIS LINE USED TO READ "the only un-unit-tested code in the CPAP stream path", AND THAT WAS
+    WRONG ABOUT ITS OWN FUNCTION. `tests/test_cpap_stream.py` drives this function through a fake bleak
+    client at 25 call sites, and the coverage floor is 100 % statement and branch with no pragma here.
+    So the untested part is the bleak EDGE, never the logic. Residue
+    2026-11-08-the-cpap-connect-path-awaits-gatt-setup-unbounded quoted the old claim back as evidence
+    that nothing watched this code, which is how an over-broad docstring costs a later reader a day.
     Mirrors the operator probe's transport verbatim so the two cannot drift.
 
     `timeout` is LAST and optional, so every existing caller keeps the patient 20 s it always had. The
@@ -16412,7 +16425,13 @@ async def _cpap_ble_connect(
             log.info("CPAP %s: GATT table recorded — %s", ble_addr, recorded)
         if pairing_reads:
             log.info("CPAP %s: pairing reads before notify — %s", ble_addr, await _as11_pairing_reads(client))
-        await client.start_notify(_L.GATT_RX, _on_notify)
+        # BOUNDED, like every other post-connect GATT setup await on every other runner (residue
+        # 2026-11-08-the-cpap-connect-path-awaits-gatt-setup-unbounded). This await was the bare one, so
+        # a BlueZ wedge that accepted the LE connection and then stalled StartNotify held the AS11
+        # session at `connected=True` with no data and no error — invisible to the stall watchdog, to
+        # `classify_adapter_health` and to `alert_poller`, each of which reads connected as healthy. The
+        # raise lands in the leak guard below, which closes the link so the caller retries on a fresh one.
+        await _bounded_setup(client.start_notify(_L.GATT_RX, _on_notify))
         # THE REAL ATT MTU, acquired the way pull_session does for the ring. On BlueZ bleak reports a
         # placeholder 23 until a characteristic is acquired, so this link's `mtu_size` read below was
         # the placeholder on every night — and the MTU is the one number that turns the byte counters
@@ -16515,10 +16534,19 @@ async def _cpap_ble_connect(
                     f"measured: it would be split into {-(-len(frame) // 20)} ATT writes on a guess. "
                     f"Re-acquire failed twice; the session is refused rather than risking the key"
                 )
-            await client.write_gatt_char(_L.GATT_TX, frame, response=True)
+            # BOUNDED TOO, and by the SAME constant, which `_bounded_setup`'s docstring explains.
+            # `as11_pull` sends RequestSession, CheckSessionIntegrity, StartStream, SubscribeEvent and
+            # each spool round through this closure, so a bare write let the same wedge freeze an
+            # ESTABLISHED session rather than a connecting one. `TimeoutError` subclasses `OSError`, so
+            # the shadow loop's `except (OSError, As11Error)` already records a wedge as an ordinary poll
+            # failure — counted, journalled, visible — and this fix owes no new handler.
+            await _bounded_setup(client.write_gatt_char(_L.GATT_TX, frame, response=True))
             return
+        # PER ATT WRITE, not per frame: a wedge on the fourth chunk freezes the session exactly as
+        # well as one on the first. So a 163-byte CheckSessionIntegrity frame at the fallback step 20 is
+        # nine writes and nine bounds, and its worst case is nine times the constant.
         for i in range(0, len(frame), step):
-            await client.write_gatt_char(_L.GATT_TX, frame[i : i + step], response=True)
+            await _bounded_setup(client.write_gatt_char(_L.GATT_TX, frame[i : i + step], response=True))
 
     async def recv_frame():
         return await asyncio.wait_for(q.get(), recv_timeout)
