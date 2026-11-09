@@ -24,7 +24,7 @@
       "dex-escape.js": "f0d38619047a",
       "oxydex-util.js": "5cc642ee790b",
       "oxydex-profile.js": "3496a101178a",
-      "oxydex-dsp.js": "554a264ba4a5"
+      "oxydex-dsp.js": "ac96c6845205"
     },
     "pulse": {
       "synth-gen.js": "a653cf5afb78",
@@ -158,11 +158,18 @@
       "old": "5e5ffe017b76",
       "new": "554a264ba4a5",
       "reason": "residue 2026-11-09-mini-nsi-counts-absent-spo2-as-a-desaturated-second and 2026-11-09-the-nsi-motion-null-guard-tests-the-whole-column-only: the mini-NSI below-95 share and motion share now divide by their own measured count, each refuses below 60 measured samples, and the epoch average refuses when any leg refuses. The mini-NSI is not a treatment-response input, and the re-cut measured the SAME 233 tx / 239 flat under the moved closure, so the yield is unchanged and this entry records the move only."
+    },
+    {
+      "date": "2026-11-09",
+      "file": "oxydex-dsp.js",
+      "old": "554a264ba4a5",
+      "new": "ac96c6845205",
+      "reason": "residue 2026-11-09-the-rem-share-divides-by-the-span-it-did-not-examine: computeSleepStageProxy now counts the windows it offered and the windows each absence dropped, and it publishes that bookkeeping whenever a window went unexamined. No published value moves. The stage estimate is not a treatment-response input, and the re-cut measured the SAME 233 tx / 239 flat under the moved closure, so this entry records the move only."
     }
   ],
-  "measuredAt": "2026-11-09T20:59:54.021Z",
+  "measuredAt": "2026-11-09T22:23:05.162Z",
   "producedBy": {
     "tool": "tools/treatment-response-yield-pin.mjs",
-    "commit": "a6f55d408"
+    "commit": "47ca6cda7"
   }
 }
