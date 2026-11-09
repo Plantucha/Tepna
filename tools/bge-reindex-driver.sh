@@ -85,6 +85,16 @@ if pgrep -af "[m]utate\.mjs|[m]utation-crawl|[m]utation-suite" 2>/dev/null | gre
   export DEX_EMBED_CPU=1
 fi
 
+# THE CODE MAP rides the hourly lane, ahead of the ollama check because it needs no model. Nothing
+# refreshed it from 2026-10-12 to 2026-11-09: in that time 789 of 1,187 tracked code files changed, and
+# every Rule 0 search printed no declares-line for them. `--write` takes about 2 s and writes to the
+# git COMMON dir, so one copy serves every worktree. It is built from $ROOT, the same tree the index
+# reads. Full mode only; the 15-minute board lane does not pay for it.
+if [ "$MODE" = full ]; then
+  # shellcheck disable=SC2086 # $NICE is one command prefix
+  map=$( (cd "$ROOT" && timeout 120 $NICE node tools/repo-map.mjs --write) 2>&1 | tail -1)
+  echo "$(date -Is) repo-map: ${map:-no output}" >>"$LOG"
+fi
 curl -sf --max-time 5 http://127.0.0.1:11434/api/tags >/dev/null 2>&1 || {
   echo "$(date -Is) ollama down — skipped" >>"$LOG"
   exit 0
