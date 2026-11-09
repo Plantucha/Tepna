@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="62b4b408fefe" data-compute-hash="297354281b5c">
+<html lang="en" data-manifest-hash="19bb3f1b9aee" data-compute-hash="dd7d2d2f9bd5">
 <head>
 <!--
   MotionDex.src.html — Tepna
@@ -12,7 +12,7 @@
 <!-- CSP: browser-enforces the no-network invariant. connect-src 'none' blocks every outbound request;
      script-src is STRICT ('self' + per-inline-script sha256, NO 'unsafe-inline'). MotionDex ships zero
      inline scripts (all init lives in motiondex-app.js), so the hash list is empty by construction. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-1zVlEXb8s+1rMCY16et54bJkj1EDY3ZlxVcToe+omgM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-LFUuThFphtJbs7xcxi6ccAB4tRpfMsn5CPS3sr9f3SQ=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-bIhKcpZRJ/ZzKulROPoeorGxddt3ajAjGiOPqmDw7ik=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-tEgjv8S5vEIsuBLCHAaM5gMw7PHBRH6v+T9vtvc8Yi4=' 'sha256-wK9fP+fYfi661IypDOgrAoxGZS8mGJfe9l/9288cTZQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-1zVlEXb8s+1rMCY16et54bJkj1EDY3ZlxVcToe+omgM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-LFUuThFphtJbs7xcxi6ccAB4tRpfMsn5CPS3sr9f3SQ=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QU1eFIpXtk89h7OawHFWXJry6pEr0cw5i0Q08kGZz88=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-bIhKcpZRJ/ZzKulROPoeorGxddt3ajAjGiOPqmDw7ik=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-tEgjv8S5vEIsuBLCHAaM5gMw7PHBRH6v+T9vtvc8Yi4=' 'sha256-wK9fP+fYfi661IypDOgrAoxGZS8mGJfe9l/9288cTZQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>MotionDex — Motion / IMU Analyzer · v2.29.0</title>
@@ -3654,6 +3654,21 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
       'siteSource',
       'timingSource',
       'hostAxis',
+      /* THE SHARED TIMING BLOCK, THE VALIDITY BLOCK AND THE SEAM SUMMARY (declared 2026-11-09).
+         Measured over the 28 envelope-shaped node-exports in the corpus: the scrub dropped
+         `recording.timing` from 28 of 28, `recording.validity` from 20 of 28 and
+         `recording.clockSeamScan` from 3 of 3 PulseDex exports. So a shared export carried the
+         clinical summary and no timebase provenance at all, and §∅ names that loss a defect: a
+         consumer could not tell one clock from nobody looked. Every key in all three blocks is a
+         count, a rate, an enum or an authored sentence — the twelve `timing` keys are
+         `timingSource`/`independent`/`anchors`/`spanMs`/`ppm`/`spanPpm`/`resyncs`/`seams`/`rate`/
+         `rateRaw`/`rateApplied`/`reason`, and `validity` adds seam counts plus `upstreamNodes`,
+         which names nodes, never devices. The per-seam DETAIL lists (`clockSeams`,
+         `clockSeamRefusals`) stay undeclared: the summary carries the counts, and the detail is
+         unmeasured against the corpus, so it is named in `scrubDropped` rather than waved through. */
+      'timing',
+      'validity',
+      'clockSeamScan',
       'deviceEpoch',
       'unit',
       'sourceUnit',
@@ -3730,7 +3745,21 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
          that committed assertion, and the distinction is worth keeping visible — every key above it
          was read off a real export, this one was read off a test. */
       'ansAge',
-      'hrvScore'
+      'hrvScore',
+      /* `clockSeamScan` and `measurement` (declared 2026-11-09, the GATE C red on #4724). The
+         app-export-against-compute leg in `Dex-Test-Suite.html` reds the moment a night element
+         loses a physiological field, and it named these two: the scrub stripped OxyDex's whole
+         headline measurement block and its seam verdict. `measurement` holds one block per metric
+         id, each `value` + `window` + `code` + `basis` + `quality` + `uncertainty` + `evidence`.
+         Two of its leaves were read before declaring it. `evidence.envelopeRef` is the capture
+         `session_id`, which `capture-host/capture.py:5843` states is the 14-digit START STAMP —
+         the same instant `recording.startEpochMs` already declares. `sourceChannel` is a per-node
+         CONSTANT ('O2Ring:spo2'), so it names a device family that `schema.node` already names and
+         carries no hardware revision; it is not the `model` the header above refuses, which is a
+         revision-bearing device string. `evidence.inputHash` is `contentId`, declared
+         identity-free three blocks up. */
+      'clockSeamScan',
+      'measurement'
     ],
     elementSchema: ['name', 'version', 'node', 'nodeVersion', 'generated', 'doc', 'units', 'provenance', 'scrubbed', 'scrubDropped'],
     elementRecording: [
@@ -3756,7 +3785,12 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
       'therapyHours',
       'sessionCount',
       'sessions',
-      'offMaskGaps'
+      'offMaskGaps',
+      /* The same three as `recording` above, for the same measured reason — a per-element recording
+         block is the same content per night. */
+      'timing',
+      'validity',
+      'clockSeamScan'
     ]
   };
 
