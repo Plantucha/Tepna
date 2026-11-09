@@ -18,6 +18,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 
@@ -151,6 +152,8 @@ async def run_shadow_loop(
                 connect=connect, creds=creds, supervisor=supervisor, host_epoch=host_epoch
             )
         except (OSError, as11_pull.As11Error) as e:
+            if _cancel_was_swallowed():
+                raise asyncio.CancelledError from e
             # connect/establish failed outright — a link we could not open, not a device verdict.
             # Expected and frequent (the AS11 is off, or the controller holds it), so kept quiet in
             # the LOG — but recorded in the journal, because "expected" is not "not worth knowing":
@@ -160,6 +163,8 @@ async def run_shadow_loop(
             await sleep(poll_interval_s)
             continue
         except Exception as e:
+            if _cancel_was_swallowed():
+                raise asyncio.CancelledError from e
             # A shadow OBSERVER must survive ANY poll failure — never let one crash the loop. The
             # bleak connect (an injected seam) raises BleakError/BleakDBusError subclasses that are
             # NOT OSError — e.g. `org.bluez.Error.InProgress` when the adapter is contended by the
@@ -178,6 +183,19 @@ async def run_shadow_loop(
         if on_cycle is not None:
             on_cycle(decision, anchor)
         await sleep(poll_interval_s)
+
+
+def _cancel_was_swallowed() -> bool:
+    """True when this task was asked to stop and the poll raised something else instead.
+
+    🔴 A CANCEL THAT ARRIVES AS A POLL FAILURE IS STILL A CANCEL. Measured on the capture box, 2026-11-07
+    19:04 to 2026-11-08 12:11: at 5 daemon stops the cancel landed inside the AS11 connect. Within 40 ms
+    the connect raised `BleakDeviceNotFoundError`, not `CancelledError`. The broad `except` took it as a
+    failed poll and slept the 30 s interval, and the stop abandoned the task at 15 s. `cancelling()`
+    keeps its count when a callee swallows the `CancelledError`, so it still says the stop was asked."""
+    task = asyncio.current_task()
+    assert task is not None  # the loop always runs inside a task
+    return task.cancelling() > 0
 
 
 def _utc_iso(epoch_s: float) -> str:
