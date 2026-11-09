@@ -980,7 +980,10 @@
       );
       T.ok(
         'the KPI strip prints an em-dash instead of concatenating the absence into its unit',
-        /_kv = /.test(rnd) && !/\br\.(sdnn|rmssd|sdann|dispSd|dispRm) \+ '/.test(rnd),
+        // The live strip is `renderKpiGridPx` in pulsedex-overview.js. Its formatter keeps a null, and its
+        // emitter prints the em-dash. The old `renderKPI` in pulsedex-render.js had no caller (residue
+        // 2026-11-08-pulsedex-renderkpi-has-no-caller), so this leg reads the surface the reader sees.
+        /const _kn = \(v\) => \(v == null \? null/.test(ovw) && /k\.v === null[^\n]*\? '—' : k\.v/.test(ovw) && !/\br\.(sdnn|rmssd|sdann|dispSd|dispRm) \+ '/.test(rnd + ovw),
         'a KPI still coerces a null into a string'
       );
       T.ok(
@@ -73103,7 +73106,7 @@
           }
         }
         /* ── D17 §PD · the reason reaches the reader, not only the export ───────────────────────────
-           `renderKPI` prints an em-dash for a refused figure, so a clock seam, a short reading and an
+           `renderKpiGridPx` prints an em-dash for a refused figure, so a clock seam, a short reading and an
            absent input all drew the same glyph. `pulsedex-app.js` writes `hrvReason` and its own
            comment calls an unexplained absence "only half of the refusal". These legs lift
            `seamContextNote` out of the SHIPPED SOURCE and execute it, the §1.3 idiom above, because a
