@@ -2968,6 +2968,198 @@
       }
     });
 
+    /* ∅ — AN ABSENT PULSE IS NOT A PULSE OF ZERO. The O2Ring ships `'- -'` rows, and a header that
+       names no pulse column leaves `r.hr` null on every row while SpO₂ and motion are measured. Four
+       HR consumers summed `r.hr` inside a `reduce` and divided by the FULL window, so an absence
+       entered each mean as a zero and then as a deviation from the mean it had dragged down. Row
+       2026-11-08-an-all-empty-hr-column-publishes-zeros-in-the-oxydex-hr-family owns the defect: the
+       profile published apEn 0 against a control of 0.3069, the quartile arc read "Flat", the nadir
+       sat at the first evaluable centre as "Early nadir (good alignment)" and the lag read lag 0 as
+       "Near-zero lag (central pattern)". The vacuity control is mandatory in BOTH directions: a fix
+       that returned null over every gapped night would pass the refusal legs and measure nothing, so
+       the scattered-dropout night must still publish, and the flat-pulse legs must still read 60. */
+    group('the OxyDex HR metrics read an absent pulse as absent, never as a pulse of zero', 'oxydex · hr-null · absence · dsp · coverage', function (T) {
+      var cand = [env.OxyDex && env.OxyDex._bare, env.OxyDex, env.OxyDSP, env.OXYDSP];
+      var OD = null,
+        ci;
+      for (ci = 0; ci < cand.length; ci++) {
+        if (cand[ci] && typeof cand[ci].computeHRProfile === 'function' && typeof cand[ci].computeSpO2HRLag === 'function') {
+          OD = cand[ci];
+          break;
+        }
+      }
+      if (!OD) {
+        T.skip('the OxyDex HR consumers are not in env', 'OxyDex keys: ' + (env.OxyDex ? Object.keys(env.OxyDex).slice(0, 14).join(',') : 'NO OxyDex'));
+        return;
+      }
+      function rng(seed) {
+        var s = seed >>> 0;
+        return function () {
+          s = (s * 1664525 + 1013904223) >>> 0;
+          return s / 4294967296;
+        };
+      }
+      function night(n, seed) {
+        var r = rng(seed),
+          o = [],
+          i,
+          u,
+          v,
+          x = 0,
+          y = 0;
+        for (i = 0; i < n; i++) {
+          u = 0;
+          v = 0;
+          while (!u) u = r();
+          while (!v) v = r();
+          x = 0.98 * x + Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+          y = 0.98 * y + Math.sqrt(-2 * Math.log(u)) * Math.sin(2 * Math.PI * v);
+          o.push({ hr: 60 + x * 3, spo2: 96 + y * 0.5, motion: 0, hrArtifact: false });
+        }
+        return o;
+      }
+      // THE DEVICE'S OWN SHAPE: the column is present and every cell is empty, so the two channels
+      // beside the pulse keep their readings.
+      function noPulse(rows) {
+        return rows.map(function (r) {
+          return { hr: null, spo2: r.spo2, motion: r.motion, hrArtifact: r.hrArtifact };
+        });
+      }
+      // A STRIDE, not a probability: the covered count is then a number this group can state.
+      function gaps(rows, stride) {
+        var o = rows.map(function (r) {
+            return { hr: r.hr, spo2: r.spo2, motion: r.motion, hrArtifact: r.hrArtifact };
+          }),
+          i;
+        for (i = 0; i < o.length; i += stride) o[i].hr = null;
+        return o;
+      }
+      function flat(n, bpm) {
+        var o = [],
+          i;
+        for (i = 0; i < n; i++) o.push({ hr: bpm, spo2: 96, motion: 0, hrArtifact: false });
+        return o;
+      }
+
+      var live = night(7200, 20261109);
+      var dead = noPulse(live);
+
+      // 🔴 THE DEFECT, on the night that measured no pulse at all.
+      T.ok('an all-empty HR column leaves no HR profile to publish', OD.computeHRProfile(dead) === null, JSON.stringify(OD.computeHRProfile(dead)));
+      T.ok('it leaves no quartile trend, so no night reads "Flat" for want of a pulse', OD.computeHRQuartileTrend(dead) === null, JSON.stringify(OD.computeHRQuartileTrend(dead)));
+      T.ok('it places no nadir in time, so none reads "Early nadir (good alignment)"', OD.computeHRNadirTime(dead) === null, JSON.stringify(OD.computeHRNadirTime(dead)));
+      T.ok('and it reports no SpO₂-HR lag, so none reads "Near-zero lag (central pattern)"', OD.computeSpO2HRLag(dead) === null, JSON.stringify(OD.computeSpO2HRLag(dead)));
+
+      // THE CONTROL: the same night with its pulse present must still publish all four.
+      var p = OD.computeHRProfile(live);
+      T.ok(
+        'the same night with its pulse present publishes a profile with a real entropy',
+        p != null && typeof p.apEn === 'number' && p.apEn > 0 && typeof p.circadianScore === 'number' && typeof p.decCapacity === 'number',
+        JSON.stringify(p)
+      );
+      var qt = OD.computeHRQuartileTrend(live);
+      T.ok(
+        'it publishes four measured quarters',
+        qt != null &&
+          [qt.hrQ1, qt.hrQ2, qt.hrQ3, qt.hrQ4].every(function (v) {
+            return typeof v === 'number' && isFinite(v);
+          }),
+        JSON.stringify(qt)
+      );
+      var nd = OD.computeHRNadirTime(live);
+      T.ok('it places a nadir at a smoothed rate a pulse can reach', nd != null && typeof nd.hrNadirSmoothed === 'number' && nd.hrNadirSmoothed > 40, JSON.stringify(nd));
+      T.ok('and it reports a lag', OD.computeSpO2HRLag(live) != null, JSON.stringify(OD.computeSpO2HRLag(live)));
+
+      /* REDUCED COVERAGE ANNOTATES, it does not refuse — the owner's 2026-09-17 ruling. 144 of 7,200
+         rows absent is a dropout pattern, not a discontinuity, so all four still publish and each
+         states the population it had. */
+      var g = gaps(live, 50);
+      var pg = OD.computeHRProfile(g),
+        qg = OD.computeHRQuartileTrend(g),
+        ng = OD.computeHRNadirTime(g);
+      T.ok('a night with scattered dropouts still publishes every one of the four', pg != null && qg != null && ng != null && OD.computeSpO2HRLag(g) != null);
+      T.eq('the profile states the rows that carried a pulse', pg && pg.hrCoveredN, 7056);
+      T.eq('the profile states the span those rows came from', pg && pg.hrSpanN, 7200);
+      T.eq('the quartile trend counts the same covered rows', qg && qg.hrCoveredN, 7056);
+      T.eq('the nadir carries its coverage beside the clock time', ng && ng.hrCoveredN, 7056);
+
+      /* 🔴 THE SHARPEST CONTROL: a pulse of exactly 60. Every present reading is 60, so each quarter's
+         mean can only be 60 — any other number came from the gaps. Before the fix each quarter divided
+         1,764 readings of 60 by 1,800 rows and published 58.8. */
+      var fq = OD.computeHRQuartileTrend(gaps(flat(7200, 60), 50));
+      T.ok('a pulse of exactly 60 reads 60 in every quarter, gaps and all', fq != null && fq.hrQ1 === 60 && fq.hrQ2 === 60 && fq.hrQ3 === 60 && fq.hrQ4 === 60, JSON.stringify(fq));
+
+      /* The nadir's smoothed rate is the rate of the rows that carried one. A 600 s dip to 48 bpm is
+         deep enough that the gaps cannot move WHERE the nadir is, so the value is what discriminates:
+         before the fix the gapped night diluted the window to about 47.1. */
+      var dip = flat(7200, 60),
+        di;
+      for (di = 4000; di < 4600; di++) dip[di].hr = 48;
+      var dFull = OD.computeHRNadirTime(dip),
+        dGap = OD.computeHRNadirTime(gaps(dip, 50));
+      T.ok(
+        'the smoothed nadir is the rate of the rows that carried one, not that rate diluted by the gaps',
+        dFull != null && dGap != null && Math.abs(dGap.hrNadirSmoothed - dFull.hrNadirSmoothed) <= 0.2,
+        JSON.stringify([dFull, dGap])
+      );
+
+      /* A pulse that never changes has no entropy and no deceleration to find, and a correlation
+         needs a channel that varies. Before the fix the gaps supplied the variation: the stride-24
+         ApEn subsample held 12 absences, which gave `stdDev` a spread and ApEn a number. */
+      var fp = OD.computeHRProfile(gaps(flat(7200, 60), 50));
+      T.ok('a pulse that never changes has no entropy, and the gaps do not lend it any', fp != null && fp.apEn === null, JSON.stringify(fp));
+      T.ok('two channels that never change report no lag at all', OD.computeSpO2HRLag(flat(7200, 60)) === null, JSON.stringify(OD.computeSpO2HRLag(flat(7200, 60))));
+
+      /* The profile's own floor is the COVERED count, not the row count: 1,000 rows that measured 100
+         pulses is below the same 120-sample floor a short night is below. */
+      var thin = night(1000, 7),
+        ti;
+      for (ti = 0; ti < thin.length; ti++) if (ti % 10 !== 0) thin[ti].hr = null;
+      T.ok('a thousand rows that measured a hundred pulses is not a profile', OD.computeHRProfile(thin) === null, JSON.stringify(OD.computeHRProfile(thin)));
+
+      var srcOfH = function (f) {
+        return ((env.sources || {})[f] || '')
+          .split('\n')
+          .filter(function (ln) {
+            var t = ln.trim();
+            return t.indexOf('//') !== 0 && t.indexOf('*') !== 0 && t.indexOf('/*') !== 0;
+          })
+          .join('\n');
+      };
+      var hsrc = srcOfH('oxydex-dsp.js'),
+        hasrc = srcOfH('oxydex-app.js'),
+        hrsrc = srcOfH('oxydex-render.js');
+      if (!hsrc.trim() || !hasrc.trim() || !hrsrc.trim()) {
+        T.skip('the three OxyDex sources', 'sources not provided in this runner');
+      } else {
+        var qmean = (hsrc.match(/qCov \+= m\.n;/g) || []).length;
+        var nadSkip = (hsrc.match(/if \(!_has\(rows\[j\]\.hr\)\) continue;/g) || []).length;
+        var pairSkip = (hsrc.match(/if \(!pres2\[i\] \|\| !presHr\[i \+ lag\]\) continue;/g) || []).length;
+        var pairFloor = (hsrc.match(/pairs < LAG_MIN_PAIRS/g) || []).length;
+        var tmpl = (hsrc.match(/if \(_tmplOk\(m, t\)\) idx\.push\(t\)/g) || []).length;
+        var covFloor = (hsrc.match(/if \(covered < 120\) return null;/g) || []).length;
+        T.ok('the overlap a lag needs is read once, from a named constant', pairFloor === 1 && /LAG_MIN_PAIRS = 60/.test(hsrc), 'floor=' + pairFloor);
+        T.ok('the quartile mean is taken over the present members, and the nadir window steps over an absent row', qmean === 1 && nadSkip === 1, 'qmean=' + qmean + ' nadir=' + nadSkip);
+        T.ok('a correlated pair needs both of its members, and the entropy enumerates only the runs it observed', pairSkip === 1 && tmpl === 1, 'pair=' + pairSkip + ' tmpl=' + tmpl);
+        T.ok('the profile floor reads the covered count', covFloor === 1, 'covFloor=' + covFloor);
+        T.ok(
+          'no HR consumer sums the column straight into a reduce any more',
+          hsrc.indexOf('return a + r.hr;') < 0,
+          'bare HR reduce: ' + (hsrc.indexOf('return a + r.hr;') < 0 ? 'absent' : 'present')
+        );
+        T.ok(
+          'the CSV writes an empty cell for a metric the night could not measure, and names the covered rows',
+          /_hpv\(n\.hrProf\.apEn\)/.test(hasrc) && hasrc.indexOf('HR Covered Rows') > 0,
+          'CSV absence or coverage line missing'
+        );
+        T.ok(
+          'the card shows an em dash and takes no colour, rather than the word "null" in amber',
+          /_hpv\(hp\.apEn\)/.test(hrsrc) && /hp\.apEn == null \? '' :/.test(hrsrc),
+          'card absence handling missing'
+        );
+      }
+    });
+
     /* THE EXPORT SHAPE ITSELF — `oxyBuildNightElement` is the SINGLE source of the per-night export
        element, shared by `oxydex-app.js exportJSON` AND `OxyDex.compute`, and it was entirely
        unasserted: 14 killable mutants of 14 survivors, the fleet's best conversion rate on the
@@ -62777,7 +62969,12 @@
       // `n<600` → at exactly n==600 the loop ran zero times and minHR stayed Infinity,
       // leaking "Infinity" into hrNadirSmoothed. Must be inclusive `n<=600`.
       T.ok('computeHRNadirTime guards n<=600 (centered ±WIN needs n>2·WIN)', /n\s*<=\s*600\s*\)\s*return null/.test(src));
-      T.ok('HR-nadir output is isFinite-guarded (no Infinity leak)', /hrNadirSmoothed:\s*isFinite\(minHR\)/.test(src));
+      /* The guard MOVED to a refusal, and the leg accepts either form. `computeHRNadirTime` now
+         returns null when no centred window held a measured pulse, so no Infinity reaches the output
+         at all (residue 2026-11-08-an-all-empty-hr-column-publishes-zeros-in-the-oxydex-hr-family).
+         The old form published the object with `hrNadirSmoothed: isFinite(minHR) ? … : null`. A
+         regression to an unguarded `minHR.toFixed` still reds, because it carries neither. */
+      T.ok('HR-nadir output is isFinite-guarded (no Infinity leak)', /hrNadirSmoothed:\s*isFinite\(minHR\)/.test(src) || /if \(minIdx < 0 \|\| !isFinite\(minHR\)\) return null;/.test(src));
 
       // AUDIT §66 (behavioral) — the worst-10-min rolling scan must INCLUDE the final full 600-sample
       // window whose right edge lands exactly at n. Its loop bound `i + W10 <= n` includes it; `< n` drops

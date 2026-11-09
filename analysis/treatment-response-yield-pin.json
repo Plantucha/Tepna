@@ -24,7 +24,7 @@
       "dex-escape.js": "f0d38619047a",
       "oxydex-util.js": "5cc642ee790b",
       "oxydex-profile.js": "3496a101178a",
-      "oxydex-dsp.js": "9d293fe86dda"
+      "oxydex-dsp.js": "2ef485cdb9ce"
     },
     "pulse": {
       "synth-gen.js": "a653cf5afb78",
@@ -130,11 +130,18 @@
       "old": "2635f078d01e",
       "new": "41d2c5601b71",
       "reason": "residue 2026-11-08-the-spo2-spectrum-reads-a-null-sample-as-minus-the-mean: computeSpO2FFT now reads an absent SpO2 sample as absent. The mean, the lag-1 persistence and every DFT bin skip it. A night below 97 % coverage refuses with `coverage-below-floor`. Statements moved, so the yield was RE-CUT at paper scale, not re-stamped: 233 tx / 239 flat, unchanged."
+    },
+    {
+      "date": "2026-11-09",
+      "file": "oxydex-dsp.js",
+      "old": "9d293fe86dda",
+      "new": "2ef485cdb9ce",
+      "reason": "residue 2026-11-08-an-all-empty-hr-column-publishes-zeros-in-the-oxydex-hr-family: every OxyDex HR metric now reads an absent pulse as absent. The HR profile, the quartile trend, the smoothed nadir and the SpO2-HR lag refuse when no row carries a measured pulse, and each states its covered row count beside the value. The cross-correlation needs 60 paired samples at a lag before it quotes one. Statements moved, so the yield was RE-CUT at paper scale, not re-stamped: 233 tx / 239 flat, unchanged. NOTE ON THE CHAIN: this entry opens at 9d293fe86dda, which no earlier entry closes. PR #4680 moved the closure from 41d2c5601b71 to 9d293fe86dda and appended no note, so the chain has a one-step gap there. I read both digests off the pin on origin/main and did not re-cut that step."
     }
   ],
-  "measuredAt": "2026-11-09T08:24:19.232Z",
+  "measuredAt": "2026-11-09T10:03:13.145Z",
   "producedBy": {
     "tool": "tools/treatment-response-yield-pin.mjs",
-    "commit": "7669f7327"
+    "commit": "fd17db285"
   }
 }

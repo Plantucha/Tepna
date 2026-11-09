@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="e264ae06c83e" data-compute-hash="af2fcf2729f3"><head>
+<html lang="en" data-manifest-hash="7a2d659f4f12" data-compute-hash="75bd7ab17c22"><head>
 <!--
   OverDex.html — Tepna
   Copyright 2026 Michal Planicka
@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+iskltdbf7/UUg8Y6ZfcamkqkNKvnVyfhKrlKyBzwKE=' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-4KsRTgVuaYcMUNL8LhUau/rNzFP6NRbvBy2QbxNGFzw=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-84iaFiqUEftz4fuLv5KHfze6SsmT/jwwfMKpygTi4HQ=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-8aep29wE3bxJrCSi9IEkUakgF+KGjVdm7JcwnoMTlUA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-TJnsXppIrR2fDEg9roXHwHuaiAym8hL+7tyg9r6NlEw=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-XeM139aCzQDSzEaQuQBVa+zEhnOSgXP/4pqlC0h9wO4=' 'sha256-hCZmwNAMDLPZEMYHAYpzoPETSnimg1oHWWjZImdKqxM=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pmoo1WosGTcNO+J90mDbRecVE3qzne/xByjNGn2ERxY=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-qtwV6UdWMEOsPilOs3Mrd9jysCoMp0m5MgxuB5HkI8o=' 'sha256-rm/YlVmogQnelQDIazZyRCXgoAFvC1Ffha1wQ4dVrFc=' 'sha256-wK9fP+fYfi661IypDOgrAoxGZS8mGJfe9l/9288cTZQ=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+iskltdbf7/UUg8Y6ZfcamkqkNKvnVyfhKrlKyBzwKE=' 'sha256-/IzZXLnhKeyKbML+9Kto456TToGDl1/uC3f7wQonamU=' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-4KsRTgVuaYcMUNL8LhUau/rNzFP6NRbvBy2QbxNGFzw=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-84iaFiqUEftz4fuLv5KHfze6SsmT/jwwfMKpygTi4HQ=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-TJnsXppIrR2fDEg9roXHwHuaiAym8hL+7tyg9r6NlEw=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-XeM139aCzQDSzEaQuQBVa+zEhnOSgXP/4pqlC0h9wO4=' 'sha256-hCZmwNAMDLPZEMYHAYpzoPETSnimg1oHWWjZImdKqxM=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pmoo1WosGTcNO+J90mDbRecVE3qzne/xByjNGn2ERxY=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-qtwV6UdWMEOsPilOs3Mrd9jysCoMp0m5MgxuB5HkI8o=' 'sha256-rm/YlVmogQnelQDIazZyRCXgoAFvC1Ffha1wQ4dVrFc=' 'sha256-wK9fP+fYfi661IypDOgrAoxGZS8mGJfe9l/9288cTZQ=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -19549,19 +19549,31 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     var hrs = clean.map(function (r) {
       return r.hr;
     });
+    /* ∅ — the span is the clean row count; the coverage is how many of those rows carry a pulse.
+       Below the same 120-sample floor the night has no HR profile to publish, so the whole object
+       refuses rather than returning five zeros. The array stays POSITIONAL: every window below is a
+       stretch of TIME, and compacting the absences out would slide later samples into earlier
+       windows. */
+    var covered = _countPresent(hrs);
+    if (covered < 120) return null;
 
     // HR Circadian Phase Score: mean(last 60min) - mean(first 60min)
     var first60 = hrs.slice(0, Math.min(3600, n));
     var last60 = hrs.slice(Math.max(0, n - 3600));
-    var circadianScore = +(avg(last60) - avg(first60)).toFixed(2);
+    var mFirst = _avgPresent(first60),
+      mLast = _avgPresent(last60);
+    // Either end unmeasured leaves no difference to take — not a difference of zero.
+    var circadianScore = mFirst && mLast ? +(mLast.mean - mFirst.mean).toFixed(2) : null;
 
     // HR Deceleration Capacity: max 60-min rolling mean, then find deepest subsequent drop
     var WIN60 = 3600;
     var rollingMeans = [];
     for (var i = 0; i + WIN60 <= n; i += 60) {
-      rollingMeans.push(avg(hrs.slice(i, i + WIN60)));
+      // An hour with no measured pulse contributes no mean, so it cannot be the peak or the trough.
+      var rm = _avgPresent(hrs.slice(i, i + WIN60));
+      if (rm) rollingMeans.push(rm.mean);
     }
-    var decCapacity = 0;
+    var decCapacity = rollingMeans.length > 1 ? 0 : null;
     if (rollingMeans.length > 1) {
       var peakMean = Math.max.apply(null, rollingMeans);
       var minAfterPeak = peakMean;
@@ -19579,27 +19591,43 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       return i % step === 0;
     }); // cap at ~300 samples for ApEn O(n²)
     var subN = sub.length;
-    var apEn = 0;
-    if (subN >= 20) {
-      var r = 0.2 * stdDev(sub);
+    var sdSub = _sdPresent(sub);
+    /* ∅ — a TEMPLATE THAT SPANS AN ABSENT SAMPLE IS NOT A TEMPLATE. ApEn compares m-long runs of
+       CONSECUTIVE samples, so a run holding an absence was never observed: `Math.abs(x - null)`
+       reads the gap as a distance to zero and makes every such pair look maximally dissimilar.
+       Dropping the absent members instead would join samples that are not neighbours. So the
+       templates are enumerated positionally and a run with any absent member is skipped, which
+       leaves ApEn an estimate over the OBSERVED runs. */
+    var apEn = null;
+    function _tmplOk(m, i) {
+      for (var k = 0; k < m; k++) if (!_has(sub[i + k])) return false;
+      return true;
+    }
+    if (subN >= 20 && sdSub != null && sdSub > 0) {
+      var r = 0.2 * sdSub;
       function phi(m) {
         // ApEn phi(m): (1/N) × Σ log(Ci/N) — correct mean-of-logs formula
         // (v22.15 fix: previous version used log(sum/N) = log-of-mean, biasing values low)
-        var N = subN - m;
-        if (N <= 0) return 0;
+        var idx = [];
+        for (var t = 0; t + m <= subN; t++) if (_tmplOk(m, t)) idx.push(t);
+        var N = idx.length;
+        // Fewer than 20 observed runs at this embedding is an underpowered entropy, not a zero.
+        if (N < 20) return null;
         var logSum = 0;
         for (var i = 0; i < N; i++) {
           var ci = 0;
           for (var j = 0; j < N; j++) {
             var maxDiff = 0;
-            for (var k = 0; k < m; k++) maxDiff = Math.max(maxDiff, Math.abs(sub[i + k] - sub[j + k]));
+            for (var k = 0; k < m; k++) maxDiff = Math.max(maxDiff, Math.abs(sub[idx[i] + k] - sub[idx[j] + k]));
             if (maxDiff <= r) ci++;
           }
           if (ci > 0) logSum += Math.log(ci / N);
         }
         return logSum / N;
       }
-      apEn = +(phi(2) - phi(3)).toFixed(4);
+      var p2 = phi(2),
+        p3 = phi(3);
+      if (p2 != null && p3 != null) apEn = +(p2 - p3).toFixed(4);
     }
 
     // Bradycardia Events: HR < 40 for ≥10 consecutive clean samples
@@ -19640,7 +19668,15 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       } else tachyRun = 0;
     });
 
-    return { circadianScore: circadianScore, decCapacity: decCapacity, apEn: apEn, bradyCount: bradyCount, tachyCount: tachyCount };
+    return {
+      circadianScore: circadianScore,
+      decCapacity: decCapacity,
+      apEn: apEn,
+      bradyCount: bradyCount,
+      tachyCount: tachyCount,
+      hrCoveredN: covered,
+      hrSpanN: n
+    };
   }
 
   // 3. MOTION / SLEEP QUALITY — 3 motion-derived metrics
@@ -20456,14 +20492,23 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     var n = rows.length;
     if (n < 1200) return null;
     var q = Math.floor(n / 4);
+    /* ∅ — the quartile mean is taken over the rows that CARRY a pulse, and the old `a + r.hr`
+       divided a sum of the present values by the count of ALL rows, so every absence pulled the
+       quarter towards zero. A quarter with no measured pulse has no mean, which refuses the whole
+       trend: a flat arc of four zeros used to read "Flat" (residue
+       2026-11-08-an-all-empty-hr-column-publishes-zeros-in-the-oxydex-hr-family). */
+    var qCov = 0;
     var qs = [0, 1, 2, 3].map(function (i) {
       var seg = rows.slice(i * q, i === 3 ? n : (i + 1) * q);
       if (!seg.length) return null;
-      return +(
-        seg.reduce(function (a, r) {
-          return a + r.hr;
-        }, 0) / seg.length
-      ).toFixed(1);
+      var m = _avgPresent(
+        seg.map(function (r) {
+          return r.hr;
+        })
+      );
+      if (!m) return null;
+      qCov += m.n;
+      return +m.mean.toFixed(1);
     });
     if (qs.indexOf(null) >= 0) return null;
     var q1hr = /** @type {number} */ (qs[0]);
@@ -20476,7 +20521,9 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       hrQ4: qs && qs.length >= 4 ? qs[3] : null,
       hrArc: arc,
       remReemergence: /** @type {number} */ (qs[3]) > /** @type {number} */ (qs[2]) + 1,
-      hrArcLabel: arc < -3 ? 'Good (declining arc)' : arc > 3 ? 'Rising (arousal)' : 'Flat'
+      hrArcLabel: arc < -3 ? 'Good (declining arc)' : arc > 3 ? 'Rising (arousal)' : 'Flat',
+      hrCoveredN: qCov,
+      hrSpanN: n
     };
   }
 
@@ -20518,6 +20565,9 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       windowsUsed: per.length
     };
   }
+  /* The overlap a lag needs before its correlation is reported: 60 s of rows where BOTH channels
+     carry a value. Pre-stated here, never derived from the night it judges. */
+  var LAG_MIN_PAIRS = 60;
   function _spO2HRLagWindow(rows) {
     var n = rows.length;
     if (n < 600) return null;
@@ -20529,41 +20579,62 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     var hr = seg.map(function (r) {
       return r.hr;
     });
-    var ms2 =
-      spo2.reduce(function (a, b) {
-        return a + b;
-      }, 0) / USE;
-    var mhr =
-      hr.reduce(function (a, b) {
-        return a + b;
-      }, 0) / USE;
-    spo2 = spo2.map(function (v) {
-      return v - ms2;
+    /* ∅ — THE LAG BETWEEN TWO CHANNELS IS ONLY DEFINED WHERE BOTH OF THEM WERE MEASURED (residue
+       2026-11-08-an-all-empty-hr-column-publishes-zeros-in-the-oxydex-hr-family). Each mean used to
+       divide a sum of the present values by the FULL window length, and an absent member then
+       entered the correlation as a large deviation from a mean it had also dragged down. A night
+       with no pulse column gave `hr` all zeros, every `d2` zero, a correlation of 0 at every lag,
+       and the winning lag was therefore lag 0 — published as "Near-zero lag (central pattern)".
+       Both channels keep their POSITIONS, the means are taken over the present members, and a
+       (spo2[i], hr[i+lag]) pair counts only when both members are present. */
+    var pres2 = spo2.map(function (v) {
+        return _has(v);
+      }),
+      presHr = hr.map(function (v) {
+        return _has(v);
+      });
+    var ms2o = _avgPresent(spo2),
+      mhro = _avgPresent(hr);
+    if (!ms2o || !mhro) return null;
+    var ms2 = ms2o.mean,
+      mhr = mhro.mean;
+    spo2 = spo2.map(function (v, i) {
+      return pres2[i] ? v - ms2 : 0;
     });
-    hr = hr.map(function (v) {
-      return v - mhr;
+    hr = hr.map(function (v, i) {
+      return presHr[i] ? v - mhr : 0;
     });
-    var bestLag = 0,
-      bestCor = -Infinity;
+    var bestLag = null,
+      bestCor = -Infinity,
+      bestPairs = 0;
     for (var lag = 0; lag <= 120; lag++) {
       var num = 0,
         d1 = 0,
-        d2 = 0;
+        d2 = 0,
+        pairs = 0;
       for (var i = 0; i < USE - lag; i++) {
+        if (!pres2[i] || !presHr[i + lag]) continue;
         num += spo2[i] * hr[i + lag];
         d1 += spo2[i] * spo2[i];
         d2 += hr[i + lag] * hr[i + lag];
+        pairs++;
       }
-      var cor = d1 > 0 && d2 > 0 ? num / Math.sqrt(d1 * d2) : 0;
+      // A correlation over less than a minute of overlap is not a measurement of coupling.
+      if (pairs < LAG_MIN_PAIRS || !(d1 > 0) || !(d2 > 0)) continue;
+      var cor = num / Math.sqrt(d1 * d2);
       if (cor > bestCor) {
         bestCor = cor;
         bestLag = lag;
+        bestPairs = pairs;
       }
     }
+    if (bestLag == null || !isFinite(bestCor)) return null;
     return {
       crossCorrLag: bestLag,
-      crossCorrPeak: isFinite(bestCor) ? +bestCor.toFixed(3) : 0,
-      crossCorrLabel: bestLag < 10 ? 'Near-zero lag (central pattern)' : bestLag < 30 ? 'Moderate lag' : 'Delayed lag'
+      crossCorrPeak: +bestCor.toFixed(3),
+      crossCorrLabel: bestLag < 10 ? 'Near-zero lag (central pattern)' : bestLag < 30 ? 'Moderate lag' : 'Delayed lag',
+      pairsN: bestPairs,
+      spanN: USE
     };
   }
 
@@ -20635,11 +20706,15 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       }
       var postSeg = rows.slice(recIdx + 60, Math.min(rows.length, recIdx + 120));
       if (postSeg.length < 20) return;
-      var postMean =
-        postSeg.reduce(function (a, r) {
-          return a + r.hr;
-        }, 0) / postSeg.length;
-      var us = +(sp.baseline - postMean).toFixed(1);
+      // ∅ — the same statement as the quartile trend: a present sum over the FULL segment length
+      // reads an absent second as a pulse of zero and reports an undershoot nobody recorded.
+      var postM = _avgPresent(
+        postSeg.map(function (r) {
+          return r.hr;
+        })
+      );
+      if (!postM || postM.n < 20) return;
+      var us = +(sp.baseline - postM.mean).toFixed(1);
       if (us > 0) undershoots.push(us);
     });
     if (!undershoots.length) return null;
@@ -21354,38 +21429,54 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     // loop ran zero times and minHR stayed Infinity (leaked to output)
     var WIN = 300;
     var minHR = Infinity,
-      minIdx = WIN;
-    // O(n) centered sliding window sum over [i-WIN..i+WIN]
+      minIdx = -1;
+    /* ∅ — the running window counts only the rows that CARRY a pulse, and a centre whose whole
+       window is absent gets no mean at all. The old loop added `null` as 0 while still counting the
+       row, so an unmeasured pulse dragged every window down and a night with no pulse column put
+       the nadir at the FIRST evaluable centre with a smoothed HR of 0 — which the label then read
+       as "Early nadir (good alignment)" (residue
+       2026-11-08-an-all-empty-hr-column-publishes-zeros-in-the-oxydex-hr-family). */
     var wSum = 0,
       wCnt = 0;
     // Prime: load initial window for i=WIN (covers [0..2*WIN])
     for (var j = 0; j <= 2 * WIN && j < n; j++) {
+      if (!_has(rows[j].hr)) continue;
       wSum += rows[j].hr;
       wCnt++;
     }
     for (var i = WIN; i < n - WIN; i++) {
-      var m = wCnt > 0 ? wSum / wCnt : rows[i].hr;
-      if (m < minHR) {
-        minHR = m;
-        minIdx = i;
+      if (wCnt > 0) {
+        var m = wSum / wCnt;
+        if (m < minHR) {
+          minHR = m;
+          minIdx = i;
+        }
       }
       // Advance window: add right edge rows[i+WIN+1], remove left edge rows[i-WIN]
-      if (i + WIN + 1 < n) {
+      if (i + WIN + 1 < n && _has(rows[i + WIN + 1].hr)) {
         wSum += rows[i + WIN + 1].hr;
         wCnt++;
       }
-      if (i - WIN >= 0) {
+      if (i - WIN >= 0 && _has(rows[i - WIN].hr)) {
         wSum -= rows[i - WIN].hr;
         wCnt--;
       }
     }
+    // No evaluable centre means the night has no HR nadir to place in time.
+    if (minIdx < 0 || !isFinite(minHR)) return null;
     var nadirMinFromStart = +(minIdx / 60).toFixed(0);
     var nadirFracOfNight = +(minIdx / n).toFixed(2);
     return {
       hrNadirMinFromStart: nadirMinFromStart,
       hrNadirFrac: nadirFracOfNight,
-      hrNadirSmoothed: isFinite(minHR) ? +minHR.toFixed(1) : null,
-      hrNadirLabel: nadirFracOfNight < 0.25 ? 'Early nadir (good alignment)' : nadirFracOfNight > 0.6 ? 'Late nadir (fragmented/REM)' : 'Mid-night (normal)'
+      hrNadirSmoothed: +minHR.toFixed(1),
+      hrNadirLabel: nadirFracOfNight < 0.25 ? 'Early nadir (good alignment)' : nadirFracOfNight > 0.6 ? 'Late nadir (fragmented/REM)' : 'Mid-night (normal)',
+      hrCoveredN: _countPresent(
+        rows.map(function (r) {
+          return r.hr;
+        })
+      ),
+      hrSpanN: n
     };
   }
 
@@ -22882,6 +22973,43 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
         return x + y;
       }, 0) / a.length
     );
+  }
+  /* 🔴 ∅ — HR PRESENCE IS A SEPARATE QUESTION FROM HR QUALITY (residue
+     2026-11-08-an-all-empty-hr-column-publishes-zeros-in-the-oxydex-hr-family, tracer audit #4706).
+     The O2Ring ships `'- -'` rows, and a header that names no pulse column leaves `r.hr` null while
+     `spo2` and `motion` are measured (see the parseCSV note on a header that names its columns). A
+     null sums as 0 inside a `reduce`, so the four HR consumers below read an unmeasured pulse as a
+     pulse of zero and published a confident label over it. `isFinite(null)` is ALSO true, because
+     null coerces to 0, so the presence test is the house `_has`, which reads `v != null` FIRST and
+     carries no channel in its name — the SpO2-HR lag below needs the same test on both channels. */
+  /* The mean over the PRESENT members of `a` with the count that produced it, or null when the
+     window measured nothing. A share of nothing is not 0 (cf. `wasoPct`). */
+  function _avgPresent(a) {
+    var s = 0,
+      c = 0;
+    for (var i = 0; i < a.length; i++) {
+      if (!_has(a[i])) continue;
+      s += a[i];
+      c++;
+    }
+    return c > 0 ? { mean: s / c, n: c } : null;
+  }
+  /* The SD over the present members, on the present mean. Null when nothing was measured. */
+  function _sdPresent(a) {
+    var m = _avgPresent(a);
+    if (!m) return null;
+    var s = 0;
+    for (var i = 0; i < a.length; i++) {
+      if (!_has(a[i])) continue;
+      s += (a[i] - m.mean) * (a[i] - m.mean);
+    }
+    return Math.sqrt(s / m.n);
+  }
+  /* The count of present members, for the coverage each HR metric now carries beside its value. */
+  function _countPresent(a) {
+    var c = 0;
+    for (var i = 0; i < a.length; i++) if (_has(a[i])) c++;
+    return c;
   }
   function stdDev(a) {
     var m = avg(a);

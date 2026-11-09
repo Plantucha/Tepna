@@ -3423,12 +3423,19 @@ function nightDetail(n, idx) {
   }
   if (n.hrProf) {
     var hp = n.hrProf;
-    html += '<div class="sec-section" data-tier="secondary"><div class="sec-label">HR Profile</div>';
+    /* ∅ — `metric()` concatenates its value into the HTML, so a null would print the word "null",
+       and `null < 2` would paint that cell amber. An unmeasured metric shows an em dash and takes no
+       colour at all. The coverage rides on the section label where the pulse was short of the span. */
+    var _hpv = function (v) {
+      return v != null ? v : '—';
+    };
+    var _hpCov = hp.hrCoveredN != null && hp.hrSpanN != null && hp.hrCoveredN < hp.hrSpanN ? ' · ' + hp.hrCoveredN + ' of ' + hp.hrSpanN + ' rows carried a pulse' : '';
+    html += '<div class="sec-section" data-tier="secondary"><div class="sec-label">HR Profile' + _hpCov + '</div>';
     html +=
       '<div class="grid">' +
-      metric('Circadian', hp.circadianScore, 'bpm Δ (neg=good)', hp.circadianScore < 0 ? 'good' : hp.circadianScore < 2 ? 'warn' : 'bad') +
-      metric('Decel Cap', hp.decCapacity, 'bpm drop', hp.decCapacity >= 8 ? 'good' : hp.decCapacity >= 4 ? 'warn' : 'bad') +
-      metric('ApEn', hp.apEn, 'HR regularity', hp.apEn >= 0.8 ? 'good' : hp.apEn >= 0.4 ? 'warn' : 'bad') +
+      metric('Circadian', _hpv(hp.circadianScore), 'bpm Δ (neg=good)', hp.circadianScore == null ? '' : hp.circadianScore < 0 ? 'good' : hp.circadianScore < 2 ? 'warn' : 'bad') +
+      metric('Decel Cap', _hpv(hp.decCapacity), 'bpm drop', hp.decCapacity == null ? '' : hp.decCapacity >= 8 ? 'good' : hp.decCapacity >= 4 ? 'warn' : 'bad') +
+      metric('ApEn', _hpv(hp.apEn), 'HR regularity', hp.apEn == null ? '' : hp.apEn >= 0.8 ? 'good' : hp.apEn >= 0.4 ? 'warn' : 'bad') +
       metric('Bradycardia', hp.bradyCount, 'events <40bpm', hp.bradyCount === 0 ? 'good' : 'bad') +
       metric('Tachycardia', hp.tachyCount, 'events >100bpm', hp.tachyCount === 0 ? 'good' : hp.tachyCount < 3 ? 'warn' : 'bad', 'secondary') +
       '</div>';

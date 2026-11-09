@@ -360,8 +360,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "990408475182",
-          "computeHash": "2b1421d7f9c9"
+          "manifestHash": "7f4b02e39f3b",
+          "computeHash": "3115cc6f2dbd"
         },
         "evidence": {
           "envelopeRef": "20260919224526",
@@ -388,8 +388,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "990408475182",
-          "computeHash": "2b1421d7f9c9"
+          "manifestHash": "7f4b02e39f3b",
+          "computeHash": "3115cc6f2dbd"
         },
         "evidence": {
           "envelopeRef": "20260919224526",
@@ -416,8 +416,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "990408475182",
-          "computeHash": "2b1421d7f9c9"
+          "manifestHash": "7f4b02e39f3b",
+          "computeHash": "3115cc6f2dbd"
         },
         "evidence": {
           "envelopeRef": "20260919224526",
@@ -444,8 +444,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "990408475182",
-          "computeHash": "2b1421d7f9c9"
+          "manifestHash": "7f4b02e39f3b",
+          "computeHash": "3115cc6f2dbd"
         },
         "evidence": {
           "envelopeRef": "20260919224526",
@@ -570,9 +570,11 @@
     "hrProfile": {
       "circadianScore": 4.36,
       "decCapacity": 0.69,
-      "apEn": 0.9722,
+      "apEn": 0.9774,
       "bradyCount": 0,
-      "tachyCount": 0
+      "tachyCount": 0,
+      "hrCoveredN": 25503,
+      "hrSpanN": 25503
     },
     "crossSignal": {
       "autoArousalIdx": 0,
@@ -721,7 +723,9 @@
         "hrQ4": 54.9,
         "hrArc": 1.6,
         "remReemergence": true,
-        "hrArcLabel": "Flat"
+        "hrArcLabel": "Flat",
+        "hrCoveredN": 25660,
+        "hrSpanN": 25660
       },
       "spo2HRLag": {
         "crossCorrLag": 74,
@@ -838,7 +842,9 @@
         "hrNadirMinFromStart": 160,
         "hrNadirFrac": 0.38,
         "hrNadirSmoothed": 48.1,
-        "hrNadirLabel": "Mid-night (normal)"
+        "hrNadirLabel": "Mid-night (normal)",
+        "hrCoveredN": 25660,
+        "hrSpanN": 25660
       },
       "spo2NadirT": null,
       "rmssdArc": {

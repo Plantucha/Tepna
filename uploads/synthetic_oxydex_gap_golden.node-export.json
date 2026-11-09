@@ -370,8 +370,8 @@
       },
       "sourceChannel": "O2Ring:spo2",
       "code": {
-        "manifestHash": "990408475182",
-        "computeHash": "2b1421d7f9c9"
+        "manifestHash": "7f4b02e39f3b",
+        "computeHash": "3115cc6f2dbd"
       },
       "evidence": {
         "envelopeRef": null,
@@ -399,8 +399,8 @@
       },
       "sourceChannel": "O2Ring:spo2",
       "code": {
-        "manifestHash": "990408475182",
-        "computeHash": "2b1421d7f9c9"
+        "manifestHash": "7f4b02e39f3b",
+        "computeHash": "3115cc6f2dbd"
       },
       "evidence": {
         "envelopeRef": null,
@@ -428,8 +428,8 @@
       },
       "sourceChannel": "O2Ring:spo2",
       "code": {
-        "manifestHash": "990408475182",
-        "computeHash": "2b1421d7f9c9"
+        "manifestHash": "7f4b02e39f3b",
+        "computeHash": "3115cc6f2dbd"
       },
       "evidence": {
         "envelopeRef": null,
@@ -457,8 +457,8 @@
       },
       "sourceChannel": "O2Ring:spo2",
       "code": {
-        "manifestHash": "990408475182",
-        "computeHash": "2b1421d7f9c9"
+        "manifestHash": "7f4b02e39f3b",
+        "computeHash": "3115cc6f2dbd"
       },
       "evidence": {
         "envelopeRef": null,
@@ -650,11 +650,13 @@
     "dip3Rate": 2
   },
   "hrProfile": {
-    "circadianScore": -28.92,
-    "decCapacity": 29.38,
-    "apEn": 0.1183,
+    "circadianScore": 0.13,
+    "decCapacity": 0.17,
+    "apEn": 0.6421,
     "bradyCount": 0,
-    "tachyCount": 0
+    "tachyCount": 0,
+    "hrCoveredN": 5394,
+    "hrSpanN": 7194
   },
   "crossSignal": {
     "autoArousalIdx": 1.5,
@@ -806,21 +808,13 @@
       "meanDownBpm": 1,
       "hrAsymLabel": "Symmetric"
     },
-    "hrQuartiles": {
-      "hrQ1": 58,
-      "hrQ2": 58.2,
-      "hrQ3": 0,
-      "hrQ4": 58.2,
-      "hrArc": -58,
-      "remReemergence": true,
-      "hrArcLabel": "Good (declining arc)"
-    },
+    "hrQuartiles": null,
     "spo2HRLag": {
-      "crossCorrLag": 48,
-      "crossCorrPeak": 0.118,
+      "crossCorrLag": 95,
+      "crossCorrPeak": 0.237,
       "crossCorrLabel": "Delayed lag",
       "basis": "medianOf30minWindows",
-      "windowsUsed": 4
+      "windowsUsed": 3
     },
     "spikeDecay": null,
     "spikeUndershoot": null,
@@ -938,10 +932,12 @@
     },
     "recovCV": null,
     "hrNadirT": {
-      "hrNadirMinFromStart": 65,
-      "hrNadirFrac": 0.54,
-      "hrNadirSmoothed": 0,
-      "hrNadirLabel": "Mid-night (normal)"
+      "hrNadirMinFromStart": 62,
+      "hrNadirFrac": 0.51,
+      "hrNadirSmoothed": 53.2,
+      "hrNadirLabel": "Mid-night (normal)",
+      "hrCoveredN": 5400,
+      "hrSpanN": 7200
     },
     "spo2NadirT": {
       "spo2NadirMinFromStart": 105,
