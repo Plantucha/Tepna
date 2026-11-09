@@ -368,8 +368,8 @@
       },
       "sourceChannel": "O2Ring:spo2",
       "code": {
-        "manifestHash": "9864d6b812cb",
-        "computeHash": "87f661f51bfe"
+        "manifestHash": "dc3deb98c164",
+        "computeHash": "4e50b9c0d29e"
       },
       "evidence": {
         "envelopeRef": null,
@@ -397,8 +397,8 @@
       },
       "sourceChannel": "O2Ring:spo2",
       "code": {
-        "manifestHash": "9864d6b812cb",
-        "computeHash": "87f661f51bfe"
+        "manifestHash": "dc3deb98c164",
+        "computeHash": "4e50b9c0d29e"
       },
       "evidence": {
         "envelopeRef": null,
@@ -426,8 +426,8 @@
       },
       "sourceChannel": "O2Ring:spo2",
       "code": {
-        "manifestHash": "9864d6b812cb",
-        "computeHash": "87f661f51bfe"
+        "manifestHash": "dc3deb98c164",
+        "computeHash": "4e50b9c0d29e"
       },
       "evidence": {
         "envelopeRef": null,
@@ -455,8 +455,8 @@
       },
       "sourceChannel": "O2Ring:spo2",
       "code": {
-        "manifestHash": "9864d6b812cb",
-        "computeHash": "87f661f51bfe"
+        "manifestHash": "dc3deb98c164",
+        "computeHash": "4e50b9c0d29e"
       },
       "evidence": {
         "envelopeRef": null,
@@ -1260,7 +1260,10 @@
       "bins": 325,
       "strided": false,
       "rhoLag1": 0.9955,
-      "detected": true
+      "coveredN": 7200,
+      "spanN": 7200,
+      "detected": true,
+      "reason": null
     },
     "hrEnt": {
       "sampEn": 0.7772,

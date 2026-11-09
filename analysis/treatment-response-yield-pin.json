@@ -24,7 +24,7 @@
       "dex-escape.js": "f0d38619047a",
       "oxydex-util.js": "5cc642ee790b",
       "oxydex-profile.js": "3496a101178a",
-      "oxydex-dsp.js": "2635f078d01e"
+      "oxydex-dsp.js": "41d2c5601b71"
     },
     "pulse": {
       "synth-gen.js": "a653cf5afb78",
@@ -123,11 +123,18 @@
       "old": "f87d8a04d882",
       "new": "efd4441e8ece",
       "reason": "SEAM-SIDECAR-NODE-COVERAGE 6.1: every OxyDex export now states its seam-sidecar channel as UNKNOWN under `no-seam-sidecar`. The export gained keys and no measured value moved, so the yield was RE-CUT at paper scale, not re-stamped on an inertness argument: 233 tx / 239 flat, unchanged. My first re-cut measured nothing: `analysis-rerun.mjs` boots the committed analysis page, which still inlined this node's old DSP, so `build-analysis.mjs` ran first and the re-cut repeated over the rebuilt page."
+    },
+    {
+      "date": "2026-11-09",
+      "file": "oxydex-dsp.js",
+      "old": "2635f078d01e",
+      "new": "41d2c5601b71",
+      "reason": "residue 2026-11-08-the-spo2-spectrum-reads-a-null-sample-as-minus-the-mean: computeSpO2FFT now reads an absent SpO2 sample as absent. The mean, the lag-1 persistence and every DFT bin skip it. A night below 97 % coverage refuses with `coverage-below-floor`. Statements moved, so the yield was RE-CUT at paper scale, not re-stamped: 233 tx / 239 flat, unchanged."
     }
   ],
-  "measuredAt": "2026-11-08T22:12:04.147Z",
+  "measuredAt": "2026-11-09T06:27:26.102Z",
   "producedBy": {
     "tool": "tools/treatment-response-yield-pin.mjs",
-    "commit": "e3e9fab73"
+    "commit": "ae2f851e2"
   }
 }

@@ -177,7 +177,7 @@
       parts = [];
     for (var i = 0; i < assets.length; i++) {
       if (!isComputeAsset(assets[i].name)) continue;
-      parts.push(assets[i].name + ' ' + (await sha256hex(assets[i].text)));
+      parts.push(assets[i].name + '\0' + (await sha256hex(assets[i].text)));
     }
     parts.sort();
     return (await sha256hex(parts.join('\n'))).slice(0, 12);

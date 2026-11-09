@@ -2793,6 +2793,171 @@
       T.ok('too short a night is still null, not a guess', OD.computeSpO2FFT(ar1(100, 0.9, 5)) === null);
     });
 
+    /* ∅ — THE SPECTRUM'S POPULATION IS THE COVERED SAMPLES, AND AN ABSENT SAMPLE IS NOT `-mean`.
+       `computeSpO2FFT` read `r.spo2` into the mean and into the deviation, so an absent row added 0 to
+       the mean and then entered EVERY bin as `-mean`. Row
+       2026-11-08-the-spo2-spectrum-reads-a-null-sample-as-minus-the-mean owns the defect, measured on a
+       real O2Ring night that held 70 absent rows of 27,600. The constant-reading case is the sharpest
+       control here: a reading that never changes has NO spectrum, so any power at all came from the
+       gaps. The two controls of the group above stay mandatory in their absent form — a fix that
+       returns null over every gapped night would pass the first leg and measure nothing. */
+    group('the SpO2 spectrum reads absence as absence, never as minus the mean', 'oxydex · fft-null · absence · dsp · coverage', function (T) {
+      var cand = [env.OxyDex && env.OxyDex._bare, env.OxyDex, env.OxyDSP, env.OXYDSP];
+      var OD = null,
+        ci;
+      for (ci = 0; ci < cand.length; ci++) {
+        if (cand[ci] && typeof cand[ci].computeSpO2FFT === 'function') {
+          OD = cand[ci];
+          break;
+        }
+      }
+      if (!OD) {
+        T.skip('computeSpO2FFT not in env', 'OxyDex keys: ' + (env.OxyDex ? Object.keys(env.OxyDex).slice(0, 14).join(',') : 'NO OxyDex'));
+        return;
+      }
+      function rng(seed) {
+        var s = seed >>> 0;
+        return function () {
+          s = (s * 1664525 + 1013904223) >>> 0;
+          return s / 4294967296;
+        };
+      }
+      function ar1(n, rho, seed) {
+        var r = rng(seed),
+          x = 0,
+          o = [],
+          i,
+          u,
+          v;
+        for (i = 0; i < n; i++) {
+          u = 0;
+          v = 0;
+          while (!u) u = r();
+          while (!v) v = r();
+          x = rho * x + Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+          o.push({ spo2: 96 + x * 0.5 });
+        }
+        return o;
+      }
+      // A STRIDE, not a probability: the covered count is then a number this group can state.
+      function gaps(rows, stride) {
+        var o = rows.slice(),
+          i;
+        for (i = 0; i < o.length; i += stride) o[i] = { spo2: null };
+        return o;
+      }
+      var flat = [],
+        fi;
+      for (fi = 0; fi < 1200; fi++) flat.push({ spo2: 96 });
+
+      /* 🔴 THE DEFECT, in the form that cannot be explained any other way. Every reading is 96, so
+         every deviation from the measured mean is 0 and no bin can hold power. Before the fix the mean
+         over the span was 88, the 100 absent rows entered the bins as −88, and the GAP PATTERN was the
+         published spectrum. */
+      var fg = OD.computeSpO2FFT(gaps(flat, 50));
+      T.ok('a constant reading with gaps carries no power at all', fg != null && fg.snr === 0 && fg.detected === false, JSON.stringify(fg));
+      T.eq('the covered count states the samples that carried a reading', fg && fg.coveredN, 1176);
+      T.eq('the span states every row the night offered', fg && fg.spanN, 1200);
+      T.ok(
+        'a night with a reading in every row states a covered count equal to its span',
+        (function () {
+          var full = OD.computeSpO2FFT(flat);
+          return full != null && full.coveredN === 1200 && full.spanN === 1200;
+        })()
+      );
+
+      /* ∅ THE FLOOR READS THE COVERED COUNT. A span-keyed floor published a spectrum of 400 readings
+         over a 1200-row grid, and named neither number. */
+      var sparse = [],
+        si;
+      for (si = 0; si < 1200; si++) sparse.push({ spo2: si < 400 ? 96.5 : null });
+      T.ok('a 1200-row night that measured 400 samples is null, not a spectrum', OD.computeSpO2FFT(sparse) === null);
+
+      /* ∅ `isFinite(null)` is TRUE, because null converts to 0. So the presence test reads `typeof`
+         first, and a NaN, an undefined and an absent field are all outside the population. */
+      var odd = flat.slice();
+      odd[5] = { spo2: NaN };
+      odd[6] = { spo2: undefined };
+      odd[7] = {};
+      var wn = OD.computeSpO2FFT(odd);
+      T.eq('a NaN, an undefined and an absent field are all outside the covered count', wn && wn.coveredN, 1197);
+
+      // POSITIVE CONTROL under absence. A fix that refuses every gapped night measures nothing.
+      var PER = 80,
+        rec = 0,
+        N = 8,
+        k;
+      for (k = 0; k < N; k++) {
+        var base = ar1(1200, 0.98, k * 104729 + 3),
+          i2;
+        for (i2 = 0; i2 < base.length; i2++) base[i2].spo2 += 2.0 * Math.sin((2 * Math.PI * i2) / PER);
+        var b = OD.computeSpO2FFT(gaps(base, 50));
+        if (b && b.detected && Math.abs(b.peakCycSec - PER) <= 25) rec++;
+      }
+      T.ok('a planted ' + PER + ' s cycle survives 24 absent rows of 1200 (' + rec + '/' + N + ')', rec >= N * 0.6);
+
+      // NEGATIVE CONTROL under absence. The gaps must not become the cycle.
+      var det = 0;
+      for (k = 0; k < N; k++) {
+        var a = OD.computeSpO2FFT(gaps(ar1(1200, 0.98, k * 7919 + 1), 50));
+        if (a && a.detected) det++;
+      }
+      T.ok('absence inside the coverage floor does not manufacture a cycle (' + det + '/' + N + ')', det <= N * 0.25);
+
+      /* THE COVERAGE FLOOR, and WHY it is not a shortcut. An absent sample contributes nothing to a
+         bin, so the gaps raise a floor that the AR(1) background cannot describe, and above 3 % absence
+         the detector clears its own threshold on featureless input: 17 of 48 AR(1) nights at 8.33 %
+         absence, against 2 of 48 at 3 %. The planted cycle is recovered 48/48 at every level, so the
+         refusal costs no real detection. The refusal NAMES itself, because an empty peak alone reads
+         as "no cycle cleared the background", which is a different statement. */
+      var refused = OD.computeSpO2FFT(gaps(flat, 12));
+      T.ok(
+        'a night below the coverage floor refuses, names the reason, and still states its population',
+        refused != null &&
+          refused.reason === 'coverage-below-floor' &&
+          refused.peakFreqHz === null &&
+          refused.peakCycSec === null &&
+          refused.detected === false &&
+          refused.coveredN === 1100 &&
+          refused.spanN === 1200,
+        JSON.stringify(refused)
+      );
+      T.ok('a refusal publishes no snr and no threshold, because it computed neither', refused != null && refused.snr === null && refused.threshold === null && refused.bins === 0);
+      T.ok('a night inside the floor carries a null reason, never an undefined one', fg != null && fg.reason === null);
+
+      var srcOfF = function (f) {
+        return ((env.sources || {})[f] || '')
+          .split('\n')
+          .filter(function (ln) {
+            var t = ln.trim();
+            return t.indexOf('//') !== 0 && t.indexOf('*') !== 0 && t.indexOf('/*') !== 0;
+          })
+          .join('\n');
+      };
+      var dsrc = srcOfF('oxydex-dsp.js'),
+        asrc = srcOfF('oxydex-app.js');
+      if (!dsrc.trim() || !asrc.trim()) {
+        T.skip('oxydex-dsp.js and oxydex-app.js source', 'sources not provided in this runner');
+      } else {
+        var skip = (dsrc.match(/if \(!present\[t\]\) continue;/g) || []).length;
+        var norm = (dsrc.match(/pows\.push\(\(re \* re \+ im \* im\) \/ covered\)/g) || []).length;
+        var lag = (dsrc.match(/_lag1\(spo2, mean, present\)/g) || []).length;
+        var floor = (dsrc.match(/covered \/ n < _FFT_MIN_COVERAGE/g) || []).length;
+        T.ok('the coverage floor is read once, from a named constant', floor === 1 && /_FFT_MIN_COVERAGE = 0\.97/.test(dsrc), 'floor=' + floor);
+        T.ok(
+          'the bin loop steps over an absent sample, the power divides by the covered count, and the persistence reads the mask',
+          skip === 1 && norm === 1 && lag === 1,
+          'skip=' + skip + ' norm=' + norm + ' lag=' + lag
+        );
+        T.ok(
+          'the export names the covered samples, and only where coverage is below the span',
+          /n\.fft\.coveredN < n\.fft\.spanN/.test(asrc) && asrc.indexOf('FFT Covered Samples') > 0,
+          'guard or line absent'
+        );
+        T.ok('the export carries the refusal reason, so an empty peak is not read as "no cycle"', /if \(n\.fft\.reason\)/.test(asrc) && asrc.indexOf('FFT Refused') > 0, 'refusal line absent');
+      }
+    });
+
     /* THE EXPORT SHAPE ITSELF — `oxyBuildNightElement` is the SINGLE source of the per-night export
        element, shared by `oxydex-app.js exportJSON` AND `OxyDex.compute`, and it was entirely
        unasserted: 14 killable mutants of 14 survivors, the fleet's best conversion rate on the
@@ -73232,10 +73397,32 @@
       /* ── ventCard · flow limitation (10,25) vs snoring (5,15) on one shared input ─────────────────
          8 % is ok as flow-limitation but already warn as snoring. Order: respRate · breathRate · ieRatio
          · tidVol · minVent · flowLimitedPct · snorePct — only the last two are graded. */
-      var vt = mSev(CR.ventCard(night({}, { sessions: [{ metrics: { flowLimitedPct: 8, snorePct: 8 } }] })));
+      var vt = mSev(CR.ventCard(night({ flowLimitedPct: 8, snorePct: 8 })));
       T.eq('ventCard · 8 % is ok for flow-limitation but warn for snoring (10,25 vs 5,15)', vt[5] + '/' + vt[6], 'ok/warn');
       T.eq('ventCard · the five unbanded ventilation metrics stay neutral — no fabricated grading', vt.slice(0, 5).join(','), 'neutral,neutral,neutral,neutral,neutral');
-      T.eq('ventCard · reads its metrics from sessions[0], not from night.metrics (an absent session ⇒ every tile "—")', mVal(CR.ventCard(night({ flowLimitedPct: 8 }))).join(''), '———————');
+      /* Re-aimed 2026-11-09 (residue 2026-11-08-cpapdex-night-cards-draw-session-one-metrics): the card
+         now reads the pooled night, so a value present only on sessions[0] draws nothing. */
+      T.eq(
+        'ventCard · reads the pooled night.metrics, not sessions[0] (a session-only value ⇒ every tile "—")',
+        mVal(CR.ventCard(night({}, { sessions: [{ metrics: { respRateMedian: 14, breathRate: 14, ieRatio: 0.5, tidVolMedian: 0.5, minVentMedian: 7, flowLimitedPct: 8, snorePct: 8 } }] }))).join(''),
+        '———————'
+      );
+
+      /* ── the night cards · a two-session night draws the POOLED night, never session 1 ───────────
+         residue 2026-11-08-cpapdex-night-cards-draw-session-one-metrics. Session 1 and the pool carry
+         different values for every key, so a card that reads sessions[0] prints the wrong number here. */
+      var two = night(
+        { eprDelta: 2.5, epap95: 9.1, respRateMedian: 15.5, breathRate: 15.2, ieRatio: 0.61, tidVolMedian: 0.52, minVentMedian: 7.7, flowLimitedPct: 12, snorePct: 3 },
+        { sessions: [{ metrics: { eprDelta: 1, epap95: 6, respRateMedian: 11, breathRate: 11, ieRatio: 0.4, tidVolMedian: 0.3, minVentMedian: 5, flowLimitedPct: 2, snorePct: 20 } }, { metrics: {} }] }
+      );
+      var pv = mVal(CR.pressureCard(two));
+      T.eq('pressureCard · a two-session night draws the pooled EPR delta and EPAP p95', pv[3] + '|' + pv[4], '2.5|9.1');
+      T.eq('ventCard · a two-session night draws the pooled ventilation tiles', mVal(CR.ventCard(two)).join('|'), '15.5|15.2|0.61|0.52|7.7|12.0|3.0');
+      T.ok(
+        'ventCard · a pooled null rate names each session reason once',
+        /mask never on/.test(CR.ventCard(night({}, { sessions: [{ metrics: { breathRateReason: 'mask never on' } }, { metrics: { breathRateReason: 'mask never on' } }] })))
+      );
+      T.ok('ventCard · a measured pooled rate carries no session reason', !/m-sub/.test(CR.ventCard(night({ breathRate: 14.2 }, { sessions: [{ metrics: { breathRateReason: 'mask never on' } }] }))));
 
       /* ── renderKPIs · sev()'s POLARITY, which is the one flag in the whole signature ──────────────
          `sev(good, warn, val, lower)`: therapy HOURS pass sev(4,2,h) with NO lower flag — higher is
@@ -73412,9 +73599,9 @@
         'warn/bad'
       );
 
-      // ventCard · flow limitation (10,25) warn edge, read out of sessions[0] like the rest of the card.
+      // ventCard · flow limitation (10,25) warn edge, read out of the pooled night like the rest of the card.
       var vSess = function (v) {
-        return mSev(CR.ventCard(night({}, { sessions: [{ metrics: { flowLimitedPct: v } }] })))[5];
+        return mSev(CR.ventCard(night({ flowLimitedPct: v })))[5];
       };
       T.eq('ventCard · flow-limitation exactly 25 % is warn, 25.1 % is bad', vSess(25) + '/' + vSess(25.1), 'warn/bad');
 
