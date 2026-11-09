@@ -61,6 +61,25 @@ const run = (cmd, args, opts = {}) => execFileSync(cmd, args, { encoding: 'utf8'
    repository this file belongs to with `-C`; every per-tree call already did, through the tree's path. */
 export const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
+/* ONE FETCH PER PROCESS, IN THE CALLER'S OWN CHECKOUT (row 2026-11-08-wt-done-fetches-inside-every-worktree).
+   Every worktree shares one object store and one `refs/remotes` namespace, so a fetch from REPO_ROOT
+   updates `origin/main` for every tree. The tool used to fetch inside each tree it measured, so one
+   session's `--list` started a git process in every peer's worktree, and the peer's own `wt-done`
+   read that process as IN USE and refused (Osprey: six refusals, one fetch that ran 277 s). The cache
+   holds a failure too, so an unreachable origin costs one round trip, not one per tree. */
+export const MAIN_FETCH = { result: null };
+export function fetchMainOnce(runner = run, cache = MAIN_FETCH) {
+  if (cache.result === null) {
+    try {
+      runner('git', ['-C', REPO_ROOT, 'fetch', '-q', 'origin', 'main']);
+      cache.result = { ok: true };
+    } catch (e) {
+      cache.result = { ok: false, err: e };
+    }
+  }
+  if (!cache.result.ok) throw cache.result.err;
+}
+
 export function parseWorktrees(porcelain) {
   /* `git worktree list --porcelain` → [{path, branch}] — branch null for detached/bare. */
   const out = [];
@@ -543,7 +562,7 @@ function unlandedFor(wtPath, mergedAt) {
 export function addedAbsentFor(wtPath, base = 'refs/remotes/origin/main', { fetch = true } = {}) {
   if (fetch) {
     try {
-      run('git', ['-C', wtPath, 'fetch', '-q', 'origin', 'main']);
+      fetchMainOnce();
     } catch {
       return { ok: false, why: `cannot reach ${base} — no base to test this branch's added paths against` };
     }
@@ -615,7 +634,7 @@ function pushedFor(wtPath, branch, { emptyOnly = false } = {}) {
      this change exists to remove, reintroduced one level down. Caught by running it, not by reading it. */
   let commitsAhead = null;
   try {
-    run('git', ['-C', wtPath, 'fetch', '-q', 'origin', 'main']);
+    fetchMainOnce();
     commitsAhead = Number(run('git', ['-C', wtPath, 'rev-list', '--count', 'refs/remotes/origin/main..HEAD']).trim());
     if (!Number.isFinite(commitsAhead)) commitsAhead = null;
   } catch {
@@ -629,7 +648,7 @@ function pushedFor(wtPath, branch, { emptyOnly = false } = {}) {
   if (emptyOnly) return { ok: false, why: `${commitsAhead === null ? 'unknown' : commitsAhead} commit(s) ahead of origin/main`, remoteRef, commitsAhead };
   if (!branch) return { ok: false, why: 'detached HEAD not on origin/main — no branch to compare with origin', remoteRef, commitsAhead };
   try {
-    run('git', ['-C', wtPath, 'fetch', '-q', 'origin', branch]);
+    run('git', ['-C', REPO_ROOT, 'fetch', '-q', 'origin', branch]); // shared refs; never a process in the tree
   } catch (e) {
     return { ok: false, why: `fetch origin ${branch} failed (${String(e.message || e).split('\n')[0]}) — the branch is not on origin`, remoteRef, commitsAhead };
   }
@@ -762,7 +781,7 @@ function classifyPaths(paths) {
    (never the working tree, which is the thing being retired). */
 function landedElsewhereFor(wtPath, base = 'origin/main') {
   try {
-    run('git', ['-C', wtPath, 'fetch', '-q', 'origin', 'main']);
+    fetchMainOnce();
   } catch {
     return { ok: false, why: `cannot reach ${base} — no base to compare this branch's work with` };
   }
@@ -1245,6 +1264,35 @@ if (process.argv.includes('--selftest') && isCliEntry(import.meta.url)) {
     assert(parseClassify('').size === 0, 'an empty listing classifies nothing and says so');
   }
 
+  {
+    /* ONE fetch for many trees, run in REPO_ROOT, and a failure cached rather than retried per tree. */
+    const calls = [];
+    const okRunner = (cmd, args) => calls.push(args);
+    const c1 = { result: null };
+    fetchMainOnce(okRunner, c1);
+    fetchMainOnce(okRunner, c1);
+    fetchMainOnce(okRunner, c1);
+    assert(calls.length === 1, `three measured trees cost one fetch (got ${calls.length})`);
+    assert(calls[0][0] === '-C' && calls[0][1] === REPO_ROOT, 'the fetch runs in the caller checkout, never inside a measured tree');
+    let failCalls = 0;
+    const badRunner = () => {
+      failCalls++;
+      throw new Error('unreachable');
+    };
+    const c2 = { result: null };
+    let threw = 0;
+    for (let i = 0; i < 3; i++) {
+      try {
+        fetchMainOnce(badRunner, c2);
+      } catch {
+        threw++;
+      }
+    }
+    assert(failCalls === 1 && threw === 3, `a failed fetch is tried once and every caller still sees it fail (${failCalls} tries, ${threw} throws)`);
+    const src = readFileSync(fileURLToPath(import.meta.url), 'utf8');
+    const perTree = src.split('\n').filter((l) => l.includes("'-C', wt" + "Path, 'fetch'")).length;
+    assert(perTree === 0, `no git fetch runs with -C <tree> (${perTree} site(s))`);
+  }
   console.log(`selftest: ${ran}/${ran} ok`);
   process.exit(0);
 }

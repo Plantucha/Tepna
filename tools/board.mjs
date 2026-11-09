@@ -1435,7 +1435,7 @@ export function summarize(b) {
   const u = b.usage24h;
   const tok = u.ok ? `${(u.fleetTokens / 1e6).toFixed(1)}M fresh/24h` : 'usage unread';
   const bud = b.budget.ok ? `plan ${b.budget.label}${b.budget.stale ? ' (STALE)' : ''}` : b.budget.weekReset ? 'plan %: week reset, new week unread' : 'plan %: not reported';
-  const pr = b.prs.ok ? `${b.prs.openNonDraft}${b.prs.capped ? '+' : ''} open` : 'PRs unread';
+  const pr = b.prs.ok ? `${capCount(b.prs.openNonDraft, b.prs.capped)} open` : 'PRs unread';
   const rel = b.release.ok ? `v${String(b.release.lastTag).replace(/^v/, '')} +${b.release.commitsSince}c/${b.release.ageDays}d` : 'release unread';
   const red = b.banners.filter((x) => x.level === 'red');
   return [
@@ -1547,7 +1547,7 @@ export function renderHtml(b) {
               })
               .join(' → ')
           : '(empty)'
-      } <span class="dim">(${esc(b.prs.walkerSource || '')}; ${b.prs.openNonDraft} undrafted)</span></p><div class="table-wrap"><table><thead><tr><th>PR</th><th>title</th><th>state</th><th>checks</th></tr></thead><tbody>${b.prs.list
+      } <span class="dim">(${esc(b.prs.walkerSource || '')}; ${capCount(b.prs.openNonDraft, b.prs.capped)} undrafted)</span></p><div class="table-wrap"><table><thead><tr><th>PR</th><th>title</th><th>state</th><th>checks</th></tr></thead><tbody>${b.prs.list
         .map(
           (p) =>
             `<tr><td>#${p.number}${p.draft ? ' <span class="dim">draft</span>' : ''}</td><td>${esc(p.title)}</td><td>${esc(p.state)}</td><td class="dim">${esc(
@@ -1659,7 +1659,7 @@ ${banners}
 <div class="status-cards">
 <div class="mini-card"><h3>daemon</h3><p class="big ${b.vigilHealth.ok && b.vigilHealth.active === 'active' ? 'ok' : 'bad'}">${b.vigilHealth.ok ? esc(b.vigilHealth.active) : 'unknown'}</p></div>
 <div class="mini-card"><h3>streak</h3><p class="big ${b.solidNights.ok && b.solidNights.streak > 0 ? 'ok' : 'warn'}">${b.solidNights.ok ? b.solidNights.streak : '?'}</p></div>
-<div class="mini-card"><h3>open PRs</h3><p class="big">${b.prs.ok ? `${b.prs.list.length}${b.prs.capped ? '+' : ''}` : '?'}</p></div>
+<div class="mini-card"><h3>open PRs</h3><p class="big">${b.prs.ok ? capCount(b.prs.list.length, b.prs.capped) : '?'}</p></div>
 <div class="mini-card"><h3>weekly</h3><p class="big ${b.budget.ok && !b.budget.stale ? '' : 'warn'}">${b.budget.ok ? esc(b.budget.label) : '?'}</p></div>
 <div class="mini-card"><h3>release</h3><p class="big">${b.releaseCount.ok ? b.releaseCount.commitsLeft + 'c/' + b.releaseCount.daysLeft + 'd' : '?'}</p></div>
 </div>
@@ -1707,6 +1707,14 @@ Every section reports its own absence: "not read" is a measurement, 0 would be a
 </body></html>`;
 }
 
+/* A COUNT READ UNDER THE FETCH CAP IS A FLOOR, and it says so (row
+   2026-11-08-one-board-surface-prints-the-capped-pr-count-as-exact). Two surfaces appended `+` by
+   hand and the queue card did not, so one board printed the same capped read as a floor twice and
+   as an exact number once. Every PR count now goes through this one function. */
+export function capCount(n, capped) {
+  return `${n}${capped ? '+' : ''}`;
+}
+
 function runSelftest() {
   const fails = [];
   let ran = 0;
@@ -1714,6 +1722,13 @@ function runSelftest() {
     ran += 1;
     if (!c) fails.push(msg);
   };
+  // ── a capped PR count is a floor on every surface ──
+  ok(capCount(4, true) === '4+' && capCount(4, false) === '4', 'a capped count prints as a floor, an uncapped one as exact');
+  {
+    const src = readFileSync(fileURLToPath(import.meta.url), 'utf8');
+    const bare = src.split('\n').filter((l) => l.includes('${b.prs.' + 'openNonDraft}') || l.includes("b.prs.capped ? '" + "+'")).length;
+    ok(bare === 0, `every PR count goes through capCount, with no hand-rolled cap marker (${bare} site(s))`);
+  }
   // ── release banner: the owner's measured case is the plant ──
   const owner = releaseBanner({ dueDays: 7, dueCommits: 100, ageDays: 6, commitsSince: 118, stuckHours: 7.5, lastVerdict: null });
   ok(!owner.red && owner.amber, 'due by commits with a 7.5 h stall is AMBER, not red — the 12 h rule has not tripped yet');
