@@ -1985,7 +1985,7 @@ function renderAll() {
       _ebHtml += '<button class="eb-btn eb-json" type="button" data-act="exportJSON">⬇ JSON' + (_review ? ' (derived)' : '') + '</button>';
       _ebHtml += '<button class="eb-btn eb-csv" type="button" data-act="exportCSV">⬇ CSV</button>';
       _ebHtml += '<button class="eb-btn eb-pdf" type="button" data-act="print">' + (_review ? '🖨 Clinical PDF' : '⬇ PDF') + '</button>';
-      // SELF-INGEST §5 — "scrub for sharing" toggle (default OFF): strips the device serial / filename /
+      // SELF-INGEST §5 — "scrub for sharing" toggle (default ON): strips the device serial / filename /
       // input sha256 from the exported JSON while keeping the clinical summary + a coarse build stamp.
       var _scrubOn = !!(typeof window !== 'undefined' && window._oxyScrub);
       _ebHtml +=

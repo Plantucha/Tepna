@@ -166,6 +166,21 @@
       'siteSource',
       'timingSource',
       'hostAxis',
+      /* THE SHARED TIMING BLOCK, THE VALIDITY BLOCK AND THE SEAM SUMMARY (declared 2026-11-09).
+         Measured over the 28 envelope-shaped node-exports in the corpus: the scrub dropped
+         `recording.timing` from 28 of 28, `recording.validity` from 20 of 28 and
+         `recording.clockSeamScan` from 3 of 3 PulseDex exports. So a shared export carried the
+         clinical summary and no timebase provenance at all, and §∅ names that loss a defect: a
+         consumer could not tell one clock from nobody looked. Every key in all three blocks is a
+         count, a rate, an enum or an authored sentence — the twelve `timing` keys are
+         `timingSource`/`independent`/`anchors`/`spanMs`/`ppm`/`spanPpm`/`resyncs`/`seams`/`rate`/
+         `rateRaw`/`rateApplied`/`reason`, and `validity` adds seam counts plus `upstreamNodes`,
+         which names nodes, never devices. The per-seam DETAIL lists (`clockSeams`,
+         `clockSeamRefusals`) stay undeclared: the summary carries the counts, and the detail is
+         unmeasured against the corpus, so it is named in `scrubDropped` rather than waved through. */
+      'timing',
+      'validity',
+      'clockSeamScan',
       'deviceEpoch',
       'unit',
       'sourceUnit',
@@ -242,7 +257,21 @@
          that committed assertion, and the distinction is worth keeping visible — every key above it
          was read off a real export, this one was read off a test. */
       'ansAge',
-      'hrvScore'
+      'hrvScore',
+      /* `clockSeamScan` and `measurement` (declared 2026-11-09, the GATE C red on #4724). The
+         app-export-against-compute leg in `Dex-Test-Suite.html` reds the moment a night element
+         loses a physiological field, and it named these two: the scrub stripped OxyDex's whole
+         headline measurement block and its seam verdict. `measurement` holds one block per metric
+         id, each `value` + `window` + `code` + `basis` + `quality` + `uncertainty` + `evidence`.
+         Two of its leaves were read before declaring it. `evidence.envelopeRef` is the capture
+         `session_id`, which `capture-host/capture.py:5843` states is the 14-digit START STAMP —
+         the same instant `recording.startEpochMs` already declares. `sourceChannel` is a per-node
+         CONSTANT ('O2Ring:spo2'), so it names a device family that `schema.node` already names and
+         carries no hardware revision; it is not the `model` the header above refuses, which is a
+         revision-bearing device string. `evidence.inputHash` is `contentId`, declared
+         identity-free three blocks up. */
+      'clockSeamScan',
+      'measurement'
     ],
     elementSchema: ['name', 'version', 'node', 'nodeVersion', 'generated', 'doc', 'units', 'provenance', 'scrubbed', 'scrubDropped'],
     elementRecording: [
@@ -268,7 +297,12 @@
       'therapyHours',
       'sessionCount',
       'sessions',
-      'offMaskGaps'
+      'offMaskGaps',
+      /* The same three as `recording` above, for the same measured reason — a per-element recording
+         block is the same content per night. */
+      'timing',
+      'validity',
+      'clockSeamScan'
     ]
   };
 
