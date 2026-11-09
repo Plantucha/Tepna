@@ -162,9 +162,10 @@
        An EXPERIMENT tested the claim, as the inverse of the F14 measurement. The `pxProfile()` age
        default moved from 40 to 25 — the value that feeds `hrmaxEff`, `vo2gt` and `rhrEff` on the render
        surface through pulsedex-render.js and pulsedex-app.js, which are both display-only too.
-       manifestHash moved 34f27ec1cbc2 to 533078f93009, computeHash held at ea3040ef5c65, and a
-       real-corpus run of tools/verify-fixtures.mjs over 920 tests left 19 of 19 fixtures current, so no
-       export byte moved. Two static reads agree: `pulsedex-dsp.js` holds no occurrence of `age`, and
+       On base 5c5adf97d, manifestHash moved 34f27ec1cbc2 to 533078f93009 and computeHash held at
+       ea3040ef5c65, and a real-corpus run of tools/verify-fixtures.mjs over 920 tests left 19 of 19
+       fixtures current, so no export byte moved. (The hashes of this entry's own landing state sit in
+       its changeset; a spine re-bundle moves them and does not touch the result above.) Two static reads agree: `pulsedex-dsp.js` holds no occurrence of `age`, and
        none of the 93 key paths of the committed PulseDex export is a profile-derived field. */
     /^pulsedex-overview\.js$/,
     /* per-node profile UI (NOT the shared dex-profile.js engine, which feeds metrics). `oxydex-profile.js`
