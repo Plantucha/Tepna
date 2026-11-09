@@ -10392,7 +10392,7 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
                         night_began is not None and down_since[name] >= night_began
                     )
                     streamed = alerts.streamed_this_night(stream_since.get(name), night_began)
-                    tier = alerts.classify_absence(
+                    tier, undecided = alerts.classify_absence(
                         now - down_since[name],
                         in_window=in_window,
                         streamed=streamed,
@@ -10403,16 +10403,34 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
                     if tier == alerts.TIER_PAGE:
                         mins = int((now - down_since[name]) / 60)
                         how = "offline" if not connected else "linked but recording nothing"
-                        log.warning(
-                            "alert: %s has been %s for ~%d min — the absence has earned a page",
-                            name,
-                            how,
-                            mins,
-                        )
+                        if undecided:
+                            # 🔴 THE CLASSIFIER THREW, so nothing DECIDED that this absence earned a
+                            # page — PAGE is the ruling's failure direction, not a measurement.
+                            # `classify_absence` already logged the exception. This page goes
+                            # out EXEMPT from the daily cap: at the cap, with no board destination
+                            # configured, `send` writes one WARNING line and answers True, so the
+                            # latch below would retire the episode as paged and the one alert
+                            # amendment 3 protects would never buzz. The box runs with no board
+                            # destination today, so that is the live path, not a corner. Row
+                            # `2026-11-08-the-page-cap-overrides-the-classifier-failure-direction`.
+                            log.warning(
+                                "alert: %s has been %s for ~%d min and its tier is UNDECIDED — paging past the daily cap",
+                                name,
+                                how,
+                                mins,
+                            )
+                        else:
+                            log.warning(
+                                "alert: %s has been %s for ~%d min — the absence has earned a page",
+                                name,
+                                how,
+                                mins,
+                            )
                         delivered = await notifier.send(
                             "Tepna: sensor offline",
                             f"{name} has been {how} for ~{mins} min — capture is missing it.",
                             cap_counted=True,
+                            cap_exempt=undecided,
                         )
                         if delivered or not notifier.enabled:
                             paged.add(name)
