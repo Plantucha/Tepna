@@ -378,8 +378,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "990408475182",
-          "computeHash": "2b1421d7f9c9"
+          "manifestHash": "7f4b02e39f3b",
+          "computeHash": "3115cc6f2dbd"
         },
         "evidence": {
           "envelopeRef": null,
@@ -407,8 +407,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "990408475182",
-          "computeHash": "2b1421d7f9c9"
+          "manifestHash": "7f4b02e39f3b",
+          "computeHash": "3115cc6f2dbd"
         },
         "evidence": {
           "envelopeRef": null,
@@ -436,8 +436,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "990408475182",
-          "computeHash": "2b1421d7f9c9"
+          "manifestHash": "7f4b02e39f3b",
+          "computeHash": "3115cc6f2dbd"
         },
         "evidence": {
           "envelopeRef": null,
@@ -465,8 +465,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "990408475182",
-          "computeHash": "2b1421d7f9c9"
+          "manifestHash": "7f4b02e39f3b",
+          "computeHash": "3115cc6f2dbd"
         },
         "evidence": {
           "envelopeRef": null,
@@ -1068,11 +1068,13 @@
       "dip3Rate": 8.7
     },
     "hrProfile": {
-      "circadianScore": 9.2,
+      "circadianScore": 9.32,
       "decCapacity": 0.07,
-      "apEn": 0.882,
+      "apEn": 0.879,
       "bradyCount": 0,
-      "tachyCount": 0
+      "tachyCount": 0,
+      "hrCoveredN": 25911,
+      "hrSpanN": 25919
     },
     "crossSignal": {
       "autoArousalIdx": 1.9,
@@ -1223,10 +1225,12 @@
         "hrQ1": 47.3,
         "hrQ2": 49.9,
         "hrQ3": 50.9,
-        "hrQ4": 54.5,
+        "hrQ4": 54.6,
         "hrArc": 3.6,
         "remReemergence": true,
-        "hrArcLabel": "Rising (arousal)"
+        "hrArcLabel": "Rising (arousal)",
+        "hrCoveredN": 26145,
+        "hrSpanN": 26155
       },
       "spo2HRLag": {
         "crossCorrLag": 68,
@@ -1364,7 +1368,9 @@
         "hrNadirMinFromStart": 40,
         "hrNadirFrac": 0.09,
         "hrNadirSmoothed": 44.9,
-        "hrNadirLabel": "Early nadir (good alignment)"
+        "hrNadirLabel": "Early nadir (good alignment)",
+        "hrCoveredN": 26145,
+        "hrSpanN": 26155
       },
       "spo2NadirT": {
         "spo2NadirMinFromStart": 14,
