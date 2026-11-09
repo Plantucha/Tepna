@@ -24,7 +24,7 @@
       "dex-escape.js": "f0d38619047a",
       "oxydex-util.js": "5cc642ee790b",
       "oxydex-profile.js": "3496a101178a",
-      "oxydex-dsp.js": "2ef485cdb9ce"
+      "oxydex-dsp.js": "88a13aaa8774"
     },
     "pulse": {
       "synth-gen.js": "a653cf5afb78",
@@ -59,7 +59,7 @@
       "file": "oxydex-dsp.js",
       "old": "a50aa3668d52",
       "new": "67823e8864cb",
-      "reason": "PR #3595: UI-level changes (EDF rejection, stale-metrics warning) — no DSP computation change"
+      "reason": "PR #3595: UI-level changes (EDF rejection, stale-metrics warning) \u2014 no DSP computation change"
     },
     {
       "date": "2026-10-18",
@@ -87,14 +87,14 @@
       "file": "oxydex-dsp.js",
       "old": "8a6d7668203a",
       "new": "92cec4912b7f",
-      "reason": "residue 2026-10-28-the-lint-allow-list-omits-the-rule-that-sees-a-dead-zone-read: the whole diff for this file is one added `// biome-ignore` comment line above the `var OxyDex = typeof OxyDex …` namespace idiom, which arming `correctness/noInvalidUseBeforeDeclaration` needs. No statement moved, so the 233/239 yield is re-stamped and not re-cut."
+      "reason": "residue 2026-10-28-the-lint-allow-list-omits-the-rule-that-sees-a-dead-zone-read: the whole diff for this file is one added `// biome-ignore` comment line above the `var OxyDex = typeof OxyDex \u2026` namespace idiom, which arming `correctness/noInvalidUseBeforeDeclaration` needs. No statement moved, so the 233/239 yield is re-stamped and not re-cut."
     },
     {
       "date": "2026-10-28",
       "file": "pulsedex-dsp.js",
       "old": "c4f4cee79733",
       "new": "d5e923c8081e",
-      "reason": "residue 2026-10-28-the-lint-allow-list-omits-the-rule-that-sees-a-dead-zone-read: the whole diff for this file is one added `// biome-ignore` comment line above the `var PulseDex = typeof PulseDex …` namespace idiom, which arming `correctness/noInvalidUseBeforeDeclaration` needs. No statement moved, so the 233/239 yield is re-stamped and not re-cut."
+      "reason": "residue 2026-10-28-the-lint-allow-list-omits-the-rule-that-sees-a-dead-zone-read: the whole diff for this file is one added `// biome-ignore` comment line above the `var PulseDex = typeof PulseDex \u2026` namespace idiom, which arming `correctness/noInvalidUseBeforeDeclaration` needs. No statement moved, so the 233/239 yield is re-stamped and not re-cut."
     },
     {
       "date": "2026-10-28",
@@ -137,11 +137,18 @@
       "old": "9d293fe86dda",
       "new": "2ef485cdb9ce",
       "reason": "residue 2026-11-08-an-all-empty-hr-column-publishes-zeros-in-the-oxydex-hr-family: every OxyDex HR metric now reads an absent pulse as absent. The HR profile, the quartile trend, the smoothed nadir and the SpO2-HR lag refuse when no row carries a measured pulse, and each states its covered row count beside the value. The cross-correlation needs 60 paired samples at a lag before it quotes one. Statements moved, so the yield was RE-CUT at paper scale, not re-stamped: 233 tx / 239 flat, unchanged. NOTE ON THE CHAIN: this entry opens at 9d293fe86dda, which no earlier entry closes. PR #4680 moved the closure from 41d2c5601b71 to 9d293fe86dda and appended no note, so the chain has a one-step gap there. I read both digests off the pin on origin/main and did not re-cut that step."
+    },
+    {
+      "date": "2026-11-09",
+      "file": "oxydex-dsp.js",
+      "old": "2ef485cdb9ce",
+      "new": "88a13aaa8774",
+      "reason": "residue 2026-11-08-absent-oxydex-hr-takes-the-present-channels-out-of-the-export: a 5-min epoch under the 60-sample HR floor now publishes hr null with its hrN count and KEEPS its motion, and the timeseries block ships whenever any one of epochs / spo2 / hr exists. Before this, a night that cleared no HR floor exported no block at all, so the 1 Hz SpO2 series left the node with it. Statements moved, so the yield was RE-CUT at paper scale, not re-stamped: 233 tx / 239 flat, identical to the entry this one closes. The treatment-response detectors read ODI-4 and rMSSD, not the epoch grid, which is why the measurement does not move. This entry closes 2ef485cdb9ce, which the entry above opens, so the oxydex-dsp.js chain is continuous from there forward. The tool still appends no note of its own, and PR #4692 logs that as a separate finding with the four unrecorded moves it found on main."
     }
   ],
-  "measuredAt": "2026-11-09T10:03:13.145Z",
+  "measuredAt": "2026-11-09T11:39:12.199Z",
   "producedBy": {
     "tool": "tools/treatment-response-yield-pin.mjs",
-    "commit": "fd17db285"
+    "commit": "fd07b5d4e"
   }
 }
