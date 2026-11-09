@@ -771,6 +771,34 @@ export function pickupVerdict(drift, ctx) {
   return v;
 }
 
+/* ── WHAT A RUN ACTUALLY COMPARED ────────────────────────────────────────────────────────────────
+   Both texts the default mode reads come from `git show`, so a run made BEFORE the commit compares
+   two COMMITTED copies and says nothing about the rows sitting in the working copy. It then prints
+   `ok — 0 row(s) added` in the vocabulary of a pass. Measured 2026-11-09 (row
+   2026-11-09-a-bare-residue-ids-run-before-the-commit-examines-nothing, #4719): one branch printed
+   `ok — 0 row(s) added` before its commit and `ok — 1 row(s) added` at that commit, and neither
+   line named a commit, so the empty comparison stayed invisible to its reader.
+
+   This is the pure half. It takes the two texts and says what the comparison left out; the git half
+   is `describeComparison` below. A state cell edited in the working copy is NOT a new key, so the
+   two populations are counted apart — a reader who saw only a key count would read an uncommitted
+   CLOSE as nothing at all. An unread working copy reports that it was unread, never agreement. */
+export function worktreeFacts(headText, diskText) {
+  const none = { read: false, differs: false, newKeys: [], changedKeys: [], removedKeys: [] };
+  if (diskText == null || headText == null) return none;
+  if (diskText === headText) return { ...none, read: true };
+  const ident = (r) => `${r.key}\u0000${r.state}`;
+  const head = new Map(parseRows(headText).map((r) => [r.id, ident(r)]));
+  const disk = new Map(parseRows(diskText).map((r) => [r.id, ident(r)]));
+  return {
+    read: true,
+    differs: true,
+    newKeys: [...disk.keys()].filter((id) => !head.has(id)),
+    changedKeys: [...disk.keys()].filter((id) => head.has(id) && head.get(id) !== disk.get(id)),
+    removedKeys: [...head.keys()].filter((id) => !disk.has(id))
+  };
+}
+
 /* ── everything below is I/O; the core above is pure and is what the suite drives ── */
 
 const git = (args) => execFileSync('git', args, { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 });
@@ -787,6 +815,45 @@ function readAt(ref) {
   } catch {
     return null;
   }
+}
+
+function shortSha(ref) {
+  try {
+    return git(['rev-parse', '--short=9', ref]).trim();
+  } catch {
+    return null;
+  }
+}
+
+/* The git half of `worktreeFacts`: it names the two commits this run compared, and reads the ledger
+   on disk so the run can say what it left out. */
+function describeComparison(baseRef, mergeBase, headText) {
+  let diskText = null;
+  try {
+    diskText = readFileSync(path.join(git(['rev-parse', '--show-toplevel']).trim(), LEDGER_PATH), 'utf8');
+  } catch {
+    diskText = null;
+  }
+  return { baseRef, baseCommit: shortSha(mergeBase), headCommit: shortSha('HEAD'), worktree: worktreeFacts(headText, diskText) };
+}
+
+/* Printed in BOTH outcomes, like a landed row: the reason a count can read 0 is the one thing its
+   reader cannot otherwise see. */
+function reportComparison(c) {
+  const head = c.headCommit ? `${c.headCommit} (HEAD)` : 'HEAD (unresolved)';
+  const base = c.baseCommit ? `${c.baseCommit} (merge-base with ${c.baseRef})` : `${c.baseRef} (unresolved)`;
+  process.stderr.write(`  · compared ${LEDGER_PATH} at ${base} against ${head}\n`);
+  const w = c.worktree;
+  if (!w.read) {
+    process.stderr.write(`  ⚠ this run could not read ${LEDGER_PATH} on disk, so it cannot say what your working copy holds\n`);
+    return;
+  }
+  if (!w.differs) return;
+  process.stderr.write(
+    `  ⚠ the working copy differs from ${head}: ${w.newKeys.length} new key(s), ${w.changedKeys.length} changed row(s) and ${w.removedKeys.length} removed row(s) sit OUTSIDE this comparison\n`
+  );
+  for (const k of [...w.newKeys, ...w.changedKeys].slice(0, 5)) process.stderr.write(`      ${k}\n`);
+  process.stderr.write('    This run read two commits. Commit the ledger and run it again — the count above is about HEAD, never about an uncommitted edit.\n');
 }
 
 function main() {
@@ -1001,6 +1068,7 @@ function main() {
     refuse(`\`${LEDGER_PATH}\` does not exist at HEAD.`, ['The ledger is committed on main; a branch must not delete it.']);
   }
 
+  const comparison = describeComparison(base, mergeBase, headText);
   const v = verdict(baseText, headText, tipText);
   const problems = [
     ...v.collisions,
@@ -1009,7 +1077,7 @@ function main() {
   ];
 
   if (asJson) {
-    process.stdout.write(`${JSON.stringify(v, null, 2)}\n`);
+    process.stdout.write(`${JSON.stringify({ ...v, comparison }, null, 2)}\n`);
   } else if (problems.length) {
     process.stderr.write(`residue-ids: ${problems.length} problem(s) against ${base}\n`);
     for (const p of problems) process.stderr.write(`  ✗ ${p}\n`);
@@ -1035,6 +1103,7 @@ function main() {
   }
   // A landed row is said out loud in both outcomes: it is the reason a count can read 0 added, and a
   // reader who is not told would go looking for the row the branch appears to have lost.
+  if (!asJson) reportComparison(comparison);
   if (!asJson) for (const l of v.landed) process.stderr.write(`  · ${l}\n`);
   process.exit(problems.length ? 1 : 0);
 }
@@ -1499,6 +1568,57 @@ if (IS_CLI && process.argv.includes('--selftest')) {
       assert(run.stdout.includes(`  ${K}  ← named by code: ${fix}\n`), 'BLACK BOX: the listing names the fixing commit, and only it');
       assert(/1 of the 2 OPEN row\(s\) are named by a later commit/.test(run.stdout), 'BLACK BOX: the summary counts the one lead');
       assert(/"openNamedByCode":1/.test(run.stdout), 'BLACK BOX: the verdict carries the lead count');
+    } finally {
+      rmSync(scratch, { recursive: true, force: true });
+    }
+  }
+
+  /* THE EMPTY COMPARISON. Both texts the default mode reads are committed, so a run made before the
+     commit compares HEAD with itself and prints an honest zero about the wrong population. These
+     plants hold the pure half against the four shapes a working copy can be in, and the CLOSE plant
+     is the one a key count alone would miss. */
+  {
+    const HEAD_TEXT = [row(A), row(B)].join('\n');
+    let w = worktreeFacts(HEAD_TEXT, HEAD_TEXT);
+    assert(w.read && !w.differs && w.newKeys.length === 0, 'a working copy equal to HEAD reports no difference');
+    w = worktreeFacts(HEAD_TEXT, [row(A), row(B), row(C)].join('\n'));
+    assert(w.differs && w.newKeys.join() === C && w.changedKeys.length === 0, 'an uncommitted new row is named as a new key');
+    w = worktreeFacts(HEAD_TEXT, [row(A), row(B, 'd', 'fixed #4719')].join('\n'));
+    assert(w.differs && w.newKeys.length === 0 && w.changedKeys.join() === B, 'an uncommitted CLOSE is a changed row, and no key count would see it');
+    w = worktreeFacts(HEAD_TEXT, [row(A)].join('\n'));
+    assert(w.differs && w.removedKeys.join() === B, 'a row deleted in the working copy is named as removed');
+    w = worktreeFacts(HEAD_TEXT, null);
+    assert(!w.read && !w.differs, 'an unread working copy says it was unread, never that it agrees');
+  }
+
+  /* BLACK BOX: the default mode over an UNCOMMITTED row. The run keeps its exit code and its honest
+     zero, and it must still name the commit it compared and the row it never looked at. The exit
+     code stays 0 by decision: CI runs this mode on a clean checkout, and what it judges is a commit
+     (board #5098). The remedy here is that a reader can no longer mistake the two. */
+  {
+    const scratch = mkdtempSync(path.join(os.tmpdir(), 'residue-ids-uncommitted-'));
+    try {
+      const here = path.dirname(fileURLToPath(import.meta.url));
+      mkdirSync(path.join(scratch, 'tools'));
+      mkdirSync(path.join(scratch, 'briefs'));
+      for (const f of ['residue-ids.mjs', 'argv-guard.mjs']) copyFileSync(path.join(here, f), path.join(scratch, 'tools', f));
+      copyFileSync(path.join(here, '..', 'verdict.js'), path.join(scratch, 'verdict.js'));
+      const g = (...a) => execFileSync('git', ['-c', 'user.email=a@b.c', '-c', 'user.name=selftest', ...a], { cwd: scratch, encoding: 'utf8' });
+      const ledger = path.join(scratch, 'briefs', 'RESIDUE.md');
+      writeFileSync(ledger, `${row(A)}\n`);
+      g('init', '-q');
+      g('add', 'briefs/RESIDUE.md');
+      g('commit', '-qm', 'the committed ledger');
+      const head = g('rev-parse', '--short=9', 'HEAD').trim();
+      writeFileSync(ledger, `${row(A)}\n${row(C)}\n`);
+      const run = spawnSync(process.execPath, [path.join(scratch, 'tools', 'residue-ids.mjs'), '--base', 'HEAD'], { cwd: scratch, encoding: 'utf8' });
+      assert(run.status === 0, `BLACK BOX: a pre-commit run keeps exit 0 (exit ${run.status}: ${run.stderr})`);
+      assert(/ok — 0 row\(s\) added/.test(run.stdout), 'BLACK BOX: the honest zero still prints');
+      assert(run.stderr.includes(head), 'BLACK BOX: the run names the commit it compared');
+      assert(/1 new key\(s\)/.test(run.stderr) && run.stderr.includes(C), 'BLACK BOX: the uncommitted row is named as outside the comparison');
+      const json = spawnSync(process.execPath, [path.join(scratch, 'tools', 'residue-ids.mjs'), '--base', 'HEAD', '--json'], { cwd: scratch, encoding: 'utf8' });
+      const parsed = JSON.parse(json.stdout);
+      assert(parsed.comparison.headCommit === head && parsed.comparison.worktree.newKeys.join() === C, 'BLACK BOX: the JSON carries the comparison and the skipped key');
     } finally {
       rmSync(scratch, { recursive: true, force: true });
     }
