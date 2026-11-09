@@ -145,6 +145,38 @@ function parseArgs(argv) {
   return out;
 }
 
+/* ⚠️ A REFUSED DAY MUST NOT READ AS THE LAST RESULT. The quiet guard exits 3, the systemd unit lists
+   3 as a success (deliberately — a refusal is a retry, not a fault), and the runner wrote nothing at
+   all. So `RESULT.json` kept the `at` of whichever day last computed, the monitor served that file
+   unchanged, and a reader could not tell a refused day from a day that ran. §∅: an output over
+   absent input reports the absence, with a named reason.
+
+   This marker states what the LAST run did, beside the result that run left in place. `resultAt` is
+   the `at` of the `RESULT.json` on disk when the marker is written, and it is `null` when no result
+   exists — never today's date, which would read as a result nobody computed.
+
+   One path writes no marker: exit 2, no `MANIFEST.json`. That exit is NOT in `SuccessExitStatus`, so
+   systemd reports it and the operator sees a failed unit. The marker exists for the paths systemd
+   calls a success. */
+function writeRunMarker(toolDir, tool, outcome, reason) {
+  let resultAt = null;
+  try {
+    resultAt = JSON.parse(readFileSync(join(toolDir, 'RESULT.json'), 'utf8')).at ?? null;
+  } catch {
+    /* no result yet, or one this runner cannot parse: the absence stays null */
+  }
+  const marker = {
+    schema: 'tepna.stitch-run/1',
+    tool,
+    at: new Date().toISOString(),
+    outcome,
+    reason: reason ?? null,
+    resultAt
+  };
+  writeFileSync(join(toolDir, 'RUN.json'), `${JSON.stringify(marker, null, 2)}\n`);
+  return marker;
+}
+
 // Quiet-hours guard: refuse when capture is active (recent writes in captures/).
 // A running capture means the solid-night set may change mid-compute.
 /* ONE WALK, NOT TWO. The guard listed the captures root by hand while the population verdict
@@ -599,6 +631,83 @@ async function selftest() {
   );
   ok('26 an O2Ring space-separated stamp lands on the same axis', r2.pairs[0][0] === wall, `${r2.pairs[0][0]} vs ${wall}`);
 
+  /* ══ A REFUSED DAY LEAVES A MARKER, AND IT NEVER INVENTS A RESULT DATE ═════════════════════════
+     The guard above exits 3, and the unit calls 3 a success, so this file is the only thing that can
+     tell a reader today refused. Every leg below reads the BYTES the runner wrote, never the return
+     value alone, because the bytes are what the monitor reads. */
+  const mkDir = (name) => {
+    const d = join(dir, 'marker', name);
+    mkdirSync(d, { recursive: true });
+    return d;
+  };
+  const markerText = (d) => readFileSync(join(d, 'RUN.json'), 'utf8');
+  const marker = (d) => JSON.parse(markerText(d));
+
+  const dRef = mkDir('refused');
+  writeRunMarker(dRef, '3corner', 'refused', 'a manifest night changed in the last 30 min');
+  const mRef = marker(dRef);
+  ok('27 a refused run writes a marker naming the outcome and the reason', mRef.outcome === 'refused' && /manifest night changed/.test(mRef.reason || ''), markerText(dRef));
+  ok('28 with no RESULT.json beside it, resultAt is null — never this run own date', mRef.resultAt === null, String(mRef.resultAt));
+  ok('29 the marker declares its schema and its tool', mRef.schema === 'tepna.stitch-run/1' && mRef.tool === '3corner', markerText(dRef));
+  ok('30 the marker is one object and ends in a newline, so a reader can append nothing to it', markerText(dRef).endsWith('}\n'), JSON.stringify(markerText(dRef).slice(-3)));
+
+  const dOld = mkDir('with-a-result');
+  writeFileSync(join(dOld, 'RESULT.json'), JSON.stringify({ tool: '3corner', at: '2026-11-03T12:00:00.000Z' }) + '\n');
+  writeRunMarker(dOld, '3corner', 'refused', 'the guard refused');
+  const mOld = marker(dOld);
+  ok('31 a refusal quotes the date of the result it LEFT IN PLACE, so the page can name both', mOld.resultAt === '2026-11-03T12:00:00.000Z' && mOld.at !== mOld.resultAt, markerText(dOld));
+
+  const dBad = mkDir('unparsable-result');
+  writeFileSync(join(dBad, 'RESULT.json'), '{ not json\n');
+  writeRunMarker(dBad, '3corner', 'refused', 'the guard refused');
+  ok('32 a RESULT.json this runner cannot parse leaves resultAt null and raises nothing', marker(dBad).resultAt === null, markerText(dBad));
+
+  const dOk = mkDir('ok');
+  writeRunMarker(dOk, '3corner_fused', 'ok', null);
+  ok('33 a run that computed carries outcome ok and no reason', marker(dOk).outcome === 'ok' && marker(dOk).reason === null, markerText(dOk));
+  const dErr = mkDir('error');
+  writeRunMarker(dErr, '3corner', 'error', 'not yet implemented (phase 3)');
+  ok('34 an errored run carries the error text as its reason', marker(dErr).outcome === 'error' && /phase 3/.test(marker(dErr).reason || ''), markerText(dErr));
+  ok('35 CONTROL · the three outcomes are distinguishable, which is what the old silence was not', new Set([marker(dRef).outcome, marker(dOk).outcome, marker(dErr).outcome]).size === 3);
+
+  /* ══ THE REFUSAL PATH, RUN AS A CHILD ══════════════════════════════════════════════════════════
+     🔴 THE LEGS ABOVE CALL `writeRunMarker` DIRECTLY, SO NONE OF THEM CAN SEE ITS CALL SITES. A
+     refusal exits the process, so the only way to read what the REFUSAL PATH writes is to run the
+     runner. These two legs do that, and they are the ones a deleted call reds. */
+  const { execFileSync } = await import('node:child_process');
+  const SELF = fileURLToPath(import.meta.url);
+  const childRun = (sd, cd) => {
+    try {
+      execFileSync(process.execPath, [SELF, '3corner', '--stitched-dir', sd, '--captures-dir', cd], {
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'pipe']
+      });
+      return { status: 0 };
+    } catch (e) {
+      return { status: e.status, stderr: String(e.stderr || '') };
+    }
+  };
+
+  const sdRef = join(dir, 'child-refused', 'stitched');
+  const cdRef = join(dir, 'child-refused', 'captures');
+  mkdirSync(join(sdRef, '3corner'), { recursive: true });
+  mkdirSync(join(cdRef, '2026-10-01'), { recursive: true });
+  writeFileSync(join(sdRef, '3corner', 'MANIFEST.json'), JSON.stringify({ nights: ['2026-10-01'] }) + '\n');
+  writeFileSync(join(cdRef, '2026-10-01', 'x.csv'), 'written just now\n');
+  const cRef = childRun(sdRef, cdRef);
+  ok('36 the REFUSAL PATH exits 3 and leaves the marker on disk', cRef.status === 3 && existsSync(join(sdRef, '3corner', 'RUN.json')), `exit ${cRef.status}`);
+  ok(
+    '37 that marker names the refusal, so a reader of the directory alone can tell today refused',
+    existsSync(join(sdRef, '3corner', 'RUN.json')) && JSON.parse(readFileSync(join(sdRef, '3corner', 'RUN.json'), 'utf8')).outcome === 'refused'
+  );
+
+  const sdNoMan = join(dir, 'child-nomanifest', 'stitched');
+  const cdNoMan = join(dir, 'child-nomanifest', 'captures');
+  mkdirSync(join(sdNoMan, '3corner'), { recursive: true });
+  mkdirSync(cdNoMan, { recursive: true });
+  const cNo = childRun(sdNoMan, cdNoMan);
+  ok('38 CONTROL · no MANIFEST.json exits 2 and writes NO marker, because systemd reports that exit', cNo.status === 2 && !existsSync(join(sdNoMan, '3corner', 'RUN.json')), `exit ${cNo.status}`);
+
   console.log(fail === 0 ? `\n  all ${pass} selftests passed` : `\n  ${pass} passed, ${fail} failed`);
   if (fail > 0) process.exit(1);
 }
@@ -654,7 +763,9 @@ function main() {
   }
   const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
   if (!args.force && captureActive(args.capturesDir, manifest.nights || [])) {
-    console.error('a manifest night changed in the last 30 min (a re-judge or an archive); refusing. Use --force to override.');
+    const why = 'a manifest night changed in the last 30 min (a re-judge or an archive)';
+    console.error(`${why}; refusing. Use --force to override.`);
+    writeRunMarker(toolDir, args.tool, 'refused', why);
     process.exit(3);
   }
   const sidecars = existsSync(sidecarsPath) ? JSON.parse(readFileSync(sidecarsPath, 'utf8')) : { sidecars: {} };
@@ -677,7 +788,7 @@ function main() {
     evidence: ['tools/stitch-31d-run.mjs']
   });
   console.log(
-    `population: ${popBefore.n} night(s) under the captures root \u00b7 ${(manifest.nights || []).length} in the manifest \u00b7 ${result.n_nights ?? 0} aggregated \u00b7 movement ${population.status}` +
+    `population: ${popBefore.n} night(s) under the captures root \u00b7 ${(manifest.nights || []).length} in the manifest \u00b7 ${result.n_nights ?? 'null'} aggregated \u00b7 movement ${population.status}` +
       (population.reason ? ` \u2014 ${population.reason}` : '')
   );
   const populationRule = ruleLine(population);
@@ -691,6 +802,7 @@ function main() {
   /* The per-night model never set `n` or `overlap_s`, and no run had ever reached this line: the
      Verity leg refused every night, so the success branch printed two `undefined`s unseen. */
   console.log(`wrote ${outPath}: ${result.error ? 'ERROR: ' + result.error : `nights=${result.n_nights} gaps=${result.n_gaps} overlap_s=${result.overlap_s_total}`}`);
+  writeRunMarker(toolDir, args.tool, result.error ? 'error' : 'ok', result.error || null);
   process.exit(result.error ? 1 : 0);
 }
 
