@@ -584,6 +584,27 @@ def make_app(
             return web.json_response({"ok": False, "error": "not yet computed"}, status=404)
         return web.FileResponse(path, headers={"Cache-Control": "no-cache, must-revalidate"})
 
+    async def stitched_run(req):
+        """Serve /srv/tepna/stitched/<tool>/RUN.json — what the LAST run did.
+
+        ⚠️ A SEPARATE FACT FROM THE RESULT, and that separation is the point. The runner quiet-guard
+        exits 3, the systemd unit lists 3 as a success (a refusal is a retry, not a fault), and the
+        runner used to write nothing at all. So `RESULT.json` kept the `at` of whichever day last
+        computed, `stitched_result` served that file unchanged, and a reader could not tell a refused
+        day from a day that ran. §∅: the absence of today's run is reported, with its own named
+        reason, rather than guessed from how old a result looks.
+
+        404 "no run recorded" is the honest answer on a box whose runner has not written a marker
+        yet. The page then says that, instead of presenting the result as current."""
+        tool = req.match_info.get("tool", "")
+        tool_dir = _STITCH_TOOL_DIRS.get(tool)
+        if tool_dir is None:
+            return web.json_response({"ok": False, "error": "unknown tool"}, status=404)
+        path = os.path.join(cfg.get("root", "/srv/tepna"), "stitched", tool_dir, "RUN.json")
+        if not os.path.exists(path):
+            return web.json_response({"ok": False, "error": "no run recorded"}, status=404)
+        return web.FileResponse(path, headers={"Cache-Control": "no-cache, must-revalidate"})
+
     def _cpap_live_block(c):
         """The serve-time "is therapy running NOW" view, as its OWN top-level block.
 
@@ -2420,6 +2441,9 @@ def make_app(
             # direct webmon origin, where nothing strips the prefix.
             web.get("/monitor/stitched-31d.html", stitched_page),
             web.get("/api/stitched/{tool}", stitched_result),
+            # The run marker sits on its OWN path, so the result endpoint keeps serving the
+            # result file byte-for-byte and the page reads the two facts separately.
+            web.get("/api/stitched/{tool}/run", stitched_run),
             web.get("/api/state", state),
             web.get("/api/version", version_get),
             web.get("/api/memory", memory_get),
