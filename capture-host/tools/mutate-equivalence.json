@@ -86,6 +86,15 @@
   ],
   "clock.js": [],
   "cpap_edf.py": [],
+  "cpap_ingest.py": [
+    {
+      "brief": "CPAP overflow counter reports its absence (residue 2026-11-08-cpap-transport-overflow-has-no-live-writer)",
+      "class": "no-distinguishing-input",
+      "key": "- if len(self._q) > self.max_depth: | + if len(self._q) >= self.max_depth:",
+      "probe": "Ran BOTH the original and the mutant side by side over 2000 random offer/drain sequences at capacities {1,2,3,5,8}, 40423 steps in all, comparing the return value, `max_depth`, `depth` and the FULL `counters.summary()` after every step. 0 of 40423 steps differed. Then exercised the single theoretical boundary by hand \u2014 three offers, a drain, three offers, so `len(_q) == max_depth` at the guard \u2014 and both read max_depth 3. Run empirically 2026-11-09 with a scratch probe under ~/ovflnull-work/probe_maxdepth.py.",
+      "why": "`max_depth` is a high-water mark and the guarded statement is `self.max_depth = len(self._q)`. The two operators differ only when `len(self._q) == self.max_depth`, and there the assignment writes back the value the field already holds. So no input distinguishes them. This is the shape the _README worked through \u2014 `if (lo < 0) lo = 0` mutated to `<=`. Surfaced because nulling `GapCounters.overflow` pulled `offer` into diff-scope; this line itself is untouched by that diff."
+    }
+  ],
   "cpap_edf_writer.py": [
     {
       "brief": "CPAP controller-fix mutation-harden (#1701 follow-up)",

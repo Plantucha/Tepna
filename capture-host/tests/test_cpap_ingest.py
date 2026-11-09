@@ -374,7 +374,11 @@ def test_constructing_the_queue_turns_overflow_from_unmeasured_into_a_counted_ze
     assert "overflow" not in c.lost_coverage, "and the category leaves the uncovered list"
     assert q.offer("a") is True and q.offer("b") is True
     assert q.offer("c") is False
-    assert c.overflow == 1 and c.total_lost == 1, "and the count now reaches the total it belongs in"
+    assert c.overflow == 1 and c.total_lost == 1
+    # A SECOND drop must ADD. One drop alone cannot tell `+= 1` from `= 1`, and the mutation gate
+    # named that survivor on the first push of this unit.
+    assert q.offer("d") is False
+    assert c.overflow == 2 and c.total_lost == 2, "and the count now reaches the total it belongs in"
 
 
 def test_a_drop_whose_counter_was_blanked_after_construction_REFUSES():
