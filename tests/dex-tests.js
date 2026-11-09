@@ -57398,6 +57398,34 @@
           var hits = dsp.match(/\bUP\.[A-Za-z_]+|\b[A-Za-z]+Profile\.[A-Za-z_]+|\bup[A-Z][A-Za-z0-9]+\(/g) || [];
           T.ok('F14 · …and ' + n + 'dex-dsp.js does not reach it (no UP.* / *Profile.* / up*() reach-ins)', hits.length === 0, hits.slice(0, 5).join(' '));
         });
+        /* The one `*-overview.js` module rests on the same kind of claim as the profile entries, so it
+           is pinned the same way — by source, not by prose. A reach-in reds here instead of blinding the
+           gate, and the second assertion pins the DECISION to name the file rather than the suffix. */
+        T.ok('F14 · pulsedex-overview.js is EXCLUDED from the closure (display-only, pinned below)', !MG.isComputeAsset('pulsedex-overview.js'));
+        T.ok(
+          'F14 · …and the SUFFIX stays unclaimed — an unnamed future *-overview.js still fails CLOSED',
+          MG.isComputeAsset('ecgdex-overview.js'),
+          'a /-overview\\.js$/ suffix would excuse a module nobody has measured'
+        );
+        var ovSrc = S14['pulsedex-overview.js'],
+          pxDsp = S14['pulsedex-dsp.js'];
+        if (typeof ovSrc !== 'string' || typeof pxDsp !== 'string') T.skip('F14 · …and pulsedex-dsp.js does not reach it', 'pulsedex-overview.js / pulsedex-dsp.js not in env.sources');
+        else {
+          var ovNames = [];
+          ovSrc.split('\n').forEach(function (ln) {
+            var mo = /^(?:async\s+)?function\s+([A-Za-z_$][\w$]*)/.exec(ln) || /^(?:const|let|var)\s+([A-Za-z_$][\w$]*)/.exec(ln);
+            if (mo) ovNames.push(mo[1]);
+          });
+          var reach = ovNames.filter(function (nm) {
+            return new RegExp('\\b' + nm.replace(/\$/g, '\\$') + '\\b').test(pxDsp);
+          });
+          T.ok(
+            "F14 · …and pulsedex-dsp.js reads none of the overview module's top-level names",
+            ovNames.length > 10 && reach.length === 0,
+            ovNames.length <= 10 ? 'only ' + ovNames.length + ' names extracted — the scan examined almost nothing' : 'read: ' + reach.slice(0, 5).join(' ')
+          );
+          T.ok('F14 · …and its one global write `_pxPanel` is read by no DSP', !/_pxPanel/.test(pxDsp));
+        }
       }
 
       // ── §2 · build.mjs is FORBIDDEN to author the claim; verify-fixtures.mjs is the only writer

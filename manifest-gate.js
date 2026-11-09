@@ -149,6 +149,17 @@
     /^inline:style:/, // the bundle's inline <style> shells
     /-render\.js$/, // <node>-render.js — DOM painting
     /-app\.js$/, // <node>-app.js — host/event wiring
+    /* The one `*-overview.js` module, inlined into `PulseDex.html` alone. It is pinned by its EXACT
+       NAME and not by an `-overview.js` suffix: a suffix is a claim about modules that do not exist
+       yet, and F14 is what such a claim costs. An unnamed future overview module keeps failing CLOSED.
+       Measured 2026-11-09 against origin/main at 5c5adf97d: `PulseDex.html` inlines 27 plain assets, of
+       which 19 were in the closure; none of the other 18 reads any of the module's 22 top-level names;
+       its only write to a global is `window._pxPanel`, which is read in 4 places that all sit inside
+       the module itself; and it READS `window.PulseDex._bare` and `window.DexProfile`, where a read
+       cannot move an export. The entry moves `PulseDex.html`'s computeHash once, and then holds it
+       stable across every render-only edit to the module. Pinned to the DSP's source in dex-tests.js
+       (F14), the same way the five profile entries are. */
+    /^pulsedex-overview\.js$/,
     /* per-node profile UI (NOT the shared dex-profile.js engine, which feeds metrics). `oxydex-profile.js`
        is deliberately ABSENT from this list: oxydex-dsp.js reads `UP.age` / `UP.hrRestOverride` and calls
        `upVO2category` from it inside compute() (`vo2est`/`karv`), so an edit to its defaults moves the
