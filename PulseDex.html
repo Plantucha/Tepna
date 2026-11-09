@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="131cf330edef" data-compute-hash="355ff3977610"><head>
+<html lang="en" data-manifest-hash="bfcfa64d865a" data-compute-hash="355ff3977610"><head>
 <!--
   PulseDex.src.html — Tepna
   Copyright 2026 Michal Planicka
@@ -9,7 +9,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-1guj4HFcatABnfRfnxeGisCEql9GXUHFLGRjoSG++hU=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-44/qr38MNiLBn5DNmKG/WtoE9Ur2OqhHUfSsGpB6SQg=' 'sha256-4KsRTgVuaYcMUNL8LhUau/rNzFP6NRbvBy2QbxNGFzw=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DQbtdpqLddlv4j/hJzsWo7QMTThZW+feswRtrFG+4JU=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-hCZmwNAMDLPZEMYHAYpzoPETSnimg1oHWWjZImdKqxM=' 'sha256-nghmP9jMX0rAyZ78QklkJKcGr9ZiroYj+56iLDFYjLY=' 'sha256-oQiv/JcsqKMpBBIPaf/M2qRuUZICKjyhALXAYGfzvZ0=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-sH2zcem3XO98hxUUreAPps78dztWHR1+8dPrGCperK0='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-1guj4HFcatABnfRfnxeGisCEql9GXUHFLGRjoSG++hU=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-44/qr38MNiLBn5DNmKG/WtoE9Ur2OqhHUfSsGpB6SQg=' 'sha256-4KsRTgVuaYcMUNL8LhUau/rNzFP6NRbvBy2QbxNGFzw=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8oJCTPzPyGhMh6+GnB1w5gTsNYWOhPvSI1G8MwXjCHg=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DQbtdpqLddlv4j/hJzsWo7QMTThZW+feswRtrFG+4JU=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-hCZmwNAMDLPZEMYHAYpzoPETSnimg1oHWWjZImdKqxM=' 'sha256-nghmP9jMX0rAyZ78QklkJKcGr9ZiroYj+56iLDFYjLY=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-sH2zcem3XO98hxUUreAPps78dztWHR1+8dPrGCperK0='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>PulseDex — Raw RR Analyzer · v2.29.0</title>
@@ -9892,7 +9892,7 @@ const _ansTxt = (v) => (v == null ? '—' : v);
 const _ansPct = (v) => (v == null ? 0 : Math.min(100, v));
 
 /* ── WHY A WHOLE-RECORD FIGURE IS ABSENT (D17, owner 2026-11-06) ──────────────────────────────
-   `renderKPI` prints an em-dash for a refused figure, and an em-dash is the same glyph for a clock
+   `renderKpiGridPx` prints an em-dash for a refused figure, and an em-dash is the same glyph for a clock
    seam, a short reading and an absent input. The record already carries the reason: the drop road
    writes `hrvReason` and the comment beside it in `pulsedex-app.js` calls an unexplained absence
    "only half of the refusal". No surface read that key, so the reader got the half.
@@ -9986,46 +9986,6 @@ function renderGraphs(r) {
     </div>`;
   wrap.classList.add('show');
   sl.style.display = 'flex';
-}
-
-// ─── RENDER KPI ───────────────────────────────────────────────────────────────
-function renderKPI(r) {
-  const useRm = r.longRec ? r.dispRm : r.rmssd,
-    useSd = r.longRec ? r.dispSd : r.sdnn,
-    usePn = r.longRec ? r.dispPn : r.pnn50,
-    useHr = r.longRec ? r.dispHr : r.hr;
-  const sfx = r.longRec ? ' (med)' : '';
-  const hrStat = (v) => (v < 35 ? 'bad' : v <= 80 ? 'ok' : v <= 95 ? 'warn' : 'bad'); // low resting HR is GOOD
-  /* ∅ A whole record that refused reaches the hero as null (`hrvReason`, `pulsedex-app.js`), and the
-     old literals read it as a measurement: `null + 'ms'` prints "nullms", `null >= 50` grades an
-     absence a CONCERN, and `(r.sdann || 0) + 'ms'` printed a measured "0ms" for a night that never
-     had three windows. Absence prints an em-dash and grades neutral. */
-  const _kv = (v, u) => (v == null ? '—' : v + (u || ''));
-  const _ks = (v, ok, warn) => (v == null ? 'neutral' : v >= ok ? 'ok' : v >= warn ? 'warn' : 'bad');
-  const items = [
-    { l: 'HRV Score', v: _kv(r.hrv), sub: '0–100', s: _ks(r.hrv, 50, 35) },
-    { l: 'Stress', v: _kv(r.stress), sub: 'lower better', s: r.stress == null ? 'neutral' : r.stress <= 45 ? 'ok' : r.stress <= 60 ? 'warn' : 'bad' },
-    { l: 'Mean HR' + sfx, v: useHr, sub: 'bpm', s: hrStat(useHr) },
-    { l: 'rMSSD' + sfx, v: _kv(useRm, 'ms'), sub: '≥30 good', s: _ks(useRm, 30, 20) },
-    { l: 'SDNN' + sfx, v: _kv(useSd, 'ms'), sub: r.longRec ? '5-min' : '≥50 good', s: _ks(useSd, 50, 30) },
-    { l: 'pNN50' + sfx, v: _kv(usePn, '%'), sub: '≥15% good', s: _ks(usePn, 15, 5) },
-    r.longRec ? { l: 'SDANN', v: _kv(r.sdann, 'ms'), sub: 'long-rec', s: 'neutral' } : { l: 'Energy', v: _kv(r.energy), sub: 'est', s: _ks(r.energy, 60, 40) },
-    { l: 'Coverage', v: r.coverage + '%', sub: 'data captured', s: r.coverage >= 95 ? 'ok' : r.coverage >= 85 ? 'warn' : 'bad' },
-    { l: 'Artifacts', v: r.artifactPct + '%', sub: 'corrected', s: r.artifactPct < 2 ? 'ok' : r.artifactPct < 8 ? 'warn' : 'bad' },
-    { l: 'VO₂ adj', v: _kv(r.vo2adj), sub: 'ml/kg/min', s: 'neutral' }
-  ];
-  const g = document.getElementById('kpiGrid');
-  g.innerHTML = items
-    .map(
-      (k) => `<div class="kpi ${k.s}">
-    <div class="kpi-label">${evBadge(k.l)}${k.l}</div>
-    <div class="kpi-val ${k.s}">${k.v}</div>
-    <div class="kpi-sub">${k.sub}</div>
-  </div>`
-    )
-    .join('');
-  g.classList.add('show');
-  document.getElementById('slKPI').style.display = 'flex';
 }
 
 // Tanaka HRmax (Tanaka, Monahan & Seals 2001) — hoisted from reRender's inline copy so it is a
@@ -10614,7 +10574,6 @@ Object.assign(window, {
   reRender,
   renderContext,
   renderGraphs,
-  renderKPI,
   renderANS,
   renderTable,
   wtRowObj,
