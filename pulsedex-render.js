@@ -35,7 +35,7 @@ const _ansTxt = (v) => (v == null ? '—' : v);
 const _ansPct = (v) => (v == null ? 0 : Math.min(100, v));
 
 /* ── WHY A WHOLE-RECORD FIGURE IS ABSENT (D17, owner 2026-11-06) ──────────────────────────────
-   `renderKPI` prints an em-dash for a refused figure, and an em-dash is the same glyph for a clock
+   `renderKpiGridPx` prints an em-dash for a refused figure, and an em-dash is the same glyph for a clock
    seam, a short reading and an absent input. The record already carries the reason: the drop road
    writes `hrvReason` and the comment beside it in `pulsedex-app.js` calls an unexplained absence
    "only half of the refusal". No surface read that key, so the reader got the half.
@@ -129,46 +129,6 @@ function renderGraphs(r) {
     </div>`;
   wrap.classList.add('show');
   sl.style.display = 'flex';
-}
-
-// ─── RENDER KPI ───────────────────────────────────────────────────────────────
-function renderKPI(r) {
-  const useRm = r.longRec ? r.dispRm : r.rmssd,
-    useSd = r.longRec ? r.dispSd : r.sdnn,
-    usePn = r.longRec ? r.dispPn : r.pnn50,
-    useHr = r.longRec ? r.dispHr : r.hr;
-  const sfx = r.longRec ? ' (med)' : '';
-  const hrStat = (v) => (v < 35 ? 'bad' : v <= 80 ? 'ok' : v <= 95 ? 'warn' : 'bad'); // low resting HR is GOOD
-  /* ∅ A whole record that refused reaches the hero as null (`hrvReason`, `pulsedex-app.js`), and the
-     old literals read it as a measurement: `null + 'ms'` prints "nullms", `null >= 50` grades an
-     absence a CONCERN, and `(r.sdann || 0) + 'ms'` printed a measured "0ms" for a night that never
-     had three windows. Absence prints an em-dash and grades neutral. */
-  const _kv = (v, u) => (v == null ? '—' : v + (u || ''));
-  const _ks = (v, ok, warn) => (v == null ? 'neutral' : v >= ok ? 'ok' : v >= warn ? 'warn' : 'bad');
-  const items = [
-    { l: 'HRV Score', v: _kv(r.hrv), sub: '0–100', s: _ks(r.hrv, 50, 35) },
-    { l: 'Stress', v: _kv(r.stress), sub: 'lower better', s: r.stress == null ? 'neutral' : r.stress <= 45 ? 'ok' : r.stress <= 60 ? 'warn' : 'bad' },
-    { l: 'Mean HR' + sfx, v: useHr, sub: 'bpm', s: hrStat(useHr) },
-    { l: 'rMSSD' + sfx, v: _kv(useRm, 'ms'), sub: '≥30 good', s: _ks(useRm, 30, 20) },
-    { l: 'SDNN' + sfx, v: _kv(useSd, 'ms'), sub: r.longRec ? '5-min' : '≥50 good', s: _ks(useSd, 50, 30) },
-    { l: 'pNN50' + sfx, v: _kv(usePn, '%'), sub: '≥15% good', s: _ks(usePn, 15, 5) },
-    r.longRec ? { l: 'SDANN', v: _kv(r.sdann, 'ms'), sub: 'long-rec', s: 'neutral' } : { l: 'Energy', v: _kv(r.energy), sub: 'est', s: _ks(r.energy, 60, 40) },
-    { l: 'Coverage', v: r.coverage + '%', sub: 'data captured', s: r.coverage >= 95 ? 'ok' : r.coverage >= 85 ? 'warn' : 'bad' },
-    { l: 'Artifacts', v: r.artifactPct + '%', sub: 'corrected', s: r.artifactPct < 2 ? 'ok' : r.artifactPct < 8 ? 'warn' : 'bad' },
-    { l: 'VO₂ adj', v: _kv(r.vo2adj), sub: 'ml/kg/min', s: 'neutral' }
-  ];
-  const g = document.getElementById('kpiGrid');
-  g.innerHTML = items
-    .map(
-      (k) => `<div class="kpi ${k.s}">
-    <div class="kpi-label">${evBadge(k.l)}${k.l}</div>
-    <div class="kpi-val ${k.s}">${k.v}</div>
-    <div class="kpi-sub">${k.sub}</div>
-  </div>`
-    )
-    .join('');
-  g.classList.add('show');
-  document.getElementById('slKPI').style.display = 'flex';
 }
 
 // Tanaka HRmax (Tanaka, Monahan & Seals 2001) — hoisted from reRender's inline copy so it is a
@@ -757,7 +717,6 @@ Object.assign(window, {
   reRender,
   renderContext,
   renderGraphs,
-  renderKPI,
   renderANS,
   renderTable,
   wtRowObj,
