@@ -39510,8 +39510,17 @@
 
       /* 3 · the surface. The subtitle states the scored population when it is short of the window. */
       if (CR && typeof CR.renderHistory === 'function') {
+        /* A real night carries TWO figures: the pooled MASK-ON hours the adherence line scores,
+           and the recording envelope. `hours` is the mask-on figure, and the envelope runs 30 min
+           longer, so a reader that takes the wrong one cannot pass by coincidence. */
         var mk = function (dayIdx, hours) {
-          return { t0Ms: Date.UTC(2026, 0, 1 + dayIdx, 22, 0, 0), therapyHours: hours, nSessions: 1, metrics: { residualAHI: 3, largeLeakPct: 2 }, sessions: [{}] };
+          return {
+            t0Ms: Date.UTC(2026, 0, 1 + dayIdx, 22, 0, 0),
+            therapyHours: hours == null ? null : hours + 0.5,
+            nSessions: 1,
+            metrics: { residualAHI: 3, largeLeakPct: 2, usageHours: hours },
+            sessions: [{}]
+          };
         };
         var short = CR.renderHistory([mk(0, 7), mk(1, 5), mk(2, null)]);
         T.ok('∅ the tile states the scored population when a night went unscored', /2 scored nights/.test(short), (/(\d+) scored nights/.exec(short) || [])[1]);
@@ -39540,6 +39549,155 @@
 
       /* 5 · anti-vacuity — the legs above ran real code. */
       T.ok('ANTI-VACUITY · buildLongitudinal returned a real block', D.buildLongitudinal(two).nights === 2 && typeof D.buildLongitudinal(two).compliancePct === 'number');
+    });
+
+    /* ════ CPAPDex USAGE — a mask-on label draws mask-on hours ════
+     `night.therapyHours` sums each session's `durMin`, and the full-set constructor sets `durMin`
+     from the WALL span ("WALL duration (for off-mask gap math)"). The pooled MASK-ON figure lives
+     in `night.metrics.usageHours`, which the registry defines as "Total mask-on hours
+     (pressure > 0)". Nine readers took the envelope: the night card's `usageHours` tile and its
+     grade, the hero's Usage subscore, the CMS adherence chip, the history rows, review mode's
+     tile, `buildLongitudinal`'s ratio and 7 d trend, and `cpapdex-cross.js`'s metric getter,
+     night weight and `compliancePct`. A night whose mask came off for five hours inside a 7.5 h
+     recording therefore read as compliant. Row
+     `2026-11-07-the-cpap-usage-kpi-draws-the-recording-envelope-under-the-mask-on-label`. */
+    group('CPAPDex usage — the mask-on label draws mask-on hours, never the recording envelope', 'cpapdex-dsp · cpapdex-cross · cpapdex-render · absence', function (T) {
+      var D = env.CpapDsp || env.CPAPDSP;
+      var CP = env.CPAPCross;
+      var CR = env.CpapRender;
+      if (!D || typeof D.buildLongitudinal !== 'function') {
+        T.skip('CpapDsp.buildLongitudinal', 'CPAPDex not co-loaded in this runner');
+        return;
+      }
+
+      /* ONE night, TWO figures that straddle the 4 h line in OPPOSITE directions. Every leg below
+         reds if its reader takes the other figure. */
+      var offMask = function (t0) {
+        return { t0Ms: t0, therapyHours: 7.5, nSessions: 1, metrics: { residualAHI: 3, largeLeakPct: 2, usageHours: 2.5 }, sessions: [{}] };
+      };
+      var worn = function (t0) {
+        return { t0Ms: t0, therapyHours: 7.5, nSessions: 1, metrics: { residualAHI: 3, largeLeakPct: 2, usageHours: 6.5 }, sessions: [{}] };
+      };
+      var T0 = Date.UTC(2026, 0, 1, 22, 0, 0);
+
+      /* 1 · the DSP's adherence ratio and its 7 d usage trend. */
+      T.eq('a mask worn 2.5 h inside a 7.5 h recording is NOT compliant', D.buildLongitudinal([offMask(T0), offMask(T0 + 86400000)]).compliancePct, 0, 'the envelope reads 100 %');
+      T.eq('CONTROL · a mask worn 6.5 h IS compliant', D.buildLongitudinal([worn(T0), worn(T0 + 86400000)]).compliancePct, 100);
+      T.eq('both nights are still scored — this is not an absence', D.buildLongitudinal([offMask(T0), offMask(T0 + 86400000)]).complianceNights, 2);
+      /* The trend slopes over the SAME quantity. Mask-on falls 4 h across two nights while the
+         envelope stands at 7.5 h, so a slope of 0 says it read the envelope. */
+      T.eq('the 7 d usage trend slopes on mask-on hours', D.buildLongitudinal([worn(T0), offMask(T0 + 86400000)]).usageTrend7d, -4);
+
+      /* 2 · the cross-night twin, which the EXPORT publishes. */
+      if (CP && typeof CP.compliancePct === 'function') {
+        T.eq('cross · the same night is not compliant there either', CP.compliancePct([offMask(T0)], 4), 0);
+        T.eq('CONTROL · cross · the worn night is', CP.compliancePct([worn(T0)], 4), 100);
+      } else {
+        T.skip('CPAPCross.compliancePct', 'cpapdex-cross.js not co-loaded in this runner');
+      }
+      /* The cross-night METRIC getter feeds the published series, and the night WEIGHT scales every
+         robust trend. Both read the same figure. */
+      if (CP && CP.CPAP_DEFS && CP.CPAP_DEFS.usageHours && typeof CP.CPAP_DEFS.usageHours.get === 'function') {
+        T.eq('cross · the usageHours series takes the mask-on figure', CP.CPAP_DEFS.usageHours.get(offMask(T0)), 2.5);
+        T.eq('cross · a stub with only therapyHours still reports it', CP.CPAP_DEFS.usageHours.get({ therapyHours: 5 }), 5, 'buildSession sets a stub durMin from mask-on');
+        T.eq('∅ cross · a metrics block with no usageHours reports nothing', CP.CPAP_DEFS.usageHours.get({ metrics: { residualAHI: 3 }, therapyHours: 7 }), null);
+      } else {
+        T.skip('CPAPCross.CPAP_DEFS.usageHours', 'cross defs not on the surface in this runner');
+      }
+
+      /* 3 · the night card's tile. The value and its grade are mask-on; the envelope keeps the sub. */
+      if (CR && typeof CR.renderKPIs === 'function') {
+        var cardOff = CR.renderKPIs(offMask(T0));
+        T.ok('the tile draws the 2.5 h the mask was ON', /2\.5<span class="kpi-u">hr<\/span>/.test(cardOff), 'it drew the 7.5 h envelope');
+        T.eq('nothing on the card reads 7.5 h as the usage VALUE', (cardOff.match(/7\.5<span class="kpi-u">hr<\/span>/g) || []).length, 0);
+        T.ok('…and the envelope is still stated, as a recording', /7\.5 h recorded/.test(cardOff));
+        var cardWorn = CR.renderKPIs(worn(T0));
+        T.ok('CONTROL · a worn night draws its 6.5 h', /6\.5<span class="kpi-u">hr<\/span>/.test(cardWorn));
+      } else {
+        T.skip('CpapRender.renderKPIs', 'cpapdex-render.js not co-loaded in this runner');
+      }
+
+      /* 4 · the hero's Usage subscore and the CMS adherence chip. */
+      if (CR && typeof CR.renderNight === 'function') {
+        var heroOff = '',
+          heroWorn = '';
+        try {
+          heroOff = CR.renderNight(offMask(T0));
+          heroWorn = CR.renderNight(worn(T0));
+        } catch (_e) {
+          heroOff = '';
+        }
+        if (heroOff && heroWorn) {
+          T.ok('the adherence chip reads the mask-on figure', /under 4 h/.test(heroOff), 'the envelope would have said compliant');
+          T.eq('…and no compliant chip appears on that night', (heroOff.match(/4 h compliant/g) || []).length, 0);
+          T.ok('CONTROL · the worn night keeps its compliant chip', /4 h compliant/.test(heroWorn));
+        } else {
+          T.skip('CpapRender.renderNight', 'the night view needs more of the page than this runner builds');
+        }
+      } else {
+        T.skip('CpapRender.renderNight', 'cpapdex-render.js not co-loaded in this runner');
+      }
+
+      /* 5 · the history rows sit under the compliance percentage, so they state its quantity. */
+      if (CR && typeof CR.renderHistory === 'function') {
+        var hist = CR.renderHistory([offMask(T0), worn(T0 + 86400000)]);
+        T.ok('a row states the mask-on hours', /2\.5 h ·/.test(hist), 'the row drew the envelope');
+        T.eq('no row states the 7.5 h envelope', (hist.match(/7\.5 h ·/g) || []).length, 0);
+        T.ok('CONTROL · the worn night keeps its own 6.5 h', /6\.5 h ·/.test(hist));
+        /* ∅ A night that measured no mask-on time says so, instead of borrowing its envelope. */
+        var blank = { t0Ms: T0 + 172800000, therapyHours: 7.5, nSessions: 1, metrics: { residualAHI: 3, largeLeakPct: 2, usageReason: 'no-pressure-channel' }, sessions: [{}] };
+        var histBlank = CR.renderHistory([offMask(T0), blank]);
+        T.ok('∅ an unmeasured night refuses in its row', /—/.test(histBlank) && !/7\.5 h ·/.test(histBlank));
+      } else {
+        T.skip('CpapRender.renderHistory', 'cpapdex-render.js not co-loaded in this runner');
+      }
+
+      /* 6 · review mode renders the EXPORT's stored values, and the export carries both figures. */
+      if (CR && typeof CR.cpapClinicalSummary === 'function') {
+        var mkEl = function (usage) {
+          var el = { recording: { startEpochMs: T0, therapyHours: 7.5 }, metrics: { residualAHI: 3, largeLeakPct: 2 }, oximetry: [] };
+          if (usage != null) el.metrics.usageHours = usage;
+          else el.metrics.usageReason = 'no-pressure-channel';
+          return el;
+        };
+        var revOff = CR.cpapClinicalSummary({ elements: [mkEl(2.5)] });
+        T.ok('review mode draws the stored mask-on figure', /2\.5 h/.test(revOff), 'it drew the stored envelope');
+        T.eq('review mode does not grade the 7.5 h envelope', (revOff.match(/>7\.5 h</g) || []).length, 0);
+        var revBlank = CR.cpapClinicalSummary({ elements: [mkEl(null)] });
+        T.ok('∅ review mode refuses when the export says mask-on went unmeasured', /7\.5 h recorded/.test(revBlank), 'the envelope belongs in the note, not the value');
+      } else {
+        T.skip('CpapRender.cpapClinicalSummary', 'cpapdex-render.js not co-loaded in this runner');
+      }
+
+      /* 7 · source legs — the coercion may not come back anywhere. */
+      var _srcs = env.sources || {};
+      ['cpapdex-dsp.js', 'cpapdex-cross.js', 'cpapdex-render.js'].forEach(function (f) {
+        var s = _srcs[f] || '';
+        if (!s) {
+          T.skip('env.sources["' + f + '"]', 'source text not exposed in this runner');
+          return;
+        }
+        /* The one legal occurrence of that ternary is the back-compat arm INSIDE each file's own
+           resolver, which reaches it only for a `{therapyHours}` stub whose figure is mask-on
+           already. So the leg strips that two-line body, proves the strip hit exactly once, and
+           then demands zero occurrences across every reader above it. The pattern is the COERCION
+           shape alone (`x != null ? x.therapyHours :`), so the sub that states the envelope under
+           its own `h recorded` label stays legal. */
+        var _resolver = /if \(n\.metrics\) return n\.metrics\.usageHours != null \? n\.metrics\.usageHours : null;\s*return n\.therapyHours != null \? n\.therapyHours : null;/g;
+        T.eq(f + ' · carries exactly one usage resolver', (s.match(_resolver) || []).length, 1, 'the strip below reads it');
+        T.eq(
+          f + ' · no reader outside that resolver prefers therapyHours over the mask-on figure',
+          (s.replace(_resolver, '').match(/therapyHours\s*!=\s*null\s*\?\s*[a-z]+\.therapyHours\s*:/g) || []).length,
+          0,
+          'that ternary IS the defect'
+        );
+      });
+
+      /* 8 · anti-vacuity — the two fixtures really do straddle the line. */
+      T.ok(
+        'ANTI-VACUITY · the fixture pair straddles the 4 h line on mask-on and agrees on the envelope',
+        offMask(T0).metrics.usageHours < 4 && worn(T0).metrics.usageHours >= 4 && offMask(T0).therapyHours === worn(T0).therapyHours
+      );
     });
 
     group('CPAPDex quality — ∅ an UNASSESSED mask seal is not a perfect one, and an absent mode is not CPAP', 'cpapdex-dsp · cpapdex-fusion · absence', function (T) {
@@ -57420,6 +57578,69 @@
           var hits = dsp.match(/\bUP\.[A-Za-z_]+|\b[A-Za-z]+Profile\.[A-Za-z_]+|\bup[A-Z][A-Za-z0-9]+\(/g) || [];
           T.ok('F14 · …and ' + n + 'dex-dsp.js does not reach it (no UP.* / *Profile.* / up*() reach-ins)', hits.length === 0, hits.slice(0, 5).join(' '));
         });
+        /* The one `*-overview.js` module rests on the same kind of claim as the profile entries, so it
+           is pinned the same way — by source, not by prose. A reach-in reds here instead of blinding the
+           gate, and the second assertion pins the DECISION to name the file rather than the suffix. */
+        T.ok('F14 · pulsedex-overview.js is EXCLUDED from the closure (display-only, pinned below)', !MG.isComputeAsset('pulsedex-overview.js'));
+        T.ok(
+          'F14 · …and the SUFFIX stays unclaimed — an unnamed future *-overview.js still fails CLOSED',
+          MG.isComputeAsset('ecgdex-overview.js'),
+          'a /-overview\\.js$/ suffix would excuse a module nobody has measured'
+        );
+        var ovSrc = S14['pulsedex-overview.js'],
+          pxDsp = S14['pulsedex-dsp.js'];
+        if (typeof ovSrc !== 'string' || typeof pxDsp !== 'string') T.skip('F14 · …and pulsedex-dsp.js does not reach it', 'pulsedex-overview.js / pulsedex-dsp.js not in env.sources');
+        else {
+          var ovNames = [];
+          ovSrc.split('\n').forEach(function (ln) {
+            var mo = /^(?:async\s+)?function\s+([A-Za-z_$][\w$]*)/.exec(ln) || /^(?:const|let|var)\s+([A-Za-z_$][\w$]*)/.exec(ln);
+            if (mo) ovNames.push(mo[1]);
+          });
+          var reach = ovNames.filter(function (nm) {
+            return new RegExp('\\b' + nm.replace(/\$/g, '\\$') + '\\b').test(pxDsp);
+          });
+          T.ok(
+            "F14 · …and pulsedex-dsp.js reads none of the overview module's top-level names",
+            ovNames.length > 10 && reach.length === 0,
+            ovNames.length <= 10 ? 'only ' + ovNames.length + ' names extracted — the scan examined almost nothing' : 'read: ' + reach.slice(0, 5).join(' ')
+          );
+          /* The module publishes its global surface two ways: one `window.X =` write, and one
+             `Object.assign(window, {…})` call. A `window\.X\s*=` pattern sees only the first, and that
+             is how the first version of this leg came to claim a surface of ONE name. Read both. */
+          var gNames = [];
+          (ovSrc.match(/(?:window|globalThis)\.([A-Za-z_$][\w$]*)\s*=[^=]/g) || []).forEach(function (hit) {
+            var mg2 = /\.([A-Za-z_$][\w$]*)\s*=/.exec(hit);
+            if (mg2) gNames.push(mg2[1]);
+          });
+          var oa = /Object\.assign\(\s*(?:window|globalThis)\s*,\s*\{/.exec(ovSrc);
+          if (oa) {
+            var depth = 0,
+              lit = '';
+            for (var gk = oa.index + oa[0].length - 1; gk < ovSrc.length; gk++) {
+              var gch = ovSrc.charAt(gk);
+              if (gch === '{' || gch === '[' || gch === '(') {
+                depth++;
+                if (depth === 1) continue;
+              } else if (gch === '}' || gch === ']' || gch === ')') {
+                depth--;
+                if (depth === 0) break;
+              }
+              if (depth === 1) lit += gch;
+            }
+            lit.split(',').forEach(function (seg) {
+              var mk = /^\s*([A-Za-z_$][\w$]*)\s*(?::|$)/.exec(seg);
+              if (mk) gNames.push(mk[1]);
+            });
+          }
+          var gReach = gNames.filter(function (nm) {
+            return new RegExp('\\b' + nm.replace(/\$/g, '\\$') + '\\b').test(pxDsp);
+          });
+          T.ok(
+            'F14 · …and no name the module publishes on the global object is read by the DSP',
+            gNames.length >= 10 && gReach.length === 0,
+            gNames.length < 10 ? 'only ' + gNames.length + ' global name(s) extracted — the scan examined almost nothing' : gNames.length + ' published, read: ' + gReach.join(' ')
+          );
+        }
       }
 
       // ── §2 · build.mjs is FORBIDDEN to author the claim; verify-fixtures.mjs is the only writer
@@ -73878,12 +74099,14 @@
         for (const m of html.matchAll(re)) o.push(m[1] || 'neutral');
         return o;
       };
-      var k = kSev(CR.renderKPIs({ metrics: { residualAHI: 3, largeLeakPct: 1, periodicBreathingPct: 1 }, therapyHours: 6, nSessions: 1 }));
+      /* `usageHours` is the POOLED MASK-ON figure the usage tile grades. `therapyHours` is the
+         recording envelope, and the tile states it in the sub. */
+      var k = kSev(CR.renderKPIs({ metrics: { residualAHI: 3, largeLeakPct: 1, periodicBreathingPct: 1, usageHours: 6 }, therapyHours: 6, nSessions: 1 }));
       T.eq('renderKPIs · a good night: AHI 3 ok (lower-better) AND 6 h ok (higher-better) — the polarities are opposite', k[0] + '/' + k[1], 'ok/ok');
-      var kBad = kSev(CR.renderKPIs({ metrics: { residualAHI: 20, largeLeakPct: 1 }, therapyHours: 1, nSessions: 2 }));
+      var kBad = kSev(CR.renderKPIs({ metrics: { residualAHI: 20, largeLeakPct: 1, usageHours: 1 }, therapyHours: 1, nSessions: 2 }));
       T.eq('renderKPIs · a bad night: AHI 20 bad AND 1 h bad — dropping the `lower` flag would make ONE of these read ok', kBad[0] + '/' + kBad[1], 'bad/bad');
-      T.eq('renderKPIs · 3 h therapy is warn (the 4 h adherence edge, 2 h warn edge)', kSev(CR.renderKPIs({ metrics: {}, therapyHours: 3, nSessions: 1 }))[1], 'warn');
-      T.eq('renderKPIs · therapy exactly 4 h is ok — the adherence threshold is inclusive', kSev(CR.renderKPIs({ metrics: {}, therapyHours: 4, nSessions: 1 }))[1], 'ok');
+      T.eq('renderKPIs · 3 h therapy is warn (the 4 h adherence edge, 2 h warn edge)', kSev(CR.renderKPIs({ metrics: { usageHours: 3 }, therapyHours: 3, nSessions: 1 }))[1], 'warn');
+      T.eq('renderKPIs · therapy exactly 4 h is ok — the adherence threshold is inclusive', kSev(CR.renderKPIs({ metrics: { usageHours: 4 }, therapyHours: 4, nSessions: 1 }))[1], 'ok');
       // KPI_CLS remaps the tile wrapper (ok → "good") while the value keeps "ok". Two different
       // vocabularies in one tile; collapsing them would silently unstyle every good KPI.
       var kpiHtml = CR.renderKPIs({ metrics: { residualAHI: 3 }, therapyHours: 6, nSessions: 1 });
@@ -73893,12 +74116,12 @@
         kpiHtml.slice(0, 120)
       );
       // the session count pluralises on ===1; a !== slip reads "1 sessions"
-      T.ok('renderKPIs · 1 session is singular', /1 session</.test(CR.renderKPIs({ metrics: {}, therapyHours: 5, nSessions: 1 })));
-      T.ok('renderKPIs · 2 sessions is plural', /2 sessions</.test(CR.renderKPIs({ metrics: {}, therapyHours: 5, nSessions: 2 })));
+      T.ok('renderKPIs · 1 session is singular', /1 session\b/.test(CR.renderKPIs({ metrics: { usageHours: 5 }, therapyHours: 5, nSessions: 1 })));
+      T.ok('renderKPIs · 2 sessions is plural', /2 sessions\b/.test(CR.renderKPIs({ metrics: { usageHours: 5 }, therapyHours: 5, nSessions: 2 })));
       /* no oximeter ⇒ an HONEST n/a tile, never a 0.0 ODI graded ok.
          §∅ — the sub read "no oximeter" for every absence and now names WHICH one. This night
          carries no session at all, so the lane never ran. The n/a itself is unchanged. */
-      var _noOxi = CR.renderKPIs({ metrics: {}, therapyHours: 5, nSessions: 1 });
+      var _noOxi = CR.renderKPIs({ metrics: { usageHours: 5 }, therapyHours: 5, nSessions: 1 });
       T.ok(
         'renderKPIs · with no oximetry the ODI tile reads an HONEST n/a that names the absence — not a fabricated 0.0/hr',
         /n\/a<\/div>/.test(_noOxi) && /no session recorded/.test(_noOxi),
@@ -73907,7 +74130,7 @@
       // the mode string reaches a tile sub — and goes through esc()
       T.ok(
         'renderKPIs · the device mode string is HTML-escaped on its way to the tile sub',
-        /&lt;b&gt;/.test(CR.renderKPIs({ metrics: {}, therapyHours: 5, nSessions: 1, sessions: [{ mode: '<b>' }] }))
+        /&lt;b&gt;/.test(CR.renderKPIs({ metrics: { usageHours: 5 }, therapyHours: 5, nSessions: 1, sessions: [{ mode: '<b>' }] }))
       );
 
       /* ── cpapClinicalSummary · a SECOND `sev` with a different signature, and the sort that picks
@@ -73923,8 +74146,13 @@
         for (const m of html.matchAll(re)) o.push({ sev: m[1] || 'neutral', val: m[2] });
         return o;
       };
+      /* The export carries BOTH figures. `hours` is the MASK-ON figure the usage tile draws and
+         grades; the envelope rides `recording.therapyHours`. A leg that passes `usageReason`
+         keeps its refusal, because the refusal arm is read first. */
       var summary = function (metrics, hours, extra) {
-        var el = { recording: { startEpochMs: 1, therapyHours: hours }, metrics: metrics || {} };
+        var mm = metrics || {};
+        if (hours != null && mm.usageHours == null && mm.usageReason == null) mm = Object.assign({}, mm, { usageHours: hours });
+        var el = { recording: { startEpochMs: 1, therapyHours: hours }, metrics: mm };
         for (var kk in extra || {}) el[kk] = extra[kk];
         return CR.cpapClinicalSummary({ elements: [el] });
       };
@@ -74017,7 +74245,7 @@
       // …and its higher-better neighbour's warn edge, which runs the other way.
       T.eq(
         'renderKPIs · therapy exactly 2 h is warn, 1.9 h is bad — a higher-better band, same edge logic inverted',
-        kSev4(CR.renderKPIs({ metrics: {}, therapyHours: 2, nSessions: 1 }))[1] + '/' + kSev4(CR.renderKPIs({ metrics: {}, therapyHours: 1.9, nSessions: 1 }))[1],
+        kSev4(CR.renderKPIs({ metrics: { usageHours: 2 }, therapyHours: 2, nSessions: 1 }))[1] + '/' + kSev4(CR.renderKPIs({ metrics: { usageHours: 1.9 }, therapyHours: 1.9, nSessions: 1 }))[1],
         'warn/bad'
       );
 
@@ -74412,9 +74640,13 @@
         for (const m of html.matchAll(/<div class="kpi-sub">([\s\S]*?)<\/div>/g)) o.push(m[1]);
         return o;
       };
+      /* 6.2 h of MASK-ON time, which is what the usage tile draws. A leg passing `usageReason`
+         keeps its refusal, because the tile reads that arm first. */
       var night = function (metrics, sessions) {
         var ss = sessions || [{}, {}];
-        return { metrics: metrics || {}, sessions: ss, nSessions: ss.length, therapyHours: 6.2, t0Ms: 0 };
+        var mm = metrics || {};
+        if (mm.usageHours == null && mm.usageReason == null) mm = Object.assign({}, mm, { usageHours: 6.2 });
+        return { metrics: mm, sessions: ss, nSessions: ss.length, therapyHours: 6.2, t0Ms: 0 };
       };
 
       /* ── the decisive pair · ONE key apart ───────────────────────────────────────────────────
@@ -74502,7 +74734,7 @@
          `night.therapyHours >= 4` graded the envelope. On a night whose usage the DSP refused that
          chip answered a question nobody could measure, in the direction that reads as compliance. */
       var heroRef = CR.renderNight({ metrics: { residualAHI: 3, usageReason: 'no-pressure-channel' }, therapyHours: 6.2, nSessions: 2, t0Ms: 0, sessions: [] });
-      var heroOk = CR.renderNight({ metrics: { residualAHI: 3 }, therapyHours: 6.2, nSessions: 2, t0Ms: 0, sessions: [] });
+      var heroOk = CR.renderNight({ metrics: { residualAHI: 3, usageHours: 6.2 }, therapyHours: 6.2, nSessions: 2, t0Ms: 0, sessions: [] });
       T.ok('heroCard · a refused usage draws no "≥4 h compliant" verdict over the recording envelope', !/≥4 h compliant/.test(heroRef));
       T.ok('heroCard · …it states the refusal instead', /usage unmeasured/.test(heroRef) && /no-pressure-channel/.test(heroRef));
       T.ok('heroCard · …and drops the Usage subscore, which would grade the same envelope again', !/rs-label">Usage</.test(heroRef));
@@ -74569,7 +74801,7 @@
          vs "a pressure/fit review is warranted"), so a widened band does not just mis-colour a number —
          it tells the reader to do the wrong thing. Asserted on both sides of both edges. */
       var hero = function (ahi, extra) {
-        var n = { metrics: { residualAHI: ahi }, therapyHours: 6, nSessions: 1, t0Ms: 0 };
+        var n = { metrics: { residualAHI: ahi, usageHours: 6 }, therapyHours: 6, nSessions: 1, t0Ms: 0 };
         for (var k in extra || {}) n[k] = extra[k];
         return CR.renderNight(n);
       };
@@ -74592,8 +74824,10 @@
 
       /* the compliance chip is a SECOND, independent 4 h threshold (the summary's findings line is the
          first). Both must agree, and >= is inclusive: exactly 4 h is compliant. */
-      T.ok('heroCard · exactly 4 h reads "≥4 h compliant" — the chip threshold is inclusive', /✓ ≥4 h compliant/.test(hero(3, { therapyHours: 4 })));
-      T.ok('heroCard · 3.9 h reads "under 4 h"', /⚠ under 4 h/.test(hero(3, { therapyHours: 3.9 })));
+      /* The chip scores MASK-ON hours, so the override moves `metrics.usageHours`. The recording
+         envelope stays at 6 h in both legs, which is what the old fixture graded. */
+      T.ok('heroCard · exactly 4 h reads "≥4 h compliant" — the chip threshold is inclusive', /✓ ≥4 h compliant/.test(hero(3, { metrics: { residualAHI: 3, usageHours: 4 } })));
+      T.ok('heroCard · 3.9 h reads "under 4 h"', /⚠ under 4 h/.test(hero(3, { metrics: { residualAHI: 3, usageHours: 3.9 } })));
       /* the CA>OA chip: central-predominant events are the clinically notable pattern, so the chip warns
          only when central EXCEEDS obstructive. Equal indices are not a warning. */
       var chipCls = function (html) {
@@ -74752,12 +74986,15 @@
       }
       var _DAY = 86400000;
       // nights are handed in OLDEST-first here; the table must invert them.
+      /* `hours` is the MASK-ON figure: the compliance ratio, the usage trend and each row all
+         score it. The recording envelope runs 30 min longer, so a reader that takes the envelope
+         cannot satisfy these legs. */
       var mkNight = function (dayIdx, hours, ahi, leak, nSess, spo2) {
         return {
           t0Ms: Date.UTC(2026, 0, 1 + dayIdx, 22, 0, 0),
-          therapyHours: hours,
+          therapyHours: hours == null ? null : hours + 0.5,
           nSessions: nSess == null ? 1 : nSess,
-          metrics: { residualAHI: ahi, largeLeakPct: leak },
+          metrics: { residualAHI: ahi, largeLeakPct: leak, usageHours: hours },
           sessions: spo2 ? [{ oximetry: { available: true } }] : [{}]
         };
       };
@@ -74841,8 +75078,8 @@
          absent block cannot show this: `s.oximetry` is already falsy, so dropping the `.available` half
          of the guard changes nothing. Same shape as the oximetryCard case in wave 2 — found by mutation. */
       var _unavail = CR.renderHistory([
-        { t0Ms: 1, therapyHours: 7, nSessions: 1, metrics: {}, sessions: [{ oximetry: { available: false } }] },
-        { t0Ms: 2, therapyHours: 7, nSessions: 1, metrics: {}, sessions: [{ oximetry: { available: false } }] }
+        { t0Ms: 1, therapyHours: 7.5, nSessions: 1, metrics: { usageHours: 7 }, sessions: [{ oximetry: { available: false } }] },
+        { t0Ms: 2, therapyHours: 7.5, nSessions: 1, metrics: { usageHours: 7 }, sessions: [{ oximetry: { available: false } }] }
       ]);
       T.ok(
         "renderHistory · when EVERY night's oximetry is present-but-unavailable, NO row claims SpO₂ ✓ (the .available half of the guard is load-bearing)",
@@ -74857,7 +75094,10 @@
          its EDGES, and not its decimal places. The findings band is a four-way ladder whose text is the
          thing a clinician reads, so each boundary is asserted on both sides. */
       var summ = function (metrics, hours, extra) {
-        var el = { recording: { startEpochMs: 1000, therapyHours: hours == null ? 6 : hours }, metrics: metrics || {} };
+        var hh = hours == null ? 6 : hours;
+        var mm = metrics || {};
+        if (mm.usageHours == null && mm.usageReason == null) mm = Object.assign({}, mm, { usageHours: hh });
+        var el = { recording: { startEpochMs: 1000, therapyHours: hh }, metrics: mm };
         for (var kk in extra || {}) el[kk] = extra[kk];
         return CR.cpapClinicalSummary({ elements: [el] });
       };
