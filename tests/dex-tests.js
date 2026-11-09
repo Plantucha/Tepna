@@ -39381,6 +39381,90 @@
         T.ok('PpgDex ambient is the ambient column, not a leaked PPG channel', a.amb[0] === -130 && b.amb[0] === -130, 'amb=' + a.amb[0] + '/' + b.amb[0]);
       }
     });
+    group('PpgDex §∅ — the ACC parser drops a non-finite y or z and counts it, never pushes NaN', 'ppgdex-dsp · absence · acc-parser', function (T) {
+      var P = env.PPGDSP;
+      if (!P || typeof P.parseSensorXYZ !== 'function') {
+        T.skip('PPGDSP.parseSensorXYZ available', 'PPGDSP not co-loaded in this runner');
+        return;
+      }
+      var HDR = 'Phone timestamp;sensor timestamp [ns];X [mg];Y [mg];Z [mg]\n';
+      // A header is deliberately present. Headerless files resolve columns by the numeric TAIL, which
+      // SHIFTS the axes over a junk field instead of producing NaN — a different defect, not this one.
+      function row(i, y, z) {
+        var ns = 835351535554916992 + i * 20000000;
+        return '2026-06-21T06:05:2' + (i % 10) + '.441;' + ns + ';' + (10 + i) + ';' + y + ';' + z + '\n';
+      }
+      var clean = HDR + row(0, 20, 30) + row(1, 21, 31) + row(2, 22, 32) + row(3, 23, 33);
+      // one non-numeric y, one EMPTY z — both are `parseFloat` NaN, and both were pushed before this fix
+      var dirty = HDR + row(0, 20, 30) + row(1, 'abc', 31) + row(2, 22, '') + row(3, 23, 33);
+      var c = P.parseSensorXYZ(clean),
+        d = P.parseSensorXYZ(dirty);
+
+      // anti-vacuity · the fixture reaches the parser at all, and the clean text is not itself degenerate
+      T.ok('anti-vacuity · the clean 4-row ACC text parses 4 rows', c.length === 4, 'n=' + c.length);
+
+      // control · a clean stream loses nothing and the counter says so
+      var cFinite = c.filter(function (r) {
+        return isFinite(r.x) && isFinite(r.y) && isFinite(r.z);
+      }).length;
+      T.ok('control · every axis of every clean row is finite', cFinite === 4, cFinite + ' of ' + c.length);
+      T.ok('control · a clean stream drops nothing', c._nonFiniteDropped === 0, 'dropped=' + c._nonFiniteDropped);
+      // §∅ — the key is UNCONDITIONAL, so a reader can tell "nothing dropped" from "nobody counted"
+      T.ok(
+        'control · the count is published on a clean stream too, not only when non-zero',
+        Object.prototype.hasOwnProperty.call(c, '_nonFiniteDropped'),
+        'hasOwnProperty=' + Object.prototype.hasOwnProperty.call(c, '_nonFiniteDropped')
+      );
+
+      // the row · `2026-11-08-parsesensorxyz-pushes-y-and-z-without-a-finite-check`
+      T.ok('a non-numeric y and an empty z are DROPPED, not pushed', d.length === 2, 'n=' + d.length);
+      T.ok('…and the drop is COUNTED, so the absence is visible', d._nonFiniteDropped === 2, 'dropped=' + d._nonFiniteDropped);
+      var dNaN = d.filter(function (r) {
+        return !isFinite(r.x) || !isFinite(r.y) || !isFinite(r.z);
+      }).length;
+      T.ok('…and no row the parser returns carries a NaN axis', dNaN === 0, dNaN + ' NaN row(s) of ' + d.length);
+      T.ok(
+        '…and the rows that survive are the two clean ones, not two of four by count',
+        d.length === 2 && d[0].x === 10 && d[1].x === 13,
+        'x=' +
+          JSON.stringify(
+            d.map(function (r) {
+              return r.x;
+            })
+          )
+      );
+
+      // the count claims only what this node checked — the MotionDex twin's `_implausibleDropped`
+      // also holds rows a plausibility test rejected, and PpgDex runs no such test (§∅: name the
+      // reason, never borrow one).
+      T.ok(
+        'the count is NOT published under the twin’s name, which would claim a plausibility check',
+        d._implausibleDropped === undefined,
+        '_implausibleDropped=' + JSON.stringify(d._implausibleDropped)
+      );
+
+      // placement · a refused row must not become the device-counter ORIGIN. The guard sits ahead of
+      // the clock bookkeeping, so `relNs` is measured from the first row the parser kept.
+      var leading = HDR + row(0, 'abc', 30) + row(1, 21, 31) + row(2, 22, 32);
+      var l = P.parseSensorXYZ(leading);
+      T.ok(
+        'a refused LEADING row does not become the relNs origin',
+        l.length === 2 && l[0].relNs === 0 && l[0].x === 11,
+        'n=' + l.length + ' relNs=' + (l[0] ? l[0].relNs : null) + ' x=' + (l[0] ? l[0].x : null)
+      );
+
+      // the fix is in the parser, not in a caller that filters afterwards
+      var psrc = (env.sources || {})['ppgdex-dsp.js'] || '';
+      if (psrc) {
+        T.ok(
+          'parseSensorXYZ itself guards y and z, and publishes the count',
+          /!isFinite\(y\) \|\| !isFinite\(z\)/.test(psrc) && /_nonFiniteDropped = nNonFinite/.test(psrc),
+          'source checked, ' + psrc.length + ' chars'
+        );
+      } else {
+        T.skip('ppgdex-dsp.js source available to this runner', 'env.sources has no ppgdex-dsp.js');
+      }
+    });
 
     // A replicated channel must never manufacture optical agreement. Our capture host fans the
     // O2Ring's SINGLE finger pleth across ppg0/1/2 so it routes through the Polar PSL layout with no

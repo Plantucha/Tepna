@@ -4300,6 +4300,7 @@
       segBaseNs = 0,
       prevRelNs = NaN;
     const resyncs = [];
+    let nNonFinite = 0;
     for (const line of lines) {
       const t = line.trim();
       if (!t) continue;
@@ -4313,6 +4314,23 @@
       if (!c) continue;
       const x = parseFloat(p[c.x]);
       if (!isFinite(x)) continue;
+      const y = parseFloat(p[c.y]),
+        z = parseFloat(p[c.z]);
+      /* §∅ — DROP AND COUNT, NEVER CLAMP, AND NEVER PUSH A NaN. `x` was finite-checked
+         one line up since this parser was written; `y` and `z` were not, so a non-numeric or empty
+         field entered the series as NaN and every consumer saw a sample the device never sent. Row
+         `2026-11-08-parsesensorxyz-pushes-y-and-z-without-a-finite-check` owns that defect. The
+         remedy is MotionDex's in `parseSensorXYZ` of the same name: drop the row and count it, because
+         a clamped sample is a fabricated reading at the bound.
+         ⚠️ THE COUNT IS A DIFFERENT COUNT FROM THE TWIN'S. MotionDex publishes
+         `_implausibleDropped`, which also holds rows a plausibility test rejected. This node runs no
+         plausibility test, so it publishes `_nonFiniteDropped` and claims only what it checked.
+         ⚠️ THE GUARD SITS AHEAD OF THE CLOCK BOOKKEEPING, as the twin's does. A row we
+         refuse must not inform resync detection or `firstRowTMs`. */
+      if (!isFinite(y) || !isFinite(z)) {
+        nNonFinite++;
+        continue;
+      }
       let relNs = NaN;
       const ts = parseTimestamp(p[c.phone >= 0 ? c.phone : 0]);
       try {
@@ -4349,9 +4367,12 @@
         if (firstRowTMs === null) firstRowTMs = ts.tMs;
         prevRowTMs = ts.tMs;
       }
-      out.push({ relNs, tMs: ts ? ts.tMs : null, x, y: parseFloat(p[c.y]), z: parseFloat(p[c.z]) });
+      out.push({ relNs, tMs: ts ? ts.tMs : null, x, y, z });
     }
     if (resyncs.length) /** @type {any} */ (out)._clockResyncs = resyncs;
+    /* Unconditional, like the twin's `_implausibleDropped`: a reader must tell "nothing was dropped"
+       from "this parser does not count", and a key that appears only when non-zero cannot. */
+    /** @type {any} */ (out)._nonFiniteDropped = nNonFinite;
     const _accRuns = parseAccRunsTimed(opts && opts.runsText);
     /* §∅ — A SIDECAR THAT FOUND NO RUN IS A MEASUREMENT, AND ITS ABSENCE IS NOT. Spans alone
        cannot carry that difference, so `_runsSidecar` rides beside them and is present exactly when a

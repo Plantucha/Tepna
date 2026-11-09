@@ -3155,3 +3155,154 @@ def test_controller_self_ended_stream_survives_a_disconnect_that_raises():
         assert (await c.op("stop")) == {"ok": True, "streaming": False}
 
     _run(go())
+
+
+# ── EVERY POST-CONNECT GATT AWAIT ON THE CPAP PATH IS BOUNDED ────────────────────
+# Residue 2026-11-08-the-cpap-connect-path-awaits-gatt-setup-unbounded. `start_notify` and the two ATT
+# writes inside the `write` closure were bare, so a BlueZ wedge that accepted the LE connection and then
+# stalled held the AS11 session at `connected=True` with no data and no error — the exact freeze
+# `_bounded_setup` exists to stop, on the one path that never called it.
+#
+# 🔴 THE BOUND IS MONKEYPATCHED, NOT WAITED OUT, and that is what makes these tests MEASURE the wrap.
+# Each one shrinks `_BLE_SETUP_TIMEOUT_S` to 10 ms and makes the fake stall for 0.5 s. Remove a wrap and
+# the fake returns after half a second, no `TimeoutError` is raised, and the test reds promptly instead
+# of hanging the suite. It also pins WHICH constant each site reads, because `_bounded_setup` resolves
+# the module global on every call.
+_STALL_S = 0.5  # 50x the patched bound, short enough that a planted regression reds in half a second
+
+
+class _StallsOnNotifyBleak(_FakeBleak):
+    """Accepts the link, publishes a complete tree, then never finishes StartNotify."""
+
+    async def start_notify(self, uuid, cb):
+        await asyncio.sleep(_STALL_S)
+        await super().start_notify(uuid, cb)
+
+
+class _StallsOnWriteBleak(_FakeBleak):
+    """Accepts the link and the notify, then stalls on the `stall_on`-th ATT write (1-based)."""
+
+    stall_on = 1
+
+    async def write_gatt_char(self, uuid, chunk, response=True):
+        if len(self.written) + 1 == self.stall_on:
+            await asyncio.sleep(_STALL_S)
+        await super().write_gatt_char(uuid, chunk, response=response)
+
+
+class _UnmeasuredMtuStallBleak(_StallsOnWriteBleak):
+    """`mtu_size` None, which is the one state that leaves `step` None and takes the single-write arm.
+
+    Absent rather than 0: `mtu_size = 0` still yields `step = max(20, -3)` and the CHUNK loop, so a
+    fake that used 0 would have tested one line twice and left the other arm bare. Set in `__init__`
+    because `_FakeBleak.__init__` assigns `self.mtu_size = 100`, which shadows any class attribute."""
+
+    def __init__(self, *a, **kw):
+        super().__init__(*a, **kw)
+        self.mtu_size = None
+
+
+def _bound_at_10ms(monkeypatch, fake):
+    """Patch bleak to `fake`, shrink the shared setup bound to 10 ms, and hand back the module."""
+    import bleak
+    import capture
+
+    _FakeBleak.instances.clear()
+    monkeypatch.setattr(bleak, "BleakClient", fake)
+    monkeypatch.setattr(capture, "_BLE_SETUP_TIMEOUT_S", 0.01)
+    return capture
+
+
+def test_A_STALLED_START_NOTIFY_RAISES_RATHER_THAN_FREEZING_THE_SESSION(monkeypatch):
+    capture = _bound_at_10ms(monkeypatch, _StallsOnNotifyBleak)
+    with pytest.raises(TimeoutError):
+        _run(capture._cpap_ble_connect("04:CD:15:3A:0B:BD", "hci1"))
+
+
+def test_A_STALLED_SETUP_CLOSES_THE_LINK_RATHER_THAN_LEAKING_IT(monkeypatch):
+    """The leak guard's whole point. A raise between `connect()` and the return leaves a connected
+    peripheral that stops advertising, which wedged the detector for 27 minutes on 2026-08-25. A
+    timeout is one more raise, so it must reach the same guard."""
+    capture = _bound_at_10ms(monkeypatch, _StallsOnNotifyBleak)
+    with pytest.raises(TimeoutError):
+        _run(capture._cpap_ble_connect("04:CD:15:3A:0B:BD", "hci1"))
+    assert not _FakeBleak.instances[-1].connected, "the guard closed the wedged link"
+
+
+def test_A_STALLED_SETUP_IS_NOT_THE_2170_RETRY_CLASS_SO_IT_CONNECTS_ONCE(monkeypatch):
+    """`retry_missing_char` fires on `BleakCharacteristicNotFoundError` BY NAME. A timeout is another
+    failure, and a second connect to a wedged adapter buys a second wedge."""
+    capture = _bound_at_10ms(monkeypatch, _StallsOnNotifyBleak)
+    with pytest.raises(TimeoutError):
+        _run(capture._cpap_ble_connect("04:CD:15:3A:0B:BD", "hci1"))
+    assert len(_FakeBleak.instances) == 1, "one connect, no retry"
+
+
+def test_A_TIMEOUT_IS_AN_OSERROR_SO_THE_SHADOW_LOOP_ALREADY_RECORDS_IT(monkeypatch):
+    """This fix owes no new handler, and that claim is checked on the RAISED object rather than on the
+    class tree. The shadow loop catches `(OSError, As11Error)`, so a wedge is counted, journalled and
+    visible as an ordinary poll failure instead of escaping unclassified."""
+    capture = _bound_at_10ms(monkeypatch, _StallsOnNotifyBleak)
+    with pytest.raises(OSError) as caught:
+        _run(capture._cpap_ble_connect("04:CD:15:3A:0B:BD", "hci1"))
+    assert isinstance(caught.value, asyncio.TimeoutError)
+
+
+def test_A_STALLED_ATT_WRITE_RAISES_OUT_OF_THE_WRITE_CLOSURE(monkeypatch):
+    """The closure outlives this function and carries every AS11 command, so its bound protects an
+    ESTABLISHED session rather than a connecting one."""
+    capture = _bound_at_10ms(monkeypatch, _StallsOnWriteBleak)
+
+    async def go():
+        write, _recv, _disc = await capture._cpap_ble_connect("04:CD:15:3A:0B:BD", "hci1")
+        with pytest.raises(TimeoutError):
+            await write(b"x" * 10)
+
+    _run(go())
+
+
+def test_EVERY_CHUNK_OF_A_SPLIT_FRAME_CARRIES_ITS_OWN_BOUND(monkeypatch):
+    """A wrap on the first write only would let a wedge on a later chunk freeze the session just as
+    well. MTU 100 gives step 97, so a 250-byte frame is three writes and the third one stalls."""
+    capture = _bound_at_10ms(monkeypatch, _StallsOnWriteBleak)
+    monkeypatch.setattr(_StallsOnWriteBleak, "stall_on", 3)
+
+    async def go():
+        write, _recv, _disc = await capture._cpap_ble_connect("04:CD:15:3A:0B:BD", "hci1")
+        with pytest.raises(TimeoutError):
+            await write(b"x" * 250)
+        assert len(_FakeBleak.instances[-1].written) == 2, "the two healthy chunks went out first"
+
+    _run(go())
+
+
+def test_THE_UNMEASURED_MTU_SINGLE_WRITE_IS_BOUNDED_TOO(monkeypatch):
+    """A link whose MTU was never measured refuses a frame over 20 bytes and writes a smaller one
+    whole. That single write is its own line, and it was bare as well."""
+    capture = _bound_at_10ms(monkeypatch, _UnmeasuredMtuStallBleak)
+
+    async def go():
+        write, _recv, _disc = await capture._cpap_ble_connect("04:CD:15:3A:0B:BD", "hci1")
+        with pytest.raises(TimeoutError):
+            await write(b"x" * 8)
+
+    _run(go())
+
+
+def test_A_HEALTHY_CONNECT_AND_WRITE_ARE_UNCHANGED_UNDER_THE_REAL_BOUND(monkeypatch):
+    """The bound refuses a wedge and costs a healthy link nothing. Run against the UNPATCHED 10 s
+    constant, so a wrap that swallowed the call or re-chunked the frame reds here."""
+    import bleak
+    import capture
+
+    _FakeBleak.instances.clear()
+    monkeypatch.setattr(bleak, "BleakClient", _FakeBleak)
+
+    async def go():
+        write, _recv, _disc = await capture._cpap_ble_connect("04:CD:15:3A:0B:BD", "hci1")
+        client = _FakeBleak.instances[-1]
+        assert client.notify_cb is not None, "the notify survived its wrap"
+        await write(b"y" * 250)
+        assert b"".join(client.written) == b"y" * 250 and len(client.written) == 3
+
+    _run(go())
