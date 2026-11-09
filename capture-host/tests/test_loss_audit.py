@@ -990,7 +990,14 @@ def test_audit_night_carries_the_wear_block_per_device(tmp_path):
     a = loss_audit.audit_night(str(d), DEV, journal=lambda *a: [])
     assert a["devices"]["Polar H10 0284"]["wear"]["worn_end"]["reason"] == "doff"
     # the configured address reaches the WORN.csv reader; a device the config gives none asks nothing
-    _worn_csv(d, [("2026-09-20T22:16:00.000", "AA:BB:CC:DD:EE:01", "0", "not worn per hr-contact-bit")])
+    # a worn decision first: a file whose decisions hold no wear is not worn (WEAR_SUSTAIN_S)
+    _worn_csv(
+        d,
+        [
+            ("2026-09-20T22:00:00.000", "AA:BB:CC:DD:EE:01", "1", "worn per hr-contact-bit"),
+            ("2026-09-20T22:16:00.000", "AA:BB:CC:DD:EE:01", "0", "not worn per hr-contact-bit"),
+        ],
+    )
     assert "daemon_worn" not in a["devices"]["Polar H10 0284"]["wear"]["ends"][0]
     dev = [{**DEV[0], "address": "AA:BB:CC:DD:EE:01"}]
     (e,) = loss_audit.audit_night(str(d), dev, journal=lambda *a: [])["devices"]["Polar H10 0284"]["wear"]["ends"]
@@ -4792,6 +4799,186 @@ def test_A_LINK_LOSS_FOLLOWED_BY_AN_UNWORN_RELINK_IS_A_DOFF(tmp_path):
     w = loss_audit.wear_ends(str(d), "VeritySense")
     assert [e["reason"] for e in w["ends"]] == ["link-loss", "quiet-end-unclassified"], w["ends"]
     assert "doff_witness" not in w["ends"][0]
+
+
+# ── ONE WEAR RULE (owner 2026-11-09): the daemon's decisions decide which files hold a wear ──────────
+_WT = dt.datetime(2026, 9, 23, 23, 0, 0)
+
+
+def _dw(sec, worn, charging=None):
+    """One daemon decision row `(stamp, worn, why, charging)`, `sec` seconds after 23:00:00."""
+    return (_WT + dt.timedelta(seconds=sec), worn, "why", charging)
+
+
+def _wear(rows, end_s):
+    return loss_audit.daemon_wear_in_file(rows, _WT, _WT + dt.timedelta(seconds=end_s))
+
+
+def test_a_wear_starts_only_after_five_minutes_of_worn_decisions():
+    """CENSUS 2026-11-09: a Verity on the desk or the charger read worn for 2.0 min at most. The
+    rule needs 300 s. Exactly 300 s is a wear; 299 s is not."""
+    assert loss_audit.WEAR_SUSTAIN_S == 300.0
+    assert _wear([_dw(0, True), _dw(300, False)], 900)["wear"] is True
+    assert _wear([_dw(0, True), _dw(299, False)], 900) == {
+        "wear": False,
+        "decisions": 2,
+        "ended_at": None,
+        "ended_by": None,
+    }
+    # each decision holds to the next one: two short worn runs split by a not-worn decision are no wear
+    assert _wear([_dw(0, True), _dw(200, False), _dw(260, True), _dw(500, False)], 900)["wear"] is False
+    # the last decision holds to the file end
+    assert _wear([_dw(0, False), _dw(600, True)], 900)["wear"] is True
+    assert _wear([_dw(0, False), _dw(601, True)], 900)["wear"] is False
+
+
+def test_a_decision_on_the_charger_is_never_a_wear_and_ends_one_at_once():
+    """OWNER 2026-11-09: a sensor on the charger is not judged, whatever the link does."""
+    assert _wear([_dw(0, True, True)], 3600)["wear"] is False
+    assert _wear([_dw(0, None, True)], 3600) == {"wear": False, "decisions": 1, "ended_at": None, "ended_by": None}
+    # a short worn read between two charger reads does not reopen the wear
+    w = _wear([_dw(0, True), _dw(400, True, True), _dw(420, True), _dw(480, False, True)], 3600)
+    assert (w["wear"], w["ended_at"], w["ended_by"]) == (True, "2026-09-23T23:06:40", "charger")
+    # a full wear after the charger is the last wear, and the charger before it ends nothing
+    w = _wear([_dw(0, True), _dw(400, True, True), _dw(420, True)], 3600)
+    assert (w["wear"], w["ended_at"]) == (True, None)
+    w = _wear([_dw(0, True, False)], 3600)
+    assert (w["wear"], w["ended_by"]) == (True, None)
+
+
+def test_five_minutes_of_not_worn_decisions_end_a_wear_at_their_first_stamp():
+    w = _wear([_dw(0, True), _dw(400, False), _dw(700, True)], 900)
+    assert (w["ended_at"], w["ended_by"]) == ("2026-09-23T23:06:40", "not-worn")
+    w = _wear([_dw(0, True), _dw(400, False), _dw(699, True)], 900)
+    assert (w["ended_at"], w["ended_by"]) == (None, None)
+    # two short not-worn runs split by a worn decision do not add up
+    w = _wear([_dw(0, True), _dw(400, False), _dw(600, True), _dw(610, False), _dw(800, True)], 900)
+    assert w["ended_at"] is None
+    # a not-worn run BEFORE the wear started ends nothing
+    w = _wear([_dw(0, False), _dw(400, True)], 900)
+    assert (w["wear"], w["ended_at"]) == (True, None)
+
+
+def test_an_abstention_is_no_decision():
+    """176 Hz has no worn detector in domain, and the daemon abstains. An abstention neither starts,
+    breaks nor ends a wear: the decision before it holds. A span of abstentions alone is unchanged."""
+    assert _wear([_dw(0, None), _dw(100, None)], 900) is None
+    assert _wear([], 900) is None
+    assert _wear([_dw(0, True), _dw(100, None)], 900)["wear"] is True
+    w = _wear([_dw(0, True), _dw(400, None), _dw(500, False), _dw(600, None)], 799)
+    assert (w["decisions"], w["ended_at"]) == (2, None)
+    w = _wear([_dw(0, True), _dw(400, None), _dw(500, False), _dw(600, None)], 800)
+    assert w["ended_at"] == "2026-09-23T23:08:20", "the not-worn decision holds through the abstention"
+    # rows outside the span are not read
+    out = [_dw(-10, True), _dw(1000, False)]
+    assert _wear(out, 900) is None
+
+
+def _end(name, end_at, reason="quiet-end-unclassified", usable=True):
+    return {"file": name, "end_at": end_at, "worn_end_at": end_at, "usable": usable, "reason": reason}
+
+
+def test_apply_daemon_wear_excludes_a_file_with_no_wear_and_moves_an_ended_wear():
+    night = _end("Polar_VeritySense_ABCD0001_20260923230000_PPG.txt", "2026-09-24T04:00:00", "link-loss")
+    desk = _end("Polar_VeritySense_ABCD0001_20260924070000_PPG.txt", "2026-09-24T08:00:00", "link-loss")
+    bare = _end("Polar_VeritySense_ABCD0001_20260924090000_PPG.txt", "2026-09-24T09:30:00")
+    gone = _end("Polar_VeritySense_ABCD0001_20260924100000_PPG.txt", "2026-09-24T10:30:00", "link-loss", False)
+    odd = _end("not-a-capture.txt", "2026-09-24T11:00:00")
+    d = dt.datetime(2026, 9, 24)
+    rows = [
+        (_WT, True, "w", False),
+        (d.replace(hour=3, minute=30), False, "n", False),
+        (d.replace(hour=7, minute=0, second=5), False, "n", True),
+        (d.replace(hour=7, minute=1), True, "w", None),  # one short worn read on the desk
+        (d.replace(hour=7, minute=2), False, "n", None),
+        (d.replace(hour=10, minute=5), False, "n", None),
+    ]
+    ends = [night, desk, bare, gone, odd]
+    loss_audit.apply_daemon_wear(ends, rows)
+    assert (night["usable"], night["worn_end_at"], night["reason"], night["doff_witness"]) == (
+        True,
+        "2026-09-24T03:30:00",
+        "doff",
+        "daemon-not-worn",
+    )
+    assert desk["usable"] is False and desk["daemon_no_wear"] is True, desk
+    assert desk["reason"] == "not worn: no 300 s worn run in the daemon's 3 decisions"
+    assert bare == _end(bare["file"], "2026-09-24T09:30:00"), "no decision in its span: unchanged"
+    assert "daemon_no_wear" not in gone and gone["reason"] == "link-loss", "an unusable end is not read"
+    assert odd == _end("not-a-capture.txt", "2026-09-24T11:00:00")
+    # an existing doff keeps its own witness, and a later daemon end never moves the end later
+    kept = _end("Polar_VeritySense_ABCD0001_20260923230000_PPG.txt", "2026-09-24T04:00:00", "doff")
+    kept["worn_end_at"] = "2026-09-24T02:00:00"
+    kept["doff_witness"] = "pulse-tail"
+    loss_audit.apply_daemon_wear([kept], rows)
+    assert (kept["worn_end_at"], kept["doff_witness"]) == ("2026-09-24T02:00:00", "pulse-tail")
+    early = _end("Polar_VeritySense_ABCD0001_20260923230000_PPG.txt", "2026-09-24T04:00:00", "doff")
+    early["doff_witness"] = "pulse-tail"
+    loss_audit.apply_daemon_wear([early], rows)
+    assert (early["worn_end_at"], early["reason"], early["doff_witness"]) == (
+        "2026-09-24T03:30:00",
+        "doff",
+        "pulse-tail",
+    )
+
+
+def _wear_csv(d, rows):
+    """`WORN.csv` with the votes column: `rows` = (stamp, address, worn cell, why, votes)."""
+    with open(d / "WORN.csv", "w", encoding="utf-8") as fh:
+        fh.write("Phone timestamp;device;address;worn;why;trigger;votes\n")
+        for t, addr, cell, why, votes in rows:
+            fh.write(f"{t};Polar Sense ABCD0001;{addr};{cell};{why};change;{votes}\n")
+
+
+def test_daemon_wear_rows_read_the_charging_vote(tmp_path):
+    me = "AA:BB:CC:DD:EE:01"
+    d = tmp_path / "captures" / "2026-09-23"
+    d.mkdir(parents=True)
+    _wear_csv(
+        d,
+        [
+            ("2026-09-23T23:00:00", me, "1", "w", "charging=False,fs=176"),
+            ("2026-09-23T23:01:00", me, "0", "n", "fs=176,charging=True"),
+            ("2026-09-23T23:02:00", me, "", "a", "fs=176"),
+            ("2026-09-23T23:03:00", me, "0", "n", "charging=maybe"),
+        ],
+    )
+    rows = loss_audit.daemon_worn_rows(str(d), me)
+    assert [r[3] for r in rows] == [False, True, None, None]
+    assert loss_audit.daemon_worn_rows(str(tmp_path), me) is None
+    # a file without the votes column still reads, with no charging vote
+    with open(d / "WORN.csv", "w", encoding="utf-8") as fh:
+        fh.write("Phone timestamp;address;worn;why\n2026-09-23T23:00:00;" + me + ";1;w\n")
+    assert loss_audit.daemon_worn_rows(str(d), me) == [(dt.datetime(2026, 9, 23, 23), True, "w", None)]
+
+
+def test_A_DESK_FILE_WITH_NO_WEAR_CANNOT_SET_THE_WORN_END(tmp_path):
+    """MEASURED on the capture box, night 2026-11-08: the Verity came off at 04:15. Seven charger and desk
+    files followed it, in SDK mode with no PPI, and the latest one, a link-loss at 10:54, set the worn end:
+    the night went UNKNOWN. The daemon read each of them not worn. Its shape here: a worn file, then an
+    unworn file on the charger with no PPI."""
+    me = "AA:BB:CC:DD:EE:01"
+    d = tmp_path / "captures" / "2026-09-23"
+    d.mkdir(parents=True)
+    worn = d / "Polar_VeritySense_0C30_20260923230000_PPG.txt"
+    _ppg(str(worn), 370, 20, lambda t: 37.0)  # flat to its end: no removal signature
+    off = d / "Polar_VeritySense_0C30_20260923230630_PPG.txt"
+    _ppg(str(off), 400, 20, lambda t: 37.0, t0=W0 + dt.timedelta(seconds=390))
+    _wear_csv(
+        d,
+        [
+            ("2026-09-23T23:00:00", me, "1", "worn", "charging=False"),
+            ("2026-09-23T23:06:31", me, "0", "not worn — on charger", "charging=True"),
+        ],
+    )
+    before = loss_audit.wear_ends(str(d), "VeritySense")
+    assert before["worn_end"]["file"] == off.name, "without the address the rule does not run"
+    w = loss_audit.wear_ends(str(d), "VeritySense", me)
+    first, second = w["ends"]
+    assert second["usable"] is False and second["daemon_no_wear"] is True, second
+    assert (first["reason"], first["doff_witness"]) == ("doff", f"relink-not-worn: {off.name}"), first
+    assert w["worn_end"] == {"at": first["worn_end_at"], "reason": "doff", "file": worn.name}
+    assert first["daemon_worn"]["worn"] is True
 
 
 def test_only_the_next_file_witnesses_a_link_loss():
