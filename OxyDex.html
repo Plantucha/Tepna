@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="76fe4ffba961" data-compute-hash="59cc4ef3214d">
+<html lang="en" data-manifest-hash="9864d6b812cb" data-compute-hash="87f661f51bfe">
 <head>
 <!--
   OxyDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-3+T/ar3EZVk36//Zv52rHgbUF+4QZZdJyqAYvpowbmk=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CNkm2h+ZlrSYYzoGx9OxoFo/k2UmcAbaZ9Bd72GM4as=' 'sha256-D0YR9+62Fd3hUFRoEZhA/MkKslQirmZQg7KMBHKpICk=' 'sha256-E1IsN6aDCUvHb/53fIyPoB7AQMLdRp5olYowv/ZbZ6A=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-OlU0jGA0OnZ42Fdafhb1v9ikML39C1Hlaiwi6Hnx54g=' 'sha256-PGmJfjKvZ0eLaZTiqVcM0VxIeXgD+SiyMgKjojYvRX0=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-QyURGUmKmbpEGz6vtt+poPueeRE901i4IjiyZIbxJNo=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-XqyVux6nZ1GoEpXw5HlJF6/fUCrzC+aJ4dGKEuYCK0w=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-hCZmwNAMDLPZEMYHAYpzoPETSnimg1oHWWjZImdKqxM=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-kzGgQ7EzoCWVvDQaG8s4RmqnT225dpU16CXwDogOIVw=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-s5jQgZ2dCmcNdTTy5gLqyiwkCVbXvuldnqeO/1M79kk=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-3+T/ar3EZVk36//Zv52rHgbUF+4QZZdJyqAYvpowbmk=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CNkm2h+ZlrSYYzoGx9OxoFo/k2UmcAbaZ9Bd72GM4as=' 'sha256-D0YR9+62Fd3hUFRoEZhA/MkKslQirmZQg7KMBHKpICk=' 'sha256-E1IsN6aDCUvHb/53fIyPoB7AQMLdRp5olYowv/ZbZ6A=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-PGmJfjKvZ0eLaZTiqVcM0VxIeXgD+SiyMgKjojYvRX0=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-QyURGUmKmbpEGz6vtt+poPueeRE901i4IjiyZIbxJNo=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-XqyVux6nZ1GoEpXw5HlJF6/fUCrzC+aJ4dGKEuYCK0w=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-fHhzdzpcyyDp2wZahreASbSqNTutakABREfHNTgRsvk=' 'sha256-hCZmwNAMDLPZEMYHAYpzoPETSnimg1oHWWjZImdKqxM=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-kzGgQ7EzoCWVvDQaG8s4RmqnT225dpU16CXwDogOIVw=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-s5jQgZ2dCmcNdTTy5gLqyiwkCVbXvuldnqeO/1M79kk=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>OxyDex — Nocturnal Oximetry Analyzer · v2.29.0</title>
@@ -11028,7 +11028,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       label: 'CS Score',
       unit: '/3',
       goodDirection: 'down',
-      depth: 'secondary',
+      depth: 'advanced',
       evidence: 'experimental',
       cite: 'Constructed 0-3 indicator count for CSR-like breathing (cycle 40-130 s + BLUNTED_AROUSAL + CRC<0.2 + low-ODI/high-PB). Not a likelihood and not validated: night-level agreement with CPAP PB scoring was kappa -0.039'
     },
@@ -11044,7 +11044,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       label: 'Clustering Index',
       unit: '',
       goodDirection: 'down',
-      depth: 'secondary',
+      depth: 'advanced',
       evidence: 'heuristic',
       cite: 'Fraction of desaturation nadirs in the second half of the recording; the >0.6 / <0.4 reading is a rule of thumb'
     },
@@ -11052,7 +11052,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       label: 'Desaturation Asymmetry',
       unit: 'ratio',
       goodDirection: 'down',
-      depth: 'secondary',
+      depth: 'advanced',
       evidence: 'heuristic',
       cite: "|mean dip slope| / |mean recovery slope| (oxydex-dsp.js:2360); the >1.5 abrupt / <0.7 gradual bands are this suite's own"
     },
@@ -11060,7 +11060,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       label: 'Dip Slope',
       unit: '%/s',
       goodDirection: 'up',
-      depth: 'secondary',
+      depth: 'advanced',
       evidence: 'heuristic',
       cite: 'Mean rate of fall from baseline to nadir, negative %/s — descriptive of the detected event set, no validated cut'
     },
@@ -11076,7 +11076,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       label: 'HR CV',
       unit: '%',
       goodDirection: 'down',
-      depth: 'secondary',
+      depth: 'advanced',
       evidence: 'heuristic',
       cite: 'SD/mean x100 of motion-free HR — an SDNN proxy normalised by rate, not an HRV standard'
     },
@@ -11092,7 +11092,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       label: 'HR Nadir Timing',
       unit: 'h',
       goodDirection: '',
-      depth: 'secondary',
+      depth: 'advanced',
       evidence: 'measured',
       cite: "Ground (Kestrel, 2026-09-02): registry precedent `minSpo2` ('lowest recorded — direct reading'); the 5-min smoothing window is named above and does not make the readout a threshold. Hour from recording start of the lowest 5-min smoothed HR — a readout of sensed HR, no model"
     },
@@ -11116,7 +11116,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       label: 'Intra-Night NSI',
       unit: '',
       goodDirection: 'down',
-      depth: 'secondary',
+      depth: 'advanced',
       evidence: 'experimental',
       cite: 'The Nocturnal Stress Index computed over three 90-min epochs — a bespoke composite, per-epoch'
     },
@@ -11132,7 +11132,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       label: 'Longest Clean Run',
       unit: 'min',
       goodDirection: 'up',
-      depth: 'secondary',
+      depth: 'advanced',
       evidence: 'heuristic',
       cite: 'Longest uninterrupted run of SpO2 > 95% (oxydex-dsp.js:1481) — a single tuned threshold; it does not test motion or artifact flags'
     },
@@ -11140,7 +11140,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       label: 'MODL',
       unit: '%',
       goodDirection: 'up',
-      depth: 'secondary',
+      depth: 'advanced',
       evidence: 'measured',
       cite: "Ground (Kestrel, 2026-09-02): registry precedent `nadirDepth` ('mean depth of those nadirs, in the sensed unit', measured) — a mean of sensed values over a threshold-defined set; the threshold belongs to the DETECTION metric (odi3), not to the mean. Mean SpO2 of samples inside detected desaturation events — a readout of sensed SpO2 over the detected set"
     },
@@ -11148,7 +11148,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       label: 'Motion Bursts',
       unit: 'count',
       goodDirection: 'down',
-      depth: 'secondary',
+      depth: 'advanced',
       evidence: 'heuristic',
       cite: 'Count of motion runs lasting >=3 consecutive samples (oxydex-dsp.js:1465) — a tuned minimum length'
     },
@@ -11164,7 +11164,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       label: 'Post-Dip HR Response',
       unit: 'bpm',
       goodDirection: 'up',
-      depth: 'secondary',
+      depth: 'advanced',
       evidence: 'measured',
       cite: 'Mean HR difference between each desaturation nadir and 60 s later — a difference of sensed HR at defined offsets'
     },
@@ -11196,7 +11196,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       label: 'Recovery Slope',
       unit: '%/s',
       goodDirection: 'up',
-      depth: 'secondary',
+      depth: 'advanced',
       evidence: 'heuristic',
       cite: 'Mean rate of resaturation from nadir to event close — descriptive of the detected event set'
     },
@@ -11204,7 +11204,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       label: 'Sleep Pressure Index (SPI)',
       unit: '',
       goodDirection: 'down',
-      depth: 'secondary',
+      depth: 'advanced',
       evidence: 'experimental',
       cite: 'Ground (Kestrel, 2026-09-02): §🎫 composite→experimental. Weighted composite of WASO (0.4), motion bursts (0.15) and sleep-onset latency — a bespoke construction with authored weights'
     },
@@ -11228,7 +11228,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       label: 'SpO₂ Nadir Timing',
       unit: 'h',
       goodDirection: '',
-      depth: 'secondary',
+      depth: 'advanced',
       evidence: 'measured',
       cite: 'Hours from recording start of the first and last detected desaturation nadir — a readout of event times'
     },
@@ -11244,7 +11244,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       label: 'SpO₂–HR Decoupling %',
       unit: '%',
       goodDirection: 'down',
-      depth: 'secondary',
+      depth: 'advanced',
       evidence: 'experimental',
       cite: 'Percentage of 30-s windows in which SpO2 and HR move in opposite directions (oxydex-dsp.js:1654) — a constructed agreement statistic, not a sensed quantity'
     },
@@ -11260,7 +11260,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       label: 'Stable SpO₂ Windows',
       unit: 'count',
       goodDirection: 'up',
-      depth: 'secondary',
+      depth: 'advanced',
       evidence: 'heuristic',
       cite: 'Count of 5-min windows with SpO2 SD < 1% (oxydex-dsp.js:1566) — a single tuned threshold'
     },
@@ -11268,7 +11268,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       label: 'UARS Score',
       unit: '/3',
       goodDirection: 'down',
-      depth: 'secondary',
+      depth: 'advanced',
       evidence: 'experimental',
       cite: 'Constructed 0-3 indicator count for upper-airway resistance (cycle <40 s + AAI>=3 + low-ODI/oscillations + SFI>=2). Not a likelihood and not validated'
     },
@@ -11276,7 +11276,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       label: 'Vagal Index',
       unit: '',
       goodDirection: 'up',
-      depth: 'secondary',
+      depth: 'advanced',
       evidence: 'experimental',
       cite: 'Ground (Kestrel, 2026-09-02): §🎫 composite→experimental. Weighted composite of pNN3, HR floor and longest clean run — a bespoke construction with authored weights'
     },
@@ -11284,7 +11284,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       label: 'Worst 10-min SpO₂',
       unit: '%',
       goodDirection: 'up',
-      depth: 'secondary',
+      depth: 'advanced',
       evidence: 'measured',
       cite: 'Lowest mean SpO2 over any 10-min sliding window — a readout of sensed SpO2'
     },
@@ -11292,7 +11292,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       label: 'Worst 30-min T95',
       unit: '%',
       goodDirection: 'down',
-      depth: 'secondary',
+      depth: 'advanced',
       evidence: 'heuristic',
       cite: 'Highest T95 over any 30-min rolling window; T95 itself is a threshold statistic (time below 95%)'
     }
