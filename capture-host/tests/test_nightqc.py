@@ -742,6 +742,16 @@ def test_summarize_puts_an_SDK_mode_ppi_in_not_served_not_missing(tmp_path, hz, 
         assert s["not_served"] == ["Sense:ppi (SDK mode: PPG started above 55 Hz)"]
 
 
+def test_summarize_counts_the_streams_after_an_SDK_mode_ppi(tmp_path):
+    """A stream that the device does not serve is skipped, and the streams after it still count."""
+    night = str(tmp_path / "2026-07-19")
+    os.makedirs(night)
+    _cap(night, "Polar_Sense_ABCD0001_20260719220000_PPG.txt", 100)
+    _pmdneg(night, 176)
+    s = nightqc.summarize(night, [{"name": "Sense", "device_id": "ABCD0001", "streams": ["ppi", "ppg"]}])
+    assert s["devices"][0]["streams"] == {"ppi": 0, "ppg": 100}, s["devices"][0]["streams"]
+
+
 def test_summarize_a_NON_optional_absence_still_fails(tmp_path, _tz):
     night = str(tmp_path / "2026-07-19")
     os.makedirs(night)
