@@ -673,6 +673,7 @@ first — this index maps the ~60 *markdown* docs; the block below surfaces the 
 | [`PROFILE-DOM-READ-AUDIT-BRIEF.md`](briefs/PROFILE-DOM-READ-AUDIT-BRIEF.md) | Legacy `getElementById('profX').value` reads that bypass the unified profile panel | Brief *(DONE 2026-06-23)* |
 | [`PROFILE-HANDOFF-BRIEF.md`](briefs/PROFILE-HANDOFF-BRIEF.md) | Wire the detected profile tier into compute (+ cleanup) | Brief *(DONE 2026-06-23)* |
 | [`PROFILE-UNIFY-BRIEF.md`](briefs/PROFILE-UNIFY-BRIEF.md) | Profile unification build brief | Brief *(DONE 2026-08-03)* |
+| [`MUSE-HUNT-RECORD-2026-11-08-BRIEF.md`](briefs/MUSE-HUNT-RECORD-2026-11-08-BRIEF.md) | **Every Muse hunt finding from 2026-11-07/08 and its state on main.** Verified findings are residue rows; the rest wait here for a re-read | Brief *(PROPOSED)* |
 
 ---
 
