@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="1dfd5b84f0c9" data-compute-hash="c2299f9deb29"><head>
+<html lang="en" data-manifest-hash="9f660d8a1448" data-compute-hash="3dbae3527425"><head>
 <!--
   Data Unifier.html — Tepna
   Copyright 2026 Michal Planicka
@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-4KsRTgVuaYcMUNL8LhUau/rNzFP6NRbvBy2QbxNGFzw=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BVFmtVSyDgaXhCN3qQfKGuYjFNkJrUTlcUB/QC4nRdk=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-RL5agm0jO+OAF4uwgIkvU/TYyrFDJF4flIvpopkODeQ=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-TJnsXppIrR2fDEg9roXHwHuaiAym8hL+7tyg9r6NlEw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-eqhMkaKkI0DeDYeFRr158XI1OLlvfo+v/yXmogvQqzI=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-qtwV6UdWMEOsPilOs3Mrd9jysCoMp0m5MgxuB5HkI8o=' 'sha256-rm/YlVmogQnelQDIazZyRCXgoAFvC1Ffha1wQ4dVrFc=' 'sha256-uS0BO9FA6T7Ej0PgYdFgmhKAD7wWWUv6IRvThTzY6lc=' 'sha256-wK9fP+fYfi661IypDOgrAoxGZS8mGJfe9l/9288cTZQ=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-4KsRTgVuaYcMUNL8LhUau/rNzFP6NRbvBy2QbxNGFzw=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GOX/8FWS6VN4Pei2z14qE42NzqquRvr8nVSoM4aUA9w=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-RL5agm0jO+OAF4uwgIkvU/TYyrFDJF4flIvpopkODeQ=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-TJnsXppIrR2fDEg9roXHwHuaiAym8hL+7tyg9r6NlEw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-eqhMkaKkI0DeDYeFRr158XI1OLlvfo+v/yXmogvQqzI=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-qtwV6UdWMEOsPilOs3Mrd9jysCoMp0m5MgxuB5HkI8o=' 'sha256-rm/YlVmogQnelQDIazZyRCXgoAFvC1Ffha1wQ4dVrFc=' 'sha256-uS0BO9FA6T7Ej0PgYdFgmhKAD7wWWUv6IRvThTzY6lc=' 'sha256-wK9fP+fYfi661IypDOgrAoxGZS8mGJfe9l/9288cTZQ=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -6439,6 +6439,10 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
        same direction as the absence defect this change is about. 60 of 5400 is 1.1 %, so no epoch a
        real recording produces is touched. */
     var NSI_MIN_HR_SAMPLES = 60;
+    /* ∅ The same count and the same citation for the other two legs, under its own name so a
+       later change to one leg's support does not silently move another's. A share needs at least
+       the support a mean does. */
+    var NSI_MIN_EPOCH_SAMPLES = 60;
     var intraNightNSI = [];
     for (var e = 0; e < 3; e++) {
       var start = e * EPOCH,
@@ -6456,9 +6460,8 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
          (2466 of 26998, 9.1 %): `[41, 5, 9]` became `[60, 26, 29]` — absence read as INSTABILITY.
          The statistic now follows the convention this file states for SpO2: over the samples that
          EXIST, with the MEASURED count as the denominator. A fully measured epoch is unchanged.
-         NOT FIXED HERE, and logged rather than carried: the other two legs of this same average read
-         absence as a measurement too. `null < 95` is TRUE, so an absent SpO2 sample counts as below
-         95, and `r.motion > 0` is FALSE for null, so an absent motion sample counts as stillness. */
+         The other two legs of this same average carried the same defect, and #4725 logged them
+         rather than repairing them. They are repaired below, on this same convention and floor. */
       var segHr = seg.map(function (r) {
         return r.hr;
       });
@@ -6467,24 +6470,39 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
          the epoch measured nothing, and its `n` is the measured count the floor above reads. */
       var _segHrStat = _avgPresent(segHr);
       var _segHrSd = _segHrStat && _segHrStat.n >= NSI_MIN_HR_SAMPLES ? _sdPresent(segHr) : null;
-      var segN = seg.length;
+      /* ∅ THE MEASURED SAMPLES, not the rows — this file's own convention, stated beside
+         `nSpo2`: "every rate below divides by the measured count". `null < 95` is TRUE and
+         `null > 0` is FALSE, so each absent SpO2 sample counted as a second below 95 and each
+         absent motion sample counted as a still second, both over the unchanged row count. Absence
+         pushed the T95 leg UP and the motion leg DOWN, and the index moved with no sample behind the
+         move. The whole-column cases were already suppressed, at `_motionUnusable` for motion and
+         `_hrAbsent` for HR; scattered dropout inside a night that measures elsewhere never reaches
+         either branch, and that is the common shape.
+         Measured on the real night `...20260503210952` at n=26998. Nulling SpO2 over rows 4000 to
+         12000 took `[41, 5, 9]` to `[42, 37, 33]`; the same window of motion, varying rather than
+         absent, reads `[64, 38, 28]`, so the motion leg carries up to 33 points of this index. Rows
+         `2026-11-09-mini-nsi-counts-absent-spo2-as-a-desaturated-second` and
+         `2026-11-09-the-nsi-motion-null-guard-tests-the-whole-column-only` hold both measurements.
+         A fully measured epoch is unchanged: with no absent sample the measured count equals the row
+         count, and both rates are what they were. */
+      var _segSpo2Measured = segSpo2.filter(_has);
+      var _segMotMeasuredN = 0,
+        _segMotMovingN = 0;
+      for (var _mi = 0; _mi < seg.length; _mi++) {
+        if (!_has(seg[_mi].motion)) continue;
+        _segMotMeasuredN++;
+        if (seg[_mi].motion > 0) _segMotMovingN++;
+      }
       // Mini-NSI: T95 + HR variance + motion
-      var segT95 = segN
-        ? (segSpo2.filter(function (v) {
-            return v < 95;
-          }).length /
-            segN) *
-          100
-        : 0;
-      var segMot = segN
-        ? (seg.filter(function (r) {
-            return r.motion > 0;
-          }).length /
-            segN) *
-          100
-        : 0;
-      var t95Norm = Math.min(1, segT95 / 30);
-      var motNorm = Math.min(1, segMot / 30);
+      var segT95 =
+        _segSpo2Measured.length >= NSI_MIN_EPOCH_SAMPLES
+          ? (_segSpo2Measured.filter(function (v) {
+              return v < 95;
+            }).length /
+              _segSpo2Measured.length) *
+            100
+          : null;
+      var segMot = _segMotMeasuredN >= NSI_MIN_EPOCH_SAMPLES ? (_segMotMovingN / _segMotMeasuredN) * 100 : null;
       /* ∅ `?? 0` WOULD BE THE BUG AGAIN. An epoch that measured no heart rate at all has no HR
          leg, and a 0 there is the best stability the scale can express — which is how this metric
          came to read an absent pulse as a calm one. `_hrAbsent` only catches a night whose WHOLE
@@ -6498,8 +6516,13 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
          how much of THAT window it read — a share. This leg reduces a 90-minute epoch to one number,
          where the question is whether the SD has support at all — a count, and the count the
          5-minute binner already states. Both refuse rather than annotate, because an epoch and a
-         window are COMPONENTS of their output, not samples of it. */
-      var miniNSI = _segHrSd == null ? null : Math.min(100, Math.round(((t95Norm + Math.min(1, _segHrSd / 20) + motNorm) / 3) * 100));
+         window are COMPONENTS of their output, not samples of it.
+         ALL THREE LEGS NOW REFUSE ON THEIR OWN FLOOR, so this average never mixes a measured leg
+         with an absent one. The owner's 2026-10-11 framing, recorded where `_motionUnusable` nulls
+         this array, rules out a renormalisation over the legs that remain: an index of two legs
+         sharing a name with an index of three changes identity between nights. */
+      var miniNSI =
+        _segHrSd == null || segT95 == null || segMot == null ? null : Math.min(100, Math.round(((Math.min(1, segT95 / 30) + Math.min(1, _segHrSd / 20) + Math.min(1, segMot / 30)) / 3) * 100));
       intraNightNSI.push(miniNSI);
     }
 
