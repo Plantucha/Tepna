@@ -677,9 +677,12 @@ self.onmessage = async (e) => {
       { l: 'Correction', v: r.correctionRate + '%', sub: 'beats fixed', s: r.correctionRate < 3 ? 'ok' : r.correctionRate < 8 ? 'warn' : 'bad' },
       {
         l: 'CVHR Index',
-        v: r.longRec && !r.ambulatory ? r.cvhr.index : '—',
-        sub: r.ambulatory ? 'suppressed · ambulatory' : r.longRec && r.profile && r.profile.cpap ? 'surges/h · on CPAP' : 'surges/h (apnea)',
-        s: !r.longRec || r.ambulatory ? 'neutral' : r.cvhr.index < 5 ? 'ok' : r.cvhr.index < 15 ? 'warn' : 'bad'
+        v: r.longRec && !r.ambulatory && r.cvhr ? r.cvhr.index : '—',
+        /* §10 retirement, second copy (residue 2026-11-08-ecgdex-cvhr-keeps-ahi-cut-points-in-two-render-copies):
+           no validated cut-point exists for a CVHR index (r = −0.151 against device AHI), so the tile is
+           neutral and names no apnea. The <5 / <15 ladder was AHI's. */
+        sub: r.ambulatory ? 'suppressed · ambulatory' : r.longRec && r.profile && r.profile.cpap ? 'surges/h · on CPAP' : 'surges/h · not an apnea count',
+        s: 'neutral'
       },
       { l: 'DFA α1', v: r.dfa1 == null ? '—' : r.dfa1, sub: '0.9–1.2', s: r.dfa1 == null ? 'neutral' : r.dfa1 >= 0.9 && r.dfa1 <= 1.2 ? 'ok' : r.dfa1 < 0.75 || r.dfa1 > 1.5 ? 'bad' : 'warn' },
       { l: 'Resp Rate', v: r.respRate || '—', sub: 'br/min · EDR', s: 'neutral' },
@@ -1647,7 +1650,8 @@ self.onmessage = async (e) => {
       ['PIP', r.pip == null ? '—' : r.pip, '%', '<55', r.pip == null ? 'neutral' : r.pip < 55 ? 'ok' : r.pip < 69 ? 'warn' : 'bad', 'Fragmentation: % inflection pts'],
       ...(r.longRec && !r.ambulatory
         ? [
-            ['CVHR index', r.cvhr.index, '/h', '<5', r.cvhr.index < 5 ? 'ok' : r.cvhr.index < 15 ? 'warn' : 'bad', 'Cyclic HR variation — apnea autonomic signature'],
+            /* §10 retirement, second copy: no AHI target or ladder on a CVHR index (residue 2026-11-08). */
+            ['CVHR index', r.cvhr ? r.cvhr.index : '—', '/h', '—', 'neutral', 'Cyclic variation of HR — an autonomic signature, not an apnea count'],
             ['CVHR events', r.cvhr.events.length, 'count', '—', 'neutral', 'autonomic_surge events emitted'],
             ['Total sleep', r.totSleep, 'min', '—', 'neutral', 'Light+Deep+REM (cardioresp staging)'],
             ['Deep', r.stageMin.Deep.toFixed(0), 'min', '—', 'neutral', 'High vagal tone epochs'],

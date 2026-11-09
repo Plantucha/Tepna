@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="de75bacfcb5d" data-compute-hash="2ebc3015570f">
+<html lang="en" data-manifest-hash="308365062851" data-compute-hash="2ebc3015570f">
 <head>
 <!--
   ECGDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-aw4YbTI0fEMh4f3GuflXXKtqWebJKEGyN/nMvprUSXM=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-hCZmwNAMDLPZEMYHAYpzoPETSnimg1oHWWjZImdKqxM=' 'sha256-kCIXFB+Oh+fPXQK0n5wv9ysz8QHUPT7/BBvnQcqS+u0=' 'sha256-ndwAaS7rxPDbDdTDUAApFCDBcXWisKUftg+0xzuxsoI=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rKaNN0Ty7SX+P/hqThFsDPpnNNxRWZ1qeyOfye3zhi8=' 'sha256-rm/YlVmogQnelQDIazZyRCXgoAFvC1Ffha1wQ4dVrFc=' 'sha256-snn87HIc5SfG9Vi0mLgx1pa9iIjPaV7vXPFSnvVFu2E=' 'sha256-tddD0f4n4/0SctOR+t6ziGNCiH/GZ6G3Q5Iib/iByoM=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0Szn+bjMYRMjhrDnRe8WLAxJT/L3Eoh7JW4VFKtOWIw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-hCZmwNAMDLPZEMYHAYpzoPETSnimg1oHWWjZImdKqxM=' 'sha256-kCIXFB+Oh+fPXQK0n5wv9ysz8QHUPT7/BBvnQcqS+u0=' 'sha256-ndwAaS7rxPDbDdTDUAApFCDBcXWisKUftg+0xzuxsoI=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rKaNN0Ty7SX+P/hqThFsDPpnNNxRWZ1qeyOfye3zhi8=' 'sha256-rm/YlVmogQnelQDIazZyRCXgoAFvC1Ffha1wQ4dVrFc=' 'sha256-snn87HIc5SfG9Vi0mLgx1pa9iIjPaV7vXPFSnvVFu2E=' 'sha256-tddD0f4n4/0SctOR+t6ziGNCiH/GZ6G3Q5Iib/iByoM=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>ECGDex — Raw ECG Analyzer · v2.29.0</title>
@@ -21426,9 +21426,12 @@ self.onmessage = async (e) => {
       { l: 'Correction', v: r.correctionRate + '%', sub: 'beats fixed', s: r.correctionRate < 3 ? 'ok' : r.correctionRate < 8 ? 'warn' : 'bad' },
       {
         l: 'CVHR Index',
-        v: r.longRec && !r.ambulatory ? r.cvhr.index : '—',
-        sub: r.ambulatory ? 'suppressed · ambulatory' : r.longRec && r.profile && r.profile.cpap ? 'surges/h · on CPAP' : 'surges/h (apnea)',
-        s: !r.longRec || r.ambulatory ? 'neutral' : r.cvhr.index < 5 ? 'ok' : r.cvhr.index < 15 ? 'warn' : 'bad'
+        v: r.longRec && !r.ambulatory && r.cvhr ? r.cvhr.index : '—',
+        /* §10 retirement, second copy (residue 2026-11-08-ecgdex-cvhr-keeps-ahi-cut-points-in-two-render-copies):
+           no validated cut-point exists for a CVHR index (r = −0.151 against device AHI), so the tile is
+           neutral and names no apnea. The <5 / <15 ladder was AHI's. */
+        sub: r.ambulatory ? 'suppressed · ambulatory' : r.longRec && r.profile && r.profile.cpap ? 'surges/h · on CPAP' : 'surges/h · not an apnea count',
+        s: 'neutral'
       },
       { l: 'DFA α1', v: r.dfa1 == null ? '—' : r.dfa1, sub: '0.9–1.2', s: r.dfa1 == null ? 'neutral' : r.dfa1 >= 0.9 && r.dfa1 <= 1.2 ? 'ok' : r.dfa1 < 0.75 || r.dfa1 > 1.5 ? 'bad' : 'warn' },
       { l: 'Resp Rate', v: r.respRate || '—', sub: 'br/min · EDR', s: 'neutral' },
@@ -22396,7 +22399,8 @@ self.onmessage = async (e) => {
       ['PIP', r.pip == null ? '—' : r.pip, '%', '<55', r.pip == null ? 'neutral' : r.pip < 55 ? 'ok' : r.pip < 69 ? 'warn' : 'bad', 'Fragmentation: % inflection pts'],
       ...(r.longRec && !r.ambulatory
         ? [
-            ['CVHR index', r.cvhr.index, '/h', '<5', r.cvhr.index < 5 ? 'ok' : r.cvhr.index < 15 ? 'warn' : 'bad', 'Cyclic HR variation — apnea autonomic signature'],
+            /* §10 retirement, second copy: no AHI target or ladder on a CVHR index (residue 2026-11-08). */
+            ['CVHR index', r.cvhr ? r.cvhr.index : '—', '/h', '—', 'neutral', 'Cyclic variation of HR — an autonomic signature, not an apnea count'],
             ['CVHR events', r.cvhr.events.length, 'count', '—', 'neutral', 'autonomic_surge events emitted'],
             ['Total sleep', r.totSleep, 'min', '—', 'neutral', 'Light+Deep+REM (cardioresp staging)'],
             ['Deep', r.stageMin.Deep.toFixed(0), 'min', '—', 'neutral', 'High vagal tone epochs'],
