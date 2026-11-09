@@ -280,7 +280,7 @@
         "lowQuality": true,
         "values": {
           "residualAHI": 24,
-          "usageHours": 0.17,
+          "usageHours": 0.167,
           "largeLeakPct": 0,
           "centralIndex": 6,
           "odi": 6,
@@ -295,7 +295,7 @@
         "lowQuality": true,
         "values": {
           "residualAHI": 24,
-          "usageHours": 0.17,
+          "usageHours": 0.167,
           "largeLeakPct": 0,
           "centralIndex": 6,
           "odi": 6,
@@ -310,7 +310,7 @@
         "lowQuality": true,
         "values": {
           "residualAHI": 24,
-          "usageHours": 0.17,
+          "usageHours": 0.167,
           "largeLeakPct": 0,
           "centralIndex": 6,
           "odi": 6,
