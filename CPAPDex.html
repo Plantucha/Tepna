@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="1b384a88046e" data-compute-hash="f48d72785445">
+<html lang="en" data-manifest-hash="f24a9afef47c" data-compute-hash="695a88d494be">
 <head>
 <!--
   CPAPDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'self' (NOT 'none') — this bundle fetches committed LOCAL sample files; 'self' still blocks every REMOTE origin. object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+w3tpYArZUZPVASR4M6PBh1Gn6bZoESVh8u2h5+poD4=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-AfPEIAeXXT0ZHnz8sdwL24OxRTdvfkuPm56Sw1iNfNo=' 'sha256-BxCnNxEAuZzTlwpqE2PYSNlpgU4yA2/KfpkXA2BTOnk=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-Gfm7P9GH3OY25sgO7j4PSXUSUjikqiCZdst7lBcS0jQ=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-hCZmwNAMDLPZEMYHAYpzoPETSnimg1oHWWjZImdKqxM=' 'sha256-k+RI3eu7O1dogNihbuES+Db93asgjhSxBjBsgNI3xYs=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-xRCF20xc2ZvAlPvK8q18VKibUfkPsJxvgv8x35ggFXk='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9sBOFR2U9jvs4O86BuLDpmm5h12TUTvIisTFqxneRjc=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-AfPEIAeXXT0ZHnz8sdwL24OxRTdvfkuPm56Sw1iNfNo=' 'sha256-BxCnNxEAuZzTlwpqE2PYSNlpgU4yA2/KfpkXA2BTOnk=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-KVBlk+OHmvOQ8r0QLzpbRznsiMWRI0gM3fjeHujfmVI=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-hCZmwNAMDLPZEMYHAYpzoPETSnimg1oHWWjZImdKqxM=' 'sha256-k+RI3eu7O1dogNihbuES+Db93asgjhSxBjBsgNI3xYs=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-x3UX4ApKTHiJugShQ1GVmGyBMMy+TVh/MmQsqXn3PL4='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>CPAPDex — PAP Therapy Analyzer · v2.29.0</title>
@@ -6860,8 +6860,18 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
         modeEnvIqr: null,
         modeNights: 0
       };
+    /* §∅ — MASK-ON HOURS AND THE RECORDING ENVELOPE ARE TWO QUANTITIES, and adherence scores the
+     first. `therapyHours` sums each session's `durMin`, and the full-set constructor sets `durMin`
+     from the WALL span (see the "WALL duration (for off-mask gap math)" comment below). So a night
+     whose mask came off for three hours scored compliant on its envelope. A real night carries its
+     pooled mask-on figure in `metrics.usageHours`, which is null when any session went unmeasured,
+     so such a night leaves the denominator instead of counting against adherence. A back-compat
+     `{therapyHours}` stub holds no metrics block, and its only figure comes from `buildSession`,
+     where `durMin = prepared.usageHours * 60` — mask-on already. Row
+     `2026-11-07-the-cpap-usage-kpi-draws-the-recording-envelope-under-the-mask-on-label`. */
     var usageH = function (n) {
-      return n.therapyHours != null ? n.therapyHours : n.metrics ? n.metrics.usageHours : null;
+      if (n.metrics) return n.metrics.usageHours != null ? n.metrics.usageHours : null;
+      return n.therapyHours != null ? n.therapyHours : null;
     };
     var ahiOf = function (n) {
       return n.metrics ? n.metrics.residualAHI : n.residualAHI != null ? n.residualAHI : null;
@@ -9256,6 +9266,21 @@ __exports.CPAPDex = window.CPAPDex;
     return sum / live.length;
   }
   // CPAPDex outcome metric defs — each an OUTCOME with a clear good-direction.
+  /* §∅ — THE NIGHT'S USAGE IS ITS POOLED MASK-ON FIGURE, never its recording envelope.
+   `night.therapyHours` sums wall spans, so every reader below once graded, weighed or counted
+   the envelope under a label the registry defines as "Total mask-on hours (pressure > 0)".
+   `metrics.usageHours` is null when a session went unmeasured, and a null leaves the population
+   rather than scoring as a night below the line. A back-compat `{therapyHours}` stub carries no
+   metrics block, and its figure comes from `buildSession`, where `durMin` is mask-on already.
+   `cpapdex-dsp.js buildLongitudinal` holds the same helper, because this module resolves lazily
+   and may be absent. Row
+   `2026-11-07-the-cpap-usage-kpi-draws-the-recording-envelope-under-the-mask-on-label`. */
+  function nightUsageHours(n) {
+    if (!n) return null;
+    if (n.metrics) return n.metrics.usageHours != null ? n.metrics.usageHours : null;
+    return n.therapyHours != null ? n.therapyHours : null;
+  }
+
   var CPAP_DEFS = {
     residualAHI: {
       good: 'down',
@@ -9272,7 +9297,7 @@ __exports.CPAPDex = window.CPAPDex;
       unit: 'hr',
       evidence: 'measured',
       get: function (n) {
-        return n.therapyHours != null ? n.therapyHours : n.metrics ? n.metrics.usageHours : null;
+        return nightUsageHours(n);
       }
     },
     largeLeakPct: {
@@ -9312,9 +9337,9 @@ __exports.CPAPDex = window.CPAPDex;
   function nightTms(n) {
     return n && n.t0Ms != null ? n.t0Ms : null;
   }
-  // weight each night by therapy-hour completeness (a 40-min session weighs less than a full night)
+  // weight each night by MASK-ON completeness (a 40-min session weighs less than a full night)
   function nightWeight(n) {
-    var h = n.therapyHours != null ? n.therapyHours : n.metrics ? n.metrics.usageHours : null;
+    var h = nightUsageHours(n);
     return h != null ? Math.max(0.05, Math.min(1, h / 6)) : 1;
   }
 
@@ -9371,7 +9396,7 @@ __exports.CPAPDex = window.CPAPDex;
     nights.forEach(function (n) {
       /* ∅ An absent usage datum is not a night of no therapy: it leaves BOTH sides of the
        ratio. The fallback here used to make such a night a scored night below the line. */
-      var h = n.therapyHours != null ? n.therapyHours : n.metrics ? n.metrics.usageHours : null;
+      var h = nightUsageHours(n);
       if (h == null) return;
       scored++;
       if (h >= thresholdH) ok++;
@@ -9957,7 +9982,16 @@ const { CpapDsp } = __require('cpapdex-dsp.js');
           fnum(night.therapyHours, 1) +
           ' h recorded'
       );
-    else out += kpiTile('usageHours', fnum(night.therapyHours, 1) + '<span class="kpi-u">hr</span>', sev(4, 2, night.therapyHours), night.nSessions + ' session' + (night.nSessions === 1 ? '' : 's'));
+    /* The measured arm draws the POOLED MASK-ON figure and grades the 4 h adherence line on it.
+       `night.therapyHours` sums the sessions' WALL spans, so it answered this label with the
+       recording envelope: a night whose mask came off for three hours read as compliant. The
+       envelope is still a fact, so it keeps its own place in the sub. */ else
+      out += kpiTile(
+        'usageHours',
+        fnum(nm.usageHours, 1) + '<span class="kpi-u">hr</span>',
+        sev(4, 2, nm.usageHours),
+        night.nSessions + ' session' + (night.nSessions === 1 ? '' : 's') + (night.therapyHours != null ? ' \u00b7 ' + fnum(night.therapyHours, 1) + ' h recorded' : '')
+      );
     out += kpiTile('medianPressure', fnum(nm.medianPressure, 1) + '<span class="kpi-u">cmH₂O</span>', 'neutral', (s0.mode || '—') + ' · p95 ' + fnum(nm.p95Pressure, 1));
     out += kpiTile('largeLeakPct', fnum(nm.largeLeakPct, 1) + '<span class="kpi-u">%</span>', sev(2, 5, nm.largeLeakPct, true), 'median ' + fnum(nm.medianLeak, 1) + ' L/min');
     if (cross && cross.oximetryAvailable) out += kpiTile('odi', fnum(cross.odi, 1) + '<span class="kpi-u">/hr</span>', sev(5, 15, cross.odi, true), 'SA2 · self-gated');
@@ -10458,6 +10492,18 @@ const { CpapDsp } = __require('cpapdex-dsp.js');
     return -1;
   }
 
+  /* The same resolution `cpapdex-dsp.js buildLongitudinal` and `cpapdex-cross.js` use, so a
+   history row never disagrees with the percentage above it. A real night's usage is its POOLED
+   MASK-ON figure, null when a session went unmeasured. A back-compat `{therapyHours}` stub holds
+   no metrics block, and its figure comes from `buildSession`, where `durMin` is mask-on already.
+   `night.therapyHours` on a real night sums WALL spans, so it is the recording envelope and
+   belongs under a recording label only. */
+  function nightUsageH(n) {
+    if (!n) return null;
+    if (n.metrics) return n.metrics.usageHours != null ? n.metrics.usageHours : null;
+    return n.therapyHours != null ? n.therapyHours : null;
+  }
+
   /* ∅ The tile subtitle carries the population the percentage scored, and names the node's
    own reason when it scored nothing. A bare "≥4 h nights" over a window holding unmeasured
    nights reads as though every loaded night had counted. */
@@ -10574,8 +10620,10 @@ const { CpapDsp } = __require('cpapdex-dsp.js');
           (D ? D.fmtDate(n.t0Ms) : '') +
           '</span>' +
           '<span class="sess-meta">' +
-          fnum(n.therapyHours, 1) +
-          ' h · ' +
+          /* The rows sit under a compliance percentage the DSP scores on MASK-ON hours, so each
+             row states the same quantity. A night that measured none says so. */
+          (nightUsageH(n) != null ? fnum(nightUsageH(n), 1) + ' h' : '—' + (nm.usageReason ? ' ' + _cpReason(nm.usageReason) : '')) +
+          ' · ' +
           n.nSessions +
           ' session' +
           (n.nSessions === 1 ? '' : 's') +
@@ -10746,7 +10794,7 @@ const { CpapDsp } = __require('cpapdex-dsp.js');
     };
     /* §∅ — a refused usage buys no Usage subscore and no adherence verdict: both would
        grade the recording envelope under a label the registry defines as mask-on hours. */
-    if (!nm.usageReason) sub(night.therapyHours, ' h', 'Usage', 'usageHours', sev(4, 2, night.therapyHours));
+    if (!nm.usageReason) sub(nm.usageHours, ' h', 'Usage', 'usageHours', sev(4, 2, nm.usageHours));
     sub(nm.largeLeakPct, '%', 'Large Leak', 'largeLeakPct', sev(2, 5, nm.largeLeakPct, true));
     sub(nm.medianPressure, '', 'Med. Pressure', 'medianPressure', 'neutral');
     if (cross && cross.oximetryAvailable && cross.odi != null) sub(cross.odi, '/h', 'ODI', 'odi', sev(5, 15, cross.odi, true));
@@ -10755,8 +10803,10 @@ const { CpapDsp } = __require('cpapdex-dsp.js');
     var chips = '';
     if (nm.usageReason) {
       chips += '<div class="readiness-zone-chip warn">\u26a0 usage unmeasured \u00b7 ' + esc(_cpReason(nm.usageReason)) + '</div>';
-    } else if (night.therapyHours != null) {
-      var compOk = night.therapyHours >= 4;
+      /* The CMS 4 h line scores MASK-ON hours. An absent mask-on figure buys no verdict at all
+         (§∅), so the chip stays away rather than grading the recording envelope. */
+    } else if (nm.usageHours != null) {
+      var compOk = nm.usageHours >= 4;
       chips += '<div class="readiness-zone-chip ' + (compOk ? 'ok' : 'warn') + '">' + (compOk ? '✓ ≥4 h compliant' : '⚠ under 4 h') + '</div>';
     }
     if (nm.periodicBreathingPct != null) {
@@ -11124,7 +11174,13 @@ const { CpapDsp } = __require('cpapdex-dsp.js');
     if (m.obstructiveIndex != null) h += kpi('obstructiveIndex', 'Obstructive', fnum(m.obstructiveIndex, 1) + '/hr', 'OA/hr', sev(m.obstructiveIndex, 5, 15));
     if (m.centralIndex != null) h += kpi('centralIndex', 'Central', fnum(m.centralIndex, 1) + '/hr', 'CA/hr', sev(m.centralIndex, 5, 10));
     if (m.periodicBreathingPct != null) h += kpi('periodicBreathingPct', 'Periodic Breathing', fnum(m.periodicBreathingPct, 1) + '%', 'CSL spans', sev(m.periodicBreathingPct, 2, 10));
-    if (recHours != null) h += kpi('usageHours', 'Therapy Hours', fnum(recHours, 1) + ' h', '\u2265 4 h', sev(recHours, 4, 2, false));
+    /* Review mode renders the export's own stored values. The export carries BOTH figures, and
+       this tile wears the `usageHours` badge, so it draws the mask-on one. When the export says
+       mask-on went unmeasured, the value refuses and the sub names the envelope it does hold —
+       the same shape the live page uses above. */
+    if (m.usageHours != null) h += kpi('usageHours', 'Usage Hours', fnum(m.usageHours, 1) + ' h', '\u2265 4 h mask-on', sev(m.usageHours, 4, 2, false));
+    else if (recHours != null)
+      h += kpi('usageHours', 'Usage Hours', '\u2014', (m.usageReason ? _cpReason(m.usageReason) : 'mask-on unmeasured') + ' \u00b7 ' + fnum(recHours, 1) + ' h recorded', 'neutral');
     if (m.medianPressure != null)
       h += kpi('medianPressure', 'Median Pressure', fnum(m.medianPressure, 1), 'cmH\u2082O \u00b7 P95 ' + (m.p95Pressure != null ? fnum(m.p95Pressure, 1) : '\u2014'), 'neutral');
     if (m.largeLeakPct != null)

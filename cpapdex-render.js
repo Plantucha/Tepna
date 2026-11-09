@@ -204,7 +204,16 @@ import { CpapDsp } from './cpapdex-dsp.js';
           fnum(night.therapyHours, 1) +
           ' h recorded'
       );
-    else out += kpiTile('usageHours', fnum(night.therapyHours, 1) + '<span class="kpi-u">hr</span>', sev(4, 2, night.therapyHours), night.nSessions + ' session' + (night.nSessions === 1 ? '' : 's'));
+    /* The measured arm draws the POOLED MASK-ON figure and grades the 4 h adherence line on it.
+       `night.therapyHours` sums the sessions' WALL spans, so it answered this label with the
+       recording envelope: a night whose mask came off for three hours read as compliant. The
+       envelope is still a fact, so it keeps its own place in the sub. */ else
+      out += kpiTile(
+        'usageHours',
+        fnum(nm.usageHours, 1) + '<span class="kpi-u">hr</span>',
+        sev(4, 2, nm.usageHours),
+        night.nSessions + ' session' + (night.nSessions === 1 ? '' : 's') + (night.therapyHours != null ? ' \u00b7 ' + fnum(night.therapyHours, 1) + ' h recorded' : '')
+      );
     out += kpiTile('medianPressure', fnum(nm.medianPressure, 1) + '<span class="kpi-u">cmH₂O</span>', 'neutral', (s0.mode || '—') + ' · p95 ' + fnum(nm.p95Pressure, 1));
     out += kpiTile('largeLeakPct', fnum(nm.largeLeakPct, 1) + '<span class="kpi-u">%</span>', sev(2, 5, nm.largeLeakPct, true), 'median ' + fnum(nm.medianLeak, 1) + ' L/min');
     if (cross && cross.oximetryAvailable) out += kpiTile('odi', fnum(cross.odi, 1) + '<span class="kpi-u">/hr</span>', sev(5, 15, cross.odi, true), 'SA2 · self-gated');
@@ -705,6 +714,18 @@ import { CpapDsp } from './cpapdex-dsp.js';
     return -1;
   }
 
+  /* The same resolution `cpapdex-dsp.js buildLongitudinal` and `cpapdex-cross.js` use, so a
+   history row never disagrees with the percentage above it. A real night's usage is its POOLED
+   MASK-ON figure, null when a session went unmeasured. A back-compat `{therapyHours}` stub holds
+   no metrics block, and its figure comes from `buildSession`, where `durMin` is mask-on already.
+   `night.therapyHours` on a real night sums WALL spans, so it is the recording envelope and
+   belongs under a recording label only. */
+  function nightUsageH(n) {
+    if (!n) return null;
+    if (n.metrics) return n.metrics.usageHours != null ? n.metrics.usageHours : null;
+    return n.therapyHours != null ? n.therapyHours : null;
+  }
+
   /* ∅ The tile subtitle carries the population the percentage scored, and names the node's
    own reason when it scored nothing. A bare "≥4 h nights" over a window holding unmeasured
    nights reads as though every loaded night had counted. */
@@ -821,8 +842,10 @@ import { CpapDsp } from './cpapdex-dsp.js';
           (D ? D.fmtDate(n.t0Ms) : '') +
           '</span>' +
           '<span class="sess-meta">' +
-          fnum(n.therapyHours, 1) +
-          ' h · ' +
+          /* The rows sit under a compliance percentage the DSP scores on MASK-ON hours, so each
+             row states the same quantity. A night that measured none says so. */
+          (nightUsageH(n) != null ? fnum(nightUsageH(n), 1) + ' h' : '—' + (nm.usageReason ? ' ' + _cpReason(nm.usageReason) : '')) +
+          ' · ' +
           n.nSessions +
           ' session' +
           (n.nSessions === 1 ? '' : 's') +
@@ -993,7 +1016,7 @@ import { CpapDsp } from './cpapdex-dsp.js';
     };
     /* §∅ — a refused usage buys no Usage subscore and no adherence verdict: both would
        grade the recording envelope under a label the registry defines as mask-on hours. */
-    if (!nm.usageReason) sub(night.therapyHours, ' h', 'Usage', 'usageHours', sev(4, 2, night.therapyHours));
+    if (!nm.usageReason) sub(nm.usageHours, ' h', 'Usage', 'usageHours', sev(4, 2, nm.usageHours));
     sub(nm.largeLeakPct, '%', 'Large Leak', 'largeLeakPct', sev(2, 5, nm.largeLeakPct, true));
     sub(nm.medianPressure, '', 'Med. Pressure', 'medianPressure', 'neutral');
     if (cross && cross.oximetryAvailable && cross.odi != null) sub(cross.odi, '/h', 'ODI', 'odi', sev(5, 15, cross.odi, true));
@@ -1002,8 +1025,10 @@ import { CpapDsp } from './cpapdex-dsp.js';
     var chips = '';
     if (nm.usageReason) {
       chips += '<div class="readiness-zone-chip warn">\u26a0 usage unmeasured \u00b7 ' + esc(_cpReason(nm.usageReason)) + '</div>';
-    } else if (night.therapyHours != null) {
-      var compOk = night.therapyHours >= 4;
+      /* The CMS 4 h line scores MASK-ON hours. An absent mask-on figure buys no verdict at all
+         (§∅), so the chip stays away rather than grading the recording envelope. */
+    } else if (nm.usageHours != null) {
+      var compOk = nm.usageHours >= 4;
       chips += '<div class="readiness-zone-chip ' + (compOk ? 'ok' : 'warn') + '">' + (compOk ? '✓ ≥4 h compliant' : '⚠ under 4 h') + '</div>';
     }
     if (nm.periodicBreathingPct != null) {
@@ -1371,7 +1396,13 @@ import { CpapDsp } from './cpapdex-dsp.js';
     if (m.obstructiveIndex != null) h += kpi('obstructiveIndex', 'Obstructive', fnum(m.obstructiveIndex, 1) + '/hr', 'OA/hr', sev(m.obstructiveIndex, 5, 15));
     if (m.centralIndex != null) h += kpi('centralIndex', 'Central', fnum(m.centralIndex, 1) + '/hr', 'CA/hr', sev(m.centralIndex, 5, 10));
     if (m.periodicBreathingPct != null) h += kpi('periodicBreathingPct', 'Periodic Breathing', fnum(m.periodicBreathingPct, 1) + '%', 'CSL spans', sev(m.periodicBreathingPct, 2, 10));
-    if (recHours != null) h += kpi('usageHours', 'Therapy Hours', fnum(recHours, 1) + ' h', '\u2265 4 h', sev(recHours, 4, 2, false));
+    /* Review mode renders the export's own stored values. The export carries BOTH figures, and
+       this tile wears the `usageHours` badge, so it draws the mask-on one. When the export says
+       mask-on went unmeasured, the value refuses and the sub names the envelope it does hold —
+       the same shape the live page uses above. */
+    if (m.usageHours != null) h += kpi('usageHours', 'Usage Hours', fnum(m.usageHours, 1) + ' h', '\u2265 4 h mask-on', sev(m.usageHours, 4, 2, false));
+    else if (recHours != null)
+      h += kpi('usageHours', 'Usage Hours', '\u2014', (m.usageReason ? _cpReason(m.usageReason) : 'mask-on unmeasured') + ' \u00b7 ' + fnum(recHours, 1) + ' h recorded', 'neutral');
     if (m.medianPressure != null)
       h += kpi('medianPressure', 'Median Pressure', fnum(m.medianPressure, 1), 'cmH\u2082O \u00b7 P95 ' + (m.p95Pressure != null ? fnum(m.p95Pressure, 1) : '\u2014'), 'neutral');
     if (m.largeLeakPct != null)
