@@ -112,9 +112,15 @@ function clearAll() {
 // (the night's t0Ms, read via getUTC*), viewer-TZ-independent, controlled-vocab (EXPORT-HYGIENE §2).
 // The old local-clock _exportTs() (new Date() + LOCAL getters = export-click wall-clock, TZ-dependent,
 // naming the wrong night for an overnight recording) is DELETED (EXPORT-HYGIENE-FOLLOWUPS §1).
-// SELF-INGEST §5 — toggle the "scrub for sharing" export mode (default OFF). The export-bar checkbox
-// already reflects the click in the DOM, so this just flips the flag; exportJSON reads it at click time
-// and routes through OxyDex.scrubExport. Sticky as a session preference (harmless with no data loaded).
+// SELF-INGEST §5 — toggle the "scrub for sharing" export mode. The export-bar checkbox already reflects
+// the click in the DOM, so this just flips the flag; exportJSON reads it at click time and routes through
+// OxyDex.scrubExport. Sticky as a session preference (harmless with no data loaded).
+/* THE DEFAULT IS ON since 2026-11-09 (row `2026-11-08-the-default-export-carries-the-upload-filename`).
+   A night's raw upload filename carries the ring's DEVICE SERIAL, and the file a user naturally shares is
+   the one the download button writes. So the shareable form is the default, and the raw provenance stays
+   one click away. `oxydex-render.js` reads this same flag for the checkbox, so the box and the export can
+   never disagree. The flag lives on `window`, so a reload returns to the scrubbed default. */
+if (typeof window !== 'undefined' && window._oxyScrub === undefined) window._oxyScrub = true;
 function oxySetScrub(on) {
   try {
     window._oxyScrub = !!on;
@@ -213,8 +219,9 @@ function exportJSON() {
       via: 'OxyDex review-mode re-export'
     };
   }
-  // SELF-INGEST §5 — optional "scrub for sharing" (default OFF): strip device serial / filename / input
-  // sha256 while keeping the clinical summary + a coarse build stamp. OFF → byte-identical to before.
+  // SELF-INGEST §5 — "scrub for sharing" (default ON): strip device serial / filename / input sha256
+  // while keeping the clinical summary + a coarse build stamp. OFF → byte-identical to a pre-2026-11-09
+  // export.
   var _outEnv = typeof window !== 'undefined' && window._oxyScrub && window.OxyDex && typeof OxyDex.scrubExport === 'function' ? OxyDex.scrubExport(_envelope) : _envelope;
   download(
     JSON.stringify(_outEnv, null, 2),
