@@ -2845,24 +2845,75 @@
       T.ok('the verdict is auditable — snr, threshold and rho are published', q && typeof q.snr === 'number' && typeof q.threshold === 'number' && typeof q.rhoLag1 === 'number');
       T.ok('too short a night is still null, not a guess', OD.computeSpO2FFT(ar1(100, 0.9, 5)) === null);
 
-      /* ∅ THE BAND IS SAMPLED AND NOT COVERED ON A LONG NIGHT (row
-         2026-11-09-the-spo2-spectrum-strides-past-an-adjacent-bin). `_FFT_MAX_BINS` strides the band
-         above 400 bins, so `detected: false` can state "no cycle on the bins tested", and a reader who
-         sees only that flag reads "no cycle". The result publishes both counts, so the two readings
-         separate. Measured 2026-11-09 over a planted AR(1) night of 27,600 samples at 1 Hz: a 2-unit
-         cycle on the SKIPPED bin k = 345 reads snr 7.66 under a threshold of 19.16, and the same plant
-         on the TESTED bin k = 346 reads 2738.83 under full evaluation of the band. Full evaluation is
-         not the remedy here: it costs 9,244 ms against 2,315 ms on that night, and the band grows with
-         the record, so its cost grows as the SQUARE of the night. */
+      /* ∅ THE BAND IS COVERED ON A LONG NIGHT TOO (row
+         2026-11-09-the-spo2-spectrum-strides-past-an-adjacent-bin, fixed by the exact-length transform).
+         A 12,000-sample night holds 541 band bins, over the 400 the old cap allowed, so this is the
+         case that used to stride by 2 and test 271 of them. `bins === bandBinsN` is the whole claim:
+         a `detected: false` from this night states no cycle IN THE BAND, not no cycle among a sample
+         of it. The pair is kept published as a tripwire, so a cap added later cannot pass this leg. */
       var wide = OD.computeSpO2FFT(ar1(12000, 0.98, 777));
       T.ok(
-        'a strided band states what it tested beside what it holds, so a non-detection is readable',
-        wide != null && wide.strided === true && wide.bins === 271 && wide.bandBinsN === 541,
+        'a long night covers every bin its band holds, so a non-detection is about the band',
+        wide != null && wide.strided === false && wide.bins === 541 && wide.bandBinsN === 541,
         JSON.stringify({ bins: wide && wide.bins, bandBinsN: wide && wide.bandBinsN, strided: wide && wide.strided })
       );
-      // The CONTROL for that pair: a band under the cap tested every bin it holds, so the two counts
-      // agree and no reader is told the band was sampled.
-      T.ok('a band under the cap tested every bin it holds', q != null && q.strided === false && q.bins === q.bandBinsN && q.bins === 55);
+      // The CONTROL for that pair: a short night, whose band never reached the old cap, reads the same
+      // way — so the leg above pins the long-night path and not a constant.
+      T.ok('a short night covers its band as well', q != null && q.strided === false && q.bins === q.bandBinsN && q.bins === 55);
+
+      /* 🔴 THE ROW'S OWN CASE, AND IT IS A REGRESSION PIN, NOT AN ILLUSTRATION. At n = 27,600 the band
+         runs k = 138 to k = 1,380, which is 1,243 bins. The old stride of 4 stepped from k = 138, so
+         it tested k = 346 and SKIPPED k = 345 — a period of exactly 80 s, which is the middle of the
+         periodic-breathing range this detector exists to find. The same plant read snr 7.66 on the
+         skipped bin against a threshold of 19.16, so the night published `detected: false`. Every bin
+         is evaluated now, so this plant must be FOUND, and the leg fails again the moment a stride
+         returns. */
+      var rowCase = ar1(27600, 0.9, 20261109);
+      for (var rc = 0; rc < rowCase.length; rc++) {
+        rowCase[rc].spo2 += 2.0 * Math.sin((2 * Math.PI * 345 * rc) / 27600);
+      }
+      var rowFft = OD.computeSpO2FFT(rowCase);
+      T.ok(
+        'the 80 s cycle on the bin the stride skipped is detected',
+        rowFft != null && rowFft.detected === true && Math.abs(rowFft.peakCycSec - 80) <= 1 && rowFft.bins === 1243,
+        JSON.stringify({ detected: rowFft && rowFft.detected, peakCycSec: rowFft && rowFft.peakCycSec, snr: rowFft && rowFft.snr, threshold: rowFft && rowFft.threshold, bins: rowFft && rowFft.bins })
+      );
+
+      /* THE TRANSFORM'S OWN POSITIVE CONTROL — the fast path against the textbook sum it replaces.
+         `_bandPower` is Bluestein over the record's exact length, so its bins must BE the direct
+         DFT's bins; a grid that moved would be invisible in every leg above, because they all read
+         the same function. This leg recomputes the band's peak bin by the direct sum, in the test, and
+         requires the published peak frequency to be that bin. */
+      var ctrlRows = ar1(1200, 0.5, 31337);
+      var kPlant = 23; // inside the band for n = 1200: k = 6 to k = 60
+      for (var ci = 0; ci < ctrlRows.length; ci++) {
+        ctrlRows[ci].spo2 += 1.5 * Math.sin((2 * Math.PI * kPlant * ci) / 1200);
+      }
+      var ctrlFft = OD.computeSpO2FFT(ctrlRows);
+      var cMean = 0;
+      for (ci = 0; ci < ctrlRows.length; ci++) cMean += ctrlRows[ci].spo2;
+      cMean /= ctrlRows.length;
+      var bestK = -1,
+        bestP = -1;
+      for (var kk = 6; kk <= 60; kk++) {
+        var cre = 0,
+          cim = 0;
+        for (ci = 0; ci < ctrlRows.length; ci++) {
+          var cang = (2 * Math.PI * kk * ci) / 1200;
+          cre += (ctrlRows[ci].spo2 - cMean) * Math.cos(cang);
+          cim -= (ctrlRows[ci].spo2 - cMean) * Math.sin(cang);
+        }
+        var cp = cre * cre + cim * cim;
+        if (cp > bestP) {
+          bestP = cp;
+          bestK = kk;
+        }
+      }
+      T.ok(
+        'the fast transform reads the direct DFT bins, measured against the sum in this test',
+        ctrlFft != null && bestK === kPlant && ctrlFft.peakFreqHz === +(bestK / 1200).toFixed(4),
+        JSON.stringify({ published: ctrlFft && ctrlFft.peakFreqHz, directBestK: bestK, expected: +(bestK / 1200).toFixed(4) })
+      );
     });
 
     /* ∅ — THE SPECTRUM'S POPULATION IS THE COVERED SAMPLES, AND AN ABSENT SAMPLE IS NOT `-mean`.
@@ -3058,15 +3109,19 @@
       if (!dsrc.trim() || !asrc.trim()) {
         T.skip('oxydex-dsp.js and oxydex-app.js source', 'sources not provided in this runner');
       } else {
-        var skip = (dsrc.match(/if \(!present\[t\]\) continue;/g) || []).length;
-        var norm = (dsrc.match(/pows\.push\(\(re \* re \+ im \* im\) \/ covered\)/g) || []).length;
+        /* The per-bin sum used to step over an absent sample with `continue`. The transform reads one
+           deviation array instead, where an absent sample enters as a zero DEVIATION — the same
+           arithmetic, because the term the old loop skipped is a zero added to a sum. The assertion
+           moves with the structure, and it still names the three places absence is handled. */
+        var absent0 = (dsrc.match(/dev\[t\] = present\[t\] \? spo2\[t\] - mean : 0;/g) || []).length;
+        var norm = (dsrc.match(/pows\.push\(band\[k - kLo\] \/ covered\)/g) || []).length;
         var lag = (dsrc.match(/_lag1\(spo2, mean, present\)/g) || []).length;
         var floor = (dsrc.match(/covered \/ n < _FFT_MIN_COVERAGE/g) || []).length;
         T.ok('the coverage floor is read once, from a named constant', floor === 1 && /_FFT_MIN_COVERAGE = 0\.97/.test(dsrc), 'floor=' + floor);
         T.ok(
-          'the bin loop steps over an absent sample, the power divides by the covered count, and the persistence reads the mask',
-          skip === 1 && norm === 1 && lag === 1,
-          'skip=' + skip + ' norm=' + norm + ' lag=' + lag
+          'an absent sample enters the transform as a zero deviation, the power divides by the covered count, and the persistence reads the mask',
+          absent0 === 1 && norm === 1 && lag === 1,
+          'absent0=' + absent0 + ' norm=' + norm + ' lag=' + lag
         );
         T.ok(
           'the export names the covered samples, and only where coverage is below the span',
