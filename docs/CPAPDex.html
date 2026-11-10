@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="9de651be41e4" data-compute-hash="656791c077d5">
+<html lang="en" data-manifest-hash="4c349ce8e3fb" data-compute-hash="656791c077d5">
 <head>
 <!--
   CPAPDex.src.html — Tepna
@@ -2545,7 +2545,11 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
    card, the result column/grid, and the render module's bespoke rows.
    ════════════════════════════════════════════════════════════════════════ */
 .page{max-width:1180px;margin:0 auto;padding:30px 26px 80px}
-.app-head{display:flex;align-items:center;gap:14px;margin-bottom:6px}
+.app-head{display:flex;flex-wrap:wrap;align-items:center;gap:14px;margin-bottom:6px}
+/* The head is a flex row of badge + title + mode bar, and its min-content is 496 px. A 375 px
+   phone grew its layout viewport to 522 px with no night loaded at all. The items each fit a
+   phone alone (title 216 px, mode bar 210 px), so wrapping costs nothing at a desktop width,
+   where the three still sit on one line. Measured with the demo night. */
 .app-badge{width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,var(--teal),var(--blue));display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;box-shadow:0 6px 20px rgba(61,224,208,.22)}
 .app-title{font-size:21px;font-weight:800;letter-spacing:-.02em}
 .app-title small{display:block;font-size:11.5px;font-weight:600;color:var(--text3);letter-spacing:.02em;margin-top:1px;white-space:nowrap}
@@ -2626,7 +2630,12 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
 .kpi-val.ok{color:var(--green)}.kpi-val.warn{color:var(--amber)}.kpi-val.bad{color:var(--red)}.kpi-val.neutral{color:var(--blue)}
 
 .ev-legend{margin:0 0 16px;font-size:10.5px}
-.card-col{display:grid;grid-template-columns:1fr;gap:0}
+.card-col{display:grid;grid-template-columns:minmax(0,1fr);gap:0}
+/* A `1fr` track is `minmax(auto,1fr)`, and its auto minimum is the item's min-content. The one
+   grid item is `.card`, which keeps `min-width:auto`, so the full-metrics table pushed the
+   track to 664 px inside a 323 px container and the layout viewport grew to 690 px. The
+   `.table-wrap` scroller never engaged, because the card handed it all 622 px it asked for.
+   `minmax(0,1fr)` caps the track at the container, so the scroller takes the overflow. */
 
 /* card (ans-design.css doesn't define the plain .card we use) */
 .card{background:var(--surface);border:var(--b);border-radius:14px;padding:18px 20px;margin-bottom:14px}
