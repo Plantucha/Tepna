@@ -3782,9 +3782,10 @@ async function main() {
        under `tmpdir()`, so a probe of `--status` without it reads THIS MACHINE's real release run, and
        reports exit 2 whenever one is in progress — which is always true inside release-land's own gate
        step. So the release cut red on its own state at every gate run. */
-    probeToolArgv: (rel, args, { timeoutMs = 25000, viaSymlink = false, isolateTmp = false } = {}) => {
+    probeToolArgv: (rel, args, { timeoutMs = 25000, viaSymlink = false, isolateTmp = false, seedTmp = null } = {}) => {
       const cwd = mkdtempSync(join(tmpdir(), 'argv-probe-'));
-      const tmp = isolateTmp ? mkdtempSync(join(tmpdir(), 'argv-probe-tmp-')) : null;
+      const tmp = isolateTmp || seedTmp ? mkdtempSync(join(tmpdir(), 'argv-probe-tmp-')) : null;
+      if (seedTmp) seedTmp(tmp);
       const env = tmp ? { ...process.env, TMPDIR: tmp, TMP: tmp, TEMP: tmp } : process.env;
       const linkName = `link-${basename(rel)}`;
       try {

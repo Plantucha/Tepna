@@ -84658,6 +84658,22 @@
       T.ok('…and no plan was printed', !/DRY RUN/.test(String(landBad.out)), String(landBad.out).slice(0, 220));
       var landFwd = probeL('tools/release-land.mjs', ['--status', '--skip-gates'], { isolateTmp: true });
       T.ok('CONTROL · a flag release.mjs forwards is accepted, never refused', landFwd.status !== 2, 'status=' + landFwd.status + ' out=' + String(landFwd.out).slice(0, 160));
+      /* AN UNFINISHED RUN IS A REPORT, NOT A REFUSAL (board #5153). `--status` used to exit 2 for steps
+         that remain, the code the argv guard uses for a usage error, so every leg above that reads 2 as
+         "refused" turned red inside release-land's own gate step. The plant is a run with steps left. */
+      var fsL = typeof require === 'function' ? require('node:fs') : null;
+      var pathL = typeof require === 'function' ? require('node:path') : null;
+      var landRun = probeL('tools/release-land.mjs', ['--status'], {
+        seedTmp: function (dir) {
+          var d = pathL.join(dir, 'tepna-release-land');
+          fsL.mkdirSync(d);
+          var f = pathL.join(d, 'v9.9.9.json');
+          fsL.writeFileSync(f, JSON.stringify({ file: f, to: '9.9.9', started: 'x', updated: 'x', done: ['plan'], current: 'stamp', failed: null, log: [] }));
+          fsL.writeFileSync(pathL.join(d, 'latest.json'), JSON.stringify({ file: f }));
+        }
+      });
+      T.ok('PLANT · an unfinished run is read and reported', /^remaining:\s+\S/m.test(String(landRun.out)), String(landRun.out).slice(0, 200));
+      T.eq('…at exit 3, never the usage code 2', landRun.status, 3);
       var rtHelp = probeL('tests/run-tests.mjs', ['--help']);
       T.eq('run-tests.mjs · --help exits 0', rtHelp.status, 0);
       T.ok('…printing a usage line that names the runner', /^usage: node tests\/run-tests\.mjs/m.test(String(rtHelp.out)), String(rtHelp.out).slice(0, 160));
