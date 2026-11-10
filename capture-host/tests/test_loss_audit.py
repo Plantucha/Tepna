@@ -5189,6 +5189,68 @@ def test_A_GAP_AFTER_THE_WORN_END_IS_NOT_WORN_LOSS(tmp_path):
     assert r["worn_lost_min"] == 0.0 and r["worn_span_min"] == 6.2 and r["worn_but_not_recorded_fraction"] == 0.0
 
 
+def test_A_GAP_BEFORE_THE_WORN_START_IS_NOT_WORN_LOSS(tmp_path):
+    """MEASURED on the capture box 2026-11-10: night 2026-11-09's Verity streamed on its charger before the
+    wearer put it on. Both charger files read not worn, yet their gaps and the gap up to the first worn
+    row read as 137.1 worn minutes lost and FAILED the night. Its shape here: a desk file, a 100 s gap,
+    then the worn file."""
+    d = tmp_path / "captures" / "2026-09-23"
+    d.mkdir(parents=True)
+    _ppg(str(d / "Polar_VeritySense_0C30_20260923230000_PPG.txt"), 400, 20, lambda t: 37.0)
+    _ppi(str(d / "Polar_VeritySense_0C30_20260923230000_PPI.txt"), [0] * 400)
+    t1 = W0 + dt.timedelta(seconds=500)
+    _ppg(str(d / "Polar_VeritySense_0C30_20260923230820_PPG.txt"), 370, 20, lambda t: 37.0 if t < 360 else 111.0, t0=t1)
+    _ppi(str(d / "Polar_VeritySense_0C30_20260923230820_PPI.txt"), [60] * 300, t0=t1)
+    a = loss_audit.audit_night(str(d), [{"name": "Sense", "model": "VeritySense"}], journal=lambda *x: [])
+    v = a["devices"]["Sense"]
+    first, second = v["wear"]["ends"]
+    assert first["usable"] is False and second["usable"] is True, v["wear"]
+    assert v["worn_start_at"] == "2026-09-23T23:08:20", v["worn_start_at"]
+    assert [g["boundary"] for g in v["gaps"]] == [True], v["gaps"]
+    assert v["lost_min"] == v["before_worn_start_min"] > 0 and v["worn_lost_min"] == 0.0, v
+    assert v["worn_span_min"] < v["span_min"], "the desk file adds no worn span"
+    r = loss_audit.night_verdict(a, night_dir=str(d))["result"]
+    assert r["worn_lost_min"] == 0.0 and r["worn_but_not_recorded_fraction"] == 0.0, r
+
+
+def test_before_worn_start_s_takes_the_head_of_a_gap_across_the_start():
+    start = dt.datetime(2026, 9, 23, 22, 0, 0)
+    early = (start - dt.timedelta(seconds=100), 30.0)  # ends 70 s before the start: all before
+    across = (start - dt.timedelta(seconds=20), 50.0)  # 20 s before, 30 s worn
+    at_start = (start, 40.0)  # starts at the start: all worn
+    assert loss_audit.before_worn_start_s([early, across, at_start], start) == 50.0
+    assert loss_audit.before_worn_start_s([at_start], start) == 0.0
+    assert loss_audit.before_worn_start_s([early, across], None) == 0.0
+
+
+def test_worn_start_of_skips_only_the_files_judged_not_worn():
+    t = dt.datetime(2026, 9, 23, 22, 0, 0)
+    scans = [
+        ("X_0000_PPG.txt", {"first": None}),
+        ("X_0001_PPG.txt", {"first": t}),
+        ("X_0002_PPG.txt", {"first": t + dt.timedelta(seconds=600)}),
+        ("X_0003_PPG.txt", {"first": t + dt.timedelta(seconds=900)}),
+    ]
+    off = {"file": "X_0001_SPO2.csv", "usable": False, "reason": "not worn: no 300 s worn run in 4 decisions"}
+    short = {"file": "X_0001_SPO2.csv", "usable": False, "reason": "under 60 epochs of 10 s"}
+    on = {"file": "X_0003_SPO2.csv", "usable": True, "reason": "doff"}
+    assert loss_audit.worn_start_of([off, on], scans) == t + dt.timedelta(seconds=600), "X_0002 has no end"
+    assert loss_audit.worn_start_of([short, on], scans) == t, "a file too short to judge keeps the start"
+    assert loss_audit.worn_start_of([off], scans) is None, "no usable end: nothing to clip"
+    assert loss_audit.worn_start_of([on], scans[:1]) is None, "no stamped file: no start"
+
+
+def test_span_before_s_clips_each_file_at_the_worn_start():
+    t = dt.datetime(2026, 9, 23, 4, 0, 0)
+    scans = [
+        ("a", {"first": t, "last": t + dt.timedelta(seconds=600), "span": 600.0}),
+        ("b", {"first": t + dt.timedelta(seconds=700), "last": t + dt.timedelta(seconds=900), "span": 200.0}),
+    ]
+    assert loss_audit.span_before_s(scans, None, t + dt.timedelta(seconds=650)) == 200.0
+    assert loss_audit.span_before_s(scans, None, t + dt.timedelta(seconds=500)) == 300.0
+    assert loss_audit.span_before_s(scans, t + dt.timedelta(seconds=800), t + dt.timedelta(seconds=500)) == 200.0
+
+
 def test_after_worn_end_s_takes_the_tail_of_a_gap_across_the_end():
     end = dt.datetime(2026, 9, 23, 4, 0, 0)
     before = (end - dt.timedelta(seconds=100), 30.0)  # ends 70 s before the end: all worn
