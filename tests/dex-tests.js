@@ -11153,6 +11153,73 @@
       }
     });
 
+    /* A TAP IS NOT A HOVER (ledger row 2026-11-08-the-integrator-timeline-readout-is-hover-only).
+       The fused-event readout was bound to `mousemove` alone, and a tick is 2.2 viewBox units wide,
+       so a phone user could reach no event detail. The tap path picks the NEAREST tick within a
+       tolerance, and anchors the readout inside the viewport. Both are pure, so both lanes pin them. */
+    group('Integrator \u2014 a tap reaches the timeline readout', 'integrator-tap', function (T) {
+      var R = env.IntegratorRender;
+      var pick = R && R.pickTickAt;
+      var anchor = R && R.tipAnchor;
+      if (typeof pick !== 'function' || typeof anchor !== 'function') {
+        T.ok('IntegratorRender.pickTickAt and .tipAnchor present', false, 'export the tap decisions so a phone readout can be pinned with no DOM');
+        return;
+      }
+      /* a null picked tick must read as a null tip, never throw, so a plant reds every leg it breaks */
+      var tipOf = function (v) {
+        return v && v.tip != null ? v.tip : null;
+      };
+      var ticks = [
+        { cx: 100, tip: '22:10:00 \u00b7 desat \u00b7 conf 0.70 \u00b7 OxyDex' },
+        { cx: 140, tip: '22:12:00 \u00b7 arousal \u00b7 conf \u2014 \u00b7 ECGDex' }
+      ];
+      T.eq('a direct hit reads that tick', tipOf(pick(ticks, 100, 7)), ticks[0].tip);
+      T.eq('a near miss still reads the nearest tick', tipOf(pick(ticks, 136, 7)), ticks[1].tip);
+      T.eq('a tap beyond the tolerance reads nothing', pick(ticks, 120, 7), null);
+      T.eq('the tolerance is inclusive at its edge', tipOf(pick(ticks, 107, 7)), ticks[0].tip);
+      T.eq(
+        'a tie keeps the earlier tick',
+        tipOf(
+          pick(
+            [
+              { cx: 10, tip: 'a' },
+              { cx: 30, tip: 'b' }
+            ],
+            20,
+            11
+          )
+        ),
+        'a'
+      );
+      T.eq('a non-finite tap position reads nothing', pick(ticks, NaN, 7), null);
+      T.eq('no ticks reads nothing', pick([], 100, 7), null);
+      T.eq(
+        'a tick with no position is skipped, not picked',
+        tipOf(
+          pick(
+            [
+              { cx: NaN, tip: 'x' },
+              { cx: 102, tip: 'y' }
+            ],
+            100,
+            7
+          )
+        ),
+        'y'
+      );
+      T.eq('an absent tolerance falls back to the declared one', tipOf(pick(ticks, 106, undefined)), ticks[0].tip);
+      T.eq('and that fallback still refuses a tap outside it', pick(ticks, 120, undefined), null);
+
+      var free = anchor(200, 300, 180, 60, 1000, 800);
+      T.eq('with room, the readout sits below right of the tap', free.left, 214);
+      T.eq('and 14 px under it', free.top, 314);
+      T.eq('at the right edge it flips to the left of the tap', anchor(360, 300, 180, 60, 375, 800).left, 166);
+      T.eq('at the bottom edge it flips above the tap', anchor(100, 650, 180, 60, 375, 667).top, 576);
+      T.eq('a flip that would leave the screen clamps to the pad', anchor(10, 10, 300, 60, 320, 480).left, 8);
+      T.eq('an unknown viewport width does not flip the readout', anchor(360, 300, 180, 60, 0, 0).left, 374);
+      T.ok('the readout never starts off the left edge', anchor(2, 2, 400, 400, 320, 480).left >= 8 && anchor(2, 2, 400, 400, 320, 480).top >= 8);
+    });
+
     /* DEEP-AUDIT-III §6.1 — an ABSTENTION IS NOT AN AGREEMENT.
        ECGDex's ACC motion vote is explicitly tri-state (the exported method string says
        "Wake>20 / Ambiguous 5–20 / Sleep<5"): the middle state is the accelerometer DECLINING to
@@ -55998,6 +56065,9 @@
       var ph = pl([heldBehind], ST({}), CTX({ mainMovedAtMs: NOW }));
       T.eq('a held PR BEHIND main is updated AT ONCE, with main having just moved (no Kodiak-quiet gate)', ops(ph), 'update:3');
       T.eq('…and the update is the only thing a hold permits', ph.actions.length, 1);
+      /* A held DRAFT behind main is NOT updated: no merge button is live on a draft, and each update
+         re-ran the full CI — #4783 (held draft) took 35 merges of main on 2026-11-10. */
+      T.eq('a held DRAFT behind main gets no update', pl([cl(P({ number: 3, isDraft: true, labels: [env.pwHoldLabel], mergeState: 'BEHIND' }), REQ)], ST({}), CTX({})).actions.length, 0);
       T.eq('a held non-draft PR that is current still gets nothing', pl([cl(P({ number: 3, isDraft: false, labels: [env.pwHoldLabel] }), REQ)], ST({}), CTX({})).actions.length, 0);
       /* Owner, 2026-11-02: "Fix walker. Everything is idle" — three held PRs sat DIRTY with no action.
          update-branch cannot merge a conflict, so a held conflict gets the once-per-head rebase. */

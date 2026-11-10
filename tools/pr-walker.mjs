@@ -38,7 +38,7 @@
  * visibility"). A failed or dry-run action signs nothing; a comment that cannot post never changes the
  * action's result, it only reads `signed: false` on the landing page.
  * A `do-not-merge` label HOLDS a PR: the walker never readies, reruns or merges it. It still REBASES a
- * held PR that CONFLICTS (once per head, owner 2026-11-02), and it UPDATES a held PR that falls BEHIND main, at once and with no idleness gate, because Kodiak never
+ * held PR that CONFLICTS (once per head, owner 2026-11-02), and it UPDATES a held non-draft PR that falls BEHIND main, at once and with no idleness gate, because Kodiak never
  * updates a held PR and the owner's merge button otherwise reads "out-of-date" after every merge to
  * main (owner, 2026-10-13: "let the walker update held PRs too"). Kodiak keeps the merge; `update` and
  * `merge` on a green PR are fallbacks for the hours Kodiak is down, gated on its idleness, never a race.
@@ -205,7 +205,10 @@ export function plan(classified, state, ctx) {
          as an unheld one, because update-branch cannot merge a conflict (owner, 2026-11-02: "Fix
          walker. Everything is idle" — three held PRs sat DIRTY with no action). A rebase moves no
          label and merges nothing, so the hold still decides the landing. */
-      if (r.behind && !actions.some((a) => a.op === 'update')) actions.push({ op: 'update', number: r.number, why: 'held, behind main — updated so the owner can merge' });
+      /* A held DRAFT is not updated: no merge button is live on a draft, so keeping it current buys the
+         owner nothing, and each update re-ran the full CI (#4783 took 35 merges of main in one day). It
+         is updated on the first pass after it leaves draft. */
+      if (r.behind && !r.draft && !actions.some((a) => a.op === 'update')) actions.push({ op: 'update', number: r.number, why: 'held, behind main — updated so the owner can merge' });
       else if (r.dirty) planRebase(r, state, actions, alerts, 'held, conflicts with main — rebase-safe once so the owner can merge');
       continue;
     }
@@ -905,6 +908,11 @@ function selftest() {
   eq(p.actions[0].number, 3, 'oldest first');
   const held = plan([classify(mk({ number: 7, isDraft: false, labels: [HOLD_LABEL], mergeState: 'BEHIND' }), req)], { reruns: {}, rebased: {} }, { nowMs: 0, mainMovedAtMs: 0, cap: 4 });
   eq(held.actions.map((a) => `${a.op}:${a.number}`).join(','), 'update:7', 'held behind ⇒ update at once');
+  eq(
+    plan([classify(mk({ number: 7, labels: [HOLD_LABEL], mergeState: 'BEHIND' }), req)], { reruns: {}, rebased: {} }, { nowMs: 0, mainMovedAtMs: 0, cap: 4 }).actions.length,
+    0,
+    'held DRAFT behind ⇒ nothing'
+  );
   eq(plan([classify(mk({ number: 7, isDraft: false, labels: [HOLD_LABEL] }), req)], { reruns: {}, rebased: {} }, { nowMs: 0, mainMovedAtMs: 0, cap: 4 }).actions.length, 0, 'held current ⇒ nothing');
   const hd = plan([classify(mk({ number: 8, labels: [HOLD_LABEL], mergeState: 'DIRTY' }), req)], { reruns: {}, rebased: {} }, { nowMs: 0, mainMovedAtMs: 0, cap: 4 });
   eq(hd.actions.map((a) => `${a.op}:${a.number}`).join(','), 'rebase:8', 'held conflicting ⇒ one rebase');
