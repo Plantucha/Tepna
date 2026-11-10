@@ -26448,6 +26448,220 @@
             })
             .join(', ')
         );
+
+        /* (c2) STORAGE CENSUS — row 2026-11-08-the-erase-all-drift-guard-cannot-see-a-constant-key.
+           Leg (c) matches a QUOTED key only, so a key held in a constant, returned by a function,
+           taken from an array or passed as a parameter passed it unseen: three stores survived erase
+           while it read 20 of 20. This leg finds every get/set/removeItem call and every IndexedDB
+           open in the sources, resolves the NAME each one reaches, and requires that name in the
+           erase set. A site it cannot resolve reds by itself, so a new shape fails closed. */
+        /* storageCensus(src) → { sites:[{kind,file,line,arg,names|null}] } — every localStorage get/set/remove
+           and every indexedDB open in the given sources, with the key NAME each one reaches. */
+        function storageCensus(src) {
+          var ID = '[A-Za-z_$][\\w$]*';
+          var LIT = /^['"]([^'"]+)['"]$/;
+          function lits(s) {
+            var out = [];
+            for (const x of s.matchAll(/['"]([^'"]+)['"]/g)) out.push(x[1]);
+            return out;
+          }
+          function onlyLits(s) {
+            return s.replace(/'[^']*'|"[^"]*"|[\s,]/g, '') === '';
+          }
+          // the argument text of a call, balanced over () and []
+          function argAt(body, i) {
+            var d = 0,
+              j = i;
+            for (; j < body.length; j++) {
+              var c = body[j];
+              if (c === '(' || c === '[') d++;
+              else if (c === ')' || c === ']') {
+                if (d === 0) break;
+                d--;
+              } else if (c === ',' && d === 0) break;
+            }
+            return body.slice(i, j).trim();
+          }
+          // the text inside an array literal whose `[` sits just before index i
+          function arrayBody(body, i) {
+            var d = 0,
+              j = i;
+            for (; j < body.length; j++) {
+              if (body[j] === '[') d++;
+              else if (body[j] === ']') {
+                if (d === 0) break;
+                d--;
+              }
+            }
+            return body.slice(i, j);
+          }
+          // a declaration `const ID = 'lit'` in this file, else the one value every other source agrees on
+          function constOf(id, body) {
+            var re = new RegExp('(?:var|let|const)\\s+' + id + '\\s*=\\s*[\'"]([^\'"]+)[\'"]');
+            var c = re.exec(body);
+            if (c) return c[1];
+            var seen = {};
+            Object.keys(src).forEach(function (f) {
+              var o = src[f] && re.exec(src[f]);
+              if (o) seen[o[1]] = 1;
+            });
+            var v = Object.keys(seen);
+            return v.length === 1 ? v[0] : null;
+          }
+          function resolve(arg, body, pos, depth) {
+            if (depth > 3) return null;
+            var m;
+            m = LIT.exec(arg);
+            if (m) return [m[1]];
+            m = /^typeof\s+[\w$]+\s*!==?\s*['"]undefined['"]\s*\?\s*([^:]+):(.+)$/.exec(arg);
+            if (m) {
+              var a1 = resolve(m[1].trim(), body, pos, depth + 1),
+                a2 = resolve(m[2].trim(), body, pos, depth + 1);
+              return a1 && a2 ? a1.concat(a2) : null;
+            }
+            m = new RegExp('^(' + ID + ')\\(\\)$').exec(arg);
+            if (m) {
+              var f = new RegExp('function\\s+' + m[1] + '\\s*\\(\\s*\\)\\s*\\{\\s*return\\s+[\'"]([^\'"]+)[\'"]').exec(body);
+              return f ? [f[1]] : null;
+            }
+            m = new RegExp('^(' + ID + ')(?:\\[(\\w+)\\])?$').exec(arg);
+            if (m) {
+              var id = m[1],
+                idx = m[2];
+              var c = idx == null ? constOf(id, body) : null;
+              if (c) return [c];
+              var arr = new RegExp('(?:var|let|const)\\s+' + id + '\\s*=\\s*\\[').exec(body);
+              if (arr && idx != null) {
+                var t = arrayBody(body, arr.index + arr[0].length);
+                return onlyLits(t) ? lits(t) : null;
+              }
+              // a forEach parameter: the nearest preceding `<array>.forEach(function (id` / `(id) =>`
+              var fe = new RegExp('(?:(' + ID + ')|\\])\\s*\\.forEach\\(\\s*(?:function\\s*\\(\\s*' + id + '\\b|\\(?\\s*' + id + '\\s*\\)?\\s*=>)', 'g');
+              var last = null;
+              for (const x of body.matchAll(fe)) {
+                if (x.index >= pos) break;
+                last = x;
+              }
+              if (last) {
+                var t2 = null;
+                if (last[1]) {
+                  var na = new RegExp('(?:var|let|const)\\s+' + last[1] + '\\s*=\\s*\\[').exec(body);
+                  t2 = na ? arrayBody(body, na.index + na[0].length) : null;
+                } else {
+                  // inline: walk back from the `]` to its `[`
+                  var e = last.index,
+                    d = 0,
+                    s = e;
+                  for (; s >= 0; s--) {
+                    if (body[s] === ']') d++;
+                    else if (body[s] === '[') {
+                      d--;
+                      if (d === 0) break;
+                    }
+                  }
+                  t2 = body.slice(s + 1, e);
+                }
+                if (t2 == null) return null;
+                if (idx == null) return onlyLits(t2) ? lits(t2) : null;
+                // an array of tuples: element `idx` of each
+                var out = [];
+                for (const tup of t2.matchAll(/\[([^\[\]]*)\]/g)) {
+                  var el = tup[1].split(',')[+idx];
+                  var lm = el && LIT.exec(el.trim());
+                  if (!lm) return null;
+                  out.push(lm[1]);
+                }
+                return out.length ? out : null;
+              }
+              // a function parameter: resolve the argument at every call site of the enclosing function
+              if (idx == null) {
+                var fn = new RegExp('function\\s+(' + ID + ')\\s*\\(\\s*' + id + '\\s*\\)', 'g'),
+                  encl = null;
+                for (const y of body.matchAll(fn)) {
+                  if (y.index >= pos) break;
+                  encl = y;
+                }
+                if (encl) {
+                  var calls = new RegExp('(?<!function\\s)\\b' + encl[1] + '\\(', 'g'),
+                    names = [],
+                    any = false;
+                  for (const z of body.matchAll(calls)) {
+                    if (z.index === encl.index + encl[0].indexOf(encl[1])) continue;
+                    any = true;
+                    var r = resolve(argAt(body, z.index + z[0].length), body, z.index, depth + 1);
+                    if (!r) return null;
+                    names = names.concat(r);
+                  }
+                  return any ? names : null;
+                }
+              }
+            }
+            return null;
+          }
+          var SITE = /(?:\.(?:getItem|setItem|removeItem)|(?:\bindexedDB|\bIDB)\.(open))\(/g;
+          var sites = [];
+          Object.keys(src).forEach(function (file) {
+            var body = src[file];
+            if (!body) return;
+            for (const m of body.matchAll(SITE)) {
+              var at = m.index + m[0].length;
+              var arg = argAt(body, at);
+              sites.push({ kind: m[1] ? 'idb' : 'local', file: file, line: body.slice(0, m.index).split('\n').length, arg: arg, names: resolve(arg, body, m.index, 0) });
+            }
+          });
+          return sites;
+        }
+        var census = storageCensus(
+          (function () {
+            var o = {};
+            Object.keys(src).forEach(function (n) {
+              if (n !== 'dex-forget.js' && /\.js$/.test(n)) o[n] = src[n];
+            });
+            return o;
+          })()
+        );
+        var cFiles = {};
+        census.forEach(function (s) {
+          cFiles[s.file] = 1;
+        });
+        T.ok(
+          'census · the sources reach the census (a population floor, not an empty pass)',
+          census.length >= 60 && Object.keys(cFiles).length >= 10 && !!cFiles['metric-registry.js'] && !!cFiles['night-seal.js'],
+          census.length + ' sites in ' + Object.keys(cFiles).length + ' files'
+        );
+        var unres = census.filter(function (s) {
+          return !s.names;
+        });
+        T.ok(
+          'census · every storage site resolves to a key name (an unresolvable shape fails closed)',
+          unres.length === 0,
+          unres
+            .map(function (s) {
+              return s.file + ':' + s.line + ' ' + s.arg;
+            })
+            .join(' · ')
+        );
+        var eraseLocal = DexForget.LOCAL_KEYS.concat(DexForget.ANALYSIS_KEYS || []),
+          eraseIdb = DexForget.IDB_DBS.concat(DexForget.ANALYSIS_IDB || []),
+          unerased = {};
+        census.forEach(function (s) {
+          (s.names || []).forEach(function (n) {
+            if ((s.kind === 'idb' ? eraseIdb : eraseLocal).indexOf(n) < 0) unerased[n] = s.file + ':' + s.line;
+          });
+        });
+        T.ok(
+          'census · every resolved name is in the erase set (localStorage ⊆ LOCAL_KEYS ∪ ANALYSIS_KEYS · IndexedDB ⊆ IDB_DBS ∪ ANALYSIS_IDB)',
+          Object.keys(unerased).length === 0,
+          Object.keys(unerased)
+            .map(function (k) {
+              return k + ' (' + unerased[k] + ')';
+            })
+            .join(', ')
+        );
+        var viaKinds = census.filter(function (s) {
+          return s.names && !/^['"]/.test(s.arg);
+        }).length;
+        T.ok('census · it resolves the non-literal shapes that leg (c) cannot see', viaKinds >= 20, viaKinds + ' non-literal sites');
       }
       // (d) F6 FUNCTIONAL — migrate() folds a legacy key then DELETES it (confirmed-save cleanup).
       var P = env.DexProfile;
