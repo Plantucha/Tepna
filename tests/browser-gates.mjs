@@ -17,8 +17,11 @@
  * GATE A (all 8 bundles reproducible) is still fully enforced. Locally, with
  * uploads/ present, both gates run. The Dex-Test-Suite gate never needs uploads/.
  *
- * Run: BASE_URL=http://127.0.0.1:8080 node tests/browser-gates.mjs
+ * Run: `npm run gates:browser:local` (tools/browser-lane.mjs serves the tree, picks a free port and
+ * sets BASE_URL). By hand: BASE_URL=http://127.0.0.1:<a port you serve> node tests/browser-gates.mjs.
+ * This file starts NO server, so a bare run reaches whatever holds 8080 — see the ORIGIN PREFLIGHT.
  */
+import { readFileSync } from 'node:fs';
 import { aggregateChildren, makeVerdict } from '../tools/verdict-emit.mjs';
 /* The DECLARED GATE A population, read from the gate module rather than hardcoded: the wait below carried
    a literal 8 against nine declared bundles. One number, one source. */
@@ -154,6 +157,48 @@ export function auditBrowserSkips(census, cfg) {
   return fails;
 }
 
+/* ── THE ORIGIN PREFLIGHT — a page this gate never loaded is NOT_RUN, never a verdict ────────────
+   WHY. `BASE_URL` is optional and falls back to `http://127.0.0.1:8080`, and this file starts NO
+   server: `npm run gates:browser:local` (`tools/browser-lane.mjs`) is what serves the tree. Row
+   `2026-11-10-browser-gates-serves-nothing-on-its-default-port` measured the cost on the rig, where
+   the xerj service answers 8080. Every leg then loaded a page that is not ours, the run printed
+   `verdict never computed`, and it named no URL and no HTTP status — so the output read as a computed
+   verdict over a page the gate never reached.
+
+   A 200 IS NOT REACH. An unrelated service answers 200 as readily as ours, so the preflight asks for
+   `__rcState`, the symbol `gateTestSuite` polls: the reach test and the first leg read one contract,
+   and a port swap cannot satisfy one while failing the other.
+
+   §🧾: a gate that examined nothing answers NOT_RUN with a reason, and this one names the URL, the
+   status or the network error, and the command that serves the tree. Pure, so the selftest plants
+   every arm with no server and no browser. */
+export const ORIGIN_MARKER = '__rcState';
+const SERVE_HINT = 'serve the tree and set BASE_URL — `npm run gates:browser:local` does both';
+export function diagnoseOrigin({ url = '', status = null, body = '', error = null, marker = ORIGIN_MARKER } = {}) {
+  if (error) return { ok: false, reason: `no page answered ${url}: ${error} — ${SERVE_HINT}` };
+  if (status !== 200) return { ok: false, reason: `${url} answered HTTP ${status}, so this run loaded no page of ours — ${SERVE_HINT}` };
+  const n = String(body).length;
+  if (String(body).indexOf(marker) < 0) return { ok: false, reason: `${url} answered HTTP 200 with ${n} byte(s) that do not hold \`${marker}\`, so another service holds that port — ${SERVE_HINT}` };
+  return { ok: true, reason: null };
+}
+/* The NOT_RUN object. Every leg was ELIGIBLE and every leg is EXCLUDED by the unreachable origin, so
+   the population states 0 checked of 5 eligible and does not pretend the legs were never there. The
+   contract refuses a `result` here (`verdict.js`: nothing was examined, so nothing was measured), so
+   the URL and the status live in the `reason`, which is the only field a reader gets. */
+export function originNotRunVerdict(reason, at) {
+  return makeVerdict({
+    gate: 'browser-gates',
+    status: 'NOT_RUN',
+    population: { checked: 0, eligible: LEGS.length, excluded: LEGS.length },
+    criterion: CRIT,
+    result: null,
+    evidence: ['tests/browser-gates.mjs', 'tools/browser-lane.mjs'],
+    reason,
+    tool: 'tests/browser-gates.mjs',
+    ...(at ? { commit: null, commitReason: 'selftest', at } : {})
+  });
+}
+
 function selftest() {
   let n = 0;
   const eq = (a, b, msg) => {
@@ -221,6 +266,31 @@ function selftest() {
     true,
     'skip budget · the SHIPPED block in tests/expected-skips.json is readable and non-empty'
   );
+  /* ── the origin preflight · every arm planted with no server and no browser ──────────────────── */
+  const pfUrl = 'http://127.0.0.1:8080/Dex-Test-Suite.html';
+  eq(diagnoseOrigin({ url: pfUrl, status: 200, body: '<script>window.__rcState = "pending";</script>' }).ok, true, 'preflight · a 200 holding the polled symbol is reach');
+  const pfOther = diagnoseOrigin({ url: pfUrl, status: 200, body: '{"service":"xerj","ok":true}' });
+  eq(pfOther.ok === false && /another service holds that port/.test(pfOther.reason), true, 'preflight plant · a 200 from an unrelated service is NOT reach, and the reason says which port');
+  eq(/28 byte\(s\)/.test(pfOther.reason), true, 'preflight plant · the reason states the size of what answered, so a stub is distinguishable from a page');
+  const pfMissing = diagnoseOrigin({ url: pfUrl, status: 404 });
+  eq(pfMissing.ok === false && /answered HTTP 404/.test(pfMissing.reason), true, 'preflight plant · a 404 names the status the gate got');
+  const pfDead = diagnoseOrigin({ url: pfUrl, error: 'fetch failed: ECONNREFUSED' });
+  eq(pfDead.ok === false && /ECONNREFUSED/.test(pfDead.reason) && pfDead.reason.includes(pfUrl), true, 'preflight plant · a refused connection names the error AND the URL');
+  eq(
+    [pfOther, pfMissing, pfDead].every((d) => /gates:browser:local/.test(d.reason)),
+    true,
+    'preflight · every refusal names the one command that serves the tree'
+  );
+  /* ANTI-VACUITY. A marker absent from the served page would make the preflight refuse every run,
+     and a marker nothing polls would make it pass a page the first leg cannot use. Both are read
+     from the tree, not asserted: the page must hold the symbol, and this file must poll it. */
+  const pfSuite = readFileSync(new URL('../Dex-Test-Suite.html', import.meta.url), 'utf8');
+  eq(pfSuite.includes(ORIGIN_MARKER), true, `preflight anti-vacuity · Dex-Test-Suite.html holds ${ORIGIN_MARKER}, so reach is satisfiable`);
+  const pfSelf = readFileSync(new URL('./browser-gates.mjs', import.meta.url), 'utf8');
+  eq(pfSelf.includes('window.' + ORIGIN_MARKER + " === 'done'"), true, 'preflight anti-vacuity · the marker is the symbol the first leg polls, not a second contract');
+  const pfNr = originNotRunVerdict('nothing answered', AT.at);
+  eq(pfNr.status === 'NOT_RUN' && pfNr.population.checked === 0 && pfNr.population.excluded === pfNr.population.eligible, true, '§🧾 · an unreached origin is NOT_RUN over 0 of 5 checked');
+  eq(pfNr.reason === 'nothing answered' && pfNr.result === null, true, '§🧾 · the NOT_RUN object carries the reason, and no result, because nothing was examined');
   console.log(`all ${n} selftests passed`);
 }
 
@@ -251,6 +321,24 @@ const { chromium } = await import('playwright');
 const { launch } = await import('../tools/pw-launch.mjs');
 
 const BASE = (process.env.BASE_URL || 'http://127.0.0.1:8080').replace(/\/$/, '');
+/* The reach test runs BEFORE Chromium launches: an origin that holds no page of ours costs no browser
+   and reports NOT_RUN, which is the state the old run printed as `verdict never computed`. */
+const PREFLIGHT_URL = BASE + '/Dex-Test-Suite.html';
+const origin = await (async () => {
+  try {
+    const res = await fetch(PREFLIGHT_URL, { signal: AbortSignal.timeout(15000) });
+    return diagnoseOrigin({ url: PREFLIGHT_URL, status: res.status, body: await res.text() });
+  } catch (e) {
+    return diagnoseOrigin({ url: PREFLIGHT_URL, error: (e && e.message) || String(e) });
+  }
+})();
+if (!origin.ok) {
+  const v = originNotRunVerdict(origin.reason);
+  if (JSON_OUT) console.log(JSON.stringify(v));
+  else say(`  tepna.verdict/1: ${v.status}  ·  ${v.population.checked} checked / ${v.population.eligible} eligible / ${v.population.excluded} excluded`);
+  console.error('\n⏱ BROWSER GATES NOT RUN — ' + origin.reason);
+  process.exit(2);
+}
 const FAILS = [];
 // --disable-dev-shm-usage: CI containers give /dev/shm only ~64 MB. Render-coverage boots 9 self-
 // contained app bundles (each evals MBs of inlined plain-text JS) in an iframe; that overflows /dev/shm

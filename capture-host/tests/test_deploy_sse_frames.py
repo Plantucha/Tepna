@@ -10,6 +10,12 @@ and was **permanently broken**: an SSE stream never ends, so it is cut off on pu
 the `|| N=0` fallback replaced every real count with zero. It ran once, against a config that had
 just been fixed and was working, and reported `0 frames in 9 s`.
 
+A second reading of the same defect: the fixed version printed `0` for a stream it never reached,
+and `0` is also what an open stream carrying no data frames prints. One observable result stood
+for three causes, and the caller acts on only one of them. CLAUDE.md ∅ asks a value nobody
+measured to be null rather than 0, so the two unreached states now print no count and name
+themselves on stderr.
+
 A check that can only fail is worse than no check — the natural response is to stop believing it. So
 these tests drive the real script against a real HTTP server and assert it reports the true count.
 """
@@ -45,6 +51,12 @@ class _SseHandler(http.server.BaseHTTPRequestHandler):
     frames_per_sec = 50
 
     def do_GET(self):  # noqa: N802 - stdlib naming
+        if self.path == "/deny":  # the endpoint answered, and refused the credential
+            self.send_response(401)
+            self.send_header("Content-Type", "text/plain")
+            self.end_headers()
+            self.wfile.write(b"no\n")
+            return
         if self.path == "/empty":  # a stream that opens but carries no data
             self.send_response(200)
             self.send_header("Content-Type", "text/event-stream")
@@ -94,7 +106,7 @@ def test_a_live_stream_is_counted_and_not_reported_as_zero(server):
     """THE bug. The inline version returned 0 here, on a stream delivering 5 frames a second."""
     r = _run(server + "/stream", 0.3)
     n = int(r.stdout.strip())
-    assert n >= 5, f"3 s at 5 frames/s should count ~15, got {n} (stderr: {r.stderr!r})"
+    assert n >= 5, f"0.3 s at 50 frames/s should count ~15, got {n} (rc {r.returncode}, stderr {r.stderr!r})"
 
 
 def test_exit_status_is_success_even_though_curl_times_out(server):
@@ -119,11 +131,47 @@ def test_a_stream_with_no_data_frames_counts_zero(server):
     assert r.returncode == 0
 
 
-def test_an_unreachable_url_counts_zero_rather_than_erroring(server):
-    """A refused connection is a real failure to report, not a crash to debug."""
+def test_an_unreachable_url_REFUSES_instead_of_counting_zero(server):
+    """A refused connection counted nothing, so it must print no count.
+
+    This test replaces one that pinned the opposite. It asserted `0` and exit 0 here, which is byte
+    for byte what an open stream carrying no data frames prints. The installer reads that state as
+    an encoder buffering the stream, and an unreached endpoint cannot support that conclusion.
+    """
     r = subprocess.run(["bash", SCRIPT, "http://127.0.0.1:1/nope", "2"], capture_output=True, text=True, timeout=30)
-    assert r.stdout.strip() == "0"
-    assert r.returncode == 0
+    assert r.returncode == 3, f"expected the no-response status, got {r.returncode}: {r.stderr!r}"
+    assert r.stdout.strip() == "", f"a count was printed for a stream nobody reached: {r.stdout!r}"
+    assert "no HTTP response" in r.stderr
+
+
+def test_a_rejected_endpoint_is_not_reported_as_an_empty_stream(server):
+    """A 401 behind the auth block answered and carried no frames. Counting 0 there blames the
+    encoder for a credential fault."""
+    r = _run(server + "/deny", 0.5)
+    assert r.returncode == 4, f"expected the non-2xx status, got {r.returncode}: {r.stderr!r}"
+    assert r.stdout.strip() == "", f"a count was printed for a refused endpoint: {r.stdout!r}"
+    assert "401" in r.stderr
+
+
+def test_the_three_absent_frame_states_are_DISTINGUISHABLE(server):
+    """The defect was one observable result for three causes. Hold all three apart in one place."""
+    empty = _run(server + "/empty", 0.2)
+    denied = _run(server + "/deny", 0.5)
+    gone = subprocess.run(["bash", SCRIPT, "http://127.0.0.1:1/nope", "2"], capture_output=True, text=True, timeout=30)
+    seen = {(r.stdout.strip(), r.returncode) for r in (empty, denied, gone)}
+    assert len(seen) == 3, f"three causes produced {len(seen)} distinct result(s): {seen}"
+    assert (empty.stdout.strip(), empty.returncode) == ("0", 0), "only a reached stream reports a count"
+
+
+def test_the_window_and_not_the_belt_ends_the_run(server):
+    """`timeout` is the belt over `--max-time` and must fire later. Were it firing first it would
+    SIGTERM curl before the --write-out line, and a live stream would read as no response. So the
+    run ends on the window, and the belt stays well clear of it."""
+    t0 = time.monotonic()
+    r = _run(server + "/stream", 0.3)
+    elapsed = time.monotonic() - t0
+    assert r.returncode == 0, f"a reached stream reported status {r.returncode}: {r.stderr!r}"
+    assert elapsed < 3.0, f"the run took {elapsed:.2f} s for a 0.3 s window — the belt fired first"
 
 
 # ── the properties the installer depends on ───────────────────────────────────────────────────
@@ -140,3 +188,12 @@ def test_the_installer_delegates_to_this_script_instead_of_counting_inline():
     after = body.split("systemctl reload caddy")[-1]
     assert "sse-frames.sh" in after, "the installer must use the tested counter"
     assert "grep -c '^data:'" not in after, "counting frames inline in the installer reintroduces the pipefail clobber"
+
+
+def test_the_installer_reads_the_counters_status_before_its_count():
+    """A refusal prints no count. A caller reading only stdout turns that into `0 frames`, which is
+    the buffering diagnosis — the one conclusion an unreached stream cannot support."""
+    inst = os.path.join(os.path.dirname(SCRIPT), "expose-monitor.sh")
+    after = open(inst, encoding="utf-8").read().split("systemctl reload caddy")[-1]
+    assert "UNMEASURED" in after, "the installer must name an unmeasured stream as unmeasured"
+    assert "${N:-0}" not in after, "defaulting the count to 0 restores the reading the script refuses"
