@@ -55,7 +55,7 @@ trap 'rm -rf "$TMP"' EXIT
 UP="$TMP/upstream"; WORK="$TMP/work"
 git init -q --bare "$UP"
 git clone -q "$UP" "$WORK" 2>/dev/null
-cd "$WORK"
+cd "$WORK" || exit 1
 git config user.email t@t; git config user.name t
 mkdir -p briefs tools
 printf 'v1\n' > briefs/SHARED-BRIEF.md
@@ -370,9 +370,11 @@ echo "### WHAT THE DENIAL SAYS — the verdict is not the only thing a reader ha
 # which of the two cases they are in. Every needle below is paired with a command that must NOT
 # print it — a line the block prints unconditionally would otherwise score as loudly as a real one.
 saysof() { # saysof <command string> ; echoes the hook's stderr, the denial text
+  # shellcheck disable=SC2069  # deliberate: stdout goes to /dev/null and the leg reads the hook's STDERR.
   jq -nc --arg c "$1" '{tool_input:{command:$c}}' | bash "$H" 2>&1 >/dev/null
 }
 saysof_f() { # saysof_f <file_path> ; same, for an Edit/Write payload
+  # shellcheck disable=SC2069  # deliberate: stdout goes to /dev/null and the leg reads the hook's STDERR.
   printf '{"tool_input":{"file_path":"%s"}}' "$1" | bash "$H" 2>&1 >/dev/null
 }
 # A NEEDLE-ON-A-MESSAGE FAIL IS UNREADABLE WITHOUT THE MESSAGE. Residue
@@ -707,6 +709,7 @@ expectcmd_from ALLOW "bash cd->CURRENT, cwd inside IT - still allowed" "$CUR" \
 # here is that the denial SAYS SO: a block that cannot explain itself trains the reader to reach for
 # the escape hatch by reflex, and a hatch-by-reflex guard is one that fails the day it is right.
 msgcmd_from() { # msgcmd_from <cwd> <command> — the hook's stderr
+  # shellcheck disable=SC2069  # deliberate: stdout goes to /dev/null and the leg reads the hook's STDERR.
   ( cd "$1" && jq -nc --arg c "$2" '{tool_input:{command:$c}}' | bash "$H" 2>&1 >/dev/null )
 }
 ghost="$STALE/does-not-exist-yet"
@@ -714,7 +717,7 @@ ghost_cmd="cd $ghost && python3 -c \"open('briefs/SHARED-BRIEF.md','w').write('v
 expectcmd_from DENY "bash cd->a tree that does not exist yet - still denied" "$STALE" "$ghost_cmd"
 gm="$(msgcmd_from "$STALE" "$ghost_cmd")"
 case "$gm" in
-  *"THIS BASE IS THE SHARED ROOT'S"*) printf '  ok    %-58s %s\n' "...and the denial NAMES the missing tree" "explained" ;;
+  *"THIS BASE BELONGS TO THE SHARED ROOT"*) printf '  ok    %-58s %s\n' "...and the denial NAMES the missing tree" "explained" ;;
   *) printf '  FAIL  %-58s %s\n' "...and the denial NAMES the missing tree" "message does not explain the fallback"; fail=$((fail+1)); dump_msg "a cd to a tree that does not exist yet" "$gm" ;;
 esac
 case "$gm" in
@@ -725,7 +728,7 @@ esac
 # becomes wallpaper on every denial and stops meaning anything.
 em="$(msgcmd_from "$STALE" "cd $STALE && python3 -c \"open('briefs/SHARED-BRIEF.md','w').write('v3')\"")"
 case "$em" in
-  *"THIS BASE IS THE SHARED ROOT'S"*) printf '  FAIL  %-58s %s\n' "...and an EXISTING tree carries no such note" "note leaked onto a normal denial"; fail=$((fail+1)); dump_msg "a cd to a tree that exists" "$em" ;;
+  *"THIS BASE BELONGS TO THE SHARED ROOT"*) printf '  FAIL  %-58s %s\n' "...and an EXISTING tree carries no such note" "note leaked onto a normal denial"; fail=$((fail+1)); dump_msg "a cd to a tree that exists" "$em" ;;
   *) printf '  ok    %-58s %s\n' "...and an EXISTING tree carries no such note" "clean" ;;
 esac
 
@@ -907,6 +910,7 @@ echo "### THE TWO COPIES OF THE STRIPPER STAY BYTE-IDENTICAL"
 # other was not, so the parity is asserted rather than trusted.
 # Normalised on the ONE thing that legitimately differs: each hook names its folded command
 # variable for itself ($cmdn there, $cmdf here). Everything else must match byte for byte.
+# shellcheck disable=SC2016  # sed scripts in single quotes; $cmdn and $C are sed text, not this shell's.
 _strip_of() { sed -n '/^cmd_nohere=/,/^fi$/p' "$1" | sed 's/\$cmdn/$C/g; s/\$cmdf/$C/g'; }
 _A="$(_strip_of "$HOOKDIR/guard-shared-tree.sh")"
 _B="$(_strip_of "$HOOKDIR/guard-stale-brief.sh")"
@@ -933,6 +937,7 @@ bashrun() { # bashrun <command> ; echoes the stderr
     echo "  FAIL  bashrun payload is not valid JSON — every verdict below would be vacuous"
     fail=$((fail+1)); return
   }
+  # shellcheck disable=SC2069  # deliberate: stdout goes to /dev/null and the leg reads the hook's STDERR.
   printf '%s' "$js" | bash "$H" 2>&1 >/dev/null
 }
 MSG_PLAIN="$(bashrun "sed -i s/a/b/ briefs/SHARED-BRIEF.md")"
@@ -944,13 +949,13 @@ else echo "  FAIL  denial does not give the distance"; fail=$((fail+1));dump_msg
 # THE SHAPE THAT DEFEATED IT: a leading cd to an EXISTING dir, then the worktree that does not exist.
 MISSING="$TMP/not-created-yet"
 MSG_WT="$(bashrun "cd $WORK && git worktree add $MISSING && cd $MISSING && sed -i s/a/b/ briefs/SHARED-BRIEF.md")"
-if says 'THIS BASE IS THE SHARED ROOT' "$MSG_WT"; then echo "  ok    a LATER cd to a not-yet-created tree is still detected (was: only the first cd)"
+if says 'THIS BASE BELONGS TO THE SHARED ROOT' "$MSG_WT"; then echo "  ok    a LATER cd to a not-yet-created tree is still detected (was: only the first cd)"
 else echo "  FAIL  cd_missing missed a non-first cd — the worktree-creating shape"; fail=$((fail+1));printf '        the directory that must read as missing: %s\n' "$MISSING"; dump_msg "the worktree-creating cd shape" "$MSG_WT"; fi
 if says "$MISSING" "$MSG_WT"; then echo "  ok    …and the notice names which directory does not exist yet"
 else echo "  FAIL  notice does not name the missing dir"; fail=$((fail+1));dump_msg "the name of the missing directory" "$MSG_WT"; fi
 # NARROWNESS: an ordinary subdirectory hop to a dir that EXISTS must not be reported as missing.
 MSG_HOP="$(bashrun "cd $WORK && cd briefs && sed -i s/a/b/ SHARED-BRIEF.md")"
-if says 'THIS BASE IS THE SHARED ROOT' "$MSG_HOP"; then echo "  FAIL  an existing subdirectory hop was reported as a missing tree"; fail=$((fail+1)); dump_msg "an existing subdirectory hop" "$MSG_HOP";
+if says 'THIS BASE BELONGS TO THE SHARED ROOT' "$MSG_HOP"; then echo "  FAIL  an existing subdirectory hop was reported as a missing tree"; fail=$((fail+1)); dump_msg "an existing subdirectory hop" "$MSG_HOP";
 else echo "  ok    an existing subdirectory hop is NOT reported as a missing tree"; fi
 
 # ⚠ THE HOOK MUST DRAIN STDIN BEFORE THE HATCH EXITS, AND NO LEG ABOVE CAN SEE IT. Every
@@ -990,6 +995,7 @@ expectblind() { # expectblind <want> <label> <command>
   else printf '  FAIL  %-58s got %s, want %s\n' "$2" "$got" "$1"; fail=$((fail+1)); fi
 }
 saysof_blind() { # saysof_blind <command string> ; the hook's stderr under the broken reader
+  # shellcheck disable=SC2069  # deliberate: stdout goes to /dev/null and the leg reads the hook's STDERR.
   jq -nc --arg c "$1" '{tool_input:{command:$c}}' | PATH="$BLIND:$PATH" bash "$H" 2>&1 >/dev/null
 }
 expectblind DENY  "a write to a stale brief, candidate reader broken" "sed -i 's/a/b/' briefs/SHARED-BRIEF.md"
@@ -1009,6 +1015,7 @@ echo "### §3d — an awk reader that could not run is not a reader that found n
 AWKREAL="$(command -v awk)"
 AWKSCAN="$TMP/awkscanblind"
 mkdir -p "$AWKSCAN"
+# shellcheck disable=SC2016  # a printf FORMAT: the shim's "$@" and $a belong to the shim, not to this shell.
 printf '#!/bin/sh\nfor a in "$@"; do case "$a" in guarded=*) exit 3 ;; esac; done\nexec %s "$@"\n' \
   "$AWKREAL" > "$AWKSCAN/awk"
 AWKDEAD="$TMP/awkdead"
@@ -1025,6 +1032,7 @@ expectawk() { # expectawk <want> <stub dir> <label> <command string>
   else printf '  FAIL  %-58s got %s, want %s\n' "$3" "$got" "$1"; fail=$((fail+1)); fi
 }
 saysof_awk() { # saysof_awk <stub dir> <command string> ; the hook's stderr under that stub
+  # shellcheck disable=SC2069  # deliberate: stdout goes to /dev/null and the leg reads the hook's STDERR.
   jq -nc --arg c "$2" '{tool_input:{command:$c}}' | PATH="$1:$PATH" bash "$H" 2>&1 >/dev/null
 }
 # THE BUILT TARGET IS THE ISOLATING CASE. Its program text spells no guarded path — `briefs/` alone

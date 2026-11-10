@@ -63,7 +63,7 @@ else echo "  FAIL  the writer into the hatched hook exited $_worst (141 = SIGPIP
 
 W="$TMP/w"
 mkdir -p "$W"
-cd "$W"
+cd "$W" || exit 1
 git init -q .
 git config user.email t@t
 git config user.name t
@@ -234,6 +234,7 @@ mk="$TMP/marker-home"; mkdir -p "$mk"
 # moved the defect instead of removing it. Measured 2026-10-26 beside the ruff sibling.
 absent() { # absent ; echoes "<exit-code>|<notice-lines>"
   local ec
+  # shellcheck disable=SC2016  # the jq program and $c must reach the inner bash -c unexpanded.
   out="$(cd "$W" && TMPDIR="$mk" CLAUDE_CODE_SESSION_ID=tsess DEX_BIOME=/nonexistent/biome \
         env PATH="$PATH" bash -c 'mv node_modules nm.hidden 2>/dev/null; jq -nc --arg c "git commit -m wip" "{tool_input:{command:\$c}}" | bash '"$H"' 2>&1 >/dev/null; ec=$?; mv nm.hidden node_modules 2>/dev/null; exit $ec')"; ec=$?
   printf '%s|%s' "$ec" "$out"

@@ -43,6 +43,7 @@ echo "── $(date '+%F %T') driver start" >> "$LOG"
 # something recently inferred (keep-alive window). If the pipeline runs but the GPU is empty,
 # proceed — ollama's request queue serializes any overlap, so the worst case is shared latency,
 # never corruption. (Owner directive: maximize qwen.)
+# shellcheck disable=SC2009  # pgrep -f matches this driver's own command line (CLAUDE.md §4); the [m] bracket does not.
 if ps ax -o args | grep -qE "[m]utate\.mjs --file|[m]utation-crawl\.mjs|[m]utation-ai-probe\.mjs|[m]utation-suite\.mjs --draft"; then
   if curl -sf --max-time 5 http://127.0.0.1:11434/api/ps 2>/dev/null | grep -q '"model"'; then
     echo "   pipeline busy AND model loaded — yielding" >> "$LOG"; exit 0

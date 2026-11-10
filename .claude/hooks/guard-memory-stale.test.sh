@@ -184,6 +184,7 @@ for _b in sed grep awk find stat cat printf mkdir mv tail cut head sort wc date 
   _p="$(command -v "$_b" 2>/dev/null)" && ln -sf "$_p" "$NOJQ/$_b" 2>/dev/null
 done
 nojq_run() { # nojq_run <tool> <phase> <marker-dir> ; echoes the stderr
+  # shellcheck disable=SC2069  # deliberate: stdout goes to /dev/null and the leg reads the hook's STDERR.
   printf '{"session_id":"%s","tool_name":"%s","tool_input":{"file_path":"%s"}}' "$SID" "$1" "$F" \
     | env -i PATH="$NOJQ" HOME="$TMP" TMPDIR="$3" CLAUDE_CODE_SESSION_ID="$SID" bash "$H" "$2" 2>&1 >/dev/null
 }
@@ -198,9 +199,11 @@ case "$_first" in
   *) echo "  ✗ the notice does not say why this guard's fail-open is different"; fail=$((fail + 1)) ;;
 esac
 _second="$(nojq_run Write pre "$MK")"
-[ -z "$_second" ] && echo "  ✓ …ONCE per session: the second write says nothing" || { echo "  ✗ the notice repeats — a line per call is how a guard gets ripped out"; fail=$((fail + 1)); }
+if [ -z "$_second" ]; then echo "  ✓ …ONCE per session: the second write says nothing"
+else echo "  ✗ the notice repeats — a line per call is how a guard gets ripped out"; fail=$((fail + 1)); fi
 _read="$(nojq_run Read pre "$TMP/mk2")"
-[ -z "$_read" ] && echo "  ✓ …and never on Read, which is the hot path" || { echo "  ✗ the notice fires on Read"; fail=$((fail + 1)); }
+if [ -z "$_read" ]; then echo "  ✓ …and never on Read, which is the hot path"
+else echo "  ✗ the notice fires on Read"; fail=$((fail + 1)); fi
 # A DIFFERENT session gets its own notice — the marker is session-scoped, not global.
 MK2="$TMP/mk3"; mkdir -p "$MK2"
 _other="$(printf '{"session_id":"%s","tool_name":"Write","tool_input":{"file_path":"%s"}}' "$SID2" "$F" \
@@ -209,7 +212,8 @@ case "$_other" in
   *"MEMORY GUARD IS INERT"*) echo "  ✓ …and a second session gets its own notice (marker is session-scoped)" ;;
   *) echo "  ✗ a second session is silently inert"; fail=$((fail + 1)) ;;
 esac
-ls "$MK"/tepna-memory-guard-inert.* >/dev/null 2>&1 && echo "  ✓ the marker is NAMED for what it is, under TMPDIR" || { echo "  ✗ marker missing or unnamed"; fail=$((fail + 1)); }
+if ls "$MK"/tepna-memory-guard-inert.* >/dev/null 2>&1; then echo "  ✓ the marker is NAMED for what it is, under TMPDIR"
+else echo "  ✗ marker missing or unnamed"; fail=$((fail + 1)); fi
 # AND IT STILL FAILS OPEN: announcing is not denying.
 printf '{"session_id":"%s","tool_name":"Write","tool_input":{"file_path":"%s"}}' "$SID" "$F" \
   | env -i PATH="$NOJQ" HOME="$TMP" TMPDIR="$MK" CLAUDE_CODE_SESSION_ID="$SID" bash "$H" pre >/dev/null 2>&1
@@ -293,7 +297,7 @@ for _i in 1 2 3 4 5; do
   # over ONE exit path: this form reports the writer's 141 three times out of three, and
   # `env VAR=… bash` reports 0 three times out of three. The leg's probe form decides whether the
   # leg can see the defect at all, so the `env -u` the verdict helpers above use cannot appear here.
-  cat "$TMP/stdin-big.json" | CLAUDE_ALLOW_STALE_MEMORY= HOME="$NOPIPE" bash "$H" pre >/dev/null 2>&1
+  cat "$TMP/stdin-big.json" | CLAUDE_ALLOW_STALE_MEMORY='' HOME="$NOPIPE" bash "$H" pre >/dev/null 2>&1
   _rc="${PIPESTATUS[0]}"; [ "$_rc" != 0 ] && _worst="$_rc"
 done
 ok 0 "$_worst" '…and the writer into the hook on a HOME with no memory directory survives too'

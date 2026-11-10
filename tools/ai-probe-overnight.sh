@@ -131,6 +131,7 @@ for f in "${FILES[@]}"; do
 done
 echo "########## DONE  $(date '+%F %T') ##########"
 node tools/mutation-ai-probe.mjs --status 2>&1
+# shellcheck disable=SC2012  # a count of OUR OWN generated .drafts.js names under .git/; the glob is ours, not user input.
 echo "drafts: $(ls "$W"/.git/tepna-mutation/*.drafts.js 2>/dev/null | wc -l) file(s) in .git/tepna-mutation/ — each needs a human read before adoption"
 
 # A step that refused every file must not exit 0. This is the only thing standing between a broken

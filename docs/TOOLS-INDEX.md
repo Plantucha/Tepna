@@ -286,6 +286,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`seqnet-infer.mjs`](../tools/seqnet-infer.mjs) | run the stage-lab control net (seqnet.py's TCN + biGRU + Viterbi) in plain JS with no runtime library, so a trained stager can ship inside a bundled offline Tepna instrument. |
 | [`served-link-check.mjs`](../tools/served-link-check.mjs) | which local links are DEAD on a deployed box? `CAPTURE-HOST-DEEP-AUDIT-FOLLOWUPS` §1.2 records two dead-link residues on the served tree and says plainly what is missing: *"A link-checker… |
 | [`severity-ladder-audit.mjs`](../tools/severity-ladder-audit.mjs) | does a node ever render the SAME metric with two different good/warn/bad boundaries? |
+| [`shellcheck-gate.mjs`](../tools/shellcheck-gate.mjs) | shellcheck over the repo's OWN shell scripts node tools/shellcheck-gate.mjs # gate (exit 1 on a finding) node tools/shellcheck-gate.mjs --json # the verdict alone node… |
 | [`sidecar-census.mjs`](../tools/sidecar-census.mjs) | WHO WRITES EACH CAPTURE-HOST SIDECAR, WHO READS IT, AND WHAT EACH READER DOES WHEN IT IS ABSENT. |
 | [`sigma-corpus-headless.mjs`](../tools/sigma-corpus-headless.mjs) | run `sigma-no-reference-analysis.html` over the canonical corpus without a human dropping a folder, and report the POPULATION it reaches. |
 | [`stage-lab-core.mjs`](../tools/stage-lab-core.mjs) | PURE ESM, NO node: IMPORTS — so a browser app can import the same model code it was trained with. |
