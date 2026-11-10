@@ -1,0 +1,132 @@
+{
+ "schema": "tepna.verdict/1",
+ "gate": "lomb-share-profile",
+ "status": "SHORTFALL",
+ "scope": "internal",
+ "population": {
+  "checked": 18,
+  "eligible": 18,
+  "excluded": 0
+ },
+ "criterion": {
+  "name": "lomb_self_share_pct_product_path",
+  "threshold": 35,
+  "unit": "%",
+  "direction": "gte",
+  "preStated": "35 % is briefs/PROFILED-HOTSPOTS-CI-AND-DSP-2026-07-12-BRIEF.md §1b's own figure for lombScargle, carried into its revisit condition; the residue row #4673 claims 66 % (ECG) and 28 % (PPG). No threshold here comes from this run."
+ },
+ "result": {
+  "nodes": {
+   "ecg": {
+    "night": "Polar_H10_02849638_20260611_210411_ECG.txt",
+    "claimedPct": 66,
+    "productPathSharePct": 15.63,
+    "vmRealmSharePct": 31.46,
+    "lombCalls": 556,
+    "productPathTotalMs": 1752.7,
+    "cleanTotalMs": 1759.5,
+    "vmRealmTotalMs": 10481.9,
+    "realmInflation": 5.98,
+    "instrumentOverheadPct": -0.39,
+    "instrumentOverheadMs": -6.8,
+    "instrumentOverheadResolved": false,
+    "productPathSharePctSpread": 1.49,
+    "productPathSpreadMs": 127.9,
+    "peakRssMB": 590.3
+   },
+   "ppg": {
+    "night": "Polar_Sense_0C301E3F_20260611_210416_PPG.txt",
+    "claimedPct": 28,
+    "productPathSharePct": 5.63,
+    "vmRealmSharePct": 15.32,
+    "lombCalls": 94,
+    "productPathTotalMs": 6526.4,
+    "cleanTotalMs": 6379,
+    "vmRealmTotalMs": 25255.6,
+    "realmInflation": 3.87,
+    "instrumentOverheadPct": 2.31,
+    "instrumentOverheadMs": 147.4,
+    "instrumentOverheadResolved": false,
+    "productPathSharePctSpread": 0.56,
+    "productPathSpreadMs": 211.2,
+    "peakRssMB": 1833.4
+   }
+  },
+  "criterion": {
+   "name": "lomb_self_share_pct_product_path",
+   "threshold": 35,
+   "unit": "%",
+   "direction": "gte"
+  },
+  "runs": 3,
+  "realms": [
+   "main",
+   "vm",
+   "clean"
+  ],
+  "outputDigests": {
+   "ecg": [
+    "e693e7c625e4"
+   ],
+   "ppg": [
+    "937298dd8e93"
+   ]
+  },
+  "corpusPopulation": {
+   "schema": "tepna.verdict/1",
+   "gate": "corpus-population",
+   "status": "PASS",
+   "scope": "internal",
+   "population": {
+    "checked": 934,
+    "eligible": 934,
+    "excluded": 0
+   },
+   "criterion": {
+    "name": "records_added_or_removed",
+    "threshold": 0,
+    "unit": "records",
+    "direction": "lte"
+   },
+   "result": {
+    "root": "/srv/data/tepna-corpus/uploads",
+    "n": 934,
+    "unit": "records",
+    "digest": "8ac076774d03",
+    "added": [],
+    "removed": [],
+    "openedAt": "2026-11-10T05:35:36Z",
+    "closedAt": "2026-11-10T05:38:18Z",
+    "maxCtimeMs": null,
+    "rule": "listCaptureFiles",
+    "ruleUnit": "records",
+    "ruleNote": "the caller's lister IS the rule for a records population, so the night questions do not bind"
+   },
+   "evidence": [
+    "tools/corpus-scope.mjs",
+    "docs/CORPUS-LOCATIONS.md",
+    "tools/lomb-share-profile.mjs"
+   ],
+   "reason": null,
+   "producedBy": {
+    "tool": "tools/lomb-share-profile.mjs",
+    "commit": "55b86ba8f6e1e6e8b9b1b3741cdaedebe12f5364"
+   },
+   "at": "2026-11-10T05:38:18Z"
+  },
+  "refusals": [],
+  "note": "the `clean` arm carries no transform, so `instrumentOverheadPct` is the wrapper's own measured cost rather than an assumption; the `vm` arm is §0's inflation control"
+ },
+ "evidence": [
+  "tools/lomb-share-profile.mjs",
+  "briefs/PROFILED-HOTSPOTS-CI-AND-DSP-2026-07-12-BRIEF.md",
+  "ecgdex-dsp.js",
+  "ppgdex-dsp.js"
+ ],
+ "reason": "lombScargle is 15.63 % of an ECGDex product-path compute, below the 35 % §1b pre-stated, so the revisit condition is not met and §1b's LEAVE stands",
+ "producedBy": {
+  "tool": "tools/lomb-share-profile.mjs",
+  "commit": "55b86ba8"
+ },
+ "at": "2026-11-10T05:38:18Z"
+}
