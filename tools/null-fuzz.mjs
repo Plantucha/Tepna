@@ -589,7 +589,10 @@ const TARGETS = {
     setup(ctx) {
       const OD = bare(ctx.OxyDex);
       if (!OD || typeof OD.processNight !== 'function') throw new Error('OxyDex.processNight not reachable');
-      const mk = (spo2, hr, i) => ({ tMs: T0 + i * 1000, t: new Date(T0 + i * 1000), spo2, hr, motion: 0 });
+      /* ∅ the 4th argument is new and OPTIONAL, so every existing call still builds `motion: 0`.
+         Residue 2026-11-09-null-fuzz-compares-eleven-spo2-metrics-and-no-hr-metric: this target set
+         `motion: 0` on every row, so the fuzz never presented an absent motion column at all. */
+      const mk = (spo2, hr, i, motion) => ({ tMs: T0 + i * 1000, t: new Date(T0 + i * 1000), spo2, hr, motion: motion === undefined ? 0 : motion });
       const metrics = (out) => {
         const st = out.stats || {};
         const desat = out.desat || {};
@@ -605,7 +608,18 @@ const TARGETS = {
           auc90Rate: desat.auc90Rate,
           spo2IQR: adv.spo2IQR,
           condMeanBelow94: adv.condMeanBelow94,
-          condPctBelow94: adv.condPctBelow94
+          condPctBelow94: adv.condPctBelow94,
+          /* ∅ SpO2 derived all 11 keys above, so the empty routed set spoke about SpO2 alone. These
+             three come from the HEART-RATE column and they are order-independent, like their SpO2
+             twins. What they do NOT cover: `cleanArtifactHR` clamps a measured sample toward its
+             PREDECESSOR, so a metric taken after it is adjacency-dependent, and removing a null joins
+             the samples either side of the hole. The generator below steps HR by at most 12 bpm, under
+             both `HR_ARTIFACT_JUMP` (20) and `HR_ARTIFACT_JUMP_SOFT` (15), so the cleaner never fires
+             and the twin holds. A series with real artifact steps breaks the twin by adjacency, not by
+             absence, and it is out of P2's scope. */
+          meanHr: st.meanHr,
+          minHr: st.minHr,
+          maxHr: st.maxHr
         };
       };
       return {
@@ -620,9 +634,53 @@ const TARGETS = {
           for (const k of ['meanSpo2', 'minSpo2', 'maxSpo2', 'spo2Std']) if (out[k] !== null) f.push({ property: 'P1', metric: k, fuzzed: out[k], clean: null, note: 'all-null night, want null' });
           for (const k of ['auc90Total', 'spo2IQR', 'condMeanBelow94', 'condPctBelow94'])
             if (isFabricated(out[k])) f.push({ property: 'P1', metric: k, fuzzed: out[k], clean: null, note: 'all-null night, fabricated' });
+          /* ∅ the HR half of the same night: its `hr` column is null throughout, so these owe null too. */
+          for (const k of ['meanHr', 'minHr', 'maxHr']) if (out[k] !== null) f.push({ property: 'P1', metric: k, fuzzed: out[k], clean: null, note: 'all-null night, want null' });
+          /* ∅ a night whose MOTION column carries no measured value, beside a measured SpO2 and a
+             measured HR. `processNight` has a whole-column detector for this (`_motionAbsent`), and the
+             contract it states is `motionPct: null` plus the named reason `motionColumnAbsent`. A
+             PARTIAL motion absence is a different defect and it already has a row
+             (2026-11-09-the-nsi-motion-null-guard-tests-the-whole-column-only), so it is not asserted here. */
+          const mo = OD.processNight(
+            Array.from({ length: LEN }, (_, i) => mk(Math.max(88, Math.min(100, 96 + rint(-2, 2))), Math.max(45, Math.min(100, 62 + rint(-6, 6))), i, null)),
+            'motionabsent.csv'
+          );
+          const mst = mo.stats || {};
+          if (mst.motionPct !== null) f.push({ property: 'P1', metric: 'motionPct', fuzzed: mst.motionPct, clean: null, note: 'motion column absent, want null' });
+          if (mst.motionColumnAbsent !== true)
+            f.push({ property: 'P1', metric: 'motionColumnAbsent', fuzzed: mst.motionColumnAbsent, clean: true, note: 'motion column absent, want the named reason' });
+          if (isFabricated(mo.motion)) f.push({ property: 'P1', metric: 'motion', fuzzed: typeof mo.motion, clean: null, note: 'motion profile over an absent column' });
           return f;
         },
+        /* ∅ TWO legs now. `coupled` is the mask this target always had: the whole row drops, so the
+           clean twin carries the fuzzed night's measured multiset exactly. `hrOnly` nulls the HR column
+           alone and leaves SpO2 measured, which is the presentation the coupled mask can never make —
+           a row that is PRESENT and whose heart rate is absent. Both read `nullMask`, so the
+           `--selftest` control (no nulls) still compares a night with its own twin. */
         p2() {
+          return this.coupled().concat(this.hrOnly());
+        },
+        hrOnly() {
+          for (;;) {
+            const rows = [];
+            for (let i = 0; i < LEN; i++) {
+              const dip = rnd() < 0.06 ? rint(3, 6) : 0;
+              rows.push(mk(Math.max(88, Math.min(100, 96 + rint(-2, 2) - dip)), Math.max(45, Math.min(100, 62 + rint(-6, 6))), i));
+            }
+            const mask = nullMask(LEN);
+            mask.forEach((m, i) => {
+              if (m) rows[i].hr = null;
+            });
+            // The twin keeps every row whose HR is measured, so the HR multiset is identical and the SpO2 one is not.
+            const clean = rows.filter((r) => r.hr != null).map((r, j) => mk(r.spo2, r.hr, j));
+            if (clean.length < 10) continue;
+            const nulls = rows.length - clean.length;
+            const pick = (m) => ({ meanHr: m.meanHr, minHr: m.minHr, maxHr: m.maxHr });
+            // processNight MUTATES its input, so `clean` is built above, before either call.
+            return compareMetrics(pick(metrics(OD.processNight(rows, 'fzhr.csv'))), pick(metrics(OD.processNight(clean, 'clhr.csv'))), `hr-only nulls=${nulls}/${LEN}`);
+          }
+        },
+        coupled() {
           for (;;) {
             const rows = [];
             for (let i = 0; i < LEN; i++) {

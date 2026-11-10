@@ -463,6 +463,16 @@ def test_a_ring_that_powered_off_after_a_SUCCESSFUL_pull_is_expected_not_missing
     assert alerts.powered_off_after_pull(1000.0, 1000.0 + 300) is True
 
 
+def test_a_pull_BEFORE_the_stream_began_does_not_license_its_silence():
+    """MEASURED on the capture box 2026-11-08: the Sense pull completed at 21:10 and its stream began at
+    21:19. At about 04:16 the box sent "powered off after a completed pull" for a night that no pull had
+    collected. A pull licenses only the silence of a stream it followed."""
+    assert alerts.powered_off_after_pull(1000.0, 1300.0, stream_began_sec=1001.0) is False
+    assert alerts.powered_off_after_pull(1000.0, 1300.0, stream_began_sec=1000.0) is True, "the same instant"
+    assert alerts.powered_off_after_pull(1000.0, 1300.0, stream_began_sec=999.0) is True
+    assert alerts.powered_off_after_pull(1000.0, 1300.0, stream_began_sec=None) is True, "no stream known"
+
+
 def test_a_pull_that_never_SUCCEEDED_keeps_the_alert():
     """🔴 The licence is the COMPLETED pull, not the doff. A doff whose pull failed or ran partial
     leaves the night on the ring, so its silence is precisely the thing worth alerting about —
