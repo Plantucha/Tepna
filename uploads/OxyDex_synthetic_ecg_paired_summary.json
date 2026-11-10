@@ -369,8 +369,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "0dea1d8302c0",
-          "computeHash": "b2707e9f4574"
+          "manifestHash": "7c189a3ae805",
+          "computeHash": "93f4d577efcd"
         },
         "evidence": {
           "envelopeRef": null,
@@ -398,8 +398,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "0dea1d8302c0",
-          "computeHash": "b2707e9f4574"
+          "manifestHash": "7c189a3ae805",
+          "computeHash": "93f4d577efcd"
         },
         "evidence": {
           "envelopeRef": null,
@@ -427,8 +427,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "0dea1d8302c0",
-          "computeHash": "b2707e9f4574"
+          "manifestHash": "7c189a3ae805",
+          "computeHash": "93f4d577efcd"
         },
         "evidence": {
           "envelopeRef": null,
@@ -456,8 +456,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "0dea1d8302c0",
-          "computeHash": "b2707e9f4574"
+          "manifestHash": "7c189a3ae805",
+          "computeHash": "93f4d577efcd"
         },
         "evidence": {
           "envelopeRef": null,
@@ -1278,6 +1278,7 @@
         "snr": 19.88,
         "threshold": 19.26,
         "bins": 325,
+        "bandBinsN": 325,
         "strided": false,
         "rhoLag1": 0.9955,
         "coveredN": 7200,

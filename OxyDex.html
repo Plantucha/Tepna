@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="0dea1d8302c0" data-compute-hash="b2707e9f4574">
+<html lang="en" data-manifest-hash="7c189a3ae805" data-compute-hash="93f4d577efcd">
 <head>
 <!--
   OxyDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0C/Uy7BOMk6111ea/JMEcVc++wLAdc/cc+iUs7tNqUY=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CNkm2h+ZlrSYYzoGx9OxoFo/k2UmcAbaZ9Bd72GM4as=' 'sha256-D0YR9+62Fd3hUFRoEZhA/MkKslQirmZQg7KMBHKpICk=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-E1IsN6aDCUvHb/53fIyPoB7AQMLdRp5olYowv/ZbZ6A=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-LbnHw3AlQocKun+z+XZLWmAZttRgzqvTzz2g69QBQ/M=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QU1eFIpXtk89h7OawHFWXJry6pEr0cw5i0Q08kGZz88=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-QyURGUmKmbpEGz6vtt+poPueeRE901i4IjiyZIbxJNo=' 'sha256-RXcoLAniJKLH34g7G8WWfGMxhney/Cbcc4dvbo8flK8=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-XqyVux6nZ1GoEpXw5HlJF6/fUCrzC+aJ4dGKEuYCK0w=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-fHhzdzpcyyDp2wZahreASbSqNTutakABREfHNTgRsvk=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-s5jQgZ2dCmcNdTTy5gLqyiwkCVbXvuldnqeO/1M79kk=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/DnE9XmMuQAgOpzjl/0o9V9w5hh0bdf+ZSJ5HcC/gw0=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CNkm2h+ZlrSYYzoGx9OxoFo/k2UmcAbaZ9Bd72GM4as=' 'sha256-D0YR9+62Fd3hUFRoEZhA/MkKslQirmZQg7KMBHKpICk=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-E1IsN6aDCUvHb/53fIyPoB7AQMLdRp5olYowv/ZbZ6A=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-LbnHw3AlQocKun+z+XZLWmAZttRgzqvTzz2g69QBQ/M=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QU1eFIpXtk89h7OawHFWXJry6pEr0cw5i0Q08kGZz88=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-QyURGUmKmbpEGz6vtt+poPueeRE901i4IjiyZIbxJNo=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-Wl0HIUV2fDLghOvTw+DQxBHWLaCkoJgd5jq4MbIrXxo=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-XqyVux6nZ1GoEpXw5HlJF6/fUCrzC+aJ4dGKEuYCK0w=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-fHhzdzpcyyDp2wZahreASbSqNTutakABREfHNTgRsvk=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-s5jQgZ2dCmcNdTTy5gLqyiwkCVbXvuldnqeO/1M79kk=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>OxyDex — Nocturnal Oximetry Analyzer · v2.30.0</title>
@@ -16382,11 +16382,12 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
   // The cause is resolution, not density. An N-sample record resolves fs/N; anything evaluated BETWEEN
   // its Fourier bins loses power to scalloping no matter how many spot frequencies you pick. So evaluate
   // ON the bins — k/N for every k in the band — which is also the basis in which periodogram statistics
-  // are actually defined. `_FFT_MAX_BINS` strides if a long night would otherwise cost more than it is
-  // worth; striding costs coverage, so it is reported rather than silent.
+  // are actually defined. EVERY bin in the band is evaluated. The transform below costs O(n log n) for
+  // the whole band, so the stride that used to cap the work at 400 bins is gone and `bins` (tested)
+  // equals `bandBinsN` (held) on every night. The two counts stay published as a TRIPWIRE: a reader who
+  // ever sees `bins < bandBinsN` is told the band was sampled and not covered.
   var _FFT_LO_HZ = 0.005; // 200 s
   var _FFT_HI_HZ = 0.05; // 20 s
-  var _FFT_MAX_BINS = 400;
   // ⚠️ THE THEORETICAL THRESHOLD IS ANTI-CONSERVATIVE AND THE GAP IS MEASURED, NOT GUESSED.
   // Sidak assumes a KNOWN background; ours is fitted from the same series, so the null tail is much
   // heavier than exp(-x) predicts. Measured over 80 pure-AR(1) runs at rho=0.98 (nothing planted):
@@ -16473,6 +16474,125 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
      `coverage-below-floor`, which describes dropout dust. Below the floor the reason is now named from
      the shape (see the refusal), and above it `absentRunMaxN` travels beside `coveredN` so a consumer
      can tell one hole from scattered dust itself. */
+  // In-place radix-2 complex FFT, length a power of two. Each node keeps its own: this file is inlined
+  // into bundles that carry neither `motiondex-dsp.js` nor `ecgdex-dsp.js`.
+  function _fftR2(re, im) {
+    var n = re.length,
+      i,
+      j = 0,
+      k,
+      t,
+      len,
+      half;
+    for (i = 0; i < n - 1; i++) {
+      if (i < j) {
+        t = re[i];
+        re[i] = re[j];
+        re[j] = t;
+        t = im[i];
+        im[i] = im[j];
+        im[j] = t;
+      }
+      k = n >> 1;
+      while (k <= j) {
+        j -= k;
+        k >>= 1;
+      }
+      j += k;
+    }
+    for (len = 2; len <= n; len <<= 1) {
+      var ang = (-2 * Math.PI) / len,
+        wr = Math.cos(ang),
+        wi = Math.sin(ang);
+      half = len >> 1;
+      for (i = 0; i < n; i += len) {
+        var cr = 1,
+          ci = 0;
+        for (k = 0; k < half; k++) {
+          var ur = re[i + k],
+            ui = im[i + k],
+            vr = re[i + k + half] * cr - im[i + k + half] * ci,
+            vi = re[i + k + half] * ci + im[i + k + half] * cr;
+          re[i + k] = ur + vr;
+          im[i + k] = ui + vi;
+          re[i + k + half] = ur - vr;
+          im[i + k + half] = ui - vi;
+          var nr = cr * wr - ci * wi;
+          ci = cr * wi + ci * wr;
+          cr = nr;
+        }
+      }
+    }
+  }
+
+  /* THE BAND'S OWN BINS, EXACTLY, AT O(n log n) — `|X(k)|^2` for k = kLo..kHi of the length-`n` DFT.
+     Bluestein's identity (k*t = (k^2 + t^2 - (k - t)^2) / 2) turns the DFT into one convolution, so a
+     length that is not a power of two keeps ITS OWN Fourier grid: k/n for every k, which is the grid
+     the periodogram statistics above are defined on and the grid the per-bin sum this replaces used.
+     A zero-padded radix-2 FFT was REJECTED for this: padding moves the grid to k/L and makes
+     neighbouring bins interpolations of one another, which both renames every published frequency and
+     breaks the Sidak premise that the bins are independent tests.
+     `x` arrives mean-removed and ZERO at every absent sample, which is what makes this identical to
+     the sum it replaces — that sum skipped an absent sample, and a skipped term is an added zero.
+     The chirp angle is taken modulo 2n (`_sq` below), because t^2 reaches 7.6e8 on one night and
+     `Math.cos` of an argument that large has already lost the low bits. */
+  function _bandPower(x, n, kLo, kHi) {
+    var L = 1;
+    while (L < 2 * n) L <<= 1;
+    var ar = new Float64Array(L),
+      ai = new Float64Array(L),
+      br = new Float64Array(L),
+      bi = new Float64Array(L),
+      cw = new Float64Array(2 * n),
+      sw = new Float64Array(2 * n),
+      i,
+      m;
+    for (m = 0; m < 2 * n; m++) {
+      var a = (Math.PI * m) / n;
+      cw[m] = Math.cos(a);
+      sw[m] = Math.sin(a);
+    }
+    // t^2 mod 2n, computed from t mod 2n so the square never leaves the exact-integer range.
+    function _sq(t) {
+      var r = t % (2 * n);
+      return (r * r) % (2 * n);
+    }
+    for (i = 0; i < n; i++) {
+      m = _sq(i);
+      ar[i] = x[i] * cw[m];
+      ai[i] = -x[i] * sw[m];
+    }
+    for (i = 0; i < n; i++) {
+      m = _sq(i);
+      br[i] = cw[m];
+      bi[i] = sw[m];
+      // The kernel is symmetric in its index, and the negative lags live at the top of the buffer.
+      if (i > 0) {
+        br[L - i] = cw[m];
+        bi[L - i] = sw[m];
+      }
+    }
+    _fftR2(ar, ai);
+    _fftR2(br, bi);
+    for (i = 0; i < L; i++) {
+      var pr = ar[i] * br[i] - ai[i] * bi[i],
+        pm = ar[i] * bi[i] + ai[i] * br[i];
+      ar[i] = pr;
+      ai[i] = -pm; // conjugate, so the forward transform below inverts
+    }
+    _fftR2(ar, ai);
+    var out = new Float64Array(kHi - kLo + 1);
+    for (i = kLo; i <= kHi; i++) {
+      m = _sq(i);
+      var zr = ar[i] / L,
+        zi = -ai[i] / L,
+        re = zr * cw[m] + zi * sw[m],
+        im = zi * cw[m] - zr * sw[m];
+      out[i - kLo] = re * re + im * im;
+    }
+    return out;
+  }
+
   function computeSpO2FFT(rows, fs) {
     var spo2 = rows.map(function (r) {
       return r.spo2;
@@ -16519,6 +16639,9 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
         snr: null,
         threshold: null,
         bins: 0,
+        /* ∅ The run refused before it computed the band, so the band's population is NULL and not
+           0 — a 0 here would read as a band that holds no bin. */
+        bandBinsN: null,
         strided: false,
         rhoLag1: null,
         coveredN: covered,
@@ -16535,24 +16658,22 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     var kLo = Math.max(1, Math.ceil((_FFT_LO_HZ * n) / RATE));
     var kHi = Math.min(Math.floor(n / 2) - 1, Math.floor((_FFT_HI_HZ * n) / RATE));
     if (kHi <= kLo) return null;
-    var stride = Math.max(1, Math.ceil((kHi - kLo + 1) / _FFT_MAX_BINS));
 
     var pows = [],
       bg = [],
       fss = [],
       k,
       t;
-    for (k = kLo; k <= kHi; k += stride) {
-      var f = (k * RATE) / n,
-        re = 0,
-        im = 0;
-      for (t = 0; t < n; t++) {
-        if (!present[t]) continue;
-        var ang = (2 * Math.PI * k * t) / n;
-        re += (spo2[t] - mean) * Math.cos(ang);
-        im -= (spo2[t] - mean) * Math.sin(ang);
-      }
-      pows.push((re * re + im * im) / covered);
+    /* The deviation series the transform reads. An absent sample enters as 0, which is NOT absence
+       standing in as a number: the per-bin sum this replaces skipped that sample, and a skipped term in
+       a sum is an added zero. The absence itself is reported by `coveredN`, `spanN` and
+       `absentRunMaxN`, and the power below is divided by `covered`, never by the span. */
+    var dev = new Float64Array(n);
+    for (t = 0; t < n; t++) dev[t] = present[t] ? spo2[t] - mean : 0;
+    var band = _bandPower(dev, n, kLo, kHi);
+    for (k = kLo; k <= kHi; k++) {
+      var f = (k * RATE) / n;
+      pows.push(band[k - kLo] / covered);
       var w = (2 * Math.PI * f) / RATE;
       bg.push((1 - rho * rho) / (1 - 2 * rho * Math.cos(w) + rho * rho));
       fss.push(f);
@@ -16595,7 +16716,29 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       snr: +bestSnr.toFixed(2),
       threshold: +thresh.toFixed(2),
       bins: pows.length,
-      strided: stride > 1,
+      /* ∅ THE BAND'S POPULATION BESIDE THE VERDICT, the same shape as `coveredN` and `spanN` below:
+         `bins` is what the run TESTED and `bandBinsN` is what the band HOLDS. They are EQUAL on every
+         night, because the transform above evaluates every bin the band holds. The pair stays published
+         as a TRIPWIRE: it is the only field by which a consumer can separate a sampled band from a
+         covered one, so a cap reintroduced later cannot reduce coverage silently.
+         Row 2026-11-09-the-spo2-spectrum-strides-past-an-adjacent-bin is what the stride cost: a cycle
+         on a skipped bin published the same two fields as a quiet night, and no reader could separate
+         the two. Measured 2026-11-09 over three vm realms — the shipped
+         400-bin stride, the same code with the cap raised to 100,000, and this transform — each over
+         nights of 27,600 samples at 1 Hz, where the band holds 1,243 bins. Every published field
+         (`detected`, `peakFreqHz`, `bins`, `snr`, `threshold`) agrees between this transform and the
+         direct sum at its published precision on all 6 exactness nights. On one night, median of three
+         runs, this function costs 64 ms here against 10,059 ms strided and 27,459 ms for the direct
+         sum over the full band. Over 48 nights carrying a 2-unit cycle drawn uniformly in the band,
+         this transform detects 48 and the stride detects 40; the 8 it adds sit at band offsets 4.83 to
+         813.02 bins, so the stride's loss covers the whole band and not one end of it. Over 40 null
+         nights neither realm detects a cycle, so the higher Sidak threshold that 1,243 bins demand
+         absorbs the extra tests at this population — 0 of 40 states no measured increase, never a
+         small rate. */
+      bandBinsN: kHi - kLo + 1,
+      /* Always false, and kept rather than removed: the export is a consumed contract, and `false` is
+         the honest reading — the band was covered, not sampled. */
+      strided: false,
       rhoLag1: +rho.toFixed(4),
       // The POPULATION, beside the verdict: `coveredN` samples carried a reading and `spanN` is the
       // recorded span. A reader who sees `coveredN < spanN` knows the spectrum describes less than the
@@ -33665,6 +33808,15 @@ function exportCSV() {
         if (typeof n.fft.absentRunMaxN === 'number') {
           lines.push('  FFT Longest Absent Run (samples),' + n.fft.absentRunMaxN);
         }
+      }
+      /* THE BAND'S POPULATION, where a run tested a SAMPLE of it (CLAUDE.md ∅: reduced coverage
+         annotates). The DSP now evaluates every bin the band holds, so this condition is FALSE on
+         every night and the two lines do not appear. It is kept as a TRIPWIRE rather than deleted: if
+         a bin cap is ever reintroduced, the export states what the run tested beside what the band
+         holds, instead of publishing an empty cycle length that reads as no cycle at all (residue
+         2026-11-09-the-spo2-spectrum-strides-past-an-adjacent-bin). */
+      if (typeof n.fft.bins === 'number' && typeof n.fft.bandBinsN === 'number' && n.fft.bins < n.fft.bandBinsN) {
+        lines.push('  FFT Bins Tested,' + n.fft.bins, '  FFT Bins In Band,' + n.fft.bandBinsN);
       }
       // A REFUSAL READS AS A REFUSAL. An empty peak beside a reason says the night was examined and
       // the spectrum was not published; an empty peak alone reads as "no cycle cleared the background".
