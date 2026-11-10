@@ -18350,7 +18350,7 @@
         'out.rowKeys = M.rowKeys("| 2026-01-02-alpha-beta-gamma | logged | s | d | e | OPEN |\\ntext 2026-01-02-alpha-beta-gamma\\n");',
         'out.window = M.CITE_WINDOW;',
         'var real = M.run(' + JSON.stringify(root) + ');',
-        'out.real = { citations: real.citations, files: real.files, rows: real.rows, undeclared: real.undeclared.length, near: real.near.length, stale: real.stale.length, declared: real.declared, floorReal: real.floor, orphans: real.orphanOwners.length, examined: real.ownerReasonsExamined, offered: real.filesOffered, read: real.filesRead, unreadable: real.unreadable.length, exempt: real.filesExempt };',
+        'out.real = { citations: real.citations, files: real.files, rows: real.rows, undeclared: real.undeclared.length, near: real.near.length, stale: real.stale.length, declared: real.declared, floorReal: real.floor, orphans: real.orphanOwners.length, examined: real.ownerReasonsExamined, offered: real.filesOffered, read: real.filesRead, unreadable: real.unreadable.length, exempt: real.filesExempt , siteDrift: real.siteDrift.length, siteExamined: real.siteKeysExamined };',
         /* THE FILE POPULATION, AND THE ONE FILE THE SCAN COULD NOT OPEN. Row
            2026-11-07-residue-citations-skips-an-unreadable-file-and-claims-0-excluded: the read sat in a
            `catch` that ran `continue` under a population keyed on CITATIONS with `excluded: 0`, so an
@@ -18386,6 +18386,19 @@
           JSON.stringify(root) +
           ', { files: [ANCHOR], baseline: { entries: plant(anchorKeys).concat([{ key: "2026-01-02-alpha-beta-gamma", reason: "under the ledger floor, so cited nowhere" }]), exemptPaths: [] } });',
         'out.staleReds = staleBase.stale.length;',
+        /* A DECLARED SITE IS A PATH. The planted entries above carry no `sites` key at all, so the
+           same anchor measures all three readings in one process: the path the scan cites, the same
+           path with a line glued to it, and an entry that declared no site whatever. */
+        'var withSite = function (ks, suffix) { return ks.map(function (k) { return { key: k, reason: "plant", sites: [ANCHOR + suffix] }; }); };',
+        'var siteOk = M.run(' + JSON.stringify(root) + ', { files: [ANCHOR], baseline: { entries: withSite(anchorKeys, ""), exemptPaths: [] } });',
+        'out.siteOk = { drift: siteOk.siteDrift.length, examined: siteOk.siteKeysExamined, live: siteOk.liveSites.length };',
+        'var siteLined = M.run(' + JSON.stringify(root) + ', { files: [ANCHOR], baseline: { entries: withSite(anchorKeys, ":1"), exemptPaths: [] } });',
+        'out.siteLined = { drift: siteLined.siteDrift.length, status: M.verdictFor(siteLined, "ab1c2d3").status, at: siteLined.siteDrift.length > 0 && siteLined.siteDrift[0].at.length > 0, found: siteLined.siteDrift.length > 0 && siteLined.siteDrift[0].foundOnly.join(",") === ANCHOR };',
+        'out.siteless = declaredAway.siteDrift.filter(function (d) { return d.why === "declares no sites array"; }).length;',
+        'var siteUncited = M.run(' +
+          JSON.stringify(root) +
+          ', { files: [ANCHOR], baseline: { entries: [{ key: "2026-01-02-alpha-beta-gamma", reason: "under the ledger floor, so cited nowhere", sites: [ANCHOR] }], exemptPaths: [] } });',
+        'out.siteUncited = { examined: siteUncited.siteKeysExamined, drift: siteUncited.siteDrift.length, stale: siteUncited.stale.length };',
         'process.stdout.write("__OUT__" + JSON.stringify(out) + "\\n");'
       ].join('\n');
       var o = env.nodeSpawnSync(process.execPath, ['--input-type=module', '-e', src], { encoding: 'utf8', timeout: 90000 });
@@ -18428,6 +18441,50 @@
       );
       T.eq('declaring every cited key passes, and nothing reads stale', R.declaredPasses, { undeclared: 0, stale: 0 });
       T.eq('one declared key cited nowhere reds as stale until its line goes', R.staleReds, 1);
+
+      /* ── A DECLARED SITE IS A PATH, AND THE SCAN SAYS WHERE THE KEY SITS ──────────────────
+         Row 2026-11-08-the-residue-citations-baseline-sites-read-stale: each entry declared a
+         `path:line` that no reader held against anything, so all 14 aged while the verdict reported
+         `staleBaseline 0`. A line number ages on every edit above it, so the declaration keeps the
+         path and the report prints the live `path:line` the scan found. */
+      T.ok(
+        'a declared site that names the carrier path agrees, over every anchor key',
+        R.siteOk.drift === 0 && R.siteOk.examined === R.anchorDebt && R.siteOk.live === R.anchorDebt,
+        JSON.stringify(R.siteOk)
+      );
+      T.ok(
+        'a declared site carrying a line number reds, names the live sites, and fails the verdict',
+        R.siteLined.drift === R.anchorDebt && R.siteLined.status === 'FAIL' && R.siteLined.at && R.siteLined.found,
+        JSON.stringify(R.siteLined)
+      );
+      T.eq('an entry that declared no sites array reports that absence by name', R.siteless, R.anchorDebt);
+      /* §∅ · a key the scan cites nowhere is judged by `stale` alone, so the site hold examines
+         nothing there and reports the count rather than a pass over an empty population. */
+      T.eq('an uncited key leaves the site hold with nothing to examine', R.siteUncited, { examined: 0, drift: 0, stale: 1 });
+      /* ANTI-VACUITY over the committed baseline: the legs above judge a shape the real file uses. */
+      T.eq(
+        'every entry in the committed baseline declares at least one site',
+        base.entries
+          .filter(function (e) {
+            return Object.prototype.toString.call(e.sites) !== '[object Array]' || e.sites.length === 0;
+          })
+          .map(function (e) {
+            return e.key;
+          }),
+        []
+      );
+      T.eq(
+        'no site in the committed baseline carries a line number',
+        base.entries
+          .reduce(function (a, e) {
+            return a.concat(e.sites || []);
+          }, [])
+          .filter(function (q) {
+            return /:\d+$/.test(q);
+          }),
+        []
+      );
+      T.eq('no declared site in the committed tree drifts from where the scan found its key', R.real.siteDrift, 0);
 
       /* ── ANTI-VACUITY, and the committed tree's own verdict ────────────────────────────── */
       T.ok('the real tree carries over 1000 citations to judge', R.real.citations > 1000, JSON.stringify(R.real));
