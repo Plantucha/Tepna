@@ -65,6 +65,12 @@ import { isCliEntry } from './argv-guard.mjs';
 import { generatedSet } from './rebase-safe.mjs';
 
 export const CAP = 4;
+/* How many of the newest merges the closure pass reads. A `Residue-fixed:` line a body gains AFTER
+   its merge is honoured only while that PR stays inside this window — the span of the 30 newest merges
+   read between 8.1 h and 8.6 h across 2026-11-09, so the life of a late line is hours, not days.
+   `tools/residue-promises.mjs` imports this constant and reports every declaration that has left the
+   window with its row still OPEN, so the two cannot drift. */
+export const MERGED_WINDOW = 30;
 export const KODIAK_IDLE_MIN = 20;
 export const STALE_PENDING_MIN = 180;
 export const MAX_RERUNS_PER_SHA = 1;
@@ -302,11 +308,11 @@ export function snapshot() {
     };
   });
   let mainMovedAtMs = 0;
-  /* The 30 newest merges carry the `Residue-fixed:` declarations; null (never []) when unreadable, so
-     a failed read plans no closure instead of reading as "nothing merged". */
+  /* The newest `MERGED_WINDOW` merges carry the `Residue-fixed:` declarations; null (never []) when
+     unreadable, so a failed read plans no closure instead of reading as "nothing merged". */
   let merged = null;
   try {
-    const m = JSON.parse(gh(['pr', 'list', '--state', 'merged', '--limit', '30', '--json', 'number,body,mergedAt']));
+    const m = JSON.parse(gh(['pr', 'list', '--state', 'merged', '--limit', String(MERGED_WINDOW), '--json', 'number,body,mergedAt']));
     mainMovedAtMs = m.length ? Math.max(...m.map((x) => Date.parse(x.mergedAt) || 0)) : 0;
     merged = m.map((x) => ({ number: x.number, body: x.body || '' }));
   } catch {
