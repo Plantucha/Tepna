@@ -233,6 +233,13 @@ reason — or when it first cites a crossnight metric — change its map to also
 `cite:d.cite` (parity with the OxyDex/CPAPDex mapping; `PPG_DEFS` gains the fields alongside the cite). Lowest
 priority; cosmetic until a node cites a crossnight metric.
 
+**CORRECTION 2026-11-10 (Osprey): the precedent this decision quotes has been narrowed.** CLAUDE.md
+§🎫 no longer says an inert shared-module addition needs no re-bundle. An inlined module has no
+inert addition. `manifestHash` hashes every inline block, so one comment line in `metric-registry.js`
+moves it on all 14 carrying bundles, and `computeHash` moves on all 14 as well. The decision above
+still stands, because it declines a source edit that carries ZERO source delta. A pass that does edit
+the shared source owes a rebuild to every carrier.
+
 ### 6.9 PpgDex `event.sqi` fusion weighting — proportional `effConf` taper + a categorical SQI FLOOR (NODE-RESIDUE-FOLLOWUPS §3, shipped)
 **DECISION (2026-06-30): the Integrator trusts low-SQI PpgDex events less, in TWO complementary layers.**
 PpgDex stamps a per-event signal-quality axis `sqi` (local `sqiAt()` mean, `[0,1]`) on `autonomic_surge` /
