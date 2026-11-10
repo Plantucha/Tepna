@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="40d79fe5b9bc" data-compute-hash="e73a9f0ef239">
+<html lang="en" data-manifest-hash="0dea1d8302c0" data-compute-hash="b2707e9f4574">
 <head>
 <!--
   OxyDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0C/Uy7BOMk6111ea/JMEcVc++wLAdc/cc+iUs7tNqUY=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CNkm2h+ZlrSYYzoGx9OxoFo/k2UmcAbaZ9Bd72GM4as=' 'sha256-D0YR9+62Fd3hUFRoEZhA/MkKslQirmZQg7KMBHKpICk=' 'sha256-E1IsN6aDCUvHb/53fIyPoB7AQMLdRp5olYowv/ZbZ6A=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-LbnHw3AlQocKun+z+XZLWmAZttRgzqvTzz2g69QBQ/M=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QU1eFIpXtk89h7OawHFWXJry6pEr0cw5i0Q08kGZz88=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-QyURGUmKmbpEGz6vtt+poPueeRE901i4IjiyZIbxJNo=' 'sha256-RXcoLAniJKLH34g7G8WWfGMxhney/Cbcc4dvbo8flK8=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-XqyVux6nZ1GoEpXw5HlJF6/fUCrzC+aJ4dGKEuYCK0w=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-fHhzdzpcyyDp2wZahreASbSqNTutakABREfHNTgRsvk=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-s5jQgZ2dCmcNdTTy5gLqyiwkCVbXvuldnqeO/1M79kk=' 'sha256-tEgjv8S5vEIsuBLCHAaM5gMw7PHBRH6v+T9vtvc8Yi4=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0C/Uy7BOMk6111ea/JMEcVc++wLAdc/cc+iUs7tNqUY=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CNkm2h+ZlrSYYzoGx9OxoFo/k2UmcAbaZ9Bd72GM4as=' 'sha256-D0YR9+62Fd3hUFRoEZhA/MkKslQirmZQg7KMBHKpICk=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-E1IsN6aDCUvHb/53fIyPoB7AQMLdRp5olYowv/ZbZ6A=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-LbnHw3AlQocKun+z+XZLWmAZttRgzqvTzz2g69QBQ/M=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QU1eFIpXtk89h7OawHFWXJry6pEr0cw5i0Q08kGZz88=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-QyURGUmKmbpEGz6vtt+poPueeRE901i4IjiyZIbxJNo=' 'sha256-RXcoLAniJKLH34g7G8WWfGMxhney/Cbcc4dvbo8flK8=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-XqyVux6nZ1GoEpXw5HlJF6/fUCrzC+aJ4dGKEuYCK0w=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-fHhzdzpcyyDp2wZahreASbSqNTutakABREfHNTgRsvk=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-s5jQgZ2dCmcNdTTy5gLqyiwkCVbXvuldnqeO/1M79kk=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>OxyDex — Nocturnal Oximetry Analyzer · v2.29.0</title>
@@ -7803,6 +7803,23 @@ body.light .oxy-projcard { background:#fff; border-color:rgba(0,0,0,.07); }
      deleting a global out from under a live realm. `scrubExport` is the one-line production path. */
   function _scrubWith(S, envelope) {
     if (!envelope || typeof envelope !== 'object') return envelope;
+    /* AN ARRAY IS THE ONE SHAPE THAT SURVIVES THE GUARD ABOVE AND CARRIES NO MARK OUT.
+       `typeof [] === 'object'`, so an array-shaped envelope reached `project`, which returns an array
+       verbatim (`export-schema.js`, the `Array.isArray` arm). `out` was then the clone itself: every
+       identifier unprojected, `scrubDropped` empty, and `out.schema = {}` written to a NON-INDEX
+       property that `JSON.stringify` drops. So the written file kept the raw upload filename, the
+       input sha256 and any serial that filename carries, and it carried no scrub mark at all, while an
+       app reading `schema.scrubbed` in memory still printed the shared-for-sharing note beside it.
+       Row 2026-11-09-the-scrub-marks-an-array-shaped-export-and-projects-nothing.
+       The refusal is the same stance as the one below, for the same reason: a privacy boundary that
+       cannot project what it was handed has nothing honest to return, and a silent pass-through is
+       worse than a throw. No caller passes an array — the seven node modules each hand one envelope
+       object to `scrubExport` — so this closes a hole rather than a path. */
+    if (Array.isArray(envelope)) {
+      throw new Error(
+        'dex-export: scrubExport cannot project an array-shaped envelope — refusing to mark it scrubbed, because the allow-list projects nothing over an array and the mark does not survive serialization'
+      );
+    }
     if (!S || typeof S.project !== 'function') {
       throw new Error('dex-export: scrubExport needs the shared allow-list from export-schema.js — refusing to mark an export scrubbed without it');
     }
