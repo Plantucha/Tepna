@@ -45,6 +45,15 @@
 .mx-row{display:flex;justify-content:space-between;align-items:center;font-size:13px;padding:7px 0;border-top:1px solid var(--line,rgba(255,255,255,.07))}
 .mx-row:first-child{border-top:0}
 .mx-empty{color:var(--text2);font-size:13px;padding:26px;text-align:center}
+
+/* PHONE NAV. The shared stylesheet hides `.sidebar` at 1080 px (ans-design.css
+   §24) and already styles a bottom rail (§26.8), but it anchors that rail at
+   `left:260px` for a sidebar that is no longer on screen. These are the three
+   deltas the rail needs: `left:0`, an `#exportBar` lifted to 60 px so it sits
+   above the rail (which is what OxyDex already does), and a 124 px bottom
+   padding on the content so both bars clear the last card. */
+@media(max-width:1080px){#exportBar{bottom:60px !important}.mobile-nav{left:0 !important}.mobile-nav-item{text-decoration:none}.main-content{padding-bottom:124px}}
+@media print{.mobile-nav{display:none !important}}
 </style>
 </head>
 <body>
@@ -65,6 +74,20 @@
       <a class="sb-item" href="#mxQuality">🛡 Signal Quality</a>
     </nav>
   </aside>
+
+  <!-- PHONE NAV. The sidebar hides at 1080 px, so this rail carries the same
+       section links. Every item anchors to the id the sidebar uses, so the rail
+       needs no script. The shared rule scrolls it horizontally at that width. -->
+  <nav class="mobile-nav" aria-label="Sections">
+    <div class="mobile-nav-items">
+      <a class="mobile-nav-item" href="#sec-input"><span class="mobile-nav-icon">📁</span>Input</a>
+      <a class="mobile-nav-item" href="#mxKPI"><span class="mobile-nav-icon">📊</span>Metrics</a>
+      <a class="mobile-nav-item" href="#mxPosition"><span class="mobile-nav-icon">🛏</span>Position</a>
+      <a class="mobile-nav-item" href="#mxEffort"><span class="mobile-nav-icon">🫁</span>Effort</a>
+      <a class="mobile-nav-item" href="#mxActivity"><span class="mobile-nav-icon">🚶</span>Activity</a>
+      <a class="mobile-nav-item" href="#mxQuality"><span class="mobile-nav-icon">🛡</span>Quality</a>
+    </div>
+  </nav>
 
   <!-- STICKY EXPORT BAR -->
   <div id="exportBar">
