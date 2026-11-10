@@ -192,9 +192,56 @@ export function classify(domain, msg, conf) {
  * THE BOARD TIER'S SEAM (pure, so the selftest can hold it). `boardTopics` is a TOP-LEVEL config
  * key, sibling to `ownerTopic`: a board topic listed under `topics` would subscribe as a domain of
  * its own, and its notes would enter the escalation ladder the tier exists to stay below.
+ *
+ * A board topic needs somewhere to land, and two shapes have nowhere. A domain the config never
+ * names leaves `boardTarget` answering `{ thread: undefined, bird: undefined }`, so every note of
+ * that domain posts into an empty target. A board topic that REPEATS an alert topic is worse: both
+ * streams share `state.seen`, whichever handler reads the id first wins, and the board branch
+ * returns ahead of `classify`. That path consumes a real alert as a note and drops its episode, its
+ * ladder and its page. Both shapes refuse here, and `boardRefusals` names the reason so `main` can
+ * log it. A thread id may arrive as a number or as a numeric string, so the check reads the NUMBER
+ * and refuses only an absent or non-numeric one.
  */
-export function boardSubscriptions(conf) {
+function boardEntries(conf) {
   return Object.entries((conf && conf.boardTopics) || {}).filter(([, topicName]) => topicName);
+}
+
+function boardRefusalOf(domain, topicName, conf) {
+  const thread = conf && conf.threads ? conf.threads[domain] : undefined;
+  if (thread === undefined || thread === null || thread === '' || !Number.isFinite(Number(thread))) {
+    return 'the config names no thread for the domain';
+  }
+  const bird = conf && conf.birds ? conf.birds[domain] : undefined;
+  if (typeof bird !== 'string' || bird === '') return 'the config names no bird for the domain';
+  const clash = Object.entries((conf && conf.topics) || {}).find(([, alertTopic]) => alertTopic && alertTopic === topicName);
+  return clash ? `the board topic repeats the ${clash[0]} alert topic` : null;
+}
+
+export function boardSubscriptions(conf) {
+  return boardEntries(conf).filter(([domain, topicName]) => boardRefusalOf(domain, topicName, conf) === null);
+}
+
+/** One row per refused board topic, by DOMAIN and reason. Never the topic name, which is a secret. */
+export function boardRefusals(conf) {
+  return boardEntries(conf)
+    .map(([domain, topicName]) => ({ domain, reason: boardRefusalOf(domain, topicName, conf) }))
+    .filter((row) => row.reason !== null);
+}
+
+/**
+ * Pure so the selftest can hold it: undo the two dedupe markers after a post that threw. `handle`
+ * pushes `msg.id` into `state.seen` and advances `state.lastId` BEFORE it posts, and `consume`
+ * resumes the stream from `state.lastId`. So a post that throws drops the message for the session,
+ * with one log line from `handle`'s caller and no retry. Rolling both markers back hands the
+ * message to the next reconnect.
+ */
+export function releaseSeen(st, topicName, id, prevLastId) {
+  const seen = st.seen || [];
+  const at = seen.indexOf(id);
+  if (at >= 0) seen.splice(at, 1);
+  if (prevLastId === undefined) delete st.lastId[topicName];
+  else st.lastId[topicName] = prevLastId;
+  return st;
 }
 
 /** A board message goes where the domain's alerts go: its thread, its bird. */
@@ -278,6 +325,7 @@ async function handle(domain, topicName, msg, opts = {}) {
   if (state.seen.includes(msg.id)) return;
   state.seen.push(msg.id);
   if (state.seen.length > 500) state.seen.splice(0, state.seen.length - 500);
+  const prevLastId = state.lastId[topicName];
   state.lastId[topicName] = msg.id;
   const m = unwrap(msg);
   if (opts.board) {
@@ -288,7 +336,15 @@ async function handle(domain, topicName, msg, opts = {}) {
       `## ${m.title || '(no title)'}\n\n- **State:** BOARD — for the record; no ack, no escalation\n- **Owner:** @${t.bird}\n` +
       `- **Domain:** ${domain} · **Tier:** board\n` +
       `- **Publisher:** ntfy ${domain} board stream — original message below, verbatim\n\n${m.message || ''}`;
-    await post(t.thread, body, 'note', [t.bird]);
+    try {
+      await post(t.thread, body, 'note', [t.bird]);
+    } catch (e) {
+      /* Release both dedupe markers, so the next reconnect hands this note back. */
+      releaseSeen(state, topicName, msg.id, prevLastId);
+      log('board post failed, note released for retry', domain, e.message);
+      persist();
+      return;
+    }
     state.lastCycleAt = Date.now();
     persist();
     return;
@@ -453,6 +509,7 @@ function main() {
       consume(domain, topicName);
     }
   }
+  for (const row of boardRefusals(cfg)) log('board topic REFUSED', row.domain, row.reason);
   for (const [domain, topicName] of boardSubscriptions(cfg)) {
     log('subscribing', domain, 'board topic (name withheld)');
     consume(domain, topicName, { board: true });
@@ -609,6 +666,39 @@ function selftest() {
   );
   const bt = boardTarget('vigil', conf);
   ok('the board target is the domain thread and the domain bird', bt.thread === 901 && bt.bird === 'wren', bt);
+
+  /* 10b · THE SEAM REFUSES WHAT IT CANNOT DELIVER. An unnamed domain, and a board topic repeating an
+     alert topic, both had nowhere to land and both subscribed anyway. */
+  const confU = { ...conf, boardTopics: { ghost: 'invented-board-topic' } };
+  ok('a board topic for a domain the config never names refuses', boardSubscriptions(confU).length === 0, boardSubscriptions(confU));
+  ok(
+    'the refusal names the domain and the reason, never the topic',
+    boardRefusals(confU).length === 1 && boardRefusals(confU)[0].domain === 'ghost' && /no thread/.test(boardRefusals(confU)[0].reason),
+    boardRefusals(confU)
+  );
+  const confBird = { threads: { ...conf.threads, ghost: 904 }, birds: conf.birds, boardTopics: { ghost: 'invented-board-topic' } };
+  ok('a domain with a thread and no bird refuses', /no bird/.test((boardRefusals(confBird)[0] || {}).reason || ''), boardRefusals(confBird));
+  const confClash = { ...conf, topics: { vigil: 'invented-alert-topic' }, boardTopics: { vigil: 'invented-alert-topic' } };
+  ok('a board topic that repeats an alert topic refuses', boardSubscriptions(confClash).length === 0, boardSubscriptions(confClash));
+  ok('that refusal names the alert domain it collides with', /repeats the vigil alert topic/.test(boardRefusals(confClash)[0].reason), boardRefusals(confClash));
+  const confOk = { ...conf, topics: { vigil: 'invented-alert-topic' }, boardTopics: { vigil: 'invented-board-topic' } };
+  ok(
+    'the control: a named domain with its own board topic still subscribes',
+    JSON.stringify(boardSubscriptions(confOk)) === JSON.stringify([['vigil', 'invented-board-topic']]),
+    boardSubscriptions(confOk)
+  );
+  ok('a thread id written as a numeric string still subscribes', boardSubscriptions({ ...confOk, threads: { vigil: '901' } }).length === 1);
+
+  /* 10c · A FAILED BOARD POST RELEASES BOTH DEDUPE MARKERS, so the next reconnect retries the note. */
+  const st = { seen: [7, 8, 9], lastId: { 'a-topic': 9 } };
+  releaseSeen(st, 'a-topic', 9, 8);
+  ok('the released id leaves seen and lastId rolls back', JSON.stringify(st.seen) === JSON.stringify([7, 8]) && st.lastId['a-topic'] === 8, st);
+  const st2 = { seen: [5], lastId: { 'a-topic': 5 } };
+  releaseSeen(st2, 'a-topic', 5, undefined);
+  ok('a first message releases the lastId key itself', st2.seen.length === 0 && !('a-topic' in st2.lastId), st2);
+  const st3 = { seen: [1], lastId: { 'a-topic': 1 } };
+  releaseSeen(st3, 'a-topic', 42, 1);
+  ok('the control: releasing an id that is not seen changes no entry', JSON.stringify(st3.seen) === JSON.stringify([1]), st3);
 
   /* 5 · THE CONFIG IS AN ARGUMENT, so a rule cannot reach the installed file. */
   ok('the rules read no module-level config', cfg === null, cfg);
