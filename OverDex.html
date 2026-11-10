@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="d33d053b0e1b" data-compute-hash="2f4813c890ca"><head>
+<html lang="en" data-manifest-hash="29c4f0652cc0" data-compute-hash="7963fab850af"><head>
 <!--
   OverDex.html — Tepna
   Copyright 2026 Michal Planicka
@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/DnE9XmMuQAgOpzjl/0o9V9w5hh0bdf+ZSJ5HcC/gw0=' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-4KsRTgVuaYcMUNL8LhUau/rNzFP6NRbvBy2QbxNGFzw=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-QU1eFIpXtk89h7OawHFWXJry6pEr0cw5i0Q08kGZz88=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-TJnsXppIrR2fDEg9roXHwHuaiAym8hL+7tyg9r6NlEw=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-XeM139aCzQDSzEaQuQBVa+zEhnOSgXP/4pqlC0h9wO4=' 'sha256-eqhMkaKkI0DeDYeFRr158XI1OLlvfo+v/yXmogvQqzI=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-kryaRysk2VcK4nRAhaqFOMDUukjwkDR8WaOUc3fNkcY=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-qtwV6UdWMEOsPilOs3Mrd9jysCoMp0m5MgxuB5HkI8o=' 'sha256-rm/YlVmogQnelQDIazZyRCXgoAFvC1Ffha1wQ4dVrFc=' 'sha256-uS0BO9FA6T7Ej0PgYdFgmhKAD7wWWUv6IRvThTzY6lc=' 'sha256-wK9fP+fYfi661IypDOgrAoxGZS8mGJfe9l/9288cTZQ=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/DnE9XmMuQAgOpzjl/0o9V9w5hh0bdf+ZSJ5HcC/gw0=' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-4KsRTgVuaYcMUNL8LhUau/rNzFP6NRbvBy2QbxNGFzw=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Cu9Kc2gASQX0YqrVKrmUinmc15r4lBzWxOALoQh1yBE=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-QU1eFIpXtk89h7OawHFWXJry6pEr0cw5i0Q08kGZz88=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-TJnsXppIrR2fDEg9roXHwHuaiAym8hL+7tyg9r6NlEw=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-XeM139aCzQDSzEaQuQBVa+zEhnOSgXP/4pqlC0h9wO4=' 'sha256-dgJY/SRoyJ6GnIMF2h+gidz3lp4uPUKCbL0PXtKVmU4=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-kryaRysk2VcK4nRAhaqFOMDUukjwkDR8WaOUc3fNkcY=' 'sha256-mBYm62Y+mqnhe5DkYNAGu2bkZmIfXpkUo6noIaU/RzM=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-uS0BO9FA6T7Ej0PgYdFgmhKAD7wWWUv6IRvThTzY6lc=' 'sha256-wK9fP+fYfi661IypDOgrAoxGZS8mGJfe9l/9288cTZQ=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -31287,6 +31287,19 @@ __exports.PulseDex = window.PulseDex;
 
   // Headless public surface — parse → analyze (REAL pipeline) → shared node-export.
   // Accepts a CSV string, {text}, or an already-parsed {tMs,vMgdl,unit,t0Ms} frame.
+  /* A caller-supplied `source` is a machine TAG, never an input name. The export scrub decides
+     `recording.source` by SHAPE (`export-schema.js` `_tagNotPath`), so a label with no path
+     separator and no dotted extension survives a scrubbed export — row
+     `2026-11-08-the-scrub-source-guard-keeps-an-extensionless-filename`. A name and a tag cannot be told
+     apart by shape, so the WRITER decides: this node takes only its own kebab-case tag form and
+     keeps its parser's tag otherwise. EXPORT-SOURCE-KEY-KINDS §3 — the boundary guard stays the
+     tripwire and stops being the remedy. A caller holding a file NAME has no route here.
+     The refused value is never copied anywhere. */
+  const _SRC_TAG_RE = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
+  function _sourceTag(v) {
+    return typeof v === 'string' && v.length <= 40 && _SRC_TAG_RE.test(v);
+  }
+
   function compute(input, opts) {
     opts = opts || {};
     let parsed;
@@ -31316,7 +31329,7 @@ __exports.PulseDex = window.PulseDex;
       if (text == null) throw new Error('GlucoDex.compute: need a CSV string, {text}, a parsed {tMs,vMgdl} frame, or a cgm SignalFrame {samples:[{tMs,v}]}.');
       parsed = parseCSV(text);
     }
-    if (opts.source) parsed.source = opts.source;
+    if (_sourceTag(opts.source)) parsed.source = opts.source;
     const r = analyze(parsed, null, opts);
     return glucoBuildNodeExport(r, opts);
   }
@@ -39669,6 +39682,19 @@ __exports.GlucoDex = window.GlucoDex;
   // Headless public surface — parse → analyze (REAL pipeline) → shared node-export.
   // Accepts a Polar Sense `*_PPG.txt` string, {text}, an already-parsed rec {ch:[…]},
   // or the canonical ppg SignalFrame (samples PACKS the multi-channel optical waveform).
+  /* A caller-supplied `source` is a machine TAG, never an input name. The export scrub decides
+     `recording.source` by SHAPE (`export-schema.js` `_tagNotPath`), so a label with no path
+     separator and no dotted extension survives a scrubbed export — row
+     `2026-11-08-the-scrub-source-guard-keeps-an-extensionless-filename`. A name and a tag cannot be told
+     apart by shape, so the WRITER decides: this node takes only its own kebab-case tag form and
+     keeps its parser's tag otherwise. EXPORT-SOURCE-KEY-KINDS §3 — the boundary guard stays the
+     tripwire and stops being the remedy. A caller holding a file NAME has no route here.
+     The refused value is never copied anywhere. */
+  var _SRC_TAG_RE = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
+  function _sourceTag(v) {
+    return typeof v === 'string' && v.length <= 40 && _SRC_TAG_RE.test(v);
+  }
+
   function compute(input, opts) {
     opts = opts || {};
     var rec;
@@ -39750,7 +39776,7 @@ __exports.GlucoDex = window.GlucoDex;
          bytes here, so a Unifier-routed night reads the channel the browser road reads. */
       rec = parsePPG(text, { timebase: opts.timebase, runsText: opts.runsText, seamsText: opts.seamsText });
     }
-    if (opts.source) rec.source = opts.source;
+    if (_sourceTag(opts.source)) rec.source = opts.source;
     if (opts.fname && !rec.fname) rec.fname = opts.fname;
     var r = analyze(rec, null);
     return ppgBuildNodeExport(r, opts);
@@ -47337,6 +47363,19 @@ __exports.PpgDex = window.PpgDex;
   // Headless public surface — parse → analyze (REAL Pan-Tompkins pipeline, no Worker)
   // → shared node-export. Accepts a Polar Sensor Logger `*_ECG.txt` string, {text}, an
   // already-parsed rec {int16,fs}, or the canonical ecg SignalFrame {samples:Float32Array,fs,t0Ms}.
+  /* A caller-supplied `source` is a machine TAG, never an input name. The export scrub decides
+     `recording.source` by SHAPE (`export-schema.js` `_tagNotPath`), so a label with no path
+     separator and no dotted extension survives a scrubbed export — row
+     `2026-11-08-the-scrub-source-guard-keeps-an-extensionless-filename`. A name and a tag cannot be told
+     apart by shape, so the WRITER decides: this node takes only its own kebab-case tag form and
+     keeps its parser's tag otherwise. EXPORT-SOURCE-KEY-KINDS §3 — the boundary guard stays the
+     tripwire and stops being the remedy. A caller holding a file NAME has no route here.
+     The refused value is never copied anywhere. */
+  var _SRC_TAG_RE = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
+  function _sourceTag(v) {
+    return typeof v === 'string' && v.length <= 40 && _SRC_TAG_RE.test(v);
+  }
+
   function compute(input, opts) {
     opts = opts || {};
     var rec;
@@ -47367,7 +47406,7 @@ __exports.PpgDex = window.PpgDex;
         gaps: input.gaps || [],
         t0Ms: input.t0Ms != null ? input.t0Ms : null,
         offsetMin: input.offsetMin != null ? input.offsetMin : null,
-        source: opts.source || 'signal-frame',
+        source: _sourceTag(opts.source) ? opts.source : 'signal-frame',
         durSec: N / (fs || 130),
         deviceRR: input.deviceRR || null,
         deviceHR: input.deviceHR || null,
@@ -47397,7 +47436,7 @@ __exports.PpgDex = window.PpgDex;
       var st = typeof opts.seamsText === 'string' ? opts.seamsText : typeof input.seamsText === 'string' ? input.seamsText : null;
       rec = rt || st ? parseECGText(txt, { runsText: rt, seamsText: st }) : parseECGText(txt);
     }
-    if (opts.source) rec.source = opts.source;
+    if (_sourceTag(opts.source)) rec.source = opts.source;
     if (opts.offsetMin != null && rec.offsetMin == null) rec.offsetMin = opts.offsetMin;
     var r = analyze(rec, null);
     if (r.offsetMin == null && rec.offsetMin != null) r.offsetMin = rec.offsetMin; // carry zone (analyze doesn't propagate it)

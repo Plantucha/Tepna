@@ -7492,6 +7492,19 @@
   // Headless public surface — parse → analyze (REAL Pan-Tompkins pipeline, no Worker)
   // → shared node-export. Accepts a Polar Sensor Logger `*_ECG.txt` string, {text}, an
   // already-parsed rec {int16,fs}, or the canonical ecg SignalFrame {samples:Float32Array,fs,t0Ms}.
+  /* A caller-supplied `source` is a machine TAG, never an input name. The export scrub decides
+     `recording.source` by SHAPE (`export-schema.js` `_tagNotPath`), so a label with no path
+     separator and no dotted extension survives a scrubbed export — row
+     `2026-11-08-the-scrub-source-guard-keeps-an-extensionless-filename`. A name and a tag cannot be told
+     apart by shape, so the WRITER decides: this node takes only its own kebab-case tag form and
+     keeps its parser's tag otherwise. EXPORT-SOURCE-KEY-KINDS §3 — the boundary guard stays the
+     tripwire and stops being the remedy. A caller holding a file NAME has no route here.
+     The refused value is never copied anywhere. */
+  var _SRC_TAG_RE = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
+  function _sourceTag(v) {
+    return typeof v === 'string' && v.length <= 40 && _SRC_TAG_RE.test(v);
+  }
+
   function compute(input, opts) {
     opts = opts || {};
     var rec;
@@ -7522,7 +7535,7 @@
         gaps: input.gaps || [],
         t0Ms: input.t0Ms != null ? input.t0Ms : null,
         offsetMin: input.offsetMin != null ? input.offsetMin : null,
-        source: opts.source || 'signal-frame',
+        source: _sourceTag(opts.source) ? opts.source : 'signal-frame',
         durSec: N / (fs || 130),
         deviceRR: input.deviceRR || null,
         deviceHR: input.deviceHR || null,
@@ -7552,7 +7565,7 @@
       var st = typeof opts.seamsText === 'string' ? opts.seamsText : typeof input.seamsText === 'string' ? input.seamsText : null;
       rec = rt || st ? parseECGText(txt, { runsText: rt, seamsText: st }) : parseECGText(txt);
     }
-    if (opts.source) rec.source = opts.source;
+    if (_sourceTag(opts.source)) rec.source = opts.source;
     if (opts.offsetMin != null && rec.offsetMin == null) rec.offsetMin = opts.offsetMin;
     var r = analyze(rec, null);
     if (r.offsetMin == null && rec.offsetMin != null) r.offsetMin = rec.offsetMin; // carry zone (analyze doesn't propagate it)
