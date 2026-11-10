@@ -27,6 +27,14 @@ set -uo pipefail
 # which an `unset` at the top of the file does not touch.
 unset CLAUDE_ALLOW_UNTRIMMED
 H="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/trim-output.sh"
+# The shared needle readers. A leg whose PASS is an ABSENCE needs a reader that cannot fail to
+# look, and `grep` through a pipe reads "could not look" as "not there" — row
+# 2026-11-09-four-selftest-legs-print-ok-when-their-reader-fails-to-look.
+_LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/tools/hook-test-lib.sh"
+if [ ! -r "$_LIB" ]; then printf '  REFUSE  the needle readers are unreadable at %s\n' "$_LIB" >&2; exit 2; fi
+# The path is a runtime expression, so shellcheck resolves it only under -x, which no gate runs.
+# shellcheck source=../../tools/hook-test-lib.sh disable=SC1091
+. "$_LIB"
 # ⚠ THE WRITER-FATE PAYLOAD IS SIZED FROM THE KERNEL, NOT FROM A ROUND NUMBER. `--probe-bytes` returns
 # four times this box's `fs.pipe-max-size` with a 4 MiB floor, and nothing past that ceiling can be
 # absorbed into a pipe. The 70 KB this file used to stage looked like more than the 64 KB pipe buffer,
@@ -222,11 +230,14 @@ expectj PASS 'a non-Bash tool is never rewritten' "$(jq -nc '{tool_name:"Edit",t
 echo "── the emitted JSON ─────────────────────────────────────────────────────"
 out="$(printf '%s' "$(jq -nc '{tool_name:"Bash",scratchpad_dir:"/nonexistent-xyz",tool_input:{command:"seq 1 500",description:"d",timeout:1234}}')" | bash "$H")"
 k="$(printf '%s' "$out" | jq -r '.hookSpecificOutput|keys|join(",")')"
+# Two legs below PASS on an absence in $out, so an empty capture would print as two passes.
+if says updatedInput "$out"; then echo "  ok    the emitted JSON is the text the absence legs read"
+else echo "  FAIL  UNEXAMINED: the emitted JSON holds no updatedInput, so an absence below is not evidence"; fail=$((fail+1)); fi
 if [ "$k" = "hookEventName,updatedInput" ]; then echo "  ok    hookSpecificOutput holds ONLY hookEventName and updatedInput"
 else echo "  FAIL  hookSpecificOutput keys are '$k'"; fail=$((fail+1)); fi
 # The one field this hook must never send. permissionDecision:"allow" would approve the
 # call with no prompt and would step past the owner's permission mode.
-if printf '%s' "$out" | grep -q permissionDecision; then
+if says permissionDecision "$out"; then
   echo "  FAIL  the hook sent permissionDecision — that bypasses the permission mode"; fail=$((fail+1))
 else echo "  ok    no permissionDecision in the output"; fi
 if [ "$(printf '%s' "$out" | jq -r '.hookSpecificOutput.hookEventName')" = PreToolUse ]; then
@@ -239,7 +250,7 @@ for f in description timeout; do
   else printf '  FAIL  updatedInput dropped %s\n' "$f"; fail=$((fail+1)); fi
 done
 # An absent scratchpad directory must not become the scratch path.
-if printf '%s' "$out" | grep -q '/nonexistent-xyz'; then
+if says /nonexistent-xyz "$out"; then
   echo "  FAIL  used a scratchpad_dir that does not exist"; fail=$((fail+1))
 else echo "  ok    an absent scratchpad_dir falls back to TMPDIR"; fi
 

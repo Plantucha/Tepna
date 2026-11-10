@@ -32,6 +32,14 @@ set -uo pipefail
 # which an `unset` at the top of the file does not touch.
 unset CLAUDE_ALLOW_SYNTAX_ERROR
 H="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/guard-syntax.sh"
+# The shared needle readers. A leg whose PASS is an ABSENCE needs a reader that cannot fail to
+# look, and `grep` through a pipe reads "could not look" as "not there" — row
+# 2026-11-09-four-selftest-legs-print-ok-when-their-reader-fails-to-look.
+_LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/tools/hook-test-lib.sh"
+if [ ! -r "$_LIB" ]; then printf '  REFUSE  the needle readers are unreadable at %s\n' "$_LIB" >&2; exit 2; fi
+# The path is a runtime expression, so shellcheck resolves it only under -x, which no gate runs.
+# shellcheck source=../../tools/hook-test-lib.sh disable=SC1091
+. "$_LIB"
 # ⚠ THE WRITER-FATE PAYLOAD IS SIZED FROM THE KERNEL, NOT FROM A ROUND NUMBER. `--probe-bytes` returns
 # four times this box's `fs.pipe-max-size` with a 4 MiB floor, and nothing past that ceiling can be
 # absorbed into a pipe. The literal 100 KB these legs used to stage looked like twice the 64 KB pipe
@@ -168,9 +176,14 @@ if [ "$have_node" = 1 ]; then
   # The caret is the only part a reader acts on, and node's own frames push it away.
   if printf '%s' "$msg" | grep -q '\^'; then echo "  ok    …and keeps the caret line"
   else echo "  FAIL  message lost the caret"; fail=$((fail+1)); fi
-  if printf '%s' "$msg" | grep -qE '^[[:space:]]+at '; then
+  # A per-line anchor is an ERE, so `says` cannot state this needle and grep stays. `matches`
+  # reports a reader that could not look as UNEXAMINED, against the file name the loop above
+  # already proved present in this same text.
+  matches '^[[:space:]]+at ' "$msg" 'broken.js'; _m=$?
+  if [ "$_m" = 0 ]; then
     echo "  FAIL  message still carries node's internal stack frames"; fail=$((fail+1))
-  else echo "  ok    …and drops node's internal stack frames"; fi
+  elif [ "$_m" = 1 ]; then echo "  ok    …and drops node's internal stack frames"
+  else echo "  FAIL  UNEXAMINED: this reader found no 'broken.js' either, so its ABSENT is no evidence"; fail=$((fail+1)); fi
   # §4b: the reason a broken file must not travel is that the gates report green about it.
   if printf '%s' "$msg" | grep -qF 'reads as a pass'; then echo "  ok    …and says why a broken file must not travel"
   else echo "  FAIL  message omits the §4b caveat"; fail=$((fail+1)); fi
