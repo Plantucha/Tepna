@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**333 tools** · 332 with a purpose line · **1 without**
+**335 tools** · 334 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -286,6 +286,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`seqnet-infer.mjs`](../tools/seqnet-infer.mjs) | run the stage-lab control net (seqnet.py's TCN + biGRU + Viterbi) in plain JS with no runtime library, so a trained stager can ship inside a bundled offline Tepna instrument. |
 | [`served-link-check.mjs`](../tools/served-link-check.mjs) | which local links are DEAD on a deployed box? `CAPTURE-HOST-DEEP-AUDIT-FOLLOWUPS` §1.2 records two dead-link residues on the served tree and says plainly what is missing: *"A link-checker… |
 | [`severity-ladder-audit.mjs`](../tools/severity-ladder-audit.mjs) | does a node ever render the SAME metric with two different good/warn/bad boundaries? |
+| [`shellcheck-gate.mjs`](../tools/shellcheck-gate.mjs) | shellcheck over the repo's OWN shell scripts node tools/shellcheck-gate.mjs # gate (exit 1 on a finding) node tools/shellcheck-gate.mjs --json # the verdict alone node… |
 | [`sidecar-census.mjs`](../tools/sidecar-census.mjs) | WHO WRITES EACH CAPTURE-HOST SIDECAR, WHO READS IT, AND WHAT EACH READER DOES WHEN IT IS ABSENT. |
 | [`sigma-corpus-headless.mjs`](../tools/sigma-corpus-headless.mjs) | run `sigma-no-reference-analysis.html` over the canonical corpus without a human dropping a folder, and report the POPULATION it reaches. |
 | [`stage-lab-core.mjs`](../tools/stage-lab-core.mjs) | PURE ESM, NO node: IMPORTS — so a browser app can import the same model code it was trained with. |
@@ -299,6 +300,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`survivor-witness.mjs`](../tools/survivor-witness.mjs) | A WITNESS INPUT FOR EVERY SURVIVOR THAT HAS ONE 4708 operator mutants survive the JS sweeps unresolved. |
 | [`sync-docs-index.mjs`](../tools/sync-docs-index.mjs) | FLIP A BRIEF'S STATUS, THEN RUN THIS. It carries the flip into DOCS-INDEX.md. |
 | [`synth-desat-kinetics.mjs`](../tools/synth-desat-kinetics.mjs) | measure whether a synthetic SpO₂ corpus desaturates at a PHYSIOLOGICAL rate, and how much of it OxyDex's artifact self-gate rejects. |
+| [`table-provenance-core.mjs`](../tools/table-provenance-core.mjs) | WHY THIS FILE EXISTS. The reader lived inside `tests/run-tests.mjs` as a closure over the tree, so the only way to exercise it was to put a stamp in a committed document. |
 | [`tch-bootstrap-ci.mjs`](../tools/tch-bootstrap-ci.mjs) | error bars for the three-cornered-hat sigmas. THE GAP. This suite quotes TCH sigmas as bare numbers — ECGDex 0.30, PpgDex 0.33, OxyDex 1.10 bpm — in briefs, changesets and PR bodies, with… |
 | [`tch-degeneracy-d7.mjs`](../tools/tch-degeneracy-d7.mjs) | D7 · WHY THE FUSED THREE-CORNERED HAT GOES NEGATIVE, measured three ways. |
 | [`tch-degeneracy-stats.mjs`](../tools/tch-degeneracy-stats.mjs) | HOW OFTEN DOES THE THREE-CORNERED HAT GO DEGENERATE, AND ON WHAT KIND OF NIGHT? |

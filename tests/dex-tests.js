@@ -26582,6 +26582,86 @@
         T.eq('PLANT · the recipe is deterministic (same files, same digest)', TP.digestOver(a), TP.digestOver(a.slice()));
         T.ok('PLANT · the path is part of the digest, so a renamed input moves it too', TP.digestOver(a) !== TP.digestOver([a[0], { path: 'x/3.json', bytes: a[1].bytes }]));
       }
+
+      /* ── THE REACH IS THE DEFECT, SO IT IS ASSERTED AND NOT ASSUMED.
+         Residue 2026-11-08-twenty-papers-carry-no-claim-marker-and-the-resolver-skips-papers: the
+         scan listed `briefs/ audits/ docs/` plus `CLAUDE.md`, and `.md` only. A stamp inside
+         `papers/` was therefore unread, and no leg could say so, because planting a stamp needed a
+         document committed to the tree. The CLAIM scan next door already walks `papers/**` over
+         `.html` and `.md`, so the two readers disagreed about what a published number is.
+         `tools/table-provenance-core.mjs` holds the parse, the root list and the table-above walk,
+         which is what lets the PLANTs below exercise the reader on a document that lives nowhere. */
+      var tpRoot = function (dir) {
+        return (TP.roots || []).filter(function (r) {
+          return r.dir === dir;
+        })[0];
+      };
+      var tpRootDirs = (TP.roots || [])
+        .map(function (r) {
+          return r.dir;
+        })
+        .join(', ');
+      T.ok('the scan reach names papers/', !!tpRoot('papers'), 'roots: ' + tpRootDirs);
+      T.ok(
+        'papers/ accepts .html, because a paper IS HTML and a markdown-only reach reads none of them',
+        !!tpRoot('papers') && tpRoot('papers').exts.indexOf('.html') >= 0,
+        tpRoot('papers') ? tpRoot('papers').exts.join(' ') : 'no papers root'
+      );
+      /* THE WIDENING IS SCOPED. `docs/` holds served copies of the bundles, so an `.html` reach there
+         would read 11 generated pages that carry no table a person wrote. */
+      T.ok(
+        'docs/ stays markdown-only, so the reach widened where the defect was and nowhere else',
+        !!tpRoot('docs') && tpRoot('docs').exts.indexOf('.html') < 0,
+        tpRoot('docs') ? tpRoot('docs').exts.join(' ') : 'no docs root'
+      );
+      /* A DECLARED REACH AND A REACH THAT RAN ARE TWO CLAIMS (CLAUDE.md §4b). The list above is the
+         reader's own; this leg reads the files the scan opened. */
+      T.ok(
+        'the file list the scan actually read names at least one papers/ file',
+        (TP.files || []).filter(function (f) {
+          return f.indexOf('papers/') === 0;
+        }).length > 0,
+        (TP.files || []).filter(function (f) {
+          return f.indexOf('papers/') === 0;
+        }).length +
+          ' papers file(s) of ' +
+          (TP.files || []).length +
+          ' scanned'
+      );
+
+      /* ── PLANT · THE PARSE, ON DOCUMENTS THAT LIVE NOWHERE. Each case below is a string, so the
+         reader is held to a shape without anybody committing a stamp to prove it. */
+      if (typeof TP.parse === 'function') {
+        var mdTable = ['| a | b |', '| --- | --- |', '| 1 | 2 |'].join('\n');
+        var mdDoc = ['# plant', '', mdTable, '<!-- TABLE-PROVENANCE producer=tools/p.mjs output=' + TP.sha12(mdTable) + ' -->', ''].join('\n');
+        var mdGot = TP.parse(mdDoc, 'docs/PLANT.md');
+        T.eq('PLANT · a markdown stamp parses and nothing is malformed', mdGot.malformed.join(' · '), '');
+        T.eq('PLANT · and it is exactly one stamp', String(mdGot.stamps.length), '1');
+        T.eq('PLANT · the markdown hash is over the table alone, not the document', mdGot.stamps[0] ? mdGot.stamps[0].actualOutput : 'no stamp', TP.sha12(mdTable));
+
+        /* THE SHAPE THE OLD READER COULD NOT SEE. A paper's table is a `<table>` element, and the
+           table-above walk knew pipe rows only, so the root alone would not have been enough: an
+           HTML stamp read as "no table immediately above the marker". */
+        var htmlTable = ['<table>', '<tr><th>a</th><th>b</th></tr>', '<tr><td>1</td><td>2</td></tr>', '</table>'].join('\n');
+        var htmlDoc = ['<h1>plant</h1>', htmlTable, '<!-- TABLE-PROVENANCE producer=tools/p.mjs output=' + TP.sha12(htmlTable) + ' -->'].join('\n');
+        var htmlGot = TP.parse(htmlDoc, 'papers/PLANT.html');
+        T.eq('PLANT · an HTML paper stamp parses and nothing is malformed', htmlGot.malformed.join(' · '), '');
+        T.eq('PLANT · the HTML hash is over the table element alone', htmlGot.stamps[0] ? htmlGot.stamps[0].actualOutput : 'no stamp', TP.sha12(htmlTable));
+        /* AN EDITED CELL MOVES THE HASH — the leg that makes a stamp worth carrying at all. */
+        var editedGot = TP.parse(htmlDoc.replace('<td>1</td>', '<td>9</td>'), 'papers/PLANT.html');
+        T.ok(
+          'PLANT · an edited HTML cell DISAGREES with the recorded output',
+          !!editedGot.stamps[0] && editedGot.stamps[0].actualOutput !== editedGot.stamps[0].output,
+          editedGot.stamps[0] ? editedGot.stamps[0].actualOutput + ' vs recorded ' + editedGot.stamps[0].output : 'no stamp'
+        );
+        /* ABSENCE IS A NAMED REASON, NEVER A SILENT DROP (CLAUDE.md §∅). A marker the reader cannot
+           attach to a table must reach `malformed`, which the group's own leg above reds on. */
+        var noTable = TP.parse('<!-- TABLE-PROVENANCE producer=tools/p.mjs output=aaaaaaaaaaaa -->', 'docs/PLANT.md');
+        T.eq('PLANT · a marker with no table above is not counted as a stamp', String(noTable.stamps.length), '0');
+        T.ok('PLANT · and the malformed line names what was missing', noTable.malformed.join(' · ').indexOf('no table') >= 0, noTable.malformed.join(' · ') || 'nothing reported');
+      } else {
+        T.skip('env.tableProvenance exposes parse', 'Node-lane only — the browser lane loads no tool module');
+      }
     });
 
     /* ── A PUBLISHED NUMBER NAMES THE FILES IT READ AND NOT THE FOLD THAT PRODUCED THEM.

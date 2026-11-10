@@ -188,6 +188,7 @@ echo "### the hazard runs one way: a row closed HERE is this tree's own closure"
 # printed `0 of them read OPEN here and are CLOSED on the ref` as it blocked.
 printf '%s\n' "$REF_LEDGER" | sed 's/| 2026-10-03-charlie \(.*\)| OPEN |/| 2026-10-03-charlie \1| fixed #9003 |/' > "$STALE/briefs/RESIDUE.md"
 expect ALLOW "a row closed here and OPEN on the ref"           "$STALE" "$(cmdj "$READ_CMD")"
+# shellcheck disable=SC2016  # a sed script: the ledger cells travel literally.
 printf '%s\n' "$REF_LEDGER" | sed 's/| fixed #9001 |/| → `ALPHA-BRIEF.md` |/' > "$STALE/briefs/RESIDUE.md"
 expect ALLOW "a row closed on both sides, with different text"  "$STALE" "$(cmdj "$READ_CMD")"
 write_ledger OPEN 'fixed #9002' 'fixed #9003' 'key'
