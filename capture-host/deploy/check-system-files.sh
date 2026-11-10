@@ -177,7 +177,7 @@ SUPERSEDED="
 $ETC_UDEV/99-polar-hidraw.rules|systemd/99-tepna-hidraw.rules
 "
 
-drift=0 managed=0 missing=0 installed=0 ambig=0 stale_etc=0
+drift=0 managed=0 missing=0 installed=0 ambig=0 stale_etc=0 absent_src=0 not_inst=0
 printf '  %-38s %-10s %s\n' "file" "class" "state"
 while IFS='|' read -r rel dest cls mode; do
   [ -n "$rel" ] || continue
@@ -186,11 +186,13 @@ while IFS='|' read -r rel dest cls mode; do
   name="$(basename "$rel")"
   if [ ! -f "$src" ]; then
     printf '  %-38s %-10s %s\n' "$name" "$cls" "✗ MISSING FROM REPO"
-    missing=$((missing + 1)); drift=$((drift + 1)); continue
+    # Counted apart from the box-absent state below. `--install` reads this file, so an absent source
+    # is the one drift class this script can report and never remedy. See the JSON comment at the end.
+    missing=$((missing + 1)); absent_src=$((absent_src + 1)); drift=$((drift + 1)); continue
   fi
   if [ ! -f "$dest" ]; then
     printf '  %-38s %-10s %s\n' "$name" "$cls" "✗ NOT INSTALLED  → $dest"
-    missing=$((missing + 1)); drift=$((drift + 1))
+    missing=$((missing + 1)); not_inst=$((not_inst + 1)); drift=$((drift + 1))
     if [ "$INSTALL" = "1" ] && [ "$cls" = "MANAGED" ]; then
       install -D -m "$mode" "$src" "$dest" && { echo "      installed"; installed=$((installed + 1)); }
     fi
@@ -268,15 +270,24 @@ if [ "$INSTALL" = "1" ] && [ "$installed" -gt 0 ]; then
   fi
   echo "  $installed file(s) installed — nothing restarted, so a running capture is untouched"
 fi
-echo "  $managed managed, $drift drifted$([ "$ambig" -gt 0 ] && echo ", $ambig AMBIGUOUS")$([ "$stale_etc" -gt 0 ] && echo ", $stale_etc SUPERSEDED")"
+echo "  $managed managed, $drift drifted$([ "$ambig" -gt 0 ] && echo ", $ambig AMBIGUOUS")$([ "$stale_etc" -gt 0 ] && echo ", $stale_etc SUPERSEDED")$([ "$absent_src" -gt 0 ] && echo ", $absent_src ABSENT FROM THE REPO — --install cannot fix those")"
 if [ "$JSON" = "1" ]; then
   # ⚠️ `drifted` INCLUDES `superseded` — line ~168 increments both, which is why a SUPERSEDED leftover
   # exits 1. `managedDrifted` is published separately because the two need OPPOSITE responses: a managed
   # drift is fixed by `--install`, a superseded leftover by a hand `rm` this script never performs.
   # A consumer that adds `drifted + superseded` would double-count; one that reads only `drifted` cannot
   # tell which action is owed. Both are published so neither mistake is available.
-  printf '{"managed":%d,"drifted":%d,"managedDrifted":%d,"superseded":%d,"ambiguous":%d,"missing":%d}\n' \
-    "$managed" "$drift" "$((drift - stale_etc))" "$stale_etc" "$ambig" "$missing" >&3
+  #
+  # ⚠️ `missing` CARRIES THE SAME TRAP, and it hid for longer because the two states print the same
+  # machine line. A source absent from the repo and a file absent from the box each increment `missing`
+  # and `drifted`, and their remedies are opposite: `--install` writes the box-absent file from the
+  # repo, and nothing this script runs restores a repo source somebody deleted or renamed. So the two
+  # halves are published beside the total, and `sourceAbsent + notInstalled == missing` holds for the
+  # same reason `managedDrifted + superseded == drifted` does above. A `managedDrifted` row that is
+  # really an absent source is a red no `--install` clears, and the header's own rule applies: a red
+  # that no action clears stops being read.
+  printf '{"managed":%d,"drifted":%d,"managedDrifted":%d,"superseded":%d,"ambiguous":%d,"missing":%d,"sourceAbsent":%d,"notInstalled":%d}\n' \
+    "$managed" "$drift" "$((drift - stale_etc))" "$stale_etc" "$ambig" "$missing" "$absent_src" "$not_inst" >&3
 fi
 [ "$drift" -eq 0 ] || exit 1
 exit 0

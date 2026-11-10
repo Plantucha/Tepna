@@ -23,7 +23,17 @@ class _Done:
         self.stdout, self.returncode = stdout, returncode
 
 
-_GOOD = {"managed": 11, "drifted": 2, "managedDrifted": 1, "superseded": 1, "ambiguous": 0, "missing": 0}
+# The real line the script prints, key for key — a stub that drifts from it stops being evidence.
+_GOOD = {
+    "managed": 11,
+    "drifted": 2,
+    "managedDrifted": 1,
+    "superseded": 1,
+    "ambiguous": 0,
+    "missing": 0,
+    "sourceAbsent": 0,
+    "notInstalled": 0,
+}
 
 
 def _script(tmp_path):

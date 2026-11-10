@@ -14,6 +14,7 @@ suite operates on the REPO copy, so GATE A can be green on a `manifestHash` that
 being served.
 """
 
+import json
 import os
 import re
 import shutil
@@ -304,6 +305,82 @@ def test_a_file_missing_from_etc_is_drift_not_a_crash(tmp_path):
     r = _chk(src, sd, ud)
     assert r.returncode == 1
     assert "NOT INSTALLED" in r.stdout
+
+
+# == TWO OPPOSITE REMEDIES BEHIND ONE COUNT (2026-11-10) =============================================
+# Row `2026-11-10-the-system-files-check-counts-two-opposite-remedies-as-one`. A source absent from the
+# repo and a file absent from the box each incremented `missing` and `drifted`, so the ONE machine line
+# a scheduler records was byte-identical for the two. Their remedies are opposite: `--install` writes
+# the box-absent file from the repo, and nothing this script runs restores a repo source somebody
+# deleted or renamed. The human table already said which one it was; the JSON did not, and the JSON is
+# what `nightqc.system_file_drift` keeps. Same family as the `managedDrifted`/`superseded` split beside
+# it, and the same remedy: publish both halves so neither reading is available.
+
+
+def _counts(src, sd, ud):
+    """The counts the scheduler records, plus the exit code. `--json` must be the FIRST argument."""
+    r = _chk(src, sd, ud, "--json")
+    return json.loads(r.stdout.strip().splitlines()[-1]), r.returncode
+
+
+def test_a_matching_tree_publishes_both_absence_halves_at_zero(tmp_path):
+    src, sd, ud = _tree(tmp_path)
+    got, rc = _counts(src, sd, ud)
+    assert rc == 0
+    assert got["missing"] == 0 and got["sourceAbsent"] == 0 and got["notInstalled"] == 0
+
+
+def test_an_absent_REPO_source_and_an_absent_BOX_file_publish_DIFFERENT_counts(tmp_path):
+    """THE defect. Both states carry `missing: 1, drifted: 1`, so the halves are what tells them apart,
+    and only one of the two has a remedy this script can run."""
+    src, sd, ud = _tree(tmp_path)
+    os.remove(src / "systemd" / "99-tepna-btdongle.rules")
+    repo_absent, rc_repo = _counts(src, sd, ud)
+
+    src2, sd2, ud2 = _tree(tmp_path / "b")
+    os.remove(ud2 / "99-tepna-btdongle.rules")
+    box_absent, rc_box = _counts(src2, sd2, ud2)
+
+    assert rc_repo == 1 and rc_box == 1, "both are drift"
+    assert repo_absent["missing"] == box_absent["missing"] == 1
+    assert repo_absent["drifted"] == box_absent["drifted"] == 1
+    assert (repo_absent["sourceAbsent"], repo_absent["notInstalled"]) == (1, 0)
+    assert (box_absent["sourceAbsent"], box_absent["notInstalled"]) == (0, 1)
+    assert repo_absent != box_absent, "one line for two opposite remedies was the defect"
+
+
+def test_the_two_absence_halves_SUM_to_missing(tmp_path):
+    """The arithmetic a consumer may rely on, pinned the way `managedDrifted + superseded` is."""
+    src, sd, ud = _tree(tmp_path)
+    os.remove(src / "systemd" / "99-tepna-btdongle.rules")
+    os.remove(sd / "tepna-usb-autosuspend.service")
+    got, rc = _counts(src, sd, ud)
+    assert rc == 1
+    assert (got["sourceAbsent"], got["notInstalled"]) == (1, 1)
+    assert got["sourceAbsent"] + got["notInstalled"] == got["missing"] == 2
+
+
+def test_install_clears_the_box_absent_half_and_NOT_the_repo_absent_half(tmp_path):
+    """Why the two counts have to differ: one run of the remedy moves exactly one of them, and the
+    other holds the gate red forever. A red that no action clears stops being read."""
+    src, sd, ud = _tree(tmp_path)
+    os.remove(src / "systemd" / "99-tepna-btdongle.rules")
+    os.remove(sd / "tepna-usb-autosuspend.service")
+    _chk(src, sd, ud, "--install")
+    got, rc = _counts(src, sd, ud)
+    assert rc == 1, "the absent source still holds it red"
+    assert (got["sourceAbsent"], got["notInstalled"]) == (1, 0)
+
+
+def test_the_human_summary_NAMES_a_repo_absent_source(tmp_path):
+    """The table row says `MISSING FROM REPO`, and the summary line is the one line an operator reads
+    out of a timer log. Until it named this class, the summary sent them to run `--install`."""
+    src, sd, ud = _tree(tmp_path)
+    os.remove(src / "systemd" / "99-tepna-btdongle.rules")
+    r = _chk(src, sd, ud)
+    assert r.returncode == 1
+    assert "ABSENT FROM THE REPO" in r.stdout, r.stdout
+    assert "1 drifted" in r.stdout
 
 
 # ══ THE UPGRADE RESTARTED THE DAEMON tepna-update.sh HAD JUST REFUSED TO RESTART (2026-10-28) ═════
