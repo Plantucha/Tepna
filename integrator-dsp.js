@@ -1289,6 +1289,12 @@ function adaptOxyDex(json, filename) {
       kernelHash: _kernelHash(n.kernel || _topKernel),
       kernelVersion: _kernelVersion(n.kernel || _topKernel),
       contentId: n.contentId != null ? n.contentId : null, // EXPORT-IDENTITY-FOLLOWUPS-II §1 (per-night identity-free handle)
+      /* §6.2 SPARSE coverage — the OxyDex writer declares the night's dropout segments
+         (oxydex-dsp.js `oxyCoverage`), on the night and, for a single-night export, on
+         `recording.coverage`. This adapter dropped it, so `recSegments` read the whole envelope and
+         a 2-segment night read as recordedFrac 1. A multi-night export declares no top-level block
+         (oxydex-app.js `_aCov`), so the top-level read is single-night only. */
+      coverage: n.coverage || (nights.length === 1 && json && !Array.isArray(json) && json.recording && json.recording.coverage) || null,
       nEvents: events.length,
       raw: n,
       _src: filename
