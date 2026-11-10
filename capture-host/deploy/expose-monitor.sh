@@ -186,12 +186,19 @@ for s in _all ecg; do
   # Counting is delegated to sse-frames.sh, which is tested. Doing it inline here is what produced a
   # permanent false "0 frames": pipefail plus a deliberately timed-out curl makes the pipeline
   # non-zero every run, so an `|| N=0` fallback clobbers the real count. See that script's header.
+  SSE_ERR="$(mktemp)"
   # shellcheck disable=SC2086  # $A must split into `-u` + `user:pass`, or vanish entirely. See above.
-  N=$(bash "$(dirname "$0")/sse-frames.sh" "http://127.0.0.1/api/stream/$s" 9 $A -H 'Host: vigil.local')
-  if [ "${N:-0}" -ge 3 ]; then
-    printf "    ✓ /api/stream/%-5s %s frames in 9 s\n" "$s" "$N"
+  if N=$(bash "$(dirname "$0")/sse-frames.sh" "http://127.0.0.1/api/stream/$s" 9 $A -H 'Host: vigil.local' 2>"$SSE_ERR"); then
+    if [ "$N" -ge 3 ]; then
+      printf "    ✓ /api/stream/%-5s %s frames in 9 s\n" "$s" "$N"
+    else
+      printf "    ✗ /api/stream/%-5s only %s frames in 9 s — the browser will show a frozen trace.\n" "$s" "$N"
+      echo "      Something between Caddy and the client is buffering; check the 'encode' match block."
+    fi
   else
-    printf "    ✗ /api/stream/%-5s only %s frames in 9 s — the browser will show a frozen trace.\n" "$s" "${N:-0}"
-    echo "      Something between Caddy and the client is buffering; check the 'encode' match block."
+    # The counter refused, so it reached no stream and counted nothing. A 0 here would name the
+    # buffering fault above, which is the one diagnosis an unreached stream cannot support.
+    printf "    ⊘ /api/stream/%-5s UNMEASURED — %s\n" "$s" "$(tr -d '\n' < "$SSE_ERR")"
   fi
+  rm -f "$SSE_ERR"
 done
