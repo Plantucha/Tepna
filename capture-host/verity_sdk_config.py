@@ -4,9 +4,19 @@
 
 WHAT THE TRIAL CHANGES. Two keys on the Verity device block of `/opt/tepna/capture-host/config.yaml`:
 `sdk_mode` to `true`, and `rates.ppg` to 176. Either one alone does nothing visible. SDK mode only
-WIDENS the rate menu to 28/44/55/135/176 Hz, and `ppg: 176` without it falls back to 55 Hz by design
-(`polar_pmd.chosen_rate` picks the highest rate the device offers at or under the request). A capture
-that silently ran at 55 Hz would read exactly like a 176 Hz night that disproved the hypothesis.
+WIDENS the rate menu to 28/44/55/135/176 Hz, and `ppg: 176` without it falls back to 55 Hz by design.
+A capture that silently ran at 55 Hz would read exactly like a 176 Hz night that disproved the
+hypothesis.
+
+THE FALLBACK RULE, AS `chosen_rate` ACTUALLY WRITES IT. An exact match returns first; otherwise the
+NEAREST offered rate wins and a tie goes to the LOWER one. This line used to say "the highest rate the
+device offers at or under the request", which is a DIFFERENT rule that happens to agree here: 176 is
+on the SDK menu, so the exact-match branch answers before any fallback runs. Measured over the SDK
+menu for every integer target from 1 to 200 (rig-x870, 2026-11-09): the two rules answer differently
+on 71 targets (37-43, 50-54, 96-134, 156-175), and on 27 more (1-27) the stated rule has no answer at
+all, where the function returns 28. So the conclusion above is right for a reason the old sentence did
+not give, and `tests/test_verity_sdk_config.py` now holds that conclusion against the real function
+rather than against a sentence (residue 2026-11-09-the-sdk-trial-doc-states-a-rate-rule-the-function-does-not-use).
 
 WHY A TEXT EDIT AND NOT A YAML ROUND-TRIP. `config.yaml` carries measured findings in its comments,
 and a PyYAML dump drops every one of them. So the edit writes two values in place, and the proof

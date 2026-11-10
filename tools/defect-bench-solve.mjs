@@ -595,7 +595,6 @@ async function main() {
   log(
     `mode ${MODE} · bench ${bench.commit} · ${bench.tasks.length} tasks · running ${tasks.length} · ${CONTROLS_ONLY ? 'controls only' : APPLY_CONTROL ? 'scoring-path control (fix hunks applied)' : SPLICE_CONTROL ? 'headroom (fix spliced)' : `model ${MODEL}`}`
   );
-  const sink = OUT ? fs.createWriteStream(OUT, { flags: 'a' }) : null;
   const rows = [];
 
   for (const [i, task] of tasks.entries()) {
@@ -742,7 +741,7 @@ async function main() {
       if (dir) rm(dir);
     }
     rows.push(row);
-    if (sink) sink.write(`${JSON.stringify(row)}\n`);
+    if (OUT) appendRow(OUT, row);
     log(`${i + 1}/${tasks.length} ${task.half} ${task.key} → ${row.outcome}${row.reason ? ` (${row.reason})` : ''}${row.modelMs ? ` ${(row.modelMs / 1000).toFixed(0)}s` : ''}`);
   }
 
@@ -764,7 +763,6 @@ async function main() {
     excludedReasons: rows.filter((r) => r.outcome === 'excluded').reduce((a, r) => ((a[r.reason.split(':')[0]] = (a[r.reason.split(':')[0]] || 0) + 1), a), {})
   };
   log('SUMMARY', JSON.stringify(sum));
-  if (sink) sink.end();
   // A run writes its result beside the log it was given, never into a tracked file.
   if (OUT) fs.writeFileSync(`${OUT}.summary.json`, `${JSON.stringify(sum, null, 2)}\n`);
   const v = benchVerdict(sum, { commit: headCommit(), bench: BENCH, out: OUT });
@@ -847,6 +845,14 @@ export function sampleSummary() {
 }
 
 // ---------- selftest ----------
+/* Each row reaches the file before the next task starts. A write stream lost rows two ways: the
+   per-task model and oracle calls are synchronous, so the stream never got an event-loop turn to
+   flush, and `process.exit` after `sink.end()` dropped whatever was still buffered. A 2-task run
+   kept 1 row, a 1-task run kept 0, and a crash mid-run would have kept none. */
+function appendRow(out, row) {
+  fs.appendFileSync(out, `${JSON.stringify(row)}\n`);
+}
+
 function selftest() {
   let pass = 0;
   let fail = 0;
@@ -864,6 +870,20 @@ function selftest() {
   eq(names.includes('tally') && names.includes('census.tally'), 'namesFromRow keeps the bare name and its one-level qualifier');
   eq(!names.includes('drops'), 'namesFromRow takes only backticked tokens, not prose');
   eq(namesFromRow({ defect: '`a run of zeros`', evidence: '' }).length === 0, 'a backticked phrase is not an identifier');
+
+  // each result row is on disk the moment it is written, with no event-loop turn and no flush
+  {
+    const d = fs.mkdtempSync(path.join(os.tmpdir(), 'dbench-rows-'));
+    const f = path.join(d, 'rows.jsonl');
+    const onDisk = () => (fs.existsSync(f) ? fs.readFileSync(f, 'utf8') : '');
+    appendRow(f, { key: 'a' });
+    eq(onDisk() === '{"key":"a"}\n', 'appendRow puts the first row on disk before it returns');
+    appendRow(f, { key: 'b' });
+    eq(onDisk().split('\n').filter(Boolean).length === 2, 'appendRow appends, so a second row keeps the first');
+    fs.rmSync(d, { recursive: true, force: true });
+    const src = fs.readFileSync(fileURLToPath(import.meta.url), 'utf8');
+    eq(!src.includes('createWrite' + 'Stream('), 'no buffered write stream holds result rows until exit');
+  }
 
   // the stored oracle command is a VIEW of an argv array
   const spaced = 'tests/test_mutation_diff.py::test_names[classify:an absent mutant was REFUTED]';

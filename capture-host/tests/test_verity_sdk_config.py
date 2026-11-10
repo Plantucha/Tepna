@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import copy
 
+import polar_pmd as pmd
 import pytest
 import verity_sdk_config as VT
 import yaml
@@ -321,6 +322,29 @@ def test_the_diff_is_redacted_and_empty_when_nothing_changes():
 def test_the_module_pins_the_rate_menu_sdk_mode_unlocks():
     assert VT.WANT_PPG == 176
     assert VT.SDK_RATES == (28, 44, 55, 135, 176)
+
+
+def test_the_headers_conclusion_is_held_against_chosen_rate_not_against_a_sentence():
+    """The header claims 176 Hz WITH SDK mode and 55 Hz without it. Both are claims about
+    `polar_pmd.chosen_rate`, and this module holds only the two constants.
+
+    Nothing held the constants against the function, so the header stated a rule the function does
+    not use: the HIGHEST rate the device offers at or under the request. Measured over the SDK menu
+    for every integer target from 1 to 200, the two rules answer differently on 71 targets and the
+    stated rule has no answer on 27 more. They agree at 176 for one reason only — an exact match
+    returns before any fallback runs — so a constant moving off the menu would break the conclusion
+    while the sentence still read true.
+    """
+    sdk_menu = {0x00: list(VT.SDK_RATES)}
+    assert pmd.chosen_rate(pmd.PPG, sdk_menu, VT.WANT_PPG) == VT.WANT_PPG
+    assert pmd.chosen_rate(pmd.PPG, {0x00: [55]}, VT.WANT_PPG) == 55
+
+    # The two rules diverge here: NEAREST gives 135, and the old sentence gave 55.
+    assert pmd.chosen_rate(pmd.PPG, sdk_menu, 100) == 135
+    # A tie goes to the LOWER rate. The old sentence agrees by accident, so this is not a control.
+    assert pmd.chosen_rate(pmd.PPG, sdk_menu, 90) == 55
+    # Below the lowest offered rate the stated rule has no answer at all.
+    assert pmd.chosen_rate(pmd.PPG, sdk_menu, 10) == min(VT.SDK_RATES)
 
 
 # ── WHAT A SURVIVING MUTANT SAID ABOUT THE TESTS ABOVE ────────────────────────────────────────────

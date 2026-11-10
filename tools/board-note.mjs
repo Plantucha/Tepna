@@ -92,7 +92,10 @@ function main(argv) {
     console.error(`board-note: the board refused the post (exit ${p.status}); nothing was posted.\n${p.out}`);
     process.exit(1);
   }
-  console.log(p.out.split('\n').pop());
+  /* THE WHOLE OUTPUT (row 2026-11-08-the-board-note-relay-prints-only-its-last-line). The board prints
+     the `Posted entry #N` receipt FIRST and an address line after it, so printing the last line alone
+     dropped the receipt, and a poster that saw none posted again (#4626 and #4628, byte-identical). */
+  console.log(p.out);
 }
 
 const IS_MAIN = isCliEntry(import.meta.url);
@@ -118,7 +121,7 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'board-note-'));
   const rec = path.join(dir, 'posted.txt');
   const fake = path.join(dir, 'agent-board');
-  fs.writeFileSync(fake, `#!/bin/sh\necho "$@" > "${rec}.args"\ncat >> "${rec}"\necho "Posted entry #1 to thread #$4."\n`, { mode: 0o755 });
+  fs.writeFileSync(fake, `#!/bin/sh\necho "$@" > "${rec}.args"\ncat >> "${rec}"\necho "Posted entry #1 to thread #$4."\necho "  addressed to: heron"\n`, { mode: 0o755 });
   const run = (note) => {
     const f = path.join(dir, 'note.md');
     fs.writeFileSync(f, note);
@@ -126,6 +129,7 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
   };
   const clean = run('Kestrel opened the PR. The gate passed.\n');
   ok('a clean note posts and exits 0', clean.status === 0 && fs.existsSync(rec) && /opened the PR/.test(fs.readFileSync(rec, 'utf8')), clean.stderr);
+  ok('…and prints the receipt, not only the last line', /Posted entry #1/.test(clean.stdout) && /addressed to/.test(clean.stdout), clean.stdout);
   ok('…to thread 8 as a note, under the bird name', /--as kestrel post 8 --kind note -/.test(fs.readFileSync(`${rec}.args`, 'utf8')));
   fs.rmSync(rec);
   const long = 'Kestrel opened the PR that moves the board, the roster, the ledgers, the brief count and the release card onto the ref after the merge left one commit behind.\n';

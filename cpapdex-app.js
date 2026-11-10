@@ -23,6 +23,10 @@ import { CpapRender } from './cpapdex-render.js';
 
   var FILE_TYPES = ['BRP', 'PLD', 'SA2', 'EVE', 'CSL'];
   var NIGHT_GAP_MS = 12 * 60 * 60 * 1000; // clusters >12 h apart belong to DIFFERENT nights
+  /* THE SCRUB DEFAULT IS ON since 2026-11-09 — see the same block in `oxydex-app.js`. It sits at module
+     scope, not inside `wireScrub`, because a page with no export bar still reaches `cpapBuildExport` and
+     would otherwise ship the AirSense filename. `wireScrub` reads it back for the checkbox. */
+  if (typeof window !== 'undefined' && window._cpapScrub === undefined) window._cpapScrub = true;
 
   function $(id) {
     return document.getElementById(id);
@@ -787,7 +791,7 @@ import { CpapRender } from './cpapdex-render.js';
       // single-night cpapBuildExport IS the ganglior node-export (the fusion currency) → kind 'ganglior'.
       fname = exportName({ node: 'CPAPDex', t0Ms: CURRENT ? CURRENT.t0Ms : null, kind: 'ganglior', ext: 'json' });
     }
-    // SELF-INGEST §5 — optional "scrub for sharing" (default OFF): strip device serial / filename / input
+    // SELF-INGEST §5 — optional "scrub for sharing" (default ON): strip device serial / filename / input
     // sha256 while keeping the clinical summary + a coarse build stamp. OFF → byte-identical to before.
     var outPayload = window._cpapScrub && global.dexScrubExport ? global.dexScrubExport(payload) : payload;
     var blob = new Blob([JSON.stringify(outPayload, null, 2)], { type: 'application/json;charset=utf-8' });
@@ -976,7 +980,7 @@ import { CpapRender } from './cpapdex-render.js';
         if (eb) eb.classList.remove('show');
         if (input) input.value = '';
       });
-    // SELF-INGEST §5 — inject the "scrub for sharing" toggle into the export bar (default OFF). JS-injected
+    // SELF-INGEST §5 — inject the "scrub for sharing" toggle into the export bar (default ON). JS-injected
     // so the .src.html shell (and thus buildHash) stays put; read at export time via window._cpapScrub.
     (function wireScrub() {
       if (CpapRender && CpapRender.injectSelfIngestCSS)
@@ -989,6 +993,7 @@ import { CpapRender } from './cpapdex-render.js';
       lbl.className = 'eb-scrub';
       var cb = document.createElement('input');
       cb.type = 'checkbox';
+      cb.checked = !!window._cpapScrub; // the box states the live default, it does not set one
       cb.addEventListener('change', function () {
         window._cpapScrub = !!cb.checked;
       });

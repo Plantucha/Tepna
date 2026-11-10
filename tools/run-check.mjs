@@ -113,6 +113,7 @@ export const STEPS = [
   'test:stage-lab-core',
   'test:oxydex-stager',
   'test:hypno-export',
+  'test:reconcile',
   'build:check',
   'verify:analysis',
   'verify:docs',

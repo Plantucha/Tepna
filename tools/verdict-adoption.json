@@ -3218,6 +3218,11 @@
     ]
    },
    "note": "ZOTERO FILL (owner 2026-10-11): one object over the citation ledger\u2019s DOIs, criterion ledger_dois_present_in_library eq the ledger count \u2014 PASS when every DOI is in the library (created or already present), SHORTFALL naming the DOIs that could not be resolved or written, NOT_RUN under --dry-run (reads the library, writes nothing). --verdict-sample reads no ledger and touches no library, so it reports NOT_RUN / checked 0."
+  },
+  "tests/reconcile-provenance.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "a READ-ONLY report that reads the verify-fixtures verdict (PASS and FAIL appear only as values it compares, not as an emitted verdict); the fixture decision belongs to tools/verify-fixtures.mjs (adopted), and this tool exits 0 always"
   }
  }
 }
