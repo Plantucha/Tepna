@@ -26228,6 +26228,18 @@
         T.ok('eraseAll deletes the Integrator IndexedDB (ganglior_integrator)', deleted.indexOf('ganglior_integrator') >= 0, deleted.join(','));
         T.ok('eraseAll reports the removed keys', !!(res && res.removed && res.removed.length >= 6));
         T.ok('DexForget.IDB_DBS pins the Integrator longitudinal store', DexForget.IDB_DBS.indexOf('ganglior_integrator') >= 0);
+        // Row 2026-11-08-erase-all-leaves-the-night-seal-key-database: the keys below are held in a
+        // constant or returned by a function, so the literal-string source leg cannot see them. Read
+        // each name from its owner's source, then require it in the erase set.
+        T.ok('eraseAll deletes the night-seal card-key IndexedDB (tepna-night-seal)', deleted.indexOf('tepna-night-seal') >= 0, deleted.join(','));
+        [
+          ['night-seal.js', /DB_NAME = '([^']+)'/, DexForget.IDB_DBS, 'IDB_DBS'],
+          ['ppgdex-app.js', /SITE_DECL_KEY = '([^']+)'/, DexForget.LOCAL_KEYS, 'LOCAL_KEYS'],
+          ['integrator-longitudinal.js', /function _synthPrefKey\(\) \{\s*return '([^']+)'/, DexForget.LOCAL_KEYS, 'LOCAL_KEYS']
+        ].forEach(function (c) {
+          var m = src[c[0]] && c[1].exec(src[c[0]]);
+          T.ok(c[0] + ' names its store, and ' + c[3] + ' erases it', !!m && c[2].indexOf(m[1]) >= 0, m ? m[1] + ' not in ' + c[3] : 'source absent or name not found');
+        });
         // FOLLOWUPS §2 — a full erase also wipes the standalone analysis pages' checkpoint state.
         T.ok('§2 · eraseAll clears an analysis-tool localStorage key (cgmcpl_lock)', store.cgmcpl_lock === undefined);
         T.ok('§2 · eraseAll deletes the analysis-tool IndexedDB checkpoints', deleted.indexOf('cgmcpl_ckpt') >= 0 && deleted.indexOf('ganglior_cohort_pilot') >= 0, deleted.join(','));
