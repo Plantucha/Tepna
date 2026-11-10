@@ -31097,8 +31097,22 @@
            reached the figures it publishes. Now it delegates like the sigma page, and this leg keeps it so. */
         [
           'sensor-trio-power-analysis.js',
-          ['AnalysisStats.tchSigmas', 'AnalysisStats.tchSigmasFused', 'AnalysisStats.tchBlockBootstrapCI', 'AnalysisStats.parseDerivedHr', 'AnalysisStats.confidenceSeries']
+          /* pearsonOrNull + h10FailureClass added 2026-11-10: the page carried private copies of both and
+             no gate read them, so a threshold typo on this side passed the H10 group (which scanned the
+             worker only). See "H10 corner gate fingerprints an ECG-lead fault". */
+          [
+            'AnalysisStats.tchSigmas',
+            'AnalysisStats.tchSigmasFused',
+            'AnalysisStats.tchBlockBootstrapCI',
+            'AnalysisStats.parseDerivedHr',
+            'AnalysisStats.confidenceSeries',
+            'AnalysisStats.pearsonOrNull',
+            'AnalysisStats.h10FailureClass'
+          ]
         ],
+        /* The WORKER is in this registry from 2026-11-10. It was absent while it held private copies,
+           which is the gap that let them sit ungated: a source-scan registry only guards what it lists. */
+        ['sensor-trio-worker.js', ['AnalysisStats.threeCorneredHat', 'AnalysisStats.pearsonOrNull', 'AnalysisStats.h10FailureClass']],
         ['cgm-hrv-coupling-analysis.js', ['AnalysisStats.pearsonCI', 'AnalysisStats.partialCorr']],
         ['treatment-response-analysis.js', ['AnalysisStats.bestSplit', 'AnalysisStats.mannWhitneyAUC']],
         ['odi-bias-analysis.js', ['AnalysisStats.ols']],
@@ -60161,49 +60175,100 @@
        never gated and the Verity-noisy nights (where the bad corner is Verity, not H10) are spared. */
     group('H10 corner gate fingerprints an ECG-lead fault (σ high + decorrelated) without touching healthy nights', 'sensor-trio-worker · trio · regression', function (T) {
       var src = (env.sources && env.sources['sensor-trio-worker.js']) || '';
+      var page = (env.sources && env.sources['sensor-trio-power-analysis.js']) || '';
       T.ok('sensor-trio-worker.js source available to the gate', !!src);
-      if (!src) return;
+      T.ok('sensor-trio-power-analysis.js source available to the gate', !!page);
+      if (!src || !page) return;
 
-      var i = src.search(/^function h10FailureClass/m);
-      T.ok('the gate exposes a PURE h10FailureClass(sigmaH10, rHO, rHV, rVO) (so the verdict is testable)', i >= 0);
-      if (i < 0) return;
-      var d = 0,
-        started = false,
-        end = -1;
-      for (var k = i; k < src.length; k++) {
-        if (src.charAt(k) === '{') {
-          d++;
-          started = true;
-        } else if (src.charAt(k) === '}') {
-          d--;
-          if (started && d === 0) {
-            end = k + 1;
-            break;
-          }
+      /* RE-POINTED 2026-11-10, row
+         2026-11-08-the-sensor-trio-power-tool-ships-ungated-copies-of-pearson-and-the-h10-classifier.
+         This group used to EXTRACT `function h10FailureClass` out of the worker's source TEXT and run
+         that copy. The page carried a second copy the extraction never read, and each file carried its
+         own `pearson` besides. Measured on main at bf715e4e5: a page classifier threshold of 0.05 for
+         0.5 passed this group, and a sign flip in either private `pearson` passed the whole Node lane
+         (17,340 assertions, 902 groups). The classifier and its correlation leg now live once, in
+         analysis-stats.js. The legs below bind THAT function numerically, and the scans keep a copy
+         from growing back in either lane. */
+      T.ok('the worker delegates the classifier (AnalysisStats.h10FailureClass)', /\bAnalysisStats\.h10FailureClass\b/.test(src), 'the worker must route to the shared classifier, not carry a copy');
+      T.ok(
+        'the page delegates the classifier too — the copy the old extraction could not see',
+        /\bAnalysisStats\.h10FailureClass\b/.test(page),
+        'sensor-trio-power-analysis.js must route to the shared classifier'
+      );
+      T.ok(
+        'both lanes read pearsonOrNull, not pearson (a NaN r reads as ok — see the control below)',
+        /\bAnalysisStats\.pearsonOrNull\b/.test(src) && /\bAnalysisStats\.pearsonOrNull\b/.test(page),
+        'a lane on AnalysisStats.pearson gets NaN from a degenerate window, which this gate cannot see as absence'
+      );
+      /* SINGLE SOURCE, keyed on the identifiers only a real BODY uses: no `bothLow`/`pairAgrees` means
+         no classifier copy, no `sxy` accumulator means no Pearson copy. A delegating wrapper passes
+         both; a reinstated copy fails by name. Presence of the alias alone would not — a file can hold
+         the alias AND a copy, which is how the TCH gate first passed over a private hat. */
+      ['sensor-trio-worker.js', 'sensor-trio-power-analysis.js'].forEach(function (f) {
+        var t = (env.sources && env.sources[f]) || '';
+        T.ok(f + ' carries NO private classifier body (no bothLow / pairAgrees)', !/\b(bothLow|pairAgrees)\b/.test(t), 'a copy of the classifier came back — delete it and delegate');
+        T.ok(f + ' carries NO private Pearson body (no sxy accumulator)', !/\bsxy\b/.test(t), 'a copy of the correlation leg came back — delete it and delegate');
+      });
+
+      /* BOTH LANES OR NEITHER. The kernel is co-loaded in the Node lane and not in the browser lane, so
+         binding `env.AnalysisStats` could only skip here — and `Dex-Test-Suite.html`'s own notes reject
+         exactly that ("the remedy is always to LIST in the other lane, never to make the assertion
+         lane-conditional"). The SOURCE is listed in both lanes, so the group builds the module from its
+         own text into a box whose `globalThis` is a PARAMETER: the file's IIFE resolves `root` to the box,
+         so this leaves no copy of the engine in either realm. `env.AnalysisStats` is preferred when the
+         runner has it, so the Node lane still tests the object the other groups use. */
+      var kSrc = (env.sources && env.sources['analysis-stats.js']) || '';
+      T.ok('analysis-stats.js is readable as source in THIS lane', kSrc.length > 1000, 'the kernel source is not listed in this lane — add it to SOURCE_FILES (browser) or readSources (node)');
+      var S = env.AnalysisStats;
+      if (!S && kSrc) {
+        var kBox = {};
+        try {
+          new Function('globalThis', kSrc)(kBox);
+          S = kBox.AnalysisStats;
+        } catch (_e) {
+          S = null;
         }
       }
-      var cls;
-      try {
-        cls = new Function(src.slice(i, end) + ';\nreturn h10FailureClass;')();
-      } catch (e) {
-        T.ok('h10FailureClass is evaluable', false, e.message);
-        return;
-      }
+      T.ok(
+        'the kernel exposes h10FailureClass and pearsonOrNull',
+        !!S && typeof S.h10FailureClass === 'function' && typeof S.pearsonOrNull === 'function',
+        'the H10 corner gate cannot be bound — the assertions below would prove nothing'
+      );
+      if (S && typeof S.h10FailureClass === 'function' && typeof S.pearsonOrNull === 'function') {
+        var cls = S.h10FailureClass;
+        // THE lead-fault signature (2026-06-12): σ implausibly large AND H10 decorrelated from both
+        // partners while O2 & Verity still agree — that one really is a bad ECG lead, so null the corner.
+        T.eq('06-12 signature (σ9.46, rHO0.43, rHV0.38, rVO0.85) → ecg-lead-fault', cls(9.46, 0.43, 0.38, 0.85), 'ecg-lead-fault');
+        // Every healthy real night keeps H10: σ is small, so the σ>5 gate never even engages.
+        T.eq('a healthy night (σ0.79, rHO0.90, rHV0.72, rVO0.62) → ok', cls(0.79, 0.9, 0.72, 0.62), 'ok');
+        T.eq('the next-highest real H10 night (σ1.25) is nowhere near the σ>5 gate → ok', cls(1.25, 0.84, 0.67, 0.72), 'ok');
+        // THE guard that makes it H10-specific: the Verity-noisy nights have a low rHV too, but their bad
+        // corner is VERITY (σ_h10 stays healthy ~0.65, and rVO collapses). Both spared, for both reasons.
+        T.eq('Verity-noisy 06-29 (σ_h10 0.65, rHO0.85, rHV0.35, rVO0.31) → ok (bad corner is Verity)', cls(0.65, 0.845, 0.346, 0.308), 'ok');
+        T.eq('Verity-noisy 07-02 (σ_h10 0.68, rHO0.85, rHV0.24, rVO0.21) → ok', cls(0.68, 0.848, 0.238, 0.208), 'ok');
+        // The rVO guard is load-bearing: a HYPOTHETICAL high-σ H10 whose partners have DECORRELATED from
+        // each other too (rVO<0.5) is a whole-night mess, not a clean single-corner fault — do NOT null H10.
+        T.eq('high σ_h10 but O2·Verity ALSO decorrelated (rVO0.3) → ok (not a clean H10-only fault)', cls(9.0, 0.4, 0.4, 0.3), 'ok');
+        T.eq('a null σ_h10 (already TCH-negative) is left alone → ok (never double-classified as a lead fault)', cls(null, 0.9, 0.9, 0.9), 'ok');
+        // THRESHOLD, bound from both sides so a typo in either direction reds (0.05 for 0.5 did not).
+        T.eq('the rHO/rHV threshold is 0.5 — 0.49 on both is decorrelated', cls(9.46, 0.49, 0.49, 0.85), 'ecg-lead-fault');
+        T.eq('the rHO/rHV threshold is 0.5 — 0.51 on either is NOT', cls(9.46, 0.51, 0.49, 0.85), 'ok');
+        T.eq('the rVO agreement threshold is 0.5 — 0.5 agrees', cls(9.46, 0.43, 0.38, 0.5), 'ecg-lead-fault');
+        T.eq('the rVO agreement threshold is 0.5 — 0.49 does not', cls(9.46, 0.43, 0.38, 0.49), 'ok');
+        T.eq('the σ threshold is 5 — 5.01 engages the gate', cls(5.01, 0.43, 0.38, 0.85), 'ecg-lead-fault');
+        T.eq('the σ threshold is 5 — 5.00 does not', cls(5.0, 0.43, 0.38, 0.85), 'ok');
 
-      // THE lead-fault signature (2026-06-12): σ implausibly large AND H10 decorrelated from both partners
-      // while O2 & Verity still agree — that one really is a bad ECG lead, so null the corner.
-      T.eq('06-12 signature (σ9.46, rHO0.43, rHV0.38, rVO0.85) → ecg-lead-fault', cls(9.46, 0.43, 0.38, 0.85), 'ecg-lead-fault');
-      // Every healthy real night keeps H10: σ is small, so the σ>5 gate never even engages.
-      T.eq('a healthy night (σ0.79, rHO0.90, rHV0.72, rVO0.62) → ok', cls(0.79, 0.9, 0.72, 0.62), 'ok');
-      T.eq('the next-highest real H10 night (σ1.25) is nowhere near the σ>5 gate → ok', cls(1.25, 0.84, 0.67, 0.72), 'ok');
-      // THE guard that makes it H10-specific: the Verity-noisy nights have a low rHV too, but their bad
-      // corner is VERITY (σ_h10 stays healthy ~0.65, and rVO collapses). Both spared, for both reasons.
-      T.eq('Verity-noisy 06-29 (σ_h10 0.65, rHO0.85, rHV0.35, rVO0.31) → ok (bad corner is Verity)', cls(0.65, 0.845, 0.346, 0.308), 'ok');
-      T.eq('Verity-noisy 07-02 (σ_h10 0.68, rHO0.85, rHV0.24, rVO0.21) → ok', cls(0.68, 0.848, 0.238, 0.208), 'ok');
-      // The rVO guard is load-bearing: a HYPOTHETICAL high-σ H10 whose partners have DECORRELATED from each
-      // other too (rVO<0.5) is a whole-night mess, not a clean single-corner fault — do NOT silently null H10.
-      T.eq('high σ_h10 but O2·Verity ALSO decorrelated (rVO0.3) → ok (not a clean H10-only fault)', cls(9.0, 0.4, 0.4, 0.3), 'ok');
-      T.eq('a null σ_h10 (already TCH-negative) is left alone → ok (never double-classified as a lead fault)', cls(null, 0.9, 0.9, 0.9), 'ok');
+        // ── the correlation leg, numerically. A SIGN FLIP here used to pass the entire Node lane. ──
+        var up = [1, 2, 3, 4, 5, 6, 7, 8],
+          dn = [8, 7, 6, 5, 4, 3, 2, 1];
+        T.ok('pearsonOrNull on a perfectly correlated pair is +1', Math.abs(S.pearsonOrNull(up, up) - 1) < 1e-12, String(S.pearsonOrNull(up, up)));
+        T.ok('pearsonOrNull on a perfectly anticorrelated pair is −1 (a SIGN FLIP reds here)', Math.abs(S.pearsonOrNull(up, dn) + 1) < 1e-12, String(S.pearsonOrNull(up, dn)));
+        T.ok('pearsonOrNull reproduces a hand-computed r', Math.abs(S.pearsonOrNull([1, 2, 3, 4], [2, 4, 5, 9]) - 0.9647638212377322) < 1e-12, String(S.pearsonOrNull([1, 2, 3, 4], [2, 4, 5, 9])));
+        T.eq('∅ · a constant series has no r — pearsonOrNull returns null, never NaN', S.pearsonOrNull(up, [3, 3, 3, 3, 3, 3, 3, 3]), null);
+        // and the two legs COMPOSE the way the solve does: a null r is what makes bothLow true.
+        T.eq('a null r from a degenerate window reaches the gate AS ABSENCE', cls(9.46, null, null, 0.85), 'ecg-lead-fault');
+        T.eq('CONTROL · the same window with a NaN r reads as ok — which is why pearson is not the leg here', cls(9.46, NaN, NaN, 0.85), 'ok');
+      }
 
       // MARGIN: every committed real σ_h10 except the 06-12 fault is ≤1.25, so the σ>5 threshold sits in a
       // wide empty gap (same "wide of the observed band" discipline as the Verity gate). If someone drops
@@ -60216,6 +60281,7 @@
       T.ok('a lead fault nulls ONLY the H10 corner (s.h10 = null), not the whole night', /h10Cls\s*!==\s*'ok'\)\s*s\.h10\s*=\s*null/.test(src));
       T.ok('the result surfaces a machine-readable h10Unreliable flag + fault class', /h10Unreliable:\s*h10Cls\s*!==\s*'ok'/.test(src) && /h10Fault:/.test(src));
       T.ok('a nulled corner (neg OR gated) never carries a bootstrap CI (point↔CI consistency)', /if \(s\[DKEYS\[_ci\]\] == null\) ci\[DKEYS\[_ci\]\] = null/.test(src));
+      T.ok('the page calls the shared classifier on its own real-night path too', /h10FailureClass\(s\.h10,\s*rHO,\s*rHV,\s*rVO\)/.test(page), 'the page must run the gate it now delegates');
     });
 
     group('ECGDex worker clock — the >5 MB path parses timestamps IDENTICALLY to clock.js', 'ecgdex-app · worker · clock-contract', function (T) {
@@ -61019,6 +61085,85 @@
       T.eq('glue peaks ≡ serial detectChannel(chan, TRUE fs) — the worker changes WHEN work runs, never the fs it runs at', arr(captured.peaks), arr(sOut.peaks));
       T.eq('glue feet ≡ serial feet', arr(captured.feet), arr(sOut.feet));
       T.eq('glue sign ≡ serial sign', captured.sign, sOut.sign);
+    });
+
+    /* ════ The SHIPPED worker blob, not a rebuild of it ════
+       Row 2026-11-08-the-ppg-worker-gates-test-a-rebuilt-blob-not-the-shipped-one. The two groups above
+       rebuild the blob from a regex over the deps list, so no gate ran `_buildWorkerURL`. A mutation that
+       empties the shipped blob killed the worker, the serial fallback returned the same peaks, and every
+       gate stayed green. This group evaluates the module in a realm with Blob, URL and Worker stubs, and
+       lets `detectChannelsAsync` call `_buildWorkerURL`. The Blob stub keeps the text that would ship. The
+       group then runs THAT text with a `self` stub, posts one message, and requires the serial answer. */
+    group('PpgDex SHIPPED worker blob (built by _buildWorkerURL) runs and ≡ the serial path', 'ppgdex-dsp · worker · regression', function (T) {
+      var src = (env.sources && env.sources['ppgdex-dsp.js']) || '';
+      var D = env.PPGDSP;
+      T.ok('ppgdex-dsp.js source + PPGDSP.detectChannel available', !!src && !!(D && typeof D.detectChannel === 'function'));
+      if (!src || !(D && typeof D.detectChannel === 'function')) return;
+      var blobs = [],
+        urls = {};
+      var stubs = {
+        Blob: function (parts) {
+          this.text = parts.join('');
+          blobs.push(this.text);
+        },
+        URL: {
+          createObjectURL: function (b) {
+            var u = 'blob:stub/' + blobs.length;
+            urls[u] = b.text;
+            return u;
+          }
+        },
+        // A throwing Worker sends detectChannelsAsync to its serial fallback after the URL is built.
+        Worker: function () {
+          throw new Error('stub Worker: the test runs the blob itself');
+        },
+        setTimeout: function () {}
+      };
+      var realm = {};
+      try {
+        var body = src.replace(/^export\s+const\s.*$/gm, '');
+        new Function('window', 'Blob', 'URL', 'Worker', 'setTimeout', body)(realm, stubs.Blob, stubs.URL, stubs.Worker, stubs.setTimeout);
+      } catch (e) {
+        T.ok('ppgdex-dsp.js evaluates in the stub realm', false, e.message);
+        return;
+      }
+      var R = realm.PPGDSP;
+      T.ok('the stub realm exposes PPGDSP.detectChannelsAsync', !!(R && typeof R.detectChannelsAsync === 'function'));
+      if (!(R && typeof R.detectChannelsAsync === 'function')) return;
+      var fs = 176.26,
+        n = Math.round(fs * 60);
+      var chan = new Float32Array(n);
+      for (var i = 0; i < n; i++) chan[i] = 1000 + 40 * Math.sin((2 * Math.PI * 1.2 * i) / fs) + 6 * Math.sin(i / 3);
+      R.detectChannelsAsync({ ch: [chan], fs: fs });
+      var shipped = Object.keys(urls).map(function (u) {
+        return urls[u];
+      })[0];
+      T.ok('_buildWorkerURL built exactly one blob', blobs.length === 1, 'blobs=' + blobs.length);
+      if (!shipped) return;
+      var posted = null;
+      var self = {
+        postMessage: function (m) {
+          posted = m;
+        }
+      };
+      var threw = '';
+      try {
+        new Function('self', shipped)(self);
+        var buf = new Float32Array(chan).buffer;
+        self.onmessage({ data: { idx: 0, buf: buf, fs: fs } });
+      } catch (e) {
+        threw = e.constructor.name + ': ' + e.message;
+      }
+      T.ok('the shipped blob evaluates and answers one message', !threw && !!posted, threw || 'no postMessage (blob ' + shipped.length + ' chars)');
+      if (!posted) return;
+      var sOut = D.detectChannel(chan, fs);
+      var arr = function (x) {
+        return JSON.stringify(Array.prototype.slice.call(x || []));
+      };
+      T.ok('the shipped blob found beats', posted.peaks && posted.peaks.length > 5, 'peaks=' + (posted.peaks && posted.peaks.length));
+      T.eq('shipped-blob peaks ≡ serial peaks', arr(posted.peaks), arr(sOut.peaks));
+      T.eq('shipped-blob feet ≡ serial feet', arr(posted.feet), arr(sOut.feet));
+      T.eq('shipped-blob sign ≡ serial sign', posted.sign, sOut.sign);
     });
 
     group('PpgDex worker source is CLOSED — every function + const it references is shipped to the blob', 'ppgdex-dsp · worker · regression', function (T) {
