@@ -267,6 +267,12 @@ const SOURCE_FILES = ['tools/trio-batch.mjs','tools/pat-host-offset.mjs','tools/
     both, so the node's drop lane was unreadable everywhere and its source-mirror passed vacuously.
     run-tests.mjs lists it too; both lanes or neither. */
  'motiondex-app.js',
+ /* EEGDex's three runtime sources — dsp / render / app — listed in BOTH lanes from birth. The root
+    inventory counts every root `*.js`, so a new runtime layer in neither list is unscannable BY
+    CONSTRUCTION and reds the source-visibility ratchet. run-tests.mjs lists all three too. */
+ 'eegdex-dsp.js',
+ 'eegdex-render.js',
+ 'eegdex-app.js',
  /* pat-feasibility-worker.js — SOURCE text for `pat-align · regression`'s anti-inertness scan, which
     asserts every `PATGate.verdict(...)` call in the worker passes an axis (a 3-arg call left the gate's
     clock refusals unreachable; O2RING-PHASE4-PREMISE-REVIEW §4). Added to run-tests.mjs and NOT here
@@ -350,6 +356,13 @@ async function main(){
   // classically above → window.DexClock present). A clean IIFE that attaches only window.MOTIONDSP /
   // window.MotionDex and leaks no bare names, so its equiv leg (env.equiv.motiondex) runs in this lane too.
   { const _mx = await fetchText('motiondex-dsp.js'); if(_mx) (0, eval)(esmClassicify(_mx)); }
+  // EEGDex (EEGDEX-BUILD-BRIEF): dual-mode ES modules. The dsp is a clean IIFE that attaches only
+  // window.EEGDSP and carries its own node-local clock formatter, so it needs nothing loaded first;
+  // the render attaches window.EEGUI and reads window.EegRegistry (<script> above) for its badges.
+  // Executed here and in the Node lane: residue 2026-11-08-the-eegdex-selftest-is-wired-to-no-gate
+  // was exactly a module that every lane READ and no lane RAN.
+  { const _eg = await fetchText('eegdex-dsp.js'); if(_eg) (0, eval)(esmClassicify(_eg)); }
+  { const _egu = await fetchText('eegdex-render.js'); if(_egu) (0, eval)(esmClassicify(_egu)); }
   // TEST-COVERAGE-FOLLOWUPS Item 1a: the per-node PROFILE engines (~2.85k lines of cited physiology —
   // Tanaka/Uth–Sørensen VO₂/age-norm HRV/CVHR-apnea/GMI-eAG) ship in the bundles but had zero assertions.
   // They are plain `(function(global){…})(window)` IIFEs (esmClassicify is a no-op) that define functions
@@ -772,6 +785,7 @@ async function main(){
     HRVDex: window.HRVDex,
     MotionDex: window.MotionDex,
     MOTIONDSP: window.MOTIONDSP,
+    EEGDSP: window.EEGDSP, EEGUI: window.EEGUI, // EEGDex's engine + render layer, both EXECUTED above
     SignalFrame: window.SignalFrame,
     MeasurementBlock: window.MeasurementBlock, Verdict: window.Verdict, NightSeal: window.NightSeal, // measurement-instance + verdict contracts (schema authorities)
     DexExport: window.DexExport, ExportSchema: window.ExportSchema, exportName: window.exportName, EXPORT_KINDS: window.EXPORT_KINDS,

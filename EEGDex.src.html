@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!--
+  EEGDex.src.html — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+  project root, or http://www.apache.org/licenses/LICENSE-2.0
+-->
+<meta charset="UTF-8">
+<!-- CSP: browser-enforces the no-network invariant. connect-src 'none' blocks every outbound request;
+     script-src is STRICT ('self' + per-inline-script sha256, NO 'unsafe-inline'). EEGDex ships zero
+     inline scripts (all init lives in eegdex-app.js), so the hash list is empty by construction. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' __DEX_SCRIPT_HASHES__; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
+<title>EEGDex — Sleep EEG Analyzer · v1.0</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M14%2050%20C22%2026%2030%2074%2038%2050%20C44%2034%2050%2066%2056%2050%20C64%2030%2072%2070%2086%2050%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
+<link rel="stylesheet" href="licensing/dex-license.css">
+<link rel="stylesheet" href="ans-design.css">
+<style>
+/* ════════════════════════════════════════════════════════════════════════
+   EEGDex — APP-SPECIFIC STYLES. Everything structural comes from the SHARED
+   fleet design system in ans-design.css (.app-shell / .sidebar / .sb-nav /
+   .main-content / .section-title / .kpi-grid / .kpi / .card / .btn /
+   #exportBar / .eb-* / .theme-toggle), so EEGDex reads as a fleet member.
+   Only the EEG-specific visuals below have no shared equivalent.
+   ════════════════════════════════════════════════════════════════════════ */
+.eg-zone{display:flex;align-items:center;justify-content:center;text-align:center;min-height:74px;padding:16px;border:1.5px dashed var(--line,rgba(255,255,255,.18));border-radius:14px;color:var(--text2);font-size:13px;cursor:pointer;transition:border-color .2s,background .2s}
+.eg-zone:hover,.eg-zone.eg-over{border-color:var(--accent,#58A6FF);background:rgba(88,166,255,.06)}
+/* hypnogram — one column per epoch, height by stage depth. An UNSCORED epoch is hatched, never
+   drawn at a stage's height: §∅, an absence has no depth. */
+.eg-hyp{display:flex;align-items:flex-end;gap:1px;height:92px;margin:10px 0 8px}
+.eg-ep{flex:1 1 0;min-width:1px;border-radius:2px 2px 0 0}
+.eg-ep-w{background:#F0A860;height:100%}
+.eg-ep-rem{background:#A78BFA;height:82%}
+.eg-ep-n1{background:#58A6FF;height:62%}
+.eg-ep-n2{background:#3DE0D0;height:42%}
+.eg-ep-n3{background:#5EC8B0;height:22%}
+.eg-ep-nul{background:repeating-linear-gradient(45deg,rgba(255,255,255,.12),rgba(255,255,255,.12) 2px,transparent 2px,transparent 4px);height:100%}
+.eg-legend{display:flex;flex-wrap:wrap;gap:12px;font-size:11.5px;color:var(--text2)}
+.eg-lg{display:inline-flex;align-items:center;gap:5px}
+.eg-dot{width:9px;height:9px;border-radius:3px;display:inline-block}
+/* relative band-power bar */
+.eg-bar{display:flex;height:20px;border-radius:8px;overflow:hidden;margin-bottom:10px;background:rgba(255,255,255,.06)}
+.eg-seg{display:block;min-width:2px}
+.eg-seg-delta{background:#5EC8B0}.eg-seg-theta{background:#3DE0D0}.eg-seg-alpha{background:#58A6FF}
+.eg-seg-sigma{background:#A78BFA}.eg-seg-beta{background:#F0A860}
+.eg-row{display:flex;justify-content:space-between;align-items:center;font-size:13px;padding:7px 0;border-top:1px solid var(--line,rgba(255,255,255,.07))}
+.eg-row:first-child{border-top:0}
+.eg-empty{color:var(--text2);font-size:13px;padding:26px;text-align:center}
+</style>
+</head>
+<body>
+<button id="themeBtn" class="theme-toggle">☀️ Light</button>
+
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="sidebar-logo">EEGDex</div>
+    <hr class="sidebar-logo-rule">
+    <nav class="sb-nav">
+      <a class="sb-item" href="#sec-input">📁 EEG Input</a>
+    </nav>
+    <nav class="sb-nav">
+      <a class="sb-item" href="#egKPI">📊 Key Metrics</a>
+      <a class="sb-item" href="#egHypno">🌙 Hypnogram</a>
+      <a class="sb-item" href="#egBands">🌊 Spectral Bands</a>
+      <a class="sb-item" href="#egQuality">🛡 Signal Quality</a>
+    </nav>
+  </aside>
+
+  <!-- STICKY EXPORT BAR -->
+  <div id="exportBar">
+    <span class="eb-label">Export</span>
+    <div class="eb-grp">
+      <button class="eb-btn eb-json" type="button" id="egExport" disabled>⬇ JSON</button>
+    </div>
+    <span class="eb-spacer"></span>
+    <div class="eb-grp">
+      <button class="eb-btn eb-danger" type="button" id="egClear">✕ Clear all</button>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <main class="main-content">
+    <div class="section-title" id="sec-input">EEG Input <span class="st-note">European Data Format <code>.edf</code> — one EEG channel · parsed &amp; analyzed locally</span></div>
+    <div class="card">
+      <label class="eg-zone" id="egZone">
+        <input type="file" id="egInput" accept=".edf,.EDF" hidden>
+        Drop one EDF recording here, or click to choose.
+      </label>
+      <div class="controls" style="margin-top:12px">
+        <button class="btn" type="button" id="egDemo">▶ Demo</button>
+      </div>
+      <p class="chart-note" id="egStatus"></p>
+    </div>
+
+    <div class="section-title" id="egKPI" style="display:none">Key Metrics <span class="st-note">single-channel band-power staging — not a polysomnogram score</span></div>
+    <div class="kpi-grid" id="egKpiGrid"></div>
+
+    <div class="section-title" id="egHypno" style="display:none">Hypnogram <span class="st-note">30 s epochs · median-smoothed · unscored epochs hatched</span></div>
+    <div class="card" id="egHypnoCard" style="display:none"></div>
+
+    <div class="section-title" id="egBands" style="display:none">Spectral Bands <span class="st-note">relative power per epoch, summarised as a median over scored epochs</span></div>
+    <div class="card" id="egBandsCard" style="display:none"></div>
+
+    <div class="section-title" id="egQuality" style="display:none">Signal Quality <span class="st-note">what was scored, and what this instrument refuses to measure</span></div>
+    <div class="card" id="egQualityCard" style="display:none"></div>
+
+    <p class="chart-note" style="margin-top:30px">
+      <span class="dxl-stamp">Tepna · EEGDex</span> — <b>Not a medical device.</b> For personal
+      wellness and research use only; not for diagnosis or treatment. Sleep stages come from a
+      single-channel band-power stager whose agreement with expert scoring is moderate; they are not
+      a polysomnogram score. Apache-2.0 · © 2026 Michal Planicka.
+    </p>
+  </main>
+</div>
+
+<!-- Co-load order (delegating node): shared classic modules → the GENERATED registry (classic) →
+     the EDF reader → dsp / render / app (ES modules; the owned build inlines the graph, no network
+     edge). EEGDex's registry is generated from codegen/manifests/eegdex.manifest.json, so it is
+     referenced at its generated path rather than copied to the root. -->
+<script src="dex-escape.js"></script>
+<script src="dex-actions.js"></script>
+<script src="kernel-constants.js"></script>
+<script src="ganglior-provenance.js"></script>
+<script src="signal-frame.js"></script>
+<script src="export-schema.js"></script>
+<script src="dex-export.js"></script>
+<script src="metric-registry.js"></script>
+<script src="entrance-guard.js"></script>
+<script src="dex-forget.js"></script>
+<script src="codegen/generated/eegdex-registry.js"></script>
+<script src="cpapdex-edf.js"></script>
+<script type="module" src="eegdex-dsp.js"></script>
+<script type="module" src="eegdex-render.js"></script>
+<script type="module" src="eegdex-app.js"></script>
+</body>
+</html>

@@ -769,6 +769,11 @@ function readSources() {
        ratchet exists precisely so a new runtime source cannot ship invisible to every lane, and it
        caught this one on its first build. */
     'eegdex-dsp.js',
+    /* EEGDex's RENDER and APP, added with the files themselves and listed in BOTH lanes. Every other
+       node's `*-render.js` / `*-app.js` is in both, and `motiondex-app.js` measured what one lane
+       buys: a source-mirror assertion about the node read nothing anywhere and passed VACUOUSLY. */
+    'eegdex-render.js',
+    'eegdex-app.js',
     'hrvdex-app.js',
     'oxydex-app.js',
     'oxydex-render.js',
@@ -2940,6 +2945,12 @@ async function main() {
     'motiondex-dsp.js',
     // MOTIONDEX badge fail-open gate (DEEP-AUDIT-II §7.8) needs the real resolver in BOTH lanes.
     'motiondex-registry.js',
+    /* EEGDex's staging engine. Residue 2026-11-08-the-eegdex-selftest-is-wired-to-no-gate: its text
+       was in this lane's readSources list and NOTHING EXECUTED IT, so a throw in `analyze` left every
+       lane green and only `tools/eegdex-selftest.mjs`, which no gate runs, could see it. A source scan
+       reads what a file SAYS; an executed module answers what it DOES. Sets env.EEGDSP, which the
+       eegdex groups assert on directly. */
+    'eegdex-dsp.js',
     'synth-gen.js',
     'cohort-gen.js',
     'cohort-full.js',
@@ -3030,6 +3041,10 @@ async function main() {
     'ecgdex-render.js',
     'ppgdex-render.js',
     'motiondex-render.js',
+    /* eegdex-render.js joins at birth rather than after a residue row: motiondex-render.js spent its
+       first months in both lanes' SOURCE_FILES with no lane EXECUTING it, and a throw planted at the
+       top of renderSummary left 104 render groups green. */
+    'eegdex-render.js',
     'oxydex-fusion.js'
   ].forEach((f) => {
     try {
@@ -3299,6 +3314,8 @@ async function main() {
     // node lane can pin the tick spacing and the label text without a canvas shim.
     ECGUI: ctx.ECGUI,
     MOTIONUI: ctx.MOTIONUI, // §RN: MotionDex's render layer — executed above, so a throw in it reds
+    EEGDSP: ctx.EEGDSP, // EEGDex's staging engine — EXECUTED in this realm, so a throw in it reds
+    EEGUI: ctx.EEGUI, // EEGDex's render layer — executed above, same reason
     PPGUI: ctx.PPGUI, // PPGScope's per-window y-scale (owner report 2026-11-07: a flat Verity trace)
     IntegratorDSP: ctx.IntegratorDSP,
     IntegratorTCH: ctx.IntegratorTCH,
