@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="c59fd822f398" data-compute-hash="048c146e48db">
+<html lang="en" data-manifest-hash="7930a19251ed" data-compute-hash="048c146e48db">
 <head>
 <!--
   PpgDex.src.html — Tepna
@@ -2726,6 +2726,15 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
 .privacy-card strong{color:var(--green);font-weight:700}
 
 @media(max-width:1080px){.app-shell{grid-template-columns:1fr}.sidebar{display:none}#exportBar{left:0 !important}}
+/* PHONE NAV. The shared stylesheet hides `.sidebar` at 1080 px (ans-design.css
+   §24) and already styles a bottom rail (§26.8), but it anchors that rail at
+   `left:260px` for a sidebar that is no longer on screen. These are the three
+   deltas the rail needs: `left:0`, an `#exportBar` lifted to 60 px so it sits
+   above the rail (which is what OxyDex already does), and a 124 px bottom
+   padding on the content so both bars clear the last card. */
+@media(max-width:1080px){#exportBar{bottom:60px !important}.mobile-nav{left:0 !important}.mobile-nav-item{text-decoration:none}.main-content{padding-bottom:124px}}
+@media print{.mobile-nav{display:none !important}}
+
 @media(max-width:768px){#ppgCanvas{height:230px}.cn-spark{width:120px}}
 </style>
 <link rel="canonical" href="https://tepna.net/PpgDex.html">
@@ -2808,6 +2817,27 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       </div>
     </div>
   </aside>
+
+  <!-- PHONE NAV. The sidebar hides at 1080 px, so this rail carries the same
+       section links. Every item anchors to the id the sidebar uses, so the rail
+       needs no script. The shared rule scrolls it horizontally at that width. -->
+  <nav class="mobile-nav" aria-label="Sections">
+    <div class="mobile-nav-items">
+      <a class="mobile-nav-item" href="#emptyInput"><span class="mobile-nav-icon">🫧</span>Input</a>
+      <a class="mobile-nav-item" href="#heroTop"><span class="mobile-nav-icon">💗</span>Readiness</a>
+      <a class="mobile-nav-item" href="#scopeSection"><span class="mobile-nav-icon">〜</span>Waveform</a>
+      <a class="mobile-nav-item" href="#sec-profile"><span class="mobile-nav-icon">👤</span>Profile</a>
+      <a class="mobile-nav-item" href="#slKPI"><span class="mobile-nav-icon">📊</span>Metrics</a>
+      <a class="mobile-nav-item" href="#qualitySection"><span class="mobile-nav-icon">🛡</span>Quality</a>
+      <a class="mobile-nav-item" href="#chartsSection"><span class="mobile-nav-icon">📈</span>Charts</a>
+      <a class="mobile-nav-item" href="#morphSection"><span class="mobile-nav-icon">🩸</span>Morphology</a>
+      <a class="mobile-nav-item" href="#motionSection"><span class="mobile-nav-icon">📲</span>Motion</a>
+      <a class="mobile-nav-item" href="#validationSection"><span class="mobile-nav-icon">✓</span>PPI</a>
+      <a class="mobile-nav-item" href="#crossNightSection"><span class="mobile-nav-icon">🌙</span>Cross-Night</a>
+      <a class="mobile-nav-item" href="#gangliorSection"><span class="mobile-nav-icon">⚡</span>Events</a>
+      <a class="mobile-nav-item" href="#tableSection"><span class="mobile-nav-icon">📋</span>Table</a>
+    </div>
+  </nav>
 
   <!-- STICKY EXPORT BAR -->
   <div id="exportBar">

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="b4ae4cef3a64" data-compute-hash="cc7a0e9cbbe2">
+<html lang="en" data-manifest-hash="655b8595f9ed" data-compute-hash="cc7a0e9cbbe2">
 <head>
 <!--
   GlucoDex.src.html — Tepna
@@ -2736,6 +2736,15 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
 #profileBody .prof-sublabel.est{color:var(--amber)}
 
 @media(max-width:1080px){.app-shell{grid-template-columns:1fr}.sidebar{display:none}#exportBar{left:0 !important}}
+/* PHONE NAV. The shared stylesheet hides `.sidebar` at 1080 px (ans-design.css
+   §24) and already styles a bottom rail (§26.8), but it anchors that rail at
+   `left:260px` for a sidebar that is no longer on screen. These are the three
+   deltas the rail needs: `left:0`, an `#exportBar` lifted to 60 px so it sits
+   above the rail (which is what OxyDex already does), and a 124 px bottom
+   padding on the content so both bars clear the last card. */
+@media(max-width:1080px){#exportBar{bottom:60px !important}.mobile-nav{left:0 !important}.mobile-nav-item{text-decoration:none}.main-content{padding-bottom:124px}}
+@media print{.mobile-nav{display:none !important}}
+
 @media(max-width:768px){#gluCanvas{height:250px}.gang-ev{grid-template-columns:64px 1fr auto;gap:7px}.gang-ev .ge-meta{display:none}}
 </style>
 <link rel="canonical" href="https://tepna.net/GlucoDex.html">
@@ -2818,6 +2827,29 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       </div>
     </div>
   </aside>
+
+  <!-- PHONE NAV. The sidebar hides at 1080 px, so this rail carries the same
+       section links. Every item anchors to the id the sidebar uses, so the rail
+       needs no script. The shared rule scrolls it horizontally at that width. -->
+  <nav class="mobile-nav" aria-label="Sections">
+    <div class="mobile-nav-items">
+      <a class="mobile-nav-item" href="#sec-input"><span class="mobile-nav-icon">🩸</span>Input</a>
+      <a class="mobile-nav-item" href="#heroTop"><span class="mobile-nav-icon">📈</span>Stability</a>
+      <a class="mobile-nav-item" href="#scopeSection"><span class="mobile-nav-icon">〜</span>Trace</a>
+      <a class="mobile-nav-item" href="#sec-profile"><span class="mobile-nav-icon">👤</span>Profile</a>
+      <a class="mobile-nav-item" href="#slKPI"><span class="mobile-nav-icon">📊</span>Metrics</a>
+      <a class="mobile-nav-item" href="#qualitySection"><span class="mobile-nav-icon">🛡</span>Quality</a>
+      <a class="mobile-nav-item" href="#agpSection"><span class="mobile-nav-icon">🕛</span>AGP</a>
+      <a class="mobile-nav-item" href="#variSection"><span class="mobile-nav-icon">📐</span>Variability</a>
+      <a class="mobile-nav-item" href="#patternsSection"><span class="mobile-nav-icon">🌅</span>Patterns</a>
+      <a class="mobile-nav-item" href="#ppgrSection"><span class="mobile-nav-icon">🍽</span>Meals</a>
+      <a class="mobile-nav-item" href="#nutSection"><span class="mobile-nav-icon">🥗</span>Nutrition</a>
+      <a class="mobile-nav-item" href="#dailySection"><span class="mobile-nav-icon">🗓</span>Daily</a>
+      <a class="mobile-nav-item" href="#fusionCard"><span class="mobile-nav-icon">🔗</span>Fusion</a>
+      <a class="mobile-nav-item" href="#gangSection"><span class="mobile-nav-icon">⚡</span>Events</a>
+      <a class="mobile-nav-item" href="#slTbl"><span class="mobile-nav-icon">📋</span>Table</a>
+    </div>
+  </nav>
 
   <!-- STICKY EXPORT BAR -->
   <div id="exportBar">
