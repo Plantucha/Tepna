@@ -1445,7 +1445,7 @@ import { PPGUI } from './ppgdex-render.js';
             '</span><span>' +
             _pgesc(nm(e)) +
             '</span><span class="tl-t">conf ' +
-            (e.conf != null ? e.conf : '\u2014') +
+            _pgesc(e.conf != null ? e.conf : '\u2014') +
             '</span></div>'
           );
         })

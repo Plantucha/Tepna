@@ -1307,7 +1307,7 @@ import { CpapDsp } from './cpapdex-dsp.js';
         esc(_cpapEventMeta(e)) +
         '</span></span>' +
         '<span class="tl-conf">conf ' +
-        (e.conf != null ? e.conf : '\u2014') +
+        esc(e.conf != null ? e.conf : '\u2014') +
         '</span>' +
         '</div>';
     });
