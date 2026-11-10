@@ -244,6 +244,35 @@ export function releaseSeen(st, topicName, id, prevLastId) {
   return st;
 }
 
+/**
+ * Pure so the selftest can hold them: the close branch's rollback. That branch deletes the episode,
+ * stamps `closedAt` and drops every tracked urgent under the key BEFORE it posts the RECOVERED note.
+ * So a post that throws loses the note AND the episode, and no later message reopens it.
+ * `episodeSnapshot` reads the three fields the branch is about to move, and `releaseEpisode` puts
+ * them back. `releaseSeen` covers neither, because it knows only the two dedupe markers.
+ */
+export function episodeSnapshot(st, key) {
+  const closed = st.closedAt || {};
+  const tracked = st.tracked || {};
+  return {
+    episode: (st.episodes || {})[key],
+    closedAt: Object.hasOwn(closed, key) ? closed[key] : undefined,
+    tracked: Object.entries(tracked).filter(([, tr]) => tr && tr.key === key)
+  };
+}
+
+export function releaseEpisode(st, key, snap) {
+  st.episodes = st.episodes || {};
+  st.closedAt = st.closedAt || {};
+  st.tracked = st.tracked || {};
+  if (snap.episode === undefined) delete st.episodes[key];
+  else st.episodes[key] = snap.episode;
+  if (snap.closedAt === undefined) delete st.closedAt[key];
+  else st.closedAt[key] = snap.closedAt;
+  for (const [id, tr] of snap.tracked) st.tracked[id] = tr;
+  return st;
+}
+
 /** A board message goes where the domain's alerts go: its thread, its bird. */
 export function boardTarget(domain, conf) {
   return { thread: conf.threads[domain], bird: conf.birds[domain] };
@@ -360,10 +389,21 @@ async function handle(domain, topicName, msg, opts = {}) {
     `- **Publisher:** ${c.publisher || `ntfy ${domain} stream`} — original message below, verbatim\n\n${m.message || ''}`;
   if (c.cls === 'close') {
     if (state.episodes[c.key]) {
+      /* The latch drops FIRST, so two close messages under one key cannot both post. A throw then
+         owes three rollbacks beside the dedupe markers, so read them before the first delete. */
+      const snap = episodeSnapshot(state, c.key);
       delete state.episodes[c.key];
       state.closedAt[c.key] = Date.now();
       for (const [id, tr] of Object.entries(state.tracked)) if (tr.key === c.key) delete state.tracked[id];
-      await post(c.thread, body, 'note', [c.bird, ...(c.coTo || [])]);
+      try {
+        await post(c.thread, body, 'note', [c.bird, ...(c.coTo || [])]);
+      } catch (e) {
+        releaseEpisode(state, c.key, snap);
+        releaseSeen(state, topicName, msg.id, prevLastId);
+        log('close post failed, episode and note released for retry', c.key, e.message);
+        persist();
+        return;
+      }
     }
     persist();
     return;
@@ -385,7 +425,15 @@ async function handle(domain, topicName, msg, opts = {}) {
     return;
   }
   if (c.cls === 'urgent') {
-    const id = await post(c.thread, body, 'decision', [c.bird, ...(c.coTo || [])]);
+    let id;
+    try {
+      id = await post(c.thread, body, 'decision', [c.bird, ...(c.coTo || [])]);
+    } catch (e) {
+      releaseSeen(state, topicName, msg.id, prevLastId);
+      log('urgent post failed, alert released for retry', c.key, e.message);
+      persist();
+      return;
+    }
     if (id) state.tracked[id] = { key: c.key, bird: c.bird, domain, title: m.title || '', message: (m.message || '').slice(0, 3000), at, esc: 0 };
     /* A publisher that tags an alert `owner-critical` pages the owner at once, not after 90 min. */
     if (id && Array.isArray(m.tags) && m.tags.includes('owner-critical')) {
@@ -395,7 +443,14 @@ async function handle(domain, topicName, msg, opts = {}) {
     }
   } else {
     /* Every domain's notes go to that domain's bird, so the nudge pings each bird. */
-    await post(c.thread, body, 'note', [c.bird]);
+    try {
+      await post(c.thread, body, 'note', [c.bird]);
+    } catch (e) {
+      releaseSeen(state, topicName, msg.id, prevLastId);
+      log('note post failed, alert released for retry', c.key, e.message);
+      persist();
+      return;
+    }
   }
   if (c.latch) state.episodes[c.key] = { at, domain };
   state.lastCycleAt = Date.now();
@@ -699,6 +754,47 @@ function selftest() {
   const st3 = { seen: [1], lastId: { 'a-topic': 1 } };
   releaseSeen(st3, 'a-topic', 42, 1);
   ok('the control: releasing an id that is not seen changes no entry', JSON.stringify(st3.seen) === JSON.stringify([1]), st3);
+
+  /* 10d · A FAILED CLOSE POST RELEASES THE EPISODE TOO. Measured 2026-11-10 (residue
+     2026-11-10-the-bridge-alert-tier-marks-a-message-seen-with-no-release): the close branch moved
+     three fields before the post and `releaseSeen` rolls back neither. */
+  const mkSt = () => ({
+    seen: [4],
+    lastId: { 'a-topic': 4 },
+    episodes: { 'vigil:x': { at: 1000, domain: 'vigil' } },
+    closedAt: {},
+    tracked: { 71: { key: 'vigil:x', bird: 'wren', esc: 1 }, 72: { key: 'vigil:other', bird: 'wren', esc: 0 } }
+  });
+  const stE = mkSt();
+  const snapE = episodeSnapshot(stE, 'vigil:x');
+  ok('the snapshot takes only the tracked urgents under that key', snapE.tracked.length === 1 && snapE.tracked[0][0] === '71', snapE.tracked);
+  delete stE.episodes['vigil:x'];
+  stE.closedAt['vigil:x'] = 5000;
+  delete stE.tracked[71];
+  releaseEpisode(stE, 'vigil:x', snapE);
+  releaseSeen(stE, 'a-topic', 4, 3);
+  ok(
+    'a failed close post restores the episode, drops the stamp and puts the tracked urgent back',
+    stE.episodes['vigil:x'].at === 1000 && !Object.hasOwn(stE.closedAt, 'vigil:x') && stE.tracked[71].esc === 1,
+    stE
+  );
+  ok('that rollback leaves the untouched urgent alone', stE.tracked[72].esc === 0, stE.tracked);
+  ok('and it hands the message back to the next reconnect', stE.seen.length === 0 && stE.lastId['a-topic'] === 3, stE);
+  const stD = mkSt();
+  delete stD.episodes['vigil:x'];
+  stD.closedAt['vigil:x'] = 5000;
+  releaseSeen(stD, 'a-topic', 4, 3);
+  ok('THE DEFECT: the dedupe rollback alone leaves the episode closed with no note', !stD.episodes['vigil:x'] && stD.closedAt['vigil:x'] === 5000, stD);
+  const stR = mkSt();
+  stR.closedAt['vigil:x'] = 1234;
+  const snapR = episodeSnapshot(stR, 'vigil:x');
+  delete stR.episodes['vigil:x'];
+  stR.closedAt['vigil:x'] = 9999;
+  releaseEpisode(stR, 'vigil:x', snapR);
+  ok('a reopened episode rolls back to its earlier closedAt, never to no stamp', stR.closedAt['vigil:x'] === 1234, stR);
+  const stC = mkSt();
+  releaseEpisode(stC, 'vigil:ghost', episodeSnapshot(stC, 'vigil:ghost'));
+  ok('the control: releasing a key the state never held adds no episode and no stamp', !Object.hasOwn(stC.episodes, 'vigil:ghost') && !Object.hasOwn(stC.closedAt, 'vigil:ghost'), stC);
 
   /* 5 · THE CONFIG IS AN ARGUMENT, so a rule cannot reach the installed file. */
   ok('the rules read no module-level config', cfg === null, cfg);
