@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="0dea1d8302c0" data-compute-hash="b2707e9f4574">
+<html lang="en" data-manifest-hash="a0cb8657fd51" data-compute-hash="343a87117e88">
 <head>
 <!--
   OxyDex.src.html — Tepna
@@ -10,10 +10,10 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0C/Uy7BOMk6111ea/JMEcVc++wLAdc/cc+iUs7tNqUY=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CNkm2h+ZlrSYYzoGx9OxoFo/k2UmcAbaZ9Bd72GM4as=' 'sha256-D0YR9+62Fd3hUFRoEZhA/MkKslQirmZQg7KMBHKpICk=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-E1IsN6aDCUvHb/53fIyPoB7AQMLdRp5olYowv/ZbZ6A=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-LbnHw3AlQocKun+z+XZLWmAZttRgzqvTzz2g69QBQ/M=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QU1eFIpXtk89h7OawHFWXJry6pEr0cw5i0Q08kGZz88=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-QyURGUmKmbpEGz6vtt+poPueeRE901i4IjiyZIbxJNo=' 'sha256-RXcoLAniJKLH34g7G8WWfGMxhney/Cbcc4dvbo8flK8=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-XqyVux6nZ1GoEpXw5HlJF6/fUCrzC+aJ4dGKEuYCK0w=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-fHhzdzpcyyDp2wZahreASbSqNTutakABREfHNTgRsvk=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-s5jQgZ2dCmcNdTTy5gLqyiwkCVbXvuldnqeO/1M79kk=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/HrKmOu7mh/ufItYnAP7danMHo0eDj0OAASOG7b4+ok=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CNkm2h+ZlrSYYzoGx9OxoFo/k2UmcAbaZ9Bd72GM4as=' 'sha256-D0YR9+62Fd3hUFRoEZhA/MkKslQirmZQg7KMBHKpICk=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-E1IsN6aDCUvHb/53fIyPoB7AQMLdRp5olYowv/ZbZ6A=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-LbnHw3AlQocKun+z+XZLWmAZttRgzqvTzz2g69QBQ/M=' 'sha256-M+2dm33YArdB+CietooyJ4Vgae5XCmACRGfQVyL8Q8M=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QU1eFIpXtk89h7OawHFWXJry6pEr0cw5i0Q08kGZz88=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-QyURGUmKmbpEGz6vtt+poPueeRE901i4IjiyZIbxJNo=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-XqyVux6nZ1GoEpXw5HlJF6/fUCrzC+aJ4dGKEuYCK0w=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-fHhzdzpcyyDp2wZahreASbSqNTutakABREfHNTgRsvk=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-s5jQgZ2dCmcNdTTy5gLqyiwkCVbXvuldnqeO/1M79kk=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
-<title>OxyDex — Nocturnal Oximetry Analyzer · v2.29.0</title>
+<title>OxyDex — Nocturnal Oximetry Analyzer · v2.30.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
 <style data-inline-src="licensing/dex-license.css">/*
  * dex-license.css — reusable Tepna license / attribution stamp styles
@@ -6132,7 +6132,7 @@ body.light .oxy-projcard { background:#fff; border-color:rgba(0,0,0,.07); }
     <div class="logo-badge"><svg viewBox="0 0 100 100" aria-hidden="true" style="width:23px;height:23px" fill="none" stroke="#06121A" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"><polyline points="15,33 52,33 60,15 66,49 71,33 86,33"/><line x1="49" y1="33" x2="49" y2="86"/></svg></div>
     <div>
       <div class="logo-title">OxyDex</div>
-      <div class="logo-sub">v2.29.0 · Tepna</div>
+      <div class="logo-sub">v2.30.0 · Tepna</div>
     </div>
   </div>
   <hr class="sidebar-logo-rule">
@@ -6172,7 +6172,7 @@ body.light .oxy-projcard { background:#fff; border-color:rgba(0,0,0,.07); }
 
 <div class="topbar">
   <div>
-    <div class="topbar-title">OxyDex <span class="version-badge">v2.29.0</span></div>
+    <div class="topbar-title">OxyDex <span class="version-badge">v2.30.0</span></div>
     <div class="topbar-sub" id="topbarSub">Nocturnal oximetry · SpO₂ · HR · HRV · 75+ metrics · Tepna</div>
   </div>
   <div class="topbar-actions">
@@ -16383,7 +16383,8 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
   // its Fourier bins loses power to scalloping no matter how many spot frequencies you pick. So evaluate
   // ON the bins — k/N for every k in the band — which is also the basis in which periodogram statistics
   // are actually defined. `_FFT_MAX_BINS` strides if a long night would otherwise cost more than it is
-  // worth; striding costs coverage, so it is reported rather than silent.
+  // worth; striding costs coverage, so the result publishes `bins` (tested) beside `bandBinsN` (held),
+  // and a non-detection over `bins < bandBinsN` does not establish that the band holds no cycle.
   var _FFT_LO_HZ = 0.005; // 200 s
   var _FFT_HI_HZ = 0.05; // 20 s
   var _FFT_MAX_BINS = 400;
@@ -16519,6 +16520,9 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
         snr: null,
         threshold: null,
         bins: 0,
+        /* ∅ The run refused before it computed the band, so the band's population is NULL and not
+           0 — a 0 here would read as a band that holds no bin. */
+        bandBinsN: null,
         strided: false,
         rhoLag1: null,
         coveredN: covered,
@@ -16595,6 +16599,18 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       snr: +bestSnr.toFixed(2),
       threshold: +thresh.toFixed(2),
       bins: pows.length,
+      /* ∅ THE BAND'S POPULATION BESIDE THE VERDICT, the same shape as `coveredN` and `spanN` below:
+         `bins` is what the run TESTED and `bandBinsN` is what the band HOLDS. `_FFT_MAX_BINS` strides a
+         long night, so the two differ, and a reader who compares them knows the spectrum SAMPLED the
+         band rather than covered it. Residue 2026-11-09-the-spo2-spectrum-strides-past-an-adjacent-bin:
+         a cycle can sit on a bin the stride skipped, and that reads as `detected: false` exactly as a
+         quiet night does. Measured 2026-11-09 over a planted AR(1) night of 27,600 samples at 1 Hz: a
+         2-unit cycle on the SKIPPED bin k = 345 reads snr 7.66 under a threshold of 19.16, and the same
+         plant on the TESTED bin k = 346 reads 2738.83 against full evaluation of the band. So
+         `detected: false` over `bins < bandBinsN` states NO CYCLE AMONG THE BINS TESTED, never no cycle.
+         Full evaluation is not the remedy: it costs 9,244 ms against 2,315 ms on that night, and the
+         band grows with the record, so the cost grows as the SQUARE of the night. */
+      bandBinsN: kHi - kLo + 1,
       strided: stride > 1,
       rhoLag1: +rho.toFixed(4),
       // The POPULATION, beside the verdict: `coveredN` samples carried a reading and `spanN` is the
@@ -33665,6 +33681,14 @@ function exportCSV() {
         if (typeof n.fft.absentRunMaxN === 'number') {
           lines.push('  FFT Longest Absent Run (samples),' + n.fft.absentRunMaxN);
         }
+      }
+      /* THE BAND'S POPULATION, where the stride tested a SAMPLE of it (CLAUDE.md ∅: reduced coverage
+         annotates). CONDITIONAL, so a night whose band fits under `_FFT_MAX_BINS` exports as before.
+         An empty cycle length over a strided band states no cycle AMONG THE BINS TESTED, and a reader
+         who cannot see the two counts reads it as no cycle at all (residue
+         2026-11-09-the-spo2-spectrum-strides-past-an-adjacent-bin). */
+      if (typeof n.fft.bins === 'number' && typeof n.fft.bandBinsN === 'number' && n.fft.bins < n.fft.bandBinsN) {
+        lines.push('  FFT Bins Tested,' + n.fft.bins, '  FFT Bins In Band,' + n.fft.bandBinsN);
       }
       // A REFUSAL READS AS A REFUSAL. An empty peak beside a reason says the night was examined and
       // the spectrum was not published; an empty peak alone reads as "no cycle cleared the background".
