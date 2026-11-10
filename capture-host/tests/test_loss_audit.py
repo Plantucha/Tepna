@@ -4864,6 +4864,8 @@ def test_five_minutes_of_not_worn_decisions_end_a_wear_at_their_first_stamp():
     assert (w["wear"], w["ended_at"], w["ended_by"]) == (True, "2026-09-23T23:06:40", "not-worn"), w
     # a decision on the span start is in the span
     assert _wear([_dw(0, True)], 300)["wear"] is True
+    # a decision on the span end is in the span, and so is its count
+    assert _wear([_dw(0, True), _dw(400, False), _dw(900, False)], 900)["decisions"] == 3
 
 
 def test_an_abstention_is_no_decision():
