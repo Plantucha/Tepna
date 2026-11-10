@@ -32,9 +32,9 @@
         { "id": "analyzablePct", "abbr": "% Analyzable", "name": "Analyzable", "fullName": "Fraction of the recording usable after artifact rejection",
           "tier": "core", "unit": "%", "evidence": "measured", "goodDirection": "up",
           "formula": "1 − artifactRejectedFraction", "cite": "Analyzable coverage after artifact rejection — direct" },
-        { "id": "totalPower", "abbr": "Total Power", "name": "Total Spectral Power", "fullName": "Broadband EEG power 1–50 Hz",
+        { "id": "totalPower", "abbr": "Total Power", "name": "Total Spectral Power", "fullName": "Broadband EEG power over (0, 45] Hz, the band the transform sums",
           "tier": "secondary", "unit": "µV²", "evidence": "measured", "goodDirection": "neutral",
-          "formula": "∫ PSD(1..50 Hz)", "cite": "Broadband spectral power — direct from the PSD" }
+          "formula": "Σ P(f) over (0, 45] Hz", "cite": "Broadband spectral power — direct from the PSD" }
       ]
     },
     {
@@ -43,15 +43,24 @@
       "icon": "🌊",
       "description": "Relative power in the canonical EEG bands",
       "metrics": [
-        { "id": "alphaRel", "abbr": "α rel", "name": "Relative Alpha", "fullName": "Alpha-band (8–13 Hz) relative power",
+        { "id": "deltaRel", "abbr": "δ rel", "name": "Relative Delta", "fullName": "Delta-band ([0.5, 4) Hz) relative power, as the engine bands it",
           "tier": "core", "unit": "%", "evidence": "validated", "goodDirection": "neutral",
-          "formula": "P(8–13 Hz) / P(1–50 Hz)", "cite": "Relative alpha power — established EEG band readout" },
-        { "id": "thetaRel", "abbr": "θ rel", "name": "Relative Theta", "fullName": "Theta-band (4–8 Hz) relative power",
+          "formula": "median over epochs with a spectrum of P([0.5, 4) Hz) / Σ P(f) over (0, 45] Hz", "cite": "Relative delta power — established EEG band readout" },
+        { "id": "thetaRel", "abbr": "θ rel", "name": "Relative Theta", "fullName": "Theta-band ([4, 8) Hz) relative power, as the engine bands it",
           "tier": "core", "unit": "%", "evidence": "validated", "goodDirection": "neutral",
-          "formula": "P(4–8 Hz) / P(1–50 Hz)", "cite": "Relative theta power — established EEG band readout" },
+          "formula": "median over epochs with a spectrum of P([4, 8) Hz) / Σ P(f) over (0, 45] Hz", "cite": "Relative theta power — established EEG band readout" },
+        { "id": "alphaRel", "abbr": "α rel", "name": "Relative Alpha", "fullName": "Alpha-band ([8, 12) Hz) relative power, as the engine bands it",
+          "tier": "core", "unit": "%", "evidence": "validated", "goodDirection": "neutral",
+          "formula": "median over epochs with a spectrum of P([8, 12) Hz) / Σ P(f) over (0, 45] Hz", "cite": "Relative alpha power — established EEG band readout" },
+        { "id": "sigmaRel", "abbr": "σ rel", "name": "Relative Sigma", "fullName": "Sigma-band ([12, 16) Hz) relative power, as the engine bands it",
+          "tier": "secondary", "unit": "%", "evidence": "validated", "goodDirection": "neutral",
+          "formula": "median over epochs with a spectrum of P([12, 16) Hz) / Σ P(f) over (0, 45] Hz", "cite": "Relative sigma power — established EEG band readout, a band share and never a spindle count" },
+        { "id": "betaRel", "abbr": "β rel", "name": "Relative Beta", "fullName": "Beta-band ([16, 30) Hz) relative power, as the engine bands it",
+          "tier": "secondary", "unit": "%", "evidence": "validated", "goodDirection": "neutral",
+          "formula": "median over epochs with a spectrum of P([16, 30) Hz) / Σ P(f) over (0, 45] Hz", "cite": "Relative beta power — established EEG band readout" },
         { "id": "alphaTheta", "abbr": "α/θ", "name": "Alpha/Theta Ratio", "fullName": "Ratio of alpha to theta band power",
           "tier": "secondary", "unit": "", "evidence": "emerging", "goodDirection": "neutral",
-          "formula": "P(α) / P(θ)", "cite": "Alpha/theta ratio — published drowsiness/relaxation index, device-dependent" }
+          "formula": "median over epochs with nonzero theta power of P([8, 12) Hz) / P([4, 8) Hz)", "cite": "Alpha/theta ratio — published drowsiness/relaxation index, device-dependent" }
       ]
     },
     {
@@ -71,7 +80,19 @@
           "formula": "ln(αAF8) − ln(αAF7)", "cite": "Frontal alpha asymmetry — affective-state composite, EEGDex-derived, weak consumer-grade support" },
         { "id": "calmScore", "abbr": "Calm", "name": "Calm Score", "fullName": "Composite relaxation index blended from band ratios",
           "tier": "secondary", "unit": "", "evidence": "heuristic", "goodDirection": "up",
-          "formula": "weighted blend of α/θ, β suppression, and stability", "cite": "Calm score — heuristic wellness composite, not a validated EEG metric" }
+          "formula": "weighted blend of α/θ, β suppression, and stability", "cite": "Calm score — heuristic wellness composite, not a validated EEG metric" },
+        { "id": "hypnogram", "abbr": "Hypnogram", "name": "Hypnogram", "fullName": "Per-epoch sleep-stage series scored from one EEG channel",
+          "tier": "core", "unit": "", "evidence": "emerging", "goodDirection": "neutral",
+          "formula": "stageEpoch(bands) per 30 s epoch, median-smoothed", "cite": "Single-channel band-power staging — literature-backed, not PSG-validated (EEGDEX-BUILD-BRIEF §0)" },
+        { "id": "tst", "abbr": "TST", "name": "Total Sleep Time", "fullName": "Hours of epochs scored N1, N2, N3 or REM",
+          "tier": "core", "unit": "h", "evidence": "emerging", "goodDirection": "neutral",
+          "formula": "30 s × (N1 + N2 + N3 + REM) / 3600", "cite": "Total sleep time from the staged hypnogram — it inherits the stager tier, never the clock tier" },
+        { "id": "sleepEff", "abbr": "SE", "name": "Sleep Efficiency", "fullName": "Percent of SCORED epochs that are sleep, not of the recording span",
+          "tier": "core", "unit": "%", "evidence": "emerging", "goodDirection": "up",
+          "formula": "100 × sleepEpochs / scoredEpochs", "cite": "Sleep efficiency over the scored population — an unscorable epoch is excluded, never counted as wake" },
+        { "id": "n3Pct", "abbr": "N3 %", "name": "N3 Fraction", "fullName": "Fraction of total sleep time scored N3, the slow-wave share",
+          "tier": "core", "unit": "%", "evidence": "emerging", "goodDirection": "neutral",
+          "formula": "100 × N3 / sleepEpochs", "cite": "N3 fraction from the staged hypnogram — single-channel stager, not a PSG score" }
       ]
     }
   ],
