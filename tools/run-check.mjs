@@ -131,6 +131,7 @@ export const STEPS = [
   'verify:verdict-adoption',
   'verify:manifest',
   'verify:fixture-currency',
+  'verify:browser-gate-logic',
   'test:hooks'
 ];
 
@@ -144,8 +145,12 @@ export const STEPS = [
    A gate script is one the suite entry point owns: the `verify:` family plus `build:check`. The
    other families are deliberately outside this runner — `test:` steps appear in STEPS by their own
    names, and `gates:browser`, `pseudo:check` or `release` are not part of the unattended gate.
+   `verify:browser-gate-logic` IS: it runs `tests/browser-gates.mjs --selftest`, which launches no
+   browser and needs no server, so the browser gate's own decision logic — its verdict aggregation
+   and its skip budget — is judged here while the lane itself stays a CI job. Nothing ran that
+   selftest before 2026-11-10, so the budget it guards would have been a number nobody tested.
    An omission that is DELIBERATE goes in STEPS_EXEMPT with its reason written here. The set is
-   empty today, because all 35 declared gate scripts are in STEPS. */
+   empty today, because all 36 declared gate scripts are in STEPS. */
 export const GATE_SCRIPT_RE = /^(?:verify:|build:check$)/;
 export const STEPS_EXEMPT = new Set([]);
 
