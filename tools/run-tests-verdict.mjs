@@ -74,8 +74,18 @@ export function undeclaredSkipCount(verdict) {
   return typeof n === 'number' && n > 0 ? n : 0;
 }
 
+/* THE LATE DECLARATION'S SHARE OF AN EXIT CODE (residue
+   2026-11-08-a-group-declared-only-at-execution-is-dropped-by-every-shard). Read off the OBJECT for
+   the reason the skip count is: the human lane adds each finding to its tally, so a lane that counts
+   assertions alone would exit 0 over an object that reads FAIL. A forked run's union sums its shards'
+   counts, so this reads the union too. An object with no result carries no finding to count. */
+export function lateDeclarationCount(verdict) {
+  const n = verdict && verdict.result ? verdict.result.lateDeclarations : null;
+  return typeof n === 'number' && n > 0 ? n : 0;
+}
+
 /* The object for ONE process — a full serial run, a --group= run, or one shard's run. */
-export function suiteVerdict({ groups, totalGroups, groupFilter = null, groupIndices = null, shard = null, skipViolations = [] }, { commit, commitReason, at } = {}) {
+export function suiteVerdict({ groups, totalGroups, groupFilter = null, groupIndices = null, shard = null, skipViolations = [], lateViolations = [] }, { commit, commitReason, at } = {}) {
   const children = groups.map(groupChild);
   const total = Number.isInteger(totalGroups) ? totalGroups : groups.length;
   /* `--group-index=` IS A DECLARED EXCLUSION TOO (residue
@@ -89,7 +99,17 @@ export function suiteVerdict({ groups, totalGroups, groupFilter = null, groupInd
   const agg = aggregateChildren(children, { eligible: total, declaredExcluded: excludedBy ? Math.max(0, total - groups.length) : 0, excludedBy });
   let { status, reason, result } = agg;
   const assertions = children.reduce((a, c) => ({ pass: a.pass + c.n.pass, fail: a.fail + c.n.fail, skip: a.skip + c.n.skip }), { pass: 0, fail: 0, skip: 0 });
-  if (result) result = { ...result, assertions, skipViolations: skipViolations.length, shard, groupFilter, groupIndices: idx, children: result.children.map((c, i) => ({ ...c, n: children[i].n })) };
+  if (result)
+    result = {
+      ...result,
+      assertions,
+      skipViolations: skipViolations.length,
+      lateDeclarations: lateViolations.length,
+      shard,
+      groupFilter,
+      groupIndices: idx,
+      children: result.children.map((c, i) => ({ ...c, n: children[i].n }))
+    };
   /* THE SKIP BUDGET — the runner's own pre-stated criterion. */
   if (skipViolations.length && status !== 'FAIL') {
     status = 'FAIL';
@@ -99,13 +119,21 @@ export function suiteVerdict({ groups, totalGroups, groupFilter = null, groupInd
         .map((v) => `[${v.group}] ${v.test}`)
         .join('; ')}${skipViolations.length > 5 ? '; …' : ''}` + (agg.reason ? `; also ${agg.reason}` : '');
   }
+  /* THE SHARD-BLIND GROUP — the same shape of pre-stated criterion, and it outranks nothing: a run
+     already FAILing keeps its reason, because an assertion failure is the louder answer. */
+  if (lateViolations.length && status !== 'FAIL') {
+    status = 'FAIL';
+    reason =
+      `${lateViolations.length} late-declaration finding(s) — a group the --list inventory cannot see runs in NO shard: ${lateViolations.slice(0, 2).join('; ')}${lateViolations.length > 2 ? '; …' : ''}` +
+      (agg.reason ? `; also ${agg.reason}` : '');
+  }
   return makeVerdict({
     gate: 'run-tests',
     status,
     population: agg.population,
     criterion: CRITERION,
     result,
-    evidence: ['tests/dex-tests.js', 'tests/expected-skips.json', ...(shard ? ['tests/shard-plan.mjs', 'tests/group-timings.json'] : [])],
+    evidence: ['tests/dex-tests.js', 'tests/expected-skips.json', 'tests/shard-plan.mjs', ...(shard ? ['tests/group-timings.json'] : [])],
     reason,
     tool: 'tools/run-tests-verdict.mjs',
     commit,
@@ -138,7 +166,8 @@ export function unionVerdict(shards, jobs, { groupFilter = null, commit, commitR
       jobs,
       groups: live.reduce((a, s) => a + (s.verdict.population.checked || 0), 0),
       assertions: { pass: sum('pass'), fail: sum('fail'), skip: sum('skip') },
-      skipViolations: live.reduce((a, s) => a + (s.verdict.result.skipViolations || 0), 0)
+      skipViolations: live.reduce((a, s) => a + (s.verdict.result.skipViolations || 0), 0),
+      lateDeclarations: live.reduce((a, s) => a + (s.verdict.result.lateDeclarations || 0), 0)
     };
     /* a --group= passed through to every shard filters the union too; say so at this level. A shard's
        own `--shard=i/N` exclusion is NOT a filter here — the union is exactly what resolves it. */

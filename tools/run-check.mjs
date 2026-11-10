@@ -99,6 +99,7 @@ export const STEPS = [
   'lint',
   'test:par',
   'verify:shard-union',
+  'verify:shard-union-logic',
   'verify:shard-timings',
   'verify:no-names',
   'verify:integrator-surface',
@@ -150,7 +151,9 @@ export const STEPS = [
    and its skip budget — is judged here while the lane itself stays a CI job. Nothing ran that
    selftest before 2026-11-10, so the budget it guards would have been a number nobody tested.
    An omission that is DELIBERATE goes in STEPS_EXEMPT with its reason written here. The set is
-   empty today, because all 36 declared gate scripts are in STEPS. */
+   empty today, because every declared gate script is in STEPS. A count stood here and no gate read
+   it, so two diffs in one day each corrected it by one and it still went stale:
+   `gateScriptsMissingFromSteps` computes the only number that decides anything. */
 export const GATE_SCRIPT_RE = /^(?:verify:|build:check$)/;
 export const STEPS_EXEMPT = new Set([]);
 
