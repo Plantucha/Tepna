@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**331 tools** · 330 with a purpose line · **1 without**
+**332 tools** · 331 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -270,6 +270,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`residue-promises.mjs`](../tools/residue-promises.mjs) | WHICH DECLARED CLOSURES THE WALKER CAN NO LONGER READ. A merged fix closes its own residue row by declaring it on a `Residue-fixed: <key>` line in the PR body, and the walker writes the… |
 | [`resp-acc-headless.mjs`](../tools/resp-acc-headless.mjs) | Drive `resp-acc-analysis.html` THROUGH ITS OWN UI, headlessly, against a real corpus. |
 | [`resp-cardiac-suppression-e8.mjs`](../tools/resp-cardiac-suppression-e8.mjs) | MOTIONDEX-RESPIRATORY-RATE-FOLLOWUPS §8 §8 names cardiac suppression as "the highest-value untried improvement": an adaptive notch at the measured f_HR and 2f_HR on the H10's… |
+| [`respcv-lomb-share.mjs`](../tools/respcv-lomb-share.mjs) | WHICH CALL SITE SPENDS ECGDex's Lomb-Scargle TIME, measured on the PRODUCT PATH. |
 | [`rho-overlap-power.mjs`](../tools/rho-overlap-power.mjs) | HOW MUCH OVERLAP DOES rho NEED? — measured, so a minimum-n rule can be DERIVED or REFUSED. |
 | [`ring-offset-census.mjs`](../tools/ring-offset-census.mjs) | THE RING'S OFFSET STEPS, COUNTED OVER THE CORPUS INSTEAD OF FIVE NIGHTS. |
 | [`ring-rate-cause.mjs`](../tools/ring-rate-cause.mjs) | WHY THE RING QUOTES A RATE NO CRYSTAL CAN HOLD, DECOMPOSED PER FRAGMENT. |

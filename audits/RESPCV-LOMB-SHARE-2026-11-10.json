@@ -1,0 +1,218 @@
+{
+ "schema": "tepna.verdict/1",
+ "gate": "respcv-lomb-share",
+ "status": "SHORTFALL",
+ "scope": "internal",
+ "population": {
+  "checked": 9,
+  "eligible": 9,
+  "excluded": 0
+ },
+ "criterion": {
+  "name": "respcv_share_of_ecg_lomb_time_pct",
+  "threshold": 83.3,
+  "unit": "%",
+  "direction": "gte",
+  "preStated": "83.3 % is the residue row 2026-11-08-ecg-respcv-spends-five-lomb-calls-per-epoch-with-no-consumer's own 'about 5/6 of the ECG Lomb-Scargle time', which it infers from the call count. No threshold here comes from this run."
+ },
+ "result": {
+  "night": "Polar_H10_02849638_20260611_210411_ECG.txt",
+  "claimedSharePct": 83.3,
+  "callSites": [
+   {
+    "site": "respCv",
+    "where": "ecgdex-dsp.js:1662 — one per 60 s sub-window inside _respCv"
+   },
+   {
+    "site": "epochSpectrum",
+    "where": "ecgdex-dsp.js:1749 — one per epoch, the window every band metric reads"
+   },
+   {
+    "site": "recordSpectrum",
+    "where": "ecgdex-dsp.js:3158 — the no-epoch fallback only"
+   }
+  ],
+  "respCvShareOfLombPct": 51.48,
+  "respCvShareOfComputePct": 7.99,
+  "vmRealmRespCvShareOfLombPct": 49.94,
+  "lombShareOfComputePct": 15.53,
+  "productPathTotalMs": 1739,
+  "cleanTotalMs": 1784.1,
+  "vmRealmTotalMs": 10482.4,
+  "realmInflation": 6.03,
+  "instrumentOverheadPct": -2.53,
+  "instrumentOverheadMs": -45.1,
+  "instrumentOverheadResolved": false,
+  "untaggedCalls": 0,
+  "productPathSpreadMs": 65.1,
+  "respSharePctSpread": 0.33,
+  "peakRssMB": 587.3,
+  "byRealm": {
+   "main": {
+    "runs": 3,
+    "totalMs": 1739,
+    "lombMs": 270,
+    "lombCalls": 556,
+    "peakRssMB": 587.3,
+    "spreadMs": 65.1,
+    "respSharePctSpread": 0.33,
+    "sites": {
+     "respCv": {
+      "ms": 139,
+      "calls": 463,
+      "samples": 24444,
+      "shareOfLombPct": 51.48
+     },
+     "epochSpectrum": {
+      "ms": 131.2,
+      "calls": 93,
+      "samples": 24458,
+      "shareOfLombPct": 48.59
+     },
+     "recordSpectrum": {
+      "ms": 0,
+      "calls": 0,
+      "samples": 0,
+      "shareOfLombPct": 0
+     },
+     "untagged": {
+      "ms": 0,
+      "calls": 0,
+      "samples": 0,
+      "shareOfLombPct": 0
+     }
+    }
+   },
+   "vm": {
+    "runs": 3,
+    "totalMs": 10482.4,
+    "lombMs": 3314.3,
+    "lombCalls": 556,
+    "peakRssMB": 589.1,
+    "spreadMs": 396.2,
+    "respSharePctSpread": 0.39,
+    "sites": {
+     "respCv": {
+      "ms": 1655.2,
+      "calls": 463,
+      "samples": 24444,
+      "shareOfLombPct": 49.94
+     },
+     "epochSpectrum": {
+      "ms": 1659.1,
+      "calls": 93,
+      "samples": 24458,
+      "shareOfLombPct": 50.06
+     },
+     "recordSpectrum": {
+      "ms": 0,
+      "calls": 0,
+      "samples": 0,
+      "shareOfLombPct": 0
+     },
+     "untagged": {
+      "ms": 0,
+      "calls": 0,
+      "samples": 0,
+      "shareOfLombPct": 0
+     }
+    }
+   },
+   "clean": {
+    "runs": 3,
+    "totalMs": 1784.1,
+    "lombMs": null,
+    "lombCalls": null,
+    "peakRssMB": 589.8,
+    "spreadMs": 113,
+    "respSharePctSpread": null,
+    "sites": {}
+   }
+  },
+  "criterion": {
+   "name": "respcv_share_of_ecg_lomb_time_pct",
+   "threshold": 83.3,
+   "unit": "%",
+   "direction": "gte"
+  },
+  "runs": 3,
+  "realms": [
+   "main",
+   "vm",
+   "clean"
+  ],
+  "computeEpochSeriesEpochs": 0,
+  "respCvInComputeReturn": false,
+  "exportBuilder": {
+   "builderFound": true,
+   "builderDeclLine": 6910,
+   "occurrences": 3,
+   "lines": [
+    1647,
+    1754,
+    1757
+   ],
+   "fromBuilderOn": 0,
+   "note": "the slice is the builder plus everything after it, so 0 here means 0 inside the builder"
+  },
+  "outputDigests": [
+   "e693e7c625e4"
+  ],
+  "corpusPopulation": {
+   "schema": "tepna.verdict/1",
+   "gate": "corpus-population",
+   "status": "PASS",
+   "scope": "internal",
+   "population": {
+    "checked": 934,
+    "eligible": 934,
+    "excluded": 0
+   },
+   "criterion": {
+    "name": "records_added_or_removed",
+    "threshold": 0,
+    "unit": "records",
+    "direction": "lte"
+   },
+   "result": {
+    "root": "/srv/data/tepna-corpus/uploads",
+    "n": 934,
+    "unit": "records",
+    "digest": "8ac076774d03",
+    "added": [],
+    "removed": [],
+    "openedAt": "2026-11-10T06:43:46Z",
+    "closedAt": "2026-11-10T06:44:30Z",
+    "maxCtimeMs": null,
+    "rule": "listCaptureFiles",
+    "ruleUnit": "records",
+    "ruleNote": "the caller's lister IS the rule for a records population, so the night questions do not bind"
+   },
+   "evidence": [
+    "tools/corpus-scope.mjs",
+    "docs/CORPUS-LOCATIONS.md",
+    "tools/respcv-lomb-share.mjs"
+   ],
+   "reason": null,
+   "producedBy": {
+    "tool": "tools/respcv-lomb-share.mjs",
+    "commit": "c9dbe5c14de77879ac34350797f652aa3f12eb1c"
+   },
+   "at": "2026-11-10T06:44:30Z"
+  },
+  "refusals": [],
+  "note": "the wrapper resets the site tag after every call, so untaggedCalls > 0 means the attribution missed a call site and the verdict is UNKNOWN rather than a share quoted over part of the time"
+ },
+ "evidence": [
+  "tools/respcv-lomb-share.mjs",
+  "ecgdex-dsp.js",
+  "briefs/REM-STAGING-REDESIGN-2026-07-28-BRIEF.md",
+  "tools/lomb-share-profile.mjs"
+ ],
+ "reason": "respCv is 51.48 % of the ECGDex Lomb-Scargle time, under the 83.3 % the row infers from its call count. The five sub-windows split one epoch's beats, so they cost about one epoch spectrum.",
+ "producedBy": {
+  "tool": "tools/respcv-lomb-share.mjs",
+  "commit": "c9dbe5c1"
+ },
+ "at": "2026-11-10T06:44:30Z"
+}

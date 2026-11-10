@@ -2649,6 +2649,14 @@
    },
    "note": "the population verdict this tool publishes through populationVerdict@tools/corpus-scope-core.mjs, over H10 ACC files. Row 2026-10-28-the-word-only-bin-misses-a-verdict-built-by-an-imported-helper re-bins it: the row read word-only, which exempts a producer from object validation, and the object half of the gate could not see a build one import away. checkWordOnlyObject now reads that hop, and only to a builder whose own body CONSTRUCTS \u2014 tools/rebase-safe.mjs calls extractVerdicts@tools/pr-compliance.mjs, which parses objects out of a PR body and constructs none, so it stays word-only as the measured control. --verdict-sample runs the real builder over a fabricated population listed by a closure, so the gate reads a complete object, the corpus stays untouched and the shape cannot drift from snapshotEntries."
   },
+  "tools/respcv-lomb-share.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "file": "audits/RESPCV-LOMB-SHARE-2026-11-10.json"
+   },
+   "note": "which ECGDex call site spends the Lomb-Scargle time, measured on the PRODUCT PATH (vm.runInThisContext). Residue 2026-11-08-ecg-respcv-spends-five-lomb-calls-per-epoch-with-no-consumer (#4673) states that respCv is \"about 5/6 of the ECG Lomb-Scargle time\", which it infers from the call count and never times. lombScargle costs O(N \u00b7 nfFull), and _respCv cuts ONE epoch into 60 s sub-windows, so its five calls share the epoch's beats rather than repeating them. PASS when respCv reaches the 83.3 % the row infers, so the claim holds \u00b7 SHORTFALL when it does not \u00b7 UNKNOWN when any call carried no site tag, because the attribution then covers part of the time \u00b7 NOT_RUN when the corpus holds no night. The transform rewrites the lombScargle DECLARATION in memory and tags each of the three call-site texts with a comma expression, refusing when any text is not found exactly once; a patched export never intercepts a closure-local call. The wrapper resets the tag after every call, so an unknown call site reports itself as untagged rather than borrowing the previous name. Three arms, each its own process: main is the product path, vm is the realm control, clean carries no transform so the wrapper's own cost is measured. The manifest reads the committed record; re-running the tool re-derives it."
+  },
   "tools/rho-overlap-power.mjs": {
    "bin": "already-json",
    "status": "adopted",
