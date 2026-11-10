@@ -246,6 +246,46 @@
     return r.status === wanted;
   }
 
+  /* THE NINE REFERENCE GUIDES ARE THE POPULATION EVERY GUIDE LANE SCANS — eight authored at the repo
+     root, plus the generated EEGDex one. Both producers declare this same roster: `readDocs()` in
+     tests/run-tests.mjs and the docs fetch in Dex-Test-Suite.html. Each records an unreadable guide
+     as `null`, so a lost guide stays in the key set and gets NAMED here.
+     Measured 2026-11-09: three guide lanes carried anti-vacuity floors of 7, 6 and 7 over this
+     population of 9. Each one tolerated two or three lost guides and still read green, and the floor
+     could not notice the loss anyway — a producer that omits an unreadable key shrinks the very set
+     the floor counts. Row 2026-11-09-the-reference-guide-anti-vacuity-floors-sit-below-their-population. */
+  var DEX_GUIDE_ROSTER = [
+    'OxyDex Reference.html',
+    'ECGDex Reference.html',
+    'PpgDex Reference.html',
+    'CPAPDex Reference.html',
+    'PulseDex Reference.html',
+    'HRVDex Reference.html',
+    'GlucoDex Reference.html',
+    'MotionDex Reference.html',
+    'EEGDex Reference.html'
+  ];
+
+  /* Census of that roster against one lane's own env.docs map. `present` carries the guides that
+     arrived with text, `absent` names every declared guide that arrived null, empty or keyless, and
+     `extra` names a guide a producer carries that the roster does not declare. The two equalities
+     close in both directions, so neither a producer nor the roster can drift alone. */
+  function dexGuideCensus(docs) {
+    var D = docs || {},
+      present = [],
+      absent = [];
+    for (var i = 0; i < DEX_GUIDE_ROSTER.length; i++) {
+      var k = DEX_GUIDE_ROSTER[i],
+        t = D[k];
+      if (typeof t === 'string' && t.length > 0) present.push(k);
+      else absent.push(k + ' → ' + (k in D ? (t === null ? 'null' : typeof t + ' len ' + (t && t.length)) : 'no key'));
+    }
+    var extra = Object.keys(D).filter(function (k) {
+      return /Reference\.html$/.test(k) && DEX_GUIDE_ROSTER.indexOf(k) < 0;
+    });
+    return { present: present, absent: absent, extra: extra };
+  }
+
   function runDexTests(env) {
     env = env || {};
     var GROUPS = [];
@@ -24302,11 +24342,11 @@
 
     group('every metric card’s tier chip agrees with its data-tier attribute', 'cohesion-badges · guide-tier', function (T) {
       var docs = env.docs || {};
-      var names = Object.keys(docs).filter(function (k) {
-        return / Reference\.html$/.test(k);
-      });
-      T.ok('reference guides are loaded in this lane', names.length >= 7, 'found ' + names.length + ' — the group below would vacuously pass');
-      if (names.length < 7) return;
+      var CEN = dexGuideCensus(docs);
+      T.eq('ANTI-VACUITY · every declared reference guide reached this lane with text', CEN.absent, []);
+      T.eq('…and no producer carries a guide the roster does not declare', CEN.extra, []);
+      var names = CEN.present;
+      if (!names.length) return;
 
       /* attribute value -> [expected chip text, expected chip class]. `null` = attribute absent. */
       var MAP = { secondary: ['Advanced', 'ta'], research: ['Research', 'tr'], null: ['Core', 'tc'] };
@@ -86487,11 +86527,11 @@
        would be exactly the borrowed-scope dishonesty the neighbouring gates were written to remove. */
     group('Reference guides — every in-page anchor resolves, no duplicate ids (REFERENCE-GUIDE-AUDIT §5)', 'docs · reference-guides · link-integrity', function (T) {
       var D = env.docs || {};
-      var guides = Object.keys(D).filter(function (f) {
-        return /Reference\.html$/.test(f);
-      });
-      T.ok('ANTI-VACUITY · the reference guides are wired into this lane', guides.length >= 7, 'found ' + guides.length + ' guide(s): ' + guides.join(', '));
-      if (guides.length < 7) return;
+      var CEN = dexGuideCensus(D);
+      T.eq('ANTI-VACUITY · every declared reference guide reached this lane with text', CEN.absent, []);
+      T.eq('…and no producer carries a guide the roster does not declare', CEN.extra, []);
+      var guides = CEN.present;
+      if (!guides.length) return;
       var dead = [],
         dup = [],
         nAnchor = 0,
@@ -87026,11 +87066,11 @@
      anti-vacuity legs below prove that stripping happened rather than assuming it. */
     group('Reference guides: no correction history in RENDERED text (the registry gate could not see this)', 'docs · citations · guide-prose', function (T) {
       var docs = env.docs || {};
-      var GUIDES = Object.keys(docs).filter(function (k) {
-        return /Reference\.html$/.test(k);
-      });
-      T.ok('ANTI-VACUITY · the reference guides are wired into env.docs', GUIDES.length >= 6, GUIDES.length + ' guide(s): ' + GUIDES.join(', '));
-      if (GUIDES.length < 6) return;
+      var CEN = dexGuideCensus(docs);
+      T.eq('ANTI-VACUITY · every declared reference guide reached env.docs with text', CEN.absent, []);
+      T.eq('…and no producer carries a guide the roster does not declare', CEN.extra, []);
+      var GUIDES = CEN.present;
+      if (!GUIDES.length) return;
 
       /* Rendered text = what a reader sees. Comments, <script> and <style> are NOT rendered, so they
          are removed before the scan — deliberately, per the header. */
