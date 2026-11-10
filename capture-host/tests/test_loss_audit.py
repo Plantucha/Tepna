@@ -5192,22 +5192,23 @@ def test_A_GAP_AFTER_THE_WORN_END_IS_NOT_WORN_LOSS(tmp_path):
 def test_A_GAP_BEFORE_THE_WORN_START_IS_NOT_WORN_LOSS(tmp_path):
     """MEASURED on the capture box 2026-11-10: night 2026-11-09's Verity streamed on its charger before the
     wearer put it on. Both charger files read not worn, yet their gaps and the gap up to the first worn
-    row read as 137.1 worn minutes lost and FAILED the night. Its shape here: a desk file, a 100 s gap,
-    then the worn file."""
+    row read as 137.1 worn minutes lost and FAILED the night. Its shape here: a desk file, a 601 s gap,
+    then the worn file. The gap is long enough that its minutes differ at one decimal from s / 61."""
     d = tmp_path / "captures" / "2026-09-23"
     d.mkdir(parents=True)
     _ppg(str(d / "Polar_VeritySense_0C30_20260923230000_PPG.txt"), 400, 20, lambda t: 37.0)
     _ppi(str(d / "Polar_VeritySense_0C30_20260923230000_PPI.txt"), [0] * 400)
-    t1 = W0 + dt.timedelta(seconds=500)
-    _ppg(str(d / "Polar_VeritySense_0C30_20260923230820_PPG.txt"), 370, 20, lambda t: 37.0 if t < 360 else 111.0, t0=t1)
-    _ppi(str(d / "Polar_VeritySense_0C30_20260923230820_PPI.txt"), [60] * 300, t0=t1)
+    t1 = W0 + dt.timedelta(seconds=1000)
+    _ppg(str(d / "Polar_VeritySense_0C30_20260923231640_PPG.txt"), 370, 20, lambda t: 37.0 if t < 360 else 111.0, t0=t1)
+    _ppi(str(d / "Polar_VeritySense_0C30_20260923231640_PPI.txt"), [60] * 300, t0=t1)
     a = loss_audit.audit_night(str(d), [{"name": "Sense", "model": "VeritySense"}], journal=lambda *x: [])
     v = a["devices"]["Sense"]
     first, second = v["wear"]["ends"]
     assert first["usable"] is False and second["usable"] is True, v["wear"]
-    assert v["worn_start_at"] == "2026-09-23T23:08:20", v["worn_start_at"]
+    assert v["worn_start_at"] == "2026-09-23T23:16:40", v["worn_start_at"]
     assert [g["boundary"] for g in v["gaps"]] == [True], v["gaps"]
-    assert v["lost_min"] == v["before_worn_start_min"] > 0 and v["worn_lost_min"] == 0.0, v
+    assert [g["s"] for g in v["gaps"]] == [601.0], v["gaps"]
+    assert v["lost_min"] == v["before_worn_start_min"] == 10.0 and v["worn_lost_min"] == 0.0, v
     assert v["worn_span_min"] < v["span_min"], "the desk file adds no worn span"
     r = loss_audit.night_verdict(a, night_dir=str(d))["result"]
     assert r["worn_lost_min"] == 0.0 and r["worn_but_not_recorded_fraction"] == 0.0, r
