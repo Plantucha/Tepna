@@ -121,6 +121,7 @@ export const STEPS = [
   'verify:tools-index',
   'verify:workflow-timeouts',
   'verify:required-contexts',
+  'verify:no-network-surface',
   'verify:absence-regression',
   'verify:astgrep',
   'verify:xss-sink',
