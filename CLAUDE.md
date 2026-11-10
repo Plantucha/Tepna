@@ -534,7 +534,15 @@ caption is correct when a badge sits on every series it draws.
   `*-cross.js` is a projection (gate `registry-defs-parity`). Retired vocabulary (`proxy`, `composite`,
   `provisionally validated`) never reappears.
 - **Gate `cohesion-badges`:** engine ≡ CSS, guides `<link>` the CSS, guide grades ≡ registry — fix the DOC.
-- An inert shared-module addition does not require re-bundling.
+- 🔴 **An INLINED module has no inert addition.** `manifestHash` hashes every inline block
+  byte-for-byte, so one comment line in `metric-registry.js` moves it on all **14** bundles that
+  carry the file (10 of the 11 owned; `Data Unifier.html` does not carry it). The compute closure is
+  a denylist, so a spine module sits inside it and `computeHash` moves on all 14 as well — every
+  corpus-backed fixture then owes re-verification. Re-bundle each carrier:
+  `grep -lc 'data-inline-src="<file>"' *.html`. **Export-inert is the narrower claim, and it still
+  owes the rebuild:** the same line in `oxydex-render.js` moves `manifestHash` and holds OxyDex's
+  `computeHash` at `93f4d577efcd` (measured 2026-11-10 through `manifest-gate.js computeClosure`;
+  the earlier rule here read "an inert shared-module addition does not require re-bundling").
 
 ## 📦 Releases (CONTROLLED-RELEASES-2026-07-05; *why → RATIONALE §📦*)
 One suite SemVer in `suite.manifest.json`; `RELEASE-MANIFEST.json` append-only history; `CHANGELOG.md`

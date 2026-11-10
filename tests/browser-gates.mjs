@@ -24,6 +24,16 @@ import { aggregateChildren, makeVerdict } from '../tools/verdict-emit.mjs';
    a literal 8 against nine declared bundles. One number, one source. */
 import { createRequire } from 'node:module';
 const ManifestGate = createRequire(import.meta.url)('../manifest-gate.js');
+/* The browser realm's skip budget, read from the SAME file the Node lane's allow-list lives in.
+   Unreadable or absent ⇒ null, and `auditBrowserSkips` fails on it: a lost budget must not silently
+   re-open the door it closed (`tests/run-tests.mjs` fails closed on the allow-list for one reason). */
+const BROWSER_LANE = (() => {
+  try {
+    return createRequire(import.meta.url)('./expected-skips.json').browserLane || null;
+  } catch (_) {
+    return null;
+  }
+})();
 
 /* ── VERDICT-CONTRACT §3d — the five browser legs as ONE object ──────────────────────────────────
    Children = the legs this invocation runs (test-suite · provenance · no-network · night-seal ·
@@ -79,6 +89,71 @@ export function verdictSample() {
   );
 }
 
+/* ── THE BROWSER REALM'S SKIP BUDGET — residue 2026-11-08-the-browser-lane-has-no-skip-budget ──
+   `tests/expected-skips.json` opens with "Every skip the suite emits MUST appear here, or the run
+   REDS", and `auditSkips` enforces that in `tests/run-tests.mjs` alone. `Dex-Test-Suite.html` names
+   the file nowhere. Muse planted a browser-only skip and this gate stayed green at 189 of 188.
+
+   WHY A BUDGET AND NOT `auditSkips` HERE. The Node allow-list keys a skip on `group :: test` plus a
+   declared reason substring. Measured 2026-11-10 in a fresh worktree of `origin/main`: the browser
+   realm's headless floor emits 197 skips over 941 groups, so per-skip entries would pin 197 realm
+   differences as reviewable lines. Worse, 20 of those skips hand `T.skip` a reason as the NAME and
+   no detail, and `auditSkips` reads `t.detail` — an entry for one of them reds as `reason-drift`
+   forever, and an entry with no `detail` reds as `no-declared-reason`. So the realm gets three
+   numbers, each with its own tooth:
+
+     · `budget` CEILINGS the count and may only shrink. It is one-sided on purpose: 15 of the 197
+       skips need a gitignored recording, so a checkout that HAS the corpus runs them and the count
+       falls. The gate prints the slack and stays green. CI carries no corpus, so there the ceiling
+       sits tight against the measured number and a planted skip reds.
+     · `reasonClasses` declares every reason a browser skip may carry. A novel reason reds whatever
+       the count does, which is the swap a ceiling alone cannot see.
+     · `reasonInNameOnly` pins the 20 reason-in-name skips and reds the 21st.
+
+   Pure, so every arm is planted in the selftest below without a browser. */
+export function auditBrowserSkips(census, cfg) {
+  if (!census) return ['the browser skip census is unreadable (ALL_GROUPS absent) — this budget examined NOTHING, so it cannot pass'];
+  const c = cfg || {};
+  if (typeof c.budget !== 'number' || !Array.isArray(c.reasonClasses) || typeof c.reasonInNameOnly !== 'number') {
+    return ['tests/expected-skips.json carries no readable `browserLane` budget — the browser realm would run with no skip ceiling at all, which is the state the row logged'];
+  }
+  const rows = census.rows || [];
+  /* The reason is the detail, or the test NAME when the leg passed no detail — the 20 above. */
+  const reasonOf = (r) => (String(r.detail || '').trim() ? String(r.detail) : String(r.test || ''));
+  const named = (list) =>
+    list
+      .slice(0, 4)
+      .map((r) => r.group + ' :: ' + reasonOf(r).slice(0, 70))
+      .join('  |  ');
+  const inName = rows.filter((r) => !String(r.detail || '').trim());
+  const undeclared = rows.filter((r) => !c.reasonClasses.some((k) => reasonOf(r).indexOf(k) >= 0));
+  const fails = [];
+  if (rows.length > c.budget) {
+    fails.push(
+      'the browser realm emits ' +
+        rows.length +
+        ' skips over ' +
+        census.floorGroups +
+        ' headless-floor groups, above the declared budget of ' +
+        c.budget +
+        ' — a skip SHRINKS this gate, so raising `browserLane.budget` in tests/expected-skips.json is a deliberate act that owes a justification'
+    );
+  }
+  if (inName.length > c.reasonInNameOnly) {
+    fails.push(
+      inName.length +
+        ' browser skips carry the reason in the NAME and no detail, above the declared ' +
+        c.reasonInNameOnly +
+        ' — hand T.skip a second argument so the reason can be declared: ' +
+        named(inName)
+    );
+  }
+  if (undeclared.length) {
+    fails.push(undeclared.length + ' browser skip(s) carry a reason no `browserLane.reasonClasses` entry declares — declare the class or fix the leg: ' + named(undeclared));
+  }
+  return fails;
+}
+
 function selftest() {
   let n = 0;
   const eq = (a, b, msg) => {
@@ -121,6 +196,31 @@ function selftest() {
   );
   eq(browserGatesVerdict([], AT).status, 'NOT_RUN', '§3d plant · nothing ran ⇒ NOT_RUN');
   eq(verdictSample().status === 'PASS' && verdictSample().producedBy.commit === null, true, '§3d · --verdict-sample: five scratch legs ⇒ PASS, no commit');
+  /* ── the browser skip budget · row 2026-11-08-the-browser-lane-has-no-skip-budget ───────────── */
+  const CFG = { budget: 3, reasonClasses: ['Node-lane only', 'browser lane cannot'], reasonInNameOnly: 1 };
+  const row = (test, detail) => ({ group: 'G', test, detail });
+  const cen = (rows) => ({ floorGroups: 900, rcGroups: 12, rows });
+  const AT_CEIL = [row('a', 'Node-lane only — fs'), row('b', 'browser lane cannot import tools/x.mjs'), row('Y not in env — Node-lane only', '')];
+  eq(auditBrowserSkips(cen(AT_CEIL), CFG).length, 0, 'skip budget · at the ceiling, every reason declared, one reason-in-name ⇒ clean');
+  const over = auditBrowserSkips(cen([...AT_CEIL, row('d', 'Node-lane only — fs')]), CFG);
+  eq(
+    over.length === 1 && /4 skips over 900 headless-floor groups, above the declared budget of 3/.test(over[0]),
+    true,
+    'skip budget plant · ONE skip over the ceiling ⇒ FAIL, the count and the budget named'
+  );
+  eq(auditBrowserSkips(cen([row('a', 'Node-lane only — fs')]), CFG).length, 0, 'skip budget · UNDER the ceiling is clean — a corpus-bearing checkout runs the corpus legs and the count falls');
+  const novel = auditBrowserSkips(cen([row('a', 'a reason nobody declared')]), CFG);
+  eq(novel.length === 1 && /no `browserLane.reasonClasses` entry declares/.test(novel[0]), true, 'skip budget plant · a NOVEL reason UNDER the ceiling ⇒ FAIL (the swap a count cannot see)');
+  const inname = auditBrowserSkips(cen([row('p — Node-lane only', ''), row('q — browser lane cannot x', '')]), CFG);
+  eq(inname.length === 1 && /carry the reason in the NAME/.test(inname[0]), true, 'skip budget plant · a SECOND reason-in-name skip ⇒ FAIL, the legs named');
+  eq(auditBrowserSkips(null, CFG).length, 1, 'skip budget · an unreadable census FAILS — it examined nothing');
+  eq(/no readable `browserLane` budget/.test(auditBrowserSkips(cen([]), null)[0]), true, 'skip budget · a lost budget block FAILS CLOSED, as run-tests.mjs does with the allow-list');
+  eq(/no readable `browserLane` budget/.test(auditBrowserSkips(cen([]), { budget: 3, reasonClasses: ['x'] })[0]), true, 'skip budget · a budget block with no `reasonInNameOnly` is not a budget');
+  eq(
+    BROWSER_LANE !== null && typeof BROWSER_LANE.budget === 'number' && BROWSER_LANE.reasonClasses.length > 0,
+    true,
+    'skip budget · the SHIPPED block in tests/expected-skips.json is readable and non-empty'
+  );
   console.log(`all ${n} selftests passed`);
 }
 
@@ -257,6 +357,23 @@ async function gateTestSuite() {
         })
         .filter((t) => t.length > 0),
       failTotal: document.querySelectorAll('div.test.no').length,
+      /* THE SKIP CENSUS, sliced at the suite's OWN marker: `window.__headlessCount` is where the
+         shared groups end and render-coverage begins (Dex-Test-Suite.html sets it once the floor
+         finishes). Render-coverage's own skips are environmental — a cold-boot iframe, a budget
+         stall — and already reported as `bootSkips`, so they are counted and EXCLUDED here rather
+         than budgeted, which would red a slow runner on wall-clock. 197 rows cross the boundary,
+         not the ~9.7 k assertion names the labels check deliberately keeps in the page. */
+      skips: (() => {
+        if (typeof ALL_GROUPS === 'undefined' || !ALL_GROUPS) return null;
+        const floor = typeof window.__headlessCount === 'number' ? window.__headlessCount : ALL_GROUPS.length;
+        const rows = [];
+        ALL_GROUPS.slice(0, floor).forEach((G) => {
+          (G.tests || []).forEach((t) => {
+            if (t.skip) rows.push({ group: G.title, test: t.name, detail: t.detail == null ? '' : String(t.detail) });
+          });
+        });
+        return { floorGroups: floor, rcGroups: ALL_GROUPS.length - floor, rows };
+      })(),
       /* The rows above are only as complete as the page's markup. Before the suite escaped its
          names, an unclosed `<script …>` inside one detail turned every later row into script text:
          4633 of 13198 rows rendered, and a failing row past the break had no element to name
@@ -271,6 +388,22 @@ async function gateTestSuite() {
     FAILS.push('Dex-Test-Suite rendered ' + r.rowsRendered + ' of ' + r.rowsInMemory + ' test rows — a title, name or detail broke the page markup, so a failure past the break cannot be named here');
   }
   say('   summary:', r.summary + (r.bootSkips.length ? '   [boot-skips: ' + r.bootSkips.join(', ') + ']' : ''));
+  if (r.skips) {
+    const slack = BROWSER_LANE && typeof BROWSER_LANE.budget === 'number' ? BROWSER_LANE.budget - r.skips.rows.length : null;
+    say(
+      '   browser skips:',
+      r.skips.rows.length +
+        ' of budget ' +
+        (BROWSER_LANE && typeof BROWSER_LANE.budget === 'number' ? BROWSER_LANE.budget : '(none declared)') +
+        ' over ' +
+        r.skips.floorGroups +
+        ' headless-floor groups (' +
+        r.skips.rcGroups +
+        ' render-coverage groups excluded)' +
+        (slack > 0 ? ' — ' + slack + ' under; a corpus-bearing checkout runs legs CI cannot, so lower the budget only from a corpus-free tree' : '')
+    );
+  }
+  auditBrowserSkips(r.skips, BROWSER_LANE).forEach((f) => FAILS.push('Dex-Test-Suite skip budget — ' + f));
   say('   rows rendered:', r.rowsRendered + ' of ' + (r.rowsInMemory === null ? '(ALL_GROUPS unreadable)' : r.rowsInMemory));
   r.failures.forEach((f) => say('   ✕', f));
   if (r.failTotal > r.failures.length) say('   … and ' + (r.failTotal - r.failures.length) + ' more (listing capped at 25)');

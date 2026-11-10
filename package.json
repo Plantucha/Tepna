@@ -44,6 +44,7 @@
     "check:dex": "node tests/check-dex.mjs",
     "reconcile": "node tests/reconcile-provenance.mjs",
     "gates:browser": "node tests/browser-gates.mjs",
+    "verify:browser-gate-logic": "node tests/browser-gates.mjs --selftest",
     "gates:browser:local": "node tools/browser-lane.mjs",
     "release": "node tools/release.mjs",
     "release:dry": "node tools/release.mjs --dry-run",
