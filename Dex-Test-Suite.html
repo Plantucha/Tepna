@@ -735,7 +735,10 @@ async function main(){
   try {
     const manifestText = await fetchText('suite.manifest.json');
     const sitemapText = await fetchText('docs/sitemap.xml');
-    if (manifestText && sitemapText) discoverability = { manifestText, sitemapText };
+    // README.md joins the two: the group's header names the README table, and no leg could read it.
+    const readmeText = await fetchText('README.md');
+    if (manifestText && sitemapText && readmeText)
+      discoverability = { manifestText, sitemapText, readmeText };
   } catch(e) { /* absent → group skips */ }
 
   // FIXTURE-VERIFICATION-GATE §1 probe — mirrors run-tests.mjs readComputeHashProbe() byte-for-byte.

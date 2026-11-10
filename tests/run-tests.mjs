@@ -2706,8 +2706,13 @@ function readPreflight() {
 
 function readDiscoverability() {
   const manP = join(ROOT, 'suite.manifest.json'),
-    smP = join(ROOT, 'docs', 'sitemap.xml');
-  if (!existsSync(manP) || !existsSync(smP)) return null;
+    smP = join(ROOT, 'docs', 'sitemap.xml'),
+    /* The README node table is the one discoverability surface a person edits by hand, and the
+       group's own header already names it. It stayed out of the env, so no leg could read it, and
+       the manifest's `device` field drifted from it on two nodes
+       (2026-11-08-the-suite-manifest-device-fields-omit-two-devices). */
+    rmP = join(ROOT, 'README.md');
+  if (!existsSync(manP) || !existsSync(smP) || !existsSync(rmP)) return null;
   /* about.json and llms.txt come from the same roster and carry the only URLs built from a per-node
      field, so they are the surfaces where a null guide can be published as `<site>/null`. Absent is
      tolerated: the group says WHICH surface it could not read rather than passing over nothing. */
@@ -2716,6 +2721,7 @@ function readDiscoverability() {
   return {
     manifestText: readFileSync(manP, 'utf8'),
     sitemapText: readFileSync(smP, 'utf8'),
+    readmeText: readFileSync(rmP, 'utf8'),
     generated: {
       'docs/about.json': existsSync(abP) ? readFileSync(abP, 'utf8') : null,
       'docs/llms.txt': existsSync(llP) ? readFileSync(llP, 'utf8') : null
