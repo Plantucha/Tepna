@@ -56,6 +56,7 @@ import {
 } from '../tools/queue-doctor.mjs';
 import {
   classify as pwClassify,
+  cleanWorktree as pwCleanWorktree,
   plan as pwPlan,
   runIdOf as pwRunIdOf,
   landingPage as pwLandingPage,
@@ -3535,6 +3536,7 @@ async function main() {
     /* pr-walker's PURE core: classify() and plan() decide every action the timer takes on a PR, and
        the group `tools · pr-walker` pins them with planted snapshots — no `gh`, no clock. */
     pwClassify: pwClassify,
+    pwCleanWorktree: pwCleanWorktree,
     pwPlan: pwPlan,
     pwRunIdOf: pwRunIdOf,
     pwLandingPage: pwLandingPage,
