@@ -418,10 +418,411 @@
     };
   }
 
+  /* ── §∅ WHAT THIS ENGINE CANNOT MEASURE, AND WHY EACH ONE IS ABSENT ────────────────────────────
+     The node registry declares four metrics that ONE EEG channel over an EDF ingest cannot produce.
+     Each refusal carries its OWN reason, never a borrowed one: a null with no reason reads downstream
+     as "the recording was absent", which is a different fact from "this instrument cannot see it".
+
+     Two of them are absent BY DESIGN rather than pending a fix. `contactPct` is the headband contact
+     metric and `frontalAsym` needs the two frontal electrodes of that montage; the module header
+     above records the owner's park on that front end, so no ingest here will ever supply them. The
+     other two are honest gaps in this engine: there is no spindle DETECTOR (a sigma-band power is not
+     a spindle count), and the calm score is a composite over the three above. */
+  var REFUSALS = {
+    contactPct: 'no-contact-sidecar',
+    frontalAsym: 'single-channel-ingest',
+    spindleDensity: 'no-spindle-detector',
+    calmScore: 'depends-on-refused-inputs'
+  };
+
+  function refusalBlock() {
+    var out = {},
+      keys = Object.keys(REFUSALS);
+    for (var i = 0; i < keys.length; i++) out[keys[i]] = { value: null, reason: REFUSALS[keys[i]] };
+    return out;
+  }
+
+  function pct1(x) {
+    return x == null || !isFinite(x) ? null : +(100 * x).toFixed(1);
+  }
+  function round3(x) {
+    return x == null || !isFinite(x) ? null : +x.toFixed(3);
+  }
+  function p2(n) {
+    return (n < 10 ? '0' : '') + n;
+  }
+  /* §🔒.5 — display and the export's date-less `t` read `getUTC*` off the floating `tMs`. Local to
+     this node: the EDF ingest parses its stamps through `CpapEdf.parseEdfClock`, so nothing here
+     needs `DexClock`, and a formatter is not a parser. */
+  function fmtClockUTC(tMs) {
+    if (tMs == null || !isFinite(tMs)) return null;
+    var d = new Date(tMs);
+    return p2(d.getUTCHours()) + ':' + p2(d.getUTCMinutes()) + ':' + p2(d.getUTCSeconds());
+  }
+
+  /* ── THE NIGHT-LEVEL BAND SUMMARY ──────────────────────────────────────────────────────────────
+     The registry declares `totalPower`, `alphaRel`, `thetaRel` and `alphaTheta` as night metrics;
+     `epochBands` measures them per 30 s epoch. The aggregate is a MEDIAN over the epochs that
+     produced bands, never a mean: one disconnected or artefact epoch moves a mean of absolute power
+     by orders of magnitude, and the per-epoch refusals (a hole, a flat stretch, zero total power)
+     already remove the worst of them by returning null.
+
+     `alphaTheta` is the MEDIAN OF THE PER-EPOCH RATIOS, not the ratio of the two medians. The two
+     are different numbers, and only the first answers "what does a typical epoch's alpha/theta look
+     like". An epoch whose theta power is zero is EXCLUDED from that one metric and counted in
+     `ratioEpochs`, because a division by zero is not an infinity anybody measured.
+
+     Every value carries its own population, so a reader can never mistake a one-epoch median for a
+     night. */
+  function nightBands(sig, fs) {
+    var out = {
+      totalPower: null,
+      alphaRel: null,
+      thetaRel: null,
+      alphaTheta: null,
+      rel: null,
+      relSum: null,
+      reason: null,
+      ratioReason: null,
+      population: { epochs: 0, withBands: 0, ratioEpochs: 0 }
+    };
+    if (!sig || !sig.length) {
+      out.reason = 'no-samples';
+      return out;
+    }
+    if (!(fs > 0)) {
+      out.reason = 'no-sample-rate';
+      return out;
+    }
+    var step = Math.round(EPOCH_SEC * fs);
+    if (!(step > 0)) {
+      out.reason = 'no-sample-rate';
+      return out;
+    }
+    var nEp = Math.floor(sig.length / step);
+    out.population.epochs = nEp;
+    var tot = [],
+      per = { delta: [], theta: [], alpha: [], sigma: [], beta: [] },
+      ratio = [],
+      k;
+    for (var i = 0; i < nEp; i++) {
+      var b = epochBands(sig, i * step, (i + 1) * step, fs);
+      if (!b) continue;
+      tot.push(b.total);
+      for (k in per) per[k].push(b.rel[k]);
+      if (b.rel.theta > 0) ratio.push(b.rel.alpha / b.rel.theta);
+    }
+    out.population.withBands = tot.length;
+    out.population.ratioEpochs = ratio.length;
+    if (!tot.length) {
+      out.reason = 'no-analyzable-epoch';
+      return out;
+    }
+    out.totalPower = round3(median(tot));
+    /* ONE MEDIAN PER BAND, each over the same epochs but taken independently, so the five shares do
+       NOT sum to 100 %. A consumer drawing them as one stacked whole has to scale them by their own
+       sum and say so, which is why `relSum` is PUBLISHED here rather than left to be re-derived from
+       five rounded numbers. `alphaRel` and `thetaRel` stay as their own keys: they are registry
+       metrics with their own grades, and `rel` is a projection beside them, never their source. */
+    out.rel = { delta: null, theta: null, alpha: null, sigma: null, beta: null };
+    out.relSum = 0;
+    for (k in per) {
+      out.rel[k] = pct1(median(per[k]));
+      out.relSum += out.rel[k];
+    }
+    out.relSum = +out.relSum.toFixed(1);
+    out.alphaRel = out.rel.alpha;
+    out.thetaRel = out.rel.theta;
+    if (ratio.length) out.alphaTheta = round3(median(ratio));
+    else out.ratioReason = 'no-epoch-with-theta-power';
+    return out;
+  }
+
+  /* ── INGEST: EDF, the format the fleet already reads ───────────────────────────────────────────
+     Public sleep-EEG ships as EDF/EDF+, and `cpapdex-edf.js` already holds a general EDF reader plus
+     the EDF clock rule (the two-digit-year clipping at 85 and a round-trip check that rejects a
+     Feb-30). This node reads its EEG channel out of that reader instead of parsing the bytes twice.
+
+     NO SILENT FALLBACK. The reader lives in another module, so a realm that did not load it gets a
+     NAMED refusal. A guard that quietly returned null here would turn a load-order bug into "this
+     file has no EEG", which is the same class of lie one layer up. */
+  var EEG_LABEL_RE = /\b(EEG|C3|C4|O1|O2|F3|F4|F7|F8|Fp1|Fp2|Fpz|Cz|Pz|AF7|AF8|TP9|TP10)\b/i;
+
+  function ingestEDF(arrayBuffer, opts) {
+    opts = opts || {};
+    var lib = opts.edf || (typeof global !== 'undefined' && global ? global.CpapEdf : null);
+    if (!lib || typeof lib.readEDF !== 'function') return { ok: false, reason: 'edf-reader-absent' };
+    var edf = lib.readEDF(arrayBuffer);
+    if (!edf || !edf.signals) return { ok: false, reason: 'edf-unreadable' };
+    var labels = Object.keys(edf.signals),
+      pick = null,
+      i;
+    if (opts.channel) {
+      if (labels.indexOf(opts.channel) < 0) return { ok: false, reason: 'named-channel-absent', channels: labels };
+      pick = opts.channel;
+    } else {
+      for (i = 0; i < labels.length; i++) {
+        if (EEG_LABEL_RE.test(labels[i])) {
+          pick = labels[i];
+          break;
+        }
+      }
+    }
+    if (!pick) return { ok: false, reason: 'no-eeg-channel', channels: labels };
+    var ch = edf.signals[pick];
+    /* §∅ — the reader writes `fs: null` when the record duration is zero, which means "no periodic
+       sampling", not "zero hertz". A rate we do not have is not recoverable from a sample count. */
+    if (!ch || !(ch.fs > 0)) return { ok: false, reason: 'no-sample-rate', channel: pick, channels: labels };
+    if (!ch.data || !ch.data.length) return { ok: false, reason: 'channel-empty', channel: pick, channels: labels };
+    var clk = typeof lib.parseEdfClock === 'function' ? lib.parseEdfClock(edf.startDate, edf.startTime) : null;
+    return {
+      ok: true,
+      samples: ch.data,
+      fs: ch.fs,
+      /* §🔒.6 — an unparseable header stamp is `null`, never now() and never a date invented from the
+         file. Each epoch's `tMs` is then null too, and the export says so rather than guessing. */
+      t0Ms: clk ? clk.t0Ms : null,
+      offsetMin: clk ? clk.offsetMin : null,
+      t0Reason: clk ? null : 'edf-header-stamp-unparseable',
+      channel: pick,
+      channels: labels,
+      unit: ch.dim || null,
+      truncated: edf.truncated === true,
+      source: 'edf'
+    };
+  }
+
+  /* ── THE ADAPTER ENTRY POINT ───────────────────────────────────────────────────────────────────
+     `signal-spec.js` declares the `eeg` route's frame as `['samples','fs','t0Ms','offsetMin']` and
+     resolves its dsp to `EEGDSP`, while `analyze` reads `rec.eeg`. Those two shapes never met,
+     because the route has resolved to `undefined` in every shipped bundle since it was written, so
+     nothing ever exercised the mismatch. `compute` is the function that route needs, and it speaks
+     the frame. It also accepts the engine's own `{ eeg, fs }` shape, which the suite already uses. */
+  function compute(frame, opts) {
+    frame = frame || {};
+    opts = opts || {};
+    var sig = frame.samples || frame.eeg || null;
+    var fs = frame.fs;
+    if (!sig || !sig.length) return { err: 'no EEG signal', reason: 'no-samples' };
+    if (!(fs > 0)) return { err: 'no EEG signal', reason: 'no-sample-rate' };
+    var res = analyze({ eeg: sig, fs: fs, t0Ms: frame.t0Ms, emg: frame.emg, eog: frame.eog, emgFs: frame.emgFs, eogFs: frame.eogFs }, opts);
+    if (!res || res.err) return res || { err: 'no EEG signal', reason: 'analyze-returned-nothing' };
+    res.bands = nightBands(sig, fs);
+    res.t0Ms = frame.t0Ms == null ? null : frame.t0Ms;
+    res.offsetMin = frame.offsetMin == null ? null : frame.offsetMin;
+    res.t0Reason = frame.t0Ms == null ? frame.t0Reason || 'no-start-stamp' : null;
+    res.channel = frame.channel || null;
+    /* The EDF header's own physical dimension for this channel, carried through so a surface can
+       print the power unit it actually has. A synthetic frame declares none, and a renderer then
+       says the amplitude unit is undeclared instead of asserting µV². */
+    res.unit = frame.unit || null;
+    res.durSec = +(sig.length / fs).toFixed(1);
+    res.source = frame.source || null;
+    res.refused = refusalBlock();
+    return res;
+  }
+
+  /* THE FIVE BLOCKS, each written to satisfy ONE branch of `stageEpoch` in the order that function
+     tests them. `emg` and `eog` are per-block amplitudes, and the stager normalises each to the
+     RECORDING's own median, so what matters is their rank across the five rows and not the absolute
+     numbers: the median of both columns is the N1 row, which puts Wake above the tone threshold and
+     REM below it while leaving N2 excluded from REM by tone rather than by eye movement. */
+  var BLOCKS = [
+    // delta 0.08, beta+alpha 0.92, quiet spindle band, high tone -> the Wake arm
+    {
+      stage: 'W',
+      comps: [
+        [20, 14],
+        [10, 10],
+        [1.2, 5]
+      ],
+      emg: 3.0,
+      eog: 1.5
+    },
+    // theta-dominant, fast share under the Wake floor, tone at the median -> falls through to N1
+    {
+      stage: 'N1',
+      comps: [
+        [6, 14],
+        [1.2, 7],
+        [10, 5]
+      ],
+      emg: 1.0,
+      eog: 0.8
+    },
+    // the spindle band lifted against a moderate delta background -> the N2 arm
+    {
+      stage: 'N2',
+      comps: [
+        [1.2, 12],
+        [14, 10],
+        [6, 8]
+      ],
+      emg: 0.8,
+      eog: 0.7
+    },
+    // slow-wave dominance over the 0.65 relative-delta floor -> the N3 arm, tested first
+    {
+      stage: 'N3',
+      comps: [
+        [1.2, 40],
+        [10, 4]
+      ],
+      emg: 0.5,
+      eog: 0.5
+    },
+    // low delta with low tone and eye movement present -> the REM conjunction
+    {
+      stage: 'REM',
+      comps: [
+        [6, 10],
+        [10, 10],
+        [1.2, 8],
+        [20, 6]
+      ],
+      emg: 0.6,
+      eog: 3.0
+    }
+  ];
+
+  /* ── A DETERMINISTIC SYNTHETIC NIGHT ──────────────────────────────────────────────────────────
+     For the demo path and the render-coverage rig. It is authored arithmetic, NOT a corpus night and
+     no substitute for one: it proves the wiring, the units and the refusals, and it says nothing
+     about the stager's accuracy. The stager's accuracy is the held-out kappa in the TUNED block
+     above, measured against expert staging.
+
+     The signal alternates a slow-wave-dominant block and a fast-dominant block, so the hypnogram
+     holds more than one stage; a single-stage hypnogram would let a broken stager pass the rig. */
+  function genSynthetic(opts) {
+    opts = opts || {};
+    var fs = opts.hz > 0 ? opts.hz : 100;
+    var sec = opts.sec > 0 ? opts.sec : 1800;
+    var n = Math.round(fs * sec);
+    var nb = BLOCKS.length;
+    var blockSec = sec / nb;
+    var sig = new Float32Array(n),
+      emg = new Float32Array(n),
+      eog = new Float32Array(n);
+    var s = (opts.seed == null ? 7 : opts.seed) >>> 0 || 1;
+    var TAU = 2 * Math.PI;
+    for (var i = 0; i < n; i++) {
+      var t = i / fs;
+      var blk = BLOCKS[Math.min(nb - 1, Math.floor(t / blockSec))];
+      var v = 0;
+      for (var c = 0; c < blk.comps.length; c++) v += blk.comps[c][1] * Math.sin(TAU * blk.comps[c][0] * t);
+      s = (s * 1664525 + 1013904223) >>> 0;
+      sig[i] = v + 4 * (s / 4294967296 - 0.5);
+      s = (s * 1664525 + 1013904223) >>> 0;
+      emg[i] = blk.emg * (s / 4294967296 - 0.5);
+      s = (s * 1664525 + 1013904223) >>> 0;
+      eog[i] = blk.eog * (s / 4294967296 - 0.5);
+    }
+    return {
+      samples: sig,
+      fs: fs,
+      /* The two channels the stager's REM and Wake arms read. They are emitted because an ABSENT
+         channel makes those arms permissive, so a frame without them drives every low-delta epoch
+         into REM and three of the five branches become unreachable — the demo would then show a
+         two-stage night and a broken stager could pass the rig. */
+      emg: emg,
+      eog: eog,
+      emgFs: fs,
+      eogFs: fs,
+      /* A FLOATING wall-clock t0 (§🔒.1), fixed so the demo and the rig are reproducible. */
+      t0Ms: opts.t0Ms == null ? Date.UTC(2026, 0, 1, 23, 0, 0) : opts.t0Ms,
+      offsetMin: null,
+      channel: 'SYNTH-C4',
+      source: 'synthetic'
+    };
+  }
+
+  /* ── THE NODE EXPORT ───────────────────────────────────────────────────────────────────────────
+     `ganglior.node-export` v2.0, the envelope the other eight nodes emit. `recording.startEpochMs`
+     is the floating `t0Ms`; `sleep` and `quality` are declared envelope bags, so their inner keys
+     survive the scrub (`export-schema.js` recurses into `schema` and `recording` only).
+
+     ONE STAGE IMPULSE PER TRANSITION, named `stage_<stage>` because ECGDex already emits that
+     spelling for its HRV-derived stages. The Integrator can then hold an EEG stage against the
+     proxy for the same minute instead of reading two vocabularies for one fact.
+
+     `conf` is null, and that is deliberate. The hypnogram's own per-epoch `conf` is the CONSTANT
+     0.5 that `analyze` writes for every scored epoch, so it is a placeholder rather than a
+     measurement; ECGDex's 0.7 on the same impulse is the same kind of constant. Propagating either
+     would put a confidence on the bus that no instrument here produced, and `conf` is declared
+     0..1 OR null, so null is the value that states what we know. */
+  function buildNodeExport(summary, opts) {
+    summary = summary || {};
+    opts = opts || {};
+    var dk = typeof global !== 'undefined' && global ? global.DexKernel : null;
+    var kern = opts.kernel || dk || null;
+    var kfmt = kern ? { version: kern.VERSION, hash: kern.HASH } : null;
+    var arch = summary.architecture || {};
+    var hyp = summary.hypnogram || [];
+    var events = [],
+      prev = null,
+      i;
+    for (i = 0; i < hyp.length; i++) {
+      var ep = hyp[i];
+      if (!ep || ep.stage == null) {
+        /* An unscorable epoch BREAKS the run: the next scored epoch is a fresh transition, never a
+           continuation across a span nobody staged. */
+        prev = null;
+        continue;
+      }
+      if (ep.stage !== prev) {
+        events.push({
+          t: fmtClockUTC(ep.tMs),
+          tMs: ep.tMs == null ? null : ep.tMs,
+          impulse: 'stage_' + String(ep.stage).toLowerCase(),
+          node: 'EEGDex',
+          conf: null,
+          meta: { stage: ep.stage, epoch: ep.epoch }
+        });
+        prev = ep.stage;
+      }
+    }
+    return {
+      kernel: kfmt,
+      schema: { name: 'ganglior.node-export', version: '2.0', node: 'EEGDex', nodeVersion: '1.0', bus: 'ganglior' },
+      recording: {
+        /* A SEMANTIC TAG, never a path: `export-schema.js` guards `recording.source` with a
+           path-shaped predicate and drops a filename. The ingest sets it to 'edf' or 'synthetic'. */
+        source: summary.source || null,
+        startEpochMs: summary.t0Ms == null ? null : summary.t0Ms,
+        offsetMin: summary.offsetMin == null ? null : summary.offsetMin,
+        durSec: summary.durSec == null ? null : summary.durSec,
+        sampleRateHz: summary.fs == null ? null : summary.fs,
+        channel: summary.channel || null
+      },
+      sleep: {
+        epochSec: summary.epochSec == null ? EPOCH_SEC : summary.epochSec,
+        hypnogram: hyp.map(function (e) {
+          return { tMs: e.tMs, stage: e.stage };
+        }),
+        stageCounts: summary.stageCounts || null,
+        tstHours: arch.TST == null ? null : arch.TST,
+        sleepEfficiencyPct: arch.SE == null ? null : arch.SE,
+        n3Pct: arch.n3Pct == null ? null : arch.n3Pct,
+        remPct: arch.remPct == null ? null : arch.remPct,
+        bands: summary.bands || null
+      },
+      quality: {
+        analyzablePct: summary.quality ? summary.quality.analyzablePct : null,
+        nUnscorable: summary.quality ? summary.quality.nUnscorable : null,
+        nEpochs: summary.nEpochs == null ? null : summary.nEpochs,
+        /* The reason the start stamp is absent, beside the absence itself. */
+        t0Reason: summary.t0Reason || null,
+        refused: summary.refused || refusalBlock()
+      },
+      ganglior_events: events
+    };
+  }
+
   global.EEGDSP = {
     VERSION: VERSION,
     BANDS: BANDS,
     EPOCH_SEC: EPOCH_SEC,
+    REFUSALS: REFUSALS,
     epochBands: epochBands,
     stageEpoch: stageEpoch,
     smoothHypnogram: smoothHypnogram,
@@ -429,6 +830,20 @@
     rms: rms,
     median: median,
     analyze: analyze,
+    /* the app-facing surface: the adapter entry point, the EDF ingest, the night band summary,
+       the node export and the deterministic demo frame */
+    compute: compute,
+    ingestEDF: ingestEDF,
+    nightBands: nightBands,
+    buildNodeExport: buildNodeExport,
+    genSynthetic: genSynthetic,
+    fmtClock: fmtClockUTC,
     _fft: fft
   };
 })(typeof window !== 'undefined' ? window : this);
+
+// ESM-from-birth dual-mode (mirrors motiondex-render / glucodex-dsp): the IIFE above attaches
+// window.EEGDSP for every classic co-load consumer — the two test lanes, which classic-load this file
+// through tools/build-core.js `classicify`, and tools/eegdex-selftest.mjs, which does the same. This
+// re-export lets the owned ESM graph's eegdex-app.js `import { EEGDSP }` instead of reading window.
+export const EEGDSP = window.EEGDSP;
