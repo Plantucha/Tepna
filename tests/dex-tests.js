@@ -84640,23 +84640,23 @@
         T.skip('env.probeToolArgv provided to the runner', 'Node-lane only (spawns in a temp cwd) — the browser lane cannot spawn');
         return;
       }
-      var relBad = probeL('tools/release.mjs', ['--statu', '--dry-run']);
+      var relBad = probeL('tools/release.mjs', ['--statu', '--dry-run'], { isolateTmp: true });
       T.eq('release.mjs · a mistyped flag exits 2, not 0 and not 1', relBad.status, 2);
       T.ok('…and the refusal names the token and the flag meant', /--statu\b/.test(String(relBad.out)) && /--status/.test(String(relBad.out)), String(relBad.out).slice(0, 220));
       T.ok('…and it is a refusal, not a stack trace', !/\n\s+at\s|node:fs:\d/.test(String(relBad.out)), String(relBad.out).slice(0, 220));
       T.ok('…and the stamp step never began', !/This was the STAMP step only/.test(String(relBad.out)), String(relBad.out).slice(0, 220));
       /* THE FORWARD, proved by what it prints: release-land's own report, never release.mjs's stamp. */
-      var relSt = probeL('tools/release.mjs', ['--status', '--dry-run']);
+      var relSt = probeL('tools/release.mjs', ['--status', '--dry-run'], { isolateTmp: true });
       T.ok('release.mjs · --status reaches release-land.mjs instead of stamping', /no release-land run recorded|^remaining:|\nremaining:/m.test(String(relSt.out)), String(relSt.out).slice(0, 260));
       T.ok('…and nothing of the stamp step ran', !/This was the STAMP step only|Stamped v/.test(String(relSt.out)), String(relSt.out).slice(0, 260));
       T.ok('…at exit 0 (a report) or 1 (no run recorded on this machine), never 2', relSt.status === 0 || relSt.status === 1, 'status=' + relSt.status + ' out=' + String(relSt.out).slice(0, 160));
       /* release-land.mjs itself (Osprey, board #4749): every unread token fell through to a fresh run.
          The probe carries `--dry-run` for the reason above — a regressed guard previews, never releases. */
-      var landBad = probeL('tools/release-land.mjs', ['--statu', '--dry-run']);
+      var landBad = probeL('tools/release-land.mjs', ['--statu', '--dry-run'], { isolateTmp: true });
       T.eq('release-land.mjs · a mistyped flag exits 2', landBad.status, 2);
       T.ok('…naming the token and the flag meant', /--statu\b/.test(String(landBad.out)) && /--status/.test(String(landBad.out)), String(landBad.out).slice(0, 220));
       T.ok('…and no plan was printed', !/DRY RUN/.test(String(landBad.out)), String(landBad.out).slice(0, 220));
-      var landFwd = probeL('tools/release-land.mjs', ['--status', '--skip-gates']);
+      var landFwd = probeL('tools/release-land.mjs', ['--status', '--skip-gates'], { isolateTmp: true });
       T.ok('CONTROL · a flag release.mjs forwards is accepted, never refused', landFwd.status !== 2, 'status=' + landFwd.status + ' out=' + String(landFwd.out).slice(0, 160));
       var rtHelp = probeL('tests/run-tests.mjs', ['--help']);
       T.eq('run-tests.mjs · --help exits 0', rtHelp.status, 0);
