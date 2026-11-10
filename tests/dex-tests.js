@@ -61021,6 +61021,85 @@
       T.eq('glue sign ≡ serial sign', captured.sign, sOut.sign);
     });
 
+    /* ════ The SHIPPED worker blob, not a rebuild of it ════
+       Row 2026-11-08-the-ppg-worker-gates-test-a-rebuilt-blob-not-the-shipped-one. The two groups above
+       rebuild the blob from a regex over the deps list, so no gate ran `_buildWorkerURL`. A mutation that
+       empties the shipped blob killed the worker, the serial fallback returned the same peaks, and every
+       gate stayed green. This group evaluates the module in a realm with Blob, URL and Worker stubs, and
+       lets `detectChannelsAsync` call `_buildWorkerURL`. The Blob stub keeps the text that would ship. The
+       group then runs THAT text with a `self` stub, posts one message, and requires the serial answer. */
+    group('PpgDex SHIPPED worker blob (built by _buildWorkerURL) runs and ≡ the serial path', 'ppgdex-dsp · worker · regression', function (T) {
+      var src = (env.sources && env.sources['ppgdex-dsp.js']) || '';
+      var D = env.PPGDSP;
+      T.ok('ppgdex-dsp.js source + PPGDSP.detectChannel available', !!src && !!(D && typeof D.detectChannel === 'function'));
+      if (!src || !(D && typeof D.detectChannel === 'function')) return;
+      var blobs = [],
+        urls = {};
+      var stubs = {
+        Blob: function (parts) {
+          this.text = parts.join('');
+          blobs.push(this.text);
+        },
+        URL: {
+          createObjectURL: function (b) {
+            var u = 'blob:stub/' + blobs.length;
+            urls[u] = b.text;
+            return u;
+          }
+        },
+        // A throwing Worker sends detectChannelsAsync to its serial fallback after the URL is built.
+        Worker: function () {
+          throw new Error('stub Worker: the test runs the blob itself');
+        },
+        setTimeout: function () {}
+      };
+      var realm = {};
+      try {
+        var body = src.replace(/^export\s+const\s.*$/gm, '');
+        new Function('window', 'Blob', 'URL', 'Worker', 'setTimeout', body)(realm, stubs.Blob, stubs.URL, stubs.Worker, stubs.setTimeout);
+      } catch (e) {
+        T.ok('ppgdex-dsp.js evaluates in the stub realm', false, e.message);
+        return;
+      }
+      var R = realm.PPGDSP;
+      T.ok('the stub realm exposes PPGDSP.detectChannelsAsync', !!(R && typeof R.detectChannelsAsync === 'function'));
+      if (!(R && typeof R.detectChannelsAsync === 'function')) return;
+      var fs = 176.26,
+        n = Math.round(fs * 60);
+      var chan = new Float32Array(n);
+      for (var i = 0; i < n; i++) chan[i] = 1000 + 40 * Math.sin((2 * Math.PI * 1.2 * i) / fs) + 6 * Math.sin(i / 3);
+      R.detectChannelsAsync({ ch: [chan], fs: fs });
+      var shipped = Object.keys(urls).map(function (u) {
+        return urls[u];
+      })[0];
+      T.ok('_buildWorkerURL built exactly one blob', blobs.length === 1, 'blobs=' + blobs.length);
+      if (!shipped) return;
+      var posted = null;
+      var self = {
+        postMessage: function (m) {
+          posted = m;
+        }
+      };
+      var threw = '';
+      try {
+        new Function('self', shipped)(self);
+        var buf = new Float32Array(chan).buffer;
+        self.onmessage({ data: { idx: 0, buf: buf, fs: fs } });
+      } catch (e) {
+        threw = e.constructor.name + ': ' + e.message;
+      }
+      T.ok('the shipped blob evaluates and answers one message', !threw && !!posted, threw || 'no postMessage (blob ' + shipped.length + ' chars)');
+      if (!posted) return;
+      var sOut = D.detectChannel(chan, fs);
+      var arr = function (x) {
+        return JSON.stringify(Array.prototype.slice.call(x || []));
+      };
+      T.ok('the shipped blob found beats', posted.peaks && posted.peaks.length > 5, 'peaks=' + (posted.peaks && posted.peaks.length));
+      T.eq('shipped-blob peaks ≡ serial peaks', arr(posted.peaks), arr(sOut.peaks));
+      T.eq('shipped-blob feet ≡ serial feet', arr(posted.feet), arr(sOut.feet));
+      T.eq('shipped-blob sign ≡ serial sign', posted.sign, sOut.sign);
+    });
+
     group('PpgDex worker source is CLOSED — every function + const it references is shipped to the blob', 'ppgdex-dsp · worker · regression', function (T) {
       var src = (env.sources && env.sources['ppgdex-dsp.js']) || '';
       T.ok('ppgdex-dsp.js source available to the gate', !!src);
