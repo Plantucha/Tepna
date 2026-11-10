@@ -679,24 +679,35 @@ export function residueStates(text) {
   }
   return out;
 }
-/* merged: [{ number, body }]; done: { key: 'pr:<n>' | 'failed:…@<ms>' }. Returns the rows to close
-   and a note for each declared key that cannot close, so a typo is said once, not looped on. */
+/* The one outcome that used to be permanent AND silent. A `Residue-fixed:` line can land before the
+   row does, because the fix PR and the RESIDUE-only PR that appends the row are separate PRs. The
+   absent row then earned `note:no such row on main`, and only a `failed:` outcome ever retried, so
+   the row stayed OPEN for good (residue `2026-11-08-a-walker-closure-note-is-permanent-and-then-silent`).
+   An absent row is `absent:…@<ms>` now and comes back every `retryMin`; the legacy note heals on
+   first pass. A row that reads anything but OPEN is terminal, and stays a one-time `note:`. */
+const NOTE_NO_ROW = 'note:no such row on main';
+/* merged: [{ number, body }]; done: { key: 'pr:<n>' | 'failed:…@<ms>' | 'absent:…@<ms>' | 'note:<why>' }.
+   Returns the rows to close, a note for each declared key that cannot close (said once, never looped
+   on), and every key whose row is absent this pass, which the caller re-stamps so it comes back. */
 export function planClosures(merged, residueText, done, nowMs, retryMin = 60) {
   const states = residueStates(residueText);
   const close = [];
   const notes = [];
+  const absent = [];
   for (const pr of merged || []) {
     for (const key of parseResidueFixed(pr.body)) {
       const d = (done || {})[key];
-      if (d && !/^failed:/.test(d)) continue;
+      if (d && !/^(failed|absent):/.test(d) && d !== NOTE_NO_ROW) continue;
       if (d && nowMs - Number(d.split('@').pop()) < retryMin * 60000) continue;
       const st = states.get(key);
-      if (st === undefined) notes.push({ key, number: pr.number, why: 'no such row on main' });
-      else if (st !== 'OPEN') notes.push({ key, number: pr.number, why: `row already reads ${st}` });
+      if (st === undefined) {
+        if (!d) notes.push({ key, number: pr.number, why: 'no such row on main' });
+        if (!absent.some((a) => a.key === key)) absent.push({ key, number: pr.number });
+      } else if (st !== 'OPEN') notes.push({ key, number: pr.number, why: `row already reads ${st}` });
       else if (!close.some((c) => c.key === key)) close.push({ key, number: pr.number });
     }
   }
-  return { close, notes };
+  return { close, notes, absent };
 }
 /* Edit ONLY the state cell of each named row, and refuse if any other byte would move. */
 export function closeRowsText(text, close) {
@@ -767,6 +778,11 @@ export function pass(opts) {
     for (const n of pc.notes) {
       resLines.push(`RESIDUE #${n.number} declared ${n.key}: ${n.why} — nothing closed`);
       if (!opts.dryRun) state.closed[n.key] = `note:${n.why}`;
+    }
+    /* An absent row is not a verdict: re-stamp the clock so the next pass looks again. This runs
+       after the notes, so a first sight writes `absent:` and not the permanent `note:`. */
+    for (const a of pc.absent || []) {
+      if (!opts.dryRun) state.closed[a.key] = `absent:no such row on main@${now}`;
     }
     if (pc.close.length) {
       const inFlight = snap.prs.find((p) => (p.branch || '').startsWith(CLOSE_BRANCH_PREFIX));

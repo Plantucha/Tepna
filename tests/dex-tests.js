@@ -55192,6 +55192,42 @@
         T.eq('a row already handled is not planned again', pcl(MG, LED, { '2020-01-07-a-b': 'pr:99', '2020-01-06-c': 'note:x', '2020-01-01-zz': 'note:y' }, NOW).close.length, 0);
         T.eq('a failed attempt waits an hour', pcl(MG, LED, { '2020-01-07-a-b': 'failed:x@' + (NOW - 10 * MIN) }, NOW).close.length, 0);
         T.eq('…and retries after it', pcl(MG, LED, { '2020-01-07-a-b': 'failed:x@' + (NOW - 61 * MIN) }, NOW).close.length, 1);
+        /* A `Residue-fixed:` line can land BEFORE its row, because the fix PR and the RESIDUE-only
+           PR are separate PRs. The absent row used to earn a permanent `note:` and stay OPEN for
+           good. It is `absent:<ms>` now, and it comes back. */
+        T.eq(
+          'an absent row is reported for a re-stamp',
+          pc1.absent
+            .map(function (a) {
+              return a.key;
+            })
+            .join(),
+          '2020-01-01-zz'
+        );
+        var LED2 = LED + '\n| 2020-01-01-zz | 2020-01-01 | `w.js` | **d.** | e | OPEN |';
+        T.eq(
+          '…and it closes once the row lands',
+          pcl(MG, LED2, { '2020-01-01-zz': 'absent:no such row on main@' + (NOW - 61 * MIN) }, NOW).close.filter(function (c) {
+            return c.key === '2020-01-01-zz';
+          }).length,
+          1
+        );
+        T.eq(
+          'an absent row inside the retry window waits',
+          pcl(MG, LED2, { '2020-01-01-zz': 'absent:no such row on main@' + (NOW - 10 * MIN) }, NOW).close.filter(function (c) {
+            return c.key === '2020-01-01-zz';
+          }).length,
+          0
+        );
+        T.eq(
+          'a legacy permanent note heals on the first pass',
+          pcl(MG, LED2, { '2020-01-01-zz': 'note:no such row on main' }, NOW).close.filter(function (c) {
+            return c.key === '2020-01-01-zz';
+          }).length,
+          1
+        );
+        T.eq('a re-checked absent row says nothing twice', pcl(MG, LED, { '2020-01-01-zz': 'absent:no such row on main@' + (NOW - 61 * MIN) }, NOW).notes.length, 1);
+        T.eq('CONTROL: a terminal note never retries', pcl(MG, LED2, { '2020-01-06-c': 'note:row already reads fixed #10', '2020-01-07-a-b': 'pr:99', '2020-01-01-zz': 'pr:98' }, NOW).close.length, 0);
         var cr1 = crt(LED, pc1.close);
         T.ok('only the state cell moves', /\| e \| fixed #42 \|$/m.test(cr1.text) && cr1.changed.join() === '2020-01-07-a-b');
         T.eq(
