@@ -48477,12 +48477,12 @@
          denominator could turn a contracted null into NaN or Infinity without any test
          noticing. Every expected value below is computed from the fixture by hand (the
          percentile rule is linear interpolation over the sorted finite values at
-         (q/100)(n-1)). Four loop-bound mutants are NOT killed here and are equivalent:
-         the epap / resp-rate / tidal-volume / minute-ventilation concatenation loops
-         (cpapdex-dsp.js:1365, 1388, 1389, 1390) — an off-by-one there appends one
-         undefined per session, and every consumer of those four lanes reads through
-         _finite-filtered helpers (_p, _iqr, _cov), while the raw length only gates
-         null-ness, which an extra element never flips. */
+         (q/100)(n-1)). Four loop-bound mutants are killed by the E0 nulls below, not
+         equivalent: the epap / resp-rate / tidal-volume / minute-ventilation
+         concatenation loops (cpapdex-dsp.js:1365, 1388, 1389, 1390). An off-by-one
+         there appends one undefined per session, which flips the raw-length null gate
+         from 0 to 1 — and the _finite-filtered percentile then returns NaN, not null.
+         Kestrel's replay (#5178) measured exactly that on the default empty lanes. */
       function pool(over) {
         var p = {
           pressureMaskOn: [8],
@@ -48689,6 +48689,13 @@
          && weakened to || the empty pair would compute a NaN correlation. ── */
       var E0 = D.nightMetrics([pool({ pressureMaskOn: [], leakMaskOn: [], usageHours: 2, durSec: 7200 })]);
       T.eq('E0 · snorePressureCorr is null with both lanes empty', E0.snorePressureCorr, null);
+      /* ── The four empty lanes stay null, not NaN: each loop's off-by-one appends one
+         undefined, which flips the length gate and lets the percentile return NaN
+         (Kestrel #5178). ── */
+      T.eq('E0 · epap95 is null with no EPAP lane', E0.epap95, null);
+      T.eq('E0 · respRateMedian is null with no RR lane', E0.respRateMedian, null);
+      T.eq('E0 · tidVolMedian is null with no TV lane', E0.tidVolMedian, null);
+      T.eq('E0 · minVentMedian is null with no MV lane', E0.minVentMedian, null);
     });
 
     group('CPAPDex F8 — usage falls back to the BRP mask-on trace, and is null (not 0) with no lane at all', 'cpapdex-dsp · fabricated-zero · regression', function (T) {
