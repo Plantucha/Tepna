@@ -22703,6 +22703,53 @@
       T.ok('control · the DSP builder writes that same tag (the sibling being matched)', /source:\s*'ppg'/.test(dsp));
     });
 
+    /* Row `2026-11-08-the-scrub-source-guard-keeps-an-extensionless-filename`. `export-schema.js`
+       decides `recording.source` by SHAPE: a label with no path separator and no dotted extension
+       survives a scrubbed export. A person's name is that shape, so the boundary cannot be the
+       remedy (EXPORT-SOURCE-KEY-KINDS §3) and the WRITER decides. The three nodes that forward a
+       caller's label take only their own kebab-case tag form. Each leg runs the PLANT first and the
+       real tag SECOND, because compute() mutates the rec it is handed: a leg whose control cannot
+       watch a tag land is a leg watching nothing. */
+    group('a caller cannot name the input in recording.source', 'glucodex-dsp · ecgdex-dsp · ppgdex-dsp · export-schema', function (T) {
+      var PLANT_SOURCE = 'PLANT_PERSON_Ring_20260612230016';
+      T.ok('control · the planted label is the shape the boundary guard KEEPS (no separator, no extension)', !/[\\/]/.test(PLANT_SOURCE) && !/\.[A-Za-z0-9]{1,5}$/.test(PLANT_SOURCE), PLANT_SOURCE);
+
+      var G = env.GlucoDex,
+        GD = env.GLUDSP;
+      T.ok('GlucoDex + GLUDSP.genSynthetic co-loaded', !!(G && typeof G.compute === 'function' && GD && typeof GD.genSynthetic === 'function'));
+      if (G && typeof G.compute === 'function' && GD && typeof GD.genSynthetic === 'function') {
+        var gs = GD.genSynthetic({ days: 2 });
+        var gPlant = G.compute(gs, { source: PLANT_SOURCE });
+        T.ok('GlucoDex · the export keeps the parser tag, not the planted label', gPlant.recording && gPlant.recording.source === 'synthetic', gPlant.recording && gPlant.recording.source);
+        var gTag = G.compute(gs, { source: 'libre-cgm' });
+        T.ok('GlucoDex · control · a kebab-case tag still reaches the export', gTag.recording && gTag.recording.source === 'libre-cgm', gTag.recording && gTag.recording.source);
+      }
+
+      var EC = env.ECGDex,
+        ECD = env.ECGDSP;
+      T.ok('ECGDex + ECGDSP.genSynthetic co-loaded', !!(EC && typeof EC.compute === 'function' && ECD && typeof ECD.genSynthetic === 'function'));
+      if (EC && typeof EC.compute === 'function' && ECD && typeof ECD.genSynthetic === 'function') {
+        var erec = ECD.genSynthetic({ durSec: 300, seed: 20261108 });
+        EC.compute(erec, { source: PLANT_SOURCE });
+        T.ok('ECGDex · the rec keeps its own tag, not the planted label', erec.source === 'synthetic', erec.source);
+        EC.compute(erec, { source: 'polar-h10-ecg' });
+        T.ok('ECGDex · control · a kebab-case tag still lands on the rec', erec.source === 'polar-h10-ecg', erec.source);
+      }
+
+      var PG = env.PpgDex,
+        PD = env.PPGDSP,
+        SYp = env.SYNTH;
+      T.ok('PpgDex + PPGDSP.parsePPG + SYNTH.renderPPG co-loaded', !!(PG && typeof PG.compute === 'function' && PD && typeof PD.parsePPG === 'function' && SYp && typeof SYp.renderPPG === 'function'));
+      if (PG && typeof PG.compute === 'function' && PD && typeof PD.parsePPG === 'function' && SYp && typeof SYp.renderPPG === 'function') {
+        var tl = SYp.buildTimelines()[0];
+        var prec = PD.parsePPG(SYp.renderPPG(tl, SYp.pickWindow(tl)));
+        PG.compute(prec, { source: PLANT_SOURCE });
+        T.ok('PpgDex · the rec keeps its own tag, not the planted label', prec.source !== PLANT_SOURCE, 'rec.source is ' + String(prec.source) + ' (parsePPG declares none)');
+        PG.compute(prec, { source: 'o2ring-ppg' });
+        T.ok('PpgDex · control · a kebab-case tag still lands on the rec', prec.source === 'o2ring-ppg', prec.source);
+      }
+    });
+
     group('RR and PPI reach the bus, with beat times that are not reconstructed', 'ecgdex-dsp · ppgdex-dsp · interval-series', function (T) {
       var _E = env.ECGDex,
         P = env.PpgDex;
