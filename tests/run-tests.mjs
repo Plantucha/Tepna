@@ -96,7 +96,7 @@ import { attenuateAndRecover, buildTemplate as beatBuildTemplate } from '../tool
 import * as deviceStability from '../tools/device-stability.mjs';
 import * as beatCorrespondence from '../tools/beat-correspondence.mjs';
 import * as circularStats from '../tools/circular-stats.mjs';
-import { suiteVerdict, undecidedChildren, undeclaredSkipCount, unionVerdict } from '../tools/run-tests-verdict.mjs';
+import { lateDeclarationCount, suiteVerdict, undecidedChildren, undeclaredSkipCount, unionVerdict } from '../tools/run-tests-verdict.mjs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { basename, dirname, join, resolve } from 'node:path';
 import vm from 'node:vm';
@@ -110,7 +110,7 @@ import * as _nodeOs from 'node:os';
 import * as _nodePath from 'node:path';
 import * as _wtDone from '../tools/wt-done.mjs';
 import { rootTrackedFiles, walkRepoPaths, walkRepoPathsAll } from './docs-ledger-fs.mjs';
-import { planShards, partitionViolations, readTimings } from './shard-plan.mjs';
+import { lateDeclarations, planShards, partitionViolations, readTimings } from './shard-plan.mjs';
 /* THE ONE LEXER, handed to the suite rather than re-implemented in it. `tests/dex-tests.js` asserts
    the three-class partition and the comment projection `verdict-adoption.mjs` gates on; the browser lane
    cannot load a module path, so the group there skips by name. */
@@ -4043,8 +4043,12 @@ async function main() {
     const vd = await import('../tools/verify-drafts.mjs');
     process.exit(vd.verifyPile(ctx, undefined, { realmLabel: 'suite (run-tests.mjs --verify-drafts)' }));
   }
+  /* HOISTED, because two readers want the same list: the shard planner below, and the
+     late-declaration tripwire further down. The shard path already pays for this pass. */
+  let INVENTORY = null;
   if (SHARD) {
-    const inv = runDexTests({ ...env, listOnly: true }).groups.map((g) => ({ index: g.index, title: g.title }));
+    INVENTORY = runDexTests({ ...env, listOnly: true }).groups.map((g) => ({ index: g.index, title: g.title }));
+    const inv = INVENTORY;
     const { bins, weights, unknown } = planShards(inv, readTimings(), SHARD.total);
     const errs = partitionViolations(inv, bins);
     if (errs.length) {
@@ -4063,6 +4067,27 @@ async function main() {
   /* §3d — ONE object per process. A forked run's object is the UNION over its shard objects; any other
      run's is over the groups it ran (a --group= or --shard= run is a declared exclusion ⇒ filtered).
      The skip budget is judged here for the object; the human lane judges it again below for the exit. */
+  /* ── A GROUP DECLARED AT EXECUTION TIME IS IN NO SHARD ──────────────────────────────────────
+     (residue 2026-11-08-a-group-declared-only-at-execution-is-dropped-by-every-shard.)
+     `verify-shard-union` proves the plan partitions the `--list` inventory, and `--list` skips every
+     group BODY — so a `group()` call nested inside one is invisible to it. The plan is then a true
+     partition of a suite that is short by that group, every shard drops it, and the union gate goes
+     green. Muse planted one: `--jobs=6` reproduced the baseline exactly and never ran it, and only
+     `--deep` caught it, which CI does not run.
+
+     The execution pass DOES reach the nested call, so this run declares one group more than the
+     inventory holds. The comparison is free, it is pure (tests/shard-plan.mjs), and it runs in every
+     shard on every push. Two runs compare nothing: a forked run, whose children each judge their own
+     pass, and `--list`, which IS the inventory. */
+  const INV_FOR_LATE = forked || LIST_ONLY ? null : INVENTORY || runDexTests({ ...env, listOnly: true }).groups.map((g) => ({ index: g.index, title: g.title }));
+  const lateViolations = INV_FOR_LATE
+    ? lateDeclarations(
+        INV_FOR_LATE,
+        totalGroups,
+        groups.map((g) => ({ index: g.index, title: g.title }))
+      )
+    : [];
+
   const verdict = forked
     ? forked.verdict
     : LIST_ONLY
@@ -4073,7 +4098,8 @@ async function main() {
           groupFilter: groupFilter || null,
           groupIndices: GROUP_INDICES ? [...GROUP_INDICES] : null,
           shard: SHARD ? SHARD.label : null,
-          skipViolations: auditSkips(groups, EXPECTED_SKIPS.allow || []).violations
+          skipViolations: auditSkips(groups, EXPECTED_SKIPS.allow || []).violations,
+          lateViolations
         });
   if (__covPost && process.env.DEX_IV_COUNTS) {
     const iv = await __covPost('Profiler.takePreciseCoverage');
@@ -4123,7 +4149,14 @@ async function main() {
     /* AN UNDECLARED SKIP REDS THIS LANE TOO (residue 2026-11-08-the-json-lane-exits-0-on-an-undeclared-skip).
        The human lane below adds each skip-budget violation to `fail`; this lane did not, so the same
        input exited 0 here and 1 there, under an object that reads FAIL. */
-    const failed = (LIST_ONLY ? 0 : groups.reduce((a, g) => a + g.tests.filter((t) => !t.pass && !t.skip).length, 0)) + undecidedChildren(verdict).length + undeclaredSkipCount(verdict);
+    /* A LATE DECLARATION REDS THIS LANE TOO, for the reason the skip budget does: the human lane
+       adds it to `fail`, so this lane must read it off the object or the same input exits 0 here and 1
+       there. */
+    const failed =
+      (LIST_ONLY ? 0 : groups.reduce((a, g) => a + g.tests.filter((t) => !t.pass && !t.skip).length, 0)) +
+      undecidedChildren(verdict).length +
+      undeclaredSkipCount(verdict) +
+      lateDeclarationCount(verdict);
     // exitCode + return, NOT process.exit(): Node's stdout is ASYNC to a pipe (sync only to a file/TTY),
     // so process.exit() right after a ~140 KB console.log TRUNCATES it mid-write. Redirecting to a file
     // hid this; spawnSync (a pipe) got a half-written payload and "valid run, unparseable JSON". Setting
@@ -4253,6 +4286,18 @@ async function main() {
     for (const c of undecided.slice(0, 10)) console.log(paint('  ✕ ', C.red) + c.name + paint('  — ' + c.status, C.yellow));
     if (undecided.length > 10) console.log(paint('    … and ' + (undecided.length - 10) + ' more', C.dim));
     console.log(paint('  → A leg that cannot run owes a DECLARED skip (tests/expected-skips.json), never an empty group body.', C.yellow));
+  }
+
+  /* ── LATE DECLARATION ─────────────────────────────────────────────────────────────────────
+     A group the `--list` inventory cannot see is in no shard, so CI's six shards all go green having
+     never run it. Counted into `fail` exactly as the skip budget and the undecided groups are, so the
+     footer, the object and the exit code say one thing. */
+  if (lateViolations.length) {
+    fail += lateViolations.length;
+    console.log('\n' + paint('▸ LATE DECLARATION — ' + lateViolations.length + ' finding(s): a group the --list inventory cannot see', C.red));
+    console.log(paint('  Every shard plans from that inventory, so such a group runs in NO shard and the union gate stays green.', C.dim));
+    for (const v of lateViolations) console.log(paint('  ✕ ', C.red) + v);
+    console.log(paint('  → Declare every group at the top level of runDexTests (tests/dex-tests.js), never inside another group body.', C.yellow));
   }
 
   /* ── COVERAGE (G1) ────────────────────────────────────────────────────────────────────────
