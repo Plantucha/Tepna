@@ -3263,6 +3263,18 @@
     ]
    },
    "note": "reds when a root *.html sits in none of no-network.html's declared surface sets, so the gate's scope cannot silently fall behind the shipped set"
+  },
+  "tools/shellcheck-gate.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/shellcheck-gate.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "shellcheck over the repo's OWN shell scripts: criterion shellcheck_findings lte 0 at --severity=style over every tracked *.sh OUTSIDE capture-host/ (36 scripts on 94ff059fe), no baseline. The gap it closes: shellcheck ran in two places and both were inside capture-host/, so the 24 hook scripts that gate every session's commits, the 11 tools/*.sh and the one script beside a workflow faced no shell linter. Three constraints shape it \u2014 an ABSENT binary is NOT_RUN and EXIT 2 (it could not look, CLAUDE.md \u00a74c) and never a pass, because a 127 read as a missing tool is exactly how the absence waves through; the resolved binary PATH and VERSION ride in result, because the runner image's shellcheck flags three SC2015 sites the pinned 0.11.0 does not and two linters that disagree make one diff green locally and red in CI; and capture-host/ is excluded because it has its own gate, so no file gets a second opinion. \u00a7\u2205: no binary gives checked 0 and result null, not 0 findings. It caught a live defect on the first run \u2014 session-tailnet.test.sh held backticked prose inside a DOUBLE-quoted echo, so bash ran the term as a command and test:hooks printed 'fs.pipe-max-size: command not found' while exiting 0."
   }
  }
 }

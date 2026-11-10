@@ -63,7 +63,7 @@ check "key, no helper"           "$(run 1 none)" 0 EMPTY
 echo "### joins when both are present — one line, exit 0 either way, the key never printed"
 check "key + helper succeeds"    "$(run 1 ok)"   0 "session-tailnet: ts-up: up"
 check "key + helper fails"       "$(run 1 fail)" 0 "session-tailnet: join FAILED"
-echo "### the WRITER survives both early exits — a payload sized from `fs.pipe-max-size` cannot be absorbed"
+echo '### the WRITER survives both early exits — a payload sized from fs.pipe-max-size cannot be absorbed'
 # Every leg above reads only the hook's own exit code, and a hook that exits before it reads stdin
 # still exits 0 there. This leg watches the WRITER: an unread pipe kills it with SIGPIPE (141). The
 # pipe stays ON PURPOSE (a redirect has no writer to lose), and it repeats because the defect is a
@@ -73,8 +73,8 @@ head -c "$_PROBE_BYTES" /dev/zero | tr '\0' x > "$TMP/stdin-big"
 mkdir -p "$TMP/nobin"
 BASH_BIN="$(command -v bash)"
 writer() { # writer <key value or empty> → the worst writer exit over five laps
-  local worst=0 rc i
-  for i in 1 2 3 4 5; do
+  local worst=0 rc
+  for _ in 1 2 3 4 5; do
     cat "$TMP/stdin-big" | TS_AUTHKEY="$1" PATH="$TMP/nobin" "$BASH_BIN" "$H" >/dev/null 2>&1
     rc="${PIPESTATUS[0]}"; [ "$rc" != 0 ] && worst="$rc"
   done
