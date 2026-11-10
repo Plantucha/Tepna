@@ -115,3 +115,55 @@ export function partitionViolations(groups, bins) {
   }
   return errs;
 }
+
+/* ── A GROUP DECLARED AT EXECUTION TIME IS IN NO SHARD ────────────────────────────────────────────
+   `partitionViolations` above proves the plan partitions THE INVENTORY IT WAS GIVEN. It cannot see a
+   group the inventory never held, and the inventory can be short: `group()` in tests/dex-tests.js runs
+   only where control flow reaches it, and the `--list` pass skips every group BODY. So a `group()` call
+   nested inside another group's body is invisible to `--list`. planShards then packs a suite that drops
+   it, this partition proof passes, every shard drops it too, and the shard-union gate stays green
+   (residue 2026-11-08-a-group-declared-only-at-execution-is-dropped-by-every-shard: a planted group at
+   bf715e4e5 let `--jobs=6` reproduce the baseline exactly and never run it, and only `--deep` caught
+   it, which CI does not run).
+
+   The EXECUTION pass does reach the nested call, so it declares one group more than the inventory
+   holds. That disagreement is the detector, and it is free: both numbers already exist in every run.
+
+   Pure, and ONE-SIDED by construction. A run whose bodies never reach the nested call cannot see it,
+   so a filtered or sharded run under-reports rather than accusing an unselected group. An inventory
+   LARGER than the declaration count is not this defect, so this stays silent on it: a shard claiming a
+   group no run declares is `partitionViolations`'s third rule. */
+export function lateDeclarations(inventory, totalDeclared, ran = []) {
+  const inv = Array.isArray(inventory) ? inventory : [];
+  if (!inv.length) return ['the declaration inventory is EMPTY — this check examined nothing, so it cannot pass'];
+  if (!Number.isInteger(totalDeclared)) return ['the execution pass reported no declaration count (totalGroups) — this check cannot compare what it cannot read'];
+  const errs = [];
+  const byIndex = new Map(inv.map((g) => [g.index, g.title]));
+  const extra = totalDeclared - inv.length;
+  if (extra > 0)
+    errs.push(
+      `${extra} group(s) were declared DURING the execution pass: the --list inventory holds ${inv.length}, this run declared ${totalDeclared}. ` +
+        'A group --list cannot see is in no shard, so every shard drops it and the shard-union gate stays green. Declare every group at the top level of runDexTests.'
+    );
+  /* CAPPED, because an index drift is a CASCADE: a nested group() at position k shifts every later
+     group by one, so a 900-group suite would otherwise print 900 lines about one defect. The first
+     drifted index is the address and the count is the size. */
+  const absent = [];
+  let drift = 0;
+  let firstDrift = null;
+  for (const g of Array.isArray(ran) ? ran : []) {
+    if (!byIndex.has(g.index)) absent.push(`group ${g.index} "${g.title}" RAN and is absent from the declaration inventory — no shard would ever claim it`);
+    else if (byIndex.get(g.index) !== g.title) {
+      drift++;
+      if (firstDrift === null) firstDrift = `group ${g.index} is "${g.title}" in this run and "${byIndex.get(g.index)}" in the inventory`;
+    }
+  }
+  errs.push(...absent.slice(0, 3));
+  if (absent.length > 3) errs.push(`…and ${absent.length - 3} more group(s) that ran outside the inventory`);
+  if (drift)
+    errs.push(
+      `${drift} group(s) carry a different title in this run than in the inventory, first: ${firstDrift}. ` +
+        'A late declaration shifts every later index, so the shards pack one suite and run another.'
+    );
+  return errs;
+}
