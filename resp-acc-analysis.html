@@ -2583,6 +2583,12 @@ function adaptOxyDex(json, filename) {
       kernelHash: _kernelHash(n.kernel || _topKernel),
       kernelVersion: _kernelVersion(n.kernel || _topKernel),
       contentId: n.contentId != null ? n.contentId : null, // EXPORT-IDENTITY-FOLLOWUPS-II §1 (per-night identity-free handle)
+      /* §6.2 SPARSE coverage — the OxyDex writer declares the night's dropout segments
+         (oxydex-dsp.js `oxyCoverage`), on the night and, for a single-night export, on
+         `recording.coverage`. This adapter dropped it, so `recSegments` read the whole envelope and
+         a 2-segment night read as recordedFrac 1. A multi-night export declares no top-level block
+         (oxydex-app.js `_aCov`), so the top-level read is single-night only. */
+      coverage: n.coverage || (nights.length === 1 && json && !Array.isArray(json) && json.recording && json.recording.coverage) || null,
       nEvents: events.length,
       raw: n,
       _src: filename
@@ -5505,10 +5511,20 @@ function _pbObserver(rec) {
       .filter(function (c) {
         return c != null && isFinite(c);
       });
-    var conf = cs.length ? median(cs) : pct != null ? clamp(0.5 + (Math.min(pct, 40) / 40) * 0.4, 0.5, 0.9) : 0.6;
+    /* ∅ · NO SOURCE OF A CONFIDENCE MEANS NULL, never 0.6. Two sources can state one here: the
+       episodes' own `conf` values in `cs`, and `pct`, the device-scored share of the night. The
+       guard above admits a record on either, so a record can arrive with episodes whose every
+       `conf` is null and no `pct` — an imported `ganglior.node-export` may legally carry
+       `conf: null` on each event, which `crossnight-envelope.js` validates as "0..1 or null", and
+       the OxyDex branch never reads `pct` into its own observer. The 0.6 that stood here until
+       2026-11-10 published that state as a measured mid-confidence. `combineConf` skips a null
+       already, so the fused number moves only where NO observer states a confidence, and there it
+       becomes null rather than 0. */
+    var conf = cs.length ? median(cs) : pct != null ? clamp(0.5 + (Math.min(pct, 40) / 40) * 0.4, 0.5, 0.9) : null;
+    var confOut = conf != null ? +conf.toFixed(2) : null;
     return rec.node === 'CPAPDex'
-      ? { node: 'CPAPDex', channel: 'device flow', tier: 'device-scored', episodes: pb.length, pbPct: pct != null ? pct : null, cvhrIndex: null, conf: +conf.toFixed(2) }
-      : { node: 'OxyDex', channel: 'SpO₂ oscillation', tier: 'experimental', episodes: pb.length, pbPct: null, cvhrIndex: null, conf: +conf.toFixed(2) };
+      ? { node: 'CPAPDex', channel: 'device flow', tier: 'device-scored', episodes: pb.length, pbPct: pct != null ? pct : null, cvhrIndex: null, conf: confOut }
+      : { node: 'OxyDex', channel: 'SpO₂ oscillation', tier: 'experimental', episodes: pb.length, pbPct: null, cvhrIndex: null, conf: confOut };
   }
   if (rec.node === 'ECGDex') {
     var idx = rec.summary && rec.summary.cvhrIndex != null ? rec.summary.cvhrIndex : null;
@@ -5556,7 +5572,11 @@ function fusePeriodicBreathing(recs) {
       if (!isFinite(t0)) t0 = null;
       var conf = combineConf(
         obs.map(function (o) {
-          return (o.conf != null ? o.conf : 0) * (PB_TIER_WEIGHT[o.tier] || 0.6);
+          /* ∅ · an observer that states no confidence contributes NOTHING, and `combineConf`
+             skips a null for us. The 0 that stood here read as a stated zero: it set that
+             function's `any` flag, so a group where no observer stated a confidence published a
+             fused `conf: 0` instead of null. */
+          return o.conf != null ? o.conf * (PB_TIER_WEIGHT[o.tier] || 0.6) : null;
         })
       );
       var note =

@@ -23,6 +23,14 @@ set -uo pipefail
 # which an `unset` at the top of the file does not touch.
 unset CLAUDE_ALLOW_STALE_BRIEF
 H="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/guard-stale-brief.sh"
+# The shared needle readers. A leg whose PASS is an ABSENCE needs a reader that cannot fail to
+# look, and `grep` through a pipe reads "could not look" as "not there" — row
+# 2026-11-09-four-selftest-legs-print-ok-when-their-reader-fails-to-look.
+_LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/tools/hook-test-lib.sh"
+if [ ! -r "$_LIB" ]; then printf '  REFUSE  the needle readers are unreadable at %s\n' "$_LIB" >&2; exit 2; fi
+# The path is a runtime expression, so shellcheck resolves it only under -x, which no gate runs.
+# shellcheck source=../../tools/hook-test-lib.sh disable=SC1091
+. "$_LIB"
 # ⚠ THE WRITER-FATE PAYLOAD IS SIZED FROM THE KERNEL, NOT FROM A ROUND NUMBER. `--probe-bytes` returns
 # four times this box's `fs.pipe-max-size` with a 4 MiB floor, and nothing past that ceiling can be
 # absorbed into a pipe. The literal 100 KB these legs used to stage looked like twice the 64 KB pipe
@@ -47,7 +55,7 @@ trap 'rm -rf "$TMP"' EXIT
 UP="$TMP/upstream"; WORK="$TMP/work"
 git init -q --bare "$UP"
 git clone -q "$UP" "$WORK" 2>/dev/null
-cd "$WORK"
+cd "$WORK" || exit 1
 git config user.email t@t; git config user.name t
 mkdir -p briefs tools
 printf 'v1\n' > briefs/SHARED-BRIEF.md
@@ -86,6 +94,41 @@ expect() { # expect <want> <label> <file>
   if [ "$got" = "$1" ]; then printf '  ok    %-58s %s\n' "$2" "$got"
   else printf '  FAIL  %-58s got %s, want %s\n' "$2" "$got" "$1"; fail=$((fail+1)); fi
 }
+
+# ── A PRECONDITION NOBODY MEASURED IS NOT A PRECONDITION ────────────────────────────────────────
+# Rows 2026-11-04-the-hooks-gate-flakes-on-the-worktree-creating-cd-shape and
+# 2026-11-05-the-stale-brief-self-test-flake-reds-a-leg-the-row-does-not-name. Every `git` line that
+# builds a fixture in this file is silenced — `git clone`, `git push`, `git fetch`, `git worktree
+# add`, `git merge` and `git cherry-pick` among them. A setup that fails therefore leaves the legs
+# below judging the hook over a state nobody built, and the red names the RULE.
+#
+# Three groups already measure their own state: the stale root beside its current worktree, then
+# `MERGE_HEAD`, then `CHERRY_PICK_HEAD`. Each one hand-rolls the same `if`. `fixture` below states
+# that shape once, and the six groups that carried no such line now use it.
+#
+# FALSIFIED 2026-11-10, one sabotage a group: each sabotage reds its OWN line, and no other
+# line claims it. Three of the six changed nothing else in the 191 legs — a `$TMP/norepo` that
+# IS a repo, an `$R2` that never runs `git init`, and an oversized payload of zero bytes — so
+# those three legs used to pass over a state nobody built. The sabotage that reds 80 legs is the
+# main fixture, which is the other reason its failure cannot be either flake arrival.
+#
+# ⚠ THIS EXPLAINS NEITHER FLAKE ARRIVAL. Both reds hit ONE leg, and the main fixture builds the
+# state that forty legs read, so its failure reds forty. The point is narrower: a reader can now
+# tell "the hook answered wrongly" from "the state the leg reads never existed". §∅ holds for a
+# precondition as much as for a sample.
+fixture() { # fixture <what the legs below read> <measured token> <wanted token>
+  if [ "$2" = "$3" ]; then printf '  ok    fixture: %-50s %s\n' "$1" "$3"; return 0; fi
+  printf '  FAIL  fixture: %s — measured %s, want %s\n' "$1" "${2:-<empty>}" "$3"
+  printf '        THE LEGS BELOW WOULD JUDGE THE HOOK OVER A STATE NOBODY BUILT.\n'
+  fail=$((fail + 1))
+}
+_fx_base="$(git -C "$WORK" merge-base HEAD origin/main 2>/dev/null)"
+_fx_moved="$(git -C "$WORK" log --oneline "$_fx_base"..origin/main -- briefs/SHARED-BRIEF.md 2>/dev/null)"
+fixture "the guarded brief moved on origin/main, this branch lacks it" \
+  "$([ -n "$_fx_moved" ] && echo MOVED || echo UNMOVED)" MOVED
+_fx_other="$(git -C "$WORK" log --oneline "$_fx_base"..origin/main -- briefs/OTHER-BRIEF.md 2>/dev/null)"
+fixture "the paired control brief did NOT move" \
+  "$([ -z "$_fx_other" ] && echo UNMOVED || echo MOVED)" UNMOVED
 
 echo "### the divergence it exists to catch"
 expect DENY  "brief advanced on origin/main, branch has not"        "briefs/SHARED-BRIEF.md"
@@ -362,9 +405,11 @@ echo "### WHAT THE DENIAL SAYS — the verdict is not the only thing a reader ha
 # which of the two cases they are in. Every needle below is paired with a command that must NOT
 # print it — a line the block prints unconditionally would otherwise score as loudly as a real one.
 saysof() { # saysof <command string> ; echoes the hook's stderr, the denial text
+  # shellcheck disable=SC2069  # deliberate: stdout goes to /dev/null and the leg reads the hook's STDERR.
   jq -nc --arg c "$1" '{tool_input:{command:$c}}' | bash "$H" 2>&1 >/dev/null
 }
 saysof_f() { # saysof_f <file_path> ; same, for an Edit/Write payload
+  # shellcheck disable=SC2069  # deliberate: stdout goes to /dev/null and the leg reads the hook's STDERR.
   printf '{"tool_input":{"file_path":"%s"}}' "$1" | bash "$H" 2>&1 >/dev/null
 }
 # A NEEDLE-ON-A-MESSAGE FAIL IS UNREADABLE WITHOUT THE MESSAGE. Residue
@@ -401,18 +446,11 @@ _recapture() { # _recapture cmd:<command> | file:<path> ; the recipe carries a p
   esac
 }
 # ── THE READER MUST NOT BE ABLE TO FAIL TO LOOK ──────────────────────────────────
-# Row 2026-11-09-guard-selftest-reads-a-failed-reader-as-an-absent-needle. Every leg below used to
-# pipe its captured text into `grep -qF` and read PRESENT from exit 0, ABSENT from anything else.
-# That reads three states as one word: a reader that exited 2 because it could not run, a reader
-# killed by a signal, and a needle that is honestly absent. classify read the needle TWICE through
-# that shape, so two FAILED reads agreed, it printed STABLE-TEXT, and _cause_note then sent the
-# reader at their own diff. The fix is not a third verdict for a reader that could not look. It is
-# to keep no reader that can fail: a case pattern with the needle QUOTED is a literal substring
-# test in the shell itself. No subprocess, no exit status to collapse, and no pipe to meet SIGPIPE
-# on a text over the 64 KiB buffer. The quotes are load-bearing — unquoted, a * in a needle globs.
-says() { # says <needle> <text> ; 0 = PRESENT, 1 = ABSENT. It cannot report a third thing.
-  case "$2" in *"$1"*) return 0 ;; *) return 1 ;; esac
-}
+# Row 2026-11-09-guard-selftest-reads-a-failed-reader-as-an-absent-needle, and then row
+# 2026-11-09-four-selftest-legs-print-ok-when-their-reader-fails-to-look for the three other hook
+# self-tests that needed the same reader. `says` therefore lives in `tools/hook-test-lib.sh`,
+# sourced at the top of this file, and its header carries the measurement, the three states a
+# piped `grep -qF` folds into one word, and the reason the quotes in the pattern are load-bearing.
 classify() { # classify <first text> <retry text> <needle> ; one token naming the cause
   local a=ABSENT b=ABSENT
   says "$3" "$1" && a=PRESENT
@@ -580,11 +618,21 @@ else echo "  FAIL  malformed payload denied"; fail=$((fail+1)); fi
 echo
 echo "### fails OPEN outside a repo (a git hiccup must not block all doc edits)"
 mkdir -p "$TMP/norepo/briefs"; printf 'x\n' > "$TMP/norepo/briefs/A.md"
+# The ALLOW below wants the no-repo case. A dir that IS in a repo with no moved brief also allows,
+# so an unmeasured setup turns this leg vacuous rather than red.
+fixture "the no-repo dir sits outside every git repo" \
+  "$(git -C "$TMP/norepo" rev-parse --show-toplevel >/dev/null 2>&1 && echo IN-A-REPO || echo OUTSIDE)" OUTSIDE
 got="$(cd "$TMP/norepo" && printf '{"tool_input":{"file_path":"briefs/A.md"}}' | bash "$H" >/dev/null 2>&1; [ $? -eq 2 ] && echo DENY || echo ALLOW)"
 if [ "$got" = ALLOW ]; then echo "  ok    no git repo ⇒ ALLOW"
 else echo "  FAIL  denied outside a repo"; fail=$((fail+1)); fi
 # a repo with no origin/main at all
 R2="$TMP/noremote"; mkdir -p "$R2/briefs"; (cd "$R2" && git init -q . && git config user.email t@t && git config user.name t && printf 'x\n' > briefs/A.md && git add -A >/dev/null && git commit -qm x)
+# Same vacuity in the other direction: a `git init` that failed leaves NO repo, which allows for
+# the reason the leg above already covers. This leg needs a repo that carries no `origin/main`.
+fixture "the no-remote repo is a repo, and carries no origin/main" \
+  "$(git -C "$R2" rev-parse --git-dir >/dev/null 2>&1 \
+      && { git -C "$R2" rev-parse --verify -q origin/main >/dev/null 2>&1 && echo HAS-ORIGIN || echo NO-ORIGIN; } \
+      || echo NOT-A-REPO)" NO-ORIGIN
 got="$(cd "$R2" && printf '{"tool_input":{"file_path":"briefs/A.md"}}' | bash "$H" >/dev/null 2>&1; [ $? -eq 2 ] && echo DENY || echo ALLOW)"
 if [ "$got" = ALLOW ]; then echo "  ok    no origin/main ⇒ ALLOW"
 else echo "  FAIL  denied with no origin/main"; fail=$((fail+1)); fi
@@ -641,6 +689,12 @@ STALE="$TMP/stale-worktree"
 CUR="$TMP/current-worktree"
 git -C "$WORK" worktree add -q --detach "$STALE" mine 2>/dev/null
 git -C "$WORK" worktree add -q --detach "$CUR" origin/main 2>/dev/null
+# `run_from` cds into these two trees. A `worktree add` that failed leaves the cd failing, so the
+# subshell measures whatever tree it already stood in.
+_fx_s="$(git -C "$STALE" rev-parse HEAD 2>/dev/null)"
+_fx_c="$(git -C "$CUR" rev-parse HEAD 2>/dev/null)"
+fixture "the stale and current worktrees exist, at DIFFERENT commits" \
+  "$([ -n "$_fx_s" ] && [ -n "$_fx_c" ] && [ "$_fx_s" != "$_fx_c" ] && echo TWO-TREES || echo NOT-BUILT)" TWO-TREES
 
 run_from() { # run_from <cwd> <file_path>
   ( cd "$1" && printf '{"tool_input":{"file_path":"%s"}}' "$2" | bash "$H" >/dev/null 2>&1
@@ -706,6 +760,7 @@ expectcmd_from ALLOW "bash cd->CURRENT, cwd inside IT - still allowed" "$CUR" \
 # here is that the denial SAYS SO: a block that cannot explain itself trains the reader to reach for
 # the escape hatch by reflex, and a hatch-by-reflex guard is one that fails the day it is right.
 msgcmd_from() { # msgcmd_from <cwd> <command> — the hook's stderr
+  # shellcheck disable=SC2069  # deliberate: stdout goes to /dev/null and the leg reads the hook's STDERR.
   ( cd "$1" && jq -nc --arg c "$2" '{tool_input:{command:$c}}' | bash "$H" 2>&1 >/dev/null )
 }
 ghost="$STALE/does-not-exist-yet"
@@ -713,7 +768,7 @@ ghost_cmd="cd $ghost && python3 -c \"open('briefs/SHARED-BRIEF.md','w').write('v
 expectcmd_from DENY "bash cd->a tree that does not exist yet - still denied" "$STALE" "$ghost_cmd"
 gm="$(msgcmd_from "$STALE" "$ghost_cmd")"
 case "$gm" in
-  *"THIS BASE IS THE SHARED ROOT'S"*) printf '  ok    %-58s %s\n' "...and the denial NAMES the missing tree" "explained" ;;
+  *"THIS BASE BELONGS TO THE SHARED ROOT"*) printf '  ok    %-58s %s\n' "...and the denial NAMES the missing tree" "explained" ;;
   *) printf '  FAIL  %-58s %s\n' "...and the denial NAMES the missing tree" "message does not explain the fallback"; fail=$((fail+1)); dump_msg "a cd to a tree that does not exist yet" "$gm" ;;
 esac
 case "$gm" in
@@ -724,7 +779,7 @@ esac
 # becomes wallpaper on every denial and stops meaning anything.
 em="$(msgcmd_from "$STALE" "cd $STALE && python3 -c \"open('briefs/SHARED-BRIEF.md','w').write('v3')\"")"
 case "$em" in
-  *"THIS BASE IS THE SHARED ROOT'S"*) printf '  FAIL  %-58s %s\n' "...and an EXISTING tree carries no such note" "note leaked onto a normal denial"; fail=$((fail+1)); dump_msg "a cd to a tree that exists" "$em" ;;
+  *"THIS BASE BELONGS TO THE SHARED ROOT"*) printf '  FAIL  %-58s %s\n' "...and an EXISTING tree carries no such note" "note leaked onto a normal denial"; fail=$((fail+1)); dump_msg "a cd to a tree that exists" "$em" ;;
   *) printf '  ok    %-58s %s\n' "...and an EXISTING tree carries no such note" "clean" ;;
 esac
 
@@ -906,6 +961,7 @@ echo "### THE TWO COPIES OF THE STRIPPER STAY BYTE-IDENTICAL"
 # other was not, so the parity is asserted rather than trusted.
 # Normalised on the ONE thing that legitimately differs: each hook names its folded command
 # variable for itself ($cmdn there, $cmdf here). Everything else must match byte for byte.
+# shellcheck disable=SC2016  # sed scripts in single quotes; $cmdn and $C are sed text, not this shell's.
 _strip_of() { sed -n '/^cmd_nohere=/,/^fi$/p' "$1" | sed 's/\$cmdn/$C/g; s/\$cmdf/$C/g'; }
 _A="$(_strip_of "$HOOKDIR/guard-shared-tree.sh")"
 _B="$(_strip_of "$HOOKDIR/guard-stale-brief.sh")"
@@ -932,6 +988,7 @@ bashrun() { # bashrun <command> ; echoes the stderr
     echo "  FAIL  bashrun payload is not valid JSON — every verdict below would be vacuous"
     fail=$((fail+1)); return
   }
+  # shellcheck disable=SC2069  # deliberate: stdout goes to /dev/null and the leg reads the hook's STDERR.
   printf '%s' "$js" | bash "$H" 2>&1 >/dev/null
 }
 MSG_PLAIN="$(bashrun "sed -i s/a/b/ briefs/SHARED-BRIEF.md")"
@@ -943,13 +1000,13 @@ else echo "  FAIL  denial does not give the distance"; fail=$((fail+1));dump_msg
 # THE SHAPE THAT DEFEATED IT: a leading cd to an EXISTING dir, then the worktree that does not exist.
 MISSING="$TMP/not-created-yet"
 MSG_WT="$(bashrun "cd $WORK && git worktree add $MISSING && cd $MISSING && sed -i s/a/b/ briefs/SHARED-BRIEF.md")"
-if says 'THIS BASE IS THE SHARED ROOT' "$MSG_WT"; then echo "  ok    a LATER cd to a not-yet-created tree is still detected (was: only the first cd)"
+if says 'THIS BASE BELONGS TO THE SHARED ROOT' "$MSG_WT"; then echo "  ok    a LATER cd to a not-yet-created tree is still detected (was: only the first cd)"
 else echo "  FAIL  cd_missing missed a non-first cd — the worktree-creating shape"; fail=$((fail+1));printf '        the directory that must read as missing: %s\n' "$MISSING"; dump_msg "the worktree-creating cd shape" "$MSG_WT"; fi
 if says "$MISSING" "$MSG_WT"; then echo "  ok    …and the notice names which directory does not exist yet"
 else echo "  FAIL  notice does not name the missing dir"; fail=$((fail+1));dump_msg "the name of the missing directory" "$MSG_WT"; fi
 # NARROWNESS: an ordinary subdirectory hop to a dir that EXISTS must not be reported as missing.
 MSG_HOP="$(bashrun "cd $WORK && cd briefs && sed -i s/a/b/ SHARED-BRIEF.md")"
-if says 'THIS BASE IS THE SHARED ROOT' "$MSG_HOP"; then echo "  FAIL  an existing subdirectory hop was reported as a missing tree"; fail=$((fail+1)); dump_msg "an existing subdirectory hop" "$MSG_HOP";
+if says 'THIS BASE BELONGS TO THE SHARED ROOT' "$MSG_HOP"; then echo "  FAIL  an existing subdirectory hop was reported as a missing tree"; fail=$((fail+1)); dump_msg "an existing subdirectory hop" "$MSG_HOP";
 else echo "  ok    an existing subdirectory hop is NOT reported as a missing tree"; fi
 
 # ⚠ THE HOOK MUST DRAIN STDIN BEFORE THE HATCH EXITS, AND NO LEG ABOVE CAN SEE IT. Every
@@ -961,6 +1018,11 @@ else echo "  ok    an existing subdirectory hop is NOT reported as a missing tre
 # Same contract trim-output.test.sh pins (#3493).
 head -c "$_PROBE_BYTES" /dev/zero | tr '\0' x > "$TMP/stdin-big"
 jq -nc --rawfile c "$TMP/stdin-big" '{tool_input:{command:$c}}' > "$TMP/stdin-big.json"
+# The writer-fate leg reads rc=0 over an EMPTY payload just as happily as over an oversized one, so
+# a `jq` that failed scores the race green. The size is the leg, and the leg now measures it.
+_fx_json="$(wc -c < "$TMP/stdin-big.json" 2>/dev/null)"
+fixture "the oversized payload exceeds the pipe ceiling" \
+  "$([ "${_fx_json:-0}" -gt "$_PROBE_BYTES" ] && echo OVER || echo UNDER)" OVER
 _worst=0
 for _i in 1 2 3 4 5; do
   cat "$TMP/stdin-big.json" | CLAUDE_ALLOW_STALE_BRIEF=1 bash "$H" >/dev/null 2>&1
@@ -979,6 +1041,10 @@ BLIND="$TMP/blindbin"
 mkdir -p "$BLIND"
 printf '#!/bin/sh\nexit 3\n' > "$BLIND/sort"
 chmod +x "$BLIND/sort"
+# A `chmod` that failed leaves PATH skipping the stub, so these legs would drive the WORKING reader
+# and still print ok. The stub has to win the PATH lookup, and that is what this measures.
+fixture "the sort stub shadows the real sort on PATH" \
+  "$(PATH="$BLIND:$PATH" command -v sort)" "$BLIND/sort"
 runcmd_blind() { # runcmd_blind <command string> ; the same drive, under a sort that cannot run
   jq -nc --arg c "$1" '{tool_input:{command:$c}}' | PATH="$BLIND:$PATH" bash "$H" >/dev/null 2>&1
   [ $? -eq 2 ] && echo DENY || echo ALLOW
@@ -989,6 +1055,7 @@ expectblind() { # expectblind <want> <label> <command>
   else printf '  FAIL  %-58s got %s, want %s\n' "$2" "$got" "$1"; fail=$((fail+1)); fi
 }
 saysof_blind() { # saysof_blind <command string> ; the hook's stderr under the broken reader
+  # shellcheck disable=SC2069  # deliberate: stdout goes to /dev/null and the leg reads the hook's STDERR.
   jq -nc --arg c "$1" '{tool_input:{command:$c}}' | PATH="$BLIND:$PATH" bash "$H" 2>&1 >/dev/null
 }
 expectblind DENY  "a write to a stale brief, candidate reader broken" "sed -i 's/a/b/' briefs/SHARED-BRIEF.md"
@@ -1008,12 +1075,17 @@ echo "### §3d — an awk reader that could not run is not a reader that found n
 AWKREAL="$(command -v awk)"
 AWKSCAN="$TMP/awkscanblind"
 mkdir -p "$AWKSCAN"
+# shellcheck disable=SC2016  # a printf FORMAT: the shim's "$@" and $a belong to the shim, not to this shell.
 printf '#!/bin/sh\nfor a in "$@"; do case "$a" in guarded=*) exit 3 ;; esac; done\nexec %s "$@"\n' \
   "$AWKREAL" > "$AWKSCAN/awk"
 AWKDEAD="$TMP/awkdead"
 mkdir -p "$AWKDEAD"
 printf '#!/bin/sh\nexit 3\n' > "$AWKDEAD/awk"
 chmod +x "$AWKSCAN/awk" "$AWKDEAD/awk"
+fixture "the scan-blind awk stub shadows awk on PATH" \
+  "$(PATH="$AWKSCAN:$PATH" command -v awk)" "$AWKSCAN/awk"
+fixture "the dead awk stub shadows awk on PATH" \
+  "$(PATH="$AWKDEAD:$PATH" command -v awk)" "$AWKDEAD/awk"
 runcmd_awk() { # runcmd_awk <stub dir> <command string>
   jq -nc --arg c "$2" '{tool_input:{command:$c}}' | PATH="$1:$PATH" bash "$H" >/dev/null 2>&1
   [ $? -eq 2 ] && echo DENY || echo ALLOW
@@ -1024,6 +1096,7 @@ expectawk() { # expectawk <want> <stub dir> <label> <command string>
   else printf '  FAIL  %-58s got %s, want %s\n' "$3" "$got" "$1"; fail=$((fail+1)); fi
 }
 saysof_awk() { # saysof_awk <stub dir> <command string> ; the hook's stderr under that stub
+  # shellcheck disable=SC2069  # deliberate: stdout goes to /dev/null and the leg reads the hook's STDERR.
   jq -nc --arg c "$2" '{tool_input:{command:$c}}' | PATH="$1:$PATH" bash "$H" 2>&1 >/dev/null
 }
 # THE BUILT TARGET IS THE ISOLATING CASE. Its program text spells no guarded path — `briefs/` alone

@@ -617,7 +617,7 @@ rm -rf "$TMP"
 echo
 echo "### file integrity"
 if grep -qP '[\x00-\x08\x0b\x0c\x0e-\x1f]' "$H"; then
-  echo "  FAIL  control character in the hook — a \\b escape was written as a literal backspace,"
+  printf '%s\n' '  FAIL  control character in the hook — a \\b escape was written as a literal backspace,'
   echo "        which silently disables the alternative it sits in"; fail=$((fail+1))
 else echo "  ok    no control characters"; fi
 n=$(grep -c '^exit 0' "$H")

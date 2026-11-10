@@ -56,6 +56,7 @@ import {
 } from '../tools/queue-doctor.mjs';
 import {
   classify as pwClassify,
+  cleanWorktree as pwCleanWorktree,
   plan as pwPlan,
   runIdOf as pwRunIdOf,
   landingPage as pwLandingPage,
@@ -74,6 +75,7 @@ import {
   HOLD_LABEL as PW_HOLD_LABEL
 } from '../tools/pr-walker.mjs';
 import { classify as commitShape, classifyRootAdd as commitShapeRootAdd, KNOWN_ROOT_ZERO_BYTE as commitShapeBaseline } from '../tools/commit-shape.mjs';
+import { parseStamps as tpParseStamps, STAMP_ROOTS as TP_ROOTS, STAMP_FILES as TP_FILES, rootAccepts as tpRootAccepts, sha12 as tpSha12 } from '../tools/table-provenance-core.mjs';
 import { docsConstantsPins, pinnedByDocsConstants, resolveSourcedClaim } from '../tools/claim-source.mjs';
 import * as claimSource from '../tools/claim-source.mjs';
 import { CHECKS as DOCS_CONSTANTS_CHECKS } from '../tools/docs-constants.mjs';
@@ -96,7 +98,7 @@ import { attenuateAndRecover, buildTemplate as beatBuildTemplate } from '../tool
 import * as deviceStability from '../tools/device-stability.mjs';
 import * as beatCorrespondence from '../tools/beat-correspondence.mjs';
 import * as circularStats from '../tools/circular-stats.mjs';
-import { suiteVerdict, undecidedChildren, undeclaredSkipCount, unionVerdict } from '../tools/run-tests-verdict.mjs';
+import { lateDeclarationCount, suiteVerdict, undecidedChildren, undeclaredSkipCount, unionVerdict } from '../tools/run-tests-verdict.mjs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { basename, dirname, join, resolve } from 'node:path';
 import vm from 'node:vm';
@@ -110,7 +112,7 @@ import * as _nodeOs from 'node:os';
 import * as _nodePath from 'node:path';
 import * as _wtDone from '../tools/wt-done.mjs';
 import { rootTrackedFiles, walkRepoPaths, walkRepoPathsAll } from './docs-ledger-fs.mjs';
-import { planShards, partitionViolations, readTimings } from './shard-plan.mjs';
+import { lateDeclarations, planShards, partitionViolations, readTimings } from './shard-plan.mjs';
 /* THE ONE LEXER, handed to the suite rather than re-implemented in it. `tests/dex-tests.js` asserts
    the three-class partition and the comment projection `verdict-adoption.mjs` gates on; the browser lane
    cannot load a module path, so the group there skips by name. */
@@ -2015,60 +2017,27 @@ async function readPublishedCorpus() {
 }
 
 function readTableProvenance() {
-  const crypto = require('node:crypto');
-  const sha12 = (t) => crypto.createHash('sha256').update(t, 'utf8').digest('hex').slice(0, 12);
-  const RE = /<!--\s*TABLE-PROVENANCE\s+([^>]*?)-->/g;
-  const out = { stamps: [], malformed: [], sha12 };
-  const roots = ['briefs', 'audits', 'docs'];
+  /* THE PARSE, THE ROOT LIST AND THE TABLE-ABOVE WALK LIVE IN `tools/table-provenance-core.mjs`, so a
+     leg can plant a document instead of needing a stamp committed somewhere. Row
+     `2026-11-08-twenty-papers-carry-no-claim-marker-and-the-resolver-skips-papers` measured what the
+     closure cost: this scan omitted `papers/` and no leg could say so. What stays here is what needs
+     the tree and git — the upstream-dag digest. */
+  const sha12 = tpSha12;
+  const out = { stamps: [], malformed: [], sha12, roots: TP_ROOTS, parse: tpParseStamps, files: [] };
   const files = [];
-  for (const r of roots) {
-    const d = join(ROOT, r);
+  for (const root of TP_ROOTS) {
+    const d = join(ROOT, root.dir);
     if (!existsSync(d)) continue;
-    for (const f of readdirSync(d)) if (f.endsWith('.md')) files.push(join(r, f));
+    for (const f of readdirSync(d)) if (tpRootAccepts(root, f)) files.push(join(root.dir, f));
   }
-  if (existsSync(join(ROOT, 'CLAUDE.md'))) files.push('CLAUDE.md');
+  for (const f of TP_FILES) if (existsSync(join(ROOT, f))) files.push(f);
+  out.files = files;
   for (const rel of files) {
     const text = readFileSync(join(ROOT, rel), 'utf8');
-    const lines = text.split('\n');
-    RE.lastIndex = 0;
-    let m;
-    while ((m = RE.exec(text))) {
-      const attrs = {};
-      for (const a of m[1].matchAll(/(\w[\w-]*)=("([^"]*)"|\S+)/g)) attrs[a[1]] = a[3] !== undefined ? a[3] : a[2];
-      const lineNo = text.slice(0, m.index).split('\n').length;
-      /* The TABLE IS THE CONTIGUOUS `|` BLOCK IMMEDIATELY ABOVE the marker. Walking up from the
-         marker rather than down from a heading is what makes one file able to carry several. */
-      // A table inside a blockquote (`> | … |`, the house style for a dated correction block) is the
-      // same table: the quote prefix is stripped for detection AND for the hash, so quoting it does
-      // not move `output`.
-      const unquote = (l) => l.replace(/^\s*(?:>\s?)+/, '');
-      const isRow = (l) => unquote(l).trim().startsWith('|');
-      let i = lineNo - 2;
-      while (i >= 0 && !isRow(lines[i])) i--;
-      const end = i;
-      while (i >= 0 && isRow(lines[i])) i--;
-      const table =
-        end >= 0
-          ? lines
-              .slice(i + 1, end + 1)
-              .map(unquote)
-              .join('\n')
-          : null;
-      if (!attrs.producer || !attrs.output || !table) {
-        out.malformed.push(`${rel}:${lineNo} — ${!table ? 'no table immediately above the marker' : 'missing producer= or output='}`);
-        continue;
-      }
-      const st = { file: rel, line: lineNo, ...attrs, table, actualOutput: sha12(table) };
-      /* THE UPSTREAM-DAG HASH (PUBLISHED-NUMBER-PROVENANCE §4, the half of phase 2 that #2614 left
-         out — residue 2026-09-21-table-provenance-inputs-digest-never-recomputed). A stamp whose
-         `inputs=` names a COMMITTED path may also carry `inputsDigest=<12hex>`; the runner then
-         recomputes the digest over the GIT-TRACKED files under that path and the gate compares. That
-         is what lets a stamp CLEAR a churn flag rather than only raise one: a moved corpus moves a
-         number CI can see. Recipe (shared with analysis/published-numbers/*.json `inputs.digest`):
-         sha12 over `path\0sha12(bytes)` per file, joined by '\n', in `git ls-files` order. Tracked
-         files only — the primary checkout also holds gitignored raw nights under the same paths, and
-         a digest over those would differ from CI's for reasons that have nothing to do with the table.
-         A missing git or an unreadable file is a REASON, never a silent null: the gate reds on it. */
+    const got = tpParseStamps(text, rel);
+    out.malformed.push(...got.malformed);
+    for (const st of got.stamps) {
+      const attrs = st;
       if (attrs.inputsDigest) {
         if (!attrs.inputs || attrs.inputs.indexOf('/') < 0) st.inputsDigestReason = 'inputsDigest= needs a resolvable inputs= path';
         else {
@@ -3047,6 +3016,11 @@ async function main() {
        first months in both lanes' SOURCE_FILES with no lane EXECUTING it, and a throw planted at the
        top of renderSummary left 104 render groups green. */
     'eegdex-render.js',
+    /* integrator-render.js was the LAST *-render.js in neither execution lane (2026-11-10). Its text
+       sits in readSources() above, so a source scan read it and no lane ran it - the hole this list's
+       header records for motiondex-render.js and eegdex-render.js, one file later. The absent-event
+       tick geometry is pinned through the function it now exports. */
+    'integrator-render.js',
     'oxydex-fusion.js'
   ].forEach((f) => {
     try {
@@ -3309,6 +3283,9 @@ async function main() {
     GluDisp: ctx.GluDisp,
     GLUUI: ctx.GLUUI,
     CpapRender: ctx.CpapRender,
+    /* The Integrator's render layer joins the env with the module (2026-11-10): the realm executes it
+       now, and the absent-confidence tick geometry is pinned through the pure function it exports. */
+    IntegratorRender: ctx.IntegratorRender,
     HrvRmssdClass: ctx.hrvRmssdClass,
     OxySpo2NightCV: ctx.oxySpo2NightCV,
     ECGScope: ctx.ECGUI && ctx.ECGUI.ECGScope, // §RN: canvas waveform explorer (axis-tick label drive)
@@ -3559,6 +3536,7 @@ async function main() {
     /* pr-walker's PURE core: classify() and plan() decide every action the timer takes on a PR, and
        the group `tools · pr-walker` pins them with planted snapshots — no `gh`, no clock. */
     pwClassify: pwClassify,
+    pwCleanWorktree: pwCleanWorktree,
     pwPlan: pwPlan,
     pwRunIdOf: pwRunIdOf,
     pwLandingPage: pwLandingPage,
@@ -4043,8 +4021,12 @@ async function main() {
     const vd = await import('../tools/verify-drafts.mjs');
     process.exit(vd.verifyPile(ctx, undefined, { realmLabel: 'suite (run-tests.mjs --verify-drafts)' }));
   }
+  /* HOISTED, because two readers want the same list: the shard planner below, and the
+     late-declaration tripwire further down. The shard path already pays for this pass. */
+  let INVENTORY = null;
   if (SHARD) {
-    const inv = runDexTests({ ...env, listOnly: true }).groups.map((g) => ({ index: g.index, title: g.title }));
+    INVENTORY = runDexTests({ ...env, listOnly: true }).groups.map((g) => ({ index: g.index, title: g.title }));
+    const inv = INVENTORY;
     const { bins, weights, unknown } = planShards(inv, readTimings(), SHARD.total);
     const errs = partitionViolations(inv, bins);
     if (errs.length) {
@@ -4063,6 +4045,27 @@ async function main() {
   /* §3d — ONE object per process. A forked run's object is the UNION over its shard objects; any other
      run's is over the groups it ran (a --group= or --shard= run is a declared exclusion ⇒ filtered).
      The skip budget is judged here for the object; the human lane judges it again below for the exit. */
+  /* ── A GROUP DECLARED AT EXECUTION TIME IS IN NO SHARD ──────────────────────────────────────
+     (residue 2026-11-08-a-group-declared-only-at-execution-is-dropped-by-every-shard.)
+     `verify-shard-union` proves the plan partitions the `--list` inventory, and `--list` skips every
+     group BODY — so a `group()` call nested inside one is invisible to it. The plan is then a true
+     partition of a suite that is short by that group, every shard drops it, and the union gate goes
+     green. Muse planted one: `--jobs=6` reproduced the baseline exactly and never ran it, and only
+     `--deep` caught it, which CI does not run.
+
+     The execution pass DOES reach the nested call, so this run declares one group more than the
+     inventory holds. The comparison is free, it is pure (tests/shard-plan.mjs), and it runs in every
+     shard on every push. Two runs compare nothing: a forked run, whose children each judge their own
+     pass, and `--list`, which IS the inventory. */
+  const INV_FOR_LATE = forked || LIST_ONLY ? null : INVENTORY || runDexTests({ ...env, listOnly: true }).groups.map((g) => ({ index: g.index, title: g.title }));
+  const lateViolations = INV_FOR_LATE
+    ? lateDeclarations(
+        INV_FOR_LATE,
+        totalGroups,
+        groups.map((g) => ({ index: g.index, title: g.title }))
+      )
+    : [];
+
   const verdict = forked
     ? forked.verdict
     : LIST_ONLY
@@ -4073,7 +4076,8 @@ async function main() {
           groupFilter: groupFilter || null,
           groupIndices: GROUP_INDICES ? [...GROUP_INDICES] : null,
           shard: SHARD ? SHARD.label : null,
-          skipViolations: auditSkips(groups, EXPECTED_SKIPS.allow || []).violations
+          skipViolations: auditSkips(groups, EXPECTED_SKIPS.allow || []).violations,
+          lateViolations
         });
   if (__covPost && process.env.DEX_IV_COUNTS) {
     const iv = await __covPost('Profiler.takePreciseCoverage');
@@ -4123,7 +4127,14 @@ async function main() {
     /* AN UNDECLARED SKIP REDS THIS LANE TOO (residue 2026-11-08-the-json-lane-exits-0-on-an-undeclared-skip).
        The human lane below adds each skip-budget violation to `fail`; this lane did not, so the same
        input exited 0 here and 1 there, under an object that reads FAIL. */
-    const failed = (LIST_ONLY ? 0 : groups.reduce((a, g) => a + g.tests.filter((t) => !t.pass && !t.skip).length, 0)) + undecidedChildren(verdict).length + undeclaredSkipCount(verdict);
+    /* A LATE DECLARATION REDS THIS LANE TOO, for the reason the skip budget does: the human lane
+       adds it to `fail`, so this lane must read it off the object or the same input exits 0 here and 1
+       there. */
+    const failed =
+      (LIST_ONLY ? 0 : groups.reduce((a, g) => a + g.tests.filter((t) => !t.pass && !t.skip).length, 0)) +
+      undecidedChildren(verdict).length +
+      undeclaredSkipCount(verdict) +
+      lateDeclarationCount(verdict);
     // exitCode + return, NOT process.exit(): Node's stdout is ASYNC to a pipe (sync only to a file/TTY),
     // so process.exit() right after a ~140 KB console.log TRUNCATES it mid-write. Redirecting to a file
     // hid this; spawnSync (a pipe) got a half-written payload and "valid run, unparseable JSON". Setting
@@ -4225,13 +4236,16 @@ async function main() {
      A ⊘ is neither pass nor fail, so a leg that stops running does not red the gate — it just
      stops being checked, silently. Every skip must therefore be DECLARED in expected-skips.json.
      An undeclared skip is a FAILURE: shrinking the gate has to be a deliberate, reviewable act.
+     Declared by NAME **and by REASON**: an entry carries a `detail` substring of the text the leg
+     hands T.skip, so a leg that keeps its name and skips for something new reds as `reason-drift`.
      Shard-safe — it judges only the groups that ran in this process. */
   const { violations: skipViolations, counted: skipCounted } = auditSkips(groups, EXPECTED_SKIPS.allow || []);
   if (skipViolations.length) {
     fail += skipViolations.length;
     console.log('\n' + paint('▸ SKIP BUDGET — ' + skipViolations.length + ' UNDECLARED skip(s)', C.red));
     console.log(paint('  A skip is neither pass nor fail: this leg stopped being checked and the gate would still be green.', C.dim));
-    for (const v of skipViolations) console.log(paint('  ✕ ', C.red) + '[' + v.group + '] ' + v.test + (v.detail ? paint('  — ' + v.detail, C.yellow) : ''));
+    for (const v of skipViolations)
+      console.log(paint('  ✕ ', C.red) + '[' + v.group + '] ' + v.test + (v.kind ? paint('  (' + v.kind + ')', C.dim) : '') + (v.detail ? paint('  — ' + v.detail, C.yellow) : ''));
     console.log(paint('  → If this skip is intended, declare it in tests/expected-skips.json (and justify it — you are shrinking the gate).', C.yellow));
   }
 
@@ -4250,6 +4264,18 @@ async function main() {
     for (const c of undecided.slice(0, 10)) console.log(paint('  ✕ ', C.red) + c.name + paint('  — ' + c.status, C.yellow));
     if (undecided.length > 10) console.log(paint('    … and ' + (undecided.length - 10) + ' more', C.dim));
     console.log(paint('  → A leg that cannot run owes a DECLARED skip (tests/expected-skips.json), never an empty group body.', C.yellow));
+  }
+
+  /* ── LATE DECLARATION ─────────────────────────────────────────────────────────────────────
+     A group the `--list` inventory cannot see is in no shard, so CI's six shards all go green having
+     never run it. Counted into `fail` exactly as the skip budget and the undecided groups are, so the
+     footer, the object and the exit code say one thing. */
+  if (lateViolations.length) {
+    fail += lateViolations.length;
+    console.log('\n' + paint('▸ LATE DECLARATION — ' + lateViolations.length + ' finding(s): a group the --list inventory cannot see', C.red));
+    console.log(paint('  Every shard plans from that inventory, so such a group runs in NO shard and the union gate stays green.', C.dim));
+    for (const v of lateViolations) console.log(paint('  ✕ ', C.red) + v);
+    console.log(paint('  → Declare every group at the top level of runDexTests (tests/dex-tests.js), never inside another group body.', C.yellow));
   }
 
   /* ── COVERAGE (G1) ────────────────────────────────────────────────────────────────────────

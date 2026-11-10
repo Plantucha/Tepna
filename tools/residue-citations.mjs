@@ -382,6 +382,38 @@ export function run(repo, opts) {
   const undeclared = unresolved.filter((c) => !declared.has(c.cited));
   const citedKeys = new Set(unresolved.map((c) => c.cited));
   const stale = [...declared.keys()].filter((k) => !citedKeys.has(k));
+
+  /* A DECLARED SITE IS A PATH, AND THE SCAN IS WHAT SAYS WHERE THE KEY SITS. Each baseline entry
+     carried a `path:line` pointer that no reader held against anything, so every line drifted while
+     the verdict still reported `staleBaseline 0`: a declaration nothing consumes ages in silence
+     (row 2026-11-08-the-residue-citations-baseline-sites-read-stale). A line number ages on every
+     edit above it, so the declaration keeps the PATH alone and the report prints the live
+     `path:line` the scan found. The hold runs BOTH ways. A declared path the scan does not cite is
+     a pointer at nothing, and a path it does cite that the baseline omits is a carrier nobody
+     declared. A key that resolves now is not examined here, because `stale` above is its one
+     finding. §∅ · an entry with no `sites` array declared nothing, which is not the same as
+     declaring the empty set, so it reports that absence by name. */
+  const siteOf = (k) => unresolved.filter((c) => c.cited === k);
+  const siteDrift = [];
+  const liveSites = [];
+  for (const [key, e] of declared) {
+    if (!citedKeys.has(key)) continue;
+    const at = siteOf(key)
+      .map((c) => c.at)
+      .sort();
+    const found = [...new Set(siteOf(key).map((c) => c.file))].sort();
+    liveSites.push({ key, at, found });
+    const dec = Array.isArray(e.sites) ? [...new Set(e.sites)].sort() : null;
+    if (dec === null) {
+      siteDrift.push({ key, declared: null, found, at, declaredOnly: [], foundOnly: found, why: 'declares no sites array' });
+      continue;
+    }
+    const declaredOnly = dec.filter((q) => !found.includes(q));
+    const foundOnly = found.filter((q) => !dec.includes(q));
+    if (declaredOnly.length || foundOnly.length) siteDrift.push({ key, declared: dec, found, at, declaredOnly, foundOnly, why: null });
+  }
+  const siteKeysExamined = liveSites.length;
+
   const orphanOwners = ownerDebt(base, rowStates(ledger));
   const ownerReasonsExamined = ownerReasons(base).length;
 
@@ -411,6 +443,9 @@ export function run(repo, opts) {
     near: by('near'),
     ambiguousList: by('ambiguous'),
     stale,
+    siteDrift,
+    liveSites,
+    siteKeysExamined,
     orphanOwners,
     ownerReasonsExamined,
     declared: declared.size
@@ -420,12 +455,14 @@ export function run(repo, opts) {
 export function verdictFor(r, commit) {
   const orphans = (r.orphanOwners || []).length;
   const unreadable = r.unreadable || [];
-  const bad = r.undeclared.length + r.near.length + r.stale.length + orphans;
+  const drift = r.siteDrift || [];
+  const bad = r.undeclared.length + r.near.length + r.stale.length + orphans + drift.length;
   const reasons = [];
   if (r.undeclared.length) reasons.push(`${r.undeclared.length} unresolved citation(s) outside the baseline`);
   if (r.near.length) reasons.push(`${r.near.length} citation(s) name a row and miss its key`);
   if (r.stale.length) reasons.push(`${r.stale.length} baseline key(s) resolve now and owe a removal`);
   if (orphans) reasons.push(`${orphans} baseline reason(s) name a row that is closed or absent`);
+  if (drift.length) reasons.push(`${drift.length} baseline site(s) do not name the path the scan found the key at`);
   if (unreadable.length)
     reasons.push(`${unreadable.length} eligible file(s) could not be read (${unreadable.map((u) => `${u.file} ${u.code}`).join(', ')}), so the scan did not examine its whole population`);
   /* THREE STATUSES, AND THE MIDDLE ONE IS THE ROW. A finding is FAIL whatever else happened, and the
@@ -450,6 +487,8 @@ export function verdictFor(r, commit) {
       unresolvedKeys: r.unresolvedKeys,
       undeclared: r.undeclared.length,
       staleBaseline: r.stale.length,
+      siteDrift: drift.length,
+      siteKeysExamined: r.siteKeysExamined ?? null,
       orphanedOwners: orphans,
       ownerReasonsExamined: r.ownerReasonsExamined ?? null,
       declared: r.declared,
@@ -593,6 +632,35 @@ function selftest() {
   const selfOnly = run(REPO, { files: ['tools/residue-citations.mjs', BASELINE], baseline: { entries: [], exemptPaths: [] } });
   ok('a file exempt by rule is counted outside the eligible set', [selfOnly.filesExempt, selfOnly.filesOffered, selfOnly.unreadable.length], [2, 0, 0]);
 
+  /* A DECLARED SITE IS A PATH — the hold runs in both directions, over the real carrier file. */
+  const siteRun = (sites) => {
+    const entries = [{ key: '2026-09-02-alpha', class: 'fixture', reason: 'a fixture' }];
+    if (sites !== undefined) entries[0].sites = sites;
+    return run(REPO, { files: ['tools/residue-ids.mjs'], baseline: { entries, exemptPaths: [] } });
+  };
+  const driftOf = (sites) => siteRun(sites).siteDrift.map((d) => `${d.key}|${d.declaredOnly.join(',')}|${d.foundOnly.join(',')}`);
+  ok('a declared path the scan cites there agrees', driftOf(['tools/residue-ids.mjs']), []);
+  ok('a declared path carrying a line number drifts, because a site is a path', driftOf(['tools/residue-ids.mjs:926']), ['2026-09-02-alpha|tools/residue-ids.mjs:926|tools/residue-ids.mjs']);
+  ok('a declared path the scan never cites is a pointer at nothing', driftOf(['tools/no-such-carrier.mjs']), ['2026-09-02-alpha|tools/no-such-carrier.mjs|tools/residue-ids.mjs']);
+  ok(
+    'an entry with no sites array declares nothing, and the finding says which',
+    siteRun(undefined).siteDrift.map((d) => `${d.key}|${d.why}`),
+    ['2026-09-02-alpha|declares no sites array']
+  );
+  ok(
+    'the live site the report prints is a path and a line',
+    siteRun(['tools/residue-ids.mjs']).liveSites[0].at.every((a) => /^tools\/residue-ids\.mjs:\d+$/.test(a)),
+    true
+  );
+  ok('a site drift is a verdict finding, never a quiet pass', verdictFor(siteRun(['tools/residue-ids.mjs:926']), 'abc').status, 'FAIL');
+  /* §∅ · a key the scan does not cite is judged by `stale` alone, so this check examines nothing and
+     reports the count rather than a pass over an empty population. */
+  const unexamined = run(REPO, {
+    files: ['tools/residue-ids.mjs'],
+    baseline: { entries: [{ key: '2026-12-31-nobody-cites-this', class: 'fixture', sites: ['tools/residue-ids.mjs'] }], exemptPaths: [] }
+  });
+  ok('an uncited baseline key leaves the site check with nothing to examine', [unexamined.siteKeysExamined, unexamined.siteDrift.length], [0, 0]);
+
   /* ANTI-VACUITY. The check is worth nothing if no live baseline line names an owner, so the real
      pair must examine at least one reason, and every row the real baseline names must exist. */
   const realStates = rowStates(fs.readFileSync(path.join(REPO, LEDGER), 'utf8'));
@@ -608,6 +676,18 @@ function selftest() {
      so by a count rather than by a silent PASS. The synthetic legs above are what holds the reader
      honest; the moment a line names an owner, the live population stops being empty on its own. */
   ok('an examined-nothing owner population reports its count, not a pass', named.length, 0);
+  /* ANTI-VACUITY for the site hold: the live baseline must declare a site for every entry, and no
+     site may carry a line number, or the legs above judge a shape the real file never uses. */
+  ok(
+    'every live baseline entry declares at least one site',
+    realBase.entries.filter((e) => !Array.isArray(e.sites) || e.sites.length === 0).map((e) => e.key),
+    []
+  );
+  ok(
+    'no live baseline site carries a line number',
+    realBase.entries.flatMap((e) => e.sites || []).filter((q) => /:\d+$/.test(q)),
+    []
+  );
 
   const r = run(REPO, { files: ['tools/residue-citations.mjs'], baseline: { entries: [], exemptPaths: [] } });
   ok('this tool exempts itself', r.citations, 0);
@@ -660,9 +740,15 @@ if (isCliEntry(import.meta.url)) {
       }
       for (const c of r.near) console.log(`  ✗ ${c.at} cites ${c.cited} — a near miss of ${c.row}`);
       for (const key of r.stale) console.log(`  ✗ baseline names ${key}, which resolves now — remove the line`);
+      for (const s of r.siteDrift) {
+        const left = s.why || `declares ${s.declared.join(', ')}`;
+        console.log(`  ✗ the baseline line for ${s.key} ${left}, and the scan cites it at ${s.at.join(', ') || 'no site'} — a site is a path, so drop any :line`);
+      }
+      if (!r.siteKeysExamined) console.log('  · no live baseline key is cited anywhere, so the site check examined nothing');
       for (const o of r.orphanOwners) console.log(`  ✗ the baseline line for ${o.key} ${o.why} (${o.owner}) — the debt has no living owner`);
       if (!r.ownerReasonsExamined) console.log('  · no baseline line names an owning row, so the owner check examined nothing');
       for (const u of r.unreadable) console.log(`  ✗ ${u.file} could not be read (${u.code}) — not scanned, and counted as excluded`);
+      if (has('--all')) for (const l of r.liveSites) console.log(`  site      ${l.key} → ${l.at.join(', ')}`);
       if (has('--all')) for (const c of r.cites) console.log(`  ${c.kind.padEnd(9)} ${c.at} ${c.cited}`);
       console.log(`\nVERDICT (tepna.verdict/1): ${JSON.stringify(v)}`);
     }

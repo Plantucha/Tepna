@@ -77,7 +77,7 @@ TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 W="$TMP/w"
 mkdir -p "$W/capture-host/.venv/bin"
-cd "$W"
+cd "$W" || exit 1
 git init -q .
 git config user.email t@t
 git config user.name t

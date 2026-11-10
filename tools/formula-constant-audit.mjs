@@ -60,6 +60,7 @@
  *     node tools/formula-constant-audit.mjs --selftest
  */
 import { readFileSync, readdirSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { makeVerdict } from './verdict-emit.mjs';
@@ -193,10 +194,65 @@ export function claimConstants(text) {
   return out.sort();
 }
 
-function nodeSourceFor(guideFile) {
-  const node = guideFile.split(' ')[0].toLowerCase();
+export function nodeNameFor(guidePath) {
+  const base = guidePath.slice(guidePath.lastIndexOf('/') + 1);
+  return base.split(/[\s-]/)[0].toLowerCase();
+}
+
+function nodeSourceFor(guidePath) {
+  /* Two guide name shapes exist in the tree: `OxyDex Reference.html` at the root and
+     `eegdex-reference.html` under `codegen/generated/`. Read the BASENAME and cut at the first space
+     or hyphen, so both resolve to their node. `split(' ')[0]` over the second shape answers the whole
+     filename and the guide then reads as "no matching source", which is false. */
+  const node = nodeNameFor(guidePath);
   const files = readdirSync(ROOT).filter((f) => f.startsWith(node + '-') && f.endsWith('.js'));
   return { files, code: files.map((f) => readFileSync(join(ROOT, f), 'utf8')).join('\n') };
+}
+
+/* ── THE CORPUS IS THE TRACKED TREE, AND A REJECTION NAMES ITS REASON ───────────────────────────────
+   `readdirSync(ROOT).filter(/Reference\.html$/)` answers the 8 root guides and drops
+   `codegen/generated/eegdex-reference.html`, which is tracked, generated, and carried by a node whose
+   sources sit in the root. That guide left the corpus BEFORE the loop, so `guidesSkipped` — an in-loop
+   counter — published 0 over a tree that holds 9 guides, and a reader could not tell "nothing was
+   omitted" from "the omission happened before the counter"
+   (residue 2026-11-10-the-formula-audit-corpus-omits-the-ninth-reference-guide).
+   Every candidate this builder drops is REPORTED with its reason and counted, so a path leaves the
+   corpus in the open. It FAILS CLOSED: an unreadable tracked list returns an error and the caller
+   publishes NOT_RUN, never an empty corpus that reads as a clean sweep. */
+export function classifyGuidePaths(paths) {
+  const guides = [];
+  const rejected = [];
+  for (const path of [...paths].sort()) {
+    const base = path.slice(path.lastIndexOf('/') + 1);
+    /* Both shapes, and nothing else — a file merely holding the word is not a guide. */
+    if (!/(?: Reference|-reference)\.html$/.test(base)) continue;
+    if (path.startsWith('docs/')) {
+      rejected.push({ path, reason: 'a served copy that tools/build-docs.mjs owns and npm run verify:docs checks' });
+      continue;
+    }
+    if (path.startsWith('papers/')) {
+      rejected.push({ path, reason: 'a paper, so it carries no <node>-*.js source to check a constant against' });
+      continue;
+    }
+    guides.push(path);
+  }
+  return { guides, rejected, error: null };
+}
+
+/* The fs/spawn shell around the pure classifier. It stays THIN on purpose: every leg of the selftest
+   calls `classifyGuidePaths` with a path list, so the selftest reads no file and spawns nothing, and
+   this tool stays out of the `flag-exit-scan` census that a module-scope read below the health-flag
+   exit would put it in. */
+function guideCorpus() {
+  let tracked;
+  try {
+    tracked = execFileSync('git', ['-C', ROOT, 'ls-files', '-z'], { encoding: 'utf8', maxBuffer: 1 << 26 })
+      .split('\0')
+      .filter(Boolean);
+  } catch (e) {
+    return { guides: [], rejected: [], error: `git ls-files failed: ${e && e.message ? e.message : e}` };
+  }
+  return classifyGuidePaths(tracked);
 }
 
 /* The `.md` sweep — same corpus discipline as main(): glob the node's sources, print the denominator,
@@ -221,7 +277,7 @@ function nodeSourceFor(guideFile) {
    checkable value), excluded = (D - C) dropped as non-claim-bearing + (C - Ck) claim-bearing but every
    value refused. The filter's selectivity — the thing the bands calibrate — is visible in the equality,
    not only in the floor. The value-level split (K / U) rides in `result`. */
-export function fcaVerdict({ mode, D, C, Ck, K, U, flagged, rate, guides, guidesSkipped, hits, at, commit, commitReason }) {
+export function fcaVerdict({ mode, D, C, Ck, K, U, flagged, rate, guides, guidesSkipped, guidesRejected = 0, guidesNoItems = 0, rejections = [], corpusError = null, hits, at, commit, commitReason }) {
   const bands = mode === 'descriptions';
   const violated = [];
   if (bands && C < 40) violated.push(`FILTER TOO TIGHT: ${C} claim-bearing of ${D} descriptions, pre-registered floor is 40`);
@@ -250,7 +306,9 @@ export function fcaVerdict({ mode, D, C, Ck, K, U, flagged, rate, guides, guides
       status: 'NOT_RUN',
       population: { eligible: 0, checked: 0, excluded: 0 },
       result: null,
-      reason: `no ${unit} examined: ${guides} guide(s) found, ${guidesSkipped} skipped for having no matching <node>-*.js source`
+      reason: corpusError
+        ? `the corpus could not be read, so nothing was examined: ${corpusError}`
+        : `no ${unit} examined: ${guides} guide(s) found, ${guidesSkipped} skipped for having no matching <node>-*.js source, ${guidesRejected} rejected before the loop`
     });
   const dropped = D - C;
   const allRefused = C - Ck;
@@ -269,6 +327,9 @@ export function fcaVerdict({ mode, D, C, Ck, K, U, flagged, rate, guides, guides
     flaggedRate: rate,
     guides,
     guidesSkipped,
+    guidesRejected,
+    guidesNoItems,
+    rejections: rejections.map((r) => ({ path: r.path, reason: r.reason })),
     bandsViolated: violated.length,
     questions: hits.map((h) => ({ guide: h.guide, name: h.name, missing: h.missing }))
   };
@@ -284,9 +345,13 @@ export function fcaVerdict({ mode, D, C, Ck, K, U, flagged, rate, guides, guides
 }
 
 function mainDescriptions() {
-  const guides = readdirSync(ROOT)
-    .filter((f) => /Reference\.html$/.test(f))
-    .sort();
+  const corpus = guideCorpus();
+  if (corpus.error) {
+    console.log(`\u2717 CORPUS UNREADABLE: ${corpus.error}\n  Nothing was examined, and this run asserts nothing about any guide.`);
+    console.log(JSON.stringify(fcaVerdict({ mode: 'descriptions', D: 0, C: 0, Ck: 0, K: 0, U: 0, flagged: 0, rate: 0, guides: 0, guidesSkipped: 0, hits: [], corpusError: corpus.error })));
+    return 1;
+  }
+  const guides = corpus.guides;
   let D = 0;
   let C = 0;
   let K = 0;
@@ -294,7 +359,9 @@ function mainDescriptions() {
   let flagged = 0;
   let Ck = 0; // descriptions with >= 1 CHECKABLE value — the population's `checked`, in ONE unit
   let guidesSkipped = 0;
+  let guidesNoItems = 0;
   console.log(`DENOMINATOR: ${guides.length} guide(s) — DESCRIPTIONS (<p class="md">)\n`);
+  for (const r of corpus.rejected) console.log(`  ${r.path} \u2014 REJECTED from the corpus: ${r.reason}`);
   const hitsAll = [];
   for (const g of guides) {
     const { files, code } = nodeSourceFor(g);
@@ -304,6 +371,9 @@ function mainDescriptions() {
       continue;
     }
     const cards = parseGuideDescriptions(readFileSync(join(ROOT, g), 'utf8'));
+    /* A guide inside the corpus that parses 0 cards flags nothing, and "0 flagged" then reads as
+       clean. Count it and name it: the same confusion the pre-loop drop caused, one layer in. */
+    if (!cards.length) guidesNoItems++;
     const hits = [];
     let withClaim = 0;
     for (const { name, description } of cards) {
@@ -330,7 +400,7 @@ function mainDescriptions() {
     C += withClaim;
     flagged += hits.length;
     hitsAll.push(...hits);
-    console.log(`  ${g.padEnd(26)} ${files.length} src · ${String(cards.length).padStart(3)} descriptions · ${String(withClaim).padStart(3)} with claims · ${hits.length} flagged`);
+    console.log(`  ${g.padEnd(38)} ${files.length} src · ${String(cards.length).padStart(3)} descriptions · ${String(withClaim).padStart(3)} with claims · ${hits.length} flagged`);
   }
   console.log(`\n${flagged} flagged of ${C} claim-bearing description(s), across ${D} description(s) in ${guides.length} guide(s).`);
   console.log(`CLAIM VALUES: ${K} checkable · ${U} REFUSED as unresolvable at whole-node corpus scope (short integers).`);
@@ -343,7 +413,22 @@ function mainDescriptions() {
   /* ⚠️ THE PRE-REGISTERED BANDS, CHECKED BY THE TOOL rather than by the reader's judgement after the
      fact. Written before the first run precisely so a bad filter cannot be reported as a finding. */
   const rate = C ? flagged / C : 0;
-  const V = fcaVerdict({ mode: 'descriptions', D, C, Ck, K, U, flagged, rate, guides: guides.length, guidesSkipped, hits: hitsAll });
+  const V = fcaVerdict({
+    mode: 'descriptions',
+    D,
+    C,
+    Ck,
+    K,
+    U,
+    flagged,
+    rate,
+    guides: guides.length,
+    guidesSkipped,
+    guidesRejected: corpus.rejected.length,
+    guidesNoItems,
+    rejections: corpus.rejected,
+    hits: hitsAll
+  });
   if (C < 40) {
     console.log(`\n🔴 FILTER TOO TIGHT — ${C} claim-bearing of ${D} descriptions, pre-registered floor is 40.`);
     console.log('   This is a REDESIGN, not a finding. Do not publish a rate from this run.');
@@ -359,7 +444,12 @@ function mainDescriptions() {
   console.log(`\nWithin the pre-registered bands (${C} claim-bearing >= 40, ${(rate * 100).toFixed(0)}% flagged <= 30%).`);
   console.log('Each flag is a QUESTION. Hand-verify before calling any of them a defect.');
   for (const h of hitsAll.slice(0, 40)) {
-    console.log(`        ⚠ ${h.guide.replace(' Reference.html', '').padEnd(9)} ${h.name.slice(0, 24).padEnd(24)} missing ${JSON.stringify(h.missing)}`);
+    console.log(
+      `        ⚠ ${h.guide
+        .replace(' Reference.html', '')
+        .replace(/^.*\/|-reference\.html$/g, '')
+        .padEnd(9)} ${h.name.slice(0, 24).padEnd(24)} missing ${JSON.stringify(h.missing)}`
+    );
     console.log(`            ${h.description.slice(0, 104)}`);
   }
   if (hitsAll.length > 40) console.log(`        … and ${hitsAll.length - 40} more`);
@@ -368,15 +458,21 @@ function mainDescriptions() {
 }
 
 function main() {
-  const guides = readdirSync(ROOT)
-    .filter((f) => /Reference\.html$/.test(f))
-    .sort();
+  const corpus = guideCorpus();
+  if (corpus.error) {
+    console.log(`\u2717 CORPUS UNREADABLE: ${corpus.error}\n  Nothing was examined, and this run asserts nothing about any guide.`);
+    console.log(JSON.stringify(fcaVerdict({ mode: 'formula', D: 0, C: 0, Ck: 0, K: 0, U: 0, flagged: 0, rate: 0, guides: 0, guidesSkipped: 0, hits: [], corpusError: corpus.error })));
+    return 1;
+  }
+  const guides = corpus.guides;
   let F = 0;
   let C = 0;
   let flagged = 0;
   let guidesSkipped = 0;
+  let guidesNoItems = 0;
   const hitsAll = [];
   console.log(`DENOMINATOR: ${guides.length} guide(s)\n`);
+  for (const r of corpus.rejected) console.log(`  ${r.path} \u2014 REJECTED from the corpus: ${r.reason}`);
   for (const g of guides) {
     const { files, code } = nodeSourceFor(g);
     if (!files.length) {
@@ -385,6 +481,8 @@ function main() {
       continue;
     }
     const cards = parseGuide(readFileSync(join(ROOT, g), 'utf8'));
+    /* Same reading as in --descriptions: in the corpus and parsing nothing is not clean. */
+    if (!cards.length) guidesNoItems++;
     const hits = [];
     let withConst = 0;
     for (const { name, formula } of cards) {
@@ -398,12 +496,31 @@ function main() {
     C += withConst;
     flagged += hits.length;
     hitsAll.push(...hits);
-    console.log(`  ${g.padEnd(26)} ${files.length} src · ${String(cards.length).padStart(3)} formulas · ${String(withConst).padStart(2)} with constants · ${hits.length} flagged`);
+    console.log(`  ${g.padEnd(38)} ${files.length} src · ${String(cards.length).padStart(3)} formulas · ${String(withConst).padStart(2)} with constants · ${hits.length} flagged`);
     for (const h of hits) console.log(`        ⚠ ${h.name.slice(0, 26).padEnd(26)} missing ${JSON.stringify(h.missing)}\n            ${h.formula.slice(0, 100)}`);
   }
   console.log(`\n${flagged} flagged of ${C} constant-bearing formula(s), across ${F} formula(s) in ${guides.length} guide(s).`);
   console.log('A flag is a QUESTION — read the card before treating it as a defect (see the header).');
-  console.log(JSON.stringify(fcaVerdict({ mode: 'formula', D: F, C, Ck: C, K: null, U: null, flagged, rate: C ? flagged / C : 0, guides: guides.length, guidesSkipped, hits: hitsAll })));
+  console.log(
+    JSON.stringify(
+      fcaVerdict({
+        mode: 'formula',
+        D: F,
+        C,
+        Ck: C,
+        K: null,
+        U: null,
+        flagged,
+        rate: C ? flagged / C : 0,
+        guides: guides.length,
+        guidesSkipped,
+        guidesRejected: corpus.rejected.length,
+        guidesNoItems,
+        rejections: corpus.rejected,
+        hits: hitsAll
+      })
+    )
+  );
   return 0;
 }
 
@@ -512,6 +629,58 @@ if ((process.argv.includes('--selftest') || process.argv.includes('--self-test')
   eq(
     fm.status === 'PASS' && fm.gate === 'formula-constant-audit' && /NO calibration bands/.test(fm.criterion.name),
     'verdict: formula mode has no bands — a rate that is UNKNOWN in --descriptions is PASS-with-questions here, and the object says why'
+  );
+  /* ── THE CORPUS ─ residue 2026-11-10-the-formula-audit-corpus-omits-the-ninth-reference-guide,
+     pinned in BOTH directions. Every leg is PURE: the classifier takes a path list, so no leg reads a
+     file and none spawns a process. */
+  const TREE = [
+    'OxyDex Reference.html',
+    'PulseDex Reference.html',
+    'codegen/generated/eegdex-reference.html',
+    'docs/OxyDex Reference.html',
+    'docs/papers/sigma-no-reference.html',
+    'papers/cpap-flow-reference.html',
+    'tools/formula-constant-audit.mjs'
+  ];
+  const cp = classifyGuidePaths(TREE);
+  eq(cp.guides.length === 3, `the corpus takes the 3 node guides of 7 paths: ${cp.guides.join(' · ')}`);
+  eq(cp.guides.includes('codegen/generated/eegdex-reference.html'), 'the generated guide name shape enters the corpus, which a root readdir cannot reach');
+  eq(
+    cp.guides.every((g) => !g.startsWith('docs/') && !g.startsWith('papers/')),
+    'no served copy and no paper enters the corpus'
+  );
+  eq(cp.rejected.length === 3 && cp.rejected.every((r) => r.path && r.reason && r.reason.length > 8), 'every rejected path carries a named reason, so a pre-loop drop is never silent');
+  eq(!cp.guides.includes('tools/formula-constant-audit.mjs') && !cp.rejected.some((r) => r.path.endsWith('.mjs')), 'a path that is no guide at all neither enters the corpus nor reads as a rejection');
+  /* PLANT · the predicate this change replaced, over the same list. It answers one guide FEWER and
+     holds no eegdex name at all, which is how an in-loop counter could never report the omission. */
+  const rootGlob = TREE.filter((f) => /Reference\.html$/.test(f) && !f.includes('/'));
+  eq(rootGlob.length === cp.guides.length - 1, `PLANT: the root predicate answers ${rootGlob.length} guide(s) where the tracked tree answers ${cp.guides.length}`);
+  eq(!rootGlob.some((f) => /eegdex/i.test(f)), 'PLANT: the root predicate holds no eegdex guide, so no in-loop counter could report it');
+  /* the node slug reads BOTH guide name shapes */
+  eq(nodeNameFor('codegen/generated/eegdex-reference.html') === 'eegdex', 'the generated guide names its node, where `split(" ")[0]` answered the whole filename');
+  eq(nodeNameFor('OxyDex Reference.html') === 'oxydex', 'a root guide still names its node');
+  eq(nodeNameFor('docs/papers/sigma-no-reference.html') === 'sigma', 'the slug reads the basename and cuts at the first hyphen, never the directory');
+  /* the verdict carries the pre-loop counts, and an unreadable corpus is NOT_RUN naming its reason */
+  const rejV = mk({
+    D: 300,
+    C: 120,
+    Ck: 90,
+    K: 140,
+    U: 210,
+    flagged: 18,
+    rate: 18 / 120,
+    guidesRejected: 11,
+    guidesNoItems: 1,
+    rejections: [{ path: 'docs/OxyDex Reference.html', reason: 'a served copy' }]
+  });
+  eq(
+    rejV.result.guidesRejected === 11 && rejV.result.guidesNoItems === 1 && rejV.result.rejections[0].reason === 'a served copy',
+    'verdict: the pre-loop rejections, their reasons and the empty-guide count all reach the object'
+  );
+  const brokeV = mk({ D: 0, C: 0, Ck: 0, K: 0, U: 0, flagged: 0, rate: 0, guides: 0, guidesSkipped: 0, corpusError: 'git ls-files failed: boom' });
+  eq(
+    brokeV.status === 'NOT_RUN' && /could not be read/.test(brokeV.reason) && /boom/.test(brokeV.reason),
+    'verdict: an unreadable corpus is NOT_RUN naming the reason, never an empty corpus reading as a clean sweep'
   );
   console.log(`all ${legs} selftests passed`);
   process.exit(0);

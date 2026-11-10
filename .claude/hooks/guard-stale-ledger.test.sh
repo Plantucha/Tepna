@@ -34,6 +34,14 @@ set -uo pipefail
 # which an `unset` at the top of the file does not touch.
 unset CLAUDE_ALLOW_STALE_LEDGER
 H="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/guard-stale-ledger.sh"
+# The shared needle readers. A leg whose PASS is an ABSENCE needs a reader that cannot fail to
+# look, and `grep` through a pipe reads "could not look" as "not there" — row
+# 2026-11-09-four-selftest-legs-print-ok-when-their-reader-fails-to-look.
+_LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/tools/hook-test-lib.sh"
+if [ ! -r "$_LIB" ]; then printf '  REFUSE  the needle readers are unreadable at %s\n' "$_LIB" >&2; exit 2; fi
+# The path is a runtime expression, so shellcheck resolves it only under -x, which no gate runs.
+# shellcheck source=../../tools/hook-test-lib.sh disable=SC1091
+. "$_LIB"
 # ⚠ THE WRITER-FATE PAYLOAD IS SIZED FROM THE KERNEL, NOT FROM A ROUND NUMBER — the derivation
 # and the measurement behind it are in `guard-stale-brief.test.sh`, and `--probe-bytes` is the one
 # authority. A size that cannot be derived refuses: it is a leg that would examine nothing.
@@ -180,6 +188,7 @@ echo "### the hazard runs one way: a row closed HERE is this tree's own closure"
 # printed `0 of them read OPEN here and are CLOSED on the ref` as it blocked.
 printf '%s\n' "$REF_LEDGER" | sed 's/| 2026-10-03-charlie \(.*\)| OPEN |/| 2026-10-03-charlie \1| fixed #9003 |/' > "$STALE/briefs/RESIDUE.md"
 expect ALLOW "a row closed here and OPEN on the ref"           "$STALE" "$(cmdj "$READ_CMD")"
+# shellcheck disable=SC2016  # a sed script: the ledger cells travel literally.
 printf '%s\n' "$REF_LEDGER" | sed 's/| fixed #9001 |/| → `ALPHA-BRIEF.md` |/' > "$STALE/briefs/RESIDUE.md"
 expect ALLOW "a row closed on both sides, with different text"  "$STALE" "$(cmdj "$READ_CMD")"
 write_ledger OPEN 'fixed #9002' 'fixed #9003' 'key'
@@ -274,7 +283,11 @@ for _c in "${OFFERS[@]}"; do
   fi
 done
 # the control pair: each is REFUSED, by a different guard, which is why the text names them inline
-if printf '%s\n' "${OFFERS[@]}" | grep -q 'restore'; then
+_offers_text="$(printf '%s\n' "${OFFERS[@]}")"
+if ! says git "$_offers_text"; then
+  printf '  FAIL  UNEXAMINED: the offer list holds no git command, so the absence below is no evidence\n'; fail=$((fail+1))
+fi
+if says restore "$_offers_text"; then
   printf '  FAIL  a restore form is OFFERED as runnable, and neither restore cures a behind checkout\n'; fail=$((fail+1))
 else
   printf '  ok    %-62s\n' "no restore form is offered as runnable"

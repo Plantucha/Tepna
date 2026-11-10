@@ -129,13 +129,22 @@ export function snapshot() {
   const commitsSince = count !== null && /^\d+\s*$/.test(count) ? +count : null;
   return { fetched, tag, lastReleaseAt, commitsSince, now: new Date().toISOString(), running: releaseLandUnfinished() };
 }
-/* release-land's state file, via its own --status: exit 0 = last run complete, 1 = failed or none
-   recorded, 3 = steps remain (in progress or crashed), 2 = a usage error. Both non-zero states hold — a crashed run is
-   the operator's to `--resume`, not this timer's to overwrite. */
+/* release-land's state file, via its own --status. The whole exit map: 0 = the chain is done,
+   1 = the recorded run FAILED, 2 = a usage error (the argv guard, board #5153), 3 = steps remain
+   (in progress or crashed), 4 = no state file on this machine. A crashed run is the operator's to
+   `--resume`, not this timer's to overwrite, so every code but 0 and 4 holds. */
+export function landStateUnfinished(status, stdout) {
+  /* Exit 4 says the read EXAMINED NOTHING, so nothing is unfinished. Exit 1 answered for an absent
+     state file as well until `release-land.mjs` split the two. The printed line stays as the second
+     rail for a copy that predates that split. */
+  if (status === 4) return false;
+  if (status === 1 && /no release-land run recorded/.test(stdout || '')) return false;
+  return status !== 0;
+}
+
 function releaseLandUnfinished() {
   const r = spawnSync(process.execPath, [join(ROOT, 'tools', 'release-land.mjs'), '--status'], { cwd: ROOT, encoding: 'utf8' });
-  if (r.status === 1 && /no release-land run recorded/.test(r.stdout || '')) return false;
-  return r.status !== 0;
+  return landStateUnfinished(r.status, r.stdout);
 }
 
 /* Attached: the chain runs in THIS process and its exit code is the outcome. Used by the timer unit,
@@ -243,6 +252,14 @@ if (process.argv.includes('--selftest') && isCliEntry(import.meta.url)) {
   ok(decide({ now: 'garbage', lastReleaseAt: T0, commitsSince: 5 }).action === 'refuse', 'an unparseable clock refuses');
   ok(decide(null).action === 'refuse', 'no snapshot at all refuses');
   ok(decide({ now: Date.parse(at(8)), lastReleaseAt: Date.parse(T0), commitsSince: 0 }).action === 'release', 'epoch-ms inputs are accepted');
+  /* The land-state read is PURE above its spawn, so the exit map is testable against a literal
+     list — row `2026-11-10-release-land-status-answers-one-for-a-failed-run-and-for-no-run`. */
+  ok(landStateUnfinished(0, 'the chain is done') === false, 'exit 0: the chain is done, so nothing is unfinished');
+  ok(landStateUnfinished(4, 'no release-land run recorded on this machine') === false, 'exit 4: this read examined nothing, so nothing is unfinished');
+  ok(landStateUnfinished(1, 'FAILED at step stamp') === true, 'exit 1: the recorded run FAILED, and a failed run HOLDS');
+  ok(landStateUnfinished(3, 'remaining: tag, github-release') === true, 'exit 3: steps remain, so the run is unfinished');
+  ok(landStateUnfinished(2, 'unknown flag') === true, 'exit 2: a usage error is no licence to start a second chain');
+  ok(landStateUnfinished(1, 'no release-land run recorded on this machine') === false, 'CONTROL · the printed line still reads absent under the old exit 1');
   // the verdict shape validates under the contract, in every action
   const V = require(join(ROOT, 'verdict.js'));
   for (const [snap, launched] of [

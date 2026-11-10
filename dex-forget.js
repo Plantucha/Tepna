@@ -59,10 +59,15 @@
     // per-node saved data / settings
     'hrvdex_rows_v1',
     'hrvdex_dashMode',
+    // pre-tier dashboard modes that metric-registry.js getTier() reads and migrates forward, never deletes
+    'oxydex_dashMode',
+    'o2r_dashMode',
     'glucodex_meals',
     'glucodex_calib',
     'glucodex_dispUnit',
     'ppgdex_active',
+    'ppgdex_site_declared',
+    'ganglior_long_includeSynth',
     // F4 raw-recording cache (dropped; cleared for users who cached under a prior version)
     'oxydex_last_csv',
     'oxydex_last_name',
@@ -77,8 +82,9 @@
     'oxydex_collapse_v1',
     'o2ring_collapse_v1'
   ];
-  // IndexedDB databases holding suite health data (the Integrator longitudinal store).
-  var IDB_DBS = ['ganglior_integrator'];
+  // IndexedDB databases holding suite health data: the Integrator longitudinal store, and the
+  // night-seal card keys that unseal sealed nights (night-seal.js DB_NAME).
+  var IDB_DBS = ['ganglior_integrator', 'tepna-night-seal'];
 
   // FOLLOWUPS §2: the standalone research/analysis pages (cgm-hrv-coupling, hrv-confound,
   // nights-icc, sensor-trio-power, treatment-response) keep their OWN checkpoint state. The

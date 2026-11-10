@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="1edfc230b32b" data-compute-hash="f1d337402137"><head>
+<html lang="en" data-manifest-hash="fec20fc11809" data-compute-hash="14facfdda33f"><head>
 <!--
   Integrator.src.html — Tepna
   Copyright 2026 Michal Planicka
@@ -9,7 +9,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'self' (NOT 'none') — this bundle fetches committed LOCAL sample files; 'self' still blocks every REMOTE origin. object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-84iaFiqUEftz4fuLv5KHfze6SsmT/jwwfMKpygTi4HQ=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-P/3IN8LDDlxkQ11WNj2a8WJycCpcNnAlSYFo4xb2q88=' 'sha256-QU1eFIpXtk89h7OawHFWXJry6pEr0cw5i0Q08kGZz88=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-aUdm/7EmRqa2iiXr8zBekMiJhlqW7z51cZBG+7OCko8=' 'sha256-fGkqo1InzXusfon2RDMp9a98flNCFaw3TSbxCC/xJUA=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-uPBXSh8bOW0EIESjeEN3ZVzHDWjVCQ1RSoTzI4m2jM0='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/FJDc6QZSgbGycx6HaM0VylDyoOJ6EXsDb/7Pj7vAKg=' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-P/3IN8LDDlxkQ11WNj2a8WJycCpcNnAlSYFo4xb2q88=' 'sha256-QU1eFIpXtk89h7OawHFWXJry6pEr0cw5i0Q08kGZz88=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-fGkqo1InzXusfon2RDMp9a98flNCFaw3TSbxCC/xJUA=' 'sha256-kryaRysk2VcK4nRAhaqFOMDUukjwkDR8WaOUc3fNkcY=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-uPBXSh8bOW0EIESjeEN3ZVzHDWjVCQ1RSoTzI4m2jM0='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>Integrator · Fusion Layer · v2.30.0</title>
@@ -8250,6 +8250,12 @@ function adaptOxyDex(json, filename) {
       kernelHash: _kernelHash(n.kernel || _topKernel),
       kernelVersion: _kernelVersion(n.kernel || _topKernel),
       contentId: n.contentId != null ? n.contentId : null, // EXPORT-IDENTITY-FOLLOWUPS-II §1 (per-night identity-free handle)
+      /* §6.2 SPARSE coverage — the OxyDex writer declares the night's dropout segments
+         (oxydex-dsp.js `oxyCoverage`), on the night and, for a single-night export, on
+         `recording.coverage`. This adapter dropped it, so `recSegments` read the whole envelope and
+         a 2-segment night read as recordedFrac 1. A multi-night export declares no top-level block
+         (oxydex-app.js `_aCov`), so the top-level read is single-night only. */
+      coverage: n.coverage || (nights.length === 1 && json && !Array.isArray(json) && json.recording && json.recording.coverage) || null,
       nEvents: events.length,
       raw: n,
       _src: filename
@@ -11172,10 +11178,20 @@ function _pbObserver(rec) {
       .filter(function (c) {
         return c != null && isFinite(c);
       });
-    var conf = cs.length ? median(cs) : pct != null ? clamp(0.5 + (Math.min(pct, 40) / 40) * 0.4, 0.5, 0.9) : 0.6;
+    /* ∅ · NO SOURCE OF A CONFIDENCE MEANS NULL, never 0.6. Two sources can state one here: the
+       episodes' own `conf` values in `cs`, and `pct`, the device-scored share of the night. The
+       guard above admits a record on either, so a record can arrive with episodes whose every
+       `conf` is null and no `pct` — an imported `ganglior.node-export` may legally carry
+       `conf: null` on each event, which `crossnight-envelope.js` validates as "0..1 or null", and
+       the OxyDex branch never reads `pct` into its own observer. The 0.6 that stood here until
+       2026-11-10 published that state as a measured mid-confidence. `combineConf` skips a null
+       already, so the fused number moves only where NO observer states a confidence, and there it
+       becomes null rather than 0. */
+    var conf = cs.length ? median(cs) : pct != null ? clamp(0.5 + (Math.min(pct, 40) / 40) * 0.4, 0.5, 0.9) : null;
+    var confOut = conf != null ? +conf.toFixed(2) : null;
     return rec.node === 'CPAPDex'
-      ? { node: 'CPAPDex', channel: 'device flow', tier: 'device-scored', episodes: pb.length, pbPct: pct != null ? pct : null, cvhrIndex: null, conf: +conf.toFixed(2) }
-      : { node: 'OxyDex', channel: 'SpO₂ oscillation', tier: 'experimental', episodes: pb.length, pbPct: null, cvhrIndex: null, conf: +conf.toFixed(2) };
+      ? { node: 'CPAPDex', channel: 'device flow', tier: 'device-scored', episodes: pb.length, pbPct: pct != null ? pct : null, cvhrIndex: null, conf: confOut }
+      : { node: 'OxyDex', channel: 'SpO₂ oscillation', tier: 'experimental', episodes: pb.length, pbPct: null, cvhrIndex: null, conf: confOut };
   }
   if (rec.node === 'ECGDex') {
     var idx = rec.summary && rec.summary.cvhrIndex != null ? rec.summary.cvhrIndex : null;
@@ -11223,7 +11239,11 @@ function fusePeriodicBreathing(recs) {
       if (!isFinite(t0)) t0 = null;
       var conf = combineConf(
         obs.map(function (o) {
-          return (o.conf != null ? o.conf : 0) * (PB_TIER_WEIGHT[o.tier] || 0.6);
+          /* ∅ · an observer that states no confidence contributes NOTHING, and `combineConf`
+             skips a null for us. The 0 that stood here read as a stated zero: it set that
+             function's `any` flag, so a group where no observer stated a confidence published a
+             fused `conf: 0` instead of null. */
+          return o.conf != null ? o.conf * (PB_TIER_WEIGHT[o.tier] || 0.6) : null;
         })
       );
       var note =
@@ -17887,6 +17907,64 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
      ════════════════════════════════════════════════════════════════════ */
   var MAX_LANES = 14;
   var _tlZoom = 1;
+  /* ∅ · AN EVENT WITH NO STATED CONFIDENCE IS NOT AN EVENT AT 0.5. A tick's height and its
+     opacity are both functions of `conf`, so the 0.5 that `renderTimeline` substituted until
+     2026-11-10 drew the same mark a measured 0.5 draws, and the glyph is what a reader takes in at
+     a glance. An imported `ganglior.node-export` may legally carry `conf: null`, which
+     `crossnight-envelope.js` validates as "0..1 or null". An absent confidence draws as a dashed
+     outline at one fixed height instead, and the hover readout says it too.
+     The decision is PURE and exported so the node lane pins the absent case against a measured one
+     with no DOM. The arithmetic for a stated confidence is byte-identical to what it replaced. */
+  function tickGeom(conf) {
+    var has = conf != null && isFinite(conf);
+    return has ? { has: true, h: 6 + conf * 18, op: (0.35 + conf * 0.55).toFixed(2), outline: false } : { has: false, h: 14, op: '0', outline: true };
+  }
+  /* A TAP IS NOT A HOVER. The readout is bound to `mousemove`, and a tick is 2.2 viewBox units wide,
+     so a finger could reach no event detail at all (ledger row
+     2026-11-08-the-integrator-timeline-readout-is-hover-only). The tap path picks the NEAREST tick
+     within a tolerance instead of demanding a direct hit, and it clamps the readout inside the
+     viewport, where `clientX + 14` put it off a phone screen at the right edge. Both decisions are
+     PURE and exported, so each lane pins them with no DOM. */
+  var TL_TAP_TOL_VB = 7;
+  function pickTickAt(ticks, vbX, tol) {
+    if (!ticks || !ticks.length || !isFinite(vbX)) return null;
+    var lim = isFinite(tol) ? tol : TL_TAP_TOL_VB;
+    var best = null;
+    var bestD = Infinity;
+    for (var i = 0; i < ticks.length; i++) {
+      var t = ticks[i];
+      if (!t || !isFinite(t.cx)) continue;
+      var d = Math.abs(t.cx - vbX);
+      if (d < bestD) {
+        bestD = d;
+        best = t;
+      }
+    }
+    /* a tie keeps the earlier tick, because the list is drawn in time order */
+    return best && bestD <= lim ? best : null;
+  }
+  function tipAnchor(x, y, tipW, tipH, vw, vh) {
+    var pad = 8;
+    var gap = 14;
+    var w = isFinite(tipW) ? tipW : 0;
+    var h = isFinite(tipH) ? tipH : 0;
+    var left = x + gap;
+    var top = y + gap;
+    if (vw > 0 && left + w > vw - pad) left = x - gap - w;
+    if (left < pad) left = pad;
+    if (vh > 0 && top + h > vh - pad) top = y - gap - h;
+    if (top < pad) top = pad;
+    return { left: Math.round(left), top: Math.round(top) };
+  }
+  function readTicks(svg) {
+    var out = [];
+    svg.querySelectorAll('.tl-tick').forEach(function (el) {
+      var x = parseFloat(el.getAttribute('x'));
+      var w = parseFloat(el.getAttribute('width'));
+      out.push({ cx: x + (isFinite(w) ? w / 2 : 0), tip: el.getAttribute('data-tip') || '' });
+    });
+    return out;
+  }
   function renderTimeline(recs, fusion) {
     var box = $('timeline');
     if (!box) return;
@@ -18043,9 +18121,10 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
       // event ticks
       r.events.forEach(function (e) {
         var ex = X(e.tMs);
-        var conf = e.conf != null ? e.conf : 0.5;
-        var h = 6 + conf * 18;
-        var op = (0.35 + conf * 0.55).toFixed(2);
+        var g = tickGeom(e.conf);
+        var hasConf = g.has;
+        var h = g.h;
+        var op = g.op;
         svg +=
           '<rect x="' +
           (ex - 1.1).toFixed(1) +
@@ -18057,9 +18136,11 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
           col +
           '" fill-opacity="' +
           op +
-          '" class="tl-tick" ' +
+          '"' +
+          (hasConf ? '' : ' stroke="' + col + '" stroke-opacity=".8" stroke-width=".9" stroke-dasharray="2 1.6"') +
+          ' class="tl-tick" ' +
           'data-tip="' +
-          esc(D.fmtClock(e.tMs) + ' · ' + e.impulse + ' · conf ' + (e.conf != null ? e.conf.toFixed(2) : '—') + ' · ' + r.node) +
+          esc(D.fmtClock(e.tMs) + ' · ' + e.impulse + ' · conf ' + (hasConf ? e.conf.toFixed(2) : '—') + ' · ' + r.node) +
           '"/>';
       });
     });
@@ -18154,11 +18235,32 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
       tip.style.display = 'none';
       if (cross) cross.style.display = 'none';
     });
-    // click a fused-finding band → detail panel
+    // click a fused-finding band → detail panel; any other tap → the nearest event's readout
     svg.addEventListener('click', function (ev) {
       var el = ev.target;
-      if (!(el && el.classList && el.classList.contains('tl-band'))) return;
-      showFindingDetail(box, meta.fusion, +el.getAttribute('data-find'));
+      if (el && el.classList && el.classList.contains('tl-band')) {
+        showFindingDetail(box, meta.fusion, +el.getAttribute('data-find'));
+        return;
+      }
+      var r = svg.getBoundingClientRect();
+      var scale = r.width / meta.W;
+      var vbX = scale > 0 ? (ev.clientX - r.left) / scale : NaN;
+      var hit = pickTickAt(readTicks(svg), vbX, TL_TAP_TOL_VB);
+      if (!hit) {
+        tip.style.display = 'none';
+        if (cross) cross.style.display = 'none';
+        return;
+      }
+      tip.innerHTML = esc(hit.tip);
+      tip.style.display = 'block';
+      var pos = tipAnchor(ev.clientX, ev.clientY, tip.offsetWidth, tip.offsetHeight, window.innerWidth || 0, window.innerHeight || 0);
+      tip.style.left = pos.left + 'px';
+      tip.style.top = pos.top + 'px';
+      if (cross) {
+        cross.setAttribute('x1', hit.cx.toFixed(1));
+        cross.setAttribute('x2', hit.cx.toFixed(1));
+        cross.style.display = 'block';
+      }
     });
     // horizontal zoom (widens the SVG; .tl-scroll scrolls). Zoom persists across re-renders.
     box.querySelectorAll('.tl-zoom-btn').forEach(function (b) {
@@ -18686,7 +18788,7 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
     if (exb) exb.classList.toggle('show', recs.length > 0);
   }
 
-  window.IntegratorRender = { bindNav, showView, renderChips, renderAll, renderWarnings };
+  window.IntegratorRender = { bindNav, showView, renderChips, renderAll, renderWarnings, tickGeom, pickTickAt, tipAnchor };
 })();
 </script>
 <script data-inline-src="integrator-app.js">/* ════════════════════════════════════════════════════════════════════════
@@ -19578,10 +19680,15 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
     // per-node saved data / settings
     'hrvdex_rows_v1',
     'hrvdex_dashMode',
+    // pre-tier dashboard modes that metric-registry.js getTier() reads and migrates forward, never deletes
+    'oxydex_dashMode',
+    'o2r_dashMode',
     'glucodex_meals',
     'glucodex_calib',
     'glucodex_dispUnit',
     'ppgdex_active',
+    'ppgdex_site_declared',
+    'ganglior_long_includeSynth',
     // F4 raw-recording cache (dropped; cleared for users who cached under a prior version)
     'oxydex_last_csv',
     'oxydex_last_name',
@@ -19596,8 +19703,9 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
     'oxydex_collapse_v1',
     'o2ring_collapse_v1'
   ];
-  // IndexedDB databases holding suite health data (the Integrator longitudinal store).
-  var IDB_DBS = ['ganglior_integrator'];
+  // IndexedDB databases holding suite health data: the Integrator longitudinal store, and the
+  // night-seal card keys that unseal sealed nights (night-seal.js DB_NAME).
+  var IDB_DBS = ['ganglior_integrator', 'tepna-night-seal'];
 
   // FOLLOWUPS §2: the standalone research/analysis pages (cgm-hrv-coupling, hrv-confound,
   // nights-icc, sensor-trio-power, treatment-response) keep their OWN checkpoint state. The

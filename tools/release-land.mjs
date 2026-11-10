@@ -586,7 +586,13 @@ function status() {
   const st = ptr && loadState(ptr.file);
   if (!st) {
     console.log('no release-land run recorded on this machine');
-    return 1;
+    /* 4, never 1: this read EXAMINED NOTHING, and 1 is what a release that FAILED means. A caller acts
+       on the two differently — one may start a release, the other needs a human — and `board.mjs` had
+       to regex the printed line to tell them apart (row
+       2026-11-10-release-land-status-answers-one-for-a-failed-run-and-for-no-run). The whole map:
+       0 the chain is done · 1 the recorded run failed · 2 a usage error, the argv guard's (board #5153)
+       · 3 steps remain · 4 no state file on this machine. */
+    return 4;
   }
   const rem = remaining(st.done);
   console.log(`v${st.to}  started ${st.started}  updated ${st.updated}`);

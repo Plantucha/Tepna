@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="aa6c96b3ffcc" data-compute-hash="7b16a229cb19">
+<html lang="en" data-manifest-hash="b269ea60a641" data-compute-hash="7b16a229cb19">
 <head>
 <!--
   HRVDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0DQHWzcJEMTDK0okzsLrElRNNuIqt6zybEklrP0095E=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8PRBTa79fUaN2zhWDMHlkkyA9S3dSTeqfWILOdsEo0k=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QU1eFIpXtk89h7OawHFWXJry6pEr0cw5i0Q08kGZz88=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-TJnsXppIrR2fDEg9roXHwHuaiAym8hL+7tyg9r6NlEw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-iJKYeg5xdrMEk8SgzSY/+JuUNx7CM4NtzwbAp3dmTjU=' 'sha256-iPyLk9lz5vEHBgIRxCRO79E+5mxBTZTD8Z35NpXAFnA=' 'sha256-pTsHiG3YU81obvJkalwdmUi5EMJKUcF94zWTj6ccHIo=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-wQSzoNwWpbIfmh9kMjUs40V1eTfx9BQIQe+GNHljJyE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0DQHWzcJEMTDK0okzsLrElRNNuIqt6zybEklrP0095E=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8GlMW0ydTx44N4RQ2TgVSbgHpvjNUaLqqNGCpvvNiWY=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8PRBTa79fUaN2zhWDMHlkkyA9S3dSTeqfWILOdsEo0k=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QU1eFIpXtk89h7OawHFWXJry6pEr0cw5i0Q08kGZz88=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-TJnsXppIrR2fDEg9roXHwHuaiAym8hL+7tyg9r6NlEw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-iPyLk9lz5vEHBgIRxCRO79E+5mxBTZTD8Z35NpXAFnA=' 'sha256-pTsHiG3YU81obvJkalwdmUi5EMJKUcF94zWTj6ccHIo=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-wQSzoNwWpbIfmh9kMjUs40V1eTfx9BQIQe+GNHljJyE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>HRVDex — Heart Rate Variability Analyzer · v2.30.0</title>
@@ -6715,10 +6715,15 @@ body.light .topbar::after{ opacity:.25; }
     // per-node saved data / settings
     'hrvdex_rows_v1',
     'hrvdex_dashMode',
+    // pre-tier dashboard modes that metric-registry.js getTier() reads and migrates forward, never deletes
+    'oxydex_dashMode',
+    'o2r_dashMode',
     'glucodex_meals',
     'glucodex_calib',
     'glucodex_dispUnit',
     'ppgdex_active',
+    'ppgdex_site_declared',
+    'ganglior_long_includeSynth',
     // F4 raw-recording cache (dropped; cleared for users who cached under a prior version)
     'oxydex_last_csv',
     'oxydex_last_name',
@@ -6733,8 +6738,9 @@ body.light .topbar::after{ opacity:.25; }
     'oxydex_collapse_v1',
     'o2ring_collapse_v1'
   ];
-  // IndexedDB databases holding suite health data (the Integrator longitudinal store).
-  var IDB_DBS = ['ganglior_integrator'];
+  // IndexedDB databases holding suite health data: the Integrator longitudinal store, and the
+  // night-seal card keys that unseal sealed nights (night-seal.js DB_NAME).
+  var IDB_DBS = ['ganglior_integrator', 'tepna-night-seal'];
 
   // FOLLOWUPS §2: the standalone research/analysis pages (cgm-hrv-coupling, hrv-confound,
   // nights-icc, sensor-trio-power, treatment-response) keep their OWN checkpoint state. The
@@ -15351,7 +15357,7 @@ function hrvReviewView(review) {
     ms.length +
     ' measurement' +
     (ms.length === 1 ? '' : 's') +
-    (rec.spanDays != null ? ' \u00b7 ' + rec.spanDays + ' days' : '') +
+    (rec.spanDays != null ? ' \u00b7 ' + _hrvesc(rec.spanDays) + ' days' : '') +
     ' \u00b7 ' +
     _hrvD(rec.firstTMs) +
     ' \u2192 ' +
@@ -15360,11 +15366,11 @@ function hrvReviewView(review) {
   h += '<div class="hrvrv-sec">Impression</div>';
   h +=
     '<div class="hrvrv-imp">Latest rMSSD ' +
-    nv(last.rmssd) +
+    _hrvesc(nv(last.rmssd)) +
     ' ms \u00b7 SDNN ' +
-    nv(last.sdnn) +
+    _hrvesc(nv(last.sdnn)) +
     ' ms \u00b7 mean HR ' +
-    nv(last.hr) +
+    _hrvesc(nv(last.hr)) +
     ' bpm' +
     (meanRm != null ? ' \u00b7 window mean rMSSD ' + meanRm + ' ms' : '') +
     '. Rendered from the export\u2019s stored per-measurement table \u2014 no re-analysis.</div>';
@@ -15408,7 +15414,9 @@ function hrvReviewView(review) {
       '<table class="hrvrv-tbl"><thead><tr><th>Date</th><th>rMSSD</th><th>SDNN</th><th>HR</th><th>pNN50</th></tr></thead><tbody>' +
       rowsDesc
         .map(function (m) {
-          return '<tr><td>' + _hrvD(m.tMs) + '</td><td>' + nv(m.rmssd) + '</td><td>' + nv(m.sdnn) + '</td><td>' + nv(m.hr) + '</td><td>' + nv(m.pnn50) + '</td></tr>';
+          return (
+            '<tr><td>' + _hrvD(m.tMs) + '</td><td>' + _hrvesc(nv(m.rmssd)) + '</td><td>' + _hrvesc(nv(m.sdnn)) + '</td><td>' + _hrvesc(nv(m.hr)) + '</td><td>' + _hrvesc(nv(m.pnn50)) + '</td></tr>'
+          );
         })
         .join('') +
       '</tbody></table>' +
@@ -15431,7 +15439,7 @@ function hrvReviewView(review) {
             '</span><span>' +
             _hrvesc(e.impulse || 'event') +
             '</span><span class="tl-t">conf ' +
-            (e.conf != null ? e.conf : '\u2014') +
+            _hrvesc(e.conf != null ? e.conf : '\u2014') +
             '</span></div>'
           );
         })

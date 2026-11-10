@@ -41,6 +41,7 @@ mkdir -p "$DEST" "$EDFDIR"
 
 # The id list comes from the ANNOTATIONS, which are complete (5136) and local. Deriving it from the
 # EDF directory would be circular — that is the set we are trying to fill.
+# shellcheck disable=SC2012  # NSRR annotation ids carry no spaces, and the sed that follows defines the shape.
 mapfile -t ALL < <(ls "$IDSRC" | sed 's/-nsrr\.xml$//' | sort -u)
 # Count .edf files without `ls | grep` (SC2010): a glob is correct for any filename, and an unmatched
 # glob under `nullglob` yields an empty array rather than the literal pattern.

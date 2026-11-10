@@ -536,6 +536,64 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
      ════════════════════════════════════════════════════════════════════ */
   var MAX_LANES = 14;
   var _tlZoom = 1;
+  /* ∅ · AN EVENT WITH NO STATED CONFIDENCE IS NOT AN EVENT AT 0.5. A tick's height and its
+     opacity are both functions of `conf`, so the 0.5 that `renderTimeline` substituted until
+     2026-11-10 drew the same mark a measured 0.5 draws, and the glyph is what a reader takes in at
+     a glance. An imported `ganglior.node-export` may legally carry `conf: null`, which
+     `crossnight-envelope.js` validates as "0..1 or null". An absent confidence draws as a dashed
+     outline at one fixed height instead, and the hover readout says it too.
+     The decision is PURE and exported so the node lane pins the absent case against a measured one
+     with no DOM. The arithmetic for a stated confidence is byte-identical to what it replaced. */
+  function tickGeom(conf) {
+    var has = conf != null && isFinite(conf);
+    return has ? { has: true, h: 6 + conf * 18, op: (0.35 + conf * 0.55).toFixed(2), outline: false } : { has: false, h: 14, op: '0', outline: true };
+  }
+  /* A TAP IS NOT A HOVER. The readout is bound to `mousemove`, and a tick is 2.2 viewBox units wide,
+     so a finger could reach no event detail at all (ledger row
+     2026-11-08-the-integrator-timeline-readout-is-hover-only). The tap path picks the NEAREST tick
+     within a tolerance instead of demanding a direct hit, and it clamps the readout inside the
+     viewport, where `clientX + 14` put it off a phone screen at the right edge. Both decisions are
+     PURE and exported, so each lane pins them with no DOM. */
+  var TL_TAP_TOL_VB = 7;
+  function pickTickAt(ticks, vbX, tol) {
+    if (!ticks || !ticks.length || !isFinite(vbX)) return null;
+    var lim = isFinite(tol) ? tol : TL_TAP_TOL_VB;
+    var best = null;
+    var bestD = Infinity;
+    for (var i = 0; i < ticks.length; i++) {
+      var t = ticks[i];
+      if (!t || !isFinite(t.cx)) continue;
+      var d = Math.abs(t.cx - vbX);
+      if (d < bestD) {
+        bestD = d;
+        best = t;
+      }
+    }
+    /* a tie keeps the earlier tick, because the list is drawn in time order */
+    return best && bestD <= lim ? best : null;
+  }
+  function tipAnchor(x, y, tipW, tipH, vw, vh) {
+    var pad = 8;
+    var gap = 14;
+    var w = isFinite(tipW) ? tipW : 0;
+    var h = isFinite(tipH) ? tipH : 0;
+    var left = x + gap;
+    var top = y + gap;
+    if (vw > 0 && left + w > vw - pad) left = x - gap - w;
+    if (left < pad) left = pad;
+    if (vh > 0 && top + h > vh - pad) top = y - gap - h;
+    if (top < pad) top = pad;
+    return { left: Math.round(left), top: Math.round(top) };
+  }
+  function readTicks(svg) {
+    var out = [];
+    svg.querySelectorAll('.tl-tick').forEach(function (el) {
+      var x = parseFloat(el.getAttribute('x'));
+      var w = parseFloat(el.getAttribute('width'));
+      out.push({ cx: x + (isFinite(w) ? w / 2 : 0), tip: el.getAttribute('data-tip') || '' });
+    });
+    return out;
+  }
   function renderTimeline(recs, fusion) {
     var box = $('timeline');
     if (!box) return;
@@ -692,9 +750,10 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
       // event ticks
       r.events.forEach(function (e) {
         var ex = X(e.tMs);
-        var conf = e.conf != null ? e.conf : 0.5;
-        var h = 6 + conf * 18;
-        var op = (0.35 + conf * 0.55).toFixed(2);
+        var g = tickGeom(e.conf);
+        var hasConf = g.has;
+        var h = g.h;
+        var op = g.op;
         svg +=
           '<rect x="' +
           (ex - 1.1).toFixed(1) +
@@ -706,9 +765,11 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
           col +
           '" fill-opacity="' +
           op +
-          '" class="tl-tick" ' +
+          '"' +
+          (hasConf ? '' : ' stroke="' + col + '" stroke-opacity=".8" stroke-width=".9" stroke-dasharray="2 1.6"') +
+          ' class="tl-tick" ' +
           'data-tip="' +
-          esc(D.fmtClock(e.tMs) + ' · ' + e.impulse + ' · conf ' + (e.conf != null ? e.conf.toFixed(2) : '—') + ' · ' + r.node) +
+          esc(D.fmtClock(e.tMs) + ' · ' + e.impulse + ' · conf ' + (hasConf ? e.conf.toFixed(2) : '—') + ' · ' + r.node) +
           '"/>';
       });
     });
@@ -803,11 +864,32 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
       tip.style.display = 'none';
       if (cross) cross.style.display = 'none';
     });
-    // click a fused-finding band → detail panel
+    // click a fused-finding band → detail panel; any other tap → the nearest event's readout
     svg.addEventListener('click', function (ev) {
       var el = ev.target;
-      if (!(el && el.classList && el.classList.contains('tl-band'))) return;
-      showFindingDetail(box, meta.fusion, +el.getAttribute('data-find'));
+      if (el && el.classList && el.classList.contains('tl-band')) {
+        showFindingDetail(box, meta.fusion, +el.getAttribute('data-find'));
+        return;
+      }
+      var r = svg.getBoundingClientRect();
+      var scale = r.width / meta.W;
+      var vbX = scale > 0 ? (ev.clientX - r.left) / scale : NaN;
+      var hit = pickTickAt(readTicks(svg), vbX, TL_TAP_TOL_VB);
+      if (!hit) {
+        tip.style.display = 'none';
+        if (cross) cross.style.display = 'none';
+        return;
+      }
+      tip.innerHTML = esc(hit.tip);
+      tip.style.display = 'block';
+      var pos = tipAnchor(ev.clientX, ev.clientY, tip.offsetWidth, tip.offsetHeight, window.innerWidth || 0, window.innerHeight || 0);
+      tip.style.left = pos.left + 'px';
+      tip.style.top = pos.top + 'px';
+      if (cross) {
+        cross.setAttribute('x1', hit.cx.toFixed(1));
+        cross.setAttribute('x2', hit.cx.toFixed(1));
+        cross.style.display = 'block';
+      }
     });
     // horizontal zoom (widens the SVG; .tl-scroll scrolls). Zoom persists across re-renders.
     box.querySelectorAll('.tl-zoom-btn').forEach(function (b) {
@@ -1335,5 +1417,5 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
     if (exb) exb.classList.toggle('show', recs.length > 0);
   }
 
-  window.IntegratorRender = { bindNav, showView, renderChips, renderAll, renderWarnings };
+  window.IntegratorRender = { bindNav, showView, renderChips, renderAll, renderWarnings, tickGeom, pickTickAt, tipAnchor };
 })();

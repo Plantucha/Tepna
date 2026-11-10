@@ -129,6 +129,13 @@
 <script src="ppgdex-morph.js"></script>
 <script src="integrator-dsp.js"></script>
 <script src="integrator-tch.js"></script>
+<!-- integrator-render.js (2026-11-10): BOTH LANES OR NEITHER. Its text sat in SOURCE_FILES here and in
+     run-tests.mjs readSources(), and NEITHER lane executed it, so an assertion about what it DOES had
+     nowhere to run. Measured before loading it: every selector its hero stylesheet defines (#hero, .kpi,
+     .data-table, .finding-card, .cor-card, .chip-prov, .main-content) appears 0 times in this page, so
+     the injection matches nothing here. Plain global IIFE over window.IntegratorDSP, which line above
+     provides. -->
+<script src="integrator-render.js"></script>
 <script src="pat-align.js"></script>
 <script src="integrator-longitudinal.js"></script>
 <!-- FULL-lane harness generators (for the waveform-fidelity gate) -->
@@ -254,7 +261,16 @@ const SOURCE_FILES = ['tools/trio-batch.mjs','tools/pat-host-offset.mjs','tools/
     reported `hh,vv,oo,h10Source,o2Source` dead on sensor-trio-worker.js. `qrs-equiv-analysis.js` was the
     sharp one — it is EVAL'd further down this file for behaviour but was never registered as a SOURCE, so
     its text was unreadable while its code ran. */
- 'qrs-yield-analysis.js','qrs-equiv-analysis.js','sigma-no-reference-analysis.js','sensor-trio-night.js','codegen/generated/tch-reference-record.js','sensor-trio-power-analysis.js','sensor-trio-gpu.js','hrvdex-render.js','pat-gate.js','pat-align.js','consensus-dissent.js','manifest-gate.js','tools/build.mjs','tools/verify-fixtures.mjs','tools/regen-goldens.mjs','tools/regen-goldens-core.mjs','tools/regen-oxydex-goldens.mjs','tools/regen-ecgdex-goldens.mjs','tools/regen-ppgdex-goldens.mjs','tools/regen-pulsedex-goldens.mjs','tools/regen-hrvdex-goldens.mjs','tools/regen-glucodex-goldens.mjs','tools/regen-cpap-goldens.mjs','tools/regen-motiondex-goldens.mjs','signal-orchestrate.js','dex-ingest.js',
+ 'qrs-yield-analysis.js','qrs-equiv-analysis.js','sigma-no-reference-analysis.js','sensor-trio-night.js','codegen/generated/tch-reference-record.js','sensor-trio-power-analysis.js','sensor-trio-gpu.js',
+ /* analysis-stats.js, readable as TEXT and deliberately NOT loaded here, listed 2026-11-10 with the
+    trio H10 corner gate. The Node lane co-loads this kernel (run-tests.mjs) and this lane does not,
+    so a group binding `env.AnalysisStats` can only skip here — and a skip is the one remedy the notes
+    above reject. Listing the SOURCE instead lets the group build the module from its own text, in
+    both lanes, with no second realm copy of the engine: a `<script>` tag here would hand the kernel to
+    the six OTHER groups that skip on `env.AnalysisStats` too, and four of them then skip again for an
+    analysis-page source this lane also lacks (measured 2026-11-10: 198 → 194 skips, 4 of them
+    carrying a reason no `browserLane.reasonClasses` entry declares). That is a unit of its own. */
+ 'analysis-stats.js','hrvdex-render.js','pat-gate.js','pat-align.js','consensus-dissent.js','manifest-gate.js','tools/build.mjs','tools/verify-fixtures.mjs','tools/regen-goldens.mjs','tools/regen-goldens-core.mjs','tools/regen-oxydex-goldens.mjs','tools/regen-ecgdex-goldens.mjs','tools/regen-ppgdex-goldens.mjs','tools/regen-pulsedex-goldens.mjs','tools/regen-hrvdex-goldens.mjs','tools/regen-glucodex-goldens.mjs','tools/regen-cpap-goldens.mjs','tools/regen-motiondex-goldens.mjs','signal-orchestrate.js','dex-ingest.js',
   'cpapdex-dsp.js','cpapdex-cross.js','cpapdex-edf.js','cpapdex-app.js','cpapdex-fusion.js','ecgdex-morph.js','ppgdex-morph.js','export-schema.js','dex-export.js',
   'ganglior-provenance.js','signal-frame.js','measurement-block.js','verdict.js','night-seal.js','glucodex-render.js','glucodex-app.js',
   'cpapdex-render.js','pulsedex-overview.js','ecgdex-profile.js','glucodex-profile.js','ppgdex-profile.js',
@@ -879,6 +895,7 @@ async function main(){
     GLUDSP: window.GLUDSP, GlucoDex: window.GlucoDex, DexPatientGen: window.DexPatientGen,
     IntegratorDSP: window.IntegratorDSP,
     IntegratorTCH: window.IntegratorTCH,
+    IntegratorRender: window.IntegratorRender,
     PATAlign: window.PATAlign,
     IntegratorLong: window.IntegratorLong,
     SignalOrchestrate: window.SignalOrchestrate,

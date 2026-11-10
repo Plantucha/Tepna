@@ -38,7 +38,7 @@
  * visibility"). A failed or dry-run action signs nothing; a comment that cannot post never changes the
  * action's result, it only reads `signed: false` on the landing page.
  * A `do-not-merge` label HOLDS a PR: the walker never readies, reruns or merges it. It still REBASES a
- * held PR that CONFLICTS (once per head, owner 2026-11-02), and it UPDATES a held PR that falls BEHIND main, at once and with no idleness gate, because Kodiak never
+ * held PR that CONFLICTS (once per head, owner 2026-11-02), and it UPDATES a held non-draft PR that falls BEHIND main, at once and with no idleness gate, because Kodiak never
  * updates a held PR and the owner's merge button otherwise reads "out-of-date" after every merge to
  * main (owner, 2026-10-13: "let the walker update held PRs too"). Kodiak keeps the merge; `update` and
  * `merge` on a green PR are fallbacks for the hours Kodiak is down, gated on its idleness, never a race.
@@ -62,7 +62,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from '
 import { homedir } from 'node:os';
 import path from 'node:path';
 import { isCliEntry } from './argv-guard.mjs';
-import { generatedSet } from './rebase-safe.mjs';
+import { classify as classifyPath, generatedSet } from './rebase-safe.mjs';
 
 export const CAP = 4;
 /* How many of the newest merges the closure pass reads. A `Residue-fixed:` line a body gains AFTER
@@ -205,7 +205,10 @@ export function plan(classified, state, ctx) {
          as an unheld one, because update-branch cannot merge a conflict (owner, 2026-11-02: "Fix
          walker. Everything is idle" — three held PRs sat DIRTY with no action). A rebase moves no
          label and merges nothing, so the hold still decides the landing. */
-      if (r.behind && !actions.some((a) => a.op === 'update')) actions.push({ op: 'update', number: r.number, why: 'held, behind main — updated so the owner can merge' });
+      /* A held DRAFT is not updated: no merge button is live on a draft, so keeping it current buys the
+         owner nothing, and each update re-ran the full CI (#4783 took 35 merges of main in one day). It
+         is updated on the first pass after it leaves draft. */
+      if (r.behind && !r.draft && !actions.some((a) => a.op === 'update')) actions.push({ op: 'update', number: r.number, why: 'held, behind main — updated so the owner can merge' });
       else if (r.dirty) planRebase(r, state, actions, alerts, 'held, conflicts with main — rebase-safe once so the owner can merge');
       continue;
     }
@@ -364,7 +367,16 @@ export function stepResult(step, e) {
    builders that own it and returns null when any of them cannot answer. A null set, an untracked
    path, or any dirty path outside the set is somebody's work, so this REFUSES and names it rather
    than discarding it (CLAUDE.md §👥.2). A refusal leaves the walker down and says which path did
-   it, which is the safe side of that trade. */
+   it, which is the safe side of that trade.
+
+   🔴 ONE READER OF THE WORD GENERATED, AND IT IS `rebase-safe.classify()`. Measured 2026-11-10:
+   `generatedSet()` enumerates the bundles, the orchestrators, the analysis tools and the docs paths
+   each builder names, and it holds NOTHING under `provenance/`, where `classify()` answers
+   `generated` by a whole-prefix rule. So the rebase rebuilt `provenance/Integrator.json`, the
+   membership test here read it as somebody's work, and 108 passes refused in one day while no green
+   draft was readied fleet-wide. A set and a classifier are two readings of one word, and the
+   classifier is the one the rebase itself used. It fails closed on a null set and on any path that
+   traverses, which is what this test needs. */
 export function cleanWorktree(g, generated) {
   const rows = String(g('status', '--porcelain') || '')
     .split('\n')
@@ -374,7 +386,7 @@ export function cleanWorktree(g, generated) {
   const unquote = (p) => (/^".*"$/.test(p) ? p.slice(1, -1) : p);
   const parsed = rows.map((l) => ({ code: l.slice(0, 2), path: unquote(l.slice(3).split(' -> ').pop().trim()) }));
   // An untracked or renamed path is not restorable by `git checkout --`, so it never counts as generated.
-  const restorable = (r) => !r.code.includes('?') && !r.code.includes('R') && generated.has(r.path);
+  const restorable = (r) => !r.code.includes('?') && !r.code.includes('R') && classifyPath(r.path, generated) === 'generated';
   const other = parsed.filter((r) => !restorable(r));
   if (other.length) {
     const named = other
@@ -420,7 +432,7 @@ export function commitRebuild(g, generated) {
   if (!generated) return 'refused: the generated set is unreadable, so every rebuilt path reads as source';
   const unquote = (q) => (/^".*"$/.test(q) ? q.slice(1, -1) : q);
   const parsed = rows.map((l) => ({ code: l.slice(0, 2), path: unquote(l.slice(3).split(' -> ').pop().trim()) }));
-  const other = parsed.filter((r) => r.code.includes('R') || !generated.has(r.path));
+  const other = parsed.filter((r) => r.code.includes('R') || classifyPath(r.path, generated) !== 'generated');
   if (other.length) {
     const named = other
       .slice(0, 4)
@@ -896,6 +908,11 @@ function selftest() {
   eq(p.actions[0].number, 3, 'oldest first');
   const held = plan([classify(mk({ number: 7, isDraft: false, labels: [HOLD_LABEL], mergeState: 'BEHIND' }), req)], { reruns: {}, rebased: {} }, { nowMs: 0, mainMovedAtMs: 0, cap: 4 });
   eq(held.actions.map((a) => `${a.op}:${a.number}`).join(','), 'update:7', 'held behind ⇒ update at once');
+  eq(
+    plan([classify(mk({ number: 7, labels: [HOLD_LABEL], mergeState: 'BEHIND' }), req)], { reruns: {}, rebased: {} }, { nowMs: 0, mainMovedAtMs: 0, cap: 4 }).actions.length,
+    0,
+    'held DRAFT behind ⇒ nothing'
+  );
   eq(plan([classify(mk({ number: 7, isDraft: false, labels: [HOLD_LABEL] }), req)], { reruns: {}, rebased: {} }, { nowMs: 0, mainMovedAtMs: 0, cap: 4 }).actions.length, 0, 'held current ⇒ nothing');
   const hd = plan([classify(mk({ number: 8, labels: [HOLD_LABEL], mergeState: 'DIRTY' }), req)], { reruns: {}, rebased: {} }, { nowMs: 0, mainMovedAtMs: 0, cap: 4 });
   eq(hd.actions.map((a) => `${a.op}:${a.number}`).join(','), 'rebase:8', 'held conflicting ⇒ one rebase');
@@ -973,6 +990,18 @@ function selftest() {
   eq(cleanWorktree(g7, GEN), 'still-dirty: 1 path(s) survived the restore', 'a restore that changed nothing says so rather than reading clean');
   const g8 = fakeGit(['R  old.html -> "PAT Feasibility.html"']);
   eq(/^refused: /.test(cleanWorktree(g8, GEN)), true, 'a rename into a generated path is refused, not restored');
+  /* 🔴 THE MEASURED WEDGE, 2026-11-10. A rebase rebuilds `provenance/<App>.json`, and no builder
+     list names a path under `provenance/`, so exact membership read the fragment as somebody's work
+     and refused. `rebase-safe.classify()` answers it `generated` by prefix, and it is the reader the
+     rebase itself used. 108 passes refused in one day over the three paths of this first case. */
+  const WEDGE = new Set([...GEN, 'Integrator.html', 'docs/Integrator.html']);
+  const g9 = fakeGit([' M Integrator.html', ' M docs/Integrator.html', ' M provenance/Integrator.json']);
+  eq(cleanWorktree(g9, WEDGE), 'restored: 3 generated path(s)', 'the three paths that wedged the walker are restored');
+  const g10 = fakeGit([' M provenance/Integrator.json']);
+  eq(cleanWorktree(g10, GEN), 'restored: 1 generated path(s)', 'a provenance fragment is generated by prefix');
+  eq(GEN.has('provenance/Integrator.json'), false, 'and no builder list holds that path, so membership alone refuses it');
+  const g11 = fakeGit([' M provenance/../oxydex-dsp.js']);
+  eq(/^refused: /.test(cleanWorktree(g11, GEN)), true, 'a path that traverses out of provenance/ is source, so it is still refused');
   /* ── commitRebuild: the rebuild rides the push, or nothing is pushed ── */
   const c1 = fakeGit([]);
   eq(commitRebuild(c1, GEN), 'nothing-to-commit', 'a rebase that moved no artifact commits nothing');
@@ -993,6 +1022,8 @@ function selftest() {
   eq(commitRebuild(c3, GEN), 'committed: 1 generated path(s)', 'an untracked generated path is committed — a rebuild adds one');
   const c4 = fakeGit([' M ecgdex-dsp.js']);
   eq(commitRebuild(c4, GEN), 'refused: 1 rebuilt path(s) outside the generated set: ecgdex-dsp.js', 'a dirty source file is refused by name');
+  const cProv = fakeGit(['?? provenance/MotionDex.json']);
+  eq(commitRebuild(cProv, GEN), 'committed: 1 generated path(s)', 'an untracked provenance fragment rides the push — a rebuild writes one');
   eq(
     c4.calls.some((c) => c.startsWith('commit')),
     false,

@@ -146,10 +146,19 @@
    What this buys: a leg that starts skipping for a NEW reason (a renamed input, a
    quietly-gutted precondition) can no longer hide. Shrinking the gate becomes a
    deliberate act — you have to add a line to the allow-list, in a diff, in a PR. */
+  /* AN ENTRY DECLARES THE REASON TOO. `detail` is a literal SUBSTRING of the text the leg hands
+     `T.skip`, so a leg that keeps a declared name and starts skipping for a NEW reason reds instead
+     of passing. Measured before the field existed (residue
+     2026-11-08-the-skip-audit-matches-a-name-and-never-the-reason): a second skipped leg planted
+     under a declared corpus-absent name, with the corpus PRESENT, read verdict PASS,
+     skipViolations 0, exit 0. A substring, because many reasons interpolate a path or a key list.
+     The field is REQUIRED: an entry that carries a name and no reason IS the hole, so it reds as
+     `no-declared-reason` rather than passing fail-open. Each violation names its `kind`, and a
+     drifted skip pays no budget — `counted` counts only a skip whose reason matched. */
   function auditSkips(groups, allow) {
     var ok = Object.create(null);
     (allow || []).forEach(function (a) {
-      ok[String(a.group) + ' :: ' + String(a.test)] = a.why || true;
+      ok[String(a.group) + ' :: ' + String(a.test)] = a;
     });
     var violations = [];
     var counted = { 'corpus-absent': 0, 'known-drift': 0 };
@@ -157,9 +166,32 @@
       (G.tests || []).forEach(function (t) {
         if (!t.skip) return;
         var key = G.title + ' :: ' + t.name;
-        var why = ok[key];
-        if (!why) violations.push({ group: G.title, test: t.name, detail: t.detail || '' });
-        else if (counted[why] != null) counted[why]++;
+        var entry = ok[key];
+        var got = t.detail == null ? '' : String(t.detail);
+        if (!entry) {
+          violations.push({ group: G.title, test: t.name, detail: got, kind: 'undeclared' });
+          return;
+        }
+        var want = entry.detail == null ? '' : String(entry.detail);
+        if (!want) {
+          violations.push({
+            group: G.title,
+            test: t.name,
+            detail: 'the allow entry declares NO reason — add a `detail` substring; this leg skipped with "' + got + '"',
+            kind: 'no-declared-reason'
+          });
+          return;
+        }
+        if (got.indexOf(want) < 0) {
+          violations.push({
+            group: G.title,
+            test: t.name,
+            detail: 'declared reason "' + want + '" is absent from the skip reason "' + got + '"',
+            kind: 'reason-drift'
+          });
+          return;
+        }
+        if (counted[entry.why] != null) counted[entry.why]++;
       });
     });
     return { violations: violations, counted: counted };
@@ -11053,6 +11085,141 @@
         T.ok('§3.4: the always-on leg lifts block conf 0.80 → 0.86 (unconditional uplift)', Math.abs(onFires.blocks[0].conf - 0.86) < 0.003, 'conf=' + onFires.blocks[0].conf);
     });
 
+    /* ∅ · THE INTEGRATOR SUBSTITUTED A NUMBER FOR AN ABSENT EVENT CONFIDENCE, in the fusion and
+       on the cross-night timeline. `crossnight-envelope.js` validates an incoming
+       `ganglior_events[].conf` as "0..1 or null", and importing a foreign node-export is an
+       intended workflow, so both sites are reachable. The fusion published 0.6 per observer and a
+       noisy-OR over it; the timeline drew the same tick a measured 0.5 draws, because both the
+       height and the opacity are functions of `conf`. Each leg below carries a stated-confidence
+       control, so a blanket null in the producer reds this group too. */
+    group('Integrator — ∅ an absent event confidence is not a measured one', 'integrator-absence', function (T) {
+      var A = env.adaptEnvelopeNode,
+        FPB = env.fusePeriodicBreathing,
+        TG = env.IntegratorRender && env.IntegratorRender.tickGeom;
+      if (typeof FPB !== 'function' || typeof A !== 'function') {
+        T.ok('fusePeriodicBreathing + adaptEnvelopeNode present', false, 'the integrator realm did not load');
+        return;
+      }
+      var t0 = U(2026, 5, 7, 22, 0, 0);
+      var pbRec = function (node, conf, extra) {
+        var rec = {
+          schema: { node: node },
+          recording: { startEpochMs: t0, durationMin: 480, offsetMin: null, sessions: node === 'CPAPDex' ? [{ mode: 'CPAP' }] : undefined },
+          ganglior_events: [
+            { t: '22:30:00', tMs: t0 + 1800000, impulse: 'periodic_breathing', node: node, conf: conf, meta: {} },
+            { t: '23:10:00', tMs: t0 + 4200000, impulse: 'periodic_breathing', node: node, conf: conf, meta: {} }
+          ]
+        };
+        if (extra) rec.metrics = extra;
+        return A(rec, node, node.toLowerCase() + '.json');
+      };
+      /* No `periodicBreathingPct` on either record, so the episodes' own `conf` is the only source
+         of a confidence and the null case has nowhere else to read one from. */
+      var absent = FPB(pbRec('OxyDex', null).concat(pbRec('CPAPDex', null))),
+        stated = FPB(pbRec('OxyDex', 0.62).concat(pbRec('CPAPDex', 0.8))),
+        bA = absent && absent.blocks && absent.blocks[0],
+        bS = stated && stated.blocks && stated.blocks[0];
+      T.ok('the null-confidence night still produced one corroborated block', !!(bA && bA.nObservers === 2), JSON.stringify(bA && bA.observerNodes));
+      T.ok('the control night produced one too', !!(bS && bS.nObservers === 2), JSON.stringify(bS && bS.observerNodes));
+      if (bA && bS) {
+        T.eq('the fused confidence states the absence', bA.conf, null);
+        T.eq(
+          'every observer states it as well',
+          (bA.sources || []).map(function (s) {
+            return s.conf;
+          }),
+          [null, null]
+        );
+        T.eq('both observers were examined by that count', (bA.sources || []).length, 2);
+        T.ok('a stated confidence still fuses to a number', typeof bS.conf === 'number' && bS.conf > 0 && bS.conf <= 0.97, 'conf=' + bS.conf);
+        T.ok(
+          'each control observer carries its own number',
+          (bS.sources || []).every(function (s) {
+            return typeof s.conf === 'number';
+          })
+        );
+      }
+      if (typeof TG !== 'function') {
+        T.ok('IntegratorRender.tickGeom present', false, 'export the pure tick geometry so the absent case can be pinned in both lanes');
+      } else {
+        T.eq('a stated 0.5 keeps the height it always drew', TG(0.5).h, 15);
+        T.eq('a stated 0.5 keeps the opacity it always drew', TG(0.5).op, '0.63');
+        T.eq('a stated 0.5 draws no outline', TG(0.5).outline, false);
+        T.eq('an absent confidence draws one fixed height instead', TG(null).h, 14);
+        T.eq('an absent confidence draws no fill', TG(null).op, '0');
+        T.eq('an absent confidence draws an outline', TG(null).outline, true);
+        T.eq('a non-finite confidence is absent too', TG(NaN).outline, true);
+        T.ok('the absent mark differs from the mark a measured 0.5 draws', TG(null).h !== TG(0.5).h && TG(null).op !== TG(0.5).op);
+      }
+    });
+
+    /* A TAP IS NOT A HOVER (ledger row 2026-11-08-the-integrator-timeline-readout-is-hover-only).
+       The fused-event readout was bound to `mousemove` alone, and a tick is 2.2 viewBox units wide,
+       so a phone user could reach no event detail. The tap path picks the NEAREST tick within a
+       tolerance, and anchors the readout inside the viewport. Both are pure, so both lanes pin them. */
+    group('Integrator \u2014 a tap reaches the timeline readout', 'integrator-tap', function (T) {
+      var R = env.IntegratorRender;
+      var pick = R && R.pickTickAt;
+      var anchor = R && R.tipAnchor;
+      if (typeof pick !== 'function' || typeof anchor !== 'function') {
+        T.ok('IntegratorRender.pickTickAt and .tipAnchor present', false, 'export the tap decisions so a phone readout can be pinned with no DOM');
+        return;
+      }
+      /* a null picked tick must read as a null tip, never throw, so a plant reds every leg it breaks */
+      var tipOf = function (v) {
+        return v && v.tip != null ? v.tip : null;
+      };
+      var ticks = [
+        { cx: 100, tip: '22:10:00 \u00b7 desat \u00b7 conf 0.70 \u00b7 OxyDex' },
+        { cx: 140, tip: '22:12:00 \u00b7 arousal \u00b7 conf \u2014 \u00b7 ECGDex' }
+      ];
+      T.eq('a direct hit reads that tick', tipOf(pick(ticks, 100, 7)), ticks[0].tip);
+      T.eq('a near miss still reads the nearest tick', tipOf(pick(ticks, 136, 7)), ticks[1].tip);
+      T.eq('a tap beyond the tolerance reads nothing', pick(ticks, 120, 7), null);
+      T.eq('the tolerance is inclusive at its edge', tipOf(pick(ticks, 107, 7)), ticks[0].tip);
+      T.eq(
+        'a tie keeps the earlier tick',
+        tipOf(
+          pick(
+            [
+              { cx: 10, tip: 'a' },
+              { cx: 30, tip: 'b' }
+            ],
+            20,
+            11
+          )
+        ),
+        'a'
+      );
+      T.eq('a non-finite tap position reads nothing', pick(ticks, NaN, 7), null);
+      T.eq('no ticks reads nothing', pick([], 100, 7), null);
+      T.eq(
+        'a tick with no position is skipped, not picked',
+        tipOf(
+          pick(
+            [
+              { cx: NaN, tip: 'x' },
+              { cx: 102, tip: 'y' }
+            ],
+            100,
+            7
+          )
+        ),
+        'y'
+      );
+      T.eq('an absent tolerance falls back to the declared one', tipOf(pick(ticks, 106, undefined)), ticks[0].tip);
+      T.eq('and that fallback still refuses a tap outside it', pick(ticks, 120, undefined), null);
+
+      var free = anchor(200, 300, 180, 60, 1000, 800);
+      T.eq('with room, the readout sits below right of the tap', free.left, 214);
+      T.eq('and 14 px under it', free.top, 314);
+      T.eq('at the right edge it flips to the left of the tap', anchor(360, 300, 180, 60, 375, 800).left, 166);
+      T.eq('at the bottom edge it flips above the tap', anchor(100, 650, 180, 60, 375, 667).top, 576);
+      T.eq('a flip that would leave the screen clamps to the pad', anchor(10, 10, 300, 60, 320, 480).left, 8);
+      T.eq('an unknown viewport width does not flip the readout', anchor(360, 300, 180, 60, 0, 0).left, 374);
+      T.ok('the readout never starts off the left edge', anchor(2, 2, 400, 400, 320, 480).left >= 8 && anchor(2, 2, 400, 400, 320, 480).top >= 8);
+    });
+
     /* DEEP-AUDIT-III §6.1 — an ABSTENTION IS NOT AN AGREEMENT.
        ECGDex's ACC motion vote is explicitly tri-state (the exported method string says
        "Wake>20 / Ambiguous 5–20 / Sleep<5"): the middle state is the accelerometer DECLINING to
@@ -18250,7 +18417,7 @@
         'out.rowKeys = M.rowKeys("| 2026-01-02-alpha-beta-gamma | logged | s | d | e | OPEN |\\ntext 2026-01-02-alpha-beta-gamma\\n");',
         'out.window = M.CITE_WINDOW;',
         'var real = M.run(' + JSON.stringify(root) + ');',
-        'out.real = { citations: real.citations, files: real.files, rows: real.rows, undeclared: real.undeclared.length, near: real.near.length, stale: real.stale.length, declared: real.declared, floorReal: real.floor, orphans: real.orphanOwners.length, examined: real.ownerReasonsExamined, offered: real.filesOffered, read: real.filesRead, unreadable: real.unreadable.length, exempt: real.filesExempt };',
+        'out.real = { citations: real.citations, files: real.files, rows: real.rows, undeclared: real.undeclared.length, near: real.near.length, stale: real.stale.length, declared: real.declared, floorReal: real.floor, orphans: real.orphanOwners.length, examined: real.ownerReasonsExamined, offered: real.filesOffered, read: real.filesRead, unreadable: real.unreadable.length, exempt: real.filesExempt , siteDrift: real.siteDrift.length, siteExamined: real.siteKeysExamined };',
         /* THE FILE POPULATION, AND THE ONE FILE THE SCAN COULD NOT OPEN. Row
            2026-11-07-residue-citations-skips-an-unreadable-file-and-claims-0-excluded: the read sat in a
            `catch` that ran `continue` under a population keyed on CITATIONS with `excluded: 0`, so an
@@ -18286,6 +18453,19 @@
           JSON.stringify(root) +
           ', { files: [ANCHOR], baseline: { entries: plant(anchorKeys).concat([{ key: "2026-01-02-alpha-beta-gamma", reason: "under the ledger floor, so cited nowhere" }]), exemptPaths: [] } });',
         'out.staleReds = staleBase.stale.length;',
+        /* A DECLARED SITE IS A PATH. The planted entries above carry no `sites` key at all, so the
+           same anchor measures all three readings in one process: the path the scan cites, the same
+           path with a line glued to it, and an entry that declared no site whatever. */
+        'var withSite = function (ks, suffix) { return ks.map(function (k) { return { key: k, reason: "plant", sites: [ANCHOR + suffix] }; }); };',
+        'var siteOk = M.run(' + JSON.stringify(root) + ', { files: [ANCHOR], baseline: { entries: withSite(anchorKeys, ""), exemptPaths: [] } });',
+        'out.siteOk = { drift: siteOk.siteDrift.length, examined: siteOk.siteKeysExamined, live: siteOk.liveSites.length };',
+        'var siteLined = M.run(' + JSON.stringify(root) + ', { files: [ANCHOR], baseline: { entries: withSite(anchorKeys, ":1"), exemptPaths: [] } });',
+        'out.siteLined = { drift: siteLined.siteDrift.length, status: M.verdictFor(siteLined, "ab1c2d3").status, at: siteLined.siteDrift.length > 0 && siteLined.siteDrift[0].at.length > 0, found: siteLined.siteDrift.length > 0 && siteLined.siteDrift[0].foundOnly.join(",") === ANCHOR };',
+        'out.siteless = declaredAway.siteDrift.filter(function (d) { return d.why === "declares no sites array"; }).length;',
+        'var siteUncited = M.run(' +
+          JSON.stringify(root) +
+          ', { files: [ANCHOR], baseline: { entries: [{ key: "2026-01-02-alpha-beta-gamma", reason: "under the ledger floor, so cited nowhere", sites: [ANCHOR] }], exemptPaths: [] } });',
+        'out.siteUncited = { examined: siteUncited.siteKeysExamined, drift: siteUncited.siteDrift.length, stale: siteUncited.stale.length };',
         'process.stdout.write("__OUT__" + JSON.stringify(out) + "\\n");'
       ].join('\n');
       var o = env.nodeSpawnSync(process.execPath, ['--input-type=module', '-e', src], { encoding: 'utf8', timeout: 90000 });
@@ -18328,6 +18508,50 @@
       );
       T.eq('declaring every cited key passes, and nothing reads stale', R.declaredPasses, { undeclared: 0, stale: 0 });
       T.eq('one declared key cited nowhere reds as stale until its line goes', R.staleReds, 1);
+
+      /* ── A DECLARED SITE IS A PATH, AND THE SCAN SAYS WHERE THE KEY SITS ──────────────────
+         Row 2026-11-08-the-residue-citations-baseline-sites-read-stale: each entry declared a
+         `path:line` that no reader held against anything, so all 14 aged while the verdict reported
+         `staleBaseline 0`. A line number ages on every edit above it, so the declaration keeps the
+         path and the report prints the live `path:line` the scan found. */
+      T.ok(
+        'a declared site that names the carrier path agrees, over every anchor key',
+        R.siteOk.drift === 0 && R.siteOk.examined === R.anchorDebt && R.siteOk.live === R.anchorDebt,
+        JSON.stringify(R.siteOk)
+      );
+      T.ok(
+        'a declared site carrying a line number reds, names the live sites, and fails the verdict',
+        R.siteLined.drift === R.anchorDebt && R.siteLined.status === 'FAIL' && R.siteLined.at && R.siteLined.found,
+        JSON.stringify(R.siteLined)
+      );
+      T.eq('an entry that declared no sites array reports that absence by name', R.siteless, R.anchorDebt);
+      /* §∅ · a key the scan cites nowhere is judged by `stale` alone, so the site hold examines
+         nothing there and reports the count rather than a pass over an empty population. */
+      T.eq('an uncited key leaves the site hold with nothing to examine', R.siteUncited, { examined: 0, drift: 0, stale: 1 });
+      /* ANTI-VACUITY over the committed baseline: the legs above judge a shape the real file uses. */
+      T.eq(
+        'every entry in the committed baseline declares at least one site',
+        base.entries
+          .filter(function (e) {
+            return Object.prototype.toString.call(e.sites) !== '[object Array]' || e.sites.length === 0;
+          })
+          .map(function (e) {
+            return e.key;
+          }),
+        []
+      );
+      T.eq(
+        'no site in the committed baseline carries a line number',
+        base.entries
+          .reduce(function (a, e) {
+            return a.concat(e.sites || []);
+          }, [])
+          .filter(function (q) {
+            return /:\d+$/.test(q);
+          }),
+        []
+      );
+      T.eq('no declared site in the committed tree drifts from where the scan found its key', R.real.siteDrift, 0);
 
       /* ── ANTI-VACUITY, and the committed tree's own verdict ────────────────────────────── */
       T.ok('the real tree carries over 1000 citations to judge', R.real.citations > 1000, JSON.stringify(R.real));
@@ -22603,6 +22827,53 @@
       T.ok('control · the DSP builder writes that same tag (the sibling being matched)', /source:\s*'ppg'/.test(dsp));
     });
 
+    /* Row `2026-11-08-the-scrub-source-guard-keeps-an-extensionless-filename`. `export-schema.js`
+       decides `recording.source` by SHAPE: a label with no path separator and no dotted extension
+       survives a scrubbed export. A person's name is that shape, so the boundary cannot be the
+       remedy (EXPORT-SOURCE-KEY-KINDS §3) and the WRITER decides. The three nodes that forward a
+       caller's label take only their own kebab-case tag form. Each leg runs the PLANT first and the
+       real tag SECOND, because compute() mutates the rec it is handed: a leg whose control cannot
+       watch a tag land is a leg watching nothing. */
+    group('a caller cannot name the input in recording.source', 'glucodex-dsp · ecgdex-dsp · ppgdex-dsp · export-schema', function (T) {
+      var PLANT_SOURCE = 'PLANT_PERSON_Ring_20260612230016';
+      T.ok('control · the planted label is the shape the boundary guard KEEPS (no separator, no extension)', !/[\\/]/.test(PLANT_SOURCE) && !/\.[A-Za-z0-9]{1,5}$/.test(PLANT_SOURCE), PLANT_SOURCE);
+
+      var G = env.GlucoDex,
+        GD = env.GLUDSP;
+      T.ok('GlucoDex + GLUDSP.genSynthetic co-loaded', !!(G && typeof G.compute === 'function' && GD && typeof GD.genSynthetic === 'function'));
+      if (G && typeof G.compute === 'function' && GD && typeof GD.genSynthetic === 'function') {
+        var gs = GD.genSynthetic({ days: 2 });
+        var gPlant = G.compute(gs, { source: PLANT_SOURCE });
+        T.ok('GlucoDex · the export keeps the parser tag, not the planted label', gPlant.recording && gPlant.recording.source === 'synthetic', gPlant.recording && gPlant.recording.source);
+        var gTag = G.compute(gs, { source: 'libre-cgm' });
+        T.ok('GlucoDex · control · a kebab-case tag still reaches the export', gTag.recording && gTag.recording.source === 'libre-cgm', gTag.recording && gTag.recording.source);
+      }
+
+      var EC = env.ECGDex,
+        ECD = env.ECGDSP;
+      T.ok('ECGDex + ECGDSP.genSynthetic co-loaded', !!(EC && typeof EC.compute === 'function' && ECD && typeof ECD.genSynthetic === 'function'));
+      if (EC && typeof EC.compute === 'function' && ECD && typeof ECD.genSynthetic === 'function') {
+        var erec = ECD.genSynthetic({ durSec: 300, seed: 20261108 });
+        EC.compute(erec, { source: PLANT_SOURCE });
+        T.ok('ECGDex · the rec keeps its own tag, not the planted label', erec.source === 'synthetic', erec.source);
+        EC.compute(erec, { source: 'polar-h10-ecg' });
+        T.ok('ECGDex · control · a kebab-case tag still lands on the rec', erec.source === 'polar-h10-ecg', erec.source);
+      }
+
+      var PG = env.PpgDex,
+        PD = env.PPGDSP,
+        SYp = env.SYNTH;
+      T.ok('PpgDex + PPGDSP.parsePPG + SYNTH.renderPPG co-loaded', !!(PG && typeof PG.compute === 'function' && PD && typeof PD.parsePPG === 'function' && SYp && typeof SYp.renderPPG === 'function'));
+      if (PG && typeof PG.compute === 'function' && PD && typeof PD.parsePPG === 'function' && SYp && typeof SYp.renderPPG === 'function') {
+        var tl = SYp.buildTimelines()[0];
+        var prec = PD.parsePPG(SYp.renderPPG(tl, SYp.pickWindow(tl)));
+        PG.compute(prec, { source: PLANT_SOURCE });
+        T.ok('PpgDex · the rec keeps its own tag, not the planted label', prec.source !== PLANT_SOURCE, 'rec.source is ' + String(prec.source) + ' (parsePPG declares none)');
+        PG.compute(prec, { source: 'o2ring-ppg' });
+        T.ok('PpgDex · control · a kebab-case tag still lands on the rec', prec.source === 'o2ring-ppg', prec.source);
+      }
+    });
+
     group('RR and PPI reach the bus, with beat times that are not reconstructed', 'ecgdex-dsp · ppgdex-dsp · interval-series', function (T) {
       var _E = env.ECGDex,
         P = env.PpgDex;
@@ -26086,6 +26357,61 @@
       T.ok('oxydex · no safeSet call sites remain', !/[^a-zA-Z_]safeSet\(/.test(allOxy), 'a safeSet( call site survived the rename');
     });
 
+    /* Residue 2026-11-08-six-review-timelines-concatenate-an-imported-event-conf-raw and
+       2026-11-08-review-mode-prose-passes-stored-strings-through-nv-unescaped. Review mode renders an
+       IMPORTED ganglior.node-export, so every stored field is untrusted text, not a number. `nv()`
+       returns any non-null value unchanged, so it is not an escaper. Each site must route through the
+       file's own escaper. A file absent from env.sources reds, so an empty read cannot pass. */
+    group('Security — review mode escapes imported conf and stored prose values', 'security · xss · sources', function (T) {
+      var src = env.sources || {};
+      var CONF = [
+        ['ecgdex-app.js', '_eesc'],
+        ['glucodex-app.js', '_gesc'],
+        ['hrvdex-app.js', '_hrvesc'],
+        ['ppgdex-app.js', '_pgesc'],
+        ['cpapdex-render.js', 'esc'],
+        ['oxydex-render.js', 'escHTML']
+      ];
+      /* pulsedex-render.js escapes inside the ternary and carries its own pin in the group above. */
+      CONF.forEach(function (c) {
+        var text = src[c[0]] || '';
+        T.ok(c[0] + ' · source present in env.sources', text.length > 0, 'the file was not read, so nothing below examined it');
+        var re = /(\w*)\(\(?\s*e\.conf != null \? e\.conf/g;
+        var m,
+          seen = 0,
+          raw = [];
+        while ((m = re.exec(text)) !== null) {
+          seen++;
+          if (m[1] !== c[1]) raw.push(m[0]);
+        }
+        var bare = (text.match(/\(e\.conf != null \? e\.conf/g) || []).length;
+        T.ok(c[0] + ' · review timeline renders e.conf at least once', seen + bare > 0, 'no e.conf render site found; the check examined nothing');
+        T.ok(c[0] + ' · every e.conf render routes through ' + c[1], raw.length === 0 && seen === bare, 'raw: ' + JSON.stringify(raw) + ' · escaped ' + (seen - raw.length) + ' of ' + bare);
+      });
+      [
+        ['ecgdex-app.js', '_eesc'],
+        ['glucodex-app.js', '_gesc'],
+        ['hrvdex-app.js', '_hrvesc']
+      ].forEach(function (c) {
+        var text = src[c[0]] || '';
+        var lines = text.split('\n');
+        var rawNv = lines.filter(function (l) {
+          /* A KPI row `[label, value, unit]` is escaped where the row renders (`esc(k[1])`), so it is exempt. */
+          return /^\s*nv\([^)]*\)\s*\+\s*$/.test(l) || (/\+\s*nv\(/.test(l) && !/^\s*\[/.test(l));
+        });
+        T.ok(c[0] + ' · defines the review nv() helper', /var nv = function \(v, d\)/.test(text), 'nv() not found; the prose check examined nothing');
+        T.ok(c[0] + ' · no prose or table site concatenates nv() unescaped', rawNv.length === 0, rawNv.join(' | '));
+      });
+      var hrv = src['hrvdex-app.js'] || '';
+      T.ok('hrvdex-app.js · spanDays escaped in the review header', hrv.indexOf('_hrvesc(rec.spanDays)') !== -1, 'rec.spanDays concatenated raw');
+      T.ok(
+        'ecgdex-app.js · beats and analyzablePct escaped in the review',
+        /_eesc\(rec\.beats\)/.test(src['ecgdex-app.js'] || '') && /_eesc\(q\.analyzablePct\)/.test(src['ecgdex-app.js'] || ''),
+        'a stored count concatenated raw'
+      );
+      T.ok('glucodex-app.js · events count escaped in the review header', /_gesc\(rec\.events\)/.test(src['glucodex-app.js'] || ''), 'rec.events concatenated raw');
+    });
+
     /* ════ 8c · SECURITY — storage hygiene: erase-all + migrate cleanup (SECURITY-REMEDIATION C · F4/F5/F6) ════ */
     group('Storage hygiene — erase-all + migrate cleanup (F4/F5/F6)', 'security · storage · sources', function (T) {
       var src = env.sources || {};
@@ -26141,6 +26467,18 @@
         T.ok('eraseAll deletes the Integrator IndexedDB (ganglior_integrator)', deleted.indexOf('ganglior_integrator') >= 0, deleted.join(','));
         T.ok('eraseAll reports the removed keys', !!(res && res.removed && res.removed.length >= 6));
         T.ok('DexForget.IDB_DBS pins the Integrator longitudinal store', DexForget.IDB_DBS.indexOf('ganglior_integrator') >= 0);
+        // Row 2026-11-08-erase-all-leaves-the-night-seal-key-database: the keys below are held in a
+        // constant or returned by a function, so the literal-string source leg cannot see them. Read
+        // each name from its owner's source, then require it in the erase set.
+        T.ok('eraseAll deletes the night-seal card-key IndexedDB (tepna-night-seal)', deleted.indexOf('tepna-night-seal') >= 0, deleted.join(','));
+        [
+          ['night-seal.js', /DB_NAME = '([^']+)'/, DexForget.IDB_DBS, 'IDB_DBS'],
+          ['ppgdex-app.js', /SITE_DECL_KEY = '([^']+)'/, DexForget.LOCAL_KEYS, 'LOCAL_KEYS'],
+          ['integrator-longitudinal.js', /function _synthPrefKey\(\) \{\s*return '([^']+)'/, DexForget.LOCAL_KEYS, 'LOCAL_KEYS']
+        ].forEach(function (c) {
+          var m = src[c[0]] && c[1].exec(src[c[0]]);
+          T.ok(c[0] + ' names its store, and ' + c[3] + ' erases it', !!m && c[2].indexOf(m[1]) >= 0, m ? m[1] + ' not in ' + c[3] : 'source absent or name not found');
+        });
         // FOLLOWUPS §2 — a full erase also wipes the standalone analysis pages' checkpoint state.
         T.ok('§2 · eraseAll clears an analysis-tool localStorage key (cgmcpl_lock)', store.cgmcpl_lock === undefined);
         T.ok('§2 · eraseAll deletes the analysis-tool IndexedDB checkpoints', deleted.indexOf('cgmcpl_ckpt') >= 0 && deleted.indexOf('ganglior_cohort_pilot') >= 0, deleted.join(','));
@@ -26177,6 +26515,220 @@
             })
             .join(', ')
         );
+
+        /* (c2) STORAGE CENSUS — row 2026-11-08-the-erase-all-drift-guard-cannot-see-a-constant-key.
+           Leg (c) matches a QUOTED key only, so a key held in a constant, returned by a function,
+           taken from an array or passed as a parameter passed it unseen: three stores survived erase
+           while it read 20 of 20. This leg finds every get/set/removeItem call and every IndexedDB
+           open in the sources, resolves the NAME each one reaches, and requires that name in the
+           erase set. A site it cannot resolve reds by itself, so a new shape fails closed. */
+        /* storageCensus(src) → { sites:[{kind,file,line,arg,names|null}] } — every localStorage get/set/remove
+           and every indexedDB open in the given sources, with the key NAME each one reaches. */
+        function storageCensus(src) {
+          var ID = '[A-Za-z_$][\\w$]*';
+          var LIT = /^['"]([^'"]+)['"]$/;
+          function lits(s) {
+            var out = [];
+            for (const x of s.matchAll(/['"]([^'"]+)['"]/g)) out.push(x[1]);
+            return out;
+          }
+          function onlyLits(s) {
+            return s.replace(/'[^']*'|"[^"]*"|[\s,]/g, '') === '';
+          }
+          // the argument text of a call, balanced over () and []
+          function argAt(body, i) {
+            var d = 0,
+              j = i;
+            for (; j < body.length; j++) {
+              var c = body[j];
+              if (c === '(' || c === '[') d++;
+              else if (c === ')' || c === ']') {
+                if (d === 0) break;
+                d--;
+              } else if (c === ',' && d === 0) break;
+            }
+            return body.slice(i, j).trim();
+          }
+          // the text inside an array literal whose `[` sits just before index i
+          function arrayBody(body, i) {
+            var d = 0,
+              j = i;
+            for (; j < body.length; j++) {
+              if (body[j] === '[') d++;
+              else if (body[j] === ']') {
+                if (d === 0) break;
+                d--;
+              }
+            }
+            return body.slice(i, j);
+          }
+          // a declaration `const ID = 'lit'` in this file, else the one value every other source agrees on
+          function constOf(id, body) {
+            var re = new RegExp('(?:var|let|const)\\s+' + id + '\\s*=\\s*[\'"]([^\'"]+)[\'"]');
+            var c = re.exec(body);
+            if (c) return c[1];
+            var seen = {};
+            Object.keys(src).forEach(function (f) {
+              var o = src[f] && re.exec(src[f]);
+              if (o) seen[o[1]] = 1;
+            });
+            var v = Object.keys(seen);
+            return v.length === 1 ? v[0] : null;
+          }
+          function resolve(arg, body, pos, depth) {
+            if (depth > 3) return null;
+            var m;
+            m = LIT.exec(arg);
+            if (m) return [m[1]];
+            m = /^typeof\s+[\w$]+\s*!==?\s*['"]undefined['"]\s*\?\s*([^:]+):(.+)$/.exec(arg);
+            if (m) {
+              var a1 = resolve(m[1].trim(), body, pos, depth + 1),
+                a2 = resolve(m[2].trim(), body, pos, depth + 1);
+              return a1 && a2 ? a1.concat(a2) : null;
+            }
+            m = new RegExp('^(' + ID + ')\\(\\)$').exec(arg);
+            if (m) {
+              var f = new RegExp('function\\s+' + m[1] + '\\s*\\(\\s*\\)\\s*\\{\\s*return\\s+[\'"]([^\'"]+)[\'"]').exec(body);
+              return f ? [f[1]] : null;
+            }
+            m = new RegExp('^(' + ID + ')(?:\\[(\\w+)\\])?$').exec(arg);
+            if (m) {
+              var id = m[1],
+                idx = m[2];
+              var c = idx == null ? constOf(id, body) : null;
+              if (c) return [c];
+              var arr = new RegExp('(?:var|let|const)\\s+' + id + '\\s*=\\s*\\[').exec(body);
+              if (arr && idx != null) {
+                var t = arrayBody(body, arr.index + arr[0].length);
+                return onlyLits(t) ? lits(t) : null;
+              }
+              // a forEach parameter: the nearest preceding `<array>.forEach(function (id` / `(id) =>`
+              var fe = new RegExp('(?:(' + ID + ')|\\])\\s*\\.forEach\\(\\s*(?:function\\s*\\(\\s*' + id + '\\b|\\(?\\s*' + id + '\\s*\\)?\\s*=>)', 'g');
+              var last = null;
+              for (const x of body.matchAll(fe)) {
+                if (x.index >= pos) break;
+                last = x;
+              }
+              if (last) {
+                var t2 = null;
+                if (last[1]) {
+                  var na = new RegExp('(?:var|let|const)\\s+' + last[1] + '\\s*=\\s*\\[').exec(body);
+                  t2 = na ? arrayBody(body, na.index + na[0].length) : null;
+                } else {
+                  // inline: walk back from the `]` to its `[`
+                  var e = last.index,
+                    d = 0,
+                    s = e;
+                  for (; s >= 0; s--) {
+                    if (body[s] === ']') d++;
+                    else if (body[s] === '[') {
+                      d--;
+                      if (d === 0) break;
+                    }
+                  }
+                  t2 = body.slice(s + 1, e);
+                }
+                if (t2 == null) return null;
+                if (idx == null) return onlyLits(t2) ? lits(t2) : null;
+                // an array of tuples: element `idx` of each
+                var out = [];
+                for (const tup of t2.matchAll(/\[([^\[\]]*)\]/g)) {
+                  var el = tup[1].split(',')[+idx];
+                  var lm = el && LIT.exec(el.trim());
+                  if (!lm) return null;
+                  out.push(lm[1]);
+                }
+                return out.length ? out : null;
+              }
+              // a function parameter: resolve the argument at every call site of the enclosing function
+              if (idx == null) {
+                var fn = new RegExp('function\\s+(' + ID + ')\\s*\\(\\s*' + id + '\\s*\\)', 'g'),
+                  encl = null;
+                for (const y of body.matchAll(fn)) {
+                  if (y.index >= pos) break;
+                  encl = y;
+                }
+                if (encl) {
+                  var calls = new RegExp('(?<!function\\s)\\b' + encl[1] + '\\(', 'g'),
+                    names = [],
+                    any = false;
+                  for (const z of body.matchAll(calls)) {
+                    if (z.index === encl.index + encl[0].indexOf(encl[1])) continue;
+                    any = true;
+                    var r = resolve(argAt(body, z.index + z[0].length), body, z.index, depth + 1);
+                    if (!r) return null;
+                    names = names.concat(r);
+                  }
+                  return any ? names : null;
+                }
+              }
+            }
+            return null;
+          }
+          var SITE = /(?:\.(?:getItem|setItem|removeItem)|(?:\bindexedDB|\bIDB)\.(open))\(/g;
+          var sites = [];
+          Object.keys(src).forEach(function (file) {
+            var body = src[file];
+            if (!body) return;
+            for (const m of body.matchAll(SITE)) {
+              var at = m.index + m[0].length;
+              var arg = argAt(body, at);
+              sites.push({ kind: m[1] ? 'idb' : 'local', file: file, line: body.slice(0, m.index).split('\n').length, arg: arg, names: resolve(arg, body, m.index, 0) });
+            }
+          });
+          return sites;
+        }
+        var census = storageCensus(
+          (function () {
+            var o = {};
+            Object.keys(src).forEach(function (n) {
+              if (n !== 'dex-forget.js' && /\.js$/.test(n)) o[n] = src[n];
+            });
+            return o;
+          })()
+        );
+        var cFiles = {};
+        census.forEach(function (s) {
+          cFiles[s.file] = 1;
+        });
+        T.ok(
+          'census · the sources reach the census (a population floor, not an empty pass)',
+          census.length >= 60 && Object.keys(cFiles).length >= 10 && !!cFiles['metric-registry.js'] && !!cFiles['night-seal.js'],
+          census.length + ' sites in ' + Object.keys(cFiles).length + ' files'
+        );
+        var unres = census.filter(function (s) {
+          return !s.names;
+        });
+        T.ok(
+          'census · every storage site resolves to a key name (an unresolvable shape fails closed)',
+          unres.length === 0,
+          unres
+            .map(function (s) {
+              return s.file + ':' + s.line + ' ' + s.arg;
+            })
+            .join(' · ')
+        );
+        var eraseLocal = DexForget.LOCAL_KEYS.concat(DexForget.ANALYSIS_KEYS || []),
+          eraseIdb = DexForget.IDB_DBS.concat(DexForget.ANALYSIS_IDB || []),
+          unerased = {};
+        census.forEach(function (s) {
+          (s.names || []).forEach(function (n) {
+            if ((s.kind === 'idb' ? eraseIdb : eraseLocal).indexOf(n) < 0) unerased[n] = s.file + ':' + s.line;
+          });
+        });
+        T.ok(
+          'census · every resolved name is in the erase set (localStorage ⊆ LOCAL_KEYS ∪ ANALYSIS_KEYS · IndexedDB ⊆ IDB_DBS ∪ ANALYSIS_IDB)',
+          Object.keys(unerased).length === 0,
+          Object.keys(unerased)
+            .map(function (k) {
+              return k + ' (' + unerased[k] + ')';
+            })
+            .join(', ')
+        );
+        var viaKinds = census.filter(function (s) {
+          return s.names && !/^['"]/.test(s.arg);
+        }).length;
+        T.ok('census · it resolves the non-literal shapes that leg (c) cannot see', viaKinds >= 20, viaKinds + ' non-literal sites');
       }
       // (d) F6 FUNCTIONAL — migrate() folds a legacy key then DELETES it (confirmed-save cleanup).
       var P = env.DexProfile;
@@ -26482,6 +27034,86 @@
         T.ok('PLANT · one moved input moves the digest', TP.digestOver(a) !== TP.digestOver(b), TP.digestOver(a) + ' vs ' + TP.digestOver(b));
         T.eq('PLANT · the recipe is deterministic (same files, same digest)', TP.digestOver(a), TP.digestOver(a.slice()));
         T.ok('PLANT · the path is part of the digest, so a renamed input moves it too', TP.digestOver(a) !== TP.digestOver([a[0], { path: 'x/3.json', bytes: a[1].bytes }]));
+      }
+
+      /* ── THE REACH IS THE DEFECT, SO IT IS ASSERTED AND NOT ASSUMED.
+         Residue 2026-11-08-twenty-papers-carry-no-claim-marker-and-the-resolver-skips-papers: the
+         scan listed `briefs/ audits/ docs/` plus `CLAUDE.md`, and `.md` only. A stamp inside
+         `papers/` was therefore unread, and no leg could say so, because planting a stamp needed a
+         document committed to the tree. The CLAIM scan next door already walks `papers/**` over
+         `.html` and `.md`, so the two readers disagreed about what a published number is.
+         `tools/table-provenance-core.mjs` holds the parse, the root list and the table-above walk,
+         which is what lets the PLANTs below exercise the reader on a document that lives nowhere. */
+      var tpRoot = function (dir) {
+        return (TP.roots || []).filter(function (r) {
+          return r.dir === dir;
+        })[0];
+      };
+      var tpRootDirs = (TP.roots || [])
+        .map(function (r) {
+          return r.dir;
+        })
+        .join(', ');
+      T.ok('the scan reach names papers/', !!tpRoot('papers'), 'roots: ' + tpRootDirs);
+      T.ok(
+        'papers/ accepts .html, because a paper IS HTML and a markdown-only reach reads none of them',
+        !!tpRoot('papers') && tpRoot('papers').exts.indexOf('.html') >= 0,
+        tpRoot('papers') ? tpRoot('papers').exts.join(' ') : 'no papers root'
+      );
+      /* THE WIDENING IS SCOPED. `docs/` holds served copies of the bundles, so an `.html` reach there
+         would read 11 generated pages that carry no table a person wrote. */
+      T.ok(
+        'docs/ stays markdown-only, so the reach widened where the defect was and nowhere else',
+        !!tpRoot('docs') && tpRoot('docs').exts.indexOf('.html') < 0,
+        tpRoot('docs') ? tpRoot('docs').exts.join(' ') : 'no docs root'
+      );
+      /* A DECLARED REACH AND A REACH THAT RAN ARE TWO CLAIMS (CLAUDE.md §4b). The list above is the
+         reader's own; this leg reads the files the scan opened. */
+      T.ok(
+        'the file list the scan actually read names at least one papers/ file',
+        (TP.files || []).filter(function (f) {
+          return f.indexOf('papers/') === 0;
+        }).length > 0,
+        (TP.files || []).filter(function (f) {
+          return f.indexOf('papers/') === 0;
+        }).length +
+          ' papers file(s) of ' +
+          (TP.files || []).length +
+          ' scanned'
+      );
+
+      /* ── PLANT · THE PARSE, ON DOCUMENTS THAT LIVE NOWHERE. Each case below is a string, so the
+         reader is held to a shape without anybody committing a stamp to prove it. */
+      if (typeof TP.parse === 'function') {
+        var mdTable = ['| a | b |', '| --- | --- |', '| 1 | 2 |'].join('\n');
+        var mdDoc = ['# plant', '', mdTable, '<!-- TABLE-PROVENANCE producer=tools/p.mjs output=' + TP.sha12(mdTable) + ' -->', ''].join('\n');
+        var mdGot = TP.parse(mdDoc, 'docs/PLANT.md');
+        T.eq('PLANT · a markdown stamp parses and nothing is malformed', mdGot.malformed.join(' · '), '');
+        T.eq('PLANT · and it is exactly one stamp', String(mdGot.stamps.length), '1');
+        T.eq('PLANT · the markdown hash is over the table alone, not the document', mdGot.stamps[0] ? mdGot.stamps[0].actualOutput : 'no stamp', TP.sha12(mdTable));
+
+        /* THE SHAPE THE OLD READER COULD NOT SEE. A paper's table is a `<table>` element, and the
+           table-above walk knew pipe rows only, so the root alone would not have been enough: an
+           HTML stamp read as "no table immediately above the marker". */
+        var htmlTable = ['<table>', '<tr><th>a</th><th>b</th></tr>', '<tr><td>1</td><td>2</td></tr>', '</table>'].join('\n');
+        var htmlDoc = ['<h1>plant</h1>', htmlTable, '<!-- TABLE-PROVENANCE producer=tools/p.mjs output=' + TP.sha12(htmlTable) + ' -->'].join('\n');
+        var htmlGot = TP.parse(htmlDoc, 'papers/PLANT.html');
+        T.eq('PLANT · an HTML paper stamp parses and nothing is malformed', htmlGot.malformed.join(' · '), '');
+        T.eq('PLANT · the HTML hash is over the table element alone', htmlGot.stamps[0] ? htmlGot.stamps[0].actualOutput : 'no stamp', TP.sha12(htmlTable));
+        /* AN EDITED CELL MOVES THE HASH — the leg that makes a stamp worth carrying at all. */
+        var editedGot = TP.parse(htmlDoc.replace('<td>1</td>', '<td>9</td>'), 'papers/PLANT.html');
+        T.ok(
+          'PLANT · an edited HTML cell DISAGREES with the recorded output',
+          !!editedGot.stamps[0] && editedGot.stamps[0].actualOutput !== editedGot.stamps[0].output,
+          editedGot.stamps[0] ? editedGot.stamps[0].actualOutput + ' vs recorded ' + editedGot.stamps[0].output : 'no stamp'
+        );
+        /* ABSENCE IS A NAMED REASON, NEVER A SILENT DROP (CLAUDE.md §∅). A marker the reader cannot
+           attach to a table must reach `malformed`, which the group's own leg above reds on. */
+        var noTable = TP.parse('<!-- TABLE-PROVENANCE producer=tools/p.mjs output=aaaaaaaaaaaa -->', 'docs/PLANT.md');
+        T.eq('PLANT · a marker with no table above is not counted as a stamp', String(noTable.stamps.length), '0');
+        T.ok('PLANT · and the malformed line names what was missing', noTable.malformed.join(' · ').indexOf('no table') >= 0, noTable.malformed.join(' · ') || 'nothing reported');
+      } else {
+        T.skip('env.tableProvenance exposes parse', 'Node-lane only — the browser lane loads no tool module');
       }
     });
 
@@ -28279,9 +28911,19 @@
          viewer zone. A `new Date(...).getHours()` here would move with TZ; `getUTC*` does not. */
       T.eq('the first epoch carries the floating t0, read back with getUTC*', new Date(res.hypnogram[0].tMs).toISOString(), '2026-01-01T23:00:00.000Z');
       T.eq('epoch 1 sits exactly one epoch later', res.hypnogram[1].tMs - res.hypnogram[0].tMs, 30000);
-      /* The stager publishes a FLAT 0.5 for every scored epoch. It is a placeholder, not a measured
-         confidence, and it is pinned here so a change to it has to be deliberate. */
-      T.eq('a scored epoch carries the placeholder confidence', res.hypnogram[0].conf, 0.5);
+      /* §∅ — the stager has no posterior, so EVERY epoch states a null confidence, scored or not.
+         `hypno-export.js` sets that contract for a rule-set stager. The flat 0.5 that stood here
+         until 2026-11-10 was an in-range sentinel, so the assertion pins the absence and the
+         population: a scored epoch and an unscorable one answer the same null. */
+      T.eq('a scored epoch states no confidence', res.hypnogram[0].conf, null);
+      T.eq(
+        'no epoch carries a number for confidence',
+        res.hypnogram.filter(function (e) {
+          return e.conf != null;
+        }).length,
+        0
+      );
+      T.eq('every epoch was examined by that count', res.hypnogram.length, 60);
       T.eq('the provenance the frame carried through compute', JSON.stringify([res.channel, res.source, res.fs, res.durSec]), JSON.stringify(['SYNTH-C4', 'synthetic', 100, 1800]));
       /* §∅ — the synthetic declares no physical dimension, so the power unit is ABSENT rather than
          asserted as µV². The surface then says the amplitude unit is undeclared. */
@@ -28452,8 +29094,9 @@
         'stage_w@23:00:00 stage_n1@23:06:00 stage_n2@23:12:00 stage_n3@23:18:00 stage_rem@23:24:00'
       );
       for (i = 0; i < ev.length; i++) {
-        /* The engine has no per-epoch confidence to state, so the export writes null. A 0.5 copied
-           out of the hypnogram placeholder would read downstream as a measured confidence. */
+        /* The engine has no per-epoch confidence to state, so the export writes null. The
+           hypnogram states null too, so there is no longer a number here to copy; a constant copied
+           from either would read downstream as a measured confidence. */
         T.eq('event ' + i + ' states no confidence rather than a placeholder', ev[i].conf, null);
         T.eq('event ' + i + ' names its node', ev[i].node, 'EEGDex');
         T.ok('event ' + i + ' carries tMs beside t', ev[i].tMs === res.hypnogram[0].tMs + i * 12 * 30000);
@@ -30987,8 +31630,22 @@
            reached the figures it publishes. Now it delegates like the sigma page, and this leg keeps it so. */
         [
           'sensor-trio-power-analysis.js',
-          ['AnalysisStats.tchSigmas', 'AnalysisStats.tchSigmasFused', 'AnalysisStats.tchBlockBootstrapCI', 'AnalysisStats.parseDerivedHr', 'AnalysisStats.confidenceSeries']
+          /* pearsonOrNull + h10FailureClass added 2026-11-10: the page carried private copies of both and
+             no gate read them, so a threshold typo on this side passed the H10 group (which scanned the
+             worker only). See "H10 corner gate fingerprints an ECG-lead fault". */
+          [
+            'AnalysisStats.tchSigmas',
+            'AnalysisStats.tchSigmasFused',
+            'AnalysisStats.tchBlockBootstrapCI',
+            'AnalysisStats.parseDerivedHr',
+            'AnalysisStats.confidenceSeries',
+            'AnalysisStats.pearsonOrNull',
+            'AnalysisStats.h10FailureClass'
+          ]
         ],
+        /* The WORKER is in this registry from 2026-11-10. It was absent while it held private copies,
+           which is the gap that let them sit ungated: a source-scan registry only guards what it lists. */
+        ['sensor-trio-worker.js', ['AnalysisStats.threeCorneredHat', 'AnalysisStats.pearsonOrNull', 'AnalysisStats.h10FailureClass']],
         ['cgm-hrv-coupling-analysis.js', ['AnalysisStats.pearsonCI', 'AnalysisStats.partialCorr']],
         ['treatment-response-analysis.js', ['AnalysisStats.bestSplit', 'AnalysisStats.mannWhitneyAUC']],
         ['odi-bias-analysis.js', ['AnalysisStats.ols']],
@@ -55253,6 +55910,48 @@
         T.skip('pr-walker core is wired into this lane', 'browser lane cannot import tools/pr-walker.mjs');
         return;
       }
+      /* 🔴 ONE READER OF THE WORD GENERATED (measured 2026-11-10). `cleanWorktree` tested exact
+         membership of `generatedSet()`, which names no path under `provenance/`, while the rebase
+         that wrote the fragment classified it `generated` by prefix. 108 passes refused in one day
+         over ` M provenance/Integrator.json`, and nothing readied a green draft fleet-wide. */
+      var cw = env.pwCleanWorktree;
+      if (typeof cw === 'function') {
+        var fakeGit = function (before) {
+          var cur = before;
+          return function () {
+            var a = Array.prototype.slice.call(arguments);
+            if (a[0] === 'status') return cur.join('\n');
+            if (a[0] === 'checkout') {
+              cur = [];
+              return '';
+            }
+            return '';
+          };
+        };
+        var GENSET = new Set(['Integrator.html', 'docs/Integrator.html']);
+        T.eq(
+          'the measured wedge restores: two bundles and the provenance fragment beside them',
+          cw(fakeGit([' M Integrator.html', ' M docs/Integrator.html', ' M provenance/Integrator.json']), GENSET),
+          'restored: 3 generated path(s)'
+        );
+        T.ok(
+          'a provenance fragment is generated by prefix, although no builder list holds that path',
+          GENSET.has('provenance/Integrator.json') === false && cw(fakeGit([' M provenance/Integrator.json']), GENSET) === 'restored: 1 generated path(s)',
+          'membership: ' + GENSET.has('provenance/Integrator.json')
+        );
+        T.ok(
+          'a path that traverses out of provenance/ stays source, so the restore refuses it',
+          /^refused: /.test(cw(fakeGit([' M provenance/../oxydex-dsp.js']), GENSET)),
+          cw(fakeGit([' M provenance/../oxydex-dsp.js']), GENSET)
+        );
+        T.eq(
+          'an unreadable builder list still fails closed, so a null set discards nothing',
+          cw(fakeGit([' M provenance/Integrator.json']), null),
+          'refused: the generated set is unreadable, so every dirty path reads as source'
+        );
+      } else {
+        T.skip('env.pwCleanWorktree exposes the walker restore', 'Node-lane only — the browser lane loads no tool module');
+      }
       /* THE FAILURE (measured 2026-10-13 over the last 40 merged PRs): Kodiak merged a ready PR in a
          median 0.2 h, but the same PRs sat a median 1.65 h — one 13.1 h — as drafts, because the old
          walker undrafted only numbers the owner typed into a queue file, only while two or fewer were
@@ -55366,6 +56065,9 @@
       var ph = pl([heldBehind], ST({}), CTX({ mainMovedAtMs: NOW }));
       T.eq('a held PR BEHIND main is updated AT ONCE, with main having just moved (no Kodiak-quiet gate)', ops(ph), 'update:3');
       T.eq('…and the update is the only thing a hold permits', ph.actions.length, 1);
+      /* A held DRAFT behind main is NOT updated: no merge button is live on a draft, and each update
+         re-ran the full CI — #4783 (held draft) took 35 merges of main on 2026-11-10. */
+      T.eq('a held DRAFT behind main gets no update', pl([cl(P({ number: 3, isDraft: true, labels: [env.pwHoldLabel], mergeState: 'BEHIND' }), REQ)], ST({}), CTX({})).actions.length, 0);
       T.eq('a held non-draft PR that is current still gets nothing', pl([cl(P({ number: 3, isDraft: false, labels: [env.pwHoldLabel] }), REQ)], ST({}), CTX({})).actions.length, 0);
       /* Owner, 2026-11-02: "Fix walker. Everything is idle" — three held PRs sat DIRTY with no action.
          update-branch cannot merge a conflict, so a held conflict gets the once-per-head rebase. */
@@ -60051,49 +60753,100 @@
        never gated and the Verity-noisy nights (where the bad corner is Verity, not H10) are spared. */
     group('H10 corner gate fingerprints an ECG-lead fault (σ high + decorrelated) without touching healthy nights', 'sensor-trio-worker · trio · regression', function (T) {
       var src = (env.sources && env.sources['sensor-trio-worker.js']) || '';
+      var page = (env.sources && env.sources['sensor-trio-power-analysis.js']) || '';
       T.ok('sensor-trio-worker.js source available to the gate', !!src);
-      if (!src) return;
+      T.ok('sensor-trio-power-analysis.js source available to the gate', !!page);
+      if (!src || !page) return;
 
-      var i = src.search(/^function h10FailureClass/m);
-      T.ok('the gate exposes a PURE h10FailureClass(sigmaH10, rHO, rHV, rVO) (so the verdict is testable)', i >= 0);
-      if (i < 0) return;
-      var d = 0,
-        started = false,
-        end = -1;
-      for (var k = i; k < src.length; k++) {
-        if (src.charAt(k) === '{') {
-          d++;
-          started = true;
-        } else if (src.charAt(k) === '}') {
-          d--;
-          if (started && d === 0) {
-            end = k + 1;
-            break;
-          }
+      /* RE-POINTED 2026-11-10, row
+         2026-11-08-the-sensor-trio-power-tool-ships-ungated-copies-of-pearson-and-the-h10-classifier.
+         This group used to EXTRACT `function h10FailureClass` out of the worker's source TEXT and run
+         that copy. The page carried a second copy the extraction never read, and each file carried its
+         own `pearson` besides. Measured on main at bf715e4e5: a page classifier threshold of 0.05 for
+         0.5 passed this group, and a sign flip in either private `pearson` passed the whole Node lane
+         (17,340 assertions, 902 groups). The classifier and its correlation leg now live once, in
+         analysis-stats.js. The legs below bind THAT function numerically, and the scans keep a copy
+         from growing back in either lane. */
+      T.ok('the worker delegates the classifier (AnalysisStats.h10FailureClass)', /\bAnalysisStats\.h10FailureClass\b/.test(src), 'the worker must route to the shared classifier, not carry a copy');
+      T.ok(
+        'the page delegates the classifier too — the copy the old extraction could not see',
+        /\bAnalysisStats\.h10FailureClass\b/.test(page),
+        'sensor-trio-power-analysis.js must route to the shared classifier'
+      );
+      T.ok(
+        'both lanes read pearsonOrNull, not pearson (a NaN r reads as ok — see the control below)',
+        /\bAnalysisStats\.pearsonOrNull\b/.test(src) && /\bAnalysisStats\.pearsonOrNull\b/.test(page),
+        'a lane on AnalysisStats.pearson gets NaN from a degenerate window, which this gate cannot see as absence'
+      );
+      /* SINGLE SOURCE, keyed on the identifiers only a real BODY uses: no `bothLow`/`pairAgrees` means
+         no classifier copy, no `sxy` accumulator means no Pearson copy. A delegating wrapper passes
+         both; a reinstated copy fails by name. Presence of the alias alone would not — a file can hold
+         the alias AND a copy, which is how the TCH gate first passed over a private hat. */
+      ['sensor-trio-worker.js', 'sensor-trio-power-analysis.js'].forEach(function (f) {
+        var t = (env.sources && env.sources[f]) || '';
+        T.ok(f + ' carries NO private classifier body (no bothLow / pairAgrees)', !/\b(bothLow|pairAgrees)\b/.test(t), 'a copy of the classifier came back — delete it and delegate');
+        T.ok(f + ' carries NO private Pearson body (no sxy accumulator)', !/\bsxy\b/.test(t), 'a copy of the correlation leg came back — delete it and delegate');
+      });
+
+      /* BOTH LANES OR NEITHER. The kernel is co-loaded in the Node lane and not in the browser lane, so
+         binding `env.AnalysisStats` could only skip here — and `Dex-Test-Suite.html`'s own notes reject
+         exactly that ("the remedy is always to LIST in the other lane, never to make the assertion
+         lane-conditional"). The SOURCE is listed in both lanes, so the group builds the module from its
+         own text into a box whose `globalThis` is a PARAMETER: the file's IIFE resolves `root` to the box,
+         so this leaves no copy of the engine in either realm. `env.AnalysisStats` is preferred when the
+         runner has it, so the Node lane still tests the object the other groups use. */
+      var kSrc = (env.sources && env.sources['analysis-stats.js']) || '';
+      T.ok('analysis-stats.js is readable as source in THIS lane', kSrc.length > 1000, 'the kernel source is not listed in this lane — add it to SOURCE_FILES (browser) or readSources (node)');
+      var S = env.AnalysisStats;
+      if (!S && kSrc) {
+        var kBox = {};
+        try {
+          new Function('globalThis', kSrc)(kBox);
+          S = kBox.AnalysisStats;
+        } catch (_e) {
+          S = null;
         }
       }
-      var cls;
-      try {
-        cls = new Function(src.slice(i, end) + ';\nreturn h10FailureClass;')();
-      } catch (e) {
-        T.ok('h10FailureClass is evaluable', false, e.message);
-        return;
-      }
+      T.ok(
+        'the kernel exposes h10FailureClass and pearsonOrNull',
+        !!S && typeof S.h10FailureClass === 'function' && typeof S.pearsonOrNull === 'function',
+        'the H10 corner gate cannot be bound — the assertions below would prove nothing'
+      );
+      if (S && typeof S.h10FailureClass === 'function' && typeof S.pearsonOrNull === 'function') {
+        var cls = S.h10FailureClass;
+        // THE lead-fault signature (2026-06-12): σ implausibly large AND H10 decorrelated from both
+        // partners while O2 & Verity still agree — that one really is a bad ECG lead, so null the corner.
+        T.eq('06-12 signature (σ9.46, rHO0.43, rHV0.38, rVO0.85) → ecg-lead-fault', cls(9.46, 0.43, 0.38, 0.85), 'ecg-lead-fault');
+        // Every healthy real night keeps H10: σ is small, so the σ>5 gate never even engages.
+        T.eq('a healthy night (σ0.79, rHO0.90, rHV0.72, rVO0.62) → ok', cls(0.79, 0.9, 0.72, 0.62), 'ok');
+        T.eq('the next-highest real H10 night (σ1.25) is nowhere near the σ>5 gate → ok', cls(1.25, 0.84, 0.67, 0.72), 'ok');
+        // THE guard that makes it H10-specific: the Verity-noisy nights have a low rHV too, but their bad
+        // corner is VERITY (σ_h10 stays healthy ~0.65, and rVO collapses). Both spared, for both reasons.
+        T.eq('Verity-noisy 06-29 (σ_h10 0.65, rHO0.85, rHV0.35, rVO0.31) → ok (bad corner is Verity)', cls(0.65, 0.845, 0.346, 0.308), 'ok');
+        T.eq('Verity-noisy 07-02 (σ_h10 0.68, rHO0.85, rHV0.24, rVO0.21) → ok', cls(0.68, 0.848, 0.238, 0.208), 'ok');
+        // The rVO guard is load-bearing: a HYPOTHETICAL high-σ H10 whose partners have DECORRELATED from
+        // each other too (rVO<0.5) is a whole-night mess, not a clean single-corner fault — do NOT null H10.
+        T.eq('high σ_h10 but O2·Verity ALSO decorrelated (rVO0.3) → ok (not a clean H10-only fault)', cls(9.0, 0.4, 0.4, 0.3), 'ok');
+        T.eq('a null σ_h10 (already TCH-negative) is left alone → ok (never double-classified as a lead fault)', cls(null, 0.9, 0.9, 0.9), 'ok');
+        // THRESHOLD, bound from both sides so a typo in either direction reds (0.05 for 0.5 did not).
+        T.eq('the rHO/rHV threshold is 0.5 — 0.49 on both is decorrelated', cls(9.46, 0.49, 0.49, 0.85), 'ecg-lead-fault');
+        T.eq('the rHO/rHV threshold is 0.5 — 0.51 on either is NOT', cls(9.46, 0.51, 0.49, 0.85), 'ok');
+        T.eq('the rVO agreement threshold is 0.5 — 0.5 agrees', cls(9.46, 0.43, 0.38, 0.5), 'ecg-lead-fault');
+        T.eq('the rVO agreement threshold is 0.5 — 0.49 does not', cls(9.46, 0.43, 0.38, 0.49), 'ok');
+        T.eq('the σ threshold is 5 — 5.01 engages the gate', cls(5.01, 0.43, 0.38, 0.85), 'ecg-lead-fault');
+        T.eq('the σ threshold is 5 — 5.00 does not', cls(5.0, 0.43, 0.38, 0.85), 'ok');
 
-      // THE lead-fault signature (2026-06-12): σ implausibly large AND H10 decorrelated from both partners
-      // while O2 & Verity still agree — that one really is a bad ECG lead, so null the corner.
-      T.eq('06-12 signature (σ9.46, rHO0.43, rHV0.38, rVO0.85) → ecg-lead-fault', cls(9.46, 0.43, 0.38, 0.85), 'ecg-lead-fault');
-      // Every healthy real night keeps H10: σ is small, so the σ>5 gate never even engages.
-      T.eq('a healthy night (σ0.79, rHO0.90, rHV0.72, rVO0.62) → ok', cls(0.79, 0.9, 0.72, 0.62), 'ok');
-      T.eq('the next-highest real H10 night (σ1.25) is nowhere near the σ>5 gate → ok', cls(1.25, 0.84, 0.67, 0.72), 'ok');
-      // THE guard that makes it H10-specific: the Verity-noisy nights have a low rHV too, but their bad
-      // corner is VERITY (σ_h10 stays healthy ~0.65, and rVO collapses). Both spared, for both reasons.
-      T.eq('Verity-noisy 06-29 (σ_h10 0.65, rHO0.85, rHV0.35, rVO0.31) → ok (bad corner is Verity)', cls(0.65, 0.845, 0.346, 0.308), 'ok');
-      T.eq('Verity-noisy 07-02 (σ_h10 0.68, rHO0.85, rHV0.24, rVO0.21) → ok', cls(0.68, 0.848, 0.238, 0.208), 'ok');
-      // The rVO guard is load-bearing: a HYPOTHETICAL high-σ H10 whose partners have DECORRELATED from each
-      // other too (rVO<0.5) is a whole-night mess, not a clean single-corner fault — do NOT silently null H10.
-      T.eq('high σ_h10 but O2·Verity ALSO decorrelated (rVO0.3) → ok (not a clean H10-only fault)', cls(9.0, 0.4, 0.4, 0.3), 'ok');
-      T.eq('a null σ_h10 (already TCH-negative) is left alone → ok (never double-classified as a lead fault)', cls(null, 0.9, 0.9, 0.9), 'ok');
+        // ── the correlation leg, numerically. A SIGN FLIP here used to pass the entire Node lane. ──
+        var up = [1, 2, 3, 4, 5, 6, 7, 8],
+          dn = [8, 7, 6, 5, 4, 3, 2, 1];
+        T.ok('pearsonOrNull on a perfectly correlated pair is +1', Math.abs(S.pearsonOrNull(up, up) - 1) < 1e-12, String(S.pearsonOrNull(up, up)));
+        T.ok('pearsonOrNull on a perfectly anticorrelated pair is −1 (a SIGN FLIP reds here)', Math.abs(S.pearsonOrNull(up, dn) + 1) < 1e-12, String(S.pearsonOrNull(up, dn)));
+        T.ok('pearsonOrNull reproduces a hand-computed r', Math.abs(S.pearsonOrNull([1, 2, 3, 4], [2, 4, 5, 9]) - 0.9647638212377322) < 1e-12, String(S.pearsonOrNull([1, 2, 3, 4], [2, 4, 5, 9])));
+        T.eq('∅ · a constant series has no r — pearsonOrNull returns null, never NaN', S.pearsonOrNull(up, [3, 3, 3, 3, 3, 3, 3, 3]), null);
+        // and the two legs COMPOSE the way the solve does: a null r is what makes bothLow true.
+        T.eq('a null r from a degenerate window reaches the gate AS ABSENCE', cls(9.46, null, null, 0.85), 'ecg-lead-fault');
+        T.eq('CONTROL · the same window with a NaN r reads as ok — which is why pearson is not the leg here', cls(9.46, NaN, NaN, 0.85), 'ok');
+      }
 
       // MARGIN: every committed real σ_h10 except the 06-12 fault is ≤1.25, so the σ>5 threshold sits in a
       // wide empty gap (same "wide of the observed band" discipline as the Verity gate). If someone drops
@@ -60106,6 +60859,7 @@
       T.ok('a lead fault nulls ONLY the H10 corner (s.h10 = null), not the whole night', /h10Cls\s*!==\s*'ok'\)\s*s\.h10\s*=\s*null/.test(src));
       T.ok('the result surfaces a machine-readable h10Unreliable flag + fault class', /h10Unreliable:\s*h10Cls\s*!==\s*'ok'/.test(src) && /h10Fault:/.test(src));
       T.ok('a nulled corner (neg OR gated) never carries a bootstrap CI (point↔CI consistency)', /if \(s\[DKEYS\[_ci\]\] == null\) ci\[DKEYS\[_ci\]\] = null/.test(src));
+      T.ok('the page calls the shared classifier on its own real-night path too', /h10FailureClass\(s\.h10,\s*rHO,\s*rHV,\s*rVO\)/.test(page), 'the page must run the gate it now delegates');
     });
 
     group('ECGDex worker clock — the >5 MB path parses timestamps IDENTICALLY to clock.js', 'ecgdex-app · worker · clock-contract', function (T) {
@@ -60909,6 +61663,85 @@
       T.eq('glue peaks ≡ serial detectChannel(chan, TRUE fs) — the worker changes WHEN work runs, never the fs it runs at', arr(captured.peaks), arr(sOut.peaks));
       T.eq('glue feet ≡ serial feet', arr(captured.feet), arr(sOut.feet));
       T.eq('glue sign ≡ serial sign', captured.sign, sOut.sign);
+    });
+
+    /* ════ The SHIPPED worker blob, not a rebuild of it ════
+       Row 2026-11-08-the-ppg-worker-gates-test-a-rebuilt-blob-not-the-shipped-one. The two groups above
+       rebuild the blob from a regex over the deps list, so no gate ran `_buildWorkerURL`. A mutation that
+       empties the shipped blob killed the worker, the serial fallback returned the same peaks, and every
+       gate stayed green. This group evaluates the module in a realm with Blob, URL and Worker stubs, and
+       lets `detectChannelsAsync` call `_buildWorkerURL`. The Blob stub keeps the text that would ship. The
+       group then runs THAT text with a `self` stub, posts one message, and requires the serial answer. */
+    group('PpgDex SHIPPED worker blob (built by _buildWorkerURL) runs and ≡ the serial path', 'ppgdex-dsp · worker · regression', function (T) {
+      var src = (env.sources && env.sources['ppgdex-dsp.js']) || '';
+      var D = env.PPGDSP;
+      T.ok('ppgdex-dsp.js source + PPGDSP.detectChannel available', !!src && !!(D && typeof D.detectChannel === 'function'));
+      if (!src || !(D && typeof D.detectChannel === 'function')) return;
+      var blobs = [],
+        urls = {};
+      var stubs = {
+        Blob: function (parts) {
+          this.text = parts.join('');
+          blobs.push(this.text);
+        },
+        URL: {
+          createObjectURL: function (b) {
+            var u = 'blob:stub/' + blobs.length;
+            urls[u] = b.text;
+            return u;
+          }
+        },
+        // A throwing Worker sends detectChannelsAsync to its serial fallback after the URL is built.
+        Worker: function () {
+          throw new Error('stub Worker: the test runs the blob itself');
+        },
+        setTimeout: function () {}
+      };
+      var realm = {};
+      try {
+        var body = src.replace(/^export\s+const\s.*$/gm, '');
+        new Function('window', 'Blob', 'URL', 'Worker', 'setTimeout', body)(realm, stubs.Blob, stubs.URL, stubs.Worker, stubs.setTimeout);
+      } catch (e) {
+        T.ok('ppgdex-dsp.js evaluates in the stub realm', false, e.message);
+        return;
+      }
+      var R = realm.PPGDSP;
+      T.ok('the stub realm exposes PPGDSP.detectChannelsAsync', !!(R && typeof R.detectChannelsAsync === 'function'));
+      if (!(R && typeof R.detectChannelsAsync === 'function')) return;
+      var fs = 176.26,
+        n = Math.round(fs * 60);
+      var chan = new Float32Array(n);
+      for (var i = 0; i < n; i++) chan[i] = 1000 + 40 * Math.sin((2 * Math.PI * 1.2 * i) / fs) + 6 * Math.sin(i / 3);
+      R.detectChannelsAsync({ ch: [chan], fs: fs });
+      var shipped = Object.keys(urls).map(function (u) {
+        return urls[u];
+      })[0];
+      T.ok('_buildWorkerURL built exactly one blob', blobs.length === 1, 'blobs=' + blobs.length);
+      if (!shipped) return;
+      var posted = null;
+      var self = {
+        postMessage: function (m) {
+          posted = m;
+        }
+      };
+      var threw = '';
+      try {
+        new Function('self', shipped)(self);
+        var buf = new Float32Array(chan).buffer;
+        self.onmessage({ data: { idx: 0, buf: buf, fs: fs } });
+      } catch (e) {
+        threw = e.constructor.name + ': ' + e.message;
+      }
+      T.ok('the shipped blob evaluates and answers one message', !threw && !!posted, threw || 'no postMessage (blob ' + shipped.length + ' chars)');
+      if (!posted) return;
+      var sOut = D.detectChannel(chan, fs);
+      var arr = function (x) {
+        return JSON.stringify(Array.prototype.slice.call(x || []));
+      };
+      T.ok('the shipped blob found beats', posted.peaks && posted.peaks.length > 5, 'peaks=' + (posted.peaks && posted.peaks.length));
+      T.eq('shipped-blob peaks ≡ serial peaks', arr(posted.peaks), arr(sOut.peaks));
+      T.eq('shipped-blob feet ≡ serial feet', arr(posted.feet), arr(sOut.feet));
+      T.eq('shipped-blob sign ≡ serial sign', posted.sign, sOut.sign);
     });
 
     group('PpgDex worker source is CLOSED — every function + const it references is shipped to the blob', 'ppgdex-dsp · worker · regression', function (T) {
@@ -81070,6 +81903,50 @@
       }
     });
 
+    /* ════ the two qrs worker gates must read the table PRODUCTION loads ════════════════════════
+     Residue 2026-11-08-the-qrs-worker-gates-pass-with-ppgdex-dropped-from-scripts. Groups 21h and 21i
+     below reconstruct the worker realm the WORKER-REALM-GATES §2 way: `new Function(workerSrc)` with
+     the deps passed as PARAMETERS and `importScripts` stubbed to a no-op, because the deps are already
+     instantiated in `env`. That makes the worker's own `var SCRIPTS = [...]` — the list production
+     actually loads — invisible to both gates. Muse measured it at bf715e4e5: with `ppgdex-dsp.js`
+     dropped from either table the gates stayed 13 of 13 and 11 of 11 green, while production lost
+     `PPGDSP`, `ppgRmssd` returned null, `errors.PPG` recorded the loss and boot still reported ready.
+     The repair routes every injected symbol THROUGH the declared table. A dep whose file the table
+     does not name arrives as `undefined`, so the known-answer legs below red on the loss, and each
+     group carries a PLANT that drops the entry and asserts the realm stops reproducing its answer —
+     a gate that passes with and without the entry has measured nothing (§4b). */
+    function wkProvidedGlobals(src) {
+      /* Every worker dep publishes through one form: an IIFE taking `global` that assigns
+         `global.<NAME> = …` (synth-gen → SYNTH, ppgdex-dsp → PPGDSP, …). `global.X.y =` names the same
+         base, so one pattern covers both. */
+      var out = {},
+        re = /(?:^|[^.\w$])global\.([A-Za-z_$][\w$]*)\s*(?:=|\.)/g,
+        m;
+      while ((m = re.exec(String(src || '')))) out[m[1]] = true;
+      return out;
+    }
+    function wkDeclaredScripts(wsrc) {
+      /* An unreadable table returns null, never [] — it must not read as "this worker declares no
+         deps", and it must not read as a pass either: the caller asserts on it. */
+      var m = /var SCRIPTS\s*=\s*\[([\s\S]*?)\]/.exec(String(wsrc || ''));
+      if (!m) return null;
+      return (m[1].match(/'[^']+'/g) || []).map(function (q) {
+        return q.slice(1, -1);
+      });
+    }
+    function wkResolve(declared, sources) {
+      /* global name -> the declared file that provides it. A name absent from this map is a name no
+         file in the table supplies. */
+      var provided = {};
+      (declared || []).forEach(function (f) {
+        var g = wkProvidedGlobals((sources || {})[f] || '');
+        Object.keys(g).forEach(function (k) {
+          if (!provided[k]) provided[k] = f;
+        });
+      });
+      return provided;
+    }
+
     /* ════ 21h · qrs-equiv WORKER EXECUTES — known-answer (TEST-COVERAGE-FOLLOWUPS-II §4) ════
      The analysis workers were never executed by any gate (only PpgDex + sensor-trio had a worker leg).
      Unlike the PpgDex blob (a hand-maintained deps list — the drift that shipped `cadenceSamples is not
@@ -81088,7 +81965,7 @@
 
       // Reconstruct the worker realm: eval its SOURCE with `self` + deps as params, importScripts a no-op
       // (deps are already instantiated in env). The worker's bare refs (SYNTH, CohortGen, …) bind to params.
-      function drive(seed) {
+      function drive(seed, deps) {
         var msgs = [];
         var selfStub = {
           postMessage: function (m) {
@@ -81097,6 +81974,11 @@
         };
         var noopImport = function () {};
         var xhrStub = function () {};
+        /* The injection goes through the DECLARED table: a symbol no declared file provides arrives
+           as undefined, exactly as it would in a worker whose SCRIPTS entry was deleted. */
+        var dep = function (name) {
+          return Object.prototype.hasOwnProperty.call(deps || {}, name) ? env[name] : undefined;
+        };
         var runner;
         try {
           runner = new Function(
@@ -81111,7 +81993,9 @@
             'navigator',
             wsrc + '\n; self.__drive = function (msg) { self.onmessage({ data: msg }); };'
           );
-          runner(selfStub, noopImport, xhrStub, env.SYNTH, env.CohortGen, env.CohortFull, env.ECGDSP, env.PPGDSP, { hardwareConcurrency: 4 });
+          runner(selfStub, noopImport, xhrStub, dep('SYNTH'), dep('CohortGen'), dep('CohortFull'), dep('ECGDSP'), dep('PPGDSP'), {
+            hardwareConcurrency: 4
+          });
         } catch (e) {
           return { evalErr: e.constructor.name + ': ' + e.message, msgs: msgs };
         }
@@ -81120,7 +82004,38 @@
         return { msgs: msgs };
       }
 
-      var r = drive(12345);
+      var declared = wkDeclaredScripts(wsrc);
+      var provided = wkResolve(declared, env.sources);
+      T.ok('the worker declares a readable SCRIPTS table', !!(declared && declared.length), 'entries=' + (declared ? declared.length : 'UNREADABLE'));
+      /* The names are the rig's own `new Function` parameter list — the same five symbols it injects,
+         now asserted to have a provider inside the table. */
+      var unprovided = ['SYNTH', 'CohortGen', 'CohortFull', 'ECGDSP', 'PPGDSP'].filter(function (n) {
+        return !Object.prototype.hasOwnProperty.call(provided, n);
+      });
+      T.eq('every injected dep resolves through the declared SCRIPTS table', unprovided.join(',') || 'none', 'none');
+
+      /* PLANT · the entry is LOAD-BEARING. Drop `ppgdex-dsp.js` and the realm must stop reproducing
+         its answer: qrs-equiv-worker.js:155 calls `PPGDSP.analyze(PPGDSP.parsePPG(…))` unguarded, so
+         the job either throws or yields no positive ppgRmssd. This is the leg that reds the defect the
+         residue row measured. */
+      var plantDecl = (declared || []).filter(function (f) {
+        return f !== 'ppgdex-dsp.js';
+      });
+      var plantProvided = wkResolve(plantDecl, env.sources);
+      T.ok('PLANT · dropping ppgdex-dsp.js leaves PPGDSP with no provider', !Object.prototype.hasOwnProperty.call(plantProvided, 'PPGDSP'), Object.keys(plantProvided).join(','));
+      var pl = drive(12345, plantProvided);
+      var plDone = pl.msgs.filter(function (m) {
+        return m.type === 'done';
+      })[0];
+      var plRes = plDone && plDone.result;
+      var plBroke = !!pl.evalErr || !plDone || !!plDone.error || !plRes || !(typeof plRes.ppgRmssd === 'number' && isFinite(plRes.ppgRmssd) && plRes.ppgRmssd > 0);
+      T.ok(
+        'PLANT · with ppgdex-dsp.js dropped the worker realm FAILS (the gate reads the table production loads)',
+        plBroke,
+        'evalErr=' + pl.evalErr + ' error=' + (plDone && plDone.error) + ' ppgRmssd=' + (plRes && plRes.ppgRmssd)
+      );
+
+      var r = drive(12345, provided);
       T.ok('the worker SOURCE evaluates in a reconstructed realm', !r.evalErr, r.evalErr);
       if (r.evalErr) return;
       var readyMsg = r.msgs.filter(function (m) {
@@ -81214,7 +82129,7 @@
       T.ok('the worker reported no per-detector errors', res.errors && Object.keys(res.errors).length === 0, JSON.stringify(res.errors));
 
       // a worker changes WHEN the work runs, never WHAT — a second reconstruction is byte-identical
-      var r2 = drive(12345);
+      var r2 = drive(12345, provided);
       var d2 = r2.msgs.filter(function (m) {
         return m.type === 'done';
       })[0];
@@ -81240,12 +82155,16 @@
       T.ok('worker source + deps available', have, 'wsrc=' + !!wsrc);
       if (!have) return;
 
-      function drive(seed) {
+      function drive(seed, deps) {
         var msgs = [];
         var selfStub = {
           postMessage: function (m) {
             msgs.push(m);
           }
+        };
+        /* Same table-routed injection as 21h: an undeclared dep arrives undefined. */
+        var dep = function (name) {
+          return Object.prototype.hasOwnProperty.call(deps || {}, name) ? env[name] : undefined;
         };
         var runner;
         try {
@@ -81271,11 +82190,11 @@
                 return 0;
               }
             },
-            env.SYNTH,
-            env.CohortGen,
-            env.CohortFull,
-            env.ECGDSP,
-            env.PPGDSP,
+            dep('SYNTH'),
+            dep('CohortGen'),
+            dep('CohortFull'),
+            dep('ECGDSP'),
+            dep('PPGDSP'),
             { hardwareConcurrency: 4 }
           );
         } catch (e) {
@@ -81286,7 +82205,36 @@
         return { msgs: msgs };
       }
 
-      var r = drive(12345);
+      var declared = wkDeclaredScripts(wsrc);
+      var provided = wkResolve(declared, env.sources);
+      T.ok('the worker declares a readable SCRIPTS table', !!(declared && declared.length), 'entries=' + (declared ? declared.length : 'UNREADABLE'));
+      var unprovided = ['SYNTH', 'CohortGen', 'CohortFull', 'ECGDSP', 'PPGDSP'].filter(function (n) {
+        return !Object.prototype.hasOwnProperty.call(provided, n);
+      });
+      T.eq('every injected dep resolves through the declared SCRIPTS table', unprovided.join(',') || 'none', 'none');
+
+      /* PLANT · the entry is LOAD-BEARING. qrs-yield-worker.js:281 calls `PPGDSP.parsePPG(text)` inside
+         the arm that records `errors.PPG`, so dropping the entry leaves `res.ppg` null with the error
+         recorded while boot still reports ready — which is exactly the production failure the residue
+         row names, and the state this gate used to call green. */
+      var plantDecl = (declared || []).filter(function (f) {
+        return f !== 'ppgdex-dsp.js';
+      });
+      var plantProvided = wkResolve(plantDecl, env.sources);
+      T.ok('PLANT · dropping ppgdex-dsp.js leaves PPGDSP with no provider', !Object.prototype.hasOwnProperty.call(plantProvided, 'PPGDSP'), Object.keys(plantProvided).join(','));
+      var pl = drive(12345, plantProvided);
+      var plDone = pl.msgs.filter(function (m) {
+        return m.type === 'done';
+      })[0];
+      var plRes = plDone && plDone.result;
+      var plBroke = !!pl.evalErr || !plDone || !!plDone.error || !plRes || !plRes.ppg || !!(plRes.errors && plRes.errors.PPG);
+      T.ok(
+        'PLANT · with ppgdex-dsp.js dropped the worker realm FAILS (the gate reads the table production loads)',
+        plBroke,
+        'evalErr=' + pl.evalErr + ' error=' + (plDone && plDone.error) + ' ppg=' + !!(plRes && plRes.ppg) + ' errors=' + JSON.stringify(plRes && plRes.errors)
+      );
+
+      var r = drive(12345, provided);
       T.ok('the worker SOURCE evaluates in a reconstructed realm', !r.evalErr, r.evalErr);
       if (r.evalErr) return;
       var readyMsg = r.msgs.filter(function (m) {
@@ -81311,7 +82259,7 @@
       T.ok('ECGDex yield ran in the worker realm (non-null, no ECG error)', !!res.ecg && !(res.errors && res.errors.ECG), JSON.stringify(res.errors));
       T.ok('PpgDex yield ran in the worker realm (non-null, no PPG error)', !!res.ppg && !(res.errors && res.errors.PPG), JSON.stringify(res.errors));
 
-      var d2 = drive(12345).msgs.filter(function (m) {
+      var d2 = drive(12345, provided).msgs.filter(function (m) {
         return m.type === 'done';
       })[0];
       T.eq('deterministic — a second reconstruction reproduces the identical result', JSON.stringify(res), JSON.stringify(d2 && d2.result));
@@ -84454,6 +85402,58 @@
       T.eq('no failures → no suggestion', rr([], invy), { indices: [], unresolved: [] });
     });
 
+    /* ── self-test: the skip budget judges the REASON, not only the name (rides both runners) ──
+       A ⊘ costs nothing: the leg stops being checked and the gate stays green, so the allow-list
+       exists to make that cost a deliberate act. For a while it was deliberate by NAME ALONE. A leg
+       could keep its declared name, skip for a brand-new reason, and the audit passed. Measured on
+       2026-11-08 (residue 2026-11-08-the-skip-audit-matches-a-name-and-never-the-reason): a second
+       skipped leg planted under a declared corpus-absent name, with the corpus PRESENT, read verdict
+       PASS, skipViolations 0, exit 0. Every leg below hands `auditSkips` hand-built group objects, so
+       it needs no filesystem and decides the same thing in both lanes. */
+    group('skip budget — auditSkips judges the declared REASON', 'live mirror · test-infra', function (T) {
+      var as = auditSkips;
+      var WANT = 'committed input absent — uploads/ is gitignored';
+      var GOT = 'committed input absent — uploads/ is gitignored (personal data); this leg runs locally';
+      var one = function (detail, pass) {
+        return [{ title: 'G', tests: [{ name: 'leg', skip: !pass, pass: !!pass, detail: detail }] }];
+      };
+      var DECL = [{ group: 'G', test: 'leg', why: 'corpus-absent', detail: WANT }];
+      var r = as(one(GOT), DECL);
+      T.eq('a declared name whose reason matches raises nothing', r.violations, []);
+      T.eq('…and it pays its own budget line', r.counted, { 'corpus-absent': 1, 'known-drift': 0 });
+      T.ok('a declared SUBSTRING matches an interpolated reason', GOT !== WANT && GOT.indexOf(WANT) === 0);
+
+      /* THE CONTROL — the exact shape measured as a PASS before this field existed. */
+      var drift = as(one('the operator switched it off for the afternoon'), DECL);
+      T.eq('THE DEFECT: a declared name skipping for an UNDECLARED reason now reds', drift.violations.length, 1);
+      T.eq('…as reason-drift, never as an undeclared skip', (drift.violations[0] || {}).kind, 'reason-drift');
+      T.ok(
+        '…and the message names both reasons',
+        /declared reason "committed input absent/.test((drift.violations[0] || {}).detail || '') && /switched it off/.test((drift.violations[0] || {}).detail || '')
+      );
+      T.eq('…and a drifted skip pays NO budget', drift.counted, { 'corpus-absent': 0, 'known-drift': 0 });
+
+      /* An entry with a name and no reason is the hole itself — fail CLOSED, never fall back to the
+         name match it replaced. */
+      var bare = as(one(GOT), [{ group: 'G', test: 'leg', why: 'corpus-absent' }]);
+      T.eq('an entry that declares no reason reds', bare.violations.length, 1);
+      T.eq('…as no-declared-reason', (bare.violations[0] || {}).kind, 'no-declared-reason');
+      var blank = as(one(GOT), [{ group: 'G', test: 'leg', why: 'corpus-absent', detail: '' }]);
+      T.eq('an empty declared reason reds the same way', (blank.violations[0] || {}).kind, 'no-declared-reason');
+
+      /* The reason the leg gives has to exist too: `T.skip(name)` with no detail can match nothing. */
+      var nodetail = as([{ title: 'G', tests: [{ name: 'leg', skip: true }] }], DECL);
+      T.eq('a skip with NO reason at all reds', (nodetail.violations[0] || {}).kind, 'reason-drift');
+
+      // the behaviour that already worked, pinned so this change cannot weaken it
+      T.eq('an undeclared NAME still reds', (as(one(GOT), []).violations[0] || {}).kind, 'undeclared');
+      T.eq('…and a lost allow-list reds every skip (fail-closed)', as(one(GOT), null).violations.length, 1);
+      T.eq('a PASSING leg under a declared name raises nothing', as(one(GOT, true), DECL).violations, []);
+      T.eq('a known-drift entry counts into its own bucket', as(one(GOT), [{ group: 'G', test: 'leg', why: 'known-drift', detail: WANT }]).counted, { 'corpus-absent': 0, 'known-drift': 1 });
+      T.eq('shard-safe: a group this process never ran is never judged', as([], DECL).violations, []);
+      T.eq('…and an entry whose leg did not run is not reported as stale here', as([], DECL).counted, { 'corpus-absent': 0, 'known-drift': 0 });
+    });
+
     /* ── adapters/resmed-edf.js — ResMed SD-card EDF ingest (CPAP-REAL-CORPUS §F4/§P3) ────
        CPAP was the one signal type with NO registered adapter ("EDF is binary + multi-file, so
        there is no text-stream adapter"), so its SD-card → edfSets grouping had to be hand-rolled
@@ -85409,7 +86409,11 @@
       var relSt = probeL('tools/release.mjs', ['--status', '--dry-run'], { isolateTmp: true });
       T.ok('release.mjs · --status reaches release-land.mjs instead of stamping', /no release-land run recorded|^remaining:|\nremaining:/m.test(String(relSt.out)), String(relSt.out).slice(0, 260));
       T.ok('…and nothing of the stamp step ran', !/This was the STAMP step only|Stamped v/.test(String(relSt.out)), String(relSt.out).slice(0, 260));
-      T.ok('…at exit 0 (a report) or 1 (no run recorded on this machine), never 2', relSt.status === 0 || relSt.status === 1, 'status=' + relSt.status + ' out=' + String(relSt.out).slice(0, 160));
+      T.ok(
+        '…at exit 0 (a report) or 4 (no run recorded on this machine), never 1 and never 2',
+        relSt.status === 0 || relSt.status === 4,
+        'status=' + relSt.status + ' out=' + String(relSt.out).slice(0, 160)
+      );
       /* release-land.mjs itself (Osprey, board #4749): every unread token fell through to a fresh run.
          The probe carries `--dry-run` for the reason above — a regressed guard previews, never releases. */
       var landBad = probeL('tools/release-land.mjs', ['--statu', '--dry-run'], { isolateTmp: true });
@@ -85434,6 +86438,26 @@
       });
       T.ok('PLANT · an unfinished run is read and reported', /^remaining:\s+\S/m.test(String(landRun.out)), String(landRun.out).slice(0, 200));
       T.eq('…at exit 3, never the usage code 2', landRun.status, 3);
+      /* THE PAIR THE CODE MUST SEPARATE. Row
+         2026-11-10-release-land-status-answers-one-for-a-failed-run-and-for-no-run: `--status` answered
+         1 for a release that FAILED and 1 for no release recorded at all. A caller acts on those
+         differently — one may start a release, the other needs a human — so `board.mjs` told them apart
+         by regexing the printed line. Both plants run here, because a code that separates them is only
+         evidence beside the case it is separated FROM. */
+      var landNone = probeL('tools/release-land.mjs', ['--status'], { isolateTmp: true });
+      T.ok('PLANT · no state file at all is SAID, not guessed', /no release-land run recorded/.test(String(landNone.out)), String(landNone.out).slice(0, 200));
+      T.eq('…at exit 4 — this read examined nothing', landNone.status, 4);
+      var landFail = probeL('tools/release-land.mjs', ['--status'], {
+        seedTmp: function (dir) {
+          var d2 = pathL.join(dir, 'tepna-release-land');
+          fsL.mkdirSync(d2);
+          var f2 = pathL.join(d2, 'v9.9.8.json');
+          fsL.writeFileSync(f2, JSON.stringify({ file: f2, to: '9.9.8', started: 'x', updated: 'x', done: ['plan'], current: 'stamp', failed: { step: 'stamp', why: 'planted', at: 'x' }, log: [] }));
+          fsL.writeFileSync(pathL.join(d2, 'latest.json'), JSON.stringify({ file: f2 }));
+        }
+      });
+      T.ok('CONTROL · a recorded run that FAILED is reported', /FAILED at stamp/.test(String(landFail.out)), String(landFail.out).slice(0, 200));
+      T.eq('…at exit 1, the code no absent state answers any more', landFail.status, 1);
       var rtHelp = probeL('tests/run-tests.mjs', ['--help']);
       T.eq('run-tests.mjs · --help exits 0', rtHelp.status, 0);
       T.ok('…printing a usage line that names the runner', /^usage: node tests\/run-tests\.mjs/m.test(String(rtHelp.out)), String(rtHelp.out).slice(0, 160));
@@ -94326,6 +95350,59 @@
         // render as 100 % — a ratio with no denominator is unknown, not complete.
         T.ok('§2.3 · …and a null recordedFrac renders as an em-dash, never as complete', /frac == null \? '—'/.test(_ir));
       }
+    });
+
+    /* ════ The OxyDex ADAPTER carries the declared coverage ════
+       Row 2026-11-08-the-integrator-ignores-oxydex-coverage-segments. The overlap group above builds its
+       records by hand, so it never passed through `adaptOxyDex`, and that adapter dropped the block.
+       A 2-segment OxyDex night read as one full envelope. Driven through normalizeFile, the app's entry. */
+    group('Integrator · adaptOxyDex carries the OxyDex coverage segments to recSegments', 'integrator-dsp · coverage · regression', function (T) {
+      var D = env.IntegratorDSP;
+      T.ok('IntegratorDSP.normalizeFile + recSegments available', !!(D && typeof D.normalizeFile === 'function' && typeof D.recSegments === 'function'));
+      if (!(D && typeof D.normalizeFile === 'function' && typeof D.recSegments === 'function')) return;
+      var t0 = Date.UTC(2026, 5, 13, 23, 0, 0);
+      var cov = {
+        kind: 'sparse',
+        spanSec: 7 * 3600,
+        recordedSec: 5 * 3600,
+        n: 2,
+        nWithDuration: 2,
+        segments: [
+          { startMs: t0, durSec: 2 * 3600 },
+          { startMs: t0 + 4 * 3600000, durSec: 3 * 3600 }
+        ]
+      };
+      function night(start, withCov) {
+        var n = { date: '2026-06-13', t0Ms: start, stats: { t0Ms: start, durationMin: 420, n: 25200, meanSpo2: 95 } };
+        if (withCov) n.coverage = cov;
+        return n;
+      }
+      function exp(nights, topCov) {
+        return { schema: { name: 'ganglior.node-export', node: 'OxyDex' }, recording: { startEpochMs: t0, coverage: topCov }, nights: nights, ganglior_events: [] };
+      }
+      function recOf(j) {
+        var r = D.normalizeFile(j, 'OxyDex_2026-06-13_ganglior.json');
+        return r && r.recs && r.recs[0];
+      }
+      var single = recOf(exp([night(t0, false)], cov));
+      var segs = single && D.recSegments(single);
+      T.eq('a single-night export: recording.coverage reaches the record as 2 segments', segs && segs.length, 2, JSON.stringify(single && single.coverage));
+      T.eq('…the second segment starts where the writer put it', segs && segs[1] && segs[1][0], t0 + 4 * 3600000);
+      var perNight = recOf(exp([night(t0, true)], undefined));
+      T.eq('a night that carries its own coverage block keeps it', perNight && D.recSegments(perNight) && D.recSegments(perNight).length, 2);
+      var clean = recOf(exp([night(t0, false)], undefined));
+      T.eq('BACK-COMPAT · a contiguous night declares nothing, so recSegments falls back to the envelope', clean && D.recSegments(clean), null);
+      var r2 = D.normalizeFile(exp([night(t0, false), night(t0 + 864e5, false)], cov), 'OxyDex_multi_ganglior.json');
+      var multi = (r2 && r2.recs) || [];
+      T.eq(
+        'a multi-night export does not spread a top-level block over its nights',
+        multi.length === 2 &&
+          multi.every(function (r) {
+            return D.recSegments(r) === null;
+          }),
+        true,
+        'recs=' + multi.length
+      );
     });
 
     /* PAT-GEOMETRY-PROBE §2 — THE SPECIFICITY MATRIX.

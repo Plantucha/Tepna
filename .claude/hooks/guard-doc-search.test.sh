@@ -150,6 +150,7 @@ check DENY  "$(run_cmd "cd $WT && gh pr create --fill" "$OUT")"              "�
 check ALLOW "$(run_cmd 'gh pr view 3150 --json state && gh pr checks 3150' "$REPO")" "gh pr view/checks ⇒ allow (a read)"
 check ALLOW "$(run_cmd 'gh pr create --title x' "$OUT")"                     "gh pr create OUTSIDE any repo ⇒ allow"
 check DENY  "$(run_cmd 'herdr --session birds agent prompt heron "next unit"' "$REPO")" "herdr agent prompt ⇒ deny"
+# shellcheck disable=SC2088  # the literal ~/ is the FIXTURE: this leg proves the hook matches the UNEXPANDED form.
 check DENY  "$(run_cmd '~/.local/bin/herdr --session birds agent prompt magpie x' "$REPO")" "…by full path too"
 check ALLOW "$(run_cmd 'herdr --session birds agent list' "$REPO")"          "herdr agent list ⇒ allow (a read)"
 check ALLOW "$(run_cmd 'CLAUDE_ALLOW_NO_DOC_SEARCH=1 gh pr create --fill' "$REPO")" "the inline hatch on a PR open ⇒ allow"

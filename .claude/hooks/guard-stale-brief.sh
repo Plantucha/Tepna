@@ -148,6 +148,7 @@ READ_FORM_RE="(open\([^,)]*\)|open\([^)]*['\"]r[b+]*['\"]|\.read_text\(|\.read_b
 #    read. This pattern asks one question of that name: is the target an argument? A guarded path in
 #    the interpreter's own argument list then completes the evidence. So nothing here enumerates
 #    verbs, and the owner ruling that replaced the verb list with a read allowlist still holds.
+# shellcheck disable=SC2016  # a regex literal: $ARGV and \bargv must reach grep unexpanded.
 ARGV_TARGET_RE='(sys\.argv|process\.argv|\$ARGV|@ARGV|ARGV\[|\bargv\[)'
 
 
@@ -177,6 +178,7 @@ ARGV_TARGET_RE='(sys\.argv|process\.argv|\$ARGV|@ARGV|ARGV\[|\bargv\[)'
 #    with the measurement that found it. A guarded path reaching the program as an ARGUMENT was the
 #    third of these. This scan still cannot resolve such a target, and that unresolved name is now
 #    the evidence the CALLER joins to the command line — see `ARGV_TARGET_RE` above.
+# shellcheck disable=SC2016  # an awk PROGRAM in single quotes; awk owns every $ in it.
 WT_SCAN='# wtscan.awk — read interpreter PROGRAM TEXT on stdin, print one verdict line.
 #   DENY <reason>      a write whose target is a guarded path, or one this scan cannot resolve
 #   ALLOW <n>          n target-bearing writes, every target resolved and none guarded
@@ -1011,7 +1013,7 @@ no conflict, the squash took the newer text, and the brief was left contradictin
 §4 for two commits. Nothing in CI could have caught it.
 
 ${cd_missing:+
-⚠ THIS BASE IS THE SHARED ROOT'S, NOT YOUR BRANCH'S. The command names \`cd $cd_missing\`, which does
+⚠ THIS BASE BELONGS TO THE SHARED ROOT, NOT TO YOUR BRANCH. The command names \`cd $cd_missing\`, which does
   not exist yet — it is created by this same command — so there was no tree to measure and the base
   fell back to the checkout this hook runs in. If that worktree is current, these commits are ones
   you already have and this denial is spurious. CREATE THE WORKTREE IN ITS OWN CALL FIRST, then edit
