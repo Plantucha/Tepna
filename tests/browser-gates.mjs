@@ -25,16 +25,17 @@ import { aggregateChildren, makeVerdict } from '../tools/verdict-emit.mjs';
 import { createRequire } from 'node:module';
 const ManifestGate = createRequire(import.meta.url)('../manifest-gate.js');
 
-/* ── VERDICT-CONTRACT §3d — the four browser legs as ONE object ──────────────────────────────────
-   Children = the legs this invocation runs (test-suite · provenance · no-network · night-seal), each
+/* ── VERDICT-CONTRACT §3d — the five browser legs as ONE object ──────────────────────────────────
+   Children = the legs this invocation runs (test-suite · provenance · no-network · night-seal ·
+   mobile-viewport), each
    read from its own FAILS delta (provenance `leg`): no failure ⇒ PASS, ≥ 1 ⇒ FAIL, a leg that THREW
    (a crashed renderer, a timeout the leg did not catch) ⇒ UNKNOWN — it decided nothing. NN_ONLY /
-   SEAL_ONLY select one leg and are DECLARED exclusions ⇒ filtered:true with the consumer rule (the
+   SEAL_ONLY / MOBILE_ONLY select one leg and are DECLARED exclusions ⇒ filtered:true with the consumer rule (the
    no-network workflow runs one leg on purpose; it is that workflow's gate, not this one's). The
    night-seal leg already READS verify-seals' tepna.verdict/1 (`verdictValid`), so this runner is a
    consumer one level up. `--json` prints the object on stdout; the exit code stays. The playwright
    import is DYNAMIC so `--selftest` / `--verdict-sample` run where no browser is installed. */
-export const LEGS = ['Dex-Test-Suite.html?full', 'verify-provenance.html', 'no-network.html', 'night-seal (OverDex.html)'];
+export const LEGS = ['Dex-Test-Suite.html?full', 'verify-provenance.html', 'no-network.html', 'night-seal (OverDex.html)', 'mobile-viewport (375 px)'];
 export function browserGatesVerdict(legs, { selectedBy = null, commit, commitReason, at } = {}) {
   const ran = legs.map((l) => ({
     name: l.name,
@@ -64,17 +65,17 @@ export function browserGatesVerdict(legs, { selectedBy = null, commit, commitRea
   });
 }
 const CRIT = {
-  name: "legs_failing (each browser leg reads its page's OWN DOM verdict; a leg that threw is UNKNOWN; NN_ONLY / SEAL_ONLY are declared exclusions)",
+  name: "legs_failing (each browser leg reads its page's OWN DOM verdict; a leg that threw is UNKNOWN; NN_ONLY / SEAL_ONLY / MOBILE_ONLY are declared exclusions)",
   threshold: 0,
   unit: 'failing legs',
   direction: 'eq'
 };
-const EV = ['Dex-Test-Suite.html', 'verify-provenance.html', 'no-network.html', 'OverDex.html', 'capture-host/tests/vectors/tepna-seal-1/'];
+const EV = ['Dex-Test-Suite.html', 'verify-provenance.html', 'no-network.html', 'OverDex.html', 'capture-host/tests/vectors/tepna-seal-1/', 'index.html'];
 
 export function verdictSample() {
   return browserGatesVerdict(
     LEGS.map((name) => ({ name, fails: [], threw: null })),
-    { commit: null, commitReason: '--verdict-sample: four scratch legs, no browser launched, no code identity claimed', at: '2026-09-22T00:00:00Z' }
+    { commit: null, commitReason: '--verdict-sample: five scratch legs, no browser launched, no code identity claimed', at: '2026-09-22T00:00:00Z' }
   );
 }
 
@@ -92,26 +93,34 @@ function selftest() {
   const L = (name, fails = [], threw = null) => ({ name, fails, threw });
   const all = LEGS.map((name) => L(name));
   const green = browserGatesVerdict(all, AT);
-  eq(green.status === 'PASS' && green.population.checked === 4 && green.result.filtered === false, true, '§3d · four clean legs ⇒ PASS over 4/4');
-  const red = browserGatesVerdict([L(LEGS[0], ['Dex-Test-Suite RED — 2 failing']), L(LEGS[1]), L(LEGS[2]), L(LEGS[3])], AT);
+  eq(green.status === 'PASS' && green.population.checked === 5 && green.result.filtered === false, true, '§3d · five clean legs ⇒ PASS over 5/5');
+  const red = browserGatesVerdict([L(LEGS[0], ['Dex-Test-Suite RED — 2 failing']), L(LEGS[1]), L(LEGS[2]), L(LEGS[3]), L(LEGS[4])], AT);
   eq(red.status === 'FAIL' && /Dex-Test-Suite/.test(red.reason), true, '§3d plant · a red leg ⇒ FAIL, named');
-  const crashed = browserGatesVerdict([L(LEGS[0], [], 'Error: page crashed'), L(LEGS[1]), L(LEGS[2]), L(LEGS[3])], AT);
+  const mob = browserGatesVerdict([L(LEGS[0]), L(LEGS[1]), L(LEGS[2]), L(LEGS[3]), L(LEGS[4], ['mobile-viewport: index.html needs 732 px at a 375 px device'])], AT);
+  eq(mob.status === 'FAIL' && /375 px device/.test(mob.reason), true, '§3d plant · a red mobile-viewport leg ⇒ FAIL, the page and the width named');
+  const crashed = browserGatesVerdict([L(LEGS[0], [], 'Error: page crashed'), L(LEGS[1]), L(LEGS[2]), L(LEGS[3]), L(LEGS[4])], AT);
   eq(crashed.status === 'UNKNOWN' && /page crashed/.test(crashed.reason), true, '§3d plant · a leg that THREW ⇒ UNKNOWN (it decided nothing), never green');
   const nn = browserGatesVerdict([L(LEGS[2])], { ...AT, selectedBy: 'NN_ONLY=1' });
   eq(
-    nn.status === 'PASS' && nn.result.filtered === true && nn.result.excludedBy === 'NN_ONLY=1' && JSON.stringify(nn.population) === JSON.stringify({ checked: 1, eligible: 4, excluded: 3 }),
+    nn.status === 'PASS' && nn.result.filtered === true && nn.result.excludedBy === 'NN_ONLY=1' && JSON.stringify(nn.population) === JSON.stringify({ checked: 1, eligible: 5, excluded: 4 }),
     true,
-    '§3d plant · NN_ONLY ⇒ a declared exclusion: PASS over 1/4, filtered'
+    '§3d plant · NN_ONLY ⇒ a declared exclusion: PASS over 1/5, filtered'
   );
   eq(/NOT the gate/.test(nn.result.consumerRule || ''), true, '§3d plant · …with the consumer rule');
-  const missing = browserGatesVerdict([L(LEGS[0]), L(LEGS[1]), L(LEGS[2])], AT);
+  const mobOnly = browserGatesVerdict([L(LEGS[4])], { ...AT, selectedBy: 'MOBILE_ONLY=1' });
+  eq(
+    mobOnly.status === 'PASS' && mobOnly.result.excludedBy === 'MOBILE_ONLY=1' && JSON.stringify(mobOnly.population) === JSON.stringify({ checked: 1, eligible: 5, excluded: 4 }),
+    true,
+    '§3d plant · MOBILE_ONLY ⇒ a declared exclusion: PASS over 1/5, filtered'
+  );
+  const missing = browserGatesVerdict([L(LEGS[0]), L(LEGS[1]), L(LEGS[2]), L(LEGS[4])], AT);
   eq(
     missing.status === 'UNKNOWN' && /night-seal/.test(missing.reason) && missing.population.excluded === 1,
     true,
     '§3d plant · a leg missing with NO selector ⇒ an unplanned NOT_RUN: UNKNOWN, the leg named, counted excluded'
   );
   eq(browserGatesVerdict([], AT).status, 'NOT_RUN', '§3d plant · nothing ran ⇒ NOT_RUN');
-  eq(verdictSample().status === 'PASS' && verdictSample().producedBy.commit === null, true, '§3d · --verdict-sample: four scratch legs ⇒ PASS, no commit');
+  eq(verdictSample().status === 'PASS' && verdictSample().producedBy.commit === null, true, '§3d · --verdict-sample: five scratch legs ⇒ PASS, no commit');
   console.log(`all ${n} selftests passed`);
 }
 
@@ -510,6 +519,92 @@ async function gateNightSeal() {
   await page.close();
 }
 
+/* ── Gate 5 · mobile-viewport — THE PHONE-WIDTH FLOOR ────────────────────────────────────────────
+   Every other leg runs in the one 1280 x 1600 context above. Row
+   `2026-11-08-no-gate-renders-a-phone-viewport` measured what that costs: no gate rendered any
+   surface at a phone width, and the July audit's own overflow check was blind.
+   `scrollWidth - innerWidth` reads 0 on a page that overflows. A page carrying
+   `<meta name="viewport" content="width=device-width">` GROWS its layout viewport to fit wide
+   content, so `innerWidth` becomes the content width and the difference cancels. All three
+   page-width defects that row cites read clean under it.
+
+   Measured 2026-11-09 over the twelve pages below, each at 375 px:
+     · `isMobile: true`  — index.html reads innerWidth 732, CPAPDex.html 522, the other ten read 375.
+     · `isMobile: false` — every page reads 375 and the growth is invisible.
+   Chromium honours the meta viewport only under mobile emulation, so that flag IS the leg.
+
+   THE INVARIANT: `innerWidth` equals the device width, so the layout viewport did not grow.
+
+   THE BASELINE IS A SET OF NAMES, NEVER A SET OF WIDTHS, and it may only SHRINK. A page outside it
+   that grows reds. A page inside it that stops growing reds too, so a fix must delete its entry.
+   That makes the two entries this leg's own anti-vacuity proof: emulation that stopped applying
+   would read 375 everywhere and red here, rather than pass over nothing.
+   A width is logged and never asserted. The rig and the CI runner fall back to different system
+   faces, because the repo ships no webfont, so the nav text that forces index.html wide need not
+   measure 732 px on both. One thing this leg therefore cannot see is a baselined page getting
+   WORSE. */
+const MOBILE_W = 375;
+/* The nine GATE A bundles come from manifest-gate.js. tools/build.mjs declares the two
+   orchestrators as `ORCHESTRATORS` and exports nothing, so their names sit here. `index.html` is
+   the landing page, and the widest offender of the twelve. */
+const MOBILE_ORCHESTRATORS = ['Data Unifier.html', 'OverDex.html'];
+const MOBILE_PAGES = [...ManifestGate.MANIFEST_BUNDLES, ...MOBILE_ORCHESTRATORS, 'index.html'];
+const MOBILE_OVERFLOW_BASELINE = ['index.html', 'CPAPDex.html'];
+
+async function gateMobileViewport() {
+  say(`▸ mobile-viewport · ${MOBILE_PAGES.length} pages at ${MOBILE_W} px, mobile emulation …`);
+  const mctx = await browser.newContext({ viewport: { width: MOBILE_W, height: 667 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
+  try {
+    for (const p of MOBILE_PAGES) {
+      const page = await mctx.newPage();
+      let m = null;
+      try {
+        await page.goto(`${BASE}/${encodeURI(p)}`, { waitUntil: 'load', timeout: 60000 });
+        m = await page.evaluate((dev) => {
+          /* An element counts as wide by its RECT or by its own `scrollWidth`: CPAPDex's card holds a
+             table whose rect is clipped to the device while its content is 522 px, and a scan that
+             read rects alone named nothing on the one page whose defect is a defeated scroller. */
+          const over = [];
+          for (const el of document.querySelectorAll('body *')) {
+            const b = el.getBoundingClientRect();
+            const w = Math.max(b.width, el.scrollWidth || 0);
+            if (w > dev + 1 && (b.height > 0 || (el.scrollWidth || 0) > dev + 1)) over.push({ el, w });
+          }
+          /* NAME THE INNERMOST OFFENDERS. Every container of a wide element is wide too, so a list
+             sorted by width hands the reader `BODY` and `DIV#app` and never the cause. An element
+             whose own children all fit IS the cause. */
+          const set = new Set(over.map((o) => o.el));
+          const leaves = over.filter((o) => ![...o.el.children].some((c) => set.has(c)));
+          const name = (el) => {
+            const cls = typeof el.className === 'string' && el.className.trim() ? `.${el.className.trim().split(/\s+/)[0]}` : '';
+            return `${el.tagName}${el.id ? `#${el.id}` : ''}${cls}`;
+          };
+          return { iw: window.innerWidth, nOver: over.length, wide: leaves.slice(0, 3).map((o) => `${name(o.el)}(${Math.round(o.w)})`) };
+        }, MOBILE_W);
+      } catch (e) {
+        /* A page that did not render is COUNTED and named, never passed over (CLAUDE.md §∅). */
+        FAILS.push(`mobile-viewport: ${p} did not render at ${MOBILE_W} px — ${((e && e.message) || String(e)).split('\n')[0]}`);
+      }
+      await page.close();
+      if (!m) continue;
+      const listed = MOBILE_OVERFLOW_BASELINE.includes(p);
+      /* The offender list prints only for a page that GREW. A page holding at the device width can
+         still hold a wide element on purpose: HRVDex's phone nav strip measures 725 px inside a
+         375 px viewport and scrolls there. Printing those beside a pass reads as a defect. */
+      const grew = m.iw !== MOBILE_W;
+      say(`   ${grew ? '!' : '·'} ${p} innerWidth ${m.iw}${listed ? ' (baselined)' : ''}${grew && m.wide.length ? ` — ${m.wide.join(' ')} of ${m.nOver} wide` : ''}`);
+      if (m.iw > MOBILE_W && !listed)
+        FAILS.push(
+          `mobile-viewport: ${p} needs ${m.iw} px at a ${MOBILE_W} px device, so its layout viewport grew and a phone draws it scaled or clipped. Widest: ${m.wide.join(' ') || `no single element over ${MOBILE_W} px`}`
+        );
+      if (m.iw === MOBILE_W && listed) FAILS.push(`mobile-viewport: ${p} now holds at ${MOBILE_W} px — delete it from MOBILE_OVERFLOW_BASELINE, which may only shrink`);
+      if (m.iw < MOBILE_W) FAILS.push(`mobile-viewport: ${p} reads innerWidth ${m.iw} under a ${MOBILE_W} px device, which no layout produces — the emulation did not apply`);
+    }
+  } finally {
+    await mctx.close();
+  }
+}
+
 // NN_ONLY=1 → run just the fast no-network gate (its own lightweight workflow, on every push);
 // default → run all three (rides the on-demand browser-gates workflow).
 /* §3d — each leg records its own FAILS delta and whether it threw; the object is built from these. */
@@ -533,11 +628,16 @@ if (process.env.NN_ONLY) {
   // SEAL_ONLY=1 → just the sealed-night leg (seconds; for iterating on the reader)
   selectedBy = 'SEAL_ONLY=1';
   await leg(LEGS[3], gateNightSeal);
+} else if (process.env.MOBILE_ONLY) {
+  // MOBILE_ONLY=1 → just the phone-width census (12 page loads; for iterating on the baseline)
+  selectedBy = 'MOBILE_ONLY=1';
+  await leg(LEGS[4], gateMobileViewport);
 } else {
   await leg(LEGS[0], gateTestSuite);
   await leg(LEGS[1], gateProvenance);
   await leg(LEGS[2], gateNoNetwork);
   await leg(LEGS[3], gateNightSeal);
+  await leg(LEGS[4], gateMobileViewport);
 }
 await browser.close();
 
@@ -552,4 +652,4 @@ if (FAILS.length) {
   console.error('\n✕ BROWSER GATES FAILED:\n' + FAILS.map((f) => '  ' + f).join('\n'));
   process.exit(1);
 }
-say('\n✓ browser gates passed (render-coverage + provenance + no-network + night-seal)');
+say('\n✓ browser gates passed (render-coverage + provenance + no-network + night-seal + mobile-viewport)');
