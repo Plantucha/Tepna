@@ -48442,6 +48442,232 @@
        nulled the fallback case too would discard a real measurement, and one that let the BRP MASK
        pressure stand in for PLD's SET pressure would relabel a different quantity (4.57 vs 6.71 cmH₂O
        on that night). ════ */
+    group('CPAPDex nightMetrics — pooled values, thresholds and absence edges (mutation unit 3)', 'cpapdex-dsp · nightmetrics · mutation-pinned · known-answer', function (T) {
+      var D = env.CpapDsp;
+      var ok = !!(D && typeof D.nightMetrics === 'function');
+      T.ok('env.CpapDsp nightMetrics available', ok, ok ? '' : 'nightMetrics not wired in this runner');
+      if (!ok) return;
+
+      /* Mutation lane unit 3. On main 79275f071 the function's 51 mutants ran 6 killed /
+         45 survived: the pooled outputs were asserted for shape, not for value, so a
+         percentile could be computed at the wrong q, a threshold could move, and a zero
+         denominator could turn a contracted null into NaN or Infinity without any test
+         noticing. Every expected value below is computed from the fixture by hand (the
+         percentile rule is linear interpolation over the sorted finite values at
+         (q/100)(n-1)). Four loop-bound mutants are NOT killed here and are equivalent:
+         the epap / resp-rate / tidal-volume / minute-ventilation concatenation loops
+         (cpapdex-dsp.js:1365, 1388, 1389, 1390) — an off-by-one there appends one
+         undefined per session, and every consumer of those four lanes reads through
+         _finite-filtered helpers (_p, _iqr, _cov), while the raw length only gates
+         null-ness, which an extra element never flips. */
+      function pool(over) {
+        var p = {
+          pressureMaskOn: [8],
+          epapMaskOn: [],
+          leakMaskOn: [10],
+          rrMaskOn: [],
+          tvMaskOn: [],
+          mvMaskOn: [],
+          snMaskOn: [],
+          flMaskOn: [],
+          usageHours: 4,
+          nApnea: 0,
+          nOA: 0,
+          nCA: 0,
+          nH: 0,
+          nRE: 0,
+          pbSec: 0,
+          pbObserved: false,
+          durSec: 14400,
+          maskOnLatency: 1
+        };
+        Object.keys(over || {}).forEach(function (k) {
+          p[k] = over[k];
+        });
+        return { _pool: p };
+      }
+
+      T.eq('no sessions at all → null', D.nightMetrics([]), null);
+      T.eq('sessions without a _pool → null', D.nightMetrics([{}]), null);
+
+      /* ── The spread night: two sessions whose pooled lanes have distinct min / median /
+         p95, counts straddling every threshold, and one value sitting exactly ON each
+         threshold (leak 24, flow-limitation 0.3, snore 0.2 — none of the three counts
+         under the strict > rule). ── */
+      var S = D.nightMetrics([
+        pool({
+          pressureMaskOn: [4, 6, 8, 10, 12],
+          epapMaskOn: [3, 5, 7, 9, 11],
+          leakMaskOn: [10, 24, 30, 12, 40],
+          rrMaskOn: [10, 12, 14, 16, 18],
+          tvMaskOn: [300, 400, 500, 600, 700],
+          mvMaskOn: [5, 6, 7, 8, 9],
+          snMaskOn: [0.1, 0.2, 0.4, 0.15, 0.25],
+          flMaskOn: [0.1, 0.3, 0.5, 0.2, 0.4],
+          usageHours: 6,
+          nApnea: 12,
+          nOA: 6,
+          nCA: 3,
+          nH: 3,
+          nRE: 4,
+          pbSec: 180,
+          pbObserved: true,
+          durSec: 21600,
+          eprDelta: 2,
+          breathCount: 900,
+          breathMaskOnSec: 3600,
+          ieRatio: 1.5,
+          maskOnLatency: 5,
+          pressureEnvIqr: 1.2
+        }),
+        pool({
+          pressureMaskOn: [5, 7, 9],
+          epapMaskOn: [4, 6, 8],
+          leakMaskOn: [20, 26],
+          rrMaskOn: [11, 13, 15],
+          tvMaskOn: [350, 450, 550],
+          mvMaskOn: [5.5, 6.5, 7.5],
+          snMaskOn: [0.3, 0.1, 0.2],
+          flMaskOn: [0.25, 0.35],
+          usageHours: 2,
+          nApnea: 4,
+          nOA: 2,
+          nCA: 1,
+          nH: 1,
+          nRE: 0,
+          pbSec: 60,
+          pbObserved: true,
+          durSec: 7200,
+          eprDelta: 3,
+          breathCount: 300,
+          breathMaskOnSec: 1800,
+          ieRatio: 2,
+          maskOnLatency: 9,
+          pressureEnvIqr: 2.4
+        })
+      ]);
+      T.eq('S · usageHours pools', S.usageHours, 8);
+      T.eq('S · maskOnLatency is the FIRST session’s', S.maskOnLatency, 5);
+      T.eq('S · residualAHI = 16 / 8', S.residualAHI, 2);
+      T.eq('S · obstructiveIndex = 8 / 8', S.obstructiveIndex, 1);
+      T.eq('S · centralIndex = 4 / 8', S.centralIndex, 0.5);
+      T.eq('S · hypopneaIndex = 4 / 8', S.hypopneaIndex, 0.5);
+      T.eq('S · reraIndex = 4 / 8', S.reraIndex, 0.5);
+      T.eq('S · periodicBreathingPct = 240 / 28800', S.periodicBreathingPct, 0.83);
+      T.eq('S · pbObservedHours', S.pbObservedHours, 8);
+      T.eq('S · pbObservedSessions', S.pbObservedSessions, 2);
+      T.eq('S · medianPressure (pooled sorted 4..12, idx 3.5)', S.medianPressure, 7.5);
+      T.eq('S · p95Pressure (idx 6.65)', S.p95Pressure, 11.3);
+      T.eq('S · pressureRange = p75 − p25', S.pressureRange, 3.5);
+      T.eq('S · mode stays retired (null)', S.mode, null);
+      T.eq('S · pressureEnvIqr = median of [1.2, 2.4]', S.pressureEnvIqr, 1.8);
+      T.eq('S · eprDelta = median of [2, 3]', S.eprDelta, 2.5);
+      T.eq('S · epap95 (idx 6.65)', S.epap95, 10.3);
+      T.eq('S · medianLeak (idx 3 of 7)', S.medianLeak, 24);
+      T.eq('S · p95Leak (idx 5.7)', S.p95Leak, 37);
+      T.eq('S · maxLeak is the pooled max, not NaN', S.maxLeak, 40);
+      T.eq('S · largeLeakPct counts v > 24 only (3 of 7; the 24 itself is not large)', S.largeLeakPct, 42.86);
+      T.eq('S · leakCV', S.leakCV, 44.9);
+      T.eq('S · respRateMedian', S.respRateMedian, 13.5);
+      T.eq('S · respRateRange', S.respRateRange, 3.5);
+      T.eq('S · tidVolMedian', S.tidVolMedian, 475);
+      T.eq('S · minVentMedian', S.minVentMedian, 6.75);
+      T.eq('S · minVentStability', S.minVentStability, 19.6);
+      T.eq('S · flowLimMean', S.flowLimMean, 0.3);
+      T.eq('S · flowLimitedPct counts v > 0.3 only (3 of 7; the 0.3 itself is not limited)', S.flowLimitedPct, 42.86);
+      T.eq('S · snorePct counts v > 0.2 only (3 of 8; the 0.2s are not snore)', S.snorePct, 37.5);
+      T.eq('S · snorePressureCorr pairs the pooled lanes 1:1', S.snorePressureCorr, 0.18);
+      T.eq('S · breathCount pools', S.breathCount, 1200);
+      T.eq('S · breathRate = 1200 over the measured 5400 s', S.breathRate, 13.3);
+      T.eq('S · breathMaskOnSec pools', S.breathMaskOnSec, 5400);
+      T.eq('S · ieRatio is the usage-weighted mean (13 / 8)', S.ieRatio, 1.63);
+
+      /* ── Zero measured hours: events over no measured time are an absence, not a rate.
+         Every index is null; a >= guard would publish Infinity or NaN instead. ── */
+      var Z = D.nightMetrics([pool({ usageHours: 0, nApnea: 3, nOA: 1, nCA: 1, nH: 1, nRE: 2, ieRatio: 1.5, durSec: 0, maskOnLatency: 3 })]);
+      T.eq('Z · usageHours is a measured 0, not unknown', Z.usageHours, 0);
+      T.eq('Z · residualAHI is null at 0 h', Z.residualAHI, null);
+      T.eq('Z · obstructiveIndex is null at 0 h', Z.obstructiveIndex, null);
+      T.eq('Z · centralIndex is null at 0 h', Z.centralIndex, null);
+      T.eq('Z · hypopneaIndex is null at 0 h', Z.hypopneaIndex, null);
+      T.eq('Z · reraIndex is null at 0 h even with RERAs scored', Z.reraIndex, null);
+      T.eq('Z · ieRatio is null when its weight is 0', Z.ieRatio, null);
+      T.eq('Z · periodicBreathingPct is null with no scored duration', Z.periodicBreathingPct, null);
+
+      /* ── A night that scored no RERA: reraIndex is null (the device may not score them),
+         never a published 0. ── */
+      var R = D.nightMetrics([pool({ usageHours: 5, nApnea: 5, nOA: 2, nCA: 1, nH: 2, nRE: 0, durSec: 18000, maskOnLatency: 2 })]);
+      T.eq('R · reraIndex is null when no RERA was scored', R.reraIndex, null);
+      T.eq('R · residualAHI = 5 / 5', R.residualAHI, 1);
+
+      /* ── NaN / null lanes are absent, not pooled: a NaN breath count, a NaN mask-on
+         window, a NaN or null EPR, a NaN or null I:E and NaN envelope IQRs must leave
+         every pooled output exactly where the valid session put it. ── */
+      var N = D.nightMetrics([
+        pool({
+          pressureMaskOn: [7, 9],
+          leakMaskOn: [15],
+          usageHours: 3,
+          nApnea: 3,
+          nOA: 1,
+          nCA: 1,
+          nH: 1,
+          breathCount: NaN,
+          breathMaskOnSec: 1800,
+          eprDelta: NaN,
+          ieRatio: NaN,
+          pressureEnvIqr: NaN,
+          durSec: 10800,
+          maskOnLatency: 2
+        }),
+        pool({
+          pressureMaskOn: [8],
+          leakMaskOn: [18],
+          usageHours: 3,
+          nApnea: 3,
+          nOA: 2,
+          nCA: 0,
+          nH: 1,
+          breathCount: 600,
+          breathMaskOnSec: NaN,
+          eprDelta: null,
+          ieRatio: null,
+          pressureEnvIqr: NaN,
+          durSec: 10800,
+          maskOnLatency: 4
+        })
+      ]);
+      T.eq('N · breathCount counts only the finite session', N.breathCount, 600);
+      T.eq('N · breathMaskOnSec counts only the finite session', N.breathMaskOnSec, 1800);
+      T.eq('N · breathRate = 600 over the measured 1800 s', N.breathRate, 20);
+      T.eq('N · eprDelta is null when no session measured one', N.eprDelta, null);
+      T.eq('N · ieRatio is null when no session measured one', N.ieRatio, null);
+      T.eq('N · pressureEnvIqr is null when every lane is NaN', N.pressureEnvIqr, null);
+      T.eq('N · residualAHI = 6 / 6', N.residualAHI, 1);
+
+      /* ── Breath edges: a measured window with no breath count is an absence; a breath
+         count over a zero measured window has no rate. ── */
+      var B1 = D.nightMetrics([pool({ breathMaskOnSec: 3600 })]);
+      T.eq('B1 · breathCount is null with no count lane', B1.breathCount, null);
+      T.eq('B1 · breathRate is null with no count lane', B1.breathRate, null);
+      T.eq('B1 · breathMaskOnSec is null when breaths are absent', B1.breathMaskOnSec, null);
+      var B2 = D.nightMetrics([pool({ breathCount: 600, breathMaskOnSec: 0 })]);
+      T.eq('B2 · breathCount stands', B2.breathCount, 600);
+      T.eq('B2 · breathRate is null over a zero window, not Infinity', B2.breathRate, null);
+      T.eq('B2 · breathMaskOnSec is the measured 0', B2.breathMaskOnSec, 0);
+
+      /* ── Snore/pressure correlation needs paired lanes: a session whose snore lane
+         outruns its pressure lane leaves the correlation absent, never mis-paired. ── */
+      var C = D.nightMetrics([pool({ pressureMaskOn: [5, 7, 9], snMaskOn: [0.5, 0.1, 0.4, 0.2] })]);
+      T.eq('C · snorePressureCorr is null when the lanes do not pair 1:1', C.snorePressureCorr, null);
+      T.eq('C · snorePct still reads its own lane (2 of 4 over 0.2)', C.snorePct, 50);
+
+      /* ── Both lanes empty: the correlation guard reads length AND equality — with the
+         && weakened to || the empty pair would compute a NaN correlation. ── */
+      var E0 = D.nightMetrics([pool({ pressureMaskOn: [], leakMaskOn: [], usageHours: 2, durSec: 7200 })]);
+      T.eq('E0 · snorePressureCorr is null with both lanes empty', E0.snorePressureCorr, null);
+    });
+
     group('CPAPDex F8 — usage falls back to the BRP mask-on trace, and is null (not 0) with no lane at all', 'cpapdex-dsp · fabricated-zero · regression', function (T) {
       var D = env.CpapDsp;
       if (!D || typeof D.buildSessionFromEdf !== 'function' || typeof D._synthEdfSet !== 'function' || typeof D.buildNight !== 'function') {
