@@ -21,6 +21,7 @@
     "test:par": "node tests/run-tests.mjs --jobs=auto",
     "test:shard": "node tests/run-tests.mjs --shard",
     "verify:shard-union": "node tests/verify-shard-union.mjs",
+    "verify:shard-union-logic": "node tests/verify-shard-union.mjs --selftest",
     "test:build-core": "node tests/build-core-tests.mjs",
     "test:trio-anchor": "node tests/trio-anchor-tests.mjs",
     "test:fold-provenance": "node tests/fold-provenance-tests.mjs",
