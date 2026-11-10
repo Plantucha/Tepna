@@ -12,12 +12,20 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import vm from 'node:vm';
+import { createRequire } from 'node:module';
 import { isCliEntry } from './argv-guard.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+/* `eegdex-dsp.js` is a DUAL-MODE module: the IIFE attaches `window.EEGDSP` and a trailing
+   `export const` re-exports it for the app's ESM graph. A vm script cannot evaluate a top-level
+   `export`, and the classic attach needs a `window`, so this loader does what both test lanes do —
+   classicify the text and give the realm a self-referential `window`. Loading the raw text instead
+   throws a SyntaxError, which is the honest failure rather than a silent one. */
+const DexBuild = createRequire(import.meta.url)(join(ROOT, 'tools', 'build-core.js'));
 const ctx = { Math, console, isFinite, Float64Array, Object, Array, Number };
+ctx.window = ctx;
 vm.createContext(ctx);
-vm.runInContext(readFileSync(join(ROOT, 'eegdex-dsp.js'), 'utf8'), ctx, { filename: 'eegdex-dsp.js' });
+vm.runInContext(DexBuild.classicify(readFileSync(join(ROOT, 'eegdex-dsp.js'), 'utf8')), ctx, { filename: 'eegdex-dsp.js' });
 const D = ctx.EEGDSP;
 
 /* a pure sine at `hz`, so a band's power must land in that band and nowhere else */

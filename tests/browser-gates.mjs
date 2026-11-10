@@ -365,7 +365,9 @@ async function gateNoNetwork() {
       s.workerUnreadable +
       ' unreadable, ' +
       s.strippedTransport +
-      ' served-only transport), ' +
+      ' served-only transport, ' +
+      s.modulesExcluded +
+      ' excluded), ' +
       s.surfacesBooted +
       ' booted'
   );
@@ -385,7 +387,11 @@ async function gateNoNetwork() {
         s.runtimeRemoteHits +
         ', pyHits=' +
         s.pythonEgressHits +
-        ')'
+        ')' +
+        /* Name the hits. A count alone sends the reader back to the browser to find them. */
+        (s.staticRemoteList && s.staticRemoteList.length ? '\n     static: ' + s.staticRemoteList.join('\n     static: ') : '') +
+        (s.workerUnreadableList && s.workerUnreadableList.length ? '\n     unreadable worker target: ' + s.workerUnreadableList.join('\n     unreadable worker target: ') : '') +
+        (s.stripProofFailList && s.stripProofFailList.length ? '\n     unproved strip: ' + s.stripProofFailList.map((f) => f.page + ' — ' + f.why).join('\n     unproved strip: ') : '')
     );
   await page.close();
 }

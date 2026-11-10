@@ -134,7 +134,7 @@
       <div class="data-pill"><span class="data-dot"></span> Reference Guide</div>
       <div class="sidebar-data-info">
         EEGDex v0.1.0 · generated from eegdex.manifest.json<br>
-        10 metrics · 3 sections
+        17 metrics · 3 sections
       </div>
     </div>
   </div>
@@ -147,7 +147,7 @@
     <h1 class="ph-title">Metrics, Formulas &amp;<br><span>Normal Values</span></h1>
     <p class="ph-desc">Band-power and sleep-architecture analysis from consumer EEG (Muse). Direct spectral readouts, EEG-staged hypnogram, and derived micro-architecture markers.</p>
     <p class="ph-desc" style="margin-top:8px;font-size:12px;color:var(--text3)">
-      10 metrics total: 5 Core · 3 Advanced · 2 Research
+      17 metrics total: 10 Core · 5 Advanced · 2 Research
     </p>
   </div>
 
@@ -166,7 +166,7 @@
       <line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
     </svg>
     Quick Jump Index
-    <span class="qj-count">10 metrics · 3 sections</span>
+    <span class="qj-count">17 metrics · 3 sections</span>
     <svg class="qj-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
       <polyline points="6 9 12 15 18 9"/>
     </svg>
@@ -197,7 +197,7 @@
           Band Powers
         </div>
         <div class="qj-links"><a href="#bands" class="qj-sec">Band Powers</a></div>
-        <div class="qj-metrics"><a href="#bands" class="qm">α rel</a><a href="#bands" class="qm">θ rel</a><a href="#bands" class="qm">α/θ</a></div>
+        <div class="qj-metrics"><a href="#bands" class="qm">δ rel</a><a href="#bands" class="qm">θ rel</a><a href="#bands" class="qm">α rel</a><a href="#bands" class="qm">σ rel</a><a href="#bands" class="qm">β rel</a><a href="#bands" class="qm">α/θ</a></div>
       </div>
 
       <div class="qj-group">
@@ -206,7 +206,7 @@
           Sleep Architecture
         </div>
         <div class="qj-links"><a href="#sleep" class="qj-sec">Sleep Architecture</a></div>
-        <div class="qj-metrics"><a href="#sleep" class="qm">REM %</a><a href="#sleep" class="qm">Spindles</a><a href="#sleep" class="qm">FAA</a><a href="#sleep" class="qm">Calm</a></div>
+        <div class="qj-metrics"><a href="#sleep" class="qm">REM %</a><a href="#sleep" class="qm">Spindles</a><a href="#sleep" class="qm">FAA</a><a href="#sleep" class="qm">Calm</a><a href="#sleep" class="qm">Hypnogram</a><a href="#sleep" class="qm">TST</a><a href="#sleep" class="qm">SE</a><a href="#sleep" class="qm">N3 %</a></div>
       </div>
     </div>
     <div class="qj-no-results" id="qjNoResults" hidden>No metrics match your search.</div>
@@ -277,14 +277,14 @@
     <div class="mh">
       <div class="mi">
         <span class="ma">Total Power</span>
-        <span class="mf">Broadband EEG power 1–50 Hz</span>
+        <span class="mf">Broadband EEG power over (0, 45] Hz, the band the transform sums</span>
       </div>
       <span class="mt ta">Advanced</span>
     </div>
     
     <div class="fb">
       <div class="fl">Formula</div>
-      <div class="ft">∫ PSD(1..50 Hz)</div>
+      <div class="ft">Σ P(f) over (0, 45] Hz</div>
       
     </div>
     
@@ -309,37 +309,91 @@
   <div class="mc">
     <div class="mh">
       <div class="mi">
-        <span class="ma">α rel</span>
-        <span class="mf">Alpha-band (8–13 Hz) relative power</span>
+        <span class="ma">δ rel</span>
+        <span class="mf">Delta-band ([0.5, 4) Hz) relative power, as the engine bands it</span>
       </div>
       <span class="mt tc">Core</span>
     </div>
     
     <div class="fb">
       <div class="fl">Formula</div>
-      <div class="ft">P(8–13 Hz) / P(1–50 Hz)</div>
+      <div class="ft">median over epochs with a spectrum of P([0.5, 4) Hz) / Σ P(f) over (0, 45] Hz</div>
       
     </div>
     
-    <span class="ev-corner ev-validated" title="α rel — Relative alpha power — established EEG band readout"></span>
+    <span class="ev-corner ev-validated" title="δ rel — Relative delta power — established EEG band readout"></span>
   </div>
 
   <div class="mc">
     <div class="mh">
       <div class="mi">
         <span class="ma">θ rel</span>
-        <span class="mf">Theta-band (4–8 Hz) relative power</span>
+        <span class="mf">Theta-band ([4, 8) Hz) relative power, as the engine bands it</span>
       </div>
       <span class="mt tc">Core</span>
     </div>
     
     <div class="fb">
       <div class="fl">Formula</div>
-      <div class="ft">P(4–8 Hz) / P(1–50 Hz)</div>
+      <div class="ft">median over epochs with a spectrum of P([4, 8) Hz) / Σ P(f) over (0, 45] Hz</div>
       
     </div>
     
     <span class="ev-corner ev-validated" title="θ rel — Relative theta power — established EEG band readout"></span>
+  </div>
+
+  <div class="mc">
+    <div class="mh">
+      <div class="mi">
+        <span class="ma">α rel</span>
+        <span class="mf">Alpha-band ([8, 12) Hz) relative power, as the engine bands it</span>
+      </div>
+      <span class="mt tc">Core</span>
+    </div>
+    
+    <div class="fb">
+      <div class="fl">Formula</div>
+      <div class="ft">median over epochs with a spectrum of P([8, 12) Hz) / Σ P(f) over (0, 45] Hz</div>
+      
+    </div>
+    
+    <span class="ev-corner ev-validated" title="α rel — Relative alpha power — established EEG band readout"></span>
+  </div>
+
+  <div class="mc" data-tier="secondary">
+    <div class="mh">
+      <div class="mi">
+        <span class="ma">σ rel</span>
+        <span class="mf">Sigma-band ([12, 16) Hz) relative power, as the engine bands it</span>
+      </div>
+      <span class="mt ta">Advanced</span>
+    </div>
+    
+    <div class="fb">
+      <div class="fl">Formula</div>
+      <div class="ft">median over epochs with a spectrum of P([12, 16) Hz) / Σ P(f) over (0, 45] Hz</div>
+      
+    </div>
+    
+    <span class="ev-corner ev-validated" title="σ rel — Relative sigma power — established EEG band readout, a band share and never a spindle count"></span>
+  </div>
+
+  <div class="mc" data-tier="secondary">
+    <div class="mh">
+      <div class="mi">
+        <span class="ma">β rel</span>
+        <span class="mf">Beta-band ([16, 30) Hz) relative power, as the engine bands it</span>
+      </div>
+      <span class="mt ta">Advanced</span>
+    </div>
+    
+    <div class="fb">
+      <div class="fl">Formula</div>
+      <div class="ft">median over epochs with a spectrum of P([16, 30) Hz) / Σ P(f) over (0, 45] Hz</div>
+      
+    </div>
+    
+    <span class="ev-corner ev-validated" title="β rel — Relative beta power — established EEG band readout"></span>
   </div>
 
   <div class="mc" data-tier="secondary">
@@ -353,7 +407,7 @@
     
     <div class="fb">
       <div class="fl">Formula</div>
-      <div class="ft">P(α) / P(θ)</div>
+      <div class="ft">median over epochs with nonzero theta power of P([8, 12) Hz) / P([4, 8) Hz)</div>
       
     </div>
     
@@ -445,6 +499,78 @@
     </div>
     
     <span class="ev-corner ev-heuristic" title="Calm — Calm score — heuristic wellness composite, not a validated EEG metric"></span>
+  </div>
+
+  <div class="mc">
+    <div class="mh">
+      <div class="mi">
+        <span class="ma">Hypnogram</span>
+        <span class="mf">Per-epoch sleep-stage series scored from one EEG channel</span>
+      </div>
+      <span class="mt tc">Core</span>
+    </div>
+    
+    <div class="fb">
+      <div class="fl">Formula</div>
+      <div class="ft">stageEpoch(bands) per 30 s epoch, median-smoothed</div>
+      
+    </div>
+    
+    <span class="ev-corner ev-emerging" title="Hypnogram — Single-channel band-power staging — literature-backed, not PSG-validated (EEGDEX-BUILD-BRIEF §0)"></span>
+  </div>
+
+  <div class="mc">
+    <div class="mh">
+      <div class="mi">
+        <span class="ma">TST</span>
+        <span class="mf">Hours of epochs scored N1, N2, N3 or REM</span>
+      </div>
+      <span class="mt tc">Core</span>
+    </div>
+    
+    <div class="fb">
+      <div class="fl">Formula</div>
+      <div class="ft">30 s × (N1 + N2 + N3 + REM) / 3600</div>
+      
+    </div>
+    
+    <span class="ev-corner ev-emerging" title="TST — Total sleep time from the staged hypnogram — it inherits the stager tier, never the clock tier"></span>
+  </div>
+
+  <div class="mc">
+    <div class="mh">
+      <div class="mi">
+        <span class="ma">SE</span>
+        <span class="mf">Percent of SCORED epochs that are sleep, not of the recording span</span>
+      </div>
+      <span class="mt tc">Core</span>
+    </div>
+    
+    <div class="fb">
+      <div class="fl">Formula</div>
+      <div class="ft">100 × sleepEpochs / scoredEpochs</div>
+      
+    </div>
+    
+    <span class="ev-corner ev-emerging" title="SE — Sleep efficiency over the scored population — an unscorable epoch is excluded, never counted as wake"></span>
+  </div>
+
+  <div class="mc">
+    <div class="mh">
+      <div class="mi">
+        <span class="ma">N3 %</span>
+        <span class="mf">Fraction of total sleep time scored N3, the slow-wave share</span>
+      </div>
+      <span class="mt tc">Core</span>
+    </div>
+    
+    <div class="fb">
+      <div class="fl">Formula</div>
+      <div class="ft">100 × N3 / sleepEpochs</div>
+      
+    </div>
+    
+    <span class="ev-corner ev-emerging" title="N3 % — N3 fraction from the staged hypnogram — single-channel stager, not a PSG score"></span>
   </div>
   </div>
 </div>
