@@ -2099,7 +2099,13 @@ self.onmessage = async (e) => {
         .map(function (e) {
           var when = e.t || '\u2014';
           return (
-            '<div class="erv-tlrow"><span class="tl-t">' + _eesc(when) + '</span><span>' + _eesc(nm(e)) + '</span><span class="tl-conf">conf ' + (e.conf != null ? e.conf : '\u2014') + '</span></div>'
+            '<div class="erv-tlrow"><span class="tl-t">' +
+            _eesc(when) +
+            '</span><span>' +
+            _eesc(nm(e)) +
+            '</span><span class="tl-conf">conf ' +
+            _eesc(e.conf != null ? e.conf : '\u2014') +
+            '</span></div>'
           );
         })
         .join('') +
@@ -2137,18 +2143,18 @@ self.onmessage = async (e) => {
       '<span class="erv-sub">' +
       _eesc(rec.tier || rec.mode || rec.source || 'recording') +
       (rec.durationMin != null ? ' \u00b7 ' + Math.round(rec.durationMin) + ' min' : '') +
-      (rec.beats != null ? ' \u00b7 ' + rec.beats + ' beats' : '') +
+      (rec.beats != null ? ' \u00b7 ' + _eesc(rec.beats) + ' beats' : '') +
       '</span></div>';
     h += '<div class="erv-sec">Impression</div>';
     h +=
       '<div class="erv-imp">Mean HR ' +
-      nv(t.hr) +
+      _eesc(nv(t.hr)) +
       ' bpm \u00b7 SDNN ' +
-      nv(t.sdnn) +
+      _eesc(nv(t.sdnn)) +
       ' ms \u00b7 rMSSD ' +
-      nv(t.rmssd) +
+      _eesc(nv(t.rmssd)) +
       ' ms' +
-      (q.analyzablePct != null ? ' \u00b7 analyzable ' + q.analyzablePct + '%' : '') +
+      (q.analyzablePct != null ? ' \u00b7 analyzable ' + _eesc(q.analyzablePct) + '%' : '') +
       '. Rendered from the export\u2019s stored values \u2014 no waveform recomputation.</div>';
     var kpis = [
       ['Mean HR', nv(t.hr), 'bpm'],

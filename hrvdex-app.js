@@ -254,7 +254,7 @@ function hrvReviewView(review) {
     ms.length +
     ' measurement' +
     (ms.length === 1 ? '' : 's') +
-    (rec.spanDays != null ? ' \u00b7 ' + rec.spanDays + ' days' : '') +
+    (rec.spanDays != null ? ' \u00b7 ' + _hrvesc(rec.spanDays) + ' days' : '') +
     ' \u00b7 ' +
     _hrvD(rec.firstTMs) +
     ' \u2192 ' +
@@ -263,11 +263,11 @@ function hrvReviewView(review) {
   h += '<div class="hrvrv-sec">Impression</div>';
   h +=
     '<div class="hrvrv-imp">Latest rMSSD ' +
-    nv(last.rmssd) +
+    _hrvesc(nv(last.rmssd)) +
     ' ms \u00b7 SDNN ' +
-    nv(last.sdnn) +
+    _hrvesc(nv(last.sdnn)) +
     ' ms \u00b7 mean HR ' +
-    nv(last.hr) +
+    _hrvesc(nv(last.hr)) +
     ' bpm' +
     (meanRm != null ? ' \u00b7 window mean rMSSD ' + meanRm + ' ms' : '') +
     '. Rendered from the export\u2019s stored per-measurement table \u2014 no re-analysis.</div>';
@@ -311,7 +311,9 @@ function hrvReviewView(review) {
       '<table class="hrvrv-tbl"><thead><tr><th>Date</th><th>rMSSD</th><th>SDNN</th><th>HR</th><th>pNN50</th></tr></thead><tbody>' +
       rowsDesc
         .map(function (m) {
-          return '<tr><td>' + _hrvD(m.tMs) + '</td><td>' + nv(m.rmssd) + '</td><td>' + nv(m.sdnn) + '</td><td>' + nv(m.hr) + '</td><td>' + nv(m.pnn50) + '</td></tr>';
+          return (
+            '<tr><td>' + _hrvD(m.tMs) + '</td><td>' + _hrvesc(nv(m.rmssd)) + '</td><td>' + _hrvesc(nv(m.sdnn)) + '</td><td>' + _hrvesc(nv(m.hr)) + '</td><td>' + _hrvesc(nv(m.pnn50)) + '</td></tr>'
+          );
         })
         .join('') +
       '</tbody></table>' +
@@ -334,7 +336,7 @@ function hrvReviewView(review) {
             '</span><span>' +
             _hrvesc(e.impulse || 'event') +
             '</span><span class="tl-t">conf ' +
-            (e.conf != null ? e.conf : '\u2014') +
+            _hrvesc(e.conf != null ? e.conf : '\u2014') +
             '</span></div>'
           );
         })

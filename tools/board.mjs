@@ -637,12 +637,16 @@ function release() {
     out.landStuckHours = landStuckHours(st, Date.now());
   } catch (e) {
     out.land = null;
-    /* --status exits 1 with "no release-land run recorded on this machine" when nothing has run here;
-       that is a reading, not a failure to read (the board printed "Command failed: node …" for it). */
+    /* --status exits 4 with "no release-land run recorded on this machine" when nothing has run here;
+       that is a reading, not a failure to read (the board printed "Command failed: node …" for it).
+       THE CODE is the discriminator now that 1 means a release that failed and 4 means this read
+       examined nothing. The printed line stays as the second rail, so a copy that still exits 1 for
+       the absent state reads as a reading rather than as unreadable. */
     const said = String(e.stdout || '')
       .trim()
       .split('\n')[0];
-    out.landNote = /no release-land run recorded/.test(said) ? said : `release-land --status unreadable: ${String(e.message).split('\n')[0].slice(0, 90)}`;
+    const absent = e.status === 4 || /no release-land run recorded/.test(said);
+    out.landNote = absent ? said || 'no release-land run recorded on this machine' : `release-land --status unreadable: ${String(e.message).split('\n')[0].slice(0, 90)}`;
   }
   try {
     const t = sh('bash', ['-c', 'systemctl --user list-timers tepna-release-due.timer --all --no-pager 2>/dev/null | sed -n 2p']);
