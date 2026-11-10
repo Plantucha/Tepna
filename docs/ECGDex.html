@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="1eacd78d049a" data-compute-hash="983f9cfbe34c">
+<html lang="en" data-manifest-hash="49806efc9070" data-compute-hash="0680493b390f">
 <head>
 <!--
   ECGDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-5PbKaXdzyPy/cib0xy63gaP0I3y+kRFP0ppH5mWp0Oo=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QU1eFIpXtk89h7OawHFWXJry6pEr0cw5i0Q08kGZz88=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-kCIXFB+Oh+fPXQK0n5wv9ysz8QHUPT7/BBvnQcqS+u0=' 'sha256-ndwAaS7rxPDbDdTDUAApFCDBcXWisKUftg+0xzuxsoI=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rKaNN0Ty7SX+P/hqThFsDPpnNNxRWZ1qeyOfye3zhi8=' 'sha256-rm/YlVmogQnelQDIazZyRCXgoAFvC1Ffha1wQ4dVrFc=' 'sha256-snn87HIc5SfG9Vi0mLgx1pa9iIjPaV7vXPFSnvVFu2E=' 'sha256-spNBlj7XKiXWXfuatyT98XFyK+d0sJp2wxY1P90Z0Cc=' 'sha256-tddD0f4n4/0SctOR+t6ziGNCiH/GZ6G3Q5Iib/iByoM=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-5PbKaXdzyPy/cib0xy63gaP0I3y+kRFP0ppH5mWp0Oo=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QU1eFIpXtk89h7OawHFWXJry6pEr0cw5i0Q08kGZz88=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-dgJY/SRoyJ6GnIMF2h+gidz3lp4uPUKCbL0PXtKVmU4=' 'sha256-kCIXFB+Oh+fPXQK0n5wv9ysz8QHUPT7/BBvnQcqS+u0=' 'sha256-ndwAaS7rxPDbDdTDUAApFCDBcXWisKUftg+0xzuxsoI=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rKaNN0Ty7SX+P/hqThFsDPpnNNxRWZ1qeyOfye3zhi8=' 'sha256-snn87HIc5SfG9Vi0mLgx1pa9iIjPaV7vXPFSnvVFu2E=' 'sha256-spNBlj7XKiXWXfuatyT98XFyK+d0sJp2wxY1P90Z0Cc=' 'sha256-tddD0f4n4/0SctOR+t6ziGNCiH/GZ6G3Q5Iib/iByoM=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>ECGDex — Raw ECG Analyzer · v2.30.0</title>
@@ -17159,6 +17159,19 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
   // Headless public surface — parse → analyze (REAL Pan-Tompkins pipeline, no Worker)
   // → shared node-export. Accepts a Polar Sensor Logger `*_ECG.txt` string, {text}, an
   // already-parsed rec {int16,fs}, or the canonical ecg SignalFrame {samples:Float32Array,fs,t0Ms}.
+  /* A caller-supplied `source` is a machine TAG, never an input name. The export scrub decides
+     `recording.source` by SHAPE (`export-schema.js` `_tagNotPath`), so a label with no path
+     separator and no dotted extension survives a scrubbed export — row
+     `2026-11-08-the-scrub-source-guard-keeps-an-extensionless-filename`. A name and a tag cannot be told
+     apart by shape, so the WRITER decides: this node takes only its own kebab-case tag form and
+     keeps its parser's tag otherwise. EXPORT-SOURCE-KEY-KINDS §3 — the boundary guard stays the
+     tripwire and stops being the remedy. A caller holding a file NAME has no route here.
+     The refused value is never copied anywhere. */
+  var _SRC_TAG_RE = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
+  function _sourceTag(v) {
+    return typeof v === 'string' && v.length <= 40 && _SRC_TAG_RE.test(v);
+  }
+
   function compute(input, opts) {
     opts = opts || {};
     var rec;
@@ -17189,7 +17202,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
         gaps: input.gaps || [],
         t0Ms: input.t0Ms != null ? input.t0Ms : null,
         offsetMin: input.offsetMin != null ? input.offsetMin : null,
-        source: opts.source || 'signal-frame',
+        source: _sourceTag(opts.source) ? opts.source : 'signal-frame',
         durSec: N / (fs || 130),
         deviceRR: input.deviceRR || null,
         deviceHR: input.deviceHR || null,
@@ -17219,7 +17232,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       var st = typeof opts.seamsText === 'string' ? opts.seamsText : typeof input.seamsText === 'string' ? input.seamsText : null;
       rec = rt || st ? parseECGText(txt, { runsText: rt, seamsText: st }) : parseECGText(txt);
     }
-    if (opts.source) rec.source = opts.source;
+    if (_sourceTag(opts.source)) rec.source = opts.source;
     if (opts.offsetMin != null && rec.offsetMin == null) rec.offsetMin = opts.offsetMin;
     var r = analyze(rec, null);
     if (r.offsetMin == null && rec.offsetMin != null) r.offsetMin = rec.offsetMin; // carry zone (analyze doesn't propagate it)

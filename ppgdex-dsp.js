@@ -8257,6 +8257,19 @@
   // Headless public surface — parse → analyze (REAL pipeline) → shared node-export.
   // Accepts a Polar Sense `*_PPG.txt` string, {text}, an already-parsed rec {ch:[…]},
   // or the canonical ppg SignalFrame (samples PACKS the multi-channel optical waveform).
+  /* A caller-supplied `source` is a machine TAG, never an input name. The export scrub decides
+     `recording.source` by SHAPE (`export-schema.js` `_tagNotPath`), so a label with no path
+     separator and no dotted extension survives a scrubbed export — row
+     `2026-11-08-the-scrub-source-guard-keeps-an-extensionless-filename`. A name and a tag cannot be told
+     apart by shape, so the WRITER decides: this node takes only its own kebab-case tag form and
+     keeps its parser's tag otherwise. EXPORT-SOURCE-KEY-KINDS §3 — the boundary guard stays the
+     tripwire and stops being the remedy. A caller holding a file NAME has no route here.
+     The refused value is never copied anywhere. */
+  var _SRC_TAG_RE = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
+  function _sourceTag(v) {
+    return typeof v === 'string' && v.length <= 40 && _SRC_TAG_RE.test(v);
+  }
+
   function compute(input, opts) {
     opts = opts || {};
     var rec;
@@ -8338,7 +8351,7 @@
          bytes here, so a Unifier-routed night reads the channel the browser road reads. */
       rec = parsePPG(text, { timebase: opts.timebase, runsText: opts.runsText, seamsText: opts.seamsText });
     }
-    if (opts.source) rec.source = opts.source;
+    if (_sourceTag(opts.source)) rec.source = opts.source;
     if (opts.fname && !rec.fname) rec.fname = opts.fname;
     var r = analyze(rec, null);
     return ppgBuildNodeExport(r, opts);

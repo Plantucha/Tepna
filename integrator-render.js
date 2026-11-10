@@ -536,6 +536,18 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
      ════════════════════════════════════════════════════════════════════ */
   var MAX_LANES = 14;
   var _tlZoom = 1;
+  /* ∅ · AN EVENT WITH NO STATED CONFIDENCE IS NOT AN EVENT AT 0.5. A tick's height and its
+     opacity are both functions of `conf`, so the 0.5 that `renderTimeline` substituted until
+     2026-11-10 drew the same mark a measured 0.5 draws, and the glyph is what a reader takes in at
+     a glance. An imported `ganglior.node-export` may legally carry `conf: null`, which
+     `crossnight-envelope.js` validates as "0..1 or null". An absent confidence draws as a dashed
+     outline at one fixed height instead, and the hover readout says it too.
+     The decision is PURE and exported so the node lane pins the absent case against a measured one
+     with no DOM. The arithmetic for a stated confidence is byte-identical to what it replaced. */
+  function tickGeom(conf) {
+    var has = conf != null && isFinite(conf);
+    return has ? { has: true, h: 6 + conf * 18, op: (0.35 + conf * 0.55).toFixed(2), outline: false } : { has: false, h: 14, op: '0', outline: true };
+  }
   function renderTimeline(recs, fusion) {
     var box = $('timeline');
     if (!box) return;
@@ -692,9 +704,10 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
       // event ticks
       r.events.forEach(function (e) {
         var ex = X(e.tMs);
-        var conf = e.conf != null ? e.conf : 0.5;
-        var h = 6 + conf * 18;
-        var op = (0.35 + conf * 0.55).toFixed(2);
+        var g = tickGeom(e.conf);
+        var hasConf = g.has;
+        var h = g.h;
+        var op = g.op;
         svg +=
           '<rect x="' +
           (ex - 1.1).toFixed(1) +
@@ -706,9 +719,11 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
           col +
           '" fill-opacity="' +
           op +
-          '" class="tl-tick" ' +
+          '"' +
+          (hasConf ? '' : ' stroke="' + col + '" stroke-opacity=".8" stroke-width=".9" stroke-dasharray="2 1.6"') +
+          ' class="tl-tick" ' +
           'data-tip="' +
-          esc(D.fmtClock(e.tMs) + ' · ' + e.impulse + ' · conf ' + (e.conf != null ? e.conf.toFixed(2) : '—') + ' · ' + r.node) +
+          esc(D.fmtClock(e.tMs) + ' · ' + e.impulse + ' · conf ' + (hasConf ? e.conf.toFixed(2) : '—') + ' · ' + r.node) +
           '"/>';
       });
     });
@@ -1335,5 +1350,5 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
     if (exb) exb.classList.toggle('show', recs.length > 0);
   }
 
-  window.IntegratorRender = { bindNav, showView, renderChips, renderAll, renderWarnings };
+  window.IntegratorRender = { bindNav, showView, renderChips, renderAll, renderWarnings, tickGeom };
 })();

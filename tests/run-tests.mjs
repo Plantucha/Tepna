@@ -56,6 +56,7 @@ import {
 } from '../tools/queue-doctor.mjs';
 import {
   classify as pwClassify,
+  cleanWorktree as pwCleanWorktree,
   plan as pwPlan,
   runIdOf as pwRunIdOf,
   landingPage as pwLandingPage,
@@ -3015,6 +3016,11 @@ async function main() {
        first months in both lanes' SOURCE_FILES with no lane EXECUTING it, and a throw planted at the
        top of renderSummary left 104 render groups green. */
     'eegdex-render.js',
+    /* integrator-render.js was the LAST *-render.js in neither execution lane (2026-11-10). Its text
+       sits in readSources() above, so a source scan read it and no lane ran it - the hole this list's
+       header records for motiondex-render.js and eegdex-render.js, one file later. The absent-event
+       tick geometry is pinned through the function it now exports. */
+    'integrator-render.js',
     'oxydex-fusion.js'
   ].forEach((f) => {
     try {
@@ -3277,6 +3283,9 @@ async function main() {
     GluDisp: ctx.GluDisp,
     GLUUI: ctx.GLUUI,
     CpapRender: ctx.CpapRender,
+    /* The Integrator's render layer joins the env with the module (2026-11-10): the realm executes it
+       now, and the absent-confidence tick geometry is pinned through the pure function it exports. */
+    IntegratorRender: ctx.IntegratorRender,
     HrvRmssdClass: ctx.hrvRmssdClass,
     OxySpo2NightCV: ctx.oxySpo2NightCV,
     ECGScope: ctx.ECGUI && ctx.ECGUI.ECGScope, // §RN: canvas waveform explorer (axis-tick label drive)
@@ -3527,6 +3536,7 @@ async function main() {
     /* pr-walker's PURE core: classify() and plan() decide every action the timer takes on a PR, and
        the group `tools · pr-walker` pins them with planted snapshots — no `gh`, no clock. */
     pwClassify: pwClassify,
+    pwCleanWorktree: pwCleanWorktree,
     pwPlan: pwPlan,
     pwRunIdOf: pwRunIdOf,
     pwLandingPage: pwLandingPage,

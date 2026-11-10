@@ -129,6 +129,13 @@
 <script src="ppgdex-morph.js"></script>
 <script src="integrator-dsp.js"></script>
 <script src="integrator-tch.js"></script>
+<!-- integrator-render.js (2026-11-10): BOTH LANES OR NEITHER. Its text sat in SOURCE_FILES here and in
+     run-tests.mjs readSources(), and NEITHER lane executed it, so an assertion about what it DOES had
+     nowhere to run. Measured before loading it: every selector its hero stylesheet defines (#hero, .kpi,
+     .data-table, .finding-card, .cor-card, .chip-prov, .main-content) appears 0 times in this page, so
+     the injection matches nothing here. Plain global IIFE over window.IntegratorDSP, which line above
+     provides. -->
+<script src="integrator-render.js"></script>
 <script src="pat-align.js"></script>
 <script src="integrator-longitudinal.js"></script>
 <!-- FULL-lane harness generators (for the waveform-fidelity gate) -->
@@ -888,6 +895,7 @@ async function main(){
     GLUDSP: window.GLUDSP, GlucoDex: window.GlucoDex, DexPatientGen: window.DexPatientGen,
     IntegratorDSP: window.IntegratorDSP,
     IntegratorTCH: window.IntegratorTCH,
+    IntegratorRender: window.IntegratorRender,
     PATAlign: window.PATAlign,
     IntegratorLong: window.IntegratorLong,
     SignalOrchestrate: window.SignalOrchestrate,
