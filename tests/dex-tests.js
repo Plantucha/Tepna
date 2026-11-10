@@ -146,10 +146,19 @@
    What this buys: a leg that starts skipping for a NEW reason (a renamed input, a
    quietly-gutted precondition) can no longer hide. Shrinking the gate becomes a
    deliberate act — you have to add a line to the allow-list, in a diff, in a PR. */
+  /* AN ENTRY DECLARES THE REASON TOO. `detail` is a literal SUBSTRING of the text the leg hands
+     `T.skip`, so a leg that keeps a declared name and starts skipping for a NEW reason reds instead
+     of passing. Measured before the field existed (residue
+     2026-11-08-the-skip-audit-matches-a-name-and-never-the-reason): a second skipped leg planted
+     under a declared corpus-absent name, with the corpus PRESENT, read verdict PASS,
+     skipViolations 0, exit 0. A substring, because many reasons interpolate a path or a key list.
+     The field is REQUIRED: an entry that carries a name and no reason IS the hole, so it reds as
+     `no-declared-reason` rather than passing fail-open. Each violation names its `kind`, and a
+     drifted skip pays no budget — `counted` counts only a skip whose reason matched. */
   function auditSkips(groups, allow) {
     var ok = Object.create(null);
     (allow || []).forEach(function (a) {
-      ok[String(a.group) + ' :: ' + String(a.test)] = a.why || true;
+      ok[String(a.group) + ' :: ' + String(a.test)] = a;
     });
     var violations = [];
     var counted = { 'corpus-absent': 0, 'known-drift': 0 };
@@ -157,9 +166,32 @@
       (G.tests || []).forEach(function (t) {
         if (!t.skip) return;
         var key = G.title + ' :: ' + t.name;
-        var why = ok[key];
-        if (!why) violations.push({ group: G.title, test: t.name, detail: t.detail || '' });
-        else if (counted[why] != null) counted[why]++;
+        var entry = ok[key];
+        var got = t.detail == null ? '' : String(t.detail);
+        if (!entry) {
+          violations.push({ group: G.title, test: t.name, detail: got, kind: 'undeclared' });
+          return;
+        }
+        var want = entry.detail == null ? '' : String(entry.detail);
+        if (!want) {
+          violations.push({
+            group: G.title,
+            test: t.name,
+            detail: 'the allow entry declares NO reason — add a `detail` substring; this leg skipped with "' + got + '"',
+            kind: 'no-declared-reason'
+          });
+          return;
+        }
+        if (got.indexOf(want) < 0) {
+          violations.push({
+            group: G.title,
+            test: t.name,
+            detail: 'declared reason "' + want + '" is absent from the skip reason "' + got + '"',
+            kind: 'reason-drift'
+          });
+          return;
+        }
+        if (counted[entry.why] != null) counted[entry.why]++;
       });
     });
     return { violations: violations, counted: counted };
@@ -84100,6 +84132,58 @@
         { indices: [1, 5], unresolved: [] }
       );
       T.eq('no failures → no suggestion', rr([], invy), { indices: [], unresolved: [] });
+    });
+
+    /* ── self-test: the skip budget judges the REASON, not only the name (rides both runners) ──
+       A ⊘ costs nothing: the leg stops being checked and the gate stays green, so the allow-list
+       exists to make that cost a deliberate act. For a while it was deliberate by NAME ALONE. A leg
+       could keep its declared name, skip for a brand-new reason, and the audit passed. Measured on
+       2026-11-08 (residue 2026-11-08-the-skip-audit-matches-a-name-and-never-the-reason): a second
+       skipped leg planted under a declared corpus-absent name, with the corpus PRESENT, read verdict
+       PASS, skipViolations 0, exit 0. Every leg below hands `auditSkips` hand-built group objects, so
+       it needs no filesystem and decides the same thing in both lanes. */
+    group('skip budget — auditSkips judges the declared REASON', 'live mirror · test-infra', function (T) {
+      var as = auditSkips;
+      var WANT = 'committed input absent — uploads/ is gitignored';
+      var GOT = 'committed input absent — uploads/ is gitignored (personal data); this leg runs locally';
+      var one = function (detail, pass) {
+        return [{ title: 'G', tests: [{ name: 'leg', skip: !pass, pass: !!pass, detail: detail }] }];
+      };
+      var DECL = [{ group: 'G', test: 'leg', why: 'corpus-absent', detail: WANT }];
+      var r = as(one(GOT), DECL);
+      T.eq('a declared name whose reason matches raises nothing', r.violations, []);
+      T.eq('…and it pays its own budget line', r.counted, { 'corpus-absent': 1, 'known-drift': 0 });
+      T.ok('a declared SUBSTRING matches an interpolated reason', GOT !== WANT && GOT.indexOf(WANT) === 0);
+
+      /* THE CONTROL — the exact shape measured as a PASS before this field existed. */
+      var drift = as(one('the operator switched it off for the afternoon'), DECL);
+      T.eq('THE DEFECT: a declared name skipping for an UNDECLARED reason now reds', drift.violations.length, 1);
+      T.eq('…as reason-drift, never as an undeclared skip', (drift.violations[0] || {}).kind, 'reason-drift');
+      T.ok(
+        '…and the message names both reasons',
+        /declared reason "committed input absent/.test((drift.violations[0] || {}).detail || '') && /switched it off/.test((drift.violations[0] || {}).detail || '')
+      );
+      T.eq('…and a drifted skip pays NO budget', drift.counted, { 'corpus-absent': 0, 'known-drift': 0 });
+
+      /* An entry with a name and no reason is the hole itself — fail CLOSED, never fall back to the
+         name match it replaced. */
+      var bare = as(one(GOT), [{ group: 'G', test: 'leg', why: 'corpus-absent' }]);
+      T.eq('an entry that declares no reason reds', bare.violations.length, 1);
+      T.eq('…as no-declared-reason', (bare.violations[0] || {}).kind, 'no-declared-reason');
+      var blank = as(one(GOT), [{ group: 'G', test: 'leg', why: 'corpus-absent', detail: '' }]);
+      T.eq('an empty declared reason reds the same way', (blank.violations[0] || {}).kind, 'no-declared-reason');
+
+      /* The reason the leg gives has to exist too: `T.skip(name)` with no detail can match nothing. */
+      var nodetail = as([{ title: 'G', tests: [{ name: 'leg', skip: true }] }], DECL);
+      T.eq('a skip with NO reason at all reds', (nodetail.violations[0] || {}).kind, 'reason-drift');
+
+      // the behaviour that already worked, pinned so this change cannot weaken it
+      T.eq('an undeclared NAME still reds', (as(one(GOT), []).violations[0] || {}).kind, 'undeclared');
+      T.eq('…and a lost allow-list reds every skip (fail-closed)', as(one(GOT), null).violations.length, 1);
+      T.eq('a PASSING leg under a declared name raises nothing', as(one(GOT, true), DECL).violations, []);
+      T.eq('a known-drift entry counts into its own bucket', as(one(GOT), [{ group: 'G', test: 'leg', why: 'known-drift', detail: WANT }]).counted, { 'corpus-absent': 0, 'known-drift': 1 });
+      T.eq('shard-safe: a group this process never ran is never judged', as([], DECL).violations, []);
+      T.eq('…and an entry whose leg did not run is not reported as stale here', as([], DECL).counted, { 'corpus-absent': 0, 'known-drift': 0 });
     });
 
     /* ── adapters/resmed-edf.js — ResMed SD-card EDF ingest (CPAP-REAL-CORPUS §F4/§P3) ────

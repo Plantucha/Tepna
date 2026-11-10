@@ -4206,13 +4206,16 @@ async function main() {
      A ⊘ is neither pass nor fail, so a leg that stops running does not red the gate — it just
      stops being checked, silently. Every skip must therefore be DECLARED in expected-skips.json.
      An undeclared skip is a FAILURE: shrinking the gate has to be a deliberate, reviewable act.
+     Declared by NAME **and by REASON**: an entry carries a `detail` substring of the text the leg
+     hands T.skip, so a leg that keeps its name and skips for something new reds as `reason-drift`.
      Shard-safe — it judges only the groups that ran in this process. */
   const { violations: skipViolations, counted: skipCounted } = auditSkips(groups, EXPECTED_SKIPS.allow || []);
   if (skipViolations.length) {
     fail += skipViolations.length;
     console.log('\n' + paint('▸ SKIP BUDGET — ' + skipViolations.length + ' UNDECLARED skip(s)', C.red));
     console.log(paint('  A skip is neither pass nor fail: this leg stopped being checked and the gate would still be green.', C.dim));
-    for (const v of skipViolations) console.log(paint('  ✕ ', C.red) + '[' + v.group + '] ' + v.test + (v.detail ? paint('  — ' + v.detail, C.yellow) : ''));
+    for (const v of skipViolations)
+      console.log(paint('  ✕ ', C.red) + '[' + v.group + '] ' + v.test + (v.kind ? paint('  (' + v.kind + ')', C.dim) : '') + (v.detail ? paint('  — ' + v.detail, C.yellow) : ''));
     console.log(paint('  → If this skip is intended, declare it in tests/expected-skips.json (and justify it — you are shrinking the gate).', C.yellow));
   }
 
