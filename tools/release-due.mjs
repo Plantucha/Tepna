@@ -129,8 +129,8 @@ export function snapshot() {
   const commitsSince = count !== null && /^\d+\s*$/.test(count) ? +count : null;
   return { fetched, tag, lastReleaseAt, commitsSince, now: new Date().toISOString(), running: releaseLandUnfinished() };
 }
-/* release-land's state file, via its own --status: exit 0 = last run complete or none recorded,
-   2 = steps remain (in progress or crashed), 1 = failed. Both non-zero states hold — a crashed run is
+/* release-land's state file, via its own --status: exit 0 = last run complete, 1 = failed or none
+   recorded, 3 = steps remain (in progress or crashed), 2 = a usage error. Both non-zero states hold — a crashed run is
    the operator's to `--resume`, not this timer's to overwrite. */
 function releaseLandUnfinished() {
   const r = spawnSync(process.execPath, [join(ROOT, 'tools', 'release-land.mjs'), '--status'], { cwd: ROOT, encoding: 'utf8' });

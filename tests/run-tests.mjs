@@ -2767,15 +2767,18 @@ function readDocs() {
     'papers/sensor-trio-nights.html'
   ];
   const out = {};
+  /* An unreadable artifact is recorded as `null`, never left out (CLAUDE.md §∅). Omitting the key
+     shrinks the population each guide lane reads its own anti-vacuity leg against, so a lost guide
+     used to make every leg below it read green over a smaller set. */
   for (const f of wanted) {
     const p = join(ROOT, f);
-    if (existsSync(p)) out[f] = readFileSync(p, 'utf8');
+    out[f] = existsSync(p) ? readFileSync(p, 'utf8') : null;
   }
   // GENERATED EEGDex guide (codegen output) — keyed by the conventional doc name the
   // cohesion-badges NODES list uses, read from its generated path. Proves the
   // manifest→guide projection conforms to the generated registry (single-source).
   const eegGuide = join(ROOT, 'codegen/generated/eegdex-reference.html');
-  if (existsSync(eegGuide)) out['EEGDex Reference.html'] = readFileSync(eegGuide, 'utf8');
+  out['EEGDex Reference.html'] = existsSync(eegGuide) ? readFileSync(eegGuide, 'utf8') : null;
   return out;
 }
 
@@ -3778,8 +3781,15 @@ async function main() {
        the real path while `process.argv[1]` stays as written: a CLI predicate that compares them raw
        decides it was imported, runs no main and exits 0 (Heron, 2026-10-21, board #685). The link lives
        in the probe cwd and is filtered out of `wrote`, so a tool that writes nothing still reads []. */
-    probeToolArgv: (rel, args, { timeoutMs = 25000, viaSymlink = false } = {}) => {
+    /* `isolateTmp` gives the child a private, empty TMPDIR. `tools/release-land.mjs` keeps its run state
+       under `tmpdir()`, so a probe of `--status` without it reads THIS MACHINE's real release run, and
+       reports exit 2 whenever one is in progress — which is always true inside release-land's own gate
+       step. So the release cut red on its own state at every gate run. */
+    probeToolArgv: (rel, args, { timeoutMs = 25000, viaSymlink = false, isolateTmp = false, seedTmp = null } = {}) => {
       const cwd = mkdtempSync(join(tmpdir(), 'argv-probe-'));
+      const tmp = isolateTmp || seedTmp ? mkdtempSync(join(tmpdir(), 'argv-probe-tmp-')) : null;
+      if (seedTmp) seedTmp(tmp);
+      const env = tmp ? { ...process.env, TMPDIR: tmp, TMP: tmp, TEMP: tmp } : process.env;
       const linkName = `link-${basename(rel)}`;
       try {
         let entry = join(ROOT, rel);
@@ -3787,7 +3797,7 @@ async function main() {
           entry = join(cwd, linkName);
           symlinkSync(join(ROOT, rel), entry);
         }
-        const r = spawnSync(process.execPath, [entry, ...args], { cwd, encoding: 'utf8', timeout: timeoutMs });
+        const r = spawnSync(process.execPath, [entry, ...args], { cwd, env, encoding: 'utf8', timeout: timeoutMs });
         return {
           status: r.status,
           signal: r.signal,
@@ -3798,6 +3808,7 @@ async function main() {
         };
       } finally {
         rmSync(cwd, { recursive: true, force: true });
+        if (tmp) rmSync(tmp, { recursive: true, force: true });
       }
     },
     /* IMPORT A TOOL IN A CHILD PROCESS and read exported values out of it — never in this process.

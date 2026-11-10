@@ -599,7 +599,9 @@ function status() {
   if (st.failed) console.log(`FAILED at ${st.failed.step} (${st.failed.at}):\n  ${st.failed.why.split('\n').join('\n  ')}`);
   console.log('--- last log lines');
   for (const l of st.log.slice(-8)) console.log(l);
-  return st.failed ? 1 : rem.length ? 2 : 0;
+  /* 3, never 2, for steps that remain: the argv guard exits 2 for a usage error, and a caller that
+     reads 2 as "refused" must never meet the same code on a report (board #5153). */
+  return st.failed ? 1 : rem.length ? 3 : 0;
 }
 
 /* THE FLAGS THIS TOOL READS, held as one set so a token outside it is refused before anything runs.

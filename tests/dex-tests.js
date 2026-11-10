@@ -246,6 +246,46 @@
     return r.status === wanted;
   }
 
+  /* THE NINE REFERENCE GUIDES ARE THE POPULATION EVERY GUIDE LANE SCANS — eight authored at the repo
+     root, plus the generated EEGDex one. Both producers declare this same roster: `readDocs()` in
+     tests/run-tests.mjs and the docs fetch in Dex-Test-Suite.html. Each records an unreadable guide
+     as `null`, so a lost guide stays in the key set and gets NAMED here.
+     Measured 2026-11-09: three guide lanes carried anti-vacuity floors of 7, 6 and 7 over this
+     population of 9. Each one tolerated two or three lost guides and still read green, and the floor
+     could not notice the loss anyway — a producer that omits an unreadable key shrinks the very set
+     the floor counts. Row 2026-11-09-the-reference-guide-anti-vacuity-floors-sit-below-their-population. */
+  var DEX_GUIDE_ROSTER = [
+    'OxyDex Reference.html',
+    'ECGDex Reference.html',
+    'PpgDex Reference.html',
+    'CPAPDex Reference.html',
+    'PulseDex Reference.html',
+    'HRVDex Reference.html',
+    'GlucoDex Reference.html',
+    'MotionDex Reference.html',
+    'EEGDex Reference.html'
+  ];
+
+  /* Census of that roster against one lane's own env.docs map. `present` carries the guides that
+     arrived with text, `absent` names every declared guide that arrived null, empty or keyless, and
+     `extra` names a guide a producer carries that the roster does not declare. The two equalities
+     close in both directions, so neither a producer nor the roster can drift alone. */
+  function dexGuideCensus(docs) {
+    var D = docs || {},
+      present = [],
+      absent = [];
+    for (var i = 0; i < DEX_GUIDE_ROSTER.length; i++) {
+      var k = DEX_GUIDE_ROSTER[i],
+        t = D[k];
+      if (typeof t === 'string' && t.length > 0) present.push(k);
+      else absent.push(k + ' → ' + (k in D ? (t === null ? 'null' : typeof t + ' len ' + (t && t.length)) : 'no key'));
+    }
+    var extra = Object.keys(D).filter(function (k) {
+      return /Reference\.html$/.test(k) && DEX_GUIDE_ROSTER.indexOf(k) < 0;
+    });
+    return { present: present, absent: absent, extra: extra };
+  }
+
   function runDexTests(env) {
     env = env || {};
     var GROUPS = [];
@@ -24302,11 +24342,11 @@
 
     group('every metric card’s tier chip agrees with its data-tier attribute', 'cohesion-badges · guide-tier', function (T) {
       var docs = env.docs || {};
-      var names = Object.keys(docs).filter(function (k) {
-        return / Reference\.html$/.test(k);
-      });
-      T.ok('reference guides are loaded in this lane', names.length >= 7, 'found ' + names.length + ' — the group below would vacuously pass');
-      if (names.length < 7) return;
+      var CEN = dexGuideCensus(docs);
+      T.eq('ANTI-VACUITY · every declared reference guide reached this lane with text', CEN.absent, []);
+      T.eq('…and no producer carries a guide the roster does not declare', CEN.extra, []);
+      var names = CEN.present;
+      if (!names.length) return;
 
       /* attribute value -> [expected chip text, expected chip class]. `null` = attribute absent. */
       var MAP = { secondary: ['Advanced', 'ta'], research: ['Research', 'tr'], null: ['Core', 'tc'] };
@@ -68720,6 +68760,27 @@
         T.ok('without the allow-list the scrub REFUSES, naming the file it needs', !!threw && /export-schema/.test(threw), threw || 'no throw — it returned a document');
         // control · the SAME call with the allow-list passed in produces a scrubbed document
         T.ok('control · the same seam with the allow-list scrubs normally', DX._scrubWith(S, { schema: {}, recording: { contentId: 'c' } }).schema.scrubbed === true);
+
+        /* ── the refusal · an ARRAY cannot be projected, so it must never be marked ──
+           Row 2026-11-09-the-scrub-marks-an-array-shaped-export-and-projects-nothing. `typeof [] ===
+           'object'`, so an array passed the envelope guard above and reached `project`, which returns
+           an array verbatim. `out` was the clone, `scrubDropped` read `[]`, and the mark landed on a
+           NON-INDEX property that `JSON.stringify` drops. The written file therefore kept every
+           identifier and carried no mark, while an app reading `schema.scrubbed` in memory still
+           printed the shared-for-sharing note. The second leg holds the serialization property that
+           made the old behaviour silent, so a later reader can see why no pass-through could be made
+           honest, and the third holds that the refusal is about the ENVELOPE's shape only. */
+        var arrThrew = null;
+        try {
+          DX._scrubWith(S, [{ schema: {}, recording: { uploadName: 'FIXTURE-0000.txt' } }]);
+        } catch (e) {
+          arrThrew = String((e && e.message) || e);
+        }
+        T.ok('an array-shaped envelope REFUSES, naming the shape it cannot project', !!arrThrew && /array/i.test(arrThrew), arrThrew || 'no throw — it returned a document');
+        var marked = [{ a: 1 }];
+        marked.schema = { scrubbed: true };
+        T.ok('…and the old mark could not have survived: JSON.stringify drops a non-index property', JSON.parse(JSON.stringify(marked)).schema === undefined);
+        T.ok('control · an element ARRAY inside a plain envelope still scrubs', DX._scrubWith(S, { schema: {}, nights: [{ contentId: 'c' }] }).schema.scrubbed === true);
       }
     });
 
@@ -84640,24 +84701,40 @@
         T.skip('env.probeToolArgv provided to the runner', 'Node-lane only (spawns in a temp cwd) — the browser lane cannot spawn');
         return;
       }
-      var relBad = probeL('tools/release.mjs', ['--statu', '--dry-run']);
+      var relBad = probeL('tools/release.mjs', ['--statu', '--dry-run'], { isolateTmp: true });
       T.eq('release.mjs · a mistyped flag exits 2, not 0 and not 1', relBad.status, 2);
       T.ok('…and the refusal names the token and the flag meant', /--statu\b/.test(String(relBad.out)) && /--status/.test(String(relBad.out)), String(relBad.out).slice(0, 220));
       T.ok('…and it is a refusal, not a stack trace', !/\n\s+at\s|node:fs:\d/.test(String(relBad.out)), String(relBad.out).slice(0, 220));
       T.ok('…and the stamp step never began', !/This was the STAMP step only/.test(String(relBad.out)), String(relBad.out).slice(0, 220));
       /* THE FORWARD, proved by what it prints: release-land's own report, never release.mjs's stamp. */
-      var relSt = probeL('tools/release.mjs', ['--status', '--dry-run']);
+      var relSt = probeL('tools/release.mjs', ['--status', '--dry-run'], { isolateTmp: true });
       T.ok('release.mjs · --status reaches release-land.mjs instead of stamping', /no release-land run recorded|^remaining:|\nremaining:/m.test(String(relSt.out)), String(relSt.out).slice(0, 260));
       T.ok('…and nothing of the stamp step ran', !/This was the STAMP step only|Stamped v/.test(String(relSt.out)), String(relSt.out).slice(0, 260));
       T.ok('…at exit 0 (a report) or 1 (no run recorded on this machine), never 2', relSt.status === 0 || relSt.status === 1, 'status=' + relSt.status + ' out=' + String(relSt.out).slice(0, 160));
       /* release-land.mjs itself (Osprey, board #4749): every unread token fell through to a fresh run.
          The probe carries `--dry-run` for the reason above — a regressed guard previews, never releases. */
-      var landBad = probeL('tools/release-land.mjs', ['--statu', '--dry-run']);
+      var landBad = probeL('tools/release-land.mjs', ['--statu', '--dry-run'], { isolateTmp: true });
       T.eq('release-land.mjs · a mistyped flag exits 2', landBad.status, 2);
       T.ok('…naming the token and the flag meant', /--statu\b/.test(String(landBad.out)) && /--status/.test(String(landBad.out)), String(landBad.out).slice(0, 220));
       T.ok('…and no plan was printed', !/DRY RUN/.test(String(landBad.out)), String(landBad.out).slice(0, 220));
-      var landFwd = probeL('tools/release-land.mjs', ['--status', '--skip-gates']);
+      var landFwd = probeL('tools/release-land.mjs', ['--status', '--skip-gates'], { isolateTmp: true });
       T.ok('CONTROL · a flag release.mjs forwards is accepted, never refused', landFwd.status !== 2, 'status=' + landFwd.status + ' out=' + String(landFwd.out).slice(0, 160));
+      /* AN UNFINISHED RUN IS A REPORT, NOT A REFUSAL (board #5153). `--status` used to exit 2 for steps
+         that remain, the code the argv guard uses for a usage error, so every leg above that reads 2 as
+         "refused" turned red inside release-land's own gate step. The plant is a run with steps left. */
+      var fsL = typeof require === 'function' ? require('node:fs') : null;
+      var pathL = typeof require === 'function' ? require('node:path') : null;
+      var landRun = probeL('tools/release-land.mjs', ['--status'], {
+        seedTmp: function (dir) {
+          var d = pathL.join(dir, 'tepna-release-land');
+          fsL.mkdirSync(d);
+          var f = pathL.join(d, 'v9.9.9.json');
+          fsL.writeFileSync(f, JSON.stringify({ file: f, to: '9.9.9', started: 'x', updated: 'x', done: ['plan'], current: 'stamp', failed: null, log: [] }));
+          fsL.writeFileSync(pathL.join(d, 'latest.json'), JSON.stringify({ file: f }));
+        }
+      });
+      T.ok('PLANT · an unfinished run is read and reported', /^remaining:\s+\S/m.test(String(landRun.out)), String(landRun.out).slice(0, 200));
+      T.eq('…at exit 3, never the usage code 2', landRun.status, 3);
       var rtHelp = probeL('tests/run-tests.mjs', ['--help']);
       T.eq('run-tests.mjs · --help exits 0', rtHelp.status, 0);
       T.ok('…printing a usage line that names the runner', /^usage: node tests\/run-tests\.mjs/m.test(String(rtHelp.out)), String(rtHelp.out).slice(0, 160));
@@ -86487,11 +86564,11 @@
        would be exactly the borrowed-scope dishonesty the neighbouring gates were written to remove. */
     group('Reference guides — every in-page anchor resolves, no duplicate ids (REFERENCE-GUIDE-AUDIT §5)', 'docs · reference-guides · link-integrity', function (T) {
       var D = env.docs || {};
-      var guides = Object.keys(D).filter(function (f) {
-        return /Reference\.html$/.test(f);
-      });
-      T.ok('ANTI-VACUITY · the reference guides are wired into this lane', guides.length >= 7, 'found ' + guides.length + ' guide(s): ' + guides.join(', '));
-      if (guides.length < 7) return;
+      var CEN = dexGuideCensus(D);
+      T.eq('ANTI-VACUITY · every declared reference guide reached this lane with text', CEN.absent, []);
+      T.eq('…and no producer carries a guide the roster does not declare', CEN.extra, []);
+      var guides = CEN.present;
+      if (!guides.length) return;
       var dead = [],
         dup = [],
         nAnchor = 0,
@@ -87026,11 +87103,11 @@
      anti-vacuity legs below prove that stripping happened rather than assuming it. */
     group('Reference guides: no correction history in RENDERED text (the registry gate could not see this)', 'docs · citations · guide-prose', function (T) {
       var docs = env.docs || {};
-      var GUIDES = Object.keys(docs).filter(function (k) {
-        return /Reference\.html$/.test(k);
-      });
-      T.ok('ANTI-VACUITY · the reference guides are wired into env.docs', GUIDES.length >= 6, GUIDES.length + ' guide(s): ' + GUIDES.join(', '));
-      if (GUIDES.length < 6) return;
+      var CEN = dexGuideCensus(docs);
+      T.eq('ANTI-VACUITY · every declared reference guide reached env.docs with text', CEN.absent, []);
+      T.eq('…and no producer carries a guide the roster does not declare', CEN.extra, []);
+      var GUIDES = CEN.present;
+      if (!GUIDES.length) return;
 
       /* Rendered text = what a reader sees. Comments, <script> and <style> are NOT rendered, so they
          are removed before the scan — deliberately, per the header. */
