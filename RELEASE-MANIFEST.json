@@ -1819,6 +1819,27 @@
         "NTFY-ALERT-WIRING-2026-11-03-BRIEF.md"
       ],
       "notes": ""
+    },
+    {
+      "version": "2.30.0",
+      "date": "2026-11-10",
+      "bump": "minor",
+      "name": "",
+      "manifestHashes": {
+        "ECGDex": "41ffd4aafdce",
+        "OxyDex": "0dea1d8302c0",
+        "PulseDex": "c5636765cff5",
+        "GlucoDex": "b4ae4cef3a64",
+        "PpgDex": "c59fd822f398",
+        "HRVDex": "aa6c96b3ffcc",
+        "CPAPDex": "9de651be41e4",
+        "Integrator": "1edfc230b32b",
+        "MotionDex": "7c799e7634a5"
+      },
+      "briefs": [
+        "INTEGRATOR-THREE-CORNERED-HAT-2026-07-02-BRIEF.md"
+      ],
+      "notes": ""
     }
   ]
 }

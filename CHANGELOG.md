@@ -30,6 +30,123 @@ changesets.)
 
 ---
 
+## [2.30.0] — 2026-11-10
+
+### Added
+- Adds one mutation-kill test for parsePPG. The test pins the zero-delta fs boundary at ppgdex-dsp.js:1537 (`d > 0`). Zero ns deltas stay out of the fs median. The mutant (`d >= 0`) survives the suite on main. This test kills it. Both verification runs happened 2026-11-09 at bfb3c3dd3.
+- Add the MotionDex reference guide. The guide documents all eight live registry metrics with their evidence grades. It states the coverage rules for position, actigraphy, effort, and signal quality. The manifest now names the guide. The cohesion gate now checks the guide badges against the MotionDex registry.
+- Publish each device's own last write and its off-body tail beside the night QC span.
+- Run a capture-host control arm as a mechanism that plants the reverted rule and restores the file.
+- Publish a per-epoch series from the PulseDex export, so the Integrator lifts the RR node into the three-cornered-hat fit. The export carried a window COUNT alone, and the fit read zero channels. (`INTEGRATOR-THREE-CORNERED-HAT-2026-07-02-BRIEF.md`)
+- Draw each O2Ring's power axis on the monitor: state, battery band, scan cadence and counters.
+- Name a closure declaration the walker can no longer read. The walker honours a `Residue-fixed:` line
+- An interval SignalFrame carries the parser counts nRaw, nUsable, nBlocked and timeRatio, each null when the parser did not report it.
+
+### Changed
+- Count the consumer sites the absence survey names.
+- Default the OxyDex and CPAPDex share-scrub to ON, so a shared export carries no device serial.
+
+### Removed
+- Remove the PulseDex `renderKPI` function, which no file called. The KPI grid draws through `renderKpiGridPx`.
+
+### Fixed
+- Keep per-stream sidecars out of the night QC session span, so arrival logs and RUNS files no longer stretch it.
+- A Nights view cell with no worn second and a not-worn second now reads "not worn", not as lost coverage.
+- Derive the 3corner Verity corner from its raw PPG, through the shipped PPGDSP chain.
+- Make the CPAPDex delta alias key reachable, and gate every alias key against the id it declares.
+- Raise every append-family write failure to WARNING with its path, so a lost evidence row names itself.
+- Refuse an archive manifest that lists no file, and re-manifest a night whose copy later holds files.
+- Refuse an unknown token in `tools/release.mjs` and `tests/run-tests.mjs`, so a typed flag no longer cuts a release or runs the whole suite. Give the runner a `--help` list.
+- Refuse a CPAP spool round whose data fragments do not arrive as the run 0 to n-1.
+- The citation scan leaves out a tracked file that the working tree deleted, so the release stamp no longer holds its own gate.
+- Read a cite-drift identifier only where it stands on its own. A substring test let `file` anchor a citation on `fileURLToPath`, and let `fixture` anchor on `fixtureNames`. The tail of a path-like token is no longer an identifier, so `json` no longer anchors a line that names any JSON file.
+- Split the cite-drift `missing-file` bin by the cited path's tail. A citation that omits its leading directories now reads the tracked file it names. A path that shares only a basename scores off-tree.
+- Count a file's lines rather than its split length, so the cite-drift report stops printing a length one too large.
+- Extend a citation's path to the tracked file it names. The judge then reads a filename that holds a space as itself, not as its tail.
+- Stop the CPAP inventory journal from making a finished night read as held open.
+- HRVDex reports no recovery debt for a 14-day window that holds no measured ARI day. It used to publish a debt of 0 there.
+- HRVDex raises no Low Energy alert when the energy value is absent. Its recovery-debt chart now leaves an absent day as a gap, not a green 0 bar.
+- Refuse an unknown flag in tools/release-land.mjs before the release chain starts.
+- Execute motiondex-render.js in the test harness, and assert the values it surfaces.
+- Abstain from a MotionDex respiratory rate where the chest signal carries no effort. A constant signal published 19 br/min from the ridge tracker's prior, beside 0 breaths and 0 g of band amplitude. The rate now reads null with a named reason.
+- Open a joined coverage hole at the run's last write, not at the daemon seam that clamped it.
+- Stop asking a Polar device in SDK mode for PPI, so its links no longer drop every 90 s.
+- OxyDex reads an O2Ring CSV with no pulse column as absent HR, not as HR taken from the Motion column.
+- Name every adapter file in the ORIENTATION map, and red the suite when one is absent.
+- Separate a torn ledger line from the row appended after it, so one tear loses one record.
+- Show an em-dash on a refused OxyDex AHI or DFA chip, and name the refusal.
+- Name a probe child that a signal killed as UNEXAMINED, not as a failed selftest.
+- Give the roster a MotionDex node, declared not served.
+- Refuse a clock band whose seam sidecar reports a failed write on its own final line.
+- Log and count every swallowed seam-sidecar failure, so a lost seam row names itself.
+- The secret-scan job retries the gitleaks download, so a GitHub 504 no longer reds every PR.
+- Stop the AS11 shadow detector at a daemon stop when the connect swallows the cancel.
+- Keep a Polar link up when the same stream stays silent after one re-negotiation.
+- Red the gate when `package.json` declares a gate script that STEPS omits. The old leg read one direction only.
+- Assert that `main auth` runs the handshake and then fetches nothing.
+- Cite the four external sources that the treatment-response paper lists.
+- Stop the vigil deploy from writing the retired udev rule name, and correct three more sites that name it.
+- Red the test runner on a group that emitted zero assertions.
+- Keep the loss grade on a Nights view cell whose wear time is more than 5 % unknown.
+- Stop a stream that the box judges not worn from sending a second "night ended" note.
+- Publish the withdrawal outcome in the night's loss verdict, so a withdrawal record that fails names itself.
+- Warn when a PMD control write fails, so a failed write no longer reads as a quiet device.
+- Read a needle in the stale-brief guard self-test with a literal substring test. A reader that could not look no longer reads as an absent needle.
+- Pin the headerless ACC column map once, so one junk axis field cannot shift every axis.
+- Report the day's page count as a floor when a restart emptied the ledger, and name the streak floor.
+- Page an absence whose tier the classifier could not decide, past the daily page cap.
+- Draw the auto-pull drain outcome, and define the warn and bad pill rules the page already assigns.
+- Write each defect-bench result row to disk when its task ends, so a short or crashed run keeps its rows.
+- Revoke each HRVDex export blob URL after its download starts, as the sibling apps do.
+- Count a board alert that reaches the phone on its own ledger, and name the route in the log.
+- Print the board's capped PR count as a floor on the queue card too, through one shared function.
+- Bound every post-connect GATT await on the CPAP link, so a stalled adapter raises rather than freezing the session.
+- Report the CPAP queue-overflow count as absent until a queue counts it, and name it in the coverage list.
+- Draw mask-on hours under the CPAP usage label, so the recording envelope stops scoring adherence.
+- ECGDex shows the CVHR index as a neutral value on its KPI tile and its long-record table row. These two copies no longer grade it on apnea-hypopnea cut-points.
+- Make the EEGDex median average the two middle values on an even count.
+- Publish the longest absent run in the SpO2 spectrum, and name a refusal that one hole caused.
+- GlucoDex dates an excursion at the last sample still at the trough, not at the earliest trough that meets the rate.
+- Make the `--json` lane of `tests/run-tests.mjs` exit 1 on an undeclared skip, as the human lane does.
+- Report a stale loss verdict that stayed on disk when both the write and the remove failed.
+- Rebuild the repo map every hour in the bge refresh, and write it atomically, so Rule 0 searches print current map lines.
+- Draw the Polar enumeration floor, so a cut walk stops reading as an empty device.
+- Fix four capture-box defects from night 2026-11-08 in the H10 clock sync, the pull licence and the QC digest.
+- Carry the MotionDex clock-seam reason into the node-export, beside the value it refuses. The producer nulls `immobileFrac` on a device-clock seam and names `clock-seam`. The reason reached the live page only, so review mode and the Integrator read the null alone. A null with no reason reads as a stream that never arrived.
+- CPAPDex draws the pooled night values on its Pressure and Ventilation cards. On a night with more than one session, these cards used to show the first session only.
+- The no-network negative control now asserts each planted egress line through its own lens, instead of one sum that a dead lens could still pass. The static set and the runtime canary also plant `XMLHttpRequest` and `EventSource`.
+- The no-network runtime trap now wraps the `src` and `href` setters and `setAttribute` of every loading element, so a constructed-URL `Image` beacon fails the gate. The canary plants that beacon and a remote `setAttribute(src)`, and it checks that a `data:` image and a remote anchor stay allowed.
+- Two source files wrote a control byte as a raw byte, and the repository search skips any file that holds a NUL byte. `manifest-gate.js` wrote the manifest separator that way, and a probe battery wrote one input case that way. The search printed no output and exited 1, so the provenance gate's own source answered empty for every pattern. Both files now write the byte as an escape. An escape and a raw byte make the same string, so all nine bundle hashes stay byte-identical.
+- Widen the OxyDex population of the null-injection fuzzer. It now judges three heart rate metrics. It also judges a night whose motion column carries no measured value, and a mask that nulls heart rate while SpO2 stays measured.
+- Count a sensor file as worn only after 5 min of worn decisions. End a wear at the charger or after 5 min not worn.
+- Read an absent OxyDex pulse as absent in every HR metric, never as a pulse of zero.
+- Refuse the intra-night stability index when the heart rate is absent, and annotate the sleep stage split instead of reading absence as calm.
+- Refuse the stability index when the desaturation or motion share has too few measured samples, and divide each share by its measured count.
+- Name the windows the OxyDex sleep stage estimator could not examine. The output gives the offered count, the classified count and a count for each absence.
+- Keep the OxyDex SpO2 and motion channels in the export when the pulse column is absent.
+- Name an absent Poincare pair on the PpgDex and ECGDex cards. The card showed "null ms", a 0 ms2 area and a zero-size ellipse.
+- Drop a PpgDex ACC row with a non-finite y or z axis, and publish the drop count.
+- `npm run reconcile` now reads the `verify-fixtures` verdict before it calls a bundle export-inert.
+- Refuse an array-shaped envelope in the share-scrub. `typeof [] === 'object'`, so an array passed the
+- Declare each OxyDex metric depth in the published vocabulary. Twenty entries named
+- Name the two commits `residue-ids` compared, and the uncommitted rows it left out.
+- Drop the OxyDex sleep-stability periodic-breathing term when the episode count is absent, instead of scoring it a perfect 100.
+- State the real fallback rate rule in the SDK-trial header, and pin its conclusion.
+- Keep an absent SpO2 sample out of the OxyDex spectrum. The mean and every bin read the absent rows
+- Test the ECGDex sleep-stage export end to end, from `compute` to the Integrator fractions.
+- Publish what the last 31-day stitch run did, so a refused day no longer reads as the result.
+- State the covered-epoch population on the MotionDex supine row. The row named every
+- The compute closure watched a module that cannot move an export. `manifest-gate.js` holds a denylist of display-only assets. It carried a pattern for every other module of the render realm and none for `pulsedex-overview.js`. The predicate fails closed, so it counted that module as compute. Each render-only edit to the module then moved the computeHash of `PulseDex.html` and made two corpus-backed fixtures unverified.
+- Pin the GlucoDex time-in-range band edges at 54, 70, 180 and 250 mg/dL in the test suite.
+- Fetch origin/main once per wt-done run from the caller's own checkout, and print the whole board-note output so the receipt survives.
+- Name the sites each judge counts. The absence census now counts a basename-only agreement in its own
+- Refuse an update-streak config whose `alerts` block is not a dictionary, rather than raise or read it as off.
+- Name the closure digest a yield-pin re-cut moved, so a session can record the move.
+- Name every reference guide a test lane lost, rather than count it against a floor below the population.
+- Give the release-tool argv probes a private, empty TMPDIR. `tools/release-land.mjs` keeps its run state under `tmpdir()`, so the probe of `--status` read the machine's real release run. Inside release-land's own gate step a run is always in progress, `--status` exits 2, and the group reds. So no release could pass its own gates.
+
+---
+
 ## [2.29.0] — 2026-11-08
 
 ### Added
@@ -4035,7 +4152,8 @@ and establishes the release-governance layer over it.
 - **The shared test suite** (`Dex-Test-Suite.html` + `tests/dex-tests.js`) and the build/provenance
   manifests.
 
-[Unreleased]: https://github.com/Plantucha/Tepna/compare/v2.29.0...HEAD
+[Unreleased]: https://github.com/Plantucha/Tepna/compare/v2.30.0...HEAD
+[2.30.0]: https://github.com/Plantucha/Tepna/compare/v2.29.0...v2.30.0
 [2.29.0]: https://github.com/Plantucha/Tepna/compare/v2.28.0...v2.29.0
 [2.28.0]: https://github.com/Plantucha/Tepna/compare/v2.27.0...v2.28.0
 [2.27.0]: https://github.com/Plantucha/Tepna/compare/v2.26.0...v2.27.0

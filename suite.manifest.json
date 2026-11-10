@@ -1,6 +1,6 @@
 {
   "_doc": "Canonical Tepna roster + site metadata — the SINGLE source of truth for the deploy build + discoverability surfaces (REPO-DISCOVERABILITY-FOLLOWUPS-2026-07-04 §5.2). tools/build-docs.mjs reads THIS to (1) sync root→docs page bodies and (2) emit docs/{sitemap.xml,robots.txt,feed.xml,about.json,llms.txt,llms-full.txt}. The README node table, the DOCS-INDEX at-a-glance block, and the index.html JSON-LD all describe the same roster — keep them in sync with this file, do not fork a second roster. A node carries `deploy: false` when its app ships in the repo and is deliberately NOT published to the served tree (the state `fusion[]` already carried); `planned: true` marks a node with no app yet, and `guide: null` a node with no reference page. The public surfaces are built from the served, guided subset — a URL built from a null field would publish `<site>/null`.",
-  "version": "2.29.0",
+  "version": "2.30.0",
   "deploy": {
     "dir": "docs",
     "delinkClass": "tool-off",
