@@ -24,7 +24,7 @@
       "dex-escape.js": "f0d38619047a",
       "oxydex-util.js": "5cc642ee790b",
       "oxydex-profile.js": "3496a101178a",
-      "oxydex-dsp.js": "ac96c6845205"
+      "oxydex-dsp.js": "180165dc7b5b"
     },
     "pulse": {
       "synth-gen.js": "a653cf5afb78",
@@ -165,11 +165,18 @@
       "old": "554a264ba4a5",
       "new": "ac96c6845205",
       "reason": "residue 2026-11-09-the-rem-share-divides-by-the-span-it-did-not-examine: computeSleepStageProxy now counts the windows it offered and the windows each absence dropped, and it publishes that bookkeeping whenever a window went unexamined. No published value moves. The stage estimate is not a treatment-response input, and the re-cut measured the SAME 233 tx / 239 flat under the moved closure, so this entry records the move only."
+    },
+    {
+      "date": "2026-11-10",
+      "file": "oxydex-dsp.js",
+      "old": "ac96c6845205",
+      "new": "180165dc7b5b",
+      "reason": "residue 2026-11-09-the-spo2-spectrum-strides-past-an-adjacent-bin: computeSpO2FFT now publishes bandBinsN, the count of bins the band holds, beside bins, the count the run tested. No published value moves and the field is new. The SpO2 spectrum is not a treatment-response input, and the re-cut measured the SAME 233 tx / 239 flat under the moved closure, so this entry records the move only."
     }
   ],
-  "measuredAt": "2026-11-09T22:23:05.162Z",
+  "measuredAt": "2026-11-10T01:44:11.219Z",
   "producedBy": {
     "tool": "tools/treatment-response-yield-pin.mjs",
-    "commit": "47ca6cda7"
+    "commit": "954d873ad"
   }
 }
