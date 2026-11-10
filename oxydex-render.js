@@ -209,7 +209,7 @@ function oxyEventTimeline(events, multiNight) {
       escHTML(_oxyEventMeta(e)) +
       '</span></span>' +
       '<span class="tl-conf">conf ' +
-      (e.conf != null ? e.conf : '—') +
+      escHTML(e.conf != null ? e.conf : '—') +
       '</span>' +
       '</div>';
   });

@@ -266,7 +266,13 @@ import './glucodex-profile.js';
         .map(function (e) {
           var when = e.t || '\u2014';
           return (
-            '<div class="grv-tlrow"><span class="tl-t">' + _gesc(when) + '</span><span>' + _gesc(nm(e)) + '</span><span class="tl-conf">conf ' + (e.conf != null ? e.conf : '\u2014') + '</span></div>'
+            '<div class="grv-tlrow"><span class="tl-t">' +
+            _gesc(when) +
+            '</span><span>' +
+            _gesc(nm(e)) +
+            '</span><span class="tl-conf">conf ' +
+            _gesc(e.conf != null ? e.conf : '\u2014') +
+            '</span></div>'
           );
         })
         .join('') +
@@ -303,18 +309,18 @@ import './glucodex-profile.js';
       '<div class="grv-head"><span class="grv-title">GlucoDex \u2014 CGM review</span>' +
       '<span class="grv-sub">' +
       _gesc(g.tier || rec.source || 'recording') +
-      (rec.events != null ? ' \u00b7 ' + rec.events + ' events' : '') +
+      (rec.events != null ? ' \u00b7 ' + _gesc(rec.events) + ' events' : '') +
       '</span></div>';
     h += '<div class="grv-sec">Impression</div>';
     h +=
       '<div class="grv-imp">Mean ' +
-      nv(g.mean) +
+      _gesc(nv(g.mean)) +
       ' mg/dL \u00b7 GMI ' +
-      nv(g.gmi) +
+      _gesc(nv(g.gmi)) +
       '% \u00b7 TIR ' +
-      nv(tir.tir) +
+      _gesc(nv(tir.tir)) +
       '% \u00b7 CV ' +
-      nv(g.cv) +
+      _gesc(nv(g.cv)) +
       '%. Rendered from the export\u2019s stored glycemic summary \u2014 no re-analysis of the raw trace.</div>';
     var kpis = [
       ['Mean glucose', nv(g.mean), 'mg/dL'],
