@@ -94854,6 +94854,59 @@
       }
     });
 
+    /* ════ The OxyDex ADAPTER carries the declared coverage ════
+       Row 2026-11-08-the-integrator-ignores-oxydex-coverage-segments. The overlap group above builds its
+       records by hand, so it never passed through `adaptOxyDex`, and that adapter dropped the block.
+       A 2-segment OxyDex night read as one full envelope. Driven through normalizeFile, the app's entry. */
+    group('Integrator · adaptOxyDex carries the OxyDex coverage segments to recSegments', 'integrator-dsp · coverage · regression', function (T) {
+      var D = env.IntegratorDSP;
+      T.ok('IntegratorDSP.normalizeFile + recSegments available', !!(D && typeof D.normalizeFile === 'function' && typeof D.recSegments === 'function'));
+      if (!(D && typeof D.normalizeFile === 'function' && typeof D.recSegments === 'function')) return;
+      var t0 = Date.UTC(2026, 5, 13, 23, 0, 0);
+      var cov = {
+        kind: 'sparse',
+        spanSec: 7 * 3600,
+        recordedSec: 5 * 3600,
+        n: 2,
+        nWithDuration: 2,
+        segments: [
+          { startMs: t0, durSec: 2 * 3600 },
+          { startMs: t0 + 4 * 3600000, durSec: 3 * 3600 }
+        ]
+      };
+      function night(start, withCov) {
+        var n = { date: '2026-06-13', t0Ms: start, stats: { t0Ms: start, durationMin: 420, n: 25200, meanSpo2: 95 } };
+        if (withCov) n.coverage = cov;
+        return n;
+      }
+      function exp(nights, topCov) {
+        return { schema: { name: 'ganglior.node-export', node: 'OxyDex' }, recording: { startEpochMs: t0, coverage: topCov }, nights: nights, ganglior_events: [] };
+      }
+      function recOf(j) {
+        var r = D.normalizeFile(j, 'OxyDex_2026-06-13_ganglior.json');
+        return r && r.recs && r.recs[0];
+      }
+      var single = recOf(exp([night(t0, false)], cov));
+      var segs = single && D.recSegments(single);
+      T.eq('a single-night export: recording.coverage reaches the record as 2 segments', segs && segs.length, 2, JSON.stringify(single && single.coverage));
+      T.eq('…the second segment starts where the writer put it', segs && segs[1] && segs[1][0], t0 + 4 * 3600000);
+      var perNight = recOf(exp([night(t0, true)], undefined));
+      T.eq('a night that carries its own coverage block keeps it', perNight && D.recSegments(perNight) && D.recSegments(perNight).length, 2);
+      var clean = recOf(exp([night(t0, false)], undefined));
+      T.eq('BACK-COMPAT · a contiguous night declares nothing, so recSegments falls back to the envelope', clean && D.recSegments(clean), null);
+      var r2 = D.normalizeFile(exp([night(t0, false), night(t0 + 864e5, false)], cov), 'OxyDex_multi_ganglior.json');
+      var multi = (r2 && r2.recs) || [];
+      T.eq(
+        'a multi-night export does not spread a top-level block over its nights',
+        multi.length === 2 &&
+          multi.every(function (r) {
+            return D.recSegments(r) === null;
+          }),
+        true,
+        'recs=' + multi.length
+      );
+    });
+
     /* PAT-GEOMETRY-PROBE §2 — THE SPECIFICITY MATRIX.
        Every timeline defect this project has shipped was a SHAPE, and each was found by eye only after
        a wrong conclusion had been published: driftRange SATURATING at the 450 ms window, the ECG↔PPG
