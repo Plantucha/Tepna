@@ -27859,9 +27859,11 @@
        Retired 2026-09-20, replaced by two facts of DIFFERENT KINDS, which is the whole point:
          · the footer states PROVENANCE ("generated from <manifest>") — permanently true, no half-life
          · maturity, which really does decay, moved to DATED prose in `warning`, where readers look
-       One word could not carry it in any case: EEGDex ships a DSP and a selftest, no app and no
-       bundle, and `signal-spec.js` routes EEG files to an `EEGDSP` that resolves to undefined in
-       every shipped bundle. "planned" cannot say "routed but unreachable".
+       One word could not carry it in any case: EEGDex ships a DSP, a render, an app and a selftest,
+       and no BUNDLE — so `signal-spec.js` still routes EEG files to an `EEGDSP` that resolves to
+       undefined inside `Data Unifier.html` and `OverDex.html`, while the two test lanes execute the
+       same modules directly (the eegdex groups below). "planned" cannot say "built, exercised by the
+       suite, and unreachable from the two orchestrators".
 
        (1) keeps the enum from returning by the back door; (2) proves the footer carries the
        non-decaying form and none of the retired vocabulary; (3) is the FROZEN-COPY guard — nothing
@@ -28150,9 +28152,11 @@
 
        Node-lane only (env.sourceVisibility is fs-read); the browser SKIPs, mirroring docs-ledger. */
     group('EEGDex median averages the two middles on an even count', 'eegdex · median · known-answer', function (T) {
-      /* Residue 2026-11-08-eegdex-median-takes-the-upper-middle. EEGDex ships no bundle, so this leg
-         lifts `median` out of the source text and runs it. An even count used to return the UPPER
-         middle (median([1, 2, 3, 4]) read 3, not 2.5), and the stager normalises EMG and EOG tone by it. */
+      /* Residue 2026-11-08-eegdex-median-takes-the-upper-middle. An even count used to return the
+         UPPER middle (median([1, 2, 3, 4]) read 3, not 2.5), and the stager normalises EMG and EOG
+         tone by it. This leg lifts `median` out of the SOURCE TEXT rather than reading
+         `env.EEGDSP.median`, and it stays that way on purpose: it then holds even in a lane that
+         reads the file without executing it, which is the state the eegdex groups below ended. */
       var src = env.sources && env.sources['eegdex-dsp.js'];
       if (!src) {
         T.skip('eegdex-dsp.js source available', 'eegdex-dsp.js not in env.sources');
@@ -28169,6 +28173,327 @@
       T.eq('null and non-finite values drop before the middle: median([1, null, NaN, 3]) is 2', median([1, null, NaN, 3]), 2);
       T.eq('an input with no finite value is null, not 0 or NaN', median([null, NaN]), null);
       T.eq('an empty input is null', median([]), null);
+    });
+
+    /* ── EEGDEX, END TO END ────────────────────────────────────────────────────────────────────────
+       Residue 2026-11-08-the-eegdex-selftest-is-wired-to-no-gate. Before these groups the node ran
+       under `tools/eegdex-selftest.mjs` only, which no gate runs, and this lane held the DSP's TEXT
+       in `readSources` with nothing executing it — so a throw planted in `analyze` left every lane
+       green. The groups below run the module. The availability leg is the load-bearing one: both
+       loaders turn a module that fails to load into a YELLOW console line and never a red, so an
+       absent `env.EEGDSP` is only visible where a group asserts on it.
+
+       An EDF is built BYTE BY BYTE here rather than reusing `cpapdex-edf.js`'s own
+       `_buildSyntheticEDF`, which is hardcoded to the CPAP shape: one numeric `Press` channel plus
+       an annotation channel at 10 Hz. An EEG ingest needs an EEG label, a rate the stager can epoch
+       and a physical dimension. The digital and physical ranges are set EQUAL, so the reader's scale
+       is exactly 1 and a decoded sample reads back as the integer written — a known answer that
+       needs no float tolerance. */
+    function buildEegEdfBytes(o) {
+      o = o || {};
+      var ns = 1;
+      var spr = o.spr == null ? 100 : o.spr;
+      var records = o.records == null ? 4 : o.records;
+      var recDur = o.recDur == null ? 1 : o.recDur;
+      var label = o.label == null ? 'EEG C4-A1' : o.label;
+      var headerBytes = 256 + ns * 256;
+      var buf = new ArrayBuffer(headerBytes + spr * records * 2);
+      var u8 = new Uint8Array(buf),
+        dv = new DataView(buf),
+        p = 256,
+        q = headerBytes,
+        k;
+      function put(str, start, len) {
+        var s = String(str),
+          i;
+        for (i = 0; i < len; i++) u8[start + i] = i < s.length ? s.charCodeAt(i) : 0x20;
+      }
+      put('0', 0, 8);
+      put('X X X X', 8, 80);
+      put('Startdate', 88, 80);
+      put(o.startdate == null ? '04.07.26' : o.startdate, 168, 8);
+      put(o.starttime == null ? '22.30.00' : o.starttime, 176, 8);
+      put(String(headerBytes), 184, 8);
+      put('EDF+C', 192, 44);
+      put(String(records), 236, 8);
+      put(String(recDur), 244, 8);
+      put(String(ns), 252, 4);
+      put(label, p, 16);
+      p += ns * 16;
+      p += ns * 80; // transducer
+      put(o.dim == null ? 'uV' : o.dim, p, 8);
+      p += ns * 8;
+      put('-32768', p, 8);
+      p += ns * 8; // physical minimum
+      put('32767', p, 8);
+      p += ns * 8; // physical maximum
+      put('-32768', p, 8);
+      p += ns * 8; // digital minimum
+      put('32767', p, 8);
+      p += ns * 8; // digital maximum
+      p += ns * 80; // prefiltering
+      /* `blankSpr` leaves this field all spaces, which is the one header defect the reader refuses
+         by THROWING rather than by returning — see the no-sample-rate leg below. */
+      put(o.blankSpr ? '' : String(spr), p, 8);
+      p += ns * 8;
+      p += ns * 32; // reserved
+      /* A 101-sample sawtooth: about 1 Hz at 100 Hz, so the spectrum is delta-dominant by
+         construction and the stager has a signal with a known band shape to score. */
+      for (k = 0; k < spr * records; k++) {
+        dv.setInt16(q, ((k % 101) - 50) * 7, true);
+        q += 2;
+      }
+      return buf;
+    }
+
+    group('The EEGDex modules are executed by this lane, not only read', 'eegdex · wiring · availability', function (T) {
+      T.ok('env.EEGDSP is published by the lane', !!env.EEGDSP, 'eegdex-dsp.js did not load — both loaders report that as a console line only');
+      T.ok('env.EEGUI is published by the lane', !!env.EEGUI, 'eegdex-render.js did not load — both loaders report that as a console line only');
+      if (!env.EEGDSP || !env.EEGUI) return;
+      var D = env.EEGDSP,
+        U = env.EEGUI,
+        missing = [],
+        i;
+      var DSP = ['analyze', 'compute', 'ingestEDF', 'nightBands', 'buildNodeExport', 'genSynthetic', 'epochBands', 'stageEpoch', 'smoothHypnogram', 'median', 'rms', 'fmtClock'];
+      var UI = ['renderSummary', 'hypnoHtml', 'bandHtml', 'qualityHtml', 'powerSub'];
+      for (i = 0; i < DSP.length; i++) if (typeof D[DSP[i]] !== 'function') missing.push('EEGDSP.' + DSP[i]);
+      for (i = 0; i < UI.length; i++) if (typeof U[UI[i]] !== 'function') missing.push('EEGUI.' + UI[i]);
+      T.eq('every function the app imports is callable in this realm', missing.join(', '), '');
+      T.eq('the engine declares the 30 s epoch', D.EPOCH_SEC, 30);
+    });
+
+    group('EEGDex scores the deterministic synthetic to its pinned values', 'eegdex · compute · known-answer', function (T) {
+      var D = env.EEGDSP;
+      if (!D) {
+        T.skip('env.EEGDSP available', 'eegdex-dsp.js is not executed by this lane');
+        return;
+      }
+      var res = D.compute(D.genSynthetic());
+      T.ok('the synthetic frame computes', !res.err, res.err || '');
+      if (res.err) return;
+      T.eq('1800 s at 100 Hz is 60 epochs', res.nEpochs, 60);
+      T.eq('the five authored blocks score 12 epochs each', JSON.stringify(res.stageCounts), JSON.stringify({ W: 12, N1: 12, N2: 12, N3: 12, REM: 12 }));
+      T.eq('every epoch is scorable', JSON.stringify(res.quality), JSON.stringify({ analyzablePct: 100, nUnscorable: 0 }));
+      T.eq('the architecture over 48 sleep epochs', JSON.stringify(res.architecture), JSON.stringify({ TST: 0.4, SE: 80, n3Pct: 25, remPct: 25 }));
+      /* §🔒.1 — the demo t0 is a FLOATING wall clock, so the stamp reads back as written under any
+         viewer zone. A `new Date(...).getHours()` here would move with TZ; `getUTC*` does not. */
+      T.eq('the first epoch carries the floating t0, read back with getUTC*', new Date(res.hypnogram[0].tMs).toISOString(), '2026-01-01T23:00:00.000Z');
+      T.eq('epoch 1 sits exactly one epoch later', res.hypnogram[1].tMs - res.hypnogram[0].tMs, 30000);
+      /* The stager publishes a FLAT 0.5 for every scored epoch. It is a placeholder, not a measured
+         confidence, and it is pinned here so a change to it has to be deliberate. */
+      T.eq('a scored epoch carries the placeholder confidence', res.hypnogram[0].conf, 0.5);
+      T.eq('the provenance the frame carried through compute', JSON.stringify([res.channel, res.source, res.fs, res.durSec]), JSON.stringify(['SYNTH-C4', 'synthetic', 100, 1800]));
+      /* §∅ — the synthetic declares no physical dimension, so the power unit is ABSENT rather than
+         asserted as µV². The surface then says the amplitude unit is undeclared. */
+      T.eq('a frame with no EDF dimension carries a null unit', res.unit, null);
+      T.eq('the demo surface says the amplitude unit is undeclared', env.EEGUI ? env.EEGUI.powerSub(res) : 'EEGUI absent', 'median epoch · amplitude unit undeclared');
+      T.eq('a declared dimension prints as a squared unit', env.EEGUI ? env.EEGUI.powerSub({ unit: 'uV' }) : 'EEGUI absent', 'median epoch · (uV)²');
+    });
+
+    group('The five EEGDex band shares are independent medians and say so', 'eegdex · bands · known-answer', function (T) {
+      var D = env.EEGDSP;
+      if (!D) {
+        T.skip('env.EEGDSP available', 'eegdex-dsp.js is not executed by this lane');
+        return;
+      }
+      var fr = D.genSynthetic(),
+        b = D.nightBands(fr.samples, fr.fs);
+      T.eq('every band publishes its own median share', JSON.stringify(b.rel), JSON.stringify({ delta: 21.3, theta: 20.7, alpha: 9.3, sigma: 0.1, beta: 0.3 }));
+      /* THE MEASUREMENT THIS GROUP EXISTS FOR. Five medians taken separately over the same epochs do
+         not sum to 100 %: the bands stop at 30 Hz while the total runs to 45 Hz, and each median is
+         its own statistic. A stacked bar scaled to this sum would state a proportion no epoch has,
+         so `relSum` is PUBLISHED and the surface names the remainder instead. */
+      T.eq('the five shares sum to 51.7 %, not 100 %', b.relSum, 51.7);
+      T.eq('alphaRel and thetaRel are the same two medians, not a second calculation', JSON.stringify([b.alphaRel, b.thetaRel]), JSON.stringify([b.rel.alpha, b.rel.theta]));
+      T.eq('the alpha-over-theta ratio', b.alphaTheta, 0.991);
+      T.eq('the ratio names the epochs it covers', JSON.stringify(b.population), JSON.stringify({ epochs: 60, withBands: 60, ratioEpochs: 60 }));
+      T.eq(
+        'a nothing-to-band input refuses with its own reason, not a zero',
+        JSON.stringify([D.nightBands(null, 100).reason, D.nightBands(fr.samples, 0).reason]),
+        JSON.stringify(['no-samples', 'no-sample-rate'])
+      );
+      T.eq(
+        'a refusal leaves every share null rather than 0',
+        JSON.stringify([D.nightBands(null, 100).rel, D.nightBands(null, 100).relSum, D.nightBands(null, 100).totalPower]),
+        JSON.stringify([null, null, null])
+      );
+    });
+
+    group('EEGDex refuses the four metrics one channel cannot measure, each with its own reason', 'eegdex · refusals · named', function (T) {
+      var D = env.EEGDSP;
+      if (!D) {
+        T.skip('env.EEGDSP available', 'eegdex-dsp.js is not executed by this lane');
+        return;
+      }
+      var ref = D.compute(D.genSynthetic()).refused,
+        keys = Object.keys(ref || {}),
+        reasons = [],
+        i;
+      T.eq('the four declared-but-unmeasurable metrics are named', keys.join(','), 'contactPct,frontalAsym,spindleDensity,calmScore');
+      for (i = 0; i < keys.length; i++) {
+        T.eq('refused ' + keys[i] + ' is null, never 0', ref[keys[i]].value, null);
+        T.ok('refused ' + keys[i] + ' carries a reason', !!ref[keys[i]].reason);
+        reasons.push(ref[keys[i]].reason);
+      }
+      /* §∅ — a BORROWED reason is the defect this leg guards. A null whose reason says "no
+         recording" reads downstream as absent input, which is a different fact from an instrument
+         that cannot see the quantity at all. Four refusals, four distinct reasons. */
+      T.eq(
+        'no refusal borrows another refusal’s reason',
+        reasons
+          .slice()
+          .sort()
+          .filter(function (r, k, a) {
+            return k > 0 && a[k - 1] === r;
+          }).length,
+        0
+      );
+      T.eq('the reasons, in the order the engine declares them', reasons.join(','), 'no-contact-sidecar,single-channel-ingest,no-spindle-detector,depends-on-refused-inputs');
+    });
+
+    group('EEGDex reads an EEG channel out of real EDF bytes', 'eegdex · ingest · edf-bytes', function (T) {
+      var D = env.EEGDSP;
+      if (!D || !env.CpapEdf) {
+        T.skip('env.EEGDSP and env.CpapEdf available', 'eegdex-dsp.js or cpapdex-edf.js is not executed by this lane');
+        return;
+      }
+      var f = D.ingestEDF(buildEegEdfBytes());
+      T.ok('the authored EDF ingests', f.ok, f.reason || '');
+      if (!f.ok) return;
+      T.eq('the EEG label is picked out of the header', f.channel, 'EEG C4-A1');
+      T.eq('the rate is samples-per-record over the record duration', f.fs, 100);
+      T.eq('the physical dimension travels with the channel', f.unit, 'uV');
+      T.eq('4 records of 100 samples decode to 400 samples', f.samples.length, 400);
+      /* An equal digital and physical range makes the reader's scale exactly 1, so this is the
+         integer the builder wrote — the whole decode path, header arithmetic included. */
+      T.eq('the first sample decodes to the integer written', f.samples[0], -350);
+      T.eq('the header stamp is a floating wall clock, read back with getUTC*', new Date(f.t0Ms).toISOString(), '2026-07-04T22:30:00.000Z');
+      T.eq('a parsed stamp leaves no reason and no zone', JSON.stringify([f.t0Reason, f.offsetMin]), JSON.stringify([null, null]));
+      T.eq('the source is a semantic tag, never a filename', f.source, 'edf');
+      /* The whole path on real bytes: header → decode → epoching → stager → spectrum. A 1 Hz
+         sawtooth is delta-dominant, so both epochs score N3 and the shares nearly fill the band. */
+      var res = D.compute(D.ingestEDF(buildEegEdfBytes({ records: 60 })));
+      T.ok('60 s of real bytes reaches a hypnogram', !res.err, res.err || '');
+      T.eq('two epochs, both scored from the delta-dominant sawtooth', JSON.stringify([res.nEpochs, res.stageCounts]), JSON.stringify([2, { W: 0, N1: 0, N2: 0, N3: 2, REM: 0 }]));
+      T.eq('the EDF provenance reaches the summary', JSON.stringify([res.channel, res.source, res.unit, res.durSec]), JSON.stringify(['EEG C4-A1', 'edf', 'uV', 60]));
+    });
+
+    group('Every EEGDex ingest refusal is named, and the one that throws is named too', 'eegdex · ingest · refusals', function (T) {
+      var D = env.EEGDSP;
+      if (!D) {
+        T.skip('env.EEGDSP available', 'eegdex-dsp.js is not executed by this lane');
+        return;
+      }
+      /* The reader lives in another module, so a realm that did not load it gets a NAMED refusal
+         rather than a null: a silent guard here would turn a load-order bug into "this file holds no
+         EEG". The two stubs are the only way to reach these arms where `CpapEdf` IS loaded. */
+      T.eq('a realm without the EDF reader refuses by name', D.ingestEDF(null, { edf: {} }).reason, 'edf-reader-absent');
+      T.eq(
+        'a reader that returns nothing refuses by name',
+        D.ingestEDF(null, {
+          edf: {
+            readEDF: function () {
+              return null;
+            }
+          }
+        }).reason,
+        'edf-unreadable'
+      );
+      if (!env.CpapEdf) {
+        T.skip('env.CpapEdf available for the byte-level refusals', 'cpapdex-edf.js is not executed by this lane');
+        return;
+      }
+      var press = D.ingestEDF(buildEegEdfBytes({ label: 'Press.40ms' }));
+      T.eq('a file with no EEG label refuses and names what it does hold', JSON.stringify([press.ok, press.reason, press.channels]), JSON.stringify([false, 'no-eeg-channel', ['Press.40ms']]));
+      var named = D.ingestEDF(buildEegEdfBytes(), { channel: 'EEG X' });
+      T.eq('a channel the caller named and the header lacks refuses', JSON.stringify([named.ok, named.reason, named.channels]), JSON.stringify([false, 'named-channel-absent', ['EEG C4-A1']]));
+      /* §∅ — a zero record duration is a MEASUREMENT of "no periodic sampling", and the reader
+         publishes `fs: null` for it. A rate we do not have is not recoverable from a sample count,
+         so the ingest refuses instead of dividing. */
+      T.eq('a zero record duration refuses rather than inventing a rate', D.ingestEDF(buildEegEdfBytes({ recDur: 0 })).reason, 'no-sample-rate');
+      T.eq('a header with no data records refuses as empty', D.ingestEDF(buildEegEdfBytes({ records: 0 })).reason, 'channel-empty');
+      /* The reader refuses an unknown record geometry by THROWING, because samples-per-record is the
+         stride of every signal after it. `ingestEDF` does not catch that, so every caller owes a
+         try/catch — `eegdex-app.js` has one, and this leg is what says the throw is real. */
+      var threw = null;
+      try {
+        D.ingestEDF(buildEegEdfBytes({ blankSpr: true }));
+      } catch (e) {
+        threw = (e && e.message) || String(e);
+      }
+      T.ok('an unreadable samples-per-record field throws out of the ingest', threw != null && /samples-per-record/.test(threw), threw == null ? 'it returned instead of throwing' : threw);
+    });
+
+    group('The EEGDex node export carries one event per stage transition', 'eegdex · export · ganglior', function (T) {
+      var D = env.EEGDSP;
+      if (!D) {
+        T.skip('env.EEGDSP available', 'eegdex-dsp.js is not executed by this lane');
+        return;
+      }
+      var res = D.compute(D.genSynthetic()),
+        ex = D.buildNodeExport(res),
+        ev = ex.ganglior_events,
+        i;
+      T.eq('the export declares the bus schema and the node', JSON.stringify([ex.schema.name, ex.schema.node, ex.schema.bus]), JSON.stringify(['ganglior.node-export', 'EEGDex', 'ganglior']));
+      /* §🔒.6 — `startEpochMs` is the floating t0 and `t` is a date-less wall-clock string. The five
+         authored blocks run in order, so the night is five runs and the export is five events. */
+      T.eq(
+        'the recording block',
+        JSON.stringify(ex.recording),
+        JSON.stringify({ source: 'synthetic', startEpochMs: 1767308400000, offsetMin: null, durSec: 1800, sampleRateHz: 100, channel: 'SYNTH-C4' })
+      );
+      T.eq(
+        'one event per transition, in wall-clock order',
+        ev
+          .map(function (e) {
+            return e.impulse + '@' + e.t;
+          })
+          .join(' '),
+        'stage_w@23:00:00 stage_n1@23:06:00 stage_n2@23:12:00 stage_n3@23:18:00 stage_rem@23:24:00'
+      );
+      for (i = 0; i < ev.length; i++) {
+        /* The engine has no per-epoch confidence to state, so the export writes null. A 0.5 copied
+           out of the hypnogram placeholder would read downstream as a measured confidence. */
+        T.eq('event ' + i + ' states no confidence rather than a placeholder', ev[i].conf, null);
+        T.eq('event ' + i + ' names its node', ev[i].node, 'EEGDex');
+        T.ok('event ' + i + ' carries tMs beside t', ev[i].tMs === res.hypnogram[0].tMs + i * 12 * 30000);
+      }
+      T.eq('the hypnogram ships every epoch, scored or not', ex.sleep.hypnogram.length, 60);
+      T.eq('the sleep block projects the architecture', JSON.stringify([ex.sleep.tstHours, ex.sleep.sleepEfficiencyPct, ex.sleep.n3Pct, ex.sleep.remPct]), JSON.stringify([0.4, 80, 25, 25]));
+    });
+
+    group('The EEGDex surface draws the shares it was given and names the remainder', 'eegdex · render · known-answer', function (T) {
+      var D = env.EEGDSP,
+        U = env.EEGUI;
+      if (!D || !U) {
+        T.skip('env.EEGDSP and env.EEGUI available', 'eegdex-dsp.js or eegdex-render.js is not executed by this lane');
+        return;
+      }
+      var res = D.compute(D.genSynthetic()),
+        bh = U.bandHtml(res),
+        qh = U.qualityHtml(res),
+        hh = U.hypnoHtml(res);
+      T.eq('one bar segment per band that published a share', (bh.match(/eg-seg /g) || []).length, 5);
+      /* The bar is NOT scaled to its own sum, so the note has to state the sum and the remainder.
+         A reader who sees five segments filling the bar would read a proportion that is not there. */
+      T.ok('the note states the measured sum, not 100 %', bh.indexOf('51.7 %, not 100 %') >= 0, bh.slice(0, 240));
+      T.ok('the note names the unfilled part of the bar', bh.indexOf('the share that no band claims') >= 0);
+      T.ok('the note names the epochs the medians cover', bh.indexOf('over 60 of 60 epochs') >= 0);
+      T.eq('one hypnogram cell per epoch', (hh.match(/class="eg-ep/g) || []).length, 60);
+      T.ok('the quality table carries one row per refusal, with its own reason', qh.indexOf('no contact sidecar') >= 0 && qh.indexOf('no spindle detector') >= 0);
+      T.ok('a summary with no spectrum says so instead of drawing an empty bar', U.bandHtml({}).indexOf('No spectrum in this summary') >= 0);
+      T.ok('nothing analyzed renders as nothing analyzed', U.qualityHtml(null).indexOf('Nothing analyzed') >= 0);
+      /* `renderSummary` is the only function here that touches the DOM. In this lane
+         `document.getElementById` returns null and every fill no-ops, so this leg is a THROW test:
+         it is what makes a reference error in the writer red instead of a console line. */
+      var threw = null;
+      try {
+        U.renderSummary(res);
+        U.renderSummary(null);
+      } catch (e) {
+        threw = (e && e.message) || String(e);
+      }
+      T.eq('renderSummary runs over a summary and over nothing without throwing', threw, null);
     });
 
     group('Every runtime source layer is readable by at least one lane', 'cohesion · source-visibility · ratchet', function (T) {
@@ -58931,7 +59256,10 @@
         // motiondex-render.js added 2026-07-19 (DEEP-AUDIT-II §7.8) — already compliant once its
         // badge helper was renamed badge()→evBadge() to match the fleet (the guard's sanctioned-path
         // regex only ever recognised evBadge(), so the local name read as a bare tile).
-        'motiondex-render.js'
+        'motiondex-render.js',
+        // eegdex-render.js joins AT BIRTH (2026-11-09) rather than as unmigrated debt: it was written
+        // against this guard, so every value tile leads with evBadge() and no tile was ever bare.
+        'eegdex-render.js'
       ]; // render files opt in as they migrate (Part C, one at a time; seeded 2026-07-05; the 9 added 2026-07-07 close the remaining bare-tile set — badge leads the value/tile; oxydex+hrvdex rs-val migrated 2026-07-05; integrator-render.js added 2026-07-06 — already compliant, its kpi() leads with evBadge(), locked test-only w/ NO re-bundle)
       var src = env.sources || {};
       // A value tile opens with a value class; it is BADGED if an `.ev ev-` disc / evBadge( / metricValue( /
@@ -61353,7 +61681,24 @@
          answering means a node landed, and the type then owes an emit path and a row in the table
          above — so this is a tripwire on growth, not a prohibition. It fired for `acc` on 2026-10-18,
          when adapters/polar-acc.js routed the ACC to MotionDex; `acc` moved to the table above. */
-      ['hr', 'eeg', 'flow'].forEach(function (t) {
+      /* `eeg` LEFT that set on 2026-11-09. The tripwire fired exactly as it was written to: both
+         lanes now execute `eegdex-dsp.js`, so the resolver answers with the EEGDex namespace. The
+         type still owes an emit path — `canEmit('eeg')` is false and `emitNodeExport` has no `eeg`
+         arm — so it does NOT belong in the table above, which asserts a live emit shim. It gets its
+         own pin instead, holding the honest middle state: a node owns the DSP, and the two
+         orchestrators cannot reach it. Either half moving reds here. */
+      T.ok(
+        'SignalSpec.eeg.dsp() now resolves (EEGDex owns the DSP since 2026-11-09)',
+        !!(SS.eeg && typeof SS.eeg.dsp === 'function' && SS.eeg.dsp()),
+        'the resolver stopped answering — EEGDSP is not in this realm'
+      );
+      T.ok('…and it resolves to the EEGDex namespace itself, not a copy', !!env.EEGDSP && SS.eeg && SS.eeg.dsp() === env.EEGDSP, 'a DIFFERENT object than env.EEGDSP');
+      T.ok(
+        '…while the orchestrators still cannot emit it (the gap, pinned until an emit path lands)',
+        ORCH.canEmit('eeg') === false,
+        'eeg became emittable — give it a row in WANT above and a SHIM_NS entry'
+      );
+      ['hr', 'flow'].forEach(function (t) {
         T.ok('SignalSpec.' + t + '.dsp() is undefined — no node owns it yet (tripwire: wire it above when one does)', SS[t] && SS[t].dsp() === undefined);
       });
     });
@@ -72947,6 +73292,13 @@
            the ones that expose a NAMED global, so they take the ordinary RESOLVE form. Each global was
            verified present in BOTH lanes' env before the entry was written — an entry naming a global that
            does not exist would red for a different reason and read as a classification problem. */
+        /* ── EEGDEX (2026-11-09) ────────────────────────────────────────────────────────────────────
+           `EEGDex.src.html` is the ninth app shell and the first one with no built bundle: the node
+           is not registered, so nothing inlines these two. They take the ordinary RESOLVE form all
+           the same, because the shell loads them and both lanes publish the globals they name —
+           `eegdex-app.js` and `eegdex-render.js` are caught by the two DOM patterns below. */
+        'eegdex-dsp.js': 'EEGDSP',
+        'eegdex-registry.js': 'EEG_REGISTRY',
         'night-seal.js': 'NightSeal',
         'overdex-walk.js': 'OverDexWalk',
         'signal-adapters.js': 'SignalAdapters',
