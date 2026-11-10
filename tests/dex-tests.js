@@ -246,6 +246,46 @@
     return r.status === wanted;
   }
 
+  /* THE NINE REFERENCE GUIDES ARE THE POPULATION EVERY GUIDE LANE SCANS — eight authored at the repo
+     root, plus the generated EEGDex one. Both producers declare this same roster: `readDocs()` in
+     tests/run-tests.mjs and the docs fetch in Dex-Test-Suite.html. Each records an unreadable guide
+     as `null`, so a lost guide stays in the key set and gets NAMED here.
+     Measured 2026-11-09: three guide lanes carried anti-vacuity floors of 7, 6 and 7 over this
+     population of 9. Each one tolerated two or three lost guides and still read green, and the floor
+     could not notice the loss anyway — a producer that omits an unreadable key shrinks the very set
+     the floor counts. Row 2026-11-09-the-reference-guide-anti-vacuity-floors-sit-below-their-population. */
+  var DEX_GUIDE_ROSTER = [
+    'OxyDex Reference.html',
+    'ECGDex Reference.html',
+    'PpgDex Reference.html',
+    'CPAPDex Reference.html',
+    'PulseDex Reference.html',
+    'HRVDex Reference.html',
+    'GlucoDex Reference.html',
+    'MotionDex Reference.html',
+    'EEGDex Reference.html'
+  ];
+
+  /* Census of that roster against one lane's own env.docs map. `present` carries the guides that
+     arrived with text, `absent` names every declared guide that arrived null, empty or keyless, and
+     `extra` names a guide a producer carries that the roster does not declare. The two equalities
+     close in both directions, so neither a producer nor the roster can drift alone. */
+  function dexGuideCensus(docs) {
+    var D = docs || {},
+      present = [],
+      absent = [];
+    for (var i = 0; i < DEX_GUIDE_ROSTER.length; i++) {
+      var k = DEX_GUIDE_ROSTER[i],
+        t = D[k];
+      if (typeof t === 'string' && t.length > 0) present.push(k);
+      else absent.push(k + ' → ' + (k in D ? (t === null ? 'null' : typeof t + ' len ' + (t && t.length)) : 'no key'));
+    }
+    var extra = Object.keys(D).filter(function (k) {
+      return /Reference\.html$/.test(k) && DEX_GUIDE_ROSTER.indexOf(k) < 0;
+    });
+    return { present: present, absent: absent, extra: extra };
+  }
+
   function runDexTests(env) {
     env = env || {};
     var GROUPS = [];
@@ -24302,11 +24342,11 @@
 
     group('every metric card’s tier chip agrees with its data-tier attribute', 'cohesion-badges · guide-tier', function (T) {
       var docs = env.docs || {};
-      var names = Object.keys(docs).filter(function (k) {
-        return / Reference\.html$/.test(k);
-      });
-      T.ok('reference guides are loaded in this lane', names.length >= 7, 'found ' + names.length + ' — the group below would vacuously pass');
-      if (names.length < 7) return;
+      var CEN = dexGuideCensus(docs);
+      T.eq('ANTI-VACUITY · every declared reference guide reached this lane with text', CEN.absent, []);
+      T.eq('…and no producer carries a guide the roster does not declare', CEN.extra, []);
+      var names = CEN.present;
+      if (!names.length) return;
 
       /* attribute value -> [expected chip text, expected chip class]. `null` = attribute absent. */
       var MAP = { secondary: ['Advanced', 'ta'], research: ['Research', 'tr'], null: ['Core', 'tc'] };
@@ -31132,6 +31172,28 @@
       T.eq('…timingSource follows the verdict: two real clocks', indep.timingSource, 'device+host');
       T.eq('…and a derived host column contributes no second clock', inert.timingSource, 'device');
       T.approx('…and the sample spacing equals 1/fs', at10.ok && at10.r.relSec[1] - at10.r.relSec[0], at10.ok && 1 / at10.r.fs, 1e-9);
+      /* ── MUTATION KILL — parsePPG zero-delta fs boundary (mutation lane unit 2) ──
+         ppgdex-dsp.js:1537, `d > 0` mutated to `d >= 0`: a zero ns delta (two rows sharing
+         one device stamp) must be EXCLUDED from the fs median. 44 rows in 22 identical-ns
+         pairs give 22 zero-deltas and 21 eight-ms deltas; the mutant includes the zeros,
+         dragging the median to 0 and leaving fs at its 176 default instead of the measured
+         125. Mutant verified surviving on main 2026-11-09; killed by the test below.
+         The unit's second October target, the `deltas.length > 20` boundary at :1601, is
+         not pinned here: the lazy-lastTs span fallback superseded its fs-at-default
+         contract, and existing coverage already kills that mutant. */
+      var pairRows = function () {
+        var L = [HDR3],
+          start = Date.UTC(2026, 5, 21, 6, 5, 23);
+        for (var i = 0; i < 44; i++) {
+          var pairNs = Math.floor(i / 2) * 8000000;
+          var ms = start + Math.round((i * 1000) / 125);
+          L.push(iso(ms) + ';' + pairNs + ';' + (200000 + i));
+        }
+        return L.join('\n');
+      };
+      var paired = tryParse(pairRows());
+      T.ok('paired-ns file parses', paired.ok, paired.msg);
+      T.eq('zero ns deltas are EXCLUDED from the fs median (ppgdex-dsp.js:1537)', paired.ok && paired.r.fs, 125);
     });
 
     /* ABSENCE IS NOT A FORMAT ERROR — §∅ at PpgDex's parse floor (residue
@@ -86465,11 +86527,11 @@
        would be exactly the borrowed-scope dishonesty the neighbouring gates were written to remove. */
     group('Reference guides — every in-page anchor resolves, no duplicate ids (REFERENCE-GUIDE-AUDIT §5)', 'docs · reference-guides · link-integrity', function (T) {
       var D = env.docs || {};
-      var guides = Object.keys(D).filter(function (f) {
-        return /Reference\.html$/.test(f);
-      });
-      T.ok('ANTI-VACUITY · the reference guides are wired into this lane', guides.length >= 7, 'found ' + guides.length + ' guide(s): ' + guides.join(', '));
-      if (guides.length < 7) return;
+      var CEN = dexGuideCensus(D);
+      T.eq('ANTI-VACUITY · every declared reference guide reached this lane with text', CEN.absent, []);
+      T.eq('…and no producer carries a guide the roster does not declare', CEN.extra, []);
+      var guides = CEN.present;
+      if (!guides.length) return;
       var dead = [],
         dup = [],
         nAnchor = 0,
@@ -87004,11 +87066,11 @@
      anti-vacuity legs below prove that stripping happened rather than assuming it. */
     group('Reference guides: no correction history in RENDERED text (the registry gate could not see this)', 'docs · citations · guide-prose', function (T) {
       var docs = env.docs || {};
-      var GUIDES = Object.keys(docs).filter(function (k) {
-        return /Reference\.html$/.test(k);
-      });
-      T.ok('ANTI-VACUITY · the reference guides are wired into env.docs', GUIDES.length >= 6, GUIDES.length + ' guide(s): ' + GUIDES.join(', '));
-      if (GUIDES.length < 6) return;
+      var CEN = dexGuideCensus(docs);
+      T.eq('ANTI-VACUITY · every declared reference guide reached env.docs with text', CEN.absent, []);
+      T.eq('…and no producer carries a guide the roster does not declare', CEN.extra, []);
+      var GUIDES = CEN.present;
+      if (!GUIDES.length) return;
 
       /* Rendered text = what a reader sees. Comments, <script> and <style> are NOT rendered, so they
          are removed before the scan — deliberately, per the header. */
@@ -90192,6 +90254,24 @@
         return { t: r.t, hr: r.hr, spo2: r.spo2, motion: 0 };
       });
       T.ok('B2 · CONTROL · with motion read the estimate still exists', !!B.computeSleepStageProxy(rows0));
+      /* ∅ the window bookkeeping. A skipped window is counted under the name of the absence that
+         dropped it, and the counts close over the windows the loop offered. Before this, the output
+         published `classifiedWindows` only while the HR COLUMN held an absent sample, so a night
+         with a complete HR column and an unreadable motion span named nothing. */
+      var spFull = B.computeSleepStageProxy(rows0);
+      T.eq('B2 · a fully examined night publishes no window annotation', JSON.stringify(!!spFull && spFull.offeredWindows === undefined && spFull.classifiedWindows === undefined), 'true');
+      var rowsHole = rows0.map(function (r, i) {
+        return i >= 600 && i < 1200 ? { t: r.t, hr: r.hr, spo2: r.spo2, motion: null } : r;
+      });
+      var spHole = B.computeSleepStageProxy(rowsHole);
+      T.ok(
+        'B2 · an unreadable motion span names itself, over a complete HR column',
+        !!spHole && spHole.motionAbsentWindows > 0 && spHole.offeredWindows > 0,
+        'spHole=' + JSON.stringify(spHole && { cls: spHole.classifiedWindows, off: spHole.offeredWindows, mot: spHole.motionAbsentWindows, hr: spHole.hrSparseWindows })
+      );
+      if (spHole && spHole.offeredWindows != null) {
+        T.eq('B2 · every offered window is classified or named as a skip', spHole.classifiedWindows + spHole.motionAbsentWindows + spHole.hrSparseWindows, spHole.offeredWindows);
+      }
       // d465645b6edd — an unentered age is ASSUMED, named, and costs confidence
       var vA = B.computeVO2maxEstimate(rows0, { rmssd: 2, hrFloor: 52 }, null, null, undefined);
       var vE = B.computeVO2maxEstimate(rows0, { rmssd: 2, hrFloor: 52 }, null, null, 49);

@@ -4840,7 +4840,17 @@ def test_clock_watchdog_stops_chasing_an_uncorrectable_offset(monkeypatch):
         "time": {"drift_check_sec": 1, "resync_jump_sec": 30},
         "devices": [{"name": "Verity", "vendor": "Polar", "address": "AA"}],
     }
-    _stop_after(monkeypatch, 12)  # ~12 drift-check cycles
+    # A landed sync clears the skew floor (`_clock_sync_landed`). The device's next frames form it again
+    # at the same skew, so each cycle restores it here, as run_polar does.
+    calls = {"n": 0}
+
+    async def fake_sleep(_secs):
+        calls["n"] += 1
+        capture.STATUS["devices"]["Verity"]["clock_skew_floor_sec"] = 14400.0
+        if calls["n"] >= 12:  # ~12 drift-check cycles
+            capture._STOP.set()
+
+    monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
     _run(capture.clock_watchdog(cfg))
     assert len(syncs) == capture.CLOCK_ADRIFT_GIVEUP, (
         f"expected exactly {capture.CLOCK_ADRIFT_GIVEUP} attempts, got {len(syncs)}"
@@ -9147,6 +9157,50 @@ def test_alert_poller_stays_QUIET_for_a_ring_that_powered_off_after_a_completed_
     capture._IDLE_TIMER_NAMED.discard("O2Ring")
     # Owner 2026-11-01: the end of a night is reported, ONCE, as a note and never as an offline alarm.
     assert sent == ["Tepna: O2Ring night ended"], sent
+
+
+def test_alert_poller_gives_NO_licence_for_a_pull_that_came_before_the_stream(monkeypatch):
+    """MEASURED on the capture box 2026-11-08: a Sense pull completed at 21:10, its stream began at 21:19,
+    and at about 04:16 the box named the idle timer and sent "night ended" after "a completed pull". The
+    poller must pass the stream start to the predicate."""
+    sent = []
+
+    class _N:
+        enabled = True
+
+        async def send(self, title, message, **kw):
+            sent.append(title)
+            return True
+
+    nm = "Polar Sense TEST0001"
+    cfg = {"alerts": {"poll_sec": 1, "offline_sec": 3600}, "devices": [_dev(name=nm)]}
+    clock = {"t": 2000.0}
+    capture.STATUS["devices"][nm] = {"connected": True}
+    capture._LAST_DATA[nm] = 2000.0  # recording on the first poll: the stream begins at 2000
+    capture._WORN_SINCE.pop("AA:BB:CC:DD:EE:01", None)
+    capture._IDLE_TIMER_NAMED.discard(nm)
+    capture._LAST_PULL_OK[nm] = 1460.0  # the pull completed 9 min BEFORE the stream began
+    calls = {"n": 0}
+
+    async def fake_sleep(_s):
+        calls["n"] += 1
+        if calls["n"] == 2:  # one poll sees the stream, then the device goes silent 10 min later
+            clock["t"] += 600
+            capture.STATUS["devices"][nm] = {"connected": False}
+        if calls["n"] >= 4:
+            capture._STOP.set()
+
+    monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
+    monkeypatch.setattr(capture._time, "monotonic", lambda: clock["t"])
+    monkeypatch.setattr(capture._time, "time", lambda: 5_000_000.0 + clock["t"])
+    try:
+        _run(capture.alert_poller(cfg, _N()))
+        assert nm not in capture._IDLE_TIMER_NAMED
+        assert not any("night ended" in t for t in sent), sent
+    finally:
+        capture._LAST_PULL_OK.pop(nm, None)
+        capture._LAST_DATA.pop(nm, None)
+        capture._IDLE_TIMER_NAMED.discard(nm)
 
 
 def test_alert_poller_names_a_polar_power_off_without_calling_it_a_ring(monkeypatch, caplog):

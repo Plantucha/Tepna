@@ -471,7 +471,7 @@ def chosen_rate(meas: int, settings: dict[int, list[int]], prefer: int | None = 
 
 
 def build_start(meas: int, settings: dict[int, list[int]], prefer: int | None = None) -> bytes | None:
-    """Build a START from the device's OWN reported settings (get_settings): preferred-or-max sample rate,
+    """Build a START from the device's OWN reported settings (get_settings): preferred-or-nearest rate,
     first offered resolution/range, and the device-reported channel count. Only settings the device
     actually reports are included — so ECG (no channels/range) gets none. Falls back to the fixed table."""
     if not settings:

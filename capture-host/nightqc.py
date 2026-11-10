@@ -966,6 +966,27 @@ def pmd_negotiations(night_dir: str) -> dict:
     return out
 
 
+# The highest PPG rate a Verity streams OUTSIDE SDK mode. A start above it is the witness of SDK mode,
+# where the device serves no PPI and no HR (briefs/POLAR-ONBOARD-BACKUP-2026-08-01-BRIEF.md).
+VERITY_NORMAL_PPG_MAX_HZ = 55
+_SDK_ONLY_ABSENT_STREAMS = ("ppi", "hr")
+
+
+def sdk_mode_witnessed(night_dirs) -> set[str]:
+    """The devices whose every agreed PPG start in `night_dirs` ran above `VERITY_NORMAL_PPG_MAX_HZ`.
+
+    The witness is the rate the device AGREED TO in `PMDNEG.csv`, never the config. A device with no
+    agreed PPG start, or with one start at or below 55 Hz, is not in the set, so its absent PPI still
+    reads as absent. Measured on the capture box 2026-11-08: the Sense started PPG at 176 Hz, served
+    no PPI, and the QC digest reported a FAIL for a stream the device does not serve in that mode."""
+    rates: dict[str, set[int]] = {}
+    for nd in night_dirs:
+        for (dev, stream), rec in pmd_negotiations(nd).items():
+            if stream == "ppg" and rec["chosen"] is not None:
+                rates.setdefault(dev, set()).add(rec["chosen"])
+    return {dev for dev, hz in rates.items() if min(hz) > VERITY_NORMAL_PPG_MAX_HZ}
+
+
 def rate_reality(night_dir: str, devices: list[dict]) -> list[dict]:
     """Per stream: the rate ASKED FOR against the rate the file actually carries.
 
@@ -3926,6 +3947,8 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None, wri
     unreadable: list[str] = []
     degraded = []
     optional_absent: list[str] = []
+    not_served: list[str] = []
+    _sdk_devices = sdk_mode_witnessed(searched)
     # Read every stream's ACTUAL rate once, up front: the coverage loop below divides by it, and the
     # same rows are reported as `rates` so a mismatch against the config is visible on its own terms.
     _rate_rows = rate_reality(night_dir, devices)
@@ -4030,6 +4053,11 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None, wri
                 continue
             rows = known_rows(_mine)
             streams[s] = rows
+            if rows == 0 and s in _SDK_ONLY_ABSENT_STREAMS and name in _sdk_devices:
+                # A stream the device does not serve in SDK mode is not a gap. It stays out of
+                # `missing` and is surfaced in `not_served` with the witness that decided it.
+                not_served.append(f"{name}:{s} (SDK mode: PPG started above {VERITY_NORMAL_PPG_MAX_HZ} Hz)")
+                continue
             if rows == 0:
                 # An OPTIONAL backup device that did not join is EXPECTED, not a gap — it stays out of
                 # `missing` and does not make `ok` False (VIGIL: known-but-not-expected). Surfaced in
@@ -4221,6 +4249,7 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None, wri
             # from the length of a gap list.
             "sessions_judged": _sessions_judged,
             "optional_absent": optional_absent,
+            "not_served": not_served,
             # Every session on this night, oldest first — so `span_sec`/`coverage`/`missing`/`silent_sec`
             # being CURRENT-session-scoped is visible rather than implied.
             "sessions": [{"start": round(s[0]), "end": round(s[1]), "rows": known_rows(s[2])} for s in sessions],

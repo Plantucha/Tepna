@@ -378,8 +378,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "715a67f14560",
-          "computeHash": "58f7657ae6e1"
+          "manifestHash": "40d79fe5b9bc",
+          "computeHash": "e73a9f0ef239"
         },
         "evidence": {
           "envelopeRef": null,
@@ -407,8 +407,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "715a67f14560",
-          "computeHash": "58f7657ae6e1"
+          "manifestHash": "40d79fe5b9bc",
+          "computeHash": "e73a9f0ef239"
         },
         "evidence": {
           "envelopeRef": null,
@@ -436,8 +436,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "715a67f14560",
-          "computeHash": "58f7657ae6e1"
+          "manifestHash": "40d79fe5b9bc",
+          "computeHash": "e73a9f0ef239"
         },
         "evidence": {
           "envelopeRef": null,
@@ -465,8 +465,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "715a67f14560",
-          "computeHash": "58f7657ae6e1"
+          "manifestHash": "40d79fe5b9bc",
+          "computeHash": "e73a9f0ef239"
         },
         "evidence": {
           "envelopeRef": null,
@@ -1205,7 +1205,10 @@
         "nremDeepLabel": "Low deep sleep estimate",
         "hrCoveredN": 21794,
         "hrSpanN": 21804,
-        "classifiedWindows": 180
+        "classifiedWindows": 180,
+        "offeredWindows": 180,
+        "motionAbsentWindows": 0,
+        "hrSparseWindows": 0
       },
       "vo2est": {
         "vo2est": 58.3,

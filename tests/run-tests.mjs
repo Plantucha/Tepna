@@ -2767,15 +2767,18 @@ function readDocs() {
     'papers/sensor-trio-nights.html'
   ];
   const out = {};
+  /* An unreadable artifact is recorded as `null`, never left out (CLAUDE.md §∅). Omitting the key
+     shrinks the population each guide lane reads its own anti-vacuity leg against, so a lost guide
+     used to make every leg below it read green over a smaller set. */
   for (const f of wanted) {
     const p = join(ROOT, f);
-    if (existsSync(p)) out[f] = readFileSync(p, 'utf8');
+    out[f] = existsSync(p) ? readFileSync(p, 'utf8') : null;
   }
   // GENERATED EEGDex guide (codegen output) — keyed by the conventional doc name the
   // cohesion-badges NODES list uses, read from its generated path. Proves the
   // manifest→guide projection conforms to the generated registry (single-source).
   const eegGuide = join(ROOT, 'codegen/generated/eegdex-reference.html');
-  if (existsSync(eegGuide)) out['EEGDex Reference.html'] = readFileSync(eegGuide, 'utf8');
+  out['EEGDex Reference.html'] = existsSync(eegGuide) ? readFileSync(eegGuide, 'utf8') : null;
   return out;
 }
 

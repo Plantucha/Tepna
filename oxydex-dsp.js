@@ -1885,6 +1885,10 @@
        same direction as the absence defect this change is about. 60 of 5400 is 1.1 %, so no epoch a
        real recording produces is touched. */
     var NSI_MIN_HR_SAMPLES = 60;
+    /* ∅ The same count and the same citation for the other two legs, under its own name so a
+       later change to one leg's support does not silently move another's. A share needs at least
+       the support a mean does. */
+    var NSI_MIN_EPOCH_SAMPLES = 60;
     var intraNightNSI = [];
     for (var e = 0; e < 3; e++) {
       var start = e * EPOCH,
@@ -1902,9 +1906,8 @@
          (2466 of 26998, 9.1 %): `[41, 5, 9]` became `[60, 26, 29]` — absence read as INSTABILITY.
          The statistic now follows the convention this file states for SpO2: over the samples that
          EXIST, with the MEASURED count as the denominator. A fully measured epoch is unchanged.
-         NOT FIXED HERE, and logged rather than carried: the other two legs of this same average read
-         absence as a measurement too. `null < 95` is TRUE, so an absent SpO2 sample counts as below
-         95, and `r.motion > 0` is FALSE for null, so an absent motion sample counts as stillness. */
+         The other two legs of this same average carried the same defect, and #4725 logged them
+         rather than repairing them. They are repaired below, on this same convention and floor. */
       var segHr = seg.map(function (r) {
         return r.hr;
       });
@@ -1913,24 +1916,39 @@
          the epoch measured nothing, and its `n` is the measured count the floor above reads. */
       var _segHrStat = _avgPresent(segHr);
       var _segHrSd = _segHrStat && _segHrStat.n >= NSI_MIN_HR_SAMPLES ? _sdPresent(segHr) : null;
-      var segN = seg.length;
+      /* ∅ THE MEASURED SAMPLES, not the rows — this file's own convention, stated beside
+         `nSpo2`: "every rate below divides by the measured count". `null < 95` is TRUE and
+         `null > 0` is FALSE, so each absent SpO2 sample counted as a second below 95 and each
+         absent motion sample counted as a still second, both over the unchanged row count. Absence
+         pushed the T95 leg UP and the motion leg DOWN, and the index moved with no sample behind the
+         move. The whole-column cases were already suppressed, at `_motionUnusable` for motion and
+         `_hrAbsent` for HR; scattered dropout inside a night that measures elsewhere never reaches
+         either branch, and that is the common shape.
+         Measured on the real night `...20260503210952` at n=26998. Nulling SpO2 over rows 4000 to
+         12000 took `[41, 5, 9]` to `[42, 37, 33]`; the same window of motion, varying rather than
+         absent, reads `[64, 38, 28]`, so the motion leg carries up to 33 points of this index. Rows
+         `2026-11-09-mini-nsi-counts-absent-spo2-as-a-desaturated-second` and
+         `2026-11-09-the-nsi-motion-null-guard-tests-the-whole-column-only` hold both measurements.
+         A fully measured epoch is unchanged: with no absent sample the measured count equals the row
+         count, and both rates are what they were. */
+      var _segSpo2Measured = segSpo2.filter(_has);
+      var _segMotMeasuredN = 0,
+        _segMotMovingN = 0;
+      for (var _mi = 0; _mi < seg.length; _mi++) {
+        if (!_has(seg[_mi].motion)) continue;
+        _segMotMeasuredN++;
+        if (seg[_mi].motion > 0) _segMotMovingN++;
+      }
       // Mini-NSI: T95 + HR variance + motion
-      var segT95 = segN
-        ? (segSpo2.filter(function (v) {
-            return v < 95;
-          }).length /
-            segN) *
-          100
-        : 0;
-      var segMot = segN
-        ? (seg.filter(function (r) {
-            return r.motion > 0;
-          }).length /
-            segN) *
-          100
-        : 0;
-      var t95Norm = Math.min(1, segT95 / 30);
-      var motNorm = Math.min(1, segMot / 30);
+      var segT95 =
+        _segSpo2Measured.length >= NSI_MIN_EPOCH_SAMPLES
+          ? (_segSpo2Measured.filter(function (v) {
+              return v < 95;
+            }).length /
+              _segSpo2Measured.length) *
+            100
+          : null;
+      var segMot = _segMotMeasuredN >= NSI_MIN_EPOCH_SAMPLES ? (_segMotMovingN / _segMotMeasuredN) * 100 : null;
       /* ∅ `?? 0` WOULD BE THE BUG AGAIN. An epoch that measured no heart rate at all has no HR
          leg, and a 0 there is the best stability the scale can express — which is how this metric
          came to read an absent pulse as a calm one. `_hrAbsent` only catches a night whose WHOLE
@@ -1944,8 +1962,13 @@
          how much of THAT window it read — a share. This leg reduces a 90-minute epoch to one number,
          where the question is whether the SD has support at all — a count, and the count the
          5-minute binner already states. Both refuse rather than annotate, because an epoch and a
-         window are COMPONENTS of their output, not samples of it. */
-      var miniNSI = _segHrSd == null ? null : Math.min(100, Math.round(((t95Norm + Math.min(1, _segHrSd / 20) + motNorm) / 3) * 100));
+         window are COMPONENTS of their output, not samples of it.
+         ALL THREE LEGS NOW REFUSE ON THEIR OWN FLOOR, so this average never mixes a measured leg
+         with an absent one. The owner's 2026-10-11 framing, recorded where `_motionUnusable` nulls
+         this array, rules out a renormalisation over the legs that remain: an index of two legs
+         sharing a name with an index of three changes identity between nights. */
+      var miniNSI =
+        _segHrSd == null || segT95 == null || segMot == null ? null : Math.min(100, Math.round(((Math.min(1, segT95 / 30) + Math.min(1, _segHrSd / 20) + Math.min(1, segMot / 30)) / 3) * 100));
       intraNightNSI.push(miniNSI);
     }
 
@@ -7342,7 +7365,13 @@
     var remSec = 0,
       nremDeepSec = 0,
       classified = 0;
+    /* ∅ the two guards below drop a window for two DIFFERENT absences, and the output used to
+       name neither. Count each one under its own name, because a borrowed reason is not a reason. */
+    var offered = 0,
+      motionAbsentWindows = 0,
+      hrSparseWindows = 0;
     for (var i = WIN; i < n - WIN; i += WIN) {
+      offered++;
       var seg = rows.slice(i, i + WIN);
       // ∅ ABSENCE-SURVEY 12fb862b4f54: a window with an UNREAD motion value is neither still nor moving — it
       // cannot be classified. With none classifiable (no motion column at all), `remPct` was published as 0.0,
@@ -7351,8 +7380,10 @@
         !seg.every(function (r) {
           return r.motion != null && isFinite(r.motion);
         })
-      )
+      ) {
+        motionAbsentWindows++;
         continue;
+      }
       /* ∅ a window whose heart rate nobody measured cannot be classified either, and the criterion
          below is BUILT from HR. It takes the same path as the motion guard above, and before
          `classified++`, so a night with no measured HR reaches `classified === 0` and refuses.
@@ -7376,6 +7407,7 @@
          exists to stop. It is a coverage requirement, never a threshold read off the values it
          judges (§🧾), and it is the same purpose `_FFT_MIN_COVERAGE` serves in this file. */
       if (!_segAvg || _segAvg.n < WIN * STAGE_MIN_HR_COVERAGE) {
+        hrSparseWindows++;
         continue;
       }
       classified++;
@@ -7434,12 +7466,36 @@
        `classifiedWindows` says what the split itself rests on. Conditional assignment, the
        EXPORT-INVARIANCE convention used throughout this file, so a night whose every row carries a
        pulse exports byte-identically.
-       NOT FIXED HERE, and logged rather than carried: a window the MOTION guard above drops is
-       counted nowhere either, so this annotates the HR half of a gap that has two halves. */
+       The gap had two halves, and the MOTION half is now carried below. */
     if (_hrAllAvg.n < n) {
       out.hrCoveredN = _hrAllAvg.n;
       out.hrSpanN = n;
+    }
+    /* ∅ REDUCED COVERAGE ANNOTATES, the second half. `classifiedWindows` used to sit in the block
+       above, so it reached a reader only when the HR COLUMN held an absent sample. A night with a
+       complete HR column and an absent motion column skipped windows and published no key at all.
+       The condition is now the UNION: the sample-level absence that published it before, or a
+       window-level skip. Nothing main publishes disappears. `offeredWindows` travels beside it,
+       because a bare `classifiedWindows` of 226 does not say whether 2 windows went unexamined or
+       2000, and `motionAbsentWindows` plus `hrSparseWindows` say WHICH absence dropped them.
+       Measured 2026-11-09 over 49 O2Ring CSV nights: 0 nights skip a window for motion, 5 skip 1
+       or 2 windows for sparse HR, and the committed `_gap` and `_lossy` files examine 74 % and
+       83 % of their windows. Those two publish `remProxyPct` 50.0 and 56.7, against 69.8 and 70.8
+       over the span they examined, so the dilution reaches 19.8 points with no key naming it.
+       ⚠ THE DENOMINATOR OF `remProxyPct` STAYS `n`, THE WHOLE RECORDING. It is the metric's
+       definition, not an absence: on a night that examines EVERY window the two denominators still
+       differ by 2.3 points, because the loop never offers the first window, the last window or the
+       tail remainder. `REM_CEILING_PCT` is pre-stated against the recording, and
+       `integrator-dsp.js` reads `remProxyPct / 100` as `remFraction`. A new denominator is a
+       change of a metric's identity (§📦 MAJOR), and it needs its own brief.
+       NOT FIXED HERE: no floor guards the examined share. A night that classifies 3 of 228 windows
+       still publishes a share of the recording. A floor read off this corpus would be fitted to the
+       data it judges (§🧾), so the floor needs a pre-stated value nobody has stated. */
+    if (_hrAllAvg.n < n || classified < offered) {
       out.classifiedWindows = classified;
+      out.offeredWindows = offered;
+      out.motionAbsentWindows = motionAbsentWindows;
+      out.hrSparseWindows = hrSparseWindows;
     }
     return out;
   }
