@@ -2993,6 +2993,63 @@ function __mkWorker(name){ return new Worker(URL.createObjectURL(new Blob([__WSR
     return sxy / Math.sqrt(sx * sy);
   }
 
+  /* Pearson r that REFUSES a degenerate series. ∅: a constant series has no correlation to report,
+     so this returns `null` where `pearson` above divides 0 by 0 and returns NaN. The difference is
+     load-bearing for `h10FailureClass` below, which reads `rHO == null` as "no correlation" — a NaN
+     fails that test AND every `< 0.5` comparison, so a NaN r classifies a lead-faulted night as 'ok'.
+     The two trio lanes each carried a private copy until 2026-11-10, and they had already diverged on
+     exactly this point: the worker's guarded, the page's did not. */
+  function pearsonOrNull(x, y) {
+    var mx = mean(x),
+      my = mean(y),
+      sxy = 0,
+      sx = 0,
+      sy = 0;
+    for (var i = 0; i < x.length; i++) {
+      var dx = x[i] - mx,
+        dy = y[i] - my;
+      sxy += dx * dy;
+      sx += dx * dx;
+      sy += dy * dy;
+    }
+    return sx > 0 && sy > 0 ? sxy / Math.sqrt(sx * sy) : null;
+  }
+
+  /* ══ H10 (ECG) CORNER GATE — the single source for both trio lanes ══════════════ */
+  /* Classify WHETHER the H10 (ECG) corner is trustworthy on a night — pure, so the suite binds it
+     numerically (tests/dex-tests.js "H10 corner gate"). The SYMMETRIC sibling of the Verity gate, for
+     the OTHER corner. Moved here from sensor-trio-worker.js on 2026-11-10: that file and
+     sensor-trio-power-analysis.js each carried a copy and no gate executed either one.
+
+     WHY H10 needs its own gate: TCH's negative-variance failure ALREADY nulls H10 first on shared-error
+     nights (it is the smallest-true-σ corner, so σ²_h10=σ_h(σ_h−ρσ_partner) crosses zero soonest), but a
+     DIFFERENT failure — a bad ECG lead for a whole night (poor electrode contact / motion) — yields a
+     large POSITIVE σ_h10 that TCH faithfully reports (real corpus: 2026-06-12 σ_h10≈9.5 bpm, CI
+     7.2–11.7, n≈18.7k). That is a genuine ~9 bpm ECG error, not a device σ, and with no gate it
+     silently inflates the H10 aggregate (a lone outlier ~8× the next-highest real night).
+
+     The fingerprint is specific and MEASURED on the corpus, so the gate fires on 06-12 alone:
+       (1) σ_h10 implausibly large — every healthy real night is ≤1.25 bpm; the fault is 9.5. Threshold 5
+           sits in the wide empty gap (same "wide of the observed band" philosophy as the Verity gate).
+       (2) H10 has decorrelated from BOTH partners — rHO<0.5 AND rHV<0.5 (06-12: 0.43 / 0.38; every
+           healthy night ≥0.79), i.e. H10 stopped tracking the true HR.
+       (3) O2 & Verity STILL agree — rVO≥0.5 (06-12: 0.85). This is the guard that makes it H10-specific:
+           it rejects the Verity-noisy nights (06-29 rVO=0.31, 07-02 rVO=0.21) where rHV is also low but
+           the bad corner is VERITY, not H10 (and there σ_h10 is a healthy ~0.65, so (1) already spares
+           them).
+
+     Because a decorrelated H10 error is INDEPENDENT, it cancels out of the O2/Verity TCH estimates
+     (σ²_o2=½(V_HO+V_VO−V_HV) — the inflated H10 terms cancel), so those two corners stay valid. Hence
+     the caller nulls ONLY the H10 corner and KEEPS the night — unlike the Verity gate, whose
+     harmonic-doubled corner is a partially-CORRELATED corruption that compromises the whole solve, so
+     that one skips the night. Feed it `pearsonOrNull`, never `pearson`. */
+  function h10FailureClass(sigmaH10, rHO, rHV, rVO) {
+    if (sigmaH10 == null || sigmaH10 <= 5) return 'ok'; // plausible ECG σ (corpus ≤1.25)
+    var bothLow = (rHO == null || rHO < 0.5) && (rHV == null || rHV < 0.5); // H10 decorrelated from both
+    var pairAgrees = rVO != null && rVO >= 0.5; // ...while O2 & Verity still agree
+    return bothLow && pairAgrees ? 'ecg-lead-fault' : 'ok';
+  }
+
   /* ══ CORRELATION DECOMPOSITION — cgm-hrv-coupling-analysis.js ══════════════════ */
   // Pearson r with n, Fisher-z 95% CI, and the regression slope.
   function pearsonCI(xs, ys) {
@@ -3265,6 +3322,8 @@ function __mkWorker(name){ return new Worker(URL.createObjectURL(new Blob([__WSR
     tchRhoCrit: tchRhoCrit,
     blandAltman: blandAltman,
     pearson: pearson,
+    pearsonOrNull: pearsonOrNull,
+    h10FailureClass: h10FailureClass,
     // correlation decomposition
     pearsonCI: pearsonCI,
     partialCorr: partialCorr,
