@@ -148,8 +148,8 @@ function loadDsps() {
 }
 
 /* ── beat derivation: ported from pat-feasibility-worker.js ───────────────────────────────────────
-   `opts.axis` (ADDITIVE — omitted ⇒ byte-identical to every existing caller):
-     'linear' / omitted — R time = t0Ms + i/fs·1000, the historical form. `fs` may carry the DSP's
+   `opts.axis` (omitted ⇒ `counter`, the default since the PR #4783 flip):
+     'linear' — R time = t0Ms + i/fs·1000, the historical form, explicit opt-in only. `fs` may carry the DSP's
        single-RATE host correction; a step or any non-linear divergence stays in the times.
      'piecewise' — R time = rec.tMsAt(i), the DSP's own host-disciplined position map (raw device
        rate + hostAxis interpolation; ecgdex-dsp.js builds it — H_axis pre-registration,
@@ -190,10 +190,11 @@ function ecgCounterTimeMs(rec, pos) {
    `pat-hrv-windows.mjs` and `pat-window-scaling.mjs`, whose private copies the row named.
    It is PURE in `rec` — `t0Ms`, `fs`, `tMsAt` and `devMsAt` all ride on the parsed record — so a
    caller that already built its own headless realm imports it without loading a second DSP spine.
-   The DEFAULT stays `linear`. Owner ruling 2 (2026-11-06) is measure first: the flip waits on what
-   2026-07-24's worse narrowSD is, and until then no caller's number moves by taking this path. */
+   The DEFAULT is `counter` since the flip (PR #4783, owner-accepted): omitted `opts.axis` times
+   beats on the H10 sample counter. Owner ruling 2 (2026-11-06) was measure first — the flip waited
+   on the measurement, and `linear` stays available as an explicit opt-in. */
 function rPeakTimesOnAxis(rec, positions, opts) {
-  const axis = opts && opts.axis ? opts.axis : 'linear';
+  const axis = opts && opts.axis ? opts.axis : 'counter';
   if (axis !== 'linear' && axis !== 'piecewise' && axis !== 'counter') throw new Error('rPeakTimesOnAxis: axis is linear, piecewise or counter, never ' + axis);
   const piecewise = axis === 'piecewise';
   const counter = axis === 'counter';

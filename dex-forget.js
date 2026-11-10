@@ -59,6 +59,9 @@
     // per-node saved data / settings
     'hrvdex_rows_v1',
     'hrvdex_dashMode',
+    // pre-tier dashboard modes that metric-registry.js getTier() reads and migrates forward, never deletes
+    'oxydex_dashMode',
+    'o2r_dashMode',
     'glucodex_meals',
     'glucodex_calib',
     'glucodex_dispUnit',
