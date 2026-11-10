@@ -11085,6 +11085,74 @@
         T.ok('§3.4: the always-on leg lifts block conf 0.80 → 0.86 (unconditional uplift)', Math.abs(onFires.blocks[0].conf - 0.86) < 0.003, 'conf=' + onFires.blocks[0].conf);
     });
 
+    /* ∅ · THE INTEGRATOR SUBSTITUTED A NUMBER FOR AN ABSENT EVENT CONFIDENCE, in the fusion and
+       on the cross-night timeline. `crossnight-envelope.js` validates an incoming
+       `ganglior_events[].conf` as "0..1 or null", and importing a foreign node-export is an
+       intended workflow, so both sites are reachable. The fusion published 0.6 per observer and a
+       noisy-OR over it; the timeline drew the same tick a measured 0.5 draws, because both the
+       height and the opacity are functions of `conf`. Each leg below carries a stated-confidence
+       control, so a blanket null in the producer reds this group too. */
+    group('Integrator — ∅ an absent event confidence is not a measured one', 'integrator-absence', function (T) {
+      var A = env.adaptEnvelopeNode,
+        FPB = env.fusePeriodicBreathing,
+        TG = env.IntegratorRender && env.IntegratorRender.tickGeom;
+      if (typeof FPB !== 'function' || typeof A !== 'function') {
+        T.ok('fusePeriodicBreathing + adaptEnvelopeNode present', false, 'the integrator realm did not load');
+        return;
+      }
+      var t0 = U(2026, 5, 7, 22, 0, 0);
+      var pbRec = function (node, conf, extra) {
+        var rec = {
+          schema: { node: node },
+          recording: { startEpochMs: t0, durationMin: 480, offsetMin: null, sessions: node === 'CPAPDex' ? [{ mode: 'CPAP' }] : undefined },
+          ganglior_events: [
+            { t: '22:30:00', tMs: t0 + 1800000, impulse: 'periodic_breathing', node: node, conf: conf, meta: {} },
+            { t: '23:10:00', tMs: t0 + 4200000, impulse: 'periodic_breathing', node: node, conf: conf, meta: {} }
+          ]
+        };
+        if (extra) rec.metrics = extra;
+        return A(rec, node, node.toLowerCase() + '.json');
+      };
+      /* No `periodicBreathingPct` on either record, so the episodes' own `conf` is the only source
+         of a confidence and the null case has nowhere else to read one from. */
+      var absent = FPB(pbRec('OxyDex', null).concat(pbRec('CPAPDex', null))),
+        stated = FPB(pbRec('OxyDex', 0.62).concat(pbRec('CPAPDex', 0.8))),
+        bA = absent && absent.blocks && absent.blocks[0],
+        bS = stated && stated.blocks && stated.blocks[0];
+      T.ok('the null-confidence night still produced one corroborated block', !!(bA && bA.nObservers === 2), JSON.stringify(bA && bA.observerNodes));
+      T.ok('the control night produced one too', !!(bS && bS.nObservers === 2), JSON.stringify(bS && bS.observerNodes));
+      if (bA && bS) {
+        T.eq('the fused confidence states the absence', bA.conf, null);
+        T.eq(
+          'every observer states it as well',
+          (bA.sources || []).map(function (s) {
+            return s.conf;
+          }),
+          [null, null]
+        );
+        T.eq('both observers were examined by that count', (bA.sources || []).length, 2);
+        T.ok('a stated confidence still fuses to a number', typeof bS.conf === 'number' && bS.conf > 0 && bS.conf <= 0.97, 'conf=' + bS.conf);
+        T.ok(
+          'each control observer carries its own number',
+          (bS.sources || []).every(function (s) {
+            return typeof s.conf === 'number';
+          })
+        );
+      }
+      if (typeof TG !== 'function') {
+        T.ok('IntegratorRender.tickGeom present', false, 'export the pure tick geometry so the absent case can be pinned in both lanes');
+      } else {
+        T.eq('a stated 0.5 keeps the height it always drew', TG(0.5).h, 15);
+        T.eq('a stated 0.5 keeps the opacity it always drew', TG(0.5).op, '0.63');
+        T.eq('a stated 0.5 draws no outline', TG(0.5).outline, false);
+        T.eq('an absent confidence draws one fixed height instead', TG(null).h, 14);
+        T.eq('an absent confidence draws no fill', TG(null).op, '0');
+        T.eq('an absent confidence draws an outline', TG(null).outline, true);
+        T.eq('a non-finite confidence is absent too', TG(NaN).outline, true);
+        T.ok('the absent mark differs from the mark a measured 0.5 draws', TG(null).h !== TG(0.5).h && TG(null).op !== TG(0.5).op);
+      }
+    });
+
     /* DEEP-AUDIT-III §6.1 — an ABSTENTION IS NOT AN AGREEMENT.
        ECGDex's ACC motion vote is explicitly tri-state (the exported method string says
        "Wake>20 / Ambiguous 5–20 / Sleep<5"): the middle state is the accelerometer DECLINING to
@@ -94852,6 +94920,59 @@
         // render as 100 % — a ratio with no denominator is unknown, not complete.
         T.ok('§2.3 · …and a null recordedFrac renders as an em-dash, never as complete', /frac == null \? '—'/.test(_ir));
       }
+    });
+
+    /* ════ The OxyDex ADAPTER carries the declared coverage ════
+       Row 2026-11-08-the-integrator-ignores-oxydex-coverage-segments. The overlap group above builds its
+       records by hand, so it never passed through `adaptOxyDex`, and that adapter dropped the block.
+       A 2-segment OxyDex night read as one full envelope. Driven through normalizeFile, the app's entry. */
+    group('Integrator · adaptOxyDex carries the OxyDex coverage segments to recSegments', 'integrator-dsp · coverage · regression', function (T) {
+      var D = env.IntegratorDSP;
+      T.ok('IntegratorDSP.normalizeFile + recSegments available', !!(D && typeof D.normalizeFile === 'function' && typeof D.recSegments === 'function'));
+      if (!(D && typeof D.normalizeFile === 'function' && typeof D.recSegments === 'function')) return;
+      var t0 = Date.UTC(2026, 5, 13, 23, 0, 0);
+      var cov = {
+        kind: 'sparse',
+        spanSec: 7 * 3600,
+        recordedSec: 5 * 3600,
+        n: 2,
+        nWithDuration: 2,
+        segments: [
+          { startMs: t0, durSec: 2 * 3600 },
+          { startMs: t0 + 4 * 3600000, durSec: 3 * 3600 }
+        ]
+      };
+      function night(start, withCov) {
+        var n = { date: '2026-06-13', t0Ms: start, stats: { t0Ms: start, durationMin: 420, n: 25200, meanSpo2: 95 } };
+        if (withCov) n.coverage = cov;
+        return n;
+      }
+      function exp(nights, topCov) {
+        return { schema: { name: 'ganglior.node-export', node: 'OxyDex' }, recording: { startEpochMs: t0, coverage: topCov }, nights: nights, ganglior_events: [] };
+      }
+      function recOf(j) {
+        var r = D.normalizeFile(j, 'OxyDex_2026-06-13_ganglior.json');
+        return r && r.recs && r.recs[0];
+      }
+      var single = recOf(exp([night(t0, false)], cov));
+      var segs = single && D.recSegments(single);
+      T.eq('a single-night export: recording.coverage reaches the record as 2 segments', segs && segs.length, 2, JSON.stringify(single && single.coverage));
+      T.eq('…the second segment starts where the writer put it', segs && segs[1] && segs[1][0], t0 + 4 * 3600000);
+      var perNight = recOf(exp([night(t0, true)], undefined));
+      T.eq('a night that carries its own coverage block keeps it', perNight && D.recSegments(perNight) && D.recSegments(perNight).length, 2);
+      var clean = recOf(exp([night(t0, false)], undefined));
+      T.eq('BACK-COMPAT · a contiguous night declares nothing, so recSegments falls back to the envelope', clean && D.recSegments(clean), null);
+      var r2 = D.normalizeFile(exp([night(t0, false), night(t0 + 864e5, false)], cov), 'OxyDex_multi_ganglior.json');
+      var multi = (r2 && r2.recs) || [];
+      T.eq(
+        'a multi-night export does not spread a top-level block over its nights',
+        multi.length === 2 &&
+          multi.every(function (r) {
+            return D.recSegments(r) === null;
+          }),
+        true,
+        'recs=' + multi.length
+      );
     });
 
     /* PAT-GEOMETRY-PROBE §2 — THE SPECIFICITY MATRIX.
