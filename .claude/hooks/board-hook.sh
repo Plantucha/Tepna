@@ -149,6 +149,12 @@ PY
 # entries on 2026-11-07, so this passes a 100-year window. It loads the board module itself,
 # read-only, so the rule that decides "acked" stays the board's own. A decision the bird wrote
 # is not owed by it. Any error prints nothing: the hook fails open.
+#
+# THE READ IS PER ENTRY. One entry with no readable `ack.missing` used to raise inside the
+# list comprehension, which exited the whole block and dropped every VALID owed ack in the
+# same list (residue `2026-11-08-one-garbled-owed-ack-disarms-the-ack-gate`). Each entry is
+# read on its own now. An unreadable entry owes nothing, so it never blocks by itself, and
+# its count rides a block some other entry earned.
 acks_owed() {
   [ "${CLAUDE_ALLOW_UNACKED:-}" = 1 ] && return 0
   local py="${AGENT_BOARD_PY:-$(readlink -f "$BOARD" 2>/dev/null)}"
@@ -163,21 +169,44 @@ try:
     mod = importlib.util.module_from_spec(spec)
     loader.exec_module(mod)
     board = mod.Board(read_only=True)
-    items = board.open_acks(max_age_days=36500)
+    items = list(board.open_acks(max_age_days=36500))
     with board.reading() as conn:
         aliases, member_of = board._identity(conn, me, "")
 except Exception:
     sys.exit(0)
 mine = set(aliases) | set(member_of)
-owed = [
-    it for it in items
-    if str(it.get("author", "")).casefold() not in aliases and mine & set(it["ack"]["missing"])
-]
+
+
+def missing_of(it):
+    """The names that still owe an ack, or None when the entry's shape is unreadable."""
+    if not isinstance(it, dict):
+        return None
+    ack = it.get("ack")
+    if not isinstance(ack, dict):
+        return None
+    miss = ack.get("missing")
+    if isinstance(miss, (list, tuple, set)):
+        return set(miss)
+    return None
+
+
+owed, garbled = [], 0
+for it in items:
+    miss = missing_of(it)
+    if miss is None:
+        garbled += 1
+        continue
+    if str(it.get("author", "")).casefold() in aliases:
+        continue
+    if mine & miss:
+        owed.append(it)
 for it in owed[:10]:
     body = " ".join(str(it.get("body", "")).split())[:100]
-    print(f"- #{it['id']} by {it.get('author', '?')} in thread {it.get('thread_id', '?')}: {body}")
+    print(f"- #{it.get('id', '?')} by {it.get('author', '?')} in thread {it.get('thread_id', '?')}: {body}")
 if len(owed) > 10:
     print(f"- and {len(owed) - 10} more: agent-board --as {me} acks --mine")
+if owed and garbled:
+    print(f"- {garbled} further open entry/entries carry no readable ack field: this gate could not read them")
 PY
 }
 

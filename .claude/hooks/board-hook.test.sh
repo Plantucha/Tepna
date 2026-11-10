@@ -132,6 +132,23 @@ check "a module that will not load fails open" "rc=0" "$(stop false "$T/empty.js
 { bash_use "gh pr create --base main"; } > "$T/both.jsonl"
 got="$(stop false "$T/both.jsonl" | AGENT_BOARD_PY="$T/fakeboard.py" FAKE_ACKS="$T/a-me.json" bash "$HOOK" finish | jq -r .reason)"
 check "a post and an ack both owed: one block names both" "2" "$(printf '%s' "$got" | grep -cE '^(Board post owed|Ack owed)')"
+echo "### ONE GARBLED ENTRY MUST NOT DISARM THE GATE"
+# Three shapes, measured against the pre-fix hook. It RAISED on an entry with no `ack` key and
+# on an entry that is not an object, and it dropped the valid ack beside them. A `missing` field
+# that is a string never raised: `set("magpie")` is a set of characters, so that entry matched
+# nothing and said nothing. It reads as unreadable now, and the count is reported.
+printf '[{"id":81,"thread_id":8,"author":"heron","body":"@magpie no ack key"}]' > "$T/a-garbled.json"
+printf '[{"id":81,"thread_id":8,"author":"heron","body":"@magpie no ack key"},{"id":77,"thread_id":8,"author":"heron","body":"@magpie take the slot","ack":{"missing":["magpie"]}}]' > "$T/a-mixed.json"
+printf '[{"id":82,"thread_id":8,"author":"heron","body":"@magpie string","ack":{"missing":"magpie"}},{"id":77,"thread_id":8,"author":"heron","body":"@magpie take the slot","ack":{"missing":["magpie"]}}]' > "$T/a-str.json"
+printf '["oops",{"id":77,"thread_id":8,"author":"heron","body":"@magpie take the slot","ack":{"missing":["magpie"]}}]' > "$T/a-notdict.json"
+check "a garbled entry beside a valid owed ack: still blocks" "block" "$(ackrun false "$T/a-mixed.json" | jq -r .decision)"
+check "…and the reason names the valid entry" "1" "$(ackrun false "$T/a-mixed.json" | jq -r .reason | grep -c '#77 by heron in thread 8')"
+check "…and it reports the entry it could not read" "1" "$(ackrun false "$T/a-mixed.json" | jq -r .reason | grep -c '1 further open entry/entries carry no readable ack field')"
+check "a missing field that is a string: the valid ack beside it still blocks" "block" "$(ackrun false "$T/a-str.json" | jq -r .decision)"
+check "an entry that is not an object at all: still blocks" "block" "$(ackrun false "$T/a-notdict.json" | jq -r .decision)"
+check "a garbled entry alone owes nothing: no block" "" "$(ackrun false "$T/a-garbled.json")"
+check "…and it exits 0" "rc=0" "$(ackrun false "$T/a-garbled.json"; echo "rc=$?")"
+
 check "the post hatch leaves the ack check armed" "block" "$(ackrun false "$T/a-me.json" "" CLAUDE_ALLOW_NO_BOARD_POST=1 | jq -r .decision)"
 
 echo "### A HEREDOC BODY IS DATA, NOT A COMMAND"
