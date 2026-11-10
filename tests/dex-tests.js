@@ -81070,6 +81070,50 @@
       }
     });
 
+    /* ════ the two qrs worker gates must read the table PRODUCTION loads ════════════════════════
+     Residue 2026-11-08-the-qrs-worker-gates-pass-with-ppgdex-dropped-from-scripts. Groups 21h and 21i
+     below reconstruct the worker realm the WORKER-REALM-GATES §2 way: `new Function(workerSrc)` with
+     the deps passed as PARAMETERS and `importScripts` stubbed to a no-op, because the deps are already
+     instantiated in `env`. That makes the worker's own `var SCRIPTS = [...]` — the list production
+     actually loads — invisible to both gates. Muse measured it at bf715e4e5: with `ppgdex-dsp.js`
+     dropped from either table the gates stayed 13 of 13 and 11 of 11 green, while production lost
+     `PPGDSP`, `ppgRmssd` returned null, `errors.PPG` recorded the loss and boot still reported ready.
+     The repair routes every injected symbol THROUGH the declared table. A dep whose file the table
+     does not name arrives as `undefined`, so the known-answer legs below red on the loss, and each
+     group carries a PLANT that drops the entry and asserts the realm stops reproducing its answer —
+     a gate that passes with and without the entry has measured nothing (§4b). */
+    function wkProvidedGlobals(src) {
+      /* Every worker dep publishes through one form: an IIFE taking `global` that assigns
+         `global.<NAME> = …` (synth-gen → SYNTH, ppgdex-dsp → PPGDSP, …). `global.X.y =` names the same
+         base, so one pattern covers both. */
+      var out = {},
+        re = /(?:^|[^.\w$])global\.([A-Za-z_$][\w$]*)\s*(?:=|\.)/g,
+        m;
+      while ((m = re.exec(String(src || '')))) out[m[1]] = true;
+      return out;
+    }
+    function wkDeclaredScripts(wsrc) {
+      /* An unreadable table returns null, never [] — it must not read as "this worker declares no
+         deps", and it must not read as a pass either: the caller asserts on it. */
+      var m = /var SCRIPTS\s*=\s*\[([\s\S]*?)\]/.exec(String(wsrc || ''));
+      if (!m) return null;
+      return (m[1].match(/'[^']+'/g) || []).map(function (q) {
+        return q.slice(1, -1);
+      });
+    }
+    function wkResolve(declared, sources) {
+      /* global name -> the declared file that provides it. A name absent from this map is a name no
+         file in the table supplies. */
+      var provided = {};
+      (declared || []).forEach(function (f) {
+        var g = wkProvidedGlobals((sources || {})[f] || '');
+        Object.keys(g).forEach(function (k) {
+          if (!provided[k]) provided[k] = f;
+        });
+      });
+      return provided;
+    }
+
     /* ════ 21h · qrs-equiv WORKER EXECUTES — known-answer (TEST-COVERAGE-FOLLOWUPS-II §4) ════
      The analysis workers were never executed by any gate (only PpgDex + sensor-trio had a worker leg).
      Unlike the PpgDex blob (a hand-maintained deps list — the drift that shipped `cadenceSamples is not
@@ -81088,7 +81132,7 @@
 
       // Reconstruct the worker realm: eval its SOURCE with `self` + deps as params, importScripts a no-op
       // (deps are already instantiated in env). The worker's bare refs (SYNTH, CohortGen, …) bind to params.
-      function drive(seed) {
+      function drive(seed, deps) {
         var msgs = [];
         var selfStub = {
           postMessage: function (m) {
@@ -81097,6 +81141,11 @@
         };
         var noopImport = function () {};
         var xhrStub = function () {};
+        /* The injection goes through the DECLARED table: a symbol no declared file provides arrives
+           as undefined, exactly as it would in a worker whose SCRIPTS entry was deleted. */
+        var dep = function (name) {
+          return Object.prototype.hasOwnProperty.call(deps || {}, name) ? env[name] : undefined;
+        };
         var runner;
         try {
           runner = new Function(
@@ -81111,7 +81160,9 @@
             'navigator',
             wsrc + '\n; self.__drive = function (msg) { self.onmessage({ data: msg }); };'
           );
-          runner(selfStub, noopImport, xhrStub, env.SYNTH, env.CohortGen, env.CohortFull, env.ECGDSP, env.PPGDSP, { hardwareConcurrency: 4 });
+          runner(selfStub, noopImport, xhrStub, dep('SYNTH'), dep('CohortGen'), dep('CohortFull'), dep('ECGDSP'), dep('PPGDSP'), {
+            hardwareConcurrency: 4
+          });
         } catch (e) {
           return { evalErr: e.constructor.name + ': ' + e.message, msgs: msgs };
         }
@@ -81120,7 +81171,38 @@
         return { msgs: msgs };
       }
 
-      var r = drive(12345);
+      var declared = wkDeclaredScripts(wsrc);
+      var provided = wkResolve(declared, env.sources);
+      T.ok('the worker declares a readable SCRIPTS table', !!(declared && declared.length), 'entries=' + (declared ? declared.length : 'UNREADABLE'));
+      /* The names are the rig's own `new Function` parameter list — the same five symbols it injects,
+         now asserted to have a provider inside the table. */
+      var unprovided = ['SYNTH', 'CohortGen', 'CohortFull', 'ECGDSP', 'PPGDSP'].filter(function (n) {
+        return !Object.prototype.hasOwnProperty.call(provided, n);
+      });
+      T.eq('every injected dep resolves through the declared SCRIPTS table', unprovided.join(',') || 'none', 'none');
+
+      /* PLANT · the entry is LOAD-BEARING. Drop `ppgdex-dsp.js` and the realm must stop reproducing
+         its answer: qrs-equiv-worker.js:155 calls `PPGDSP.analyze(PPGDSP.parsePPG(…))` unguarded, so
+         the job either throws or yields no positive ppgRmssd. This is the leg that reds the defect the
+         residue row measured. */
+      var plantDecl = (declared || []).filter(function (f) {
+        return f !== 'ppgdex-dsp.js';
+      });
+      var plantProvided = wkResolve(plantDecl, env.sources);
+      T.ok('PLANT · dropping ppgdex-dsp.js leaves PPGDSP with no provider', !Object.prototype.hasOwnProperty.call(plantProvided, 'PPGDSP'), Object.keys(plantProvided).join(','));
+      var pl = drive(12345, plantProvided);
+      var plDone = pl.msgs.filter(function (m) {
+        return m.type === 'done';
+      })[0];
+      var plRes = plDone && plDone.result;
+      var plBroke = !!pl.evalErr || !plDone || !!plDone.error || !plRes || !(typeof plRes.ppgRmssd === 'number' && isFinite(plRes.ppgRmssd) && plRes.ppgRmssd > 0);
+      T.ok(
+        'PLANT · with ppgdex-dsp.js dropped the worker realm FAILS (the gate reads the table production loads)',
+        plBroke,
+        'evalErr=' + pl.evalErr + ' error=' + (plDone && plDone.error) + ' ppgRmssd=' + (plRes && plRes.ppgRmssd)
+      );
+
+      var r = drive(12345, provided);
       T.ok('the worker SOURCE evaluates in a reconstructed realm', !r.evalErr, r.evalErr);
       if (r.evalErr) return;
       var readyMsg = r.msgs.filter(function (m) {
@@ -81214,7 +81296,7 @@
       T.ok('the worker reported no per-detector errors', res.errors && Object.keys(res.errors).length === 0, JSON.stringify(res.errors));
 
       // a worker changes WHEN the work runs, never WHAT — a second reconstruction is byte-identical
-      var r2 = drive(12345);
+      var r2 = drive(12345, provided);
       var d2 = r2.msgs.filter(function (m) {
         return m.type === 'done';
       })[0];
@@ -81240,12 +81322,16 @@
       T.ok('worker source + deps available', have, 'wsrc=' + !!wsrc);
       if (!have) return;
 
-      function drive(seed) {
+      function drive(seed, deps) {
         var msgs = [];
         var selfStub = {
           postMessage: function (m) {
             msgs.push(m);
           }
+        };
+        /* Same table-routed injection as 21h: an undeclared dep arrives undefined. */
+        var dep = function (name) {
+          return Object.prototype.hasOwnProperty.call(deps || {}, name) ? env[name] : undefined;
         };
         var runner;
         try {
@@ -81271,11 +81357,11 @@
                 return 0;
               }
             },
-            env.SYNTH,
-            env.CohortGen,
-            env.CohortFull,
-            env.ECGDSP,
-            env.PPGDSP,
+            dep('SYNTH'),
+            dep('CohortGen'),
+            dep('CohortFull'),
+            dep('ECGDSP'),
+            dep('PPGDSP'),
             { hardwareConcurrency: 4 }
           );
         } catch (e) {
@@ -81286,7 +81372,36 @@
         return { msgs: msgs };
       }
 
-      var r = drive(12345);
+      var declared = wkDeclaredScripts(wsrc);
+      var provided = wkResolve(declared, env.sources);
+      T.ok('the worker declares a readable SCRIPTS table', !!(declared && declared.length), 'entries=' + (declared ? declared.length : 'UNREADABLE'));
+      var unprovided = ['SYNTH', 'CohortGen', 'CohortFull', 'ECGDSP', 'PPGDSP'].filter(function (n) {
+        return !Object.prototype.hasOwnProperty.call(provided, n);
+      });
+      T.eq('every injected dep resolves through the declared SCRIPTS table', unprovided.join(',') || 'none', 'none');
+
+      /* PLANT · the entry is LOAD-BEARING. qrs-yield-worker.js:281 calls `PPGDSP.parsePPG(text)` inside
+         the arm that records `errors.PPG`, so dropping the entry leaves `res.ppg` null with the error
+         recorded while boot still reports ready — which is exactly the production failure the residue
+         row names, and the state this gate used to call green. */
+      var plantDecl = (declared || []).filter(function (f) {
+        return f !== 'ppgdex-dsp.js';
+      });
+      var plantProvided = wkResolve(plantDecl, env.sources);
+      T.ok('PLANT · dropping ppgdex-dsp.js leaves PPGDSP with no provider', !Object.prototype.hasOwnProperty.call(plantProvided, 'PPGDSP'), Object.keys(plantProvided).join(','));
+      var pl = drive(12345, plantProvided);
+      var plDone = pl.msgs.filter(function (m) {
+        return m.type === 'done';
+      })[0];
+      var plRes = plDone && plDone.result;
+      var plBroke = !!pl.evalErr || !plDone || !!plDone.error || !plRes || !plRes.ppg || !!(plRes.errors && plRes.errors.PPG);
+      T.ok(
+        'PLANT · with ppgdex-dsp.js dropped the worker realm FAILS (the gate reads the table production loads)',
+        plBroke,
+        'evalErr=' + pl.evalErr + ' error=' + (plDone && plDone.error) + ' ppg=' + !!(plRes && plRes.ppg) + ' errors=' + JSON.stringify(plRes && plRes.errors)
+      );
+
+      var r = drive(12345, provided);
       T.ok('the worker SOURCE evaluates in a reconstructed realm', !r.evalErr, r.evalErr);
       if (r.evalErr) return;
       var readyMsg = r.msgs.filter(function (m) {
@@ -81311,7 +81426,7 @@
       T.ok('ECGDex yield ran in the worker realm (non-null, no ECG error)', !!res.ecg && !(res.errors && res.errors.ECG), JSON.stringify(res.errors));
       T.ok('PpgDex yield ran in the worker realm (non-null, no PPG error)', !!res.ppg && !(res.errors && res.errors.PPG), JSON.stringify(res.errors));
 
-      var d2 = drive(12345).msgs.filter(function (m) {
+      var d2 = drive(12345, provided).msgs.filter(function (m) {
         return m.type === 'done';
       })[0];
       T.eq('deterministic — a second reconstruction reproduces the identical result', JSON.stringify(res), JSON.stringify(d2 && d2.result));
