@@ -210,6 +210,11 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
 .val-card table{width:100%}
 .val-card td.mono,.val-card th{font-family:'IBM Plex Mono',monospace}
 .val-card td:first-child{font-family:'Inter',sans-serif;color:var(--text2);font-weight:600}
+/* A populated validation table needs 382 px, so on a 375 px phone it spills out of the
+   337 px card and widens the layout viewport to 422 px. A table cannot shrink below its
+   min-content width, so the wrapper scrolls it instead — the same idiom .tbl-wrap uses for
+   the full metrics table. Measured with the synthetic 5-minute recording. */
+.tbl-scroll{overflow-x:auto}
 
 /* ── ganglior ── */
 .gang-summary{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}

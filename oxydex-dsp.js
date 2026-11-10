@@ -2173,12 +2173,12 @@
   // The cause is resolution, not density. An N-sample record resolves fs/N; anything evaluated BETWEEN
   // its Fourier bins loses power to scalloping no matter how many spot frequencies you pick. So evaluate
   // ON the bins — k/N for every k in the band — which is also the basis in which periodogram statistics
-  // are actually defined. `_FFT_MAX_BINS` strides if a long night would otherwise cost more than it is
-  // worth; striding costs coverage, so the result publishes `bins` (tested) beside `bandBinsN` (held),
-  // and a non-detection over `bins < bandBinsN` does not establish that the band holds no cycle.
+  // are actually defined. EVERY bin in the band is evaluated. The transform below costs O(n log n) for
+  // the whole band, so the stride that used to cap the work at 400 bins is gone and `bins` (tested)
+  // equals `bandBinsN` (held) on every night. The two counts stay published as a TRIPWIRE: a reader who
+  // ever sees `bins < bandBinsN` is told the band was sampled and not covered.
   var _FFT_LO_HZ = 0.005; // 200 s
   var _FFT_HI_HZ = 0.05; // 20 s
-  var _FFT_MAX_BINS = 400;
   // ⚠️ THE THEORETICAL THRESHOLD IS ANTI-CONSERVATIVE AND THE GAP IS MEASURED, NOT GUESSED.
   // Sidak assumes a KNOWN background; ours is fitted from the same series, so the null tail is much
   // heavier than exp(-x) predicts. Measured over 80 pure-AR(1) runs at rho=0.98 (nothing planted):
@@ -2265,6 +2265,125 @@
      `coverage-below-floor`, which describes dropout dust. Below the floor the reason is now named from
      the shape (see the refusal), and above it `absentRunMaxN` travels beside `coveredN` so a consumer
      can tell one hole from scattered dust itself. */
+  // In-place radix-2 complex FFT, length a power of two. Each node keeps its own: this file is inlined
+  // into bundles that carry neither `motiondex-dsp.js` nor `ecgdex-dsp.js`.
+  function _fftR2(re, im) {
+    var n = re.length,
+      i,
+      j = 0,
+      k,
+      t,
+      len,
+      half;
+    for (i = 0; i < n - 1; i++) {
+      if (i < j) {
+        t = re[i];
+        re[i] = re[j];
+        re[j] = t;
+        t = im[i];
+        im[i] = im[j];
+        im[j] = t;
+      }
+      k = n >> 1;
+      while (k <= j) {
+        j -= k;
+        k >>= 1;
+      }
+      j += k;
+    }
+    for (len = 2; len <= n; len <<= 1) {
+      var ang = (-2 * Math.PI) / len,
+        wr = Math.cos(ang),
+        wi = Math.sin(ang);
+      half = len >> 1;
+      for (i = 0; i < n; i += len) {
+        var cr = 1,
+          ci = 0;
+        for (k = 0; k < half; k++) {
+          var ur = re[i + k],
+            ui = im[i + k],
+            vr = re[i + k + half] * cr - im[i + k + half] * ci,
+            vi = re[i + k + half] * ci + im[i + k + half] * cr;
+          re[i + k] = ur + vr;
+          im[i + k] = ui + vi;
+          re[i + k + half] = ur - vr;
+          im[i + k + half] = ui - vi;
+          var nr = cr * wr - ci * wi;
+          ci = cr * wi + ci * wr;
+          cr = nr;
+        }
+      }
+    }
+  }
+
+  /* THE BAND'S OWN BINS, EXACTLY, AT O(n log n) — `|X(k)|^2` for k = kLo..kHi of the length-`n` DFT.
+     Bluestein's identity (k*t = (k^2 + t^2 - (k - t)^2) / 2) turns the DFT into one convolution, so a
+     length that is not a power of two keeps ITS OWN Fourier grid: k/n for every k, which is the grid
+     the periodogram statistics above are defined on and the grid the per-bin sum this replaces used.
+     A zero-padded radix-2 FFT was REJECTED for this: padding moves the grid to k/L and makes
+     neighbouring bins interpolations of one another, which both renames every published frequency and
+     breaks the Sidak premise that the bins are independent tests.
+     `x` arrives mean-removed and ZERO at every absent sample, which is what makes this identical to
+     the sum it replaces — that sum skipped an absent sample, and a skipped term is an added zero.
+     The chirp angle is taken modulo 2n (`_sq` below), because t^2 reaches 7.6e8 on one night and
+     `Math.cos` of an argument that large has already lost the low bits. */
+  function _bandPower(x, n, kLo, kHi) {
+    var L = 1;
+    while (L < 2 * n) L <<= 1;
+    var ar = new Float64Array(L),
+      ai = new Float64Array(L),
+      br = new Float64Array(L),
+      bi = new Float64Array(L),
+      cw = new Float64Array(2 * n),
+      sw = new Float64Array(2 * n),
+      i,
+      m;
+    for (m = 0; m < 2 * n; m++) {
+      var a = (Math.PI * m) / n;
+      cw[m] = Math.cos(a);
+      sw[m] = Math.sin(a);
+    }
+    // t^2 mod 2n, computed from t mod 2n so the square never leaves the exact-integer range.
+    function _sq(t) {
+      var r = t % (2 * n);
+      return (r * r) % (2 * n);
+    }
+    for (i = 0; i < n; i++) {
+      m = _sq(i);
+      ar[i] = x[i] * cw[m];
+      ai[i] = -x[i] * sw[m];
+    }
+    for (i = 0; i < n; i++) {
+      m = _sq(i);
+      br[i] = cw[m];
+      bi[i] = sw[m];
+      // The kernel is symmetric in its index, and the negative lags live at the top of the buffer.
+      if (i > 0) {
+        br[L - i] = cw[m];
+        bi[L - i] = sw[m];
+      }
+    }
+    _fftR2(ar, ai);
+    _fftR2(br, bi);
+    for (i = 0; i < L; i++) {
+      var pr = ar[i] * br[i] - ai[i] * bi[i],
+        pm = ar[i] * bi[i] + ai[i] * br[i];
+      ar[i] = pr;
+      ai[i] = -pm; // conjugate, so the forward transform below inverts
+    }
+    _fftR2(ar, ai);
+    var out = new Float64Array(kHi - kLo + 1);
+    for (i = kLo; i <= kHi; i++) {
+      m = _sq(i);
+      var zr = ar[i] / L,
+        zi = -ai[i] / L,
+        re = zr * cw[m] + zi * sw[m],
+        im = zi * cw[m] - zr * sw[m];
+      out[i - kLo] = re * re + im * im;
+    }
+    return out;
+  }
+
   function computeSpO2FFT(rows, fs) {
     var spo2 = rows.map(function (r) {
       return r.spo2;
@@ -2330,24 +2449,22 @@
     var kLo = Math.max(1, Math.ceil((_FFT_LO_HZ * n) / RATE));
     var kHi = Math.min(Math.floor(n / 2) - 1, Math.floor((_FFT_HI_HZ * n) / RATE));
     if (kHi <= kLo) return null;
-    var stride = Math.max(1, Math.ceil((kHi - kLo + 1) / _FFT_MAX_BINS));
 
     var pows = [],
       bg = [],
       fss = [],
       k,
       t;
-    for (k = kLo; k <= kHi; k += stride) {
-      var f = (k * RATE) / n,
-        re = 0,
-        im = 0;
-      for (t = 0; t < n; t++) {
-        if (!present[t]) continue;
-        var ang = (2 * Math.PI * k * t) / n;
-        re += (spo2[t] - mean) * Math.cos(ang);
-        im -= (spo2[t] - mean) * Math.sin(ang);
-      }
-      pows.push((re * re + im * im) / covered);
+    /* The deviation series the transform reads. An absent sample enters as 0, which is NOT absence
+       standing in as a number: the per-bin sum this replaces skipped that sample, and a skipped term in
+       a sum is an added zero. The absence itself is reported by `coveredN`, `spanN` and
+       `absentRunMaxN`, and the power below is divided by `covered`, never by the span. */
+    var dev = new Float64Array(n);
+    for (t = 0; t < n; t++) dev[t] = present[t] ? spo2[t] - mean : 0;
+    var band = _bandPower(dev, n, kLo, kHi);
+    for (k = kLo; k <= kHi; k++) {
+      var f = (k * RATE) / n;
+      pows.push(band[k - kLo] / covered);
       var w = (2 * Math.PI * f) / RATE;
       bg.push((1 - rho * rho) / (1 - 2 * rho * Math.cos(w) + rho * rho));
       fss.push(f);
@@ -2391,18 +2508,28 @@
       threshold: +thresh.toFixed(2),
       bins: pows.length,
       /* ∅ THE BAND'S POPULATION BESIDE THE VERDICT, the same shape as `coveredN` and `spanN` below:
-         `bins` is what the run TESTED and `bandBinsN` is what the band HOLDS. `_FFT_MAX_BINS` strides a
-         long night, so the two differ, and a reader who compares them knows the spectrum SAMPLED the
-         band rather than covered it. Residue 2026-11-09-the-spo2-spectrum-strides-past-an-adjacent-bin:
-         a cycle can sit on a bin the stride skipped, and that reads as `detected: false` exactly as a
-         quiet night does. Measured 2026-11-09 over a planted AR(1) night of 27,600 samples at 1 Hz: a
-         2-unit cycle on the SKIPPED bin k = 345 reads snr 7.66 under a threshold of 19.16, and the same
-         plant on the TESTED bin k = 346 reads 2738.83 against full evaluation of the band. So
-         `detected: false` over `bins < bandBinsN` states NO CYCLE AMONG THE BINS TESTED, never no cycle.
-         Full evaluation is not the remedy: it costs 9,244 ms against 2,315 ms on that night, and the
-         band grows with the record, so the cost grows as the SQUARE of the night. */
+         `bins` is what the run TESTED and `bandBinsN` is what the band HOLDS. They are EQUAL on every
+         night, because the transform above evaluates every bin the band holds. The pair stays published
+         as a TRIPWIRE: it is the only field by which a consumer can separate a sampled band from a
+         covered one, so a cap reintroduced later cannot reduce coverage silently.
+         Row 2026-11-09-the-spo2-spectrum-strides-past-an-adjacent-bin is what the stride cost: a cycle
+         on a skipped bin published the same two fields as a quiet night, and no reader could separate
+         the two. Measured 2026-11-09 over three vm realms — the shipped
+         400-bin stride, the same code with the cap raised to 100,000, and this transform — each over
+         nights of 27,600 samples at 1 Hz, where the band holds 1,243 bins. Every published field
+         (`detected`, `peakFreqHz`, `bins`, `snr`, `threshold`) agrees between this transform and the
+         direct sum at its published precision on all 6 exactness nights. On one night, median of three
+         runs, this function costs 64 ms here against 10,059 ms strided and 27,459 ms for the direct
+         sum over the full band. Over 48 nights carrying a 2-unit cycle drawn uniformly in the band,
+         this transform detects 48 and the stride detects 40; the 8 it adds sit at band offsets 4.83 to
+         813.02 bins, so the stride's loss covers the whole band and not one end of it. Over 40 null
+         nights neither realm detects a cycle, so the higher Sidak threshold that 1,243 bins demand
+         absorbs the extra tests at this population — 0 of 40 states no measured increase, never a
+         small rate. */
       bandBinsN: kHi - kLo + 1,
-      strided: stride > 1,
+      /* Always false, and kept rather than removed: the export is a consumed contract, and `false` is
+         the honest reading — the band was covered, not sampled. */
+      strided: false,
       rhoLag1: +rho.toFixed(4),
       // The POPULATION, beside the verdict: `coveredN` samples carried a reading and `spanN` is the
       // recorded span. A reader who sees `coveredN < spanN` knows the spectrum describes less than the
