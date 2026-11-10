@@ -23,13 +23,16 @@
  * it as comprehensive XSS detection.
  *
  * This is intentionally strict. If the input is statically trusted, document
- * why and add the line to ALLOW with a comment.
+ * why and add the line to the ALLOW table below. That table was prose only
+ * until 2026-11-10: the header named it, no code read it, so the single way
+ * past a false positive was to lower the ratchet baseline — which hides the
+ * line instead of naming it. ALLOW now has teeth (see the staleness leg).
  *
  * Usage: node tools/xss-sink-gate.mjs --base <sha>
  */
 
 import { execSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -48,6 +51,36 @@ const STRING_RE = /'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|`(?:[^`\\$]|\\.)*`/g;
 const IDENT_RE = /\b[a-zA-Z_$][a-zA-Z0-9_$]*\b/g;
 // Known-safe identifiers (not user data).
 const SAFE_IDENTS = new Set(['true', 'false', 'null', 'undefined', 'this']);
+
+/* ── ALLOW — statements a human read, with the reason ─────────────────────────────────────────────
+   The heuristic judges ONE statement and cannot follow a value into the function that escaped it;
+   its own LIMITS paragraph says so. A renderer that assembles markup in builders and writes it
+   through a single helper therefore fails AT the helper, where no identifier can be escaped,
+   because escaping assembled markup would escape the markup itself.
+
+   `{ file, match, reason }`, all three required. `match` is a SUBSTRING of the trimmed statement and
+   never a pattern, so an entry cannot widen to cover a line nobody read, and it is scoped to one
+   file, so the same statement elsewhere is still caught. The staleness leg in --full-tree is what
+   stops this table from rotting into blanket approval: an entry that matches no sink in the tree
+   FAILS the gate rather than sitting there. */
+export const ALLOW = [
+  {
+    file: 'eegdex-render.js',
+    match: 'el.innerHTML = html',
+    reason:
+      "the file's one sink helper (setHTML). Every value its builders interpolate goes through esc() or a number formatter, and the only raw markup is MetricRegistry.badge() output via evBadge(). The two EDF-derived strings — the channel label and the physical dimension — reach HTML only through row() and kpi(), which escape them."
+  }
+];
+
+/**
+ * PURE CORE #3 — is this statement one a human exempted, in this file, with a reason?
+ * @returns {{file: string, match: string, reason: string}|null}
+ */
+export function allowedBy(file, stmt, table) {
+  const t = table || ALLOW;
+  for (const a of t) if (a.file === file && a.match && a.reason && String(stmt).includes(a.match)) return a;
+  return null;
+}
 
 /**
  * PURE CORE #1 — the heuristic for ONE added line. Unchanged from the original; only extracted, so a
@@ -74,6 +107,7 @@ export function classifySinkLine(line) {
  */
 export function scanDiff(lines) {
   const violations = [];
+  const allowed = [];
   const rows = lines || [];
   let file = '';
   let sinksAdded = 0;
@@ -104,9 +138,21 @@ export function scanDiff(lines) {
       }
     }
     const r = classifySinkLine(stmt);
-    if (r.unsafe.length) violations.push({ file, line: stmt.trim().slice(0, 100), unsafe: r.unsafe });
+    if (!r.unsafe.length) continue;
+    /* An exempt line is EXCLUDED, never silently clean: it leaves the violation list and enters a
+       population the verdict prints, so an exemption nobody sees is not approval in the dark. */
+    const a = allowedBy(file, stmt.trim());
+    if (a) allowed.push({ file, line: stmt.trim().slice(0, 100), match: a.match, reason: a.reason });
+    else violations.push({ file, line: stmt.trim().slice(0, 100), unsafe: r.unsafe });
   }
-  return { violations, sinksAdded };
+  return { violations, sinksAdded, allowed };
+}
+
+/* An ALLOW entry that matched nothing in the population just scanned. Over the WHOLE TREE that means
+   the line is gone or was renamed, so the exemption now covers nothing and must leave the table. */
+export function staleAllow(allowed, table) {
+  const t = table || ALLOW;
+  return t.filter((a) => !allowed.some((x) => x.file === a.file && x.match === a.match));
 }
 
 export function selftest() {
@@ -191,15 +237,41 @@ export function selftest() {
   ok(/lower the baseline/.test(ratchet(4, { count: 5 }).reason || ''), '…and says what to do about it');
   ok(ratchet(0, { count: 0 }).status === 'PASS', 'a cleared backlog passes at zero');
 
+  /* ── THE ALLOW TABLE, PLANTED BOTH WAYS ───────────────────────────────────────────────────────
+     A hatch is only as good as its controls: these legs plant an exempt line, the SAME line in
+     another file, a different line in the exempt file, and an entry with no reason. Without the
+     three controls the predicate could exempt everything and still pass the plant. */
+  const TBL = [{ file: 'a.js', match: 'el.innerHTML = html', reason: 'a human read this one and wrote down why' }];
+  ok(allowedBy('a.js', '  el.innerHTML = html;', TBL) !== null, 'an exempt statement in its own file is recognised');
+  ok(allowedBy('b.js', '  el.innerHTML = html;', TBL) === null, 'CONTROL: the SAME statement in another file is NOT exempt — an entry is file-scoped');
+  ok(allowedBy('a.js', '  el.innerHTML = other;', TBL) === null, 'CONTROL: a different statement in the exempt file is NOT exempt');
+  ok(allowedBy('a.js', '  el.innerHTML = html;', [{ file: 'a.js', match: 'el.innerHTML = html', reason: '' }]) === null, 'an entry with NO reason exempts nothing — the reason IS the mechanism');
+
+  const exempted = scanDiff(['diff --git a/eegdex-render.js b/eegdex-render.js', '+    el.innerHTML = html;']);
+  ok(exempted.violations.length === 0 && exempted.allowed.length === 1, 'the real table exempts the real sink helper, as EXCLUDED rather than clean');
+  ok(exempted.sinksAdded === 1, '…while the sink still counts as EXAMINED, so the verdict population stays honest');
+  ok(scanDiff(['diff --git a/eegdex-render.js b/eegdex-render.js', '+    el.innerHTML = userInput;']).violations.length === 1, 'CONTROL: another unescaped sink in the exempt FILE is still caught');
+  ok(staleAllow([], ALLOW).length === ALLOW.length, 'an ALLOW entry that matched no sink is reported stale');
+  ok(staleAllow(exempted.allowed, ALLOW).length === 0, '…and one that matched is not');
+  ok(
+    ALLOW.every((a) => a.file && a.match && a.reason && a.reason.length > 60),
+    'every real ALLOW entry carries a file, a match and a reason long enough to be one'
+  );
+  ok(
+    ALLOW.every((a) => existsSync(join(ROOT, a.file))),
+    'every real ALLOW entry names a file that still exists'
+  );
+
   const line = fail.length ? `xss-sink-gate selftest · ${fail.length} of ${ran} FAILED` : `all ${ran} selftests passed`;
   return { ok: fail.length === 0, ran, fail, line };
 }
 
-function verdictOf({ status, sinksAdded, violations, base, fullTree, files, baseline }) {
+function verdictOf({ status, sinksAdded, violations, base, fullTree, files, baseline, allowed, stale, reason }) {
+  const exempt = (allowed || []).length;
   const v = Verdict.make({
     gate: 'xss-sink-gate',
     status,
-    population: { checked: sinksAdded, eligible: sinksAdded, excluded: 0 },
+    population: { checked: sinksAdded - exempt, eligible: sinksAdded, excluded: exempt },
     criterion: fullTree
       ? { name: 'the-whole-tree-backlog-of-unescaped-innerhtml-sinks-may-only-fall', threshold: baseline ? baseline.count : 0, unit: 'innerHTML sinks with an unescaped identifier', direction: 'lte' }
       : { name: 'no-added-innerhtml-sink-carries-an-unescaped-identifier', threshold: 0, unit: 'added sinks with an unescaped identifier', direction: 'eq' },
@@ -209,11 +281,15 @@ function verdictOf({ status, sinksAdded, violations, base, fullTree, files, base
         : {
             sinksAdded,
             violations: violations.map((v2) => ({ file: v2.file, unsafe: v2.unsafe })),
+            allowed: (allowed || []).map((a) => ({ file: a.file, match: a.match, reason: a.reason })),
+            ...(stale && stale.length ? { staleAllow: stale.map((a) => ({ file: a.file, match: a.match })) } : {}),
             ...(fullTree ? { mode: 'full-tree', unescapedSinks: violations.length, sinksInTree: sinksAdded, files, fileCount: files.length, baseline: baseline ? baseline.count : null } : {})
           },
     evidence: ['tools/xss-sink-gate.mjs', 'dex-escape.js'],
     reason:
-      status === 'PASS' ? null : status === 'NOT_RUN' ? `no innerHTML sink was added in ${base}..HEAD — nothing was examined` : `${violations.length} added sink(s) carry an unescaped identifier`,
+      status === 'PASS'
+        ? null
+        : reason || (status === 'NOT_RUN' ? `no innerHTML sink was added in ${base}..HEAD — nothing was examined` : `${violations.length} added sink(s) carry an unescaped identifier`),
     producedBy: {
       tool: 'tools/xss-sink-gate.mjs',
       commit: (() => {
@@ -296,7 +372,7 @@ function main() {
   const base = fullTree ? EMPTY_TREE : baseIdx >= 0 ? process.argv[baseIdx + 1] : 'HEAD';
 
   const diff = sh(`git diff ${base}..HEAD -U3 -- '*.js' '*.src.html' ':!tests/' ':!tools/'`);
-  const { violations, sinksAdded } = scanDiff(diff.split('\n'));
+  const { violations, sinksAdded, allowed } = scanDiff(diff.split('\n'));
 
   if (fullTree) {
     const files = [...new Set(violations.map((v) => v.file))].sort();
@@ -309,14 +385,20 @@ function main() {
        ratchet that cannot see a merged security fix is not a ratchet, it is a number that happens to
        be true. `files` stays as a second column: it is the better unit for "how many modules still
        need review", just not for progress. */
-    const r = ratchet(violations.length, baseline);
+    /* THE STALENESS LEG, and it only works here: over the whole tree every sink is in the population,
+       so an entry that matched nothing is an exemption covering no line. A stale entry FAILS — the
+       same teeth the co-load tables carry, for the same reason (an unread exemption rots silently). */
+    const stale = staleAllow(allowed);
+    const r = stale.length
+      ? { status: 'FAIL', reason: `stale ALLOW entry (matches no sink in the tree): ${stale.map((a) => `${a.file} :: ${a.match}`).join(', ')}` }
+      : ratchet(violations.length, baseline);
     if (asJson) {
-      process.stdout.write(`${JSON.stringify(verdictOf({ status: r.status, sinksAdded, violations, base, fullTree: true, files, baseline }), null, 1)}\n`);
+      process.stdout.write(`${JSON.stringify(verdictOf({ status: r.status, sinksAdded, violations, base, fullTree: true, files, baseline, allowed, stale, reason: r.reason }), null, 1)}\n`);
     } else {
       process.stdout.write(`xss-sink-gate --full-tree · ${sinksAdded} innerHTML sink(s) in the tree · ${violations.length} with an unescaped identifier, in ${files.length} file(s)\n`);
       for (const f of files) process.stdout.write(`    ${f}\n`);
       process.stdout.write(
-        `  baseline: ${baseline ? `${baseline.count} unescaped sink(s)` : '(none yet)'}${baseline && baseline.files != null ? ` · ${baseline.files} file(s), not ratcheted` : ''} → ${r.status}${r.reason ? ` — ${r.reason}` : ''}\n`
+        `  baseline: ${baseline ? `${baseline.count} unescaped sink(s)` : '(none yet)'}${baseline && baseline.files != null ? ` · ${baseline.files} file(s), not ratcheted` : ''} · ${allowed.length} exempt by ALLOW → ${r.status}${r.reason ? ` — ${r.reason}` : ''}\n`
       );
     }
     process.exit(r.status === 'FAIL' ? 1 : 0);
@@ -328,7 +410,7 @@ function main() {
   const status = sinksAdded === 0 ? 'NOT_RUN' : violations.length ? 'FAIL' : 'PASS';
 
   if (asJson) {
-    process.stdout.write(`${JSON.stringify(verdictOf({ status, sinksAdded, violations, base }), null, 1)}\n`);
+    process.stdout.write(`${JSON.stringify(verdictOf({ status, sinksAdded, violations, base, allowed }), null, 1)}\n`);
   } else if (status === 'FAIL') {
     process.stderr.write('✕ xss-sink-gate: new innerHTML sink(s) without escape:\n');
     for (const v of violations.slice(0, 10)) process.stderr.write(`    ${v.file}: ${v.line} [unescaped: ${v.unsafe.join(', ')}]\n`);
@@ -337,7 +419,8 @@ function main() {
   } else if (status === 'NOT_RUN') {
     process.stdout.write(`xss-sink-gate: NOT_RUN — no innerHTML sink added in ${base}..HEAD, so nothing was examined\n`);
   } else {
-    process.stdout.write(`xss-sink-gate: ✓ PASS — ${sinksAdded} added sink(s) examined, all escaped\n`);
+    process.stdout.write(`xss-sink-gate: ✓ PASS — ${sinksAdded} added sink(s) examined, ${sinksAdded - allowed.length} escaped, ${allowed.length} exempt by ALLOW\n`);
+    for (const a of allowed) process.stdout.write(`    EXEMPT ${a.file}: ${a.line}\n      ${a.reason}\n`);
   }
   process.exit(status === 'FAIL' ? 1 : 0);
 }

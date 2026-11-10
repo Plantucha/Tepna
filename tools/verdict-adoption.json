@@ -3251,6 +3251,18 @@
    "bin": "word-only",
    "status": "exempt",
    "reason": "a READ-ONLY report that reads the verify-fixtures verdict (PASS and FAIL appear only as values it compares, not as an emitted verdict); the fixture decision belongs to tools/verify-fixtures.mjs (adopted), and this tool exits 0 always"
+  },
+  "tools/no-network-surface-parity.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/no-network-surface-parity.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "reds when a root *.html sits in none of no-network.html's declared surface sets, so the gate's scope cannot silently fall behind the shipped set"
   }
  }
 }
