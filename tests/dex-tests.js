@@ -26118,6 +26118,61 @@
       T.ok('oxydex · no safeSet call sites remain', !/[^a-zA-Z_]safeSet\(/.test(allOxy), 'a safeSet( call site survived the rename');
     });
 
+    /* Residue 2026-11-08-six-review-timelines-concatenate-an-imported-event-conf-raw and
+       2026-11-08-review-mode-prose-passes-stored-strings-through-nv-unescaped. Review mode renders an
+       IMPORTED ganglior.node-export, so every stored field is untrusted text, not a number. `nv()`
+       returns any non-null value unchanged, so it is not an escaper. Each site must route through the
+       file's own escaper. A file absent from env.sources reds, so an empty read cannot pass. */
+    group('Security — review mode escapes imported conf and stored prose values', 'security · xss · sources', function (T) {
+      var src = env.sources || {};
+      var CONF = [
+        ['ecgdex-app.js', '_eesc'],
+        ['glucodex-app.js', '_gesc'],
+        ['hrvdex-app.js', '_hrvesc'],
+        ['ppgdex-app.js', '_pgesc'],
+        ['cpapdex-render.js', 'esc'],
+        ['oxydex-render.js', 'escHTML']
+      ];
+      /* pulsedex-render.js escapes inside the ternary and carries its own pin in the group above. */
+      CONF.forEach(function (c) {
+        var text = src[c[0]] || '';
+        T.ok(c[0] + ' · source present in env.sources', text.length > 0, 'the file was not read, so nothing below examined it');
+        var re = /(\w*)\(\(?\s*e\.conf != null \? e\.conf/g;
+        var m,
+          seen = 0,
+          raw = [];
+        while ((m = re.exec(text)) !== null) {
+          seen++;
+          if (m[1] !== c[1]) raw.push(m[0]);
+        }
+        var bare = (text.match(/\(e\.conf != null \? e\.conf/g) || []).length;
+        T.ok(c[0] + ' · review timeline renders e.conf at least once', seen + bare > 0, 'no e.conf render site found; the check examined nothing');
+        T.ok(c[0] + ' · every e.conf render routes through ' + c[1], raw.length === 0 && seen === bare, 'raw: ' + JSON.stringify(raw) + ' · escaped ' + (seen - raw.length) + ' of ' + bare);
+      });
+      [
+        ['ecgdex-app.js', '_eesc'],
+        ['glucodex-app.js', '_gesc'],
+        ['hrvdex-app.js', '_hrvesc']
+      ].forEach(function (c) {
+        var text = src[c[0]] || '';
+        var lines = text.split('\n');
+        var rawNv = lines.filter(function (l) {
+          /* A KPI row `[label, value, unit]` is escaped where the row renders (`esc(k[1])`), so it is exempt. */
+          return /^\s*nv\([^)]*\)\s*\+\s*$/.test(l) || (/\+\s*nv\(/.test(l) && !/^\s*\[/.test(l));
+        });
+        T.ok(c[0] + ' · defines the review nv() helper', /var nv = function \(v, d\)/.test(text), 'nv() not found; the prose check examined nothing');
+        T.ok(c[0] + ' · no prose or table site concatenates nv() unescaped', rawNv.length === 0, rawNv.join(' | '));
+      });
+      var hrv = src['hrvdex-app.js'] || '';
+      T.ok('hrvdex-app.js · spanDays escaped in the review header', hrv.indexOf('_hrvesc(rec.spanDays)') !== -1, 'rec.spanDays concatenated raw');
+      T.ok(
+        'ecgdex-app.js · beats and analyzablePct escaped in the review',
+        /_eesc\(rec\.beats\)/.test(src['ecgdex-app.js'] || '') && /_eesc\(q\.analyzablePct\)/.test(src['ecgdex-app.js'] || ''),
+        'a stored count concatenated raw'
+      );
+      T.ok('glucodex-app.js · events count escaped in the review header', /_gesc\(rec\.events\)/.test(src['glucodex-app.js'] || ''), 'rec.events concatenated raw');
+    });
+
     /* ════ 8c · SECURITY — storage hygiene: erase-all + migrate cleanup (SECURITY-REMEDIATION C · F4/F5/F6) ════ */
     group('Storage hygiene — erase-all + migrate cleanup (F4/F5/F6)', 'security · storage · sources', function (T) {
       var src = env.sources || {};
