@@ -2174,7 +2174,8 @@
   // its Fourier bins loses power to scalloping no matter how many spot frequencies you pick. So evaluate
   // ON the bins — k/N for every k in the band — which is also the basis in which periodogram statistics
   // are actually defined. `_FFT_MAX_BINS` strides if a long night would otherwise cost more than it is
-  // worth; striding costs coverage, so it is reported rather than silent.
+  // worth; striding costs coverage, so the result publishes `bins` (tested) beside `bandBinsN` (held),
+  // and a non-detection over `bins < bandBinsN` does not establish that the band holds no cycle.
   var _FFT_LO_HZ = 0.005; // 200 s
   var _FFT_HI_HZ = 0.05; // 20 s
   var _FFT_MAX_BINS = 400;
@@ -2310,6 +2311,9 @@
         snr: null,
         threshold: null,
         bins: 0,
+        /* ∅ The run refused before it computed the band, so the band's population is NULL and not
+           0 — a 0 here would read as a band that holds no bin. */
+        bandBinsN: null,
         strided: false,
         rhoLag1: null,
         coveredN: covered,
@@ -2386,6 +2390,18 @@
       snr: +bestSnr.toFixed(2),
       threshold: +thresh.toFixed(2),
       bins: pows.length,
+      /* ∅ THE BAND'S POPULATION BESIDE THE VERDICT, the same shape as `coveredN` and `spanN` below:
+         `bins` is what the run TESTED and `bandBinsN` is what the band HOLDS. `_FFT_MAX_BINS` strides a
+         long night, so the two differ, and a reader who compares them knows the spectrum SAMPLED the
+         band rather than covered it. Residue 2026-11-09-the-spo2-spectrum-strides-past-an-adjacent-bin:
+         a cycle can sit on a bin the stride skipped, and that reads as `detected: false` exactly as a
+         quiet night does. Measured 2026-11-09 over a planted AR(1) night of 27,600 samples at 1 Hz: a
+         2-unit cycle on the SKIPPED bin k = 345 reads snr 7.66 under a threshold of 19.16, and the same
+         plant on the TESTED bin k = 346 reads 2738.83 against full evaluation of the band. So
+         `detected: false` over `bins < bandBinsN` states NO CYCLE AMONG THE BINS TESTED, never no cycle.
+         Full evaluation is not the remedy: it costs 9,244 ms against 2,315 ms on that night, and the
+         band grows with the record, so the cost grows as the SQUARE of the night. */
+      bandBinsN: kHi - kLo + 1,
       strided: stride > 1,
       rhoLag1: +rho.toFixed(4),
       // The POPULATION, beside the verdict: `coveredN` samples carried a reading and `spanN` is the

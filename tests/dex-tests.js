@@ -2844,6 +2844,25 @@
       T.ok('a non-detection publishes null, never 0 or a spurious number', q && (q.detected ? q.peakCycSec > 0 : q.peakCycSec === null && q.peakFreqHz === null));
       T.ok('the verdict is auditable — snr, threshold and rho are published', q && typeof q.snr === 'number' && typeof q.threshold === 'number' && typeof q.rhoLag1 === 'number');
       T.ok('too short a night is still null, not a guess', OD.computeSpO2FFT(ar1(100, 0.9, 5)) === null);
+
+      /* ∅ THE BAND IS SAMPLED AND NOT COVERED ON A LONG NIGHT (row
+         2026-11-09-the-spo2-spectrum-strides-past-an-adjacent-bin). `_FFT_MAX_BINS` strides the band
+         above 400 bins, so `detected: false` can state "no cycle on the bins tested", and a reader who
+         sees only that flag reads "no cycle". The result publishes both counts, so the two readings
+         separate. Measured 2026-11-09 over a planted AR(1) night of 27,600 samples at 1 Hz: a 2-unit
+         cycle on the SKIPPED bin k = 345 reads snr 7.66 under a threshold of 19.16, and the same plant
+         on the TESTED bin k = 346 reads 2738.83 under full evaluation of the band. Full evaluation is
+         not the remedy here: it costs 9,244 ms against 2,315 ms on that night, and the band grows with
+         the record, so its cost grows as the SQUARE of the night. */
+      var wide = OD.computeSpO2FFT(ar1(12000, 0.98, 777));
+      T.ok(
+        'a strided band states what it tested beside what it holds, so a non-detection is readable',
+        wide != null && wide.strided === true && wide.bins === 271 && wide.bandBinsN === 541,
+        JSON.stringify({ bins: wide && wide.bins, bandBinsN: wide && wide.bandBinsN, strided: wide && wide.strided })
+      );
+      // The CONTROL for that pair: a band under the cap tested every bin it holds, so the two counts
+      // agree and no reader is told the band was sampled.
+      T.ok('a band under the cap tested every bin it holds', q != null && q.strided === false && q.bins === q.bandBinsN && q.bins === 55);
     });
 
     /* ∅ — THE SPECTRUM'S POPULATION IS THE COVERED SAMPLES, AND AN ABSENT SAMPLE IS NOT `-mean`.
@@ -2976,6 +2995,10 @@
         JSON.stringify(refused)
       );
       T.ok('a refusal publishes no snr and no threshold, because it computed neither', refused != null && refused.snr === null && refused.threshold === null && refused.bins === 0);
+      // ∅ The refusal returns before it computes the band, so the band's population is NULL. A 0
+      // there would read as a band holding no bin, which is a measurement nobody made
+      // (row 2026-11-09-the-spo2-spectrum-strides-past-an-adjacent-bin).
+      T.ok('a refusal publishes a null band population, never 0', refused != null && refused.bandBinsN === null);
       T.ok('a night inside the floor carries a null reason, never an undefined one', fg != null && fg.reason === null);
 
       /* ∅ THE SHAPE OF THE ABSENCE, NOT ONLY ITS AMOUNT (row

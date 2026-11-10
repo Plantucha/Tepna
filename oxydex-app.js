@@ -536,6 +536,14 @@ function exportCSV() {
           lines.push('  FFT Longest Absent Run (samples),' + n.fft.absentRunMaxN);
         }
       }
+      /* THE BAND'S POPULATION, where the stride tested a SAMPLE of it (CLAUDE.md ∅: reduced coverage
+         annotates). CONDITIONAL, so a night whose band fits under `_FFT_MAX_BINS` exports as before.
+         An empty cycle length over a strided band states no cycle AMONG THE BINS TESTED, and a reader
+         who cannot see the two counts reads it as no cycle at all (residue
+         2026-11-09-the-spo2-spectrum-strides-past-an-adjacent-bin). */
+      if (typeof n.fft.bins === 'number' && typeof n.fft.bandBinsN === 'number' && n.fft.bins < n.fft.bandBinsN) {
+        lines.push('  FFT Bins Tested,' + n.fft.bins, '  FFT Bins In Band,' + n.fft.bandBinsN);
+      }
       // A REFUSAL READS AS A REFUSAL. An empty peak beside a reason says the night was examined and
       // the spectrum was not published; an empty peak alone reads as "no cycle cleared the background".
       if (n.fft.reason) {
