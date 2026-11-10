@@ -1672,6 +1672,14 @@
    "status": "exempt",
    "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
   },
+  "tools/lomb-share-profile.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "file": "audits/LOMB-SHARE-PROFILE-2026-11-10.json"
+   },
+   "note": "lombScargle's share of a real ECGDex and PpgDex compute(), measured on the PRODUCT PATH (vm.runInThisContext) because \u00a71b of briefs/PROFILED-HOTSPOTS-CI-AND-DSP-2026-07-12-BRIEF.md decided LEAVE on 2026-07-21 and named one revisit condition: a product-pipeline profile, not the vm-realm harness, whose \u00a70 measured an inflation up to 12.3\u00d7. Residue 2026-11-08-lomb-scargle-makes-two-trig-passes-per-bin-and-sample (#4673) claims 66 % (ECG) and 28 % (PPG). PASS when the ECG product-path share reaches the 35 % \u00a71b pre-stated, so the revisit condition is met and the disposition is the owner's \u00b7 SHORTFALL when it does not, so LEAVE stands \u00b7 NOT_RUN when the corpus holds no night or no product-path arm completed. Three arms per node, each its own process: main is the product path, vm is \u00a70's inflation control, clean carries no transform so the wrapper's own cost is measured. The transform rewrites the lombScargle DECLARATION in memory and refuses when the text is not found exactly once, because a patched export never intercepts a closure-local call. The manifest reads the committed record; re-running the tool re-derives it."
+  },
   "tools/measurement-emitter-perf-oxydex.mjs": {
    "bin": "decides",
    "status": "adopted",
