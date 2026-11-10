@@ -56065,6 +56065,9 @@
       var ph = pl([heldBehind], ST({}), CTX({ mainMovedAtMs: NOW }));
       T.eq('a held PR BEHIND main is updated AT ONCE, with main having just moved (no Kodiak-quiet gate)', ops(ph), 'update:3');
       T.eq('…and the update is the only thing a hold permits', ph.actions.length, 1);
+      /* A held DRAFT behind main is NOT updated: no merge button is live on a draft, and each update
+         re-ran the full CI — #4783 (held draft) took 35 merges of main on 2026-11-10. */
+      T.eq('a held DRAFT behind main gets no update', pl([cl(P({ number: 3, isDraft: true, labels: [env.pwHoldLabel], mergeState: 'BEHIND' }), REQ)], ST({}), CTX({})).actions.length, 0);
       T.eq('a held non-draft PR that is current still gets nothing', pl([cl(P({ number: 3, isDraft: false, labels: [env.pwHoldLabel] }), REQ)], ST({}), CTX({})).actions.length, 0);
       /* Owner, 2026-11-02: "Fix walker. Everything is idle" — three held PRs sat DIRTY with no action.
          update-branch cannot merge a conflict, so a held conflict gets the once-per-head rebase. */
