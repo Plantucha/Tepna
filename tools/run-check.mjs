@@ -62,11 +62,12 @@
  * FAIL. The EXIT CODE STAYS: the shell and CI keep reading process.exit until the consumer switches.
  */
 import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { aggregateChildren, makeVerdict } from './verdict-emit.mjs';
 import { isCliEntry } from './argv-guard.mjs';
+import { declaresSelftest } from './selftest-all.mjs';
 import { WriteRootRefusal, judgeRoot } from './write-root.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -99,7 +100,9 @@ export const STEPS = [
   'lint',
   'test:par',
   'verify:shard-union',
+  'verify:shard-union-logic',
   'verify:shard-timings',
+  'verify:shard-timings-logic',
   'verify:no-names',
   'verify:integrator-surface',
   'test:build-core',
@@ -130,7 +133,9 @@ export const STEPS = [
   'verify:pr-compliance',
   'verify:verdict-adoption',
   'verify:manifest',
+  'verify:manifest-logic',
   'verify:fixture-currency',
+  'verify:check-dex-logic',
   'verify:browser-gate-logic',
   'test:hooks'
 ];
@@ -150,7 +155,9 @@ export const STEPS = [
    and its skip budget — is judged here while the lane itself stays a CI job. Nothing ran that
    selftest before 2026-11-10, so the budget it guards would have been a number nobody tested.
    An omission that is DELIBERATE goes in STEPS_EXEMPT with its reason written here. The set is
-   empty today, because all 36 declared gate scripts are in STEPS. */
+   empty today, because every declared gate script is in STEPS. A count stood here and no gate read
+   it, so two diffs in one day each corrected it by one and it still went stale:
+   `gateScriptsMissingFromSteps` computes the only number that decides anything. */
 export const GATE_SCRIPT_RE = /^(?:verify:|build:check$)/;
 export const STEPS_EXEMPT = new Set([]);
 
@@ -160,6 +167,44 @@ export function gateScriptsMissingFromSteps(scripts = {}, steps = STEPS, exempt 
   const inSteps = new Set(steps);
   return Object.keys(scripts)
     .filter((s) => GATE_SCRIPT_RE.test(s) && !inSteps.has(s) && !exempt.has(s))
+    .sort();
+}
+
+/* ── THE THIRD DIRECTION ────────────────────────────────────────────────────────────
+   Both legs above read the SCRIPT list. One asks whether every STEPS name is a real script; the
+   other asks whether every gate script is a step. Neither reads `tests/`. So a file there can
+   declare a `--selftest` handler that NO script passes the flag to, and both legs stay green.
+
+   Measured 2026-11-10 on `0cdc9211c`: six files under `tests/` declared a handler, and
+   `tests/check-dex.mjs`, `tests/verify-manifest.mjs` and `tests/verify-shard-timings.mjs` ran only
+   WITHOUT the flag, so their 33 assertions decided nothing. Each of those three files IS a gate,
+   and its selftest is what proves the gate's own verdict logic. Residue
+   `2026-11-10-three-tests-mjs-selftests-run-under-no-loop-and-no-script`.
+
+   `tools/` needs no such leg. CI's "Analysis-tool selftests" step globs `tools/*.mjs` for the
+   handler, runs every hit, and refuses a run that finds fewer than ten; `tools/selftest-all.mjs`
+   does the same locally as a STEPS entry. Nothing globs `tests/`, because each file there is its
+   own gate and carries its own npm name, so the wiring is per file and a glob would hide it again.
+
+   The declaration reader is `declaresSelftest` from `tools/selftest-all.mjs`. One reader, so a
+   usage comment cannot enrol a file here while a near miss drops it there. */
+export const SELFTEST_EXEMPT = new Set([]);
+
+/** Paths under `tests/` that declare a `--selftest` handler which no npm script passes
+    `--selftest` to. Takes the declaring paths, so the caller owns the directory read. Sorted, so
+    the failure message is stable. Pure, so the selftest can plant one. */
+export function selftestsRunByNoScript(declaring = [], scripts = {}, exempt = SELFTEST_EXEMPT) {
+  const flagged = Object.values(scripts).filter((c) => typeof c === 'string' && c.includes('--selftest'));
+  return declaring.filter((f) => !exempt.has(f) && !flagged.some((c) => c.includes(f))).sort();
+}
+
+/** The declaring population under `tests/`, as `tests/<file>` paths. A path, not a bare name, so a
+    same-named file in another directory cannot satisfy the match. */
+export function declaringTests(dir = join(ROOT, 'tests')) {
+  return readdirSync(dir)
+    .filter((f) => f.endsWith('.mjs'))
+    .filter((f) => declaresSelftest(readFileSync(join(dir, f), 'utf8')))
+    .map((f) => 'tests/' + f)
     .sort();
 }
 
@@ -342,6 +387,27 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
      any more, so the first exemption written here is held to a real script. */
   const staleExempt = [...STEPS_EXEMPT].filter((s) => !(pkg.scripts && pkg.scripts[s]));
   ok('every STEPS_EXEMPT entry is still a declared script', staleExempt.length === 0, 'stale: ' + staleExempt.join(', '));
+
+  /* THE THIRD LEG — a `tests/` selftest that no script passes `--selftest` to. The two legs above
+     read the script list and never the directory, so neither one can see it. */
+  const declaring = declaringTests();
+  ok('the tests/ selftest population is non-empty, so this leg examined something', declaring.length > 0, 'declaring: ' + declaring.length);
+  ok('the population reader finds the shard-union gate, which declares one by construction', declaring.includes('tests/verify-shard-union.mjs'), declaring.join(', '));
+  const unflagged = selftestsRunByNoScript(declaring, pkg.scripts || {});
+  ok('every tests/ selftest is run by a script that passes --selftest', unflagged.length === 0, 'declared but run by no script with the flag: ' + unflagged.join(', '));
+  ok(
+    'plant · a tests/ selftest a script runs WITHOUT the flag is NAMED',
+    JSON.stringify(selftestsRunByNoScript(['tests/a.mjs', 'tests/b.mjs'], { 'verify:a': 'node tests/a.mjs --selftest', 'verify:b': 'node tests/b.mjs' })) === JSON.stringify(['tests/b.mjs'])
+  );
+  ok(
+    'plant · a file no script names is NAMED, and an exempt neighbour is withheld',
+    JSON.stringify(selftestsRunByNoScript(['tests/a.mjs', 'tests/b.mjs'], {}, new Set(['tests/a.mjs']))) === JSON.stringify(['tests/b.mjs'])
+  );
+  ok('control · a path match is whole, so tools/a.mjs does not satisfy tests/a.mjs', selftestsRunByNoScript(['tests/a.mjs'], { x: 'node tools/a.mjs --selftest' }).length === 1);
+  ok('edge · an EMPTY population names nothing, so the non-vacuity leg above owns that case', selftestsRunByNoScript([], {}).length === 0);
+  const staleSelftestExempt = [...SELFTEST_EXEMPT].filter((f) => !declaring.includes(f));
+  ok('every SELFTEST_EXEMPT entry still declares a selftest', staleSelftestExempt.length === 0, 'stale: ' + staleSelftestExempt.join(', '));
+
   ok('package.json check delegates to this runner', /run-check\.mjs/.test((pkg.scripts && pkg.scripts.check) || ''), pkg.scripts && pkg.scripts.check);
 
   /* THE DEFAULT EXECUTOR IS REAL. Injecting `exec` in every test above proves the reporting works;

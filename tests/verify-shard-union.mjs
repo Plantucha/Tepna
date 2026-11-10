@@ -21,7 +21,12 @@
      (`run-tests --list` executes zero groups) and assert planShards() returns a
      true partition of it for every plausible N. Pure set algebra, no DSP.
      This is the check that catches the failure that matters: a group that no
-     shard runs.
+     shard runs — as long as the group is IN the inventory. One class is not,
+     and `tests/run-tests.mjs` carries that half: a `group()` call nested inside
+     another group's body runs in the execution pass and is invisible to
+     `--list`, so the plan here never holds it. `lateDeclarations()` compares the
+     two counts inside every real run, sharded or not, and the legs below plant
+     that comparison.
 
    · --deep (slow, ~2.5 min — the empirical proof). Actually run the full suite
      AND all N shards as subprocesses, then assert the UNION of the shard
@@ -37,7 +42,7 @@
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { planShards, partitionViolations, readTimings } from './shard-plan.mjs';
+import { lateDeclarations, planShards, partitionViolations, readTimings } from './shard-plan.mjs';
 import { aggregateChildren, makeVerdict, Verdict } from '../tools/verdict-emit.mjs';
 
 /* ── VERDICT-CONTRACT §3d — the partition proof as ONE object ─────────────────────────────────────
@@ -132,6 +137,30 @@ function selftest() {
   eq(shardObjectsAgree(V('PASS'), [V('PASS'), null], 2).pass, false, '§3d consumer plant · a shard with no object ⇒ the check fails (never a pass over what it could not read)');
   eq(shardObjectsAgree(V('PASS'), [V('PASS'), { schema: 'tepna.verdict/1', status: 'PASSED' }], 2).pass, false, '§3d consumer plant · an invalid shard object ⇒ the check fails');
   eq(verdictSample().status === 'PASS' && verdictSample().producedBy.commit === null, true, '§3d · --verdict-sample: three scratch checks ⇒ PASS, no commit');
+  /* THE HALF THIS PLAN CANNOT PROVE — a group the inventory never held (residue
+     2026-11-08-a-group-declared-only-at-execution-is-dropped-by-every-shard). The runner owns the
+     comparison; these legs own its arithmetic, because a tripwire nobody plants is a comment. */
+  const INV = [
+    { index: 0, title: 'a' },
+    { index: 1, title: 'b' },
+    { index: 2, title: 'c' }
+  ];
+  const RAN = INV.map((g) => ({ ...g }));
+  eq(lateDeclarations(INV, 3, RAN).length, 0, 'late · the inventory and the execution pass agree ⇒ silent');
+  eq(lateDeclarations(INV, 4, RAN).length, 1, 'late plant · one group declared during the execution pass ⇒ one finding');
+  eq(/in no shard/.test(lateDeclarations(INV, 4, RAN)[0]), true, 'late plant · …and the finding names the shard consequence, not just the count');
+  const SHIFTED = [
+    { index: 0, title: 'a' },
+    { index: 1, title: 'nested' },
+    { index: 2, title: 'b' },
+    { index: 3, title: 'c' }
+  ];
+  const drifted = lateDeclarations(INV, 4, SHIFTED);
+  eq(drifted.length, 3, 'late plant · a nested group() shifts every later index ⇒ the extra, the group outside the inventory, and the drift');
+  eq(/2 group\(s\) carry a different title/.test(drifted[2]), true, 'late plant · …and the drift is ONE capped line, never one line per shifted group');
+  eq(lateDeclarations([], 4, RAN).length, 1, 'late plant · an EMPTY inventory examined nothing ⇒ a finding, never a pass');
+  eq(lateDeclarations(INV, null, RAN).length, 1, 'late plant · no declaration count ⇒ a finding (it cannot compare what it cannot read)');
+  eq(lateDeclarations(INV, 2, [{ index: 0, title: 'a' }]).length, 0, 'late · an inventory LARGER than the run is a filtered run, not this defect ⇒ silent');
   console.log(`all ${n} selftests passed`);
 }
 
