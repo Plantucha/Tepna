@@ -614,7 +614,17 @@ function release() {
     /* `--status` reads `tmpdir()/tepna-release-land`, which is MACHINE-scoped and not under either
        tree, so the current copy reports the same run the stale one did. Measured 2026-10-28 at
        release-land.mjs:79-80 and its status(): no read resolves against that file's own root. */
-    const st = sh('node', [path.join(SELF_REPO, 'tools', 'release-land.mjs'), '--status'], { cwd: REPO });
+    /* --status exits 1 for a failed run and 3 for an unfinished one, and both print the report. `sh`
+       throws on any non-zero exit, so the board printed "unreadable" for exactly the runs that
+       `landStuckHours` exists to read. A report on exit 1 or 3 is a reading. */
+    let st;
+    try {
+      st = sh('node', [path.join(SELF_REPO, 'tools', 'release-land.mjs'), '--status'], { cwd: REPO });
+    } catch (e) {
+      const said = String(e.stdout || '').trim();
+      if (!((e.status === 1 || e.status === 3) && /^remaining:/m.test(said))) throw e;
+      st = said;
+    }
     out.land = st
       .split('\n')
       .slice(0, 6)

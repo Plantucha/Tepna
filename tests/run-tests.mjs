@@ -3781,8 +3781,15 @@ async function main() {
        the real path while `process.argv[1]` stays as written: a CLI predicate that compares them raw
        decides it was imported, runs no main and exits 0 (Heron, 2026-10-21, board #685). The link lives
        in the probe cwd and is filtered out of `wrote`, so a tool that writes nothing still reads []. */
-    probeToolArgv: (rel, args, { timeoutMs = 25000, viaSymlink = false } = {}) => {
+    /* `isolateTmp` gives the child a private, empty TMPDIR. `tools/release-land.mjs` keeps its run state
+       under `tmpdir()`, so a probe of `--status` without it reads THIS MACHINE's real release run, and
+       reports exit 2 whenever one is in progress — which is always true inside release-land's own gate
+       step. So the release cut red on its own state at every gate run. */
+    probeToolArgv: (rel, args, { timeoutMs = 25000, viaSymlink = false, isolateTmp = false, seedTmp = null } = {}) => {
       const cwd = mkdtempSync(join(tmpdir(), 'argv-probe-'));
+      const tmp = isolateTmp || seedTmp ? mkdtempSync(join(tmpdir(), 'argv-probe-tmp-')) : null;
+      if (seedTmp) seedTmp(tmp);
+      const env = tmp ? { ...process.env, TMPDIR: tmp, TMP: tmp, TEMP: tmp } : process.env;
       const linkName = `link-${basename(rel)}`;
       try {
         let entry = join(ROOT, rel);
@@ -3790,7 +3797,7 @@ async function main() {
           entry = join(cwd, linkName);
           symlinkSync(join(ROOT, rel), entry);
         }
-        const r = spawnSync(process.execPath, [entry, ...args], { cwd, encoding: 'utf8', timeout: timeoutMs });
+        const r = spawnSync(process.execPath, [entry, ...args], { cwd, env, encoding: 'utf8', timeout: timeoutMs });
         return {
           status: r.status,
           signal: r.signal,
@@ -3801,6 +3808,7 @@ async function main() {
         };
       } finally {
         rmSync(cwd, { recursive: true, force: true });
+        if (tmp) rmSync(tmp, { recursive: true, force: true });
       }
     },
     /* IMPORT A TOOL IN A CHILD PROCESS and read exported values out of it — never in this process.
