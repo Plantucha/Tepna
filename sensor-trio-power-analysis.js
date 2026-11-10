@@ -137,7 +137,6 @@
   }
 
   // ── stats ────────────────────────────────────────────────────────────────
-  const mean = (a) => a.reduce((s, x) => s + x, 0) / a.length;
   const median = (a) => {
     const s = [...a].sort((p, q) => p - q),
       n = s.length;
@@ -189,21 +188,11 @@
     }
     return HIST_HI;
   }
-  function pearson(x, y) {
-    const mx = mean(x),
-      my = mean(y);
-    let sxy = 0,
-      sx = 0,
-      sy = 0;
-    for (let i = 0; i < x.length; i++) {
-      const dx = x[i] - mx,
-        dy = y[i] - my;
-      sxy += dx * dy;
-      sx += dx * dx;
-      sy += dy * dy;
-    }
-    return sxy / Math.sqrt(sx * sy);
-  }
+  /* Pearson r — DELEGATED to analysis-stats.js (2026-11-10). This file carried a private copy that
+     returned NaN on a degenerate series while sensor-trio-worker.js's copy returned null, so the two
+     real-night lanes its own comment calls byte-identical disagreed on exactly the input the H10 gate
+     reads as absence. The shared leg refuses (∅): see AnalysisStats.pearsonOrNull. */
+  const pearson = AnalysisStats.pearsonOrNull;
 
   // ── the SHARED TCH kernel — DELEGATED to analysis-stats.js (TCH-FUSED-ROBUST-HAT, closed 2026-09-26) ──
   // This file carried its own byte-equivalent copy of the classic hat (measured 2026-08-04:
@@ -216,18 +205,11 @@
   const tchSigmas = AnalysisStats.tchSigmas;
   const tchSigmasFused = AnalysisStats.tchSigmasFused;
 
-  // H10 (ECG) corner gate — pure sibling of sensor-trio-worker.js's h10FailureClass (kept byte-identical
-  // so both real-night lanes agree). An ECG-lead fault yields a large POSITIVE σ_h10 that TCH reports
-  // honestly but that is not a device σ (real corpus 2026-06-12: σ_h10≈9.5, rHO 0.43 / rHV 0.38, rVO 0.85).
-  // Fingerprint: σ_h10>5 (healthy nights ≤1.25) AND H10 decorrelated from both partners AND O2·Verity still
-  // agree (the guard that spares Verity-noisy nights, where the bad corner is Verity and σ_h10 is healthy).
-  // Independent H10 error cancels out of the O2/Verity estimates, so the caller nulls ONLY the H10 corner.
-  function h10FailureClass(sigmaH10, rHO, rHV, rVO) {
-    if (sigmaH10 == null || sigmaH10 <= 5) return 'ok';
-    const bothLow = (rHO == null || rHO < 0.5) && (rHV == null || rHV < 0.5);
-    const pairAgrees = rVO != null && rVO >= 0.5;
-    return bothLow && pairAgrees ? 'ecg-lead-fault' : 'ok';
-  }
+  // H10 (ECG) corner gate — DELEGATED to analysis-stats.js (2026-11-10). Both real-night lanes aliased
+  // a private copy of this classifier and no gate executed either, so a threshold typo shipped silently.
+  // The rationale and the measured 2026-06-12 fingerprint now sit beside AnalysisStats.h10FailureClass,
+  // which tests/dex-tests.js binds numerically.
+  const h10FailureClass = AnalysisStats.h10FailureClass;
 
   // ── synthetic trio window generator ──────────────────────────────────────
   // Returns per-device 1-Hz observation arrays = true HR trend + device-rendered

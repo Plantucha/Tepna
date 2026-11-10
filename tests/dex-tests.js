@@ -31085,8 +31085,22 @@
            reached the figures it publishes. Now it delegates like the sigma page, and this leg keeps it so. */
         [
           'sensor-trio-power-analysis.js',
-          ['AnalysisStats.tchSigmas', 'AnalysisStats.tchSigmasFused', 'AnalysisStats.tchBlockBootstrapCI', 'AnalysisStats.parseDerivedHr', 'AnalysisStats.confidenceSeries']
+          /* pearsonOrNull + h10FailureClass added 2026-11-10: the page carried private copies of both and
+             no gate read them, so a threshold typo on this side passed the H10 group (which scanned the
+             worker only). See "H10 corner gate fingerprints an ECG-lead fault". */
+          [
+            'AnalysisStats.tchSigmas',
+            'AnalysisStats.tchSigmasFused',
+            'AnalysisStats.tchBlockBootstrapCI',
+            'AnalysisStats.parseDerivedHr',
+            'AnalysisStats.confidenceSeries',
+            'AnalysisStats.pearsonOrNull',
+            'AnalysisStats.h10FailureClass'
+          ]
         ],
+        /* The WORKER is in this registry from 2026-11-10. It was absent while it held private copies,
+           which is the gap that let them sit ungated: a source-scan registry only guards what it lists. */
+        ['sensor-trio-worker.js', ['AnalysisStats.threeCorneredHat', 'AnalysisStats.pearsonOrNull', 'AnalysisStats.h10FailureClass']],
         ['cgm-hrv-coupling-analysis.js', ['AnalysisStats.pearsonCI', 'AnalysisStats.partialCorr']],
         ['treatment-response-analysis.js', ['AnalysisStats.bestSplit', 'AnalysisStats.mannWhitneyAUC']],
         ['odi-bias-analysis.js', ['AnalysisStats.ols']],
@@ -60149,49 +60163,79 @@
        never gated and the Verity-noisy nights (where the bad corner is Verity, not H10) are spared. */
     group('H10 corner gate fingerprints an ECG-lead fault (σ high + decorrelated) without touching healthy nights', 'sensor-trio-worker · trio · regression', function (T) {
       var src = (env.sources && env.sources['sensor-trio-worker.js']) || '';
+      var page = (env.sources && env.sources['sensor-trio-power-analysis.js']) || '';
       T.ok('sensor-trio-worker.js source available to the gate', !!src);
-      if (!src) return;
+      T.ok('sensor-trio-power-analysis.js source available to the gate', !!page);
+      if (!src || !page) return;
 
-      var i = src.search(/^function h10FailureClass/m);
-      T.ok('the gate exposes a PURE h10FailureClass(sigmaH10, rHO, rHV, rVO) (so the verdict is testable)', i >= 0);
-      if (i < 0) return;
-      var d = 0,
-        started = false,
-        end = -1;
-      for (var k = i; k < src.length; k++) {
-        if (src.charAt(k) === '{') {
-          d++;
-          started = true;
-        } else if (src.charAt(k) === '}') {
-          d--;
-          if (started && d === 0) {
-            end = k + 1;
-            break;
-          }
-        }
-      }
-      var cls;
-      try {
-        cls = new Function(src.slice(i, end) + ';\nreturn h10FailureClass;')();
-      } catch (e) {
-        T.ok('h10FailureClass is evaluable', false, e.message);
-        return;
-      }
+      /* RE-POINTED 2026-11-10, row
+         2026-11-08-the-sensor-trio-power-tool-ships-ungated-copies-of-pearson-and-the-h10-classifier.
+         This group used to EXTRACT `function h10FailureClass` out of the worker's source TEXT and run
+         that copy. The page carried a second copy the extraction never read, and each file carried its
+         own `pearson` besides. Measured on main at bf715e4e5: a page classifier threshold of 0.05 for
+         0.5 passed this group, and a sign flip in either private `pearson` passed the whole Node lane
+         (17,340 assertions, 902 groups). The classifier and its correlation leg now live once, in
+         analysis-stats.js. The legs below bind THAT function numerically, and the scans keep a copy
+         from growing back in either lane. */
+      T.ok('the worker delegates the classifier (AnalysisStats.h10FailureClass)', /\bAnalysisStats\.h10FailureClass\b/.test(src), 'the worker must route to the shared classifier, not carry a copy');
+      T.ok(
+        'the page delegates the classifier too — the copy the old extraction could not see',
+        /\bAnalysisStats\.h10FailureClass\b/.test(page),
+        'sensor-trio-power-analysis.js must route to the shared classifier'
+      );
+      T.ok(
+        'both lanes read pearsonOrNull, not pearson (a NaN r reads as ok — see the control below)',
+        /\bAnalysisStats\.pearsonOrNull\b/.test(src) && /\bAnalysisStats\.pearsonOrNull\b/.test(page),
+        'a lane on AnalysisStats.pearson gets NaN from a degenerate window, which this gate cannot see as absence'
+      );
+      /* SINGLE SOURCE, keyed on the identifiers only a real BODY uses: no `bothLow`/`pairAgrees` means
+         no classifier copy, no `sxy` accumulator means no Pearson copy. A delegating wrapper passes
+         both; a reinstated copy fails by name. Presence of the alias alone would not — a file can hold
+         the alias AND a copy, which is how the TCH gate first passed over a private hat. */
+      ['sensor-trio-worker.js', 'sensor-trio-power-analysis.js'].forEach(function (f) {
+        var t = (env.sources && env.sources[f]) || '';
+        T.ok(f + ' carries NO private classifier body (no bothLow / pairAgrees)', !/\b(bothLow|pairAgrees)\b/.test(t), 'a copy of the classifier came back — delete it and delegate');
+        T.ok(f + ' carries NO private Pearson body (no sxy accumulator)', !/\bsxy\b/.test(t), 'a copy of the correlation leg came back — delete it and delegate');
+      });
 
-      // THE lead-fault signature (2026-06-12): σ implausibly large AND H10 decorrelated from both partners
-      // while O2 & Verity still agree — that one really is a bad ECG lead, so null the corner.
-      T.eq('06-12 signature (σ9.46, rHO0.43, rHV0.38, rVO0.85) → ecg-lead-fault', cls(9.46, 0.43, 0.38, 0.85), 'ecg-lead-fault');
-      // Every healthy real night keeps H10: σ is small, so the σ>5 gate never even engages.
-      T.eq('a healthy night (σ0.79, rHO0.90, rHV0.72, rVO0.62) → ok', cls(0.79, 0.9, 0.72, 0.62), 'ok');
-      T.eq('the next-highest real H10 night (σ1.25) is nowhere near the σ>5 gate → ok', cls(1.25, 0.84, 0.67, 0.72), 'ok');
-      // THE guard that makes it H10-specific: the Verity-noisy nights have a low rHV too, but their bad
-      // corner is VERITY (σ_h10 stays healthy ~0.65, and rVO collapses). Both spared, for both reasons.
-      T.eq('Verity-noisy 06-29 (σ_h10 0.65, rHO0.85, rHV0.35, rVO0.31) → ok (bad corner is Verity)', cls(0.65, 0.845, 0.346, 0.308), 'ok');
-      T.eq('Verity-noisy 07-02 (σ_h10 0.68, rHO0.85, rHV0.24, rVO0.21) → ok', cls(0.68, 0.848, 0.238, 0.208), 'ok');
-      // The rVO guard is load-bearing: a HYPOTHETICAL high-σ H10 whose partners have DECORRELATED from each
-      // other too (rVO<0.5) is a whole-night mess, not a clean single-corner fault — do NOT silently null H10.
-      T.eq('high σ_h10 but O2·Verity ALSO decorrelated (rVO0.3) → ok (not a clean H10-only fault)', cls(9.0, 0.4, 0.4, 0.3), 'ok');
-      T.eq('a null σ_h10 (already TCH-negative) is left alone → ok (never double-classified as a lead fault)', cls(null, 0.9, 0.9, 0.9), 'ok');
+      var S = env.AnalysisStats;
+      if (!S || typeof S.h10FailureClass !== 'function' || typeof S.pearsonOrNull !== 'function') {
+        T.skip('env.AnalysisStats provided to the runner', 'Node-lane only — run-tests.mjs co-loads analysis-stats.js');
+      } else {
+        var cls = S.h10FailureClass;
+        // THE lead-fault signature (2026-06-12): σ implausibly large AND H10 decorrelated from both
+        // partners while O2 & Verity still agree — that one really is a bad ECG lead, so null the corner.
+        T.eq('06-12 signature (σ9.46, rHO0.43, rHV0.38, rVO0.85) → ecg-lead-fault', cls(9.46, 0.43, 0.38, 0.85), 'ecg-lead-fault');
+        // Every healthy real night keeps H10: σ is small, so the σ>5 gate never even engages.
+        T.eq('a healthy night (σ0.79, rHO0.90, rHV0.72, rVO0.62) → ok', cls(0.79, 0.9, 0.72, 0.62), 'ok');
+        T.eq('the next-highest real H10 night (σ1.25) is nowhere near the σ>5 gate → ok', cls(1.25, 0.84, 0.67, 0.72), 'ok');
+        // THE guard that makes it H10-specific: the Verity-noisy nights have a low rHV too, but their bad
+        // corner is VERITY (σ_h10 stays healthy ~0.65, and rVO collapses). Both spared, for both reasons.
+        T.eq('Verity-noisy 06-29 (σ_h10 0.65, rHO0.85, rHV0.35, rVO0.31) → ok (bad corner is Verity)', cls(0.65, 0.845, 0.346, 0.308), 'ok');
+        T.eq('Verity-noisy 07-02 (σ_h10 0.68, rHO0.85, rHV0.24, rVO0.21) → ok', cls(0.68, 0.848, 0.238, 0.208), 'ok');
+        // The rVO guard is load-bearing: a HYPOTHETICAL high-σ H10 whose partners have DECORRELATED from
+        // each other too (rVO<0.5) is a whole-night mess, not a clean single-corner fault — do NOT null H10.
+        T.eq('high σ_h10 but O2·Verity ALSO decorrelated (rVO0.3) → ok (not a clean H10-only fault)', cls(9.0, 0.4, 0.4, 0.3), 'ok');
+        T.eq('a null σ_h10 (already TCH-negative) is left alone → ok (never double-classified as a lead fault)', cls(null, 0.9, 0.9, 0.9), 'ok');
+        // THRESHOLD, bound from both sides so a typo in either direction reds (0.05 for 0.5 did not).
+        T.eq('the rHO/rHV threshold is 0.5 — 0.49 on both is decorrelated', cls(9.46, 0.49, 0.49, 0.85), 'ecg-lead-fault');
+        T.eq('the rHO/rHV threshold is 0.5 — 0.51 on either is NOT', cls(9.46, 0.51, 0.49, 0.85), 'ok');
+        T.eq('the rVO agreement threshold is 0.5 — 0.5 agrees', cls(9.46, 0.43, 0.38, 0.5), 'ecg-lead-fault');
+        T.eq('the rVO agreement threshold is 0.5 — 0.49 does not', cls(9.46, 0.43, 0.38, 0.49), 'ok');
+        T.eq('the σ threshold is 5 — 5.01 engages the gate', cls(5.01, 0.43, 0.38, 0.85), 'ecg-lead-fault');
+        T.eq('the σ threshold is 5 — 5.00 does not', cls(5.0, 0.43, 0.38, 0.85), 'ok');
+
+        // ── the correlation leg, numerically. A SIGN FLIP here used to pass the entire Node lane. ──
+        var up = [1, 2, 3, 4, 5, 6, 7, 8],
+          dn = [8, 7, 6, 5, 4, 3, 2, 1];
+        T.ok('pearsonOrNull on a perfectly correlated pair is +1', Math.abs(S.pearsonOrNull(up, up) - 1) < 1e-12, String(S.pearsonOrNull(up, up)));
+        T.ok('pearsonOrNull on a perfectly anticorrelated pair is −1 (a SIGN FLIP reds here)', Math.abs(S.pearsonOrNull(up, dn) + 1) < 1e-12, String(S.pearsonOrNull(up, dn)));
+        T.ok('pearsonOrNull reproduces a hand-computed r', Math.abs(S.pearsonOrNull([1, 2, 3, 4], [2, 4, 5, 9]) - 0.9647638212377322) < 1e-12, String(S.pearsonOrNull([1, 2, 3, 4], [2, 4, 5, 9])));
+        T.eq('∅ · a constant series has no r — pearsonOrNull returns null, never NaN', S.pearsonOrNull(up, [3, 3, 3, 3, 3, 3, 3, 3]), null);
+        // and the two legs COMPOSE the way the solve does: a null r is what makes bothLow true.
+        T.eq('a null r from a degenerate window reaches the gate AS ABSENCE', cls(9.46, null, null, 0.85), 'ecg-lead-fault');
+        T.eq('CONTROL · the same window with a NaN r reads as ok — which is why pearson is not the leg here', cls(9.46, NaN, NaN, 0.85), 'ok');
+      }
 
       // MARGIN: every committed real σ_h10 except the 06-12 fault is ≤1.25, so the σ>5 threshold sits in a
       // wide empty gap (same "wide of the observed band" discipline as the Verity gate). If someone drops
@@ -60204,6 +60248,7 @@
       T.ok('a lead fault nulls ONLY the H10 corner (s.h10 = null), not the whole night', /h10Cls\s*!==\s*'ok'\)\s*s\.h10\s*=\s*null/.test(src));
       T.ok('the result surfaces a machine-readable h10Unreliable flag + fault class', /h10Unreliable:\s*h10Cls\s*!==\s*'ok'/.test(src) && /h10Fault:/.test(src));
       T.ok('a nulled corner (neg OR gated) never carries a bootstrap CI (point↔CI consistency)', /if \(s\[DKEYS\[_ci\]\] == null\) ci\[DKEYS\[_ci\]\] = null/.test(src));
+      T.ok('the page calls the shared classifier on its own real-night path too', /h10FailureClass\(s\.h10,\s*rHO,\s*rHV,\s*rVO\)/.test(page), 'the page must run the gate it now delegates');
     });
 
     group('ECGDex worker clock — the >5 MB path parses timestamps IDENTICALLY to clock.js', 'ecgdex-app · worker · clock-contract', function (T) {
