@@ -389,57 +389,29 @@ function verityFailureClass(hrRatio) {
   if (hrRatio >= 0.33 && hrRatio <= 0.67) return 'harmonic-half';
   return 'poor-contact';
 }
-/* Classify WHETHER the H10 (ECG) corner is trustworthy on a night — pure, so it is gate-testable (see
-   tests/dex-tests.js "H10 corner gate"). The SYMMETRIC sibling of the Verity gate, for the OTHER corner.
+/* Classify WHETHER the H10 (ECG) corner is trustworthy on a night — DELEGATED to analysis-stats.js
+   (2026-11-10). The rationale, the measured 2026-06-12 fingerprint and the thresholds now live beside
+   `AnalysisStats.h10FailureClass`, which tests/dex-tests.js binds numerically. This file and
+   sensor-trio-power-analysis.js each carried a copy, no gate executed either one, and the correlation
+   legs feeding them had already diverged: this one refused a degenerate series, the page's returned NaN.
 
-   WHY H10 needs its own gate: TCH's negative-variance failure ALREADY nulls H10 first on shared-error
-   nights (it is the smallest-true-σ corner, so σ²_h10=σ_h(σ_h−ρσ_partner) crosses zero soonest), but a
-   DIFFERENT failure — a bad ECG lead for a whole night (poor electrode contact / motion) — yields a large
-   POSITIVE σ_h10 that TCH faithfully reports (real corpus: 2026-06-12 σ_h10≈9.5 bpm, CI 7.2–11.7, n≈18.7k).
-   That is a genuine ~9 bpm ECG error, not a device σ, and with no gate it silently inflates the H10
-   aggregate (a lone outlier ~8× the next-highest real night).
-
-   The fingerprint is specific and MEASURED on the corpus, so the gate fires on 06-12 alone:
-     (1) σ_h10 implausibly large — every healthy real night is ≤1.25 bpm; the fault is 9.5. Threshold 5
-         sits in the wide empty gap (same "wide of the observed band" philosophy as the Verity gate).
-     (2) H10 has decorrelated from BOTH partners — rHO<0.5 AND rHV<0.5 (06-12: 0.43 / 0.38; every healthy
-         night ≥0.79), i.e. H10 stopped tracking the true HR.
-     (3) O2 & Verity STILL agree — rVO≥0.5 (06-12: 0.85). This is the guard that makes it H10-specific:
-         it rejects the Verity-noisy nights (06-29 rVO=0.31, 07-02 rVO=0.21) where rHV is also low but the
-         bad corner is VERITY, not H10 (and there σ_h10 is a healthy ~0.65, so (1) already spares them).
-
-   Because a decorrelated H10 error is INDEPENDENT, it cancels out of the O2/Verity TCH estimates
-   (σ²_o2=½(V_HO+V_VO−V_HV) — the inflated H10 terms cancel), so those two corners stay valid. Hence the
-   caller nulls ONLY the H10 corner and KEEPS the night — unlike the Verity gate, whose harmonic-doubled
-   corner is a partially-CORRELATED corruption that compromises the whole solve, so it skips the night. */
+   🔴 Both wrappers REFUSE rather than fall back, for the reason the TCH kernel above gives. A local
+   copy as a safety net is what is being removed here, and guarding an absent alias would turn a crash
+   into a silently disabled corner gate (CLAUDE.md §👥.3). The kernel loads outside the try above. */
 function h10FailureClass(sigmaH10, rHO, rHV, rVO) {
-  if (sigmaH10 == null || sigmaH10 <= 5) return 'ok'; // plausible ECG σ (corpus ≤1.25)
-  var bothLow = (rHO == null || rHO < 0.5) && (rHV == null || rHV < 0.5); // H10 decorrelated from both
-  var pairAgrees = rVO != null && rVO >= 0.5; // ...while O2 & Verity still agree
-  return bothLow && pairAgrees ? 'ecg-lead-fault' : 'ok';
+  if (!self.AnalysisStats || typeof self.AnalysisStats.h10FailureClass !== 'function') {
+    throw new Error('sensor-trio-worker: AnalysisStats.h10FailureClass unavailable — the H10 corner gate cannot classify and no local copy is kept');
+  }
+  return self.AnalysisStats.h10FailureClass(sigmaH10, rHO, rHV, rVO);
 }
+/* The correlation leg the gate above reads. `pearsonOrNull`, not `pearson`: a constant series has no r,
+   and `h10FailureClass` reads `null` as absence while a NaN fails that test and every `< 0.5` comparison
+   alike, so a NaN r would classify a lead-faulted night as 'ok'. */
 function pearson(x, y) {
-  var n = x.length,
-    mx = 0,
-    my = 0,
-    i;
-  for (i = 0; i < n; i++) {
-    mx += x[i];
-    my += y[i];
+  if (!self.AnalysisStats || typeof self.AnalysisStats.pearsonOrNull !== 'function') {
+    throw new Error('sensor-trio-worker: AnalysisStats.pearsonOrNull unavailable — the H10 corner gate has no correlation leg and no local copy is kept');
   }
-  mx /= n;
-  my /= n;
-  var sxy = 0,
-    sx = 0,
-    sy = 0;
-  for (i = 0; i < n; i++) {
-    var dx = x[i] - mx,
-      dy = y[i] - my;
-    sxy += dx * dy;
-    sx += dx * dx;
-    sy += dy * dy;
-  }
-  return sx > 0 && sy > 0 ? sxy / Math.sqrt(sx * sy) : null;
+  return self.AnalysisStats.pearsonOrNull(x, y);
 }
 // collapse [sec,val] pairs → Map(sec → median), robust to multi-sample seconds
 function medMap(pairs) {
