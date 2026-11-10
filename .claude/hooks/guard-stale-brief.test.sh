@@ -23,6 +23,14 @@ set -uo pipefail
 # which an `unset` at the top of the file does not touch.
 unset CLAUDE_ALLOW_STALE_BRIEF
 H="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/guard-stale-brief.sh"
+# The shared needle readers. A leg whose PASS is an ABSENCE needs a reader that cannot fail to
+# look, and `grep` through a pipe reads "could not look" as "not there" — row
+# 2026-11-09-four-selftest-legs-print-ok-when-their-reader-fails-to-look.
+_LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/tools/hook-test-lib.sh"
+if [ ! -r "$_LIB" ]; then printf '  REFUSE  the needle readers are unreadable at %s\n' "$_LIB" >&2; exit 2; fi
+# The path is a runtime expression, so shellcheck resolves it only under -x, which no gate runs.
+# shellcheck source=../../tools/hook-test-lib.sh disable=SC1091
+. "$_LIB"
 # ⚠ THE WRITER-FATE PAYLOAD IS SIZED FROM THE KERNEL, NOT FROM A ROUND NUMBER. `--probe-bytes` returns
 # four times this box's `fs.pipe-max-size` with a 4 MiB floor, and nothing past that ceiling can be
 # absorbed into a pipe. The literal 100 KB these legs used to stage looked like twice the 64 KB pipe
@@ -401,18 +409,11 @@ _recapture() { # _recapture cmd:<command> | file:<path> ; the recipe carries a p
   esac
 }
 # ── THE READER MUST NOT BE ABLE TO FAIL TO LOOK ──────────────────────────────────
-# Row 2026-11-09-guard-selftest-reads-a-failed-reader-as-an-absent-needle. Every leg below used to
-# pipe its captured text into `grep -qF` and read PRESENT from exit 0, ABSENT from anything else.
-# That reads three states as one word: a reader that exited 2 because it could not run, a reader
-# killed by a signal, and a needle that is honestly absent. classify read the needle TWICE through
-# that shape, so two FAILED reads agreed, it printed STABLE-TEXT, and _cause_note then sent the
-# reader at their own diff. The fix is not a third verdict for a reader that could not look. It is
-# to keep no reader that can fail: a case pattern with the needle QUOTED is a literal substring
-# test in the shell itself. No subprocess, no exit status to collapse, and no pipe to meet SIGPIPE
-# on a text over the 64 KiB buffer. The quotes are load-bearing — unquoted, a * in a needle globs.
-says() { # says <needle> <text> ; 0 = PRESENT, 1 = ABSENT. It cannot report a third thing.
-  case "$2" in *"$1"*) return 0 ;; *) return 1 ;; esac
-}
+# Row 2026-11-09-guard-selftest-reads-a-failed-reader-as-an-absent-needle, and then row
+# 2026-11-09-four-selftest-legs-print-ok-when-their-reader-fails-to-look for the three other hook
+# self-tests that needed the same reader. `says` therefore lives in `tools/hook-test-lib.sh`,
+# sourced at the top of this file, and its header carries the measurement, the three states a
+# piped `grep -qF` folds into one word, and the reason the quotes in the pattern are load-bearing.
 classify() { # classify <first text> <retry text> <needle> ; one token naming the cause
   local a=ABSENT b=ABSENT
   says "$3" "$1" && a=PRESENT

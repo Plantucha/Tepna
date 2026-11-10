@@ -33,8 +33,8 @@
           "tier": "core", "unit": "%", "evidence": "measured", "goodDirection": "up",
           "formula": "1 − artifactRejectedFraction", "cite": "Analyzable coverage after artifact rejection — direct" },
         { "id": "totalPower", "abbr": "Total Power", "name": "Total Spectral Power", "fullName": "Broadband EEG power over (0, 45] Hz, the band the transform sums",
-          "tier": "secondary", "unit": "µV²", "evidence": "measured", "goodDirection": "neutral",
-          "formula": "Σ P(f) over (0, 45] Hz", "cite": "Broadband spectral power — direct from the PSD" }
+          "tier": "secondary", "unit": "(amplitude)²", "evidence": "measured", "goodDirection": "neutral",
+          "formula": "Σ P(f) over (0, 45] Hz", "cite": "Broadband spectral power — direct from the PSD. The amplitude unit is the EDF channel's own physical dimension, which the DSP carries as `unit` and the surface prints; this node never assumes µV, so the registry states a squared amplitude rather than µV²" }
       ]
     },
     {
@@ -70,8 +70,8 @@
       "description": "EEG-staged hypnogram and micro-architecture markers",
       "metrics": [
         { "id": "remPct", "abbr": "REM %", "name": "REM Fraction", "fullName": "Fraction of total sleep time scored REM from EEG",
-          "tier": "core", "unit": "%", "evidence": "validated", "goodDirection": "neutral",
-          "formula": "remEpochs / totalSleepEpochs", "cite": "EEG-staged REM fraction — EEG is the sleep-staging reference standard" },
+          "tier": "core", "unit": "%", "evidence": "emerging", "goodDirection": "neutral",
+          "formula": "remEpochs / totalSleepEpochs", "cite": "REM fraction from the staged hypnogram — it inherits the single-channel stager's tier, never the reference standard's. PSG EEG staging is the reference standard; this stager is not PSG-validated" },
         { "id": "spindleDensity", "abbr": "Spindles", "name": "Spindle Density", "fullName": "Sleep-spindle count per minute of N2",
           "tier": "research", "unit": "/min", "evidence": "emerging", "goodDirection": "up",
           "formula": "spindleCount / N2Minutes", "cite": "Sleep-spindle density (11–16 Hz bursts) — published memory-consolidation marker, device-dependent" },

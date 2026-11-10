@@ -385,7 +385,14 @@
     var stages = opts.smooth === false ? rawStages : smoothHypnogram(rawStages);
     for (i = 0; i < nEp; i++) {
       var st2 = stages[i];
-      hypnogram.push({ epoch: i, tMs: rec.t0Ms != null ? rec.t0Ms + i * EPOCH_SEC * 1000 : null, stage: st2, conf: st2 == null ? null : 0.5 });
+      /* §∅ · `conf` IS NULL ON EVERY EPOCH, and that is the contract rather than a gap.
+         `hypno-export.js` states it for the whole fleet: `confidence` is "the posterior of the
+         decoded stage", and "a stager without posteriors (ECGDex's rule set) reports
+         `confidence: null`, and the card says so". This stager is a band-power rule set with no
+         posterior, so there is no number to state. The flat 0.5 that stood here until 2026-11-10 was
+         an in-range sentinel: `confidenceSvg` draws "darker = surer", so a constant drew a uniform
+         strip that read as a measured confidence at every epoch. A consumer now reads the absence. */
+      hypnogram.push({ epoch: i, tMs: rec.t0Ms != null ? rec.t0Ms + i * EPOCH_SEC * 1000 : null, stage: st2, conf: null });
       if (st2 == null) nNull++;
       else counts[st2]++;
     }
@@ -745,11 +752,11 @@
      spelling for its HRV-derived stages. The Integrator can then hold an EEG stage against the
      proxy for the same minute instead of reading two vocabularies for one fact.
 
-     `conf` is null, and that is deliberate. The hypnogram's own per-epoch `conf` is the CONSTANT
-     0.5 that `analyze` writes for every scored epoch, so it is a placeholder rather than a
-     measurement; ECGDex's 0.7 on the same impulse is the same kind of constant. Propagating either
-     would put a confidence on the bus that no instrument here produced, and `conf` is declared
-     0..1 OR null, so null is the value that states what we know. */
+     `conf` is null, and that is deliberate. The hypnogram's own per-epoch `conf` is null too, for
+     the reason `analyze` states: a band-power rule set has no posterior to report. ECGDex's 0.7 on
+     the same impulse IS still a constant, and it rides the bus. Either number would put a
+     confidence on the bus that no instrument here produced, and `conf` is declared 0..1 OR null, so
+     null is the value that states what we know. */
   function buildNodeExport(summary, opts) {
     summary = summary || {};
     opts = opts || {};
