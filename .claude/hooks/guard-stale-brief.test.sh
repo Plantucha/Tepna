@@ -95,6 +95,41 @@ expect() { # expect <want> <label> <file>
   else printf '  FAIL  %-58s got %s, want %s\n' "$2" "$got" "$1"; fail=$((fail+1)); fi
 }
 
+# ── A PRECONDITION NOBODY MEASURED IS NOT A PRECONDITION ────────────────────────────────────────
+# Rows 2026-11-04-the-hooks-gate-flakes-on-the-worktree-creating-cd-shape and
+# 2026-11-05-the-stale-brief-self-test-flake-reds-a-leg-the-row-does-not-name. Every `git` line that
+# builds a fixture in this file is silenced — `git clone`, `git push`, `git fetch`, `git worktree
+# add`, `git merge` and `git cherry-pick` among them. A setup that fails therefore leaves the legs
+# below judging the hook over a state nobody built, and the red names the RULE.
+#
+# Three groups already measure their own state: the stale root beside its current worktree, then
+# `MERGE_HEAD`, then `CHERRY_PICK_HEAD`. Each one hand-rolls the same `if`. `fixture` below states
+# that shape once, and the six groups that carried no such line now use it.
+#
+# FALSIFIED 2026-11-10, one sabotage a group: each sabotage reds its OWN line, and no other
+# line claims it. Three of the six changed nothing else in the 191 legs — a `$TMP/norepo` that
+# IS a repo, an `$R2` that never runs `git init`, and an oversized payload of zero bytes — so
+# those three legs used to pass over a state nobody built. The sabotage that reds 80 legs is the
+# main fixture, which is the other reason its failure cannot be either flake arrival.
+#
+# ⚠ THIS EXPLAINS NEITHER FLAKE ARRIVAL. Both reds hit ONE leg, and the main fixture builds the
+# state that forty legs read, so its failure reds forty. The point is narrower: a reader can now
+# tell "the hook answered wrongly" from "the state the leg reads never existed". §∅ holds for a
+# precondition as much as for a sample.
+fixture() { # fixture <what the legs below read> <measured token> <wanted token>
+  if [ "$2" = "$3" ]; then printf '  ok    fixture: %-50s %s\n' "$1" "$3"; return 0; fi
+  printf '  FAIL  fixture: %s — measured %s, want %s\n' "$1" "${2:-<empty>}" "$3"
+  printf '        THE LEGS BELOW WOULD JUDGE THE HOOK OVER A STATE NOBODY BUILT.\n'
+  fail=$((fail + 1))
+}
+_fx_base="$(git -C "$WORK" merge-base HEAD origin/main 2>/dev/null)"
+_fx_moved="$(git -C "$WORK" log --oneline "$_fx_base"..origin/main -- briefs/SHARED-BRIEF.md 2>/dev/null)"
+fixture "the guarded brief moved on origin/main, this branch lacks it" \
+  "$([ -n "$_fx_moved" ] && echo MOVED || echo UNMOVED)" MOVED
+_fx_other="$(git -C "$WORK" log --oneline "$_fx_base"..origin/main -- briefs/OTHER-BRIEF.md 2>/dev/null)"
+fixture "the paired control brief did NOT move" \
+  "$([ -z "$_fx_other" ] && echo UNMOVED || echo MOVED)" UNMOVED
+
 echo "### the divergence it exists to catch"
 expect DENY  "brief advanced on origin/main, branch has not"        "briefs/SHARED-BRIEF.md"
 expect DENY  "…absolute path resolves to the same rule"             "$WORK/briefs/SHARED-BRIEF.md"
@@ -583,11 +618,21 @@ else echo "  FAIL  malformed payload denied"; fail=$((fail+1)); fi
 echo
 echo "### fails OPEN outside a repo (a git hiccup must not block all doc edits)"
 mkdir -p "$TMP/norepo/briefs"; printf 'x\n' > "$TMP/norepo/briefs/A.md"
+# The ALLOW below wants the no-repo case. A dir that IS in a repo with no moved brief also allows,
+# so an unmeasured setup turns this leg vacuous rather than red.
+fixture "the no-repo dir sits outside every git repo" \
+  "$(git -C "$TMP/norepo" rev-parse --show-toplevel >/dev/null 2>&1 && echo IN-A-REPO || echo OUTSIDE)" OUTSIDE
 got="$(cd "$TMP/norepo" && printf '{"tool_input":{"file_path":"briefs/A.md"}}' | bash "$H" >/dev/null 2>&1; [ $? -eq 2 ] && echo DENY || echo ALLOW)"
 if [ "$got" = ALLOW ]; then echo "  ok    no git repo ⇒ ALLOW"
 else echo "  FAIL  denied outside a repo"; fail=$((fail+1)); fi
 # a repo with no origin/main at all
 R2="$TMP/noremote"; mkdir -p "$R2/briefs"; (cd "$R2" && git init -q . && git config user.email t@t && git config user.name t && printf 'x\n' > briefs/A.md && git add -A >/dev/null && git commit -qm x)
+# Same vacuity in the other direction: a `git init` that failed leaves NO repo, which allows for
+# the reason the leg above already covers. This leg needs a repo that carries no `origin/main`.
+fixture "the no-remote repo is a repo, and carries no origin/main" \
+  "$(git -C "$R2" rev-parse --git-dir >/dev/null 2>&1 \
+      && { git -C "$R2" rev-parse --verify -q origin/main >/dev/null 2>&1 && echo HAS-ORIGIN || echo NO-ORIGIN; } \
+      || echo NOT-A-REPO)" NO-ORIGIN
 got="$(cd "$R2" && printf '{"tool_input":{"file_path":"briefs/A.md"}}' | bash "$H" >/dev/null 2>&1; [ $? -eq 2 ] && echo DENY || echo ALLOW)"
 if [ "$got" = ALLOW ]; then echo "  ok    no origin/main ⇒ ALLOW"
 else echo "  FAIL  denied with no origin/main"; fail=$((fail+1)); fi
@@ -644,6 +689,12 @@ STALE="$TMP/stale-worktree"
 CUR="$TMP/current-worktree"
 git -C "$WORK" worktree add -q --detach "$STALE" mine 2>/dev/null
 git -C "$WORK" worktree add -q --detach "$CUR" origin/main 2>/dev/null
+# `run_from` cds into these two trees. A `worktree add` that failed leaves the cd failing, so the
+# subshell measures whatever tree it already stood in.
+_fx_s="$(git -C "$STALE" rev-parse HEAD 2>/dev/null)"
+_fx_c="$(git -C "$CUR" rev-parse HEAD 2>/dev/null)"
+fixture "the stale and current worktrees exist, at DIFFERENT commits" \
+  "$([ -n "$_fx_s" ] && [ -n "$_fx_c" ] && [ "$_fx_s" != "$_fx_c" ] && echo TWO-TREES || echo NOT-BUILT)" TWO-TREES
 
 run_from() { # run_from <cwd> <file_path>
   ( cd "$1" && printf '{"tool_input":{"file_path":"%s"}}' "$2" | bash "$H" >/dev/null 2>&1
@@ -967,6 +1018,11 @@ else echo "  ok    an existing subdirectory hop is NOT reported as a missing tre
 # Same contract trim-output.test.sh pins (#3493).
 head -c "$_PROBE_BYTES" /dev/zero | tr '\0' x > "$TMP/stdin-big"
 jq -nc --rawfile c "$TMP/stdin-big" '{tool_input:{command:$c}}' > "$TMP/stdin-big.json"
+# The writer-fate leg reads rc=0 over an EMPTY payload just as happily as over an oversized one, so
+# a `jq` that failed scores the race green. The size is the leg, and the leg now measures it.
+_fx_json="$(wc -c < "$TMP/stdin-big.json" 2>/dev/null)"
+fixture "the oversized payload exceeds the pipe ceiling" \
+  "$([ "${_fx_json:-0}" -gt "$_PROBE_BYTES" ] && echo OVER || echo UNDER)" OVER
 _worst=0
 for _i in 1 2 3 4 5; do
   cat "$TMP/stdin-big.json" | CLAUDE_ALLOW_STALE_BRIEF=1 bash "$H" >/dev/null 2>&1
@@ -985,6 +1041,10 @@ BLIND="$TMP/blindbin"
 mkdir -p "$BLIND"
 printf '#!/bin/sh\nexit 3\n' > "$BLIND/sort"
 chmod +x "$BLIND/sort"
+# A `chmod` that failed leaves PATH skipping the stub, so these legs would drive the WORKING reader
+# and still print ok. The stub has to win the PATH lookup, and that is what this measures.
+fixture "the sort stub shadows the real sort on PATH" \
+  "$(PATH="$BLIND:$PATH" command -v sort)" "$BLIND/sort"
 runcmd_blind() { # runcmd_blind <command string> ; the same drive, under a sort that cannot run
   jq -nc --arg c "$1" '{tool_input:{command:$c}}' | PATH="$BLIND:$PATH" bash "$H" >/dev/null 2>&1
   [ $? -eq 2 ] && echo DENY || echo ALLOW
@@ -1022,6 +1082,10 @@ AWKDEAD="$TMP/awkdead"
 mkdir -p "$AWKDEAD"
 printf '#!/bin/sh\nexit 3\n' > "$AWKDEAD/awk"
 chmod +x "$AWKSCAN/awk" "$AWKDEAD/awk"
+fixture "the scan-blind awk stub shadows awk on PATH" \
+  "$(PATH="$AWKSCAN:$PATH" command -v awk)" "$AWKSCAN/awk"
+fixture "the dead awk stub shadows awk on PATH" \
+  "$(PATH="$AWKDEAD:$PATH" command -v awk)" "$AWKDEAD/awk"
 runcmd_awk() { # runcmd_awk <stub dir> <command string>
   jq -nc --arg c "$2" '{tool_input:{command:$c}}' | PATH="$1:$PATH" bash "$H" >/dev/null 2>&1
   [ $? -eq 2 ] && echo DENY || echo ALLOW
