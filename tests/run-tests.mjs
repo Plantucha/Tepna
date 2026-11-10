@@ -1819,7 +1819,9 @@ function readSrcHtml() {
   const wanted = readdirSync(ROOT)
     .filter((f) => /^[A-Za-z][A-Za-z0-9 ]*\.src\.html$/.test(f))
     .sort();
-  if (wanted.length < 11) throw new Error('readSrcHtml: only ' + wanted.length + ' *.src.html found — refusing a list that short rather than reporting clean over it');
+  /* THE FLOOR FOLLOWS THE TREE: 12 shells since EEGDex.src.html landed 2026-11-10. A floor left at 11
+     cannot notice the newest shell disappearing, which is the one failure a floor is here to catch. */
+  if (wanted.length < 12) throw new Error('readSrcHtml: only ' + wanted.length + ' *.src.html found — refusing a list that short rather than reporting clean over it');
   const out = {};
   for (const f of wanted) {
     const p = join(ROOT, f);

@@ -15,3 +15,9 @@ The node registry gains `deltaRel`, `sigmaRel` and `betaRel`. Three of the five 
 The ingest tests build an EDF byte by byte. The digital range equals the physical range. The reader's scale is then exactly 1, and a decoded sample reads back as the integer written. The ingest names six refusals. A seventh header defect throws out of the reader, and `eegdex-app.js` catches that throw and shows the reader's own message.
 
 EEGDex ships no bundle, and this unit does not register it as a shipped app. The brief asks for one public EEG recording through `ingestEDF` first.
+
+The twelfth shell joins the browser lane's list. That lane reads the shells from a hand-written list, and the node lane derives them from the tree. So the node lane saw `EEGDex.src.html` and the browser lane did not. The co-load staleness leg then read the two new RESOLVE entries as names that no app bundles. The same divergence has now happened four times, and the list carries that count. The node lane's floor rises from 11 shells to 12.
+
+`tools/xss-sink-gate.mjs` gains the ALLOW table its header has promised since #3318. The table was prose, and no code read it, so the only way past a false positive was to lower the ratchet baseline. An entry names three things: a file, a statement substring and a reason. The predicate skips an entry that misses any of the three. Each entry covers one file, so the gate still catches the same statement elsewhere. Over the whole tree, an entry that matches no sink fails the gate.
+
+The render carries the first entry. It assembles markup in builders and writes it through one helper. The heuristic cannot follow a value into the function that escaped it.

@@ -67,10 +67,27 @@
     return typeof document !== 'undefined' ? document.getElementById(id) : null;
   }
 
+  /* ── THE FILE'S ONE HTML SINK ─────────────────────────────────────────────────────────────────
+     Every builder below returns markup, so exactly one place has to put markup into the DOM. The
+     fleet's shape is that the sink stays in a SINGLE helper rather than at each call site, and a
+     test group asserts that of `sensor-trio-night.js` for the same reason: one sink is a line a
+     reviewer can hold in their head.
+
+     WHY IT IS SAFE, which `tools/xss-sink-gate.mjs` cannot see across a function boundary (its own
+     LIMITS paragraph says so): every value the builders interpolate passes through `esc()` or a
+     number formatter, and the only raw markup is `MetricRegistry.badge()` output through
+     `evBadge()`. The two device-supplied strings — the EDF channel label and its physical dimension
+     — reach HTML only through `row()` and `kpi()`, which escape them. Escaping HERE would escape
+     the markup itself, so the gate's remedy does not apply to this line; it is named in that
+     gate's ALLOW table with this reason, and the gate reds if the line ever stops existing. */
+  function setHTML(el, html) {
+    el.innerHTML = html;
+  }
+
   function fill(cardId, titleId, html) {
     var c = $(cardId);
     if (c) {
-      c.innerHTML = html;
+      setHTML(c, html);
       c.style.display = '';
     }
     var t = $(titleId);
@@ -237,7 +254,7 @@
     k += kpi('Total Power', num(b.totalPower, 3), powerSub(summary));
     k += kpi('α/θ', num(b.alphaTheta, 3), b.alphaTheta == null ? b.ratioReason || 'refused' : 'median over ' + (pop.ratioEpochs == null ? '—' : pop.ratioEpochs) + ' epochs');
     var grid = $('egKpiGrid');
-    if (grid) grid.innerHTML = k;
+    if (grid) setHTML(grid, k);
     var title = $('egKPI');
     if (title) title.style.display = '';
     fill('egHypnoCard', 'egHypno', hypnoHtml(summary));
