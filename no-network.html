@@ -47,11 +47,14 @@
 <h1>Tepna · No-Network Invariant Gate <span class="mut" style="font:500 13px/1 system-ui">— the privacy analogue of verify-provenance</span></h1>
 <p class="sub">The flagship privacy property: <b>no shipped surface initiates network egress</b> — nothing about
 the user leaves their machine. This promotes CLAUDE.md's "100% local, no CDN" <i>convention</i> into an
-<b>enforced, self-verifying property</b>. <b>Scope</b> = the two web-app surfaces a user actually opens:
-the <b>8 self-contained bundles</b> (from <code>BUILD-MANIFEST.json</code>) <b>and the 2 unbundled
+<b>enforced, self-verifying property</b>. <b>Scope</b> = <b>every root page this repo serves</b>: the
+<b>9 self-contained bundles</b> (from <code>BUILD-MANIFEST.json</code>), <b>the 2 unbundled
 orchestrators</b> — <code>Data&nbsp;Unifier.html</code> / <code>OverDex.html</code> — whose real code lives in
 loose <code>&lt;script src&gt;</code> modules (adapters, DSPs, <code>signal-orchestrate.js</code>, the app
-JS), each of which is fetched and scanned too. Egress is classified by target <i>origin</i>: a
+JS), the <b>15 analysis pages</b> and the <b>31 site pages</b> (the 8 reference guides, the narrative
+pages and the dev harnesses). Each loose module and worker target is fetched and scanned too. The scope
+is <b>closed</b>: <code>tools/no-network-surface-parity.mjs</code> reds when a root <code>*.html</code>
+sits in no declared set, so a new page cannot join the repo unexamined. Egress is classified by target <i>origin</i>: a
 <b>remote/absolute-URL</b> target (or a transport-only primitive — <code>XMLHttpRequest</code>,
 <code>WebSocket</code>, <code>EventSource</code>, <code>sendBeacon</code>) is a HARD FAIL; a same-origin /
 relative / <code>data:</code> / <code>blob:</code> load of a bundled asset is allowed and <i>listed</i>; a
@@ -137,6 +140,39 @@ const ANALYSIS_PAGES = ['cgm-hrv-coupling-analysis.html','hrv-confound-analysis.
   'sigma-no-reference-analysis.html','qrs-equiv-analysis.html','qrs-yield-analysis.html',
   'cohort-harness.html','cohort-runner.html','cohort-regression.html','PAT Feasibility.html',
   'PpgDex Fusion Prototype.html','index.html'];
+const SITE_PAGES = ['Architecture.html','CPAPDex Reference.html','DEX-PILL-UNIFY-options.html',
+  'Dex-Test-Suite.html','ECG Splitter.html','ECGDex Reference.html','Export Bar - Unified Proposal.html',
+  'Glossary.html','GlucoDex Reference.html','HRVDex Reference.html','How to Collect Data.html',
+  'MotionDex Reference.html','OxyDex Reference.html','PAT Classic vs Fused.html',
+  'PpgDex Fidelity Investigation.html','PpgDex Reference.html','PpgDex vs ECG Ground Truth.html',
+  'PulseDex RR Simulator.html','PulseDex Reference.html','Science.html',
+  'Signal-Adapter Brief - Complexity Map.html','Unified Profile - Detailed Mockup.html',
+  'User Profile - Unified Proposal.html','Why This Exists.html','cpapdex-edf-roundtrip.html',
+  'cpapdex-edf-selftest.html','dex-profile-selftest.html','resp-acc-analysis.html',
+  'sensor-trio-night.html','synth-gen.html','verify-provenance.html'];
+/* THE SCOPE IS NOW CLOSED, NOT A LIST SOMEONE REMEMBERS TO EXTEND. Every root `*.html` sits in
+   exactly one of BUNDLES, ORCHESTRATORS, ANALYSIS_PAGES, SITE_PAGES or SURFACE_EXCLUDED, and
+   `tools/no-network-surface-parity.mjs` reds when a root page sits in none. Before that check the
+   gate read 26 of 69 root pages, and a fetch planted in `OxyDex Reference.html` passed it
+   (row 2026-11-08-the-no-network-gate-reads-26-surfaces-of-a-wider-shipped-set). A reason is
+   mandatory per exclusion, because an exclusion is how a gate stops examining something. */
+/* A MODULE THE CRAWL DOES NOT READ, DECLARED WITH ITS REASON. The crawl now follows the loose
+   modules of every served page, and the regression suite's own source is the one file whose TEXT is
+   a corpus of the patterns these lenses look for: it passes `'XMLHttpRequest'` as a `new Function`
+   parameter name to stub a worker realm (8 lines), and its file-protocol gate documents
+   `new Worker('x.js')` and `importScripts('file.js')` in prose that the line-based lens reads as
+   crawlable targets (2, neither of which exists on disk). Scanning it is the same self-reference as
+   scanning `no-network.html`, whose canary rows plant remote URLs on purpose.
+   THE EXCLUSION IS NARROW AND PROVED NARROW: `Dex-Test-Suite.html` is the only page in the repo with
+   a `<script src="tests/dex-tests.js">`, the PAGE itself is still scanned, and a canary row below
+   asserts the matcher is literal, so no other module can fall into it. */
+const MODULE_EXCLUDED = {
+  'tests/dex-tests.js': "the regression suite's own text carries these patterns as test data: `'XMLHttpRequest'` as a new Function parameter name, and `new Worker('x.js')` in the prose of its own file-protocol gate"
+};
+const SURFACE_EXCLUDED = {
+  'no-network.html': 'this gate plants remote URLs in its own canary rows, so scanning itself reds by construction',
+  '*.src.html': 'a build input, never served; tools/build.mjs inlines it into the bundle this gate already scans'
+};
 const PY_FILES = ['capture-host/capture.py','capture-host/polar_pmd.py','capture-host/writers.py',
   'capture-host/bonding.py','capture-host/telemetry.py','capture-host/webmon.py','capture-host/viatom.py',
   'capture-host/oxyii.py','capture-host/requirements.txt',
@@ -423,7 +459,12 @@ function localScriptSrcs(html){
   const PAGES = BUNDLES.map(b=>({name:b, kind:'bundle', selfContained:true}))
     .concat(ORCHESTRATORS.map(o=>({name:o, kind:'orchestrator', selfContained:false})));
   // N1: the analysis/landing pages are STATIC-scanned only (not runtime-booted — see ANALYSIS_PAGES note).
-  const STATIC_PAGES = PAGES.concat(ANALYSIS_PAGES.map(a=>({name:a, kind:'analysis', selfContained:false})));
+  const STATIC_PAGES = PAGES.concat(ANALYSIS_PAGES.map(a=>({name:a, kind:'analysis', selfContained:false})))
+    /* N2: the reference guides, the narrative site pages and the dev harnesses are served from the
+       same origin, so a remote URL in one is real egress. They are STATIC-scanned only, for the same
+       reason as the analysis pages, and `selfContained:false` makes the crawl read their loose
+       modules and worker targets too. */
+    .concat(SITE_PAGES.map(s=>({name:s, kind:'site', selfContained:false})));
 
   /* ─────────────── LAYER 1 — STATIC ─────────────── */
   const staticTb = document.querySelector('#staticTbl tbody');
@@ -434,6 +475,7 @@ function localScriptSrcs(html){
   let staticRemoteTotal=0, staticScanned=0, staticMissing=0, externalTotal=0;
   const remoteHits=[];
   const strippedHits={};        // "label:line" → hit, deduped across the pages that share a module
+  const modulesExcluded={};     // path → reason, for a module the crawl deliberately does not read
   const stripProofFail=[];      // a built page that embeds a worker and does NOT prove the strip ran
   for(const pg of STATIC_PAGES){
     const html = await fetchText(pg.name);
@@ -476,6 +518,8 @@ function localScriptSrcs(html){
       if(item.worker) workerFiles[mod] = (workerFiles[mod] || item.via);
       if(seenHere[mod]) continue;
       seenHere[mod] = true;
+      /* Declared, reasoned, and COUNTED — an exclusion the reader cannot see is a blind spot. */
+      if(Object.prototype.hasOwnProperty.call(MODULE_EXCLUDED, mod)){ modulesExcluded[mod] = MODULE_EXCLUDED[mod]; continue; }
       modNames.push(mod + (item.worker ? ' (worker)' : ''));
       if(!(mod in moduleCache)){
         const mtxt = await fetchText(mod);
@@ -641,6 +685,16 @@ function localScriptSrcs(html){
   const stripRemote = scanText("/* @blob-strip:start\n  fetch('https://evil.example/x');\n  @blob-strip:end */", 'canary/strip');
   canRow('static · the region never launders a remote URL', 'fetch to a remote host still reds',
     stripRemote.remote.length===1, stripRemote.remote.length+' remote hit(s)');
+  /* THE MODULE EXCLUSION IS A BLIND SPOT BY DESIGN, so its matcher is tested like a lens: literal
+     keys only, every key carrying a reason, and no prefix or suffix reaching a neighbour. */
+  const mxKeys = Object.keys(MODULE_EXCLUDED);
+  canRow('static · every module exclusion carries a reason', mxKeys.length+' declared, 0 reason-less',
+    mxKeys.length>0 && mxKeys.every(k=>String(MODULE_EXCLUDED[k]||'').trim().length>20),
+    mxKeys.filter(k=>String(MODULE_EXCLUDED[k]||'').trim().length<=20).join(', ')||'all reasoned');
+  const mxHit = (p)=>Object.prototype.hasOwnProperty.call(MODULE_EXCLUDED, p);
+  canRow('static · the exclusion matcher is LITERAL, never a prefix', 'tests/dex-tests.js excluded, a neighbour is not',
+    mxHit('tests/dex-tests.js') && !mxHit('tests/dex-tests.js.bak') && !mxHit('tests/dex-tests') && !mxHit('dex-tests.js'),
+    'literal');
   canRow('static · worker target resolves against its referrer', "a 'x.js' inside docs/y.js is docs/x.js",
     resolveFrom('docs/y.js','x.js')==='docs/x.js' && resolveFrom('OverDex.html','cohort-worker.js')==='cohort-worker.js'
     && resolveFrom('docs/y.js','../z.js')==='z.js',
@@ -698,8 +752,13 @@ function localScriptSrcs(html){
     ok: window.__noNetworkOK, static: staticOK, runtime: runtimeOK, python: pythonOK, canary: canaryOK,
     staticRemoteHits: staticRemoteTotal, runtimeRemoteHits: runtimeRemoteTotal, pythonEgressHits: pyEgressTotal,
     surfacesScanned: staticScanned, looseModules: uniqueModules, surfacesBooted: runtimeBooted, pyFiles: pyScanned, externalLinks: externalTotal,
+    modulesExcluded: Object.keys(modulesExcluded).length, modulesExcludedList: Object.keys(modulesExcluded).sort(),
     workerTargets: workerCount, workerUnreadable: workerUnreadable.length,
     workerTargetList: Object.keys(workerFiles).sort(),
+    /* A RED THAT NAMES NOTHING COSTS THE READER A FULL TRACE. The HTML tables carry the detail for a
+       person, and the headless lane reads this object, so the lists travel with the counts. */
+    staticRemoteList: remoteHits.map(h=>h.label+':'+h.line+' '+h.kind+(h.url?' '+h.url:'')),
+    workerUnreadableList: workerUnreadable.map(w=>w.path+' (via '+w.via+')'),
     strippedTransport: strippedCount, strippedTransportList: Object.keys(strippedHits).sort(),
     stripProofFail: stripProofFail.length, stripProofFailList: stripProofFail.slice(),
     bundleListError: bundleListError,
