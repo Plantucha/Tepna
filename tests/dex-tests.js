@@ -68986,6 +68986,27 @@
         T.ok('without the allow-list the scrub REFUSES, naming the file it needs', !!threw && /export-schema/.test(threw), threw || 'no throw — it returned a document');
         // control · the SAME call with the allow-list passed in produces a scrubbed document
         T.ok('control · the same seam with the allow-list scrubs normally', DX._scrubWith(S, { schema: {}, recording: { contentId: 'c' } }).schema.scrubbed === true);
+
+        /* ── the refusal · an ARRAY cannot be projected, so it must never be marked ──
+           Row 2026-11-09-the-scrub-marks-an-array-shaped-export-and-projects-nothing. `typeof [] ===
+           'object'`, so an array passed the envelope guard above and reached `project`, which returns
+           an array verbatim. `out` was the clone, `scrubDropped` read `[]`, and the mark landed on a
+           NON-INDEX property that `JSON.stringify` drops. The written file therefore kept every
+           identifier and carried no mark, while an app reading `schema.scrubbed` in memory still
+           printed the shared-for-sharing note. The second leg holds the serialization property that
+           made the old behaviour silent, so a later reader can see why no pass-through could be made
+           honest, and the third holds that the refusal is about the ENVELOPE's shape only. */
+        var arrThrew = null;
+        try {
+          DX._scrubWith(S, [{ schema: {}, recording: { uploadName: 'FIXTURE-0000.txt' } }]);
+        } catch (e) {
+          arrThrew = String((e && e.message) || e);
+        }
+        T.ok('an array-shaped envelope REFUSES, naming the shape it cannot project', !!arrThrew && /array/i.test(arrThrew), arrThrew || 'no throw — it returned a document');
+        var marked = [{ a: 1 }];
+        marked.schema = { scrubbed: true };
+        T.ok('…and the old mark could not have survived: JSON.stringify drops a non-index property', JSON.parse(JSON.stringify(marked)).schema === undefined);
+        T.ok('control · an element ARRAY inside a plain envelope still scrubs', DX._scrubWith(S, { schema: {}, nights: [{ contentId: 'c' }] }).schema.scrubbed === true);
       }
     });
 
