@@ -899,9 +899,9 @@ self.onmessage = async (e) => {
       ${cell('ST level', d.st, 'µV', '±100', 'neutral', 'At J+60 ms vs baseline')}`
       : `<tr><td colspan="5" style="color:var(--text3);font-family:Inter,sans-serif;padding:14px">Intervals withheld — no valid median beat (insufficient clean, aligned normal beats).</td></tr>`;
     $('morphIntervals').innerHTML = `
-    <table><thead><tr><th>Interval</th><th>Value</th><th>Unit</th><th>Normal</th><th>Notes</th></tr></thead><tbody>
+    <div class="tbl-scroll"><table><thead><tr><th>Interval</th><th>Value</th><th>Unit</th><th>Normal</th><th>Notes</th></tr></thead><tbody>
       ${intervalsRows}
-    </tbody></table>
+    </tbody></table></div>
     ${(() => {
       const qt = m.qtcTrend,
         tw = m.twa;
@@ -1034,12 +1034,12 @@ self.onmessage = async (e) => {
     }
     const cell = (a, b, d, unit) => `<td class="mono">${a}</td><td class="mono">${b}</td><td class="mono ${d < 5 ? 'ok' : d < 12 ? 'warn' : 'bad'}">${d}%</td>`;
     $('valBody').innerHTML = `
-    <table><thead><tr><th>Metric</th><th>Self (ECG)</th><th>Device RR</th><th>Δ</th><th>Verdict</th></tr></thead><tbody>
+    <div class="tbl-scroll"><table><thead><tr><th>Metric</th><th>Self (ECG)</th><th>Device RR</th><th>Δ</th><th>Verdict</th></tr></thead><tbody>
     <tr><td>Beats</td><td class="mono">${v.nSelf.toLocaleString()}</td><td class="mono">${v.nDev.toLocaleString()}</td><td class="mono">${Math.abs(v.nSelf - v.nDev)}</td><td>${Math.abs(v.nSelf - v.nDev) / v.nDev < 0.03 ? '<span class="pill pill-green">match</span>' : '<span class="pill pill-yellow">check</span>'}</td></tr>
     <tr><td>Mean RR</td>${cell(v.selfMean, v.devMean, v.dMean)}<td>${v.dMean < 2 ? '<span class="pill pill-green">match</span>' : '<span class="pill pill-yellow">drift</span>'}</td></tr>
     <tr><td>RMSSD</td>${cell(v.selfRMSSD, v.devRMSSD, v.dRMSSD)}<td>${v.dRMSSD < 5 ? '<span class="pill pill-green">within %</span>' : v.dRMSSD < 12 ? '<span class="pill pill-yellow">close</span>' : '<span class="pill pill-red">off</span>'}</td></tr>
     <tr><td>SDNN</td>${cell(v.selfSDNN, v.devSDNN, v.dSDNN)}<td>${v.dSDNN < 5 ? '<span class="pill pill-green">within %</span>' : v.dSDNN < 12 ? '<span class="pill pill-yellow">close</span>' : '<span class="pill pill-red">off</span>'}</td></tr>
-    </tbody></table>
+    </tbody></table></div>
     <div class="q-note">One-time offline check (§3a): self-computed RR (sub-sample-refined Pan-Tompkins R-peaks) vs the device's firmware RR — <b>both Malik-corrected</b> so the comparison is artifact-free on each side. Clean signal should agree within a few %. ${r.source === 'synthetic' ? '<b>Device RR here is the synthetic ground truth.</b>' : ''} ${v.dRMSSD < 5 && v.dSDNN < 8 ? '<b style="color:var(--green)">✓ Self-RR validated — Plan A (full HRV from ECG) is sound.</b>' : 'Larger gaps would trigger the Plan-B fallback: export computed RR for PulseDex.'}${v.devEctopyCorrected ? ` <span style="opacity:.8">· ${v.devEctopyCorrected} ectopic/artifact beat${v.devEctopyCorrected > 1 ? 's' : ''} corrected in the device RR (raw device rMSSD ${v.devRawRMSSD} → ${v.devRMSSD} ms; ectopy, or a strap-missed beat, inflates the uncorrected value).</span>` : ''}</div>`;
     $('valCard').style.display = 'block';
   }
@@ -1121,12 +1121,12 @@ self.onmessage = async (e) => {
           ? '<span class="pill pill-yellow">good</span>'
           : '<span class="pill pill-red">weak</span>';
     $('hrBody').innerHTML = `
-    <table><thead><tr><th>Metric</th><th>ECG-derived</th><th>Device HR</th><th>Δ / verdict</th></tr></thead><tbody>
+    <div class="tbl-scroll"><table><thead><tr><th>Metric</th><th>ECG-derived</th><th>Device HR</th><th>Δ / verdict</th></tr></thead><tbody>
     <tr><td>Mean HR</td><td class="mono">${v.ecgMean}</td><td class="mono">${v.devMean}</td><td class="mono ${v.dMean < 2 ? 'ok' : v.dMean < 5 ? 'warn' : 'bad'}">Δ ${v.dMean} bpm</td></tr>
     <tr><td>Range (bpm)</td><td class="mono">${v.ecgMin}–${v.ecgMax}</td><td class="mono">${v.devMin}–${v.devMax}</td><td>—</td></tr>
     <tr><td>Mean abs error</td><td class="mono" colspan="2" style="text-align:center">${v.mae} bpm <span style="color:var(--text3)">(max ${v.maxErr}${v.coverage != null ? ` · over ${v.n} of ${v.comparableSec}s` : ''})</span></td><td>${v.mae < 2 ? '<span class="pill pill-green">tight</span>' : v.mae < 5 ? '<span class="pill pill-yellow">close</span>' : '<span class="pill pill-red">off</span>'}</td></tr>
     <tr><td>Correlation r</td><td class="mono" colspan="2" style="text-align:center">${v.rMeaningful ? v.r : '—'}</td><td>${rPill}</td></tr>
-    </tbody></table>
+    </tbody></table></div>
     <div class="mini-h" style="margin-top:12px">HR across the recording <span class="mini-sub"><span style="color:${UI.COLORS.teal}">●</span> ECG-derived&nbsp;&nbsp;<span style="color:${UI.COLORS.amber}">●</span> device</span></div>
     ${dualLineSVG(overlay, { ca: UI.COLORS.teal, cb: UI.COLORS.amber, xfmt })}
     <div class="q-note" style="margin-top:8px"><b>Secondary check.</b> The <a href="#valCard" style="color:${UI.COLORS.teal}">Device RR validation</a> above — beat-to-beat paired intervals — is the authoritative agreement test; this is a smoothed-HR trend overlay. Device HR (bpm) over HR from sub-sample-refined R-peaks on the shared timeline. ${r.source === 'synthetic' ? '<b>Device HR here is the synthetic ground truth.</b> ' : ''}${!v.rMeaningful ? 'HR stayed near-constant over this window (spread ' + v.spreadE + '/' + v.spreadD + " bpm), so the correlation isn't meaningful — judge agreement by the mean Δ and the RR card." : v.r >= 0.9 && v.mae < 3 ? '<b style="color:var(--green)">✓ Beat detection tracks the device firmware.</b>' : 'A low r alongside a tight mean Δ usually means a flat HR stretch, not a detection miss — confirm against the RR card.'}</div>`;
@@ -1487,8 +1487,8 @@ self.onmessage = async (e) => {
         : '';
     const bouts = g.bouts.length
       ? `<details class="acc-details"><summary>${g.bouts.length} walking bout${g.bouts.length > 1 ? 's' : ''} — show table</summary>
-        <table class="acc-bout-tbl"><thead><tr><th>Start</th><th>Duration</th><th>Steps</th><th>Mean cadence</th><th>Cadence CV%</th></tr></thead>
-        <tbody>${g.bouts.map((b) => `<tr><td>${_fmtEpochClock(r, b.startMin)}</td><td>${b.durSec}s</td><td>${b.steps}</td><td>${b.cadence}/min</td><td>${b.cadenceCV}%</td></tr>`).join('')}</tbody></table></details>`
+        <div class="tbl-scroll"><table class="acc-bout-tbl"><thead><tr><th>Start</th><th>Duration</th><th>Steps</th><th>Mean cadence</th><th>Cadence CV%</th></tr></thead>
+        <tbody>${g.bouts.map((b) => `<tr><td>${_fmtEpochClock(r, b.startMin)}</td><td>${b.durSec}s</td><td>${b.steps}</td><td>${b.cadence}/min</td><td>${b.cadenceCV}%</td></tr>`).join('')}</tbody></table></div></details>`
       : '';
     return `<section class="section-card" data-tier="primary" id="accGaitCard">
     <div class="section-card-title">Step Count &amp; Gait</div>
