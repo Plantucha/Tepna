@@ -537,24 +537,36 @@ async function gateNightSeal() {
 
    THE BASELINE IS A SET OF NAMES, NEVER A SET OF WIDTHS, and it may only SHRINK. A page outside it
    that grows reds. A page inside it that stops growing reds too, so a fix must delete its entry.
-   That makes the remaining entry this leg's own anti-vacuity proof: emulation that stopped applying
-   would read 375 everywhere and red here, rather than pass over nothing.
+   The baseline is now EMPTY, because every owned page holds at the device width. An empty baseline
+   carries no anti-vacuity proof, so the leg plants its own control below: a 900 px box on a page
+   the leg itself writes. Emulation that stopped applying reads 375 for that box and reds, rather
+   than passing silently over twelve pages it never really constrained.
    A width is logged and never asserted. The rig and the CI runner fall back to different system
-   faces, because the repo ships no webfont, so the card content that forces CPAPDex.html wide need
-   not measure 522 px on both. One thing this leg therefore cannot see is a baselined page getting
-   WORSE. */
+   faces, because the repo ships no webfont, so a page's content width need not match across the
+   two. One thing this leg therefore cannot see is a baselined page getting WORSE. */
 const MOBILE_W = 375;
 /* The nine GATE A bundles come from manifest-gate.js. tools/build.mjs declares the two
    orchestrators as `ORCHESTRATORS` and exports nothing, so their names sit here. `index.html` is
    the landing page, which holds at the device width since the nav wrapped below 880 px. */
 const MOBILE_ORCHESTRATORS = ['Data Unifier.html', 'OverDex.html'];
 const MOBILE_PAGES = [...ManifestGate.MANIFEST_BUNDLES, ...MOBILE_ORCHESTRATORS, 'index.html'];
-const MOBILE_OVERFLOW_BASELINE = ['CPAPDex.html'];
+const MOBILE_OVERFLOW_BASELINE = [];
 
 async function gateMobileViewport() {
   say(`▸ mobile-viewport · ${MOBILE_PAGES.length} pages at ${MOBILE_W} px, mobile emulation …`);
   const mctx = await browser.newContext({ viewport: { width: MOBILE_W, height: 667 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
   try {
+    /* THE CONTROL. A 900 px box on a page this leg writes itself. Under mobile emulation the layout
+       viewport grows to hold it, so `innerWidth` reads well over MOBILE_W. Without the emulation the
+       viewport stays at MOBILE_W and this reds — which is the only thing standing between an empty
+       baseline and a leg that asserts nothing. */
+    const ctlPage = await mctx.newPage();
+    await ctlPage.setContent('<!doctype html><meta name="viewport" content="width=device-width"><body style="margin:0"><div style="width:900px;height:20px"></div></body>');
+    const ctlIw = await ctlPage.evaluate(() => window.innerWidth);
+    await ctlPage.close();
+    say(`   · control · a 900 px box reads innerWidth ${ctlIw}`);
+    if (ctlIw <= MOBILE_W)
+      FAILS.push(`mobile-viewport: the control planted a 900 px box and innerWidth stayed ${ctlIw}, so the mobile emulation did not apply and every page below passed over nothing`);
     for (const p of MOBILE_PAGES) {
       const page = await mctx.newPage();
       let m = null;
