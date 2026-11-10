@@ -193,7 +193,7 @@ function ecgCounterTimeMs(rec, pos) {
    The DEFAULT stays `linear`. Owner ruling 2 (2026-11-06) is measure first: the flip waits on what
    2026-07-24's worse narrowSD is, and until then no caller's number moves by taking this path. */
 function rPeakTimesOnAxis(rec, positions, opts) {
-  const axis = opts && opts.axis ? opts.axis : 'linear';
+  const axis = opts && opts.axis ? opts.axis : 'counter';
   if (axis !== 'linear' && axis !== 'piecewise' && axis !== 'counter') throw new Error('rPeakTimesOnAxis: axis is linear, piecewise or counter, never ' + axis);
   const piecewise = axis === 'piecewise';
   const counter = axis === 'counter';
