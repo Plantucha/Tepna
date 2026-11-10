@@ -217,6 +217,23 @@
      deleting a global out from under a live realm. `scrubExport` is the one-line production path. */
   function _scrubWith(S, envelope) {
     if (!envelope || typeof envelope !== 'object') return envelope;
+    /* AN ARRAY IS THE ONE SHAPE THAT SURVIVES THE GUARD ABOVE AND CARRIES NO MARK OUT.
+       `typeof [] === 'object'`, so an array-shaped envelope reached `project`, which returns an array
+       verbatim (`export-schema.js`, the `Array.isArray` arm). `out` was then the clone itself: every
+       identifier unprojected, `scrubDropped` empty, and `out.schema = {}` written to a NON-INDEX
+       property that `JSON.stringify` drops. So the written file kept the raw upload filename, the
+       input sha256 and any serial that filename carries, and it carried no scrub mark at all, while an
+       app reading `schema.scrubbed` in memory still printed the shared-for-sharing note beside it.
+       Row 2026-11-09-the-scrub-marks-an-array-shaped-export-and-projects-nothing.
+       The refusal is the same stance as the one below, for the same reason: a privacy boundary that
+       cannot project what it was handed has nothing honest to return, and a silent pass-through is
+       worse than a throw. No caller passes an array — the seven node modules each hand one envelope
+       object to `scrubExport` — so this closes a hole rather than a path. */
+    if (Array.isArray(envelope)) {
+      throw new Error(
+        'dex-export: scrubExport cannot project an array-shaped envelope — refusing to mark it scrubbed, because the allow-list projects nothing over an array and the mark does not survive serialization'
+      );
+    }
     if (!S || typeof S.project !== 'function') {
       throw new Error('dex-export: scrubExport needs the shared allow-list from export-schema.js — refusing to mark an export scrubbed without it');
     }

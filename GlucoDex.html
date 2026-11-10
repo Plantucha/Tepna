@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="07983a48e739" data-compute-hash="35619a7f0c6f">
+<html lang="en" data-manifest-hash="b4ae4cef3a64" data-compute-hash="cc7a0e9cbbe2">
 <head>
 <!--
   GlucoDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QU1eFIpXtk89h7OawHFWXJry6pEr0cw5i0Q08kGZz88=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-UvDbDts3+neURbz5qbvya/0mru+OeoZ1uY5iEk8wSUw=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-bV9puip5cXhdmdjTxLQSmozaij4ixCzmMm4aPQpZ5Og=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-eqhMkaKkI0DeDYeFRr158XI1OLlvfo+v/yXmogvQqzI=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-qO3ylT8ZcYfRnec/7L/gIvJzwj3nEH4AIZneevqETHU=' 'sha256-qzpUtdWH1TlUe+keMoviP5ddzz3oKD3bFygdJMXw118=' 'sha256-tEgjv8S5vEIsuBLCHAaM5gMw7PHBRH6v+T9vtvc8Yi4=' 'sha256-xeo/SvJn5pePZ1SM5sKHX3dRwul+yLMPUvGj5yOK8ns='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QU1eFIpXtk89h7OawHFWXJry6pEr0cw5i0Q08kGZz88=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-UvDbDts3+neURbz5qbvya/0mru+OeoZ1uY5iEk8wSUw=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-bV9puip5cXhdmdjTxLQSmozaij4ixCzmMm4aPQpZ5Og=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-eqhMkaKkI0DeDYeFRr158XI1OLlvfo+v/yXmogvQqzI=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-qO3ylT8ZcYfRnec/7L/gIvJzwj3nEH4AIZneevqETHU=' 'sha256-qzpUtdWH1TlUe+keMoviP5ddzz3oKD3bFygdJMXw118=' 'sha256-xeo/SvJn5pePZ1SM5sKHX3dRwul+yLMPUvGj5yOK8ns='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>GlucoDex — Continuous Glucose Analyzer · v2.29.0</title>
@@ -4566,6 +4566,23 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
      deleting a global out from under a live realm. `scrubExport` is the one-line production path. */
   function _scrubWith(S, envelope) {
     if (!envelope || typeof envelope !== 'object') return envelope;
+    /* AN ARRAY IS THE ONE SHAPE THAT SURVIVES THE GUARD ABOVE AND CARRIES NO MARK OUT.
+       `typeof [] === 'object'`, so an array-shaped envelope reached `project`, which returns an array
+       verbatim (`export-schema.js`, the `Array.isArray` arm). `out` was then the clone itself: every
+       identifier unprojected, `scrubDropped` empty, and `out.schema = {}` written to a NON-INDEX
+       property that `JSON.stringify` drops. So the written file kept the raw upload filename, the
+       input sha256 and any serial that filename carries, and it carried no scrub mark at all, while an
+       app reading `schema.scrubbed` in memory still printed the shared-for-sharing note beside it.
+       Row 2026-11-09-the-scrub-marks-an-array-shaped-export-and-projects-nothing.
+       The refusal is the same stance as the one below, for the same reason: a privacy boundary that
+       cannot project what it was handed has nothing honest to return, and a silent pass-through is
+       worse than a throw. No caller passes an array — the seven node modules each hand one envelope
+       object to `scrubExport` — so this closes a hole rather than a path. */
+    if (Array.isArray(envelope)) {
+      throw new Error(
+        'dex-export: scrubExport cannot project an array-shaped envelope — refusing to mark it scrubbed, because the allow-list projects nothing over an array and the mark does not survive serialization'
+      );
+    }
     if (!S || typeof S.project !== 'function') {
       throw new Error('dex-export: scrubExport needs the shared allow-list from export-schema.js — refusing to mark an export scrubbed without it');
     }
