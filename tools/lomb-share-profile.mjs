@@ -271,7 +271,7 @@ export function resolvedRootOf(nightPaths, roots = corpusRoots()) {
 }
 
 /* ── The child: ONE (node, realm) run in its own process, so peak RSS and the JIT are its own. ─── */
-function realmShim(g) {
+export function realmShim(g) {
   const noop = () => {};
   /* The product-path arm shims the REAL global, where `navigator` is getter-only, so every property
      goes through one setter that falls back to defineProperty and leaves a usable value in place. */
@@ -322,7 +322,7 @@ function realmShim(g) {
 }
 
 /** A small, cheap cross-realm equality read: the top-level finite numbers of the output. */
-function scalarDigest(out) {
+export function scalarDigest(out) {
   const pick = [];
   const walk = (o, prefix, depth) => {
     if (!o || typeof o !== 'object' || depth > 1) return;
@@ -490,9 +490,11 @@ function main() {
     reason: d.reason,
     producedBy: { tool: TOOL, commit }
   });
-  const bad = Verdict.validate(v);
-  if (bad && bad.length) {
-    console.error(`${TOOL}: the verdict is invalid — ${bad.join('; ')}`);
+  /* `validate` answers `{ ok, errors, checked }`, so a `.length` read of it is always `undefined`
+     and the guard below only fires when written on `ok`. */
+  const ck = Verdict.validate(v);
+  if (!ck.ok) {
+    console.error(`${TOOL}: the verdict is invalid — ${ck.errors.join('; ')}`);
     process.exit(2);
   }
   const text = `${JSON.stringify(v, null, 1)}\n`;
@@ -595,8 +597,8 @@ function selftest() {
     reason: null,
     producedBy: { tool: TOOL, commit: 'deadbeef' }
   });
-  const bad = Verdict.validate(v);
-  ok('the verdict this tool builds validates', !bad || !bad.length, JSON.stringify(bad));
+  const ck2 = Verdict.validate(v);
+  ok('the verdict this tool builds validates', ck2.ok, JSON.stringify(ck2.errors));
 
   /* The population leg. A corpus enumerator owes a population verdict, so the lister and the
      root-pick are measured over a planted tree rather than over whichever corpus this box holds. */
