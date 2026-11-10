@@ -28311,9 +28311,19 @@
          viewer zone. A `new Date(...).getHours()` here would move with TZ; `getUTC*` does not. */
       T.eq('the first epoch carries the floating t0, read back with getUTC*', new Date(res.hypnogram[0].tMs).toISOString(), '2026-01-01T23:00:00.000Z');
       T.eq('epoch 1 sits exactly one epoch later', res.hypnogram[1].tMs - res.hypnogram[0].tMs, 30000);
-      /* The stager publishes a FLAT 0.5 for every scored epoch. It is a placeholder, not a measured
-         confidence, and it is pinned here so a change to it has to be deliberate. */
-      T.eq('a scored epoch carries the placeholder confidence', res.hypnogram[0].conf, 0.5);
+      /* §∅ — the stager has no posterior, so EVERY epoch states a null confidence, scored or not.
+         `hypno-export.js` sets that contract for a rule-set stager. The flat 0.5 that stood here
+         until 2026-11-10 was an in-range sentinel, so the assertion pins the absence and the
+         population: a scored epoch and an unscorable one answer the same null. */
+      T.eq('a scored epoch states no confidence', res.hypnogram[0].conf, null);
+      T.eq(
+        'no epoch carries a number for confidence',
+        res.hypnogram.filter(function (e) {
+          return e.conf != null;
+        }).length,
+        0
+      );
+      T.eq('every epoch was examined by that count', res.hypnogram.length, 60);
       T.eq('the provenance the frame carried through compute', JSON.stringify([res.channel, res.source, res.fs, res.durSec]), JSON.stringify(['SYNTH-C4', 'synthetic', 100, 1800]));
       /* §∅ — the synthetic declares no physical dimension, so the power unit is ABSENT rather than
          asserted as µV². The surface then says the amplitude unit is undeclared. */
@@ -28484,8 +28494,9 @@
         'stage_w@23:00:00 stage_n1@23:06:00 stage_n2@23:12:00 stage_n3@23:18:00 stage_rem@23:24:00'
       );
       for (i = 0; i < ev.length; i++) {
-        /* The engine has no per-epoch confidence to state, so the export writes null. A 0.5 copied
-           out of the hypnogram placeholder would read downstream as a measured confidence. */
+        /* The engine has no per-epoch confidence to state, so the export writes null. The
+           hypnogram states null too, so there is no longer a number here to copy; a constant copied
+           from either would read downstream as a measured confidence. */
         T.eq('event ' + i + ' states no confidence rather than a placeholder', ev[i].conf, null);
         T.eq('event ' + i + ' names its node', ev[i].node, 'EEGDex');
         T.ok('event ' + i + ' carries tMs beside t', ev[i].tMs === res.hypnogram[0].tMs + i * 12 * 30000);
