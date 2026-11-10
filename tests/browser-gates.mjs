@@ -537,19 +537,19 @@ async function gateNightSeal() {
 
    THE BASELINE IS A SET OF NAMES, NEVER A SET OF WIDTHS, and it may only SHRINK. A page outside it
    that grows reds. A page inside it that stops growing reds too, so a fix must delete its entry.
-   That makes the two entries this leg's own anti-vacuity proof: emulation that stopped applying
+   That makes the remaining entry this leg's own anti-vacuity proof: emulation that stopped applying
    would read 375 everywhere and red here, rather than pass over nothing.
    A width is logged and never asserted. The rig and the CI runner fall back to different system
-   faces, because the repo ships no webfont, so the nav text that forces index.html wide need not
-   measure 732 px on both. One thing this leg therefore cannot see is a baselined page getting
+   faces, because the repo ships no webfont, so the card content that forces CPAPDex.html wide need
+   not measure 522 px on both. One thing this leg therefore cannot see is a baselined page getting
    WORSE. */
 const MOBILE_W = 375;
 /* The nine GATE A bundles come from manifest-gate.js. tools/build.mjs declares the two
    orchestrators as `ORCHESTRATORS` and exports nothing, so their names sit here. `index.html` is
-   the landing page, and the widest offender of the twelve. */
+   the landing page, which holds at the device width since the nav wrapped below 880 px. */
 const MOBILE_ORCHESTRATORS = ['Data Unifier.html', 'OverDex.html'];
 const MOBILE_PAGES = [...ManifestGate.MANIFEST_BUNDLES, ...MOBILE_ORCHESTRATORS, 'index.html'];
-const MOBILE_OVERFLOW_BASELINE = ['index.html', 'CPAPDex.html'];
+const MOBILE_OVERFLOW_BASELINE = ['CPAPDex.html'];
 
 async function gateMobileViewport() {
   say(`▸ mobile-viewport · ${MOBILE_PAGES.length} pages at ${MOBILE_W} px, mobile emulation …`);
