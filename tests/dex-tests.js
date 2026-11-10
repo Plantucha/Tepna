@@ -85619,7 +85619,11 @@
       var relSt = probeL('tools/release.mjs', ['--status', '--dry-run'], { isolateTmp: true });
       T.ok('release.mjs · --status reaches release-land.mjs instead of stamping', /no release-land run recorded|^remaining:|\nremaining:/m.test(String(relSt.out)), String(relSt.out).slice(0, 260));
       T.ok('…and nothing of the stamp step ran', !/This was the STAMP step only|Stamped v/.test(String(relSt.out)), String(relSt.out).slice(0, 260));
-      T.ok('…at exit 0 (a report) or 1 (no run recorded on this machine), never 2', relSt.status === 0 || relSt.status === 1, 'status=' + relSt.status + ' out=' + String(relSt.out).slice(0, 160));
+      T.ok(
+        '…at exit 0 (a report) or 4 (no run recorded on this machine), never 1 and never 2',
+        relSt.status === 0 || relSt.status === 4,
+        'status=' + relSt.status + ' out=' + String(relSt.out).slice(0, 160)
+      );
       /* release-land.mjs itself (Osprey, board #4749): every unread token fell through to a fresh run.
          The probe carries `--dry-run` for the reason above — a regressed guard previews, never releases. */
       var landBad = probeL('tools/release-land.mjs', ['--statu', '--dry-run'], { isolateTmp: true });
@@ -85644,6 +85648,26 @@
       });
       T.ok('PLANT · an unfinished run is read and reported', /^remaining:\s+\S/m.test(String(landRun.out)), String(landRun.out).slice(0, 200));
       T.eq('…at exit 3, never the usage code 2', landRun.status, 3);
+      /* THE PAIR THE CODE MUST SEPARATE. Row
+         2026-11-10-release-land-status-answers-one-for-a-failed-run-and-for-no-run: `--status` answered
+         1 for a release that FAILED and 1 for no release recorded at all. A caller acts on those
+         differently — one may start a release, the other needs a human — so `board.mjs` told them apart
+         by regexing the printed line. Both plants run here, because a code that separates them is only
+         evidence beside the case it is separated FROM. */
+      var landNone = probeL('tools/release-land.mjs', ['--status'], { isolateTmp: true });
+      T.ok('PLANT · no state file at all is SAID, not guessed', /no release-land run recorded/.test(String(landNone.out)), String(landNone.out).slice(0, 200));
+      T.eq('…at exit 4 — this read examined nothing', landNone.status, 4);
+      var landFail = probeL('tools/release-land.mjs', ['--status'], {
+        seedTmp: function (dir) {
+          var d2 = pathL.join(dir, 'tepna-release-land');
+          fsL.mkdirSync(d2);
+          var f2 = pathL.join(d2, 'v9.9.8.json');
+          fsL.writeFileSync(f2, JSON.stringify({ file: f2, to: '9.9.8', started: 'x', updated: 'x', done: ['plan'], current: 'stamp', failed: { step: 'stamp', why: 'planted', at: 'x' }, log: [] }));
+          fsL.writeFileSync(pathL.join(d2, 'latest.json'), JSON.stringify({ file: f2 }));
+        }
+      });
+      T.ok('CONTROL · a recorded run that FAILED is reported', /FAILED at stamp/.test(String(landFail.out)), String(landFail.out).slice(0, 200));
+      T.eq('…at exit 1, the code no absent state answers any more', landFail.status, 1);
       var rtHelp = probeL('tests/run-tests.mjs', ['--help']);
       T.eq('run-tests.mjs · --help exits 0', rtHelp.status, 0);
       T.ok('…printing a usage line that names the runner', /^usage: node tests\/run-tests\.mjs/m.test(String(rtHelp.out)), String(rtHelp.out).slice(0, 160));
