@@ -60198,10 +60198,31 @@
         T.ok(f + ' carries NO private Pearson body (no sxy accumulator)', !/\bsxy\b/.test(t), 'a copy of the correlation leg came back — delete it and delegate');
       });
 
+      /* BOTH LANES OR NEITHER. The kernel is co-loaded in the Node lane and not in the browser lane, so
+         binding `env.AnalysisStats` could only skip here — and `Dex-Test-Suite.html`'s own notes reject
+         exactly that ("the remedy is always to LIST in the other lane, never to make the assertion
+         lane-conditional"). The SOURCE is listed in both lanes, so the group builds the module from its
+         own text into a box whose `globalThis` is a PARAMETER: the file's IIFE resolves `root` to the box,
+         so this leaves no copy of the engine in either realm. `env.AnalysisStats` is preferred when the
+         runner has it, so the Node lane still tests the object the other groups use. */
+      var kSrc = (env.sources && env.sources['analysis-stats.js']) || '';
+      T.ok('analysis-stats.js is readable as source in THIS lane', kSrc.length > 1000, 'the kernel source is not listed in this lane — add it to SOURCE_FILES (browser) or readSources (node)');
       var S = env.AnalysisStats;
-      if (!S || typeof S.h10FailureClass !== 'function' || typeof S.pearsonOrNull !== 'function') {
-        T.skip('env.AnalysisStats provided to the runner', 'Node-lane only — run-tests.mjs co-loads analysis-stats.js');
-      } else {
+      if (!S && kSrc) {
+        var kBox = {};
+        try {
+          new Function('globalThis', kSrc)(kBox);
+          S = kBox.AnalysisStats;
+        } catch (_e) {
+          S = null;
+        }
+      }
+      T.ok(
+        'the kernel exposes h10FailureClass and pearsonOrNull',
+        !!S && typeof S.h10FailureClass === 'function' && typeof S.pearsonOrNull === 'function',
+        'the H10 corner gate cannot be bound — the assertions below would prove nothing'
+      );
+      if (S && typeof S.h10FailureClass === 'function' && typeof S.pearsonOrNull === 'function') {
         var cls = S.h10FailureClass;
         // THE lead-fault signature (2026-06-12): σ implausibly large AND H10 decorrelated from both
         // partners while O2 & Verity still agree — that one really is a bad ECG lead, so null the corner.
