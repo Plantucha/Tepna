@@ -74,6 +74,7 @@ import {
   HOLD_LABEL as PW_HOLD_LABEL
 } from '../tools/pr-walker.mjs';
 import { classify as commitShape, classifyRootAdd as commitShapeRootAdd, KNOWN_ROOT_ZERO_BYTE as commitShapeBaseline } from '../tools/commit-shape.mjs';
+import { parseStamps as tpParseStamps, STAMP_ROOTS as TP_ROOTS, STAMP_FILES as TP_FILES, rootAccepts as tpRootAccepts, sha12 as tpSha12 } from '../tools/table-provenance-core.mjs';
 import { docsConstantsPins, pinnedByDocsConstants, resolveSourcedClaim } from '../tools/claim-source.mjs';
 import * as claimSource from '../tools/claim-source.mjs';
 import { CHECKS as DOCS_CONSTANTS_CHECKS } from '../tools/docs-constants.mjs';
@@ -2015,60 +2016,27 @@ async function readPublishedCorpus() {
 }
 
 function readTableProvenance() {
-  const crypto = require('node:crypto');
-  const sha12 = (t) => crypto.createHash('sha256').update(t, 'utf8').digest('hex').slice(0, 12);
-  const RE = /<!--\s*TABLE-PROVENANCE\s+([^>]*?)-->/g;
-  const out = { stamps: [], malformed: [], sha12 };
-  const roots = ['briefs', 'audits', 'docs'];
+  /* THE PARSE, THE ROOT LIST AND THE TABLE-ABOVE WALK LIVE IN `tools/table-provenance-core.mjs`, so a
+     leg can plant a document instead of needing a stamp committed somewhere. Row
+     `2026-11-08-twenty-papers-carry-no-claim-marker-and-the-resolver-skips-papers` measured what the
+     closure cost: this scan omitted `papers/` and no leg could say so. What stays here is what needs
+     the tree and git — the upstream-dag digest. */
+  const sha12 = tpSha12;
+  const out = { stamps: [], malformed: [], sha12, roots: TP_ROOTS, parse: tpParseStamps, files: [] };
   const files = [];
-  for (const r of roots) {
-    const d = join(ROOT, r);
+  for (const root of TP_ROOTS) {
+    const d = join(ROOT, root.dir);
     if (!existsSync(d)) continue;
-    for (const f of readdirSync(d)) if (f.endsWith('.md')) files.push(join(r, f));
+    for (const f of readdirSync(d)) if (tpRootAccepts(root, f)) files.push(join(root.dir, f));
   }
-  if (existsSync(join(ROOT, 'CLAUDE.md'))) files.push('CLAUDE.md');
+  for (const f of TP_FILES) if (existsSync(join(ROOT, f))) files.push(f);
+  out.files = files;
   for (const rel of files) {
     const text = readFileSync(join(ROOT, rel), 'utf8');
-    const lines = text.split('\n');
-    RE.lastIndex = 0;
-    let m;
-    while ((m = RE.exec(text))) {
-      const attrs = {};
-      for (const a of m[1].matchAll(/(\w[\w-]*)=("([^"]*)"|\S+)/g)) attrs[a[1]] = a[3] !== undefined ? a[3] : a[2];
-      const lineNo = text.slice(0, m.index).split('\n').length;
-      /* The TABLE IS THE CONTIGUOUS `|` BLOCK IMMEDIATELY ABOVE the marker. Walking up from the
-         marker rather than down from a heading is what makes one file able to carry several. */
-      // A table inside a blockquote (`> | … |`, the house style for a dated correction block) is the
-      // same table: the quote prefix is stripped for detection AND for the hash, so quoting it does
-      // not move `output`.
-      const unquote = (l) => l.replace(/^\s*(?:>\s?)+/, '');
-      const isRow = (l) => unquote(l).trim().startsWith('|');
-      let i = lineNo - 2;
-      while (i >= 0 && !isRow(lines[i])) i--;
-      const end = i;
-      while (i >= 0 && isRow(lines[i])) i--;
-      const table =
-        end >= 0
-          ? lines
-              .slice(i + 1, end + 1)
-              .map(unquote)
-              .join('\n')
-          : null;
-      if (!attrs.producer || !attrs.output || !table) {
-        out.malformed.push(`${rel}:${lineNo} — ${!table ? 'no table immediately above the marker' : 'missing producer= or output='}`);
-        continue;
-      }
-      const st = { file: rel, line: lineNo, ...attrs, table, actualOutput: sha12(table) };
-      /* THE UPSTREAM-DAG HASH (PUBLISHED-NUMBER-PROVENANCE §4, the half of phase 2 that #2614 left
-         out — residue 2026-09-21-table-provenance-inputs-digest-never-recomputed). A stamp whose
-         `inputs=` names a COMMITTED path may also carry `inputsDigest=<12hex>`; the runner then
-         recomputes the digest over the GIT-TRACKED files under that path and the gate compares. That
-         is what lets a stamp CLEAR a churn flag rather than only raise one: a moved corpus moves a
-         number CI can see. Recipe (shared with analysis/published-numbers/*.json `inputs.digest`):
-         sha12 over `path\0sha12(bytes)` per file, joined by '\n', in `git ls-files` order. Tracked
-         files only — the primary checkout also holds gitignored raw nights under the same paths, and
-         a digest over those would differ from CI's for reasons that have nothing to do with the table.
-         A missing git or an unreadable file is a REASON, never a silent null: the gate reds on it. */
+    const got = tpParseStamps(text, rel);
+    out.malformed.push(...got.malformed);
+    for (const st of got.stamps) {
+      const attrs = st;
       if (attrs.inputsDigest) {
         if (!attrs.inputs || attrs.inputs.indexOf('/') < 0) st.inputsDigestReason = 'inputsDigest= needs a resolvable inputs= path';
         else {

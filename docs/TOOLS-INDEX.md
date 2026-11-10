@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**333 tools** · 332 with a purpose line · **1 without**
+**334 tools** · 333 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -299,6 +299,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`survivor-witness.mjs`](../tools/survivor-witness.mjs) | A WITNESS INPUT FOR EVERY SURVIVOR THAT HAS ONE 4708 operator mutants survive the JS sweeps unresolved. |
 | [`sync-docs-index.mjs`](../tools/sync-docs-index.mjs) | FLIP A BRIEF'S STATUS, THEN RUN THIS. It carries the flip into DOCS-INDEX.md. |
 | [`synth-desat-kinetics.mjs`](../tools/synth-desat-kinetics.mjs) | measure whether a synthetic SpO₂ corpus desaturates at a PHYSIOLOGICAL rate, and how much of it OxyDex's artifact self-gate rejects. |
+| [`table-provenance-core.mjs`](../tools/table-provenance-core.mjs) | WHY THIS FILE EXISTS. The reader lived inside `tests/run-tests.mjs` as a closure over the tree, so the only way to exercise it was to put a stamp in a committed document. |
 | [`tch-bootstrap-ci.mjs`](../tools/tch-bootstrap-ci.mjs) | error bars for the three-cornered-hat sigmas. THE GAP. This suite quotes TCH sigmas as bare numbers — ECGDex 0.30, PpgDex 0.33, OxyDex 1.10 bpm — in briefs, changesets and PR bodies, with… |
 | [`tch-degeneracy-d7.mjs`](../tools/tch-degeneracy-d7.mjs) | D7 · WHY THE FUSED THREE-CORNERED HAT GOES NEGATIVE, measured three ways. |
 | [`tch-degeneracy-stats.mjs`](../tools/tch-degeneracy-stats.mjs) | HOW OFTEN DOES THE THREE-CORNERED HAT GO DEGENERATE, AND ON WHAT KIND OF NIGHT? |
