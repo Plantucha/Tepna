@@ -98,6 +98,8 @@ export const STEPS = [
   'test:guards',
   'test:tools',
   'lint',
+  'verify:shellcheck',
+  'verify:shellcheck-logic',
   'test:par',
   'verify:shard-union',
   'verify:shard-union-logic',
