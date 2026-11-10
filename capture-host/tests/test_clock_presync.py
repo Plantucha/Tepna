@@ -675,12 +675,52 @@ def test_the_release_is_BOUNDED_for_a_device_the_sync_scan_never_finds(tmp_path,
 
 def test_clock_sync_owed_on_connect_is_PURE_and_each_bound_binds():
     f = capture.clock_sync_owed_on_connect
-    assert f(True, True, True, False, False, 0, 3) is True
-    assert f(False, True, True, False, False, 0, 3) is False, "nothing owed"
-    assert f(True, False, True, False, False, 0, 3) is False, "cannot take the write"
-    assert f(True, True, False, False, False, 0, 3) is False, "sync disabled"
-    assert f(True, True, True, True, False, 0, 3) is False, "docked"
-    assert f(True, True, True, None, False, 0, 3) is True, "charging unknown is not charging"
-    assert f(True, True, True, False, True, 0, 3) is False, "inside its backoff"
-    assert f(True, True, True, False, False, 2, 3) is True
-    assert f(True, True, True, False, False, 3, 3) is False, "the bound"
+    assert f(True, True, True, False, 0, 3) is True
+    assert f(False, True, True, False, 0, 3) is False, "nothing owed"
+    assert f(True, False, True, False, 0, 3) is False, "cannot take the write"
+    assert f(True, True, False, False, 0, 3) is False, "sync disabled"
+    assert f(True, True, True, True, 0, 3) is False, "docked"
+    assert f(True, True, True, None, 0, 3) is True, "charging unknown is not charging"
+    assert f(True, True, True, False, 2, 3) is True
+    assert f(True, True, True, False, 3, 3) is False, "the bound"
+
+
+def test_a_device_inside_its_backoff_is_STILL_released_to_sync_before_START():
+    """MEASURED on the capture box 2026-11-08: daytime syncs that paid a pause left the H10 cooling. Its
+    21:13:44 connect started PMD on an unset clock, and the resyncs at 21:18 cost an 80 s ECG gap. A
+    release before START pauses no stream, so the backoff has no signal to protect here."""
+    assert capture.clock_sync_owed_on_connect(True, True, True, False, 0, 3) is True
+    assert "cooling" not in capture.clock_sync_owed_on_connect.__code__.co_varnames
+
+
+def test_a_watchdog_resync_CLEARS_the_skew_floor_the_backoff_and_stamps_the_landing(tmp_path, monkeypatch, _no_sleep):
+    """MEASURED on the capture box 2026-11-08: the watchdog resynced the H10 at 21:18:37 and recorded
+    only the row. The skew floor still read the firmware default, so the reconnect loop ran two more
+    syncs that failed with InProgress. A landed sync must reach every reader of the old clock."""
+    addr = "AA:BB:CC:DD:EE:FF"
+    monkeypatch.setattr(capture, "_CLOCK_SYNC_COOLDOWN", {addr: (2, 1e12)})
+    monkeypatch.setattr(capture, "_CLOCK_SYNC_LAST_OK", {})
+    monkeypatch.setattr(capture, "_CLOCK_SKEW_SAMPLES", {"H10": [(-247288549.0, 1.0)]})
+    sets, calls = _watchdog(
+        monkeypatch, tmp_path, skew=-247288549.0, cycles=1, now=dt.datetime(2026, 11, 1, 22, 16, 39)
+    )
+    assert calls == [addr]
+    assert ("H10", {"clock_skew_floor_sec": None, "clock_skew_n": 0}) in sets, sets
+    assert "H10" not in capture._CLOCK_SKEW_SAMPLES
+    assert addr not in capture._CLOCK_SYNC_COOLDOWN
+    assert addr in capture._CLOCK_SYNC_LAST_OK
+
+
+def test_a_FAILED_watchdog_resync_keeps_the_floor_and_the_backoff(tmp_path, monkeypatch, _no_sleep):
+    addr = "AA:BB:CC:DD:EE:FF"
+    monkeypatch.setattr(capture, "_CLOCK_SYNC_COOLDOWN", {addr: (2, 1e12)})
+    monkeypatch.setattr(capture, "_CLOCK_SYNC_LAST_OK", {})
+
+    async def _fail(_addr):
+        raise RuntimeError("refused")
+
+    sets, _ = _watchdog(
+        monkeypatch, tmp_path, skew=-247288549.0, cycles=1, sync=_fail, now=dt.datetime(2026, 11, 1, 22, 16, 39)
+    )
+    assert not any("clock_skew_floor_sec" in kw for _n, kw in sets), sets
+    assert capture._CLOCK_SYNC_COOLDOWN == {addr: (2, 1e12)} and capture._CLOCK_SYNC_LAST_OK == {}

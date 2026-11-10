@@ -656,8 +656,11 @@ def test_the_covered_function_count_is_MEASURED_from_the_ast_not_quoted():
     # 347 → 348 on 2026-11-08 (owner, "Fix it" on the Verity stall loop): `stall_verdict`, which judges
     # a stall as ok, excuse or teardown. It is pure, so the 8 tests in test_capture.py judge it without a
     # link. The hold loop in run_polar acts on its answer. +1, the whole delta.
+    # 348 → 349 on 2026-11-09 (owner, "Fix all things you found this morning"): `_clock_sync_landed`,
+    # which records a landed sync from the ladder or the watchdog and drops the skew floor of the old
+    # clock. The watchdog tests in test_clock_presync.py judge it. +1, the whole delta.
     # `moduleFunctionsAtDeclaration` stays where it is, per the note above.
-    assert n == 348, f"capture.py now defines {n} functions — update the declaration's note deliberately"
+    assert n == 349, f"capture.py now defines {n} functions — update the declaration's note deliberately"
 
 
 def test_count_functions_counts_nested_and_methods_and_refuses_nothing():
