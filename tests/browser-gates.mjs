@@ -359,7 +359,13 @@ async function gateNoNetwork() {
       s.surfacesScanned +
       ' surfaces, ' +
       s.looseModules +
-      ' modules, ' +
+      ' modules (' +
+      s.workerTargets +
+      ' worker target(s), ' +
+      s.workerUnreadable +
+      ' unreadable, ' +
+      s.strippedTransport +
+      ' served-only transport), ' +
       s.surfacesBooted +
       ' booted'
   );
