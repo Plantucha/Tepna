@@ -11153,6 +11153,73 @@
       }
     });
 
+    /* A TAP IS NOT A HOVER (ledger row 2026-11-08-the-integrator-timeline-readout-is-hover-only).
+       The fused-event readout was bound to `mousemove` alone, and a tick is 2.2 viewBox units wide,
+       so a phone user could reach no event detail. The tap path picks the NEAREST tick within a
+       tolerance, and anchors the readout inside the viewport. Both are pure, so both lanes pin them. */
+    group('Integrator \u2014 a tap reaches the timeline readout', 'integrator-tap', function (T) {
+      var R = env.IntegratorRender;
+      var pick = R && R.pickTickAt;
+      var anchor = R && R.tipAnchor;
+      if (typeof pick !== 'function' || typeof anchor !== 'function') {
+        T.ok('IntegratorRender.pickTickAt and .tipAnchor present', false, 'export the tap decisions so a phone readout can be pinned with no DOM');
+        return;
+      }
+      /* a null picked tick must read as a null tip, never throw, so a plant reds every leg it breaks */
+      var tipOf = function (v) {
+        return v && v.tip != null ? v.tip : null;
+      };
+      var ticks = [
+        { cx: 100, tip: '22:10:00 \u00b7 desat \u00b7 conf 0.70 \u00b7 OxyDex' },
+        { cx: 140, tip: '22:12:00 \u00b7 arousal \u00b7 conf \u2014 \u00b7 ECGDex' }
+      ];
+      T.eq('a direct hit reads that tick', tipOf(pick(ticks, 100, 7)), ticks[0].tip);
+      T.eq('a near miss still reads the nearest tick', tipOf(pick(ticks, 136, 7)), ticks[1].tip);
+      T.eq('a tap beyond the tolerance reads nothing', pick(ticks, 120, 7), null);
+      T.eq('the tolerance is inclusive at its edge', tipOf(pick(ticks, 107, 7)), ticks[0].tip);
+      T.eq(
+        'a tie keeps the earlier tick',
+        tipOf(
+          pick(
+            [
+              { cx: 10, tip: 'a' },
+              { cx: 30, tip: 'b' }
+            ],
+            20,
+            11
+          )
+        ),
+        'a'
+      );
+      T.eq('a non-finite tap position reads nothing', pick(ticks, NaN, 7), null);
+      T.eq('no ticks reads nothing', pick([], 100, 7), null);
+      T.eq(
+        'a tick with no position is skipped, not picked',
+        tipOf(
+          pick(
+            [
+              { cx: NaN, tip: 'x' },
+              { cx: 102, tip: 'y' }
+            ],
+            100,
+            7
+          )
+        ),
+        'y'
+      );
+      T.eq('an absent tolerance falls back to the declared one', tipOf(pick(ticks, 106, undefined)), ticks[0].tip);
+      T.eq('and that fallback still refuses a tap outside it', pick(ticks, 120, undefined), null);
+
+      var free = anchor(200, 300, 180, 60, 1000, 800);
+      T.eq('with room, the readout sits below right of the tap', free.left, 214);
+      T.eq('and 14 px under it', free.top, 314);
+      T.eq('at the right edge it flips to the left of the tap', anchor(360, 300, 180, 60, 375, 800).left, 166);
+      T.eq('at the bottom edge it flips above the tap', anchor(100, 650, 180, 60, 375, 667).top, 576);
+      T.eq('a flip that would leave the screen clamps to the pad', anchor(10, 10, 300, 60, 320, 480).left, 8);
+      T.eq('an unknown viewport width does not flip the readout', anchor(360, 300, 180, 60, 0, 0).left, 374);
+      T.ok('the readout never starts off the left edge', anchor(2, 2, 400, 400, 320, 480).left >= 8 && anchor(2, 2, 400, 400, 320, 480).top >= 8);
+    });
+
     /* DEEP-AUDIT-III §6.1 — an ABSTENTION IS NOT AN AGREEMENT.
        ECGDex's ACC motion vote is explicitly tri-state (the exported method string says
        "Wake>20 / Ambiguous 5–20 / Sleep<5"): the middle state is the accelerometer DECLINING to
@@ -18350,7 +18417,7 @@
         'out.rowKeys = M.rowKeys("| 2026-01-02-alpha-beta-gamma | logged | s | d | e | OPEN |\\ntext 2026-01-02-alpha-beta-gamma\\n");',
         'out.window = M.CITE_WINDOW;',
         'var real = M.run(' + JSON.stringify(root) + ');',
-        'out.real = { citations: real.citations, files: real.files, rows: real.rows, undeclared: real.undeclared.length, near: real.near.length, stale: real.stale.length, declared: real.declared, floorReal: real.floor, orphans: real.orphanOwners.length, examined: real.ownerReasonsExamined, offered: real.filesOffered, read: real.filesRead, unreadable: real.unreadable.length, exempt: real.filesExempt };',
+        'out.real = { citations: real.citations, files: real.files, rows: real.rows, undeclared: real.undeclared.length, near: real.near.length, stale: real.stale.length, declared: real.declared, floorReal: real.floor, orphans: real.orphanOwners.length, examined: real.ownerReasonsExamined, offered: real.filesOffered, read: real.filesRead, unreadable: real.unreadable.length, exempt: real.filesExempt , siteDrift: real.siteDrift.length, siteExamined: real.siteKeysExamined };',
         /* THE FILE POPULATION, AND THE ONE FILE THE SCAN COULD NOT OPEN. Row
            2026-11-07-residue-citations-skips-an-unreadable-file-and-claims-0-excluded: the read sat in a
            `catch` that ran `continue` under a population keyed on CITATIONS with `excluded: 0`, so an
@@ -18386,6 +18453,19 @@
           JSON.stringify(root) +
           ', { files: [ANCHOR], baseline: { entries: plant(anchorKeys).concat([{ key: "2026-01-02-alpha-beta-gamma", reason: "under the ledger floor, so cited nowhere" }]), exemptPaths: [] } });',
         'out.staleReds = staleBase.stale.length;',
+        /* A DECLARED SITE IS A PATH. The planted entries above carry no `sites` key at all, so the
+           same anchor measures all three readings in one process: the path the scan cites, the same
+           path with a line glued to it, and an entry that declared no site whatever. */
+        'var withSite = function (ks, suffix) { return ks.map(function (k) { return { key: k, reason: "plant", sites: [ANCHOR + suffix] }; }); };',
+        'var siteOk = M.run(' + JSON.stringify(root) + ', { files: [ANCHOR], baseline: { entries: withSite(anchorKeys, ""), exemptPaths: [] } });',
+        'out.siteOk = { drift: siteOk.siteDrift.length, examined: siteOk.siteKeysExamined, live: siteOk.liveSites.length };',
+        'var siteLined = M.run(' + JSON.stringify(root) + ', { files: [ANCHOR], baseline: { entries: withSite(anchorKeys, ":1"), exemptPaths: [] } });',
+        'out.siteLined = { drift: siteLined.siteDrift.length, status: M.verdictFor(siteLined, "ab1c2d3").status, at: siteLined.siteDrift.length > 0 && siteLined.siteDrift[0].at.length > 0, found: siteLined.siteDrift.length > 0 && siteLined.siteDrift[0].foundOnly.join(",") === ANCHOR };',
+        'out.siteless = declaredAway.siteDrift.filter(function (d) { return d.why === "declares no sites array"; }).length;',
+        'var siteUncited = M.run(' +
+          JSON.stringify(root) +
+          ', { files: [ANCHOR], baseline: { entries: [{ key: "2026-01-02-alpha-beta-gamma", reason: "under the ledger floor, so cited nowhere", sites: [ANCHOR] }], exemptPaths: [] } });',
+        'out.siteUncited = { examined: siteUncited.siteKeysExamined, drift: siteUncited.siteDrift.length, stale: siteUncited.stale.length };',
         'process.stdout.write("__OUT__" + JSON.stringify(out) + "\\n");'
       ].join('\n');
       var o = env.nodeSpawnSync(process.execPath, ['--input-type=module', '-e', src], { encoding: 'utf8', timeout: 90000 });
@@ -18428,6 +18508,50 @@
       );
       T.eq('declaring every cited key passes, and nothing reads stale', R.declaredPasses, { undeclared: 0, stale: 0 });
       T.eq('one declared key cited nowhere reds as stale until its line goes', R.staleReds, 1);
+
+      /* ── A DECLARED SITE IS A PATH, AND THE SCAN SAYS WHERE THE KEY SITS ──────────────────
+         Row 2026-11-08-the-residue-citations-baseline-sites-read-stale: each entry declared a
+         `path:line` that no reader held against anything, so all 14 aged while the verdict reported
+         `staleBaseline 0`. A line number ages on every edit above it, so the declaration keeps the
+         path and the report prints the live `path:line` the scan found. */
+      T.ok(
+        'a declared site that names the carrier path agrees, over every anchor key',
+        R.siteOk.drift === 0 && R.siteOk.examined === R.anchorDebt && R.siteOk.live === R.anchorDebt,
+        JSON.stringify(R.siteOk)
+      );
+      T.ok(
+        'a declared site carrying a line number reds, names the live sites, and fails the verdict',
+        R.siteLined.drift === R.anchorDebt && R.siteLined.status === 'FAIL' && R.siteLined.at && R.siteLined.found,
+        JSON.stringify(R.siteLined)
+      );
+      T.eq('an entry that declared no sites array reports that absence by name', R.siteless, R.anchorDebt);
+      /* §∅ · a key the scan cites nowhere is judged by `stale` alone, so the site hold examines
+         nothing there and reports the count rather than a pass over an empty population. */
+      T.eq('an uncited key leaves the site hold with nothing to examine', R.siteUncited, { examined: 0, drift: 0, stale: 1 });
+      /* ANTI-VACUITY over the committed baseline: the legs above judge a shape the real file uses. */
+      T.eq(
+        'every entry in the committed baseline declares at least one site',
+        base.entries
+          .filter(function (e) {
+            return Object.prototype.toString.call(e.sites) !== '[object Array]' || e.sites.length === 0;
+          })
+          .map(function (e) {
+            return e.key;
+          }),
+        []
+      );
+      T.eq(
+        'no site in the committed baseline carries a line number',
+        base.entries
+          .reduce(function (a, e) {
+            return a.concat(e.sites || []);
+          }, [])
+          .filter(function (q) {
+            return /:\d+$/.test(q);
+          }),
+        []
+      );
+      T.eq('no declared site in the committed tree drifts from where the scan found its key', R.real.siteDrift, 0);
 
       /* ── ANTI-VACUITY, and the committed tree's own verdict ────────────────────────────── */
       T.ok('the real tree carries over 1000 citations to judge', R.real.citations > 1000, JSON.stringify(R.real));
