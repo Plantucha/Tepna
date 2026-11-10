@@ -3337,7 +3337,7 @@ def clock_reads_reset(skew_s) -> bool:
     return skew_s is not None and abs(skew_s) > CLOCK_IMPLAUSIBLE_S
 
 
-def clock_sync_owed_on_connect(owed, capable, enabled, charging, cooling, releases, limit) -> bool:
+def clock_sync_owed_on_connect(owed, capable, enabled, charging, releases, limit) -> bool:
     """PURE: has a device just come up on a clock that no sync has set, so the link should be released
     before PMD START and the sync run at once?
 
@@ -3351,11 +3351,16 @@ def clock_sync_owed_on_connect(owed, capable, enabled, charging, cooling, releas
 
     `owed` — the last sync this task ran did not land, and no sync has landed since (a watchdog or manual
     sync also clears it, through `_CLOCK_SYNC_LAST_OK`). The other arms are the eligibility bounds of
-    `clock_sync_due`, with the same reasons: a device that cannot take the write, a disabled sync, a
-    docked device (status 0x0D refuses the write) and a device inside its cross-ladder backoff are not
-    asked. `releases < limit` stops a device that answers a connect but never the sync scan from cycling
-    all night without a START."""
-    return bool(owed and capable and enabled and not charging and not cooling and releases < limit)
+    `clock_sync_due`, with the same reasons: a device that cannot take the write, a disabled sync and a
+    docked device (status 0x0D refuses the write) are not asked. `releases < limit` stops a device that
+    answers a connect but never the sync scan from cycling all night without a START.
+
+    THE CROSS-LADDER BACKOFF IS NOT AN ARM HERE. The backoff exists to stop a ladder that pauses a live
+    stream, and a release before START pauses nothing. Measured on the capture box 2026-11-08: daytime
+    syncs that paid a pause left the H10 cooling, so its 21:13:44 connect started PMD on an unset clock.
+    The watchdog found the firmware default at 21:18:25, and the resyncs that followed cost an 80 s ECG
+    gap. `releases < limit` already bounds this path."""
+    return bool(owed and capable and enabled and not charging and releases < limit)
 
 
 def clock_sync_attempt_affordable(spent, budget, worst_attempt_s) -> bool:
@@ -3429,6 +3434,19 @@ def _clock_sync_note_outcome(addr, ok, paid_a_pause, now_mono) -> None:
         fails,
         now_mono + clock_sync_backoff_s(fails, _CLOCK_SYNC_BACKOFF_BASE_S, _CLOCK_SYNC_BACKOFF_CAP_S),
     )
+
+
+def _clock_sync_landed(name, addr, now_mono) -> None:
+    """Record a sync that landed, from ANY path: the ladder and the watchdog both call this.
+
+    A landed sync clears the backoff, stamps `_CLOCK_SYNC_LAST_OK` and drops the skew window. The skew
+    floor describes the clock BEFORE the write, so a floor kept after it reads the new clock as reset.
+    Measured on the capture box 2026-11-08: the watchdog resynced the H10 at 21:18:37 and recorded
+    nothing else. The floor still read the firmware default, so the reconnect loop ran two more syncs
+    that failed with InProgress, and a fifth attempt landed at 21:19:45."""
+    _clock_sync_note_outcome(addr, True, False, now_mono)
+    _CLOCK_SKEW_SAMPLES.pop(name, None)
+    _set(name, clock_skew_floor_sec=None, clock_skew_n=0)
 
 
 def _clock_sync_synced_age_s(addr, now_mono):
@@ -3540,7 +3558,7 @@ async def auto_sync_clock(name, addr, root=None, live=True) -> bool:
             _set(name, clock_synced=_now().isoformat(timespec="seconds"), clock_uncorrectable=False)
             _CLOCK_FRESHLY_SYNCED.add(addr)
             append_clock_sync_event(root, _now(), name, addr, "synced", detail=f"attempt {attempt + 1}")
-            _clock_sync_note_outcome(addr, True, paid_a_pause(), _time.monotonic())
+            _clock_sync_landed(name, addr, _time.monotonic())
             return True
         except offline_lock.OfflineBusy:
             worst = max(worst, _time.monotonic() - attempt_started)
@@ -4122,7 +4140,6 @@ async def run_polar(dev: dict, root: str):
                     _clock_gate(name, addr, is_polar),
                     (_CFG.get("time") or {}).get("auto_sync_devices", True),
                     STATUS["devices"].get(name, {}).get("charging"),
-                    _clock_sync_cooling(addr, _time.monotonic()),
                     up_releases,
                     _CLOCK_SYNC_UP_RELEASES,
                 ):
@@ -9620,6 +9637,7 @@ async def clock_watchdog(cfg: dict, root=None):
             try:
                 await sync_device_time(addr)
                 _set(name, clock_synced=_now().isoformat(timespec="seconds"))
+                _clock_sync_landed(name, addr, _time.monotonic())
                 append_clock_sync_event(root, _now(), name, addr, "resynced", skew_s=skew, detail=reason)
                 seen.pop(addr, None)  # re-baseline after correcting
             except offline_lock.OfflineBusy:
@@ -10283,7 +10301,9 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
                 # designed. Alerting on it cost a false "capture is missing it" at 06:18 on 2026-09-07,
                 # 4 min after a completed pull. The state EXPIRES (8 h) so a ring that is genuinely flat
                 # still alerts — a false all-clear is worse than the false alarm it replaces.
-                if not connected and alerts.powered_off_after_pull(_LAST_PULL_OK.get(name), now):
+                if not connected and alerts.powered_off_after_pull(
+                    _LAST_PULL_OK.get(name), now, stream_began_sec=stream_since.get(name)
+                ):
                     down_since[name] = now  # a licensed silence: see the quiet-licence clause below
                     if name not in _IDLE_TIMER_NAMED:
                         _IDLE_TIMER_NAMED.add(name)
