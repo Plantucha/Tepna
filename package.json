@@ -94,6 +94,8 @@
     "verify:shard-timings-logic": "node tests/verify-shard-timings.mjs --selftest",
     "timings:refresh": "node tests/run-tests.mjs --json | node tests/gen-group-timings.mjs",
     "verify:no-names": "node tools/no-third-party-names.mjs",
+    "verify:shellcheck": "node tools/shellcheck-gate.mjs",
+    "verify:shellcheck-logic": "node tools/shellcheck-gate.mjs --selftest",
     "verify:integrator-surface": "node tools/integrator-surface-gate.mjs"
   },
   "engines": {
