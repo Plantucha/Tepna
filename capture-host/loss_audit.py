@@ -2041,12 +2041,14 @@ def wear_ends(night_dir: str, model: str, address: str | None = None) -> dict:
             ends.append(_ring_end(f, night_dir, contact, battery) if ring else _wear_end(f, night_dir, model, battery))
         except OSError as exc:
             ends.append({"file": os.path.basename(f), "usable": False, "reason": f"unreadable: {exc!r}"})
+    wrows = daemon_worn_rows(night_dir, address) if address else None
+    if wrows:
+        apply_daemon_wear(ends, wrows)
     relink_off_body(ends)
     if address:
-        rows = daemon_worn_rows(night_dir, address)
         for e in ends:
             if e["usable"]:
-                e["daemon_worn"] = daemon_worn_at(rows, _dt.datetime.fromisoformat(e["end_at"]))
+                e["daemon_worn"] = daemon_worn_at(wrows, _dt.datetime.fromisoformat(e["end_at"]))
     out = {"available": True, "ends": ends, "worn_end": worn_end_of(ends)}
     if link_unreadable:
         out["link_unreadable"] = link_unreadable  # the charger witness could not read these; named, never silent
@@ -2071,6 +2073,96 @@ def _ring_contact(spo2_files: list[str]) -> list[dict]:
     return out
 
 
+# ONE WEAR RULE FOR THE H10 AND THE VERITY (owner 2026-11-09: "unify verity with h10 ... to keep rules
+# simple"; the owner chose the value, 5 min, from the census below). The daemon's own worn decisions in
+# `WORN.csv` decide which files hold a wear and where a wear ended:
+#   a wear starts only after WEAR_SUSTAIN_S of unbroken worn decisions;
+#   a wear ends at the first decision taken on the charger, or after WEAR_SUSTAIN_S of not-worn decisions;
+#   a file that holds no wear is not worn, and cannot set the night's worn end.
+# An abstention is no decision. A file with no decision is unchanged (§∅).
+# CENSUS, capture box 2026-11-09, every file with WORN.csv decisions in 47 night folders:
+#   off-body Verity files streamed on the desk or the charger: the longest worn run is 2.0 min;
+#   not-worn runs inside a night file: at most 3 min in the Verity (wake at 04:25 to 06:02), 2 min in the H10.
+# Night 2026-11-08 went UNKNOWN because 7 charger and desk files after its 04:15 doff were still usable,
+# and the latest one, with a `link-loss` end at 10:54, set the worn end.
+WEAR_SUSTAIN_S = 300.0
+
+
+def daemon_wear_in_file(
+    rows: list[tuple[_dt.datetime, bool | None, str, bool | None]],
+    start: _dt.datetime,
+    end: _dt.datetime,
+    sustain_s: float = WEAR_SUSTAIN_S,
+) -> dict | None:
+    """The wear that the daemon's decisions show over ONE file span `[start, end]`. PURE.
+
+    A decision is a row that says worn or not worn, or a row taken on the charger. An abstention is no
+    decision: the decision before it still holds. Each decision holds until the next one, and the last
+    one holds until `end`. None when the span holds no decision. Otherwise `wear` says whether a wear
+    started, and `ended_at` / `ended_by` name the stamp and the cause (`charger` or `not-worn`) when the
+    last wear ended in the span."""
+    span = [r for r in rows if start <= r[0] <= end and (r[1] is not None or r[3] is True)]
+    if not span:
+        return None
+    held = list(zip(span, [r[0] for r in span[1:]] + [end]))
+    run_i: int | None = None  # the index of the first decision of the current worn run
+    wear_i: int | None = None  # the index of the first decision of the last wear
+    for i, ((t, worn, _why, charging), until) in enumerate(held):
+        if worn is not True or charging is True:
+            run_i = None
+            continue
+        if run_i is None:
+            run_i = i
+        if (until - span[run_i][0]).total_seconds() >= sustain_s:
+            wear_i = run_i
+    out = {"wear": wear_i is not None, "decisions": len(span), "ended_at": None, "ended_by": None}
+    if wear_i is None:
+        return out
+    off_i: int | None = None  # the index of the first decision of the current not-worn run
+    for i, ((t, worn, _why, charging), until) in enumerate(held[wear_i + 1 :], start=wear_i + 1):  # the first is worn
+        if charging is True:
+            return dict(out, ended_at=t.isoformat(timespec="seconds"), ended_by="charger")
+        if worn is True:
+            off_i = None
+            continue
+        if off_i is None:  # a not-worn decision: the span holds no abstention
+            off_i = i
+        if (until - span[off_i][0]).total_seconds() >= sustain_s:
+            return dict(out, ended_at=span[off_i][0].isoformat(timespec="seconds"), ended_by="not-worn")
+    return out
+
+
+def apply_daemon_wear(ends: list[dict], rows: list[tuple[_dt.datetime, bool | None, str, bool | None]]) -> None:
+    """Apply the one wear rule (`WEAR_SUSTAIN_S`) to each usable file end, in place.
+
+    A file whose decisions hold no wear becomes unusable, with the key `daemon_no_wear`. A file whose
+    last wear ended inside it gets that stamp as its worn end, when it is earlier, and a `doff` with the
+    witness `daemon-charger` or `daemon-not-worn`. A file with no decision keeps its end as it was."""
+    for e in ends:
+        if not e["usable"]:
+            continue
+        st = _w.file_start_stamp(e["file"])
+        if st is None:
+            continue
+        w = daemon_wear_in_file(
+            rows, _dt.datetime.strptime(st, "%Y%m%d%H%M%S"), _dt.datetime.fromisoformat(e["end_at"])
+        )
+        if w is None:
+            continue
+        if not w["wear"]:
+            e.update(
+                usable=False,
+                reason=f"not worn: no {WEAR_SUSTAIN_S:.0f} s worn run in the daemon's {w['decisions']} decisions",
+                daemon_no_wear=True,
+            )
+            continue
+        if w["ended_at"] is not None and w["ended_at"] < e["worn_end_at"]:
+            e["worn_end_at"] = w["ended_at"]
+            if e["reason"] != "doff":
+                e["reason"] = "doff"
+                e["doff_witness"] = f"daemon-{w['ended_by']}"
+
+
 def relink_off_body(ends: list[dict]) -> None:
     """A usable `link-loss` end becomes a `doff` when the stream's next file is judged not worn by its PPI.
 
@@ -2082,9 +2174,10 @@ def relink_off_body(ends: list[dict]) -> None:
 
     The witness is the not-worn record's own `ppi_pulse_rows` key, never its reason text. Only the NEXT
     end counts: a worn file between the two keeps the link loss. Census 2026-11-06 over 142 night folders:
-    2 link-loss ends had an unworn next file, and each was its night's worn end."""
+    2 link-loss ends had an unworn next file, and each was its night's worn end. A Verity in SDK mode
+    serves no PPI, so the daemon's no-wear key (`apply_daemon_wear`) is the second witness."""
     for e, nxt in zip(ends, ends[1:]):
-        if e["usable"] and e["reason"] == "link-loss" and "ppi_pulse_rows" in nxt:
+        if e["usable"] and e["reason"] == "link-loss" and ("ppi_pulse_rows" in nxt or "daemon_no_wear" in nxt):
             e["reason"] = "doff"
             e["doff_witness"] = f"relink-not-worn: {nxt['file']}"
 
@@ -2100,9 +2193,22 @@ def worn_end_of(ends: list[dict]) -> dict | None:
 _WORN_COLS = ("Phone timestamp", "address", "worn", "why")
 
 
-def daemon_worn_rows(night_dir: str, address: str) -> list[tuple[_dt.datetime, bool | None, str]] | None:
+def _vote_charging(cell: str) -> bool | None:
+    """The `charging=` vote of one `WORN.csv` votes cell. PURE. None when the cell names no charging vote."""
+    for part in cell.split(","):
+        vote = part.strip()  # strip: the last cell of a CRLF line carries the line end
+        if vote == "charging=True":
+            return True
+        if vote == "charging=False":
+            return False
+    return None
+
+
+def daemon_worn_rows(night_dir: str, address: str) -> list[tuple[_dt.datetime, bool | None, str, bool | None]] | None:
     """The daemon's live worn decisions for ONE device address, from `WORN.csv` in each folder of the
     recording (`writers.append_worn_decision`), sorted by stamp. None when no folder holds the file.
+    Each row is `(stamp, worn, why, charging)`. `charging` is the device's own charging flag from the
+    `votes` cell, and None when the row carries no such vote.
 
     The file records what `worn_verdict` returned and what the not-worn drop acted on; no other artifact
     keeps it. A blank `worn` cell is an abstention and reads as None, never as not-worn (§∅). A torn row,
@@ -2113,7 +2219,7 @@ def daemon_worn_rows(night_dir: str, address: str) -> list[tuple[_dt.datetime, b
     if not paths:
         return None
     want = address.strip().lower()
-    out: list[tuple[_dt.datetime, bool | None, str]] = []
+    out: list[tuple[_dt.datetime, bool | None, str, bool | None]] = []
     for q in paths:
         # `csv` with QUOTE_NONE reads each cell verbatim, so no strip can eat a cell. With no quoted
         # field, universal newlines give the same rows as newline="" (probed: 165480 inputs, 0 differ)
@@ -2123,19 +2229,21 @@ def daemon_worn_rows(night_dir: str, address: str) -> list[tuple[_dt.datetime, b
             if not all(k in idx for k in _WORN_COLS):
                 continue  # a file without the decision columns holds no decision
             i_ts, i_a, i_w, i_y = (idx[k] for k in _WORN_COLS)
+            i_v = idx.get("votes")
             for parts in rows:
                 try:
                     t = _dt.datetime.fromisoformat(parts[i_ts])
                     addr, cell, why = parts[i_a], parts[i_w], parts[i_y]
                 except (IndexError, ValueError):
                     continue  # a torn row or an unparseable stamp holds no decision
+                votes = parts[i_v] if i_v is not None and i_v < len(parts) else ""
                 if addr.strip().lower() == want and cell in ("", "0", "1"):
-                    out.append((t, None if cell == "" else cell == "1", why))
+                    out.append((t, None if cell == "" else cell == "1", why, _vote_charging(votes)))
     out.sort(key=lambda r: r[0])  # on the stamp alone: a tie keeps the file order, so the last row wins
     return out
 
 
-def daemon_worn_at(rows: list[tuple[_dt.datetime, bool | None, str]] | None, at: _dt.datetime) -> dict:
+def daemon_worn_at(rows: list[tuple[_dt.datetime, bool | None, str, bool | None]] | None, at: _dt.datetime) -> dict:
     """The daemon's decision in force at `at`: the last row at or before it. PURE.
 
     Absence is said in words with every value None: no `WORN.csv` in the recording, or no row for this
@@ -2150,7 +2258,7 @@ def daemon_worn_at(rows: list[tuple[_dt.datetime, bool | None, str]] | None, at:
             "why": None,
             "reason": "no WORN.csv row for this address at or before the end",
         }
-    t, worn, why = before[-1]
+    t, worn, why, _charging = before[-1]
     return {"at": t.isoformat(timespec="seconds"), "worn": worn, "why": why, "reason": None}
 
 
