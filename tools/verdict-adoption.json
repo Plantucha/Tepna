@@ -2055,6 +2055,18 @@
    },
    "note": "it holds TWO populations of different units and publishes one object for each: the O2Ring CSV FILES leg 1 scores directly under the uploads root, and the NIGHT DIRECTORIES legs 3 and 2 score under uploads/trio. No arithmetic relates the two sets, so neither count may stand for the run. The sample carries the file unit this tool added; the night half publishes the shared nights_added_or_removed criterion. A half that enumerated nothing, or scored nothing over a root that offered something, exits 2 rather than 0 (row 2026-10-28-oxy-hr-bias-holds-a-file-population-and-a-night-population-at-once)"
   },
+  "tools/paper-reference-use.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/paper-reference-use.mjs",
+     "--json"
+    ]
+   },
+   "note": "the paper reference-invocation ratchet (residue 2026-11-08-treatment-response-lists-references-its-body-never-invokes, census board #4531). PASS/FAIL over every papers/*.html reference list: a listed external entry whose surname the body never writes must sit in the frozen baseline tools/paper-reference-baseline.json, and that baseline may only shrink (--base). A paper whose body carries a numbered citation leaves the population as bracket-channel, because position invokes an entry without naming it; an entry with no readable surname leaves it as surname-unreadable. Both exclusions withhold judgement, so neither can manufacture a finding. No paper with a list, or no external entry anywhere, is NOT_RUN and exits 2 \u2014 a census that examined nothing is not a pass."
+  },
   "tools/pat-axis-leg-audit.mjs": {
    "bin": "word-only",
    "status": "exempt",
