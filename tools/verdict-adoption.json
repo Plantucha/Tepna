@@ -2055,6 +2055,18 @@
    },
    "note": "it holds TWO populations of different units and publishes one object for each: the O2Ring CSV FILES leg 1 scores directly under the uploads root, and the NIGHT DIRECTORIES legs 3 and 2 score under uploads/trio. No arithmetic relates the two sets, so neither count may stand for the run. The sample carries the file unit this tool added; the night half publishes the shared nights_added_or_removed criterion. A half that enumerated nothing, or scored nothing over a root that offered something, exits 2 rather than 0 (row 2026-10-28-oxy-hr-bias-holds-a-file-population-and-a-night-population-at-once)"
   },
+  "tools/paper-claim-markers.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/paper-claim-markers.mjs",
+     "--json"
+    ]
+   },
+   "note": "the paper claim-marker ratchet (residue 2026-11-08-twenty-papers-carry-no-claim-marker-and-the-resolver-skips-papers, board #4527 CitB-1). PASS/FAIL over every papers/*.html: a paper whose body states a number that no CLAIM marker and no TABLE-PROVENANCE stamp binds must sit in the frozen baseline tools/paper-claim-marker-baseline.json, and that baseline may only shrink (--base). The index page publishes no result of its own, and a body stating no number gives a marker nothing to bind; both leave the population with a named reason and withhold judgement. A malformed stamp counts as absent, because a marker the resolver refuses binds nothing. An unread papers/ directory is NOT_RUN and exits 2 \u2014 a census that examined nothing is not a pass."
+  },
   "tools/paper-reference-use.mjs": {
    "bin": "decides",
    "status": "adopted",
