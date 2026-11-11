@@ -6,6 +6,7 @@
        node tools/secret-scan.mjs                     # scan merge-base(origin/main)..HEAD
        node tools/secret-scan.mjs --base <ref>        # another base
        node tools/secret-scan.mjs --tree              # the walked tree, opt-in, never a gate
+       node tools/secret-scan.mjs --json              # the verdict object alone on stdout
        node tools/secret-scan.mjs --verdict-sample    # the verdict shape, examining nothing
        node tools/secret-scan.mjs --selftest
 
@@ -265,7 +266,25 @@ function argvSpecFor(walk) {
   /* `--tree` sits in the diff spec for the SUGGESTION only: a literal `--tree` always selects the
      tree spec above, so the diff walk never reads it. Without it, `--tre` would be refused with no
      hint of the word it nearly spelled. */
-  return walk === 'tree' ? { boolean: ['--tree'] } : { boolean: ['--tree'], valued: ['--base'] };
+  return walk === 'tree' ? { boolean: ['--tree', '--json'] } : { boolean: ['--tree', '--json'], valued: ['--base'] };
+}
+
+/* ── THE OBJECT IS THE API, SO ONE STREAM CARRIES ONE SHAPE ────────────────────────────────
+   Residue `2026-11-10-secret-scan-prose-shares-stdout-with-its-verdict`. Measured 2026-11-10 at
+   `4f6d6ecab`: one clean run wrote the `tepna.verdict/1` object AND one prose line to stdout, so
+   `json.loads` raised `Extra data: line 2 column 1`. CI reads the exit code alone, so the defect
+   stayed latent, and a consumer that wanted the object had no way to ask for it. `--json` drops the
+   prose, as `ste-lint.mjs`, `pr-compliance.mjs` and `residue-ids.mjs` each already do. Every
+   diagnostic line already goes to stderr, so the flag hides nothing a reader of a red needs. */
+export function proseWanted(argv) {
+  return !argv.includes('--json');
+}
+
+/* The clean sentence, pure. Under a skipped rule a bare "no secret" would claim a scan of the
+   literals nobody read, so a SHORTFALL names that rule and every other clean status names the
+   population it examined. */
+export function passNote(status, population, rule = PRIVATE_RULE) {
+  return status === 'SHORTFALL' ? '⚠ no pattern-rule secret in the ' + population + '; the `' + rule + '` rule examined 0 term(s)' : '✓ no secret in the ' + population;
 }
 
 function refuse(reason, commit) {
@@ -368,8 +387,7 @@ function main() {
   if (!terms.length) console.error('⚠ TEPNA_PRIVATE_TERMS is not set: the private-literal rule did not run; the pattern rules did');
   if (!blocksLanding(findings)) {
     const population = walk === 'tree' ? walked + ' walked file(s)' : commits + ' commit(s) since ' + mb.slice(0, 9);
-    /* Under a skipped rule a bare "no secret" would claim a scan of the literals nobody read. */
-    console.log(v.status === 'SHORTFALL' ? '⚠ no pattern-rule secret in the ' + population + '; the `' + PRIVATE_RULE + '` rule examined 0 term(s)' : '✓ no secret in the ' + population);
+    if (proseWanted(process.argv)) console.log(passNote(v.status, population));
     if (dropped && dropped.length) console.error(droppedNote(dropped));
     process.exit(0);
   }
@@ -438,6 +456,49 @@ if (process.argv.includes('--verdict-sample') && isCliEntry(import.meta.url)) {
   ck('one finding fails', verdictFor({ findings: rec, commits: 2, privateTerms: 'configured', commit: null }).status, 'FAIL');
   const blind = verdictFor({ findings: [], commits: 0, privateTerms: null, commit: null, status: 'NOT_RUN', reason: 'r' });
   ck('a blind run is NOT_RUN with a null result', [blind.status, blind.result], ['NOT_RUN', null]);
+  ck('the diff spec accepts --json', argvSpecFor('diff').boolean.includes('--json'), true);
+  ck('the tree spec accepts it too, so neither walk refuses the word', argvSpecFor('tree').boolean.includes('--json'), true);
+  ck('--json drops the prose', proseWanted(['--json']), false);
+  ck('a run without it keeps the prose', proseWanted(['--base', 'origin/main']), true);
+  ck('a SHORTFALL note names the rule that examined nothing', passNote('SHORTFALL', '2 commit(s)').includes(PRIVATE_RULE), true);
+  ck('and it never reads as a clean scan of those literals', passNote('SHORTFALL', '2 commit(s)').includes('✓'), false);
+  ck('a PASS note names its population', passNote('PASS', '2 commit(s)'), '✓ no secret in the 2 commit(s)');
+  /* ── THE PURITY CASE DRIVES THE REAL CLI, BECAUSE A HELPER CANNOT PROVE A STREAM ────────────
+     A stub stands in for the scanner, so this case needs no binary: it answers the version probe and
+     writes an empty report. The run then reaches the clean path that used to mix prose into stdout.
+     A run that examined nothing says so and asserts nothing about the prose — a refusal prints one
+     object and no sentence, which would read as a pass for the wrong reason. */
+  {
+    const d = mkdtempSync(join(tmpdir(), 'secret-scan-cli-'));
+    const stub = join(d, 'stub.mjs');
+    writeFileSync(
+      stub,
+      "#!/usr/bin/env node\nimport { writeFileSync as w } from 'node:fs';\nconst a = process.argv.slice(2);\nif (a[0] === 'version') { console.log('stub 0.0.0'); process.exit(0); }\nw(a[a.indexOf('--report-path') + 1], '[]');\n",
+      { mode: 0o755 }
+    );
+    const run = (...extra) =>
+      spawnSync(process.execPath, [join(ROOT, SELF), '--base', 'HEAD~1', ...extra], {
+        cwd: ROOT,
+        encoding: 'utf8',
+        env: { ...process.env, GITLEAKS: stub, GITHUB_STEP_SUMMARY: '' }
+      });
+    const quiet = run('--json');
+    const loud = run();
+    let parsed = null;
+    try {
+      parsed = JSON.parse(quiet.stdout);
+    } catch {
+      parsed = null;
+    }
+    ck('the --json run writes one parseable object to stdout', parsed && parsed.schema, 'tepna.verdict/1');
+    if (!parsed || parsed.status === 'NOT_RUN') {
+      console.log('  · the prose case examined nothing: ' + ((parsed && parsed.reason) || 'stdout did not parse'));
+    } else {
+      ck('the ordinary run still explains itself on stdout', loud.stdout.trim().split('\n').length, 2);
+      ck('and --json drops exactly that one line', quiet.stdout.trim().split('\n').length, 1);
+    }
+    rmSync(d, { recursive: true, force: true });
+  }
   const dArgs = scannerArgs({ walk: 'diff', range: 'A..B', cfg: 'c.toml', report: 'r.json', target: '/t' });
   ck('the diff walk reads a range', [dArgs[0], dArgs[1]], ['git', '--log-opts=A..B']);
   const tArgs = scannerArgs({ walk: 'tree', cfg: 'c.toml', report: 'r.json', target: '/t' });
