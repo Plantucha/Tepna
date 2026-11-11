@@ -476,11 +476,15 @@
   };
 
   function _norm(s) {
-    return String(s == null ? '' : s)
-      .toLowerCase()
-      .replace(/<[^>]*>/g, '') // strip any embedded HTML
-      .replace(/\s+/g, ' ')
-      .trim();
+    var out = String(s == null ? '' : s).toLowerCase();
+    // Strip tags until STABLE, as motiondex-registry.js does: one `<[^>]*>` pass leaves a tag
+    // that a nested `<<b>b>` rebuilds (CodeQL js/incomplete-multi-character-sanitization).
+    var prev;
+    do {
+      prev = out;
+      out = out.replace(/<[^>]*>/g, '');
+    } while (out !== prev);
+    return out.replace(/\s+/g, ' ').trim();
   }
 
   /* idForLabel(label) → registry id | null */
