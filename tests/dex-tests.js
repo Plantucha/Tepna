@@ -57422,6 +57422,63 @@
       }
     });
 
+    group('Playwright apt bound — the apt half cannot outlast the job timeout', 'ci · playwright-apt-bound', function (T) {
+      /* The browser contexts install chromium from a cache, and `--with-deps` adds OS FONT packages
+         that no DOM assertion reads. On 2026-11-11 the hosted runners lost DNS for the three Ubuntu
+         mirror hosts, so that half sat in apt retries while the gate below it never ran. #4890 added a
+         deps-free fallback, which cures the RED and not the WAIT: measured over the last 18 runs of
+         each workflow (28 step instances), a runner that reached the mirrors finished the step in 12 s
+         to 18 s, a runner that did not sat there 606 s to 611 s, and one reached 1186 s, where
+         `timeout-minutes: 20` killed the JOB (run 43047834492) with the fallback never reached. So the
+         bound is the remedy and this group holds it. The population is every workflow that calls
+         `--with-deps`, and the CONTROL asserts that set is not empty, because an empty set passes
+         every leg below it. */
+      if (!env.nodeFs || !env.repoRoot) T.skip('env.nodeFs + env.repoRoot provided to the runner', 'Node-lane only — the browser lane cannot read .github/workflows');
+      else {
+        var fs = env.nodeFs;
+        var dir = env.repoRoot + '/.github/workflows';
+        var names = fs.readdirSync(dir).filter(function (n) {
+          return /\.ya?ml$/.test(n);
+        });
+        var texts = names.map(function (n) {
+          return [n, String(fs.readFileSync(dir + '/' + n, 'utf8'))];
+        });
+        var CALL = /npx playwright install[^\n]*--with-deps/;
+        var withDeps = texts.filter(function (p) {
+          return CALL.test(p[1]);
+        });
+        T.ok('CONTROL · at least one workflow installs the OS deps, so every leg below read a real population', withDeps.length > 0, withDeps.length + ' of ' + names.length + ' workflow file(s)');
+        var lines = function (text) {
+          return text.split('\n').filter(function (l) {
+            return CALL.test(l);
+          });
+        };
+        var unbounded = [];
+        var offBound = [];
+        var noFallback = [];
+        withDeps.forEach(function (p) {
+          var caps = (p[1].match(/timeout-minutes:\s*\d+/g) || []).map(function (m) {
+            return Number(m.replace(/\D+/g, '')) * 60;
+          });
+          /* The smallest cap in the file is CONSERVATIVE: a bound under it is under every job's. */
+          var cap = caps.length ? Math.min.apply(null, caps) : 0;
+          lines(p[1]).forEach(function (line) {
+            var m = /timeout\s+(?:--kill-after=\d+\s+)?(\d+)\s+npx playwright install/.exec(line);
+            if (!m) {
+              unbounded.push(p[0]);
+              return;
+            }
+            var secs = Number(m[1]);
+            if (!(secs >= 60 && cap > 0 && secs < cap)) offBound.push(p[0] + ':' + secs + 's against a ' + cap + 's cap');
+          });
+          if (!/npx playwright install chromium\s*$/m.test(p[1])) noFallback.push(p[0]);
+        });
+        T.eq('every --with-deps call carries a `timeout`, so a dead mirror fails fast', unbounded.join(', '), '');
+        T.eq('…and each bound sits at or above 60 s, which is over three times the measured healthy maximum, and strictly under the job cap', offBound.join(', '), '');
+        T.eq('…and the deps-free fallback still runs after the bounded call', noFallback.join(', '), '');
+      }
+    });
+
     group('Rebase-safe — the union-merge blind spot has a detector, with BOTH controls', 'tools · rebase-safe-union', function (T) {
       /* `rebase-safe`'s whole model is CONFLICT-driven: it enumerates `--diff-filter=U` and its contract
          is "conflict in ANY other path → STOP". A `merge=union` path NEVER conflicts — the driver keeps
