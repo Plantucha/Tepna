@@ -48,11 +48,15 @@
     return String(node).replace(/Dex$/, '').toUpperCase();
   }
   function norm(s) {
-    return String(s == null ? '' : s)
-      .toLowerCase()
-      .replace(/<[^>]*>/g, '')
-      .replace(/\s+/g, ' ')
-      .trim();
+    var out = String(s == null ? '' : s).toLowerCase();
+    // Strip tags until STABLE, as motiondex-registry.js does: one `<[^>]*>` pass leaves a tag
+    // that a nested `<<b>b>` rebuilds (CodeQL js/incomplete-multi-character-sanitization).
+    var prev;
+    do {
+      prev = out;
+      out = out.replace(/<[^>]*>/g, '');
+    } while (out !== prev);
+    return out.replace(/\s+/g, ' ').trim();
   }
   function jsStr(s) {
     return (
@@ -170,7 +174,7 @@
     });
     L.push('};');
     L.push('');
-    L.push("function _norm(s){ return String(s==null?'':s).toLowerCase().replace(/<[^>]*>/g,'').replace(/\\s+/g,' ').trim(); }");
+    L.push("function _norm(s){ var out=String(s==null?'':s).toLowerCase(), prev; do { prev=out; out=out.replace(/<[^>]*>/g,''); } while (out!==prev); return out.replace(/\\s+/g,' ').trim(); }");
     L.push('');
     L.push('/* idForLabel(label) → registry id | null */');
     L.push('function idForLabel(label){');

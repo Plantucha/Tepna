@@ -103,7 +103,7 @@ var EEG_LABEL_ALIAS = {
   'fraction of total sleep time scored n3, the slow-wave share':'n3Pct',
 };
 
-function _norm(s){ return String(s==null?'':s).toLowerCase().replace(/<[^>]*>/g,'').replace(/\s+/g,' ').trim(); }
+function _norm(s){ var out=String(s==null?'':s).toLowerCase(), prev; do { prev=out; out=out.replace(/<[^>]*>/g,''); } while (out!==prev); return out.replace(/\s+/g,' ').trim(); }
 
 /* idForLabel(label) → registry id | null */
 function idForLabel(label){
