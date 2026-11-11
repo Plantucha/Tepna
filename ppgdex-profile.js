@@ -186,14 +186,20 @@
   function personalize(r) {
     const p = getProfile();
     const tanaka = Math.round(208 - 0.7 * p.age);
-    let autoRHR = Math.round(r.dispHr);
+    // §∅: a session too short to yield a pulse rate or an rMSSD (a few-pulse fragment) leaves dispHr /
+    // dispRm absent. Math.round(undefined) and Math.log(Math.max(1, undefined)) are NaN, and NaN passes
+    // every `!= null` test downstream, so the hero, the KPI cards and the shared detected tier all
+    // printed "NaN". An absent input now yields null outputs and publishes nothing.
+    const hrOk = Number.isFinite(r.dispHr),
+      rmOk = Number.isFinite(r.dispRm);
+    let autoRHR = hrOk ? Math.round(r.dispHr) : null;
     const rhrEff = p.rhr > 0 ? p.rhr : autoRHR;
     const hrmaxValid = p.hrmax > 0 && p.hrmax >= 140 && p.hrmax > rhrEff + 45;
     const hrmaxEff = hrmaxValid ? Math.round(p.hrmax) : tanaka;
     const altF = altVO2Factor(p.elev);
-    const lnrm = Math.log(Math.max(1, r.dispRm));
-    const vo2b = +(vo2Base(rhrEff, hrmaxEff) * altF).toFixed(1);
-    const vo2a = +vo2Adj(vo2b, lnrm).toFixed(1);
+    const lnrm = rmOk ? Math.log(Math.max(1, r.dispRm)) : null;
+    const vo2b = rhrEff > 0 ? +(vo2Base(rhrEff, hrmaxEff) * altF).toFixed(1) : null;
+    const vo2a = vo2b != null && lnrm != null ? +vo2Adj(vo2b, lnrm).toFixed(1) : null;
     Object.assign(r, {
       profile: p,
       tanaka,
@@ -206,13 +212,13 @@
       vo2adj: vo2a,
       vo2gt: p.vo2gt > 0 ? p.vo2gt : null,
       cpapInUse: p.cpap,
-      hrvScore: hrvScore(r.dispRm),
+      hrvScore: rmOk ? hrvScore(r.dispRm) : null,
       expRmssd: expectedRmssd(p.age),
       expRHR: expectedRHR(p.age)
     });
     // Publish DETECTED physiology to the shared detected tier (NOT manual identity) —
     // cross-node handoff + lights up the cascade's middle tier in the unified panel.
-    if (DP()) {
+    if (DP() && vo2a != null && autoRHR != null) {
       try {
         var _det = { vo2: vo2a, hrRest: autoRHR, _note: 'PpgDex wrist · pulse HR (optical PPI)' };
         DP().setDetected(_det);
@@ -229,7 +235,12 @@
     const score = r.hrvScore,
       p = r.profile;
     let color, tier;
-    if (score >= 55) {
+    if (score == null) {
+      // §∅: no score is computed, so no tier is claimed. Before, a null score fell through every
+      // threshold to "Strained · prioritise rest", a verdict about a measurement that does not exist.
+      color = 'none';
+      tier = 'No score · too few clean pulses for an rMSSD';
+    } else if (score >= 55) {
       color = 'good';
       tier = 'Primed · strong autonomic reserve';
     } else if (score >= 45) {
@@ -242,10 +253,11 @@
       color = 'bad';
       tier = 'Strained · prioritise rest';
     }
-    const css = color === 'good' ? 'var(--status-ok)' : color === 'warn' ? 'var(--status-caution)' : 'var(--status-concern)';
-    const ratio = r.dispRm / r.expRmssd;
+    const css = color === 'none' ? 'var(--text2)' : color === 'good' ? 'var(--status-ok)' : color === 'warn' ? 'var(--status-caution)' : 'var(--status-concern)';
+    const ratio = Number.isFinite(r.dispRm) ? r.dispRm / r.expRmssd : null;
     let ageNote;
-    if (ratio >= 1.15) ageNote = `rMSSD ${r.dispRm} ms is <b>above</b> the ~${r.expRmssd} ms typical for age ${p.age} — favourable parasympathetic tone.`;
+    if (ratio == null) ageNote = `This session has no rMSSD, so it is not compared with the ~${r.expRmssd} ms typical for age ${p.age}.`;
+    else if (ratio >= 1.15) ageNote = `rMSSD ${r.dispRm} ms is <b>above</b> the ~${r.expRmssd} ms typical for age ${p.age} — favourable parasympathetic tone.`;
     else if (ratio >= 0.85) ageNote = `rMSSD ${r.dispRm} ms is <b>about typical</b> for age ${p.age} (~${r.expRmssd} ms expected).`;
     else ageNote = `rMSSD ${r.dispRm} ms is <b>below</b> the ~${r.expRmssd} ms typical for age ${p.age} — watch recovery &amp; load.`;
     ageNote += ` <span style="opacity:.75">Derived from wrist <b>PPI</b> (optical pulse intervals), not ECG RR — validated against the device's own PP-intervals.</span>`;
@@ -284,7 +296,7 @@
       `<div class="readiness-hero" style="--readiness-color:${css}">` +
       `<div class="readiness-hero-label">ANS Readiness</div>` +
       `<div class="readiness-date-badge">wrist PPG · ${r.durMin >= 90 ? (r.durSec / 3600).toFixed(1) + ' h' : r.durMin + ' min'}</div>` +
-      `<div class="readiness-score" style="color:${css}">${score}</div>` +
+      `<div class="readiness-score" style="color:${css}">${score == null ? '—' : score}</div>` +
       `<div class="readiness-tier">${tier}</div>` +
       (subsHtml ? `<div class="readiness-scores-grid">${subsHtml}</div>` : '') +
       `<div class="readiness-note">${ageNote}</div>` +
@@ -294,7 +306,7 @@
       srbNote = $('srbNote'),
       srb = $('sidebarReadinessBadge');
     if (srbScore) {
-      srbScore.textContent = score;
+      srbScore.textContent = score == null ? '—' : score;
       srbScore.style.setProperty('--srb-color', css);
     }
     if (srbNote) srbNote.textContent = tier.split(' · ')[0];
