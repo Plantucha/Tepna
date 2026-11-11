@@ -37,6 +37,13 @@
  *              (disk-watch on 2026-10-31: `OnUnitActiveSec` with no next elapse since 10-18.)
  *   never    — an enabled timer that has no last trigger and whose unit has been loaded for over a day.
  *
+ * PROVENANCE OF THE RUN'S OWN CODE. A timer runs this tool out of whatever checkout its unit names, so
+ * a finding can predate its own fix. On 2026-11-10 the shared checkout read `tepna-unit-health.timer`
+ * as stopped from code that did not carry the `SubState=running` guard beside it (board #5401, #5527).
+ * Every read therefore states the commit it ran from and whether its own rules are the ref's. The note
+ * rides in the printed line and in the board post, never in the dedupe key, so a tree that moves
+ * re-posts nothing.
+ *
  * --post DEDUPES on the finding set, kept in `<git common dir>/tepna-mutation/unit-health.json`. A
  * job that stays failed posts once; a job that recovers posts its recovery once. Silence on the board
  * means "nothing changed", and the verdict says what is true now.
@@ -102,7 +109,33 @@ export function orphanFailures(failedUnits, findings) {
 /** A failed unit that no timer activates and that is a transient scope is noise, counted apart. Pure. */
 export const isTransient = (name) => /^run-[^/]+\.(scope|service)$/.test(name);
 
-export function verdictOf({ status, findings, checked, transient, reason }) {
+/** The files whose TEXT can change a finding — this tool's judgment surface. `judgeTimer` and
+ *  `orphanFailures` hold every rule, so the set is this one file. The three imported modules decide no
+ *  finding: `verdict.js` validates the object, `argv-guard.mjs` guards the CLI entry and
+ *  `mutation-map.mjs` resolves the state path. Widen this list when a rule moves out of here. */
+export const JUDGMENT_SOURCES = ['tools/unit-health.mjs'];
+
+/** This run's own code identity → { producedBy, note }. Pure.
+ *  THE CRITERION IS THE FILE, NEVER THE COMMIT COUNT (`.claude/hooks/guard-stale-ledger.sh:32`): the
+ *  tree a timer runs from is behind most of the time, and nearly every commit it is behind on never
+ *  touches this tool. So `drifted` carries the judgment sources whose working copy differs from the
+ *  local `origin/main` ref, and `behindRef` rides along as a diagnostic that decides nothing.
+ *  The word is DIFFERS, not stale: a worktree holding its own edit differs too, and no comparison can
+ *  tell an edit from a lag. `refReadable: false` means the comparison never happened — never a match. */
+export function provenanceOf({ commit, commitReason, behind, drifted, refReadable }) {
+  const sha = commit ? `\`${commit}\`` : `an unknown commit (${commitReason})`;
+  const lag = behind === null ? '' : `, which this tree sits ${behind} commit(s) behind`;
+  let note;
+  if (!refReadable) note = `This read ran from ${sha}. The local \`origin/main\` ref did not answer, so the tool cannot say whether its own rules are the ref's.`;
+  else if (drifted.length)
+    note = `⚠ This read ran from ${sha}. Its own judgment source(s) differ from the local \`origin/main\` ref: ${drifted.map((f) => `\`${f}\``).join(', ')}. A finding may apply a rule the ref no longer holds, or one it does not hold yet.`;
+  else note = `This read ran from ${sha}. Every judgment source matches the local \`origin/main\` ref${lag}.`;
+  const producedBy = { tool: 'tools/unit-health.mjs', commit: commit ?? null, behindRef: behind ?? null, driftedSources: drifted, refReadable };
+  if (producedBy.commit === null) producedBy.commitReason = commitReason;
+  return { producedBy, note };
+}
+
+export function verdictOf({ status, findings, checked, transient, reason, prov }) {
   const v = Verdict.make({
     gate: 'unit-health',
     status,
@@ -111,7 +144,7 @@ export function verdictOf({ status, findings, checked, transient, reason }) {
     result: status === 'NOT_RUN' ? null : { findings, failedTransientScopes: transient },
     evidence: ['tools/unit-health.mjs', 'systemctl --user list-timers --all --output=json'],
     reason: reason ?? null,
-    producedBy: { tool: 'tools/unit-health.mjs', commit: gitHead() },
+    producedBy: (prov ?? readProvenance()).producedBy,
     at: new Date().toISOString()
   });
   const check = Verdict.validate(v);
@@ -156,17 +189,66 @@ export function selftest() {
   ok(isTransient('run-p1596859-i223774905.scope') && !isTransient('qwen-idle.service') && !isTransient('tepna-run.service'), 'only run-* transients count apart');
   const orph = orphanFailures(['a.service', 'run-p1-i2.scope', 'b.service'], [{ unit: 'a.service', kind: 'failed' }]);
   ok(orph.length === 1 && orph[0].unit === 'b.service', 'a failed service no timer names is a finding, once; a transient is not');
-  const v = verdictOf({ status: 'NOT_RUN', findings: [], checked: 0, transient: 0, reason: 'no user systemd' });
+  const P = (o) => provenanceOf({ commit: 'abc1234', commitReason: null, behind: 3, drifted: [], refReadable: true, ...o });
+  const v = verdictOf({ status: 'NOT_RUN', findings: [], checked: 0, transient: 0, reason: 'no user systemd', prov: P({}) });
   ok(Verdict.validate(v).ok && v.result === null, 'a NOT_RUN verdict validates and carries no result');
+  ok(v.producedBy.commit === 'abc1234' && v.producedBy.behindRef === 3 && v.producedBy.refReadable === true, 'the verdict states the commit the run read from, and what it compared');
+  const drift = P({ drifted: ['tools/unit-health.mjs'] });
+  ok(/^⚠/.test(drift.note) && drift.note.includes('tools/unit-health.mjs'), 'a judgment source that differs from the ref warns and names the file');
+  ok(!/⚠/.test(P({}).note) && P({}).note.includes('Every judgment source matches'), 'a tree whose rules are the ref\u2019s carries no warning');
+  ok(drift.producedBy.driftedSources.length === 1 && P({}).producedBy.driftedSources.length === 0, 'the drifted set is machine-readable beside the prose');
+  const blind = P({ refReadable: false, drifted: [] });
+  ok(blind.note.includes('cannot say') && !blind.note.includes('matches'), 'an unreadable ref says the comparison never happened, and never reads as a match');
+  ok(P({}).note.includes('3 commit(s) behind') && !P({ behind: null }).note.includes('commit(s) behind'), 'the behind count rides along as a diagnostic, and an absent count prints nothing');
+  const noSha = P({ commit: null, commitReason: 'git did not answer' });
+  ok(
+    noSha.producedBy.commit === null && noSha.producedBy.commitReason === 'git did not answer' && noSha.note.includes('unknown commit (git did not answer)'),
+    'a null commit carries its measured reason into the verdict and the note'
+  );
+  ok(Verdict.validate(verdictOf({ status: 'NOT_RUN', findings: [], checked: 0, transient: 0, reason: 'r', prov: noSha })).ok, 'a verdict with no commit validates while the reason is there');
+  let refused = false;
+  try {
+    verdictOf({ status: 'NOT_RUN', findings: [], checked: 0, transient: 0, reason: 'r', prov: P({ commit: null, commitReason: '' }) });
+  } catch {
+    refused = true;
+  }
+  ok(refused, 'a null commit with no reason is refused, so the leg above is not vacuous');
   const line = fail.length ? `unit-health selftest · ${fail.length} of ${ran} FAILED` : `all ${ran} selftests passed`;
   return { ok: fail.length === 0, ran, fail, line };
 }
 
 /* ── everything below is I/O ── */
 
-function gitHead() {
-  const r = spawnSync('git', ['rev-parse', '--short', 'HEAD'], { encoding: 'utf8', cwd: ROOT });
-  return r.status === 0 ? r.stdout.trim() : null;
+function gitOut(args) {
+  const r = spawnSync('git', args, { encoding: 'utf8', cwd: ROOT, timeout: 20000 });
+  return r.error || r.status !== 0 ? null : r.stdout;
+}
+
+/** Read this run's own code identity. The reason for a null commit is DERIVED from the lookup that
+ *  failed, never a literal — a reason naming a cause the run cannot have had is its own defect
+ *  (`tests/dex-tests.js`, row 2026-10-22-the-population-verdict-stamps-a-cause-it-never-checked). */
+function readProvenance() {
+  const head = gitOut(['rev-parse', '--short', 'HEAD']);
+  const commit = head ? head.trim() : null;
+  const commitReason = commit ? null : `\`git rev-parse --short HEAD\` did not answer in this tool's own tree`;
+  const refReadable = gitOut(['rev-parse', '--verify', '--quiet', 'origin/main']) !== null;
+  let behind = null;
+  const drifted = [];
+  if (refReadable) {
+    const n = gitOut(['rev-list', '--count', 'HEAD..origin/main']);
+    behind = n !== null && /^\d+$/.test(n.trim()) ? Number(n.trim()) : null;
+    for (const f of JUDGMENT_SOURCES) {
+      const atRef = gitOut(['show', `origin/main:${f}`]);
+      let onDisk = null;
+      try {
+        onDisk = readFileSync(join(ROOT, f), 'utf8');
+      } catch {
+        onDisk = null;
+      }
+      if (atRef === null || onDisk === null || atRef !== onDisk) drifted.push(f);
+    }
+  }
+  return provenanceOf({ commit, commitReason, behind, drifted, refReadable });
 }
 
 function sysctl(args) {
@@ -221,11 +303,11 @@ function statePath() {
   return resolveStatePath(ROOT, 'unit-health.json');
 }
 
-function post(added, cleared, findings) {
+function post(added, cleared, findings, prov) {
   const lines = ['Unit health (`tools/unit-health.mjs`, the 15-min timer). The finding set changed on the rig.', ''];
   if (added.length) lines.push('New:', ...added.map((f) => `- \`${f.unit}\` — ${f.kind}: ${f.detail}.`), '');
   if (cleared.length) lines.push('Cleared:', ...cleared.map((f) => `- \`${f.unit}\` — ${f.kind}.`), '');
-  lines.push(`Now: ${findings.length} finding(s). Read the journal with \`journalctl --user -u <unit> -n 20\`.`);
+  lines.push(`Now: ${findings.length} finding(s). Read the journal with \`journalctl --user -u <unit> -n 20\`.`, '', prov.note);
   const bin = process.env.AGENT_BOARD_BIN || join(process.env.HOME || '', '.local/bin/agent-board');
   const r = spawnSync(bin, ['--as', 'kestrel', 'post', BOARD_THREAD, '--kind', 'finding', '-'], { input: `${lines.join('\n')}\n`, encoding: 'utf8' });
   return r.status === 0;
@@ -240,11 +322,12 @@ async function main() {
     process.exit(r.ok ? 0 : 1);
   }
   const asJson = argv.includes('--json');
+  const prov = readProvenance();
   const sys = readSystem();
   if (!sys) {
-    const v = verdictOf({ status: 'NOT_RUN', findings: [], checked: 0, transient: 0, reason: 'no systemd user manager answered `systemctl --user list-timers`' });
+    const v = verdictOf({ status: 'NOT_RUN', findings: [], checked: 0, transient: 0, reason: 'no systemd user manager answered `systemctl --user list-timers`', prov });
     if (asJson) process.stdout.write(`${JSON.stringify(v, null, 1)}\n`);
-    else console.log('unit-health: NOT_RUN — no systemd user manager to read (CI or a fresh clone)');
+    else console.log(`unit-health: NOT_RUN — no systemd user manager to read (CI or a fresh clone)\n${prov.note}`);
     process.exit(2);
   }
   const now = Date.now() * 1000;
@@ -264,14 +347,15 @@ async function main() {
     if (findingKey(prev) !== findingKey(findings)) {
       const { added, cleared } = diffFindings(prev, findings);
       /* The state moves only when the post landed, so a board that is down re-posts next tick. */
-      if (post(added, cleared, findings)) writeFileSync(p, `${JSON.stringify({ at: new Date().toISOString(), findings }, null, 1)}\n`);
+      if (post(added, cleared, findings, prov)) writeFileSync(p, `${JSON.stringify({ at: new Date().toISOString(), findings }, null, 1)}\n`);
     }
   }
-  const v = verdictOf({ status, findings, checked, transient: sys.transient, reason });
+  const v = verdictOf({ status, findings, checked, transient: sys.transient, reason, prov });
   if (asJson) process.stdout.write(`${JSON.stringify(v, null, 1)}\n`);
   else {
     console.log(`unit-health · ${checked} timer(s) read · ${findings.length} finding(s) · ${sys.transient} failed transient scope(s) counted apart`);
     for (const f of findings) console.log(`  ✕ ${f.kind.padEnd(7)} ${f.detail}`);
+    console.log(prov.note);
   }
   process.exit(findings.length ? 1 : 0);
 }
