@@ -8,9 +8,15 @@ Copyright 2026 Michal Planicka · Licensed under Apache-2.0 (see `LICENSE`/`NOTI
 ## Summary
 
 Tepna bundles **no third-party source code** and (after the font change below)
-**no third-party fonts** either. It makes **no network calls** — no CDNs, no web
-fonts, no analytics, no telemetry. Everything runs locally from a single HTML
-file per node. All charts/visuals across every node are hand-authored (inline
+**no third-party fonts** either. The shipped bundle makes **no network calls** —
+no CDNs, no web fonts, no analytics, no telemetry. Everything runs locally from
+a single HTML file per node.
+
+**The hosting layer stands outside that claim.** The copy served from the project
+website sits behind a CDN, and the CDN adds its own analytics script to every page
+it serves. `tools/live-surface-audit.mjs` reads the served bytes and found that
+script on all four audited pages on 2026-11-11. A bundle you download carries
+none of it. All charts/visuals across every node are hand-authored (inline
 SVG, or the first-party canvas renderer `hrvdex-chart.js` in HRVDex) — there are
 no charting-library dependencies.
 
@@ -18,7 +24,7 @@ no charting-library dependencies.
 |-----------------|-------------------------------------------------------------------|
 | Code libraries  | None bundled. No runtime dependencies.                            |
 | Fonts           | System stacks only (see below). No `@font-face`, no CDN.          |
-| Network         | None. 100% local / offline.                                       |
+| Network         | None in the bundle. 100% local / offline. The hosted copy carries a CDN analytics script (`tools/live-surface-audit.mjs`). |
 | Data files      | User-supplied recordings only (`uploads/`). Not redistributed.    |
 
 ---

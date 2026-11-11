@@ -13,9 +13,16 @@ each Dex node emits versus what is scrubbed at the ingest boundary. This stateme
 data posture; it is **not** a legal determination (see §4 — that is the external sign-off this supports).
 
 ## 0 · Operating posture (the one-line truth)
-**100% local.** Every analyzer runs entirely in-browser from the dropped file(s); there is no network, no
-CDN, no telemetry, no server (CLAUDE.md; `AUDIT.md`). Nothing a node computes or exports leaves the device
-unless the **user** saves a file and shares it themselves. Intended use is research / personal insight, NOT
+**100% local.** Every analyzer runs entirely in-browser from the dropped file(s); the bundle itself holds no
+network call, no CDN, no telemetry and no server (CLAUDE.md; `AUDIT.md`). Nothing a node computes or exports
+leaves the device unless the **user** saves a file and shares it themselves.
+
+**The hosting layer is a second surface, and the repo does not bound it.** A page the website serves can
+carry a script the repo never ships, and such a script runs with the page's own access to the page. The
+project website sits behind a CDN that adds an analytics script to every page it serves, measured on all
+four audited pages on 2026-11-11 by `tools/live-surface-audit.mjs`. So the posture above holds for a bundle
+you open yourself, and it holds for the hosted copy only while the host injects nothing. Only the host's own
+configuration can change that; no repo gate can. Intended use is research / personal insight, NOT
 a certified medical device — every user-facing surface carries the health intended-use disclaimer
 (LICENSING-BRIEF §6.5).
 

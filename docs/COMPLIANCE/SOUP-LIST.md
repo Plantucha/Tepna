@@ -18,7 +18,10 @@ enforced by `no-network.html`):
 - **Code libraries:** none. No runtime dependencies; charts are a first-party canvas renderer
   (`hrvdex-chart.js`) or hand-authored inline SVG. (Chart.js/@kurkle removed June 2026.)
 - **Fonts:** operating-system stacks only. No `@font-face`, no font binaries, no CDN.
-- **Network:** none. 100% local/offline; no CDNs, analytics, or telemetry.
+- **Network:** none in the bundle. 100% local/offline; no CDNs, analytics, or telemetry. The hosted copy is a
+  separate surface: the project website sits behind a CDN that adds its own analytics script to every page it
+  serves, measured on all four audited pages on 2026-11-11 by `tools/live-surface-audit.mjs`. That tool reads
+  served bytes, so it needs the network and stays outside `npm run check`.
 
 This zero-runtime-SOUP posture is a deliberate architectural property, not an accident, and is
 gate-verified (`no-network.html` static egress grep + runtime trap + negative-control canary). It is
