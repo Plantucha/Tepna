@@ -1529,19 +1529,20 @@ function nToast(msg, err){ const t=$('#nightsToast'); t.textContent=msg; t.class
    files: openNight and nightFiles do, exactly as before. */
 const NIGHT_DEVICES = [
   {k:'h10',    name:'H10',      sub:'chest ECG',     node:'ECGDex',   match:/Polar_H10_/},
-  {k:'verity', name:'Verity',   sub:'arm PPG',       node:'PPGDex',   match:/Polar_VeritySense_/},
+  {k:'verity', name:'Verity',   sub:'ankle PPG',     node:'PPGDex',   match:/Polar_VeritySense_/},
   {k:'ring',   name:'O2Ring',   sub:'finger SpO₂',   node:'OxyDex',   match:/Wellue_O2Ring/},
   {k:'cpap',   name:'AirSense', sub:'CPAP',          node:'CPAPDex',  match:/(^|\/)cpap\/|\.edf$/i},
   {k:'muse',   name:'Muse',     sub:'EEG headband',  node:'EEGDex',   match:/Muse/i},
   {k:'cgm',    name:'CGM',      sub:'glucose',       node:'GlucoDex', match:/CGM|Libre|Dexcom/i},
 ];
-// The fused tab. `node` is the openNight key; 3-hat fused and PAT fused open the same page today.
+// The fused tab. `node` is the openNight key. 3-hat fused and PAT fused share one page and one run, and
+// `view` picks the section each column shows (`?view=hat` / `?view=pat`), so the two columns open different pages.
 const NIGHT_FUSED = [
   {name:'Integrator',   sub:'every stream, one timeline', node:'Integrator', rec:true},
   {name:'3-corner hat', sub:'H10 · Verity · O2Ring',      node:'3 corner hat', needs:['h10','verity','ring'], stitch:'3corner'},
-  {name:'3-hat fused',  sub:'classic beside fused',       node:'PAT fused', needs:['h10','verity','ringppg'], stitch:'3corner_fused'},
+  {name:'3-hat fused',  sub:'classic beside fused',       node:'PAT fused', view:'hat', needs:['h10','verity','ringppg'], stitch:'3corner_fused'},
   {name:'PAT',          sub:'ECG → pulse arrival',        node:'PAT', needs:['h10','verity'], stitch:'pat_h10_verity'},
-  {name:'PAT fused',    sub:'classic beside fused',       node:'PAT fused', needs:['h10','verity','ringppg'], stitch:'pat_fused'},
+  {name:'PAT fused',    sub:'classic beside fused',       node:'PAT fused', view:'pat', needs:['h10','verity','ringppg'], stitch:'pat_fused'},
 ];
 const NIGHT_GLYPH = {ok:'✓', part:'◐', low:'✕', rec:'●', unk:'?', none:'–', probe:'◔', unworn:'○'};
 let NIGHTS_TAB = 'dev';
@@ -1640,7 +1641,7 @@ function nFusCell(n, f){
     const sub = v && v.bytes ? `${(v.files||[]).length} files · ${nMB(v.bytes)}` : 'no inputs this night';
     return `<td><div class="ncell off" title="${esc(f.off || 'no inputs this night')}"><span class="top"><i class="ng ${v?'rec':'none'}">${v?'●':'–'}</i>${v?'inputs on disk':'—'}</span><span class="sub">${esc(sub)}</span><span class="nbar"><i class="rec" style="width:${v?100:0}%"></i></span></div></td>`;
   }
-  if(v===true) return `<td><button type="button" class="ncell" data-night="${esc(nRowKey(n))}" data-node="${esc(f.node)}" title="open ${esc(f.name)} with this night's inputs loaded and run"><span class="top"><i class="ng ok">✓</i>open</span><span class="sub">inputs on disk</span><span class="nbar"><i class="ok" style="width:100%"></i></span></button></td>`;
+  if(v===true) return `<td><button type="button" class="ncell" data-night="${esc(nRowKey(n))}" data-node="${esc(f.node)}" data-view="${esc(f.view||'')}" title="open ${esc(f.name)} with this night's inputs loaded and run"><span class="top"><i class="ng ok">✓</i>open</span><span class="sub">inputs on disk</span><span class="nbar"><i class="ok" style="width:100%"></i></span></button></td>`;
   const miss = (f.needs||[]).filter(k=>!nHas(n,k)).map(k=>k==='ringppg'?'O2Ring PPG':NIGHT_DEVICES.find(d=>d.k===k).name);
   return `<td><div class="ncell none off" title="an input this tool needs is missing this night"><span class="top"><i class="ng none">–</i>—</span><span class="sub">${esc(miss.length?'no '+miss.join(', '):'input missing')}</span><span class="nbar"></span></div></td>`;
 }
@@ -1711,7 +1712,7 @@ function nDrawer(n){
       ? `<div><b>${esc(f.name)}</b><br>${v.files.length} input files on disk<div class="nchips"><button type="button" class="nchip" data-night="${esc(nRowKey(n))}" data-node="${esc(f.node)}">Open ${esc(f.name)} (OverDex)</button></div></div>`
       : `<div><b>${esc(f.name)}</b><br>no inputs this night</div>`;
     if(v!==true) return `<div><b>${esc(f.name)}</b><br>an input is missing this night</div>`;
-    return `<div><b>${esc(f.name)}</b><div class="nchips"><button type="button" class="nchip" data-night="${esc(nRowKey(n))}" data-node="${esc(f.node)}">Open ${esc(f.name)}</button></div></div>`;
+    return `<div><b>${esc(f.name)}</b><div class="nchips"><button type="button" class="nchip" data-night="${esc(nRowKey(n))}" data-node="${esc(f.node)}" data-view="${esc(f.view||'')}">Open ${esc(f.name)}</button></div></div>`;
   }).join('');
   return nSolidBlock(n) + NIGHT_DEVICES.map(d=>{
     const files = nDevFiles(n, d), v = n[d.node];
@@ -1872,7 +1873,7 @@ function nightFiles(n, node, rec){
   return { files: [], reason: node+"'s index entry is "+nightShape(v)+', not a node record with a string[] .files' };
 }
 
-async function openNight(key, node){
+async function openNight(key, node, view){
   /* BY THE ROW KEY, NOT THE BAND — and the parameter is named `key` because that is what every
      `data-night` now carries. `NIGHTS.find(x=>x.night===night)` returned the FIRST row of a band
      carrying three, so a click on the 09:18 row opened the NIGHT's files and named them in the toast. */
@@ -1899,9 +1900,9 @@ async function openNight(key, node){
   if(noStamp.length) rels.push(...noStamp);
   // A per-click query so the browser can never hand back a CACHED app from before a deploy (2026-09-26: both
   // derived pages rendered their pre-#3117 copies after the box was serving the new ones, and the old PAT page
-  // then filed the ring's _PPG.txt as the ankle). No app reads its query string. A timestamp, not the daemon's
+  // then filed the ring's _PPG.txt as the ankle). Only PAT Classic vs Fused reads one parameter, `view`. A timestamp, not the daemon's
   // /api/version sha: the updater syncs the app files while the daemon restart can be deferred.
-  const w = window.open('/'+NIGHT_APP[node]+'?v='+Date.now(), '_blank');
+  const w = window.open('/'+NIGHT_APP[node]+'?v='+Date.now()+(view==='hat'||view==='pat'?'&view='+view:''), '_blank');
   if(!w){ nToast('the browser blocked the analyzer window — allow pop-ups for this site', true); return; }
   /* THE MULTI-RECORDING FOLDER IS NAMED. Before this the toast said "18 files from 2026-10-04" for a
      folder holding two nights, and the page re-grouped them — silently, and once demonstrably wrong. */
@@ -1959,7 +1960,7 @@ function nightsClick(e){
   // own failure arms toasts, but a THROW bypassed all of them: called bare, the rejection went nowhere and the
   // click looked dead (the 'PAT fused' TypeError above). The catch is the §∅ rule at the UI — a click that
   // examined nothing has to say so — and it is not a substitute for the arms, which still name their cause.
-  const f=e.target.closest('[data-node]'); if(f){ Promise.resolve(openNight(f.dataset.night, f.dataset.node)).catch(err=>nToast('opening '+f.dataset.node+' failed: '+((err&&err.message)||err), true)); }
+  const f=e.target.closest('[data-node]'); if(f){ Promise.resolve(openNight(f.dataset.night, f.dataset.node, f.dataset.view)).catch(err=>nToast('opening '+f.dataset.node+' failed: '+((err&&err.message)||err), true)); }
 }
 // One listener for the whole view: the tabs and the overview strip sit outside the table.
 $('#view-nights').addEventListener('click', nightsClick);

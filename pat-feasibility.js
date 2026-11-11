@@ -437,7 +437,8 @@
          ⚠️ The tier COLOUR is deliberately unchanged: promoting on corrected drift is the owner's
          scientific call, which this surfaces rather than decides. */
       var cell = (self.PATGate && self.PATGate.verdictCell)(m);
-      vd.textContent = cell.text;
+      // The corrected verdict is unconfirmed when its own motion check rejects the floor axes (see accFails).
+      vd.textContent = cell.text + (m.vdCorr && accFails(m.floorSync) ? ' · motion check fails' : '');
       vd.title = cell.title;
       vd.style.color = tierColor(m.vd.tier);
     }
@@ -873,6 +874,28 @@
     return muted('polarity: unrecognised shape ' + escHtml(String(pol.shape)));
   }
 
+  /* A rate measured from the stream prints to 0.1 Hz. The raw float ("129.97692039391657 Hz") showed
+     precision that no reader can use and that the timing does not carry. */
+  function fmtHz(v) {
+    return typeof v === 'number' && isFinite(v) ? v.toFixed(1) : '—';
+  }
+  /* THE ARRIVAL-FLOOR MOTION CHECK, read in one place. The floor axes claim to put chest and ankle on one
+     clock. Shared movements should then align at ≈ 0 within the check's own tolerance. When they do not,
+     the corrected lag rests on axes that its own check rejects, so the page marks the corrected lag as
+     UNCONFIRMED. The worker's gate does not read this check; the page states the disagreement instead
+     of hiding it under a green tier (measured on 2026-11-10: −440 ms over 7 movements against ±25 ms). */
+  function accFails(fsy) {
+    var ck = fsy && fsy.accCheck;
+    return !!(ck && ck.ok && typeof ck.deltaMedianMs === 'number' && isFinite(ck.deltaMedianMs) && Math.abs(ck.deltaMedianMs) > (ck.tolMs || 25));
+  }
+  /* A LINEAR RATE NEEDS A LINEAR DRIFT. A ppm figure is the slope of a straight-line fit; with R² below
+     0.5 the line explains less than half of the drift, and the ppm number describes a fit, not the clocks. */
+  var PPM_R2_MIN = 0.5;
+  function ppmText(cp) {
+    if (!isFinite(cp.ppm)) return escHtml(cp.ppmReason || '');
+    if (isFinite(cp.linR2) && cp.linR2 < PPM_R2_MIN) return 'no linear rate: R²=' + cp.linR2.toFixed(2) + ', the drift is non-linear';
+    return cp.ppm.toFixed(0) + ' ppm' + (isFinite(cp.linR2) ? ' · R²=' + cp.linR2.toFixed(2) : '');
+  }
   function renderFocus(m) {
     var cp = m.cp,
       sc = m.sc;
@@ -887,7 +910,7 @@
       (m.ecg.nRaw > m.ecg.n ? ' (of ' + m.ecg.nRaw + ' detected · ' + (m.ecg.artifactSec / 60).toFixed(0) + ' min of artifact dropped)' : '') +
       validityNote(m.ecg.validity) +
       ' @ ' +
-      m.ecg.fs +
+      fmtHz(m.ecg.fs) +
       ' Hz · ' +
       (m.ecg.durSec / 60).toFixed(0) +
       ' min &nbsp;|&nbsp; PPG <b>' +
@@ -900,7 +923,7 @@
       validityNote(m.ppg.validity) +
       polarityNote(m.ppg.polarity) +
       ' @ ' +
-      m.ppg.fs +
+      fmtHz(m.ppg.fs) +
       ' Hz';
     var vc = el('focusVerdict');
     vc.className = 'verdict ' + m.vd.tier;
@@ -922,12 +945,10 @@
       );
       cards.push(
         hcard(
-          'drift',
+          'drift range',
           isFinite(cp.driftRange) ? cp.driftRange.toFixed(0) : '—',
           'ms',
-          isFinite(cp.driftRange)
-            ? (isFinite(cp.ppm) ? cp.ppm.toFixed(0) + ' ppm' : escHtml(cp.ppmReason || '')) + (isFinite(cp.linR2) ? ' · R²=' + cp.linR2.toFixed(2) : '')
-            : escHtml(cp.driftRangeReason || ''),
+          isFinite(cp.driftRange) ? ppmText(cp) + (isFinite(cp.stepP95) ? ' · the gate reads the p95 step, ' + cp.stepP95.toFixed(0) + ' ms' : '') : escHtml(cp.driftRangeReason || ''),
           cp.driftRange <= G.DRIFT_MAX_MS ? C.green : C.amber,
           'drift'
         )
@@ -939,13 +960,21 @@
         return L.windows - L.refused + '/' + L.windows + ' floor windows usable (' + L.stream + ' stream)' + (L.unmapped ? ' · ' + L.unmapped + ' beats outside every anchored packet dropped' : '');
       };
       cards.push('<div style="height:1px;background:rgba(255,255,255,.08);margin:2px 0"></div>');
+      var accBad = accFails(fsy);
       cards.push(
         hcard(
-          'corrected lag · arrival floors',
+          'corrected lag · arrival floors' + (accBad ? ' · UNCONFIRMED' : ''),
           m.cpCorr.med.toFixed(0),
           'ms',
-          'IQR ' + m.cpCorr.p25.toFixed(0) + '–' + m.cpCorr.p75.toFixed(0) + ' · coupled ' + (m.cpCorr.matchRate * 100).toFixed(0) + ' %',
-          C.blue,
+          'IQR ' +
+            m.cpCorr.p25.toFixed(0) +
+            '–' +
+            m.cpCorr.p75.toFixed(0) +
+            ' · coupled ' +
+            (m.cpCorr.matchRate * 100).toFixed(0) +
+            ' %' +
+            (accBad ? ' · the motion check below rejects the floor axes, so this lag is not confirmed' : ''),
+          accBad ? C.amber : C.blue,
           'floor'
         )
       );
@@ -959,8 +988,22 @@
           'floor'
         )
       );
-      cards.push(hcard('drift, corrected', m.cpCorr.driftRange.toFixed(0), 'ms', 'raw ' + m.cp.driftRange.toFixed(0) + ' ms', m.cpCorr.driftRange <= G.DRIFT_MAX_MS ? C.green : C.amber, 'drift'));
-      cards.push(hcard('anchors', fsy.ecg.windows - fsy.ecg.refused + ' · ' + (fsy.ppg.windows - fsy.ppg.refused), 'windows', 'H10 ' + cov(fsy.ecg) + ' · Verity ' + cov(fsy.ppg), C.ink, 'count'));
+      cards.push(
+        hcard('drift range, corrected', m.cpCorr.driftRange.toFixed(0), 'ms', 'raw ' + m.cp.driftRange.toFixed(0) + ' ms', m.cpCorr.driftRange <= G.DRIFT_MAX_MS ? C.green : C.amber, 'drift')
+      );
+      var thin = [fsy.ecg, fsy.ppg].some(function (L) {
+        return L.windows > 0 && (L.windows - L.refused) / L.windows < 0.5;
+      });
+      cards.push(
+        hcard(
+          'anchors',
+          fsy.ecg.windows - fsy.ecg.refused + ' · ' + (fsy.ppg.windows - fsy.ppg.refused),
+          'windows',
+          'H10 ' + cov(fsy.ecg) + ' · Verity ' + cov(fsy.ppg) + (thin ? ' · under half of one device’s windows anchor the floor, so the correction rests on thin anchors' : ''),
+          thin ? C.amber : C.ink,
+          'count'
+        )
+      );
       var ck = fsy.accCheck || {};
       cards.push(
         ck.ok
@@ -968,7 +1011,12 @@
               'motion check',
               ck.deltaMedianMs.toFixed(0),
               'ms',
-              'chest vs ankle movement on the two floor axes should align at ≈ 0 (±' + (ck.tolMs || 25) + ' ms resolution) · ' + ck.anchors + ' shared movements',
+              'chest vs ankle movement on the two floor axes should align at ≈ 0 (±' +
+                (ck.tolMs || 25) +
+                ' ms resolution) · ' +
+                ck.anchors +
+                ' shared movements' +
+                (accBad ? ' · FAILS: the floor axes disagree by more than the tolerance' : ''),
               Math.abs(ck.deltaMedianMs) <= (ck.tolMs || 25) ? C.green : C.amber,
               'acc'
             )
@@ -1328,7 +1376,24 @@
       v = h.variance ? h.variance[site] : null,
       vs = typeof v === 'number' && isFinite(v) ? v.toFixed(0) + ' ms²' : 'a negative variance';
     var lab = 'σ ' + name;
-    if (typeof s === 'number' && isFinite(s)) return [lab, s.toFixed(1), 'ms', 'from ' + h.n + ' × ' + h.winMin + '-min windows', tone];
+    /* WHAT THIS σ IS. It is the spread of the 5-min window MEDIANS on phone receive stamps, so it holds each
+       device's link jitter as well as its pulse timing, and it is not beat-level PAT noise. A 95 % CI whose
+       lower end is 0 cannot tell this site's σ from zero, and the card says so rather than print a bare σ. */
+    if (typeof s === 'number' && isFinite(s)) {
+      var sci = c && Array.isArray(c.sigmaCI) && c.sigmaCI.length === 2 && isFinite(c.sigmaCI[0]) && isFinite(c.sigmaCI[1]) ? c.sigmaCI : null;
+      return [
+        lab,
+        s.toFixed(1),
+        'ms',
+        'spread of ' +
+          h.n +
+          ' × ' +
+          h.winMin +
+          '-min window medians, receive stamps' +
+          (sci ? ' · 95 % CI ' + sci[0].toFixed(1) + '–' + sci[1].toFixed(1) + (sci[0] < 0.05 ? ', reaches 0: not resolved from zero' : '') : ''),
+        tone
+      ];
+    }
     if (c && c.status === 'underpowered')
       return [
         lab,
