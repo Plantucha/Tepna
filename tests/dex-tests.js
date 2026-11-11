@@ -98603,6 +98603,111 @@
       );
     });
 
+    /* ════ THE ENGINE REPORTS A DECLARATION IT OVERRULES ════
+       `entry()` normalises `depth` against `MetricRegistry.DEPTHS` and `evidence` against the
+       EVIDENCE map. A value outside either vocabulary reaches the same default the absent-entry
+       branch applies, and that branch printed nothing before this change, so a node's declaration
+       and the published value could disagree with no symptom on either side (ledger row
+       2026-11-08-twenty-oxydex-depths-declare-a-value-the-engine-replaces-in-silence; the 20 OxyDex
+       declarations themselves landed in #4669, and the group above refuses a new one).
+       THE PUBLISHED VALUES ARE PINNED TOO, because the fix must add a report and move no value: an
+       out-of-vocabulary depth still publishes `advanced` and an out-of-vocabulary evidence still
+       publishes `experimental`.
+       Every leg captures `console.warn`, so no leg writes to a real console in either lane, and
+       each leg uses its own metric id, because the engine reports once per id and field.
+       APPENDED AT THE END OF THE GROUP LIST ON PURPOSE: an insertion higher up shifts every later
+       `--group-index`, and other sessions quote those numbers. */
+    group('the registry engine reports a declaration it overrules', 'registry · depth · warn', function (T) {
+      var MR = env.MetricRegistry;
+      T.ok(
+        'ANTI-VACUITY · the engine publishes entry() and a three-value depth vocabulary',
+        !!MR && typeof MR.entry === 'function' && Array.isArray(MR.DEPTHS) && MR.DEPTHS.length === 3,
+        MR ? typeof MR.entry + ' · ' + (MR.DEPTHS ? MR.DEPTHS.join(',') : 'no DEPTHS') : 'MetricRegistry absent'
+      );
+      if (!MR || typeof MR.entry !== 'function' || !Array.isArray(MR.DEPTHS)) return;
+
+      var said = [];
+      var orig = console.warn;
+      var got = {};
+      var sweep = { ids: 0, warns: 0, regs: 0 };
+      try {
+        console.warn = function (m) {
+          said.push(String(m));
+        };
+        /* 1 · a depth outside the vocabulary */
+        got.badDepth = MR.entry({ mgDepthBad: { label: 'd', depth: 'secondary', evidence: 'measured' } }, 'mgDepthBad');
+        got.afterDepth = said.length;
+        /* 2 · the same id and field a second time — the report is once, not per call */
+        MR.entry({ mgDepthBad: { label: 'd', depth: 'secondary', evidence: 'measured' } }, 'mgDepthBad');
+        got.afterRepeat = said.length;
+        /* 3 · an evidence outside the vocabulary, with a retired tier name */
+        got.badEv = MR.entry({ mgEvBad: { label: 'e', depth: 'basic', evidence: 'proxy' } }, 'mgEvBad');
+        got.afterEv = said.length;
+        /* 4 · an ABSENT field keeps the quiet default */
+        got.noFields = MR.entry({ mgNoFields: { label: 'n' } }, 'mgNoFields');
+        got.afterAbsent = said.length;
+        /* 5 · CONTROL · a declaration inside both vocabularies */
+        got.good = MR.entry({ mgGood: { label: 'g', depth: 'research', evidence: 'validated' } }, 'mgGood');
+        got.afterGood = said.length;
+        /* 6 · CONTROL · the absent-entry branch still reports */
+        got.absent = MR.entry({}, 'mgAbsentEntry');
+        got.afterMissingEntry = said.length;
+        /* 7 · SWEEP · every real declaration passes with no report, so the rule is a tripwire */
+        [env.OXY_REGISTRY, env.ECG_REGISTRY, env.PPG_REGISTRY, env.CPAP_REGISTRY, env.PULSE_REGISTRY, env.HRV_REGISTRY, env.GLU_REGISTRY, env.MOTION_REGISTRY, env.EEG_REGISTRY].forEach(
+          function (reg) {
+            if (!reg || typeof reg !== 'object') return;
+            sweep.regs++;
+            Object.keys(reg).forEach(function (id) {
+              if (!reg[id] || typeof reg[id] !== 'object') return;
+              sweep.ids++;
+              var before = said.length;
+              MR.entry(reg, id);
+              sweep.warns += said.length - before;
+            });
+          }
+        );
+      } finally {
+        console.warn = orig;
+      }
+
+      var first = said[0] || '';
+      T.ok('an out-of-vocabulary depth still publishes advanced', got.badDepth && got.badDepth.depth === 'advanced', 'got ' + (got.badDepth && got.badDepth.depth));
+      T.ok('an out-of-vocabulary depth is reported', got.afterDepth === 1, got.afterDepth + ' report(s) for one overruled depth');
+      /* The absent-entry report also holds the words `depth` and `advanced`, so two of the legs
+         below pass over main's engine on that message alone. This leg is what separates the two
+         reports, and it reds on main. */
+      T.ok('the report is the overrule report and not the absent-entry one', first.indexOf('outside the published vocabulary') >= 0, first || 'nothing was said');
+      T.ok('the report names the metric id', first.indexOf('mgDepthBad') >= 0, first || 'nothing was said');
+      T.ok('the report names the field', first.indexOf('depth') >= 0, first || 'nothing was said');
+      T.ok('the report names the declared value', first.indexOf('secondary') >= 0, first || 'nothing was said');
+      T.ok('the report names the published value', first.indexOf('advanced') >= 0, first || 'nothing was said');
+      T.ok('the same id and field is reported once, not per call', got.afterRepeat === got.afterDepth, got.afterRepeat + ' after a second call, ' + got.afterDepth + ' after the first');
+      T.ok('an out-of-vocabulary evidence still publishes experimental', got.badEv && got.badEv.evidence === 'experimental', 'got ' + (got.badEv && got.badEv.evidence));
+      T.ok('an out-of-vocabulary evidence is reported', got.afterEv === got.afterRepeat + 1, said.slice(1, 2).join(' | ') || 'nothing was said');
+      T.ok('the evidence report names its own field and value', (said[1] || '').indexOf('evidence') >= 0 && (said[1] || '').indexOf('proxy') >= 0, said[1] || 'nothing was said');
+      T.ok('an absent depth field publishes advanced', got.noFields && got.noFields.depth === 'advanced', 'got ' + (got.noFields && got.noFields.depth));
+      T.ok('an absent evidence field publishes experimental', got.noFields && got.noFields.evidence === 'experimental', 'got ' + (got.noFields && got.noFields.evidence));
+      T.ok(
+        'an absent field is NOT reported, because a registry that states nothing states no disagreement',
+        got.afterAbsent === got.afterEv,
+        got.afterAbsent + ' report(s) after the absent-field entry, ' + got.afterEv + ' before it'
+      );
+      T.ok(
+        'CONTROL · a declaration inside both vocabularies publishes itself',
+        got.good && got.good.depth === 'research' && got.good.evidence === 'validated',
+        got.good ? got.good.depth + '/' + got.good.evidence : 'no entry'
+      );
+      T.ok('CONTROL · a declaration inside both vocabularies is not reported', got.afterGood === got.afterAbsent, got.afterGood + ' report(s) after the control, ' + got.afterAbsent + ' before it');
+      T.ok(
+        'CONTROL · an absent registry entry is still reported by its own branch',
+        got.afterMissingEntry === got.afterGood + 1 && !!got.absent && got.absent._missing === true,
+        got.afterMissingEntry + ' report(s), _missing=' + (got.absent && got.absent._missing)
+      );
+      T.ok('ANTI-VACUITY · the sweep read all nine node registries', sweep.regs === 9, sweep.regs + ' of 9 registries');
+      T.ok('ANTI-VACUITY · the sweep read every declaration', sweep.ids >= 500, sweep.ids + ' entr(ies) passed through entry()');
+      T.ok('no real declaration is overruled today, so the rule is a tripwire', sweep.warns === 0, sweep.warns + ' report(s) over ' + sweep.ids + ' entr(ies) in ' + sweep.regs + ' registries');
+    });
+
     /* Selection already happened at declaration time (see group() above) — a group that
        was not selected never RAN, so here we only drop its placeholder from the report.
        `totalGroups` stays the full declaration count, so "N of 134" is still honest. */
