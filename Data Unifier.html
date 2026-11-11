@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="3156a2371c72" data-compute-hash="ba0c0cdcf8f7"><head>
+<html lang="en" data-manifest-hash="42a0200f8cae" data-compute-hash="ba0c0cdcf8f7"><head>
 <!--
   Data Unifier.html — Tepna
   Copyright 2026 Michal Planicka
@@ -72,6 +72,48 @@
   #empty{color:var(--text3);font-size:13px;text-align:center;padding:30px 0;font-family:var(--mono);}
   .note{background:rgba(88,166,255,.06);border:1px solid rgba(88,166,255,.2);border-radius:10px;padding:12px 15px;font-size:12px;color:var(--text2);line-height:1.55;margin-top:18px;}
   @media(max-width:680px){ .resbody{grid-template-columns:1fr;} .route{margin-left:0;width:100%;} }
+</style>
+<style data-inline-src="inline:style:1">
+/* TOUCH-FLOOR-BLOCK v1 — canonical copy: ans-design.css §29. Every mirror is byte-identical
+   between these two markers (gate: the touch-floor-parity group in tests/dex-tests.js), because
+   four surfaces hold interactive controls and do NOT carry this sheet: PulseDex, index.html and
+   the two orchestrators. A floor that lives in one sheet leaves the worst page uncovered —
+   PulseDex measured 44 controls under 44 px at 375 px on 2026-11-11, the highest of the twelve. */
+@media (pointer: coarse) {
+  /* ONE EXTRA ELEMENT SELECTOR, ON PURPOSE. Each app's own <style> loads AFTER this sheet and
+     three of them redeclare input[type=range] height, so `html` wins on SPECIFICITY (0,0,1,1 over
+     0,0,0,1) instead of on order. The floor then holds wherever a page styles its own controls. */
+  html button,
+  html select,
+  html [role="button"],
+  html label[for],
+  html a[href],
+  html input:not([type="hidden"]):not([type="range"]):not([type="checkbox"]):not([type="radio"]) {
+    min-height: 44px;
+  }
+  /* WIDTH TOO: a narrow control is as hard to hit as a short one (.sb-btn measured 32 px wide,
+     button.btn 37). Text inputs and selects already span their row, and an inline <a> in prose
+     must not become a 44 px box, so neither of those takes a width floor. */
+  html button,
+  html [role="button"] {
+    min-width: 44px;
+  }
+  /* THE RANGE INPUT IS THE WORST CASE — a 4 px track with a 14 px thumb. The HIT AREA grows to
+     44 px; the VISUAL track stays 4 px, drawn by the track pseudo-element instead of by the
+     input's own background. margin-top is -(thumb - track)/2, which re-centres the thumb. */
+  html input[type="range"] { height: 44px; background: transparent; }
+  html input[type="range"]::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: var(--surface2); }
+  html input[type="range"]::-webkit-slider-thumb { width: 22px; height: 22px; margin-top: -9px; }
+  html input[type="range"]::-moz-range-track { height: 4px; border-radius: 2px; background: var(--surface2); }
+  html input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; }
+  /* CHECKBOX AND RADIO STAY UNDER THE FLOOR, SAID OUT LOUD (CLAUDE.md §∅ — a remainder is named,
+     never passed over). An <input> carries no ::before, so the usual trick, a transparent 44 px
+     pseudo-element over a small box, is unavailable; a native 44 px box dwarfs the 11.5 px label
+     beside it. 24 px is the compromise, and the gate baseline names what is left. */
+  html input[type="checkbox"],
+  html input[type="radio"] { width: 24px; height: 24px; }
+}
+/* END TOUCH-FLOOR-BLOCK */
 </style>
 </head>
 <body>
