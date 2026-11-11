@@ -14833,10 +14833,11 @@
        controls under the 44 px floor at 375 px on 2026-11-11, the worst of the twelve pages, and its
        export bar stood 250 px tall, 37.5 % of a 667 px screen. A mirror with no gate drifts, so this
        group is that gate. The BLOCKS table is the population: §29 the touch floor, §30 the export bar
-       compaction. The page population is DERIVED from the source pages on disk, every page must either
+       compaction, §31 the 12 px text floor. The page population is DERIVED from the source pages on disk, every page must either
        link the sheet or carry each block, and every mirror must match the canonical copy byte for byte.
-       Rows 2026-11-08-most-controls-sit-under-the-44-px-touch-floor and
-       2026-11-08-the-export-bar-takes-a-fifth-of-a-phone-screen. */
+       Rows 2026-11-08-most-controls-sit-under-the-44-px-touch-floor,
+       2026-11-08-the-export-bar-takes-a-fifth-of-a-phone-screen and
+       2026-11-08-sub-12-px-text-is-unchanged-since-july. */
     group('every marked shared block is mirrored byte-for-byte where the sheet cannot reach', 'ui · shared-css · parity', function (T) {
       /* THIS GROUP NEVER SKIPS. The browser realm's skip budget is a CEILING that may only shrink
          (tests/expected-skips.json `browserLane`), so a group that stands down in one lane costs
@@ -14902,6 +14903,49 @@
                 return c.indexOf('html #exportBar') >= 0;
               },
               'every app declares #exportBar with !important AFTER the sheet'
+            ]
+          ]
+        },
+        {
+          section: '§31',
+          what: 'the 12 px text floor on a phone',
+          a: '/* TEXT-FLOOR-BLOCK v1',
+          b: '/* END TEXT-FLOOR-BLOCK */',
+          content: [
+            [
+              'the floor is a token, so an app that needs larger text declares its own',
+              function (c) {
+                return c.indexOf('var(--dex-text-floor, 12px)') >= 0;
+              },
+              'a hard-typed 12px gives an app no way to raise the floor for its own surface'
+            ],
+            [
+              'it raises with !important, because the per-app sizes are declared after the sheet',
+              function (c) {
+                return c.indexOf('!important') >= 0;
+              },
+              'every size the block raises is declared in a per-app style block that loads later'
+            ],
+            [
+              'every selector carries the html prefix, so it beats a per-app class rule on specificity',
+              function (c) {
+                var decl = c.slice(c.indexOf('@media'));
+                var sel = decl.slice(decl.indexOf('{') + 1);
+                sel = sel.slice(0, sel.indexOf('{'));
+                var parts = sel
+                  .split(',')
+                  .map(function (x) {
+                    return x.trim();
+                  })
+                  .filter(Boolean);
+                return (
+                  parts.length >= 30 &&
+                  parts.every(function (x) {
+                    return x.indexOf('html .') === 0;
+                  })
+                );
+              },
+              'the measured census named 32 classes under the floor; a bare .class ties with a per-app rule and loses on order'
             ]
           ]
         }

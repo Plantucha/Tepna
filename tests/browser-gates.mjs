@@ -814,10 +814,51 @@ const MOBILE_BAR_SEEN_FLOOR = 7;
 const MOBILE_BAR_DRAW_MS = 15000;
 const MOBILE_BAR_POLL_MS = 250;
 const MOBILE_BAR_SETTLE_MS = 400;
+/* THE TEXT FLOOR. Row `2026-11-08-sub-12-px-text-is-unchanged-since-july`: measured at 375 x 667
+   under mobile emulation with each app populated, 2684 readable nodes drew text under 12 px, which
+   is the iOS legibility floor and the row's own bound. `ans-design.css` §31 raises the class names
+   that measured STRICTLY under it on every page that draws them.
+   THE CRITERION IS PRE-STATED: zero visible nodes of a TARGETED class under 12 px. The targeted set
+   is DERIVED from the sheet's own selector list, never a hand copy here — a class added to §31 is
+   judged on the next run, and a selector list that changes shape reds instead of narrowing the
+   population in silence.
+   The REMAINDER — every other readable node under the floor — is logged and not asserted. It holds
+   the four classes measured on both sides of the floor (`.btn`, `.sb-item`, `.theme-toggle`,
+   `.st-note`), which a flat token would SHRINK, and the three declared exclusions: chart-axis labels
+   inside `svg`, dense `td`/`th` cells, and the `dxl-` licensing stamp that
+   `licensing/dex-license.css` owns.
+   The seen floor is the anti-vacuity proof — a run that measured fewer targeted nodes than that
+   constrained nothing. MEASURED on the rig over the 12 pages: 1446 targeted nodes, of which
+   ECGDex draws 657 and GlucoDex 247, against a remainder of 1310. The floor sits near half of
+   that, so a run that lost several pages' content reds here rather than reporting a clean sweep
+   of what it never drew. A §31 rule beaten by a per-app `!important` at higher specificity is exactly
+   what it catches: OxyDex's own §5 block held `.readiness-subscore .rs-label` at 11 px that way, and
+   the block's `html .rs-label` lost to it. */
+const MOBILE_TEXT_FLOOR_PX = 12;
+const MOBILE_TEXT_SEEN_FLOOR = 700;
+const MOBILE_TEXT_CLASSES = (() => {
+  const css = readFileSync('ans-design.css', 'utf8');
+  const i = css.indexOf('/* TEXT-FLOOR-BLOCK v1');
+  const j = css.indexOf('/* END TEXT-FLOOR-BLOCK */');
+  if (i < 0 || j < 0) return null;
+  const blk = css.slice(i, j);
+  const o = blk.indexOf('{');
+  const c = blk.indexOf('{', o + 1);
+  if (o < 0 || c < 0) return null;
+  const parts = blk
+    .slice(o + 1, c)
+    .split(',')
+    .map((x) => x.trim())
+    .filter(Boolean);
+  if (!parts.length || !parts.every((x) => /^html \.[A-Za-z][\w-]*$/.test(x))) return null;
+  return [...new Set(parts.map((x) => x.replace(/^html \./, '')))];
+})();
 
 async function gateMobileViewport() {
   const barSeen = [];
   const barAbsent = [];
+  let textSeen = 0;
+  let textRemainder = 0;
   say(`▸ mobile-viewport · ${MOBILE_PAGES.length} pages at ${MOBILE_W} px, mobile emulation …`);
   const mctx = await browser.newContext({ viewport: { width: MOBILE_W, height: 667 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
   try {
@@ -838,6 +879,7 @@ async function gateMobileViewport() {
       let bar = null;
       let barWhy = 'the page did not render';
       let barMs = null;
+      let text = null;
       try {
         await page.goto(`${BASE}/${encodeURI(p)}`, { waitUntil: 'load', timeout: 60000 });
         m = await page.evaluate((dev) => {
@@ -923,6 +965,55 @@ async function gateMobileViewport() {
             overlap: n ? Math.max(0, Math.round(b.r.bottom - n.r.top)) : null
           };
         });
+        text = await page.evaluate(
+          ({ classes, floor }) => {
+            /* ONE PASS, TWO POPULATIONS. A node counts as readable when it holds its own
+               non-whitespace text and draws a box. The three exclusions each carry a reason and
+               are counted, so an absent measurement never reads as a clean one. */
+            const out = { seen: 0, under: [], remainder: 0, excluded: { svg: 0, cell: 0, stamp: 0 } };
+            for (const el of document.querySelectorAll('body *')) {
+              const tag = el.tagName;
+              if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'TITLE' || tag === 'OPTION') continue;
+              let own = false;
+              for (const n of el.childNodes) {
+                if (n.nodeType === 3 && n.nodeValue && n.nodeValue.trim()) {
+                  own = true;
+                  break;
+                }
+              }
+              if (!own) continue;
+              const r = el.getBoundingClientRect();
+              if (!(r.width > 0 && r.height > 0)) continue;
+              const px = Number.parseFloat(getComputedStyle(el).fontSize);
+              if (!Number.isFinite(px) || px >= floor) continue;
+              if (el.closest('svg')) {
+                out.excluded.svg++;
+                continue;
+              }
+              if (tag === 'TD' || tag === 'TH') {
+                out.excluded.cell++;
+                continue;
+              }
+              if (typeof el.className === 'string' && /\bdxl-/.test(el.className)) {
+                out.excluded.stamp++;
+                continue;
+              }
+              const hit = classes.find((c) => el.classList.contains(c));
+              if (hit) out.under.push(`.${hit}@${Math.round(px * 10) / 10}px`);
+              else out.remainder++;
+            }
+            /* AND THE TARGETED POPULATION, whatever its size: a page that draws none of these
+               classes must not read as a page with none under the floor. */
+            for (const c of classes) {
+              for (const el of document.querySelectorAll(`.${c}`)) {
+                const r = el.getBoundingClientRect();
+                if (r.width > 0 && r.height > 0) out.seen++;
+              }
+            }
+            return out;
+          },
+          { classes: MOBILE_TEXT_CLASSES || [], floor: MOBILE_TEXT_FLOOR_PX }
+        );
       } catch (e) {
         /* A page that did not render is COUNTED and named, never passed over (CLAUDE.md §∅). */
         FAILS.push(`mobile-viewport: ${p} did not render at ${MOBILE_W} px — ${((e && e.message) || String(e)).split('\n')[0]}`);
@@ -941,6 +1032,18 @@ async function gateMobileViewport() {
         );
       if (m.iw === MOBILE_W && listed) FAILS.push(`mobile-viewport: ${p} now holds at ${MOBILE_W} px — delete it from MOBILE_OVERFLOW_BASELINE, which may only shrink`);
       if (m.iw < MOBILE_W) FAILS.push(`mobile-viewport: ${p} reads innerWidth ${m.iw} under a ${MOBILE_W} px device, which no layout produces — the emulation did not apply`);
+      if (text) {
+        textSeen += text.seen;
+        textRemainder += text.remainder;
+        const ex = text.excluded;
+        say(
+          `     text floor · ${text.seen} targeted node(s), ${text.under.length} under ${MOBILE_TEXT_FLOOR_PX} px${text.under.length ? `: ${[...new Set(text.under)].slice(0, 6).join(' ')}` : ''} · remainder ${text.remainder} · excluded svg ${ex.svg} / cell ${ex.cell} / stamp ${ex.stamp}`
+        );
+        if (text.under.length)
+          FAILS.push(
+            `mobile-viewport: ${p} draws ${text.under.length} visible node(s) of a §31 class under ${MOBILE_TEXT_FLOOR_PX} px at ${MOBILE_W} x 667 — ${[...new Set(text.under)].join(' ')}. A per-app rule beat the floor on specificity; raise that declaration to var(--dex-text-floor, 12px) (ans-design.css §31)`
+          );
+      }
       if (!bar || bar.h === null) {
         barAbsent.push(`${p} (${barWhy})`);
         continue;
@@ -961,6 +1064,17 @@ async function gateMobileViewport() {
       FAILS.push(
         `mobile-viewport: only ${barSeen.length} page(s) drew an export bar at ${MOBILE_W} px against a floor of ${MOBILE_BAR_SEEN_FLOOR}, so the bar assertions constrained almost nothing — ${barAbsent.join(', ') || 'no page named'}`
       );
+    if (!MOBILE_TEXT_CLASSES)
+      FAILS.push(
+        'mobile-viewport: ans-design.css TEXT-FLOOR-BLOCK did not yield a selector list of the form `html .class`, so the text floor examined NOTHING — fix the block or this read (ans-design.css §31)'
+      );
+    else {
+      say(`   · text floor · ${MOBILE_TEXT_CLASSES.length} class(es) from the sheet · ${textSeen} targeted node(s) measured · remainder under the floor ${textRemainder}`);
+      if (textSeen < MOBILE_TEXT_SEEN_FLOOR)
+        FAILS.push(
+          `mobile-viewport: only ${textSeen} targeted node(s) were measured against a floor of ${MOBILE_TEXT_SEEN_FLOOR}, so the text-floor assertion constrained almost nothing (ans-design.css §31)`
+        );
+    }
   } finally {
     await mctx.close();
   }

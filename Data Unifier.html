@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="aa11eced0921" data-compute-hash="ba0c0cdcf8f7"><head>
+<html lang="en" data-manifest-hash="914967a0417d" data-compute-hash="ba0c0cdcf8f7"><head>
 <!--
   Data Unifier.html — Tepna
   Copyright 2026 Michal Planicka
@@ -124,6 +124,17 @@
   html .main-content, html .main-wrap, html #results { padding-bottom: calc(var(--dex-export-dock, 68px) + 80px) !important; }
 }
 /* END EXPORT-BAR-BLOCK */
+/* TEXT-FLOOR-BLOCK v1 — canonical copy: ans-design.css §31. Every mirror is byte-identical
+   (tests/dex-tests.js pins that). A page that links or inlines the sheet inherits it. */
+@media (pointer: coarse) {
+  html .mobile-nav-item, html .eb-btn, html .eb-label, html .mode-btn, html .ut, html .synth-link,
+  html .kpi-label, html .kpi-sub, html .m-label, html .m-unit, html .nr-kpi-label, html .mini-sub,
+  html .q-lbl, html .q-sub, html .q-note, html .rs-label, html .ps-label, html .ps-unit,
+  html .pill, html .chip, html .top-badge, html .version-badge, html .fc-tag,
+  html .prof-sublabel, html .prof-derived-item, html .pdi-formula, html .pd-group-label, html .pd-group-note, html .org,
+  html .ge-t, html .ge-imp, html .ge-conf { font-size: var(--dex-text-floor, 12px) !important; }
+}
+/* END TEXT-FLOOR-BLOCK */
 </style>
 </head>
 <body>
