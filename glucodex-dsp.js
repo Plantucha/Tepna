@@ -74,7 +74,9 @@
     if (n < 1e11) n = n * 1000;
     if (n < 1e11 || n > 4e12) return null;
     var off = tzOffset(n);
-    return { tMs: n - off, offsetMin: -off / 60000 };
+    /* §1: a numeric epoch states no zone, so it is granted no `offsetMin`. The node-local copy carried
+       the same host-offset defect as `clock.js`, and the two sites move together. */
+    return { tMs: n - off, offsetMin: null };
   }
   function _ckZoneMin(z) {
     var zs = z.replace(':', '');
