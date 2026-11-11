@@ -73,6 +73,7 @@
       { file: 'oxydex-cross.js', global: 'OXYCross' },
       { file: 'pulsedex-cross.js', global: 'PulseCross' },
       { file: 'ppgdex-cross.js', global: 'PPGCross' },
+      { file: 'hrvdex-cross.js', global: 'HRVCross' },
       { file: 'cpapdex-cross.js', global: 'CPAPCross' },
       { file: 'cpapdex-coimport.js', global: 'CpapCoimport' }
     ]
