@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**336 tools** · 335 with a purpose line · **1 without**
+**337 tools** · 336 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -53,6 +53,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`cgm-variability-check.mjs`](../tools/cgm-variability-check.mjs) | does GlucoDex's variability family actually need a ROBUST scale? |
 | [`check-stranded.mjs`](../tools/check-stranded.mjs) | DID YOUR WORK ACTUALLY REACH `main`? — the stranded-commit detector. |
 | [`checkout-advance.mjs`](../tools/checkout-advance.mjs) | say what blocks a fast-forward of a checkout, path by path, and which of those paths an advance would not change at all. |
+| [`ci-step-parity.mjs`](../tools/ci-step-parity.mjs) | A LOCAL GATE STEP THAT NO WORKFLOW RUNS REDS ON EVERY BIRD'S BOX WHILE `main` STAYS GREEN. |
 | [`ci-timing.mjs`](../tools/ci-timing.mjs) | WHICH CHECK IS THE MERGE RACE? — per-job CI timings, measured. |
 | [`circular-stats.mjs`](../tools/circular-stats.mjs) | CIRCULAR STATISTICS — the null the suite's own phase statistic lacked. |
 | [`claim-source.mjs`](../tools/claim-source.mjs) | TWO MECHANISMS BIND A DOC NUMBER TO CODE, AND THIS FILE DRAWS THE LINE BETWEEN THEM. |
