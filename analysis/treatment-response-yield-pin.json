@@ -19,7 +19,7 @@
       "synth-gen.js": "a653cf5afb78",
       "cohort-gen.js": "f80cbb02a8f6",
       "kernel-constants.js": "0050ad3f9dc7",
-      "clock.js": "2ca8a192dde5",
+      "clock.js": "47a0dcff15d0",
       "clock-seam.js": "eca421bd5c5e",
       "dex-escape.js": "f0d38619047a",
       "oxydex-util.js": "5cc642ee790b",
@@ -30,7 +30,7 @@
       "synth-gen.js": "a653cf5afb78",
       "cohort-gen.js": "f80cbb02a8f6",
       "kernel-constants.js": "0050ad3f9dc7",
-      "clock.js": "2ca8a192dde5",
+      "clock.js": "47a0dcff15d0",
       "clock-seam.js": "eca421bd5c5e",
       "pulsedex-dsp.js": "f25accb7ea4c"
     }
@@ -172,11 +172,18 @@
       "old": "ac96c6845205",
       "new": "180165dc7b5b",
       "reason": "residue 2026-11-09-the-spo2-spectrum-strides-past-an-adjacent-bin: computeSpO2FFT now publishes bandBinsN, the count of bins the band holds, beside bins, the count the run tested. No published value moves and the field is new. The SpO2 spectrum is not a treatment-response input, and the re-cut measured the SAME 233 tx / 239 flat under the moved closure, so this entry records the move only."
+    },
+    {
+      "date": "2026-11-11",
+      "file": "clock.js",
+      "old": "2ca8a192dde5",
+      "new": "47a0dcff15d0",
+      "reason": "residue 2026-11-08-an-epoch-stamp-writes-the-viewer-zone-into-the-export: _ckNumEpoch now returns offsetMin null, because Clock Contract section 1 grants an offset only to an input that STATES a zone, and a numeric epoch states none. The tMs half is untouched. The edit is provably inert for this pin on three independent legs: no branch in either detector closure reads offsetMin (all four occurrences are field assignments behind a null guard); the only _ckNumEpoch call sites in the closure, oxydex-dsp.js:295 and :316, read fl.tMs alone; and synth-gen.js writes 14-digit and ISO stamps, which never reach the epoch branch. So the 233 tx / 239 flat yield is RE-STAMPED on the SAME counts and not re-cut."
     }
   ],
-  "measuredAt": "2026-11-10T04:20:03.111Z",
+  "measuredAt": "2026-11-11T04:16:26.420Z",
   "producedBy": {
     "tool": "tools/treatment-response-yield-pin.mjs",
-    "commit": "4a0ebea16"
+    "commit": "b398706af"
   }
 }
