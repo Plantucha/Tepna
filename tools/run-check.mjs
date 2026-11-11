@@ -134,6 +134,7 @@ export const STEPS = [
   'verify:docs-constants',
   'verify:brief-header-claims',
   'verify:paper-references',
+  'verify:paper-claim-markers',
   'verify:module-carriers',
   'verify:pr-compliance',
   'verify:verdict-adoption',

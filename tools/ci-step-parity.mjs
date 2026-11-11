@@ -45,8 +45,10 @@ const Verdict = createRequire(import.meta.url)(join(ROOT, 'verdict.js'));
     raised it from 39 to 40 one hour before this tool landed, where `verify:module-carriers` arrived
     with no workflow line. The 2026-11-11 raise to 41 is `verify:paper-references`, which runs inside
     `npm run check` under CI's `static` job exactly as `verify:brief-header-claims` does. Its own
-    workflow line would be a new CI context, and §📌's row reserves that to the owner. */
-export const UNCOVERED_PIN = 41;
+    workflow line would be a new CI context, and §📌's row reserves that to the owner. The raise to 42 is
+    `verify:paper-claim-markers`, the second half of that same papers census, which runs under the same
+    `static` job and sits under the same reservation. */
+export const UNCOVERED_PIN = 42;
 
 /** A step whose command a workflow may never carry, with the reason. Empty, and the gate says so: the
     row reserves every closure to the owner, so this tool invents no exemption. */
