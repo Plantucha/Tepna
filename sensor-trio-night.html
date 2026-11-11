@@ -7646,10 +7646,10 @@ window.TCH_REFERENCE_RECORD = {
     if (cap) {
       const bt = derive && derive.boot;
       const tauTxt = (v) => (Number.isFinite(v) ? v.toFixed(0) + ' s' : '—');
-      cap.innerHTML =
+      /* textContent, not a sink: the bootstrap's badge already rides this figure's series strip
+         (seriesBadges('cSigma')), and a chart caption is not a badge site (§🎫). */
+      cap.textContent =
         'Block bootstrap · 400 resamples · ' +
-        evb('boot') +
-        ' ' +
         (bt
           ? 'block ' +
             bt.blockSec +
@@ -7664,7 +7664,7 @@ window.TCH_REFERENCE_RECORD = {
             (Number.isFinite(bt.nEff) ? ' · n_eff ≈ ' + Math.round(bt.nEff) : '')
           : 'block length not reported — the CI used no data-derived block') +
         ' · pooled marks: ' +
-        (tchPop() ? esc(tchPop()) : 'REFUSED — the published record did not load');
+        (tchPop() || 'REFUSED — the published record did not load');
     }
     max = Math.ceil(max * 1.15 * 2) / 2;
     const x = (v) => L + (v / max) * (W - L - R);
@@ -7709,11 +7709,9 @@ window.TCH_REFERENCE_RECORD = {
         f2(sig) + (ci ? ' [' + f2(ci.lo) + '–' + f2(ci.hi) + ']' : '')
       );
     });
-    host.innerHTML = svgEl(
-      'svg',
-      { class: 'chart-svg', viewBox: '0 0 ' + W + ' ' + H, role: 'img', 'aria-label': 'per-corner sigma with confidence interval, pooled hat median and pooled reference sigma' },
-      s
-    );
+    host.innerHTML = svgEl('svg', { class: 'chart-svg', viewBox: '0 0 ' + W + ' ' + H, role: 'img', 'aria-label': 'per-corner sigma with confidence interval, corpus median and literature marks' }, s);
+    const svgNode = host.querySelector('svg');
+    if (svgNode) svgNode.setAttribute('aria-label', 'per-corner sigma with confidence interval, pooled hat median and pooled reference sigma');
   }
   /* FIGURE 5 — σ̂ AGAINST AVERAGING TIME. One row per τ, one column per corner. White per-second
      error falls as 1/√τ, so the white expectation σ̂(1 s)/√τ sits in brackets beside each value: a
@@ -7729,17 +7727,34 @@ window.TCH_REFERENCE_RECORD = {
       return;
     }
     const base = rows.find((r) => r.tau === 1) || null;
-    const cell = (r, k) => {
-      if (r[k] == null) return '<td class="ts-tau-abs">' + (r.n < 30 ? 'n < 30' : 'neg') + '</td>';
-      const w = base && base[k] != null ? base[k] / Math.sqrt(r.tau) : null;
-      return '<td>' + f2(r[k]) + (r.tau > 1 && w != null ? ' <span class="ts-tau-w">(' + f2(w) + ')</span>' : '') + '</td>';
+    /* Built as DOM nodes with textContent, so the table adds no `innerHTML` sink. */
+    const mk = (tag, text, cls) => {
+      const e = document.createElement(tag);
+      if (text != null) e.textContent = text;
+      if (cls) e.className = cls;
+      return e;
     };
-    host.innerHTML =
-      '<table class="ts-tau"><thead><tr><th>τ</th><th>chunks</th>' +
-      DKEYS.map((k) => '<th style="color:' + DEV[k].col + '">' + DEVNAME[k] + '</th>').join('') +
-      '</tr></thead><tbody>' +
-      rows.map((r) => '<tr><td>' + r.tau + ' s</td><td>' + r.n + '</td>' + DKEYS.map((k) => cell(r, k)).join('') + '</tr>').join('') +
-      '</tbody></table>';
+    const table = mk('table', null, 'ts-tau');
+    const hr = table.appendChild(mk('thead')).appendChild(mk('tr'));
+    hr.appendChild(mk('th', 'τ'));
+    hr.appendChild(mk('th', 'chunks'));
+    for (const k of DKEYS) hr.appendChild(mk('th', DEVNAME[k])).style.color = DEV[k].col;
+    const tb = table.appendChild(mk('tbody'));
+    for (const r of rows) {
+      const tr = tb.appendChild(mk('tr'));
+      tr.appendChild(mk('td', r.tau + ' s'));
+      tr.appendChild(mk('td', String(r.n)));
+      for (const k of DKEYS) {
+        if (r[k] == null) {
+          tr.appendChild(mk('td', r.n < 30 ? 'n < 30' : 'neg', 'ts-tau-abs'));
+          continue;
+        }
+        const td = tr.appendChild(mk('td', f2(r[k])));
+        const w = base && base[k] != null ? base[k] / Math.sqrt(r.tau) : null;
+        if (r.tau > 1 && w != null) td.appendChild(mk('span', ' (' + f2(w) + ')', 'ts-tau-w'));
+      }
+    }
+    host.replaceChildren(table);
   }
   // CORRELATION TRIANGLE — r on each edge; width follows |r|; a null r is a dashed grey edge
   function drawTriangle(real) {
