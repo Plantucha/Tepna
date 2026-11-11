@@ -2226,24 +2226,23 @@ function readClaudeMdClaims() {
    carry the CSP egress/injection backstop the 10 owned bundles do. Node-lane only (fs read); the browser
    lane has no readdir, so env.nonBundleCsp is undefined there and the group SKIPs. `self` = pages that
    fetch the local corpus (connect-src 'self'); the rest lock connect-src 'none'. */
-function readNonBundleCsp() {
-  const none = [
-    'cgm-hrv-coupling-analysis.html',
-    'hrv-confound-analysis.html',
-    'nights-icc-analysis.html',
-    'sensor-trio-power-analysis.html',
-    'sensor-trio-night.html',
-    'treatment-response-analysis.html',
-    'sigma-no-reference-analysis.html',
-    'qrs-equiv-analysis.html',
-    'qrs-yield-analysis.html',
-    'cohort-harness.html',
-    'cohort-runner.html',
-    'cohort-regression.html',
-    'PAT Feasibility.html',
-    'index.html'
-  ];
-  /* PAPER-ODI4-REPRODUCIBILITY §6.3 — `odi-bias-analysis.html` moved from 'none' to 'self' because its
+const NON_BUNDLE_CSP_NONE = [
+  'cgm-hrv-coupling-analysis.html',
+  'hrv-confound-analysis.html',
+  'nights-icc-analysis.html',
+  'sensor-trio-power-analysis.html',
+  'sensor-trio-night.html',
+  'treatment-response-analysis.html',
+  'sigma-no-reference-analysis.html',
+  'qrs-equiv-analysis.html',
+  'qrs-yield-analysis.html',
+  'cohort-harness.html',
+  'cohort-runner.html',
+  'cohort-regression.html',
+  'PAT Feasibility.html',
+  'index.html'
+];
+/* PAPER-ODI4-REPRODUCIBILITY §6.3 — `odi-bias-analysis.html` moved from 'none' to 'self' because its
      SubjectA path FETCHES five committed LOCAL sample files, and under 'none' the browser refused every
      one: the page rendered an EMPTY TABLE with no error a reader would see, so the paper's own recipe
      could not be followed by anyone. Measured: 'none' -> 0 rows / 10 CSP errors; 'self' -> 5 nights,
@@ -2251,13 +2250,49 @@ function readNonBundleCsp() {
      same-origin cannot reach a CDN, a DOI or a dataset. Identical reasoning to CPAPDex.src.html, which
      already takes 'self' for exactly this reason. A page belongs in `self` ONLY if it demonstrably
      fetches a committed local corpus; the default for everything else stays 'none'. */
-  const self = ['PpgDex Fusion Prototype.html', 'odi-bias-analysis.html'];
+const NON_BUNDLE_CSP_SELF = ['PpgDex Fusion Prototype.html', 'odi-bias-analysis.html'];
+
+/* THE POPULATION IS DERIVED, BECAUSE A HAND-WRITTEN ONE CANNOT REPORT A PAGE IT NEVER SAW. Residue
+   `2026-11-08-two-bundles-carry-connect-src-self` states the harm of an unbounded relaxation: later
+   code in a relaxed surface reaches the whole served origin. The two lists above are the DECLARED
+   classification, and `existsSync` guarded them, so a renamed page left this gate in silence, and a
+   new page that relaxes `connect-src` entered the tree unexamined.
+   This function reads the tree instead. Every root `*.html` that carries a CSP meta, is not a
+   `*.src.html`, and has no `*.src.html` beside it, must sit in exactly one declared class. The
+   `*.src.html` test is what makes a page a BUILT bundle, and group 8d covers those.
+   Only 20 kB of each head is read, because the meta sits in `<head>` and a bundle is megabytes. */
+function readNonBundleCspAudit() {
+  const declared = NON_BUNDLE_CSP_NONE.concat(NON_BUNDLE_CSP_SELF);
+  const missing = declared.filter((f) => !existsSync(join(ROOT, f)));
+  const cspBearing = [];
+  const unclassified = [];
+  for (const f of readdirSync(ROOT)
+    .filter((n) => n.endsWith('.html'))
+    .sort()) {
+    if (f.endsWith('.src.html')) continue;
+    if (existsSync(join(ROOT, f.replace(/\.html$/, '.src.html')))) continue;
+    const fd = openSync(join(ROOT, f), 'r');
+    let head = '';
+    try {
+      const buf = Buffer.alloc(20000);
+      head = buf.subarray(0, readSync(fd, buf, 0, 20000, 0)).toString('utf8');
+    } finally {
+      closeSync(fd);
+    }
+    if (!/http-equiv=["']Content-Security-Policy/i.test(head)) continue;
+    cspBearing.push(f);
+    if (!declared.includes(f)) unclassified.push(f);
+  }
+  return { declared, missing, cspBearing, unclassified, none: NON_BUNDLE_CSP_NONE.slice(), self: NON_BUNDLE_CSP_SELF.slice() };
+}
+
+function readNonBundleCsp() {
   const out = {};
-  for (const f of none) {
+  for (const f of NON_BUNDLE_CSP_NONE) {
     const p = join(ROOT, f);
     if (existsSync(p)) out[f] = { html: readFileSync(p, 'utf8'), connect: 'none' };
   }
-  for (const f of self) {
+  for (const f of NON_BUNDLE_CSP_SELF) {
     const p = join(ROOT, f);
     if (existsSync(p)) out[f] = { html: readFileSync(p, 'utf8'), connect: 'self' };
   }
@@ -3964,6 +3999,7 @@ async function main() {
     srcHtml: readSrcHtml(),
     nodeSurfaces: readNodeSurfaces(),
     nonBundleCsp: readNonBundleCsp(),
+    nonBundleCspAudit: readNonBundleCspAudit(),
     captureFilenameScan: readCaptureFilenameScan(),
     drawnFlagScan: readDrawnFlagScan(),
     validitySidecarScan: readValiditySidecarScan(),
