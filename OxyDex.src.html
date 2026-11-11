@@ -3122,6 +3122,9 @@ body.light .chart-wrap:hover {
 @media (max-width: 1080px) {
   #exportBar { left: 0 !important; bottom: 60px !important; /* above mobile nav */ }
 }
+/* §30 dock (ans-design.css): this phone nav stands 124 px tall, measured at 375 x 667,
+   so the export bar docks above it instead of covering 64 px of its buttons. */
+:root { --dex-export-dock: 128px; }
 /* Add bottom padding to results so last section isn't hidden */
 #results { padding-bottom: 124px !important; }
 body.light #exportBar {
