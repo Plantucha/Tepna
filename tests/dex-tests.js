@@ -18779,11 +18779,27 @@
         'out.ownerOpen = M.ownerDebt({ entries: [{ key: "k", reason: "owner 2026-01-02-alpha-beta-gamma" }] }, ST).length;',
         'out.ownerClosed = M.ownerDebt({ entries: [{ key: "k", reason: "owner 2026-01-03-delta" }] }, ST).map(function (o) { return o.key + ">" + o.owner; });',
         'out.ownerSelf = M.ownerDebt({ entries: [{ key: "2026-01-03-delta", reason: "this is 2026-01-03-delta" }] }, ST).length;',
+        /* THE POPULATION IS THE DECLARED SET, NOT ONE FILE. Row
+           2026-11-11-the-living-owner-rule-covers-one-baseline-of-four: `ownerDebt` read one baseline,
+           no other tool imported it, and a debt line in another baseline could name a row the ledger
+           had closed with nothing redding. A pair carries the file it came from, the set is declared
+           rather than globbed, and a declared member this process cannot read fails closed. */
+        'out.ownerPairFile = M.ownerDebt([{ key: "k", reason: "owner 2026-01-03-delta", file: "tools/x.json" }], ST).map(function (o) { return o.file; });',
+        'out.ownerDeclared = M.OWNER_BASELINES.map(function (x) { return x.file; });',
+        'out.ownerProvenance = M.OWNER_PROVENANCE_FIELDS.map(function (x) { return x.file + "#" + x.field; });',
+        'var lobGone = M.loadOwnerBaselines(' + JSON.stringify(root) + ', [{ file: "tools/no-such-owner-baseline.json", container: "uninvoked", shape: "map" }]);',
+        'out.ownerUnread = { pairs: lobGone.pairs.length, codes: lobGone.unreadable.map(function (u) { return u.code; }) };',
+        'var lobBadKey = M.loadOwnerBaselines(' + JSON.stringify(root) + ', [{ file: M.BASELINE, container: "nope", shape: "map" }]);',
+        'out.ownerBadContainer = lobBadKey.unreadable.map(function (u) { return u.code; });',
+        'var lobReal = M.loadOwnerBaselines(' + JSON.stringify(root) + ');',
+        'out.ownerForeign = { unreadable: lobReal.unreadable.length, files: Object.keys(lobReal.pairs.reduce(function (a, q) { a[q.file] = 1; return a; }, {})).sort() };',
+        'out.ownerUnreadVerdict = M.verdictFor({ byKind: {}, unresolvedKeys: 0, undeclared: [], near: [], stale: [], declared: 1, rows: 1, citations: 1, files: 1, filesOffered: 1, filesRead: 1, filesExempt: 0, filesNoCiteWord: 0, unreadable: [], orphanOwners: [], ownerBaselinesUnread: [{ file: "x.json", code: "ENOENT" }] }, "ab1c2d3").status;',
         'out.floor = M.ledgerFloor(KEYS);',
         'out.rowKeys = M.rowKeys("| 2026-01-02-alpha-beta-gamma | logged | s | d | e | OPEN |\\ntext 2026-01-02-alpha-beta-gamma\\n");',
         'out.window = M.CITE_WINDOW;',
         'var real = M.run(' + JSON.stringify(root) + ');',
         'out.real = { citations: real.citations, files: real.files, rows: real.rows, undeclared: real.undeclared.length, near: real.near.length, stale: real.stale.length, declared: real.declared, floorReal: real.floor, orphans: real.orphanOwners.length, examined: real.ownerReasonsExamined, offered: real.filesOffered, read: real.filesRead, unreadable: real.unreadable.length, exempt: real.filesExempt , siteDrift: real.siteDrift.length, siteExamined: real.siteKeysExamined };',
+        'out.realByFile = Object.keys(real.ownerReasonsByFile || {}).sort();',
         /* THE FILE POPULATION, AND THE ONE FILE THE SCAN COULD NOT OPEN. Row
            2026-11-07-residue-citations-skips-an-unreadable-file-and-claims-0-excluded: the read sat in a
            `catch` that ran `continue` under a population keyed on CITATIONS with `excluded: 0`, so an
@@ -18943,9 +18959,25 @@
       T.eq('a reason naming a closed row is an orphan', R.ownerClosed, ['k>2026-01-03-delta']);
       T.eq('a reason naming its own key is the debt describing itself', R.ownerSelf, 0);
       T.eq('no baseline reason in the committed tree names a closed or absent row', R.real.orphans, 0);
-      /* §∅ · the live baseline names no owner today, so the count is reported rather than read as a
-         pass over a population of nothing. The legs above are what carries the rule. */
-      T.ok('the owner population is reported as a count, examined or not', typeof R.real.examined === 'number', String(R.real.examined));
+      T.eq('an orphan names the baseline file it came from', R.ownerPairFile, ['tools/x.json']);
+      T.eq('the owner population is a declared set, never a glob', R.ownerDeclared, [
+        'tools/residue-citations-baseline.json',
+        'tools/paper-reference-baseline.json',
+        'tools/paper-claim-marker-baseline.json'
+      ]);
+      T.eq('a file-level field is excluded as provenance, by declaration', R.ownerProvenance, ['tools/brief-header-claim-baseline.json#residue']);
+      T.eq('a declared owner baseline this process cannot read fails closed', R.ownerUnread, { pairs: 0, codes: ['ENOENT'] });
+      T.eq('a container the file does not carry fails closed too', R.ownerBadContainer, ['NO-CONTAINER:nope']);
+      T.eq('an unread owner baseline carries the verdict to UNKNOWN', R.ownerUnreadVerdict, 'UNKNOWN');
+      /* ANTI-VACUITY · a renamed container field would empty the owner check in silence, so every
+         declared foreign baseline must contribute, and the floor is one reason per file. Today's total
+         is never the floor, because paying a debt lowers it. */
+      T.eq('every declared foreign baseline contributes to the live population', R.ownerForeign, {
+        unreadable: 0,
+        files: ['tools/paper-claim-marker-baseline.json', 'tools/paper-reference-baseline.json']
+      });
+      T.eq('the live run names every declared foreign baseline', R.realByFile, ['tools/paper-claim-marker-baseline.json', 'tools/paper-reference-baseline.json']);
+      T.ok('the live owner population names at least one row', R.real.examined >= 1, String(R.real.examined));
 
       /* A FILE NOBODY COULD READ IS AN EXCLUSION, NOT A CLEAN SCAN.
          The population is keyed on the unit the scan SELECTS over, which is files, and the citations it
