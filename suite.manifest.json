@@ -35,7 +35,7 @@
     {
       "id": "PpgDex",
       "signal": "Wrist PPG",
-      "device": "Polar Verity Sense",
+      "device": "Polar Verity Sense · O2Ring",
       "app": "PpgDex.html",
       "guide": "PpgDex Reference.html",
       "summary": "Optical pulse → PPI → HRV + pulse-wave morphology."
@@ -43,7 +43,7 @@
     {
       "id": "PulseDex",
       "signal": "HRV from raw RR",
-      "device": "Polar Verity Sense",
+      "device": "Polar H10 · Coospo · Wahoo",
       "app": "PulseDex.html",
       "guide": "PulseDex Reference.html",
       "summary": "RR-interval streams → time / frequency HRV."
