@@ -56,7 +56,17 @@ jobs:
           npm install --no-save playwright@1.48.0
           # --with-deps installs OS packages too, and those are NOT in the cached path, so it runs
           # either way. On a cache hit the browser download is skipped and only the apt work remains.
-          npx playwright install --with-deps chromium
+          # THE apt HALF IS NOT THE GATE, SO IT MUST NOT BE ABLE TO RED ONE. Measured 2026-11-11: the
+          # hosted runner lost DNS for the three Ubuntu mirror hosts, `--with-deps` failed to fetch ten
+          # FONT packages, playwright exited 100, and BOTH required browser contexts redded on every PR
+          # in the repo at once. The chromium build itself comes from the cache step above, so the apt
+          # work adds fonts and X font utilities and nothing the DOM assertions read. The fallback
+          # therefore installs the browser without the OS packages and ANNOUNCES that it did, because a
+          # font-less run must never read as a full one. A browser that still cannot install fails here.
+          if ! npx playwright install --with-deps chromium; then
+            echo "::warning title=Playwright OS deps unavailable::--with-deps could not install the OS font packages, so this run installed chromium alone. Text rendering may differ from a full run."
+            npx playwright install chromium
+          fi
 
       - name: Serve the repo
         run: |
