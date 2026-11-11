@@ -14826,6 +14826,132 @@
       T.ok('and the home carries importers rather than being an unused export', importers.length >= 3, importers.length + ' importer(s)');
     });
 
+    /* §TOUCH — the 44 px floor is ONE block with four byte-identical mirrors, and the mirrors exist
+       because four surfaces hold interactive controls and cannot link the shared sheet: PulseDex and
+       the two orchestrators style themselves, and index.html is served, not bundled. A floor written
+       only into ans-design.css leaves the WORST page uncovered — PulseDex measured 44 controls under
+       44 px at 375 px on 2026-11-11, the highest of the twelve pages. A mirror with no gate drifts,
+       so this group is that gate: the population is DERIVED from the source pages on disk, every
+       page must either link the sheet or carry the block, and every mirror must match the canonical
+       copy byte for byte. Row 2026-11-08-most-controls-sit-under-the-44-px-touch-floor. */
+    group('the 44 px touch floor is one block, mirrored byte-for-byte where the sheet cannot reach', 'ui · touch-floor · parity', function (T) {
+      /* THIS GROUP NEVER SKIPS. The browser realm's skip budget is a CEILING that may only shrink
+         (tests/expected-skips.json `browserLane`), so a group that stands down in one lane costs
+         the fleet a budget raise. Both lanes hold env.sources and env.srcHtml; only the node lane
+         can read index.html and the built bundles, and it says so in the leg detail. */
+      var fs = null;
+      try {
+        fs = require('fs');
+      } catch (_) {}
+      var MARK_A = '/* TOUCH-FLOOR-BLOCK v1';
+      var MARK_B = '/* END TOUCH-FLOOR-BLOCK */';
+      function readT(f) {
+        if (!fs) return null;
+        try {
+          return fs.readFileSync(f, 'utf8');
+        } catch (_) {
+          return null;
+        }
+      }
+      function blockOf(text) {
+        if (typeof text !== 'string') return null;
+        var i = text.indexOf(MARK_A);
+        var j = text.indexOf(MARK_B);
+        if (i < 0 || j < 0 || j < i) return null;
+        return text.slice(i, j + MARK_B.length);
+      }
+      var CANON = 'ans-design.css';
+      var shells = env.srcHtml || {};
+      var canonText = (env.sources || {})[CANON] || readT(CANON);
+      var canon = blockOf(canonText);
+      T.ok('the canonical block lives in ' + CANON + ' §29', !!canon, canon ? canon.length + ' bytes between the markers' : CANON + ': markers absent, or the sheet is unreadable in this lane');
+      if (!canon) return;
+      T.ok('it is scoped to a coarse pointer, so a mouse keeps the desktop layout', /@media \(pointer: coarse\)\s*\{/.test(canon), 'the block must open with @media (pointer: coarse)');
+      T.ok('it states the 44 px floor rather than some other number', /min-height:\s*44px/.test(canon) && /min-width:\s*44px/.test(canon), 'WCAG 2.5.5 / Apple HIG 44 pt / Android 48 dp');
+      T.ok('it beats a per-app rule on specificity, not on order', canon.indexOf('html input[type="range"]') >= 0, 'three app style blocks redeclare input[type=range] height AFTER the sheet');
+      /* THE NODE LANE DERIVES ITS POPULATION FROM DISK, never a hand list: a new app that forgets
+         the floor must red there rather than pass over a list nobody extended. The browser realm
+         cannot enumerate a directory, so it reads the shells its runner wired — a hand-written
+         list, which is why the derived read is the one CI depends on. */
+      var pages, popSource;
+      if (fs) {
+        pages = fs
+          .readdirSync('.')
+          .filter(function (f) {
+            return /\.src\.html$/.test(f);
+          })
+          .sort();
+        pages.push('index.html');
+        popSource = 'node lane · derived from disk';
+      } else {
+        pages = Object.keys(shells).sort();
+        popSource = 'browser lane · env.srcHtml (index.html and the built bundles are the node lane’s)';
+      }
+      var inherits = [];
+      var mirrors = [];
+      var bad = [];
+      pages.forEach(function (f) {
+        var t = Object.prototype.hasOwnProperty.call(shells, f) ? shells[f] : readT(f);
+        if (typeof t !== 'string') {
+          bad.push(f + ': unreadable in this lane');
+          return;
+        }
+        var b = blockOf(t);
+        if (/<link[^>]+href="ans-design\.css"/.test(t)) {
+          inherits.push(f);
+          if (b !== null && b !== canon) bad.push(f + ': carries a mirror that differs from the canonical block');
+          return;
+        }
+        if (b === null) {
+          bad.push(f + ': links neither ans-design.css nor carries the touch-floor block');
+          return;
+        }
+        if (b !== canon) {
+          bad.push(f + ': mirror differs from the canonical block by ' + Math.abs(b.length - canon.length) + ' byte(s)');
+          return;
+        }
+        mirrors.push(f);
+      });
+      T.eq('every source page either links the sheet or mirrors the block', bad.join('; '), '');
+      /* ANTI-VACUITY — both branches must be populated, or this group proves nothing. The mirror
+         floor is 3 because index.html is the node lane's fourth. */
+      T.ok('the sheet-linking branch is populated', inherits.length >= 9, inherits.length + ' page(s) inherit §29 (' + popSource + '): ' + inherits.join(' '));
+      T.ok('the mirror branch is populated', mirrors.length >= 3, mirrors.length + ' page(s) mirror it: ' + mirrors.join(' '));
+      T.ok('the population covers every source shell', pages.length >= 12, pages.length + ' page(s) examined · ' + popSource);
+      if (!fs) return;
+      T.ok(
+        'the node lane also examines the served landing page',
+        pages.indexOf('index.html') >= 0 && mirrors.indexOf('index.html') >= 0,
+        'index.html carries no <link> to the sheet, so it owes a mirror'
+      );
+      /* AND THE BLOCK MUST SURVIVE THE BUILD. A mirror in a .src.html that the bundler drops is a
+         floor nobody gets; the built bundle is what a reader opens. */
+      var built = [
+        'ECGDex.html',
+        'OxyDex.html',
+        'PulseDex.html',
+        'GlucoDex.html',
+        'PpgDex.html',
+        'HRVDex.html',
+        'CPAPDex.html',
+        'Integrator.html',
+        'MotionDex.html',
+        'OverDex.html',
+        'Data Unifier.html'
+      ];
+      T.eq('the built list is the 11 owned bundles (CLAUDE.md §🔏 ownedBundles)', built.length, 11);
+      var missing = [];
+      built.forEach(function (f) {
+        var t = readT(f);
+        if (typeof t !== 'string') {
+          missing.push(f + ': unreadable');
+          return;
+        }
+        if (t.indexOf(MARK_A) < 0) missing.push(f + ': built bundle carries no touch floor');
+      });
+      T.eq('every built bundle carries the floor', missing.join('; '), '');
+    });
+
     group('every corpus enumerator reports its population or is named here', 'tools · corpus-reads · source-scan', function (T) {
       var TT = env.toolTexts;
       var CR = env.corpusReads;
@@ -36048,50 +36174,56 @@
         return;
       }
 
-      // ── derive: which keyframes start from opacity:0? ──
-      var haz = [];
-      var kfRe = /@keyframes\s+([\w-]+)\s*\{/g,
-        _m;
-      for (const m of css.matchAll(kfRe)) {
-        var name = m[1],
-          i = m.index + m[0].length,
-          depth = 1,
-          j = i;
-        while (j < css.length && depth) {
-          if (css[j] === '{') depth++;
-          else if (css[j] === '}') depth--;
-          j++;
+      /* ONE derivation, run over any stylesheet text: the sheet itself, and each shell's own CSS.
+         A shell that does not load the sheet can still carry its own copy of the entrances —
+         PulseDex carries all four from-opacity:0 keyframes and all ten consuming selectors in its
+         own <style> (measured 2026-11-11) — so the wiring population below asks what a page
+         ANIMATES, never what it mentions. */
+      function deriveEntrances(text) {
+        var hazL = [];
+        for (const m of text.matchAll(/@keyframes\s+([\w-]+)\s*\{/g)) {
+          var i = m.index + m[0].length,
+            depth = 1,
+            j = i;
+          while (j < text.length && depth) {
+            if (text[j] === '{') depth++;
+            else if (text[j] === '}') depth--;
+            j++;
+          }
+          var first = /(?:from|0%)\s*\{([^}]*)\}/.exec(text.slice(i, j - 1));
+          if (first && /opacity\s*:\s*0(?![.\d])/.test(first[1])) hazL.push(m[1]);
         }
-        var first = /(?:from|0%)\s*\{([^}]*)\}/.exec(css.slice(i, j - 1));
-        if (first && /opacity\s*:\s*0(?![.\d])/.test(first[1])) haz.push(name);
-      }
-      T.ok('derivation is non-vacuous — found from-opacity:0 keyframes', haz.length > 0, 'found ' + haz.length + ' — if 0, this gate proves nothing');
-
-      // ── derive: which selectors consume them? ──
-      var need = [];
-      var ruleRe = /([^{}]+)\{([^{}]*)\}/g,
-        _r;
-      for (const r of css.matchAll(ruleRe)) {
-        var sel = r[1].trim(),
-          body = r[2];
-        var am = /animation\s*:\s*([^;]+)/.exec(body);
-        if (!am) continue;
-        for (var k = 0; k < haz.length; k++) {
-          if (new RegExp('\\b' + haz[k] + '\\b').test(am[1])) {
-            sel.split(',').forEach(function (one) {
-              one = one.trim().split('\n').pop().trim();
-              // an attribute/pseudo variant targets the same element as its base selector, which the
-              // guard already pins with !important (important beats specificity) — reduce to the base.
-              var base = one
-                .replace(/\[[^\]]*\]/g, '')
-                .replace(/:{1,2}[\w-]+(\([^)]*\))?/g, '')
-                .trim();
-              if (base && need.indexOf(base) < 0) need.push(base);
-            });
-            break;
+        var needL = [];
+        for (const r of text.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+          var am = /animation\s*:\s*([^;]+)/.exec(r[2]);
+          if (!am) continue;
+          for (var k = 0; k < hazL.length; k++) {
+            if (new RegExp('\\b' + hazL[k] + '\\b').test(am[1])) {
+              r[1].split(',').forEach(function (one) {
+                // an attribute/pseudo variant targets the same element as its base selector, which
+                // the guard already pins with !important (important beats specificity) — reduce to
+                // the base.
+                var base = one
+                  .trim()
+                  .split('\n')
+                  .pop()
+                  .trim()
+                  .replace(/\[[^\]]*\]/g, '')
+                  .replace(/:{1,2}[\w-]+(\([^)]*\))?/g, '')
+                  .trim();
+                if (base && needL.indexOf(base) < 0) needL.push(base);
+              });
+              break;
+            }
           }
         }
+        return { haz: hazL, need: needL };
       }
+
+      var derived = deriveEntrances(css);
+      var haz = derived.haz;
+      var need = derived.need;
+      T.ok('derivation is non-vacuous — found from-opacity:0 keyframes', haz.length > 0, 'found ' + haz.length + ' — if 0, this gate proves nothing');
       T.ok('derivation is non-vacuous — found rules consuming them', need.length > 0, need.length + ' selector(s): ' + need.join(' '));
 
       // ── the guard must pin each, and pin it hard ──
@@ -36138,9 +36270,43 @@
       var shells = env.srcHtml || {};
       var names = Object.keys(shells);
       T.ok('src.html shells available (non-vacuous wiring check)', names.length >= 8, names.length + ' shell(s) — wire env.srcHtml in BOTH runners');
-      names.forEach(function (n) {
+      /* The population is a shell that LOADS the sheet, never one that only NAMES it. A bare
+         /ans-design\.css/ over the raw text reads a COMMENT as a load: the touch-floor mirror
+         (§29) in PulseDex, OverDex and Data Unifier names its canonical copy in a comment, which
+         put two orchestrators carrying no entrance animation into the population and reded them —
+         measured 2026-11-11, in the node lane and the browser lane alike. Match the attribute that
+         loads the file instead. */
+      var LOADS_SHEET = /(?:data-inline-src|href)\s*=\s*"[^"]*ans-design\.css"/;
+      function inhabits(txt) {
+        return LOADS_SHEET.test(txt) || deriveEntrances(txt).need.length > 0;
+      }
+      var animated = names.filter(function (n) {
+        return inhabits(shells[n] || '');
+      });
+      var quiet = names.filter(function (n) {
+        return !inhabits(shells[n] || '');
+      });
+      T.ok('shells that ANIMATE a from-opacity:0 entrance (non-vacuous population)', animated.length >= 10, animated.length + ' of ' + names.length + ': ' + animated.join(' '));
+      T.ok('…and the excluded shells are named, never passed over', animated.length + quiet.length === names.length, quiet.length + ' excluded — no entrance to pin: ' + quiet.join(' '));
+      T.ok(
+        'CONTROL · a shell that only NAMES the sheet in a comment is OUT',
+        !inhabits('<style>/* canonical copy: ans-design.css \u00a729 */</style>'),
+        'a mention is neither a load nor an animation'
+      );
+      T.ok('CONTROL · a shell that links the sheet is IN', inhabits('<link rel="stylesheet" href="ans-design.css">'), '');
+      T.ok('CONTROL · a shell that inlines the sheet is IN', inhabits('<style data-inline-src="ans-design.css"></style>'), '');
+      T.ok(
+        'CONTROL · a shell carrying its OWN from-opacity:0 entrance is IN without the sheet',
+        inhabits('<style>@keyframes fadeIn{from{opacity:0}to{opacity:1}} .own-card{animation:fadeIn .3s}</style>'),
+        'an own copy of the entrance needs the same pin'
+      );
+      T.ok(
+        'CONTROL · an entrance that does NOT start from opacity:0 leaves a shell OUT',
+        !inhabits('<style>@keyframes slide{from{transform:translateY(4px)}to{transform:none}} .own-card{animation:slide .3s}</style>'),
+        'only opacity:0 renders blank on a frozen timeline'
+      );
+      animated.forEach(function (n) {
         var txt = shells[n] || '';
-        if (!/ans-design\.css/.test(txt)) return; // not an animated shell — nothing to guard
         if (/^Integrator\./.test(n)) {
           // the Integrator carries its own scoped guard in integrator-render.js; assert that, don't skip it
           var ir = (env.sources || {})['integrator-render.js'] || '';
