@@ -3335,6 +3335,18 @@
     ]
    },
    "note": "Reads the SERVED bytes of the published pages and reds an offsite asset reference the repo does not ship. It needs the network, so it stays outside `npm run check` and `--verdict-sample` prints a fixture-built object with no fetch."
+  },
+  "tools/write-root-adoption.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/write-root-adoption.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "THE ADOPTED WRITE-ROOT AND JUDGE-ROOT SETS, NAMED (brief WRITE-ROOT-ADOPTION \u00a74 and \u00a76.5): criterion undeclared_or_dropped_sites lte 0 over every tools/*.mjs, comment-blanked, against the two shapes the brief published as greps. A candidate in no row, an adopter with no row, an adopted row that calls no wrapper, a stale row and a de-adoption since the merge base each red with its own remedy. The shape is not the exposure, so an adopter is subtracted BY NAME. A cross-checkout run refuses with one NOT_RUN object and exit 2; with no manifest at the merge base the result says ratchet unexamined."
   }
  }
 }

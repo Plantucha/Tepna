@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**340 tools** · 339 with a purpose line · **1 without**
+**341 tools** · 340 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -347,6 +347,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`withdraw-fragment-verdict.mjs`](../tools/withdraw-fragment-verdict.mjs) | WITHDRAW A VERDICT THAT JUDGED A FRAGMENT, WITH ITS REASON RECORDED |
 | [`witness-baseline.mjs`](../tools/witness-baseline.mjs) | THE CLASSICAL BASELINE FOR `survivor-witness.mjs` A peer's framing, and it is structurally exact: the model is a HEURISTIC PROPOSER working because searching is expensive and checking is… |
 | [`workflow-timeout-guard.mjs`](../tools/workflow-timeout-guard.mjs) | EVERY WORKFLOW JOB DECLARES `timeout-minutes`. Without one a job inherits GitHub's 360-minute default, so a hung step burns six hours of the concurrency pool before anything notices. |
+| [`write-root-adoption.mjs`](../tools/write-root-adoption.mjs) | the adopted write-root and judge-root sets, named node tools/write-root-adoption.mjs --check # the gate node tools/write-root-adoption.mjs --census # the measured sets, deciding nothing… |
 | [`write-root.mjs`](../tools/write-root.mjs) | A TOOL'S OWN LOCATION IS NOT THE CHECKOUT IT WAS ASKED TO WRITE. |
 | [`wt-done.mjs`](../tools/wt-done.mjs) | CLOSE THE WORKTREE LOOP. `git worktree add` is cheap and correct, and the REMOVAL is the half that gets skipped — the PR merging feels like the end of the work-unit, and it is not. |
 | [`xerj-bench.mjs`](../tools/xerj-bench.mjs) | xerj-bench — score bge-alone vs hybrid vs xerj-BM25 on REAL past Rule-0 queries. |

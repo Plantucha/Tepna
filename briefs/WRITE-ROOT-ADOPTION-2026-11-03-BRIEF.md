@@ -5,7 +5,7 @@
   Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
   project root, or http://www.apache.org/licenses/LICENSE-2.0
 -->
-**Status:** PROPOSED (resolver BUILT with TWO arms, the per-tool readings BEGUN — verified 2026-11-05 (Heron). `tools/write-root.mjs` ships `writeRoot` and `judgeRoot` over one pure decision, and its `--selftest` passes whole. Three tools adopt it: `tools/new-changeset.mjs` writes through it, and `tools/secret-scan.mjs` (#4384) and `tools/run-check.mjs` judge through it. The §1 writer population re-measures identically today, by the two `grep` recipes §1 states. §6 adds the JUDGE population, whose figures and recipe live in §6.2. This PR ticks §6.5's third box, and no gate names either adopted set, so every other §4 and §6.5 item stays open) · **Created:** 2026-11-03
+**Status:** PROPOSED (resolver BUILT with TWO arms, the ADOPTION GATE BUILT, the per-tool readings BEGUN — verified 2026-11-11 (Heron). `tools/write-root.mjs` ships `writeRoot` and `judgeRoot` over one pure decision, and its `--selftest` passes whole. Four tools adopt it: `tools/new-changeset.mjs` writes through it, and `tools/secret-scan.mjs` (#4384), `tools/run-check.mjs` and `tools/write-root-adoption.mjs` judge through it. `tools/write-root-adoption.mjs --check` names both adopted sets in `tools/write-root-adoption.json` and reds an undeclared arrival, so §4's third box and §6.5's fourth are ticked. Both populations re-measure today, and §1 and §6.2 carry today's figures beside the old ones — `node tools/write-root-adoption.mjs --census` reprints them on demand, so this header asserts no count of its own. What stays open is one reading per remaining header, on both arms) · **Created:** 2026-11-03
 
 # Every writing tool resolves the checkout it writes from the run, not from its own path
 
@@ -34,6 +34,10 @@ Measured 2026-11-03 over `tools/*.mjs`:
 | tools resolving a root from `import.meta.url` | 139 | `grep -lc 'const \(ROOT\|REPO_ROOT\|repoRoot\) = .*import.meta.url' tools/*.mjs` |
 | of those, tools that write | 56 | the same list, filtered by `writeFileSync` or `appendFileSync` |
 | converted so far | 1 | `tools/new-changeset.mjs` |
+
+Re-measured 2026-11-11 over 341 tools by `node tools/write-root-adoption.mjs --census`: **59 write candidates**,
+1 adopted, 1 exempt by name, 57 pending a reading. The rise over 56 is arrivals, and the gate blanks comments
+before it matches, so a shape named in a comment no longer counts.
 
 ## 2 · The route
 
@@ -64,7 +68,9 @@ of the remaining 55 writers needs one reading, not a blanket conversion:
 
 - [ ] Each of the 56 writers carries one of the three readings above, recorded in its own header.
 - [ ] Every writer of a tracked work-unit artifact calls `writeRootOrDie`.
-- [ ] A gate names the adopted set, so a new writing tool joins it deliberately rather than by habit.
+- [x] A gate names the adopted set, so a new writing tool joins it deliberately rather than by habit.
+      Done 2026-11-11: `tools/write-root-adoption.mjs --check` reads every `tools/*.mjs` against §1's grep and
+      reds a candidate that sits in no row of `tools/write-root-adoption.json`, with both remedies on the line.
 - [ ] The population figures here are re-measured at closing, because `tools/` grows every week.
 
 ## 5 · What is already done
@@ -113,6 +119,10 @@ Measured 2026-11-05 over `tools/*.mjs` at `feecbee8b`:
 | of those, tools passing that root as a child's `cwd` | 50 |
 | converted so far | 2 — `tools/secret-scan.mjs` · `tools/run-check.mjs` |
 
+Re-measured 2026-11-11 over 341 tools by the same `--census` run: **49 judge candidates**, 3 adopted, 47 pending a
+reading. The figure sits one below the 50 of `feecbee8b` because the gate blanks comments first, and because
+`tools/run-check.mjs` adopted the arm and no longer matches all three greps.
+
 Three greps reproduce the last figure. The pipes live in a code block, because a pipe inside a table
 cell ends the cell:
 
@@ -154,5 +164,7 @@ three tests held the path in this repo's own words. So each of the 49 remaining 
 - [ ] Every gate judging an artifact of the run's work-unit calls `judgeRootOrDie`.
 - [x] `tools/run-check.mjs` carries its reading, because it runs the whole gate in the tree it resolves.
       Done 2026-11-05: it resolves through `judgeRoot` inside the CLI block and refuses a disagreement with exit 2.
-- [ ] A gate names the adopted judge set, so a new gate joins it deliberately rather than by habit.
+- [x] A gate names the adopted judge set, so a new gate joins it deliberately rather than by habit.
+      Done 2026-11-11: the same gate runs §6.2's three greps as one shape, and it judges the checkout it ran
+      from, so a cross-checkout run refuses with one `NOT_RUN` object rather than censusing the wrong tree.
 - [ ] The population figures here are re-measured at closing, because `tools/` grows every week.

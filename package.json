@@ -64,6 +64,7 @@
     "verify:required-contexts": "node tools/required-contexts.mjs",
     "verify:ci-step-parity": "node tools/ci-step-parity.mjs",
     "verify:verdict-adoption": "node tools/verdict-adoption.mjs --check",
+    "verify:write-root-adoption": "node tools/write-root-adoption.mjs --check",
     "verify:absence-regression": "node tools/absence-regression.mjs --base origin/main",
   "verify:astgrep": "node tools/astgrep-gate.mjs",
     "verify:xss-sink": "node tools/xss-sink-gate.mjs --base origin/main",

@@ -138,6 +138,7 @@ export const STEPS = [
   'verify:module-carriers',
   'verify:pr-compliance',
   'verify:verdict-adoption',
+  'verify:write-root-adoption',
   'verify:manifest',
   'verify:manifest-logic',
   'verify:fixture-currency',
