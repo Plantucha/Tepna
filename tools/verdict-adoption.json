@@ -1714,6 +1714,18 @@
    },
    "note": "which memory lesson LEADS with a ruling the fleet has replaced (residue 2026-10-28-a-replaced-owner-ruling-ranks-first-from-the-memory-corpus). The board lane marks and de-ranks a replaced post; a memory file is edited in place, so neither board signal reaches it and the one signal that does is the board post it cites. Pre-stated criterion: a lead (frontmatter plus first paragraph, which is what a doc-search chunk carries) cites no post the board corpus marked replaced. FAIL names each file, post and successor; a body-only citation, a lead that cites the successor too, a declared frontmatter mark and a bare id with no board cue are DIAGNOSTICS beside the criterion and move no status; a root that does not resolve on this machine is NOT_RUN with exit 2, because it could not look. The tool reports and never writes: the memory directory is shared, un-versioned and has no conflict surface, and a selftest leg pins that this source names no filesystem write API."
   },
+  "tools/module-carriers.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/module-carriers.mjs",
+     "--json"
+    ]
+   },
+   "note": "the shared node-named module declaration (residue 2026-11-10-the-edf-reader-is-named-for-one-node-and-five-surfaces-carry-it). PASS/FAIL over every page in the tree: a module whose name claims one node, carried by a page outside that node and outside the four broad surfaces, must stand in DECLARED, and a DECLARED entry that describes no real sharing any more reds too. Carrier sets are reported and never pinned, so a new analysis page is a fact in the verdict rather than a red. A scan that read no page is NOT_RUN at exit 1, never a pass."
+  },
   "tools/motion-rho-vs-minrho.mjs": {
    "bin": "already-json",
    "status": "adopted",

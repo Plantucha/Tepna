@@ -368,6 +368,44 @@
     return out;
   }
 
+  /* EVERY EGRESS CALL SITE IN A TEXT, WITH ITS URL EXPRESSION, FOR THE CSP LEGS BELOW.
+   Residue `2026-11-08-two-bundles-carry-connect-src-self`: `CPAPDex.html` and `Integrator.html`
+   relax `connect-src` to `'self'` for one fetch of a committed local sample each, so later code in
+   them reaches the whole served origin. A CSP source expression carries no path that survives
+   `file://`, and the demo loader is a feature, so the honest bound on a relaxed surface is an
+   ENUMERATION: these are the egress sites it holds, and a new one reds until somebody proves it
+   reaches a committed local path.
+   The scan reads TEXT, so it also counts a call inside a comment or a string. That is the
+   conservative direction, because a pin that over-counts reds on a change and a pin that
+   under-counts goes quiet. The argument walk stops at 4000 characters, and an unbalanced argument
+   reads back as `(?)`, which a leg reports as a site it could not read instead of one that passed. */
+  var DEX_EGRESS_RE = /\b(fetch|XMLHttpRequest|WebSocket|EventSource|sendBeacon)\s*\(/g;
+  function dexEgressSites(text) {
+    var src = String(text || ''),
+      out = [],
+      m;
+    DEX_EGRESS_RE.lastIndex = 0;
+    while ((m = DEX_EGRESS_RE.exec(src))) {
+      var start = m.index + m[0].length,
+        depth = 1,
+        end = -1,
+        stop = Math.min(src.length, start + 4000);
+      for (var j = start; j < stop; j++) {
+        var c = src.charAt(j);
+        if (c === '(') depth++;
+        else if (c === ')') {
+          depth--;
+          if (depth === 0) {
+            end = j;
+            break;
+          }
+        }
+      }
+      out.push(m[1] + '(' + (end < 0 ? '?' : src.slice(start, end).replace(/\s+/g, ' ').trim()) + ')');
+    }
+    return out;
+  }
+
   function runDexTests(env) {
     env = env || {};
     var GROUPS = [];
@@ -26890,6 +26928,38 @@
             .sort()
             .join(',')
       );
+      /* THE RELAXATION IS BOUNDED BY AN ENUMERATION, BECAUSE THE POLICY CANNOT CARRY A PATH.
+         Residue `2026-11-08-two-bundles-carry-connect-src-self`: each of the two bundles above
+         relaxes `connect-src` for one fetch of a committed local sample, and `'self'` has no path
+         form that survives `file://`. So the bound is this pin. Each relaxed module holds exactly
+         these egress sites, it still names its committed sample path, and it holds no remote-URL
+         literal. Measured 2026-11-11 over `origin/main` at `7e8322021`: 2 modules, 1 site each,
+         0 remote-URL literals. The pin reads `SELF` above, so a bundle that leaves that class also
+         leaves the pin, and the disagreement reds instead of going quiet. */
+      var SRCS = env.sources || {};
+      var EGRESS_PIN = {
+        'cpapdex-app.js': { bundle: 'CPAPDex.src.html', sites: ["fetch('uploads/' + name)"], pathSource: "'uploads/'" },
+        'integrator-app.js': { bundle: 'Integrator.src.html', sites: ['fetch(path)'], pathSource: "'uploads/trio/" }
+      };
+      Object.keys(EGRESS_PIN).forEach(function (mod) {
+        var rec = EGRESS_PIN[mod],
+          text = SRCS[mod];
+        T.ok(
+          '8d · ' + mod + ' available to the egress pin',
+          typeof text === 'string' && text.length > 0,
+          'list ' + mod + ' in readSources (tests/run-tests.mjs) and in SOURCE_FILES (Dex-Test-Suite.html)'
+        );
+        if (typeof text !== 'string' || !text.length) return;
+        T.ok('8d · ' + rec.bundle + " sits in the 'self' class beside the pin", !!SELF[rec.bundle], 'the pin and the class disagree about this bundle');
+        T.eq('8d · ' + mod + ' holds the pinned egress sites', dexEgressSites(text).join(' | '), rec.sites.join(' | '));
+        T.ok(
+          '8d · ' + mod + ' still names its committed sample path (' + rec.pathSource + ')',
+          text.indexOf(rec.pathSource) >= 0,
+          'the demo loader no longer names the committed sample path the relaxation exists for'
+        );
+        T.ok('8d · ' + mod + ' holds no remote-URL literal', !/['"`](?:https?|wss?|ftp):\/\//.test(text), 'a remote URL literal sits in a surface that relaxes connect-src');
+      });
+
       // SECURITY-CSP-STRICT-SCRIPT-SRC: the same metas now carry a STRICT script-src (no 'unsafe-inline').
       names.forEach(function (n) {
         var content = (SRC[n].match(/<meta[^>]*Content-Security-Policy[^>]*content="([^"]*)"/i) || ['', ''])[1];
@@ -28201,6 +28271,49 @@
         T.skip('env.nonBundleCsp provided to the runner', 'Node-lane only — wire env.nonBundleCsp (run-tests.mjs readNonBundleCsp)');
         return;
       }
+      /* THE POPULATION IS DERIVED NOW, SO THIS GATE CANNOT GO QUIET ON A PAGE IT NEVER SAW.
+         The classification in `run-tests.mjs` is hand-written and `existsSync` guarded, so a renamed
+         page dropped out of the gate with nothing to say so, and a page that relaxes `connect-src`
+         entered the tree unexamined. `readNonBundleCspAudit` reads the tree: every root `*.html`
+         that carries a CSP meta, is not a `*.src.html` and has no `*.src.html` beside it must sit in
+         one declared class. Measured 2026-11-11 at `7e8322021`: 39 root pages carry a CSP meta, 12
+         are source pages, 11 are built bundles, and the remaining 16 are the 14 `'none'` plus the 2
+         `'self'` this runner declares.
+         An absent audit beside a present page map is a MIS-WIRING, and it reds. The lane boundary is
+         the page map, and the audit travels with it, so the two causes do not share one silence. */
+      var AUD = env.nonBundleCspAudit;
+      T.ok('N1 · the derived page audit reached this lane beside the pages', !!AUD, 'nonBundleCsp is wired and nonBundleCspAudit is not — wire readNonBundleCspAudit() in run-tests.mjs');
+      if (AUD) {
+        T.ok('N1 · every declared page exists on disk', (AUD.missing || []).length === 0, 'declared and absent, which drops it from the gate in silence: ' + (AUD.missing || []).join(', '));
+        T.ok('N1 · the derived population is not empty', (AUD.cspBearing || []).length > 0, (AUD.cspBearing || []).length + ' CSP-bearing non-bundle page(s)');
+        T.ok(
+          'N1 · every CSP-bearing non-bundle page sits in a declared class',
+          (AUD.unclassified || []).length === 0,
+          'carries a CSP meta and sits in neither class: ' + (AUD.unclassified || []).join(', ')
+        );
+        T.eq('N1 · the declared classes cover the derived population exactly', (AUD.cspBearing || []).slice().sort().join(','), (AUD.declared || []).slice().sort().join(','));
+      }
+
+      /* AND THE TWO RELAXED PAGES CARRY THE SAME ENUMERATION AS THE TWO RELAXED BUNDLES IN 8d.
+         Measured 2026-11-11 at `7e8322021`: 1 egress site each, 0 remote-URL literals. */
+      var PAGE_EGRESS_PIN = {
+        'odi-bias-analysis.html': { sites: ['fetch(p)'], pathSource: "var DIR = 'uploads/';" },
+        'PpgDex Fusion Prototype.html': { sites: ["fetch('fusion-proto-data.json')"], pathSource: "'fusion-proto-data.json'" }
+      };
+      Object.keys(PAGE_EGRESS_PIN).forEach(function (p) {
+        var rec = PAGE_EGRESS_PIN[p],
+          page = NB[p];
+        T.ok('N1 · ' + p + " sits in the 'self' class and the runner read it", !!page && page.connect === 'self', page ? 'class ' + String(page.connect) : 'absent from the page map');
+        if (!page) return;
+        T.eq('N1 · ' + p + ' holds the pinned egress sites', dexEgressSites(page.html || '').join(' | '), rec.sites.join(' | '));
+        T.ok(
+          'N1 · ' + p + ' still names its committed sample path',
+          String(page.html || '').indexOf(rec.pathSource) >= 0,
+          'the loader no longer names the committed sample path the relaxation exists for'
+        );
+        T.ok('N1 · ' + p + ' holds no remote-URL literal', !/['"`](?:https?|wss?|ftp):\/\//.test(String(page.html || '')), 'a remote URL literal sits in a page that relaxes connect-src');
+      });
+
       var names = Object.keys(NB);
       T.ok('unbundled pages available to the CSP gate', names.length > 0, names.length + ' pages');
       names.forEach(function (n) {
