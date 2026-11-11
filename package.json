@@ -62,6 +62,7 @@
     "verify:no-network-surface": "node tools/no-network-surface-parity.mjs",
     "verify:workflow-timeouts": "node tools/workflow-timeout-guard.mjs",
     "verify:required-contexts": "node tools/required-contexts.mjs",
+    "verify:ci-step-parity": "node tools/ci-step-parity.mjs",
     "verify:verdict-adoption": "node tools/verdict-adoption.mjs --check",
     "verify:absence-regression": "node tools/absence-regression.mjs --base origin/main",
   "verify:astgrep": "node tools/astgrep-gate.mjs",
