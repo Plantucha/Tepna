@@ -1418,12 +1418,48 @@ def after_worn_end_s(gaps, end: _dt.datetime | None) -> float:
     return sum(g - max(0.0, min(g, (end - at).total_seconds())) for at, g in gaps)
 
 
-def span_before_s(scans, end: _dt.datetime | None) -> float:
-    """Seconds of recorded span up to the worn end, file by file: the denominator that matches
-    `after_worn_end_s`. No worn end ⇒ every file's own span, as before."""
-    if end is None:
+def before_worn_start_s(gaps, start: _dt.datetime | None) -> float:
+    """Seconds of these `(start, seconds)` gaps that fall BEFORE the worn start: all of a gap that ends at or
+    before it, and the head of a gap across it. No worn start ⇒ 0. The mirror of `after_worn_end_s`.
+
+    MEASURED on the capture box 2026-11-10: night 2026-11-09's Verity streamed on its charger from 18:00 to
+    19:45, and both files were judged not worn. The wearer put it on at 21:33. The audit counted the
+    charger files' gaps and the gap up to 21:33 as 137.1 worn minutes lost, and FAILED the night."""
+    if start is None:
+        return 0.0
+    return sum(min(g, max(0.0, (start - at).total_seconds())) for at, g in gaps)
+
+
+def _file_stem(name: str) -> str:
+    """The file-set stem of a capture file name: the name without its last `_KIND.ext` part. A wear file
+    (`_SPO2.csv`, `_ECG.txt`, `_PPG.txt`) and the primary stream of one session share it."""
+    return name.rsplit("_", 1)[0]
+
+
+def worn_start_of(ends: list[dict], scans) -> _dt.datetime | None:
+    """The worn interval's START: the first row of the earliest scanned file that is not judged NOT WORN.
+
+    Only a positive judgement moves the start: an end whose reason begins "not worn". A file too short
+    to judge, or unreadable, says nothing about wear, so the start stays at its first row. Measured on
+    night 2026-09-19: an H10 file of 2 min ended "under 60 epochs" before a 41 min gap, and that gap
+    stays worn loss. None when no end is usable, and then nothing is clipped, as before."""
+    if not any(e.get("usable") for e in ends):
+        return None
+    off = {_file_stem(e["file"]) for e in ends if str(e.get("reason") or "").startswith("not worn")}
+    firsts = [sc["first"] for n, sc in scans if sc["first"] is not None and _file_stem(n) not in off]
+    return min(firsts) if firsts else None
+
+
+def span_before_s(scans, end: _dt.datetime | None, start: _dt.datetime | None = None) -> float:
+    """Seconds of recorded span inside the worn interval, file by file: the denominator that matches
+    `after_worn_end_s` and `before_worn_start_s`. No worn end and no worn start ⇒ every file's own span."""
+    if end is None and start is None:
         return sum(sc["span"] for _n, sc in scans)
-    return sum(max(0.0, (min(sc["last"], end) - sc["first"]).total_seconds()) for _n, sc in scans if sc["first"])
+    return sum(
+        max(0.0, (min(sc["last"], end or sc["last"]) - max(sc["first"], start or sc["first"])).total_seconds())
+        for _n, sc in scans
+        if sc["first"]
+    )
 
 
 def by_cause_of(per_gap) -> dict[str, float]:
@@ -2467,12 +2503,12 @@ def audit_night(
         wear = wear_ends(night_dir, model, address or None)
         end_at = (wear.get("worn_end") or {}).get("at")
         end = _dt.datetime.fromisoformat(end_at) if end_at else None
-        after = (
-            after_worn_end_s(
-                [(r["at"], r["s"]) for r, w in zip(detail, recs) if w.get("witness") != "unwitnessed"], end
-            )
-            / 60.0
-        )
+        witnessed = [(r["at"], r["s"]) for r, w in zip(detail, recs) if w.get("witness") != "unwitnessed"]
+        after = after_worn_end_s(witnessed, end) / 60.0
+        # AND IT STARTS AT THE WORN START (`worn_start_of`): a file judged not worn before the first worn
+        # file is a charger or desk stream, and its gaps are not signal the wearer lost.
+        start = worn_start_of(wear.get("ends") or [], scans)
+        before = before_worn_start_s(witnessed, start) / 60.0
         out["devices"][name] = {
             "primary": pat,
             # the LARGEST fragment, kept under its old name so a reader of an older ledger is not misled
@@ -2539,11 +2575,14 @@ def audit_night(
             "delays": [{"at": t.isoformat(timespec="seconds"), "s": round(g, 1), "device_ns": d} for t, g, d in delays],
             "delayed_min": round(sum(g for _, g, _ in delays) / 60.0, 1),
             "worn_evidence": worn,
-            "worn_lost_min": round(lost - after, 1) if worn else (0.0 if worn is False else None),
+            "worn_lost_min": round(lost - after - before, 1) if worn else (0.0 if worn is False else None),
             # the gap minutes after the worn end, kept out of `worn_lost_min` and named here
             "after_worn_end_min": round(after, 1),
-            # the recorded span up to the worn end: what `night_verdict` divides `worn_lost_min` by
-            "worn_span_min": round(span_before_s(scans, end) / 60.0, 1),
+            # the gap minutes before the worn start, kept out of `worn_lost_min` and named here
+            "before_worn_start_min": round(before, 1),
+            "worn_start_at": _iso(start),
+            # the recorded span inside the worn interval: what `night_verdict` divides `worn_lost_min` by
+            "worn_span_min": round(span_before_s(scans, end, start) / 60.0, 1),
             "daemon_caused_min": round(sum(v for k, v in by_cause.items() if k.startswith("daemon:")), 1),
             # where the WORN interval ends, per device, with its reason — gaps above are not wear
             "wear": wear,
