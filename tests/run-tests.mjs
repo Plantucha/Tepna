@@ -755,6 +755,7 @@ function readSources() {
     'ppgdex-cross.js',
     'hrvdex-cross.js',
     'glucodex-cross.js',
+    'motiondex-cross.js',
     'cpapdex-cross.js',
     'event-coupling.js', // §9.5 — pin its LCG multiply too (it carries the same 1103515245 clone)
     'crossnight-envelope.js',
@@ -2937,6 +2938,7 @@ async function main() {
       'ppgdex-cross.js',
       'hrvdex-cross.js',
       'glucodex-cross.js',
+      'motiondex-cross.js',
       'ecgdex-dsp.js',
       'ppgdex-dsp.js',
       'integrator-dsp.js',
@@ -3369,6 +3371,7 @@ async function main() {
     PPGCross: ctx.PPGCross,
     HRVCross: ctx.HRVCross,
     GluCross: ctx.GluCross,
+    MotionCross: ctx.MotionCross,
     ECGDSP: ctx.ECGDSP,
     ECGDex: ctx.ECGDex,
     PPGDSP: ctx.PPGDSP,

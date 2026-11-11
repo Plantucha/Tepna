@@ -11619,7 +11619,10 @@
            real per-day key (`tar`, `tbr`) — route 2. The set ratchets DOWN only. */
         glucodex: 'dataConf duration gmiVsLab hypoQtc lnrmssdSlope nocHypo sensorBias sessionDrift sessionSpread stability',
         hrvdex: 'camq ortho',
-        motiondex: 'activityCounts effortAmp effortPresent respRate',
+        /* `respRate` LEFT this baseline on 2026-11-11: motiondex-cross.js gave MotionDex a
+           *_DEFS table, and the id is a key in it with a get: accessor naming the real export
+           key (`respRateBrpm`) — route 2. The set ratchets DOWN only. */
+        motiondex: 'activityCounts effortAmp effortPresent',
         oxydex:
           'biCv bluntedArousalFlag breathsPerMin cdiIdx circadianHrAmp ct85 ct88 ct89 decelCap deepProxy dfaAlpha1 episodeRange fftCycleSec hrCv hrMaxKpi hrNadirTiming hrQuartileTrend hrVarSd intraNightNsi karvZone lfHfPower mafHr meanHrPb meanHrRest nadirBin46 nadirBin69 nadirBinGt9 nadirBinLt4 nadirDepth nadirRecov nocDip o2HrEfficiency oscEpisodeCount oscIndex oscPeakCrossings oscWindows pbDivergeCount pbDivergePct pbEpisodes pbTrend periodicBreathing periodicityPattern pnn3Equiv poorNightsPct recoveryCv rmssdProxy scoreTrend sd1sd2 sleepPressureIdx solTrend spo2Autocorr1 spo2HrLag spo2Nadir spo2NadirTiming spo2NightCV spo2wBias spo2wMae spo2wMedian spo2wMin spo2wTrackR spo2wWithin2 ssiIdx stabilityR2 t88 worst10MinSpo2 worst30MinT95 z2win',
         ppgdex:
@@ -55278,10 +55281,11 @@
          in any casing. Deliberately narrow — a phrase ban, not a prose style rule, so it cannot cry wolf. */
       T.ok('the header no longer claims EVERY node emits a crossnight envelope', !/every\s+node\s+now\s+emits/i.test(src), 'the §1.7 phrasing is back');
       /* The spelled count moves with the producer set. It read FIVE until 2026-11-11, when hrvdex-cross.js
-         landed and made it SIX, and glucodex-cross.js made it SEVEN the same day. A count that cannot be
-         derived in both lanes has to be re-read by a machine against the prose, so this leg names the
-         spelling and the leg below names who is left. */
-      T.ok('…and it names the real producer count instead', /SEVEN of\s*\n?\s*\*?\s*the eight nodes emit|seven of the eight/i.test(src), 'no explicit producer count found');
+         made it SIX, glucodex-cross.js SEVEN and motiondex-cross.js ALL EIGHT, all on the same day. A
+         count that cannot be derived in both lanes has to be re-read by a machine against the prose, so
+         this leg names the spelling and the leg below names the node that joined last. */
+      var countRe = /ALL EIGHT\s*\n?\s*\*?\s*nodes emit|all eight nodes emit|eight of the eight/i;
+      T.ok('…and it names the real producer count instead', countRe.test(src), 'no explicit producer count found');
       T.ok(
         '…and HRVDex and GlucoDex are named among the emitters, not among the degraded',
         /nodes emit[\s\S]{0,240}HRVDex/.test(src) && /nodes emit[\s\S]{0,240}GlucoDex/.test(src) && !/GlucoDex is DEGRADED/.test(src) && !/HRVDex and GlucoDex are DEGRADED/.test(src)
@@ -55300,11 +55304,13 @@
            backwards. Five is the floor the fleet has already paid for. */
         T.ok('at least the known crossnight producers are loaded (floor, not a census)', crossFiles.length >= 5, 'loaded: ' + crossFiles.join(','));
       }
-      /* The ONE non-producer must stay named, so a reader learns which node is still blind AND why. The
-         second leg is the "why": a reader who knows only that MotionDex is unmitigated will size it as a
-         copy of the GlucoDex unit, and it is not one — MotionDex holds no series to fold. */
-      T.ok('MotionDex is named as the unmitigated case', /MotionDex[\s\S]{0,240}unmitigated/.test(src));
-      T.ok('…and the prose says WHY MotionDex cannot fold a series yet', /one file is one session|multi-session (model|series)/i.test(src));
+      /* The non-producer leg has no subject left, so it inverts: MotionDex joined on 2026-11-11 and must
+         read as an emitter, never again as the blind node. The second leg keeps the "why" — a reader who
+         knows only that MotionDex emits will size the next node as a copy of this unit, and MotionDex
+         needed a session store first, because one file is one session on that node. */
+      var mxEmits = /nodes emit[\s\S]{0,240}MotionDex/.test(src) && !/MotionDex[\s\S]{0,240}unmitigated/.test(src);
+      T.ok('MotionDex is named among the emitters, not as the unmitigated case', mxEmits);
+      T.ok('…and the prose says WHY MotionDex could not fold a series before', /one file is one session|multi-session (model|series)/i.test(src));
     });
 
     /* ── `npm run check` MUST RUN WHAT CI'S DRIFT-GUARD JOB RUNS ───────────────────────────────────
@@ -66288,9 +66294,11 @@
       var s = env.sources || {};
       // (a) the mirrored cross-night significance rule must be byte-identical across nodes
       //     — now expressed via the shared physiology kernel (P8), so it can't drift.
-      var crosses = ['ecgdex-cross.js', 'oxydex-cross.js', 'pulsedex-cross.js', 'ppgdex-cross.js', 'hrvdex-cross.js', 'glucodex-cross.js', 'cpapdex-cross.js'].filter(function (f) {
-        return s[f];
-      });
+      var crosses = ['ecgdex-cross.js', 'oxydex-cross.js', 'pulsedex-cross.js', 'ppgdex-cross.js', 'hrvdex-cross.js', 'glucodex-cross.js', 'motiondex-cross.js', 'cpapdex-cross.js'].filter(
+        function (f) {
+          return s[f];
+        }
+      );
       var sigRe = /mk\.p\s*<\s*DexKernel\.K\.SIGNIF_P\s*&&\s*Math\.abs\(mk\.tau\s*\|\|\s*0\)\s*>\s*DexKernel\.K\.SIGNIF_TAU/;
       T.ok('≥3 cross modules loaded for comparison', crosses.length >= 3, crosses.join(', '));
       crosses.forEach(function (f) {
@@ -66329,7 +66337,7 @@
         while (k < a.length && k < b.length && a[k] === b[k]) k++;
         return k;
       };
-      var SHARED_ENGINE = ['pulsedex-cross.js', 'ppgdex-cross.js', 'ecgdex-cross.js', 'hrvdex-cross.js', 'glucodex-cross.js'];
+      var SHARED_ENGINE = ['pulsedex-cross.js', 'ppgdex-cross.js', 'ecgdex-cross.js', 'hrvdex-cross.js', 'glucodex-cross.js', 'motiondex-cross.js'];
       var engRef = engineRegion(SHARED_ENGINE[0]);
       T.ok(
         'pulsedex-cross.js crossNight engine region located (the reference copy)',
@@ -75109,6 +75117,7 @@
         'ppgdex-cross.js': 'PPGCross',
         'hrvdex-cross.js': 'HRVCross',
         'glucodex-cross.js': 'GluCross',
+        'motiondex-cross.js': 'MotionCross',
         'ecgdex-cross.js': 'ECGCross',
         'cpapdex-cross.js': 'CPAPCross',
         'cpapdex-coimport.js': 'CpapCoimport',
@@ -75321,7 +75330,7 @@
       T.ok('…and no cpcLfc/cpcVlfc entry exists to badge', !REG.cpcLfc && !REG.cpcVlfc, JSON.stringify({ cpcLfc: !!REG.cpcLfc, cpcVlfc: !!REG.cpcVlfc }));
     });
 
-    group('Cross §1 — per-node crossNightBlock + helpers (VARYING series)', 'ecgdex-cross·oxydex-cross·pulsedex-cross·ppgdex-cross·hrvdex-cross·glucodex-cross·cpapdex-cross', function (T) {
+    group('Cross §1 — per-node crossNightBlock + helpers (VARYING series)', 'ecgdex·oxydex·pulsedex·ppgdex·hrvdex·glucodex·motiondex·cpapdex', function (T) {
       var CNE = env.CrossNightEnvelope;
       var rng = [0, 1, 2, 3, 4, 5, 6, 7];
       var day = function (i) {
@@ -75829,6 +75838,105 @@
           }
         } else T.ok('env.GlucoDex.compute available for the export-wiring leg', false, 'co-load glucodex-dsp.js + map env.GlucoDex');
       } else T.ok('GluCross.crossNightBlock present (glucodex-cross.js co-loaded)', false, 'co-load glucodex-cross.js + map env.GluCross');
+
+      /* ── MotionDex (2026-11-11; ids movementIndex·immobileFrac·sqiConf·supineFrac·respRate). The item
+         is one loaded IMU SESSION, so `unit:'session'` — one file is one session on this node.
+         THE ITEMS ARE NODE-EXPORT ENVELOPES, not raw compute() summaries. `buildNodeExport` is where
+         MotionDex's refusals live (it nulls immobileFrac over a device-clock seam and unwraps the SQI
+         block through sqiExportPair), so folding the raw summary would copy that judgement into a
+         second place. The WIRING leg below drives a real compute() through buildNodeExport and back
+         into this fold, which is what proves the accessor paths match the real export.
+         THE PIN UNIQUE TO THIS NODE: `motiondex-registry.js` declares `%` for immobileFrac and
+         supineFrac while the export carries a 0..1 FRACTION, so the table converts at the envelope
+         boundary. A fraction published under a `%` unit is the defect these pins exist to catch.
+         The immobileFrac series is the SAME 8-consecutive-int ramp the nodes above use (73..80 % here,
+         stored as 0.73..0.80), so the hand-derived sd/median/IQR/slope/τ pins carry over to this
+         node's copy of the engine. P12 asserts that copy is BYTE-IDENTICAL; these pins make the claim
+         observable rather than asserted. ── */
+      var MX = env.MotionCross;
+      if (MX && typeof MX.crossNightBlock === 'function') {
+        var mxEnv = function (i, over) {
+          var m = { movementIndex: 3 + i, immobileFrac: (73 + i) / 100, sqi: 0.9, supineFrac: (40 + i) / 100, respRateBrpm: 15 };
+          if (over) for (var k in over) m[k] = over[k];
+          return { recording: { startEpochMs: day(i) }, motion: m };
+        };
+        var mxL = rng.map(function (i) {
+          return mxEnv(i);
+        });
+        var mxB = MX.crossNightBlock(mxL);
+        T.ok('MotionDex block conforms to ganglior.crossnight v1.0', ok(mxB).ok, JSON.stringify(ok(mxB).errors));
+        T.eq('MotionDex block carries its MOTION_DEFS ids', ids(mxB), ['immobileFrac', 'movementIndex', 'respRate', 'sqiConf', 'supineFrac']);
+        T.eq('MotionDex MOTION_DEFS is the id-keyed projection of METRICS', Object.keys(MX.MOTION_DEFS || {}).sort(), ['immobileFrac', 'movementIndex', 'respRate', 'sqiConf', 'supineFrac']);
+        T.eq('MotionDex n flows through (8 sessions)', mxB.metrics.movementIndex.n, 8);
+        T.eq("MotionDex unit is 'session' (one loaded IMU file — not a night, and not a recording)", mxB.window.unit, 'session');
+        T.eq('MotionDex window.coverageWeighted = false (a session states no coverage fraction)', mxB.window.coverageWeighted, false);
+        T.eq('MotionDex window.count = 8 sessions', mxB.window.count, 8);
+        T.eq('MotionDex window.spanDays = 7 (first to last of 8 consecutive days)', mxB.window.spanDays, 7);
+        // ── THE UNIT CONVERSION, pinned on both % metrics: stored 0.73..0.80 → published 73..80 ──
+        T.approx('MotionDex immobileFrac 0.73..0.80 publishes as 73..80 % (central.mean 76.5)', mxB.metrics.immobileFrac.central.mean, 76.5, 1e-9);
+        T.approx('MotionDex supineFrac 0.40..0.47 publishes as 40..47 % (central.mean 43.5)', mxB.metrics.supineFrac.central.mean, 43.5, 1e-9);
+        T.approx('MotionDex immobileFrac central.sd = sample √(42/7)=2.4 (the shared ramp, in %)', mxB.metrics.immobileFrac.central.sd, 2.4, 1e-9);
+        T.approx('MotionDex immobileFrac central.median = 76.5', mxB.metrics.immobileFrac.central.median, 76.5, 1e-9);
+        T.approx('MotionDex immobileFrac central.iqr = 3.5', mxB.metrics.immobileFrac.central.iqr, 3.5, 1e-9);
+        T.approx('MotionDex immobileFrac trend.slopePerDay = 1.0 %/day', mxB.metrics.immobileFrac.trend.slopePerDay, 1, 1e-9);
+        T.approx('MotionDex immobileFrac trend.mannKendall.tau = 1', mxB.metrics.immobileFrac.trend.mannKendall.tau, 1, 1e-9);
+        // ── goodDirection, read from the registry through METRICS ──
+        T.eq('MotionDex immobileFrac rising + good:up → improving', mxB.metrics.immobileFrac.trend.label, 'improving');
+        T.eq('MotionDex supineFrac rising + good:down → declining', mxB.metrics.supineFrac.trend.label, 'declining');
+        T.eq('MotionDex movementIndex rising + good:down → declining', mxB.metrics.movementIndex.trend.label, 'declining');
+        T.eq('MotionDex a FLAT respRate series is stable, never a trend', mxB.metrics.respRate.trend.label, 'stable');
+        T.ok('MotionDex crossnight metrics all self-describe evidence (Longitudinal badge — COVERAGE-MANDATE)', everyEv(mxB));
+        T.eq('MotionDex movementIndex evidence = measured (registry)', mxB.metrics.movementIndex.evidence, 'measured');
+        T.eq('MotionDex sqiConf evidence = measured (registry)', mxB.metrics.sqiConf.evidence, 'measured');
+        T.eq('MotionDex supineFrac evidence = experimental (registry — uncalibrated device frame)', mxB.metrics.supineFrac.evidence, 'experimental');
+        T.eq('MotionDex respRate evidence = emerging (registry)', mxB.metrics.respRate.evidence, 'emerging');
+        // ── §∅ · THE FLOOR IS PER FIELD, and a 0 movement index is a MOTIONLESS NIGHT, never absence. ──
+        var mxNull = MX.crossNightBlock(
+          rng.map(function (i) {
+            return i === 3 ? mxEnv(i, { movementIndex: null }) : mxEnv(i);
+          })
+        );
+        T.eq('MotionDex a null movementIndex cell drops only that metric (n 7)', mxNull.metrics.movementIndex.n, 7);
+        T.eq('MotionDex a null movementIndex cell leaves immobileFrac whole (n 8)', mxNull.metrics.immobileFrac.n, 8);
+        var mxSeam = MX.crossNightBlock(
+          rng.map(function (i) {
+            return i === 2 ? mxEnv(i, { immobileFrac: null }) : mxEnv(i);
+          })
+        );
+        T.eq('MotionDex a seam-refused immobileFrac (null) drops that session only (n 7)', mxSeam.metrics.immobileFrac.n, 7);
+        var mxZero = MX.crossNightBlock([mxEnv(0, { movementIndex: 0 }), mxEnv(1, { movementIndex: 0 }), mxEnv(2, { movementIndex: 0 })]);
+        T.eq('MotionDex a ZERO movement index is a motionless night and stays in the series (n 3)', mxZero.metrics.movementIndex.n, 3);
+        T.eq('MotionDex three motionless nights → central.mean is 0, never null', mxZero.metrics.movementIndex.central.mean, 0);
+        var mx2 = MX.crossNightBlock([mxEnv(0), mxEnv(1)]);
+        T.ok('MotionDex 2-session block still conforms to the contract', ok(mx2).ok, JSON.stringify(ok(mx2).errors));
+        T.eq('MotionDex 2 sessions → Mann-Kendall tau is null (the τ floor is 3, per FIELD)', mx2.metrics.movementIndex.trend.mannKendall.tau, null);
+        var mx1 = MX.crossNightBlock([mxEnv(0)]);
+        T.eq('MotionDex 1 session → n is 1, never 0', mx1.metrics.movementIndex.n, 1);
+        T.eq('MotionDex 1 session → window.spanDays = 0, and the block still conforms', mx1.window.spanDays, 0);
+        /* ── THE WIRING, not just the module: a REAL compute() → buildNodeExport() → this fold. If an
+           accessor path in METRICS ever stops matching the export's `motion` block, every metric reads
+           n 0 and this leg reds. The two synthetics differ by seed, so the fold reads two items. ── */
+        var MDX = env.MOTIONDSP;
+        if (MDX && typeof MDX.compute === 'function' && typeof MDX.buildNodeExport === 'function' && typeof MDX.genSynthetic === 'function') {
+          var mkSess = function (seed) {
+            var acc = MDX.genSynthetic({ sec: 300, hz: 26, brpm: 15, seed: seed });
+            var chestAcc = MDX.genSynthetic({ sec: 300, hz: 26, brpm: 15, seed: seed + 14 });
+            return MDX.buildNodeExport(MDX.compute({ acc: acc, chestAcc: chestAcc }), {});
+          };
+          var mxReal = [mkSess(7), mkSess(21)];
+          var mxRB = MX.crossNightBlock(mxReal);
+          T.ok('MotionDex real-export fold conforms to ganglior.crossnight v1.0', ok(mxRB).ok, JSON.stringify(ok(mxRB).errors));
+          T.eq('MotionDex real-export fold counts both sessions', mxRB.window.count, 2);
+          var mxResolved = Object.keys(mxRB.metrics).filter(function (k) {
+            return mxRB.metrics[k].n === 2;
+          });
+          T.ok(
+            'MotionDex METRICS accessor paths match the real buildNodeExport shape (≥1 metric reads both sessions)',
+            mxResolved.length > 0,
+            'resolved over both sessions: ' + (mxResolved.join(', ') || 'NONE — every accessor missed the motion block')
+          );
+        } else T.skip('MotionDex real-export wiring leg', 'co-load motiondex-dsp.js + map env.MOTIONDSP');
+      } else T.ok('MotionCross.crossNightBlock present (motiondex-cross.js co-loaded)', false, 'co-load motiondex-cross.js + map env.MotionCross');
 
       /* ── ECGDex (envelope; node-specific accessors: qtc valid-delin guard, cvhr longRec&&!ambulatory) ── */
       var EC = env.ECGCross;
