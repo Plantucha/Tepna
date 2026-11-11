@@ -46,6 +46,42 @@
   }
   var C = { green: '#57D9A3', amber: '#F5C36B', blue: '#6FB3FF', mut: 'rgba(255,255,255,.45)', ink: '#E8ECF1' };
 
+  /* ── ONE PAGE, TWO VIEWS (owner, 2026-11-11: the "3-hat fused" and "PAT fused" columns opened the same
+        page) ──────────────────────────────────────────────────────────────────────────────────────────
+     Both views run the same worker job on the same three files, so the two columns cannot disagree about
+     one night. `?view=hat` shows the three-cornered hat; `?view=pat` shows the per-leg lag statistics; no
+     parameter shows both. The monitor's fused tab opens each column on its own view. */
+  var VIEW = (function () {
+    var q = /[?&]view=(hat|pat)(?:&|$)/.exec((self.location && self.location.search) || '');
+    return q ? q[1] : 'all';
+  })();
+  var VIEW_HEAD = {
+    hat: [
+      '3-corner hat — classic vs fused',
+      'One night. The three-cornered hat over chest, finger and ankle, solved twice: classic (every coupled beat counts the same) and fused (each beat weighted by how much both of its sensors were trusted at that second).'
+    ],
+    pat: [
+      'PAT — classic vs fused',
+      'One night. The pulse-arrival-time statistics for the three legs, computed twice: classic (every coupled beat counts the same) and fused (each beat weighted by how much both of its sensors were trusted at that second).'
+    ]
+  };
+  function applyView() {
+    if (typeof document === 'undefined') return;
+    var hd = VIEW_HEAD[VIEW],
+      h1 = document.querySelector('.page-head h1'),
+      lede = document.querySelector('.page-head .lede');
+    if (hd) {
+      document.title = hd[0] + ' · Tepna';
+      if (h1) h1.textContent = hd[0];
+      if (lede) lede.textContent = hd[1];
+    }
+    var links = document.querySelectorAll('[data-view-link]');
+    for (var i = 0; i < links.length; i++) {
+      if (links[i].getAttribute('data-view-link') === VIEW) links[i].setAttribute('aria-current', 'page');
+      else links[i].removeAttribute('aria-current');
+    }
+  }
+
   /* ── TRUST BADGES (§🎫) — every number this page surfaces carries one, with its reason ──────────────
      The fused rows are graded exactly as `PAT Feasibility` grades its hat — `experimental`, because the
      statistic is computed from consumer sensors and has not been validated against a reference here —
@@ -79,7 +115,8 @@
     drift: ['experimental', 'p95 step between consecutive 5-min bin medians, the gate’s own drift statistic — derived'],
     censored: ['measured', 'share of beats the physiological window discards — a direct count ratio'],
     corr: ['experimental', 'the chest→ankle lag with both devices on their packet-arrival-floor axes (buffering removed); consumer sensors, not validated against a reference'],
-    buffer: ['experimental', 'raw minus corrected median lag — the two devices’ link-buffering difference, derived from the arrival sidecars']
+    buffer: ['experimental', 'raw minus corrected median lag — the two devices’ link-buffering difference, derived from the arrival sidecars'],
+    acc: ['heuristic', 'chest vs ankle movement alignment on the two floor axes — a convenience check on the correction, not a measurement']
   };
   function evb(k) {
     var e = EV[k] || EV.lag;
@@ -297,12 +334,46 @@
     if (!fsy) return '';
     if (!fsy.available || !(cc && cc.ok))
       return '<div class="note"><b>Buffering-corrected chest → ankle:</b> not computed — ' + esc(fsy.reason || (cc && cc.reason) || 'no corrected coupling') + '.</div>';
+    /* THE CORRECTION'S OWN CHECKS, beside it (2026-11-11 review). On 2026-11-10 the motion check read −440 ms over
+       7 movements against ±25 ms and only 17 of 41 Verity windows anchored the floor, while the corrected gate
+       read FEASIBLE. The gate does not read either check, so this row states both and marks the lag UNCONFIRMED. */
+    var ck = fsy.accCheck || null,
+      accBad = !!(ck && ck.ok && typeof ck.deltaMedianMs === 'number' && isFinite(ck.deltaMedianMs) && Math.abs(ck.deltaMedianMs) > (ck.tolMs || 25));
+    var anc = null;
+    if (fsy.ecg && fsy.ppg && fsy.ecg.windows > 0 && fsy.ppg.windows > 0) {
+      var uE = fsy.ecg.windows - fsy.ecg.refused,
+        uP = fsy.ppg.windows - fsy.ppg.refused;
+      anc = {
+        text: uE + ' · ' + uP,
+        thin: uE / fsy.ecg.windows < 0.5 || uP / fsy.ppg.windows < 0.5,
+        sub: 'usable: H10 ' + uE + '/' + fsy.ecg.windows + ' · Verity ' + uP + '/' + fsy.ppg.windows
+      };
+      if (anc.thin) anc.sub += ' · under half of one device’s windows anchor the floor';
+    }
     return (
       '<h3>chest → ankle, buffering-corrected (arrival-floor axis)</h3><div class="kpis">' +
-      card('corrected median lag', num(cc.med), 'ms', 'IQR ' + num(cc.p25) + '–' + num(cc.p75) + ' · raw ' + num(m.cp && m.cp.med) + ' ms', C.green, 'corr') +
+      card(
+        'corrected median lag' + (accBad ? ' · UNCONFIRMED' : ''),
+        num(cc.med),
+        'ms',
+        'IQR ' + num(cc.p25) + '–' + num(cc.p75) + ' · raw ' + num(m.cp && m.cp.med) + ' ms' + (accBad ? ' · the motion check rejects the floor axes' : ''),
+        accBad ? C.amber : C.green,
+        'corr'
+      ) +
       card('buffering removed', num(fsy.bufferingDiffMs), 'ms', 'raw − corrected median: the Verity’s link buffering minus the H10’s', C.ink, 'buffer') +
       card('gate (corrected)', m.vdCorr ? m.vdCorr.label : '—', '', m.vdCorr ? gateWhy(m.vdCorr) : 'not run', m.vdCorr && m.vdCorr.tier === 'go' ? C.green : C.amber, 'verdict') +
       card('coupled', pct(cc.matchRate), '%', 'of the beats that could couple', C.ink, 'match') +
+      (ck && ck.ok
+        ? card(
+            'motion check',
+            num(ck.deltaMedianMs),
+            'ms',
+            'shared chest and ankle movements should align at ≈ 0 ±' + (ck.tolMs || 25) + ' ms · ' + ck.anchors + ' movements' + (accBad ? ' · FAILS' : ''),
+            accBad ? C.amber : C.green,
+            'acc'
+          )
+        : card('motion check', '—', '', (ck && ck.reason) || 'no ACC files', C.mut, 'acc')) +
+      (anc ? card('floor anchors', anc.text, 'windows', anc.sub, anc.thin ? C.amber : C.ink, 'count') : '') +
       '</div>' +
       /* ── THE OTHER TWO LEGS, ONCE THE FINGER HAS A FLOOR (E11, #3267) ────────────────────────────
          Until the ring had an arrival sidecar only chest → ankle could be corrected, so this section was
@@ -325,6 +396,187 @@
           '</div>'
         : '')
     );
+  }
+
+  /* ── FIGURES (2026-11-11). The legend carries the series badges (§🎫: badge the series, not the caption) and
+        goes through the page's one escaped string; the plot itself is SVG built with createElementNS, so no
+        data value reaches an HTML parser. ─────────────────────────────────────────────────────────────── */
+  var SVGNS = 'http://www.w3.org/2000/svg';
+  function figHost(id, title, series) {
+    return (
+      '<figure class="fig"><figcaption>' +
+      esc(title) +
+      '<span class="fig-legend">' +
+      series
+        .map(function (sr) {
+          return '<span class="fig-key">' + evb(sr[2]) + '<i style="background:' + sr[1] + '"></i>' + esc(sr[0]) + '</span>';
+        })
+        .join('') +
+      '</span></figcaption><div class="fig-plot" id="' +
+      id +
+      '"></div></figure>'
+    );
+  }
+  function sv(tag, attrs, text) {
+    var e = document.createElementNS(SVGNS, tag);
+    for (var k in attrs) if (Object.prototype.hasOwnProperty.call(attrs, k)) e.setAttribute(k, String(attrs[k]));
+    if (text != null) e.textContent = String(text);
+    return e;
+  }
+  function fin(x) {
+    return typeof x === 'number' && isFinite(x);
+  }
+  // One corner of one hat as {sigma, lo, hi, note}: a solved σ with its CI, or the status that replaced it.
+  function cornerVal(h, k) {
+    if (!h || !h.ok) return { note: 'not solved' };
+    var c = h.corners && h.corners[k];
+    if (c && c.status === 'solved' && fin(c.sigma)) return { sigma: c.sigma, lo: c.sigmaCI && fin(c.sigmaCI[0]) ? c.sigmaCI[0] : null, hi: c.sigmaCI && fin(c.sigmaCI[1]) ? c.sigmaCI[1] : null };
+    if (c && c.status === 'underpowered') return { note: fin(c.boundMs) ? 'underpowered, < ' + c.boundMs.toFixed(1) : 'underpowered' };
+    if (c && c.status) return { note: String(c.status) };
+    var s = h.sigma && h.sigma[k];
+    return fin(s) ? { sigma: s, lo: null, hi: null } : { note: 'refused' };
+  }
+  function drawSigma(box, m) {
+    var sites = ['chest', 'finger', 'ankle'],
+      cols = [
+        [m.three, C.blue],
+        [m.threeFused, C.green]
+      ],
+      vals = sites.map(function (k) {
+        return cols.map(function (cl) {
+          return cornerVal(cl[0], k);
+        });
+      });
+    var top = 1;
+    vals.forEach(function (row) {
+      row.forEach(function (v) {
+        if (fin(v.hi)) top = Math.max(top, v.hi);
+        if (fin(v.sigma)) top = Math.max(top, v.sigma);
+      });
+    });
+    top = Math.ceil(top / 5) * 5;
+    var W = 720,
+      H = 220,
+      L = 44,
+      R = 12,
+      T = 12,
+      B = 30,
+      ph = H - T - B,
+      gw = (W - L - R) / sites.length,
+      y = function (v) {
+        return T + ph - (v / top) * ph;
+      };
+    var svg = sv('svg', { viewBox: '0 0 ' + W + ' ' + H, role: 'img', 'aria-label': 'per-site sigma, classic and fused, with 95 % confidence intervals' });
+    for (var g = 0; g <= 4; g++) {
+      var gv = (top * g) / 4;
+      svg.appendChild(sv('line', { x1: L, x2: W - R, y1: y(gv), y2: y(gv), class: 'grid' }));
+      svg.appendChild(sv('text', { x: L - 6, y: y(gv) + 4, 'text-anchor': 'end', class: 'tick' }, gv.toFixed(0)));
+    }
+    svg.appendChild(sv('text', { x: 4, y: T + 8, class: 'tick' }, 'ms'));
+    sites.forEach(function (k, i) {
+      var x0 = L + i * gw,
+        bw = Math.min(56, gw / 4);
+      svg.appendChild(sv('text', { x: x0 + gw / 2, y: H - 10, 'text-anchor': 'middle', class: 'axis' }, k));
+      vals[i].forEach(function (v, j) {
+        var cx = x0 + gw / 2 + (j === 0 ? -bw * 0.65 : bw * 0.65);
+        if (!fin(v.sigma)) {
+          svg.appendChild(sv('text', { x: cx, y: y(0) - 6, 'text-anchor': 'middle', class: 'tick' }, v.note || '—'));
+          return;
+        }
+        svg.appendChild(sv('rect', { x: cx - bw / 2, y: y(v.sigma), width: bw, height: Math.max(1, y(0) - y(v.sigma)), fill: cols[j][1], 'fill-opacity': 0.75, rx: 3 }));
+        if (fin(v.lo) && fin(v.hi)) {
+          svg.appendChild(sv('line', { x1: cx, x2: cx, y1: y(v.lo), y2: y(v.hi), class: 'ci' }));
+          svg.appendChild(sv('line', { x1: cx - 6, x2: cx + 6, y1: y(v.lo), y2: y(v.lo), class: 'ci' }));
+          svg.appendChild(sv('line', { x1: cx - 6, x2: cx + 6, y1: y(v.hi), y2: y(v.hi), class: 'ci' }));
+        }
+        svg.appendChild(sv('text', { x: cx, y: y(fin(v.hi) ? Math.max(v.hi, v.sigma) : v.sigma) - 5, 'text-anchor': 'middle', class: 'val' }, v.sigma.toFixed(1)));
+      });
+    });
+    box.appendChild(svg);
+  }
+  function drawWindows(box, m) {
+    var legs = [
+        ['ab', 'chest → finger'],
+        ['ac', 'chest → ankle'],
+        ['bc', 'finger → ankle']
+      ],
+      wc = (m.three && m.three.windows) || [],
+      wf = (m.threeFused && m.threeFused.windows) || [];
+    if (!wc.length && !wf.length) {
+      var p = document.createElement('div');
+      p.className = 'muted';
+      p.textContent = 'no window medians: ' + ((m.three && m.three.reason) || 'the hat produced none this night');
+      box.appendChild(p);
+      return;
+    }
+    var all = wc.concat(wf),
+      t0 = Math.min.apply(
+        null,
+        all.map(function (w) {
+          return w.t;
+        })
+      ),
+      t1 = Math.max.apply(
+        null,
+        all.map(function (w) {
+          return w.t;
+        })
+      ),
+      span = Math.max(1, t1 - t0);
+    legs.forEach(function (lg) {
+      var vs = all
+        .map(function (w) {
+          return w[lg[0]];
+        })
+        .filter(fin);
+      if (!vs.length) return;
+      var lo = Math.min.apply(null, vs),
+        hi = Math.max.apply(null, vs),
+        pad = Math.max(5, (hi - lo) * 0.1);
+      lo -= pad;
+      hi += pad;
+      var W = 720,
+        H = 130,
+        L = 44,
+        R = 12,
+        T = 18,
+        B = 22,
+        x = function (t) {
+          return L + ((t - t0) / span) * (W - L - R);
+        },
+        y = function (v) {
+          return T + (H - T - B) * (1 - (v - lo) / (hi - lo));
+        };
+      var svg = sv('svg', { viewBox: '0 0 ' + W + ' ' + H, role: 'img', 'aria-label': lg[1] + ': 5-min window medians, classic and fused' });
+      svg.appendChild(sv('text', { x: L, y: 12, class: 'axis' }, lg[1]));
+      [lo + pad, hi - pad].forEach(function (gv) {
+        svg.appendChild(sv('line', { x1: L, x2: W - R, y1: y(gv), y2: y(gv), class: 'grid' }));
+        svg.appendChild(sv('text', { x: L - 6, y: y(gv) + 4, 'text-anchor': 'end', class: 'tick' }, gv.toFixed(0)));
+      });
+      for (var hr = 0; hr * 3600000 <= span; hr++) svg.appendChild(sv('text', { x: x(t0 + hr * 3600000), y: H - 6, 'text-anchor': 'middle', class: 'tick' }, '+' + hr + ' h'));
+      [
+        [wc, C.blue],
+        [wf, C.green]
+      ].forEach(function (sr) {
+        var d = sr[0]
+          .filter(function (w) {
+            return fin(w[lg[0]]);
+          })
+          .map(function (w, i) {
+            return (i ? 'L' : 'M') + x(w.t).toFixed(1) + ' ' + y(w[lg[0]]).toFixed(1);
+          })
+          .join(' ');
+        if (d) svg.appendChild(sv('path', { d: d, fill: 'none', stroke: sr[1], 'stroke-width': 1.6, 'stroke-linejoin': 'round' }));
+      });
+      box.appendChild(svg);
+    });
+  }
+  function drawFigs(m) {
+    if (typeof document === 'undefined' || typeof document.createElementNS !== 'function') return;
+    var a = el('figSigma'),
+      b = el('figWin');
+    if (a) drawSigma(a, m);
+    if (b) drawWindows(b, m);
   }
 
   function render(m) {
@@ -367,12 +619,32 @@
        page. No computation moved — `m.three` / `m.threeFused` are unchanged and still gated by the same
        single `#run` that requires all three corners, so the hat and the legs share one eligibility and
        neither can render without the other. */
-    out.push('<h3>three-cornered hat, over the three sites — classic beside fused</h3><div class="kpis">');
-    out.push(hatRow('classic hat σ', m.three, 'hat'));
-    out.push(hatRow('fused hat σ', m.threeFused, 'hatF'));
-    out.push('</div>');
-    out.push(hatAxesNote(m));
-    /* ── THE THREE-FLOOR HAT: ITS OWN ROW, BOTH σ SETS, NEVER A DELTA ────────────────────────────
+    var showHat = VIEW !== 'pat',
+      showPat = VIEW !== 'hat';
+    if (showHat) {
+      out.push('<h3>three-cornered hat, over the three sites — classic beside fused</h3><div class="kpis wide">');
+      out.push(hatRow('classic hat σ', m.three, 'hat'));
+      out.push(hatRow('fused hat σ', m.threeFused, 'hatF'));
+      out.push('</div>');
+      /* WHAT THE σ IS (2026-11-11 review). The labels read like beat-level noise per sensor; the σ is the spread
+       of the 5-min window medians on receive stamps, and a CI that reaches 0 does not resolve that site. */
+      out.push(
+        '<div class="note"><b>What σ measures.</b> Each σ is the spread of one site’s <b>5-min window medians</b> on the phone’s receive stamps, so it holds that device’s link jitter as well as its pulse timing. It is not beat-level PAT noise. A 95 % CI whose lower end is 0 cannot tell that site’s σ from zero.</div>'
+      );
+      out.push(
+        figHost('figSigma', 'per-site σ with 95 % CI', [
+          ['classic', C.blue, 'hat'],
+          ['fused', C.green, 'hatF']
+        ])
+      );
+      out.push(
+        figHost('figWin', 'the 5-min window medians the hat is solved from', [
+          ['classic', C.blue, 'lag'],
+          ['fused', C.green, 'lagF']
+        ])
+      );
+      out.push(hatAxesNote(m));
+      /* ── THE THREE-FLOOR HAT: ITS OWN ROW, BOTH σ SETS, NEVER A DELTA ────────────────────────────
        The same rule the drift-removed row below states, for the same reason: re-timing every leg onto its
        device's arrival floor CHANGES THE AXES, so this is a separate estimate of the same quantity over
        different inputs — not a better measurement of it. A Δ against the raw σ would read as "the smaller
@@ -381,96 +653,107 @@
        It exists at all only because of E11 (#3267): the ring's PPG frames now carry the device's own
        cumulative stream position, so the FINGER leg can take a floor and all three legs share one kind of
        axis. Before that, mixing axes would have put the ring's buffering into finger → ankle. */
-    if (m.threeCorr)
-      out.push(
-        '<h3>three-floor hat — every leg on its own device’s arrival floor, a SEPARATE estimate over different axes</h3><div class="kpis">' +
-          (m.threeCorr.ok ? hatRow('three-floor hat σ', m.threeCorr, 'hatFloor') : card('three-floor hat σ', '—', '', m.threeCorr.reason || 'not solved', C.mut, 'hatFloor')) +
-          '</div>'
-      );
-    /* ── THE DRIFT-REMOVED HAT GETS ITS OWN ROW, AND NEVER A DELTA ───────────────────────────────
+      if (m.threeCorr)
+        out.push(
+          '<h3>three-floor hat — every leg on its own device’s arrival floor, a SEPARATE estimate over different axes</h3><div class="kpis wide">' +
+            (m.threeCorr.ok ? hatRow('three-floor hat σ', m.threeCorr, 'hatFloor') : card('three-floor hat σ', '—', '', m.threeCorr.reason || 'not solved', C.mut, 'hatFloor')) +
+            '</div>'
+        );
+      /* ── THE DRIFT-REMOVED HAT GETS ITS OWN ROW, AND NEVER A DELTA ───────────────────────────────
        Differencing removes a drift shared by all three sites, which CHANGES THE ESTIMAND: it is not a
        better measurement of the same quantity, so a Δ against the classic σ would invite exactly the
        reading the owner's item 2 forbids — that the smaller number is the improved instrument. Its own
        row, its own badge, and the producer's own label rather than a paraphrase. */
-    /* Both columns: the worker differences the classic AND the fused medians (`threeFused.diff`), and the page used
+      /* Both columns: the worker differences the classic AND the fused medians (`threeFused.diff`), and the page used
        to render only the first — a computed estimate that crossed the worker boundary and was dropped. */
-    var dh = m.three && m.three.diff,
-      dhF = m.threeFused && m.threeFused.diff;
-    if (dh || dhF) {
-      out.push('<h3>drift-removed hat — a SEPARATE estimate, not a correction of the one above</h3><div class="kpis">');
-      out.push(dh && dh.ok ? hatRow('drift-removed σ (classic)', dh, 'hatD') : card('drift-removed σ (classic)', '—', '', (dh && dh.reason) || 'not solved', C.mut, 'hatD'));
-      out.push(dhF && dhF.ok ? hatRow('drift-removed σ (fused)', dhF, 'hatDF') : card('drift-removed σ (fused)', '—', '', (dhF && dhF.reason) || 'not solved', C.mut, 'hatDF'));
-      out.push('</div>');
-      var dlab = (dh && dh.label) || (dhF && dhF.label);
-      out.push('<div class="note">' + esc(dlab || 'drift-removed σ — not comparable to the classic σ') + (dh && dh.ok ? ' · ' + dh.n + ' adjacent window pairs.' : '') + '</div>');
-    }
-    /* ── THE CLOSURE IS NOT A CONSISTENCY FIGURE (brief §F, owner's item 3) ──────────────────────
+      var dh = m.three && m.three.diff,
+        dhF = m.threeFused && m.threeFused.diff;
+      if (dh || dhF) {
+        out.push('<h3>drift-removed hat — a SEPARATE estimate, not a correction of the one above</h3><div class="kpis wide">');
+        out.push(dh && dh.ok ? hatRow('drift-removed σ (classic)', dh, 'hatD') : card('drift-removed σ (classic)', '—', '', (dh && dh.reason) || 'not solved', C.mut, 'hatD'));
+        out.push(dhF && dhF.ok ? hatRow('drift-removed σ (fused)', dhF, 'hatDF') : card('drift-removed σ (fused)', '—', '', (dhF && dhF.reason) || 'not solved', C.mut, 'hatDF'));
+        out.push('</div>');
+        var dlab = (dh && dh.label) || (dhF && dhF.label);
+        out.push('<div class="note">' + esc(dlab || 'drift-removed σ — not comparable to the classic σ') + (dh && dh.ok ? ' · ' + dh.n + ' adjacent window pairs.' : '') + '</div>');
+      }
+      /* ── THE CLOSURE IS NOT A CONSISTENCY FIGURE (brief §F, owner's item 3) ──────────────────────
        `ca − cf − fa` is an IDENTITY here: both paths land on the SAME ankle beat, so 22,322 of 22,322
        per-beat triangles closed to exactly 0. Publishing it as a residual would be a gate over an
        algebraic tautology — a number that cannot fail, read as evidence that something was checked. */
-    out.push(
-      '<div class="note"><b>Closure.</b> The three-leg closure <i>chest→finger</i> − <i>chest→ankle</i> + <i>finger→ankle</i> is <b>identically 0 by construction</b> — every beat triangle shares its ankle beat — so it is not published as a consistency figure.</div>'
-    );
+      out.push(
+        '<div class="note"><b>Closure.</b> The three-leg closure <i>chest→finger</i> − <i>chest→ankle</i> + <i>finger→ankle</i> is <b>identically 0 by construction</b> — every beat triangle shares its ankle beat — so it is not published as a consistency figure.</div>'
+      );
+    }
 
     /* ── per leg: classic | fused | delta ───────────────────────────────────────────────────────── */
-    LEG.forEach(function (L) {
-      var c = m[L.k],
-        f = fused && fused[L.k];
-      out.push('<h3>' + esc(L.name) + '</h3><div class="kpis">');
-      if (!c || !c.ok) {
-        out.push(card('median lag', '—', '', (c && c.reason) || 'not coupled', C.mut, 'lag') + '</div>');
-        return;
-      }
-      out.push(card('classic median lag', num(c.med), 'ms', 'IQR ' + num(c.p25) + '–' + num(c.p75), C.ink, 'lag'));
-      out.push(card('classic beats', String(c.nCoupled), '', 'coupled pairs', C.ink, 'count'));
-      /* THE GATE AND THE LEG'S OWN STATISTICS — the worker publishes all of them and this page showed none. The one
+    if (showPat) {
+      if (!showHat)
+        out.push(
+          figHost('figWin', '5-min window medians across the night, per leg', [
+            ['classic', C.blue, 'lag'],
+            ['fused', C.green, 'lagF']
+          ])
+        );
+      LEG.forEach(function (L) {
+        var c = m[L.k],
+          f = fused && fused[L.k];
+        out.push('<h3>' + esc(L.name) + '</h3><div class="kpis">');
+        if (!c || !c.ok) {
+          out.push(card('median lag', '—', '', (c && c.reason) || 'not coupled', C.mut, 'lag') + '</div>');
+          return;
+        }
+        out.push(card('classic median lag', num(c.med), 'ms', 'IQR ' + num(c.p25) + '–' + num(c.p75), C.ink, 'lag'));
+        out.push(card('classic beats', String(c.nCoupled), '', 'coupled pairs', C.ink, 'count'));
+        /* THE GATE AND THE LEG'S OWN STATISTICS — the worker publishes all of them and this page showed none. The one
          that matters most: chest → finger was WINDOW-CENSORED on 2026-09-26 ("not a transit time") and still
          rendered as an ordinary 407 ms lag. finger → ankle has no gate — it is pulse-to-pulse, not a PAT. */
-      var vd = L.vd ? m[L.vd] : null;
-      out.push(
-        card('gate', vd ? vd.label : 'NOT GATED', '', vd ? gateWhy(vd) : 'not gated — finger → ankle is pulse-to-pulse, not a PAT', vd ? (vd.tier === 'go' ? C.green : C.amber) : C.mut, 'verdict')
-      );
-      out.push(card('coupled', pct(c.matchRate), '%', 'of the beats that could couple', C.ink, 'match'));
-      out.push(card('beat-to-beat spread', num(c.residIQR), 'ms', 'IQR of each lag minus its local median', C.ink, 'resid'));
-      out.push(card('drift', num(c.stepP95), 'ms', 'p95 step between 5-min bins · range ' + num(c.driftRange) + ' ms', C.ink, 'drift'));
-      out.push(
-        card(
-          'censored',
-          typeof c.censoredPct === 'number' && isFinite(c.censoredPct) ? num(c.censoredPct, 1) : '—',
-          typeof c.censoredPct === 'number' && isFinite(c.censoredPct) ? '%' : '',
-          'beats the physiological window discards',
-          C.ink,
-          'censored'
-        )
-      );
-      /* NOT `inPhysPct`: since pairing ENFORCES the physiological window (pat-feasibility-worker.js, the PLO/PHI
+        var vd = L.vd ? m[L.vd] : null;
+        out.push(
+          card('gate', vd ? vd.label : 'NOT GATED', '', vd ? gateWhy(vd) : 'not gated — finger → ankle is pulse-to-pulse, not a PAT', vd ? (vd.tier === 'go' ? C.green : C.amber) : C.mut, 'verdict')
+        );
+        out.push(card('coupled', pct(c.matchRate), '%', 'of the beats that could couple', C.ink, 'match'));
+        out.push(card('beat-to-beat spread', num(c.residIQR), 'ms', 'IQR of each lag minus its local median', C.ink, 'resid'));
+        out.push(card('drift, p95 step (gated)', num(c.stepP95), 'ms', 'p95 step between 5-min bins, which the gate reads · range ' + num(c.driftRange) + ' ms', C.ink, 'drift'));
+        out.push(
+          card(
+            'censored',
+            typeof c.censoredPct === 'number' && isFinite(c.censoredPct) ? num(c.censoredPct, 1) : '—',
+            typeof c.censoredPct === 'number' && isFinite(c.censoredPct) ? '%' : '',
+            'beats the physiological window discards',
+            C.ink,
+            'censored'
+          )
+        );
+        /* NOT `inPhysPct`: since pairing ENFORCES the physiological window (pat-feasibility-worker.js, the PLO/PHI
          test inside the coupling loop), every coupled lag is inside it by construction, so that field is 1 on every
          night — a number that cannot fail, shown as if it had been checked. `censored` above is the live one. */
-      if (f && f.ok) {
-        out.push(card('fused median lag', num(f.med), 'ms', 'weighted IQR ' + num(f.p25) + '–' + num(f.p75), C.green, 'lagF'));
-        out.push(card('fused weighted pairs', String(f.nWeighted), 'of ' + f.nPairs, (100 * f.covered).toFixed(1) + ' % of accepted pairs carried a confidence at both ends', C.ink, 'coverage'));
-        out.push(card('Δ median', sgn(f.med - c.med), 'ms', 'fused − classic', Math.abs(f.med - c.med) < 1 ? C.mut : C.amber, 'delta'));
-        out.push(card('Δ IQR', sgn(f.p75 - f.p25 - (c.p75 - c.p25)), 'ms', 'weighted spread − classic spread', C.amber, 'delta'));
-      } else {
-        out.push(card('fused median lag', 'UNWEIGHTED', '', (f && f.reason) || 'no confidence for this leg', C.amber, 'lagF'));
-      }
-      out.push('</div>');
-      if (L.k === 'cp') out.push(correctedRow(m));
-    });
+        if (f && f.ok) {
+          out.push(card('fused median lag', num(f.med), 'ms', 'weighted IQR ' + num(f.p25) + '–' + num(f.p75), C.green, 'lagF'));
+          out.push(card('fused weighted pairs', String(f.nWeighted), 'of ' + f.nPairs, (100 * f.covered).toFixed(1) + ' % of accepted pairs carried a confidence at both ends', C.ink, 'coverage'));
+          out.push(card('Δ median', sgn(f.med - c.med), 'ms', 'fused − classic', Math.abs(f.med - c.med) < 1 ? C.mut : C.amber, 'delta'));
+          out.push(card('Δ IQR', sgn(f.p75 - f.p25 - (c.p75 - c.p25)), 'ms', 'weighted spread − classic spread', C.amber, 'delta'));
+        } else {
+          out.push(card('fused median lag', 'UNWEIGHTED', '', (f && f.reason) || 'no confidence for this leg', C.amber, 'lagF'));
+        }
+        out.push('</div>');
+        if (L.k === 'cp') out.push(correctedRow(m));
+      });
 
-    /* ── 🔴 THE DELTA CARD: where the columns differ, AND where they cannot ──────────────────────── */
-    out.push(
-      '<div class="note"><b>Reading the deltas.</b> A median is robust to a small share of bad beats, so ' +
-        'a localised artifact burst moves the <i>whole-night</i> lag hardly at all — in the planted ' +
-        'known-answer night, 12.5 % contamination moved it 220 → 222 ms. <b>A Δ median near zero is ' +
-        'therefore not evidence that weighting does nothing.</b> Where the weighting acts is the ' +
-        '<b>spread</b> (a burst widens the classic IQR and not the fused one) and the <b>per-5-min-window ' +
-        'medians the hat is built from</b>: inside a burst every pair in the window is contaminated, so ' +
-        'that window’s classic median is wrong by the full inflation with no robustness left, while the ' +
-        'fused one refuses rather than averaging distrusted pairs. Read Δ IQR and the hat row, not Δ median.' +
-        '</div>'
-    );
+      /* ── 🔴 THE DELTA CARD: where the columns differ, AND where they cannot ──────────────────────── */
+      out.push(
+        '<div class="note"><b>Reading the deltas.</b> A median is robust to a small share of bad beats, so ' +
+          'a localised artifact burst moves the <i>whole-night</i> lag hardly at all — in the planted ' +
+          'known-answer night, 12.5 % contamination moved it 220 → 222 ms. <b>A Δ median near zero is ' +
+          'therefore not evidence that weighting does nothing.</b> Where the weighting acts is the ' +
+          '<b>spread</b> (a burst widens the classic IQR and not the fused one) and the <b>per-5-min-window ' +
+          'medians the hat is built from</b>: inside a burst every pair in the window is contaminated, so ' +
+          'that window’s classic median is wrong by the full inflation with no robustness left, while the ' +
+          'fused one refuses rather than averaging distrusted pairs. Read Δ IQR and the hat row, not Δ median.' +
+          '</div>'
+      );
+    }
     host.innerHTML = out.join('');
+    drawFigs(m);
   }
 
   /* ── INGEST: one night, one run, the worker unchanged ──────────────────────────────────────────
@@ -603,6 +886,7 @@
       onPick(e.target.files || []);
     });
   if (el('run')) el('run').addEventListener('click', run);
+  applyView();
 
   self.PatCvf = {
     render: render,
@@ -612,6 +896,9 @@
     hatRow: hatRow,
     run: run,
     sgn: sgn,
+    view: function () {
+      return VIEW;
+    },
     pick: function () {
       return PICK;
     }

@@ -434,8 +434,28 @@ def test_a_night_click_opens_the_app_under_a_fresh_url():
     before a deploy (2026-09-26). Pinned on the window.open line itself."""
     here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     html = open(os.path.join(here, "monitor.html"), encoding="utf-8").read()
-    assert "window.open('/'+NIGHT_APP[node]+'?v='+Date.now(), '_blank')" in html
+    assert "window.open('/'+NIGHT_APP[node]+'?v='+Date.now()+" in html
     assert "window.open('/'+NIGHT_APP[node], '_blank')" not in html
+
+
+def test_the_two_fused_pat_columns_open_different_views():
+    """The 3-hat fused and PAT fused columns both open PAT Classic vs Fused, and before 2026-11-11 they opened
+    the SAME page, so two columns read as one (owner, 2026-11-11). Each entry now names its own `view`, the
+    click hands it to `openNight`, and `openNight` puts it on the page's query string."""
+    import re
+
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    html = open(os.path.join(here, "monitor.html"), encoding="utf-8").read()
+    fused = until_anchor(
+        split_segment(html, "const NIGHT_FUSED = [", 1, where="monitor.html"),
+        "];",
+        where="monitor.html (the end of the NIGHT_FUSED literal)",
+    )
+    views = re.findall(r"view:'([^']+)'", fused)
+    assert sorted(views) == ["hat", "pat"], views
+    assert "f.dataset.view" in html, "the click drops the view"
+    assert "async function openNight(key, node, view)" in html
+    assert "'&view='+view" in html
 
 
 def test_the_pat_click_hands_over_the_arrival_sidecars():
