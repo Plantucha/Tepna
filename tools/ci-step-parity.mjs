@@ -43,8 +43,10 @@ const Verdict = createRequire(import.meta.url)(join(ROOT, 'verdict.js'));
     raise this pin and say why in the commit. The second one is legitimate, because the row reserves
     the closure to the owner and a lander may hold no authorization to add blocking CI work. #4846
     raised it from 39 to 40 one hour before this tool landed, where `verify:module-carriers` arrived
-    with no workflow line. */
-export const UNCOVERED_PIN = 40;
+    with no workflow line. The 2026-11-11 raise to 41 is `verify:paper-references`, which runs inside
+    `npm run check` under CI's `static` job exactly as `verify:brief-header-claims` does. Its own
+    workflow line would be a new CI context, and §📌's row reserves that to the owner. */
+export const UNCOVERED_PIN = 41;
 
 /** A step whose command a workflow may never carry, with the reason. Empty, and the gate says so: the
     row reserves every closure to the owner, so this tool invents no exemption. */

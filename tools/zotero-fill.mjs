@@ -42,6 +42,7 @@ import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { isCliEntry } from './argv-guard.mjs';
 import { producedByOf } from './corpus-scope-core.mjs';
+import { stripElement, stripTags } from './strip-markup.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, '..');
@@ -83,9 +84,9 @@ export function zoteroType(crType) {
   }
 }
 export function stripJats(s) {
-  return String(s || '')
-    .replace(/<jats:title>[^<]*<\/jats:title>/gi, '')
-    .replace(/<[^>]+>/g, '')
+  // strip-markup.mjs scans by index; a multi-character regex replaced with '' reads to CodeQL
+  // as an incomplete sanitizer, and this is a text extractor.
+  return stripTags(stripElement(String(s || ''), 'jats:title'))
     .replace(/\s+/g, ' ')
     .trim();
 }

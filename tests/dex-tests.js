@@ -406,6 +406,26 @@
     return out;
   }
 
+  /* dexDropAngles(s) — drop every `<…>` span from a label or a cell, as `/<[^>]*>/g` did, for the
+     groups that read rendered text back. It is a TEXT EXTRACTOR, never a sanitizer: its output is
+     compared, never written into markup. An index scan instead of the regex, because CodeQL reads a
+     multi-character pattern replaced with '' as an incomplete sanitizer
+     (js/incomplete-multi-character-sanitization). Both lanes load this file, so the browser suite
+     reads it too, where `env.stripTags` is not wired. A `<` with no `>` after it stays, as before. */
+  function dexDropAngles(s) {
+    var src = String(s),
+      out = '',
+      i = 0;
+    for (;;) {
+      var a = src.indexOf('<', i);
+      if (a === -1) return out + src.slice(i);
+      var b = src.indexOf('>', a + 1);
+      if (b === -1) return out + src.slice(i);
+      out += src.slice(i, a);
+      i = b + 1;
+    }
+  }
+
   function runDexTests(env) {
     env = env || {};
     var GROUPS = [];
@@ -25606,15 +25626,14 @@
         return out;
       }
       var dec = function (s) {
-        return String(s)
+        var t = String(s)
           .replace(/&#x([0-9a-f]+);/gi, function (_, h) {
             return String.fromCodePoint(parseInt(h, 16));
           })
           .replace(/&#(\d+);/g, function (_, d) {
             return String.fromCodePoint(+d);
-          })
-          .replace(/<[^>]*>/g, '')
-
+          });
+        return dexDropAngles(t)
           .replace(/&amp;/g, '&')
           .replace(/&lt;/g, '<')
           .replace(/&gt;/g, '>')
@@ -34291,7 +34310,7 @@
 
       // (a) + (b): per .src.html
       srcNames.forEach(function (n) {
-        var markup = SRC[n].replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<style[\s\S]*?<\/style>/gi, '');
+        var markup = SRC[n].replace(/<script[\s\S]*?<\/script>/gi, ' ').replace(/<style[\s\S]*?<\/style>/gi, ' '); // a space, not '': the scan reads handlers, and a space keeps the tokens apart
         var hit = markup.match(ON_MARKUP);
         T.ok(n + ' · no inline on*= handler in markup (converted to data-act)', !hit, hit ? hit[0] : '');
         var content = (SRC[n].match(/<meta[^>]*Content-Security-Policy[^>]*content="([^"]*)"/i) || ['', ''])[1];
@@ -34642,11 +34661,7 @@
       );
       var META = { date: 1, start: 1, end: 1, source: 1, 'sample rate': 1, recording: 1, 'active flags': 1, tier: 1, today: 1 };
       var norm = function (s) {
-        return String(s)
-          .toLowerCase()
-          .replace(/<[^>]*>/g, '')
-          .replace(/\s+/g, ' ')
-          .trim();
+        return dexDropAngles(String(s).toLowerCase()).replace(/\s+/g, ' ').trim();
       };
       var unbadged = [];
       cols.forEach(function (c) {
@@ -78837,9 +78852,7 @@
      PPGCross/CPAPCross + the *Registry resolvers are already fed to BOTH runners. ════ */
     group('Registry ↔ _DEFS parity (registry is the source)', 'registry-defs-parity · cohesion · cpapdex-registry', function (T) {
       var norm = function (s) {
-        return String(s == null ? '' : s)
-          .toLowerCase()
-          .replace(/<[^>]*>/g, '')
+        return dexDropAngles(String(s == null ? '' : s).toLowerCase())
           .replace(/\s+/g, ' ')
           .trim();
       };
