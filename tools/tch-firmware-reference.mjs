@@ -14,8 +14,8 @@
  *
  * THE REFERENCE is a FOURTH series: the beat intervals on which TWO INDEPENDENT R-PEAK DETECTORS agree —
  * ECGDex Pan–Tompkins on the raw `_ECG.txt`, and the strap FIRMWARE's own detector (`_RR.txt`), time-paired
- * window by window with `tools/oracle-ecg-firmware-rr.mjs`'s own functions (firmwareHostTimes →
- * per-window coincidenceLag → pairByTime) and kept only where the two intervals agree within
+ * window by window with the oracle's pairing functions (firmwareHostTimes → per-window coincidenceLag →
+ * pairByTime; copied into the root `trio-reference.js`, which the page worker also loads) and kept only where the two intervals agree within
  * AGREE_MS (one 130 Hz sample is 7.7 ms). Per second: the median HR of those consensus intervals.
  *
  * THE CORNERS are built exactly as the page builds them, by the page's own worker functions: H10 from
@@ -77,7 +77,6 @@ import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { coincidenceLag, firmwareHostTimes, pairByTime } from './oracle-ecg-firmware-rr.mjs';
 import { isCliEntry } from './argv-guard.mjs';
 import { intersectSnapshots, populationVerdict, snapshotNights } from './corpus-scope-core.mjs';
 import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
@@ -98,91 +97,19 @@ const ROOT = path.join(HERE, '..');
 const req = createRequire(import.meta.url);
 const AS = req(path.join(ROOT, 'analysis-stats.js'));
 
-export const AGREE_MS = 8;
 export const BAND_ABS = 0.3;
 export const BAND_REL = 0.3;
 export const PASS_FRAC = 0.8;
 export const MIN_NIGHTS = 10;
-export const MIN_SECONDS = 1000;
 const KEYS = ['h10', 'verity', 'o2'];
 const JUDGED = ['verity', 'o2'];
 
 /* ── pure core ─────────────────────────────────────────────────────────────────────────────────── */
-const mean = (a) => a.reduce((x, y) => x + y, 0) / a.length;
-const sd = (a) => {
-  const m = mean(a);
-  return Math.sqrt(a.reduce((x, y) => x + (y - m) ** 2, 0) / (a.length - 1));
-};
-export function median(a) {
-  const s = a.filter(Number.isFinite).sort((x, y) => x - y);
-  if (!s.length) return null;
-  const m = s.length >> 1;
-  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
-}
-export function corr(x, y) {
-  const mx = mean(x),
-    my = mean(y);
-  let sxy = 0,
-    sxx = 0,
-    syy = 0;
-  for (let i = 0; i < x.length; i++) {
-    sxy += (x[i] - mx) * (y[i] - my);
-    sxx += (x[i] - mx) ** 2;
-    syy += (y[i] - my) ** 2;
-  }
-  return sxx > 0 && syy > 0 ? sxy / Math.sqrt(sxx * syy) : null;
-}
+const TR = req(path.join(ROOT, 'trio-reference.js'));
+/* The reference core MOVED to the root `trio-reference.js` (one copy for this tool and the page worker). */
+export const { AGREE_MS, MIN_SECONDS, median, corr, consensusPairs, perSecondMedian, scoreSeries, REFERENCE_AXES, REF_AXIS_DEFAULT, referenceBeatTimes, buildReference } = TR;
 export function withinBand(est, truth) {
   return Number.isFinite(est) && Number.isFinite(truth) && (Math.abs(est - truth) <= BAND_ABS || Math.abs(est - truth) <= BAND_REL * truth);
-}
-/* Consensus reference: pairs of consecutive self↔firmware matches whose intervals agree within AGREE_MS.
-   selfMs/selfNN: our beat times (wall-clock ms on the ECG record's own axis — see the dated note at
-   the call site, which measures why that is NOT `tMsAt`'s axis) and the NN interval ending at each;
-   fwMs/fwRR: firmware beat times carried onto the same axis by the coincidence lag, and its
-   intervals. Returns [[sec, hr], …]. */
-export function consensusPairs(selfMs, selfNN, fwMs, fwRR, tolMs = 150) {
-  const P = pairByTime(selfMs, fwMs, tolMs).pairs,
-    out = [];
-  let consecutive = 0;
-  for (let k = 1; k < P.length; k++) {
-    const [i, j] = P[k],
-      [i0, j0] = P[k - 1];
-    if (!(i === i0 + 1 && j === j0 + 1)) continue;
-    consecutive++;
-    if (Math.abs(selfNN[i] - fwRR[j]) <= AGREE_MS) out.push([Math.floor(selfMs[i] / 1000), 60000 / ((selfNN[i] + fwRR[j]) / 2)]);
-  }
-  return { pairs: out, consecutive };
-}
-export function perSecondMedian(pairs) {
-  const by = new Map();
-  for (const [s, v] of pairs) (by.get(s) || by.set(s, []).get(s)).push(v);
-  const out = new Map();
-  for (const [s, a] of by) out.set(s, median(a));
-  return out;
-}
-/* One night's numbers from four aligned per-second maps (reference + three corners). */
-export function scoreSeries(REF, H, V, O) {
-  const ks = [...REF.keys()].filter((s) => H.has(s) && V.has(s) && O.has(s)).sort((a, b) => a - b);
-  if (ks.length < MIN_SECONDS) return { ok: false, reason: ks.length + ' s with the reference and all three corners (< ' + MIN_SECONDS + ')', n: ks.length };
-  const g = (M) => ks.map((s) => M.get(s)),
-    ref = g(REF),
-    X = { h10: g(H), verity: g(V), o2: g(O) },
-    E = {},
-    trueSd = {},
-    bias = {};
-  for (const k of KEYS) {
-    E[k] = X[k].map((x, i) => x - ref[i]);
-    trueSd[k] = sd(E[k]);
-    bias[k] = mean(E[k]);
-  }
-  const diffVar = (a, b) => AS.variance(X[a].map((x, i) => x - X[b][i]));
-  const vHV = diffVar('h10', 'verity'),
-    vHO = diffVar('h10', 'o2'),
-    vVO = diffVar('verity', 'o2');
-  const c = AS.threeCorneredHat(vHV, vHO, vVO);
-  const hat = { h10: c.a >= 0 ? Math.sqrt(c.a) : null, verity: c.b >= 0 ? Math.sqrt(c.b) : null, o2: c.c >= 0 ? Math.sqrt(c.c) : null };
-  const rho = { hv: corr(E.h10, E.verity), ho: corr(E.h10, E.o2), vo: corr(E.verity, E.o2) };
-  return { ok: true, n: ks.length, trueSd, bias, hat, rho, vars: { hv: vHV, ho: vHO, vo: vVO } };
 }
 /* Correlated hat for ONE night with ρ taken from the OTHER nights (leave-one-out). */
 export function correlatedLOO(rows, idx) {
@@ -227,130 +154,6 @@ export function pool(rows) {
 }
 /* ── the axis switch and the three populations (TCH-REFERENCE-POPULATIONS §5.1) ─────────────────── */
 export const AXES = ['host', 'wall'];
-/* ── THE REFERENCE'S OWN AXIS (residue 2026-10-18-tch-reference-and-h10-corner-sit-on-two-axes) ──
-   `--axis` decides whether the host discipline runs at all. It does NOT decide which of the two
-   timebases the REFERENCE is built on, and until this option existed the answer was fixed: the
-   reference rode the raw device counter (`analyze`'s `r.tt`, `ecgdex-dsp.js:2802-2812`) while the
-   H10 corner rode the corrected one (`rec.tMsAt`, `ecgdex-dsp.js:5610`). Under `--axis host` the
-   H10 was therefore scored against a reference derived from its own beats on a DIFFERENT axis, and
-   the divergence between the two is the host discipline's own correction.
-
-   `--reference-axis device` is that status quo and stays the default, so no shipped number moves.
-   `--reference-axis corrected` places the reference on the corner's axis by reading the record's own
-   accessor at the beat's sample index — `rec.tMsAt(refIdx[k])`, where `tt[k] = devMsAt(refIdx[k])/1000`
-   makes k the same beat (`ecgdex-dsp.js:1172-1176`, 2802-2812). NOTHING IN THE ESTIMATOR MOVES: the
-   same `nn` values are paired with times that carry the correction (brief §7, owner D7 2026-10-12 —
-   the hat itself is out of scope). Under `--axis wall` the two are the same axis by construction,
-   because `hostAxis` refuses and `_ecgCorrAt` is then null — which is the negative control. */
-export const REFERENCE_AXES = ['device', 'corrected'];
-export const REF_AXIS_DEFAULT = 'device';
-/* §∅ — A BEAT THAT CANNOT BE PLACED IS DROPPED, NEVER PLACED AT t0. The corrected branch refuses the
-   whole night when the record carries no `tMsAt` or a `refIdx` that is not aligned with `nn`: a
-   silent fall back to the device axis would make a corrected-axis row a device-axis row wearing the
-   other label, which is the very confusion this option exists to end. `applied` reports
-   `rec.tMsCorrected`, so a reader can tell "placed on the corrected axis" from "the correction was
-   live", which are different gates (`ecgdex-dsp.js:5612`). */
-export function referenceBeatTimes(rec, r, refAxis) {
-  const axis = refAxis || REF_AXIS_DEFAULT;
-  if (REFERENCE_AXES.indexOf(axis) < 0) throw new Error('unknown reference axis "' + axis + '" — one of ' + REFERENCE_AXES.join('|'));
-  const nn = (r && r.nn) || [],
-    tt = (r && r.tt) || [],
-    t0 = (r && r.t0Ms) || (rec && rec.t0Ms) || 0,
-    ms = [],
-    vals = [],
-    inBand = (x) => Number.isFinite(x) && x >= 200 && x <= 3000;
-  if (axis === 'corrected') {
-    /* 🔴 nn/tt ARE NOT INDEX-ALIGNED WITH refIdx, AND THE GUARD IS WHAT FOUND IT. `analyze` runs a
-       beat-confidence filter after `buildNN` and PUSHES the survivors (`ecgdex-dsp.js:2882-2894`), so
-       on a real night 5829 refined peaks become 5808 intervals. Its own comment says it: "`peaks[i]`,
-       `nnRes.nn[i]` and `sqi[i]` share an index only BEFORE the confidence filter below." The first
-       version of this function took the index for granted and the alignment check refused 2 of 2
-       nights rather than mis-pairing them.
-
-       So the beat is recovered BY ITS VALUE, not by its position. `tt[i]` is pushed unchanged from
-       `times[k] = devMsAt(refIdx[k]) / 1000` (`ecgdex-dsp.js:2802-2812`), so rebuilding that same
-       quantity over the unfiltered `refIdx` and keying it gives each surviving interval its sample
-       index back. Two beats sharing a device ms collapse to one key harmlessly: the correction is a
-       function of the device ms alone.
-
-       THE KEY IS ROUNDED TO MICROSECONDS, and raw float equality would have been a trap. In the real
-       path both sides evaluate the same expression on the same inputs and agree to the last bit, so
-       `===` works — and it stops working the moment either side is written differently. `3 * 0.01`
-       and `30 / 1000` are different doubles, which the selftest below plants on purpose. A microsecond
-       key cannot collide either: refined peaks sit ~7.7 ms apart at 130 Hz.
-
-       THIS BRANCH NEEDS THE DEVICE COUNTER. Without one, `analyze` builds its beat clock from the
-       sample index plus a dead-time fold and `tMsAt` does the same — there is no device axis to
-       correct, and a match by value would be a match between two different quantities. It refuses. */
-    const idx = r && r.refIdx;
-    if (typeof (rec && rec.tMsAt) !== 'function' || typeof (rec && rec.devMsAt) !== 'function' || !idx || !idx.length)
-      return {
-        ms: null,
-        nn: null,
-        axis,
-        applied: null,
-        dropped: null,
-        matched: null,
-        reason:
-          'the corrected reference axis needs rec.tMsAt, rec.devMsAt and a non-empty refIdx — got ' +
-          typeof (rec && rec.tMsAt) +
-          ', ' +
-          typeof (rec && rec.devMsAt) +
-          ' and ' +
-          (idx ? idx.length : 'no refIdx')
-      };
-    const byDevMs = new Map();
-    for (let k = 0; k < idx.length; k++) {
-      const d = rec.devMsAt(idx[k]);
-      if (d == null || !Number.isFinite(d))
-        return {
-          ms: null,
-          nn: null,
-          axis,
-          applied: null,
-          dropped: null,
-          matched: null,
-          reason:
-            'the record carries no usable device counter at refined peak ' +
-            k +
-            ' of ' +
-            idx.length +
-            ', so the beat clock is not on the device axis and there is nothing to place on the corrected one'
-        };
-      byDevMs.set(Math.round(d * 1e3), idx[k]);
-    }
-    let dropped = 0,
-      wanted = 0;
-    for (let i = 0; i < nn.length; i++) {
-      if (!inBand(nn[i]) || !Number.isFinite(tt[i])) continue;
-      wanted++;
-      const at = byDevMs.get(Math.round(tt[i] * 1e6));
-      const t = at === undefined ? null : rec.tMsAt(at);
-      if (!Number.isFinite(t)) {
-        dropped++;
-        continue;
-      }
-      ms.push(t);
-      vals.push(nn[i]);
-    }
-    /* A night that mostly fails to match is not a measurement of the corrected axis. The identity
-       above either holds for a record or it does not; a partial match means it broke, so the night
-       says so instead of scoring a mixture. */
-    if (wanted && ms.length < 0.99 * wanted)
-      return {
-        ms: null,
-        nn: null,
-        axis,
-        applied: null,
-        dropped,
-        matched: ms.length,
-        reason: 'only ' + ms.length + ' of ' + wanted + ' in-band beats matched a refined peak by device ms — the beat-clock identity this branch rests on does not hold for this record'
-      };
-    return { ms, nn: vals, axis, applied: !!rec.tMsCorrected, dropped, matched: ms.length, reason: null };
-  }
-  for (let i = 0; i < nn.length; i++) if (inBand(nn[i]) && Number.isFinite(tt[i])) ms.push(t0 + tt[i] * 1000), vals.push(nn[i]);
-  return { ms, nn: vals, axis, applied: false, dropped: 0, matched: ms.length, reason: null };
-}
 export const ROLLING_N = 30;
 export const AXIS_WALL_REASON = '--axis wall: host discipline suppressed for the paired comparison';
 export const SOLID_GATE = 'solid-night';
@@ -1000,7 +803,17 @@ export function loadRealm(axis, refAxis) {
      while the published 2026-10-18 record scored 54. §👥.3's silent disablement, one realm list behind
      a shared-module addition. The sibling realms in `beat-correspondence.mjs`,
      `pat-literature-spec.mjs` and `pat-matchrate-strict.mjs` already load it. */
-  for (const f of ['clock.js', 'kernel-constants.js', 'metric-registry.js', 'analysis-stats.js', 'ecgdex-dsp.js', 'ppgdex-dsp.js', 'consensus-dissent.js', 'sensor-trio-worker.js'])
+  for (const f of [
+    'clock.js',
+    'kernel-constants.js',
+    'metric-registry.js',
+    'analysis-stats.js',
+    'ecgdex-dsp.js',
+    'ppgdex-dsp.js',
+    'consensus-dissent.js',
+    'trio-reference.js',
+    'sensor-trio-worker.js'
+  ])
     vm.runInContext(DexBuild.classicify(fs.readFileSync(path.join(ROOT, f), 'utf8')), ctx, { filename: f });
   /* The realm carries `clock.js`, so every parser below disciplines its own axis unless this says
      otherwise. The patch also RECORDS each call, which is how a night reports whether the device had a
@@ -1042,10 +855,12 @@ export function scoreNightDir(ctx, dir) {
     const rec = ecgRuns ? E.parseECG(ecgTxt, { runsText: ecgRuns }) : E.parseECG(ecgTxt),
       dev = E.parseDeviceRR(fs.readFileSync(f.rr, 'utf8')),
       r = E.analyze(rec, null);
-    const ref = referenceBeatTimes(rec, r, refAxis);
-    if (ref.reason) return { night, axis, referenceAxis: refAxis, ok: false, reason: ref.reason };
-    const selfMs = ref.ms,
-      selfNN = ref.nn;
+    const B = buildReference(rec, r, dev, refAxis);
+    if (B.reason) return { night, axis, referenceAxis: refAxis, ok: false, reason: B.reason };
+    const ref = B.ref,
+      selfNN = ref.nn,
+      cp = B.cp,
+      REF = B.REF;
     /* ⚠️ THE REFERENCE AND THE H10 CORNER DO NOT SHARE AN AXIS (read 2026-10-18, Osprey; left
        standing on purpose). `analyze` builds `r.tt` from `rec.devMsAt` — the RAW device counter,
        with no `correctionAt` (`ecgdex-dsp.js:2824-2831`) — while the H10 corner's HR series below
@@ -1055,23 +870,6 @@ export function scoreNightDir(ctx, dir) {
        `--axis wall` both collapse onto the device counter and agree. Moving the reference onto
        `tMsAt` changes the estimator's inputs, which the brief puts out of scope (§7), so this stays
        a named defect rather than a silent repair. */
-    const fw = firmwareHostTimes(dev, 300),
-      fwMs = [],
-      fwRR = [];
-    for (let a = 0; a < fw.timesMs.length; a += 600) {
-      const b = Math.min(fw.timesMs.length, a + 600),
-        w = Array.from(fw.timesMs.subarray(a, b));
-      const near = selfMs.filter((t) => t >= w[0] - 6200 && t <= w[w.length - 1] + 6200);
-      if (near.length < 50) continue;
-      const L = coincidenceLag(near, w, 150, 6000);
-      if (L.refused) continue;
-      for (let i = a; i < b; i++) {
-        fwMs.push(fw.timesMs[i] - L.lagMs);
-        fwRR.push(dev[i].rr);
-      }
-    }
-    const cp = consensusPairs(selfMs, selfNN, fwMs, fwRR);
-    const REF = perSecondMedian(cp.pairs);
     const unwrap = (x) => (x && x.hr ? x.hr : x);
     tag('h10');
     const H = unwrap(fn('ecgHrMap')(ecgTxt));
