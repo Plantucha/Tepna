@@ -643,6 +643,31 @@ export function landingPage(rows, planned, done, meta) {
   return `${L.join('\n')}\n`;
 }
 
+/* ── THE PRECONDITION SPEAKS, BECAUSE THE PASS CANNOT ─────────────────────────────
+   Residue `2026-11-10-the-walker-precondition-fails-165-times-and-notifies-nobody`. Measured on
+   rig-x870: the pre-step refused 165 times between 10:30:49 and 14:45:07 local and 80 passes
+   failed. Every report the fleet reads comes from the pass, and a refused precondition means the
+   pass never ran — so `landing.md` kept the last healthy page and the board showed a live queue
+   for four hours. Three sessions each read the dead queue out of journals (board #5339, #5341,
+   #5342). So the refusal writes the page itself. `blockedPage` carries a line that the board's own
+   predicate matches (`tools/board.mjs:1702` tests /^ALERT /m), and it states that no pass ran, so
+   no reader can take a blocked page for PR state. */
+export function preconditionState(prev, result, nowMs) {
+  const r = String(result);
+  if (/^(clean|restored)/.test(r)) return null;
+  if (prev && prev.refusal === r) return { refusal: r, firstMs: prev.firstMs, count: prev.count + 1 };
+  return { refusal: r, firstMs: nowMs, count: 1 };
+}
+
+export function blockedPage(pre, atMs) {
+  return `${[
+    `pr-walker BLOCKED ${new Date(atMs).toISOString()} · no pass ran, so this page reports NO PR state`,
+    `the precondition refused ${pre.count} time(s) since ${new Date(pre.firstMs).toISOString()} — nothing is readied, rebased or merged while it stands`,
+    `ALERT walker-blocked: ${pre.refusal}`,
+    'cure: resolve the path(s) named above in the checkout the unit passes to --worktree, then run one pass by hand'
+  ].join('\n')}\n`;
+}
+
 /* ── THE JOURNAL SAYS EACH THING ONCE ──────────────────────────────────────────────────────────
    Measured 2026-11-07 over 6 h of `journalctl --user -u tepna-pr-walker.service`: 221 passes wrote
    1878 lines, and the same alert for #4503 stood in 29 of them, #4526 in 22. Every bird that reads
@@ -1098,12 +1123,32 @@ if (isCliEntry(import.meta.url)) {
   else if (flag('--print-install')) console.log(installText());
   else if (flag('--clean-worktree')) {
     /* The unit's own pre-step calls this, so one dirty generated file can never again stop the pass
-       that would have cleaned it. A refusal exits 1 and names the path it would not discard. */
+       that would have cleaned it. A refusal exits 1, names the path it would not discard, and writes
+       the board's landing page itself — the pass that normally writes that page never runs. */
     const wt = val('--worktree', process.cwd());
     const g = (...args) => sh('git', args, { cwd: wt });
     const r = cleanWorktree(g, generatedSet());
     console.log(`clean-worktree: ${r}`);
-    if (!/^(clean|restored)/.test(r)) process.exit(1);
+    const nowMs = Date.now();
+    const st = loadState();
+    const had = st.precondition || null;
+    const pre = preconditionState(had, r, nowMs);
+    st.precondition = pre;
+    saveState(st);
+    if (pre) {
+      /* REPORT, NEVER SWALLOW: a page this process could not write is the silence the row names. */
+      let wrote = 'the board page is unwritten';
+      try {
+        mkdirSync(BOARD_DIR, { recursive: true });
+        writeFileSync(path.join(BOARD_DIR, 'landing.md'), blockedPage(pre, nowMs));
+        wrote = 'the board now says the queue is blocked';
+      } catch (e) {
+        wrote = `the board page failed: ${String(e.message || e).split('\n')[0]}`;
+      }
+      console.error(`pr-walker: refusal ${pre.count} since ${new Date(pre.firstMs).toISOString()} — ${wrote}`);
+      process.exit(1);
+    }
+    if (had) console.log(`clean-worktree: cleared after ${had.count} refusal(s) — the next pass writes the page`);
   } else {
     const opts = { dryRun: flag('--dry-run'), json: flag('--json'), worktree: val('--worktree', process.cwd()), cap: Number(val('--cap', CAP)) };
     if (flag('--loop')) {
