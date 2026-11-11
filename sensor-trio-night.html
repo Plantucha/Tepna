@@ -4818,6 +4818,35 @@ function __mkWorker(name){ return new Worker(URL.createObjectURL(new Blob([__WSR
    A metric with no registry entry defaults to advanced/experimental and logs
    a dev warning (forces coverage — brief §1). */
   var _warned = {};
+
+  /* ── A DECLARATION THE ENGINE OVERRULES IS REPORTED, never replaced in silence ──────────────
+     The branch below warns when a registry holds no entry at all, and it names the default it
+     applies. A present value outside the published vocabulary reached that same default through
+     the normalising branch with NO warning, so a node's declaration and the published value could
+     disagree with no symptom on either side. That silence is what let 20 OxyDex `depth: 'secondary'`
+     declarations drift unseen (ledger row
+     2026-11-08-twenty-oxydex-depths-declare-a-value-the-engine-replaces-in-silence; the 20
+     declarations themselves landed in #4669, and the suite group `registry · depth · vocabulary`
+     refuses a new one).
+     An ABSENT field keeps its quiet default. The row is about a declaration that disagrees with its
+     publication, and a registry that states nothing states no disagreement.
+     The key joins the id and the field with `::` and never a NUL byte: one NUL makes this file read
+     as binary to the shell's grep wrapper, which is how `manifest-gate.js` became unsearchable.
+     `accepted` is computed by the caller, because the two fields test their vocabularies
+     differently — `DEPTHS` is an array and `EVIDENCE` is a map. */
+  function _declared(id, field, declared, accepted, fallback) {
+    if (accepted) return declared;
+    if (declared != null) {
+      var k = id + '::' + field;
+      if (!_warned[k]) {
+        _warned[k] = true;
+        try {
+          console.warn('[MetricRegistry] "' + id + '" declares ' + field + ':' + String(declared) + ' outside the published vocabulary \u2014 publishing ' + field + ':' + fallback);
+        } catch {}
+      }
+    }
+    return fallback;
+  }
   function entry(registry, id) {
     var r = (registry && registry[id]) || null;
     if (!r) {
@@ -4834,8 +4863,8 @@ function __mkWorker(name){ return new Worker(URL.createObjectURL(new Blob([__WSR
       label: r.label != null ? r.label : id,
       unit: r.unit != null ? r.unit : '',
       goodDirection: r.goodDirection || r.good || 'up',
-      depth: DEPTHS.indexOf(r.depth) >= 0 ? r.depth : 'advanced',
-      evidence: EVIDENCE[r.evidence] ? r.evidence : 'experimental',
+      depth: _declared(id, 'depth', r.depth, DEPTHS.indexOf(r.depth) >= 0, 'advanced'),
+      evidence: _declared(id, 'evidence', r.evidence, !!EVIDENCE[r.evidence], 'experimental'),
       cite: r.cite || ''
     };
   }
