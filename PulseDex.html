@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="8462b01b452a" data-compute-hash="dfa407d8e857"><head>
+<html lang="en" data-manifest-hash="07f091f6b1e9" data-compute-hash="db85b0c17553"><head>
 <!--
   PulseDex.src.html — Tepna
   Copyright 2026 Michal Planicka
@@ -9,7 +9,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-1guj4HFcatABnfRfnxeGisCEql9GXUHFLGRjoSG++hU=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-44/qr38MNiLBn5DNmKG/WtoE9Ur2OqhHUfSsGpB6SQg=' 'sha256-4KsRTgVuaYcMUNL8LhUau/rNzFP6NRbvBy2QbxNGFzw=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8oJCTPzPyGhMh6+GnB1w5gTsNYWOhPvSI1G8MwXjCHg=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DQbtdpqLddlv4j/hJzsWo7QMTThZW+feswRtrFG+4JU=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QU1eFIpXtk89h7OawHFWXJry6pEr0cw5i0Q08kGZz88=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-R6Dc/xXQzYFveWsVfbGSg8lpp98pG2dIwLNGGu4Pc04=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-sH2zcem3XO98hxUUreAPps78dztWHR1+8dPrGCperK0=' 'sha256-yPhlbrc1helUSpSqkbQna0IUysTjat9bRsoryaqXy3A='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-1guj4HFcatABnfRfnxeGisCEql9GXUHFLGRjoSG++hU=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-44/qr38MNiLBn5DNmKG/WtoE9Ur2OqhHUfSsGpB6SQg=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8oJCTPzPyGhMh6+GnB1w5gTsNYWOhPvSI1G8MwXjCHg=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DQbtdpqLddlv4j/hJzsWo7QMTThZW+feswRtrFG+4JU=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-HAXbchwkH2w0sxN5WvjWCMLbxsfGGclNPzL9K/ePBeM=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QU1eFIpXtk89h7OawHFWXJry6pEr0cw5i0Q08kGZz88=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-R6Dc/xXQzYFveWsVfbGSg8lpp98pG2dIwLNGGu4Pc04=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-sH2zcem3XO98hxUUreAPps78dztWHR1+8dPrGCperK0=' 'sha256-yPhlbrc1helUSpSqkbQna0IUysTjat9bRsoryaqXy3A='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>PulseDex — Raw RR Analyzer · v2.31.0</title>
@@ -8115,26 +8115,39 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
     for (let kf = 0; kf < nfFull; kf++) {
       const f = fLo + kf * df,
         w = 2 * Math.PI * f;
+      /* ONE PASS PER BIN. `sin(2wt)` and `cos(2wt)` come from the double-angle identities on the
+         same `sin(wt)`/`cos(wt)` this loop already needs, and the tau-shifted sums come back from the
+         angle-difference identities after the loop. So the bin costs two trig calls per sample
+         instead of four, over one pass instead of two. The algebra is exact, so only the last bits of
+         the sums move. Residue 2026-11-08-lomb-scargle-makes-two-trig-passes-per-bin-and-sample. */
       let s2 = 0,
-        c2 = 0;
+        c2 = 0,
+        xC = 0,
+        xS = 0,
+        ccSum = 0,
+        ssSum = 0,
+        scSum = 0;
       for (let i = 0; i < N; i++) {
-        s2 += Math.sin(2 * w * t[i]);
-        c2 += Math.cos(2 * w * t[i]);
+        const wt0 = w * t[i],
+          cw0 = Math.cos(wt0),
+          sw0 = Math.sin(wt0);
+        s2 += 2 * sw0 * cw0; // sin(2wt)
+        c2 += cw0 * cw0 - sw0 * sw0; // cos(2wt)
+        xC += x[i] * cw0;
+        xS += x[i] * sw0;
+        ccSum += cw0 * cw0;
+        ssSum += sw0 * sw0;
+        scSum += sw0 * cw0;
       }
       const tau = Math.atan2(s2, c2) / (2 * w);
-      let nC = 0,
-        nS = 0,
-        dC = 0,
-        dS = 0;
-      for (let i = 0; i < N; i++) {
-        const wt = w * (t[i] - tau),
-          cw = Math.cos(wt),
-          sw = Math.sin(wt);
-        nC += x[i] * cw;
-        dC += cw * cw;
-        nS += x[i] * sw;
-        dS += sw * sw;
-      }
+      /* cos(w(t - tau)) = cos(wt)*ct + sin(wt)*st and sin(w(t - tau)) = sin(wt)*ct - cos(wt)*st,
+         which turns the four shifted sums into products of the unshifted ones. */
+      const ct = Math.cos(w * tau),
+        st = Math.sin(w * tau);
+      const nC = ct * xC + st * xS,
+        nS = ct * xS - st * xC,
+        dC = ct * ct * ccSum + 2 * ct * st * scSum + st * st * ssSum,
+        dS = ct * ct * ssSum - 2 * ct * st * scSum + st * st * ccSum;
       const P = 0.5 * ((nC * nC) / (dC || 1) + (nS * nS) / (dS || 1));
       const e = P * df;
       tpFull += e; // every evaluated bin — the Parseval denominator

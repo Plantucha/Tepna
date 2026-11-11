@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="cfb7d1396136" data-compute-hash="e2c32efd3c86"><head>
+<html lang="en" data-manifest-hash="0c9d7d768d0e" data-compute-hash="82a57a3d8bd5"><head>
 <!--
   OverDex.html — Tepna
   Copyright 2026 Michal Planicka
@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/DnE9XmMuQAgOpzjl/0o9V9w5hh0bdf+ZSJ5HcC/gw0=' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4KsRTgVuaYcMUNL8LhUau/rNzFP6NRbvBy2QbxNGFzw=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8/sH7B7wN4nDqz11oZWLoOg8SkSuIQF0L4F7Nz3oxk8=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DkJMIke/oeAn5D/73OWQ4sM6DEkOlbGJANo7P3FHILA=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-Ow3WC+A7bU/F/dZPsKQ/TOo3nkpdBJCA7jtrQ24dPug=' 'sha256-QU1eFIpXtk89h7OawHFWXJry6pEr0cw5i0Q08kGZz88=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-R6Dc/xXQzYFveWsVfbGSg8lpp98pG2dIwLNGGu4Pc04=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-XeM139aCzQDSzEaQuQBVa+zEhnOSgXP/4pqlC0h9wO4=' 'sha256-dgJY/SRoyJ6GnIMF2h+gidz3lp4uPUKCbL0PXtKVmU4=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-kryaRysk2VcK4nRAhaqFOMDUukjwkDR8WaOUc3fNkcY=' 'sha256-mBYm62Y+mqnhe5DkYNAGu2bkZmIfXpkUo6noIaU/RzM=' 'sha256-oH7lhnTrlkQhQ9f9PuKw7Wwq8UnyptMMWqHMeBGouU8=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-uS0BO9FA6T7Ej0PgYdFgmhKAD7wWWUv6IRvThTzY6lc=' 'sha256-wK9fP+fYfi661IypDOgrAoxGZS8mGJfe9l/9288cTZQ=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/DnE9XmMuQAgOpzjl/0o9V9w5hh0bdf+ZSJ5HcC/gw0=' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8/sH7B7wN4nDqz11oZWLoOg8SkSuIQF0L4F7Nz3oxk8=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DkJMIke/oeAn5D/73OWQ4sM6DEkOlbGJANo7P3FHILA=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HAXbchwkH2w0sxN5WvjWCMLbxsfGGclNPzL9K/ePBeM=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-Ow3WC+A7bU/F/dZPsKQ/TOo3nkpdBJCA7jtrQ24dPug=' 'sha256-QU1eFIpXtk89h7OawHFWXJry6pEr0cw5i0Q08kGZz88=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-R6Dc/xXQzYFveWsVfbGSg8lpp98pG2dIwLNGGu4Pc04=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-WzBr6EKLqAjW7EwqbZUhsDrzfhP2IA7naPBknkKXDSo=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-XeM139aCzQDSzEaQuQBVa+zEhnOSgXP/4pqlC0h9wO4=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-kryaRysk2VcK4nRAhaqFOMDUukjwkDR8WaOUc3fNkcY=' 'sha256-msTW+K3Nr8EkBLtJ3IUeMa89XET152+xpGXg/z9u8v0=' 'sha256-oH7lhnTrlkQhQ9f9PuKw7Wwq8UnyptMMWqHMeBGouU8=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-uS0BO9FA6T7Ej0PgYdFgmhKAD7wWWUv6IRvThTzY6lc=' 'sha256-wK9fP+fYfi661IypDOgrAoxGZS8mGJfe9l/9288cTZQ=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -28385,26 +28385,39 @@ __exports.HRVDex = window.HRVDex;
     for (let kf = 0; kf < nfFull; kf++) {
       const f = fLo + kf * df,
         w = 2 * Math.PI * f;
+      /* ONE PASS PER BIN. `sin(2wt)` and `cos(2wt)` come from the double-angle identities on the
+         same `sin(wt)`/`cos(wt)` this loop already needs, and the tau-shifted sums come back from the
+         angle-difference identities after the loop. So the bin costs two trig calls per sample
+         instead of four, over one pass instead of two. The algebra is exact, so only the last bits of
+         the sums move. Residue 2026-11-08-lomb-scargle-makes-two-trig-passes-per-bin-and-sample. */
       let s2 = 0,
-        c2 = 0;
+        c2 = 0,
+        xC = 0,
+        xS = 0,
+        ccSum = 0,
+        ssSum = 0,
+        scSum = 0;
       for (let i = 0; i < N; i++) {
-        s2 += Math.sin(2 * w * t[i]);
-        c2 += Math.cos(2 * w * t[i]);
+        const wt0 = w * t[i],
+          cw0 = Math.cos(wt0),
+          sw0 = Math.sin(wt0);
+        s2 += 2 * sw0 * cw0; // sin(2wt)
+        c2 += cw0 * cw0 - sw0 * sw0; // cos(2wt)
+        xC += x[i] * cw0;
+        xS += x[i] * sw0;
+        ccSum += cw0 * cw0;
+        ssSum += sw0 * sw0;
+        scSum += sw0 * cw0;
       }
       const tau = Math.atan2(s2, c2) / (2 * w);
-      let nC = 0,
-        nS = 0,
-        dC = 0,
-        dS = 0;
-      for (let i = 0; i < N; i++) {
-        const wt = w * (t[i] - tau),
-          cw = Math.cos(wt),
-          sw = Math.sin(wt);
-        nC += x[i] * cw;
-        dC += cw * cw;
-        nS += x[i] * sw;
-        dS += sw * sw;
-      }
+      /* cos(w(t - tau)) = cos(wt)*ct + sin(wt)*st and sin(w(t - tau)) = sin(wt)*ct - cos(wt)*st,
+         which turns the four shifted sums into products of the unshifted ones. */
+      const ct = Math.cos(w * tau),
+        st = Math.sin(w * tau);
+      const nC = ct * xC + st * xS,
+        nS = ct * xS - st * xC,
+        dC = ct * ct * ccSum + 2 * ct * st * scSum + st * st * ssSum,
+        dS = ct * ct * ssSum - 2 * ct * st * scSum + st * st * ccSum;
       const P = 0.5 * ((nC * nC) / (dC || 1) + (nS * nS) / (dS || 1));
       const e = P * df;
       tpFull += e; // every evaluated bin — the Parseval denominator
@@ -36487,26 +36500,39 @@ __exports.GlucoDex = window.GlucoDex;
       totalFull = 0; // full-support total — the Parseval denominator
     for (let f = fmin; f <= fCal; f += df) {
       const w = 2 * Math.PI * f;
+      /* ONE PASS PER BIN. `sin(2wt)` and `cos(2wt)` come from the double-angle identities on the
+         same `sin(wt)`/`cos(wt)` this loop already needs, and the tau-shifted sums come back from the
+         angle-difference identities after the loop. So the bin costs two trig calls per sample
+         instead of four, over one pass instead of two. The algebra is exact, so only the last bits of
+         the sums move. Residue 2026-11-08-lomb-scargle-makes-two-trig-passes-per-bin-and-sample. */
       let ss = 0,
-        sc = 0;
+        sc = 0,
+        yC = 0,
+        yS = 0,
+        ccSum = 0,
+        ssSum = 0,
+        scSum = 0;
       for (let i = 0; i < t.length; i++) {
-        ss += Math.sin(2 * w * t[i]);
-        sc += Math.cos(2 * w * t[i]);
+        const wt0 = w * t[i],
+          cw0 = Math.cos(wt0),
+          sw0 = Math.sin(wt0);
+        ss += 2 * sw0 * cw0; // sin(2wt)
+        sc += cw0 * cw0 - sw0 * sw0; // cos(2wt)
+        yC += y[i] * cw0;
+        yS += y[i] * sw0;
+        ccSum += cw0 * cw0;
+        ssSum += sw0 * sw0;
+        scSum += sw0 * cw0;
       }
       const tau = Math.atan2(ss, sc) / (2 * w);
-      let c1 = 0,
-        c2 = 0,
-        s1 = 0,
-        s2 = 0;
-      for (let i = 0; i < t.length; i++) {
-        const wt = w * (t[i] - tau);
-        const co = Math.cos(wt),
-          si = Math.sin(wt);
-        c1 += y[i] * co;
-        c2 += co * co;
-        s1 += y[i] * si;
-        s2 += si * si;
-      }
+      /* cos(w(t - tau)) = cos(wt)*ct + sin(wt)*st and sin(w(t - tau)) = sin(wt)*ct - cos(wt)*st,
+         which turns the four shifted sums into products of the unshifted ones. */
+      const ct = Math.cos(w * tau),
+        st = Math.sin(w * tau);
+      const c1 = ct * yC + st * yS,
+        s1 = ct * yS - st * yC,
+        c2 = ct * ct * ccSum + 2 * ct * st * scSum + st * st * ssSum,
+        s2 = ct * ct * ssSum - 2 * ct * st * scSum + st * st * ccSum;
       const P = 0.5 * ((c1 * c1) / (c2 || 1e-9) + (s1 * s1) / (s2 || 1e-9));
       const pw = P * df;
       totalFull += pw; // every evaluated bin — the Parseval denominator
@@ -42458,26 +42484,39 @@ __exports.PpgDex = window.PpgDex;
     for (let kf = 0; kf < nfFull; kf++) {
       const f = fLo + kf * df,
         w = 2 * Math.PI * f;
+      /* ONE PASS PER BIN. `sin(2wt)` and `cos(2wt)` come from the double-angle identities on the
+         same `sin(wt)`/`cos(wt)` this loop already needs, and the tau-shifted sums come back from the
+         angle-difference identities after the loop. So the bin costs two trig calls per sample
+         instead of four, over one pass instead of two. The algebra is exact, so only the last bits of
+         the sums move. Residue 2026-11-08-lomb-scargle-makes-two-trig-passes-per-bin-and-sample. */
       let s2 = 0,
-        c2 = 0;
+        c2 = 0,
+        xC = 0,
+        xS = 0,
+        ccSum = 0,
+        ssSum = 0,
+        scSum = 0;
       for (let i = 0; i < N; i++) {
-        s2 += Math.sin(2 * w * t[i]);
-        c2 += Math.cos(2 * w * t[i]);
+        const wt0 = w * t[i],
+          cw0 = Math.cos(wt0),
+          sw0 = Math.sin(wt0);
+        s2 += 2 * sw0 * cw0; // sin(2wt)
+        c2 += cw0 * cw0 - sw0 * sw0; // cos(2wt)
+        xC += x[i] * cw0;
+        xS += x[i] * sw0;
+        ccSum += cw0 * cw0;
+        ssSum += sw0 * sw0;
+        scSum += sw0 * cw0;
       }
       const tau = Math.atan2(s2, c2) / (2 * w);
-      let nC = 0,
-        nS = 0,
-        dC = 0,
-        dS = 0;
-      for (let i = 0; i < N; i++) {
-        const wt = w * (t[i] - tau),
-          cw = Math.cos(wt),
-          sw = Math.sin(wt);
-        nC += x[i] * cw;
-        dC += cw * cw;
-        nS += x[i] * sw;
-        dS += sw * sw;
-      }
+      /* cos(w(t - tau)) = cos(wt)*ct + sin(wt)*st and sin(w(t - tau)) = sin(wt)*ct - cos(wt)*st,
+         which turns the four shifted sums into products of the unshifted ones. */
+      const ct = Math.cos(w * tau),
+        st = Math.sin(w * tau);
+      const nC = ct * xC + st * xS,
+        nS = ct * xS - st * xC,
+        dC = ct * ct * ccSum + 2 * ct * st * scSum + st * st * ssSum,
+        dS = ct * ct * ssSum - 2 * ct * st * scSum + st * st * ccSum;
       const P = 0.5 * ((nC * nC) / (dC || 1) + (nS * nS) / (dS || 1));
       const e = P * df;
       tpFull += e; // every evaluated bin — the Parseval denominator
