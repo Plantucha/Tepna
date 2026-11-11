@@ -28,6 +28,10 @@
  * THE FOUR FINDINGS, each a reading of systemd's own state, never a guess:
  *   failed   — the service a timer activates is in the `failed` state (its last run did not succeed).
  *   stopped  — an ENABLED timer has no next elapse: it will never fire again (corpus-tier).
+ *              Not while the timer's own service RUNS: systemd arms the next elapse only when the
+ *              service exits, so a running timer (`SubState=running`) holds `next: null` for the whole
+ *              run. On 2026-11-10 that read `tepna-unit-health.timer` as stopped on each of its own
+ *              runs, and the walker and board timers whenever a run overlapped the sample (board #5401).
  *   overdue  — the timer's last trigger is older than 2× its own interval + 5 min. The interval is
  *              `next − last`, read from systemd, so a calendar timer needs no parsing here.
  *              (disk-watch on 2026-10-31: `OnUnitActiveSec` with no next elapse since 10-18.)
@@ -53,13 +57,14 @@ const BOARD_THREAD = '7';
 
 /** One timer row (systemctl list-timers --output=json) plus its states → zero or one finding. Pure.
  *  `t` = { unit, activates, last, next } in µs (0 or null = absent); `s` = { serviceState, enabled,
- *  loadedSinceUs }; `now` in µs. */
+ *  loadedSinceUs, timerSub }; `timerSub` is the timer's own SubState; `now` in µs. */
 export function judgeTimer(t, s, now) {
   const svc = t.activates || t.unit.replace(/\.timer$/, '.service');
   if (s.serviceState === 'failed') return { unit: svc, kind: 'failed', detail: `${svc} is in the failed state` };
   if (!s.enabled) return null;
   const last = Number(t.last) || 0;
   const next = Number(t.next) || 0;
+  if (!next && s.timerSub === 'running') return null;
   if (!next) return { unit: t.unit, kind: 'stopped', detail: `${t.unit} is enabled and has no next elapse` };
   if (!last) {
     if (s.loadedSinceUs && now - s.loadedSinceUs > NEVER_GRACE_US) return { unit: t.unit, kind: 'never', detail: `${t.unit} has never fired` };
@@ -129,6 +134,9 @@ export function selftest() {
   ok(judgeTimer(t(now - H / 2, now + H / 2), { ...on, serviceState: 'failed' }, now)?.kind === 'failed', 'a failed service is a finding, whatever the timer says');
   ok(judgeTimer(t(now - H / 2, now + H / 2), { ...on, serviceState: 'failed' }, now)?.unit === 'x.service', 'a failed finding names the service, not the timer');
   ok(judgeTimer(t(now - 11 * 24 * H, 0), on, now)?.kind === 'stopped', 'an enabled timer with no next elapse is stopped (corpus-tier)');
+  ok(judgeTimer(t(now - 60e6, null), { ...on, timerSub: 'running' }, now) === null, 'a timer whose service runs holds no next elapse and is not stopped (#5401)');
+  ok(judgeTimer(t(now - 11 * 24 * H, null), { ...on, timerSub: 'dead' }, now)?.kind === 'stopped', 'a dead timer with no next elapse is stopped (qwen-idle)');
+  ok(judgeTimer(t(now - 11 * 24 * H, null), { ...on, timerSub: 'elapsed' }, now)?.kind === 'stopped', 'an elapsed one-shot timer with no next elapse is stopped');
   ok(judgeTimer(t(now - 11 * 24 * H, 0), { ...on, enabled: false }, now) === null, 'a disabled timer is not a finding');
   ok(judgeTimer(t(now - 3 * H, now - 2 * H), on, now)?.kind === 'overdue', 'a timer three intervals late is overdue');
   ok(judgeTimer(t(now - 2 * H, now + 1), on, now) === null, 'a timer inside 2 intervals + slack is not overdue');
@@ -188,7 +196,7 @@ function readSystem() {
   for (const t of timers) {
     if (!t.unit) continue;
     const svc = t.activates || t.unit.replace(/\.timer$/, '.service');
-    const show = sysctl(['show', t.unit, '-p', 'UnitFileState', '-p', 'InactiveExitTimestampMonotonic', '-p', 'ActiveEnterTimestamp', '--timestamp=unix']) ?? '';
+    const show = sysctl(['show', t.unit, '-p', 'UnitFileState', '-p', 'InactiveExitTimestampMonotonic', '-p', 'ActiveEnterTimestamp', '-p', 'SubState', '--timestamp=unix']) ?? '';
     const prop = Object.fromEntries(
       show
         .split('\n')
@@ -201,7 +209,8 @@ function readSystem() {
       s: {
         serviceState: failedUnits.includes(svc) ? 'failed' : 'ok',
         enabled: prop.UnitFileState === 'enabled' || prop.UnitFileState === 'static',
-        loadedSinceUs: since ? Number(since[1]) * 1e6 : 0
+        loadedSinceUs: since ? Number(since[1]) * 1e6 : 0,
+        timerSub: prop.SubState || null
       }
     });
   }
