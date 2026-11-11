@@ -63,8 +63,25 @@ jobs:
           # work adds fonts and X font utilities and nothing the DOM assertions read. The fallback
           # therefore installs the browser without the OS packages and ANNOUNCES that it did, because a
           # font-less run must never read as a full one. A browser that still cannot install fails here.
-          if ! npx playwright install --with-deps chromium; then
-            echo "::warning title=Playwright OS deps unavailable::--with-deps could not install the OS font packages, so this run installed chromium alone. Text rendering may differ from a full run."
+          # THE BOUND, and it has its own measurement. Over the last 18 runs of each workflow (28 step
+          # instances, read 2026-11-11): a runner that reached the mirrors finished in 12 s to 18 s (6
+          # instances; the 2026-07-12 efficiency audit measured apt at 10.5 s for 9 packages). A runner
+          # that lost the mirror DNS sat in apt retries for 606 s to 611 s (19 instances), and one
+          # reached 1186 s, where `timeout-minutes: 20` killed the JOB (run 43047834492, head
+          # 593c99020): the fallback below was never reached and the gate examined nothing. So the apt
+          # wait, unbounded, can outlast the job. 120 s is about 6.7 times the measured healthy maximum
+          # and about one fifth of the degraded cluster, so a slow mirror still wins and a dead one
+          # fails fast. `timeout` signals playwright, and a sudo apt child can outlive it holding the
+          # dpkg lock; the fallback never calls apt, so that costs nothing here.
+          rc=0
+          timeout --kill-after=10 120 npx playwright install --with-deps chromium || rc=$?
+          if [ "$rc" != 0 ]; then
+            # `if ! cmd; then` would read `$?` as 0 here, because `!` negates the pipeline status.
+            if [ "$rc" = 124 ] || [ "$rc" = 137 ]; then
+              echo "::warning title=Playwright OS deps timed out::--with-deps did not finish inside 120 s, so this run installed chromium alone. Text rendering may differ from a full run."
+            else
+              echo "::warning title=Playwright OS deps unavailable::--with-deps could not install the OS font packages (exit $rc), so this run installed chromium alone. Text rendering may differ from a full run."
+            fi
             npx playwright install chromium
           fi
 
