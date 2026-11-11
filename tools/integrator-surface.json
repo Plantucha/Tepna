@@ -2,12 +2,13 @@
  "schema": "tepna.integrator-surface/1",
  "enumeratedWith": "top-level keys of integrator-dsp.js's fusion return object, plus every `_exp.<key>` assignment \u2014 read from SOURCE, because uploads/ is absent in a worktree and in CI",
  "seededFrom": "a render-mention scan of integrator-render.js on 2026-10-11; the SEED is derived, so the gate's first run proves nothing about today, only about drift from it",
+ "corrected": "2026-11-11: the 2026-10-11 seed scan counted a word in a COMMENT or a STRING as a render mention, so `bus` and `staging` were seeded `card` on prose alone \u2014 no Integrator surface reads `fusion.bus` or `fusion.staging`. Both now read `export-only`, and the gate asks for a read in blanked code.",
  "surfaces": {
   "anyOverlap": "card",
   "apnea": "card",
   "apneaTyping": "export-only",
   "autoGly": "card",
-  "bus": "card",
+  "bus": "export-only",
   "clockSkew": "export-only",
   "cvhrCorroboration": "export-only",
   "findings": "card",
@@ -25,7 +26,7 @@
   "positional": "card",
   "pulseCrossCheck": "export-only",
   "respiration": "export-only",
-  "staging": "card",
+  "staging": "export-only",
   "unmatched": "card",
   "window": "card"
  }
