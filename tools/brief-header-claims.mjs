@@ -22,6 +22,7 @@
  *   node tools/brief-header-claims.mjs --json           # one tepna.verdict/1
  *   node tools/brief-header-claims.mjs --write-baseline # freeze today's population
  *   node tools/brief-header-claims.mjs --selftest
+ *   node tools/brief-header-claims.mjs --measure        # partition the grandfathered debt (exit 0)
  *
  * ⚠️ WHY A RATCHET AND NOT A MANDATE. Measured 2026-10-17 over 563 briefs: 199 headers carry a
  * count-shaped assertion, 933 tuples. The extraction is NOT precise enough to mandate — in a 25-tuple
@@ -39,6 +40,7 @@
  */
 import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { execFileSync, execSync } from 'node:child_process';
+import { escapeRe } from './regex-escape-core.mjs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -99,13 +101,28 @@ export function sourcedValues(header) {
 }
 
 /** The count-shaped assertions in a header, after the fixed grammars and the tail stops. */
-export function countClaims(header) {
+/* THE MASKING STEP, FACTORED OUT so a measurement reads exactly what the extractor reads. A
+   partition built on the RAW header mislocates a tuple whose number and noun the mask JOINED: the
+   `§6` in `the 14 §6 claims` becomes a space, so `14 claims` exists only after masking. */
+export function maskFixed(header) {
   let h = String(header || '');
   for (const re of FIXED_GRAMMARS) h = h.replace(re, ' ');
+  return h;
+}
+
+export function countClaims(header) {
+  const h = maskFixed(header);
   const out = [];
   for (const m of h.matchAll(COUNT)) {
     if (TAIL_STOP.has(m[2].toLowerCase())) continue;
-    out.push({ tuple: `${m[1]} ${m[2]}`, value: m[1].toLowerCase() === 'zero' ? 0 : Number(m[1]) });
+    /* `noun` and `lead` are read by `partitionTuple` only. Both are positions in the MASKED text, so
+       a consumer that wants the author's own characters must go back to the raw header. */
+    out.push({
+      tuple: `${m[1]} ${m[2]}`,
+      value: m[1].toLowerCase() === 'zero' ? 0 : Number(m[1]),
+      noun: m[2],
+      lead: h.slice(Math.max(0, m.index - 2), m.index)
+    });
   }
   return out;
 }
@@ -154,6 +171,79 @@ export function baselineGrowth(before, after) {
     for (const t of tuples) if (!was.has(t)) added.push({ file, tuple: t });
   }
   return added;
+}
+
+/* A NOUN THAT NAMES NO THING. `TAIL_STOP` drops the word after a number when that word is a verb or
+   a function word, and these five slipped past it — measured as the WHOLE closed class of the frozen
+   baseline (9 of 747 tuples). They are NOT added to `TAIL_STOP`: correcting the extractor RE-KEYS a
+   grandfathered tuple, `baselineGrowth` refuses the append that re-keying needs, and the measurement
+   below is what prices that unit. */
+export const NON_NOUNS = new Set(['across', 'while', 'because', 'vs', 'the']);
+
+/** The residual class `count` is a real count assertion; the other four name no countable thing. */
+export const PARTITION_CLASSES = ['count', 'group-fragment', 'dash-bound', 'mask-joined', 'closed-noun'];
+
+/**
+ * WHICH OF THE FIVE SHAPES a located tuple is, by four rules stated before the measurement, each
+ * decidable from the raw header and the masked match. PURE.
+ *
+ * ORDER IS LOAD-BEARING. `mask-joined` is tested first, because a tuple the mask invented has no
+ * position in the author's text for the other three rules to read.
+ */
+export function partitionTuple(raw, c) {
+  const n = String(c.tuple).split(' ')[0];
+  const noun = String(c.noun || String(c.tuple).split(' ')[1] || '');
+  /* The metacharacter class has ONE home (`tools/regex-escape-core.mjs`), and a gate reds a copy. */
+  const literal = new RegExp(`(^|[^0-9])${n}\\s+${escapeRe(noun)}`);
+  if (!literal.test(String(raw || ''))) return 'mask-joined';
+  const lead = String(c.lead || '');
+  if (/\d,$/.test(lead)) return 'group-fragment';
+  if (/[-\u2013\u2014]$/.test(lead)) return 'dash-bound';
+  if (NON_NOUNS.has(noun.toLowerCase())) return 'closed-noun';
+  return 'count';
+}
+
+/**
+ * PARTITION THE GRANDFATHERED DEBT. Population is the BASELINE, never the headers: a count the
+ * baseline does not hold is `classify`'s business. `located + unlocated === baselineTuples` closes
+ * the arithmetic, and `unlocated` is the discharged set — a stamp reworded or sourced since the
+ * freeze. PURE, same `briefs` shape as `classify`.
+ */
+export function partition(briefs, baseline) {
+  const classes = Object.fromEntries(PARTITION_CLASSES.map((k) => [k, 0]));
+  const examples = Object.fromEntries(PARTITION_CLASSES.map((k) => [k, []]));
+  const byKey = new Map();
+  let mixed = 0;
+  for (const { file, text } of briefs) {
+    const header = statusHeader(text);
+    if (header == null) continue;
+    const base = new Set((baseline || {})[file] || []);
+    for (const c of countClaims(header)) {
+      if (!base.has(c.tuple)) continue;
+      const k = partitionTuple(header, c);
+      const key = `${file}\u0000${c.tuple}`;
+      /* ONE TUPLE, SEVERAL OCCURRENCES. The baseline deduplicates per file, so the partition must
+         too — and a tuple whose occurrences disagree is counted once and REPORTED, never averaged. */
+      if (byKey.has(key)) {
+        if (byKey.get(key) !== k) mixed += 1;
+        continue;
+      }
+      byKey.set(key, k);
+      classes[k] += 1;
+      if (examples[k].length < 6) examples[k].push({ file, tuple: c.tuple });
+    }
+  }
+  const baselineTuples = Object.values(baseline || {}).reduce((a, v) => a + v.length, 0);
+  const artifacts = PARTITION_CLASSES.filter((k) => k !== 'count').reduce((a, k) => a + classes[k], 0);
+  return { classes, examples, located: byKey.size, unlocated: baselineTuples - byKey.size, baselineTuples, artifacts, mixed };
+}
+
+/* THE MEASUREMENT'S OWN STATUS. An empty baseline is the goal state, and `PASS` over `checked: 0` is
+   invalid under the contract, so it reports NOT_APPLICABLE: it examined the population and the
+   criterion no longer binds. */
+export function measureStatus(p) {
+  if (!p || p.baselineTuples === 0) return 'NOT_APPLICABLE';
+  return p.located === 0 ? 'NOT_APPLICABLE' : 'SHORTFALL';
 }
 
 function readBriefs() {
@@ -241,8 +331,45 @@ export function selftest() {
   // ANTI-VACUITY: the population must be real, or a green says nothing.
   ok(classify([], {}).rows.length === 0, 'an empty corpus produces no rows, which main() treats as a failure rather than a pass');
 
+  /* THE PARTITION. Each class is pinned by a planted header AND a control of the same shape that
+     must stay a real `count` — a classifier with no control reports its own appetite. */
+  const part = (text, tuples) => partition([{ file: 'briefs/X-BRIEF.md', text: `**Status:** ${text}` }], { 'briefs/X-BRIEF.md': tuples });
+  for (const [text, tuples, want, ctl, ctlTuple, why] of [
+    [
+      'DONE — 8 survivors, not the 14 §6 claims',
+      ['14 claims'],
+      'mask-joined',
+      'DONE — the 14 claims stand',
+      '14 claims',
+      'a §-reference the mask removes JOINS a number to a noun the author never wrote beside it'
+    ],
+    ['DONE — `DETECT.csv` lives at 40,263 rows', ['263 rows'], 'group-fragment', 'DONE — 263 rows live', '263 rows', 'a thousands separator makes the tail of one number look like a count'],
+    ['IN-PROGRESS — (items 1–3 met)', ['3 met'], 'dash-bound', 'DONE — 3 met', '3 met', 'a range endpoint is not a count of the word after it'],
+    ['DONE — 0 across three nodes', ['0 across'], 'closed-noun', 'DONE — 0 nodes', '0 nodes', 'a function word TAIL_STOP misses names no countable thing']
+  ]) {
+    ok(part(text, tuples).classes[want] === 1, why);
+    const c = countClaims(`**Status:** ${ctl}`).find((x) => x.tuple === ctlTuple);
+    ok(c != null && partitionTuple(`**Status:** ${ctl}`, c) === 'count', `CONTROL · the same tuple written plainly stays a count (${want})`);
+  }
+  // THE ARITHMETIC CLOSES, and a baselined tuple that no longer appears is the DISCHARGED set.
+  const pm = part('DONE — 26 nights scored', ['26 nights', '99 ghosts']);
+  ok(pm.located === 1 && pm.unlocated === 1 && pm.baselineTuples === 2, 'located + unlocated === the baseline, and a vanished tuple is unlocated');
+  ok(pm.classes.count === 1 && pm.artifacts === 0, 'a plain count partitions as a count and adds nothing to the artifact total');
+  // A COUNT THE BASELINE DOES NOT HOLD IS OUT OF THIS POPULATION — it is the gate's violation, not debt.
+  ok(part('DONE — 26 nights scored', []).located === 0, 'an unbaselined count is outside the measured population');
+  ok(measureStatus(part('DONE — 26 nights scored', ['26 nights'])) === 'SHORTFALL', 'grandfathered debt that remains is a SHORTFALL');
+  ok(measureStatus(part('DONE — nothing numeric', [])) === 'NOT_APPLICABLE', 'an empty baseline is NOT_APPLICABLE, never a PASS over checked: 0');
+
   const line = fail.length ? `brief-header-claims selftest · ${fail.length} of ${ran} FAILED` : `all ${ran} selftests passed`;
   return { ok: fail.length === 0, ran, fail, line };
+}
+
+function headSha() {
+  try {
+    return execSync('git rev-parse --short HEAD', { encoding: 'utf-8' }).trim();
+  } catch {
+    return null;
+  }
 }
 
 function verdictOf({ status, res, growth, scanned, reason }) {
@@ -269,18 +396,46 @@ function verdictOf({ status, res, growth, scanned, reason }) {
     reason: status === 'PASS' ? null : reason,
     producedBy: {
       tool: 'tools/brief-header-claims.mjs',
-      commit: (() => {
-        try {
-          return execSync('git rev-parse --short HEAD', { encoding: 'utf-8' }).trim();
-        } catch {
-          return null;
-        }
-      })()
+      commit: headSha()
     },
     at: new Date().toISOString()
   });
   const chk = Verdict.validate(v);
   if (!chk.ok) throw new Error(`brief-header-claims produced an invalid verdict: ${chk.errors.join('; ')}`);
+  return v;
+}
+
+function measureVerdictOf(p, scanned) {
+  const status = measureStatus(p);
+  const v = Verdict.make({
+    gate: 'brief-header-claim-debt',
+    status,
+    population: { checked: p.located, eligible: p.baselineTuples, excluded: p.unlocated },
+    criterion: {
+      name: 'every_grandfathered_header_count_is_discharged',
+      threshold: 0,
+      unit: 'grandfathered tuples',
+      direction: 'eq'
+    },
+    result: {
+      briefsScanned: scanned,
+      grandfathered: p.baselineTuples,
+      discharged: p.unlocated,
+      realCounts: p.classes.count,
+      extractionArtifacts: p.artifacts,
+      byClass: p.classes,
+      occurrencesDisagreeing: p.mixed
+    },
+    evidence: ['tools/brief-header-claims.mjs', BASELINE_PATH],
+    reason:
+      status === 'NOT_APPLICABLE'
+        ? 'the baseline holds no located tuple, so there is no grandfathered debt to partition'
+        : `${p.classes.count} of ${p.baselineTuples} grandfathered tuple(s) are real count assertions that no artifact re-resolves; ${p.artifacts} name no countable thing`,
+    producedBy: { tool: 'tools/brief-header-claims.mjs', commit: headSha() },
+    at: new Date().toISOString()
+  });
+  const chk = Verdict.validate(v);
+  if (!chk.ok) throw new Error(`brief-header-claim-debt produced an invalid verdict: ${chk.errors.join('; ')}`);
   return v;
 }
 
@@ -336,6 +491,26 @@ function main() {
     process.stderr.write(`✕ brief-header-claims: ${BASELINE_PATH} is missing or invalid — the ratchet has no floor, which is not a pass\n`);
     process.exit(1);
   }
+  /* MEASURE, NEVER DECIDE. The row this answers asked how much the frozen 747 is worth, and an
+     extractor change cannot answer it: the ratchet refuses the baseline append that re-keying a
+     corrected tuple needs. So this mode reports and exits 0 — it is an instrument, and `npm run
+     check` keeps running the PASS/FAIL gate above. */
+  if (argv.includes('--measure')) {
+    const p = partition(briefs, baseline);
+    const v = measureVerdictOf(p, briefs.length);
+    if (!argv.includes('--json')) {
+      process.stdout.write(`brief-header-claim-debt · ${p.baselineTuples} grandfathered tuple(s), ${p.located} located, ${p.unlocated} discharged since the freeze\n`);
+      for (const k of PARTITION_CLASSES) {
+        const ex = p.examples[k].map((e) => `${e.tuple} (${e.file.replace('briefs/', '')})`).join(', ');
+        process.stdout.write(`  ${String(p.classes[k]).padStart(4)}  ${k.padEnd(15)}${ex ? ` e.g. ${ex}` : ''}\n`);
+      }
+      process.stdout.write(`  ${String(p.artifacts).padStart(4)}  name no countable thing; ${p.classes.count} are real count assertions\n`);
+      if (p.mixed) process.stdout.write(`  · ${p.mixed} tuple(s) have occurrences that disagree on their class\n`);
+    }
+    process.stdout.write(`${JSON.stringify(v, null, 1)}\n`);
+    process.exit(0);
+  }
+
   const res = classify(briefs, baseline);
 
   /* THE RATCHET'S OTHER HALF. Without this, appending to the baseline is the escape, and the gate
