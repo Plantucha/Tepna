@@ -1840,6 +1840,29 @@
         "INTEGRATOR-THREE-CORNERED-HAT-2026-07-02-BRIEF.md"
       ],
       "notes": ""
+    },
+    {
+      "version": "2.31.0",
+      "date": "2026-11-11",
+      "bump": "minor",
+      "name": "",
+      "manifestHashes": {
+        "ECGDex": "e1c99b1cdcc9",
+        "OxyDex": "aece12849250",
+        "PulseDex": "edbb52e3ed45",
+        "GlucoDex": "8ceb8b742dea",
+        "PpgDex": "605c1c357060",
+        "HRVDex": "a7c7ac92a71a",
+        "CPAPDex": "48bf7019cefd",
+        "Integrator": "bb7e173eab9b",
+        "MotionDex": "eb2c75b9e70b"
+      },
+      "briefs": [
+        "EEGDEX-BUILD-BRIEF.md",
+        "SECURITY-REMEDIATION-2026-07-11-BRIEF.md",
+        "INTEGRATOR-GAP-AWARE-OVERLAP-FOLLOWUPS-2026-07-28-BRIEF.md"
+      ],
+      "notes": ""
     }
   ]
 }

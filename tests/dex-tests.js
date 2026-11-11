@@ -25625,19 +25625,16 @@
         });
         return out;
       }
+      /* One pass over the entities, after the tags drop. Each `&…;` decodes once, so `&amp;lt;` reads as
+         `&lt;` and never as `<` (CodeQL js/double-escaping: the old chain decoded `&amp;` first). */
+      var DEC_NAMED = { amp: '&', lt: '<', gt: '>', plusmn: '\u00b1' };
       var dec = function (s) {
-        var t = String(s)
-          .replace(/&#x([0-9a-f]+);/gi, function (_, h) {
-            return String.fromCodePoint(parseInt(h, 16));
+        return dexDropAngles(String(s))
+          .replace(/&(#x[0-9a-f]+|#\d+|amp|lt|gt|plusmn);/gi, function (m, e) {
+            var k = e.toLowerCase();
+            if (k.charAt(0) !== '#') return DEC_NAMED[k] || m;
+            return String.fromCodePoint(k.charAt(1) === 'x' ? parseInt(k.slice(2), 16) : +k.slice(1));
           })
-          .replace(/&#(\d+);/g, function (_, d) {
-            return String.fromCodePoint(+d);
-          });
-        return dexDropAngles(t)
-          .replace(/&amp;/g, '&')
-          .replace(/&lt;/g, '<')
-          .replace(/&gt;/g, '>')
-          .replace(/&plusmn;/g, '\u00b1')
           .trim();
       };
 
@@ -34310,7 +34307,7 @@
 
       // (a) + (b): per .src.html
       srcNames.forEach(function (n) {
-        var markup = SRC[n].replace(/<script[\s\S]*?<\/script>/gi, ' ').replace(/<style[\s\S]*?<\/style>/gi, ' '); // a space, not '': the scan reads handlers, and a space keeps the tokens apart
+        var markup = SRC[n].replace(/<script\b[^>]*>[\s\S]*?<\/script[^>]*>/gi, ' ').replace(/<style\b[^>]*>[\s\S]*?<\/style[^>]*>/gi, ' '); // a space, not '': the scan reads handlers, and a space keeps the tokens apart
         var hit = markup.match(ON_MARKUP);
         T.ok(n + ' · no inline on*= handler in markup (converted to data-act)', !hit, hit ? hit[0] : '');
         var content = (SRC[n].match(/<meta[^>]*Content-Security-Policy[^>]*content="([^"]*)"/i) || ['', ''])[1];
