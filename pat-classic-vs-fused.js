@@ -572,7 +572,7 @@
     });
   }
   function drawFigs(m) {
-    if (typeof document === 'undefined') return;
+    if (typeof document === 'undefined' || typeof document.createElementNS !== 'function') return;
     var a = el('figSigma'),
       b = el('figWin');
     if (a) drawSigma(a, m);
@@ -713,7 +713,7 @@
         );
         out.push(card('coupled', pct(c.matchRate), '%', 'of the beats that could couple', C.ink, 'match'));
         out.push(card('beat-to-beat spread', num(c.residIQR), 'ms', 'IQR of each lag minus its local median', C.ink, 'resid'));
-        out.push(card('drift, p95 step (gated)', num(c.stepP95), 'ms', 'p95 step between adjacent 5-min bins — the gate reads this · range ' + num(c.driftRange) + ' ms', C.ink, 'drift'));
+        out.push(card('drift, p95 step (gated)', num(c.stepP95), 'ms', 'p95 step between 5-min bins, which the gate reads · range ' + num(c.driftRange) + ' ms', C.ink, 'drift'));
         out.push(
           card(
             'censored',
