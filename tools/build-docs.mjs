@@ -125,7 +125,7 @@ function hasNonPublic(html, dir) {
 }
 
 // ── PHASE 1 — page-body sync ────────────────────────────────────────────────
-const log = { copy: [], delink: [], preserve: [], asset: [], stale: [], missingRoot: [], assetNoTwin: [], stamp: [], meta: [] };
+const log = { copy: [], delink: [], preserve: [], asset: [], stale: [], missingRoot: [], assetNoTwin: [], stamp: [], meta: [], handVer: [] };
 
 // ── PHASE 0 — project roster-derived <head> discovery meta into the guide + content pages ────
 //   REPO-DISCOVERABILITY-FOLLOWUPS §5.3/§5.6. suite.manifest.json is the single source; this UPSERTS a
@@ -230,6 +230,22 @@ function withFooter(html) {
   return html; // a fragment with no </body> — nothing to anchor to, leave it
 }
 
+/* §📦 — NO VERSION IS HAND-TYPED. `withFooter` stamps the live version on every served page, so a
+   page that ALSO types `Tepna v1.0.0` into its own text shows two versions at once (Science and
+   Architecture on 2026-11-08, beside v2.28.0; 13 papers carried the same colophon). This returns the
+   hand-typed versions a reader would SEE: the stamped footer, comments, <style> and <script> are cut
+   first, because a CSS banner comment is not on the page. A version filled in by a script from
+   suite.manifest.json (papers.html's `#suiteVer`) splits `Tepna` from `v…` with a tag and is not read.
+   Each cut span becomes a space, never '': this READS text and sanitizes nothing, and a space cannot
+   join two halves into a new `<!--` or `<script` (CodeQL js/incomplete-multi-character-sanitization). */
+function handTypedVersions(html) {
+  const visible = String(html)
+    .replace(_VER_FOOTER_RE, ' ')
+    .replace(/<!--[\s\S]*?-->/g, ' ')
+    .replace(/<(style|script)\b[\s\S]*?<\/\1\s*>/gi, ' ');
+  return visible.match(/\bTepna\s+v\d+\.\d+\.\d+/g) || [];
+}
+
 function syncPage(rel) {
   const rootAbs = join(ROOT, rel);
   const docsAbs = join(DEPLOY, rel);
@@ -251,6 +267,7 @@ function syncPage(rel) {
       /* editorial divergence is expected; not counted stale */
     }
     const stamped = withFooter(cur); // the version footer still applies to a preserved twin
+    if (handTypedVersions(stamped).length) log.handVer.push('docs/' + rel);
     if (stamped !== cur) {
       if (CHECK) log.stale.push('docs/' + rel);
       else writeFileSync(docsAbs, stamped);
@@ -258,6 +275,7 @@ function syncPage(rel) {
     return;
   }
   desired = withFooter(hasNonPublic(root, dir) ? mechanicalDelink(root, dir) : root);
+  if (handTypedVersions(desired).length) log.handVer.push(rel);
   const cur = existsSync(docsAbs) ? readFileSync(docsAbs, 'utf8') : null;
   const kind = desired === root ? log.copy : log.delink;
   if (cur !== desired) {
@@ -513,6 +531,10 @@ for (const [rel] of stampRules) {
 if (LIST_OWNED) {
   for (const rel of Array.from(OWNED).sort()) console.log(rel.startsWith('docs/') ? rel : DEPLOY_REL + '/' + rel);
   process.exit(0);
+}
+if (log.handVer.length) {
+  console.error(`HAND-TYPED VERSION (${log.handVer.length}): ${log.handVer.join(', ')} — the stamped footer carries the version; delete the typed one (§📦)`);
+  if (CHECK) process.exit(1);
 }
 if (CHECK) {
   if (log.stale.length) {
