@@ -2543,7 +2543,23 @@ function readToolSources() {
        wrong*. `CITATION-ATTRIBUTION-FOLLOWUPS` itself trips four times on the very defects it fixed.
        Gating briefs would make the gate loudest exactly where the repo is doing its job.
    Generated bundles remain excluded: their text is a copy of the DSP's, so including them reports every
-   finding twice and names a file you must not edit. Node-lane only. */
+   finding twice and names a file you must not edit. Node-lane only.
+
+   ROOT `*.md` IN, decided 2026-11-11 (row 2026-11-11-the-citation-gate-skips-the-root-markdown-files).
+   The three surfaces above were settled by measurement and the root Markdown files were never named.
+   Silence about a surface reads as coverage. Measured at `6c5786da5` over all ten root `*.md` files:
+   two carry a DOI at all, and the other eight are now pinned against the drift that kept seven DOIs in
+   `DOCS-INDEX.md` until #4864 rewrote that file hours before this read.
+     · `CHANGELOG.md` OUT, measured rather than assumed: 4 author problems, and each one sits in the
+       release entry that RECORDS the fix of that same misattribution ("credited Straczkiewicz …
+       actually Brond"). That is the `briefs/` mechanism exactly. The file is also the generated human
+       view of the release ledger, so a red there asks a session to edit release history.
+     · THE REPO'S OWN ZENODO DEPOSIT is excluded as a DOI, never as a surface. `README.md`'s badge
+       names `10.5281/zenodo.22068939`, which is this software's deposit and not a paper, so the
+       citation ledger carries no author for it and never should. The set is READ FROM `CITATION.cff`,
+       the record CLAUDE.md §licensing makes authoritative, so a new version DOI is excluded only once
+       the repo records it there. An unreadable `CITATION.cff` leaves the set EMPTY and the DOI reds —
+       the gate states which of the two it read. */
 function readCitations() {
   const lp = join(ROOT, 'audits', 'CITATION-VERIFICATION-2026-08-05.json');
   if (!existsSync(lp)) return null;
@@ -2569,6 +2585,34 @@ function readCitations() {
     if (!/ Reference\.html$/.test(f) && !/^[^/]+\.js$/.test(f)) continue;
     add(f);
   }
+  /* Root Markdown, minus the one name the scope note measures out. The name is DECLARED so the gate can
+     judge the exclusion itself: a name whose file is gone is a stale exemption, and one whose file no
+     longer carries a DOI is a spent one. */
+  const ROOT_MD_OUT = ['CHANGELOG.md'];
+  const rootMdOut = ROOT_MD_OUT.map((f) => {
+    let text = null;
+    try {
+      text = readFileSync(join(ROOT, f), 'utf8');
+    } catch {
+      text = null;
+    }
+    return { file: f, present: text !== null, dois: text === null ? 0 : (text.match(/10\.\d{4,9}\//g) || []).length };
+  });
+  for (const f of readdirSync(ROOT).sort()) {
+    if (!/\.md$/.test(f) || ROOT_MD_OUT.includes(f)) continue;
+    add(f);
+  }
+  /* The repo's own deposit DOIs, read from the authoritative record rather than spelled here. A read
+     that fails says so through `selfSource: null`, and the gate reds rather than skipping a DOI. */
+  let selfDois = [];
+  let selfSource = null;
+  try {
+    const cff = readFileSync(join(ROOT, 'CITATION.cff'), 'utf8');
+    selfSource = 'CITATION.cff';
+    selfDois = [...new Set((cff.match(/10\.\d{4,9}\/[A-Za-z0-9._;:()/-]+/g) || []).map((d) => d.replace(/[.,;:]+$/, '')))];
+  } catch {
+    selfSource = null;
+  }
   /* papers/** (html+md) and docs/**.md — see the scope note above. Walked, not globbed, so a paper in
      a subdirectory cannot silently fall outside the gate. */
   const walk = (rel, keep) => {
@@ -2582,7 +2626,7 @@ function readCitations() {
   };
   walk('papers', /\.(html|md)$/);
   walk('docs', /\.md$/);
-  return { ledger, surfaces };
+  return { ledger, surfaces, rootMdOut, selfDois, selfSource };
 }
 
 /* WHAT BIOME ACTUALLY LOOKED AT — because for months it silently looked at everything except the
