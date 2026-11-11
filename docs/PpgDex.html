@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="7e921d6b3c3f" data-compute-hash="ae416baacd5f">
+<html lang="en" data-manifest-hash="605c1c357060" data-compute-hash="c1ef35b5c552">
 <head>
 <!--
   PpgDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-3IUQgcSOji2CeRMbcMgIbQ+j+8z6+T9s9DeZGqBO7KA=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DPgRvPDMmeqNwFLbH0km8C0jbh81Xjr+Q2hfM5sNLzU=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-NjntMXCQa7Ujm45zxhn5RagnUXecQAsomLdGhIqDXRg=' 'sha256-QU1eFIpXtk89h7OawHFWXJry6pEr0cw5i0Q08kGZz88=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-a30wD1q1DhXb/hp/9CiNJnGcfilKag1nrqd5UVk34sw=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-jzJnte+elEp/YL/dKPBjUNceuZl7x6OYEPLRBoCkuNA=' 'sha256-mBYm62Y+mqnhe5DkYNAGu2bkZmIfXpkUo6noIaU/RzM=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rCirk2YDG5hFUST54QihtO4S/eA0Q5IdiVoSV+cCE9U=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-3IUQgcSOji2CeRMbcMgIbQ+j+8z6+T9s9DeZGqBO7KA=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DPgRvPDMmeqNwFLbH0km8C0jbh81Xjr+Q2hfM5sNLzU=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-LKihkt3lY+hyaRu0COJI55MpvqNJgzHQsl72XrjTVMw=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-NjntMXCQa7Ujm45zxhn5RagnUXecQAsomLdGhIqDXRg=' 'sha256-QU1eFIpXtk89h7OawHFWXJry6pEr0cw5i0Q08kGZz88=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-a30wD1q1DhXb/hp/9CiNJnGcfilKag1nrqd5UVk34sw=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-jzJnte+elEp/YL/dKPBjUNceuZl7x6OYEPLRBoCkuNA=' 'sha256-mBYm62Y+mqnhe5DkYNAGu2bkZmIfXpkUo6noIaU/RzM=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rCirk2YDG5hFUST54QihtO4S/eA0Q5IdiVoSV+cCE9U=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>PpgDex — Raw Wrist-PPG Analyzer · v2.30.0</title>
@@ -5876,6 +5876,35 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
    A metric with no registry entry defaults to advanced/experimental and logs
    a dev warning (forces coverage — brief §1). */
   var _warned = {};
+
+  /* ── A DECLARATION THE ENGINE OVERRULES IS REPORTED, never replaced in silence ──────────────
+     The branch below warns when a registry holds no entry at all, and it names the default it
+     applies. A present value outside the published vocabulary reached that same default through
+     the normalising branch with NO warning, so a node's declaration and the published value could
+     disagree with no symptom on either side. That silence is what let 20 OxyDex `depth: 'secondary'`
+     declarations drift unseen (ledger row
+     2026-11-08-twenty-oxydex-depths-declare-a-value-the-engine-replaces-in-silence; the 20
+     declarations themselves landed in #4669, and the suite group `registry · depth · vocabulary`
+     refuses a new one).
+     An ABSENT field keeps its quiet default. The row is about a declaration that disagrees with its
+     publication, and a registry that states nothing states no disagreement.
+     The key joins the id and the field with `::` and never a NUL byte: one NUL makes this file read
+     as binary to the shell's grep wrapper, which is how `manifest-gate.js` became unsearchable.
+     `accepted` is computed by the caller, because the two fields test their vocabularies
+     differently — `DEPTHS` is an array and `EVIDENCE` is a map. */
+  function _declared(id, field, declared, accepted, fallback) {
+    if (accepted) return declared;
+    if (declared != null) {
+      var k = id + '::' + field;
+      if (!_warned[k]) {
+        _warned[k] = true;
+        try {
+          console.warn('[MetricRegistry] "' + id + '" declares ' + field + ':' + String(declared) + ' outside the published vocabulary \u2014 publishing ' + field + ':' + fallback);
+        } catch {}
+      }
+    }
+    return fallback;
+  }
   function entry(registry, id) {
     var r = (registry && registry[id]) || null;
     if (!r) {
@@ -5892,8 +5921,8 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       label: r.label != null ? r.label : id,
       unit: r.unit != null ? r.unit : '',
       goodDirection: r.goodDirection || r.good || 'up',
-      depth: DEPTHS.indexOf(r.depth) >= 0 ? r.depth : 'advanced',
-      evidence: EVIDENCE[r.evidence] ? r.evidence : 'experimental',
+      depth: _declared(id, 'depth', r.depth, DEPTHS.indexOf(r.depth) >= 0, 'advanced'),
+      evidence: _declared(id, 'evidence', r.evidence, !!EVIDENCE[r.evidence], 'experimental'),
       cite: r.cite || ''
     };
   }
