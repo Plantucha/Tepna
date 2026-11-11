@@ -251,6 +251,16 @@ footer{border-top:1px solid var(--border);padding:34px 0 56px;margin-top:24px;}
   html input[type="radio"] { width: 24px; height: 24px; }
 }
 /* END TOUCH-FLOOR-BLOCK */
+/* EXPORT-BAR-BLOCK v1 — canonical copy: ans-design.css §30. Every mirror is byte-identical
+   (tests/dex-tests.js pins that). A page that links or inlines the sheet inherits it. */
+@media (pointer: coarse) {
+  html #exportBar { flex-direction: row !important; flex-wrap: nowrap !important; overflow-x: auto !important; overflow-y: hidden !important; justify-content: flex-start !important; }
+  html #exportBar > *, html #exportBar .eb-grp > * { flex: 0 0 auto !important; }
+  html #exportBar .eb-grp { flex-wrap: nowrap !important; }
+  html #exportBar { bottom: var(--dex-export-dock, 68px) !important; }
+  html .main-content, html .main-wrap, html #results { padding-bottom: calc(var(--dex-export-dock, 68px) + 80px) !important; }
+}
+/* END EXPORT-BAR-BLOCK */
 </style>
 </head>
 <body>

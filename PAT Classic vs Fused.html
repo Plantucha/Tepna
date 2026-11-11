@@ -2451,13 +2451,52 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
 }
 /* END TOUCH-FLOOR-BLOCK */
 
+/* ═══════════════════════
+   §30  EXPORT BAR ON A PHONE  (coarse pointer only)
+   ───────────────────────
+   Row `2026-11-08-the-export-bar-takes-a-fifth-of-a-phone-screen`. Measured
+   at 375 x 667 under mobile emulation, populated: the bar stood 183 to 250 px
+   tall, which is 27 to 38 % of the screen, because its 5 to 8 children WRAP
+   over three or four rows. §29's touch floor raised every row, so the bar
+   grew 31 to 50 px over the 115-to-200 px the July audit measured.
+
+   The fix keeps the 44 px targets and takes the wrapping away: ONE row that
+   scrolls sideways inside a container the viewport already bounds.
+
+   The wrapping lives in TWO places. The bar wraps its own children, and each
+   §28 `.eb-grp` inside it wraps again, which is what put a full-width
+   `.eb-extra` button on a row of its own. Both are held to one row here.
+   OxyDex adds a THIRD home: it turns the bar into a column at phone width,
+   which stacks its two groups whatever the wrapping says. §30 holds the row
+   direction as well, and its `html` element selector is what beats a per-app
+   `!important` rule that loads after the sheet.
+
+   The dock is a TOKEN, not a magic number. Each app docked its bar at a
+   hand-typed `bottom`, and OxyDex's 60 px sat under a phone nav 124 px tall,
+   so the bar covered 64 px of the nav buttons. `--dex-export-dock` defaults
+   to 68 px, which clears the 61-to-65 px navs; an app with a taller nav
+   declares its own. A browser-gate leg measures the overlap, so a nav that
+   grows reds instead of swallowing the bar.
+   ═══════════════════════ */
+/* EXPORT-BAR-BLOCK v1 — canonical copy: ans-design.css §30. Every mirror is byte-identical
+   (tests/dex-tests.js pins that). A page that links or inlines the sheet inherits it. */
+@media (pointer: coarse) {
+  html #exportBar { flex-direction: row !important; flex-wrap: nowrap !important; overflow-x: auto !important; overflow-y: hidden !important; justify-content: flex-start !important; }
+  html #exportBar > *, html #exportBar .eb-grp > * { flex: 0 0 auto !important; }
+  html #exportBar .eb-grp { flex-wrap: nowrap !important; }
+  html #exportBar { bottom: var(--dex-export-dock, 68px) !important; }
+  html .main-content, html .main-wrap, html #results { padding-bottom: calc(var(--dex-export-dock, 68px) + 80px) !important; }
+}
+/* END EXPORT-BAR-BLOCK */
+
 /* ════════════════════════════════════════════════════════════════════════
    END · ANS Design System v1.3.0
-   Total components: 29 sections · tokens + shell + primitives
+   Total components: 30 sections · tokens + shell + primitives
    + shared OxyDex ∩ HRVDex compositions (§26)
    + shared user-profile panel (§27)
    + unified export bar (§28)
    + touch floor under a coarse pointer (§29)
+   + export bar compaction on a phone (§30)
    Drift detection: this file's sha is injected into each HTML on sync.
    ════════════════════════════════════════════════════════════════════════ */
 

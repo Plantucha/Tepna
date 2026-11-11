@@ -784,8 +784,40 @@ const MOBILE_W = 375;
 const MOBILE_ORCHESTRATORS = ['Data Unifier.html', 'OverDex.html'];
 const MOBILE_PAGES = [...ManifestGate.MANIFEST_BUNDLES, ...MOBILE_ORCHESTRATORS, 'index.html'];
 const MOBILE_OVERFLOW_BASELINE = [];
+/* THE POPULATED STATE. Every assertion above reads an EMPTY shell, which draws few controls and
+   no results, so the worst layout on a phone is the one this leg could not see. Row
+   `2026-11-08-the-export-bar-takes-a-fifth-of-a-phone-screen`: measured at 375 x 667 under mobile
+   emulation, with the app populated, the export bar stood 183 to 250 px tall, which is 27 to 38 %
+   of the screen, because its 5 to 8 children WRAPPED over three or four rows. OxyDex docked its bar
+   at a hand-typed 60px under a phone nav 124 px tall and covered 64 px of the nav buttons.
+   ans-design.css §30 takes the wrapping away and docks the bar on `--dex-export-dock`.
+   THE CRITERION IS PRE-STATED: one row of 44 px targets plus its padding fits inside 96 px, and a
+   bar that docks correctly overlaps its nav by 0 px. The share of the screen is LOGGED, not
+   asserted — the rig and the CI runner fall back to different system faces, so a row's height
+   need not match across the two, and 96 px is the bound either way.
+   A page that draws no bar is COUNTED AND NAMED, never passed over (CLAUDE.md §∅): CPAPDex and
+   MotionDex draw none, which `briefs/EXPORT-PATH-UNREACHABLE-2026-08-01-BRIEF.md` §3 already
+   records. The floor below is the anti-vacuity proof — a run that measured fewer bars than that
+   constrained nothing. */
+const MOBILE_BAR_MAX_PX = 96;
+const MOBILE_BAR_SEEN_FLOOR = 7;
+/* WAIT FOR THE BAR, NEVER FOR A FIXED SPAN. The first form of this leg clicked `#genBtn` and slept
+   1500 ms. The rig drew all 7 bars inside that span and the CI runner drew 6, so the leg reded on
+   its own anti-vacuity floor with OxyDex in the absent list (run 42996603653). A fixed span measures
+   the HOST, not the layout. The poll below asks the page itself, every 250 ms, until the bar is
+   visible, and then settles for one frame budget.
+   MEASURED ON THE RIG, time from the click to a visible bar: HRVDex 6 ms, Integrator 15 ms,
+   GlucoDex 253 ms, PpgDex 549 ms, ECGDex 694 ms, PulseDex 947 ms, OxyDex 950 ms. OxyDex is the
+   slowest of the seven, which is the one the 1500 ms span lost on the runner. The same wait written
+   as `page.waitForFunction` timed out at 15000 ms on 4 of the 7 pages here, so the poll is an
+   explicit `evaluate`. A page that still draws none is named with the reason it drew none. */
+const MOBILE_BAR_DRAW_MS = 15000;
+const MOBILE_BAR_POLL_MS = 250;
+const MOBILE_BAR_SETTLE_MS = 400;
 
 async function gateMobileViewport() {
+  const barSeen = [];
+  const barAbsent = [];
   say(`▸ mobile-viewport · ${MOBILE_PAGES.length} pages at ${MOBILE_W} px, mobile emulation …`);
   const mctx = await browser.newContext({ viewport: { width: MOBILE_W, height: 667 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
   try {
@@ -803,6 +835,9 @@ async function gateMobileViewport() {
     for (const p of MOBILE_PAGES) {
       const page = await mctx.newPage();
       let m = null;
+      let bar = null;
+      let barWhy = 'the page did not render';
+      let barMs = null;
       try {
         await page.goto(`${BASE}/${encodeURI(p)}`, { waitUntil: 'load', timeout: 60000 });
         m = await page.evaluate((dev) => {
@@ -826,6 +861,68 @@ async function gateMobileViewport() {
           };
           return { iw: window.innerWidth, nOver: over.length, wide: leaves.slice(0, 3).map((o) => `${name(o.el)}(${Math.round(o.w)})`) };
         }, MOBILE_W);
+        /* POPULATE, THEN MEASURE. `#genBtn` draws the synthetic night every app ships; a page
+           without that button is named in the absent list below rather than skipped. */
+        const populated = await page.evaluate(() => {
+          const g = document.querySelector('#genBtn');
+          if (!g) return false;
+          g.click();
+          return true;
+        });
+        if (!populated) barWhy = 'it ships no #genBtn to draw a synthetic night';
+        if (populated) {
+          const t0 = Date.now();
+          let drawn = false;
+          while (Date.now() - t0 < MOBILE_BAR_DRAW_MS) {
+            drawn = await page.evaluate(() => {
+              for (const el of document.querySelectorAll('#exportBar, .export-bar')) {
+                const r = el.getBoundingClientRect();
+                if (r.width > 0 && r.height > 0) return true;
+              }
+              return false;
+            });
+            if (drawn) break;
+            await page.waitForTimeout(MOBILE_BAR_POLL_MS);
+          }
+          if (drawn) {
+            barMs = Date.now() - t0;
+            await page.waitForTimeout(MOBILE_BAR_SETTLE_MS);
+          } else {
+            barWhy = `no visible export bar within ${MOBILE_BAR_DRAW_MS} ms of the click`;
+          }
+        }
+        bar = await page.evaluate(() => {
+          const vis = (el) => {
+            if (!el) return null;
+            const r = el.getBoundingClientRect();
+            return r.width > 0 && r.height > 0 ? r : null;
+          };
+          const pick = (sel) => {
+            for (const el of document.querySelectorAll(sel)) {
+              const r = vis(el);
+              if (r) return { el, r };
+            }
+            return null;
+          };
+          const b = pick('#exportBar, .export-bar');
+          if (!b) return { h: null };
+          const n = pick('.mobile-nav, #mobileNav, nav.mobile-nav');
+          /* ROWS, not children: the defect is WRAPPING, so count the distinct top edges of the
+             visible children. One row is the fix; three or four rows is the row's measurement. */
+          const tops = new Set();
+          for (const c of b.el.children) {
+            const r = vis(c);
+            if (r) tops.add(Math.round(r.top));
+          }
+          return {
+            h: Math.round(b.r.height),
+            share: Math.round((b.r.height / window.innerHeight) * 1000) / 10,
+            rows: tops.size,
+            kids: b.el.children.length,
+            nav: n ? Math.round(n.r.height) : null,
+            overlap: n ? Math.max(0, Math.round(b.r.bottom - n.r.top)) : null
+          };
+        });
       } catch (e) {
         /* A page that did not render is COUNTED and named, never passed over (CLAUDE.md §∅). */
         FAILS.push(`mobile-viewport: ${p} did not render at ${MOBILE_W} px — ${((e && e.message) || String(e)).split('\n')[0]}`);
@@ -844,7 +941,26 @@ async function gateMobileViewport() {
         );
       if (m.iw === MOBILE_W && listed) FAILS.push(`mobile-viewport: ${p} now holds at ${MOBILE_W} px — delete it from MOBILE_OVERFLOW_BASELINE, which may only shrink`);
       if (m.iw < MOBILE_W) FAILS.push(`mobile-viewport: ${p} reads innerWidth ${m.iw} under a ${MOBILE_W} px device, which no layout produces — the emulation did not apply`);
+      if (!bar || bar.h === null) {
+        barAbsent.push(`${p} (${barWhy})`);
+        continue;
+      }
+      barSeen.push(p);
+      say(
+        `     export bar ${bar.h} px (${bar.share} % of the screen) · ${bar.rows} row(s) of ${bar.kids} child(ren) · nav ${bar.nav === null ? 'none' : `${bar.nav} px`} · overlap ${bar.overlap === null ? 'n/a' : `${bar.overlap} px`} · drawn after ${barMs} ms`
+      );
+      if (bar.h > MOBILE_BAR_MAX_PX)
+        FAILS.push(
+          `mobile-viewport: ${p} populated draws a ${bar.h} px export bar at ${MOBILE_W} x 667, ${bar.share} % of the screen, over ${bar.rows} row(s) of ${bar.kids} child(ren) — the floor is ${MOBILE_BAR_MAX_PX} px (ans-design.css §30)`
+        );
+      if (bar.overlap !== null && bar.overlap > 0)
+        FAILS.push(`mobile-viewport: ${p} populated docks its export bar over its own ${bar.nav} px phone nav by ${bar.overlap} px — raise --dex-export-dock for this app (ans-design.css §30)`);
     }
+    say(`   · export bar · ${barSeen.length} page(s) measured${barAbsent.length ? `, ${barAbsent.length} drew none: ${barAbsent.join(', ')}` : ''}`);
+    if (barSeen.length < MOBILE_BAR_SEEN_FLOOR)
+      FAILS.push(
+        `mobile-viewport: only ${barSeen.length} page(s) drew an export bar at ${MOBILE_W} px against a floor of ${MOBILE_BAR_SEEN_FLOOR}, so the bar assertions constrained almost nothing — ${barAbsent.join(', ') || 'no page named'}`
+      );
   } finally {
     await mctx.close();
   }

@@ -14826,15 +14826,18 @@
       T.ok('and the home carries importers rather than being an unused export', importers.length >= 3, importers.length + ' importer(s)');
     });
 
-    /* §TOUCH — the 44 px floor is ONE block with four byte-identical mirrors, and the mirrors exist
-       because four surfaces hold interactive controls and cannot link the shared sheet: PulseDex and
-       the two orchestrators style themselves, and index.html is served, not bundled. A floor written
-       only into ans-design.css leaves the WORST page uncovered — PulseDex measured 44 controls under
-       44 px at 375 px on 2026-11-11, the highest of the twelve pages. A mirror with no gate drifts,
-       so this group is that gate: the population is DERIVED from the source pages on disk, every
-       page must either link the sheet or carry the block, and every mirror must match the canonical
-       copy byte for byte. Row 2026-11-08-most-controls-sit-under-the-44-px-touch-floor. */
-    group('the 44 px touch floor is one block, mirrored byte-for-byte where the sheet cannot reach', 'ui · touch-floor · parity', function (T) {
+    /* §SHARED-CSS — a shared rule a per-app sheet cannot reach is ONE marked block with four
+       byte-identical mirrors, because four surfaces hold interactive controls and link no stylesheet:
+       PulseDex and the two orchestrators style themselves, and index.html is served, not bundled.
+       A rule written only into ans-design.css leaves those four uncovered. PulseDex measured 44
+       controls under the 44 px floor at 375 px on 2026-11-11, the worst of the twelve pages, and its
+       export bar stood 250 px tall, 37.5 % of a 667 px screen. A mirror with no gate drifts, so this
+       group is that gate. The BLOCKS table is the population: §29 the touch floor, §30 the export bar
+       compaction. The page population is DERIVED from the source pages on disk, every page must either
+       link the sheet or carry each block, and every mirror must match the canonical copy byte for byte.
+       Rows 2026-11-08-most-controls-sit-under-the-44-px-touch-floor and
+       2026-11-08-the-export-bar-takes-a-fifth-of-a-phone-screen. */
+    group('every marked shared block is mirrored byte-for-byte where the sheet cannot reach', 'ui · shared-css · parity', function (T) {
       /* THIS GROUP NEVER SKIPS. The browser realm's skip budget is a CEILING that may only shrink
          (tests/expected-skips.json `browserLane`), so a group that stands down in one lane costs
          the fleet a budget raise. Both lanes hold env.sources and env.srcHtml; only the node lane
@@ -14843,8 +14846,66 @@
       try {
         fs = require('fs');
       } catch (_) {}
-      var MARK_A = '/* TOUCH-FLOOR-BLOCK v1';
-      var MARK_B = '/* END TOUCH-FLOOR-BLOCK */';
+      /* THE TABLE IS THE POPULATION. A new marked block adds a row, and every leg below runs over
+         it. The markers are literal strings, so a renamed block reds rather than vanishing. */
+      var BLOCKS = [
+        {
+          section: '§29',
+          what: 'the 44 px touch floor',
+          a: '/* TOUCH-FLOOR-BLOCK v1',
+          b: '/* END TOUCH-FLOOR-BLOCK */',
+          content: [
+            [
+              'it states the 44 px floor rather than some other number',
+              function (c) {
+                return /min-height:\s*44px/.test(c) && /min-width:\s*44px/.test(c);
+              },
+              'WCAG 2.5.5 / Apple HIG 44 pt / Android 48 dp'
+            ],
+            [
+              'it beats a per-app rule on specificity, not on order',
+              function (c) {
+                return c.indexOf('html input[type="range"]') >= 0;
+              },
+              'three app style blocks redeclare input[type=range] height AFTER the sheet'
+            ]
+          ]
+        },
+        {
+          section: '§30',
+          what: 'the export bar compaction',
+          a: '/* EXPORT-BAR-BLOCK v1',
+          b: '/* END EXPORT-BAR-BLOCK */',
+          content: [
+            [
+              'it takes the wrapping away rather than shrinking the targets',
+              function (c) {
+                return /flex-wrap:\s*nowrap/.test(c) && /overflow-x:\s*auto/.test(c);
+              },
+              'at 375 px the bar wrapped its 5 to 8 children over three or four rows and stood 183 to 250 px tall'
+            ],
+            [
+              'it holds the row against the two other homes of the stacking',
+              (c) => /flex-direction:\s*row/.test(c) && c.indexOf('.eb-grp') >= 0,
+              'one app turns the bar into a column at phone width with !important, and each §28 .eb-grp wraps again inside it'
+            ],
+            [
+              'the dock is a token, so an app with a taller nav declares its own',
+              function (c) {
+                return c.indexOf('var(--dex-export-dock, 68px)') >= 0;
+              },
+              'OxyDex docked at a hand-typed 60px under a 124 px nav and covered 64 px of it'
+            ],
+            [
+              'it beats a per-app rule on specificity, not on order',
+              function (c) {
+                return c.indexOf('html #exportBar') >= 0;
+              },
+              'every app declares #exportBar with !important AFTER the sheet'
+            ]
+          ]
+        }
+      ];
       function readT(f) {
         if (!fs) return null;
         try {
@@ -14853,24 +14914,18 @@
           return null;
         }
       }
-      function blockOf(text) {
+      function blockOf(text, markA, markB) {
         if (typeof text !== 'string') return null;
-        var i = text.indexOf(MARK_A);
-        var j = text.indexOf(MARK_B);
+        var i = text.indexOf(markA);
+        var j = text.indexOf(markB);
         if (i < 0 || j < 0 || j < i) return null;
-        return text.slice(i, j + MARK_B.length);
+        return text.slice(i, j + markB.length);
       }
       var CANON = 'ans-design.css';
       var shells = env.srcHtml || {};
       var canonText = (env.sources || {})[CANON] || readT(CANON);
-      var canon = blockOf(canonText);
-      T.ok('the canonical block lives in ' + CANON + ' §29', !!canon, canon ? canon.length + ' bytes between the markers' : CANON + ': markers absent, or the sheet is unreadable in this lane');
-      if (!canon) return;
-      T.ok('it is scoped to a coarse pointer, so a mouse keeps the desktop layout', /@media \(pointer: coarse\)\s*\{/.test(canon), 'the block must open with @media (pointer: coarse)');
-      T.ok('it states the 44 px floor rather than some other number', /min-height:\s*44px/.test(canon) && /min-width:\s*44px/.test(canon), 'WCAG 2.5.5 / Apple HIG 44 pt / Android 48 dp');
-      T.ok('it beats a per-app rule on specificity, not on order', canon.indexOf('html input[type="range"]') >= 0, 'three app style blocks redeclare input[type=range] height AFTER the sheet');
       /* THE NODE LANE DERIVES ITS POPULATION FROM DISK, never a hand list: a new app that forgets
-         the floor must red there rather than pass over a list nobody extended. The browser realm
+         a block must red there rather than pass over a list nobody extended. The browser realm
          cannot enumerate a directory, so it reads the shells its runner wired — a hand-written
          list, which is why the derived read is the one CI depends on. */
       var pages, popSource;
@@ -14887,45 +14942,8 @@
         pages = Object.keys(shells).sort();
         popSource = 'browser lane · env.srcHtml (index.html and the built bundles are the node lane’s)';
       }
-      var inherits = [];
-      var mirrors = [];
-      var bad = [];
-      pages.forEach(function (f) {
-        var t = Object.prototype.hasOwnProperty.call(shells, f) ? shells[f] : readT(f);
-        if (typeof t !== 'string') {
-          bad.push(f + ': unreadable in this lane');
-          return;
-        }
-        var b = blockOf(t);
-        if (/<link[^>]+href="ans-design\.css"/.test(t)) {
-          inherits.push(f);
-          if (b !== null && b !== canon) bad.push(f + ': carries a mirror that differs from the canonical block');
-          return;
-        }
-        if (b === null) {
-          bad.push(f + ': links neither ans-design.css nor carries the touch-floor block');
-          return;
-        }
-        if (b !== canon) {
-          bad.push(f + ': mirror differs from the canonical block by ' + Math.abs(b.length - canon.length) + ' byte(s)');
-          return;
-        }
-        mirrors.push(f);
-      });
-      T.eq('every source page either links the sheet or mirrors the block', bad.join('; '), '');
-      /* ANTI-VACUITY — both branches must be populated, or this group proves nothing. The mirror
-         floor is 3 because index.html is the node lane's fourth. */
-      T.ok('the sheet-linking branch is populated', inherits.length >= 9, inherits.length + ' page(s) inherit §29 (' + popSource + '): ' + inherits.join(' '));
-      T.ok('the mirror branch is populated', mirrors.length >= 3, mirrors.length + ' page(s) mirror it: ' + mirrors.join(' '));
-      T.ok('the population covers every source shell', pages.length >= 12, pages.length + ' page(s) examined · ' + popSource);
-      if (!fs) return;
-      T.ok(
-        'the node lane also examines the served landing page',
-        pages.indexOf('index.html') >= 0 && mirrors.indexOf('index.html') >= 0,
-        'index.html carries no <link> to the sheet, so it owes a mirror'
-      );
       /* AND THE BLOCK MUST SURVIVE THE BUILD. A mirror in a .src.html that the bundler drops is a
-         floor nobody gets; the built bundle is what a reader opens. */
+         rule nobody gets; the built bundle is what a reader opens. */
       var built = [
         'ECGDex.html',
         'OxyDex.html',
@@ -14940,16 +14958,72 @@
         'Data Unifier.html'
       ];
       T.eq('the built list is the 11 owned bundles (CLAUDE.md §🔏 ownedBundles)', built.length, 11);
-      var missing = [];
-      built.forEach(function (f) {
-        var t = readT(f);
-        if (typeof t !== 'string') {
-          missing.push(f + ': unreadable');
-          return;
-        }
-        if (t.indexOf(MARK_A) < 0) missing.push(f + ': built bundle carries no touch floor');
+      T.ok(
+        'the block table carries every marked block',
+        BLOCKS.length >= 2,
+        BLOCKS.length +
+          ' marked block(s): ' +
+          BLOCKS.map(function (B) {
+            return B.section;
+          }).join(' ')
+      );
+      T.ok('the page population covers every source shell', pages.length >= 12, pages.length + ' page(s) examined · ' + popSource);
+      BLOCKS.forEach(function (B) {
+        var tag = B.section + ' ' + B.what;
+        var canon = blockOf(canonText, B.a, B.b);
+        T.ok(tag + ': the canonical copy lives in ' + CANON, !!canon, canon ? canon.length + ' bytes between the markers' : CANON + ': markers absent, or the sheet is unreadable in this lane');
+        if (!canon) return;
+        T.ok(tag + ': it is scoped to a coarse pointer, so a mouse keeps the desktop layout', /@media \(pointer: coarse\)\s*\{/.test(canon), 'the block must open with @media (pointer: coarse)');
+        B.content.forEach(function (row) {
+          T.ok(tag + ': ' + row[0], row[1](canon), row[2]);
+        });
+        var inherits = [];
+        var mirrors = [];
+        var bad = [];
+        pages.forEach(function (f) {
+          var txt = Object.prototype.hasOwnProperty.call(shells, f) ? shells[f] : readT(f);
+          if (typeof txt !== 'string') {
+            bad.push(f + ': unreadable in this lane');
+            return;
+          }
+          var blk = blockOf(txt, B.a, B.b);
+          if (/<link[^>]+href="ans-design\.css"/.test(txt)) {
+            inherits.push(f);
+            if (blk !== null && blk !== canon) bad.push(f + ': carries a mirror that differs from the canonical copy');
+            return;
+          }
+          if (blk === null) {
+            bad.push(f + ': links neither ans-design.css nor carries ' + B.section);
+            return;
+          }
+          if (blk !== canon) {
+            bad.push(f + ': mirror differs from the canonical copy by ' + Math.abs(blk.length - canon.length) + ' byte(s)');
+            return;
+          }
+          mirrors.push(f);
+        });
+        T.eq(tag + ': every source page either links the sheet or mirrors it', bad.join('; '), '');
+        /* ANTI-VACUITY — both branches must be populated, or this block proves nothing. The mirror
+           floor is 3 because index.html is the node lane's fourth. */
+        T.ok(tag + ': the sheet-linking branch is populated', inherits.length >= 9, inherits.length + ' page(s) inherit it (' + popSource + '): ' + inherits.join(' '));
+        T.ok(tag + ': the mirror branch is populated', mirrors.length >= 3, mirrors.length + ' page(s) mirror it: ' + mirrors.join(' '));
+        if (!fs) return;
+        T.ok(
+          tag + ': the node lane also examines the served landing page',
+          pages.indexOf('index.html') >= 0 && mirrors.indexOf('index.html') >= 0,
+          'index.html carries no <link> to the sheet, so it owes a mirror'
+        );
+        var missing = [];
+        built.forEach(function (f) {
+          var txt = readT(f);
+          if (typeof txt !== 'string') {
+            missing.push(f + ': unreadable');
+            return;
+          }
+          if (txt.indexOf(B.a) < 0) missing.push(f + ': built bundle carries no ' + B.section);
+        });
+        T.eq(tag + ': every built bundle carries it', missing.join('; '), '');
       });
-      T.eq('every built bundle carries the floor', missing.join('; '), '');
     });
 
     group('every corpus enumerator reports its population or is named here', 'tools · corpus-reads · source-scan', function (T) {
