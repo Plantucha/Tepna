@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="9649b0138d22" data-compute-hash="73883e694917">
+<html lang="en" data-manifest-hash="abb2ba1dbb2a" data-compute-hash="73883e694917">
 <head>
 <!--
   CPAPDex.src.html — Tepna
@@ -2616,14 +2616,75 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
 }
 /* END EXPORT-BAR-BLOCK */
 
+/* ═══════════════════════ §31 · TEXT FLOOR ON A PHONE ═══════════════════════
+   Row `2026-11-08-sub-12-px-text-is-unchanged-since-july`, which carries
+   finding F2 of `audits/MOBILE-AUDIT-FINDINGS-2026-07-15.md` forward: every
+   text sample the July audit named still measures its July size.
+
+   MEASURED at 375 x 667 under mobile emulation, with each app populated,
+   over the 9 manifest bundles plus `index.html`: 7540 visible elements carry
+   their own text, and 2704 of them render under 12 px once the table cells
+   come out. The classes below are the labels and the controls among them,
+   and every instance of each one measured under 12 px: nav labels at 10 px,
+   export-bar labels at 11 px, KPI labels at 9 to 11 px, origin tags at
+   8.5 px, profile formulas at 9.5 px, event rows at 10.5 to 11.5 px.
+
+   SCOPE, from `audits/MOBILE-AUDIT-PROMPT.md` §3: prose and controls, never
+   a chart-axis label and never a dense tabular cell. Three sets stay out and
+   each one is counted in the census, never passed over.
+   · A chart label inside an `svg` is conventionally small.
+   · A `td` or a `th` holds dense tabular data, and raising it widens the
+     table instead of the text block.
+   · The `dxl-` licensing stamp belongs to `licensing/dex-license.css`, which
+     is authoritative for that surface.
+
+   FOUR CLASSES MEASURED ON BOTH SIDES OF THE FLOOR AND STAY OUT, because a
+   flat token would shrink an instance: `.btn` reads 11 px on HRVDex and
+   14.5 px on the landing page, `.sb-item` 13 px, `.theme-toggle` 11 px on
+   four apps and 13.33 px on MotionDex, `.st-note` 11 px on four apps and
+   13 px on MotionDex. They stay in the census remainder, where a later unit
+   can raise each declaration at its source.
+
+   THE FLOOR IS A TOKEN. `--dex-text-floor` defaults to 12 px, which is the
+   row's own bound and the iOS legibility floor. An app whose surface needs
+   larger text declares a larger token; nothing here lowers a size, because
+   every class named below measured under the floor on every page that draws
+   it. A browser-gate leg counts the targeted nodes still under the floor,
+   so a new small label reds instead of landing. Every class named in the
+   rule measured STRICTLY under the floor on every page that draws it, so the
+   rule raises 32 class names and lowers nothing.
+
+   AND A PER-APP `!important` AT HIGHER SPECIFICITY STILL BEATS THIS BLOCK.
+   `html .rs-label` is (0,1,1); OxyDex's own §5 held
+   `.readiness-subscore .rs-label` at 11 px with `!important`, which is
+   (0,2,0), and those four subscore labels stayed at 11 px while every other
+   targeted class moved to 12. The CSSOM named the winning rule, and that one
+   declaration now reads the same token. So the cascade is the first line and
+   the browser-gate leg is the enforceable one: it counts the targeted nodes
+   still under the floor and names the class and its size, which is how this
+   one was found.
+   ═══════════════════════ */
+/* TEXT-FLOOR-BLOCK v1 — canonical copy: ans-design.css §31. Every mirror is byte-identical
+   (tests/dex-tests.js pins that). A page that links or inlines the sheet inherits it. */
+@media (pointer: coarse) {
+  html .mobile-nav-item, html .eb-btn, html .eb-label, html .mode-btn, html .ut, html .synth-link,
+  html .kpi-label, html .kpi-sub, html .m-label, html .m-unit, html .nr-kpi-label, html .mini-sub,
+  html .q-lbl, html .q-sub, html .q-note, html .rs-label, html .ps-label, html .ps-unit,
+  html .pill, html .chip, html .top-badge, html .version-badge, html .fc-tag,
+  html .prof-sublabel, html .prof-derived-item, html .pdi-formula, html .pd-group-label, html .pd-group-note, html .org,
+  html .ge-t, html .ge-imp, html .ge-conf { font-size: var(--dex-text-floor, 12px) !important; }
+}
+/* END TEXT-FLOOR-BLOCK */
+
 /* ════════════════════════════════════════════════════════════════════════
    END · ANS Design System v1.3.0
-   Total components: 30 sections · tokens + shell + primitives
+   Total components: 31 sections · tokens + shell + primitives
    + shared OxyDex ∩ HRVDex compositions (§26)
    + shared user-profile panel (§27)
    + unified export bar (§28)
    + touch floor under a coarse pointer (§29)
    + export bar compaction on a phone (§30)
+   + text floor on a phone (§31)
    Drift detection: this file's sha is injected into each HTML on sync.
    ════════════════════════════════════════════════════════════════════════ */
 </style>

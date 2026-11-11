@@ -2216,7 +2216,12 @@ td { padding:9px 14px; font-size:12px; }
   white-space: nowrap !important;
 }
 .readiness-subscore .rs-label {
-  font-size: 11px !important;
+  /* READS THE PHONE TEXT FLOOR, because this rule BEATS it. `ans-design.css` §31 raises
+     `.rs-label` with `html .rs-label` (0,1,1) and `!important`; this selector is (0,2,0) and
+     also `!important`, so it won it at 11 px and the four subscore labels stayed under the
+     floor while every other targeted class moved. A measured specificity loss, not a guess:
+     the CSSOM named this rule as the one that applied. The token keeps one source. */
+  font-size: var(--dex-text-floor, 12px) !important;
   text-transform: uppercase !important;
   letter-spacing: 0.08em !important;
   color: rgba(255,255,255,0.5) !important;
