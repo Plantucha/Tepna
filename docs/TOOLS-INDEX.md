@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**337 tools** · 336 with a purpose line · **1 without**
+**338 tools** · 337 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -189,6 +189,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`oracle-ppg-device-beats.mjs`](../tools/oracle-ppg-device-beats.mjs) | THE ORACLE HARNESS, PPG LEG — PpgDex's foot detector against the RING'S OWN beat markers |
 | [`oxy-hr-bias.mjs`](../tools/oxy-hr-bias.mjs) | R5-HR-TRIPLET-REFERENCE §5 — "Investigate OxyDex's −0.36 bpm bias." |
 | [`oxydex-export-staleness.mjs`](../tools/oxydex-export-staleness.mjs) | re-run OxyDex on each export's OWN named source file and report which exports no longer reproduce. |
+| [`paper-reference-use.mjs`](../tools/paper-reference-use.mjs) | A LISTED REFERENCE THAT THE BODY NEVER INVOKES CLAIMS A PROVENANCE THE PAPER NEVER USED. |
 | [`pat-axis-leg-audit.mjs`](../tools/pat-axis-leg-audit.mjs) | PAT-ROOT-CAUSE-FORENSICS §2/§3/§5: do the two legs of a PAT measurement ride the SAME time axis? |
 | [`pat-buzz-stability.mjs`](../tools/pat-buzz-stability.mjs) | DRIFT OR NOISE? — decompose a buzz sequence's per-event timing offsets into the two components the ΔPAT dip index cares about, on the captures that already exist. |
 | [`pat-connection-stability.mjs`](../tools/pat-connection-stability.mjs) | IS THE PER-CONNECTION OFFSET ACTUALLY CONSTANT WITHIN A CONNECTION? |
