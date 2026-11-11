@@ -3094,7 +3094,7 @@
      "--json"
     ]
    },
-   "note": "UNIT-HEALTH (audit F2, decision #2441, 2026-10-31): --json prints ONE tepna.verdict/1 over the rig's systemd user timers. PASS = no timer job failed, stopped, overdue or never fired; FAIL names each; NOT_RUN (exit 2) where no systemd user manager answers, which is CI and every fresh clone, so the sample there examines nothing and says so."
+   "note": "UNIT-HEALTH (audit F2, decision #2441, 2026-10-31): --json prints ONE tepna.verdict/1 over the rig's systemd user timers. PASS = no timer job failed, stopped, overdue or never fired; FAIL names each; NOT_RUN (exit 2) where no systemd user manager answers, which is CI and every fresh clone, so the sample there examines nothing and says so. Since 2026-11-11 producedBy also states the commit the run read from, the behind-ref count, and which judgment sources differ from origin/main, so a finding carries the identity of the code that judged it."
   },
   "tools/usage-guard.mjs": {
    "bin": "decides",
