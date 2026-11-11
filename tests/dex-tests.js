@@ -57427,7 +57427,7 @@
          bound is the remedy and this group holds it. The population is every workflow that calls
          `--with-deps`, and the CONTROL asserts that set is not empty, because an empty set passes
          every leg below it. */
-      if (!env.nodeFs || !env.repoRoot) T.skip('env.nodeFs + env.repoRoot provided to the runner', 'the workflow scan needs the files on disk');
+      if (!env.nodeFs || !env.repoRoot) T.skip('env.nodeFs + env.repoRoot provided to the runner', 'Node-lane only — the browser lane cannot read .github/workflows');
       else {
         var fs = env.nodeFs;
         var dir = env.repoRoot + '/.github/workflows';
