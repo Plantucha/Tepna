@@ -59768,6 +59768,11 @@
         return;
       }
       var DOIS = C.ledger.dois;
+      /* The repo's own Zenodo deposit is not a paper, so the ledger carries no author for it and the
+         gate must not demand one. The set comes from `readCitations`, which reads `CITATION.cff`; an
+         unreadable record leaves it EMPTY and the DOI reds, which the first leg below states. Every
+         skipped occurrence is NAMED, never counted away. */
+      var SELF = new Set(C.selfDois || []);
       function decode(s) {
         return String(s)
           .replace(/<[^>]*>/g, ' ')
@@ -59791,61 +59796,78 @@
           .toLowerCase();
       }
       var DOI_RE = /10\.\d{4,9}\/[A-Za-z0-9._;:()/-]+/g;
-      var problems = [],
-        checked = 0,
-        unknown = [];
-      C.surfaces.forEach(function (s) {
-        var _m;
-        DOI_RE.lastIndex = 0;
-        for (const m of s.text.matchAll(DOI_RE)) {
-          var doi = m[0].replace(/[.,;:]+$/, '');
-          /* A DOI may contain balanced parens (10.1016/S1388-2457(03)00355-5); a TRAILING unbalanced
+      /* THE SCAN, AS A FUNCTION OF ITS SURFACES, so the plants below drive the same code the real
+         population drives. Today every DOI in a root `*.md` file is the repo's own deposit, so without
+         a plant nothing proves that a PAPER DOI in a root document would be judged at all — the scope
+         legs above would read green over a surface the predicate never reaches. */
+      function scan(surfaces) {
+        var problems = [],
+          checked = 0,
+          unknown = [],
+          selfSkipped = [];
+        surfaces.forEach(function (s) {
+          var _m;
+          DOI_RE.lastIndex = 0;
+          for (const m of s.text.matchAll(DOI_RE)) {
+            var doi = m[0].replace(/[.,;:]+$/, '');
+            /* A DOI may contain balanced parens (10.1016/S1388-2457(03)00355-5); a TRAILING unbalanced
              ')' belongs to the sentence, not the DOI. Strip only the excess. */
-          while ((doi.match(/\)/g) || []).length > (doi.match(/\(/g) || []).length) doi = doi.replace(/\)[^)]*$/, '');
-          var rec = DOIS[doi];
-          if (!rec) {
-            unknown.push(s.file + '  ' + doi);
-            continue;
-          }
-          checked++;
-          var win = decode(s.text.slice(Math.max(0, m.index - 700), m.index));
-          var words = {};
-          fold(win)
-            .split(' ')
-            .forEach(function (w) {
-              if (w) words[w] = 1;
-            });
-          var names = [rec.firstAuthor].concat(rec.authorAliases || []).filter(Boolean);
-          /* Whole-word ≥3 keeps Pan without admitting substrings — but it makes 2-letter CJK
+            while ((doi.match(/\)/g) || []).length > (doi.match(/\(/g) || []).length) doi = doi.replace(/\)[^)]*$/, '');
+            if (SELF.has(doi)) {
+              selfSkipped.push(s.file + '  ' + doi);
+              continue;
+            }
+            var rec = DOIS[doi];
+            if (!rec) {
+              unknown.push(s.file + '  ' + doi);
+              continue;
+            }
+            checked++;
+            var win = decode(s.text.slice(Math.max(0, m.index - 700), m.index));
+            var words = {};
+            fold(win)
+              .split(' ')
+              .forEach(function (w) {
+                if (w) words[w] = 1;
+              });
+            var names = [rec.firstAuthor].concat(rec.authorAliases || []).filter(Boolean);
+            /* Whole-word ≥3 keeps Pan without admitting substrings — but it makes 2-letter CJK
              surnames (Wu, Xu, Ni, He, Li…) structurally unmatchable when the GIVEN name is also
              short ("Wu Xu": no part ever reaches 3), and lowering the floor would re-admit
              "he"/"an" as English words. The escape that stays specific (owner-granted 2026-08-28):
              a FULL-NAME PHRASE alias — ≥2 parts, ≥5 folded chars, ADJACENT in the window — matches;
              "wu xu" cannot occur by accident the way a lone "he" can. Single short words still
              never match on their own. */
-          var foldedWin = ' ' + fold(win).replace(/ +/g, ' ') + ' ';
-          var authorOk =
-            names.length > 0 &&
-            names.some(function (n) {
-              var parts = fold(n).split(' ').filter(Boolean);
-              var phrase = parts.join(' ');
-              if (parts.length >= 2 && phrase.length >= 5 && foldedWin.indexOf(' ' + phrase + ' ') !== -1) return true;
-              return parts
-                .filter(function (w) {
-                  return w.length >= 3;
-                })
-                .some(function (w) {
-                  return words[w] === 1;
-                });
+            var foldedWin = ' ' + fold(win).replace(/ +/g, ' ') + ' ';
+            var authorOk =
+              names.length > 0 &&
+              names.some(function (n) {
+                var parts = fold(n).split(' ').filter(Boolean);
+                var phrase = parts.join(' ');
+                if (parts.length >= 2 && phrase.length >= 5 && foldedWin.indexOf(' ' + phrase + ' ') !== -1) return true;
+                return parts
+                  .filter(function (w) {
+                    return w.length >= 3;
+                  })
+                  .some(function (w) {
+                    return words[w] === 1;
+                  });
+              });
+            var yearOk = (win.match(/\b(?:19|20)\d{2}\b/g) || []).some(function (y) {
+              return Math.abs(+y - +rec.year) <= 1;
             });
-          var yearOk = (win.match(/\b(?:19|20)\d{2}\b/g) || []).some(function (y) {
-            return Math.abs(+y - +rec.year) <= 1;
-          });
-          if (!names.length) problems.push(s.file + '  ' + doi + ' — ledger carries no author and no authorAliases; add one so the check is enforceable rather than silently skipped');
-          else if (!authorOk) problems.push(s.file + '  ' + doi + ' — citation does not name "' + rec.firstAuthor + '"');
-          else if (!yearOk) problems.push(s.file + '  ' + doi + ' — no year within ±1 of ' + rec.year);
-        }
-      });
+            if (!names.length) problems.push(s.file + '  ' + doi + ' — ledger carries no author and no authorAliases; add one so the check is enforceable rather than silently skipped');
+            else if (!authorOk) problems.push(s.file + '  ' + doi + ' — citation does not name "' + rec.firstAuthor + '"');
+            else if (!yearOk) problems.push(s.file + '  ' + doi + ' — no year within ±1 of ' + rec.year);
+          }
+        });
+        return { problems: problems, checked: checked, unknown: unknown, selfSkipped: selfSkipped };
+      }
+      var R = scan(C.surfaces);
+      var problems = R.problems,
+        checked = R.checked,
+        unknown = R.unknown,
+        selfSkipped = R.selfSkipped;
       T.ok(
         'the gate actually reached the citations (a scope that matches nothing would pass vacuously)',
         checked >= 180,
@@ -59877,6 +59899,85 @@
           return f.indexOf('docs/') === 0 && /\.html$/.test(f);
         }),
         kinds.join(', ').slice(0, 160)
+      );
+      /* ROOT `*.md` IN (2026-11-11, row 2026-11-11-the-citation-gate-skips-the-root-markdown-files).
+         These are the entry documents a reader meets first, and a DOI there faced no author check at
+         all. Pinned STRUCTURALLY like the two surfaces above: a count floor cannot tell "the root files
+         were dropped" from "a root file lost a citation", and a narrower gate is always greener.
+         Measured at `6c5786da5`: `DOCS-INDEX.md` carried 7 DOIs until #4864 rewrote it hours earlier,
+         so this surface drifts in both directions. */
+      T.ok(
+        'root *.md is in scope — the entry documents, where a DOI carried no author check until this row',
+        kinds.some(function (f) {
+          return /^[^/]+\.md$/.test(f);
+        }),
+        kinds.join(', ').slice(0, 160)
+      );
+      var mdOut = C.rootMdOut || [];
+      T.eq(
+        'CHANGELOG.md stays OUT — the generated release view, whose entries quote the misattribution they record fixing',
+        kinds.filter(function (f) {
+          return mdOut.some(function (e) {
+            return e.file === f;
+          });
+        }),
+        []
+      );
+      /* THE EXEMPTION HAS TO BE ABLE TO DIE, both ways. A name whose file is gone is a stale exemption
+         that silently covers nothing, and a name whose file carries no DOI is a spent one. */
+      T.eq(
+        'every excluded root name still exists — a name whose file is gone covers nothing',
+        mdOut
+          .filter(function (e) {
+            return !e.present;
+          })
+          .map(function (e) {
+            return e.file;
+          }),
+        []
+      );
+      T.eq(
+        'every excluded root name still carries a DOI — an exemption may not outlive the citations it covers',
+        mdOut
+          .filter(function (e) {
+            return e.present && e.dois === 0;
+          })
+          .map(function (e) {
+            return e.file;
+          }),
+        []
+      );
+      T.ok(
+        'the self-deposit DOI set was read from CITATION.cff — an unreadable record leaves it empty and the DOI reds',
+        C.selfSource === 'CITATION.cff' && SELF.size >= 1,
+        'source ' + String(C.selfSource) + ' · ' + SELF.size + ' DOI(s)'
+      );
+      T.eq(
+        'no self-deposit DOI sits in the citation ledger, so the exclusion hides no record',
+        Array.from(SELF).filter(function (d) {
+          return !!DOIS[d];
+        }),
+        []
+      );
+      T.ok('the self-deposit exclusion FIRED, naming every occurrence it skipped', selfSkipped.length >= 1, selfSkipped.join(' · ') || 'nothing skipped');
+      T.ok('CONTROL · a ledger DOI is not in the self-deposit set, so the rule cannot swallow a paper citation', !SELF.has(Object.keys(DOIS).sort()[0]), 'ledger key ' + Object.keys(DOIS).sort()[0]);
+      /* THE PLANTS — root-Markdown-shaped surfaces driven through the same `scan`, because the scope
+         legs above prove only that the file is in the population. These prove the predicate REACHES it,
+         and they fail in both directions: the wrong author reds, the ledger's own author passes. */
+      var PD = '10.3390/s21144777';
+      var pRec = DOIS[PD];
+      T.ok('ANTI-VACUITY · the plant DOI sits in the ledger with an author and a year', !!pRec && !!pRec.firstAuthor && !!pRec.year, JSON.stringify(pRec || null));
+      var pWrong = scan([{ file: 'PLANT-ROOT.md', text: 'Nobody 1800 wrote this line. doi:' + PD }]);
+      T.eq('PLANT · a wrong author on a root-Markdown surface reds (problems/checked)', pWrong.problems.length + '/' + pWrong.checked, '1/1');
+      var pRight = scan([{ file: 'PLANT-ROOT.md', text: (pRec ? pRec.firstAuthor + ' ' + pRec.year : '') + ' reported it. doi:' + PD }]);
+      T.eq('PLANT · the same surface naming the ledger author and year passes (problems/checked)', pRight.problems.length + '/' + pRight.checked, '0/1');
+      var pGap = scan([{ file: 'PLANT-ROOT.md', text: 'Nobody 1800 wrote this. doi:10.9999/not-in-this-ledger' }]);
+      T.eq('PLANT · a DOI the ledger does not carry reads as a ledger gap, never as a citation defect (unknown/problems)', pGap.unknown.length + '/' + pGap.problems.length, '1/0');
+      var pSelf = scan([{ file: 'PLANT-ROOT.md', text: 'The deposit badge. doi:' + Array.from(SELF)[0] }]);
+      T.eq(
+        'PLANT · the repo deposit DOI on a root surface is skipped and named, never a ledger gap (skipped/unknown/checked)',
+        pSelf.selfSkipped.length + '/' + pSelf.unknown.length + '/' + pSelf.checked,
+        '1/0/0'
       );
       T.eq('every DOI on a source surface names the ledger’s first author and a year within ±1', problems, []);
       /* A DOI on a surface but absent from the ledger is a ledger gap, not a citation defect — it is
