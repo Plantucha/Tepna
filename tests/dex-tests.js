@@ -30340,7 +30340,13 @@
          night page reads it in its `polarityText` helper and prints it under the per-corner source KPI, which is
          where that page reads every other fact about its inputs. Surfaced on purpose: a worker key no consumer
          reads is what the dead-key leg above would have called dead. */
-      var UNDECIDED_EXPECTED = { 'pat-feasibility-worker.js': 27, 'sensor-trio-worker.js': 38, 'qrs-equiv-worker.js': 2, 'qrs-yield-worker.js': 1 };
+      /* sensor-trio-worker.js 38 -> 41 on 2026-11-11 (unit hatsci): `runRealNight` gains `coverage` (each corner's
+         own seconds, so the page can state what share of each stream the three-way overlap kept) and `nightDerive`
+         gains `tau` (the hat re-solved on τ-second means) and `boot` (the data-derived bootstrap block). The night
+         page reads them in its `coverageText`, `drawTau` and `drawSigma` helpers, which is where it reads every
+         other aggregate key. Surfaced on purpose: a worker key no consumer reads is what the dead-key leg above
+         would have called dead. */
+      var UNDECIDED_EXPECTED = { 'pat-feasibility-worker.js': 27, 'sensor-trio-worker.js': 41, 'qrs-equiv-worker.js': 2, 'qrs-yield-worker.js': 1 };
       Object.keys(UNDECIDED_EXPECTED).forEach(function (w2) {
         T.eq(
           w2 + ' · helper-reached (UNDECIDABLE) key count',

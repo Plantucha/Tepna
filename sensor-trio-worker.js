@@ -692,6 +692,109 @@ function ppgHrMap(text) {
   }
   return out.size >= 30 ? out : null;
 }
+/* INTEGRATED AUTOCORRELATION TIME of one series, in samples: τ_int = 1 + 2 Σ ρ(k), summed over the
+   initial positive run of the autocorrelation (Geyer's initial-positive-sequence truncation) and capped
+   at `maxLag`. `capped` says when the sum was still positive at the cap, which means the true τ_int is
+   LARGER than the value returned — the page says so instead of quoting it as measured. A constant
+   series has no autocorrelation to read and returns null (§∅), never 1. */
+function tauInt(d, maxLag) {
+  var n = d.length,
+    mu = 0,
+    i,
+    k;
+  for (i = 0; i < n; i++) mu += d[i];
+  mu /= n;
+  var c0 = 0;
+  for (i = 0; i < n; i++) c0 += (d[i] - mu) * (d[i] - mu);
+  if (!(c0 > 0)) return null;
+  var L = Math.min(maxLag, n - 1),
+    sum = 0;
+  for (k = 1; k <= L; k++) {
+    var ck = 0;
+    for (i = 0; i + k < n; i++) ck += (d[i] - mu) * (d[i + k] - mu);
+    var rho = ck / c0;
+    if (!(rho > 0)) return { tau: 1 + 2 * sum, capped: false };
+    sum += rho;
+  }
+  return { tau: 1 + 2 * sum, capped: true };
+}
+var BOOT_MIN_BLOCK = 30, // the block every earlier version of this page used — the floor, never shortened
+  BOOT_MAX_LAG = 900; // 15 min of 1 Hz lag: past this a difference series is drift, and the cap is reported
+/* The block length for this night's bootstrap, from the three pairwise differences the hat reads. */
+function bootBlock(hh, vv, oo) {
+  var n = hh.length,
+    dHV = [],
+    dHO = [],
+    dVO = [],
+    i;
+  for (i = 0; i < n; i++) {
+    dHV.push(hh[i] - vv[i]);
+    dHO.push(hh[i] - oo[i]);
+    dVO.push(vv[i] - oo[i]);
+  }
+  var t = { hv: tauInt(dHV, BOOT_MAX_LAG), ho: tauInt(dHO, BOOT_MAX_LAG), vo: tauInt(dVO, BOOT_MAX_LAG) },
+    tmax = null,
+    capped = false;
+  for (var key in t) {
+    if (t[key] && (tmax == null || t[key].tau > tmax)) tmax = t[key].tau;
+    if (t[key] && t[key].capped) capped = true;
+  }
+  var hiBlock = Math.max(BOOT_MIN_BLOCK, Math.floor(n / 20));
+  var bl = tmax == null ? BOOT_MIN_BLOCK : Math.min(hiBlock, Math.max(BOOT_MIN_BLOCK, Math.ceil(2 * tmax)));
+  return {
+    blockSec: Math.min(n, bl),
+    tauIntSec: { hv: t.hv ? t.hv.tau : null, ho: t.ho ? t.ho.tau : null, vo: t.vo ? t.vo.tau : null },
+    capped: capped,
+    nEff: tmax == null ? null : n / tmax
+  };
+}
+/* σ̂ AGAINST AVERAGING TIME. The hat re-solved on τ-second means of the three series, for τ in
+   TAU_SEC. Only whole τ-second chunks of CONSECUTIVE seconds count: a chunk that spans a gap in the
+   three-way overlap is not a τ-second mean, so it is dropped rather than averaged across the gap.
+   Why the page needs it: white per-second error falls as 1/√τ, while error that lives at minutes —
+   drift, or two devices that smooth HR over different windows — does not. A corner whose σ̂ holds up
+   at τ = 60 s is carrying slow error, which a single σ̂ at τ = 1 s cannot separate from noise. Below
+   TAU_MIN_N chunks a corner is null (§∅), never a σ̂ from too few means. */
+var TAU_SEC = [1, 10, 30, 60, 300],
+  TAU_MIN_N = 30;
+function tauHat(hh, vv, oo, ks) {
+  var out = [];
+  for (var ti = 0; ti < TAU_SEC.length; ti++) {
+    var tau = TAU_SEC[ti],
+      H = [],
+      V = [],
+      O = [],
+      i = 0;
+    while (i + tau <= ks.length) {
+      if (ks[i + tau - 1] - ks[i] !== tau - 1) {
+        // the chunk straddles a gap: restart at the first second after the gap
+        var j = i + 1;
+        while (j < i + tau && ks[j] - ks[j - 1] === 1) j++;
+        i = j;
+        continue;
+      }
+      var sh = 0,
+        sv = 0,
+        so = 0;
+      for (var q = i; q < i + tau; q++) {
+        sh += hh[q];
+        sv += vv[q];
+        so += oo[q];
+      }
+      H.push(sh / tau);
+      V.push(sv / tau);
+      O.push(so / tau);
+      i += tau;
+    }
+    if (H.length < TAU_MIN_N) {
+      out.push({ tau: tau, n: H.length, h10: null, verity: null, o2: null, neg: null });
+      continue;
+    }
+    var s = tchSigmas(H, V, O);
+    out.push({ tau: tau, n: H.length, h10: s.h10, verity: s.verity, o2: s.o2, neg: s.neg });
+  }
+  return out;
+}
 // within-window block bootstrap CI of one real window's σ̂ (30-sample blocks)
 function blockCI(hh, vv, oo, B) {
   var n = hh.length,
@@ -1220,6 +1323,12 @@ async function runRealNight(m) {
          row's ρ is the correlation of the two devices' ERRORS, which is a different quantity, is NOT
          measured here, and is exactly what the row must refuse rather than substitute. */
       pairVars: s.vars || null,
+      /* THE SECONDS EACH CORNER CONTRIBUTED ON ITS OWN, beside `n`, the seconds all three share. The
+         hat runs on the three-way overlap only, so the overlap is a SELECTION: a night where one device
+         covered 9 h and the overlap is 4 h describes the 4 h when the other two agreed to record. The
+         page prints n ÷ each corner's own seconds so the reader sees how much of each stream the
+         σ̂ describes. A count of keys in each per-second map — the same maps `ks` was built from. */
+      coverage: { h10: H.size, verity: V.size, o2: O.size },
       /* `hrRatio` SHIPS AGAIN, and a consumer reads it this time: `sensor-trio-night.js` renders it under
          the corner-gate KPI as the evidence for that verdict (row
          2026-09-27-verity-gate-verdict-has-no-number-behind-it). It left this payload on 2026-09-27 as a
@@ -1305,11 +1414,20 @@ self.onmessage = function (ev) {
          running prefix runs tchSigmas, with no confidence to resample in lockstep and no branch left to
          drift. The last running prefix must still equal the point. The confidences still arrive and are
          still reported as per-corner means below; they weight nothing that is published.
-         Mirrors AnalysisStats.tchBlockBootstrapCI, which this worker cannot import; 30-s blocks and
-         ≥20 replicates as blockCI above. */
+         Mirrors AnalysisStats.tchBlockBootstrapCI, which this worker cannot import; ≥20 replicates as
+         blockCI above.
+         THE BLOCK LENGTH COMES FROM THE NIGHT, NOT FROM A CONSTANT. A block bootstrap is honest only
+         when a block is longer than the memory of the series it resamples. The fixed 30 s block was
+         chosen before anyone measured that memory, and an HR difference series that drifts over
+         minutes carries correlation far past 30 s, so the fixed block made the CI too narrow. The
+         block is now 2 × the largest integrated autocorrelation time of the three pairwise
+         differences (the hat's only inputs), never shorter than the old 30 s and never more than
+         n / 20, so at least 20 blocks remain. `boot` ships the block, the three τ_int and the
+         effective sample size, so the page states the resampling it ran. */
+      var boot = bootBlock(hh, vv, oo);
       var B = m.B || 400,
         n = hh.length,
-        bl = Math.min(n, 30),
+        bl = boot.blockSec,
         nb = Math.ceil(n / bl),
         acc = { h10: [], verity: [], o2: [] },
         bi,
@@ -1409,7 +1527,7 @@ self.onmessage = function (ev) {
         minute.ho.push(mh - mo);
         minute.vo.push(mv - mo);
       }
-      self.postMessage({ type: 'done', reqId: m.reqId, ci: ci, running: running, pairSd: pairSd, conf: conf, minute: minute });
+      self.postMessage({ type: 'done', reqId: m.reqId, ci: ci, running: running, pairSd: pairSd, conf: conf, minute: minute, tau: tauHat(hh, vv, oo, ks), boot: boot });
       return;
     }
   }
