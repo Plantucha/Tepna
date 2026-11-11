@@ -909,6 +909,8 @@ export const POPULATION_EXCLUSIONS = {
   'importer-flag-probe.mjs': 'names DEX_UPLOADS only to scrub it from each probe child; it enumerates the tools/ tree',
   'build-docs.mjs': 'the night-shaped regex validates a release date; it enumerates docs/',
   'board-corpus.mjs': 'the night-shaped regex matches the date in a residue row key; it enumerates the folder --out names',
+  'paper-claim-markers.mjs':
+    'the night-shaped regex masks an ISO date in paper PROSE, so a published year is not read as a published number; it enumerates papers/ and the analysis/published-numbers/ artifact names',
   'codex-export.mjs':
     'it walks a git-archive export built to EXCLUDE the corpus, and it already publishes its own offer-vs-read population over that export; a second verdict there would name a repo-path unit as a corpus one'
 };

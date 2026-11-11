@@ -1,0 +1,26 @@
+{
+ "note": "The papers that state a number no CLAIM marker and no TABLE-PROVENANCE stamp binds. GRANDFATHERED, never approved: each one needs a reader to bind one number to one committed artifact. The set may only SHRINK.",
+ "generated": "2026-11-11",
+ "unmarked": {
+  "papers/cgm-hrv-coupling.html": "residue 2026-11-08-twenty-papers-carry-no-claim-marker-and-the-resolver-skips-papers · board #4527 CitB-1",
+  "papers/cpap-flow-reference.html": "residue 2026-11-08-twenty-papers-carry-no-claim-marker-and-the-resolver-skips-papers · board #4527 CitB-1",
+  "papers/dead-ends.html": "residue 2026-11-08-twenty-papers-carry-no-claim-marker-and-the-resolver-skips-papers · board #4527 CitB-1",
+  "papers/effort-typing-null.html": "residue 2026-11-08-twenty-papers-carry-no-claim-marker-and-the-resolver-skips-papers · board #4527 CitB-1",
+  "papers/hrv-age-confound.html": "residue 2026-11-08-twenty-papers-carry-no-claim-marker-and-the-resolver-skips-papers · board #4527 CitB-1",
+  "papers/known-clock-recovery.html": "residue 2026-11-08-twenty-papers-carry-no-claim-marker-and-the-resolver-skips-papers · board #4527 CitB-1",
+  "papers/nights-icc.html": "residue 2026-11-08-twenty-papers-carry-no-claim-marker-and-the-resolver-skips-papers · board #4527 CitB-1",
+  "papers/null-calibration.html": "residue 2026-11-08-twenty-papers-carry-no-claim-marker-and-the-resolver-skips-papers · board #4527 CitB-1",
+  "papers/oximeter-sleep-staging.html": "residue 2026-11-08-twenty-papers-carry-no-claim-marker-and-the-resolver-skips-papers · board #4527 CitB-1",
+  "papers/ppg-ecg-hrv-validation.html": "residue 2026-11-08-twenty-papers-carry-no-claim-marker-and-the-resolver-skips-papers · board #4527 CitB-1",
+  "papers/ppg-quality-gate-pooling.html": "residue 2026-11-08-twenty-papers-carry-no-claim-marker-and-the-resolver-skips-papers · board #4527 CitB-1",
+  "papers/qrs-yield.html": "residue 2026-11-08-twenty-papers-carry-no-claim-marker-and-the-resolver-skips-papers · board #4527 CitB-1",
+  "papers/rmssd-equivalence.html": "residue 2026-11-08-twenty-papers-carry-no-claim-marker-and-the-resolver-skips-papers · board #4527 CitB-1",
+  "papers/robustness-benchmark.html": "residue 2026-11-08-twenty-papers-carry-no-claim-marker-and-the-resolver-skips-papers · board #4527 CitB-1",
+  "papers/sensor-trio-nights.html": "residue 2026-11-08-twenty-papers-carry-no-claim-marker-and-the-resolver-skips-papers · board #4527 CitB-1",
+  "papers/sigma-no-reference.html": "residue 2026-11-08-twenty-papers-carry-no-claim-marker-and-the-resolver-skips-papers · board #4527 CitB-1",
+  "papers/synthetic-data-frontier.html": "residue 2026-11-08-twenty-papers-carry-no-claim-marker-and-the-resolver-skips-papers · board #4527 CitB-1",
+  "papers/timestamp-pathology-analysis.html": "residue 2026-11-08-twenty-papers-carry-no-claim-marker-and-the-resolver-skips-papers · board #4527 CitB-1",
+  "papers/timestamp-pathology.html": "residue 2026-11-08-twenty-papers-carry-no-claim-marker-and-the-resolver-skips-papers · board #4527 CitB-1",
+  "papers/wearable-clock-drift.html": "residue 2026-11-08-twenty-papers-carry-no-claim-marker-and-the-resolver-skips-papers · board #4527 CitB-1"
+ }
+}
