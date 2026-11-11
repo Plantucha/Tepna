@@ -56726,6 +56726,26 @@
         T.ok('CONTROL · a diff FAIL still names the commits this branch adds', /commits this branch adds/.test(String(fd.reason)), String(fd.reason));
       }
 
+      /* ── Row 2026-11-10-the-required-secret-gate-never-ran-its-private-literal-rule. The repo holds
+         no Actions secret for TEPNA_PRIVATE_TERMS, so the one rule written for the real device
+         addresses read 0 terms in every run, and the verdict still read PASS. A green that names its
+         own skipped rule is the §🧾 requirement; the exit code stays on the findings, so a
+         statement about coverage blocks no branch. ── */
+      var unlit = SS.verdictFor({ findings: [], commits: 2, privateTerms: 'not-configured', commit: 'abc1234' });
+      T.eq('a clean scan with no term list reads SHORTFALL, never PASS', unlit.status, 'SHORTFALL');
+      T.eq('…and names the rule that examined nothing', unlit.result.skippedRules, ['private-term']);
+      T.ok('…and states the term count that rule read', /examined 0 term\(s\)/.test(String(unlit.reason)), String(unlit.reason));
+      T.eq('CONTROL · a configured clean scan stays PASS and skips no rule', [d.status, d.result.skippedRules], ['PASS', []]);
+      T.eq(
+        'a finding with no term list still FAILs: a skipped rule never softens a find',
+        SS.verdictFor({ findings: FIND, commits: 2, privateTerms: 'not-configured', commit: 'abc1234' }).status,
+        'FAIL'
+      );
+      T.eq('the gate blocks on the findings, never on the status word', [SS.blocksLanding([]), SS.blocksLanding(FIND)], [false, true]);
+      T.ok('the run summary carries the status and the skipped rule', /SHORTFALL/.test(SS.summaryFor(unlit)) && /private-term/.test(SS.summaryFor(unlit)));
+      T.ok('CONTROL · the summary of a configured run says nothing was skipped', /nothing: none/.test(SS.summaryFor(d)));
+      if (V) T.ok('the SHORTFALL verdict validates under tepna.verdict/1', V.validate(unlit).ok, JSON.stringify((V.validate(unlit) || {}).errors || []));
+
       /* ── one builder, two shapes: the selftest and the scan ask the same function ── */
       var da = SS.scannerArgs({ walk: 'diff', range: 'A..B', cfg: 'c.toml', report: 'r.json', target: '/t' });
       var ta = SS.scannerArgs({ walk: 'tree', cfg: 'c.toml', report: 'r.json', target: '/t' });
