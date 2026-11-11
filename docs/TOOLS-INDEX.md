@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**339 tools** · 338 with a purpose line · **1 without**
+**340 tools** · 339 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -135,6 +135,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`killcheck.mjs`](../tools/killcheck.mjs) | DID THE TEST I JUST WROTE ACTUALLY KILL ANYTHING? — measured, per function, in parallel. |
 | [`known-clock-recovery.mjs`](../tools/known-clock-recovery.mjs) | known-clock-recovery — inject a KNOWN clock defect, run the production estimator, measure what comes back. |
 | [`land-pr.mjs`](../tools/land-pr.mjs) | LAND A PR WITHOUT HAND-POLLING — and without any of the four traps that make hand-polling lie. |
+| [`live-surface-audit.mjs`](../tools/live-surface-audit.mjs) | THE GATE JUDGES THE BUNDLE; THIS READS THE BYTES THE HOST SERVES. |
 | [`lomb-share-profile.mjs`](../tools/lomb-share-profile.mjs) | `lombScargle`'s SHARE of a real ECGDex and PpgDex `compute()`, measured on the PRODUCT PATH. |
 | [`make-synthetic-edf.mjs`](../tools/make-synthetic-edf.mjs) | emit a DETERMINISTIC, SYNTHETIC ResMed EDF file set. WHY THIS EXISTS. |
 | [`make-synthetic-inputs.mjs`](../tools/make-synthetic-inputs.mjs) | a COMMITTABLE vendor-format input for every node. WHY. The suite's strongest correctness gate — Phase-9 `compute() ≡ committed export` — DOES NOT RUN IN CI. |

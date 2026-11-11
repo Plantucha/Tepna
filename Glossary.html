@@ -163,7 +163,10 @@ details.faq code{font-family:var(--mono);font-size:13px;background:var(--surface
   <p class="subnote">the questions every new visitor asks, answered plainly</p>
 
   <details class="faq" open><summary>Does my health data leave my device?</summary>
-    <div class="a">No. Each analyzer is one self-contained HTML file that runs in your browser with no network access — no upload, no account, no analytics, no CDN fonts. You can run it offline from a downloaded file. This is enforced by an automated gate that fails the build if any bundle tries to fetch anything.</div></details>
+    <div class="a">No. Each analyzer is one self-contained HTML file that runs in your browser and makes no request of its own &mdash; no upload, no account, no CDN fonts. You can run it offline from a downloaded file. An automated gate fails the build if any bundle tries to fetch anything. The website that serves these files is a separate matter, and the next question covers it.</div></details>
+
+  <details class="faq"><summary>Does this website track me?</summary>
+    <div class="a">Yes, in part. This site sits behind a CDN, and that CDN adds its own analytics script to every page it serves. So the host counts your visit, while the analyzer itself still sends nothing and your readings stay in your browser. A copy you download from the repository carries no such script. A repo tool, <code>tools/live-surface-audit.mjs</code>, reads the served bytes and names every offsite script. It found the analytics script on all four audited pages on 2026-11-11.</div></details>
 
   <details class="faq"><summary>Is this a medical device? Can it diagnose sleep apnea?</summary>
     <div class="a">No. Tepna is not a medical device and does not diagnose, treat, screen for, or prevent anything. It computes research-grade patterns from consumer wearables for personal self-quantification. If a night's numbers worry you, that is a conversation for a clinician with clinical instruments — a home wrist oximeter is not a polysomnograph.</div></details>
