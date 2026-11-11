@@ -55232,7 +55232,11 @@
       /* THE REGRESSION GUARD. "every node" is the exact false claim §1.7 recorded; it must not come back
          in any casing. Deliberately narrow — a phrase ban, not a prose style rule, so it cannot cry wolf. */
       T.ok('the header no longer claims EVERY node emits a crossnight envelope', !/every\s+node\s+now\s+emits/i.test(src), 'the §1.7 phrasing is back');
-      T.ok('…and it names the real producer count instead', /FIVE of\s*\n?\s*\*?\s*the eight nodes emit|five of the eight/i.test(src), 'no explicit producer count found');
+      /* The spelled count moves with the producer set. It read FIVE until 2026-11-11, when hrvdex-cross.js
+         landed and made it SIX. A count that cannot be derived in both lanes has to be re-read by a
+         machine against the prose, so this leg names the spelling and the leg below names who is left. */
+      T.ok('…and it names the real producer count instead', /SIX of\s*\n?\s*\*?\s*the eight nodes emit|six of the eight/i.test(src), 'no explicit producer count found');
+      T.ok('…and HRVDex is named among the emitters, not among the degraded', /nodes emit[\s\S]{0,200}HRVDex/.test(src) && !/HRVDex and GlucoDex are DEGRADED/.test(src));
 
       /* NON-VACUITY + the fact itself: the producers ARE the nodes with a *-cross.js. If that set ever
          changes, this reds and the prose has to be re-derived rather than re-asserted. */
@@ -55244,8 +55248,8 @@
         // say so rather than let a partial list read as a count.
         T.ok('at least the known crossnight producers are loaded (floor, not a census)', crossFiles.length >= 4, 'loaded: ' + crossFiles.join(','));
       }
-      // The three non-producers must stay named, so a reader learns WHICH nodes are degraded and which is blind.
-      T.ok('HRVDex and GlucoDex are named as degraded-not-blind', /HRVDex and GlucoDex are DEGRADED/.test(src));
+      // The two non-producers must stay named, so a reader learns WHICH node is degraded and which is blind.
+      T.ok('GlucoDex is named as degraded-not-blind', /GlucoDex is DEGRADED/.test(src));
       T.ok('MotionDex is named as the unmitigated case', /MotionDex[\s\S]{0,80}unmitigated/.test(src));
     });
 
@@ -66039,7 +66043,7 @@
       var s = env.sources || {};
       // (a) the mirrored cross-night significance rule must be byte-identical across nodes
       //     — now expressed via the shared physiology kernel (P8), so it can't drift.
-      var crosses = ['ecgdex-cross.js', 'oxydex-cross.js', 'pulsedex-cross.js', 'ppgdex-cross.js', 'cpapdex-cross.js'].filter(function (f) {
+      var crosses = ['ecgdex-cross.js', 'oxydex-cross.js', 'pulsedex-cross.js', 'ppgdex-cross.js', 'hrvdex-cross.js', 'cpapdex-cross.js'].filter(function (f) {
         return s[f];
       });
       var sigRe = /mk\.p\s*<\s*DexKernel\.K\.SIGNIF_P\s*&&\s*Math\.abs\(mk\.tau\s*\|\|\s*0\)\s*>\s*DexKernel\.K\.SIGNIF_TAU/;
@@ -66057,6 +66061,63 @@
         T.ok(f + ' has no divergent inline σ headline cutoff', !z15.test(s[f]));
       });
       if (s['crossnight-envelope.js']) T.ok('crossnight-envelope headline threshold is kernel Z_HEADLINE', /Math\.abs\(z\)\s*>=\s*DexKernel\.K\.Z_HEADLINE/.test(s['crossnight-envelope.js']));
+
+      /* (c) THE SHARED crossNight() ENGINE IS BYTE-IDENTICAL IN THE FOUR FILES THAT COPY IT.
+         (a) above holds ONE rule — the kernel significance test — against every cross module, which a
+         file can satisfy while the 258 lines around it drift. The engine is duplicated per node by the
+         same convention that duplicates parseTimestamp, so the duplicate needs a gate: this leg slices
+         each file from the first helper to the end of crossNight() and compares the BYTES. Measured
+         2026-11-11: pulsedex ≡ ppgdex ≡ ecgdex ≡ hrvdex over 11377 chars from that anchor; oxydex
+         diverges after 199 lines and cpapdex after 45, so both are asserted OUT of the set rather than
+         quietly excluded — a later edit that aligns one of them must move it here deliberately. */
+      var ENGINE_A = 'const r1 = (v) =>';
+      var ENGINE_B = '      trendLabel\n    };\n  }\n';
+      var engineRegion = function (f) {
+        var t = s[f];
+        if (!t) return null;
+        var i = t.indexOf(ENGINE_A),
+          j = t.indexOf(ENGINE_B);
+        return i >= 0 && j > i ? t.slice(i, j + ENGINE_B.length) : null;
+      };
+      var firstDiff = function (a, b) {
+        var k = 0;
+        while (k < a.length && k < b.length && a[k] === b[k]) k++;
+        return k;
+      };
+      var SHARED_ENGINE = ['pulsedex-cross.js', 'ppgdex-cross.js', 'ecgdex-cross.js', 'hrvdex-cross.js'];
+      var engRef = engineRegion(SHARED_ENGINE[0]);
+      T.ok(
+        'pulsedex-cross.js crossNight engine region located (the reference copy)',
+        !!engRef && engRef.length > 5000,
+        engRef ? engRef.length + ' chars' : 'ENGINE_A/ENGINE_B anchors not found — fix the anchors, never the claim'
+      );
+      if (engRef) {
+        SHARED_ENGINE.slice(1).forEach(function (f) {
+          if (!s[f]) {
+            T.skip(f + ' — crossNight engine region ≡ pulsedex-cross.js', f + ' is not in env.sources (add it to BOTH lanes)');
+            return;
+          }
+          var r = engineRegion(f);
+          T.ok(
+            f + ' crossNight engine region is byte-identical to pulsedex-cross.js',
+            r === engRef,
+            r == null
+              ? 'anchors not found in ' + f
+              : r === engRef
+                ? ''
+                : 'diverges at char ' + firstDiff(engRef, r) + ' of ' + engRef.length + ' — copy the region verbatim or move ' + f + ' out of SHARED_ENGINE with a reason'
+          );
+        });
+        ['oxydex-cross.js', 'cpapdex-cross.js'].forEach(function (f) {
+          if (!s[f]) return;
+          var r = engineRegion(f);
+          T.ok(
+            f + ' carries its own variant of the math (deliberately OUTSIDE the byte-identical set)',
+            r !== engRef,
+            r == null ? 'anchors not found' : 'shares the first ' + firstDiff(engRef, r) + ' chars'
+          );
+        });
+      }
     });
 
     /* ════ 17 · MEMORY HYGIENE — no full-input retention (P9) ════ */
@@ -74801,6 +74862,7 @@
         'oxydex-cross.js': 'OXYCross',
         'pulsedex-cross.js': 'PulseCross',
         'ppgdex-cross.js': 'PPGCross',
+        'hrvdex-cross.js': 'HRVCross',
         'ecgdex-cross.js': 'ECGCross',
         'cpapdex-cross.js': 'CPAPCross',
         'cpapdex-coimport.js': 'CpapCoimport',
@@ -75013,7 +75075,7 @@
       T.ok('…and no cpcLfc/cpcVlfc entry exists to badge', !REG.cpcLfc && !REG.cpcVlfc, JSON.stringify({ cpcLfc: !!REG.cpcLfc, cpcVlfc: !!REG.cpcVlfc }));
     });
 
-    group('Cross §1 — per-node crossNightBlock + helpers (VARYING series)', 'ecgdex-cross · oxydex-cross · pulsedex-cross · ppgdex-cross · cpapdex-cross', function (T) {
+    group('Cross §1 — per-node crossNightBlock + helpers (VARYING series)', 'ecgdex-cross · oxydex-cross · pulsedex-cross · ppgdex-cross · hrvdex-cross · cpapdex-cross', function (T) {
       var CNE = env.CrossNightEnvelope;
       var rng = [0, 1, 2, 3, 4, 5, 6, 7];
       var day = function (i) {
@@ -75351,6 +75413,82 @@
         T.approx('PpgDex rmssd trend.slopePerDay = 1.0/day', pgB.metrics.rmssd.trend.slopePerDay, 1, 1e-9);
         T.approx('PpgDex rmssd trend.mannKendall.tau = 1', pgB.metrics.rmssd.trend.mannKendall.tau, 1, 1e-9);
       } else T.ok('PPGCross.crossNightBlock present (ppgdex-cross.js co-loaded)', false, 'co-load ppgdex-cross.js + map env.PPGCross');
+
+      /* ── HRVDex (2026-11-11; ids rmssd·sdnn·hrRest·stress·hrvScore). The item is ONE Welltory
+         measurement, so `unit:'recording'` and every item weighs 1 — a row states no coverage
+         fraction, and deriving one from `_spanMin` would turn an unknown length into a coverage
+         number (§∅; the export's own `recordedSec` is null for the same reason).
+         The series is the SAME [40..47] rmssd ramp the PulseDex/PpgDex legs above use, so the
+         hand-derived sd/baseline/median/IQR/slope/τ pins carry over to this node's copy of the
+         engine. The FLOOR legs are the ones unique to this node: the DSP's own comment claims the
+         floor is per FIELD and not per block, so a 2-item and a 1-item series are asserted here. ── */
+      var HV = env.HRVCross;
+      if (HV && typeof HV.crossNightBlock === 'function') {
+        var hvRow = function (i, over) {
+          var r = { _tMs: day(i), _rmssd: 40 + i, _sdnn: 55 + i, _hr: 60 + i, _stress: 30 - i, _hrv: 50 + i };
+          if (over) for (var k in over) r[k] = over[k];
+          return r;
+        };
+        var hvL = rng.map(function (i) {
+          return hvRow(i);
+        });
+        var hvB = HV.crossNightBlock(hvL);
+        T.ok('HRVDex block conforms to ganglior.crossnight v1.0', ok(hvB).ok, JSON.stringify(ok(hvB).errors));
+        T.eq('HRVDex block carries its HRV_DEFS ids', ids(hvB), ['hrRest', 'hrvScore', 'rmssd', 'sdnn', 'stress']);
+        T.eq('HRVDex HRV_DEFS is the id-keyed projection of METRICS', Object.keys(HV.HRV_DEFS || {}).sort(), ['hrRest', 'hrvScore', 'rmssd', 'sdnn', 'stress']);
+        T.eq('HRVDex n flows through (8)', hvB.metrics.rmssd.n, 8);
+        T.eq("HRVDex unit is 'recording' (a measurement, not a night)", hvB.window.unit, 'recording');
+        T.eq('HRVDex window.coverageWeighted = false (a Welltory row states no coverage)', hvB.window.coverageWeighted, false);
+        T.eq('HRVDex rmssd rising + good:up → improving', hvB.metrics.rmssd.trend.label, 'improving');
+        T.eq('HRVDex hrRest rising + good:down → declining', hvB.metrics.hrRest.trend.label, 'declining');
+        T.eq('HRVDex stress falling + good:down → improving', hvB.metrics.stress.trend.label, 'improving');
+        T.ok('HRVDex crossnight metrics all self-describe evidence (FOLLOWUPS-V §2)', everyEv(hvB));
+        T.eq('HRVDex rmssd evidence = validated (registry)', hvB.metrics.rmssd.evidence, 'validated');
+        T.eq('HRVDex sdnn evidence = validated (registry)', hvB.metrics.sdnn.evidence, 'validated');
+        T.eq('HRVDex hrRest evidence = measured (registry)', hvB.metrics.hrRest.evidence, 'measured');
+        T.eq('HRVDex stress evidence = experimental (registry)', hvB.metrics.stress.evidence, 'experimental');
+        T.eq('HRVDex hrvScore evidence = experimental (registry)', hvB.metrics.hrvScore.evidence, 'experimental');
+        T.approx('HRVDex rmssd central.sd = sample √(42/7)=2.4 (Bessel ÷N−1, NOT population 2.3)', hvB.metrics.rmssd.central.sd, 2.4, 1e-9);
+        T.approx('HRVDex rmssd baseline.sd = sample √(28/6)=2.2 (prior-7 spread, ÷N−1)', hvB.metrics.rmssd.baseline.sd, 2.2, 1e-9);
+        T.approx('HRVDex rmssd baseline.zLatest = (47−43)/√(28/6) = 1.85', hvB.metrics.rmssd.baseline.zLatest, 1.85, 1e-9);
+        T.approx('HRVDex rmssd central.median = 43.5', hvB.metrics.rmssd.central.median, 43.5, 1e-9);
+        T.approx('HRVDex rmssd central.iqr = 3.5', hvB.metrics.rmssd.central.iqr, 3.5, 1e-9);
+        T.approx('HRVDex rmssd trend.slopePerDay = 1.0/day', hvB.metrics.rmssd.trend.slopePerDay, 1, 1e-9);
+        T.approx('HRVDex rmssd trend.mannKendall.tau = 1', hvB.metrics.rmssd.trend.mannKendall.tau, 1, 1e-9);
+        // ── §∅ · THE FLOOR IS PER FIELD. An absent cell is null and never a zero, and a series too
+        //    short for a statistic nulls THAT statistic while the rest still reports.
+        var hvNull = HV.crossNightBlock(
+          rng.map(function (i) {
+            return i === 3 ? hvRow(i, { _rmssd: null }) : hvRow(i);
+          })
+        );
+        T.eq('HRVDex a null rMSSD cell drops only that metric (n 7)', hvNull.metrics.rmssd.n, 7);
+        T.eq('HRVDex a null rMSSD cell leaves SDNN whole (n 8)', hvNull.metrics.sdnn.n, 8);
+        var hvZero = HV.crossNightBlock([hvRow(0, { _rmssd: 0 }), hvRow(1), hvRow(2)]);
+        T.eq('HRVDex a ZERO rMSSD is a legal sample and stays in the series (n 3)', hvZero.metrics.rmssd.n, 3);
+        var hv2 = HV.crossNightBlock([hvRow(0), hvRow(1)]);
+        T.ok('HRVDex 2-item block still conforms to the contract', ok(hv2).ok, JSON.stringify(ok(hv2).errors));
+        T.eq('HRVDex 2 items → central.mean still reports', hv2.metrics.rmssd.central.mean, 40.5);
+        T.eq('HRVDex 2 items → Mann-Kendall tau is null (the τ floor is 3, per FIELD)', hv2.metrics.rmssd.trend.mannKendall.tau, null);
+        var hv1 = HV.crossNightBlock([hvRow(0)]);
+        T.eq('HRVDex 1 item → mean reports', hv1.metrics.rmssd.mean != null ? hv1.metrics.rmssd.mean : hv1.metrics.rmssd.central && hv1.metrics.rmssd.central.mean, 40);
+        T.eq('HRVDex 1 item → n is 1, never 0', hv1.metrics.rmssd.n, 1);
+        // ── THE WIRING, not just the module: the export builder must CARRY the block. ──
+        var HD = env.HRVDex;
+        if (HD && typeof HD.compute === 'function') {
+          var hvExp = HD.compute(hvL, { generated: '2026-11-11T00:00:00Z' });
+          T.ok(
+            'HRVDex node-export carries crossNight (hrvBuildNodeExport wiring)',
+            !!(hvExp && hvExp.crossNight),
+            hvExp && hvExp.crossNight ? '' : 'hrvBuildNodeExport did not attach the block — check the HRVCross/CrossNightEnvelope guard'
+          );
+          if (hvExp && hvExp.crossNight) {
+            T.ok('HRVDex node-export crossNight conforms to ganglior.crossnight v1.0', ok(hvExp.crossNight).ok, JSON.stringify(ok(hvExp.crossNight).errors));
+            T.eq('HRVDex node-export crossNight counts every dated measurement (8)', hvExp.crossNight.window.count, 8);
+            T.ok('HRVDex schema.doc names the block (a consumer reads the doc, not this test)', /crossNight/.test(hvExp.schema.doc || ''), hvExp.schema.doc || '');
+          }
+        } else T.ok('env.HRVDex.compute available for the export-wiring leg', false, 'co-load hrvdex-dsp.js + map env.HRVDex');
+      } else T.ok('HRVCross.crossNightBlock present (hrvdex-cross.js co-loaded)', false, 'co-load hrvdex-cross.js + map env.HRVCross');
 
       /* ── ECGDex (envelope; node-specific accessors: qtc valid-delin guard, cvhr longRec&&!ambulatory) ── */
       var EC = env.ECGCross;
@@ -79256,7 +79394,10 @@
         // cross files now hoist METRICS to module scope and export an id-keyed ECG_DEFS/PULSE_DEFS
         // projection of it — the same shape the object-DEFS nodes above use, so they gate identically.
         { node: 'ECGDex', cross: env.ECGCross, resolver: env.EcgRegistry, defsKey: 'ECG_DEFS' },
-        { node: 'PulseDex', cross: env.PulseCross, resolver: env.PulseRegistry, defsKey: 'PULSE_DEFS' }
+        { node: 'PulseDex', cross: env.PulseCross, resolver: env.PulseRegistry, defsKey: 'PULSE_DEFS' },
+        /* HRVDex joins the gate with its own cross module (2026-11-11). Its five ids are copied
+           FROM hrvdex-registry.js, so this row is the check that the copy stays a copy. */
+        { node: 'HRVDex', cross: env.HRVCross, resolver: env.HrvRegistry, defsKey: 'HRV_DEFS' }
       ];
       var covered = false;
       NODES.forEach(function (N) {

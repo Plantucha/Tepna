@@ -1363,7 +1363,7 @@
       nodeVersion: '1.0',
       bus: BUS,
       generated: opts.generated || new Date().toISOString(),
-      doc: 'HRVDex per-measurement HRV (Welltory-style) → Ganglior events. tMs = floating wall-clock ms (UTC getters). null = unknown, never fabricated. stress_high derives from a vendor black-box composite (meta.derived:true, heuristic tier).'
+      doc: 'HRVDex per-measurement HRV (Welltory-style) → Ganglior events. tMs = floating wall-clock ms (UTC getters). null = unknown, never fabricated. stress_high derives from a vendor black-box composite (meta.derived:true, heuristic tier). `crossNight` carries a ganglior.crossnight v1.0 envelope over the measurement series; null when hrvdex-cross.js is not in the realm.'
     };
     if (opts.ingest) schema.ingest = opts.ingest; // adapter provenance (unifier/OverDex path)
     return {
@@ -1485,6 +1485,17 @@
         }
         return m;
       }),
+      /* ganglior.crossnight v1.0 (docs/CROSSNIGHT-ENVELOPE-SPEC.md §7). HRVCross.crossNightBlock
+         wraps this node's OWN crossNight engine in the shared envelope CONTAINER, so no number here
+         is new math — only a shape the Integrator and the other emitters already read.
+         §∅ — THE FLOOR IS PER FIELD, NOT PER BLOCK. The engine nulls each statistic at its own
+         minimum (sd and slope below 2 items, Mann-Kendall tau below 3, the bootstrap delta below 7)
+         and `window.count` carries n beside them, so a two-measurement export ships honest central
+         stats with a null trend instead of a bare null that states no reason. OxyDex gates its own
+         block at `nights.length >= 3` because that one feeds a UI card; this one is the bus export.
+         A realm that co-loads this DSP without hrvdex-cross.js gets null — every bundle carrying
+         the DSP loads the module, and tests/dex-tests.js holds that against the filesystem. */
+      crossNight: dated.length && root && root.HRVCross && root.CrossNightEnvelope ? root.HRVCross.crossNightBlock(dated) : null,
       ganglior_events: ev,
       reserved: { doc: 'Awaiting other fleet nodes; null until available.', glucoseCorrelation: null, glucoseSource: 'GlucoDex' }
     };

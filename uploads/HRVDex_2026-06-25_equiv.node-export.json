@@ -10,7 +10,7 @@
     "nodeVersion": "1.0",
     "bus": "ganglior",
     "generated": "2026-07-04T16:29:36.292Z",
-    "doc": "HRVDex per-measurement HRV (Welltory-style) → Ganglior events. tMs = floating wall-clock ms (UTC getters). null = unknown, never fabricated. stress_high derives from a vendor black-box composite (meta.derived:true, heuristic tier)."
+    "doc": "HRVDex per-measurement HRV (Welltory-style) → Ganglior events. tMs = floating wall-clock ms (UTC getters). null = unknown, never fabricated. stress_high derives from a vendor black-box composite (meta.derived:true, heuristic tier). `crossNight` carries a ganglior.crossnight v1.0 envelope over the measurement series; null when hrvdex-cross.js is not in the realm."
   },
   "recording": {
     "source": "welltory",
@@ -1049,6 +1049,686 @@
       }
     }
   ],
+  "crossNight": {
+    "schema": {
+      "name": "ganglior.crossnight",
+      "version": "1.0",
+      "engine": "crossNight",
+      "engineVersion": "1.0.0",
+      "node": "HRVDex",
+      "nodeVersion": "1.0",
+      "generated": "2026-11-11T12:39:13.123Z"
+    },
+    "window": {
+      "unit": "recording",
+      "count": 30,
+      "firstT0Ms": 1779254174000,
+      "lastT0Ms": 1781674922000,
+      "spanDays": 28.02,
+      "coverageWeighted": false,
+      "qualityFloorPct": 50,
+      "lowQualityCount": 0
+    },
+    "metrics": {
+      "rmssd": {
+        "label": "rMSSD",
+        "unit": "ms",
+        "goodDirection": "up",
+        "evidence": "validated",
+        "cite": null,
+        "n": 30,
+        "central": {
+          "mean": 38.36,
+          "sd": 7.6,
+          "median": 36.84,
+          "iqr": 10.4,
+          "min": 25.85,
+          "max": 56.27,
+          "cv": 19.7
+        },
+        "trend": {
+          "slopePerIndex": 0.069,
+          "slopePerDay": 0.06,
+          "slopePerRecording": null,
+          "slopeBasis": "day",
+          "r2": 0.01,
+          "r2date": 0,
+          "mannKendall": {
+            "tau": 0.03,
+            "p": 0.83
+          },
+          "label": "stable",
+          "dirDisagree": false
+        },
+        "change": {
+          "deltaFirstHalfToSecond": 1.75,
+          "ci95": [
+            -3.38,
+            7.2
+          ],
+          "significant": false
+        },
+        "baseline": {
+          "window": "prior-29",
+          "mean": 38.02,
+          "sd": 7.5,
+          "zLatest": 1.38,
+          "flag": "above-1sigma"
+        }
+      },
+      "sdnn": {
+        "label": "SDNN",
+        "unit": "ms",
+        "goodDirection": "up",
+        "evidence": "validated",
+        "cite": null,
+        "n": 30,
+        "central": {
+          "mean": 61.08,
+          "sd": 17.7,
+          "median": 60.33,
+          "iqr": 23.1,
+          "min": 35.01,
+          "max": 104.51,
+          "cv": 29.1
+        },
+        "trend": {
+          "slopePerIndex": 0.2,
+          "slopePerDay": 0.18,
+          "slopePerRecording": null,
+          "slopeBasis": "day",
+          "r2": 0.01,
+          "r2date": 0.01,
+          "mannKendall": {
+            "tau": -0.01,
+            "p": 0.943
+          },
+          "label": "stable",
+          "dirDisagree": true
+        },
+        "change": {
+          "deltaFirstHalfToSecond": 3.11,
+          "ci95": [
+            -9.22,
+            15.77
+          ],
+          "significant": false
+        },
+        "baseline": {
+          "window": "prior-29",
+          "mean": 59.71,
+          "sd": 16.4,
+          "zLatest": 2.5,
+          "flag": "above-2sigma"
+        }
+      },
+      "hrRest": {
+        "label": "Resting HR",
+        "unit": "bpm",
+        "goodDirection": "down",
+        "evidence": "measured",
+        "cite": null,
+        "n": 30,
+        "central": {
+          "mean": 55.9,
+          "sd": 4.6,
+          "median": 57,
+          "iqr": 7.5,
+          "min": 49,
+          "max": 64,
+          "cv": 8.2
+        },
+        "trend": {
+          "slopePerIndex": -0.003,
+          "slopePerDay": -0.01,
+          "slopePerRecording": null,
+          "slopeBasis": "day",
+          "r2": 0,
+          "r2date": 0,
+          "mannKendall": {
+            "tau": 0.03,
+            "p": 0.858
+          },
+          "label": "stable",
+          "dirDisagree": true
+        },
+        "change": {
+          "deltaFirstHalfToSecond": -1.4,
+          "ci95": [
+            -4.54,
+            1.87
+          ],
+          "significant": false
+        },
+        "baseline": {
+          "window": "prior-29",
+          "mean": 55.69,
+          "sd": 4.5,
+          "zLatest": 1.39,
+          "flag": "above-1sigma"
+        }
+      },
+      "stress": {
+        "label": "Stress",
+        "unit": "",
+        "goodDirection": "down",
+        "evidence": "experimental",
+        "cite": null,
+        "n": 30,
+        "central": {
+          "mean": 43.87,
+          "sd": 12.5,
+          "median": 45,
+          "iqr": 17,
+          "min": 21,
+          "max": 66,
+          "cv": 28.4
+        },
+        "trend": {
+          "slopePerIndex": -0.203,
+          "slopePerDay": -0.19,
+          "slopePerRecording": null,
+          "slopeBasis": "day",
+          "r2": 0.02,
+          "r2date": 0.02,
+          "mannKendall": {
+            "tau": -0.08,
+            "p": 0.568
+          },
+          "label": "stable",
+          "dirDisagree": false
+        },
+        "change": {
+          "deltaFirstHalfToSecond": -3.2,
+          "ci95": [
+            -11.87,
+            5.6
+          ],
+          "significant": false
+        },
+        "baseline": {
+          "window": "prior-29",
+          "mean": 44.55,
+          "sd": 12.1,
+          "zLatest": -1.7,
+          "flag": "below-1sigma"
+        }
+      },
+      "hrvScore": {
+        "label": "HRV Score",
+        "unit": "",
+        "goodDirection": "up",
+        "evidence": "experimental",
+        "cite": null,
+        "n": 30,
+        "central": {
+          "mean": 43.97,
+          "sd": 11.5,
+          "median": 42.15,
+          "iqr": 16.3,
+          "min": 25.3,
+          "max": 71.71,
+          "cv": 26.3
+        },
+        "trend": {
+          "slopePerIndex": 0.106,
+          "slopePerDay": 0.09,
+          "slopePerRecording": null,
+          "slopeBasis": "day",
+          "r2": 0.01,
+          "r2date": 0,
+          "mannKendall": {
+            "tau": 0.03,
+            "p": 0.83
+          },
+          "label": "stable",
+          "dirDisagree": false
+        },
+        "change": {
+          "deltaFirstHalfToSecond": 2.65,
+          "ci95": [
+            -5.12,
+            10.9
+          ],
+          "significant": false
+        },
+        "baseline": {
+          "window": "prior-29",
+          "mean": 43.48,
+          "sd": 11.4,
+          "zLatest": 1.27,
+          "flag": "above-1sigma"
+        }
+      }
+    },
+    "series": [
+      {
+        "i": 0,
+        "t0Ms": 1779254174000,
+        "date": "2026-05-20",
+        "weight": 1,
+        "lowQuality": false,
+        "values": {
+          "rmssd": 36.722,
+          "sdnn": 45.938,
+          "hrRest": 57,
+          "stress": 48,
+          "hrvScore": 41.941
+        }
+      },
+      {
+        "i": 1,
+        "t0Ms": 1779342649000,
+        "date": "2026-05-21",
+        "weight": 1,
+        "lowQuality": false,
+        "values": {
+          "rmssd": 43.062,
+          "sdnn": 74.458,
+          "hrRest": 58,
+          "stress": 37,
+          "hrvScore": 51.353
+        }
+      },
+      {
+        "i": 2,
+        "t0Ms": 1779428166000,
+        "date": "2026-05-22",
+        "weight": 1,
+        "lowQuality": false,
+        "values": {
+          "rmssd": 39.487,
+          "sdnn": 62.574,
+          "hrRest": 57,
+          "stress": 46,
+          "hrvScore": 46.235
+        }
+      },
+      {
+        "i": 3,
+        "t0Ms": 1779514445000,
+        "date": "2026-05-23",
+        "weight": 1,
+        "lowQuality": false,
+        "values": {
+          "rmssd": 29.757,
+          "sdnn": 41.532,
+          "hrRest": 61,
+          "stress": 65,
+          "hrvScore": 29.778
+        }
+      },
+      {
+        "i": 4,
+        "t0Ms": 1779605290000,
+        "date": "2026-05-24",
+        "weight": 1,
+        "lowQuality": false,
+        "values": {
+          "rmssd": 46.809,
+          "sdnn": 63.045,
+          "hrRest": 50,
+          "stress": 32,
+          "hrvScore": 56.235
+        }
+      },
+      {
+        "i": 5,
+        "t0Ms": 1779687229000,
+        "date": "2026-05-25",
+        "weight": 1,
+        "lowQuality": false,
+        "values": {
+          "rmssd": 40.979,
+          "sdnn": 66.11,
+          "hrRest": 52,
+          "stress": 39,
+          "hrvScore": 48.412
+        }
+      },
+      {
+        "i": 6,
+        "t0Ms": 1779691727000,
+        "date": "2026-05-25",
+        "weight": 1,
+        "lowQuality": false,
+        "values": {
+          "rmssd": 48.526,
+          "sdnn": 64.571,
+          "hrRest": 51,
+          "stress": 35,
+          "hrvScore": 58.353
+        }
+      },
+      {
+        "i": 7,
+        "t0Ms": 1779861307000,
+        "date": "2026-05-27",
+        "weight": 1,
+        "lowQuality": false,
+        "values": {
+          "rmssd": 31.337,
+          "sdnn": 70.793,
+          "hrRest": 64,
+          "stress": 49,
+          "hrvScore": 32.647
+        }
+      },
+      {
+        "i": 8,
+        "t0Ms": 1779946690000,
+        "date": "2026-05-28",
+        "weight": 1,
+        "lowQuality": false,
+        "values": {
+          "rmssd": 42.209,
+          "sdnn": 89.846,
+          "hrRest": 58,
+          "stress": 31,
+          "hrvScore": 50.176
+        }
+      },
+      {
+        "i": 9,
+        "t0Ms": 1780033186000,
+        "date": "2026-05-29",
+        "weight": 1,
+        "lowQuality": false,
+        "values": {
+          "rmssd": 43.252,
+          "sdnn": 58.088,
+          "hrRest": 53,
+          "stress": 40,
+          "hrvScore": 51.588
+        }
+      },
+      {
+        "i": 10,
+        "t0Ms": 1780130108000,
+        "date": "2026-05-30",
+        "weight": 1,
+        "lowQuality": false,
+        "values": {
+          "rmssd": 27.504,
+          "sdnn": 65.438,
+          "hrRest": 59,
+          "stress": 56,
+          "hrvScore": 27.27
+        }
+      },
+      {
+        "i": 11,
+        "t0Ms": 1780210306000,
+        "date": "2026-05-31",
+        "weight": 1,
+        "lowQuality": false,
+        "values": {
+          "rmssd": 25.853,
+          "sdnn": 40.846,
+          "hrRest": 63,
+          "stress": 66,
+          "hrvScore": 25.302
+        }
+      },
+      {
+        "i": 12,
+        "t0Ms": 1780291956000,
+        "date": "2026-06-01",
+        "weight": 1,
+        "lowQuality": false,
+        "values": {
+          "rmssd": 35.833,
+          "sdnn": 50.871,
+          "hrRest": 53,
+          "stress": 46,
+          "hrvScore": 40.529
+        }
+      },
+      {
+        "i": 13,
+        "t0Ms": 1780378855000,
+        "date": "2026-06-02",
+        "weight": 1,
+        "lowQuality": false,
+        "values": {
+          "rmssd": 35.649,
+          "sdnn": 57.466,
+          "hrRest": 63,
+          "stress": 44,
+          "hrvScore": 40.235
+        }
+      },
+      {
+        "i": 14,
+        "t0Ms": 1780551220000,
+        "date": "2026-06-04",
+        "weight": 1,
+        "lowQuality": false,
+        "values": {
+          "rmssd": 35.299,
+          "sdnn": 41.265,
+          "hrRest": 50,
+          "stress": 48,
+          "hrvScore": 39.647
+        }
+      },
+      {
+        "i": 15,
+        "t0Ms": 1780648104000,
+        "date": "2026-06-05",
+        "weight": 1,
+        "lowQuality": false,
+        "values": {
+          "rmssd": 32.266,
+          "sdnn": 48.132,
+          "hrRest": 52,
+          "stress": 51,
+          "hrvScore": 34.353
+        }
+      },
+      {
+        "i": 16,
+        "t0Ms": 1780725520000,
+        "date": "2026-06-06",
+        "weight": 1,
+        "lowQuality": false,
+        "values": {
+          "rmssd": 52.983,
+          "sdnn": 64.632,
+          "hrRest": 49,
+          "stress": 30,
+          "hrvScore": 65.854
+        }
+      },
+      {
+        "i": 17,
+        "t0Ms": 1780732532000,
+        "date": "2026-06-06",
+        "weight": 1,
+        "lowQuality": false,
+        "values": {
+          "rmssd": 43.361,
+          "sdnn": 63.486,
+          "hrRest": 50,
+          "stress": 33,
+          "hrvScore": 51.765
+        }
+      },
+      {
+        "i": 18,
+        "t0Ms": 1780865804000,
+        "date": "2026-06-07",
+        "weight": 1,
+        "lowQuality": false,
+        "values": {
+          "rmssd": 27.632,
+          "sdnn": 35.01,
+          "hrRest": 57,
+          "stress": 66,
+          "hrvScore": 27.429
+        }
+      },
+      {
+        "i": 19,
+        "t0Ms": 1780896483000,
+        "date": "2026-06-08",
+        "weight": 1,
+        "lowQuality": false,
+        "values": {
+          "rmssd": 36.153,
+          "sdnn": 57.734,
+          "hrRest": 55,
+          "stress": 55,
+          "hrvScore": 41.059
+        }
+      },
+      {
+        "i": 20,
+        "t0Ms": 1780983836000,
+        "date": "2026-06-09",
+        "weight": 1,
+        "lowQuality": false,
+        "values": {
+          "rmssd": 42.005,
+          "sdnn": 104.51,
+          "hrRest": 58,
+          "stress": 28,
+          "hrvScore": 49.882
+        }
+      },
+      {
+        "i": 21,
+        "t0Ms": 1781069148000,
+        "date": "2026-06-10",
+        "weight": 1,
+        "lowQuality": false,
+        "values": {
+          "rmssd": 36.95,
+          "sdnn": 86.805,
+          "hrRest": 61,
+          "stress": 36,
+          "hrvScore": 42.353
+        }
+      },
+      {
+        "i": 22,
+        "t0Ms": 1781157120000,
+        "date": "2026-06-11",
+        "weight": 1,
+        "lowQuality": false,
+        "values": {
+          "rmssd": 36.701,
+          "sdnn": 57.472,
+          "hrRest": 51,
+          "stress": 44,
+          "hrvScore": 41.941
+        }
+      },
+      {
+        "i": 23,
+        "t0Ms": 1781249137000,
+        "date": "2026-06-12",
+        "weight": 1,
+        "lowQuality": false,
+        "values": {
+          "rmssd": 36.984,
+          "sdnn": 44.468,
+          "hrRest": 51,
+          "stress": 46,
+          "hrvScore": 42.353
+        }
+      },
+      {
+        "i": 24,
+        "t0Ms": 1781252742000,
+        "date": "2026-06-12",
+        "weight": 1,
+        "lowQuality": false,
+        "values": {
+          "rmssd": 29.699,
+          "sdnn": 51.508,
+          "hrRest": 58,
+          "stress": 55,
+          "hrvScore": 29.714
+        }
+      },
+      {
+        "i": 25,
+        "t0Ms": 1781338660000,
+        "date": "2026-06-13",
+        "weight": 1,
+        "lowQuality": false,
+        "values": {
+          "rmssd": 31.949,
+          "sdnn": 38.385,
+          "hrRest": 54,
+          "stress": 64,
+          "hrvScore": 33.765
+        }
+      },
+      {
+        "i": 26,
+        "t0Ms": 1781425695000,
+        "date": "2026-06-14",
+        "weight": 1,
+        "lowQuality": false,
+        "values": {
+          "rmssd": 34.156,
+          "sdnn": 43.369,
+          "hrRest": 51,
+          "stress": 48,
+          "hrvScore": 37.706
+        }
+      },
+      {
+        "i": 27,
+        "t0Ms": 1781503037000,
+        "date": "2026-06-15",
+        "weight": 1,
+        "lowQuality": false,
+        "values": {
+          "rmssd": 56.273,
+          "sdnn": 70.682,
+          "hrRest": 58,
+          "stress": 21,
+          "hrvScore": 71.707
+        }
+      },
+      {
+        "i": 28,
+        "t0Ms": 1781589059000,
+        "date": "2026-06-16",
+        "weight": 1,
+        "lowQuality": false,
+        "values": {
+          "rmssd": 43.177,
+          "sdnn": 72.676,
+          "hrRest": 61,
+          "stress": 33,
+          "hrvScore": 51.471
+        }
+      },
+      {
+        "i": 29,
+        "t0Ms": 1781674922000,
+        "date": "2026-06-17",
+        "weight": 1,
+        "lowQuality": false,
+        "values": {
+          "rmssd": 48.292,
+          "sdnn": 100.695,
+          "hrRest": 62,
+          "stress": 24,
+          "hrvScore": 58.059
+        }
+      }
+    ],
+    "headline": [
+      "SDNN +2.5σ vs your 30-night baseline",
+      "Stress -1.7σ vs your 30-night baseline",
+      "Resting HR +1.39σ vs your 30-night baseline"
+    ]
+  },
   "ganglior_events": [],
   "reserved": {
     "doc": "Awaiting other fleet nodes; null until available.",

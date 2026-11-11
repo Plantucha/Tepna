@@ -106,7 +106,10 @@ function realm() {
   const ctx = vm.createContext(sb);
   ctx.__DEX_NAMESPACED__ = true;
   // clock.js BEFORE hrvdex-dsp.js — the delegating DSP aliases DexClock.parseTimestamp at load.
-  for (const f of ['kernel-constants.js', 'clock.js', 'signal-frame.js', 'dex-export.js', 'metric-registry.js', 'hrvdex-registry.js', 'hrvdex-dsp.js'])
+  // crossnight-envelope.js + hrvdex-cross.js BEFORE the DSP, in the order HRVDex.src.html loads them:
+  // hrvBuildNodeExport reads root.HRVCross at call time, so a realm without them emits crossNight: null
+  // and the equivalence gate — which DOES carry them — would then red against this fixture.
+  for (const f of ['kernel-constants.js', 'clock.js', 'signal-frame.js', 'dex-export.js', 'metric-registry.js', 'crossnight-envelope.js', 'hrvdex-registry.js', 'hrvdex-cross.js', 'hrvdex-dsp.js'])
     vm.runInContext(DexBuild.classicify(fs.readFileSync(path.join(REPO, f), 'utf8')), ctx, { filename: f });
   return ctx;
 }

@@ -4,13 +4,14 @@
    integrator-longitudinal.js — CROSS-NODE LONGITUDINAL read + durable store.
    ────────────────────────────────────────────────────────────────────────
    Orthogonal to the same-night fusion layer. Consumes the standardized
-   `ganglior.crossnight` v1.0 envelopes (CROSSNIGHT-ENVELOPE-SPEC.md) that FIVE of
-   the eight nodes emit — OxyDex, PulseDex, ECGDex, PpgDex, CPAPDex, i.e. exactly
-   those with a `*-cross.js` (ENGINE-VERIFICATION-FINDINGS §1.7; this line used to
-   claim "every node", which is what sent a reader looking for an HRVDex envelope
-   that does not exist). HRVDex and GlucoDex are DEGRADED, not blind — both retain
-   native intra-file multi-day trending — while MotionDex has no longitudinal read
-   anywhere and is the unmitigated case. SPEC §7 carries the per-node table.
+   `ganglior.crossnight` v1.0 envelopes (CROSSNIGHT-ENVELOPE-SPEC.md) that SIX of
+   the eight nodes emit — OxyDex, PulseDex, ECGDex, PpgDex, CPAPDex and, since
+   2026-11-11, HRVDex — i.e. exactly those with a `*-cross.js`
+   (ENGINE-VERIFICATION-FINDINGS §1.7; this line used to claim "every node", which
+   is what sent a reader looking for an HRVDex envelope that did not then exist).
+   GlucoDex is DEGRADED, not blind — it retains native intra-file multi-day
+   trending — while MotionDex has no longitudinal read anywhere and is the
+   unmitigated case. SPEC §7 carries the per-node table.
    Persists each node's per-day metric summaries to IndexedDB,
    and date-joins them ACROSS nodes on the shared floating wall-clock to surface
    trends and cross-signal couplings no single node can see — e.g. "declining
