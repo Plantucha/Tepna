@@ -13406,26 +13406,39 @@ const OxyDex = window.OxyDex;
     for (let kf = 0; kf < nfFull; kf++) {
       const f = fLo + kf * df,
         w = 2 * Math.PI * f;
+      /* ONE PASS PER BIN. `sin(2wt)` and `cos(2wt)` come from the double-angle identities on the
+         same `sin(wt)`/`cos(wt)` this loop already needs, and the tau-shifted sums come back from the
+         angle-difference identities after the loop. So the bin costs two trig calls per sample
+         instead of four, over one pass instead of two. The algebra is exact, so only the last bits of
+         the sums move. Residue 2026-11-08-lomb-scargle-makes-two-trig-passes-per-bin-and-sample. */
       let s2 = 0,
-        c2 = 0;
+        c2 = 0,
+        xC = 0,
+        xS = 0,
+        ccSum = 0,
+        ssSum = 0,
+        scSum = 0;
       for (let i = 0; i < N; i++) {
-        s2 += Math.sin(2 * w * t[i]);
-        c2 += Math.cos(2 * w * t[i]);
+        const wt0 = w * t[i],
+          cw0 = Math.cos(wt0),
+          sw0 = Math.sin(wt0);
+        s2 += 2 * sw0 * cw0; // sin(2wt)
+        c2 += cw0 * cw0 - sw0 * sw0; // cos(2wt)
+        xC += x[i] * cw0;
+        xS += x[i] * sw0;
+        ccSum += cw0 * cw0;
+        ssSum += sw0 * sw0;
+        scSum += sw0 * cw0;
       }
       const tau = Math.atan2(s2, c2) / (2 * w);
-      let nC = 0,
-        nS = 0,
-        dC = 0,
-        dS = 0;
-      for (let i = 0; i < N; i++) {
-        const wt = w * (t[i] - tau),
-          cw = Math.cos(wt),
-          sw = Math.sin(wt);
-        nC += x[i] * cw;
-        dC += cw * cw;
-        nS += x[i] * sw;
-        dS += sw * sw;
-      }
+      /* cos(w(t - tau)) = cos(wt)*ct + sin(wt)*st and sin(w(t - tau)) = sin(wt)*ct - cos(wt)*st,
+         which turns the four shifted sums into products of the unshifted ones. */
+      const ct = Math.cos(w * tau),
+        st = Math.sin(w * tau);
+      const nC = ct * xC + st * xS,
+        nS = ct * xS - st * xC,
+        dC = ct * ct * ccSum + 2 * ct * st * scSum + st * st * ssSum,
+        dS = ct * ct * ssSum - 2 * ct * st * scSum + st * st * ccSum;
       const P = 0.5 * ((nC * nC) / (dC || 1) + (nS * nS) / (dS || 1));
       const e = P * df;
       tpFull += e; // every evaluated bin — the Parseval denominator
