@@ -115,6 +115,14 @@
         "tools/residue-ids.mjs"
       ],
       "reason": "a synthetic key inside the residue tooling's own selftest, dated in range so the ledger floor cannot see it"
+    },
+    {
+      "key": "2026-11-01-a-pointer-row",
+      "class": "fixture",
+      "sites": [
+        "tools/residue-ids.mjs"
+      ],
+      "reason": "a synthetic key inside the residue tooling's own selftest, dated in range so the ledger floor cannot see it"
     }
   ]
 }

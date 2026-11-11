@@ -57,6 +57,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { isCliEntry } from './argv-guard.mjs';
+/* THE POINTER JUDGE HAS ONE HOME. `tools/residue-cite-drift.mjs` classifies a citation, and this
+   reader borrows that judgement rather than keeping a second copy, so the two tools can never
+   disagree about what `moved` means. */
+import { citations, identifiers, judge, suffixCandidates, toLines, trySpellings } from './residue-cite-drift.mjs';
 
 /* `verdict.js` is CommonJS and sits at the repo root; this is the idiom `tools/mutate.mjs` uses. */
 const Verdict = createRequire(import.meta.url)('../verdict.js');
@@ -799,9 +803,130 @@ export function worktreeFacts(headText, diskText) {
   };
 }
 
+/* ── THE POINTER READ ───────────────────────────────────────────────────────────────────────────
+   Row 2026-11-08-a-residue-pointer-outlived-the-file-it-cites. A row's evidence cell points at
+   `path:line`, the file moves, and the pointer keeps its old number. Measured 2026-11-11 over
+   `origin/main`: 33 citations on the 50 OPEN rows, of which 18 still sit on the cited line, 10
+   moved, 3 anchor nothing, 1 points past the end of its file and 1 names no tracked path. So a
+   session picking a row up reads a wrong line in 15 of 33 cases, and nothing in the list said so.
+   Over the WHOLE ledger the census reads 901 citations with 560 moved, which is the same defect at
+   the scale no pickup reader pays for.
+
+   ⚠️ THIS READ ASKS THE CHEAP QUESTIONS ONLY, AND IT NAMES THE ONE IT SKIPPED. A cited path that no
+   tracked file carries scores `unresolved` here. The census splits that case into `missing-file` and
+   `off-tree`, and the split costs a `git log --all` per path. It also changes nothing a session does
+   next, because both answers say "read the row, not the pointer". So this reader states the question
+   it did not ask instead of borrowing a class it never earned.
+
+   A verdict this reader cannot place lands in `unclassified` and is PRINTED. A fifth class folded
+   into one of the four would read as a measurement of something nobody judged. */
+export function rowPointerState(rowText, reader, isTracked = null) {
+  const ids = identifiers(rowText);
+  const st = { cites: 0, anchored: 0, moved: 0, unanchored: 0, beyondEof: 0, unresolved: 0, unclassified: 0, detail: [] };
+  for (const c of citations(rowText, isTracked)) {
+    st.cites += 1;
+    const lines = reader(c.path);
+    if (lines === null) {
+      st.unresolved += 1;
+      st.detail.push({ path: c.path, line: c.line, verdict: 'unresolved' });
+      continue;
+    }
+    const j = judge(c, lines, ids);
+    if (j.verdict === 'anchored') {
+      st.anchored += 1;
+    } else if (j.verdict === 'moved') {
+      /* The hint is the FIRST line carrying one of the row's own identifiers, which is a lead and
+         never a proof that the cited line is the one that moved there. */
+      const first = Object.values(j.now || {})[0];
+      st.moved += 1;
+      st.detail.push({ path: c.path, line: c.line, verdict: 'moved', now: Array.isArray(first) ? first[0] : null });
+    } else if (j.verdict === 'beyond-eof') {
+      st.beyondEof += 1;
+      st.detail.push({ path: c.path, line: c.line, verdict: 'beyond-eof', length: j.length ?? null });
+    } else if (j.verdict === 'unanchored') {
+      st.unanchored += 1;
+      st.detail.push({ path: c.path, line: c.line, verdict: 'unanchored' });
+    } else {
+      st.unclassified += 1;
+      st.detail.push({ path: c.path, line: c.line, verdict: String(j.verdict) });
+    }
+  }
+  return st;
+}
+
+/* The row's own annotation. A row whose every pointer still anchors gets NO note, so the list stays
+   readable, and the summary states what that silence covers. */
+export function pointerNote(st) {
+  if (!st || st.cites === 0) return '';
+  const drifted = st.moved + st.unanchored + st.beyondEof + st.unresolved + st.unclassified;
+  if (drifted === 0) return '';
+  const parts = [];
+  if (st.moved) parts.push(`${st.moved} moved`);
+  if (st.unanchored) parts.push(`${st.unanchored} anchoring nothing`);
+  if (st.beyondEof) parts.push(`${st.beyondEof} past end of file`);
+  if (st.unresolved) parts.push(`${st.unresolved} at no tracked path`);
+  if (st.unclassified) parts.push(`${st.unclassified} unclassified`);
+  const hint = st.detail.find((d) => d.verdict === 'moved' && d.now);
+  const eg = hint ? ` (e.g. ${hint.path}:${hint.line} — an identifier of this row now sits at :${hint.now})` : '';
+  return `  ← pointer: ${drifted} of ${st.cites} cite(s) drifted — ${parts.join(', ')}${eg}`;
+}
+
+/* The compact form, for a row named INSIDE another row's lead. It states the count and nothing else,
+   because the lead already carries that row's key and a reader opens it next. */
+export function pointerTag(st) {
+  if (!st || st.cites === 0) return '';
+  const drifted = st.moved + st.unanchored + st.beyondEof + st.unresolved + st.unclassified;
+  return drifted === 0 ? '' : `, pointer: ${drifted} of ${st.cites} drifted`;
+}
+
+/* The population. A count of drifted rows means nothing without the rows that cite nothing at all:
+   those carry no annotation for a reason no reader can see from a blank line. */
+export function pointerTotals(states) {
+  const t = { rows: 0, citing: 0, drifted: 0, cites: 0, anchored: 0, moved: 0, unanchored: 0, beyondEof: 0, unresolved: 0, unclassified: 0 };
+  for (const st of states instanceof Map ? states.values() : states || []) {
+    t.rows += 1;
+    if (!st || st.cites === 0) continue;
+    t.citing += 1;
+    for (const f of ['cites', 'anchored', 'moved', 'unanchored', 'beyondEof', 'unresolved', 'unclassified']) t[f] += st[f];
+    if (st.cites > st.anchored) t.drifted += 1;
+  }
+  return t;
+}
+
 /* ── everything below is I/O; the core above is pure and is what the suite drives ── */
 
 const git = (args) => execFileSync('git', args, { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 });
+
+/* THE CHEAP RESOLVER. The judged tree's tracked set is read ONCE, so a path no spelling matches
+   costs no git call at all. `trySpellings` is the census's own list and the unique-tail arm is its
+   `tailReader` rule — the same two steps, in memory. Measured 2026-11-11 over the 50 OPEN rows at
+   `origin/main`: 33 citations, 20 distinct resolved paths, 21 git calls and 11 MB of text held. */
+function pointerReader(ref) {
+  const tracked = git(['ls-tree', '-r', '--name-only', ref]).split('\n').filter(Boolean);
+  const trackedSet = new Set(tracked);
+  const lines = new Map();
+  const resolve = (p) => {
+    for (const cand of trySpellings(p)) if (trackedSet.has(cand)) return cand;
+    const tails = suffixCandidates(p, tracked);
+    return tails.length === 1 ? tails[0] : null;
+  };
+  const reader = (p) => {
+    if (!lines.has(p)) {
+      const at = resolve(p);
+      let got = null;
+      if (at !== null) {
+        try {
+          got = toLines(git(['show', `${ref}:${at}`]));
+        } catch {
+          got = null;
+        }
+      }
+      lines.set(p, got);
+    }
+    return lines.get(p);
+  };
+  return { reader, isTracked: (p) => trackedSet.has(p) };
+}
 
 function refuse(msg, detail) {
   process.stderr.write(`residue-ids: REFUSING — ${msg}\n`);
@@ -919,7 +1044,8 @@ function main() {
     const drift = pickupDrift(refText, diskText);
     /* THE LEDGER-INTERNAL READ. Pure, so it runs in every mode: a row's answer may sit in another
        row, and that row's own state cell may already read closed. */
-    const cites = citedBy(drift.openOnRef, parseRows(refText));
+    const refRows = parseRows(refText);
+    const cites = citedBy(drift.openOnRef, refRows);
     /* THE CODE READ. Bounded by the oldest OPEN key's date, less one day for the zone: a commit cannot
        name a key before the day it was coined. A git failure leaves `leads` null and says so. */
     let leads = null;
@@ -938,6 +1064,43 @@ function main() {
         leads = null;
       }
     }
+    /* THE POINTER READ. Off under `--verdict-sample`, which is the shape probe, and null on a git
+       failure so the output says the read did not run rather than reporting clean pointers. */
+    let pointers = null;
+    if (!sample) {
+      try {
+        const pr = pointerReader(base);
+        const textOf = new Map(refRows.map((r) => [r.id, r.key]));
+        pointers = new Map();
+        for (const k of drift.openOnRef) {
+          const text = textOf.get(k);
+          if (text === undefined) continue;
+          pointers.set(k, rowPointerState(text, pr.reader, pr.isTracked));
+        }
+        /* THE ROWS A LEAD SENDS A READER TO ARE JUDGED TOO. The paragraph below tells a session to
+           open every citing row, including the ones that already read closed — and the defect this
+           read answers was FOUND as a pointer inside a closed row (`oxydex-profile.js:694` in row
+           2026-10-12-cohort-worker-oxy-realm-lacks-the-escaper). An OPEN-only read would skip that
+           whole class.
+           ⚠️ IT STILL REACHES ONLY THE ROWS THIS READER PRINTS. Measured 2026-11-11 at `origin/main`:
+           50 open rows plus 15 lead rows, which is 65 of 1380. The escaper row above is neither, so
+           the whole-ledger answer stays with `tools/residue-cite-drift.mjs --strict`. */
+        for (const e of [...cites.values()].flat()) {
+          if (pointers.has(e.id)) continue;
+          const text = textOf.get(e.id);
+          if (text !== undefined) pointers.set(e.id, rowPointerState(text, pr.reader, pr.isTracked));
+        }
+      } catch {
+        pointers = null;
+      }
+    }
+    /* TWO POPULATIONS, NEVER ONE SUM. The OPEN rows are the pickup list; the lead rows are rows a
+       reader opens next and are mostly closed, so a single total would report the list as longer than
+       it is. */
+    const openSet = new Set(drift.openOnRef);
+    const leadIds = pointers === null ? [] : [...new Set([...cites.values()].flat().map((e) => e.id))].filter((id) => !openSet.has(id) && pointers.has(id));
+    const openTotals = pointers === null ? null : pointerTotals(drift.openOnRef.map((k) => pointers.get(k)).filter(Boolean));
+    const leadTotals = pointers === null ? null : pointerTotals(leadIds.map((id) => pointers.get(id)));
     const corrected = keysWithKind(cites, 'correction');
     const unattributable = keysWithKind(cites, 'correction-unattributable');
     const v = pickupVerdict(drift, {
@@ -954,7 +1117,20 @@ function main() {
       process.exit(0);
     }
     if (asJson) {
-      process.stdout.write(`${JSON.stringify({ verdict: v, ...drift, namedByCode: leads === null ? null : Object.fromEntries(leads), citedBy: Object.fromEntries(cites) }, null, 2)}\n`);
+      process.stdout.write(
+        `${JSON.stringify(
+          {
+            verdict: v,
+            ...drift,
+            namedByCode: leads === null ? null : Object.fromEntries(leads),
+            citedBy: Object.fromEntries(cites),
+            pointerState: pointers === null ? null : Object.fromEntries(pointers),
+            pointerTotals: pointers === null ? null : { open: openTotals, cited: leadTotals }
+          },
+          null,
+          2
+        )}\n`
+      );
       process.exit(v.status === 'PASS' ? 0 : 1);
     }
     /* FIRST, and on stderr: the count on the next line is a count of rows the reader could read, so
@@ -970,10 +1146,10 @@ function main() {
             cites.has(k)
               ? `  ← cited by row: ${cites
                   .get(k)
-                  .map((e) => `${e.id} [${e.state}, cites ${e.fanOut}${e.kind === 'citation' ? '' : `, ${e.kind.toUpperCase()}`}]`)
+                  .map((e) => `${e.id} [${e.state}, cites ${e.fanOut}${e.kind === 'citation' ? '' : `, ${e.kind.toUpperCase()}`}${pointers?.has(e.id) ? pointerTag(pointers.get(e.id)) : ''}]`)
                   .join(', ')}`
               : ''
-          }\n`
+          }${pointers?.has(k) ? pointerNote(pointers.get(k)) : ''}\n`
       );
     if (leads === null) process.stdout.write('\nresidue-pickup: the code read did not run (git log was not readable), so no row carries a lead\n');
     else
@@ -1005,6 +1181,27 @@ function main() {
         'row and decide for yourself which row its verb was about. A correction never moves the corrected ' +
         "row's state, since rows are append-and-close.\n"
     );
+    if (pointers === null) process.stdout.write('residue-pickup: the pointer read did not run (git was not readable), so no row says where its own evidence now sits\n');
+    else {
+      const t = openTotals;
+      process.stdout.write(
+        `residue-pickup: ${t.drifted} of the ${t.rows} OPEN row(s) carry a pointer that no longer reaches the line it cites. ` +
+          `${t.citing} row(s) cite a \`path:line\` at all, over ${t.cites} citation(s): ${t.anchored} anchored, ${t.moved} moved, ` +
+          `${t.unanchored} anchoring nothing, ${t.beyondEof} past end of file, ${t.unresolved} at no tracked path, ` +
+          `${t.unclassified} unclassified. A row with NO pointer note either cites nothing or still anchors, so read these ` +
+          'counts before you read a blank line as a sound pointer. A `moved` hint names the first line carrying one of the ' +
+          "row's own identifiers, which is a lead and never a proof. This read asks the cheap questions only: a citation at " +
+          'no tracked path is NOT split into rot and off-tree, because that split costs a history probe per path. Run ' +
+          '`node tools/residue-cite-drift.mjs` for the whole ledger and that split.\n'
+      );
+      process.stdout.write(
+        `residue-pickup: the ${leadTotals.rows} row(s) named as a lead above, and not open themselves, carry ` +
+          `${leadTotals.drifted} drifted pointer set(s) over ${leadTotals.cites} citation(s). A lead row is usually CLOSED, ` +
+          'and a closed row keeps its pointers for as long as a reader is told to open it, so this read judges it beside ' +
+          `the open ones. This read judges those ${t.rows + leadTotals.rows} row(s) and no others — for every row in the ` +
+          'ledger run `node tools/residue-cite-drift.mjs --strict`.\n'
+      );
+    }
     if (v.status === 'PASS') {
       process.stdout.write(`\nresidue-pickup: the file on disk agrees with ${base} on all ${drift.checked} shared row(s)\n`);
     } else {
@@ -1537,6 +1734,65 @@ if (IS_CLI && process.argv.includes('--selftest')) {
     );
   }
 
+  /* ── THE POINTER READ ─────────────────────────────────────────────────────────────────────────
+     One plant per class, a control for each way the annotation could over-report, and the formatter
+     held against a state the plants cannot produce. The reader is a function over a table, so these
+     legs need no git and no tree. */
+  {
+    const serve = (table) => (q) => (q in table ? table[q] : null);
+    const txt = (defect) => parseRows(row('2026-11-01-a-pointer-row', defect))[0].key;
+
+    let st = rowPointerState(txt('the `beta` at a.js:2'), serve({ 'a.js': ['x', 'the `beta` here', 'y'] }));
+    assert(st.cites === 1 && st.anchored === 1 && st.detail.length === 0, 'a citation whose cited line still carries a row identifier is anchored');
+    assert(pointerNote(st) === '', 'CONTROL · an anchored row prints NO note, so a note always means drift');
+
+    st = rowPointerState(txt('the `beta_gamma` at a.js:2'), serve({ 'a.js': ['x', 'y', 'z', 'w', 'the `beta_gamma` here'] }));
+    assert(st.moved === 1 && st.detail[0].now === 5, 'a citation whose identifier sits elsewhere is moved, and the hint names that line');
+    assert(/1 of 1 cite\(s\) drifted — 1 moved/.test(pointerNote(st)) && /now sits at :5/.test(pointerNote(st)), 'the moved note names the count and the lead');
+
+    st = rowPointerState(txt('the `beta_gamma` at a.js:2'), serve({ 'a.js': ['x', 'y', 'z'] }));
+    assert(st.unanchored === 1 && st.moved === 0, 'a citation whose identifier sits nowhere in the file anchors nothing');
+    assert(/anchoring nothing/.test(pointerNote(st)), 'the note says the citation anchors nothing');
+
+    st = rowPointerState(txt('the `beta_gamma` at a.js:99'), serve({ 'a.js': ['x', 'y', 'z'] }));
+    assert(st.beyondEof === 1 && st.detail[0].length === 3, 'a citation past the last line is beyond-eof, and the note carries the real length');
+    assert(/past end of file/.test(pointerNote(st)), 'the note says the pointer sits past the end of its file');
+
+    st = rowPointerState(txt('the `beta_gamma` at b.js:2'), serve({ 'a.js': ['x', 'y'] }));
+    assert(st.unresolved === 1 && st.cites === 1, 'a citation at a path the reader cannot resolve is unresolved, NEVER rot');
+    assert(/at no tracked path/.test(pointerNote(st)), 'the note states the class this read did not split');
+
+    st = rowPointerState(txt('prose with no pointer in it at all'), serve({}));
+    assert(st.cites === 0 && pointerNote(st) === '', 'CONTROL · a row citing no path is counted as citing nothing and prints no note');
+
+    st = rowPointerState(txt('the `beta_gamma` at a.js:2 and again at a.js:1'), serve({ 'a.js': ['the `beta_gamma` here', 'y'] }));
+    assert(st.cites === 2 && st.anchored === 1 && st.moved === 1, 'one row holding two citations is judged per citation, not per row');
+
+    /* THE FORMATTER OVER A STATE THE PLANTS CANNOT REACH: a verdict this reader does not place must
+       be PRINTED, because a fifth class folded into one of the four reads as a measurement. */
+    const odd = { cites: 1, anchored: 0, moved: 0, unanchored: 0, beyondEof: 0, unresolved: 0, unclassified: 1, detail: [{ path: 'a.js', line: 1, verdict: 'weird' }] };
+    assert(/1 unclassified/.test(pointerNote(odd)), 'an unplaced verdict is named in the note');
+    const noLead = { cites: 1, anchored: 0, moved: 1, unanchored: 0, beyondEof: 0, unresolved: 0, unclassified: 0, detail: [{ path: 'a.js', line: 1, verdict: 'moved', now: null }] };
+    assert(/1 moved/.test(pointerNote(noLead)) && !/e\.g\./.test(pointerNote(noLead)), 'a moved citation with no lead line prints the count and no example');
+
+    const clean = rowPointerState(txt('the `beta` at a.js:2'), serve({ 'a.js': ['x', 'the `beta` here'] }));
+    const drift2 = rowPointerState(txt('the `beta_gamma` at a.js:2'), serve({ 'a.js': ['x', 'y', 'z'] }));
+    const bare = rowPointerState(txt('prose only'), serve({}));
+    const t = pointerTotals(
+      new Map([
+        ['k1', clean],
+        ['k2', drift2],
+        ['k3', bare]
+      ])
+    );
+    assert(t.rows === 3 && t.citing === 2 && t.drifted === 1, 'the totals separate the rows that cite nothing from the rows whose pointers hold');
+    assert(t.cites === 2 && t.anchored === 1 && t.unanchored === 1, 'the totals sum the citation classes over the citing rows only');
+    assert(pointerTotals(new Map()).rows === 0 && pointerTotals(null).rows === 0, 'CONTROL · an empty or absent state map totals zero and throws nothing');
+
+    assert(pointerTag(drift2) === ', pointer: 1 of 1 drifted', 'the lead tag states the count alone, because the lead already names the row');
+    assert(pointerTag(clean) === '' && pointerTag(bare) === '' && pointerTag(null) === '', 'CONTROL · a sound pointer, a row citing nothing and an absent state all tag nothing');
+  }
+
   /* BLACK BOX: the CLI in a scratch repo. Commit 1 adds the row in a code commit that names it (a
      remainder row); commit 2 is a code fix that names it; commit 3 only annotates the ledger. The
      listing must name commit 2 alone. */
@@ -1546,7 +1802,7 @@ if (IS_CLI && process.argv.includes('--selftest')) {
       const here = path.dirname(fileURLToPath(import.meta.url));
       mkdirSync(path.join(scratch, 'tools'));
       mkdirSync(path.join(scratch, 'briefs'));
-      for (const f of ['residue-ids.mjs', 'argv-guard.mjs']) copyFileSync(path.join(here, f), path.join(scratch, 'tools', f));
+      for (const f of ['residue-ids.mjs', 'argv-guard.mjs', 'residue-cite-drift.mjs', 'regex-escape-core.mjs']) copyFileSync(path.join(here, f), path.join(scratch, 'tools', f));
       copyFileSync(path.join(here, '..', 'verdict.js'), path.join(scratch, 'verdict.js'));
       const K = '2026-10-20-a-scratch-row';
       const g = (...a) => execFileSync('git', ['-c', 'user.email=a@b.c', '-c', 'user.name=selftest', ...a], { cwd: scratch, encoding: 'utf8' });
@@ -1601,7 +1857,7 @@ if (IS_CLI && process.argv.includes('--selftest')) {
       const here = path.dirname(fileURLToPath(import.meta.url));
       mkdirSync(path.join(scratch, 'tools'));
       mkdirSync(path.join(scratch, 'briefs'));
-      for (const f of ['residue-ids.mjs', 'argv-guard.mjs']) copyFileSync(path.join(here, f), path.join(scratch, 'tools', f));
+      for (const f of ['residue-ids.mjs', 'argv-guard.mjs', 'residue-cite-drift.mjs', 'regex-escape-core.mjs']) copyFileSync(path.join(here, f), path.join(scratch, 'tools', f));
       copyFileSync(path.join(here, '..', 'verdict.js'), path.join(scratch, 'verdict.js'));
       const g = (...a) => execFileSync('git', ['-c', 'user.email=a@b.c', '-c', 'user.name=selftest', ...a], { cwd: scratch, encoding: 'utf8' });
       const ledger = path.join(scratch, 'briefs', 'RESIDUE.md');
