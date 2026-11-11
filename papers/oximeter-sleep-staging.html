@@ -58,7 +58,7 @@
       <tr><td>Dreem DOD-O</td><td>56</td><td>—</td><td>ECG 250 Hz</td><td>—</td><td>five-scorer consensus</td><td>MIT</td><td>blind, ECG line (§44)</td></tr>
     </tbody>
   </table>
-  <p>Nights with a present-but-empty SpO₂ channel (&lt; 50 % valid) are skipped and counted; a cohort without a signal yields NaN in that signal's columns, never a filled value. Aggregate statistics only are reported; no record identifiers leave the corpus (NSRR DAUA §5).</p>
+  <p>The cohorts marked NSRR in Table 1 are obtained from the National Sleep Research Resource (Zhang et al., 2018), and SHHS-1 and SHHS-2 are the two visits of the Sleep Heart Health Study (Quan et al., 1997). Nights with a present-but-empty SpO₂ channel (&lt; 50 % valid) are skipped and counted; a cohort without a signal yields NaN in that signal's columns, never a filled value. Aggregate statistics only are reported; no record identifiers leave the corpus (NSRR DAUA §5).</p>
 
   <h3 class="sub">2.2 Harmonisation to the ring</h3>
   <p>SpO₂ is reduced to an 8-s moving mean at 1 Hz in whole percent, which is what the ring writes (one byte per second per signal). Pulse rate is the oximeter's own 1-Hz rate where the PSG has one; otherwise 60/RR from ECG beats found by the suite's Pan–Tompkins detector (Pan &amp; Tompkins, 1985; validated at Se/PPV ≥ 99 % on MIT-BIH, SLPDB and NSRDB, Table S1) with a 4-s mean. Motion is the per-second standard deviation of wrist acceleration magnitude; a 1-bit "moved this second" flag (&gt; 0.02 g) is carried beside it, as the poorest signal the ring could report. Every signal is standardised per night (median/IQR).</p>
@@ -77,7 +77,7 @@
   </ul>
 
   <h3 class="sub">2.5 Pre-registration and plants</h3>
-  <p>Each unit's expected range, pass line and reading rule were written in <code>briefs/STAGE-LAB-2026-09-27-BRIEF.md</code> before the unit ran (§§5–20); measured numbers were appended beside them, including every failed expectation. The gate for all units: pooled κ ≥ 0.415, half the human inter-scorer κ (0.829). Plant P1: labels shifted by half a night must collapse κ below half its value, or the run is void. Folds are a hash of the subject key (SHHS1/SHHS2 visits of one person share a fold); Challenge 2018 and ISRUC are never in any fit.</p>
+  <p>Each unit's expected range, pass line and reading rule were written in <code>briefs/STAGE-LAB-2026-09-27-BRIEF.md</code> before the unit ran (§§5–20); measured numbers were appended beside them, including every failed expectation. The gate for all units: pooled κ ≥ 0.415, half the human inter-scorer κ (0.829). Agreement is Cohen&rsquo;s κ over the four nominal classes (Cohen, 1960), computed against each cohort&rsquo;s own scored labels. Plant P1: labels shifted by half a night must collapse κ below half its value, or the run is void. Folds are a hash of the subject key (SHHS1/SHHS2 visits of one person share a fold); Challenge 2018 and ISRUC are never in any fit.</p>
 
   <h2 class="sec">3. Results</h2>
   <p>Values are copied from the bench summaries and readouts under <code>lab-cache/</code> (brief §§29–50), never typed from memory. Tables 2–5 are pre-§46 data; Table 6 is the §46 re-run, reported beside them and never pooled with them. The control's numbers are the nine-cohort five-fold CV (v30 B1); the stack's are all five folds (CRF Viterbi for κ4, the saved context-layer posteriors for κ3). "Blind" = never fitted.</p>
