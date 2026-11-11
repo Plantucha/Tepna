@@ -46,8 +46,10 @@
  *   form, non-negative by construction (Schatzman 2020 IFCS-ISAF, 2021); the Groslambert covariance
  *   that outperforms TCH on the negative-variance case (Calosso et al. 2018, IEEE TUFFC); the same
  *   3CH transplanted to atmospheric datasets with the same unknown-correlation limit (Sjoberg et al.
- *   2021, J Atmos Oceanic Tech). Corpus reference: median σ, ρ-on, over the committed nights —
- *   H10 0.79 · O2Ring 1.08 · Verity 2.20 bpm (validation doc §11).
+ *   2021, J Atmos Oceanic Tech). Pooled reference: Figure 3 draws two marks per corner from the
+ *   published record (window.TCH_REFERENCE_RECORD) — the median hat σ̂ over its nights and the σ
+ *   measured against the firmware-RR reference. The gap between them is the hat's own bias on that
+ *   corner. The July §11 corpus medians this page used to draw are retired: 24 nights, superseded.
  *
  * ABSENCE IS NULL: a gated or negative-variance corner is `null` from the worker and renders as an
  * absence here — never 0, never a placeholder inside the σ axis. Clock Contract §5: the worker's keys
@@ -70,13 +72,11 @@
     GRIDC = 'rgba(30,45,66,0.6)';
   const rgba = (k, a) => 'rgba(' + DEV[k].rgb + ',' + a + ')';
   // ── literature anchors (author-time constants; display only — see header) ─────────────────
-  const MAE_TO_SIGMA = Math.sqrt(Math.PI / 2);
-  const LIT = {
-    h10: { sigma: null, mark: 'criterion device', cite: 'Schweizer & Gilgen-Ammann 2025 · Budig 2021' },
-    verity: { sigma: 1.43 * MAE_TO_SIGMA, mark: 'arm MAE 1.43 → σ≈1.8', cite: 'Schweizer & Gilgen-Ammann 2025, JMIR Cardio, doi:10.2196/67110' },
-    o2: { sigma: null, mark: 'no published HR-MAE', cite: 'Tisyakorn 2024 (ODI/OSA, AUC 0.91) · Cao 2021 (ring HR)' }
-  };
-  const CORPUS = { h10: 0.79, verity: 2.2, o2: 1.08 }; // §11 ρ-on medians, bpm
+  /* NO LITERATURE MARK IS DRAWN. The one published HR error for these devices is the Verity's
+     UPPER-ARM MAE (1.43 bpm, Schweizer & Gilgen-Ammann 2025). This Verity is worn on the left ankle
+     (PAT-SENSOR-PLACEMENT-CORRECTION), so a diamond at that value compared two body sites and read as
+     a check. The citation stays in the export and the reading note; the figure draws no value from it. */
+  const LIT_NOTE = 'Verity upper-arm MAE 1.43 bpm (Schweizer & Gilgen-Ammann 2025, JMIR Cardio, doi:10.2196/67110) — a different body site from this ankle-worn Verity, so not drawn';
   const PAIRS = [
     { key: 'hv', a: 'h10', b: 'verity', label: 'H10 − Verity' },
     { key: 'ho', a: 'h10', b: 'o2', label: 'H10 − O2Ring' },
@@ -506,7 +506,9 @@
       B: 400
     });
     const derive =
-      d && d.ci ? { ci: d.ci, running: d.running || [], pairSd: d.pairSd || null, conf: d.conf || null, minute: d.minute || null } : { ci: null, running: [], pairSd: null, conf: null, minute: null };
+      d && d.ci
+        ? { ci: d.ci, running: d.running || [], pairSd: d.pairSd || null, conf: d.conf || null, minute: d.minute || null, tau: d.tau || null, boot: d.boot || null }
+        : { ci: null, running: [], pairSd: null, conf: null, minute: null, tau: null, boot: null };
     // keep each corner's CI consistent with its (possibly nulled) point estimate — as runRealNight does
     if (derive.ci) for (const k of DKEYS) if (real.sigma[k] == null) derive.ci[k] = null;
     finish(nt, real, derive);
@@ -542,7 +544,7 @@
   // ═══════════════════════════════════════════════════════════════════════════
   //  RENDER — ans-design surfaces, hrvdex-chart canvases, hand-authored SVG
   // ═══════════════════════════════════════════════════════════════════════════
-  const CARDS = ['cSeries', 'cSigma', 'cDiff', 'cRun', 'cTri'];
+  const CARDS = ['cSeries', 'cSigma', 'cDiff', 'cRun', 'cTau', 'cTri'];
   /* ── TRUST BADGES (CLAUDE.md §🎫) — this page's grades and why. HR series take their node registries' grade
      (ECGDex/PpgDex/OxyDex `hr`/`meanHr`: measured). A difference, a correlation or an overlap is arithmetic on
      those series → measured. σ̂ and everything derived from the hat assume independent corner errors and are not
@@ -556,6 +558,16 @@
     count: ['measured', 'seconds on the aligned three-way grid — a count'],
     source: ['measured', 'which file each corner was read from, and the polarity condition the Verity channel set was read under — facts about the inputs'],
     hat: ['experimental', 'three-cornered hat σ̂ — assumes independent corner errors; not validated against a reference'],
+    tau: ['experimental', 'the same hat re-solved on τ-second means of the three series — the same unvalidated estimator, at a coarser time scale'],
+    boot: [
+      'experimental',
+      "bootstrap block length from the integrated autocorrelation time of the hat's three difference series — an estimate of the series' memory, truncated at its first non-positive lag"
+    ],
+    tchHat: ['experimental', 'median hat σ̂ over the published record’s nights — the same unvalidated estimator, pooled'],
+    tchTrue: [
+      'measured',
+      'median σ of each corner against a two-detector firmware-RR reference over the published record’s nights (tools/tch-firmware-reference.mjs) — for the H10 a lower bound, because the reference is built from its own detections'
+    ],
     gate: ['experimental', "the suite's own corner gates (Verity harmonic, H10 lead) — a rule, not a measurement"],
     gateEv: ['measured', 'median Verity HR ÷ median H10 HR over the aligned grid — a ratio of two measured medians, which is the number the Verity harmonic gate ruled on'],
     rhoCrit: ['experimental', 'the error correlation at which a corner of this hat collapses to zero — a property of this solve, derived from the same unvalidated σ̂'],
@@ -607,7 +619,13 @@
       ['hrPpg', 'Verity Sense HR'],
       ['hrO2', 'O2Ring HR']
     ]);
-    seriesBadges('cSigma', [['hat', 'σ̂ per corner, with its bootstrap CI']]);
+    seriesBadges('cSigma', [
+      ['hat', 'σ̂ per corner, with its bootstrap CI'],
+      ['boot', 'block length'],
+      ['tchHat', 'pooled hat median (dashed)'],
+      ['tchTrue', 'pooled reference σ (solid)']
+    ]);
+    seriesBadges('cTau', [['tau', 'σ̂ per corner at each averaging time']]);
     seriesBadges('cDiff', [
       ['diff', 'H10 − Verity'],
       ['diff', 'H10 − O2Ring'],
@@ -979,12 +997,21 @@
       ' <b>No "independent ✓" is shown here, and none is available:</b> a negative variance needs ρ > σ₀_A/σ₀_B, so a positive solve is not evidence of uncorrelated errors at any n. ' +
       'No band around the collapse point is given either — sensitivity rises smoothly to it, with no regime to threshold on.';
   }
+  /* THE OVERLAP IS A SELECTION, SO SAY HOW MUCH OF EACH STREAM IT KEPT. The hat runs on the seconds
+     all three corners share. `coverage` is each corner's own seconds, so n ÷ coverage is the share of
+     that stream the σ̂ describes. §∅: a payload without `coverage` (an older worker) says so. */
+  function coverageText(real) {
+    const c = real && real.coverage;
+    if (!c) return "each corner's own coverage was not reported";
+    const pct = (k) => (c[k] > 0 ? Math.round((100 * real.n) / c[k]) + ' %' : '—');
+    return 'share of each stream: ' + DKEYS.map((k) => DEVNAME[k] + ' ' + pct(k)).join(' · ');
+  }
   function renderAll(nt, real, derive) {
     $('heroNight').textContent = nt.key;
     renderReferenceNote(nt.key);
     for (const k of DKEYS) hero(k, real, derive);
     renderIndependence(real);
-    kpi('kOverlap', hmOf(real.n), real.n + ' s on the aligned 1 Hz grid', 'good');
+    kpi('kOverlap', hmOf(real.n), real.n + ' s on the aligned 1 Hz grid · ' + coverageText(real), 'good');
     /* D7 option A (owner's pick 2026-10-12): the worker's point is the UNWEIGHTED hat (tchSigmas), and so
        is every CI replicate and running prefix (DEEP-AUDIT-VI F16: the CI's estimator follows the point's),
        so the label names the estimator that actually produced the numbers. The retired fused-weight hat
@@ -1036,6 +1063,7 @@
     drawSigma(real, derive);
     drawDiffs(real, derive);
     drawRunning(real, derive);
+    drawTau(derive);
     drawTriangle(real);
     for (const id of CARDS) fillCard(id);
     badgeAll();
@@ -1150,12 +1178,41 @@
       T = 26,
       rowH = 66,
       H = T + rowH * DKEYS.length + 34;
+    /* THE TWO POOLED MARKS COME FROM THE PUBLISHED RECORD, never from a constant in this file: the
+       median hat σ̂ over its nights (dashed) and the median σ measured against the firmware-RR
+       reference (solid). The distance between them is the hat's own bias on that corner over that
+       population. §∅: no record, no marks — the caption says the record did not load. */
+    const ref = (k, f) => (TCHMED && TCHMED[k] && Number.isFinite(TCHMED[k][f]) ? TCHMED[k][f] : null);
     let max = 1;
     for (const k of DKEYS) {
       if (real.sigma[k] != null) max = Math.max(max, real.sigma[k]);
       const ci = derive && derive.ci && derive.ci[k];
       if (ci) max = Math.max(max, ci.hi);
-      max = Math.max(max, CORPUS[k], LIT[k].sigma || 0);
+      max = Math.max(max, ref(k, 'classic') || 0, ref(k, 'trueSd') || 0);
+    }
+    const cap = $('sSigma');
+    if (cap) {
+      const bt = derive && derive.boot;
+      const tauTxt = (v) => (Number.isFinite(v) ? v.toFixed(0) + ' s' : '—');
+      /* textContent, not a sink: the bootstrap's badge already rides this figure's series strip
+         (seriesBadges('cSigma')), and a chart caption is not a badge site (§🎫). */
+      cap.textContent =
+        'Block bootstrap · 400 resamples · ' +
+        (bt
+          ? 'block ' +
+            bt.blockSec +
+            ' s = 2 × the largest τ_int of the three differences (HV ' +
+            tauTxt(bt.tauIntSec.hv) +
+            ' · HO ' +
+            tauTxt(bt.tauIntSec.ho) +
+            ' · VO ' +
+            tauTxt(bt.tauIntSec.vo) +
+            (bt.capped ? ', one still positive at the 900 s cap — the real memory is longer and the CI is still too narrow' : '') +
+            '), floor 30 s, at most n / 20' +
+            (Number.isFinite(bt.nEff) ? ' · n_eff ≈ ' + Math.round(bt.nEff) : '')
+          : 'block length not reported — the CI used no data-derived block') +
+        ' · pooled marks: ' +
+        (tchPop() || 'REFUSED — the published record did not load');
     }
     max = Math.ceil(max * 1.15 * 2) / 2;
     const x = (v) => L + (v / max) * (W - L - R);
@@ -1170,15 +1227,16 @@
         d = DEV[k];
       s += svgEl('text', { x: 8, y: cy - 4, fill: d.col, 'font-size': 11, 'font-weight': 700, 'font-family': 'inherit' }, d.name);
       s += svgEl('text', { x: 8, y: cy + 11, fill: MUT, 'font-size': 10, 'font-family': 'inherit' }, d.kind);
-      // corpus median — dashed vertical mark
-      s += svgEl('line', { x1: x(CORPUS[k]), x2: x(CORPUS[k]), y1: cy - 18, y2: cy + 18, stroke: '#aab8cc', 'stroke-width': 1.5, 'stroke-dasharray': '3 3' });
-      // reference tags stack BELOW the row (corpus, then literature) so neither collides with the value label above the dot
-      s += svgEl('text', { x: x(CORPUS[k]), y: cy + 27, fill: MUT, 'font-size': 9, 'text-anchor': 'middle', 'font-family': 'ui-monospace,monospace' }, 'corpus ' + CORPUS[k].toFixed(2));
-      // literature σ-equivalent — hollow diamond, only where a published MAE exists
-      if (LIT[k].sigma != null) {
-        const lx = x(LIT[k].sigma);
-        s += svgEl('path', { d: 'M' + lx + ' ' + (cy - 7) + ' l7 7 l-7 7 l-7 -7 z', fill: 'none', stroke: '#e6edf6', 'stroke-width': 1.5 });
-        s += svgEl('text', { x: lx, y: cy + 38, fill: MUT, 'font-size': 9, 'text-anchor': 'middle', 'font-family': 'ui-monospace,monospace' }, 'literature σ≈' + LIT[k].sigma.toFixed(2));
+      // pooled marks — tags stack BELOW the row (hat, then reference) so neither collides with the value label above the dot
+      const rh = ref(k, 'classic'),
+        rt = ref(k, 'trueSd');
+      if (rh != null) {
+        s += svgEl('line', { x1: x(rh), x2: x(rh), y1: cy - 18, y2: cy + 18, stroke: '#aab8cc', 'stroke-width': 1.5, 'stroke-dasharray': '3 3' });
+        s += svgEl('text', { x: x(rh), y: cy + 27, fill: MUT, 'font-size': 9, 'text-anchor': 'middle', 'font-family': 'ui-monospace,monospace' }, 'hat ' + rh.toFixed(2));
+      }
+      if (rt != null) {
+        s += svgEl('line', { x1: x(rt), x2: x(rt), y1: cy - 18, y2: cy + 18, stroke: '#e6edf6', 'stroke-width': 2 });
+        s += svgEl('text', { x: x(rt), y: cy + 38, fill: MUT, 'font-size': 9, 'text-anchor': 'middle', 'font-family': 'ui-monospace,monospace' }, (k === 'h10' ? 'ref ≥' : 'ref ') + rt.toFixed(2));
       }
       const sig = real.sigma[k];
       if (sig == null) {
@@ -1200,6 +1258,51 @@
       );
     });
     host.innerHTML = svgEl('svg', { class: 'chart-svg', viewBox: '0 0 ' + W + ' ' + H, role: 'img', 'aria-label': 'per-corner sigma with confidence interval, corpus median and literature marks' }, s);
+    const svgNode = host.querySelector('svg');
+    if (svgNode) svgNode.setAttribute('aria-label', 'per-corner sigma with confidence interval, pooled hat median and pooled reference sigma');
+  }
+  /* FIGURE 5 — σ̂ AGAINST AVERAGING TIME. One row per τ, one column per corner. White per-second
+     error falls as 1/√τ, so the white expectation σ̂(1 s)/√τ sits in brackets beside each value: a
+     corner that stays well above it at τ ≥ 30 s carries slow error (drift, or a smoothing window the
+     other two devices do not share), which the single 1 s σ̂ cannot separate from noise. A τ with
+     fewer than 30 whole chunks is an absence, never a σ̂ from too few means. */
+  function drawTau(derive) {
+    const host = $('tTau');
+    if (!host) return;
+    const rows = derive && derive.tau;
+    if (!rows || !rows.length) {
+      host.innerHTML = '<p class="ts-noev">σ̂(τ) not reported by this worker.</p>';
+      return;
+    }
+    const base = rows.find((r) => r.tau === 1) || null;
+    /* Built as DOM nodes with textContent, so the table adds no `innerHTML` sink. */
+    const mk = (tag, text, cls) => {
+      const e = document.createElement(tag);
+      if (text != null) e.textContent = text;
+      if (cls) e.className = cls;
+      return e;
+    };
+    const table = mk('table', null, 'ts-tau');
+    const hr = table.appendChild(mk('thead')).appendChild(mk('tr'));
+    hr.appendChild(mk('th', 'τ'));
+    hr.appendChild(mk('th', 'chunks'));
+    for (const k of DKEYS) hr.appendChild(mk('th', DEVNAME[k])).style.color = DEV[k].col;
+    const tb = table.appendChild(mk('tbody'));
+    for (const r of rows) {
+      const tr = tb.appendChild(mk('tr'));
+      tr.appendChild(mk('td', r.tau + ' s'));
+      tr.appendChild(mk('td', String(r.n)));
+      for (const k of DKEYS) {
+        if (r[k] == null) {
+          tr.appendChild(mk('td', r.n < 30 ? 'n < 30' : 'neg', 'ts-tau-abs'));
+          continue;
+        }
+        const td = tr.appendChild(mk('td', f2(r[k])));
+        const w = base && base[k] != null ? base[k] / Math.sqrt(r.tau) : null;
+        if (r.tau > 1 && w != null) td.appendChild(mk('span', ' (' + f2(w) + ')', 'ts-tau-w'));
+      }
+    }
+    host.replaceChildren(table);
   }
   // CORRELATION TRIANGLE — r on each edge; width follows |r|; a null r is a dashed grey edge
   function drawTriangle(real) {
@@ -1285,7 +1388,17 @@
       pairSd: dv ? dv.pairSd : null,
       conf: dv ? dv.conf : null,
       running: dv ? dv.running : null,
-      reference: { corpusMedianRhoOn: CORPUS, literatureSigmaEquiv: { verity: LIT.verity.sigma }, note: 'validation references, not inputs (LITERATURE-USE-POLICY §2)' }
+      coverage: real.coverage || null,
+      tau: dv ? dv.tau : null,
+      boot: dv ? dv.boot : null,
+      reference: {
+        record: TCHFILE,
+        population: tchPop(),
+        hatMedian: TCHMED ? { h10: TCHMED.h10?.classic ?? null, verity: TCHMED.verity?.classic ?? null, o2: TCHMED.o2?.classic ?? null } : null,
+        referenceSigma: TCHMED ? { h10: TCHMED.h10?.trueSd ?? null, verity: TCHMED.verity?.trueSd ?? null, o2: TCHMED.o2?.trueSd ?? null } : null,
+        literature: LIT_NOTE,
+        note: 'pooled references, not inputs (LITERATURE-USE-POLICY §2); null when the published record did not load'
+      }
     };
     dl(stamp() + '.json', new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' }));
   }
