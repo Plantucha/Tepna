@@ -125,7 +125,7 @@ function hasNonPublic(html, dir) {
 }
 
 // ── PHASE 1 — page-body sync ────────────────────────────────────────────────
-const log = { copy: [], delink: [], preserve: [], asset: [], stale: [], missingRoot: [], assetNoTwin: [], stamp: [], meta: [], handVer: [] };
+const log = { copy: [], delink: [], preserve: [], asset: [], stale: [], missingRoot: [], assetNoTwin: [], stamp: [], meta: [], handVer: [], countDrift: [] };
 
 // ── PHASE 0 — project roster-derived <head> discovery meta into the guide + content pages ────
 //   REPO-DISCOVERABILITY-FOLLOWUPS §5.3/§5.6. suite.manifest.json is the single source; this UPSERTS a
@@ -246,6 +246,26 @@ function handTypedVersions(html) {
   return visible.match(/\bTepna\s+v\d+\.\d+\.\d+/g) || [];
 }
 
+/* A COUNT A PAGE STATES IS HELD TO WHAT THE PAGE SHOWS. A ribbon number marked `data-count="<kind>"`
+   must equal the distinct items of that kind in the SAME copy, because the served twin de-links
+   pages the root links (Science on 2026-11-08 read "10 runnable tools" over a served copy that
+   linked none and named six). Kinds: `preprints` = distinct `<a class="rd" href>`; `tools` = distinct
+   `<a class="tool" href>` plus each bench name `<span class="bd">`. Returns one string per mismatch. */
+const _COUNTERS = {
+  preprints: (h) => [...h.matchAll(/<a class="rd" href="([^"]+)"/g)].map((m) => m[1]),
+  tools: (h) => [...[...h.matchAll(/<a class="tool" href="([^"]+)"/g)].map((m) => m[1]), ...[...h.matchAll(/<span class="bd">([^<]+)<\/span>/g)].map((m) => m[1].trim())]
+};
+function countDrift(html) {
+  const out = [];
+  for (const m of String(html).matchAll(/<b data-count="([a-z]+)">([\d,]+)<\/b>/g)) {
+    const count = _COUNTERS[m[1]];
+    const stated = Number(m[2].replace(/,/g, ''));
+    if (!count) out.push(`unknown kind "${m[1]}"`);
+    else if (new Set(count(html)).size !== stated) out.push(`${m[1]} states ${stated}, shows ${new Set(count(html)).size}`);
+  }
+  return out;
+}
+
 function syncPage(rel) {
   const rootAbs = join(ROOT, rel);
   const docsAbs = join(DEPLOY, rel);
@@ -268,6 +288,8 @@ function syncPage(rel) {
     }
     const stamped = withFooter(cur); // the version footer still applies to a preserved twin
     if (handTypedVersions(stamped).length) log.handVer.push('docs/' + rel);
+    for (const d of countDrift(stamped)) log.countDrift.push(`docs/${rel}: ${d}`);
+    for (const d of countDrift(root)) log.countDrift.push(`${rel}: ${d}`); // the root a preserved twin no longer copies
     if (stamped !== cur) {
       if (CHECK) log.stale.push('docs/' + rel);
       else writeFileSync(docsAbs, stamped);
@@ -276,6 +298,7 @@ function syncPage(rel) {
   }
   desired = withFooter(hasNonPublic(root, dir) ? mechanicalDelink(root, dir) : root);
   if (handTypedVersions(desired).length) log.handVer.push(rel);
+  for (const d of countDrift(desired)) log.countDrift.push(`${rel}: ${d}`);
   const cur = existsSync(docsAbs) ? readFileSync(docsAbs, 'utf8') : null;
   const kind = desired === root ? log.copy : log.delink;
   if (cur !== desired) {
@@ -400,7 +423,10 @@ const guided = served.filter((n) => n.guide);
 function buildSitemap() {
   return (
     `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
-    htmlPages.map((p) => `  <url>\n    <loc>${BASE + (p === 'index.html' ? '' : encPath(p))}</loc>\n    <lastmod>${BUILD_DATE}</lastmod>\n  </url>`).join('\n') +
+    htmlPages
+      .filter((p) => p !== '404.html') // the not-found page is served at any unknown path, never indexed
+      .map((p) => `  <url>\n    <loc>${BASE + (p === 'index.html' ? '' : encPath(p))}</loc>\n    <lastmod>${BUILD_DATE}</lastmod>\n  </url>`)
+      .join('\n') +
     `\n</urlset>\n`
   );
 }
@@ -531,6 +557,10 @@ for (const [rel] of stampRules) {
 if (LIST_OWNED) {
   for (const rel of Array.from(OWNED).sort()) console.log(rel.startsWith('docs/') ? rel : DEPLOY_REL + '/' + rel);
   process.exit(0);
+}
+if (log.countDrift.length) {
+  console.error(`STATED COUNT DRIFT (${log.countDrift.length}): ${log.countDrift.join('; ')} — fix the number or the links`);
+  if (CHECK) process.exit(1);
 }
 if (log.handVer.length) {
   console.error(`HAND-TYPED VERSION (${log.handVer.length}): ${log.handVer.join(', ')} — the stamped footer carries the version; delete the typed one (§📦)`);

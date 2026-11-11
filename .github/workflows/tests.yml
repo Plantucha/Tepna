@@ -149,6 +149,13 @@ jobs:
       # Presence only: the number is sized from each job's own measured p95/max and written beside it.
       - name: Workflow timeouts — every job declares a cap
         run: node tools/workflow-timeout-guard.mjs
+      # The local gate's step list against the workflows that run it (residue
+      # `2026-11-09-28-of-the-53-local-gate-steps-run-in-no-ci-workflow`). No `run:` key invokes the
+      # aggregate, so a step registered in `STEPS` alone reds on every bird's box while `main` stays
+      # green — `tests.yml:206` records one such step in its own words. The gap is PINNED, not closed:
+      # closing it adds blocking work and stays the owner's call. Pure Node, no corpus, no network.
+      - name: CI step parity — the gap between the local gate and the workflows is at its pin
+        run: node tools/ci-step-parity.mjs
       - name: Shard-union — the shards partition the suite (no group goes unrun)
         run: node tests/verify-shard-union.mjs
       - name: The untimed-group ratchet (shrink-only; the timings stay a hint)
