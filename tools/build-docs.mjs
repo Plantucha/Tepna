@@ -423,7 +423,10 @@ const guided = served.filter((n) => n.guide);
 function buildSitemap() {
   return (
     `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
-    htmlPages.map((p) => `  <url>\n    <loc>${BASE + (p === 'index.html' ? '' : encPath(p))}</loc>\n    <lastmod>${BUILD_DATE}</lastmod>\n  </url>`).join('\n') +
+    htmlPages
+      .filter((p) => p !== '404.html') // the not-found page is served at any unknown path, never indexed
+      .map((p) => `  <url>\n    <loc>${BASE + (p === 'index.html' ? '' : encPath(p))}</loc>\n    <lastmod>${BUILD_DATE}</lastmod>\n  </url>`)
+      .join('\n') +
     `\n</urlset>\n`
   );
 }
