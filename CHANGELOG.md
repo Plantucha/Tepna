@@ -30,6 +30,80 @@ changesets.)
 
 ---
 
+## [2.31.0] — 2026-11-11
+
+### Added
+- Build the EEGDex app surface. The two test lanes now execute it. Before this change, the EEGDex DSP ran under `tools/eegdex-selftest.mjs` only, and no gate runs that tool. The node lane held the file's TEXT in its source list and nothing executed it, so a throw in `analyze` left every lane green. Both lanes now load the DSP and the render, and eight groups assert on `env.EEGDSP` and `env.EEGUI`. Each loader turns a load failure into a console line, so the availability assert is the thing that makes a broken module red. (`EEGDEX-BUILD-BRIEF.md`)
+- Budget the browser lane's skips by count, reason class and reason-in-name.
+- Measure the `lombScargle` share of a real ECGDex and PpgDex `compute()` on the product path, against a pre-stated 35 %.
+- Render the twelve owned pages at 375 px in a browser gate leg, and refuse a grown layout viewport.
+- Adds one test group for CPAPDex nightMetrics. The group pins the pooled values, thresholds, and absence edges of nightMetrics in cpapdex-dsp.js. On main 79275f071 the function's 51 mutants ran 6 killed and 45 survived. The group kills all 45 survivors, the last four by null assertions on the default empty lanes. Kestrel's replay (#5178) refuted the four loop-bound mutants' equivalence. An off-by-one appends one undefined per session, flips the raw-length null gate, and the percentile returns NaN.
+- Publish the count of SpO2 spectrum bins tested beside the count the band holds, so a non-detection states what it examined.
+- Time each ECGDex Lomb-Scargle call site on the product path, so a share rests on a clock and not on a call count.
+- - Lint every shell script outside `capture-host/` as a gate step.
+- Pin the gap between the local gate's step list and the workflows that run it. `tools/ci-step-parity.mjs` reads every step of `npm run check` against the 12 workflow files. A step counts as covered when a workflow holds its own command, or the `npm run` alias. 40 of the 64 steps run in no workflow, and the gate pins that number two-sided. So a step that lands with no workflow line reds, and a step that gains one reds until the pin drops. Closing the gap adds blocking work, which stays the owner's call.
+- Add a `--measure` mode to the brief-header count-claim ratchet. It partitions the 747 grandfathered tuples by four pre-stated rules. The partition finds 669 real count assertions. The other 78 tuples name no countable thing.
+- Declare every node-named module that a page outside its node carries. `tools/module-carriers.mjs` reads the inline and script sites of all 58 pages in the tree. It names the nine modules that a page beyond their own node carries, and it drops the four broad surfaces. A module that reaches such a page must stand in `DECLARED`. A `DECLARED` entry that describes no sharing any more reds too. The gate reports each carrier set and pins none, so a new analysis page becomes a fact in the verdict rather than a red.
+- Annotate each row the residue pickup reader lists with the state of that row's own `path:line` pointers. Measured over the 50 OPEN rows at `origin/main`: 9 rows carry a pointer that no longer reaches the line it cites.
+
+### Changed
+- Flip the ecgRpeakTimes axis default from the index form to the H10 sample counter.
+
+### Fixed
+- Read each owed ack on its own, so one unreadable board entry cannot disarm the gate.
+- Release the ntfy bridge alert episode and both dedupe markers when a post throws.
+- Refuse a board topic the bridge cannot deliver, and release a note whose board post failed.
+- Answer NOT_RUN, with the URL and the HTTP status named, when the browser gate reaches no page of ours.
+- Report an absent event confidence as null in the fused periodic-breathing finding. Draw the timeline mark for an unstated confidence as an outline.
+- Cap the CPAPDex card track and wrap its head, so a phone holds the device width.
+- Scroll the four ECGDex metric tables horizontally, so a populated night holds the device width on a phone.
+- The EEGDex surface stated three claims it cannot support. Each one is now the claim the node can make. (`EEGDEX-BUILD-BRIEF.md`)
+- Erase-all now deletes the night-seal card-key database. It also clears the PpgDex site declaration and the Integrator synthetic-data preference. A test reads each store name from its owner's source and requires it in the erase set.
+- Erase-all now also removes two pre-tier dashboard-mode keys. A storage census in the test suite resolves every key name the sources reach, including names held in constants, arrays and parameters. (`SECURITY-REMEDIATION-2026-07-11-BRIEF.md`)
+- Build the formula-constant audit corpus from the tracked tree, and name every path the corpus rejects.
+- Give ECGDex, GlucoDex, PpgDex and MotionDex the phone section rail the shared stylesheet already designs.
+- Measure the six unasserted fixtures in the stale-brief hook self-test before its legs read them.
+- Read a hook self-test needle with a reader that cannot fail to look.
+- The Integrator now reads the dropout segments that an OxyDex export declares. Before, adaptOxyDex dropped the coverage block, so a night with a gap read as fully recorded. (`INTEGRATOR-GAP-AWARE-OVERLAP-FOLLOWUPS-2026-07-28-BRIEF.md`)
+- Wrap the landing nav below 880 px, so a phone renders the page at the device width.
+- Red the test suite when the execution pass declares a group the `--list` inventory cannot hold.
+- Read the verdict guard off `ok` in the two Lomb-Scargle profilers. A `.length` read of a `validate` result is `undefined`, so the guard cannot fire.
+- Count no gap before the worn start as worn loss in the night's loss audit.
+- Hold the suite manifest `device` field against the README node table, which the cohesion group never read.
+- Science, Architecture and 13 papers no longer type `Tepna v1.0.0` into their colophon beside the stamped version footer. `tools/build-docs.mjs` now reds when a served page shows a hand-typed `Tepna v<semver>` in its visible text.
+- Scan every root page this repo serves in the no-network gate, and close the surface list with a parity check.
+- Evaluate every bin in the SpO2 band with an exact-length transform, which finds a cycle that the strided band missed.
+- A new PpgDex test runs the worker blob that `_buildWorkerURL` builds, not a rebuild of it. The test requires the blob's peaks, feet and sign to match the serial path. A mutation that empties the shipped blob now fails the test.
+- Read the worker's own SCRIPTS table in the two qrs worker gates, so a dropped dependency reds.
+- Answer exit 4 when release-land records no run, and read that code in release-due.
+- Hold each residue-citations baseline site against the path the scan found the key at.
+- Escape the imported event confidence in six review timelines. Escape the stored values in the ECGDex, GlucoDex and HRVDex review text and in the HRVDex table. An imported export can no longer inject markup.
+- The Science ribbon now states the tools each copy names. The root page names 15, and the served copy names 6. `tools/build-docs.mjs` reds when a number marked `data-count` differs from the distinct links of that kind in the same copy.
+- Report SHORTFALL when the secret gate reads no private term. The exit code still reads the findings alone.
+- The served site now carries a `404.html`. Without it, the host answered every unknown path with the homepage and status 200. The page says that MotionDex and the research tools run from the source repository. `tools/build-docs.mjs` keeps the page out of the sitemap.
+- Check the declared skip reason in the test skip audit, not only the declared name.
+- Take a caller's `source` label in GlucoDex, ECGDex and PpgDex only as the node's own kebab-case tag.
+- Refuse a frame count for a stream the SSE check never reached. The installer then names it unmeasured instead of an encoder fault.
+- Count an absent repo source apart from an uninstalled file, so the system-files check names the remedy it can run.
+- Read the published-table provenance stamps in `papers/`, over an HTML table as well as a Markdown one.
+- - Red the gate when a `tests/` selftest runs under no script that passes `--selftest`.
+- Show the Integrator fused-event readout on a tap, over the nearest event tick. Keep the readout inside the viewport on a phone.
+- Single-source the H10 corner gate and its Pearson leg in analysis-stats.js, and bind them numerically.
+- `tools/unit-health.mjs` no longer reads a timer whose service runs as stopped. systemd arms the next elapse only when the service exits. So a running timer holds no next elapse for the whole run. The tool now reads the timer's `SubState` and judges `running` alive.
+- Let the walker re-check a declared residue row that main does not carry yet.
+- Restore a rebuilt `provenance/` fragment when the PR walker cleans its own worktree.
+- Name every dirty path that blocks the walker precondition, not only the paths outside the generated set.
+- The walker no longer merges main into a held draft. A draft has no live merge button, and each update ran the full CI.
+- Follow every worker target in the no-network crawl, and prove the build strips the served-only transport primitive.
+- Lower the xss-sink-gate whole-tree baseline to the count the tree gives, so the ratchet can see the next regression.
+- Bound each surface that relaxes connect-src to self. The gate pins its egress call sites, and it derives the page population instead of reading a hand-written list.
+- Build the analysis-stats kernel from its own source text in the browser lane. Seven test groups run there now.
+- Report a metric declaration the registry engine overrules. A depth or an evidence value outside the published vocabulary reached the same default as an absent entry, and that branch printed nothing.
+- Add `--json` to the secret gate, which keeps the verdict object alone on stdout.
+- Write the walker's board page when its own pre-step refuses, so a dead queue stops reading as a live one.
+
+---
+
 ## [2.30.0] — 2026-11-10
 
 ### Added
@@ -4152,7 +4226,8 @@ and establishes the release-governance layer over it.
 - **The shared test suite** (`Dex-Test-Suite.html` + `tests/dex-tests.js`) and the build/provenance
   manifests.
 
-[Unreleased]: https://github.com/Plantucha/Tepna/compare/v2.30.0...HEAD
+[Unreleased]: https://github.com/Plantucha/Tepna/compare/v2.31.0...HEAD
+[2.31.0]: https://github.com/Plantucha/Tepna/compare/v2.30.0...v2.31.0
 [2.30.0]: https://github.com/Plantucha/Tepna/compare/v2.29.0...v2.30.0
 [2.29.0]: https://github.com/Plantucha/Tepna/compare/v2.28.0...v2.29.0
 [2.28.0]: https://github.com/Plantucha/Tepna/compare/v2.27.0...v2.28.0
