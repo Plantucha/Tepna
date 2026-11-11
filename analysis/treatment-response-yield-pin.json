@@ -32,7 +32,7 @@
       "kernel-constants.js": "0050ad3f9dc7",
       "clock.js": "47a0dcff15d0",
       "clock-seam.js": "eca421bd5c5e",
-      "pulsedex-dsp.js": "f25accb7ea4c"
+      "pulsedex-dsp.js": "069be5978f5d"
     }
   },
   "yield": {
@@ -179,11 +179,18 @@
       "old": "2ca8a192dde5",
       "new": "47a0dcff15d0",
       "reason": "residue 2026-11-08-an-epoch-stamp-writes-the-viewer-zone-into-the-export: _ckNumEpoch now returns offsetMin null, because Clock Contract section 1 grants an offset only to an input that STATES a zone, and a numeric epoch states none. The tMs half is untouched. The edit is provably inert for this pin on three independent legs: no branch in either detector closure reads offsetMin (all four occurrences are field assignments behind a null guard); the only _ckNumEpoch call sites in the closure, oxydex-dsp.js:295 and :316, read fl.tMs alone; and synth-gen.js writes 14-digit and ISO stamps, which never reach the epoch branch. So the 233 tx / 239 flat yield is RE-STAMPED on the SAME counts and not re-cut."
+    },
+    {
+      "date": "2026-11-11",
+      "file": "pulsedex-dsp.js",
+      "old": "f25accb7ea4c",
+      "new": "069be5978f5d",
+      "reason": "residue 2026-11-08-lomb-scargle-makes-two-trig-passes-per-bin-and-sample: lombScargle now computes each bin in ONE pass over the samples, in ecgdex-dsp.js, ppgdex-dsp.js and pulsedex-dsp.js. The double-angle identities give sin(2wt) and cos(2wt) from the same sin(wt) and cos(wt) the loop already needs, and the angle-difference identities return the tau-shifted sums after the loop, so four trig calls per sample become two. The algebra is exact, so only the last bits of the sums move: over 1000 bins the largest per-bin relative delta is 7.43e-11 and the total-power relative delta is 6.58e-15, against a control (the same algorithm with one beat moved by 1e-6 relative) that reads 6.62e-7. This run RE-CUT the cohort at paper scale rather than re-stamping on a claim, and the yield came back on the SAME counts: 233 tx / 239 flat, 667 / 661 skipped."
     }
   ],
-  "measuredAt": "2026-11-11T04:16:26.420Z",
+  "measuredAt": "2026-11-11T18:41:54.794Z",
   "producedBy": {
     "tool": "tools/treatment-response-yield-pin.mjs",
-    "commit": "b398706af"
+    "commit": "a30632214"
   }
 }
