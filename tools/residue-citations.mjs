@@ -77,6 +77,27 @@ const has = (f) => argv.includes(f);
 
 export const LEDGER = 'briefs/RESIDUE.md';
 export const BASELINE = 'tools/residue-citations-baseline.json';
+
+/* THE LIVING-OWNER RULE COVERED ONE BASELINE OF FOUR (residue
+   `2026-11-11-the-living-owner-rule-covers-one-baseline-of-four`). `ownerDebt` read the baseline above
+   and nothing else, and no other tool imported it, so a debt line in another baseline could name a row
+   the ledger had closed and no gate redded. The set is DECLARED, never globbed: a new baseline joins it
+   on purpose, and a member this process cannot read fails closed in `loadOwnerBaselines`.
+   `shape: 'entries'` is an array of `{ key, reason }`; `shape: 'map'` is an object of id to reason. The
+   foreign members stay OUT of the citation `exempt` set below, because their keys resolve to real rows
+   and the citation population answers a different question. */
+export const FOREIGN_OWNER_BASELINES = [
+  { file: 'tools/paper-reference-baseline.json', container: 'uninvoked', shape: 'map' },
+  { file: 'tools/paper-claim-marker-baseline.json', container: 'unmarked', shape: 'map' }
+];
+export const OWNER_BASELINES = [{ file: BASELINE, container: 'entries', shape: 'entries' }, ...FOREIGN_OWNER_BASELINES];
+
+/* A FILE-LEVEL FIELD IS PROVENANCE, NOT A DEBT OWNER, so it is excluded by declaration and counted.
+   `tools/brief-header-claim-baseline.json` carries one `residue` field naming the row that CREATED the
+   file, and the ledger closed that row when the ratchet shipped. A closed origin row is the normal end
+   of a fix. A PER-ENTRY reason is the other thing: it names the owner of a remedy still owed, and that
+   owner must be alive. The row logging this defect read the field as a debt line, and it is not one. */
+export const OWNER_PROVENANCE_FIELDS = [{ file: 'tools/brief-header-claim-baseline.json', field: 'residue', why: 'names the row that created the baseline, never the owner of an unpaid remedy' }];
 /* A date-slug token. The slug is lowercase, hyphen-separated, and may end mid-word where a comment
    wrapped; the trailing `-` is kept so the join can repair it. */
 export const KEY_RE = /\b(\d{4}-\d{2}-\d{2})-([a-z0-9]+(?:-[a-z0-9]+)*-?)/g;
@@ -135,11 +156,15 @@ export function rowStates(ledgerText) {
 /* §∅ · an entry whose reason names no key is not examined and reports nothing, rather than counting
    as a pass. An entry naming its OWN key is excluded: that is the debt describing itself. */
 export function ownerReasons(baseline) {
+  /* An ARRAY is the normalised pair list `loadOwnerBaselines` returns, and each pair carries the file
+     it came from. An OBJECT is one baseline's own `entries`, which is the call every earlier reader
+     makes, so both shapes stay legal. */
+  const entries = Array.isArray(baseline) ? baseline : (baseline || {}).entries || [];
   const out = [];
-  for (const e of (baseline || {}).entries || []) {
+  for (const e of entries) {
     for (const owner of String(e.reason || '').match(/\d{4}-\d{2}-\d{2}-[a-z0-9-]+/g) || []) {
       if (owner === e.key) continue;
-      out.push({ key: e.key, owner });
+      out.push({ key: e.key, owner, file: e.file || null });
     }
   }
   return out;
@@ -147,9 +172,9 @@ export function ownerReasons(baseline) {
 
 export function ownerDebt(baseline, states) {
   const out = [];
-  for (const { key, owner } of ownerReasons(baseline)) {
-    if (!states.has(owner)) out.push({ key, owner, why: 'names no row in the ledger' });
-    else if (!/^OPEN\b/.test(states.get(owner))) out.push({ key, owner, why: `names a row already closed: ${states.get(owner)}` });
+  for (const { key, owner, file } of ownerReasons(baseline)) {
+    if (!states.has(owner)) out.push({ key, owner, file: file || null, why: 'names no row in the ledger' });
+    else if (!/^OPEN\b/.test(states.get(owner))) out.push({ key, owner, file: file || null, why: `names a row already closed: ${states.get(owner)}` });
   }
   return out;
 }
@@ -323,6 +348,38 @@ export function loadBaseline(repo) {
   return JSON.parse(fs.readFileSync(p, 'utf8'));
 }
 
+/* ∅ FAIL CLOSED. A declared baseline this process cannot open, or one whose container field is absent
+   or the wrong type, is NOT a baseline holding no debt. Each such file rides a `{ file, code }` entry,
+   and `verdictFor` turns an unread member into UNKNOWN rather than a pass over what it never read. */
+export function loadOwnerBaselines(repo, specs) {
+  const pairs = [];
+  const unreadable = [];
+  for (const spec of specs || FOREIGN_OWNER_BASELINES) {
+    let json = null;
+    try {
+      json = JSON.parse(fs.readFileSync(path.join(repo, spec.file), 'utf8'));
+    } catch (err) {
+      unreadable.push({ file: spec.file, code: err.code || 'EPARSE' });
+      continue;
+    }
+    const got = json[spec.container];
+    if (spec.shape === 'entries') {
+      if (!Array.isArray(got)) {
+        unreadable.push({ file: spec.file, code: `NO-CONTAINER:${spec.container}` });
+        continue;
+      }
+      for (const e of got) pairs.push({ key: e.key, reason: e.reason, file: spec.file });
+      continue;
+    }
+    if (!got || typeof got !== 'object' || Array.isArray(got)) {
+      unreadable.push({ file: spec.file, code: `NO-CONTAINER:${spec.container}` });
+      continue;
+    }
+    for (const [k, v] of Object.entries(got)) pairs.push({ key: k, reason: typeof v === 'string' ? v : (v || {}).reason || '', file: spec.file });
+  }
+  return { pairs, unreadable };
+}
+
 export function run(repo, opts) {
   const o = opts || {};
   const ledger = fs.readFileSync(path.join(repo, LEDGER), 'utf8');
@@ -414,8 +471,18 @@ export function run(repo, opts) {
   }
   const siteKeysExamined = liveSites.length;
 
-  const orphanOwners = ownerDebt(base, rowStates(ledger));
-  const ownerReasonsExamined = ownerReasons(base).length;
+  /* The owner half reads EVERY declared baseline, not this tool's own alone. `o.baseline` stays
+     authoritative for its own file, so a leg that injects entries still judges what it injected. */
+  const ownerSpecs = o.ownerBaselines || FOREIGN_OWNER_BASELINES;
+  const foreignOwners = loadOwnerBaselines(repo, ownerSpecs);
+  const ownerPairs = [...(base.entries || []).map((e) => ({ key: e.key, reason: e.reason, file: BASELINE })), ...foreignOwners.pairs];
+  const orphanOwners = ownerDebt(ownerPairs, rowStates(ledger));
+  const ownerNamed = ownerReasons(ownerPairs);
+  const ownerReasonsExamined = ownerNamed.length;
+  const ownerReasonsByFile = {};
+  for (const o of ownerNamed) ownerReasonsByFile[o.file || BASELINE] = (ownerReasonsByFile[o.file || BASELINE] || 0) + 1;
+  const ownerBaselinesUnread = foreignOwners.unreadable;
+  const ownerSpecsDeclared = [BASELINE, ...ownerSpecs.map((x) => x.file)];
 
   return {
     rows: keys.length,
@@ -448,6 +515,9 @@ export function run(repo, opts) {
     siteKeysExamined,
     orphanOwners,
     ownerReasonsExamined,
+    ownerReasonsByFile,
+    ownerBaselinesUnread,
+    ownerSpecsDeclared,
     declared: declared.size
   };
 }
@@ -463,6 +533,11 @@ export function verdictFor(r, commit) {
   if (r.stale.length) reasons.push(`${r.stale.length} baseline key(s) resolve now and owe a removal`);
   if (orphans) reasons.push(`${orphans} baseline reason(s) name a row that is closed or absent`);
   if (drift.length) reasons.push(`${drift.length} baseline site(s) do not name the path the scan found the key at`);
+  const ownerUnread = r.ownerBaselinesUnread || [];
+  if (ownerUnread.length)
+    reasons.push(
+      `${ownerUnread.length} declared owner baseline(s) could not be read (${ownerUnread.map((u) => `${u.file} ${u.code}`).join(', ')}), so the owner check did not examine its whole population`
+    );
   if (unreadable.length)
     reasons.push(`${unreadable.length} eligible file(s) could not be read (${unreadable.map((u) => `${u.file} ${u.code}`).join(', ')}), so the scan did not examine its whole population`);
   /* THREE STATUSES, AND THE MIDDLE ONE IS THE ROW. A finding is FAIL whatever else happened, and the
@@ -470,7 +545,7 @@ export function verdictFor(r, commit) {
      gate cannot say that no citation is unresolved — the file it never read may hold one — so it
      answers UNKNOWN and names the path and the errno. PASS is left for a sweep that read every
      eligible file. */
-  const status = bad > 0 ? 'FAIL' : unreadable.length > 0 ? 'UNKNOWN' : 'PASS';
+  const status = bad > 0 ? 'FAIL' : unreadable.length + ownerUnread.length > 0 ? 'UNKNOWN' : 'PASS';
   return Verdict.make({
     gate: 'residue-citations',
     status,
@@ -491,10 +566,14 @@ export function verdictFor(r, commit) {
       siteKeysExamined: r.siteKeysExamined ?? null,
       orphanedOwners: orphans,
       ownerReasonsExamined: r.ownerReasonsExamined ?? null,
+      ownerReasonsByFile: r.ownerReasonsByFile || {},
+      ownerBaselinesDeclared: (r.ownerSpecsDeclared || [BASELINE]).length,
+      ownerBaselinesUnread: ownerUnread,
+      ownerProvenanceFieldsExcluded: OWNER_PROVENANCE_FIELDS.length,
       declared: r.declared,
       rows: r.rows
     },
-    evidence: [LEDGER, 'tools/residue-citations.mjs', BASELINE],
+    evidence: [LEDGER, 'tools/residue-citations.mjs', ...(r.ownerSpecsDeclared || [BASELINE])],
     reason: status === 'PASS' ? null : reasons.join('; '),
     producedBy: { tool: 'tools/residue-citations.mjs', commit }
   });
@@ -661,21 +740,51 @@ function selftest() {
   });
   ok('an uncited baseline key leaves the site check with nothing to examine', [unexamined.siteKeysExamined, unexamined.siteDrift.length], [0, 0]);
 
-  /* ANTI-VACUITY. The check is worth nothing if no live baseline line names an owner, so the real
-     pair must examine at least one reason, and every row the real baseline names must exist. */
+  /* ANTI-VACUITY, over every declared baseline. A renamed container field would empty the owner
+     check in silence, so each declared member must contribute a reason, and the floor is one reason
+     per file. Today's total is never the floor, because paying a debt lowers it. */
   const realStates = rowStates(fs.readFileSync(path.join(REPO, LEDGER), 'utf8'));
   const realBase = JSON.parse(fs.readFileSync(path.join(REPO, BASELINE), 'utf8'));
-  const named = ownerReasons(realBase).map((o) => o.owner);
+  const liveOwners = loadOwnerBaselines(REPO, FOREIGN_OWNER_BASELINES);
+  const livePairs = [...realBase.entries.map((e) => ({ key: e.key, reason: e.reason, file: BASELINE })), ...liveOwners.pairs];
+  const named = ownerReasons(livePairs).map((o) => o.owner);
   ok(
-    'every row the live baseline names is in the ledger',
+    'every row the live baselines name is in the ledger',
     named.filter((o) => !realStates.has(o)),
     []
   );
-  ok('no live baseline line names a closed row', ownerDebt(realBase, realStates), []);
-  /* §∅ · the live baseline names no owner today, so this pair examines nothing and the verdict says
-     so by a count rather than by a silent PASS. The synthetic legs above are what holds the reader
-     honest; the moment a line names an owner, the live population stops being empty on its own. */
-  ok('an examined-nothing owner population reports its count, not a pass', named.length, 0);
+  ok('no live baseline line names a closed row', ownerDebt(livePairs, realStates), []);
+  ok('every declared owner baseline could be read', liveOwners.unreadable, []);
+  ok(
+    'every declared owner baseline contributes a reason',
+    FOREIGN_OWNER_BASELINES.filter((x) => !liveOwners.pairs.some((o) => o.file === x.file)).map((x) => x.file),
+    []
+  );
+  ok('the live owner population names at least one row', named.length >= 1, true);
+  /* CONTROL · a declared member this process cannot open leaves the owner check unable to look, and
+     UNKNOWN is what the verdict owes then — never a PASS over a file it never read. */
+  const unreadOwner = loadOwnerBaselines(REPO, [{ file: 'tools/no-such-baseline.json', container: 'uninvoked', shape: 'map' }]);
+  ok(
+    'an absent declared owner baseline fails closed',
+    unreadOwner.unreadable.map((u) => u.code),
+    ['ENOENT']
+  );
+  ok(
+    'a container the file does not carry fails closed',
+    loadOwnerBaselines(REPO, [{ file: BASELINE, container: 'nope', shape: 'map' }]).unreadable.map((u) => u.code),
+    ['NO-CONTAINER:nope']
+  );
+  ok('an unread owner baseline carries the verdict to UNKNOWN', verdictFor({ ...blank, orphanOwners: [], ownerBaselinesUnread: [{ file: 'x.json', code: 'ENOENT' }] }, 'abc').status, 'UNKNOWN');
+  /* The exclusion must stay live too. A declared provenance field the file no longer carries is a dead
+     declaration, and a declaration nobody reads is how the defect above hid for two weeks. */
+  ok(
+    'every declared provenance field is still in its file and names a row',
+    OWNER_PROVENANCE_FIELDS.filter((f) => {
+      const v = JSON.parse(fs.readFileSync(path.join(REPO, f.file), 'utf8'))[f.field];
+      return typeof v !== 'string' || !realStates.has(v);
+    }).map((f) => `${f.file}#${f.field}`),
+    []
+  );
   /* ANTI-VACUITY for the site hold: the live baseline must declare a site for every entry, and no
      site may carry a line number, or the legs above judge a shape the real file never uses. */
   ok(
@@ -745,8 +854,9 @@ if (isCliEntry(import.meta.url)) {
         console.log(`  ✗ the baseline line for ${s.key} ${left}, and the scan cites it at ${s.at.join(', ') || 'no site'} — a site is a path, so drop any :line`);
       }
       if (!r.siteKeysExamined) console.log('  · no live baseline key is cited anywhere, so the site check examined nothing');
-      for (const o of r.orphanOwners) console.log(`  ✗ the baseline line for ${o.key} ${o.why} (${o.owner}) — the debt has no living owner`);
-      if (!r.ownerReasonsExamined) console.log('  · no baseline line names an owning row, so the owner check examined nothing');
+      for (const o of r.orphanOwners) console.log(`  ✗ ${o.file || BASELINE}: the baseline line for ${o.key} ${o.why} (${o.owner}) — the debt has no living owner`);
+      for (const u of r.ownerBaselinesUnread || []) console.log(`  ✗ the declared owner baseline ${u.file} could not be read (${u.code}) — the owner check could not look`);
+      if (!r.ownerReasonsExamined) console.log(`  · no line names an owning row across ${(r.ownerSpecsDeclared || []).length} declared baseline(s), so the owner check examined nothing`);
       for (const u of r.unreadable) console.log(`  ✗ ${u.file} could not be read (${u.code}) — not scanned, and counted as excluded`);
       if (has('--all')) for (const l of r.liveSites) console.log(`  site      ${l.key} → ${l.at.join(', ')}`);
       if (has('--all')) for (const c of r.cites) console.log(`  ${c.kind.padEnd(9)} ${c.at} ${c.cited}`);
