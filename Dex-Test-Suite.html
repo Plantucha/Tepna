@@ -262,14 +262,16 @@ const SOURCE_FILES = ['tools/trio-batch.mjs','tools/pat-host-offset.mjs','tools/
     sharp one — it is EVAL'd further down this file for behaviour but was never registered as a SOURCE, so
     its text was unreadable while its code ran. */
  'qrs-yield-analysis.js','qrs-equiv-analysis.js','sigma-no-reference-analysis.js','sensor-trio-night.js','codegen/generated/tch-reference-record.js','sensor-trio-power-analysis.js','sensor-trio-gpu.js',
- /* analysis-stats.js, readable as TEXT and deliberately NOT loaded here, listed 2026-11-10 with the
-    trio H10 corner gate. The Node lane co-loads this kernel (run-tests.mjs) and this lane does not,
-    so a group binding `env.AnalysisStats` can only skip here — and a skip is the one remedy the notes
-    above reject. Listing the SOURCE instead lets the group build the module from its own text, in
-    both lanes, with no second realm copy of the engine: a `<script>` tag here would hand the kernel to
-    the six OTHER groups that skip on `env.AnalysisStats` too, and four of them then skip again for an
-    analysis-page source this lane also lacks (measured 2026-11-10: 198 → 194 skips, 4 of them
-    carrying a reason no `browserLane.reasonClasses` entry declares). That is a unit of its own. */
+ /* analysis-stats.js, readable as TEXT and deliberately NOT script-loaded here. The Node lane
+    co-loads this kernel (run-tests.mjs) and this lane does not, so a group binding
+    `env.AnalysisStats` could only skip here — the one remedy the notes above reject. The SOURCE
+    being listed lets each group build the module from its own text, in both lanes, with no second
+    realm copy of the engine; `dexAnalysisStats` in tests/dex-tests.js is that construction, shared.
+    A `<script>` tag was the wrong remedy for a second reason: it would hand the kernel to the six
+    other groups at once, and four of them then skipped again for an analysis-page source this lane
+    lacked (measured 2026-11-10: 198 → 194 skips, 4 of them carrying a reason no
+    `browserLane.reasonClasses` entry declares). Those four pages are listed below, so the resolver
+    closes all seven group skips and the four delegation skips together. */
  'analysis-stats.js','hrvdex-render.js','pat-gate.js','pat-align.js','consensus-dissent.js','manifest-gate.js','tools/build.mjs','tools/verify-fixtures.mjs','tools/regen-goldens.mjs','tools/regen-goldens-core.mjs','tools/regen-oxydex-goldens.mjs','tools/regen-ecgdex-goldens.mjs','tools/regen-ppgdex-goldens.mjs','tools/regen-pulsedex-goldens.mjs','tools/regen-hrvdex-goldens.mjs','tools/regen-glucodex-goldens.mjs','tools/regen-cpap-goldens.mjs','tools/regen-motiondex-goldens.mjs','signal-orchestrate.js','dex-ingest.js',
   'cpapdex-dsp.js','cpapdex-cross.js','cpapdex-edf.js','cpapdex-app.js','cpapdex-fusion.js','ecgdex-morph.js','ppgdex-morph.js','export-schema.js','dex-export.js',
   'ganglior-provenance.js','signal-frame.js','measurement-block.js','verdict.js','night-seal.js','glucodex-render.js','glucodex-app.js',
@@ -319,7 +321,13 @@ const SOURCE_FILES = ['tools/trio-batch.mjs','tools/pat-host-offset.mjs','tools/
      `<script src>` and read as text by the Node lane, but not listed, so a scan saw less in this lane.
      Gate: `browser lane — every file it EVALUATES … is also in SOURCE_FILES` (tests/dex-tests.js). */
   'kernel-constants.js','synth-gen.js','cohort-gen.js','dex-patient-gen.js','cpapdex-coimport.js',
-  'signal-spec.js','signal-adapters.js','quantity.js','event-coupling.js'].concat(ADAPTER_SOURCES);
+  'signal-spec.js','signal-adapters.js','quantity.js','event-coupling.js',
+ /* THE FOUR ANALYSIS PAGES THE DELEGATION-PARITY REGISTRY NAMES AND THIS LANE COULD NOT READ. The
+    registry in tests/dex-tests.js scans each page for its `AnalysisStats.*` calls, and skips a page
+    whose source the runner passed none of — so a private copy reappearing in any of these four was
+    ungated in this lane while the Node lane guarded it. run-tests.mjs lists all four; both lanes or
+    neither. Listed 2026-11-10 with the analysis-stats resolver above. */
+ 'nights-icc-analysis.js','cgm-hrv-coupling-analysis.js','treatment-response-analysis.js','hrv-confound-analysis.js'].concat(ADAPTER_SOURCES);
 
 let ALL_GROUPS = [];
 

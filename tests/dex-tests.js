@@ -318,6 +318,56 @@
     return { present: present, absent: absent, extra: extra };
   }
 
+  /* ── THE KERNEL FROM ITS OWN SOURCE TEXT — BOTH LANES OR NEITHER ───────────────────────────────
+     `analysis-stats.js` is co-loaded as a module by tests/run-tests.mjs and is NOT script-loaded by
+     Dex-Test-Suite.html, whose own notes reject that remedy: a tag there hands the kernel to every
+     group below it and buys nothing the source text does not. The SOURCE is listed in both lanes, so
+     a group builds the module from that text into a box whose `globalThis` is a PARAMETER — the
+     file's IIFE resolves `root` to the box, which leaves no copy of the engine in either realm.
+     #4807 proved the shape at one site (the trio H10 corner gate); this is that shape, once, for the
+     seven sites that used to SKIP the browser lane away.
+     `env.AnalysisStats` wins when the runner bound it, so the Node lane still tests the object the
+     other groups use. Returns `{ S, origin, reason }`. `S` is null only when NEITHER route produced a
+     kernel, and `reason` then names the route that failed, so a caller fails closed with a cause.
+     A SKIP cannot do that: it reads the same whether the lane never had the kernel or the kernel
+     stopped building, and 7 groups spent the browser lane in the first state while the second was
+     indistinguishable from it. */
+  var DEX_ANALYSIS_STATS_MEMO = null;
+  function dexAnalysisStats(env) {
+    var E = env || {};
+    if (DEX_ANALYSIS_STATS_MEMO && DEX_ANALYSIS_STATS_MEMO.env === E) return DEX_ANALYSIS_STATS_MEMO.out;
+    var out;
+    if (E.AnalysisStats) out = { S: E.AnalysisStats, origin: 'runner', reason: null };
+    else {
+      var src = (E.sources && E.sources['analysis-stats.js']) || '';
+      if (src.length < 1000) {
+        out = {
+          S: null,
+          origin: 'none',
+          reason:
+            'analysis-stats.js is neither bound as env.AnalysisStats nor readable as source text in this lane — list it in SOURCE_FILES (Dex-Test-Suite.html) or readSources (tests/run-tests.mjs)'
+        };
+      } else {
+        var box = {},
+          threw = null;
+        try {
+          new Function('globalThis', src)(box);
+        } catch (e) {
+          threw = (e && e.message) || String(e);
+        }
+        out = box.AnalysisStats
+          ? { S: box.AnalysisStats, origin: 'source-text', reason: null }
+          : {
+              S: null,
+              origin: 'source-text',
+              reason: 'analysis-stats.js is readable in this lane and built no AnalysisStats: ' + (threw || 'its IIFE assigned nothing to the box')
+            };
+      }
+    }
+    DEX_ANALYSIS_STATS_MEMO = { env: E, out: out };
+    return out;
+  }
+
   function runDexTests(env) {
     env = env || {};
     var GROUPS = [];
@@ -20484,7 +20534,8 @@
        WORKER and the suite cannot execute worker-local functions — which is also why that hat now
        delegates rather than being numerically bound (a parity row there is not writable). */
     group('sensor-trio independence sensitivity — the collapse point, and four things the row must not do', 'sensor-trio · rho-crit · §∅', function (T) {
-      var S = env.AnalysisStats;
+      var KS = dexAnalysisStats(env),
+        S = KS.S;
       var page = env.sources && env.sources['sensor-trio-night.js'];
       var wk = env.sources && env.sources['sensor-trio-worker.js'];
       T.ok('the page source is readable in this lane', !!page, 'sensor-trio-night.js not in env.sources — list it in BOTH lanes');
@@ -20556,8 +20607,12 @@
         'ρ_crit must be measured from the hat’s own assumption, not from an arbitrary point'
       );
 
-      if (!S || typeof S.tchRhoCrit !== 'function' || typeof S.tchSigmasPairwiseFromVars !== 'function') {
-        T.skip('env.AnalysisStats provided to the runner', 'Node-lane only — run-tests.mjs co-loads analysis-stats.js');
+      if (!S) {
+        T.ok('the analysis-stats kernel binds in THIS lane', false, KS.reason);
+        return;
+      }
+      if (typeof S.tchRhoCrit !== 'function' || typeof S.tchSigmasPairwiseFromVars !== 'function') {
+        T.ok('the kernel exposes tchRhoCrit and tchSigmasPairwiseFromVars', false, 'the collapse-point rows below would prove nothing');
         return;
       }
 
@@ -21222,7 +21277,8 @@
          now the kernel the tool actually executes, and the source scan guards that the tool did not grow a
          copy back. A local `function threeCorneredHat` / `function tchSigmas` reappearing here is the
          regression this gate exists for — it fails, by name, rather than silently re-extracting the copy. */
-      var S = env.AnalysisStats;
+      var KS = dexAnalysisStats(env),
+        S = KS.S;
       T.ok(
         'the tool delegates its hat to the shared kernel (AnalysisStats.tchSigmas)',
         /\bAnalysisStats\.tchSigmas\b/.test(src),
@@ -21234,9 +21290,7 @@
         'a private copy of the hat came back — delete it and delegate (2026-08-04 measured the copy byte-equivalent and ungated)'
       );
       if (!S) {
-        // The browser lane (Dex-Test-Suite.html) co-loads no analysis-stats.js — the same SKIP the
-        // statistics-kernel group takes there. The Node lane binds the numbers below on every run.
-        T.skip('the shared kernel the tool runs is loaded in this lane', 'Node-lane only — run-tests.mjs co-loads analysis-stats.js');
+        T.ok('the shared kernel the tool runs binds in THIS lane', false, KS.reason);
         return;
       }
       T.ok(
@@ -21288,13 +21342,19 @@
        The load-bearing leg is the known answer: §8a derived ρ_crit ≈ 0.422 by an independent sweep, and
        the bisection must land on it. */
     group('a correlated σ reports how far it sits from the singularity', 'analysis-stats · rho-crit', function (T) {
-      /* Node-lane only, matching the three sibling `analysis-stats` groups: run-tests.mjs co-loads
-         analysis-stats.js and the browser suite deliberately does not, so this SKIPs there (like
-         docs/release-ledger). A skip, not a failure — the first version asserted presence and reddened
-         the browser lane, which misreports a documented lane boundary as a defect. */
-      var A = env.AnalysisStats;
-      if (!A || typeof A.tchSigmasPairwiseFromVars !== 'function') {
-        T.skip('env.AnalysisStats provided to the runner', 'Node-lane only — run-tests.mjs co-loads analysis-stats.js');
+      /* Both lanes, from 2026-11-10: `dexAnalysisStats` builds the kernel from its own listed source
+         text where the runner bound none, so the lane boundary this group used to SKIP for is gone.
+         An earlier version asserted `env.AnalysisStats` present and reddened the browser lane, which
+         reported a documented lane boundary as a defect; the skip that replaced it then reported a
+         kernel that STOPPED BUILDING as that same boundary. The resolver tells the two apart. */
+      var KA = dexAnalysisStats(env),
+        A = KA.S;
+      if (!A) {
+        T.ok('the analysis-stats kernel binds in THIS lane', false, KA.reason);
+        return;
+      }
+      if (typeof A.tchSigmasPairwiseFromVars !== 'function') {
+        T.ok('the kernel exposes the pairwise solver', false, 'AnalysisStats.tchSigmasPairwiseFromVars missing — the bisection rows below would prove nothing');
         return;
       }
       T.ok('AnalysisStats exposes the pairwise solver', typeof A.tchSigmasPairwiseFromVars === 'function');
@@ -30318,18 +30378,20 @@
        averages the two central values while this returns the lower, so |fused − classic| ≤ half the central
        gap — ≤ 0.5 ms for any millisecond-quantised lag, and 0 whenever those two values coincide. */
     group('PAT classic vs fused — a confidence-zeroed burst moves the fused lag and not the classic one', 'analysis-stats · pat · known-answer · §∅', function (T) {
-      var S = env.AnalysisStats;
       /* 🔴 THE TWO CAUSES OF "no kernel" ARE NOT THE SAME FINDING, and collapsing them cost a CI cycle.
-         `env.AnalysisStats` ABSENT is the LANE: run-tests.mjs co-loads analysis-stats.js and the browser
-         suite does not, so the module is simply not there — a SKIP, exactly as the statistics-kernel and
-         tch-parity groups above do it. This group first asserted presence instead and reddened
-         `browser-gates` with "weightedMedian / legWeights / fusedLeg not exported" over exports that are
-         present and tested in the Node lane: a gate naming a defect in the code when the truth was that it
-         had examined nothing (CLAUDE.md §4b).
-         The module PRESENT but missing these three is a different thing entirely — a real regression in a
-         lane that does load it — so it stays a FAILURE and is not skipped away with the first case. */
+         This group once asserted `env.AnalysisStats` present and reddened `browser-gates` with
+         "weightedMedian / legWeights / fusedLeg not exported" over exports that are present and tested
+         in the Node lane: a gate naming a defect in the code when the truth was that it had examined
+         nothing (CLAUDE.md §4b). The SKIP that replaced it stated the lane honestly and bought silence
+         for the whole group in the browser realm.
+         `dexAnalysisStats` removes the choice: the kernel is built from its own listed source text where
+         the runner bound none, so NO kernel is now a real finding in either lane and the resolver's
+         `reason` names which route failed. The module PRESENT but missing these three stays its own
+         FAILURE, separate from the first case, as it always was. */
+      var KS = dexAnalysisStats(env),
+        S = KS.S;
       if (!S) {
-        T.skip('env.AnalysisStats provided to the runner', 'Node-lane only — run-tests.mjs co-loads analysis-stats.js');
+        T.ok('the analysis-stats kernel binds in THIS lane', false, KS.reason);
         return;
       }
       if (typeof S.weightedMedian !== 'function' || typeof S.legWeights !== 'function' || typeof S.fusedLeg !== 'function') {
@@ -30582,9 +30644,10 @@
       'PAT hat — a negative corner says WHICH negative, and the drift-removed hat recovers a shared drift (PAT-HAT-DRIFT-DIFFERENCED)',
       'analysis-stats · pat · hat · known-answer · plant',
       function (T) {
-        var S = env.AnalysisStats;
+        var KS = dexAnalysisStats(env),
+          S = KS.S;
         if (!S) {
-          T.skip('env.AnalysisStats provided to the runner', 'Node-lane only — run-tests.mjs co-loads analysis-stats.js');
+          T.ok('the analysis-stats kernel binds in THIS lane', false, KS.reason);
           return;
         }
         if (typeof S.patHatSolve !== 'function' || typeof S.patHatBootstrapCI !== 'function' || typeof S.patHatCornerStatus !== 'function' || typeof S.patDifferencedHat !== 'function') {
@@ -30866,9 +30929,10 @@
       'The hat says WHICH leg moved a corner — `contributions`, analytic (VERDICT-CONTRIBUTIONS-2026-10-04 §2)',
       'analysis-stats · pat · hat · contributions · verdict · known-answer · plant',
       function (T) {
-        var S = env.AnalysisStats;
+        var KS = dexAnalysisStats(env),
+          S = KS.S;
         if (!S) {
-          T.skip('env.AnalysisStats provided to the runner', 'Node-lane only — run-tests.mjs co-loads analysis-stats.js');
+          T.ok('the analysis-stats kernel binds in THIS lane', false, KS.reason);
           return;
         }
         if (typeof S.hatContributions !== 'function' || typeof S.patHatContributions !== 'function') {
@@ -31125,12 +31189,10 @@
     );
 
     group('Analysis-page statistics kernels — known-answer (TEST-COVERAGE-ANALYSIS)', 'analysis-stats · statistics · known-answer', function (T) {
-      var S = env.AnalysisStats;
-      if (!S) {
-        T.skip('env.AnalysisStats provided to the runner', 'Node-lane only — run-tests.mjs co-loads analysis-stats.js');
-        return;
-      }
-      T.ok('AnalysisStats present', !!S);
+      var KS = dexAnalysisStats(env),
+        S = KS.S;
+      T.ok('the analysis-stats kernel binds in THIS lane', !!S, KS.reason);
+      if (!S) return;
 
       // ── low-level helpers ──
       T.eq('mean', S.mean([1, 2, 3, 4]), 2.5);
@@ -60808,25 +60870,11 @@
         T.ok(f + ' carries NO private Pearson body (no sxy accumulator)', !/\bsxy\b/.test(t), 'a copy of the correlation leg came back — delete it and delegate');
       });
 
-      /* BOTH LANES OR NEITHER. The kernel is co-loaded in the Node lane and not in the browser lane, so
-         binding `env.AnalysisStats` could only skip here — and `Dex-Test-Suite.html`'s own notes reject
-         exactly that ("the remedy is always to LIST in the other lane, never to make the assertion
-         lane-conditional"). The SOURCE is listed in both lanes, so the group builds the module from its
-         own text into a box whose `globalThis` is a PARAMETER: the file's IIFE resolves `root` to the box,
-         so this leaves no copy of the engine in either realm. `env.AnalysisStats` is preferred when the
-         runner has it, so the Node lane still tests the object the other groups use. */
-      var kSrc = (env.sources && env.sources['analysis-stats.js']) || '';
-      T.ok('analysis-stats.js is readable as source in THIS lane', kSrc.length > 1000, 'the kernel source is not listed in this lane — add it to SOURCE_FILES (browser) or readSources (node)');
-      var S = env.AnalysisStats;
-      if (!S && kSrc) {
-        var kBox = {};
-        try {
-          new Function('globalThis', kSrc)(kBox);
-          S = kBox.AnalysisStats;
-        } catch (_e) {
-          S = null;
-        }
-      }
+      /* BOTH LANES OR NEITHER — `dexAnalysisStats` carries the construction this group proved (#4807),
+         and the six sibling analysis-stats groups now share it instead of skipping the browser lane. */
+      var KS = dexAnalysisStats(env),
+        S = KS.S;
+      T.ok('the analysis-stats kernel binds in THIS lane', !!S, KS.reason);
       T.ok(
         'the kernel exposes h10FailureClass and pearsonOrNull',
         !!S && typeof S.h10FailureClass === 'function' && typeof S.pearsonOrNull === 'function',
