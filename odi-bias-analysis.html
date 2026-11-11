@@ -763,7 +763,11 @@
     if (n < 1e11) n = n * 1000; // 10-digit (or smaller) → seconds → ms
     if (n < 1e11 || n > 4e12) return null; // implausible epoch range
     var off = tzOffset(n);
-    return { tMs: n - off, offsetMin: -off / 60000 };
+    /* §1 grants `offsetMin` only when the INPUT states a zone, and a numeric epoch states none. Reading
+       the parsing machine's own offset here made one stamp carry 840 in Kiritimati and -240 in New York,
+       and that number reached the export. The floating conversion stays, because §2.1 names the local
+       zone at parse time for the `tMs` half alone. */
+    return { tMs: n - off, offsetMin: null };
   }
   function _ckZoneMin(z) {
     var zs = z.replace(':', '');
