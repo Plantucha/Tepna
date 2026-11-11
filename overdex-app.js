@@ -508,7 +508,7 @@
                 if (aexp && aexp.schema && aexp.schema.ingest) aexp.schema.ingest.via = 'OverDex';
                 afr.__item.computed = aexp;
                 exports.push({ json: aexp, label: afr.__item.relPath, from: 'computed ' + afr.provenance.adapter });
-                if (afr.partner) afr.partner.__item.runNote = 'folded into the MotionDex run of ' + afr.__item.relPath + ' (chest + arm ACC are one recording)';
+                if (afr.partner) afr.partner.__item.runNote = 'folded into the MotionDex run of ' + afr.__item.relPath + ' (the two ACC streams of one night are one recording)';
               } catch (ae) {
                 afr.__item.runNote = 'run error: ' + ae.message;
               }
@@ -725,7 +725,7 @@
     // is `emerging` — the exact tier the Integrator gives the same number.
     var STAT_EV = {
       'recordings fused': { ev: 'measured', cite: 'Count of recordings that routed to a node and produced an export — a counted quantity, not a model.' },
-      'overlap (union)': { ev: 'measured', cite: "Union of the recordings' time windows on the shared clock — counted, not modelled." },
+      'overlap, ≥2 nodes': { ev: 'measured', cite: 'Minutes where at least two recordings run at once on the shared clock, merged so no minute counts twice — counted, not modelled.' },
       'cross-signal findings': { ev: 'measured', cite: 'Count of coincidences the Integrator confirmed inside the overlap window.' },
       'confirmed apnea idx': {
         ev: 'emerging',
@@ -737,9 +737,30 @@
         e = STAT_EV[label];
       return R && R.badge && e ? R.badge(e.ev, e.cite) : '';
     }
-    function stat(label, val, cls) {
-      return '<div class="stat">' + '<div class="sv ' + (cls || '') + '">' + val + '</div><div class="sl">' + statBadge(label) + esc(label) + '</div></div>';
+    function stat(label, val, cls, sub) {
+      return (
+        '<div class="stat">' +
+        '<div class="sv ' +
+        (cls || '') +
+        '">' +
+        val +
+        '</div><div class="sl">' +
+        statBadge(label) +
+        esc(label) +
+        '</div>' +
+        (sub ? '<div class="ssub">' + esc(sub) + '</div>' : '') +
+        '</div>'
+      );
     }
+    /* 2026-11-11 review: a finding the null model puts at or below chance is NOT asserted (the Integrator's own
+       KPI says so), yet this page titled it "Confirmed Apnea Event" and showed the index with no reason. */
+    function findingType(f) {
+      var t = String(f.type || '').replace(/_/g, ' ');
+      return f.belowChance ? t.replace(/^confirmed\s+/i, 'candidate ') + ' · not asserted' : t;
+    }
+    var nBelow = fusion.findings.filter(function (f) {
+      return f.belowChance;
+    }).length;
 
     var apIdx = ap && ap.confirmedAHI != null ? ap.confirmedAHI : null;
     var apReportable = ap && ap.confirmedAHIReportable;
@@ -750,9 +771,15 @@
 
     html += '<div class="statgrid">';
     html += stat('recordings fused', recs ? recs.length : nodes.length);
-    html += stat('overlap (union)', w.overlapUnionMin != null ? w.overlapUnionMin + ' min' : '—');
-    html += stat('cross-signal findings', fusion.findings.length, fusion.findings.length ? 'teal' : 'muted');
-    html += stat('confirmed apnea idx', apIdx == null ? '—' : apIdx.toFixed(1), apReportable ? 'amber' : 'muted');
+    html += stat('overlap, ≥2 nodes', w.overlapUnionMin != null ? w.overlapUnionMin + ' min' : '—');
+    html += stat('cross-signal findings', fusion.findings.length, fusion.findings.length > nBelow ? 'teal' : 'muted', nBelow ? nBelow + ' at or below chance, not asserted' : '');
+    var apNull = ap && ap.nullModel;
+    html += stat(
+      'confirmed apnea idx',
+      apIdx == null ? '—' : apIdx.toFixed(1),
+      apReportable ? 'amber' : 'muted',
+      apIdx != null && !apReportable && apNull && apNull.belowChance ? 'below chance · expected ' + apNull.expectedConfirmed + ' per night · not asserted' : ''
+    );
     html += '</div>';
 
     // nodes fused
@@ -779,7 +806,7 @@
         var conf = f.conf == null ? '—' : f.conf.toFixed(2);
         html +=
           '<div class="finding"><div class="fr1"><span class="ftype">' +
-          esc(f.type.replace(/_/g, ' ')) +
+          esc(findingType(f)) +
           '</span>' +
           '<span class="ftime">' +
           (f.tMs != null ? fmtClock(f.tMs) : '') +
@@ -789,6 +816,7 @@
           (f.belowChance ? ' <span class="warn">· below chance</span>' : '') +
           '</span></div>' +
           (f.note ? '<div class="fnote">' + esc(f.note) + '</div>' : '') +
+          (f.belowChance ? '<div class="fnote warn">The null model expects at least this many coincidences by chance on this night, so the page does not assert this event.</div>' : '') +
           '</div>';
       });
       html += '</div></div>';
@@ -803,7 +831,29 @@
     if (hrv && hrv.blocks && hrv.blocks.length) {
       html += '<div class="block"><div class="bt">HRV consensus</div>';
       hrv.blocks.forEach(function (b) {
-        html += '<div class="small ' + (b.qc === 'divergent' ? 'warn' : 'ok') + '">' + esc(b.window) + ' · ' + esc(b.nodes.join(' / ')) + ' — ' + esc(b.note) + '</div>';
+        // 2026-11-11 review: the note quotes the WORSE of RMSSD and SDNN as one figure. Each metric's own
+        // spread goes beside it, so a reader can see which metric disagrees.
+        var per = [
+          ['RMSSD', b.rmssd],
+          ['SDNN', b.sdnn]
+        ]
+          .filter(function (x) {
+            return x[1] && x[1].divergencePct != null;
+          })
+          .map(function (x) {
+            return x[0] + ' ' + x[1].divergencePct + '%';
+          });
+        html +=
+          '<div class="small ' +
+          (b.qc === 'divergent' ? 'warn' : 'ok') +
+          '">' +
+          esc(b.window) +
+          ' · ' +
+          esc(b.nodes.join(' / ')) +
+          ' — ' +
+          esc(b.note) +
+          (per.length ? ' <span class="muted">(per metric: ' + esc(per.join(' · ')) + ')</span>' : '') +
+          '</div>';
       });
       html += '</div>';
     }
