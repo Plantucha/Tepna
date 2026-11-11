@@ -62170,8 +62170,8 @@
      page that is in fact published. Zero dependency, test-layer only. Positive controls included. ════ */
     group('Discoverability cohesion — roster ≡ sitemap (REPO-DISCOVERABILITY §5.2)', 'discoverability · cohesion', function (T) {
       var D = env.discoverability;
-      if (!D || !D.manifestText || !D.sitemapText) {
-        T.skip('discoverability inputs present (suite.manifest.json + docs/sitemap.xml)', 'not wired into env');
+      if (!D || !D.manifestText || !D.sitemapText || !D.readmeText) {
+        T.skip('discoverability inputs present (suite.manifest.json + docs/sitemap.xml + README.md)', 'not wired into env');
         return;
       }
       var man;
@@ -62276,6 +62276,88 @@
         rosterMisses({ nodes: [{ id: 'PlantDex', app: 'PlantDex.html', guide: null }] }, { 'PlantDex.html': 1 }).join('') === 'PlantDex has null guide'
       );
       T.ok('control: a deploy:false FUSION app that IS served reds too', rosterMisses({ fusion: [{ id: 'PlantFuse', app: 'PlantFuse.html', deploy: false }] }, { 'PlantFuse.html': 1 }).length === 1);
+      /* ── the README Device column ≡ the manifest `device` field ──────────────────────────────
+         Row 2026-11-08-the-suite-manifest-device-fields-omit-two-devices. This group's own header
+         names the README table as one of the four surfaces it holds together, and not one leg above
+         reads it. The manifest named `Polar Verity Sense` for PulseDex AND for PpgDex, against a
+         README table that names the H10 for the first and the O2Ring for the second, and
+         `build-docs.mjs:145` writes that field into three meta tags on each served reference page.
+         THE RULE RUNS IN ONE DIRECTION, AND THAT IS DELIBERATE. The README table is a short
+         reader-facing summary, so a device the manifest names and the README omits is no defect:
+         OxyDex's manifest field adds ViATOM to the README's `Wellue O2Ring`. A device the README
+         names and the manifest omits IS the defect, because the manifest is the roster every
+         generated surface reads. A cell that names no device (`exports`, `—`) carries no token, so
+         it compares nothing instead of comparing a dash. */
+      function readmeDeviceCells(text) {
+        var out = {};
+        String(text || '')
+          .split('\n')
+          .forEach(function (line) {
+            var m = /^\|\s*\*\*([A-Za-z]+Dex)\*\*\s*\|[^|]*\|([^|]*)\|/.exec(line);
+            if (m) out[m[1]] = m[2].trim();
+          });
+        return out;
+      }
+      function deviceTokens(cell) {
+        return String(cell == null ? '' : cell)
+          .toLowerCase()
+          .split(/[^a-z0-9]+/)
+          .filter(function (t) {
+            return t && t !== 'exports' && t !== 'and';
+          });
+      }
+      /* Pure over both arguments, so the controls below drive the REAL rule with planted rosters
+         rather than a second copy of it. An empty cell set means the reader found no table: it
+         returns a finding, because a reader that looked at nothing must never read as agreement. */
+      function deviceDrift(man, cells) {
+        var out = [],
+          names = Object.keys(cells);
+        if (names.length < 2) return ['the README node-table reader found ' + names.length + ' row(s): it examined nothing'];
+        (man.nodes || []).forEach(function (n) {
+          var cell = cells[n.id];
+          if (cell === undefined) {
+            out.push(n.id + ' has no README table row');
+            return;
+          }
+          var have = deviceTokens(n.device);
+          deviceTokens(cell).forEach(function (t) {
+            if (have.indexOf(t) < 0) out.push(n.id + ' README names "' + t + '", manifest device "' + String(n.device) + '" omits it');
+          });
+        });
+        return out;
+      }
+      var devCells = readmeDeviceCells(D.readmeText);
+      T.eq('the README Device column names no device the manifest `device` field omits', deviceDrift(man, devCells), []);
+      T.ok(
+        'the README table reader found a row for every manifest node',
+        Object.keys(devCells).length >= (man.nodes || []).length,
+        Object.keys(devCells).length + ' README row(s) · ' + (man.nodes || []).length + ' manifest node(s)'
+      );
+      /* CONTROL · the measured defect, planted: the field exactly as main carried it. */
+      T.ok(
+        'control: a manifest naming only the Verity for PpgDex is reported',
+        deviceDrift(
+          {
+            nodes: [
+              { id: 'PpgDex', device: 'Polar Verity Sense' },
+              { id: 'B', device: 'b' }
+            ]
+          },
+          { PpgDex: 'Polar Verity Sense · O2Ring', B: 'b' }
+        ).length === 1
+      );
+      T.ok(
+        'control: a manifest naming MORE than the README passes (the rule holds one direction)',
+        deviceDrift({ nodes: [{ id: 'OxyDex', device: 'O2Ring / Wellue / ViATOM' }] }, { OxyDex: 'Wellue O2Ring', B: 'b' }).length === 0
+      );
+      T.ok(
+        'control: an unreadable README table reds, it never reads as agreement',
+        deviceDrift({ nodes: [{ id: 'PpgDex', device: 'nothing' }] }, {})
+          .join('')
+          .indexOf('examined nothing') > 0
+      );
+      T.ok('control: a node with no README row is named, never skipped', deviceDrift({ nodes: [{ id: 'PlantDex', device: 'x' }] }, { A: 'a', B: 'b' }).join('') === 'PlantDex has no README table row');
+      T.ok('control: a cell naming no device compares nothing', deviceDrift({ nodes: [{ id: 'HRVDex', device: '—' }] }, { HRVDex: 'exports', B: 'b' }).length === 0);
     });
 
     /* ════ HOST EMIT ALLOWLIST — ecg/ppg/cgm now emit in the live hosts (HOST-EMIT-ALLOWLIST-2026-06-27).
