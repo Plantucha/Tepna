@@ -747,6 +747,62 @@ export function withdrawalLanded(keys, rows) {
 }
 
 /**
+ * THE PHRASES A ROW USES TO SAY THE REMEDY IS NOT A CODER'S TO TAKE. Each entry carries its own
+ * `sample`, so a phrase cannot be declared without a witness and a regex that stops matching reds
+ * in the selftest rather than quietly reading 0.
+ *
+ * ⚠️ THIS IS A CONVENTION IN PROSE, NEVER A STATE. `withdrawalLanded` above reads a cell written to
+ * a closed vocabulary and held by a gate, so its mark is a fact about the ledger. A sentence is a
+ * habit: a row may reserve the remedy in words nobody has used yet, and another may name the owner
+ * about something else. So this mark publishes itself as a LEAD, and its cost is asymmetric in the
+ * right direction — a wrong mark costs a picker one read of the cell, while an absent mark costs the
+ * whole search that sizes a row no coder can discharge.
+ */
+export const OWNER_RESERVED_PHRASES = [
+  { name: 'remedy-is-the-owners', re: /\bremedy is the owner'?s\b/i, sample: "the remedy is the owner's: he must enable the unit" },
+  { name: 'the-owners-call', re: /\bthe owner'?s call\b/i, sample: "re-enabling it is the owner's call" },
+  { name: 'choice-is-the-owners', re: /\bchoice is the owner'?s\b/i, sample: "that choice is the owner's" },
+  { name: 'owner-authorized', re: /\bowner[- ]authoriz(?:ed|ation)\b/i, sample: 'a manual deploy is owner-authorized only' },
+  { name: 'the-owner-holds', re: /\bthe owner holds\b/i, sample: 'the owner holds the term list' },
+  { name: 'reserves-for-the-owner', re: /\breserv(?:es|ed)\b[^.|]{0,40}\bfor the owner\b/i, sample: 'this reserves the install for the owner' },
+  { name: 'needs-the-owner', re: /\bneeds? the owner'?s\b/i, sample: "it needs the owner's word before anything runs" },
+  { name: 'only-the-owner', re: /\bonly the owner\b/i, sample: 'only the owner can add a required context' }
+];
+
+/**
+ * Pure. Which OPEN keys say in their OWN cells that the remedy belongs to the owner.
+ *
+ * A coder who picks such a row pays the whole sizing cost — the search, the cell reads, the lead
+ * PRs — and then stops, because the step that would discharge it is a deploy, a daemon restart, a
+ * timer install, a branch-protection change or a secret list. Measured 2026-11-11 at `origin/main`
+ * `d968f6660`: 33 of the 1387 rows carry one of these phrases and 5 of the 36 OPEN rows do, and
+ * `--open` marked none of the five. I had read three of those five by hand the same hour.
+ *
+ * THE TEXT READ IS THE FROZEN IDENTITY (`parseRows` builds it), which is the key, logged, source,
+ * defect and evidence cells. CONTROL, same measurement: reading the two prose cells alone through
+ * `splitRowCells` returns the SAME 33 rows and the SAME 5 OPEN ids, so the three leading cells add
+ * no hit today. A phrase anywhere in a row's identity reserves that row, and that is deliberate.
+ *
+ * ⚠️ IT IS A LEAD AND NEVER A CLOSE. The row keeps its work; the remedy sits with one person. So the
+ * count is PUBLISHED beside the open list and never subtracted from it.
+ *
+ * @param {string[]} keys  the OPEN keys to look up
+ * @param {ReturnType<typeof parseRows>} rows  every row at the ref
+ * @returns {Map<string, string[]>}  an open key, and the names of the phrases its own cells carry
+ */
+export function ownerReserved(keys, rows) {
+  const want = new Set(keys);
+  /** @type {Map<string, string[]>} */
+  const out = new Map();
+  for (const r of rows) {
+    if (!want.has(r.id)) continue;
+    const hits = OWNER_RESERVED_PHRASES.filter((p) => p.re.test(r.key)).map((p) => p.name);
+    if (hits.length) out.set(r.id, hits);
+  }
+  return out;
+}
+
+/**
  * Pure. The `tepna.verdict/1` for a pickup read. The criterion is pre-stated in the brief-free
  * form the row asked for: a read a session may size work from carries ZERO rows whose state
  * differs from the ref, and zero rows the ref holds and the read does not.
@@ -803,6 +859,11 @@ export function pickupVerdict(drift, ctx) {
          subtracted from `openOnRef`. A reader that quietly shortened the open list would hide a row
          the ledger still carries. */
       openWithdrawalLanded: Number.isInteger(ctx.withdrawalLanded) ? ctx.withdrawalLanded : null,
+      /* Informational on the same terms, and the ONLY one of these counts read from PROSE. It names
+         the rows whose own cells reserve the remedy for the owner, so a picker spends no search on
+         them. A convention cannot gate anything, which is why it is published and never subtracted
+         from `openOnRef`. */
+      openOwnerReserved: Number.isInteger(ctx.ownerReserved) ? ctx.ownerReserved : null,
       /* Part of the status, unlike every informational count above it. */
       unparsed: unreadable,
       behindCommits: ctx.behind,
@@ -1098,6 +1159,7 @@ function main() {
     const cites = citedBy(drift.openOnRef, refRows);
     /* Pure in the same way, so it runs in every mode: the state cell sits in the text already read. */
     const landed = withdrawalLanded(drift.openOnRef, refRows);
+    const reserved = ownerReserved(drift.openOnRef, refRows);
     /* THE CODE READ. Bounded by the oldest OPEN key's date, less one day for the zone: a commit cannot
        name a key before the day it was coined. A git failure leaves `leads` null and says so. */
     let leads = null;
@@ -1163,7 +1225,8 @@ function main() {
       citedBy: cites.size,
       correctedBy: corrected,
       correctionUnattributable: unattributable,
-      withdrawalLanded: landed.size
+      withdrawalLanded: landed.size,
+      ownerReserved: reserved.size
     });
     if (sample) {
       process.stdout.write(`${JSON.stringify(v)}\n`);
@@ -1178,6 +1241,7 @@ function main() {
             namedByCode: leads === null ? null : Object.fromEntries(leads),
             citedBy: Object.fromEntries(cites),
             withdrawalLanded: Object.fromEntries(landed),
+            ownerReserved: Object.fromEntries(reserved),
             pointerState: pointers === null ? null : Object.fromEntries(pointers),
             pointerTotals: pointers === null ? null : { open: openTotals, cited: leadTotals }
           },
@@ -1197,6 +1261,7 @@ function main() {
         `  ${k}${leads?.has(k) ? `  ← named by code: ${leads.get(k).join(', ')}` : ''}` +
           `${PINNED_BY_ROW.has(k) ? `  ← PINNED OPEN by ${PINNED_BY_ROW.get(k).by}: ${PINNED_BY_ROW.get(k).why}` : ''}` +
           `${landed.has(k) ? `  ← WITHDRAWAL LANDED: ${landed.get(k).join(', ')} reads \`withdrawn ${k}\`, so this row's correction is discharged and holds no work` : ''}` +
+          `${reserved.has(k) ? `  ← OWNER-RESERVED (prose): ${reserved.get(k).join(', ')} — this row's own cells reserve the remedy for the owner, so no coder can discharge it` : ''}` +
           `${
             cites.has(k)
               ? `  ← cited by row: ${cites
@@ -1243,6 +1308,14 @@ function main() {
         'for the row that GETS withdrawn and none for the row that withdraws it, so a close needs a ' +
         'RESIDUE-only PR and never a fix. This read is a state cell and never a verb in prose, so it asks for ' +
         'no judgment, unlike the CORRECTION mark above it.\n'
+    );
+    process.stdout.write(
+      `residue-pickup: ${reserved.size} of the ${drift.openOnRef.length} OPEN row(s) RESERVE the remedy for the OWNER in ` +
+        'their own cells. The step that would discharge one is a deploy, a daemon restart, a timer install, a ' +
+        'branch-protection change or a secret list, so a coder who picks it pays the whole sizing cost and then ' +
+        'stops. Read the named phrase in the cell and decide: this read is prose and never a state, unlike the ' +
+        'withdrawal mark above it. The phrase list is declared in this tool and every phrase carries a fixture, ' +
+        'so a phrase that stops matching reds instead of reading zero.\n'
     );
     if (pointers === null) process.stdout.write('residue-pickup: the pointer read did not run (git was not readable), so no row says where its own evidence now sits\n');
     else {
@@ -1849,7 +1922,57 @@ if (IS_CLI && process.argv.includes('--selftest')) {
     assert(liveStates >= 1, `the pattern reads the live ledger's own markup (${liveStates} row(s) carry a \`withdrawn <key>\` state)`);
   }
 
-  /* ── THE POINTER READ ─────────────────────────────────────────────────────────────────────────
+  /* ── THE OWNER-RESERVED READ ───────────────────────────────────────────────────────────────────
+     A fixture per DECLARED phrase, so a regex that stops matching reds here rather than reading 0 over
+     a live ledger that still carries the phrase. Then the two controls a prose read needs: a row with
+     no such phrase, and a CLOSED row that carries one. The read is a function over rows, so these legs
+     need no git and no tree.
+     ⚠️ EVERY PLANT KEY IS DATED BEFORE 2026-09-02, the citation floor in `residue-citations.mjs`. A
+     synthetic key dated inside the live range reds that gate as a citation resolving to no row, and
+     the cure is the date and never a baseline line: measured here, two in-range plants redded step 6
+     of 67 and left 61 steps un-run. */
+  {
+    const owned = OWNER_RESERVED_PHRASES.map((p, i) => [`2026-08-30-owner-phrase-${i}`, p]);
+    const otext = [
+      ...owned.map(([id, p]) => row(id, `a defect, and ${p.sample}`)),
+      row('2026-08-30-no-owner-phrase', 'a defect the fleet can fix itself'),
+      row('2026-08-30-a-closed-owner-row', "the remedy is the owner's", 'fixed #1')
+    ].join('\n');
+    const orows = parseRows(otext);
+    const oopen = pickupDrift(otext, otext).openOnRef;
+    const res = ownerReserved(oopen, orows);
+    for (const [id, p] of owned) {
+      assert(p.re.test(p.sample), `the declared phrase \`${p.name}\` matches its own sample, so the regex is alive`);
+      assert(res.get(id)?.includes(p.name), `and the read marks the row carrying it, naming \`${p.name}\``);
+    }
+    assert(res.size === OWNER_RESERVED_PHRASES.length, `every declared phrase marks its own row and nothing else does (${res.size} of ${OWNER_RESERVED_PHRASES.length})`);
+    assert(!res.has('2026-08-30-no-owner-phrase'), 'CONTROL · an OPEN row whose cells reserve nothing carries no mark');
+    assert(!res.has('2026-08-30-a-closed-owner-row'), 'CONTROL · the read asks about the OPEN keys alone, so a CLOSED row carrying the phrase is not marked');
+    assert(ownerReserved([], orows).size === 0 && ownerReserved(oopen, []).size === 0, 'CONTROL · no keys and no rows each mark nothing, and neither throws');
+    const ov = pickupVerdict(pickupDrift(otext, otext), { behind: 0, base: 'b', commit: 'abc1234', ownerReserved: res.size });
+    assert(ov.result.openOwnerReserved === res.size && ov.status === 'PASS', 'the verdict carries the count, and a convention does not move the status');
+    assert(pickupVerdict(pickupDrift(otext, otext), { behind: 0, base: 'b', commit: 'abc1234' }).result.openOwnerReserved === null, 'CONTROL · an absent read is null, never 0 — §∅');
+    /* ∅ ANTI-VACUITY OVER A MONOTONE POPULATION. The floor counts the phrase over EVERY row, which an
+       append-only ledger only ever gains. A floor on the OPEN hits would fall to 0 the day the owner
+       discharges the five live rows, which is the outcome this mark exists to produce.
+       ⚠️ A read this leg cannot make is a FAILURE, never a skip. */
+    const liveOwnerLedger = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', LEDGER_PATH);
+    let liveOwnerText = null;
+    try {
+      liveOwnerText = readFileSync(liveOwnerLedger, 'utf8');
+    } catch (err) {
+      liveOwnerText = null;
+      assert(false, `the live ledger was not readable at ${liveOwnerLedger} (${err.code || 'EREAD'}), so the phrase list was held against plants alone`);
+    }
+    const liveRows = parseRows(liveOwnerText);
+    const liveHits = ownerReserved(
+      liveRows.map((r) => r.id),
+      liveRows
+    );
+    assert(liveHits.size >= 33, `the phrase list reads the live ledger's own prose (${liveHits.size} row(s) of ${liveRows.length} reserve a remedy, floor 33 measured 2026-11-11)`);
+  }
+
+  /* ── THE POINTER READ ──  /* ── THE POINTER READ ─────────────────────────────────────────────────────────────────────────
      One plant per class, a control for each way the annotation could over-report, and the formatter
      held against a state the plants cannot produce. The reader is a function over a table, so these
      legs need no git and no tree. */
@@ -1933,7 +2056,10 @@ if (IS_CLI && process.argv.includes('--selftest')) {
       const fix = g('rev-parse', '--short=9', 'HEAD').trim();
       /* The third row's STATE withdraws to the second, so the second is a DISCHARGED CORRECTOR and
          the listing must mark it. It leaves the open count at 2, so the lead assertions above hold. */
-      put('briefs/RESIDUE.md', `${row(K)}\n${row('2026-10-20-another-row')}\n${row('2026-08-30-a-withdrawn-scratch-row', 'd', 'withdrawn 2026-10-20-another-row')}\n`);
+      put(
+        'briefs/RESIDUE.md',
+        `${row(K)}\n${row('2026-10-20-another-row', "a defect whose remedy is the owner's")}\n${row('2026-08-30-a-withdrawn-scratch-row', 'd', 'withdrawn 2026-10-20-another-row')}\n`
+      );
       g('add', 'briefs/RESIDUE.md');
       g('commit', '-qm', `docs(residue): a note about ${K}`);
       const run = spawnSync(process.execPath, [path.join(scratch, 'tools', 'residue-ids.mjs'), '--open', '--base', 'HEAD'], { cwd: scratch, encoding: 'utf8' });
@@ -1948,6 +2074,13 @@ if (IS_CLI && process.argv.includes('--selftest')) {
       assert(!run.stdout.includes(`  ${K}  ← WITHDRAWAL LANDED`), 'BLACK BOX · CONTROL: the other OPEN row carries no mark');
       assert(/1 of the 2 OPEN row\(s\) are the ARGUMENT of another/.test(run.stdout), 'BLACK BOX: the summary counts the one discharged corrector');
       assert(/"openWithdrawalLanded":1/.test(run.stdout), 'BLACK BOX: the verdict carries that count too');
+      assert(
+        run.stdout.includes("  ← OWNER-RESERVED (prose): remedy-is-the-owners — this row's own cells reserve the remedy for the owner"),
+        'BLACK BOX: the listing marks the owner-reserved row and names the phrase it read'
+      );
+      assert(run.stdout.split('← OWNER-RESERVED').length - 1 === 1, 'BLACK BOX · CONTROL: exactly one of the 2 OPEN rows is marked, so the other reserves nothing');
+      assert(/1 of the 2 OPEN row\(s\) RESERVE the remedy for the OWNER/.test(run.stdout), 'BLACK BOX: the summary counts the one owner-reserved row');
+      assert(/"openOwnerReserved":1/.test(run.stdout), 'BLACK BOX: the verdict carries that count too');
     } finally {
       rmSync(scratch, { recursive: true, force: true });
     }
