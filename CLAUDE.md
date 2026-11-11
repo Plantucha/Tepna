@@ -414,8 +414,10 @@ mandatory** — author·year·journal·DOI in the doc + a source comment in code
 gets its own executable brief.
 
 **Attribution is gate-backed** (`citation-ledger`, ledger `audits/CITATION-VERIFICATION-2026-08-05.json`):
-every DOI on a reader-facing surface (reference guides, `papers/**`, `docs/**.md`, root `*.js`) sits in a
-citation naming the ledger's first author and a year within ±1. `briefs/` and DOI resolution are out.
+every DOI on a reader-facing surface (reference guides, `papers/**`, `docs/**.md`, root `*.js`, root
+`*.md`) sits in a citation naming the ledger's first author and a year within ±1. `briefs/`,
+`CHANGELOG.md` and DOI resolution are out. The gate also excludes the repo's own Zenodo deposit as a
+DOI, and it reads that set from `CITATION.cff`.
 For a corporate author, spacing variant or author-less Crossref record add `authorAliases` **with
 `aliasSource`** (`crossref-variant` | `from-paper`; `from-paper` on a record that has a Crossref author is
 red). **Never silence a finding by editing `firstAuthor`.**
