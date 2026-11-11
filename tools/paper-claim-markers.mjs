@@ -143,13 +143,76 @@ export function artifactCandidates(file, artifacts) {
 }
 
 /**
+ * The paper an artifact DECLARES it was published in, read from its own `publishedIn` field.
+ * This is the authoritative channel: the record states its destination, where a shared slug token
+ * only states that two names agree. `publishedIn` is prose with a path at its head, so this reads
+ * the first `.html` it names and nothing else; a record published in a brief names no `.html` and
+ * drops out here rather than reading as a paper.
+ *
+ * @param {string} publishedIn the record's own field
+ * @returns {string|null} the declared paper file, `papers/`-prefixed, or null
+ */
+export function declaredPaper(publishedIn) {
+  const m = /([A-Za-z0-9._/-]+\.html)/.exec(String(publishedIn || ''));
+  if (!m) return null;
+  return `papers/${m[1].replace(/^papers\//, '')}`;
+}
+
+/**
+ * The artifacts that DECLARE this paper, and how exactly each one names it. A near miss is reported
+ * as one: the record names a file that is not this paper and is not any paper, and the stem differs
+ * by a trailing `s`. The reader decides, so this never rewrites the record's own words.
+ *
+ * @param {string} file a paper path
+ * @param {{name: string, publishedIn: string}[]} records the artifact records
+ * @param {Set<string>|string[]} [paperFiles] every paper that exists, to tell a near miss from a hit
+ * @returns {{name: string, publishedIn: string, declared: string, exact: boolean}[]}
+ */
+export function declaredLeads(file, records, paperFiles = []) {
+  const live = paperFiles instanceof Set ? paperFiles : new Set(paperFiles || []);
+  const stem = (f) =>
+    String(f)
+      .replace(/^papers\//, '')
+      .replace(/\.html$/, '')
+      .replace(/s$/, '');
+  const want = stem(file);
+  const out = [];
+  for (const r of records || []) {
+    const d = declaredPaper(r && r.publishedIn);
+    if (!d) continue;
+    if (d === file) out.push({ name: r.name, publishedIn: r.publishedIn, declared: d, exact: true });
+    else if (!live.has(d) && stem(d) === want) out.push({ name: r.name, publishedIn: r.publishedIn, declared: d, exact: false });
+  }
+  return out.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/**
+ * Records whose `publishedIn` names an `.html` that no paper file carries. A committed record that
+ * points at a file which does not exist has stopped naming its destination, so a reader following it
+ * binds nothing.
+ *
+ * @param {{name: string, publishedIn: string}[]} records the artifact records
+ * @param {Set<string>|string[]} paperFiles every paper that exists
+ * @returns {{name: string, declared: string}[]}
+ */
+export function danglingPublished(records, paperFiles) {
+  const live = paperFiles instanceof Set ? paperFiles : new Set(paperFiles || []);
+  const out = [];
+  for (const r of records || []) {
+    const d = declaredPaper(r && r.publishedIn);
+    if (d && !live.has(d)) out.push({ name: r.name, declared: d });
+  }
+  return out.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/**
  * The census over every paper, plus the ratchet's state.
  *
  * @param {{file: string, text: string}[]} papers
  * @param {Record<string, string>} baseline the grandfathered unmarked set
  * @param {string[]} [artifacts] the file names under `analysis/published-numbers`
  */
-export function census(papers, baseline, artifacts = []) {
+export function census(papers, baseline, artifacts = [], records = []) {
   const base = baseline && typeof baseline === 'object' ? baseline : {};
   const list = papers || [];
   const c = {
@@ -166,9 +229,13 @@ export function census(papers, baseline, artifacts = []) {
     unbaselined: [],
     discharged: [],
     unresolvedBaseline: [],
-    workList: {}
+    workList: {},
+    declaredList: {},
+    danglingPublished: []
   };
   for (const r of EXCLUSION_REASONS) c.byReason[r] = 0;
+  const livePapers = new Set(list.map((p) => p.file));
+  c.danglingPublished = danglingPublished(records, livePapers);
   const seen = new Set();
   for (const p of list) {
     seen.add(p.file);
@@ -188,6 +255,7 @@ export function census(papers, baseline, artifacts = []) {
     }
     c.unmarked.push(s.file);
     c.workList[s.file] = artifactCandidates(s.file, artifacts);
+    c.declaredList[s.file] = declaredLeads(s.file, records, livePapers);
     if (!(s.file in base)) c.unbaselined.push(s.file);
   }
   const live = new Set(c.unmarked);
@@ -285,6 +353,24 @@ export function readArtifacts(root = ROOT) {
     .sort();
 }
 
+export function readArtifactRecords(root = ROOT) {
+  const dir = join(root, ARTIFACT_DIR);
+  if (!existsSync(dir)) return [];
+  const out = [];
+  for (const f of readdirSync(dir)
+    .filter((x) => x.endsWith('.json'))
+    .sort()) {
+    let j;
+    try {
+      j = JSON.parse(readFileSync(join(dir, f), 'utf8'));
+    } catch {
+      continue;
+    }
+    out.push({ name: f, publishedIn: typeof j.publishedIn === 'string' ? j.publishedIn : '' });
+  }
+  return out;
+}
+
 export function readBaseline(root = ROOT) {
   const p = join(root, BASELINE_PATH);
   if (!existsSync(p)) return {};
@@ -353,6 +439,27 @@ export function selftest() {
   ok(artifactCandidates('papers/b.html', ['sigma-corpus-2026-10-21.json']).length === 0, 'a paper sharing no token names none');
   ok(census(papers, {}, []).unbaselined.length === census(papers, {}, ['sigma-corpus-2026-10-21.json']).unbaselined.length, 'the artifact list cannot change the finding set');
 
+  // THE DECLARED CHANNEL. An artifact names its own destination, and that name beats a shared token.
+  const REC = [
+    { name: 'analysis/published-numbers/sigma-corpus-2026-10-21.json', publishedIn: 'papers/sigma-no-reference.html' },
+    { name: 'analysis/published-numbers/tch-firmware-reference-2026-09-26.json', publishedIn: 'papers/sensor-trio-night.html' },
+    { name: 'analysis/published-numbers/odi4-2026-10-02.json', publishedIn: 'briefs/ODI4-2026-10-02-BRIEF.md' }
+  ];
+  const LIVE = new Set(['papers/sigma-no-reference.html', 'papers/sensor-trio-nights.html']);
+  ok(declaredPaper('papers/sigma-no-reference.html') === 'papers/sigma-no-reference.html', 'a declared paper path reads back whole');
+  ok(declaredPaper('sigma-no-reference.html') === 'papers/sigma-no-reference.html', 'a bare file name is read under papers/');
+  ok(declaredPaper('briefs/ODI4-2026-10-02-BRIEF.md') === null, 'a brief destination declares no paper');
+  ok(declaredPaper(null) === null, 'an absent destination declares no paper');
+  const dl = declaredLeads('papers/sigma-no-reference.html', REC, LIVE);
+  ok(dl.length === 1 && dl[0].exact === true, 'an exact declaration leads the paper it names');
+  const near = declaredLeads('papers/sensor-trio-nights.html', REC, LIVE);
+  ok(near.length === 1 && near[0].exact === false && near[0].declared === 'papers/sensor-trio-night.html', 'a singular/plural miss still leads, and says what it named');
+  ok(declaredLeads('papers/b.html', REC, LIVE).length === 0, 'a paper no artifact names gets no declared lead');
+  const dang = danglingPublished(REC, LIVE);
+  ok(dang.length === 1 && dang[0].declared === 'papers/sensor-trio-night.html', 'a destination no paper carries reads as dangling');
+  ok(danglingPublished(REC, new Set()).length === 2, 'every paper destination dangles when no paper is live');
+  ok(census(papers, {}, [], REC).unbaselined.length === census(papers, {}, []).unbaselined.length, 'the record list cannot change the finding set either');
+
   // THE REFUSALS.
   ok(censusStatus(census([], {})) === 'NOT_RUN', 'an empty corpus examines nothing and refuses');
   ok(censusStatus(census([paper(INDEX_PAGE, '<p>2 papers.</p>')], {})) === 'NOT_APPLICABLE', 'a corpus of nothing but excluded papers is not applicable');
@@ -387,14 +494,25 @@ function main() {
 
   const papers = readPapers();
   const artifacts = readArtifacts();
-  const c = census(papers, readBaseline(), artifacts);
+  const records = readArtifactRecords();
+  const c = census(papers, readBaseline(), artifacts, records);
 
   if (argv.includes('--work-list')) {
     for (const f of c.unmarked) {
       const cand = c.workList[f] || [];
-      process.stdout.write(`${f} — ${cand.length ? `could bind to ${ARTIFACT_DIR}/{${cand.join(', ')}}` : 'no artifact under ' + ARTIFACT_DIR + ' shares a slug token'}\n`);
+      const decl = c.declaredList[f] || [];
+      if (decl.length) {
+        for (const d of decl) process.stdout.write(`${f} — DECLARED by ${ARTIFACT_DIR}/${d.name}${d.exact ? '' : ` (near miss: it names ${d.declared}, which no paper carries)`}\n`);
+      } else if (cand.length) {
+        process.stdout.write(`${f} — token lead only (the names share a word, not a number): ${ARTIFACT_DIR}/{${cand.join(', ')}}\n`);
+      } else {
+        process.stdout.write(`${f} — no artifact declares it, and none shares a slug token\n`);
+      }
     }
-    process.stdout.write(`· ${c.unmarked.length} unmarked paper(s), ${c.unmarked.filter((f) => (c.workList[f] || []).length).length} with a candidate artifact\n`);
+    const declared = c.unmarked.filter((f) => (c.declaredList[f] || []).length).length;
+    const tokenOnly = c.unmarked.filter((f) => !(c.declaredList[f] || []).length && (c.workList[f] || []).length).length;
+    process.stdout.write(`· ${c.unmarked.length} unmarked paper(s): ${declared} declared by an artifact, ${tokenOnly} with a token lead only\n`);
+    for (const d of c.danglingPublished) process.stdout.write(`⚠ ${ARTIFACT_DIR}/${d.name} publishes into ${d.declared}, which no paper file carries\n`);
     process.exit(0);
   }
 
