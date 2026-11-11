@@ -703,6 +703,50 @@ export function namedByCode(keys, commits, addedBy) {
 }
 
 /**
+ * The `withdrawn <key>` STATE cell. It is the ledger's only CORROBORATED backward pointer: the
+ * suite's check8i holds a withdrawal valid only while the row it names says so in its own cells.
+ */
+export const WITHDRAWAL_STATE = /^withdrawn\s+(\d{4}-\d{2}-\d{2}-[a-z0-9-]+)$/;
+
+/**
+ * Pure. THE MIRROR OF THE CITING READ: which OPEN keys are the ARGUMENT of a `withdrawn <key>`
+ * state, which means the row's own withdrawal has already LANDED.
+ *
+ * Row 2026-09-11-withdrawn-rows-cannot-close bought a terminal state for the row that GETS
+ * withdrawn, and row 2026-10-26-a-correcting-row-leaves-no-mark-on-the-row-it-corrects bought the
+ * corrected row a `CORRECTION` mark. Both read in one direction. The CORRECTOR got neither. It
+ * states a defect that is not a defect, so no fix can ever close it, and the pickup list offers it
+ * with the same blank line as a row nobody has touched.
+ *
+ * Measured 2026-11-11 at `origin/main` `d6ee5bc70`: 3 of the 33 OPEN rows are the argument of a
+ * `withdrawn` state, over 32 rows carrying that state, and `--open` marked none of the three.
+ *
+ * THIS IS THE ONE CORRECTION READ THAT NEEDS NO JUDGMENT. A verb in prose is a convention, which
+ * is why `citedBy` publishes an unattributable verb as unattributable. A state cell is written to
+ * a closed vocabulary and held by a gate, so a mark here is a fact about the ledger.
+ *
+ * ⚠️ IT IS STILL NOT A CLOSE. The vocabulary holds no state for a discharged corrector, so the row
+ * stays OPEN until a RESIDUE-only PR gives it one. The mark tells a picker not to size it.
+ *
+ * @param {string[]} keys  the OPEN keys to look up
+ * @param {ReturnType<typeof parseRows>} rows  every row at the ref
+ * @returns {Map<string, string[]>}  an open key, and the ids of the rows whose state withdraws to it
+ */
+export function withdrawalLanded(keys, rows) {
+  const want = new Set(keys);
+  /** @type {Map<string, string[]>} */
+  const out = new Map();
+  for (const r of rows) {
+    const m = WITHDRAWAL_STATE.exec(String(r.state ?? '').trim());
+    if (!m || !want.has(m[1])) continue;
+    if (!out.has(m[1])) out.set(m[1], []);
+    const list = out.get(m[1]);
+    if (!list.includes(r.id)) list.push(r.id);
+  }
+  return out;
+}
+
+/**
  * Pure. The `tepna.verdict/1` for a pickup read. The criterion is pre-stated in the brief-free
  * form the row asked for: a read a session may size work from carries ZERO rows whose state
  * differs from the ref, and zero rows the ref holds and the read does not.
@@ -753,6 +797,12 @@ export function pickupVerdict(drift, ctx) {
          stops examining anything at that moment while printing the same green. The legs plant a map
          here; the default stays this tool's own declared list. */
       openPinnedByCheck: drift.openOnRef.filter((k) => (ctx.pins instanceof Map ? ctx.pins : PINNED_BY_ROW).has(k)).length,
+      /* Informational on the same terms, and pure like the citing read. An OPEN row named by a
+         `withdrawn <key>` state has had its correction discharged, so it holds no work — and it has
+         no reachable closing state either, which is why the count is PUBLISHED here rather than
+         subtracted from `openOnRef`. A reader that quietly shortened the open list would hide a row
+         the ledger still carries. */
+      openWithdrawalLanded: Number.isInteger(ctx.withdrawalLanded) ? ctx.withdrawalLanded : null,
       /* Part of the status, unlike every informational count above it. */
       unparsed: unreadable,
       behindCommits: ctx.behind,
@@ -1046,6 +1096,8 @@ function main() {
        row, and that row's own state cell may already read closed. */
     const refRows = parseRows(refText);
     const cites = citedBy(drift.openOnRef, refRows);
+    /* Pure in the same way, so it runs in every mode: the state cell sits in the text already read. */
+    const landed = withdrawalLanded(drift.openOnRef, refRows);
     /* THE CODE READ. Bounded by the oldest OPEN key's date, less one day for the zone: a commit cannot
        name a key before the day it was coined. A git failure leaves `leads` null and says so. */
     let leads = null;
@@ -1110,7 +1162,8 @@ function main() {
       namedByCode: leads === null ? null : leads.size,
       citedBy: cites.size,
       correctedBy: corrected,
-      correctionUnattributable: unattributable
+      correctionUnattributable: unattributable,
+      withdrawalLanded: landed.size
     });
     if (sample) {
       process.stdout.write(`${JSON.stringify(v)}\n`);
@@ -1124,6 +1177,7 @@ function main() {
             ...drift,
             namedByCode: leads === null ? null : Object.fromEntries(leads),
             citedBy: Object.fromEntries(cites),
+            withdrawalLanded: Object.fromEntries(landed),
             pointerState: pointers === null ? null : Object.fromEntries(pointers),
             pointerTotals: pointers === null ? null : { open: openTotals, cited: leadTotals }
           },
@@ -1142,6 +1196,7 @@ function main() {
       process.stdout.write(
         `  ${k}${leads?.has(k) ? `  ← named by code: ${leads.get(k).join(', ')}` : ''}` +
           `${PINNED_BY_ROW.has(k) ? `  ← PINNED OPEN by ${PINNED_BY_ROW.get(k).by}: ${PINNED_BY_ROW.get(k).why}` : ''}` +
+          `${landed.has(k) ? `  ← WITHDRAWAL LANDED: ${landed.get(k).join(', ')} reads \`withdrawn ${k}\`, so this row's correction is discharged and holds no work` : ''}` +
           `${
             cites.has(k)
               ? `  ← cited by row: ${cites
@@ -1180,6 +1235,14 @@ function main() {
         'not sum to the cited total. An unattributable mark is a reading order and nothing more: read the citing ' +
         'row and decide for yourself which row its verb was about. A correction never moves the corrected ' +
         "row's state, since rows are append-and-close.\n"
+    );
+    process.stdout.write(
+      `residue-pickup: ${landed.size} of the ${drift.openOnRef.length} OPEN row(s) are the ARGUMENT of another ` +
+        "row's `withdrawn <key>` state. That row's own cells corroborate the withdrawal, so the correction " +
+        'already landed and the row holds no work. It stays OPEN because the vocabulary buys a terminal state ' +
+        'for the row that GETS withdrawn and none for the row that withdraws it, so a close needs a ' +
+        'RESIDUE-only PR and never a fix. This read is a state cell and never a verb in prose, so it asks for ' +
+        'no judgment, unlike the CORRECTION mark above it.\n'
     );
     if (pointers === null) process.stdout.write('residue-pickup: the pointer read did not run (git was not readable), so no row says where its own evidence now sits\n');
     else {
@@ -1734,6 +1797,58 @@ if (IS_CLI && process.argv.includes('--selftest')) {
     );
   }
 
+  /* ── THE DISCHARGED CORRECTOR ─────────────────────────────────────────────────────────────────
+     A row whose key is the ARGUMENT of another row's `withdrawn <key>` state has had its withdrawal
+     land, so it states a defect that is not a defect and no fix can close it. The read is a STATE
+     cell, so every plant below is a state the closed vocabulary allows, and every control is a shape
+     that must NOT count. Pre-floor keys, for the reason the block above states. */
+  {
+    const W = '2026-08-30-discharged-corrector';
+    const U = '2026-08-30-untouched-row';
+    const Z = '2026-08-30-corrector-that-closed';
+    const wtext = [
+      row(W, 'this withdraws the row below', 'OPEN'),
+      row('2026-08-30-the-withdrawn-row', 'the defect that was not one', `withdrawn ${W}`),
+      row(U, 'a defect nobody has touched', 'OPEN'),
+      row(Z, 'this withdrew something too', 'fixed #1'),
+      row('2026-08-30-the-second-withdrawn-row', 'another non-defect', `withdrawn ${Z}`),
+      row('2026-08-30-a-bare-state', 'a state carrying no key', 'withdrawn'),
+      row('2026-08-30-a-dangling-state', 'a state naming no row', 'withdrawn 2026-08-30-no-such-row')
+    ].join('\n');
+    const wrows = parseRows(wtext);
+    const wopen = pickupDrift(wtext, wtext).openOnRef;
+    const wl = withdrawalLanded(wopen, wrows);
+    assert(wl.get(W)?.join() === '2026-08-30-the-withdrawn-row', 'an OPEN row named by a `withdrawn` state is marked, and the mark names the row that withdraws to it');
+    assert(!wl.has(U), 'CONTROL · an OPEN row that no state names carries no mark');
+    assert(!wl.has(Z), 'CONTROL · the read asks about the OPEN keys alone, so a corrector that already closed is not marked again');
+    assert(wl.size === 1, 'and nothing else in the plant counts: a bare `withdrawn`, and one naming no row, each give no mark');
+    assert(
+      !WITHDRAWAL_STATE.test('withdrawn') && !WITHDRAWAL_STATE.test('fixed #1') && !WITHDRAWAL_STATE.test(`withdrawn ${W} and ${U}`) && !WITHDRAWAL_STATE.test(`see withdrawn ${W}`),
+      'the state pattern takes exactly one key, anchored at both ends — a second key, a prefix and another state all fail it'
+    );
+    const wv = pickupVerdict(pickupDrift(wtext, wtext), { behind: 0, base: 'b', commit: 'abc1234', withdrawalLanded: wl.size });
+    assert(wv.result.openWithdrawalLanded === 1 && wv.status === 'PASS', 'the verdict carries the count, and it does not move the status');
+    const wvAbsent = pickupVerdict(pickupDrift(wtext, wtext), { behind: 0, base: 'b', commit: 'abc1234' });
+    assert(wvAbsent.result.openWithdrawalLanded === null, 'CONTROL · an absent read is null, never 0 — §∅');
+    /* ∅ ANTI-VACUITY, AND IT MUST NOT BLOCK ITS OWN FIX. A floor on the DISCHARGED count falls to 0
+       the day a RESIDUE-only PR closes the three live rows, which is the outcome this mark exists to
+       produce — the shape I measured on 2026-11-11 in `residue-citations.mjs`. So the floor sits on
+       the `withdrawn` STATE rows instead, a count an append-only ledger only ever gains. It proves
+       the pattern reads the live markup without pinning today's debt.
+       ⚠️ A read this leg cannot make is a FAILURE, never a skip: the pattern would then be held
+       against a plant alone, and the live count could read 0 forever in the same green. */
+    const liveLedger = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', LEDGER_PATH);
+    let liveText = null;
+    try {
+      liveText = readFileSync(liveLedger, 'utf8');
+    } catch (err) {
+      liveText = null;
+      assert(false, `the live ledger was not readable at ${liveLedger} (${err.code || 'EREAD'}), so the state pattern was held against plants alone`);
+    }
+    const liveStates = parseRows(liveText).filter((r) => WITHDRAWAL_STATE.test(String(r.state ?? '').trim())).length;
+    assert(liveStates >= 1, `the pattern reads the live ledger's own markup (${liveStates} row(s) carry a \`withdrawn <key>\` state)`);
+  }
+
   /* ── THE POINTER READ ─────────────────────────────────────────────────────────────────────────
      One plant per class, a control for each way the annotation could over-report, and the formatter
      held against a state the plants cannot produce. The reader is a function over a table, so these
@@ -1816,7 +1931,9 @@ if (IS_CLI && process.argv.includes('--selftest')) {
       g('add', 'a.js');
       g('commit', '-qm', `fix(a): the fix for ${K}`);
       const fix = g('rev-parse', '--short=9', 'HEAD').trim();
-      put('briefs/RESIDUE.md', `${row(K)}\n${row('2026-10-20-another-row')}\n`);
+      /* The third row's STATE withdraws to the second, so the second is a DISCHARGED CORRECTOR and
+         the listing must mark it. It leaves the open count at 2, so the lead assertions above hold. */
+      put('briefs/RESIDUE.md', `${row(K)}\n${row('2026-10-20-another-row')}\n${row('2026-08-30-a-withdrawn-scratch-row', 'd', 'withdrawn 2026-10-20-another-row')}\n`);
       g('add', 'briefs/RESIDUE.md');
       g('commit', '-qm', `docs(residue): a note about ${K}`);
       const run = spawnSync(process.execPath, [path.join(scratch, 'tools', 'residue-ids.mjs'), '--open', '--base', 'HEAD'], { cwd: scratch, encoding: 'utf8' });
@@ -1824,6 +1941,13 @@ if (IS_CLI && process.argv.includes('--selftest')) {
       assert(run.stdout.includes(`  ${K}  ← named by code: ${fix}\n`), 'BLACK BOX: the listing names the fixing commit, and only it');
       assert(/1 of the 2 OPEN row\(s\) are named by a later commit/.test(run.stdout), 'BLACK BOX: the summary counts the one lead');
       assert(/"openNamedByCode":1/.test(run.stdout), 'BLACK BOX: the verdict carries the lead count');
+      assert(
+        run.stdout.includes('  2026-10-20-another-row  ← WITHDRAWAL LANDED: 2026-08-30-a-withdrawn-scratch-row reads `withdrawn 2026-10-20-another-row`'),
+        'BLACK BOX: the listing marks the discharged corrector beside its own row, and names the row that withdraws to it'
+      );
+      assert(!run.stdout.includes(`  ${K}  ← WITHDRAWAL LANDED`), 'BLACK BOX · CONTROL: the other OPEN row carries no mark');
+      assert(/1 of the 2 OPEN row\(s\) are the ARGUMENT of another/.test(run.stdout), 'BLACK BOX: the summary counts the one discharged corrector');
+      assert(/"openWithdrawalLanded":1/.test(run.stdout), 'BLACK BOX: the verdict carries that count too');
     } finally {
       rmSync(scratch, { recursive: true, force: true });
     }
