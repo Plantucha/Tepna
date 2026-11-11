@@ -17309,7 +17309,7 @@ const PulseDex = window.PulseDex;
         bus: 'ganglior',
         generated: opts.generated || new Date().toISOString(),
         provenance: opts.provenance || null,
-        doc: 'GlucoDex glycemic events → Ganglior bus. t/tMs = floating wall-clock (UTC getters). null = unknown, never fabricated.'
+        doc: 'GlucoDex glycemic events → Ganglior bus. t/tMs = floating wall-clock (UTC getters). null = unknown, never fabricated. `crossNight` carries a ganglior.crossnight v1.0 envelope over the per-day series; null when glucodex-cross.js is not in the realm.'
       },
       // EXPORT-IDENTITY §2.1 / -FOLLOWUPS-II §1: identity-free contentId, single-sourced in this
       // shared builder (both app exportGanglior + headless compute reach it). Folds the cleaned CGM series.
@@ -17438,6 +17438,22 @@ const PulseDex = window.PulseDex;
             'ONE entry per cell in time order; WARMUP cells dropped. tMs = absolute floating wall-clock ms; v = mg/dL; f = clean flag (0 OK · 2 gap-interp SHORT · 3 compression-low · 4 gap-interp LONG). A consumer computing glucose statistics MUST exclude 3 and 4 — flag 4 is straight-line interpolation the sensor never saw, and counting it inflates TIR/CV and any coverage figure derived from the cell count.'
         };
       })(),
+      /* ── CROSS-DAY TREND (ganglior.crossnight v1.0) ─────────────────────────────────────────
+         Residue `2026-11-08-three-nodes-emit-no-crossnight-export`, the GlucoDex leg. The envelope
+         is built by `glucodex-cross.js` over `r.daily`, the per-day series `perDay()` writes.
+
+         §∅ — ABSENCE IS NULL. Three separate absences read `null` here and none of them reads 0 or
+         an empty envelope. (1) No day row survived `perDay`'s 6-sample floor, so there is no series.
+         (2) `glucodex-cross.js` is not in this realm. (3) `crossnight-envelope.js` is not either. A
+         realm that carries the cross module without the envelope builder gets the module's own legacy
+         shape, which is the fallback the other five cross modules carry.
+
+         The reach is `global` at CALL time, never a module-evaluation alias: GlucoDex carries no
+         `clock.js` and this file must not grow a second load-order dependency. A regenerator that
+         builds its own vm realm therefore writes `null` honestly instead of throwing — and
+         `tools/regen-glucodex-goldens.mjs` carries both files for that reason, because a truthful
+         `null` in a committed fixture still reds GATE C against the suite realm, which has them. */
+      crossNight: r.daily && r.daily.length && global && global.GluCross && global.CrossNightEnvelope ? global.GluCross.crossNightBlock(r.daily) : null,
       ganglior_events: events,
       reserved: { doc: 'Awaiting other fleet nodes; null until available.' }
     };

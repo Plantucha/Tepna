@@ -43,6 +43,7 @@ declare var oxyRenderSpo2w: any; // oxydex-app.js — waveform-SpO₂ section re
 // ── GlucoDex ──────────────────────────────────────────────────────────────────────────────────────
 declare var GLUDSP: any; // glucodex-dsp.js — the DSP toolkit namespace (parseCSV, analyze, genSynthetic, …)
 declare var GlucoDex: any; // glucodex-dsp.js — the node's public compute surface (compute, buildNodeExport, …)
+declare var GluCross: any; // glucodex-cross.js — optional co-loaded longitudinal cross-day block (guarded reach)
 
 // ── CPAPDex ───────────────────────────────────────────────────────────────────────────────────────
 declare var CpapDsp: any; // cpapdex-dsp.js — the DSP api namespace (compute, buildSession, …)

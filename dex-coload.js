@@ -74,6 +74,7 @@
       { file: 'pulsedex-cross.js', global: 'PulseCross' },
       { file: 'ppgdex-cross.js', global: 'PPGCross' },
       { file: 'hrvdex-cross.js', global: 'HRVCross' },
+      { file: 'glucodex-cross.js', global: 'GluCross' },
       { file: 'cpapdex-cross.js', global: 'CPAPCross' },
       { file: 'cpapdex-coimport.js', global: 'CpapCoimport' }
     ]
