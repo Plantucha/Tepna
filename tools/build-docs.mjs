@@ -235,12 +235,14 @@ function withFooter(html) {
    Architecture on 2026-11-08, beside v2.28.0; 13 papers carried the same colophon). This returns the
    hand-typed versions a reader would SEE: the stamped footer, comments, <style> and <script> are cut
    first, because a CSS banner comment is not on the page. A version filled in by a script from
-   suite.manifest.json (papers.html's `#suiteVer`) splits `Tepna` from `v…` with a tag and is not read. */
+   suite.manifest.json (papers.html's `#suiteVer`) splits `Tepna` from `v…` with a tag and is not read.
+   Each cut span becomes a space, never '': this READS text and sanitizes nothing, and a space cannot
+   join two halves into a new `<!--` or `<script` (CodeQL js/incomplete-multi-character-sanitization). */
 function handTypedVersions(html) {
   const visible = String(html)
-    .replace(_VER_FOOTER_RE, '')
-    .replace(/<!--[\s\S]*?-->/g, '')
-    .replace(/<(style|script)\b[\s\S]*?<\/\1\s*>/gi, '');
+    .replace(_VER_FOOTER_RE, ' ')
+    .replace(/<!--[\s\S]*?-->/g, ' ')
+    .replace(/<(style|script)\b[\s\S]*?<\/\1\s*>/gi, ' ');
   return visible.match(/\bTepna\s+v\d+\.\d+\.\d+/g) || [];
 }
 
