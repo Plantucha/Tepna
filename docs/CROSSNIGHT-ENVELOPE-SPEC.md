@@ -208,19 +208,21 @@ produced each stored aggregate so historical trends aren't silently re-mixed.
 | **PulseDex** | bare object (single) / arrayed at ≥2 | **emits `ganglior.crossnight` v1.0 ✓** (multi-day model added; single-recording byte-identical) |
 | **CPAPDex** | v2.0 ✓ | **emits `ganglior.crossnight` v1.0 ✓** (`cpapdex-cross.js`; carries `pressureChangePoints`, `compliancePct`) |
 | **HRVDex** | v2.0 ✓ | **emits `ganglior.crossnight` v1.0 ✓** (`hrvdex-cross.js`, 2026-11-11; `unit:'recording'`, uniform item weights — a Welltory row states no coverage fraction; ids rmssd·sdnn·hrRest·stress·hrvScore; the native rolling 7-day z-scores/slopes stay in the app) |
-| **GlucoDex** | v2.0 ✓ | ✗ **no `*-cross.js`** — retains native intra-file trending (perDay / AGP / MODD) |
+| **GlucoDex** | v2.0 ✓ | **emits `ganglior.crossnight` v1.0 ✓** (`glucodex-cross.js`, 2026-11-11; `unit:'day'` over the `perDay()` series, uniform item weights — a day row states a sample count and no denominator; ids mean·gmi·cv·tir·timeBelow·timeAbove; the native AGP / MODD / MAGE reads stay in the app, because they are whole-wear numbers with no per-day series) |
 | **MotionDex** | v2.0 ✓ | ✗ **no `*-cross.js`** — and **no longitudinal read anywhere** (the unmitigated case) |
 | **Integrator** | — | consumer; reads this shape only |
 
-**6 of the 8 nodes emit** (the `Integrator` row below is a consumer, not a candidate emitter — an earlier
+**7 of the 8 nodes emit** (the `Integrator` row below is a consumer, not a candidate emitter — an earlier
 "5 of 9" counted it). *(Table completed 2026-07-18 — it previously omitted CPAPDex, which does emit, and
 listed no non-emitters at all, so it read as full adoption. Verified by `ls -1 *-cross.js` = exactly 5 on that date, and by
 executing `integrator-longitudinal.js`: an HRVDex-shaped node-export ingests as `{"count":0}`, a real envelope
 as `{"count":1}`. The generic longitudinal consumer presupposes the producer — a node with no envelope is
 structurally absent from the cross-node date join, per `ENGINE-VERIFICATION-FINDINGS-2026-07-18-BRIEF.md` §1.7.
 The related stale prose in `integrator-longitudinal.js` has since been FIXED — its header then read
-"FIVE of the eight nodes emit" and named them (it reads SIX since 2026-11-11), so this note's own warning is retired. Both statements are
+"FIVE of the eight nodes emit" and named them (it reads SEVEN since 2026-11-11), so this note's own warning is retired. Both statements are
 now gate-backed: `crossnight-adoption` asserts this table against `ls *-cross.js` in both directions, so
 neither the doc nor the header can drift from the filesystem again.)* *(2026-11-11 — HRVDex joined the emitters: `hrvdex-cross.js` wraps HRVDex's OWN crossNight engine in the shared envelope, so no HRVDex number changed, and the block rides in `hrvBuildNodeExport`, which the app, the Data Unifier and OverDex all call. GlucoDex and MotionDex remain, so residue `2026-11-08-three-nodes-emit-no-crossnight-export` stays open for them.)*
+
+*(2026-11-11 — GlucoDex joined the emitters in the same way: `glucodex-cross.js` carries the engine region BYTE-IDENTICAL to the four siblings and folds `r.daily`, the per-day series `perDay()` already wrote, so no GlucoDex number changed. MotionDex alone remains, and residue `2026-11-08-three-nodes-emit-no-crossnight-export` stays open for it. MotionDex is a different unit, not a smaller one: one MotionDex file is one session, `compute(input)` reads one recording, and the node holds no multi-session series to fold, so an envelope over it needs a multi-session model first.)*
 
 Migration is shape-only and additive — no node's `crossNight()` math changes.

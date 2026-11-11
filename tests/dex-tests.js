@@ -11614,7 +11614,10 @@
       var UNDECLARED = {
         cpapdex: '',
         ecgdex: 'accPosture analyzable cpcHfc deepMin edrDisagree edrResp remMin rraccRate rsaAmplitude sigmaLnRmssd stageConsensus varLnRmssd',
-        glucodex: 'dataConf duration gmiVsLab hypoQtc lnrmssdSlope nocHypo sensorBias sessionDrift sessionSpread stability timeAbove timeBelow',
+        /* `timeAbove` and `timeBelow` LEFT this baseline on 2026-11-11: glucodex-cross.js gave
+           GlucoDex a *_DEFS table, and both ids are keys in it with a get: accessor naming the
+           real per-day key (`tar`, `tbr`) — route 2. The set ratchets DOWN only. */
+        glucodex: 'dataConf duration gmiVsLab hypoQtc lnrmssdSlope nocHypo sensorBias sessionDrift sessionSpread stability',
         hrvdex: 'camq ortho',
         motiondex: 'activityCounts effortAmp effortPresent respRate',
         oxydex:
@@ -55265,10 +55268,14 @@
          in any casing. Deliberately narrow — a phrase ban, not a prose style rule, so it cannot cry wolf. */
       T.ok('the header no longer claims EVERY node emits a crossnight envelope', !/every\s+node\s+now\s+emits/i.test(src), 'the §1.7 phrasing is back');
       /* The spelled count moves with the producer set. It read FIVE until 2026-11-11, when hrvdex-cross.js
-         landed and made it SIX. A count that cannot be derived in both lanes has to be re-read by a
-         machine against the prose, so this leg names the spelling and the leg below names who is left. */
-      T.ok('…and it names the real producer count instead', /SIX of\s*\n?\s*\*?\s*the eight nodes emit|six of the eight/i.test(src), 'no explicit producer count found');
-      T.ok('…and HRVDex is named among the emitters, not among the degraded', /nodes emit[\s\S]{0,200}HRVDex/.test(src) && !/HRVDex and GlucoDex are DEGRADED/.test(src));
+         landed and made it SIX, and glucodex-cross.js made it SEVEN the same day. A count that cannot be
+         derived in both lanes has to be re-read by a machine against the prose, so this leg names the
+         spelling and the leg below names who is left. */
+      T.ok('…and it names the real producer count instead', /SEVEN of\s*\n?\s*\*?\s*the eight nodes emit|seven of the eight/i.test(src), 'no explicit producer count found');
+      T.ok(
+        '…and HRVDex and GlucoDex are named among the emitters, not among the degraded',
+        /nodes emit[\s\S]{0,240}HRVDex/.test(src) && /nodes emit[\s\S]{0,240}GlucoDex/.test(src) && !/GlucoDex is DEGRADED/.test(src) && !/HRVDex and GlucoDex are DEGRADED/.test(src)
+      );
 
       /* NON-VACUITY + the fact itself: the producers ARE the nodes with a *-cross.js. If that set ever
          changes, this reds and the prose has to be re-derived rather than re-asserted. */
@@ -55278,11 +55285,16 @@
         });
         // env.sources carries only the cross files the runner lists, so this is a floor, not the census —
         // say so rather than let a partial list read as a count.
-        T.ok('at least the known crossnight producers are loaded (floor, not a census)', crossFiles.length >= 4, 'loaded: ' + crossFiles.join(','));
+        /* A FLOOR, NEVER TODAY'S TOTAL. The set grew from four to six loaded files in one day, and a leg
+           pinned to the total reds on the next adopter — the fix for which is to lower the number, which is
+           backwards. Five is the floor the fleet has already paid for. */
+        T.ok('at least the known crossnight producers are loaded (floor, not a census)', crossFiles.length >= 5, 'loaded: ' + crossFiles.join(','));
       }
-      // The two non-producers must stay named, so a reader learns WHICH node is degraded and which is blind.
-      T.ok('GlucoDex is named as degraded-not-blind', /GlucoDex is DEGRADED/.test(src));
-      T.ok('MotionDex is named as the unmitigated case', /MotionDex[\s\S]{0,80}unmitigated/.test(src));
+      /* The ONE non-producer must stay named, so a reader learns which node is still blind AND why. The
+         second leg is the "why": a reader who knows only that MotionDex is unmitigated will size it as a
+         copy of the GlucoDex unit, and it is not one — MotionDex holds no series to fold. */
+      T.ok('MotionDex is named as the unmitigated case', /MotionDex[\s\S]{0,240}unmitigated/.test(src));
+      T.ok('…and the prose says WHY MotionDex cannot fold a series yet', /one file is one session|multi-session (model|series)/i.test(src));
     });
 
     /* ── `npm run check` MUST RUN WHAT CI'S DRIFT-GUARD JOB RUNS ───────────────────────────────────
@@ -66075,7 +66087,7 @@
       var s = env.sources || {};
       // (a) the mirrored cross-night significance rule must be byte-identical across nodes
       //     — now expressed via the shared physiology kernel (P8), so it can't drift.
-      var crosses = ['ecgdex-cross.js', 'oxydex-cross.js', 'pulsedex-cross.js', 'ppgdex-cross.js', 'hrvdex-cross.js', 'cpapdex-cross.js'].filter(function (f) {
+      var crosses = ['ecgdex-cross.js', 'oxydex-cross.js', 'pulsedex-cross.js', 'ppgdex-cross.js', 'hrvdex-cross.js', 'glucodex-cross.js', 'cpapdex-cross.js'].filter(function (f) {
         return s[f];
       });
       var sigRe = /mk\.p\s*<\s*DexKernel\.K\.SIGNIF_P\s*&&\s*Math\.abs\(mk\.tau\s*\|\|\s*0\)\s*>\s*DexKernel\.K\.SIGNIF_TAU/;
@@ -66116,7 +66128,7 @@
         while (k < a.length && k < b.length && a[k] === b[k]) k++;
         return k;
       };
-      var SHARED_ENGINE = ['pulsedex-cross.js', 'ppgdex-cross.js', 'ecgdex-cross.js', 'hrvdex-cross.js'];
+      var SHARED_ENGINE = ['pulsedex-cross.js', 'ppgdex-cross.js', 'ecgdex-cross.js', 'hrvdex-cross.js', 'glucodex-cross.js'];
       var engRef = engineRegion(SHARED_ENGINE[0]);
       T.ok(
         'pulsedex-cross.js crossNight engine region located (the reference copy)',
@@ -74895,6 +74907,7 @@
         'pulsedex-cross.js': 'PulseCross',
         'ppgdex-cross.js': 'PPGCross',
         'hrvdex-cross.js': 'HRVCross',
+        'glucodex-cross.js': 'GluCross',
         'ecgdex-cross.js': 'ECGCross',
         'cpapdex-cross.js': 'CPAPCross',
         'cpapdex-coimport.js': 'CpapCoimport',
@@ -75107,7 +75120,7 @@
       T.ok('…and no cpcLfc/cpcVlfc entry exists to badge', !REG.cpcLfc && !REG.cpcVlfc, JSON.stringify({ cpcLfc: !!REG.cpcLfc, cpcVlfc: !!REG.cpcVlfc }));
     });
 
-    group('Cross §1 — per-node crossNightBlock + helpers (VARYING series)', 'ecgdex-cross · oxydex-cross · pulsedex-cross · ppgdex-cross · hrvdex-cross · cpapdex-cross', function (T) {
+    group('Cross §1 — per-node crossNightBlock + helpers (VARYING series)', 'ecgdex-cross·oxydex-cross·pulsedex-cross·ppgdex-cross·hrvdex-cross·glucodex-cross·cpapdex-cross', function (T) {
       var CNE = env.CrossNightEnvelope;
       var rng = [0, 1, 2, 3, 4, 5, 6, 7];
       var day = function (i) {
@@ -75521,6 +75534,100 @@
           }
         } else T.ok('env.HRVDex.compute available for the export-wiring leg', false, 'co-load hrvdex-dsp.js + map env.HRVDex');
       } else T.ok('HRVCross.crossNightBlock present (hrvdex-cross.js co-loaded)', false, 'co-load hrvdex-cross.js + map env.HRVCross');
+
+      /* ── GlucoDex (2026-11-11; ids mean·gmi·cv·tir·timeBelow·timeAbove). The item is one CGM DAY
+         from perDay(), so `unit:'day'` — not a night and not a recording: one wear spans many days,
+         and the series the envelope folds is the per-day list, never the wear. Every day weighs 1,
+         because perDay() already drops a day with fewer than 6 analysable cells, so a surviving row
+         states no coverage fraction the envelope could weigh (§∅ — deriving one from `n` would turn
+         an unknown denominator into a coverage number).
+         The mean series is the SAME 8-consecutive-int ramp the nodes above use ([120..127] here), so
+         the hand-derived sd/baseline/median/IQR/slope/τ pins carry over to this node's copy of the
+         engine. P12 asserts that copy is BYTE-IDENTICAL; these pins are what makes the claim
+         observable rather than asserted.
+         The FLOOR leg unique to this node: a 0 % Time-Below is the NORMAL reading for a day with no
+         hypoglycaemia, so a `0` that dropped out of the series would delete the best days (§∅ — 0 is
+         a legal sample; absence is null). ── */
+      var GU = env.GluCross;
+      if (GU && typeof GU.crossNightBlock === 'function') {
+        var gluRow = function (i, over) {
+          var r = { day: '2026-05-0' + (1 + i), startMs: day(i), n: 288, mean: 120 + i, gmi: +(6 + i * 0.1).toFixed(1), cv: 30 - i, tir: 70 + i, tbr: 4 - i * 0.5, tar: 20 + i };
+          if (over) for (var k in over) r[k] = over[k];
+          return r;
+        };
+        var gluL = rng.map(function (i) {
+          return gluRow(i);
+        });
+        var guB = GU.crossNightBlock(gluL);
+        T.ok('GlucoDex block conforms to ganglior.crossnight v1.0', ok(guB).ok, JSON.stringify(ok(guB).errors));
+        T.eq('GlucoDex block carries its GLU_DEFS ids', ids(guB), ['cv', 'gmi', 'mean', 'timeAbove', 'timeBelow', 'tir']);
+        T.eq('GlucoDex GLU_DEFS is the id-keyed projection of METRICS', Object.keys(GU.GLU_DEFS || {}).sort(), ['cv', 'gmi', 'mean', 'timeAbove', 'timeBelow', 'tir']);
+        T.eq('GlucoDex n flows through (8 days)', guB.metrics.mean.n, 8);
+        T.eq("GlucoDex unit is 'day' (one CGM day — not a night, and not the wear)", guB.window.unit, 'day');
+        T.eq('GlucoDex window.coverageWeighted = false (a perDay row states no coverage fraction)', guB.window.coverageWeighted, false);
+        T.eq('GlucoDex window.count = 8 days', guB.window.count, 8);
+        T.eq('GlucoDex window.spanDays = 7 (first to last of 8 consecutive days)', guB.window.spanDays, 7);
+        T.eq('GlucoDex mean rising + good:down → declining', guB.metrics.mean.trend.label, 'declining');
+        T.eq('GlucoDex tir rising + good:up → improving', guB.metrics.tir.trend.label, 'improving');
+        T.eq('GlucoDex cv falling + good:down → improving', guB.metrics.cv.trend.label, 'improving');
+        T.eq('GlucoDex timeBelow falling + good:down → improving', guB.metrics.timeBelow.trend.label, 'improving');
+        T.eq('GlucoDex timeAbove rising + good:down → declining', guB.metrics.timeAbove.trend.label, 'declining');
+        T.ok('GlucoDex crossnight metrics all self-describe evidence (Longitudinal badge — COVERAGE-MANDATE)', everyEv(guB));
+        T.eq('GlucoDex mean evidence = measured (registry)', guB.metrics.mean.evidence, 'measured');
+        T.eq('GlucoDex gmi evidence = validated (registry)', guB.metrics.gmi.evidence, 'validated');
+        T.eq('GlucoDex tir evidence = validated (registry)', guB.metrics.tir.evidence, 'validated');
+        T.eq('GlucoDex timeBelow evidence = validated (registry)', guB.metrics.timeBelow.evidence, 'validated');
+        T.approx('GlucoDex mean central.sd = sample √(42/7)=2.4 (Bessel ÷N−1, NOT population 2.3)', guB.metrics.mean.central.sd, 2.4, 1e-9);
+        T.approx('GlucoDex mean central.cv = 100·√6/123.5 = 2.0 (from the sample SD)', guB.metrics.mean.central.cv, 2, 1e-9);
+        T.approx('GlucoDex mean baseline.sd = sample √(28/6)=2.2 (prior-7 spread, ÷N−1)', guB.metrics.mean.baseline.sd, 2.2, 1e-9);
+        T.approx('GlucoDex mean baseline.zLatest = (127−123)/√(28/6) = 1.85', guB.metrics.mean.baseline.zLatest, 1.85, 1e-9);
+        T.approx('GlucoDex mean central.median = 123.5', guB.metrics.mean.central.median, 123.5, 1e-9);
+        T.approx('GlucoDex mean central.iqr = 3.5', guB.metrics.mean.central.iqr, 3.5, 1e-9);
+        T.approx('GlucoDex mean trend.slopePerDay = 1.0 mg/dL/day', guB.metrics.mean.trend.slopePerDay, 1, 1e-9);
+        T.approx('GlucoDex mean trend.mannKendall.tau = 1', guB.metrics.mean.trend.mannKendall.tau, 1, 1e-9);
+        // ── §∅ · THE FLOOR IS PER FIELD, and a 0 % Time-Below is a MEASUREMENT, never absence. ──
+        var guNull = GU.crossNightBlock(
+          rng.map(function (i) {
+            return i === 3 ? gluRow(i, { mean: null }) : gluRow(i);
+          })
+        );
+        T.eq('GlucoDex a null mean cell drops only that metric (n 7)', guNull.metrics.mean.n, 7);
+        T.eq('GlucoDex a null mean cell leaves TIR whole (n 8)', guNull.metrics.tir.n, 8);
+        var guZero = GU.crossNightBlock([gluRow(0, { tbr: 0 }), gluRow(1, { tbr: 0 }), gluRow(2, { tbr: 0 })]);
+        T.eq('GlucoDex a ZERO Time-Below is the normal day and stays in the series (n 3)', guZero.metrics.timeBelow.n, 3);
+        T.eq('GlucoDex three zero Time-Below days → central.mean is 0, never null', guZero.metrics.timeBelow.central.mean, 0);
+        var gu2 = GU.crossNightBlock([gluRow(0), gluRow(1)]);
+        T.ok('GlucoDex 2-day block still conforms to the contract', ok(gu2).ok, JSON.stringify(ok(gu2).errors));
+        T.eq('GlucoDex 2 days → central.mean still reports', gu2.metrics.mean.central.mean, 120.5);
+        T.eq('GlucoDex 2 days → Mann-Kendall tau is null (the τ floor is 3, per FIELD)', gu2.metrics.mean.trend.mannKendall.tau, null);
+        var gu1 = GU.crossNightBlock([gluRow(0)]);
+        T.eq('GlucoDex 1 day → n is 1, never 0', gu1.metrics.mean.n, 1);
+        T.eq('GlucoDex 1 day → window.spanDays = 0, and the block still conforms', gu1.window.spanDays, 0);
+        // ── THE WIRING, not just the module: glucoBuildNodeExport must CARRY the block. ──
+        var GD = env.GlucoDex || env.GLUDSP;
+        if (GD && typeof GD.compute === 'function') {
+          var gHDR = 'Time of Glucose Reading [T=(local time) +/- (time zone offset)], Measurement(mg/dL)';
+          var gT0 = Date.UTC(2026, 4, 3, 0, 0, 0);
+          var gLines = [gHDR];
+          for (var gd = 0; gd < 4; gd++) {
+            for (var gj = 0; gj < 288; gj++) {
+              gLines.push(new Date(gT0 + (gd * 288 + gj) * 5 * 60000).toISOString().slice(0, 16) + '-04:00,' + (110 + gd * 6 + (gj % 5)));
+            }
+          }
+          var guExp = GD.compute({ text: gLines.join('\n'), filename: 'crossnight.csv' }, { generated: '2026-11-11T00:00:00Z' });
+          T.ok(
+            'GlucoDex node-export carries crossNight (glucoBuildNodeExport wiring)',
+            !!(guExp && guExp.crossNight),
+            guExp && guExp.crossNight ? '' : 'glucoBuildNodeExport did not attach the block — check the GluCross/CrossNightEnvelope guard'
+          );
+          if (guExp && guExp.crossNight) {
+            T.ok('GlucoDex node-export crossNight conforms to ganglior.crossnight v1.0', ok(guExp.crossNight).ok, JSON.stringify(ok(guExp.crossNight).errors));
+            T.eq('GlucoDex node-export crossNight counts every perDay() day (4)', guExp.crossNight.window.count, 4);
+            T.eq("GlucoDex node-export crossNight unit is 'day'", guExp.crossNight.window.unit, 'day');
+            T.ok('GlucoDex schema.doc names the block (a consumer reads the doc, not this test)', /crossNight/.test(guExp.schema.doc || ''), guExp.schema.doc || '');
+          }
+        } else T.ok('env.GlucoDex.compute available for the export-wiring leg', false, 'co-load glucodex-dsp.js + map env.GlucoDex');
+      } else T.ok('GluCross.crossNightBlock present (glucodex-cross.js co-loaded)', false, 'co-load glucodex-cross.js + map env.GluCross');
 
       /* ── ECGDex (envelope; node-specific accessors: qtc valid-delin guard, cvhr longRec&&!ambulatory) ── */
       var EC = env.ECGCross;
@@ -79429,7 +79536,12 @@
         { node: 'PulseDex', cross: env.PulseCross, resolver: env.PulseRegistry, defsKey: 'PULSE_DEFS' },
         /* HRVDex joins the gate with its own cross module (2026-11-11). Its five ids are copied
            FROM hrvdex-registry.js, so this row is the check that the copy stays a copy. */
-        { node: 'HRVDex', cross: env.HRVCross, resolver: env.HrvRegistry, defsKey: 'HRV_DEFS' }
+        { node: 'HRVDex', cross: env.HRVCross, resolver: env.HrvRegistry, defsKey: 'HRV_DEFS' },
+        /* GlucoDex joins on the same day and for the same reason. Its six ids are copied FROM
+           glucodex-registry.js, and two of them are the registry's names for a SUM the per-day row
+           writes — `timeBelow` for the two below-range bands and `timeAbove` for the two above — so
+           this row is also the check that the sum kept the graded id rather than inventing one. */
+        { node: 'GlucoDex', cross: env.GluCross, resolver: env.GlucoRegistry, defsKey: 'GLU_DEFS' }
       ];
       var covered = false;
       NODES.forEach(function (N) {

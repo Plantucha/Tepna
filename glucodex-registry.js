@@ -5,7 +5,8 @@
    ────────────────────────────────────────────────────────────────────────
    Per-node DATA map for the System-Cohesion layer (COHESION-ROLLOUT-BRIEF).
    LOCAL to GlucoDex — clone of oxydex-registry.js; SHARED logic lives in
-   metric-registry.js. GlucoDex has no *-cross.js; labels mirror the
+   metric-registry.js. The per-node longitudinal engine is glucodex-cross.js
+   (ganglior.crossnight v1.0, since 2026-11-11); labels mirror the
    glucodex-app.js KPI grid + full metrics table.
 
    Evidence (brief §3):

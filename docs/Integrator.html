@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="1c0b7c2af6b3" data-compute-hash="c78d09bde9e7"><head>
+<html lang="en" data-manifest-hash="fcbd2bdffaeb" data-compute-hash="b41a1d758ad0"><head>
 <!--
   Integrator.src.html — Tepna
   Copyright 2026 Michal Planicka
@@ -9,7 +9,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'self' (NOT 'none') — this bundle fetches committed LOCAL sample files; 'self' still blocks every REMOTE origin. object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/FJDc6QZSgbGycx6HaM0VylDyoOJ6EXsDb/7Pj7vAKg=' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-P/3IN8LDDlxkQ11WNj2a8WJycCpcNnAlSYFo4xb2q88=' 'sha256-QU1eFIpXtk89h7OawHFWXJry6pEr0cw5i0Q08kGZz88=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-R6Dc/xXQzYFveWsVfbGSg8lpp98pG2dIwLNGGu4Pc04=' 'sha256-fGkqo1InzXusfon2RDMp9a98flNCFaw3TSbxCC/xJUA=' 'sha256-kryaRysk2VcK4nRAhaqFOMDUukjwkDR8WaOUc3fNkcY=' 'sha256-n9NvC0PlxjkQ/GPtRB+SdHw8+zney3uDcK1ZE1pY7lk=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/FJDc6QZSgbGycx6HaM0VylDyoOJ6EXsDb/7Pj7vAKg=' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-P/3IN8LDDlxkQ11WNj2a8WJycCpcNnAlSYFo4xb2q88=' 'sha256-PsIlZBETPYib06t2Oqs7RZbu3hbRW5zb8//nvEBQKl0=' 'sha256-QU1eFIpXtk89h7OawHFWXJry6pEr0cw5i0Q08kGZz88=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-R6Dc/xXQzYFveWsVfbGSg8lpp98pG2dIwLNGGu4Pc04=' 'sha256-fGkqo1InzXusfon2RDMp9a98flNCFaw3TSbxCC/xJUA=' 'sha256-kryaRysk2VcK4nRAhaqFOMDUukjwkDR8WaOUc3fNkcY=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>Integrator · Fusion Layer · v2.31.0</title>
@@ -16672,14 +16672,15 @@ window.IntegratorDSP = {
    integrator-longitudinal.js — CROSS-NODE LONGITUDINAL read + durable store.
    ────────────────────────────────────────────────────────────────────────
    Orthogonal to the same-night fusion layer. Consumes the standardized
-   `ganglior.crossnight` v1.0 envelopes (CROSSNIGHT-ENVELOPE-SPEC.md) that SIX of
-   the eight nodes emit — OxyDex, PulseDex, ECGDex, PpgDex, CPAPDex and, since
-   2026-11-11, HRVDex — i.e. exactly those with a `*-cross.js`
+   `ganglior.crossnight` v1.0 envelopes (CROSSNIGHT-ENVELOPE-SPEC.md) that SEVEN of
+   the eight nodes emit — OxyDex, PulseDex, ECGDex, PpgDex, CPAPDex, HRVDex and,
+   since 2026-11-11, GlucoDex — i.e. exactly those with a `*-cross.js`
    (ENGINE-VERIFICATION-FINDINGS §1.7; this line used to claim "every node", which
    is what sent a reader looking for an HRVDex envelope that did not then exist).
-   GlucoDex is DEGRADED, not blind — it retains native intra-file multi-day
-   trending — while MotionDex has no longitudinal read anywhere and is the
-   unmitigated case. SPEC §7 carries the per-node table.
+   MotionDex is the one node left. It has no longitudinal read anywhere and holds
+   no multi-session series to fold — one file is one session — so it stays the
+   unmitigated case and needs a multi-session model before an envelope over it
+   describes anything. SPEC §7 carries the per-node table.
    Persists each node's per-day metric summaries to IndexedDB,
    and date-joins them ACROSS nodes on the shared floating wall-clock to surface
    trends and cross-signal couplings no single node can see — e.g. "declining

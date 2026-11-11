@@ -95,7 +95,10 @@ function realm() {
   sb.globalThis = sb;
   const ctx = vm.createContext(sb);
   ctx.__DEX_NAMESPACED__ = true;
-  for (const f of ['kernel-constants.js', 'signal-frame.js', 'dex-export.js', 'metric-registry.js', 'glucodex-registry.js', 'glucodex-dsp.js'])
+  // crossnight-envelope.js + glucodex-cross.js BEFORE the DSP, in the order GlucoDex.src.html loads them:
+  // glucoBuildNodeExport reads global.GluCross at call time, so a realm without them emits crossNight: null
+  // and the equivalence gate — which DOES carry them — would then red against this fixture.
+  for (const f of ['kernel-constants.js', 'signal-frame.js', 'dex-export.js', 'metric-registry.js', 'crossnight-envelope.js', 'glucodex-registry.js', 'glucodex-cross.js', 'glucodex-dsp.js'])
     vm.runInContext(DexBuild.classicify(fs.readFileSync(path.join(REPO, f), 'utf8')), ctx, { filename: f });
   return ctx;
 }

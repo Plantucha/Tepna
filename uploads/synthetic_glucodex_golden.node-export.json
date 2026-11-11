@@ -8,7 +8,7 @@
     "bus": "ganglior",
     "generated": "2026-07-12T12:26:20.657Z",
     "provenance": null,
-    "doc": "GlucoDex glycemic events → Ganglior bus. t/tMs = floating wall-clock (UTC getters). null = unknown, never fabricated."
+    "doc": "GlucoDex glycemic events → Ganglior bus. t/tMs = floating wall-clock (UTC getters). null = unknown, never fabricated. `crossNight` carries a ganglior.crossnight v1.0 envelope over the per-day series; null when glucodex-cross.js is not in the realm."
   },
   "recording": {
     "source": "file",
@@ -4431,6 +4431,311 @@
       }
     ],
     "cellsNote": "ONE entry per cell in time order; WARMUP cells dropped. tMs = absolute floating wall-clock ms; v = mg/dL; f = clean flag (0 OK · 2 gap-interp SHORT · 3 compression-low · 4 gap-interp LONG). A consumer computing glucose statistics MUST exclude 3 and 4 — flag 4 is straight-line interpolation the sensor never saw, and counting it inflates TIR/CV and any coverage figure derived from the cell count."
+  },
+  "crossNight": {
+    "schema": {
+      "name": "ganglior.crossnight",
+      "version": "1.0",
+      "engine": "crossNight",
+      "engineVersion": "1.0.0",
+      "node": "GlucoDex",
+      "nodeVersion": "1.0",
+      "generated": "2026-11-11T14:23:24.517Z"
+    },
+    "window": {
+      "unit": "day",
+      "count": 3,
+      "firstT0Ms": 1777766400000,
+      "lastT0Ms": 1777939200000,
+      "spanDays": 2,
+      "coverageWeighted": false,
+      "qualityFloorPct": 50,
+      "lowQualityCount": 0
+    },
+    "metrics": {
+      "mean": {
+        "label": "Mean glucose",
+        "unit": "mg/dL",
+        "goodDirection": "down",
+        "evidence": "measured",
+        "cite": null,
+        "n": 3,
+        "central": {
+          "mean": 102,
+          "sd": 0,
+          "median": 102,
+          "iqr": 0,
+          "min": 102,
+          "max": 102,
+          "cv": 0
+        },
+        "trend": {
+          "slopePerIndex": 0,
+          "slopePerDay": 0,
+          "slopePerRecording": null,
+          "slopeBasis": "day",
+          "r2": 0,
+          "r2date": 0,
+          "mannKendall": {
+            "tau": 0,
+            "p": 1
+          },
+          "label": "stable",
+          "dirDisagree": false
+        },
+        "change": null,
+        "baseline": {
+          "window": "prior-2",
+          "mean": 102,
+          "sd": 0,
+          "zLatest": 0,
+          "flag": null
+        }
+      },
+      "gmi": {
+        "label": "GMI",
+        "unit": "%",
+        "goodDirection": "down",
+        "evidence": "validated",
+        "cite": null,
+        "n": 3,
+        "central": {
+          "mean": 5.8,
+          "sd": 0,
+          "median": 5.8,
+          "iqr": 0,
+          "min": 5.8,
+          "max": 5.8,
+          "cv": 0
+        },
+        "trend": {
+          "slopePerIndex": 0,
+          "slopePerDay": 0,
+          "slopePerRecording": null,
+          "slopeBasis": "day",
+          "r2": 0,
+          "r2date": 0,
+          "mannKendall": {
+            "tau": 0,
+            "p": 1
+          },
+          "label": "stable",
+          "dirDisagree": false
+        },
+        "change": null,
+        "baseline": {
+          "window": "prior-2",
+          "mean": 5.8,
+          "sd": 0,
+          "zLatest": 0,
+          "flag": null
+        }
+      },
+      "cv": {
+        "label": "CV",
+        "unit": "%",
+        "goodDirection": "down",
+        "evidence": "validated",
+        "cite": null,
+        "n": 3,
+        "central": {
+          "mean": 14.4,
+          "sd": 0,
+          "median": 14.4,
+          "iqr": 0,
+          "min": 14.4,
+          "max": 14.4,
+          "cv": 0
+        },
+        "trend": {
+          "slopePerIndex": 0,
+          "slopePerDay": 0,
+          "slopePerRecording": null,
+          "slopeBasis": "day",
+          "r2": 0,
+          "r2date": 0,
+          "mannKendall": {
+            "tau": 0,
+            "p": 1
+          },
+          "label": "stable",
+          "dirDisagree": false
+        },
+        "change": null,
+        "baseline": {
+          "window": "prior-2",
+          "mean": 14.4,
+          "sd": 0,
+          "zLatest": 0,
+          "flag": null
+        }
+      },
+      "tir": {
+        "label": "Time in Range",
+        "unit": "%",
+        "goodDirection": "up",
+        "evidence": "validated",
+        "cite": null,
+        "n": 3,
+        "central": {
+          "mean": 100,
+          "sd": 0,
+          "median": 100,
+          "iqr": 0,
+          "min": 100,
+          "max": 100,
+          "cv": 0
+        },
+        "trend": {
+          "slopePerIndex": 0,
+          "slopePerDay": 0,
+          "slopePerRecording": null,
+          "slopeBasis": "day",
+          "r2": 0,
+          "r2date": 0,
+          "mannKendall": {
+            "tau": 0,
+            "p": 1
+          },
+          "label": "stable",
+          "dirDisagree": false
+        },
+        "change": null,
+        "baseline": {
+          "window": "prior-2",
+          "mean": 100,
+          "sd": 0,
+          "zLatest": 0,
+          "flag": null
+        }
+      },
+      "timeBelow": {
+        "label": "Time Below",
+        "unit": "%",
+        "goodDirection": "down",
+        "evidence": "validated",
+        "cite": null,
+        "n": 3,
+        "central": {
+          "mean": 0,
+          "sd": 0,
+          "median": 0,
+          "iqr": 0,
+          "min": 0,
+          "max": 0,
+          "cv": null
+        },
+        "trend": {
+          "slopePerIndex": 0,
+          "slopePerDay": 0,
+          "slopePerRecording": null,
+          "slopeBasis": "day",
+          "r2": 0,
+          "r2date": 0,
+          "mannKendall": {
+            "tau": 0,
+            "p": 1
+          },
+          "label": "stable",
+          "dirDisagree": false
+        },
+        "change": null,
+        "baseline": {
+          "window": "prior-2",
+          "mean": 0,
+          "sd": 0,
+          "zLatest": 0,
+          "flag": null
+        }
+      },
+      "timeAbove": {
+        "label": "Time Above",
+        "unit": "%",
+        "goodDirection": "down",
+        "evidence": "validated",
+        "cite": null,
+        "n": 3,
+        "central": {
+          "mean": 0,
+          "sd": 0,
+          "median": 0,
+          "iqr": 0,
+          "min": 0,
+          "max": 0,
+          "cv": null
+        },
+        "trend": {
+          "slopePerIndex": 0,
+          "slopePerDay": 0,
+          "slopePerRecording": null,
+          "slopeBasis": "day",
+          "r2": 0,
+          "r2date": 0,
+          "mannKendall": {
+            "tau": 0,
+            "p": 1
+          },
+          "label": "stable",
+          "dirDisagree": false
+        },
+        "change": null,
+        "baseline": {
+          "window": "prior-2",
+          "mean": 0,
+          "sd": 0,
+          "zLatest": 0,
+          "flag": null
+        }
+      }
+    },
+    "series": [
+      {
+        "i": 0,
+        "t0Ms": 1777766400000,
+        "date": "2026-05-03",
+        "weight": 1,
+        "lowQuality": false,
+        "values": {
+          "mean": 102,
+          "gmi": 5.8,
+          "cv": 14.4,
+          "tir": 100,
+          "timeBelow": 0,
+          "timeAbove": 0
+        }
+      },
+      {
+        "i": 1,
+        "t0Ms": 1777852800000,
+        "date": "2026-05-04",
+        "weight": 1,
+        "lowQuality": false,
+        "values": {
+          "mean": 102,
+          "gmi": 5.8,
+          "cv": 14.4,
+          "tir": 100,
+          "timeBelow": 0,
+          "timeAbove": 0
+        }
+      },
+      {
+        "i": 2,
+        "t0Ms": 1777939200000,
+        "date": "2026-05-05",
+        "weight": 1,
+        "lowQuality": false,
+        "values": {
+          "mean": 102,
+          "gmi": 5.8,
+          "cv": 14.4,
+          "tir": 100,
+          "timeBelow": 0,
+          "timeAbove": 0
+        }
+      }
+    ],
+    "headline": []
   },
   "ganglior_events": [
     {

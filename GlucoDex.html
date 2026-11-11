@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="5f4aa6a6d5a8" data-compute-hash="90c06027d522">
+<html lang="en" data-manifest-hash="849bdacac83d" data-compute-hash="b364e3ef1ba0">
 <head>
 <!--
   GlucoDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QU1eFIpXtk89h7OawHFWXJry6pEr0cw5i0Q08kGZz88=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-TKAfD4U2IHCHmC8RWcDPr46+NNZ3WKzZIMJ1zPbulnU=' 'sha256-UvDbDts3+neURbz5qbvya/0mru+OeoZ1uY5iEk8wSUw=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-bV9puip5cXhdmdjTxLQSmozaij4ixCzmMm4aPQpZ5Og=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-g0wDhZcW8kcry/MJoQfpCIQKgTJgmfQ3Wekb8JHRMx8=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-wN0DbMtLdj8E4iWqpFXGmNDHHpowm00EAhMGlI6Gxdk=' 'sha256-xeo/SvJn5pePZ1SM5sKHX3dRwul+yLMPUvGj5yOK8ns='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Cv0u2I9YwZm5jvAom4gFQfIMWPy64JRPiXEm2o7elJ4=' 'sha256-DkJMIke/oeAn5D/73OWQ4sM6DEkOlbGJANo7P3FHILA=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QU1eFIpXtk89h7OawHFWXJry6pEr0cw5i0Q08kGZz88=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-UvDbDts3+neURbz5qbvya/0mru+OeoZ1uY5iEk8wSUw=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-bV9puip5cXhdmdjTxLQSmozaij4ixCzmMm4aPQpZ5Og=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-g0wDhZcW8kcry/MJoQfpCIQKgTJgmfQ3Wekb8JHRMx8=' 'sha256-oH7lhnTrlkQhQ9f9PuKw7Wwq8UnyptMMWqHMeBGouU8=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-xeo/SvJn5pePZ1SM5sKHX3dRwul+yLMPUvGj5yOK8ns='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>GlucoDex — Continuous Glucose Analyzer · v2.31.0</title>
@@ -6967,7 +6967,8 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
    ────────────────────────────────────────────────────────────────────────
    Per-node DATA map for the System-Cohesion layer (COHESION-ROLLOUT-BRIEF).
    LOCAL to GlucoDex — clone of oxydex-registry.js; SHARED logic lives in
-   metric-registry.js. GlucoDex has no *-cross.js; labels mirror the
+   metric-registry.js. The per-node longitudinal engine is glucodex-cross.js
+   (ganglior.crossnight v1.0, since 2026-11-11); labels mirror the
    glucodex-app.js KPI grid + full metrics table.
 
    Evidence (brief §3):
@@ -7226,6 +7227,672 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     depthForLabel: depthForLabel
   };
 })(window);
+</script>
+<script data-inline-src="crossnight-envelope.js">/* ════════════════════════════════════════════════════════════════════════
+ * Copyright 2026 Michal Planicka
+ * SPDX-License-Identifier: Apache-2.0
+   Ganglior · CROSS-NIGHT ENVELOPE  (crossnight-envelope.js)
+   ────────────────────────────────────────────────────────────────────────
+   The ONE shared piece in the cross-night system: the standardized, versioned
+   *shape* (ganglior.crossnight v1.0) that every node emits and the Integrator
+   reads. See CROSSNIGHT-ENVELOPE-SPEC.md.
+
+   Design rule (important): this file standardizes the CONTAINER, not the MATH.
+   The statistics engine `crossNight()` stays duplicated locally per node
+   (suite convention — like parseTimestamp). `build()` is DEPENDENCY-INJECTED
+   with the caller's local crossNight fn + raw-value getters, so adopting the
+   envelope changes no node's numbers — only how they're packaged.
+
+       crossNight(series, opts)      → MATH   → local per node (unchanged)
+       CrossNightEnvelope.build(...) → SHAPE  → this file (shared)
+
+   Exposes window.CrossNightEnvelope = { build, validate, ENGINE_VERSION, SHAPE_VERSION }.
+   Pure; no DOM; no deps.
+   ════════════════════════════════════════════════════════════════════════ */
+(function (global) {
+  'use strict';
+
+  const SHAPE_VERSION = '1.0'; // envelope shape (this contract)
+  const ENGINE_VERSION = '1.0.0'; // crossNight() algorithm version (suite-wide)
+
+  // ── Clock Contract — floating tMs rendered via getUTC* ──────────────────────
+  function _p2(x) {
+    return (x < 10 ? '0' : '') + x;
+  }
+  function fmtDateUTC(ms) {
+    if (ms == null || !isFinite(ms)) return null;
+    const d = new Date(ms);
+    return d.getUTCFullYear() + '-' + _p2(d.getUTCMonth() + 1) + '-' + _p2(d.getUTCDate());
+  }
+
+  function _round(v, d) {
+    return v == null || !isFinite(v) ? null : +v.toFixed(d == null ? 2 : d);
+  }
+
+  /* ────────────────────────────────────────────────────────────────────────
+   build(opts) → ganglior.crossnight v1.0 envelope
+
+   opts = {
+     node, nodeVersion,                  // identity strings
+     unit,                               // "session" | "recording" | "night"
+     items,                              // [] of the node's per-item result objects, ANY order
+     t0Of(item)        → floating tMs | null,
+     weightOf(item)    → 0..1   (coverage weight; default 1),
+     qualityFloorPct,                    // default 50 — below ⇒ lowQuality flag
+     coverageWeighted,                   // default true (informational flag in window{})
+     metrics: [ { id, label, unit, goodDirection:'up'|'down', get(item)→number|null } ],
+     crossNight,                         // the caller's LOCAL crossNight(series,opts) fn (math)
+     engineVersion                       // optional override of the local engine's version
+   }
+   ──────────────────────────────────────────────────────────────────────── */
+  function build(opts) {
+    opts = opts || {};
+    const CN = opts.crossNight;
+    if (typeof CN !== 'function') throw new Error('CrossNightEnvelope.build: opts.crossNight (local engine fn) is required');
+    const t0Of = opts.t0Of || ((it) => (it && it.t0Ms != null ? it.t0Ms : null));
+    const weightOf = opts.weightOf || (() => 1);
+    const floor = opts.qualityFloorPct != null ? opts.qualityFloorPct : 50;
+    const metricsDef = opts.metrics || [];
+
+    // sort items ascending by floating t0Ms (items with no t0 sort last, stable)
+    const items = (opts.items || [])
+      .slice()
+      .map((it, origIdx) => ({ it, t0: t0Of(it), origIdx }))
+      .sort((a, b) => (a.t0 == null) - (b.t0 == null) || (a.t0 || 0) - (b.t0 || 0) || a.origIdx - b.origIdx);
+
+    const n = items.length;
+    const t0s = items.map((x) => x.t0).filter((v) => v != null);
+    const firstT0 = t0s.length ? t0s[0] : null,
+      lastT0 = t0s.length ? t0s[t0s.length - 1] : null;
+
+    // per-item weight + quality flag
+    const weights = items.map((x) => {
+      const w = weightOf(x.it);
+      return w == null || !isFinite(w) ? 1 : Math.max(0.05, Math.min(1, w));
+    });
+    const lowQ = weights.map((w) => w * 100 < floor);
+
+    // ── metrics block ──
+    const metrics = {};
+    metricsDef.forEach((m) => {
+      const series = items.map((x, i) => ({ x: i, t: x.t0, v: _safe(m.get(x.it)), w: weights[i] })).filter((p) => p.v != null);
+      const st = CN(series, { good: m.goodDirection || 'up' }); // ← local node math, untouched
+      metrics[m.id] = _shapeMetric(m, st);
+    });
+
+    // ── series block (raw provenance for the Integrator to re-align/re-derive) ──
+    const series = items.map((x, i) => {
+      const values = {};
+      metricsDef.forEach((m) => {
+        const v = _safe(m.get(x.it));
+        if (v != null) values[m.id] = v;
+      });
+      return { i, t0Ms: x.t0, date: fmtDateUTC(x.t0), weight: _round(weights[i], 3), lowQuality: lowQ[i], values };
+    });
+
+    // ── ranked headline callouts (|z| × significance) ──
+    const cand = [];
+    metricsDef.forEach((m) => {
+      const M = metrics[m.id];
+      if (!M) return;
+      const z = M.baseline && M.baseline.zLatest;
+      if (z != null && Math.abs(z) >= DexKernel.K.Z_HEADLINE) cand.push({ score: Math.abs(z), txt: `${m.label} ${z > 0 ? '+' : ''}${z}σ vs your ${M.n}-night baseline` });
+      if (M.change && M.change.significant)
+        cand.push({
+          score: 2.0 + Math.abs(M.change.deltaFirstHalfToSecond || 0) / 10,
+          txt: `${m.label} shifted ${M.change.deltaFirstHalfToSecond > 0 ? '+' : ''}${M.change.deltaFirstHalfToSecond}${m.unit || ''} (95% CI excludes 0)`
+        });
+    });
+    const headline = cand
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 3)
+      .map((c) => c.txt);
+
+    return {
+      schema: {
+        name: 'ganglior.crossnight',
+        version: SHAPE_VERSION,
+        engine: 'crossNight',
+        engineVersion: opts.engineVersion || ENGINE_VERSION,
+        node: opts.node || 'unknown',
+        nodeVersion: opts.nodeVersion || '1.0',
+        generated: new Date().toISOString()
+      },
+      window: {
+        unit: opts.unit || 'session',
+        count: n,
+        firstT0Ms: firstT0,
+        lastT0Ms: lastT0,
+        spanDays: firstT0 != null && lastT0 != null ? _round((lastT0 - firstT0) / 86400000, 2) : null,
+        coverageWeighted: opts.coverageWeighted !== false,
+        qualityFloorPct: floor,
+        lowQualityCount: lowQ.filter(Boolean).length
+      },
+      metrics,
+      series,
+      headline
+    };
+  }
+
+  function _safe(v) {
+    return v == null || (typeof v === 'number' && !isFinite(v)) ? null : v;
+  }
+
+  // map a raw crossNight() stats object → the contract's nested metric shape
+  function _shapeMetric(m, st) {
+    st = st || {};
+    const zFlag = ((z) => {
+      if (z == null) return null;
+      if (z <= -2) return 'below-2sigma';
+      if (z >= 2) return 'above-2sigma';
+      if (z <= -1) return 'below-1sigma';
+      if (z >= 1) return 'above-1sigma';
+      return null;
+    })(st.zLatest);
+    const label = st.n != null && st.n < 3 ? 'insufficient' : st.trendLabel || 'stable';
+    const change =
+      st.n != null && st.n >= 7 && st.deltaHalves != null ? { deltaFirstHalfToSecond: st.deltaHalves, ci95: st.ci || null, significant: !!(st.ci && (st.ci[0] > 0 || st.ci[1] < 0)) } : null;
+    return {
+      label: m.label,
+      unit: m.unit || '',
+      goodDirection: m.goodDirection || 'up',
+      evidence: m.evidence || null,
+      cite: m.cite || null,
+      n: st.n != null ? st.n : 0,
+      central: { mean: st.mean, sd: st.sd, median: st.median, iqr: st.iqr, min: st.min, max: st.max, cv: st.cv },
+      // §9.3 — dirDisagree rides along: this projection is HAND-PICKED, so a field added to the
+      // per-metric stat object is invisible to every consumer until it is named here.
+      // §9.4 — `slopeBasis` rides along too, for the same reason the comment above gives: a consumer
+      // reading `slopePerDay: null` cannot otherwise tell "no trend" from "the series is undated, so
+      // a per-day rate does not exist"; `slopePerRecording` carries the figure that DOES exist.
+      trend: {
+        slopePerIndex: st.slope,
+        slopePerDay: st.slopePerDay,
+        slopePerRecording: st.slopePerRecording,
+        slopeBasis: st.slopeBasis,
+        r2: st.r2,
+        r2date: st.r2date,
+        mannKendall: { tau: st.tau, p: st.p },
+        label,
+        dirDisagree: !!st.trendDirDisagree
+      },
+      change,
+      baseline: {
+        window: st.n != null && st.n > 1 ? 'prior-' + (st.n - 1) : null,
+        mean: _safe(st.baselineMean),
+        sd: _safe(st.baselineSd),
+        zLatest: st.zLatest != null ? st.zLatest : null,
+        flag: zFlag
+      }
+    };
+  }
+
+  /* ────────────────────────────────────────────────────────────────────────
+   validate(env) → { ok, errors:[], warnings:[] }
+   Structural conformance check (spec §6). Cheap; safe for consumers to gate on.
+   ──────────────────────────────────────────────────────────────────────── */
+  function validate(env) {
+    const errors = [],
+      warnings = [];
+    const E = (c, msg) => {
+      if (!c) errors.push(msg);
+    };
+    const W = (c, msg) => {
+      if (!c) warnings.push(msg);
+    };
+    E(env && typeof env === 'object', 'envelope is not an object');
+    if (!env || typeof env !== 'object') return { ok: false, errors, warnings };
+    const s = env.schema || {};
+    E(s.name === 'ganglior.crossnight', 'schema.name must be "ganglior.crossnight"');
+    E(typeof s.version === 'string', 'schema.version missing');
+    E(s.version && s.version.split('.')[0] === '1', 'unsupported major version (expected 1.x)');
+    E(typeof s.engineVersion === 'string', 'schema.engineVersion missing (cannot compare trends safely)');
+    E(env.window && typeof env.window === 'object', 'window block missing');
+    E(env.metrics && typeof env.metrics === 'object', 'metrics block missing');
+    E(Array.isArray(env.series), 'series must be an array');
+    // per-metric checks
+    Object.keys(env.metrics || {}).forEach((id) => {
+      const m = env.metrics[id];
+      E(m.label != null && m.unit != null, `metric "${id}" missing label/unit`);
+      E(m.goodDirection === 'up' || m.goodDirection === 'down', `metric "${id}" goodDirection must be up|down`);
+      E(m.trend && m.trend.mannKendall, `metric "${id}" missing trend.mannKendall`);
+      W(!(m.n >= 7) || m.change != null, `metric "${id}" n≥7 but change block is null`);
+      W(!(m.n < 7) || m.change == null, `metric "${id}" n<7 but change block present (should be null)`);
+      if (m.n != null && m.n < 3) W(m.trend.label === 'insufficient', `metric "${id}" n<3 should label trend "insufficient"`);
+    });
+    // floating-clock sanity: series dates must match a getUTC* render of t0Ms
+    (env.series || []).forEach((it, i) => {
+      if (it.t0Ms != null) W(it.date === fmtDateUTC(it.t0Ms), `series[${i}].date is not a getUTC* render of t0Ms (Clock Contract)`);
+    });
+    return { ok: errors.length === 0, errors, warnings };
+  }
+
+  /* ────────────────────────────────────────────────────────────────────────
+   validateNodeExport(json) → { ok, errors, warnings }
+   Structural conformance for a NODE export (schema.name "ganglior.node-export";
+   contract = Clock Contract §6 + EEGDEX brief). Advisory: consumers read by
+   structure and should NEVER hard-reject on this — errors are precise diagnostics,
+   not gates. FORWARD-COMPATIBLE: an unknown major schema.version is a WARNING, not
+   an error (a v3 export with the same shape still ingests). Mirrors validate()'s style.
+   ──────────────────────────────────────────────────────────────────────── */
+  function validateNodeExport(json) {
+    const errors = [],
+      warnings = [];
+    const E = (c, msg) => {
+      if (!c) errors.push(msg);
+    };
+    const W = (c, msg) => {
+      if (!c) warnings.push(msg);
+    };
+    E(json && typeof json === 'object', 'export is not an object');
+    if (!json || typeof json !== 'object') return { ok: false, errors, warnings };
+    const s = json.schema || {};
+    E(s.name === 'ganglior.node-export', 'schema.name should be "ganglior.node-export"');
+    E(typeof (s.node || json.node) === 'string', 'schema.node (or top-level node) missing');
+    W(typeof s.version === 'string', 'schema.version missing');
+    W(typeof s.version !== 'string' || s.version.split('.')[0] === '2', 'unknown major schema.version "' + s.version + '" — reading by structure (forward-compatible)');
+    const bus = json.bus != null ? json.bus : s.bus;
+    W(bus == null || /^(ganglior|fascia)$/i.test(String(bus)), 'unrecognized bus "' + bus + '" — accepted case-insensitively (never a reject reason)');
+    // events: ganglior_events → fascia_events → events (same order the Integrator reads)
+    const evs = Array.isArray(json.ganglior_events) ? json.ganglior_events : Array.isArray(json.fascia_events) ? json.fascia_events : Array.isArray(json.events) ? json.events : null;
+    W(evs != null, 'no ganglior_events[] — nothing to fuse (a metrics-only summary export is valid but contributes no events)');
+    // clock placement: needs a floating t0 OR events carrying absolute tMs
+    const t0 = json.recording && json.recording.startEpochMs != null ? json.recording.startEpochMs : json.startEpochMs != null ? json.startEpochMs : json.t0Ms;
+    const hasAbs = Array.isArray(evs) && evs.some((e) => e && typeof e.tMs === 'number');
+    W(typeof t0 === 'number' || hasAbs, 'no recording.startEpochMs and no event carries absolute tMs — events cannot be placed on the clock (date unknown, never fabricated)');
+    (Array.isArray(evs) ? evs : []).forEach((e, i) => {
+      E(e && typeof e === 'object', 'ganglior_events[' + i + '] is not an object');
+      if (!e || typeof e !== 'object') return;
+      E(typeof e.impulse === 'string' && e.impulse !== '', 'ganglior_events[' + i + '] missing impulse');
+      E(typeof e.t === 'string' || typeof e.tMs === 'number', 'ganglior_events[' + i + '] needs t "HH:MM:SS" or absolute tMs');
+      W(e.conf == null || (typeof e.conf === 'number' && e.conf >= 0 && e.conf <= 1), 'ganglior_events[' + i + '] conf should be 0..1 or null');
+      W(typeof e.t !== 'string' || /^\d{1,2}:\d{2}(:\d{2})?$/.test(e.t), 'ganglior_events[' + i + '] t "' + e.t + '" is not HH:MM[:SS]');
+    });
+    return { ok: errors.length === 0, errors, warnings };
+  }
+
+  global.CrossNightEnvelope = { build, validate, validateNodeExport, SHAPE_VERSION, ENGINE_VERSION, fmtDateUTC };
+})(window);
+</script>
+<script data-inline-src="glucodex-cross.js">/* ═════════════════════════════════════════════════════════════════════════
+ * Copyright 2026 Michal Planicka
+ * SPDX-License-Identifier: Apache-2.0
+   Dex Suite · CROSS-DAY ANALYTICS ENGINE  (glucodex-cross.js)
+   ───────────────────────────────────────────────────────────────────────
+   The GlucoDex leg of residue `2026-11-08-three-nodes-emit-no-crossnight-export`:
+   HRVDex, GlucoDex and MotionDex emitted no `ganglior.crossnight` envelope, so the
+   Integrator longitudinal layer read nothing from them. #4887 added HRVDex. This file
+   adds GlucoDex. MotionDex stays open, and the row stays OPEN with it.
+
+   WHY GLUCODEX BEFORE MOTIONDEX. A GlucoDex item is one calendar DAY and `analyze()`
+   already folds that series — `perDay(c)` writes it and the result carries it as
+   `daily` (glucodex-dsp.js). MotionDex holds no series at all: one file is one
+   session and `compute(input)` reads one recording, so MotionDex needs a multi-session
+   model before an envelope over it describes anything. The spec names MotionDex `the
+   unmitigated case` for that reason.
+
+   The math below is the suite's shared crossNight() engine, duplicated locally per
+   node (suite convention — like parseTimestamp). This copy is BYTE-IDENTICAL to the
+   region that `pulsedex-cross.js`, `ppgdex-cross.js`, `ecgdex-cross.js` and
+   `hrvdex-cross.js` already share, and `tests/dex-tests.js` holds the five against
+   each other, so a drift in one of them reds. `oxydex-cross.js` and `cpapdex-cross.js`
+   carry their own variants of the same math and stay outside that set. Only the metric
+   table, the DEFS projection, the envelope call and the global name differ below.
+
+   GLUCODEX CARRIES NO `clock.js` (CLAUDE.md §✅ — `DexClock` is UNDEFINED in this
+   bundle, a ReferenceError and not a fallback). Nothing below reaches it: the engine is
+   arithmetic, `crossnight-envelope.js` names `parseTimestamp` only in a comment, and the
+   item stamp is the day row's own `startMs`.
+
+   WHY EVERY ITEM WEIGHS THE SAME. The envelope down-weights an item by its coverage
+   fraction. A day row states its sample count in `n` and `perDay` already drops a day
+   under 6 analysable samples, so the rows that reach here are comparable by
+   construction. Turning `n` into a coverage fraction needs a per-day DENOMINATOR, and
+   the sensor's own cadence varies within a wear, so that denominator would be a guess.
+   Every item weighs 1 and `window.coverageWeighted` reads false. The flag says which it
+   is.
+
+   `unit:'day'` extends the three values `crossnight-envelope.js` records in a comment
+   (session, recording, night). Nothing reads that field as a vocabulary — no gate
+   checks it and the Integrator's `.unit` reads are the METRIC unit — so this file does
+   not edit that comment, because `crossnight-envelope.js` is inlined in seven bundles
+   and a comment-only edit there moves every carrying bundle's `manifestHash` and
+   `computeHash`.
+
+   Exposes window.GluCross = { crossNight, crossNightBlock, ols, mannKendall,
+   bootstrapDeltaCI, METRICS, GLU_DEFS }.
+   ═════════════════════════════════════════════════════════════════════════ */
+(function (global) {
+  'use strict';
+  const r1 = (v) => (v == null || !isFinite(v) ? null : Math.round(v * 10) / 10);
+  const r2 = (v) => (v == null || !isFinite(v) ? null : Math.round(v * 100) / 100);
+  const r3 = (v) => (v == null || !isFinite(v) ? null : Math.round(v * 1000) / 1000);
+
+  function wmean(vals, w) {
+    let s = 0,
+      sw = 0;
+    for (let i = 0; i < vals.length; i++) {
+      s += vals[i] * w[i];
+      sw += w[i];
+    }
+    return sw ? s / sw : NaN;
+  }
+  function mean(a) {
+    let s = 0;
+    for (const v of a) s += v;
+    return a.length ? s / a.length : NaN;
+  }
+  /* Coverage-WEIGHTED sample SD — the companion wmean always needed (DEEP-AUDIT-II §9.1).
+     CV% was `100 * sd(vals) / wmean(vals, w)`: an UNWEIGHTED spread over a WEIGHTED centre, so a
+     night the envelope had deliberately down-weighted still contributed its full deviation. On
+     routine CPAP partial-use that read 74.6 % where the consistent figure is 49.8 %. It also
+     breached the spec in writing — CROSSNIGHT-ENVELOPE-SPEC §3: low-quality items are "down-weighted
+     in EVERY fit/aggregate via `weight`". `ols(idx, vals, w)` one line below already passed weights;
+     only the spread did not.
+     Reliability-weight form: V1 = Σw, V2 = Σw²; s² = Σw(x−m_w)² / (V1 − V2/V1).
+     With UNIFORM weights V1 = n and V2 = n, so the denominator is exactly n−1 — it reduces to the
+     Bessel-corrected sd() below, bit for bit. That is why every existing fixture holds: the whole
+     crossnight suite feeds a uniform weight vector, which is also why this was never exercised. */
+  function wsd(vals, w) {
+    if (vals.length < 2) return 0;
+    const m = wmean(vals, w);
+    let V1 = 0,
+      V2 = 0,
+      acc = 0;
+    for (let i = 0; i < vals.length; i++) {
+      const wi = w[i];
+      V1 += wi;
+      V2 += wi * wi;
+      const d = vals[i] - m;
+      acc += wi * d * d;
+    }
+    const denom = V1 > 0 ? V1 - V2 / V1 : 0;
+    return denom > 0 ? Math.sqrt(acc / denom) : 0;
+  }
+  function median(a) {
+    if (!a.length) return NaN;
+    const b = [...a].sort((x, y) => x - y),
+      n = b.length;
+    return n % 2 ? b[(n - 1) / 2] : (b[n / 2 - 1] + b[n / 2]) / 2;
+  }
+  function quantile(a, q) {
+    if (!a.length) return NaN;
+    const b = [...a].sort((x, y) => x - y),
+      p = (b.length - 1) * q,
+      lo = Math.floor(p),
+      hi = Math.ceil(p);
+    return lo === hi ? b[lo] : b[lo] + (b[hi] - b[lo]) * (p - lo);
+  }
+
+  // OLS slope/intercept/R² of y vs x (weighted)
+  function ols(x, y, w) {
+    const n = x.length;
+    if (n < 2) return { slope: null, intercept: null, r2: null };
+    let sw = 0,
+      sx = 0,
+      sy = 0,
+      sxx = 0,
+      sxy = 0,
+      syy = 0;
+    for (let i = 0; i < n; i++) {
+      const wi = w ? w[i] : 1;
+      sw += wi;
+      sx += wi * x[i];
+      sy += wi * y[i];
+      sxx += wi * x[i] * x[i];
+      sxy += wi * x[i] * y[i];
+      syy += wi * y[i] * y[i];
+    }
+    const den = sw * sxx - sx * sx;
+    if (Math.abs(den) < 1e-12) return { slope: null, intercept: null, r2: null };
+    const slope = (sw * sxy - sx * sy) / den,
+      intercept = (sy - slope * sx) / sw;
+    const num = sw * sxy - sx * sy;
+    const r2v = (num * num) / ((sw * sxx - sx * sx) * (sw * syy - sy * sy) || 1e-12);
+    return { slope, intercept, r2: Math.max(0, Math.min(1, r2v)) };
+  }
+
+  // Mann–Kendall τ + normal-approx two-sided p
+  function mannKendall(y) {
+    const n = y.length;
+    if (n < 3) return { tau: null, p: null, S: 0 };
+    let S = 0;
+    for (let i = 0; i < n - 1; i++)
+      for (let j = i + 1; j < n; j++) {
+        const d = y[j] - y[i];
+        S += d > 0 ? 1 : d < 0 ? -1 : 0;
+      }
+    const varS = (n * (n - 1) * (2 * n + 5)) / 18;
+    let z = 0;
+    if (S > 0) z = (S - 1) / Math.sqrt(varS);
+    else if (S < 0) z = (S + 1) / Math.sqrt(varS);
+    const p = 2 * (1 - normCdf(Math.abs(z)));
+    const tau = S / (0.5 * n * (n - 1));
+    return { tau: r2(tau), p: r3(Math.max(0, Math.min(1, p))), S };
+  }
+  function normCdf(x) {
+    return 0.5 * (1 + erf(x / Math.SQRT2));
+  }
+  function erf(x) {
+    const t = 1 / (1 + 0.3275911 * Math.abs(x));
+    const y = 1 - ((((1.061405429 * t - 1.453152027) * t + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x);
+    return x >= 0 ? y : -y;
+  }
+
+  // bootstrap 95% CI on (second-half mean − first-half mean)
+  function bootstrapDeltaCI(vals) {
+    const n = vals.length;
+    if (n < 7) return { delta: null, ci: null };
+    const half = Math.floor(n / 2);
+    const A = vals.slice(0, half),
+      B = vals.slice(n - half);
+    const delta = mean(B) - mean(A);
+    const B_iter = 1000,
+      deltas = [];
+    let seed = 12345;
+    const rnd = () => {
+      seed = (Math.imul(seed, 1103515245) + 12345) & 0x7fffffff; // §9.5 — Math.imul: exact mod-2^32 multiply (bare * reached ~2.3e18 > 2^53 → low bits rounded away → entropy collapse at n≥18)
+      return seed / 0x7fffffff;
+    };
+    for (let b = 0; b < B_iter; b++) {
+      const ra = [],
+        rb = [];
+      for (let i = 0; i < A.length; i++) ra.push(A[Math.floor(rnd() * A.length)]);
+      for (let i = 0; i < B.length; i++) rb.push(B[Math.floor(rnd() * B.length)]);
+      deltas.push(mean(rb) - mean(ra));
+    }
+    deltas.sort((a, b) => a - b);
+    return { delta: r2(delta), ci: [r2(quantile(deltas, 0.025)), r2(quantile(deltas, 0.975))] };
+  }
+
+  function crossNight(series, opts) {
+    opts = opts || {};
+    const good = opts.good || 'up';
+    const pts = series.filter((p) => p.v != null && isFinite(p.v));
+    const n = pts.length;
+    if (n < 2) return { n, mean: n ? r2(pts[0].v) : null, sd: null, cv: null, slopePerDay: null, slopePerRecording: null, slopeBasis: null, tau: null, p: null, zLatest: null, trendLabel: '—' };
+    const vals = pts.map((p) => p.v),
+      w = pts.map((p) => (p.w != null ? p.w : 1));
+    const idx = pts.map((p, i) => i);
+    const m = wmean(vals, w),
+      s = wsd(vals, w);
+    const med = median(vals),
+      iqr = quantile(vals, 0.75) - quantile(vals, 0.25);
+    const cv = m !== 0 ? Math.abs((100 * s) / m) : null;
+    // OLS vs night index (coverage-weighted)
+    const byIdx = ols(idx, vals, w);
+    // OLS vs real date (days since first) honours uneven gaps
+    const haveT = pts.every((p) => p.t != null);
+    let slopePerDay = null,
+      slopePerRecording = null,
+      r2date = null;
+    if (haveT) {
+      const days = pts.map((p) => (p.t - pts[0].t) / 86400000);
+      const od = ols(days, vals, w);
+      slopePerDay = r2(od.slope);
+      r2date = r2(od.r2);
+    } else {
+      /* DEEP-AUDIT-II §9.4 — an INDEX slope is not a PER-DAY slope, and must not be shipped under the
+         per-day name. This branch runs when even ONE item lacks a date, and it used to assign
+         `byIdx.slope` — change per RECORDING — straight to `slopePerDay`, which every consumer renders
+         with a `/d` suffix. A 12-recording series spanning 90 days then reported its per-recording
+         change as a daily one: ~7.5x overstated, and always in the alarming direction, since the same
+         delta compressed into a shorter apparent window looks steeper.
+         Same rule §8.4 already applied to the footer span: report the real quantity when it is
+         knowable, and say what you actually have when it is not — never present one as the other.
+         So the per-day figure is null here (honestly unavailable), the index slope keeps its own
+         honest name, and `slopeBasis` tells the consumer which it is holding. */
+      slopePerDay = null;
+      slopePerRecording = byIdx.slope != null ? r2(byIdx.slope) : null;
+    }
+    const mk = mannKendall(vals);
+    // personal baseline = mean±SD of all-but-latest; z of latest
+    let zLatest = null;
+    let baselineMean = null,
+      baselineSd = null;
+    if (n >= 3) {
+      /* DEEP-AUDIT-II §9.2 — the personal baseline must carry the SAME weights as the centre it is
+         compared against. `central.mean` is wmean(vals, w), but the baseline behind zLatest was
+         mean(prior) / sd(prior): UNWEIGHTED. A 6 %-coverage night therefore moved the baseline as
+         if it were a full night, and a genuine −2.4σ event on the newest night read as ordinary.
+         Spec breach in writing (CROSSNIGHT-ENVELOPE-SPEC §3: low-quality items are "down-weighted
+         in EVERY fit/aggregate via `weight`"). Same identity as §9.1: uniform weights reproduce the
+         old numbers exactly, which is why every committed fixture holds. */
+      const prior = vals.slice(0, n - 1);
+      const priorW = w.slice(0, n - 1);
+      const pm = wmean(prior, priorW),
+        psRaw = wsd(prior, priorW);
+      baselineMean = r2(pm);
+      // Guard a degenerate (near-zero) baseline spread: dividing by ~0 SD explodes z to
+      // absurd magnitudes (±1e8 σ) that overflow the trend card. Floor the SD relative to
+      // the baseline mean and clamp the result to a sane display range.
+      const psFloor = Math.max(psRaw, 1e-6 * Math.max(1, Math.abs(pm)));
+      baselineSd = r1(psFloor);
+      let z = (vals[n - 1] - pm) / psFloor;
+      if (!isFinite(z)) z = 0;
+      zLatest = r2(Math.max(-20, Math.min(20, z)));
+    }
+    // significance
+    const boot = bootstrapDeltaCI(vals);
+    // trend label by good-direction + Mann-Kendall significance
+    /* DEEP-AUDIT-II §9.3 — the label's DIRECTION and its SIGNIFICANCE must come from the SAME test.
+       `rising` was taken from the OLS slope while `signif` came from Mann–Kendall, so the sentence
+       "there is a significant trend, and it is improving" was assembled from two different
+       estimators. They disagree exactly where it matters: MK is rank-based and robust, OLS is
+       leverage-sensitive, so a single endpoint outlier flips the slope without moving τ — the audit
+       measured "improving" printed beside τ = −0.6 on 10.3 % of endpoint-outlier series.
+       Direction now comes from τ, the same statistic that decided the trend was real. `slopePerDay`
+       is still reported separately as the magnitude — this changes which estimator names the
+       DIRECTION, not what OLS is for.
+       When the two disagree in sign the series has endpoint leverage worth knowing about, so it is
+       reported rather than silently resolved. */
+    let trendLabel = 'stable';
+    const rising = (mk.tau || 0) > 0; // §9.3 — direction from the significance test, not OLS
+    const olsRising = (byIdx.slope || 0) > 0;
+    const dirDisagree = !!(mk.tau && byIdx.slope) && rising !== olsRising;
+    const signif = mk.p != null && mk.p < DexKernel.K.SIGNIF_P && Math.abs(mk.tau || 0) > DexKernel.K.SIGNIF_TAU;
+    if (signif) {
+      const improving = (good === 'up' && rising) || (good === 'down' && !rising);
+      trendLabel = improving ? 'improving' : 'declining';
+    }
+    return {
+      n,
+      mean: r2(m),
+      sd: r1(s),
+      median: r2(med),
+      iqr: r1(iqr),
+      min: r2(Math.min.apply(null, vals)),
+      max: r2(Math.max.apply(null, vals)),
+      cv: r1(cv),
+      slope: byIdx.slope != null ? r3(byIdx.slope) : null,
+      slopePerDay,
+      slopePerRecording,
+      slopeBasis: haveT ? 'day' : 'recording',
+      r2: byIdx.r2 != null ? r2(byIdx.r2) : null,
+      r2date,
+      tau: mk.tau,
+      p: mk.p,
+      trendDirDisagree: dirDisagree, // §9.3 — OLS slope and Mann-Kendall τ point opposite ways (endpoint leverage)
+      zLatest,
+      baselineMean,
+      baselineSd,
+      deltaHalves: boot.delta,
+      ci: boot.ci,
+      trendLabel
+    };
+  }
+
+  /* A row field is a number, null, or absent. The engine reads `v` and drops a non-finite one, so
+     this reader states the absence once rather than at five call sites. NaN is what the CSV parser
+     writes for an unreadable cell, and `0` is a legal rMSSD on a flat trace, so the test is
+     finiteness and never truthiness. */
+  function _v(x) {
+    return x == null || !isFinite(x) ? null : +x;
+  }
+
+  /* Each metric self-describes its `evidence` tier so the Integrator Longitudinal view BADGES the
+     trend cards (evBadge reads metrics{}.evidence; an ungraded metric renders unbadged — a
+     COVERAGE-MANDATE gap). Every field here is COPIED FROM `glucodex-registry.js`, which is the
+     source: `registry-defs-parity` holds label, unit, goodDirection and evidence of each id against
+     GLU_REGISTRY and reds on a drift, with the registry winning.
+     WHAT IS IN THIS TABLE, AND WHY MODD, MAGE AND ADRR ARE NOT. A metric qualifies only if it is
+     (a) graded in `glucodex-registry.js` and (b) carried by a `perDay` row, which is the series every
+     realm that calls `glucoBuildNodeExport` folds — the app, the Data Unifier, OverDex and the
+     headless `GlucoDex.compute` all reach it through `analyze()`. The six below are exactly the
+     numeric fields a day row writes. MODD, MAGE, ADRR, CONGA and the AGP bands fail (b): they are
+     WHOLE-WEAR metrics computed across days, so a per-day series of them does not exist and a
+     cross-day trend over one number is not a trend.
+     `perDay` writes `tbr` as the sum of the two below-range bands and `tar` as the sum of the two
+     above-range bands, which is what the registry grades as `timeBelow` and `timeAbove`. The ids
+     below are the registry's, so the badge and the parity gate read one vocabulary. */
+  const METRICS = [
+    { id: 'mean', label: 'Mean glucose', unit: 'mg/dL', goodDirection: 'down', evidence: 'measured', get: (r) => _v(r.mean) },
+    { id: 'gmi', label: 'GMI', unit: '%', goodDirection: 'down', evidence: 'validated', get: (r) => _v(r.gmi) },
+    { id: 'cv', label: 'CV', unit: '%', goodDirection: 'down', evidence: 'validated', get: (r) => _v(r.cv) },
+    { id: 'tir', label: 'Time in Range', unit: '%', goodDirection: 'up', evidence: 'validated', get: (r) => _v(r.tir) },
+    { id: 'timeBelow', label: 'Time Below', unit: '%', goodDirection: 'down', evidence: 'validated', get: (r) => _v(r.tbr) },
+    { id: 'timeAbove', label: 'Time Above', unit: '%', goodDirection: 'down', evidence: 'validated', get: (r) => _v(r.tar) }
+  ];
+  // id-keyed projection of METRICS — the shape `registry-defs-parity` reads (it iterates Object.keys
+  // and falls back to REG[defId] when idForLabel misses). Same objects, no second source of truth.
+  const GLU_DEFS = METRICS.reduce((o, m) => {
+    o[m.id] = m;
+    return o;
+  }, {});
+
+  /* Build the cross-day EXPORT block from GlucoDex's per-day rows. Standardized
+     `ganglior.crossnight` v1.0 via the shared CrossNightEnvelope.build (SHAPE only) — the MATH is the
+     local crossNight() above. A realm without the shared builder gets the legacy shape, the same
+     fallback the other five cross modules carry.
+     `unit:'day'` — a GlucoDex item is one calendar day of a continuous wear. It is not a `session`,
+     because a GlucoDex wear SESSION spans many days and the registry grades it with its own metrics
+     (`sessionSpread`, `sessionDrift`). */
+  function crossNightBlock(list) {
+    if (global.CrossNightEnvelope) {
+      return global.CrossNightEnvelope.build({
+        node: 'GlucoDex',
+        nodeVersion: '1.0',
+        unit: 'day',
+        items: list,
+        t0Of: (r) => (r && isFinite(r.startMs) ? r.startMs : null),
+        weightOf: () => 1,
+        coverageWeighted: false,
+        crossNight: crossNight,
+        metrics: METRICS
+      });
+    }
+    // ── legacy fallback (pre-envelope shape) ──
+    const sorted = [...list].sort((a, b) => (a.startMs || 0) - (b.startMs || 0));
+    const out = { doc: 'day-to-day robust stats — same crossNight() engine as ECGDex/OxyDex', metrics: {} };
+    for (const m of METRICS) {
+      const ser = sorted.map((r, i) => ({ x: i, t: r.startMs, v: m.get(r), w: 1 }));
+      out.metrics[m.id] = crossNight(ser, { good: m.goodDirection });
+    }
+    return out;
+  }
+
+  global.GluCross = { crossNight, crossNightBlock, ols, mannKendall, bootstrapDeltaCI, METRICS, GLU_DEFS };
+})(typeof window !== 'undefined' ? window : globalThis);
 </script>
 <script data-inline-src="glucodex-dsp.js">(function(){var __M=(globalThis.__dexEsm=globalThis.__dexEsm||(function(){var reg={},cache={};function require(n){if(Object.prototype.hasOwnProperty.call(cache,n))return cache[n];var f=reg[n];if(!f)throw new Error('ESM bundle: module not found: '+n);var ex={};cache[n]=ex;f(require,ex);return ex;}return{define:function(n,f){reg[n]=f;},require:require};})());__M.define("glucodex-dsp.js",function(__require,__exports){
 /* ════════════════════════════════════════════════════════════════════════
@@ -9283,7 +9950,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
         bus: 'ganglior',
         generated: opts.generated || new Date().toISOString(),
         provenance: opts.provenance || null,
-        doc: 'GlucoDex glycemic events → Ganglior bus. t/tMs = floating wall-clock (UTC getters). null = unknown, never fabricated.'
+        doc: 'GlucoDex glycemic events → Ganglior bus. t/tMs = floating wall-clock (UTC getters). null = unknown, never fabricated. `crossNight` carries a ganglior.crossnight v1.0 envelope over the per-day series; null when glucodex-cross.js is not in the realm.'
       },
       // EXPORT-IDENTITY §2.1 / -FOLLOWUPS-II §1: identity-free contentId, single-sourced in this
       // shared builder (both app exportGanglior + headless compute reach it). Folds the cleaned CGM series.
@@ -9412,6 +10079,22 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
             'ONE entry per cell in time order; WARMUP cells dropped. tMs = absolute floating wall-clock ms; v = mg/dL; f = clean flag (0 OK · 2 gap-interp SHORT · 3 compression-low · 4 gap-interp LONG). A consumer computing glucose statistics MUST exclude 3 and 4 — flag 4 is straight-line interpolation the sensor never saw, and counting it inflates TIR/CV and any coverage figure derived from the cell count.'
         };
       })(),
+      /* ── CROSS-DAY TREND (ganglior.crossnight v1.0) ─────────────────────────────────────────
+         Residue `2026-11-08-three-nodes-emit-no-crossnight-export`, the GlucoDex leg. The envelope
+         is built by `glucodex-cross.js` over `r.daily`, the per-day series `perDay()` writes.
+
+         §∅ — ABSENCE IS NULL. Three separate absences read `null` here and none of them reads 0 or
+         an empty envelope. (1) No day row survived `perDay`'s 6-sample floor, so there is no series.
+         (2) `glucodex-cross.js` is not in this realm. (3) `crossnight-envelope.js` is not either. A
+         realm that carries the cross module without the envelope builder gets the module's own legacy
+         shape, which is the fallback the other five cross modules carry.
+
+         The reach is `global` at CALL time, never a module-evaluation alias: GlucoDex carries no
+         `clock.js` and this file must not grow a second load-order dependency. A regenerator that
+         builds its own vm realm therefore writes `null` honestly instead of throwing — and
+         `tools/regen-glucodex-goldens.mjs` carries both files for that reason, because a truthful
+         `null` in a committed fixture still reds GATE C against the suite realm, which has them. */
+      crossNight: r.daily && r.daily.length && global && global.GluCross && global.CrossNightEnvelope ? global.GluCross.crossNightBlock(r.daily) : null,
       ganglior_events: events,
       reserved: { doc: 'Awaiting other fleet nodes; null until available.' }
     };
