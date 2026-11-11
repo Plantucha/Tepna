@@ -47,8 +47,10 @@ const Verdict = createRequire(import.meta.url)(join(ROOT, 'verdict.js'));
     `npm run check` under CI's `static` job exactly as `verify:brief-header-claims` does. Its own
     workflow line would be a new CI context, and §📌's row reserves that to the owner. The raise to 42 is
     `verify:paper-claim-markers`, the second half of that same papers census, which runs under the same
-    `static` job and sits under the same reservation. */
-export const UNCOVERED_PIN = 42;
+    `static` job and sits under the same reservation. The raise to 43 is `verify:write-root-adoption`,
+    the gate that names the adopted write-root and judge-root sets. It runs under the same `static` job
+    inside `npm run check`, and its own workflow line would be a new CI context the row reserves. */
+export const UNCOVERED_PIN = 43;
 
 /** A step whose command a workflow may never carry, with the reason. Empty, and the gate says so: the
     row reserves every closure to the owner, so this tool invents no exemption. */
