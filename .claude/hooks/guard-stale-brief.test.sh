@@ -438,11 +438,29 @@ dump_msg() { # dump_msg <what was judged> <text>
 # PIPE_BUF, so each is a single atomic write, and all five close with the same line. Two needles 56
 # bytes apart inside ONE assignment (guard-stale-brief.sh:760) cannot arrive separately from that.
 # A failing leg therefore re-captures the SAME command once and classifies the pair.
-_recapture() { # _recapture cmd:<command> | file:<path> ; the recipe carries a prefix, never a guess
+# A RECIPE IS A SHAPE, NOT A GUESS, AND THERE ARE SIX SHAPES. Each capture helper in this file
+# drives the hook its own way: plain stdin, an Edit/Write payload, the JSON `bashrun`, a run from a
+# named cwd, and the two PATH-shimmed drives that break a reader on purpose. A leg whose shape has
+# no recipe prints no cause at all, while the closing note of this file promises a cause on every
+# failure. Measured 2026-11-11 before this change: 38 legs judged captured text and 22 of them
+# could re-run. The two-field recipes carry a tab between their fields, because every command here
+# holds spaces and none holds a tab. `bashrun` counts a problem of its own on an unparseable
+# payload; a recapture runs it inside `$( )`, so that count cannot reach this shell.
+_TAB="$(printf '\t')"
+_recapture() { # _recapture cmd:|file:|bash:|blind:<payload> | from:|awk:<field><TAB><command>
+  local _p _one _two
   case "$1" in
-    cmd:*) saysof "${1#cmd:}" ;;
-    file:*) saysof_f "${1#file:}" ;;
-    *) printf 'REFUSE: a recapture recipe with no cmd: or file: prefix' ;;
+    cmd:*)   saysof "${1#cmd:}" ;;
+    file:*)  saysof_f "${1#file:}" ;;
+    bash:*)  bashrun "${1#bash:}" ;;
+    blind:*) saysof_blind "${1#blind:}" ;;
+    from:*|awk:*)
+      _p="${1#*:}"; _one="${_p%%"$_TAB"*}"; _two="${_p#*"$_TAB"}"
+      if [ "$_one" = "$_p" ]; then
+        printf 'REFUSE: a %s: recipe carries no tab between its two fields' "${1%%:*}"
+      elif [ "${1%%:*}" = from ]; then msgcmd_from "$_one" "$_two"
+      else saysof_awk "$_one" "$_two"; fi ;;
+    *) printf 'REFUSE: a recapture recipe with no cmd:, file:, bash:, blind:, from: or awk: prefix' ;;
   esac
 }
 # ── THE READER MUST NOT BE ABLE TO FAIL TO LOOK ──────────────────────────────────
@@ -469,21 +487,49 @@ _cause_note() { # _cause_note <token> ; where the token sends the reader
     *)                   printf 'unclassified token, so treat the pair above as the evidence' ;;
   esac
 }
+# EVERY LEG THAT JUDGES CAPTURED TEXT IS COUNTED, AND THE COUNTS ARE THEMSELVES A LEG. The closing
+# note of this file promises that every failure names one of four causes. That promise is only as
+# wide as the recipes, so the two counters below measure its width while the legs run, and a leg at
+# the foot of this file reds when a text-judging leg carries no recipe. A source scan cannot measure
+# this: a recipe reaches a leg through a variable as often as through a literal.
+_legs_text=0
+_legs_recap=0
+_countleg() { # _countleg <recipe or empty> ; one text-judging leg, and whether it can re-run
+  _legs_text=$((_legs_text+1))
+  if [ -n "${1:-}" ]; then _legs_recap=$((_legs_recap+1)); fi
+}
+_failnote() { # _failnote <label> <needle> <text> [<recipe>] ; the cause block under a failed leg
+  local retry verdict
+  printf '        needle: %s\n' "$2"; dump_msg "$1" "$3"
+  if [ -n "${4:-}" ]; then
+    retry="$(_recapture "$4")"
+    verdict="$(classify "$3" "$retry" "$2")"
+    printf '        the same command re-run: %s bytes against %s · CAUSE: %s\n' "${#retry}" "${#3}" "$verdict"
+    printf '        %s\n' "$(_cause_note "$verdict")"
+    if [ "$retry" != "$3" ]; then dump_msg "the same command re-run" "$retry"; fi
+  else
+    printf '        no recapture recipe on this leg, so the cause stays unclassified\n'
+  fi
+}
 expectsays() { # expectsays <PRESENT|ABSENT> <label> <needle> <text> [<recapture recipe>]
-  local got retry verdict
+  local got
+  _countleg "${5:-}"
   if says "$3" "$4"; then got=PRESENT; else got=ABSENT; fi
   if [ "$got" = "$1" ]; then printf '  ok    %-58s %s\n' "$2" "$got"
   else printf '  FAIL  %-58s got %s, want %s\n' "$2" "$got" "$1"; fail=$((fail+1))
-    printf '        needle: %s\n' "$3"; dump_msg "$2" "$4"
-    if [ -n "${5:-}" ]; then
-      retry="$(_recapture "$5")"
-      verdict="$(classify "$4" "$retry" "$3")"
-      printf '        the same command re-run: %s bytes against %s · CAUSE: %s\n' "${#retry}" "${#4}" "$verdict"
-      printf '        %s\n' "$(_cause_note "$verdict")"
-      if [ "$retry" != "$4" ]; then dump_msg "the same command re-run" "$retry"; fi
-    else
-      printf '        no recapture recipe on this leg, so the cause stays unclassified\n'
-    fi
+    _failnote "$2" "$3" "$4" "${5:-}"
+  fi
+}
+# ONE LEG READS TWO NEEDLES, because the hook may state a distance or state that it has none. The
+# cause block classifies on the FIRST needle, which is the one the leg is named for.
+expectsays2() { # expectsays2 <PRESENT|ABSENT> <label> <needle> <alternate needle> <text> <recipe>
+  local got
+  _countleg "${6:-}"
+  if says "$3" "$5" || says "$4" "$5"; then got=PRESENT; else got=ABSENT; fi
+  if [ "$got" = "$1" ]; then printf '  ok    %-58s %s\n' "$2" "$got"
+  else printf '  FAIL  %-58s got %s, want %s\n' "$2" "$got" "$1"; fail=$((fail+1))
+    printf '        the alternate needle this leg also accepts: %s\n' "$4"
+    _failnote "$2" "$3" "$5" "${6:-}"
   fi
 }
 
@@ -767,21 +813,14 @@ ghost="$STALE/does-not-exist-yet"
 ghost_cmd="cd $ghost && python3 -c \"open('briefs/SHARED-BRIEF.md','w').write('v3')\""
 expectcmd_from DENY "bash cd->a tree that does not exist yet - still denied" "$STALE" "$ghost_cmd"
 gm="$(msgcmd_from "$STALE" "$ghost_cmd")"
-case "$gm" in
-  *"THIS BASE BELONGS TO THE SHARED ROOT"*) printf '  ok    %-58s %s\n' "...and the denial NAMES the missing tree" "explained" ;;
-  *) printf '  FAIL  %-58s %s\n' "...and the denial NAMES the missing tree" "message does not explain the fallback"; fail=$((fail+1)); dump_msg "a cd to a tree that does not exist yet" "$gm" ;;
-esac
-case "$gm" in
-  *"$ghost"*) printf '  ok    %-58s %s\n' "...and quotes the path it could not resolve" "quoted" ;;
-  *) printf '  FAIL  %-58s %s\n' "...and quotes the path it could not resolve" "path absent from message"; fail=$((fail+1)); dump_msg "the path the hook could not resolve" "$gm" ;;
-esac
+_ghost_rec="from:$STALE$_TAB$ghost_cmd"
+expectsays PRESENT "...and the denial NAMES the missing tree" "THIS BASE BELONGS TO THE SHARED ROOT" "$gm" "$_ghost_rec"
+expectsays PRESENT "...and quotes the path it could not resolve" "$ghost" "$gm" "$_ghost_rec"
 # ANTI-VACUITY for the message: a tree that DOES exist must NOT carry the explanation, or the note
 # becomes wallpaper on every denial and stops meaning anything.
-em="$(msgcmd_from "$STALE" "cd $STALE && python3 -c \"open('briefs/SHARED-BRIEF.md','w').write('v3')\"")"
-case "$em" in
-  *"THIS BASE BELONGS TO THE SHARED ROOT"*) printf '  FAIL  %-58s %s\n' "...and an EXISTING tree carries no such note" "note leaked onto a normal denial"; fail=$((fail+1)); dump_msg "a cd to a tree that exists" "$em" ;;
-  *) printf '  ok    %-58s %s\n' "...and an EXISTING tree carries no such note" "clean" ;;
-esac
+_exist_cmd="cd $STALE && python3 -c \"open('briefs/SHARED-BRIEF.md','w').write('v3')\""
+em="$(msgcmd_from "$STALE" "$_exist_cmd")"
+expectsays ABSENT "...and an EXISTING tree carries no such note" "THIS BASE BELONGS TO THE SHARED ROOT" "$em" "from:$STALE$_TAB$_exist_cmd"
 
 # ...and an unparseable/absent cd must fall back to the old behaviour rather than erroring:
 # cwd is the STALE tree and nothing names another, so the stale answer still applies.
@@ -991,23 +1030,24 @@ bashrun() { # bashrun <command> ; echoes the stderr
   # shellcheck disable=SC2069  # deliberate: stdout goes to /dev/null and the leg reads the hook's STDERR.
   printf '%s' "$js" | bash "$H" 2>&1 >/dev/null
 }
-MSG_PLAIN="$(bashrun "sed -i s/a/b/ briefs/SHARED-BRIEF.md")"
-if says 'MEASURED AGAINST:' "$MSG_PLAIN"; then echo "  ok    a denial names the tree it measured"
-else echo "  FAIL  denial does not name the tree"; fail=$((fail+1));dump_msg "a denial that must name its tree" "$MSG_PLAIN"; fi
-if says 'behind origin/main' "$MSG_PLAIN" || says 'distance from origin/main unknown' "$MSG_PLAIN"; then echo "  ok    …and how far behind that tree is"
-else echo "  FAIL  denial does not give the distance"; fail=$((fail+1));dump_msg "a denial that must give the distance" "$MSG_PLAIN"; fi
+_plain_cmd="sed -i s/a/b/ briefs/SHARED-BRIEF.md"
+MSG_PLAIN="$(bashrun "$_plain_cmd")"
+expectsays  PRESENT "a denial names the tree it measured" "MEASURED AGAINST:" "$MSG_PLAIN" "bash:$_plain_cmd"
+expectsays2 PRESENT "…and how far behind that tree is" "behind origin/main" "distance from origin/main unknown" "$MSG_PLAIN" "bash:$_plain_cmd"
 
 # THE SHAPE THAT DEFEATED IT: a leading cd to an EXISTING dir, then the worktree that does not exist.
 MISSING="$TMP/not-created-yet"
-MSG_WT="$(bashrun "cd $WORK && git worktree add $MISSING && cd $MISSING && sed -i s/a/b/ briefs/SHARED-BRIEF.md")"
-if says 'THIS BASE BELONGS TO THE SHARED ROOT' "$MSG_WT"; then echo "  ok    a LATER cd to a not-yet-created tree is still detected (was: only the first cd)"
-else echo "  FAIL  cd_missing missed a non-first cd — the worktree-creating shape"; fail=$((fail+1));printf '        the directory that must read as missing: %s\n' "$MISSING"; dump_msg "the worktree-creating cd shape" "$MSG_WT"; fi
-if says "$MISSING" "$MSG_WT"; then echo "  ok    …and the notice names which directory does not exist yet"
-else echo "  FAIL  notice does not name the missing dir"; fail=$((fail+1));dump_msg "the name of the missing directory" "$MSG_WT"; fi
+# This is the leg row 2026-11-04-the-hooks-gate-flakes-on-the-worktree-creating-cd-shape names, and
+# it carried no recipe until 2026-11-11, so the one arrival that row holds could not be classified.
+# The directory that must read as missing arrives in the needle of the second leg below.
+_wt_cmd="cd $WORK && git worktree add $MISSING && cd $MISSING && sed -i s/a/b/ briefs/SHARED-BRIEF.md"
+MSG_WT="$(bashrun "$_wt_cmd")"
+expectsays PRESENT "a LATER cd to a not-yet-created tree is still detected" "THIS BASE BELONGS TO THE SHARED ROOT" "$MSG_WT" "bash:$_wt_cmd"
+expectsays PRESENT "…and the notice names which directory does not exist yet" "$MISSING" "$MSG_WT" "bash:$_wt_cmd"
 # NARROWNESS: an ordinary subdirectory hop to a dir that EXISTS must not be reported as missing.
-MSG_HOP="$(bashrun "cd $WORK && cd briefs && sed -i s/a/b/ SHARED-BRIEF.md")"
-if says 'THIS BASE BELONGS TO THE SHARED ROOT' "$MSG_HOP"; then echo "  FAIL  an existing subdirectory hop was reported as a missing tree"; fail=$((fail+1)); dump_msg "an existing subdirectory hop" "$MSG_HOP";
-else echo "  ok    an existing subdirectory hop is NOT reported as a missing tree"; fi
+_hop_cmd="cd $WORK && cd briefs && sed -i s/a/b/ SHARED-BRIEF.md"
+MSG_HOP="$(bashrun "$_hop_cmd")"
+expectsays ABSENT "an existing subdirectory hop is NOT a missing tree" "THIS BASE BELONGS TO THE SHARED ROOT" "$MSG_HOP" "bash:$_hop_cmd"
 
 # ⚠ THE HOOK MUST DRAIN STDIN BEFORE THE HATCH EXITS, AND NO LEG ABOVE CAN SEE IT. Every
 # leg above reads the hook's verdict as DENY (exit 2) or ALLOW (anything else), so a hatch
@@ -1061,10 +1101,11 @@ saysof_blind() { # saysof_blind <command string> ; the hook's stderr under the b
 expectblind DENY  "a write to a stale brief, candidate reader broken" "sed -i 's/a/b/' briefs/SHARED-BRIEF.md"
 expectcmd   DENY  "the same write with the reader working"            "sed -i 's/a/b/' briefs/SHARED-BRIEF.md"
 expectblind ALLOW "a read of a stale brief, candidate reader broken"  "grep -n 'v1' briefs/SHARED-BRIEF.md | head"
-_blindsays="$(saysof_blind "sed -i 's/a/b/' briefs/SHARED-BRIEF.md")"
-expectsays PRESENT "the denial names the reader that could not look"  "WHAT COULD NOT LOOK" "$_blindsays"
-expectsays PRESENT "the denial carries the status it read"            "exited 3" "$_blindsays"
-expectsays PRESENT "the denial sends the reader at the box, not the diff" "it is not your command" "$_blindsays"
+_blind_cmd="sed -i 's/a/b/' briefs/SHARED-BRIEF.md"
+_blindsays="$(saysof_blind "$_blind_cmd")"
+expectsays PRESENT "the denial names the reader that could not look"  "WHAT COULD NOT LOOK" "$_blindsays" "blind:$_blind_cmd"
+expectsays PRESENT "the denial carries the status it read"            "exited 3" "$_blindsays" "blind:$_blind_cmd"
+expectsays PRESENT "the denial sends the reader at the box, not the diff" "it is not your command" "$_blindsays" "blind:$_blind_cmd"
 
 echo
 echo "### §3d — an awk reader that could not run is not a reader that found nothing"
@@ -1121,13 +1162,48 @@ expectcmd DENY             "the same write with the tokenizer working"         "
 # would be empty either way, so these two keep the answer they have on every working box.
 expectawk ALLOW "$AWKDEAD" "a read of a stale brief, tokenizer dead"     "grep -n 'v1' briefs/SHARED-BRIEF.md | head"
 expectawk ALLOW "$AWKDEAD" "a command naming no interpreter, tokenizer dead" "ls -la briefs"
+_awkd_rec="awk:$AWKDEAD$_TAB$_awk_prog"
 _awkd_msg="$(saysof_awk "$AWKDEAD" "$_awk_prog")"
-expectsays PRESENT "the denial names the reader that could not look"     "WHAT COULD NOT LOOK" "$_awkd_msg"
-expectsays PRESENT "…and names the tokenizer rather than a candidate reader" "program-text tokenizer" "$_awkd_msg"
-expectsays PRESENT "…and carries the status it read"                      "exited 3" "$_awkd_msg"
+expectsays PRESENT "the denial names the reader that could not look"     "WHAT COULD NOT LOOK" "$_awkd_msg" "$_awkd_rec"
+expectsays PRESENT "…and names the tokenizer rather than a candidate reader" "program-text tokenizer" "$_awkd_msg" "$_awkd_rec"
+expectsays PRESENT "…and carries the status it read"                      "exited 3" "$_awkd_msg" "$_awkd_rec"
+_awks_rec="awk:$AWKSCAN$_TAB$_awk_built"
 _awks_msg="$(saysof_awk "$AWKSCAN" "$_awk_built")"
-expectsays PRESENT "the scan's own blindness names the scan"              "write-target scan" "$_awks_msg"
-expectsays ABSENT  "…and does not borrow the tokenizer's wording"         "program-text tokenizer" "$_awks_msg"
+expectsays PRESENT "the scan's own blindness names the scan"              "write-target scan" "$_awks_msg" "$_awks_rec"
+expectsays ABSENT  "…and does not borrow the tokenizer's wording"         "program-text tokenizer" "$_awks_msg" "$_awks_rec"
+
+echo
+echo "### EVERY LEG THAT JUDGES CAPTURED TEXT CAN NAME ITS CAUSE"
+# Rows 2026-11-04-the-hooks-gate-flakes-on-the-worktree-creating-cd-shape and
+# 2026-11-05-the-stale-brief-self-test-flake-reds-a-leg-the-row-does-not-name. The note at the foot
+# of this file promises a cause on every failure, and on 2026-11-11 the promise held for 22 of 38
+# text-judging legs: 8 legs printed the text and classified nothing, and 8 more carried no recipe.
+# The next arrival lands on a leg nobody can predict, so the width of the promise is the thing to
+# hold. The four recipe shapes below run LIVE here, where every capture helper is defined.
+# ⚠ EACH SHAPE IS PROVED ON ITS OWN DIAGNOSTIC, NOT ON ONE BORROWED NEEDLE. A drive under a
+# broken reader denies for a different reason and prints different words, so a single needle would
+# have read ABSENT on two live recipes and said nothing about whether they ran.
+_rec_live() { # _rec_live <recipe> <needle that shape's own denial carries>
+  if says "$2" "$(_recapture "$1")"; then printf PRESENT; else printf ABSENT; fi
+}
+expectis PRESENT "the bash: recipe re-runs the JSON drive"        "$(_rec_live "bash:$_plain_cmd" 'MEASURED AGAINST:')"
+expectis PRESENT "the from: recipe re-runs the drive from a cwd"  "$(_rec_live "from:$STALE$_TAB$ghost_cmd" 'MEASURED AGAINST:')"
+expectis PRESENT "the blind: recipe re-runs the broken reader"    "$(_rec_live "blind:$_blind_cmd" 'WHAT COULD NOT LOOK')"
+expectis PRESENT "the awk: recipe re-runs the dead tokenizer"     "$(_rec_live "$_awkd_rec" 'WHAT COULD NOT LOOK')"
+# A two-field recipe with no tab is a recipe that cannot be read, and it refuses rather than
+# treating the whole payload as one field and re-running something else.
+expectis REFUSE  "a from: recipe with no tab refuses"             "$(_recapture "from:$STALE" | cut -d: -f1)"
+expectis REFUSE  "an awk: recipe with no tab refuses"             "$(_recapture "awk:$AWKDEAD" | cut -d: -f1)"
+# THE FLOOR IS ANTI-VACUITY: counters that never incremented would satisfy the equality at 0 = 0.
+if [ "$_legs_text" -lt 38 ]; then
+  echo "  FAIL  only $_legs_text leg(s) judged captured text, so this census examined almost nothing"
+  fail=$((fail+1))
+elif [ "$_legs_text" -ne "$_legs_recap" ]; then
+  echo "  FAIL  $((_legs_text - _legs_recap)) of $_legs_text text-judging leg(s) carry no recapture recipe"
+  fail=$((fail+1))
+else
+  printf '  ok    %-58s %s\n' "every text-judging leg can re-run and classify" "$_legs_recap of $_legs_text"
+fi
 
 echo
 if [ "$fail" -eq 0 ]; then
@@ -1149,6 +1225,8 @@ else
        one of four causes: NO-OUTPUT-TWICE, FIRST-CAPTURE-EMPTY, NOT-REPRODUCIBLE, STABLE-TEXT.
        Quote that token and both byte counts when you log the next arrival. STABLE-TEXT is the
        only one of the four that points at the diff in front of you.
+       That promise is measured, not asserted: the census leg above counts the legs that judge
+       captured text and the legs that can re-run, and it reds when the two differ.
 NOTE
 fi
 exit $((fail > 0))
