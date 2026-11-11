@@ -55910,6 +55910,36 @@
         T.skip('pr-walker core is wired into this lane', 'browser lane cannot import tools/pr-walker.mjs');
         return;
       }
+      /* 🔴 THE PASS PATH CANNOT REPORT A PRECONDITION THAT STOPS THE PASS (measured 2026-11-10,
+         residue `2026-11-10-the-walker-precondition-fails-165-times-and-notifies-nobody`). The
+         pre-step refused 165 times in four hours, every exit code died in a trailing `or true`, and
+         `landing.md` kept the last healthy page — so the board showed a live queue over a dead one.
+         The board flags that page by its own predicate (`tools/board.mjs:1702` tests /^ALERT /m), so
+         these legs hold the page against that predicate and never against prose. */
+      var pcs = env.pwPreconditionState,
+        bp = env.pwBlockedPage;
+      T.ok('the precondition reporters reach this lane — their absence is a wiring failure, never a lane boundary', typeof pcs === 'function' && typeof bp === 'function');
+      if (typeof pcs === 'function' && typeof bp === 'function') {
+        var REF = 'refused: 1 dirty path(s) outside the generated set: ecgdex-dsp.js';
+        var UNREADABLE = 'refused: the generated set is unreadable, so every dirty path reads as source';
+        var p1 = pcs(null, REF, 1000);
+        T.eq('the first refusal counts one', p1.count, 1);
+        T.eq('the first refusal stamps its own arrival', p1.firstMs, 1000);
+        var p2 = pcs(p1, REF, 9000);
+        T.eq('the same refusal raises the count', p2.count, 2);
+        T.eq('the same refusal keeps the first arrival', p2.firstMs, 1000);
+        var p3 = pcs(p2, UNREADABLE, 9500);
+        T.eq('a DIFFERENT refusal restarts the count — the swap a count cannot see', p3.count, 1);
+        T.eq('a different refusal stamps the new arrival', p3.firstMs, 9500);
+        T.eq('a clean precondition clears the state', pcs(p2, 'clean', 9600), null);
+        T.eq('a restore clears the state too', pcs(p2, 'restored: 2 generated path(s)', 9600), null);
+        var pg = bp(p2, 9000);
+        T.ok('the blocked page carries the refusal text', pg.indexOf(REF) >= 0);
+        T.ok('the board flags the page by its own predicate (tools/board.mjs:1702)', /^ALERT /m.test(pg));
+        T.ok('the page states that no pass ran, so no reader takes it for PR state', /no pass ran/.test(pg) && /NO PR state/.test(pg));
+        T.ok('the page names the count and the first arrival', /2 time\(s\) since 1970-01-01T00:00:01\.000Z/.test(pg));
+        T.ok('the fail-closed refusal reaches the page as well', bp(p3, 9500).indexOf('the generated set is unreadable') >= 0);
+      }
       /* 🔴 ONE READER OF THE WORD GENERATED (measured 2026-11-10). `cleanWorktree` tested exact
          membership of `generatedSet()`, which names no path under `provenance/`, while the rebase
          that wrote the fragment classified it `generated` by prefix. 108 passes refused in one day
