@@ -846,6 +846,10 @@ function readSources() {
        through `workerSource()`, which emits a blob string rather than a `data-inline-src` block, so
        the bundle walk that reads a spine file for free cannot see it. */
     'consensus-dissent.js',
+    /* The sensor-trio worker's beat reference (residue 2026-09-26-tch-hat-misattributes-shared-optical-error),
+       listed in BOTH lanes for the same reason: it reaches a page only through a blob worker. */
+    'trio-reference.js',
+    'tools/oracle-ecg-firmware-rr.mjs',
     // Worker SOURCE text for the anti-inertness scan: pat-gate's clock refusals are only as real as the
     // arguments its one runtime caller passes, and that caller is a Web Worker no behavioural test can
     // drive (O2RING-PHASE4-PREMISE-REVIEW §4).

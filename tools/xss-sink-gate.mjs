@@ -69,6 +69,12 @@ export const ALLOW = [
     match: 'el.innerHTML = html',
     reason:
       "the file's one sink helper (setHTML). Every value its builders interpolate goes through esc() or a number formatter, and the only raw markup is MetricRegistry.badge() output via evBadge(). The two EDF-derived strings — the channel label and the physical dimension — reach HTML only through row() and kpi(), which escape them."
+  },
+  {
+    file: 'sensor-trio-night.js',
+    match: "u.innerHTML = (real && s != null ? evb(useMeas ? 'refNight' : 'hat')",
+    reason:
+      "the per-corner σ caption. `real`, `s` and `useMeas` only choose a branch and are never written into the markup. evb() returns MetricRegistry.badge() markup for one of two static EV keys, 'refNight' or 'hat', and the caption text, the one value that carries numbers, goes through esc()."
   }
 ];
 
@@ -252,7 +258,8 @@ export function selftest() {
   ok(exempted.sinksAdded === 1, '…while the sink still counts as EXAMINED, so the verdict population stays honest');
   ok(scanDiff(['diff --git a/eegdex-render.js b/eegdex-render.js', '+    el.innerHTML = userInput;']).violations.length === 1, 'CONTROL: another unescaped sink in the exempt FILE is still caught');
   ok(staleAllow([], ALLOW).length === ALLOW.length, 'an ALLOW entry that matched no sink is reported stale');
-  ok(staleAllow(exempted.allowed, ALLOW).length === 0, '…and one that matched is not');
+  const plantedAll = ALLOW.flatMap((a) => scanDiff([`diff --git a/${a.file} b/${a.file}`, `+    ${a.match};`]).allowed);
+  ok(staleAllow(plantedAll, ALLOW).length === 0, '…and one that matched is not');
   ok(
     ALLOW.every((a) => a.file && a.match && a.reason && a.reason.length > 60),
     'every real ALLOW entry carries a file, a match and a reason long enough to be one'

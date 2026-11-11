@@ -30346,7 +30346,11 @@
          page reads them in its `coverageText`, `drawTau` and `drawSigma` helpers, which is where it reads every
          other aggregate key. Surfaced on purpose: a worker key no consumer reads is what the dead-key leg above
          would have called dead. */
-      var UNDECIDED_EXPECTED = { 'pat-feasibility-worker.js': 27, 'sensor-trio-worker.js': 41, 'qrs-equiv-worker.js': 2, 'qrs-yield-worker.js': 1 };
+      /* sensor-trio-worker.js 41 -> 42 on 2026-11-11 (unit tchref, residue
+         2026-09-26-tch-hat-misattributes-shared-optical-error): `runRealNight` gains `reference` (each corner's
+         σ, bias and ρ measured against the night's beat reference). The night page reads it in its `refOf`
+         helper, which feeds the heroes and the independence row. Surfaced on purpose, as above. */
+      var UNDECIDED_EXPECTED = { 'pat-feasibility-worker.js': 27, 'sensor-trio-worker.js': 42, 'qrs-equiv-worker.js': 2, 'qrs-yield-worker.js': 1 };
       Object.keys(UNDECIDED_EXPECTED).forEach(function (w2) {
         T.eq(
           w2 + ' · helper-reached (UNDECIDABLE) key count',
@@ -61262,6 +61266,140 @@
       }
     });
 
+    /* THE BEAT REFERENCE ON THE PAGE (residue 2026-09-26-tch-hat-misattributes-shared-optical-error).
+       `trio-reference.js` carries copies of three oracle pairing functions, because the oracle imports
+       nothing a bundle could reach; a copy that drifts from the oracle measures a different reference
+       with no gate noticing, so the bodies are pinned here. The other legs drive the module, the
+       worker's three refusals and the page's two new strings through their real code. */
+    group('sensor-trio beat reference — oracle copies pinned, refusals named, caption in plain words', 'sensor-trio · trio-reference · §∅', function (T) {
+      var srcs = env.sources || {};
+      var tr = srcs['trio-reference.js'] || '',
+        orc = srcs['tools/oracle-ecg-firmware-rr.mjs'] || '',
+        wk = srcs['sensor-trio-worker.js'] || '',
+        page = srcs['sensor-trio-night.js'] || '';
+      T.ok('trio-reference.js is readable in this lane', tr.length > 2000, 'list it in BOTH lanes');
+      T.ok('the oracle is readable in this lane', orc.length > 2000, 'list tools/oracle-ecg-firmware-rr.mjs in BOTH lanes');
+      T.ok('the worker is readable in this lane', wk.length > 20000, 'list sensor-trio-worker.js in BOTH lanes');
+      T.ok('the page is readable in this lane', page.length > 20000, 'list sensor-trio-night.js in BOTH lanes');
+      if (!tr || !orc || !wk || !page) return;
+      function fnText(src, name) {
+        var i = src.search(new RegExp('function ' + name + '\\s*\\(')),
+          d = 0,
+          k;
+        if (i < 0) return null;
+        for (k = src.indexOf('{', src.indexOf(')', i)); k < src.length; k++) {
+          if (src[k] === '{') d++;
+          else if (src[k] === '}' && --d === 0) break;
+        }
+        return src.slice(i, k + 1);
+      }
+      var norm = function (s) {
+        return s
+          ? s
+              .replace(/\/\*[\s\S]*?\*\//g, '')
+              .replace(/\/\/[^\n]*/g, '')
+              .replace(/\s+/g, '')
+          : null;
+      };
+      ['firmwareHostTimes', 'pairByTime', 'coincidenceLag'].forEach(function (n) {
+        var a = norm(fnText(tr, n)),
+          b = norm(fnText(orc, n));
+        T.ok('the copy of ' + n + ' equals the oracle body', !!a && a === b, a && b ? 'bodies differ — re-copy from the oracle, never edit one side' : 'function not found');
+      });
+
+      /* the module, evaluated from its text with the real stats spine */
+      var KS = dexAnalysisStats(env),
+        box = { AnalysisStats: KS.S };
+      try {
+        new Function('globalThis', 'module', 'require', tr)(box, undefined, undefined);
+      } catch (e) {
+        T.ok('trio-reference.js evaluates', false, (e && e.message) || String(e));
+        return;
+      }
+      var TR = box.TrioReference;
+      T.ok('trio-reference.js exports TrioReference', !!TR && typeof TR.scoreSeries === 'function' && typeof TR.buildReference === 'function');
+      if (!TR || !KS.S) return;
+      var REF = new Map(),
+        H = new Map(),
+        V = new Map(),
+        O = new Map(),
+        s,
+        seed = 7;
+      var rnd = function () {
+        seed = (seed * 16807) % 2147483647;
+        return seed / 2147483647 - 0.5;
+      };
+      for (s = 0; s < 3000; s++) {
+        var r = 60 + 5 * Math.sin(s / 300);
+        REF.set(s, r);
+        H.set(s, r + rnd() * 0.5);
+        V.set(s, r + 1 + rnd() * 2);
+        O.set(s, r + rnd() * 6);
+      }
+      var sc = TR.scoreSeries(REF, H, V, O);
+      T.ok('scoreSeries scores 3000 shared seconds', sc.ok && sc.n === 3000, JSON.stringify(sc.reason || sc.n));
+      var u = Math.sqrt(1 / 12);
+      T.ok(
+        'the measured σ recovers each planted error SD within 5 %',
+        sc.ok && Math.abs(sc.trueSd.h10 / (0.5 * u) - 1) < 0.05 && Math.abs(sc.trueSd.verity / (2 * u) - 1) < 0.05 && Math.abs(sc.trueSd.o2 / (6 * u) - 1) < 0.05,
+        sc.ok ? JSON.stringify(sc.trueSd) : ''
+      );
+      T.ok('the bias carries the planted Verity offset', sc.ok && Math.abs(sc.bias.verity - 1) < 0.1, sc.ok ? String(sc.bias.verity) : '');
+      var short = new Map();
+      for (s = 0; s < 10; s++) short.set(s, 60);
+      var sr = TR.scoreSeries(short, H, V, O);
+      T.ok('§∅ fewer shared seconds than MIN_SECONDS refuses with a named reason', sr.ok === false && /< 1000/.test(sr.reason) && sr.n === 10, JSON.stringify(sr));
+
+      /* the worker's refusals, run through the real function body */
+      var nrSrc = fnText(wk, 'nightReference');
+      T.ok('the worker defines nightReference', !!nrSrc);
+      if (!nrSrc) return;
+      var mk = function (trMod) {
+        /* the harness is synchronous, and all three refusals return before the first await, so the
+           body runs as a plain function with its awaits stripped */
+        return new Function('TrioReference', 'ECGDSP', 'self', 'return (' + nrSrc.replace(/\bawait\s+/g, '') + ')')(trMod, {}, {});
+      };
+      var pg = function () {};
+      var rrFile = {
+        text: function () {
+          return '';
+        }
+      };
+      var res = [mk(TR)({}, {}, H, V, O, pg), mk(TR)({ h10rr: rrFile }, null, H, V, O, pg), mk(undefined)({ h10rr: rrFile }, {}, H, V, O, pg)];
+      {
+        T.ok('§∅ no _RR.txt refuses and names the file', res[0].ok === false && /_RR\.txt/.test(res[0].reason), res[0].reason);
+        T.ok('§∅ no raw ECG record refuses and names why', res[1].ok === false && /_ECG\.txt/.test(res[1].reason), res[1].reason);
+        T.ok('§∅ an absent module refuses and names the file', res[2].ok === false && /trio-reference\.js/.test(res[2].reason), res[2].reason);
+
+        /* the page: the strap firmware's RR file has a role, and the caption reads as a sentence */
+        var cl = fnText(page, 'classify');
+        var classify = new Function('return (' + cl + ')')();
+        var got = classify({ name: 'Polar_H10_02849638_20261109213457_RR.txt' });
+        T.ok('the page files an H10 _RR.txt under the h10rr role', !!got && got.role === 'h10rr' && got.stamp === '20261109213457', JSON.stringify(got));
+        var vl = fnText(page, 'validationLine');
+        var line = new Function('TCHAX', 'TCHMED', 'TCHREC', 'tchPop', 'TCH_REFUSED', 'DEVNAME', 'f2', 'tchBand', 'return (' + vl + ')')(
+          { inBand: { h10: { reads: 'over-reads', pass: 51, of: 71, status: 'unchecked' } } },
+          { h10: { classic: 1.03, trueSd: 0.86 } },
+          { band: { passFraction: 0.8 } },
+          function () {
+            return '71 nights';
+          },
+          'REFUSED',
+          { h10: 'H10' },
+          function (x) {
+            return x.toFixed(2);
+          },
+          function () {
+            return '±0.3 bpm or 30 %';
+          }
+        )('h10');
+        T.eq(
+          'the H10 caption reads as plain sentences',
+          line,
+          'Over 71 nights: the hat put the H10 at 1.03 bpm; measured against the beat reference it is 0.86 bpm (a lower bound), so the hat reads it too high. The hat came within ±0.3 bpm or 30 % on 51 of 71 nights, and it needs 80 %: not validated for the H10.'
+        );
+      }
+    });
     group('Verity gate classifies the FAILURE (detector harmonic vs lost contact), not just rejects it', 'sensor-trio-worker · trio · regression', function (T) {
       var src = (env.sources && env.sources['sensor-trio-worker.js']) || '';
       T.ok('sensor-trio-worker.js source available to the gate', !!src);
