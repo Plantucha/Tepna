@@ -4,15 +4,17 @@
    integrator-longitudinal.js — CROSS-NODE LONGITUDINAL read + durable store.
    ────────────────────────────────────────────────────────────────────────
    Orthogonal to the same-night fusion layer. Consumes the standardized
-   `ganglior.crossnight` v1.0 envelopes (CROSSNIGHT-ENVELOPE-SPEC.md) that SEVEN of
-   the eight nodes emit — OxyDex, PulseDex, ECGDex, PpgDex, CPAPDex, HRVDex and,
-   since 2026-11-11, GlucoDex — i.e. exactly those with a `*-cross.js`
-   (ENGINE-VERIFICATION-FINDINGS §1.7; this line used to claim "every node", which
-   is what sent a reader looking for an HRVDex envelope that did not then exist).
-   MotionDex is the one node left. It has no longitudinal read anywhere and holds
-   no multi-session series to fold — one file is one session — so it stays the
-   unmitigated case and needs a multi-session model before an envelope over it
-   describes anything. SPEC §7 carries the per-node table.
+   `ganglior.crossnight` v1.0 envelopes (CROSSNIGHT-ENVELOPE-SPEC.md) that ALL EIGHT
+   nodes emit — OxyDex, PulseDex, ECGDex, PpgDex, CPAPDex and, since 2026-11-11,
+   HRVDex, GlucoDex and MotionDex — i.e. exactly those with a `*-cross.js`
+   (ENGINE-VERIFICATION-FINDINGS §1.7; this line used to claim "every node" while
+   only five did, which is what sent a reader looking for an HRVDex envelope that
+   did not then exist — it says eight now because eight files exist, and the
+   `crossnight-adoption` gate asserts this sentence against `ls *-cross.js`).
+   MotionDex was the last one. It held no multi-session series to fold — one file is
+   one session — so `motiondex-app.js` gained the store that keeps each computed
+   session and `motiondex-cross.js` folds the per-session node-export envelopes.
+   SPEC §7 carries the per-node table.
    Persists each node's per-day metric summaries to IndexedDB,
    and date-joins them ACROSS nodes on the shared floating wall-clock to surface
    trends and cross-signal couplings no single node can see — e.g. "declining
