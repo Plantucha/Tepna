@@ -133,6 +133,7 @@ export const STEPS = [
   'verify:xss-sink',
   'verify:docs-constants',
   'verify:brief-header-claims',
+  'verify:paper-references',
   'verify:module-carriers',
   'verify:pr-compliance',
   'verify:verdict-adoption',
