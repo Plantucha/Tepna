@@ -56,7 +56,7 @@
        silence as a clean scan and means the opposite.
    ════════════════════════════════════════════════════════════════════════ */
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -70,6 +70,8 @@ const Verdict = createRequire(import.meta.url)('../verdict.js');
 let ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SELF = 'tools/secret-scan.mjs';
 const GATE = 'secret-scan';
+/* The one rule whose literals never enter this repo: it reads them from the environment. */
+export const PRIVATE_RULE = 'private-term';
 export const ALLOWED_FINDINGS = 0;
 const CRITERION = { name: 'secret_findings', threshold: ALLOWED_FINDINGS, unit: 'findings', direction: 'lte' };
 
@@ -163,6 +165,12 @@ export function droppedNote(dropped) {
 export function verdictFor({ findings, commits, privateTerms, commit, reason = null, status = null, walk = 'diff', walked = null, dropped = null }) {
   const blind = status != null;
   const ok = !blind && findings.length <= ALLOWED_FINDINGS;
+  /* Row 2026-11-10-the-required-secret-gate-never-ran-its-private-literal-rule. The pattern rules
+     read the population; the private-literal rule read 0 term(s) whenever the term list is empty.
+     One PASS over two different examined sets would report a clean scan of literals nobody looked
+     for, so the status names the skip. The exit code keeps reading the findings, never the status,
+     because a rule that examined nothing is not a reason to block every branch. */
+  const litBlind = !blind && ok && privateTerms === 'not-configured';
   if (!WALKS.includes(walk)) throw new Error('unknown walk `' + walk + '`: a verdict names the scope it examined');
   /* A tree verdict with no file count would claim a walk over an unstated population. */
   if (!blind && walk === 'tree' && !(Number.isFinite(walked) && walked > 0)) throw new Error('the tree walk needs its file count; a population of none is NOT_RUN');
@@ -171,7 +179,7 @@ export function verdictFor({ findings, commits, privateTerms, commit, reason = n
   const n = walk === 'tree' ? walked : commits;
   return Verdict.make({
     gate: GATE,
-    status: blind ? status : ok ? 'PASS' : 'FAIL',
+    status: blind ? status : ok ? (litBlind ? 'SHORTFALL' : 'PASS') : 'FAIL',
     population: blind ? { checked: 0, eligible: 0, excluded: 0 } : { checked: n, eligible: n, excluded: 0 },
     criterion: CRITERION,
     result: blind
@@ -180,6 +188,7 @@ export function verdictFor({ findings, commits, privateTerms, commit, reason = n
           findings: findings.length,
           files: new Set(findings.map((f) => f.file)).size,
           privateTerms,
+          skippedRules: litBlind ? [PRIVATE_RULE] : [],
           walk,
           walked,
           ...(walk === 'tree' ? { droppedFindings: dropped.length, droppedFiles: new Set(dropped.map((f) => f.file)).size } : {})
@@ -187,14 +196,50 @@ export function verdictFor({ findings, commits, privateTerms, commit, reason = n
     evidence: [SELF, '.gitleaks.toml'],
     reason: blind
       ? reason
-      : ok
-        ? null
-        : findings.length +
-          (walk === 'tree'
-            ? ' finding(s) in the ' + walked + ' walked file(s), beside ' + dropped.length + ' the walk list drops; a value may predate this gate, so report the rule and file to the owner'
-            : ' finding(s) in the commits this branch adds; remove the value, do not allowlist it'),
+      : litBlind
+        ? 'the `' +
+          PRIVATE_RULE +
+          '` rule examined 0 term(s): TEPNA_PRIVATE_TERMS is empty, so the literals this gate exists for reached no rule; the pattern rules read all ' +
+          n +
+          ' ' +
+          (walk === 'tree' ? 'walked file(s)' : 'commit(s)')
+        : ok
+          ? null
+          : findings.length +
+            (walk === 'tree'
+              ? ' finding(s) in the ' + walked + ' walked file(s), beside ' + dropped.length + ' the walk list drops; a value may predate this gate, so report the rule and file to the owner'
+              : ' finding(s) in the commits this branch adds; remove the value, do not allowlist it'),
     producedBy: { tool: SELF, commit }
   });
+}
+
+/**
+ * The gate blocks on findings alone. A status that reports a skipped rule is a statement about
+ * COVERAGE, and blocking every branch over it would stop the fleet without examining one literal.
+ */
+export function blocksLanding(findings) {
+  return findings.length > ALLOWED_FINDINGS;
+}
+
+/** The run summary a reader sees beside a green check, so a skipped rule leaves the job log. */
+export function summaryFor(v) {
+  const skipped = (v && v.result && v.result.skippedRules) || [];
+  const lines = ['### secret-scan \u2014 ' + (v && v.status ? v.status : 'no verdict object'), ''];
+  lines.push('- rules that examined nothing: ' + (skipped.length ? skipped.join(', ') : 'none'));
+  if (v && v.reason) lines.push('- ' + v.reason);
+  return lines.join('\n') + '\n';
+}
+
+function writeStepSummary(v) {
+  const dest = process.env.GITHUB_STEP_SUMMARY;
+  if (!dest) return false;
+  try {
+    appendFileSync(dest, summaryFor(v));
+    return true;
+  } catch {
+    /* A summary nobody can write is never a reason to change the scan's answer. */
+    return false;
+  }
 }
 
 function git(args, opts = {}) {
@@ -319,9 +364,12 @@ function main() {
 
   const v = verdictFor({ findings, commits, privateTerms: terms.length ? 'configured' : 'not-configured', commit, walk, walked, dropped });
   console.log(JSON.stringify(v));
+  writeStepSummary(v);
   if (!terms.length) console.error('⚠ TEPNA_PRIVATE_TERMS is not set: the private-literal rule did not run; the pattern rules did');
-  if (v.status === 'PASS') {
-    console.log(walk === 'tree' ? '✓ no secret in the ' + walked + ' walked file(s)' : '✓ no secret in the ' + commits + ' commit(s) since ' + mb.slice(0, 9));
+  if (!blocksLanding(findings)) {
+    const population = walk === 'tree' ? walked + ' walked file(s)' : commits + ' commit(s) since ' + mb.slice(0, 9);
+    /* Under a skipped rule a bare "no secret" would claim a scan of the literals nobody read. */
+    console.log(v.status === 'SHORTFALL' ? '⚠ no pattern-rule secret in the ' + population + '; the `' + PRIVATE_RULE + '` rule examined 0 term(s)' : '✓ no secret in the ' + population);
     if (dropped && dropped.length) console.error(droppedNote(dropped));
     process.exit(0);
   }
@@ -377,6 +425,16 @@ if (process.argv.includes('--verdict-sample') && isCliEntry(import.meta.url)) {
   }
   ck('a non-array report is refused, not read as clean', threw, true);
   ck('zero findings over commits passes', verdictFor({ findings: [], commits: 2, privateTerms: 'configured', commit: null }).status, 'PASS');
+  const unlit = verdictFor({ findings: [], commits: 2, privateTerms: 'not-configured', commit: null });
+  ck('a clean run with no term list is SHORTFALL, not PASS', unlit.status, 'SHORTFALL');
+  ck('and it names the rule that examined nothing', unlit.result.skippedRules, [PRIVATE_RULE]);
+  ck('and the reason states the term count it read', unlit.reason.includes('examined 0 term(s)'), true);
+  ck('a configured clean run skips no rule', verdictFor({ findings: [], commits: 2, privateTerms: 'configured', commit: null }).result.skippedRules, []);
+  ck('the exit decision reads the findings, never the status word', [blocksLanding([]), blocksLanding(rec)], [false, true]);
+  ck('a finding with no term list still FAILs', verdictFor({ findings: rec, commits: 2, privateTerms: 'not-configured', commit: null }).status, 'FAIL');
+  ck('the summary names the status and the skipped rule', [summaryFor(unlit).includes('SHORTFALL'), summaryFor(unlit).includes(PRIVATE_RULE)], [true, true]);
+  ck('the summary of a configured run names no skipped rule', summaryFor(verdictFor({ findings: [], commits: 2, privateTerms: 'configured', commit: null })).includes('nothing: none'), true);
+  ck('a verdict with no result still summarises', summaryFor(null).includes('no verdict object'), true);
   ck('one finding fails', verdictFor({ findings: rec, commits: 2, privateTerms: 'configured', commit: null }).status, 'FAIL');
   const blind = verdictFor({ findings: [], commits: 0, privateTerms: null, commit: null, status: 'NOT_RUN', reason: 'r' });
   ck('a blind run is NOT_RUN with a null result', [blind.status, blind.result], ['NOT_RUN', null]);

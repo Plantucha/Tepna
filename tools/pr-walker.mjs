@@ -377,6 +377,27 @@ export function stepResult(step, e) {
    draft was readied fleet-wide. A set and a classifier are two readings of one word, and the
    classifier is the one the rebase itself used. It fails closed on a null set and on any path that
    traverses, which is what this test needs. */
+/* ── A REFUSAL NAMES EVERY PATH THAT STILL BLOCKS THE STEP BESIDE IT ───────────────────────────
+   Measured 2026-11-10 (row 2026-11-10-the-walker-precondition-names-one-of-the-three-paths-that-
+   block-it): the unit journal carried 186 refusals in one day, and every one read `1 dirty path(s)
+   outside the generated set: provenance/Integrator.json` while THREE paths held the tree. The other
+   two sat inside the generated set, so the refusal left them dirty and named neither, and the
+   `git checkout --detach` beside the refusal aborted over all three. A reader who clears the one
+   named path gets the same abort. So a refusal names BOTH partitions, and it says when it cut a
+   list short. */
+export function refusalMessage(kind, other, held, heldState) {
+  const list = (rows) => {
+    const names = rows
+      .slice(0, 4)
+      .map((r) => r.path)
+      .join(', ');
+    return rows.length > 4 ? `${names} (+${rows.length - 4} more)` : names;
+  };
+  const first = `refused: ${other.length} ${kind} path(s) outside the generated set: ${list(other)}`;
+  if (!held.length) return first;
+  return `${first}; ${held.length} generated path(s) stay dirty and ${heldState}: ${list(held)}`;
+}
+
 export function cleanWorktree(g, generated) {
   const rows = String(g('status', '--porcelain') || '')
     .split('\n')
@@ -388,13 +409,7 @@ export function cleanWorktree(g, generated) {
   // An untracked or renamed path is not restorable by `git checkout --`, so it never counts as generated.
   const restorable = (r) => !r.code.includes('?') && !r.code.includes('R') && classifyPath(r.path, generated) === 'generated';
   const other = parsed.filter((r) => !restorable(r));
-  if (other.length) {
-    const named = other
-      .slice(0, 4)
-      .map((r) => r.path)
-      .join(', ');
-    return `refused: ${other.length} dirty path(s) outside the generated set: ${named}`;
-  }
+  if (other.length) return refusalMessage('dirty', other, parsed.filter(restorable), 'unrestored');
   g('checkout', '--', ...parsed.map((r) => r.path));
   const left = String(g('status', '--porcelain') || '')
     .split('\n')
@@ -432,14 +447,15 @@ export function commitRebuild(g, generated) {
   if (!generated) return 'refused: the generated set is unreadable, so every rebuilt path reads as source';
   const unquote = (q) => (/^".*"$/.test(q) ? q.slice(1, -1) : q);
   const parsed = rows.map((l) => ({ code: l.slice(0, 2), path: unquote(l.slice(3).split(' -> ').pop().trim()) }));
-  const other = parsed.filter((r) => r.code.includes('R') || classifyPath(r.path, generated) !== 'generated');
-  if (other.length) {
-    const named = other
-      .slice(0, 4)
-      .map((r) => r.path)
-      .join(', ');
-    return `refused: ${other.length} rebuilt path(s) outside the generated set: ${named}`;
-  }
+  const outside = (r) => r.code.includes('R') || classifyPath(r.path, generated) !== 'generated';
+  const other = parsed.filter(outside);
+  if (other.length)
+    return refusalMessage(
+      'rebuilt',
+      other,
+      parsed.filter((r) => !outside(r)),
+      'uncommitted'
+    );
   g('add', '--', ...parsed.map((r) => r.path));
   g('commit', '-m', REBUILD_COMMIT_MSG);
   const left = dirty();
@@ -990,6 +1006,16 @@ function selftest() {
   eq(cleanWorktree(g7, GEN), 'still-dirty: 1 path(s) survived the restore', 'a restore that changed nothing says so rather than reading clean');
   const g8 = fakeGit(['R  old.html -> "PAT Feasibility.html"']);
   eq(/^refused: /.test(cleanWorktree(g8, GEN)), true, 'a rename into a generated path is refused, not restored');
+  /* 🔴 THE REFUSAL NAMED 1 OF 3, 2026-11-10. A refusal restores nothing, so a dirty GENERATED path
+     blocks the detach beside it exactly as a source path does. The message owes both partitions. */
+  const gR = fakeGit([' M tests/dex-tests.js', ' M Integrator.html', ' M docs/Integrator.html']);
+  const mR = cleanWorktree(gR, new Set(['Integrator.html', 'docs/Integrator.html']));
+  eq(/^refused: 1 dirty path\(s\) outside the generated set: tests\/dex-tests\.js;/.test(mR), true, 'a refusal still leads with the paths outside the set');
+  eq(mR.includes('2 generated path(s) stay dirty and unrestored: Integrator.html, docs/Integrator.html'), true, 'a refusal names the generated paths it left dirty');
+  eq(['tests/dex-tests.js', 'Integrator.html', 'docs/Integrator.html'].filter((q) => mR.includes(q)).length, 3, 'all three paths that abort the step beside it are named');
+  eq(cleanWorktree(g3, GEN).includes('stay dirty'), false, 'a refusal over no dirty generated path adds no second clause');
+  const gT = fakeGit([' M a.js', ' M b.js', ' M c.js', ' M d.js', ' M e.js', ' M f.js']);
+  eq(/outside the generated set: a\.js, b\.js, c\.js, d\.js \(\+2 more\)$/.test(cleanWorktree(gT, GEN)), true, 'a cut list says how many paths it cut');
   /* 🔴 THE MEASURED WEDGE, 2026-11-10. A rebase rebuilds `provenance/<App>.json`, and no builder
      list names a path under `provenance/`, so exact membership read the fragment as somebody's work
      and refused. `rebase-safe.classify()` answers it `generated` by prefix, and it is the reader the
@@ -1035,6 +1061,10 @@ function selftest() {
   eq(commitRebuild(c6, null), 'refused: the generated set is unreadable, so every rebuilt path reads as source', 'an unreadable builder list fails closed');
   const c7 = fakeGit(['R  old.html -> "PAT Feasibility.html"']);
   eq(/^refused: /.test(commitRebuild(c7, GEN)), true, 'a rename into a generated path is refused — no rebuild renames');
+  const cR = fakeGit([' M tests/dex-tests.js', ' M OxyDex.html']);
+  const mC = commitRebuild(cR, GEN);
+  eq(/^refused: 1 rebuilt path\(s\) outside the generated set: tests\/dex-tests\.js;/.test(mC), true, 'a rebuild refusal leads with the path outside the set');
+  eq(mC.includes('1 generated path(s) stay dirty and uncommitted: OxyDex.html'), true, 'a rebuild refusal names the rebuilt path it left uncommitted');
   const c8 = fakeGit([' M OxyDex.html'], [' M OxyDex.html']);
   eq(commitRebuild(c8, GEN), 'still-dirty: 1 path(s) survived the commit', 'a commit that left the path dirty says so rather than reading committed');
   {
