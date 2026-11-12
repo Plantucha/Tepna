@@ -201,3 +201,65 @@ each of those two states.
 **What this still cannot see.** Thirteen other subtrees carry nested paths, and no declaration
 covers one of them, so depth 2 reaches one subtree. The anchored test also credits a read into a variable that
 nothing draws, which is §6's standing blindness one level down.
+
+## 9 · 2026-11-12 — the second subtree is inline, read from the app, and bound behind a guard
+
+`fusion.clockSkew` is the second nested subtree this gate judges. It needed three mechanisms the
+first subtree did not, and it found one defect inside the first subtree's own reader.
+
+| population | before | after |
+|---|---|---|
+| top-level keys judged | 36 | 36 |
+| nested subtrees judged | 1 (`fusion.apnea`) | 2 (`fusion.apnea`, `fusion.clockSkew`) |
+| nested keys judged | 14 | 21 |
+| nested `card` keys | 10 | 14 |
+| `population.checked` in the verdict | 50 | 57 |
+| `--selftest` legs | 51 | 74 |
+
+The seven keys are `findings`, `applied`, `pairs`, `fits`, `beatCheck`, `seamCensus` and `vetoes`.
+Four of them are `card` and three are `export-only`. I hand-checked each one against
+`integrator-app.js` and `integrator-render.js` on 2026-11-12.
+
+🔴 **A SUBTREE NEED NOT HAVE A BUILDER.** `fuseApneaEvents` returns the first subtree, so
+`nestedShapes` could read its return shapes. `clockSkew` is an inline object literal AT the fusion
+publish site, so there is no function to read. `inlineShape` reads the literal itself, in blanked
+code, and refuses on three states instead of guessing: no anchor line, more than one anchor, or a
+literal that does not close. Each refusal is a selftest leg.
+
+🔴 **A KEY WHOSE VALUE CAN BE `undefined` IS CONDITIONAL TOO.** One literal carries one key list, so
+the first subtree's test — a key missing from some return shape — can never fire here. The same
+defect wears different clothes: `vetoes: skew.vetoes && skew.vetoes.length ? skew.vetoes :
+undefined` leaves the export entirely when the pass refused nothing, while `seamCensus:
+skew.seamCensus || []` ships even empty. So `partial` means "can evaluate to `undefined`" for an
+inline subtree, `partialKind` names which mechanism produced it, and the refusal quotes the right
+one. A `|| null` key is NOT in that set, because a null is a value a consumer reads (§∅).
+
+🔴 **THIS SUBTREE'S READER SURFACE IS NOT IN THE RENDER FILE.** `integrator-render.js` mentions
+`clockSkew` zero times over the whole file. `integrator-app.js` draws four of its keys into the
+permanent skew banner and the D17 silence lines. So a nested declaration names its own
+`readerFile`, and a subtree whose every key is `export-only` no longer owes a binding at all —
+demanding one there would red correct code for carrying no reader surface. Control: swapping
+`readerFile` back to `integrator-render.js` reds on all four `card` keys.
+
+🔴 **A SUBTREE HANDED TO A HELPER IS STILL A READ OF IT.** The app binds `var cs = FUSION &&
+FUSION.clockSkew` and calls `skewSilenceLines(cs)`, which reads `vetoes` and `seamCensus` one scope
+away. Without that hop those two keys read as unrendered and the gate would convict correct code.
+The gate follows ONE hop and refuses the rest: a helper name that resolves to no declaration or to
+more than one, a parameter list that is not exactly one plain identifier, and a hop out of a hop.
+An unbounded credit is no credit. Three planted refusals cover those states.
+
+🔴 **THE NEAREST FUNCTION HEADER IS NOT THE ENCLOSING ONE, AND THE FIRST SUBTREE HID IT.** The
+binding at `integrator-app.js:88` sits nine lines under a `forEach(function (m) {` callback that
+closed at `:82`. `enclosingFn` stopped at that first header above, found it did not contain the
+line, and reported the site UNSCOPED — so the gate credited nothing and reded all four `card` keys
+with a reason about a shadowed binding. `fusion.apnea` never exposed it, because both of its
+bindings sit directly inside their own function. The scan now walks every header upward and takes
+the first whose brace span contains the line, which is the tightest real scope. A selftest leg
+plants the callback.
+
+**What this still cannot see.** Twelve other subtrees carry nested paths and no declaration covers
+one of them, so depth 2 now reaches two subtrees out of fourteen. The depth-1 declaration for
+`clockSkew` reads `export-only`, which is true of `integrator-render.js` and false of
+`integrator-app.js`: depth 1 judges ONE realm, and widening it re-judges all 36 top-level keys
+against a second file, which is its own unit and not this one. The anchored test also credits a
+read into a variable that nothing draws, which is §6's standing blindness one level down.
