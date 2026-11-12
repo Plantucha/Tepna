@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="2f3d57dea0fd" data-compute-hash="b2fd16e79a72"><head>
+<html lang="en" data-manifest-hash="73d611633d91" data-compute-hash="7749c8777e88"><head>
 <!--
   Integrator.src.html — Tepna
   Copyright 2026 Michal Planicka
@@ -9,7 +9,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'self' (NOT 'none') — this bundle fetches committed LOCAL sample files; 'self' still blocks every REMOTE origin. object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-Md0eFlUIWiOD+rOIgbfnD7WFt8kjzjo/0/isC5AO0Nk=' 'sha256-P/3IN8LDDlxkQ11WNj2a8WJycCpcNnAlSYFo4xb2q88=' 'sha256-QU1eFIpXtk89h7OawHFWXJry6pEr0cw5i0Q08kGZz88=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-R6Dc/xXQzYFveWsVfbGSg8lpp98pG2dIwLNGGu4Pc04=' 'sha256-adUjWh7x2UMcXobJCuIZ/76pVvVSNL026+8zrnUOBvg=' 'sha256-c0L2fP9KS+dZLG2AaH4LfdLnwpVfCWVH+gyyUn5L7Pc=' 'sha256-fGkqo1InzXusfon2RDMp9a98flNCFaw3TSbxCC/xJUA=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-riOXufPMrLtIt9bqN5G3iHUqdXI41MQWwq1wjwkfkfM='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-P/3IN8LDDlxkQ11WNj2a8WJycCpcNnAlSYFo4xb2q88=' 'sha256-QU1eFIpXtk89h7OawHFWXJry6pEr0cw5i0Q08kGZz88=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-R6Dc/xXQzYFveWsVfbGSg8lpp98pG2dIwLNGGu4Pc04=' 'sha256-adUjWh7x2UMcXobJCuIZ/76pVvVSNL026+8zrnUOBvg=' 'sha256-aw+G0ighaVzQgl+J0mMr2B66h0QU/G/X+Y7Fjvt5J2Q=' 'sha256-c0L2fP9KS+dZLG2AaH4LfdLnwpVfCWVH+gyyUn5L7Pc=' 'sha256-fGkqo1InzXusfon2RDMp9a98flNCFaw3TSbxCC/xJUA=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-z4l2zX2D/RcAl/wpu0C/Z9GU6A/Rt5Gmh35gDByXOhQ='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>Integrator · Fusion Layer · v2.31.0</title>
@@ -7261,6 +7261,36 @@ function clamp(x, lo, hi) {
   return Math.max(lo, Math.min(hi, x));
 }
 /* Merge a list of [startMs,endMs] intervals → total covered ms (union, no double-count). */
+/* The merged form of `_mergeMs` — the same sweep, returning the intervals instead of their total,
+   for a caller that needs the SHAPE of a union (how many separate stretches) and not just its length. */
+function _mergeIvs(ivs) {
+  if (!ivs || !ivs.length) return [];
+  var a = ivs.slice().sort(function (x, y) {
+    return x[0] - y[0];
+  });
+  var out = [[a[0][0], a[0][1]]];
+  for (var i = 1; i < a.length; i++) {
+    var last = out[out.length - 1];
+    if (a[i][0] <= last[1]) last[1] = Math.max(last[1], a[i][1]);
+    else out.push([a[i][0], a[i][1]]);
+  }
+  return out;
+}
+/* The minutes two MERGED, sorted interval lists both cover. A zero-length stretch is not coverage,
+   so a point segment (`durSec` absent — the measurement happened, its length unknown) drops out. */
+function _intersectIvs(a, b) {
+  var out = [],
+    i = 0,
+    j = 0;
+  while (i < a.length && j < b.length) {
+    var s = Math.max(a[i][0], b[j][0]),
+      e = Math.min(a[i][1], b[j][1]);
+    if (e > s) out.push([s, e]);
+    if (a[i][1] < b[j][1]) i++;
+    else j++;
+  }
+  return out;
+}
 function _mergeMs(ivs) {
   if (!ivs || !ivs.length) return 0;
   var a = ivs.slice().sort(function (x, y) {
@@ -14839,43 +14869,85 @@ function runFusion(recs, opts) {
   for (var i = 0; i < dated.length; i++)
     for (var j = i + 1; j < dated.length; j++) {
       var ov = overlapInterval(dated[i], dated[j]);
-      pairs.push({ a: dated[i].label, an: dated[i].node, b: dated[j].label, bn: dated[j].node, aWin: recWindow(dated[i]), bWin: recWindow(dated[j]), overlap: ov });
+      pairs.push({
+        a: dated[i].label,
+        an: dated[i].node,
+        b: dated[j].label,
+        bn: dated[j].node,
+        aWin: recWindow(dated[i]),
+        bWin: recWindow(dated[j]),
+        overlap: ov,
+        sameNode: dated[i].node === dated[j].node
+      });
     }
-  var anyOverlap = pairs.some(function (p) {
+  /* NODE-LEVEL OVERLAP. Every name in `window` says NODE, so every figure counts NODES. One node
+     drops TWO records on one night whenever a capture stops and restarts, or when the noon fold puts
+     a next-morning fragment on the night before. The record-wise form read a pair of ONE node's own
+     files as corroboration: measured 2026-11-12, two files of a single node published `anyOverlap`
+     true with 10 min of shared timeline and no second witness on the bus. Cross-node pairs only.
+     `pairs` keeps every pair, because one node's two files beside each other are evidence a reader
+     wants; `sameNode` says which, and `samePairsExcluded` counts what the figures left out. */
+  var crossPairs = pairs.filter(function (p) {
+    return !p.sameNode;
+  });
+  var samePairsExcluded = pairs.length - crossPairs.length;
+  var anyOverlap = crossPairs.some(function (p) {
     return p.overlap;
   });
 
   // ── R3: TRUE overlap geometry, not a sum of pairwise overlaps. ────────────
-  //   overlapUnionMin  = minutes covered by ANY pair (merged union — no double count)
-  //   intersectionMin  = minutes where ALL dated nodes coincide (N-way; 0 if any disjoint)
-  //   pairwiseSumMin    = the OLD (mislabeled) number, kept only for transparency
-  //   nodesExcluded     = dated nodes that overlap nothing (e.g. GlucoDex 66 days off)
+  //   overlapUnionMin      = minutes covered by ANY CROSS-NODE pair (merged union — no double count)
+  //   intersectionMin      = minutes where every dated NODE has coverage (0 below 2 dated nodes)
+  //   intersectionSegments = how many separate stretches those minutes are (1 = one continuous stretch)
+  //   pairwiseSumMin       = the OLD (mislabeled) number, kept only for transparency
+  //   nodesExcluded        = dated nodes that overlap no OTHER node (e.g. GlucoDex 66 days off)
   var ivs = [];
-  pairs.forEach(function (p) {
+  crossPairs.forEach(function (p) {
     if (p.overlap) ivs.push([p.overlap.startMs, p.overlap.endMs]);
   });
   var overlapUnionMs = _mergeMs(ivs);
-  var pairwiseSumMin = pairs.reduce(function (s, p) {
+  var pairwiseSumMin = crossPairs.reduce(function (s, p) {
     return s + (p.overlap ? p.overlap.overlapMin : 0);
   }, 0);
-  // N-way intersection of every dated rec
-  var interStart = /** @type {any} */ (null),
-    interEnd = /** @type {any} */ (null),
-    haveAll = dated.length >= 2;
+  /* Per-NODE coverage first, then the intersection ACROSS nodes. Intersecting the RECORDS published
+     an all-node overlap of 0 for a whole night as soon as one node dropped a second, disjoint record,
+     because the fragment's start sits past the other records' ends: measured 2026-11-12, three nodes
+     that shared 270 min read 0 min all-node once a 31 min next-morning fragment joined two of them.
+     A node's own records are a UNION; only the NODES intersect. Segment-aware through `recSegments`,
+     so a node that declares holes contributes its recorded time (§6.2) and never its envelope.
+     The minutes can be several stretches, so `intersectionSegments` travels beside them — a reader
+     cannot take 301 min for one continuous stretch when it is 270 plus 31 either side of a gap.
+     BOUND, carried over unchanged from the record-wise form: the intersection is taken in wall-clock
+     with no `offsetMin` alignment, so a night whose nodes carry DIFFERENT real zones is outside it. */
+  var byNodeIvs = {},
+    nodeKeys = [],
+    interIncomplete = false;
   dated.forEach(function (r) {
     var w = recWindow(r);
     if (!w) {
-      haveAll = false;
+      interIncomplete = true;
       return;
     }
-    interStart = interStart == null ? w.startMs : Math.max(interStart, w.startMs);
-    interEnd = interEnd == null ? w.endMs : Math.min(interEnd, w.endMs);
+    var segs = recSegments(r) || [[w.startMs, w.endMs]];
+    if (!byNodeIvs[r.node]) {
+      byNodeIvs[r.node] = [];
+      nodeKeys.push(r.node);
+    }
+    for (var si = 0; si < segs.length; si++) byNodeIvs[r.node].push([segs[si][0], segs[si][1]]);
   });
-  var intersectionMin = haveAll && interStart != null && interEnd > interStart ? (interEnd - interStart) / 60000 : 0;
-  // a dated node is "excluded" if it overlaps no other node at all
+  var interIvs = null;
+  if (!interIncomplete && nodeKeys.length >= 2) {
+    interIvs = _mergeIvs(byNodeIvs[nodeKeys[0]]);
+    for (var nk = 1; nk < nodeKeys.length && interIvs.length; nk++) interIvs = _intersectIvs(interIvs, _mergeIvs(byNodeIvs[nodeKeys[nk]]));
+  }
+  var intersectionMs = 0;
+  if (interIvs) for (var ii = 0; ii < interIvs.length; ii++) intersectionMs += interIvs[ii][1] - interIvs[ii][0];
+  var intersectionMin = intersectionMs / 60000;
+  var intersectionSegments = interIvs ? interIvs.length : 0;
+  // a dated node is "excluded" if it overlaps no OTHER node at all
   var nodesExcluded = dated
     .filter(function (r) {
-      return !pairs.some(function (p) {
+      return !crossPairs.some(function (p) {
         return p.overlap && (p.a === r.label || p.b === r.label);
       });
     })
@@ -15020,7 +15092,9 @@ function runFusion(recs, opts) {
       overlapMin: +(overlapUnionMs / 60000).toFixed(1),
       overlapUnionMin: +(overlapUnionMs / 60000).toFixed(1),
       intersectionMin: +intersectionMin.toFixed(1),
+      intersectionSegments: intersectionSegments,
       pairwiseSumMin: +pairwiseSumMin.toFixed(1),
+      samePairsExcluded: samePairsExcluded,
       nodesExcluded: nodesExcluded
     },
     matchWindow: { leadMaxSec: gate.leadMaxSec, trailMaxSec: gate.trailMaxSec, directionalWindowSec: gate.leadMaxSec + gate.trailMaxSec, unionPrefilterSec: dtMs / 1000 },
@@ -15097,7 +15171,7 @@ function buildFusionExport(recs, fusion) {
         apneaCoupling:
           'apneaCoupling is the EventCoupling shuffled-null verdict for desat⟷surge: circular time-shift surrogates vs a coverage-aware baseline (coverage = the recording overlap, so a desat outside the cardiac window is excluded, not a miss). Read real/lift ONLY when usable (neither underpowered=expectedHits<3 nor saturated=maxLift<1.5). Additive to the Poisson nullModel; does not change reportability (§P7). ⚠️ SCALE STATEMENT (docs/COUPLING-BOUT-FPR-2026-09-20.md, 400 SHHS1 records): the circular-shift null cannot see SHARED MODULATION — two independent streams whose rates are both driven by one process FINER than the ±5–17 min shifts read as coupled, at 30 % of nights at the 5-min bout scale (87.6 % at 90 s, 13 % at 10 min, 4.4 % with none), and real OSA streams are bouted (median Fano 3.73). For desat⟷surge this is mostly moot — both are driven by the same apneas — but a significant lift on a pair whose only link is a shared bout process is the inherited kind about a third of the time. No per-record flag ships: the diagnostic was measured and rejected (AUC ≤ 0.76 vs a pre-registered 0.8).',
         window:
-          'window.overlapMin / overlapUnionMin = merged-union minutes where ≥2 nodes coincide (NOT a sum of pairwise overlaps); intersectionMin = N-way all-node overlap; pairwiseSumMin retained for transparency; nodesExcluded = dated nodes overlapping nothing (R3).',
+          'window.overlapMin / overlapUnionMin = merged-union minutes where ≥2 nodes coincide (NOT a sum of pairwise overlaps); intersectionMin = minutes every dated NODE covers, over intersectionSegments separate stretches; pairwiseSumMin retained for transparency; nodesExcluded = dated nodes overlapping no OTHER node; every figure counts NODES, so samePairsExcluded pairs of one node\u2019s own files are left out (R3).',
         hrvConsensus: 'HRV consensus compares whole-record SDNN/RMSSD/LF-HF across nodes (window-normalized; epoch-scoped variants kept separately); same-window only (R8).',
         periodicBreathing:
           'periodic_breathing = a PB / Cheyne–Stokes window corroborated across ≥2 independent signals (OxyDex SpO₂ oscillation · CPAPDex device flow · ECGDex cardiac CVHR), grouped by night-overlap; conf is the tier-weighted noisy-OR (device 1.0 · CVHR 0.8 · oximetry proxy 0.6). Graded experimental — a corroboration signal, not a scored CSR index (§2). `dissenters` names every node that SCORED this phenomenon over the same night and found none of it (`periodicBreathingPct` 0, no episodes); a dissenter is never an observer, so it moves no confidence and no count, and `coversFirstEpisode` says whether its coverage even included the earliest episode — false means its zero cannot refute the finding.'
@@ -15115,7 +15189,13 @@ function buildFusionExport(recs, fusion) {
       overlapMin: fusion.window.overlapMin,
       overlapUnionMin: fusion.window.overlapUnionMin,
       intersectionMin: fusion.window.intersectionMin,
+      /* The projection is HAND-PICKED, so a figure the fusion computes reaches no consumer until it is
+         named here. Both of these qualify the number beside them: a reader who sees 301 all-node
+         minutes and cannot see `intersectionSegments: 2` takes a figure either side of a gap for one
+         continuous stretch, and that is the misreading this block exists to stop. */
+      intersectionSegments: fusion.window.intersectionSegments,
       pairwiseSumMin: fusion.window.pairwiseSumMin,
+      samePairsExcluded: fusion.window.samePairsExcluded,
       nodesExcluded: fusion.window.nodesExcluded
     },
     matchWindow: fusion.matchWindow,
@@ -18220,12 +18300,17 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
     if (fusion.anyOverlap) {
       var w = fusion.window,
         ov = w.overlapMin;
+      /* NODE-LEVEL OVERLAP — the guard counted RECORDS, so three recordings of two nodes (one of
+         them a next-morning fragment) printed an "all-node" figure that two nodes had produced.
+         Count the distinct dated nodes, and say how many stretches the minutes are: 301 min over
+         two stretches either side of a gap is not 301 continuous minutes. */
+      var datedNodeSet = {};
+      dated.forEach(function (n) {
+        datedNodeSet[n.node] = 1;
+      });
       var geom =
-        w.intersectionMin > 0 &&
-        fusion.nodes.filter(function (n) {
-          return !n.dateUnknown;
-        }).length > 2
-          ? ' · ' + w.intersectionMin.toFixed(0) + ' min all-node'
+        w.intersectionMin > 0 && Object.keys(datedNodeSet).length > 2
+          ? ' · ' + w.intersectionMin.toFixed(0) + ' min all-node' + (w.intersectionSegments > 1 ? ' over ' + w.intersectionSegments + ' stretches' : '')
           : '';
       var excl =
         w.nodesExcluded && w.nodesExcluded.length
@@ -18428,7 +18513,8 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
     // in an overlap, then fill by event count.
     var overlapUids = {};
     (fusion.pairs || []).forEach(function (p) {
-      if (p.overlap) {
+      // `sameNode` is one node's own two files: evidence, never an overlap between nodes.
+      if (p.overlap && !p.sameNode) {
         overlapUids[p.an + '|' + p.aWin.startMs] = 1;
       }
     });
@@ -18440,7 +18526,7 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
         return (
           w &&
           (fusion.pairs || []).some(function (p) {
-            return p.overlap && ((p.aWin && p.aWin.startMs === w.startMs) || (p.bWin && p.bWin.startMs === w.startMs));
+            return p.overlap && !p.sameNode && ((p.aWin && p.aWin.startMs === w.startMs) || (p.bWin && p.bWin.startMs === w.startMs));
           })
         );
       });
@@ -18506,9 +18592,10 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
       svg += '<text x="' + gx.toFixed(1) + '" y="' + (H - axisH + 18) + '" class="tl-axis-lbl" text-anchor="middle">' + D.fmtClock(g) + '</text>';
     }
 
-    // overlap shading (union of pairwise overlaps)
+    // overlap shading (union of pairwise CROSS-NODE overlaps — one node's own two files share
+    // no timeline with anything, so shading them would draw corroboration that is not there)
     (fusion.pairs || []).forEach(function (p) {
-      if (!p.overlap) return;
+      if (!p.overlap || p.sameNode) return;
       var ox = X(p.overlap.startMs),
         ow = X(p.overlap.endMs) - ox;
       svg += '<rect x="' + ox.toFixed(1) + '" y="' + padT + '" width="' + Math.max(ow, 1).toFixed(1) + '" height="' + (H - axisH - padT) + '" fill="rgba(61,224,208,.045)"/>';
@@ -19208,11 +19295,11 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
           bw +
           '</b></div>' +
           '<div class="pair-ov ' +
-          (ov ? 'ok' : 'no') +
+          (ov && !p.sameNode ? 'ok' : 'no') +
           '"><span>' +
           mrBadge('measured', "Overlap of the two recordings' windows on the shared clock — a counted quantity.") +
           'Overlap</span><b class="mono">' +
-          (ov ? ov.overlapMin.toFixed(0) + ' min' + (ov.basis === 'utc-instant' ? ' · UTC-aligned' : '') : 'none') +
+          (ov ? ov.overlapMin.toFixed(0) + ' min' + (p.sameNode ? ' · one node, two files' : '') + (ov.basis === 'utc-instant' ? ' · UTC-aligned' : '') : 'none') +
           '</b></div></div>' +
           '</div>'
         );
