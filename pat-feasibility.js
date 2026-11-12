@@ -850,7 +850,22 @@
     var vc = el('focusVerdict');
     if (!vc) return;
     vc.className = 'verdict' + (tier ? ' ' + tier : '');
-    vc.innerHTML = '<div class="vlabel" style="color:' + (tier === 'no' ? C.red : C.mut) + '">' + escHtml(label) + '</div>' + (detail ? '<div class="muted">' + escHtml(detail) + '</div>' : '');
+    /* BUILT AS NODES, NOT MARKUP. `escHtml` is a node-local alias, and `tools/xss-sink-gate.mjs`
+       cannot follow an aliased escaper into a sink — its own LIMITS paragraph says so — so an added
+       `innerHTML` here reads as a violation however carefully it escapes. A text node carries no
+       markup at all, which is the stronger claim and needs no entry in that gate's ALLOW table. */
+    vc.textContent = '';
+    var lab = document.createElement('div');
+    lab.className = 'vlabel';
+    lab.style.color = tier === 'no' ? C.red : C.mut;
+    lab.textContent = label;
+    vc.appendChild(lab);
+    if (detail) {
+      var dt = document.createElement('div');
+      dt.className = 'muted';
+      dt.textContent = detail;
+      vc.appendChild(dt);
+    }
   }
 
   // ── focused single-night detail (scatter + hist) ───────────────────────────
@@ -878,7 +893,13 @@
       setStatus('done', 'done');
       if (m.error) {
         setFocusState('no', 'night ' + k + ' did not render', m.error);
-        el('focusHead').innerHTML = '<div class="muted" style="color:' + C.red + '">' + escHtml(m.error) + '</div>';
+        var fh = el('focusHead');
+        fh.textContent = '';
+        var fe = document.createElement('div');
+        fe.className = 'muted';
+        fe.style.color = C.red;
+        fe.textContent = m.error;
+        fh.appendChild(fe);
         return;
       }
       renderFocus(m);
