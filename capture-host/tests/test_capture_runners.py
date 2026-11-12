@@ -8277,6 +8277,49 @@ def test_run_oxyii_absent_ring_does_not_claim_an_unflushed_arrival_tail(tmp_path
     )
 
 
+def test_run_oxyii_journals_each_attempt_into_the_folder_of_its_own_day(tmp_path, monkeypatch):
+    """MEASURED on the capture box 2026-11-11: the night of 2026-11-10 ended at 04:56, and at 10:53 the
+    ring's connect attempts still appended rows to that night's OXYLIFE.csv. The writer opened once per
+    run. An attempt on the next day now writes into the next day's folder."""
+    import datetime as _dt
+
+    from bleak.exc import BleakDeviceNotFoundError
+
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
+
+    def _boom(addr, *a, **k):
+        raise BleakDeviceNotFoundError("O2Ring not advertising")
+
+    monkeypatch.setattr(capture, "_connect_scan", _boom)
+    calls = _stop_after(monkeypatch, 4)
+    days = [_dt.datetime(2026, 11, 10, 23, 59), _dt.datetime(2026, 11, 11, 10, 53)]
+    monkeypatch.setattr(capture, "_now", lambda: days[min(calls["n"], 1)])
+    _run(capture.run_oxyii(_o2dev(name="RingDay"), str(tmp_path)))
+    cap = tmp_path / "captures"
+
+    def attempts(day):
+        p = cap / day / "OXYLIFE.csv"
+        return [ln for ln in p.read_text().splitlines() if ";connecting;scan + connect;" in ln] if p.exists() else []
+
+    first, later = attempts("2026-11-10"), attempts("2026-11-11")
+    assert len(first) == 1, f"the first day holds only its own attempt: {first}"
+    assert len(later) >= 1, "the next day's attempts land in the next day's folder"
+
+
+def test_oxylife_writer_for_keeps_the_writer_while_the_folder_holds_and_moves_it_after(tmp_path):
+    a, b = str(tmp_path / "a.csv"), str(tmp_path / "b.csv")
+    w = capture.oxylife_writer_for(None, a, "Ring")
+    assert w.path == a
+    assert capture.oxylife_writer_for(w, a, "Ring") is w, "the same folder keeps the same writer"
+    w2 = capture.oxylife_writer_for(w, b, "Ring")
+    assert w2.path == b and w2 is not w
+    assert w._fh.closed, "the old file closes when the writer moves"
+    w2.close()
+    assert open(a).read().startswith("# device=Ring\n")
+
+
 def test_run_oxyii_still_warns_when_a_real_arrival_close_fails(tmp_path, monkeypatch, caplog):
     """The guard is not being removed: a writer that WAS opened and fails to close still warns,
     because that message describes a real unflushed tail."""

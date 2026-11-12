@@ -21374,6 +21374,13 @@
       T.ok('the card source is readable in this lane', !!card, card ? card.length + ' bytes' : 'sensor-trio-night.js not in env.sources — list it in BOTH lanes');
       if (!twin || !card) return;
 
+      /* ── the night-list row leads with the SAME σ as the corner cards ─────────────────────────────── */
+      var rowAt = card.indexOf("rc.innerHTML = evb(useMeas ? 'refNight' : 'hat')");
+      var rowSlice = rowAt < 0 ? '' : card.slice(card.lastIndexOf('if (rc) {', rowAt), card.indexOf('rc.style.color', rowAt));
+      T.ok('the row badge follows the measured-vs-hat branch', rowAt >= 0, 'the night-list row printed the hat badge on every night, while the cards led with the measured σ');
+      T.ok('the row reads the beat reference through refOf, as hero() does', /refOf\(real\)/.test(rowSlice), 'the row must choose its σ from the same reference the cards read');
+      T.ok('the row prints σ̂ for the hat and σ only for the measured value', /useMeas \? 'σ ' : 'σ̂ '/.test(rowSlice), 'a hat estimate under a plain "σ" reads as a measurement');
+
       /* ── the twin is a generated DATA file ───────────────────────────────────────────────────────── */
       T.ok(
         'the twin says what generated it and that it must not be edited',

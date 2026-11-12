@@ -143,7 +143,7 @@ export const STEPS = [
   'verify:manifest-logic',
   'verify:fixture-currency',
   'verify:check-dex-logic',
-  'verify:browser-gate-logic',
+  'verify:browser-gate-selftest',
   'test:hooks'
 ];
 
@@ -157,10 +157,14 @@ export const STEPS = [
    A gate script is one the suite entry point owns: the `verify:` family plus `build:check`. The
    other families are deliberately outside this runner — `test:` steps appear in STEPS by their own
    names, and `gates:browser`, `pseudo:check` or `release` are not part of the unattended gate.
-   `verify:browser-gate-logic` IS: it runs `tests/browser-gates.mjs --selftest`, which launches no
-   browser and needs no server, so the browser gate's own decision logic — its verdict aggregation
+   `verify:browser-gate-selftest` IS: it runs `tests/browser-gates.mjs --selftest`, which launches
+   no browser and needs no server, so the browser gate's own decision logic — its verdict aggregation
    and its skip budget — is judged here while the lane itself stays a CI job. Nothing ran that
    selftest before 2026-11-10, so the budget it guards would have been a number nobody tested.
+   The step carried the name `verify:browser-gate-logic` until 2026-11-12. Three sessions read that
+   name inside a green step list and heard browser coverage in one night, so `-selftest` now says
+   in the name what the step judges. A green round here still proves nothing about the browser
+   realm; only the `browser-gates` CI job or `npm run gates:browser:local` reaches it.
    An omission that is DELIBERATE goes in STEPS_EXEMPT with its reason written here. The set is
    empty today, because every declared gate script is in STEPS. A count stood here and no gate read
    it, so two diffs in one day each corrected it by one and it still went stale:

@@ -364,8 +364,12 @@ def test_the_poller_alerts_once_per_night_held_open_by_a_lone_writer(tmp_path, m
     assert len(sent) == 1, f"one alert per night, not one per tick: {sent}"
     assert sent[0][0] == "Tepna: a finished night is held open"
     assert "2026-10-28" in sent[0][1] and "14.0 h" in sent[0][1]
+    assert "s ago: OXYLIFE.csv." in sent[0][1], "the alert names the writer"
     assert capture.STATUS["archive"]["stalled_protection"][0]["night"] == "2026-10-28"
-    assert any("held active by a lone writer" in r.getMessage() for r in caplog.records)
+    assert capture.STATUS["archive"]["stalled_protection"][0]["writers"] == ["OXYLIFE.csv"]
+    assert any(
+        "held active by a lone writer" in r.getMessage() and "(OXYLIFE.csv)" in r.getMessage() for r in caplog.records
+    )
 
 
 def test_the_poller_reports_a_stall_with_no_notifier_configured(tmp_path, monkeypatch, caplog):
