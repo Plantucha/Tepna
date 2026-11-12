@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**341 tools** · 340 with a purpose line · **1 without**
+**342 tools** · 341 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -273,6 +273,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`residue-cite-drift.mjs`](../tools/residue-cite-drift.mjs) | WHICH RESIDUE ROWS CITE A LINE THAT HAS MOVED — residue `2026-09-20-ledger-line-citations-rot`. |
 | [`residue-ids.mjs`](../tools/residue-ids.mjs) | the CROSS-TREE half of the residue ledger's id contract. WHY THIS EXISTS. |
 | [`residue-merge.mjs`](../tools/residue-merge.mjs) | residue-merge — a git merge driver for `briefs/RESIDUE.md` that APPENDS like `union` and REFUSES to duplicate a row id. |
+| [`residue-path-leads.mjs`](../tools/residue-path-leads.mjs) | WHICH MERGED FIX ALREADY TOUCHED THE LINE AN OPEN ROW CITES. |
 | [`residue-promises.mjs`](../tools/residue-promises.mjs) | WHICH DECLARED CLOSURES THE WALKER CAN NO LONGER READ. A merged fix closes its own residue row by declaring it on a `Residue-fixed: <key>` line in the PR body, and the walker writes the… |
 | [`resp-acc-headless.mjs`](../tools/resp-acc-headless.mjs) | Drive `resp-acc-analysis.html` THROUGH ITS OWN UI, headlessly, against a real corpus. |
 | [`resp-cardiac-suppression-e8.mjs`](../tools/resp-cardiac-suppression-e8.mjs) | MOTIONDEX-RESPIRATORY-RATE-FOLLOWUPS §8 §8 names cardiac suppression as "the highest-value untried improvement": an adaptive notch at the measured f_HR and 2f_HR on the H10's… |

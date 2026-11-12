@@ -63,6 +63,8 @@ import { MOTIONUI } from './motiondex-render.js';
     return kind; // gyro / mag (Verity only)
   }
 
+  /* `onerror` resolves `null`, never `''` — an unreadable file and an empty one are DIFFERENT
+     absences, and the status line names each by its own reason rather than a borrowed one (§∅). */
   function readText(file) {
     return new Promise(function (resolve) {
       var fr = new FileReader();
@@ -70,37 +72,76 @@ import { MOTIONUI } from './motiondex-render.js';
         resolve(String(fr.result || ''));
       };
       fr.onerror = function () {
-        resolve('');
+        resolve(null);
       };
       fr.readAsText(file);
     });
+  }
+
+  /* RESIDUE `2026-11-11-motiondex-drops-accraw-silently` — a dropped file this node could not place
+     left the status line with no word: the vigil audit of night 2026-11-04 handed MotionDex 4 files
+     and read `3 file(s)`. The O2Ring's `_ACCRAW.txt` is the measured case — `streamKindFromName` nulls
+     it (`_(ACC|GYRO|MAGN?|MAG)\b` cannot match `_ACCRAW`: no boundary before RAW) and it IS a different
+     stream from the Polar IMU this node reads. §∅ binds the REPORT as well as the value, so every file
+     that fed no slot is named with its own reason, in the `set aside` vocabulary ECGDex and PpgDex
+     already use. */
+  function asideReason(name, slot, txt) {
+    if (!slot) {
+      if (/_ACCRAW\b|_ACCRAW\./i.test(name)) return 'the O2Ring `_ACCRAW` raw accelerometer stream — no Dex node reads it yet';
+      return 'no ACC / GYRO / MAGN stream in the name';
+    }
+    if (txt === null) return 'the file could not be read';
+    return 'the file holds no bytes';
+  }
+
+  function asideList(aside) {
+    return aside
+      .map(function (a) {
+        return a.name + ' (' + a.why + ')';
+      })
+      .join('; ');
   }
 
   function ingestFiles(fileList) {
     var files = Array.prototype.slice.call(fileList || []);
     if (!files.length) return;
     var input = {},
-      names = [];
+      names = [],
+      aside = [];
     Promise.all(
       files.map(function (f) {
         var slot = slotFor(f.name);
         return readText(f).then(function (txt) {
-          if (slot && txt) {
-            input[slot] = txt;
-            names.push(f.name);
-          }
+          return { name: f.name, slot: slot, txt: txt };
         });
       })
-    ).then(function () {
+    ).then(function (read) {
+      /* Placed in DROP order, which `Promise.all` preserves in its resolved array. Each per-file
+         `.then` used to place its own slot in READ-COMPLETION order, so two parts for one slot
+         overwrote each other by whichever read finished last, and the loser stayed counted in the
+         status line. The first file in the drop wins the slot now, and a later one is set aside. */
+      read.forEach(function (r) {
+        if (!r.slot || !r.txt) {
+          aside.push({ name: r.name, why: asideReason(r.name, r.slot, r.txt) });
+          return;
+        }
+        if (Object.prototype.hasOwnProperty.call(input, r.slot)) {
+          aside.push({ name: r.name, why: 'a second file for the `' + r.slot + '` slot — the first one in the drop is read' });
+          return;
+        }
+        input[r.slot] = r.txt;
+        names.push(r.name);
+      });
+      var asideNote = aside.length ? ' · set aside ' + aside.length + ': ' + asideList(aside) : '';
       if (!Object.keys(input).length) {
         MOTIONUI.renderSummary(null);
-        setStatus('No ACC / GYRO / MAGN streams recognised in the dropped files.');
+        setStatus('No ACC / GYRO / MAGN stream read from ' + files.length + ' dropped file(s) — set aside ' + asideList(aside));
         return;
       }
       RESULT = MOTIONDSP.compute(input);
       keepSession(RESULT);
       MOTIONUI.renderSummary(RESULT);
-      setStatus(names.length + ' file(s): ' + names.join(', ') + sessionNote());
+      setStatus(names.length + ' of ' + files.length + ' file(s): ' + names.join(', ') + asideNote + sessionNote());
       setExportReady(true);
     });
   }

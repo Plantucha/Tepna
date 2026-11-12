@@ -52127,6 +52127,20 @@
       );
       var src = env.sources || {};
       if (src['motiondex-app.js']) T.ok('motiondex-app · routes `_ACCRUNS` to its ACC runs slot', /_ACCRUNS/.test(src['motiondex-app.js']) && /chestAccRuns/.test(src['motiondex-app.js']));
+      /* RESIDUE `2026-11-11-motiondex-drops-accraw-silently` — the same silence one file further
+         out. A dropped file that fed NO slot left the status line with no word at all: the vigil audit
+         of night 2026-11-04 handed this node 4 files and read `3 file(s)`. The O2Ring's `_ACCRAW` is
+         the measured case, and the two controls below say why that file reaches the set-aside path
+         while the Polar `_ACC` beside it does not. */
+      T.eq('control · `_ACCRAW` carries no IMU stream kind, so the drop lane can place no slot for it', M.streamKindFromName('Wellue_O2Ring_20260617010000_ACCRAW.txt'), null);
+      T.eq('control · the Polar `_ACC` in the same drop still reads as the ACC stream', M.streamKindFromName('Polar_Verity_Sense_20260617_010000_ACC.txt'), 'acc');
+      if (src['motiondex-app.js']) {
+        var mxApp = src['motiondex-app.js'];
+        T.ok('motiondex-app · a file that fed no slot is NAMED with its own reason, never dropped', /function asideReason\(/.test(mxApp) && /_ACCRAW/.test(mxApp));
+        T.ok('motiondex-app · …and the status line carries the set-aside files beside the read ones', /set aside/.test(mxApp) && /asideNote/.test(mxApp));
+        T.ok('motiondex-app · an unreadable file resolves `null`, so it never reports as an EMPTY one', /onerror[\s\S]{0,80}resolve\(null\)/.test(mxApp));
+        T.ok('motiondex-app · two files for one slot place in DROP order, and the loser is set aside', /hasOwnProperty\.call\(input, r\.slot\)/.test(mxApp));
+      }
     });
     /* ════ SEAM-SIDECAR-CONSUMPTION §4 · THE PPG LEG (2026-11-06, residue row
        `2026-11-05-four-clock-carrying-nodes-still-read-no-seam-sidecar`) ════════════════════════

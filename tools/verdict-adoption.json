@@ -2661,6 +2661,18 @@
    },
    "note": "the residue-pickup verdict (row 2026-10-20-the-primary-checkouts-ledger-read-is-eleven-commits-stale). --open reads the ledger from origin/main rather than from the working tree, and compares every row's state against the copy on disk. Pre-stated rule: a row whose state differs, or a row the disk copy does not carry at all, is a stale read and FAILs. Population = the rows on the ref, a row only on the ref excluded as unreadable. An unresolvable base refuses with exit 2, and NOT_RUN appears only under --verdict-sample, where there is no ref to resolve"
   },
+  "tools/residue-path-leads.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/residue-path-leads.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the residue path-lead verdict (row 2026-11-11-the-pickup-reader-already-names-an-undeclared-closure, whose unmeasured half this tool discharges). The key read in tools/residue-ids.mjs leads a picker to a merged fix whose MESSAGE names the row key. A fix that names no key leaves no text, so this reader carries none: it asks which merged commit touched the LINES a row cites, after the row was logged. It reads the hunk's OLD side, because the citation describes the file as it stood before the fix, and it reads a backticked bare :NNN as a continuation of the nearest full citation. Measured 2026-11-11: a FILE-level lead gives 346 pairs over 21 rows and one row at 114 PRs, while the cited LINE gives 5 pairs over 3 rows. A LEAD IS A READING ORDER AND NEVER MOVES THE STATUS, so the criterion judges THE READ alone. Criterion pre-stated: a cited path whose history this tool cannot read reds the gate, bounded at 0. Population = the OPEN rows citing a tracked code path with a line, the other OPEN rows excluded; briefs and changesets are dropped, because a brief edit is not a fix. No OPEN row citing a code line is NOT_APPLICABLE with result null, and a ref it cannot read is NOT_RUN at exit 2. The sample FAILs over the plants, which carry one unreadable path on purpose."
+  },
   "tools/residue-promises.mjs": {
    "bin": "decides",
    "status": "adopted",
