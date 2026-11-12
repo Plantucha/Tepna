@@ -2578,6 +2578,18 @@
    },
    "note": "UNKNOWN BY DESIGN via tools/verdict-undeclared.mjs \u2014 no band was ever pre-stated and the numbers are on record, so a threshold derived from the data it judges is UNKNOWN, not PASS (VERDICT-CONTRACT \u00a71); PPG\u2212vendor pulse Bland\u2013Altman (bias/SD/LoA, per-night medians) rides in result. Route to a decided status: a band pre-stated in a brief BEFORE the next run on unseen records (RESIDUE 2026-09-22-bandless-analysis-tools-emit-unknown)"
   },
+  "tools/read-ref-drift.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/read-ref-drift.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "holds the paths a code census read against the ref, and names the censused checkout's distance from the ref beside the answer. Residue 2026-11-12-a-code-census-in-the-root-checkout-reads-a-dead-tree: the guard set holds a ledger read and a brief edit to origin/main and holds a code read to nothing, so git grep in a long-lived checkout returns a well-formed answer about a tree nobody advances, with no line saying the tree is old. Measured 2026-11-12 on the primary checkout at 85 commits behind: 1 of the 4 paths a five-tool census read was drifted. population = the censused paths; a path whose comparison did not complete is unreadable and EXCLUDED rather than defaulted into current, because they match and I could not look are opposite answers; an unresolvable ref examines nothing and is NOT_RUN rather than reading every path as local-only and passing; a measured drift is FAIL and outranks the absence; behind NEVER decides the status, because the criterion is the FILE and a checkout 85 commits behind holds a census that is exactly right when those commits touch none of its paths. The contract refuses a reason on a PASS, so the distance sentence rides result.distance on every status."
+  },
   "tools/reanchor-equivalence.mjs": {
    "bin": "decides",
    "status": "adopted",

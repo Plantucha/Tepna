@@ -17,6 +17,7 @@
     }
    },
    "exempt": {
+    "tools/read-ref-drift.mjs": "both write calls sit in its selftest, which builds a two-clone git fixture under mkdtemp and removes it; the tool writes no tracked artifact, writes nothing under any checkout, and calls no write wrapper",
     "tools/write-root-adoption.mjs": "its selftests plant both shapes as fixture strings, so the write regexes read its own test data; it writes no tracked artifact and calls no write wrapper"
    },
    "pending": [
