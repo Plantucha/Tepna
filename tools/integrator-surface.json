@@ -96,6 +96,36 @@
     "contributions": "no anchored read, matching the top-level `confirmedApneaIndexContributions` note.",
     "consequence": "no anchored read; it is also the one key the two return shapes disagree on."
    }
+  },
+  "clockSkew": {
+   "inline": true,
+   "readerFile": "integrator-app.js",
+   "aliasPath": "FUSION.clockSkew",
+   "enumeratedWith": "The inline `clockSkew: {` literal at the fusion publish site in integrator-dsp.js (line 7968 on 2026-11-12), read in blanked code by `inlineShape`. This subtree has NO builder function, so there is no second return shape to union — the one literal is the whole key list.",
+   "readAs": "integrator-app.js binds `var cs = FUSION && FUSION.clockSkew` and reads `cs.<key>` inside that scope. `skewSilenceLines(cs)` takes the same object one hop on, and the gate credits that single forwarding hop and refuses a second.",
+   "seededFrom": "Hand-checked key by key against integrator-app.js and integrator-render.js on 2026-11-12. integrator-render.js mentions `clockSkew` zero times, so this subtree’s whole reader surface sits in the app layer, which is why the declaration names its own readerFile.",
+   "nullWhen": "Never. The block ships on every fusion so a consumer can tell \"checked, clean\" from \"never checked\" (CROSS-DEVICE-CLOCK-SKEW §3.1 at the publish site).",
+   "partialShape": {
+    "vetoes": "`vetoes: skew.vetoes && skew.vetoes.length ? skew.vetoes : undefined` — the key leaves the export when the pass refused nothing, which D17 accepts because a refusal names itself. `seamCensus` beside it ships even empty, under the owner ruling against silent absence."
+   },
+   "surfaces": {
+    "findings": "card",
+    "applied": "export-only",
+    "pairs": "export-only",
+    "fits": "card",
+    "beatCheck": "export-only",
+    "seamCensus": "card",
+    "vetoes": "card"
+   },
+   "notes": {
+    "findings": "card — integrator-app.js:89-90 drives the permanent skew banner from it, and :65 reads it through the forwarded hop to decide whether the silence line is owed.",
+    "applied": "export-only — no read in the app or the render layer. The banner states the realignment from the finding, not from this key. tests/dex-tests.js:13678 asserts it, so the export carries the evidence a node-export consumer needs.",
+    "pairs": "export-only — the raw per-pair evidence behind a finding, carried for an offline reader and never drawn.",
+    "fits": "card — integrator-app.js:116 refines the banner to seconds per node, with the spread and the z beside it.",
+    "beatCheck": "export-only — wired into a consumed block rather than deleted, per the publish-site comment; no reader branches on it today.",
+    "seamCensus": "card — integrator-app.js:46 reads it through the forwarded hop and reports every UNKNOWN channel by the node’s own reason token.",
+    "vetoes": "card — integrator-app.js:36 reads it through the forwarded hop and prints one reader-ready line per refused recording."
+   }
   }
  }
 }

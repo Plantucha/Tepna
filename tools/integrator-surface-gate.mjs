@@ -207,19 +207,86 @@ export function nestedShapes(dspText, fnName) {
   return { shapes, union, partial: union.filter((k) => !shapes.every((s) => s.keys.includes(k))) };
 }
 
-/** The enclosing function of a line, in BLANKED code lines. Null when it does not contain the line. */
-function enclosingFn(cl, i) {
-  let open = -1;
-  for (let j = i; j >= 0; j--)
-    if (/function\s*[A-Za-z_$][A-Za-z0-9_$]*\s*\([^)]*\)\s*\{\s*$/.test(cl[j]) || /function\s*\([^)]*\)\s*\{\s*$/.test(cl[j])) {
-      open = j;
+/* 🔴 THE SECOND SUBTREE NEEDED THREE MECHANISMS THE FIRST ONE DID NOT. `fusion.clockSkew` is an
+   inline literal with no builder (`inlineShape`), its whole reader surface sits in
+   `integrator-app.js` rather than in the render file (`readerFile`), and the app binds it behind a
+   `&&` guard and then hands it to a helper one scope on (`forwardedSites`, one hop only). It also
+   found a defect in the FIRST subtree's reader: `enclosingFn` took the nearest function header
+   above a line, and a callback that had already closed made the binding read as unscoped.
+
+/* 🔴 A SUBTREE NEED NOT HAVE A BUILDER. `fusion.clockSkew` is an inline object literal AT the
+   publish site, so `nestedShapes` has no function to read. This reads the literal itself, in
+   BLANKED code, and refuses on three states rather than guessing: no anchor line (the shape
+   moved), more than one anchor (ambiguous), or a literal that does not close.
+
+   🔴 AND PRESENCE IS CONDITIONAL HERE FOR A SECOND REASON. One literal carries one key list, so
+   no key can be missing from "some return shape". A key whose VALUE can be `undefined` is the
+   same defect wearing different clothes: `vetoes: skew.vetoes && skew.vetoes.length ?
+   skew.vetoes : undefined` leaves the export entirely when nothing was refused, while
+   `seamCensus: skew.seamCensus || []` ships even empty. So `partial` here means "can evaluate to
+   `undefined`", and `partialKind` names which mechanism produced it. `null` is NOT in that set —
+   a null is a value a consumer can read, which is the whole of §∅. */
+export function inlineShape(dspText, key) {
+  const lines = prepare(dspText).code.split('\n');
+  const anchor = new RegExp('^\\s*' + escapeRe(key) + ':\\s*\\{\\s*$');
+  const at = [];
+  lines.forEach((l, i) => {
+    if (anchor.test(l)) at.push(i);
+  });
+  if (at.length !== 1) return null;
+  const start = at[0];
+  let d = 0;
+  let end = -1;
+  for (let j = start; j < lines.length; j++) {
+    d += (lines[j].match(/[{[]/g) || []).length - (lines[j].match(/[}\]]/g) || []).length;
+    if (j > start && d <= 0) {
+      end = j;
       break;
     }
-  if (open < 0) return null;
-  let d = 0;
-  for (let j = open; j < cl.length; j++) {
-    d += (cl[j].match(/\{/g) || []).length - (cl[j].match(/\}/g) || []).length;
-    if (j > open && d <= 0) return j >= i ? [open, j] : null;
+  }
+  if (end < 0) return null;
+  const keys = [];
+  const values = {};
+  let dd = 0;
+  let cur = null;
+  for (let j = start; j <= end; j++) {
+    if (j > start && dd === 1) {
+      const m = lines[j].match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*:(.*)$/);
+      if (m) {
+        cur = m[1];
+        keys.push(cur);
+        values[cur] = m[2];
+      } else if (cur) values[cur] += '\n' + lines[j];
+    } else if (cur && j > start) values[cur] += '\n' + lines[j];
+    dd += (lines[j].match(/[{[]/g) || []).length - (lines[j].match(/[}\]]/g) || []).length;
+  }
+  if (!keys.length) return null;
+  const union = [...new Set(keys)].sort();
+  return {
+    shapes: [{ at: start + 1, keys }],
+    union,
+    partial: union.filter((k) => /\bundefined\b/.test(values[k] || '')),
+    partialKind: 'undefined-value'
+  };
+}
+
+/* 🔴 THE NEAREST HEADER IS NOT THE ENCLOSING ONE. `integrator-app.js:88` binds the skew subtree
+   nine lines under a `forEach(function (m) {` callback that closed at :82, and a scan that stopped
+   at the first header above reported the site UNSCOPED and credited nothing. So walk every header
+   upward and take the first whose brace span CONTAINS the line, which is the tightest real scope.
+   Null still means no enclosing function contains it, and the caller then refuses the site. */
+/** The enclosing function of a line, in BLANKED code lines. Null when none contains the line. */
+function enclosingFn(cl, i) {
+  for (let j = i; j >= 0; j--) {
+    if (!/function\s*[A-Za-z_$][A-Za-z0-9_$]*\s*\([^)]*\)\s*\{\s*$/.test(cl[j]) && !/function\s*\([^)]*\)\s*\{\s*$/.test(cl[j])) continue;
+    let d = 0;
+    for (let k = j; k < cl.length; k++) {
+      d += (cl[k].match(/\{/g) || []).length - (cl[k].match(/\}/g) || []).length;
+      if (k > j && d <= 0) {
+        if (k >= i) return [j, k];
+        break;
+      }
+    }
   }
   return null;
 }
@@ -231,7 +298,10 @@ function enclosingFn(cl, i) {
 export function aliasSites(renderText, path) {
   const { code, by } = prepare(renderText);
   const cl = code.split('\n');
-  const bind = new RegExp('\\b([A-Za-z_$][A-Za-z0-9_$]*)\\s*=\\s*' + escapeRe(path) + '(?![A-Za-z0-9_$])');
+  /* A GUARD IN FRONT OF THE PATH IS STILL A BINDING: `var cs = FUSION && FUSION.clockSkew`.
+     The guard makes the alias possibly falsy, which a reader handles, and it does not change WHICH
+     object the alias names. */
+  const bind = new RegExp('\\b([A-Za-z_$][A-Za-z0-9_$]*)\\s*=\\s*(?:[A-Za-z_$][A-Za-z0-9_$.]*\\s*&&\\s*)*' + escapeRe(path) + '(?![A-Za-z0-9_$])');
   const sites = [];
   const unresolved = [];
   cl.forEach((l, i) => {
@@ -248,24 +318,77 @@ export function aliasSites(renderText, path) {
        parameter test reads only the two forms that bind one: `function …(…)` and `(…) =>`. An
        `if (a) {` is neither, and a test that cannot tell it from a parameter list reports every
        site shadowed and credits nothing — measured on this very subtree while writing this. */
-    const rebind = new RegExp('\\b' + escapeRe(alias) + '\\s*=(?![=>])');
-    const tok = new RegExp('(^|[,(\\s])' + escapeRe(alias) + '($|[,)\\s=])');
-    for (let j = scope[0]; j <= scope[1]; j++) {
-      const line = cl[j] || '';
-      if (bind.test(line)) continue;
-      if (rebind.test(line)) {
-        shadows.push(j + 1);
-        continue;
-      }
-      const params = [];
-      for (const m of line.matchAll(/function\s*[A-Za-z0-9_$]*\s*\(([^)]*)\)/g)) params.push(m[1]);
-      for (const m of line.matchAll(/\(([^)]*)\)\s*=>/g)) params.push(m[1]);
-      for (const m of line.matchAll(/(^|[^A-Za-z0-9_$.])([A-Za-z_$][A-Za-z0-9_$]*)\s*=>/g)) params.push(m[2]);
-      if (params.some((ps) => tok.test(ps))) shadows.push(j + 1);
-    }
+    shadows.push(...shadowScan(cl, alias, scope[0], scope[1], (line) => bind.test(line)));
     sites.push({ line: i + 1, alias, from: scope[0], to: scope[1], shadows });
   });
   return { sites, unresolved, blankedBy: by };
+}
+
+/** Lines in a scope that REBIND the alias, or bind it as a parameter. `skip` exempts the binding. */
+function shadowScan(cl, alias, from, to, skip) {
+  const out = [];
+  const rebind = new RegExp('\\b' + escapeRe(alias) + '\\s*=(?![=>])');
+  const tok = new RegExp('(^|[,(\\s])' + escapeRe(alias) + '($|[,)\\s=])');
+  for (let j = from; j <= to; j++) {
+    const line = cl[j] || '';
+    if (skip(line, j)) continue;
+    if (rebind.test(line)) {
+      out.push(j + 1);
+      continue;
+    }
+    const params = [];
+    for (const m of line.matchAll(/function\s*[A-Za-z0-9_$]*\s*\(([^)]*)\)/g)) params.push(m[1]);
+    for (const m of line.matchAll(/\(([^)]*)\)\s*=>/g)) params.push(m[1]);
+    for (const m of line.matchAll(/(^|[^A-Za-z0-9_$.])([A-Za-z_$][A-Za-z0-9_$]*)\s*=>/g)) params.push(m[2]);
+    if (params.some((ps) => tok.test(ps))) out.push(j + 1);
+  }
+  return out;
+}
+
+/* 🔴 A SUBTREE HANDED TO A HELPER IS STILL A READ OF THAT SUBTREE. `integrator-app.js` binds
+   `var cs = FUSION && FUSION.clockSkew` and then calls `skewSilenceLines(cs)`, which reads
+   `vetoes` and `seamCensus` one scope away. Without this hop those two keys read as unrendered
+   and the gate would convict correct code.
+
+   ONE HOP, AND THE GATE REFUSES THE REST: a helper whose name resolves to no declaration or to
+   more than one, a parameter list that is not exactly one plain identifier, a head this scanner
+   cannot brace-match, or a hop out of a hop. A second hop makes the credit unbounded, and an
+   unbounded credit is how a declaration stops meaning anything. */
+export function forwardedSites(cl, sites) {
+  const out = [];
+  const seen = new Set();
+  for (const s of sites) {
+    const call = new RegExp('\\b([A-Za-z_$][A-Za-z0-9_$]*)\\s*\\(\\s*' + escapeRe(s.alias) + '\\s*\\)');
+    for (let j = s.from; j <= s.to; j++) {
+      const m = (cl[j] || '').match(call);
+      if (!m) continue;
+      const head = new RegExp('function\\s+' + escapeRe(m[1]) + '\\s*\\(([^)]*)\\)\\s*\\{\\s*$');
+      const hits = [];
+      cl.forEach((l, i) => {
+        if (head.test(l)) hits.push(i);
+      });
+      if (hits.length !== 1) continue;
+      const at = hits[0];
+      const params = (cl[at].match(head)[1] || '')
+        .split(',')
+        .map((x) => x.trim())
+        .filter(Boolean);
+      if (params.length !== 1 || !/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(params[0])) continue;
+      const scope = enclosingFn(cl, at + 1);
+      if (!scope || scope[0] !== at || seen.has(at)) continue;
+      seen.add(at);
+      out.push({
+        line: at + 1,
+        alias: params[0],
+        via: m[1],
+        from: scope[0],
+        to: scope[1],
+        hopFrom: s.line,
+        shadows: shadowScan(cl, params[0], scope[0], scope[1], (_l, k) => k === at)
+      });
+    }
+  }
+  return out;
 }
 
 /** Is `key` read through one of these alias sites, inside that site's own scope. */
@@ -282,10 +405,12 @@ export function readsNested(renderText, sites, key, blanked) {
 
 /** The same red conditions as depth 1, plus the undeclared partial shape, for ONE subtree. */
 export function evaluateNested(subtree, shapes, decl, renderText) {
-  const path = 'fusion.' + subtree;
+  const path = (decl && decl.aliasPath) || 'fusion.' + subtree;
   const blanked = prepare(renderText);
   const found = aliasSites(renderText, path);
-  const usable = found.sites.filter((s) => !s.shadows.length);
+  const direct = found.sites.filter((s) => !s.shadows.length);
+  const forwarded = forwardedSites(blanked.code.split('\n'), direct);
+  const usable = direct.concat(forwarded.filter((f) => !f.shadows.length));
   const surfaces = (decl && decl.surfaces) || {};
   const declaredPartial = (decl && decl.partialShape) || {};
   const union = shapes.union;
@@ -297,14 +422,21 @@ export function evaluateNested(subtree, shapes, decl, renderText) {
   const stale = Object.keys(surfaces).filter((k) => !union.includes(k));
   const undeclaredPartial = shapes.partial.filter((k) => !declaredPartial[k]);
   const stalePartial = Object.keys(declaredPartial).filter((k) => !shapes.partial.includes(k));
-  const noAlias = !usable.length;
+  /* 🔴 A BINDING IS OWED ONLY WHERE A READ MUST BE CREDITED. `fusion.clockSkew` reaches no `card`
+     key in `integrator-render.js`, and a subtree whose every key is `export-only` has nothing to
+     credit — demanding an alias there would red correct code for carrying no reader surface. */
+  const cardDeclared = union.filter((k) => surfaces[k] === 'card');
+  const noAlias = !usable.length && cardDeclared.length > 0;
   return {
     subtree,
     path,
     keys: union,
     shapes: shapes.shapes.map((s) => ({ at: s.at, keys: s.keys.length })),
     partial: shapes.partial,
+    partialKind: shapes.partialKind || 'return-shape',
+    readerFile: (decl && decl.readerFile) || 'integrator-render.js',
     aliasSites: found.sites.map((s) => ({ line: s.line, alias: s.alias, shadows: s.shadows })),
+    forwarded: forwarded.map((f) => ({ line: f.line, alias: f.alias, via: f.via, hopFrom: f.hopFrom, shadows: f.shadows })),
     aliasUnresolved: found.unresolved,
     noAlias,
     undeclared,
@@ -322,13 +454,15 @@ export function evaluateNested(subtree, shapes, decl, renderText) {
 /** The reasons, in the order a reader needs them. Empty when the subtree is clean. */
 export function nestedReasons(n) {
   return [
-    n.noAlias ? `no usable binding of \`${n.path}\` survives in integrator-render.js — every alias site is shadowed or unscoped, so no nested read can be credited` : '',
+    n.noAlias ? `no usable binding of \`${n.path}\` survives in ${n.readerFile} — every alias site is shadowed or unscoped, so no nested read can be credited` : '',
     n.undeclared.length ? `${n.undeclared.length} nested key(s) of \`${n.path}\` declare no surface: ${n.undeclared.join(', ')}` : '',
     n.badValue.length ? `${n.badValue.length} nested key(s) declare something other than 'card' or 'export-only': ${n.badValue.join(', ')}` : '',
-    n.cardUnrendered.length ? `${n.cardUnrendered.length} nested key(s) declare 'card' and no anchored read of \`${n.path}\` reaches them: ${n.cardUnrendered.join(', ')}` : '',
+    n.cardUnrendered.length ? `${n.cardUnrendered.length} nested key(s) declare 'card' and no anchored read of \`${n.path}\` in ${n.readerFile} reaches them: ${n.cardUnrendered.join(', ')}` : '',
     n.exportOnlyRead.length ? `${n.exportOnlyRead.length} nested key(s) declare 'export-only' and an anchored read reaches them: ${n.exportOnlyRead.join(', ')}` : '',
-    n.undeclaredPartial.length ? `${n.undeclaredPartial.length} nested key(s) exist on some return shapes only and declare no partialShape reason: ${n.undeclaredPartial.join(', ')}` : '',
-    n.stalePartial.length ? `${n.stalePartial.length} partialShape declaration(s) name a key that every return shape now carries: ${n.stalePartial.join(', ')}` : ''
+    n.undeclaredPartial.length
+      ? `${n.undeclaredPartial.length} nested key(s) ${n.partialKind === 'undefined-value' ? 'can evaluate to `undefined` and leave the export' : 'exist on some return shapes only'}, with no partialShape reason declared: ${n.undeclaredPartial.join(', ')}`
+      : '',
+    n.stalePartial.length ? `${n.stalePartial.length} partialShape declaration(s) name a key whose presence is no longer conditional: ${n.stalePartial.join(', ')}` : ''
   ].filter(Boolean);
 }
 
@@ -373,11 +507,22 @@ function main() {
   /* THE NESTED SUBTREES, one entry at a time. A declared subtree whose builder shape has moved
      REFUSES — the same fail-closed rule the slim-export literal already carries above. */
   const nested = [];
+  const readers = new Map([['integrator-render.js', render]]);
   for (const [sub, d] of Object.entries(decl.nested || {})) {
-    if (!d || !d.builtBy) throw new Error(`nested subtree \`${sub}\` declares no builtBy — the gate must not guess which function returns it`);
-    const shapes = nestedShapes(dsp, d.builtBy);
-    if (!shapes) throw new Error(`${d.builtBy}() was not found, or one of its return objects does not close — its shape changed, and this gate must not guess`);
-    nested.push(evaluateNested(sub, shapes, d, render));
+    if (!d) throw new Error(`nested subtree \`${sub}\` declares nothing`);
+    const byFn = !!d.builtBy;
+    const byLiteral = d.inline === true;
+    if (byFn === byLiteral) throw new Error(`nested subtree \`${sub}\` must declare exactly one of builtBy or inline:true — the gate must not guess where its shape lives`);
+    const shapes = byFn ? nestedShapes(dsp, d.builtBy) : inlineShape(dsp, sub);
+    if (!shapes)
+      throw new Error(
+        byFn
+          ? `${d.builtBy}() was not found, or one of its return objects does not close — its shape changed, and this gate must not guess`
+          : `the inline \`${sub}: {\` literal in integrator-dsp.js was not found, appears more than once, or does not close — its shape changed, and this gate must not guess`
+      );
+    const rf = d.readerFile || 'integrator-render.js';
+    if (!readers.has(rf)) readers.set(rf, readFileSync(join(ROOT, rf), 'utf8'));
+    nested.push(evaluateNested(sub, shapes, d, readers.get(rf)));
   }
   const nestedBad = nested.filter((n) => !n.ok);
   const nestedKeys = nested.reduce((t, n) => t + n.keys.length, 0);
@@ -405,6 +550,9 @@ function main() {
       nestedExportOnlyRead: nested.reduce((t, n) => t + n.exportOnlyRead.length, 0),
       nestedAliasSites: nested.reduce((t, n) => t + n.aliasSites.length, 0),
       nestedAliasShadowed: nested.reduce((t, n) => t + n.aliasSites.filter((a) => a.shadows.length).length, 0),
+      nestedForwardedSites: nested.reduce((t, n) => t + n.forwarded.length, 0),
+      nestedReaderFiles: [...new Set(nested.map((n) => n.readerFile))],
+      nestedInline: nested.filter((n) => n.partialKind === 'undefined-value').length,
       card: cards,
       exportOnly: keys.length - cards,
       undeclared: r.undeclared.length,
@@ -446,8 +594,9 @@ function main() {
   if (!JSON_ONLY)
     for (const n of nested)
       console.log(
-        `  ✓ ${n.path} at depth 2: ${n.keys.length} key(s) · ${n.keys.filter((k) => (decl.nested[n.subtree].surfaces || {})[k] === 'card').length} card · ${n.partial.length} on some return shape(s) only` +
-          ` · read through ${n.aliasSites.length} anchored alias site(s) (${n.aliasSites.map((a) => a.alias + '@' + a.line).join(', ')})`
+        `  ✓ ${n.path} at depth 2: ${n.keys.length} key(s) · ${n.keys.filter((k) => (decl.nested[n.subtree].surfaces || {})[k] === 'card').length} card · ${n.partial.length} ${n.partialKind === 'undefined-value' ? 'able to evaluate to `undefined`' : 'on some return shape(s) only'}` +
+          ` · ${n.readerFile} read through ${n.aliasSites.length} anchored alias site(s) (${n.aliasSites.map((a) => a.alias + '@' + a.line).join(', ') || 'none'})` +
+          (n.forwarded.length ? ` + ${n.forwarded.length} one-hop forward (${n.forwarded.map((f) => f.via + '(' + f.alias + ')@' + f.line).join(', ')})` : '')
       );
   if (r.stale.length) console.log(`  note: ${r.stale.length} declaration(s) name a key the fusion no longer emits (${r.stale.join(', ')}) — not a red, but worth pruning`);
   process.exit(0);
@@ -588,6 +737,99 @@ if (DIRECT && process.argv.includes('--selftest')) {
   ck('…and an UNTERMINATED return object returns null too', nestedShapes('function f(x) {\n  return {\n    alpha: 1\n}', 'f'), null);
   ck('a builder with no return object literal returns null', nestedShapes('function f(x) {\n  return 1;\n}', 'f'), null);
   ck('a render that never binds the subtree resolves no alias', aliasSites('function c(fusion) {\n  show(fusion.other);\n}', 'fusion.thing').sites, []);
+  /* ── THE SECOND NESTED SUBTREE: AN INLINE LITERAL, READ FROM THE APP, BOUND BEHIND A GUARD ──
+     `ISRC` publishes `skewBlock` as a literal AT the fusion return, with no builder function.
+     `IAPP` is app-shaped: it binds the subtree behind a `&&` guard, nine lines under a callback
+     that has already closed, and hands the same object to a one-parameter helper. Each refusal
+     below is planted: a two-parameter helper, a second hop, and a duplicate helper name. */
+  const ISRC = [
+    'function runFusion(recs) {',
+    '  return {',
+    '    other: 1,',
+    '    skewBlock: {',
+    '      findings: skew.findings,',
+    '      census: skew.census || [],',
+    '      beat: skew.beat || null,',
+    '      inner: { deeper: 1 },',
+    '      vetoes: skew.vetoes && skew.vetoes.length ? skew.vetoes : undefined',
+    '    },',
+    '    tail: 2',
+    '  };',
+    '}'
+  ].join('\n');
+  const IAPP = [
+    'function helper(cs) {',
+    '  var v = cs.vetoes || [];',
+    '  if (second(cs)) show(1);',
+    '  return v.length;',
+    '}',
+    'function second(cs) {',
+    '  return cs.beat;',
+    '}',
+    'function two(cs, n) {',
+    '  return cs.census.length + n;',
+    '}',
+    'function recompute() {',
+    '  xs.forEach(function (m) {',
+    '    show(m);',
+    '  });',
+    '  var cs = FUSION && FUSION.skewBlock;',
+    '  if (cs && cs.findings) show(cs.findings);',
+    '  var out = helper(cs);',
+    '  var t = two(cs, 1);',
+    '  return out + t;',
+    '}'
+  ].join('\n');
+  const ISHAPES = inlineShape(ISRC, 'skewBlock');
+  const IDECL = {
+    inline: true,
+    readerFile: 'integrator-app.js',
+    aliasPath: 'FUSION.skewBlock',
+    surfaces: { findings: 'card', vetoes: 'card', census: 'export-only', beat: 'export-only', inner: 'export-only' },
+    partialShape: { vetoes: 'absent when the pass refused nothing' }
+  };
+  const withI = (over, ren) => evaluateNested('skewBlock', ISHAPES, { ...IDECL, ...over }, ren || IAPP);
+  ck('🔴 a subtree with no builder is read from its inline literal', ISHAPES.union, ['beat', 'census', 'findings', 'inner', 'vetoes']);
+  ck('…at its own depth only — a key one level further down is not one of them', ISHAPES.union.includes('deeper'), false);
+  ck('…and one literal is one shape', ISHAPES.shapes.length, 1);
+  ck('🔴 a key whose value can be `undefined` is conditional, so it joins partial', ISHAPES.partial, ['vetoes']);
+  ck('…and the mechanism is named, because it is not a missing return shape', ISHAPES.partialKind, 'undefined-value');
+  ck('a `|| null` key is NOT conditional — a null is a value a consumer reads (§∅)', ISHAPES.partial.includes('beat'), false);
+  ck('a moved anchor returns null, never a short key list', inlineShape(ISRC, 'noSuchBlock'), null);
+  ck('🔴 TWO anchors return null — ambiguity is a refusal, not a choice', inlineShape(ISRC + '\n' + ISRC, 'skewBlock'), null);
+  ck('…and an unterminated literal returns null too', inlineShape('x = {\n  skewBlock: {\n    findings: 1,\n', 'skewBlock'), null);
+  /* 🔴 THE REGRESSION THIS SUBTREE FOUND. The binding sits under a `forEach(function (m) {` that
+     closed four lines earlier, and the first-header-above scan called the site UNSCOPED. */
+  ck('🔴 a binding under a CLOSED callback still resolves its scope', aliasSites(IAPP, 'FUSION.skewBlock').sites.length, 1);
+  ck('…and nothing is left unresolved', aliasSites(IAPP, 'FUSION.skewBlock').unresolved, []);
+  ck('a `&&` guard in front of the path is still a binding', aliasSites(IAPP, 'FUSION.skewBlock').sites[0].alias, 'cs');
+  ck(
+    '🔴 one forwarding hop is credited, and it names the helper it went through',
+    withI({}).forwarded.map((f) => f.via),
+    ['helper']
+  );
+  ck('…so a key read only inside that helper counts as rendered', withI({}).cardUnrendered, []);
+  ck('🔴 a TWO-parameter helper is refused — the gate cannot tell which argument it got', withI({ surfaces: { ...IDECL.surfaces, census: 'card' } }).cardUnrendered, ['census']);
+  ck('🔴 a SECOND hop is refused — an unbounded credit is no credit', withI({ surfaces: { ...IDECL.surfaces, beat: 'card' } }).cardUnrendered, ['beat']);
+  ck(
+    '🔴 a duplicate helper name is refused rather than picked',
+    forwardedSites(IAPP.replace('function two(cs, n) {', 'function helper(cs, n) {').split('\n'), aliasSites(IAPP, 'FUSION.skewBlock').sites),
+    []
+  );
+  ck('the subtree reports which file it was read in', withI({}).readerFile, 'integrator-app.js');
+  ck('🔴 an undeclared `undefined`-valued key reds', withI({ partialShape: {} }).undeclaredPartial, ['vetoes']);
+  ck('…and the reason names the mechanism, not a missing return shape', nestedReasons(withI({ partialShape: {} }))[0].includes('`undefined`'), true);
+  /* 🔴 A BINDING IS OWED ONLY WHERE A READ MUST BE CREDITED. A subtree with no `card` key has
+     nothing to credit, so an absent alias is not a finding — this is the state `fusion.clockSkew`
+     is in against `integrator-render.js`, which mentions it zero times. */
+  const ALLEXP = { inline: true, surfaces: { findings: 'export-only', vetoes: 'export-only', census: 'export-only', beat: 'export-only', inner: 'export-only' }, partialShape: { vetoes: 'x' } };
+  ck('🔴 an all-export-only subtree with NO alias is ok, not red', evaluateNested('skewBlock', ISHAPES, ALLEXP, 'function f() {\n  return 1;\n}').ok, true);
+  ck('…and the gate says so rather than demanding a binding', evaluateNested('skewBlock', ISHAPES, ALLEXP, 'function f() {\n  return 1;\n}').noAlias, false);
+  ck(
+    '…while ONE card key with no alias reds again',
+    evaluateNested('skewBlock', ISHAPES, { ...ALLEXP, surfaces: { ...ALLEXP.surfaces, findings: 'card' } }, 'function f() {\n  return 1;\n}').noAlias,
+    true
+  );
   console.log(bad ? `  ✗ ${bad} of ${ran} selftests failed` : `  all ${ran} selftests passed`);
   process.exit(bad ? 1 : 0);
 }
