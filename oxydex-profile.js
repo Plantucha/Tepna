@@ -424,7 +424,7 @@ function profileAutoDetectUpdate(allNights) {
   if (!allNights || !allNights.length) return;
 
   var hrFloors = [],
-    dates = [];
+    dayMs = [];
   var hrMins = [],
     hrMaxes = [],
     rmssdVals = [];
@@ -432,7 +432,19 @@ function profileAutoDetectUpdate(allNights) {
 
   allNights.forEach(function (n) {
     if (!n) return;
-    dates.push(n.date);
+    /* ONE PARSER, AND A DATE THAT IS NOT A DATE NEVER ENTERS (residue
+       2026-11-12-oxydex-profile-span-reads-a-date-string-with-new-date). `n.date` is date-only
+       ('YYYY-MM-DD'), and `parseTimestamp` requires a time component, so midnight is named
+       explicitly — the same cure as `_sortKey` in `integrator-longitudinal.js`. The old line
+       pushed every `n.date` unconditionally, so an undated night reached `new Date` and the span
+       printed NaN; an unparseable date is absent from the span now, never a number inside it (∅).
+       Clock Contract §2 rule 4 bans `new Date(str)`: it read the DMY pair 10/06/2026 and
+       05/07/2026 as MDY and reported 152 days over a true 25. */
+    var dStr = String(n.date == null ? '' : n.date);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dStr)) {
+      var dParsed = DexClock.parseTimestamp(dStr + ' 00:00:00');
+      if (dParsed) dayMs.push(dParsed.tMs);
+    }
     // Nocturnal p5 HR floor — more robust than absolute minHr
     // p5 is pre-computed in n.hrv.hrFloor during CSV parsing
     if (n.hrv && n.hrv.hrFloor > 30 && n.hrv.hrFloor < 80) hrFloors.push(n.hrv.hrFloor);
@@ -458,11 +470,19 @@ function profileAutoDetectUpdate(allNights) {
      caption printed `?` for anything falsy — so a single night and two recordings on ONE date read
      the same, although the second really does span zero days. Null now means unmeasurable and 0
      means measured-and-zero (∅). */
+  /* A SPAN RUNS EARLIEST TO LATEST, NOT FIRST TO LAST (residue 2026-11-12). The nights arrive in
+     list order, so indexing [0] and [length-1] read 2 days over a true 25 once one night sat out
+     of order. Min and max answer whatever the order is. */
   var span = null;
-  if (dates.length > 1) {
-    var d1 = new Date(dates[0]),
-      d2 = new Date(dates[dates.length - 1]);
-    span = Math.abs(Math.round((d2 - d1) / (1000 * 60 * 60 * 24)));
+  var spanDated = dayMs.length;
+  if (spanDated > 1) {
+    var lo = dayMs[0],
+      hi = dayMs[0];
+    for (var di = 1; di < spanDated; di++) {
+      if (dayMs[di] < lo) lo = dayMs[di];
+      if (dayMs[di] > hi) hi = dayMs[di];
+    }
+    span = Math.round((hi - lo) / 86400000);
   }
 
   // Median nocturnal p5 across all nights
@@ -513,7 +533,11 @@ function profileAutoDetectUpdate(allNights) {
   /* A PLURAL IS NOT A COUNT (residue 2026-11-11). One night read `1 measurements over ? days`: the
      noun never agreed with its number, and an unmeasurable span printed a sentinel inside the
      phrase. One measurement names no span, because a span needs two. */
-  parts.push(n === 1 ? '1 measurement' : n + ' measurements' + (span == null ? ' over an unrecorded span' : span === 0 ? ' within one day' : ' over ' + span + ' days'));
+  /* REDUCED COVERAGE ANNOTATES (CLAUDE.md §∅, owner ruling 2026-09-17). Some nights carrying no
+     usable date is coverage, not a seam, so the span stands and names how many dates it read. */
+  var spanPhrase = span == null ? ' over an unrecorded span' : span === 0 ? ' within one day' : ' over ' + span + ' days';
+  if (span != null && spanDated < n) spanPhrase += ' (span over ' + spanDated + ' dated)';
+  parts.push(n === 1 ? '1 measurement' : n + ' measurements' + spanPhrase);
   if (hrFloorMed) parts.push('Resting HR: ' + hrFloorMed + ' bpm (nocturnal p5)');
   // ANS-age auto-detect pill REMOVED 2026-06-23 (DEX-METRIC-REMOVAL-AUDIT 🔴).
   if (hrMin && hrMax) parts.push('HR range: ' + hrMin + '–' + hrMax + ' bpm');

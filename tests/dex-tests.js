@@ -34903,6 +34903,45 @@
       T.eq('the caption no longer prints a sentinel inside the phrase', _oxProf.split("(span || '?')").length - 1, 0);
       T.ok('one measurement reads singular and names no span', _oxProf.indexOf("n === 1 ? '1 measurement'") !== -1);
       T.ok('a measured zero-day span reads as one day, not as an absence', _oxProf.indexOf("span === 0 ? ' within one day'") !== -1);
+
+      /* 6 · THE SPAN GOES THROUGH THE ONE PARSER AND RUNS EARLIEST TO LATEST (residue
+         2026-11-12-oxydex-profile-span-reads-a-date-string-with-new-date). The pre-fix block called
+         `new Date` on a raw `n.date` and indexed [0] and [length-1]. So an undated night printed
+         `over NaN days`, an out-of-order list read 2 days over a true 25, and the DMY pair
+         10/06/2026 + 05/07/2026 read 152 days, because `new Date` took both as MDY. Clock Contract
+         §2 rule 4 bans that call outright. */
+      T.eq('the profile parses a date through DexClock', _oxProf.split("DexClock.parseTimestamp(dStr + ' 00:00:00')").length - 1, 1);
+      T.eq('no new Date over the date array remains', _oxProf.split('new Date(dates').length - 1, 0);
+      T.ok('a date that is not YYYY-MM-DD never enters the span array', _oxProf.indexOf('if (/^\\d{4}-\\d{2}-\\d{2}$/.test(dStr))') !== -1);
+      T.eq('the span no longer indexes the first and the last entry', _oxProf.split('dates[dates.length - 1]').length - 1, 0);
+      T.ok('the span reads the earliest parsed day', /if \(dayMs\[di\] < lo\) lo = dayMs\[di\];/.test(_oxProf));
+      T.ok('the span reads the latest parsed day', /if \(dayMs\[di\] > hi\) hi = dayMs\[di\];/.test(_oxProf));
+      T.ok('a span read over fewer dates than measurements names the count', _oxProf.indexOf("' (span over ' + spanDated + ' dated)'") !== -1);
+
+      /* THE EXECUTED LEG — the SHIPPED text runs, not a copy of it. The real region is sliced out of
+         `oxydex-profile.js` and called with the four date shapes measured on the pre-fix expression.
+         The sorted-ISO case is the control and must still read 25. */
+      var _oxC = env.DexClock;
+      if (!_oxC || typeof _oxC.parseTimestamp !== 'function') {
+        T.skip('DexClock.parseTimestamp available', 'clock.js not loaded');
+      } else {
+        var _spA = _oxProf.indexOf('  var hrFloors = [],'),
+          _spB = _oxProf.indexOf('  // Median nocturnal p5 across all nights');
+        T.ok('ANTI-VACUITY · the span region is sliceable', _spA !== -1 && _spB > _spA, 'the anchors moved — this leg tests nothing');
+        var _spanOf = new Function('allNights', 'DexClock', _oxProf.slice(_spA, _spB) + '\nreturn { span: span, dated: spanDated, n: n };');
+        var _nts = function (list) {
+          return list.map(function (d) {
+            return { date: d };
+          });
+        };
+        T.eq('sorted ISO dates span 25 days, the control', _spanOf(_nts(['2026-06-10', '2026-07-05']), _oxC).span, 25);
+        T.eq('an out-of-order list spans the same 25 days', _spanOf(_nts(['2026-06-10', '2026-07-05', '2026-06-12']), _oxC).span, 25);
+        T.eq('two recordings on one date span a measured 0 days', _spanOf(_nts(['2026-06-10', '2026-06-10']), _oxC).span, 0);
+        T.eq('one date among two nights leaves the span null', _spanOf(_nts(['2026-06-10', null]), _oxC).span, null);
+        T.eq('a DMY vendor string never enters the span', _spanOf(_nts(['10/06/2026', '05/07/2026']), _oxC).span, null);
+        T.eq('the dated count excludes the undated night', _spanOf(_nts(['2026-06-10', '2026-07-05', undefined]), _oxC).dated, 2);
+        T.eq('the measurement total still counts every night', _spanOf(_nts(['2026-06-10', '2026-07-05', undefined]), _oxC).n, 3);
+      }
       // ANTI-VACUITY · the branch we are gating actually exists in the file.
       T.ok(
         'ANTI-VACUITY · the flagged-metrics reassurance branch exists',
