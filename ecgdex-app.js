@@ -606,7 +606,7 @@ self.onmessage = async (e) => {
     const modeName = r.modeLabel || { insufficient: 'Insufficient', ['ultra-short']: 'Ultra-short', short: '5-min standard', overnight: 'Overnight' }[r.tier];
     $('ctxBanner').innerHTML = `<div class="ctx-main">
       <div><div class="ctx-mode">${modeName}</div>
-      <div class="ctx-why">${r.durMin} min · ${r.nBeats.toLocaleString()} beats · ${r.fs} Hz · ${r.epochs.length} × 5-min epochs</div></div>
+      <div class="ctx-why">${r.durMin} min · ${r.nBeats.toLocaleString()} beats · ${_fsReadable(r.fs)} Hz · ${r.epochs.length} × 5-min epochs</div></div>
       <div class="ctx-conf ${r.ambulatory ? 'warn' : tierColor}">${r.ambulatory ? 'Ambulatory — sleep/apnea suppressed' : r.tierMsg}</div>
     </div>${notes}`;
     $('ctxBanner').style.display = 'flex';
@@ -1008,7 +1008,7 @@ self.onmessage = async (e) => {
     // Dynamic HRV stability (Li & Kiyono 2026)
     const hs = r.hrvStab;
     if (hs) {
-      const sevColor = { good: UI.COLORS.green, warn: UI.COLORS.amber, bad: UI.COLORS.red }[hs.severity];
+      const sevColor = { good: UI.COLORS.green, warn: UI.COLORS.amber, bad: UI.COLORS.red, neutral: UI.COLORS.dim }[hs.severity];
       const pts = hs.series.map((p) => ({ x: p.tMin / 60, y: p.lnSD }));
       const slopeArrow = hs.sigma_lnRMSSD_slope > 0.015 ? '↗' : hs.sigma_lnRMSSD_slope < -0.015 ? '↘' : '→';
       const esc = r.surgeEsc;
@@ -1319,10 +1319,18 @@ self.onmessage = async (e) => {
         : moderate
           ? '<span class="pill pill-yellow">Moderate</span>'
           : '<span class="pill pill-red">Poor — check sensor contact</span>';
-      const narrowNote =
-        ag.r < 0.65 && ag.mae <= 2.0
-          ? `<div class="q-note" style="margin-top:6px;color:var(--text2)">Low Pearson r here reflects the <b>narrow EDR range</b> across the night, not poor tracking — MAE ${ag.mae.toFixed(1)} br/min and tight limits of agreement (${ag.loa[0]} … +${ag.loa[1]}) show the two methods agree closely (Bland–Altman governs over correlation when the spread is small).</div>`
-          : '';
+      /* THE SPAN IS THE QUANTITY, NOT THE MAE (residue 2026-11-11). This note called the limits
+         "tight" and said the two methods "agree closely" behind an `ag.mae <= 2.0` gate — the mean
+         absolute error, never the width of the interval printed beside the claim. A night with
+         limits of −5.1 … +4.6 br/min, a span of 9.7, passed that gate and read as close agreement.
+         The gate is the span itself now, held against this card's own disagreement threshold
+         (|Δ| > 3 br/min, so a 6 br/min span), and each branch states the span it measured. */
+      const loaSpan = ag.loa ? +(ag.loa[1] - ag.loa[0]).toFixed(1) : null;
+      const narrowNote = !(ag.r < 0.65 && loaSpan != null)
+        ? ''
+        : loaSpan <= 6
+          ? `<div class="q-note" style="margin-top:6px;color:var(--text2)">Low Pearson r here reflects the <b>narrow EDR range</b> across the night, not poor tracking — MAE ${ag.mae.toFixed(1)} br/min, and the 95% limits of agreement span <b>${loaSpan}</b> br/min (${ag.loa[0]} … +${ag.loa[1]}), inside this card's own 3 br/min disagreement threshold (Bland–Altman governs over correlation when the spread is small).</div>`
+          : `<div class="q-note" style="margin-top:6px;color:var(--text2)">Low Pearson r here reflects the <b>narrow EDR range</b> across the night, not poor tracking. The 95% limits of agreement span <b>${loaSpan}</b> br/min (${ag.loa[0]} … +${ag.loa[1]}), wider than this card's own 3 br/min disagreement threshold, so this card makes no close-agreement claim (Bland–Altman governs over correlation when the spread is small).</div>`;
       const evg = (lbl) => {
         const b = evBadge(lbl);
         return b ? '<span style="margin-right:5px">' + b + '</span>' : '';
@@ -1521,6 +1529,15 @@ self.onmessage = async (e) => {
     $('gangSection').style.display = 'block';
   }
 
+  /* A MEASURED SAMPLE RATE IS NOT A LABEL (residue 2026-11-11). `r.fs` is measured from the
+     stamps, so a real H10 night reads 130.01450262176357 Hz, and three reader surfaces printed
+     every digit of it. Two decimals still carry the deviation from the nominal 130 Hz (0.01 Hz
+     is 77 ppm at this rate); the export keeps every digit at `sampleRateHz`, which is the number
+     a consumer computes on. An absent rate is an em dash, never 0 (∅). */
+  function _fsReadable(fs) {
+    return Number.isFinite(fs) ? +fs.toFixed(2) : '—';
+  }
+
   function renderTable(r) {
     const insuf = (st) => (r.tier === 'ultra-short' ? 'neutral' : st);
     const D = r.morph ? r.morph.delin : null;
@@ -1528,7 +1545,7 @@ self.onmessage = async (e) => {
       ['Source', r.source === 'synthetic' ? 'Synthetic ECG (demo)' : 'Raw ECG file', '—', '—', 'neutral', 'Single signal in — RR computed from ECG'],
       ['Tier', r.tier, '—', '—', 'neutral', r.tierMsg],
       ['Duration', r.durMin, 'min', '—', 'neutral', r.epochs.length + ' × 5-min epochs'],
-      ['Sample rate', r.fs, 'Hz', '130', 'neutral', 'Polar-H10-style chest sensor'],
+      ['Sample rate', _fsReadable(r.fs), 'Hz', '130', 'neutral', 'Polar-H10-style chest sensor · measured rate at two decimals; the export keeps every digit'],
       ['Beats (NN)', r.nBeats, 'beats', '—', 'neutral', 'After SQI gate + interpolation'],
       ['Analyzable', r.analyzablePct, '%', '≥90', r.analyzablePct >= 90 ? 'ok' : r.analyzablePct >= 75 ? 'warn' : 'bad', '% night above SQI threshold'],
       ['Correction', r.correctionRate, '%', '<3', r.correctionRate < 3 ? 'ok' : r.correctionRate < 8 ? 'warn' : 'bad', 'Beats interpolated'],
@@ -1557,8 +1574,9 @@ self.onmessage = async (e) => {
       ...(r.vo2gt ? [['VO₂max GT', r.vo2gt, 'ml/kg/min', 'lab', 'neutral', 'Your entered ground truth']] : []),
       /* 'Apnea risk' + 'Est. AHI' rows retired 2026-07-31 (§10). The target column ('<5', 'Minimal')
          was the giveaway: those are AHI's clinical cut-points applied to a CVHR index that does not
-         track AHI (r = −0.151). The index now appears as itself, with no target to miss. */
-      ...(r.longRec && !r.ambulatory && r.cvhr ? [['CVHR index', r.cvhr.index, '/h', '—', 'neutral', 'Cyclic variation of HR — an autonomic signature, not an apnea count']] : []),
+         track AHI (r = −0.151). The index now appears as itself, with no target to miss — ONCE,
+         in the CVHR/sleep block below. This position held a second, identical row until residue
+         2026-11-11: one table printed `CVHR index` twice on every long non-ambulatory night. */
       ...(r.morph
         ? [
             ['— Morphology / Rhythm —', '', '', '', 'neutral', 'single lead @130 Hz · directional trends, not 12-lead'],
@@ -1652,7 +1670,7 @@ self.onmessage = async (e) => {
         ? [
             /* §10 retirement, second copy: no AHI target or ladder on a CVHR index (residue 2026-11-08). */
             ['CVHR index', r.cvhr ? r.cvhr.index : '—', '/h', '—', 'neutral', 'Cyclic variation of HR — an autonomic signature, not an apnea count'],
-            ['CVHR events', r.cvhr.events.length, 'count', '—', 'neutral', 'autonomic_surge events emitted'],
+            ['CVHR events', r.cvhr ? r.cvhr.events.length : '—', 'count', '—', 'neutral', 'autonomic_surge events emitted'],
             ['Total sleep', r.totSleep, 'min', '—', 'neutral', 'Light+Deep+REM (cardioresp staging)'],
             ['Deep', r.stageMin.Deep.toFixed(0), 'min', '—', 'neutral', 'High vagal tone epochs'],
             ['REM', r.stageMin.REM.toFixed(0), 'min', '—', 'neutral', 'High LF/HF, irregular']
@@ -2763,7 +2781,7 @@ self.onmessage = async (e) => {
                       'Intervals reported in ms but resolved on a ' +
                       sampleMs +
                       ' ms sample grid (' +
-                      (r.fs || 130) +
+                      _fsReadable(r.fs || 130) +
                       ' Hz) → ±1 sample (~' +
                       sampleMs +
                       ' ms) uncertainty. Clinical QT analysis wants ≥250 Hz; treat as a within-subject directional trend, single lead ≠ 12-lead.'
