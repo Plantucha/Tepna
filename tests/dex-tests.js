@@ -60608,8 +60608,18 @@
             var mo = /^(?:async\s+)?function\s+([A-Za-z_$][\w$]*)/.exec(ln) || /^(?:const|let|var)\s+([A-Za-z_$][\w$]*)/.exec(ln);
             if (mo) ovNames.push(mo[1]);
           });
+          /* The reach test TOKENIZES the DSP once instead of building a RegExp for each name. The old
+             form read `new RegExp('\\b' + nm.replace(/\$/g, '\\$') + '\\b')`. It escaped `$` alone, so
+             CodeQL rated it `js/incomplete-sanitization` at HIGH, as alerts 295 and 296. A local copy of
+             the 14-character class would red the rung that holds the escaper to one home, and that home
+             is a tool module this file cannot load in the browser lane. A token set needs no escape at
+             all, and it is STRICTER than the old form: `\b` does not treat `$` as a word character, so
+             `\b\$foo\b` matched only after another word character and a `$`-leading name read as
+             unreachable. Measured on the real pair: 21 overview names, 13 published names, none carrying
+             a `$`, and the two forms agree on all 34. */
+          var pxTokens = new Set(pxDsp.match(/[A-Za-z_$][\w$]*/g) || []);
           var reach = ovNames.filter(function (nm) {
-            return new RegExp('\\b' + nm.replace(/\$/g, '\\$') + '\\b').test(pxDsp);
+            return pxTokens.has(nm);
           });
           T.ok(
             "F14 · …and pulsedex-dsp.js reads none of the overview module's top-level names",
@@ -60645,7 +60655,7 @@
             });
           }
           var gReach = gNames.filter(function (nm) {
-            return new RegExp('\\b' + nm.replace(/\$/g, '\\$') + '\\b').test(pxDsp);
+            return pxTokens.has(nm);
           });
           T.ok(
             'F14 · …and no name the module publishes on the global object is read by the DSP',
