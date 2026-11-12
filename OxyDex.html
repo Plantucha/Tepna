@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="a8b9cca0512b" data-compute-hash="2240ce1afb75">
+<html lang="en" data-manifest-hash="66c4ed76cf59" data-compute-hash="63a0d293519e">
 <head>
 <!--
   OxyDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-1GXN++OkM02KioWXqr41sn7DFt/p7OeiRsHDpnTpfhg=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-71nHhjEGwveZJPBSpFtiyZ1JeyitwjimhmKfh2loqoY=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CNkm2h+ZlrSYYzoGx9OxoFo/k2UmcAbaZ9Bd72GM4as=' 'sha256-D0YR9+62Fd3hUFRoEZhA/MkKslQirmZQg7KMBHKpICk=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-E1IsN6aDCUvHb/53fIyPoB7AQMLdRp5olYowv/ZbZ6A=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QU1eFIpXtk89h7OawHFWXJry6pEr0cw5i0Q08kGZz88=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-R6Dc/xXQzYFveWsVfbGSg8lpp98pG2dIwLNGGu4Pc04=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-Wl0HIUV2fDLghOvTw+DQxBHWLaCkoJgd5jq4MbIrXxo=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-XqyVux6nZ1GoEpXw5HlJF6/fUCrzC+aJ4dGKEuYCK0w=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-jcYwIYHWEOkRho/6EL++KYsUTDIxL+gNUno4PTReee0=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-twFzQi1vpducGn4fBmrG8hwTtPjrOt1ECG7DkculdII=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es=' 'sha256-yJI159rOoEVhsTIsuQRFR32KBOQL/8y6f7F2zWeQpF4='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-1GXN++OkM02KioWXqr41sn7DFt/p7OeiRsHDpnTpfhg=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CNkm2h+ZlrSYYzoGx9OxoFo/k2UmcAbaZ9Bd72GM4as=' 'sha256-D0YR9+62Fd3hUFRoEZhA/MkKslQirmZQg7KMBHKpICk=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-E1IsN6aDCUvHb/53fIyPoB7AQMLdRp5olYowv/ZbZ6A=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QU1eFIpXtk89h7OawHFWXJry6pEr0cw5i0Q08kGZz88=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-R6Dc/xXQzYFveWsVfbGSg8lpp98pG2dIwLNGGu4Pc04=' 'sha256-TAlEYjAMWyaUUQSt+Gg+O7yrgrH8mjL1Xmx0Eiw/adk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-Wl0HIUV2fDLghOvTw+DQxBHWLaCkoJgd5jq4MbIrXxo=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-XqyVux6nZ1GoEpXw5HlJF6/fUCrzC+aJ4dGKEuYCK0w=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-jcYwIYHWEOkRho/6EL++KYsUTDIxL+gNUno4PTReee0=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-twFzQi1vpducGn4fBmrG8hwTtPjrOt1ECG7DkculdII=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es=' 'sha256-yJI159rOoEVhsTIsuQRFR32KBOQL/8y6f7F2zWeQpF4='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>OxyDex — Nocturnal Oximetry Analyzer · v2.31.0</title>
@@ -14149,7 +14149,7 @@ function profileAutoDetectUpdate(allNights) {
   if (!allNights || !allNights.length) return;
 
   var hrFloors = [],
-    dates = [];
+    dayMs = [];
   var hrMins = [],
     hrMaxes = [],
     rmssdVals = [];
@@ -14157,7 +14157,19 @@ function profileAutoDetectUpdate(allNights) {
 
   allNights.forEach(function (n) {
     if (!n) return;
-    dates.push(n.date);
+    /* ONE PARSER, AND A DATE THAT IS NOT A DATE NEVER ENTERS (residue
+       2026-11-12-oxydex-profile-span-reads-a-date-string-with-new-date). `n.date` is date-only
+       ('YYYY-MM-DD'), and `parseTimestamp` requires a time component, so midnight is named
+       explicitly — the same cure as `_sortKey` in `integrator-longitudinal.js`. The old line
+       pushed every `n.date` unconditionally, so an undated night reached `new Date` and the span
+       printed NaN; an unparseable date is absent from the span now, never a number inside it (∅).
+       Clock Contract §2 rule 4 bans `new Date(str)`: it read the DMY pair 10/06/2026 and
+       05/07/2026 as MDY and reported 152 days over a true 25. */
+    var dStr = String(n.date == null ? '' : n.date);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dStr)) {
+      var dParsed = DexClock.parseTimestamp(dStr + ' 00:00:00');
+      if (dParsed) dayMs.push(dParsed.tMs);
+    }
     // Nocturnal p5 HR floor — more robust than absolute minHr
     // p5 is pre-computed in n.hrv.hrFloor during CSV parsing
     if (n.hrv && n.hrv.hrFloor > 30 && n.hrv.hrFloor < 80) hrFloors.push(n.hrv.hrFloor);
@@ -14183,11 +14195,19 @@ function profileAutoDetectUpdate(allNights) {
      caption printed `?` for anything falsy — so a single night and two recordings on ONE date read
      the same, although the second really does span zero days. Null now means unmeasurable and 0
      means measured-and-zero (∅). */
+  /* A SPAN RUNS EARLIEST TO LATEST, NOT FIRST TO LAST (residue 2026-11-12). The nights arrive in
+     list order, so indexing [0] and [length-1] read 2 days over a true 25 once one night sat out
+     of order. Min and max answer whatever the order is. */
   var span = null;
-  if (dates.length > 1) {
-    var d1 = new Date(dates[0]),
-      d2 = new Date(dates[dates.length - 1]);
-    span = Math.abs(Math.round((d2 - d1) / (1000 * 60 * 60 * 24)));
+  var spanDated = dayMs.length;
+  if (spanDated > 1) {
+    var lo = dayMs[0],
+      hi = dayMs[0];
+    for (var di = 1; di < spanDated; di++) {
+      if (dayMs[di] < lo) lo = dayMs[di];
+      if (dayMs[di] > hi) hi = dayMs[di];
+    }
+    span = Math.round((hi - lo) / 86400000);
   }
 
   // Median nocturnal p5 across all nights
@@ -14238,7 +14258,11 @@ function profileAutoDetectUpdate(allNights) {
   /* A PLURAL IS NOT A COUNT (residue 2026-11-11). One night read `1 measurements over ? days`: the
      noun never agreed with its number, and an unmeasurable span printed a sentinel inside the
      phrase. One measurement names no span, because a span needs two. */
-  parts.push(n === 1 ? '1 measurement' : n + ' measurements' + (span == null ? ' over an unrecorded span' : span === 0 ? ' within one day' : ' over ' + span + ' days'));
+  /* REDUCED COVERAGE ANNOTATES (CLAUDE.md §∅, owner ruling 2026-09-17). Some nights carrying no
+     usable date is coverage, not a seam, so the span stands and names how many dates it read. */
+  var spanPhrase = span == null ? ' over an unrecorded span' : span === 0 ? ' within one day' : ' over ' + span + ' days';
+  if (span != null && spanDated < n) spanPhrase += ' (span over ' + spanDated + ' dated)';
+  parts.push(n === 1 ? '1 measurement' : n + ' measurements' + spanPhrase);
   if (hrFloorMed) parts.push('Resting HR: ' + hrFloorMed + ' bpm (nocturnal p5)');
   // ANS-age auto-detect pill REMOVED 2026-06-23 (DEX-METRIC-REMOVAL-AUDIT 🔴).
   if (hrMin && hrMax) parts.push('HR range: ' + hrMin + '–' + hrMax + ' bpm');
