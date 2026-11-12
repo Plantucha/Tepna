@@ -44,6 +44,23 @@ trap 'rm -rf "$TMP"' EXIT
 PROJ="$TMP/.claude/projects/-home-x-Repo"
 MEM="$PROJ/memory"
 mkdir -p "$MEM" "$TMP/elsewhere"
+# ⚠ EVERY LEG BELOW MUST READ THIS FIXTURE'S HOME, NOT THE BOX'S. The hook's first act is a glob of
+#   `$HOME/.claude/projects/*/memory` with an `exit 0` when nothing matches (guard-memory-stale.sh:158),
+#   so a HOME holding no memory directory disarms it completely. Sections 1 to 7 drove the hook with the
+#   AMBIENT home while judging a fixture under this temp dir: they scored DENY on the primary box only
+#   because that box happens to hold a real memory directory, and it is not the one they built.
+#   Measured 2026-11-12: the hosted `local-steps` job red at `test:hooks` with 11 failing legs — the
+#   same 11 in the same order on both heads it has run, jobs 131098672027 and 131118677338 — and
+#   `env HOME="$(mktemp -d)" bash .claude/hooks/guard-memory-stale.test.sh` reproduces all 11 locally.
+#   THE SECTION'S OWN POSITIVE CONTROL LEANED ON THE AMBIENT HOME TOO ("control: with the memory dir
+#   present the same Write is still DENIED"), so the one leg written to catch this vacuity could not
+#   see it. A control that shares the defect it controls for is not a control.
+#   One export covers every invocation in this file, including the four that drive the hook inline.
+#   A leg that wants a DIFFERENT home still says so per leg (`HOME="$NOMEM"`, `HOME="$NOPIPE"`), which
+#   this export does not touch. It also puts the writer-fate legs on the early exits they NAME: the
+#   hatch leg now leaves the hook armed, so the hatch is what releases it rather than an absent
+#   directory. `--probe-bytes` above runs before this line and keeps the real HOME.
+export HOME="$TMP"
 SID="11111111-2222-3333-4444-555555555555"
 SID2="99999999-2222-3333-4444-555555555555"
 
