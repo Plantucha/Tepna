@@ -2976,6 +2976,7 @@
         "blocks": [
           {
             "crossWindowExcluded": false,
+            "divergenceMetric": "RMSSD",
             "divergencePct": 10,
             "hrReconciled": 58.4,
             "hrStatMixed": true,
@@ -2991,7 +2992,7 @@
               "ECGDex",
               "PpgDex"
             ],
-            "note": "Sources agree within 10% on wholeRecord HRV — reconciled autonomic state is reliable. HR-hat: OxyDex is the noisiest HR estimator (σ≈3.6 bpm, correlated-external, ρ=0.381); reconciled HR 58.4 bpm. ⚠ Its legs do NOT share one epoch statistic (ECGDex=undeclared, PpgDex=undeclared, OxyDex=undeclared), so part of this spread is the choice of statistic, not the sensors: median-rate sits ≈0.3 bpm below rate-of-mean on real RR. Do not read a per-device bias off it.",
+            "note": "Sources agree within 10% on wholeRecord HRV — reconciled autonomic state is reliable. Per metric: RMSSD 10%, SDNN 5%. HR-hat: OxyDex is the noisiest HR estimator (σ≈3.6 bpm, correlated-external, ρ=0.381); reconciled HR 58.4 bpm. ⚠ Its legs do NOT share one epoch statistic (ECGDex=undeclared, PpgDex=undeclared, OxyDex=undeclared), so part of this spread is the choice of statistic, not the sensors: median-rate sits ≈0.3 bpm below rate-of-mean on real RR. Do not read a per-device bias off it.",
             "qc": "agreement",
             "rmssd": {
               "divergencePct": 10,
