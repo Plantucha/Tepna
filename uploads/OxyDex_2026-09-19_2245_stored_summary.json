@@ -360,8 +360,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "3b2d8a30a3df",
-          "computeHash": "531940e152ba"
+          "manifestHash": "a8b9cca0512b",
+          "computeHash": "2240ce1afb75"
         },
         "evidence": {
           "envelopeRef": "20260919224526",
@@ -388,8 +388,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "3b2d8a30a3df",
-          "computeHash": "531940e152ba"
+          "manifestHash": "a8b9cca0512b",
+          "computeHash": "2240ce1afb75"
         },
         "evidence": {
           "envelopeRef": "20260919224526",
@@ -416,8 +416,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "3b2d8a30a3df",
-          "computeHash": "531940e152ba"
+          "manifestHash": "a8b9cca0512b",
+          "computeHash": "2240ce1afb75"
         },
         "evidence": {
           "envelopeRef": "20260919224526",
@@ -444,8 +444,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "3b2d8a30a3df",
-          "computeHash": "531940e152ba"
+          "manifestHash": "a8b9cca0512b",
+          "computeHash": "2240ce1afb75"
         },
         "evidence": {
           "envelopeRef": "20260919224526",
@@ -701,7 +701,7 @@
         "hrLfPow": 3.3,
         "hrHfPow": 0.1,
         "hrLfHf": 33,
-        "hrLfHfLabel": "SNS dominant",
+        "hrLfHfLabel": "Not resolvable — band ratio outside physiology at 1 Hz",
         "basis": "medianOf30minWindows",
         "windowsUsed": 14
       },
