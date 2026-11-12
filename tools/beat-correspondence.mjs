@@ -49,6 +49,11 @@ import { gitShort } from './verdict-emit.mjs';
 import { isCliEntry, positionalArgs, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 import { populationVerdict, snapshotEntries } from './corpus-scope-core.mjs';
 import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
+/* The ECG axis arithmetic is single-sourced in `pat-matchrate-strict.mjs` for row
+   2026-09-26-pat-ecg-index-axis-is-not-the-h10-sample-clock: this tool held a private `t0 + i/fs`,
+   so no axis request could reach it. `rPeakTimesOnAxis` is pure in the parsed record, so this
+   import loads no second DSP spine beside the realm below. */
+import { rPeakTimesOnAxis } from './pat-matchrate-strict.mjs';
 
 /* ── THE VALIDITY SIDECAR RIDES WITH THE STREAM ─────────────────────────────────────────────
    Row 2026-11-02-no-caller-hands-the-shared-pat-foot-extractor-its-sidecar: the foot extractor has
@@ -65,7 +70,8 @@ const runsOf = (streamPath, stream) => readRunsSidecar(streamPath, stream, { tal
 /* ONE spec, read twice: the guard refuses an undeclared flag with it, and `positionalArgs`
    skips each valued flag's VALUE with it, so a flag written before the positional cannot be
    mistaken for the positional (residue `2026-10-21-a-dash-test-picker-takes-a-valued-flags-value`). */
-const ARGV_SPEC = { valued: ['--q', '--band'], boolean: ['--selftest', '--verdict-sample'], positional: true };
+const ARGV_SPEC = { valued: ['--q', '--band', '--ecg-axis'], boolean: ['--selftest', '--verdict-sample'], positional: true };
+const ECG_AXES = ['linear', 'piecewise', 'counter'];
 
 const TOOL = 'tools/beat-correspondence.mjs';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -423,12 +429,17 @@ function loadDsps() {
    recorded now leaves ahead of the R-peak train, which is where §∅ puts the rail: a peak inside a
    recorded run is no beat at all, never a low-confidence one. Absent, every line below runs as it
    did, so no published number moves on the no-sidecar path.
+   AXIS, DECLARED 2026-11-11 for row 2026-09-26-pat-ecg-index-axis-is-not-the-h10-sample-clock.
+   The source times a peak on `rec.tMsAt` and falls back to the index form; this copy held the
+   index form alone, so the deviation went undeclared and no axis request could reach it. The
+   axis now rides `opts.axis` at position three, and `--ecg-axis` names it. The default is
+   `linear`, so every number this tool published stays the number it published.
    TWO DELIBERATE DEVIATIONS from the source text. This copy returns an OBJECT, because the bare
    `Float64Array` left no room for the absence, and §∅ holds an output over absent input to
    reporting it. And `PATGate` binds above with a refusal instead of the source's `typeof` guard.
    DELIBERATELY NOT PORTED: the source's `hrConfidence`, `dropArtifactPeaks` gating and
    `unmeasuredSec`, which this tool has never run. */
-function ecgRpeakTimes(text, runsText) {
+function ecgRpeakTimes(text, runsText, opts) {
   const rec = runsText ? ECGDSP.parseECG(text, { runsText }) : ECGDSP.parseECG(text);
   if (rec.t0Ms == null) throw new Error('ECG file carried no phone timestamp.');
   const bp = ECGDSP.bandpass(rec.int16, rec.fs);
@@ -438,8 +449,10 @@ function ecgRpeakTimes(text, runsText) {
   const blankRanges = PATGate.runRanges(rec.blankingSpans);
   const blanked = PATGate.dropInRuns(detected, blankRanges);
   const peaks = blanked.kept;
-  const t = new Float64Array(peaks.length);
-  for (let i = 0; i < peaks.length; i++) t[i] = rec.t0Ms + (peaks[i] / rec.fs) * 1000;
+  /* The DEFAULT stays `linear` here, and `rPeakTimesOnAxis` defaults to `counter`, so this call
+     names its axis rather than inheriting one. Owner ruling 2026-11-06 was measure first, and no
+     measurement has moved this tool's published numbers onto the device counter. */
+  const t = rPeakTimesOnAxis(rec, peaks, { axis: (opts && opts.axis) || 'linear' });
   /* ∅ `nDropped` reads `null` when no run set reached this leg and `0` when one arrived and named
      no run inside the stream. A measured zero is not an absence. */
   return {
@@ -620,6 +633,15 @@ const Verdict = createRequire(import.meta.url)('../verdict.js');
 async function main() {
   const args = process.argv.slice(2);
   refuseUnknownArgvOrExit(args, ARGV_SPEC, { tool: 'beat-correspondence' });
+  /* A typoed VALUE must refuse at the front door. `refuseUnknownArgvOrExit` judges the flag name
+     and never its value, and the night read below absorbs a throw out of the extractor, so
+     `--ecg-axis bogus` would read as a night whose ECG leg failed. */
+  const ecgAxisIdx = args.indexOf('--ecg-axis');
+  const ecgAxis = ecgAxisIdx >= 0 ? args[ecgAxisIdx + 1] : 'linear';
+  if (!ECG_AXES.includes(ecgAxis)) {
+    console.error(`--ecg-axis is ${ECG_AXES.join(', ')}, never ${ecgAxis}`);
+    process.exit(2);
+  }
   if (args.includes('--selftest')) return selftest();
   if (args.includes('--verdict-sample')) {
     /* What `tools/verdict-adoption.mjs --check` RUNS — above the night-directory check, so it answers
@@ -629,7 +651,7 @@ async function main() {
   }
   const dir = positionalArgs(args, ARGV_SPEC)[0];
   if (!dir) {
-    console.error('usage: node tools/beat-correspondence.mjs <night-dir> [--q 1/150] [--band 48] | --selftest');
+    console.error('usage: node tools/beat-correspondence.mjs <night-dir> [--q 1/150] [--band 48] [--ecg-axis linear|piecewise|counter] | --selftest');
     process.exit(2);
   }
   const getOpt = (name, dflt) => {
@@ -669,7 +691,7 @@ async function main() {
   );
   console.log('POPULATION ' + JSON.stringify(population));
   const ePath = join(dir, ecgF[0]);
-  const eRead = ecgRpeakTimes(readFileSync(ePath, 'utf8'), runsOf(ePath, 'ECG'));
+  const eRead = ecgRpeakTimes(readFileSync(ePath, 'utf8'), runsOf(ePath, 'ECG'), { axis: ecgAxis });
   const tA = Array.from(eRead.times);
   const pPath = join(dir, ppgF[0]);
   const pRead = ppgFootTimes(readFileSync(pPath, 'utf8'), runsOf(pPath, 'PPG'));

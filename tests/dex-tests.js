@@ -17127,7 +17127,7 @@
         return;
       }
       var FIVE = [
-        { stem: 'beat-correspondence.mjs', anti: /const ARGV_SPEC = \{ valued: \['--q', '--band'\]/, lister: /const listPairFiles = /, unit: 'pair-files' },
+        { stem: 'beat-correspondence.mjs', anti: /const ARGV_SPEC = \{ valued: \['--q', '--band', '--ecg-axis'\]/, lister: /const listPairFiles = /, unit: 'pair-files' },
         { stem: 'dual-clock-rate.mjs', anti: /export const CAPTURE_FILE_RE = /, lister: /const listCaptureFiles = /, unit: 'capture-files' },
         { stem: 'ecg-rate-transfer.mjs', anti: /export const BAND_MEDIAN_ABS_MS = 4;/, lister: /const listEcgRecords = /, unit: 'ecg-records' },
         { stem: 'resp-acc-headless.mjs', anti: /const STAMP_SOURCES|const stampOf = /, lister: /const listAccFiles = /, unit: 'acc-files' },
@@ -81760,6 +81760,104 @@
         }
       };
       T.ok('no usable counter ⇒ the index form, never a fabricated 0', PS.ecgCounterTimeMs(noCounter, 130) === 1005, String(PS.ecgCounterTimeMs(noCounter, 130)));
+    });
+
+    group('PAT ECG axis — how many tools still time R peaks on a private whole-file fs (2026-09-26)', 'pat · ecg-axis · census', function (T) {
+      var TT = env.toolTexts;
+      if (!TT) {
+        T.skip('tool texts readable from source', 'env.toolTexts is absent in this runner — the census reads the tools tree');
+        return;
+      }
+      /* THE ROW NAMED THREE TOOLS AND THE TREE HELD TEN SITES. Row
+         2026-09-26-pat-ecg-index-axis-is-not-the-h10-sample-clock named `pat-hrv-windows`,
+         `pat-window-scaling` and `pat-literature-spec` as the local `t0 + i/fs` copies. A scan of the
+         whole tools tree on 2026-11-11 read 10 sites over 9 files, so the row's census reached under a
+         third of them. #4783 then flipped `rPeakTimesOnAxis` to the device counter, which moved the
+         shared arithmetic and left every private copy on the index form, so one tree now times R peaks
+         two ways. This leg is the only reader that sees the whole population at once.
+         THE BASELINE IS A RATCHET, SO IT MAY ONLY SHRINK. A file that routes through the shared
+         function leaves; a listed file that no longer parses ECG reds as STALE rather than sitting
+         there excusing nothing. */
+      var isEcgReader = function (k) {
+        return /^tools\//.test(k) && /parseECG/.test(TT[k] || '');
+      };
+      var ecgReaders = Object.keys(TT).filter(isEcgReader);
+      var IDX_FORM = /t0Ms \+ \(\s*[A-Za-z0-9_.[\]]+ \/ [A-Za-z0-9_.]*\bfs\b\s*\) \* 1000/;
+      var reachesShared = function (k) {
+        return /rPeakTimesOnAxis/.test(TT[k] || '') || /import \{[^}]*\becgRpeakTimes\b[^}]*\} from '\.\/pat-matchrate-strict\.mjs'/.test(TT[k] || '');
+      };
+      var privateSites = ecgReaders
+        .filter(function (k) {
+          return IDX_FORM.test(TT[k] || '') && !reachesShared(k);
+        })
+        .map(function (k) {
+          return k.replace('tools/', '');
+        })
+        .sort();
+      /* ANTI-VACUITY runs BOTH ways. The matcher must find the sanctioned implementation, and the
+         population must be wider than the handful of names below. */
+      T.ok('ANTI-VACUITY · the matcher reads the index form in the sanctioned copy', IDX_FORM.test(TT['tools/pat-matchrate-strict.mjs'] || ''), 'pat-matchrate-strict carries the linear arm');
+      T.ok('ANTI-VACUITY · the population is every ECG reader in the tree', ecgReaders.length >= 20, ecgReaders.length + ' ECG reader(s)');
+      /* THE TWO THIS UNIT CONVERTED. Both carried a declared port of the worker's `ecgRpeakTimes` and
+         both held the index form alone, so the port deviated with nothing declaring it. */
+      T.eq(
+        'the two declared ports now route through the shared arithmetic',
+        ['beat-correspondence.mjs', 'pat-literature-spec.mjs']
+          .filter(function (t) {
+            return !reachesShared('tools/' + t);
+          })
+          .join(', '),
+        ''
+      );
+      T.eq(
+        'and neither keeps a private site beside it',
+        ['beat-correspondence.mjs', 'pat-literature-spec.mjs']
+          .filter(function (t) {
+            return privateSites.indexOf(t) >= 0;
+          })
+          .join(', '),
+        ''
+      );
+      T.eq(
+        'the two the row named before them stay routed',
+        ['pat-hrv-windows.mjs', 'pat-window-scaling.mjs']
+          .filter(function (t) {
+            return !reachesShared('tools/' + t);
+          })
+          .join(', '),
+        ''
+      );
+      /* THE REMAINDER, BY NAME. `pat-three-corner` is the odd member: it holds a three-way axis switch
+         of its own rather than a bare index form, so the capability is there and the arithmetic is
+         duplicated — the same defect in a second shape. `trio-fold-merge` converts a record LENGTH to
+         an end time and never a peak position, so it sits outside the defect and inside the matcher. */
+      var AXIS_BACKLOG = [
+        'o2ring-finger-roundtrip.mjs',
+        'o2ring-finger-validate-batch.mjs',
+        'pat-per-led.mjs',
+        'pat-three-corner.mjs',
+        'ppg-bridge-hrv-validate.mjs',
+        'ppg-foot-consensus-e1.mjs',
+        'ppg-fusion-e3.mjs',
+        'ppi-jitter-vs-ecg.mjs',
+        'trio-fold-merge.mjs'
+      ];
+      var offBaseline = privateSites.filter(function (t) {
+        return AXIS_BACKLOG.indexOf(t) < 0;
+      });
+      var alreadyRouting = AXIS_BACKLOG.filter(function (t) {
+        return reachesShared('tools/' + t);
+      });
+      var staleOnBaseline = AXIS_BACKLOG.filter(function (t) {
+        return privateSites.indexOf(t) < 0;
+      });
+      T.eq('every ECG reader holding a private index form is on the declared baseline', offBaseline.join(', '), '');
+      T.eq('the baseline carries no name that already routes through the shared function', alreadyRouting.join(', '), '');
+      T.eq('the baseline carries no stale name, because a stale entry excuses nothing', staleOnBaseline.join(', '), '');
+      T.eq('and the baseline is the measured set of 2026-11-11', privateSites.join(', '), AXIS_BACKLOG.join(', '));
+      /* THE ONE EXCLUSION, STATED. A matcher that admitted a record-end time would read a clean file as
+         a defect, so the exclusion is named here rather than tuned into the regex. */
+      T.ok('the excluded member converts a record LENGTH, never a peak', /t0Ms \+ \(r\.int16\.length \/ fs\) \* 1000/.test(TT['tools/trio-fold-merge.mjs'] || ''), 'an end time');
     });
 
     group("PAT arrival-floor axis — the corrected lag removes the links' BUFFERING, not a clock (route-PAT fix 2026-09-27)", 'pat · arrival-floor · plant', function (T) {
