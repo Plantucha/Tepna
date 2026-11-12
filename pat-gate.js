@@ -115,6 +115,39 @@
     if (isFinite(range)) return { stat: 'driftRange', ms: range, name: 'range of the 5-min lag medians', rangeMs: range };
     return { stat: null, ms: Infinity, name: 'no drift statistic', rangeMs: null };
   }
+  /* ── WHICH NIGHT THE PAGE FOCUSES, AND ON WHAT BASIS ─────────────────────────────────────────
+     `pat-feasibility.js` chose with `focusNight(elig.length === 1 ? elig[0] : elig[0])` under a
+     comment promising "the worst-drift night (most informative)". Both arms were `elig[0]`, so the
+     promise was dead and the page focused the earliest night by key whatever the corpus looked
+     like. The choice is over MEASUREMENTS, so it belongs beside the statistic it ranks on, and it
+     returns its own `basis` because a reader must be able to tell a ranking from an arbitrary
+     pick: `only` (nothing was chosen — the row's single-night handover), `worst-drift` (ranked on
+     `driftStatOf`), `first` (no night carries a statistic YET, so the earliest by key stands in and
+     SAYS so), `none` (no eligible night). §∅ — `first` is never dressed up as a ranking. */
+  function pickFocusNight(keys, results) {
+    var ks = (keys || []).slice().sort();
+    if (!ks.length) return { key: null, basis: 'none', why: 'no eligible night' };
+    if (ks.length === 1) return { key: ks[0], basis: 'only', why: 'the only eligible night — nothing was chosen' };
+    var res = results || {},
+      best = null,
+      bestMs = -Infinity,
+      bestName = null,
+      bestStat = null;
+    for (var i = 0; i < ks.length; i++) {
+      var m = res[ks[i]];
+      if (!m || !m.cp) continue;
+      var ds = driftStatOf(m.cp);
+      if (!Number.isFinite(ds.ms)) continue;
+      if (ds.ms > bestMs) {
+        bestMs = ds.ms;
+        best = ks[i];
+        bestName = ds.name;
+        bestStat = ds.stat;
+      }
+    }
+    if (best == null) return { key: ks[0], basis: 'first', why: 'no night has a drift statistic yet — the earliest by date', stat: null, ms: null };
+    return { key: best, basis: 'worst-drift', why: 'the widest ' + bestName + ' of ' + ks.length + ' nights, at ' + bestMs.toFixed(0) + ' ms', stat: bestStat, ms: bestMs };
+  }
   function verdict(ov, cp, sc, ax) {
     if (!ov || ov.min <= 0) return { tier: 'no', label: 'NO OVERLAP', why: null };
     if (ax && ax.independent === false)
@@ -591,10 +624,11 @@
     ARTIFACT_CONF_MIN: ARTIFACT_CONF_MIN,
     driftStats: driftStats,
     driftStatOf: driftStatOf,
+    pickFocusNight: pickFocusNight,
     coverStat: coverStat,
     BIN_MATCH_MIN: BIN_MATCH_MIN,
     SC_RATE_TOL: SC_RATE_TOL,
     SC_MIN_OVERLAP_MIN: SC_MIN_OVERLAP_MIN,
-    VERSION: '1.5.0'
+    VERSION: '1.6.0'
   };
 })(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this);

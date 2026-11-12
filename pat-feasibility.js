@@ -344,6 +344,18 @@
     if (pb) pb.disabled = elig === 0;
     var tag = el('nightTag');
     if (tag) tag.textContent = keys.length + ' nights · ' + elig + ' eligible';
+    /* A HANDOVER OF EXACTLY ONE NIGHT NEEDS NO BATCH TO FILL THE PANEL. `focusNight` posts its own
+       `detail: true` job, so a single eligible night renders on ingest and the reader is never asked
+       to click the one row there is. With several nights the pick is a RANKING over measurements the
+       batch has not produced yet, so the page waits for `finishBatch` and says so below. */
+    if (elig === 1) {
+      var one = keys.filter(function (k) {
+        return eligible(NIGHTS[k]);
+      })[0];
+      focusNight(one, 'the only eligible night — nothing was chosen');
+    } else if (elig > 1) {
+      setFocusState('', elig + ' eligible nights', 'click a night above, or process them and this panel opens the widest-drift night');
+    }
   }
 
   function renderNightTable() {
@@ -530,13 +542,17 @@
     renderAggregate(oks);
     setStatus('done · ' + oks.length + ' coupled night(s)', 'done');
     el('dlBtn').disabled = false;
-    // auto-focus the first eligible if only one, else the worst-drift night (most informative)
+    /* THE CHOICE IS OVER MEASUREMENTS, so it lives in `pat-gate.js` beside the statistic it ranks
+       on, and it reports its own basis. This chose through a ternary whose two arms BOTH read
+       `elig[0]`, under a comment promising the worst-drift night, so the page always focused the
+       earliest night by key and said nothing about why. The control below scans for the call. */
     var elig = Object.keys(NIGHTS)
       .sort()
       .filter(function (k) {
         return eligible(NIGHTS[k]);
       });
-    if (elig.length) focusNight(elig.length === 1 ? elig[0] : elig[0]);
+    var pick = (self.PATGate && self.PATGate.pickFocusNight)(elig, RESULTS);
+    if (pick.key) focusNight(pick.key, pick.why);
   }
 
   /* `agg()` and `median()` used to live here. Both are GONE rather than left unused: `agg` filtered
@@ -822,22 +838,68 @@
     el('aggCards').innerHTML = cards.join('');
   }
 
+  /* ── ONE WRITER PER OUTCOME, NOT ONE WRITER PER SUCCESS ────────────────────────────────────────
+     `focusVerdict` was written at exactly ONE site: `renderFocus`'s success path. So a refusal, a
+     failed worker load, a detail-job error and the whole render window ALL left the page's
+     first-load prose, "Run the batch, then click a night above." After a monitor handover of one
+     night that sentence asks the reader for two things the monitor already did, and nothing on the
+     panel says the render failed. §∅ — a pending or failed measurement is a NAMED state here, never
+     the nothing-has-happened-yet state. `tier` is '' for pending (the bare `.verdict` box) or 'no'
+     for a refusal, which is the same vocabulary `renderFocus` writes. */
+  function setFocusState(tier, label, detail) {
+    var vc = el('focusVerdict');
+    if (!vc) return;
+    vc.className = 'verdict' + (tier ? ' ' + tier : '');
+    /* BUILT AS NODES, NOT MARKUP. `escHtml` is a node-local alias, and `tools/xss-sink-gate.mjs`
+       cannot follow an aliased escaper into a sink — its own LIMITS paragraph says so — so an added
+       `innerHTML` here reads as a violation however carefully it escapes. A text node carries no
+       markup at all, which is the stronger claim and needs no entry in that gate's ALLOW table. */
+    vc.textContent = '';
+    var lab = document.createElement('div');
+    lab.className = 'vlabel';
+    lab.style.color = tier === 'no' ? C.red : C.mut;
+    lab.textContent = label;
+    vc.appendChild(lab);
+    if (detail) {
+      var dt = document.createElement('div');
+      dt.className = 'muted';
+      dt.textContent = detail;
+      vc.appendChild(dt);
+    }
+  }
+
   // ── focused single-night detail (scatter + hist) ───────────────────────────
-  function focusNight(k) {
+  function focusNight(k, why) {
     var nt = NIGHTS[k];
-    if (!nt || !eligible(nt)) return;
-    el('focusTitle').textContent = 'Night ' + k;
+    if (!nt || !eligible(nt)) {
+      setFocusState('no', 'night ' + k + ' cannot be focused', nt ? 'this night carries no ECG and PPG pair, so no PAT is computable' : 'no night is loaded under that key');
+      return;
+    }
+    el('focusTitle').textContent = 'Night ' + k + (why ? ' · ' + why : '');
+    setFocusState('', 'rendering ' + k + '…', why || null);
     setStatus('rendering ' + k + '…', 'run');
     if (!detailWorker) detailWorker = new Worker('pat-feasibility-worker.js');
     detailWorker.onmessage = function (ev) {
       var m = ev.data;
       if (m.type === 'ready') {
+        /* the batch handler reports this failure and this one dropped it — the field is `err` */
+        if (!m.ok) {
+          setFocusState('no', 'the detail worker could not load its DSP', m.err || 'the worker reported no reason');
+          setStatus('worker DSP load failed: ' + (m.err || ''), 'idle');
+        }
         return;
       }
       if (m.type !== 'result') return;
       setStatus('done', 'done');
       if (m.error) {
-        el('focusHead').innerHTML = '<div class="muted" style="color:' + C.red + '">' + m.error + '</div>';
+        setFocusState('no', 'night ' + k + ' did not render', m.error);
+        var fh = el('focusHead');
+        fh.textContent = '';
+        var fe = document.createElement('div');
+        fe.className = 'muted';
+        fe.style.color = C.red;
+        fe.textContent = m.error;
+        fh.appendChild(fe);
         return;
       }
       renderFocus(m);
