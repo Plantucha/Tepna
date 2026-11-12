@@ -81751,7 +81751,7 @@
     group('PAT ECG axis — how many tools still time R peaks on a private whole-file fs (2026-09-26)', 'pat · ecg-axis · census', function (T) {
       var TT = env.toolTexts;
       if (!TT) {
-        T.skip('env.toolTexts not in env (browser lane)');
+        T.skip('tool texts readable from source', 'env.toolTexts is absent in this runner — the census reads the tools tree');
         return;
       }
       /* THE ROW NAMED THREE TOOLS AND THE TREE HELD TEN SITES. Row
