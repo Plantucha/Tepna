@@ -4263,11 +4263,38 @@ function _pbObserver(rec) {
   }
   return null;
 }
+/* 2026-11-12 · residue `2026-11-11-pb-finding-ignores-device-scored`. A node that SCORED this
+   phenomenon and found none of it is evidence, and `_pbObserver` returns null for it — so the fused
+   note named "device-scored" first in its own tier ladder while the device that scored 0.0 % of the
+   night went unmentioned. Measured on the 2026-11-04 night: OxyDex carried 1 PB episode at 20:39,
+   ECGDex carried a CVHR train, and CPAPDex scored `periodicBreathingPct` 0.0 — the reader saw
+   "corroborated across 2 independent signals" and no word about the device.
+   A dissenter is NOT an observer: it corroborates nothing, so `nObservers`, `corroborated` and
+   `conf` keep their exact former values, and only the REPORT gains the device. §∅ holds twice over:
+   a `periodicBreathingPct` of null is "not scored" and never a dissent, and a 0 the device really
+   wrote is a measurement rather than an absence. The CAUSE matters more than the number — a
+   device's coverage may begin after the earliest episode, and on that night it did (CPAP start
+   21:59 against the 20:39 episode), so its zero cannot refute the episode and the note says which
+   of the two cases it is. */
+function _pbDissenter(rec) {
+  if (rec.node !== 'OxyDex' && rec.node !== 'CPAPDex') return null;
+  if (_eventsOfType(rec, ['periodic_breathing']).length) return null;
+  var pct = rec.summary && rec.summary.periodicBreathingPct != null ? rec.summary.periodicBreathingPct : null;
+  if (pct == null || pct > 0) return null; // not scored at all, or the positive observer `_pbObserver` already took
+  var w = recWindow(rec);
+  return {
+    node: rec.node,
+    channel: rec.node === 'CPAPDex' ? 'device flow' : 'SpO₂ oscillation',
+    tier: rec.node === 'CPAPDex' ? 'device-scored' : 'experimental',
+    pbPct: pct,
+    coverage: w ? { startMs: w.startMs, endMs: w.endMs } : null
+  };
+}
 function fusePeriodicBreathing(recs) {
-  var src = (recs || [])
-    .filter(function (r) {
-      return !r.dateUnknown;
-    })
+  var pool = (recs || []).filter(function (r) {
+    return !r.dateUnknown;
+  });
+  var src = pool
     .map(function (r) {
       var o = _pbObserver(r);
       return o ? { rec: r, obs: o } : null;
@@ -4276,6 +4303,15 @@ function fusePeriodicBreathing(recs) {
       return x;
     });
   if (src.length < 2) return null;
+  // the nodes that scored PB and found none of it — read per group below, never counted as observers
+  var dissentPool = pool
+    .map(function (r) {
+      var d = _pbDissenter(r);
+      return d ? { rec: r, dis: d } : null;
+    })
+    .filter(function (x) {
+      return x;
+    });
   // group by temporal overlap (same night) — identical pattern to staging / HRV consensus
   var groups = _overlapComponents(src, function (a, b) {
     return !!overlapInterval(a.rec, b.rec);
@@ -4299,6 +4335,44 @@ function fusePeriodicBreathing(recs) {
         })
       );
       if (!isFinite(t0)) t0 = null;
+      /* The earliest PB EPISODE in this group, which is the instant a dissenter has to cover for its
+         zero to mean anything. An episode with no stamp leaves this null, and then the coverage
+         relation reads null — unknown — never a silent true. */
+      var firstEpisodeMs = null;
+      g.forEach(function (s2) {
+        _eventsOfType(s2.rec, ['periodic_breathing']).forEach(function (e) {
+          if (e.tMs == null || !isFinite(e.tMs)) return;
+          if (firstEpisodeMs === null || e.tMs < firstEpisodeMs) firstEpisodeMs = e.tMs;
+        });
+      });
+      var dissenters = dissentPool
+        .filter(function (d) {
+          return g.some(function (s2) {
+            return !!overlapInterval(d.rec, s2.rec);
+          });
+        })
+        .map(function (d) {
+          var cov = d.dis.coverage;
+          var covers = cov == null || firstEpisodeMs === null ? null : firstEpisodeMs >= cov.startMs && firstEpisodeMs <= cov.endMs;
+          return {
+            node: d.dis.node,
+            channel: d.dis.channel,
+            tier: d.dis.tier,
+            pbPct: d.dis.pbPct,
+            coverage: cov ? { startMs: cov.startMs, endMs: cov.endMs, clock: fmtClock(cov.startMs) + '–' + fmtClock(cov.endMs) } : null,
+            coversFirstEpisode: covers,
+            firstEpisodeMs: firstEpisodeMs
+          };
+        });
+      var dissentNote = dissenters
+        .map(function (d) {
+          var head = ' ' + d.node + ' (' + d.channel + ', ' + d.tier + ') scored ' + d.pbPct + '% over its own coverage';
+          if (d.coverage) head += ' (' + d.coverage.clock + ')';
+          if (d.coversFirstEpisode === true) return head + ' and covered the first episode — the device DISSENTS; reconcile before trusting this corroboration.';
+          if (d.coversFirstEpisode === false) return head + ', which begins after the first episode at ' + fmtClock(d.firstEpisodeMs) + ', so it cannot refute it.';
+          return head + ', and no episode carries a stamp, so whether it covered them is unknown.';
+        })
+        .join('');
       var conf = combineConf(
         obs.map(function (o) {
           /* ∅ · an observer that states no confidence contributes NOTHING, and `combineConf`
@@ -4325,7 +4399,8 @@ function fusePeriodicBreathing(recs) {
             );
           })
           .join('; ') +
-        '. Tier-weighted (device-scored > cardiac CVHR > oximetry proxy); a cross-signal corroboration, not a scored Cheyne–Stokes index.';
+        '. Tier-weighted (device-scored > cardiac CVHR > oximetry proxy); a cross-signal corroboration, not a scored Cheyne–Stokes index.' +
+        dissentNote;
       return {
         t0Ms: t0,
         window: t0 != null ? fmtDayShort(t0) : 'date unknown',
@@ -4336,6 +4411,10 @@ function fusePeriodicBreathing(recs) {
         corroborated: obs.length >= 2,
         conf: conf,
         sources: obs,
+        /* Additive, so an older consumer reads the block unchanged. Empty where every scoring node
+           saw PB, which keeps every pre-2026-11-12 fixture note byte-identical. */
+        dissenters: dissenters,
+        nDissenters: dissenters.length,
         note: note
       };
     })
@@ -7639,7 +7718,11 @@ function runFusion(recs, opts) {
           window: b.window,
           byNode: b.sources.map(function (o) {
             return { node: o.node, channel: o.channel, tier: o.tier, episodes: o.episodes, pbPct: o.pbPct, cvhrIndex: o.cvhrIndex, conf: o.conf };
-          })
+          }),
+          /* `meta` is a HAND-WRITTEN projection, so a new block field reaches no card until it is
+             named here. The dissenting nodes travel beside the observers, never inside them. */
+          nDissenters: b.nDissenters != null ? b.nDissenters : 0,
+          dissenters: b.dissenters || []
         },
         note: b.note
       });
@@ -7741,7 +7824,7 @@ function buildFusionExport(recs, fusion) {
           'window.overlapMin / overlapUnionMin = merged-union minutes where ≥2 nodes coincide (NOT a sum of pairwise overlaps); intersectionMin = N-way all-node overlap; pairwiseSumMin retained for transparency; nodesExcluded = dated nodes overlapping nothing (R3).',
         hrvConsensus: 'HRV consensus compares whole-record SDNN/RMSSD/LF-HF across nodes (window-normalized; epoch-scoped variants kept separately); same-window only (R8).',
         periodicBreathing:
-          'periodic_breathing = a PB / Cheyne–Stokes window corroborated across ≥2 independent signals (OxyDex SpO₂ oscillation · CPAPDex device flow · ECGDex cardiac CVHR), grouped by night-overlap; conf is the tier-weighted noisy-OR (device 1.0 · CVHR 0.8 · oximetry proxy 0.6). Graded experimental — a corroboration signal, not a scored CSR index (§2).'
+          'periodic_breathing = a PB / Cheyne–Stokes window corroborated across ≥2 independent signals (OxyDex SpO₂ oscillation · CPAPDex device flow · ECGDex cardiac CVHR), grouped by night-overlap; conf is the tier-weighted noisy-OR (device 1.0 · CVHR 0.8 · oximetry proxy 0.6). Graded experimental — a corroboration signal, not a scored CSR index (§2). `dissenters` names every node that SCORED this phenomenon over the same night and found none of it (`periodicBreathingPct` 0, no episodes); a dissenter is never an observer, so it moves no confidence and no count, and `coversFirstEpisode` says whether its coverage even included the earliest episode — false means its zero cannot refute the finding.'
       }
     },
     bus: BUS,
