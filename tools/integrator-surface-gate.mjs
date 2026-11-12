@@ -52,6 +52,32 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 export const DECL_PATH = join(ROOT, 'tools/integrator-surface.json');
 export const SURFACES = ['card', 'export-only'];
 
+/* 🔴 THE SLIM-EXPORT LITERAL IS A SECOND EXPORT ROUTE, AND THIS GATE READ ONLY THE FIRST. Until
+   2026-11-12 the enumerator took the fusion return object plus every `_exp.<key>` ASSIGNMENT. The
+   Integrator builds most of its slim export as one object LITERAL (`var _exp = {`), so ten of its
+   keys — `confirmedApneaIndex` among them — reached the node-export with no declaration, and the
+   gate reported a green PASS over 26 of the 36 keys it was written to judge. A verdict that names
+   its population is what makes that visible, so `result.keys` and `result.depth` are both printed.
+
+   Returns null when the text carries no such literal, which is the shape the snippet selftests
+   pass. `main()` REFUSES on a null, so the real run fails closed when the literal's shape moves. */
+export function exportLiteralKeys(dspText) {
+  const lines = dspText.split('\n');
+  const open = lines.findIndex((l) => /^\s*var _exp = \{\s*$/.test(l));
+  if (open < 0) return null;
+  const keys = [];
+  let d = 0;
+  for (let i = open; i < lines.length; i++) {
+    if (i > open && d === 1) {
+      const m = lines[i].match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*:/);
+      if (m) keys.push(m[1]);
+    }
+    d += (lines[i].match(/[{[]/g) || []).length - (lines[i].match(/[}\]]/g) || []).length;
+    if (i > open && d <= 0) return keys;
+  }
+  return null;
+}
+
 /** The keys the fusion can emit: its return object's own properties, plus every `_exp.<key>`. */
 export function fusionKeys(dspText) {
   const lines = dspText.split('\n');
@@ -83,6 +109,8 @@ export function fusionKeys(dspText) {
     d += (l.match(/[{[]/g) || []).length - (l.match(/[}\]]/g) || []).length;
   }
   for (const m of dspText.matchAll(/_exp\.([A-Za-z_][A-Za-z0-9_]*)/g)) keys.push(m[1]);
+  const lit = exportLiteralKeys(dspText);
+  if (lit) keys.push(...lit);
   return [...new Set(keys)].sort();
 }
 
@@ -137,6 +165,7 @@ function gitCommit() {
 
 function main() {
   const dsp = readFileSync(join(ROOT, 'integrator-dsp.js'), 'utf8');
+  if (!exportLiteralKeys(dsp)) throw new Error('the `var _exp = {` slim-export literal was not found, or it does not close — its shape changed, and this gate must not guess');
   const render = readFileSync(join(ROOT, 'integrator-render.js'), 'utf8');
   const decl = JSON.parse(readFileSync(DECL_PATH, 'utf8'));
   const keys = fusionKeys(dsp);
@@ -150,6 +179,9 @@ function main() {
     criterion: { name: 'undeclared_or_misdeclared_keys', threshold: 0, unit: 'keys', direction: 'lte' },
     result: {
       keys: keys.length,
+      /* 🔴 THE POPULATION, STATED. The brief counts 108 keys at depth <= 2; this gate judges the
+         TOP level only, so a nested property's surface is not examined and is not claimed. */
+      depth: 1,
       card: cards,
       exportOnly: keys.length - cards,
       undeclared: r.undeclared.length,
@@ -181,7 +213,11 @@ function main() {
     console.error('✗ ' + v.reason);
     process.exit(1);
   }
-  if (!JSON_ONLY) console.log(`✓ ${keys.length} Integrator key(s): ${cards} card · ${keys.length - cards} export-only · 0 undeclared · reads blanked by ${r.blankedBy}`);
+  if (!JSON_ONLY)
+    console.log(
+      `✓ ${keys.length} top-level Integrator key(s): ${cards} card · ${keys.length - cards} export-only · 0 undeclared · reads blanked by ${r.blankedBy}` +
+        ' · depth 1 — a NESTED property declares no surface and this gate does not examine one'
+    );
   if (r.stale.length) console.log(`  note: ${r.stale.length} declaration(s) name a key the fusion no longer emits (${r.stale.join(', ')}) — not a red, but worth pruning`);
   process.exit(0);
 }
@@ -249,6 +285,15 @@ if (DIRECT && process.argv.includes('--selftest')) {
   ck('🔴 a changed fusion shape REFUSES — never a silently short key list', threw, true);
   ck('the enumerator finds the real keys', fusionKeys('x = function(){\n  return {\n    hrSource: hrSource,\n    apnea: apnea\n  };\n}').includes('apnea'), true);
   ck('…and _exp assignments join them', fusionKeys('x=function(){\n  return {\n    hrSource: hrSource\n  };\n}\n_exp.extra = 1;').includes('extra'), true);
+  /* 🔴 THE SECOND EXPORT ROUTE, PLANTED. `nu` and `xi` are the literal's own keys, `buried` sits one
+     level down inside `schema`, and `xi` is the literal key nobody declared. */
+  const EXPSRC = 'x=function(){\n  return {\n    hrSource: hrSource\n  };\n}\n  var _exp = {\n    nu: 1,\n    schema: {\n      buried: 2\n    },\n    xi: 3\n  };\n';
+  ck('🔴 the slim-export LITERAL keys join the population', fusionKeys(EXPSRC), ['hrSource', 'nu', 'schema', 'xi']);
+  ck('…and a key one level DOWN is not one of them — the gate judges depth 1', fusionKeys(EXPSRC).includes('buried'), false);
+  ck('…so a literal-only key nobody declared reds', evaluate(fusionKeys(EXPSRC), { hrSource: 'export-only', nu: 'export-only', schema: 'export-only' }, R).undeclared, ['xi']);
+  ck('a text with no such literal returns null, not an empty list', exportLiteralKeys('var other = { a: 1 };'), null);
+  ck('…and an UNTERMINATED literal returns null too — it fails closed', exportLiteralKeys('  var _exp = {\n    nu: 1,\n'), null);
+  ck('the literal reader finds the keys at its own depth', exportLiteralKeys(EXPSRC), ['nu', 'schema', 'xi']);
   ck('the surfaces are exactly two', SURFACES, ['card', 'export-only']);
   /* 🔴 A MENTION IS NOT A READ — the three states added 2026-11-11, each planted. */
   ck("🔴 a 'card' key whose only mention is a COMMENT reds", evaluate(['iota'], { iota: 'card' }, PROSE).cardUnrendered, ['iota']);
