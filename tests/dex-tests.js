@@ -56875,6 +56875,122 @@
       );
       T.eq('and a page written before drift existed still renders', /DRIFT/.test(page([quietCur], { nonDraft: 1, cap: 4, alerts: [] }, [], { at: 'x', requiredSource: 'ruleset(11)' })), false);
     });
+    /* ── queue-doctor: A QUEUED RUN AND AN UNCLAIMABLE RUN READ IDENTICALLY (measured 2026-11-11).
+       GitHub creates a workflow-run record, then expands it into jobs. When the second step never
+       happens the record stays `queued` for ever — no runner can claim a run holding no job, nothing
+       times it out, and every view prints the same word it prints for a run about to start. 31 runs
+       on three branches sat two hours that way while the fleet read it as a queue position; one empty
+       commit per branch cleared all three. A second shape has the same consequence and a different
+       remedy: two runs created 2026-08-19 DID expand (3 jobs and 1) and were never claimed, so no
+       push reaches them. Both hold CLAUDE.md §5's `pend` above 0 for ever, which is the number every
+       session is told to collect on. This drives the pure core, so no `gh`, network or clock. */
+    group('Queue-doctor — a run that cannot start is not a queue position', 'tools · queue-doctor-unclaimable', function (T) {
+      var ur = env.qdUnexpandedRuns,
+        ucr = env.qdUnclaimableRuns,
+        pp = env.qdPoolPend,
+        cl = env.qdClassify,
+        MIN = env.qdUnexpandedMin,
+        LIMH = env.qdStaleQueuedH;
+      if (typeof ur !== 'function' || typeof ucr !== 'function' || typeof pp !== 'function' || typeof cl !== 'function') {
+        T.skip('queue-doctor unclaimable-run core is wired into this lane', 'browser lane cannot import tools/queue-doctor.mjs');
+        return;
+      }
+      var NOW = 1762900000000;
+      var R = function (o) {
+        var b = { runId: '1', name: 'tests', status: 'queued', headSha: 'abc', headBranch: 'claude/x', createdAtMs: NOW - 60 * 60000, jobs: 0 };
+        for (var k in o) b[k] = o[k];
+        return b;
+      };
+      T.eq('a jobless run past the bound is named', ur([R()], NOW).length, 1);
+      T.eq('…with the run id, so the reader can act on it', ur([R({ runId: '77' })], NOW)[0].runId, '77');
+      T.eq('a run with jobs is not named — it is a real queue position', ur([R({ jobs: 3 })], NOW).length, 0);
+      T.eq('a jobless run INSIDE the bound is not named — expansion takes seconds', ur([R({ createdAtMs: NOW - (MIN - 1) * 60000 })], NOW).length, 0);
+      /* ∅ The fail-closed direction here is the OPPOSITE of the required-set one: this state's remedy
+         is a PUSH, so inventing it spends a commit and a whole CI cycle on a queue that was working. */
+      T.eq('an UNREAD job count is not a zero', ur([R({ jobs: null })], NOW).length, 0);
+      T.eq('an undated run is not named', ur([R({ createdAtMs: NaN })], NOW).length, 0);
+      T.eq('a run that is not queued is not named', ur([R({ status: 'in_progress' })], NOW).length, 0);
+      T.eq('a non-array reads as nothing examined, never as nothing wrong', ur(null, NOW).length, 0);
+      /* THE SECOND SHAPE: expanded, never claimed. GitHub documents a 24 h job queue limit and
+         cancels past it, so a run still queued past the platform's own promise is broken. */
+      var OLD = R({ runId: '9', jobs: 3, createdAtMs: NOW - (LIMH + 1) * 3600000 });
+      T.eq('a run past the queue limit is unclaimable although it HAS jobs', ucr([OLD], NOW).length, 1);
+      T.eq('…and it is named by the remedy that reaches it', ucr([OLD], NOW)[0].reason, 'past-queue-limit');
+      T.eq('a jobless run keeps the narrower reason', ucr([R()], NOW)[0].reason, 'no-jobs');
+      T.eq('a run reported once, never under both reasons', ucr([R({ createdAtMs: NOW - (LIMH + 1) * 3600000 })], NOW).length, 1);
+      T.eq('a young run with jobs is neither', ucr([R({ jobs: 2, createdAtMs: NOW - 5 * 60000 })], NOW).length, 0);
+      /* 🔴 §5 SAYS COLLECT WHEN `pend` IS 0, AND ONE UNCLAIMABLE RUN HOLDS IT ABOVE 0 FOR EVER. */
+      var POOL = [R({ runId: 'a' }), R({ runId: 'b', jobs: 4, createdAtMs: NOW - 60000 }), OLD];
+      T.eq('the raw queued count is every record', pp(POOL, NOW).queued, 3);
+      T.eq('pend counts only what a runner can still take', pp(POOL, NOW).pend, 1);
+      T.eq('and the excluded set is named, not just subtracted', pp(POOL, NOW).unexpanded.length, 2);
+      T.eq('an empty pool is pend 0 — the state the criterion wants', pp([], NOW).pend, 0);
+      /* THE CAUSE OUTRANKS THE SYMPTOM. Both rungs below it read a bucket count and prescribe from
+         it; an unclaimable run on the head makes a wait useless whatever the buckets say. */
+      var PR = function (o) {
+        var b = {
+          number: 7,
+          state: 'OPEN',
+          isDraft: false,
+          mergeState: 'CLEAN',
+          autoMerge: false,
+          updatedAtMs: NOW - 30 * 60000,
+          checks: [{ name: 'tests', bucket: 'pending' }],
+          checkRuns: [],
+          headRuns: [R()]
+        };
+        for (var k in o) b[k] = o[k];
+        return b;
+      };
+      var REQ = ['tests', 'biome'];
+      T.eq('a pending check over a jobless run classifies by its CAUSE', cl(PR(), REQ, NOW).k, 'unexpanded');
+      T.ok(
+        'and the why carries the one remedy that works',
+        /NEW HEAD/.test(cl(PR(), REQ, NOW).why) && /ZERO jobs/.test(cl(PR(), REQ, NOW).why),
+        'the sentence prescribes a new head and names the jobless runs'
+      );
+      T.ok('the why names the run id, so no second query is needed', /\b1\b/.test(cl(PR(), REQ, NOW).why), 'the id is what `gh run` takes');
+      T.eq('an ABSENT required context over a jobless run is the same cause', cl(PR({ checks: [] }), REQ, NOW).k, 'unexpanded');
+      /* The counterfactual: the SAME PR with nothing unclaimable on its head keeps the old rung, so
+         the new one cannot be what produced the verdict above. */
+      T.eq('with an empty head-run list the old pending rung still owns it', cl(PR({ headRuns: [] }), REQ, NOW).k, 'running-unarmed');
+      T.eq('and with no head-run key at all — an older caller — nothing changes', cl(PR({ headRuns: undefined }), REQ, NOW).k, 'running-unarmed');
+      T.eq(
+        'a GREEN PR is never reclassified by a dead run on its head',
+        cl(
+          PR({
+            checks: [
+              { name: 'tests', bucket: 'pass' },
+              { name: 'biome', bucket: 'pass' }
+            ],
+            mergeState: 'CLEAN',
+            autoMerge: true
+          }),
+          REQ,
+          NOW
+        ).k,
+        'ready'
+      );
+      /* It must trip `--report`: a cause no view reports is exactly what this tool exists to name. */
+      var at = env.qdAttention;
+      if (typeof at === 'function') {
+        var cls = [{ pr: PR(), k: cl(PR(), REQ, NOW).k }];
+        T.eq('the attention set names it, so --report exits 1', at(cls).unexpanded.length, 1);
+      }
+      /* And it is updatable only where this tool's one verb reaches: `update-branch` needs a BEHIND
+         head, so a CURRENT unclaimable PR is reported and left alone. */
+      var pk = env.qdPick;
+      if (typeof pk === 'function') {
+        var mk = function (pr) {
+          var r = cl(pr, REQ, NOW);
+          r.pr = pr;
+          return r;
+        };
+        var behind = PR({ number: 8, mergeState: 'BEHIND', autoMerge: true, updatedAtMs: NOW - 40 * 60000 });
+        T.eq('a BEHIND armed unclaimable PR is a candidate — a new head is the remedy', pk([mk(behind)]).action, 'update');
+        T.eq('a CURRENT one is not: this tool cannot push a commit', pk([mk(PR({ autoMerge: true }))]).action, 'none');
+      }
+    });
     group('Queue-doctor — the red ledger writes a line once per change, and a clear is named', 'tools · queue-doctor-ledger', function (T) {
       var rl = env.qdRedLedger;
       if (typeof rl !== 'function') {

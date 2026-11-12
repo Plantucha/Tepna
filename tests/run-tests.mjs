@@ -51,8 +51,13 @@ import {
   dirtyVerdict as qdDirtyVerdict,
   parseMergeTree as qdParseMergeTree,
   probeMerge as qdProbeMerge,
+  unexpandedRuns as qdUnexpandedRuns,
+  unclaimableRuns as qdUnclaimableRuns,
+  poolPend as qdPoolPend,
   IDLE_MIN as QD_IDLE_MIN,
-  STARVED_MIN as QD_STARVED_MIN
+  STARVED_MIN as QD_STARVED_MIN,
+  UNEXPANDED_MIN as QD_UNEXPANDED_MIN,
+  STALE_QUEUED_H as QD_STALE_QUEUED_H
 } from '../tools/queue-doctor.mjs';
 import {
   classify as pwClassify,
@@ -3631,8 +3636,13 @@ async function main() {
     qdDirtyVerdict: qdDirtyVerdict,
     qdParseMergeTree: qdParseMergeTree,
     qdProbeMerge: qdProbeMerge,
+    qdUnexpandedRuns: qdUnexpandedRuns,
+    qdUnclaimableRuns: qdUnclaimableRuns,
+    qdPoolPend: qdPoolPend,
     qdIdleMin: QD_IDLE_MIN,
     qdStarvedMin: QD_STARVED_MIN,
+    qdUnexpandedMin: QD_UNEXPANDED_MIN,
+    qdStaleQueuedH: QD_STALE_QUEUED_H,
     /* pr-walker's PURE core: classify() and plan() decide every action the timer takes on a PR, and
        the group `tools · pr-walker` pins them with planted snapshots — no `gh`, no clock. */
     pwClassify: pwClassify,

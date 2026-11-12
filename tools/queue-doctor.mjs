@@ -62,6 +62,37 @@ export const IDLE_MIN = 20;
    not (so the wait was never going to pay). Either way the premise has failed. */
 export const STARVED_MIN = 30;
 
+/* Minutes a workflow run may sit `queued` holding ZERO jobs before this tool calls it unclaimable.
+
+   🔴 A QUEUED RUN AND AN UNCLAIMABLE RUN READ IDENTICALLY IN EVERY VIEW. GitHub creates the
+   workflow-run record first and EXPANDS it into jobs second. When the second step never happens the
+   record stays `queued` for ever: no runner can claim a run that holds no job, nothing times it out,
+   and `gh pr checks` prints the same word it prints for a run about to start. Measured 2026-11-11 on
+   three branches at once — 31 runs created between 20:22:39Z and 20:41:24Z, each answering
+   `total_count: 0` for its jobs and still `queued` two hours later, while runs created LATER on other
+   branches expanded and completed. Two more have sat `queued` since 2026-08-19. The remedy is a new
+   head, and one empty commit per branch cleared all three.
+
+   PRE-STATED FROM THE EXPANSION MECHANISM, never from those ages: expansion follows creation by
+   seconds — the ten fresh runs of the recovery push expanded inside one poll — so a run still
+   jobless after 10 minutes has missed that step by two orders of magnitude. The bound also sits
+   below one required-check cycle (~15 min, CLAUDE.md §5), so the call arrives before a session
+   would otherwise start waiting on the queue. */
+export const UNEXPANDED_MIN = 10;
+
+/* Hours a run may sit `queued` before it is unclaimable WHATEVER its job count.
+
+   ⚠ A SECOND SHAPE, with a different cause and a different remedy. The zero-job runs above never
+   expanded; these expanded and then nobody took the jobs. Measured 2026-11-11: run 32216407085
+   (`CodeQL`) has held 3 queued jobs and run 32211238445 (`stale-file`) 1, both created
+   2026-08-19 — three months queued. A push cannot clear either, because neither head belongs to an
+   open PR, so only a cancel removes them from the pool.
+
+   PRE-STATED FROM GITHUB'S OWN LIMIT, not from those ages: GitHub documents a 24-hour job queue
+   limit, after which it cancels the job itself. A run still `queued` past the window in which the
+   platform promises to cancel it is broken by the platform's own rule, so the bound is theirs. */
+export const STALE_QUEUED_H = 24;
+
 /* 🔴 DIRTY ON GITHUB IS TWO STATES, AND GITHUB SHOWS THEM AS ONE (residue
    2026-09-22-residue-dirty-carries-no-signal). `.gitattributes` sets `briefs/RESIDUE.md merge=residue`,
    and GitHub computes mergeability without custom drivers. So two branches that each append a row read
@@ -160,6 +191,68 @@ export function staleRequiredRuns(required, runs) {
   return out.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : String(a.runId) < String(b.runId) ? -1 : 1));
 }
 
+/**
+ * The runs on a head that can never report. Pure.
+ *
+ * `runs` is `[{ runId, name, status, jobs, createdAtMs }]`, where `jobs` is that run's own job
+ * `total_count` and `null` means the probe did not read.
+ *
+ * ∅ A RUN WHOSE JOB COUNT DID NOT READ IS NOT NAMED, and that is the OPPOSITE fail-closed
+ * direction from the required set above. An unreadable required set must not let a red look
+ * advisory, because the harm there is merging broken code. Here the state carries a push as its
+ * remedy, so inventing one spends a commit and a whole CI cycle on a queue that was working.
+ * Silence costs a wait; noise costs a round trip. Only a READ zero counts.
+ */
+export function unexpandedRuns(runs, nowMs) {
+  if (!Array.isArray(runs)) return [];
+  const out = [];
+  for (const r of runs) {
+    if (!r || r.status !== 'queued' || r.jobs !== 0) continue;
+    if (!Number.isFinite(r.createdAtMs)) continue;
+    const ageMin = (nowMs - r.createdAtMs) / 60000;
+    if (!(ageMin >= UNEXPANDED_MIN)) continue;
+    out.push({ runId: r.runId == null ? null : String(r.runId), name: r.name || null, branch: r.headBranch || null, ageMin });
+  }
+  return out.sort((a, b) => b.ageMin - a.ageMin);
+}
+
+/**
+ * Every queued run that cannot start, each with the REASON that decides its remedy. Pure.
+ *
+ * `no-jobs` never expanded, so a new head replaces it. `past-queue-limit` expanded and was never
+ * claimed, so only a cancel removes it. A run that is both is reported as `no-jobs`, the narrower
+ * and more actionable reading — but only while its head is live, which the caller knows and this
+ * function does not.
+ */
+export function unclaimableRuns(runs, nowMs) {
+  const dead = unexpandedRuns(runs, nowMs);
+  const seen = new Set(dead.map((d) => String(d.runId)));
+  const out = dead.map((d) => ({ ...d, reason: 'no-jobs' }));
+  for (const r of Array.isArray(runs) ? runs : []) {
+    if (!r || r.status !== 'queued' || seen.has(String(r.runId))) continue;
+    if (!Number.isFinite(r.createdAtMs)) continue;
+    const ageMin = (nowMs - r.createdAtMs) / 60000;
+    if (!(ageMin >= STALE_QUEUED_H * 60)) continue;
+    out.push({ runId: String(r.runId), name: r.name || null, branch: r.headBranch || null, ageMin, reason: 'past-queue-limit' });
+  }
+  return out.sort((a, b) => b.ageMin - a.ageMin);
+}
+
+/**
+ * The queued pool, split into the runs a runner can still take and the runs it cannot. Pure.
+ *
+ * 🔴 CLAUDE.md §5 TELLS EVERY SESSION TO COLLECT WHEN `pend` REACHES 0, AND ONE UNCLAIMABLE
+ * RUN HOLDS `pend` ABOVE 0 FOR EVER. Measured 2026-11-11: 33 of the repo's queued runs held no job,
+ * two of them since 2026-08-19, so that criterion was unsatisfiable on every day in between and the
+ * number a reader wants is the one below — the runs that can still start.
+ */
+export function poolPend(runs, nowMs) {
+  const dead = unclaimableRuns(runs, nowMs);
+  const deadIds = new Set(dead.map((d) => String(d.runId)));
+  const queued = (Array.isArray(runs) ? runs : []).filter((r) => r && r.status === 'queued');
+  return { queued: queued.length, pend: queued.filter((r) => !deadIds.has(String(r.runId))).length, unexpanded: dead };
+}
+
 /** Classify ONE pr snapshot. `required` is the ruleset's required contexts; `null` means unreadable. */
 export function classify(pr, required, nowMs, opts = {}) {
   if (pr.state !== 'OPEN') return { k: 'gone', why: `state=${pr.state}` };
@@ -198,6 +291,26 @@ export function classify(pr, required, nowMs, opts = {}) {
      coordination window, and blocked three consecutive runs — 17:51, 18:01, 18:11 — each
      `wait: #1687 is mid-CI … serialising`, with zero chance of merging in any of them. Holding a PR
      unarmed is a normal, correct thing to do here; it should not stop the queue draining around it. */
+  /* 🔴 WHY A CONTEXT HAS NOT REPORTED, which neither rung below could say. Both of them read a
+     bucket count and prescribe from it — wait, or push a new head — and an unclaimable run on this
+     head changes the answer: it will never report, so no wait helps, and on a CURRENT head not even
+     `update-branch` does. It ranks above both because it is a cause and they are symptoms. */
+  const dead = unexpandedRuns(pr.headRuns || [], nowMs);
+  if (dead.length && (pending.length || absent.length)) {
+    const named = dead
+      .slice(0, 3)
+      .map((d) => `${d.name || 'run'} ${d.runId} ${d.ageMin.toFixed(0)}m`)
+      .join(', ');
+    const held = [pending.length ? `${pending.length} reading pending` : null, absent.length ? `never reported: ${absent.join(', ')}` : null].filter(Boolean).join('; ');
+    return {
+      k: 'unexpanded',
+      why: `${dead.length} run(s) on this head sit queued holding ZERO jobs (${named}) — unclaimable, so the remedy is a NEW HEAD (one empty commit), never a wait · ${held}`,
+      idleMin: pr.updatedAtMs ? (nowMs - pr.updatedAtMs) / 60000 : 0,
+      behind: pr.mergeState === 'BEHIND',
+      armed: !!pr.autoMerge,
+      unexpanded: dead
+    };
+  }
   if (pending.length) {
     if (!pr.autoMerge) return { k: 'running-unarmed', why: `${pending.length} required check(s) running, but UNARMED — cannot merge, so cannot block` };
     return { k: 'running', why: `${pending.length} required check(s) running` };
@@ -274,7 +387,9 @@ export function classify(pr, required, nowMs, opts = {}) {
  * `dirty` holds both DIRTY kinds: neither merges until a human merges `main` in, and the `why` says which.
  * `wedged` is a PR whose required context holds a stale non-success run the rollup hides: no arming
  * and no update clears it, only a re-run of the duplicate.
- * `--report` is clean only when ALL FIVE are empty.
+ * `unexpanded` is a PR whose head carries a run that cannot start: it reads pending or awaiting in
+ * every view, and the only remedy is a new head.
+ * `--report` is clean only when ALL SIX are empty.
  * `serialising` is deliberately in NONE of them: a green BEHIND unarmed PR inside Kodiak's queue is
  * the queue working, so naming it as attention is how this tool told four sessions to arm a mechanism
  * that adds nothing. The report still PRINTS it, under its own heading, as information.
@@ -285,7 +400,8 @@ export function attention(classified) {
     failing: classified.filter((c) => c.k === 'failing'),
     cancelled: classified.filter((c) => c.k === 'cancelled'),
     wedged: classified.filter((c) => c.k === 'wedged'),
-    dirty: classified.filter((c) => c.k === 'dirty' || c.k === 'dirty-display')
+    dirty: classified.filter((c) => c.k === 'dirty' || c.k === 'dirty-display'),
+    unexpanded: classified.filter((c) => c.k === 'unexpanded')
   };
 }
 
@@ -381,7 +497,16 @@ export function pick(classified) {
   /* An AWAITING PR that is BEHIND and armed is updatable, and updating is the remedy: a new head is
      what makes an unreported context report. It ranks below `stuck-behind` only because that state is
      unambiguous; both are drained oldest-first by the sort below. */
-  const cands = classified.filter((c) => (c.k === 'stuck-behind' && c.idleMin >= IDLE_MIN) || (c.k === 'awaiting' && c.behind && c.armed && c.idleMin >= IDLE_MIN));
+  /* An UNEXPANDED PR that is BEHIND and armed is updatable for the same reason an awaiting one is,
+     and here the new head is the ONLY remedy there is. A CURRENT one is not a candidate: this tool
+     only ever calls `update-branch`, and that verb has nothing to push on a head already current —
+     the report names it instead, because least privilege is why the tool cannot commit. */
+  const cands = classified.filter(
+    (c) =>
+      (c.k === 'stuck-behind' && c.idleMin >= IDLE_MIN) ||
+      (c.k === 'awaiting' && c.behind && c.armed && c.idleMin >= IDLE_MIN) ||
+      (c.k === 'unexpanded' && c.behind && c.armed && c.idleMin >= IDLE_MIN)
+  );
   if (!cands.length) {
     const young = classified.filter((c) => c.k === 'stuck-behind');
     if (young.length) return { action: 'none', why: `${young.length} stuck but all idle < ${IDLE_MIN}m — leaving room for their owners` };
@@ -480,6 +605,44 @@ function headCheckRuns(repo, sha) {
   }
 }
 
+/* THE QUEUED POOL, repo-wide, with a job count on every run old enough for the count to mean
+   anything. One list call covers the repo, because the pool is a property of the repo and not of a
+   PR — a jobless run OUTLIVES the PR whose push created it, and two of the ones measured on
+   2026-11-11 belong to branches merged in August. The job probe is bounded to the suspects: a
+   healthy queue therefore costs exactly one API call, and only a run past UNEXPANDED_MIN costs a
+   second. Returns null when the pool could not be read — an unread pool must read as "not
+   examined", never as "nothing unclaimable". */
+function queuedRuns(repo, nowMs) {
+  if (!repo) return null;
+  let arr;
+  try {
+    const j = JSON.parse(gh(['api', `repos/${repo}/actions/runs?status=queued&per_page=100`]));
+    arr = Array.isArray(j.workflow_runs) ? j.workflow_runs : null;
+  } catch {
+    return null;
+  }
+  if (!arr) return null;
+  const out = arr.map((r) => ({
+    runId: String(r.id),
+    name: r.name || null,
+    status: 'queued',
+    headSha: r.head_sha || null,
+    headBranch: r.head_branch || null,
+    createdAtMs: Date.parse(r.created_at),
+    jobs: null
+  }));
+  for (const r of out) {
+    if (!Number.isFinite(r.createdAtMs) || (nowMs - r.createdAtMs) / 60000 < UNEXPANDED_MIN) continue;
+    try {
+      const n = JSON.parse(gh(['api', `repos/${repo}/actions/runs/${r.runId}/jobs`])).total_count;
+      r.jobs = typeof n === 'number' ? n : null;
+    } catch {
+      r.jobs = null;
+    }
+  }
+  return out;
+}
+
 function snapshotAll() {
   const prs = JSON.parse(gh(['pr', 'list', '--limit', '100', '--json', 'number,state,isDraft,mergeStateStatus,autoMergeRequest,updatedAt,title,headRefOid,baseRefName']));
   let repo = null;
@@ -488,7 +651,14 @@ function snapshotAll() {
   } catch {
     repo = null;
   }
-  return prs.map((p) => {
+  const pool = queuedRuns(repo, Date.now());
+  const byHead = new Map();
+  for (const r of pool || []) {
+    if (!r.headSha) continue;
+    if (!byHead.has(r.headSha)) byHead.set(r.headSha, []);
+    byHead.get(r.headSha).push(r);
+  }
+  const snaps = prs.map((p) => {
     let checks = [];
     let readable = true;
     try {
@@ -520,9 +690,11 @@ function snapshotAll() {
       checkRuns: cr ? cr.runs : null,
       botSays: cr ? cr.botSays : null,
       runsReadable: cr != null,
-      mergeProbe: p.mergeStateStatus === 'DIRTY' && !p.isDraft ? probeMerge(p.number, p.headRefOid, p.baseRefName) : null
+      mergeProbe: p.mergeStateStatus === 'DIRTY' && !p.isDraft ? probeMerge(p.number, p.headRefOid, p.baseRefName) : null,
+      headRuns: byHead.get(p.headRefOid) || []
     };
   });
+  return { prs: snaps, pool };
 }
 
 /* WHERE THE WAKE LIVES. `red-prs.json` is the current set for a reader (the board); `red-prs.log`
@@ -563,8 +735,11 @@ function main() {
   }
 
   let prs;
+  let pool = null;
   try {
-    prs = snapshotAll();
+    const snap = snapshotAll();
+    prs = snap.prs;
+    pool = snap.pool;
   } catch (e) {
     console.error(`queue-doctor: REFUSING — could not list PRs: ${String(e.message).split('\n')[0]}`);
     process.exit(2);
@@ -574,7 +749,7 @@ function main() {
   const kodiak = kodiakOwnsDrain();
   const classified = prs.filter((p) => p.readable).map((p) => ({ pr: p, ...classify(p, required, now, { kodiakOwnsDrain: kodiak }) }));
 
-  const { stuck, failing, cancelled, wedged, dirty } = attention(classified);
+  const { stuck, failing, cancelled, wedged, dirty, unexpanded } = attention(classified);
   const stamp = new Date(now).toISOString().slice(11, 19);
 
   /* SAY THE THING NO VIEW SAYS. This line is the whole point of the tool: a PR that is green, armed
@@ -615,6 +790,40 @@ function main() {
     console.log(`${stamp}  ⇄ DIRTY: ${dirty.length} PR(s) — neither kind merges until someone merges main in`);
     for (const c of dirty) console.log(`    #${c.pr.number}  ${c.why}  — ${c.pr.title.slice(0, 52)}`);
   }
+  /* A RUN THAT CANNOT START IS NOT A QUEUE POSITION, and the fleet read it as one for two hours on
+     2026-11-11. The remedy is a push, so it is named per PR with the run ids that prove it. */
+  if (unexpanded.length) {
+    console.log(`${stamp}  ⧖ UNCLAIMABLE: ${unexpanded.length} PR(s) whose head carries a queued run holding no job — no wait can clear it`);
+    for (const c of unexpanded) console.log(`    #${c.pr.number}  ${c.why}  — ${c.pr.title.slice(0, 52)}`);
+  }
+  /* THE POOL, AND THE NUMBER §5 ACTUALLY WANTS. `pend` there is the collect criterion, and a jobless
+     run holds the raw count above 0 for ever — including runs on branches that merged in August, which
+     belong to no open PR and so appear nowhere above. */
+  if (pool == null) {
+    console.log('    queued-run pool unreadable — the unclaimable-run rung examined NOTHING on any head');
+  } else {
+    const pp = poolPend(pool, now);
+    if (pp.unexpanded.length) {
+      const byBranch = new Map();
+      for (const d of pp.unexpanded) byBranch.set(d.branch || '(unknown)', (byBranch.get(d.branch || '(unknown)') || 0) + 1);
+      for (const d of pp.unexpanded.filter((x) => x.reason === 'past-queue-limit').slice(0, 5)) {
+        console.log(`    run ${d.runId}  ${d.name || 'run'}  ${(d.ageMin / 60).toFixed(0)}h queued on ${d.branch || '(unknown)'} — expanded, never claimed`);
+      }
+      const where = [...byBranch.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([b, n]) => `${b} ×${n}`)
+        .join(', ');
+      const nj = pp.unexpanded.filter((d) => d.reason === 'no-jobs').length;
+      const pq = pp.unexpanded.length - nj;
+      console.log(
+        `${stamp}  ⧖ POOL: ${pp.unexpanded.length} of ${pp.queued} queued run(s) cannot start (${nj} hold no job, ${pq} past the 24 h queue limit) — pend is ${pp.pend}, not ${pp.queued} (CLAUDE.md §5 collects on pend)`
+      );
+      console.log(`    oldest ${(pp.unexpanded[0].ageMin / 60).toFixed(1)}h · ${where}`);
+      if (nj) console.log('    → a jobless run never starts and never expires: one empty commit replaces the ones on a LIVE head, and the rest stay pool noise no push can reach');
+      if (pq) console.log(`    → the ${pq} past the queue limit expanded and were never claimed, so no push reaches them: \`gh run cancel <id>\` is the only remedy, and the ids are above`);
+    }
+  }
   const fresh = writeRedLedger(failing, required, now);
   for (const l of fresh) console.log(`    ${l.includes('  RED ') ? 'NEW this run' : 'cleared'}: ${l.slice(22)}`);
   for (const p of unreadable) console.log(`    #${p.number}  checks unreadable — NOT counted either way`);
@@ -642,7 +851,7 @@ function main() {
     }
   }
 
-  if (REPORT) process.exit(stuck.length || failing.length || cancelled.length || wedged.length || dirty.length ? 1 : 0);
+  if (REPORT) process.exit(stuck.length || failing.length || cancelled.length || wedged.length || dirty.length || unexpanded.length ? 1 : 0);
 
   const d = pick(classified);
   if (d.action !== 'update') {
