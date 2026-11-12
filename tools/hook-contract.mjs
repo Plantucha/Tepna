@@ -180,7 +180,88 @@ export function enumeratedTests(pkgText) {
   return chain;
 }
 
-export function evaluate(findings, producedBy) {
+/* `test:guards` is the four-file subset of the same chain. A guard it names is a guard it runs, so
+   the region rule below binds here too — but ABSENCE from it is no defect, because the subset is
+   deliberate. */
+export function enumeratedGuards(pkgText) {
+  try {
+    return JSON.parse(pkgText)?.scripts?.['test:guards'] || '';
+  } catch {
+    return null; // an unreadable package.json fails closed in `collect`
+  }
+}
+
+/* ── THE CHAIN'S OWN HOME ─────────────────────────────────────────────────────
+   Naming a self-test in the chain is not enough. Six hooks read `$HOME`, and
+   `guard-memory-stale.sh` globs every `memory` directory under the operator's
+   `.claude/projects` tree and exits 0 when nothing matches. So a box that holds
+   such a directory and a runner that does not disagree with no symptom. That
+   split red three hosted heads at `test:hooks` — 11 legs each on #4946, #4949
+   and #4951 — and no local round on the developer box reproduced one of them.
+   #4955 pointed both chains at a fresh `mktemp -d`; this reading is what stops
+   a later edit from quietly taking it back.
+   ONE SHAPE IS RECOGNISED: `HOME=<v> [env ]ba?sh -c '<region>'`, where `<v>`
+   dereferences a variable assigned from `$(mktemp -d)` EARLIER in the same
+   script. Any other spelling reads as no region at all, so a rewrite of the
+   chain reds here rather than passing unexamined. A fixed path in `HOME=` is
+   not a fixture home either, because the second run inherits the first one's
+   state. An occurrence OUTSIDE every region condemns the hook even when
+   another occurrence sits inside one: the region ends at the closing quote, so
+   a 15th entry appended after it runs ambient and must say so.
+   NOT CHECKED HERE. A chain entry outside `.claude/hooks/`. The population of
+   this gate counts HOOKS, so a chain-level criterion needs its own population
+   and gets none; `run()` prints those entries as a diagnostic and nothing
+   fails on them. */
+const FRESH_RE = /([A-Za-z_][A-Za-z0-9_]*)=\$\(\s*mktemp\s+-d[^)]*\)/g;
+const HOME_RE = /\bHOME=(?:"\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?"|\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?)\s+(?:env\s+)?(?:ba)?sh\s+-c\s+'/g;
+
+/* The character spans of `chain` that run under a fresh fixture home. */
+export function fixtureHomeSpans(chain = '') {
+  if (typeof chain !== 'string') return [];
+  const fresh = new Map();
+  for (const m of chain.matchAll(FRESH_RE)) if (!fresh.has(m[1])) fresh.set(m[1], m.index);
+  const spans = [];
+  for (const m of chain.matchAll(HOME_RE)) {
+    const at = fresh.get(m[1] ?? m[2]);
+    if (at == null || at > m.index) continue; // a fixed path, or a variable assigned after its use
+    const open = m.index + m[0].length;
+    const close = chain.indexOf("'", open); // a shell single quote neither nests nor escapes
+    if (close < 0) continue; // an unterminated region bounds nothing this pass can read
+    spans.push([open, close]);
+  }
+  return spans;
+}
+
+/* `absent` · `ambient` (at least one occurrence outside every region) · `isolated`. */
+export function namedUnderFixtureHome(chain, testPath) {
+  if (typeof chain !== 'string' || chain === '' || !testPath) return 'absent';
+  const spans = fixtureHomeSpans(chain);
+  let found = 0;
+  let ambient = 0;
+  for (let i = chain.indexOf(testPath); i >= 0; i = chain.indexOf(testPath, i + 1)) {
+    found += 1;
+    if (!spans.some(([a, b]) => i >= a && i + testPath.length <= b)) ambient += 1;
+  }
+  if (found === 0) return 'absent';
+  return ambient > 0 ? 'ambient' : 'isolated';
+}
+
+/* The chain entries NO criterion here binds: a `*.test.sh` outside `.claude/hooks/` sitting under
+   the ambient home. A diagnostic, never a FAIL — see NOT CHECKED HERE above. */
+export function ambientNonHookEntries(chain = '') {
+  if (typeof chain !== 'string') return [];
+  const spans = fixtureHomeSpans(chain);
+  const out = [];
+  for (const m of chain.matchAll(/(?:^|[\s'"])((?:[A-Za-z0-9._-]+\/)+[A-Za-z0-9._-]+\.test\.sh)/g)) {
+    const path = m[1];
+    if (path.startsWith('.claude/hooks/')) continue;
+    const i = m.index + m[0].indexOf(path);
+    if (!spans.some(([a, b]) => i >= a && i + path.length <= b) && !out.includes(path)) out.push(path);
+  }
+  return out;
+}
+
+export function evaluate(findings, producedBy, extras = {}) {
   const eligible = findings.length;
   const undeclared = findings.filter((f) => !f.declared);
   const bad = findings.filter((f) => f.problems.length);
@@ -202,7 +283,8 @@ export function evaluate(findings, producedBy) {
       hooks: eligible,
       probeBytes: probeBytes(),
       probeTrials: PROBE_TRIALS,
-      writerEpipe: findings.filter((f) => f.epipe > 0).length
+      writerEpipe: findings.filter((f) => f.epipe > 0).length,
+      ambientNonHookEntries: extras.ambientNonHook ?? []
     },
     evidence: ['tools/hook-contract.mjs', ...findings.map((f) => `.claude/hooks/${f.name}`)],
     reason,
@@ -306,8 +388,13 @@ function producedBy() {
 export function collect(files = hookFiles()) {
   const payload = files.length ? writePayload() : null;
   let chain = null;
+  let guards = null;
   const pkg = join(ROOT, 'package.json');
-  if (existsSync(pkg)) chain = enumeratedTests(readFileSync(pkg, 'utf-8'));
+  if (existsSync(pkg)) {
+    const text = readFileSync(pkg, 'utf-8');
+    chain = enumeratedTests(text);
+    guards = enumeratedGuards(text);
+  }
   const out = [];
   for (const name of files) {
     const path = join(HOOK_DIR, name);
@@ -331,8 +418,14 @@ export function collect(files = hookFiles()) {
          finding — the one shape a two-reading gate exists to surface. */
       if (epipe === 0 && scan.drain == null) problems.push('DISAGREEMENT: the writer survived a hook with no drain this pass can find');
     }
-    if (chain != null && !chain.includes(`.claude/hooks/${name.replace(/\.sh$/, '.test.sh')}`))
-      problems.push(`ENUMERATION: \`test:hooks\` does not name ${name.replace(/\.sh$/, '.test.sh')}, so nobody runs it`);
+    const testName = name.replace(/\.sh$/, '.test.sh');
+    if (chain != null) {
+      const where = namedUnderFixtureHome(chain, `.claude/hooks/${testName}`);
+      if (where === 'absent') problems.push(`ENUMERATION: \`test:hooks\` does not name ${testName}, so nobody runs it`);
+      else if (where === 'ambient') problems.push(`ENUMERATION: \`test:hooks\` names ${testName} outside a fixture HOME, so it judges the operator's own home directory`);
+    }
+    if (guards != null && namedUnderFixtureHome(guards, `.claude/hooks/${testName}`) === 'ambient')
+      problems.push(`ENUMERATION: \`test:guards\` names ${testName} outside a fixture HOME, so it judges the operator's own home directory`);
     if (chain == null) problems.push('ENUMERATION: package.json was unreadable, so the chain could not be read');
     out.push({ name, declared, drain: scan.drain, before: scan.before, epipe, problems });
   }
@@ -342,16 +435,25 @@ export function collect(files = hookFiles()) {
 function run() {
   const files = hookFiles();
   const findings = collect(files);
-  const { status, bad, undeclared, verdict } = evaluate(findings, producedBy());
+  const pkgPath = join(ROOT, 'package.json');
+  const pkgText = existsSync(pkgPath) ? readFileSync(pkgPath, 'utf-8') : '';
+  const ambientNonHook = [...new Set([...ambientNonHookEntries(enumeratedTests(pkgText) ?? ''), ...ambientNonHookEntries(enumeratedGuards(pkgText) ?? '')])];
+  const { status, bad, undeclared, verdict } = evaluate(findings, producedBy(), { ambientNonHook });
   const chk = Verdict.validate(verdict);
   if (!chk.ok) throw new Error(`hook-contract produced an invalid verdict: ${chk.errors.join('; ')}`);
   process.stdout.write(`${JSON.stringify(verdict, null, 1)}\n`);
+  if (ambientNonHook.length)
+    console.error(
+      `⚠ ${ambientNonHook.length} chain entry(s) outside \`${HOOK_DIR}\` run under the ambient HOME: ${ambientNonHook.join(', ')}. This gate's population counts hooks, so no criterion binds this line`
+    );
   if (status === 'NOT_RUN') {
     console.error(`✗ hook-contract examined NOTHING — no \`*.sh\` under ${HOOK_DIR}. That is a defect in this gate's reach, not a pass`);
     return 2;
   }
   if (status === 'PASS') {
-    console.log(`✓ ${files.length} hook(s) drain stdin before any exit — static + ${PROBE_TRIALS} writer trials at ${probeBytes()} bytes each, and \`test:hooks\` names every self-test`);
+    console.log(
+      `✓ ${files.length} hook(s) drain stdin before any exit — static + ${PROBE_TRIALS} writer trials at ${probeBytes()} bytes each, and both chains name every self-test inside a fixture HOME`
+    );
     return 0;
   }
   console.error(`✗ ${bad.length} of ${files.length} hook(s) break the stdin contract:`);
@@ -435,6 +537,36 @@ function selftest() {
   );
   ok('an unreadable package.json fails closed (null, not an empty chain)', enumeratedTests('{ not json') === null);
   ok('an absent `test:hooks` reads as an empty chain, which names nothing', enumeratedTests('{"scripts":{}}') === '');
+  ok('`test:guards` is read as its own chain', enumeratedGuards('{"scripts":{"test:guards":"bash .claude/hooks/a.test.sh"}}') === 'bash .claude/hooks/a.test.sh');
+  ok('an absent `test:guards` reads as an empty chain, which names nothing', enumeratedGuards('{"scripts":{}}') === '');
+  ok('an unreadable package.json fails closed for the guards chain too', enumeratedGuards('{ not json') === null);
+
+  /* PLANT 2b · the fixture-HOME region. Every ALLOW below is paired with a DENY differing in ONE
+     property, so a reading that credits everything scores as loudly as one that credits nothing. */
+  const ISO = `H=$(mktemp -d) && HOME="$H" bash -c 'bash .claude/hooks/a.test.sh && bash .claude/hooks/b.test.sh'; rm -rf "$H"`;
+  ok('a self-test inside the fixture region reads isolated', namedUnderFixtureHome(ISO, '.claude/hooks/a.test.sh') === 'isolated');
+  ok(
+    'a bare `&&` chain reads ambient, which is the shape three hosted heads red on',
+    namedUnderFixtureHome('bash .claude/hooks/a.test.sh && bash .claude/hooks/b.test.sh', '.claude/hooks/a.test.sh') === 'ambient'
+  );
+  ok('an entry appended AFTER the closing quote reads ambient', namedUnderFixtureHome(`${ISO} && bash .claude/hooks/c.test.sh`, '.claude/hooks/c.test.sh') === 'ambient');
+  ok('one isolated occurrence does not excuse a second ambient one', namedUnderFixtureHome(`${ISO} && bash .claude/hooks/a.test.sh`, '.claude/hooks/a.test.sh') === 'ambient');
+  ok('a FIXED path in HOME is not a fixture home', namedUnderFixtureHome(`HOME="/tmp/fixed" bash -c 'bash .claude/hooks/a.test.sh'`, '.claude/hooks/a.test.sh') === 'ambient');
+  ok('a variable assigned AFTER its use opens no region', namedUnderFixtureHome(`HOME="$H" bash -c 'bash .claude/hooks/a.test.sh'; H=$(mktemp -d)`, '.claude/hooks/a.test.sh') === 'ambient');
+  ok('an unterminated region bounds nothing and opens no span', fixtureHomeSpans(`H=$(mktemp -d) && HOME="$H" bash -c 'bash .claude/hooks/a.test.sh`).length === 0);
+  ok('a name the chain never holds reads absent, not ambient', namedUnderFixtureHome(ISO, '.claude/hooks/z.test.sh') === 'absent');
+  ok('an empty chain reads absent', namedUnderFixtureHome('', '.claude/hooks/a.test.sh') === 'absent');
+  ok('`env HOME=$v sh -c` is the same shape', namedUnderFixtureHome(`H=$(mktemp -d) && HOME="$H" env sh -c 'bash .claude/hooks/a.test.sh'`, '.claude/hooks/a.test.sh') === 'isolated');
+  ok('the non-hook diagnostic names an ambient entry outside the hook directory', ambientNonHookEntries(`${ISO} && bash tools/sync-main.test.sh`).join() === 'tools/sync-main.test.sh');
+  ok('the non-hook diagnostic stays silent on an isolated entry', ambientNonHookEntries(`H=$(mktemp -d) && HOME="$H" bash -c 'bash tools/sync-main.test.sh'`).length === 0);
+  ok('the non-hook diagnostic never names a hook self-test', ambientNonHookEntries('bash .claude/hooks/a.test.sh').length === 0);
+  ok(
+    'the real `test:hooks` runs every hook self-test inside a fixture region',
+    (() => {
+      const chain = enumeratedTests(readFileSync(join(ROOT, 'package.json'), 'utf-8')) ?? '';
+      return hookFiles().every((n) => namedUnderFixtureHome(chain, `.claude/hooks/${n.replace(/\.sh$/, '.test.sh')}`) === 'isolated');
+    })()
+  );
 
   /* PLANT 5 · THE NEGATIVE CONTROL FOR THE BEHAVIOURAL READING, and the one assertion that cannot be
      faked by any amount of static parsing: a planted hook that exits without draining must make the
