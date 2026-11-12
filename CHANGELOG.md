@@ -30,6 +30,80 @@ changesets.)
 
 ---
 
+## [2.32.0] — 2026-11-12
+
+### Added
+- Fold the GlucoDex per-day series into a ganglior.crossnight v1.0 envelope in the node-export.
+- Emit a ganglior.crossnight v1.0 envelope from the HRVDex node-export over its measurement series.
+- Audit the served bytes of the published pages for an offsite script, and scope the no-analytics claims to the
+- Fold MotionDex sessions into a crossnight envelope, so all eight nodes now emit one.
+- Mark an OPEN residue row whose own cells reserve the remedy for the owner, so no picker sizes it.
+- Red a paper that states a number no CLAIM marker or provenance stamp binds.
+- Red a paper that lists a reference its own body never invokes.
+- - `tools/queue-doctor.mjs` now names a queued workflow run that cannot start.
+- `tools/residue-path-leads.mjs` names the merged pull request that already touched the line an OPEN residue row cites. A picker then reads that fix before it sizes the row.
+- Name the adopted write-root and judge-root sets in one gate, so a new writing or judging tool joins them deliberately. (`WRITE-ROOT-ADOPTION-2026-11-03-BRIEF.md`)
+- Watch the residue ledger for the citation rot a code change causes. The new `--delta <ref>` mode judges every citation of the rows both ledgers carry, at the base ref and at HEAD. It names each citation that anchored at the base ref and stopped anchoring at HEAD. The two older scopes judge a level, so a citation that rots under a later code change sits in no population. This mode stays advisory at exit 0, because the fleet may not repair a row cell where it sits.
+
+### Changed
+- Put the root Markdown files in the citation gate's population, and exclude `CHANGELOG.md` and the
+- Hold one line per row in the documentation index and leave the full descriptions in git history.
+- Route the two declared ECG port copies through the shared R-peak axis arithmetic.
+- State the commit a unit-health read ran from, and name every judgment source that differs from the ref.
+- Require every hook self-test to sit inside a fixture `HOME` region of the chain. A later edit that returns the chain to the operator's own home directory now reds.
+- Rename the local gate step `verify:browser-gate-logic` to `verify:browser-gate-selftest`, so the name says that it judges the browser gate's own logic and reaches no browser.
+
+### Fixed
+- Five text extractors stripped tags with a multi-character pattern replaced by an empty string. CodeQL reads that shape as an incomplete sanitizer.
+- Mark an open residue row whose own withdrawal already landed, so a picker never sizes a discharged correction.
+- Grant a numeric epoch stamp no `offsetMin`, because the Clock Contract grants an offset only to an input that states a zone.
+- Compact the export bar to one scrolling row on a phone and dock it above the nav.
+- Decode each entity in a guide card label once, so `&amp;lt;` reads as `&lt;` and not as `<`.
+- Classify a non-reproducing red on every stale-brief hook self-test leg that judges captured text. 16 of the 38 such legs named no cause, so a reader attributed the known flake to their own diff.
+- Cite four sources where the HRV age-confound and CGM-HRV coupling papers state the facts they support. The grandfathered reference baseline shrinks from 38 entries to 34.
+- Ask the Integrator surface gate for a READ in blanked code, not a word anywhere in the file. Correct the two `card` keys that a prose mention had declared.
+- Compute each Lomb-Scargle bin in one pass over the samples, in ECGDex, PpgDex and PulseDex. The double-angle and angle-difference identities cut four trig calls per sample to two. Measured: 1.9x to 2.0x faster over nine cases, and every export stays identical.
+- Cite four sources where the nights-icc paper states the facts they support. That paper leaves the grandfathered reference set, which shrinks from 34 entries to 30.
+- OverDex titled a below-chance finding "Confirmed Apnea Event" although the Integrator's null model does not assert it. The page now labels such a finding a candidate and says why. (`INTEGRATOR-GAP-AWARE-OVERLAP-2026-07-27-BRIEF.md`)
+- Judge the owner of every baseline debt line across three declared baselines, and fail closed on a member this process cannot read.
+- Place three sources at the statements they support in the oximeter staging paper.
+- Write each ring connect attempt into the folder of its own day, and name the held-open file in the alert.
+- - The work list of `tools/paper-claim-markers.mjs` now reads each artifact's own `publishedIn` field. A shared slug token led the reader to the wrong artifact. It also gave no lead for a paper that three artifacts name. The list also reports a destination that no paper file carries.
+- Place eight listed sources at the statements they support in three papers.
+- The monitor's 3-hat fused and PAT fused columns opened the same page. Each column now opens its own view of PAT Classic vs Fused (`?view=hat` or `?view=pat`). That page gains styling, a per-site σ chart with 95 % CIs and per-leg window-median charts. (`PAT-HAT-RING-FLOOR-2026-10-04-BRIEF.md`)
+- Raise every small label to a 12 px floor on a phone, and count the nodes still under it.
+- Bound the Playwright OS-deps install at 120 s, so a dead apt mirror cannot outlast the job timeout.
+- Install chromium without the OS font packages when apt cannot reach a mirror, so a runner DNS
+- PpgDex and PulseDex now open on the longest recording of a drop, and PpgDex shows no NaN on a short fragment.
+- Strip tags from a metric label until the text stops changing, in seven node registries and the registry generator.
+- Give every control a 44 px minimum hit area under a coarse pointer.
+- The sensor-trio night page drew stale reference marks and ran its bootstrap with a fixed block. It now draws its marks from the published record, and the night's own series sets the block.
+- Show each sensor-trio corner's σ measured against the night's beat reference when the H10 _RR.txt is present.
+- Round the measured ECG sample rate on the three ECGDex reader surfaces, and print one guarded CVHR index row in place of two. State the span of the limits of agreement instead of calling them tight, and grade a trend inside the null band as neutral.
+- Run the hook self-test chain under a fixture `HOME`, so no self-test reads this box's own home directory.
+- Name the metric that diverged in the Integrator HRV consensus note, and print each metric's own divergence beside it.
+- Draw every UI label with a character a Latin system face carries, and red the suite on a return of the three CJK-only codepoints.
+- Run 42 of the 43 gate steps that no workflow ran, in a new non-required `local-steps` job. Drop `ci-step-parity`'s pin from 43 to 0, and re-stamp the 5 Integrator fixtures whose stamp went stale.
+- Redirect `HOME` in the memory-guard self-test, so every leg judges the fixture it builds.
+- Open a night drawer's per-device chip with that device's files alone. A chip labelled with one device's suffixes no longer opens its analyzer over another device's streams.
+- Name every dropped file MotionDex sets aside, with its own reason.
+- Count the fold's overlap geometry over nodes, not over records. One node can drop two records on one night. The all-node overlap then read zero minutes, and the pair of one node's own two files counted as corroboration.
+- Gate the OxyDex nadir trend direction behind a pre-stated count floor and fit floor, and publish the floor that bound it. Refuse a band ratio outside physiology at 1 Hz, and make four reader labels name the value each one describes.
+- Read the OxyDex profile span from the earliest date to the latest, through the one clock parser.
+- Draw the drift statistic the PAT gate weighs on every PAT Feasibility surface, and count the nights whose own motion check rejects the corrected lag.
+- PAT Feasibility now names every focused-night outcome on the panel. The panel had one writer, on the render success path. A refusal, a failed worker load, a job error and the render window all left the first-load sentence on screen. That sentence told the reader to run the batch and click a night. After a monitor handover of one night, it asked for two things the monitor had already done.
+- Name every node that scored periodic breathing and found none of it as a dissenter on the Integrator finding. Each dissenter carries its own coverage span and says whether that coverage held the first episode.
+- Name the cross-recording baseline in the unit it counts, and report the true span beside it.
+- Name a continuity test's temporary directories from the gap timestamp, and gate the builtin hash() out of the suite.
+- The polarity scanner no longer dies when a file leaves between its directory read and its stat. The scan skips that one entry and names it in a new `vanished` field. A directory nobody can open still refuses. The corpus census also writes its selftest scratch file to the system temp directory under a per-pid name, so no peer selftest walks onto it.
+- The sink gate credits a file's own escaper. It reads that one declaration. It gives the credit when the body delegates to the canonical escaper, or when the body escapes the four characters a sink needs. A quote-blind escaper earns nothing. The two canonical names keep their credit, so the gate reds no line that passes today. The whole-tree reading also counts the candidates it cannot verify.
+- The sink gate reads an escaper's replace patterns in linear time. The scan's three alternatives now differ in their first character. The earlier form let its last alternative match a square bracket. An empty character class then parsed two ways, and a long run of them backtracked exponentially. A bare closing bracket outside a class now ends the scan, and that body earns no credit. The gate sees the same escapers as before.
+- Report the OxyDex sleep efficiency beside the ECGDex wake minutes for one night. Each leg names its own quantity, method and basis, and the block computes no gap, because the two legs count on different clocks.
+- The 3-hat night list now shows the same σ as the corner cards. When the night carries a beat reference, the row shows the measured σ with its own badge. Otherwise it shows the hat estimate under the σ̂ symbol.
+- Mark a cross-night z score that sits at the clamp bound. Every card then prints an inequality, so a reader cannot take the bound for a measured sigma.
+
+---
+
 ## [2.31.0] — 2026-11-11
 
 ### Added
@@ -4226,7 +4300,8 @@ and establishes the release-governance layer over it.
 - **The shared test suite** (`Dex-Test-Suite.html` + `tests/dex-tests.js`) and the build/provenance
   manifests.
 
-[Unreleased]: https://github.com/Plantucha/Tepna/compare/v2.31.0...HEAD
+[Unreleased]: https://github.com/Plantucha/Tepna/compare/v2.32.0...HEAD
+[2.32.0]: https://github.com/Plantucha/Tepna/compare/v2.31.0...v2.32.0
 [2.31.0]: https://github.com/Plantucha/Tepna/compare/v2.30.0...v2.31.0
 [2.30.0]: https://github.com/Plantucha/Tepna/compare/v2.29.0...v2.30.0
 [2.29.0]: https://github.com/Plantucha/Tepna/compare/v2.28.0...v2.29.0
