@@ -414,12 +414,17 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
     if (fusion.anyOverlap) {
       var w = fusion.window,
         ov = w.overlapMin;
+      /* NODE-LEVEL OVERLAP — the guard counted RECORDS, so three recordings of two nodes (one of
+         them a next-morning fragment) printed an "all-node" figure that two nodes had produced.
+         Count the distinct dated nodes, and say how many stretches the minutes are: 301 min over
+         two stretches either side of a gap is not 301 continuous minutes. */
+      var datedNodeSet = {};
+      dated.forEach(function (n) {
+        datedNodeSet[n.node] = 1;
+      });
       var geom =
-        w.intersectionMin > 0 &&
-        fusion.nodes.filter(function (n) {
-          return !n.dateUnknown;
-        }).length > 2
-          ? ' · ' + w.intersectionMin.toFixed(0) + ' min all-node'
+        w.intersectionMin > 0 && Object.keys(datedNodeSet).length > 2
+          ? ' · ' + w.intersectionMin.toFixed(0) + ' min all-node' + (w.intersectionSegments > 1 ? ' over ' + w.intersectionSegments + ' stretches' : '')
           : '';
       var excl =
         w.nodesExcluded && w.nodesExcluded.length
@@ -622,7 +627,8 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
     // in an overlap, then fill by event count.
     var overlapUids = {};
     (fusion.pairs || []).forEach(function (p) {
-      if (p.overlap) {
+      // `sameNode` is one node's own two files: evidence, never an overlap between nodes.
+      if (p.overlap && !p.sameNode) {
         overlapUids[p.an + '|' + p.aWin.startMs] = 1;
       }
     });
@@ -634,7 +640,7 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
         return (
           w &&
           (fusion.pairs || []).some(function (p) {
-            return p.overlap && ((p.aWin && p.aWin.startMs === w.startMs) || (p.bWin && p.bWin.startMs === w.startMs));
+            return p.overlap && !p.sameNode && ((p.aWin && p.aWin.startMs === w.startMs) || (p.bWin && p.bWin.startMs === w.startMs));
           })
         );
       });
@@ -700,9 +706,10 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
       svg += '<text x="' + gx.toFixed(1) + '" y="' + (H - axisH + 18) + '" class="tl-axis-lbl" text-anchor="middle">' + D.fmtClock(g) + '</text>';
     }
 
-    // overlap shading (union of pairwise overlaps)
+    // overlap shading (union of pairwise CROSS-NODE overlaps — one node's own two files share
+    // no timeline with anything, so shading them would draw corroboration that is not there)
     (fusion.pairs || []).forEach(function (p) {
-      if (!p.overlap) return;
+      if (!p.overlap || p.sameNode) return;
       var ox = X(p.overlap.startMs),
         ow = X(p.overlap.endMs) - ox;
       svg += '<rect x="' + ox.toFixed(1) + '" y="' + padT + '" width="' + Math.max(ow, 1).toFixed(1) + '" height="' + (H - axisH - padT) + '" fill="rgba(61,224,208,.045)"/>';
@@ -1402,11 +1409,11 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
           bw +
           '</b></div>' +
           '<div class="pair-ov ' +
-          (ov ? 'ok' : 'no') +
+          (ov && !p.sameNode ? 'ok' : 'no') +
           '"><span>' +
           mrBadge('measured', "Overlap of the two recordings' windows on the shared clock — a counted quantity.") +
           'Overlap</span><b class="mono">' +
-          (ov ? ov.overlapMin.toFixed(0) + ' min' + (ov.basis === 'utc-instant' ? ' · UTC-aligned' : '') : 'none') +
+          (ov ? ov.overlapMin.toFixed(0) + ' min' + (p.sameNode ? ' · one node, two files' : '') + (ov.basis === 'utc-instant' ? ' · UTC-aligned' : '') : 'none') +
           '</b></div></div>' +
           '</div>'
         );

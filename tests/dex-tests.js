@@ -95390,6 +95390,68 @@
         T.eq('§6.2 · a length-unknown spot is a POINT, and a point cannot manufacture overlap', seg(covOnly, missNight).any, false);
       }
       T.ok('§6.2 · recordedSec is null (not 0) when no row states its length — absent ≠ zero', covOnly.coverage.recordedSec === null);
+
+      /* ════ ONE NODE, TWO RECORDS — the fold's overlap geometry counts NODES ══════════════════
+         Residue `2026-11-11-next-morning-fragment-fused-into-night`. A node drops two records on one
+         night whenever a capture stops and restarts, or when the noon fold puts a next-morning
+         fragment on the night before. `runFusion` intersected the RECORDS, so the fragment's start
+         sat past the other records' ends and the all-node figure read 0 for the whole night; and the
+         pair of one node's own two files counted as corroboration, so a single-node drop published
+         `anyOverlap` with minutes of "shared timeline" and no second witness.
+         This is the second instance of the first half: the §6.2 header above records HRVDex's point
+         record dragging the same `intersectionMin` to 0. The cure there was a declared length; here
+         it is that a node's own records are a UNION and only the NODES intersect.
+         Each case carries its own CONTROL, because the fix must move nothing on a night where every
+         node drops exactly one record. */
+      function lrec(node, label, s0, durMin) {
+        return { node: node, label: label, dateStr: label, t0Ms: s0, endMs: s0 + durMin * 60000, dateUnknown: false, offsetMin: null, events: [], nEvents: 0, summary: {}, series: {} };
+      }
+      var nOxy = lrec('OxyDex', 'oxy-night', U(2026, 10, 4, 21, 30, 0), 510);
+      var nPpg = lrec('PpgDex', 'ppg-overnight', U(2026, 10, 4, 21, 40, 0), 270);
+      var nMot = lrec('MotionDex', 'motion-overnight', U(2026, 10, 4, 21, 40, 0), 270);
+      var fPpg = lrec('PpgDex', 'ppg-fragment', U(2026, 10, 5, 4, 49, 0), 31);
+      var fMot = lrec('MotionDex', 'motion-fragment', U(2026, 10, 5, 4, 49, 0), 31);
+      var wCtl = RF([nOxy, nPpg, nMot], {}).window;
+      var wFrg = RF([nOxy, nPpg, nMot, fPpg, fMot], {}).window;
+      T.eq('§6.2 · control · three nodes, one record each, share 270 min all-node', wCtl.intersectionMin, 270);
+      T.eq('§6.2 · control · …in one continuous stretch', wCtl.intersectionSegments, 1);
+      T.eq('§6.2 · control · …and no pair of one node with itself exists to exclude', wCtl.samePairsExcluded, 0);
+      T.eq('§6.2 · a next-morning fragment no longer zeroes the all-node overlap', wFrg.intersectionMin, 301);
+      T.eq('§6.2 · …and the minutes say they are two stretches, not one', wFrg.intersectionSegments, 2);
+      T.eq('§6.2 · …with the two same-node pairs named, not silently dropped', wFrg.samePairsExcluded, 2);
+
+      var oneNode = RF([lrec('PpgDex', 'ppg-part-1', U(2026, 10, 4, 22, 0, 0), 240), lrec('PpgDex', 'ppg-part-2', U(2026, 10, 5, 1, 50, 0), 60)], {});
+      T.eq('§6.2 · two files of ONE node are not a shared timeline', oneNode.anyOverlap, false);
+      T.eq('§6.2 · …so the overlap union is zero minutes', oneNode.window.overlapUnionMin, 0);
+      T.eq('§6.2 · …and both records are reported as overlapping no other node', oneNode.window.nodesExcluded.length, 2);
+      T.eq(
+        '§6.2 · …while the pair itself is kept as evidence, flagged sameNode',
+        oneNode.pairs.filter(function (q) {
+          return q.sameNode;
+        }).length,
+        1
+      );
+      /* The export's window block is a HAND-PICKED projection, so a figure that qualifies another
+         figure reaches no consumer until it is named there. */
+      var BFE = env.buildFusionExport;
+      if (typeof BFE === 'function') {
+        var frgRecs = [nOxy, nPpg, nMot, fPpg, fMot];
+        var expFrg = BFE(frgRecs, RF(frgRecs, {}));
+        T.eq('§6.2 · the export carries the stretch count beside the minutes', expFrg.window.intersectionSegments, 2);
+        T.eq('§6.2 · …and the count of same-node pairs the figures leave out', expFrg.window.samePairsExcluded, 2);
+      } else {
+        T.skip('§6.2 · buildFusionExport reachable', 'integrator export not wired in this lane');
+      }
+
+      var crossFlags = RF([nOxy, nPpg], {}).pairs;
+      T.eq('§6.2 · a cross-node pair carries sameNode false', crossFlags.length && crossFlags[0].sameNode, false);
+
+      // Segment-aware by construction: the sparse record above shares ≤10 recorded minutes with the
+      // night that hits its first spot, so the node-level intersection must not read its 3-day envelope.
+      var sparseLab = Object.assign({}, sparse, { label: 'hrv-sparse', dateStr: 'hrv-sparse' });
+      var hitLab = Object.assign({}, hitNight, { label: 'oxy-hit', dateStr: 'oxy-hit' });
+      var wSparse = RF([sparseLab, hitLab], {}).window;
+      T.ok('§6.2 · the node-level intersection reads recorded segments, not the envelope', wSparse.intersectionMin > 0 && wSparse.intersectionMin <= 10, 'intersectionMin=' + wSparse.intersectionMin);
     });
 
     /* DEEP-AUDIT-III §6.5 — a fallback badge is not a grade.

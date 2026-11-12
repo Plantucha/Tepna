@@ -1831,7 +1831,7 @@
           "hrvConsensus": "HRV consensus compares whole-record SDNN/RMSSD/LF-HF across nodes (window-normalized; epoch-scoped variants kept separately); same-window only (R8).",
           "nullModel": "confirmedApneaIndex is published (reportable=true) only when the confirmed count exceeds a per-night Poisson chance expectation; otherwise findings carry belowChance=true + pSpurious and the index is withheld (R5).",
           "periodicBreathing": "periodic_breathing = a PB / Cheyne–Stokes window corroborated across ≥2 independent signals (OxyDex SpO₂ oscillation · CPAPDex device flow · ECGDex cardiac CVHR), grouped by night-overlap; conf is the tier-weighted noisy-OR (device 1.0 · CVHR 0.8 · oximetry proxy 0.6). Graded experimental — a corroboration signal, not a scored CSR index (§2). `dissenters` names every node that SCORED this phenomenon over the same night and found none of it (`periodicBreathingPct` 0, no episodes); a dissenter is never an observer, so it moves no confidence and no count, and `coversFirstEpisode` says whether its coverage even included the earliest episode — false means its zero cannot refute the finding.",
-          "window": "window.overlapMin / overlapUnionMin = merged-union minutes where ≥2 nodes coincide (NOT a sum of pairwise overlaps); intersectionMin = N-way all-node overlap; pairwiseSumMin retained for transparency; nodesExcluded = dated nodes overlapping nothing (R3)."
+          "window": "window.overlapMin / overlapUnionMin = merged-union minutes where ≥2 nodes coincide (NOT a sum of pairwise overlaps); intersectionMin = minutes every dated NODE covers, over intersectionSegments separate stretches; pairwiseSumMin retained for transparency; nodesExcluded = dated nodes overlapping no OTHER node; every figure counts NODES, so samePairsExcluded pairs of one node’s own files are left out (R3)."
         },
         "name": "ganglior.fusion-export",
         "provenance": null,
@@ -1906,10 +1906,12 @@
         "end": "2026-06-28 06:00",
         "endMs": 1782626400000,
         "intersectionMin": 480,
+        "intersectionSegments": 1,
         "nodesExcluded": [],
         "overlapMin": 480,
         "overlapUnionMin": 480,
         "pairwiseSumMin": 2880,
+        "samePairsExcluded": 0,
         "spanMin": 480,
         "start": "2026-06-27 22:00",
         "startMs": 1782597600000
@@ -2454,7 +2456,7 @@
           "hrvConsensus": "HRV consensus compares whole-record SDNN/RMSSD/LF-HF across nodes (window-normalized; epoch-scoped variants kept separately); same-window only (R8).",
           "nullModel": "confirmedApneaIndex is published (reportable=true) only when the confirmed count exceeds a per-night Poisson chance expectation; otherwise findings carry belowChance=true + pSpurious and the index is withheld (R5).",
           "periodicBreathing": "periodic_breathing = a PB / Cheyne–Stokes window corroborated across ≥2 independent signals (OxyDex SpO₂ oscillation · CPAPDex device flow · ECGDex cardiac CVHR), grouped by night-overlap; conf is the tier-weighted noisy-OR (device 1.0 · CVHR 0.8 · oximetry proxy 0.6). Graded experimental — a corroboration signal, not a scored CSR index (§2). `dissenters` names every node that SCORED this phenomenon over the same night and found none of it (`periodicBreathingPct` 0, no episodes); a dissenter is never an observer, so it moves no confidence and no count, and `coversFirstEpisode` says whether its coverage even included the earliest episode — false means its zero cannot refute the finding.",
-          "window": "window.overlapMin / overlapUnionMin = merged-union minutes where ≥2 nodes coincide (NOT a sum of pairwise overlaps); intersectionMin = N-way all-node overlap; pairwiseSumMin retained for transparency; nodesExcluded = dated nodes overlapping nothing (R3)."
+          "window": "window.overlapMin / overlapUnionMin = merged-union minutes where ≥2 nodes coincide (NOT a sum of pairwise overlaps); intersectionMin = minutes every dated NODE covers, over intersectionSegments separate stretches; pairwiseSumMin retained for transparency; nodesExcluded = dated nodes overlapping no OTHER node; every figure counts NODES, so samePairsExcluded pairs of one node’s own files are left out (R3)."
         },
         "name": "ganglior.fusion-export",
         "provenance": null,
@@ -2915,10 +2917,12 @@
         "end": "2026-06-28 06:00",
         "endMs": 1782626400000,
         "intersectionMin": 480,
+        "intersectionSegments": 1,
         "nodesExcluded": [],
         "overlapMin": 480,
         "overlapUnionMin": 480,
         "pairwiseSumMin": 2880,
+        "samePairsExcluded": 0,
         "spanMin": 480,
         "start": "2026-06-27 22:00",
         "startMs": 1782597600000
@@ -3255,7 +3259,7 @@
           "hrvConsensus": "HRV consensus compares whole-record SDNN/RMSSD/LF-HF across nodes (window-normalized; epoch-scoped variants kept separately); same-window only (R8).",
           "nullModel": "confirmedApneaIndex is published (reportable=true) only when the confirmed count exceeds a per-night Poisson chance expectation; otherwise findings carry belowChance=true + pSpurious and the index is withheld (R5).",
           "periodicBreathing": "periodic_breathing = a PB / Cheyne–Stokes window corroborated across ≥2 independent signals (OxyDex SpO₂ oscillation · CPAPDex device flow · ECGDex cardiac CVHR), grouped by night-overlap; conf is the tier-weighted noisy-OR (device 1.0 · CVHR 0.8 · oximetry proxy 0.6). Graded experimental — a corroboration signal, not a scored CSR index (§2). `dissenters` names every node that SCORED this phenomenon over the same night and found none of it (`periodicBreathingPct` 0, no episodes); a dissenter is never an observer, so it moves no confidence and no count, and `coversFirstEpisode` says whether its coverage even included the earliest episode — false means its zero cannot refute the finding.",
-          "window": "window.overlapMin / overlapUnionMin = merged-union minutes where ≥2 nodes coincide (NOT a sum of pairwise overlaps); intersectionMin = N-way all-node overlap; pairwiseSumMin retained for transparency; nodesExcluded = dated nodes overlapping nothing (R3)."
+          "window": "window.overlapMin / overlapUnionMin = merged-union minutes where ≥2 nodes coincide (NOT a sum of pairwise overlaps); intersectionMin = minutes every dated NODE covers, over intersectionSegments separate stretches; pairwiseSumMin retained for transparency; nodesExcluded = dated nodes overlapping no OTHER node; every figure counts NODES, so samePairsExcluded pairs of one node’s own files are left out (R3)."
         },
         "name": "ganglior.fusion-export",
         "provenance": null,
@@ -3269,10 +3273,12 @@
         "end": "2026-06-16 01:10",
         "endMs": 1781572200000,
         "intersectionMin": 110,
+        "intersectionSegments": 1,
         "nodesExcluded": [],
         "overlapMin": 120,
         "overlapUnionMin": 120,
         "pairwiseSumMin": 340,
+        "samePairsExcluded": 0,
         "spanMin": 130,
         "start": "2026-06-15 23:00",
         "startMs": 1781564400000
