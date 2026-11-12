@@ -332,17 +332,17 @@
     <thead><tr><th>Group / field</th><th>Oxy</th><th>HRV</th><th>Pulse</th><th>ECG</th><th>Ppg</th><th>Gluco</th><th>Why it's collected</th></tr></thead>
     <tbody>
       <tr><td><span class="tag core">Identity</span> age · sex</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td>every age/sex norm: HRmax, expected rMSSD/RHR, VO₂ &amp; metabolic norms, BMR</td></tr>
-      <tr><td><span class="tag core">Body</span> weight · height · body-fat* · waist*</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="x">＋new</td><td>BMI · BSA · IBW · RMR (Katch-McArdle) · WHtR — and <b>OSA/metabolic prior</b> (§5). *optional</td></tr>
+      <tr><td><span class="tag core">Body</span> weight · height · body-fat* · waist*</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="x">+new</td><td>BMI · BSA · IBW · RMR (Katch-McArdle) · WHtR — and <b>OSA/metabolic prior</b> (§5). *optional</td></tr>
       <tr><td><span class="tag core">Cardio</span> resting HR · HRmax · β-blocker · AF</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td>Karvonen zones · Uth–Sørensen VO₂ anchor · β-blocker/AF gate the HR &amp; HRV math (§5-A)</td></tr>
       <tr><td><span class="tag core">Hemodynamic</span> SBP · DBP</td><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td><td class="n">—</td><td class="n">—</td><td>MAP · pulse pressure · autonomic-BP projection (only signals with a pulse-wave/autonomic-BP model)</td></tr>
       <tr><td><span class="tag core">Fitness</span> VO₂max GT · activity</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td>validates VO₂ &amp; anchors percentile · activity level → TDEE (§5-G)</td></tr>
       <tr><td><span class="tag core">Environment</span> elevation</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td>OxyDex: SpO₂ norm shift · HRV nodes: VO₂ altitude factor (+ HRV-norm caveat, §5)</td></tr>
-      <tr><td><span class="tag add">Therapy</span> CPAP / BiPAP</td><td class="y">✓</td><td class="x">＋new</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td>reframes apnea read as <i>residual on therapy</i></td></tr>
+      <tr><td><span class="tag add">Therapy</span> CPAP / BiPAP</td><td class="y">✓</td><td class="x">+new</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td>reframes apnea read as <i>residual on therapy</i></td></tr>
       <tr><td><span class="tag add">Metabolic</span> diabetes · therapy · target · A1c</td><td class="n">—</td><td class="n">—</td><td class="n">—</td><td class="n">—</td><td class="n">—</td><td class="x">✓</td><td>thresholds, hypo-goal, GMI-vs-lab validation, sensor calibration</td></tr>
     </tbody>
   </table>
   </div>
-  <p class="note mono-sm" style="margin-top:8px">＋new = field already collected but newly surfaced/used per §5. The Integrator reads the shared identity; it stores nothing of its own.</p>
+  <p class="note mono-sm" style="margin-top:8px">+new = field already collected but newly surfaced/used per §5. The Integrator reads the shared identity; it stores nothing of its own.</p>
 
   <!-- ══════════════════════════════════════════════════════════ -->
   <h2><span class="n">5</span> Connecting profile → calculations, and getting more from it</h2>
@@ -388,12 +388,12 @@
     <thead><tr><th>Node</th><th>Profile code</th><th>Storage</th><th>Net change for the user</th></tr></thead>
     <tbody>
       <tr><td>OxyDex</td><td class="rm">delete <code>UP</code> + formulas</td><td class="x">→ shared identity (migrate <code>oxydex_profile</code>)</td><td>same fields, same look; resting HR now shared out</td></tr>
-      <tr><td>HRVDex</td><td class="rm">delete bare globals + per-key store</td><td class="x">→ shared (migrate 10 <code>prof_*</code> keys)</td><td class="x">＋CPAP group; identity prefilled from other Dexes</td></tr>
+      <tr><td>HRVDex</td><td class="rm">delete bare globals + per-key store</td><td class="x">→ shared (migrate 10 <code>prof_*</code> keys)</td><td class="x">+CPAP group; identity prefilled from other Dexes</td></tr>
       <tr><td>PulseDex</td><td class="rm">delete overview-module profile</td><td class="x">→ shared</td><td>identity prefilled from other Dexes</td></tr>
       <tr><td>ECGDex</td><td>thin wrapper → <code>DexProfile</code></td><td class="x">→ shared (migrate <code>ecgdex_profile</code>)</td><td>resting HR seeded from OxyDex floor</td></tr>
       <tr><td>PpgDex</td><td>thin wrapper → <code>DexProfile</code></td><td class="x">→ shared</td><td>identity prefilled</td></tr>
       <tr><td>GlucoDex</td><td>thin wrapper → <code>DexProfile</code></td><td class="x">→ shared (identity group only)</td><td>age/sex prefilled; metabolic group unchanged</td></tr>
-      <tr><td>Integrator</td><td class="x">＋reads identity</td><td>—</td><td>cross-signal context flags (BMI→OSA, diabetes→CAN)</td></tr>
+      <tr><td>Integrator</td><td class="x">+reads identity</td><td>—</td><td>cross-signal context flags (BMI→OSA, diabetes→CAN)</td></tr>
     </tbody>
   </table>
   </div>

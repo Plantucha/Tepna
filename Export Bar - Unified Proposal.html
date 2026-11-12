@@ -123,7 +123,7 @@
       </div>
       <span class="spacer"></span>
       <div class="grp">
-        <button class="btn btn-ghost"><span class="ic">＋</span> Add files</button>
+        <button class="btn btn-ghost"><span class="ic">+</span> Add files</button>
         <button class="btn btn-danger"><span class="ic">✕</span> Clear</button>
       </div>
     </div>
@@ -144,7 +144,7 @@
       </div>
       <span class="spacer"></span>
       <div class="grp">
-        <button class="btn btn-ghost"><span class="ic">＋</span> Add files</button>
+        <button class="btn btn-ghost"><span class="ic">+</span> Add files</button>
         <button class="btn btn-danger"><span class="ic">✕</span> Clear</button>
       </div>
     </div>
@@ -164,7 +164,7 @@
       </div>
       <span class="spacer"></span>
       <div class="grp">
-        <button class="btn btn-ghost"><span class="ic">＋</span> Add files</button>
+        <button class="btn btn-ghost"><span class="ic">+</span> Add files</button>
         <button class="btn btn-danger"><span class="ic">✕</span> Clear</button>
       </div>
     </div>
@@ -194,7 +194,7 @@
           <button class="btn btn-csv"><span class="ic">⬇</span> CSV</button>
           <button class="btn btn-pdf"><span class="ic">⬇</span> PDF</button>
           <button class="btn btn-extra full"><span class="ic">⬇</span> RR intervals</button>
-          <button class="btn btn-ghost"><span class="ic">＋</span></button>
+          <button class="btn btn-ghost"><span class="ic">+</span></button>
           <button class="btn btn-danger" style="flex:0 0 auto"><span class="ic">✕</span></button>
         </div>
         <div class="m-nav"><span><i class="d"></i>Load</span><span><i class="d"></i>Charts</span><span><i class="d"></i>Metrics</span><span><i class="d"></i>Export</span></div>
@@ -206,13 +206,13 @@
   <table class="matrix">
     <thead><tr><th>App</th><th>JSON</th><th>CSV</th><th>PDF</th><th>Extra</th><th>Removed</th></tr></thead>
     <tbody>
-      <tr><td>OxyDex</td><td class="y">✓</td><td class="y">✓</td><td class="x">＋new</td><td class="n">—</td><td>“Download Parser” → moves to sidebar</td></tr>
-      <tr><td>PulseDex</td><td class="y">✓</td><td class="y">✓</td><td class="x">＋new</td><td class="x">RR</td><td>—</td></tr>
-      <tr><td>ECGDex</td><td class="y">✓</td><td class="y">✓</td><td class="x">＋new</td><td class="x">RR</td><td>—</td></tr>
-      <tr><td>PpgDex</td><td class="y">✓</td><td class="y">✓</td><td class="x">＋new</td><td class="x">PPI</td><td>“JSON (v2.0)” → just “JSON”</td></tr>
-      <tr><td>GlucoDex</td><td class="y">✓</td><td class="y">✓</td><td class="x">＋new</td><td class="n">—</td><td>—</td></tr>
-      <tr><td>HRVDex</td><td class="y">✓</td><td class="y">✓</td><td class="x">＋new</td><td class="n">—</td><td class="rm">“Ganglior bus” button</td></tr>
-      <tr><td>Integrator</td><td class="y">✓</td><td class="n">—*</td><td class="x">＋new</td><td class="n">—</td><td>—</td></tr>
+      <tr><td>OxyDex</td><td class="y">✓</td><td class="y">✓</td><td class="x">+new</td><td class="n">—</td><td>“Download Parser” → moves to sidebar</td></tr>
+      <tr><td>PulseDex</td><td class="y">✓</td><td class="y">✓</td><td class="x">+new</td><td class="x">RR</td><td>—</td></tr>
+      <tr><td>ECGDex</td><td class="y">✓</td><td class="y">✓</td><td class="x">+new</td><td class="x">RR</td><td>—</td></tr>
+      <tr><td>PpgDex</td><td class="y">✓</td><td class="y">✓</td><td class="x">+new</td><td class="x">PPI</td><td>“JSON (v2.0)” → just “JSON”</td></tr>
+      <tr><td>GlucoDex</td><td class="y">✓</td><td class="y">✓</td><td class="x">+new</td><td class="n">—</td><td>—</td></tr>
+      <tr><td>HRVDex</td><td class="y">✓</td><td class="y">✓</td><td class="x">+new</td><td class="n">—</td><td class="rm">“Ganglior bus” button</td></tr>
+      <tr><td>Integrator</td><td class="y">✓</td><td class="n">—*</td><td class="x">+new</td><td class="n">—</td><td>—</td></tr>
     </tbody>
   </table>
   <p class="note" style="margin-top:12px">*Integrator may keep CSV or not — it exports a fusion digest, not a single-signal table. <b>Open questions for you:</b> (1) confirm <b>PDF</b> = “print current analysis view” (print stylesheet already hides chrome). (2) OK to <b>remove the standalone Ganglior button</b> — the primary <b>JSON already is</b> the <code>ganglior.node-export</code> with <code>ganglior_events</code>, so the Integrator contract is unaffected; the separate button is redundant. (3) Confirm the <b>RR/PPI</b> extra-output set.</p>

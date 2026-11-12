@@ -27487,6 +27487,48 @@
        ⚠️ DO NOT grow this into a prose scanner. §2 built one, measured it — 45 flags, all 4 sampled
        false positives from four DISTINCT mechanisms — and refused it: statcheck's precision comes from
        NHST's rigid convention, not from the checking. The marker CREATES the stereotypy instead. */
+    /* ════ Latin-safe UI glyphs — a label must not draw a character the system faces lack ════
+       Residue `2026-11-11-a-cjk-only-glyph-draws-a-ui-icon`: 39 sites over 13 authored files drew a
+       plus and a wave with U+FF0B and U+301C, present since the initial commit. The repo ships no
+       font binary (THIRD-PARTY.md), so a label resolves against the installed faces alone, and a
+       viewer with no CJK family reads a tofu box where the icon belongs.
+
+       Measured with fontconfig on the primary box 2026-11-12 — families carrying each codepoint:
+       U+FF0B 16, U+301C 16, U+29C9 1. Every FF0B and 301C carrier is a CJK family, and the single
+       U+29C9 carrier is Noto Sans Math. The replacements are broad: U+002B sits in 188 families and
+       U+007E in 180, so an ASCII label draws on any box.
+
+       ⚠️ THE CODEPOINTS ARE BUILT FROM NUMBERS AND NEVER WRITTEN AS CHARACTERS. A scanner that
+       carries its own needle flags itself. That is the shape 8d¹ above records for the `@font-face`
+       comments, and the shape that moved a workflow-parity gate into the capture census on
+       2026-11-12 when its comment named a capture override.
+
+       The population is `env.srcHtml` + `env.sources`, both of which both lanes fill, so this group
+       needs no fs read and SKIPs in neither. The floor reds a map that empties instead of reading a
+       clean pass over nothing (CLAUDE.md §4b). */
+    group('Latin-safe UI glyphs — no authored source carries a CJK-only label character', 'surface · glyphs · sources', function (T) {
+      var DENY = [
+        { cp: 0xff0b, label: 'U+FF0B FULLWIDTH PLUS SIGN', use: 'write the ASCII plus U+002B' },
+        { cp: 0x301c, label: 'U+301C WAVE DASH', use: 'write the ASCII tilde U+007E' },
+        { cp: 0x29c9, label: 'U+29C9 TWO JOINED SQUARES', use: 'drop the icon and keep the label text' }
+      ];
+      var SURF = {};
+      [env.srcHtml || {}, env.sources || {}].forEach(function (m) {
+        Object.keys(m).forEach(function (k) {
+          if (typeof m[k] === 'string' && m[k].length) SURF[k] = m[k];
+        });
+      });
+      var names = Object.keys(SURF).sort();
+      T.ok('the glyph scan examined a populated surface set (' + names.length + ' file(s))', names.length >= 20, 'env.srcHtml and env.sources are both empty here, so this group examined nothing');
+      DENY.forEach(function (d) {
+        var ch = String.fromCharCode(d.cp);
+        var hits = names.filter(function (n) {
+          return SURF[n].indexOf(ch) >= 0;
+        });
+        T.eq('no authored surface draws ' + d.label + ' — ' + d.use, hits.join(', '), '');
+      });
+    });
+
     group('Published tables name the run that produced them (TABLE-PROVENANCE)', 'docs · table-provenance · published-numbers', function (T) {
       var TP = env.tableProvenance;
       if (!TP) {
