@@ -14955,10 +14955,14 @@
          Markdown cell (`mdCell` in `mutation-suite.mjs`, `tools-index.mjs`) narrows a different
          dialect on purpose. LIMIT: the product is followed through a DECLARED name or from inside the
          call itself, so an accumulator (`out += c.replace(…)` in `corpus-census.mjs`) sits outside
-         this leg's reach — the EXEMPT table above names that file for the same reason. */
+         this leg's reach — the EXEMPT table above names that file for the same reason.
+         The body scan is a FLAT two-way alternation, and the two arms start with different
+         characters. A nested arm for a character class let one backslash run match two ways and
+         CodeQL reported it as `js/redos`, twice, at HIGH. A `/` inside a class ends the scan early,
+         which under-detects and never loops. */
       var escapingSites = function (text) {
         var found = [];
-        var re = /(?:(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*)?[\w$.\])]+\.replace\(\s*\/((?:\\.|\[(?:\\.|[^\]])*\]|[^/\n\\])+)\/[gimsuy]*\s*,\s*('(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*")\s*\)/g;
+        var re = /(?:(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*)?[\w$.\])]+\.replace\(\s*\/((?:\\.|[^/\n\\])+)\/[gimsuy]*\s*,\s*('(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*")\s*\)/g;
         for (;;) {
           var m = re.exec(text);
           if (m === null) break;
