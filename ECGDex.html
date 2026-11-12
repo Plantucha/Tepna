@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="2df957eebe2b" data-compute-hash="6c2fdc2f5e9b">
+<html lang="en" data-manifest-hash="7a731fb39b60" data-compute-hash="0c7910a15afd">
 <head>
 <!--
   ECGDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-5PbKaXdzyPy/cib0xy63gaP0I3y+kRFP0ppH5mWp0Oo=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QU1eFIpXtk89h7OawHFWXJry6pEr0cw5i0Q08kGZz88=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-R6Dc/xXQzYFveWsVfbGSg8lpp98pG2dIwLNGGu4Pc04=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-WzBr6EKLqAjW7EwqbZUhsDrzfhP2IA7naPBknkKXDSo=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-kCIXFB+Oh+fPXQK0n5wv9ysz8QHUPT7/BBvnQcqS+u0=' 'sha256-ndwAaS7rxPDbDdTDUAApFCDBcXWisKUftg+0xzuxsoI=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-snn87HIc5SfG9Vi0mLgx1pa9iIjPaV7vXPFSnvVFu2E=' 'sha256-tddD0f4n4/0SctOR+t6ziGNCiH/GZ6G3Q5Iib/iByoM=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es=' 'sha256-wb5W2+6GqU+/HXk5/CdFPh7YbFJvDoZ3B6UCVyKGsJk=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QU1eFIpXtk89h7OawHFWXJry6pEr0cw5i0Q08kGZz88=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-R6Dc/xXQzYFveWsVfbGSg8lpp98pG2dIwLNGGu4Pc04=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-XkCJjtofRC8yuzIDQ1Ofcdj/kJnYaArgcSmrDj/MoAc=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-kCIXFB+Oh+fPXQK0n5wv9ysz8QHUPT7/BBvnQcqS+u0=' 'sha256-ndwAaS7rxPDbDdTDUAApFCDBcXWisKUftg+0xzuxsoI=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-snn87HIc5SfG9Vi0mLgx1pa9iIjPaV7vXPFSnvVFu2E=' 'sha256-tddD0f4n4/0SctOR+t6ziGNCiH/GZ6G3Q5Iib/iByoM=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es=' 'sha256-wb5W2+6GqU+/HXk5/CdFPh7YbFJvDoZ3B6UCVyKGsJk=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw=' 'sha256-zIdD4Dwtl/yycr9HoiRZhCh14ic2iF2k/xoOV2VBClI='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>ECGDex — Raw ECG Analyzer · v2.31.0</title>
@@ -11722,8 +11722,13 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       cls = 'Rising instability — persistent autonomic instability (glycemic-risk signal)';
       sev = 'bad';
     } else {
+      /* INSIDE THE NULL BAND IS NOT A WATCH STATE (residue 2026-11-11). This band is the
+         ±0.015 ln-units/h the two branches above declare as a trend; a slope inside it says
+         no trend was resolved, which the table rendered as `Watch` on a severity of 'warn'.
+         A measured −0.0133 therefore read as a finding about the night. 'neutral' is the
+         only honest grade for the band, and `classification` still names it. */
       cls = 'Flat — no clear nocturnal trend';
-      sev = 'warn';
+      sev = 'neutral';
     }
 
     return {
@@ -21684,7 +21689,7 @@ self.onmessage = async (e) => {
     const modeName = r.modeLabel || { insufficient: 'Insufficient', ['ultra-short']: 'Ultra-short', short: '5-min standard', overnight: 'Overnight' }[r.tier];
     $('ctxBanner').innerHTML = `<div class="ctx-main">
       <div><div class="ctx-mode">${modeName}</div>
-      <div class="ctx-why">${r.durMin} min · ${r.nBeats.toLocaleString()} beats · ${r.fs} Hz · ${r.epochs.length} × 5-min epochs</div></div>
+      <div class="ctx-why">${r.durMin} min · ${r.nBeats.toLocaleString()} beats · ${_fsReadable(r.fs)} Hz · ${r.epochs.length} × 5-min epochs</div></div>
       <div class="ctx-conf ${r.ambulatory ? 'warn' : tierColor}">${r.ambulatory ? 'Ambulatory — sleep/apnea suppressed' : r.tierMsg}</div>
     </div>${notes}`;
     $('ctxBanner').style.display = 'flex';
@@ -22086,7 +22091,7 @@ self.onmessage = async (e) => {
     // Dynamic HRV stability (Li & Kiyono 2026)
     const hs = r.hrvStab;
     if (hs) {
-      const sevColor = { good: UI.COLORS.green, warn: UI.COLORS.amber, bad: UI.COLORS.red }[hs.severity];
+      const sevColor = { good: UI.COLORS.green, warn: UI.COLORS.amber, bad: UI.COLORS.red, neutral: UI.COLORS.dim }[hs.severity];
       const pts = hs.series.map((p) => ({ x: p.tMin / 60, y: p.lnSD }));
       const slopeArrow = hs.sigma_lnRMSSD_slope > 0.015 ? '↗' : hs.sigma_lnRMSSD_slope < -0.015 ? '↘' : '→';
       const esc = r.surgeEsc;
@@ -22397,10 +22402,18 @@ self.onmessage = async (e) => {
         : moderate
           ? '<span class="pill pill-yellow">Moderate</span>'
           : '<span class="pill pill-red">Poor — check sensor contact</span>';
-      const narrowNote =
-        ag.r < 0.65 && ag.mae <= 2.0
-          ? `<div class="q-note" style="margin-top:6px;color:var(--text2)">Low Pearson r here reflects the <b>narrow EDR range</b> across the night, not poor tracking — MAE ${ag.mae.toFixed(1)} br/min and tight limits of agreement (${ag.loa[0]} … +${ag.loa[1]}) show the two methods agree closely (Bland–Altman governs over correlation when the spread is small).</div>`
-          : '';
+      /* THE SPAN IS THE QUANTITY, NOT THE MAE (residue 2026-11-11). This note called the limits
+         "tight" and said the two methods "agree closely" behind an `ag.mae <= 2.0` gate — the mean
+         absolute error, never the width of the interval printed beside the claim. A night with
+         limits of −5.1 … +4.6 br/min, a span of 9.7, passed that gate and read as close agreement.
+         The gate is the span itself now, held against this card's own disagreement threshold
+         (|Δ| > 3 br/min, so a 6 br/min span), and each branch states the span it measured. */
+      const loaSpan = ag.loa ? +(ag.loa[1] - ag.loa[0]).toFixed(1) : null;
+      const narrowNote = !(ag.r < 0.65 && loaSpan != null)
+        ? ''
+        : loaSpan <= 6
+          ? `<div class="q-note" style="margin-top:6px;color:var(--text2)">Low Pearson r here reflects the <b>narrow EDR range</b> across the night, not poor tracking — MAE ${ag.mae.toFixed(1)} br/min, and the 95% limits of agreement span <b>${loaSpan}</b> br/min (${ag.loa[0]} … +${ag.loa[1]}), inside this card's own 3 br/min disagreement threshold (Bland–Altman governs over correlation when the spread is small).</div>`
+          : `<div class="q-note" style="margin-top:6px;color:var(--text2)">Low Pearson r here reflects the <b>narrow EDR range</b> across the night, not poor tracking. The 95% limits of agreement span <b>${loaSpan}</b> br/min (${ag.loa[0]} … +${ag.loa[1]}), wider than this card's own 3 br/min disagreement threshold, so this card makes no close-agreement claim (Bland–Altman governs over correlation when the spread is small).</div>`;
       const evg = (lbl) => {
         const b = evBadge(lbl);
         return b ? '<span style="margin-right:5px">' + b + '</span>' : '';
@@ -22599,6 +22612,15 @@ self.onmessage = async (e) => {
     $('gangSection').style.display = 'block';
   }
 
+  /* A MEASURED SAMPLE RATE IS NOT A LABEL (residue 2026-11-11). `r.fs` is measured from the
+     stamps, so a real H10 night reads 130.01450262176357 Hz, and three reader surfaces printed
+     every digit of it. Two decimals still carry the deviation from the nominal 130 Hz (0.01 Hz
+     is 77 ppm at this rate); the export keeps every digit at `sampleRateHz`, which is the number
+     a consumer computes on. An absent rate is an em dash, never 0 (∅). */
+  function _fsReadable(fs) {
+    return Number.isFinite(fs) ? +fs.toFixed(2) : '—';
+  }
+
   function renderTable(r) {
     const insuf = (st) => (r.tier === 'ultra-short' ? 'neutral' : st);
     const D = r.morph ? r.morph.delin : null;
@@ -22606,7 +22628,7 @@ self.onmessage = async (e) => {
       ['Source', r.source === 'synthetic' ? 'Synthetic ECG (demo)' : 'Raw ECG file', '—', '—', 'neutral', 'Single signal in — RR computed from ECG'],
       ['Tier', r.tier, '—', '—', 'neutral', r.tierMsg],
       ['Duration', r.durMin, 'min', '—', 'neutral', r.epochs.length + ' × 5-min epochs'],
-      ['Sample rate', r.fs, 'Hz', '130', 'neutral', 'Polar-H10-style chest sensor'],
+      ['Sample rate', _fsReadable(r.fs), 'Hz', '130', 'neutral', 'Polar-H10-style chest sensor · measured rate at two decimals; the export keeps every digit'],
       ['Beats (NN)', r.nBeats, 'beats', '—', 'neutral', 'After SQI gate + interpolation'],
       ['Analyzable', r.analyzablePct, '%', '≥90', r.analyzablePct >= 90 ? 'ok' : r.analyzablePct >= 75 ? 'warn' : 'bad', '% night above SQI threshold'],
       ['Correction', r.correctionRate, '%', '<3', r.correctionRate < 3 ? 'ok' : r.correctionRate < 8 ? 'warn' : 'bad', 'Beats interpolated'],
@@ -22635,8 +22657,9 @@ self.onmessage = async (e) => {
       ...(r.vo2gt ? [['VO₂max GT', r.vo2gt, 'ml/kg/min', 'lab', 'neutral', 'Your entered ground truth']] : []),
       /* 'Apnea risk' + 'Est. AHI' rows retired 2026-07-31 (§10). The target column ('<5', 'Minimal')
          was the giveaway: those are AHI's clinical cut-points applied to a CVHR index that does not
-         track AHI (r = −0.151). The index now appears as itself, with no target to miss. */
-      ...(r.longRec && !r.ambulatory && r.cvhr ? [['CVHR index', r.cvhr.index, '/h', '—', 'neutral', 'Cyclic variation of HR — an autonomic signature, not an apnea count']] : []),
+         track AHI (r = −0.151). The index now appears as itself, with no target to miss — ONCE,
+         in the CVHR/sleep block below. This position held a second, identical row until residue
+         2026-11-11: one table printed `CVHR index` twice on every long non-ambulatory night. */
       ...(r.morph
         ? [
             ['— Morphology / Rhythm —', '', '', '', 'neutral', 'single lead @130 Hz · directional trends, not 12-lead'],
@@ -22730,7 +22753,7 @@ self.onmessage = async (e) => {
         ? [
             /* §10 retirement, second copy: no AHI target or ladder on a CVHR index (residue 2026-11-08). */
             ['CVHR index', r.cvhr ? r.cvhr.index : '—', '/h', '—', 'neutral', 'Cyclic variation of HR — an autonomic signature, not an apnea count'],
-            ['CVHR events', r.cvhr.events.length, 'count', '—', 'neutral', 'autonomic_surge events emitted'],
+            ['CVHR events', r.cvhr ? r.cvhr.events.length : '—', 'count', '—', 'neutral', 'autonomic_surge events emitted'],
             ['Total sleep', r.totSleep, 'min', '—', 'neutral', 'Light+Deep+REM (cardioresp staging)'],
             ['Deep', r.stageMin.Deep.toFixed(0), 'min', '—', 'neutral', 'High vagal tone epochs'],
             ['REM', r.stageMin.REM.toFixed(0), 'min', '—', 'neutral', 'High LF/HF, irregular']
@@ -23841,7 +23864,7 @@ self.onmessage = async (e) => {
                       'Intervals reported in ms but resolved on a ' +
                       sampleMs +
                       ' ms sample grid (' +
-                      (r.fs || 130) +
+                      _fsReadable(r.fs || 130) +
                       ' Hz) → ±1 sample (~' +
                       sampleMs +
                       ' ms) uncertainty. Clinical QT analysis wants ≥250 Hz; treat as a within-subject directional trend, single lead ≠ 12-lead.'
