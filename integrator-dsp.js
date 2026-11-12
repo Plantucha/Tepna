@@ -449,6 +449,21 @@ function adaptEnvelopeNode(json, node, filename) {
          across them instead of silently treating the two as commensurate. */
       summary.remFractionBasis = 'sleep';
       summary.stagingMethod = 'ECG cardiorespiratory (HRV + EDR), single-signal estimate';
+      /* SWREC (residue 2026-11-11-sleep-wake-vs-efficiency-unreconciled) — the sleep/wake quantity
+         this leg PUBLISHES, carried so the fusion layer can print it beside OxyDex's own. Wake
+         minutes sit inside the STAGED span, which is not the recording span OxyDex divides by, so
+         the basis travels WITH the value and fuseSleepWakeReconciliation refuses to difference the
+         two. A leg that published no Wake adds no key — never a 0. */
+      if (_sm.Wake != null) {
+        summary.wakeMin = _sm.Wake;
+        summary.stagedSleepMin = _tot;
+        summary.unstagedMin = json.sleep.unstagedMin != null ? json.sleep.unstagedMin : null;
+        summary.sleepWakeQuantity = 'wakeMinutes';
+        summary.sleepWakeValue = _sm.Wake;
+        summary.sleepWakeUnit = 'min';
+        summary.sleepWakeBasis = 'staged-span';
+        summary.sleepWakeMethod = 'ECG cardiorespiratory staging (HRV + EDR), single-signal estimate';
+      }
     }
   }
   if (node === 'GlucoDex') {
@@ -1271,6 +1286,25 @@ function adaptOxyDex(json, filename) {
       summary.stagingMethod = 'SpO₂/PR oximetry proxy, single-signal estimate';
     } else if (_remImplausible) {
       summary.stagingSuppressed = _sp.plausibilityNote || 'oximetry REM proxy implausible (' + _sp.remProxyPct + '% of the recording)';
+    }
+    /* SWREC (residue 2026-11-11-sleep-wake-vs-efficiency-unreconciled) — OxyDex's OWN sleep/wake
+       number already reached the bus and NOTHING here read it, so one night carried 99.7 % motion
+       efficiency beside 95 ECGDex wake minutes with no reconciliation on any surface. The exported
+       night renames `motSleep` to `sleepQuality` (oxydex-dsp.js:9052); keep `motSleep` as the
+       fallback for an in-process night object — the same two-key shape as the hypoxicBurden read
+       above. The quantity is the quiet SHARE OF THE RECORDING, so it is declared, never converted. */
+    var _swEff = _dig(n, ['sleepQuality', 'sleepEff']);
+    if (_swEff == null) _swEff = _dig(n, ['motSleep', 'sleepEff']);
+    if (_swEff != null) {
+      var _swWaso = _dig(n, ['sleepQuality', 'wasoPct']);
+      if (_swWaso == null) _swWaso = _dig(n, ['motSleep', 'wasoPct']);
+      summary.sleepEffPct = _swEff;
+      summary.wasoPct = _swWaso != null ? _swWaso : null;
+      summary.sleepWakeQuantity = 'quietShareOfRecording';
+      summary.sleepWakeValue = _swEff;
+      summary.sleepWakeUnit = '%';
+      summary.sleepWakeBasis = 'motion-quiet-recording';
+      summary.sleepWakeMethod = 'motion-derived quiet share of the recording (actigraphy-style), not a scored wake time';
     }
     // §8 — consume the per-instance lineage where the night carries it; a legacy night adds no key.
     var _meas = consumeMeasurements(n, { odi4: summary.odi4, meanSpo2: summary.meanSpo2, hypoxicBurden: summary.hypoxicBurden, t90: stats.t90pct != null ? stats.t90pct : null });
@@ -4201,6 +4235,86 @@ function fuseStagingConsensus(recs, remGapThresh) {
               .join(' vs ') +
             '). Neither is a validated hypnogram — treat both as low-confidence estimates; PSG needed to arbitrate.'
           : 'Single-signal REM estimates agree within ' + (gap * 100).toFixed(0) + ' pts.'
+      };
+    });
+  return blocks.length ? { blocks: blocks } : null;
+}
+
+/* ════ SLEEP/WAKE RECONCILIATION (residue 2026-11-11-sleep-wake-vs-efficiency-unreconciled) ══
+   Two nodes publish a sleep/wake number for the same night, and they do not denominate alike:
+     · OxyDex  — the motion-quiet SHARE of the RECORDING (`sleepQuality.sleepEff`) ..... tier EMERGING
+     · ECGDex  — WAKE MINUTES inside the STAGED span (`sleep.stageMinutes.Wake`) ....... tier HEURISTIC
+   A vigil audit of one night read 95 ECGDex wake minutes beside 99.7 % OxyDex efficiency, and no
+   surface named the pair at all: the Integrator read neither quantity, though both arrived on the bus.
+   This block names both and computes NO gap, NO difference and NO threshold. The §C2 measurement in
+   the OxyDex staging leg above records why converting one basis onto the other is not available — the
+   motion estimate reads 99.1–99.9 % on every corpus night and misses ECGDex TST by a median 58 min.
+   Same contract as fuseStagingConsensus: group by temporal overlap, carry the DECLARED basis, and
+   report an incomparable group while naming what each leg counted.
+   Returns { blocks:[ {window,t0Ms,nodes,byNode,comparable,reason,note} ] } | null. */
+function fuseSleepWakeReconciliation(recs) {
+  var src = recs.filter(function (r) {
+    return !r.dateUnknown && r.summary && r.summary.sleepWakeBasis && r.summary.sleepWakeValue != null;
+  });
+  if (src.length < 2) return null;
+  var groups = _overlapComponents(src, function (a, b) {
+    return !!overlapInterval(a, b);
+  });
+  var _leg = function (s) {
+    var leg = /** @type {any} */ ({
+      node: s.node,
+      quantity: s.summary.sleepWakeQuantity || null,
+      value: s.summary.sleepWakeValue,
+      unit: s.summary.sleepWakeUnit || null,
+      basis: s.summary.sleepWakeBasis,
+      method: s.summary.sleepWakeMethod || null
+    });
+    // Context rides along only where the leg declared it, so a legacy export acquires no zero.
+    if (s.summary.wakeMin != null) leg.wakeMin = s.summary.wakeMin;
+    if (s.summary.stagedSleepMin != null) leg.stagedSleepMin = s.summary.stagedSleepMin;
+    if (s.summary.unstagedMin != null) leg.unstagedMin = s.summary.unstagedMin;
+    if (s.summary.wasoPct != null) leg.wasoPct = s.summary.wasoPct;
+    return leg;
+  };
+  var _named = function (l) {
+    return l.node + ' ' + l.value + (l.unit ? ' ' + l.unit : '') + ' (' + (l.quantity || 'undeclared') + ', basis ' + l.basis + ')';
+  };
+  var blocks = groups
+    .filter(function (g) {
+      return g.length >= 2;
+    })
+    .map(function (g) {
+      var legs = g.map(_leg);
+      var bases = {},
+        quants = {};
+      legs.forEach(function (l) {
+        bases[String(l.basis)] = true;
+        quants[String(l.quantity)] = true;
+      });
+      var commensurate = Object.keys(bases).length === 1 && Object.keys(quants).length === 1;
+      var phrase = legs.map(_named).join(' vs ');
+      return {
+        window: fmtDayShort(g[0].t0Ms),
+        t0Ms: g[0].t0Ms,
+        nodes: legs.map(function (l) {
+          return l.node;
+        }),
+        byNode: legs,
+        comparable: commensurate,
+        reason: commensurate
+          ? null
+          : 'sleep/wake legs denominate differently (' +
+            legs
+              .map(function (l) {
+                return l.node + '=' + (l.quantity || 'undeclared') + ' on ' + l.basis;
+              })
+              .join(', ') +
+            ') — reported side by side, no gap computed',
+        note: commensurate
+          ? 'Sleep/wake legs share one quantity and one basis: ' + phrase + '. Commensurate, and reported here rather than fused.'
+          : 'Sleep and wake do not reconcile across nodes: ' +
+            phrase +
+            '. The two legs count on different clocks, so neither a gap nor an agreement is knowable — read each number against its own basis.'
       };
     });
   return blocks.length ? { blocks: blocks } : null;
@@ -7650,6 +7764,7 @@ function runFusion(recs, opts) {
       /** @type {any} */ (b).motionGate = hrvMotionGate;
     });
   var staging = anyOverlap ? fuseStagingConsensus(recs) : null;
+  var sleepWake = anyOverlap ? fuseSleepWakeReconciliation(recs) : null;
   var periodicBreathing = anyOverlap ? fusePeriodicBreathing(recs) : null;
 
   // ── Part C — GRACEFUL HR/bpm DEGRADATION (§6 authority matrix) ─────────────
@@ -7701,6 +7816,22 @@ function runFusion(recs, opts) {
     staging.blocks.forEach(function (b) {
       if (!b.disagreement) return;
       findings.push({ tMs: startMs ?? null, type: 'staging_disagreement', conf: null, nodes: b.nodes, sources: [], meta: { remGapPct: b.remGapPct, remByNode: b.remByNode }, note: b.note });
+    });
+  }
+  // SWREC: surface an UNRECONCILED sleep/wake pair as an explicit finding. `conf: null` — no
+  // confidence was measured here, and the staging_disagreement sibling sets the same precedent.
+  if (sleepWake && sleepWake.blocks) {
+    sleepWake.blocks.forEach(function (b) {
+      if (b.comparable) return;
+      findings.push({
+        tMs: b.t0Ms != null ? b.t0Ms : (startMs ?? null),
+        type: 'sleep_wake_unreconciled',
+        conf: null,
+        nodes: b.nodes,
+        sources: [],
+        meta: { window: b.window, comparable: b.comparable, reason: b.reason, byNode: b.byNode },
+        note: b.note
+      });
     });
   }
   // §2: surface CORROBORATED periodic-breathing windows (≥2 independent signals) as findings
@@ -7785,6 +7916,7 @@ function runFusion(recs, opts) {
     hrvResource: hrvResource,
     cvhrCorroboration: cvhrCorroboration,
     staging: staging,
+    sleepWake: sleepWake,
     periodicBreathing: periodicBreathing,
     findings: findings,
     unmatched: apnea ? apnea.unmatched : { desat: [], surge: [] },

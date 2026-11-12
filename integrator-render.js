@@ -246,6 +246,15 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
     periodic_breathing: {
       evidence: 'experimental',
       cite: 'Cross-signal corroboration of periodic breathing / Cheyne–Stokes — SpO₂ oscillation (OxyDex), device flow (CPAPDex), and/or cardiac CVHR (ECGDex). Tier-weighted, down-weighted; a corroboration signal, not a scored CSR index.'
+    },
+    /* SWREC — the tier is INHERITED, exactly as `staging_disagreement` above. OxyDex grades its
+       motion-derived `sleepEff` as `emerging` (oxydex-registry.js) and ECGDex grades its stage
+       minutes as `heuristic` (ecgdex-registry.js), so a flag that the two do not reconcile cannot
+       be stronger evidence than its weaker input. Per §🎫 the tier is a NODE fact — if either node
+       re-grades, this follows it. */
+    sleep_wake_unreconciled: {
+      evidence: 'heuristic',
+      cite: 'Two sleep/wake numbers for one night on different clocks — OxyDex counts the motion-quiet share of the RECORDING, ECGDex counts wake minutes inside the STAGED span. Both are reported with their basis; no gap is computed, because converting one onto the other misses ECGDex total sleep time by a median 58 min over 76 nights. A reconciliation flag, never a wake measurement.'
     }
   };
   /* Every `type:` integrator-dsp.js can push into `findings` MUST have a key here, or evBadge() hits
@@ -256,7 +265,8 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
     confirmed_apnea_event: 'confirmed_apnea',
     glucose_autonomic_correlation: 'auto_glycemic',
     periodic_breathing: 'periodic_breathing',
-    staging_disagreement: 'staging_disagreement'
+    staging_disagreement: 'staging_disagreement',
+    sleep_wake_unreconciled: 'sleep_wake_unreconciled'
   };
   function evBadge(key) {
     var R = window.MetricRegistry;
