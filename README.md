@@ -12,7 +12,7 @@
 **Your data never leaves the browser — and CI proves it on every commit.**
 
 [![Live at tepna.net](https://img.shields.io/badge/live-tepna.net-2a6fdb?style=for-the-badge)](https://tepna.net)
-[![Suite v2.31.0](https://img.shields.io/badge/suite-v2.31.0-2a6fdb?style=for-the-badge)](CHANGELOG.md)
+[![Suite v2.32.0](https://img.shields.io/badge/suite-v2.32.0-2a6fdb?style=for-the-badge)](CHANGELOG.md)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-2a6fdb?style=for-the-badge)](LICENSE)
 [![DOI](https://zenodo.org/badge/1286425809.svg)](https://doi.org/10.5281/zenodo.22068939)
 
@@ -20,7 +20,7 @@
 [![Every metric graded](https://img.shields.io/badge/every_metric-evidence_graded-8a5cf6)](#every-number-is-graded)
 [![Reproducible](https://img.shields.io/badge/every_paper-regenerates_from_its_tool-8a5cf6)](papers/papers.html)
 ![Nodes](https://img.shields.io/badge/nodes-8_live_%C2%B7_1_planned-555)
-![Releases](https://img.shields.io/badge/releases-57_shipped-555)
+![Releases](https://img.shields.io/badge/releases-58_shipped-555)
 
 **[tepna.net](https://tepna.net)**  ·  [github.com/Plantucha/Tepna](https://github.com/Plantucha/Tepna)
 
@@ -105,7 +105,7 @@ Policy with `connect-src 'none'` and hash-only `script-src`. [`verify-provenance
 content-addresses every bundle and every known-answer fixture, so a shipped app is provably the code
 it claims to be.
 
-**Every pull request must pass nine checks:** `tests` (**18,137 assertions** across **944 groups**,
+**Every pull request must pass nine checks:** `tests` (**18,662 assertions** across **950 groups**,
 six partitioned shards) · `no-network` · `types` · `biome` · `browser-gates` (every bundle booted
 headless, computed values asserted in the DOM) · `stale-file` (an edit that never read the upstream
 version cannot overwrite a brief) · `capture-host` on py3.12 and py3.13 —
@@ -148,13 +148,13 @@ Per-device capture instructions without the box live in [`how-to-collect/`](how-
   purpose and report what the suite fails to notice; the ledger records each surviving mutant with
   the probe that excused it, and never waves one through.
 
-**In `2.31.0` (2026-11-10 → 2026-11-11, 103 commits, 64 changesets).** 12 added · 1 changed · 51 fixed. Full history in the **[changelog](CHANGELOG.md)**.
+**In `2.32.0` (2026-11-11 → 2026-11-12, 101 commits, 64 changesets).** 11 added · 6 changed · 47 fixed. Full history in the **[changelog](CHANGELOG.md)**.
 
 ---
 
 ## Suite at a glance
 
-**Suite version:** 2.31.0 &nbsp;—&nbsp; **57** ledger-backed releases, each computed from a green tree, with **0 changesets** pending since (the tree is exactly the release).
+**Suite version:** 2.32.0 &nbsp;—&nbsp; **58** ledger-backed releases, each computed from a green tree, with **0 changesets** pending since (the tree is exactly the release).
 
 Every one of the **23 working preprints** in [`papers/`](papers/papers.html) regenerates from the live
 tool behind it. The methods overview is [`Science.html`](Science.html); the system design is
