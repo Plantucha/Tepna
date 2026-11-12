@@ -215,6 +215,7 @@ function loadRawFiles(fileList) {
       return true;
     });
     list = mergeMultipart(list); // fold Polar `_RR_part01of..` / `_PPI_part..` splits into one stream per base
+    const _keysBefore = new Set(Object.keys(allRecordings));
     list.forEach((it) => {
       document.getElementById('rawPaste').value = it.text;
       _curFname = it.name;
@@ -223,6 +224,17 @@ function loadRawFiles(fileList) {
     });
     _curFname = null;
     _curSeamsText = null;
+    /* Show the LONGEST recording of this drop, not the last one parsed: a night handed over with a
+       25-min next-morning fragment otherwise headlined the fragment (audit 2026-11-11, night 2026-11-04). */
+    const _newKeys = Object.keys(allRecordings).filter((k) => !_keysBefore.has(k));
+    if (_newKeys.length > 1) {
+      let _best = null;
+      for (const k of _newKeys) {
+        const d = allRecordings[k].durMin;
+        if (Number.isFinite(d) && (_best == null || d > allRecordings[_best].durMin)) _best = k;
+      }
+      if (_best != null && _best !== activeKey) selectRecordingPx(_best);
+    }
   });
 }
 

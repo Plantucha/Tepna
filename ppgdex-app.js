@@ -134,6 +134,7 @@ import { PPGUI } from './ppgdex-render.js';
         }
         let added = 0,
           lastKey = null;
+        const addedKeys = [];
         for (let pi = 0; pi < ppgFiles.length; pi++) {
           const pf = ppgFiles[pi];
           progress(20 + (pi / ppgFiles.length) * 20, 'Parsing PPG · ' + pf.name + '…');
@@ -214,10 +215,20 @@ import { PPGUI } from './ppgdex-render.js';
           const key = r.t0Ms != null ? String(r.t0Ms) : 'nodate_' + pf.name;
           allSessions[key] = r;
           lastKey = key;
+          addedKeys.push(key);
           added++;
         }
         if (added) {
-          activeKey = lastKey;
+          /* Show the LONGEST session of this drop, not the last one parsed. A night handed over with
+             its next-morning fragment parsed the 3-min fragment last, so the overnight recording sat
+             behind a chip and the headline read a few pulses (audit 2026-11-11, night 2026-11-04). */
+          let best = lastKey;
+          for (const k of addedKeys) {
+            const d = allSessions[k] && allSessions[k].durSec;
+            const bd = allSessions[best] && allSessions[best].durSec;
+            if (Number.isFinite(d) && !(Number.isFinite(bd) && bd >= d)) best = k;
+          }
+          activeKey = best;
           renderSession(allSessions[activeKey]);
           try {
             localStorage.setItem('ppgdex_active', activeKey);
@@ -422,17 +433,17 @@ import { PPGUI } from './ppgdex-render.js';
     // ANS Age REMOVED 2026-06-21 (external-review WP-A)
     const items = [
       { l: 'HRV Score', v: r.hrvScore != null ? r.hrvScore : '—', sub: 'autonomic readiness', s: r.hrvScore == null ? 'neutral' : r.hrvScore >= 45 ? 'ok' : r.hrvScore >= 33 ? 'warn' : 'bad' },
-      { l: 'Pulse HR', v: r.dispHr + 'bpm', sub: r.expRHR ? 'age norm ~' + r.expRHR : 'mean', s: hrStat(r.dispHr) },
+      { l: 'Pulse HR', v: Number.isFinite(r.dispHr) ? r.dispHr + 'bpm' : '—', sub: r.expRHR ? 'age norm ~' + r.expRHR : 'mean', s: Number.isFinite(r.dispHr) ? hrStat(r.dispHr) : 'neutral' },
       { l: 'VO₂max Est', v: r.vo2adj != null ? r.vo2adj : '—', sub: 'ml/kg/min · HR-ratio', s: r.vo2adj == null ? 'neutral' : r.vo2adj >= 45 ? 'ok' : r.vo2adj >= 38 ? 'warn' : 'bad' },
       {
         l: 'rMSSD',
-        v: r.rmssd + 'ms',
+        v: Number.isFinite(r.rmssd) ? r.rmssd + 'ms' : '—',
         sub: r.expRmssd ? 'age norm ~' + r.expRmssd : '≥30 good',
-        s: r.expRmssd ? (r.rmssd >= r.expRmssd ? 'ok' : r.rmssd > r.expRmssd * 0.7 ? 'warn' : 'bad') : sc(r.rmssd, 30, 20)
+        s: !Number.isFinite(r.rmssd) ? 'neutral' : r.expRmssd ? (r.rmssd >= r.expRmssd ? 'ok' : r.rmssd > r.expRmssd * 0.7 ? 'warn' : 'bad') : sc(r.rmssd, 30, 20)
       },
       {
         l: 'SDNN',
-        v: (r.sdnnRobust != null ? r.sdnnRobust : r.sdnn) + 'ms',
+        v: Number.isFinite(r.sdnnRobust != null ? r.sdnnRobust : r.sdnn) ? (r.sdnnRobust != null ? r.sdnnRobust : r.sdnn) + 'ms' : '—',
         sub: r.tier === 'ultra-short' ? 'needs ≥5min' : r.sdnnRobust != null ? 'robust · per-5-min median' : '≥50 good',
         s: r.tier === 'ultra-short' ? 'neutral' : sc(r.sdnnRobust != null ? r.sdnnRobust : r.sdnn, 50, 30)
       },
