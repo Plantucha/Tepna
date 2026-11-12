@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="0b1800af0437" data-compute-hash="69140cbad156"><head>
+<html lang="en" data-manifest-hash="ebfd159fcb42" data-compute-hash="83eb851a7fe9"><head>
 <!--
   OverDex.html — Tepna
   Copyright 2026 Michal Planicka
@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8/sH7B7wN4nDqz11oZWLoOg8SkSuIQF0L4F7Nz3oxk8=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DkJMIke/oeAn5D/73OWQ4sM6DEkOlbGJANo7P3FHILA=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HAXbchwkH2w0sxN5WvjWCMLbxsfGGclNPzL9K/ePBeM=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-Ow3WC+A7bU/F/dZPsKQ/TOo3nkpdBJCA7jtrQ24dPug=' 'sha256-QU1eFIpXtk89h7OawHFWXJry6pEr0cw5i0Q08kGZz88=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-R6Dc/xXQzYFveWsVfbGSg8lpp98pG2dIwLNGGu4Pc04=' 'sha256-SYhOYN70OcmPNUyQI3+XkzBPsDEkov/r8Qc03as7ooU=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-XkCJjtofRC8yuzIDQ1Ofcdj/kJnYaArgcSmrDj/MoAc=' 'sha256-fP8yqQORrq1gqNXH4KGQ0Fx5gvu4FNAsDQUJB31fcLw=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-kryaRysk2VcK4nRAhaqFOMDUukjwkDR8WaOUc3fNkcY=' 'sha256-msTW+K3Nr8EkBLtJ3IUeMa89XET152+xpGXg/z9u8v0=' 'sha256-oH7lhnTrlkQhQ9f9PuKw7Wwq8UnyptMMWqHMeBGouU8=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-uS0BO9FA6T7Ej0PgYdFgmhKAD7wWWUv6IRvThTzY6lc=' 'sha256-wK9fP+fYfi661IypDOgrAoxGZS8mGJfe9l/9288cTZQ=' 'sha256-yJI159rOoEVhsTIsuQRFR32KBOQL/8y6f7F2zWeQpF4=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8/sH7B7wN4nDqz11oZWLoOg8SkSuIQF0L4F7Nz3oxk8=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DkJMIke/oeAn5D/73OWQ4sM6DEkOlbGJANo7P3FHILA=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HAXbchwkH2w0sxN5WvjWCMLbxsfGGclNPzL9K/ePBeM=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-Ow3WC+A7bU/F/dZPsKQ/TOo3nkpdBJCA7jtrQ24dPug=' 'sha256-QU1eFIpXtk89h7OawHFWXJry6pEr0cw5i0Q08kGZz88=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-R6Dc/xXQzYFveWsVfbGSg8lpp98pG2dIwLNGGu4Pc04=' 'sha256-SYhOYN70OcmPNUyQI3+XkzBPsDEkov/r8Qc03as7ooU=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-XkCJjtofRC8yuzIDQ1Ofcdj/kJnYaArgcSmrDj/MoAc=' 'sha256-fP8yqQORrq1gqNXH4KGQ0Fx5gvu4FNAsDQUJB31fcLw=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-msTW+K3Nr8EkBLtJ3IUeMa89XET152+xpGXg/z9u8v0=' 'sha256-nrgs0TIIiyeMCfpKrPJd8ACGEx4TKciUon3XwtoxL6A=' 'sha256-oH7lhnTrlkQhQ9f9PuKw7Wwq8UnyptMMWqHMeBGouU8=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-uS0BO9FA6T7Ej0PgYdFgmhKAD7wWWUv6IRvThTzY6lc=' 'sha256-wK9fP+fYfi661IypDOgrAoxGZS8mGJfe9l/9288cTZQ=' 'sha256-yJI159rOoEVhsTIsuQRFR32KBOQL/8y6f7F2zWeQpF4=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -7836,6 +7836,26 @@ function fuseHRVConsensus(recs, dtMs) {
       });
       var worst = _divs.length ? Math.max.apply(null, _divs) : null;
       var comparable = worst != null;
+      /* 2026-11-12 · residue `2026-11-11-hrv-divergence-note-names-no-metric`. The note quoted
+         `worst` beside the literal "RMSSD/SDNN", so a reader could not tell WHICH metric diverged.
+         On the 2026-11-04 night it read 60 % while RMSSD agreed (29.2 vs 30.5 ms) and SDNN carried
+         the divergence. The DECISION is unchanged — `worst` still drives `qc` and the threshold —
+         and only the reporting gains the metric's name plus both figures. A metric no two sources
+         share stays `null` and reads "not compared", never 0 % (§∅). A tie keeps RMSSD, which is
+         the order the pair is declared in and the metric the ladder ranks first. */
+      var _divByMetric = [
+        { name: 'RMSSD', pct: rm && rm.divergencePct != null ? rm.divergencePct : null },
+        { name: 'SDNN', pct: sd && sd.divergencePct != null ? sd.divergencePct : null }
+      ];
+      var _worstMetric = null;
+      _divByMetric.forEach(function (m) {
+        if (_worstMetric === null && m.pct != null && m.pct === worst) _worstMetric = m.name;
+      });
+      var _perMetric = _divByMetric
+        .map(function (m) {
+          return m.name + ' ' + (m.pct == null ? 'not compared' : m.pct + '%');
+        })
+        .join(', ');
       // TCH (INTEGRATOR-THREE-CORNERED-HAT §3): reference-free per-sensor error across ≥3
       // series-bearing nodes. ADDITIVE — the pairwise spread/divergence above is unchanged;
       // degrades to a reason-stamped null (tchStatus) when <3 nodes carry an alignable series.
@@ -7919,8 +7939,8 @@ function fuseHRVConsensus(recs, dtMs) {
               .join(', ') +
             ') — nothing could be compared, so agreement is UNKNOWN, not confirmed.'
           : worst > 30
-            ? 'Cross-device divergence ' + worst + '% on RMSSD/SDNN (' + win + ') — flag as data-quality issue; reconcile before trusting a single value.'
-            : 'Sources agree within ' + worst + '% on ' + win + ' HRV — reconciled autonomic state is reliable.') +
+            ? 'Cross-device divergence ' + worst + '% on ' + _worstMetric + ' (' + win + ') — flag as data-quality issue; reconcile before trusting a single value. Per metric: ' + _perMetric + '.'
+            : 'Sources agree within ' + worst + '% on ' + win + ' HRV — reconciled autonomic state is reliable. Per metric: ' + _perMetric + '.') +
         (lowQExcluded ? ' Excluded low-quality source(s): ' + lowQExcluded.join(', ') + '.' : '');
       if (tch && tch.ok)
         note += ' TCH: ' + tch.culprit + ' carries the largest error variance (σ²≈' + Math.round(tch.sigma2[tch.culprit]) + ' ms², ' + tch.method + ') — down-weight it in the reconciled value.';
@@ -7960,6 +7980,9 @@ function fuseHRVConsensus(recs, dtMs) {
         sdnn: sd,
         lfhf: lf,
         divergencePct: worst,
+        /* The metric that CARRIES `divergencePct`, so a consumer need not re-derive it from the
+           per-metric blocks. A new field, so an older consumer reads the export unchanged. */
+        divergenceMetric: _worstMetric,
         lowQualityExcluded: lowQExcluded,
         tch: tch && tch.ok ? tch : null,
         tchStatus: tch ? (tch.ok ? 'ok' : tch.reason) : 'not-attempted',

@@ -9320,6 +9320,27 @@
       if (blkDiv) {
         T.eq('rmssd divergence computed = 67% (40 vs 80, median 60)', blkDiv.divergencePct, 67);
         T.eq('>30% RMSSD divergence flips qc to divergent', blkDiv.qc, 'divergent');
+        /* residue `2026-11-11-hrv-divergence-note-names-no-metric` (Kestrel audit of the 2026-11-04
+           night): the note quoted the worse figure beside the literal "RMSSD/SDNN", so a reader could
+           not tell which metric diverged. Here RMSSD carries 67 % and SDNN agrees at 3 %, so the note
+           must NAME RMSSD and print SDNN's own figure beside it. RED under any patch that drops the
+           metric name or quotes one figure for both. */
+        T.eq('divergenceMetric names the metric carrying divergencePct', blkDiv.divergenceMetric, 'RMSSD');
+        T.ok('note names the diverged metric', /67% on RMSSD /.test(blkDiv.note), blkDiv.note);
+        T.ok('note does not quote one figure for both metrics', blkDiv.note.indexOf('on RMSSD/SDNN') === -1, blkDiv.note);
+        T.eq('sdnn spread is the agreeing one', blkDiv.sdnn && blkDiv.sdnn.divergencePct, 3);
+        T.ok("note prints SDNN's own figure", blkDiv.note.indexOf('Per metric: RMSSD 67%, SDNN 3%.') >= 0, blkDiv.note);
+      }
+      /* §∅ leg: SDNN that no two sources carry reads "not compared", never 0 %. Both nodes null their
+         sdnn, so `spread('sdnn')` is null while RMSSD still diverges at 67 %. RED under a `?? 0`. */
+      var consAbs = FC([mk('ECGDex', 40, null, 95), mk('HRVDex', 80, null, 90)], 1000);
+      var blkAbs = consAbs && consAbs.blocks && consAbs.blocks[0];
+      T.ok('consensus over absent sdnn produced', !!blkAbs);
+      if (blkAbs) {
+        T.eq('absent sdnn stays null, never 0', blkAbs.sdnn, null);
+        T.eq('divergenceMetric still names RMSSD', blkAbs.divergenceMetric, 'RMSSD');
+        T.ok('note reads "SDNN not compared"', blkAbs.note.indexOf('SDNN not compared') >= 0, blkAbs.note);
+        T.ok('note never prints SDNN 0%', blkAbs.note.indexOf('SDNN 0%') === -1, blkAbs.note);
       }
     });
 
