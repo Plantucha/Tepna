@@ -45,9 +45,48 @@ PRs carry source only. A job on `main` rebuilds the generated trees after each m
 
 ### 2.2 · Open questions for the owner
 
-1. Does anything read a bundle from a PR branch? A download link or a reviewer workflow would break.
+1. **ANSWERED 2026-11-12 in §2.2.1.** Does anything read a bundle from a PR branch? Nothing downloads one. Three tools read the committed bytes on every pull request.
 2. May a bot commit to `main`? The protect-main ruleset must admit it, and only for the generated paths.
 3. The release tool builds everything anyway. Should the bundles move to release time only? `main` would then lag source between releases.
+
+### 2.2.1 · Who reads a committed bundle on a pull request (measured 2026-11-12)
+
+Question 1 asks whether anything reads a bundle from a PR branch. Nothing downloads one.
+Three tools read the committed bytes, and each one runs on every pull request. The browser
+lane is the hardest case. It serves the checkout over HTTP and opens the built pages in a
+real browser.
+
+| consumer | what it reads | where it runs |
+|---|---|---|
+| `verify-provenance.html` | `fetch`es each of the 9 `MANIFEST_BUNDLES` and hashes the bytes | `tests/browser-gates.mjs:515` |
+| the mobile-viewport leg | opens 12 built pages at 375 px | `tests/browser-gates.mjs:785` |
+| the night-seal leg | opens `OverDex.html` | `tests/browser-gates.mjs:634` |
+| `Dex-Test-Suite.html?full` | loads every bundle's modules | `tests/browser-gates.mjs:326` |
+| `tools/build.mjs --check` | holds the 11 owned bundles against a fresh build | `tests.yml:166` |
+| `tools/module-carriers.mjs` | reads every root `*.html` from disk | `local-steps.yml`, `npm run verify:module-carriers` |
+
+The browser lane runs twice on a pull request. `browser-gates.yml:174` runs `npm run gates:browser`.
+`no-network.yml:100` runs the same script. Both start a server on the checkout first.
+
+**Two negative answers.** No workflow uploads a bundle as an artifact. `mutation.yml:143` uploads
+`mutation-diff.ndjson` and `mutation-diff.log`, and nothing else. No tracked file holds a
+branch-pinned download link to a bundle. The one `/blob/` hit names an external SDK document.
+
+```sh
+grep -rn 'upload-artifact' .github/workflows/
+grep -rnE 'raw\.githubusercontent|/blob/|/raw/' --include='*.md' --include='*.yml' .
+grep -nE 'page.goto|MOBILE_PAGES|LEGS =' tests/browser-gates.mjs
+grep -n 'MANIFEST_BUNDLES' verify-provenance.html
+grep -nE 'readFileSync|readdirSync' tools/module-carriers.mjs
+```
+
+**What this costs the proposal.** A pull request that carries no bundle gives the browser lane no
+page to open. So §2 owes one build step before each server starts. `build.mjs --all` writes the
+11 bundles. The lane then judges a fresh build rather than the committed one.
+
+GATE A keeps its
+meaning, because a fresh bundle carries the fresh `manifestHash`. Section 2 already proposes that
+change for `build.mjs --check`, so one step serves both.
 
 ## 3 · The batching queue
 
