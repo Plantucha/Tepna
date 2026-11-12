@@ -475,12 +475,16 @@ export function selftest() {
   /* THE REAL FILES — a rule nothing in the tree exercises is a rule nobody has read. */
   const realAlias = localEscapers(readFileSync(join(ROOT, 'pat-feasibility.js'), 'utf-8'));
   ok(realAlias.credited.includes('escHtml'), 'pat-feasibility.js earns escHtml on the real file — the row’s own subject', JSON.stringify(realAlias.credited));
-  const realBlind = localEscapers(readFileSync(join(ROOT, 'data-unifier-app.js'), 'utf-8'));
-  ok(
-    realBlind.unverified.some((u) => u.name === 'esc' && /does not escape "/.test(u.reason)),
-    'data-unifier-app.js reports its quote-blind esc as unverified — the census has a real subject',
-    JSON.stringify(realBlind.unverified)
-  );
+  /* The census HAD a real subject in `data-unifier-app.js` and in `cpapdex-render.js`, each of which
+     declared a local `esc` that escaped `& < >` and left the two quote characters alone. Both now
+     delegate to the canonical `escapeHTML`, and a whole-tree run reports 0 unverified candidates, so
+     no real quote-blind escaper is left to point a leg at. The SHAPE stays pinned by the synthetic
+     QUOTEBLIND plant above. These two legs hold the real files to the arm the tree now uses — the
+     one-hop delegation — because a rule nothing in the tree exercises is a rule nobody has read. */
+  for (const f of ['data-unifier-app.js', 'cpapdex-render.js']) {
+    const realDeleg = localEscapers(readFileSync(join(ROOT, f), 'utf-8'));
+    ok(realDeleg.credited.includes('esc'), `${f} earns esc by BODY on the real file — the delegation arm`, JSON.stringify(realDeleg));
+  }
 
   const line = fail.length ? `xss-sink-gate selftest · ${fail.length} of ${ran} FAILED` : `all ${ran} selftests passed`;
   return { ok: fail.length === 0, ran, fail, line };

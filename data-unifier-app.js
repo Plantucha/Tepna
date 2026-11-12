@@ -100,10 +100,12 @@
     return res.valid.ok ? 'warn' : 'bad';
   }
 
+  /* Delegates to THE canonical suite escaper (dex-escape.js, loaded before this file in
+     Data Unifier.src.html and inlined before it in the bundle). The local body escaped `& < >`
+     and left `"` and `'` alone. All 14 call sites in this file write element bodies, so the
+     escape was LATENT; the delegation removes the class and keeps one escaper in the suite. */
   function esc(s) {
-    return String(s == null ? '' : s).replace(/[&<>]/g, function (c) {
-      return { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c];
-    });
+    return escapeHTML(s);
   }
   // Node-agnostic emit note — delegates to the ONE shared summarizer in
   // signal-orchestrate.js (SIGNAL-ADAPTER-FOLLOWUPS-II §5 / -III §3), so the per-node
