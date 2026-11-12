@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="1d6f645f65c4" data-compute-hash="dc59d826cdf7">
+<html lang="en" data-manifest-hash="55ce50a6dd7e" data-compute-hash="60d418e5dcd2">
 <head>
 <!--
   OxyDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-1GXN++OkM02KioWXqr41sn7DFt/p7OeiRsHDpnTpfhg=' 'sha256-2PxQCjopZOyH7RLHSqYxUpktDryX4hHniahrq3oY3hU=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CNkm2h+ZlrSYYzoGx9OxoFo/k2UmcAbaZ9Bd72GM4as=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-E1IsN6aDCUvHb/53fIyPoB7AQMLdRp5olYowv/ZbZ6A=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QU1eFIpXtk89h7OawHFWXJry6pEr0cw5i0Q08kGZz88=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-R6Dc/xXQzYFveWsVfbGSg8lpp98pG2dIwLNGGu4Pc04=' 'sha256-TAlEYjAMWyaUUQSt+Gg+O7yrgrH8mjL1Xmx0Eiw/adk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-Wl0HIUV2fDLghOvTw+DQxBHWLaCkoJgd5jq4MbIrXxo=' 'sha256-XI7FRvFas7ssmfY5fVxxgB4KWQ5K1qlk4nHCcnNvsqg=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-XqyVux6nZ1GoEpXw5HlJF6/fUCrzC+aJ4dGKEuYCK0w=' 'sha256-c0L2fP9KS+dZLG2AaH4LfdLnwpVfCWVH+gyyUn5L7Pc=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-jcYwIYHWEOkRho/6EL++KYsUTDIxL+gNUno4PTReee0=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es=' 'sha256-yJI159rOoEVhsTIsuQRFR32KBOQL/8y6f7F2zWeQpF4='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-1GXN++OkM02KioWXqr41sn7DFt/p7OeiRsHDpnTpfhg=' 'sha256-2PxQCjopZOyH7RLHSqYxUpktDryX4hHniahrq3oY3hU=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CNkm2h+ZlrSYYzoGx9OxoFo/k2UmcAbaZ9Bd72GM4as=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-E1IsN6aDCUvHb/53fIyPoB7AQMLdRp5olYowv/ZbZ6A=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-R6Dc/xXQzYFveWsVfbGSg8lpp98pG2dIwLNGGu4Pc04=' 'sha256-TAlEYjAMWyaUUQSt+Gg+O7yrgrH8mjL1Xmx0Eiw/adk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-Wl0HIUV2fDLghOvTw+DQxBHWLaCkoJgd5jq4MbIrXxo=' 'sha256-XI7FRvFas7ssmfY5fVxxgB4KWQ5K1qlk4nHCcnNvsqg=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-XqyVux6nZ1GoEpXw5HlJF6/fUCrzC+aJ4dGKEuYCK0w=' 'sha256-c0L2fP9KS+dZLG2AaH4LfdLnwpVfCWVH+gyyUn5L7Pc=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-jcYwIYHWEOkRho/6EL++KYsUTDIxL+gNUno4PTReee0=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es=' 'sha256-yJI159rOoEVhsTIsuQRFR32KBOQL/8y6f7F2zWeQpF4='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>OxyDex — Nocturnal Oximetry Analyzer · v2.31.0</title>
@@ -7505,6 +7505,23 @@ body.light .oxy-projcard { background:#fff; border-color:rgba(0,0,0,.07); }
       'timing',
       'validity',
       'clockSeamScan',
+      /* THE PER-SEGMENT OFFSET DETAIL (declared 2026-11-12 for row
+         `2026-11-12-the-allow-list-drops-the-ppg-offset-segmentation`). This is the one per-seam
+         DETAIL list the 2026-11-09 comment above holds back, and it is declared now because the
+         measurement that comment waited for exists. Two folds at `2caee6fcd` wrote 16 node-exports
+         over 8 nights, and 15 of the 16 name `recording.offsetSegments` in `scrubDropped`; the 16th
+         is the control, a ring rail at one segment that takes the whole-file path and publishes no
+         array (`VERITY-SEAM-REFOLD-FOLLOWUPS-2026-10-28-BRIEF.md` §5.1). #4070 published the field
+         so a reader could tell a night corrected per segment from a night corrected by one rate, and
+         the scrub deleted that answer from every scrubbed export.
+         EVERY ONE OF THE TEN EXPORTED KEYS MEETS THE CRITERION THAT COMMENT STATES — a count, a
+         rate, an enum or an authored sentence: `fromDevMs`/`toDevMs` are DEVICE-counter positions and
+         carry no wall clock, `anchors`/`spanS` are counts, `flatOffsetMs`/`residualRmsMs`/`jitterMs`/
+         `ppm` are measurements, `rate` is an enum, and `rateReason` is built in
+         `ppgdex-dsp.js` from numbers and named constants alone, so it holds no path and no serial.
+         `clockSeams` and `clockSeamRefusals` stay undeclared: this declaration rests on a corpus
+         measurement of THIS field, and neither of those has one. */
+      'offsetSegments',
       'deviceEpoch',
       'unit',
       'sourceUnit',

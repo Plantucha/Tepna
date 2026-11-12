@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="e1d4eddbf801" data-compute-hash="f5ff6c9097ad">
+<html lang="en" data-manifest-hash="f12892fd59d8" data-compute-hash="6e5aaceeea3d">
 <head>
 <!--
   MotionDex.src.html — Tepna
@@ -12,7 +12,7 @@
 <!-- CSP: browser-enforces the no-network invariant. connect-src 'none' blocks every outbound request;
      script-src is STRICT ('self' + per-inline-script sha256, NO 'unsafe-inline'). MotionDex ships zero
      inline scripts (all init lives in motiondex-app.js), so the hash list is empty by construction. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-1zVlEXb8s+1rMCY16et54bJkj1EDY3ZlxVcToe+omgM=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OA3M42IE0IY9rm28gABEy9d6t7Iq7cC4XbN08qCTIFY=' 'sha256-QU1eFIpXtk89h7OawHFWXJry6pEr0cw5i0Q08kGZz88=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-R6Dc/xXQzYFveWsVfbGSg8lpp98pG2dIwLNGGu4Pc04=' 'sha256-bIhKcpZRJ/ZzKulROPoeorGxddt3ajAjGiOPqmDw7ik=' 'sha256-c0L2fP9KS+dZLG2AaH4LfdLnwpVfCWVH+gyyUn5L7Pc=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-wK9fP+fYfi661IypDOgrAoxGZS8mGJfe9l/9288cTZQ=' 'sha256-yS5frs7FO4HDqcSuAYI4rtjm7+gtWKSEozKGWUwHA/4='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-1zVlEXb8s+1rMCY16et54bJkj1EDY3ZlxVcToe+omgM=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OA3M42IE0IY9rm28gABEy9d6t7Iq7cC4XbN08qCTIFY=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-R6Dc/xXQzYFveWsVfbGSg8lpp98pG2dIwLNGGu4Pc04=' 'sha256-bIhKcpZRJ/ZzKulROPoeorGxddt3ajAjGiOPqmDw7ik=' 'sha256-c0L2fP9KS+dZLG2AaH4LfdLnwpVfCWVH+gyyUn5L7Pc=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-wK9fP+fYfi661IypDOgrAoxGZS8mGJfe9l/9288cTZQ=' 'sha256-yS5frs7FO4HDqcSuAYI4rtjm7+gtWKSEozKGWUwHA/4='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>MotionDex — Motion / IMU Analyzer · v2.31.0</title>
@@ -3842,6 +3842,23 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
       'timing',
       'validity',
       'clockSeamScan',
+      /* THE PER-SEGMENT OFFSET DETAIL (declared 2026-11-12 for row
+         `2026-11-12-the-allow-list-drops-the-ppg-offset-segmentation`). This is the one per-seam
+         DETAIL list the 2026-11-09 comment above holds back, and it is declared now because the
+         measurement that comment waited for exists. Two folds at `2caee6fcd` wrote 16 node-exports
+         over 8 nights, and 15 of the 16 name `recording.offsetSegments` in `scrubDropped`; the 16th
+         is the control, a ring rail at one segment that takes the whole-file path and publishes no
+         array (`VERITY-SEAM-REFOLD-FOLLOWUPS-2026-10-28-BRIEF.md` §5.1). #4070 published the field
+         so a reader could tell a night corrected per segment from a night corrected by one rate, and
+         the scrub deleted that answer from every scrubbed export.
+         EVERY ONE OF THE TEN EXPORTED KEYS MEETS THE CRITERION THAT COMMENT STATES — a count, a
+         rate, an enum or an authored sentence: `fromDevMs`/`toDevMs` are DEVICE-counter positions and
+         carry no wall clock, `anchors`/`spanS` are counts, `flatOffsetMs`/`residualRmsMs`/`jitterMs`/
+         `ppm` are measurements, `rate` is an enum, and `rateReason` is built in
+         `ppgdex-dsp.js` from numbers and named constants alone, so it holds no path and no serial.
+         `clockSeams` and `clockSeamRefusals` stay undeclared: this declaration rests on a corpus
+         measurement of THIS field, and neither of those has one. */
+      'offsetSegments',
       'deviceEpoch',
       'unit',
       'sourceUnit',

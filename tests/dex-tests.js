@@ -72233,6 +72233,72 @@
       T.eq('the document states it was scrubbed', scr.schema.scrubbed, true);
     });
 
+    /* ════ EXPORT-SCRUB-ALLOWLIST · THE PER-SEGMENT OFFSET DETAIL SURVIVES ════
+       Row `2026-11-12-the-allow-list-drops-the-ppg-offset-segmentation`: #4070 published
+       `recording.offsetSegments` so a reader could tell a night corrected per segment from a night
+       corrected by one rate, and `export-schema.js` never declared the key, so `dexScrubExport`
+       deleted it from every scrubbed export. Measured over two folds at `2caee6fcd`: 15 of 16
+       node-exports named the key in `scrubDropped`.
+       THIS IS A SEPARATE GROUP WITH ITS OWN CONTROL, never another leg in the group above, because
+       the group above asserts its `scrubDropped` array by exact value — a planted sibling there would
+       red a passing assertion for the wrong reason. The control is `clockSeams`, the detail list that
+       comment deliberately leaves undeclared. RED on main. */
+    group('EXPORT-SCRUB-ALLOWLIST · a scrubbed export keeps its per-segment offset detail', 'dex-export · export-schema · scrub · timebase · plant', function (T) {
+      var DX = env.DexExport;
+      if (!(DX && typeof DX.scrubExport === 'function')) {
+        T.ok('env.DexExport.scrubExport available', false, 'namespace not wired — gate skipped');
+        return;
+      }
+      var SEG_KEYS = ['fromDevMs', 'toDevMs', 'anchors', 'spanS', 'flatOffsetMs', 'residualRmsMs', 'jitterMs', 'ppm', 'rate', 'rateReason'];
+      var raw = {
+        schema: { name: 'ganglior.node-export', node: 'PpgDex' },
+        recording: {
+          startEpochMs: 1781383783000,
+          contentId: 'cid',
+          offsetSegments: [
+            { fromDevMs: 1000, toDevMs: 601000, anchors: 42, spanS: 600, flatOffsetMs: -12.5, residualRmsMs: 1.8, jitterMs: 2.4, ppm: -25.1, rate: 'measured', rateReason: null },
+            {
+              fromDevMs: 601500,
+              toDevMs: 603500,
+              anchors: 2,
+              spanS: 2,
+              flatOffsetMs: 40,
+              residualRmsMs: 0,
+              jitterMs: null,
+              ppm: null,
+              rate: 'unknown',
+              rateReason: '2 anchor(s) — below the 3 a rate needs'
+            }
+          ],
+          /* THE CONTROL · the per-seam detail list that export-schema.js leaves undeclared. */
+          clockSeams: [{ idx: 7, deviceStepMs: 20000, phoneDeltaMs: null }]
+        },
+        sessions: [{ date: '2026-08-17', stats: { meanHr: 58.2 } }]
+      };
+      var scr = DX.scrubExport(raw);
+      var segs = scr.recording.offsetSegments;
+
+      // ── the detail SURVIVES, read back by value ──
+      T.eq('recording.offsetSegments survives the scrub, both segments', Array.isArray(segs) ? segs.length : String(segs), 2);
+      T.eq(
+        '…and each segment keeps all ten exported keys',
+        segs
+          .map(function (x) {
+            return Object.keys(x).join();
+          })
+          .join(' | '),
+        SEG_KEYS.join() + ' | ' + SEG_KEYS.join()
+      );
+      T.eq('the measured segment reports its rate beside its anchor count and span', [segs[0].ppm, segs[0].anchors, segs[0].spanS, segs[0].rate].join(), '-25.1,42,600,measured');
+      T.eq('§∅ · the refused segment reports a NULL ppm, never a zero', segs[1].ppm, null);
+      T.eq('…and names the test that refused it', segs[1].rateReason, '2 anchor(s) — below the 3 a rate needs');
+
+      /* ── ANTI-VACUITY · the allow-list did not turn into everything ── */
+      T.eq('the undeclared per-seam detail list is still dropped', 'clockSeams' in scr.recording, false);
+      T.eq('…and the report names the drop', (scr.schema.scrubDropped || []).indexOf('recording.clockSeams') >= 0, true);
+      T.eq('…while it does NOT name the key this row is about', (scr.schema.scrubDropped || []).indexOf('recording.offsetSegments') >= 0, false);
+    });
+
     /* ════ SELF-INGEST §5 — A PER-ELEMENT ENVELOPE IS SCRUBBED TOO (the shape F13 never planted) ════
        `_scrubElement` scrubbed `el.provenance` and `el.recording` and never visited
        `el.schema.provenance`, while `scrubExport` reduces `schema.provenance` at the TOP level only.
