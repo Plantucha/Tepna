@@ -715,6 +715,11 @@
    "status": "exempt",
    "note": "a test file: it plants `{ schema: \"tepna.verdict/1\" }` into a fold ledger to assert that the appender carries an object through, so it is a READER of the contract, not a producer. It entered the population on 2026-10-25 with the publication rule, which counts the quoted schema literal."
   },
+  "tests/reconcile-provenance.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "a READ-ONLY report that reads the verify-fixtures verdict (PASS and FAIL appear only as values it compares, not as an emitted verdict); the fixture decision belongs to tools/verify-fixtures.mjs (adopted), and this tool exits 0 always"
+  },
   "tests/run-tests.mjs": {
    "bin": "decides",
    "status": "adopted",
@@ -1032,6 +1037,18 @@
     ]
    },
    "note": "the analysis-tool ARTIFACT gate (residue 2026-09-28-generator-compared-to-itself-examines-no-artifact): `--check` re-bundles and byte-compares, which decides only that this generator reproduces the tree \u2014 the splice that shipped four pages with an unclosed `var __WSRC` string literal passed exactly that test, because a re-bundle of the same source reproduces the same broken bytes. `--json` now prints ONE tepna.verdict/1 over three pre-stated legs read off the artifact itself: no inlined block carries the page's own first 200 bytes (by the page's own signature, never value membership \u2014 a legitimate '<!DOCTYPE html>' literal flags 6 blocks in this tree), every block whose data-inline-src names a file sits inside a 0.5-1.02 size ratio of that file (measured 0.9999-1.0013 over 69 sourced blocks), and the injected worker map parses as JSON with a non-empty entry for every __mkWorker name on the page. Population = pages; a page missing from the tree is excluded. The negative control is in --selftest, and the writer now refuses to write a page that fails its own audit"
+  },
+  "tools/bus-conf-provenance.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/bus-conf-provenance.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "every bus `conf` site a *-dsp.js publishes, and whether a provenance line stands in the four lines above it. Residue 2026-11-12-bus-confidence-constants-carry-no-source (Magpie, board #5736): eleven sites decide a conf an export publishes and no citation stands above any of them. Board #5969 splits the row, because a comment above each number moves manifestHash on ten built pages and computeHash for five nodes, so the declaration half owes fixture re-verification and rides a later unit. This half judges only what a branch ADDS, against the same files at the base ref, so it needs no baseline file (the owner banned that shape on 2026-11-07). population = every `conf:` occurrence in the ten root *-dsp.js files; a comment occurrence, a named constant and a derived value are EXCLUDED, because the first publishes nothing and the last two carry no tuned number. checked = the tuned literal sites. A value whose numbers only set decimal places is derived, never tuned: stripPrecision removes a toFixed argument and a multiply-then-divide by one power of ten. 0 and 1 are reported and never judged, because a bound is not a tuned number (motiondex answers conf: 0 for a window it never scored, which is the absence rule and not this defect). A file this tool cannot read is unreadable with a reason and leaves eligible, never a file with zero sites. Measured 2026-11-12 at 6fdd37ffe: 10 files, 56 sites, 8 in comments, 11 tuned, 0 cited, and the eleven agree by identifier with Magpie's own count at #5736. An unresolvable base ref is SHORTFALL rather than a PASS, because addition cannot be judged without it."
   },
   "tools/buzz-fiducial-correlate.mjs": {
    "bin": "decides",
@@ -1684,6 +1701,18 @@
    "status": "exempt",
    "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
   },
+  "tools/live-surface-audit.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/live-surface-audit.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "Reads the SERVED bytes of the published pages and reds an offsite asset reference the repo does not ship. It needs the network, so it stays outside `npm run check` and `--verdict-sample` prints a fixture-built object with no fetch."
+  },
   "tools/lomb-share-profile.mjs": {
    "bin": "decides",
    "status": "adopted",
@@ -1878,6 +1907,18 @@
     ]
    },
    "note": "residue 2026-10-26-the-corpus-night-rule-is-pinned-to-one-calendar-year: the horizon a declared night rule carries, measured by compiling each `re:` site under tools/ and probing it over synthetic night names rather than reading the digits - pre-stated rule: FAIL a night the corpus holds today that any declared rule refuses, or a rule site this reader cannot resolve (it fails closed) - NOT_RUN no night offered or no rule declared - PASS otherwise; population = nights offered by the readable documented roots plus the caller's --dir, and an unreadable root is counted by reason (elided, remote, absent, alias) rather than read as a zero"
+  },
+  "tools/no-network-surface-parity.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/no-network-surface-parity.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "reds when a root *.html sits in none of no-network.html's declared surface sets, so the gate's scope cannot silently fall behind the shipped set"
   },
   "tools/no-third-party-names.mjs": {
    "bin": "decides",
@@ -2801,18 +2842,6 @@
    },
    "note": "row 2026-11-02-no-node-reads-a-seam-sidecar-or-the-radio-clock: the precondition the owner set on 2026-09-16 when he ruled the seam sidecar EMITTED, NOT ENFORCED - consumption is a separate unit so the emission can be proven on real nights first. This tool is that proof, and it decides whether a node may read the sidecar at all. Pre-stated criterion: reconnect_boundaries_outside_any_examined_population is 0, against the arithmetic the writer itself fixes. A stream of N samples scanned by S writer sessions holds N-1 adjacent intervals, so a sidecar that judges every reconnect boundary reports examined = N-1 and one that skips every boundary reports N-S; the difference IS the number of boundaries that reached an examined population. The criterion binds on the nights recorded on or after 2026-09-22, which is the seed fix (a resumed sidecar used to store its first sample and judge nothing), because captured bytes are immutable and no re-run repairs an earlier file - earlier boundaries are reported as history and never as a result. An empty post-fix population is NOT_RUN and carries result null, never a pass. Population = every SEAMS sidecar under the named roots that can be placed against its companion stream; a file whose examined count falls outside [N-S, N-1] counts no shared population with its stream and is EXCLUDED by name with both counts in the reason, never clamped into the tally - measured on HR, where the sidecar feeds per notification while the writer drops rows, so examined can exceed the intervals the file holds. Absence is null: with no seam row anywhere the largest device step is null beside a reason naming the empty population, because a 0 ms step is the opposite claim. No default root, so a census of a tree nobody named cannot be run by accident. The selftest plants its own tree and drives every arm with no corpus, and --verdict-sample prints the shape from that plant, so it holds no night name, no device and no path."
   },
-  "tools/sidecar-census.mjs": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tools/sidecar-census.mjs",
-     "--verdict-sample"
-    ]
-   },
-   "note": "unit ordered by the owner 2026-11-04 (sidecar census): for each sidecar the capture host writes, the registry names the writer, every reader in nodes, the box and tools, and what each reader does when the sidecar is absent or unreadable. Pre-stated criterion: unaccounted_sidecar_claims is 0. Discovery reads every upper-case NAME.csv/txt literal, every capture_filename stream word and the RUNS/SEAMS families in capture-host/*.py, so a new sidecar the registry does not classify reds. A writer or reader anchor that no longer stands reds. A node or box reader must cite a committed absent-path test or an open residue row; a cited test or row that does not exist reds. A tool reader with no test is counted, not failed. Population = the registered sidecars, none excluded; an empty registry is NOT_RUN with result null. The selftest plants its own tree and drives every arm, and --verdict-sample prints the shape from that plant, so it holds no night name, no device and no path."
-  },
   "tools/secret-scan.mjs": {
    "bin": "decides",
    "status": "adopted",
@@ -2848,6 +2877,30 @@
     ]
    },
    "note": "the JS port of the stage-lab control net against the Python net on real nights (STAGE-LAB brief \u00a724). Criterion pre-stated before the run: every compared night's max |\u0394 proba| \u2264 2e-3 (Python saves float16) and |\u03ba_JS \u2212 \u03ba_Python| \u2264 0.002; one night outside the band is FAIL; no Python probabilities to compare = NOT_RUN, never a pass by absence."
+  },
+  "tools/shellcheck-gate.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/shellcheck-gate.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "shellcheck over the repo's OWN shell scripts: criterion shellcheck_findings lte 0 at --severity=style over every tracked *.sh OUTSIDE capture-host/ (36 scripts on 94ff059fe), no baseline. The gap it closes: shellcheck ran in two places and both were inside capture-host/, so the 24 hook scripts that gate every session's commits, the 11 tools/*.sh and the one script beside a workflow faced no shell linter. Three constraints shape it \u2014 an ABSENT binary is NOT_RUN and EXIT 2 (it could not look, CLAUDE.md \u00a74c) and never a pass, because a 127 read as a missing tool is exactly how the absence waves through; the resolved binary PATH and VERSION ride in result, because the runner image's shellcheck flags three SC2015 sites the pinned 0.11.0 does not and two linters that disagree make one diff green locally and red in CI; and capture-host/ is excluded because it has its own gate, so no file gets a second opinion. \u00a7\u2205: no binary gives checked 0 and result null, not 0 findings. It caught a live defect on the first run \u2014 session-tailnet.test.sh held backticked prose inside a DOUBLE-quoted echo, so bash ran the term as a command and test:hooks printed 'fs.pipe-max-size: command not found' while exiting 0."
+  },
+  "tools/sidecar-census.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/sidecar-census.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "unit ordered by the owner 2026-11-04 (sidecar census): for each sidecar the capture host writes, the registry names the writer, every reader in nodes, the box and tools, and what each reader does when the sidecar is absent or unreadable. Pre-stated criterion: unaccounted_sidecar_claims is 0. Discovery reads every upper-case NAME.csv/txt literal, every capture_filename stream word and the RUNS/SEAMS families in capture-host/*.py, so a new sidecar the registry does not classify reds. A writer or reader anchor that no longer stands reds. A node or box reader must cite a committed absent-path test or an open residue row; a cited test or row that does not exist reds. A tool reader with no test is counted, not failed. Population = the registered sidecars, none excluded; an empty registry is NOT_RUN with result null. The selftest plants its own tree and drives every arm, and --verdict-sample prints the shape from that plant, so it holds no night name, no device and no path."
   },
   "tools/stage-lab.mjs": {
    "bin": "decides",
@@ -3132,6 +3185,18 @@
    },
    "note": "UNIT-HEALTH (audit F2, decision #2441, 2026-10-31): --json prints ONE tepna.verdict/1 over the rig's systemd user timers. PASS = no timer job failed, stopped, overdue or never fired; FAIL names each; NOT_RUN (exit 2) where no systemd user manager answers, which is CI and every fresh clone, so the sample there examines nothing and says so. Since 2026-11-11 producedBy also states the commit the run read from, the behind-ref count, and which judgment sources differ from origin/main, so a finding carries the identity of the code that judged it."
   },
+  "tools/update-watch.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/update-watch.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "UPDATE-WATCH: prints ONE tepna.verdict/1 over the fleet software sources (criterion updates_ready lte 0). PASS = every source read is current or still soaking; FAIL = at least one update is READY; UNKNOWN when no source could be read. The sample command is --verdict-sample because a live run reads the network."
+  },
   "tools/usage-guard.mjs": {
    "bin": "decides",
    "status": "adopted",
@@ -3252,6 +3317,18 @@
    },
    "note": "every workflow job must declare timeout-minutes; the object is the gate's API and the run emits it on PASS, FAIL and NOT_RUN alike (a workflow with no job keys examined nothing)"
   },
+  "tools/write-root-adoption.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/write-root-adoption.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "THE ADOPTED WRITE-ROOT AND JUDGE-ROOT SETS, NAMED (brief WRITE-ROOT-ADOPTION \u00a74 and \u00a76.5): criterion undeclared_or_dropped_sites lte 0 over every tools/*.mjs, comment-blanked, against the two shapes the brief published as greps. A candidate in no row, an adopter with no row, an adopted row that calls no wrapper, a stale row and a de-adoption since the merge base each red with its own remedy. The shape is not the exposure, so an adopter is subtracted BY NAME. A cross-checkout run refuses with one NOT_RUN object and exit 2; with no manifest at the merge base the result says ratchet unexamined."
+  },
   "tools/wt-done.mjs": {
    "bin": "word-only",
    "status": "exempt",
@@ -3268,18 +3345,6 @@
     ]
    },
    "note": "XERJ-HYBRID-SEARCH: --json prints ONE tepna.verdict/1 over real past Rule-0 queries. PASS only if the pre-stated acceptance holds (hybrid hit@5 >= bge AND fewer bytes to answer); a worse score is SHORTFALL, a measurement rather than a failure, and NOT_RUN over an empty query set. The SAMPLE command is --verdict-sample because a real run scores 52 queries and bge alone is ~3 s each, which would make this check time out."
-  },
-  "tools/update-watch.mjs": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tools/update-watch.mjs",
-     "--verdict-sample"
-    ]
-   },
-   "note": "UPDATE-WATCH: prints ONE tepna.verdict/1 over the fleet software sources (criterion updates_ready lte 0). PASS = every source read is current or still soaking; FAIL = at least one update is READY; UNKNOWN when no source could be read. The sample command is --verdict-sample because a live run reads the network."
   },
   "tools/xerj-load.mjs": {
    "bin": "decides",
@@ -3318,59 +3383,6 @@
     ]
    },
    "note": "ZOTERO FILL (owner 2026-10-11): one object over the citation ledger\u2019s DOIs, criterion ledger_dois_present_in_library eq the ledger count \u2014 PASS when every DOI is in the library (created or already present), SHORTFALL naming the DOIs that could not be resolved or written, NOT_RUN under --dry-run (reads the library, writes nothing). --verdict-sample reads no ledger and touches no library, so it reports NOT_RUN / checked 0."
-  },
-  "tests/reconcile-provenance.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "a READ-ONLY report that reads the verify-fixtures verdict (PASS and FAIL appear only as values it compares, not as an emitted verdict); the fixture decision belongs to tools/verify-fixtures.mjs (adopted), and this tool exits 0 always"
-  },
-  "tools/no-network-surface-parity.mjs": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tools/no-network-surface-parity.mjs",
-     "--verdict-sample"
-    ]
-   },
-   "note": "reds when a root *.html sits in none of no-network.html's declared surface sets, so the gate's scope cannot silently fall behind the shipped set"
-  },
-  "tools/shellcheck-gate.mjs": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tools/shellcheck-gate.mjs",
-     "--verdict-sample"
-    ]
-   },
-   "note": "shellcheck over the repo's OWN shell scripts: criterion shellcheck_findings lte 0 at --severity=style over every tracked *.sh OUTSIDE capture-host/ (36 scripts on 94ff059fe), no baseline. The gap it closes: shellcheck ran in two places and both were inside capture-host/, so the 24 hook scripts that gate every session's commits, the 11 tools/*.sh and the one script beside a workflow faced no shell linter. Three constraints shape it \u2014 an ABSENT binary is NOT_RUN and EXIT 2 (it could not look, CLAUDE.md \u00a74c) and never a pass, because a 127 read as a missing tool is exactly how the absence waves through; the resolved binary PATH and VERSION ride in result, because the runner image's shellcheck flags three SC2015 sites the pinned 0.11.0 does not and two linters that disagree make one diff green locally and red in CI; and capture-host/ is excluded because it has its own gate, so no file gets a second opinion. \u00a7\u2205: no binary gives checked 0 and result null, not 0 findings. It caught a live defect on the first run \u2014 session-tailnet.test.sh held backticked prose inside a DOUBLE-quoted echo, so bash ran the term as a command and test:hooks printed 'fs.pipe-max-size: command not found' while exiting 0."
-  },
-  "tools/live-surface-audit.mjs": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tools/live-surface-audit.mjs",
-     "--verdict-sample"
-    ]
-   },
-   "note": "Reads the SERVED bytes of the published pages and reds an offsite asset reference the repo does not ship. It needs the network, so it stays outside `npm run check` and `--verdict-sample` prints a fixture-built object with no fetch."
-  },
-  "tools/write-root-adoption.mjs": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tools/write-root-adoption.mjs",
-     "--verdict-sample"
-    ]
-   },
-   "note": "THE ADOPTED WRITE-ROOT AND JUDGE-ROOT SETS, NAMED (brief WRITE-ROOT-ADOPTION \u00a74 and \u00a76.5): criterion undeclared_or_dropped_sites lte 0 over every tools/*.mjs, comment-blanked, against the two shapes the brief published as greps. A candidate in no row, an adopter with no row, an adopted row that calls no wrapper, a stale row and a de-adoption since the merge base each red with its own remedy. The shape is not the exposure, so an adopter is subtracted BY NAME. A cross-checkout run refuses with one NOT_RUN object and exit 2; with no manifest at the merge base the result says ratchet unexamined."
   }
  }
 }

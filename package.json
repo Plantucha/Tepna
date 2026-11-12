@@ -90,6 +90,7 @@
     "verify:residue-cite-delta": "node tools/residue-cite-drift.mjs --delta origin/main",
     "verify:paper-references": "node tools/paper-reference-use.mjs --base origin/main",
     "verify:paper-claim-markers": "node tools/paper-claim-markers.mjs --base origin/main",
+    "verify:bus-conf-provenance": "node tools/bus-conf-provenance.mjs --base origin/main",
     "verify:sidecar-census": "node tools/sidecar-census.mjs",
     "verify:defect-pins": "node tools/defect-pin-census.mjs",
     "verify:survivor-ratchet": "node tools/mutation-survivors.mjs ratchet --expect 26",
