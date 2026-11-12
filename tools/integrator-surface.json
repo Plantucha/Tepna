@@ -2,6 +2,20 @@
  "schema": "tepna.integrator-surface/1",
  "enumeratedWith": "top-level keys of integrator-dsp.js's fusion return object, plus every `_exp.<key>` assignment AND every key of the `var _exp = {` slim-export literal — read from SOURCE, because uploads/ is absent in a worktree and in CI. Depth 1 here; one level down is enumerated per subtree under `nested`, and a subtree absent from there is not examined.",
  "seededFrom": "a render-mention scan of integrator-render.js on 2026-10-11; the SEED is derived, so the gate's first run proves nothing about today, only about drift from it",
+ "readerRealms": {
+  "integrator-render.js": {
+   "holder": null,
+   "read": "a bare token in blanked code — the render file exists to draw the fusion, so the token IS the fusion’s own property name"
+  },
+  "integrator-app.js": {
+   "holder": "FUSION",
+   "read": "an ANCHORED read against the holder — measured 2026-11-12: `generated`, `kind` and `schema` each match a bare token in the app and none of them reads the fusion"
+  }
+ },
+ "readerFiles": {
+  "clockSkew": "integrator-app.js",
+  "kernelAudit": "integrator-app.js"
+ },
  "corrected": "2026-11-11: the 2026-10-11 seed scan counted a word in a COMMENT or a STRING as a render mention, so `bus` and `staging` were seeded `card` on prose alone — no Integrator surface reads `fusion.bus` or `fusion.staging`. Both now read `export-only`, and the gate asks for a read in blanked code.",
  "surfaces": {
   "anyOverlap": "card",
@@ -11,7 +25,7 @@
   "apneaTyping": "export-only",
   "autoGly": "card",
   "bus": "export-only",
-  "clockSkew": "export-only",
+  "clockSkew": "card",
   "confirmedApneaIndex": "export-only",
   "confirmedApneaIndexContributions": "export-only",
   "confirmedApneaIndexReportable": "export-only",
@@ -26,7 +40,7 @@
   "hrvMotionGate": "export-only",
   "hrvResource": "export-only",
   "kernel": "export-only",
-  "kernelAudit": "export-only",
+  "kernelAudit": "card",
   "kind": "export-only",
   "matchWindow": "card",
   "nodes": "card",
@@ -127,5 +141,6 @@
     "vetoes": "card — integrator-app.js:36 reads it through the forwarded hop and prints one reader-ready line per refused recording."
    }
   }
- }
+ },
+ "widenedRealm": "2026-11-12: depth 1 was judged against ONE file, so `export-only` — \"carried on the node-export and deliberately not rendered\" — was never asked of the app. `integrator-render.js` names neither `clockSkew` nor `kernelAudit`; `integrator-app.js` binds both (`var ka = FUSION && FUSION.kernelAudit` at :77, `var cs = FUSION && FUSION.clockSkew` at :88) and pushes a reader-facing banner line from each into `warnAll`. Both cells now read `card` against the app realm. The other 22 export-only keys stay: three of them match a bare token in the app and none reads the fusion, which is why a second realm is asked for an anchored read."
 }
