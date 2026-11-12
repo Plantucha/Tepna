@@ -454,7 +454,11 @@ function profileAutoDetectUpdate(allNights) {
   });
 
   var n = allNights.length;
-  var span = 0;
+  /* A SPAN NOBODY COULD MEASURE IS NULL, NOT 0 (residue 2026-11-11). This started at 0, and the
+     caption printed `?` for anything falsy — so a single night and two recordings on ONE date read
+     the same, although the second really does span zero days. Null now means unmeasurable and 0
+     means measured-and-zero (∅). */
+  var span = null;
   if (dates.length > 1) {
     var d1 = new Date(dates[0]),
       d2 = new Date(dates[dates.length - 1]);
@@ -506,7 +510,10 @@ function profileAutoDetectUpdate(allNights) {
 
   // Build auto-detect text
   var parts = [];
-  parts.push(n + ' measurements over ' + (span || '?') + ' days');
+  /* A PLURAL IS NOT A COUNT (residue 2026-11-11). One night read `1 measurements over ? days`: the
+     noun never agreed with its number, and an unmeasurable span printed a sentinel inside the
+     phrase. One measurement names no span, because a span needs two. */
+  parts.push(n === 1 ? '1 measurement' : n + ' measurements' + (span == null ? ' over an unrecorded span' : span === 0 ? ' within one day' : ' over ' + span + ' days'));
   if (hrFloorMed) parts.push('Resting HR: ' + hrFloorMed + ' bpm (nocturnal p5)');
   // ANS-age auto-detect pill REMOVED 2026-06-23 (DEX-METRIC-REMOVAL-AUDIT 🔴).
   if (hrMin && hrMax) parts.push('HR range: ' + hrMin + '–' + hrMax + ' bpm');

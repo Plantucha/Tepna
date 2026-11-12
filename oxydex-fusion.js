@@ -830,6 +830,22 @@ var OXY_RESEARCH_GROUPS = [
   ['Derived Indices & Recording QA', ['mos', 'ahiEst', 'extras', 'dataGaps', 'sbii', 'pred3p', 'desSev', 'ctPrec', 'tIdx', 'period', 'cross', 'spo2Adv', 'hrAdv', 'comp']]
 ];
 
+/* A READER TABLE IS NOT A JSON DUMP (residue 2026-11-11). The research dump stringified every
+   nested object, so `tIdx` and `nadirBins` — both threshold-keyed maps of scalars — printed their
+   braces and quotes into a table cell. A map whose every value is a scalar now reads as
+   `key value` pairs. Anything deeper keeps `JSON.stringify`, because this surface cannot flatten it
+   honestly, and a null-valued entry is dropped rather than printed as the word null (∅). */
+function _oxyFlatObj(o) {
+  var keys = Object.keys(o),
+    out = [];
+  for (var i = 0; i < keys.length; i++) {
+    var v = o[keys[i]];
+    if (v == null || v === '') continue;
+    if (typeof v === 'object') return JSON.stringify(o);
+    out.push(keys[i] + ' ' + v);
+  }
+  return out.length ? out.join(' · ') : '—';
+}
 function _oxyFmt(v, dec) {
   if (v == null || v === '' || (typeof v === 'number' && !isFinite(v))) return '—';
   if (typeof v === 'number') return dec != null ? (+v).toFixed(dec) : String(v);
@@ -888,7 +904,12 @@ function buildFullMetricsTable(n) {
     r('ODI-3', _oxyFmt(n.odi3.rate, 1), '/h', '<5', _oxySev(5, 15, n.odi3.rate, true), n.odi3.count + ' events ≥3% drop');
   }
   if (n.hb) {
-    r('Hypoxic burden', _oxyFmt(n.hb.total, 1), '%·min', '—', '', 'Area under 90% (Azarbarzin)');
+    /* A NOTE IS NOT A THRESHOLD (residue 2026-11-11). `n.hb` is the area under SpO₂ 94 %, which is
+       what the DSP computes and what the single-night card prints as `%-min below 94%`. This note
+       said 90 % for the same number, so two reader surfaces named two thresholds for one value. The
+       cited method integrates under each event's own pre-event baseline rather than under a fixed
+       level, so the note names the method and the level this code actually uses. */
+    r('Hypoxic burden', _oxyFmt(n.hb.total, 1), '%·min', '—', '', 'Area under 94% (Azarbarzin-style)');
     r('Hypoxic burden rate', _oxyFmt(n.hb.rate, 2), '%·min/h', '—');
   }
 
@@ -981,16 +1002,21 @@ function buildFullMetricsTable(n) {
         if (v == null || v === '') return;
         if (typeof v === 'object') {
           try {
-            v = Array.isArray(v) ? v.slice(0, 12).join(' / ') : JSON.stringify(v);
+            v = Array.isArray(v) ? v.slice(0, 12).join(' / ') : _oxyFlatObj(v);
           } catch {
             return;
           }
           if (v.length > 90) v = v.slice(0, 87) + '…';
         }
         if (typeof v === 'number' && !isFinite(v)) return;
+        /* A WORD IS NOT A VERDICT (residue 2026-11-11). This grade tested word MEMBERSHIP, so
+           `No significant difference` matched `significant` and a NULL RESULT reached the reader as
+           a red flag. A negation now withholds the severe grade only: the benign words keep theirs,
+           so a value of `None` still reads green and an ungraded row still prints its own text. */
         var st = '';
         if (typeof v === 'string') {
-          if (/\b(high|severe|abrupt|worsening|critical|significant)\b/i.test(v)) st = 'bad';
+          var _neg = /\b(?:no|not|never|without|insufficient|non)\b/i.test(v);
+          if (!_neg && /\b(high|severe|abrupt|worsening|critical|significant)\b/i.test(v)) st = 'bad';
           else if (/\b(low|normal|stable|mild|none|regular|symmetric)\b/i.test(v)) st = 'ok';
           else if (/\b(moderate|elevated|variable|mixed|early|blunted)\b/i.test(v)) st = 'warn';
         }

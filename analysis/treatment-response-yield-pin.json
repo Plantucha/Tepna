@@ -23,8 +23,8 @@
       "clock-seam.js": "eca421bd5c5e",
       "dex-escape.js": "f0d38619047a",
       "oxydex-util.js": "5cc642ee790b",
-      "oxydex-profile.js": "3496a101178a",
-      "oxydex-dsp.js": "d77b5ccfc929"
+      "oxydex-profile.js": "68d39ab77837",
+      "oxydex-dsp.js": "a45bc68d1132"
     },
     "pulse": {
       "synth-gen.js": "a653cf5afb78",
@@ -186,11 +186,25 @@
       "old": "f25accb7ea4c",
       "new": "069be5978f5d",
       "reason": "residue 2026-11-08-lomb-scargle-makes-two-trig-passes-per-bin-and-sample: lombScargle now computes each bin in ONE pass over the samples, in ecgdex-dsp.js, ppgdex-dsp.js and pulsedex-dsp.js. The double-angle identities give sin(2wt) and cos(2wt) from the same sin(wt) and cos(wt) the loop already needs, and the angle-difference identities return the tau-shifted sums after the loop, so four trig calls per sample become two. The algebra is exact, so only the last bits of the sums move: over 1000 bins the largest per-bin relative delta is 7.43e-11 and the total-power relative delta is 6.58e-15, against a control (the same algorithm with one beat moved by 1e-6 relative) that reads 6.62e-7. This run RE-CUT the cohort at paper scale rather than re-stamping on a claim, and the yield came back on the SAME counts: 233 tx / 239 flat, 667 / 661 skipped."
+    },
+    {
+      "date": "2026-11-12",
+      "file": "oxydex-profile.js",
+      "old": "3496a101178a",
+      "new": "68d39ab77837",
+      "reason": "residue 2026-11-11-oxydex-labels-and-ungated-trends: the measurement-count caption started its span at 0, so a profile with no usable date and a profile whose recordings all fall on one day printed the same words. The span now starts at null and the caption names which of the three cases it holds. Nothing numeric moves and the caption is not a treatment-response input, which selects on the ODI and rMSSD series alone. This run RE-CUT the cohort at paper scale rather than re-stamping on that argument, and the yield came back on the SAME counts: 233 tx / 239 flat, 667 / 661 skipped."
+    },
+    {
+      "date": "2026-11-12",
+      "file": "oxydex-dsp.js",
+      "old": "d77b5ccfc929",
+      "new": "a45bc68d1132",
+      "reason": "residue 2026-11-11-oxydex-labels-and-ungated-trends: computeNadirTrend printed a direction word at any event count and any fit quality, so 4 nadirs at r2 0.3 read as Worsening (REM-load). It now withholds the direction below two pre-stated floors, 8 events and r2 0.25, publishes nadirTrendGate naming the floor that bound it, and keeps the slope, the fit and the count beside the withheld verdict. hrLfHfLabel named sympathetic dominance for a band ratio of 42.75, which 1 Hz cannot resolve, and it now refuses outside the pre-stated window 0.1 to 10. Both edits move LABELS; no numeric detector output moves, and measureFromResults drops a patient only on a gap or a non-finite value in the ODI or rMSSD series. This run RE-CUT the cohort at paper scale rather than re-stamping on that argument, and the yield came back on the SAME counts: 233 tx / 239 flat, 667 / 661 skipped."
     }
   ],
-  "measuredAt": "2026-11-11T18:41:54.794Z",
+  "measuredAt": "2026-11-12T04:35:50.166Z",
   "producedBy": {
     "tool": "tools/treatment-response-yield-pin.mjs",
-    "commit": "a30632214"
+    "commit": "d8a3ce6d1"
   }
 }

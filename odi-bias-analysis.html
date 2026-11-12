@@ -2676,7 +2676,11 @@ function profileAutoDetectUpdate(allNights) {
   });
 
   var n = allNights.length;
-  var span = 0;
+  /* A SPAN NOBODY COULD MEASURE IS NULL, NOT 0 (residue 2026-11-11). This started at 0, and the
+     caption printed `?` for anything falsy — so a single night and two recordings on ONE date read
+     the same, although the second really does span zero days. Null now means unmeasurable and 0
+     means measured-and-zero (∅). */
+  var span = null;
   if (dates.length > 1) {
     var d1 = new Date(dates[0]),
       d2 = new Date(dates[dates.length - 1]);
@@ -2728,7 +2732,10 @@ function profileAutoDetectUpdate(allNights) {
 
   // Build auto-detect text
   var parts = [];
-  parts.push(n + ' measurements over ' + (span || '?') + ' days');
+  /* A PLURAL IS NOT A COUNT (residue 2026-11-11). One night read `1 measurements over ? days`: the
+     noun never agreed with its number, and an unmeasurable span printed a sentinel inside the
+     phrase. One measurement names no span, because a span needs two. */
+  parts.push(n === 1 ? '1 measurement' : n + ' measurements' + (span == null ? ' over an unrecorded span' : span === 0 ? ' within one day' : ' over ' + span + ' days'));
   if (hrFloorMed) parts.push('Resting HR: ' + hrFloorMed + ' bpm (nocturnal p5)');
   // ANS-age auto-detect pill REMOVED 2026-06-23 (DEX-METRIC-REMOVAL-AUDIT 🔴).
   if (hrMin && hrMax) parts.push('HR range: ' + hrMin + '–' + hrMax + ' bpm');
@@ -8961,10 +8968,25 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
         )
       ),
       hrLfHf: lfhf == null ? null : +lfhf.toFixed(2),
-      hrLfHfLabel: lfhf === null ? 'N/A' : lfhf > 4 ? 'SNS dominant' : lfhf > 2 ? 'SNS-leaning' : 'Balanced',
+      hrLfHfLabel: _lfhfLabel(lfhf),
       basis: 'medianOf' + TAIL_WIN_SEC / 60 + 'minWindows', // §C1 disclosure
       windowsUsed: per.length
     };
+  }
+  /* AN OUT-OF-RANGE RATIO IS NOT AN AUTONOMIC STATE (residue 2026-11-11). Both label sites read
+     `lfhf > 4 ? 'SNS dominant'`, with no upper bound at all, so vigil's 2026-11-04 night published
+     `SNS dominant` for a ratio of 57 derived from a 1 Hz pulse-rate series. No autonomic state puts
+     57 times the power in LF: that ratio says the HF band collapsed, which is what a smoothed 1 Hz
+     series does to 0.15-0.4 Hz content. Outside the stated window the label names the reason and
+     makes no autonomic claim, while `hrLfHf` still publishes the ratio itself — the number is real,
+     the verdict over it is not. The window is a pre-stated plausibility bound, not a literature
+     value, and it never moves with the data it judges. */
+  var LFHF_PLAUSIBLE_LO = 0.1;
+  var LFHF_PLAUSIBLE_HI = 10;
+  function _lfhfLabel(lfhf) {
+    if (lfhf == null || !isFinite(lfhf)) return 'N/A';
+    if (lfhf < LFHF_PLAUSIBLE_LO || lfhf > LFHF_PLAUSIBLE_HI) return 'Not resolvable — band ratio outside physiology at 1 Hz';
+    return lfhf > 4 ? 'SNS dominant' : lfhf > 2 ? 'SNS-leaning' : 'Balanced';
   }
   /* §∅ · MEAN OVER THE MEASURED BEATS, AND AN ABSENT BEAT CONTRIBUTES NO DEVIATION.
      Shared by `_hrFreqBandsWindow` and `_respRateProxyWindow`, which carried this prologue
@@ -9028,7 +9050,7 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     var lfPow = bandPow(0.04, 0.15, 5);
     var hfPow = bandPow(0.15, 0.4, 6);
     var lfhf = hfPow > 0 ? +(lfPow / hfPow).toFixed(2) : null;
-    return { hrLfPow: lfPow, hrHfPow: hfPow, hrLfHf: lfhf, hrBandsN: _dt.n, hrBandsTotal: USE, hrLfHfLabel: lfhf === null ? 'N/A' : lfhf > 4 ? 'SNS dominant' : lfhf > 2 ? 'SNS-leaning' : 'Balanced' };
+    return { hrLfPow: lfPow, hrHfPow: hfPow, hrLfHf: lfhf, hrBandsN: _dt.n, hrBandsTotal: USE, hrLfHfLabel: _lfhfLabel(lfhf) };
   }
 
   // ── F. Respiratory Rate Proxy ─────────────────────────────────────
@@ -10002,6 +10024,10 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
 
   // ── 11. SpO2 Nadir Trend Across Night ────────────────────────────
   // Linear regression of sequential event nadir SpO2 values
+  /* The two floors a nadir-trend VERDICT must clear. Pre-stated here, never derived from the night
+     being judged. Neither is a literature value, and neither claims to be. */
+  var NADIR_TREND_MIN_N = 8;
+  var NADIR_TREND_MIN_R2 = 0.25;
   function computeNadirTrend(desat) {
     if (!desat || !desat.events || desat.events.length < 4) return null;
     var nadirs = desat.events
@@ -10013,8 +10039,16 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       });
     if (nadirs.length < 4) return null;
     var lr = linReg(nadirs);
-    var dir = lr.slope < -0.005 ? 'Worsening (REM-load)' : lr.slope > 0.005 ? 'Improving across night' : 'Stable';
-    return { nadirTrendSlope: lr.slope, nadirTrendR2: lr.r2, nadirTrendN: nadirs.length, nadirTrendLabel: dir };
+    /* A SLOPE SIGN IS NOT A TREND (residue 2026-11-11). This read `Worsening (REM-load)` off the
+       sign of an OLS slope with no gate at all, and vigil's 2026-11-04 night published that verdict
+       at r-squared 0.04 over 6 nadirs — a direction word over a scatter. The verdict now needs BOTH
+       floors below, which are stated engineering floors and not literature values. Below either one
+       the label says there is no clear trend, and the slope, the r-squared and the count still
+       publish, so a reader can see why the verdict withheld: reduced confidence annotates, and only
+       a discontinuity refuses. `nadirTrendGate` names the floor that bound. */
+    var gate = nadirs.length < NADIR_TREND_MIN_N ? 'n<' + NADIR_TREND_MIN_N : lr.r2 < NADIR_TREND_MIN_R2 ? 'r2<' + NADIR_TREND_MIN_R2 : null;
+    var dir = gate ? 'No clear trend' : lr.slope < -0.005 ? 'Worsening (REM-load)' : lr.slope > 0.005 ? 'Improving across night' : 'Stable';
+    return { nadirTrendSlope: lr.slope, nadirTrendR2: lr.r2, nadirTrendN: nadirs.length, nadirTrendLabel: dir, nadirTrendGate: gate };
   }
 
   // ── 12. Desaturation Inter-Event Interval (IEI) ───────────────────

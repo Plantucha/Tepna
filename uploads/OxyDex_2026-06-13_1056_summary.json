@@ -378,8 +378,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "3b2d8a30a3df",
-          "computeHash": "531940e152ba"
+          "manifestHash": "a8b9cca0512b",
+          "computeHash": "2240ce1afb75"
         },
         "evidence": {
           "envelopeRef": null,
@@ -407,8 +407,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "3b2d8a30a3df",
-          "computeHash": "531940e152ba"
+          "manifestHash": "a8b9cca0512b",
+          "computeHash": "2240ce1afb75"
         },
         "evidence": {
           "envelopeRef": null,
@@ -436,8 +436,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "3b2d8a30a3df",
-          "computeHash": "531940e152ba"
+          "manifestHash": "a8b9cca0512b",
+          "computeHash": "2240ce1afb75"
         },
         "evidence": {
           "envelopeRef": null,
@@ -465,8 +465,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "3b2d8a30a3df",
-          "computeHash": "531940e152ba"
+          "manifestHash": "a8b9cca0512b",
+          "computeHash": "2240ce1afb75"
         },
         "evidence": {
           "envelopeRef": null,
@@ -1206,7 +1206,7 @@
         "hrLfPow": 5.1,
         "hrHfPow": 0.1,
         "hrLfHf": 42.75,
-        "hrLfHfLabel": "SNS dominant",
+        "hrLfHfLabel": "Not resolvable — band ratio outside physiology at 1 Hz",
         "basis": "medianOf30minWindows",
         "windowsUsed": 14
       },
@@ -1350,7 +1350,8 @@
         "nadirTrendSlope": 0.2703,
         "nadirTrendR2": 0.255,
         "nadirTrendN": 14,
-        "nadirTrendLabel": "Improving across night"
+        "nadirTrendLabel": "Improving across night",
+        "nadirTrendGate": null
       },
       "iei": {
         "ieiMeanSec": 1906.8,

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="f79adc556634" data-compute-hash="223cd0dac7c3"><head>
+<html lang="en" data-manifest-hash="c57ba93462b1" data-compute-hash="1f3f5ca5cab7"><head>
 <!--
   Data Unifier.html — Tepna
   Copyright 2026 Michal Planicka
@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/DnE9XmMuQAgOpzjl/0o9V9w5hh0bdf+ZSJ5HcC/gw0=' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8/sH7B7wN4nDqz11oZWLoOg8SkSuIQF0L4F7Nz3oxk8=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DkJMIke/oeAn5D/73OWQ4sM6DEkOlbGJANo7P3FHILA=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HAXbchwkH2w0sxN5WvjWCMLbxsfGGclNPzL9K/ePBeM=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-Ow3WC+A7bU/F/dZPsKQ/TOo3nkpdBJCA7jtrQ24dPug=' 'sha256-R6Dc/xXQzYFveWsVfbGSg8lpp98pG2dIwLNGGu4Pc04=' 'sha256-RL5agm0jO+OAF4uwgIkvU/TYyrFDJF4flIvpopkODeQ=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-XkCJjtofRC8yuzIDQ1Ofcdj/kJnYaArgcSmrDj/MoAc=' 'sha256-fP8yqQORrq1gqNXH4KGQ0Fx5gvu4FNAsDQUJB31fcLw=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-msTW+K3Nr8EkBLtJ3IUeMa89XET152+xpGXg/z9u8v0=' 'sha256-oH7lhnTrlkQhQ9f9PuKw7Wwq8UnyptMMWqHMeBGouU8=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-uS0BO9FA6T7Ej0PgYdFgmhKAD7wWWUv6IRvThTzY6lc=' 'sha256-wK9fP+fYfi661IypDOgrAoxGZS8mGJfe9l/9288cTZQ=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8/sH7B7wN4nDqz11oZWLoOg8SkSuIQF0L4F7Nz3oxk8=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DkJMIke/oeAn5D/73OWQ4sM6DEkOlbGJANo7P3FHILA=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HAXbchwkH2w0sxN5WvjWCMLbxsfGGclNPzL9K/ePBeM=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-Ow3WC+A7bU/F/dZPsKQ/TOo3nkpdBJCA7jtrQ24dPug=' 'sha256-R6Dc/xXQzYFveWsVfbGSg8lpp98pG2dIwLNGGu4Pc04=' 'sha256-RL5agm0jO+OAF4uwgIkvU/TYyrFDJF4flIvpopkODeQ=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-XkCJjtofRC8yuzIDQ1Ofcdj/kJnYaArgcSmrDj/MoAc=' 'sha256-fP8yqQORrq1gqNXH4KGQ0Fx5gvu4FNAsDQUJB31fcLw=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-msTW+K3Nr8EkBLtJ3IUeMa89XET152+xpGXg/z9u8v0=' 'sha256-oH7lhnTrlkQhQ9f9PuKw7Wwq8UnyptMMWqHMeBGouU8=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-uS0BO9FA6T7Ej0PgYdFgmhKAD7wWWUv6IRvThTzY6lc=' 'sha256-wK9fP+fYfi661IypDOgrAoxGZS8mGJfe9l/9288cTZQ=' 'sha256-yJI159rOoEVhsTIsuQRFR32KBOQL/8y6f7F2zWeQpF4=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -10675,10 +10675,25 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
         )
       ),
       hrLfHf: lfhf == null ? null : +lfhf.toFixed(2),
-      hrLfHfLabel: lfhf === null ? 'N/A' : lfhf > 4 ? 'SNS dominant' : lfhf > 2 ? 'SNS-leaning' : 'Balanced',
+      hrLfHfLabel: _lfhfLabel(lfhf),
       basis: 'medianOf' + TAIL_WIN_SEC / 60 + 'minWindows', // §C1 disclosure
       windowsUsed: per.length
     };
+  }
+  /* AN OUT-OF-RANGE RATIO IS NOT AN AUTONOMIC STATE (residue 2026-11-11). Both label sites read
+     `lfhf > 4 ? 'SNS dominant'`, with no upper bound at all, so vigil's 2026-11-04 night published
+     `SNS dominant` for a ratio of 57 derived from a 1 Hz pulse-rate series. No autonomic state puts
+     57 times the power in LF: that ratio says the HF band collapsed, which is what a smoothed 1 Hz
+     series does to 0.15-0.4 Hz content. Outside the stated window the label names the reason and
+     makes no autonomic claim, while `hrLfHf` still publishes the ratio itself — the number is real,
+     the verdict over it is not. The window is a pre-stated plausibility bound, not a literature
+     value, and it never moves with the data it judges. */
+  var LFHF_PLAUSIBLE_LO = 0.1;
+  var LFHF_PLAUSIBLE_HI = 10;
+  function _lfhfLabel(lfhf) {
+    if (lfhf == null || !isFinite(lfhf)) return 'N/A';
+    if (lfhf < LFHF_PLAUSIBLE_LO || lfhf > LFHF_PLAUSIBLE_HI) return 'Not resolvable — band ratio outside physiology at 1 Hz';
+    return lfhf > 4 ? 'SNS dominant' : lfhf > 2 ? 'SNS-leaning' : 'Balanced';
   }
   /* §∅ · MEAN OVER THE MEASURED BEATS, AND AN ABSENT BEAT CONTRIBUTES NO DEVIATION.
      Shared by `_hrFreqBandsWindow` and `_respRateProxyWindow`, which carried this prologue
@@ -10742,7 +10757,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     var lfPow = bandPow(0.04, 0.15, 5);
     var hfPow = bandPow(0.15, 0.4, 6);
     var lfhf = hfPow > 0 ? +(lfPow / hfPow).toFixed(2) : null;
-    return { hrLfPow: lfPow, hrHfPow: hfPow, hrLfHf: lfhf, hrBandsN: _dt.n, hrBandsTotal: USE, hrLfHfLabel: lfhf === null ? 'N/A' : lfhf > 4 ? 'SNS dominant' : lfhf > 2 ? 'SNS-leaning' : 'Balanced' };
+    return { hrLfPow: lfPow, hrHfPow: hfPow, hrLfHf: lfhf, hrBandsN: _dt.n, hrBandsTotal: USE, hrLfHfLabel: _lfhfLabel(lfhf) };
   }
 
   // ── F. Respiratory Rate Proxy ─────────────────────────────────────
@@ -11716,6 +11731,10 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
 
   // ── 11. SpO2 Nadir Trend Across Night ────────────────────────────
   // Linear regression of sequential event nadir SpO2 values
+  /* The two floors a nadir-trend VERDICT must clear. Pre-stated here, never derived from the night
+     being judged. Neither is a literature value, and neither claims to be. */
+  var NADIR_TREND_MIN_N = 8;
+  var NADIR_TREND_MIN_R2 = 0.25;
   function computeNadirTrend(desat) {
     if (!desat || !desat.events || desat.events.length < 4) return null;
     var nadirs = desat.events
@@ -11727,8 +11746,16 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       });
     if (nadirs.length < 4) return null;
     var lr = linReg(nadirs);
-    var dir = lr.slope < -0.005 ? 'Worsening (REM-load)' : lr.slope > 0.005 ? 'Improving across night' : 'Stable';
-    return { nadirTrendSlope: lr.slope, nadirTrendR2: lr.r2, nadirTrendN: nadirs.length, nadirTrendLabel: dir };
+    /* A SLOPE SIGN IS NOT A TREND (residue 2026-11-11). This read `Worsening (REM-load)` off the
+       sign of an OLS slope with no gate at all, and vigil's 2026-11-04 night published that verdict
+       at r-squared 0.04 over 6 nadirs — a direction word over a scatter. The verdict now needs BOTH
+       floors below, which are stated engineering floors and not literature values. Below either one
+       the label says there is no clear trend, and the slope, the r-squared and the count still
+       publish, so a reader can see why the verdict withheld: reduced confidence annotates, and only
+       a discontinuity refuses. `nadirTrendGate` names the floor that bound. */
+    var gate = nadirs.length < NADIR_TREND_MIN_N ? 'n<' + NADIR_TREND_MIN_N : lr.r2 < NADIR_TREND_MIN_R2 ? 'r2<' + NADIR_TREND_MIN_R2 : null;
+    var dir = gate ? 'No clear trend' : lr.slope < -0.005 ? 'Worsening (REM-load)' : lr.slope > 0.005 ? 'Improving across night' : 'Stable';
+    return { nadirTrendSlope: lr.slope, nadirTrendR2: lr.r2, nadirTrendN: nadirs.length, nadirTrendLabel: dir, nadirTrendGate: gate };
   }
 
   // ── 12. Desaturation Inter-Event Interval (IEI) ───────────────────
