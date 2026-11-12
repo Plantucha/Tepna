@@ -85,6 +85,9 @@ jobs:
       - name: verify:residue-cite-drift
         if: ${{ !cancelled() }}
         run: npm run -s verify:residue-cite-drift
+      - name: verify:residue-cite-delta
+        if: ${{ !cancelled() }}
+        run: npm run -s verify:residue-cite-delta
       - name: verify:sidecar-census
         if: ${{ !cancelled() }}
         run: npm run -s verify:sidecar-census
