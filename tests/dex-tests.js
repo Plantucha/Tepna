@@ -34834,6 +34834,54 @@
         T.ok('oxydex-render.js source provided', false, 'runner passed no oxydex-render.js');
         return;
       }
+      /* ── residue 2026-11-11 · the OxyDex reader surfaces graded prose, dumped JSON and named a
+         threshold the value never used ───────────────────────────────────────────────────────────
+         The row named `oxydex-render.js` and two of the seven sites live there; the rest sit in
+         `oxydex-fusion.js`, `oxydex-profile.js` and `oxydex-dsp.js`. EVERY scan below names the
+         EMITTING EXPRESSION and never the prose of a comment, because the comment beside each fix
+         quotes the wording it retired — a scan for the prose counts the comment and passes while
+         the defect stands. */
+      var _oxFus = (env.sources || {})['oxydex-fusion.js'] || '';
+      var _oxProf = (env.sources || {})['oxydex-profile.js'] || '';
+      T.ok(
+        'ANTI-VACUITY \u00b7 the fusion and profile sources reached this group',
+        _oxFus.length > 20000 && _oxProf.length > 5000,
+        'fusion ' + _oxFus.length + ' chars, profile ' + _oxProf.length + ' chars'
+      );
+
+      // 1 · a negated sentence no longer earns the severe grade, in BOTH copies of the heuristic
+      var _sevFus = '/' + '\\b(high|severe|abrupt|worsening|critical|significant)\\b/i.test(v)';
+      var _sevRnd = '/' + '\\b(high|severe|abrupt|worsening|critical|significant|leptokurtic)\\b/i.test(v)';
+      T.ok('ANTI-VACUITY \u00b7 both severe-grade tests are still in the tree', _oxFus.indexOf(_sevFus) !== -1 && rnd.indexOf(_sevRnd) !== -1, 'one of the two keyword tests is gone');
+      T.eq('the fusion severe grade is gated by a negation test', _oxFus.split('if (!_neg && ' + _sevFus).length - 1, 1);
+      T.eq('no ungated copy of the fusion severe grade remains', _oxFus.split('if (' + _sevFus).length - 1, 0);
+      T.eq('the render severe class is gated by a negation test', rnd.split('if (!_negLbl && ' + _sevRnd).length - 1, 1);
+      T.eq('no ungated copy of the render severe class remains', rnd.split('if (' + _sevRnd).length - 1, 0);
+      T.ok('the negation test names the words that negate', _oxFus.indexOf('(?:no|not|never|without|insufficient|non)') !== -1 && rnd.indexOf('(?:no|not|never|without|insufficient|non)') !== -1);
+
+      // 2 · a map of scalars reads as pairs, and neither dump stringifies the value any more
+      T.eq('the fusion dump flattens a scalar map', _oxFus.split('_oxyFlatObj(v)').length - 1, 1);
+      T.eq('the fusion dump no longer stringifies the value', _oxFus.split('JSON.stringify(v)').length - 1, 0);
+      T.eq('the render dump flattens a scalar map', rnd.split('_oxyRndFlatObj(v)').length - 1, 1);
+      T.eq('the render dump no longer stringifies the value', rnd.split('JSON.stringify(v)').length - 1, 0);
+      T.eq('the render dump bounds a long array as the fusion copy does', rnd.split("Array.isArray(v) ? v.slice(0, 12).join(' / ')").length - 1, 1);
+      T.eq('the render dump no longer joins a whole array', rnd.split("Array.isArray(v) ? v.join(' / ')").length - 1, 0);
+
+      // 3 · the hypoxic-burden note names the threshold the DSP actually integrates under
+      T.eq('the fusion note names the 94 % level', _oxFus.split('Area under 94%').length - 1, 1);
+      T.eq('the fusion note no longer names the 90 % level', _oxFus.split('Area under 90%').length - 1, 0);
+
+      // 4 · the T-Index card reads its own guard at both value sites
+      T.ok('ANTI-VACUITY \u00b7 the T90 guard line is still the one that nulls the value', rnd.indexOf('var _t90pct = _t90 && _t90.pct != null ? _t90.pct : null;') !== -1);
+      T.eq('the guard line holds the ONLY two reads of the raw block', rnd.split('_t90.pct').length - 1, 2);
+      T.ok('an absent T90 renders an em dash with no percent sign beside it', rnd.indexOf("(_t90pct == null ? '\u2014' : _t90pct + '%')") !== -1);
+
+      // 5 · the profile caption agrees with its own count, and 0 days is a measurement
+      T.eq('the profile span starts as null, never 0', _oxProf.split('var span = null;').length - 1, 1);
+      T.eq('the profile span no longer starts at 0', _oxProf.split('var span = 0;').length - 1, 0);
+      T.eq('the caption no longer prints a sentinel inside the phrase', _oxProf.split("(span || '?')").length - 1, 0);
+      T.ok('one measurement reads singular and names no span', _oxProf.indexOf("n === 1 ? '1 measurement'") !== -1);
+      T.ok('a measured zero-day span reads as one day, not as an absence', _oxProf.indexOf("span === 0 ? ' within one day'") !== -1);
       // ANTI-VACUITY · the branch we are gating actually exists in the file.
       T.ok(
         'ANTI-VACUITY · the flagged-metrics reassurance branch exists',
@@ -48753,6 +48801,48 @@
       );
       T.eq('…and the published label survives it', rBad.respRateLabel, r.respRateLabel);
       T.eq('hrLfHf: the label survives a disturbed final 30 min', OT.computeHRFreqBands(tailBad).hrLfHfLabel, h.hrLfHfLabel);
+      /* ── residue 2026-11-11 · two trend VERDICTS published with no gate ─────────────────────────
+         Both label sites read `SNS dominant` off `lfhf > 4` with no upper bound, so vigil's
+         2026-11-04 night published that autonomic verdict for a ratio of 57 from a 1 Hz pulse-rate
+         series. The invariant below is computed from the two PUBLISHED fields, so it holds the
+         bound and the label to each other and a future edit cannot move one without the other. */
+      var _NOT_RES = 'Not resolvable \u2014 band ratio outside physiology at 1 Hz';
+      T.ok('ANTI-VACUITY \u00b7 this night publishes a finite band ratio to judge', h.hrLfHf != null && isFinite(h.hrLfHf), 'hrLfHf ' + h.hrLfHf);
+      T.ok(
+        'the label and the plausibility window agree on this night',
+        h.hrLfHf < 0.1 || h.hrLfHf > 10 ? h.hrLfHfLabel === _NOT_RES : h.hrLfHfLabel !== _NOT_RES,
+        'hrLfHf ' + h.hrLfHf + ' labelled ' + h.hrLfHfLabel
+      );
+      /* The nadir trend printed a direction off the SIGN of an OLS slope alone. Three crafted
+         series pin the two floors. The first is the row's own shape: a clean downward slope over
+         too few events, which the old code called Worsening and the new code will not. */
+      var _nad = function (vals) {
+        return OT.computeNadirTrend({
+          events: vals.map(function (v) {
+            return { nadir: v };
+          })
+        });
+      };
+      var _few = _nad([94, 93, 92, 91, 90, 89]);
+      T.ok(
+        'ANTI-VACUITY \u00b7 the under-powered series really does slope downward',
+        _few && _few.nadirTrendSlope < -0.5 && _few.nadirTrendR2 > 0.9,
+        _few && _few.nadirTrendSlope + ' slope at r2 ' + _few.nadirTrendR2
+      );
+      T.eq('6 nadirs are too few for a direction word, however clean the fit', _few && _few.nadirTrendLabel, 'No clear trend');
+      T.eq('…and the label names the floor that bound it', _few && _few.nadirTrendGate, 'n<8');
+      var _flat = _nad([92, 90, 92, 90, 92, 90, 92, 90, 92, 90]);
+      T.ok('ANTI-VACUITY \u00b7 the flat series has enough events to pass the count floor', _flat && _flat.nadirTrendN === 10, _flat && 'n ' + _flat.nadirTrendN);
+      T.eq('a scatter with no fit earns no direction word either', _flat && _flat.nadirTrendLabel, 'No clear trend');
+      T.eq('…and that label names the r-squared floor', _flat && _flat.nadirTrendGate, 'r2<0.25');
+      var _real = _nad([95, 94, 93, 92, 91, 90, 89, 88, 87, 86]);
+      T.eq('a clean downward trend over enough events still reports the direction', _real && _real.nadirTrendLabel, 'Worsening (REM-load)');
+      T.eq('…and nothing gated it', _real && _real.nadirTrendGate, null);
+      T.ok(
+        'a gated verdict still publishes the slope, the fit and the count',
+        _few.nadirTrendSlope != null && _few.nadirTrendR2 != null && _few.nadirTrendN === 6,
+        'slope/r2/n all present beside the withheld verdict'
+      );
       /* spo2Ac1 is whole-record, so a genuinely different final 30 min SHOULD move it a little —
          that is the metric working, not failing. What must not happen is the tail SETTING it. Assert
          the bound: the whole-record value moves far less than the tail alone reads. */

@@ -3682,16 +3682,22 @@ function nightDetail(n, idx) {
     '<span class="proj-badge proj-' +
     _tCls +
     '">T90 ' +
-    _t90.pct +
-    '%</span>' +
+    (_t90pct == null ? '—' : _t90pct + '%') +
+    '</span>' +
     '</div>';
+  /* THE GUARD EXISTED AND THE TEMPLATE READ PAST IT (residue 2026-11-11). The comment above states
+     that `_t90` is null when no second was measured, and `_tCls` honours that — but both value
+     sites dereferenced the raw block instead of the guard, so an unmeasured night threw a TypeError
+     here and a measured block with a null percentage printed the word null. Both now read the
+     guarded `_t90pct`, and an
+     absent T90 is an em dash with no percent sign beside it (∅). */
   html +=
     '<div class="proj-main">' +
     '<div class="proj-value proj-val-' +
     _tCls +
     '">' +
-    _t90.pct +
-    '<span class="proj-unit" style="margin-left:4px">%</span></div>' +
+    (_t90pct == null ? '—' : _t90pct + '<span class="proj-unit" style="margin-left:4px">%</span>') +
+    '</div>' +
     '<div class="proj-unit">of recording &lt; 90%</div>' +
     '</div>';
   html += '<div class="proj-range">Lower = better · &lt;1% T90 typical for healthy adults</div>';
@@ -4064,6 +4070,21 @@ function renderResearchMetrics(n) {
       .replace(/\bOdi\b/g, 'ODI')
       .replace(/\bAhi\b/g, 'AHI');
   }
+  /* A READER TABLE IS NOT A JSON DUMP (residue 2026-11-11). Same defect and same cure as
+     `oxydex-fusion.js` `_oxyFlatObj`: a threshold-keyed map of scalars printed its braces and quotes
+     into a cell. This copy also joined a WHOLE array with no bound, where the fusion copy takes the
+     first twelve, so one long series could fill the cell before the length cut saw it. */
+  function _oxyRndFlatObj(o) {
+    var keys = Object.keys(o),
+      out = [];
+    for (var i = 0; i < keys.length; i++) {
+      var v = o[keys[i]];
+      if (v == null || v === '') continue;
+      if (typeof v === 'object') return JSON.stringify(o);
+      out.push(keys[i] + ' ' + v);
+    }
+    return out.length ? out.join(' · ') : '—';
+  }
   var body = '';
   GROUPS.forEach(function (g) {
     var rows = '',
@@ -4076,7 +4097,7 @@ function renderResearchMetrics(n) {
         if (v == null || v === '') return;
         if (typeof v === 'object') {
           try {
-            v = Array.isArray(v) ? v.join(' / ') : JSON.stringify(v);
+            v = Array.isArray(v) ? v.slice(0, 12).join(' / ') : _oxyRndFlatObj(v);
           } catch {
             return;
           }
@@ -4096,8 +4117,12 @@ function renderResearchMetrics(n) {
           cls = v === 0 ? 'zero' : v < 0 ? 'warn' : '';
         } else if (typeof v === 'string') {
           // String labels: smaller font to prevent overflow, classify by keyword
+          /* A WORD IS NOT A VERDICT (residue 2026-11-11) — the `oxydex-fusion.js` defect in its
+             second copy: `No significant difference` matched `significant` and painted a null
+             result red. A negation withholds the severe class only. */
           cls = 'lbl';
-          if (/\b(high|severe|abrupt|worsening|critical|significant|leptokurtic)\b/i.test(v)) cls = 'bad lbl';
+          var _negLbl = /\b(?:no|not|never|without|insufficient|non)\b/i.test(v);
+          if (!_negLbl && /\b(high|severe|abrupt|worsening|critical|significant|leptokurtic)\b/i.test(v)) cls = 'bad lbl';
           else if (/\b(low|normal|stable|mild|none|occasional|regular|symmetric|platykurtic)\b/i.test(v)) cls = 'good lbl';
           else if (/\b(moderate|elevated|variable|mixed|early|blunted)\b/i.test(v)) cls = 'warn lbl';
         }
