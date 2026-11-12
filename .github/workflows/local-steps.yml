@@ -210,6 +210,11 @@ jobs:
       # same four plus ten more. Row `2026-11-04-the-hooks-gate-flakes-on-the-worktree-creating-cd-shape`
       # is open against `test:hooks`, and this job carries it anyway: a non-required red costs no bird a
       # round, and a flake that nobody ever sees in CI stays unmeasured.
+      # ⚠ ITS FIRST TWO RUNS RED, AND NOT ON THAT ROW. Both heads printed the same 11 failing legs in
+      # the same order, all in `guard-memory-stale`: that self-test drove the hook with the AMBIENT
+      # home, and a runner holds no memory directory for the hook's own glob to find. Deterministic,
+      # reproducible locally with `env HOME="$(mktemp -d)"`, and fixed 2026-11-12. Read a red here
+      # against the step's own output before reaching for the flake row.
       - name: test:guards
         if: ${{ !cancelled() }}
         run: npm run -s test:guards
