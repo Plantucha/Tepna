@@ -11226,6 +11226,71 @@
          0.86 / 0.86 / 0.858 across its three blocks, so the uplift is unconditional in practice. */
       if (onFires && onFires.blocks && onFires.blocks[0])
         T.ok('§3.4: the always-on leg lifts block conf 0.80 → 0.86 (unconditional uplift)', Math.abs(onFires.blocks[0].conf - 0.86) < 0.003, 'conf=' + onFires.blocks[0].conf);
+
+      /* 2026-11-12 · residue `2026-11-11-pb-finding-ignores-device-scored`. A device that scored this
+         phenomenon and found NONE of it never reached the note, although the note ranks
+         "device-scored" first in its own tier ladder. The dissent now travels beside the observers.
+         Two things are measured here, and the second is the control:
+           · the dissenter appears, with its coverage and whether that coverage held the first episode;
+           · the DECISION does not move — `conf`, `nObservers` and `corroborated` equal the run with no
+             CPAPDex record at all, so adding a scoring-zero device cannot change a verdict. */
+      var cpapZero = function (startMs, durMin, pct, tag) {
+        return A(
+          {
+            schema: { node: 'CPAPDex' },
+            recording: { startEpochMs: startMs, durationMin: durMin, offsetMin: null, sessions: [{ mode: 'CPAP' }] },
+            metrics: { residualAHI: 3, periodicBreathingPct: pct },
+            ganglior_events: []
+          },
+          'CPAPDex',
+          tag
+        );
+      };
+      var pbCtl = FPB(oxy().concat(ecgCvhr(12))),
+        pbLate = FPB(
+          oxy()
+            .concat(ecgCvhr(12))
+            .concat(cpapZero(t0 + 7200000, 360, 0, 'cpap-late.json'))
+        ),
+        pbCov = FPB(
+          oxy()
+            .concat(ecgCvhr(12))
+            .concat(cpapZero(t0, 480, 0, 'cpap-cover.json'))
+        ),
+        pbUns = FPB(
+          oxy()
+            .concat(ecgCvhr(12))
+            .concat(cpapZero(t0, 480, null, 'cpap-unscored.json'))
+        );
+      var bCtl = pbCtl && pbCtl.blocks && pbCtl.blocks[0],
+        bLate = pbLate && pbLate.blocks && pbLate.blocks[0],
+        bCov = pbCov && pbCov.blocks && pbCov.blocks[0],
+        bUns = pbUns && pbUns.blocks && pbUns.blocks[0];
+      T.ok('dissent control: OxyDex + CVHR alone corroborate with no dissenter', !!(bCtl && bCtl.nObservers === 2 && bCtl.nDissenters === 0));
+      T.ok('dissent control: its note carries no coverage clause', !!(bCtl && bCtl.note.indexOf('over its own coverage') < 0));
+      T.ok('a scoring-zero CPAPDex is reported as one dissenter', !!(bLate && bLate.nDissenters === 1 && bLate.dissenters[0].node === 'CPAPDex'));
+      T.eq('the dissenter carries its device tier', bLate && bLate.dissenters[0].tier, 'device-scored');
+      T.eq('the dissenter carries the scored zero itself', bLate && bLate.dissenters[0].pbPct, 0);
+      T.ok('the dissenter is NOT an observer (count unchanged)', !!(bLate && bLate.nObservers === 2 && bLate.corroborated === true));
+      T.eq('the DECISION does not move — conf equals the no-CPAPDex control', bLate && bLate.conf, bCtl && bCtl.conf);
+      T.ok('a coverage starting after the first episode cannot refute it', !!(bLate && bLate.dissenters[0].coversFirstEpisode === false));
+      T.ok('the note states the zero and the coverage it covers', !!(bLate && /scored 0% over its own coverage \(00:00–06:00\)/.test(bLate.note)));
+      T.ok('the note names the first episode it never covered', !!(bLate && bLate.note.indexOf('begins after the first episode at 22:30') > 0));
+      T.ok('a device that DID cover the first episode dissents outright', !!(bCov && bCov.dissenters[0].coversFirstEpisode === true && bCov.note.indexOf('DISSENTS') > 0));
+      T.eq('∅ an UNSCORED periodicBreathingPct is not a dissent', bUns && bUns.nDissenters, 0);
+      T.eq('∅ and the unscored night reads exactly like the control', bUns && bUns.note, bCtl && bCtl.note);
+      if (typeof RF === 'function') {
+        var fusD = RF(
+          oxy()
+            .concat(ecgCvhr(12))
+            .concat(cpapZero(t0 + 7200000, 360, 0, 'cpap-late-rf.json')),
+          { toleranceSec: 120 }
+        );
+        var findD = (fusD.findings || []).filter(function (f) {
+          return f.type === 'periodic_breathing';
+        })[0];
+        T.ok('the finding meta carries the dissenter (hand-written projection)', !!(findD && findD.meta.nDissenters === 1 && findD.meta.dissenters[0].node === 'CPAPDex'));
+      }
     });
 
     /* ∅ · THE INTEGRATOR SUBSTITUTED A NUMBER FOR AN ABSENT EVENT CONFIDENCE, in the fusion and
