@@ -434,11 +434,11 @@
       '<button class="eb-btn eb-csv" type="button" id="csvBtn">⬇ CSV</button>' +
       '<button class="eb-btn eb-pdf" type="button" id="pdfBtn">⬇ PDF</button>' +
       '<span class="eb-div"></span>' +
-      '<button class="eb-btn eb-ghost" type="button" id="copyBtn">⧉ Copy JSON</button>' +
+      '<button class="eb-btn eb-ghost" type="button" id="copyBtn">Copy JSON</button>' +
       '</div>' +
       '<span class="eb-spacer"></span>' +
       '<div class="eb-grp">' +
-      '<button class="eb-btn eb-ghost" type="button" id="addFilesBtn">＋ Add files</button>' +
+      '<button class="eb-btn eb-ghost" type="button" id="addFilesBtn">+ Add files</button>' +
       '<button class="eb-btn eb-danger" type="button" id="clearAllBtn">✕ Clear</button>' +
       '</div>';
     $('exportBtn').addEventListener('click', exportFusion);
