@@ -28,7 +28,7 @@ node tools/repo-map.mjs --write                                    # write the m
 
 A hit names its file and its lines, as `oxydex-dsp.js:4605-4620`.
 A code hit also names the function that holds it, as `· computeDesaturationProfile`.
-A hit without lines comes from an index that the hourly reload has not refilled yet.
+A hit without lines comes from an index that the nightly rebuild has not refilled yet.
 
 Under the hits, one repo-map line per code file names what that file declares and exposes.
 The two sets differ, and the gap is where a session loses time.
