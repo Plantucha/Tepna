@@ -46,6 +46,18 @@
  * different mechanism. Each hook must have a `<name>.test.sh` beside it, and that file must appear
  * in the chain.
  *
+ * THE CHAIN RUNS UNDER A FIXTURE HOME, and that line is load-bearing rather than hygiene. Six hooks
+ * read `$HOME`, and `guard-memory-stale.sh` globs every `memory` directory under
+ * `$HOME/.claude/projects` and exits 0 when
+ * nothing matches. This box holds that directory and a CI runner does not, so a self-test that drives
+ * a hook with the AMBIENT home judges a different environment on each. So `package.json` points
+ * `HOME` at a fresh `mktemp -d` for the whole chain, which is the runner's own shape, and it removes
+ * that directory afterwards. Measured 2026-11-12 over all 14 chain entries, real home against fixture
+ * home: identical exit codes and identical leg counts, 615 legs either way, so the isolation drops no
+ * assertion. The class it exposes already red three hosted heads at `test:hooks` — jobs on #4946,
+ * #4949 and #4951, 11 legs each, none of which this box could reproduce until someone scrubbed the
+ * one variable the hook reads.
+ *
  * NOT CHECKED HERE. Whether a hook's verdict is correct, and whether its self-test asserts the right
  * things. That is the self-test's own job and `test:hooks` runs it. This gate checks only that a
  * hook reads what it was handed, and that somebody runs its test.
