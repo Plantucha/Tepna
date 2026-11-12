@@ -181,6 +181,23 @@
       'timing',
       'validity',
       'clockSeamScan',
+      /* THE PER-SEGMENT OFFSET DETAIL (declared 2026-11-12 for row
+         `2026-11-12-the-allow-list-drops-the-ppg-offset-segmentation`). This is the one per-seam
+         DETAIL list the 2026-11-09 comment above holds back, and it is declared now because the
+         measurement that comment waited for exists. Two folds at `2caee6fcd` wrote 16 node-exports
+         over 8 nights, and 15 of the 16 name `recording.offsetSegments` in `scrubDropped`; the 16th
+         is the control, a ring rail at one segment that takes the whole-file path and publishes no
+         array (`VERITY-SEAM-REFOLD-FOLLOWUPS-2026-10-28-BRIEF.md` §5.1). #4070 published the field
+         so a reader could tell a night corrected per segment from a night corrected by one rate, and
+         the scrub deleted that answer from every scrubbed export.
+         EVERY ONE OF THE TEN EXPORTED KEYS MEETS THE CRITERION THAT COMMENT STATES — a count, a
+         rate, an enum or an authored sentence: `fromDevMs`/`toDevMs` are DEVICE-counter positions and
+         carry no wall clock, `anchors`/`spanS` are counts, `flatOffsetMs`/`residualRmsMs`/`jitterMs`/
+         `ppm` are measurements, `rate` is an enum, and `rateReason` is built in
+         `ppgdex-dsp.js` from numbers and named constants alone, so it holds no path and no serial.
+         `clockSeams` and `clockSeamRefusals` stay undeclared: this declaration rests on a corpus
+         measurement of THIS field, and neither of those has one. */
+      'offsetSegments',
       'deviceEpoch',
       'unit',
       'sourceUnit',
