@@ -169,7 +169,7 @@ def stalled_protection(
     files keep fresh (`_BOX_DERIVED`, see `_newest_any_mtime`) is held there but gets no row here. That
     hold ends at `settle_sec`, so it costs nothing.
 
-    One row per night, oldest settled first: `{night, data_age_sec, any_age_sec}`. A night qualifies
+    One row per night, oldest settled first: `{night, data_age_sec, any_age_sec, writers}`. A night qualifies
     when all three hold — its device data exists and settled (`data_age_sec >= settle_sec`), something
     else in the folder is still fresh (`any_age_sec < settle_sec`), and the data has been settled past
     `stall_after_sec`. That is the shape of the measured defect: a lone periodic writer, every device
@@ -197,6 +197,7 @@ def stalled_protection(
         try:
             newest = _newest(d)
             any_m = _newest_any_mtime(d)
+            writers = _fresh_files(d, now - settle_sec)
         except OSError:
             continue  # unreadable is not evidence of a stall — copy_blocked_nights holds it instead
         if newest is None or any_m is None:
@@ -204,7 +205,7 @@ def stalled_protection(
         data_age = now - newest
         any_age = now - any_m
         if data_age >= settle_sec and any_age < settle_sec and data_age > stall_after_sec and phase(d, now) == "closed":
-            rows.append({"night": n, "data_age_sec": data_age, "any_age_sec": any_age})
+            rows.append({"night": n, "data_age_sec": data_age, "any_age_sec": any_age, "writers": writers})
     rows.sort(key=lambda r: -r["data_age_sec"])
     return rows
 
@@ -255,6 +256,22 @@ def _newest_any_mtime(night_dir: str) -> float | None:
             if newest is None or m > newest:
                 newest = m
     return newest
+
+
+def _fresh_files(night_dir: str, since: float) -> list[str]:
+    """The names of the files directly in `night_dir` written after `since`, sorted.
+
+    The box's own verdict files (`_BOX_DERIVED`) do not count, the same rule as `_newest_any_mtime`. A
+    stall row carries these names, so its alert names the writer that holds the night open. Until
+    2026-11-11 the alert named no file, and each one cost a search of the folder by hand."""
+    out = []
+    for f in sorted(os.listdir(night_dir)):
+        if f in _BOX_DERIVED:
+            continue
+        p = os.path.join(night_dir, f)
+        if os.path.isfile(p) and os.path.getmtime(p) > since:
+            out.append(f)
+    return out
 
 
 def pending_nights(captures_dir: str, active: "str | set[str]", marker: str = _MARKER) -> list[str]:
