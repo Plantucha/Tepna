@@ -1116,6 +1116,7 @@
           "mean": 45.54,
           "sd": 7,
           "zLatest": -0.08,
+          "zSaturated": false,
           "flag": null
         }
       },
@@ -1162,6 +1163,7 @@
           "mean": 90.8,
           "sd": 13.6,
           "zLatest": -0.06,
+          "zSaturated": false,
           "flag": null
         }
       },
@@ -1208,6 +1210,7 @@
           "mean": 61.42,
           "sd": 2.1,
           "zLatest": -0.2,
+          "zSaturated": false,
           "flag": null
         }
       },
@@ -1254,6 +1257,7 @@
           "mean": 26.32,
           "sd": 5.8,
           "zLatest": -0.23,
+          "zSaturated": false,
           "flag": null
         }
       },
@@ -1300,6 +1304,7 @@
           "mean": 56.02,
           "sd": 3.6,
           "zLatest": -0.01,
+          "zSaturated": false,
           "flag": null
         }
       }

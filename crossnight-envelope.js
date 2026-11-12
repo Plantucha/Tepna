@@ -106,7 +106,14 @@
       const M = metrics[m.id];
       if (!M) return;
       const z = M.baseline && M.baseline.zLatest;
-      if (z != null && Math.abs(z) >= DexKernel.K.Z_HEADLINE) cand.push({ score: Math.abs(z), txt: `${m.label} ${z > 0 ? '+' : ''}${z}σ vs your ${M.n}-night baseline` });
+      if (z != null && Math.abs(z) >= DexKernel.K.Z_HEADLINE) {
+        /* §∅ — AT the clamp bound the published z is a FLOOR on |z|, not the ratio (residue
+           `2026-11-11-crossnight-z-prints-a-saturated-clamp`). A headline callout is the loudest
+           surface in the envelope, so it carries the inequality rather than a bare sigma. */
+        const zSat = !!(M.baseline && M.baseline.zSaturated);
+        const zTxt = zSat ? (z > 0 ? '≥ +' : '≤ −') + Math.abs(z) : (z > 0 ? '+' : '') + z;
+        cand.push({ score: Math.abs(z), txt: `${m.label} ${zTxt}σ vs your ${M.n}-night baseline` });
+      }
       if (M.change && M.change.significant)
         cand.push({
           score: 2.0 + Math.abs(M.change.deltaFirstHalfToSecond || 0) / 10,
@@ -192,6 +199,9 @@
         mean: _safe(st.baselineMean),
         sd: _safe(st.baselineSd),
         zLatest: st.zLatest != null ? st.zLatest : null,
+        // §∅ — the projection above is HAND-PICKED, so the saturation flag is invisible to every
+        // export consumer until it is named here beside the number it qualifies.
+        zSaturated: !!st.zSaturated,
         flag: zFlag
       }
     };

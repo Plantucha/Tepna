@@ -72,6 +72,7 @@
           "mean": 24,
           "sd": 0,
           "zLatest": 0,
+          "zSaturated": false,
           "flag": null
         }
       },
@@ -111,6 +112,7 @@
           "mean": 0.17,
           "sd": 0,
           "zLatest": 0,
+          "zSaturated": false,
           "flag": null
         }
       },
@@ -150,6 +152,7 @@
           "mean": 0,
           "sd": 0,
           "zLatest": 0,
+          "zSaturated": false,
           "flag": null
         }
       },
@@ -189,6 +192,7 @@
           "mean": 6,
           "sd": 0,
           "zLatest": 0,
+          "zSaturated": false,
           "flag": null
         }
       },
@@ -228,6 +232,7 @@
           "mean": 6,
           "sd": 0,
           "zLatest": 0,
+          "zSaturated": false,
           "flag": null
         }
       },
@@ -267,6 +272,7 @@
           "mean": 20,
           "sd": 0,
           "zLatest": 0,
+          "zSaturated": false,
           "flag": null
         }
       }

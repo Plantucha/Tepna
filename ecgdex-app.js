@@ -2445,9 +2445,11 @@ self.onmessage = async (e) => {
         '<td class="mono"><span class="cn-z ' +
         zCol +
         '">' +
-        (st.zLatest == null ? '—' : (st.zLatest > 0 ? '+' : '') + st.zLatest + 'σ') +
+        // ∅ — AT the clamp bound the z is a FLOOR on |z|, not a sigma (residue `2026-11-11-crossnight-z-prints-a-saturated-clamp`), so the card prints the inequality.
+        (st.zLatest == null ? '—' : (st.zSaturated ? (st.zLatest > 0 ? '≥ +' : '≤ −') + Math.abs(st.zLatest) : (st.zLatest > 0 ? '+' : '') + st.zLatest) + 'σ') +
         '</span></td></tr>';
-      if (st.zLatest != null && Math.abs(st.zLatest) >= DexKernel.K.Z_HEADLINE) headline.push(m.label + ' ' + (st.zLatest > 0 ? '+' : '') + st.zLatest + 'σ vs your ' + st.n + '-night baseline');
+      if (st.zLatest != null && Math.abs(st.zLatest) >= DexKernel.K.Z_HEADLINE)
+        headline.push(m.label + ' ' + (st.zSaturated ? (st.zLatest > 0 ? '≥ +' : '≤ −') + Math.abs(st.zLatest) : (st.zLatest > 0 ? '+' : '') + st.zLatest) + 'σ vs your ' + st.n + '-night baseline');
       if (st.ci && (st.ci[0] > 0 || st.ci[1] < 0) && st.n >= 7) headline.push(m.label + ' shifted ' + (st.deltaHalves > 0 ? '+' : '') + st.deltaHalves + m.unit + ' (95% CI excludes 0)');
     });
     $('crossNightTable').innerHTML =

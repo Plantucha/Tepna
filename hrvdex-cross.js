@@ -174,7 +174,21 @@
     const good = opts.good || 'up';
     const pts = series.filter((p) => p.v != null && isFinite(p.v));
     const n = pts.length;
-    if (n < 2) return { n, mean: n ? r2(pts[0].v) : null, sd: null, cv: null, slopePerDay: null, slopePerRecording: null, slopeBasis: null, tau: null, p: null, zLatest: null, trendLabel: '—' };
+    if (n < 2)
+      return {
+        n,
+        mean: n ? r2(pts[0].v) : null,
+        sd: null,
+        cv: null,
+        slopePerDay: null,
+        slopePerRecording: null,
+        slopeBasis: null,
+        tau: null,
+        p: null,
+        zLatest: null,
+        zSaturated: false,
+        trendLabel: '—'
+      };
     const vals = pts.map((p) => p.v),
       w = pts.map((p) => (p.w != null ? p.w : 1));
     const idx = pts.map((p, i) => i);
@@ -212,6 +226,7 @@
     const mk = mannKendall(vals);
     // personal baseline = mean±SD of all-but-latest; z of latest
     let zLatest = null;
+    let zSaturated = false;
     let baselineMean = null,
       baselineSd = null;
     if (n >= 3) {
@@ -234,7 +249,19 @@
       baselineSd = r1(psFloor);
       let z = (vals[n - 1] - pm) / psFloor;
       if (!isFinite(z)) z = 0;
-      zLatest = r2(Math.max(-20, Math.min(20, z)));
+      /* A SATURATED BOUND IS NOT A MEASUREMENT (residue
+         `2026-11-11-crossnight-z-prints-a-saturated-clamp`). The clamp above is a DISPLAY guard, so
+         AT the bound the published number stops being the ratio it names: three steady recordings
+         (52.0, 52.1, 52.0 ms) plus one 94.0 ms fragment give `baselineSd` 0.1 and `zLatest` exactly
+         20, where the true ratio is about 890. §∅ forbids presenting that bound as a measured sigma.
+         It equally forbids `null` here, because the saturation IS the finding and an em dash would
+         drop the largest divergence on the card. So the bounded number stays and `zSaturated` tells
+         every consumer the number is a FLOOR on |z|, never an estimate of it. The surfaces print it
+         as "≥", and the projection in `crossnight-envelope.js` is hand-picked, so the field is
+         invisible to the export until it is named there too. */
+      const Z_SAT = 20;
+      zSaturated = Math.abs(z) > Z_SAT;
+      zLatest = r2(Math.max(-Z_SAT, Math.min(Z_SAT, z)));
     }
     // significance
     const boot = bootstrapDeltaCI(vals);
@@ -278,6 +305,7 @@
       p: mk.p,
       trendDirDisagree: dirDisagree, // §9.3 — OLS slope and Mann-Kendall τ point opposite ways (endpoint leverage)
       zLatest,
+      zSaturated,
       baselineMean,
       baselineSd,
       deltaHalves: boot.delta,

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="c57ba93462b1" data-compute-hash="1f3f5ca5cab7"><head>
+<html lang="en" data-manifest-hash="a2e68715e4bd" data-compute-hash="43633c4cf506"><head>
 <!--
   Data Unifier.html — Tepna
   Copyright 2026 Michal Planicka
@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8/sH7B7wN4nDqz11oZWLoOg8SkSuIQF0L4F7Nz3oxk8=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DkJMIke/oeAn5D/73OWQ4sM6DEkOlbGJANo7P3FHILA=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HAXbchwkH2w0sxN5WvjWCMLbxsfGGclNPzL9K/ePBeM=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-Ow3WC+A7bU/F/dZPsKQ/TOo3nkpdBJCA7jtrQ24dPug=' 'sha256-R6Dc/xXQzYFveWsVfbGSg8lpp98pG2dIwLNGGu4Pc04=' 'sha256-RL5agm0jO+OAF4uwgIkvU/TYyrFDJF4flIvpopkODeQ=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-XkCJjtofRC8yuzIDQ1Ofcdj/kJnYaArgcSmrDj/MoAc=' 'sha256-fP8yqQORrq1gqNXH4KGQ0Fx5gvu4FNAsDQUJB31fcLw=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-msTW+K3Nr8EkBLtJ3IUeMa89XET152+xpGXg/z9u8v0=' 'sha256-oH7lhnTrlkQhQ9f9PuKw7Wwq8UnyptMMWqHMeBGouU8=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-uS0BO9FA6T7Ej0PgYdFgmhKAD7wWWUv6IRvThTzY6lc=' 'sha256-wK9fP+fYfi661IypDOgrAoxGZS8mGJfe9l/9288cTZQ=' 'sha256-yJI159rOoEVhsTIsuQRFR32KBOQL/8y6f7F2zWeQpF4=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HAXbchwkH2w0sxN5WvjWCMLbxsfGGclNPzL9K/ePBeM=' 'sha256-IDeAYFC+myKzaJhU+jd20soVrwGAVcq7iM1mIVcFTwM=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-IikqYxHC3BIwGwBPFp8Jp5IDGx29Y8y9PXhJvfwvHfM=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-Ow3WC+A7bU/F/dZPsKQ/TOo3nkpdBJCA7jtrQ24dPug=' 'sha256-R6Dc/xXQzYFveWsVfbGSg8lpp98pG2dIwLNGGu4Pc04=' 'sha256-RL5agm0jO+OAF4uwgIkvU/TYyrFDJF4flIvpopkODeQ=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-XkCJjtofRC8yuzIDQ1Ofcdj/kJnYaArgcSmrDj/MoAc=' 'sha256-c0L2fP9KS+dZLG2AaH4LfdLnwpVfCWVH+gyyUn5L7Pc=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-msTW+K3Nr8EkBLtJ3IUeMa89XET152+xpGXg/z9u8v0=' 'sha256-oH7lhnTrlkQhQ9f9PuKw7Wwq8UnyptMMWqHMeBGouU8=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-uS0BO9FA6T7Ej0PgYdFgmhKAD7wWWUv6IRvThTzY6lc=' 'sha256-wK9fP+fYfi661IypDOgrAoxGZS8mGJfe9l/9288cTZQ=' 'sha256-yJI159rOoEVhsTIsuQRFR32KBOQL/8y6f7F2zWeQpF4=' 'sha256-yS5frs7FO4HDqcSuAYI4rtjm7+gtWKSEozKGWUwHA/4=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -15171,7 +15171,14 @@ __exports.OxyDex = window.OxyDex;
       const M = metrics[m.id];
       if (!M) return;
       const z = M.baseline && M.baseline.zLatest;
-      if (z != null && Math.abs(z) >= DexKernel.K.Z_HEADLINE) cand.push({ score: Math.abs(z), txt: `${m.label} ${z > 0 ? '+' : ''}${z}σ vs your ${M.n}-night baseline` });
+      if (z != null && Math.abs(z) >= DexKernel.K.Z_HEADLINE) {
+        /* §∅ — AT the clamp bound the published z is a FLOOR on |z|, not the ratio (residue
+           `2026-11-11-crossnight-z-prints-a-saturated-clamp`). A headline callout is the loudest
+           surface in the envelope, so it carries the inequality rather than a bare sigma. */
+        const zSat = !!(M.baseline && M.baseline.zSaturated);
+        const zTxt = zSat ? (z > 0 ? '≥ +' : '≤ −') + Math.abs(z) : (z > 0 ? '+' : '') + z;
+        cand.push({ score: Math.abs(z), txt: `${m.label} ${zTxt}σ vs your ${M.n}-night baseline` });
+      }
       if (M.change && M.change.significant)
         cand.push({
           score: 2.0 + Math.abs(M.change.deltaFirstHalfToSecond || 0) / 10,
@@ -15257,6 +15264,9 @@ __exports.OxyDex = window.OxyDex;
         mean: _safe(st.baselineMean),
         sd: _safe(st.baselineSd),
         zLatest: st.zLatest != null ? st.zLatest : null,
+        // §∅ — the projection above is HAND-PICKED, so the saturation flag is invisible to every
+        // export consumer until it is named here beside the number it qualifies.
+        zSaturated: !!st.zSaturated,
         flag: zFlag
       }
     };
@@ -15525,7 +15535,21 @@ __exports.OxyDex = window.OxyDex;
     const good = opts.good || 'up';
     const pts = series.filter((p) => p.v != null && isFinite(p.v));
     const n = pts.length;
-    if (n < 2) return { n, mean: n ? r2(pts[0].v) : null, sd: null, cv: null, slopePerDay: null, slopePerRecording: null, slopeBasis: null, tau: null, p: null, zLatest: null, trendLabel: '—' };
+    if (n < 2)
+      return {
+        n,
+        mean: n ? r2(pts[0].v) : null,
+        sd: null,
+        cv: null,
+        slopePerDay: null,
+        slopePerRecording: null,
+        slopeBasis: null,
+        tau: null,
+        p: null,
+        zLatest: null,
+        zSaturated: false,
+        trendLabel: '—'
+      };
     const vals = pts.map((p) => p.v),
       w = pts.map((p) => (p.w != null ? p.w : 1));
     const idx = pts.map((p, i) => i);
@@ -15563,6 +15587,7 @@ __exports.OxyDex = window.OxyDex;
     const mk = mannKendall(vals);
     // personal baseline = mean±SD of all-but-latest; z of latest
     let zLatest = null;
+    let zSaturated = false;
     let baselineMean = null,
       baselineSd = null;
     if (n >= 3) {
@@ -15585,7 +15610,19 @@ __exports.OxyDex = window.OxyDex;
       baselineSd = r1(psFloor);
       let z = (vals[n - 1] - pm) / psFloor;
       if (!isFinite(z)) z = 0;
-      zLatest = r2(Math.max(-20, Math.min(20, z)));
+      /* A SATURATED BOUND IS NOT A MEASUREMENT (residue
+         `2026-11-11-crossnight-z-prints-a-saturated-clamp`). The clamp above is a DISPLAY guard, so
+         AT the bound the published number stops being the ratio it names: three steady recordings
+         (52.0, 52.1, 52.0 ms) plus one 94.0 ms fragment give `baselineSd` 0.1 and `zLatest` exactly
+         20, where the true ratio is about 890. §∅ forbids presenting that bound as a measured sigma.
+         It equally forbids `null` here, because the saturation IS the finding and an em dash would
+         drop the largest divergence on the card. So the bounded number stays and `zSaturated` tells
+         every consumer the number is a FLOOR on |z|, never an estimate of it. The surfaces print it
+         as "≥", and the projection in `crossnight-envelope.js` is hand-picked, so the field is
+         invisible to the export until it is named there too. */
+      const Z_SAT = 20;
+      zSaturated = Math.abs(z) > Z_SAT;
+      zLatest = r2(Math.max(-Z_SAT, Math.min(Z_SAT, z)));
     }
     // significance
     const boot = bootstrapDeltaCI(vals);
@@ -15629,6 +15666,7 @@ __exports.OxyDex = window.OxyDex;
       p: mk.p,
       trendDirDisagree: dirDisagree, // §9.3 — OLS slope and Mann-Kendall τ point opposite ways (endpoint leverage)
       zLatest,
+      zSaturated,
       baselineMean,
       baselineSd,
       deltaHalves: boot.delta,
@@ -15907,7 +15945,21 @@ __exports.OxyDex = window.OxyDex;
     const good = opts.good || 'up';
     const pts = series.filter((p) => p.v != null && isFinite(p.v));
     const n = pts.length;
-    if (n < 2) return { n, mean: n ? r2(pts[0].v) : null, sd: null, cv: null, slopePerDay: null, slopePerRecording: null, slopeBasis: null, tau: null, p: null, zLatest: null, trendLabel: '—' };
+    if (n < 2)
+      return {
+        n,
+        mean: n ? r2(pts[0].v) : null,
+        sd: null,
+        cv: null,
+        slopePerDay: null,
+        slopePerRecording: null,
+        slopeBasis: null,
+        tau: null,
+        p: null,
+        zLatest: null,
+        zSaturated: false,
+        trendLabel: '—'
+      };
     const vals = pts.map((p) => p.v),
       w = pts.map((p) => (p.w != null ? p.w : 1));
     const idx = pts.map((p, i) => i);
@@ -15945,6 +15997,7 @@ __exports.OxyDex = window.OxyDex;
     const mk = mannKendall(vals);
     // personal baseline = mean±SD of all-but-latest; z of latest
     let zLatest = null;
+    let zSaturated = false;
     let baselineMean = null,
       baselineSd = null;
     if (n >= 3) {
@@ -15967,7 +16020,19 @@ __exports.OxyDex = window.OxyDex;
       baselineSd = r1(psFloor);
       let z = (vals[n - 1] - pm) / psFloor;
       if (!isFinite(z)) z = 0;
-      zLatest = r2(Math.max(-20, Math.min(20, z)));
+      /* A SATURATED BOUND IS NOT A MEASUREMENT (residue
+         `2026-11-11-crossnight-z-prints-a-saturated-clamp`). The clamp above is a DISPLAY guard, so
+         AT the bound the published number stops being the ratio it names: three steady recordings
+         (52.0, 52.1, 52.0 ms) plus one 94.0 ms fragment give `baselineSd` 0.1 and `zLatest` exactly
+         20, where the true ratio is about 890. §∅ forbids presenting that bound as a measured sigma.
+         It equally forbids `null` here, because the saturation IS the finding and an em dash would
+         drop the largest divergence on the card. So the bounded number stays and `zSaturated` tells
+         every consumer the number is a FLOOR on |z|, never an estimate of it. The surfaces print it
+         as "≥", and the projection in `crossnight-envelope.js` is hand-picked, so the field is
+         invisible to the export until it is named there too. */
+      const Z_SAT = 20;
+      zSaturated = Math.abs(z) > Z_SAT;
+      zLatest = r2(Math.max(-Z_SAT, Math.min(Z_SAT, z)));
     }
     // significance
     const boot = bootstrapDeltaCI(vals);
@@ -16011,6 +16076,7 @@ __exports.OxyDex = window.OxyDex;
       p: mk.p,
       trendDirDisagree: dirDisagree, // §9.3 — OLS slope and Mann-Kendall τ point opposite ways (endpoint leverage)
       zLatest,
+      zSaturated,
       baselineMean,
       baselineSd,
       deltaHalves: boot.delta,
@@ -16296,7 +16362,21 @@ __exports.OxyDex = window.OxyDex;
     const good = opts.good || 'up';
     const pts = series.filter((p) => p.v != null && isFinite(p.v));
     const n = pts.length;
-    if (n < 2) return { n, mean: n ? r2(pts[0].v) : null, sd: null, cv: null, slopePerDay: null, slopePerRecording: null, slopeBasis: null, tau: null, p: null, zLatest: null, trendLabel: '—' };
+    if (n < 2)
+      return {
+        n,
+        mean: n ? r2(pts[0].v) : null,
+        sd: null,
+        cv: null,
+        slopePerDay: null,
+        slopePerRecording: null,
+        slopeBasis: null,
+        tau: null,
+        p: null,
+        zLatest: null,
+        zSaturated: false,
+        trendLabel: '—'
+      };
     const vals = pts.map((p) => p.v),
       w = pts.map((p) => (p.w != null ? p.w : 1));
     const idx = pts.map((p, i) => i);
@@ -16334,6 +16414,7 @@ __exports.OxyDex = window.OxyDex;
     const mk = mannKendall(vals);
     // personal baseline = mean±SD of all-but-latest; z of latest
     let zLatest = null;
+    let zSaturated = false;
     let baselineMean = null,
       baselineSd = null;
     if (n >= 3) {
@@ -16356,7 +16437,19 @@ __exports.OxyDex = window.OxyDex;
       baselineSd = r1(psFloor);
       let z = (vals[n - 1] - pm) / psFloor;
       if (!isFinite(z)) z = 0;
-      zLatest = r2(Math.max(-20, Math.min(20, z)));
+      /* A SATURATED BOUND IS NOT A MEASUREMENT (residue
+         `2026-11-11-crossnight-z-prints-a-saturated-clamp`). The clamp above is a DISPLAY guard, so
+         AT the bound the published number stops being the ratio it names: three steady recordings
+         (52.0, 52.1, 52.0 ms) plus one 94.0 ms fragment give `baselineSd` 0.1 and `zLatest` exactly
+         20, where the true ratio is about 890. §∅ forbids presenting that bound as a measured sigma.
+         It equally forbids `null` here, because the saturation IS the finding and an em dash would
+         drop the largest divergence on the card. So the bounded number stays and `zSaturated` tells
+         every consumer the number is a FLOOR on |z|, never an estimate of it. The surfaces print it
+         as "≥", and the projection in `crossnight-envelope.js` is hand-picked, so the field is
+         invisible to the export until it is named there too. */
+      const Z_SAT = 20;
+      zSaturated = Math.abs(z) > Z_SAT;
+      zLatest = r2(Math.max(-Z_SAT, Math.min(Z_SAT, z)));
     }
     // significance
     const boot = bootstrapDeltaCI(vals);
@@ -16400,6 +16493,7 @@ __exports.OxyDex = window.OxyDex;
       p: mk.p,
       trendDirDisagree: dirDisagree, // §9.3 — OLS slope and Mann-Kendall τ point opposite ways (endpoint leverage)
       zLatest,
+      zSaturated,
       baselineMean,
       baselineSd,
       deltaHalves: boot.delta,
