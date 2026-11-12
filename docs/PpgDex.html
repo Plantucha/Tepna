@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="af317b916ff3" data-compute-hash="449873547441">
+<html lang="en" data-manifest-hash="01f29cdb0ffe" data-compute-hash="54b7dfb4d2fd">
 <head>
 <!--
   PpgDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-3IUQgcSOji2CeRMbcMgIbQ+j+8z6+T9s9DeZGqBO7KA=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DPgRvPDMmeqNwFLbH0km8C0jbh81Xjr+Q2hfM5sNLzU=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QU1eFIpXtk89h7OawHFWXJry6pEr0cw5i0Q08kGZz88=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-R6Dc/xXQzYFveWsVfbGSg8lpp98pG2dIwLNGGu4Pc04=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-W+rK8y+1cYa6Z+X29oFEt18aIuLICrAQUkCSrqlVGKE=' 'sha256-a30wD1q1DhXb/hp/9CiNJnGcfilKag1nrqd5UVk34sw=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-jzJnte+elEp/YL/dKPBjUNceuZl7x6OYEPLRBoCkuNA=' 'sha256-mBYm62Y+mqnhe5DkYNAGu2bkZmIfXpkUo6noIaU/RzM=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rCirk2YDG5hFUST54QihtO4S/eA0Q5IdiVoSV+cCE9U=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-3IUQgcSOji2CeRMbcMgIbQ+j+8z6+T9s9DeZGqBO7KA=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4xeovKy/37dzXDmajtr4Ae0aJgg9NnkfzRmsahDqGZM=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QU1eFIpXtk89h7OawHFWXJry6pEr0cw5i0Q08kGZz88=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-R6Dc/xXQzYFveWsVfbGSg8lpp98pG2dIwLNGGu4Pc04=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-W+rK8y+1cYa6Z+X29oFEt18aIuLICrAQUkCSrqlVGKE=' 'sha256-a30wD1q1DhXb/hp/9CiNJnGcfilKag1nrqd5UVk34sw=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-jzJnte+elEp/YL/dKPBjUNceuZl7x6OYEPLRBoCkuNA=' 'sha256-msTW+K3Nr8EkBLtJ3IUeMa89XET152+xpGXg/z9u8v0=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-v0zUUidz3ZpKARZah/Y5RH1lLh3adFGOurcT6Bez7zM=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>PpgDex — Raw Wrist-PPG Analyzer · v2.31.0</title>
@@ -12493,26 +12493,39 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       totalFull = 0; // full-support total — the Parseval denominator
     for (let f = fmin; f <= fCal; f += df) {
       const w = 2 * Math.PI * f;
+      /* ONE PASS PER BIN. `sin(2wt)` and `cos(2wt)` come from the double-angle identities on the
+         same `sin(wt)`/`cos(wt)` this loop already needs, and the tau-shifted sums come back from the
+         angle-difference identities after the loop. So the bin costs two trig calls per sample
+         instead of four, over one pass instead of two. The algebra is exact, so only the last bits of
+         the sums move. Residue 2026-11-08-lomb-scargle-makes-two-trig-passes-per-bin-and-sample. */
       let ss = 0,
-        sc = 0;
+        sc = 0,
+        yC = 0,
+        yS = 0,
+        ccSum = 0,
+        ssSum = 0,
+        scSum = 0;
       for (let i = 0; i < t.length; i++) {
-        ss += Math.sin(2 * w * t[i]);
-        sc += Math.cos(2 * w * t[i]);
+        const wt0 = w * t[i],
+          cw0 = Math.cos(wt0),
+          sw0 = Math.sin(wt0);
+        ss += 2 * sw0 * cw0; // sin(2wt)
+        sc += cw0 * cw0 - sw0 * sw0; // cos(2wt)
+        yC += y[i] * cw0;
+        yS += y[i] * sw0;
+        ccSum += cw0 * cw0;
+        ssSum += sw0 * sw0;
+        scSum += sw0 * cw0;
       }
       const tau = Math.atan2(ss, sc) / (2 * w);
-      let c1 = 0,
-        c2 = 0,
-        s1 = 0,
-        s2 = 0;
-      for (let i = 0; i < t.length; i++) {
-        const wt = w * (t[i] - tau);
-        const co = Math.cos(wt),
-          si = Math.sin(wt);
-        c1 += y[i] * co;
-        c2 += co * co;
-        s1 += y[i] * si;
-        s2 += si * si;
-      }
+      /* cos(w(t - tau)) = cos(wt)*ct + sin(wt)*st and sin(w(t - tau)) = sin(wt)*ct - cos(wt)*st,
+         which turns the four shifted sums into products of the unshifted ones. */
+      const ct = Math.cos(w * tau),
+        st = Math.sin(w * tau);
+      const c1 = ct * yC + st * yS,
+        s1 = ct * yS - st * yC,
+        c2 = ct * ct * ccSum + 2 * ct * st * scSum + st * st * ssSum,
+        s2 = ct * ct * ssSum - 2 * ct * st * scSum + st * st * ccSum;
       const P = 0.5 * ((c1 * c1) / (c2 || 1e-9) + (s1 * s1) / (s2 || 1e-9));
       const pw = P * df;
       totalFull += pw; // every evaluated bin — the Parseval denominator
@@ -18911,14 +18924,20 @@ __exports.PPGUI = window.PPGUI;
   function personalize(r) {
     const p = getProfile();
     const tanaka = Math.round(208 - 0.7 * p.age);
-    let autoRHR = Math.round(r.dispHr);
+    // §∅: a session too short to yield a pulse rate or an rMSSD (a few-pulse fragment) leaves dispHr /
+    // dispRm absent. Math.round(undefined) and Math.log(Math.max(1, undefined)) are NaN, and NaN passes
+    // every `!= null` test downstream, so the hero, the KPI cards and the shared detected tier all
+    // printed "NaN". An absent input now yields null outputs and publishes nothing.
+    const hrOk = Number.isFinite(r.dispHr),
+      rmOk = Number.isFinite(r.dispRm);
+    let autoRHR = hrOk ? Math.round(r.dispHr) : null;
     const rhrEff = p.rhr > 0 ? p.rhr : autoRHR;
     const hrmaxValid = p.hrmax > 0 && p.hrmax >= 140 && p.hrmax > rhrEff + 45;
     const hrmaxEff = hrmaxValid ? Math.round(p.hrmax) : tanaka;
     const altF = altVO2Factor(p.elev);
-    const lnrm = Math.log(Math.max(1, r.dispRm));
-    const vo2b = +(vo2Base(rhrEff, hrmaxEff) * altF).toFixed(1);
-    const vo2a = +vo2Adj(vo2b, lnrm).toFixed(1);
+    const lnrm = rmOk ? Math.log(Math.max(1, r.dispRm)) : null;
+    const vo2b = rhrEff > 0 ? +(vo2Base(rhrEff, hrmaxEff) * altF).toFixed(1) : null;
+    const vo2a = vo2b != null && lnrm != null ? +vo2Adj(vo2b, lnrm).toFixed(1) : null;
     Object.assign(r, {
       profile: p,
       tanaka,
@@ -18931,13 +18950,13 @@ __exports.PPGUI = window.PPGUI;
       vo2adj: vo2a,
       vo2gt: p.vo2gt > 0 ? p.vo2gt : null,
       cpapInUse: p.cpap,
-      hrvScore: hrvScore(r.dispRm),
+      hrvScore: rmOk ? hrvScore(r.dispRm) : null,
       expRmssd: expectedRmssd(p.age),
       expRHR: expectedRHR(p.age)
     });
     // Publish DETECTED physiology to the shared detected tier (NOT manual identity) —
     // cross-node handoff + lights up the cascade's middle tier in the unified panel.
-    if (DP()) {
+    if (DP() && vo2a != null && autoRHR != null) {
       try {
         var _det = { vo2: vo2a, hrRest: autoRHR, _note: 'PpgDex wrist · pulse HR (optical PPI)' };
         DP().setDetected(_det);
@@ -18954,7 +18973,12 @@ __exports.PPGUI = window.PPGUI;
     const score = r.hrvScore,
       p = r.profile;
     let color, tier;
-    if (score >= 55) {
+    if (score == null) {
+      // §∅: no score is computed, so no tier is claimed. Before, a null score fell through every
+      // threshold to "Strained · prioritise rest", a verdict about a measurement that does not exist.
+      color = 'none';
+      tier = 'No score · too few clean pulses for an rMSSD';
+    } else if (score >= 55) {
       color = 'good';
       tier = 'Primed · strong autonomic reserve';
     } else if (score >= 45) {
@@ -18967,10 +18991,11 @@ __exports.PPGUI = window.PPGUI;
       color = 'bad';
       tier = 'Strained · prioritise rest';
     }
-    const css = color === 'good' ? 'var(--status-ok)' : color === 'warn' ? 'var(--status-caution)' : 'var(--status-concern)';
-    const ratio = r.dispRm / r.expRmssd;
+    const css = color === 'none' ? 'var(--text2)' : color === 'good' ? 'var(--status-ok)' : color === 'warn' ? 'var(--status-caution)' : 'var(--status-concern)';
+    const ratio = Number.isFinite(r.dispRm) ? r.dispRm / r.expRmssd : null;
     let ageNote;
-    if (ratio >= 1.15) ageNote = `rMSSD ${r.dispRm} ms is <b>above</b> the ~${r.expRmssd} ms typical for age ${p.age} — favourable parasympathetic tone.`;
+    if (ratio == null) ageNote = `This session has no rMSSD, so it is not compared with the ~${r.expRmssd} ms typical for age ${p.age}.`;
+    else if (ratio >= 1.15) ageNote = `rMSSD ${r.dispRm} ms is <b>above</b> the ~${r.expRmssd} ms typical for age ${p.age} — favourable parasympathetic tone.`;
     else if (ratio >= 0.85) ageNote = `rMSSD ${r.dispRm} ms is <b>about typical</b> for age ${p.age} (~${r.expRmssd} ms expected).`;
     else ageNote = `rMSSD ${r.dispRm} ms is <b>below</b> the ~${r.expRmssd} ms typical for age ${p.age} — watch recovery &amp; load.`;
     ageNote += ` <span style="opacity:.75">Derived from wrist <b>PPI</b> (optical pulse intervals), not ECG RR — validated against the device's own PP-intervals.</span>`;
@@ -19009,7 +19034,7 @@ __exports.PPGUI = window.PPGUI;
       `<div class="readiness-hero" style="--readiness-color:${css}">` +
       `<div class="readiness-hero-label">ANS Readiness</div>` +
       `<div class="readiness-date-badge">wrist PPG · ${r.durMin >= 90 ? (r.durSec / 3600).toFixed(1) + ' h' : r.durMin + ' min'}</div>` +
-      `<div class="readiness-score" style="color:${css}">${score}</div>` +
+      `<div class="readiness-score" style="color:${css}">${score == null ? '—' : score}</div>` +
       `<div class="readiness-tier">${tier}</div>` +
       (subsHtml ? `<div class="readiness-scores-grid">${subsHtml}</div>` : '') +
       `<div class="readiness-note">${ageNote}</div>` +
@@ -19019,7 +19044,7 @@ __exports.PPGUI = window.PPGUI;
       srbNote = $('srbNote'),
       srb = $('sidebarReadinessBadge');
     if (srbScore) {
-      srbScore.textContent = score;
+      srbScore.textContent = score == null ? '—' : score;
       srbScore.style.setProperty('--srb-color', css);
     }
     if (srbNote) srbNote.textContent = tier.split(' · ')[0];
@@ -21223,6 +21248,7 @@ const { PPGUI } = __require('ppgdex-render.js');
         }
         let added = 0,
           lastKey = null;
+        const addedKeys = [];
         for (let pi = 0; pi < ppgFiles.length; pi++) {
           const pf = ppgFiles[pi];
           progress(20 + (pi / ppgFiles.length) * 20, 'Parsing PPG · ' + pf.name + '…');
@@ -21303,10 +21329,20 @@ const { PPGUI } = __require('ppgdex-render.js');
           const key = r.t0Ms != null ? String(r.t0Ms) : 'nodate_' + pf.name;
           allSessions[key] = r;
           lastKey = key;
+          addedKeys.push(key);
           added++;
         }
         if (added) {
-          activeKey = lastKey;
+          /* Show the LONGEST session of this drop, not the last one parsed. A night handed over with
+             its next-morning fragment parsed the 3-min fragment last, so the overnight recording sat
+             behind a chip and the headline read a few pulses (audit 2026-11-11, night 2026-11-04). */
+          let best = lastKey;
+          for (const k of addedKeys) {
+            const d = allSessions[k] && allSessions[k].durSec;
+            const bd = allSessions[best] && allSessions[best].durSec;
+            if (Number.isFinite(d) && !(Number.isFinite(bd) && bd >= d)) best = k;
+          }
+          activeKey = best;
           renderSession(allSessions[activeKey]);
           try {
             localStorage.setItem('ppgdex_active', activeKey);
@@ -21511,17 +21547,17 @@ const { PPGUI } = __require('ppgdex-render.js');
     // ANS Age REMOVED 2026-06-21 (external-review WP-A)
     const items = [
       { l: 'HRV Score', v: r.hrvScore != null ? r.hrvScore : '—', sub: 'autonomic readiness', s: r.hrvScore == null ? 'neutral' : r.hrvScore >= 45 ? 'ok' : r.hrvScore >= 33 ? 'warn' : 'bad' },
-      { l: 'Pulse HR', v: r.dispHr + 'bpm', sub: r.expRHR ? 'age norm ~' + r.expRHR : 'mean', s: hrStat(r.dispHr) },
+      { l: 'Pulse HR', v: Number.isFinite(r.dispHr) ? r.dispHr + 'bpm' : '—', sub: r.expRHR ? 'age norm ~' + r.expRHR : 'mean', s: Number.isFinite(r.dispHr) ? hrStat(r.dispHr) : 'neutral' },
       { l: 'VO₂max Est', v: r.vo2adj != null ? r.vo2adj : '—', sub: 'ml/kg/min · HR-ratio', s: r.vo2adj == null ? 'neutral' : r.vo2adj >= 45 ? 'ok' : r.vo2adj >= 38 ? 'warn' : 'bad' },
       {
         l: 'rMSSD',
-        v: r.rmssd + 'ms',
+        v: Number.isFinite(r.rmssd) ? r.rmssd + 'ms' : '—',
         sub: r.expRmssd ? 'age norm ~' + r.expRmssd : '≥30 good',
-        s: r.expRmssd ? (r.rmssd >= r.expRmssd ? 'ok' : r.rmssd > r.expRmssd * 0.7 ? 'warn' : 'bad') : sc(r.rmssd, 30, 20)
+        s: !Number.isFinite(r.rmssd) ? 'neutral' : r.expRmssd ? (r.rmssd >= r.expRmssd ? 'ok' : r.rmssd > r.expRmssd * 0.7 ? 'warn' : 'bad') : sc(r.rmssd, 30, 20)
       },
       {
         l: 'SDNN',
-        v: (r.sdnnRobust != null ? r.sdnnRobust : r.sdnn) + 'ms',
+        v: Number.isFinite(r.sdnnRobust != null ? r.sdnnRobust : r.sdnn) ? (r.sdnnRobust != null ? r.sdnnRobust : r.sdnn) + 'ms' : '—',
         sub: r.tier === 'ultra-short' ? 'needs ≥5min' : r.sdnnRobust != null ? 'robust · per-5-min median' : '≥50 good',
         s: r.tier === 'ultra-short' ? 'neutral' : sc(r.sdnnRobust != null ? r.sdnnRobust : r.sdnn, 50, 30)
       },
@@ -22034,6 +22070,37 @@ const { PPGUI } = __require('ppgdex-render.js');
     );
   }
 
+  /* §9.4 AT THE REPORTING LAYER — this card counts SESSIONS, and it used to name every one of them a
+     night: "your N-night baseline", "Newest night vs baseline", "each night's analyzable %". One night
+     captured as an overnight session plus a next-morning fragment therefore read as two nights of
+     baseline (Kestrel vigil audit of the 2026-11-04 night), and the engine itself declares the unit a
+     recording, never a night. Each count keeps the unit it counted, and the true span is reported
+     beside it over the owner-ruled noon fold (briefs/NIGHT-IS-THE-RECORDING-2026-10-05-BRIEF.md,
+     ruled + built 2026-10-13; the JS copy this follows is pat-feasibility.js nightKeyOfMs): a session
+     that starts before noon folds into the previous evening, so both files of one night carry one
+     key. A session with NO stamp is attributed to no day and counted apart — never folded into the
+     span as if it were dated (∅). */
+  function _pgNightKey(tMs) {
+    const d = new Date(tMs);
+    let ms = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+    if (d.getUTCHours() < 12) ms -= 86400000;
+    const b = new Date(ms);
+    return b.getUTCFullYear() + '-' + ('0' + (b.getUTCMonth() + 1)).slice(-2) + '-' + ('0' + b.getUTCDate()).slice(-2);
+  }
+  function _pgNightSpan(list) {
+    const keys = {};
+    let undated = 0;
+    (list || []).forEach((s) => {
+      if (s.t0Ms == null || !isFinite(s.t0Ms)) {
+        undated++;
+        return;
+      }
+      keys[_pgNightKey(s.t0Ms)] = 1;
+    });
+    const n = Object.keys(keys).length;
+    return n + ' noon-to-noon day' + (n === 1 ? '' : 's') + (undated ? ' · ' + undated + ' undated, attributed to no day' : '');
+  }
+
   function renderCrossNight() {
     const list = sessionsSorted();
     const card = $('crossNightSection');
@@ -22077,20 +22144,20 @@ const { PPGUI } = __require('ppgdex-render.js');
       <td><span class="cn-trend ${trCol}">${st.trendLabel}</span></td>
       <td class="mono"><span class="cn-z ${zCol}">${st.zLatest == null ? '—' : (st.zLatest > 0 ? '+' : '') + st.zLatest + 'σ'}</span></td>
     </tr>`;
-      if (st.zLatest != null && Math.abs(st.zLatest) >= DexKernel.K.Z_HEADLINE) headline.push(`${m.label} ${st.zLatest > 0 ? '+' : ''}${st.zLatest}σ vs your ${st.n}-night baseline`);
+      if (st.zLatest != null && Math.abs(st.zLatest) >= DexKernel.K.Z_HEADLINE) headline.push(`${m.label} ${st.zLatest > 0 ? '+' : ''}${st.zLatest}σ vs your ${st.n}-session baseline`);
       if (st.ci && (st.ci[0] > 0 || st.ci[1] < 0) && st.n >= 7) headline.push(`${m.label} shifted ${st.deltaHalves > 0 ? '+' : ''}${st.deltaHalves}${m.unit} (95% CI excludes 0)`);
     });
     $('crossNightTable').innerHTML =
       `<table class="data-table cn-table"><thead><tr><th>Metric</th><th>Trend</th><th>Mean</th><th>CV</th><th>Slope</th><th>Mann–Kendall</th><th>Direction</th><th>Latest z</th></tr></thead><tbody>${rows}</tbody></table>`;
     $('crossNightHeadline').innerHTML = headline.length
-      ? `<div class="cn-head-label">Newest night vs baseline</div>` +
+      ? `<div class="cn-head-label">Newest session vs baseline</div>` +
         headline
           .slice(0, 3)
           .map((h) => `<div class="cn-head-item">${h}</div>`)
           .join('')
-      : `<div class="cn-head-label">Newest night vs baseline</div><div class="cn-head-item dim">No metric is beyond ±1σ of its personal baseline — a consistent night.</div>`;
+      : `<div class="cn-head-label">Newest session vs baseline</div><div class="cn-head-item dim">No metric is beyond ±1σ of its personal baseline — a consistent stretch.</div>`;
     $('crossNightNote').innerHTML =
-      `${list.length} sessions · OLS slope vs date + non-parametric <b>Mann–Kendall</b> (τ, p) for short noisy series · personal-baseline <b>z-scores</b> · coverage-weighted by each night's analyzable %. The same <code>crossNight()</code> engine powers ECGDex &amp; OxyDex trends.`;
+      `${list.length} sessions over ${_pgNightSpan(list)} · OLS slope vs date + non-parametric <b>Mann–Kendall</b> (τ, p) for short noisy series · personal-baseline <b>z-scores</b> · coverage-weighted by each session's analyzable %. The same <code>crossNight()</code> engine powers ECGDex &amp; OxyDex trends.`;
   }
   function trendColor(label, good) {
     if (label === 'improving') return UI.COLORS.green;

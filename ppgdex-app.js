@@ -134,6 +134,7 @@ import { PPGUI } from './ppgdex-render.js';
         }
         let added = 0,
           lastKey = null;
+        const addedKeys = [];
         for (let pi = 0; pi < ppgFiles.length; pi++) {
           const pf = ppgFiles[pi];
           progress(20 + (pi / ppgFiles.length) * 20, 'Parsing PPG · ' + pf.name + '…');
@@ -214,10 +215,20 @@ import { PPGUI } from './ppgdex-render.js';
           const key = r.t0Ms != null ? String(r.t0Ms) : 'nodate_' + pf.name;
           allSessions[key] = r;
           lastKey = key;
+          addedKeys.push(key);
           added++;
         }
         if (added) {
-          activeKey = lastKey;
+          /* Show the LONGEST session of this drop, not the last one parsed. A night handed over with
+             its next-morning fragment parsed the 3-min fragment last, so the overnight recording sat
+             behind a chip and the headline read a few pulses (audit 2026-11-11, night 2026-11-04). */
+          let best = lastKey;
+          for (const k of addedKeys) {
+            const d = allSessions[k] && allSessions[k].durSec;
+            const bd = allSessions[best] && allSessions[best].durSec;
+            if (Number.isFinite(d) && !(Number.isFinite(bd) && bd >= d)) best = k;
+          }
+          activeKey = best;
           renderSession(allSessions[activeKey]);
           try {
             localStorage.setItem('ppgdex_active', activeKey);
@@ -422,17 +433,17 @@ import { PPGUI } from './ppgdex-render.js';
     // ANS Age REMOVED 2026-06-21 (external-review WP-A)
     const items = [
       { l: 'HRV Score', v: r.hrvScore != null ? r.hrvScore : '—', sub: 'autonomic readiness', s: r.hrvScore == null ? 'neutral' : r.hrvScore >= 45 ? 'ok' : r.hrvScore >= 33 ? 'warn' : 'bad' },
-      { l: 'Pulse HR', v: r.dispHr + 'bpm', sub: r.expRHR ? 'age norm ~' + r.expRHR : 'mean', s: hrStat(r.dispHr) },
+      { l: 'Pulse HR', v: Number.isFinite(r.dispHr) ? r.dispHr + 'bpm' : '—', sub: r.expRHR ? 'age norm ~' + r.expRHR : 'mean', s: Number.isFinite(r.dispHr) ? hrStat(r.dispHr) : 'neutral' },
       { l: 'VO₂max Est', v: r.vo2adj != null ? r.vo2adj : '—', sub: 'ml/kg/min · HR-ratio', s: r.vo2adj == null ? 'neutral' : r.vo2adj >= 45 ? 'ok' : r.vo2adj >= 38 ? 'warn' : 'bad' },
       {
         l: 'rMSSD',
-        v: r.rmssd + 'ms',
+        v: Number.isFinite(r.rmssd) ? r.rmssd + 'ms' : '—',
         sub: r.expRmssd ? 'age norm ~' + r.expRmssd : '≥30 good',
-        s: r.expRmssd ? (r.rmssd >= r.expRmssd ? 'ok' : r.rmssd > r.expRmssd * 0.7 ? 'warn' : 'bad') : sc(r.rmssd, 30, 20)
+        s: !Number.isFinite(r.rmssd) ? 'neutral' : r.expRmssd ? (r.rmssd >= r.expRmssd ? 'ok' : r.rmssd > r.expRmssd * 0.7 ? 'warn' : 'bad') : sc(r.rmssd, 30, 20)
       },
       {
         l: 'SDNN',
-        v: (r.sdnnRobust != null ? r.sdnnRobust : r.sdnn) + 'ms',
+        v: Number.isFinite(r.sdnnRobust != null ? r.sdnnRobust : r.sdnn) ? (r.sdnnRobust != null ? r.sdnnRobust : r.sdnn) + 'ms' : '—',
         sub: r.tier === 'ultra-short' ? 'needs ≥5min' : r.sdnnRobust != null ? 'robust · per-5-min median' : '≥50 good',
         s: r.tier === 'ultra-short' ? 'neutral' : sc(r.sdnnRobust != null ? r.sdnnRobust : r.sdnn, 50, 30)
       },
@@ -945,6 +956,37 @@ import { PPGUI } from './ppgdex-render.js';
     );
   }
 
+  /* §9.4 AT THE REPORTING LAYER — this card counts SESSIONS, and it used to name every one of them a
+     night: "your N-night baseline", "Newest night vs baseline", "each night's analyzable %". One night
+     captured as an overnight session plus a next-morning fragment therefore read as two nights of
+     baseline (Kestrel vigil audit of the 2026-11-04 night), and the engine itself declares the unit a
+     recording, never a night. Each count keeps the unit it counted, and the true span is reported
+     beside it over the owner-ruled noon fold (briefs/NIGHT-IS-THE-RECORDING-2026-10-05-BRIEF.md,
+     ruled + built 2026-10-13; the JS copy this follows is pat-feasibility.js nightKeyOfMs): a session
+     that starts before noon folds into the previous evening, so both files of one night carry one
+     key. A session with NO stamp is attributed to no day and counted apart — never folded into the
+     span as if it were dated (∅). */
+  function _pgNightKey(tMs) {
+    const d = new Date(tMs);
+    let ms = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+    if (d.getUTCHours() < 12) ms -= 86400000;
+    const b = new Date(ms);
+    return b.getUTCFullYear() + '-' + ('0' + (b.getUTCMonth() + 1)).slice(-2) + '-' + ('0' + b.getUTCDate()).slice(-2);
+  }
+  function _pgNightSpan(list) {
+    const keys = {};
+    let undated = 0;
+    (list || []).forEach((s) => {
+      if (s.t0Ms == null || !isFinite(s.t0Ms)) {
+        undated++;
+        return;
+      }
+      keys[_pgNightKey(s.t0Ms)] = 1;
+    });
+    const n = Object.keys(keys).length;
+    return n + ' noon-to-noon day' + (n === 1 ? '' : 's') + (undated ? ' · ' + undated + ' undated, attributed to no day' : '');
+  }
+
   function renderCrossNight() {
     const list = sessionsSorted();
     const card = $('crossNightSection');
@@ -988,20 +1030,20 @@ import { PPGUI } from './ppgdex-render.js';
       <td><span class="cn-trend ${trCol}">${st.trendLabel}</span></td>
       <td class="mono"><span class="cn-z ${zCol}">${st.zLatest == null ? '—' : (st.zLatest > 0 ? '+' : '') + st.zLatest + 'σ'}</span></td>
     </tr>`;
-      if (st.zLatest != null && Math.abs(st.zLatest) >= DexKernel.K.Z_HEADLINE) headline.push(`${m.label} ${st.zLatest > 0 ? '+' : ''}${st.zLatest}σ vs your ${st.n}-night baseline`);
+      if (st.zLatest != null && Math.abs(st.zLatest) >= DexKernel.K.Z_HEADLINE) headline.push(`${m.label} ${st.zLatest > 0 ? '+' : ''}${st.zLatest}σ vs your ${st.n}-session baseline`);
       if (st.ci && (st.ci[0] > 0 || st.ci[1] < 0) && st.n >= 7) headline.push(`${m.label} shifted ${st.deltaHalves > 0 ? '+' : ''}${st.deltaHalves}${m.unit} (95% CI excludes 0)`);
     });
     $('crossNightTable').innerHTML =
       `<table class="data-table cn-table"><thead><tr><th>Metric</th><th>Trend</th><th>Mean</th><th>CV</th><th>Slope</th><th>Mann–Kendall</th><th>Direction</th><th>Latest z</th></tr></thead><tbody>${rows}</tbody></table>`;
     $('crossNightHeadline').innerHTML = headline.length
-      ? `<div class="cn-head-label">Newest night vs baseline</div>` +
+      ? `<div class="cn-head-label">Newest session vs baseline</div>` +
         headline
           .slice(0, 3)
           .map((h) => `<div class="cn-head-item">${h}</div>`)
           .join('')
-      : `<div class="cn-head-label">Newest night vs baseline</div><div class="cn-head-item dim">No metric is beyond ±1σ of its personal baseline — a consistent night.</div>`;
+      : `<div class="cn-head-label">Newest session vs baseline</div><div class="cn-head-item dim">No metric is beyond ±1σ of its personal baseline — a consistent stretch.</div>`;
     $('crossNightNote').innerHTML =
-      `${list.length} sessions · OLS slope vs date + non-parametric <b>Mann–Kendall</b> (τ, p) for short noisy series · personal-baseline <b>z-scores</b> · coverage-weighted by each night's analyzable %. The same <code>crossNight()</code> engine powers ECGDex &amp; OxyDex trends.`;
+      `${list.length} sessions over ${_pgNightSpan(list)} · OLS slope vs date + non-parametric <b>Mann–Kendall</b> (τ, p) for short noisy series · personal-baseline <b>z-scores</b> · coverage-weighted by each session's analyzable %. The same <code>crossNight()</code> engine powers ECGDex &amp; OxyDex trends.`;
   }
   function trendColor(label, good) {
     if (label === 'improving') return UI.COLORS.green;

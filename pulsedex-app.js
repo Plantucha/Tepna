@@ -215,6 +215,7 @@ function loadRawFiles(fileList) {
       return true;
     });
     list = mergeMultipart(list); // fold Polar `_RR_part01of..` / `_PPI_part..` splits into one stream per base
+    const _keysBefore = new Set(Object.keys(allRecordings));
     list.forEach((it) => {
       document.getElementById('rawPaste').value = it.text;
       _curFname = it.name;
@@ -223,6 +224,17 @@ function loadRawFiles(fileList) {
     });
     _curFname = null;
     _curSeamsText = null;
+    /* Show the LONGEST recording of this drop, not the last one parsed: a night handed over with a
+       25-min next-morning fragment otherwise headlined the fragment (audit 2026-11-11, night 2026-11-04). */
+    const _newKeys = Object.keys(allRecordings).filter((k) => !_keysBefore.has(k));
+    if (_newKeys.length > 1) {
+      let _best = null;
+      for (const k of _newKeys) {
+        const d = allRecordings[k].durMin;
+        if (Number.isFinite(d) && (_best == null || d > allRecordings[_best].durMin)) _best = k;
+      }
+      if (_best != null && _best !== activeKey) selectRecordingPx(_best);
+    }
   });
 }
 
@@ -1066,6 +1078,36 @@ function calculate() {
 }
 
 // ─── MULTI-DAY: switcher + cross-recording trends (additive; gated at ≥2) ─────
+
+/* §9.4 AT THE REPORTING LAYER — the cross-recording baseline counts RECORDINGS, so it may never be
+   named in days. The headline said "your N-day baseline" over N FILES, so one night recorded as an
+   overnight plus a next-morning fragment read as two days of baseline (Kestrel vigil audit of the
+   2026-11-04 night). The count keeps the unit it actually counted, and the true span is reported
+   beside it over the owner-ruled noon fold (briefs/NIGHT-IS-THE-RECORDING-2026-10-05-BRIEF.md,
+   ruled + built 2026-10-13; the JS copy this follows is pat-feasibility.js nightKeyOfMs): a
+   recording that starts before noon folds into the previous evening, so both files of one night
+   carry one key. A recording with NO stamp is attributed to no day and counted apart — never
+   folded into the span as if it were dated (∅). */
+function _pxNightKey(tMs) {
+  const d = new Date(tMs);
+  let ms = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+  if (d.getUTCHours() < 12) ms -= 86400000;
+  const b = new Date(ms);
+  return b.getUTCFullYear() + '-' + ('0' + (b.getUTCMonth() + 1)).slice(-2) + '-' + ('0' + b.getUTCDate()).slice(-2);
+}
+function _pxNightSpan(list) {
+  const keys = {};
+  let undated = 0;
+  (list || []).forEach((s) => {
+    if (s.t0Ms == null || !isFinite(s.t0Ms)) {
+      undated++;
+      return;
+    }
+    keys[_pxNightKey(s.t0Ms)] = 1;
+  });
+  const n = Object.keys(keys).length;
+  return n + ' noon-to-noon day' + (n === 1 ? '' : 's') + (undated ? ' · ' + undated + ' undated, attributed to no day' : '');
+}
 function recordingsSortedPx() {
   return Object.values(allRecordings).sort((a, b) => (a.t0Ms || 0) - (b.t0Ms || 0));
 }
@@ -1242,7 +1284,7 @@ function renderCrossNightPx() {
       '">' +
       (st.zLatest == null ? '—' : (st.zLatest > 0 ? '+' : '') + st.zLatest + 'σ') +
       '</span></td></tr>';
-    if (st.zLatest != null && Math.abs(st.zLatest) >= DexKernel.K.Z_HEADLINE) headline.push(m.label + ' ' + (st.zLatest > 0 ? '+' : '') + st.zLatest + 'σ vs your ' + st.n + '-day baseline');
+    if (st.zLatest != null && Math.abs(st.zLatest) >= DexKernel.K.Z_HEADLINE) headline.push(m.label + ' ' + (st.zLatest > 0 ? '+' : '') + st.zLatest + 'σ vs your ' + st.n + '-recording baseline');
     if (st.ci && (st.ci[0] > 0 || st.ci[1] < 0) && st.n >= 7) headline.push(m.label + ' shifted ' + (st.deltaHalves > 0 ? '+' : '') + st.deltaHalves + m.unit + ' (95% CI excludes 0)');
   });
   document.getElementById('crossNightTablePx').innerHTML =
@@ -1261,7 +1303,9 @@ function renderCrossNightPx() {
       : '<div class="cn-head-item-px dim">No metric is beyond ±1σ of its personal baseline — a consistent stretch.</div>');
   document.getElementById('crossNightNotePx').innerHTML =
     list.length +
-    ' recordings · OLS slope vs date + non-parametric <b>Mann–Kendall</b> (τ, p) · personal-baseline <b>z-scores</b> · coverage-weighted. Same <code>crossNight()</code> engine as PpgDex/ECGDex/OxyDex.';
+    ' recordings over ' +
+    _pxNightSpan(list) +
+    ' · OLS slope vs date + non-parametric <b>Mann–Kendall</b> (τ, p) · personal-baseline <b>z-scores</b> · coverage-weighted. Same <code>crossNight()</code> engine as PpgDex/ECGDex/OxyDex.';
 }
 
 // ─── EXPORT ───────────────────────────────────────────────────────────────────

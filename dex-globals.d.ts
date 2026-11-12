@@ -24,3 +24,4 @@ declare var dexScrubExport: any; // dex-export.js — the export identity-scrub 
 declare var SignalFrame: any; // signal-frame.js — the canonical signal container
 declare var DexKernel: any; // kernel-constants.js — the shared kernel constants + fnv1a
 declare var DexUnits: any; // quantity.js — the shared units/quantity engine (toMetric, toDisplay, …)
+declare var CrossNightEnvelope: any; // crossnight-envelope.js — the shared ganglior.crossnight v1.0 container (build, validate)

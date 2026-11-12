@@ -11614,9 +11614,15 @@
       var UNDECLARED = {
         cpapdex: '',
         ecgdex: 'accPosture analyzable cpcHfc deepMin edrDisagree edrResp remMin rraccRate rsaAmplitude sigmaLnRmssd stageConsensus varLnRmssd',
-        glucodex: 'dataConf duration gmiVsLab hypoQtc lnrmssdSlope nocHypo sensorBias sessionDrift sessionSpread stability timeAbove timeBelow',
+        /* `timeAbove` and `timeBelow` LEFT this baseline on 2026-11-11: glucodex-cross.js gave
+           GlucoDex a *_DEFS table, and both ids are keys in it with a get: accessor naming the
+           real per-day key (`tar`, `tbr`) — route 2. The set ratchets DOWN only. */
+        glucodex: 'dataConf duration gmiVsLab hypoQtc lnrmssdSlope nocHypo sensorBias sessionDrift sessionSpread stability',
         hrvdex: 'camq ortho',
-        motiondex: 'activityCounts effortAmp effortPresent respRate',
+        /* `respRate` LEFT this baseline on 2026-11-11: motiondex-cross.js gave MotionDex a
+           *_DEFS table, and the id is a key in it with a get: accessor naming the real export
+           key (`respRateBrpm`) — route 2. The set ratchets DOWN only. */
+        motiondex: 'activityCounts effortAmp effortPresent',
         oxydex:
           'biCv bluntedArousalFlag breathsPerMin cdiIdx circadianHrAmp ct85 ct88 ct89 decelCap deepProxy dfaAlpha1 episodeRange fftCycleSec hrCv hrMaxKpi hrNadirTiming hrQuartileTrend hrVarSd intraNightNsi karvZone lfHfPower mafHr meanHrPb meanHrRest nadirBin46 nadirBin69 nadirBinGt9 nadirBinLt4 nadirDepth nadirRecov nocDip o2HrEfficiency oscEpisodeCount oscIndex oscPeakCrossings oscWindows pbDivergeCount pbDivergePct pbEpisodes pbTrend periodicBreathing periodicityPattern pnn3Equiv poorNightsPct recoveryCv rmssdProxy scoreTrend sd1sd2 sleepPressureIdx solTrend spo2Autocorr1 spo2HrLag spo2Nadir spo2NadirTiming spo2NightCV spo2wBias spo2wMae spo2wMedian spo2wMin spo2wTrackR spo2wWithin2 ssiIdx stabilityR2 t88 worst10MinSpo2 worst30MinT95 z2win',
         ppgdex:
@@ -17121,7 +17127,7 @@
         return;
       }
       var FIVE = [
-        { stem: 'beat-correspondence.mjs', anti: /const ARGV_SPEC = \{ valued: \['--q', '--band'\]/, lister: /const listPairFiles = /, unit: 'pair-files' },
+        { stem: 'beat-correspondence.mjs', anti: /const ARGV_SPEC = \{ valued: \['--q', '--band', '--ecg-axis'\]/, lister: /const listPairFiles = /, unit: 'pair-files' },
         { stem: 'dual-clock-rate.mjs', anti: /export const CAPTURE_FILE_RE = /, lister: /const listCaptureFiles = /, unit: 'capture-files' },
         { stem: 'ecg-rate-transfer.mjs', anti: /export const BAND_MEDIAN_ABS_MS = 4;/, lister: /const listEcgRecords = /, unit: 'ecg-records' },
         { stem: 'resp-acc-headless.mjs', anti: /const STAMP_SOURCES|const stampOf = /, lister: /const listAccFiles = /, unit: 'acc-files' },
@@ -30337,7 +30343,17 @@
          night page reads it in its `polarityText` helper and prints it under the per-corner source KPI, which is
          where that page reads every other fact about its inputs. Surfaced on purpose: a worker key no consumer
          reads is what the dead-key leg above would have called dead. */
-      var UNDECIDED_EXPECTED = { 'pat-feasibility-worker.js': 27, 'sensor-trio-worker.js': 38, 'qrs-equiv-worker.js': 2, 'qrs-yield-worker.js': 1 };
+      /* sensor-trio-worker.js 38 -> 41 on 2026-11-11 (unit hatsci): `runRealNight` gains `coverage` (each corner's
+         own seconds, so the page can state what share of each stream the three-way overlap kept) and `nightDerive`
+         gains `tau` (the hat re-solved on τ-second means) and `boot` (the data-derived bootstrap block). The night
+         page reads them in its `coverageText`, `drawTau` and `drawSigma` helpers, which is where it reads every
+         other aggregate key. Surfaced on purpose: a worker key no consumer reads is what the dead-key leg above
+         would have called dead. */
+      /* sensor-trio-worker.js 41 -> 42 on 2026-11-11 (unit tchref, residue
+         2026-09-26-tch-hat-misattributes-shared-optical-error): `runRealNight` gains `reference` (each corner's
+         σ, bias and ρ measured against the night's beat reference). The night page reads it in its `refOf`
+         helper, which feeds the heroes and the independence row. Surfaced on purpose, as above. */
+      var UNDECIDED_EXPECTED = { 'pat-feasibility-worker.js': 27, 'sensor-trio-worker.js': 42, 'qrs-equiv-worker.js': 2, 'qrs-yield-worker.js': 1 };
       Object.keys(UNDECIDED_EXPECTED).forEach(function (w2) {
         T.eq(
           w2 + ' · helper-reached (UNDECIDABLE) key count',
@@ -45078,6 +45094,51 @@
           );
         });
         T.ok('all five cross clones were exercised', ran === 5, 'only ' + ran + ' of 5 cross modules exposed crossNight in this lane');
+
+        /* §9.4 AT THE REPORTING LAYER — the same rule the engine follows binds the two cards that READ it.
+           PulseDex printed "your N-day baseline" and PpgDex "your N-night baseline" over N FILES, so one
+           night captured as an overnight plus a next-morning fragment read as two days/nights of baseline.
+           The count now keeps the unit it counted (recordings / sessions), and the span is reported over
+           the owner-ruled noon fold. The fold is EXTRACTED from each app source and run here, so a card
+           that stops folding reds this — with a naive civil-date key as the control. */
+        var snSrc = env.sources || {};
+        var snApps = [
+          { name: 'pulsedex-app.js', src: snSrc['pulsedex-app.js'] || '', fn: /function _pxNightKey\(tMs\) \{([\s\S]*?)\n\}/, unit: 'recording', retired: /st\.n \+ '-day baseline'/ },
+          { name: 'ppgdex-app.js', src: snSrc['ppgdex-app.js'] || '', fn: /function _pgNightKey\(tMs\) \{([\s\S]*?)\n  \}/, unit: 'session', retired: /\$\{st\.n\}-night baseline/ }
+        ];
+        var snRan = 0;
+        snApps.forEach(function (a) {
+          if (!a.src) {
+            T.ok(a.name + ' source wired for the reporting-unit scan', false, 'env.sources missing it — the assertions below would be vacuous');
+            return;
+          }
+          snRan++;
+          T.ok(a.name + ' · the baseline count is named in ' + a.unit + 's — the unit it actually counts', a.src.indexOf('-' + a.unit + ' baseline') !== -1);
+          T.ok(a.name + ' · the retired FILE-counted day/night baseline wording is gone', !a.retired.test(a.src));
+          T.ok(a.name + ' · the span is reported over the noon-to-noon fold', /noon-to-noon day/.test(a.src));
+          T.ok(a.name + ' · an undated item is attributed to no day, never folded into the span', /undated, attributed to no day/.test(a.src));
+          var m = a.src.match(a.fn);
+          T.ok(a.name + ' · the noon fold is extractable from the source', !!m, 'no match — the fold was renamed or inlined');
+          if (!m) return;
+          var key = new Function('tMs', m[1]);
+          var EVENING = Date.UTC(2026, 10, 4, 22, 10, 0, 0);
+          var NEXT_MORNING = Date.UTC(2026, 10, 5, 7, 30, 0, 0);
+          var AFTERNOON = Date.UTC(2026, 10, 5, 13, 0, 0, 0);
+          T.eq(a.name + ' · the 22:10 overnight keys to its own evening', key(EVENING), '2026-11-04');
+          T.eq(a.name + ' · the 07:30 next-morning fragment keys to the SAME evening — one night, two files', key(NEXT_MORNING), '2026-11-04');
+          T.eq(a.name + ' · a 13:00 start after the fold keys to its own date', key(AFTERNOON), '2026-11-05');
+          // control: the naive civil date splits the one night in two, which is the defect that was shipped
+          var naive = function (tMs) {
+            var d = new Date(tMs);
+            return d.getUTCFullYear() + '-' + ('0' + (d.getUTCMonth() + 1)).slice(-2) + '-' + ('0' + d.getUTCDate()).slice(-2);
+          };
+          T.ok(
+            a.name + ' · control · a naive civil-date key DOES split that one night in two',
+            naive(EVENING) !== naive(NEXT_MORNING),
+            'naive ' + naive(EVENING) + ' vs ' + naive(NEXT_MORNING) + ' — equal keys would mean the fold proves nothing here'
+          );
+        });
+        T.ok('both reporting cards were scanned', snRan === 2, snRan + ' of 2 app sources scanned in this lane');
       }
     );
 
@@ -52111,6 +52172,20 @@
       );
       var src = env.sources || {};
       if (src['motiondex-app.js']) T.ok('motiondex-app · routes `_ACCRUNS` to its ACC runs slot', /_ACCRUNS/.test(src['motiondex-app.js']) && /chestAccRuns/.test(src['motiondex-app.js']));
+      /* RESIDUE `2026-11-11-motiondex-drops-accraw-silently` — the same silence one file further
+         out. A dropped file that fed NO slot left the status line with no word at all: the vigil audit
+         of night 2026-11-04 handed this node 4 files and read `3 file(s)`. The O2Ring's `_ACCRAW` is
+         the measured case, and the two controls below say why that file reaches the set-aside path
+         while the Polar `_ACC` beside it does not. */
+      T.eq('control · `_ACCRAW` carries no IMU stream kind, so the drop lane can place no slot for it', M.streamKindFromName('Wellue_O2Ring_20260617010000_ACCRAW.txt'), null);
+      T.eq('control · the Polar `_ACC` in the same drop still reads as the ACC stream', M.streamKindFromName('Polar_Verity_Sense_20260617_010000_ACC.txt'), 'acc');
+      if (src['motiondex-app.js']) {
+        var mxApp = src['motiondex-app.js'];
+        T.ok('motiondex-app · a file that fed no slot is NAMED with its own reason, never dropped', /function asideReason\(/.test(mxApp) && /_ACCRAW/.test(mxApp));
+        T.ok('motiondex-app · …and the status line carries the set-aside files beside the read ones', /set aside/.test(mxApp) && /asideNote/.test(mxApp));
+        T.ok('motiondex-app · an unreadable file resolves `null`, so it never reports as an EMPTY one', /onerror[\s\S]{0,80}resolve\(null\)/.test(mxApp));
+        T.ok('motiondex-app · two files for one slot place in DROP order, and the loser is set aside', /hasOwnProperty\.call\(input, r\.slot\)/.test(mxApp));
+      }
     });
     /* ════ SEAM-SIDECAR-CONSUMPTION §4 · THE PPG LEG (2026-11-06, residue row
        `2026-11-05-four-clock-carrying-nodes-still-read-no-seam-sidecar`) ════════════════════════
@@ -55265,10 +55340,15 @@
          in any casing. Deliberately narrow — a phrase ban, not a prose style rule, so it cannot cry wolf. */
       T.ok('the header no longer claims EVERY node emits a crossnight envelope', !/every\s+node\s+now\s+emits/i.test(src), 'the §1.7 phrasing is back');
       /* The spelled count moves with the producer set. It read FIVE until 2026-11-11, when hrvdex-cross.js
-         landed and made it SIX. A count that cannot be derived in both lanes has to be re-read by a
-         machine against the prose, so this leg names the spelling and the leg below names who is left. */
-      T.ok('…and it names the real producer count instead', /SIX of\s*\n?\s*\*?\s*the eight nodes emit|six of the eight/i.test(src), 'no explicit producer count found');
-      T.ok('…and HRVDex is named among the emitters, not among the degraded', /nodes emit[\s\S]{0,200}HRVDex/.test(src) && !/HRVDex and GlucoDex are DEGRADED/.test(src));
+         made it SIX, glucodex-cross.js SEVEN and motiondex-cross.js ALL EIGHT, all on the same day. A
+         count that cannot be derived in both lanes has to be re-read by a machine against the prose, so
+         this leg names the spelling and the leg below names the node that joined last. */
+      var countRe = /ALL EIGHT\s*\n?\s*\*?\s*nodes emit|all eight nodes emit|eight of the eight/i;
+      T.ok('…and it names the real producer count instead', countRe.test(src), 'no explicit producer count found');
+      T.ok(
+        '…and HRVDex and GlucoDex are named among the emitters, not among the degraded',
+        /nodes emit[\s\S]{0,240}HRVDex/.test(src) && /nodes emit[\s\S]{0,240}GlucoDex/.test(src) && !/GlucoDex is DEGRADED/.test(src) && !/HRVDex and GlucoDex are DEGRADED/.test(src)
+      );
 
       /* NON-VACUITY + the fact itself: the producers ARE the nodes with a *-cross.js. If that set ever
          changes, this reds and the prose has to be re-derived rather than re-asserted. */
@@ -55278,11 +55358,18 @@
         });
         // env.sources carries only the cross files the runner lists, so this is a floor, not the census —
         // say so rather than let a partial list read as a count.
-        T.ok('at least the known crossnight producers are loaded (floor, not a census)', crossFiles.length >= 4, 'loaded: ' + crossFiles.join(','));
+        /* A FLOOR, NEVER TODAY'S TOTAL. The set grew from four to six loaded files in one day, and a leg
+           pinned to the total reds on the next adopter — the fix for which is to lower the number, which is
+           backwards. Five is the floor the fleet has already paid for. */
+        T.ok('at least the known crossnight producers are loaded (floor, not a census)', crossFiles.length >= 5, 'loaded: ' + crossFiles.join(','));
       }
-      // The two non-producers must stay named, so a reader learns WHICH node is degraded and which is blind.
-      T.ok('GlucoDex is named as degraded-not-blind', /GlucoDex is DEGRADED/.test(src));
-      T.ok('MotionDex is named as the unmitigated case', /MotionDex[\s\S]{0,80}unmitigated/.test(src));
+      /* The non-producer leg has no subject left, so it inverts: MotionDex joined on 2026-11-11 and must
+         read as an emitter, never again as the blind node. The second leg keeps the "why" — a reader who
+         knows only that MotionDex emits will size the next node as a copy of this unit, and MotionDex
+         needed a session store first, because one file is one session on that node. */
+      var mxEmits = /nodes emit[\s\S]{0,240}MotionDex/.test(src) && !/MotionDex[\s\S]{0,240}unmitigated/.test(src);
+      T.ok('MotionDex is named among the emitters, not as the unmitigated case', mxEmits);
+      T.ok('…and the prose says WHY MotionDex could not fold a series before', /one file is one session|multi-session (model|series)/i.test(src));
     });
 
     /* ── `npm run check` MUST RUN WHAT CI'S DRIFT-GUARD JOB RUNS ───────────────────────────────────
@@ -56847,6 +56934,122 @@
       );
       T.eq('and a page written before drift existed still renders', /DRIFT/.test(page([quietCur], { nonDraft: 1, cap: 4, alerts: [] }, [], { at: 'x', requiredSource: 'ruleset(11)' })), false);
     });
+    /* ── queue-doctor: A QUEUED RUN AND AN UNCLAIMABLE RUN READ IDENTICALLY (measured 2026-11-11).
+       GitHub creates a workflow-run record, then expands it into jobs. When the second step never
+       happens the record stays `queued` for ever — no runner can claim a run holding no job, nothing
+       times it out, and every view prints the same word it prints for a run about to start. 31 runs
+       on three branches sat two hours that way while the fleet read it as a queue position; one empty
+       commit per branch cleared all three. A second shape has the same consequence and a different
+       remedy: two runs created 2026-08-19 DID expand (3 jobs and 1) and were never claimed, so no
+       push reaches them. Both hold CLAUDE.md §5's `pend` above 0 for ever, which is the number every
+       session is told to collect on. This drives the pure core, so no `gh`, network or clock. */
+    group('Queue-doctor — a run that cannot start is not a queue position', 'tools · queue-doctor-unclaimable', function (T) {
+      var ur = env.qdUnexpandedRuns,
+        ucr = env.qdUnclaimableRuns,
+        pp = env.qdPoolPend,
+        cl = env.qdClassify,
+        MIN = env.qdUnexpandedMin,
+        LIMH = env.qdStaleQueuedH;
+      if (typeof ur !== 'function' || typeof ucr !== 'function' || typeof pp !== 'function' || typeof cl !== 'function') {
+        T.skip('queue-doctor unclaimable-run core is wired into this lane', 'browser lane cannot import tools/queue-doctor.mjs');
+        return;
+      }
+      var NOW = 1762900000000;
+      var R = function (o) {
+        var b = { runId: '1', name: 'tests', status: 'queued', headSha: 'abc', headBranch: 'claude/x', createdAtMs: NOW - 60 * 60000, jobs: 0 };
+        for (var k in o) b[k] = o[k];
+        return b;
+      };
+      T.eq('a jobless run past the bound is named', ur([R()], NOW).length, 1);
+      T.eq('…with the run id, so the reader can act on it', ur([R({ runId: '77' })], NOW)[0].runId, '77');
+      T.eq('a run with jobs is not named — it is a real queue position', ur([R({ jobs: 3 })], NOW).length, 0);
+      T.eq('a jobless run INSIDE the bound is not named — expansion takes seconds', ur([R({ createdAtMs: NOW - (MIN - 1) * 60000 })], NOW).length, 0);
+      /* ∅ The fail-closed direction here is the OPPOSITE of the required-set one: this state's remedy
+         is a PUSH, so inventing it spends a commit and a whole CI cycle on a queue that was working. */
+      T.eq('an UNREAD job count is not a zero', ur([R({ jobs: null })], NOW).length, 0);
+      T.eq('an undated run is not named', ur([R({ createdAtMs: NaN })], NOW).length, 0);
+      T.eq('a run that is not queued is not named', ur([R({ status: 'in_progress' })], NOW).length, 0);
+      T.eq('a non-array reads as nothing examined, never as nothing wrong', ur(null, NOW).length, 0);
+      /* THE SECOND SHAPE: expanded, never claimed. GitHub documents a 24 h job queue limit and
+         cancels past it, so a run still queued past the platform's own promise is broken. */
+      var OLD = R({ runId: '9', jobs: 3, createdAtMs: NOW - (LIMH + 1) * 3600000 });
+      T.eq('a run past the queue limit is unclaimable although it HAS jobs', ucr([OLD], NOW).length, 1);
+      T.eq('…and it is named by the remedy that reaches it', ucr([OLD], NOW)[0].reason, 'past-queue-limit');
+      T.eq('a jobless run keeps the narrower reason', ucr([R()], NOW)[0].reason, 'no-jobs');
+      T.eq('a run reported once, never under both reasons', ucr([R({ createdAtMs: NOW - (LIMH + 1) * 3600000 })], NOW).length, 1);
+      T.eq('a young run with jobs is neither', ucr([R({ jobs: 2, createdAtMs: NOW - 5 * 60000 })], NOW).length, 0);
+      /* 🔴 §5 SAYS COLLECT WHEN `pend` IS 0, AND ONE UNCLAIMABLE RUN HOLDS IT ABOVE 0 FOR EVER. */
+      var POOL = [R({ runId: 'a' }), R({ runId: 'b', jobs: 4, createdAtMs: NOW - 60000 }), OLD];
+      T.eq('the raw queued count is every record', pp(POOL, NOW).queued, 3);
+      T.eq('pend counts only what a runner can still take', pp(POOL, NOW).pend, 1);
+      T.eq('and the excluded set is named, not just subtracted', pp(POOL, NOW).unexpanded.length, 2);
+      T.eq('an empty pool is pend 0 — the state the criterion wants', pp([], NOW).pend, 0);
+      /* THE CAUSE OUTRANKS THE SYMPTOM. Both rungs below it read a bucket count and prescribe from
+         it; an unclaimable run on the head makes a wait useless whatever the buckets say. */
+      var PR = function (o) {
+        var b = {
+          number: 7,
+          state: 'OPEN',
+          isDraft: false,
+          mergeState: 'CLEAN',
+          autoMerge: false,
+          updatedAtMs: NOW - 30 * 60000,
+          checks: [{ name: 'tests', bucket: 'pending' }],
+          checkRuns: [],
+          headRuns: [R()]
+        };
+        for (var k in o) b[k] = o[k];
+        return b;
+      };
+      var REQ = ['tests', 'biome'];
+      T.eq('a pending check over a jobless run classifies by its CAUSE', cl(PR(), REQ, NOW).k, 'unexpanded');
+      T.ok(
+        'and the why carries the one remedy that works',
+        /NEW HEAD/.test(cl(PR(), REQ, NOW).why) && /ZERO jobs/.test(cl(PR(), REQ, NOW).why),
+        'the sentence prescribes a new head and names the jobless runs'
+      );
+      T.ok('the why names the run id, so no second query is needed', /\b1\b/.test(cl(PR(), REQ, NOW).why), 'the id is what `gh run` takes');
+      T.eq('an ABSENT required context over a jobless run is the same cause', cl(PR({ checks: [] }), REQ, NOW).k, 'unexpanded');
+      /* The counterfactual: the SAME PR with nothing unclaimable on its head keeps the old rung, so
+         the new one cannot be what produced the verdict above. */
+      T.eq('with an empty head-run list the old pending rung still owns it', cl(PR({ headRuns: [] }), REQ, NOW).k, 'running-unarmed');
+      T.eq('and with no head-run key at all — an older caller — nothing changes', cl(PR({ headRuns: undefined }), REQ, NOW).k, 'running-unarmed');
+      T.eq(
+        'a GREEN PR is never reclassified by a dead run on its head',
+        cl(
+          PR({
+            checks: [
+              { name: 'tests', bucket: 'pass' },
+              { name: 'biome', bucket: 'pass' }
+            ],
+            mergeState: 'CLEAN',
+            autoMerge: true
+          }),
+          REQ,
+          NOW
+        ).k,
+        'ready'
+      );
+      /* It must trip `--report`: a cause no view reports is exactly what this tool exists to name. */
+      var at = env.qdAttention;
+      if (typeof at === 'function') {
+        var cls = [{ pr: PR(), k: cl(PR(), REQ, NOW).k }];
+        T.eq('the attention set names it, so --report exits 1', at(cls).unexpanded.length, 1);
+      }
+      /* And it is updatable only where this tool's one verb reaches: `update-branch` needs a BEHIND
+         head, so a CURRENT unclaimable PR is reported and left alone. */
+      var pk = env.qdPick;
+      if (typeof pk === 'function') {
+        var mk = function (pr) {
+          var r = cl(pr, REQ, NOW);
+          r.pr = pr;
+          return r;
+        };
+        var behind = PR({ number: 8, mergeState: 'BEHIND', autoMerge: true, updatedAtMs: NOW - 40 * 60000 });
+        T.eq('a BEHIND armed unclaimable PR is a candidate — a new head is the remedy', pk([mk(behind)]).action, 'update');
+        T.eq('a CURRENT one is not: this tool cannot push a commit', pk([mk(PR({ autoMerge: true }))]).action, 'none');
+      }
+    });
     group('Queue-doctor — the red ledger writes a line once per change, and a clear is named', 'tools · queue-doctor-ledger', function (T) {
       var rl = env.qdRedLedger;
       if (typeof rl !== 'function') {
@@ -57401,6 +57604,63 @@
           }),
           []
         );
+      }
+    });
+
+    group('Playwright apt bound — the apt half cannot outlast the job timeout', 'ci · playwright-apt-bound', function (T) {
+      /* The browser contexts install chromium from a cache, and `--with-deps` adds OS FONT packages
+         that no DOM assertion reads. On 2026-11-11 the hosted runners lost DNS for the three Ubuntu
+         mirror hosts, so that half sat in apt retries while the gate below it never ran. #4890 added a
+         deps-free fallback, which cures the RED and not the WAIT: measured over the last 18 runs of
+         each workflow (28 step instances), a runner that reached the mirrors finished the step in 12 s
+         to 18 s, a runner that did not sat there 606 s to 611 s, and one reached 1186 s, where
+         `timeout-minutes: 20` killed the JOB (run 43047834492) with the fallback never reached. So the
+         bound is the remedy and this group holds it. The population is every workflow that calls
+         `--with-deps`, and the CONTROL asserts that set is not empty, because an empty set passes
+         every leg below it. */
+      if (!env.nodeFs || !env.repoRoot) T.skip('env.nodeFs + env.repoRoot provided to the runner', 'Node-lane only — the browser lane cannot read .github/workflows');
+      else {
+        var fs = env.nodeFs;
+        var dir = env.repoRoot + '/.github/workflows';
+        var names = fs.readdirSync(dir).filter(function (n) {
+          return /\.ya?ml$/.test(n);
+        });
+        var texts = names.map(function (n) {
+          return [n, String(fs.readFileSync(dir + '/' + n, 'utf8'))];
+        });
+        var CALL = /npx playwright install[^\n]*--with-deps/;
+        var withDeps = texts.filter(function (p) {
+          return CALL.test(p[1]);
+        });
+        T.ok('CONTROL · at least one workflow installs the OS deps, so every leg below read a real population', withDeps.length > 0, withDeps.length + ' of ' + names.length + ' workflow file(s)');
+        var lines = function (text) {
+          return text.split('\n').filter(function (l) {
+            return CALL.test(l);
+          });
+        };
+        var unbounded = [];
+        var offBound = [];
+        var noFallback = [];
+        withDeps.forEach(function (p) {
+          var caps = (p[1].match(/timeout-minutes:\s*\d+/g) || []).map(function (m) {
+            return Number(m.replace(/\D+/g, '')) * 60;
+          });
+          /* The smallest cap in the file is CONSERVATIVE: a bound under it is under every job's. */
+          var cap = caps.length ? Math.min.apply(null, caps) : 0;
+          lines(p[1]).forEach(function (line) {
+            var m = /timeout\s+(?:--kill-after=\d+\s+)?(\d+)\s+npx playwright install/.exec(line);
+            if (!m) {
+              unbounded.push(p[0]);
+              return;
+            }
+            var secs = Number(m[1]);
+            if (!(secs >= 60 && cap > 0 && secs < cap)) offBound.push(p[0] + ':' + secs + 's against a ' + cap + 's cap');
+          });
+          if (!/npx playwright install chromium\s*$/m.test(p[1])) noFallback.push(p[0]);
+        });
+        T.eq('every --with-deps call carries a `timeout`, so a dead mirror fails fast', unbounded.join(', '), '');
+        T.eq('…and each bound sits at or above 60 s, which is over three times the measured healthy maximum, and strictly under the job cap', offBound.join(', '), '');
+        T.eq('…and the deps-free fallback still runs after the bounded call', noFallback.join(', '), '');
       }
     });
 
@@ -61187,6 +61447,140 @@
       }
     });
 
+    /* THE BEAT REFERENCE ON THE PAGE (residue 2026-09-26-tch-hat-misattributes-shared-optical-error).
+       `trio-reference.js` carries copies of three oracle pairing functions, because the oracle imports
+       nothing a bundle could reach; a copy that drifts from the oracle measures a different reference
+       with no gate noticing, so the bodies are pinned here. The other legs drive the module, the
+       worker's three refusals and the page's two new strings through their real code. */
+    group('sensor-trio beat reference — oracle copies pinned, refusals named, caption in plain words', 'sensor-trio · trio-reference · §∅', function (T) {
+      var srcs = env.sources || {};
+      var tr = srcs['trio-reference.js'] || '',
+        orc = srcs['tools/oracle-ecg-firmware-rr.mjs'] || '',
+        wk = srcs['sensor-trio-worker.js'] || '',
+        page = srcs['sensor-trio-night.js'] || '';
+      T.ok('trio-reference.js is readable in this lane', tr.length > 2000, 'list it in BOTH lanes');
+      T.ok('the oracle is readable in this lane', orc.length > 2000, 'list tools/oracle-ecg-firmware-rr.mjs in BOTH lanes');
+      T.ok('the worker is readable in this lane', wk.length > 20000, 'list sensor-trio-worker.js in BOTH lanes');
+      T.ok('the page is readable in this lane', page.length > 20000, 'list sensor-trio-night.js in BOTH lanes');
+      if (!tr || !orc || !wk || !page) return;
+      function fnText(src, name) {
+        var i = src.search(new RegExp('function ' + name + '\\s*\\(')),
+          d = 0,
+          k;
+        if (i < 0) return null;
+        for (k = src.indexOf('{', src.indexOf(')', i)); k < src.length; k++) {
+          if (src[k] === '{') d++;
+          else if (src[k] === '}' && --d === 0) break;
+        }
+        return src.slice(i, k + 1);
+      }
+      var norm = function (s) {
+        return s
+          ? s
+              .replace(/\/\*[\s\S]*?\*\//g, '')
+              .replace(/\/\/[^\n]*/g, '')
+              .replace(/\s+/g, '')
+          : null;
+      };
+      ['firmwareHostTimes', 'pairByTime', 'coincidenceLag'].forEach(function (n) {
+        var a = norm(fnText(tr, n)),
+          b = norm(fnText(orc, n));
+        T.ok('the copy of ' + n + ' equals the oracle body', !!a && a === b, a && b ? 'bodies differ — re-copy from the oracle, never edit one side' : 'function not found');
+      });
+
+      /* the module, evaluated from its text with the real stats spine */
+      var KS = dexAnalysisStats(env),
+        box = { AnalysisStats: KS.S };
+      try {
+        new Function('globalThis', 'module', 'require', tr)(box, undefined, undefined);
+      } catch (e) {
+        T.ok('trio-reference.js evaluates', false, (e && e.message) || String(e));
+        return;
+      }
+      var TR = box.TrioReference;
+      T.ok('trio-reference.js exports TrioReference', !!TR && typeof TR.scoreSeries === 'function' && typeof TR.buildReference === 'function');
+      if (!TR || !KS.S) return;
+      var REF = new Map(),
+        H = new Map(),
+        V = new Map(),
+        O = new Map(),
+        s,
+        seed = 7;
+      var rnd = function () {
+        seed = (seed * 16807) % 2147483647;
+        return seed / 2147483647 - 0.5;
+      };
+      for (s = 0; s < 3000; s++) {
+        var r = 60 + 5 * Math.sin(s / 300);
+        REF.set(s, r);
+        H.set(s, r + rnd() * 0.5);
+        V.set(s, r + 1 + rnd() * 2);
+        O.set(s, r + rnd() * 6);
+      }
+      var sc = TR.scoreSeries(REF, H, V, O);
+      T.ok('scoreSeries scores 3000 shared seconds', sc.ok && sc.n === 3000, JSON.stringify(sc.reason || sc.n));
+      var u = Math.sqrt(1 / 12);
+      T.ok(
+        'the measured σ recovers each planted error SD within 5 %',
+        sc.ok && Math.abs(sc.trueSd.h10 / (0.5 * u) - 1) < 0.05 && Math.abs(sc.trueSd.verity / (2 * u) - 1) < 0.05 && Math.abs(sc.trueSd.o2 / (6 * u) - 1) < 0.05,
+        sc.ok ? JSON.stringify(sc.trueSd) : ''
+      );
+      T.ok('the bias carries the planted Verity offset', sc.ok && Math.abs(sc.bias.verity - 1) < 0.1, sc.ok ? String(sc.bias.verity) : '');
+      var short = new Map();
+      for (s = 0; s < 10; s++) short.set(s, 60);
+      var sr = TR.scoreSeries(short, H, V, O);
+      T.ok('§∅ fewer shared seconds than MIN_SECONDS refuses with a named reason', sr.ok === false && /< 1000/.test(sr.reason) && sr.n === 10, JSON.stringify(sr));
+
+      /* the worker's refusals, run through the real function body */
+      var nrSrc = fnText(wk, 'nightReference');
+      T.ok('the worker defines nightReference', !!nrSrc);
+      if (!nrSrc) return;
+      var mk = function (trMod) {
+        /* the harness is synchronous, and all three refusals return before the first await, so the
+           body runs as a plain function with its awaits stripped */
+        return new Function('TrioReference', 'ECGDSP', 'self', 'return (' + nrSrc.replace(/\bawait\s+/g, '') + ')')(trMod, {}, {});
+      };
+      var pg = function () {};
+      var rrFile = {
+        text: function () {
+          return '';
+        }
+      };
+      var res = [mk(TR)({}, {}, H, V, O, pg), mk(TR)({ h10rr: rrFile }, null, H, V, O, pg), mk(undefined)({ h10rr: rrFile }, {}, H, V, O, pg)];
+      {
+        T.ok('§∅ no _RR.txt refuses and names the file', res[0].ok === false && /_RR\.txt/.test(res[0].reason), res[0].reason);
+        T.ok('§∅ no raw ECG record refuses and names why', res[1].ok === false && /_ECG\.txt/.test(res[1].reason), res[1].reason);
+        T.ok('§∅ an absent module refuses and names the file', res[2].ok === false && /trio-reference\.js/.test(res[2].reason), res[2].reason);
+
+        /* the page: the strap firmware's RR file has a role, and the caption reads as a sentence */
+        var cl = fnText(page, 'classify');
+        var classify = new Function('return (' + cl + ')')();
+        var got = classify({ name: 'Polar_H10_02849638_20261109213457_RR.txt' });
+        T.ok('the page files an H10 _RR.txt under the h10rr role', !!got && got.role === 'h10rr' && got.stamp === '20261109213457', JSON.stringify(got));
+        var vl = fnText(page, 'validationLine');
+        var line = new Function('TCHAX', 'TCHMED', 'TCHREC', 'tchPop', 'TCH_REFUSED', 'DEVNAME', 'f2', 'tchBand', 'return (' + vl + ')')(
+          { inBand: { h10: { reads: 'over-reads', pass: 51, of: 71, status: 'unchecked' } } },
+          { h10: { classic: 1.03, trueSd: 0.86 } },
+          { band: { passFraction: 0.8 } },
+          function () {
+            return '71 nights';
+          },
+          'REFUSED',
+          { h10: 'H10' },
+          function (x) {
+            return x.toFixed(2);
+          },
+          function () {
+            return '±0.3 bpm or 30 %';
+          }
+        )('h10');
+        T.eq(
+          'the H10 caption reads as plain sentences',
+          line,
+          'Over 71 nights: the hat put the H10 at 1.03 bpm; measured against the beat reference it is 0.86 bpm (a lower bound), so the hat reads it too high. The hat came within ±0.3 bpm or 30 % on 51 of 71 nights, and it needs 80 %: not validated for the H10.'
+        );
+      }
+    });
     group('Verity gate classifies the FAILURE (detector harmonic vs lost contact), not just rejects it', 'sensor-trio-worker · trio · regression', function (T) {
       var src = (env.sources && env.sources['sensor-trio-worker.js']) || '';
       T.ok('sensor-trio-worker.js source available to the gate', !!src);
@@ -66075,9 +66469,11 @@
       var s = env.sources || {};
       // (a) the mirrored cross-night significance rule must be byte-identical across nodes
       //     — now expressed via the shared physiology kernel (P8), so it can't drift.
-      var crosses = ['ecgdex-cross.js', 'oxydex-cross.js', 'pulsedex-cross.js', 'ppgdex-cross.js', 'hrvdex-cross.js', 'cpapdex-cross.js'].filter(function (f) {
-        return s[f];
-      });
+      var crosses = ['ecgdex-cross.js', 'oxydex-cross.js', 'pulsedex-cross.js', 'ppgdex-cross.js', 'hrvdex-cross.js', 'glucodex-cross.js', 'motiondex-cross.js', 'cpapdex-cross.js'].filter(
+        function (f) {
+          return s[f];
+        }
+      );
       var sigRe = /mk\.p\s*<\s*DexKernel\.K\.SIGNIF_P\s*&&\s*Math\.abs\(mk\.tau\s*\|\|\s*0\)\s*>\s*DexKernel\.K\.SIGNIF_TAU/;
       T.ok('≥3 cross modules loaded for comparison', crosses.length >= 3, crosses.join(', '));
       crosses.forEach(function (f) {
@@ -66116,7 +66512,7 @@
         while (k < a.length && k < b.length && a[k] === b[k]) k++;
         return k;
       };
-      var SHARED_ENGINE = ['pulsedex-cross.js', 'ppgdex-cross.js', 'ecgdex-cross.js', 'hrvdex-cross.js'];
+      var SHARED_ENGINE = ['pulsedex-cross.js', 'ppgdex-cross.js', 'ecgdex-cross.js', 'hrvdex-cross.js', 'glucodex-cross.js', 'motiondex-cross.js'];
       var engRef = engineRegion(SHARED_ENGINE[0]);
       T.ok(
         'pulsedex-cross.js crossNight engine region located (the reference copy)',
@@ -74895,6 +75291,8 @@
         'pulsedex-cross.js': 'PulseCross',
         'ppgdex-cross.js': 'PPGCross',
         'hrvdex-cross.js': 'HRVCross',
+        'glucodex-cross.js': 'GluCross',
+        'motiondex-cross.js': 'MotionCross',
         'ecgdex-cross.js': 'ECGCross',
         'cpapdex-cross.js': 'CPAPCross',
         'cpapdex-coimport.js': 'CpapCoimport',
@@ -75107,7 +75505,7 @@
       T.ok('…and no cpcLfc/cpcVlfc entry exists to badge', !REG.cpcLfc && !REG.cpcVlfc, JSON.stringify({ cpcLfc: !!REG.cpcLfc, cpcVlfc: !!REG.cpcVlfc }));
     });
 
-    group('Cross §1 — per-node crossNightBlock + helpers (VARYING series)', 'ecgdex-cross · oxydex-cross · pulsedex-cross · ppgdex-cross · hrvdex-cross · cpapdex-cross', function (T) {
+    group('Cross §1 — per-node crossNightBlock + helpers (VARYING series)', 'ecgdex·oxydex·pulsedex·ppgdex·hrvdex·glucodex·motiondex·cpapdex', function (T) {
       var CNE = env.CrossNightEnvelope;
       var rng = [0, 1, 2, 3, 4, 5, 6, 7];
       var day = function (i) {
@@ -75521,6 +75919,199 @@
           }
         } else T.ok('env.HRVDex.compute available for the export-wiring leg', false, 'co-load hrvdex-dsp.js + map env.HRVDex');
       } else T.ok('HRVCross.crossNightBlock present (hrvdex-cross.js co-loaded)', false, 'co-load hrvdex-cross.js + map env.HRVCross');
+
+      /* ── GlucoDex (2026-11-11; ids mean·gmi·cv·tir·timeBelow·timeAbove). The item is one CGM DAY
+         from perDay(), so `unit:'day'` — not a night and not a recording: one wear spans many days,
+         and the series the envelope folds is the per-day list, never the wear. Every day weighs 1,
+         because perDay() already drops a day with fewer than 6 analysable cells, so a surviving row
+         states no coverage fraction the envelope could weigh (§∅ — deriving one from `n` would turn
+         an unknown denominator into a coverage number).
+         The mean series is the SAME 8-consecutive-int ramp the nodes above use ([120..127] here), so
+         the hand-derived sd/baseline/median/IQR/slope/τ pins carry over to this node's copy of the
+         engine. P12 asserts that copy is BYTE-IDENTICAL; these pins are what makes the claim
+         observable rather than asserted.
+         The FLOOR leg unique to this node: a 0 % Time-Below is the NORMAL reading for a day with no
+         hypoglycaemia, so a `0` that dropped out of the series would delete the best days (§∅ — 0 is
+         a legal sample; absence is null). ── */
+      var GU = env.GluCross;
+      if (GU && typeof GU.crossNightBlock === 'function') {
+        var gluRow = function (i, over) {
+          var r = { day: '2026-05-0' + (1 + i), startMs: day(i), n: 288, mean: 120 + i, gmi: +(6 + i * 0.1).toFixed(1), cv: 30 - i, tir: 70 + i, tbr: 4 - i * 0.5, tar: 20 + i };
+          if (over) for (var k in over) r[k] = over[k];
+          return r;
+        };
+        var gluL = rng.map(function (i) {
+          return gluRow(i);
+        });
+        var guB = GU.crossNightBlock(gluL);
+        T.ok('GlucoDex block conforms to ganglior.crossnight v1.0', ok(guB).ok, JSON.stringify(ok(guB).errors));
+        T.eq('GlucoDex block carries its GLU_DEFS ids', ids(guB), ['cv', 'gmi', 'mean', 'timeAbove', 'timeBelow', 'tir']);
+        T.eq('GlucoDex GLU_DEFS is the id-keyed projection of METRICS', Object.keys(GU.GLU_DEFS || {}).sort(), ['cv', 'gmi', 'mean', 'timeAbove', 'timeBelow', 'tir']);
+        T.eq('GlucoDex n flows through (8 days)', guB.metrics.mean.n, 8);
+        T.eq("GlucoDex unit is 'day' (one CGM day — not a night, and not the wear)", guB.window.unit, 'day');
+        T.eq('GlucoDex window.coverageWeighted = false (a perDay row states no coverage fraction)', guB.window.coverageWeighted, false);
+        T.eq('GlucoDex window.count = 8 days', guB.window.count, 8);
+        T.eq('GlucoDex window.spanDays = 7 (first to last of 8 consecutive days)', guB.window.spanDays, 7);
+        T.eq('GlucoDex mean rising + good:down → declining', guB.metrics.mean.trend.label, 'declining');
+        T.eq('GlucoDex tir rising + good:up → improving', guB.metrics.tir.trend.label, 'improving');
+        T.eq('GlucoDex cv falling + good:down → improving', guB.metrics.cv.trend.label, 'improving');
+        T.eq('GlucoDex timeBelow falling + good:down → improving', guB.metrics.timeBelow.trend.label, 'improving');
+        T.eq('GlucoDex timeAbove rising + good:down → declining', guB.metrics.timeAbove.trend.label, 'declining');
+        T.ok('GlucoDex crossnight metrics all self-describe evidence (Longitudinal badge — COVERAGE-MANDATE)', everyEv(guB));
+        T.eq('GlucoDex mean evidence = measured (registry)', guB.metrics.mean.evidence, 'measured');
+        T.eq('GlucoDex gmi evidence = validated (registry)', guB.metrics.gmi.evidence, 'validated');
+        T.eq('GlucoDex tir evidence = validated (registry)', guB.metrics.tir.evidence, 'validated');
+        T.eq('GlucoDex timeBelow evidence = validated (registry)', guB.metrics.timeBelow.evidence, 'validated');
+        T.approx('GlucoDex mean central.sd = sample √(42/7)=2.4 (Bessel ÷N−1, NOT population 2.3)', guB.metrics.mean.central.sd, 2.4, 1e-9);
+        T.approx('GlucoDex mean central.cv = 100·√6/123.5 = 2.0 (from the sample SD)', guB.metrics.mean.central.cv, 2, 1e-9);
+        T.approx('GlucoDex mean baseline.sd = sample √(28/6)=2.2 (prior-7 spread, ÷N−1)', guB.metrics.mean.baseline.sd, 2.2, 1e-9);
+        T.approx('GlucoDex mean baseline.zLatest = (127−123)/√(28/6) = 1.85', guB.metrics.mean.baseline.zLatest, 1.85, 1e-9);
+        T.approx('GlucoDex mean central.median = 123.5', guB.metrics.mean.central.median, 123.5, 1e-9);
+        T.approx('GlucoDex mean central.iqr = 3.5', guB.metrics.mean.central.iqr, 3.5, 1e-9);
+        T.approx('GlucoDex mean trend.slopePerDay = 1.0 mg/dL/day', guB.metrics.mean.trend.slopePerDay, 1, 1e-9);
+        T.approx('GlucoDex mean trend.mannKendall.tau = 1', guB.metrics.mean.trend.mannKendall.tau, 1, 1e-9);
+        // ── §∅ · THE FLOOR IS PER FIELD, and a 0 % Time-Below is a MEASUREMENT, never absence. ──
+        var guNull = GU.crossNightBlock(
+          rng.map(function (i) {
+            return i === 3 ? gluRow(i, { mean: null }) : gluRow(i);
+          })
+        );
+        T.eq('GlucoDex a null mean cell drops only that metric (n 7)', guNull.metrics.mean.n, 7);
+        T.eq('GlucoDex a null mean cell leaves TIR whole (n 8)', guNull.metrics.tir.n, 8);
+        var guZero = GU.crossNightBlock([gluRow(0, { tbr: 0 }), gluRow(1, { tbr: 0 }), gluRow(2, { tbr: 0 })]);
+        T.eq('GlucoDex a ZERO Time-Below is the normal day and stays in the series (n 3)', guZero.metrics.timeBelow.n, 3);
+        T.eq('GlucoDex three zero Time-Below days → central.mean is 0, never null', guZero.metrics.timeBelow.central.mean, 0);
+        var gu2 = GU.crossNightBlock([gluRow(0), gluRow(1)]);
+        T.ok('GlucoDex 2-day block still conforms to the contract', ok(gu2).ok, JSON.stringify(ok(gu2).errors));
+        T.eq('GlucoDex 2 days → central.mean still reports', gu2.metrics.mean.central.mean, 120.5);
+        T.eq('GlucoDex 2 days → Mann-Kendall tau is null (the τ floor is 3, per FIELD)', gu2.metrics.mean.trend.mannKendall.tau, null);
+        var gu1 = GU.crossNightBlock([gluRow(0)]);
+        T.eq('GlucoDex 1 day → n is 1, never 0', gu1.metrics.mean.n, 1);
+        T.eq('GlucoDex 1 day → window.spanDays = 0, and the block still conforms', gu1.window.spanDays, 0);
+        // ── THE WIRING, not just the module: glucoBuildNodeExport must CARRY the block. ──
+        var GD = env.GlucoDex || env.GLUDSP;
+        if (GD && typeof GD.compute === 'function') {
+          var gHDR = 'Time of Glucose Reading [T=(local time) +/- (time zone offset)], Measurement(mg/dL)';
+          var gT0 = Date.UTC(2026, 4, 3, 0, 0, 0);
+          var gLines = [gHDR];
+          for (var gd = 0; gd < 4; gd++) {
+            for (var gj = 0; gj < 288; gj++) {
+              gLines.push(new Date(gT0 + (gd * 288 + gj) * 5 * 60000).toISOString().slice(0, 16) + '-04:00,' + (110 + gd * 6 + (gj % 5)));
+            }
+          }
+          var guExp = GD.compute({ text: gLines.join('\n'), filename: 'crossnight.csv' }, { generated: '2026-11-11T00:00:00Z' });
+          T.ok(
+            'GlucoDex node-export carries crossNight (glucoBuildNodeExport wiring)',
+            !!(guExp && guExp.crossNight),
+            guExp && guExp.crossNight ? '' : 'glucoBuildNodeExport did not attach the block — check the GluCross/CrossNightEnvelope guard'
+          );
+          if (guExp && guExp.crossNight) {
+            T.ok('GlucoDex node-export crossNight conforms to ganglior.crossnight v1.0', ok(guExp.crossNight).ok, JSON.stringify(ok(guExp.crossNight).errors));
+            T.eq('GlucoDex node-export crossNight counts every perDay() day (4)', guExp.crossNight.window.count, 4);
+            T.eq("GlucoDex node-export crossNight unit is 'day'", guExp.crossNight.window.unit, 'day');
+            T.ok('GlucoDex schema.doc names the block (a consumer reads the doc, not this test)', /crossNight/.test(guExp.schema.doc || ''), guExp.schema.doc || '');
+          }
+        } else T.ok('env.GlucoDex.compute available for the export-wiring leg', false, 'co-load glucodex-dsp.js + map env.GlucoDex');
+      } else T.ok('GluCross.crossNightBlock present (glucodex-cross.js co-loaded)', false, 'co-load glucodex-cross.js + map env.GluCross');
+
+      /* ── MotionDex (2026-11-11; ids movementIndex·immobileFrac·sqiConf·supineFrac·respRate). The item
+         is one loaded IMU SESSION, so `unit:'session'` — one file is one session on this node.
+         THE ITEMS ARE NODE-EXPORT ENVELOPES, not raw compute() summaries. `buildNodeExport` is where
+         MotionDex's refusals live (it nulls immobileFrac over a device-clock seam and unwraps the SQI
+         block through sqiExportPair), so folding the raw summary would copy that judgement into a
+         second place. The WIRING leg below drives a real compute() through buildNodeExport and back
+         into this fold, which is what proves the accessor paths match the real export.
+         THE PIN UNIQUE TO THIS NODE: `motiondex-registry.js` declares `%` for immobileFrac and
+         supineFrac while the export carries a 0..1 FRACTION, so the table converts at the envelope
+         boundary. A fraction published under a `%` unit is the defect these pins exist to catch.
+         The immobileFrac series is the SAME 8-consecutive-int ramp the nodes above use (73..80 % here,
+         stored as 0.73..0.80), so the hand-derived sd/median/IQR/slope/τ pins carry over to this
+         node's copy of the engine. P12 asserts that copy is BYTE-IDENTICAL; these pins make the claim
+         observable rather than asserted. ── */
+      var MX = env.MotionCross;
+      if (MX && typeof MX.crossNightBlock === 'function') {
+        var mxEnv = function (i, over) {
+          var m = { movementIndex: 3 + i, immobileFrac: (73 + i) / 100, sqi: 0.9, supineFrac: (40 + i) / 100, respRateBrpm: 15 };
+          if (over) for (var k in over) m[k] = over[k];
+          return { recording: { startEpochMs: day(i) }, motion: m };
+        };
+        var mxL = rng.map(function (i) {
+          return mxEnv(i);
+        });
+        var mxB = MX.crossNightBlock(mxL);
+        T.ok('MotionDex block conforms to ganglior.crossnight v1.0', ok(mxB).ok, JSON.stringify(ok(mxB).errors));
+        T.eq('MotionDex block carries its MOTION_DEFS ids', ids(mxB), ['immobileFrac', 'movementIndex', 'respRate', 'sqiConf', 'supineFrac']);
+        T.eq('MotionDex MOTION_DEFS is the id-keyed projection of METRICS', Object.keys(MX.MOTION_DEFS || {}).sort(), ['immobileFrac', 'movementIndex', 'respRate', 'sqiConf', 'supineFrac']);
+        T.eq('MotionDex n flows through (8 sessions)', mxB.metrics.movementIndex.n, 8);
+        T.eq("MotionDex unit is 'session' (one loaded IMU file — not a night, and not a recording)", mxB.window.unit, 'session');
+        T.eq('MotionDex window.coverageWeighted = false (a session states no coverage fraction)', mxB.window.coverageWeighted, false);
+        T.eq('MotionDex window.count = 8 sessions', mxB.window.count, 8);
+        T.eq('MotionDex window.spanDays = 7 (first to last of 8 consecutive days)', mxB.window.spanDays, 7);
+        // ── THE UNIT CONVERSION, pinned on both % metrics: stored 0.73..0.80 → published 73..80 ──
+        T.approx('MotionDex immobileFrac 0.73..0.80 publishes as 73..80 % (central.mean 76.5)', mxB.metrics.immobileFrac.central.mean, 76.5, 1e-9);
+        T.approx('MotionDex supineFrac 0.40..0.47 publishes as 40..47 % (central.mean 43.5)', mxB.metrics.supineFrac.central.mean, 43.5, 1e-9);
+        T.approx('MotionDex immobileFrac central.sd = sample √(42/7)=2.4 (the shared ramp, in %)', mxB.metrics.immobileFrac.central.sd, 2.4, 1e-9);
+        T.approx('MotionDex immobileFrac central.median = 76.5', mxB.metrics.immobileFrac.central.median, 76.5, 1e-9);
+        T.approx('MotionDex immobileFrac central.iqr = 3.5', mxB.metrics.immobileFrac.central.iqr, 3.5, 1e-9);
+        T.approx('MotionDex immobileFrac trend.slopePerDay = 1.0 %/day', mxB.metrics.immobileFrac.trend.slopePerDay, 1, 1e-9);
+        T.approx('MotionDex immobileFrac trend.mannKendall.tau = 1', mxB.metrics.immobileFrac.trend.mannKendall.tau, 1, 1e-9);
+        // ── goodDirection, read from the registry through METRICS ──
+        T.eq('MotionDex immobileFrac rising + good:up → improving', mxB.metrics.immobileFrac.trend.label, 'improving');
+        T.eq('MotionDex supineFrac rising + good:down → declining', mxB.metrics.supineFrac.trend.label, 'declining');
+        T.eq('MotionDex movementIndex rising + good:down → declining', mxB.metrics.movementIndex.trend.label, 'declining');
+        T.eq('MotionDex a FLAT respRate series is stable, never a trend', mxB.metrics.respRate.trend.label, 'stable');
+        T.ok('MotionDex crossnight metrics all self-describe evidence (Longitudinal badge — COVERAGE-MANDATE)', everyEv(mxB));
+        T.eq('MotionDex movementIndex evidence = measured (registry)', mxB.metrics.movementIndex.evidence, 'measured');
+        T.eq('MotionDex sqiConf evidence = measured (registry)', mxB.metrics.sqiConf.evidence, 'measured');
+        T.eq('MotionDex supineFrac evidence = experimental (registry — uncalibrated device frame)', mxB.metrics.supineFrac.evidence, 'experimental');
+        T.eq('MotionDex respRate evidence = emerging (registry)', mxB.metrics.respRate.evidence, 'emerging');
+        // ── §∅ · THE FLOOR IS PER FIELD, and a 0 movement index is a MOTIONLESS NIGHT, never absence. ──
+        var mxNull = MX.crossNightBlock(
+          rng.map(function (i) {
+            return i === 3 ? mxEnv(i, { movementIndex: null }) : mxEnv(i);
+          })
+        );
+        T.eq('MotionDex a null movementIndex cell drops only that metric (n 7)', mxNull.metrics.movementIndex.n, 7);
+        T.eq('MotionDex a null movementIndex cell leaves immobileFrac whole (n 8)', mxNull.metrics.immobileFrac.n, 8);
+        var mxSeam = MX.crossNightBlock(
+          rng.map(function (i) {
+            return i === 2 ? mxEnv(i, { immobileFrac: null }) : mxEnv(i);
+          })
+        );
+        T.eq('MotionDex a seam-refused immobileFrac (null) drops that session only (n 7)', mxSeam.metrics.immobileFrac.n, 7);
+        var mxZero = MX.crossNightBlock([mxEnv(0, { movementIndex: 0 }), mxEnv(1, { movementIndex: 0 }), mxEnv(2, { movementIndex: 0 })]);
+        T.eq('MotionDex a ZERO movement index is a motionless night and stays in the series (n 3)', mxZero.metrics.movementIndex.n, 3);
+        T.eq('MotionDex three motionless nights → central.mean is 0, never null', mxZero.metrics.movementIndex.central.mean, 0);
+        var mx2 = MX.crossNightBlock([mxEnv(0), mxEnv(1)]);
+        T.ok('MotionDex 2-session block still conforms to the contract', ok(mx2).ok, JSON.stringify(ok(mx2).errors));
+        T.eq('MotionDex 2 sessions → Mann-Kendall tau is null (the τ floor is 3, per FIELD)', mx2.metrics.movementIndex.trend.mannKendall.tau, null);
+        var mx1 = MX.crossNightBlock([mxEnv(0)]);
+        T.eq('MotionDex 1 session → n is 1, never 0', mx1.metrics.movementIndex.n, 1);
+        T.eq('MotionDex 1 session → window.spanDays = 0, and the block still conforms', mx1.window.spanDays, 0);
+        /* ── THE WIRING, not just the module: a REAL compute() → buildNodeExport() → this fold. If an
+           accessor path in METRICS ever stops matching the export's `motion` block, every metric reads
+           n 0 and this leg reds. The two synthetics differ by seed, so the fold reads two items. ── */
+        var MDX = env.MOTIONDSP;
+        if (MDX && typeof MDX.compute === 'function' && typeof MDX.buildNodeExport === 'function' && typeof MDX.genSynthetic === 'function') {
+          var mkSess = function (seed) {
+            var acc = MDX.genSynthetic({ sec: 300, hz: 26, brpm: 15, seed: seed });
+            var chestAcc = MDX.genSynthetic({ sec: 300, hz: 26, brpm: 15, seed: seed + 14 });
+            return MDX.buildNodeExport(MDX.compute({ acc: acc, chestAcc: chestAcc }), {});
+          };
+          var mxReal = [mkSess(7), mkSess(21)];
+          var mxRB = MX.crossNightBlock(mxReal);
+          T.ok('MotionDex real-export fold conforms to ganglior.crossnight v1.0', ok(mxRB).ok, JSON.stringify(ok(mxRB).errors));
+          T.eq('MotionDex real-export fold counts both sessions', mxRB.window.count, 2);
+          var mxResolved = Object.keys(mxRB.metrics).filter(function (k) {
+            return mxRB.metrics[k].n === 2;
+          });
+          T.ok(
+            'MotionDex METRICS accessor paths match the real buildNodeExport shape (≥1 metric reads both sessions)',
+            mxResolved.length > 0,
+            'resolved over both sessions: ' + (mxResolved.join(', ') || 'NONE — every accessor missed the motion block')
+          );
+        } else T.skip('MotionDex real-export wiring leg', 'co-load motiondex-dsp.js + map env.MOTIONDSP');
+      } else T.ok('MotionCross.crossNightBlock present (motiondex-cross.js co-loaded)', false, 'co-load motiondex-cross.js + map env.MotionCross');
 
       /* ── ECGDex (envelope; node-specific accessors: qtc valid-delin guard, cvhr longRec&&!ambulatory) ── */
       var EC = env.ECGCross;
@@ -79429,7 +80020,12 @@
         { node: 'PulseDex', cross: env.PulseCross, resolver: env.PulseRegistry, defsKey: 'PULSE_DEFS' },
         /* HRVDex joins the gate with its own cross module (2026-11-11). Its five ids are copied
            FROM hrvdex-registry.js, so this row is the check that the copy stays a copy. */
-        { node: 'HRVDex', cross: env.HRVCross, resolver: env.HrvRegistry, defsKey: 'HRV_DEFS' }
+        { node: 'HRVDex', cross: env.HRVCross, resolver: env.HrvRegistry, defsKey: 'HRV_DEFS' },
+        /* GlucoDex joins on the same day and for the same reason. Its six ids are copied FROM
+           glucodex-registry.js, and two of them are the registry's names for a SUM the per-day row
+           writes — `timeBelow` for the two below-range bands and `timeAbove` for the two above — so
+           this row is also the check that the sum kept the graded id rather than inventing one. */
+        { node: 'GlucoDex', cross: env.GluCross, resolver: env.GlucoRegistry, defsKey: 'GLU_DEFS' }
       ];
       var covered = false;
       NODES.forEach(function (N) {
@@ -81209,6 +81805,104 @@
         }
       };
       T.ok('no usable counter ⇒ the index form, never a fabricated 0', PS.ecgCounterTimeMs(noCounter, 130) === 1005, String(PS.ecgCounterTimeMs(noCounter, 130)));
+    });
+
+    group('PAT ECG axis — how many tools still time R peaks on a private whole-file fs (2026-09-26)', 'pat · ecg-axis · census', function (T) {
+      var TT = env.toolTexts;
+      if (!TT) {
+        T.skip('tool texts readable from source', 'env.toolTexts is absent in this runner — the census reads the tools tree');
+        return;
+      }
+      /* THE ROW NAMED THREE TOOLS AND THE TREE HELD TEN SITES. Row
+         2026-09-26-pat-ecg-index-axis-is-not-the-h10-sample-clock named `pat-hrv-windows`,
+         `pat-window-scaling` and `pat-literature-spec` as the local `t0 + i/fs` copies. A scan of the
+         whole tools tree on 2026-11-11 read 10 sites over 9 files, so the row's census reached under a
+         third of them. #4783 then flipped `rPeakTimesOnAxis` to the device counter, which moved the
+         shared arithmetic and left every private copy on the index form, so one tree now times R peaks
+         two ways. This leg is the only reader that sees the whole population at once.
+         THE BASELINE IS A RATCHET, SO IT MAY ONLY SHRINK. A file that routes through the shared
+         function leaves; a listed file that no longer parses ECG reds as STALE rather than sitting
+         there excusing nothing. */
+      var isEcgReader = function (k) {
+        return /^tools\//.test(k) && /parseECG/.test(TT[k] || '');
+      };
+      var ecgReaders = Object.keys(TT).filter(isEcgReader);
+      var IDX_FORM = /t0Ms \+ \(\s*[A-Za-z0-9_.[\]]+ \/ [A-Za-z0-9_.]*\bfs\b\s*\) \* 1000/;
+      var reachesShared = function (k) {
+        return /rPeakTimesOnAxis/.test(TT[k] || '') || /import \{[^}]*\becgRpeakTimes\b[^}]*\} from '\.\/pat-matchrate-strict\.mjs'/.test(TT[k] || '');
+      };
+      var privateSites = ecgReaders
+        .filter(function (k) {
+          return IDX_FORM.test(TT[k] || '') && !reachesShared(k);
+        })
+        .map(function (k) {
+          return k.replace('tools/', '');
+        })
+        .sort();
+      /* ANTI-VACUITY runs BOTH ways. The matcher must find the sanctioned implementation, and the
+         population must be wider than the handful of names below. */
+      T.ok('ANTI-VACUITY · the matcher reads the index form in the sanctioned copy', IDX_FORM.test(TT['tools/pat-matchrate-strict.mjs'] || ''), 'pat-matchrate-strict carries the linear arm');
+      T.ok('ANTI-VACUITY · the population is every ECG reader in the tree', ecgReaders.length >= 20, ecgReaders.length + ' ECG reader(s)');
+      /* THE TWO THIS UNIT CONVERTED. Both carried a declared port of the worker's `ecgRpeakTimes` and
+         both held the index form alone, so the port deviated with nothing declaring it. */
+      T.eq(
+        'the two declared ports now route through the shared arithmetic',
+        ['beat-correspondence.mjs', 'pat-literature-spec.mjs']
+          .filter(function (t) {
+            return !reachesShared('tools/' + t);
+          })
+          .join(', '),
+        ''
+      );
+      T.eq(
+        'and neither keeps a private site beside it',
+        ['beat-correspondence.mjs', 'pat-literature-spec.mjs']
+          .filter(function (t) {
+            return privateSites.indexOf(t) >= 0;
+          })
+          .join(', '),
+        ''
+      );
+      T.eq(
+        'the two the row named before them stay routed',
+        ['pat-hrv-windows.mjs', 'pat-window-scaling.mjs']
+          .filter(function (t) {
+            return !reachesShared('tools/' + t);
+          })
+          .join(', '),
+        ''
+      );
+      /* THE REMAINDER, BY NAME. `pat-three-corner` is the odd member: it holds a three-way axis switch
+         of its own rather than a bare index form, so the capability is there and the arithmetic is
+         duplicated — the same defect in a second shape. `trio-fold-merge` converts a record LENGTH to
+         an end time and never a peak position, so it sits outside the defect and inside the matcher. */
+      var AXIS_BACKLOG = [
+        'o2ring-finger-roundtrip.mjs',
+        'o2ring-finger-validate-batch.mjs',
+        'pat-per-led.mjs',
+        'pat-three-corner.mjs',
+        'ppg-bridge-hrv-validate.mjs',
+        'ppg-foot-consensus-e1.mjs',
+        'ppg-fusion-e3.mjs',
+        'ppi-jitter-vs-ecg.mjs',
+        'trio-fold-merge.mjs'
+      ];
+      var offBaseline = privateSites.filter(function (t) {
+        return AXIS_BACKLOG.indexOf(t) < 0;
+      });
+      var alreadyRouting = AXIS_BACKLOG.filter(function (t) {
+        return reachesShared('tools/' + t);
+      });
+      var staleOnBaseline = AXIS_BACKLOG.filter(function (t) {
+        return privateSites.indexOf(t) < 0;
+      });
+      T.eq('every ECG reader holding a private index form is on the declared baseline', offBaseline.join(', '), '');
+      T.eq('the baseline carries no name that already routes through the shared function', alreadyRouting.join(', '), '');
+      T.eq('the baseline carries no stale name, because a stale entry excuses nothing', staleOnBaseline.join(', '), '');
+      T.eq('and the baseline is the measured set of 2026-11-11', privateSites.join(', '), AXIS_BACKLOG.join(', '));
+      /* THE ONE EXCLUSION, STATED. A matcher that admitted a record-end time would read a clean file as
+         a defect, so the exclusion is named here rather than tuned into the regex. */
+      T.ok('the excluded member converts a record LENGTH, never a peak', /t0Ms \+ \(r\.int16\.length \/ fs\) \* 1000/.test(TT['tools/trio-fold-merge.mjs'] || ''), 'an end time');
     });
 
     group("PAT arrival-floor axis — the corrected lag removes the links' BUFFERING, not a clock (route-PAT fix 2026-09-27)", 'pat · arrival-floor · plant', function (T) {

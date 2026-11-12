@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="7ecb05e9ed20" data-compute-hash="058a67a2bc5c"><head>
+<html lang="en" data-manifest-hash="197259021b6b" data-compute-hash="7f7ab91589e7"><head>
 <!--
   OverDex.html — Tepna
   Copyright 2026 Michal Planicka
@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/DnE9XmMuQAgOpzjl/0o9V9w5hh0bdf+ZSJ5HcC/gw0=' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4KsRTgVuaYcMUNL8LhUau/rNzFP6NRbvBy2QbxNGFzw=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8/sH7B7wN4nDqz11oZWLoOg8SkSuIQF0L4F7Nz3oxk8=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-Ow3WC+A7bU/F/dZPsKQ/TOo3nkpdBJCA7jtrQ24dPug=' 'sha256-QU1eFIpXtk89h7OawHFWXJry6pEr0cw5i0Q08kGZz88=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-R6Dc/xXQzYFveWsVfbGSg8lpp98pG2dIwLNGGu4Pc04=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-TKAfD4U2IHCHmC8RWcDPr46+NNZ3WKzZIMJ1zPbulnU=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-XeM139aCzQDSzEaQuQBVa+zEhnOSgXP/4pqlC0h9wO4=' 'sha256-dgJY/SRoyJ6GnIMF2h+gidz3lp4uPUKCbL0PXtKVmU4=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-kryaRysk2VcK4nRAhaqFOMDUukjwkDR8WaOUc3fNkcY=' 'sha256-mBYm62Y+mqnhe5DkYNAGu2bkZmIfXpkUo6noIaU/RzM=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-uS0BO9FA6T7Ej0PgYdFgmhKAD7wWWUv6IRvThTzY6lc=' 'sha256-wK9fP+fYfi661IypDOgrAoxGZS8mGJfe9l/9288cTZQ=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/DnE9XmMuQAgOpzjl/0o9V9w5hh0bdf+ZSJ5HcC/gw0=' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8/sH7B7wN4nDqz11oZWLoOg8SkSuIQF0L4F7Nz3oxk8=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DkJMIke/oeAn5D/73OWQ4sM6DEkOlbGJANo7P3FHILA=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HAXbchwkH2w0sxN5WvjWCMLbxsfGGclNPzL9K/ePBeM=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-Ow3WC+A7bU/F/dZPsKQ/TOo3nkpdBJCA7jtrQ24dPug=' 'sha256-QU1eFIpXtk89h7OawHFWXJry6pEr0cw5i0Q08kGZz88=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-R6Dc/xXQzYFveWsVfbGSg8lpp98pG2dIwLNGGu4Pc04=' 'sha256-SYhOYN70OcmPNUyQI3+XkzBPsDEkov/r8Qc03as7ooU=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-WzBr6EKLqAjW7EwqbZUhsDrzfhP2IA7naPBknkKXDSo=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-fP8yqQORrq1gqNXH4KGQ0Fx5gvu4FNAsDQUJB31fcLw=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-kryaRysk2VcK4nRAhaqFOMDUukjwkDR8WaOUc3fNkcY=' 'sha256-msTW+K3Nr8EkBLtJ3IUeMa89XET152+xpGXg/z9u8v0=' 'sha256-oH7lhnTrlkQhQ9f9PuKw7Wwq8UnyptMMWqHMeBGouU8=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-uS0BO9FA6T7Ej0PgYdFgmhKAD7wWWUv6IRvThTzY6lc=' 'sha256-wK9fP+fYfi661IypDOgrAoxGZS8mGJfe9l/9288cTZQ=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -106,6 +106,7 @@
   .sv{font-family:var(--mono);font-size:24px;font-weight:600;letter-spacing:-.02em;}
   .sv.teal{color:var(--teal);} .sv.amber{color:var(--amber);} .sv.muted{color:var(--text3);}
   .sl{color:var(--text3);font-size:11px;margin-top:4px;text-transform:uppercase;letter-spacing:.08em;}
+  .ssub{color:var(--text3);font-size:11px;margin-top:3px;line-height:1.35;}
   .block{margin-top:18px;}
   .bt{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--text3);margin-bottom:9px;}
   .chips{display:flex;flex-wrap:wrap;gap:9px;}
@@ -25751,6 +25752,781 @@ __exports.OxyDex = window.OxyDex;
   global.HRVCross = { crossNight, crossNightBlock, ols, mannKendall, bootstrapDeltaCI, METRICS, HRV_DEFS };
 })(typeof window !== 'undefined' ? window : globalThis);
 </script>
+<script data-inline-src="glucodex-cross.js">/* ═════════════════════════════════════════════════════════════════════════
+ * Copyright 2026 Michal Planicka
+ * SPDX-License-Identifier: Apache-2.0
+   Dex Suite · CROSS-DAY ANALYTICS ENGINE  (glucodex-cross.js)
+   ───────────────────────────────────────────────────────────────────────
+   The GlucoDex leg of residue `2026-11-08-three-nodes-emit-no-crossnight-export`:
+   HRVDex, GlucoDex and MotionDex emitted no `ganglior.crossnight` envelope, so the
+   Integrator longitudinal layer read nothing from them. #4887 added HRVDex. This file
+   adds GlucoDex. MotionDex stays open, and the row stays OPEN with it.
+
+   WHY GLUCODEX BEFORE MOTIONDEX. A GlucoDex item is one calendar DAY and `analyze()`
+   already folds that series — `perDay(c)` writes it and the result carries it as
+   `daily` (glucodex-dsp.js). MotionDex holds no series at all: one file is one
+   session and `compute(input)` reads one recording, so MotionDex needs a multi-session
+   model before an envelope over it describes anything. The spec names MotionDex `the
+   unmitigated case` for that reason.
+
+   The math below is the suite's shared crossNight() engine, duplicated locally per
+   node (suite convention — like parseTimestamp). This copy is BYTE-IDENTICAL to the
+   region that `pulsedex-cross.js`, `ppgdex-cross.js`, `ecgdex-cross.js` and
+   `hrvdex-cross.js` already share, and `tests/dex-tests.js` holds the five against
+   each other, so a drift in one of them reds. `oxydex-cross.js` and `cpapdex-cross.js`
+   carry their own variants of the same math and stay outside that set. Only the metric
+   table, the DEFS projection, the envelope call and the global name differ below.
+
+   GLUCODEX CARRIES NO `clock.js` (CLAUDE.md §✅ — `DexClock` is UNDEFINED in this
+   bundle, a ReferenceError and not a fallback). Nothing below reaches it: the engine is
+   arithmetic, `crossnight-envelope.js` names `parseTimestamp` only in a comment, and the
+   item stamp is the day row's own `startMs`.
+
+   WHY EVERY ITEM WEIGHS THE SAME. The envelope down-weights an item by its coverage
+   fraction. A day row states its sample count in `n` and `perDay` already drops a day
+   under 6 analysable samples, so the rows that reach here are comparable by
+   construction. Turning `n` into a coverage fraction needs a per-day DENOMINATOR, and
+   the sensor's own cadence varies within a wear, so that denominator would be a guess.
+   Every item weighs 1 and `window.coverageWeighted` reads false. The flag says which it
+   is.
+
+   `unit:'day'` extends the three values `crossnight-envelope.js` records in a comment
+   (session, recording, night). Nothing reads that field as a vocabulary — no gate
+   checks it and the Integrator's `.unit` reads are the METRIC unit — so this file does
+   not edit that comment, because `crossnight-envelope.js` is inlined in seven bundles
+   and a comment-only edit there moves every carrying bundle's `manifestHash` and
+   `computeHash`.
+
+   Exposes window.GluCross = { crossNight, crossNightBlock, ols, mannKendall,
+   bootstrapDeltaCI, METRICS, GLU_DEFS }.
+   ═════════════════════════════════════════════════════════════════════════ */
+(function (global) {
+  'use strict';
+  const r1 = (v) => (v == null || !isFinite(v) ? null : Math.round(v * 10) / 10);
+  const r2 = (v) => (v == null || !isFinite(v) ? null : Math.round(v * 100) / 100);
+  const r3 = (v) => (v == null || !isFinite(v) ? null : Math.round(v * 1000) / 1000);
+
+  function wmean(vals, w) {
+    let s = 0,
+      sw = 0;
+    for (let i = 0; i < vals.length; i++) {
+      s += vals[i] * w[i];
+      sw += w[i];
+    }
+    return sw ? s / sw : NaN;
+  }
+  function mean(a) {
+    let s = 0;
+    for (const v of a) s += v;
+    return a.length ? s / a.length : NaN;
+  }
+  /* Coverage-WEIGHTED sample SD — the companion wmean always needed (DEEP-AUDIT-II §9.1).
+     CV% was `100 * sd(vals) / wmean(vals, w)`: an UNWEIGHTED spread over a WEIGHTED centre, so a
+     night the envelope had deliberately down-weighted still contributed its full deviation. On
+     routine CPAP partial-use that read 74.6 % where the consistent figure is 49.8 %. It also
+     breached the spec in writing — CROSSNIGHT-ENVELOPE-SPEC §3: low-quality items are "down-weighted
+     in EVERY fit/aggregate via `weight`". `ols(idx, vals, w)` one line below already passed weights;
+     only the spread did not.
+     Reliability-weight form: V1 = Σw, V2 = Σw²; s² = Σw(x−m_w)² / (V1 − V2/V1).
+     With UNIFORM weights V1 = n and V2 = n, so the denominator is exactly n−1 — it reduces to the
+     Bessel-corrected sd() below, bit for bit. That is why every existing fixture holds: the whole
+     crossnight suite feeds a uniform weight vector, which is also why this was never exercised. */
+  function wsd(vals, w) {
+    if (vals.length < 2) return 0;
+    const m = wmean(vals, w);
+    let V1 = 0,
+      V2 = 0,
+      acc = 0;
+    for (let i = 0; i < vals.length; i++) {
+      const wi = w[i];
+      V1 += wi;
+      V2 += wi * wi;
+      const d = vals[i] - m;
+      acc += wi * d * d;
+    }
+    const denom = V1 > 0 ? V1 - V2 / V1 : 0;
+    return denom > 0 ? Math.sqrt(acc / denom) : 0;
+  }
+  function median(a) {
+    if (!a.length) return NaN;
+    const b = [...a].sort((x, y) => x - y),
+      n = b.length;
+    return n % 2 ? b[(n - 1) / 2] : (b[n / 2 - 1] + b[n / 2]) / 2;
+  }
+  function quantile(a, q) {
+    if (!a.length) return NaN;
+    const b = [...a].sort((x, y) => x - y),
+      p = (b.length - 1) * q,
+      lo = Math.floor(p),
+      hi = Math.ceil(p);
+    return lo === hi ? b[lo] : b[lo] + (b[hi] - b[lo]) * (p - lo);
+  }
+
+  // OLS slope/intercept/R² of y vs x (weighted)
+  function ols(x, y, w) {
+    const n = x.length;
+    if (n < 2) return { slope: null, intercept: null, r2: null };
+    let sw = 0,
+      sx = 0,
+      sy = 0,
+      sxx = 0,
+      sxy = 0,
+      syy = 0;
+    for (let i = 0; i < n; i++) {
+      const wi = w ? w[i] : 1;
+      sw += wi;
+      sx += wi * x[i];
+      sy += wi * y[i];
+      sxx += wi * x[i] * x[i];
+      sxy += wi * x[i] * y[i];
+      syy += wi * y[i] * y[i];
+    }
+    const den = sw * sxx - sx * sx;
+    if (Math.abs(den) < 1e-12) return { slope: null, intercept: null, r2: null };
+    const slope = (sw * sxy - sx * sy) / den,
+      intercept = (sy - slope * sx) / sw;
+    const num = sw * sxy - sx * sy;
+    const r2v = (num * num) / ((sw * sxx - sx * sx) * (sw * syy - sy * sy) || 1e-12);
+    return { slope, intercept, r2: Math.max(0, Math.min(1, r2v)) };
+  }
+
+  // Mann–Kendall τ + normal-approx two-sided p
+  function mannKendall(y) {
+    const n = y.length;
+    if (n < 3) return { tau: null, p: null, S: 0 };
+    let S = 0;
+    for (let i = 0; i < n - 1; i++)
+      for (let j = i + 1; j < n; j++) {
+        const d = y[j] - y[i];
+        S += d > 0 ? 1 : d < 0 ? -1 : 0;
+      }
+    const varS = (n * (n - 1) * (2 * n + 5)) / 18;
+    let z = 0;
+    if (S > 0) z = (S - 1) / Math.sqrt(varS);
+    else if (S < 0) z = (S + 1) / Math.sqrt(varS);
+    const p = 2 * (1 - normCdf(Math.abs(z)));
+    const tau = S / (0.5 * n * (n - 1));
+    return { tau: r2(tau), p: r3(Math.max(0, Math.min(1, p))), S };
+  }
+  function normCdf(x) {
+    return 0.5 * (1 + erf(x / Math.SQRT2));
+  }
+  function erf(x) {
+    const t = 1 / (1 + 0.3275911 * Math.abs(x));
+    const y = 1 - ((((1.061405429 * t - 1.453152027) * t + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x);
+    return x >= 0 ? y : -y;
+  }
+
+  // bootstrap 95% CI on (second-half mean − first-half mean)
+  function bootstrapDeltaCI(vals) {
+    const n = vals.length;
+    if (n < 7) return { delta: null, ci: null };
+    const half = Math.floor(n / 2);
+    const A = vals.slice(0, half),
+      B = vals.slice(n - half);
+    const delta = mean(B) - mean(A);
+    const B_iter = 1000,
+      deltas = [];
+    let seed = 12345;
+    const rnd = () => {
+      seed = (Math.imul(seed, 1103515245) + 12345) & 0x7fffffff; // §9.5 — Math.imul: exact mod-2^32 multiply (bare * reached ~2.3e18 > 2^53 → low bits rounded away → entropy collapse at n≥18)
+      return seed / 0x7fffffff;
+    };
+    for (let b = 0; b < B_iter; b++) {
+      const ra = [],
+        rb = [];
+      for (let i = 0; i < A.length; i++) ra.push(A[Math.floor(rnd() * A.length)]);
+      for (let i = 0; i < B.length; i++) rb.push(B[Math.floor(rnd() * B.length)]);
+      deltas.push(mean(rb) - mean(ra));
+    }
+    deltas.sort((a, b) => a - b);
+    return { delta: r2(delta), ci: [r2(quantile(deltas, 0.025)), r2(quantile(deltas, 0.975))] };
+  }
+
+  function crossNight(series, opts) {
+    opts = opts || {};
+    const good = opts.good || 'up';
+    const pts = series.filter((p) => p.v != null && isFinite(p.v));
+    const n = pts.length;
+    if (n < 2) return { n, mean: n ? r2(pts[0].v) : null, sd: null, cv: null, slopePerDay: null, slopePerRecording: null, slopeBasis: null, tau: null, p: null, zLatest: null, trendLabel: '—' };
+    const vals = pts.map((p) => p.v),
+      w = pts.map((p) => (p.w != null ? p.w : 1));
+    const idx = pts.map((p, i) => i);
+    const m = wmean(vals, w),
+      s = wsd(vals, w);
+    const med = median(vals),
+      iqr = quantile(vals, 0.75) - quantile(vals, 0.25);
+    const cv = m !== 0 ? Math.abs((100 * s) / m) : null;
+    // OLS vs night index (coverage-weighted)
+    const byIdx = ols(idx, vals, w);
+    // OLS vs real date (days since first) honours uneven gaps
+    const haveT = pts.every((p) => p.t != null);
+    let slopePerDay = null,
+      slopePerRecording = null,
+      r2date = null;
+    if (haveT) {
+      const days = pts.map((p) => (p.t - pts[0].t) / 86400000);
+      const od = ols(days, vals, w);
+      slopePerDay = r2(od.slope);
+      r2date = r2(od.r2);
+    } else {
+      /* DEEP-AUDIT-II §9.4 — an INDEX slope is not a PER-DAY slope, and must not be shipped under the
+         per-day name. This branch runs when even ONE item lacks a date, and it used to assign
+         `byIdx.slope` — change per RECORDING — straight to `slopePerDay`, which every consumer renders
+         with a `/d` suffix. A 12-recording series spanning 90 days then reported its per-recording
+         change as a daily one: ~7.5x overstated, and always in the alarming direction, since the same
+         delta compressed into a shorter apparent window looks steeper.
+         Same rule §8.4 already applied to the footer span: report the real quantity when it is
+         knowable, and say what you actually have when it is not — never present one as the other.
+         So the per-day figure is null here (honestly unavailable), the index slope keeps its own
+         honest name, and `slopeBasis` tells the consumer which it is holding. */
+      slopePerDay = null;
+      slopePerRecording = byIdx.slope != null ? r2(byIdx.slope) : null;
+    }
+    const mk = mannKendall(vals);
+    // personal baseline = mean±SD of all-but-latest; z of latest
+    let zLatest = null;
+    let baselineMean = null,
+      baselineSd = null;
+    if (n >= 3) {
+      /* DEEP-AUDIT-II §9.2 — the personal baseline must carry the SAME weights as the centre it is
+         compared against. `central.mean` is wmean(vals, w), but the baseline behind zLatest was
+         mean(prior) / sd(prior): UNWEIGHTED. A 6 %-coverage night therefore moved the baseline as
+         if it were a full night, and a genuine −2.4σ event on the newest night read as ordinary.
+         Spec breach in writing (CROSSNIGHT-ENVELOPE-SPEC §3: low-quality items are "down-weighted
+         in EVERY fit/aggregate via `weight`"). Same identity as §9.1: uniform weights reproduce the
+         old numbers exactly, which is why every committed fixture holds. */
+      const prior = vals.slice(0, n - 1);
+      const priorW = w.slice(0, n - 1);
+      const pm = wmean(prior, priorW),
+        psRaw = wsd(prior, priorW);
+      baselineMean = r2(pm);
+      // Guard a degenerate (near-zero) baseline spread: dividing by ~0 SD explodes z to
+      // absurd magnitudes (±1e8 σ) that overflow the trend card. Floor the SD relative to
+      // the baseline mean and clamp the result to a sane display range.
+      const psFloor = Math.max(psRaw, 1e-6 * Math.max(1, Math.abs(pm)));
+      baselineSd = r1(psFloor);
+      let z = (vals[n - 1] - pm) / psFloor;
+      if (!isFinite(z)) z = 0;
+      zLatest = r2(Math.max(-20, Math.min(20, z)));
+    }
+    // significance
+    const boot = bootstrapDeltaCI(vals);
+    // trend label by good-direction + Mann-Kendall significance
+    /* DEEP-AUDIT-II §9.3 — the label's DIRECTION and its SIGNIFICANCE must come from the SAME test.
+       `rising` was taken from the OLS slope while `signif` came from Mann–Kendall, so the sentence
+       "there is a significant trend, and it is improving" was assembled from two different
+       estimators. They disagree exactly where it matters: MK is rank-based and robust, OLS is
+       leverage-sensitive, so a single endpoint outlier flips the slope without moving τ — the audit
+       measured "improving" printed beside τ = −0.6 on 10.3 % of endpoint-outlier series.
+       Direction now comes from τ, the same statistic that decided the trend was real. `slopePerDay`
+       is still reported separately as the magnitude — this changes which estimator names the
+       DIRECTION, not what OLS is for.
+       When the two disagree in sign the series has endpoint leverage worth knowing about, so it is
+       reported rather than silently resolved. */
+    let trendLabel = 'stable';
+    const rising = (mk.tau || 0) > 0; // §9.3 — direction from the significance test, not OLS
+    const olsRising = (byIdx.slope || 0) > 0;
+    const dirDisagree = !!(mk.tau && byIdx.slope) && rising !== olsRising;
+    const signif = mk.p != null && mk.p < DexKernel.K.SIGNIF_P && Math.abs(mk.tau || 0) > DexKernel.K.SIGNIF_TAU;
+    if (signif) {
+      const improving = (good === 'up' && rising) || (good === 'down' && !rising);
+      trendLabel = improving ? 'improving' : 'declining';
+    }
+    return {
+      n,
+      mean: r2(m),
+      sd: r1(s),
+      median: r2(med),
+      iqr: r1(iqr),
+      min: r2(Math.min.apply(null, vals)),
+      max: r2(Math.max.apply(null, vals)),
+      cv: r1(cv),
+      slope: byIdx.slope != null ? r3(byIdx.slope) : null,
+      slopePerDay,
+      slopePerRecording,
+      slopeBasis: haveT ? 'day' : 'recording',
+      r2: byIdx.r2 != null ? r2(byIdx.r2) : null,
+      r2date,
+      tau: mk.tau,
+      p: mk.p,
+      trendDirDisagree: dirDisagree, // §9.3 — OLS slope and Mann-Kendall τ point opposite ways (endpoint leverage)
+      zLatest,
+      baselineMean,
+      baselineSd,
+      deltaHalves: boot.delta,
+      ci: boot.ci,
+      trendLabel
+    };
+  }
+
+  /* A row field is a number, null, or absent. The engine reads `v` and drops a non-finite one, so
+     this reader states the absence once rather than at five call sites. NaN is what the CSV parser
+     writes for an unreadable cell, and `0` is a legal rMSSD on a flat trace, so the test is
+     finiteness and never truthiness. */
+  function _v(x) {
+    return x == null || !isFinite(x) ? null : +x;
+  }
+
+  /* Each metric self-describes its `evidence` tier so the Integrator Longitudinal view BADGES the
+     trend cards (evBadge reads metrics{}.evidence; an ungraded metric renders unbadged — a
+     COVERAGE-MANDATE gap). Every field here is COPIED FROM `glucodex-registry.js`, which is the
+     source: `registry-defs-parity` holds label, unit, goodDirection and evidence of each id against
+     GLU_REGISTRY and reds on a drift, with the registry winning.
+     WHAT IS IN THIS TABLE, AND WHY MODD, MAGE AND ADRR ARE NOT. A metric qualifies only if it is
+     (a) graded in `glucodex-registry.js` and (b) carried by a `perDay` row, which is the series every
+     realm that calls `glucoBuildNodeExport` folds — the app, the Data Unifier, OverDex and the
+     headless `GlucoDex.compute` all reach it through `analyze()`. The six below are exactly the
+     numeric fields a day row writes. MODD, MAGE, ADRR, CONGA and the AGP bands fail (b): they are
+     WHOLE-WEAR metrics computed across days, so a per-day series of them does not exist and a
+     cross-day trend over one number is not a trend.
+     `perDay` writes `tbr` as the sum of the two below-range bands and `tar` as the sum of the two
+     above-range bands, which is what the registry grades as `timeBelow` and `timeAbove`. The ids
+     below are the registry's, so the badge and the parity gate read one vocabulary. */
+  const METRICS = [
+    { id: 'mean', label: 'Mean glucose', unit: 'mg/dL', goodDirection: 'down', evidence: 'measured', get: (r) => _v(r.mean) },
+    { id: 'gmi', label: 'GMI', unit: '%', goodDirection: 'down', evidence: 'validated', get: (r) => _v(r.gmi) },
+    { id: 'cv', label: 'CV', unit: '%', goodDirection: 'down', evidence: 'validated', get: (r) => _v(r.cv) },
+    { id: 'tir', label: 'Time in Range', unit: '%', goodDirection: 'up', evidence: 'validated', get: (r) => _v(r.tir) },
+    { id: 'timeBelow', label: 'Time Below', unit: '%', goodDirection: 'down', evidence: 'validated', get: (r) => _v(r.tbr) },
+    { id: 'timeAbove', label: 'Time Above', unit: '%', goodDirection: 'down', evidence: 'validated', get: (r) => _v(r.tar) }
+  ];
+  // id-keyed projection of METRICS — the shape `registry-defs-parity` reads (it iterates Object.keys
+  // and falls back to REG[defId] when idForLabel misses). Same objects, no second source of truth.
+  const GLU_DEFS = METRICS.reduce((o, m) => {
+    o[m.id] = m;
+    return o;
+  }, {});
+
+  /* Build the cross-day EXPORT block from GlucoDex's per-day rows. Standardized
+     `ganglior.crossnight` v1.0 via the shared CrossNightEnvelope.build (SHAPE only) — the MATH is the
+     local crossNight() above. A realm without the shared builder gets the legacy shape, the same
+     fallback the other five cross modules carry.
+     `unit:'day'` — a GlucoDex item is one calendar day of a continuous wear. It is not a `session`,
+     because a GlucoDex wear SESSION spans many days and the registry grades it with its own metrics
+     (`sessionSpread`, `sessionDrift`). */
+  function crossNightBlock(list) {
+    if (global.CrossNightEnvelope) {
+      return global.CrossNightEnvelope.build({
+        node: 'GlucoDex',
+        nodeVersion: '1.0',
+        unit: 'day',
+        items: list,
+        t0Of: (r) => (r && isFinite(r.startMs) ? r.startMs : null),
+        weightOf: () => 1,
+        coverageWeighted: false,
+        crossNight: crossNight,
+        metrics: METRICS
+      });
+    }
+    // ── legacy fallback (pre-envelope shape) ──
+    const sorted = [...list].sort((a, b) => (a.startMs || 0) - (b.startMs || 0));
+    const out = { doc: 'day-to-day robust stats — same crossNight() engine as ECGDex/OxyDex', metrics: {} };
+    for (const m of METRICS) {
+      const ser = sorted.map((r, i) => ({ x: i, t: r.startMs, v: m.get(r), w: 1 }));
+      out.metrics[m.id] = crossNight(ser, { good: m.goodDirection });
+    }
+    return out;
+  }
+
+  global.GluCross = { crossNight, crossNightBlock, ols, mannKendall, bootstrapDeltaCI, METRICS, GLU_DEFS };
+})(typeof window !== 'undefined' ? window : globalThis);
+</script>
+<script data-inline-src="motiondex-cross.js">/* ═════════════════════════════════════════════════════════════════════════
+ * Copyright 2026 Michal Planicka
+ * SPDX-License-Identifier: Apache-2.0
+   Dex Suite · CROSS-SESSION ANALYTICS ENGINE  (motiondex-cross.js)
+   ───────────────────────────────────────────────────────────────────────
+   The MotionDex leg of residue `2026-11-08-three-nodes-emit-no-crossnight-export`:
+   HRVDex, GlucoDex and MotionDex emitted no `ganglior.crossnight` envelope, so the
+   Integrator longitudinal layer read nothing from them. #4887 added HRVDex, #4891
+   added GlucoDex, and this file adds the last one. MotionDex was the `unmitigated
+   case` of CROSSNIGHT-ENVELOPE-SPEC §7 — no `*-cross.js` AND no longitudinal read
+   anywhere.
+
+   WHY THIS LEG NEEDED A MODEL AND THE OTHER TWO DID NOT. HRVDex and GlucoDex each
+   already held a dated SERIES inside one compute result, so their cross file folded a
+   series that existed. MotionDex holds one session per file and `compute(input)` reads
+   one recording, so there was nothing to fold. `motiondex-app.js` now KEEPS each
+   computed session instead of replacing the previous one, which is the same multi-day
+   model PulseDex gained for the same reason (§7: "multi-day model added;
+   single-recording byte-identical"). A single loaded session exports exactly the bytes
+   it exported before.
+
+   THE ITEMS ARE NODE-EXPORT ENVELOPES, NOT RAW SUMMARIES. Every other cross file reads
+   the node's own per-item result object. This one reads the per-session envelope that
+   `MOTIONDSP.buildNodeExport` already built, because that function is where MotionDex's
+   REFUSALS live: it nulls `immobileFrac` over a device-clock seam and keeps the reason
+   beside it, and it unwraps the SQI block through `sqiExportPair`, whose absent-flag
+   list is the single source of that judgement. Reading the raw summary here would copy
+   that list into a second place and would aggregate values the export refuses to
+   publish. `buildNodeExport` holds no clock read and no `new Date`, so an envelope
+   built at export time is the same bytes as one built at ingest.
+
+   The math below is the suite's shared crossNight() engine, duplicated locally per node
+   (suite convention — like parseTimestamp). This copy is BYTE-IDENTICAL to the region
+   that `pulsedex-cross.js`, `ppgdex-cross.js`, `ecgdex-cross.js`, `hrvdex-cross.js` and
+   `glucodex-cross.js` already share, and `tests/dex-tests.js` holds the six against each
+   other, so a drift in one of them reds. `oxydex-cross.js` and `cpapdex-cross.js` carry
+   their own variants of the same math and stay outside that set. Only the metric table,
+   the DEFS projection, the envelope call and the global name differ below.
+
+   WHY EVERY ITEM WEIGHS THE SAME. The envelope down-weights an item by its coverage
+   fraction. A MotionDex session states no coverage fraction: `durSec` is a measured
+   duration and not a fraction of anything, and the epoch counters state covered epochs
+   against recorded epochs rather than against an intended night. Turning either into a
+   coverage fraction needs a DENOMINATOR this node never captures, so that denominator
+   would be invented. Every item weighs 1 and `window.coverageWeighted` reads false. The
+   flag says which it is.
+
+   `unit:'session'` is one of the three values `crossnight-envelope.js` records in a
+   comment (session, recording, night), and a MotionDex item is one loaded IMU session.
+
+   MOTIONDEX CARRIES `clock.js` (CLAUDE.md §✅ — one of the six clock bundles), so
+   `DexClock` is defined in this bundle. Nothing below reaches it anyway: the engine is
+   arithmetic and the item stamp is the envelope's own `recording.startEpochMs`.
+
+   Exposes window.MotionCross = { crossNight, crossNightBlock, ols, mannKendall,
+   bootstrapDeltaCI, METRICS, MOTION_DEFS }.
+   ═════════════════════════════════════════════════════════════════════════ */
+(function (global) {
+  'use strict';
+  const r1 = (v) => (v == null || !isFinite(v) ? null : Math.round(v * 10) / 10);
+  const r2 = (v) => (v == null || !isFinite(v) ? null : Math.round(v * 100) / 100);
+  const r3 = (v) => (v == null || !isFinite(v) ? null : Math.round(v * 1000) / 1000);
+
+  function wmean(vals, w) {
+    let s = 0,
+      sw = 0;
+    for (let i = 0; i < vals.length; i++) {
+      s += vals[i] * w[i];
+      sw += w[i];
+    }
+    return sw ? s / sw : NaN;
+  }
+  function mean(a) {
+    let s = 0;
+    for (const v of a) s += v;
+    return a.length ? s / a.length : NaN;
+  }
+  /* Coverage-WEIGHTED sample SD — the companion wmean always needed (DEEP-AUDIT-II §9.1).
+     CV% was `100 * sd(vals) / wmean(vals, w)`: an UNWEIGHTED spread over a WEIGHTED centre, so a
+     night the envelope had deliberately down-weighted still contributed its full deviation. On
+     routine CPAP partial-use that read 74.6 % where the consistent figure is 49.8 %. It also
+     breached the spec in writing — CROSSNIGHT-ENVELOPE-SPEC §3: low-quality items are "down-weighted
+     in EVERY fit/aggregate via `weight`". `ols(idx, vals, w)` one line below already passed weights;
+     only the spread did not.
+     Reliability-weight form: V1 = Σw, V2 = Σw²; s² = Σw(x−m_w)² / (V1 − V2/V1).
+     With UNIFORM weights V1 = n and V2 = n, so the denominator is exactly n−1 — it reduces to the
+     Bessel-corrected sd() below, bit for bit. That is why every existing fixture holds: the whole
+     crossnight suite feeds a uniform weight vector, which is also why this was never exercised. */
+  function wsd(vals, w) {
+    if (vals.length < 2) return 0;
+    const m = wmean(vals, w);
+    let V1 = 0,
+      V2 = 0,
+      acc = 0;
+    for (let i = 0; i < vals.length; i++) {
+      const wi = w[i];
+      V1 += wi;
+      V2 += wi * wi;
+      const d = vals[i] - m;
+      acc += wi * d * d;
+    }
+    const denom = V1 > 0 ? V1 - V2 / V1 : 0;
+    return denom > 0 ? Math.sqrt(acc / denom) : 0;
+  }
+  function median(a) {
+    if (!a.length) return NaN;
+    const b = [...a].sort((x, y) => x - y),
+      n = b.length;
+    return n % 2 ? b[(n - 1) / 2] : (b[n / 2 - 1] + b[n / 2]) / 2;
+  }
+  function quantile(a, q) {
+    if (!a.length) return NaN;
+    const b = [...a].sort((x, y) => x - y),
+      p = (b.length - 1) * q,
+      lo = Math.floor(p),
+      hi = Math.ceil(p);
+    return lo === hi ? b[lo] : b[lo] + (b[hi] - b[lo]) * (p - lo);
+  }
+
+  // OLS slope/intercept/R² of y vs x (weighted)
+  function ols(x, y, w) {
+    const n = x.length;
+    if (n < 2) return { slope: null, intercept: null, r2: null };
+    let sw = 0,
+      sx = 0,
+      sy = 0,
+      sxx = 0,
+      sxy = 0,
+      syy = 0;
+    for (let i = 0; i < n; i++) {
+      const wi = w ? w[i] : 1;
+      sw += wi;
+      sx += wi * x[i];
+      sy += wi * y[i];
+      sxx += wi * x[i] * x[i];
+      sxy += wi * x[i] * y[i];
+      syy += wi * y[i] * y[i];
+    }
+    const den = sw * sxx - sx * sx;
+    if (Math.abs(den) < 1e-12) return { slope: null, intercept: null, r2: null };
+    const slope = (sw * sxy - sx * sy) / den,
+      intercept = (sy - slope * sx) / sw;
+    const num = sw * sxy - sx * sy;
+    const r2v = (num * num) / ((sw * sxx - sx * sx) * (sw * syy - sy * sy) || 1e-12);
+    return { slope, intercept, r2: Math.max(0, Math.min(1, r2v)) };
+  }
+
+  // Mann–Kendall τ + normal-approx two-sided p
+  function mannKendall(y) {
+    const n = y.length;
+    if (n < 3) return { tau: null, p: null, S: 0 };
+    let S = 0;
+    for (let i = 0; i < n - 1; i++)
+      for (let j = i + 1; j < n; j++) {
+        const d = y[j] - y[i];
+        S += d > 0 ? 1 : d < 0 ? -1 : 0;
+      }
+    const varS = (n * (n - 1) * (2 * n + 5)) / 18;
+    let z = 0;
+    if (S > 0) z = (S - 1) / Math.sqrt(varS);
+    else if (S < 0) z = (S + 1) / Math.sqrt(varS);
+    const p = 2 * (1 - normCdf(Math.abs(z)));
+    const tau = S / (0.5 * n * (n - 1));
+    return { tau: r2(tau), p: r3(Math.max(0, Math.min(1, p))), S };
+  }
+  function normCdf(x) {
+    return 0.5 * (1 + erf(x / Math.SQRT2));
+  }
+  function erf(x) {
+    const t = 1 / (1 + 0.3275911 * Math.abs(x));
+    const y = 1 - ((((1.061405429 * t - 1.453152027) * t + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x);
+    return x >= 0 ? y : -y;
+  }
+
+  // bootstrap 95% CI on (second-half mean − first-half mean)
+  function bootstrapDeltaCI(vals) {
+    const n = vals.length;
+    if (n < 7) return { delta: null, ci: null };
+    const half = Math.floor(n / 2);
+    const A = vals.slice(0, half),
+      B = vals.slice(n - half);
+    const delta = mean(B) - mean(A);
+    const B_iter = 1000,
+      deltas = [];
+    let seed = 12345;
+    const rnd = () => {
+      seed = (Math.imul(seed, 1103515245) + 12345) & 0x7fffffff; // §9.5 — Math.imul: exact mod-2^32 multiply (bare * reached ~2.3e18 > 2^53 → low bits rounded away → entropy collapse at n≥18)
+      return seed / 0x7fffffff;
+    };
+    for (let b = 0; b < B_iter; b++) {
+      const ra = [],
+        rb = [];
+      for (let i = 0; i < A.length; i++) ra.push(A[Math.floor(rnd() * A.length)]);
+      for (let i = 0; i < B.length; i++) rb.push(B[Math.floor(rnd() * B.length)]);
+      deltas.push(mean(rb) - mean(ra));
+    }
+    deltas.sort((a, b) => a - b);
+    return { delta: r2(delta), ci: [r2(quantile(deltas, 0.025)), r2(quantile(deltas, 0.975))] };
+  }
+
+  function crossNight(series, opts) {
+    opts = opts || {};
+    const good = opts.good || 'up';
+    const pts = series.filter((p) => p.v != null && isFinite(p.v));
+    const n = pts.length;
+    if (n < 2) return { n, mean: n ? r2(pts[0].v) : null, sd: null, cv: null, slopePerDay: null, slopePerRecording: null, slopeBasis: null, tau: null, p: null, zLatest: null, trendLabel: '—' };
+    const vals = pts.map((p) => p.v),
+      w = pts.map((p) => (p.w != null ? p.w : 1));
+    const idx = pts.map((p, i) => i);
+    const m = wmean(vals, w),
+      s = wsd(vals, w);
+    const med = median(vals),
+      iqr = quantile(vals, 0.75) - quantile(vals, 0.25);
+    const cv = m !== 0 ? Math.abs((100 * s) / m) : null;
+    // OLS vs night index (coverage-weighted)
+    const byIdx = ols(idx, vals, w);
+    // OLS vs real date (days since first) honours uneven gaps
+    const haveT = pts.every((p) => p.t != null);
+    let slopePerDay = null,
+      slopePerRecording = null,
+      r2date = null;
+    if (haveT) {
+      const days = pts.map((p) => (p.t - pts[0].t) / 86400000);
+      const od = ols(days, vals, w);
+      slopePerDay = r2(od.slope);
+      r2date = r2(od.r2);
+    } else {
+      /* DEEP-AUDIT-II §9.4 — an INDEX slope is not a PER-DAY slope, and must not be shipped under the
+         per-day name. This branch runs when even ONE item lacks a date, and it used to assign
+         `byIdx.slope` — change per RECORDING — straight to `slopePerDay`, which every consumer renders
+         with a `/d` suffix. A 12-recording series spanning 90 days then reported its per-recording
+         change as a daily one: ~7.5x overstated, and always in the alarming direction, since the same
+         delta compressed into a shorter apparent window looks steeper.
+         Same rule §8.4 already applied to the footer span: report the real quantity when it is
+         knowable, and say what you actually have when it is not — never present one as the other.
+         So the per-day figure is null here (honestly unavailable), the index slope keeps its own
+         honest name, and `slopeBasis` tells the consumer which it is holding. */
+      slopePerDay = null;
+      slopePerRecording = byIdx.slope != null ? r2(byIdx.slope) : null;
+    }
+    const mk = mannKendall(vals);
+    // personal baseline = mean±SD of all-but-latest; z of latest
+    let zLatest = null;
+    let baselineMean = null,
+      baselineSd = null;
+    if (n >= 3) {
+      /* DEEP-AUDIT-II §9.2 — the personal baseline must carry the SAME weights as the centre it is
+         compared against. `central.mean` is wmean(vals, w), but the baseline behind zLatest was
+         mean(prior) / sd(prior): UNWEIGHTED. A 6 %-coverage night therefore moved the baseline as
+         if it were a full night, and a genuine −2.4σ event on the newest night read as ordinary.
+         Spec breach in writing (CROSSNIGHT-ENVELOPE-SPEC §3: low-quality items are "down-weighted
+         in EVERY fit/aggregate via `weight`"). Same identity as §9.1: uniform weights reproduce the
+         old numbers exactly, which is why every committed fixture holds. */
+      const prior = vals.slice(0, n - 1);
+      const priorW = w.slice(0, n - 1);
+      const pm = wmean(prior, priorW),
+        psRaw = wsd(prior, priorW);
+      baselineMean = r2(pm);
+      // Guard a degenerate (near-zero) baseline spread: dividing by ~0 SD explodes z to
+      // absurd magnitudes (±1e8 σ) that overflow the trend card. Floor the SD relative to
+      // the baseline mean and clamp the result to a sane display range.
+      const psFloor = Math.max(psRaw, 1e-6 * Math.max(1, Math.abs(pm)));
+      baselineSd = r1(psFloor);
+      let z = (vals[n - 1] - pm) / psFloor;
+      if (!isFinite(z)) z = 0;
+      zLatest = r2(Math.max(-20, Math.min(20, z)));
+    }
+    // significance
+    const boot = bootstrapDeltaCI(vals);
+    // trend label by good-direction + Mann-Kendall significance
+    /* DEEP-AUDIT-II §9.3 — the label's DIRECTION and its SIGNIFICANCE must come from the SAME test.
+       `rising` was taken from the OLS slope while `signif` came from Mann–Kendall, so the sentence
+       "there is a significant trend, and it is improving" was assembled from two different
+       estimators. They disagree exactly where it matters: MK is rank-based and robust, OLS is
+       leverage-sensitive, so a single endpoint outlier flips the slope without moving τ — the audit
+       measured "improving" printed beside τ = −0.6 on 10.3 % of endpoint-outlier series.
+       Direction now comes from τ, the same statistic that decided the trend was real. `slopePerDay`
+       is still reported separately as the magnitude — this changes which estimator names the
+       DIRECTION, not what OLS is for.
+       When the two disagree in sign the series has endpoint leverage worth knowing about, so it is
+       reported rather than silently resolved. */
+    let trendLabel = 'stable';
+    const rising = (mk.tau || 0) > 0; // §9.3 — direction from the significance test, not OLS
+    const olsRising = (byIdx.slope || 0) > 0;
+    const dirDisagree = !!(mk.tau && byIdx.slope) && rising !== olsRising;
+    const signif = mk.p != null && mk.p < DexKernel.K.SIGNIF_P && Math.abs(mk.tau || 0) > DexKernel.K.SIGNIF_TAU;
+    if (signif) {
+      const improving = (good === 'up' && rising) || (good === 'down' && !rising);
+      trendLabel = improving ? 'improving' : 'declining';
+    }
+    return {
+      n,
+      mean: r2(m),
+      sd: r1(s),
+      median: r2(med),
+      iqr: r1(iqr),
+      min: r2(Math.min.apply(null, vals)),
+      max: r2(Math.max.apply(null, vals)),
+      cv: r1(cv),
+      slope: byIdx.slope != null ? r3(byIdx.slope) : null,
+      slopePerDay,
+      slopePerRecording,
+      slopeBasis: haveT ? 'day' : 'recording',
+      r2: byIdx.r2 != null ? r2(byIdx.r2) : null,
+      r2date,
+      tau: mk.tau,
+      p: mk.p,
+      trendDirDisagree: dirDisagree, // §9.3 — OLS slope and Mann-Kendall τ point opposite ways (endpoint leverage)
+      zLatest,
+      baselineMean,
+      baselineSd,
+      deltaHalves: boot.delta,
+      ci: boot.ci,
+      trendLabel
+    };
+  }
+
+  /* A summary field is a number, null, or absent. The engine reads `v` and drops a non-finite one, so
+     this reader states the absence once rather than at five call sites. `0` is a legal movement index
+     on a motionless night, so the test is finiteness and never truthiness. */
+  function _v(x) {
+    return x == null || !isFinite(x) ? null : +x;
+  }
+  /* THE REGISTRY DECLARES `%` AND THE EXPORT CARRIES A FRACTION. `motiondex-render.js` renders both
+     `supineFrac` and `immobileFrac` through `pct(f) = (f * 100).toFixed(0) + '%'`, so 0..1 is the
+     stored form and `%` is the declared unit of the id. The envelope publishes the declared unit
+     beside the number, so this file converts at that boundary rather than publishing a fraction
+     labelled `%`. CLAUDE.md §📏 puts conversion at the display boundary and this IS that boundary. */
+  function _pct(x) {
+    const v = _v(x);
+    return v == null ? null : v * 100;
+  }
+  // The item stamp — the envelope's own floating wall-clock t0. null when the session carried no
+  // readable stamp, which the engine drops rather than placing at the epoch.
+  function _t0(e) {
+    return e && e.recording && isFinite(e.recording.startEpochMs) ? e.recording.startEpochMs : null;
+  }
+
+  /* Each metric self-describes its `evidence` tier so the Integrator Longitudinal view BADGES the
+     trend cards (evBadge reads metrics{}.evidence; an ungraded metric renders unbadged — a
+     COVERAGE-MANDATE gap). Every field here is COPIED FROM `motiondex-registry.js`, which is the
+     source: `registry-defs-parity` holds label, unit, goodDirection and evidence of each id against
+     MOTION_REGISTRY and reds on a drift, with the registry winning.
+     WHAT IS IN THIS TABLE, AND WHY FIVE OF THE TEN GRADED IDS ARE NOT. A metric qualifies only if it
+     is (a) graded in `motiondex-registry.js` and (b) carried by the `motion` block of the per-session
+     node-export, which is the item this file folds. `activityCounts` fails (b) and the registry says
+     so in its own comment — `totalCounts` is rendered but reaches no committed export. `uprightFrac`,
+     `lateralFrac`, `effortAmp` and `effortPresent` fail (b) as well: the export publishes `supineFrac`
+     and `dwellFrac` for position and no amplitude for effort, so a series of them does not exist.
+     Adding any of them is a change to `buildNodeExport` first and to this table second. */
+  const METRICS = [
+    { id: 'movementIndex', label: 'Movement index', unit: '', goodDirection: 'down', evidence: 'measured', get: (e) => _v(e && e.motion && e.motion.movementIndex) },
+    { id: 'immobileFrac', label: 'Immobile time', unit: '%', goodDirection: 'up', evidence: 'measured', get: (e) => _pct(e && e.motion && e.motion.immobileFrac) },
+    { id: 'sqiConf', label: 'Signal quality', unit: '×', goodDirection: 'up', evidence: 'measured', get: (e) => _v(e && e.motion && e.motion.sqi) },
+    { id: 'supineFrac', label: 'Supine time', unit: '%', goodDirection: 'down', evidence: 'experimental', get: (e) => _pct(e && e.motion && e.motion.supineFrac) },
+    { id: 'respRate', label: 'Respiratory rate', unit: 'br/min', goodDirection: 'down', evidence: 'emerging', get: (e) => _v(e && e.motion && e.motion.respRateBrpm) }
+  ];
+  // id-keyed projection of METRICS — the shape `registry-defs-parity` reads (it iterates Object.keys
+  // and falls back to REG[defId] when idForLabel misses). Same objects, no second source of truth.
+  const MOTION_DEFS = METRICS.reduce((o, m) => {
+    o[m.id] = m;
+    return o;
+  }, {});
+
+  /* Build the cross-session EXPORT block from MotionDex's per-session node-export envelopes.
+     Standardized `ganglior.crossnight` v1.0 via the shared CrossNightEnvelope.build (SHAPE only) —
+     the MATH is the local crossNight() above. A realm without the shared builder gets the legacy
+     shape, the same fallback the other six cross modules carry. */
+  function crossNightBlock(list) {
+    if (global.CrossNightEnvelope) {
+      return global.CrossNightEnvelope.build({
+        node: 'MotionDex',
+        nodeVersion: '1.0',
+        unit: 'session',
+        items: list,
+        t0Of: _t0,
+        weightOf: () => 1,
+        coverageWeighted: false,
+        crossNight: crossNight,
+        metrics: METRICS
+      });
+    }
+    // ── legacy fallback (pre-envelope shape) ──
+    const sorted = [...list].sort((a, b) => (_t0(a) == null ? 0 : _t0(a)) - (_t0(b) == null ? 0 : _t0(b)));
+    const out = { doc: 'session-to-session robust stats — same crossNight() engine as ECGDex/OxyDex', metrics: {} };
+    for (const m of METRICS) {
+      const ser = sorted.map((e, i) => ({ x: i, t: _t0(e), v: m.get(e), w: 1 }));
+      out.metrics[m.id] = crossNight(ser, { good: m.goodDirection });
+    }
+    return out;
+  }
+
+  global.MotionCross = { crossNight, crossNightBlock, ols, mannKendall, bootstrapDeltaCI, METRICS, MOTION_DEFS };
+})(typeof window !== 'undefined' ? window : globalThis);
+</script>
 <script data-inline-src="hrvdex-dsp.js">(function(){var __M=(globalThis.__dexEsm=globalThis.__dexEsm||(function(){var reg={},cache={};function require(n){if(Object.prototype.hasOwnProperty.call(cache,n))return cache[n];var f=reg[n];if(!f)throw new Error('ESM bundle: module not found: '+n);var ex={};cache[n]=ex;f(require,ex);return ex;}return{define:function(n,f){reg[n]=f;},require:require};})());__M.define("hrvdex-dsp.js",function(__require,__exports){
 /* ════ HRVDex · DSP & METRICS (hrvdex-dsp.js) ───────────────────────────────────────────────
  * Copyright 2026 Michal Planicka
@@ -28005,26 +28781,39 @@ __exports.HRVDex = window.HRVDex;
     for (let kf = 0; kf < nfFull; kf++) {
       const f = fLo + kf * df,
         w = 2 * Math.PI * f;
+      /* ONE PASS PER BIN. `sin(2wt)` and `cos(2wt)` come from the double-angle identities on the
+         same `sin(wt)`/`cos(wt)` this loop already needs, and the tau-shifted sums come back from the
+         angle-difference identities after the loop. So the bin costs two trig calls per sample
+         instead of four, over one pass instead of two. The algebra is exact, so only the last bits of
+         the sums move. Residue 2026-11-08-lomb-scargle-makes-two-trig-passes-per-bin-and-sample. */
       let s2 = 0,
-        c2 = 0;
+        c2 = 0,
+        xC = 0,
+        xS = 0,
+        ccSum = 0,
+        ssSum = 0,
+        scSum = 0;
       for (let i = 0; i < N; i++) {
-        s2 += Math.sin(2 * w * t[i]);
-        c2 += Math.cos(2 * w * t[i]);
+        const wt0 = w * t[i],
+          cw0 = Math.cos(wt0),
+          sw0 = Math.sin(wt0);
+        s2 += 2 * sw0 * cw0; // sin(2wt)
+        c2 += cw0 * cw0 - sw0 * sw0; // cos(2wt)
+        xC += x[i] * cw0;
+        xS += x[i] * sw0;
+        ccSum += cw0 * cw0;
+        ssSum += sw0 * sw0;
+        scSum += sw0 * cw0;
       }
       const tau = Math.atan2(s2, c2) / (2 * w);
-      let nC = 0,
-        nS = 0,
-        dC = 0,
-        dS = 0;
-      for (let i = 0; i < N; i++) {
-        const wt = w * (t[i] - tau),
-          cw = Math.cos(wt),
-          sw = Math.sin(wt);
-        nC += x[i] * cw;
-        dC += cw * cw;
-        nS += x[i] * sw;
-        dS += sw * sw;
-      }
+      /* cos(w(t - tau)) = cos(wt)*ct + sin(wt)*st and sin(w(t - tau)) = sin(wt)*ct - cos(wt)*st,
+         which turns the four shifted sums into products of the unshifted ones. */
+      const ct = Math.cos(w * tau),
+        st = Math.sin(w * tau);
+      const nC = ct * xC + st * xS,
+        nS = ct * xS - st * xC,
+        dC = ct * ct * ccSum + 2 * ct * st * scSum + st * st * ssSum,
+        dS = ct * ct * ssSum - 2 * ct * st * scSum + st * st * ccSum;
       const P = 0.5 * ((nC * nC) / (dC || 1) + (nS * nS) / (dS || 1));
       const e = P * df;
       tpFull += e; // every evaluated bin — the Parseval denominator
@@ -31908,7 +32697,7 @@ __exports.PulseDex = window.PulseDex;
         bus: 'ganglior',
         generated: opts.generated || new Date().toISOString(),
         provenance: opts.provenance || null,
-        doc: 'GlucoDex glycemic events → Ganglior bus. t/tMs = floating wall-clock (UTC getters). null = unknown, never fabricated.'
+        doc: 'GlucoDex glycemic events → Ganglior bus. t/tMs = floating wall-clock (UTC getters). null = unknown, never fabricated. `crossNight` carries a ganglior.crossnight v1.0 envelope over the per-day series; null when glucodex-cross.js is not in the realm.'
       },
       // EXPORT-IDENTITY §2.1 / -FOLLOWUPS-II §1: identity-free contentId, single-sourced in this
       // shared builder (both app exportGanglior + headless compute reach it). Folds the cleaned CGM series.
@@ -32037,6 +32826,22 @@ __exports.PulseDex = window.PulseDex;
             'ONE entry per cell in time order; WARMUP cells dropped. tMs = absolute floating wall-clock ms; v = mg/dL; f = clean flag (0 OK · 2 gap-interp SHORT · 3 compression-low · 4 gap-interp LONG). A consumer computing glucose statistics MUST exclude 3 and 4 — flag 4 is straight-line interpolation the sensor never saw, and counting it inflates TIR/CV and any coverage figure derived from the cell count.'
         };
       })(),
+      /* ── CROSS-DAY TREND (ganglior.crossnight v1.0) ─────────────────────────────────────────
+         Residue `2026-11-08-three-nodes-emit-no-crossnight-export`, the GlucoDex leg. The envelope
+         is built by `glucodex-cross.js` over `r.daily`, the per-day series `perDay()` writes.
+
+         §∅ — ABSENCE IS NULL. Three separate absences read `null` here and none of them reads 0 or
+         an empty envelope. (1) No day row survived `perDay`'s 6-sample floor, so there is no series.
+         (2) `glucodex-cross.js` is not in this realm. (3) `crossnight-envelope.js` is not either. A
+         realm that carries the cross module without the envelope builder gets the module's own legacy
+         shape, which is the fallback the other five cross modules carry.
+
+         The reach is `global` at CALL time, never a module-evaluation alias: GlucoDex carries no
+         `clock.js` and this file must not grow a second load-order dependency. A regenerator that
+         builds its own vm realm therefore writes `null` honestly instead of throwing — and
+         `tools/regen-glucodex-goldens.mjs` carries both files for that reason, because a truthful
+         `null` in a committed fixture still reds GATE C against the suite realm, which has them. */
+      crossNight: r.daily && r.daily.length && global && global.GluCross && global.CrossNightEnvelope ? global.GluCross.crossNightBlock(r.daily) : null,
       ganglior_events: events,
       reserved: { doc: 'Awaiting other fleet nodes; null until available.' }
     };
@@ -36091,26 +36896,39 @@ __exports.GlucoDex = window.GlucoDex;
       totalFull = 0; // full-support total — the Parseval denominator
     for (let f = fmin; f <= fCal; f += df) {
       const w = 2 * Math.PI * f;
+      /* ONE PASS PER BIN. `sin(2wt)` and `cos(2wt)` come from the double-angle identities on the
+         same `sin(wt)`/`cos(wt)` this loop already needs, and the tau-shifted sums come back from the
+         angle-difference identities after the loop. So the bin costs two trig calls per sample
+         instead of four, over one pass instead of two. The algebra is exact, so only the last bits of
+         the sums move. Residue 2026-11-08-lomb-scargle-makes-two-trig-passes-per-bin-and-sample. */
       let ss = 0,
-        sc = 0;
+        sc = 0,
+        yC = 0,
+        yS = 0,
+        ccSum = 0,
+        ssSum = 0,
+        scSum = 0;
       for (let i = 0; i < t.length; i++) {
-        ss += Math.sin(2 * w * t[i]);
-        sc += Math.cos(2 * w * t[i]);
+        const wt0 = w * t[i],
+          cw0 = Math.cos(wt0),
+          sw0 = Math.sin(wt0);
+        ss += 2 * sw0 * cw0; // sin(2wt)
+        sc += cw0 * cw0 - sw0 * sw0; // cos(2wt)
+        yC += y[i] * cw0;
+        yS += y[i] * sw0;
+        ccSum += cw0 * cw0;
+        ssSum += sw0 * sw0;
+        scSum += sw0 * cw0;
       }
       const tau = Math.atan2(ss, sc) / (2 * w);
-      let c1 = 0,
-        c2 = 0,
-        s1 = 0,
-        s2 = 0;
-      for (let i = 0; i < t.length; i++) {
-        const wt = w * (t[i] - tau);
-        const co = Math.cos(wt),
-          si = Math.sin(wt);
-        c1 += y[i] * co;
-        c2 += co * co;
-        s1 += y[i] * si;
-        s2 += si * si;
-      }
+      /* cos(w(t - tau)) = cos(wt)*ct + sin(wt)*st and sin(w(t - tau)) = sin(wt)*ct - cos(wt)*st,
+         which turns the four shifted sums into products of the unshifted ones. */
+      const ct = Math.cos(w * tau),
+        st = Math.sin(w * tau);
+      const c1 = ct * yC + st * yS,
+        s1 = ct * yS - st * yC,
+        c2 = ct * ct * ccSum + 2 * ct * st * scSum + st * st * ssSum,
+        s2 = ct * ct * ssSum - 2 * ct * st * scSum + st * st * ccSum;
       const P = 0.5 * ((c1 * c1) / (c2 || 1e-9) + (s1 * s1) / (s2 || 1e-9));
       const pw = P * df;
       totalFull += pw; // every evaluated bin — the Parseval denominator
@@ -42062,26 +42880,39 @@ __exports.PpgDex = window.PpgDex;
     for (let kf = 0; kf < nfFull; kf++) {
       const f = fLo + kf * df,
         w = 2 * Math.PI * f;
+      /* ONE PASS PER BIN. `sin(2wt)` and `cos(2wt)` come from the double-angle identities on the
+         same `sin(wt)`/`cos(wt)` this loop already needs, and the tau-shifted sums come back from the
+         angle-difference identities after the loop. So the bin costs two trig calls per sample
+         instead of four, over one pass instead of two. The algebra is exact, so only the last bits of
+         the sums move. Residue 2026-11-08-lomb-scargle-makes-two-trig-passes-per-bin-and-sample. */
       let s2 = 0,
-        c2 = 0;
+        c2 = 0,
+        xC = 0,
+        xS = 0,
+        ccSum = 0,
+        ssSum = 0,
+        scSum = 0;
       for (let i = 0; i < N; i++) {
-        s2 += Math.sin(2 * w * t[i]);
-        c2 += Math.cos(2 * w * t[i]);
+        const wt0 = w * t[i],
+          cw0 = Math.cos(wt0),
+          sw0 = Math.sin(wt0);
+        s2 += 2 * sw0 * cw0; // sin(2wt)
+        c2 += cw0 * cw0 - sw0 * sw0; // cos(2wt)
+        xC += x[i] * cw0;
+        xS += x[i] * sw0;
+        ccSum += cw0 * cw0;
+        ssSum += sw0 * sw0;
+        scSum += sw0 * cw0;
       }
       const tau = Math.atan2(s2, c2) / (2 * w);
-      let nC = 0,
-        nS = 0,
-        dC = 0,
-        dS = 0;
-      for (let i = 0; i < N; i++) {
-        const wt = w * (t[i] - tau),
-          cw = Math.cos(wt),
-          sw = Math.sin(wt);
-        nC += x[i] * cw;
-        dC += cw * cw;
-        nS += x[i] * sw;
-        dS += sw * sw;
-      }
+      /* cos(w(t - tau)) = cos(wt)*ct + sin(wt)*st and sin(w(t - tau)) = sin(wt)*ct - cos(wt)*st,
+         which turns the four shifted sums into products of the unshifted ones. */
+      const ct = Math.cos(w * tau),
+        st = Math.sin(w * tau);
+      const nC = ct * xC + st * xS,
+        nS = ct * xS - st * xC,
+        dC = ct * ct * ccSum + 2 * ct * st * scSum + st * st * ssSum,
+        dS = ct * ct * ssSum - 2 * ct * st * scSum + st * st * ccSum;
       const P = 0.5 * ((nC * nC) / (dC || 1) + (nS * nS) / (dS || 1));
       const e = P * df;
       tpFull += e; // every evaluated bin — the Parseval denominator
@@ -57552,7 +58383,7 @@ __exports.CPAPDex = window.CPAPDex;
                 if (aexp && aexp.schema && aexp.schema.ingest) aexp.schema.ingest.via = 'OverDex';
                 afr.__item.computed = aexp;
                 exports.push({ json: aexp, label: afr.__item.relPath, from: 'computed ' + afr.provenance.adapter });
-                if (afr.partner) afr.partner.__item.runNote = 'folded into the MotionDex run of ' + afr.__item.relPath + ' (chest + arm ACC are one recording)';
+                if (afr.partner) afr.partner.__item.runNote = 'folded into the MotionDex run of ' + afr.__item.relPath + ' (the two ACC streams of one night are one recording)';
               } catch (ae) {
                 afr.__item.runNote = 'run error: ' + ae.message;
               }
@@ -57769,7 +58600,7 @@ __exports.CPAPDex = window.CPAPDex;
     // is `emerging` — the exact tier the Integrator gives the same number.
     var STAT_EV = {
       'recordings fused': { ev: 'measured', cite: 'Count of recordings that routed to a node and produced an export — a counted quantity, not a model.' },
-      'overlap (union)': { ev: 'measured', cite: "Union of the recordings' time windows on the shared clock — counted, not modelled." },
+      'overlap, ≥2 nodes': { ev: 'measured', cite: 'Minutes where at least two recordings run at once on the shared clock, merged so no minute counts twice — counted, not modelled.' },
       'cross-signal findings': { ev: 'measured', cite: 'Count of coincidences the Integrator confirmed inside the overlap window.' },
       'confirmed apnea idx': {
         ev: 'emerging',
@@ -57781,9 +58612,30 @@ __exports.CPAPDex = window.CPAPDex;
         e = STAT_EV[label];
       return R && R.badge && e ? R.badge(e.ev, e.cite) : '';
     }
-    function stat(label, val, cls) {
-      return '<div class="stat">' + '<div class="sv ' + (cls || '') + '">' + val + '</div><div class="sl">' + statBadge(label) + esc(label) + '</div></div>';
+    function stat(label, val, cls, sub) {
+      return (
+        '<div class="stat">' +
+        '<div class="sv ' +
+        (cls || '') +
+        '">' +
+        val +
+        '</div><div class="sl">' +
+        statBadge(label) +
+        esc(label) +
+        '</div>' +
+        (sub ? '<div class="ssub">' + esc(sub) + '</div>' : '') +
+        '</div>'
+      );
     }
+    /* 2026-11-11 review: a finding the null model puts at or below chance is NOT asserted (the Integrator's own
+       KPI says so), yet this page titled it "Confirmed Apnea Event" and showed the index with no reason. */
+    function findingType(f) {
+      var t = String(f.type || '').replace(/_/g, ' ');
+      return f.belowChance ? t.replace(/^confirmed\s+/i, 'candidate ') + ' · not asserted' : t;
+    }
+    var nBelow = fusion.findings.filter(function (f) {
+      return f.belowChance;
+    }).length;
 
     var apIdx = ap && ap.confirmedAHI != null ? ap.confirmedAHI : null;
     var apReportable = ap && ap.confirmedAHIReportable;
@@ -57794,9 +58646,15 @@ __exports.CPAPDex = window.CPAPDex;
 
     html += '<div class="statgrid">';
     html += stat('recordings fused', recs ? recs.length : nodes.length);
-    html += stat('overlap (union)', w.overlapUnionMin != null ? w.overlapUnionMin + ' min' : '—');
-    html += stat('cross-signal findings', fusion.findings.length, fusion.findings.length ? 'teal' : 'muted');
-    html += stat('confirmed apnea idx', apIdx == null ? '—' : apIdx.toFixed(1), apReportable ? 'amber' : 'muted');
+    html += stat('overlap, ≥2 nodes', w.overlapUnionMin != null ? w.overlapUnionMin + ' min' : '—');
+    html += stat('cross-signal findings', fusion.findings.length, fusion.findings.length > nBelow ? 'teal' : 'muted', nBelow ? nBelow + ' at or below chance, not asserted' : '');
+    var apNull = ap && ap.nullModel;
+    html += stat(
+      'confirmed apnea idx',
+      apIdx == null ? '—' : apIdx.toFixed(1),
+      apReportable ? 'amber' : 'muted',
+      apIdx != null && !apReportable && apNull && apNull.belowChance ? 'below chance · expected ' + apNull.expectedConfirmed + ' per night · not asserted' : ''
+    );
     html += '</div>';
 
     // nodes fused
@@ -57823,7 +58681,7 @@ __exports.CPAPDex = window.CPAPDex;
         var conf = f.conf == null ? '—' : f.conf.toFixed(2);
         html +=
           '<div class="finding"><div class="fr1"><span class="ftype">' +
-          esc(f.type.replace(/_/g, ' ')) +
+          esc(findingType(f)) +
           '</span>' +
           '<span class="ftime">' +
           (f.tMs != null ? fmtClock(f.tMs) : '') +
@@ -57833,6 +58691,7 @@ __exports.CPAPDex = window.CPAPDex;
           (f.belowChance ? ' <span class="warn">· below chance</span>' : '') +
           '</span></div>' +
           (f.note ? '<div class="fnote">' + esc(f.note) + '</div>' : '') +
+          (f.belowChance ? '<div class="fnote warn">The null model expects at least this many coincidences by chance on this night, so the page does not assert this event.</div>' : '') +
           '</div>';
       });
       html += '</div></div>';
@@ -57847,7 +58706,29 @@ __exports.CPAPDex = window.CPAPDex;
     if (hrv && hrv.blocks && hrv.blocks.length) {
       html += '<div class="block"><div class="bt">HRV consensus</div>';
       hrv.blocks.forEach(function (b) {
-        html += '<div class="small ' + (b.qc === 'divergent' ? 'warn' : 'ok') + '">' + esc(b.window) + ' · ' + esc(b.nodes.join(' / ')) + ' — ' + esc(b.note) + '</div>';
+        // 2026-11-11 review: the note quotes the WORSE of RMSSD and SDNN as one figure. Each metric's own
+        // spread goes beside it, so a reader can see which metric disagrees.
+        var per = [
+          ['RMSSD', b.rmssd],
+          ['SDNN', b.sdnn]
+        ]
+          .filter(function (x) {
+            return x[1] && x[1].divergencePct != null;
+          })
+          .map(function (x) {
+            return x[0] + ' ' + x[1].divergencePct + '%';
+          });
+        html +=
+          '<div class="small ' +
+          (b.qc === 'divergent' ? 'warn' : 'ok') +
+          '">' +
+          esc(b.window) +
+          ' · ' +
+          esc(b.nodes.join(' / ')) +
+          ' — ' +
+          esc(b.note) +
+          (per.length ? ' <span class="muted">(per metric: ' + esc(per.join(' · ')) + ')</span>' : '') +
+          '</div>';
       });
       html += '</div>';
     }

@@ -51,8 +51,13 @@ import {
   dirtyVerdict as qdDirtyVerdict,
   parseMergeTree as qdParseMergeTree,
   probeMerge as qdProbeMerge,
+  unexpandedRuns as qdUnexpandedRuns,
+  unclaimableRuns as qdUnclaimableRuns,
+  poolPend as qdPoolPend,
   IDLE_MIN as QD_IDLE_MIN,
-  STARVED_MIN as QD_STARVED_MIN
+  STARVED_MIN as QD_STARVED_MIN,
+  UNEXPANDED_MIN as QD_UNEXPANDED_MIN,
+  STALE_QUEUED_H as QD_STALE_QUEUED_H
 } from '../tools/queue-doctor.mjs';
 import {
   classify as pwClassify,
@@ -754,6 +759,8 @@ function readSources() {
     'pulsedex-cross.js',
     'ppgdex-cross.js',
     'hrvdex-cross.js',
+    'glucodex-cross.js',
+    'motiondex-cross.js',
     'cpapdex-cross.js',
     'event-coupling.js', // §9.5 — pin its LCG multiply too (it carries the same 1103515245 clone)
     'crossnight-envelope.js',
@@ -845,6 +852,10 @@ function readSources() {
        through `workerSource()`, which emits a blob string rather than a `data-inline-src` block, so
        the bundle walk that reads a spine file for free cannot see it. */
     'consensus-dissent.js',
+    /* The sensor-trio worker's beat reference (residue 2026-09-26-tch-hat-misattributes-shared-optical-error),
+       listed in BOTH lanes for the same reason: it reaches a page only through a blob worker. */
+    'trio-reference.js',
+    'tools/oracle-ecg-firmware-rr.mjs',
     // Worker SOURCE text for the anti-inertness scan: pat-gate's clock refusals are only as real as the
     // arguments its one runtime caller passes, and that caller is a Web Worker no behavioural test can
     // drive (O2RING-PHASE4-PREMISE-REVIEW §4).
@@ -2931,6 +2942,8 @@ async function main() {
       'pulsedex-cross.js',
       'ppgdex-cross.js',
       'hrvdex-cross.js',
+      'glucodex-cross.js',
+      'motiondex-cross.js',
       'ecgdex-dsp.js',
       'ppgdex-dsp.js',
       'integrator-dsp.js',
@@ -3362,6 +3375,8 @@ async function main() {
     PulseCross: ctx.PulseCross,
     PPGCross: ctx.PPGCross,
     HRVCross: ctx.HRVCross,
+    GluCross: ctx.GluCross,
+    MotionCross: ctx.MotionCross,
     ECGDSP: ctx.ECGDSP,
     ECGDex: ctx.ECGDex,
     PPGDSP: ctx.PPGDSP,
@@ -3621,8 +3636,13 @@ async function main() {
     qdDirtyVerdict: qdDirtyVerdict,
     qdParseMergeTree: qdParseMergeTree,
     qdProbeMerge: qdProbeMerge,
+    qdUnexpandedRuns: qdUnexpandedRuns,
+    qdUnclaimableRuns: qdUnclaimableRuns,
+    qdPoolPend: qdPoolPend,
     qdIdleMin: QD_IDLE_MIN,
     qdStarvedMin: QD_STARVED_MIN,
+    qdUnexpandedMin: QD_UNEXPANDED_MIN,
+    qdStaleQueuedH: QD_STALE_QUEUED_H,
     /* pr-walker's PURE core: classify() and plan() decide every action the timer takes on a PR, and
        the group `tools · pr-walker` pins them with planted snapshots — no `gh`, no clock. */
     pwClassify: pwClassify,

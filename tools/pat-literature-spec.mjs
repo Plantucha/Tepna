@@ -48,7 +48,7 @@
  * reported as such rather than forced onto a culprit.)
  *
  *   node tools/pat-literature-spec.mjs --dir <captures root> [--night 2026-08-03] [--site ring|ankle]
- *                                        [--pinned-from-recompute]
+ *                                        [--pinned-from-recompute] [--ecg-axis linear|piecewise|counter]
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -58,6 +58,11 @@ import { fileURLToPath } from 'node:url';
 import { dissentStampOf, dissentTallyLine, refpickOf, signsOf } from './consensus-dissent-core.mjs';
 import { NIGHT_RE, coverageIdentity, notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
 import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
+/* The ECG axis arithmetic is single-sourced in `pat-matchrate-strict.mjs` for row
+   2026-09-26-pat-ecg-index-axis-is-not-the-h10-sample-clock: this tool held a private `t0 + i/fs`,
+   so no axis request could reach it. `rPeakTimesOnAxis` is pure in the parsed record, so this
+   import loads no second DSP spine beside the realm below. */
+import { rPeakTimesOnAxis } from './pat-matchrate-strict.mjs';
 
 /* ── THE VALIDITY SIDECAR RIDES WITH THE STREAM ─────────────────────────────────────────────
    Row 2026-11-02-no-caller-hands-the-shared-pat-foot-extractor-its-sidecar: the foot extractor has
@@ -81,6 +86,15 @@ const arg = (k, d) => {
 const DIR = arg('--dir', null);
 const ONLY = arg('--night', null);
 const SITE = arg('--site', 'ankle'); // which PPG corner to pair the ECG against
+const ECG_AXIS = arg('--ecg-axis', 'linear'); /* owner ruling 2026-11-06: measure first, so the
+   default stays the index form every published PAT number was computed on. */
+/* A typoed axis must refuse at the front door. The night loop below absorbs a throw out of the
+   extractor and reads it as a night whose detector failed, so without this check `--ecg-axis
+   bogus` exits 0 over 0 scored nights — a verdict about something never examined. */
+if (ECG_AXIS !== 'linear' && ECG_AXIS !== 'piecewise' && ECG_AXIS !== 'counter') {
+  console.error(`--ecg-axis is linear, piecewise or counter, never ${ECG_AXIS}`);
+  process.exit(2);
+}
 /* THE COUNTERFACTUAL, OFF BY DEFAULT. The foot extractor refuses a foot every optical channel was
    pinned through, and it believes a `_PPGRUNS.txt` companion alone — 170 of 3618 PPG recordings
    carry one, so the refusal reaches 4.7 % of them and this tool's own call site hands over none.
@@ -207,7 +221,12 @@ const iqr = (a) => {
    is where §∅ puts the rail. Absent, every line below runs as it did.
    The return keeps `{ fs, times, n }` and gains `nDetected` and `blanking`, so each reader holds.
    DELIBERATELY NOT PORTED: the source's `hrConfidence`, `dropArtifactPeaks` gating and
-   `unmeasuredSec`, which this spec has never run. */
+   `unmeasuredSec`, which this spec has never run.
+   AXIS, DECLARED 2026-11-11 for row 2026-09-26-pat-ecg-index-axis-is-not-the-h10-sample-clock.
+   The source times a peak on `rec.tMsAt` and falls back to the index form; this copy held the
+   index form alone, so the deviation went undeclared and no axis request could reach it. Both
+   sides now route through `rPeakTimesOnAxis`, and `--ecg-axis` names which axis. The default is
+   `linear`, so every number this tool published stays the number it published. */
 function ecgRpeakTimes(text, runsText) {
   const rec = runsText ? ECGDSP.parseECG(text, { runsText }) : ECGDSP.parseECG(text);
   if (!rec || rec.t0Ms == null) return null;
@@ -218,8 +237,7 @@ function ecgRpeakTimes(text, runsText) {
   const blankRanges = PATGate.runRanges(rec.blankingSpans);
   const blanked = PATGate.dropInRuns(detected, blankRanges);
   const peaks = blanked.kept;
-  const t = new Float64Array(peaks.length);
-  for (let i = 0; i < peaks.length; i++) t[i] = rec.t0Ms + (peaks[i] / rec.fs) * 1000;
+  const t = rPeakTimesOnAxis(rec, peaks, { axis: ECG_AXIS });
   /* ∅ A `null` count states that no run set reached this leg. A `0` states that one arrived and
      named no run inside the stream. */
   return {

@@ -13406,26 +13406,39 @@ const OxyDex = window.OxyDex;
     for (let kf = 0; kf < nfFull; kf++) {
       const f = fLo + kf * df,
         w = 2 * Math.PI * f;
+      /* ONE PASS PER BIN. `sin(2wt)` and `cos(2wt)` come from the double-angle identities on the
+         same `sin(wt)`/`cos(wt)` this loop already needs, and the tau-shifted sums come back from the
+         angle-difference identities after the loop. So the bin costs two trig calls per sample
+         instead of four, over one pass instead of two. The algebra is exact, so only the last bits of
+         the sums move. Residue 2026-11-08-lomb-scargle-makes-two-trig-passes-per-bin-and-sample. */
       let s2 = 0,
-        c2 = 0;
+        c2 = 0,
+        xC = 0,
+        xS = 0,
+        ccSum = 0,
+        ssSum = 0,
+        scSum = 0;
       for (let i = 0; i < N; i++) {
-        s2 += Math.sin(2 * w * t[i]);
-        c2 += Math.cos(2 * w * t[i]);
+        const wt0 = w * t[i],
+          cw0 = Math.cos(wt0),
+          sw0 = Math.sin(wt0);
+        s2 += 2 * sw0 * cw0; // sin(2wt)
+        c2 += cw0 * cw0 - sw0 * sw0; // cos(2wt)
+        xC += x[i] * cw0;
+        xS += x[i] * sw0;
+        ccSum += cw0 * cw0;
+        ssSum += sw0 * sw0;
+        scSum += sw0 * cw0;
       }
       const tau = Math.atan2(s2, c2) / (2 * w);
-      let nC = 0,
-        nS = 0,
-        dC = 0,
-        dS = 0;
-      for (let i = 0; i < N; i++) {
-        const wt = w * (t[i] - tau),
-          cw = Math.cos(wt),
-          sw = Math.sin(wt);
-        nC += x[i] * cw;
-        dC += cw * cw;
-        nS += x[i] * sw;
-        dS += sw * sw;
-      }
+      /* cos(w(t - tau)) = cos(wt)*ct + sin(wt)*st and sin(w(t - tau)) = sin(wt)*ct - cos(wt)*st,
+         which turns the four shifted sums into products of the unshifted ones. */
+      const ct = Math.cos(w * tau),
+        st = Math.sin(w * tau);
+      const nC = ct * xC + st * xS,
+        nS = ct * xS - st * xC,
+        dC = ct * ct * ccSum + 2 * ct * st * scSum + st * st * ssSum,
+        dS = ct * ct * ssSum - 2 * ct * st * scSum + st * st * ccSum;
       const P = 0.5 * ((nC * nC) / (dC || 1) + (nS * nS) / (dS || 1));
       const e = P * df;
       tpFull += e; // every evaluated bin — the Parseval denominator
@@ -17309,7 +17322,7 @@ const PulseDex = window.PulseDex;
         bus: 'ganglior',
         generated: opts.generated || new Date().toISOString(),
         provenance: opts.provenance || null,
-        doc: 'GlucoDex glycemic events → Ganglior bus. t/tMs = floating wall-clock (UTC getters). null = unknown, never fabricated.'
+        doc: 'GlucoDex glycemic events → Ganglior bus. t/tMs = floating wall-clock (UTC getters). null = unknown, never fabricated. `crossNight` carries a ganglior.crossnight v1.0 envelope over the per-day series; null when glucodex-cross.js is not in the realm.'
       },
       // EXPORT-IDENTITY §2.1 / -FOLLOWUPS-II §1: identity-free contentId, single-sourced in this
       // shared builder (both app exportGanglior + headless compute reach it). Folds the cleaned CGM series.
@@ -17438,6 +17451,22 @@ const PulseDex = window.PulseDex;
             'ONE entry per cell in time order; WARMUP cells dropped. tMs = absolute floating wall-clock ms; v = mg/dL; f = clean flag (0 OK · 2 gap-interp SHORT · 3 compression-low · 4 gap-interp LONG). A consumer computing glucose statistics MUST exclude 3 and 4 — flag 4 is straight-line interpolation the sensor never saw, and counting it inflates TIR/CV and any coverage figure derived from the cell count.'
         };
       })(),
+      /* ── CROSS-DAY TREND (ganglior.crossnight v1.0) ─────────────────────────────────────────
+         Residue `2026-11-08-three-nodes-emit-no-crossnight-export`, the GlucoDex leg. The envelope
+         is built by `glucodex-cross.js` over `r.daily`, the per-day series `perDay()` writes.
+
+         §∅ — ABSENCE IS NULL. Three separate absences read `null` here and none of them reads 0 or
+         an empty envelope. (1) No day row survived `perDay`'s 6-sample floor, so there is no series.
+         (2) `glucodex-cross.js` is not in this realm. (3) `crossnight-envelope.js` is not either. A
+         realm that carries the cross module without the envelope builder gets the module's own legacy
+         shape, which is the fallback the other five cross modules carry.
+
+         The reach is `global` at CALL time, never a module-evaluation alias: GlucoDex carries no
+         `clock.js` and this file must not grow a second load-order dependency. A regenerator that
+         builds its own vm realm therefore writes `null` honestly instead of throwing — and
+         `tools/regen-glucodex-goldens.mjs` carries both files for that reason, because a truthful
+         `null` in a committed fixture still reds GATE C against the suite realm, which has them. */
+      crossNight: r.daily && r.daily.length && global && global.GluCross && global.CrossNightEnvelope ? global.GluCross.crossNightBlock(r.daily) : null,
       ganglior_events: events,
       reserved: { doc: 'Awaiting other fleet nodes; null until available.' }
     };
