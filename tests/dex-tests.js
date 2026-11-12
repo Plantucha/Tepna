@@ -14944,6 +14944,51 @@
         return String(TT[k] || '').indexOf("from './" + HOME + "'") >= 0;
       });
       T.ok('and the home carries importers rather than being a third unused export', importers.length >= 10, importers.length + ' importer(s)');
+      /* ════ A PARTIAL ESCAPE IS THE FORM CodeQL RATES HIGH, AND THE SCAN ABOVE CANNOT SEE IT ════
+         The scan above reads a CHARACTER CLASS and asks whether it covers at least 8 of the 14
+         metacharacters, so it finds a nearly complete copy. It is blind to `/\./g` → `'\\.'`, which
+         covers ONE and reads as deliberate. Two release tools carried that form into a `new RegExp`
+         for months: alert 233 at `tools/release-land.mjs` from 2026-09-07 and alert 48 at
+         `tools/release.mjs` from 2026-07-14, both HIGH, both `js/incomplete-sanitization`.
+         THE DESTINATION MAKES IT DECIDABLE, not the escape. A partial escape that reaches a RegExp
+         builds a pattern whose meaning depends on its input, while the same escape bound for a
+         Markdown cell (`mdCell` in `mutation-suite.mjs`, `tools-index.mjs`) narrows a different
+         dialect on purpose. LIMIT: the product is followed through a DECLARED name or from inside the
+         call itself, so an accumulator (`out += c.replace(…)` in `corpus-census.mjs`) sits outside
+         this leg's reach — the EXEMPT table above names that file for the same reason. */
+      var escapingSites = function (text) {
+        var found = [];
+        var re = /(?:(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*)?[\w$.\])]+\.replace\(\s*\/((?:\\.|\[(?:\\.|[^\]])*\]|[^/\n\\])+)\/[gimsuy]*\s*,\s*('(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*")\s*\)/g;
+        for (;;) {
+          var m = re.exec(text);
+          if (m === null) break;
+          if (m[3].indexOf('\\\\') < 0) continue;
+          var cls = /^\[[\s\S]*\]$/.test(m[2]) ? m[2] : '[' + m[2] + ']';
+          var n = metaCount(cls);
+          if (n < 1 || n >= 14) continue;
+          var reaches = /new RegExp\(\s*[^)]*$/.test(text.slice(Math.max(0, m.index - 240), m.index));
+          if (!reaches && m[1]) reaches = new RegExp('new RegExp\\([^;]{0,400}\\b' + m[1] + '\\b').test(text);
+          if (reaches) found.push({ meta: n, name: m[1] || '(inline)' });
+        }
+        return found;
+      };
+      var partialSites = [];
+      population.forEach(function (k) {
+        var self = k.replace(/^.*\//, '');
+        if (EXEMPT[self] !== undefined) return;
+        if (escapingSites(TT[k] || '').length) partialSites.push(self);
+      });
+      T.eq('no tool escapes a literal PARTIALLY on its way into a RegExp', partialSites.sort().join(', '), '');
+      T.ok(
+        'self-test · it sees the escape written INSIDE the call (the alert-48 shape)',
+        escapingSites("if (!new RegExp('^\\\\[' + to.replace(/\\./g, '\\\\.') + '\\\\]:', 'm').test(cl)) {}").length === 1
+      );
+      T.ok(
+        'self-test · and the escape bound to a NAME the call reads later (the alert-233 shape)',
+        escapingSites("var esc = v.replace(/\\./g, '\\\\.');\nvar head = new RegExp('^## \\\\[' + esc + '\\\\]');").length === 1
+      );
+      T.ok('CONTROL · a COMPLETE escape into a RegExp is not a finding', escapingSites("var e = v.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&');\nvar r = new RegExp('^' + e + '$');").length === 0);
+      T.ok('CONTROL · a partial escape that reaches NO RegExp is not a finding (a Markdown cell)', escapingSites("var cell = s.replace(/\\\\/g, '\\\\\\\\').replace(/\\|/g, '\\\\|');").length === 0);
     });
 
     /* THE LINE-SHAPE READER HAS ONE HOME FOR THE SAME REASON THE ESCAPER DOES. The census and the

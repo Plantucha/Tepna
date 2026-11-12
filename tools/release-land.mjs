@@ -152,7 +152,11 @@ export function classifyStatus(porcelain) {
    `null` when the version has no section — the caller must refuse, never publish an empty release. */
 export function changelogSection(text, version) {
   const lines = String(text || '').split('\n');
-  const esc = version.replace(/\./g, '\\.');
+  /* `escapeRe`, never a dot-only escape: a replace that escapes dots and leaves backslashes builds a
+     pattern whose meaning depends on the literal (CodeQL `js/incomplete-sanitization`, alert 233, open
+     from 2026-09-07). The home for that escape is `regex-escape-core.mjs`, under the closed row
+     `2026-10-30-the-regex-escaper-is-copied-seven-times-and-exported-twice`. */
+  const esc = escapeRe(version);
   const head = new RegExp('^## \\[' + esc + '\\]');
   const start = lines.findIndex((l) => head.test(l));
   if (start < 0) return null;
