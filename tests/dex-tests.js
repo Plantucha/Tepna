@@ -14944,6 +14944,55 @@
         return String(TT[k] || '').indexOf("from './" + HOME + "'") >= 0;
       });
       T.ok('and the home carries importers rather than being a third unused export', importers.length >= 10, importers.length + ' importer(s)');
+      /* ════ A PARTIAL ESCAPE IS THE FORM CodeQL RATES HIGH, AND THE SCAN ABOVE CANNOT SEE IT ════
+         The scan above reads a CHARACTER CLASS and asks whether it covers at least 8 of the 14
+         metacharacters, so it finds a nearly complete copy. It is blind to `/\./g` → `'\\.'`, which
+         covers ONE and reads as deliberate. Two release tools carried that form into a `new RegExp`
+         for months: alert 233 at `tools/release-land.mjs` from 2026-09-07 and alert 48 at
+         `tools/release.mjs` from 2026-07-14, both HIGH, both `js/incomplete-sanitization`.
+         THE DESTINATION MAKES IT DECIDABLE, not the escape. A partial escape that reaches a RegExp
+         builds a pattern whose meaning depends on its input, while the same escape bound for a
+         Markdown cell (`mdCell` in `mutation-suite.mjs`, `tools-index.mjs`) narrows a different
+         dialect on purpose. LIMIT: the product is followed through a DECLARED name or from inside the
+         call itself, so an accumulator (`out += c.replace(…)` in `corpus-census.mjs`) sits outside
+         this leg's reach — the EXEMPT table above names that file for the same reason.
+         The body scan is a FLAT two-way alternation, and the two arms start with different
+         characters. A nested arm for a character class let one backslash run match two ways and
+         CodeQL reported it as `js/redos`, twice, at HIGH. A `/` inside a class ends the scan early,
+         which under-detects and never loops. */
+      var escapingSites = function (text) {
+        var found = [];
+        var re = /(?:(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*)?[\w$.\])]+\.replace\(\s*\/((?:\\.|[^/\n\\])+)\/[gimsuy]*\s*,\s*('(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*")\s*\)/g;
+        for (;;) {
+          var m = re.exec(text);
+          if (m === null) break;
+          if (m[3].indexOf('\\\\') < 0) continue;
+          var cls = /^\[[\s\S]*\]$/.test(m[2]) ? m[2] : '[' + m[2] + ']';
+          var n = metaCount(cls);
+          if (n < 1 || n >= 14) continue;
+          var reaches = /new RegExp\(\s*[^)]*$/.test(text.slice(Math.max(0, m.index - 240), m.index));
+          if (!reaches && m[1]) reaches = new RegExp('new RegExp\\([^;]{0,400}\\b' + m[1] + '\\b').test(text);
+          if (reaches) found.push({ meta: n, name: m[1] || '(inline)' });
+        }
+        return found;
+      };
+      var partialSites = [];
+      population.forEach(function (k) {
+        var self = k.replace(/^.*\//, '');
+        if (EXEMPT[self] !== undefined) return;
+        if (escapingSites(TT[k] || '').length) partialSites.push(self);
+      });
+      T.eq('no tool escapes a literal PARTIALLY on its way into a RegExp', partialSites.sort().join(', '), '');
+      T.ok(
+        'self-test · it sees the escape written INSIDE the call (the alert-48 shape)',
+        escapingSites("if (!new RegExp('^\\\\[' + to.replace(/\\./g, '\\\\.') + '\\\\]:', 'm').test(cl)) {}").length === 1
+      );
+      T.ok(
+        'self-test · and the escape bound to a NAME the call reads later (the alert-233 shape)',
+        escapingSites("var esc = v.replace(/\\./g, '\\\\.');\nvar head = new RegExp('^## \\\\[' + esc + '\\\\]');").length === 1
+      );
+      T.ok('CONTROL · a COMPLETE escape into a RegExp is not a finding', escapingSites("var e = v.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&');\nvar r = new RegExp('^' + e + '$');").length === 0);
+      T.ok('CONTROL · a partial escape that reaches NO RegExp is not a finding (a Markdown cell)', escapingSites("var cell = s.replace(/\\\\/g, '\\\\\\\\').replace(/\\|/g, '\\\\|');").length === 0);
     });
 
     /* THE LINE-SHAPE READER HAS ONE HOME FOR THE SAME REASON THE ESCAPER DOES. The census and the
@@ -60559,8 +60608,18 @@
             var mo = /^(?:async\s+)?function\s+([A-Za-z_$][\w$]*)/.exec(ln) || /^(?:const|let|var)\s+([A-Za-z_$][\w$]*)/.exec(ln);
             if (mo) ovNames.push(mo[1]);
           });
+          /* The reach test TOKENIZES the DSP once instead of building a RegExp for each name. The old
+             form read `new RegExp('\\b' + nm.replace(/\$/g, '\\$') + '\\b')`. It escaped `$` alone, so
+             CodeQL rated it `js/incomplete-sanitization` at HIGH, as alerts 295 and 296. A local copy of
+             the 14-character class would red the rung that holds the escaper to one home, and that home
+             is a tool module this file cannot load in the browser lane. A token set needs no escape at
+             all, and it is STRICTER than the old form: `\b` does not treat `$` as a word character, so
+             `\b\$foo\b` matched only after another word character and a `$`-leading name read as
+             unreachable. Measured on the real pair: 21 overview names, 13 published names, none carrying
+             a `$`, and the two forms agree on all 34. */
+          var pxTokens = new Set(pxDsp.match(/[A-Za-z_$][\w$]*/g) || []);
           var reach = ovNames.filter(function (nm) {
-            return new RegExp('\\b' + nm.replace(/\$/g, '\\$') + '\\b').test(pxDsp);
+            return pxTokens.has(nm);
           });
           T.ok(
             "F14 · …and pulsedex-dsp.js reads none of the overview module's top-level names",
@@ -60596,7 +60655,7 @@
             });
           }
           var gReach = gNames.filter(function (nm) {
-            return new RegExp('\\b' + nm.replace(/\$/g, '\\$') + '\\b').test(pxDsp);
+            return pxTokens.has(nm);
           });
           T.ok(
             'F14 · …and no name the module publishes on the global object is read by the DSP',
@@ -72182,6 +72241,72 @@
         'schema.provenance.inputs[].sha256'
       ]);
       T.eq('the document states it was scrubbed', scr.schema.scrubbed, true);
+    });
+
+    /* ════ EXPORT-SCRUB-ALLOWLIST · THE PER-SEGMENT OFFSET DETAIL SURVIVES ════
+       Row `2026-11-12-the-allow-list-drops-the-ppg-offset-segmentation`: #4070 published
+       `recording.offsetSegments` so a reader could tell a night corrected per segment from a night
+       corrected by one rate, and `export-schema.js` never declared the key, so `dexScrubExport`
+       deleted it from every scrubbed export. Measured over two folds at `2caee6fcd`: 15 of 16
+       node-exports named the key in `scrubDropped`.
+       THIS IS A SEPARATE GROUP WITH ITS OWN CONTROL, never another leg in the group above, because
+       the group above asserts its `scrubDropped` array by exact value — a planted sibling there would
+       red a passing assertion for the wrong reason. The control is `clockSeams`, the detail list that
+       comment deliberately leaves undeclared. RED on main. */
+    group('EXPORT-SCRUB-ALLOWLIST · a scrubbed export keeps its per-segment offset detail', 'dex-export · export-schema · scrub · timebase · plant', function (T) {
+      var DX = env.DexExport;
+      if (!(DX && typeof DX.scrubExport === 'function')) {
+        T.ok('env.DexExport.scrubExport available', false, 'namespace not wired — gate skipped');
+        return;
+      }
+      var SEG_KEYS = ['fromDevMs', 'toDevMs', 'anchors', 'spanS', 'flatOffsetMs', 'residualRmsMs', 'jitterMs', 'ppm', 'rate', 'rateReason'];
+      var raw = {
+        schema: { name: 'ganglior.node-export', node: 'PpgDex' },
+        recording: {
+          startEpochMs: 1781383783000,
+          contentId: 'cid',
+          offsetSegments: [
+            { fromDevMs: 1000, toDevMs: 601000, anchors: 42, spanS: 600, flatOffsetMs: -12.5, residualRmsMs: 1.8, jitterMs: 2.4, ppm: -25.1, rate: 'measured', rateReason: null },
+            {
+              fromDevMs: 601500,
+              toDevMs: 603500,
+              anchors: 2,
+              spanS: 2,
+              flatOffsetMs: 40,
+              residualRmsMs: 0,
+              jitterMs: null,
+              ppm: null,
+              rate: 'unknown',
+              rateReason: '2 anchor(s) — below the 3 a rate needs'
+            }
+          ],
+          /* THE CONTROL · the per-seam detail list that export-schema.js leaves undeclared. */
+          clockSeams: [{ idx: 7, deviceStepMs: 20000, phoneDeltaMs: null }]
+        },
+        sessions: [{ date: '2026-08-17', stats: { meanHr: 58.2 } }]
+      };
+      var scr = DX.scrubExport(raw);
+      var segs = scr.recording.offsetSegments;
+
+      // ── the detail SURVIVES, read back by value ──
+      T.eq('recording.offsetSegments survives the scrub, both segments', Array.isArray(segs) ? segs.length : String(segs), 2);
+      T.eq(
+        '…and each segment keeps all ten exported keys',
+        segs
+          .map(function (x) {
+            return Object.keys(x).join();
+          })
+          .join(' | '),
+        SEG_KEYS.join() + ' | ' + SEG_KEYS.join()
+      );
+      T.eq('the measured segment reports its rate beside its anchor count and span', [segs[0].ppm, segs[0].anchors, segs[0].spanS, segs[0].rate].join(), '-25.1,42,600,measured');
+      T.eq('§∅ · the refused segment reports a NULL ppm, never a zero', segs[1].ppm, null);
+      T.eq('…and names the test that refused it', segs[1].rateReason, '2 anchor(s) — below the 3 a rate needs');
+
+      /* ── ANTI-VACUITY · the allow-list did not turn into everything ── */
+      T.eq('the undeclared per-seam detail list is still dropped', 'clockSeams' in scr.recording, false);
+      T.eq('…and the report names the drop', (scr.schema.scrubDropped || []).indexOf('recording.clockSeams') >= 0, true);
+      T.eq('…while it does NOT name the key this row is about', (scr.schema.scrubDropped || []).indexOf('recording.offsetSegments') >= 0, false);
     });
 
     /* ════ SELF-INGEST §5 — A PER-ELEMENT ENVELOPE IS SCRUBBED TOO (the shape F13 never planted) ════

@@ -87,6 +87,40 @@ const LATEST = join(STATE_DIR, 'latest.json');
 
 export const STEPS = ['plan', 'worktree', 'stamp', 'build', 'docs', 'gate', 'scan', 'commit', 'push', 'pr', 'merge', 'tag', 'release', 'cleanup'];
 
+/* ── transient API failures ─────────────────────────────────────────────────────────────────────
+   Measured 2026-11-12: one transient GitHub error at the `pr` step killed the v2.32.0 chain AFTER
+   it had committed and pushed. `gh pr create` returned `GraphQL: Something went wrong while
+   executing your query`. `release-due.mjs` then HELD on every later run, because a recorded
+   unfinished run belongs to the operator and not to the timer — so the cadence stopped until a
+   person acted, and the fleet banner stays quiet for the first 12 h of that.
+
+   The set below is PRE-STATED and narrow, and every member names what the SERVER said. An
+   unrecognised failure is never retried: a real refusal — a protected branch, a bad token, a PR
+   that already exists — must still stop the chain on the first attempt. */
+export const TRANSIENT_PATTERNS = [
+  /Something went wrong while executing your query/i,
+  /\b(Bad Gateway|Service Unavailable|Gateway Time-?out|Internal Server Error)\b/i,
+  /\bHTTP (?:429|50[0234])\b/i,
+  /was submitted too quickly|secondary rate limit/i,
+  /\b(ETIMEDOUT|ECONNRESET|EAI_AGAIN|ENETUNREACH)\b/,
+  /Connection reset by peer|Could not resolve host|Operation timed out|Empty reply from server/i,
+  /The remote end hung up unexpectedly|RPC failed|early EOF/i
+];
+
+/* True only for a failure text the list above names. A non-string and an empty text are false —
+   absence of a message is not evidence of a transient server, and a silent failure must stop. */
+export function isTransientApiError(text) {
+  if (typeof text !== 'string' || !text) return false;
+  return TRANSIENT_PATTERNS.some((re) => re.test(text));
+}
+
+/* Deterministic, capped, 1-based: 2 s, 4 s, 8 s, 16 s, … There is no jitter, because this chain is
+   the only client of its own steps and a readable sequence is what the log has to show. The default
+   four tries therefore wait 2 + 4 + 8 = 14 s in total before they give up. */
+export function backoffMs(attempt, baseMs = 2000, capMs = 30000) {
+  return Math.min(capMs, baseMs * 2 ** (Math.max(1, attempt) - 1));
+}
+
 /* Which steps remain, given what the state file says finished. Order is STEPS' order; a step is
    never re-run once recorded done, so a crash between two steps resumes at the second. */
 export function remaining(done) {
@@ -118,7 +152,11 @@ export function classifyStatus(porcelain) {
    `null` when the version has no section — the caller must refuse, never publish an empty release. */
 export function changelogSection(text, version) {
   const lines = String(text || '').split('\n');
-  const esc = version.replace(/\./g, '\\.');
+  /* `escapeRe`, never a dot-only escape: a replace that escapes dots and leaves backslashes builds a
+     pattern whose meaning depends on the literal (CodeQL `js/incomplete-sanitization`, alert 233, open
+     from 2026-09-07). The home for that escape is `regex-escape-core.mjs`, under the closed row
+     `2026-10-30-the-regex-escaper-is-copied-seven-times-and-exported-twice`. */
+  const esc = escapeRe(version);
   const head = new RegExp('^## \\[' + esc + '\\]');
   const start = lines.findIndex((l) => head.test(l));
   if (start < 0) return null;
@@ -283,6 +321,33 @@ function must(cmd, args, opts = {}) {
   if (r.code !== 0) throw new Error(`${cmd} ${args.join(' ')} → exit ${r.code}\n${r.err.slice(-2000)}${r.out.slice(-2000)}`);
   return r.out;
 }
+
+/* `must()` that retries ONLY a pre-stated transient failure, with a bounded backoff. `run` and
+   `wait` are injected, so the selftest drives every branch of this loop with no process and no
+   clock. A caller that wants the old behaviour keeps calling `must`. */
+export function mustRetrying(cmd, args, opts = {}, cfg = {}) {
+  const tries = cfg.tries || 4;
+  const run = cfg.run || sh;
+  const wait = cfg.wait || ((ms) => spawnSync('sleep', [String(Math.max(1, Math.ceil(ms / 1000)))]));
+  const onRetry = cfg.onRetry || (() => {});
+  let last = null;
+  for (let attempt = 1; attempt <= tries; attempt++) {
+    const r = run(cmd, args, opts);
+    if (r.code === 0) return r.out;
+    const text = `${r.err || ''}${r.out || ''}`;
+    last = new Error(`${cmd} ${args.join(' ')} → exit ${r.code}\n${(r.err || '').slice(-2000)}${(r.out || '').slice(-2000)}`);
+    if (attempt === tries || !isTransientApiError(text)) throw last;
+    const ms = backoffMs(attempt, cfg.baseMs, cfg.capMs);
+    onRetry(attempt, ms, (text.trim().split('\n').pop() || '').slice(0, 200));
+    wait(ms);
+  }
+  throw last;
+}
+/* One line per retry, into the release log a human reads on `--status`. A retry that nothing
+   records is indistinguishable from a step that was simply slow. */
+function retryLog(st, what) {
+  return { onRetry: (attempt, ms, line) => log(st, `${what}: attempt ${attempt} hit a transient error — retrying in ${ms} ms · ${line}`) };
+}
 function nowIso() {
   return new Date().toISOString();
 }
@@ -431,17 +496,36 @@ const RUN = {
     log(st, `committed ${st.commit.slice(0, 8)}: +${cls.add.length} modified, −${cls.del.length} changesets`);
   },
   push(st) {
-    must('git', ['push', '-q', '-u', 'origin', st.branch], { cwd: st.worktree });
+    mustRetrying('git', ['push', '-q', '-u', 'origin', st.branch], { cwd: st.worktree }, retryLog(st, 'git push'));
     log(st, `pushed ${st.branch}`);
   },
+  /* Both calls here retry a transient server error, because this step is the one that wedged the
+     cadence on 2026-11-12 and because its idempotence already holds: the lookup is a read, and
+     GitHub itself refuses a second open PR for one head. So a create that the server performed and
+     then failed to report cannot double — the retry is refused with a message this file does not
+     call transient, and the catch below adopts the PR that exists. */
   pr(st) {
-    const existing = JSON.parse(must('gh', ['pr', 'list', '--head', st.branch, '--state', 'all', '--json', 'number,state', '--limit', '1'], { cwd: st.worktree }));
-    if (existing.length) {
-      st.pr = existing[0].number;
-      log(st, `PR #${st.pr} already exists (${existing[0].state})`);
-      return;
+    const find = () =>
+      JSON.parse(mustRetrying('gh', ['pr', 'list', '--head', st.branch, '--state', 'all', '--json', 'number,state', '--limit', '1'], { cwd: st.worktree }, retryLog(st, 'gh pr list')));
+    const adopt = (rows) => {
+      if (!rows.length) return false;
+      st.pr = rows[0].number;
+      log(st, `PR #${st.pr} already exists (${rows[0].state})`);
+      return true;
+    };
+    if (adopt(find())) return;
+    let url;
+    try {
+      url = mustRetrying(
+        'gh',
+        ['pr', 'create', '--title', `release: v${st.to}`, '--body', prBody(st.to, st.level, st.n, st.session, st.names)],
+        { cwd: st.worktree },
+        retryLog(st, 'gh pr create')
+      ).trim();
+    } catch (e) {
+      if (adopt(find())) return;
+      throw e;
     }
-    const url = must('gh', ['pr', 'create', '--title', `release: v${st.to}`, '--body', prBody(st.to, st.level, st.n, st.session, st.names)], { cwd: st.worktree }).trim();
     st.pr = +(/\/pull\/(\d+)/.exec(url) || [])[1];
     if (!st.pr) throw new Error('gh pr create returned no PR number: ' + url);
     log(st, `opened PR #${st.pr}`);
@@ -760,6 +844,57 @@ if (process.argv.includes('--selftest') && isCliEntry(import.meta.url)) {
   ok(!lay.some((f) => /other\.css|collectX/.test(f.to)), 'CONTROL · a sibling outside the declared assets stays out');
   ok(missingAssets(['a', 'b', 'c'], ['b']).join() === 'a,c', 'only absent assets upload, so a resume never doubles one');
   ok(missingAssets(['a'], ['a']).length === 0, 'a complete Release uploads nothing');
+  // transient classification — the measured message, a sibling class, and three controls
+  ok(isTransientApiError('GraphQL: Something went wrong while executing your query'), 'the MEASURED GitHub GraphQL message is transient');
+  ok(isTransientApiError('HTTP 502: Bad Gateway (https://api.github.com/graphql)'), 'a 502 Bad Gateway is transient');
+  ok(isTransientApiError('fatal: unable to access ...: Connection reset by peer'), "a reset link on git's own transport is transient");
+  ok(!isTransientApiError('GraphQL: Resource not accessible by integration'), 'CONTROL · a refusal naming permissions is NOT transient');
+  ok(!isTransientApiError('a pull request for branch "x" into branch "main" already exists'), 'CONTROL · an existing PR is NOT transient — a retry must not loop on it');
+  ok(!isTransientApiError('') && !isTransientApiError(null) && !isTransientApiError(undefined), 'CONTROL · an absent message is not evidence of a transient server');
+  // backoff — the declared sequence and its cap
+  ok([1, 2, 3, 4].map((a) => backoffMs(a)).join() === '2000,4000,8000,16000', 'backoff doubles from 2 s, 1-based');
+  ok(backoffMs(9) === 30000 && backoffMs(99) === 30000, 'backoff is capped, so one slow step cannot stall the chain');
+  // the retrying runner, driven with no process and no clock
+  const runner = (codes) => {
+    const seen = [];
+    const run = () => {
+      const c = codes[seen.length];
+      seen.push(c);
+      return c === 0 ? { code: 0, out: 'ok', err: '' } : { code: 1, out: '', err: c };
+    };
+    const waits = [];
+    return { run, waits, wait: (ms) => waits.push(ms), calls: () => seen.length };
+  };
+  const GQL = 'GraphQL: Something went wrong while executing your query';
+  let h = runner([0]);
+  ok(mustRetrying('gh', ['x'], {}, { run: h.run, wait: h.wait }) === 'ok' && h.calls() === 1, 'a first-attempt success runs the command exactly once');
+  h = runner([GQL, 0]);
+  ok(mustRetrying('gh', ['x'], {}, { run: h.run, wait: h.wait }) === 'ok', 'a transient failure is retried and the second attempt is returned');
+  ok(h.calls() === 2 && h.waits.join() === '2000', 'that retry waited once, for the declared 2 s');
+  h = runner(['GraphQL: Resource not accessible by integration', 0]);
+  let rthrew = false;
+  try {
+    mustRetrying('gh', ['x'], {}, { run: h.run, wait: h.wait });
+  } catch {
+    rthrew = true;
+  }
+  ok(rthrew && h.calls() === 1 && h.waits.length === 0, 'CONTROL · a NON-transient failure throws on attempt 1 and waits never');
+  h = runner([GQL, GQL, GQL, GQL, GQL]);
+  rthrew = false;
+  let msg = '';
+  try {
+    mustRetrying('gh', ['pr', 'create'], {}, { run: h.run, wait: h.wait });
+  } catch (e) {
+    rthrew = true;
+    msg = e.message;
+  }
+  ok(rthrew && h.calls() === 4, 'the retry is BOUNDED — four attempts, then it gives up');
+  ok(h.waits.join() === '2000,4000,8000', 'its whole wait is the declared 14 s, never unbounded');
+  ok(/gh pr create/.test(msg) && new RegExp(GQL).test(msg), "the thrown message still names the command and the server's own words");
+  h = runner([GQL, GQL, 0]);
+  const tr = [];
+  mustRetrying('gh', ['x'], {}, { run: h.run, wait: h.wait, onRetry: (a, ms) => tr.push(`${a}/${ms}`) });
+  ok(tr.join() === '1/2000,2/4000', 'every retry is reported to the log, because a silent retry reads as a slow step');
   // every step has a runner, in order
   ok(
     STEPS.every((s) => typeof RUN[s] === 'function'),

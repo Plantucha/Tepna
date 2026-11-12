@@ -73,6 +73,9 @@ All three are planted in `--selftest` and asserted red. None is a claim about to
 - [x] The two drift states are planted, not assumed.
 - [x] §4 states the seed's circularity rather than leaving the first PASS to be read as evidence.
 - [x] The CVHR residue row closes on declaration (`export-only`).
+- [x] 2026-11-12: the gate enumerates both export routes, so the slim-export literal's keys declare
+      a surface too (§7).
+- [x] A control plants the old enumerator's blindness, and §7 does not assert it.
 
 ## 6 · 2026-11-11 — the seed counted prose, and two declarations were wrong
 
@@ -106,3 +109,48 @@ declares `card` on a read of its own.
 **What this still cannot see.** The read test proves a key appears in code, never that it
 reaches a surface a reader opens. A `card` key read into a variable that nothing draws
 passes. That is a narrower blindness than prose, and it is the next one.
+
+## 7 · 2026-11-12 — the gate reported PASS over 26 of its 36 keys
+
+🔴 **AN ENUMERATOR READ ONE OF THE TWO EXPORT ROUTES.** `fusionKeys()` took the fusion return
+object, and every `_exp.<key>` assignment. The Integrator builds most of its slim export as one
+object literal (`var _exp = {` in `integrator-dsp.js`). A key inside that literal is never written
+as an assignment. Ten keys therefore reached the node-export with no declaration, and the gate
+printed a green line over 26 keys, where its contract names 36. The green line did not name its
+population, and that omission hid the gap for a month.
+
+| key | the fusion-side name it forwards | does a reader meet the value |
+|---|---|---|
+| `confirmedApneaIndex` | `fusion.apnea.confirmedAHI` | yes — `a.confirmedAHI`, three sites |
+| `confirmedApneaIndexReportable` | `fusion.apnea.confirmedAHIReportable` | yes — it gates the index |
+| `confirmedApneaIndexContributions` | `fusion.apnea.contributions` | no |
+| `apneaNullModel` | `fusion.apnea.nullModel` | yes — the below-chance subtitle |
+| `apneaCoupling` | `fusion.apnea.coupling` | no |
+| `hrvConsensus` | `fusion.hrv` | yes — under the `hrv` key, which declares `card` |
+| `deviceScoredAHI` | `fusion.apnea.apneaAuthority` | yes — four sites |
+| `kernel` | the kernel version and hash | no — render reads `r.kernelHash` per node |
+| `schema` | the method-description block | no |
+| `handshakes` | the reserved-handshake block | no |
+
+Each of the ten declares `export-only`, because the gate's own `reads()` finds none of them in
+blanked code. Seven of the ten forward a value the reader does meet under its fusion-side name, so
+`tools/integrator-surface.json` carries a `notes` field that records where. The notes are a
+hand-check, and no gate judges them.
+
+**The control, measured 2026-11-12.** A planted key sits inside the literal, in an otherwise
+unchanged `integrator-dsp.js`. The widened gate exits 1 and names `plantedDriftKey`. The same source,
+read by the same gate with its five literal-reader lines removed, exits 0 and reports `PASS` over
+`population.checked: 26`. One source, two enumerators, opposite verdicts: the blindness is a
+measurement here and not a claim.
+
+`--selftest` grew from 23 legs to 29. The six new legs plant the literal route, the depth boundary,
+an undeclared literal key, and two shapes that fail closed.
+
+**What this still cannot see: depth.** This brief counts 108 keys at depth ≤ 2. The gate judges 36 at
+depth 1. A nested property declares no surface, and `result.depth` now prints the number so the
+verdict states its own scope.
+
+Two enumerations disagree about the rest, and they miss opposite things. A fixture-derived walk
+misses code the fixtures predate. A source-derived walk misses an object a second function builds. A
+declaration per nested path also needs an anchor per path, because a key such as `fusion.apnea`
+carries no literal at the fusion site at all. That is the next one, and it is a unit of its own.

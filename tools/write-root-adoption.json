@@ -17,6 +17,7 @@
     }
    },
    "exempt": {
+    "tools/read-ref-drift.mjs": "both write calls sit in its selftest, which builds a two-clone git fixture under mkdtemp and removes it; the tool writes no tracked artifact, writes nothing under any checkout, and calls no write wrapper",
     "tools/write-root-adoption.mjs": "its selftests plant both shapes as fixture strings, so the write regexes read its own test data; it writes no tracked artifact and calls no write wrapper"
    },
    "pending": [
@@ -86,6 +87,11 @@
    "pendingMeans": "the tool matches the shape and owes one reading in its own header (brief \u00a76.4). A name leaves this list only by adopting, or with the file.",
    "exemptMeans": "the regexes read the tool\u2019s own test data. Each row carries the sentence that says why, and a mute row reds.",
    "adopted": {
+    "tools/bus-conf-provenance.mjs": {
+     "since": "2026-11-12",
+     "wrapper": "judgeRootOrDie",
+     "reading": "it censuses the *-dsp.js files of the tree it resolves and reads that tree\u2019s base ref, so a cross-checkout run would judge another work-unit\u2019s DSP sources and call the answer this branch\u2019s"
+    },
     "tools/residue-path-leads.mjs": {
      "since": "2026-11-11",
      "wrapper": "judgeRoot",

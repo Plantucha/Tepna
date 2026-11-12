@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**342 tools** · 341 with a purpose line · **1 without**
+**344 tools** · 343 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -47,6 +47,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`build-analysis.mjs`](../tools/build-analysis.mjs) | Make the science/analysis tools SELF-CONTAINED single-file HTML, so they run when a user downloads ONE.html to disk and opens it over file:// — the way the bundled apps already do. |
 | [`build-docs.mjs`](../tools/build-docs.mjs) | Build the public GitHub-Pages deploy snapshot in../docs (the served root per docs/SITE-DEPLOY-AND-LAYOUT.md §D) from the repo-root source of truth. |
 | [`build.mjs`](../tools/build.mjs) | **⚠ NO PURPOSE LINE — add one to the header** |
+| [`bus-conf-provenance.mjs`](../tools/bus-conf-provenance.mjs) | every published bus `conf` site, and whether a source stands above it |
 | [`buzz-fiducial-correlate.mjs`](../tools/buzz-fiducial-correlate.mjs) | O2RING-BUZZ-FIDUCIAL step 2/3 — correlate a commanded APERIODIC buzz sequence against the ring's own motion channel, and report the host-axis residual. |
 | [`buzz-onset-extract.mjs`](../tools/buzz-onset-extract.mjs) | EXTRACT COMMANDED-BUZZ ONSETS from ACC / ring-motion streams and turn them into numbers: the command→artifact latency per fire, and the pairwise inter-device onset delta per event. |
 | [`capture-recapture.mjs`](../tools/capture-recapture.mjs) | HOW MANY BEATS DID *EVERY* DETECTOR MISS — epidemiology's capture–recapture, imported. |
@@ -250,6 +251,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`qwen-mypy-fix.mjs`](../tools/qwen-mypy-fix.mjs) | the mypy burn-down FIX lane (PYTHON-TYPES-AND-FORMAT §P2, qwen half). |
 | [`r5-hr-reference.mjs`](../tools/r5-hr-reference.mjs) | R5 (TCH-REFERENCE-VALIDATION §7) on the HR triplet — and the answer is that IT CANNOT BE RUN. |
 | [`read-lines-bounded.mjs`](../tools/read-lines-bounded.mjs) | ONE BOUNDED LINE READER, FOR EVERY TOOL THAT HANDS A RAW STREAM TO A DSP |
+| [`read-ref-drift.mjs`](../tools/read-ref-drift.mjs) | hold the paths a census read against the ref, and name the censused checkout's distance from the ref beside the answer. |
 | [`reanchor-equivalence.mjs`](../tools/reanchor-equivalence.mjs) | THE CLASSIFICATION DECAYS BECAUSE ITS KEY CONTAINS A LINE NUMBER. |
 | [`rebase-safe.mjs`](../tools/rebase-safe.mjs) | REBASE ONTO origin/main WITHOUT SILENTLY REVERTING SOURCE. WHY THIS EXISTS. |
 | [`regen-cpap-goldens.mjs`](../tools/regen-cpap-goldens.mjs) | Regenerate CPAPDex's committed node-export fixtures by RE-RUNNING THE REAL MODULES on their committed inputs and re-exporting — never by hand-editing a value (CLAUDE.md §🔏). |

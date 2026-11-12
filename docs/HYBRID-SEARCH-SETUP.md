@@ -9,7 +9,7 @@ use it** and is unaffected by everything on this page; adoption is the owner's c
 
 Primary development machine only. Measured 2026-10-10: the index server was a bare process started by
 hand, so a reboot or a closed terminal ended the hybrid lane silently — the flag fails with a connection
-error while the default path keeps working, which is an outage nobody is paged for.
+error while the default path keeps working, which is an outage that pages nobody.
 
 ## Enable it — the OWNER does this; a session must not
 
@@ -20,7 +20,7 @@ cp tools/systemd/tepna-hybrid-index-reload.service ~/.config/systemd/user/
 cp tools/systemd/tepna-hybrid-index-reload.timer   ~/.config/systemd/user/
 systemctl --user daemon-reload
 systemctl --user enable --now tepna-hybrid-index.service          # the server
-systemctl --user enable --now tepna-hybrid-index-reload.timer     # follow the cache, hourly at :20
+systemctl --user enable --now tepna-hybrid-index-reload.timer     # rebuild the generation, nightly at 03:20
 node tools/xerj-load.mjs                                          # the first fill (~56–77 s)
 node tools/doc-search.mjs --hybrid "a question"                   # the one-line check
 ```
@@ -36,7 +36,7 @@ systemctl --user enable --now tepna-board-search.timer            # every 5 min
 
 The tick runs `tools/bge-reindex-driver.sh --board`: the board export, an embed of what changed, and
 `xerj-load.mjs --only ext:agent-board/ --newer-than 10`. That load upserts into the generation that
-serves the alias now, and it never builds or promotes one. The hourly reload stays the source of truth.
+serves the alias now, and it never builds or promotes one. The nightly rebuild stays the source of truth.
 A quiet tick reports `NOT_APPLICABLE` and writes no log line.
 
 ## The reranker server — the OWNER enables it too
@@ -68,7 +68,13 @@ node tools/doc-search.mjs --brief "a question"                    # prints "rera
 |---|---|
 | `tepna-hybrid-index.service` | the server. `Restart=on-failure`, loopback-bound, `Nice=10`/idle I/O so it never outranks a gate |
 | `tepna-hybrid-index-reload.service` | one refill from the vector cache. **Fails on a load of zero** |
-| `tepna-hybrid-index-reload.timer` | hourly at `:20`, **after** the hourly re-embed rather than near it |
+| `tepna-hybrid-index-reload.timer` | **nightly at 03:20**, with a 600 s jitter. It ran hourly until 2026-11-05 |
+
+**The rebuild runs nightly because the hourly one stalled searches.** Each rebuild loads the whole
+corpus beside the serving index. The owner moved it to 03:20 on 2026-11-05. Freshness between
+rebuilds comes from the hourly re-embed (`bge-reindex.timer`, which runs
+`tools/bge-reindex-driver.sh`) and from the 5-minute board tick. Both upsert into the serving
+generation.
 
 **Loopback is the reason the server runs without TLS.** The listener binds `127.0.0.1` (the engine's own
 default; exposing it needs a separate opt-in), and the unit enforces the same thing at the kernel with
@@ -78,7 +84,7 @@ ever changes, the `--insecure` flag must change in the same edit — they are on
 **Source only.** The documents come from doc-search's own corpus, and the loader additionally refuses any
 path matching `uploads/`, `.edf`, `captures/` or `.dat|.bin|.wav`. Nothing recorded enters this index.
 
-**No model is downloaded.** The vectors are ours, computed by doc-search against the loopback inference
+**Nothing downloads a model.** The vectors are ours, computed by doc-search against the loopback inference
 server; the engine runs in lexical mode and never embeds.
 
 ## It survives a restart — measured, not assumed
@@ -91,15 +97,29 @@ restart and returned the right passages — the **vectors** persisted, not merel
 ## If `--hybrid` fails
 
 * `xerj HTTP …` or a connection error → the server is down: `systemctl --user status tepna-hybrid-index`
-* hits look stale → run `node tools/xerj-load.mjs` (the timer does this hourly). Each run builds a FRESH
-  `tepna-hybrid-<stamp>` index and moves the name `tepna-hybrid` to it; the replaced one is deleted.
+* hits look stale → run `node tools/xerj-load.mjs` (the timer does this nightly at 03:20). Each run
+  builds a FRESH `tepna-hybrid-<stamp>` index, moves the name `tepna-hybrid` to it, and deletes the
+  replaced one.
   Reloading INTO one index is what the loader did until 2026-10-11, and the engine's vector graph never
   reclaims an overwrite: one index grew to 9.7 GB on disk and the server to 11.3 GB RSS.
 * searches take seconds, or the loader reports the engine's memory breaker → `du -sh
   ~/.local/share/tepna/hybrid-index/*` — a `tepna-hybrid` directory (a real index wearing the alias's
   name) is the pre-2026-10-11 shape; one run of the loader replaces it.
+* searches take seconds, and the engine logs no `slow search_inner` WARN → the engine never saw the
+  cost. Read that count first: `journalctl --user -u tepna-hybrid-index --since -1h | grep -c 'slow
+  search_inner'`. A count over zero means the engine was slow. A zero count puts the time in the
+  query embed, which is doc-search's own work and not the engine's.
+* the query embed is the slow part → read `curl -s localhost:11434/api/ps`. A `size_vram` of 0 is a
+  CPU copy of the embed model. And doc-search embeds on the CPU itself when free VRAM is under
+  `DEX_EMBED_MIN_FREE_MB`, 4096 MB by default. Set `DEX_EMBED_CPU=0` to force the GPU lane for one
+  query.
 * `loaded 0 documents` → **this is a failure, not a quiet success**: the cache, the corpus or the
   staleness rule stopped matching. The skip histogram in the output says which.
 * `⚠ no reranker (…)` under the hits → the reranker server is down: `systemctl --user status tepna-rerank`.
   The search still answers, on the old floor.
 * nothing is wrong with Rule 0 — re-run without `--hybrid` and the default path answers as always.
+
+**Measured 2026-11-12, the outage that produced the discriminator above.** A CPU-only embed model
+took one query past the 10 s hybrid budget. Each refusal then started a semantic fallback on the same
+CPU. Four of them together held the next embed past 600 s, with the card idle at 19 GB free. The same
+query answered in 1 s with the model on the card at 657 MiB.

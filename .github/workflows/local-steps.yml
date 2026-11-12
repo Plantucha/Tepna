@@ -130,6 +130,9 @@ jobs:
       - name: verify:paper-claim-markers
         if: ${{ !cancelled() }}
         run: npm run -s verify:paper-claim-markers
+      - name: verify:bus-conf-provenance
+        if: ${{ !cancelled() }}
+        run: npm run -s verify:bus-conf-provenance
       - name: verify:module-carriers
         if: ${{ !cancelled() }}
         run: npm run -s verify:module-carriers
