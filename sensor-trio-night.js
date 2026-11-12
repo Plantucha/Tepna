@@ -134,7 +134,9 @@
        under-states σ (CLAUDE.md §🎙️ honest-HR facts). _HR.txt stays the fallback for a night without the waveform. */
     if ((mo = n.match(/^Polar_H10_[0-9A-Za-zx]+_(\d{8})_?(\d{6})_([A-Z]+)\.txt$/i))) {
       const k = mo[3].toUpperCase();
-      return k === 'HR' ? { role: 'h10', stamp: mo[1] + mo[2] } : k === 'ECG' ? { role: 'h10ecg', stamp: mo[1] + mo[2] } : null;
+      /* `_RR.txt` is the strap firmware's own beat intervals. It is not a corner: the worker pairs it with
+         ECGDex's beats to build this night's beat reference, and measures every corner against that. */
+      return k === 'HR' ? { role: 'h10', stamp: mo[1] + mo[2] } : k === 'ECG' ? { role: 'h10ecg', stamp: mo[1] + mo[2] } : k === 'RR' ? { role: 'h10rr', stamp: mo[1] + mo[2] } : null;
     }
     if ((mo = n.match(/^Polar_(?:Sense|VeritySense)_[0-9A-Za-zx]+_(\d{8})_?(\d{6})_([A-Z]+)\.txt$/i))) {
       const k = mo[3].toUpperCase(),
@@ -277,6 +279,11 @@
       vhr = nearest(C.verityHR);
     nt.h10 = h ? h.file : null;
     nt.h10ecg = he ? he.file : null;
+    /* The firmware RR must come from the SAME recording as the ECG it is paired with, so it is chosen
+       nearest the ECG's start, not the night's anchor. */
+    const rrs = C.h10rr || [];
+    const hr = he && rrs.length ? rrs.reduce((b, x) => (Math.abs(x.ms - he.ms) < Math.abs(b.ms - he.ms) ? x : b)) : null;
+    nt.h10rr = hr ? hr.file : null;
     const op = nearest(C.o2ppg);
     nt.o2ppg = op ? op.file : null;
     nt.verityPPG = vppg ? vppg.file : null;
@@ -354,7 +361,7 @@
       el.className = 'sb-item' + (SELECTED === k ? ' active' : '') + (ok ? '' : ' ts-dim');
       el.setAttribute('data-k', k);
       el.title = ok
-        ? 'O2Ring ' + (nt.o2ppg ? 'PPG' : 'CSV') + ' · H10 ' + (nt.h10ecg ? 'ECG' : 'HR') + ' · Verity ' + verSrc(nt)
+        ? 'O2Ring ' + (nt.o2ppg ? 'PPG' : 'CSV') + ' · H10 ' + (nt.h10ecg ? 'ECG' : 'HR') + (nt.h10rr ? ' + RR' : '') + ' · Verity ' + verSrc(nt)
         : 'ineligible — needs O2Ring CSV, an H10 ECG or HR and a Verity stream';
       el.innerHTML = '<span class="ts-nk">' + esc(k) + '</span><span class="ts-nres" id="nres-' + esc(k) + '">' + (ok ? 'ready' : 'ineligible') + '</span>';
       nav.appendChild(el);
@@ -476,6 +483,7 @@
         o2ppg: nt.o2ppg || null,
         h10: nt.h10 || null,
         h10ecg: nt.h10ecg || null,
+        h10rr: nt.h10rr || null,
         verityPPG: nt.verityPPG || null,
         verityPPI: nt.verityPPG ? null : nt.verityPPI || null,
         verityHR: nt.verityHR || null,
@@ -562,6 +570,10 @@
     boot: [
       'experimental',
       "bootstrap block length from the integrated autocorrelation time of the hat's three difference series — an estimate of the series' memory, truncated at its first non-positive lag"
+    ],
+    refNight: [
+      'measured',
+      'σ of this corner against THIS night’s beat reference — the intervals on which ECGDex and the H10 firmware agree within 8 ms (trio-reference.js). For the H10 a lower bound, because the reference is built from its own beats'
     ],
     tchHat: ['experimental', 'median hat σ̂ over the published record’s nights — the same unvalidated estimator, pooled'],
     tchTrue: [
@@ -774,32 +786,41 @@
     );
   };
   const TCH_REFUSED = 'reference note REFUSED — the published record did not load, so no pooled figure is shown';
+  /* THE CAPTION UNDER EACH HERO, IN PLAIN WORDS. It says what the pooled record found about the hat
+     for this device, as numbers a reader can check: the hat's typical value, the measured one, and how
+     many nights the hat came close enough. "Measured" for the H10 is a lower bound, because the
+     reference is built from the H10's own beats. Every figure comes from the record. */
   function validationLine(k) {
     const ib = TCHAX && TCHAX.inBand && TCHAX.inBand[k];
     const m = TCHMED && TCHMED[k];
     if (!ib || !m || !tchPop()) return TCH_REFUSED;
-    /* "a measured σ" for the H10, "a true σ" for the optical corners: the reference is built from the
-       H10's own detections, so its error is a LOWER BOUND the reference cannot see past (the sibling
-       tool reports the H10 and never judges it). */
+    const need = TCHREC && TCHREC.band && Number.isFinite(TCHREC.band.passFraction) ? Math.round(TCHREC.band.passFraction * 100) + ' %' : 'the pre-stated share';
+    const dir = ib.reads === 'over-reads' ? 'too high' : ib.reads === 'under-reads' ? 'too low' : null;
     return (
-      ib.status +
-      ' — the hat ' +
-      ib.reads +
-      ' the ' +
+      'Over ' +
+      tchPop() +
+      ': the hat put the ' +
       DEVNAME[k] +
-      ' (' +
+      ' at ' +
       f2(m.classic) +
-      ' vs ' +
-      (k === 'h10' ? 'a measured ' : 'a true ') +
+      ' bpm; measured against the beat reference it is ' +
       f2(m.trueSd) +
-      ' bpm), in band on ' +
+      ' bpm' +
+      (k === 'h10' ? ' (a lower bound)' : '') +
+      (dir ? ', so the hat reads it ' + dir : '') +
+      '. The hat came within ' +
+      tchBand() +
+      ' on ' +
       ib.pass +
       ' of ' +
       ib.of +
-      ' nights within ' +
-      tchBand() +
-      ' · ' +
-      tchPop()
+      ' nights, and it needs ' +
+      need +
+      ': ' +
+      (ib.status === 'reference-checked' ? 'validated' : 'not validated') +
+      ' for the ' +
+      DEVNAME[k] +
+      '.'
     );
   }
   const tchChecked = (k) => !!(TCHAX && TCHAX.inBand && TCHAX.inBand[k] && TCHAX.inBand[k].status === 'reference-checked');
@@ -870,29 +891,41 @@
       '.' +
       tchLegClause();
   }
+  /* THE HERO SHOWS A MEASUREMENT WHEN THE NIGHT HAS ONE. With the H10's `_RR.txt` the worker measures
+     each corner against this night's beat reference, and that σ is the headline; the hat's σ̂ stays
+     beside it. Without the file the hero is the hat's σ̂, and says so. */
+  const refOf = (real) => (real && real.reference && real.reference.ok ? real.reference : null);
   function hero(k, real, derive) {
     const v = $('hero-' + k + '-val'),
-      u = $('hero-' + k + '-unit');
+      u = $('hero-' + k + '-unit'),
+      kind = $('hero-' + k + '-kind');
     if (!v) return;
-    const s = real ? real.sigma[k] : null;
+    const R = refOf(real);
+    const meas = R && R.sigma ? R.sigma[k] : null;
+    const hat = real ? real.sigma[k] : null;
+    const useMeas = Number.isFinite(meas);
+    const s = useMeas ? meas : hat;
     v.textContent = f2(s);
     v.style.color = s == null ? FLAG : DEV[k].col;
+    if (kind) kind.textContent = useMeas ? 'σ' : 'σ̂';
     const ci = derive && derive.ci && derive.ci[k];
-    if (u)
-      u.textContent =
-        s == null
+    if (u) {
+      const txt = useMeas
+        ? 'bpm · measured on this night against the beat reference' + (k === 'h10' ? ', a lower bound' : '') + ' · the hat said ' + f2(hat)
+        : s == null
           ? real && k === 'h10' && real.h10Unreliable
             ? 'nulled — ' + real.h10Fault
             : real
               ? 'negative variance — not a number'
               : 'bpm'
-          : ci
-            ? 'bpm · 95 % CI ' + f2(ci.lo) + ' – ' + f2(ci.hi)
-            : 'bpm · CI unavailable';
+          : 'bpm · the hat’s estimate' + (ci ? ' · 95 % CI ' + f2(ci.lo) + ' – ' + f2(ci.hi) : ' · CI unavailable');
+      u.innerHTML = (real && s != null ? evb(useMeas ? 'refNight' : 'hat') + ' ' : '') + esc(txt);
+    }
     const note = $('hero-' + k + '-val') && $('hero-' + k + '-val').parentElement.querySelector('.ts-valid');
     if (note) {
-      note.textContent = validationLine(k);
-      note.classList.toggle('ts-unval', !tchChecked(k));
+      const why = real && !useMeas && real.reference && real.reference.reason ? 'No beat reference on this night (' + real.reference.reason + '). ' : '';
+      note.textContent = why + validationLine(k);
+      note.classList.toggle('ts-unval', !useMeas && !tchChecked(k));
     }
   }
   function renderSkip(nt, real) {
@@ -990,8 +1023,19 @@
       evb('rhoCrit') +
       (n ? ' Nearest is <b>' + PAIR[n.pair] + '</b>, ' + f2(n.margin) + ' of correlation away; there the σ̂ moves <b>' + sens + '</b>. ' + evb('rhoSens') : '') +
       (n ? ' To pin that corner\u2019s σ̂ to ±0.1 bpm, ρ would have to be known to <b>' + need + '</b> — a requirement, not a measurement. ' + evb('rhoNeed') : '') +
-      ' <b>This night\u2019s own ρ: REFUSED</b> — the firmware-RR reference is not computed in this page, so it is not substituted with 0; assuming independence is the assumption under test ' +
-      '(residue <code>2026-09-26-tch-hat-misattributes-shared-optical-error</code>). ' +
+      (refOf(real) && refOf(real).rho && Number.isFinite(refOf(real).rho.vo)
+        ? ' <b>This night\u2019s own ρ, measured against the beat reference:</b> Verity–O2Ring ' +
+          esc(f2(refOf(real).rho.vo)) +
+          ' · H10–Verity ' +
+          esc(f2(refOf(real).rho.hv)) +
+          ' · H10–O2Ring ' +
+          esc(f2(refOf(real).rho.ho)) +
+          '. ' +
+          evb('refNight') +
+          ' '
+        : ' <b>This night\u2019s own ρ: REFUSED</b> — ' +
+          esc((real && real.reference && real.reference.reason) || 'no beat reference was built for this night') +
+          ', so it is not substituted with 0; assuming independence is the assumption under test. ') +
       (Number.isFinite(RHO_REF) ? 'Pooled, external, NOT this night: ρ ≈ ' + f2(RHO_REF) + ' optical over ' + tchPop() + '. ' : 'Pooled, external ρ: REFUSED — the published record did not load. ') +
       evb('rhoRef') +
       ' <b>No "independent ✓" is shown here, and none is available:</b> a negative variance needs ρ > σ₀_A/σ₀_B, so a positive solve is not evidence of uncorrelated errors at any n. ' +

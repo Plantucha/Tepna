@@ -63,6 +63,13 @@ function loadScript(url) {
 loadScript('analysis-stats.js');
 try {
   ['kernel-constants.js', 'clock.js', 'ppgdex-dsp.js', 'ecgdex-dsp.js', 'consensus-dissent.js'].forEach(loadScript);
+  /* The night's own beat reference (residue 2026-09-26-tch-hat-misattributes-shared-optical-error). Its
+     own guard: a failure here costs the measured σ only, and `nightReference` names the throw. */
+  try {
+    loadScript('trio-reference.js');
+  } catch (e) {
+    self.__trioRefErr = String((e && e.message) || e);
+  }
   HAVE_ECGDSP = typeof ECGDSP !== 'undefined' && ECGDSP && typeof ECGDSP.parseECG === 'function' && typeof ECGDSP.bandpass === 'function' && typeof ECGDSP.detectPeaks === 'function';
   HAVE_PPGDSP =
     typeof PPGDSP !== 'undefined' &&
@@ -915,7 +922,7 @@ function ecgHrMap(text, onPhase, runsText) {
     }
     // fused-hat: per-second artifact confidence for THIS corner (density × SQI, AF-safe) — TCH-FUSED-ROBUST-HAT
     var conf = ECGDSP.hrConfidence ? ECGDSP.hrConfidence(rec.int16, bp, peaks, fs, t0) : null;
-    return { hr: out, conf: conf, blanking: { spans: spans ? spans.length : null, intervalsDropped: dropped } };
+    return { hr: out, conf: conf, blanking: { spans: spans ? spans.length : null, intervalsDropped: dropped }, rec: rec };
   } catch (e) {
     self.__ecgErr = (e && e.message) || '' + e;
     return null;
@@ -1115,6 +1122,28 @@ function o2MarkerHrMap(text, runsText) {
     return null;
   }
 }
+/* The firmware-RR reference for one night (residue 2026-09-26-tch-hat-misattributes-shared-optical-error).
+   ECGDex's beats and the H10 firmware's beats, paired in time; the intervals the two detectors agree on
+   within 8 ms give a per-second reference HR. Each corner's σ is its SD against that reference over the
+   seconds all four share. The H10's σ is a LOWER BOUND: the reference is built from its own beats. */
+async function nightReference(f, rec, H, V, O, pg) {
+  if (!f.h10rr) return { ok: false, reason: 'no H10 _RR.txt was selected for this night' };
+  if (!rec) return { ok: false, reason: 'the H10 corner was not read from its raw _ECG.txt, so there are no ECGDex beats to pair with the firmware' };
+  if (typeof TrioReference === 'undefined' || !TrioReference || typeof TrioReference.buildReference !== 'function')
+    return { ok: false, reason: 'trio-reference.js did not load in this worker' + (self.__trioRefErr ? ': ' + self.__trioRefErr : '') };
+  pg('beat reference · ECGDex × H10 firmware');
+  try {
+    var dev = ECGDSP.parseDeviceRR(await f.h10rr.text());
+    if (!dev || !dev.length) return { ok: false, reason: 'the H10 _RR.txt holds no intervals' };
+    var B = TrioReference.buildReference(rec, ECGDSP.analyze(rec, null), dev, TrioReference.REF_AXIS_DEFAULT);
+    if (!B.ok) return { ok: false, reason: B.reason };
+    var s = TrioReference.scoreSeries(B.REF, H, V, O);
+    if (!s.ok) return { ok: false, reason: s.reason, n: s.n };
+    return { ok: true, n: s.n, sigma: s.trueSd, bias: s.bias, rho: s.rho, seconds: B.REF.size, agreeing: B.cp.pairs.length, beats: B.ref.nn.length, referenceAxis: B.ref.axis };
+  } catch (e) {
+    return { ok: false, reason: 'the beat reference threw: ' + String((e && e.message) || e).slice(0, 160) };
+  }
+}
 async function runRealNight(m) {
   var pg = function (ph) {
     self.postMessage({ type: 'progress', reqId: m.reqId, label: m.label, phase: ph });
@@ -1190,6 +1219,8 @@ async function runRealNight(m) {
     // fused-hat: the raw-signal HR maps (ecgHrMap/ppgHrMapReal) return { hr, conf }; device-HR/PPI
     // fallbacks return a bare Map (no per-beat data ⇒ confidence defaults to 1). Unwrap uniformly.
     var Hconf = H && H.conf ? H.conf : null;
+    /* the parsed ECG record, for the beat reference below — only the raw-ECG path has one */
+    var Hrec = H && H.rec ? H.rec : null;
     if (H && H.hr) H = H.hr;
     var Vconf = V && V.conf ? V.conf : null;
     /* Read off the wrapper BEFORE it is unwrapped, and only for the raw-pleth path: the PPI and
@@ -1299,6 +1330,11 @@ async function runRealNight(m) {
       for (var _ci = 0; _ci < DKEYS.length; _ci++) {
         if (s[DKEYS[_ci]] == null) ci[DKEYS[_ci]] = null;
       }
+    /* THE NIGHT'S OWN BEAT REFERENCE. The hat above assumes the three corners' errors are independent,
+       and the two optical corners share part of theirs, so the hat moves error between corners. On a
+       night with the H10's `_RR.txt` this measures each corner directly instead, with the code the
+       published record runs (`trio-reference.js`). A refusal names its reason (§∅). */
+    var reference = await nightReference(f, Hrec, H, V, O, pg);
     var out = {
       skip: false,
       n: ks.length,
@@ -1329,6 +1365,8 @@ async function runRealNight(m) {
          page prints n ÷ each corner's own seconds so the reader sees how much of each stream the
          σ̂ describes. A count of keys in each per-second map — the same maps `ks` was built from. */
       coverage: { h10: H.size, verity: V.size, o2: O.size },
+      /* σ of each corner against this night's two-detector beat reference, or { ok:false, reason } */
+      reference: reference,
       /* `hrRatio` SHIPS AGAIN, and a consumer reads it this time: `sensor-trio-night.js` renders it under
          the corner-gate KPI as the evidence for that verdict (row
          2026-09-27-verity-gate-verdict-has-no-number-behind-it). It left this payload on 2026-09-27 as a
