@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="cd0fd349baf9" data-compute-hash="300076f138bf">
+<html lang="en" data-manifest-hash="b07326945eaf" data-compute-hash="f5ff6c9097ad">
 <head>
 <!--
   MotionDex.src.html — Tepna
@@ -12,7 +12,7 @@
 <!-- CSP: browser-enforces the no-network invariant. connect-src 'none' blocks every outbound request;
      script-src is STRICT ('self' + per-inline-script sha256, NO 'unsafe-inline'). MotionDex ships zero
      inline scripts (all init lives in motiondex-app.js), so the hash list is empty by construction. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-1zVlEXb8s+1rMCY16et54bJkj1EDY3ZlxVcToe+omgM=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OA3M42IE0IY9rm28gABEy9d6t7Iq7cC4XbN08qCTIFY=' 'sha256-QU1eFIpXtk89h7OawHFWXJry6pEr0cw5i0Q08kGZz88=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-R6Dc/xXQzYFveWsVfbGSg8lpp98pG2dIwLNGGu4Pc04=' 'sha256-bIhKcpZRJ/ZzKulROPoeorGxddt3ajAjGiOPqmDw7ik=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-fP8yqQORrq1gqNXH4KGQ0Fx5gvu4FNAsDQUJB31fcLw=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-wK9fP+fYfi661IypDOgrAoxGZS8mGJfe9l/9288cTZQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-1zVlEXb8s+1rMCY16et54bJkj1EDY3ZlxVcToe+omgM=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OA3M42IE0IY9rm28gABEy9d6t7Iq7cC4XbN08qCTIFY=' 'sha256-QU1eFIpXtk89h7OawHFWXJry6pEr0cw5i0Q08kGZz88=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-R6Dc/xXQzYFveWsVfbGSg8lpp98pG2dIwLNGGu4Pc04=' 'sha256-bIhKcpZRJ/ZzKulROPoeorGxddt3ajAjGiOPqmDw7ik=' 'sha256-c0L2fP9KS+dZLG2AaH4LfdLnwpVfCWVH+gyyUn5L7Pc=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-wK9fP+fYfi661IypDOgrAoxGZS8mGJfe9l/9288cTZQ=' 'sha256-yS5frs7FO4HDqcSuAYI4rtjm7+gtWKSEozKGWUwHA/4='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>MotionDex — Motion / IMU Analyzer · v2.31.0</title>
@@ -6532,7 +6532,14 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
       const M = metrics[m.id];
       if (!M) return;
       const z = M.baseline && M.baseline.zLatest;
-      if (z != null && Math.abs(z) >= DexKernel.K.Z_HEADLINE) cand.push({ score: Math.abs(z), txt: `${m.label} ${z > 0 ? '+' : ''}${z}σ vs your ${M.n}-night baseline` });
+      if (z != null && Math.abs(z) >= DexKernel.K.Z_HEADLINE) {
+        /* §∅ — AT the clamp bound the published z is a FLOOR on |z|, not the ratio (residue
+           `2026-11-11-crossnight-z-prints-a-saturated-clamp`). A headline callout is the loudest
+           surface in the envelope, so it carries the inequality rather than a bare sigma. */
+        const zSat = !!(M.baseline && M.baseline.zSaturated);
+        const zTxt = zSat ? (z > 0 ? '≥ +' : '≤ −') + Math.abs(z) : (z > 0 ? '+' : '') + z;
+        cand.push({ score: Math.abs(z), txt: `${m.label} ${zTxt}σ vs your ${M.n}-night baseline` });
+      }
       if (M.change && M.change.significant)
         cand.push({
           score: 2.0 + Math.abs(M.change.deltaFirstHalfToSecond || 0) / 10,
@@ -6618,6 +6625,9 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
         mean: _safe(st.baselineMean),
         sd: _safe(st.baselineSd),
         zLatest: st.zLatest != null ? st.zLatest : null,
+        // §∅ — the projection above is HAND-PICKED, so the saturation flag is invisible to every
+        // export consumer until it is named here beside the number it qualifies.
+        zSaturated: !!st.zSaturated,
         flag: zFlag
       }
     };
@@ -6915,7 +6925,21 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
     const good = opts.good || 'up';
     const pts = series.filter((p) => p.v != null && isFinite(p.v));
     const n = pts.length;
-    if (n < 2) return { n, mean: n ? r2(pts[0].v) : null, sd: null, cv: null, slopePerDay: null, slopePerRecording: null, slopeBasis: null, tau: null, p: null, zLatest: null, trendLabel: '—' };
+    if (n < 2)
+      return {
+        n,
+        mean: n ? r2(pts[0].v) : null,
+        sd: null,
+        cv: null,
+        slopePerDay: null,
+        slopePerRecording: null,
+        slopeBasis: null,
+        tau: null,
+        p: null,
+        zLatest: null,
+        zSaturated: false,
+        trendLabel: '—'
+      };
     const vals = pts.map((p) => p.v),
       w = pts.map((p) => (p.w != null ? p.w : 1));
     const idx = pts.map((p, i) => i);
@@ -6953,6 +6977,7 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
     const mk = mannKendall(vals);
     // personal baseline = mean±SD of all-but-latest; z of latest
     let zLatest = null;
+    let zSaturated = false;
     let baselineMean = null,
       baselineSd = null;
     if (n >= 3) {
@@ -6975,7 +7000,19 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
       baselineSd = r1(psFloor);
       let z = (vals[n - 1] - pm) / psFloor;
       if (!isFinite(z)) z = 0;
-      zLatest = r2(Math.max(-20, Math.min(20, z)));
+      /* A SATURATED BOUND IS NOT A MEASUREMENT (residue
+         `2026-11-11-crossnight-z-prints-a-saturated-clamp`). The clamp above is a DISPLAY guard, so
+         AT the bound the published number stops being the ratio it names: three steady recordings
+         (52.0, 52.1, 52.0 ms) plus one 94.0 ms fragment give `baselineSd` 0.1 and `zLatest` exactly
+         20, where the true ratio is about 890. §∅ forbids presenting that bound as a measured sigma.
+         It equally forbids `null` here, because the saturation IS the finding and an em dash would
+         drop the largest divergence on the card. So the bounded number stays and `zSaturated` tells
+         every consumer the number is a FLOOR on |z|, never an estimate of it. The surfaces print it
+         as "≥", and the projection in `crossnight-envelope.js` is hand-picked, so the field is
+         invisible to the export until it is named there too. */
+      const Z_SAT = 20;
+      zSaturated = Math.abs(z) > Z_SAT;
+      zLatest = r2(Math.max(-Z_SAT, Math.min(Z_SAT, z)));
     }
     // significance
     const boot = bootstrapDeltaCI(vals);
@@ -7019,6 +7056,7 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
       p: mk.p,
       trendDirDisagree: dirDisagree, // §9.3 — OLS slope and Mann-Kendall τ point opposite ways (endpoint leverage)
       zLatest,
+      zSaturated,
       baselineMean,
       baselineSd,
       deltaHalves: boot.delta,

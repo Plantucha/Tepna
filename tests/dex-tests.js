@@ -35352,6 +35352,53 @@
         T.ok('single-point series → no throw, mean=42, trend "—"', one.mean === 42 && one.trendLabel === '—');
         var none = CC.crossNight([], { good: 'up' });
         T.ok('empty series → no throw, mean null', none.mean == null);
+
+        /* ∅ · A SATURATED BOUND IS NOT A MEASUREMENT (residue
+           `2026-11-11-crossnight-z-prints-a-saturated-clamp`). The clamp at ±20 exists to stop a
+           near-zero baseline spread exploding the card, and it worked — but AT the bound the number
+           it publishes is a FLOOR on |z|, not the ratio, and every surface printed it as a measured
+           sigma. The engine now publishes `zSaturated` beside the number, and the four surfaces
+           print "≥"/"≤". The shape below is the one measured on the real corpus: three steady
+           recordings and one fragment. `null` is the wrong cure here, and these legs pin that too —
+           the bounded number must SURVIVE, because the saturation is the largest finding on the card. */
+        var satSeries = function (last) {
+          return [52.0, 52.1, 52.0, last].map(function (v, i) {
+            return { x: i, t: U(2026, 4, 1 + i), v: v, w: 1 };
+          });
+        };
+        var stSat = CC.crossNight(satSeries(94.0), { good: 'up' });
+        T.eq('ANTI-VACUITY · the thin baseline really does reach the bound', stSat.zLatest, 20);
+        T.eq('…and the bound is published as a bound, not implied', stSat.zSaturated, true);
+        T.ok('…with the floored baseline sd that produced it', stSat.baselineSd === 0.1, 'sd=' + stSat.baselineSd);
+        T.ok('…and the number SURVIVES — a saturated z is never nulled away', stSat.zLatest != null);
+        var stSatLo = CC.crossNight(satSeries(10.0), { good: 'up' });
+        T.eq('the lower bound saturates on the same rule', stSatLo.zLatest, -20);
+        T.eq('…and carries the same flag', stSatLo.zSaturated, true);
+        var ord = CC.crossNight(
+          [50, 52, 48, 56].map(function (v, i) {
+            return { x: i, t: U(2026, 4, 1 + i), v: v, w: 1 };
+          }),
+          { good: 'up' }
+        );
+        T.eq('CONTROL · an ordinary divergence is not flagged as a bound', ord.zSaturated, false);
+        T.ok('CONTROL · …and its z sits strictly inside the bound', Math.abs(ord.zLatest) < 20, 'z=' + ord.zLatest);
+        T.eq('a zero-variance series is not a saturation either', st.zSaturated, false);
+        T.eq('the field is published on the short-series path too, as false and never undefined', one.zSaturated, false);
+        T.eq('…and its type is boolean on every path', typeof stSat.zSaturated, 'boolean');
+
+        /* The four surfaces that PRINT the number read the flag, and the fifth is the hand-picked
+           export projection in `crossnight-envelope.js`. A node that computes the z without a card
+           of its own reaches a reader only through that projection, so the mirror covers both. */
+        var _cnSrc = env.sources || {};
+        var _cnZ = "st.zSaturated ? (st.zLatest > 0 ? '≥ +' : '≤ −') + Math.abs(st.zLatest) : (st.zLatest > 0 ? '+' : '') + st.zLatest";
+        ['pulsedex-app.js', 'ppgdex-app.js', 'ecgdex-app.js', 'oxydex-render.js'].forEach(function (fname) {
+          var txt = _cnSrc[fname] || '';
+          T.ok('ANTI-VACUITY · ' + fname + ' is readable as source', txt.length > 0, 'empty source');
+          T.eq(fname + ' prints the inequality at the cell AND the headline', txt.split(_cnZ).length - 1, 2);
+        });
+        var _env = _cnSrc['crossnight-envelope.js'] || '';
+        T.ok('the export projection names the flag beside the number', _env.indexOf('zSaturated: !!st.zSaturated') !== -1);
+        T.ok('the headline callout reads the flag from the baseline block', _env.indexOf('M.baseline.zSaturated') !== -1);
       }
       if (typeof P === 'function') {
         // DST-immune: a "spring-forward" local time that does not exist on the wall

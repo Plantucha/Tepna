@@ -1028,9 +1028,10 @@ import { PPGUI } from './ppgdex-render.js';
       <td class="mono">${st.slopePerDay == null ? '—' : (st.slopePerDay > 0 ? '+' : '') + st.slopePerDay}<span class="dim">/d</span></td>
       <td class="mono">${st.tau == null ? '—' : st.tau} <span class="dim">p${st.p == null ? '—' : st.p}</span></td>
       <td><span class="cn-trend ${trCol}">${st.trendLabel}</span></td>
-      <td class="mono"><span class="cn-z ${zCol}">${st.zLatest == null ? '—' : (st.zLatest > 0 ? '+' : '') + st.zLatest + 'σ'}</span></td>
+      <td class="mono"><span class="cn-z ${zCol}">${st.zLatest == null ? '—' : (st.zSaturated ? (st.zLatest > 0 ? '≥ +' : '≤ −') + Math.abs(st.zLatest) : (st.zLatest > 0 ? '+' : '') + st.zLatest) + 'σ'}</span></td>
     </tr>`;
-      if (st.zLatest != null && Math.abs(st.zLatest) >= DexKernel.K.Z_HEADLINE) headline.push(`${m.label} ${st.zLatest > 0 ? '+' : ''}${st.zLatest}σ vs your ${st.n}-session baseline`);
+      if (st.zLatest != null && Math.abs(st.zLatest) >= DexKernel.K.Z_HEADLINE)
+        headline.push(`${m.label} ${st.zSaturated ? (st.zLatest > 0 ? '≥ +' : '≤ −') + Math.abs(st.zLatest) : (st.zLatest > 0 ? '+' : '') + st.zLatest}σ vs your ${st.n}-session baseline`);
       if (st.ci && (st.ci[0] > 0 || st.ci[1] < 0) && st.n >= 7) headline.push(`${m.label} shifted ${st.deltaHalves > 0 ? '+' : ''}${st.deltaHalves}${m.unit} (95% CI excludes 0)`);
     });
     $('crossNightTable').innerHTML =

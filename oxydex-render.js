@@ -1868,8 +1868,14 @@ function renderAll() {
             var zsev = st.zLatest == null ? '' : Math.abs(st.zLatest) >= DexKernel.K.Z_BAD ? 'bad' : Math.abs(st.zLatest) >= DexKernel.K.Z_WARN ? 'warn' : 'good';
             var ciSig = st.ci && (st.ci[0] > 0 || st.ci[1] < 0) ? ' · Δ sig' : '';
             var sub = 'τ ' + (st.tau == null ? '—' : st.tau) + ' · p ' + (st.p == null ? '—' : st.p) + ' · ' + st.trendLabel + ciSig;
-            _rbHtml += metric(rd.label + ' z', st.zLatest == null ? '—' : (st.zLatest > 0 ? '+' : '') + st.zLatest + 'σ', sub, zsev);
-            if (st.zLatest != null && Math.abs(st.zLatest) >= DexKernel.K.Z_HEADLINE) _rbHead.push(rd.label + ' ' + (st.zLatest > 0 ? '+' : '') + st.zLatest + 'σ vs baseline');
+            _rbHtml += metric(
+              rd.label + ' z',
+              st.zLatest == null ? '—' : (st.zSaturated ? (st.zLatest > 0 ? '≥ +' : '≤ −') + Math.abs(st.zLatest) : (st.zLatest > 0 ? '+' : '') + st.zLatest) + 'σ',
+              sub,
+              zsev
+            );
+            if (st.zLatest != null && Math.abs(st.zLatest) >= DexKernel.K.Z_HEADLINE)
+              _rbHead.push(rd.label + ' ' + (st.zSaturated ? (st.zLatest > 0 ? '≥ +' : '≤ −') + Math.abs(st.zLatest) : (st.zLatest > 0 ? '+' : '') + st.zLatest) + 'σ vs baseline');
           });
           if (_rbHtml) {
             _mnsHtml += '<div class="mns-divider"></div>';
