@@ -16,7 +16,10 @@
  * survives the stripping.
  *
  * LIMITS: This is still heuristic, not AST-based. It cannot track data flow
- * across lines, through function returns, or via aliased escapers. Template
+ * across lines or through function returns. It DOES credit a file-local
+ * escaper alias from 2026-11-12, by reading that one declaration's own body
+ * (see A LOCAL ESCAPER EARNS ITS CREDIT below); an alias it cannot verify
+ * there earns nothing. Template
  * literals with interpolation are conservatively flagged (the `${...}` parts
  * are not parsed). Where safety cannot be established, the gate fails
  * conservatively. Human review is required for complex cases. Do not describe
@@ -36,6 +39,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { blankComments, classify, CLS_CODE } from './js-lex.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const Verdict = createRequire(import.meta.url)(join(ROOT, 'verdict.js'));
@@ -51,6 +55,124 @@ const STRING_RE = /'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|`(?:[^`\\$]|\\.)*`/g;
 const IDENT_RE = /\b[a-zA-Z_$][a-zA-Z0-9_$]*\b/g;
 // Known-safe identifiers (not user data).
 const SAFE_IDENTS = new Set(['true', 'false', 'null', 'undefined', 'this']);
+
+/* ── A LOCAL ESCAPER EARNS ITS CREDIT ─────────────────────────────────────────────────────────────
+   `ESCAPE_CALL_RE` knows two NAMES, so a file that escapes through its own alias got no credit and a
+   CORRECT fix read as a violation: job 131150408186 on #4959 named `escHtml` ITSELF as the unescaped
+   identifier in `pat-feasibility.js`, where `escHtml` escapes `& < > "` (row
+   2026-11-12-sink-gate-knows-two-escaper-names). A third name is not the remedy, because a name
+   proves nothing about what a function does — `data-unifier-app.js` and `cpapdex-render.js` each
+   declare an `esc` that leaves `"` alone, and each is credited today for being called `esc`.
+
+   So a declaration whose NAME proposes an escaper is credited when its BODY either delegates to the
+   canonical `escapeHTML` or escapes all four of `& < > "` itself. The quote is in that set because of
+   the ATTRIBUTE finding (`tests/dex-tests.js` §8b-ii): `title="` + v + `"` breaks out on a bare quote
+   with no angle bracket in sight, so a quote-blind escaper is not one.
+
+   THE TWO CANONICAL NAMES KEEP THEIR NAME-BASED CREDIT, so this widens the gate and reds no tree
+   nobody changed. The census in `--full-tree` is what makes the remaining name-only credit visible:
+   it names every candidate declaration this rule could not verify.
+
+   LIMITS: one declaration, one hop, one file. A delegation through a second alias, a method on an
+   object, and an escaper imported from elsewhere are not followed and earn nothing. The span is
+   brace-matched over `js-lex`'s classification — the ONE regex-aware lexer, never a second copy
+   (`tools/js-lex.mjs` header) — and a body whose braces do not balance there is refused, not
+   guessed at. */
+export const MUST_ESCAPE = [
+  ['&', '&amp;'],
+  ['<', '&lt;'],
+  ['>', '&gt;'],
+  ['"', '&quot;']
+];
+/* The name only PROPOSES a candidate; `escaperCredit` decides. A narrow proposal keeps a generic
+   helper that happens to carry four replaces from laundering a sink it never escaped. */
+const ESCAPER_NAME_RE = /^(?:esc|escape)[A-Za-z0-9_$]*$/;
+/* A FUNCTION, not merely a name with an `=` after it. The first form took `const escal = perHour[0]
+   > 0 ? … : 0` (`ecgdex-dsp.js:1897`, an escalation percentage) as a candidate and reported it as an
+   unverified escaper, which is a census of nothing. The three accepted shapes are a declaration, a
+   function expression, and an arrow. */
+const DECL_RE = /\b(?:function\s+([A-Za-z_$][\w$]*)\s*\(|(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:function\b|(?:\([^)]*\)|[A-Za-z_$][\w$]*)(?=\s*=>)))/g;
+const REPLACE_PAT_RE = /\.replace\(\s*(\/(?:\\.|\[(?:\\.|[^\]\\])*\]|[^/\\\n])+\/[a-z]*)/g;
+
+/* Strings and comments blanked to spaces, OFFSETS PRESERVED, so a `{` or a `;` inside a literal
+   cannot end a body and a `/[&<>"]/` cannot desynchronise the scan — the defect `js-lex`'s header
+   records. A regex literal's body stays CODE there, so a brace inside one can still refuse a span,
+   which is the safe direction. */
+function structureOf(src) {
+  const cls = classify(src);
+  let out = '';
+  for (let i = 0; i < src.length; i++) out += cls[i] === CLS_CODE ? src[i] : src[i] === '\n' ? '\n' : ' ';
+  return out;
+}
+
+/**
+ * PURE CORE #4 — the body span of a declaration starting at `from`, read off the structural copy:
+ * `{ … }` brace-matched, or an expression-bodied arrow up to its `;`.
+ * @returns {[number, number]|null} null when neither closes — no span, no credit.
+ */
+export function declSpan(struct, from) {
+  const brace = struct.indexOf('{', from);
+  const arrow = struct.indexOf('=>', from);
+  const semi = struct.indexOf(';', from);
+  const braceIsBody = brace >= 0 && (semi < 0 || brace < semi) && (arrow < 0 || arrow > brace || /^\s*$/.test(struct.slice(arrow + 2, brace)));
+  if (braceIsBody) {
+    let depth = 0;
+    for (let i = brace; i < struct.length; i++) {
+      if (struct[i] === '{') depth += 1;
+      else if (struct[i] === '}') {
+        depth -= 1;
+        if (depth === 0) return [brace, i + 1];
+      }
+    }
+    return null;
+  }
+  if (arrow >= 0 && semi > arrow) return [arrow, semi + 1];
+  return null;
+}
+
+/**
+ * PURE CORE #5 — does this declaration body escape what an HTML sink needs escaped?
+ * @returns {{credited: boolean, reason: string}}
+ */
+export function escaperCredit(body) {
+  if (!body) return { credited: false, reason: 'its body does not close, so nothing was read' };
+  if (/\bescapeHTML\s*\(/.test(body)) return { credited: true, reason: 'delegates to the canonical escapeHTML' };
+  const pats = [...body.matchAll(REPLACE_PAT_RE)].map((m) => m[1]);
+  if (!pats.length) return { credited: false, reason: 'it neither delegates to escapeHTML nor replaces anything' };
+  const missing = MUST_ESCAPE.filter(([ch, ent]) => !(pats.some((pat) => pat.includes(ch)) && body.includes(ent))).map(([ch]) => ch);
+  return missing.length ? { credited: false, reason: `its own replace chain does not escape ${missing.join(' ')}` } : { credited: true, reason: 'escapes & < > " itself' };
+}
+
+/**
+ * PURE CORE #6 — the escaper names a FILE may be credited for, and the candidates that earned nothing.
+ * @returns {{credited: string[], unverified: Array<{name: string, reason: string}>}}
+ */
+export function localEscapers(src) {
+  const text = String(src || '');
+  const struct = structureOf(text);
+  const bare = blankComments(text);
+  const credited = [];
+  const unverified = [];
+  for (const m of struct.matchAll(DECL_RE)) {
+    const name = m[1] || m[2];
+    if (!ESCAPER_NAME_RE.test(name)) continue;
+    const span = declSpan(struct, m.index + m[0].length);
+    const r = escaperCredit(span ? bare.slice(span[0], span[1]) : null);
+    if (r.credited) {
+      if (!credited.includes(name)) credited.push(name);
+    } else if (!unverified.some((u) => u.name === name)) unverified.push({ name, reason: r.reason });
+  }
+  return { credited, unverified: unverified.filter((u) => !credited.includes(u.name)) };
+}
+
+/* The strip pattern for ONE file: the two canonical names plus the escapers that file earned. Same
+   disjoint-alternation shape as `ESCAPE_CALL_RE`, so it stays ReDoS-safe, and the longest name is
+   tried first. With no earned name it IS `ESCAPE_CALL_RE`. */
+function escapeCallRe(extra) {
+  if (!extra || !extra.length) return ESCAPE_CALL_RE;
+  const alt = [...new Set(['escapeHTML', 'esc', ...extra])].sort((a, b) => b.length - a.length).join('|');
+  return new RegExp(`\\b(?:${alt})\\s*\\((?:[^()]|\\([^()]*\\))*\\)`, 'g');
+}
 
 /* ── ALLOW — statements a human read, with the reason ─────────────────────────────────────────────
    The heuristic judges ONE statement and cannot follow a value into the function that escaped it;
@@ -98,15 +220,18 @@ export function allowedBy(file, stmt, table) {
  * PURE CORE #1 — the heuristic for ONE added line. Unchanged from the original; only extracted, so a
  * selftest can plant a sink and a control without a diff.
  *
+ * `escapers` is the calling FILE's earned escaper names (`localEscapers`), new and optional, so a
+ * caller that passes nothing gets the two canonical names and the behaviour it had.
+ *
  * @returns {{sink: boolean, unsafe: string[]}}
  */
-export function classifySinkLine(line) {
+export function classifySinkLine(line, escapers) {
   if (!SINK_RE.test(line)) return { sink: false, unsafe: [] };
   const m = line.match(/\.innerHTML\s*(?:\+=|=)\s*(.+?);?\s*$/);
   const rhs = m ? m[1] : '';
   /* escapeHTML()/esc() calls first — their ARGUMENTS are safe, so the whole call collapses. Then
      string literals, which are static. Whatever identifier survives both is untracked data. */
-  let stripped = rhs.replace(ESCAPE_CALL_RE, '""');
+  let stripped = rhs.replace(escapeCallRe(escapers), '""');
   stripped = stripped.replace(STRING_RE, '""');
   const unsafe = [];
   for (const im of stripped.matchAll(IDENT_RE)) if (!SAFE_IDENTS.has(im[0])) unsafe.push(im[0]);
@@ -115,9 +240,13 @@ export function classifySinkLine(line) {
 
 /**
  * PURE CORE #2 — walk a unified diff, tracking the current file, and collect violations.
+ *
+ * `escapersFor(file) -> string[]` is optional and resolves that file's earned escaper names. It is a
+ * callback and not a map because the resolution reads the file, which a pure core may not do.
+ *
  * @returns {{violations: Array<{file,line,unsafe}>, sinksAdded: number}}
  */
-export function scanDiff(lines) {
+export function scanDiff(lines, escapersFor) {
   const violations = [];
   const allowed = [];
   const rows = lines || [];
@@ -149,7 +278,7 @@ export function scanDiff(lines) {
         if (/;\s*$/.test(nxt)) break;
       }
     }
-    const r = classifySinkLine(stmt);
+    const r = classifySinkLine(stmt, escapersFor ? escapersFor(file) : null);
     if (!r.unsafe.length) continue;
     /* An exempt line is EXCLUDED, never silently clean: it leaves the violation list and enters a
        population the verdict prints, so an exemption nobody sees is not approval in the dark. */
@@ -275,11 +404,68 @@ export function selftest() {
     'every real ALLOW entry names a file that still exists'
   );
 
+  /* ── THE ALIAS, PLANTED BOTH WAYS ─────────────────────────────────────────────────────────────
+     The defect: `escHtml` escapes & < > " and read as the unescaped identifier itself (#4959). These
+     legs plant the alias, the quote-blind near-miss, a prose declaration, and the generic helper —
+     without the four controls the credit could be handed to any name in any comment. */
+  const DELEG = '{ return escapeHTML(s); }';
+  const FOURCH = "{ return String(s).replace(/[&<>\"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;' }[c]; }); }";
+  const QUOTEBLIND = "{ return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }";
+  ok(escaperCredit(DELEG).credited === true, 'a one-hop delegation to escapeHTML is credited');
+  ok(escaperCredit(FOURCH).credited === true, 'a body that escapes & < > " itself is credited');
+  ok(escaperCredit(QUOTEBLIND).credited === false, 'CONTROL: a quote-blind escaper is NOT credited — the ATTRIBUTE sink is why');
+  ok(/does not escape "/.test(escaperCredit(QUOTEBLIND).reason), '…and the refusal names the character it leaves alone');
+  ok(escaperCredit('{ return s.toUpperCase(); }').credited === false, 'CONTROL: a helper that replaces nothing earns nothing');
+  ok(escaperCredit(null).credited === false, 'CONTROL: a body that could not be read earns nothing — refusal is the safe direction');
+
+  const SRC_ALIAS = `function escHtml(s) ${FOURCH}\nel.innerHTML = escHtml(v);\n`;
+  ok(localEscapers(SRC_ALIAS).credited.includes('escHtml'), "a file's own escHtml is read out of its declaration");
+  ok(localEscapers(`function sanitize(s) ${FOURCH}`).credited.length === 0, 'CONTROL: a name that does not propose an escaper earns nothing, whatever its body does');
+  ok(localEscapers(`/* function escHtml(s) ${FOURCH} */`).credited.length === 0, 'CONTROL: a declaration inside a COMMENT is prose and earns nothing');
+  ok(localEscapers(`const escPath = (s) => s.replace(/x/g, "{");`).credited.length === 0, 'CONTROL: a brace inside a STRING does not open a body — the structural copy is why');
+  ok(
+    localEscapers(`const escArrow = (s) =>\n  String(s)\n    .replace(/&/g, '&amp;')\n    .replace(/</g, '&lt;')\n    .replace(/>/g, '&gt;')\n    .replace(/"/g, '&quot;');`).credited.includes(
+      'escArrow'
+    ),
+    'an expression-bodied arrow escaper is credited too'
+  );
+  ok(
+    localEscapers(`function esc(s) ${QUOTEBLIND}`).unverified.some((u) => u.name === 'esc'),
+    'a candidate that earns nothing is REPORTED, not dropped — the name-only credit it keeps is the census subject'
+  );
+  ok(
+    localEscapers('const escal = perHour[0] > 0 ? 100 : 0;').unverified.length === 0,
+    'CONTROL: a NAME with an `=` after it is not a candidate — only a function is (the ecgdex-dsp.js escalation shape)'
+  );
+  ok(localEscapers(readFileSync(join(ROOT, 'ecgdex-dsp.js'), 'utf-8')).unverified.length === 0, '…measured on the real file that shape came from');
+
+  /* THE ROW, BOTH WAYS: the same line reads as a violation without the file's escaper and clean with
+     it, and an unescaped sibling still survives the credited call. */
+  ok(classifySinkLine('+  el.innerHTML = escHtml(v);').unsafe.includes('escHtml'), 'the row reproduced: with no earned escaper the alias ITSELF reads as unescaped');
+  ok(classifySinkLine('+  el.innerHTML = escHtml(v);', ['escHtml']).unsafe.length === 0, '…and with the earned escaper the same line is clean');
+  ok(classifySinkLine('+  el.innerHTML = escHtml(v) + raw;', ['escHtml']).unsafe.includes('raw'), 'CONTROL: a credited alias does not launder an unescaped sibling');
+  ok(classifySinkLine('+  el.innerHTML = esc(v);').unsafe.length === 0, 'CONTROL: the two canonical names keep their name-based credit, so this is a widening only');
+
+  /* FILE-SCOPED, like ALLOW: the credit belongs to the file that declares the escaper. */
+  const perFile = scanDiff(['diff --git a/x.js b/x.js', '+  el.innerHTML = escHtml(v);', 'diff --git a/y.js b/y.js', '+  el.innerHTML = escHtml(v);'], (f) => (f === 'x.js' ? ['escHtml'] : []));
+  ok(perFile.violations.length === 1 && perFile.violations[0].file === 'y.js', 'the earned credit is file-scoped: the same line in a file that declares nothing is still caught');
+  ok(scanDiff(['diff --git a/x.js b/x.js', '+  el.innerHTML = escHtml(v);']).violations.length === 1, 'CONTROL: with no resolver at all the scan behaves exactly as before');
+
+  /* THE REAL FILES — a rule nothing in the tree exercises is a rule nobody has read. */
+  const realAlias = localEscapers(readFileSync(join(ROOT, 'pat-feasibility.js'), 'utf-8'));
+  ok(realAlias.credited.includes('escHtml'), 'pat-feasibility.js earns escHtml on the real file — the row’s own subject', JSON.stringify(realAlias.credited));
+  const realBlind = localEscapers(readFileSync(join(ROOT, 'data-unifier-app.js'), 'utf-8'));
+  ok(
+    realBlind.unverified.some((u) => u.name === 'esc' && /does not escape "/.test(u.reason)),
+    'data-unifier-app.js reports its quote-blind esc as unverified — the census has a real subject',
+    JSON.stringify(realBlind.unverified)
+  );
+
   const line = fail.length ? `xss-sink-gate selftest · ${fail.length} of ${ran} FAILED` : `all ${ran} selftests passed`;
   return { ok: fail.length === 0, ran, fail, line };
 }
 
-function verdictOf({ status, sinksAdded, violations, base, fullTree, files, baseline, allowed, stale, reason }) {
+function verdictOf({ status, sinksAdded, violations, base, fullTree, files, baseline, allowed, stale, escapers, reason }) {
   const exempt = (allowed || []).length;
   const v = Verdict.make({
     gate: 'xss-sink-gate',
@@ -296,7 +482,8 @@ function verdictOf({ status, sinksAdded, violations, base, fullTree, files, base
             violations: violations.map((v2) => ({ file: v2.file, unsafe: v2.unsafe })),
             allowed: (allowed || []).map((a) => ({ file: a.file, match: a.match, reason: a.reason })),
             ...(stale && stale.length ? { staleAllow: stale.map((a) => ({ file: a.file, match: a.match })) } : {}),
-            ...(fullTree ? { mode: 'full-tree', unescapedSinks: violations.length, sinksInTree: sinksAdded, files, fileCount: files.length, baseline: baseline ? baseline.count : null } : {})
+            ...(fullTree ? { mode: 'full-tree', unescapedSinks: violations.length, sinksInTree: sinksAdded, files, fileCount: files.length, baseline: baseline ? baseline.count : null } : {}),
+            ...(escapers ? { escapers: { verified: escapers.verified.length, unverified: escapers.unverified } } : {})
           },
     evidence: ['tools/xss-sink-gate.mjs', 'dex-escape.js'],
     reason:
@@ -385,7 +572,19 @@ function main() {
   const base = fullTree ? EMPTY_TREE : baseIdx >= 0 ? process.argv[baseIdx + 1] : 'HEAD';
 
   const diff = sh(`git diff ${base}..HEAD -U3 -- '*.js' '*.src.html' ':!tests/' ':!tools/'`);
-  const { violations, sinksAdded, allowed } = scanDiff(diff.split('\n'));
+
+  /* The earned escaper set is a property of the FILE, so it is read from the file on disk and
+     memoised: a file holds about five sinks, and --full-tree reads every sink in the tree. A file the
+     diff DELETED is gone from disk and earns nothing, which is the same answer as before this. */
+  const escCache = new Map();
+  const escapersOf = (f) => {
+    if (!escCache.has(f)) {
+      const abs = join(ROOT, f);
+      escCache.set(f, existsSync(abs) ? localEscapers(readFileSync(abs, 'utf-8')) : { credited: [], unverified: [] });
+    }
+    return escCache.get(f);
+  };
+  const { violations, sinksAdded, allowed } = scanDiff(diff.split('\n'), (f) => escapersOf(f).credited);
 
   if (fullTree) {
     const files = [...new Set(violations.map((v) => v.file))].sort();
@@ -401,18 +600,30 @@ function main() {
     /* THE STALENESS LEG, and it only works here: over the whole tree every sink is in the population,
        so an entry that matched nothing is an exemption covering no line. A stale entry FAILS — the
        same teeth the co-load tables carry, for the same reason (an unread exemption rots silently). */
+    /* THE NAME-ONLY CREDIT, COUNTED. `esc` and `escapeHTML` are credited by name, so a quote-blind
+       `esc` still launders a sink here. That is not fixed by this gate — it is fixed in the file that
+       declares it — and until then the number belongs in the reading rather than in nobody's head. */
+    const filesScanned = [...new Set([...diff.matchAll(/^diff --git a\/.+? b\/(.+)$/gm)].map((m) => m[1]))];
+    const escapers = { verified: [], unverified: [] };
+    for (const f of filesScanned) {
+      const e = escapersOf(f);
+      for (const n of e.credited) escapers.verified.push({ file: f, name: n });
+      for (const u of e.unverified) escapers.unverified.push({ file: f, name: u.name, reason: u.reason });
+    }
     const stale = staleAllow(allowed);
     const r = stale.length
       ? { status: 'FAIL', reason: `stale ALLOW entry (matches no sink in the tree): ${stale.map((a) => `${a.file} :: ${a.match}`).join(', ')}` }
       : ratchet(violations.length, baseline);
     if (asJson) {
-      process.stdout.write(`${JSON.stringify(verdictOf({ status: r.status, sinksAdded, violations, base, fullTree: true, files, baseline, allowed, stale, reason: r.reason }), null, 1)}\n`);
+      process.stdout.write(`${JSON.stringify(verdictOf({ status: r.status, sinksAdded, violations, base, fullTree: true, files, baseline, allowed, stale, escapers, reason: r.reason }), null, 1)}\n`);
     } else {
       process.stdout.write(`xss-sink-gate --full-tree · ${sinksAdded} innerHTML sink(s) in the tree · ${violations.length} with an unescaped identifier, in ${files.length} file(s)\n`);
       for (const f of files) process.stdout.write(`    ${f}\n`);
       process.stdout.write(
         `  baseline: ${baseline ? `${baseline.count} unescaped sink(s)` : '(none yet)'}${baseline && baseline.files != null ? ` · ${baseline.files} file(s), not ratcheted` : ''} · ${allowed.length} exempt by ALLOW → ${r.status}${r.reason ? ` — ${r.reason}` : ''}\n`
       );
+      process.stdout.write(`  escapers: ${escapers.verified.length} verified local escaper(s) credited by BODY · ${escapers.unverified.length} candidate(s) unverified, still credited by NAME\n`);
+      for (const u of escapers.unverified) process.stdout.write(`    ${u.file}: ${u.name} — ${u.reason}\n`);
     }
     process.exit(r.status === 'FAIL' ? 1 : 0);
   }
