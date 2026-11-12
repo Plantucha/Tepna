@@ -10,6 +10,11 @@
   "integrator-app.js": {
    "holder": "FUSION",
    "read": "an ANCHORED read against the holder — measured 2026-11-12: `generated`, `kind` and `schema` each match a bare token in the app and none of them reads the fusion"
+  },
+  "overdex-app.js": {
+   "holder": "fusion",
+   "read": "an ANCHORED read against the holder — OverDex receives the fusion object as a parameter, so its holder is lower-case `fusion`, not the app's module-level `FUSION`",
+   "measured": "2026-11-12: `overdex-app.js` reads 6 of the 36 top-level keys anchored (apnea, findings, hrv, kernelAudit, nodes, window) and every one of them is ALREADY declared `card`, so declaring this realm moves no depth-1 cell and holds `exportOnlyReadElsewhere` at 0"
   }
  },
  "readerFiles": {
@@ -140,7 +145,40 @@
     "seamCensus": "card — integrator-app.js:46 reads it through the forwarded hop and reports every UNKNOWN channel by the node’s own reason token.",
     "vetoes": "card — integrator-app.js:36 reads it through the forwarded hop and prints one reader-ready line per refused recording."
    }
+  },
+  "kernelAudit": {
+   "builtBy": "auditNodeKernels",
+   "readerFiles": [
+    {
+     "file": "integrator-app.js",
+     "aliasPath": "FUSION.kernelAudit"
+    },
+    {
+     "file": "overdex-app.js",
+     "aliasPath": "fusion.kernelAudit"
+    }
+   ],
+   "enumeratedWith": "the depth-1 keys of the single `return {` inside auditNodeKernels() — 5 keys, one return shape, so no key here is conditional. Read from SOURCE, like the top level.",
+   "readAs": "an anchored read in EITHER declared realm: `<alias>.<key>` inside the scope of a binding of the realm's own aliasPath, or a read through the WHOLE path. OverDex binds no alias and reads `fusion.kernelAudit.ok` directly, so an alias-only test credits nothing there.",
+   "seededFrom": "the anchored test above, hand-checked line by line on 2026-11-12. `integrator-app.js:78` and `:79` read `ka.mismatches`, `:80` reads `ka.expected`. `overdex-app.js:862` reads `fusion.kernelAudit.ok` and `:866` reads `.mismatches`. A BARE-TOKEN test in integrator-render.js would call `expected`, `nodes` and `ok` card on counts of 5, 25 and 4 — and that file names `kernelAudit` ZERO times, so none of those tokens can be this subtree. The anchoring repairs a LIVE miss of 3 of 5 keys here, which it did not in `apnea`.",
+   "nullWhen": "never, from runFusion: `integrator-dsp.js:7502` calls auditNodeKernels unconditionally and `:7958` assigns the result, and the builder always returns an object. The `|| null` at `:8011` is a guard in buildFusionExport over a fusion object its CALLER supplies, not an absence this builder makes. An earlier claim of mine called that line an absence path; the measurement says it is not.",
+   "depthNote": "depth 2 only. `mismatches[]` and `nodes[]` entries carry their own `{ node, hash, version, status }`, and `integrator-app.js:80` reads `m.node` and `m.hash` while `overdex-app.js:865` reads `m.status`. Those are depth 3 and this unit does not judge them.",
+   "surfaces": {
+    "expected": "card",
+    "mismatches": "card",
+    "nodes": "export-only",
+    "ok": "card",
+    "version": "export-only"
+   },
+   "notes": {
+    "expected": "integrator-app.js:80 — the banner names the expected kernel hash",
+    "mismatches": "integrator-app.js:78 and :79 branch and iterate; overdex-app.js:866 maps the same list into the Kernel drift box",
+    "nodes": "no declared realm reads it; the full per-node roster is carried for the export",
+    "ok": "overdex-app.js:862 — `!fusion.kernelAudit.ok` gates the reader-facing Kernel drift box. The app branches on `ka.mismatches.length` instead, so a two-realm declaration would have called this key export-only",
+    "version": "no declared realm reads it; the kernel VERSION rides the export beside `expected`"
+   }
   }
  },
- "widenedRealm": "2026-11-12: depth 1 was judged against ONE file, so `export-only` — \"carried on the node-export and deliberately not rendered\" — was never asked of the app. `integrator-render.js` names neither `clockSkew` nor `kernelAudit`; `integrator-app.js` binds both (`var ka = FUSION && FUSION.kernelAudit` at :77, `var cs = FUSION && FUSION.clockSkew` at :88) and pushes a reader-facing banner line from each into `warnAll`. Both cells now read `card` against the app realm. The other 22 export-only keys stay: three of them match a bare token in the app and none reads the fusion, which is why a second realm is asked for an anchored read."
+ "widenedRealm": "2026-11-12: depth 1 was judged against ONE file, so `export-only` — \"carried on the node-export and deliberately not rendered\" — was never asked of the app. `integrator-render.js` names neither `clockSkew` nor `kernelAudit`; `integrator-app.js` binds both (`var ka = FUSION && FUSION.kernelAudit` at :77, `var cs = FUSION && FUSION.clockSkew` at :88) and pushes a reader-facing banner line from each into `warnAll`. Both cells now read `card` against the app realm. The other 22 export-only keys stay: three of them match a bare token in the app and none reads the fusion, which is why a second realm is asked for an anchored read.",
+ "widenedNested": "2026-11-12 — `fusion.kernelAudit` is the third nested subtree judged, and the first read in more than one realm. `overdex-app.js` joins readerRealms with holder `fusion`, measured to move no depth-1 cell."
 }

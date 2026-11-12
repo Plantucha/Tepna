@@ -322,3 +322,70 @@ its own. The anchored test credits a read into a variable that nothing draws, wh
 standing blindness in both realms now. Twelve nested subtrees still carry no declaration, so depth
 2 reaches two of fourteen. A key read in BOTH realms declares one of them, and the gate does not
 ask whether the other one should also draw it.
+
+## 11 · 2026-11-12 — the third realm was real, and the enumerator could not see a one-line return
+
+The depth-1 unit named a third reader realm as unexamined. The third nested subtree found it, live,
+with a reader-facing banner on it.
+
+| population | before | after |
+|---|---|---|
+| declared reader realms | 2 | 3 |
+| nested subtrees judged | 2 | 3 |
+| nested keys judged | 21 | 26 |
+| nested card keys | 14 | 17 |
+| nested keys on some shapes only | 2 | 2 |
+| gate selftests | 97 | 119 |
+
+🔴 **OVERDEX IS A READER REALM, AND ONE KEY IS CREDITED THERE AND NOWHERE ELSE.**
+`overdex-app.js:862` reads `fusion.kernelAudit.ok` and draws a "Kernel drift" warn box from it;
+`:866` maps `.mismatches` into the same box. The Integrator app reads `ka.mismatches` at `:78` and
+`:79` and `ka.expected` at `:80`, and it branches on `ka.mismatches.length` rather than on `ok`. So a
+two-realm declaration would have called `ok` export-only, and `ok` gates a banner.
+`result.nestedCardByReader` now reads `{ integrator-render.js: 10, integrator-app.js: 6,
+overdex-app.js: 1 }`, and that lone 1 is this key.
+
+🔴 **DECLARING THE THIRD REALM AT DEPTH 1 MOVES NOTHING, AND THAT IS A MEASUREMENT, NOT AN
+ASSUMPTION.** `overdex-app.js` reads 6 of the 36 top-level keys anchored on `fusion` — apnea,
+findings, hrv, kernelAudit, nodes, window — and every one of them is already declared `card`. So
+`exportOnlyReadElsewhere` stays 0 and no depth-1 cell moves. The holder differs from the app's:
+OverDex receives the fusion as a parameter, so its holder is lower-case `fusion`.
+
+🔴 **A READER NEED NOT BIND AN ALIAS.** OverDex reads through the whole path, so `aliasSites` finds
+nothing to credit and an alias-only test calls that key unread. `readsDirectPath` credits
+`<path>.<key>` and the bracket form, and `noAlias` no longer reds a realm whose reads all go through
+the path.
+
+🔴 **THE ENUMERATOR SKIPPED EVERY ONE-LINE RETURN, SILENTLY.** `nestedShapes` anchored `return {` to
+the END of a line, and `auditNodeKernels` returns all five of its keys on one line. The subtree's
+source sat there to read and the gate refused it with "its shape changed". A one-line literal now
+reads when its braces balance on that line and it carries no quote; a quote, a spread or an
+unbalanced line still refuses.
+
+🔴 **AND READING THEM EXPOSED A LATENT MISS: A NESTED CALLBACK'S RETURN IS NOT THE BUILDER'S
+SHAPE.** With one-line returns read, `fuseApneaEvents:2268` —
+`.map(function (k) { return { node: k, surges: hrByNode[k] }; })` — entered the `apnea` union: two
+keys no fusion carries, and 15 real keys reading as conditional. The return must now sit in the
+builder's own scope, and the text in front of a return skips a wholly-inline callback.
+This was latent on main, not live: the end-of-line anchor had hidden the same callback.
+
+### The five live controls
+
+Each edits the real declaration, runs the gate, and restores the file. Every restore is
+byte-identical.
+
+| control | edit | the gate says |
+|---|---|---|
+| F | drop `overdex-app.js` from the subtree | `✗ 1 nested key(s) declare 'card' and no anchored read reaches them in integrator-app.js: ok` |
+| G | `ok` declared `export-only` | `✗ 1 nested key(s) declare 'export-only' and an anchored read reaches them: ok` |
+| H | a reader entry with no `file` | throws `nested subtree `kernelAudit` declares a reader with no file` |
+| I | `nodes` declared `card` | `✗ … no anchored read reaches them in integrator-app.js + overdex-app.js: nodes` |
+| J | drop `integrator-app.js`, keep OverDex | `✗ … no anchored read reaches them in overdex-app.js: expected` |
+
+### What this still cannot see
+
+Depth 3. `mismatches[]` and `nodes[]` entries carry `{ node, hash, version, status }`, and
+`integrator-app.js:80` reads `m.node` and `m.hash` while `overdex-app.js:865` reads `m.status`. Those
+three keys are read by a reader and no cell declares them. Eleven nested subtrees still carry no
+declaration, so depth 2 reaches three of fourteen. A fourth realm may exist: this unit asked only
+the files that name `kernelAudit`, which are the two above plus `integrator-dsp.js` itself.
