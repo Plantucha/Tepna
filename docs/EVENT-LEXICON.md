@@ -62,6 +62,10 @@ would cost a PulseDex re-bundle + its event-fixture regen to buy nothing. Left n
 fusion rule needs "low-HRV / high-stress across nodes," pick a canonical each (proposal: `hrv_low`,
 `stress_high`) + migrate PulseDex with gather aliases THEN. No code change this pass.
 
+> **The source of each `conf` number:** `docs/BUS-CONF-PROVENANCE.md` records the eleven tuned bus
+> `conf` constants — the earliest visible commit, the citation, and a verdict of `declared` /
+> `examined` / `no stated basis`. The gate `tools/bus-conf-provenance.mjs` holds the class at that size.
+
 ## 3. `autonomic_arousal` — OxyDex legacy-synthesis only (decision recorded)
 
 OxyDex's v2.0 envelope emits **only** `desat_event` + `periodic_breathing` (the honest two-impulse model
