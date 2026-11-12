@@ -122,3 +122,29 @@ def test_every_onclick_interpolation_goes_through_esc():
         "every interpolation into a single-quoted onclick= must be wrapped in esc() — "
         "JSON.stringify does not escape the single quote that closes the attribute:\n  " + "\n  ".join(bad)
     )
+
+
+# ── Latin-safe label glyphs ──────────────────────────────────────────────────────────────────────
+# Residue 2026-11-11-a-cjk-only-glyph-draws-a-ui-icon: the live-scope nav item drew its wave icon
+# with U+301C, a code point only CJK families carry (16 families on the primary box, measured with
+# fontconfig 2026-11-12, every one of them CJK). The suite ships no font binary, so the operator's
+# browser resolves a label against the installed faces alone and draws a tofu box where the icon
+# belongs. The JS lane guards the bundles and their inlined modules in tests/dex-tests.js, and
+# monitor.html sits in neither source map that group reads, so it is guarded here.
+#
+# ⚠️ THE NEEDLES ARE CODE POINTS AND NEVER CHARACTERS. A scanner that carries its own needle flags
+# itself, which is how a comment in a workflow-parity gate landed that gate in the capture census on
+# 2026-11-12.
+_CJK_ONLY_GLYPHS = {
+    0xFF0B: "U+FF0B FULLWIDTH PLUS SIGN (write the ASCII plus)",
+    0x301C: "U+301C WAVE DASH (write the ASCII tilde)",
+    0x29C9: "U+29C9 TWO JOINED SQUARES (drop the icon and keep the label)",
+}
+
+
+def test_monitor_draws_no_cjk_only_label_glyph():
+    with open(MON, encoding="utf-8") as fh:
+        text = fh.read()
+    assert text, "monitor.html read empty, so this test examined nothing"
+    found = {name: text.count(chr(cp)) for cp, name in _CJK_ONLY_GLYPHS.items() if chr(cp) in text}
+    assert found == {}, f"monitor.html draws a glyph no Latin system face carries: {found}"

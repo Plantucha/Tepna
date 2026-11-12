@@ -500,7 +500,7 @@
           '<span class="eb-hint" id="ebScopeHint" style="font-size:10.5px;font-weight:600;color:var(--text4);align-self:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0"></span>' +
           '<span class="eb-spacer"></span>' +
           '<div class="eb-grp">' +
-          '<button class="eb-btn eb-ghost" type="button" data-act="clickEl" data-target="fileInput">＋ Add files</button>' +
+          '<button class="eb-btn eb-ghost" type="button" data-act="clickEl" data-target="fileInput">+ Add files</button>' +
           '<button class="eb-btn eb-danger" type="button" data-act="clearAll" title="Wipe every accumulated measurement and the saved history in this browser">✕ Clear saved history</button>' +
           '</div>';
         eb.classList.add('show');

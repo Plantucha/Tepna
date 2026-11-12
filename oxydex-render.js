@@ -2003,7 +2003,7 @@ function renderAll() {
       _ebHtml += '<span class="eb-spacer"></span>';
       _ebHtml += '<div class="eb-grp">';
       _ebHtml += '<button class="eb-btn eb-ghost" type="button" data-act="downloadParser">⬇ Parser</button>';
-      _ebHtml += '<button class="eb-btn eb-ghost" type="button" data-act="addMoreFiles">＋ Add files</button>';
+      _ebHtml += '<button class="eb-btn eb-ghost" type="button" data-act="addMoreFiles">+ Add files</button>';
       _ebHtml += '<button class="eb-btn eb-danger" type="button" data-act="clearAll">✕ Clear</button>';
       _ebHtml += '</div>';
       _exportBar.innerHTML = _ebHtml;
