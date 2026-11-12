@@ -33,7 +33,7 @@
     clock: ['measured', 'start-time offset and beat-count ratio of the two recordings — direct'],
     lag: ['experimental', 'R-peak → PPG-foot pulse arrival time from consumer sensors; not validated against a reference'],
     spread: ['experimental', 'beat-to-beat IQR of the lag around its 30 s local median — a derived dispersion'],
-    drift: ['experimental', 'spread of the 5-min lag medians across the night — a derived diagnostic'],
+    drift: ['experimental', 'the p95 step between adjacent 5-min lag medians — the statistic the gate weighs — with the across-night range and the linear rate beside it as diagnostics'],
     floor: ['experimental', "each leg re-timed on its device's packet-arrival floor (the minimum of arrival − last sample, per 10-min window) — derived, unvalidated"],
     acc: ['heuristic', 'motion-anchored offset correction between chest and ankle ACC — a convenience estimate, not a measurement'],
     hat: ['experimental', 'classic three-cornered hat on 5-min PAT medians — assumes independent per-site errors; unvalidated']
@@ -552,6 +552,14 @@
   function coverStat(rows, f, label) {
     return (self.PATGate && self.PATGate.coverStat)(rows, f, label);
   }
+  /* WHICH number `G.DRIFT_MAX_MS` judges, from the gate itself (`pat-gate.js driftStatOf`) and never
+     a second copy of the preference. `DRIFT_MAX_MS: 60` is published for `cp.stepP95`, so a card that
+     drew `cp.driftRange` against it contradicted the verdict beside it — 135 ms of range on a night
+     the gate passed on a 54 ms step. `driftGated(cp).rangeMs` keeps the range on the page as the
+     diagnostic it is, and `isFinite(.ms)` is false when the night has neither statistic. */
+  function driftGated(cp) {
+    return (self.PATGate && self.PATGate.driftStatOf)(cp);
+  }
   /* What a sub-line adds when the statistic saw FEWER nights than it had. §∅: a discontinuity
      refuses and reduced coverage annotates — this is the annotation, and it is empty on full
      coverage so a complete corpus reads exactly as it did before. */
@@ -619,6 +627,26 @@
           'drift'
         )
       );
+      /* The statistic every per-night verdict was decided on, over the same nights. The ppm card
+         above is a rate and the range card below is a spread; neither is the number `DRIFT_MAX_MS`
+         judges, so before this card the page published no aggregate of the quantity that gated it. */
+      var stp = coverStat(
+        oks,
+        function (m) {
+          return driftGated(m.cp).ms;
+        },
+        'the drift statistic the gate weighs'
+      );
+      cards.push(
+        hcard(
+          'drift, gated statistic',
+          stp.n ? stp.value.toFixed(0) : '—',
+          'ms',
+          stp.n ? 'median · bar ' + G.DRIFT_MAX_MS + ' ms · ' + stp.min.toFixed(0) + '–' + stp.max.toFixed(0) + ' across nights' + covNote(stp) : stp.reason,
+          stp.n ? (stp.value <= G.DRIFT_MAX_MS ? C.green : C.amber) : C.mut,
+          'drift'
+        )
+      );
       cards.push(hcard('coupling', mr.n ? mr.value.toFixed(0) : '—', '%', mr.n ? 'median across nights' + covNote(mr) : mr.reason, mr.n ? (mr.value >= 55 ? C.green : C.amber) : C.mut, 'coupling'));
       cards.push(
         hcard('beat-to-beat spread', riq.n ? riq.value.toFixed(0) : '—', 'ms', riq.n ? 'median lag IQR' + covNote(riq) : riq.reason, riq.n ? (riq.value <= 60 ? C.green : C.amber) : C.mut, 'spread')
@@ -646,6 +674,8 @@
       });
       var cDr = null,
         rDr = null,
+        cSt = null,
+        rSt = null,
         bufs = null,
         mCorr = NaN,
         mRaw = NaN;
@@ -664,11 +694,27 @@
           },
           'raw drift range'
         );
+        /* The same two legs on the GATED statistic. The range medians below answer "how far did the
+           lag wander", which is not the question the verdict asked. */
+        cSt = coverStat(
+          corrN,
+          function (m) {
+            return driftGated(m.cpCorr).ms;
+          },
+          'corrected drift statistic'
+        );
+        rSt = coverStat(
+          corrN,
+          function (m) {
+            return driftGated(m.cp).ms;
+          },
+          'raw drift statistic'
+        );
         mCorr = cDr.value;
         mRaw = rDr.value;
         cards.push(
           hcard(
-            'drift after arrival-floor correction',
+            'drift range after arrival-floor correction',
             cDr.n ? mCorr.toFixed(0) : '—',
             'ms',
             cDr.n ? 'median · was ' + (rDr.n ? mRaw.toFixed(0) : '—') + ' ms raw · ' + cDr.n + ' of ' + cDr.nTotal + ' nights' : cDr.reason,
@@ -721,11 +767,34 @@
           (corrN.length > 1 ? 's' : '') +
           ': it removed a median <b>' +
           (bufs && bufs.n ? bufs.value.toFixed(0) : '—') +
-          " ms</b> of lag — the two Bluetooth links' different buffering, not clock drift — and left drift at <b>" +
+          " ms</b> of lag — the two Bluetooth links' different buffering, not clock drift. It left the statistic the gate weighs at <b>" +
+          (cSt && cSt.n ? cSt.value.toFixed(0) : '—') +
+          ' ms</b> (raw ' +
+          (rSt && rSt.n ? rSt.value.toFixed(0) : '—') +
+          ' ms), and the 5-min drift range at <b>' +
           (cDr && cDr.n ? mCorr.toFixed(0) : '—') +
           ' ms</b> (raw ' +
           (rDr && rDr.n ? mRaw.toFixed(0) : '—') +
           ' ms).';
+        /* 🔴 THE CORRECTION HAS ITS OWN CROSS-CHECK, AND THIS SENTENCE USED TO OUTRANK IT. The ACC
+           motion check compares chest and ankle movement on the two floor axes; one box night read
+           −701 ms against a 25 ms tolerance, which rejects those axes — yet the aggregate presented
+           the corrected lag in the same confident voice as a confirmed one. The per-night card and
+           the table cell already say `FAILS`; the corpus line now says how many nights it covers. */
+        var accBadN = corrN.filter(function (m) {
+          return accFails(m.floorSync);
+        }).length;
+        if (accBadN)
+          concl +=
+            ' <b style="color:' +
+            C.amber +
+            '">' +
+            accBadN +
+            ' of ' +
+            corrN.length +
+            ' corrected night' +
+            (accBadN > 1 ? 's have' : ' has') +
+            ' a motion check outside tolerance</b>, so that corrected lag is not confirmed — each one is flagged on its own card.';
       }
       var refusedFloor = oks.filter(function (m) {
         return m.floorSync && !m.floorSync.available;
@@ -943,13 +1012,16 @@
           'spread'
         )
       );
+      var dg = driftGated(cp);
       cards.push(
         hcard(
-          'drift range',
-          isFinite(cp.driftRange) ? cp.driftRange.toFixed(0) : '—',
+          'drift',
+          isFinite(dg.ms) ? dg.ms.toFixed(0) : '—',
           'ms',
-          isFinite(cp.driftRange) ? ppmText(cp) + (isFinite(cp.stepP95) ? ' · the gate reads the p95 step, ' + cp.stepP95.toFixed(0) + ' ms' : '') : escHtml(cp.driftRangeReason || ''),
-          cp.driftRange <= G.DRIFT_MAX_MS ? C.green : C.amber,
+          isFinite(dg.ms)
+            ? dg.name + ' — the number the ' + G.DRIFT_MAX_MS + ' ms bar judges · range ' + (dg.rangeMs == null ? '—' : dg.rangeMs.toFixed(0) + ' ms') + ' · ' + ppmText(cp)
+            : escHtml(cp.driftRangeReason || 'neither drift statistic was measurable'),
+          isFinite(dg.ms) ? (dg.ms <= G.DRIFT_MAX_MS ? C.green : C.amber) : C.mut,
           'drift'
         )
       );
@@ -988,8 +1060,19 @@
           'floor'
         )
       );
+      var dgC = driftGated(m.cpCorr),
+        dgR = driftGated(m.cp);
       cards.push(
-        hcard('drift range, corrected', m.cpCorr.driftRange.toFixed(0), 'ms', 'raw ' + m.cp.driftRange.toFixed(0) + ' ms', m.cpCorr.driftRange <= G.DRIFT_MAX_MS ? C.green : C.amber, 'drift')
+        hcard(
+          'drift, corrected',
+          isFinite(dgC.ms) ? dgC.ms.toFixed(0) : '—',
+          'ms',
+          isFinite(dgC.ms)
+            ? dgC.name + ' · raw ' + (isFinite(dgR.ms) ? dgR.ms.toFixed(0) + ' ms' : '—') + ' · range ' + (dgC.rangeMs == null ? '—' : dgC.rangeMs.toFixed(0) + ' ms')
+            : escHtml(m.cpCorr.driftRangeReason || 'neither drift statistic was measurable'),
+          isFinite(dgC.ms) ? (dgC.ms <= G.DRIFT_MAX_MS ? C.green : C.amber) : C.mut,
+          'drift'
+        )
       );
       var thin = [fsy.ecg, fsy.ppg].some(function (L) {
         return L.windows > 0 && (L.windows - L.refused) / L.windows < 0.5;
@@ -1616,6 +1699,13 @@
           return m.cp.linR2;
         },
         'drift shape R²'
+      ),
+      stpA = coverStat(
+        oks,
+        function (m) {
+          return driftGated(m.cp).ms;
+        },
+        'the drift statistic the gate weighs'
       );
     var out = {
       generated: new Date().toISOString(),
@@ -1639,6 +1729,11 @@
             driftShapeR2Median: numOrNull(linA.value, 2),
             driftShapeR2MedianN: linA.n,
             driftShapeR2MedianReason: linA.reason,
+            /* The number `DRIFT_MAX_MS` judged, named. A reader of this file held only a range and a
+               rate, so no consumer could reproduce a verdict from it. */
+            driftStatMsMedian: numOrNull(stpA.value),
+            driftStatMsMedianN: stpA.n,
+            driftStatMsMedianReason: stpA.reason,
             afterArrivalFloor: (function () {
               var c = oks.filter(function (m) {
                 return m.cpCorr && m.cpCorr.ok && m.floorSync && m.floorSync.available;
@@ -1664,6 +1759,20 @@
                     return m.cp.driftRange;
                   },
                   'raw drift range'
+                ),
+                cst = coverStat(
+                  c,
+                  function (m) {
+                    return driftGated(m.cpCorr).ms;
+                  },
+                  'corrected drift statistic'
+                ),
+                rst = coverStat(
+                  c,
+                  function (m) {
+                    return driftGated(m.cp).ms;
+                  },
+                  'raw drift statistic'
                 );
               return {
                 nNights: c.length,
@@ -1675,7 +1784,19 @@
                 driftPpmMedianReason: cp2.reason,
                 rawDriftRangeMsMedian: numOrNull(rd.value),
                 rawDriftRangeMsMedianN: rd.n,
-                rawDriftRangeMsMedianReason: rd.reason
+                rawDriftRangeMsMedianReason: rd.reason,
+                driftStatMsMedian: numOrNull(cst.value),
+                driftStatMsMedianN: cst.n,
+                driftStatMsMedianReason: cst.reason,
+                rawDriftStatMsMedian: numOrNull(rst.value),
+                rawDriftStatMsMedianN: rst.n,
+                rawDriftStatMsMedianReason: rst.reason,
+                /* How many of these nights their OWN motion check rejects. The prose says it and the
+                   cards say it; a file that omitted it let a reader treat every corrected night as
+                   confirmed. */
+                nightsMotionCheckOutOfTolerance: c.filter(function (m) {
+                  return accFails(m.floorSync);
+                }).length
               };
             })()
           }
@@ -1700,6 +1821,8 @@
                   beatToBeatIQRmsReason: m.cp.residIQRReason || null,
                   driftRangeMs: +(+m.cp.driftRange).toFixed(1),
                   driftRangeMsReason: m.cp.driftRangeReason || null,
+                  driftStat: driftGated(m.cp).stat,
+                  driftStatMs: numOrNull(driftGated(m.cp).ms),
                   driftPpm: +(+m.cp.ppm).toFixed(1),
                   driftPpmReason: m.cp.ppmReason || null,
                   linR2: +(+m.cp.linR2).toFixed(2)
@@ -1715,6 +1838,8 @@
                     beatToBeatIQRmsReason: m.cpCorr.residIQRReason || null,
                     driftRangeMs: +(+m.cpCorr.driftRange).toFixed(1),
                     driftRangeMsReason: m.cpCorr.driftRangeReason || null,
+                    driftStat: driftGated(m.cpCorr).stat,
+                    driftStatMs: numOrNull(driftGated(m.cpCorr).ms),
                     driftPpm: +(+m.cpCorr.ppm).toFixed(1),
                     driftPpmReason: m.cpCorr.ppmReason || null
                   }
