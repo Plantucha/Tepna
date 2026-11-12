@@ -21374,6 +21374,13 @@
       T.ok('the card source is readable in this lane', !!card, card ? card.length + ' bytes' : 'sensor-trio-night.js not in env.sources — list it in BOTH lanes');
       if (!twin || !card) return;
 
+      /* ── the night-list row leads with the SAME σ as the corner cards ─────────────────────────────── */
+      var rowAt = card.indexOf("rc.innerHTML = evb(useMeas ? 'refNight' : 'hat')");
+      var rowSlice = rowAt < 0 ? '' : card.slice(card.lastIndexOf('if (rc) {', rowAt), card.indexOf('rc.style.color', rowAt));
+      T.ok('the row badge follows the measured-vs-hat branch', rowAt >= 0, 'the night-list row printed the hat badge on every night, while the cards led with the measured σ');
+      T.ok('the row reads the beat reference through refOf, as hero() does', /refOf\(real\)/.test(rowSlice), 'the row must choose its σ from the same reference the cards read');
+      T.ok('the row prints σ̂ for the hat and σ only for the measured value', /useMeas \? 'σ ' : 'σ̂ '/.test(rowSlice), 'a hat estimate under a plain "σ" reads as a measurement');
+
       /* ── the twin is a generated DATA file ───────────────────────────────────────────────────────── */
       T.ok(
         'the twin says what generated it and that it must not be edited',
@@ -34515,6 +34522,13 @@
       );
       T.eq('window epoch counts are [6,6,6,3] — the short trailing group is visible as n=3', JSON.stringify(ns), JSON.stringify([6, 6, 6, 3]));
       T.eq('nWindows equals the series length', hs && hs.nWindows, hs && hs.series.length);
+      /* residue 2026-11-11: a slope INSIDE the ±0.015 null band was graded 'warn', which the table
+         renders as "Watch", so a measured −0.0133 read as a finding about the night. The band is
+         what the two signed branches declare as a trend, so a slope inside it resolved no trend and
+         'neutral' is the only honest grade. `classification` still names the band. */
+      T.ok('ANTI-VACUITY · this fixture slope really is inside the ±0.015 band', !!hs && Math.abs(hs.sigma_lnRMSSD_slope) <= 0.015, hs && hs.sigma_lnRMSSD_slope);
+      T.eq('the Flat band names itself', !!(hs && /^Flat/.test(hs.classification)), true, hs && hs.classification);
+      T.eq('a slope inside the null band is neutral, never a watch state', hs && hs.severity, 'neutral');
     });
 
     group('ECGDSP.beatConfidence — density×SQI artifact confidence, AF-safe (TCH-FUSED-ROBUST-HAT)', 'ecgdex-dsp · fused-hat · known-answer', function (T) {
@@ -36681,6 +36695,23 @@
        measured 129.9866 are the same JS number, so nothing downstream could tell them apart.
        `fsSource` is the rate's counterpart to §7's `timingSource` for the axis. */
     group('ECGDex §∅ — an ASSUMED sample rate is labelled as one', 'ecgdex-dsp · parseECG · fs-provenance', function (T) {
+      /* THE SAME QUESTION ON THE READER'S SIDE (residue 2026-11-11). A MEASURED rate reaches three
+         reader surfaces, and each printed every digit of 130.01450262176357 Hz. The export is the
+         one surface that must keep them. These read the app SOURCE, so they sit ahead of the parser
+         guard below — a lane with no ECGDSP still answers them. */
+      var APP = String((env.sources || {})['ecgdex-app.js'] || '');
+      if (!APP) {
+        T.skip('ecgdex-app.js in env.sources', 'not wired in this lane');
+      } else {
+        T.ok('ANTI-VACUITY · the app source loaded', APP.length > 10000, APP.length + ' chars');
+        T.ok('the reader-facing formatter rounds to two decimals', APP.indexOf('Number.isFinite(fs) ? +fs.toFixed(2)') !== -1);
+        T.eq('no reader surface interpolates the raw r.fs', (APP.match(/\$\{r\.fs\}/g) || []).length, 0);
+        T.eq('one definition plus the three reader surfaces call the formatter', (APP.match(/_fsReadable\(/g) || []).length, 4);
+        T.ok('the context banner goes through it', APP.indexOf('${_fsReadable(r.fs)} Hz') !== -1);
+        T.ok('the sample-rate table row goes through it', APP.indexOf("['Sample rate', _fsReadable(r.fs)") !== -1);
+        T.ok('the export precision note goes through it', APP.indexOf('_fsReadable(r.fs || 130) +') !== -1);
+        T.eq('the export keeps the unrounded rate at sampleRateHz', (APP.match(/sampleRateHz: r\.fs,/g) || []).length, 1);
+      }
       var D = env.ECGDSP;
       if (!(D && typeof D.parseECG === 'function')) {
         T.skip('ECGDSP.parseECG available', 'not loaded');
@@ -37200,6 +37231,14 @@
       T.ok('no CVHR copy grades on the AHI ladder (cvhr.index < 5 / < 15)', !/cvhr\.index\s*<\s*(5|15)\b/.test(R));
       T.ok('no CVHR tile reads "surges/h (apnea)"', R.indexOf('surges/h (apnea)') === -1);
       T.ok('no CVHR table row calls the index an "apnea autonomic signature"', R.indexOf("— apnea autonomic signature'") === -1);
+      /* residue 2026-11-11: ONE table printed the index TWICE. The first copy sat where the retired
+         AHI rows had been and the second in the CVHR/sleep block, and both rendered on every long
+         non-ambulatory night. The surviving copy reads `cvhr` under a guard, as does the row below
+         it — that one read `r.cvhr.events.length` with no guard at all and threw on a night with
+         staging but no CVHR. */
+      T.eq('the renderTable rows carry ONE CVHR index row literal', R.split("['CVHR index',").length - 1, 1);
+      T.ok('the surviving index row reads cvhr under a guard', R.indexOf("['CVHR index', r.cvhr ? r.cvhr.index : '—'") !== -1);
+      T.ok('the events row reads events.length under the same guard', R.indexOf("['CVHR events', r.cvhr ? r.cvhr.events.length") !== -1);
     });
 
     group('HRVDex exports revoke every blob URL they create (residue 2026-11-08)', 'hrvdex-app · source · export', function (T) {
@@ -68490,6 +68529,17 @@
       // static guard — the JSON export must keep wiring the acc section (regression)
       var appsrc = (env.sources || {})['ecgdex-app.js'];
       if (appsrc) T.ok('buildV2 export wires an `acc:` section', /acc:\s*accEx\s*\?/.test(appsrc));
+      if (appsrc) {
+        /* residue 2026-11-11: the narrow-EDR-range note called the limits of agreement tight and
+           said the two methods agreed, behind an `ag.mae <= 2.0` gate that never reads the interval
+           it printed. A night with limits of −5.1 … +4.6 br/min, a span of 9.7, passed it. The gate
+           is the span now, against this card's own |Δ| > 3 br/min disagreement threshold. */
+        T.eq('the note no longer gates on the MAE', appsrc.split('ag.r < 0.65 && ag.mae <= 2.0').length - 1, 0);
+        T.ok('the gate is the span being present, not the MAE being small', appsrc.indexOf('!(ag.r < 0.65 && loaSpan != null)') !== -1);
+        T.ok('the note computes the span of the limits', appsrc.indexOf('const loaSpan = ag.loa ? +(ag.loa[1] - ag.loa[0]).toFixed(1) : null;') !== -1);
+        T.ok("the span is held against the card's own 3 br/min threshold", appsrc.indexOf('loaSpan <= 6') !== -1);
+        T.eq('both branches state the span they measured', appsrc.split('limits of agreement span <b>${loaSpan}</b>').length - 1, 2);
+      }
 
       // ── FOLLOWUPS-II §2: a STAMPLESS primary ECG (t0Ms=null) drives the ACC companion on a
       //    relative-from-0 clock. accExtras/accAnalyze/stampEpochPositions each use ecgT0Ms ONLY in

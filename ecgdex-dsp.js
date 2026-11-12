@@ -1865,8 +1865,13 @@
       cls = 'Rising instability — persistent autonomic instability (glycemic-risk signal)';
       sev = 'bad';
     } else {
+      /* INSIDE THE NULL BAND IS NOT A WATCH STATE (residue 2026-11-11). This band is the
+         ±0.015 ln-units/h the two branches above declare as a trend; a slope inside it says
+         no trend was resolved, which the table rendered as `Watch` on a severity of 'warn'.
+         A measured −0.0133 therefore read as a finding about the night. 'neutral' is the
+         only honest grade for the band, and `classification` still names it. */
       cls = 'Flat — no clear nocturnal trend';
-      sev = 'warn';
+      sev = 'neutral';
     }
 
     return {

@@ -75,6 +75,12 @@ export const ALLOW = [
     match: "u.innerHTML = (real && s != null ? evb(useMeas ? 'refNight' : 'hat')",
     reason:
       "the per-corner σ caption. `real`, `s` and `useMeas` only choose a branch and are never written into the markup. evb() returns MetricRegistry.badge() markup for one of two static EV keys, 'refNight' or 'hat', and the caption text, the one value that carries numbers, goes through esc()."
+  },
+  {
+    file: 'sensor-trio-night.js',
+    match: "rc.innerHTML = evb(useMeas ? 'refNight' : 'hat') + ' ' + esc(",
+    reason:
+      "the night-list row caption. `useMeas` only chooses a branch and is never written into the markup. evb() returns MetricRegistry.badge() markup for one of two static EV keys, 'refNight' or 'hat', and the σ triple, the one value that carries numbers, goes through esc()."
   }
 ];
 
