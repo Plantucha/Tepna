@@ -31023,6 +31023,85 @@
       ['matchRatePctMedianReason', 'beatToBeatIQRmsMedianReason', 'driftShapeR2MedianReason', 'driftRangeMsMedianReason', 'rawDriftRangeMsMedianReason'].forEach(function (k) {
         T.ok('the download publishes `' + k + '` beside its number', psrc.indexOf(k) > -1, k + ' is absent from pat-feasibility.js');
       });
+
+      /* ── 🔴 THE PAGE DREW ONE QUANTITY UNDER THE OTHER'S WORD (row 2026-11-11-pat-drift-two-quantities)
+         `DRIFT_MAX_MS: 60` is published for `cp.stepP95` and has been since 2026-08-10
+         (PAT-DRIFT-STATISTIC), while every drift card on `pat-feasibility.js` drew `cp.driftRange` and
+         coloured it against that bar. The box night of 2026-11-04 is the measured instance: 135 ms of
+         range against a 54 ms step. The numbers below are that night's, and the CONTROL leg is the
+         point — it runs the discarded card body beside the new one on one input, so the pass is a
+         measured disagreement rather than a restatement of the gate's own code. */
+      T.ok('PATGate.driftStatOf is exported — the preference is single-sourced', typeof PG.driftStatOf === 'function', 'typeof=' + typeof PG.driftStatOf);
+      if (typeof PG.driftStatOf === 'function') {
+        var night = { ok: true, matchRate: 0.8, residIQR: 30, med: 200, stepP95: 54, driftRange: 135 },
+          ds = PG.driftStatOf(night);
+        T.eq('the gated statistic on that night IS the p95 step, not the range', ds.stat + '=' + ds.ms, 'stepP95=54', JSON.stringify(ds));
+        T.eq('…and the range travels beside it as the diagnostic', String(ds.rangeMs), '135', JSON.stringify(ds));
+        T.ok(
+          '🔴 CONTROL · the DISCARDED card body and the gate DISAGREE on this one night',
+          night.driftRange <= PG.PAT_GATE.DRIFT_MAX_MS === false && ds.ms <= PG.PAT_GATE.DRIFT_MAX_MS === true,
+          'old: ' + night.driftRange + ' <= ' + PG.PAT_GATE.DRIFT_MAX_MS + ' is false · gated: ' + ds.ms + ' <= ' + PG.PAT_GATE.DRIFT_MAX_MS + ' is true'
+        );
+        var vd1 = PG.verdict({ min: 300 }, night, { ok: true });
+        T.eq('…and the VERDICT beside that amber card reads FEASIBLE', vd1.tier + '/' + vd1.label, 'go/FEASIBLE', JSON.stringify(vd1.why));
+        T.eq('…decided on the step, with the range kept as a diagnostic', vd1.why.driftStat + '=' + vd1.why.driftMs + ' range=' + vd1.why.driftRange, 'stepP95=54 range=135');
+        T.ok(
+          '…so the shipped card now colours from the number the verdict used',
+          ds.ms <= PG.PAT_GATE.DRIFT_MAX_MS === (vd1.why.driftOK === true),
+          'card=' + (ds.ms <= PG.PAT_GATE.DRIFT_MAX_MS) + ' gate=' + vd1.why.driftOK
+        );
+
+        // BACK-COMPAT · a pre-2026-08-10 night carries no step, and must behave exactly as before.
+        var old = PG.driftStatOf({ ok: true, driftRange: 42 });
+        T.eq('a night with no `stepP95` falls back to the range, and NAMES it', old.stat + '=' + old.ms, 'driftRange=42', JSON.stringify(old));
+        var vd2 = PG.verdict({ min: 300 }, { ok: true, matchRate: 0.8, residIQR: 30, med: 200, driftRange: 42 }, { ok: true });
+        T.eq('…and `verdict` still reports the old name for it', vd2.why.driftStat, 'driftRange', JSON.stringify(vd2.why));
+
+        /* §∅ · NEITHER STATISTIC MEASURABLE. `Infinity` is deliberate and is not an in-range sentinel:
+           the gate needs the bound to fail closed, and a surface reads `stat === null`. */
+        var noneDs = PG.driftStatOf({ ok: true });
+        T.ok('no measurable drift statistic · `stat` is null and `rangeMs` is null, never a 0', noneDs.stat === null && noneDs.rangeMs === null, JSON.stringify(noneDs));
+        T.ok('…`ms` is not finite, so a card refuses instead of colouring', !isFinite(noneDs.ms) && noneDs.ms === Infinity, String(noneDs.ms));
+        var vd3 = PG.verdict({ min: 300 }, { ok: true, matchRate: 0.8, residIQR: 30, med: 200 }, { ok: true });
+        T.ok('…and the gate fails closed over it, under the unchanged old name', vd3.why.driftOK === false && vd3.why.driftStat === 'driftRange', JSON.stringify(vd3.why));
+      }
+
+      /* ── AND THE RENDERER READS IT, SOURCE-SCANNED (this lane builds no DOM) ─────────────────────── */
+      T.ok('CONTROL · the discarded comparison is GONE from every card', !/driftRange <= G\.DRIFT_MAX_MS/.test(psrc), 'a card still colours the range against a bar published for the step');
+      T.ok('…and the renderer keeps no private copy of the preference', !/isFinite\(cp\.stepP95\) \?/.test(psrc), 'the ternary belongs in pat-gate.js `driftStatOf`');
+      var dgCalls = (psrc.match(/driftGated\(/g) || []).length;
+      T.ok('every drift surface routes through `driftGated` — 2 night cards, 2 aggregates, 4 download legs', dgCalls >= 10, dgCalls + ' call site(s); 1 wrapper + 9 readers expected');
+      T.ok(
+        '§∅ · an unmeasurable drift statistic draws the em-dash and the muted colour, never green',
+        /isFinite\(dg\.ms\) \? \(dg\.ms <= G\.DRIFT_MAX_MS \? C\.green : C\.amber\) : C\.mut/.test(psrc),
+        'an unguarded ternary colours an absent value'
+      );
+      T.ok('the per-night card NAMES the statistic it drew', /dg\.name \+ ' — the number the ' \+ G\.DRIFT_MAX_MS/.test(psrc), 'a number under the bare word `drift` is the row');
+      T.ok(
+        'the corpus download publishes the gated statistic beside the range',
+        psrc.indexOf('driftStatMsMedian') > -1 && psrc.indexOf('rawDriftStatMsMedian') > -1,
+        'a reader holding only a range cannot reproduce a verdict'
+      );
+      T.ok('…and each night names which statistic gated it', /driftStat: driftGated\(m\.cp\)\.stat/.test(psrc) && /driftStat: driftGated\(m\.cpCorr\)\.stat/.test(psrc), 'both legs owe the name');
+
+      /* ── 🔴 THE SECOND HALF OF THE ROW: the aggregate outranked its own cross-check ────────────────
+         The ACC motion check compares chest and ankle movement on the two arrival-floor axes. One box
+         night read −701 ms against a 25 ms tolerance, which REJECTS those axes — and the corpus
+         sentence presented the corrected lag in the same voice as a confirmed one. The per-night card
+         and the table cell already said FAILS; `accFails` is the one predicate, so the sentence and the
+         download now count the nights it covers rather than re-deriving the test. */
+      T.ok('the corpus sentence reports the nights their own motion check rejects', /motion check outside tolerance/.test(psrc), 'the aggregate presents a corrected lag its own check refuted');
+      T.ok(
+        '…counted through the ONE predicate, never a second copy of the tolerance',
+        /accFails\(m\.floorSync\)/.test(psrc) && (psrc.match(/ck\.tolMs \|\| 25/g) || []).length <= 3,
+        'the tolerance belongs to `accFails` and the motion-check card (value, sub-line, colour) — a fourth site is a second copy'
+      );
+      T.ok('…and the download ships that count', psrc.indexOf('nightsMotionCheckOutOfTolerance') > -1, 'a file reader treats every corrected night as confirmed');
+      T.ok(
+        'the conclusion names the statistic it quotes, not a bare `drift`',
+        /left the statistic the gate weighs at/.test(psrc) && /the 5-min drift range at/.test(psrc),
+        'both quantities are published, so both need their name'
+      );
     });
 
     /* ════ PAT classic vs fused — the weighted statistic, and the band on a clean night ═══════════
