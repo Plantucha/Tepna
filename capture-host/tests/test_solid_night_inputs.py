@@ -4014,7 +4014,7 @@ def test_the_GAP_INTERVAL_IS_HALF_OPEN_closed_at_the_start_open_at_the_end(tmp_p
         (worn_end, "at the worn end"),
         (worn_end + dt.timedelta(milliseconds=1), "after the worn end"),
     ):
-        d = tmp_path / f"out-{abs(hash(where)) % 9999}"
+        d = tmp_path / f"out-{at:%H%M%S%f}"
         d.mkdir()
         out = _cont(d, gaps=[(at.isoformat(), 11.0, si.DECLARED_PAUSE)])
         assert out == {"status": "PASS", "reason": None}, f"{where}: {out}"
