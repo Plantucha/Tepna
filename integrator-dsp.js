@@ -117,6 +117,36 @@ function clamp(x, lo, hi) {
   return Math.max(lo, Math.min(hi, x));
 }
 /* Merge a list of [startMs,endMs] intervals → total covered ms (union, no double-count). */
+/* The merged form of `_mergeMs` — the same sweep, returning the intervals instead of their total,
+   for a caller that needs the SHAPE of a union (how many separate stretches) and not just its length. */
+function _mergeIvs(ivs) {
+  if (!ivs || !ivs.length) return [];
+  var a = ivs.slice().sort(function (x, y) {
+    return x[0] - y[0];
+  });
+  var out = [[a[0][0], a[0][1]]];
+  for (var i = 1; i < a.length; i++) {
+    var last = out[out.length - 1];
+    if (a[i][0] <= last[1]) last[1] = Math.max(last[1], a[i][1]);
+    else out.push([a[i][0], a[i][1]]);
+  }
+  return out;
+}
+/* The minutes two MERGED, sorted interval lists both cover. A zero-length stretch is not coverage,
+   so a point segment (`durSec` absent — the measurement happened, its length unknown) drops out. */
+function _intersectIvs(a, b) {
+  var out = [],
+    i = 0,
+    j = 0;
+  while (i < a.length && j < b.length) {
+    var s = Math.max(a[i][0], b[j][0]),
+      e = Math.min(a[i][1], b[j][1]);
+    if (e > s) out.push([s, e]);
+    if (a[i][1] < b[j][1]) i++;
+    else j++;
+  }
+  return out;
+}
 function _mergeMs(ivs) {
   if (!ivs || !ivs.length) return 0;
   var a = ivs.slice().sort(function (x, y) {
@@ -7695,43 +7725,85 @@ function runFusion(recs, opts) {
   for (var i = 0; i < dated.length; i++)
     for (var j = i + 1; j < dated.length; j++) {
       var ov = overlapInterval(dated[i], dated[j]);
-      pairs.push({ a: dated[i].label, an: dated[i].node, b: dated[j].label, bn: dated[j].node, aWin: recWindow(dated[i]), bWin: recWindow(dated[j]), overlap: ov });
+      pairs.push({
+        a: dated[i].label,
+        an: dated[i].node,
+        b: dated[j].label,
+        bn: dated[j].node,
+        aWin: recWindow(dated[i]),
+        bWin: recWindow(dated[j]),
+        overlap: ov,
+        sameNode: dated[i].node === dated[j].node
+      });
     }
-  var anyOverlap = pairs.some(function (p) {
+  /* NODE-LEVEL OVERLAP. Every name in `window` says NODE, so every figure counts NODES. One node
+     drops TWO records on one night whenever a capture stops and restarts, or when the noon fold puts
+     a next-morning fragment on the night before. The record-wise form read a pair of ONE node's own
+     files as corroboration: measured 2026-11-12, two files of a single node published `anyOverlap`
+     true with 10 min of shared timeline and no second witness on the bus. Cross-node pairs only.
+     `pairs` keeps every pair, because one node's two files beside each other are evidence a reader
+     wants; `sameNode` says which, and `samePairsExcluded` counts what the figures left out. */
+  var crossPairs = pairs.filter(function (p) {
+    return !p.sameNode;
+  });
+  var samePairsExcluded = pairs.length - crossPairs.length;
+  var anyOverlap = crossPairs.some(function (p) {
     return p.overlap;
   });
 
   // ── R3: TRUE overlap geometry, not a sum of pairwise overlaps. ────────────
-  //   overlapUnionMin  = minutes covered by ANY pair (merged union — no double count)
-  //   intersectionMin  = minutes where ALL dated nodes coincide (N-way; 0 if any disjoint)
-  //   pairwiseSumMin    = the OLD (mislabeled) number, kept only for transparency
-  //   nodesExcluded     = dated nodes that overlap nothing (e.g. GlucoDex 66 days off)
+  //   overlapUnionMin      = minutes covered by ANY CROSS-NODE pair (merged union — no double count)
+  //   intersectionMin      = minutes where every dated NODE has coverage (0 below 2 dated nodes)
+  //   intersectionSegments = how many separate stretches those minutes are (1 = one continuous stretch)
+  //   pairwiseSumMin       = the OLD (mislabeled) number, kept only for transparency
+  //   nodesExcluded        = dated nodes that overlap no OTHER node (e.g. GlucoDex 66 days off)
   var ivs = [];
-  pairs.forEach(function (p) {
+  crossPairs.forEach(function (p) {
     if (p.overlap) ivs.push([p.overlap.startMs, p.overlap.endMs]);
   });
   var overlapUnionMs = _mergeMs(ivs);
-  var pairwiseSumMin = pairs.reduce(function (s, p) {
+  var pairwiseSumMin = crossPairs.reduce(function (s, p) {
     return s + (p.overlap ? p.overlap.overlapMin : 0);
   }, 0);
-  // N-way intersection of every dated rec
-  var interStart = /** @type {any} */ (null),
-    interEnd = /** @type {any} */ (null),
-    haveAll = dated.length >= 2;
+  /* Per-NODE coverage first, then the intersection ACROSS nodes. Intersecting the RECORDS published
+     an all-node overlap of 0 for a whole night as soon as one node dropped a second, disjoint record,
+     because the fragment's start sits past the other records' ends: measured 2026-11-12, three nodes
+     that shared 270 min read 0 min all-node once a 31 min next-morning fragment joined two of them.
+     A node's own records are a UNION; only the NODES intersect. Segment-aware through `recSegments`,
+     so a node that declares holes contributes its recorded time (§6.2) and never its envelope.
+     The minutes can be several stretches, so `intersectionSegments` travels beside them — a reader
+     cannot take 301 min for one continuous stretch when it is 270 plus 31 either side of a gap.
+     BOUND, carried over unchanged from the record-wise form: the intersection is taken in wall-clock
+     with no `offsetMin` alignment, so a night whose nodes carry DIFFERENT real zones is outside it. */
+  var byNodeIvs = {},
+    nodeKeys = [],
+    interIncomplete = false;
   dated.forEach(function (r) {
     var w = recWindow(r);
     if (!w) {
-      haveAll = false;
+      interIncomplete = true;
       return;
     }
-    interStart = interStart == null ? w.startMs : Math.max(interStart, w.startMs);
-    interEnd = interEnd == null ? w.endMs : Math.min(interEnd, w.endMs);
+    var segs = recSegments(r) || [[w.startMs, w.endMs]];
+    if (!byNodeIvs[r.node]) {
+      byNodeIvs[r.node] = [];
+      nodeKeys.push(r.node);
+    }
+    for (var si = 0; si < segs.length; si++) byNodeIvs[r.node].push([segs[si][0], segs[si][1]]);
   });
-  var intersectionMin = haveAll && interStart != null && interEnd > interStart ? (interEnd - interStart) / 60000 : 0;
-  // a dated node is "excluded" if it overlaps no other node at all
+  var interIvs = null;
+  if (!interIncomplete && nodeKeys.length >= 2) {
+    interIvs = _mergeIvs(byNodeIvs[nodeKeys[0]]);
+    for (var nk = 1; nk < nodeKeys.length && interIvs.length; nk++) interIvs = _intersectIvs(interIvs, _mergeIvs(byNodeIvs[nodeKeys[nk]]));
+  }
+  var intersectionMs = 0;
+  if (interIvs) for (var ii = 0; ii < interIvs.length; ii++) intersectionMs += interIvs[ii][1] - interIvs[ii][0];
+  var intersectionMin = intersectionMs / 60000;
+  var intersectionSegments = interIvs ? interIvs.length : 0;
+  // a dated node is "excluded" if it overlaps no OTHER node at all
   var nodesExcluded = dated
     .filter(function (r) {
-      return !pairs.some(function (p) {
+      return !crossPairs.some(function (p) {
         return p.overlap && (p.a === r.label || p.b === r.label);
       });
     })
@@ -7876,7 +7948,9 @@ function runFusion(recs, opts) {
       overlapMin: +(overlapUnionMs / 60000).toFixed(1),
       overlapUnionMin: +(overlapUnionMs / 60000).toFixed(1),
       intersectionMin: +intersectionMin.toFixed(1),
+      intersectionSegments: intersectionSegments,
       pairwiseSumMin: +pairwiseSumMin.toFixed(1),
+      samePairsExcluded: samePairsExcluded,
       nodesExcluded: nodesExcluded
     },
     matchWindow: { leadMaxSec: gate.leadMaxSec, trailMaxSec: gate.trailMaxSec, directionalWindowSec: gate.leadMaxSec + gate.trailMaxSec, unionPrefilterSec: dtMs / 1000 },
@@ -7953,7 +8027,7 @@ function buildFusionExport(recs, fusion) {
         apneaCoupling:
           'apneaCoupling is the EventCoupling shuffled-null verdict for desat⟷surge: circular time-shift surrogates vs a coverage-aware baseline (coverage = the recording overlap, so a desat outside the cardiac window is excluded, not a miss). Read real/lift ONLY when usable (neither underpowered=expectedHits<3 nor saturated=maxLift<1.5). Additive to the Poisson nullModel; does not change reportability (§P7). ⚠️ SCALE STATEMENT (docs/COUPLING-BOUT-FPR-2026-09-20.md, 400 SHHS1 records): the circular-shift null cannot see SHARED MODULATION — two independent streams whose rates are both driven by one process FINER than the ±5–17 min shifts read as coupled, at 30 % of nights at the 5-min bout scale (87.6 % at 90 s, 13 % at 10 min, 4.4 % with none), and real OSA streams are bouted (median Fano 3.73). For desat⟷surge this is mostly moot — both are driven by the same apneas — but a significant lift on a pair whose only link is a shared bout process is the inherited kind about a third of the time. No per-record flag ships: the diagnostic was measured and rejected (AUC ≤ 0.76 vs a pre-registered 0.8).',
         window:
-          'window.overlapMin / overlapUnionMin = merged-union minutes where ≥2 nodes coincide (NOT a sum of pairwise overlaps); intersectionMin = N-way all-node overlap; pairwiseSumMin retained for transparency; nodesExcluded = dated nodes overlapping nothing (R3).',
+          'window.overlapMin / overlapUnionMin = merged-union minutes where ≥2 nodes coincide (NOT a sum of pairwise overlaps); intersectionMin = minutes every dated NODE covers, over intersectionSegments separate stretches; pairwiseSumMin retained for transparency; nodesExcluded = dated nodes overlapping no OTHER node; every figure counts NODES, so samePairsExcluded pairs of one node\u2019s own files are left out (R3).',
         hrvConsensus: 'HRV consensus compares whole-record SDNN/RMSSD/LF-HF across nodes (window-normalized; epoch-scoped variants kept separately); same-window only (R8).',
         periodicBreathing:
           'periodic_breathing = a PB / Cheyne–Stokes window corroborated across ≥2 independent signals (OxyDex SpO₂ oscillation · CPAPDex device flow · ECGDex cardiac CVHR), grouped by night-overlap; conf is the tier-weighted noisy-OR (device 1.0 · CVHR 0.8 · oximetry proxy 0.6). Graded experimental — a corroboration signal, not a scored CSR index (§2). `dissenters` names every node that SCORED this phenomenon over the same night and found none of it (`periodicBreathingPct` 0, no episodes); a dissenter is never an observer, so it moves no confidence and no count, and `coversFirstEpisode` says whether its coverage even included the earliest episode — false means its zero cannot refute the finding.'
@@ -7971,7 +8045,13 @@ function buildFusionExport(recs, fusion) {
       overlapMin: fusion.window.overlapMin,
       overlapUnionMin: fusion.window.overlapUnionMin,
       intersectionMin: fusion.window.intersectionMin,
+      /* The projection is HAND-PICKED, so a figure the fusion computes reaches no consumer until it is
+         named here. Both of these qualify the number beside them: a reader who sees 301 all-node
+         minutes and cannot see `intersectionSegments: 2` takes a figure either side of a gap for one
+         continuous stretch, and that is the misreading this block exists to stop. */
+      intersectionSegments: fusion.window.intersectionSegments,
       pairwiseSumMin: fusion.window.pairwiseSumMin,
+      samePairsExcluded: fusion.window.samePairsExcluded,
       nodesExcluded: fusion.window.nodesExcluded
     },
     matchWindow: fusion.matchWindow,
