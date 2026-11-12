@@ -38,6 +38,16 @@
  * read as a number, which widens the CHECKED set and can only cost the gate a finding it must then
  * justify — it cannot hide one.
  *
+ * A DESTINATION IS A PATH IN THE TREE, AND THE WORK LIST MUST NOT SEND A READER TO THE WRONG ONE.
+ * Measured at `f45cc1e80`: `declaredPaper` prefixed `papers/` onto every bare name a record wrote, so
+ * the three `tch-firmware-reference-*` records — which publish into `sensor-trio-night.html`, a page
+ * the repository root carries — read as a paper that does not exist. The work list reported three
+ * `which no paper file carries` warnings about a file that is there, and the singular/plural rule
+ * offered all three as leads on `papers/sensor-trio-nights.html`. `papers/cpap-flow-reference.html`
+ * carried the same three as token leads, on the shared word `reference`. So the tree decides a
+ * destination, a declaration decides a token lead, and a record stating `supersededFigure` says so
+ * beside its own lead. The work list now names one bindable paper where it named two.
+ *
  * A MALFORMED STAMP IS NOT A MARKER. `parseStamps` reports a stamp with no `producer=`, no `output=`
  * or no table above it as malformed, and this gate counts it as absent, because a marker that the
  * resolver refuses binds nothing. The paper's finding line names it, so the two cases never read alike.
@@ -143,19 +153,90 @@ export function artifactCandidates(file, artifacts) {
 }
 
 /**
- * The paper an artifact DECLARES it was published in, read from its own `publishedIn` field.
- * This is the authoritative channel: the record states its destination, where a shared slug token
- * only states that two names agree. `publishedIn` is prose with a path at its head, so this reads
- * the first `.html` it names and nothing else; a record published in a brief names no `.html` and
- * drops out here rather than reading as a paper.
+ * The `.html` an artifact DECLARES it was published in, exactly as the record writes it. A record
+ * states its destination as prose with a path at its head, so this reads the first `.html` it names
+ * and rewrites nothing.
  *
  * @param {string} publishedIn the record's own field
- * @returns {string|null} the declared paper file, `papers/`-prefixed, or null
+ * @returns {string|null} the declared path as written, or null
  */
-export function declaredPaper(publishedIn) {
+export function declaredHtml(publishedIn) {
   const m = /([A-Za-z0-9._/-]+\.html)/.exec(String(publishedIn || ''));
-  if (!m) return null;
-  return `papers/${m[1].replace(/^papers\//, '')}`;
+  return m ? m[1] : null;
+}
+
+/** Does the repository carry this repo-relative path. The default reader for every function below. */
+export function treeHasDefault(p) {
+  return existsSync(join(ROOT, String(p || '')));
+}
+
+/**
+ * The token leads a DECLARATION has already decided. A shared slug token only says two names agree,
+ * so a record that states its own destination answers the question the token was guessing at.
+ *
+ * Measured at `f45cc1e80`: `papers/cpap-flow-reference.html` carried three token leads, and all three
+ * records declare `sensor-trio-night.html`. The overlap is the word `reference`. A lead kept beside a
+ * declaration that contradicts it is the wrong binding one step closer.
+ *
+ * @param {string} file the paper the leads were offered for
+ * @param {string[]} candidates the candidate artifact names, as `artifactCandidates` returns them
+ * @param {{name: string, publishedIn: string}[]} records the artifact records
+ * @returns {string[]} the candidates no declaration contradicts
+ */
+export function usableCandidates(file, candidates, records) {
+  const byName = new Map();
+  for (const r of records || []) byName.set(String((r && r.name) || '').replace(/^.*\//, ''), r);
+  return (candidates || []).filter((cand) => {
+    const r = byName.get(String(cand).replace(/^.*\//, ''));
+    const states = String((r && r.publishedIn) || '').trim();
+    if (!states) return true;
+    const html = declaredHtml(states);
+    return html ? html.replace(/^papers\//, '') === String(file).replace(/^papers\//, '') : false;
+  });
+}
+
+/**
+ * The PAPER an artifact declares, or null when it declares something that is not a paper.
+ *
+ * A BARE NAME IS NOT A PAPER BY DEFAULT, AND THE TREE DECIDES IT. This read prefixed `papers/` onto
+ * every bare name. Measured at `f45cc1e80`: the three `tch-firmware-reference-*` records publish into
+ * `sensor-trio-night.html`, a page the repository root carries, so the work list printed three
+ * `which no paper file carries` warnings about a file that exists, and the singular/plural rule
+ * attached all three records to `papers/sensor-trio-nights.html`. A reader following that lead binds
+ * one paper's number to a record published in another page, which is the wrong provenance this gate
+ * exists to refuse.
+ *
+ * @param {string} publishedIn the record's own field
+ * @param {(p: string) => boolean} [treeHas] does the tree carry this repo-relative path
+ * @returns {string|null} the declared paper path, or null when the destination is not a paper
+ */
+export function declaredPaper(publishedIn, treeHas = treeHasDefault) {
+  const raw = declaredHtml(publishedIn);
+  if (!raw) return null;
+  if (raw.startsWith('papers/')) return raw;
+  const under = `papers/${raw}`;
+  if (treeHas(under)) return under;
+  if (treeHas(raw)) return null;
+  return under;
+}
+
+/**
+ * The records whose destination is a page the tree carries OUTSIDE `papers/`. Such a record binds no
+ * paper number, so it is neither a lead nor a dangling pointer — it is a record about another surface.
+ *
+ * @param {{name: string, publishedIn: string}[]} records the artifact records
+ * @param {(p: string) => boolean} [treeHas] does the tree carry this repo-relative path
+ * @returns {{name: string, declared: string}[]}
+ */
+export function pageDestinations(records, treeHas = treeHasDefault) {
+  const out = [];
+  for (const r of records || []) {
+    const raw = declaredHtml(r && r.publishedIn);
+    if (!raw || raw.startsWith('papers/')) continue;
+    if (treeHas(`papers/${raw}`)) continue;
+    if (treeHas(raw)) out.push({ name: r.name, declared: raw });
+  }
+  return out.sort((a, b) => a.name.localeCompare(b.name));
 }
 
 /**
@@ -168,7 +249,7 @@ export function declaredPaper(publishedIn) {
  * @param {Set<string>|string[]} [paperFiles] every paper that exists, to tell a near miss from a hit
  * @returns {{name: string, publishedIn: string, declared: string, exact: boolean}[]}
  */
-export function declaredLeads(file, records, paperFiles = []) {
+export function declaredLeads(file, records, paperFiles = [], treeHas = treeHasDefault) {
   const live = paperFiles instanceof Set ? paperFiles : new Set(paperFiles || []);
   const stem = (f) =>
     String(f)
@@ -178,28 +259,31 @@ export function declaredLeads(file, records, paperFiles = []) {
   const want = stem(file);
   const out = [];
   for (const r of records || []) {
-    const d = declaredPaper(r && r.publishedIn);
+    const d = declaredPaper(r && r.publishedIn, treeHas);
     if (!d) continue;
-    if (d === file) out.push({ name: r.name, publishedIn: r.publishedIn, declared: d, exact: true });
-    else if (!live.has(d) && stem(d) === want) out.push({ name: r.name, publishedIn: r.publishedIn, declared: d, exact: false });
+    const superseded = !!(r && r.superseded);
+    if (d === file) out.push({ name: r.name, publishedIn: r.publishedIn, declared: d, exact: true, superseded });
+    else if (!live.has(d) && stem(d) === want) out.push({ name: r.name, publishedIn: r.publishedIn, declared: d, exact: false, superseded });
   }
   return out.sort((a, b) => a.name.localeCompare(b.name));
 }
 
 /**
- * Records whose `publishedIn` names an `.html` that no paper file carries. A committed record that
- * points at a file which does not exist has stopped naming its destination, so a reader following it
- * binds nothing.
+ * Records whose `publishedIn` names an `.html` that NEITHER a paper nor the rest of the tree carries.
+ * A committed record pointing at a file that does not exist has stopped naming its destination, so a
+ * reader following it binds nothing. A record naming a page outside `papers/` is not dangling —
+ * `pageDestinations` reports that case, because the file is there and the binding is not a paper's.
  *
  * @param {{name: string, publishedIn: string}[]} records the artifact records
  * @param {Set<string>|string[]} paperFiles every paper that exists
+ * @param {(p: string) => boolean} [treeHas] does the tree carry this repo-relative path
  * @returns {{name: string, declared: string}[]}
  */
-export function danglingPublished(records, paperFiles) {
+export function danglingPublished(records, paperFiles, treeHas = treeHasDefault) {
   const live = paperFiles instanceof Set ? paperFiles : new Set(paperFiles || []);
   const out = [];
   for (const r of records || []) {
-    const d = declaredPaper(r && r.publishedIn);
+    const d = declaredPaper(r && r.publishedIn, treeHas);
     if (d && !live.has(d)) out.push({ name: r.name, declared: d });
   }
   return out.sort((a, b) => a.name.localeCompare(b.name));
@@ -211,8 +295,10 @@ export function danglingPublished(records, paperFiles) {
  * @param {{file: string, text: string}[]} papers
  * @param {Record<string, string>} baseline the grandfathered unmarked set
  * @param {string[]} [artifacts] the file names under `analysis/published-numbers`
+ * @param {{name: string, publishedIn: string}[]} [records] the artifact records
+ * @param {(p: string) => boolean} [treeHas] does the tree carry this repo-relative path
  */
-export function census(papers, baseline, artifacts = [], records = []) {
+export function census(papers, baseline, artifacts = [], records = [], treeHas = treeHasDefault) {
   const base = baseline && typeof baseline === 'object' ? baseline : {};
   const list = papers || [];
   const c = {
@@ -231,11 +317,13 @@ export function census(papers, baseline, artifacts = [], records = []) {
     unresolvedBaseline: [],
     workList: {},
     declaredList: {},
-    danglingPublished: []
+    danglingPublished: [],
+    pageDestinations: []
   };
   for (const r of EXCLUSION_REASONS) c.byReason[r] = 0;
   const livePapers = new Set(list.map((p) => p.file));
-  c.danglingPublished = danglingPublished(records, livePapers);
+  c.danglingPublished = danglingPublished(records, livePapers, treeHas);
+  c.pageDestinations = pageDestinations(records, treeHas);
   const seen = new Set();
   for (const p of list) {
     seen.add(p.file);
@@ -254,8 +342,8 @@ export function census(papers, baseline, artifacts = [], records = []) {
       continue;
     }
     c.unmarked.push(s.file);
-    c.workList[s.file] = artifactCandidates(s.file, artifacts);
-    c.declaredList[s.file] = declaredLeads(s.file, records, livePapers);
+    c.workList[s.file] = usableCandidates(s.file, artifactCandidates(s.file, artifacts), records);
+    c.declaredList[s.file] = declaredLeads(s.file, records, livePapers, treeHas);
     if (!(s.file in base)) c.unbaselined.push(s.file);
   }
   const live = new Set(c.unmarked);
@@ -366,7 +454,13 @@ export function readArtifactRecords(root = ROOT) {
     } catch {
       continue;
     }
-    out.push({ name: f, publishedIn: typeof j.publishedIn === 'string' ? j.publishedIn : '' });
+    /* `supersededFigure` is the record's OWN statement that its claims replace what the page still
+       says, so a reader must not bind the paper's prose to them. Presence is the whole signal. */
+    out.push({
+      name: f,
+      publishedIn: typeof j.publishedIn === 'string' ? j.publishedIn : '',
+      superseded: !!(j && j.supersededFigure)
+    });
   }
   return out;
 }
@@ -460,6 +554,37 @@ export function selftest() {
   ok(danglingPublished(REC, new Set()).length === 2, 'every paper destination dangles when no paper is live');
   ok(census(papers, {}, [], REC).unbaselined.length === census(papers, {}, []).unbaselined.length, 'the record list cannot change the finding set either');
 
+  // THE DESTINATION IS A PATH IN THE TREE, AND A BARE NAME IS NOT A PAPER BY DEFAULT. The live records
+  // write `sensor-trio-night.html`, which the repository ROOT carries, so every leg below supplies its
+  // own reader rather than the tree's.
+  const has = (paths) => (q) => new Set(paths).has(q);
+  const BARE = [
+    { name: 'tch-firmware-reference-2026-11-06.json', publishedIn: 'sensor-trio-night.html (the validation note)' },
+    { name: 'sigma-corpus-2026-10-21.json', publishedIn: 'papers/sigma-no-reference.html §4', superseded: true }
+  ];
+  ok(declaredHtml('sensor-trio-night.html (the note)') === 'sensor-trio-night.html', 'the declared path reads back as the record wrote it');
+  ok(declaredPaper('sensor-trio-night.html', has(['sensor-trio-night.html'])) === null, 'a bare name the root carries declares no paper');
+  ok(declaredPaper('sensor-trio-night.html', has(['papers/sensor-trio-night.html'])) === 'papers/sensor-trio-night.html', 'a bare name papers/ carries declares that paper');
+  ok(declaredPaper('sensor-trio-night.html', has([])) === 'papers/sensor-trio-night.html', 'a bare name nothing carries still reads under papers/, so it stays reportable');
+  ok(declaredLeads('papers/sensor-trio-nights.html', BARE, LIVE, has(['sensor-trio-night.html'])).length === 0, 'a record published in a root page leads no same-stem paper');
+  ok(declaredLeads('papers/sensor-trio-nights.html', BARE, LIVE, has([])).length === 1, 'the singular/plural lead survives when nothing carries the destination');
+  ok(danglingPublished(BARE, LIVE, has(['sensor-trio-night.html'])).length === 0, 'a destination the tree carries does not dangle');
+  ok(danglingPublished(BARE, LIVE, has([])).length === 1, 'a destination nothing carries does');
+  const pd = pageDestinations(BARE, has(['sensor-trio-night.html']));
+  ok(pd.length === 1 && pd[0].declared === 'sensor-trio-night.html', 'the page destination names the file the record wrote');
+  ok(pageDestinations(BARE, has([])).length === 0, 'an absent destination is no page destination');
+  ok(pageDestinations(BARE, has(['papers/sensor-trio-night.html'])).length === 0, 'a destination under papers/ is no page destination either');
+  ok(usableCandidates('papers/cpap-flow-reference.html', ['tch-firmware-reference-2026-11-06.json'], BARE).length === 0, 'a token lead whose record declares another page drops out');
+  ok(usableCandidates('papers/sigma-no-reference.html', ['sigma-corpus-2026-10-21.json'], BARE).length === 1, 'a token lead whose record declares this paper stays');
+  ok(usableCandidates('papers/b.html', ['x.json'], BARE).length === 1, 'a candidate with no record at all keeps its token lead');
+  ok(usableCandidates('papers/b.html', ['y.json'], [{ name: 'y.json', publishedIn: '' }]).length === 1, 'and so does one whose record declares nothing');
+  ok(usableCandidates('papers/b.html', ['z.json'], [{ name: 'z.json', publishedIn: 'briefs/X-BRIEF.md §4' }]).length === 0, 'a record published in a brief decides its token lead too');
+  const sup = declaredLeads('papers/sigma-no-reference.html', BARE, LIVE, has(['papers/sigma-no-reference.html']));
+  ok(sup.length === 1 && sup[0].superseded === true, 'a record stating a superseded figure carries that flag into its lead');
+  ok(census(papers, {}, [], BARE, has(['sensor-trio-night.html'])).pageDestinations.length === 1, 'the census reports the page destination');
+  const cd = census(papers, {}, [], BARE, has(['sensor-trio-night.html'])).danglingPublished;
+  ok(cd.length === 1 && cd[0].declared === 'papers/sigma-no-reference.html', 'and the only dangling pointer left is the record naming a paper this corpus lacks');
+
   // THE REFUSALS.
   ok(censusStatus(census([], {})) === 'NOT_RUN', 'an empty corpus examines nothing and refuses');
   ok(censusStatus(census([paper(INDEX_PAGE, '<p>2 papers.</p>')], {})) === 'NOT_APPLICABLE', 'a corpus of nothing but excluded papers is not applicable');
@@ -502,17 +627,25 @@ function main() {
       const cand = c.workList[f] || [];
       const decl = c.declaredList[f] || [];
       if (decl.length) {
-        for (const d of decl) process.stdout.write(`${f} — DECLARED by ${ARTIFACT_DIR}/${d.name}${d.exact ? '' : ` (near miss: it names ${d.declared}, which no paper carries)`}\n`);
+        for (const d of decl) {
+          const miss = d.exact ? '' : ` (near miss: it names ${d.declared}, which no paper carries)`;
+          const sup = d.superseded ? ' · the record carries `supersededFigure`, so its claims replace what the paper states — bind that field or re-cut the paper, never `claims`' : '';
+          process.stdout.write(`${f} — DECLARED by ${ARTIFACT_DIR}/${d.name}${miss}${sup}\n`);
+        }
       } else if (cand.length) {
-        process.stdout.write(`${f} — token lead only (the names share a word, not a number): ${ARTIFACT_DIR}/{${cand.join(', ')}}\n`);
+        process.stdout.write(`${f} — token lead only (the names share a word, and no record declares a destination): ${ARTIFACT_DIR}/{${cand.join(', ')}}\n`);
       } else {
-        process.stdout.write(`${f} — no artifact declares it, and none shares a slug token\n`);
+        /* TWO ABSENCES, AND THEY ARE NOT THE SAME READ. No token at all leaves the reader nothing to
+           check; a token every declaration contradicts leaves a record the reader may want to see. */
+        const raw = artifactCandidates(f, artifacts).length;
+        process.stdout.write(raw ? `${f} — no artifact declares it, and ${raw} token lead(s) are decided against it\n` : `${f} — no artifact declares it, and none shares a slug token\n`);
       }
     }
     const declared = c.unmarked.filter((f) => (c.declaredList[f] || []).length).length;
     const tokenOnly = c.unmarked.filter((f) => !(c.declaredList[f] || []).length && (c.workList[f] || []).length).length;
     process.stdout.write(`· ${c.unmarked.length} unmarked paper(s): ${declared} declared by an artifact, ${tokenOnly} with a token lead only\n`);
-    for (const d of c.danglingPublished) process.stdout.write(`⚠ ${ARTIFACT_DIR}/${d.name} publishes into ${d.declared}, which no paper file carries\n`);
+    for (const d of c.danglingPublished) process.stdout.write(`⚠ ${ARTIFACT_DIR}/${d.name} publishes into ${d.declared}, which nothing in the tree carries\n`);
+    for (const d of c.pageDestinations) process.stdout.write(`· ${ARTIFACT_DIR}/${d.name} publishes into ${d.declared}, a page outside papers/ — it binds no paper number\n`);
     process.exit(0);
   }
 
