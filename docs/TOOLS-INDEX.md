@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**342 tools** · 341 with a purpose line · **1 without**
+**343 tools** · 342 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -250,6 +250,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`qwen-mypy-fix.mjs`](../tools/qwen-mypy-fix.mjs) | the mypy burn-down FIX lane (PYTHON-TYPES-AND-FORMAT §P2, qwen half). |
 | [`r5-hr-reference.mjs`](../tools/r5-hr-reference.mjs) | R5 (TCH-REFERENCE-VALIDATION §7) on the HR triplet — and the answer is that IT CANNOT BE RUN. |
 | [`read-lines-bounded.mjs`](../tools/read-lines-bounded.mjs) | ONE BOUNDED LINE READER, FOR EVERY TOOL THAT HANDS A RAW STREAM TO A DSP |
+| [`read-ref-drift.mjs`](../tools/read-ref-drift.mjs) | hold the paths a census read against the ref, and name the censused checkout's distance from the ref beside the answer. |
 | [`reanchor-equivalence.mjs`](../tools/reanchor-equivalence.mjs) | THE CLASSIFICATION DECAYS BECAUSE ITS KEY CONTAINS A LINE NUMBER. |
 | [`rebase-safe.mjs`](../tools/rebase-safe.mjs) | REBASE ONTO origin/main WITHOUT SILENTLY REVERTING SOURCE. WHY THIS EXISTS. |
 | [`regen-cpap-goldens.mjs`](../tools/regen-cpap-goldens.mjs) | Regenerate CPAPDex's committed node-export fixtures by RE-RUNNING THE REAL MODULES on their committed inputs and re-exporting — never by hand-editing a value (CLAUDE.md §🔏). |
