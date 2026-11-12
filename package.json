@@ -87,6 +87,7 @@
     "verify:residue-claims": "node tools/residue-ids.mjs --full-tree",
     "verify:residue-citations": "node tools/residue-citations.mjs",
     "verify:residue-cite-drift": "node tools/residue-cite-drift.mjs --base origin/main",
+    "verify:residue-cite-delta": "node tools/residue-cite-drift.mjs --delta origin/main",
     "verify:paper-references": "node tools/paper-reference-use.mjs --base origin/main",
     "verify:paper-claim-markers": "node tools/paper-claim-markers.mjs --base origin/main",
     "verify:sidecar-census": "node tools/sidecar-census.mjs",

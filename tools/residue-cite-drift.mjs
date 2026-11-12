@@ -77,6 +77,14 @@
  * examined-nothing. The mode emits `NOT_RUN` with its reason and exits 2 — it could not look —
  * where exit 1 means it looked and a citation failed.
  *
+ * THE GATE WATCHES A LEVEL AND `--delta` WATCHES A TRANSITION. `--base` judges only the rows a
+ * branch ADDS, so a citation that anchored yesterday and stopped anchoring because the CODE under it
+ * moved is in no population: the defect-class count grew from the 79 this header documents to 113
+ * with nothing watching (row 2026-11-12-cite-drift-rot-grows-under-the-base-only-caller). `--delta`
+ * judges the rows BOTH ledgers carry at two refs and reports the transitions. It is advisory by the
+ * same ruling that keeps the whole-ledger form advisory: nobody may repair a row cell where it sits,
+ * so a branch that moves code under someone else's citation has no legal repair.
+ *
  * ADVISORY: exits 0 and prints the list. `--strict` exits 1 on the three classes this file ranks as
  * defects — `missing-file`, `unanchored`, `beyond-eof` — and never on `moved`. A row's line hint
  * moving is not a defect in the row; it is the reason the identifier rule exists. The flag read
@@ -89,6 +97,8 @@
  *   node tools/residue-cite-drift.mjs --json
  *   node tools/residue-cite-drift.mjs --selftest      # the plants: moved · anchored · unanchored · eof · missing · off-tree
  *   node tools/residue-cite-drift.mjs --base origin/main   # THE GATE: only the rows this branch ADDS
+ *   node tools/residue-cite-drift.mjs --delta [ref]        # THE CENSUS OF GROWTH: the same rows at two refs, advisory, exit 0
+ *   node tools/residue-cite-drift.mjs --delta [ref] --full # the same, over every citation rather than only the diff's
  *   node tools/residue-cite-drift.mjs --verdict-sample     # the tepna.verdict/1 object alone
  * ═══════════════════════════════════════════════════════════════════════════════════════════ */
 import { execFileSync } from 'node:child_process';
@@ -417,8 +427,150 @@ export function addedRows(rows, baseRows) {
    this file ranks as defects, never the advisory `moved` or the external `off-tree`. */
 export const CRITERION = {
   added: { name: 'defect_class_citations_in_added_rows', threshold: 0, unit: 'citations', direction: 'lte' },
-  ledger: { name: 'defect_class_citations_in_every_row', threshold: 0, unit: 'citations', direction: 'lte' }
+  ledger: { name: 'defect_class_citations_in_every_row', threshold: 0, unit: 'citations', direction: 'lte' },
+  /* THE THIRD SCOPE IS A TRANSITION, NOT A LEVEL. The two above count a state of the ledger; this
+     one counts citations that STOPPED anchoring between two refs, which is the growth neither of
+     them can see. */
+  delta: { name: 'defect_class_citations_added_by_code_movement', threshold: 0, unit: 'citations', direction: 'lte' }
 };
+
+/* The three classes this file ranks as defects, named once. `strictFailures` sums them over a
+   census and `deltaOf` reads them per citation, so the two readings cannot disagree. */
+export const DEFECT_CLASSES = new Set(['missing-file', 'unanchored', 'beyond-eof']);
+
+/* THE GROWTH THE CENSUS CANNOT SEE. `--base` judges the citations a branch ADDS, so a citation that
+   anchored yesterday and stopped anchoring because the CODE under it moved sits in no population:
+   not in the gate's added rows, and not in a standing debt that only ever grew. `deltaOf` is pure —
+   two class lists for the SAME rows, read at two refs, and the transition between them.
+   ONE VARIABLE MOVES. Both sides are judged from the row text at HEAD, so a state cell that closed
+   between the refs cannot change the identifiers, and the tree is the only difference left.
+   ∅ A CITATION ON ONE SIDE ONLY IS EXCLUDED, NEVER READ AS A TRANSITION. The cited path is extended
+   against each ref's own tracked set, so a file born or deleted between the refs can change what a
+   row's text resolves to, and that is not a transition anybody can act on. */
+export function deltaOf(baseEntries, headEntries) {
+  /* The identity is (row, ordinal, cite): the ordinal keeps a row's repeated citation of one
+     path:line as two citations, which is what the census counts. */
+  const idOf = (e) => `${e.key}\u0000${e.n ?? 0}\u0000${e.cite}`;
+  const bmap = new Map((baseEntries || []).map((e) => [idOf(e), e]));
+  const hmap = new Map((headEntries || []).map((e) => [idOf(e), e]));
+  const tally = (es) => {
+    const o = {};
+    for (const e of es || []) o[e.verdict] = (o[e.verdict] || 0) + 1;
+    return o;
+  };
+  const d = {
+    baseByVerdict: tally(baseEntries),
+    headByVerdict: tally(headEntries),
+    newRotSites: [],
+    repairedSites: [],
+    newRot: 0,
+    repaired: 0,
+    carriedDefect: 0,
+    cleanBoth: 0,
+    anchoredToMoved: 0,
+    onlyBase: 0,
+    onlyHead: 0,
+    checked: 0,
+    eligible: 0,
+    excluded: 0
+  };
+  const ids = new Set([...bmap.keys(), ...hmap.keys()]);
+  d.eligible = ids.size;
+  for (const id of ids) {
+    const b = bmap.get(id);
+    const h = hmap.get(id);
+    if (!b || !h) {
+      if (!b) d.onlyHead += 1;
+      else d.onlyBase += 1;
+      continue;
+    }
+    d.checked += 1;
+    const bDef = DEFECT_CLASSES.has(b.verdict);
+    const hDef = DEFECT_CLASSES.has(h.verdict);
+    const site = { key: h.key, state: h.state, cite: h.cite, from: b.verdict, to: h.verdict };
+    if (!bDef && hDef) {
+      d.newRot += 1;
+      d.newRotSites.push(site);
+    } else if (bDef && !hDef) {
+      d.repaired += 1;
+      d.repairedSites.push(site);
+    } else if (bDef && hDef) d.carriedDefect += 1;
+    else {
+      d.cleanBoth += 1;
+      if (b.verdict === 'anchored' && h.verdict === 'moved') d.anchoredToMoved += 1;
+    }
+  }
+  d.excluded = d.onlyBase + d.onlyHead;
+  const bySite = (a, z) => (a.cite < z.cite ? -1 : a.cite > z.cite ? 1 : 0);
+  d.newRotSites.sort(bySite);
+  d.repairedSites.sort(bySite);
+  return d;
+}
+
+/* ∅ THE DELTA'S VERDICT NEVER SOFTENS ITS MISS TO MATCH ITS EXIT. The caller is advisory by ruling
+   (board #5793): §📌 forbids repairing a row cell where it sits, so a branch that moves code under
+   someone else's citation has no legal repair, and a blocking form would red an author for work
+   nobody may do. The exit is 0; the OBJECT still reads FAIL, because a status bent to fit an exit
+   code is this repo's examined-nothing defect wearing a mode name. The whole-ledger census already
+   reads FAIL at exit 0, and this mode keeps that register. */
+export function verdictForDelta(d, commit, opts = {}) {
+  let status = 'PASS';
+  let reason = null;
+  if (opts.notRun) {
+    status = 'NOT_RUN';
+    reason = opts.notRun;
+  } else if (!d || !d.checked) {
+    /* ∅ A FILTER THAT MATCHES NOTHING READS AS A PASS (CLAUDE.md §4b). Two refs may differ on no
+       cited file at all, which is the common case on a one-file branch, and that is examined-nothing
+       rather than a clean bill. */
+    status = 'NOT_APPLICABLE';
+    reason = `no citation of a row both ledgers carry was in scope at ${opts.base} and at ${opts.ref}, so no transition binds`;
+  } else if (d.newRot) {
+    status = 'FAIL';
+    reason = `${d.newRot} citation(s) anchored at ${opts.base} and do not anchor at ${opts.ref}: the code under them moved, and the row may not be repaired where it sits`;
+  }
+  const notMeasured = status === 'NOT_RUN' || status === 'NOT_APPLICABLE';
+  return Verdict.make({
+    gate: 'residue-cite-drift',
+    status,
+    scope: 'internal',
+    /* `checked + excluded = eligible` AND THE ELIGIBLE SET IS EVERY CITATION OF EVERY COMMON ROW.
+       The scope filter reads only the citations whose file the two refs differ on, so the rest must
+       be EXCLUDED with a reason, never dropped out of the denominator. A denominator cut to what was
+       convenient is the population defect this file's own rows are about. */
+    population:
+      notMeasured && status === 'NOT_RUN'
+        ? { checked: 0, eligible: 0, excluded: 0 }
+        : { checked: d.checked, eligible: opts.eligible ?? d.eligible, excluded: (opts.eligible ?? d.eligible) - d.checked },
+    criterion: CRITERION.delta,
+    result: notMeasured
+      ? null
+      : {
+          base: opts.base || null,
+          ref: opts.ref || null,
+          rowsBoth: opts.rowsBoth ?? null,
+          rowsScoped: opts.rowsScoped ?? null,
+          scope: opts.scope ?? null,
+          outOfScope: (opts.eligible ?? d.eligible) - d.eligible,
+          newRot: d.newRot,
+          repaired: d.repaired,
+          carriedDefect: d.carriedDefect,
+          cleanBoth: d.cleanBoth,
+          anchoredToMoved: d.anchoredToMoved,
+          onlyBase: d.onlyBase,
+          onlyHead: d.onlyHead,
+          baseByVerdict: d.baseByVerdict,
+          headByVerdict: d.headByVerdict,
+          /* A COUNT A CONSUMER CANNOT RESOLVE IS NOT A FINDING (row
+             2026-11-08-the-cite-drift-verdict-carries-a-bare-count): every new-rot citation travels
+             with its key, its cite and both classes. */
+          newRotSites: d.newRotSites
+        },
+    evidence: [LEDGER, 'tools/residue-cite-drift.mjs'],
+    reason,
+    producedBy: { tool: 'tools/residue-cite-drift.mjs', commit }
+  });
+}
 
 export function verdictFor(r, commit, opts = {}) {
   const n = r ? strictFailures(r) : 0;
@@ -499,7 +651,11 @@ export function readLedgerAt(ref) {
   }
 }
 
-export function sweep(rows, reader, provenance = null, isTracked = null) {
+/* ONE CLASSIFIER, READ TWICE. The delta mode needs the class of EVERY citation at two refs, the
+   anchored ones included, and the census only counts those. So the per-citation loop lives here and
+   `sweep` aggregates what this yields. A second loop beside it would hold two sources of truth for
+   one judgement, which is the drift this file's own rows are about. */
+export function* classify(rows, reader, provenance = null, isTracked = null) {
   const cache = new Map();
   const provCache = new Map();
   const prov = (q) => {
@@ -511,26 +667,39 @@ export function sweep(rows, reader, provenance = null, isTracked = null) {
     if (!cache.has(p)) cache.set(p, reader(p));
     return cache.get(p);
   };
+  for (const row of rows) {
+    const ids = identifiers(row.text);
+    /* `n` IS THE ORDINAL OF THE CITATION WITHIN ITS ROW, AND IT IS THE DELTA'S IDENTITY. 38 of this
+       ledger's 919 citations repeat a path:line inside one row, so a (key, cite) pair collapses them
+       and the delta's population would read 881 of a census's 919 — a population that silently drops
+       a citation it never says it dropped. */
+    let n = 0;
+    for (const c of citations(row.text, isTracked)) {
+      const j0 = judge(c, lines(c.path), ids);
+      /* The judgement is pure and reads a file; the SPLIT of its missing bin reads the repo, so it
+         happens here, where the probe lives. */
+      const j = j0.verdict === 'missing-file' ? { ...j0, ...binMissing(prov(c.path), c.path) } : j0;
+      yield { key: row.key, state: row.state, n: n++, cite: `${c.path}:${c.line}`, verdict: j.verdict, j };
+    }
+  }
+}
+
+export function sweep(rows, reader, provenance = null, isTracked = null) {
   /* EVERY NON-ANCHORED CLASS CARRIES KEYS. `unanchored` was an integer and `beyond-eof` had no field
      at all, so the two verdicts a reader must act on were the two the report could not locate (row
      2026-10-26-the-unanchored-class-is-counted-and-never-named). `anchored` stays a count, because a
      pointer that still points names nothing to chase. */
   const report = { rows: rows.length, citations: 0, byVerdict: {}, moved: [], unanchored: [], beyondEof: [], missing: [], offTree: [], provenanceProbe: provenance ? 'read' : 'not-run' };
-  for (const row of rows) {
-    const ids = identifiers(row.text);
-    for (const c of citations(row.text, isTracked)) {
-      report.citations++;
-      const j0 = judge(c, lines(c.path), ids);
-      /* The judgement is pure and reads a file; the SPLIT of its missing bin reads the repo, so it
-         happens here, where the probe lives. `byVerdict` counts the final class. */
-      const j = j0.verdict === 'missing-file' ? { ...j0, ...binMissing(prov(c.path), c.path) } : j0;
-      report.byVerdict[j.verdict] = (report.byVerdict[j.verdict] || 0) + 1;
-      if (j.verdict === 'moved') report.moved.push({ key: row.key, state: row.state, cite: `${c.path}:${c.line}`, now: j.now });
-      else if (j.verdict === 'missing-file') report.missing.push({ key: row.key, cite: `${c.path}:${c.line}`, why: j.why });
-      else if (j.verdict === 'off-tree') report.offTree.push({ key: row.key, state: row.state, cite: `${c.path}:${c.line}`, why: j.why });
-      else if (j.verdict === 'beyond-eof') report.beyondEof.push({ key: row.key, state: row.state, cite: `${c.path}:${c.line}`, length: j.length });
-      else if (j.verdict === 'unanchored') report.unanchored.push({ key: row.key, state: row.state, cite: `${c.path}:${c.line}`, tried: j.tried, specific: j.specific });
-    }
+  /* `byVerdict` counts the final class. */
+  for (const e of classify(rows, reader, provenance, isTracked)) {
+    const j = e.j;
+    report.citations++;
+    report.byVerdict[j.verdict] = (report.byVerdict[j.verdict] || 0) + 1;
+    if (j.verdict === 'moved') report.moved.push({ key: e.key, state: e.state, cite: e.cite, now: j.now });
+    else if (j.verdict === 'missing-file') report.missing.push({ key: e.key, cite: e.cite, why: j.why });
+    else if (j.verdict === 'off-tree') report.offTree.push({ key: e.key, state: e.state, cite: e.cite, why: j.why });
+    else if (j.verdict === 'beyond-eof') report.beyondEof.push({ key: e.key, state: e.state, cite: e.cite, length: j.length });
+    else if (j.verdict === 'unanchored') report.unanchored.push({ key: e.key, state: e.state, cite: e.cite, tried: j.tried, specific: j.specific });
   }
   return report;
 }
@@ -887,6 +1056,64 @@ function selftest() {
   check('an unreadable base reads NOT_RUN with its reason', vNR.status === 'NOT_RUN' && /could not be read/.test(vNR.reason));
   check('both refusal verdicts validate', Verdict.validate(vNone).ok && Verdict.validate(vNR).ok);
 
+  /* ── THE DELTA: A TRANSITION, NOT A LEVEL ───────────────────────────────────────────────────
+     Each leg is one cell of the transition table, because a mode that counts `newRot` from the
+     HEAD class alone would report this file's own 113 standing defects as growth on every run. */
+  const E = (key, n, cite, verdict, state = 'OPEN') => ({ key, n, cite, verdict, state });
+  const dRot = deltaOf([E('r1', 0, 'a.js:10', 'anchored')], [E('r1', 0, 'a.js:10', 'unanchored')]);
+  check(
+    'delta: anchored at the base and unanchored at HEAD is NEW ROT, and the site names its key, cite and both classes',
+    dRot.newRot === 1 &&
+      dRot.repaired === 0 &&
+      dRot.checked === 1 &&
+      dRot.newRotSites.length === 1 &&
+      dRot.newRotSites[0].key === 'r1' &&
+      dRot.newRotSites[0].cite === 'a.js:10' &&
+      dRot.newRotSites[0].from === 'anchored' &&
+      dRot.newRotSites[0].to === 'unanchored'
+  );
+  const dRep = deltaOf([E('r1', 0, 'a.js:10', 'beyond-eof')], [E('r1', 0, 'a.js:10', 'moved')]);
+  check('delta: a defect class at the base and a sound one at HEAD is REPAIRED, never rot', dRep.repaired === 1 && dRep.newRot === 0 && dRep.repairedSites.length === 1);
+  const dCar = deltaOf([E('r1', 0, 'a.js:10', 'unanchored')], [E('r1', 0, 'a.js:10', 'missing-file')]);
+  check('delta: a defect on BOTH sides is carried debt, not growth, even when the class itself changed', dCar.carriedDefect === 1 && dCar.newRot === 0 && dCar.repaired === 0);
+  const dMov = deltaOf([E('r1', 0, 'a.js:10', 'anchored')], [E('r1', 0, 'a.js:10', 'moved')]);
+  check('delta: anchored→moved is sound on both sides and only a DIAGNOSTIC, because `moved` never decides the exit', dMov.cleanBoth === 1 && dMov.anchoredToMoved === 1 && dMov.newRot === 0);
+  const dSide = deltaOf([E('r1', 0, 'a.js:10', 'anchored'), E('r1', 1, 'b.js:1', 'anchored')], [E('r1', 0, 'a.js:10', 'unanchored')]);
+  check(
+    'delta: a citation present on ONE side only is EXCLUDED, never read as a transition, and checked + excluded = eligible',
+    dSide.onlyBase === 1 && dSide.onlyHead === 0 && dSide.excluded === 1 && dSide.checked === 1 && dSide.checked + dSide.excluded === dSide.eligible
+  );
+  const dOrd = deltaOf([E('r1', 0, 'a.js:10', 'anchored'), E('r1', 1, 'a.js:10', 'anchored')], [E('r1', 0, 'a.js:10', 'unanchored'), E('r1', 1, 'a.js:10', 'anchored')]);
+  check(
+    "delta: THE ORDINAL IS THE IDENTITY — one row citing one path:line twice is two citations, so 38 of this ledger's 919 do not collapse",
+    dOrd.checked === 2 && dOrd.newRot === 1 && dOrd.cleanBoth === 1
+  );
+  const vRot = verdictForDelta(dRot, '3b32a759', { base: 'origin/main', ref: 'HEAD', eligible: 4 });
+  check(
+    "delta verdict: new rot reads FAIL with the count in its reason, and the caller's eligible set keeps the excluded arithmetic",
+    vRot.status === 'FAIL' && /1 citation\(s\) anchored at origin\/main/.test(vRot.reason) && vRot.population.eligible === 4 && vRot.population.excluded === 3
+  );
+  const vClean = verdictForDelta(dMov, '3b32a759', { base: 'origin/main', ref: 'HEAD' });
+  check('delta verdict: a transition table with no rot reads PASS over a non-zero checked', vClean.status === 'PASS' && vClean.population.checked === 1 && vClean.reason === null);
+  const vEmpty = verdictForDelta(deltaOf([], []), '3b32a759', { base: 'origin/main', ref: 'HEAD', eligible: 919 });
+  check(
+    'delta verdict: nothing in scope reads NOT_APPLICABLE over checked 0, never PASS, and still states the eligible set it did not read',
+    vEmpty.status === 'NOT_APPLICABLE' && vEmpty.population.checked === 0 && vEmpty.population.eligible === 919 && vEmpty.result === null
+  );
+  const vDNR = verdictForDelta(null, '3b32a759', { base: 'origin/main', ref: 'HEAD', notRun: 'the tree at origin/main could not be read' });
+  check(
+    'delta verdict: an unreadable base tree reads NOT_RUN with its reason, because an absent side is not an empty delta',
+    vDNR.status === 'NOT_RUN' && /could not be read/.test(vDNR.reason) && vDNR.population.eligible === 0
+  );
+  check(
+    'delta verdict: all four validate',
+    [vRot, vClean, vEmpty, vDNR].every((v) => Verdict.validate(v).ok)
+  );
+  check(
+    'delta criterion: pre-stated, and its name is the TRANSITION, not the level the two older scopes bound',
+    CRITERION.delta.name === 'defect_class_citations_added_by_code_movement' && CRITERION.delta.threshold === 0
+  );
+
   if (fails.length) {
     console.log(fails.map((f) => '  ✗ ' + f).join('\n'));
     console.log(`${fails.length} failed of ${ran}`);
@@ -951,8 +1178,120 @@ function repoProvenance(ref) {
   return { probe, trackedSet, reason: null };
 }
 
+/* A FLAG WHOSE VALUE MAY BE ABSENT READS THE NEXT FLAG AS ITS REF. `--delta` alone means
+   `origin/main`, and `--delta --json` must not resolve to the ref `--json`. */
+function refArg(flag, dflt) {
+  const v = arg(flag, null);
+  return !v || v.startsWith('--') ? dflt : v;
+}
+
+function deltaMode(base) {
+  const ref = 'HEAD';
+  const notRun = (reason) => {
+    const v = verdictForDelta(null, commitSha(), { base, ref, notRun: reason });
+    console.log(`residue-cite-drift (delta): ⏱ UNEXAMINED — ${reason}`);
+    console.log(`\nVERDICT (tepna.verdict/1): ${JSON.stringify(v)}`);
+    process.exit(2);
+  };
+  const baseText = readLedgerAt(base);
+  /* ∅ AN UNREADABLE BASE IS NOT AN EMPTY DELTA. Either absence would otherwise print `0 new rot` and
+     exit 0, which is CLAUDE.md §4b's examined-nothing wearing this mode's name. */
+  if (baseText === null) notRun(`the ledger could not be read at ${base} — an unfetched ref, or a clone that does not carry it`);
+  if (readAt(base, 'package.json') === null) notRun(`the tree at ${base} could not be read, so every citation would score as rot rather than as unseen`);
+  const rows = parseRows(fs.readFileSync(path.join(REPO, 'briefs', 'RESIDUE.md'), 'utf8'));
+  const baseKeys = new Set(parseRows(baseText).map((r) => r.key));
+  /* The rows BOTH ledgers carry. A row this branch added belongs to `--base`, which judges it as a
+     level and not as a transition, and a row the base carries and HEAD does not cannot exist, since
+     rows are append-only. */
+  const both = rows.filter((r) => baseKeys.has(r.key));
+  /* EVERY CITATION OF EVERY COMMON ROW IS THE DENOMINATOR, counted with no file read. */
+  const eligible = both.reduce((n, r) => n + citations(r.text, null).length, 0);
+  /* THE SCOPE IS THE DIFF, BECAUSE A FILE THE TWO REFS AGREE ON CANNOT MOVE A CITATION. A row's text
+     is identical on both sides by construction here, so a citation can only transition when the
+     cited FILE differs between the refs. Judging the other 900 costs two whole-ledger sweeps, 30 s
+     measured, for a column of identical classes. `--full` keeps the unfiltered form for an audit.
+     THE MATCH IS BY BASENAME AND IT IS DELIBERATELY GENEROUS. A cited path is resolved against each
+     ref's own tracked set, and `CITE_RE` truncates a path that carries a space, so the two spellings
+     of one file need not be equal. A tail match in either direction keeps the citation in scope: an
+     over-inclusive filter costs one file read, and an under-inclusive one drops the finding. */
+  const full = has('--full');
+  let changed = null;
+  try {
+    changed = execFileSync('git', ['diff', '--name-only', base, ref], { cwd: REPO, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 64 << 20 })
+      .split('\n')
+      .map((l) => l.trim())
+      .filter(Boolean);
+  } catch {
+    changed = null;
+  }
+  if (!full && changed === null) notRun(`the tree difference between ${base} and ${ref} could not be read, so the scope of the delta is unknown`);
+  const changedBases = new Set((changed || []).map((p) => p.split('/').pop()));
+  const inScope = (cpath) => {
+    const b = cpath.split('/').pop();
+    for (const cb of changedBases) if (cb === b || cb.endsWith(b) || b.endsWith(cb)) return true;
+    return false;
+  };
+  const scoped = full ? both : both.filter((r) => citations(r.text, null).some((c) => inScope(c.path)));
+  const sideOf = (atRef) => {
+    const { probe, trackedSet } = repoProvenance(atRef);
+    const reader = tailReader((p) => readAt(atRef, p), trackedSet ? [...trackedSet] : null);
+    return [...classify(scoped, reader, probe, trackedSet ? (q) => trackedSet.has(q) : null)];
+  };
+  const d = deltaOf(sideOf(base), sideOf(ref));
+  const v = verdictForDelta(d, commitSha(), {
+    base,
+    ref,
+    rowsBoth: both.length,
+    rowsScoped: scoped.length,
+    eligible,
+    scope: full ? 'every citation of every common row' : `the citations whose file ${base} and ${ref} differ on (${(changed || []).length} changed path(s))`
+  });
+  const checkedV = Verdict.validate(v);
+  if (!checkedV.ok) {
+    console.error(`invalid verdict: ${checkedV.errors.join('; ')}`);
+    process.exit(2);
+  }
+  if (has('--verdict-sample')) {
+    console.log(JSON.stringify(v));
+    process.exit(0);
+  }
+  if (has('--json')) {
+    console.log(JSON.stringify({ mode: 'delta', base, ref, rowsBoth: both.length, verdict: v, ...d }, null, 2));
+    process.exit(0);
+  }
+  const line = (label, t) =>
+    `  ${label} ${Object.entries(t)
+      .sort()
+      .map(([k, n]) => `${k} ${n}`)
+      .join(' · ')}`;
+  console.log(
+    `residue-cite-drift (delta): ${both.length} row(s) in both ledgers, ${eligible} citation(s) eligible · ${d.checked} judged at ${base} AND at ${ref} · ${eligible - d.checked} excluded (${eligible - d.eligible} out of scope, ${d.excluded} on one side only: ${d.onlyBase} at ${base}, ${d.onlyHead} at ${ref})`
+  );
+  console.log(`  scope: ${full ? 'every citation of every common row (--full)' : `the ${scoped.length} row(s) citing one of the ${(changed || []).length} path(s) the two refs differ on`}`);
+  if (d.checked) {
+    console.log(line(`at ${base}:`, d.baseByVerdict));
+    console.log(line(`at ${ref}:`, d.headByVerdict));
+    console.log(
+      `  transitions: new-rot ${d.newRot} · repaired ${d.repaired} · defect on both sides ${d.carriedDefect} · sound on both sides ${d.cleanBoth} (of which anchored→moved ${d.anchoredToMoved})`
+    );
+  }
+  if (d.newRotSites.length) {
+    console.log(`\n  NEW ROT — the citation anchored at ${base} and does not anchor at ${ref}, so the code under it moved:`);
+    for (const t of d.newRotSites) console.log(`    ${t.cite}  (${t.key}, ${t.state})  →  ${t.from} → ${t.to}`);
+  }
+  if (d.repairedSites.length) {
+    console.log(`\n  REPAIRED — the citation did not anchor at ${base} and anchors at ${ref}:`);
+    for (const t of d.repairedSites) console.log(`    ${t.cite}  (${t.key}, ${t.state})  →  ${t.from} → ${t.to}`);
+  }
+  console.log(`\n  Advisory: this mode exits 0 whatever it finds. §📌 forbids repairing a row cell where it sits, so a blocking form would red an author who has no legal repair (board #5793).`);
+  console.log(`\nVERDICT (tepna.verdict/1): ${JSON.stringify(v)}`);
+  process.exit(0);
+}
+
 function main() {
   if (has('--selftest')) return selftest();
+  /* The delta reads its own two refs, so it answers before the census resolves one. */
+  if (has('--delta')) return deltaMode(refArg('--delta', 'origin/main'));
   const base = arg('--base', null);
   /* A row this branch ADDS must point into the tree this branch HAS, so the gate reads files at the
      checkout; the census keeps judging the ref, which is what its four refinement rows measured. */
