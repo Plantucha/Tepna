@@ -5244,6 +5244,26 @@ function fuseHRVConsensus(recs, dtMs) {
       });
       var worst = _divs.length ? Math.max.apply(null, _divs) : null;
       var comparable = worst != null;
+      /* 2026-11-12 · residue `2026-11-11-hrv-divergence-note-names-no-metric`. The note quoted
+         `worst` beside the literal "RMSSD/SDNN", so a reader could not tell WHICH metric diverged.
+         On the 2026-11-04 night it read 60 % while RMSSD agreed (29.2 vs 30.5 ms) and SDNN carried
+         the divergence. The DECISION is unchanged — `worst` still drives `qc` and the threshold —
+         and only the reporting gains the metric's name plus both figures. A metric no two sources
+         share stays `null` and reads "not compared", never 0 % (§∅). A tie keeps RMSSD, which is
+         the order the pair is declared in and the metric the ladder ranks first. */
+      var _divByMetric = [
+        { name: 'RMSSD', pct: rm && rm.divergencePct != null ? rm.divergencePct : null },
+        { name: 'SDNN', pct: sd && sd.divergencePct != null ? sd.divergencePct : null }
+      ];
+      var _worstMetric = null;
+      _divByMetric.forEach(function (m) {
+        if (_worstMetric === null && m.pct != null && m.pct === worst) _worstMetric = m.name;
+      });
+      var _perMetric = _divByMetric
+        .map(function (m) {
+          return m.name + ' ' + (m.pct == null ? 'not compared' : m.pct + '%');
+        })
+        .join(', ');
       // TCH (INTEGRATOR-THREE-CORNERED-HAT §3): reference-free per-sensor error across ≥3
       // series-bearing nodes. ADDITIVE — the pairwise spread/divergence above is unchanged;
       // degrades to a reason-stamped null (tchStatus) when <3 nodes carry an alignable series.
@@ -5327,8 +5347,8 @@ function fuseHRVConsensus(recs, dtMs) {
               .join(', ') +
             ') — nothing could be compared, so agreement is UNKNOWN, not confirmed.'
           : worst > 30
-            ? 'Cross-device divergence ' + worst + '% on RMSSD/SDNN (' + win + ') — flag as data-quality issue; reconcile before trusting a single value.'
-            : 'Sources agree within ' + worst + '% on ' + win + ' HRV — reconciled autonomic state is reliable.') +
+            ? 'Cross-device divergence ' + worst + '% on ' + _worstMetric + ' (' + win + ') — flag as data-quality issue; reconcile before trusting a single value. Per metric: ' + _perMetric + '.'
+            : 'Sources agree within ' + worst + '% on ' + win + ' HRV — reconciled autonomic state is reliable. Per metric: ' + _perMetric + '.') +
         (lowQExcluded ? ' Excluded low-quality source(s): ' + lowQExcluded.join(', ') + '.' : '');
       if (tch && tch.ok)
         note += ' TCH: ' + tch.culprit + ' carries the largest error variance (σ²≈' + Math.round(tch.sigma2[tch.culprit]) + ' ms², ' + tch.method + ') — down-weight it in the reconciled value.';
@@ -5368,6 +5388,9 @@ function fuseHRVConsensus(recs, dtMs) {
         sdnn: sd,
         lfhf: lf,
         divergencePct: worst,
+        /* The metric that CARRIES `divergencePct`, so a consumer need not re-derive it from the
+           per-metric blocks. A new field, so an older consumer reads the export unchanged. */
+        divergenceMetric: _worstMetric,
         lowQualityExcluded: lowQExcluded,
         tch: tch && tch.ok ? tch : null,
         tchStatus: tch ? (tch.ok ? 'ok' : tch.reason) : 'not-attempted',
