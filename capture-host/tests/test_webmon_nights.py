@@ -454,7 +454,7 @@ def test_the_two_fused_pat_columns_open_different_views():
     views = re.findall(r"view:'([^']+)'", fused)
     assert sorted(views) == ["hat", "pat"], views
     assert "f.dataset.view" in html, "the click drops the view"
-    assert "async function openNight(key, node, view)" in html
+    assert "async function openNight(key, node, view, dev)" in html
     assert "'&view='+view" in html
 
 
@@ -1219,3 +1219,132 @@ def test_a_cell_whose_wear_is_mostly_unknown_keeps_its_loss_grade():
     assert json.loads(r.stdout) == [False, True, False, False, False], (
         "mostly unknown, exactly 5 %, just over 5 %, unknown null, unknown absent"
     )
+
+
+def _node_or_skip():
+    """The node binary, or a skip — the idiom every JS-executing test in this file uses."""
+    import shutil
+
+    import pytest
+
+    node = shutil.which("node")
+    if not node:  # pragma: no cover - ubuntu-latest always has node; a dev box might not
+        pytest.skip("node is not installed")
+    return node
+
+
+_NDEV = (
+    "const NIGHT_DEVICES = ["
+    "{k:'h10', name:'H10', node:'ECGDex', match:/Polar_H10_/},"
+    "{k:'verity', name:'Verity', node:'PPGDex', match:/Polar_VeritySense_/},"
+    "{k:'ring', name:'O2Ring', node:'OxyDex', match:/Wellue_O2Ring/}];"
+)
+
+
+def test_a_per_device_chip_opens_its_own_devices_files_only():
+    """KESTREL'S VIGIL AUDIT OF NIGHT 2026-11-04: the drawer's PPGDex chip under the Verity opened PPGDex
+    with the ring's `_PPG.txt` beside the Verity's. A chip is per (device, analyzer) and its label names
+    that one device's suffixes, so its hand-over carries that one device's files.
+
+    Three loadable nodes glob more than one device — PPGDex, PulseDex and MotionDex — so three chips could
+    promise one device and open another. Run on the shipped `nightFiles`.
+
+    The device CELL is the other promise and keeps the whole node list, so the UNSCOPED call is the control
+    here and must answer exactly as before. The next-morning fragment is the control for the night's own
+    boundary: 04:49 bands to the previous evening under the owner's noon-to-noon ruling, so it stays."""
+    import json
+    import subprocess
+
+    node = _node_or_skip()
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    html = open(os.path.join(here, "monitor.html"), encoding="utf-8").read()
+    src = _extract_fn(html, "nodeFileList", "\nasync function openNight")
+    assert "x.k === dev" in src, "nightFiles resolves no device key — this test would read nothing"
+    d = "2026-11-04/"
+    v_ppg = d + "Polar_VeritySense_SN02_20261104220000_PPG.txt"
+    v_ppi = d + "Polar_VeritySense_SN02_20261104220000_PPI.txt"
+    v_frag = d + "Polar_VeritySense_SN02_20261105044900_PPG.txt"
+    r_ppg = d + "Wellue_O2Ring-S_SN01_20261104213810_PPG.txt"
+    r_p2w = d + "Wellue_O2Ring-S_SN01_20261104213810_PPG2W.txt"
+    night = {"night": "2026-11-04", "PPGDex": {"files": [v_ppg, v_ppi, v_frag, r_ppg, r_p2w], "loadable": True}}
+    cases = [["verity"], ["ring"], ["h10"], ["nosuch"], [None]]
+    prog = (
+        "const NIGHT_DERIVED = ['3 corner hat','PAT','PAT fused'];\n"
+        + _NDEV
+        + "\n"
+        + src
+        + "\nconst n = "
+        + json.dumps(night)
+        + ";\nconsole.log(JSON.stringify("
+        + json.dumps(cases)
+        + ".map(([dev]) => nightFiles(n, 'PPGDex', null, dev || undefined))));"
+    )
+    r = subprocess.run([node, "-e", prog], capture_output=True, text=True, timeout=30)
+    assert r.returncode == 0, r.stderr
+    verity, ring, h10, nosuch, cell = json.loads(r.stdout)
+    assert verity["files"] == [v_ppg, v_ppi, v_frag], verity
+    assert verity["reason"] is None, verity
+    assert ring["files"] == [r_ppg, r_p2w], ring
+    assert h10["files"] == [] and "H10" in h10["reason"], h10
+    assert nosuch["files"] == [] and "nosuch" in nosuch["reason"], nosuch
+    # CONTROL: the cell's node-wide click is untouched, and it is the only reading that spans devices
+    assert cell["files"] == [v_ppg, v_ppi, v_frag, r_ppg, r_p2w], cell
+    assert "f.dataset.dev" in html, "the click drops the device the chip carried"
+
+
+def test_every_drawer_chip_carries_the_device_it_sits_under():
+    """The scope above is reachable only if the rendered chip HANDS OVER its device, so render the drawer
+    on the shipped `nDrawer` and read the markup. A chip that is not a click carries no device, because it
+    opens nothing. Both halves are asserted per device block, so a chip leaking into the wrong block reds."""
+    import json
+    import re
+    import subprocess
+
+    node = _node_or_skip()
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    html = open(os.path.join(here, "monitor.html"), encoding="utf-8").read()
+    d = "2026-11-04/"
+    v_ppg = d + "Polar_VeritySense_SN02_20261104220000_PPG.txt"
+    r_ppg = d + "Wellue_O2Ring-S_SN01_20261104213810_PPG.txt"
+    r_csv = d + "Wellue_O2Ring-S_SN01_20261104213810_SPO2.csv"
+    night = {
+        "night": "2026-11-04",
+        "PPGDex": {"files": [v_ppg, r_ppg], "loadable": True, "bytes": 10, "coverage": 1, "hours": 7},
+        "OxyDex": {"files": [r_csv], "loadable": True, "bytes": 10, "coverage": 1, "hours": 7},
+        "HRVDex": {"files": [v_ppg], "loadable": False, "bytes": 10},
+    }
+    src = "\n".join(
+        [
+            "const esc = s => String(s);",
+            "const NIGHTS_TAB = 'dev', NIGHT_FUSED = [];",
+            "const NIGHT_COLS = ['PPGDex','OxyDex','HRVDex','Integrator'];",
+            "const NIGHT_WHY_NOT = {HRVDex:'reaches it through ECGDex'};",
+            "const nSolidBlock = () => '';",
+            "const nMB = b => b + ' B', nHrs = h => String(h), nLost = () => 'none lost';",
+            "const nRowKey = n => n.night, nBase = f => f.split('/').pop();",
+            _extract_fn(html, "nDevFiles", "\nfunction nHas"),
+            _extract_fn(html, "nHas", "\n/* The device's state"),
+            _NDEV,
+            _extract_fn(html, "nDrawer", "\nfunction renderNights"),
+        ]
+    )
+    prog = src + "\nconsole.log(JSON.stringify(nDrawer(" + json.dumps(night) + ")));"
+    r = subprocess.run([node, "-e", prog], capture_output=True, text=True, timeout=30)
+    assert r.returncode == 0, r.stderr
+    out = json.loads(r.stdout)
+    blocks = {}
+    for name in ("H10", "Verity", "O2Ring"):
+        m = re.search(r"<b>" + name + r"\b.*?(?=<div><b>|$)", out, re.S)
+        assert m, (name, out)
+        blocks[name] = m.group(0)
+    assert "not recorded this night" in blocks["H10"], blocks["H10"]
+    for name, key, nodes in (("Verity", "verity", {"PPGDex"}), ("O2Ring", "ring", {"PPGDex", "OxyDex"})):
+        chips = re.findall(r'<button[^>]*class="nchip"[^>]*data-node="([^"]+)"[^>]*data-dev="([^"]+)"', blocks[name])
+        assert {n for n, _ in chips} == nodes, (name, chips)
+        assert {k for _, k in chips} == {key}, (name, chips, "a chip opened another device's files")
+        assert len(re.findall(r"<button[^>]*class=\"nchip\"", blocks[name])) == len(chips), (
+            name,
+            "a chip has no device",
+        )
+    assert 'class="nchip static"' in blocks["Verity"], "the HRVDex chip is shown, not offered"
+    assert re.search(r'class="nchip static"[^>]*data-dev', blocks["Verity"]) is None, "a label carries no device"
