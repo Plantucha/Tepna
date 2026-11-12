@@ -6681,6 +6681,25 @@ def _oxyii_on_data(cx: _OxyiiLink, _s, d) -> None:
         _oxyii_live_frame(cx, r)
 
 
+def oxylife_writer_for(current, path, device):
+    """The ring's OXYLIFE.csv writer for the folder this connect attempt writes into.
+
+    The same writer comes back while the folder holds. When the folder changes, the old file closes and
+    the writer opens the new one, which continues an existing file after its last row.
+
+    🔴 THE FILE FOLLOWS THE ATTEMPT, NOT THE RUN. The writer used to open once per daemon run, in the
+    folder of the run's first attempt, and append there until the next restart. The ring tries a connect
+    about every 3 min all day, so each attempt appended a row to a finished night. Measured on the
+    capture box 2026-11-11: the night of 2026-11-10 ended at 04:56, and at 10:53 its folder still
+    received ring rows. The archive named that night "held open" at 10:56, and the same happened on
+    2026-11-09. Each attempt now writes into its own folder, beside the capture files it would open."""
+    if current is not None and current.path == path:
+        return current
+    if current is not None:
+        current.close()
+    return OxyLifeLogWriter(path, device=device)
+
+
 _OXY_REC_TAIL_BYTES = 65536  # how much of OXYLIFE.csv the boot read looks at — the tail holds the last row
 
 
@@ -6688,8 +6707,8 @@ def _oxy_rec_journals(root, now_ms):
     """`[(path, tail_text)]` for each OXYLIFE.csv that exists in the two night directories a rec row can
     be in, oldest first. Reads only, creates nothing.
 
-    TWO night directories, because the writer appends into the night dir of the SESSION's start date and
-    that stays yesterday's folder all day (`solid_night`'s measured case). One directory would read an
+    TWO night directories, because a session's rows stay in the folder of the session's start date, which
+    is yesterday's folder every morning (`solid_night`'s measured case). One directory would read an
     empty file every morning, on exactly the days these readers are for.
 
     THE TAIL ONLY. This file carries every link transition of the day — hundreds of rows — and both
@@ -6839,7 +6858,7 @@ async def run_oxyii(dev: dict, root: str):
     )
     # The slot holds a writer once opened; `{"w": None}` alone infers `dict[str, None]`, so the
     # one assignment that fills it reads as an error. It is opened once per run, lazily (G4).
-    _oxywr: "dict[str, OxyLifeLogWriter | None]" = {"w": None}  # G4 OXYLIFE.csv, opened once per run (first night dir)
+    _oxywr: "dict[str, OxyLifeLogWriter | None]" = {"w": None}  # G4 OXYLIFE.csv, in the folder of the current attempt
     # Consecutive connects that answered the identity query and delivered no frames (Mitigation C
     # clause 2). Per RUN, not per episode: the run is the finding, one barren connect is not.
     barren = 0
@@ -6952,8 +6971,8 @@ async def run_oxyii(dev: dict, root: str):
                     log.info("%s: resuming file-set %s (gap < %.0fs)", name, f"{_prev:%Y%m%d%H%M%S}", _RESUME_WINDOW_S)
                 started, ndir = _prev, _pdir
                 resumed_set = True
-        if _oxywr["w"] is None:  # G4: open the lifecycle sidecar once, in the first night dir
-            _oxywr["w"] = OxyLifeLogWriter(os.path.join(ndir, "OXYLIFE.csv"), device=name)
+        # G4: the lifecycle sidecar follows the folder of THIS attempt (see `oxylife_writer_for`).
+        _oxywr["w"] = oxylife_writer_for(_oxywr["w"], os.path.join(ndir, "OXYLIFE.csv"), name)
         path = os.path.join(
             ndir, capture_filename(dev["vendor"], dev["model"], dev["device_id"], started, "spo2", "csv")
         )
@@ -11628,25 +11647,28 @@ async def archive_poller(cfg: dict, root: str):
             # Before the transfer branch, so it covers both offload paths, and latched per night.
             stalled = await asyncio.to_thread(nightarchive.stalled_protection, captures, settle)
             STATUS.setdefault("archive", {})["stalled_protection"] = [
-                {"night": r["night"], "data_age_sec": round(r["data_age_sec"], 1)} for r in stalled
+                {"night": r["night"], "data_age_sec": round(r["data_age_sec"], 1), "writers": r["writers"]}
+                for r in stalled
             ]
             for r in stalled:
                 if r["night"] in _stall_warned:
                     continue
                 _stall_warned.add(r["night"])
                 hrs = r["data_age_sec"] / 3600.0
+                files = ", ".join(r["writers"])
                 log.warning(
-                    "archive: %s held active by a lone writer — device data quiet %.1f h, newest file %.0f s ago",
+                    "archive: %s held active by a lone writer — device data quiet %.1f h, newest file %.0f s ago (%s)",
                     r["night"],
                     hrs,
                     r["any_age_sec"],
+                    files,
                 )
                 if _NOTIFIER is not None:
                     await _NOTIFIER.send(
                         "Tepna: a finished night is held open",
                         f"{r['night']}: device data quiet {hrs:.1f} h, one writer still touching the "
-                        f"folder {r['any_age_sec']:.0f} s ago. The copy now proceeds; the writer is "
-                        f"what to look at.",
+                        f"folder {r['any_age_sec']:.0f} s ago: {files}. The copy now proceeds; the writer "
+                        f"is what to look at.",
                     )
             if xfer is not None:
                 await _archive_transfer(captures, xfer, settle, schedule, subtrees)
