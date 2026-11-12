@@ -10,11 +10,14 @@
  * `tests.yml` are comments. `tests.yml:206` records the shape in its own words, where #3186 registered
  * a step in `STEPS` alone and no hosted runner ran it.
  *
- * WHAT THIS TOOL DOES AND WHAT IT LEAVES TO THE OWNER. The row reserves the remedy, because closing
- * the gap adds blocking work to the branch ruleset. So this gate adds no workflow line and changes no
- * ruleset. It PINS the gap, two-sided, and names every step inside it. A new step that lands with no
- * workflow line reds here, which is the half that needs no authorization. The count grew from 28 to 40
- * between 2026-11-09 and 2026-11-11, so the growth is the live cost.
+ * WHAT THIS TOOL DOES, AND WHAT CLOSED THE GAP IT PINNED. The row reserved the remedy, because a
+ * closure was held to add blocking work to the branch ruleset. That half of the premise is measured
+ * false: `tools/required-contexts.mjs` names the 11 required contexts, and `pr-walker.mjs`'s
+ * `classify()` filters every failed and cancelled check through `isReq`, so a NON-required job holds
+ * neither the undraft nor Kodiak. So `local-steps.yml` now runs 41 of the 43 steps that ran in no
+ * workflow, and this pin drops to 0. The ruleset addition stays the owner's, and nothing here does it.
+ * The gap grew from 28 steps on 2026-11-09 to 43 on 2026-11-12, which was the live cost of waiting.
+ * This gate still PINS the gap, two-sided, and names every step inside it.
  *
  * HOW A STEP COUNTS AS COVERED. The workflows hold the step's own command, or they hold `npm run
  * <step>`. Nothing else counts, and the direction is deliberate: a workflow that runs the same tool
@@ -39,22 +42,36 @@ const Verdict = createRequire(import.meta.url)(join(ROOT, 'verdict.js'));
 
 /** The pinned size of the gap, two-sided. A step that lands with no workflow line raises the count and
     reds. A step that gains one lowers it and also reds, because a stale pin hides the next arrival.
-    A RED HERE HAS TWO HONEST REMEDIES, and the reader picks: give the new step a workflow line, or
-    raise this pin and say why in the commit. The second one is legitimate, because the row reserves
-    the closure to the owner and a lander may hold no authorization to add blocking CI work. #4846
-    raised it from 39 to 40 one hour before this tool landed, where `verify:module-carriers` arrived
-    with no workflow line. The 2026-11-11 raise to 41 is `verify:paper-references`, which runs inside
-    `npm run check` under CI's `static` job exactly as `verify:brief-header-claims` does. Its own
-    workflow line would be a new CI context, and §📌's row reserves that to the owner. The raise to 42 is
-    `verify:paper-claim-markers`, the second half of that same papers census, which runs under the same
-    `static` job and sits under the same reservation. The raise to 43 is `verify:write-root-adoption`,
-    the gate that names the adopted write-root and judge-root sets. It runs under the same `static` job
-    inside `npm run check`, and its own workflow line would be a new CI context the row reserves. */
-export const UNCOVERED_PIN = 43;
+    THE ONE HONEST REMEDY FOR A RED IS NOW A WORKFLOW LINE. `local-steps.yml` exists, it is not a
+    required context, and a step added to it blocks nobody — so a lander needs no authorization to
+    close the gap, and raising this pin is no longer a legitimate second option.
+    ⚠️ THE PIN WAS RAISED THREE TIMES ON A FALSE CLAIM, and the correction is the reason it reads 0.
+    The raises to 41, 42 and 43 (`verify:paper-references`, `verify:paper-claim-markers`,
+    `verify:write-root-adoption`) each said the step "runs inside `npm run check` under CI's `static`
+    job exactly as `verify:brief-header-claims` does". Measured 2026-11-12: no workflow `run:` key
+    invokes the aggregate, `npm run check` appears in `tests.yml` only inside comments at lines 193,
+    213 and 245, the four named tools appear nowhere under `.github/workflows/`, and the anchor
+    `verify:brief-header-claims` was itself uncovered. So all three raises excused a real gap with a
+    run that never happened. A justification that names a job must name the `run:` key inside it. */
+export const UNCOVERED_PIN = 0;
 
-/** A step whose command a workflow may never carry, with the reason. Empty, and the gate says so: the
-    row reserves every closure to the owner, so this tool invents no exemption. */
-export const UNCOVERED_EXEMPT = new Set([]);
+/** A step whose command a workflow may never carry, with the reason. The one member is measured, and the
+    arithmetic is `pinGap`'s: an exempt step leaves `counted`, so it does not have to be at 0.
+    `exemptNowCovered` reports a member that later gains a line, so an exemption cannot go stale quietly.
+      • `test:par` runs the whole suite again under `--jobs=auto`, and `tests.yml`'s `suite` job already
+        shards that suite. The flag adds the job split, never an assertion, and `verify:shard-union-logic`
+        — which `local-steps.yml` now runs — proves the shards union to the whole suite.
+    ⚠️ AN EXEMPTION NEEDS A MEASUREMENT, NOT A PLAUSIBLE REASON. This set briefly held
+    `verify:fixture-currency` too, on the reading that no hosted runner holds the captures it needs. A
+    control refuted that reading, and `local-steps.yml` records it and carries the step.
+    ⚠️ ONE ENVIRONMENT-VARIABLE NAME IN A COMMENT MOVED THIS GATE INTO ANOTHER GATE'S HAZARD SET. The
+    paragraph above first named the override that re-points the captures. That token alone satisfied
+    `corpus-reads.mjs`'s `corpus-root` rule, which reads RAW text by design, and this tool's
+    `readdirSync` over `.github/workflows` then classified it `enumerates` with no population verdict.
+    One test group red and `verify-fixtures.mjs` stamped nothing. The vocabulary is generous on purpose,
+    so the repair is here: a workflow-parity gate names no capture path, and the measurement lives in
+    `local-steps.yml`. Sibling row: `2026-10-21-a-tool-named-in-a-test-comment-reads-as-tested`. */
+export const UNCOVERED_EXEMPT = new Set(['test:par']);
 
 const WF_DIR = join('.github', 'workflows');
 const PATH_RE = /(?:^|[\s"'])((?:tools|tests|codegen|\.claude\/hooks)\/[A-Za-z0-9._-]+\.(?:mjs|js|sh))/g;
