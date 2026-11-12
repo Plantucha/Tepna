@@ -92,7 +92,14 @@ const ESCAPER_NAME_RE = /^(?:esc|escape)[A-Za-z0-9_$]*$/;
    unverified escaper, which is a census of nothing. The three accepted shapes are a declaration, a
    function expression, and an arrow. */
 const DECL_RE = /\b(?:function\s+([A-Za-z_$][\w$]*)\s*\(|(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:function\b|(?:\([^)]*\)|[A-Za-z_$][\w$]*)(?=\s*=>)))/g;
-const REPLACE_PAT_RE = /\.replace\(\s*(\/(?:\\.|\[(?:\\.|[^\]\\])*\]|[^/\\\n])+\/[a-z]*)/g;
+/* THE THREE ALTERNATIVES ARE DISJOINT ON THEIR FIRST CHARACTER, and that is what makes this scan
+   LINEAR. The first form ended `[^/\\\n]`, which matched `[` and `]` itself, so `[]` parsed two ways
+   and CodeQL `js/redos` rated it HIGH: exponential backtracking on a string that opens `.replace(/`
+   and repeats `[]` (alert 303 against #4963, which merged with that alert unresolved because CodeQL
+   is not a required context). A bare `]` outside a character class now ends the scan and the pattern
+   earns no credit. That is the fail-closed direction and it costs this gate nothing: every character
+   it must see — `&`, `<`, `>` and `"` — is either bare or inside a class. */
+const REPLACE_PAT_RE = /\.replace\(\s*(\/(?:\\.|\[(?:\\.|[^\]\\])*\]|[^/\\\n[\]])+\/[a-z]*)/g;
 
 /* Strings and comments blanked to spaces, OFFSETS PRESERVED, so a `{` or a `;` inside a literal
    cannot end a body and a `/[&<>"]/` cannot desynchronise the scan — the defect `js-lex`'s header
@@ -417,6 +424,20 @@ export function selftest() {
   ok(/does not escape "/.test(escaperCredit(QUOTEBLIND).reason), '…and the refusal names the character it leaves alone');
   ok(escaperCredit('{ return s.toUpperCase(); }').credited === false, 'CONTROL: a helper that replaces nothing earns nothing');
   ok(escaperCredit(null).credited === false, 'CONTROL: a body that could not be read earns nothing — refusal is the safe direction');
+
+  /* THE DISJOINT ALTERNATION, PINNED BY ITS CONSEQUENCES. The first form of `REPLACE_PAT_RE` let its
+     last alternative match `[` and `]`, so `[]` parsed two ways and CodeQL `js/redos` rated it HIGH
+     (alert 303 against #4963). Measured on `.replace(/` + `[]`×N + `!`: the old form took 0.7 ms at
+     N=14, 24 ms at N=22 and 6121 ms at N=30, while this one stays under 0.06 ms across all of them.
+     The bound below is 6x under that 30-repetition reading, so it separates the two forms without
+     asking a test to time anything tightly. */
+  const CLASSFORM = '{ const M = { "&": "&amp;", "<": "&lt;", ">": "&gt;", \'"\': "&quot;" }; return s.replace(/[&<>"]/g, (c) => M[c]); }';
+  ok(escaperCredit(CLASSFORM).credited === true, 'a ONE-class escaper is credited — the class alternative is what reads it');
+  ok(escaperCredit('{ return s.replace(/]/g, "x"); }').credited === false, 'a bare "]" outside a class is not read, so the body earns nothing — fail closed');
+  const ADVERSARIAL = `{ return s.replace(/${'[]'.repeat(30)}!; }`;
+  const tReDoS = Date.now();
+  const advCredit = escaperCredit(ADVERSARIAL).credited;
+  ok(advCredit === false && Date.now() - tReDoS < 1000, 'an adversarial body is judged in bounded time — the alternatives are disjoint', `${Date.now() - tReDoS} ms`);
 
   const SRC_ALIAS = `function escHtml(s) ${FOURCH}\nel.innerHTML = escHtml(v);\n`;
   ok(localEscapers(SRC_ALIAS).credited.includes('escHtml'), "a file's own escHtml is read out of its declaration");
