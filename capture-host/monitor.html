@@ -1705,6 +1705,9 @@ function nSolidBlock(n){
   return `<div class="nsb"><b>Solid night: ${esc(N_SOLID_TXT[s.v.status]||s.v.status)}</b><div class="nsbd">${devs}</div></div>`;
 }
 // The drawer: the solid result, then per device its facts and one chip per analyzer that reads it.
+// A chip carries its DEVICE as well as its node, and opens the node with that device's files alone — the
+// chip's label names one device's suffixes, so it may not open another's. `nightFiles` holds the scope and
+// the measurement behind it. The device CELL is the node-wide click and keeps every file the node reads.
 function nDrawer(n){
   if(NIGHTS_TAB==='fus') return nSolidBlock(n) + NIGHT_FUSED.map(f=>{
     const v = n[f.node];
@@ -1722,7 +1725,7 @@ function nDrawer(n){
     const chips = NIGHT_COLS.filter(c=>c!=='Integrator' && n[c] && Array.isArray(n[c].files) && n[c].files.some(f=>typeof f==='string' && d.match.test(f))).map(c=>{
       const suf = [...new Set(n[c].files.filter(f=>typeof f==='string' && d.match.test(f)).map(f=>(nBase(f).match(/_([A-Z0-9]+)\.(txt|csv)$/)||[,'EDF'])[1]))].join(' ');
       return n[c].loadable
-        ? `<button type="button" class="nchip" data-night="${esc(nRowKey(n))}" data-node="${esc(c)}">${esc(c)}<small>${esc(suf)}</small></button>`
+        ? `<button type="button" class="nchip" data-night="${esc(nRowKey(n))}" data-node="${esc(c)}" data-dev="${esc(d.k)}" title="${esc('open '+c+' with the '+d.name+"'s files for this night")}">${esc(c)}<small>${esc(suf)}</small></button>`
         : `<span class="nchip static" title="${esc(NIGHT_WHY_NOT[c]||'shown, not offered')}">${esc(c)}<small>${esc(suf)}</small></span>`;
     }).join('');
     return `<div><b>${esc(d.name)}${v&&nHas(n,d.k)?' · '+esc(nHrs(v.hours)):''}</b><br>${facts}<div class="nchips">${chips}</div></div>`;
@@ -1841,7 +1844,7 @@ function nightShape(v){
   if(typeof v !== 'object') return 'a '+typeof v+' ('+String(v)+')';
   return 'an object with keys ['+Object.keys(v).join(', ')+']';
 }
-function nightFiles(n, node, rec){
+function nightFiles(n, node, rec, dev){
   const ARR = n2 => (rec ? (Array.isArray(rec.arrival) ? rec.arrival : []) : (Array.isArray(n2 && n2.arrival) ? n2.arrival : []));
   if(node==='3 corner hat') return { files: [...nodeFileList(n,'ECGDex',rec), ...nodeFileList(n,'PPGDex',rec), ...nodeFileList(n,'OxyDex',rec)], reason: null };
   if(node==='PAT') return { files: [...nodeFileList(n,'ECGDex',rec).filter(f=>f.endsWith('_ECG.txt')), ...nodeFileList(n,'PPGDex',rec).filter(f=>/(VeritySense|O2Ring).*_PPG\.txt$/.test(f)),
@@ -1864,7 +1867,29 @@ function nightFiles(n, node, rec){
        paths and the reason goes unshown. That is a real gap and it is written down rather than hidden. */
     const ok = v.files.filter(x => typeof x === 'string');
     const dropped = v.files.length - ok.length;
-    return { files: ok, reason: dropped ? node+"'s file list carried "+dropped+' entr'+(dropped>1?'ies':'y')+' that is not a path string, so '+(ok.length?'only '+ok.length+' of '+v.files.length+' could be fetched':'none could be fetched') : null };
+    const drop = dropped ? node+"'s file list carried "+dropped+' entr'+(dropped>1?'ies':'y')+' that is not a path string, so '+(ok.length?'only '+ok.length+' of '+v.files.length+' could be fetched':'none could be fetched') : null;
+    /* ── A PER-DEVICE CHIP OPENS THAT DEVICE'S FILES ONLY ────────────────────────────────────────────
+       The drawer draws one chip per (device, analyzer) pair and LABELS it with that device's own
+       suffixes, so `PPGDex  PPG PPI` under the Verity promised the Verity's two files. It handed over
+       `n.PPGDex.files`, which the index fills from four globs over TWO devices, so the click also loaded
+       the ring's `_PPG.txt` (Kestrel's vigil audit of night 2026-11-04). Three loadable nodes have
+       device-spanning globs — PPGDex (Verity + ring), PulseDex (Verity PPI + H10 RR) and MotionDex (all
+       three ACC streams) — and those three are exactly the chips that could promise one device and open
+       another. ECGDex, OxyDex and CPAPDex each glob one device, so the scope changes nothing there.
+       The device CELL keeps the whole node list on purpose: its own hint reads "every file that analyzer
+       reads for the night", and PPGDex taking the Verity and the ring PPG together is the deliberate
+       reading. One rendering per promise, and each now keeps its own.
+       ⚠️ THE NIGHT'S BOUNDARY IS NOT A DEFECT HERE. A 04:49 stamp belongs to the previous evening under
+       the owner's noon-to-noon ruling of 2026-10-13 (`nightqc.night_key_band`), so a next-morning
+       fragment of the same stream is this night's signal and stays. */
+    const d = dev ? NIGHT_DEVICES.find(x => x && x.k === dev) : null;
+    if(dev && !d) return { files: [], reason: 'the monitor has no device keyed '+dev+", so it will not guess which of "+node+"'s files that chip meant" };
+    if(d){
+      const mine = ok.filter(f => d.match.test(f));
+      if(!mine.length) return { files: [], reason: node+' holds no '+d.name+' file this night, so its '+d.name+' chip has nothing to open' };
+      return { files: mine, reason: drop };
+    }
+    return { files: ok, reason: drop };
   }
   /* A DERIVED tool reaching the fallback is a MISSING BRANCH, not a thin night — name that, because it
      is a code defect and the equality in test_webmon_nights.py is what should have caught it. */
@@ -1873,7 +1898,7 @@ function nightFiles(n, node, rec){
   return { files: [], reason: node+"'s index entry is "+nightShape(v)+', not a node record with a string[] .files' };
 }
 
-async function openNight(key, node, view){
+async function openNight(key, node, view, dev){
   /* BY THE ROW KEY, NOT THE BAND — and the parameter is named `key` because that is what every
      `data-night` now carries. `NIGHTS.find(x=>x.night===night)` returned the FIRST row of a band
      carrying three, so a click on the 09:18 row opened the NIGHT's files and named them in the toast. */
@@ -1886,7 +1911,9 @@ async function openNight(key, node, view){
     return;
   }
   const rec = pick.rec;
-  const got = nightFiles(n, node, rec); const rels = got.files;
+  /* The chip's device, read lazily: a cell passes none, and this must not reach NIGHT_DEVICES then. */
+  const dv = dev ? NIGHT_DEVICES.find(x => x && x.k === dev) : null;
+  const got = nightFiles(n, node, rec, dev); const rels = got.files;
   if(!rels.length){ nToast(got.reason || ('nothing to load for '+node+' on '+n.night), true); return; }
   /* ∅ A file with no session stamp belongs to no band — the CPAP trees are keyed by DATE. They are handed
      over with the recording (they are this FOLDER's) and SAID, rather than dropped silently or filed under
@@ -1896,7 +1923,8 @@ async function openNight(key, node, view){
      each one as a parse issue. A file joins the hand-over only when this node's own folder-level list holds it. */
   const ownAll = n[node] && Array.isArray(n[node].files) ? n[node].files : [];
   const noStamp = rec && Array.isArray(n.recordings_unassigned)
-    ? n.recordings_unassigned.filter(f => typeof f === 'string' && rels.indexOf(f) < 0 && ownAll.indexOf(f) >= 0) : [];
+    ? n.recordings_unassigned.filter(f => typeof f === 'string' && rels.indexOf(f) < 0 && ownAll.indexOf(f) >= 0
+        && (!dv || dv.match.test(f))) : [];
   if(noStamp.length) rels.push(...noStamp);
   // A per-click query so the browser can never hand back a CACHED app from before a deploy (2026-09-26: both
   // derived pages rendered their pre-#3117 copies after the box was serving the new ones, and the old PAT page
@@ -1912,7 +1940,7 @@ async function openNight(key, node, view){
   /* ONE NAME for the source, read from the row: the parameter is `key` since #3473, and two reads of the old
      `night` threw after the files reached the page and before the Run press (2026-11-03). */
   const from = rec ? 'recording '+rec.recording : n.night;
-  nToast('opening '+node+' — fetching '+rels.length+' file'+(rels.length>1?'s':'')+' from '+from+extra+' …');
+  nToast('opening '+node+(dv?' for the '+dv.name:'')+' — fetching '+rels.length+' file'+(rels.length>1?'s':'')+' from '+from+extra+' …');
   let files;
   try{
     files = await Promise.all(rels.map(async rel=>{ const r=await fetch('/captures/'+rel.split('/').map(encodeURIComponent).join('/')); if(!r.ok) throw new Error(r.status+' '+rel);
@@ -1960,7 +1988,7 @@ function nightsClick(e){
   // own failure arms toasts, but a THROW bypassed all of them: called bare, the rejection went nowhere and the
   // click looked dead (the 'PAT fused' TypeError above). The catch is the §∅ rule at the UI — a click that
   // examined nothing has to say so — and it is not a substitute for the arms, which still name their cause.
-  const f=e.target.closest('[data-node]'); if(f){ Promise.resolve(openNight(f.dataset.night, f.dataset.node, f.dataset.view)).catch(err=>nToast('opening '+f.dataset.node+' failed: '+((err&&err.message)||err), true)); }
+  const f=e.target.closest('[data-node]'); if(f){ Promise.resolve(openNight(f.dataset.night, f.dataset.node, f.dataset.view, f.dataset.dev)).catch(err=>nToast('opening '+f.dataset.node+' failed: '+((err&&err.message)||err), true)); }
 }
 // One listener for the whole view: the tabs and the overview strip sit outside the table.
 $('#view-nights').addEventListener('click', nightsClick);
