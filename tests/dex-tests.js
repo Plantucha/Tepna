@@ -31102,6 +31102,68 @@
         /left the statistic the gate weighs at/.test(psrc) && /the 5-min drift range at/.test(psrc),
         'both quantities are published, so both need their name'
       );
+
+      /* ── 🔴 THE FOCUSED NIGHT HAD ONE WRITER AND FOUR WAYS TO STAY EMPTY ──────────────────────────
+         Row `2026-11-11-pat-focused-night-empty-after-handover`. `focusVerdict` was written at exactly
+         one site, `renderFocus`'s success path, so a refusal, a failed worker load, a detail-job error
+         and the whole render window all left the page's first-load prose on screen. The CHOICE of night
+         was dead too: `focusNight(elig.length === 1 ? elig[0] : elig[0])` under a comment promising the
+         worst-drift night. The control below is the point — the discarded expression and the gate's
+         ranking disagree on one input, so this is a measured defect and not a restatement. */
+      T.ok('PATGate.pickFocusNight is exported — the choice is single-sourced', typeof PG.pickFocusNight === 'function', 'typeof=' + typeof PG.pickFocusNight);
+      if (typeof PG.pickFocusNight === 'function') {
+        var R3 = {
+          '2026-11-02': { cp: { ok: true, stepP95: 12, driftRange: 400 } },
+          '2026-11-03': { cp: { ok: true, stepP95: 54, driftRange: 135 } },
+          '2026-11-04': { cp: { ok: true, stepP95: 31, driftRange: 420 } }
+        };
+        var keys3 = Object.keys(R3).sort(),
+          fp = PG.pickFocusNight(keys3, R3);
+        T.eq('three nights · the pick IS the widest gated statistic', fp.key + '/' + fp.basis, '2026-11-03/worst-drift', JSON.stringify(fp));
+        T.ok('🔴 CONTROL · the DISCARDED expression picks a DIFFERENT night on this same input', keys3[0] !== fp.key, 'elig[0]=' + keys3[0] + ' · ranked=' + fp.key);
+        T.ok(
+          '…and it ranks on the GATED statistic, never the range',
+          PG.driftStatOf(R3['2026-11-04'].cp).rangeMs > PG.driftStatOf(R3[fp.key].cp).rangeMs,
+          'the widest RANGE is 2026-11-04 at 420 ms, and the gate weighs the p95 step'
+        );
+        T.eq('…and it names the statistic it weighed, machine-readably', fp.stat, 'stepP95', JSON.stringify(fp));
+        T.ok('…with the prose carrying that name and the population', /p95 step/.test(fp.why) && /of 3 nights/.test(fp.why), fp.why);
+
+        // THE ROW'S OWN CASE — a handover of exactly one night. NOTHING was chosen, and it says so.
+        var oneFp = PG.pickFocusNight(['2026-11-04'], {});
+        T.eq('one eligible night · the key is that night, with no results map at all', oneFp.key, '2026-11-04', JSON.stringify(oneFp));
+        T.eq('…and the basis is `only`, never a ranking over a population of one', oneFp.basis, 'only', JSON.stringify(oneFp));
+        T.ok('…and the why states that no choice was made', /nothing was chosen/.test(oneFp.why), oneFp.why);
+
+        /* §∅ · NO NIGHT CARRIES A STATISTIC YET (the batch has not run). The earliest night stands in
+           and the basis SAYS it stands in — a fallback presented as a ranking is the defect above. */
+        var pendFp = PG.pickFocusNight(keys3, { '2026-11-02': { cp: { ok: true } }, '2026-11-03': {}, '2026-11-04': { cp: { ok: true } } });
+        T.eq('no measurable statistic · the earliest night by date stands in', pendFp.key, '2026-11-02', JSON.stringify(pendFp));
+        T.eq('…under the basis `first`, which is not `worst-drift`', pendFp.basis, 'first', JSON.stringify(pendFp));
+        T.ok('…and `ms` is null, never a 0 standing in for an unmeasured drift', pendFp.ms === null, JSON.stringify(pendFp));
+
+        var noneFp = PG.pickFocusNight([], R3);
+        T.ok('no eligible night · the key is null and the basis is `none`', noneFp.key === null && noneFp.basis === 'none', JSON.stringify(noneFp));
+        var missFp = PG.pickFocusNight(keys3, undefined);
+        T.eq('a results map the batch never filled does not throw', missFp.basis, 'first', JSON.stringify(missFp));
+      }
+
+      /* ── AND THE PAGE ROUTES EVERY FOCUS OUTCOME THROUGH ONE WRITER (source-scanned: no DOM here) ── */
+      T.ok('CONTROL · the dead ternary is GONE from the renderer', !/focusNight\(elig/.test(psrc), 'both arms were elig[0], under a comment promising the worst-drift night');
+      T.ok('…and the renderer asks the gate for the pick', /PATGate\.pickFocusNight\)\(elig, RESULTS\)/.test(psrc), 'a second copy of the choice is a second answer');
+      var fsCalls = (psrc.match(/setFocusState\(/g) || []).length;
+      T.ok('every focus outcome writes the panel — refusal, pending, worker failure, job error, several nights', fsCalls >= 6, fsCalls + ' site(s); 1 definition + 5 callers expected');
+      T.ok('the silent early return NAMES its refusal', /cannot be focused/.test(psrc), 'an ineligible key returned with the first-load prose left on screen');
+      T.ok(
+        'the dropped `ready` failure is reported, under the field the worker actually sends',
+        /m\.err \|\| 'the worker reported no reason'/.test(psrc),
+        'the batch handler reads `m.err`, and the focus handler returned on it in silence'
+      );
+      T.ok(
+        'a handover of exactly ONE eligible night focuses it at ingest, with no Run press',
+        /if \(elig === 1\)/.test(psrc) && /focusNight\(one, /.test(psrc),
+        'the monitor clicks Run, but a single night needs no batch to fill the panel'
+      );
     });
 
     /* ════ PAT classic vs fused — the weighted statistic, and the band on a clean night ═══════════
