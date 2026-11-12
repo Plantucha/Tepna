@@ -606,6 +606,30 @@ def test_stalled_protection_names_the_night_one_writer_holds_open(tmp_path):
     assert [r["night"] for r in rows] == ["2026-10-28"]
     assert round(rows[0]["data_age_sec"] / 3600.0, 1) == 14.0
     assert rows[0]["any_age_sec"] == 1.0
+    assert rows[0]["writers"] == [_SIDE], "the row names the file that holds the night open"
+
+
+def test_stalled_protection_names_only_the_fresh_files_and_never_a_box_verdict(tmp_path):
+    """A file written exactly `settle` ago is not fresh: the same strict bound as `any_age_sec`."""
+    cap = str(tmp_path / "captures")
+    d = _night(cap, "2026-10-28", {_DEV: "x", _SIDE: "y", "LINK.csv": "z", "SOLID-VERDICT.json": "{}"})
+    _touch(os.path.join(d, _DEV), 100_000 - 14 * 3600)
+    _touch(os.path.join(d, _SIDE), 99_999)
+    _touch(os.path.join(d, "LINK.csv"), 100_000 - 60)
+    _touch(os.path.join(d, "SOLID-VERDICT.json"), 99_999)
+    os.makedirs(os.path.join(d, "sub"))
+    rows = _stalled(cap, 60.0, _now=lambda: 100_000.0)
+    assert [r["writers"] for r in rows] == [[_SIDE]]
+    assert nightarchive._fresh_files(d, 100_000 - 61) == ["LINK.csv", _SIDE]
+
+
+def test_fresh_files_skips_a_box_verdict_and_keeps_reading_past_it(tmp_path):
+    """A box verdict that sorts FIRST must not end the scan: the fresh writer after it is still named."""
+    cap = str(tmp_path / "captures")
+    d = _night(cap, "2026-10-28", {"LOSS-AUDIT.json": "{}", "RING.csv": "r"})
+    _touch(os.path.join(d, "LOSS-AUDIT.json"), 99_999)
+    _touch(os.path.join(d, "RING.csv"), 99_999)
+    assert nightarchive._fresh_files(d, 100_000 - 61) == ["RING.csv"]
 
 
 def test_stalled_protection_is_silent_unless_all_three_conditions_hold(tmp_path):
