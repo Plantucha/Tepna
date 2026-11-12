@@ -76,6 +76,8 @@ All three are planted in `--selftest` and asserted red. None is a claim about to
 - [x] 2026-11-12: the gate enumerates both export routes, so the slim-export literal's keys declare
       a surface too (§7).
 - [x] A control plants the old enumerator's blindness, and §7 does not assert it.
+- [x] 2026-11-12: the first nested subtree (`fusion.apnea`) declares a surface per key, through an
+      ANCHORED read, and the verdict names the subtrees it judged at depth 2 (§8).
 
 ## 6 · 2026-11-11 — the seed counted prose, and two declarations were wrong
 
@@ -154,3 +156,48 @@ Two enumerations disagree about the rest, and they miss opposite things. A fixtu
 misses code the fixtures predate. A source-derived walk misses an object a second function builds. A
 declaration per nested path also needs an anchor per path, because a key such as `fusion.apnea`
 carries no literal at the fusion site at all. That is the next one, and it is a unit of its own.
+
+## 8 · 2026-11-12 — depth 2 arrives one subtree at a time, and a nested read needs an anchor
+
+🔴 **THE FIRST NESTED SUBTREE IS `fusion.apnea`, AND THE GATE NAMES THE SET IT JUDGED.** §7 left the
+nested half as a unit of its own, with a reason: a scratch resolver reached 183 paths and left 16
+unresolved, and each path then needs a hand-checked surface. Board 5905 holds that reason. So the
+nested half lands per subtree, and `result.nestedSubtrees` lists the subtrees judged one level
+deeper. A subtree absent from that list is not examined, which the verdict now states instead of
+implying.
+
+**The population.** `fuseApneaEvents()` returns from two places. The no-overlap guard carries 13
+keys and the fused path 14, so the union is **14 keys — 10 `card` · 4 `export-only`**. The gate's
+`population.checked` moves from 36 to 50.
+
+🔴 **A BARE TOKEN IS NOT A NESTED READ.** At depth 1 a bare token in blanked code is good evidence,
+because the token IS the fusion's own property name. At depth 2 it is not. `findings`, `matched`,
+`total` and `unmatched` are also top-level fusion keys, so a bare token cannot tell `fusion.findings`
+from `a.findings`. The nested test resolves the alias, scopes the search to the enclosing function,
+and asks for `<alias>.<key>` or `<alias>['<key>']` in that scope.
+
+**Measured 2026-11-12 over this subtree: the anchored test and the bare one AGREE on all 14 keys.**
+So the anchoring repairs no live miss here. It is a tightening against the next edit, and §6's
+`bus`/`staging` finding is what says that distinction is worth paying for. A planted control carries
+the difference instead: a key that appears as a bare token, and that no anchored read reaches, reds.
+
+🔴 **PRESENCE IS PART OF THE SURFACE.** `consequence` exists on the fused return shape alone. The
+guard's own comment states that a reader never branches on a key's presence, which holds for
+`contributions` and `overlapCoverage` and fails for this one. Nothing reads `consequence`, so the
+branch is latent. A key that only some return shapes carry must now declare that in `partialShape`,
+or the gate reds; a `partialShape` entry for a key every shape carries is stale, and reds too.
+`fusion.apnea` is itself `null` when no overlap exists, and `nullWhen` records that the whole subtree
+is conditional.
+
+🔴 **A SHADOWED ALIAS CREDITS THE WRONG OBJECT, SO A REBOUND SCOPE CREDITS NOTHING.** `a` is a common
+identifier in a render file: a comparator parameter would make `a.total` a read of something else.
+The gate refuses a scope that rebinds its alias, rather than read it, so it fails closed. The first
+form of that test could not tell `if (a) {` from a parameter list, so it reported both real alias
+sites shadowed and credited nothing — the gate reded on 10 keys it should pass. A selftest leg plants
+each of those two states.
+
+`--selftest` grew from 29 legs to 51.
+
+**What this still cannot see.** Thirteen other subtrees carry nested paths, and no declaration
+covers one of them, so depth 2 reaches one subtree. The anchored test also credits a read into a variable that
+nothing draws, which is §6's standing blindness one level down.
