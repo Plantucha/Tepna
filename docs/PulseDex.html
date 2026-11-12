@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="005f2d17d318" data-compute-hash="db85b0c17553"><head>
+<html lang="en" data-manifest-hash="685aec25a57b" data-compute-hash="db85b0c17553"><head>
 <!--
   PulseDex.src.html — Tepna
   Copyright 2026 Michal Planicka
@@ -9,7 +9,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-1guj4HFcatABnfRfnxeGisCEql9GXUHFLGRjoSG++hU=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-44/qr38MNiLBn5DNmKG/WtoE9Ur2OqhHUfSsGpB6SQg=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-7j6AATR6LQOePoDsYpfydyJGQ3Ja+mZGRmG47vE267w=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8oJCTPzPyGhMh6+GnB1w5gTsNYWOhPvSI1G8MwXjCHg=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-HAXbchwkH2w0sxN5WvjWCMLbxsfGGclNPzL9K/ePBeM=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QU1eFIpXtk89h7OawHFWXJry6pEr0cw5i0Q08kGZz88=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-R6Dc/xXQzYFveWsVfbGSg8lpp98pG2dIwLNGGu4Pc04=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-sH2zcem3XO98hxUUreAPps78dztWHR1+8dPrGCperK0=' 'sha256-yPhlbrc1helUSpSqkbQna0IUysTjat9bRsoryaqXy3A='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-1guj4HFcatABnfRfnxeGisCEql9GXUHFLGRjoSG++hU=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-44/qr38MNiLBn5DNmKG/WtoE9Ur2OqhHUfSsGpB6SQg=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8oJCTPzPyGhMh6+GnB1w5gTsNYWOhPvSI1G8MwXjCHg=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-HAXbchwkH2w0sxN5WvjWCMLbxsfGGclNPzL9K/ePBeM=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QU1eFIpXtk89h7OawHFWXJry6pEr0cw5i0Q08kGZz88=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-R6Dc/xXQzYFveWsVfbGSg8lpp98pG2dIwLNGGu4Pc04=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-c3glqXDSb8bK5i3+s5sjSiBUM0X0TubtMMqU+hLSwRw=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-sH2zcem3XO98hxUUreAPps78dztWHR1+8dPrGCperK0=' 'sha256-yPhlbrc1helUSpSqkbQna0IUysTjat9bRsoryaqXy3A='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>PulseDex — Raw RR Analyzer · v2.31.0</title>
@@ -15307,6 +15307,36 @@ function calculate() {
 }
 
 // ─── MULTI-DAY: switcher + cross-recording trends (additive; gated at ≥2) ─────
+
+/* §9.4 AT THE REPORTING LAYER — the cross-recording baseline counts RECORDINGS, so it may never be
+   named in days. The headline said "your N-day baseline" over N FILES, so one night recorded as an
+   overnight plus a next-morning fragment read as two days of baseline (Kestrel vigil audit of the
+   2026-11-04 night). The count keeps the unit it actually counted, and the true span is reported
+   beside it over the owner-ruled noon fold (briefs/NIGHT-IS-THE-RECORDING-2026-10-05-BRIEF.md,
+   ruled + built 2026-10-13; the JS copy this follows is pat-feasibility.js nightKeyOfMs): a
+   recording that starts before noon folds into the previous evening, so both files of one night
+   carry one key. A recording with NO stamp is attributed to no day and counted apart — never
+   folded into the span as if it were dated (∅). */
+function _pxNightKey(tMs) {
+  const d = new Date(tMs);
+  let ms = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+  if (d.getUTCHours() < 12) ms -= 86400000;
+  const b = new Date(ms);
+  return b.getUTCFullYear() + '-' + ('0' + (b.getUTCMonth() + 1)).slice(-2) + '-' + ('0' + b.getUTCDate()).slice(-2);
+}
+function _pxNightSpan(list) {
+  const keys = {};
+  let undated = 0;
+  (list || []).forEach((s) => {
+    if (s.t0Ms == null || !isFinite(s.t0Ms)) {
+      undated++;
+      return;
+    }
+    keys[_pxNightKey(s.t0Ms)] = 1;
+  });
+  const n = Object.keys(keys).length;
+  return n + ' noon-to-noon day' + (n === 1 ? '' : 's') + (undated ? ' · ' + undated + ' undated, attributed to no day' : '');
+}
 function recordingsSortedPx() {
   return Object.values(allRecordings).sort((a, b) => (a.t0Ms || 0) - (b.t0Ms || 0));
 }
@@ -15483,7 +15513,7 @@ function renderCrossNightPx() {
       '">' +
       (st.zLatest == null ? '—' : (st.zLatest > 0 ? '+' : '') + st.zLatest + 'σ') +
       '</span></td></tr>';
-    if (st.zLatest != null && Math.abs(st.zLatest) >= DexKernel.K.Z_HEADLINE) headline.push(m.label + ' ' + (st.zLatest > 0 ? '+' : '') + st.zLatest + 'σ vs your ' + st.n + '-day baseline');
+    if (st.zLatest != null && Math.abs(st.zLatest) >= DexKernel.K.Z_HEADLINE) headline.push(m.label + ' ' + (st.zLatest > 0 ? '+' : '') + st.zLatest + 'σ vs your ' + st.n + '-recording baseline');
     if (st.ci && (st.ci[0] > 0 || st.ci[1] < 0) && st.n >= 7) headline.push(m.label + ' shifted ' + (st.deltaHalves > 0 ? '+' : '') + st.deltaHalves + m.unit + ' (95% CI excludes 0)');
   });
   document.getElementById('crossNightTablePx').innerHTML =
@@ -15502,7 +15532,9 @@ function renderCrossNightPx() {
       : '<div class="cn-head-item-px dim">No metric is beyond ±1σ of its personal baseline — a consistent stretch.</div>');
   document.getElementById('crossNightNotePx').innerHTML =
     list.length +
-    ' recordings · OLS slope vs date + non-parametric <b>Mann–Kendall</b> (τ, p) · personal-baseline <b>z-scores</b> · coverage-weighted. Same <code>crossNight()</code> engine as PpgDex/ECGDex/OxyDex.';
+    ' recordings over ' +
+    _pxNightSpan(list) +
+    ' · OLS slope vs date + non-parametric <b>Mann–Kendall</b> (τ, p) · personal-baseline <b>z-scores</b> · coverage-weighted. Same <code>crossNight()</code> engine as PpgDex/ECGDex/OxyDex.';
 }
 
 // ─── EXPORT ───────────────────────────────────────────────────────────────────
