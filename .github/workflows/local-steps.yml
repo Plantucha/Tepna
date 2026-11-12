@@ -1,0 +1,218 @@
+name: local-steps
+
+# LOCAL-GATE STEPS THAT NO OTHER WORKFLOW RUNS.
+#
+# Residue row `2026-11-09-28-of-the-53-local-gate-steps-run-in-no-ci-workflow`: `npm run check` names 67
+# steps and no workflow `run:` key invokes the aggregate, so each step owes its own workflow line. The two
+# mentions of `npm run check` in `tests.yml` are comments, at lines 193, 213 and 245. A step inside the
+# aggregate alone reds on every bird's box while `main` stays green, and the gap grew from 28 steps on
+# 2026-11-09 to 43 on 2026-11-12. `tools/ci-step-parity.mjs` pins that gap; this job closes it.
+#
+# ⚠ THIS JOB IS NOT A REQUIRED CONTEXT, AND THAT IS THE DESIGN. `tools/required-contexts.mjs` names the 11
+# required contexts, and this one is absent from them. `tools/pr-walker.mjs` `classify()` filters every
+# failed and cancelled check through `isReq`, so a red here holds neither the walker's undraft nor Kodiak's
+# merge. Adding it to the branch ruleset is the owner's call (CLAUDE.md §📌), and nothing here does that.
+# So this job reports, and a bird reads it. It never blocks a landing.
+#
+# WHY EVERY STEP IS ITS OWN `run:` KEY. `ci-step-parity.mjs` counts a step covered when a workflow holds
+# the step's own command or `npm run <step>`, so the literal alias is what closes the gap. One key per step
+# also names the failure in the UI, and `if: ${{ !cancelled() }}` keeps a later step running after an
+# earlier red — a single `&&` chain would hide every step after the first failure (CLAUDE.md §4b).
+#
+# THE ONE STEP THIS JOB DOES NOT RUN sits in `UNCOVERED_EXEMPT` with its reason: `test:par` runs the whole
+# suite again under `--jobs=auto`, the `suite` job already shards that suite, and `verify:shard-union-logic`
+# below proves the shards union to it.
+#
+# ⚠ `verify:fixture-currency` IS HERE, AND THE REASON IS MEASURED. It looked corpus-bound, so the first
+# draft of this job exempted it. Measured 2026-11-12 with `DEX_UPLOADS` pointed at an EMPTY directory:
+# `verify-fixtures.mjs --check` still reads all 19 corpus-backed fixtures and still names the UNVERIFIED
+# ones, because it compares each `verifiedUnder` against a closure hash it computes from the tree. Only the
+# RE-STAMPING run needs the corpus. So this step runs hosted, and it catches the case this very branch
+# found: #4943 stamped 5 Integrator fixtures at closure `05a4f1c82fa9`, a base-merge moved the closure to
+# `b2fd16e79a72`, and the stale stamp landed green because no workflow ran this step.
+#
+# MEASURED COST, 2026-11-12, all 43 uncovered steps run serially in one worktree: 204 s total, 42 exit 0,
+# one exits 1 (`verify:fixture-currency`, the stale stamp above, which this branch re-stamps). Dropping
+# `test:par` leaves 130 s of step time. The slowest remaining are `test:tools` 66 s, `test:hooks` 32 s and
+# `test:guards` 11 s.
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+  # The house pattern wires `merge_group` BEFORE a queue exists: a queue whose checks never fire waits
+  # forever. See the same comment in `format.yml`.
+  merge_group:
+
+concurrency:
+  group: local-steps-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  local-steps:
+    # The cap is `ceil(p95 × 2)` per `tools/workflow-timeout-guard.mjs`, and this job has no CI sample yet.
+    # So it is derived from the LOCAL sample instead, and the derivation is here to re-run: 130 s of step
+    # time measured 2026-11-12, plus checkout and `npm ci`, doubled for a hosted runner, doubled again for
+    # the guard's rule. Re-derive it from `tools/ci-timing.mjs --limit 100` once this job has runs.
+    timeout-minutes: 20
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0            # `gate:subject` and the residue gates read git history
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '20'
+      - name: Install dependencies (ast-grep and the other devDependencies the steps drive)
+        run: npm ci
+      # The PINNED wheel, not the runner image's binary. `capture-host-ci.yml` measured that
+      # `/usr/bin/shellcheck` flags three SC2015 sites which 0.11.0 does not, so two shellchecks make a
+      # green local round and a red CI round on one diff. `shellcheck-gate.mjs` resolves `$SHELLCHECK`,
+      # then capture-host's venv, then PATH, and it records the path and version in its verdict.
+      - name: Install the pinned shellcheck wheel
+        run: pip install 'shellcheck-py>=0.11.0.1'
+
+      - name: gate:subject
+        if: ${{ !cancelled() }}
+        run: npm run -s gate:subject
+      - name: verify:residue-citations
+        if: ${{ !cancelled() }}
+        run: npm run -s verify:residue-citations
+      - name: verify:residue-cite-drift
+        if: ${{ !cancelled() }}
+        run: npm run -s verify:residue-cite-drift
+      - name: verify:sidecar-census
+        if: ${{ !cancelled() }}
+        run: npm run -s verify:sidecar-census
+      - name: verify:defect-pins
+        if: ${{ !cancelled() }}
+        run: npm run -s verify:defect-pins
+      - name: verify:flag-exit
+        if: ${{ !cancelled() }}
+        run: npm run -s verify:flag-exit
+      - name: verify:flag-drive
+        if: ${{ !cancelled() }}
+        run: npm run -s verify:flag-drive
+      - name: verify:absence
+        if: ${{ !cancelled() }}
+        run: npm run -s verify:absence
+      - name: verify:seals
+        if: ${{ !cancelled() }}
+        run: npm run -s verify:seals
+      - name: verify:port-parity
+        if: ${{ !cancelled() }}
+        run: npm run -s verify:port-parity
+      - name: verify:consensus-polarity
+        if: ${{ !cancelled() }}
+        run: npm run -s verify:consensus-polarity
+      - name: verify:required-contexts
+        if: ${{ !cancelled() }}
+        run: npm run -s verify:required-contexts
+      - name: verify:no-network-surface
+        if: ${{ !cancelled() }}
+        run: npm run -s verify:no-network-surface
+      - name: verify:astgrep
+        if: ${{ !cancelled() }}
+        run: npm run -s verify:astgrep
+      - name: verify:brief-header-claims
+        if: ${{ !cancelled() }}
+        run: npm run -s verify:brief-header-claims
+      - name: verify:paper-references
+        if: ${{ !cancelled() }}
+        run: npm run -s verify:paper-references
+      - name: verify:paper-claim-markers
+        if: ${{ !cancelled() }}
+        run: npm run -s verify:paper-claim-markers
+      - name: verify:module-carriers
+        if: ${{ !cancelled() }}
+        run: npm run -s verify:module-carriers
+      - name: verify:write-root-adoption
+        if: ${{ !cancelled() }}
+        run: npm run -s verify:write-root-adoption
+      - name: verify:hook-contract
+        if: ${{ !cancelled() }}
+        run: npm run -s verify:hook-contract
+      - name: verify:shellcheck
+        if: ${{ !cancelled() }}
+        run: npm run -s verify:shellcheck
+      # Corpus-free, measured — see the ⚠ note at the top of this file.
+      - name: verify:fixture-currency
+        if: ${{ !cancelled() }}
+        run: npm run -s verify:fixture-currency
+
+      # The selftests of gates whose real run lives elsewhere. Each judges its own aggregation and refusal
+      # logic, and `ci-step-parity.mjs` reports every one of them under `toolRunsUnderOtherFlags`: the tool
+      # runs in CI and the `--selftest` flag did not.
+      - name: verify:shellcheck-logic
+        if: ${{ !cancelled() }}
+        run: npm run -s verify:shellcheck-logic
+      - name: verify:shard-union-logic
+        if: ${{ !cancelled() }}
+        run: npm run -s verify:shard-union-logic
+      - name: verify:shard-timings-logic
+        if: ${{ !cancelled() }}
+        run: npm run -s verify:shard-timings-logic
+      - name: verify:manifest-logic
+        if: ${{ !cancelled() }}
+        run: npm run -s verify:manifest-logic
+      - name: verify:check-dex-logic
+        if: ${{ !cancelled() }}
+        run: npm run -s verify:check-dex-logic
+      # ⚠ THE NAME MISLEADS AND `run-check.mjs:164` records it: this launches no browser and needs no
+      # server. It judges `browser-gates.mjs`'s verdict aggregation and skip budget. The browser realm runs
+      # in `browser-gates.yml`.
+      - name: verify:browser-gate-selftest
+        if: ${{ !cancelled() }}
+        run: npm run -s verify:browser-gate-selftest
+
+      - name: test:trio-anchor
+        if: ${{ !cancelled() }}
+        run: npm run -s test:trio-anchor
+      - name: test:fold-provenance
+        if: ${{ !cancelled() }}
+        run: npm run -s test:fold-provenance
+      - name: test:trio-fold-clock
+        if: ${{ !cancelled() }}
+        run: npm run -s test:trio-fold-clock
+      - name: test:trio-fold-validity
+        if: ${{ !cancelled() }}
+        run: npm run -s test:trio-fold-validity
+      - name: test:trio-fold-merge
+        if: ${{ !cancelled() }}
+        run: npm run -s test:trio-fold-merge
+      - name: test:read-lines-bounded
+        if: ${{ !cancelled() }}
+        run: npm run -s test:read-lines-bounded
+      - name: test:seqnet-port
+        if: ${{ !cancelled() }}
+        run: npm run -s test:seqnet-port
+      - name: test:stage-lab-core
+        if: ${{ !cancelled() }}
+        run: npm run -s test:stage-lab-core
+      - name: test:oxydex-stager
+        if: ${{ !cancelled() }}
+        run: npm run -s test:oxydex-stager
+      - name: test:hypno-export
+        if: ${{ !cancelled() }}
+        run: npm run -s test:hypno-export
+      - name: test:reconcile
+        if: ${{ !cancelled() }}
+        run: npm run -s test:reconcile
+      - name: test:tools
+        if: ${{ !cancelled() }}
+        run: npm run -s test:tools
+
+      # The hook and guard shell suites. `test:guards` is the four repo-local guards; `test:hooks` is the
+      # same four plus ten more. Row `2026-11-04-the-hooks-gate-flakes-on-the-worktree-creating-cd-shape`
+      # is open against `test:hooks`, and this job carries it anyway: a non-required red costs no bird a
+      # round, and a flake that nobody ever sees in CI stays unmeasured.
+      - name: test:guards
+        if: ${{ !cancelled() }}
+        run: npm run -s test:guards
+      - name: test:hooks
+        if: ${{ !cancelled() }}
+        run: npm run -s test:hooks
