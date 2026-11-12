@@ -9219,12 +9219,13 @@
       /* ⚠️ AN EQUALITY, NOT A FLOOR. `good >= 2` was satisfied by the two sites #3366 fixed while the
          third was unexamined — a floor met by the right members is the exact failure this file keeps
          re-learning. The count is the declared population of timeless-finding builders; if a builder is
-         added or removed, this number moves deliberately. */
+         added or removed, this number moves deliberately. Moved 3 → 4 on 2026-11-12 for
+         `sleep_wake_unreconciled`, the fourth builder, which carries no measured time of its own. */
       var good = (src.match(/startMs\s*\?\?\s*null/g) || []).length;
       T.ok(
         'every timeless-finding builder uses `startMs ?? null`',
-        good === 3,
-        'found ' + good + ', declared population is 3 (glucose_autonomic_correlation, staging_disagreement, periodic_breathing)'
+        good === 4,
+        'found ' + good + ', declared population is 4 (glucose_autonomic_correlation, staging_disagreement, periodic_breathing, sleep_wake_unreconciled)'
       );
       // ── the unmatched export mapping must tolerate null tMs too ──
       T.ok('unmatched export guards null tMs', /time:\s*e\.tMs\s*!=\s*null\s*\?\s*fmtDateTime\(e\.tMs\)\s*:\s*null/.test(src), 'fmtDateTime(e.tMs) unguarded — null renders as 1970');
@@ -12281,6 +12282,95 @@
         T.eq('#2 control: REM gap ≈ 12 pts (0.20 vs 0.08)', sSm.remGapPct, 12);
         T.eq('#2 control: gap < 0.20 → disagreement FALSE', sSm.disagreement, false);
       }
+
+      /* (c) SWREC (residue 2026-11-11-sleep-wake-vs-efficiency-unreconciled) — the SLEEP/WAKE pair.
+         It is the sibling of case (a) on a different quantity, under the same fail-closed contract,
+         so it extends this group rather than opening a new one. ECGDex publishes WAKE MINUTES inside
+         the staged span; OxyDex publishes the motion-quiet SHARE of the recording. Neither quantity
+         reached any Integrator surface before this: a vigil audit of one night read 95 wake minutes
+         beside 99.7 % efficiency, and the fusion layer printed neither. RED on main — `sleepWake` is
+         undefined there. */
+      var ecgWake = function (wakeMin) {
+        return A(
+          {
+            schema: { node: 'ECGDex' },
+            recording: { startEpochMs: t0, durationMin: 480, offsetMin: null },
+            hrv: { time: { rmssd: 40, sdnn: 58 } },
+            sleep: { stageMinutes: { REM: 90, Deep: 60, Wake: wakeMin }, totalSleepMin: 400, unstagedMin: 12 },
+            ganglior_events: [{ t: '22:10:00', tMs: t0 + 600000, impulse: 'autonomic_surge', node: 'ECGDex', conf: 0.8 }]
+          },
+          'ECGDex',
+          'ecg.json'
+        )[0];
+      };
+      var oxyEff = function (effPct) {
+        return NF(
+          {
+            schema: { node: 'OxyDex' },
+            recording: { startEpochMs: t0, durationMin: 480 },
+            nights: [{ t0Ms: t0, stats: { t0Ms: t0, durationMin: 480, n: 480 }, sleepQuality: { sleepEff: effPct, wasoPct: 2 }, desatProfile: { events: [] } }]
+          },
+          'oxy.json'
+        ).recs[0];
+      };
+      var fusSW = RF([ecgWake(95), oxyEff(99.7)], { toleranceSec: 120 });
+      var swBlk = fusSW.sleepWake && fusSW.sleepWake.blocks && fusSW.sleepWake.blocks[0];
+      T.ok('SWREC: both legs publish a sleep/wake number, so a block is produced', !!swBlk);
+      if (swBlk) {
+        T.eq('SWREC: the pair is NOT comparable', swBlk.comparable, false);
+        T.ok(
+          'SWREC: the reason names what each leg counted, and on which basis',
+          /ECGDex=wakeMinutes on staged-span/.test(swBlk.reason) && /OxyDex=quietShareOfRecording on motion-quiet-recording/.test(swBlk.reason),
+          swBlk.reason
+        );
+        T.ok(
+          'SWREC: no gap, delta or disagreement field exists on the block',
+          !('remGapPct' in swBlk) && !('gap' in swBlk) && !('delta' in swBlk) && !('disagreement' in swBlk),
+          Object.keys(swBlk).join(',')
+        );
+        var swEcg = (swBlk.byNode || []).filter(function (l) {
+          return l.node === 'ECGDex';
+        })[0];
+        var swOxy = (swBlk.byNode || []).filter(function (l) {
+          return l.node === 'OxyDex';
+        })[0];
+        T.eq('SWREC: the ECGDex leg carries its 95 wake minutes', swEcg ? swEcg.value : null, 95);
+        T.eq('SWREC: with min as its declared unit', swEcg ? swEcg.unit : null, 'min');
+        T.eq('SWREC: and the staged span it counted inside', swEcg ? swEcg.stagedSleepMin : null, 400);
+        T.eq('SWREC: the OxyDex leg carries its 99.7 % quiet share', swOxy ? swOxy.value : null, 99.7);
+        T.eq('SWREC: with % as its declared unit', swOxy ? swOxy.unit : null, '%');
+        T.ok('SWREC: each leg names its own method', !!(swEcg && swEcg.method) && !!(swOxy && swOxy.method), JSON.stringify([swEcg ? swEcg.method : null, swOxy ? swOxy.method : null]));
+      }
+      var swFinds = (fusSW.findings || []).filter(function (f) {
+        return f.type === 'sleep_wake_unreconciled';
+      });
+      T.eq('SWREC: one finding per unreconciled night', swFinds.length, 1);
+      T.eq('SWREC: conf is null — no confidence was measured', swFinds.length ? swFinds[0].conf : 'absent', null);
+      T.ok(
+        'SWREC: the finding names both nodes',
+        swFinds.length > 0 && swFinds[0].nodes.indexOf('ECGDex') >= 0 && swFinds[0].nodes.indexOf('OxyDex') >= 0,
+        JSON.stringify(swFinds.length ? swFinds[0].nodes : null)
+      );
+      // ANTI-VACUITY — one leg alone cannot reconcile anything, so the block above is not free.
+      var fusSolo = RF([oxyEff(99.7)], { toleranceSec: 120 });
+      T.ok('ANTI-VACUITY · a single leg produces NO reconciliation block', !fusSolo.sleepWake);
+      // CONTROL — two legs on ONE quantity and ONE basis read comparable, and still get no gap.
+      var ecgWakeAs = function (node, wakeMin) {
+        var r = ecgWake(wakeMin);
+        r.node = node;
+        return r;
+      };
+      var fusSame = RF([ecgWakeAs('ECGDex', 95), ecgWakeAs('HRVDex', 60)], { toleranceSec: 120 });
+      var sameBlk = fusSame.sleepWake && fusSame.sleepWake.blocks && fusSame.sleepWake.blocks[0];
+      T.eq('CONTROL · one quantity on one basis → comparable TRUE', sameBlk ? sameBlk.comparable : null, true);
+      T.eq('CONTROL · and the reason is null, because nothing refused', sameBlk ? sameBlk.reason : 'absent', null);
+      T.eq(
+        'CONTROL · a comparable pair raises NO finding',
+        (fusSame.findings || []).filter(function (f) {
+          return f.type === 'sleep_wake_unreconciled';
+        }).length,
+        0
+      );
     });
 
     /* ═══ MEASUREMENT-PROVENANCE-ROADMAP §8 — the Integrator CONSUMES the measurement block ═══

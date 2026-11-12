@@ -26,6 +26,7 @@
   "positional": "card",
   "pulseCrossCheck": "export-only",
   "respiration": "export-only",
+  "sleepWake": "export-only",
   "staging": "export-only",
   "unmatched": "card",
   "window": "card"
