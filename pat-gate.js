@@ -98,6 +98,23 @@
      Absent `ax` the behaviour is UNCHANGED — only an explicit `false` refuses. That is deliberate
      back-compat, and it is why the refusal names itself in `label`: a caller that never passes an
      axis is visible as 'no axis' in `why`, not silently treated as if it had one. */
+  /* ── THE DRIFT STATISTIC, SINGLE-SOURCED ──────────────────────────────────────────────────────
+     WHICH number `DRIFT_MAX_MS` judges. The gate weighed `driftRange` until 2026-08-10 and weighs
+     `cp.stepP95` since (PAT-DRIFT-STATISTIC), and the preference lived as two inline ternaries
+     inside `verdict()`. A surface that wanted the same number had to re-derive it, and
+     `pat-feasibility.js` instead coloured `driftRange` against the step's bar: one box night read
+     135 ms of range against a 54 ms step, so the card printed amber under a FEASIBLE verdict. That
+     is this file's own founding defect — five duplicated literals in a renderer — in a new place.
+     `name` is the phrase a surface prints, so no page can show one quantity under the other's word,
+     and `rangeMs` keeps the diagnostic beside it. Absence returns `Infinity` with `stat: null`:
+     `verdict()` needs the bound to fail closed, and a renderer reads `stat` or `isFinite(ms)`. */
+  function driftStatOf(cp) {
+    var step = cp && isFinite(cp.stepP95) ? cp.stepP95 : NaN,
+      range = cp && isFinite(cp.driftRange) ? cp.driftRange : NaN;
+    if (isFinite(step)) return { stat: 'stepP95', ms: step, name: 'p95 step between adjacent 5-min bins', rangeMs: isFinite(range) ? range : null };
+    if (isFinite(range)) return { stat: 'driftRange', ms: range, name: 'range of the 5-min lag medians', rangeMs: range };
+    return { stat: null, ms: Infinity, name: 'no drift statistic', rangeMs: null };
+  }
   function verdict(ov, cp, sc, ax) {
     if (!ov || ov.min <= 0) return { tier: 'no', label: 'NO OVERLAP', why: null };
     if (ax && ax.independent === false)
@@ -169,9 +186,12 @@
       physical = cp.med >= PAT_GATE.LAG_MIN_MS && cp.med <= PAT_GATE.LAG_MAX_MS,
       /* Prefer `stepP95`; fall back to `driftRange` so a pre-2026-08-10 caller (or a night with too
          few adjacent qualified bins to form a step) behaves exactly as before rather than passing on
-         a missing field. `driftStat` names which one was weighed, so a reader is never left guessing. */
-      driftStat = isFinite(cp.stepP95) ? 'stepP95' : 'driftRange',
-      driftMs = isFinite(cp.stepP95) ? cp.stepP95 : isFinite(cp.driftRange) ? cp.driftRange : Infinity;
+         a missing field. `driftStat` names which one was weighed, so a reader is never left guessing.
+         `driftStatOf` holds that preference for every surface; `|| 'driftRange'` reproduces the
+         earlier name on a night that has neither statistic, where the bound fails closed anyway. */
+      _ds = driftStatOf(cp),
+      driftStat = _ds.stat || 'driftRange',
+      driftMs = _ds.ms;
     var why = {
       tightBeat: tightBeat,
       goodMatch: goodMatch,
@@ -570,10 +590,11 @@
     runSeconds: runSeconds,
     ARTIFACT_CONF_MIN: ARTIFACT_CONF_MIN,
     driftStats: driftStats,
+    driftStatOf: driftStatOf,
     coverStat: coverStat,
     BIN_MATCH_MIN: BIN_MATCH_MIN,
     SC_RATE_TOL: SC_RATE_TOL,
     SC_MIN_OVERLAP_MIN: SC_MIN_OVERLAP_MIN,
-    VERSION: '1.4.0'
+    VERSION: '1.5.0'
   };
 })(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this);
