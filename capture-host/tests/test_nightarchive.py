@@ -623,6 +623,15 @@ def test_stalled_protection_names_only_the_fresh_files_and_never_a_box_verdict(t
     assert nightarchive._fresh_files(d, 100_000 - 61) == ["LINK.csv", _SIDE]
 
 
+def test_fresh_files_skips_a_box_verdict_and_keeps_reading_past_it(tmp_path):
+    """A box verdict that sorts FIRST must not end the scan: the fresh writer after it is still named."""
+    cap = str(tmp_path / "captures")
+    d = _night(cap, "2026-10-28", {"LOSS-AUDIT.json": "{}", "RING.csv": "r"})
+    _touch(os.path.join(d, "LOSS-AUDIT.json"), 99_999)
+    _touch(os.path.join(d, "RING.csv"), 99_999)
+    assert nightarchive._fresh_files(d, 100_000 - 61) == ["RING.csv"]
+
+
 def test_stalled_protection_is_silent_unless_all_three_conditions_hold(tmp_path):
     cap = str(tmp_path / "captures")
     now = 100_000.0
