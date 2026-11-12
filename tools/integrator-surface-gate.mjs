@@ -193,6 +193,58 @@ export function readsAnchored(code, rawText, holder, key) {
    null when no overlap exists (`integrator-dsp.js` builds it as `anyOverlap ? … : null`), so every
    path below is conditional on that too, and `nullWhen` records it. */
 
+/* 🔴 A RETURN OBJECT NEED NOT SPAN LINES. `auditNodeKernels` returns all five of its keys on ONE
+   line, so an enumerator that anchors `return {` to the END of a line finds no shape at all and the
+   gate refused a subtree whose source sat there to read. This reads a one-line literal only when
+   its braces BALANCE on that line and it carries no quote — a string could hold a comma or a colon,
+   and a reader that cannot tell those apart must refuse rather than guess. */
+export function oneLineShape(line) {
+  const i = line.indexOf('return {');
+  if (i < 0) return null;
+  const open = i + 'return '.length;
+  let d = 0;
+  let close = -1;
+  for (let j = open; j < line.length; j++) {
+    const c = line[j];
+    if (c === '{' || c === '[') d++;
+    else if (c === '}' || c === ']') {
+      d--;
+      if (d === 0) {
+        close = j;
+        break;
+      }
+    }
+  }
+  if (close < 0) return null;
+  const body = line.slice(open + 1, close);
+  if (!body.trim()) return null;
+  if (/['"`]/.test(body)) return null;
+  const keys = [];
+  let dep = 0;
+  let piece = '';
+  const take = () => {
+    const m = piece.match(/^\s*([A-Za-z_$][A-Za-z0-9_$]*)\s*:/);
+    if (m) keys.push(m[1]);
+    else if (piece.trim()) keys.push(null);
+    piece = '';
+  };
+  for (const c of body) {
+    if (c === '{' || c === '[' || c === '(') dep++;
+    else if (c === '}' || c === ']' || c === ')') dep--;
+    if (c === ',' && dep === 0) {
+      take();
+      continue;
+    }
+    piece += c;
+  }
+  take();
+  /* A piece that is not `name:` is a spread, a shorthand or something this reader does not model.
+     One of those and the whole shape refuses, because a partial key list is the defect section 4 of
+     the brief already records. */
+  if (!keys.length || keys.some((k) => k === null)) return null;
+  return keys;
+}
+
 /** Every `return {` inside one named function, as depth-1 key lists. Null when the shape moves. */
 export function nestedShapes(dspText, fnName) {
   const lines = dspText.split('\n');
@@ -210,7 +262,26 @@ export function nestedShapes(dspText, fnName) {
   if (end < 0) return null;
   const shapes = [];
   for (let i = start; i < end; i++) {
-    if (!/return \{\s*$/.test(lines[i])) continue;
+    if (!/return \{/.test(lines[i])) continue;
+    /* 🔴 A NESTED CALLBACK'S RETURN IS NOT THIS FUNCTION'S SHAPE. `fuseApneaEvents:2268` is
+       `.map(function (k) { return { node: k, surges: hrByNode[k] }; })`, and reading it as a shape
+       of the builder added two keys that no fusion ever carries and made 15 real keys look
+       conditional. The return must sit in THIS function's own scope. An `if` block does not move
+       that scope, because `enclosingFn` looks for a function header and not for a brace. */
+    const sc = enclosingFn(lines, i);
+    if (!sc || sc[0] !== start) continue;
+    /* A WHOLLY-INLINE callback keeps its header and its return on ONE line, so `enclosingFn` sees
+       no header above and credits the builder. The text in front of the return names the callback,
+       which is a reason to skip and not the blindness that hid `auditNodeKernels`. */
+    if (/\bfunction\b|=>/.test(lines[i].slice(0, lines[i].indexOf('return {')))) continue;
+    /* A `return {` that does NOT end its line is a one-line literal. It reads, or the shape
+       refuses — never a silent skip, which is what hid `auditNodeKernels` from this gate. */
+    if (!/return \{\s*$/.test(lines[i])) {
+      const one = oneLineShape(lines[i]);
+      if (!one) return null;
+      shapes.push({ at: i + 1, keys: one });
+      continue;
+    }
     let dd = 0;
     let closed = false;
     const keys = [];
@@ -429,18 +500,39 @@ export function readsNested(renderText, sites, key, blanked) {
   return false;
 }
 
+/* 🔴 A READER NEED NOT BIND AN ALIAS. `overdex-app.js:862` reads `fusion.kernelAudit.ok` through
+   the WHOLE path, so `aliasSites` finds nothing to credit and an alias-only test calls that key
+   unread. A direct path read needs no scope, because the path names the object at the read site. */
+export function readsDirectPath(text, path, key) {
+  const { code } = prepare(text);
+  const dot = new RegExp('\\b' + escapeRe(path) + '\\s*\\.\\s*' + escapeRe(key) + '(?![A-Za-z0-9_$])');
+  const br = new RegExp('\\b' + escapeRe(path) + '\\s*\\[\\s*([\'"])' + escapeRe(key) + '\\1\\s*\\]');
+  return dot.test(code) || br.test(text);
+}
+
 /** The same red conditions as depth 1, plus the undeclared partial shape, for ONE subtree. */
-export function evaluateNested(subtree, shapes, decl, renderText) {
+export function evaluateNested(subtree, shapes, decl, renderText, extra) {
   const path = (decl && decl.aliasPath) || 'fusion.' + subtree;
-  const blanked = prepare(renderText);
-  const found = aliasSites(renderText, path);
-  const direct = found.sites.filter((s) => !s.shadows.length);
-  const forwarded = forwardedSites(blanked.code.split('\n'), direct);
-  const usable = direct.concat(forwarded.filter((f) => !f.shadows.length));
+  /* ONE reader file was the assumption here too. A subtree may be read in several declared realms,
+     each with its own holder — `FUSION.kernelAudit` in the app, `fusion.kernelAudit` in OverDex. The
+     3-argument call keeps its single realm, so every earlier caller reads the same. */
+  const given = (extra && extra.readers) || null;
+  const readers = (given && given.length ? given : [{ file: (decl && decl.readerFile) || 'integrator-render.js', text: renderText }]).map((r) => {
+    const ap = r.aliasPath || path;
+    const bl = prepare(r.text);
+    const f = aliasSites(r.text, ap);
+    const dir = f.sites.filter((x) => !x.shadows.length);
+    const fw = forwardedSites(bl.code.split('\n'), dir);
+    return { file: r.file, aliasPath: ap, text: r.text, blanked: bl, found: f, forwarded: fw, usable: dir.concat(fw.filter((x) => !x.shadows.length)) };
+  });
+  const first = readers[0];
+  const found = first.found;
+  const forwarded = first.forwarded;
   const surfaces = (decl && decl.surfaces) || {};
   const declaredPartial = (decl && decl.partialShape) || {};
   const union = shapes.union;
-  const read = (k) => readsNested(renderText, usable, k, blanked);
+  const creditedBy = (k) => readers.find((r) => readsNested(r.text, r.usable, k, r.blanked) || readsDirectPath(r.text, r.aliasPath, k)) || null;
+  const read = (k) => !!creditedBy(k);
   const undeclared = union.filter((k) => !surfaces[k]);
   const badValue = union.filter((k) => surfaces[k] && !SURFACES.includes(surfaces[k]));
   const cardUnrendered = union.filter((k) => surfaces[k] === 'card' && !read(k));
@@ -452,7 +544,9 @@ export function evaluateNested(subtree, shapes, decl, renderText) {
      key in `integrator-render.js`, and a subtree whose every key is `export-only` has nothing to
      credit — demanding an alias there would red correct code for carrying no reader surface. */
   const cardDeclared = union.filter((k) => surfaces[k] === 'card');
-  const noAlias = !usable.length && cardDeclared.length > 0;
+  const noAlias = cardDeclared.length > 0 && readers.every((r) => !r.usable.length) && !cardDeclared.some((k) => readers.some((r) => readsDirectPath(r.text, r.aliasPath, k)));
+  const cardByReader = {};
+  for (const r of readers) cardByReader[r.file] = cardDeclared.filter((k) => (creditedBy(k) || {}).file === r.file).length;
   return {
     subtree,
     path,
@@ -460,7 +554,11 @@ export function evaluateNested(subtree, shapes, decl, renderText) {
     shapes: shapes.shapes.map((s) => ({ at: s.at, keys: s.keys.length })),
     partial: shapes.partial,
     partialKind: shapes.partialKind || 'return-shape',
-    readerFile: (decl && decl.readerFile) || 'integrator-render.js',
+    readerFile: first.file,
+    readerFiles: readers.map((r) => r.file),
+    readerHolders: readers.map((r) => r.aliasPath),
+    cardByReader,
+    cardUnrenderedWhere: readers.map((r) => r.file).join(' + '),
     aliasSites: found.sites.map((s) => ({ line: s.line, alias: s.alias, shadows: s.shadows })),
     forwarded: forwarded.map((f) => ({ line: f.line, alias: f.alias, via: f.via, hopFrom: f.hopFrom, shadows: f.shadows })),
     aliasUnresolved: found.unresolved,
@@ -480,10 +578,14 @@ export function evaluateNested(subtree, shapes, decl, renderText) {
 /** The reasons, in the order a reader needs them. Empty when the subtree is clean. */
 export function nestedReasons(n) {
   return [
-    n.noAlias ? `no usable binding of \`${n.path}\` survives in ${n.readerFile} — every alias site is shadowed or unscoped, so no nested read can be credited` : '',
+    n.noAlias
+      ? `no usable binding of \`${n.path}\` survives in ${n.cardUnrenderedWhere || n.readerFile}, and no read goes through the whole path — every alias site is shadowed or unscoped, so no nested read can be credited`
+      : '',
     n.undeclared.length ? `${n.undeclared.length} nested key(s) of \`${n.path}\` declare no surface: ${n.undeclared.join(', ')}` : '',
     n.badValue.length ? `${n.badValue.length} nested key(s) declare something other than 'card' or 'export-only': ${n.badValue.join(', ')}` : '',
-    n.cardUnrendered.length ? `${n.cardUnrendered.length} nested key(s) declare 'card' and no anchored read of \`${n.path}\` in ${n.readerFile} reaches them: ${n.cardUnrendered.join(', ')}` : '',
+    n.cardUnrendered.length
+      ? `${n.cardUnrendered.length} nested key(s) declare 'card' and no anchored read reaches them in ${n.cardUnrenderedWhere || n.readerFile}: ${n.cardUnrendered.join(', ')}`
+      : '',
     n.exportOnlyRead.length ? `${n.exportOnlyRead.length} nested key(s) declare 'export-only' and an anchored read reaches them: ${n.exportOnlyRead.join(', ')}` : '',
     n.undeclaredPartial.length
       ? `${n.undeclaredPartial.length} nested key(s) ${n.partialKind === 'undefined-value' ? 'can evaluate to `undefined` and leave the export' : 'exist on some return shapes only'}, with no partialShape reason declared: ${n.undeclaredPartial.join(', ')}`
@@ -614,9 +716,16 @@ function main() {
           ? `${d.builtBy}() was not found, or one of its return objects does not close — its shape changed, and this gate must not guess`
           : `the inline \`${sub}: {\` literal in integrator-dsp.js was not found, appears more than once, or does not close — its shape changed, and this gate must not guess`
       );
-    const rf = d.readerFile || 'integrator-render.js';
-    if (!readers.has(rf)) readers.set(rf, readFileSync(join(ROOT, rf), 'utf8'));
-    nested.push(evaluateNested(sub, shapes, d, readers.get(rf)));
+    /* A subtree declares EITHER one `readerFile` or a `readerFiles` list of `{ file, aliasPath }`.
+       Each file loads on first use, through the same map the depth-1 realms use, so one file is read
+       once however many keys name it. A list entry with no `file` is a declaration defect. */
+    const spec = Array.isArray(d.readerFiles) && d.readerFiles.length ? d.readerFiles : [{ file: d.readerFile || 'integrator-render.js' }];
+    const rlist = spec.map((e) => {
+      if (!e || !e.file) throw new Error(`nested subtree \`${sub}\` declares a reader with no file`);
+      if (!readers.has(e.file)) readers.set(e.file, readFileSync(join(ROOT, e.file), 'utf8'));
+      return { file: e.file, text: readers.get(e.file), aliasPath: e.aliasPath || null };
+    });
+    nested.push(evaluateNested(sub, shapes, d, rlist[0].text, { readers: rlist }));
   }
   const nestedBad = nested.filter((n) => !n.ok);
   const nestedKeys = nested.reduce((t, n) => t + n.keys.length, 0);
@@ -645,7 +754,11 @@ function main() {
       nestedAliasSites: nested.reduce((t, n) => t + n.aliasSites.length, 0),
       nestedAliasShadowed: nested.reduce((t, n) => t + n.aliasSites.filter((a) => a.shadows.length).length, 0),
       nestedForwardedSites: nested.reduce((t, n) => t + n.forwarded.length, 0),
-      nestedReaderFiles: [...new Set(nested.map((n) => n.readerFile))],
+      nestedReaderFiles: [...new Set(nested.flatMap((n) => n.readerFiles || [n.readerFile]))],
+      nestedCardByReader: nested.reduce((acc, n) => {
+        for (const [f, c] of Object.entries(n.cardByReader || {})) acc[f] = (acc[f] || 0) + c;
+        return acc;
+      }, {}),
       nestedInline: nested.filter((n) => n.partialKind === 'undefined-value').length,
       card: cards,
       exportOnly: keys.length - cards,
@@ -707,7 +820,10 @@ function main() {
     for (const n of nested)
       console.log(
         `  ✓ ${n.path} at depth 2: ${n.keys.length} key(s) · ${n.keys.filter((k) => (decl.nested[n.subtree].surfaces || {})[k] === 'card').length} card · ${n.partial.length} ${n.partialKind === 'undefined-value' ? 'able to evaluate to `undefined`' : 'on some return shape(s) only'}` +
-          ` · ${n.readerFile} read through ${n.aliasSites.length} anchored alias site(s) (${n.aliasSites.map((a) => a.alias + '@' + a.line).join(', ') || 'none'})` +
+          ` · ${(n.readerFiles || [n.readerFile]).length} realm(s): ${Object.entries(n.cardByReader || {})
+            .map(([f, c]) => f + '=' + c + ' card')
+            .join(' · ')}` +
+          ` · ${n.aliasSites.length} anchored alias site(s) (${n.aliasSites.map((a) => a.alias + '@' + a.line).join(', ') || 'none'})` +
           (n.forwarded.length ? ` + ${n.forwarded.length} one-hop forward (${n.forwarded.map((f) => f.via + '(' + f.alias + ')@' + f.line).join(', ')})` : '')
       );
   if (r.stale.length) console.log(`  note: ${r.stale.length} declaration(s) name a key the fusion no longer emits (${r.stale.join(', ')}) — not a red, but worth pruning`);
@@ -997,6 +1113,56 @@ if (DIRECT && process.argv.includes('--selftest')) {
     ['integrator-render.js']
   );
   ck('…which is what a three-argument evaluate still judges against', evaluate(['alpha'], { alpha: 'card' }, R).realms, ['integrator-render.js']);
+
+  /* --- a one-line return object, and whose shape it is ------------------------------- */
+  const K1 = [
+    'function buildK(recs) {',
+    '  var rows = recs.map(function (r) { return { node: r.n, surge: 1 }; });',
+    '  var more = recs.map(function (r) {',
+    '    return { node: r.n };',
+    '  });',
+    '  return { expected: 1, nodes: rows, ok: true };',
+    '}'
+  ].join('\n');
+  ck('🔴 a one-line return object reads its depth-1 keys', nestedShapes(K1, 'buildK').union, ['expected', 'nodes', 'ok']);
+  ck('…one shape only, so no key of it is conditional', nestedShapes(K1, 'buildK').partial, []);
+  ck('…a WHOLLY-INLINE callback return is not the builder shape', nestedShapes(K1, 'buildK').shapes.length, 1);
+  ck('…nor is a callback whose header ends its own line', nestedShapes(K1, 'buildK').union.includes('surge'), false);
+  ck('oneLineShape refuses a quote in the body', oneLineShape('  return { a: 1, b: "x, y" };'), null);
+  ck('oneLineShape refuses a spread', oneLineShape('  return { ...rest, a: 1 };'), null);
+  ck('oneLineShape refuses a line whose braces do not balance', oneLineShape('  return { a: 1,'), null);
+  ck('oneLineShape refuses an empty object', oneLineShape('  return {};'), null);
+  ck('oneLineShape does not credit a nested object key', oneLineShape('  return { a: { b: 1 }, c: 2 };'), ['a', 'c']);
+  ck('oneLineShape reads past a comma inside a call', oneLineShape('  return { ok: m.length === 0, n: f(a, b) };'), ['ok', 'n']);
+
+  /* --- a read through the whole path, with no alias binding -------------------------- */
+  const KDIR = ['function draw(fusion) {', '  if (fusion.kernelAudit && !fusion.kernelAudit.ok) {', "    warn(fusion.kernelAudit['mismatches']);", '  }', '}'].join('\n');
+  ck('🔴 a read through the whole path is credited', readsDirectPath(KDIR, 'fusion.kernelAudit', 'ok'), true);
+  ck('…in bracket form too', readsDirectPath(KDIR, 'fusion.kernelAudit', 'mismatches'), true);
+  ck('…and a longer identifier is not that key', readsDirectPath(KDIR, 'fusion.kernelAudit', 'o'), false);
+  ck('…and a key no reader names stays unread', readsDirectPath(KDIR, 'fusion.kernelAudit', 'nodes'), false);
+
+  /* --- a subtree read in TWO declared realms ----------------------------------------- */
+  const KAPP = ['function recompute() {', '  var ka = FUSION && FUSION.kernelAudit;', '  if (ka && ka.expected) {', '    show(ka.expected);', '  }', '}'].join('\n');
+  const K2DECL = { builtBy: 'buildK', surfaces: { expected: 'card', nodes: 'export-only', ok: 'card' } };
+  const K2 = evaluateNested('kernelAudit', nestedShapes(K1, 'buildK'), K2DECL, KAPP, {
+    readers: [
+      { file: 'app.js', text: KAPP, aliasPath: 'FUSION.kernelAudit' },
+      { file: 'over.js', text: KDIR, aliasPath: 'fusion.kernelAudit' }
+    ]
+  });
+  ck('🔴 a card key read ONLY in the second realm is not unrendered', K2.cardUnrendered, []);
+  ck('…and the per-realm count names which realm credited it', K2.cardByReader, { 'app.js': 1, 'over.js': 1 });
+  ck('…and the verdict carries the realm set', K2.readerFiles, ['app.js', 'over.js']);
+  ck('…while an export-only key read in no realm stays clean', K2.exportOnlyRead, []);
+  const K1R = evaluateNested('kernelAudit', nestedShapes(K1, 'buildK'), { ...K2DECL, readerFile: 'app.js', aliasPath: 'FUSION.kernelAudit' }, KAPP);
+  ck('a four-argument evaluateNested keeps ONE realm', K1R.readerFiles, ['app.js']);
+  ck('…so the key only the other realm reads reads as unrendered', K1R.cardUnrendered, ['ok']);
+  const K3 = evaluateNested('kernelAudit', nestedShapes(K1, 'buildK'), { builtBy: 'buildK', surfaces: { expected: 'export-only', nodes: 'export-only', ok: 'card' } }, KDIR, {
+    readers: [{ file: 'over.js', text: KDIR, aliasPath: 'fusion.kernelAudit' }]
+  });
+  ck('🔴 a realm that binds no alias still credits a direct read', K3.noAlias, false);
+  ck('…and that card key is credited', K3.cardUnrendered, []);
   console.log(bad ? `  ✗ ${bad} of ${ran} selftests failed` : `  all ${ran} selftests passed`);
   process.exit(bad ? 1 : 0);
 }
