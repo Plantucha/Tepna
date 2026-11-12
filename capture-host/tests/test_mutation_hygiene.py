@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import ast
 import re
+from collections.abc import Iterable
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent.parent
@@ -316,3 +317,80 @@ def test_a_module_level_scan_of_a_generated_file_is_a_skip_not_a_collection_erro
     # exit 5 = "no tests collected" — the one file in this run skipped whole, which is the intent; a
     # collection error exits 2 (and mutmut's `-x` run dies with it). Alongside real tests, exit is 0.
     assert r.returncode == 5 and "1 skipped" in out, out
+
+
+# ── A FILESYSTEM NAME FROM THE BUILTIN `hash()` IS A FLAKE WITH A 1-IN-N FACE ─────────────────────
+#
+# `test_solid_night_inputs.py` named three temporary directories `f"out-{abs(hash(where)) % 9999}"`.
+# Python randomises its string hash per process, so two of the three names collide about once in 3400
+# runs. The second `mkdir()` then raises FileExistsError and the red names a test that holds no
+# defect. Osprey measured one on 2026-11-11, on a base merge that re-ran every check against an
+# already-green PR, which is the most expensive place to meet a 1-in-3400 flake.
+#
+# The detector walks the AST rather than matching a pattern, because this file's own history proved
+# that enumerating path idioms loses: the value can reach a name through a join, an f-string or a
+# variable three lines later. A call to the BUILTIN is the whole offence, so the gate reads the call
+# and never what the value touches.
+#
+# A test that genuinely needs the builtin — a hashability assertion, say — declares its site here.
+# `DRIVER_EXCLUDED` above is the same shape: an escape by declaration, never a silent pass.
+SANCTIONED_HASH_SITES: set[str] = set()
+
+
+def builtin_hash_calls(src: str) -> list[int]:
+    """Line numbers of every call to the builtin `hash()`.
+
+    `hashlib.sha256(...)`, `selection_hash(...)` and `obj.hash()` are different functions: the first
+    two are stable across processes and the third is an attribute call. Only a bare name `hash` that
+    is CALLED is the per-process randomised builtin."""
+    lines = []
+    for node in ast.walk(ast.parse(src)):
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "hash":
+            lines.append(node.lineno)
+    return sorted(lines)
+
+
+def unsanctioned_hash_sites(sources: Iterable[tuple[str, str]], sanctioned: set[str]) -> list[str]:
+    """`sources` is an iterable of `(name, source)` pairs, so the gate streams a 12 MB tree one file
+    at a time and a control plants its own pair in memory."""
+    out = []
+    for name, src in sources:
+        for n in builtin_hash_calls(src):
+            site = f"{name}:{n}"
+            if site in sanctioned:
+                continue
+            out.append(site)
+    return out
+
+
+def test_no_test_derives_anything_from_the_builtin_hash():
+    """The suite-wide assertion. One site existed when this gate was written and the same commit
+    converted it to the datum it was already formatting two loops above."""
+    sources = ((t.name, t.read_text(encoding="utf-8")) for t in sorted(TESTS.glob("test_*.py")))
+    offenders = unsanctioned_hash_sites(sources, SANCTIONED_HASH_SITES)
+    assert not offenders, (
+        "the builtin hash() is randomised per process, so a name derived from it collides at a rate "
+        "nobody reads off the test. Derive the name from the loop index or from the datum, or "
+        "declare the site in SANCTIONED_HASH_SITES:\n  " + "\n  ".join(offenders)
+    )
+
+
+def test_the_gate_sees_the_shape_it_was_written_for_and_three_lookalikes_pass():
+    """THE PLANT, in the layout that shipped, plus one layout no line-oriented matcher would catch.
+    Each negative is a control: without them the positive could pass by flagging everything."""
+    assert builtin_hash_calls('d = tmp / f"out-{abs(hash(where)) % 9999}"\n') == [1]
+    assert builtin_hash_calls("d = (\n    tmp\n    / str(\n        hash(w)\n    )\n)\n") == [4]
+    assert builtin_hash_calls("import hashlib\nx = hashlib.sha256(b'a').hexdigest()\n") == []
+    assert builtin_hash_calls("x = selection_hash(['a'])\n") == []
+    assert builtin_hash_calls("x = obj.hash()\n") == []
+    assert builtin_hash_calls("hash = 3\nx = hash\n") == []
+
+
+def test_a_declared_site_is_the_only_way_past_the_gate():
+    """The allowlist must work and must be exact. A declared site passes, the same line in another
+    file does not, and an empty allowlist reports the plant — so the filter cannot pass vacuously."""
+    planted = [("test_x.py", "x = hash('a')\n")]
+    assert unsanctioned_hash_sites(planted, set()) == ["test_x.py:1"]
+    assert unsanctioned_hash_sites(planted, {"test_x.py:1"}) == []
+    assert unsanctioned_hash_sites(planted, {"test_y.py:1"}) == ["test_x.py:1"]
+    assert unsanctioned_hash_sites([], set()) == []
