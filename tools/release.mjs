@@ -37,6 +37,7 @@ import { dirname, join } from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
+import { escapeRe } from './regex-escape-core.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
@@ -332,7 +333,8 @@ function main() {
   if (unrel) {
     const base = unrel[1]; // e.g. https://github.com/Plantucha/Tepna
     cl = cl.replace(/^\[Unreleased\]:.*$/im, '[Unreleased]: ' + base + '/compare/v' + to + '...HEAD');
-    if (!new RegExp('^\\[' + to.replace(/\./g, '\\.') + '\\]:', 'm').test(cl)) {
+    /* `escapeRe`, never a dot-only escape — see `regex-escape-core.mjs` (alert 48, open from 2026-07-14). */
+    if (!new RegExp('^\\[' + escapeRe(to) + '\\]:', 'm').test(cl)) {
       // idempotent — never double-add
       const newLink = '[' + to + ']: ' + base + '/compare/v' + from + '...v' + to;
       cl = cl.replace(/^(\[Unreleased\]:.*\n)/im, '$1' + newLink + '\n'); // insert directly under [Unreleased]
