@@ -45094,6 +45094,51 @@
           );
         });
         T.ok('all five cross clones were exercised', ran === 5, 'only ' + ran + ' of 5 cross modules exposed crossNight in this lane');
+
+        /* §9.4 AT THE REPORTING LAYER — the same rule the engine follows binds the two cards that READ it.
+           PulseDex printed "your N-day baseline" and PpgDex "your N-night baseline" over N FILES, so one
+           night captured as an overnight plus a next-morning fragment read as two days/nights of baseline.
+           The count now keeps the unit it counted (recordings / sessions), and the span is reported over
+           the owner-ruled noon fold. The fold is EXTRACTED from each app source and run here, so a card
+           that stops folding reds this — with a naive civil-date key as the control. */
+        var snSrc = env.sources || {};
+        var snApps = [
+          { name: 'pulsedex-app.js', src: snSrc['pulsedex-app.js'] || '', fn: /function _pxNightKey\(tMs\) \{([\s\S]*?)\n\}/, unit: 'recording', retired: /st\.n \+ '-day baseline'/ },
+          { name: 'ppgdex-app.js', src: snSrc['ppgdex-app.js'] || '', fn: /function _pgNightKey\(tMs\) \{([\s\S]*?)\n  \}/, unit: 'session', retired: /\$\{st\.n\}-night baseline/ }
+        ];
+        var snRan = 0;
+        snApps.forEach(function (a) {
+          if (!a.src) {
+            T.ok(a.name + ' source wired for the reporting-unit scan', false, 'env.sources missing it — the assertions below would be vacuous');
+            return;
+          }
+          snRan++;
+          T.ok(a.name + ' · the baseline count is named in ' + a.unit + 's — the unit it actually counts', a.src.indexOf('-' + a.unit + ' baseline') !== -1);
+          T.ok(a.name + ' · the retired FILE-counted day/night baseline wording is gone', !a.retired.test(a.src));
+          T.ok(a.name + ' · the span is reported over the noon-to-noon fold', /noon-to-noon day/.test(a.src));
+          T.ok(a.name + ' · an undated item is attributed to no day, never folded into the span', /undated, attributed to no day/.test(a.src));
+          var m = a.src.match(a.fn);
+          T.ok(a.name + ' · the noon fold is extractable from the source', !!m, 'no match — the fold was renamed or inlined');
+          if (!m) return;
+          var key = new Function('tMs', m[1]);
+          var EVENING = Date.UTC(2026, 10, 4, 22, 10, 0, 0);
+          var NEXT_MORNING = Date.UTC(2026, 10, 5, 7, 30, 0, 0);
+          var AFTERNOON = Date.UTC(2026, 10, 5, 13, 0, 0, 0);
+          T.eq(a.name + ' · the 22:10 overnight keys to its own evening', key(EVENING), '2026-11-04');
+          T.eq(a.name + ' · the 07:30 next-morning fragment keys to the SAME evening — one night, two files', key(NEXT_MORNING), '2026-11-04');
+          T.eq(a.name + ' · a 13:00 start after the fold keys to its own date', key(AFTERNOON), '2026-11-05');
+          // control: the naive civil date splits the one night in two, which is the defect that was shipped
+          var naive = function (tMs) {
+            var d = new Date(tMs);
+            return d.getUTCFullYear() + '-' + ('0' + (d.getUTCMonth() + 1)).slice(-2) + '-' + ('0' + d.getUTCDate()).slice(-2);
+          };
+          T.ok(
+            a.name + ' · control · a naive civil-date key DOES split that one night in two',
+            naive(EVENING) !== naive(NEXT_MORNING),
+            'naive ' + naive(EVENING) + ' vs ' + naive(NEXT_MORNING) + ' — equal keys would mean the fold proves nothing here'
+          );
+        });
+        T.ok('both reporting cards were scanned', snRan === 2, snRan + ' of 2 app sources scanned in this lane');
       }
     );
 
