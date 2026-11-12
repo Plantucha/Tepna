@@ -1,6 +1,6 @@
 {
  "schema": "tepna.integrator-surface/1",
- "enumeratedWith": "top-level keys of integrator-dsp.js's fusion return object, plus every `_exp.<key>` assignment AND every key of the `var _exp = {` slim-export literal — read from SOURCE, because uploads/ is absent in a worktree and in CI. Depth 1 only: a nested property is not enumerated and declares no surface.",
+ "enumeratedWith": "top-level keys of integrator-dsp.js's fusion return object, plus every `_exp.<key>` assignment AND every key of the `var _exp = {` slim-export literal — read from SOURCE, because uploads/ is absent in a worktree and in CI. Depth 1 here; one level down is enumerated per subtree under `nested`, and a subtree absent from there is not examined.",
  "seededFrom": "a render-mention scan of integrator-render.js on 2026-10-11; the SEED is derived, so the gate's first run proves nothing about today, only about drift from it",
  "corrected": "2026-11-11: the 2026-10-11 seed scan counted a word in a COMMENT or a STRING as a render mention, so `bus` and `staging` were seeded `card` on prose alone — no Integrator surface reads `fusion.bus` or `fusion.staging`. Both now read `export-only`, and the gate asks for a read in blanked code.",
  "surfaces": {
@@ -53,5 +53,49 @@
   "hrvConsensus": "forwards `fusion.hrv`, which is declared `card` and which the reader meets under that name.",
   "deviceScoredAHI": "forwards `fusion.apnea.apneaAuthority`, which integrator-render.js reads four times under that name.",
   "handshakes": "the reserved-handshake block; integrator-render.js names a handshake once in a sentence (:1085) and reads no key."
+ },
+ "nested": {
+  "apnea": {
+   "builtBy": "fuseApneaEvents",
+   "enumeratedWith": "the depth-1 keys of EVERY `return {` inside fuseApneaEvents(), unioned — 13 on the no-overlap guard and 14 on the fused path. Read from SOURCE, like the top level.",
+   "readAs": "an anchored read: `<alias>.<key>` or `<alias>[\"<key>\"]` inside the scope of a binding of `fusion.apnea`, in blanked code. A bare token cannot tell `fusion.findings` from `a.findings`, because four of these names are ALSO top-level fusion keys.",
+   "seededFrom": "the anchored test above, hand-checked against integrator-render.js on 2026-11-12 line by line: every `card` entry below was read at the lines its note names. The anchored test and a bare-token test agree on all 14 keys here, so the anchoring repairs no live miss in this subtree and is a tightening against the next edit.",
+   "nullWhen": "integrator-dsp.js builds `fusion.apnea` as `anyOverlap ? fuseApneaEvents(...) : null`, so the whole subtree is absent on a night with no OxyDex x cardiac overlap.",
+   "partialShape": {
+    "consequence": "the fused path returns it and the no-overlap guard does not. The guard's comment says a reader never branches on a key's presence, which holds for `contributions` and `overlapCoverage` and not for this one. Nothing reads it, so the branch is latent."
+   },
+   "surfaces": {
+    "apneaAuthority": "card",
+    "confirmedAHI": "card",
+    "confirmedAHIReportable": "card",
+    "consequence": "export-only",
+    "contributions": "export-only",
+    "coupling": "export-only",
+    "desatObserver": "export-only",
+    "findings": "card",
+    "matched": "card",
+    "nullModel": "card",
+    "overlapCoverage": "card",
+    "overlapHours": "card",
+    "total": "card",
+    "unmatched": "card"
+   },
+   "notes": {
+    "confirmedAHI": "the Confirmed apnea index KPI value (integrator-render.js:478, :480) and the finding card headline (:988).",
+    "confirmedAHIReportable": "integrator-render.js:478 decides with it whether the index may be shown at all.",
+    "nullModel": "integrator-render.js:477 reads `belowChance`, and :479 reads `expectedConfirmed` for the below-chance subtitle.",
+    "apneaAuthority": "the Device-scored AHI KPI (integrator-render.js:481, :482) and the finding card (:1012, :1013).",
+    "overlapHours": "the Confirmed events subtitle, both branches (integrator-render.js:486).",
+    "overlapCoverage": "the overlap-coverage KPI (integrator-render.js:498, :499).",
+    "findings": "integrator-render.js:486 reads `findings[0].pSpurious`, :487 the count, :988 the count again.",
+    "matched": "the desat match rate (integrator-render.js:489) and the finding card counts (:995, :999).",
+    "total": "the denominator of that rate (integrator-render.js:489, :997, :1001).",
+    "unmatched": "the finding card names both unmatched pools (integrator-render.js:1004, :1006).",
+    "desatObserver": "no anchored read; the reader meets the observer through `findings[].nodes` instead.",
+    "coupling": "no anchored read, and the top-level `apneaCoupling` that forwards it is export-only for the same reason.",
+    "contributions": "no anchored read, matching the top-level `confirmedApneaIndexContributions` note.",
+    "consequence": "no anchored read; it is also the one key the two return shapes disagree on."
+   }
+  }
  }
 }
