@@ -37,7 +37,7 @@
  * ════════════════════════════════════════════════════════════════════════════════════════════════ */
 import { createHash } from 'node:crypto';
 import { closeSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { makeVerdict } from './verdict-emit.mjs';
@@ -424,13 +424,23 @@ function selftest() {
     'control · with no account the two are equal again, which is the tautology this wiring retires'
   );
   /* the digest really reads the file */
-  const tmp = join(ROOT, 'tools', '.census-selftest.tmp');
+  /* 🔴 THE SCRATCH FILE LEAVES THE SCANNED TREE, AND ITS NAME CARRIES THE PID. This was
+     `tools/.census-selftest.tmp`: one fixed name inside a directory other selftests WALK.
+     `selftest-all.mjs` runs its children at once, so the unlink below landed between a peer's
+     `readdirSync` and its `statSync`. Measured 2026-11-12 on #4959's `local-steps` job
+     131194636252: `consensus-refpick-dissent.mjs` exited 1 over this file, which it never wrote,
+     while this tool printed 42 green assertions beside it. The reader got the guard in the same
+     unit; this line removes the source. `doc-search.mjs saveCache` carries the same repair for the
+     same reason, and its note is the one that names the cost of a loud intermittent failure. */
+  const tmp = join(tmpdir(), `tepna-census-selftest.${process.pid}.tmp`);
   writeFileSync(tmp, 'hello');
   const h1 = digestPrefix(tmp, false);
   writeFileSync(tmp, 'hellp');
   const h2 = digestPrefix(tmp, false);
   eq(h1 !== h2, true, 'the prefix digest changes when a byte changes (it is not a stub)');
   eq(h1, digestPrefix(tmp, true) === h2 ? h1 : h1, 'control · the same reader is used for --full');
+  eq(tmp.startsWith(ROOT), false, 'the scratch file sits OUTSIDE the scanned repo tree, so no peer selftest can walk onto it');
+  eq(tmp.includes(String(process.pid)), true, '…and its name carries this pid, so two writers never share one path');
   /* ⚠️ `require` is not defined in an ES module — the first spelling of this line THREW and left
      `tools/.census-selftest.tmp` behind on every run, caught by `git status` before the push. The
      removal is still best-effort (the file is ours and a failure to unlink must not red a selftest),

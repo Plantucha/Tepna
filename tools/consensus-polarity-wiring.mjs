@@ -48,9 +48,16 @@
  *   · A call reached through a variable, a map or a worker message is invisible to a source scan.
  *     The scan reads `consensusBeats(` as written.
  *
+ * WRITE-ROOT, THE READING THIS TOOL OWES (brief §3, `pending` row 2026-11-12). The write shape
+ * matches here because the selftest drives the vanished-entry guard: it makes one
+ * `mkdtempSync(tmpdir())` sandbox, writes one file and one broken symlink inside it, and removes
+ * that same directory. No write of this tool can reach a checkout, so `writeRoot` has no root to
+ * choose. `ROOT` from `import.meta.url` is a READ here, and a read keeps its reach by design.
+ *
  * CLI: --check (default) · --json · --selftest · --verdict-sample
  */
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
@@ -238,14 +245,35 @@ export function buildVerdict(rows, scanned, opts = {}) {
 
 /* The FILE population, exported because a second reader of these call sites must not re-derive it:
    two listers over one `SCAN` is the drift this module's own limits section warns about. */
-export function scanFiles(root) {
+/* 🔴 A READDIR IS A SNAPSHOT AND A STAT IS A SECOND READ. An entry can leave between the two, and
+   then `statSync` throws `ENOENT` and the whole scan dies. Measured 2026-11-12 on #4959's
+   `local-steps` job 131194636252: `consensus-refpick-dissent.mjs` exited 1 over
+   `tools/.census-selftest.tmp`, a scratch file `corpus-census.mjs` writes and unlinks inside a
+   directory this scanner WALKS, while `selftest-all.mjs` ran both children at once. The source of
+   that one file moved out of the tree in the same unit; this guard answers the CLASS, because any
+   writer in `tools/` or the repo root can race any reader.
+   ∅ THE GUARD IS ONE ENTRY WIDE. Only `ENOENT` on the entry's own stat skips, every other error
+   rethrows, and the directory's own `readdirSync` sits OUTSIDE it — a directory nobody can open must
+   still refuse, never read as a directory holding nothing (the same line `geometry-scan.mjs` draws).
+   A vanished entry is reduced coverage, so `vanished` names it for a caller that wants to annotate. */
+export function scanFiles(root, vanished = null) {
   const out = [];
   for (const s of SCAN) {
     const dir = join(root, s.dir);
     if (!existsSync(dir)) continue;
     for (const f of readdirSync(dir)) {
       const p = join(dir, f);
-      if (!statSync(p).isFile()) continue;
+      let st;
+      try {
+        st = statSync(p);
+      } catch (e) {
+        if (e && e.code === 'ENOENT') {
+          if (vanished) vanished.push({ path: relative(root, p), reason: 'the entry left between the readdir and the stat' });
+          continue;
+        }
+        throw e;
+      }
+      if (!st.isFile()) continue;
       if (!s.exts.some((e) => f.endsWith(e))) continue;
       out.push(relative(root, p));
     }
@@ -254,10 +282,12 @@ export function scanFiles(root) {
 }
 
 export function run(root) {
-  const files = scanFiles(root);
+  /* `vanished` is a NEW field beside the old two, so an existing reader keeps its shape. */
+  const vanished = [];
+  const files = scanFiles(root, vanished);
   const rows = [];
   for (const f of files) rows.push(...classifyFile(f, readFileSync(join(root, f), 'utf8')));
-  return { rows, scanned: files.length };
+  return { rows, scanned: files.length, vanished };
 }
 
 /* ── selftest ────────────────────────────────────────────────────────────────────────────────── */
@@ -313,6 +343,38 @@ function selftest() {
   ok(buildVerdict([], 0).result === null, 'and it reports no measured result');
   ok(/n-a/.test(JSON.stringify(buildVerdict([{ state: 'n-a', in: 'a', why: 'w' }], 1).result)) === false, 'n-a is counted as notApplicable');
   ok(buildVerdict([{ state: 'n-a', in: 'a', why: 'w' }], 1).result.notApplicable === 1, 'and the count is 1');
+
+  /* THE RACE, DRIVEN RATHER THAN WAITED FOR. A broken symlink is an entry a `readdirSync` lists and a
+     `statSync` refuses with the SAME `ENOENT` the vanished scratch file raised, so these legs exercise
+     the guard on every run instead of once under load. */
+  const sbox = mkdtempSync(join(tmpdir(), 'tepna-scanfiles-'));
+  try {
+    mkdirSync(join(sbox, 'tools'));
+    writeFileSync(join(sbox, 'tools', 'real.mjs'), '// nothing to classify\n');
+    ok(scanFiles(sbox).join('|') === 'tools/real.mjs', 'CONTROL · the scan reads the one real file before any entry goes missing');
+    symlinkSync(join(sbox, 'tools', 'never-written.mjs'), join(sbox, 'tools', 'gone.mjs'));
+    const vanished = [];
+    const seen = scanFiles(sbox, vanished);
+    ok(seen.join('|') === 'tools/real.mjs', 'an entry whose stat raises ENOENT is skipped and the rest of the scan still lands');
+    ok(vanished.length === 1 && vanished[0].path === 'tools/gone.mjs', '…and the sink NAMES it, so reduced coverage can be annotated rather than implied');
+    ok(scanFiles(sbox).join('|') === 'tools/real.mjs', 'the sink is optional: a caller passing nothing still gets the skip, never a throw');
+    ok(run(sbox).vanished.length === 1, '`run` publishes the skip beside `scanned` in a new field');
+    /* ∅ A DIRECTORY NOBODY CAN OPEN MUST STILL REFUSE. `tools` as a FILE makes the directory's own
+       readdir throw ENOTDIR, which proves the guard never widened past the entry's stat. */
+    const nbox = mkdtempSync(join(tmpdir(), 'tepna-scanfiles-nd-'));
+    writeFileSync(join(nbox, 'tools'), 'not a directory\n');
+    let code = null;
+    try {
+      scanFiles(nbox);
+    } catch (e) {
+      code = e && e.code;
+    }
+    ok(code === 'ENOTDIR', 'an unreadable scan directory still throws, because the readdir sits outside the one-entry guard');
+    rmSync(nbox, { recursive: true, force: true });
+  } finally {
+    chmodSync(sbox, 0o700);
+    rmSync(sbox, { recursive: true, force: true });
+  }
 
   if (process.exitCode) return;
   console.log(`selftest: all ${ran} assertions passed`);

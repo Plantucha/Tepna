@@ -28,6 +28,7 @@
     "tools/brief-header-claims.mjs",
     "tools/build-analysis.mjs",
     "tools/build-docs.mjs",
+    "tools/consensus-polarity-wiring.mjs",
     "tools/corpus-census.mjs",
     "tools/cvhr-edge-widen.mjs",
     "tools/defect-bench.mjs",
