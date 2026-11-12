@@ -172,13 +172,37 @@ export function localEscapers(src) {
   return { credited, unverified: unverified.filter((u) => !credited.includes(u.name)) };
 }
 
-/* The strip pattern for ONE file: the two canonical names plus the escapers that file earned. Same
-   disjoint-alternation shape as `ESCAPE_CALL_RE`, so it stays ReDoS-safe, and the longest name is
-   tried first. With no earned name it IS `ESCAPE_CALL_RE`. */
-function escapeCallRe(extra) {
-  if (!extra || !extra.length) return ESCAPE_CALL_RE;
-  const alt = [...new Set(['escapeHTML', 'esc', ...extra])].sort((a, b) => b.length - a.length).join('|');
+/* The strip pattern for ONE file: the two canonical names plus the escapers that file earned, MINUS
+   every name that file shadows with a declaration which earned nothing. Same disjoint-alternation
+   shape as `ESCAPE_CALL_RE`, so it stays ReDoS-safe, and the longest name is tried first.
+   🔴 A SHADOWED CANONICAL NAME LOSES ITS CREDIT IN THAT FILE. Until 2026-11-12 `escapeHTML` and `esc`
+   rode in unconditionally, so a file declaring a quote-blind local `esc` had every `esc(...)` call
+   stripped out of its sinks by NAME while `localEscapers` reported the same name as unverified. The
+   census printed the count and nothing refused it. The decision is static inside the one file the
+   gate already reads, so it needs no cross-file resolution: the file declares the name, the body
+   earned nothing, the credit goes. A file that imports the canonical helper declares nothing and is
+   untouched. Returns `null` when no name survives, which means NOTHING may be stripped. */
+function escapeCallRe(extra, shadowed) {
+  const drop = new Set(shadowed || []);
+  const names = [...new Set(['escapeHTML', 'esc', ...(extra || [])])].filter((n) => !drop.has(n));
+  if (!names.length) return null;
+  if (!drop.size && (!extra || !extra.length)) return ESCAPE_CALL_RE;
+  const alt = names.sort((a, b) => b.length - a.length).join('|');
   return new RegExp(`\\b(?:${alt})\\s*\\((?:[^()]|\\([^()]*\\))*\\)`, 'g');
+}
+
+/* The second argument of `classifySinkLine` and the return of `escapersFor` accept TWO shapes: a
+   file's earned NAMES, which is what every caller passed before 2026-11-12, or the whole
+   `localEscapers` result, which also carries the shadowed set. The array shape keeps working and
+   earns no shadow, so an older caller reads exactly as it did. */
+function escaperSets(escapers) {
+  if (!escapers) return { credited: [], shadowed: [] };
+  if (Array.isArray(escapers)) return { credited: escapers, shadowed: [] };
+  const un = escapers.unverified || [];
+  return {
+    credited: escapers.credited || [],
+    shadowed: un.map((u) => (typeof u === 'string' ? u : u && u.name)).filter(Boolean)
+  };
 }
 
 /* ── ALLOW — statements a human read, with the reason ─────────────────────────────────────────────
@@ -238,7 +262,9 @@ export function classifySinkLine(line, escapers) {
   const rhs = m ? m[1] : '';
   /* escapeHTML()/esc() calls first — their ARGUMENTS are safe, so the whole call collapses. Then
      string literals, which are static. Whatever identifier survives both is untracked data. */
-  let stripped = rhs.replace(escapeCallRe(escapers), '""');
+  const sets = escaperSets(escapers);
+  const callRe = escapeCallRe(sets.credited, sets.shadowed);
+  let stripped = callRe ? rhs.replace(callRe, '""') : rhs;
   stripped = stripped.replace(STRING_RE, '""');
   const unsafe = [];
   for (const im of stripped.matchAll(IDENT_RE)) if (!SAFE_IDENTS.has(im[0])) unsafe.push(im[0]);
@@ -248,8 +274,10 @@ export function classifySinkLine(line, escapers) {
 /**
  * PURE CORE #2 — walk a unified diff, tracking the current file, and collect violations.
  *
- * `escapersFor(file) -> string[]` is optional and resolves that file's earned escaper names. It is a
- * callback and not a map because the resolution reads the file, which a pure core may not do.
+ * `escapersFor(file)` is optional and resolves that file's escaper credit. It is a callback and not a
+ * map because the resolution reads the file, which a pure core may not do. It may return the earned
+ * NAMES as an array, or the whole `localEscapers` result, whose unverified set then withdraws a
+ * shadowed canonical name from the strip pattern for that file.
  *
  * @returns {{violations: Array<{file,line,unsafe}>, sinksAdded: number}}
  */
@@ -467,6 +495,27 @@ export function selftest() {
   ok(classifySinkLine('+  el.innerHTML = escHtml(v) + raw;', ['escHtml']).unsafe.includes('raw'), 'CONTROL: a credited alias does not launder an unescaped sibling');
   ok(classifySinkLine('+  el.innerHTML = esc(v);').unsafe.length === 0, 'CONTROL: the two canonical names keep their name-based credit, so this is a widening only');
 
+  /* THE SHADOWED CANONICAL NAME, BOTH WAYS. A file that declares `esc` and earns nothing for the body
+     withdraws the name from its own strip pattern, so the call stops laundering. The same file shape
+     with a four-character body keeps the credit, which is what makes this a refusal and not a ban. */
+  const SRC_BLIND_ESC = `function esc(s) ${QUOTEBLIND}`;
+  const SRC_GOOD_ESC = `function esc(s) ${FOURCH}`;
+  ok(
+    classifySinkLine('+  el.innerHTML = esc(v);', localEscapers(SRC_BLIND_ESC)).unsafe.includes('v'),
+    'a file whose own esc earns NOTHING no longer strips its esc call — the name-only laundering is withdrawn'
+  );
+  ok(classifySinkLine('+  el.innerHTML = esc(v);', localEscapers(SRC_GOOD_ESC)).unsafe.length === 0, 'CONTROL: the same file with a four-character esc body keeps the credit');
+  ok(classifySinkLine('+  el.innerHTML = esc(v);', { credited: [], unverified: ['esc'] }).unsafe.includes('v'), 'the unverified set is read as bare NAMES too, not only as reason objects');
+  ok(
+    classifySinkLine('+  el.innerHTML = escapeHTML(v);', localEscapers(`function escapeHTML(s) ${QUOTEBLIND}\nfunction esc(s) ${QUOTEBLIND}`)).unsafe.includes('v'),
+    'a file that shadows BOTH canonical names leaves no name to strip, and the null pattern strips nothing'
+  );
+  ok(classifySinkLine('+  el.innerHTML = esc(v);', ['escHtml']).unsafe.length === 0, 'CONTROL: the ARRAY shape earns no shadow, so every caller written before 2026-11-12 reads as it did');
+  const perShadow = scanDiff(['diff --git a/x.js b/x.js', '+  el.innerHTML = esc(v);', 'diff --git a/y.js b/y.js', '+  el.innerHTML = esc(v);'], (f) =>
+    f === 'x.js' ? localEscapers(SRC_BLIND_ESC) : localEscapers(SRC_GOOD_ESC)
+  );
+  ok(perShadow.violations.length === 1 && perShadow.violations[0].file === 'x.js', 'the withdrawal is FILE-SCOPED, like the credit: the quote-blind declarer is caught and its neighbour is not');
+
   /* FILE-SCOPED, like ALLOW: the credit belongs to the file that declares the escaper. */
   const perFile = scanDiff(['diff --git a/x.js b/x.js', '+  el.innerHTML = escHtml(v);', 'diff --git a/y.js b/y.js', '+  el.innerHTML = escHtml(v);'], (f) => (f === 'x.js' ? ['escHtml'] : []));
   ok(perFile.violations.length === 1 && perFile.violations[0].file === 'y.js', 'the earned credit is file-scoped: the same line in a file that declares nothing is still caught');
@@ -609,7 +658,7 @@ function main() {
     }
     return escCache.get(f);
   };
-  const { violations, sinksAdded, allowed } = scanDiff(diff.split('\n'), (f) => escapersOf(f).credited);
+  const { violations, sinksAdded, allowed } = scanDiff(diff.split('\n'), (f) => escapersOf(f));
 
   if (fullTree) {
     const files = [...new Set(violations.map((v) => v.file))].sort();
@@ -625,9 +674,12 @@ function main() {
     /* THE STALENESS LEG, and it only works here: over the whole tree every sink is in the population,
        so an entry that matched nothing is an exemption covering no line. A stale entry FAILS — the
        same teeth the co-load tables carry, for the same reason (an unread exemption rots silently). */
-    /* THE NAME-ONLY CREDIT, COUNTED. `esc` and `escapeHTML` are credited by name, so a quote-blind
-       `esc` still launders a sink here. That is not fixed by this gate — it is fixed in the file that
-       declares it — and until then the number belongs in the reading rather than in nobody's head. */
+    /* THE NAME-ONLY CREDIT, COUNTED AND NOW WITHDRAWN IN THE DECLARING FILE. A canonical name that a
+       file shadows with a declaration earning nothing no longer strips that file's calls (see
+       `escapeCallRe`), so a quote-blind local `esc` launders nothing. The count stays in the reading
+       because the credit a file EARNS is still by name at the call site, and a helper reached through
+       an import is resolved nowhere. Both populations read 0 on 2026-11-12, so this leg protects the
+       next such file rather than a line in the tree today. */
     const filesScanned = [...new Set([...diff.matchAll(/^diff --git a\/.+? b\/(.+)$/gm)].map((m) => m[1]))];
     const escapers = { verified: [], unverified: [] };
     for (const f of filesScanned) {
@@ -647,7 +699,9 @@ function main() {
       process.stdout.write(
         `  baseline: ${baseline ? `${baseline.count} unescaped sink(s)` : '(none yet)'}${baseline && baseline.files != null ? ` · ${baseline.files} file(s), not ratcheted` : ''} · ${allowed.length} exempt by ALLOW → ${r.status}${r.reason ? ` — ${r.reason}` : ''}\n`
       );
-      process.stdout.write(`  escapers: ${escapers.verified.length} verified local escaper(s) credited by BODY · ${escapers.unverified.length} candidate(s) unverified, still credited by NAME\n`);
+      process.stdout.write(
+        `  escapers: ${escapers.verified.length} verified local escaper(s) credited by BODY · ${escapers.unverified.length} candidate(s) unverified, each WITHDRAWN from its own file's strip pattern\n`
+      );
       for (const u of escapers.unverified) process.stdout.write(`    ${u.file}: ${u.name} — ${u.reason}\n`);
     }
     process.exit(r.status === 'FAIL' ? 1 : 0);
