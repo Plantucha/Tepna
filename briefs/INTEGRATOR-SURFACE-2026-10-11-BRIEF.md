@@ -263,3 +263,62 @@ one of them, so depth 2 now reaches two subtrees out of fourteen. The depth-1 de
 `integrator-app.js`: depth 1 judges ONE realm, and widening it re-judges all 36 top-level keys
 against a second file, which is its own unit and not this one. The anchored test also credits a
 read into a variable that nothing draws, which is §6's standing blindness one level down.
+
+## 10 · 2026-11-12 — depth 1 judged ONE realm, and two cells were wrong about rendering
+
+§9 left the question this section answers. The depth-1 contract read `export-only` as "carried on
+the node-export and deliberately not rendered", and the gate asked that question of
+`integrator-render.js` alone. The Integrator has a second reader file, so the claim was never
+tested where it fails.
+
+| population | before | after |
+|---|---|---|
+| top-level keys judged | 36 | 36 |
+| declared reader realms | 1 | **2** |
+| `card` | 12 | **14** |
+| `export-only` | 24 | **22** |
+| selftest legs | 74 | **97** |
+
+🔴 **TWO OF THE 36 CELLS SAID "DELIBERATELY NOT RENDERED" ABOUT A VISIBLE BANNER.**
+`integrator-render.js` names `clockSkew` and `kernelAudit` zero times. `integrator-app.js` binds
+both — `var ka = FUSION && FUSION.kernelAudit` at :77 and `var cs = FUSION && FUSION.clockSkew` at
+:88 — and pushes a reader-facing line from each into `warnAll`. A reader meets both on every
+fusion. Both cells now read `card` against the app realm. The gate reported the pair before the
+repair: `2 key(s) declare 'export-only' and a SECOND declared realm reads them through its holder:
+clockSkew, kernelAudit`.
+
+🔴 **A BARE TOKEN IS EVIDENCE ONLY INSIDE THE FILE WHOSE JOB IS THE FUSION.** §8 found this one
+level down, where the namespace collides with itself. It holds one level UP as well, across files.
+Measured over all 36 keys in `integrator-app.js`: five match a bare token, and only two of the five
+read the fusion. `generated` and `schema` belong to a synthetic crossnight envelope the app BUILDS
+(`:592`), and `kind` names a file type and a download (`:177`, `:367`). So a non-default realm
+declares the HOLDER its reads must anchor on, and the three false convictions never happen.
+
+🔴 **MENTIONED-BUT-NOT-ANCHORED IS A THIRD STATE, AND CALLING IT PROSE MISDIRECTS THE REPAIR.** In
+the render realm an unread mention is a comment or a string, and `cardProseOnly` says so. In a
+second realm the same mention can be live code reading a different object, which is what
+`generated` and `schema` are. The gate reports `cardUnanchored` there and names the holder as the
+repair.
+
+🔴 **A REALM IS DECLARED, NEVER DISCOVERED.** `readerRealms` lists the files and each non-default
+holder, `readerFiles` names each card key's own realm, and the verdict prints `readerRealms` and
+`cardByRealm` so a run states the realms it judged. A realm set that drops the render file refuses
+rather than reds, which is the same fail-closed rule the slim-export literal and the nested shapes
+already carry. A key naming a file outside the set is a reported finding, because the gate can say
+exactly what is wrong.
+
+**Live controls, run against the real declaration, each restored afterwards.**
+
+| mutation | result |
+|---|---|
+| `clockSkew`'s card realm swapped back to render | `✗ 1 key(s) declare 'card' and their own declared reader does not read them: integrator-render.js → clockSkew` |
+| the realms removed and both cells back to `export-only` | **PASS** — the old blindness, reproduced |
+| the app realm's holder renamed | `✗ 2 key(s) …: integrator-app.js → clockSkew, kernelAudit` + both reported unanchored |
+| `kernelAudit` names an undeclared realm | `✗ 1 key(s) name a reader file that is not a declared realm: kernelAudit` |
+| the render realm dropped from the set | refuses: `readerRealms omits integrator-render.js` |
+
+**What this still cannot see.** The realm set is two files, and a third reader would need a row of
+its own. The anchored test credits a read into a variable that nothing draws, which is §6's
+standing blindness in both realms now. Twelve nested subtrees still carry no declaration, so depth
+2 reaches two of fourteen. A key read in BOTH realms declares one of them, and the gate does not
+ask whether the other one should also draw it.

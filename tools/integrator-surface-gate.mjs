@@ -12,14 +12,25 @@
    Integrator's fusion emits declares, in `tools/integrator-surface.json`, which
    surface it reaches:
 
-     card         rendered for a reader — so `integrator-render.js` MUST mention it
+     card         rendered for a reader — so its own declared reader MUST read it
      export-only  carried on the node-export and deliberately not rendered
 
    The gate reds on exactly three things: a key with no declaration, a `card` key
-   that `integrator-render.js` does not READ, and an `export-only` key that it
-   does read. A `card` key whose only appearance is PROSE — a comment or a string
-   — is the second of those, and the reason names it separately, because absence
-   and prose are different repairs.
+   that its reader does not READ, and an `export-only` key that any declared
+   reader does read. A `card` key whose only appearance is PROSE — a comment or a
+   string — is the second of those, and the reason names it separately, because
+   absence and prose are different repairs.
+
+   REALMS. "Its own declared reader" was ONE file until 2026-11-12, and that cost
+   two of the 36 cells: `clockSkew` and `kernelAudit` both read `export-only`,
+   `integrator-render.js` names neither, and `integrator-app.js` binds both and
+   draws a banner line from each. The reader realms are now DECLARED
+   (`readerRealms`), the render realm is the default, and a card key names its own
+   realm (`readerFiles`). A non-default realm declares the HOLDER its reads must
+   anchor on, because a bare token is only evidence inside the file whose job is
+   the fusion — measured in the app, `generated`, `kind` and `schema` all match a
+   bare token and none of them reads the fusion. A realm set that drops the render
+   file REFUSES; a key naming a file outside the set is a reported finding.
 
    DEPTH. The top level is judged for every key. One level DOWN is judged inside a
    declared subtree only (`nested` in the declaration file; `fusion.apnea` is the
@@ -138,6 +149,21 @@ export function mentions(renderText, key) {
 export function reads(code, renderText, key) {
   if (new RegExp('\\b' + escapeRe(key) + '\\b').test(code)) return true;
   return new RegExp('\\[\\s*([\'"])' + escapeRe(key) + '\\1\\s*\\]').test(renderText);
+}
+
+/* 🔴 A SECOND REALM MAKES A BARE TOKEN WORTHLESS AT DEPTH 1 TOO. The bare-token test above is
+   justified by the realm it runs in: inside `integrator-render.js` the fusion object is what the
+   file is for, so the token IS the fusion's own property name. `integrator-app.js` is a second
+   reader realm and that justification does not travel. Measured 2026-11-12 over the 36 top-level
+   keys: `generated`, `kind` and `schema` all match a bare token in the app and none of them is a
+   read of the fusion — `generated` and `schema` belong to a synthetic crossnight envelope the app
+   BUILDS (integrator-app.js:592) and `kind` names a file type and a download (`:177`, `:367`). So
+   a non-default realm is asked for an ANCHORED read against the holder it declares, which is the
+   same repair depth 2 already carries, one level up. */
+export function readsAnchored(code, rawText, holder, key) {
+  const h = escapeRe(holder);
+  if (new RegExp(h + '\\s*\\.\\s*' + escapeRe(key) + '(?![A-Za-z0-9_$])').test(code)) return true;
+  return new RegExp(h + '\\s*\\[\\s*([\'"])' + escapeRe(key) + '\\1\\s*\\]').test(rawText);
 }
 
 /* ── DEPTH 2, ONE SUBTREE AT A TIME ───────────────────────────────────────────────────────────
@@ -467,24 +493,80 @@ export function nestedReasons(n) {
 }
 
 /** The three red conditions, and nothing else. */
-export function evaluate(keys, surfaces, renderText) {
-  const { code, by } = prepare(renderText);
+export const DEFAULT_REALM = 'integrator-render.js';
+
+/* 🔴 ONE REALM WAS AN ASSUMPTION, NOT A CONTRACT. `export-only` reads "carried on the node-export
+   and deliberately not rendered", and until today the gate checked that claim against ONE file.
+   Measured 2026-11-12 over the 36 top-level keys: `clockSkew` and `kernelAudit` are both declared
+   `export-only`, `integrator-render.js` names neither, and `integrator-app.js` binds both
+   (`:77`, `:88`) and pushes reader-facing banner lines from each. So two of the 36 cells said
+   "deliberately not rendered" about values a reader meets on every fusion.
+
+   A realm is DECLARED (`readerRealms`), never discovered, and the verdict names the set. A
+   non-default realm declares the holder its reads must anchor on, and a card key names the one
+   realm that must read it (`readerFiles`, default the render file). An `export-only` key must be
+   read in NO declared realm. */
+export function realmsFrom(renderText, decl, load) {
+  const declared = decl && decl.readerRealms;
+  if (!declared) return [{ file: DEFAULT_REALM, raw: renderText, isDefault: true, holder: null }];
+  const out = [];
+  for (const [file, d] of Object.entries(declared)) {
+    const isDefault = file === DEFAULT_REALM;
+    if (!isDefault && !(d && d.holder)) throw new Error(`reader realm \`${file}\` declares no holder — an unanchored read in a second realm is not evidence`);
+    out.push({ file, raw: isDefault ? renderText : load(file), isDefault, holder: isDefault ? null : d.holder });
+  }
+  if (!out.some((r) => r.isDefault)) throw new Error(`readerRealms omits ${DEFAULT_REALM} — the render realm is the contract's default and the gate must not drop it`);
+  return out;
+}
+
+export function evaluate(keys, surfaces, renderText, extra) {
+  const realms = (extra && extra.realms) || [{ file: DEFAULT_REALM, raw: renderText, isDefault: true, holder: null }];
+  const readerFiles = (extra && extra.readerFiles) || {};
+  let by = null;
+  for (const r of realms) {
+    const p = prepare(r.raw);
+    r.code = p.code;
+    if (r.isDefault) by = p.by;
+  }
+  /* A reader file nobody declared is a DEFECT IN THE DECLARATION, reported the way an unknown
+     surface value is, and not a crash: the gate can say exactly what is wrong. Those keys are then
+     left out of the surface judgement, because there is no realm to judge them in. */
+  const badRealm = Object.keys(readerFiles).filter((k) => !realms.some((r) => r.file === readerFiles[k]));
+  const judged = keys.filter((k) => !badRealm.includes(k));
+  const realmOf = (k) => realms.find((r) => r.file === (readerFiles[k] || DEFAULT_REALM));
+  const readIn = (r, k) => (r.isDefault ? reads(r.code, r.raw, k) : readsAnchored(r.code, r.raw, r.holder, k));
   const undeclared = keys.filter((k) => !surfaces[k]);
   const badValue = keys.filter((k) => surfaces[k] && !SURFACES.includes(surfaces[k]));
-  const cardUnrendered = keys.filter((k) => surfaces[k] === 'card' && !reads(code, renderText, k));
-  /* The subset whose reason is PROSE and not absence — the state nothing could see until today. */
-  const cardProseOnly = cardUnrendered.filter((k) => mentions(renderText, k));
-  const exportOnlyRead = keys.filter((k) => surfaces[k] === 'export-only' && reads(code, renderText, k));
+  const cardUnrendered = judged.filter((k) => surfaces[k] === 'card' && !readIn(realmOf(k), k));
+  /* The subset whose reason is PROSE and not absence — the state nothing could see until today.
+     🔴 IN A SECOND REALM THAT SPLITS INTO TWO STATES, AND ONLY ONE OF THEM IS PROSE. A key the app
+     mentions but never reads through the holder can be a COMMENT, or it can be live code reading a
+     DIFFERENT object — `generated` and `schema` are both, in the same file. Calling that prose
+     would send a reader to look for a comment that is not there, so a non-default realm reports
+     `cardUnanchored` instead, and the repair it names is the holder, not the wording. */
+  const cardProseOnly = cardUnrendered.filter((k) => realmOf(k).isDefault && mentions(realmOf(k).raw, k));
+  const cardUnanchored = cardUnrendered.filter((k) => !realmOf(k).isDefault && mentions(realmOf(k).raw, k));
+  const exportOnlyRead = judged.filter((k) => surfaces[k] === 'export-only' && realms.some((r) => r.isDefault && readIn(r, k)));
+  /* The widening: the same claim, asked of every OTHER declared realm. Named separately because
+     the repair differs — a render read means the declaration is wrong about rendering at all, and
+     a second-realm read means it is wrong about WHICH file renders it. */
+  const exportOnlyReadElsewhere = judged.filter((k) => surfaces[k] === 'export-only' && realms.some((r) => !r.isDefault && readIn(r, k)));
   const stale = Object.keys(surfaces).filter((k) => !keys.includes(k));
   return {
     undeclared,
     badValue,
     cardUnrendered,
     cardProseOnly,
+    cardUnanchored,
     exportOnlyRead,
+    exportOnlyReadElsewhere,
+    badRealm,
+    realms: realms.map((r) => r.file),
+    cardUnrenderedByRealm: Object.fromEntries(realms.map((r) => [r.file, cardUnrendered.filter((k) => realmOf(k).file === r.file)]).filter(([, ks]) => ks.length)),
+    cardByRealm: Object.fromEntries(realms.map((r) => [r.file, judged.filter((k) => surfaces[k] === 'card' && realmOf(k).file === r.file).length])),
     stale,
     blankedBy: by,
-    ok: !undeclared.length && !badValue.length && !cardUnrendered.length && !exportOnlyRead.length
+    ok: !undeclared.length && !badValue.length && !cardUnrendered.length && !exportOnlyRead.length && !exportOnlyReadElsewhere.length && !badRealm.length
   };
 }
 
@@ -502,12 +584,24 @@ function main() {
   const render = readFileSync(join(ROOT, 'integrator-render.js'), 'utf8');
   const decl = JSON.parse(readFileSync(DECL_PATH, 'utf8'));
   const keys = fusionKeys(dsp);
-  const r = evaluate(keys, decl.surfaces || {}, render);
+  /* The realms are loaded ONCE and shared with the nested pass, so a file read for a depth-1 card
+     key is the same text a depth-2 subtree is judged against. */
+  const realmFiles = new Map([[DEFAULT_REALM, render]]);
+  const loadRealm = (f) => {
+    if (!realmFiles.has(f)) realmFiles.set(f, readFileSync(join(ROOT, f), 'utf8'));
+    return realmFiles.get(f);
+  };
+  /* 🔴 NO EAGER LOAD OF A DECLARED READER FILE. An earlier draft read every `readerFiles` value
+     up front, so a key naming a file that does not exist died with ENOENT instead of reporting the
+     declaration defect the gate is built to name. `realmsFrom` loads the declared realms, and a
+     reader file outside that set is a `badRealm` finding. */
+  const realms = realmsFrom(render, decl, loadRealm);
+  const r = evaluate(keys, decl.surfaces || {}, render, { realms, readerFiles: decl.readerFiles || {} });
 
   /* THE NESTED SUBTREES, one entry at a time. A declared subtree whose builder shape has moved
      REFUSES — the same fail-closed rule the slim-export literal already carries above. */
   const nested = [];
-  const readers = new Map([['integrator-render.js', render]]);
+  const readers = realmFiles;
   for (const [sub, d] of Object.entries(decl.nested || {})) {
     if (!d) throw new Error(`nested subtree \`${sub}\` declares nothing`);
     const byFn = !!d.builtBy;
@@ -558,7 +652,11 @@ function main() {
       undeclared: r.undeclared.length,
       cardUnrendered: r.cardUnrendered.length,
       cardProseOnly: r.cardProseOnly.length,
+      cardUnanchored: r.cardUnanchored.length,
       exportOnlyRead: r.exportOnlyRead.length,
+      exportOnlyReadElsewhere: r.exportOnlyReadElsewhere.length,
+      readerRealms: r.realms,
+      cardByRealm: r.cardByRealm,
       staleDeclarations: r.stale.length,
       blankedBy: r.blankedBy
     },
@@ -569,9 +667,22 @@ function main() {
         : [
             r.undeclared.length ? r.undeclared.length + ' key(s) declare no surface: ' + r.undeclared.join(', ') : '',
             r.badValue.length ? r.badValue.length + " key(s) declare something other than 'card' or 'export-only': " + r.badValue.join(', ') : '',
-            r.cardUnrendered.length ? r.cardUnrendered.length + " key(s) declare 'card' but integrator-render.js does not read them: " + r.cardUnrendered.join(', ') : '',
+            r.cardUnrendered.length
+              ? r.cardUnrendered.length +
+                " key(s) declare 'card' and their own declared reader does not read them: " +
+                Object.entries(r.cardUnrenderedByRealm)
+                  .map(([f, ks]) => f + ' → ' + ks.join(', '))
+                  .join(' · ')
+              : '',
             r.cardProseOnly.length ? r.cardProseOnly.length + ' of those appear ONLY in prose, a comment or a string, and never as a read: ' + r.cardProseOnly.join(', ') : '',
-            r.exportOnlyRead.length ? r.exportOnlyRead.length + " key(s) declare 'export-only' and integrator-render.js reads them: " + r.exportOnlyRead.join(', ') : ''
+            r.cardUnanchored.length
+              ? r.cardUnanchored.length + ' of those are mentioned in their own realm but never read through its holder, so the mention is a comment or another object: ' + r.cardUnanchored.join(', ')
+              : '',
+            r.exportOnlyRead.length ? r.exportOnlyRead.length + " key(s) declare 'export-only' and integrator-render.js reads them: " + r.exportOnlyRead.join(', ') : '',
+            r.exportOnlyReadElsewhere.length
+              ? r.exportOnlyReadElsewhere.length + " key(s) declare 'export-only' and a SECOND declared realm reads them through its holder: " + r.exportOnlyReadElsewhere.join(', ')
+              : '',
+            r.badRealm.length ? r.badRealm.length + ' key(s) name a reader file that is not a declared realm: ' + r.badRealm.join(', ') : ''
           ]
             .concat(nestedBad.flatMap((n) => nestedReasons(n)))
             .filter(Boolean)
@@ -589,6 +700,7 @@ function main() {
   if (!JSON_ONLY)
     console.log(
       `✓ ${keys.length} top-level Integrator key(s): ${cards} card · ${keys.length - cards} export-only · 0 undeclared · reads blanked by ${r.blankedBy}` +
+        ` · ${r.realms.length} declared reader realm(s): ${r.realms.map((f) => f + '=' + r.cardByRealm[f] + ' card').join(' · ')}` +
         ` · depth 1 — a nested property is examined only inside a declared subtree (${nested.length} declared)`
     );
   if (!JSON_ONLY)
@@ -830,6 +942,61 @@ if (DIRECT && process.argv.includes('--selftest')) {
     evaluateNested('skewBlock', ISHAPES, { ...ALLEXP, surfaces: { ...ALLEXP.surfaces, findings: 'card' } }, 'function f() {\n  return 1;\n}').noAlias,
     true
   );
+  /* ── DEPTH 1 IN A SECOND REALM ─────────────────────────────────────────────────────────────
+     The render realm keeps the bare-token test. Every other realm is asked for an anchored read,
+     because the token in a second file is not the fusion's property name — `AR` below is the
+     measured shape of `generated` and `schema` in `integrator-app.js`, which build an envelope
+     of their own and never read the fusion. */
+  const AR = "function recompute(){ var ka = FUSION && FUSION.kernelAudit; out(ka.expected); var env = { generated: now(), schema: { name: 'x' } }; return env['kind']; }";
+  const ARREALMS = () => [
+    { file: 'integrator-render.js', raw: R, isDefault: true, holder: null },
+    { file: 'integrator-app.js', raw: AR, isDefault: false, holder: 'FUSION' }
+  ];
+  const ev1 = (keys, surfaces, readerFiles) => evaluate(keys, surfaces, R, { realms: ARREALMS(), readerFiles: readerFiles || {} });
+  ck('an anchored property read in a second realm counts', readsAnchored(AR, AR, 'FUSION', 'kernelAudit'), true);
+  ck('🔴 a bare token in a second realm does NOT', readsAnchored(AR, AR, 'FUSION', 'generated'), false);
+  ck('…and neither does a bracket access on something else', readsAnchored(AR, AR, 'FUSION', 'kind'), false);
+  ck('a bracket access on the holder DOES count', readsAnchored('', "FUSION['nu']", 'FUSION', 'nu'), true);
+  ck('a longer identifier containing the key is not an anchored read', readsAnchored('FUSION.kernelAuditTrail', '', 'FUSION', 'kernelAudit'), false);
+  ck("🔴 an 'export-only' key a SECOND realm reads reds", ev1(['kernelAudit'], { kernelAudit: 'export-only' }).exportOnlyReadElsewhere, ['kernelAudit']);
+  ck('…and that alone is not ok', ev1(['kernelAudit'], { kernelAudit: 'export-only' }).ok, false);
+  ck('…while the reason names the second realm rather than render', ev1(['kernelAudit'], { kernelAudit: 'export-only' }).exportOnlyRead, []);
+  ck('🔴 the three bare-token-only keys stay export-only with NO finding', ev1(['generated', 'kind', 'schema'], { generated: 'export-only', kind: 'export-only', schema: 'export-only' }).ok, true);
+  ck("a 'card' key that names the second realm passes on an anchored read", ev1(['kernelAudit'], { kernelAudit: 'card' }, { kernelAudit: 'integrator-app.js' }).ok, true);
+  ck('🔴 …and reds when that realm only has a bare token', ev1(['generated'], { generated: 'card' }, { generated: 'integrator-app.js' }).cardUnrendered, ['generated']);
+  ck('🔴 a card key whose realm is the WRONG one reds', ev1(['kernelAudit'], { kernelAudit: 'card' }).cardUnrendered, ['kernelAudit']);
+  /* 🔴 MENTIONED-BUT-NOT-ANCHORED IS ITS OWN STATE, and it is not prose. */
+  ck('a second-realm mention with no holder read is reported as unanchored', ev1(['generated'], { generated: 'card' }, { generated: 'integrator-app.js' }).cardUnanchored, ['generated']);
+  ck('…and NOT as prose-only, which would send a reader looking for a comment', ev1(['generated'], { generated: 'card' }, { generated: 'integrator-app.js' }).cardProseOnly, []);
+  ck('a key absent from its realm altogether is neither', ev1(['omega'], { omega: 'card' }, { omega: 'integrator-app.js' }).cardUnanchored, []);
+  ck('…while the render realm keeps reporting prose-only', evaluate(['iota'], { iota: 'card' }, PROSE).cardProseOnly, ['iota']);
+  ck('🔴 a reader file that is not a declared realm reds', ev1(['alpha'], { alpha: 'card' }, { alpha: 'integrator-nowhere.js' }).badRealm, ['alpha']);
+  ck('the card count is reported per realm', ev1(['alpha', 'kernelAudit'], { alpha: 'card', kernelAudit: 'card' }, { kernelAudit: 'integrator-app.js' }).cardByRealm, {
+    'integrator-render.js': 1,
+    'integrator-app.js': 1
+  });
+  ck('the verdict names the realm set', ev1(['alpha'], { alpha: 'card' }).realms, ['integrator-render.js', 'integrator-app.js']);
+  /* 🔴 THE REALMS ARE DECLARED, NEVER DISCOVERED, AND THE DECLARATION FAILS CLOSED. */
+  const thrown = (f) => {
+    try {
+      f();
+      return null;
+    } catch (e) {
+      return e.message;
+    }
+  };
+  ck('🔴 a second realm with no holder refuses', thrown(() => realmsFrom(R, { readerRealms: { 'integrator-render.js': {}, 'integrator-app.js': {} } }, () => AR)).includes('declares no holder'), true);
+  ck(
+    '🔴 a realm set that omits the render file refuses',
+    thrown(() => realmsFrom(R, { readerRealms: { 'integrator-app.js': { holder: 'FUSION' } } }, () => AR)).includes('omits integrator-render.js'),
+    true
+  );
+  ck(
+    'a declaration with no realms at all is the render realm alone',
+    realmsFrom(R, {}, () => AR).map((x) => x.file),
+    ['integrator-render.js']
+  );
+  ck('…which is what a three-argument evaluate still judges against', evaluate(['alpha'], { alpha: 'card' }, R).realms, ['integrator-render.js']);
   console.log(bad ? `  ✗ ${bad} of ${ran} selftests failed` : `  all ${ran} selftests passed`);
   process.exit(bad ? 1 : 0);
 }
