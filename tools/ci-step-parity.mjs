@@ -18,7 +18,7 @@
  *
  * HOW A STEP COUNTS AS COVERED. The workflows hold the step's own command, or they hold `npm run
  * <step>`. Nothing else counts, and the direction is deliberate: a workflow that runs the same tool
- * under other flags does not run the step. `verify:browser-gate-logic` is the measured case, where
+ * under other flags does not run the step. `verify:browser-gate-selftest` is the measured case, where
  * `no-network.yml` runs `tests/browser-gates.mjs` and never its `--selftest`. Such a step reads
  * uncovered here, and the report names it under `toolRunsUnderOtherFlags`, so the reader sees the
  * difference between a tool nobody runs and a flag nobody runs.
