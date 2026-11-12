@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**343 tools** · 342 with a purpose line · **1 without**
+**344 tools** · 343 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -47,6 +47,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`build-analysis.mjs`](../tools/build-analysis.mjs) | Make the science/analysis tools SELF-CONTAINED single-file HTML, so they run when a user downloads ONE.html to disk and opens it over file:// — the way the bundled apps already do. |
 | [`build-docs.mjs`](../tools/build-docs.mjs) | Build the public GitHub-Pages deploy snapshot in../docs (the served root per docs/SITE-DEPLOY-AND-LAYOUT.md §D) from the repo-root source of truth. |
 | [`build.mjs`](../tools/build.mjs) | **⚠ NO PURPOSE LINE — add one to the header** |
+| [`bus-conf-provenance.mjs`](../tools/bus-conf-provenance.mjs) | every published bus `conf` site, and whether a source stands above it |
 | [`buzz-fiducial-correlate.mjs`](../tools/buzz-fiducial-correlate.mjs) | O2RING-BUZZ-FIDUCIAL step 2/3 — correlate a commanded APERIODIC buzz sequence against the ring's own motion channel, and report the host-axis residual. |
 | [`buzz-onset-extract.mjs`](../tools/buzz-onset-extract.mjs) | EXTRACT COMMANDED-BUZZ ONSETS from ACC / ring-motion streams and turn them into numbers: the command→artifact latency per fire, and the pairwise inter-device onset delta per event. |
 | [`capture-recapture.mjs`](../tools/capture-recapture.mjs) | HOW MANY BEATS DID *EVERY* DETECTOR MISS — epidemiology's capture–recapture, imported. |
