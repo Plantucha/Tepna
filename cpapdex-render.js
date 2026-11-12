@@ -25,11 +25,15 @@ import { CpapDsp } from './cpapdex-dsp.js';
   var REG = global.CpapRegistry;
   var MR = global.MetricRegistry;
 
+  /* Delegates to THE canonical suite escaper (dex-escape.js, loaded before this file in
+     CPAPDex.src.html and inlined before it in the bundle). The local body escaped `& < >` and
+     left `"` and `'` alone, so a value carrying a double quote closed the attribute it sat in.
+     One quoted-attribute sink exists in this file (`data-cmp-chan="` + esc(lab) + `"`), and the
+     keys it renders come from the two-entry `COMPARE_CHANNELS` allowlist in cpapdex-cross.js,
+     so the escape was LATENT rather than reachable today. A delegation covers all 60 call sites
+     at once and stops a second escaper drifting from the first. */
   function esc(s) {
-    return String(s == null ? '' : s)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
+    return escapeHTML(s);
   }
   function fnum(v, dec) {
     if (v == null || !isFinite(v)) return '—';
