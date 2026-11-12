@@ -1863,6 +1863,29 @@
         "INTEGRATOR-GAP-AWARE-OVERLAP-FOLLOWUPS-2026-07-28-BRIEF.md"
       ],
       "notes": ""
+    },
+    {
+      "version": "2.32.0",
+      "date": "2026-11-12",
+      "bump": "minor",
+      "name": "",
+      "manifestHashes": {
+        "ECGDex": "e86cf208d959",
+        "OxyDex": "1d6f645f65c4",
+        "PulseDex": "6d705936f530",
+        "GlucoDex": "4e1cbabb2e05",
+        "PpgDex": "b115be016c2c",
+        "HRVDex": "0b42e6c6fd6b",
+        "CPAPDex": "0b62ca3088b8",
+        "Integrator": "79fb4f306332",
+        "MotionDex": "e1d4eddbf801"
+      },
+      "briefs": [
+        "INTEGRATOR-GAP-AWARE-OVERLAP-2026-07-27-BRIEF.md",
+        "PAT-HAT-RING-FLOOR-2026-10-04-BRIEF.md",
+        "WRITE-ROOT-ADOPTION-2026-11-03-BRIEF.md"
+      ],
+      "notes": ""
     }
   ]
 }
