@@ -6992,7 +6992,16 @@ window.TCH_REFERENCE_RECORD = {
       return;
     }
     if (rc) {
-      rc.innerHTML = evb('hat') + ' σ ' + f2(real.sigma.h10) + ' / ' + f2(real.sigma.verity) + ' / ' + f2(real.sigma.o2);
+      /* The row leads with the SAME number as the corner cards (hero): the σ measured against this night's beat
+         reference when it is there, else the hat's σ̂ — with that number's own badge and symbol. Before, the row
+         always printed σ̂ under a plain "σ" while the cards led with the measured σ, so one night read two ways. */
+      const R = refOf(real);
+      const useMeas = !!(R && R.sigma && DKEYS.every((k) => Number.isFinite(R.sigma[k])));
+      const sg = useMeas ? R.sigma : real.sigma;
+      rc.innerHTML = evb(useMeas ? 'refNight' : 'hat') + ' ' + esc((useMeas ? 'σ ' : 'σ̂ ') + DKEYS.map((k) => f2(sg[k])).join(' / '));
+      rc.title = useMeas
+        ? 'σ measured against the beat reference · the hat said ' + DKEYS.map((k) => f2(real.sigma[k])).join(' / ')
+        : 'σ̂ from the three-cornered hat — no beat reference on this night';
       rc.style.color = '';
     }
     setStatus('ok', nt.key + ' · solved · ' + hmOf(real.n) + ' overlap');
