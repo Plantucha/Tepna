@@ -703,6 +703,99 @@ export function namedByCode(keys, commits, addedBy) {
 }
 
 /**
+ * The FATE verbs, stated here because a commit body states a row's fate in PROSE and nothing
+ * machine-readable carries it. The set is a FLOOR on those statements and never a census, exactly
+ * like `CORRECTION_VERBS` below: a session may say the same thing in words this regex never sees.
+ *
+ * Measured 2026-11-12 over the 18 lead rows at `origin/main`: 13 carry a verb in a paragraph that
+ * also names the key, and 5 more state the fate in a section heading, or in a paragraph that never
+ * repeats the key. So a key-local read alone leaves 5 of the 18 silent, and all 18 had stated one.
+ */
+export const FATE_VERBS = /\b(stays? OPEN|stay open|keeps its OPEN state|closes nothing|closes no row|fixes nothing|answers part of|leaves (?:it|the row) open|declares no `?Residue-fixed)\b/i;
+
+/**
+ * Pure. What a commit body SAYS about a row's fate, which is the cheapest answer to the lead
+ * warning this tool prints: the warning tells a picker to read those PRs, and measured 2026-11-12
+ * over the 18 leads at `origin/main`, every one of them had already stated the row's fate in the
+ * naming commit's own body. That sweep closed no row, and it cost about ten turns of PR reads.
+ * The regex reaches 15 of the 19 leads the same day, so the four absent quotes are a FLOOR's silence.
+ *
+ * The quote is A LEAD AND NEVER A PROOF, exactly like the `moved` pointer hint: a body states what
+ * its author intended on the day, and only the state cell closes a row.
+ *
+ * `kind` is one of:
+ *
+ *   `stated`          — a paragraph carries a fate verb AND names the key, so it is about this row.
+ *   `sole-key`        — a paragraph or heading carries the verb and names no key, and the whole
+ *                       message names exactly ONE row key. Attribution is decidable from the text.
+ *   `unattributable`  — a verb, and the message names several rows, so which row it is about is not
+ *                       decidable here. §∅: it reports as unattributable, never promoted to
+ *                       `stated` and never dropped.
+ *
+ * @param {string} message  the commit message, body included
+ * @param {string} key      the row key the lead is about
+ * @returns {{ kind: string, text: string } | null} `null` when no paragraph carries a fate verb
+ */
+export function leadFate(message, key) {
+  const src = String(message ?? '');
+  const paras = src
+    .split(/\n\s*\n/)
+    .map((p) => p.replace(/\s+/g, ' ').trim())
+    .filter(Boolean);
+  const fate = paras.filter((p) => FATE_VERBS.test(p));
+  if (!fate.length) return null;
+  /* ONE SENTENCE, and the one that carries the VERB. The paragraph stating a fate opens with its
+     own argument often enough to matter: measured 2026-11-12 against the live leads, a quote of the
+     FIRST sentence read "Board #419 claimed the capture-host half" on 6 of the 19 rows, which says
+     nothing about the fate. A heading, a bullet and a bold run keep their text and lose the marker. */
+  const quote = (p) => {
+    const bare = p.replace(/^#+\s*/, '').replace(/^[-*]\s+/, '');
+    const sents = (bare.match(/[^.!?]*[.!?]+|[^.!?]+$/g) ?? [bare])
+      .map((s) =>
+        s
+          .replace(/^[\s*>-]+/, '')
+          .replace(/\*\*/g, '')
+          .trim()
+      )
+      .filter(Boolean);
+    const one = sents.find((s) => FATE_VERBS.test(s)) ?? sents[0] ?? bare;
+    return one.length > 180 ? `${one.slice(0, 179)}…` : one;
+  };
+  /* A HEADING states a fate in three words ("What stays open") and carries no argument for it, so a
+     PROSE paragraph answers first and a heading answers only when no prose paragraph carries one. */
+  const ordered = [...fate.filter((p) => !p.startsWith('#')), ...fate.filter((p) => p.startsWith('#'))];
+  const named = ordered.find((p) => namesKey(p, key));
+  const text = quote(named ?? ordered[0]);
+  if (named) return { kind: 'stated', text };
+  const keys = namedKeys(src, '');
+  return { kind: keys.size === 1 && keys.has(key) ? 'sole-key' : 'unattributable', text };
+}
+
+/**
+ * Pure. The fate quote per lead row, read from the SAME commits `namedByCode` reads, so the two
+ * reads can never disagree about which commit is a lead. The NEWEST naming commit that states a
+ * fate wins, because a later statement supersedes an earlier one.
+ *
+ * @param {string[]} keys
+ * @param {ReturnType<typeof parseLog>} commits
+ * @param {Map<string, string>} addedBy
+ * @returns {Map<string, { pr: string, kind: string, text: string }>} a key stating no fate is absent
+ */
+export function fateOfLeads(keys, commits, addedBy) {
+  const out = new Map();
+  for (const k of keys) {
+    for (const c of commits) {
+      if (c.sha === addedBy.get(k) || !c.files.some(isCodePath) || !namesKey(c.message, k)) continue;
+      const f = leadFate(c.message, k);
+      if (!f) continue;
+      out.set(k, { pr: prOf(c.subject, c.sha), kind: f.kind, text: f.text });
+      break;
+    }
+  }
+  return out;
+}
+
+/**
  * The `withdrawn <key>` STATE cell. It is the ledger's only CORROBORATED backward pointer: the
  * suite's check8i holds a withdrawal valid only while the row it names says so in its own cells.
  */
@@ -1163,6 +1256,8 @@ function main() {
     /* THE CODE READ. Bounded by the oldest OPEN key's date, less one day for the zone: a commit cannot
        name a key before the day it was coined. A git failure leaves `leads` null and says so. */
     let leads = null;
+    /* The fate quote rides the SAME read, so a lead and its quote can never name different commits. */
+    let fates = null;
     if (!sample) {
       try {
         const dates = drift.openOnRef.map((k) => k.slice(0, 10)).sort();
@@ -1173,9 +1268,11 @@ function main() {
           const commits = parseLog(execFileSync('git', ['log', base, `--format=${LOG_FORMAT}`, '--name-only', since], big));
           const addedBy = rowAddedBy(execFileSync('git', ['log', base, '--format=%x1e%H', '-p', '--unified=0', since, '--', LEDGER_PATH], big));
           leads = namedByCode(drift.openOnRef, commits, addedBy);
+          fates = fateOfLeads(drift.openOnRef, commits, addedBy);
         }
       } catch {
         leads = null;
+        fates = null;
       }
     }
     /* THE POINTER READ. Off under `--verdict-sample`, which is the shape probe, and null on a git
@@ -1239,6 +1336,7 @@ function main() {
             verdict: v,
             ...drift,
             namedByCode: leads === null ? null : Object.fromEntries(leads),
+            leadFate: fates === null ? null : Object.fromEntries(fates),
             citedBy: Object.fromEntries(cites),
             withdrawalLanded: Object.fromEntries(landed),
             ownerReserved: Object.fromEntries(reserved),
@@ -1259,6 +1357,7 @@ function main() {
     for (const k of drift.openOnRef)
       process.stdout.write(
         `  ${k}${leads?.has(k) ? `  ← named by code: ${leads.get(k).join(', ')}` : ''}` +
+          `${fates?.has(k) ? `  ← the newest of those commits states this row's fate: ${fates.get(k).pr} « ${fates.get(k).text} »${fates.get(k).kind === 'stated' ? '' : ` [${fates.get(k).kind.toUpperCase()}]`}` : ''}` +
           `${PINNED_BY_ROW.has(k) ? `  ← PINNED OPEN by ${PINNED_BY_ROW.get(k).by}: ${PINNED_BY_ROW.get(k).why}` : ''}` +
           `${landed.has(k) ? `  ← WITHDRAWAL LANDED: ${landed.get(k).join(', ')} reads \`withdrawn ${k}\`, so this row's correction is discharged and holds no work` : ''}` +
           `${reserved.has(k) ? `  ← OWNER-RESERVED (prose): ${reserved.get(k).join(', ')} — this row's own cells reserve the remedy for the owner, so no coder can discharge it` : ''}` +
@@ -1276,6 +1375,17 @@ function main() {
       process.stdout.write(
         `\nresidue-pickup: ${leads.size} of the ${drift.openOnRef.length} OPEN row(s) are named by a later commit that changed code. ` +
           'Read those PRs before you size the row: the fix may have landed. A lead is not a close.\n'
+      );
+    if (fates !== null)
+      process.stdout.write(
+        `residue-pickup: ${fates.size} of the ${leads === null ? 0 : leads.size} lead row(s) carry the fate the naming ` +
+          'commit STATED, quoted beside the row above. Read the quote before you open the PR. A hand read of the ' +
+          '18 leads at `origin/main` on 2026-11-12 found every one of them stating its row OPEN with a reason, and ' +
+          'that sweep closed nothing: the verb set here is a FLOOR on those statements, so a row with no quote is ' +
+          'a row this regex could not read, never a row whose PR said nothing. A quote is a LEAD AND NEVER A ' +
+          'PROOF, because only the state cell closes a row. A ' +
+          '`SOLE-KEY` mark says the statement never repeated the key, and the message named one row, so the text ' +
+          'decides the attribution. An `UNATTRIBUTABLE` mark says the message named several rows, so it does not.\n'
       );
     {
       const pinned = drift.openOnRef.filter((k) => PINNED_BY_ROW.has(k));
@@ -1713,6 +1823,36 @@ if (IS_CLI && process.argv.includes('--selftest')) {
     leads = namedByCode([K], commits, new Map());
     assert(leads.get(K)?.join() === '#30,#10', 'without the add map, the remainder-logging commit would read as a lead');
     assert(namedByCode([K], [], added).size === 0, 'no commits, no leads');
+    /* THE FATE READ — one plant per kind, plus the silence, plus the two filters it shares with the lead read. */
+    const fateLog =
+      rec(s40('f'), 'fix(x): a stated fate (#31)', `## Why\n\nRow \`${K}\` stays OPEN, because the box measurement is owed. It needs a night.\n`, ['x-dsp.js']) +
+      rec(s40('g'), 'fix(x): a heading fate (#32)', `Row \`${K}\` names the denial.\n\n## The row stays OPEN\n\nThe host switch is the owner's.\n`, ['x-dsp.js']) +
+      rec(s40('h'), 'fix(x): two rows, one verb (#33)', `Rows \`${K}\` and \`${K2}\` both.\n\nThis PR closes nothing.\n`, ['x-dsp.js']) +
+      rec(s40('i'), 'docs(residue): a ledger-only fate (#35)', `Row \`${K}\` stays OPEN here.\n`, ['briefs/RESIDUE.md']) +
+      rec(s40('j'), 'fix(x): no fate at all (#34)', `Row \`${K}\` moved a figure.\n`, ['x-dsp.js']);
+    const fc = parseLog(fateLog);
+    assert(
+      leadFate(fc[0].message, K)?.kind === 'stated' && leadFate(fc[0].message, K)?.text === `Row \`${K}\` stays OPEN, because the box measurement is owed.`,
+      'a paragraph naming the key states the fate, and the quote stops at one sentence'
+    );
+    assert(
+      leadFate(fc[1].message, K)?.kind === 'sole-key' && leadFate(fc[1].message, K)?.text === 'The row stays OPEN',
+      'a heading carrying the verb loses its marker, and one named row makes it attributable'
+    );
+    assert(
+      leadFate(fc[2].message, K)?.kind === 'unattributable' && leadFate(fc[2].message, K)?.text === 'This PR closes nothing.',
+      'a verb in a message naming two rows is reported unattributable, never promoted'
+    );
+    assert(leadFate(fc[4].message, K) === null && leadFate('', K) === null, 'no fate verb is null, which reads as the commit saying nothing about the row');
+    assert(fateOfLeads([K], fc, new Map()).get(K)?.pr === '#31', 'the NEWEST stating commit wins');
+    assert(fateOfLeads([K], fc, new Map([[K, s40('f')]])).get(K)?.pr === '#32', 'the commit that ADDED the row is skipped, exactly as the lead read skips it');
+    assert(fateOfLeads([K2], fc, new Map()).get(K2)?.kind === 'unattributable' && fateOfLeads([K], [fc[3]], new Map()).size === 0, 'a ledger-only commit states no fate, because it changed no code');
+    const fateLog2 =
+      rec(s40('k'), 'fix(x): the verb arrives late (#36)', `Board #419 claimed the capture-host half. Row \`${K}\` stays OPEN, because the box owes a run.\n`, ['x-dsp.js']) +
+      rec(s40('l'), 'fix(x): a heading and a paragraph (#37)', `## What stays open\n\nThe switch is the owner's, so this PR closes nothing.\n`, ['x-dsp.js']);
+    const fc2 = parseLog(fateLog2);
+    assert(leadFate(fc2[0].message, K)?.text === `Row \`${K}\` stays OPEN, because the box owes a run.`, 'the quote is the sentence carrying the VERB, never the first sentence of the paragraph');
+    assert(leadFate(fc2[1].message, K)?.text === "The switch is the owner's, so this PR closes nothing.", 'a PROSE paragraph answers before a heading that carries the same verb');
     assert(isCodePath('tools/a.mjs') && !isCodePath('briefs/RESIDUE.md') && !isCodePath('changes/x.md'), 'isCodePath splits code from ledger and changeset edits');
     assert(prOf('fix: x (#3754)', s40('a')) === '#3754' && prOf('local commit', s40('a')) === 'aaaaaaaaa', 'prOf reads the squash suffix, else the short sha');
     const d0 = pickupDrift([row(A)].join('\n'), [row(A)].join('\n'));
