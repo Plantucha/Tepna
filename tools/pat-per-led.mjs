@@ -55,6 +55,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { NIGHT_RE, coverageIdentity, notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
 import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
+import { rPeakTimesOnAxis } from './pat-matchrate-strict.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DexBuild = createRequire(import.meta.url)(path.join(ROOT, 'tools', 'build-core.js'));
@@ -309,7 +310,14 @@ for (const n of nights) {
     console.log(`  ${n}  ⊘ no channels`);
     continue;
   }
-  const R = Array.from(E.detectPeaks(er.int16, E.bandpass(er.int16, er.fs), er.fs)).map((i) => er.t0Ms + (i / er.fs) * 1000);
+  /* THE SHARED AXIS ARITHMETIC, NEVER A PRIVATE COPY. `t0 + i/fs` times every beat on one
+   whole-file rate, and the H10's samples-per-counter-second is not one number: 130.027-130.033
+   worn, 129.92-130.00 off the body, with no counter step and no sample lost. So the worn beats
+   read fast by the off-body share of the file, and the ECG train walks away from the PPG trains
+   by up to seconds a night (row 2026-09-26-pat-ecg-index-axis-is-not-the-h10-sample-clock).
+   `rPeakTimesOnAxis` carries the one copy of that arithmetic, falls back per sample to the index
+   form when a record has no counter, and throws when a device axis breaks sortedness. */
+  const R = Array.from(rPeakTimesOnAxis(er, Float64Array.from(E.detectPeaks(er.int16, E.bandpass(er.int16, er.fs), er.fs)), { axis: 'counter' }));
   const toMs = (i) => {
     const s = pr.relSec && pr.relSec[i] != null && isFinite(pr.relSec[i]) ? pr.relSec[i] : i / pr.fs;
     return pr.t0Ms + s * 1000;
