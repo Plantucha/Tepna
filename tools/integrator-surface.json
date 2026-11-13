@@ -177,9 +177,62 @@
       "rtcVerifiedAtMs": "no realm reads it off an element. The RTC readback's own stamp rides the export so a consumer can age the claim",
       "source": "no realm reads it off an element. It separates `rtc-readback` from `pairwise`/`pooled` for a consumer of the export, and the banner quotes `method` instead"
      }
+    },
+    "veto": {
+     "servesKeys": [
+      "vetoes"
+     ],
+     "builtBy": "detectClockSkew",
+     "mappedFrom": "vetoes",
+     "pushInto": "vetoes",
+     "enumeratedWith": "the UNION of TWO build routes inside detectClockSkew(): the `.map` return literal at `integrator-dsp.js:7192` (the RTC reset-suspect veto, 4 keys) and the `vetoes.push({` literal at `:7212` (the recorded-seam veto, 5 keys). The map literal is the array's own declaration statement, so `mapShapes` reads it; the push sits inside a `.forEach` one statement later, so `pushShapes` reads that. Neither reader alone sees the whole element.",
+     "partialShape": "`rtcVerifiedAtMs` rides the reset-suspect route only, and `seams` with `seamsReason` ride the recorded-seam route only. A reader holding one veto holds one of those two pairs and never both, so all three keys are partial in the sense depth 2 means by the word. `node`, `source` and `note` sit on both routes.",
+     "readAs": "an anchored ELEMENT read through an INDEXED LOOP: `integrator-app.js:36` binds `vetoes = cs.vetoes || []`, `:38` binds `v = vetoes[i] || {}`, and the loop body reads keys off `v`. `cs` is the parameter of `skewSilenceLines`, forwarded from the alias bound at `:88`.",
+     "seededFrom": "hand-checked line by line on 2026-11-13 over the whole loop, `integrator-app.js:37-40`. The body reads `v.note`, `v.node` and `v.source` in one fallback chain at `:39`, and it reads no other key off the element. No second realm reads this subtree: `integrator-render.js` and `overdex-app.js` name `clockSkew` zero times.",
+     "shapeNote": "two build routes, one element. The gate refuses when a declared route cannot be read, rather than judging the half it can see.",
+     "surfaces": {
+      "node": "card",
+      "note": "card",
+      "rtcVerifiedAtMs": "export-only",
+      "seams": "export-only",
+      "seamsReason": "export-only",
+      "source": "card"
+     },
+     "notes": {
+      "node": "integrator-app.js:39 — the fallback when the DSP wrote no `note`, printed as `(unknown node)` when the element carries neither.",
+      "note": "integrator-app.js:39 — the reader-ready sentence the DSP composed per rec PER SOURCE, and the first choice of the fallback chain.",
+      "rtcVerifiedAtMs": "carried for a consumer that wants the stamp the RTC readback trusted. The silence lines quote no stamp, so nothing renders it.",
+      "seams": "carried so a consumer can count the discontinuities the box recorded. The census key beside it renders that count, and the veto element does not.",
+      "seamsReason": "carried for the same consumer as `seams`. The census renders the reason token; this element carries it and renders nothing.",
+      "source": "integrator-app.js:39 — the node's OWN reason token (`rtc-reset-suspect` or `clock-seam`), printed as `unstated reason` when absent."
+     }
+    },
+    "censusEntry": {
+     "servesKeys": [
+      "seamCensus"
+     ],
+     "builtBy": "detectClockSkew",
+     "mappedFrom": "seamCensus",
+     "enumeratedWith": "the depth-1 keys of the single `.map` return literal at `integrator-dsp.js:7231`, inside the `seamCensus` declaration statement in detectClockSkew(). One route, so no key is partial here.",
+     "partialShape": "none. One build route writes every key on every element, and `seams` carries an explicit `null` rather than a 0 standing in for an absent scan (§∅).",
+     "readAs": "an anchored ELEMENT read through an INDEXED LOOP: `integrator-app.js:46` binds `census = cs.seamCensus || []`, `:48` binds `e = census[c] || {}`, and the loop body reads keys off `e`.",
+     "seededFrom": "hand-checked line by line on 2026-11-13 over the whole loop, `integrator-app.js:47-54`. The body reads `e.seams` at `:49`, `e.seamsReason` at `:50` and `e.node` at `:52`, and it reads no other key off the element.",
+     "shapeNote": "a `.map` return literal, read by `mapShapes`. The `.filter` callback beside it also holds a `return`, so the literal is taken from after the map line and never from the first return in the statement.",
+     "surfaces": {
+      "node": "card",
+      "seams": "card",
+      "seamsReason": "card",
+      "vetoed": "export-only"
+     },
+     "notes": {
+      "node": "integrator-app.js:52 — grouped under its own reason token, printed as `(unknown node)` when the element carries no node.",
+      "seams": "integrator-app.js:49 — the three-state test. A number continues, and a `null` or an `undefined` falls through to the UNKNOWN line.",
+      "seamsReason": "integrator-app.js:50 — the node's OWN reason token, printed as `reason unstated` when absent. The reader groups by this token and never by one it picked itself.",
+      "vetoed": "carried so a consumer can tell which census rows the pass excluded. The silence lines read the vetoes array itself for that, so nothing renders this key."
+     }
     }
    },
-   "depthNote": "depth 3 is judged for this subtree since 2026-11-13. `findings[]` carries the `finding` element shape declared below, read from the two push literals in detectClockSkew(). `vetoes[]` and `seamCensus[]` are ALSO read element-wise, through INDEXED loops at `integrator-app.js:38` and `:48`, and they carry no element declaration — so the gate counts those two sites as UNJUDGED rather than passing in silence. An earlier count of 1 here was itself under-reporting, because the element-read census saw iterator callbacks only."
+   "depthNote": "depth 3 now judges all THREE array keys of this subtree. `findings` came from its two push literals (#5002), and `vetoes` and `seamCensus` come from a `.map` return literal plus, for `vetoes`, a push literal. The reads are indexed loops rather than iterator callbacks, so the element is bound in a local variable and `indexedElements` scopes it to the loop body. `elementReadsUnjudged` reads 0 for this subtree, and that 0 means every element read it finds is judged against a hand-checked declaration. It does not mean depth 4: a key whose value is itself an object or an array is judged as one key here."
   },
   "kernelAudit": {
    "builtBy": "auditNodeKernels",

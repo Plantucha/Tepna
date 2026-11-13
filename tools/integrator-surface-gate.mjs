@@ -421,13 +421,99 @@ export function pushShapes(dspText, fnName, arrayVar) {
     shapes.push({ at: i + 1, keys });
   }
   if (!shapes.length) return null;
+  return mergeShapes(shapes);
+}
+
+/* One element shape out of several BUILD SITES, which is what `partial` means at this depth. A key
+   that only some site writes can be absent from the object a reader holds, exactly as a depth-2
+   key that only some return shape carries can be. The sites are kept so a reader of the report can
+   go to each line. */
+export function mergeShapes(shapes) {
+  if (!shapes || !shapes.length) return null;
   const keys = [...new Set(shapes.flatMap((s) => s.keys))].sort();
   return {
     at: shapes[0].at,
     keys,
-    pushAt: shapes.map((s) => s.at),
+    siteAt: shapes.map((s) => s.at),
+    sites: shapes.map((s) => ({ at: s.at, keys: s.keys.slice().sort(), via: s.via || 'push' })),
     partial: keys.filter((k) => !shapes.every((s) => s.keys.includes(k)))
   };
+}
+
+/* 🔴 AN ELEMENT LITERAL CAN ALSO BE THE RETURN OF A `.map` CALLBACK, AND NEITHER EARLIER READER
+   SEES IT. `elementShape` wants a one-line `var entry = {`, and `pushShapes` wants
+   `<array>.push({`. `detectClockSkew` builds `vetoes` with a `.map` return literal AND a push, and
+   it builds `seamCensus` with a `.map` return literal alone. So the element shape of two of the
+   three clockSkew arrays had no reader at all.
+
+   The span is the array's own DECLARATION STATEMENT, and not the builder function: a `.map` in a
+   later statement builds a different array. The reader refuses rather than guessing on four
+   states, each one a selftest leg: no declaration of that array in the builder, more than one
+   declaration (a shadow), no `.map(` or several inside the statement (ambiguous), and a literal
+   that does not close.
+
+   The `.filter` callback beside the `.map` also holds a `return`, so the literal is taken from
+   AFTER the map line and never from the first return in the span. */
+export function mapShapes(dspText, fnName, arrayVar) {
+  const lines = dspText.split('\n');
+  const start = lines.findIndex((l) => new RegExp('^function ' + escapeRe(fnName) + '\\(').test(l));
+  if (start < 0) return null;
+  let d = 0;
+  let end = -1;
+  for (let i = start; i < lines.length; i++) {
+    d += (lines[i].match(/\{/g) || []).length - (lines[i].match(/\}/g) || []).length;
+    if (i > start && d <= 0) {
+      end = i;
+      break;
+    }
+  }
+  if (end < 0) return null;
+  const own = new RegExp('\\b(?:var|let|const)\\s+' + escapeRe(arrayVar) + '\\s*=');
+  const decl = [];
+  for (let i = start; i <= end; i++) if (own.test(lines[i])) decl.push(i);
+  if (decl.length !== 1) return null;
+  /* The statement ends where every bracket it opened has closed and the line carries a `;`. */
+  let dd = 0;
+  let last = -1;
+  for (let j = decl[0]; j <= end; j++) {
+    dd += (lines[j].match(/[{[(]/g) || []).length - (lines[j].match(/[}\])]/g) || []).length;
+    if (dd <= 0 && /;\s*$/.test(lines[j])) {
+      last = j;
+      break;
+    }
+  }
+  if (last < 0) return null;
+  const mapAt = [];
+  let mapCalls = 0;
+  for (let j = decl[0]; j <= last; j++) {
+    const n = (lines[j].match(/\.\s*map\s*\(/g) || []).length;
+    if (!n) continue;
+    mapCalls += n;
+    mapAt.push(j);
+  }
+  if (mapCalls !== 1) return null;
+  for (let j = mapAt[0]; j <= last; j++) {
+    const m = /\breturn\s*\{/.exec(lines[j]);
+    if (!m) continue;
+    const open = m.index + m[0].length - 1;
+    if (!/return\s*\{\s*$/.test(lines[j])) {
+      const one = oneLineObject(lines[j], open);
+      if (!one) return null;
+      return mergeShapes([{ at: j + 1, keys: one, via: 'map' }]);
+    }
+    let od = 0;
+    const keys = [];
+    for (let k = j; k <= last; k++) {
+      if (k > j && od === 1) {
+        const km = lines[k].match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*:/);
+        if (km) keys.push(km[1]);
+      }
+      od += (lines[k].match(/[{[]/g) || []).length - (lines[k].match(/[}\]]/g) || []).length;
+      if (k > j && od <= 0) return mergeShapes([{ at: j + 1, keys, via: 'map' }]);
+    }
+    return null;
+  }
+  return null;
 }
 
 /* 🔴 AN ELEMENT READ DOES NOT HAVE TO BE A CALLBACK, AND THE CENSUS MISSED TWO OF THREE.
@@ -479,6 +565,79 @@ export function indexedSites(text, prefixes, arrayKey, pre = prepare) {
     Object.assign({}, s, {
       rawLine: paired ? raw[i].line : null,
       rawElemLine: paired ? raw[i].elemLine : null
+    })
+  );
+}
+
+/* 🔴 COUNTING A READ IS NOT JUDGING IT, AND THE DIFFERENCE IS THE BOUND ELEMENT. `indexedSites`
+   above finds the SITE and reads no key off it, which is why #5002 could only count. A callback
+   site carries its element in a parameter, so `readsElementKey` tests `m.node` against `m`. An
+   indexed loop carries it in a local binding instead — `var v = vetoes[i] || {}` — so this reader
+   returns that binding as `param`, with the same `from`/`to` offsets a callback site carries. One
+   reader then credits both forms.
+
+   THE SCOPE IS THE LOOP BODY, AND NOT THE FUNCTION. Starting one brace deep, the body closes where
+   the depth returns to zero. A binding whose body never closes inside the builder is refused
+   rather than scoped to the function, because a common name like `v` would then credit any later
+   use of it. */
+function indexedElementScan(text, prefixes, arrayKey) {
+  const alt = prefixes.filter(Boolean).map(escapeRe).join('|');
+  if (!alt) return [];
+  const lines = text.split('\n');
+  const starts = [];
+  let acc = 0;
+  for (const l of lines) {
+    starts.push(acc);
+    acc += l.length + 1;
+  }
+  const bind = new RegExp('\\b(?:var|let|const)\\s+([A-Za-z_$][A-Za-z0-9_$]*)\\s*=\\s*(' + alt + ')\\s*\\.\\s*' + escapeRe(arrayKey) + '\\b');
+  const out = [];
+  for (let i = 0; i < lines.length; i++) {
+    const m = bind.exec(lines[i]);
+    if (!m) continue;
+    const sc = enclosingFn(lines, i);
+    const last = sc ? sc[1] : lines.length - 1;
+    const el = new RegExp('\\b(?:var|let|const)\\s+([A-Za-z_$][A-Za-z0-9_$]*)\\s*=\\s*' + escapeRe(m[1]) + '\\s*\\[\\s*[A-Za-z_$][A-Za-z0-9_$]*\\s*\\]');
+    for (let j = i + 1; j <= last; j++) {
+      const em = el.exec(lines[j]);
+      if (!em) continue;
+      let d = 1;
+      let end = -1;
+      for (let k = j; k <= last; k++) {
+        d += (lines[k].match(/\{/g) || []).length - (lines[k].match(/\}/g) || []).length;
+        if (d <= 0) {
+          end = k;
+          break;
+        }
+      }
+      if (end < 0) continue;
+      out.push({
+        prefix: m[2],
+        iterator: 'index',
+        param: em[1],
+        array: m[1],
+        from: starts[j],
+        to: starts[end] + lines[end].length - 1,
+        line: j + 1,
+        bindLine: i + 1
+      });
+    }
+  }
+  return out;
+}
+
+/** Indexed element-read sites with the element BOUND, paired across the two texts exactly as
+    `elementCallbacks` pairs the callback form, and shaped the same so `readsElementKey` consumes
+    both without knowing which form it holds. */
+export function indexedElements(text, prefixes, arrayKey, pre = prepare) {
+  const blanked = indexedElementScan(pre(text).code, prefixes, arrayKey);
+  const raw = indexedElementScan(text, prefixes, arrayKey);
+  const paired = raw.length === blanked.length;
+  return blanked.map((s, i) =>
+    Object.assign({}, s, {
+      rawFrom: paired ? raw[i].from : null,
+      rawTo: paired ? raw[i].to : null,
+      rawLine: paired ? raw[i].line : null
     })
   );
 }
@@ -825,7 +984,11 @@ export function evaluateNested(subtree, shapes, decl, renderText, extra) {
   const elemExportOnlyRead = [];
   const sitesFor = (r, keys) => {
     const prefixes = [r.aliasPath].concat(r.usable.map((s) => s.alias));
-    const all = keys.flatMap((k) => elementCallbacks(r.text, prefixes, k).map((s) => Object.assign({ arrayKey: k }, s)));
+    const all = keys.flatMap((k) =>
+      elementCallbacks(r.text, prefixes, k)
+        .concat(indexedElements(r.text, prefixes, k))
+        .map((s) => Object.assign({ arrayKey: k }, s))
+    );
     /* An ALIAS prefix is credited only inside that alias's own scope, exactly as a depth-2 read is.
        The whole path needs no scope, because the path names the object at the site. */
     return all.filter((s) => s.prefix === r.aliasPath || r.usable.some((u) => u.alias === s.prefix && s.line >= u.from + 1 && s.line <= u.to + 1));
@@ -881,7 +1044,8 @@ export function evaluateNested(subtree, shapes, decl, renderText, extra) {
            already says `partial` for the same state one level up, and the word keeps its meaning:
            the key can be absent from the object a reader holds. */
         partial: shp.partial || [],
-        pushAt: shp.pushAt || [],
+        siteAt: shp.siteAt || [],
+        buildSites: shp.sites || [],
         readable: true,
         sites: byReader.flatMap((x) => x.sites.map((s) => ({ file: x.reader.file, line: s.rawLine === null ? s.line : s.rawLine, arrayKey: s.arrayKey, iterator: s.iterator, param: s.param }))),
         cardByReader: ecard
@@ -896,12 +1060,25 @@ export function evaluateNested(subtree, shapes, decl, renderText, extra) {
   const elemUnjudged = [];
   for (const r of readers) {
     const open = union.filter((k) => !servedKeys.includes(k));
-    for (const s of sitesFor(r, open)) elemUnjudged.push({ file: r.file, line: s.rawLine === null ? s.line : s.rawLine, arrayKey: s.arrayKey, param: s.param, prefix: s.prefix, holder: r.aliasPath });
+    const bound = new Set();
+    for (const s of sitesFor(r, open)) {
+      bound.add(s.arrayKey);
+      elemUnjudged.push(
+        Object.assign(
+          { file: r.file, line: s.rawLine === null ? s.line : s.rawLine, arrayKey: s.arrayKey, param: s.param, prefix: s.prefix, holder: r.aliasPath },
+          s.iterator === 'index' ? { via: 'index' } : {}
+        )
+      );
+    }
     /* 🔴 AND THE INDEXED FORM, which `callbackSites` cannot see (see `indexedSites`). It is scoped
        exactly as a callback site is: the whole path needs no scope, an alias is credited only
        inside its own binding. */
     const iprefixes = [r.aliasPath].concat(r.usable.map((u) => u.alias));
-    for (const k of open)
+    for (const k of open) {
+      /* 🔴 ONE READ, COUNTED ONCE. `sitesFor` above now finds the indexed form whose element is
+         BOUND to a variable, so this scan is for the array-level form alone — `ns[i].node` read
+         with no binding at all, which no reader can judge and the census still must state. */
+      if (bound.has(k)) continue;
       for (const s of indexedSites(r.text, iprefixes, k)) {
         if (!(s.prefix === r.aliasPath || r.usable.some((u) => u.alias === s.prefix && s.line >= u.from + 1 && s.line <= u.to + 1))) continue;
         elemUnjudged.push({
@@ -914,6 +1091,7 @@ export function evaluateNested(subtree, shapes, decl, renderText, extra) {
           via: 'index'
         });
       }
+    }
   }
   return {
     subtree,
@@ -1137,7 +1315,20 @@ function main() {
          at all — it is an inline literal at the publish site — while its `findings` elements are
          pushed by `detectClockSkew` one function away. So an element declaration may name its OWN
          builder and the array it pushes into, and the gate reads the push literal there. */
-      const es = ed.builtBy && ed.pushInto ? pushShapes(dsp, ed.builtBy, ed.pushInto) : byFn ? elementShape(dsp, d.builtBy, vn) : null;
+      /* 🔴 ONE ELEMENT, SEVERAL BUILD ROUTES, AND EVERY DECLARED ROUTE MUST BE READABLE.
+         `vetoes` is built by a `.map` return literal AND by a push, so its shape is the union of
+         the two and `partial` names the keys one route omits. A declared route the reader cannot
+         find NAMES ITSELF here rather than leaving a half shape that still looks whole — the
+         `servesKeys` lesson from 2026-11-12, applied one level down. */
+      const sources = [];
+      if (ed.builtBy && ed.mappedFrom) sources.push(['map', mapShapes(dsp, ed.builtBy, ed.mappedFrom)]);
+      if (ed.builtBy && ed.pushInto) sources.push(['push', pushShapes(dsp, ed.builtBy, ed.pushInto)]);
+      const unread = sources.filter(([, x]) => !x).map(([kind]) => kind);
+      if (unread.length)
+        throw new Error(
+          `the element shape \`${vn}\` declares a ${unread.join(' and ')} build route inside ${ed.builtBy}() that this gate cannot read — the route moved, it is declared twice, or its literal does not close`
+        );
+      const es = sources.length ? mergeShapes(sources.flatMap(([, x]) => x.sites)) : byFn ? elementShape(dsp, d.builtBy, vn) : null;
       if (!es)
         throw new Error(
           byFn
@@ -1262,8 +1453,8 @@ function main() {
                 .map(
                   (e) =>
                     `${e.name}{${e.keys.length}} over ${e.serves.join(' + ')}${
-                      (e.pushAt || []).length > 1 ? ` from ${e.pushAt.length} push site(s)` : ''
-                    }${(e.partial || []).length ? ` · ${e.partial.length} key(s) on some push site(s) only` : ''} · ${Object.entries(e.cardByReader || {})
+                      (e.siteAt || []).length > 1 ? ` from ${e.siteAt.length} build site(s)` : ''
+                    }${(e.partial || []).length ? ` · ${e.partial.length} key(s) on some build site(s) only` : ''} · ${Object.entries(e.cardByReader || {})
                       .map(([f, c]) => f + '=' + c + ' card')
                       .join(' · ')} · ${(e.sites || []).length} element read site(s)`
                 )
@@ -1711,7 +1902,7 @@ if (DIRECT && process.argv.includes('--selftest')) {
   const PSH = pushShapes(P1, 'detectSkew', 'findings');
   ck('a push-site element literal unions its keys over every site', PSH.keys, ['method', 'node', 'offsetSec', 'source']);
   ck('🔴 …and a key only one site writes is PARTIAL', PSH.partial, ['source']);
-  ck('…every push line is named', PSH.pushAt, [4, 11]);
+  ck('…every push line is named', PSH.siteAt, [4, 11]);
   ck('…and `at` is the first of them', PSH.at, 4);
   ck('🔴 a push inside a nested callback IS the builder element shape, unlike a return', PSH.keys.length, 4);
   ck('a one-line push literal reads too', pushShapes('function b(x) {\n  var out = [];\n  out.push({ a: 1, b: 2 });\n  return out;\n}', 'b', 'out').keys, ['a', 'b']);
@@ -1846,6 +2037,103 @@ if (DIRECT && process.argv.includes('--selftest')) {
     ['app.js:mismatches', 'over.js:mismatches']
   );
   ck('a declared shape leaves no unjudged read behind', E3().elemUnjudged, []);
+  /* ── THE `.map` RETURN LITERAL, AND THE BOUND INDEXED ELEMENT ─────────────────────────────────
+     🔴 `vetoes` and `seamCensus` are built by a `.map` return literal, which neither `elementShape`
+     nor `pushShapes` can read, and they are READ through indexed loops, which `elementCallbacks`
+     cannot see. Both halves are planted here. */
+  const M1 = [
+    'function build(recs) {',
+    '  var out = (recs || [])',
+    '    .filter(function (r) {',
+    '      return r && r.ok === true;',
+    '    })',
+    '    .map(function (r) {',
+    '      return {',
+    '        node: r.node,',
+    '        hash: r.hash',
+    '      };',
+    '    });',
+    '  return out;',
+    '}'
+  ].join('\n');
+  ck('a `.map` return literal reads as an element shape', mapShapes(M1, 'build', 'out').keys, ['hash', 'node']);
+  ck('…naming the literal line, not the map line', mapShapes(M1, 'build', 'out').at, 7);
+  ck('…and the route it came from', mapShapes(M1, 'build', 'out').sites[0].via, 'map');
+  ck('a one-line return literal reads too', mapShapes('function b(r) {\n  var o = (r || []).map(function (x) {\n    return { a: 1, b: 2 };\n  });\n  return o;\n}', 'b', 'o').keys, ['a', 'b']);
+  /* 🔴 THE `.filter` CALLBACK BESIDE IT ALSO HOLDS A `return`, so the first return in the statement
+     is NOT the element literal. This fixture puts an object literal in the filter. */
+  const M1F = M1.replace('      return r && r.ok === true;', '      return {\n        bogus: 1\n      }.bogus;');
+  ck('🔴 the literal is taken from after the map line, never from the filter beside it', mapShapes(M1F, 'build', 'out').keys, ['hash', 'node']);
+  ck('a builder this file does not hold refuses', mapShapes(M1, 'other', 'out'), null);
+  ck('an array the builder does not declare refuses', mapShapes(M1, 'build', 'other'), null);
+  ck('a second declaration of the array name refuses', mapShapes(M1.replace('  var out = (recs || [])', '  var out = [];\n  var out = (recs || [])'), 'build', 'out'), null);
+  ck('a statement with no map refuses', mapShapes('function b(r) {\n  var o = (r || []).slice();\n  return o;\n}', 'b', 'o'), null);
+  ck('a statement with TWO maps is ambiguous and refuses', mapShapes('function b(r) {\n  var o = (r || []).map(f).map(function (x) {\n    return { a: 1 };\n  });\n  return o;\n}', 'b', 'o'), null);
+  ck(
+    'a literal that never closes refuses, and is not read short',
+    mapShapes('function b(r) {\n  var o = (r || []).map(function (x) {\n    return {\n      a: 1\n  });\n  return o;\n}', 'b', 'o'),
+    null
+  );
+  /* One element out of several routes. The union is the shape, and `partial` is what one route
+     omits — the same word depth 2 uses for a key missing from some return shape. */
+  const MG = mergeShapes([
+    { at: 1, keys: ['a', 'b'], via: 'map' },
+    { at: 5, keys: ['b', 'c'], via: 'push' }
+  ]);
+  ck('a merged shape unions its routes', MG.keys, ['a', 'b', 'c']);
+  ck('…and names the keys one route omits', MG.partial, ['a', 'c']);
+  ck('…with every build line', MG.siteAt, [1, 5]);
+  ck(
+    '…and each route named',
+    MG.sites.map((x) => x.via),
+    ['map', 'push']
+  );
+  ck('no route at all is no shape', mergeShapes([]), null);
+  /* The bound indexed element. A callback carries its element in a parameter; an indexed loop
+     carries it in a local binding, and the scope is the loop BODY. */
+  const IE1 = [
+    'function lines(cs) {',
+    '  var out = [];',
+    '  var vs = cs.vetoes || [];',
+    '  for (var i = 0; i < vs.length; i++) {',
+    '    var v = vs[i] || {};',
+    '    out.push(v.note + (v.node || "?"));',
+    '  }',
+    '  out.push(v.seams);',
+    '  return out;',
+    '}'
+  ].join('\n');
+  const IES = indexedElements(IE1, ['cs'], 'vetoes');
+  ck('an indexed loop binds its element', IES.length, 1);
+  ck('…naming the binding as the element parameter', IES[0].param, 'v');
+  ck('…at the line the element is bound', IES[0].line, 5);
+  ck('🔴 a key read off the bound element is CREDITED', !!readsElementKey(IE1, IES, 'note'), true);
+  ck('…and a second key on the same element too', !!readsElementKey(IE1, IES, 'node'), true);
+  ck('🔴 a read AFTER the loop body credits nothing — the scope is the body', readsElementKey(IE1, IES, 'seams'), null);
+  const IEB = IE1.replace('v.note', "v['note']");
+  ck('the bracket form is credited off the RAW text', !!readsElementKey(IEB, indexedElements(IEB, ['cs'], 'vetoes'), 'note'), true);
+  ck('a prefix no realm declares binds nothing', indexedElements(IE1, ['other'], 'vetoes').length, 0);
+  ck('🔴 a commented-out element binding credits nothing', indexedElements(IE1.replace('    var v = vs[i] || {};', '    // var v = vs[i] || {};'), ['cs'], 'vetoes').length, 0);
+  ck(
+    'a loop body that never closes is refused, not scoped to the function',
+    indexedElements('function f(cs) {\n  var vs = cs.vetoes || [];\n  for (var i = 0; i < vs.length; i++) {\n    var v = vs[i] || {};\n', ['cs'], 'vetoes').length,
+    0
+  );
+  const IE1C = '/* one */\n/* two */\n' + IE1;
+  ck('🔴 the element line is the RAW line under the tokenizer route', indexedElements(IE1C, ['cs'], 'vetoes', TOK)[0].rawLine, 7);
+  ck('…and the acorn route names the same raw line', indexedElements(IE1C, ['cs'], 'vetoes')[0].rawLine, 7);
+  /* The integration: a key declared `card` and read THROUGH AN INDEX is credited, and the
+     export-only test fires on the same read. Both directions, planted. */
+  const ESHP = { entry: { at: 1, keys: ['node', 'hash'], siteAt: [1], sites: [{ at: 1, keys: ['hash', 'node'], via: 'push' }], partial: [] } };
+  const EIDXD = (surf) =>
+    evaluateNested('kernelAudit', nestedShapes(E1, 'buildE'), EDECL({ elements: { entry: { servesKeys: ['nodes'], surfaces: surf } } }), EIDX, {
+      readers: [{ file: 'idx.js', text: EIDX, aliasPath: 'FUSION.kernelAudit' }],
+      elementShapes: ESHP
+    });
+  ck("🔴 a 'card' key read through an INDEX is credited", EIDXD({ node: 'card', hash: 'export-only' }).elemCardUnread, []);
+  ck('…and that leaves no unjudged read behind', EIDXD({ node: 'card', hash: 'export-only' }).elemUnjudged, []);
+  ck("🔴 …while 'export-only' on the same read reds", EIDXD({ node: 'export-only', hash: 'export-only' }).elemExportOnlyRead, ['entry.node']);
+  ck("…and a 'card' key the loop never reads reds", EIDXD({ node: 'card', hash: 'card' }).elemCardUnread, ['entry.hash']);
   /* 🔴 AN ALIAS CREDITS ONLY INSIDE ITS OWN SCOPE, at depth 3 as at depth 2. */
   const EFAR = [
     'function bind() {',
