@@ -482,3 +482,79 @@ Depth 3 reaches one of three declared subtrees. The realm list still comes from 
 One route-dependent report survives, and it is cosmetic. The depth-2 alias site prints a BLANKED
 line number, so `ka@77` on this machine prints `ka@57` on a runner. The element layer pairs its
 sites and prints the raw line. The alias layer does not pair, and nothing decides on that number.
+
+## 13 · 2026-11-13 — an element literal can sit at the push site, and the read census saw callbacks only
+
+| measurement | before | after |
+|---|---|---|
+| element shapes judged | 1 | **2** |
+| element keys judged | 4 | **12** |
+| element keys credited `card` | 3 | **7** |
+| element keys conditional over push sites | — | **2** |
+| element read sites judged | 2 | **3** |
+| element reads COUNTED as unjudged | 1 | **2** |
+| selftest legs | 164 | **188** |
+
+🔴 **AN ELEMENT LITERAL CAN SIT AT THE PUSH SITE, AND TWO PUSH SITES CAN DISAGREE.**
+`auditNodeKernels` builds one `var entry = {` that `elementShape` reads on one line.
+`detectClockSkew` does neither thing. It pushes an object literal straight into `findings[]` at
+`integrator-dsp.js:7313` and `:7342`, each literal spans lines, and the two key lists differ. The
+pairwise estimator writes six keys. The RTC-readback pass writes those six plus `source` and
+`rtcVerifiedAtMs`.
+
+So `pushShapes` reads a UNION over sites, and a key that some site omits is PARTIAL. The word keeps
+the meaning depth 2 gives it: a reader can hold an element without that key. `source` is the clearer
+case, because the pairwise literal states its provenance in `method` instead. A reader that tested
+`source` for absence would read a pairwise finding as malformed.
+
+🔴 **A PUSH IS SCOPED BY ITS ARRAY, AND NOT BY ITS FUNCTION.** This is the opposite of the rule
+`nestedShapes` needs one layer up. Both pushes sit inside `.forEach` callbacks within
+`detectClockSkew`, so reading a push the way a return is read found NO shape at all here, and
+`enclosingFn` named the callback every time. The array variable is what ties the literal to the
+builder: `detectClockSkew` declares `var findings = []` and returns it. So the guard moved to the
+array NAME, and a second declaration of it inside the builder refuses rather than mixing two arrays.
+
+🔴 **THE READ CENSUS SAW ITERATOR CALLBACKS ONLY, SO IT UNDER-REPORTED ITS OWN HOLE.**
+`callbackSites` matches eight iterator names. An element read through an INDEXED FOR LOOP is
+invisible to it. `skewSilenceLines` binds `vetoes = cs.vetoes || []` and `census = cs.seamCensus ||
+[]`, then reads `v = vetoes[i] || {}` and `e = census[c] || {}`, and it takes six keys off those two
+elements. The gate said ONE unjudged element read where THREE array keys are read element-wise.
+
+A stated hole that under-counts is worse than a stated hole, because the number invites belief.
+`indexedSites` now finds the form, so the census counts it. The gate does not JUDGE it: binding keys
+through an index needs a declaration that somebody hand-read, and section 4 names seeding one as the
+defect. Discovery runs on BLANKED text, so a commented-out index read credits nothing, and the line
+a reader sees comes from the RAW text paired by order. That is board 6051 applied to the new form.
+
+### The seven live controls
+
+Each control edits the real declaration, runs the gate, and restores the file. Every restore is
+byte-identical.
+
+| control | edit | the gate says |
+|---|---|---|
+| S | `source` declared `card` | `✗ 1 element key(s) declare 'card' and no anchored element read reaches them in integrator-app.js: finding.source` |
+| T | `offsetSec` declared `export-only` | `✗ 1 element key(s) declare 'export-only' and an anchored element read reaches them: finding.offsetSec` |
+| U | remove the `elements` block | PASS with `3 element read(s) UNJUDGED (findings@90, seamCensus@48, vetoes@38)` |
+| V | point `pushInto` at `pairs` | `✗ 13 element key(s) declare no surface` — the shape of another array is not this element |
+| W | point `builtBy` at a function that does not exist | throws: the subtree is an inline literal and the element shape has no builder to read it from |
+| X | declare a key the union omits | `✗ 1 element key(s) declare no surface: finding.kind (declared, absent from the literal)` |
+| Y | run with no `node_modules` | PASS under the tokenizer route, with the same 12 element keys and the same raw lines 38 and 48 |
+
+Control O from section 12 was re-run today, and it still reads `2 element read(s) UNJUDGED`. The
+gate now NAMES them, and the two names are `mismatches@integrator-app.js:79` and
+`mismatches@overdex-app.js:867`. So that row's number covered the `kernelAudit` census alone, and it
+never covered the clockSkew reads this section adds.
+
+### What this still cannot see
+
+Depth 4, and the element shapes of `vetoes[]` and `seamCensus[]`. Those two are the counted
+unjudged reads, and a later unit declares them. Judging them needs the index form to bind an element
+variable, which this unit deliberately left unbuilt. Eleven nested subtrees still carry no
+declaration, so depth 2 reaches three of fourteen. Depth 3 now reaches two of three declared
+subtrees.
+
+`pushShapes` reads RAW source, like `nestedShapes` beside it. A commented-out push literal inside
+the builder would read as a shape. No such comment exists in `detectClockSkew` today, and the
+refusal on a second declaration of the array name is the only guard. The cosmetic route-dependent
+alias line from section 12 survives unchanged.
