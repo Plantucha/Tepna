@@ -19023,7 +19023,8 @@
         'var lobBadKey = M.loadOwnerBaselines(' + JSON.stringify(root) + ', [{ file: M.BASELINE, container: "nope", shape: "map" }]);',
         'out.ownerBadContainer = lobBadKey.unreadable.map(function (u) { return u.code; });',
         'var lobReal = M.loadOwnerBaselines(' + JSON.stringify(root) + ');',
-        'out.ownerForeign = { unreadable: lobReal.unreadable.length, files: Object.keys(lobReal.pairs.reduce(function (a, q) { a[q.file] = 1; return a; }, {})).sort() };',
+        'out.ownerForeign = { unreadable: lobReal.unreadable.length, files: Object.keys(lobReal.pairs.concat((lobReal.empty || []).map(function (f) { return { file: f }; })).reduce(function (a, q) { a[q.file] = 1; return a; }, {})).sort() };',
+        'out.ownerUnaccounted = M.FOREIGN_OWNER_BASELINES.filter(function (x) { return !lobReal.pairs.some(function (o) { return o.file === x.file; }) && (lobReal.empty || []).indexOf(x.file) < 0; }).map(function (x) { return x.file; });',
         'out.ownerUnreadVerdict = M.verdictFor({ byKind: {}, unresolvedKeys: 0, undeclared: [], near: [], stale: [], declared: 1, rows: 1, citations: 1, files: 1, filesOffered: 1, filesRead: 1, filesExempt: 0, filesNoCiteWord: 0, unreadable: [], orphanOwners: [], ownerBaselinesUnread: [{ file: "x.json", code: "ENOENT" }] }, "ab1c2d3").status;',
         'out.floor = M.ledgerFloor(KEYS);',
         'out.rowKeys = M.rowKeys("| 2026-01-02-alpha-beta-gamma | logged | s | d | e | OPEN |\\ntext 2026-01-02-alpha-beta-gamma\\n");',
@@ -19201,12 +19202,15 @@
       T.eq('a container the file does not carry fails closed too', R.ownerBadContainer, ['NO-CONTAINER:nope']);
       T.eq('an unread owner baseline carries the verdict to UNKNOWN', R.ownerUnreadVerdict, 'UNKNOWN');
       /* ANTI-VACUITY · a renamed container field would empty the owner check in silence, so every
-         declared foreign baseline must contribute, and the floor is one reason per file. Today's total
-         is never the floor, because paying a debt lowers it. */
+         declared foreign baseline must be ACCOUNTED FOR: it contributes a reason, or its container
+         reads present and empty, which is a debt paid in full. The floor is never one reason per file
+         — that spelling forbade the shrink the ratchet rewards, and it red the day
+         `tools/paper-reference-baseline.json` reached zero. */
       T.eq('every declared foreign baseline contributes to the live population', R.ownerForeign, {
         unreadable: 0,
         files: ['tools/paper-claim-marker-baseline.json', 'tools/paper-reference-baseline.json']
       });
+      T.eq('every declared foreign baseline is a reason or a paid debt, never absent', R.ownerUnaccounted, []);
       T.eq('the live run names every declared foreign baseline', R.realByFile, ['tools/paper-claim-marker-baseline.json', 'tools/paper-reference-baseline.json']);
       T.ok('the live owner population names at least one row', R.real.examined >= 1, String(R.real.examined));
 
