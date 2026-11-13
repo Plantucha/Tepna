@@ -186,15 +186,18 @@ function ecgCounterTimeMs(rec, pos) {
    peaks through a private `t0 + i/fs`, so no axis request can reach them: the H10's samples per
    counter second is not one number (130.027-130.033 worn, 129.92-130.00 once the strap is off), and
    the index form times the worn beats fast by the off-body share of the file. This function is the
-   ONE place that maps sample positions to wall-clock ms. `ecgRpeakTimes` below calls it, and so do
-   `pat-hrv-windows.mjs`, `pat-window-scaling.mjs`, `pat-literature-spec.mjs` and
-   `beat-correspondence.mjs`.
+   ONE place that maps sample positions to wall-clock ms. `ecgRpeakTimes` below calls it, and so does
+   every ECG reader in `tools/` that times a peak, down to the one declared exclusion named below.
    THE ROW'S CENSUS NAMED THREE TOOLS AND THE TREE HELD TEN SITES. A scan of the whole tools tree on
    2026-11-11 read 10 index-form sites over 9 ECG readers, against the 3 the row names, and
    `beat-correspondence.mjs` was never among them although it declares a port of the same source
-   function. Four of the nine now route here. The suite's `pat · ecg-axis · census` group holds the
-   remaining baseline by name and lets it shrink only. The DEFAULT for each remaining tool is an
-   owner and PAT-program decision, because flipping one moves every number it published.
+   function. Eight of the nine route here since 2026-11-13, and the ninth is
+   `trio-fold-merge.mjs`, which converts a record LENGTH to an end time rather than a peak position.
+   The suite's `pat · ecg-axis · census` group holds that one name as a declared exclusion and lets
+   the baseline shrink only. A second leg reads the residual index form INSIDE every routing file,
+   because a name leaves the baseline the moment the import lands, half-converted or not. The
+   DEFAULT for each tool is an owner and PAT-program decision, because flipping one moves every
+   number it published, so every converted caller asks for `linear` by name.
    It is PURE in `rec` — `t0Ms`, `fs`, `tMsAt` and `devMsAt` all ride on the parsed record — so a
    caller that already built its own headless realm imports it without loading a second DSP spine.
    The DEFAULT is `counter` since the flip (PR #4783, owner-accepted): omitted `opts.axis` times

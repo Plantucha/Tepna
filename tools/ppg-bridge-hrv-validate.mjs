@@ -49,6 +49,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { populationVerdict, snapshotEntries } from './corpus-scope-core.mjs';
 import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
+import { rPeakTimesOnAxis } from './pat-matchrate-strict.mjs';
 /* ── THE VALIDITY SIDECAR RIDES WITH THE STREAM ─────────────────────────────────────────────────────
    Row 2026-10-17-sample-parsers-called-without-their-sidecar: this tool read a night's samples and
    none of the box's `…RUNS.txt` validity, so a blanking run the box recorded reached the detectors
@@ -208,10 +209,18 @@ function ecgPairs(ED, text, runsText) {
   const rec = runsText ? ED.parseECG(text, { runsText }) : ED.parseECG(text);
   const res = ED.analyze(rec);
   const pk = res.peaks || [];
+  /* The R-peak times come from the one shared function, and the axis stays `linear`, which is
+     byte-identical to the private index form this tool held. The module reserves each
+     tool's DEFAULT for an owner and PAT-program decision, because a flip moves every number that
+     tool published, and the deep-dive brief quotes these. So the route lands and the flip waits for
+     that word, with the axis now requestable through the one copy. */
+  /* The interval comes from the converted times, never from the index delta, so one clock carries
+     the beat time and the interval together. */
+  const bt = rPeakTimesOnAxis(rec, Float64Array.from(pk), { axis: 'linear' });
   const out = [];
   for (let k = 1; k < pk.length; k++) {
-    const dtMs = ((pk[k] - pk[k - 1]) / rec.fs) * 1000;
-    if (dtMs > 300 && dtMs < 2000) out.push([rec.t0Ms + (pk[k] / rec.fs) * 1000, dtMs]);
+    const dtMs = bt[k] - bt[k - 1];
+    if (dtMs > 300 && dtMs < 2000) out.push([bt[k], dtMs]);
   }
   return { pairs: out, t0Ms: rec.t0Ms, durSec: rec.durSec };
 }

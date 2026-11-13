@@ -57,6 +57,7 @@ import { dirname, join, relative } from 'node:path';
 import { EPOCH_MS, MAX_LAG_MS, median, quantile, hrEnvelope, envelopeLagMs, refineLagByMatch, matchBeats, refinePeaks, ppiJitterMs } from './ppi-match.mjs';
 import { capByNights, coverageIdentity, dedupeByIdentity, gitCommitOf, headNightKeyWith, notCovered, populationVerdict, ruleLine, snapshotEntries } from './corpus-scope-core.mjs';
 import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
+import { rPeakTimesOnAxis } from './pat-matchrate-strict.mjs';
 /* ── THE VALIDITY SIDECAR RIDES WITH THE STREAM ─────────────────────────────────────────────────────
    Row 2026-10-17-sample-parsers-called-without-their-sidecar: this tool read a night's samples and
    none of the box's `…RUNS.txt` validity, so a blanking run the box recorded reached the detectors
@@ -516,10 +517,15 @@ function ecgCache(p) {
     const eres = E.analyze(er);
     if (er.t0Ms != null && eres.peaks) {
       const bp = E.bandpass(er.int16, er.fs);
+      /* The R-peak times come from the one shared function, and the axis stays `linear`, which is
+     byte-identical to the private index form this tool held. The module reserves each
+     tool's DEFAULT for an owner and PAT-program decision, because a flip moves every number that
+     tool published, and the deep-dive brief quotes these. So the route lands and the flip waits for
+     that word, with the axis now requestable through the one copy. */
       v = {
         lo: er.t0Ms,
         hi: er.t0Ms + (er.durSec || 0) * 1000,
-        beats: refinePeaks(bp, eres.peaks).map((q) => er.t0Ms + (q / er.fs) * 1000)
+        beats: Array.from(rPeakTimesOnAxis(er, Float64Array.from(refinePeaks(bp, eres.peaks)), { axis: 'linear' }))
       };
     }
   } catch (_x) {
