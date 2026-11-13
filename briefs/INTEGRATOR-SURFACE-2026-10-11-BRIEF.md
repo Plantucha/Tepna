@@ -489,6 +489,10 @@ One route-dependent report survives, and it is cosmetic. The depth-2 alias site 
 line number, so `ka@77` on this machine prints `ka@57` on a runner. The element layer pairs its
 sites and prints the raw line. The alias layer does not pair, and nothing decides on that number.
 
+**Repaired 2026-11-13.** `codeOnly` in `tools/find-unwired-js.mjs` now blanks every span it consumes,
+as `codeOnlyParsed` always did. So a runner prints `ka@77` as well (row
+2026-11-13-an-alias-line-printed-for-a-human-is-a-blanked-line).
+
 ## 13 · 2026-11-13 — an element literal can sit at the push site, and the read census saw callbacks only
 
 | measurement | before | after |
@@ -563,7 +567,7 @@ subtrees.
 `pushShapes` reads RAW source, like `nestedShapes` beside it. A commented-out push literal inside
 the builder would read as a shape. No such comment exists in `detectClockSkew` today, and the
 refusal on a second declaration of the array name is the only guard. The cosmetic route-dependent
-alias line from section 12 survives unchanged.
+alias line from section 12 survives unchanged, and a later unit repaired it on 2026-11-13.
 
 ## 14 · 2026-11-13 — one element over two build routes, and a read the census counted but did not judge
 
@@ -743,14 +747,16 @@ absent. Every field of the verdict agreed, apart from `blankedBy` itself.
 
 ### What this still cannot see
 
-**The printed alias LINE NUMBERS are route-dependent, and CI takes the route that gets them wrong.**
-The route control measured it: `a@474` under acorn is `a@302` under the tokenizer, and `cs@88` is
-`cs@64`. The tokenizer route DELETES comment lines, and `aliasSites` takes its line from the blanked
-text without pairing it back to raw. Every judged number is route-independent, so no verdict moves.
-A session that follows a printed alias line in CI goes to the wrong line.
+**The printed alias LINE NUMBERS were route-dependent, and a later unit REPAIRED that on 2026-11-13.**
+The route control measured it here: `a@474` under acorn read `a@302` under the tokenizer. The
+tokenizer route DELETED each span it consumed, and `aliasSites` takes its line from the blanked text
+without pairing it back to raw. Every judged number stayed route-independent, so no verdict ever
+moved. A session that followed a printed alias line in CI went to the wrong line.
 
-This unit measured that defect and did not repair it. The repair would be a fourth change to shared
-reader behaviour in one diff, so it belongs in its own unit with its own controls.
+This unit measured that defect and did not repair it. The repair took its own unit with its own
+controls, as this paragraph asked: `codeOnly` in `tools/find-unwired-js.mjs` now blanks every span,
+so both routes print the raw file's own line. Eight printed numbers moved on this gate and no field
+of its verdict did (row 2026-11-13-an-alias-line-printed-for-a-human-is-a-blanked-line).
 
 **An element read through a LITERAL index, with no bound local, is invisible to all three readers.**
 `integrator-render.js:486` reads `a.findings[0].pSpurious`. `indexedSites` needs a binding statement,
