@@ -778,21 +778,23 @@ export function inlineShape(dspText, key, pre = prepare) {
    literal holding seven more. The gate judged `method` as a single key and saw nothing inside it,
    so a method note added or dropped moved no number here. The inner layer is OPT-IN, and a subtree
    with no `inner` block is judged exactly as before. */
+/** The PREPARED line that closes the literal opening on line `i`, or -1 while it stays open. */
+function closeOf(lines, i) {
+  let d = 0;
+  for (let j = i; j < lines.length; j++) {
+    d += (lines[j].match(/[{[]/g) || []).length - (lines[j].match(/[}\]]/g) || []).length;
+    if (j > i && d <= 0) return j;
+  }
+  return -1;
+}
+
 /** Every `key: { … }` literal's [start, end] line range, in PREPARED lines. Null when one is open. */
 function literalRanges(lines, key) {
   const anchor = new RegExp('^\\s*' + escapeRe(key) + ':\\s*\\{\\s*$');
   const out = [];
   for (let i = 0; i < lines.length; i++) {
     if (!anchor.test(lines[i])) continue;
-    let d = 0;
-    let end = -1;
-    for (let j = i; j < lines.length; j++) {
-      d += (lines[j].match(/[{[]/g) || []).length - (lines[j].match(/[}\]]/g) || []).length;
-      if (j > i && d <= 0) {
-        end = j;
-        break;
-      }
-    }
+    const end = closeOf(lines, i);
     if (end < 0) return null;
     out.push([i, end]);
   }
@@ -872,6 +874,158 @@ export function innerShape(dspText, subtree, inner, pre = prepare) {
    upward and take the first whose brace span CONTAINS the line, which is the tightest real scope.
    Null still means no enclosing function contains it, and the caller then refuses the site. */
 /** The enclosing function of a line, in BLANKED code lines. Null when none contains the line. */
+/* 🔴 THE LITERAL DOES NOT ALWAYS OPEN ON THE KEY'S OWN LINE. `inlineShape` anchors on
+   `key: {`, so a key whose literal sits behind a GUARD has no shape at all: the slim export
+   writes `apneaTyping: fusion.apneaTyping ? {` and opens the object on the next line. The gate
+   reported no anchor and refused, which reads as "the shape moved" and is wrong — the shape is
+   one line further down.
+
+   The guard's ALTERNATIVE is a refusal and not a second shape. `: null` is the absence rule and
+   carries no key, while `: { … }` would be a second key list behind one key, which this reader
+   must not merge silently. So the line after the consequent closes must start the alternative
+   with something other than a brace. */
+export function guardedShape(dspText, key, pre = prepare) {
+  const lines = pre(dspText).code.split('\n');
+  const head = new RegExp('^\\s*' + escapeRe(key) + ':\\s*[^\\s{][^{]*$');
+  const shapes = [];
+  const undefinedValued = new Set();
+  for (let i = 0; i < lines.length; i++) {
+    if (!head.test(lines[i])) continue;
+    let o = i + 1;
+    while (o < lines.length && !lines[o].trim()) o++;
+    if (!/^\s*\?\s*\{\s*$/.test(lines[o] || '')) continue;
+    const end = closeOf(lines, o);
+    if (end < 0) return null;
+    let a = end + 1;
+    while (a < lines.length && !lines[a].trim()) a++;
+    if (!/^\s*:\s*[^{\s]/.test(lines[a] || '')) return null;
+    const { keys, values } = literalKeys(lines, o, end);
+    if (!keys.length) return null;
+    shapes.push({ at: i + 1, keys });
+    for (const k of keys) if (/\bundefined\b/.test(values[k] || '')) undefinedValued.add(k);
+  }
+  if (!shapes.length) return null;
+  const union = [...new Set(shapes.flatMap((x) => x.keys))].sort();
+  const routeMissing = union.filter((k) => !shapes.every((x) => x.keys.includes(k)));
+  const canBeUndefined = union.filter((k) => undefinedValued.has(k));
+  if (routeMissing.length && canBeUndefined.length)
+    throw new Error(
+      `guarded subtree \`${key}\` has keys conditional for TWO different reasons — ${routeMissing.join(', ')} absent from one guarded site and ${canBeUndefined.join(', ')} able to evaluate to \`undefined\` — and one \`partialKind\` cannot state both`
+    );
+  return {
+    shapes,
+    union,
+    keys: union,
+    at: shapes[0].at,
+    partial: routeMissing.length ? routeMissing : canBeUndefined,
+    partialKind: routeMissing.length ? 'export-route' : 'undefined-value',
+    shapeKind: 'guarded'
+  };
+}
+
+/* 🔴 A PRODUCER CAN RETURN A VARIABLE, AND `nestedShapes` READS ONLY A RETURNED LITERAL.
+   `typeApneaByEffort` builds `var out = { … }`, counts over the desats, and returns `out`, so the
+   function's own shape had no reader: the full fusion object carries that object verbatim.
+
+   The literal is the whole shape ONLY while nothing adds a key to it afterwards. A later
+   `out.<newKey> = …` would make this reader report a short key list, which is the one outcome a
+   shape reader must never produce, so that state throws instead. A `++` on a key the literal
+   already carries is arithmetic and not a new key. */
+export function returnVarShape(dspText, fnName, varName, pre = prepare) {
+  const lines = pre(dspText).code.split('\n');
+  const start = lines.findIndex((l) => new RegExp('^function ' + escapeRe(fnName) + '\\(').test(l));
+  if (start < 0) return null;
+  let fnEnd = lines.length - 1;
+  for (let j = start + 1; j < lines.length; j++)
+    if (/^\}/.test(lines[j])) {
+      fnEnd = j;
+      break;
+    }
+  const open = new RegExp('^\\s*(?:var|let|const)\\s+' + escapeRe(varName) + '\\s*=\\s*\\{\\s*$');
+  const sites = [];
+  for (let i = start; i <= fnEnd; i++) if (open.test(lines[i])) sites.push(i);
+  if (sites.length !== 1) return null;
+  const end = closeOf(lines, sites[0]);
+  if (end < 0 || end > fnEnd) return null;
+  const ret = new RegExp('^\\s*return\\s+' + escapeRe(varName) + '\\s*;?\\s*$');
+  let returned = false;
+  for (let i = end + 1; i <= fnEnd; i++) if (ret.test(lines[i])) returned = true;
+  if (!returned) return null;
+  const { keys, values } = literalKeys(lines, sites[0], end);
+  if (!keys.length) return null;
+  const add = new RegExp('^\\s*' + escapeRe(varName) + '\\.([A-Za-z_][A-Za-z0-9_]*)\\s*=[^=]');
+  const added = [];
+  for (let i = end + 1; i <= fnEnd; i++) {
+    const m = lines[i].match(add);
+    if (m && !keys.includes(m[1]) && !added.includes(m[1])) added.push(m[1]);
+  }
+  if (added.length)
+    throw new Error(`\`${fnName}\` adds ${added.join(', ')} to \`${varName}\` after its literal, so the literal is not the whole shape and this reader must not report a short key list`);
+  const canBeUndefined = keys.filter((k) => /\bundefined\b/.test(values[k] || ''));
+  return {
+    shapes: [{ at: sites[0] + 1, keys }],
+    union: keys.slice().sort(),
+    keys: keys.slice().sort(),
+    at: sites[0] + 1,
+    partial: canBeUndefined,
+    partialKind: 'undefined-value',
+    shapeKind: 'return-var'
+  };
+}
+
+/* 🔴 ONE SUBTREE, TWO EXPORT ROUTES, TWO DIFFERENT SOURCE FORMS. `window` taught the gate that two
+   anchors of the SAME form are the export's two routes and that the union is the surface.
+   `apneaTyping` is the next state: the fusion object carries the producer's object through a
+   variable, and the slim projection enumerates its keys behind a guard. Neither single reader can
+   see both, and a subtree judged on one route reports the other route's keys as absent.
+
+   So a subtree may declare a LIST of routes, each naming exactly one source form. The union is the
+   surface, and a key absent from one route is `partial` with `partialKind: 'export-route'` — the
+   same word the one-reader case already used for the same fact. A route the declared reader cannot
+   read returns `failed`, which the loader turns into a located refusal naming that route. */
+export function routeShapes(dspText, routes, pre = prepare) {
+  if (!Array.isArray(routes) || !routes.length) return null;
+  const got = [];
+  const undefPartial = new Set();
+  for (const r of routes) {
+    const picked = [r.inline && 'inline', r.guarded && 'guarded', r.builtBy && 'builtBy', r.returnVar && 'returnVar'].filter(Boolean);
+    if (picked.length !== 1) throw new Error(`a route must declare exactly one of inline, guarded, builtBy or returnVar — this one declares ${picked.length ? picked.join(' and ') : 'none'}`);
+    const kind = picked[0];
+    const names = kind === 'returnVar' ? `${r.returnVar.fn}.${r.returnVar.via}` : String(r[kind]);
+    if (kind === 'returnVar' && (!r.returnVar.fn || !r.returnVar.via)) throw new Error('a returnVar route needs both fn and via');
+    const s =
+      kind === 'inline'
+        ? inlineShape(dspText, r.inline, pre)
+        : kind === 'guarded'
+          ? guardedShape(dspText, r.guarded, pre)
+          : kind === 'builtBy'
+            ? nestedShapes(dspText, r.builtBy)
+            : returnVarShape(dspText, r.returnVar.fn, r.returnVar.via, pre);
+    if (!s) return { failed: `${kind} \`${names}\`` };
+    const keys = (s.union || s.keys || []).slice().sort();
+    if (!keys.length) return { failed: `${kind} \`${names}\`` };
+    if (s.partialKind === 'undefined-value') for (const k of s.partial || []) undefPartial.add(k);
+    got.push({ at: s.at ?? (s.shapes && s.shapes[0] ? s.shapes[0].at : null), keys, via: kind, name: names });
+  }
+  const union = [...new Set(got.flatMap((r) => r.keys))].sort();
+  const routeMissing = union.filter((k) => !got.every((r) => r.keys.includes(k)));
+  const canBeUndefined = union.filter((k) => undefPartial.has(k));
+  if (routeMissing.length && canBeUndefined.length)
+    throw new Error(
+      `subtree routes carry keys conditional for TWO different reasons — ${routeMissing.join(', ')} absent from one route and ${canBeUndefined.join(', ')} able to evaluate to \`undefined\` — and one \`partialKind\` cannot state both`
+    );
+  return {
+    shapes: got.map((r) => ({ at: r.at, keys: r.keys })),
+    routes: got,
+    union,
+    keys: union,
+    at: got[0].at,
+    partial: routeMissing.length ? routeMissing : canBeUndefined,
+    partialKind: routeMissing.length ? 'export-route' : 'undefined-value',
+    shapeKind: 'routes'
+  };
+}
+
 function enclosingFn(cl, i) {
   for (let j = i; j >= 0; j--) {
     if (!/function\s*[A-Za-z_$][A-Za-z0-9_$]*\s*\([^)]*\)\s*\{\s*$/.test(cl[j]) && !/function\s*\([^)]*\)\s*\{\s*$/.test(cl[j])) continue;
@@ -1603,22 +1757,39 @@ function main() {
     const byFn = !!d.builtBy;
     const byLiteral = d.inline === true;
     const byArray = d.arrayOf === true;
+    const byRoutes = Array.isArray(d.routes) && d.routes.length > 0;
     /* 🔴 A THIRD SHAPE SOURCE, AND THE SAME REFUSAL TO GUESS. `arrayOf` says the subtree IS an
        ARRAY that the export projects, so it carries no keys of its own. Its one depth-2 key is the
        array name on the holder, and its depth-3 keys are the keys of ONE element. Exactly one
        source may be declared, because a subtree that declares two is a subtree the gate would have
        to choose for. */
-    const picked = [byFn && 'builtBy', byLiteral && 'inline:true', byArray && 'arrayOf:true'].filter(Boolean);
+    /* 🔴 A FOURTH SHAPE SOURCE: A LIST OF EXPORT ROUTES. One source form can read one route, and
+       `apneaTyping` sits on two routes of DIFFERENT forms — the producer's own literal through a
+       returned variable, and a guarded literal in the slim projection. `routes` names each one, the
+       union is the surface, and a key absent from one route is partial. */
+    const picked = [byFn && 'builtBy', byLiteral && 'inline:true', byArray && 'arrayOf:true', byRoutes && 'routes'].filter(Boolean);
     if (picked.length !== 1)
       throw new Error(
-        `nested subtree \`${sub}\` must declare exactly one of builtBy, inline:true or arrayOf:true — it declares ${picked.length ? picked.join(' and ') : 'none'}, and the gate must not guess where its shape lives`
+        `nested subtree \`${sub}\` must declare exactly one of builtBy, inline:true, arrayOf:true or routes — it declares ${picked.length ? picked.join(' and ') : 'none'}, and the gate must not guess where its shape lives`
       );
     const arrShape = byArray ? exportMapShape(dsp, d.exportMapped || sub) : null;
     if (byArray && !arrShape)
       throw new Error(
         `the export entry \`${d.exportMapped || sub}:\` with a single .map return literal was not found in integrator-dsp.js, appears more than once, or does not close — its shape changed, and this gate must not guess`
       );
-    const shapes = byFn ? nestedShapes(dsp, d.builtBy) : byArray ? { shapes: [{ at: arrShape.at, keys: [sub] }], union: [sub], partial: [], partialKind: 'export-array' } : inlineShape(dsp, sub);
+    const shapes = byRoutes
+      ? routeShapes(dsp, d.routes)
+      : byFn
+        ? nestedShapes(dsp, d.builtBy)
+        : byArray
+          ? { shapes: [{ at: arrShape.at, keys: [sub] }], union: [sub], partial: [], partialKind: 'export-array' }
+          : inlineShape(dsp, sub);
+    /* A route the reader could not read names ITSELF, because `routes` has several sources and a
+       bare "the shape changed" would leave the author reading all of them. */
+    if (shapes && shapes.failed)
+      throw new Error(
+        `nested subtree \`${sub}\` declares the route ${shapes.failed}, and that reader found no shape in integrator-dsp.js — the source moved, or the route's form changed, and this gate must not guess`
+      );
     if (!shapes)
       throw new Error(
         byFn
@@ -1734,6 +1905,9 @@ function main() {
          `partialKind === 'undefined-value'` until a two-route literal earned its own kind, and a
          proxy for a fact the reader already returns is a miscount waiting for the next kind. */
       nestedInline: nested.filter((n) => n.shapeKind === 'inline').length,
+      /* A subtree read over SEVERAL export routes, each with its own source form. The count says
+         how many subtrees needed more than one reader to state their whole surface. */
+      nestedRouted: nested.filter((n) => n.shapeKind === 'routes').length,
       /* The inner layer's own census. `innerStale` is reported and never red, so a reader needs the
          count here or the fact reaches nobody — the `nestedStaleDeclarations` lesson, applied as
          the layer ships rather than one unit later. */
@@ -2772,6 +2946,152 @@ if (DIRECT && process.argv.includes('--selftest')) {
   );
   ck('a TERNARY binding is not read as an alias', aliasSites('function f() {\n  var r = fusion && fusion.findings ? fusion.findings : [];\n  use(r);\n}', 'fusion').sites.length, 0);
   ck('an indexed binding is not an alias of the array', aliasSites('function f() {\n  var e = fusion.findings[0];\n  use(e.tMs);\n}', 'fusion.findings').sites.length, 0);
+  /* 🔴 THE FOURTH SHAPE SOURCE — TWO EXPORT ROUTES OF DIFFERENT FORMS (`apneaTyping`). Route one is
+     a producer's returned VARIABLE, route two a GUARDED literal in the slim projection. Each leg
+     below is a state the readers must name rather than guess at, and the parity legs hold both
+     parse routes to the same answer. */
+  const ATOK = (src) => ({ code: codeOnly(src), by: 'tokenizer' });
+  const ATG = [
+    'var _exp = {',
+    '  apneaTyping: fusion.apneaTyping',
+    '    ? {',
+    '        obstructive: fusion.apneaTyping.obstructive,',
+    '        total: fusion.apneaTyping.total,',
+    '        usable: fusion.apneaTyping.usable',
+    '      }',
+    '    : null,',
+    '  other: 1',
+    '};'
+  ].join('\n');
+  ck('🔴 a GUARDED literal has a shape, where `inlineShape` found no anchor at all', guardedShape(ATG, 'apneaTyping').union, ['obstructive', 'total', 'usable']);
+  ck('…and the site it names is the KEY line, not the brace one line down', guardedShape(ATG, 'apneaTyping').at, 2);
+  ck('…and the shape says which reader read it', guardedShape(ATG, 'apneaTyping').shapeKind, 'guarded');
+  ck('…while `inlineShape` still reports nothing for that key', inlineShape(ATG, 'apneaTyping'), null);
+  ck('…and one literal leaves no key conditional', guardedShape(ATG, 'apneaTyping').partial, []);
+  ck('🔴 a guard whose ALTERNATIVE is a second literal refuses — one key, two key lists', guardedShape(ATG.replace('    : null,', '    : { fallback: 1 },'), 'apneaTyping'), null);
+  ck('…and a consequent that never closes refuses too', guardedShape('var _exp = {\n  k: c\n    ? {\n        a: 1,\n', 'k'), null);
+  ck('a literal that opens on the key own line is NOT guarded', guardedShape('x = {\n  k: {\n    a: 1\n  }\n};', 'k'), null);
+  const ATG2 = ATG.replace('  other: 1', '  apneaTyping: slim.apneaTyping\n    ? {\n        obstructive: 1,\n        total: 2\n      }\n    : null');
+  ck('two guarded sites union their keys', guardedShape(ATG2, 'apneaTyping').union, ['obstructive', 'total', 'usable']);
+  ck('…and the key one site omits is partial, by export route', guardedShape(ATG2, 'apneaTyping').partial, ['usable']);
+  ck('…which names the mechanism', guardedShape(ATG2, 'apneaTyping').partialKind, 'export-route');
+  const ATGU = ATG.replace('        usable: fusion.apneaTyping.usable', '        usable: fusion.apneaTyping.usable ? true : undefined');
+  ck('a guarded key whose VALUE can be undefined wears the other mechanism', guardedShape(ATGU, 'apneaTyping').partialKind, 'undefined-value');
+  ck('…and names that key', guardedShape(ATGU, 'apneaTyping').partial, ['usable']);
+  let ATTWO = 'no throw';
+  try {
+    guardedShape(ATG2.replace('        usable: fusion.apneaTyping.usable', '        usable: x ? 1 : undefined'), 'apneaTyping');
+  } catch (e) {
+    ATTWO = /TWO different reasons/.test(e.message) ? 'named both' : e.message;
+  }
+  ck('…and TWO mechanisms at once throw rather than wear one word', ATTWO, 'named both');
+  ck(
+    '🔴 the guarded reader answers the same on both parse routes — a block comment above the key',
+    guardedShape('/* note */\n' + ATG, 'apneaTyping').union,
+    guardedShape('/* note */\n' + ATG, 'apneaTyping', ATOK).union
+  );
+  ck('…and names the same line on both', guardedShape('/* note */\n' + ATG, 'apneaTyping').at, guardedShape('/* note */\n' + ATG, 'apneaTyping', ATOK).at);
+  ck('…and the same holds for a line comment', guardedShape('// note\n' + ATG, 'apneaTyping').union, guardedShape('// note\n' + ATG, 'apneaTyping', ATOK).union);
+  ck('…line by line as well', guardedShape('// note\n' + ATG, 'apneaTyping').at, guardedShape('// note\n' + ATG, 'apneaTyping', ATOK).at);
+
+  const ATV = [
+    'function typeIt(recs) {',
+    '  if (!recs.length) return null;',
+    '  var out = {',
+    '    alpha: null,',
+    '    beta: 0,',
+    '    events: []',
+    '  };',
+    '  recs.forEach(function (r) {',
+    '    out.beta++;',
+    '  });',
+    '  return out;',
+    '}'
+  ].join('\n');
+  ck('🔴 a producer that returns a VARIABLE has a shape, where `nestedShapes` wanted a literal', returnVarShape(ATV, 'typeIt', 'out').union, ['alpha', 'beta', 'events']);
+  ck('…and `nestedShapes` still reports nothing for it', nestedShapes(ATV, 'typeIt'), null);
+  ck('…the site is the literal line', returnVarShape(ATV, 'typeIt', 'out').at, 3);
+  ck('…and the reader says so', returnVarShape(ATV, 'typeIt', 'out').shapeKind, 'return-var');
+  ck('…a `++` on a key the literal carries is arithmetic, not a new key', returnVarShape(ATV, 'typeIt', 'out').union.length, 3);
+  ck('a function that is not there refuses', returnVarShape(ATV, 'typeNothing', 'out'), null);
+  ck('a variable that is not declared there refuses', returnVarShape(ATV, 'typeIt', 'nope'), null);
+  ck('a SHADOWED declaration refuses — two literals, one name', returnVarShape(ATV.replace('  recs.forEach', '  var out = {\n    gamma: 1\n  };\n  recs.forEach'), 'typeIt', 'out'), null);
+  ck('a literal nobody returns refuses', returnVarShape(ATV.replace('  return out;', '  return 1;'), 'typeIt', 'out'), null);
+  ck('a `const` declaration reads the same', returnVarShape(ATV.replace('  var out = {', '  const out = {'), 'typeIt', 'out').union, ['alpha', 'beta', 'events']);
+  let ATADD = 'no throw';
+  try {
+    returnVarShape(ATV.replace('    out.beta++;', '    out.gamma = 1;'), 'typeIt', 'out');
+  } catch (e) {
+    ATADD = /adds gamma/.test(e.message) ? 'named the added key' : e.message;
+  }
+  ck('🔴 a key ADDED after the literal throws — a short key list is the one wrong answer', ATADD, 'named the added key');
+
+  const ATROUTES = [{ returnVar: { fn: 'typeIt', via: 'out' } }, { guarded: 'apneaTyping' }];
+  const ATSRC = ATV + '\n' + ATG;
+  ck('🔴 two routes of different FORMS union into one surface', routeShapes(ATSRC, ATROUTES).union, ['alpha', 'beta', 'events', 'obstructive', 'total', 'usable']);
+  ck('…and every key one route omits is partial', routeShapes(ATSRC, ATROUTES).partial, ['alpha', 'beta', 'events', 'obstructive', 'total', 'usable']);
+  ck('…named as an export-route difference', routeShapes(ATSRC, ATROUTES).partialKind, 'export-route');
+  ck('…and the shape says it came from a route list', routeShapes(ATSRC, ATROUTES).shapeKind, 'routes');
+  ck(
+    '…each route reports its own form',
+    routeShapes(ATSRC, ATROUTES).routes.map((r) => r.via),
+    ['returnVar', 'guarded']
+  );
+  ck(
+    '…and its own site',
+    routeShapes(ATSRC, ATROUTES).routes.map((r) => r.at),
+    [3, 14]
+  );
+  ck('a route whose source is absent names ITSELF, so the author reads one route and not all of them', routeShapes(ATSRC, [{ guarded: 'noSuchKey' }]).failed, 'guarded `noSuchKey`');
+  ck('…and a named function that moved does the same', routeShapes(ATSRC, [{ returnVar: { fn: 'gone', via: 'out' } }]).failed, 'returnVar `gone.out`');
+  let ATNONE = 'no throw';
+  try {
+    routeShapes(ATSRC, [{}]);
+  } catch (e) {
+    ATNONE = /exactly one of/.test(e.message) ? 'named the rule' : e.message;
+  }
+  ck('a route that declares NO source throws', ATNONE, 'named the rule');
+  let ATBOTH = 'no throw';
+  try {
+    routeShapes(ATSRC, [{ guarded: 'apneaTyping', builtBy: 'typeIt' }]);
+  } catch (e) {
+    ATBOTH = /exactly one of/.test(e.message) ? 'named the rule' : e.message;
+  }
+  ck('…and a route that declares TWO throws as well', ATBOTH, 'named the rule');
+  ck('one route alone carries its own partial mechanism through', routeShapes(ATGU, [{ guarded: 'apneaTyping' }]).partialKind, 'undefined-value');
+  ck('…and keeps the key it names', routeShapes(ATGU, [{ guarded: 'apneaTyping' }]).partial, ['usable']);
+  ck('an empty route list refuses', routeShapes(ATSRC, []), null);
+
+  const ATSURF = { obstructive: 'export-only', total: 'export-only', usable: 'export-only' };
+  const ATDECL = (over) => ({ routes: [{ guarded: 'apneaTyping' }], aliasPath: 'fusion.apneaTyping', surfaces: ATSURF, ...(over || {}) });
+  const ATRD = 'function draw(){ hero(fusion.window.overlapMin); }';
+  ck('🔴 a routed subtree of export-only keys passes with NO reader and no alias', evaluateNested('apneaTyping', routeShapes(ATG, [{ guarded: 'apneaTyping' }]), ATDECL(), ATRD).ok, true);
+  ck('…and it reports the shape source it was read from', evaluateNested('apneaTyping', routeShapes(ATG, [{ guarded: 'apneaTyping' }]), ATDECL(), ATRD).shapeKind, 'routes');
+  const ATCARD = evaluateNested('apneaTyping', routeShapes(ATG, [{ guarded: 'apneaTyping' }]), ATDECL({ surfaces: { ...ATSURF, usable: 'card' } }), ATRD);
+  ck('…while a `card` no realm reads reds, as at every other depth', ATCARD.ok, false);
+  ck('…and the reason names the key', nestedReasons(ATCARD).join(' ').includes('usable'), true);
+  const ATPART = evaluateNested(
+    'apneaTyping',
+    routeShapes(ATSRC, ATROUTES),
+    { routes: ATROUTES, aliasPath: 'fusion.apneaTyping', surfaces: { ...ATSURF, alpha: 'export-only', beta: 'export-only', events: 'export-only' } },
+    ATRD
+  );
+  ck('🔴 a key present on one route only must be DECLARED partial, or the declaration understates the export', ATPART.ok, false);
+  ck(
+    '…and declaring every one of them passes',
+    evaluateNested(
+      'apneaTyping',
+      routeShapes(ATSRC, ATROUTES),
+      {
+        routes: ATROUTES,
+        aliasPath: 'fusion.apneaTyping',
+        surfaces: { ...ATSURF, alpha: 'export-only', beta: 'export-only', events: 'export-only' },
+        partialShape: { alpha: 'x', beta: 'x', events: 'x', obstructive: 'x', total: 'x', usable: 'x' }
+      },
+      ATRD
+    ).ok,
+    true
+  );
   console.log(bad ? `  ✗ ${bad} of ${ran} selftests failed` : `  all ${ran} selftests passed`);
   process.exit(bad ? 1 : 0);
 }
