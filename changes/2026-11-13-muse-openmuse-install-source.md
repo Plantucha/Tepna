@@ -4,5 +4,5 @@ type: fixed
 brief: none
 ---
 
-Point the Muse S Athena install at the upstream repository, because the name `openmuse` on PyPI
-holds an unrelated package.
+Warn in the Muse switch comment and the EEG how-to that the PyPI name `openmuse` holds an unrelated
+package, not the Athena recorder.
