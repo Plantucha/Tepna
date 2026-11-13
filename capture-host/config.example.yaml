@@ -118,6 +118,8 @@ devices:
   #              the daemon does not run; `record_direct` is legacy-only at HEAD.
   #   openmuse → `OpenMuse record` — Muse S Athena ONLY (OpenMuse decodes nothing else). Unmaintained
   #              since 2026-01-28 and carries open optics/PPG issues (#24, #27): EEG is the use here.
+  #              ⚠️ Install it from DominiqueMakowski/OpenMuse, never from PyPI: the name `openmuse`
+  #              there holds an unrelated agent package. See capture-host/README.md step 3.
   # Both are spawned with an explicit 24 h --duration (their defaults are 60 s / 30 s demos).
   # ⚠️ Unexercised on the production box (no Muse configured, neither tool installed, 2026-09-20).
   - name: Muse S
