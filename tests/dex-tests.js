@@ -82586,21 +82586,36 @@
           .join(', '),
         ''
       );
+      /* THE THREE SINGLE-SITE READERS CONVERTED ON 2026-11-13. Each one parsed its own ECG record in
+         its own realm and then stamped every beat with a private `t0Ms + (i / fs) * 1000`, so the
+         baseline fell from 9 files to 6. `rPeakTimesOnAxis` needs no realm — it reads the record it
+         is handed — so the conversion imports the one copy of the arithmetic and passes its own
+         record. Two of them also derived the beat-to-beat HR from the index delta, which times one
+         quantity on the counter and its neighbour on the whole-file rate; both now read the HR from
+         the same axis times. */
+      T.eq(
+        'the three single-site readers converted on 2026-11-13 route through the shared arithmetic',
+        ['o2ring-finger-roundtrip.mjs', 'o2ring-finger-validate-batch.mjs', 'pat-per-led.mjs']
+          .filter(function (t) {
+            return !reachesShared('tools/' + t);
+          })
+          .join(', '),
+        ''
+      );
+      T.eq(
+        'and none of the three keeps a private site beside it',
+        ['o2ring-finger-roundtrip.mjs', 'o2ring-finger-validate-batch.mjs', 'pat-per-led.mjs']
+          .filter(function (t) {
+            return privateSites.indexOf(t) >= 0;
+          })
+          .join(', '),
+        ''
+      );
       /* THE REMAINDER, BY NAME. `pat-three-corner` is the odd member: it holds a three-way axis switch
          of its own rather than a bare index form, so the capability is there and the arithmetic is
          duplicated — the same defect in a second shape. `trio-fold-merge` converts a record LENGTH to
          an end time and never a peak position, so it sits outside the defect and inside the matcher. */
-      var AXIS_BACKLOG = [
-        'o2ring-finger-roundtrip.mjs',
-        'o2ring-finger-validate-batch.mjs',
-        'pat-per-led.mjs',
-        'pat-three-corner.mjs',
-        'ppg-bridge-hrv-validate.mjs',
-        'ppg-foot-consensus-e1.mjs',
-        'ppg-fusion-e3.mjs',
-        'ppi-jitter-vs-ecg.mjs',
-        'trio-fold-merge.mjs'
-      ];
+      var AXIS_BACKLOG = ['pat-three-corner.mjs', 'ppg-bridge-hrv-validate.mjs', 'ppg-foot-consensus-e1.mjs', 'ppg-fusion-e3.mjs', 'ppi-jitter-vs-ecg.mjs', 'trio-fold-merge.mjs'];
       var offBaseline = privateSites.filter(function (t) {
         return AXIS_BACKLOG.indexOf(t) < 0;
       });
@@ -82613,7 +82628,7 @@
       T.eq('every ECG reader holding a private index form is on the declared baseline', offBaseline.join(', '), '');
       T.eq('the baseline carries no name that already routes through the shared function', alreadyRouting.join(', '), '');
       T.eq('the baseline carries no stale name, because a stale entry excuses nothing', staleOnBaseline.join(', '), '');
-      T.eq('and the baseline is the measured set of 2026-11-11', privateSites.join(', '), AXIS_BACKLOG.join(', '));
+      T.eq('and the baseline is the measured set, re-read on 2026-11-13', privateSites.join(', '), AXIS_BACKLOG.join(', '));
       /* THE ONE EXCLUSION, STATED. A matcher that admitted a record-end time would read a clean file as
          a defect, so the exclusion is named here rather than tuned into the regex. */
       T.ok('the excluded member converts a record LENGTH, never a peak', /t0Ms \+ \(r\.int16\.length \/ fs\) \* 1000/.test(TT['tools/trio-fold-merge.mjs'] || ''), 'an end time');
