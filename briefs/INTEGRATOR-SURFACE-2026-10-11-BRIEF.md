@@ -762,3 +762,98 @@ under either reading. A later unit that ranks the remainder owes the sharper met
 2 keys are absent from that scan, because the probe that enumerated them misses a one-line object
 literal. The pass-through subtrees of the form `fusion.X || null` still need the resolver that board
 #5905 parks.
+
+## 16 · 2026-11-13 — the fifth subtree has TWO export routes, and two computed facts printed nowhere
+
+Unit `window` declares `fusion.window`, the fifth nested subtree. Magpie read the same literal
+independently at board #6095 and corrected its own count at #6097.
+
+### What moved
+
+| measure | before | after |
+|---|---|---|
+| nested subtrees | 4 | 5 |
+| nested depth-2 keys | 27 | 39 |
+| depth-2 `card` keys | 18 | 25 |
+| depth-2 `export-only` keys | 9 | 14 |
+| declared `partialShape` reasons | 2 | 4 |
+| anchored alias sites | 4 | 6 |
+| subtrees read from a literal | 1 | 2 |
+| keys the verdict judges | 63 | 75 |
+| selftest legs | 247 | 261 |
+
+The 12 new keys are 7 `card` and 5 `export-only`. The gate credits each `card` key from a read it
+names, over three realms: `integrator-render.js` 4, `integrator-app.js` 2 and `overdex-app.js` 1.
+
+### Three findings
+
+**THE EXPORT WRITES THIS SUBTREE TWICE, AND THE TWO ROUTES CARRY DIFFERENT KEYS.**
+`grep -nE '^\s*window:\s*\{\s*$' integrator-dsp.js` returns 7943 and 8039. Line 7943 is the full
+`runFusion` export and carries 10 keys. Line 8039 is the slim `var _exp = {` projection and carries
+12, because it adds `start` and `end`. `fmtDateTime` computes both from `startMs` and `endMs`.
+
+`inlineShape` refused on a second anchor until this unit. That refusal read two routes as ambiguity,
+so the subtree had no shape source and no session could declare it. The reader now judges the UNION
+over every anchor. It names each key that one route omits, under a new `partialKind` of
+`export-route`.
+
+Two mechanisms cannot wear one `partialKind`. A key that one route omits and a key whose value can
+evaluate to `undefined` state different facts about the export. So `inlineShape` throws a named
+error when it finds both at once, rather than pick one kind. A selftest leg holds that refusal.
+
+**THE VERDICT REPORTED THE FIRST REALM'S ALIAS SITES ONLY.** `evaluateNested` walks every declared
+reader for the credit. Three of its fields read `readers[0]` alone: `aliasSites`, `forwarded` and
+`aliasUnresolved`. `fusion.window` binds `w` at `integrator-render.js:415` and again at
+`overdex-app.js:717`. The evidence line named one of the two sites.
+
+No judgement reads those three fields, so nothing reded. The gate held every key right and the
+number a reader checks read wrong. Each site now carries its own file. The label names the realm
+only when two realms bind, so a one-realm subtree keeps the exact line it printed before.
+
+The four earlier subtrees never showed this. Their second realm reads the whole path and binds no
+alias, which is the `K2` selftest case. `window` is the first subtree whose second realm binds one.
+So the count moved for `window` alone: 4 sites before, 6 after.
+
+**A NESTED DECLARATION FOR A DROPPED KEY PRINTED NOTHING.** Depth 1 reports that state as
+`staleDeclarations` and deliberately stays green, because the author owns the removal.
+`evaluateNested` computed the same list, and no metric and no reason ever read it. Control W2 below
+measured it as GREEN, with no line about it anywhere. `nestedStaleDeclarations` and
+`nestedStaleWhere` now state it, and the subtree's evidence line names each key.
+
+### Controls
+
+Each control edits the declaration, runs the gate, restores the file and checks the SHA. The baseline
+PASSES at 75 keys, and the restore matched the original SHA after every control.
+
+| control | the state it declares | what the gate said |
+|---|---|---|
+| W1 | a key of the literal left undeclared | RED · `1 nested key(s) of fusion.window declare no surface: spanMin` |
+| W2 | a declared key the literal no longer carries | GREEN · `1 declared key(s) the literal no longer carries (bogusKey)` |
+| W3 | a read key declared `export-only` | RED · `declare 'export-only' and an anchored read reaches them: startMs` |
+| W4 | a `card` key no realm reads | RED · `declare 'card' and no anchored read reaches them … spanMin` |
+| W5 | a partial key with no `partialShape` reason | RED · `exist on one export route only, with no partialShape reason declared: start` |
+| W6 | a `partialShape` reason for a key every route carries | RED · `name a key whose presence is no longer conditional: spanMin` |
+| W7 | `inline: true` beside `builtBy` | REFUSES · `must declare exactly one of builtBy, inline:true or arrayOf:true` |
+| W8 | the realm that reads four `card` keys dropped | RED · `3 nested key(s) declare 'card' and no anchored read reaches them` |
+
+W2 is the control that found the third finding. It reported nothing at all before this unit, and the
+table above records what it prints now.
+
+The parse-route control hides `node_modules`, so the blanking route falls back from `acorn` to the
+tokenizer. Both routes PASS at 75 keys, 39 nested keys, 25 `card`, 6 alias sites and 2 literal
+subtrees. Every judged number holds across the two routes.
+
+### What this still cannot see
+
+The reader credits `w.startMs` at `integrator-render.js:669` and `:765` against a NODE's own window,
+not against this subtree, because the scope rule keeps the two apart. The declaration records that.
+`overdex-app.js:774` reads `overlapUnionMin`, and that read is the only credit for the key, so
+dropping the realm reds three keys at once.
+
+Five of the twelve keys match no read anywhere: `spanMin`, `pairwiseSumMin`, `samePairsExcluded`,
+`start` and `end`. All five declare `export-only`, and the gate holds them to that.
+
+Four export subtrees remain undeclared: `schema` 13 keys at line 8014, `apneaTyping` 11, `unmatched`
+2 over 7 element keys, and `handshakes` 2. `kernel` and its 2 keys need a reader for a one-line
+object literal. The pass-through subtrees of the form `fusion.X || null` still need the resolver that
+board #5905 parks.
