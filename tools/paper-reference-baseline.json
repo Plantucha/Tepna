@@ -1,15 +1,5 @@
 {
  "note": "The references that sit uninvoked in a paper body. GRANDFATHERED, never approved: each one needs a reader to place the source in the body, or to drop the entry. The set may only SHRINK.",
  "generated": "2026-11-13",
- "uninvoked": {
-  "papers/sigma-no-reference.html#Premoli 1993": "board #4531 · residue 2026-11-08-treatment-response-lists-references-its-body-never-invokes",
-  "papers/sigma-no-reference.html#Torcaso 1998": "board #4531 · residue 2026-11-08-treatment-response-lists-references-its-body-never-invokes",
-  "papers/sigma-no-reference.html#Riley 2008": "board #4531 · residue 2026-11-08-treatment-response-lists-references-its-body-never-invokes",
-  "papers/sigma-no-reference.html#Giavarina 2015": "board #4531 · residue 2026-11-08-treatment-response-lists-references-its-body-never-invokes",
-  "papers/sigma-no-reference.html#Allen 2007": "board #4531 · residue 2026-11-08-treatment-response-lists-references-its-body-never-invokes",
-  "papers/sigma-no-reference.html#Schäfer 2013": "board #4531 · residue 2026-11-08-treatment-response-lists-references-its-body-never-invokes",
-  "papers/sigma-no-reference.html#Gilgen-Ammann 2019": "board #4531 · residue 2026-11-08-treatment-response-lists-references-its-body-never-invokes",
-  "papers/sigma-no-reference.html#Bent 2020": "board #4531 · residue 2026-11-08-treatment-response-lists-references-its-body-never-invokes",
-  "papers/sigma-no-reference.html#Jubran 2015": "board #4531 · residue 2026-11-08-treatment-response-lists-references-its-body-never-invokes"
- }
+ "uninvoked": {}
 }
