@@ -404,7 +404,7 @@ keys against the real reads, and counts every element read it cannot judge.
 | element keys declared `card` | 0 | 3 |
 | element read sites judged | 0 | 2 |
 | element read sites counted and left unjudged | — | 1 |
-| selftest legs | 119 | 156 |
+| selftest legs | 119 | 164 |
 
 The live gate PASSes at `checked: 62` with `reason: null`. The verdict carries the new population:
 `elementShapes: 1`, `elementKeys: 4`, `elementCard: 3`, `elementSites: 2`, `elementCardUnread: 0`,
@@ -436,6 +436,21 @@ itself.
 of it. The verdict reports `elementReadsUnjudged: 1` and names the site. Nobody hand-read that
 literal yet. Seeding a declaration from the gate's own reading would repeat §6's defect.
 
+🔴 **THE TWO BLANKING ROUTES ARE NOT INTERCHANGEABLE, AND CI ONLY EVER TAKES THE SECOND.**
+`prepare()` blanks in place with acorn, and the comment above it promises that every offset and
+line stays where the raw file put it. The tokenizer fallback DELETES comment lines:
+`integrator-dsp.js` reads 8290 lines raw, 8290 blanked under acorn, and **6403** under the
+tokenizer. `tests.yml` installs no node_modules, so CI always takes the fallback.
+
+My first version indexed the raw text by a blanked line number. That read a different line on the
+runner, and it threw the named element-literal error. The gate was green on this machine and red in
+CI.
+
+The repair keeps each read inside one text. The keys now come off the BLANKED line, where
+identifiers survive, and `at` comes from a unique match in the raw text. A read site pairs the two
+texts by ORDER, and `elemRawUnpaired` reds the site when the counts disagree. Eight selftest legs
+force the tokenizer route, because the acorn route hides the whole defect.
+
 🔴 **A REFUSAL IS LOUDER THAN A SHORT KEY LIST.** The shape reader requires exactly one matching
 literal inside the builder, and it requires a close on one line. A moved, duplicated or multi-line
 literal throws a named error. The gate does not guess a shape.
@@ -454,6 +469,7 @@ byte-identical.
 | O | remove the `elements` block | PASS with `2 element read(s) UNJUDGED` |
 | P | declare a key the literal omits | `✗ 1 element key(s) declare no surface: entry.kind (declared, absent from the literal)` |
 | Q | point `servesKeys` at `widgets` | `✗ 1 element shape(s) serve an array key this subtree does not carry: entry serves widgets` |
+| R | run with no `node_modules` | PASS under the tokenizer route, with the same four keys and the same raw line 90 |
 
 ### What this still cannot see
 
@@ -462,3 +478,7 @@ read site the verdict names. A multi-line element literal refuses, and no declar
 today. Eleven nested subtrees still carry no declaration, so depth 2 reaches three of fourteen.
 Depth 3 reaches one of three declared subtrees. The realm list still comes from the files that name
 `kernelAudit`, so a fourth realm would stay invisible.
+
+One route-dependent report survives, and it is cosmetic. The depth-2 alias site prints a BLANKED
+line number, so `ka@77` on this machine prints `ka@57` on a runner. The element layer pairs its
+sites and prints the raw line. The alias layer does not pair, and nothing decides on that number.

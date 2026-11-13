@@ -63,7 +63,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { isCliEntry } from './argv-guard.mjs';
 import { escapeRe } from './regex-escape-core.mjs';
-import { prepare } from './find-unwired-js.mjs';
+import { codeOnly, prepare } from './find-unwired-js.mjs';
 
 const Verdict = createRequire(import.meta.url)('../verdict.js');
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -317,8 +317,8 @@ export function nestedShapes(dspText, fnName) {
    It reads a literal that closes on ONE line and refuses otherwise, with a named reason. The
    multi-line form is unbuilt rather than broken: no declaration asks for one yet, and a reader
    that cannot read a shape must say so rather than return a short key list. */
-export function elementShape(dspText, fnName, varName) {
-  const lines = prepare(dspText).code.split('\n');
+export function elementShape(dspText, fnName, varName, pre = prepare) {
+  const lines = pre(dspText).code.split('\n');
   const start = lines.findIndex((l) => new RegExp('^function ' + escapeRe(fnName) + '\\(').test(l));
   if (start < 0) return null;
   let d = 0;
@@ -339,10 +339,19 @@ export function elementShape(dspText, fnName, varName) {
   }
   /* No assignment is a moved builder; two are ambiguous. Both refuse, as `inlineShape` does. */
   if (hits.length !== 1) return null;
-  const raw = dspText.split('\n')[hits[0].at];
-  const keys = oneLineObject(raw, hits[0].open);
+  /* A BLANKED LINE INDEX IS NOT A RAW LINE INDEX. The acorn route blanks in place and leaves every
+     offset where the raw file put it; the tokenizer fallback DELETES comment lines. CI installs no
+     node_modules, so it always takes the fallback — and reading `dspText`'s line by a blanked index
+     read a different line there and threw. The keys are identifiers, which blanking never touches,
+     so they come off the BLANKED line. */
+  const keys = oneLineObject(lines[hits[0].at], hits[0].open);
   if (!keys) return null;
-  return { at: hits[0].at + 1, keys };
+  /* `at` is for a human, so it must be the RAW line. Unique in the raw text, or null — never a
+     guess, and never a reason to refuse keys the blanked text already read. */
+  const rawLines = dspText.split('\n');
+  const rawHits = [];
+  for (let i = 0; i < rawLines.length; i++) if (re.test(rawLines[i])) rawHits.push(i);
+  return { at: rawHits.length === 1 ? rawHits[0] + 1 : null, keys };
 }
 
 /* 🔴 THE SECOND SUBTREE NEEDED THREE MECHANISMS THE FIRST ONE DID NOT. `fusion.clockSkew` is an
@@ -559,8 +568,7 @@ export function readsDirectPath(text, path, key) {
    A site is `<prefix>.<arrayKey>.<iterator>(<param> …)`: the callback's parameter NAMES one
    element, and what the callback reads off it is a depth-3 read. The prefix must be the realm's
    own alias or its whole path, or any `.mismatches.map` anywhere would count. */
-export function elementCallbacks(text, prefixes, arrayKey) {
-  const { code } = prepare(text);
+function callbackSites(code, prefixes, arrayKey) {
   const alt = prefixes.filter(Boolean).map(escapeRe).join('|');
   if (!alt) return [];
   const re = new RegExp('(' + alt + ')\\s*\\.\\s*' + escapeRe(arrayKey) + '\\s*\\.\\s*(map|forEach|filter|flatMap|some|every|find|reduce)\\s*\\(', 'g');
@@ -597,6 +605,24 @@ export function elementCallbacks(text, prefixes, arrayKey) {
   return out;
 }
 
+/** Element read sites, paired across the two texts. The dot form reads the BLANKED body, so a
+    commented-out read cannot credit a key; the bracket form needs the RAW body, because blanking
+    takes the key name out of `m['status']`. The two texts share no offset under the tokenizer
+    route (see `elementShape`), so pair them by ORDER and refuse to pair at all when the counts
+    disagree — a comment or a string naming the same chain IS that disagreement. */
+export function elementCallbacks(text, prefixes, arrayKey, pre = prepare) {
+  const blanked = callbackSites(pre(text).code, prefixes, arrayKey);
+  const raw = callbackSites(text, prefixes, arrayKey);
+  const paired = raw.length === blanked.length;
+  return blanked.map((s, i) =>
+    Object.assign({}, s, {
+      rawFrom: paired ? raw[i].from : null,
+      rawTo: paired ? raw[i].to : null,
+      rawLine: paired ? raw[i].line : null
+    })
+  );
+}
+
 /* Is `elemKey` read off the element parameter of one of these callbacks.
 
    🔴 THE BRACKET FORM MUST BE READ ON RAW TEXT. `prepare` blanks every string literal, so
@@ -604,11 +630,13 @@ export function elementCallbacks(text, prefixes, arrayKey) {
    bracket form would read as absent. Depth 1 and depth 2 already split the two tests this way;
    depth 3 owed the same split, and a fixture caught it before a declaration relied on it.
    Blanking preserves length, so one offset pair indexes both texts. */
-export function readsElementKey(text, sites, elemKey) {
-  const { code } = prepare(text);
+export function readsElementKey(text, sites, elemKey, pre = prepare) {
+  const { code } = pre(text);
   for (const s of sites) {
     const body = code.slice(s.from, s.to + 1);
-    const rawBody = text.slice(s.from, s.to + 1);
+    /* An unpaired site has no raw body to read, so the bracket form falls back to the blanked body,
+       where a quoted key reads as absent. `elemRawUnpaired` reports that, and the gate reds. */
+    const rawBody = s.rawFrom === null ? body : text.slice(s.rawFrom, s.rawTo + 1);
     const dot = new RegExp('\\b' + escapeRe(s.param) + '\\s*\\.\\s*' + escapeRe(elemKey) + '(?![A-Za-z0-9_$])');
     const br = new RegExp('\\b' + escapeRe(s.param) + '\\s*\\[\\s*([\'"])' + escapeRe(elemKey) + '\\1\\s*\\]');
     if (dot.test(body) || br.test(rawBody)) return s;
@@ -675,6 +703,7 @@ export function evaluateNested(subtree, shapes, decl, renderText, extra) {
   };
   const servedKeys = [];
   const elemServesUnknown = [];
+  const elemRawUnpaired = [];
   if (elemDecl) {
     for (const vn of Object.keys(elemDecl)) {
       const ed = elemDecl[vn] || {};
@@ -692,6 +721,10 @@ export function evaluateNested(subtree, shapes, decl, renderText, extra) {
       }
       const esurf = ed.surfaces || {};
       const byReader = readers.map((r) => ({ reader: r, sites: sitesFor(r, serves) }));
+      /* 🔴 A SITE THE TWO TEXTS DISAGREE ON CANNOT BE READ IN BRACKET FORM, so it is named here and
+         it reds. The blanked body and the raw body pair by order only while both texts hold the
+         same number of sites. */
+      for (const x of byReader) for (const st of x.sites) if (st.rawFrom === null) elemRawUnpaired.push(x.reader.file + ':' + st.line + ' (' + st.arrayKey + ')');
       const elemCreditedBy = (k) => byReader.find((x) => readsElementKey(x.reader.text, x.sites, k)) || null;
       for (const k of shp.keys) {
         if (!(k in esurf)) {
@@ -716,7 +749,7 @@ export function evaluateNested(subtree, shapes, decl, renderText, extra) {
         serves,
         keys: shp.keys,
         readable: true,
-        sites: byReader.flatMap((x) => x.sites.map((s) => ({ file: x.reader.file, line: s.line, arrayKey: s.arrayKey, iterator: s.iterator, param: s.param }))),
+        sites: byReader.flatMap((x) => x.sites.map((s) => ({ file: x.reader.file, line: s.rawLine === null ? s.line : s.rawLine, arrayKey: s.arrayKey, iterator: s.iterator, param: s.param }))),
         cardByReader: ecard
       });
     }
@@ -729,7 +762,7 @@ export function evaluateNested(subtree, shapes, decl, renderText, extra) {
   const elemUnjudged = [];
   for (const r of readers) {
     const open = union.filter((k) => !servedKeys.includes(k));
-    for (const s of sitesFor(r, open)) elemUnjudged.push({ file: r.file, line: s.line, arrayKey: s.arrayKey, param: s.param, prefix: s.prefix, holder: r.aliasPath });
+    for (const s of sitesFor(r, open)) elemUnjudged.push({ file: r.file, line: s.rawLine === null ? s.line : s.rawLine, arrayKey: s.arrayKey, param: s.param, prefix: s.prefix, holder: r.aliasPath });
   }
   return {
     subtree,
@@ -763,6 +796,7 @@ export function evaluateNested(subtree, shapes, decl, renderText, extra) {
     elemExportOnlyRead,
     elemUnjudged,
     elemServesUnknown,
+    elemRawUnpaired,
     ok:
       !noAlias &&
       !undeclared.length &&
@@ -773,6 +807,7 @@ export function evaluateNested(subtree, shapes, decl, renderText, extra) {
       !stalePartial.length &&
       !elemShapeMissing.length &&
       !elemServesUnknown.length &&
+      !elemRawUnpaired.length &&
       !elemUndeclared.length &&
       !elemBadValue.length &&
       !elemCardUnread.length &&
@@ -798,6 +833,9 @@ export function nestedReasons(n) {
     n.stalePartial.length ? `${n.stalePartial.length} partialShape declaration(s) name a key whose presence is no longer conditional: ${n.stalePartial.join(', ')}` : '',
     (n.elemShapeMissing || []).length ? `${n.elemShapeMissing.length} element shape(s) are declared and this gate could not read the literal from source: ${n.elemShapeMissing.join(', ')}` : '',
     (n.elemServesUnknown || []).length ? `${n.elemServesUnknown.length} element shape(s) serve an array key this subtree does not carry: ${n.elemServesUnknown.join(', ')}` : '',
+    (n.elemRawUnpaired || []).length
+      ? `${n.elemRawUnpaired.length} element read site(s) do not pair across the blanked and raw text, so a bracket read cannot be judged there: ${n.elemRawUnpaired.join(', ')}`
+      : '',
     (n.elemUndeclared || []).length ? `${n.elemUndeclared.length} element key(s) declare no surface: ${n.elemUndeclared.join(', ')}` : '',
     (n.elemBadValue || []).length ? `${n.elemBadValue.length} element key(s) declare something other than 'card' or 'export-only': ${n.elemBadValue.join(', ')}` : '',
     (n.elemCardUnread || []).length
@@ -1428,6 +1466,15 @@ if (DIRECT && process.argv.includes('--selftest')) {
   ck('two assignments of one name are ambiguous, so it refuses', elementShape(E1.replace('rows.push(entry);', 'var entry = { node: 1 };'), 'buildE', 'entry'), null);
   ck('a multi-line element literal refuses, and is not read short', elementShape('function b(x) {\n  var e = {\n    node: 1\n  };\n  return e;\n}', 'b', 'e'), null);
   ck('an element name outside the builder is not found', elementShape('function a(x) { var e = { q: 1 }; }\nfunction b(y) { return 1; }', 'b', 'e'), null);
+  /* 🔴 THE TWO BLANKING ROUTES ARE NOT INTERCHANGEABLE, AND CI ONLY EVER TAKES THE SECOND.
+     `tests.yml` installs no node_modules, so `prepare` finds no acorn and falls back to the
+     tokenizer, which DELETES comment lines instead of blanking them in place. Every leg below
+     forces that route, because the acorn route hides the whole defect. */
+  const TOK = (src) => ({ code: codeOnly(src), by: 'tokenizer' });
+  const E1C = '/* one */\n/* two */\n/* three */\n' + E1;
+  ck('🔴 a shifted line index does not change the keys under the tokenizer route', elementShape(E1C, 'buildE', 'entry', TOK).keys, ['node', 'hash', 'version', 'status']);
+  ck('…and the line it names is the RAW line, not the blanked one', elementShape(E1C, 'buildE', 'entry', TOK).at, 7);
+  ck('…while the acorn route names the same raw line', elementShape(E1C, 'buildE', 'entry').at, 7);
   const EAPP = [
     'function recompute() {',
     '  var ka = FUSION && FUSION.kernelAudit;',
@@ -1467,6 +1514,19 @@ if (DIRECT && process.argv.includes('--selftest')) {
   ck('…and a key the callback never reads stays unread', !!readsElementKey(EAPP, ESITES, 'version'), false);
   ck('…while a longer identifier is not that key', !!readsElementKey(EAPP, ESITES, 'nod'), false);
   ck('an arrow callback binds its element the same way', elementCallbacks('var x = a.kernelAudit.mismatches.map((m) => m.node);', ['a.kernelAudit'], 'mismatches').length, 1);
+  const EOVERC = '/* a */\n/* b */\n' + EOVER;
+  const EOTOK = elementCallbacks(EOVERC, ['fusion.kernelAudit'], 'mismatches', TOK);
+  ck('🔴 a site pairs across the blanked and the raw text', [EOTOK.length, EOTOK[0].rawFrom !== null], [1, true]);
+  ck('…and its reported line is the RAW line', EOTOK[0].rawLine, 7);
+  ck('…so a bracket read is credited under the tokenizer route too', !!readsElementKey(EOVERC, EOTOK, 'status', TOK), true);
+  const EOCMT = EOVER + '\n/* fusion.kernelAudit.mismatches.map(m) */';
+  ck('🔴 a comment naming the same chain breaks the pairing, and the site says so', elementCallbacks(EOCMT, ['fusion.kernelAudit'], 'mismatches', TOK)[0].rawFrom, null);
+  const EMPTYN = { undeclared: [], badValue: [], cardUnrendered: [], exportOnlyRead: [], undeclaredPartial: [], stalePartial: [] };
+  ck(
+    '…and an unpaired site reds with a named reason',
+    nestedReasons(Object.assign({}, EMPTYN, { elemRawUnpaired: ['overdex-app.js:7 (mismatches)'] }))[0],
+    '1 element read site(s) do not pair across the blanked and raw text, so a bracket read cannot be judged there: overdex-app.js:7 (mismatches)'
+  );
   const EDECL = (over) => ({
     builtBy: 'buildE',
     surfaces: { nodes: 'export-only', mismatches: 'card', ok: 'card' },
