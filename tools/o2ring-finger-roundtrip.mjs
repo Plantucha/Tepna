@@ -194,8 +194,13 @@ function run(ppgPath, ecgPath, spo2Path, { json = false } = {}) {
        read fast by the off-body share of the file, and the ECG train walks away from the PPG trains
        by up to seconds a night (row 2026-09-26-pat-ecg-index-axis-is-not-the-h10-sample-clock).
        `rPeakTimesOnAxis` carries the one copy of that arithmetic, falls back per sample to the index
-       form when a record has no counter, and throws when a device axis breaks sortedness. */
-    const eT = rPeakTimesOnAxis(erec, Float64Array.from(pk), { axis: 'counter' });
+       form when a record has no counter, and throws when a device axis breaks sortedness.
+       THE AXIS HERE STAYS `linear`, WHICH IS BYTE-IDENTICAL TO THE PRIVATE FORM THIS TOOL HELD. PR #5022
+       routed these three and passed `counter`, which moved numbers that committed briefs quote. The
+       module states the rule beside the function: each remaining tool's default is an owner and
+       PAT-program decision, because a flip moves every number that tool published. So the route lands
+       and the flip waits for that word, with the axis now requestable through the one copy. */
+    const eT = rPeakTimesOnAxis(erec, Float64Array.from(pk), { axis: 'linear' });
     for (let k = 1; k < eT.length; k++) {
       const dt = (eT[k] - eT[k - 1]) / 1000;
       if (dt > 0.3 && dt < 2.0) ecgBeats.push({ tMs: eT[k], hr: 60 / dt });
