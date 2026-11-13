@@ -100,23 +100,41 @@ export const ALLOW = {
      positive this tool has produced. */
 };
 
-/* Strip line and block comments, and string literals, before searching for references. Strings matter
-   because a name inside a string is usually a key or a message, not a call — and because the bundler's
-   `data-inline-src` blocks quote source. Conservative: if in doubt the character survives. */
+/* Blank line and block comments, string literals and regex literals before searching for references.
+   Strings matter because a name inside a string is usually a key or a message, not a call — and
+   because the bundler's `data-inline-src` blocks quote source. Conservative: if in doubt the
+   character survives.
+   ⚠️ BLANK, never delete — the discipline `codeOnlyParsed` below already states, now held by BOTH
+   preparations. This scanner used to DROP each span it consumed. A span inside one line cost nothing,
+   and a span CROSSING a newline moved every line after it up: a comment of three lines above a
+   binding put that binding two lines early. A gate prints those line numbers for a person to go and
+   read: the Integrator surface gate's `alias@line` is computed over this text, and CI installs no
+   node_modules, so CI always took this route and always printed the short line (row
+   2026-11-13-an-alias-line-printed-for-a-human-is-a-blanked-line). Blanking holds
+   `codeOnly(src).length === src.length` and keeps every newline where the raw file put it, so the
+   two preparations answer with the SAME line numbers and a reader never has to know which one ran. */
 export function codeOnly(src) {
-  let out = '';
-  let i = 0;
   const s = String(src);
+  const out = s.split('');
+  /* A blanked span keeps its own newlines, so no character after it changes line. */
+  const blank = (from, to) => {
+    for (let k = from; k < to && k < out.length; k += 1) if (out[k] !== '\n') out[k] = ' ';
+  };
+  let i = 0;
   while (i < s.length) {
     const two = s.slice(i, i + 2);
     if (two === '//') {
+      const start = i;
       while (i < s.length && s[i] !== '\n') i++;
+      blank(start, i);
       continue;
     }
     if (two === '/*') {
+      const start = i;
       i += 2;
       while (i < s.length && s.slice(i, i + 2) !== '*/') i++;
       i += 2;
+      blank(start, i);
       continue;
     }
     const c = s[i];
@@ -131,16 +149,21 @@ export function codeOnly(src) {
        corpus, and it is the FALLBACK now rather than the only option: `prepare` parses with `acorn`
        when the checkout resolves one, and reaches this scanner when it does not. */
     if (c === '/') {
-      let j = out.length - 1;
+      /* The look-back reads the BLANKED text behind `i`, never the raw file, so a comment or a string
+         before the `/` is whitespace here exactly as it was when this scanner deleted the span. */
+      let j = i - 1;
       while (j >= 0 && /\s/.test(out[j])) j--;
       const prev = j >= 0 ? out[j] : '';
       /* ⚠️ A KEYWORD ENDS IN A WORD CHARACTER, so "preceded by a word char ⇒ division" misfires on
          `return /[",\r\n]/` — measured, and it was the second corruption after regex literals
          themselves. After a keyword an operand is expected, so the `/` opens a LITERAL. */
-      const word = /[\w$]/.test(prev) ? (/[\w$]+$/.exec(out.slice(0, j + 1)) || [''])[0] : '';
+      let w = j;
+      while (w >= 0 && /[\w$]/.test(out[w])) w--;
+      const word = /[\w$]/.test(prev) ? out.slice(w + 1, j + 1).join('') : '';
       const KEYWORD = /^(return|typeof|instanceof|in|of|new|delete|void|throw|case|do|else|yield|await)$/;
       const isDivision = /[\w$)\]]/.test(prev) && !KEYWORD.test(word);
       if (!isDivision) {
+        const start = i;
         i++;
         let inClass = false;
         while (i < s.length) {
@@ -156,25 +179,25 @@ export function codeOnly(src) {
           i++;
         }
         i++;
-        out += ' ';
+        blank(start, i);
         continue;
       }
     }
     if (c === '"' || c === "'" || c === '`') {
       const q = c;
+      const start = i;
       i++;
       while (i < s.length && s[i] !== q) {
         if (s[i] === '\\') i++;
         i++;
       }
       i++;
-      out += ' ';
+      blank(start, i);
       continue;
     }
-    out += c;
     i++;
   }
-  return out;
+  return out.join('');
 }
 
 /* THE REAL PARSE, WHEN THE CHECKOUT HAS ONE. The hand tokenizer above is exact on this corpus and
@@ -410,6 +433,21 @@ function selfTest() {
   ok(isConsumed('zed', 'a.js', [['b.js', 'unzed zedly']]) === null, 'a substring is not a reference');
   /* THE PREPARATION IS A PER-RUN FACT, so both paths are pinned here and the run says which answered. */
   ok(prepare('var s = "notAName";', null).by === 'tokenizer', 'with NO parser the hand tokenizer still prepares the corpus');
+  /* THE LINE A GATE PRINTS IS A LINE OF THIS TEXT, so both preparations owe the raw file's numbers.
+     This scanner used to DELETE each span it consumed, and the Integrator surface gate's six anchored
+     alias sites then printed lines short by 20 to 193 — one of them pointing a reader at
+     `periodic_breathing: {` (row 2026-11-13-an-alias-line-printed-for-a-human-is-a-blanked-line).
+     CI resolves no parser, so CI is exactly the run that took this route. */
+  const bsRaw = 'var keepMe = 1;\n/* one\ntwo */\nconst alsoKeep = "x";\n';
+  const bsTok = codeOnly(bsRaw);
+  ok(bsTok.length === bsRaw.length, 'the tokenizer BLANKS: its text is as long as the raw file');
+  ok(bsTok.split('\n').length === bsRaw.split('\n').length, '…and carries the same number of lines');
+  ok(
+    bsTok.split('\n').findIndex((l) => l.includes('alsoKeep')) === bsRaw.split('\n').findIndex((l) => l.includes('alsoKeep')),
+    'a binding under a comment spanning LINES keeps its raw line, which is the number a gate prints'
+  );
+  ok(!bsTok.includes('one') && !bsTok.includes('"x"') && bsTok.includes('keepMe') && bsTok.includes('alsoKeep'), 'the blanking is not vacuous: the comment and the string went, the two names stayed');
+  ok(codeOnly('a // b\nc') === 'a     \nc', 'a line comment leaves spaces and its own newline, never a shorter line');
   /* ⚠️ NOT AN ASSERTION. `selftest-all.mjs` runs this file in a CI lane, and a lane installs nothing,
      so a leg demanding acorn would red there for a reason that is not a defect. The run SAYS which
      preparation it could exercise, and a skip is printed as a skip rather than counted as a pass. */
@@ -434,7 +472,8 @@ function selfTest() {
       'a comment spanning LINES is blanked without eating its newlines, so every later line number holds'
     );
     const blanked = prepare('a // b\nc', ac).code;
-    ok(blanked === 'a     \nc' && blanked.length === 'a // b\nc'.length, 'blanking preserves every offset and every newline — the tokenizer SHORTENS, and that is the desynchronisation itself');
+    ok(blanked === 'a     \nc' && blanked.length === 'a // b\nc'.length, 'blanking preserves every offset and every newline, and the tokenizer above now holds the same invariant');
+    ok(prepare(bsRaw, ac).code === codeOnly(bsRaw), 'the two preparations answer with the SAME text here, so no printed line number depends on which one ran');
   }
   ok(
     acornOrNull(() => {
