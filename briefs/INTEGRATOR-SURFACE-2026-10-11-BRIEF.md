@@ -389,3 +389,96 @@ Depth 3. `mismatches[]` and `nodes[]` entries carry `{ node, hash, version, stat
 three keys are read by a reader and no cell declares them. Eleven nested subtrees still carry no
 declaration, so depth 2 reaches three of fourteen. A fourth realm may exist: this unit asked only
 the files that name `kernelAudit`, which are the two above plus `integrator-dsp.js` itself.
+
+## 12 · 2026-11-12 — depth 3 judges what a reader takes out of an array element
+
+Depth 2 declared `kernelAudit.nodes` and `kernelAudit.mismatches` as `card`. Neither cell said
+anything about the objects INSIDE those arrays. Three element keys reached a reader and no cell
+declared them. This unit adds depth 3. The gate declares the element literal, judges each of its
+keys against the real reads, and counts every element read it cannot judge.
+
+| population | before | after |
+|---|---|---|
+| subtrees judged at depth 3 | 0 | 1 |
+| element keys judged | 0 | 4 |
+| element keys declared `card` | 0 | 3 |
+| element read sites judged | 0 | 2 |
+| element read sites counted and left unjudged | — | 1 |
+| selftest legs | 119 | 164 |
+
+The live gate PASSes at `checked: 62` with `reason: null`. The verdict carries the new population:
+`elementShapes: 1`, `elementKeys: 4`, `elementCard: 3`, `elementSites: 2`, `elementCardUnread: 0`,
+`elementExportOnlyRead: 0` and `elementReadsUnjudged: 1`.
+
+🔴 **AN ELEMENT SHAPE BELONGS TO THE BUILDER'S LITERAL, NOT TO THE ARRAY KEY.** `auditNodeKernels`
+builds one `entry` object at `integrator-dsp.js:7479`. It pushes that object into `nodes`, and it
+pushes the same object into `mismatches` behind a guard. One literal serves two array keys. So the
+declaration names a `servesKeys` list, and the gate reads the shape from the builder.
+
+🔴 **A MEMBER CHAIN SPLITS ACROSS LINES AND DEFEATS A PER-LINE REGEX.** My first census found two
+of the three sites. OverDex breaks `fusion.kernelAudit.mismatches` from its `.map(` at
+`overdex-app.js:865`. The site finder now runs one regex over the whole blanked text, where `\s`
+spans a newline. `EOVER` holds that split chain as a selftest fixture.
+
+🔴 **THE BRACKET FORM MUST BE READ ON RAW TEXT.** `prepare()` blanks every string literal, so
+`m['status']` loses its key name in blanked code. Six of 156 selftests failed on that one root. The
+dot form now reads the blanked slice and the bracket form reads the raw slice. Blanking preserves
+length, so one offset pair indexes both texts. Depth 1 and depth 2 already split the two forms, and
+depth 3 owed the same split.
+
+🔴 **A CAUSE MUST NAME ITSELF.** Control Q points a `servesKeys` entry at an array the subtree does
+not carry. The first version dropped that entry in silence. It then blamed four element keys for
+going unread, and it never named the stale array. `elemServesUnknown` now reports the stale name
+itself.
+
+🔴 **A SKIP WITH A STATED REASON IS NOT A BLINDNESS, AND THIS ONE IS COUNTED.**
+`clockSkew.findings` carries no element declaration, and `integrator-app.js:90` reads four keys out
+of it. The verdict reports `elementReadsUnjudged: 1` and names the site. Nobody hand-read that
+literal yet. Seeding a declaration from the gate's own reading would repeat §6's defect.
+
+🔴 **THE TWO BLANKING ROUTES ARE NOT INTERCHANGEABLE, AND CI ONLY EVER TAKES THE SECOND.**
+`prepare()` blanks in place with acorn, and the comment above it promises that every offset and
+line stays where the raw file put it. The tokenizer fallback DELETES comment lines:
+`integrator-dsp.js` reads 8290 lines raw, 8290 blanked under acorn, and **6403** under the
+tokenizer. `tests.yml` installs no node_modules, so CI always takes the fallback.
+
+My first version indexed the raw text by a blanked line number. That read a different line on the
+runner, and it threw the named element-literal error. The gate was green on this machine and red in
+CI.
+
+The repair keeps each read inside one text. The keys now come off the BLANKED line, where
+identifiers survive, and `at` comes from a unique match in the raw text. A read site pairs the two
+texts by ORDER, and `elemRawUnpaired` reds the site when the counts disagree. Eight selftest legs
+force the tokenizer route, because the acorn route hides the whole defect.
+
+🔴 **A REFUSAL IS LOUDER THAN A SHORT KEY LIST.** The shape reader requires exactly one matching
+literal inside the builder, and it requires a close on one line. A moved, duplicated or multi-line
+literal throws a named error. The gate does not guess a shape.
+
+### The seven live controls
+
+Each control edits the real declaration, runs the gate, and restores the file. Every restore is
+byte-identical.
+
+| control | edit | the gate says |
+|---|---|---|
+| K | `version` declared `card` | `✗ 1 element key(s) declare 'card' and no anchored element read reaches them in integrator-app.js + overdex-app.js: entry.version` |
+| L | `status` declared `export-only` | `✗ 1 element key(s) declare 'export-only' and an anchored element read reaches them: entry.status` |
+| M | drop the `overdex-app.js` realm | `✗ … entry.status` plus the depth-2 red on `ok` |
+| N | rename the shape's variable | throws the named element-literal error |
+| O | remove the `elements` block | PASS with `2 element read(s) UNJUDGED` |
+| P | declare a key the literal omits | `✗ 1 element key(s) declare no surface: entry.kind (declared, absent from the literal)` |
+| Q | point `servesKeys` at `widgets` | `✗ 1 element shape(s) serve an array key this subtree does not carry: entry serves widgets` |
+| R | run with no `node_modules` | PASS under the tokenizer route, with the same four keys and the same raw line 90 |
+
+### What this still cannot see
+
+Depth 4, and the element literal of `clockSkew.findings`. That literal is the one unjudged element
+read site the verdict names. A multi-line element literal refuses, and no declaration needs one
+today. Eleven nested subtrees still carry no declaration, so depth 2 reaches three of fourteen.
+Depth 3 reaches one of three declared subtrees. The realm list still comes from the files that name
+`kernelAudit`, so a fourth realm would stay invisible.
+
+One route-dependent report survives, and it is cosmetic. The depth-2 alias site prints a BLANKED
+line number, so `ka@77` on this machine prints `ka@57` on a runner. The element layer pairs its
+sites and prints the raw line. The alias layer does not pair, and nothing decides on that number.
