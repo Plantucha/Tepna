@@ -327,6 +327,52 @@
      }
     }
    }
+  },
+  "window": {
+   "inline": true,
+   "aliasPath": "fusion.window",
+   "readerFiles": [
+    { "file": "integrator-render.js" },
+    { "file": "integrator-app.js", "aliasPath": "FUSION.window" },
+    { "file": "overdex-app.js" }
+   ],
+   "enumeratedWith": "BOTH inline `window: {` literals in integrator-dsp.js, read in blanked code by `inlineShape`: the full export of `runFusion` at line 7943, and the slim `var _exp = {` projection at line 8039 (lines on 2026-11-13). This is the FIRST nested subtree that exists on both export routes, and the two key lists differ. The union is 12 keys; the full route carries 10 of them. Magpie read the projection literal independently at board #6095 and counted the same 12, then corrected its own count at #6097 after reading the second anchor.",
+   "readAs": "integrator-render.js binds `var w = fusion.window` at :415 and reads `w.<key>` inside that function. overdex-app.js binds `w = fusion.window` at :717 and reads `w.<key>` in its own scope. integrator-app.js takes no alias and reads the whole path, `FUSION.window.startMs` at :364 and :405. overdex-app.js reads the same path at :898 while ALSO holding the alias, which is why its declared holder stays `fusion`.",
+   "seededFrom": "Hand-checked key by key against the three realms on 2026-11-13, from the read sites and not from a token match. startMs and endMs at app:364, app:365, app:405, app:406, overdex:898 and overdex:899. overlapMin at render:416. intersectionMin at render:426 and render:427. intersectionSegments at render:427. nodesExcluded at render:430, render:431 and overdex:826. overlapUnionMin at overdex:774. The five remaining keys match nothing in any realm. A `w.startMs` read at render:669 and render:765 is NOT this object: that `w` is a NODE's own window in another function, which is why an alias is credited in its own scope only.",
+   "nullWhen": "Never null and never absent. Both routes write the object unconditionally, and every key inside it is a number, an array or a string. `startMs`, `endMs` and `spanMin` are `null` when no recording carried a stamp, which is the absence rule and not a missing key.",
+   "partialShape": {
+    "start": "Present on the slim export route only. `start: fusion.window.startMs != null ? fmtDateTime(fusion.window.startMs) : null` is COMPUTED in the projection, so the full export of `runFusion` carries `startMs` and no formatted twin.",
+    "end": "Present on the slim export route only, computed the same way from `endMs`. A consumer of the full export formats the stamp itself, and both routes carry the number it needs."
+   },
+   "surfaces": {
+    "startMs": "card",
+    "endMs": "card",
+    "start": "export-only",
+    "end": "export-only",
+    "spanMin": "export-only",
+    "overlapMin": "card",
+    "overlapUnionMin": "card",
+    "intersectionMin": "card",
+    "intersectionSegments": "card",
+    "pairwiseSumMin": "export-only",
+    "samePairsExcluded": "export-only",
+    "nodesExcluded": "card"
+   },
+   "notes": {
+    "startMs": "card — integrator-app.js:364 and :405 anchor the export filename to the fusion window start through `exportName()`, and overdex-app.js:898 does the same. A missing start yields `undated` rather than a fabricated date.",
+    "endMs": "card — read beside `startMs` at the same four sites, so the export name states the span.",
+    "start": "export-only — the projection computes it with `fmtDateTime`, so it has no counterpart on the internal fusion object and no realm read can credit it. It is export-only by construction and not by the absence of a read.",
+    "end": "export-only — the same, computed from `endMs`.",
+    "spanMin": "export-only — the hero prints OVERLAP minutes, not the wall span, and no realm reads this key. It is carried so a node-export consumer can state the recording length without re-deriving it.",
+    "overlapMin": "card — integrator-render.js:416 binds it as `ov` and the hero headline prints it as the minutes of overlap.",
+    "overlapUnionMin": "card — overdex-app.js:774 prints it as the `overlap, ≥2 nodes` stat. The Integrator hero reads `overlapMin`, which now holds the same merged-union figure, so the two realms read different keys for one number by design.",
+    "intersectionMin": "card — integrator-render.js:426 gates on it and :427 prints the all-node minutes.",
+    "intersectionSegments": "card — integrator-render.js:427 prints the number of stretches beside those minutes. The publish-site comment states why: 301 minutes either side of a gap is not 301 continuous minutes.",
+    "pairwiseSumMin": "export-only — the pre-merge sum, kept beside the union so an offline reader can see how much double counting the merge removed. No realm draws it.",
+    "samePairsExcluded": "export-only — the count of same-node pairs the overlap arithmetic dropped. It qualifies the number for an auditor and reaches no surface.",
+    "nodesExcluded": "card — integrator-render.js:430 and overdex-app.js:826 both name the excluded nodes, so a node with no temporal overlap is reported and not silently dropped."
+   },
+   "depthNote": "The two routes are the reason this subtree needed a reader change. `inlineShape` took a second anchor as ambiguity and returned null, so a real export difference sat behind a tool limit. Every anchor is now a shape, the union is the surface, and `partialKind: 'export-route'` names the mechanism — the same meaning `partial` already carried over several element build routes. `start` and `end` are the only partial keys, and both are projection-computed."
   }
  },
  "widenedRealm": "2026-11-12: depth 1 was judged against ONE file, so `export-only` — \"carried on the node-export and deliberately not rendered\" — was never asked of the app. `integrator-render.js` names neither `clockSkew` nor `kernelAudit`; `integrator-app.js` binds both (`var ka = FUSION && FUSION.kernelAudit` at :77, `var cs = FUSION && FUSION.clockSkew` at :88) and pushes a reader-facing banner line from each into `warnAll`. Both cells now read `card` against the app realm. The other 22 export-only keys stay: three of them match a bare token in the app and none reads the fusion, which is why a second realm is asked for an anchored read.",
