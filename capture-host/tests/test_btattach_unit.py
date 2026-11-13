@@ -22,6 +22,9 @@ HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SH = os.path.join(HERE, "systemd", "tepna-btattach.sh")
 UNIT = os.path.join(HERE, "systemd", "tepna-btattach@.service")
 MAP_EXAMPLE = os.path.join(HERE, "systemd", "tepna-btattach.map.example")
+HOTPLUG = os.path.join(HERE, "systemd", "99-tepna-btattach-hotplug.rules")
+DROPIN = os.path.join(HERE, "systemd", "tepna-btattach-bind-to-tty.conf")
+MANIFEST = os.path.join(HERE, "deploy", "check-system-files.sh")
 
 # A USB serial no dongle carries: 16 hex digits is the shape, but this value is not in any inventory.
 ABSENT = "0000000000000000"
@@ -287,3 +290,81 @@ def test_the_unit_restarts_on_failure_only():
 def test_the_privileged_work_is_its_own_short_unit():
     """Capture stays unprivileged; root is confined to the line discipline and the HCI write."""
     assert re.search(r"^User=root$", _unit(), re.M)
+
+
+# ── the hotplug route ─────────────────────────────────────────────────────────────────────────
+# 2026-11-01: a replugged Zephyr board kept its old tty. The kernel renumbered the ttyACM, the attach
+# instance stayed active on the device that had gone, and the radio never rejoined the failover ladder;
+# the owner restarted the unit by hand twice. The udev rule names each board's tty, and the drop-in
+# binds the instance to that name, so a replug stops the old instance and starts a fresh one. Residue
+# 2026-11-01-a-replugged-zephyr-board-keeps-its-old-tty.
+
+
+def _hotplug():
+    return open(HOTPLUG, encoding="utf-8").read()
+
+
+def _dropin():
+    return open(DROPIN, encoding="utf-8").read()
+
+
+def _rule_lines():
+    return [ln for ln in _hotplug().splitlines() if ln.strip() and not ln.startswith("#")]
+
+
+def test_the_rule_file_carries_exactly_one_rule():
+    """A second rule line would act on every matching event too, and nothing else would say so."""
+    assert len(_rule_lines()) == 1, _rule_lines()
+
+
+def test_the_rule_names_the_tty_and_starts_that_serial_instance():
+    rule = _rule_lines()[0]
+    assert 'SYMLINK+="tepnabt/$env{ID_SERIAL_SHORT}"' in rule, "the stable name is what the drop-in binds to"
+    assert 'ENV{SYSTEMD_WANTS}+="tepna-btattach@$env{ID_SERIAL_SHORT}.service"' in rule
+    assert 'TAG+="systemd"' in rule, "without the tag systemd never sees the device or the want"
+
+
+def test_the_rule_resolves_by_usb_serial_and_never_by_tty_index():
+    """The indices renumber on every replug, which is the whole defect. `%i` is the serial."""
+    rule = _rule_lines()[0]
+    assert "ID_SERIAL_SHORT" in rule
+    assert "ttyACM0" not in rule and "ttyACM1" not in rule
+
+
+def test_the_rule_passes_over_a_board_without_the_hci_firmware():
+    """The same vendor id covers the sniffer image, which is no HCI controller."""
+    assert 'ENV{ID_MODEL}=="*HCI*"' in _rule_lines()[0]
+
+
+def test_the_rule_passes_over_a_board_that_reports_no_serial():
+    """An absent serial would instance the unit under an empty name."""
+    assert 'ENV{ID_SERIAL_SHORT}=="?*"' in _rule_lines()[0]
+
+
+def test_the_rule_declines_the_removal_and_no_other_action():
+    """A bind or a change on a tty already present must reach the same path."""
+    rule = _rule_lines()[0]
+    assert rule.startswith('ACTION!="remove"')
+    assert 'ACTION=="add"' not in rule
+
+
+def test_the_drop_in_binds_the_instance_to_its_named_device():
+    d = _dropin()
+    assert re.search(r"^BindsTo=dev-tepnabt-%i\.device$", d, re.M), "the stop half ends the old instance"
+    assert re.search(r"^After=dev-tepnabt-%i\.device$", d, re.M), "the start waits for the device"
+    assert re.search(r"^\[Unit\]$", d, re.M), "a drop-in with no section header is ignored in silence"
+
+
+def test_the_template_keeps_its_coldplug_route():
+    """The 2026-11-01 reboot gave one start over either route, so the target want stays as the fallback."""
+    assert re.search(r"^WantedBy=multi-user\.target$", _unit(), re.M)
+
+
+def test_both_hotplug_files_are_managed_with_their_install_paths():
+    manifest = open(MANIFEST, encoding="utf-8").read()
+    rows = (
+        "systemd/99-tepna-btattach-hotplug.rules|$ETC_UDEV/99-tepna-btattach-hotplug.rules|MANAGED|0644",
+        "systemd/tepna-btattach-bind-to-tty.conf|$ETC_SYSTEMD/tepna-btattach@.service.d/bind-to-tty.conf|MANAGED|0644",
+    )
+    for row in rows:
+        assert row in manifest, f"not a MANAGED row — a drifted or absent copy would be invisible: {row}"

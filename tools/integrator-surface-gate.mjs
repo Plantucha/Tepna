@@ -516,6 +516,79 @@ export function mapShapes(dspText, fnName, arrayVar) {
   return null;
 }
 
+/* 🔴 A TOP-LEVEL EXPORT ARRAY HAS NEITHER OF THE TWO SHAPE SOURCES THIS GATE HELD. `inlineShape`
+   wants a `<key>: {` object literal and `nestedShapes` wants a builder function. The export writes
+   `findings: fusion.findings.map(function (f) { return { … } })` inside the slim-export literal,
+   which is neither of those, so the 11 keys a consumer receives had no shape source at all.
+
+   This reader takes ONE entry of that literal and reads the return shape of the single `.map(`
+   inside it. It REFUSES rather than guessing: when the literal is absent or doubled, when the
+   entry is absent or doubled, when the entry holds no `.map(` or more than one, or when nothing
+   closes. A refusal reaches the caller as a named throw, exactly as a declared-but-unreadable
+   element route does. */
+export function exportMapShape(dspText, key, literalVar = '_exp') {
+  const lines = dspText.split('\n');
+  const open = new RegExp('^\\s*(?:var|let|const)\\s+' + escapeRe(literalVar) + '\\s*=\\s*\\{\\s*$');
+  const lits = [];
+  for (let i = 0; i < lines.length; i++) if (open.test(lines[i])) lits.push(i);
+  if (lits.length !== 1) return null;
+  let d = 0;
+  let end = -1;
+  for (let i = lits[0]; i < lines.length; i++) {
+    d += (lines[i].match(/\{/g) || []).length - (lines[i].match(/\}/g) || []).length;
+    if (i > lits[0] && d <= 0) {
+      end = i;
+      break;
+    }
+  }
+  if (end < 0) return null;
+  const ent = new RegExp('^\\s*' + escapeRe(key) + '\\s*:');
+  const at = [];
+  for (let i = lits[0] + 1; i <= end; i++) if (ent.test(lines[i])) at.push(i);
+  if (at.length !== 1) return null;
+  /* The entry ends where every bracket it opened has closed again. */
+  let bd = 0;
+  let last = -1;
+  for (let j = at[0]; j <= end; j++) {
+    bd += (lines[j].match(/[{[(]/g) || []).length - (lines[j].match(/[}\])]/g) || []).length;
+    if (bd <= 0) {
+      last = j;
+      break;
+    }
+  }
+  if (last < 0) return null;
+  let mapCalls = 0;
+  let mapAt = -1;
+  for (let j = at[0]; j <= last; j++) {
+    const n = (lines[j].match(/\.\s*map\s*\(/g) || []).length;
+    if (!n) continue;
+    mapCalls += n;
+    if (mapAt < 0) mapAt = j;
+  }
+  if (mapCalls !== 1) return null;
+  for (let j = mapAt; j <= last; j++) {
+    const m = /\breturn\s*\{/.exec(lines[j]);
+    if (!m) continue;
+    const o = m.index + m[0].length - 1;
+    if (!/return\s*\{\s*$/.test(lines[j])) {
+      const one = oneLineObject(lines[j], o);
+      return one ? mergeShapes([{ at: j + 1, keys: one, via: 'export-map' }]) : null;
+    }
+    let od = 0;
+    const keys = [];
+    for (let k = j; k <= last; k++) {
+      if (k > j && od === 1) {
+        const km = lines[k].match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*:/);
+        if (km) keys.push(km[1]);
+      }
+      od += (lines[k].match(/[{[]/g) || []).length - (lines[k].match(/[}\]]/g) || []).length;
+      if (k > j && od <= 0) return mergeShapes([{ at: j + 1, keys, via: 'export-map' }]);
+    }
+    return null;
+  }
+  return null;
+}
+
 /* 🔴 AN ELEMENT READ DOES NOT HAVE TO BE A CALLBACK, AND THE CENSUS MISSED TWO OF THREE.
    `callbackSites` matches eight iterator names, so an INDEXED FOR LOOP is invisible to it.
    `skewSilenceLines` binds `vetoes = cs.vetoes || []` and `census = cs.seamCensus || []`, then
@@ -735,8 +808,23 @@ export function aliasSites(renderText, path) {
   const cl = code.split('\n');
   /* A GUARD IN FRONT OF THE PATH IS STILL A BINDING: `var cs = FUSION && FUSION.clockSkew`.
      The guard makes the alias possibly falsy, which a reader handles, and it does not change WHICH
-     object the alias names. */
-  const bind = new RegExp('\\b([A-Za-z_$][A-Za-z0-9_$]*)\\s*=\\s*(?:[A-Za-z_$][A-Za-z0-9_$.]*\\s*&&\\s*)*' + escapeRe(path) + '(?![A-Za-z0-9_$])');
+     object the alias names.
+
+     🔴 BUT A MEMBER ACCESS AFTER THE PATH DOES CHANGE IT, AND A LOOKAHEAD CANNOT CATCH IT. The
+     old form barred an identifier character after the path and allowed a `.`, so with the path
+     `FUSION` the same line bound `cs` as an alias of FUSION itself. `cs` names `FUSION.clockSkew`,
+     one level down, and the gate then credited a read of `cs.findings` — the clockSkew subtree's
+     own findings array, whose element carries 8 different keys — against the TOP-LEVEL `findings`
+     array. Measured 2026-11-13 while declaring that array: 1 of its 8 element read sites was this
+     false credit.
+
+     Barring the `.` is not enough either, and this is the part worth reading twice. The guard group
+     is OPTIONAL, so with zero guards the path matches the GUARD's own occurrence of `FUSION` and
+     the character after it is a space, which any lookahead of that kind allows. So the binding must
+     END at the path: after it the line may carry a `||` fallback and then it must close. A ternary
+     or a further member access is NOT a binding of this path, and the gate now declines to read
+     one rather than crediting the wrong object. */
+  const bind = new RegExp('\\b([A-Za-z_$][A-Za-z0-9_$]*)\\s*=\\s*(?:[A-Za-z_$][A-Za-z0-9_$.]*\\s*&&\\s*)*' + escapeRe(path) + '\\s*(?:\\|\\|[^;,)\\]}]*)?(?=[;,)\\]}]|$)');
   const sites = [];
   const unresolved = [];
   cl.forEach((l, i) => {
@@ -851,44 +939,94 @@ export function readsDirectPath(text, path, key) {
 /* 🔴 A MEMBER CHAIN SPLIT ACROSS LINES DEFEATS A PER-LINE REGEX. `overdex-app.js` writes
    `fusion.kernelAudit.mismatches` on one line and `.map(function (m) {` on the next, so a
    line-by-line scan found 2 of the 3 element-read sites in this repo and reported the third as
-   absent. Every test here runs over the WHOLE blanked text, where `\s` spans a newline.
+   absent. Every test here runs over the WHOLE blanked text, where `\s` spans a newline. */
 
-   A site is `<prefix>.<arrayKey>.<iterator>(<param> …)`: the callback's parameter NAMES one
-   element, and what the callback reads off it is a depth-3 read. The prefix must be the realm's
-   own alias or its whole path, or any `.mismatches.map` anywhere would count. */
+/* The iterators whose callback binds ONE element of the array, and the calls that may sit between
+   the array and such an iterator. `filter`, `sort`, `slice` and `reverse` hand on the SAME
+   elements, so the walk below crosses them; `map`, `flatMap` and `reduce` change what a callback
+   receives and `some`/`every`/`find` do not return an array, so the walk stops at those. */
+const ELEM_ITERATORS = ['map', 'forEach', 'filter', 'flatMap', 'some', 'every', 'find', 'reduce'];
+const CHAIN_SAFE = ['slice', 'filter', 'sort', 'reverse'];
+
+/* 🔴 A TOP-LEVEL EXPORT ARRAY IS NOT READ THE WAY A SUBTREE'S ARRAY IS, AND THE ADJACENT ANCHOR SAW
+   ONE SITE IN FIVE. A subtree's array is read as `fusion.kernelAudit.mismatches.map(`, with the
+   iterator adjacent to the member, so the first anchor required adjacency. A top-level export key
+   is read DEFENSIVELY instead: three of the five `fusion.findings` sites wrap the member as
+   `(fusion.findings || [])` and one chains `.slice(0, 12)` before `.forEach`. Measured 2026-11-13,
+   the adjacent anchor credited 2 of the 11 findings keys and 6 card keys had no reader.
+
+   So the anchor became a WALK. It takes the member, then an optional `|| []` or `?? []` default
+   guard, then any number of element-preserving calls, and it stops at the first thing it does not
+   recognise rather than guessing past it. Measured on all seven already-declared element arrays:
+   the walk finds exactly the sites the anchor found, so the generalisation is additive. */
 function callbackSites(code, prefixes, arrayKey) {
   const alt = prefixes.filter(Boolean).map(escapeRe).join('|');
   if (!alt) return [];
-  const re = new RegExp('(' + alt + ')\\s*\\.\\s*' + escapeRe(arrayKey) + '\\s*\\.\\s*(map|forEach|filter|flatMap|some|every|find|reduce)\\s*\\(', 'g');
+  const re = new RegExp('(' + alt + ')\\s*\\.\\s*' + escapeRe(arrayKey) + '(?![A-Za-z0-9_$])', 'g');
   const out = [];
   let m;
   while ((m = re.exec(code))) {
-    const callOpen = m.index + m[0].length - 1;
-    const head = code.slice(callOpen + 1, callOpen + 80);
-    const pm = head.match(/^\s*(?:function\s*[A-Za-z0-9_$]*\s*)?\(?\s*([A-Za-z_$][A-Za-z0-9_$]*)/);
-    if (!pm) continue;
-    let d = 0;
-    let close = -1;
-    for (let j = callOpen; j < code.length; j++) {
-      if (code[j] === '(') d++;
-      else if (code[j] === ')') {
-        d--;
-        if (d === 0) {
-          close = j;
-          break;
+    let p = m.index + m[0].length;
+    const skip = () => {
+      while (p < code.length && /\s/.test(code[p])) p++;
+    };
+    skip();
+    /* The default guard. `(fusion.findings || [])` reads the same array as `fusion.findings`, so
+       the walk crosses it and records that it did. A guard over anything but an empty array
+       literal is NOT this form and stops the walk. */
+    let guarded = false;
+    const g = /^(?:\|\||\?\?)\s*\[\s*\]\s*\)/.exec(code.slice(p));
+    if (g) {
+      p += g[0].length;
+      guarded = true;
+    }
+    const chain = [];
+    for (;;) {
+      skip();
+      const c = /^\.\s*([A-Za-z_$][A-Za-z0-9_$]*)\s*\(/.exec(code.slice(p));
+      if (!c) break;
+      const name = c[1];
+      const callOpen = p + c[0].length - 1;
+      let d = 0;
+      let close = -1;
+      for (let j = callOpen; j < code.length; j++) {
+        if (code[j] === '(') d++;
+        else if (code[j] === ')') {
+          d--;
+          if (d === 0) {
+            close = j;
+            break;
+          }
         }
       }
+      /* An unbalanced call is not a site this reader can scope, so it is skipped WITH a count. */
+      if (close < 0) break;
+      if (ELEM_ITERATORS.includes(name)) {
+        const head = code.slice(callOpen + 1, callOpen + 80);
+        const pm = head.match(/^\s*(?:function\s*[A-Za-z0-9_$]*\s*)?\(?\s*([A-Za-z_$][A-Za-z0-9_$]*)/);
+        if (pm)
+          out.push({
+            prefix: m[1],
+            iterator: name,
+            param: pm[1],
+            from: callOpen,
+            to: close,
+            line: code.slice(0, callOpen).split('\n').length,
+            guarded,
+            chain: chain.slice()
+          });
+        /* 🔴 AN ITERATOR CAN ALSO BE A LINK. `findings.filter(...).forEach(...)` holds TWO element
+           read sites, and stopping at the first would lose the second. Only the iterators that
+           hand on the same elements may be crossed. */
+        if (!CHAIN_SAFE.includes(name)) break;
+        chain.push(name);
+        p = close + 1;
+        continue;
+      }
+      if (!CHAIN_SAFE.includes(name)) break;
+      chain.push(name);
+      p = close + 1;
     }
-    /* An unbalanced call is not a site this reader can scope, so it is skipped WITH a count. */
-    if (close < 0) continue;
-    out.push({
-      prefix: m[1],
-      iterator: m[2],
-      param: pm[1],
-      from: callOpen,
-      to: close,
-      line: code.slice(0, callOpen).split('\n').length
-    });
   }
   return out;
 }
@@ -1288,8 +1426,23 @@ function main() {
     if (!d) throw new Error(`nested subtree \`${sub}\` declares nothing`);
     const byFn = !!d.builtBy;
     const byLiteral = d.inline === true;
-    if (byFn === byLiteral) throw new Error(`nested subtree \`${sub}\` must declare exactly one of builtBy or inline:true — the gate must not guess where its shape lives`);
-    const shapes = byFn ? nestedShapes(dsp, d.builtBy) : inlineShape(dsp, sub);
+    const byArray = d.arrayOf === true;
+    /* 🔴 A THIRD SHAPE SOURCE, AND THE SAME REFUSAL TO GUESS. `arrayOf` says the subtree IS an
+       ARRAY that the export projects, so it carries no keys of its own. Its one depth-2 key is the
+       array name on the holder, and its depth-3 keys are the keys of ONE element. Exactly one
+       source may be declared, because a subtree that declares two is a subtree the gate would have
+       to choose for. */
+    const picked = [byFn && 'builtBy', byLiteral && 'inline:true', byArray && 'arrayOf:true'].filter(Boolean);
+    if (picked.length !== 1)
+      throw new Error(
+        `nested subtree \`${sub}\` must declare exactly one of builtBy, inline:true or arrayOf:true — it declares ${picked.length ? picked.join(' and ') : 'none'}, and the gate must not guess where its shape lives`
+      );
+    const arrShape = byArray ? exportMapShape(dsp, d.exportMapped || sub) : null;
+    if (byArray && !arrShape)
+      throw new Error(
+        `the export entry \`${d.exportMapped || sub}:\` with a single .map return literal was not found in integrator-dsp.js, appears more than once, or does not close — its shape changed, and this gate must not guess`
+      );
+    const shapes = byFn ? nestedShapes(dsp, d.builtBy) : byArray ? { shapes: [{ at: arrShape.at, keys: [sub] }], union: [sub], partial: [], partialKind: 'export-array' } : inlineShape(dsp, sub);
     if (!shapes)
       throw new Error(
         byFn
@@ -1308,6 +1461,10 @@ function main() {
     /* An element shape is read from the SAME source the parent shape came from. A declared shape
        this reader cannot read refuses here, beside the parent's refusal, rather than reporting an
        element surface it never saw. `inline` subtrees have no builder, so no element shape either. */
+    /* An `arrayOf` subtree with no element declaration judges nothing at all, which is the one
+       state that makes the whole declaration pointless. It names itself here, before the element
+       loop that an empty declaration would never enter. */
+    if (byArray && !Object.keys(d.elements || {}).length) throw new Error(`nested subtree \`${sub}\` declares arrayOf:true and no element shape, so it would judge no key at all`);
     const elementShapes = {};
     for (const vn of Object.keys(d.elements || {})) {
       const ed = (d.elements || {})[vn] || {};
@@ -1320,13 +1477,18 @@ function main() {
          the two and `partial` names the keys one route omits. A declared route the reader cannot
          find NAMES ITSELF here rather than leaving a half shape that still looks whole — the
          `servesKeys` lesson from 2026-11-12, applied one level down. */
+      /* 🔴 AND A ROUTE THAT IS NOT IN A BUILDER AT ALL. A top-level export array builds its
+         element in the EXPORT literal, so the element's route names the export entry rather than a
+         function. Each route carries where it reads from, because a refusal that cannot say where
+         it looked costs the next session the search. */
       const sources = [];
-      if (ed.builtBy && ed.mappedFrom) sources.push(['map', mapShapes(dsp, ed.builtBy, ed.mappedFrom)]);
-      if (ed.builtBy && ed.pushInto) sources.push(['push', pushShapes(dsp, ed.builtBy, ed.pushInto)]);
-      const unread = sources.filter(([, x]) => !x).map(([kind]) => kind);
+      if (ed.builtBy && ed.mappedFrom) sources.push(['map', mapShapes(dsp, ed.builtBy, ed.mappedFrom), `${ed.builtBy}()`]);
+      if (ed.builtBy && ed.pushInto) sources.push(['push', pushShapes(dsp, ed.builtBy, ed.pushInto), `${ed.builtBy}()`]);
+      if (ed.exportMapped) sources.push(['export-map', exportMapShape(dsp, ed.exportMapped), `the \`${ed.exportMapped}:\` entry of the export literal`]);
+      const unread = sources.filter(([, x]) => !x);
       if (unread.length)
         throw new Error(
-          `the element shape \`${vn}\` declares a ${unread.join(' and ')} build route inside ${ed.builtBy}() that this gate cannot read — the route moved, it is declared twice, or its literal does not close`
+          `the element shape \`${vn}\` declares the ${unread.map(([k]) => k).join(' and ')} build route this gate cannot read in ${[...new Set(unread.map(([, , o]) => o))].join(' and ')} — the route moved, it is declared twice, or its literal does not close`
         );
       const es = sources.length ? mergeShapes(sources.flatMap(([, x]) => x.sites)) : byFn ? elementShape(dsp, d.builtBy, vn) : null;
       if (!es)
@@ -2154,6 +2316,71 @@ if (DIRECT && process.argv.includes('--selftest')) {
     false
   );
 
+  /* 🔴 THE WALK FROM THE ARRAY TO ITS ITERATOR — the state that credited 2 of 11 keys until today.
+     Each leg is one shape the old adjacent anchor could not see, or one the walk must refuse. */
+  const W = (src, key = 'findings') => elementCallbacks(src, ['fusion'], key);
+  ck('a `|| []` default guard still binds the element', W('(fusion.findings || []).forEach(function (f) { use(f.tMs); });').length, 1);
+  ck('…and the site records that it crossed a guard', W('(fusion.findings || []).forEach(function (f) { use(f.tMs); });')[0].guarded, true);
+  ck('a `?? []` guard binds it the same way', W('(fusion.findings ?? []).forEach(function (f) { use(f.tMs); });').length, 1);
+  ck('a chained `.slice()` is crossed', W('fusion.findings.slice(0, 12).forEach(function (f) { use(f.note); });').length, 1);
+  ck('…and the chain is named on the site', W('fusion.findings.slice(0, 12).forEach(function (f) { use(f.note); });')[0].chain, ['slice']);
+  ck(
+    'a key IS read through that chain',
+    readsElementKey('fusion.findings.slice(0, 12).forEach(function (f) { use(f.note); });', W('fusion.findings.slice(0, 12).forEach(function (f) { use(f.note); });'), 'note') !== null,
+    true
+  );
+  /* 🔴 AN ITERATOR CAN ALSO BE A LINK, so a filter in front of a forEach gives TWO sites. */
+  ck('`.filter().forEach()` holds two element read sites', W('fusion.findings.filter(function (a) { return a.type; }).forEach(function (b) { use(b.note); });').length, 2);
+  /* 🔴 AND `map` IS NOT A LINK, because it changes what the next callback receives. */
+  ck('a chained `.map()` is the site and the walk stops there', W('fusion.findings.map(function (a) { return a.tMs; }).forEach(function (n) { use(n); });').length, 1);
+  ck('an unknown chain link stops the walk', W('fusion.findings.pluck("tMs").forEach(function (f) { use(f); });').length, 0);
+  ck('a guard over a NON-empty literal is not the guard form', W('(fusion.findings || [1]).forEach(function (f) { use(f.tMs); });').length, 0);
+  ck('a member read with no iterator at all is not a site', W('var n = fusion.findings.length;').length, 0);
+  ck('a longer key name is not this key', W('fusion.findingsExtra.forEach(function (f) { use(f.tMs); });').length, 0);
+
+  /* 🔴 THE THIRD SHAPE SOURCE. A top-level export array's element shape lives in the export
+     literal, and every refusal below is a state in which the gate must not guess. */
+  const XL = (entry) => ['  var _exp = {', '    before: 1,', entry, '    after: 2', '  };'].join('\n');
+  const XOK = XL(['    findings: fusion.findings.map(function (f) {', '      return {', '        tMs: f.tMs,', '        note: f.note', '      };', '    }),'].join('\n'));
+  ck('the export-map reader takes the return literal of the single map', (exportMapShape(XOK, 'findings') || {}).keys, ['note', 'tMs']);
+  ck('…and says the route it read', (exportMapShape(XOK, 'findings') || {}).sites[0].via, 'export-map');
+  ck('an entry that is not there refuses', exportMapShape(XOK, 'absent'), null);
+  ck('an entry with no map refuses', exportMapShape(XL('    findings: fusion.findings,'), 'findings'), null);
+  ck(
+    'an entry with TWO maps refuses rather than choosing',
+    exportMapShape(
+      XL(['    findings: fusion.a.map(function (x) {', '      return { p: x.p };', '    }).concat(fusion.b.map(function (y) {', '      return { q: y.q };', '    })),'].join('\n')),
+      'findings'
+    ),
+    null
+  );
+  ck('a DOUBLED entry refuses', exportMapShape(XL(['    findings: fusion.findings.map(function (f) {', '      return { tMs: f.tMs };', '    }),', '    findings: 2,'].join('\n')), 'findings'), null);
+  ck('a second export literal refuses', exportMapShape(XOK + '\n' + XOK, 'findings'), null);
+  ck('no export literal at all refuses', exportMapShape('var other = { findings: 1 };', 'findings'), null);
+  ck('a one-line return literal is read', (exportMapShape(XL('    findings: fusion.findings.map(function (f) { return { tMs: f.tMs }; }),'), 'findings') || {}).keys, ['tMs']);
+
+  /* 🔴 AN ALIAS MUST BIND THE PATH AND THEN STOP. `var cs = FUSION && FUSION.clockSkew` names the
+     subtree and NOT `FUSION`, and the gate credited a `cs.findings` read against the top-level
+     `findings` array until this leg was written. */
+  const AB = 'function f() {\n  var cs = FUSION && FUSION.clockSkew;\n  use(cs.seams);\n}';
+  ck('a binding one level down is NOT an alias of the parent', aliasSites(AB, 'FUSION').sites.length, 0);
+  ck(
+    '…and IS an alias of the path it actually binds',
+    aliasSites(AB, 'FUSION.clockSkew').sites.map((s) => s.alias),
+    ['cs']
+  );
+  ck(
+    'a plain binding is still an alias',
+    aliasSites('function f() {\n  var x = fusion;\n  use(x.a);\n}', 'fusion').sites.map((s) => s.alias),
+    ['x']
+  );
+  ck(
+    'a `|| {}` fallback binding is still an alias',
+    aliasSites('function f() {\n  var x = fusion.apnea || {};\n  use(x.a);\n}', 'fusion.apnea').sites.map((s) => s.alias),
+    ['x']
+  );
+  ck('a TERNARY binding is not read as an alias', aliasSites('function f() {\n  var r = fusion && fusion.findings ? fusion.findings : [];\n  use(r);\n}', 'fusion').sites.length, 0);
+  ck('an indexed binding is not an alias of the array', aliasSites('function f() {\n  var e = fusion.findings[0];\n  use(e.tMs);\n}', 'fusion.findings').sites.length, 0);
   console.log(bad ? `  ✗ ${bad} of ${ran} selftests failed` : `  all ${ran} selftests passed`);
   process.exit(bad ? 1 : 0);
 }
