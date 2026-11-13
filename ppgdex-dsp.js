@@ -6182,7 +6182,19 @@
        time, not a long interval — rather than reusing `ppgCoverage`, which answers the neighbouring
        question about the SAMPLE stream: a hole in the samples and a hole in the accepted beat series
        are not the same set, and the denominator has to match the series the events came from. */
-    const PPG_CVHR_GAP_S = 10; // ECGDex `GAP_S` — one cut, so the two nodes' indices stay comparable
+    /* ── THE SHARED CUT BUYS A DEFINITION, NEVER AN AGREEMENT ────────────────────────────────────
+       This mirrors ECGDex's `GAP_S`, so both nodes count an apnea-band event against the same dead-time
+       rule. That is definitional alignment, and it is the whole of what the shared value buys. It does
+       NOT make the two indices interchangeable night to night. The GAP_S sweep moved both constants
+       together over 3-60 s: neither index moves with the cut, and at EVERY value the ECGDex and PpgDex
+       indices rank-correlate across 23 paired nights at Spearman 0.03-0.05, with a median absolute gap
+       of 1.0-1.1 events/h against medians of 6.2 and 5.9 (`audits/GAP-S-SWEEP-2026-09-22.json`,
+       `report.perValue.<v>.cross`). So the cut is not what decides agreement, and a reader who takes one
+       index for the other has no support from this constant.
+       POPULATION: those 23 nights pair the H10 against the Verity, which `deriveSiteFromLayout` reads as
+       `site: 'wrist'`. The Integrator's `fuseCvhrCorroboration` reads `site: 'finger'`, the ring's own
+       pleth, so the sweep measures none of the nights that fusion sees. Neither direction transfers. */
+    const PPG_CVHR_GAP_S = 10;
     let _cvhrActiveSec = 0;
     for (let k = 1; k < corr.tt.length; k++) {
       const _d = corr.tt[k] - corr.tt[k - 1];
