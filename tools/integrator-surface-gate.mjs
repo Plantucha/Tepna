@@ -788,11 +788,21 @@ function closeOf(lines, i) {
   return -1;
 }
 
+/* 🔴 A LITERAL CLOSED ON ITS OWN LINE IS STILL A LITERAL. `handshakes` writes both of its inner
+   objects as `glucodex_ready: { glucose_autonomic_correlation: … }`, and the open-ended anchor
+   below matches neither, so every reader answered `null` and both inner keys went unjudged. The
+   one-line form is deliberately NARROW: a body carrying another literal keeps the old refusal,
+   because a nested brace needs the multi-line depth walk that `closeOf` does. */
 /** Every `key: { … }` literal's [start, end] line range, in PREPARED lines. Null when one is open. */
 function literalRanges(lines, key) {
   const anchor = new RegExp('^\\s*' + escapeRe(key) + ':\\s*\\{\\s*$');
+  const oneLine = new RegExp('^\\s*' + escapeRe(key) + ':\\s*\\{[^{}]*\\}\\s*,?\\s*$');
   const out = [];
   for (let i = 0; i < lines.length; i++) {
+    if (oneLine.test(lines[i])) {
+      out.push([i, i]);
+      continue;
+    }
     if (!anchor.test(lines[i])) continue;
     const end = closeOf(lines, i);
     if (end < 0) return null;
@@ -801,8 +811,39 @@ function literalRanges(lines, key) {
   return out.length ? out : null;
 }
 
+/** The depth-1 keys of a literal written on ONE line, each with its value text. */
+function oneLineKeys(line) {
+  const open = line.indexOf('{');
+  const close = line.lastIndexOf('}');
+  const keys = [];
+  const values = {};
+  if (open < 0 || close <= open) return { keys, values };
+  const parts = [];
+  let depth = 0;
+  let cur = '';
+  for (const ch of line.slice(open + 1, close)) {
+    if ('(['.includes(ch)) depth++;
+    else if (')]'.includes(ch)) depth--;
+    if (ch === ',' && depth === 0) {
+      parts.push(cur);
+      cur = '';
+      continue;
+    }
+    cur += ch;
+  }
+  parts.push(cur);
+  for (const part of parts) {
+    const m = part.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*:([\s\S]*)$/);
+    if (!m) continue;
+    keys.push(m[1]);
+    values[m[1]] = m[2];
+  }
+  return { keys, values };
+}
+
 /** The depth-1 keys of one literal range, each with its value text. */
 function literalKeys(lines, start, end) {
+  if (start === end) return oneLineKeys(lines[start]);
   const keys = [];
   const values = {};
   let dd = 0;
@@ -2460,6 +2501,38 @@ if (DIRECT && process.argv.includes('--selftest')) {
     })(),
     true
   );
+  /* 🔴 THE ONE-LINE LITERAL. `handshakes` writes each inner object on a single line, and the
+     open-ended anchor read neither, so both keys went unjudged with nothing reporting it. The
+     reader now takes that form too, and these legs pin where it stops. */
+  const SONE = [
+    'function pub(fusion) {',
+    '  var _exp = {',
+    '    handshakes: {',
+    '      glucodex_ready: { glucose_autonomic_correlation: fusion.autoGly ? fusion.autoGly.r : null },',
+    '      ecgdex_ready: { glucoseCorrelation: fusion.autoGly ? fusion.autoGly.r : null }',
+    '    }',
+    '  };',
+    '  return _exp;',
+    '}'
+  ].join('\n');
+  ck('🔴 an inner literal written on ONE line yields its key', innerShape(SONE, 'handshakes', 'glucodex_ready').keys, ['glucose_autonomic_correlation']);
+  ck('…and the second one is read as its own shape', innerShape(SONE, 'handshakes', 'ecgdex_ready').keys, ['glucoseCorrelation']);
+  ck('…and each names the line it sits on', [innerShape(SONE, 'handshakes', 'glucodex_ready').at, innerShape(SONE, 'handshakes', 'ecgdex_ready').at], [4, 5]);
+  ck('…and the tokenizer route reads the same key', innerShape(SONE, 'handshakes', 'glucodex_ready', STOK).keys, ['glucose_autonomic_correlation']);
+  ck('…and the parent still reads two keys at depth 2', inlineShape(SONE, 'handshakes').union, ['ecgdex_ready', 'glucodex_ready']);
+  const SONEM = SONE.replace('{ glucoseCorrelation: fusion.autoGly ? fusion.autoGly.r : null }', '{ a: f(1, 2), b: [3, 4] }');
+  ck('🔴 a comma inside a call or an array does not split a key', innerShape(SONEM, 'handshakes', 'ecgdex_ready').keys, ['a', 'b']);
+  const SONEU = SONE.replace('{ glucoseCorrelation: fusion.autoGly ? fusion.autoGly.r : null }', '{ glucoseCorrelation: cfg ? 1 : undefined }');
+  ck('…and a one-line key that can evaluate to `undefined` says so', innerShape(SONEU, 'handshakes', 'ecgdex_ready').partial, ['glucoseCorrelation']);
+  /* 🔴 WHERE IT STOPS. A one-line body holding another literal keeps the old refusal, because a
+     nested brace needs the multi-line depth walk. The gate says null rather than read half. */
+  const SONEN = SONE.replace('{ glucoseCorrelation: fusion.autoGly ? fusion.autoGly.r : null }', '{ inner: { deep: 1 } }');
+  ck('🔴 a one-line body holding another literal is refused, not half-read', innerShape(SONEN, 'handshakes', 'ecgdex_ready'), null);
+  ck('…and the parent shape is unmoved by that refusal', inlineShape(SONEN, 'handshakes').union, ['ecgdex_ready', 'glucodex_ready']);
+  const SONEO = SONE.replace('    handshakes: {', '    handshakes: { glucodex_ready: 1, ecgdex_ready: 2 },')
+    .replace('      glucodex_ready: { glucose_autonomic_correlation: fusion.autoGly ? fusion.autoGly.r : null },\n', '')
+    .replace('      ecgdex_ready: { glucoseCorrelation: fusion.autoGly ? fusion.autoGly.r : null }\n    }\n', '');
+  ck('🔴 a one-line PARENT is read by the same path', inlineShape(SONEO, 'handshakes').union, ['ecgdex_ready', 'glucodex_ready']);
   const SRD = 'function draw(fusion) {\n  return 1;\n}';
   const SDECL = (over) => ({
     inline: true,

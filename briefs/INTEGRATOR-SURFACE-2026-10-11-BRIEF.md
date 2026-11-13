@@ -84,6 +84,8 @@ All three are planted in `--selftest` and asserted red. None is a claim about to
       subtree whose two routes differ in form declares a surface per key over their union (§18).
 - [x] 2026-11-13: a subtree whose own keys are ARRAYS declares an element shape per pool, read off
       the export literal by name, and the two pools never share one union (§19).
+- [x] 2026-11-13: a one-line object literal declares a surface per key, so the gate judges a subtree
+      of such literals at both layers (§20).
 
 ## 6 · 2026-11-11 — the seed counted prose, and two declarations were wrong
 
@@ -1114,3 +1116,75 @@ are arrays, and the gate takes that on trust until the repair above lands.
 One export subtree remains undeclared: `handshakes`, 2 keys at line 8125. `kernel` and its 2 keys
 need a reader for a one-line object literal. The pass-through subtrees of the form `fusion.X || null`
 still need the resolver that board #5905 parks.
+
+## 20 · 2026-11-13 — a one-line literal is still a literal, and the ninth subtree needed that one change
+
+`integrator-dsp.js:8124` writes the ninth subtree. It carries two keys, and each one holds an object
+literal that opens and closes on its own single line:
+
+```js
+// §6 closed handshakes written back so nodes can ingest
+handshakes: {
+  glucodex_ready: { glucose_autonomic_correlation: fusion.autoGly ? … : null },
+  ecgdex_ready: { glucoseCorrelation: fusion.autoGly ? … : null }
+}
+```
+
+`uploads/integrator_fusion_night_twins.node-export.json:1662` carries both keys, and both values read
+`null` there. One value reaches two consumers under two node-specific names.
+
+### The probe came before the reader
+
+I ran every existing shape reader against the real source first. `innerShape` returned `null` for both
+inner objects. `literalRanges` wanted an anchor line of the form `key: {` and a later closing line, so a
+literal that closed on its own line matched nothing.
+
+Three edits followed. `literalRanges` now accepts a one-line form, `oneLineKeys` splits that line on
+its depth-zero commas, and `literalKeys` routes a single-line range to it. The one-line branch is
+narrow on purpose: a body carrying a second literal keeps the old refusal.
+
+### The reader alone moved no number
+
+I measured the reader before I wrote the declaration. The gate read `checked: 102`, `innerLiterals: 1`
+and `innerKeys: 7` — the same three numbers main reports. The selftests went from 344 to 354.
+
+| number | before | after the declaration |
+|---|---|---|
+| `checked` | 102 | 106 |
+| subtrees | 8 | 9 |
+| `nestedKeys` | 59 | 61 |
+| `nestedExportOnly` | 34 | 36 |
+| `innerLiterals` | 1 | 3 |
+| `innerKeys` | 7 | 9 |
+
+### Nine controls against the live declaration
+
+| control | exit | what the gate said |
+|---|---|---|
+| a stale depth-2 surface | 0 | `1 declared key(s) the literal no longer carries (retiredKey)` |
+| a depth-2 key left undeclared | 1 | `1 nested key(s) of \`fusion.handshakes\` declare no surface: ecgdex_ready` |
+| a depth-2 key labelled `card` | 1 | `no usable binding of \`fusion.handshakes\` survives in integrator-render.js` |
+| a stale inner surface | 0 | `1 declared inner key(s) the literal no longer carries (ecgdex_ready.gone)` |
+| an inner key left undeclared | 1 | `1 inner key(s) declare no surface: ecgdex_ready.glucoseCorrelation` |
+| an inner key labelled `card` | 1 | `this gate credits no reader one level inside a subtree` |
+| an inner block the parent lacks | 1 | `the inner literal \`handshakes.absentKey\` was not found … this gate must not guess` |
+| the whole `inner` block dropped | 0 | nothing — `PASS` at `checked: 104` |
+| the one-line branch reverted | 1 | `the inner literal \`handshakes.glucodex_ready\` was not found … this gate must not guess` |
+
+The last row is the control that sizes the unit. Revert the one-line branch and the live declaration
+throws, so the reader carries the subtree and no earlier reader could.
+
+### The opt-in hole, for the third time
+
+Row eight is the hole. Drop the `inner` block and the gate passes at `checked: 104`, and it names the
+absent layer nowhere. The inner layer stays opt-in by design (`tools/integrator-surface-gate.mjs:779`),
+so no count names a one-line inner literal that nobody declares.
+
+This is the third instance of one class. Board #6135 named the other two: the population omits the 40
+judged element keys, and an array key that no element shape serves passes in silence. Each one needs a
+declared-set census, and each one is its own unit. I did not widen this unit to repair them.
+
+### What remains
+
+`kernel` and its 2 keys stay undeclared, and the one-line reader above covers their form. The
+pass-through subtrees of the form `fusion.X || null` still need the resolver that board #5905 parks.
