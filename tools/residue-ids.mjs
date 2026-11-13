@@ -714,6 +714,36 @@ export function namedByCode(keys, commits, addedBy) {
 export const FATE_VERBS = /\b(stays? OPEN|stay open|keeps its OPEN state|closes nothing|closes no row|fixes nothing|answers part of|leaves (?:it|the row) open|declares no `?Residue-fixed)\b/i;
 
 /**
+ * Pure. ONE SENTENCE of a paragraph, and the one `carries` accepts. The paragraph stating something
+ * about a row opens with its own argument often enough to matter: measured 2026-11-12 against the
+ * live leads, a quote of the FIRST sentence read "Board #419 claimed the capture-host half" on 6 of
+ * the 19 rows, which says nothing about the fate. A heading, a bullet and a bold run keep their text
+ * and lose the marker.
+ *
+ * Moved out of `leadFate` 2026-11-13 so the reservation read below quotes a body the same way. The
+ * body of the function did not change, and `leadFate` passes the fate verbs it always passed.
+ *
+ * @param {string} para  one paragraph, already collapsed to a single line
+ * @param {(sentence: string) => boolean} carries  which sentence the caller wants
+ * @returns {string} that sentence, or the first one, capped at 180 characters
+ */
+export function quoteCarrying(para, carries) {
+  const bare = String(para ?? '')
+    .replace(/^#+\s*/, '')
+    .replace(/^[-*]\s+/, '');
+  const sents = (bare.match(/[^.!?]*[.!?]+|[^.!?]+$/g) ?? [bare])
+    .map((s) =>
+      s
+        .replace(/^[\s*>-]+/, '')
+        .replace(/\*\*/g, '')
+        .trim()
+    )
+    .filter(Boolean);
+  const one = sents.find((s) => carries(s)) ?? sents[0] ?? bare;
+  return one.length > 180 ? `${one.slice(0, 179)}…` : one;
+}
+
+/**
  * Pure. What a commit body SAYS about a row's fate, which is the cheapest answer to the lead
  * warning this tool prints: the warning tells a picker to read those PRs, and measured 2026-11-12
  * over the 18 leads at `origin/main`, every one of them had already stated the row's fate in the
@@ -748,19 +778,7 @@ export function leadFate(message, key) {
      own argument often enough to matter: measured 2026-11-12 against the live leads, a quote of the
      FIRST sentence read "Board #419 claimed the capture-host half" on 6 of the 19 rows, which says
      nothing about the fate. A heading, a bullet and a bold run keep their text and lose the marker. */
-  const quote = (p) => {
-    const bare = p.replace(/^#+\s*/, '').replace(/^[-*]\s+/, '');
-    const sents = (bare.match(/[^.!?]*[.!?]+|[^.!?]+$/g) ?? [bare])
-      .map((s) =>
-        s
-          .replace(/^[\s*>-]+/, '')
-          .replace(/\*\*/g, '')
-          .trim()
-      )
-      .filter(Boolean);
-    const one = sents.find((s) => FATE_VERBS.test(s)) ?? sents[0] ?? bare;
-    return one.length > 180 ? `${one.slice(0, 179)}…` : one;
-  };
+  const quote = (p) => quoteCarrying(p, (one) => FATE_VERBS.test(one));
   /* A HEADING states a fate in three words ("What stays open") and carries no argument for it, so a
      PROSE paragraph answers first and a heading answers only when no prose paragraph carries one. */
   const ordered = [...fate.filter((p) => !p.startsWith('#')), ...fate.filter((p) => p.startsWith('#'))];
@@ -789,6 +807,86 @@ export function fateOfLeads(keys, commits, addedBy) {
       const f = leadFate(c.message, k);
       if (!f) continue;
       out.set(k, { pr: prOf(c.subject, c.sha), kind: f.kind, text: f.text });
+      break;
+    }
+  }
+  return out;
+}
+
+/**
+ * Pure. Whether the commit that NAMED a row reserves the row's remainder for the owner, which is the
+ * one lead a coder must read BEFORE the sizing and not after it. `ownerReserved` above asks the same
+ * question of the row's OWN cells, and it is right to: a phrase in a cell is the ledger's statement.
+ * This read asks the naming COMMIT, because a lead often learns the answer after the row was logged.
+ *
+ * WHAT IT COST TO ADD. Measured 2026-11-13 on row
+ * `2026-11-08-the-live-site-carries-an-analytics-beacon-the-glossary-denies`: the row reads OPEN, its
+ * own cells reserve nothing, and `--open` offered it as pickable work. The sizing took six turns and
+ * reached the naming commit, which reserves the remainder in a section title and a sentence under it.
+ * The row's own fate quote printed « The row stays OPEN », and three words cannot say who may
+ * discharge a row. So the whole search ran against a remedy no coder holds.
+ *
+ * THE QUOTE FOLLOWS A SECTION TITLE DOWN. `leadFate` orders a title LAST because a title of three
+ * words carries no argument. Here the whole message is in hand, so a title that carries the phrase is
+ * quoted WITH the first sentence under it, and that sentence is the argument a sizer needs.
+ *
+ * ⚠️ A CONVENTION IN PROSE, NEVER A STATE, on the same terms as `ownerReserved`: the mark publishes
+ * itself as a LEAD, the row keeps its work, and the count is published beside the open list and never
+ * subtracted from it. `kind` reads exactly as `leadFate`'s does.
+ *
+ * @param {string} message  the naming commit's message, body included
+ * @param {string} key      the row key the lead is about
+ * @returns {{ kind: string, phrases: string[], text: string } | null} `null` when no paragraph reserves
+ */
+export function leadReserved(message, key) {
+  const src = String(message ?? '');
+  const paras = src
+    .split(/\n\s*\n/)
+    .map((p) => p.replace(/\s+/g, ' ').trim())
+    .filter(Boolean);
+  const hits = paras.map((p, i) => ({ p, i, names: OWNER_RESERVED_PHRASES.filter((q) => q.re.test(p)).map((q) => q.name) })).filter((e) => e.names.length);
+  if (!hits.length) return null;
+  const ordered = [...hits.filter((e) => !e.p.startsWith('#')), ...hits.filter((e) => e.p.startsWith('#'))];
+  const named = ordered.find((e) => namesKey(e.p, key));
+  const pick = named ?? ordered[0];
+  const carries = (one) => pick.names.some((n) => OWNER_RESERVED_PHRASES.find((q) => q.name === n)?.re.test(one));
+  /* A TITLE IS NOT A SENTENCE, so it is never split into one. Measured 2026-11-13 on the lead at
+     `116468d4c`: the sentence split cut "What stays the owner's (CLAUDE.md §7)" at the dot inside
+     `CLAUDE.md` and quoted four words of it. A title is one line, and it is quoted whole. */
+  const head = pick.p.startsWith('#')
+    ? pick.p
+        .replace(/^#+\s*/, '')
+        .replace(/\*\*/g, '')
+        .trim()
+    : quoteCarrying(pick.p, carries);
+  /* A TITLE ALONE IS NOT AN ARGUMENT. The next paragraph that is not itself a title holds it. */
+  const under = pick.p.startsWith('#') ? paras.slice(pick.i + 1).find((p) => !p.startsWith('#')) : null;
+  const joined = under ? `${head} — ${quoteCarrying(under, () => false)}` : head;
+  const text = joined.length > 240 ? `${joined.slice(0, 239)}…` : joined;
+  const phrases = [...new Set(hits.flatMap((e) => e.names))].sort();
+  if (named) return { kind: 'stated', phrases, text };
+  const keys = namedKeys(src, '');
+  return { kind: keys.size === 1 && keys.has(key) ? 'sole-key' : 'unattributable', phrases, text };
+}
+
+/**
+ * Pure. The reservation per lead row, read from the SAME commits `namedByCode` and `fateOfLeads`
+ * read, so the three reads can never name different commits. The NEWEST naming commit that reserves
+ * wins, because a later statement supersedes an earlier one.
+ *
+ * @param {string[]} keys
+ * @param {ReturnType<typeof parseLog>} commits
+ * @param {Map<string, string>} addedBy
+ * @returns {Map<string, { pr: string, kind: string, phrases: string[], text: string }>}
+ */
+export function reservedOfLeads(keys, commits, addedBy) {
+  const out = new Map();
+  for (const k of keys) {
+    for (const c of commits) {
+      if (c.sha === addedBy.get(k) || !c.files.some(isCodePath) || !namesKey(c.message, k)) continue;
+      const r = leadReserved(c.message, k);
+      if (!r) continue;
+      out.set(k, { pr: prOf(c.subject, c.sha), kind: r.kind, phrases: r.phrases, text: r.text });
       break;
     }
   }
@@ -859,7 +957,11 @@ export const OWNER_RESERVED_PHRASES = [
   { name: 'the-owner-holds', re: /\bthe owner holds\b/i, sample: 'the owner holds the term list' },
   { name: 'reserves-for-the-owner', re: /\breserv(?:es|ed)\b[^.|]{0,40}\bfor the owner\b/i, sample: 'this reserves the install for the owner' },
   { name: 'needs-the-owner', re: /\bneeds? the owner'?s\b/i, sample: "it needs the owner's word before anything runs" },
-  { name: 'only-the-owner', re: /\bonly the owner\b/i, sample: 'only the owner can add a required context' }
+  { name: 'only-the-owner', re: /\bonly the owner\b/i, sample: 'only the owner can add a required context' },
+  /* The witness is the live wording of the lead at `116468d4c`, which reserved a row's remainder in
+     a section title no other phrase here matched. Measured 2026-11-13: the 8 phrases above score 0
+     over that whole commit body, so a reservation read without this entry examines nothing on it. */
+  { name: 'stays-the-owners', re: /\bstays? the owner'?s\b/i, sample: "What stays the owner's (CLAUDE.md §7)" }
 ];
 
 /**
@@ -957,6 +1059,11 @@ export function pickupVerdict(drift, ctx) {
          them. A convention cannot gate anything, which is why it is published and never subtracted
          from `openOnRef`. */
       openOwnerReserved: Number.isInteger(ctx.ownerReserved) ? ctx.ownerReserved : null,
+      /* Informational on the same terms, read from PROSE in the same way, and from the naming
+         COMMIT rather than the row. It names the rows whose lead reserves the remainder for the
+         owner, and it is `null` when the code read did not run. The two reserved counts OVERLAP by
+         construction, so they never sum to anything. */
+      openLeadReserved: Number.isInteger(ctx.leadReserved) ? ctx.leadReserved : null,
       /* Part of the status, unlike every informational count above it. */
       unparsed: unreadable,
       behindCommits: ctx.behind,
@@ -1258,6 +1365,8 @@ function main() {
     let leads = null;
     /* The fate quote rides the SAME read, so a lead and its quote can never name different commits. */
     let fates = null;
+    /* The reservation rides the SAME read for the same reason. */
+    let leadRes = null;
     if (!sample) {
       try {
         const dates = drift.openOnRef.map((k) => k.slice(0, 10)).sort();
@@ -1269,10 +1378,12 @@ function main() {
           const addedBy = rowAddedBy(execFileSync('git', ['log', base, '--format=%x1e%H', '-p', '--unified=0', since, '--', LEDGER_PATH], big));
           leads = namedByCode(drift.openOnRef, commits, addedBy);
           fates = fateOfLeads(drift.openOnRef, commits, addedBy);
+          leadRes = reservedOfLeads(drift.openOnRef, commits, addedBy);
         }
       } catch {
         leads = null;
         fates = null;
+        leadRes = null;
       }
     }
     /* THE POINTER READ. Off under `--verdict-sample`, which is the shape probe, and null on a git
@@ -1323,7 +1434,8 @@ function main() {
       correctedBy: corrected,
       correctionUnattributable: unattributable,
       withdrawalLanded: landed.size,
-      ownerReserved: reserved.size
+      ownerReserved: reserved.size,
+      leadReserved: leadRes === null ? null : leadRes.size
     });
     if (sample) {
       process.stdout.write(`${JSON.stringify(v)}\n`);
@@ -1337,6 +1449,7 @@ function main() {
             ...drift,
             namedByCode: leads === null ? null : Object.fromEntries(leads),
             leadFate: fates === null ? null : Object.fromEntries(fates),
+            leadReserved: leadRes === null ? null : Object.fromEntries(leadRes),
             citedBy: Object.fromEntries(cites),
             withdrawalLanded: Object.fromEntries(landed),
             ownerReserved: Object.fromEntries(reserved),
@@ -1358,6 +1471,7 @@ function main() {
       process.stdout.write(
         `  ${k}${leads?.has(k) ? `  ← named by code: ${leads.get(k).join(', ')}` : ''}` +
           `${fates?.has(k) ? `  ← the newest of those commits states this row's fate: ${fates.get(k).pr} « ${fates.get(k).text} »${fates.get(k).kind === 'stated' ? '' : ` [${fates.get(k).kind.toUpperCase()}]`}` : ''}` +
+          `${leadRes?.has(k) ? `  ← LEAD-RESERVED (prose): ${leadRes.get(k).phrases.join(', ')} — ${leadRes.get(k).pr} reserves this row's remainder for the OWNER: « ${leadRes.get(k).text} »${leadRes.get(k).kind === 'stated' ? '' : ` [${leadRes.get(k).kind.toUpperCase()}]`}` : ''}` +
           `${PINNED_BY_ROW.has(k) ? `  ← PINNED OPEN by ${PINNED_BY_ROW.get(k).by}: ${PINNED_BY_ROW.get(k).why}` : ''}` +
           `${landed.has(k) ? `  ← WITHDRAWAL LANDED: ${landed.get(k).join(', ')} reads \`withdrawn ${k}\`, so this row's correction is discharged and holds no work` : ''}` +
           `${reserved.has(k) ? `  ← OWNER-RESERVED (prose): ${reserved.get(k).join(', ')} — this row's own cells reserve the remedy for the owner, so no coder can discharge it` : ''}` +
@@ -1386,6 +1500,16 @@ function main() {
           'PROOF, because only the state cell closes a row. A ' +
           '`SOLE-KEY` mark says the statement never repeated the key, and the message named one row, so the text ' +
           'decides the attribution. An `UNATTRIBUTABLE` mark says the message named several rows, so it does not.\n'
+      );
+    if (leadRes !== null)
+      process.stdout.write(
+        `residue-pickup: ${leadRes.size} of the ${leads === null ? 0 : leads.size} lead row(s) carry a naming ` +
+          'commit that RESERVES the remainder for the OWNER, quoted beside the row above. Read that quote FIRST. ' +
+          'A row whose own cells reserve nothing can still be a row no coder can discharge, because the lead ' +
+          'often learns the answer after the row was logged. Measured 2026-11-13: one such row cost a session six ' +
+          'turns of sizing before it reached the same sentence. The phrase set is a FLOOR on those statements, ' +
+          'exactly like the fate verbs, so a row with no mark is a row this regex could not read. The mark is a ' +
+          'LEAD AND NEVER A CLOSE: the row keeps its work, and the count is published here and never subtracted.\n'
       );
     {
       const pinned = drift.openOnRef.filter((k) => PINNED_BY_ROW.has(k));
@@ -1853,6 +1977,57 @@ if (IS_CLI && process.argv.includes('--selftest')) {
     const fc2 = parseLog(fateLog2);
     assert(leadFate(fc2[0].message, K)?.text === `Row \`${K}\` stays OPEN, because the box owes a run.`, 'the quote is the sentence carrying the VERB, never the first sentence of the paragraph');
     assert(leadFate(fc2[1].message, K)?.text === "The switch is the owner's, so this PR closes nothing.", 'a PROSE paragraph answers before a heading that carries the same verb');
+    /* THE LEAD RESERVATION READ — one plant per kind, the title-and-argument quote, the silence, and
+       the two filters it shares with the lead read. The title plant carries the LIVE wording of the
+       lead at `116468d4c`, so the phrase declared for it has a witness here and not only a sample. */
+    const resLog =
+      rec(s40('m'), 'fix(x): a stated reservation (#41)', `## Why\n\nRow \`${K}\` needs the owner's word before anything runs. The box is idle.\n`, ['x-dsp.js']) +
+      rec(
+        s40('n'),
+        'fix(x): a title and its argument (#42)',
+        `Row \`${K}\` names the denial.\n\n## What stays the owner's (CLAUDE.md §7)\n\nThe host-side cure is a dashboard switch, and that is outward-facing. Turn it off and the tool goes PASS.\n`,
+        ['x-dsp.js']
+      ) +
+      rec(s40('o'), 'fix(x): two rows, one reservation (#43)', `Rows \`${K}\` and \`${K2}\` both.\n\nArming the probe is the owner's call.\n`, ['x-dsp.js']) +
+      rec(s40('p'), 'docs(residue): a ledger-only reservation (#44)', `Row \`${K}\`: only the owner can arm it.\n`, ['briefs/RESIDUE.md']) +
+      rec(s40('q'), 'fix(x): no reservation at all (#45)', `Row \`${K}\` moved a figure.\n`, ['x-dsp.js']);
+    const rc = parseLog(resLog);
+    assert(
+      leadReserved(rc[0].message, K)?.kind === 'stated' &&
+        leadReserved(rc[0].message, K)?.text === `Row \`${K}\` needs the owner's word before anything runs.` &&
+        leadReserved(rc[0].message, K)?.phrases.join() === 'needs-the-owner',
+      'a paragraph naming the key states the reservation, the quote stops at one sentence, and the phrase is named'
+    );
+    assert(
+      leadReserved(rc[1].message, K)?.kind === 'sole-key' &&
+        leadReserved(rc[1].message, K)?.text === "What stays the owner's (CLAUDE.md §7) — The host-side cure is a dashboard switch, and that is outward-facing.",
+      'a TITLE is quoted whole and carries the first sentence under it, because three words are not an argument'
+    );
+    assert(/CLAUDE\.md §7\) —/.test(leadReserved(rc[1].message, K).text), 'CONTROL · the dot inside `CLAUDE.md` does not cut the title, which the sentence split did before 2026-11-13');
+    assert(
+      leadReserved(rc[2].message, K)?.kind === 'unattributable' && leadReserved(rc[2].message, K)?.text === "Arming the probe is the owner's call.",
+      'a reservation in a message naming two rows is reported unattributable, never promoted'
+    );
+    assert(leadReserved(rc[4].message, K) === null && leadReserved('', K) === null && leadReserved(undefined, K) === null, 'no phrase is null, which reads as the commit reserving nothing');
+    assert(reservedOfLeads([K], rc, new Map()).get(K)?.pr === '#41', 'the NEWEST reserving commit wins');
+    assert(reservedOfLeads([K], rc, new Map([[K, s40('m')]])).get(K)?.pr === '#42', 'the commit that ADDED the row is skipped, exactly as the lead read skips it');
+    assert(
+      reservedOfLeads([K], [rc[3]], new Map()).size === 0 && reservedOfLeads([], rc, new Map()).size === 0,
+      'a ledger-only commit reserves nothing, because it changed no code, and no keys asked reports nothing'
+    );
+    /* ∅ ANTI-VACUITY OVER THE DECLARED LIST. A phrase that stops matching reds here rather than
+       quietly reading 0, exactly as the row read holds every sample. */
+    const resSamples = OWNER_RESERVED_PHRASES.filter((q) => leadReserved(`Row \`${K}\` x.\n\n${q.sample}\n`, K)?.phrases.includes(q.name));
+    assert(resSamples.length === OWNER_RESERVED_PHRASES.length, `every declared phrase reserves through its own sample (${resSamples.length} of ${OWNER_RESERVED_PHRASES.length})`);
+    const resBoth = parseLog(rec(s40('r'), 'fix(x): a title and a prose paragraph (#46)', `## What stays the owner's\n\nThe remedy is the owner's, and the box is idle.\n`, ['x-dsp.js']));
+    assert(
+      leadReserved(resBoth[0].message, K)?.text === "The remedy is the owner's, and the box is idle." &&
+        leadReserved(resBoth[0].message, K)?.phrases.join() === 'remedy-is-the-owners,stays-the-owners',
+      'a PROSE paragraph answers before a title carrying a phrase too, and the phrase list is the union over the body, sorted'
+    );
+    const dLead = pickupDrift([row(A)].join('\n'), [row(A)].join('\n'));
+    assert(pickupVerdict(dLead, { behind: 0, base: 'b', commit: 'abc1234', leadReserved: 2 }).result.openLeadReserved === 2, 'the verdict carries the lead-reservation count');
+    assert(pickupVerdict(dLead, { behind: 0, base: 'b', commit: 'abc1234' }).result.openLeadReserved === null, 'CONTROL · an absent read is null, never 0 — §∅');
     assert(isCodePath('tools/a.mjs') && !isCodePath('briefs/RESIDUE.md') && !isCodePath('changes/x.md'), 'isCodePath splits code from ledger and changeset edits');
     assert(prOf('fix: x (#3754)', s40('a')) === '#3754' && prOf('local commit', s40('a')) === 'aaaaaaaaa', 'prOf reads the squash suffix, else the short sha');
     const d0 = pickupDrift([row(A)].join('\n'), [row(A)].join('\n'));
@@ -2192,7 +2367,9 @@ if (IS_CLI && process.argv.includes('--selftest')) {
       g('commit', '-qm', `fix(a): a change that logs its remainder ${K}`);
       put('a.js', '2\n');
       g('add', 'a.js');
-      g('commit', '-qm', `fix(a): the fix for ${K}`);
+      /* THE LEAD BODY RESERVES THE REMAINDER, so the black box holds the reservation read too. It
+         carries no fate verb, which keeps the fate assertions above about the row they were about. */
+      g('commit', '-qm', `fix(a): the fix for ${K}`, '-m', "## What stays the owner's\n\nThe cure is a box write, and that is outward-facing.");
       const fix = g('rev-parse', '--short=9', 'HEAD').trim();
       /* The third row's STATE withdraws to the second, so the second is a DISCHARGED CORRECTOR and
          the listing must mark it. It leaves the open count at 2, so the lead assertions above hold. */
@@ -2204,7 +2381,7 @@ if (IS_CLI && process.argv.includes('--selftest')) {
       g('commit', '-qm', `docs(residue): a note about ${K}`);
       const run = spawnSync(process.execPath, [path.join(scratch, 'tools', 'residue-ids.mjs'), '--open', '--base', 'HEAD'], { cwd: scratch, encoding: 'utf8' });
       assert(run.status === 0, `BLACK BOX: --open exits 0 on an agreeing read (exit ${run.status}: ${run.stderr})`);
-      assert(run.stdout.includes(`  ${K}  ← named by code: ${fix}\n`), 'BLACK BOX: the listing names the fixing commit, and only it');
+      assert(run.stdout.includes(`  ${K}  ← named by code: ${fix}  ←`) && run.stdout.split('← named by code').length - 1 === 1, 'BLACK BOX: the listing names the fixing commit, and only it');
       assert(/1 of the 2 OPEN row\(s\) are named by a later commit/.test(run.stdout), 'BLACK BOX: the summary counts the one lead');
       assert(/"openNamedByCode":1/.test(run.stdout), 'BLACK BOX: the verdict carries the lead count');
       assert(
@@ -2221,6 +2398,15 @@ if (IS_CLI && process.argv.includes('--selftest')) {
       assert(run.stdout.split('← OWNER-RESERVED').length - 1 === 1, 'BLACK BOX · CONTROL: exactly one of the 2 OPEN rows is marked, so the other reserves nothing');
       assert(/1 of the 2 OPEN row\(s\) RESERVE the remedy for the OWNER/.test(run.stdout), 'BLACK BOX: the summary counts the one owner-reserved row');
       assert(/"openOwnerReserved":1/.test(run.stdout), 'BLACK BOX: the verdict carries that count too');
+      assert(
+        run.stdout.includes(
+          `  ${K}  ← named by code: ${fix}  ← LEAD-RESERVED (prose): stays-the-owners — ${fix} reserves this row's remainder for the OWNER: « What stays the owner's — The cure is a box write, and that is outward-facing. » [SOLE-KEY]`
+        ),
+        'BLACK BOX: the listing marks the lead-reserved row, names the phrase, quotes the title with the sentence under it, and tags the attribution'
+      );
+      assert(run.stdout.split('← LEAD-RESERVED').length - 1 === 1, 'BLACK BOX · CONTROL: the other OPEN row has no code lead, so exactly one row is marked');
+      assert(/1 of the 1 lead row\(s\) carry a naming commit that RESERVES/.test(run.stdout), 'BLACK BOX: the summary counts the one lead-reserved row');
+      assert(/"openLeadReserved":1/.test(run.stdout), 'BLACK BOX: the verdict carries that count too');
     } finally {
       rmSync(scratch, { recursive: true, force: true });
     }
