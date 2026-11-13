@@ -86,6 +86,8 @@ All three are planted in `--selftest` and asserted red. None is a claim about to
       the export literal by name, and the two pools never share one union (§19).
 - [x] 2026-11-13: a one-line object literal declares a surface per key, so the gate judges a subtree
       of such literals at both layers (§20).
+- [x] 2026-11-13: a guard that holds its consequent literal on ONE line declares a surface per key,
+      and a subtree with one guarded source declares a route list of one (§21).
 
 ## 6 · 2026-11-11 — the seed counted prose, and two declarations were wrong
 
@@ -1188,3 +1190,70 @@ declared-set census, and each one is its own unit. I did not widen this unit to 
 
 `kernel` and its 2 keys stay undeclared, and the one-line reader above covers their form. The
 pass-through subtrees of the form `fusion.X || null` still need the resolver that board #5905 parks.
+
+## 21 · 2026-11-13 — the tenth subtree hides its whole guard on one line
+
+`integrator-dsp.js:8010` writes the first key of the slim export:
+
+```js
+kernel: window.DexKernel ? { version: DexKernel.VERSION, hash: DexKernel.HASH } : null,
+```
+
+The guard, the consequent literal and the `: null` alternative share ONE line. A `^\s*kernel:` scan of
+that file returns this line alone, so the subtree sits on one export route.
+
+### Four readers, four nulls
+
+`guardedShape`, `inlineShape`, `exportMapShape` and `nestedShapes` each returned `null` for `kernel` on
+2026-11-13. §17 of this brief predicted a one-line literal reader, and PR #5023 built one for the INNER
+layer. That reader did not reach here, because `guardedShape` carries its own anchor: a head line that
+holds no brace, and a `? {` on the line below.
+
+The repair is one regex and one branch. The branch calls `literalKeys(lines, i, i)`, which is the
+one-line path #5023 added, so both readers now split a one-line body the same way. Both of this
+reader's refusals survive. An alternative that is a second literal still refuses, and a consequent
+holding a nested literal still refuses, because `[^{}]*` matches no inner brace.
+
+### The reader alone moved no number
+
+| number | before | after the declaration |
+|---|---|---|
+| `checked` | 106 | 108 |
+| subtrees | 9 | 10 |
+| `nestedKeys` | 61 | 63 |
+| `nestedExportOnly` | 36 | 38 |
+| `nestedRouted` | 1 | 2 |
+
+With the branch in and nothing declared the gate read `checked: 106` — main's number. Selftests went
+from 354 to 367.
+
+### The declaration wears a route list of one
+
+A subtree declares exactly one of `builtBy`, `inline: true`, `arrayOf: true` or `routes`, and the
+guarded form reaches the gate through `routes` alone. So a subtree with ONE guarded source declares a
+list of one route. That is honest, and `nestedRouted` counts it beside `apneaTyping`, which has two
+routes of different forms.
+
+### Nine controls against the live declaration
+
+| control | exit | what the gate said |
+|---|---|---|
+| a stale depth-2 surface | 0 | `PASS`, with `nestedStaleWhere: ['kernel.retiredKey']` |
+| a key left undeclared | 1 | `1 nested key(s) of fusion.kernel declare no surface: hash` |
+| a key labelled `card` | 1 | `no usable binding of fusion.kernel survives in integrator-render.js` |
+| a second route that reads nothing | 1 | `declares the route inline kernel, and that reader found no shape` |
+| `inline: true` in place of the route | 1 | `the inline kernel: { literal … was not found` |
+| no shape source at all | 1 | `must declare exactly one of builtBy, inline:true, arrayOf:true or routes` |
+| the one-line guarded branch reverted | 1 | `declares the route guarded kernel, and that reader found no shape` |
+| the source alternative becomes a literal | 1 | `declares the route guarded kernel, and that reader found no shape` |
+| the source gains a third key | 1 | `1 nested key(s) of fusion.kernel declare no surface: built` |
+
+Row seven sizes the unit, and row nine proves the declaration tracks the source rather than a memory of
+it. Row eight is the refusal this reader keeps on purpose: a guard whose alternative is a second
+literal carries two key lists under one key, and the gate must not merge them.
+
+### What remains
+
+`kernel` was the last export subtree written as a literal. The pass-through subtrees of the form
+`fusion.X || null` still need the resolver that board #5905 parks, and the depth-1 layer stays
+unanchored for all 36 top-level keys.
