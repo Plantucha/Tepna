@@ -7,5 +7,7 @@ cryptography>=50.0.0   # as11_cipher.py — AES-256-CBC for the ResMed AS11 encr
 
 # Muse EEG is captured by a SEPARATE tool driven as a child process (see README):
 #   - Muse 2 / Muse S (gen 1-2):  pipx install muselsl
-#   - Muse S Athena (2024/25):    pipx install OpenMuse     (muse-lsl/BlueMuse do NOT work on Athena)
+#   - Muse S Athena (2024/25):    pipx install git+https://github.com/DominiqueMakowski/OpenMuse
+#                                 (muse-lsl/BlueMuse do NOT work on Athena). The PyPI name OpenMuse is an
+#                                 unrelated AI-agent package with no bleak; never install it by name.
 # These pull pylsl / mne-lsl themselves; keep them out of this venv to avoid liblsl ABI clashes.
