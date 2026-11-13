@@ -724,11 +724,18 @@ export function indexedElements(text, prefixes, arrayKey, pre = prepare) {
 
 /* 🔴 A SUBTREE NEED NOT HAVE A BUILDER. `fusion.clockSkew` is an inline object literal AT the
    publish site, so `nestedShapes` has no function to read. This reads the literal itself, in
-   BLANKED code, and refuses on three states rather than guessing: no anchor line (the shape
-   moved), more than one anchor (ambiguous), or a literal that does not close.
+   BLANKED code, and refuses on two states rather than guessing: no anchor line (the shape moved)
+   or a literal that does not close.
+
+   🔴 MORE THAN ONE ANCHOR IS NOT AMBIGUITY — IT IS THE EXPORT'S TWO ROUTES. `window` sits in the
+   full export of `runFusion` AND in the slim `var _exp = {` projection, and the two key lists
+   DIFFER: the projection adds `start` and `end`, which `fmtDateTime` computes there. An earlier
+   reader took a second anchor as ambiguity and refused, which hid a real difference behind a tool
+   limit. So every anchor becomes a shape, the union is the surface, and `partial` names the keys
+   one route omits — exactly what `partial` already means over several element build routes.
 
    🔴 AND PRESENCE IS CONDITIONAL HERE FOR A SECOND REASON. One literal carries one key list, so
-   no key can be missing from "some return shape". A key whose VALUE can be `undefined` is the
+   no key of it alone can be missing. A key whose VALUE can be `undefined` is the
    same defect wearing different clothes: `vetoes: skew.vetoes && skew.vetoes.length ?
    skew.vetoes : undefined` leaves the export entirely when nothing was refused, while
    `seamCensus: skew.seamCensus || []` ships even empty. So `partial` here means "can evaluate to
@@ -741,40 +748,56 @@ export function inlineShape(dspText, key) {
   lines.forEach((l, i) => {
     if (anchor.test(l)) at.push(i);
   });
-  if (at.length !== 1) return null;
-  const start = at[0];
-  let d = 0;
-  let end = -1;
-  for (let j = start; j < lines.length; j++) {
-    d += (lines[j].match(/[{[]/g) || []).length - (lines[j].match(/[}\]]/g) || []).length;
-    if (j > start && d <= 0) {
-      end = j;
-      break;
+  if (!at.length) return null;
+  const shapes = [];
+  const undefinedValued = new Set();
+  for (const start of at) {
+    let d = 0;
+    let end = -1;
+    for (let j = start; j < lines.length; j++) {
+      d += (lines[j].match(/[{[]/g) || []).length - (lines[j].match(/[}\]]/g) || []).length;
+      if (j > start && d <= 0) {
+        end = j;
+        break;
+      }
     }
+    if (end < 0) return null;
+    const keys = [];
+    const values = {};
+    let dd = 0;
+    let cur = null;
+    for (let j = start; j <= end; j++) {
+      if (j > start && dd === 1) {
+        const m = lines[j].match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*:(.*)$/);
+        if (m) {
+          cur = m[1];
+          keys.push(cur);
+          values[cur] = m[2];
+        } else if (cur) values[cur] += '\n' + lines[j];
+      } else if (cur && j > start) values[cur] += '\n' + lines[j];
+      dd += (lines[j].match(/[{[]/g) || []).length - (lines[j].match(/[}\]]/g) || []).length;
+    }
+    if (!keys.length) return null;
+    shapes.push({ at: start + 1, keys });
+    for (const k of keys) if (/\bundefined\b/.test(values[k] || '')) undefinedValued.add(k);
   }
-  if (end < 0) return null;
-  const keys = [];
-  const values = {};
-  let dd = 0;
-  let cur = null;
-  for (let j = start; j <= end; j++) {
-    if (j > start && dd === 1) {
-      const m = lines[j].match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*:(.*)$/);
-      if (m) {
-        cur = m[1];
-        keys.push(cur);
-        values[cur] = m[2];
-      } else if (cur) values[cur] += '\n' + lines[j];
-    } else if (cur && j > start) values[cur] += '\n' + lines[j];
-    dd += (lines[j].match(/[{[]/g) || []).length - (lines[j].match(/[}\]]/g) || []).length;
-  }
-  if (!keys.length) return null;
-  const union = [...new Set(keys)].sort();
+  const union = [...new Set(shapes.flatMap((s) => s.keys))].sort();
+  const routeMissing = union.filter((k) => !shapes.every((s) => s.keys.includes(k)));
+  const canBeUndefined = union.filter((k) => undefinedValued.has(k));
+  /* 🔴 TWO MECHANISMS CANNOT WEAR ONE `partialKind`. A reader of the verdict is told WHY a key is
+     conditional, and "absent from one export route" and "can evaluate to `undefined`" call for
+     different remedies. No subtree carries both today, so this names itself rather than picking
+     one word for two states and reporting a reason that is wrong for half the keys. */
+  if (routeMissing.length && canBeUndefined.length)
+    throw new Error(
+      `inline subtree \`${key}\` has keys conditional for TWO different reasons — ${routeMissing.join(', ')} ${routeMissing.length === 1 ? 'is' : 'are'} absent from one export route and ${canBeUndefined.join(', ')} can evaluate to \`undefined\` — and one \`partialKind\` cannot state both`
+    );
   return {
-    shapes: [{ at: start + 1, keys }],
+    shapes,
     union,
-    partial: union.filter((k) => /\bundefined\b/.test(values[k] || '')),
-    partialKind: 'undefined-value'
+    partial: routeMissing.length ? routeMissing : canBeUndefined,
+    partialKind: routeMissing.length ? 'export-route' : 'undefined-value',
+    shapeKind: 'inline'
   };
 }
 
@@ -845,6 +868,22 @@ export function aliasSites(renderText, path) {
     sites.push({ line: i + 1, alias, from: scope[0], to: scope[1], shadows });
   });
   return { sites, unresolved, blankedBy: by };
+}
+
+/* 🔴 NAME THE REALM ONLY WHEN TWO OF THEM BIND. A one-realm subtree keeps the exact line it
+   printed before this change, so the four earlier subtrees' evidence is comparable across the
+   change; a second realm turns `w@415` into `w@integrator-render.js:415`, which is the only form
+   that tells two bindings of the same alias name apart. */
+/** `alias@line` per anchored site, file-qualified when more than one realm binds. */
+export function aliasLabel(sites) {
+  const multi = new Set(sites.map((s) => s.file)).size > 1;
+  return sites.map((s) => s.alias + '@' + (multi ? s.file + ':' : '') + s.line).join(', ') || 'none';
+}
+
+/** The same qualification for a one-hop forward, which carries its callee too. */
+export function forwardLabel(sites) {
+  const multi = new Set(sites.map((s) => s.file)).size > 1;
+  return sites.map((f) => f.via + '(' + f.alias + ')@' + (multi ? f.file + ':' : '') + f.line).join(', ');
 }
 
 /** Lines in a scope that REBIND the alias, or bind it as a parameter. `skip` exempts the binding. */
@@ -1086,8 +1125,9 @@ export function evaluateNested(subtree, shapes, decl, renderText, extra) {
     return { file: r.file, aliasPath: ap, text: r.text, blanked: bl, found: f, forwarded: fw, usable: dir.concat(fw.filter((x) => !x.shadows.length)) };
   });
   const first = readers[0];
+  /* `found` survives for `blankedBy` ALONE — the parse route is realm-independent. Every
+     per-site field below walks `readers`, because the first realm is not the evidence. */
   const found = first.found;
-  const forwarded = first.forwarded;
   const surfaces = (decl && decl.surfaces) || {};
   const declaredPartial = (decl && decl.partialShape) || {};
   const union = shapes.union;
@@ -1238,14 +1278,23 @@ export function evaluateNested(subtree, shapes, decl, renderText, extra) {
     shapes: shapes.shapes.map((s) => ({ at: s.at, keys: s.keys.length })),
     partial: shapes.partial,
     partialKind: shapes.partialKind || 'return-shape',
+    shapeKind: shapes.shapeKind || null,
     readerFile: first.file,
     readerFiles: readers.map((r) => r.file),
     readerHolders: readers.map((r) => r.aliasPath),
     cardByReader,
     cardUnrenderedWhere: readers.map((r) => r.file).join(' + '),
-    aliasSites: found.sites.map((s) => ({ line: s.line, alias: s.alias, shadows: s.shadows })),
-    forwarded: forwarded.map((f) => ({ line: f.line, alias: f.alias, via: f.via, hopFrom: f.hopFrom, shadows: f.shadows })),
-    aliasUnresolved: found.unresolved,
+    /* 🔴 EVERY REALM'S SITES, NOT THE FIRST REALM'S. These three read `first.found` until now, so a
+       subtree read in several realms put ONE realm's bindings in the verdict while the credit loop
+       above already walked each reader's own `usable`. `fusion.window` binds `w` at
+       integrator-render.js:415 and again at overdex-app.js:717, and the evidence line named one of
+       the two. Nothing reded, because no judgement reads these fields — that is the shape of defect
+       a reader hides best: the gate is right and the number a person checks is wrong. The four
+       earlier subtrees never showed it, because their second realm reads the whole path and binds
+       no alias (`K2` in the selftests is exactly that case). Each site now carries its file. */
+    aliasSites: readers.flatMap((r) => r.found.sites.map((s) => ({ file: r.file, line: s.line, alias: s.alias, shadows: s.shadows }))),
+    forwarded: readers.flatMap((r) => r.forwarded.map((f) => ({ file: r.file, line: f.line, alias: f.alias, via: f.via, hopFrom: f.hopFrom, shadows: f.shadows }))),
+    aliasUnresolved: readers.flatMap((r) => r.found.unresolved.map((line) => ({ file: r.file, line }))),
     noAlias,
     undeclared,
     badValue,
@@ -1295,7 +1344,7 @@ export function nestedReasons(n) {
       : '',
     n.exportOnlyRead.length ? `${n.exportOnlyRead.length} nested key(s) declare 'export-only' and an anchored read reaches them: ${n.exportOnlyRead.join(', ')}` : '',
     n.undeclaredPartial.length
-      ? `${n.undeclaredPartial.length} nested key(s) ${n.partialKind === 'undefined-value' ? 'can evaluate to `undefined` and leave the export' : 'exist on some return shapes only'}, with no partialShape reason declared: ${n.undeclaredPartial.join(', ')}`
+      ? `${n.undeclaredPartial.length} nested key(s) ${n.partialKind === 'undefined-value' ? 'can evaluate to `undefined` and leave the export' : n.partialKind === 'export-route' ? 'exist on one export route only' : 'exist on some return shapes only'}, with no partialShape reason declared: ${n.undeclaredPartial.join(', ')}`
       : '',
     n.stalePartial.length ? `${n.stalePartial.length} partialShape declaration(s) name a key whose presence is no longer conditional: ${n.stalePartial.join(', ')}` : '',
     (n.elemShapeMissing || []).length ? `${n.elemShapeMissing.length} element shape(s) are declared and this gate could not read the literal from source: ${n.elemShapeMissing.join(', ')}` : '',
@@ -1528,12 +1577,23 @@ function main() {
       nestedAliasSites: nested.reduce((t, n) => t + n.aliasSites.length, 0),
       nestedAliasShadowed: nested.reduce((t, n) => t + n.aliasSites.filter((a) => a.shadows.length).length, 0),
       nestedForwardedSites: nested.reduce((t, n) => t + n.forwarded.length, 0),
+      /* 🔴 REPORTED, NEVER RED — AND INVISIBLE UNTIL NOW. `staleDeclarations` states the same fact at
+         depth 1, where a declaration for a key the fusion dropped is deliberately not a red: the
+         removal is the author's, and the gate only has to say so. `evaluateNested` computed the
+         nested twin at the same time and no metric and no reason ever read it, so a depth-2
+         declaration could name a key its literal no longer carries and the gate printed nothing.
+         Measured 2026-11-13 as control W2 on `fusion.window`: GREEN, with no line about it. */
+      nestedStaleDeclarations: nested.reduce((t, n) => t + n.stale.length, 0),
+      nestedStaleWhere: nested.flatMap((n) => n.stale.map((k) => n.subtree + '.' + k)),
       nestedReaderFiles: [...new Set(nested.flatMap((n) => n.readerFiles || [n.readerFile]))],
       nestedCardByReader: nested.reduce((acc, n) => {
         for (const [f, c] of Object.entries(n.cardByReader || {})) acc[f] = (acc[f] || 0) + c;
         return acc;
       }, {}),
-      nestedInline: nested.filter((n) => n.partialKind === 'undefined-value').length,
+      /* The count of subtrees read from a LITERAL, which `shapeKind` states outright. It keyed on
+         `partialKind === 'undefined-value'` until a two-route literal earned its own kind, and a
+         proxy for a fact the reader already returns is a miscount waiting for the next kind. */
+      nestedInline: nested.filter((n) => n.shapeKind === 'inline').length,
       elementShapes: nested.reduce((t, n) => t + (n.elements || []).length, 0),
       elementKeys: nested.reduce((t, n) => t + (n.elements || []).reduce((u, e) => u + e.keys.length, 0), 0),
       elementCard: nested.reduce((t, n) => t + (n.elements || []).reduce((u, e) => u + Object.values(e.cardByReader || {}).reduce((v, c) => v + c, 0), 0), 0),
@@ -1604,12 +1664,13 @@ function main() {
   if (!JSON_ONLY)
     for (const n of nested)
       console.log(
-        `  ✓ ${n.path} at depth 2: ${n.keys.length} key(s) · ${n.keys.filter((k) => (decl.nested[n.subtree].surfaces || {})[k] === 'card').length} card · ${n.partial.length} ${n.partialKind === 'undefined-value' ? 'able to evaluate to `undefined`' : 'on some return shape(s) only'}` +
+        `  ✓ ${n.path} at depth 2: ${n.keys.length} key(s) · ${n.keys.filter((k) => (decl.nested[n.subtree].surfaces || {})[k] === 'card').length} card · ${n.partial.length} ${n.partialKind === 'undefined-value' ? 'able to evaluate to `undefined`' : n.partialKind === 'export-route' ? 'on one export route only' : 'on some return shape(s) only'}` +
           ` · ${(n.readerFiles || [n.readerFile]).length} realm(s): ${Object.entries(n.cardByReader || {})
             .map(([f, c]) => f + '=' + c + ' card')
             .join(' · ')}` +
-          ` · ${n.aliasSites.length} anchored alias site(s) (${n.aliasSites.map((a) => a.alias + '@' + a.line).join(', ') || 'none'})` +
-          (n.forwarded.length ? ` + ${n.forwarded.length} one-hop forward (${n.forwarded.map((f) => f.via + '(' + f.alias + ')@' + f.line).join(', ')})` : '') +
+          ` · ${n.aliasSites.length} anchored alias site(s) (${aliasLabel(n.aliasSites)})` +
+          (n.stale.length ? ` · ${n.stale.length} declared key(s) the literal no longer carries (${n.stale.join(', ')})` : '') +
+          (n.forwarded.length ? ` + ${n.forwarded.length} one-hop forward (${forwardLabel(n.forwarded)})` : '') +
           ((n.elements || []).length
             ? ` · depth 3: ${n.elements
                 .map(
@@ -1822,7 +1883,31 @@ if (DIRECT && process.argv.includes('--selftest')) {
   ck('…and the mechanism is named, because it is not a missing return shape', ISHAPES.partialKind, 'undefined-value');
   ck('a `|| null` key is NOT conditional — a null is a value a consumer reads (§∅)', ISHAPES.partial.includes('beat'), false);
   ck('a moved anchor returns null, never a short key list', inlineShape(ISRC, 'noSuchBlock'), null);
-  ck('🔴 TWO anchors return null — ambiguity is a refusal, not a choice', inlineShape(ISRC + '\n' + ISRC, 'skewBlock'), null);
+  /* 🔴 MORE THAN ONE ANCHOR IS NOT AMBIGUITY — IT IS THE EXPORT'S TWO ROUTES. This leg asserted a
+     refusal on `at.length !== 1` until 2026-11-13, and that refusal is what hid `fusion.window`:
+     integrator-dsp.js writes the subtree twice, in the full `runFusion` export and in the slim
+     `var _exp = {` projection, and the two key lists differ. The reader now judges the UNION and
+     names which route a key is missing from. */
+  const IR2 = ['x = {', '  win: {', '    a: 1,', '    b: 2', '  }', '};'].join('\n');
+  const IR2B = ['y = {', '  win: {', '    a: 1,', '    b: 2,', '    c: 3', '  }', '};'].join('\n');
+  const IRTWO = inlineShape(IR2 + '\n' + IR2B, 'win');
+  ck('🔴 TWO anchors are TWO shapes, and the union is the surface', [IRTWO.shapes.length, IRTWO.union], [2, ['a', 'b', 'c']]);
+  ck('…the key one route omits is partial', IRTWO.partial, ['c']);
+  ck('…and the mechanism is the export route, not an `undefined` value', IRTWO.partialKind, 'export-route');
+  ck('…while the shape source stays the literal', IRTWO.shapeKind, 'inline');
+  ck('two IDENTICAL literals conflict over nothing', inlineShape(IR2 + '\n' + IR2, 'win').partial, []);
+  /* 🔴 TWO MECHANISMS CANNOT WEAR ONE `partialKind`, so the reader refuses rather than pick. */
+  const IRU = ['z = {', '  win: {', '    a: 1,', '    b: f ? 2 : undefined', '  }', '};'].join('\n');
+  const twoWhy = (() => {
+    try {
+      inlineShape(IRU + '\n' + IR2B, 'win');
+      return null;
+    } catch (e) {
+      return e.message;
+    }
+  })();
+  ck('🔴 a route-missing key AND an undefined-valued key together refuse', twoWhy !== null, true);
+  ck('…and the refusal says one partialKind cannot state both', (twoWhy || '').includes('cannot state both'), true);
   ck('…and an unterminated literal returns null too', inlineShape('x = {\n  skewBlock: {\n    findings: 1,\n', 'skewBlock'), null);
   /* 🔴 THE REGRESSION THIS SUBTREE FOUND. The binding sits under a `forEach(function (m) {` that
      closed four lines earlier, and the first-header-above scan called the site UNSCOPED. */
@@ -1961,6 +2046,36 @@ if (DIRECT && process.argv.includes('--selftest')) {
   });
   ck('🔴 a realm that binds no alias still credits a direct read', K3.noAlias, false);
   ck('…and that card key is credited', K3.cardUnrendered, []);
+  /* 🔴 TWO REALMS THAT BOTH BIND AN ALIAS. `K2`'s second realm reads the whole path and binds
+     nothing, which is why the verdict reported `first.found` through four subtrees with nothing
+     reding. `fusion.window` binds `w` in two realms, and the evidence named one of the two. */
+  const KOVR = ['function over(fusion) {', '  var kb = fusion.kernelAudit || {};', '  if (kb.ok) {', '    show(kb.nodes);', '  }', '}'].join('\n');
+  const K4 = evaluateNested('kernelAudit', nestedShapes(K1, 'buildK'), { builtBy: 'buildK', surfaces: { expected: 'card', nodes: 'card', ok: 'card' } }, KAPP, {
+    readers: [
+      { file: 'app.js', text: KAPP, aliasPath: 'FUSION.kernelAudit' },
+      { file: 'over.js', text: KOVR, aliasPath: 'fusion.kernelAudit' }
+    ]
+  });
+  ck(
+    "🔴 BOTH realms' alias sites reach the verdict",
+    K4.aliasSites.map((a) => a.file + ':' + a.alias),
+    ['app.js:ka', 'over.js:kb']
+  );
+  ck('…and the label names the realm when two of them bind', aliasLabel(K4.aliasSites), 'ka@app.js:2, kb@over.js:2');
+  ck('…while a one-realm subtree keeps the line it printed before', aliasLabel(K1R.aliasSites), 'ka@2');
+  ck('…and a four-argument call still labels its one realm', K1R.aliasSites[0].file, 'app.js');
+  /* 🔴 A NESTED DECLARATION FOR A KEY THE LITERAL DROPPED: reported, never red — the same policy as
+     depth 1's `staleDeclarations`. It was computed and surfaced nowhere until 2026-11-13. */
+  const KSTALE = evaluateNested('kernelAudit', nestedShapes(K1, 'buildK'), { ...K2DECL, surfaces: { ...K2DECL.surfaces, retired: 'card' } }, KAPP, {
+    readers: [
+      { file: 'app.js', text: KAPP, aliasPath: 'FUSION.kernelAudit' },
+      { file: 'over.js', text: KDIR, aliasPath: 'fusion.kernelAudit' }
+    ]
+  });
+  ck('🔴 a nested declaration the literal dropped is named', KSTALE.stale, ['retired']);
+  ck("…and it is not a red, because the removal is the author's", nestedReasons(KSTALE).filter(Boolean), []);
+  ck('…and it does not read as a card key nobody renders', KSTALE.cardUnrendered, []);
+  ck('an unresolved binding carries its realm too', K4.aliasUnresolved, []);
   /* --- depth 3: what a reader takes out of an ELEMENT -------------------------------- */
   const E1 = [
     'function buildE(recs) {',
