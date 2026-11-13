@@ -82553,6 +82553,20 @@
           return k.replace('tools/', '');
         })
         .sort();
+      /* THE BLIND SPOT THE EXCLUSION CREATES, MEASURED 2026-11-13. `privateSites` drops every file
+         that names the shared function, so a HALF-converted reader keeps a private index form that
+         no leg above can see: the name leaves the baseline the moment the import lands. This reads
+         the residual directly over every routing reader, and it exempts only the module that owns
+         the arithmetic. Across the 30 ECG readers, 13 route and only that module holds a form. */
+      var residualInRouting = ecgReaders
+        .filter(function (k) {
+          return reachesShared(k) && k !== 'tools/pat-matchrate-strict.mjs' && IDX_FORM.test(TT[k] || '');
+        })
+        .map(function (k) {
+          return k.replace('tools/', '');
+        })
+        .sort();
+      T.eq('no routing reader keeps a private index form beside its shared call', residualInRouting.join(', '), '');
       /* ANTI-VACUITY runs BOTH ways. The matcher must find the sanctioned implementation, and the
          population must be wider than the handful of names below. */
       T.ok('ANTI-VACUITY · the matcher reads the index form in the sanctioned copy', IDX_FORM.test(TT['tools/pat-matchrate-strict.mjs'] || ''), 'pat-matchrate-strict carries the linear arm');
@@ -82568,11 +82582,13 @@
           .join(', '),
         ''
       );
+      /* THIS LEG READ `privateSites`, WHICH DROPS EVERY ROUTING FILE, so it could not fail for a file
+         that routes. It reads the residual instead, which is the question it meant to ask. */
       T.eq(
         'and neither keeps a private site beside it',
         ['beat-correspondence.mjs', 'pat-literature-spec.mjs']
           .filter(function (t) {
-            return privateSites.indexOf(t) >= 0;
+            return residualInRouting.indexOf(t) >= 0;
           })
           .join(', '),
         ''
@@ -82647,12 +82663,39 @@
         /ECG_AXIS = arg\('--ecg-axis', 'linear'\)/.test(TT['tools/pat-three-corner.mjs'] || '') ? '' : 'default moved',
         ''
       );
+      /* THE FOUR PPG-SIDE READERS, CONVERTED ON 2026-11-13. Each asks for `linear`, so every number
+         the deep-dive brief quotes from them stands, and the axis is now requestable in one place.
+         The comment beside each call says it, and the comment may NOT quote the index form itself:
+         the census regex reads a comment and code alike, so a quoted form would keep the tool on the
+         private-site list and red the ratchet. */
+      T.eq(
+        'the four PPG-side readers reach the shared function',
+        ['ppg-bridge-hrv-validate.mjs', 'ppg-foot-consensus-e1.mjs', 'ppg-fusion-e3.mjs', 'ppi-jitter-vs-ecg.mjs']
+          .filter(function (t) {
+            return !reachesShared('tools/' + t);
+          })
+          .join(', '),
+        ''
+      );
+      T.eq(
+        'and each asks for the historical linear axis, never a silent flip',
+        ['ppg-bridge-hrv-validate.mjs', 'ppg-foot-consensus-e1.mjs', 'ppg-fusion-e3.mjs', 'ppi-jitter-vs-ecg.mjs']
+          .filter(function (t) {
+            return !/axis: 'linear'/.test(TT['tools/' + t] || '');
+          })
+          .join(', '),
+        ''
+      );
+      T.ok(
+        'and the bridge tool times its interval on the converted beats, never on the index delta',
+        /const dtMs = bt\[k\] - bt\[k - 1\];/.test(TT['tools/ppg-bridge-hrv-validate.mjs'] || ''),
+        'one clock for the beat and the interval'
+      );
       /* THE REMAINDER, BY NAME. `trio-fold-merge` converts a record LENGTH to an end time and never a
-         peak position, so it sits outside the defect and inside the matcher. The other four each hold
-         a bare index form. `pat-three-corner` left this list on 2026-11-13: it was the odd member,
-         because it held a three-way switch over the same three forms rather than a bare index form,
-         so the capability was there and the arithmetic was duplicated. */
-      var AXIS_BACKLOG = ['ppg-bridge-hrv-validate.mjs', 'ppg-foot-consensus-e1.mjs', 'ppg-fusion-e3.mjs', 'ppi-jitter-vs-ecg.mjs', 'trio-fold-merge.mjs'];
+         peak position, so it sits outside the defect and inside the matcher. It is the last name here,
+         and it is a declared exclusion rather than a backlog item. `pat-three-corner` left this list on
+         2026-11-13, and the four PPG-side readers left it the same day. */
+      var AXIS_BACKLOG = ['trio-fold-merge.mjs'];
       var offBaseline = privateSites.filter(function (t) {
         return AXIS_BACKLOG.indexOf(t) < 0;
       });
