@@ -82611,11 +82611,48 @@
           .join(', '),
         ''
       );
-      /* THE REMAINDER, BY NAME. `pat-three-corner` is the odd member: it holds a three-way axis switch
-         of its own rather than a bare index form, so the capability is there and the arithmetic is
-         duplicated — the same defect in a second shape. `trio-fold-merge` converts a record LENGTH to
-         an end time and never a peak position, so it sits outside the defect and inside the matcher. */
-      var AXIS_BACKLOG = ['pat-three-corner.mjs', 'ppg-bridge-hrv-validate.mjs', 'ppg-foot-consensus-e1.mjs', 'ppg-fusion-e3.mjs', 'ppi-jitter-vs-ecg.mjs', 'trio-fold-merge.mjs'];
+      /* THE AXIS EACH CONVERTED READER REQUESTS, PINNED. PR #5022 routed the three above and passed
+         `counter`, which moves numbers that committed briefs quote — `R5-HR-TRIPLET-FOLLOWUPS` at
+         :125 and `PAT-FORENSICS-WINDOW-REGIMES` at :150. `linear` is byte-identical to the private
+         form each one held, and `pat-matchrate-strict.mjs` states the rule beside the function: each
+         remaining tool's default is an owner and PAT-program decision, because a flip moves every
+         number that tool published. So the route stands and the flip waits for that word. */
+      T.eq(
+        'the three converted readers ask for the historical linear axis, never a silent flip',
+        ['o2ring-finger-roundtrip.mjs', 'o2ring-finger-validate-batch.mjs', 'pat-per-led.mjs']
+          .filter(function (t) {
+            return !/axis: 'linear'/.test(TT['tools/' + t] || '');
+          })
+          .join(', '),
+        ''
+      );
+      /* PAT-THREE-CORNER, CONVERTED ON 2026-11-13. Its own `--ecg-axis` flag now reaches the one
+         shared function, and its default stays `linear`, so no number it published moves. */
+      T.eq(
+        'pat-three-corner routes its own --ecg-axis through the shared function',
+        ['pat-three-corner.mjs']
+          .filter(function (t) {
+            return !reachesShared('tools/' + t);
+          })
+          .join(', '),
+        ''
+      );
+      T.ok(
+        'and it hands the flag straight to the shared function, never to a local switch',
+        /rPeakTimesOnAxis\([^;]*\{ axis: ECG_AXIS \}\)/.test(TT['tools/pat-three-corner.mjs'] || ''),
+        'the switch, routed'
+      );
+      T.eq(
+        'and it keeps the historical linear default, so no published number moves',
+        /ECG_AXIS = arg\('--ecg-axis', 'linear'\)/.test(TT['tools/pat-three-corner.mjs'] || '') ? '' : 'default moved',
+        ''
+      );
+      /* THE REMAINDER, BY NAME. `trio-fold-merge` converts a record LENGTH to an end time and never a
+         peak position, so it sits outside the defect and inside the matcher. The other four each hold
+         a bare index form. `pat-three-corner` left this list on 2026-11-13: it was the odd member,
+         because it held a three-way switch over the same three forms rather than a bare index form,
+         so the capability was there and the arithmetic was duplicated. */
+      var AXIS_BACKLOG = ['ppg-bridge-hrv-validate.mjs', 'ppg-foot-consensus-e1.mjs', 'ppg-fusion-e3.mjs', 'ppi-jitter-vs-ecg.mjs', 'trio-fold-merge.mjs'];
       var offBaseline = privateSites.filter(function (t) {
         return AXIS_BACKLOG.indexOf(t) < 0;
       });
