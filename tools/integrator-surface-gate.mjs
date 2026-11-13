@@ -354,6 +354,135 @@ export function elementShape(dspText, fnName, varName, pre = prepare) {
   return { at: rawHits.length === 1 ? rawHits[0] + 1 : null, keys };
 }
 
+/* 🔴 AN ELEMENT LITERAL CAN SIT AT THE PUSH SITE, AND TWO PUSH SITES CAN DISAGREE.
+   `auditNodeKernels` builds one `var entry = {` that `elementShape` reads. `detectClockSkew` does
+   not: it pushes an object literal straight into `findings[]` at TWO sites, each spanning many
+   lines, and the two key lists differ. The pairwise estimator pushes six keys; the RTC-readback
+   pass pushes those six plus `source` and `rtcVerifiedAtMs`. So the element shape here is a UNION
+   over sites, and a key that is absent from some site is PARTIAL in exactly the sense depth 2
+   already means by it.
+
+   This reads RAW source, like `nestedShapes` beside it and unlike `elementShape`. There is no
+   blanking, so there is no blanked-versus-raw line hazard here at all (board 6051).
+
+   It refuses, with no shape, on: a builder it cannot find, a literal that does not close, a
+   one-line literal it cannot read, and no push site at all. A refusal is never a short key list. */
+export function pushShapes(dspText, fnName, arrayVar) {
+  const lines = dspText.split('\n');
+  const start = lines.findIndex((l) => new RegExp('^function ' + escapeRe(fnName) + '\\(').test(l));
+  if (start < 0) return null;
+  let d = 0;
+  let end = -1;
+  for (let i = start; i < lines.length; i++) {
+    d += (lines[i].match(/\{/g) || []).length - (lines[i].match(/\}/g) || []).length;
+    if (i > start && d <= 0) {
+      end = i;
+      break;
+    }
+  }
+  if (end < 0) return null;
+  /* 🔴 A PUSH IS SCOPED BY ITS ARRAY, NOT BY ITS FUNCTION — the opposite of `nestedShapes`.
+     `detectClockSkew` declares `var findings = []` and returns it, and BOTH pushes sit inside
+     `.forEach` callbacks within it. Reading a push the way a return is read found no shape at all
+     here, because `enclosingFn` named the callback. So a push anywhere inside the builder counts,
+     and the guard moves to the array NAME: a second declaration of it inside the builder could
+     shadow the array that is returned, so the shape refuses rather than mixing two arrays. */
+  const own = new RegExp('\\b(?:var|let|const)\\s+' + escapeRe(arrayVar) + '\\b');
+  let decls = 0;
+  for (let i = start; i <= end; i++) if (own.test(lines[i])) decls++;
+  if (decls !== 1) return null;
+  const re = new RegExp('\\b' + escapeRe(arrayVar) + '\\s*\\.\\s*push\\(\\s*\\{');
+  const shapes = [];
+  for (let i = start; i < end; i++) {
+    const m = re.exec(lines[i]);
+    if (!m) continue;
+    const open = m.index + m[0].length - 1;
+    if (!/push\(\s*\{\s*$/.test(lines[i])) {
+      const one = oneLineObject(lines[i], open);
+      if (!one) return null;
+      shapes.push({ at: i + 1, keys: one });
+      continue;
+    }
+    let dd = 0;
+    let closed = false;
+    const keys = [];
+    for (let j = i; j <= end; j++) {
+      if (j > i && dd === 1) {
+        const km = lines[j].match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*:/);
+        if (km) keys.push(km[1]);
+      }
+      dd += (lines[j].match(/[{[]/g) || []).length - (lines[j].match(/[}\]]/g) || []).length;
+      if (j > i && dd <= 0) {
+        closed = true;
+        break;
+      }
+    }
+    if (!closed) return null;
+    shapes.push({ at: i + 1, keys });
+  }
+  if (!shapes.length) return null;
+  const keys = [...new Set(shapes.flatMap((s) => s.keys))].sort();
+  return {
+    at: shapes[0].at,
+    keys,
+    pushAt: shapes.map((s) => s.at),
+    partial: keys.filter((k) => !shapes.every((s) => s.keys.includes(k)))
+  };
+}
+
+/* 🔴 AN ELEMENT READ DOES NOT HAVE TO BE A CALLBACK, AND THE CENSUS MISSED TWO OF THREE.
+   `callbackSites` matches eight iterator names, so an INDEXED FOR LOOP is invisible to it.
+   `skewSilenceLines` binds `vetoes = cs.vetoes || []` and `census = cs.seamCensus || []`, then
+   reads `v = vetoes[i] || {}` and `e = census[c] || {}` and takes six keys off the two elements.
+   The gate reported ONE unjudged element read where THREE array keys are read element-wise, so the
+   stated hole was itself under-reporting.
+
+   This finds the form so the census COUNTS it. It does not judge it: binding keys through an index
+   needs a declaration that somebody hand-read, which a later unit writes.
+
+   The index read must sit in the SAME function as the binding. Searching the rest of the file
+   would credit any later use of a common name like `v`. */
+function indexedScan(text, prefixes, arrayKey) {
+  const alt = prefixes.filter(Boolean).map(escapeRe).join('|');
+  if (!alt) return [];
+  const lines = text.split('\n');
+  const bind = new RegExp('\\b(?:var|let|const)\\s+([A-Za-z_$][A-Za-z0-9_$]*)\\s*=\\s*(' + alt + ')\\s*\\.\\s*' + escapeRe(arrayKey) + '\\b');
+  const out = [];
+  for (let i = 0; i < lines.length; i++) {
+    const m = bind.exec(lines[i]);
+    if (!m) continue;
+    const sc = enclosingFn(lines, i);
+    const last = sc ? sc[1] : lines.length - 1;
+    const idx = new RegExp('\\b' + escapeRe(m[1]) + '\\s*\\[\\s*[A-Za-z_$][A-Za-z0-9_$]*\\s*\\]');
+    let at = -1;
+    for (let j = i + 1; j <= last; j++)
+      if (idx.test(lines[j])) {
+        at = j;
+        break;
+      }
+    if (at < 0) continue;
+    out.push({ prefix: m[2], iterator: 'index', param: m[1], line: i + 1, elemLine: at + 1 });
+  }
+  return out;
+}
+
+/** Indexed element-read sites, paired across the two texts exactly as `elementCallbacks` pairs the
+    callback form. Discovery runs on the BLANKED text, so a commented-out index read cannot credit
+    an element read; the line a human reads comes from the RAW text, paired by ORDER, and is null
+    when the two counts disagree. A blanked line index is not a raw line index under the tokenizer
+    route CI takes (board 6051). */
+export function indexedSites(text, prefixes, arrayKey, pre = prepare) {
+  const blanked = indexedScan(pre(text).code, prefixes, arrayKey);
+  const raw = indexedScan(text, prefixes, arrayKey);
+  const paired = raw.length === blanked.length;
+  return blanked.map((s, i) =>
+    Object.assign({}, s, {
+      rawLine: paired ? raw[i].line : null,
+      rawElemLine: paired ? raw[i].elemLine : null
+    })
+  );
+}
+
 /* 🔴 THE SECOND SUBTREE NEEDED THREE MECHANISMS THE FIRST ONE DID NOT. `fusion.clockSkew` is an
    inline literal with no builder (`inlineShape`), its whole reader surface sits in
    `integrator-app.js` rather than in the render file (`readerFile`), and the app binds it behind a
@@ -748,6 +877,11 @@ export function evaluateNested(subtree, shapes, decl, renderText, extra) {
         at: shp.at,
         serves,
         keys: shp.keys,
+        /* A union over push sites carries keys that only SOME site writes. The parent subtree
+           already says `partial` for the same state one level up, and the word keeps its meaning:
+           the key can be absent from the object a reader holds. */
+        partial: shp.partial || [],
+        pushAt: shp.pushAt || [],
         readable: true,
         sites: byReader.flatMap((x) => x.sites.map((s) => ({ file: x.reader.file, line: s.rawLine === null ? s.line : s.rawLine, arrayKey: s.arrayKey, iterator: s.iterator, param: s.param }))),
         cardByReader: ecard
@@ -763,6 +897,23 @@ export function evaluateNested(subtree, shapes, decl, renderText, extra) {
   for (const r of readers) {
     const open = union.filter((k) => !servedKeys.includes(k));
     for (const s of sitesFor(r, open)) elemUnjudged.push({ file: r.file, line: s.rawLine === null ? s.line : s.rawLine, arrayKey: s.arrayKey, param: s.param, prefix: s.prefix, holder: r.aliasPath });
+    /* 🔴 AND THE INDEXED FORM, which `callbackSites` cannot see (see `indexedSites`). It is scoped
+       exactly as a callback site is: the whole path needs no scope, an alias is credited only
+       inside its own binding. */
+    const iprefixes = [r.aliasPath].concat(r.usable.map((u) => u.alias));
+    for (const k of open)
+      for (const s of indexedSites(r.text, iprefixes, k)) {
+        if (!(s.prefix === r.aliasPath || r.usable.some((u) => u.alias === s.prefix && s.line >= u.from + 1 && s.line <= u.to + 1))) continue;
+        elemUnjudged.push({
+          file: r.file,
+          line: s.rawElemLine === null ? s.elemLine : s.rawElemLine,
+          arrayKey: k,
+          param: s.param,
+          prefix: s.prefix,
+          holder: r.aliasPath,
+          via: 'index'
+        });
+      }
   }
   return {
     subtree,
@@ -981,7 +1132,12 @@ function main() {
        element surface it never saw. `inline` subtrees have no builder, so no element shape either. */
     const elementShapes = {};
     for (const vn of Object.keys(d.elements || {})) {
-      const es = byFn ? elementShape(dsp, d.builtBy, vn) : null;
+      const ed = (d.elements || {})[vn] || {};
+      /* 🔴 THE ELEMENT'S BUILDER IS NOT ALWAYS THE SUBTREE'S BUILDER. `clockSkew` has no `builtBy`
+         at all — it is an inline literal at the publish site — while its `findings` elements are
+         pushed by `detectClockSkew` one function away. So an element declaration may name its OWN
+         builder and the array it pushes into, and the gate reads the push literal there. */
+      const es = ed.builtBy && ed.pushInto ? pushShapes(dsp, ed.builtBy, ed.pushInto) : byFn ? elementShape(dsp, d.builtBy, vn) : null;
       if (!es)
         throw new Error(
           byFn
@@ -1029,6 +1185,9 @@ function main() {
       elementKeys: nested.reduce((t, n) => t + (n.elements || []).reduce((u, e) => u + e.keys.length, 0), 0),
       elementCard: nested.reduce((t, n) => t + (n.elements || []).reduce((u, e) => u + Object.values(e.cardByReader || {}).reduce((v, c) => v + c, 0), 0), 0),
       elementSites: nested.reduce((t, n) => t + (n.elements || []).reduce((u, e) => u + (e.sites || []).length, 0), 0),
+      /* A union over push sites can carry a key only SOME site writes, so the count says how many
+         element keys are conditional rather than leaving the union to read as one fixed shape. */
+      elementPartial: nested.reduce((t, n) => t + (n.elements || []).reduce((u, e) => u + (e.partial || []).length, 0), 0),
       elementCardUnread: nested.reduce((t, n) => t + (n.elemCardUnread || []).length, 0),
       elementExportOnlyRead: nested.reduce((t, n) => t + (n.elemExportOnlyRead || []).length, 0),
       elementReadsUnjudged: nested.reduce((t, n) => t + (n.elemUnjudged || []).length, 0),
@@ -1102,7 +1261,9 @@ function main() {
             ? ` · depth 3: ${n.elements
                 .map(
                   (e) =>
-                    `${e.name}{${e.keys.length}} over ${e.serves.join(' + ')} · ${Object.entries(e.cardByReader || {})
+                    `${e.name}{${e.keys.length}} over ${e.serves.join(' + ')}${
+                      (e.pushAt || []).length > 1 ? ` from ${e.pushAt.length} push site(s)` : ''
+                    }${(e.partial || []).length ? ` · ${e.partial.length} key(s) on some push site(s) only` : ''} · ${Object.entries(e.cardByReader || {})
                       .map(([f, c]) => f + '=' + c + ' card')
                       .join(' · ')} · ${(e.sites || []).length} element read site(s)`
                 )
@@ -1521,6 +1682,82 @@ if (DIRECT && process.argv.includes('--selftest')) {
   ck('…so a bracket read is credited under the tokenizer route too', !!readsElementKey(EOVERC, EOTOK, 'status', TOK), true);
   const EOCMT = EOVER + '\n/* fusion.kernelAudit.mismatches.map(m) */';
   ck('🔴 a comment naming the same chain breaks the pairing, and the site says so', elementCallbacks(EOCMT, ['fusion.kernelAudit'], 'mismatches', TOK)[0].rawFrom, null);
+
+  /* 🔴 A PUSH-SITE ELEMENT LITERAL, THE SECOND ELEMENT SHAPE THIS GATE CAN READ. `detectClockSkew`
+     pushes a multi-line literal into `findings[]` at two sites with DIFFERENT key lists, and both
+     sites sit inside a `.forEach` callback — so this reader is scoped by the array name, and a
+     union over sites marks the difference partial. */
+  const P1 = [
+    'function detectSkew(recs) {',
+    '  var findings = [];',
+    '  recs.forEach(function (r) {',
+    '    findings.push({',
+    '      node: r.n,',
+    '      offsetSec: r.o,',
+    '      method: "pairwise"',
+    '    });',
+    '  });',
+    '  (recs || []).forEach(function (r) {',
+    '    findings.push({',
+    '      node: r.n,',
+    '      offsetSec: r.o,',
+    '      method: "rtc",',
+    '      source: "rtc-readback"',
+    '    });',
+    '  });',
+    '  return { findings: findings };',
+    '}'
+  ].join('\n');
+  const PSH = pushShapes(P1, 'detectSkew', 'findings');
+  ck('a push-site element literal unions its keys over every site', PSH.keys, ['method', 'node', 'offsetSec', 'source']);
+  ck('🔴 …and a key only one site writes is PARTIAL', PSH.partial, ['source']);
+  ck('…every push line is named', PSH.pushAt, [4, 11]);
+  ck('…and `at` is the first of them', PSH.at, 4);
+  ck('🔴 a push inside a nested callback IS the builder element shape, unlike a return', PSH.keys.length, 4);
+  ck('a one-line push literal reads too', pushShapes('function b(x) {\n  var out = [];\n  out.push({ a: 1, b: 2 });\n  return out;\n}', 'b', 'out').keys, ['a', 'b']);
+  ck('a literal that never closes refuses, and is not read short', pushShapes('function b(x) {\n  var out = [];\n  out.push({\n    a: 1,\n', 'b', 'out'), null);
+  ck('a builder this file does not hold refuses', pushShapes(P1, 'detectOther', 'findings'), null);
+  ck('an array the builder never pushes refuses', pushShapes(P1, 'detectSkew', 'pairs'), null);
+  ck(
+    '🔴 a SECOND declaration of the array name refuses rather than mixing two arrays',
+    pushShapes(P1.replace('  (recs || []).forEach(function (r) {', '  var findings = [];\n  (recs || []).forEach(function (r) {'), 'detectSkew', 'findings'),
+    null
+  );
+
+  /* 🔴 THE INDEXED FORM, which `callbackSites` cannot see. The census reported ONE unjudged element
+     read where three array keys are read element-wise, because two of them use an index. */
+  const I1 = [
+    'function lines(cs) {',
+    '  var out = [];',
+    '  var vetoes = cs.vetoes || [];',
+    '  for (var i = 0; i < vetoes.length; i++) {',
+    '    var v = vetoes[i] || {};',
+    '    out.push(v.note);',
+    '  }',
+    '  return out;',
+    '}'
+  ].join('\n');
+  ck('an indexed element read through a local array alias is found', indexedSites(I1, ['cs'], 'vetoes').length, 1);
+  ck('…and it names the line of the ELEMENT read, not of the binding', indexedSites(I1, ['cs'], 'vetoes')[0].elemLine, 5);
+  ck('…with the binding line beside it', indexedSites(I1, ['cs'], 'vetoes')[0].line, 3);
+  ck('a prefix no realm declares credits nothing', indexedSites(I1, ['other'], 'vetoes').length, 0);
+  ck('a bind with no indexed read credits nothing', indexedSites('function f(cs) {\n  var v = cs.vetoes || [];\n  return v.length;\n}', ['cs'], 'vetoes').length, 0);
+  ck(
+    '🔴 an indexed read in ANOTHER function is not that binding element read',
+    indexedSites('function a(cs) {\n  var v = cs.vetoes || [];\n  return v.length;\n}\nfunction b(q) {\n  return v[0];\n}', ['cs'], 'vetoes').length,
+    0
+  );
+  /* 🔴 DISCOVERY RUNS ON BLANKED TEXT, so a commented-out index read cannot credit one, and the
+     line a human reads still comes from the raw text. This is board 6051 applied to the new form. */
+  const I1C = '/* one */\n/* two */\n' + I1;
+  ck('🔴 a commented-out indexed read credits nothing', indexedSites('function f(cs) {\n  var v = cs.vetoes || [];\n  // v[0] is the first veto\n  return v.length;\n}', ['cs'], 'vetoes').length, 0);
+  ck('🔴 the element line is the RAW line under the tokenizer route', indexedSites(I1C, ['cs'], 'vetoes', TOK)[0].rawElemLine, 7);
+  ck('…and the acorn route names the same raw line', indexedSites(I1C, ['cs'], 'vetoes')[0].rawElemLine, 7);
+  ck(
+    '🔴 a comment naming the same binding breaks the pairing, and the site says so',
+    indexedSites(I1.replace('function lines(cs) {', 'function lines(cs) {\n  /* var vetoes = cs.vetoes, then vetoes[k] */'), ['cs'], 'vetoes', TOK)[0].rawElemLine,
+    null
+  );
   const EMPTYN = { undeclared: [], badValue: [], cardUnrendered: [], exportOnlyRead: [], undeclaredPartial: [], stalePartial: [] };
   ck(
     '…and an unpaired site reds with a named reason',
@@ -1586,6 +1823,23 @@ if (DIRECT && process.argv.includes('--selftest')) {
   ck('🔴 no elements block leaves the subtree judged as before', ENONE.ok, true);
   ck('…with no element shape', ENONE.elements, []);
   ck('…and the unjudged element reads counted in both realms', ENONE.elemUnjudged.length, 2);
+  /* 🔴 AND THE INDEXED FORM IS COUNTED TOO. A reader that walks an array by index reads its
+     elements exactly as a callback does, and the census missed `vetoes[]` and `seamCensus[]` in
+     the live subtree for that reason alone. */
+  const EIDX = 'function draw() {\n  var ns = FUSION.kernelAudit.nodes || [];\n  for (var i = 0; i < ns.length; i++) {\n    var n = ns[i] || {};\n    paint(n.node);\n  }\n}';
+  const EIDXR = (over) =>
+    evaluateNested('kernelAudit', nestedShapes(E1, 'buildE'), EDECL(over), EIDX, {
+      readers: [{ file: 'idx.js', text: EIDX, aliasPath: 'FUSION.kernelAudit' }],
+      elementShapes: {}
+    });
+  ck('🔴 an indexed element read with no declaration is COUNTED, not passed over', EIDXR({ elements: undefined }).elemUnjudged.length, 1);
+  ck('…naming the array key and the element line', [EIDXR({ elements: undefined }).elemUnjudged[0].arrayKey, EIDXR({ elements: undefined }).elemUnjudged[0].line], ['nodes', 4]);
+  ck('…and the form it was read in', EIDXR({ elements: undefined }).elemUnjudged[0].via, 'index');
+  ck(
+    '…while a declaration that serves that key takes it out of the census',
+    EIDXR({ elements: { entry: { servesKeys: ['nodes'], surfaces: { node: 'card', hash: 'card', status: 'card', version: 'export-only' } } } }).elemUnjudged.length,
+    0
+  );
   ck(
     '…each naming its own file and array key',
     ENONE.elemUnjudged.map((u) => u.file + ':' + u.arrayKey),

@@ -144,7 +144,42 @@
     "beatCheck": "export-only — wired into a consumed block rather than deleted, per the publish-site comment; no reader branches on it today.",
     "seamCensus": "card — integrator-app.js:46 reads it through the forwarded hop and reports every UNKNOWN channel by the node’s own reason token.",
     "vetoes": "card — integrator-app.js:36 reads it through the forwarded hop and prints one reader-ready line per refused recording."
-   }
+   },
+   "elements": {
+    "finding": {
+     "servesKeys": [
+      "findings"
+     ],
+     "builtBy": "detectClockSkew",
+     "pushInto": "findings",
+     "enumeratedWith": "the UNION of the depth-1 keys of the TWO `findings.push({` literals inside detectClockSkew() — `integrator-dsp.js:7313` (the pairwise estimator, 6 keys) and `:7342` (the RTC-readback pass, 8 keys). Both literals span lines, and both sit inside a `.forEach` callback within the builder, so the shape is scoped by the ARRAY name and not by the enclosing function. `clockSkew` itself has no builtBy, so this element declaration names its own.",
+     "partialShape": "`source` and `rtcVerifiedAtMs` ride the RTC-readback literal only. A reader that holds a pairwise finding holds neither key, so both are partial in the same sense depth 2 means by the word. The pairwise literal states its provenance in `method` instead, which is why `source` could be read as absent rather than conditional — it is conditional.",
+     "readAs": "an anchored ELEMENT read: a callback bound on `<alias-or-whole-path>.findings.<iterator>(…)` in a declared realm, and a read of that callback's own parameter inside the call. `integrator-app.js:90` binds `f` on `cs.findings.forEach`, where `cs` is the alias bound at `:88`.",
+     "seededFrom": "hand-checked line by line on 2026-11-13 over the whole callback, `integrator-app.js:90-149`. It reads `f.node` (2 sites), `f.offsetSec` (3), `f.againstNodes` (1) and `f.peakOverFloor` (1), and it reads no other key off the element. No second realm reads this subtree at all: `integrator-render.js` and `overdex-app.js` name `clockSkew` zero times.",
+     "shapeNote": "a multi-line literal at a push site, read by `pushShapes`. `elementShape` beside it reads a one-line `var <name> = {` literal and refuses a multi-line one, so this subtree needed the second reader rather than a relaxation of the first.",
+     "surfaces": {
+      "againstNodes": "card",
+      "method": "export-only",
+      "node": "card",
+      "note": "export-only",
+      "offsetSec": "card",
+      "peakOverFloor": "card",
+      "rtcVerifiedAtMs": "export-only",
+      "source": "export-only"
+     },
+     "notes": {
+      "againstNodes": "integrator-app.js:102 — the banner names every node the skewed one was measured against",
+      "method": "no realm reads it off an element. The provenance sentence rides the export for a reader of the JSON, and the banner states the method in its own words",
+      "node": "integrator-app.js:93 and :103 — the banner names whose clock is wrong",
+      "note": "no realm reads it off an element. The builder composes a finished sentence and the app composes its own from the numbers, so this key is export-only by duplication and not by omission. A reader of the export gets the sentence; the screen gets the app's",
+      "offsetSec": "integrator-app.js:91, :98 and :100 — the magnitude and the direction of the correction",
+      "peakOverFloor": "integrator-app.js:104 — the evidence ratio the banner quotes as `N× over chance`",
+      "rtcVerifiedAtMs": "no realm reads it off an element. The RTC readback's own stamp rides the export so a consumer can age the claim",
+      "source": "no realm reads it off an element. It separates `rtc-readback` from `pairwise`/`pooled` for a consumer of the export, and the banner quotes `method` instead"
+     }
+    }
+   },
+   "depthNote": "depth 3 is judged for this subtree since 2026-11-13. `findings[]` carries the `finding` element shape declared below, read from the two push literals in detectClockSkew(). `vetoes[]` and `seamCensus[]` are ALSO read element-wise, through INDEXED loops at `integrator-app.js:38` and `:48`, and they carry no element declaration — so the gate counts those two sites as UNJUDGED rather than passing in silence. An earlier count of 1 here was itself under-reporting, because the element-read census saw iterator callbacks only."
   },
   "kernelAudit": {
    "builtBy": "auditNodeKernels",
@@ -205,5 +240,5 @@
  },
  "widenedRealm": "2026-11-12: depth 1 was judged against ONE file, so `export-only` — \"carried on the node-export and deliberately not rendered\" — was never asked of the app. `integrator-render.js` names neither `clockSkew` nor `kernelAudit`; `integrator-app.js` binds both (`var ka = FUSION && FUSION.kernelAudit` at :77, `var cs = FUSION && FUSION.clockSkew` at :88) and pushes a reader-facing banner line from each into `warnAll`. Both cells now read `card` against the app realm. The other 22 export-only keys stay: three of them match a bare token in the app and none reads the fusion, which is why a second realm is asked for an anchored read.",
  "widenedNested": "2026-11-12 — `fusion.kernelAudit` is the third nested subtree judged, and the first read in more than one realm. `overdex-app.js` joins readerRealms with holder `fusion`, measured to move no depth-1 cell.",
- "widenedElements": "2026-11-12 — depth 3. An element shape belongs to the BUILDER's element literal and not to the array key, so one `entry` shape serves `nodes[]` and `mismatches[]`. A member chain split across lines defeats a per-line regex: `overdex-app.js` writes the array on one line and `.map(` on the next, and a line-by-line scan reported that site as absent. The gate counts every element read it does not judge."
+ "widenedElements": "2026-11-12 — depth 3. An element shape belongs to the BUILDER's element literal and not to the array key, so one `entry` shape serves `nodes[]` and `mismatches[]`. A member chain split across lines defeats a per-line regex: `overdex-app.js` writes the array on one line and `.map(` on the next, and a line-by-line scan reported that site as absent. The gate counts every element read it does not judge. 2026-11-13 — an element literal can sit AT the push site, and two push sites can disagree: `clockSkew.findings` unions 6 keys from the pairwise literal with 8 from the RTC-readback one, so `source` and `rtcVerifiedAtMs` are partial. A push is scoped by its ARRAY name and not by its function, because both pushes sit inside `.forEach` callbacks. The read census now also sees the INDEXED form, which raised the unjudged count from 1 to 2 by finding `vetoes[]` and `seamCensus[]`."
 }
