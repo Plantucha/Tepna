@@ -558,3 +558,82 @@ subtrees.
 the builder would read as a shape. No such comment exists in `detectClockSkew` today, and the
 refusal on a second declaration of the array name is the only guard. The cosmetic route-dependent
 alias line from section 12 survives unchanged.
+
+## 14 · 2026-11-13 — one element over two build routes, and a read the census counted but did not judge
+
+| measurement | before | after |
+|---|---|---|
+| element shapes judged | 2 | **4** |
+| element keys judged | 12 | **22** |
+| element keys credited `card` | 7 | **13** |
+| element keys partial over build routes | 2 | **5** |
+| element read sites judged | 3 | **5** |
+| element reads COUNTED as unjudged | 2 | **0** |
+| selftest legs | 188 | **220** |
+
+🔴 **A `.map` RETURN LITERAL IS AN ELEMENT SHAPE, AND NO READER COULD SEE IT.** `seamCensus` is
+built by one `.map(` on its own declaration statement at `integrator-dsp.js:7231`, and the element
+literal is the `return {` inside that callback. `elementShape` wants a one-line `var name = {`.
+`pushShapes` wants a `<array>.push({`. Neither form appears here, so the array stood undeclared at
+depth 3 while its reader took four keys out of each element.
+
+The new `mapShapes` reader scopes the search to the DECLARATION STATEMENT of the array, and not to
+the builder function, because `detectClockSkew` calls `.map` eleven times. It refuses when the
+statement holds no map call, and it refuses when the statement holds two.
+
+🔴 **ONE ELEMENT CAN HAVE SEVERAL BUILD ROUTES, AND `partial` THEN MEANS ROUTE.** `vetoes` is built
+twice. A map literal at `:7192` writes four keys. A push literal at `:7212` writes five. The union
+holds six, and three of them are partial: `rtcVerifiedAtMs` arrives on the map route alone, and
+`seams` with `seamsReason` arrive on the push route alone. So the declaration names BOTH routes
+(`mappedFrom` and `pushInto`), `mergeShapes` unions what each route writes, and the report says `from
+2 build site(s)`.
+
+A declaration that names a route the gate cannot read now throws, and it names the route in the
+message. That refusal is what stops a dropped route from silently shrinking the judged set.
+
+🔴 **COUNTING A READ IS NOT JUDGING IT, AND THE DIFFERENCE IS THE BOUND ELEMENT.** Section 13 left
+two reads counted and unjudged. Both are index loops: `integrator-app.js:48` binds `var e =
+census[c] || {}` and `:38` binds its element in a callback. The array-level `indexedSites` scan
+finds the site and reads no keys, because it has no element variable to anchor a key read to. The new
+`indexedElements` reader returns the local binding as the callback `param`, with the LOOP BODY as its
+span, so the one `readsElementKey` judge serves the callback form and the index form alike. One
+consequence needed a fix: the same read then counted twice, once bound and once at array level. A
+`bound` set now holds every array an element site already covers, and the census skips it.
+
+### Controls
+
+Each control edits the real declaration, runs the gate, and restores the file. Every restore is
+byte-identical to sha256 `1fbeb3251ec1`.
+
+| control | edit | the gate says |
+|---|---|---|
+| Z1 | `veto.source` declared `export-only` | `✗ 1 element key(s) declare 'export-only' and an anchored element read reaches them: veto.source` |
+| Z2 | `veto.seams` declared `card` | `✗ 1 element key(s) declare 'card' and no anchored element read reaches them in integrator-app.js: veto.seams` |
+| Z3 | remove `censusEntry` | PASS, and the census names the read again: `cs.seamCensus at integrator-app.js:48` |
+| Z4 | remove both new elements | PASS at the section 13 numbers: 12 keys, 2 partial, 2 unjudged reads |
+| Z5 | point `censusEntry.mappedFrom` at `vetoes` | `✗ 6 element key(s) declare no surface` — the shape of another array is not this element |
+| Z6 | drop `mappedFrom` from `veto` | `✗ 1 element key(s) declare no surface: veto.rtcVerifiedAtMs (declared, absent from the literal)`, and the partial set falls from 5 to 2 |
+| Z7 | point `veto.mappedFrom` at `pairs` | throws: `the element shape 'veto' declares a map build route inside detectClockSkew() that this gate cannot read` |
+| Z8 | run with no `node_modules` | PASS under the tokenizer route, with the same four shapes, the same 22 keys, and the same raw line 48 under the Z3 state |
+
+Z8 matters because `.github/workflows/tests.yml` installs nothing, so CI always takes the tokenizer
+route. The tokenizer route DELETES comment lines, and a blanked line index is never a raw line index
+there. The run above is the evidence that the raw pairing holds on both routes.
+
+### What this still cannot see
+
+Depth 4. The gate judges a `clockSkew` element key that itself holds an object as ONE key, and a 0
+in `elementReadsUnjudged` does not say that no such key exists.
+
+A build route the declaration does not name. The refusal fires on a route the declaration names and
+the gate cannot read, and it cannot fire on a third route nobody declared. `detectClockSkew` writes `vetoes` on
+exactly two routes today, and `mergeShapes` would silently under-report a third.
+
+`mapShapes` reads RAW source, like `pushShapes` and `nestedShapes` beside it. A commented-out map
+return inside the declaration statement would read as a shape. No such comment exists today.
+
+`indexedSites` resolves one array-alias hop. A read that passes the array through two locals before
+the index still escapes the census, and a 0 there is a tripwire result, not a proof.
+
+The field that held one push offset is now `siteAt`, and it holds one offset per build route. The
+name `pushAt` could not describe a map route.
