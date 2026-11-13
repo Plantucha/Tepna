@@ -637,3 +637,128 @@ the index still escapes the census, and a 0 there is a tripwire result, not a pr
 
 The field that held one push offset is now `siteAt`, and it holds one offset per build route. The
 name `pushAt` could not describe a map route.
+
+---
+
+## 15 · 2026-11-13 — the fourth subtree is an ARRAY, and the reader that judged it found a false credit
+
+Unit `nest4` declares `findings`, the fourth nested subtree. Magpie confirmed the deciding count
+independently at board #6080, from the export literal and not from this table.
+
+### What moved
+
+| measure | before | after |
+|---|---|---|
+| nested subtrees | 3 | 4 |
+| nested depth-2 keys | 26 | 27 |
+| element shapes | 4 | 5 |
+| element keys judged | 22 | 33 |
+| element `card` keys | 13 | 21 |
+| element read sites | 5 | 12 |
+| anchored alias sites | 4 | 4 |
+| selftest legs | 220 | 247 |
+
+The 11 new keys are 8 `card` and 3 `export-only`. The gate credits each `card` key from a read it
+names, and it credits no `export-only` key from any realm.
+
+### Three findings, and two of them are defects this unit repaired
+
+**A TOP-LEVEL EXPORT ARRAY HAD NO SHAPE SOURCE AT ALL.** `inlineShape` wants a `<key>: {` object
+literal. `nestedShapes` wants a builder function. The export writes
+`findings: fusion.findings.map(function (f) { return { … } })`, which is neither of those. So the 11
+keys that every consumer of the export receives had no shape this gate could read.
+
+`exportMapShape` reads one entry of the export literal. It then takes the return shape of the single
+`.map` inside that entry. It refuses on six states, and each refusal is a selftest leg.
+
+**THE ELEMENT ANCHOR REQUIRED ADJACENCY, AND IT SAW ONE SITE IN FIVE.** A subtree's array is read as
+`fusion.kernelAudit.mismatches.map(`, with the iterator next to the member. A top-level key is read
+defensively instead. Three of the five hand-checked sites wrap the member as `(fusion.findings || [])`
+and one chains `.slice(0, 12)` before `.forEach`. The adjacent anchor credited 2 of the 11 keys, and
+6 `card` keys had no reader.
+
+The anchor is now a walk. It crosses a `|| []` or `?? []` default guard, then any number of
+element-preserving calls, and it stops at the first thing it does not recognise. `filter`, `sort`,
+`slice` and `reverse` hand on the same elements, so the walk crosses them. `map`, `flatMap` and
+`reduce` change what the next callback receives, so the walk stops there. An iterator can also be a
+link, so `findings.filter(…).forEach(…)` holds two sites and not one.
+
+Measured against all seven already-declared element arrays: the walk finds exactly the sites the
+anchor found. So the generalisation adds sites and removes none.
+
+**AND THE ALIAS DETECTOR CREDITED A CHILD AS ITS PARENT.** This is the defect worth reading twice.
+`integrator-app.js` binds `var cs = FUSION && FUSION.clockSkew`. The bind regex barred an identifier
+character after the path and allowed a `.`, so with the path `FUSION` that line registered `cs` as an
+alias of `FUSION` itself.
+
+The gate then read `cs.findings` — the clockSkew subtree's own findings array, whose element carries 8
+different keys. It credited that read against the TOP-LEVEL `findings` array. One of this
+declaration's 8 element read sites was that false credit.
+
+Barring the `.` does not fix it, and that is the instructive part. The guard group is OPTIONAL, so
+with zero guards the path matches the GUARD's own occurrence of `FUSION`. The next character is then a
+space, and no lookahead of that kind can refuse it.
+
+So the match must now END at the path. After the path the line may carry a `||` fallback, and then it
+must close. A ternary or a further member access does not bind that path, and the gate declines to
+read one rather than crediting the wrong object. Alias sites fell from 16 to 4, and the 4 that remain
+are the three real ones plus the forwarded hop.
+
+### Two cells that a reader should not misread
+
+`time` is COMPUTED in the projection, as `fmtDateTime(f.tMs)`. It has no counterpart on the internal
+finding object, so no realm read can ever credit it. A rule that demanded a reader for `time` would be
+unsatisfiable. It is `export-only` by construction, and not by the absence of a read.
+
+`belowChance` and `pSpurious` ship a ternary onto `undefined` rather than onto `null`. A reader
+therefore holds an element that may lack either key. That is NOT what `partial` means here. `partial`
+names a key that some BUILD ROUTE omits, and this literal has exactly one route. A reader that tests
+either key for absence is reading a legal element.
+
+### The controls
+
+Each control edited the real declaration, ran the gate, and restored the file. Every restore matched
+the starting sha256.
+
+| control | the planted state | result |
+|---|---|---|
+| N0 | the real declaration | exit 0 |
+| N1 | a `card` element key no realm reads | exit 1 |
+| N2 | an `export-only` element key a realm does read | exit 1 |
+| N3 | the element block removed | exit 1, named |
+| N4 | `exportMapped` pointed at a key with no `.map` | exit 1, named |
+| N5 | `arrayOf` and `inline` both declared | exit 1, named |
+| N6 | a key declared that the literal does not carry | exit 1 |
+| N7 | a key of the literal left undeclared | exit 1 |
+| N8 | the subtree key declared `export-only` | exit 1 |
+
+The parse-route control ran the whole gate twice, once with `node_modules` present and once with it
+absent. Every field of the verdict agreed, apart from `blankedBy` itself.
+
+### What this still cannot see
+
+**The printed alias LINE NUMBERS are route-dependent, and CI takes the route that gets them wrong.**
+The route control measured it: `a@474` under acorn is `a@302` under the tokenizer, and `cs@88` is
+`cs@64`. The tokenizer route DELETES comment lines, and `aliasSites` takes its line from the blanked
+text without pairing it back to raw. Every judged number is route-independent, so no verdict moves.
+A session that follows a printed alias line in CI goes to the wrong line.
+
+This unit measured that defect and did not repair it. The repair would be a fourth change to shared
+reader behaviour in one diff, so it belongs in its own unit with its own controls.
+
+**An element read through a LITERAL index, with no bound local, is invisible to all three readers.**
+`integrator-render.js:486` reads `a.findings[0].pSpurious`. `indexedSites` needs a binding statement,
+so it does not see this form, and the census neither credits it nor counts it. No cell rests on it:
+`pSpurious` is `card` and a reader credits it at `integrator-app.js:399`.
+
+**The ranking rule that chose this subtree counts two different things.** Magpie named the asymmetry
+at board #6080. For an array subtree the depth-2 key count is the ELEMENT's key count. For an
+object-of-arrays such as `unmatched` it is the object's own key count, which is 2, while the element
+literals one level further down hold 4 and 3 keys. The pick does not change, because `findings` wins
+under either reading. A later unit that ranks the remainder owes the sharper metric.
+
+**Five export subtrees remain undeclared**, with their key counts read from source: `window` 12,
+`schema` 13, `apneaTyping` 11, `unmatched` 2 over 7 element keys, and `handshakes` 2. `kernel` and its
+2 keys are absent from that scan, because the probe that enumerated them misses a one-line object
+literal. The pass-through subtrees of the form `fusion.X || null` still need the resolver that board
+#5905 parks.

@@ -234,6 +234,44 @@
    },
    "depthNote": "depth 3 now judges all THREE array keys of this subtree. `findings` came from its two push literals (#5002), and `vetoes` and `seamCensus` come from a `.map` return literal plus, for `vetoes`, a push literal. The reads are indexed loops rather than iterator callbacks, so the element is bound in a local variable and `indexedElements` scopes it to the loop body. `elementReadsUnjudged` reads 0 for this subtree, and that 0 means every element read it finds is judged against a hand-checked declaration. It does not mean depth 4: a key whose value is itself an object or an array is judged as one key here."
   },
+  "findings": {
+   "arrayOf": true,
+   "exportMapped": "findings",
+   "aliasPath": "fusion",
+   "readerFiles": [
+    { "file": "integrator-render.js" },
+    { "file": "integrator-app.js", "aliasPath": "FUSION" },
+    { "file": "overdex-app.js" }
+   ],
+   "enumeratedWith": "The `findings:` entry of the `var _exp = {` slim-export literal in integrator-dsp.js (line 8101 on 2026-11-13), read by `exportMapShape`. The entry is `fusion.findings.map(function (f) { return { … } })`, so the 11 keys are the keys of that return literal and not the keys of the internal finding object the fusion builds. The internal object carries more, and a consumer never sees them.",
+   "readAs": "This subtree IS an array, so `arrayOf:true` gives it one depth-2 key — the array name on the holder — and its real surface is one level down, in the keys of one element. All three realms read the array off the holder directly (`fusion.findings`, `FUSION.findings`), so no alias hop is involved.",
+   "seededFrom": "Hand-checked key by key against integrator-render.js, integrator-app.js and overdex-app.js on 2026-11-13, from five element-binding sites: render:723 and render:929, app:391, overdex:761 and overdex:805. The gate's own walk then found two sites the hand-check had missed, at render:803 and render:814, both `.some(` — so the tool judges a larger read set than the hand-check seeded, which is the direction a seed should be wrong in.",
+   "nullWhen": "Never null, and never absent. The entry maps an array that the fusion always builds, so an empty night exports `[]` and a consumer can tell \"no finding\" from \"never fused\".",
+   "surfaces": { "findings": "card" },
+   "depthNote": "Depth 3 for this subtree is the ELEMENT, because `arrayOf` collapses depth 2 to the array name. Two keys ship a ternary onto `undefined` rather than onto null — `belowChance: f.belowChance != null ? f.belowChance : undefined` and the same for `pSpurious` — so a reader holds an element that may lack either key. That is NOT what `partial` means here: `partial` names a key some BUILD ROUTE omits, and this literal has one route. A reader testing either key for absence is reading a legal element.",
+   "elements": {
+    "finding": {
+     "servesKeys": ["findings"],
+     "exportMapped": "findings",
+     "readAs": "Every realm meets these keys on a callback parameter, never on an object alias. Three of the five hand-checked sites wrap the member as `(fusion.findings || [])` and one chains `.slice(0, 12)` before `.forEach`, which the element reader's walk crosses.",
+     "seededFrom": "tMs at render:724, render:930, app:393 and overdex:812. type at render:724 and app:394. conf at app:395 and overdex:806. belowChance at app:398, overdex:762 and overdex:816. pSpurious at app:399. durSec at app:396. nodes at app:397. note at app:400 and overdex:818. The three export-only keys have zero property-access reads in all three realms, held against a positive control on the same scan: note 12, tMs 14 and conf 6 whole-file hits.",
+     "exportOnlyWhy": "time is COMPUTED in the projection (`fmtDateTime(f.tMs)`), so it has no counterpart on the internal finding object and no realm read can ever credit it. A rule that demanded a reader for it would be unsatisfiable, which is why it is declared export-only by construction and not by absence of a read. sources and meta are forwarded whole for a consumer of the export and reach no surface in any of the three realms.",
+     "surfaces": {
+      "tMs": "card",
+      "time": "export-only",
+      "type": "card",
+      "conf": "card",
+      "belowChance": "card",
+      "pSpurious": "card",
+      "durSec": "card",
+      "nodes": "card",
+      "sources": "export-only",
+      "meta": "export-only",
+      "note": "card"
+     }
+    }
+   }
+  },
   "kernelAudit": {
    "builtBy": "auditNodeKernels",
    "readerFiles": [
