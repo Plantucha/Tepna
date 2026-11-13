@@ -7275,6 +7275,19 @@ def test_digest_night_reads_the_band_not_the_folder():
     assert nightqc.qc_digest(s).startswith("night 2026-11-02 (folder 2026-11-03) — ")
 
 
+def test_night_label_names_the_folder_that_holds_the_reports():
+    """Box 2026-11-12: the digest said "(folder 2026-11-12)" over a summary that sat in 2026-11-11. The
+    poller stamps `report_night`, and the label names that folder, not the judged one."""
+    s = _digest_summ(_EVE_1102 + 18000, 18000)  # judged 11-03, band 11-02
+    assert nightqc.night_label(dict(s, report_night="2026-11-02")) == "2026-11-02"
+    assert nightqc.qc_digest(dict(s, report_night="2026-11-02")).startswith("night 2026-11-02 — ")
+    # No band folder on disk: the reports stay in the judged folder, and the label still names it.
+    assert nightqc.night_label(dict(s, report_night="2026-11-03")) == "2026-11-02 (folder 2026-11-03)"
+    # A summary from before the field, or a field that is not a folder name, reads the judged folder.
+    for bad in (None, "", 7):
+        assert nightqc.night_label(dict(s, report_night=bad)) == "2026-11-02 (folder 2026-11-03)"
+
+
 def test_digest_night_brings_an_instant_down_to_floating():
     """An offset east of UTC puts the instant of 18:00 at 08:00 the same day — BEFORE noon, so keying
     the instant unconverted names the night before. Only the subtraction gives the right night."""
