@@ -21,6 +21,7 @@ import { dirname, join } from 'node:path';
 import { makeVerdict } from './verdict-emit.mjs';
 import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
+import { rPeakTimesOnAxis } from './pat-matchrate-strict.mjs';
 /* ── THE VALIDITY SIDECAR RIDES WITH THE STREAM ─────────────────────────────────────────────────────
    Row 2026-10-17-sample-parsers-called-without-their-sidecar: this tool read a night's samples and
    none of the box's `…RUNS.txt` validity, so a blanking run the box recorded reached the round-trip below as signal —
@@ -187,9 +188,17 @@ function run(ppgPath, ecgPath, spo2Path, { json = false } = {}) {
   const ecgBeats = [];
   {
     const pk = eres.peaks || [];
-    for (let k = 1; k < pk.length; k++) {
-      const dt = (pk[k] - pk[k - 1]) / erec.fs;
-      if (dt > 0.3 && dt < 2.0) ecgBeats.push({ tMs: erec.t0Ms + (pk[k] / erec.fs) * 1000, hr: 60 / dt });
+    /* THE SHARED AXIS ARITHMETIC, NEVER A PRIVATE COPY. `t0 + i/fs` times every beat on one
+       whole-file rate, and the H10's samples-per-counter-second is not one number: 130.027-130.033
+       worn, 129.92-130.00 off the body, with no counter step and no sample lost. So the worn beats
+       read fast by the off-body share of the file, and the ECG train walks away from the PPG trains
+       by up to seconds a night (row 2026-09-26-pat-ecg-index-axis-is-not-the-h10-sample-clock).
+       `rPeakTimesOnAxis` carries the one copy of that arithmetic, falls back per sample to the index
+       form when a record has no counter, and throws when a device axis breaks sortedness. */
+    const eT = rPeakTimesOnAxis(erec, Float64Array.from(pk), { axis: 'counter' });
+    for (let k = 1; k < eT.length; k++) {
+      const dt = (eT[k] - eT[k - 1]) / 1000;
+      if (dt > 0.3 && dt < 2.0) ecgBeats.push({ tMs: eT[k], hr: 60 / dt });
     }
   }
 
