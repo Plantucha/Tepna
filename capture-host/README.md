@@ -53,7 +53,9 @@ python3 -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt
 
 # 3. Muse tool (only if capturing EEG) — keep OUT of the venv (liblsl ABI):
 pipx install muselsl        # Muse 2 / Muse S gen 1-2
-# pipx install OpenMuse     # Muse S Athena (muse-lsl/BlueMuse do NOT work on Athena)
+# pipx install git+https://github.com/DominiqueMakowski/OpenMuse   # Muse S Athena (muse-lsl/BlueMuse do NOT work on Athena)
+#   ⚠️ NOT `pipx install OpenMuse`: that PyPI name is an unrelated AI-agent package (openmuse 0.6.0,
+#   no bleak, lower-case `openmuse` entry point), so `OpenMuse record` exits 127. Measured 2026-11-12.
 
 # 4. Storage + bundled apps
 sudo mkdir -p /srv/tepna/app /srv/tepna/captures/incoming /var/log/tepna
