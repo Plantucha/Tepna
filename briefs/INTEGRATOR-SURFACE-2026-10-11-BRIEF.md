@@ -80,6 +80,8 @@ All three are planted in `--selftest` and asserted red. None is a claim about to
       ANCHORED read, and the verdict names the subtrees it judged at depth 2 (§8).
 - [x] 2026-11-13: an object literal one level inside a declared subtree declares a surface per key,
       and a `card` label there reds, because the gate credits no reader at that depth (§17).
+- [x] 2026-11-13: a subtree may declare a LIST of export routes, each naming one source form, so a
+      subtree whose two routes differ in form declares a surface per key over their union (§18).
 
 ## 6 · 2026-11-11 — the seed counted prose, and two declarations were wrong
 
@@ -930,3 +932,80 @@ element layer carries `elemShapeMissing` on the same terms, and this field mirro
 Three export subtrees remain undeclared: `apneaTyping` 11 keys, `unmatched` 2 over 7 element keys,
 and `handshakes` 2. `kernel` and its 2 keys need a reader for a one-line object literal. The
 pass-through subtrees of the form `fusion.X || null` still need the resolver that board #5905 parks.
+
+## 18 · 2026-11-13 — the seventh subtree sits on TWO export routes of DIFFERENT FORMS
+
+`apneaTyping` had no shape at all. `inlineShape`, `nestedShapes` and `exportMapShape` each returned
+`null` for it on 2026-11-13, so the subtree reached none of the three readers that existed. The
+brief recorded 11 keys for it, and that figure reads one route of the two.
+
+### What moved
+
+| measure | before | after |
+|---|---|---|
+| declared nested subtrees | 6 | **7** |
+| depth-2 keys judged | 45 | **57** |
+| depth-2 `card` | 25 | 25 |
+| depth-2 `export-only` | 20 | **32** |
+| subtrees read over several routes | 0 | **1** |
+| declared partial keys | 4 | **5** |
+| keys judged, `population.checked` | 88 | **100** |
+| selftests | 296 | **344** |
+
+### Three findings
+
+**One subtree, two routes, two source FORMS.** Route one is `var out = {` inside
+`typeApneaByEffort` at line 1858. The function returns that variable, and the fusion object carries
+it verbatim through `apneaTyping: apneaTyping` at line 7983, which is twelve keys. Route two is the
+slim `var _exp = {` projection at line 8074, which enumerates eleven of them behind the guard
+`fusion.apneaTyping ? {`. `window` taught this gate that two anchors of ONE form are two export
+routes. This subtree is the next state, where the two routes differ in form, so a subtree may now
+declare a LIST of routes and the union is the surface.
+
+**The slim export drops `events`, and the drop is right.** The producer keeps `events: []` with a
+comment that no typed impulse reaches the bus any more. A node-export consumer therefore reads
+eleven keys, and an in-process reader of the fusion object reads twelve. `events` declares
+`partialShape` and the gate holds the difference as a fact about the export, not as a defect.
+
+**A guarded literal is one line below where the reader looked.** `inlineShape` anchors on
+`key: {`, so the guard `apneaTyping: fusion.apneaTyping` with its `? {` on the next line matched
+nothing. The reader reported "no anchor", which reads as "the shape moved" and was wrong — the
+shape sat one line further down. The guard's ALTERNATIVE is a refusal and never a second shape: a
+`: { … }` would put two key lists behind one key, so that state refuses.
+
+### The controls
+
+Each row names what the gate did when I broke the declaration, and the message it printed.
+
+| control | the gate |
+|---|---|
+| A0 — as declared | `PASS`, `checked: 100` |
+| A1 — drop the `events` surface | FAIL · `1 nested key(s) of `fusion.apneaTyping` declare no surface: events` |
+| A2 — label `events` card | FAIL · no realm reads it, and the reason names the key |
+| A3 — drop the `partialShape` entry | FAIL · `1 nested key(s) exist on one export route only, with no partialShape reason declared` |
+| A4 — point route one at a function that moved | REFUSES · names `returnVar `typeApneaByEffortGone.out`` |
+| A5 — point route two at a key that moved | REFUSES · names `guarded `apneaTypingGone`` |
+| A6 — declare `routes` and `inline:true` | REFUSES · `must declare exactly one of builtBy, inline:true, arrayOf:true or routes` |
+| A7 — declare a key the export dropped | `PASS` with `nestedStaleDeclarations: 1` at `apneaTyping.retiredKey` |
+| A8 — point route one at the wrong variable | REFUSES · names `returnVar `typeApneaByEffort.notOut`` |
+
+A refusal names the ROUTE and not the subtree alone, because `routes` holds several sources and the
+author would otherwise read all of them.
+
+### What this still cannot see
+
+A producer's literal is the whole shape only while nothing adds a key to it afterwards. A later
+`out.<newKey> = …` throws instead, because a short key list is the one answer a shape reader must
+never give. A `++` on a key the literal carries stays arithmetic.
+
+A one-line guarded literal has no reader. No subtree writes that form today, and the gate refuses
+rather than reads it.
+
+Two of the twelve keys carry an absence by ruling: `obstructive` and `central` are permanently null
+under INTEGRATOR-APNEA-TYPING-REVIEW-2026-07-22, and `typingWithdrawn` states that with a
+machine-readable `withdrawnReason`. This gate judges the SURFACE of each key and never its value,
+so a withdrawal that stops writing a key would read here as a stale declaration.
+
+Two export subtrees remain undeclared: `unmatched` 2 keys over 7 element keys, and `handshakes` 2.
+`kernel` and its 2 keys need a reader for a one-line object literal. The pass-through subtrees of
+the form `fusion.X || null` still need the resolver that board #5905 parks.

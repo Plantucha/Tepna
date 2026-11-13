@@ -116,6 +116,35 @@
     "consequence": "no anchored read; it is also the one key the two return shapes disagree on."
    }
   },
+  "apneaTyping": {
+   "routes": [
+    { "returnVar": { "fn": "typeApneaByEffort", "via": "out" } },
+    { "guarded": "apneaTyping" }
+   ],
+   "enumeratedWith": "TWO export routes of different source forms, read in blanked code on 2026-11-13. Route one is `var out = {` inside typeApneaByEffort at line 1858, which the function returns and the fusion object carries verbatim through `apneaTyping: apneaTyping` at line 7983 — twelve keys. Route two is the slim `var _exp = {` projection at line 8074, which enumerates eleven of them behind the guard `fusion.apneaTyping ? {`. The brief recorded 11, which is route two alone. `events` sits on route one only, so the union is twelve and `events` is partial.",
+   "readAs": "No reader reads this subtree. `apneaTyping` appears in integrator-dsp.js and nowhere else in any realm: integrator-render.js, integrator-app.js and overdex-app.js name neither the subtree nor its alias, which `export-only` on every key states. The depth-1 cell has read `export-only` since the 2026-11-11 correction, and depth 2 agrees with it key by key.",
+   "seededFrom": "Hand-checked key by key against the two route literals and the three reader realms on 2026-11-13, from the read sites and not from a token match. Four key names also appear in other subtrees (`total`, `typed`, `usable`, `underpowered`), which is why the gate asks for an anchored read on `fusion.apneaTyping` and never for a bare token.",
+   "nullWhen": "Null with no MotionDex effort series on the bus. typeApneaByEffort returns `null` at three early exits — no MotionDex record, no effort epoch with a stamp, and no desat — and the slim projection's guard writes `null` for the whole subtree. A consumer therefore meets an explicit absence and never a zeroed split.",
+   "partialShape": {
+    "events": "Route one only. The producer's literal keeps `events: []` with the comment that no typed impulse reaches the bus any more, and the slim projection drops the key instead of exporting an array that is always empty. A node-export consumer sees eleven keys, and an in-process reader of the fusion object sees twelve."
+   },
+   "surfaces": {
+    "obstructive": "export-only",
+    "central": "export-only",
+    "untyped": "export-only",
+    "typed": "export-only",
+    "total": "export-only",
+    "events": "export-only",
+    "effortCovered": "export-only",
+    "typingWithdrawn": "export-only",
+    "withdrawnReason": "export-only",
+    "underpowered": "export-only",
+    "usable": "export-only",
+    "coverageAssumed": "export-only"
+   },
+   "notes": "`obstructive` and `central` are permanently null by the INTEGRATOR-APNEA-TYPING-REVIEW-2026-07-22 withdrawal, and `typingWithdrawn` states that with a machine-readable `withdrawnReason`. So two of the twelve keys carry an absence by ruling and not by a measurement gap, and the gate judges the SURFACE of each one, never its value.",
+   "depthNote": "This subtree needed the `routes` list. One source form reads one route, and the two routes here differ in form: a returned variable and a guarded literal. `inlineShape`, `nestedShapes` and `exportMapShape` each returned null on 2026-11-13, so the subtree had no shape at all under the three readers that existed."
+  },
   "clockSkew": {
    "inline": true,
    "readerFile": "integrator-app.js",
