@@ -351,9 +351,16 @@ export function loadBaseline(repo) {
 /* ∅ FAIL CLOSED. A declared baseline this process cannot open, or one whose container field is absent
    or the wrong type, is NOT a baseline holding no debt. Each such file rides a `{ file, code }` entry,
    and `verdictFor` turns an unread member into UNKNOWN rather than a pass over what it never read. */
+/* A PAID DEBT IS NOT A RENAMED CONTAINER, and `empty` is the only field that separates them. A
+   declared member read with its container PRESENT and holding nothing has paid its debt in full; a
+   member whose container was renamed or retyped rides `unreadable` above. The anti-vacuity guards
+   below read this field, because a floor of one reason per file forbids the shrink the ratchet exists
+   to reward (measured 2026-11-13: `tools/paper-reference-baseline.json` reached zero and red both
+   guards). */
 export function loadOwnerBaselines(repo, specs) {
   const pairs = [];
   const unreadable = [];
+  const empty = [];
   for (const spec of specs || FOREIGN_OWNER_BASELINES) {
     let json = null;
     try {
@@ -368,6 +375,7 @@ export function loadOwnerBaselines(repo, specs) {
         unreadable.push({ file: spec.file, code: `NO-CONTAINER:${spec.container}` });
         continue;
       }
+      if (!got.length) empty.push(spec.file);
       for (const e of got) pairs.push({ key: e.key, reason: e.reason, file: spec.file });
       continue;
     }
@@ -375,9 +383,11 @@ export function loadOwnerBaselines(repo, specs) {
       unreadable.push({ file: spec.file, code: `NO-CONTAINER:${spec.container}` });
       continue;
     }
-    for (const [k, v] of Object.entries(got)) pairs.push({ key: k, reason: typeof v === 'string' ? v : (v || {}).reason || '', file: spec.file });
+    const rows = Object.entries(got);
+    if (!rows.length) empty.push(spec.file);
+    for (const [k, v] of rows) pairs.push({ key: k, reason: typeof v === 'string' ? v : (v || {}).reason || '', file: spec.file });
   }
-  return { pairs, unreadable };
+  return { pairs, unreadable, empty };
 }
 
 export function run(repo, opts) {
@@ -480,6 +490,10 @@ export function run(repo, opts) {
   const ownerNamed = ownerReasons(ownerPairs);
   const ownerReasonsExamined = ownerNamed.length;
   const ownerReasonsByFile = {};
+  /* A PAID DEBT STILL NAMES ITS FILE, at zero. The map is what the anti-vacuity readers use to see
+     that every declared member was examined, so dropping a fully-paid file would read exactly like
+     the renamed container the guard exists to catch. */
+  for (const f of foreignOwners.empty) ownerReasonsByFile[f] = 0;
   for (const o of ownerNamed) ownerReasonsByFile[o.file || BASELINE] = (ownerReasonsByFile[o.file || BASELINE] || 0) + 1;
   const ownerBaselinesUnread = foreignOwners.unreadable;
   const ownerSpecsDeclared = [BASELINE, ...ownerSpecs.map((x) => x.file)];
@@ -741,8 +755,11 @@ function selftest() {
   ok('an uncited baseline key leaves the site check with nothing to examine', [unexamined.siteKeysExamined, unexamined.siteDrift.length], [0, 0]);
 
   /* ANTI-VACUITY, over every declared baseline. A renamed container field would empty the owner
-     check in silence, so each declared member must contribute a reason, and the floor is one reason
-     per file. Today's total is never the floor, because paying a debt lowers it. */
+     check in silence, so each declared member must be ACCOUNTED FOR — either it contributes a reason,
+     or its container reads present and empty, which is a debt paid in full. The floor is never one
+     reason per file: that spelling forbade the shrink the ratchet rewards, and it red the day
+     `tools/paper-reference-baseline.json` reached zero. A renamed container is accounted for by
+     neither branch, so it still reds. */
   const realStates = rowStates(fs.readFileSync(path.join(REPO, LEDGER), 'utf8'));
   const realBase = JSON.parse(fs.readFileSync(path.join(REPO, BASELINE), 'utf8'));
   const liveOwners = loadOwnerBaselines(REPO, FOREIGN_OWNER_BASELINES);
@@ -756,10 +773,18 @@ function selftest() {
   ok('no live baseline line names a closed row', ownerDebt(livePairs, realStates), []);
   ok('every declared owner baseline could be read', liveOwners.unreadable, []);
   ok(
-    'every declared owner baseline contributes a reason',
-    FOREIGN_OWNER_BASELINES.filter((x) => !liveOwners.pairs.some((o) => o.file === x.file)).map((x) => x.file),
+    'every declared owner baseline contributes a reason, or reads its container empty',
+    FOREIGN_OWNER_BASELINES.filter((x) => !liveOwners.pairs.some((o) => o.file === x.file) && !liveOwners.empty.includes(x.file)).map((x) => x.file),
     []
   );
+  /* CONTROL · the two halves the guard above must never confuse. */
+  const paidDir = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'rcite-paid-'));
+  fs.writeFileSync(path.join(paidDir, 'paid.json'), JSON.stringify({ uninvoked: {} }));
+  fs.writeFileSync(path.join(paidDir, 'renamed.json'), JSON.stringify({ somethingElse: {} }));
+  const paid = loadOwnerBaselines(paidDir, [{ file: 'paid.json', container: 'uninvoked', shape: 'map' }]);
+  ok('CONTROL · a present container holding nothing is a paid debt, never unreadable', [paid.empty, paid.unreadable.length, paid.pairs.length], [['paid.json'], 0, 0]);
+  const renamedContainer = loadOwnerBaselines(paidDir, [{ file: 'renamed.json', container: 'uninvoked', shape: 'map' }]);
+  ok('CONTROL · a renamed container still fails closed, and is not a paid debt', [renamedContainer.unreadable.map((u) => u.code), renamedContainer.empty], [['NO-CONTAINER:uninvoked'], []]);
   ok('the live owner population names at least one row', named.length >= 1, true);
   /* CONTROL · a declared member this process cannot open leaves the owner check unable to look, and
      UNKNOWN is what the verdict owes then — never a PASS over a file it never read. */
