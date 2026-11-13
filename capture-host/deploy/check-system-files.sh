@@ -120,6 +120,8 @@ JSON=0
 MANIFEST="
 systemd/99-tepna-btdongle.rules|$ETC_UDEV/99-tepna-btdongle.rules|MANAGED|0644
 systemd/99-tepna-hidraw.rules|$ETC_UDEV/99-tepna-hidraw.rules|MANAGED|0644
+systemd/99-tepna-btattach-hotplug.rules|$ETC_UDEV/99-tepna-btattach-hotplug.rules|MANAGED|0644
+systemd/tepna-btattach-bind-to-tty.conf|$ETC_SYSTEMD/tepna-btattach@.service.d/bind-to-tty.conf|MANAGED|0644
 systemd/tepna-usb-autosuspend.service|$ETC_SYSTEMD/tepna-usb-autosuspend.service|MANAGED|0644
 deploy/tepna-capture.service|$ETC_SYSTEMD/tepna-capture.service|MANAGED|0644
 deploy/needrestart-tepna-capture.conf|$ETC_NEEDRESTART/50-tepna-capture.conf|MANAGED|0644
