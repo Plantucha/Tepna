@@ -44,6 +44,13 @@ in this suite may have it. So the honest form is a dated claim a human re-checks
 reds when it goes stale. Saying which of those you have is the point; a dated claim reads as verified
 long after it stops being true.
 
+🔴 **AND THE NAME `openmuse` ON PyPI IS A DIFFERENT PROJECT.** It holds an agent package
+(0.6.0, `OpenMuseAgent/OpenMuse`, FastAPI and MCP and OpenAI, no `bleak`), whose console script is
+the lower-case `openmuse`. The EEG recorder is `DominiqueMakowski/OpenMuse` (0.1.8, deps `bleak` and
+`mne-lsl`, console script `OpenMuse`), and PyPI folds the capitals together. So install it from the
+repository, never by name. Measured 2026-11-12 on the capture host and 2026-11-13 against the PyPI
+metadata and the upstream `pyproject.toml`.
+
 **Verified 2026-09-19** against the upstream repositories: muse-lsl `74fcb916` (2026-06-30, Athena
 support) and `c5a327b4` (2026-09-08, `--ppg` → Athena optics); releases 2.5.0 on 2026-07-01, 2.5.2 and
 2.5.3 on 2026-09-08. OpenMuse last push 2026-01-28.
