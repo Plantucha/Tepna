@@ -82,6 +82,8 @@ All three are planted in `--selftest` and asserted red. None is a claim about to
       and a `card` label there reds, because the gate credits no reader at that depth (§17).
 - [x] 2026-11-13: a subtree may declare a LIST of export routes, each naming one source form, so a
       subtree whose two routes differ in form declares a surface per key over their union (§18).
+- [x] 2026-11-13: a subtree whose own keys are ARRAYS declares an element shape per pool, read off
+      the export literal by name, and the two pools never share one union (§19).
 
 ## 6 · 2026-11-11 — the seed counted prose, and two declarations were wrong
 
@@ -1015,3 +1017,100 @@ so a withdrawal that stops writing a key would read here as a stale declaration.
 Two export subtrees remain undeclared: `unmatched` 2 keys over 7 element keys, and `handshakes` 2.
 `kernel` and its 2 keys need a reader for a one-line object literal. The pass-through subtrees of
 the form `fusion.X || null` still need the resolver that board #5905 parks.
+
+## 19 · 2026-11-13 — the eighth subtree is an OBJECT OF ARRAYS, and no new reader was owed
+
+`fusion.unmatched` is the first declared subtree whose own keys are arrays, each with its own element
+shape. The measurement that sized it ran all four readers against the real source first, because the
+`apneaTyping` unit found three readers returning `null` where the brief implied one would answer.
+Here the opposite held: every mechanism the gate already carries was enough, so this unit changes
+`tools/integrator-surface-gate.mjs` not at all.
+
+| | before | after |
+|---|---|---|
+| nested subtrees judged | 7 | **8** |
+| depth-2 keys | 57 | **59** |
+| element shapes | 5 | **7** |
+| element keys | 33 | **40** |
+| `population.checked` | 100 | **102** |
+| card at depth 2 | 25 | 25 |
+| export-only at depth 2 | 32 | **34** |
+| selftests | 344 | 344 |
+
+`inlineShape` reads the `unmatched: {` literal of the slim `var _exp = {` export at
+`integrator-dsp.js:8116` and returns `desat` and `surge`. Each pool then declares an element shape
+through `exportMapped`, which `exportMapShape` reads off the same export literal: four keys at
+`:8118` for the desat pool, and three at `:8121` for the surge pool. `meta` rides the desat element
+alone, so the two pools get two element shapes and never one union.
+
+### The rendered pool is the APNEA copy, and depth 1 cannot tell
+
+**No realm binds an alias to `fusion.unmatched`.** `integrator-render.js` reads
+`a.unmatched.desat.length` at `:1004` and `a.unmatched.surge.length` at `:1006`, where `a =
+fusion.apnea` at `:982`. The `apnea` subtree already declares its own `unmatched` key as `card` and
+its note names both lines, so the rendered count is accounted for one subtree away. Both keys of
+this subtree are therefore `export-only` on this holder, and the anchored depth-2 walk finds no
+alias site at all.
+
+The top-level `unmatched` key has carried a depth-1 `card` label since the widening, and that credit
+rests on the same apnea-anchored text. A control proved it: flipping `surfaces.unmatched` to
+`export-only` reds with
+
+```
+✗ 1 key(s) declare 'export-only' and integrator-render.js reads them: unmatched
+```
+
+so the depth-1 layer credits a read of `fusion.apnea.unmatched` to the top-level key. That is the
+hole `readsAnchored` states about depth 1 in its own words, one level up from where it was fixed.
+This unit does NOT move the depth-1 label, because anchoring depth 1 touches all 36 keys and owes
+its own controls. The declaration records where the real read lives instead.
+
+### Two more findings the measurement produced
+
+**`population.checked` counts three layers of four.** The arithmetic is exact: 36 depth-1 keys plus
+59 depth-2 keys plus 7 inner keys is 102, and the 40 element keys are judged and never counted. The
+element layer reds `elemCardUnread`, `elemExportOnlyRead`, `elemUndeclared` and `elemBadValue`, so
+its keys are examined against the same criterion the population claims to size. Under the verdict
+contract the population must state what the gate examined, so this understates it by 40.
+
+**An inline subtree's array key may carry no element shape, and nothing says so.** The gate reds a
+`servesKeys` entry the subtree does not carry, at `elemServesUnknown`. It never asks the reverse. A
+control set both element shapes to `servesKeys: ['desat']`, which leaves `surge` served by no shape,
+and the gate still passed with `elementShapes: 7` and no report. An `arrayOf` subtree cannot reach
+that state, because a missing element block refuses at load. The repair is cheap and the evidence is
+already in hand: an `exportMapShape` hit on a key name proves that key is a mapped array, so the
+gate can red an unserved array key without a new reader.
+
+### The control battery, run live against the real declaration
+
+| | planted state | result |
+|---|---|---|
+| U1 | the desat element's export route renamed | exit 1 · ``the element shape `desatEntry` declares the export-map build route this gate cannot read in the `desatGone:` entry of the export literal`` |
+| U2 | a depth-2 surface the literal does not carry | exit 0 · PASS, reported as `nestedStaleWhere: ["unmatched.pools"]` |
+| U3 | a key of the literal left undeclared | exit 1 · ``1 nested key(s) of `fusion.unmatched` declare no surface: surge`` |
+| U4 | `desat` declared `card` | exit 1 · ``no usable binding of `fusion.unmatched` survives in integrator-render.js`` |
+| U5 | an element key declared `card` | exit 1 · `1 element key(s) declare 'card' and no anchored element read reaches them in integrator-render.js: desatEntry.conf` |
+| U6 | an element surface the literal does not carry | exit 1 · `1 element key(s) declare no surface: surgeEntry.retiredKey (declared, absent from the literal)` |
+| U7 | the subtree declared `arrayOf:true` | exit 1 · ``the export entry `unmatched:` with a single .map return literal was not found`` |
+| U8 | both element shapes serve `desat` | exit 0 · PASS with no report — the hole named above |
+| U9 | `inline:true` and `arrayOf:true` together | exit 1 · ``must declare exactly one of builtBy, inline:true, arrayOf:true or routes`` |
+
+U2 and U6 answer the same planted mistake at two depths and disagree: a stale depth-2 surface is
+reported and a stale element surface reds. The depth-2 behaviour is the deliberate policy, because
+an author owns a removal. The element layer never adopted it, and this brief records the asymmetry
+rather than silently picking a side.
+
+### What this still cannot see
+
+**The element layer judges the slim route only.** The fusion route at `:7996` hands on the apnea
+builder's own desat and surge objects, which carry more keys than a consumer ever sees. `exportMapped`
+names the slim entry by key, so the declaration states which route it describes and makes no claim
+about the in-process object. A reader that walks the fusion in memory sees a wider shape, and no
+declaration here covers it.
+
+**Arrayness is a human fact in an inline subtree.** The declaration asserts that `desat` and `surge`
+are arrays, and the gate takes that on trust until the repair above lands.
+
+One export subtree remains undeclared: `handshakes`, 2 keys at line 8125. `kernel` and its 2 keys
+need a reader for a one-line object literal. The pass-through subtrees of the form `fusion.X || null`
+still need the resolver that board #5905 parks.

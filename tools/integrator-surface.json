@@ -389,6 +389,67 @@
    "notes": "`provenance` reads `window.GangliorProvenance`, where `window` is the browser global. That name collides with the `fusion.window` subtree and the two share nothing (Magpie, board #6110).",
    "depthNote": "`method` is an object and not an array, so the depth-3 element layer cannot reach it. The `inner` block judges its seven keys by key set alone, and a `card` label there reds: the read machinery credits no reader one level inside a subtree."
   },
+  "unmatched": {
+   "inline": true,
+   "aliasPath": "fusion.unmatched",
+   "enumeratedWith": "The inline `unmatched: {` literal of the slim `var _exp = {` export in integrator-dsp.js (line 8116 on 2026-11-13), read by `inlineShape`. The fusion publish site at `:7996` carries the same two keys through `unmatched: apnea ? apnea.unmatched : { desat: [], surge: [] }`, and the apnea builder writes them at `:2448` from `unmatchedDesat` and `unmatchedSurge`, with the empty seed at `:2157`. So the two export routes agree on the depth-2 key list, and no route declaration is owed here. They diverge one level down, which `depthNote` states.",
+   "readAs": "NO realm binds an alias to `fusion.unmatched`. integrator-render.js reads `a.unmatched.desat.length` at `:1004` and `a.unmatched.surge.length` at `:1006`, where `a = fusion.apnea` at `:982`. So the rendered pool is the APNEA copy of this object and not the top-level export key, and the `apnea` subtree already credits its own `unmatched` key as `card` with a note naming both lines. Both keys here are therefore `export-only` on this holder, and the anchored depth-2 walk finds no alias site at all.",
+   "seededFrom": "Hand-checked against all three reader realms on 2026-11-13. integrator-app.js and overdex-app.js name `unmatched` zero times, and integrator-render.js names it at exactly the two lines above. Both reads take `.length` off the array, so no realm reads an element key of either pool.",
+   "nullWhen": "Never null, and never absent. The guard at `:7996` falls back to `{ desat: [], surge: [] }`, so an unfused night exports two empty arrays and a consumer can tell \"no unmatched event\" from \"never fused\".",
+   "surfaces": {
+    "desat": "export-only",
+    "surge": "export-only"
+   },
+   "notes": {
+    "desat": "export-only on this holder. The count a reader sees comes from `apnea.unmatched.desat` at integrator-render.js:1004, which the `apnea` subtree credits.",
+    "surge": "export-only on this holder. The count a reader sees comes from `apnea.unmatched.surge` at integrator-render.js:1006, which the `apnea` subtree credits."
+   },
+   "elements": {
+    "desatEntry": {
+     "servesKeys": [
+      "desat"
+     ],
+     "exportMapped": "desat",
+     "enumeratedWith": "the one-line return literal of the `desat:` `.map` entry inside the slim export, at integrator-dsp.js:8118, read by `exportMapShape`. Four keys ride it.",
+     "readAs": "no realm binds an element of this array. Both render reads take `.length` off the pool, so the element layer judges a shape nobody reads, and every key below is `export-only`.",
+     "seededFrom": "the reader census above, re-asked per element on 2026-11-13: zero element-binding sites in all three realms.",
+     "shapeNote": "a ONE-LINE `.map` return literal inside the export literal, which is the `exportMapped` route and not a builder. `elementShape` beside it wants a `var <name> = {` inside a named function, so it cannot reach this form, and `pushShapes` wants a push site this array never has.",
+     "surfaces": {
+      "conf": "export-only",
+      "meta": "export-only",
+      "tMs": "export-only",
+      "time": "export-only"
+     },
+     "notes": {
+      "conf": "carried for a consumer of the JSON. No realm reads it off an element.",
+      "meta": "carried for a consumer of the JSON. The surge element drops it, which is the one shape difference between the two pools.",
+      "tMs": "carried for a consumer of the JSON. The render layer reads neither pool's stamps.",
+      "time": "the formatted twin of `tMs`, written by `fmtDateTime` and null when `tMs` is null."
+     }
+    },
+    "surgeEntry": {
+     "servesKeys": [
+      "surge"
+     ],
+     "exportMapped": "surge",
+     "enumeratedWith": "the one-line return literal of the `surge:` `.map` entry inside the slim export, at integrator-dsp.js:8121, read by `exportMapShape`. Three keys ride it, and `meta` is the key the desat pool carries and this one does not.",
+     "readAs": "no realm binds an element of this array either, for the same reason the desat pool states.",
+     "seededFrom": "the reader census above, re-asked per element on 2026-11-13: zero element-binding sites in all three realms.",
+     "shapeNote": "the same one-line `.map` return form as the desat pool. The two are separate element shapes and never a union, because they carry different key lists and a union would report `meta` on a surge element that never holds it.",
+     "surfaces": {
+      "conf": "export-only",
+      "tMs": "export-only",
+      "time": "export-only"
+     },
+     "notes": {
+      "conf": "carried for a consumer of the JSON. No realm reads it off an element.",
+      "tMs": "carried for a consumer of the JSON. The render layer reads neither pool's stamps.",
+      "time": "the formatted twin of `tMs`, written by `fmtDateTime` and null when `tMs` is null."
+     }
+    }
+   },
+   "depthNote": "The two export routes AGREE at depth 2 and DIVERGE at depth 3. The fusion route hands on the apnea builder's own desat and surge objects, which carry more keys than a consumer ever sees. The slim route projects each pool through a `.map` to four and three keys, and that projection is what `ganglior.node-export` carries. So the element layer judges the slim route by name, through `exportMapped`, and it states here that it does not describe the in-process object. The two pools get two element shapes and never one union, because `meta` rides the desat element alone."
+  },
   "window": {
    "inline": true,
    "aliasPath": "fusion.window",
