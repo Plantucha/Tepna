@@ -329,6 +329,24 @@
    "notes": "Both inner keys read `fusion.autoGly.glucoseAutonomicCorrelation`, so this subtree publishes one value twice under two node-specific names. A change to that source moves both.",
    "depthNote": "Each inner literal is written on one line, which no reader could take before this unit. `innerShape` now reads a one-line literal whose body holds no further literal, and section 20 of the brief carries the control that pins where it stops."
   },
+  "kernel": {
+   "routes": [
+    {
+     "guarded": "kernel"
+    }
+   ],
+   "aliasPath": "fusion.kernel",
+   "enumeratedWith": "ONE export route, read in blanked code on 2026-11-13. The slim `var _exp = {` projection writes `kernel:` at line 8010, and it holds its guard, its consequent literal and its `: null` alternative on ONE line. A `^\\s*kernel:` scan of integrator-dsp.js returns that line alone, so the full `runFusion` export carries no `kernel` key and no second route is owed. The 2 keys are `version` and `hash`, which `guardedShape` reads off that line.",
+   "readAs": "No realm reads this subtree. integrator-render.js, integrator-app.js and overdex-app.js name `fusion.kernel` zero times each. Their `kernel` mentions are the per-node `kernelHash` and `kernelVersion` stamps and the separate `kernelAudit` subtree, which carry their own declarations. Both keys are therefore `export-only`, and the anchored depth-2 walk finds no alias site.",
+   "seededFrom": "Hand-checked against the literal and all three reader realms on 2026-11-13, from the read sites and not from a token match. The committed export fixture `uploads/integrator_fusion_night_twins.node-export.json` carries `kernel` on all three fused nights with exactly `hash` and `version`, which is the evidence these 2 keys ship.",
+   "nullWhen": "The WHOLE subtree is null when `window.DexKernel` is absent, which the guard on line 8010 writes explicitly. A consumer can then tell an unstamped build from a stamped one, and neither key appears with a manufactured value.",
+   "surfaces": {
+    "version": "export-only",
+    "hash": "export-only"
+   },
+   "notes": "This is the Integrator's OWN physiology-kernel stamp. `kernelAudit` beside it holds the per-node comparison against this same stamp, so the two subtrees answer different questions and never merge.",
+   "depthNote": "One route, declared as a list of one, because the guarded form is the only source this subtree has. Section 21 of the brief carries the control battery, and the control that reverts the one-line guarded branch is the one that sizes the unit."
+  },
   "kernelAudit": {
    "builtBy": "auditNodeKernels",
    "readerFiles": [

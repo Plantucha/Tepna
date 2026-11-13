@@ -928,9 +928,22 @@ export function innerShape(dspText, subtree, inner, pre = prepare) {
 export function guardedShape(dspText, key, pre = prepare) {
   const lines = pre(dspText).code.split('\n');
   const head = new RegExp('^\\s*' + escapeRe(key) + ':\\s*[^\\s{][^{]*$');
+  /* 🔴 THE WHOLE GUARD CAN SIT ON ONE LINE. The slim export writes `kernel:` with its guard, its
+     consequent literal and its `: null` alternative on ONE line, so the two-line anchor above reads
+     nothing there. The one-line form keeps both rules of this reader: the alternative must still
+     start with something other than a brace, and a consequent holding a nested literal keeps the
+     refusal, because `[^{}]*` matches no inner brace. */
+  const oneLineGuard = new RegExp('^\\s*' + escapeRe(key) + ':\\s*[^{]*\\?\\s*\\{[^{}]*\\}\\s*:\\s*[^{\\s].*$');
   const shapes = [];
   const undefinedValued = new Set();
   for (let i = 0; i < lines.length; i++) {
+    if (oneLineGuard.test(lines[i])) {
+      const { keys, values } = literalKeys(lines, i, i);
+      if (!keys.length) return null;
+      shapes.push({ at: i + 1, keys });
+      for (const k of keys) if (/\bundefined\b/.test(values[k] || '')) undefinedValued.add(k);
+      continue;
+    }
     if (!head.test(lines[i])) continue;
     let o = i + 1;
     while (o < lines.length && !lines[o].trim()) o++;
@@ -3066,6 +3079,28 @@ if (DIRECT && process.argv.includes('--selftest')) {
   ck('…and names the same line on both', guardedShape('/* note */\n' + ATG, 'apneaTyping').at, guardedShape('/* note */\n' + ATG, 'apneaTyping', ATOK).at);
   ck('…and the same holds for a line comment', guardedShape('// note\n' + ATG, 'apneaTyping').union, guardedShape('// note\n' + ATG, 'apneaTyping', ATOK).union);
   ck('…line by line as well', guardedShape('// note\n' + ATG, 'apneaTyping').at, guardedShape('// note\n' + ATG, 'apneaTyping', ATOK).at);
+
+  /* 🔴 THE WHOLE GUARD ON ONE LINE. The slim export writes `kernel` that way, and the two-line
+     anchor above reads nothing there. These fix the one-line form and both of its refusals. */
+  const GONE = ['var _exp = {', '  kernel: window.DexKernel ? { version: DexKernel.VERSION, hash: DexKernel.HASH } : null,', '  other: 1', '};'].join('\n');
+  ck('🔴 a guard that opens AND closes on one line has a shape', guardedShape(GONE, 'kernel').union, ['hash', 'version']);
+  ck('…and it names the key line', guardedShape(GONE, 'kernel').at, 2);
+  ck('…and the same reader claims it', guardedShape(GONE, 'kernel').shapeKind, 'guarded');
+  ck('…and one site leaves no key conditional', guardedShape(GONE, 'kernel').partial, []);
+  ck('…and the tokenizer route reads the same keys', guardedShape('/* note */\n' + GONE, 'kernel').union, guardedShape('/* note */\n' + GONE, 'kernel', ATOK).union);
+  ck('…at the same line', guardedShape('/* note */\n' + GONE, 'kernel').at, guardedShape('/* note */\n' + GONE, 'kernel', ATOK).at);
+  ck('🔴 a one-line guard whose ALTERNATIVE is a literal refuses, as the multi-line form does', guardedShape(GONE.replace(' : null,', ' : { fallback: 1 },'), 'kernel'), null);
+  ck('🔴 a one-line consequent holding a NESTED literal refuses — this reader must not guess', guardedShape(GONE.replace('hash: DexKernel.HASH', 'hash: { short: 1 }'), 'kernel'), null);
+  ck(
+    'a one-line guarded value that can be undefined wears that mechanism',
+    guardedShape(GONE.replace('version: DexKernel.VERSION', 'version: x ? 1 : undefined'), 'kernel').partialKind,
+    'undefined-value'
+  );
+  ck('…and names that key alone', guardedShape(GONE.replace('version: DexKernel.VERSION', 'version: x ? 1 : undefined'), 'kernel').partial, ['version']);
+  const GONE2 = ['var _exp = {', '  kernel: g ? { version: 1, hash: 2 } : null', '};', 'var _two = {', '  kernel: g', '    ? {', '        version: 3', '      }', '    : null', '};'].join('\n');
+  ck('a one-line site and a multi-line site of one key union their keys', guardedShape(GONE2, 'kernel').union, ['hash', 'version']);
+  ck('…and the key one site omits is partial by export route', guardedShape(GONE2, 'kernel').partial, ['hash']);
+  ck('an UNGUARDED one-line literal is not guarded — `inlineShape` owns it', guardedShape('var _exp = {\n  kernel: { version: 1 }\n};', 'kernel'), null);
 
   const ATV = [
     'function typeIt(recs) {',
