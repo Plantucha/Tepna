@@ -301,6 +301,34 @@
     }
    }
   },
+  "handshakes": {
+   "inline": true,
+   "aliasPath": "fusion.handshakes",
+   "enumeratedWith": "The single inline `handshakes: {` literal in integrator-dsp.js, at line 8125 on 2026-11-13, read in blanked code by `inlineShape`. A `handshakes` scan of that file returns exactly two lines: the comment at :8124 and this literal. So ONE export route writes this subtree, the slim `var _exp = {` projection, and the full `runFusion` export carries no `handshakes` key. No route declaration is owed. Each of the two keys is an object literal written on ONE line, which the `inner` blocks below judge.",
+   "readAs": "No realm reads this subtree. integrator-render.js, integrator-app.js and overdex-app.js name `handshakes` zero times each, and they name `glucodex_ready` and `ecgdex_ready` zero times each. The comment above the literal says the fusion writes these back so nodes can ingest them, and no node in this repo reads them yet. Both keys are therefore `export-only`, and the anchored depth-2 walk finds no alias site at all.",
+   "seededFrom": "Hand-checked against the literal and all three reader realms on 2026-11-13, from the read sites and not from a token match. The committed export fixture `uploads/integrator_fusion_night_twins.node-export.json` carries the block at :1662 with both inner keys and both values null, which is what an unfused night writes. That fixture is the evidence these keys ship.",
+   "nullWhen": "Never null, and never absent. Both inner VALUES are null whenever `fusion.autoGly` is absent, which the guard at :8126 and :8127 writes explicitly, so a consumer can tell \"no correlation\" from \"never fused\".",
+   "surfaces": {
+    "glucodex_ready": "export-only",
+    "ecgdex_ready": "export-only"
+   },
+   "inner": {
+    "glucodex_ready": {
+     "readAs": "One key. It carries the glucose-autonomic correlation under the name GlucoDex expects, and no code reads it.",
+     "surfaces": {
+      "glucose_autonomic_correlation": "export-only"
+     }
+    },
+    "ecgdex_ready": {
+     "readAs": "One key. It carries the SAME number as the glucodex handshake, under the name ECGDex expects, and no code reads it.",
+     "surfaces": {
+      "glucoseCorrelation": "export-only"
+     }
+    }
+   },
+   "notes": "Both inner keys read `fusion.autoGly.glucoseAutonomicCorrelation`, so this subtree publishes one value twice under two node-specific names. A change to that source moves both.",
+   "depthNote": "Each inner literal is written on one line, which no reader could take before this unit. `innerShape` now reads a one-line literal whose body holds no further literal, and section 20 of the brief carries the control that pins where it stops."
+  },
   "kernelAudit": {
    "builtBy": "auditNodeKernels",
    "readerFiles": [
