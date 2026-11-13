@@ -1,0 +1,28 @@
+# tepna-capture — systemd/99-tepna-btattach-hotplug.rules
+# Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
+#
+# A REPLUGGED ZEPHYR BOARD MUST ATTACH AGAIN BY ITSELF (residue
+# 2026-11-01-a-replugged-zephyr-board-keeps-its-old-tty; BOX-EVENING-2026-10-26-BRIEF.md §6 T1).
+# `tepna-btattach@<usb-serial>.service` holds a line discipline on the tty it was handed at start. A
+# board that is unplugged and plugged back in gets a NEW ttyACM number from the kernel, so the old
+# instance stays active on a device that no longer exists and the radio never rejoins the failover
+# ladder. The owner restarted that unit by hand twice on 2026-11-01.
+#
+# WHAT THIS RULE ADDS. Every matching tty gets a stable name at /dev/tepnabt/<usb-serial>, and udev
+# asks systemd to start that serial's attach instance. The companion drop-in
+# `tepna-btattach-bind-to-tty.conf` binds the instance to that named device, so the unit stops when the
+# board leaves and starts again when it comes back.
+#
+# WHY THE MODEL GLOB. The same vendor id also covers a board flashed with the nRF Sniffer image, which
+# is no HCI controller and must never get an attach unit. Only the `hci_usb` firmware carries `HCI` in
+# its model string (see deploy/flash-nrf52840-hci.sh).
+#
+# WHY THE SERIAL GLOB. The instance name IS the USB serial, so a board that reports no serial would
+# instance the unit under an empty name. One glob keeps that case away from systemd.
+#
+# WHY `ACTION!="remove"` RATHER THAN `ACTION=="add"`. A `bind` or a `change` event on a tty that is
+# already present must reach the same path, and only the removal has nothing to start.
+#
+# Installed by deploy/check-system-files.sh, which byte-compares it against /etc. A udev reload applies
+# to FUTURE events only, so installing this file never disturbs a running capture.
+ACTION!="remove", SUBSYSTEM=="tty", KERNEL=="ttyACM*", ENV{ID_VENDOR_ID}=="2fe3", ENV{ID_MODEL}=="*HCI*", ENV{ID_SERIAL_SHORT}=="?*", SYMLINK+="tepnabt/$env{ID_SERIAL_SHORT}", TAG+="systemd", ENV{SYSTEMD_WANTS}+="tepna-btattach@$env{ID_SERIAL_SHORT}.service"

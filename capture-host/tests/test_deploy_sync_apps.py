@@ -211,6 +211,16 @@ def _tree(tmp_path, capture_user_repo="tepna", capture_user_etc="tepna"):
     (tmp_path / "capture-host" / "deploy" / "tepna-capture.service").write_text(unit.format(u=capture_user_repo))
     (udev / "99-tepna-btdongle.rules").write_text('ACTION=="add", ATTR{idVendor}=="2357"\n')
     (udev / "99-tepna-hidraw.rules").write_text('SUBSYSTEM=="hidraw", ATTRS{idVendor}=="1915"\n')
+    # The btattach hotplug pair, in sync. The rule is flat; the drop-in's installed path is NESTED
+    # (…/tepna-btattach@.service.d/bind-to-tty.conf), which a flat fixture would never exercise, and
+    # `install -D` is what makes that directory.
+    hot = 'ACTION!="remove", SUBSYSTEM=="tty", KERNEL=="ttyACM*"\n'
+    (src / "99-tepna-btattach-hotplug.rules").write_text(hot)
+    (udev / "99-tepna-btattach-hotplug.rules").write_text(hot)
+    dropin = "[Unit]\nBindsTo=dev-tepnabt-%i.device\n"
+    (src / "tepna-btattach-bind-to-tty.conf").write_text(dropin)
+    (systemd / "tepna-btattach@.service.d").mkdir()
+    (systemd / "tepna-btattach@.service.d" / "bind-to-tty.conf").write_text(dropin)
     (systemd / "tepna-usb-autosuspend.service").write_text("[Service]\nType=oneshot\n")
     (systemd / "tepna-capture.service").write_text(unit.format(u=capture_user_etc))
     # The needrestart drop-in. Its repo name and its installed name DIFFER on purpose, because the
@@ -515,6 +525,13 @@ def _tree_two_sources(tmp_path, deploy_body, systemd_body, etc_body):
     (udev / "99-tepna-btdongle.rules").write_text("rule\n")
     (src / "systemd" / "99-tepna-hidraw.rules").write_text("hidraw rule\n")
     (udev / "99-tepna-hidraw.rules").write_text("hidraw rule\n")
+    # The btattach hotplug pair, in sync — this fixture is about AMBIGUOUS SOURCES, so these two must
+    # not be the thing that reds it.
+    (src / "systemd" / "99-tepna-btattach-hotplug.rules").write_text("hotplug rule\n")
+    (udev / "99-tepna-btattach-hotplug.rules").write_text("hotplug rule\n")
+    (src / "systemd" / "tepna-btattach-bind-to-tty.conf").write_text("drop-in\n")
+    (systemd / "tepna-btattach@.service.d").mkdir()
+    (systemd / "tepna-btattach@.service.d" / "bind-to-tty.conf").write_text("drop-in\n")
     (src / "systemd" / "tepna-usb-autosuspend.service").write_text("unit\n")
     (systemd / "tepna-usb-autosuspend.service").write_text("unit\n")
     (src / "deploy" / "tepna-capture.service").write_text(deploy_body)
