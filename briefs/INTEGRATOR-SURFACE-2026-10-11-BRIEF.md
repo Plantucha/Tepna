@@ -78,6 +78,8 @@ All three are planted in `--selftest` and asserted red. None is a claim about to
 - [x] A control plants the old enumerator's blindness, and §7 does not assert it.
 - [x] 2026-11-12: the first nested subtree (`fusion.apnea`) declares a surface per key, through an
       ANCHORED read, and the verdict names the subtrees it judged at depth 2 (§8).
+- [x] 2026-11-13: an object literal one level inside a declared subtree declares a surface per key,
+      and a `card` label there reds, because the gate credits no reader at that depth (§17).
 
 ## 6 · 2026-11-11 — the seed counted prose, and two declarations were wrong
 
@@ -857,3 +859,74 @@ Four export subtrees remain undeclared: `schema` 13 keys at line 8014, `apneaTyp
 2 over 7 element keys, and `handshakes` 2. `kernel` and its 2 keys need a reader for a one-line
 object literal. The pass-through subtrees of the form `fusion.X || null` still need the resolver that
 board #5905 parks.
+
+## 17 · 2026-11-13 — the sixth subtree holds an OBJECT one level deeper, and the ladder reached arrays only
+
+Unit `schema` declares `fusion.schema`, the sixth nested subtree. Magpie read the same literal at
+board #6110 and counted the same six keys, with the same seven keys inside `method`.
+
+### What moved
+
+| measure | before | after |
+|---|---|---|
+| nested subtrees | 5 | 6 |
+| nested depth-2 keys | 39 | 45 |
+| depth-2 `card` keys | 25 | 25 |
+| depth-2 `export-only` keys | 14 | 20 |
+| inner object literals | 0 | 1 |
+| inner keys judged | 0 | 7 |
+| keys judged | 75 | 88 |
+| selftests | 261 | 296 |
+
+### Three findings
+
+**1 · The 13 keys this brief recorded union two depths.** The literal at line 8014 holds SIX keys:
+`name`, `version`, `generated`, `provenance`, `doc` and `method`. `method` is an object literal and
+it holds seven more. Six plus seven is 13, and a top-key read returns 6. Magpie and I measured the
+anchors first this time, so neither of us built against the wrong count.
+
+**2 · A `card` label cannot stay honest one level inside a subtree.** The read machinery credits a
+key one hop below an alias, and nothing in it addresses `holder.schema.method.window`. So an inner
+key declares `export-only`, and a `card` there reds with that reason. A label the gate cannot
+compute is the shape of defect section 16 names: the gate is right and the declaration claims a
+credit nobody measured.
+
+**3 · A parent route that carries no inner literal makes EVERY inner key conditional.** The first
+draft compared the key lists of the inner literals it found. A parent on two export routes can
+carry the object on one route alone, and a consumer reading the other route then gets no object at
+all. So the reader holds the count of inner literals against the count of parent literals.
+
+### The controls
+
+| # | the mutation | what the gate did |
+|---|---|---|
+| S0 | drop the `doc` surface at depth 2 | FAIL — `1 nested key(s) of \`fusion.schema\` declare no surface: doc` |
+| S1 | drop the `apneaCoupling` surface inside `method` | FAIL — `1 inner key(s) declare no surface: method.apneaCoupling` |
+| S2 | declare an inner key the literal dropped | PASS, and it prints `1 declared inner key(s) the literal no longer carries (method.retired)` with `innerStaleDeclarations: 1` |
+| S3 | label an inner key `card` | FAIL — the reason names the credit nobody computed |
+| S4 | label an inner key `rendered` | FAIL — `1 inner key(s) declare something other than 'export-only'` |
+| S5 | declare an inner literal on `name`, a string | REFUSES, exit 1, and names `schema.name` and where it looked |
+| S6 | declare an inner literal the subtree lacks | REFUSES, exit 1, and names `schema.nope` |
+
+The route control: the inner reader works in PREPARED lines and never slices raw text, so both
+parse routes return one key list and one line number. I measured that on both comment forms on
+2026-11-13. The 261 earlier selftests pass unchanged after the refactor, which is what holds
+`inlineShape` to its old behaviour.
+
+### What this still cannot see
+
+`integrator-app.js:177` reads `json.schema.name` to RECOGNISE a dropped fusion export by its
+`.fusion-export` suffix. The holder there is an untyped `json` on the re-ingest path, and that read
+renders nothing. The two-label vocabulary states "a reader renders it" or "no reader reads it", and
+it cannot state "a reader tests it and draws nothing". A third label is a later unit.
+
+The seven `method` values are prose strings, and the inner layer judges the key set alone. A string
+that still describes a key the fusion dropped reds nothing here. Section 16 of this brief lists
+seven `window` key names inside one of those strings, so that rot has a real surface.
+
+`innerShapeMissing` fires through a direct call alone, because the loader refuses first. The
+element layer carries `elemShapeMissing` on the same terms, and this field mirrors it.
+
+Three export subtrees remain undeclared: `apneaTyping` 11 keys, `unmatched` 2 over 7 element keys,
+and `handshakes` 2. `kernel` and its 2 keys need a reader for a one-line object literal. The
+pass-through subtrees of the form `fusion.X || null` still need the resolver that board #5905 parks.

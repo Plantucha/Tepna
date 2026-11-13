@@ -741,42 +741,14 @@ export function indexedElements(text, prefixes, arrayKey, pre = prepare) {
    `seamCensus: skew.seamCensus || []` ships even empty. So `partial` here means "can evaluate to
    `undefined`", and `partialKind` names which mechanism produced it. `null` is NOT in that set —
    a null is a value a consumer can read, which is the whole of §∅. */
-export function inlineShape(dspText, key) {
-  const lines = prepare(dspText).code.split('\n');
-  const anchor = new RegExp('^\\s*' + escapeRe(key) + ':\\s*\\{\\s*$');
-  const at = [];
-  lines.forEach((l, i) => {
-    if (anchor.test(l)) at.push(i);
-  });
-  if (!at.length) return null;
+export function inlineShape(dspText, key, pre = prepare) {
+  const lines = pre(dspText).code.split('\n');
+  const ranges = literalRanges(lines, key);
+  if (!ranges) return null;
   const shapes = [];
   const undefinedValued = new Set();
-  for (const start of at) {
-    let d = 0;
-    let end = -1;
-    for (let j = start; j < lines.length; j++) {
-      d += (lines[j].match(/[{[]/g) || []).length - (lines[j].match(/[}\]]/g) || []).length;
-      if (j > start && d <= 0) {
-        end = j;
-        break;
-      }
-    }
-    if (end < 0) return null;
-    const keys = [];
-    const values = {};
-    let dd = 0;
-    let cur = null;
-    for (let j = start; j <= end; j++) {
-      if (j > start && dd === 1) {
-        const m = lines[j].match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*:(.*)$/);
-        if (m) {
-          cur = m[1];
-          keys.push(cur);
-          values[cur] = m[2];
-        } else if (cur) values[cur] += '\n' + lines[j];
-      } else if (cur && j > start) values[cur] += '\n' + lines[j];
-      dd += (lines[j].match(/[{[]/g) || []).length - (lines[j].match(/[}\]]/g) || []).length;
-    }
+  for (const [start, end] of ranges) {
+    const { keys, values } = literalKeys(lines, start, end);
     if (!keys.length) return null;
     shapes.push({ at: start + 1, keys });
     for (const k of keys) if (/\bundefined\b/.test(values[k] || '')) undefinedValued.add(k);
@@ -798,6 +770,99 @@ export function inlineShape(dspText, key) {
     partial: routeMissing.length ? routeMissing : canBeUndefined,
     partialKind: routeMissing.length ? 'export-route' : 'undefined-value',
     shapeKind: 'inline'
+  };
+}
+
+/* 🔴 DEPTH 3 OF AN OBJECT, NOT OF AN ARRAY. The element layer reads what a reader takes out of an
+   ARRAY element, and `fusion.schema` carries no array: one of its six keys, `method`, is an object
+   literal holding seven more. The gate judged `method` as a single key and saw nothing inside it,
+   so a method note added or dropped moved no number here. The inner layer is OPT-IN, and a subtree
+   with no `inner` block is judged exactly as before. */
+/** Every `key: { … }` literal's [start, end] line range, in PREPARED lines. Null when one is open. */
+function literalRanges(lines, key) {
+  const anchor = new RegExp('^\\s*' + escapeRe(key) + ':\\s*\\{\\s*$');
+  const out = [];
+  for (let i = 0; i < lines.length; i++) {
+    if (!anchor.test(lines[i])) continue;
+    let d = 0;
+    let end = -1;
+    for (let j = i; j < lines.length; j++) {
+      d += (lines[j].match(/[{[]/g) || []).length - (lines[j].match(/[}\]]/g) || []).length;
+      if (j > i && d <= 0) {
+        end = j;
+        break;
+      }
+    }
+    if (end < 0) return null;
+    out.push([i, end]);
+  }
+  return out.length ? out : null;
+}
+
+/** The depth-1 keys of one literal range, each with its value text. */
+function literalKeys(lines, start, end) {
+  const keys = [];
+  const values = {};
+  let dd = 0;
+  let cur = null;
+  for (let j = start; j <= end; j++) {
+    if (j > start && dd === 1) {
+      const m = lines[j].match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*:(.*)$/);
+      if (m) {
+        cur = m[1];
+        keys.push(cur);
+        values[cur] = m[2];
+      } else if (cur) values[cur] += '\n' + lines[j];
+    } else if (cur && j > start) values[cur] += '\n' + lines[j];
+    dd += (lines[j].match(/[{[]/g) || []).length - (lines[j].match(/[}\]]/g) || []).length;
+  }
+  return { keys, values };
+}
+
+/** The shape of an object literal nested INSIDE a declared subtree's own literal. */
+export function innerShape(dspText, subtree, inner, pre = prepare) {
+  const lines = pre(dspText).code.split('\n');
+  const outer = literalRanges(lines, subtree);
+  if (!outer) return null;
+  const shapes = [];
+  const undefinedValued = new Set();
+  for (const [s0, e0] of outer) {
+    /* 🔴 THE SEARCH RUNS INSIDE THE PARENT RANGE, IN THE SAME PREPARED LINES. Slicing raw text by
+       a prepared index would shift every line under the tokenizer route, which DELETES comment
+       lines instead of blanking them in place. Slicing the prepared array keeps the two aligned,
+       and anchoring inside the parent keeps a same-named literal elsewhere out of this shape. */
+    const within = literalRanges(lines.slice(s0, e0 + 1), inner);
+    if (!within) continue;
+    for (const [s1, e1] of within) {
+      const { keys, values } = literalKeys(lines, s0 + s1, s0 + e1);
+      if (!keys.length) continue;
+      shapes.push({ at: s0 + s1 + 1, keys });
+      for (const k of keys) if (/\bundefined\b/.test(values[k] || '')) undefinedValued.add(k);
+    }
+  }
+  if (!shapes.length) return null;
+  const union = [...new Set(shapes.flatMap((x) => x.keys))].sort();
+  /* 🔴 A PARENT ROUTE THAT CARRIES NO INNER LITERAL AT ALL makes EVERY inner key conditional, and a
+     union over the routes that DO carry it would hide that: a consumer reading the other route gets
+     no inner object whatever. So the count of inner literals is held against the count of parent
+     literals, and not only the key lists against each other. */
+  const routeMissing = shapes.length < outer.length ? union.slice() : union.filter((k) => !shapes.every((x) => x.keys.includes(k)));
+  const canBeUndefined = union.filter((k) => undefinedValued.has(k));
+  /* A parent on two export routes can carry the inner literal on one route alone, which is the
+     `export-route` state the parent states one level up. Two reasons at once name themselves here
+     rather than wear one word, exactly as `inlineShape` refuses to pick between them. */
+  if (routeMissing.length && canBeUndefined.length)
+    throw new Error(
+      `inner literal \`${subtree}.${inner}\` has keys conditional for TWO different reasons — ${routeMissing.join(', ')} ${routeMissing.length === 1 ? 'is' : 'are'} absent from one export route and ${canBeUndefined.join(', ')} can evaluate to \`undefined\` — and one \`partialKind\` cannot state both`
+    );
+  return {
+    shapes,
+    union,
+    keys: union,
+    at: shapes[0].at,
+    partial: routeMissing.length ? routeMissing : canBeUndefined,
+    partialKind: routeMissing.length ? 'export-route' : 'undefined-value',
+    shapeKind: 'inner'
   };
 }
 
@@ -1271,6 +1336,49 @@ export function evaluateNested(subtree, shapes, decl, renderText, extra) {
       }
     }
   }
+  /* 🔴 A `card` LABEL CANNOT BE HONEST AT THIS DEPTH. The read machinery credits a key one hop
+     below an alias, and nothing in it addresses `holder.schema.method.window`. So an inner key
+     declares `export-only`, and a `card` there names itself rather than let the gate report a
+     credit it never computed. Stale is REPORTED and not red, exactly as depth 1 and depth 2 treat
+     a declaration the literal no longer carries: the author owns the removal. */
+  const innerDecl = (decl && decl.inner) || null;
+  const innerShapes = (extra && extra.innerShapes) || {};
+  const inners = [];
+  const innerShapeMissing = [];
+  const innerUnknown = [];
+  const innerUndeclared = [];
+  const innerBadValue = [];
+  const innerCardDeclared = [];
+  const innerStale = [];
+  if (innerDecl) {
+    for (const vn of Object.keys(innerDecl)) {
+      const id = innerDecl[vn] || {};
+      /* An inner literal the parent does not carry is the `elemServesUnknown` lesson one layer
+         over: a stale parent key leaves every inner key unjudged, and the gate must blame the one
+         name that caused it. */
+      if (!union.includes(vn)) innerUnknown.push(vn);
+      const shp = innerShapes[vn];
+      if (!shp) {
+        innerShapeMissing.push(vn);
+        inners.push({ name: vn, keys: [], readable: false });
+        continue;
+      }
+      const isurf = id.surfaces || {};
+      for (const k of shp.keys) {
+        if (!(k in isurf)) {
+          innerUndeclared.push(vn + '.' + k);
+          continue;
+        }
+        if (isurf[k] === 'card') {
+          innerCardDeclared.push(vn + '.' + k);
+          continue;
+        }
+        if (isurf[k] !== 'export-only') innerBadValue.push(vn + '.' + k);
+      }
+      for (const k of Object.keys(isurf)) if (!shp.keys.includes(k)) innerStale.push(vn + '.' + k);
+      inners.push({ name: vn, at: shp.at, keys: shp.keys, partial: shp.partial || [], partialKind: shp.partialKind, readable: true });
+    }
+  }
   return {
     subtree,
     path,
@@ -1313,6 +1421,13 @@ export function evaluateNested(subtree, shapes, decl, renderText, extra) {
     elemUnjudged,
     elemServesUnknown,
     elemRawUnpaired,
+    inners,
+    innerShapeMissing,
+    innerUnknown,
+    innerUndeclared,
+    innerBadValue,
+    innerCardDeclared,
+    innerStale,
     ok:
       !noAlias &&
       !undeclared.length &&
@@ -1327,7 +1442,12 @@ export function evaluateNested(subtree, shapes, decl, renderText, extra) {
       !elemUndeclared.length &&
       !elemBadValue.length &&
       !elemCardUnread.length &&
-      !elemExportOnlyRead.length
+      !elemExportOnlyRead.length &&
+      !innerShapeMissing.length &&
+      !innerUnknown.length &&
+      !innerUndeclared.length &&
+      !innerBadValue.length &&
+      !innerCardDeclared.length
   };
 }
 
@@ -1357,7 +1477,14 @@ export function nestedReasons(n) {
     (n.elemCardUnread || []).length
       ? `${n.elemCardUnread.length} element key(s) declare 'card' and no anchored element read reaches them in ${n.cardUnrenderedWhere || n.readerFile}: ${n.elemCardUnread.join(', ')}`
       : '',
-    (n.elemExportOnlyRead || []).length ? `${n.elemExportOnlyRead.length} element key(s) declare 'export-only' and an anchored element read reaches them: ${n.elemExportOnlyRead.join(', ')}` : ''
+    (n.elemExportOnlyRead || []).length ? `${n.elemExportOnlyRead.length} element key(s) declare 'export-only' and an anchored element read reaches them: ${n.elemExportOnlyRead.join(', ')}` : '',
+    (n.innerShapeMissing || []).length ? `${n.innerShapeMissing.length} inner literal(s) are declared and this gate could not read them from source: ${n.innerShapeMissing.join(', ')}` : '',
+    (n.innerUnknown || []).length ? `${n.innerUnknown.length} inner literal(s) name a key this subtree does not carry: ${n.innerUnknown.join(', ')}` : '',
+    (n.innerUndeclared || []).length ? `${n.innerUndeclared.length} inner key(s) declare no surface: ${n.innerUndeclared.join(', ')}` : '',
+    (n.innerBadValue || []).length ? `${n.innerBadValue.length} inner key(s) declare something other than 'export-only': ${n.innerBadValue.join(', ')}` : '',
+    (n.innerCardDeclared || []).length
+      ? `${n.innerCardDeclared.length} inner key(s) declare 'card', and this gate credits no reader one level inside a subtree, so the label states a credit nobody computed: ${n.innerCardDeclared.join(', ')}`
+      : ''
   ].filter(Boolean);
 }
 
@@ -1548,17 +1675,30 @@ function main() {
         );
       elementShapes[vn] = es;
     }
-    nested.push(evaluateNested(sub, shapes, d, rlist[0].text, { readers: rlist, elementShapes }));
+    /* An inner literal is read from the SAME source the parent shape came from, and anchored inside
+       the parent's own literal. A declared inner the reader cannot find refuses here, beside the
+       parent's refusal, rather than reporting a surface it never saw. */
+    const innerShapes = {};
+    for (const vn of Object.keys(d.inner || {})) {
+      const is = innerShape(dsp, sub, vn);
+      if (!is)
+        throw new Error(
+          `the inner literal \`${sub}.${vn}\` was not found inside the \`${sub}: {\` literal in integrator-dsp.js, or it does not close — its shape changed, and this gate must not guess`
+        );
+      innerShapes[vn] = is;
+    }
+    nested.push(evaluateNested(sub, shapes, d, rlist[0].text, { readers: rlist, elementShapes, innerShapes }));
   }
   const nestedBad = nested.filter((n) => !n.ok);
   const nestedKeys = nested.reduce((t, n) => t + n.keys.length, 0);
+  const nestedInnerKeys = nested.reduce((t, n) => t + (n.inners || []).reduce((u, i) => u + i.keys.length, 0), 0);
   const nestedCard = nested.reduce((t, n) => t + n.keys.filter((k) => (decl.nested[n.subtree].surfaces || {})[k] === 'card').length, 0);
   const cards = keys.filter((k) => (decl.surfaces || {})[k] === 'card').length;
   const v = Verdict.make({
     gate: 'integrator-surface',
     scope: 'internal',
     status: r.ok && !nestedBad.length ? 'PASS' : 'FAIL',
-    population: { checked: keys.length + nestedKeys, eligible: keys.length + nestedKeys, excluded: 0 },
+    population: { checked: keys.length + nestedKeys + nestedInnerKeys, eligible: keys.length + nestedKeys + nestedInnerKeys, excluded: 0 },
     criterion: { name: 'undeclared_or_misdeclared_keys', threshold: 0, unit: 'keys', direction: 'lte' },
     result: {
       keys: keys.length,
@@ -1594,6 +1734,14 @@ function main() {
          `partialKind === 'undefined-value'` until a two-route literal earned its own kind, and a
          proxy for a fact the reader already returns is a miscount waiting for the next kind. */
       nestedInline: nested.filter((n) => n.shapeKind === 'inline').length,
+      /* The inner layer's own census. `innerStale` is reported and never red, so a reader needs the
+         count here or the fact reaches nobody — the `nestedStaleDeclarations` lesson, applied as
+         the layer ships rather than one unit later. */
+      innerLiterals: nested.reduce((t, n) => t + (n.inners || []).length, 0),
+      innerKeys: nestedInnerKeys,
+      innerWhere: nested.flatMap((n) => (n.inners || []).map((i) => n.subtree + '.' + i.name + '{' + i.keys.length + '}')),
+      innerStaleDeclarations: nested.reduce((t, n) => t + (n.innerStale || []).length, 0),
+      innerStaleWhere: nested.flatMap((n) => (n.innerStale || []).map((k) => n.subtree + '.' + k)),
       elementShapes: nested.reduce((t, n) => t + (n.elements || []).length, 0),
       elementKeys: nested.reduce((t, n) => t + (n.elements || []).reduce((u, e) => u + e.keys.length, 0), 0),
       elementCard: nested.reduce((t, n) => t + (n.elements || []).reduce((u, e) => u + Object.values(e.cardByReader || {}).reduce((v, c) => v + c, 0), 0), 0),
@@ -1683,6 +1831,10 @@ function main() {
                 )
                 .join(' · ')}`
             : '') +
+          ((n.inners || []).length
+            ? ` · inner object(s): ${n.inners.map((i) => `${i.name}{${i.keys.length}} at :${i.at}${(i.partial || []).length ? ` · ${i.partial.length} key(s) on one route only` : ''}`).join(' · ')}`
+            : '') +
+          ((n.innerStale || []).length ? ` · ${n.innerStale.length} declared inner key(s) the literal no longer carries (${n.innerStale.join(', ')})` : '') +
           ((n.elemUnjudged || []).length ? ` · ${n.elemUnjudged.length} element read(s) UNJUDGED (${n.elemUnjudged.map((u) => u.arrayKey + '@' + u.file + ':' + u.line).join(', ')})` : '')
       );
   if (r.stale.length) console.log(`  note: ${r.stale.length} declaration(s) name a key the fusion no longer emits (${r.stale.join(', ')}) — not a red, but worth pruning`);
@@ -2076,6 +2228,130 @@ if (DIRECT && process.argv.includes('--selftest')) {
   ck("…and it is not a red, because the removal is the author's", nestedReasons(KSTALE).filter(Boolean), []);
   ck('…and it does not read as a card key nobody renders', KSTALE.cardUnrendered, []);
   ck('an unresolved binding carries its realm too', K4.aliasUnresolved, []);
+  /* --- the INNER object layer: depth 3 of an OBJECT, not of an array --------------- */
+  const STOK = (src) => ({ code: codeOnly(src), by: 'tokenizer' });
+  const SSCH = [
+    'function pub(fusion) {',
+    '  var _exp = {',
+    '    schema: {',
+    '      name: BUS,',
+    '      version: "1.3",',
+    '      method: {',
+    '        confidence: "a noisy-OR of the sources",',
+    '        apneaMatch: "an asymmetric directional window"',
+    '      }',
+    '    }',
+    '  };',
+    '  return _exp;',
+    '}'
+  ].join('\n');
+  ck('🔴 an object inside a subtree yields its own keys', innerShape(SSCH, 'schema', 'method').keys, ['apneaMatch', 'confidence']);
+  ck('…and the line it names is the inner anchor', innerShape(SSCH, 'schema', 'method').at, 6);
+  ck('…and the shape says which layer read it', innerShape(SSCH, 'schema', 'method').shapeKind, 'inner');
+  ck('…and the parent shape still reads three keys at depth 2', inlineShape(SSCH, 'schema').union, ['method', 'name', 'version']);
+  ck('an inner literal the parent does not hold is null', innerShape(SSCH, 'schema', 'tiers'), null);
+  ck('…and so is an inner literal of a subtree that is absent', innerShape(SSCH, 'window', 'method'), null);
+  /* 🔴 ANCHORED INSIDE THE PARENT. A same-named literal elsewhere in the file is a different
+     object, and a global search would union the two into a shape no route ever emits. */
+  const SOUT = 'function other() {\n  var z = {\n    method: {\n      zzz: 1\n    }\n  };\n}\n' + SSCH;
+  ck('🔴 a same-named literal OUTSIDE the parent stays out of the shape', innerShape(SOUT, 'schema', 'method').keys, ['apneaMatch', 'confidence']);
+  ck('…and the parent shape is unmoved by it', inlineShape(SOUT, 'schema').union, ['method', 'name', 'version']);
+  /* 🔴 THE SHAPE IS READ IN PREPARED LINES, so a raw slice taken on a prepared index could cut the
+     wrong lines whenever the two texts hold different line counts. Measured 2026-11-13 on both
+     parse routes and both comment forms: the keys and the line agree. The parity is what the gate
+     needs, and it holds because this reader never leaves prepared space. */
+  const SSCHC = '/* one */\n/* two */\n' + SSCH;
+  const SSCHL = '// one\n// two\n' + SSCH;
+  ck('🔴 the inner keys are identical under the tokenizer route', innerShape(SSCHC, 'schema', 'method', STOK).keys, ['apneaMatch', 'confidence']);
+  ck('…and the acorn route reads the same keys', innerShape(SSCHC, 'schema', 'method').keys, ['apneaMatch', 'confidence']);
+  ck('…and both routes name one line, under a block-comment prefix', [innerShape(SSCHC, 'schema', 'method').at, innerShape(SSCHC, 'schema', 'method', STOK).at], [8, 8]);
+  ck('…and under a line-comment prefix too', [innerShape(SSCHL, 'schema', 'method').at, innerShape(SSCHL, 'schema', 'method', STOK).at], [8, 8]);
+  /* 🔴 TWO EXPORT ROUTES, AND ONE OF THEM CARRIES NO INNER OBJECT. */
+  const STWO = SSCH + '\n' + SSCH.replace(/      method: \{\n.*\n.*\n      \}\n/s, '');
+  ck('🔴 a parent route with no inner literal makes every inner key conditional', innerShape(STWO, 'schema', 'method').partial, ['apneaMatch', 'confidence']);
+  ck('…and the reason is the route, not an undefined value', innerShape(STWO, 'schema', 'method').partialKind, 'export-route');
+  const SUND = SSCH.replace('confidence: "a noisy-OR of the sources",', 'confidence: cfg ? "a noisy-OR" : undefined,');
+  ck('an inner key that can evaluate to `undefined` says so', innerShape(SUND, 'schema', 'method').partial, ['confidence']);
+  ck('…and names that mechanism', innerShape(SUND, 'schema', 'method').partialKind, 'undefined-value');
+  const SBOTH = SUND + '\n' + SUND.replace('        apneaMatch: "an asymmetric directional window"', '        apneaMatch: "x",\n        extra: 1');
+  ck(
+    '🔴 TWO mechanisms at once refuse rather than report one reason for both',
+    (() => {
+      try {
+        innerShape(SBOTH, 'schema', 'method');
+        return 'no throw';
+      } catch (e) {
+        return /TWO different reasons/.test(e.message);
+      }
+    })(),
+    true
+  );
+  const SRD = 'function draw(fusion) {\n  return 1;\n}';
+  const SDECL = (over) => ({
+    inline: true,
+    aliasPath: 'fusion.schema',
+    surfaces: { name: 'export-only', version: 'export-only', method: 'export-only' },
+    inner: { method: { surfaces: { confidence: 'export-only', apneaMatch: 'export-only' } } },
+    ...over
+  });
+  const sEval = (over, ishapes) =>
+    evaluateNested('schema', inlineShape(SSCH, 'schema'), SDECL(over), SRD, {
+      readers: [{ file: 'render.js', text: SRD, aliasPath: 'fusion.schema' }],
+      innerShapes: ishapes === undefined ? { method: innerShape(SSCH, 'schema', 'method') } : ishapes
+    });
+  ck('🔴 a subtree whose every key is export-only passes with no reader at all', sEval({}).ok, true);
+  ck(
+    '…and the inner layer reports the object it judged',
+    sEval({}).inners.map((i) => i.name + '{' + i.keys.length + '}'),
+    ['method{2}']
+  );
+  ck('an undeclared inner key reds', sEval({ inner: { method: { surfaces: { confidence: 'export-only' } } } }).innerUndeclared, ['method.apneaMatch']);
+  ck('…and the reason names the depth', nestedReasons(sEval({ inner: { method: { surfaces: { confidence: 'export-only' } } } }))[0].includes('inner key(s) declare no surface'), true);
+  /* 🔴 A `card` LABEL AT THIS DEPTH CLAIMS A CREDIT NOBODY COMPUTED. The read machinery reaches one
+     hop below an alias and nothing in it addresses `holder.schema.method.window`. */
+  const SCARD = sEval({ inner: { method: { surfaces: { confidence: 'card', apneaMatch: 'export-only' } } } });
+  ck("🔴 a 'card' label one level inside a subtree reds", SCARD.innerCardDeclared, ['method.confidence']);
+  ck('…and the reason says the gate credits no reader there', nestedReasons(SCARD)[0].includes('credits no reader one level inside'), true);
+  ck('…and it is not reported as an undeclared key', SCARD.innerUndeclared, []);
+  const SBAD = sEval({ inner: { method: { surfaces: { confidence: 'rendered', apneaMatch: 'export-only' } } } });
+  ck('an inner label outside the vocabulary reds', SBAD.innerBadValue, ['method.confidence']);
+  /* 🔴 REPORTED, NEVER RED — the same policy depth 1 and depth 2 apply to a declaration the literal
+     no longer carries: the author owns the removal, and the gate only has to say so. */
+  const SSTALE = sEval({ inner: { method: { surfaces: { confidence: 'export-only', apneaMatch: 'export-only', retired: 'export-only' } } } });
+  ck('🔴 an inner declaration the literal dropped is named', SSTALE.innerStale, ['method.retired']);
+  ck("…and it is not a red, because the removal is the author's", nestedReasons(SSTALE).filter(Boolean), []);
+  const SGRAND = [
+    'function pub(fusion) {',
+    '  var _exp = {',
+    '    schema: {',
+    '      method: {',
+    '        tiers: {',
+    '          device: 1,',
+    '          cvhr: 0.8',
+    '        }',
+    '      }',
+    '    }',
+    '  };',
+    '}'
+  ].join('\n');
+  const SUNK = evaluateNested(
+    'schema',
+    inlineShape(SGRAND, 'schema'),
+    { inline: true, aliasPath: 'fusion.schema', surfaces: { method: 'export-only' }, inner: { tiers: { surfaces: { device: 'export-only', cvhr: 'export-only' } } } },
+    SRD,
+    {
+      readers: [{ file: 'render.js', text: SRD, aliasPath: 'fusion.schema' }],
+      innerShapes: { tiers: innerShape(SGRAND, 'schema', 'tiers') }
+    }
+  );
+  ck('🔴 an inner literal that is a GRANDCHILD names itself, because the subtree does not carry it', SUNK.innerUnknown, ['tiers']);
+  ck('…and that reds', SUNK.ok, false);
+  ck('…and the reason says the subtree does not carry it', nestedReasons(SUNK)[0].includes('does not carry'), true);
+  ck('a declared inner shape this gate could not read names itself', sEval({}, {}).innerShapeMissing, ['method']);
+  ck('…and reds', sEval({}, {}).ok, false);
+  ck('a subtree with NO inner block judges exactly as before', sEval({ inner: undefined }).inners, []);
+  ck('…and its own key list is unmoved', sEval({ inner: undefined }).keys, ['method', 'name', 'version']);
+  ck('…and it stays green', sEval({ inner: undefined }).ok, true);
   /* --- depth 3: what a reader takes out of an ELEMENT -------------------------------- */
   const E1 = [
     'function buildE(recs) {',
