@@ -328,6 +328,38 @@
     }
    }
   },
+  "schema": {
+   "inline": true,
+   "aliasPath": "fusion.schema",
+   "enumeratedWith": "The single inline `schema: {` literal in integrator-dsp.js, at line 8014 on 2026-11-13, read in blanked code by `inlineShape`. A `^\\s*schema:` scan of that file returns this one line, so ONE export route writes this subtree: the slim `var _exp = {` projection inside buildFusionExport. The full `runFusion` export carries no `schema` key at all. The literal holds SIX keys, and `method` is an object literal holding seven more, which the `inner` block below judges. Six plus seven is the 13 the brief recorded, so that figure unions two depths. Magpie read the same literal independently at board #6110 and counted the same six and seven.",
+   "readAs": "No reader reads this subtree. integrator-render.js mentions `schema` zero times, which `export-only` on every key states. integrator-app.js:177 reads `json.schema.name` to RECOGNISE a dropped fusion export by its `.fusion-export` suffix, and the holder there is an untyped `json` on the re-ingest path, not the `fusion` object this subtree hangs from. That read renders nothing, so the two-label vocabulary cannot state it, and section 17 of the brief records the gap.",
+   "seededFrom": "Hand-checked key by key against the literal and the three reader realms on 2026-11-13, from the read sites and not from a token match. Every other `.schema.` read in the repo sits on a `ganglior.node-export` and never on this fusion export: cpapdex-fusion.js:640-641, glucodex-dsp.js:2313-2314, hrvdex-app.js:139, pulsedex-app.js:179 and integrator-app.js:196. A node export's `schema` block is a different contract, so none of those reads credits a key here.",
+   "nullWhen": "Never. buildFusionExport writes the block on every fusion, so a consumer can always read the export's own name, version and method notes.",
+   "surfaces": {
+    "name": "export-only",
+    "version": "export-only",
+    "generated": "export-only",
+    "provenance": "export-only",
+    "doc": "export-only",
+    "method": "export-only"
+   },
+   "inner": {
+    "method": {
+     "readAs": "Seven prose strings. Each one states one method of the fusion layer for a person who reads the export, and no code reads them.",
+     "surfaces": {
+      "confidence": "export-only",
+      "apneaMatch": "export-only",
+      "nullModel": "export-only",
+      "apneaCoupling": "export-only",
+      "window": "export-only",
+      "hrvConsensus": "export-only",
+      "periodicBreathing": "export-only"
+     }
+    }
+   },
+   "notes": "`provenance` reads `window.GangliorProvenance`, where `window` is the browser global. That name collides with the `fusion.window` subtree and the two share nothing (Magpie, board #6110).",
+   "depthNote": "`method` is an object and not an array, so the depth-3 element layer cannot reach it. The `inner` block judges its seven keys by key set alone, and a `card` label there reds: the read machinery credits no reader one level inside a subtree."
+  },
   "window": {
    "inline": true,
    "aliasPath": "fusion.window",

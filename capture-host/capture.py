@@ -10918,7 +10918,8 @@ async def qc_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = N
             # the next night overwrote the newer copy. `nightqc.report_night` reads the band label #4324
             # added, so a morning folder holding only a post-midnight file set now gets no summary at all
             # and the night's folder gets every one of them.
-            night_rep = os.path.join(captures, _report_dir(captures, current, summ))
+            summ["report_night"] = _report_dir(captures, current, summ)  # the folder `night_label` names
+            night_rep = os.path.join(captures, summ["report_night"])
             _qc = os.path.join(night_rep, "QC-SUMMARY.json")
             # 🔴 THIS FILE HAS MORE THAN ONE WRITER, and this poller rewrites it WHOLESALE every
             # `poll_sec`. The CPAP inventory reconciler merges its own field in after the 13:00

@@ -4927,8 +4927,18 @@ def digest_night(summ) -> str | None:
 
 
 def night_label(summ) -> str:
-    """PURE: the night name an alert shows — the band's night, and the folder beside it when they differ."""
-    folder = summ.get("night") if isinstance(summ, dict) else None
+    """PURE: the night name an alert shows — the band's night, and the folder beside it when they differ.
+
+    The folder named is the one that HOLDS the reports: `report_night`, which the poller stamps after
+    `report_night()` chose it, else the judged `night` for a summary written before that field. Measured
+    on the capture box 2026-11-12: the digest said "night 2026-11-11 (folder 2026-11-12)", and the
+    summary was in 2026-11-11. Since #3178 the poller writes into the band folder whenever it exists,
+    so the judged folder named a place that held none of the night's reports, every morning since 11-08.
+    """
+    if not isinstance(summ, dict):
+        summ = {}
+    rep = summ.get("report_night")
+    folder = rep if isinstance(rep, str) and rep else summ.get("night")
     band = digest_night(summ)
     if band is None:
         return folder or "?"
