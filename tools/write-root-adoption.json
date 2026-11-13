@@ -92,6 +92,11 @@
      "wrapper": "judgeRootOrDie",
      "reading": "it censuses the *-dsp.js files of the tree it resolves and reads that tree\u2019s base ref, so a cross-checkout run would judge another work-unit\u2019s DSP sources and call the answer this branch\u2019s"
     },
+    "tools/detector-change-advisory.mjs": {
+     "since": "2026-11-13",
+     "wrapper": "judgeRoot",
+     "reading": "it reconciles the declared detector sets against the root `*.js` and `capture-host/` files of the tree it resolves, and censuses that tree's diff against a base ref, so a cross-checkout run would reconcile another work-unit's files and call the answer this branch's"
+    },
     "tools/residue-path-leads.mjs": {
      "since": "2026-11-11",
      "wrapper": "judgeRoot",

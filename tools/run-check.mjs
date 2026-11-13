@@ -86,6 +86,7 @@ export const STEPS = [
   'verify:residue-citations',
   'verify:residue-cite-drift',
   'verify:residue-cite-delta',
+  'verify:detector-advisory',
   'verify:bus-conf-provenance',
   'verify:sidecar-census',
   'verify:defect-pins',
