@@ -201,7 +201,12 @@ export function readsAnchored(code, rawText, holder, key) {
 export function oneLineShape(line) {
   const i = line.indexOf('return {');
   if (i < 0) return null;
-  const open = i + 'return '.length;
+  return oneLineObject(line, i + 'return '.length);
+}
+
+/* The same reader over ANY object literal that opens at `open` and closes on the same line. An
+   element literal is not a return, so this takes the index of the `{` and not a keyword. */
+export function oneLineObject(line, open) {
   let d = 0;
   let close = -1;
   for (let j = open; j < line.length; j++) {
@@ -302,6 +307,42 @@ export function nestedShapes(dspText, fnName) {
   if (!shapes.length) return null;
   const union = [...new Set(shapes.flatMap((s) => s.keys))].sort();
   return { shapes, union, partial: union.filter((k) => !shapes.every((s) => s.keys.includes(k))) };
+}
+
+/* 🔴 AN ELEMENT SHAPE BELONGS TO THE BUILDER'S LITERAL, NOT TO THE ARRAY KEY. `auditNodeKernels`
+   builds ONE `entry` object and pushes it into both `nodes[]` and `mismatches[]`, so one shape
+   serves two keys and a per-key declaration would state the same four keys twice. This reads that
+   literal from SOURCE, like every other shape in this gate.
+
+   It reads a literal that closes on ONE line and refuses otherwise, with a named reason. The
+   multi-line form is unbuilt rather than broken: no declaration asks for one yet, and a reader
+   that cannot read a shape must say so rather than return a short key list. */
+export function elementShape(dspText, fnName, varName) {
+  const lines = prepare(dspText).code.split('\n');
+  const start = lines.findIndex((l) => new RegExp('^function ' + escapeRe(fnName) + '\\(').test(l));
+  if (start < 0) return null;
+  let d = 0;
+  let end = -1;
+  for (let i = start; i < lines.length; i++) {
+    d += (lines[i].match(/\{/g) || []).length - (lines[i].match(/\}/g) || []).length;
+    if (i > start && d <= 0) {
+      end = i;
+      break;
+    }
+  }
+  if (end < 0) return null;
+  const re = new RegExp('\\b(?:var|let|const)\\s+' + escapeRe(varName) + '\\s*=\\s*\\{');
+  const hits = [];
+  for (let i = start; i <= end; i++) {
+    const m = re.exec(lines[i]);
+    if (m) hits.push({ at: i, open: m.index + m[0].length - 1 });
+  }
+  /* No assignment is a moved builder; two are ambiguous. Both refuse, as `inlineShape` does. */
+  if (hits.length !== 1) return null;
+  const raw = dspText.split('\n')[hits[0].at];
+  const keys = oneLineObject(raw, hits[0].open);
+  if (!keys) return null;
+  return { at: hits[0].at + 1, keys };
 }
 
 /* 🔴 THE SECOND SUBTREE NEEDED THREE MECHANISMS THE FIRST ONE DID NOT. `fusion.clockSkew` is an
@@ -510,6 +551,71 @@ export function readsDirectPath(text, path, key) {
   return dot.test(code) || br.test(text);
 }
 
+/* 🔴 A MEMBER CHAIN SPLIT ACROSS LINES DEFEATS A PER-LINE REGEX. `overdex-app.js` writes
+   `fusion.kernelAudit.mismatches` on one line and `.map(function (m) {` on the next, so a
+   line-by-line scan found 2 of the 3 element-read sites in this repo and reported the third as
+   absent. Every test here runs over the WHOLE blanked text, where `\s` spans a newline.
+
+   A site is `<prefix>.<arrayKey>.<iterator>(<param> …)`: the callback's parameter NAMES one
+   element, and what the callback reads off it is a depth-3 read. The prefix must be the realm's
+   own alias or its whole path, or any `.mismatches.map` anywhere would count. */
+export function elementCallbacks(text, prefixes, arrayKey) {
+  const { code } = prepare(text);
+  const alt = prefixes.filter(Boolean).map(escapeRe).join('|');
+  if (!alt) return [];
+  const re = new RegExp('(' + alt + ')\\s*\\.\\s*' + escapeRe(arrayKey) + '\\s*\\.\\s*(map|forEach|filter|flatMap|some|every|find|reduce)\\s*\\(', 'g');
+  const out = [];
+  let m;
+  while ((m = re.exec(code))) {
+    const callOpen = m.index + m[0].length - 1;
+    const head = code.slice(callOpen + 1, callOpen + 80);
+    const pm = head.match(/^\s*(?:function\s*[A-Za-z0-9_$]*\s*)?\(?\s*([A-Za-z_$][A-Za-z0-9_$]*)/);
+    if (!pm) continue;
+    let d = 0;
+    let close = -1;
+    for (let j = callOpen; j < code.length; j++) {
+      if (code[j] === '(') d++;
+      else if (code[j] === ')') {
+        d--;
+        if (d === 0) {
+          close = j;
+          break;
+        }
+      }
+    }
+    /* An unbalanced call is not a site this reader can scope, so it is skipped WITH a count. */
+    if (close < 0) continue;
+    out.push({
+      prefix: m[1],
+      iterator: m[2],
+      param: pm[1],
+      from: callOpen,
+      to: close,
+      line: code.slice(0, callOpen).split('\n').length
+    });
+  }
+  return out;
+}
+
+/* Is `elemKey` read off the element parameter of one of these callbacks.
+
+   🔴 THE BRACKET FORM MUST BE READ ON RAW TEXT. `prepare` blanks every string literal, so
+   `m['status']` in blanked code carries no key name and an element read that OverDex writes in
+   bracket form would read as absent. Depth 1 and depth 2 already split the two tests this way;
+   depth 3 owed the same split, and a fixture caught it before a declaration relied on it.
+   Blanking preserves length, so one offset pair indexes both texts. */
+export function readsElementKey(text, sites, elemKey) {
+  const { code } = prepare(text);
+  for (const s of sites) {
+    const body = code.slice(s.from, s.to + 1);
+    const rawBody = text.slice(s.from, s.to + 1);
+    const dot = new RegExp('\\b' + escapeRe(s.param) + '\\s*\\.\\s*' + escapeRe(elemKey) + '(?![A-Za-z0-9_$])');
+    const br = new RegExp('\\b' + escapeRe(s.param) + '\\s*\\[\\s*([\'"])' + escapeRe(elemKey) + '\\1\\s*\\]');
+    if (dot.test(body) || br.test(rawBody)) return s;
+  }
+  return null;
+}
+
 /** The same red conditions as depth 1, plus the undeclared partial shape, for ONE subtree. */
 export function evaluateNested(subtree, shapes, decl, renderText, extra) {
   const path = (decl && decl.aliasPath) || 'fusion.' + subtree;
@@ -547,6 +653,84 @@ export function evaluateNested(subtree, shapes, decl, renderText, extra) {
   const noAlias = cardDeclared.length > 0 && readers.every((r) => !r.usable.length) && !cardDeclared.some((k) => readers.some((r) => readsDirectPath(r.text, r.aliasPath, k)));
   const cardByReader = {};
   for (const r of readers) cardByReader[r.file] = cardDeclared.filter((k) => (creditedBy(k) || {}).file === r.file).length;
+  /* 🔴 DEPTH 3 — WHAT A READER TAKES OUT OF AN ELEMENT. `kernelAudit.mismatches` is declared `card`
+     and that says only "a reader touches the array". `integrator-app.js` reads `m.node` and
+     `m.hash` off each element and `overdex-app.js` reads `m.status`, while `version` reaches no
+     reader at all. Until today the gate judged the parent and saw nothing of the four keys inside
+     it. The element layer is OPT-IN: a subtree with no `elements` block is judged exactly as before. */
+  const elemDecl = (decl && decl.elements) || null;
+  const elemShapes = (extra && extra.elementShapes) || {};
+  const elements = [];
+  const elemShapeMissing = [];
+  const elemUndeclared = [];
+  const elemBadValue = [];
+  const elemCardUnread = [];
+  const elemExportOnlyRead = [];
+  const sitesFor = (r, keys) => {
+    const prefixes = [r.aliasPath].concat(r.usable.map((s) => s.alias));
+    const all = keys.flatMap((k) => elementCallbacks(r.text, prefixes, k).map((s) => Object.assign({ arrayKey: k }, s)));
+    /* An ALIAS prefix is credited only inside that alias's own scope, exactly as a depth-2 read is.
+       The whole path needs no scope, because the path names the object at the site. */
+    return all.filter((s) => s.prefix === r.aliasPath || r.usable.some((u) => u.alias === s.prefix && s.line >= u.from + 1 && s.line <= u.to + 1));
+  };
+  const servedKeys = [];
+  const elemServesUnknown = [];
+  if (elemDecl) {
+    for (const vn of Object.keys(elemDecl)) {
+      const ed = elemDecl[vn] || {};
+      /* 🔴 A `servesKeys` ENTRY THE SUBTREE DOES NOT CARRY MUST NAME ITSELF. Dropping it silently
+         left every element key unread, and the gate then blamed the four keys instead of the one
+         stale array name that caused it. Measured as control Q on 2026-11-12. */
+      for (const k of ed.servesKeys || []) if (!union.includes(k)) elemServesUnknown.push(vn + ' serves ' + k);
+      const serves = (ed.servesKeys || []).filter((k) => union.includes(k));
+      for (const k of serves) servedKeys.push(k);
+      const shp = elemShapes[vn];
+      if (!shp) {
+        elemShapeMissing.push(vn);
+        elements.push({ name: vn, serves, keys: [], readable: false, cardByReader: {} });
+        continue;
+      }
+      const esurf = ed.surfaces || {};
+      const byReader = readers.map((r) => ({ reader: r, sites: sitesFor(r, serves) }));
+      const elemCreditedBy = (k) => byReader.find((x) => readsElementKey(x.reader.text, x.sites, k)) || null;
+      for (const k of shp.keys) {
+        if (!(k in esurf)) {
+          elemUndeclared.push(vn + '.' + k);
+          continue;
+        }
+        if (esurf[k] !== 'card' && esurf[k] !== 'export-only') {
+          elemBadValue.push(vn + '.' + k);
+          continue;
+        }
+        const hit = elemCreditedBy(k);
+        if (esurf[k] === 'card' && !hit) elemCardUnread.push(vn + '.' + k);
+        if (esurf[k] === 'export-only' && hit) elemExportOnlyRead.push(vn + '.' + k);
+      }
+      const stale = Object.keys(esurf).filter((k) => !shp.keys.includes(k));
+      for (const k of stale) elemUndeclared.push(vn + '.' + k + ' (declared, absent from the literal)');
+      const ecard = {};
+      for (const x of byReader) ecard[x.reader.file] = shp.keys.filter((k) => esurf[k] === 'card' && (elemCreditedBy(k) || {}).reader === x.reader).length;
+      elements.push({
+        name: vn,
+        at: shp.at,
+        serves,
+        keys: shp.keys,
+        readable: true,
+        sites: byReader.flatMap((x) => x.sites.map((s) => ({ file: x.reader.file, line: s.line, arrayKey: s.arrayKey, iterator: s.iterator, param: s.param }))),
+        cardByReader: ecard
+      });
+    }
+  }
+  /* 🔴 A SKIP WITH A STATED REASON IS NOT A BLINDNESS, AND THIS ONE IS COUNTED. `clockSkew.findings`
+     is read element-wise at `integrator-app.js:90` and no element shape declares it, so the gate
+     says how many such sites it chose not to judge rather than passing in silence. It is a census
+     and not a red: seeding a declaration nobody hand-read is the defect section 4 of the brief
+     records, and the count drops to 0 when a later unit reads that literal. */
+  const elemUnjudged = [];
+  for (const r of readers) {
+    const open = union.filter((k) => !servedKeys.includes(k));
+    for (const s of sitesFor(r, open)) elemUnjudged.push({ file: r.file, line: s.line, arrayKey: s.arrayKey, param: s.param, prefix: s.prefix, holder: r.aliasPath });
+  }
   return {
     subtree,
     path,
@@ -571,7 +755,28 @@ export function evaluateNested(subtree, shapes, decl, renderText, extra) {
     undeclaredPartial,
     stalePartial,
     blankedBy: found.blankedBy,
-    ok: !noAlias && !undeclared.length && !badValue.length && !cardUnrendered.length && !exportOnlyRead.length && !undeclaredPartial.length && !stalePartial.length
+    elements,
+    elemShapeMissing,
+    elemUndeclared,
+    elemBadValue,
+    elemCardUnread,
+    elemExportOnlyRead,
+    elemUnjudged,
+    elemServesUnknown,
+    ok:
+      !noAlias &&
+      !undeclared.length &&
+      !badValue.length &&
+      !cardUnrendered.length &&
+      !exportOnlyRead.length &&
+      !undeclaredPartial.length &&
+      !stalePartial.length &&
+      !elemShapeMissing.length &&
+      !elemServesUnknown.length &&
+      !elemUndeclared.length &&
+      !elemBadValue.length &&
+      !elemCardUnread.length &&
+      !elemExportOnlyRead.length
   };
 }
 
@@ -590,7 +795,15 @@ export function nestedReasons(n) {
     n.undeclaredPartial.length
       ? `${n.undeclaredPartial.length} nested key(s) ${n.partialKind === 'undefined-value' ? 'can evaluate to `undefined` and leave the export' : 'exist on some return shapes only'}, with no partialShape reason declared: ${n.undeclaredPartial.join(', ')}`
       : '',
-    n.stalePartial.length ? `${n.stalePartial.length} partialShape declaration(s) name a key whose presence is no longer conditional: ${n.stalePartial.join(', ')}` : ''
+    n.stalePartial.length ? `${n.stalePartial.length} partialShape declaration(s) name a key whose presence is no longer conditional: ${n.stalePartial.join(', ')}` : '',
+    (n.elemShapeMissing || []).length ? `${n.elemShapeMissing.length} element shape(s) are declared and this gate could not read the literal from source: ${n.elemShapeMissing.join(', ')}` : '',
+    (n.elemServesUnknown || []).length ? `${n.elemServesUnknown.length} element shape(s) serve an array key this subtree does not carry: ${n.elemServesUnknown.join(', ')}` : '',
+    (n.elemUndeclared || []).length ? `${n.elemUndeclared.length} element key(s) declare no surface: ${n.elemUndeclared.join(', ')}` : '',
+    (n.elemBadValue || []).length ? `${n.elemBadValue.length} element key(s) declare something other than 'card' or 'export-only': ${n.elemBadValue.join(', ')}` : '',
+    (n.elemCardUnread || []).length
+      ? `${n.elemCardUnread.length} element key(s) declare 'card' and no anchored element read reaches them in ${n.cardUnrenderedWhere || n.readerFile}: ${n.elemCardUnread.join(', ')}`
+      : '',
+    (n.elemExportOnlyRead || []).length ? `${n.elemExportOnlyRead.length} element key(s) declare 'export-only' and an anchored element read reaches them: ${n.elemExportOnlyRead.join(', ')}` : ''
   ].filter(Boolean);
 }
 
@@ -725,7 +938,21 @@ function main() {
       if (!readers.has(e.file)) readers.set(e.file, readFileSync(join(ROOT, e.file), 'utf8'));
       return { file: e.file, text: readers.get(e.file), aliasPath: e.aliasPath || null };
     });
-    nested.push(evaluateNested(sub, shapes, d, rlist[0].text, { readers: rlist }));
+    /* An element shape is read from the SAME source the parent shape came from. A declared shape
+       this reader cannot read refuses here, beside the parent's refusal, rather than reporting an
+       element surface it never saw. `inline` subtrees have no builder, so no element shape either. */
+    const elementShapes = {};
+    for (const vn of Object.keys(d.elements || {})) {
+      const es = byFn ? elementShape(dsp, d.builtBy, vn) : null;
+      if (!es)
+        throw new Error(
+          byFn
+            ? `the element literal \`${vn}\` inside ${d.builtBy}() was not found, appears more than once, or does not close on one line — its shape changed, and this gate must not guess`
+            : `nested subtree \`${sub}\` is an inline literal and declares the element shape \`${vn}\`, which has no builder to read it from`
+        );
+      elementShapes[vn] = es;
+    }
+    nested.push(evaluateNested(sub, shapes, d, rlist[0].text, { readers: rlist, elementShapes }));
   }
   const nestedBad = nested.filter((n) => !n.ok);
   const nestedKeys = nested.reduce((t, n) => t + n.keys.length, 0);
@@ -760,6 +987,14 @@ function main() {
         return acc;
       }, {}),
       nestedInline: nested.filter((n) => n.partialKind === 'undefined-value').length,
+      elementShapes: nested.reduce((t, n) => t + (n.elements || []).length, 0),
+      elementKeys: nested.reduce((t, n) => t + (n.elements || []).reduce((u, e) => u + e.keys.length, 0), 0),
+      elementCard: nested.reduce((t, n) => t + (n.elements || []).reduce((u, e) => u + Object.values(e.cardByReader || {}).reduce((v, c) => v + c, 0), 0), 0),
+      elementSites: nested.reduce((t, n) => t + (n.elements || []).reduce((u, e) => u + (e.sites || []).length, 0), 0),
+      elementCardUnread: nested.reduce((t, n) => t + (n.elemCardUnread || []).length, 0),
+      elementExportOnlyRead: nested.reduce((t, n) => t + (n.elemExportOnlyRead || []).length, 0),
+      elementReadsUnjudged: nested.reduce((t, n) => t + (n.elemUnjudged || []).length, 0),
+      elementReadsUnjudgedWhere: nested.flatMap((n) => (n.elemUnjudged || []).map((u) => `${u.prefix}.${u.arrayKey} at ${u.file}:${u.line}`)),
       card: cards,
       exportOnly: keys.length - cards,
       undeclared: r.undeclared.length,
@@ -824,7 +1059,18 @@ function main() {
             .map(([f, c]) => f + '=' + c + ' card')
             .join(' · ')}` +
           ` · ${n.aliasSites.length} anchored alias site(s) (${n.aliasSites.map((a) => a.alias + '@' + a.line).join(', ') || 'none'})` +
-          (n.forwarded.length ? ` + ${n.forwarded.length} one-hop forward (${n.forwarded.map((f) => f.via + '(' + f.alias + ')@' + f.line).join(', ')})` : '')
+          (n.forwarded.length ? ` + ${n.forwarded.length} one-hop forward (${n.forwarded.map((f) => f.via + '(' + f.alias + ')@' + f.line).join(', ')})` : '') +
+          ((n.elements || []).length
+            ? ` · depth 3: ${n.elements
+                .map(
+                  (e) =>
+                    `${e.name}{${e.keys.length}} over ${e.serves.join(' + ')} · ${Object.entries(e.cardByReader || {})
+                      .map(([f, c]) => f + '=' + c + ' card')
+                      .join(' · ')} · ${(e.sites || []).length} element read site(s)`
+                )
+                .join(' · ')}`
+            : '') +
+          ((n.elemUnjudged || []).length ? ` · ${n.elemUnjudged.length} element read(s) UNJUDGED (${n.elemUnjudged.map((u) => u.arrayKey + '@' + u.file + ':' + u.line).join(', ')})` : '')
       );
   if (r.stale.length) console.log(`  note: ${r.stale.length} declaration(s) name a key the fusion no longer emits (${r.stale.join(', ')}) — not a red, but worth pruning`);
   process.exit(0);
@@ -1163,6 +1409,149 @@ if (DIRECT && process.argv.includes('--selftest')) {
   });
   ck('🔴 a realm that binds no alias still credits a direct read', K3.noAlias, false);
   ck('…and that card key is credited', K3.cardUnrendered, []);
+  /* --- depth 3: what a reader takes out of an ELEMENT -------------------------------- */
+  const E1 = [
+    'function buildE(recs) {',
+    '  var rows = [], bad = [];',
+    '  recs.forEach(function (r) {',
+    '    var entry = { node: r.n, hash: r.h, version: r.v, status: r.s };',
+    '    rows.push(entry);',
+    '    if (r.s !== "match") bad.push(entry);',
+    '  });',
+    '  return { nodes: rows, mismatches: bad, ok: bad.length === 0 };',
+    '}'
+  ].join('\n');
+  const ESHAPE = elementShape(E1, 'buildE', 'entry');
+  ck('🔴 an element literal reads its own keys from source', ESHAPE.keys, ['node', 'hash', 'version', 'status']);
+  ck('…and names the line it read them on', ESHAPE.at, 4);
+  ck('a moved element name refuses rather than guessing', elementShape(E1, 'buildE', 'entries'), null);
+  ck('two assignments of one name are ambiguous, so it refuses', elementShape(E1.replace('rows.push(entry);', 'var entry = { node: 1 };'), 'buildE', 'entry'), null);
+  ck('a multi-line element literal refuses, and is not read short', elementShape('function b(x) {\n  var e = {\n    node: 1\n  };\n  return e;\n}', 'b', 'e'), null);
+  ck('an element name outside the builder is not found', elementShape('function a(x) { var e = { q: 1 }; }\nfunction b(y) { return 1; }', 'b', 'e'), null);
+  const EAPP = [
+    'function recompute() {',
+    '  var ka = FUSION && FUSION.kernelAudit;',
+    '  if (ka && ka.mismatches && ka.mismatches.length) {',
+    '    ka.mismatches.forEach(function (m) {',
+    '      warn(m.node + m.hash);',
+    '    });',
+    '  }',
+    '}'
+  ].join('\n');
+  /* 🔴 THE SPLIT CHAIN. OverDex writes the array on one line and `.map(` on the next, and a
+     per-line regex reported this site as absent. */
+  const EOVER = [
+    'function draw(fusion) {',
+    '  if (!fusion.kernelAudit.ok) {',
+    '    out(',
+    '      fusion.kernelAudit.mismatches',
+    '        .map(function (m) {',
+    "          return m.node + ' ' + m['status'];",
+    '        })',
+    '        .join()',
+    '    );',
+    '  }',
+    '}'
+  ].join('\n');
+  const EAS = aliasSites(EAPP, 'FUSION.kernelAudit').sites;
+  const ESITES = elementCallbacks(EAPP, ['FUSION.kernelAudit'].concat(EAS.map((s) => s.alias)), 'mismatches');
+  ck('an element callback behind an alias is found', ESITES.length, 1);
+  ck('…and the parameter it binds names one element', ESITES[0].param, 'm');
+  ck('…with the iterator named', ESITES[0].iterator, 'forEach');
+  const EOSITES = elementCallbacks(EOVER, ['fusion.kernelAudit'], 'mismatches');
+  ck('🔴 a member chain split across lines is still one site', EOSITES.length, 1);
+  ck('…and its prefix is the whole path', EOSITES[0].prefix, 'fusion.kernelAudit');
+  ck('a prefix no realm declares credits nothing', elementCallbacks(EAPP, ['OTHER.kernelAudit'], 'mismatches').length, 0);
+  ck('an element read off the parameter counts', !!readsElementKey(EAPP, ESITES, 'node'), true);
+  ck('…in bracket form too', !!readsElementKey(EOVER, EOSITES, 'status'), true);
+  ck('…and a key the callback never reads stays unread', !!readsElementKey(EAPP, ESITES, 'version'), false);
+  ck('…while a longer identifier is not that key', !!readsElementKey(EAPP, ESITES, 'nod'), false);
+  ck('an arrow callback binds its element the same way', elementCallbacks('var x = a.kernelAudit.mismatches.map((m) => m.node);', ['a.kernelAudit'], 'mismatches').length, 1);
+  const EDECL = (over) => ({
+    builtBy: 'buildE',
+    surfaces: { nodes: 'export-only', mismatches: 'card', ok: 'card' },
+    elements: { entry: { servesKeys: ['nodes', 'mismatches'], surfaces: { node: 'card', hash: 'card', status: 'card', version: 'export-only' } } },
+    ...over
+  });
+  const E3 = (over, elems) =>
+    evaluateNested('kernelAudit', nestedShapes(E1, 'buildE'), EDECL(over), EAPP, {
+      readers: [
+        { file: 'app.js', text: EAPP, aliasPath: 'FUSION.kernelAudit' },
+        { file: 'over.js', text: EOVER, aliasPath: 'fusion.kernelAudit' }
+      ],
+      elementShapes: elems === undefined ? { entry: ESHAPE } : elems
+    });
+  ck('🔴 three element keys are card over two realms, and none is unread', E3().elemCardUnread, []);
+  ck('…the per-realm element count names which realm credited which key', E3().elements[0].cardByReader, { 'app.js': 2, 'over.js': 1 });
+  ck('…one shape serves BOTH array keys', E3().elements[0].serves, ['nodes', 'mismatches']);
+  ck('…and the subtree is ok', E3().ok, true);
+  ck(
+    "🔴 an element key declared 'card' that no realm reads reds",
+    E3({ elements: { entry: { servesKeys: ['mismatches'], surfaces: { node: 'card', hash: 'card', status: 'card', version: 'card' } } } }).elemCardUnread,
+    ['entry.version']
+  );
+  ck(
+    "🔴 an element key declared 'export-only' that a realm reads reds",
+    E3({ elements: { entry: { servesKeys: ['mismatches'], surfaces: { node: 'card', hash: 'card', status: 'export-only', version: 'export-only' } } } }).elemExportOnlyRead,
+    ['entry.status']
+  );
+  const E1REALM = evaluateNested('kernelAudit', nestedShapes(E1, 'buildE'), EDECL(), EAPP, {
+    readers: [{ file: 'app.js', text: EAPP, aliasPath: 'FUSION.kernelAudit' }],
+    elementShapes: { entry: ESHAPE }
+  });
+  ck('🔴 drop the second realm and the key only it reads is unread', E1REALM.elemCardUnread, ['entry.status']);
+  ck(
+    'a declared element key absent from the literal is reported',
+    E3({ elements: { entry: { servesKeys: ['mismatches'], surfaces: { node: 'card', hash: 'card', status: 'card', version: 'export-only', kind: 'card' } } } }).elemUndeclared,
+    ['entry.kind (declared, absent from the literal)']
+  );
+  ck('an element key with no surface at all is reported', E3({ elements: { entry: { servesKeys: ['mismatches'], surfaces: { node: 'card', hash: 'card', status: 'card' } } } }).elemUndeclared, [
+    'entry.version'
+  ]);
+  ck(
+    'an element surface outside the two words reds',
+    E3({ elements: { entry: { servesKeys: ['mismatches'], surfaces: { node: 'rendered', hash: 'card', status: 'card', version: 'export-only' } } } }).elemBadValue,
+    ['entry.node']
+  );
+  ck(
+    '🔴 a servesKeys entry the subtree does not carry names itself',
+    E3({ elements: { entry: { servesKeys: ['mismatches', 'widgets'], surfaces: { node: 'card', hash: 'card', status: 'card', version: 'export-only' } } } }).elemServesUnknown,
+    ['entry serves widgets']
+  );
+  ck('a declared shape this gate could not read is reported, not assumed', E3({}, {}).elemShapeMissing, ['entry']);
+  ck('…and that alone is not ok', E3({}, {}).ok, false);
+  /* 🔴 THE CENSUS. A subtree with no `elements` block is judged exactly as before, and every
+     element read it does not judge is COUNTED rather than passed over in silence. */
+  const ENONE = E3({ elements: undefined });
+  ck('🔴 no elements block leaves the subtree judged as before', ENONE.ok, true);
+  ck('…with no element shape', ENONE.elements, []);
+  ck('…and the unjudged element reads counted in both realms', ENONE.elemUnjudged.length, 2);
+  ck(
+    '…each naming its own file and array key',
+    ENONE.elemUnjudged.map((u) => u.file + ':' + u.arrayKey),
+    ['app.js:mismatches', 'over.js:mismatches']
+  );
+  ck('a declared shape leaves no unjudged read behind', E3().elemUnjudged, []);
+  /* 🔴 AN ALIAS CREDITS ONLY INSIDE ITS OWN SCOPE, at depth 3 as at depth 2. */
+  const EFAR = [
+    'function bind() {',
+    '  var ka = FUSION && FUSION.kernelAudit;',
+    '  use(ka.ok);',
+    '}',
+    'function other() {',
+    '  ka.mismatches.forEach(function (m) {',
+    '    warn(m.node);',
+    '  });',
+    '}'
+  ].join('\n');
+  const EFARS = elementCallbacks(EFAR, ['FUSION.kernelAudit', 'ka'], 'mismatches');
+  ck('an element callback outside the binding scope is found by text', EFARS.length, 1);
+  ck(
+    '…and the scope filter is what refuses it',
+    aliasSites(EFAR, 'FUSION.kernelAudit').sites.some((u) => EFARS[0].line >= u.from + 1 && EFARS[0].line <= u.to + 1),
+    false
+  );
+
   console.log(bad ? `  ✗ ${bad} of ${ran} selftests failed` : `  all ${ran} selftests passed`);
   process.exit(bad ? 1 : 0);
 }
