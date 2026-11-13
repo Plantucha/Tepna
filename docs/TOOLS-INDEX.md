@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**344 tools** · 343 with a purpose line · **1 without**
+**345 tools** · 344 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -84,6 +84,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`defect-pin-census.mjs`](../tools/defect-pin-census.mjs) | the enumeration gate for tests that once asserted the defect they were written for |
 | [`derive-open-ahi.mjs`](../tools/derive-open-ahi.mjs) | DERIVE AN AHI PER RECORDING OVER THE TWO ANNOTATED OPEN SETS — ISRUC and iSleeps. |
 | [`derive-sigma-window.mjs`](../tools/derive-sigma-window.mjs) | Headless derivation of the two raw-signal 1-Hz HR series a three-device σ window needs (VERITY-SIGMA-CORNER-BRIEF / SIGMA-WINDOW-DERIVATION.md): • Verity HR ← raw PPG via the suite's… |
+| [`detector-change-advisory.mjs`](../tools/detector-change-advisory.mjs) | ROUTE THE COMMON-MODE PROTOCOL TO A DIFF THAT TOUCHES A DETECTOR. |
 | [`device-stability.mjs`](../tools/device-stability.mjs) | PER-DEVICE TIMING STABILITY, measured against the capture host. |
 | [`doc-search-audit.mjs`](../tools/doc-search-audit.mjs) | WHO IS USING THE SEMANTIC SEARCH — the per-session query stamps, counted (rule 0's audit). |
 | [`doc-search.mjs`](../tools/doc-search.mjs) | "HAS THIS ALREADY BEEN DECIDED?" OVER 460+ DOCUMENTS CLAUDE.md records this failure repeatedly and by name: four sessions independently proposing a fix the repo had already measured… |

@@ -1374,6 +1374,18 @@
    },
    "note": "derives an AHI per recording over the two annotated open mirrors (ISRUC scorer 1, iSleeps Flow Events) and judges the derivation against the count survey the brief pre-stated on 2026-10-12. Refuses with a named reason instead of defaulting: no-scorer-1-workbook, no-respiratory-scoring, no-event-stage-column, no-sleep-epoch. Corpus-dependent, so it is an operator instrument and not a step of npm run check; without the mount it emits NOT_RUN. Brief: briefs/OPEN-DATASET-AHI-DERIVATION-2026-10-12-BRIEF.md"
   },
+  "tools/detector-change-advisory.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/detector-change-advisory.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the detector-change routing verdict (row 2026-10-26-the-common-mode-protocol-has-run-on-no-detector-change). briefs/CROSS-DOMAIN-METHODS-FOLLOWUPS-2026-08-14-BRIEF.md \u00a77 adopts blind analysis for validating a new detector against a reference, and its Done-when box says the protocol cannot be manufactured, so it waits for a real detector change. That premise is refuted: 41 commits since 2026-08-14 change a detect call site, and #1395 and #2759 are both unambiguous occasions that landed before the row was written. The gap is that nothing carried \u00a77 to the author of such a diff. So this tool ROUTES rather than judges. Criterion pre-stated and bounded at 0: undeclared_detector_definitions, over every detect-shaped definition in root *.js, capture-host/*.py and capture-host/*.html. A definition in neither the declared detector set nor the declared exclusion set is FAIL by name, and so is a declared site that no longer resolves, because a census that silently stops covering the tree reads exactly like a census that covers it. Population = the definitions the scan read, excluded = the declared sites that no longer resolve. The --base <ref> CENSUS is ADVISORY and decides nothing: it names the declared detector sites the diff touches and prints the four-step protocol beside them. A gate cannot witness a blinded run by a person over real nights, and a gate that demanded an unwitnessable artefact would be answered with a checkbox; tools/residue-cite-drift.mjs --delta is the precedent for reporting a transition with no legal repair. An unreadable base is NOT_RUN at exit 2 \u2014 it could not look."
+  },
   "tools/device-stability.mjs": {
    "bin": "already-json",
    "status": "adopted",
