@@ -60,7 +60,7 @@ import { spawnSync } from 'node:child_process';
 import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { ecgCounterTimeMs } from './pat-matchrate-strict.mjs';
+import { rPeakTimesOnAxis } from './pat-matchrate-strict.mjs';
 import { NIGHT_RE, coverageIdentity, notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
 import { printVerdict, undeclaredVerdict } from './verdict-undeclared.mjs';
 import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
@@ -219,7 +219,14 @@ const beatsECG = (f) => {
   if (!r || !r.int16 || !r.t0Ms) return null;
   const i = ECG.detectPeaks(r.int16, ECG.bandpass(r.int16, r.fs), r.fs);
   if (!i || i.length <= 100) return null;
-  return i.map((k) => (ECG_AXIS === 'counter' ? ecgCounterTimeMs(r, k) : ECG_AXIS === 'piecewise' ? r.tMsAt(k) : r.t0Ms + (k / r.fs) * 1000));
+  /* THE SHARED AXIS ARITHMETIC, NEVER A PRIVATE COPY. This tool held its own three-way switch over
+     the same three forms, so `--ecg-axis` reached a local copy rather than the one function. The
+     default stays `linear`, the historical form, so no published number moves. The shared function
+     adds two things the copy had not: it asserts sortedness on the two device forms, where a
+     non-monotonic train is a wrong answer and never a noisy one, and it falls back per beat to the
+     index form when a record carries no counter (row
+     2026-09-26-pat-ecg-index-axis-is-not-the-h10-sample-clock). */
+  return Array.from(rPeakTimesOnAxis(r, Float64Array.from(i), { axis: ECG_AXIS }));
 };
 const beatsPPG = (f) => {
   const runsText = runsOf(f, 'PPG');
