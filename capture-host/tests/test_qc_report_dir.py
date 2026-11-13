@@ -131,7 +131,9 @@ def test_the_poller_writes_the_summary_and_the_verdicts_into_the_BAND_folder(tmp
         assert not os.path.exists(str(judged / name)), f"{name} must not land in the morning folder"
     got = json.loads((band / "QC-SUMMARY.json").read_text())
     assert got["night"] == "2026-11-03", "the judged folder stays on the record"
-    assert nightqc.night_label(got) == "2026-11-02 (folder 2026-11-03)"
+    assert got["report_night"] == "2026-11-02", "the summary names the folder it was written into"
+    # The reports are in the band folder, so the label names no other folder (box, 2026-11-12).
+    assert nightqc.night_label(got) == "2026-11-02"
 
 
 def test_the_poller_still_writes_into_the_judged_folder_when_it_IS_the_bands(tmp_path, monkeypatch):
