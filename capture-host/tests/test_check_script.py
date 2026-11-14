@@ -1069,11 +1069,12 @@ CI_EVIDENCE = {
     "pytest": r"^\s*run: pytest -q .*--cov-fail-under=100",
     "unwired": r"^\s*run: python tools/find_unwired\.py --check",
     "covscope": r"^\s*run: python tools/covscope\.py --check",
-    # The ratchet is replicated INLINE in the `mypy (advisory ratchet)` job rather than called, so its
-    # evidence is the invocation inside that job's script. ⚠️ PRESENT IN THE WORKFLOW IS NOT PRESENT IN
-    # A REQUIRED CONTEXT — that job is not in `protect-main`'s required set, so a red there informs a
-    # reviewer and does not hold the merge. The ruleset is the owner's, and the remainder is residue
-    # `2026-10-20-the-mypy-ratchet-job-is-not-a-required-context`.
+    # The ratchet is replicated INLINE in the `test` job's 3.14 leg rather than called, so its
+    # evidence is the invocation inside that job's script. It rode a job named `mypy (advisory
+    # ratchet)` until 2026-11-14, where PRESENT IN THE WORKFLOW WAS NOT PRESENT IN A REQUIRED
+    # CONTEXT — residue `2026-10-20-the-mypy-ratchet-job-is-not-a-required-context`. The step moved
+    # into a required job instead of waiting on the ruleset, the way `find_unwired` and `covscope`
+    # each did before it.
     "mypy-ratchet": r"^\s*python -m mypy --ignore-missing-imports",
     # The adoption slice's CI home is the NODE lane's WHOLE-registry run, which strictly contains it:
     # CI reads all 326 producers where this leg reads the 97 in this lane. So the drift this test
@@ -1126,11 +1127,12 @@ def test_EVERY_BLOCKING_LEG_OF_check_sh_HAS_A_STEP_IN_CI():
 
 # ── CI PARITY, SECOND DIMENSION: the JOB a step sits in has to hold the merge ──────────────────────
 # The test above reads a workflow as ONE TEXT. It proves a step exists and says nothing about where,
-# and a workflow holds several jobs of which only some hold a merge. `mypy (advisory ratchet)` is the
-# measured case: the step is present, the job is advisory, and a red there informs a reviewer while
-# the merge proceeds (residue `2026-10-20-the-mypy-ratchet-job-is-not-a-required-context`).
-# Seven of the eight legs hold the merge by PLACEMENT alone. Move one step into the advisory job and
-# nothing above notices, because the pattern still matches somewhere in the file.
+# and a workflow holds several jobs of which only some hold a merge. `mypy (advisory ratchet)` WAS
+# the measured case: the step was present, the job was advisory, and a red there informed a reviewer
+# while the merge proceeded (residue `2026-10-20-the-mypy-ratchet-job-is-not-a-required-context`).
+# That job is gone since 2026-11-14, when the ratchet moved onto the `test` job's 3.14 leg, so all
+# eight legs now hold the merge by PLACEMENT. That is when this dimension stops looking obvious and
+# starts being the only thing that would notice one step moving back out.
 # So each leg names the JOB that must carry its evidence, and each job states WHY it holds a merge.
 #
 # A job holds a merge two ways, and the second one is why `adoption` is protected at all:
@@ -1172,14 +1174,20 @@ CI_JOB = {
     "pytest": "test",
     "unwired": "test",
     "covscope": "test",
-    "mypy-ratchet": "mypy",
+    "mypy-ratchet": "test",
     "adoption": "static",
 }
 # Keyed by (workflow, job) and never by the job id alone: BOTH workflows define a job called `test`,
 # and the two are different things — a three-version matrix here, a pure aggregator there.
 JOB_PROTECTION = {
-    ("capture-host-ci.yml", "test"): ("publishes", "test (py3.12)"),
-    ("capture-host-ci.yml", "mypy"): ("not-required", "2026-10-20-the-mypy-ratchet-job-is-not-a-required-context"),
+    # `test (py3.14)`, not `test (py3.12)`: the mypy ratchet runs on the 3.14 leg ALONE, so the
+    # context that has to hold the merge is that leg's own. The other seven legs run on all three
+    # versions and any one of them witnesses the hold, which is why ONE witness per job is enough
+    # here. The witness is the narrowest leg by CONVENTION, and nothing below reads it that way:
+    # what holds a restricted step is its OWN leg's context, asserted by
+    # `test_A_STEP_CONFINED_TO_ONE_MATRIX_LEG_RUNS_WHERE_THE_CONTEXT_IS_REQUIRED`. Naming py3.12 here
+    # would keep every assertion in this file green, which is why that test exists beside this table.
+    ("capture-host-ci.yml", "test"): ("publishes", "test (py3.14)"),
     ("tests.yml", "static"): ("aggregated-by", "test"),
 }
 
@@ -1220,10 +1228,16 @@ def _job_contexts(job_text):
     return names
 
 
-def _residue_open(key):
+def _residue_open(key, led=None):
     """A `not-required` declaration cites an OPEN residue row, so an advisory job stays legible and a
-    second one cannot arrive quietly. The row's own state is that declaration's expiry date."""
-    led = pathlib.Path(HERE).parent / "briefs" / "RESIDUE.md"
+    second one cannot arrive quietly. The row's own state is that declaration's expiry date.
+
+    NO `not-required` DECLARATION IS LIVE TODAY — the ratchet's was the last one, and it went when
+    that leg moved into `test`. The arm stays wired and read because the next advisory job will need
+    it, and a vocabulary arm that nothing exercises is one that rots in place. The path is an
+    argument so the control can pin both answers: a live row's state belongs to whoever fixes it,
+    and pinning one here would red this suite on the day that fix lands."""
+    led = pathlib.Path(HERE).parent / "briefs" / "RESIDUE.md" if led is None else pathlib.Path(led)
     if not led.exists():  # pragma: no cover - lane shipped alone
         pytest.skip("residue ledger not present in this checkout")
     for line in led.read_text(encoding="utf-8").splitlines():
@@ -1316,19 +1330,31 @@ def test_EVERY_BLOCKING_LEG_SITS_IN_A_JOB_THAT_HOLDS_THE_MERGE():
     kinds = sorted(
         {JOB_PROTECTION[(CI_WORKFLOW.get(leg, "capture-host-ci.yml"), job)][0] for leg, job in CI_JOB.items()}
     )
-    assert kinds == ["aggregated-by", "not-required", "publishes"], f"all three arms must stay read: {kinds}"
+    # TWO arms are live, and that is this move's visible consequence: no job carrying a blocking leg
+    # is advisory any more. `not-required` keeps its place in the vocabulary, exercised by the plant
+    # below and by the ledger reader's own control.
+    assert kinds == ["aggregated-by", "publishes"], f"both live arms must stay read: {kinds}"
 
 
 def test_a_JOB_THAT_HOLDS_NO_MERGE_IS_NAMED():
     """The plant, over the real workflow with wrong declarations, so the classifier faces live text.
-    A step placed in an undeclared job drifts twice, and both names are kept on purpose."""
+    A step placed in an undeclared job drifts twice, and both names are kept on purpose.
+
+    `supply-chain` carries the `publishes` refusal now that the advisory mypy job is gone: it is a
+    real job publishing a real context, and that context is in no required set."""
     plant = _job_gap(
-        {"ruff": "mypy", "format": "no-such-job", "shellcheck": "supply-chain", "pytest": "test", "unwired": "changes"},
+        {
+            "ruff": "supply-chain",
+            "format": "no-such-job",
+            "shellcheck": "mutation-diff",
+            "pytest": "test",
+            "unwired": "changes",
+        },
         CI_EVIDENCE,
         lambda leg: "capture-host-ci.yml",
         _jobs_of,
         {
-            ("capture-host-ci.yml", "mypy"): ("publishes", "mypy (advisory ratchet)"),
+            ("capture-host-ci.yml", "supply-chain"): ("publishes", "supply-chain (advisory)"),
             ("capture-host-ci.yml", "test"): ("not-required", "no-such-residue-row"),
             ("capture-host-ci.yml", "changes"): ("invented-kind", "whatever"),
         },
@@ -1338,15 +1364,15 @@ def test_a_JOB_THAT_HOLDS_NO_MERGE_IS_NAMED():
     assert plant == {
         "unplaced": ["format → capture-host-ci.yml:no-such-job"],
         "misplaced": [
-            "ruff → capture-host-ci.yml:mypy",
-            "shellcheck → capture-host-ci.yml:supply-chain",
+            "ruff → capture-host-ci.yml:supply-chain",
+            "shellcheck → capture-host-ci.yml:mutation-diff",
             "unwired → capture-host-ci.yml:changes",
         ],
         "advisory": [],
-        "undeclared": ["capture-host-ci.yml:supply-chain"],
+        "undeclared": ["capture-host-ci.yml:mutation-diff"],
         "unprotected": [
             "capture-host-ci.yml:changes (invented-kind)",
-            "capture-host-ci.yml:mypy (publishes)",
+            "capture-host-ci.yml:supply-chain (publishes)",
             "capture-host-ci.yml:test (not-required)",
         ],
     }, f"CONTROL: the classifier no longer names a planted drift: {plant}"
@@ -1375,19 +1401,79 @@ def test_the_MATRIX_job_publishes_one_context_PER_VERSION():
     gets its own control. Three required contexts come from one `name:` line and one matrix list."""
     jobs = _jobs_of("capture-host-ci.yml")
     assert sorted(_job_contexts(jobs["test"])) == ["test (py3.12)", "test (py3.13)", "test (py3.14)"]
-    assert _job_contexts(jobs["mypy"]) == ["mypy (advisory ratchet)"], "a trailing comment is not part of a name"
+    assert _job_contexts(jobs["supply-chain"]) == ["supply-chain (advisory)"], "a plain name is one context"
+    assert _job_contexts("  j:\n    name: foo (bar)   # not part of it\n") == ["foo (bar)"], (
+        "a trailing comment is not part of a name"
+    )
     assert _job_contexts(jobs["changes"]) == ["relevance (capture-host)"]
     assert _job_contexts("  nameless:\n    runs-on: ubuntu-latest\n") == [], "a job with no name publishes nothing"
     assert _job_contexts(_jobs_of("tests.yml")["test"]) == ["test"]
 
 
-def test_THE_RATCHETS_OWN_EXCUSE_IS_READ_FROM_THE_LEDGER():
-    """`not-required` is the one arm whose evidence sits outside the workflows. A closed row means the
-    ruleset moved or the claim lapsed, and either way the declaration stops being true."""
-    assert _residue_open("2026-10-20-the-mypy-ratchet-job-is-not-a-required-context"), (
-        "the ratchet's cited row no longer reads OPEN — re-read the ruleset and move the declaration"
+def test_the_LEDGER_READER_SEPARATES_AN_OPEN_ROW_FROM_A_CLOSED_ONE(tmp_path):
+    """`not-required` is the one arm whose evidence sits outside the workflows, so a closed row ends
+    the declaration it excuses. This read used to pin the ratchet's own live row, and that row is the
+    one THIS unit closes — a test that asserts a row stays OPEN reds on the day the fix lands. The
+    rows below are written here, so the three answers are the reader's and nobody else's."""
+    led = tmp_path / "RESIDUE.md"
+    led.write_text(
+        "| key | logged | source | defect | evidence | state |\n"
+        "| a-row-that-is-open | 2026-11-14 | `x` | d | e | OPEN |\n"
+        "| a-row-that-closed | 2026-11-14 | `x` | d | e | fixed #1 |\n"
+        "not a row at all\n",
+        encoding="utf-8",
     )
-    assert not _residue_open("no-such-residue-row-exists"), "CONTROL: an absent row cannot excuse a job"
+    assert _residue_open("a-row-that-is-open", led), "an OPEN row excuses the job that cites it"
+    assert not _residue_open("a-row-that-closed", led), "a closed row stops excusing anything"
+    assert not _residue_open("a-row-that-is-absent", led), "CONTROL: an absent row cannot excuse a job"
+
+
+def _matrix_legs_of_step(job_text, pos):
+    """The matrix value(s) a step's own `if:` confines it to — `[]` when it runs on every leg.
+
+    A JOB's declaration covers every context the job publishes, and a step restricted to one matrix
+    leg is covered by exactly one of them. `_job_gap` reads the job as one text and cannot see the
+    difference, so the narrowing lives here."""
+    step = _step_of(job_text, pos)
+    named = re.search(r"^        if: .*matrix\.python-version ==[ \t]*'([^']+)'", step, re.M)
+    return [] if named is None else [named.group(1)]
+
+
+def test_A_STEP_CONFINED_TO_ONE_MATRIX_LEG_RUNS_WHERE_THE_CONTEXT_IS_REQUIRED():
+    """The hazard this unit created, and the leg that closes it. The ratchet runs on 3.14 alone, so
+    the claim that it holds a merge is true only while `test (py3.14)` sits in the required set.
+    Moving the step onto 3.12 would keep every assertion above green and still answer a different
+    question from the one the box asks."""
+    jobs = _jobs_of("capture-host-ci.yml")
+    hit = re.search(CI_EVIDENCE["mypy-ratchet"], jobs["test"], re.M)
+    assert hit, "the ratchet's own evidence is not in the `test` job at all"
+    legs = _matrix_legs_of_step(jobs["test"], hit.start())
+    assert legs == ["3.14"], f"the ratchet step names no single matrix leg: {legs}"
+    for leg in legs:
+        assert f"test (py{leg})" in REQUIRED_CONTEXTS, f"the ratchet runs on a leg no required context covers: {leg}"
+        assert f"test (py{leg})" in _job_contexts(jobs["test"]), "and the job has to publish that very context"
+
+
+def test_a_LEG_RESTRICTION_IS_READ_FROM_THE_STEP_AND_NOT_THE_JOB():
+    """CONTROL, over both answers. An unrestricted step reads as every leg; a step pinned to 3.9
+    reads as 3.9 — and `test (py3.9)` is in no required set, which is the drift above."""
+    job = (
+        "  test:\n"
+        "    steps:\n"
+        "      - name: every leg\n"
+        "        if: needs.changes.outputs.run == 'true'\n"
+        "        run: |\n"
+        "          python -m mypy --ignore-missing-imports --explicit-package-bases .\n"
+        "      - name: one leg only\n"
+        "        if: needs.changes.outputs.run == 'true' && matrix.python-version == '3.9'\n"
+        "        run: |\n"
+        "          python -m mypy --ignore-missing-imports --explicit-package-bases .\n"
+    )
+    found = list(re.finditer(CI_EVIDENCE["mypy-ratchet"], job, re.M))
+    assert len(found) == 2, f"the plant must carry both shapes, or it tests one: {len(found)}"
+    assert _matrix_legs_of_step(job, found[0].start()) == [], "an unrestricted step runs on every leg"
+    assert _matrix_legs_of_step(job, found[1].start()) == ["3.9"], "and a restricted one names its own"
+    assert "test (py3.9)" not in REQUIRED_CONTEXTS, "CONTROL: the planted leg is one nothing requires"
 
 
 # ── THE ADOPTION REGISTRY ─ residue 2026-11-05-the-capture-host-gate-does-not-run-the-verdict-adoption-

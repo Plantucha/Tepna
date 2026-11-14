@@ -88,6 +88,8 @@ All three are planted in `--selftest` and asserted red. None is a claim about to
       of such literals at both layers (§20).
 - [x] 2026-11-13: a guard that holds its consequent literal on ONE line declares a surface per key,
       and a subtree with one guarded source declares a route list of one (§21).
+- [x] 2026-11-14: every opt-in layer publishes its own denominator, and the population counts the
+      element keys the gate already judged (§22).
 
 ## 6 · 2026-11-11 — the seed counted prose, and two declarations were wrong
 
@@ -1257,3 +1259,72 @@ literal carries two key lists under one key, and the gate must not merge them.
 `kernel` was the last export subtree written as a literal. The pass-through subtrees of the form
 `fusion.X || null` still need the resolver that board #5905 parks, and the depth-1 layer stays
 unanchored for all 36 top-level keys.
+
+## 22 · 2026-11-14 — the gate judged 148 keys and claimed 108, and three opt-in layers reported their own absence nowhere
+
+Board entry 6135 named a class, and entries 6149 and 6153 named its third instance. A layer of this
+gate is opt-in, so it judges only what a declaration asks for. Drop the declaration and the count
+falls, the status stays `PASS`, and no field says a layer has gone. The memory entry
+`gate-must-publish-its-denominator` states the remedy. A gate asserts its coverage over the EXCLUDED
+set, never as a floor over the covered one.
+
+### The population understated itself by 40 keys
+
+The gate judges an element key. `elemUndeclared`, `elemBadValue`, `elemCardUnread` and
+`elemExportOnlyRead` each feed a subtree's `ok`, so a misdeclared element key FAILS this gate. The
+`population` block counted depth 1, depth 2 and the inner layer alone.
+
+| number | before | after |
+|---|---|---|
+| `checked` | 108 | 148 |
+| the parts | 36 + 63 + 9 | 36 + 63 + 9 + 40 |
+
+No threshold moved, and the criterion reads as it did. The verdict now counts the keys the gate
+already judged.
+
+### The inner layer's census
+
+`innerCandidates(dspText, subtree)` reads the inner object literals the SOURCE carries inside a
+subtree's own literal. It reuses `literalRanges` for the parent and `literalKeys` for the depth-1
+values, so it reads what `innerShape` reads. The gate holds the declared set against it, and it
+reports five fields: `innerCensusSubtrees`, `innerUnenumerable`, `innerUndeclaredLiterals`,
+`innerUndeclaredWhere` and the two `literalKeysNoLayerReads` fields.
+
+It reports and never reds. The layer stays opt-in by the owner's design, so a count a reader can see
+is the whole repair.
+
+**The census states where it is blind.** `literalRanges` wants `<subtree>: {` on its own line, or one
+line that closes with no inner brace. So the census cannot range a guarded parent, and it cannot range a
+one-line parent that holds a one-line inner either. Five of the ten declared subtrees range today, and the
+other five name themselves in `innerUnenumerable`: `apnea`, `apneaTyping`, `findings`, `kernel` and
+`kernelAudit`. A false empty set would read as a clean census, which is the defect one level up.
+
+### A key whose literal no layer reads
+
+`elemUnjudged` already names an array key that a realm reads element-wise and no element declaration
+serves. A key nobody reads said nothing at all. So the census subtracts twice: a candidate that an
+`inner` block declares, and a key that some element's `servesKeys` serves. What remains carries an
+object literal that neither layer reads. The count is 0 today.
+
+### The controls
+
+| control | outcome |
+|---|---|
+| 0 · this branch, unchanged | `PASS` · `checked: 148` · every census field empty |
+| 1 · drop the `handshakes` inner declaration | `PASS` · `checked: 146` · names `handshakes.ecgdex_ready` and `handshakes.glucodex_ready`. Before this unit the state was silent |
+| 2 · plant a new inner literal in the source | `FAIL` · names `handshakes.plantedInner`, and the depth-2 leg reds it as well |
+| 3b · drop the element declaration serving `unmatched.desat`, keep its surface | `PASS` · `checked: 144` · names `unmatched.desat` and nothing else |
+| 4 · plant a literal no layer reads | `FAIL` · names `unmatched.plantedPool` as an undeclared inner literal |
+| 5 · revert the population line | `PASS` · `checked: 108` while the gate judges 148. This control sizes the unit |
+| 6b · declare an inner on the guarded `kernel` subtree | throws: ``the inner literal `kernel.version` was not found inside the `kernel: {` literal`` — so an unenumerable subtree is no free pass |
+| 7b · control 3b with my `unreadable` branch removed | `PASS` · `checked: 144` · names nothing. The leg is mine, and it bites |
+| 8 · make a blind census return an empty set | `PASS` · `innerUnenumerable: []` · a false zero no reader could catch |
+
+Selftests went from 367 to 381. The gate reads `PASS` over `checked: 148` on this branch.
+
+### What remains
+
+The census ranges 5 of 10 subtrees, and a reader anchor is what bounds it. A `builtBy` subtree keeps
+its literal inside the builder, where `innerShape` has no anchor either, so the blindness and the
+layer's reach coincide today. The pass-through subtrees of the form `fusion.X || null` still need the
+resolver that board entry 5905 parks.

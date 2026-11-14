@@ -127,7 +127,13 @@ jobs:
   test:
     # measured 2026-11-03 over 17 job run(s): p90 8m02s, max 8m03s (tools/ci-timing.mjs --limit 100). Cap = ceil(max(p95, max) × 2); max bounds p95.
     # max over the py3.12/py3.13/py3.14 legs
-    timeout-minutes: 17
+    # ⚠️ THE 3.14 LEG NOW ALSO CARRIES THE mypy RATCHET, so the cap above is an ESTIMATE until the
+    # next `ci-timing.mjs` read replaces it with a measurement: the deleted `mypy` job measured p90
+    # 53s / max 1m02s over 17 runs on 2026-11-03, the dev-deps step included, and 8m03s + 1m02s
+    # under the same `ceil(max(p95, max) × 2)` rule gives 19. Raised rather than left at 17, because
+    # a cap that bounds the OLD leg set reports `cancelled` on the new one — and a cancelled required
+    # context is a red nobody can read as a type error.
+    timeout-minutes: 19
     needs: changes
     # ⚠️ NO JOB-LEVEL `if:` HERE — the guard is on the STEPS below, and the difference deadlocks the repo.
     # The note above says "a job skipped by a condition reports as skipped and satisfies the requirement".
@@ -273,6 +279,220 @@ jobs:
         # `2026-11-01-a-blocking-check-sh-leg-ran-in-no-ci-job`. The parity is asserted from now on by
         # tests/test_check_script.py, so the next leg cannot arrive alone.
         run: python tools/covscope.py --check
+      # ── mypy RATCHET ────────────────────────────────────────────────────────────────────────────────
+      # PYTHON-TYPES-AND-FORMAT §P1/§P3. It FAILS if the count EXCEEDS the recorded baseline, so the
+      # number can only go DOWN — and the baseline has been 0 since 2026-10-09, so any type error reds
+      # this job. §P3's own flip (check.sh's `mypy-ratchet` leg) landed 2026-10-20.
+      #
+      # ⚠️ THIS LEG RIDES `test (py3.14)`, WHICH IS A REQUIRED CONTEXT — and it got there by the
+      # route this file has already taken twice. `find_unwired` and `covscope` were each a blocking leg
+      # of check.sh with no CI home, and each was replicated as a step in THIS job rather than waiting on
+      # a ruleset edit. The ratchet was the last such leg: it ran in a job named `mypy (advisory
+      # ratchet)`, publishing a context the `protect-main` ruleset does not name, so a red there informed
+      # a reviewer and did not hold Kodiak. Row
+      # `2026-10-20-the-mypy-ratchet-job-is-not-a-required-context` sized the remedy as a ruleset edit
+      # only the owner can make. The remedy this repo already had is the one taken here: put the step in
+      # a job whose check name the ruleset DOES name.
+      #
+      # ⚠️ IT RUNS ON THE 3.14 LEG ALONE, AND THAT IS THE LEG THAT MATTERS. 3.14 is what the box
+      # executes (see the matrix note above), the owner made `test (py3.14)` required on 2026-10-31, and
+      # the deleted job's own pin read 3.13 until that same day — so the ratchet graded a Python the
+      # hardware does not run. Measured BEFORE the move, under CPython 3.14.4 with the runtime deps
+      # installed: `mypy errors: 0   baseline here: 0   on origin/main: 0   delta: 0`, read from the
+      # advisory job's own log on run 43600948992 (main, 2026-11-14), conclusion SUCCESS. No 3.14
+      # interpreter on this rig carries `bleak`, so no local run reproduces THIS leg: the capture-host
+      # venv carries it at 3.13, and only CI's own 3.14 job measured the precondition at the right
+      # version. A local `check.sh` through that venv grades 3.13, which is a different leg, and
+      # it read the same 0 count after this move (12815 passed, 3 skipped, coverage 100%).
+      #
+      # ⚠️ A MATRIX-CONDITIONAL STEP CARRIES A HAZARD THE JOB-LEVEL READ CANNOT SEE. The parity test
+      # in tests/test_check_script.py reads a job as ONE text, so a step moved onto a leg whose context
+      # is NOT required would satisfy it. A leg of that test therefore reads the condition below and
+      # holds the named `test (py<version>)` against the required set.
+      #
+      # ⚠️ AND BLOCKING LOCALLY WAS NOT BLOCKING IN CI UNTIL THIS MOVE: `check.sh` is not run by any
+      # job here (see the pytest step's note) — each of its legs is replicated as its own step. So the
+      # mypy ratchet's only CI home is the step below, and that step's own correctness is the whole of
+      # the CI half.
+      #
+      # ⚠️ THIS JOB IS THE CANONICAL MEASUREMENT, AND THE DEVELOPER'S ROOT CHECKOUT IS THE CONVENIENCE ONE.
+      # A whole-tree error count is a property of the tree it ran in: measured 2026-08-28, root reported
+      # 189 and a clean worktree 188, the single difference being ONE UNTRACKED file that exists only in
+      # root. CI's fresh checkout carries no untracked strays, so it — not a working tree — is the
+      # population §P3's flip count must be measured against. (§P2b records the same lesson from the other
+      # direction.)
+      #
+      # ⚠️ AND THE 189-vs-188 SPREAD ABOVE IS A DATED OBSERVATION, NOT A STANDING OFFSET. Re-measured
+      # 2026-08-29: a fresh worktree off `origin/main` reported 189, exactly what this job reports on
+      # main — so the gap was that day's untracked stray, not a property of worktrees. Do not carry a
+      # correction factor between trees; measure the tree you are in, and compare a PAIRED before/after
+      # inside ONE tree when what you want is the delta.
+      #
+      # THE BASELINE IS READ FROM check.sh, NOT COPIED HERE. One number, one home; a second hardcoded copy
+      # is a second thing to forget. If it cannot be parsed the job REFUSES rather than assuming a value —
+      # an unreadable baseline is not a permissive one.
+      #
+      # 🔴 AND FOR SIX WEEKS IT READ THE WRONG NUMBER OUT OF THE RIGHT FILE. The extraction below used to
+      # be `grep -oE 'baseline [0-9]+.*'`, which matches PROSE as readily as a constant — and the first
+      # match in the file is a COMMENT quoting the historical `"baseline 99, 2026-09-13"`. Measured on
+      # #3715's own job log: `mypy errors: 1   baseline here: 99   on origin/main: 99   delta: -98` →
+      # `ratchet ok (1 <= 99)`, conclusion SUCCESS, over a tree whose real baseline was 0. The job
+      # permitted 99 errors while reporting that the ratchet held, and the same hole let #3728 land.
+      # One number with one home is worth nothing if the reader can find a second copy of its WORDS; the
+      # parse is now anchored on the assignment, which the tests already read that way
+      # (`^MYPY_BASELINE=(\d+)$` in tests/test_check_script.py `_baseline`).
+      - name: Install the gate's dev deps (mypy ratchet — 3.14 leg only)
+        if: needs.changes.outputs.run == 'true' && matrix.python-version == '3.14'
+        # THE SAME INSTALL THE DELETED JOB USED, reproduced rather than trimmed: the 0-error reading
+        # quoted above was taken under `requirements-dev.txt` plus `requirements.txt`, and a narrower
+        # install is a different environment from the one that measured the precondition. The runtime
+        # deps arrive with the step above; without them the modules do not import, and mypy reports a
+        # wall of missing-import noise instead of real type errors.
+        # ⚠️ PLACED AFTER THE SUITE, NEVER BEFORE IT. This file carries floors for pytest, ruff and
+        # shellcheck-py that this job installs BY NAME above, so an earlier install would move the
+        # versions the suite and the lint legs ran under — on one matrix leg only, which is the
+        # hardest kind of difference to read off a green run.
+        run: pip install -r requirements-dev.txt
+      - name: mypy ratchet — the count may only go DOWN, and touching the baseline obligates reproducing it
+        if: needs.changes.outputs.run == 'true' && matrix.python-version == '3.14'
+        # ⚠️ THE RATCHET HAD A HOLE, AND IT FAILED SILENTLY. This step used to fail only when the
+        # measured count EXCEEDED the recorded baseline — so a PR that MOVED the baseline passed by
+        # construction, in either direction, because the written number was never compared to
+        # anything the job had measured. Two lanes cutting the count in parallel is the ordinary
+        # case here, and it is not a hypothetical: on 2026-08-29 three PRs were open at once, all
+        # editing the one line that holds this number, each measured independently against a 189-era
+        # main — 154, 183 and 180. Land the 154 and then the 183 unchanged and the recorded baseline
+        # goes UP by 29, with every check green and the second PR's own summary line reading
+        # `153 <= 183, ratchet ok`. A wrong number and a right one produce identical output there.
+        #
+        # NOBODY HAD TO ERR FOR THAT TO HAPPEN. Each PR measured its own tree and wrote down what it
+        # measured, which is the correct behaviour; the hazard needs two CORRECT actors acting
+        # concurrently, because no lane can see another lane's number. That is why it is a gate's job
+        # and not a discipline's: asking people to remember is asking them to have information they
+        # do not have.
+        #
+        # AND CONTENTION IS ONLY THE VISIBLE CLASS. THERE ARE TWO, AND THE SECOND HAS NO EDITOR:
+        #   (1) CONTENTION — two lanes each move the line, and the second to land overwrites the
+        #       first's number. Loud enough to notice once you look for it.
+        #   (2) DRIFT WITH NOBODY EDITING ANYTHING — a PR records a baseline that was CORRECT when
+        #       measured, then unrelated work lands on main and moves the count underneath it. No
+        #       one touched the line; it went stale by sitting still. Measured 2026-08-29: a PR
+        #       holding a correctly-measured 148 went 11 stale within the hour because a different
+        #       PR improved main, and main's OWN recorded line went stale the same way without
+        #       anyone editing it.
+        #
+        # (2) generalises (1) and is the honest statement of the hazard: **a recorded baseline goes
+        # stale whenever main moves while a PR is open — which is every PR, always.** Any number
+        # written before the final rebase is a claim about a tree that no longer exists. Contention
+        # is just the case where the staleness has a culprit.
+        #
+        # WHY THE CHECK BELOW COVERS BOTH, WHICH IS NOT OBVIOUS: the trigger is the branch's value
+        # against CURRENT main, not against the merge-base, so a line that has drifted differs just
+        # as loudly as one that was overwritten — either way it takes the equality branch and must
+        # equal what THIS run measured. ⚠️ The at-merge-time property is NOT free from this run: CI
+        # on a BEHIND head measures the pre-merge tree, where a stale number can still look correct.
+        # It comes from Kodiak base-merging before it merges, which triggers a FURTHER run whose
+        # measurement is taken on the merged ref. So this step is honest on the run that matters and
+        # can read green on an earlier one — do not take a green here as proof the number is current.
+        #
+        # SO THE RULE IS: **touching the threshold obligates reproducing it.** When a PR changes the
+        # recorded baseline, the written number must EQUAL the count this run just measured — not
+        # merely bound it. Direction alone catches only the raise; equality also catches an unearned
+        # LOWERING, a number that came from arithmetic or from a stale tree, which no `<=` test can
+        # see because a too-low baseline passes a `<=` check by being too low. When the PR does NOT
+        # touch it, the plain ratchet applies and lowering it is optional.
+        #
+        # The direction check is KEPT ALONGSIDE equality rather than replaced by it: equality alone
+        # would wave through "I introduced 20 type errors and wrote the new total", since that also
+        # reproduces. A raise therefore still needs DECLARED PROVENANCE — `baseline-raised:<reason>`
+        # on the line — which is the same discriminator `commit-shape.mjs` uses, and never a shape
+        # rule. The legitimate case is an upstream mypy release reporting more on unchanged code.
+        run: |
+          set -uo pipefail
+          # ANCHORED ON THE ASSIGNMENT, never on the word "baseline": the file says that word in prose
+          # too, and one such sentence quotes an old value (the §P3 history quotes several old values). `^…=[0-9]+$`
+          # can only match the constant `check.sh` itself enforces, and the suite reads it the same
+          # way, so a trailing comment appended to the line reds the suite instead of drifting here.
+          BASE=$(sed -n 's/^MYPY_BASELINE=\([0-9]\+\)$/\1/p' check.sh | head -1)
+          # THE DECLARATION WINDOW for a raise: the constant's own line and ONE line either side. A
+          # `baseline-raised:<reason>` marker goes in a comment beside the constant, where the next
+          # reader of the number meets it — not anywhere in a 400-line file, which is how the old
+          # whole-file `case` could have read someone else's sentence as this PR's declaration.
+          LINE=$(grep -B1 -A1 -E '^MYPY_BASELINE=[0-9]+$' check.sh | head -3)
+          # main's copy of the same constant. checkout is shallow, so fetch the blob explicitly; if it
+          # cannot be read the step REFUSES rather than assuming the baseline is fine — an unreadable
+          # comparison is not a passing one (CLAUDE.md §4b: a check that reports success about
+          # something it never examined).
+          git fetch --depth=1 origin main >/dev/null 2>&1 || true
+          PREV=$(git show FETCH_HEAD:capture-host/check.sh 2>/dev/null \
+                 | sed -n 's/^MYPY_BASELINE=\([0-9]\+\)$/\1/p' | head -1)
+          if [ -z "${BASE:-}" ] || [ -z "${PREV:-}" ]; then
+            echo "REFUSING: could not read this branch's baseline (${BASE:-unreadable}) or main's (${PREV:-unreadable})."
+            echo "A comparison that could not be made is not a comparison that passed."
+            exit 2
+          fi
+          # Capture the exit code of MYPY, never of a pipe — a `| tail` here would report tail's status
+          # and a failing type-check would read as green (CLAUDE.md §4b).
+          python -m mypy --ignore-missing-imports --explicit-package-bases . > mypy-out.txt 2>&1 || true
+          cat mypy-out.txt
+          # AGGREGATE from mypy's own summary line, never from a tail of the output. "Success: no issues
+          # found" is a genuinely clean run and means zero; an ABSENT summary means mypy did not finish,
+          # which is not zero and must not read as one.
+          if grep -q '^Success: no issues found' mypy-out.txt; then
+            N=0
+          else
+            N=$(grep -oE '^Found [0-9]+ error' mypy-out.txt | grep -oE '[0-9]+' | head -1)
+          fi
+          if [ -z "${N:-}" ]; then
+            echo "REFUSING: mypy printed neither a 'Found N errors' line nor a success line — it did not finish."
+            echo "That is not a clean tree; it is an unfinished measurement."
+            exit 2
+          fi
+          echo "mypy errors: $N   baseline here: $BASE   on origin/main: $PREV   delta: $((N - BASE))"
+          echo "measured in CI's FRESH CHECKOUT — the canonical population for §P3's flip count."
+
+          if [ "$BASE" != "$PREV" ]; then
+            echo "This PR MOVES the baseline ($PREV -> $BASE), so it must REPRODUCE it."
+            if [ "$N" -ne "$BASE" ]; then
+              echo "BASELINE NOT REPRODUCED: the line says $BASE, this run measured $N."
+              echo "A baseline you did not measure is a number, not a measurement — and it fails in BOTH"
+              echo "directions: too high hands back ground another lane won (its own summary would read"
+              echo "'ok' while doing so), too low sails past every '<=' test by being too low."
+              echo "FIX: write the number THIS JOB just printed ($N). Do not compute it by arithmetic"
+              echo "from another PR's delta; the count is a property of the tree, and the lanes' changes"
+              echo "are not guaranteed disjoint. If you rebased since measuring, re-measure."
+              exit 1
+            fi
+            if [ "$BASE" -gt "$PREV" ]; then
+              case "$LINE" in
+                *baseline-raised:*)
+                  echo "baseline RAISED $PREV -> $BASE, reproduced, and declared beside the constant:"
+                  printf '%s\n' "$LINE" | sed 's/^/  /'
+
+                  echo "Allowed. A declared raise is a decision; an undeclared one is an accident." ;;
+                *)
+                  echo "RATCHET MAY ONLY TIGHTEN: baseline went UP, $PREV -> $BASE, with no declared reason."
+                  echo "Reproducing a higher count proves the errors are real; it does not make raising the"
+                  echo "floor to meet them a decision anyone made. If an upstream release genuinely reports"
+                  echo "more on unchanged code, say so on the line: baseline-raised:<reason>."
+                  exit 1 ;;
+              esac
+            else
+              echo "baseline tightened $PREV -> $BASE and this run reproduced it exactly."
+            fi
+          else
+            echo "This PR leaves the baseline alone; the plain ratchet applies."
+            if [ "$N" -gt "$BASE" ]; then
+              echo "RATCHET BROKEN: $N > $BASE. The recorded baseline may only go DOWN."
+              exit 1
+            fi
+            echo "ratchet ok ($N <= $BASE). Lowering it is optional; if you do, this job will require"
+            echo "the new number to equal what it measures."
+          fi
+          echo "The baseline is $BASE, read from MYPY_BASELINE in check.sh — the number that script enforces."
+          echo "This step rides test (py3.14), which IS a required context, so a red holds the merge."
+          echo "check.sh's own mypy-ratchet leg blocks a local run, and no job here runs check.sh, so"
+          echo "this step is the ratchet's whole CI home."
 
   # ── DIFF-SCOPED MUTATION GATE ──────────────────────────────────────────────────────────────────────
   # Coverage answers "did this line run?". This answers "would any test NOTICE if it were wrong?", and
@@ -372,214 +592,6 @@ jobs:
           name: mutation-diff
           path: capture-host/mutation-diff.json
           if-no-files-found: ignore
-
-  # ── mypy RATCHET ────────────────────────────────────────────────────────────────────────────────
-  # PYTHON-TYPES-AND-FORMAT §P1/§P3. It FAILS if the count EXCEEDS the recorded baseline, so the
-  # number can only go DOWN — and the baseline has been 0 since 2026-10-09, so any type error reds
-  # this job. §P3's own flip (check.sh's `mypy-ratchet` leg) landed 2026-10-20.
-  #
-  # ⚠️ THIS JOB IS NOT A REQUIRED CONTEXT, AND MAKING IT ONE IS NOT A FILE IN THIS REPO. The
-  # `protect-main` ruleset lists its required checks, which only the repository owner can edit, so a
-  # red here informs a reviewer and does not hold Kodiak. The name below still says "advisory" for
-  # that reason: it is the context string the ruleset will have to name, and renaming it before the
-  # owner adds it would hand them a string that matches nothing. Both change together or neither.
-  #
-  # ⚠️ AND BLOCKING LOCALLY IS NOT BLOCKING IN CI: `check.sh` is not run by any job here (see the
-  # pytest step's note) — each of its legs is replicated as its own step. So the mypy ratchet's only
-  # CI home is this job, and this job's own correctness is the whole of the CI half.
-  #
-  # ⚠️ THIS JOB IS THE CANONICAL MEASUREMENT, AND THE DEVELOPER'S ROOT CHECKOUT IS THE CONVENIENCE ONE.
-  # A whole-tree error count is a property of the tree it ran in: measured 2026-08-28, root reported
-  # 189 and a clean worktree 188, the single difference being ONE UNTRACKED file that exists only in
-  # root. CI's fresh checkout carries no untracked strays, so it — not a working tree — is the
-  # population §P3's flip count must be measured against. (§P2b records the same lesson from the other
-  # direction.)
-  #
-  # ⚠️ AND THE 189-vs-188 SPREAD ABOVE IS A DATED OBSERVATION, NOT A STANDING OFFSET. Re-measured
-  # 2026-08-29: a fresh worktree off `origin/main` reported 189, exactly what this job reports on
-  # main — so the gap was that day's untracked stray, not a property of worktrees. Do not carry a
-  # correction factor between trees; measure the tree you are in, and compare a PAIRED before/after
-  # inside ONE tree when what you want is the delta.
-  #
-  # THE BASELINE IS READ FROM check.sh, NOT COPIED HERE. One number, one home; a second hardcoded copy
-  # is a second thing to forget. If it cannot be parsed the job REFUSES rather than assuming a value —
-  # an unreadable baseline is not a permissive one.
-  #
-  # 🔴 AND FOR SIX WEEKS IT READ THE WRONG NUMBER OUT OF THE RIGHT FILE. The extraction below used to
-  # be `grep -oE 'baseline [0-9]+.*'`, which matches PROSE as readily as a constant — and the first
-  # match in the file is a COMMENT quoting the historical `"baseline 99, 2026-09-13"`. Measured on
-  # #3715's own job log: `mypy errors: 1   baseline here: 99   on origin/main: 99   delta: -98` →
-  # `ratchet ok (1 <= 99)`, conclusion SUCCESS, over a tree whose real baseline was 0. The job
-  # permitted 99 errors while reporting that the ratchet held, and the same hole let #3728 land.
-  # One number with one home is worth nothing if the reader can find a second copy of its WORDS; the
-  # parse is now anchored on the assignment, which the tests already read that way
-  # (`^MYPY_BASELINE=(\d+)$` in tests/test_check_script.py `_baseline`).
-  mypy:
-    # measured 2026-11-03 over 17 job run(s): p90 53s, max 1m02s (tools/ci-timing.mjs --limit 100). Cap = ceil(max(p95, max) × 2); max bounds p95.
-    timeout-minutes: 3
-    needs: changes
-    runs-on: ubuntu-latest
-    name: mypy (advisory ratchet)
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
-        with:
-          # 3.14 IS THE VERSION WHOSE TYPE ERRORS MATTER, because the box runs it (see the matrix
-          # note). This pin read 3.13 until 2026-10-31, so the ratchet graded a Python the hardware
-          # does not execute. Measured before the move: `capture-host/check.sh` under CPython 3.14.4
-          # reports `mypy: 0 errors — at the 0 baseline`, so the ratchet does not move with the pin.
-          python-version: '3.14'
-      - name: Not relevant to this PR — reporting green without running mypy
-        if: needs.changes.outputs.run != 'true'
-        run: echo "No capture-host/ or workflow change in this PR; the mypy ratchet is not run."
-      - name: Install mypy + runtime deps
-        if: needs.changes.outputs.run == 'true'
-        # The runtime deps matter here for the same reason they do in `test`: without them the modules
-        # do not import, and mypy reports a wall of missing-import noise instead of real type errors.
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements-dev.txt
-          pip install -r requirements.txt
-      - name: mypy ratchet — the count may only go DOWN, and touching the baseline obligates reproducing it
-        if: needs.changes.outputs.run == 'true'
-        # ⚠️ THE RATCHET HAD A HOLE, AND IT FAILED SILENTLY. This step used to fail only when the
-        # measured count EXCEEDED the recorded baseline — so a PR that MOVED the baseline passed by
-        # construction, in either direction, because the written number was never compared to
-        # anything the job had measured. Two lanes cutting the count in parallel is the ordinary
-        # case here, and it is not a hypothetical: on 2026-08-29 three PRs were open at once, all
-        # editing the one line that holds this number, each measured independently against a 189-era
-        # main — 154, 183 and 180. Land the 154 and then the 183 unchanged and the recorded baseline
-        # goes UP by 29, with every check green and the second PR's own summary line reading
-        # `153 <= 183, ratchet ok`. A wrong number and a right one produce identical output there.
-        #
-        # NOBODY HAD TO ERR FOR THAT TO HAPPEN. Each PR measured its own tree and wrote down what it
-        # measured, which is the correct behaviour; the hazard needs two CORRECT actors acting
-        # concurrently, because no lane can see another lane's number. That is why it is a gate's job
-        # and not a discipline's: asking people to remember is asking them to have information they
-        # do not have.
-        #
-        # AND CONTENTION IS ONLY THE VISIBLE CLASS. THERE ARE TWO, AND THE SECOND HAS NO EDITOR:
-        #   (1) CONTENTION — two lanes each move the line, and the second to land overwrites the
-        #       first's number. Loud enough to notice once you look for it.
-        #   (2) DRIFT WITH NOBODY EDITING ANYTHING — a PR records a baseline that was CORRECT when
-        #       measured, then unrelated work lands on main and moves the count underneath it. No
-        #       one touched the line; it went stale by sitting still. Measured 2026-08-29: a PR
-        #       holding a correctly-measured 148 went 11 stale within the hour because a different
-        #       PR improved main, and main's OWN recorded line went stale the same way without
-        #       anyone editing it.
-        #
-        # (2) generalises (1) and is the honest statement of the hazard: **a recorded baseline goes
-        # stale whenever main moves while a PR is open — which is every PR, always.** Any number
-        # written before the final rebase is a claim about a tree that no longer exists. Contention
-        # is just the case where the staleness has a culprit.
-        #
-        # WHY THE CHECK BELOW COVERS BOTH, WHICH IS NOT OBVIOUS: the trigger is the branch's value
-        # against CURRENT main, not against the merge-base, so a line that has drifted differs just
-        # as loudly as one that was overwritten — either way it takes the equality branch and must
-        # equal what THIS run measured. ⚠️ The at-merge-time property is NOT free from this run: CI
-        # on a BEHIND head measures the pre-merge tree, where a stale number can still look correct.
-        # It comes from Kodiak base-merging before it merges, which triggers a FURTHER run whose
-        # measurement is taken on the merged ref. So this step is honest on the run that matters and
-        # can read green on an earlier one — do not take a green here as proof the number is current.
-        #
-        # SO THE RULE IS: **touching the threshold obligates reproducing it.** When a PR changes the
-        # recorded baseline, the written number must EQUAL the count this run just measured — not
-        # merely bound it. Direction alone catches only the raise; equality also catches an unearned
-        # LOWERING, a number that came from arithmetic or from a stale tree, which no `<=` test can
-        # see because a too-low baseline passes a `<=` check by being too low. When the PR does NOT
-        # touch it, the plain ratchet applies and lowering it is optional.
-        #
-        # The direction check is KEPT ALONGSIDE equality rather than replaced by it: equality alone
-        # would wave through "I introduced 20 type errors and wrote the new total", since that also
-        # reproduces. A raise therefore still needs DECLARED PROVENANCE — `baseline-raised:<reason>`
-        # on the line — which is the same discriminator `commit-shape.mjs` uses, and never a shape
-        # rule. The legitimate case is an upstream mypy release reporting more on unchanged code.
-        run: |
-          set -uo pipefail
-          # ANCHORED ON THE ASSIGNMENT, never on the word "baseline": the file says that word in prose
-          # too, and one such sentence quotes an old value (see the 🔴 note on this job). `^…=[0-9]+$`
-          # can only match the constant `check.sh` itself enforces, and the suite reads it the same
-          # way, so a trailing comment appended to the line reds the suite instead of drifting here.
-          BASE=$(sed -n 's/^MYPY_BASELINE=\([0-9]\+\)$/\1/p' check.sh | head -1)
-          # THE DECLARATION WINDOW for a raise: the constant's own line and ONE line either side. A
-          # `baseline-raised:<reason>` marker goes in a comment beside the constant, where the next
-          # reader of the number meets it — not anywhere in a 400-line file, which is how the old
-          # whole-file `case` could have read someone else's sentence as this PR's declaration.
-          LINE=$(grep -B1 -A1 -E '^MYPY_BASELINE=[0-9]+$' check.sh | head -3)
-          # main's copy of the same constant. checkout is shallow, so fetch the blob explicitly; if it
-          # cannot be read the step REFUSES rather than assuming the baseline is fine — an unreadable
-          # comparison is not a passing one (CLAUDE.md §4b: a check that reports success about
-          # something it never examined).
-          git fetch --depth=1 origin main >/dev/null 2>&1 || true
-          PREV=$(git show FETCH_HEAD:capture-host/check.sh 2>/dev/null \
-                 | sed -n 's/^MYPY_BASELINE=\([0-9]\+\)$/\1/p' | head -1)
-          if [ -z "${BASE:-}" ] || [ -z "${PREV:-}" ]; then
-            echo "REFUSING: could not read this branch's baseline (${BASE:-unreadable}) or main's (${PREV:-unreadable})."
-            echo "A comparison that could not be made is not a comparison that passed."
-            exit 2
-          fi
-          # Capture the exit code of MYPY, never of a pipe — a `| tail` here would report tail's status
-          # and a failing type-check would read as green (CLAUDE.md §4b).
-          python -m mypy --ignore-missing-imports --explicit-package-bases . > mypy-out.txt 2>&1 || true
-          cat mypy-out.txt
-          # AGGREGATE from mypy's own summary line, never from a tail of the output. "Success: no issues
-          # found" is a genuinely clean run and means zero; an ABSENT summary means mypy did not finish,
-          # which is not zero and must not read as one.
-          if grep -q '^Success: no issues found' mypy-out.txt; then
-            N=0
-          else
-            N=$(grep -oE '^Found [0-9]+ error' mypy-out.txt | grep -oE '[0-9]+' | head -1)
-          fi
-          if [ -z "${N:-}" ]; then
-            echo "REFUSING: mypy printed neither a 'Found N errors' line nor a success line — it did not finish."
-            echo "That is not a clean tree; it is an unfinished measurement."
-            exit 2
-          fi
-          echo "mypy errors: $N   baseline here: $BASE   on origin/main: $PREV   delta: $((N - BASE))"
-          echo "measured in CI's FRESH CHECKOUT — the canonical population for §P3's flip count."
-
-          if [ "$BASE" != "$PREV" ]; then
-            echo "This PR MOVES the baseline ($PREV -> $BASE), so it must REPRODUCE it."
-            if [ "$N" -ne "$BASE" ]; then
-              echo "BASELINE NOT REPRODUCED: the line says $BASE, this run measured $N."
-              echo "A baseline you did not measure is a number, not a measurement — and it fails in BOTH"
-              echo "directions: too high hands back ground another lane won (its own summary would read"
-              echo "'ok' while doing so), too low sails past every '<=' test by being too low."
-              echo "FIX: write the number THIS JOB just printed ($N). Do not compute it by arithmetic"
-              echo "from another PR's delta; the count is a property of the tree, and the lanes' changes"
-              echo "are not guaranteed disjoint. If you rebased since measuring, re-measure."
-              exit 1
-            fi
-            if [ "$BASE" -gt "$PREV" ]; then
-              case "$LINE" in
-                *baseline-raised:*)
-                  echo "baseline RAISED $PREV -> $BASE, reproduced, and declared beside the constant:"
-                  printf '%s\n' "$LINE" | sed 's/^/  /'
-
-                  echo "Allowed. A declared raise is a decision; an undeclared one is an accident." ;;
-                *)
-                  echo "RATCHET MAY ONLY TIGHTEN: baseline went UP, $PREV -> $BASE, with no declared reason."
-                  echo "Reproducing a higher count proves the errors are real; it does not make raising the"
-                  echo "floor to meet them a decision anyone made. If an upstream release genuinely reports"
-                  echo "more on unchanged code, say so on the line: baseline-raised:<reason>."
-                  exit 1 ;;
-              esac
-            else
-              echo "baseline tightened $PREV -> $BASE and this run reproduced it exactly."
-            fi
-          else
-            echo "This PR leaves the baseline alone; the plain ratchet applies."
-            if [ "$N" -gt "$BASE" ]; then
-              echo "RATCHET BROKEN: $N > $BASE. The recorded baseline may only go DOWN."
-              exit 1
-            fi
-            echo "ratchet ok ($N <= $BASE). Lowering it is optional; if you do, this job will require"
-            echo "the new number to equal what it measures."
-          fi
-          echo "The baseline is $BASE, read from MYPY_BASELINE in check.sh — the number that script enforces."
-          echo "This job is not a REQUIRED context, so a red here informs a reviewer and does not hold"
-          echo "the merge. check.sh's own mypy-ratchet leg blocks a local run, and no job here runs"
-          echo "check.sh. Adding this context to the protect-main ruleset is the owner's to make."
 
   # ── SUPPLY-CHAIN GATES (advisory) ───────────────────────────────────────────────────────────────
   # Two questions with different failure modes, deliberately not merged into one job:
