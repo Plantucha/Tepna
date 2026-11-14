@@ -75,6 +75,11 @@
  * ceiling left above the count is headroom the next regression spends silently. The gate also requires
  * the state file to be byte-identical to a rebuild, so the count it reads was written by this tool and
  * not by hand. One `tepna.verdict/1` object, `--json` printing only that.
+ * THE WRITE READING (§3 of `WRITE-ROOT-ADOPTION-2026-11-03-BRIEF.md`). `--write` writes
+ * `audits/ABSENCE-SURVEY-2026-09-22-STATE.json`, a TRACKED work-unit artifact, so the tree it lands
+ * in decides whether the work-unit keeps it. It resolves that tree through `writeRootOrDie` at the
+ * write site: a run launched from one checkout against another checkout's copy refuses at exit 2 and
+ * names both trees. Every READ keeps its own reach, so another checkout may still import `LEDGER`.
  */
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -82,10 +87,12 @@ import { dirname, join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { refuseUnknownArgvOrExit, isCliEntry } from './argv-guard.mjs';
 import { makeVerdict } from './verdict-emit.mjs';
+import { writeRootOrDie } from './write-root.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 export const SURVEY = join(ROOT, 'audits', 'ABSENCE-SURVEY-2026-09-22.json');
-export const LEDGER = join(ROOT, 'audits', 'ABSENCE-SURVEY-2026-09-22-STATE.json');
+const LEDGER_REL = ['audits', 'ABSENCE-SURVEY-2026-09-22-STATE.json'];
+export const LEDGER = join(ROOT, ...LEDGER_REL);
 export const RATCHET = join(ROOT, 'audits', 'ABSENCE-SURVEY-2026-09-22-RATCHET.json');
 
 export const STATES = ['open', 'fixed', 'accepted-with-reason'];
@@ -1096,8 +1103,11 @@ function main(argv) {
   }
   const built = render(build(JSON.parse(readFileSync(SURVEY, 'utf8'))));
   if (argv.includes('--write')) {
-    writeFileSync(LEDGER, built, 'utf8');
-    console.log(`wrote ${LEDGER}`);
+    /* The ledger belongs to the checkout this run was LAUNCHED IN, not to the one this file lives in.
+       `writeRootOrDie` refuses on a disagreement and names both trees. */
+    const dest = join(writeRootOrDie(import.meta.url), ...LEDGER_REL);
+    writeFileSync(dest, built, 'utf8');
+    console.log(`wrote ${dest}`);
     return 0;
   }
   if (!existsSync(LEDGER)) {

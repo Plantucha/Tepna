@@ -86,6 +86,10 @@
  *   node tools/ecg-physionet-differential.mjs --dir <d> --json
  *   node tools/ecg-physionet-differential.mjs --dir <d> --pin    # record sha256s into the manifest
  *   node tools/ecg-physionet-differential.mjs --dir <slpdb> --ann ecg --no-manifest   # another WFDB corpus
+ * THE WRITE READING (§3 of `WRITE-ROOT-ADOPTION-2026-11-03-BRIEF.md`). `--pin` writes
+ * `tools/physionet-mitdb-manifest.json`, a TRACKED work-unit artifact, so it resolves the write tree
+ * through `writeRootOrDie` at the write site and refuses a cross-checkout run at exit 2. The selftest
+ * corpus goes to `mkdtempSync(tmpdir())`, outside every checkout, and that write stays as it was.
  */
 import { readFileSync, existsSync, readdirSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -96,12 +100,14 @@ import { tmpdir } from 'node:os';
 import vm from 'node:vm';
 import { makeVerdict } from './verdict-emit.mjs';
 import { isCliEntry } from './argv-guard.mjs';
+import { writeRootOrDie } from './write-root.mjs';
 
 const require_ = createRequire(import.meta.url);
 const DexBuild = require_('./build-core.js');
 const AnalysisStats = require_('../analysis-stats.js');
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-const MANIFEST = join(ROOT, 'tools', 'physionet-mitdb-manifest.json');
+const MANIFEST_REL = ['tools', 'physionet-mitdb-manifest.json'];
+const MANIFEST = join(ROOT, ...MANIFEST_REL);
 
 /* The EC57 / WFDB match window. 150 ms is the standard for QRS detector evaluation. */
 export const MATCH_MS = 150;
@@ -979,8 +985,11 @@ function main(argv) {
   if (pin) {
     const out = { note: 'sha256 of each .dat. null = not yet pinned (§∅ absence is null).', records: {} };
     for (const [k, v] of Object.entries(pins)) out.records[k] = { sha256: v };
-    writeFileSync(MANIFEST, JSON.stringify(out, null, 2) + '\n');
-    console.log('pinned ' + Object.keys(pins).length + ' record hashes into ' + MANIFEST);
+    /* The pins belong to the checkout this run was LAUNCHED IN. `writeRootOrDie` refuses on a
+       disagreement and names both trees. */
+    const dest = join(writeRootOrDie(import.meta.url), ...MANIFEST_REL);
+    writeFileSync(dest, JSON.stringify(out, null, 2) + '\n');
+    console.log('pinned ' + Object.keys(pins).length + ' record hashes into ' + dest);
   }
 
   const scored = rows.filter((r) => !r.error);

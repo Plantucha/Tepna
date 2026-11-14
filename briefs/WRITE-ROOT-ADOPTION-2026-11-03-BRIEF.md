@@ -67,6 +67,12 @@ of the remaining 55 writers needs one reading, not a blanket conversion:
 ## 4 · Acceptance
 
 - [ ] Each of the 56 writers carries one of the three readings above, recorded in its own header.
+      PROGRESS 2026-11-14: four more answer — `absence-ledger`, `ecg-physionet-differential`,
+      `sync-docs-index` and `tools-index`. A measurement picked the class: each one's resolved write
+      target is a TRACKED path. All four resolve the write tree through `writeRootOrDie` at the write
+      site, never at module scope. The write arm reads 5 adopted against 52 pending, and nine writers
+      hold a resolvable tracked target. The scan left 46 targets unresolved, so this class is a floor
+      rather than a sweep.
 - [ ] Every writer of a tracked work-unit artifact calls `writeRootOrDie`.
 - [x] A gate names the adopted set, so a new writing tool joins it deliberately rather than by habit.
       Done 2026-11-11: `tools/write-root-adoption.mjs --check` reads every `tools/*.mjs` against §1's grep and
