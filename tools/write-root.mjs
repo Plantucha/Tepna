@@ -144,6 +144,26 @@ export function refusalMessage(d, { toolPath = null, action = 'write' } = {}) {
   ].join('\n');
 }
 
+/* A VERDICT REASON IS NOT THE PRINTED REFUSAL. `refusalMessage` above goes to a reader on stderr.
+   The sentence below goes into the `reason` field of the one `tepna.verdict/1` object a refusing gate
+   owes (§🧾), where a machine reads it.
+
+   🔴 ONE OF THE THREE REASONS IS NOT A DISAGREEMENT. `cwd-not-a-checkout` names a caller that
+   stands in no checkout at all, so a sentence saying the two "sit in different checkouts" states
+   something false about it. Measured 2026-11-14 from `/tmp`: nine tools printed that wording at exit
+   2. The sentence below holds for every member of `REASONS`, and the selftest holds it against that
+   list. The verb stays per-tool, because a reader acts on what the run was doing. */
+/**
+ * PURE. The `reason` a refusing gate writes into its own NOT_RUN verdict.
+ *
+ * @param {string} reason one member of `REASONS`
+ * @param {{tool?: string, verb?: string}} [opts] the tool's repo-relative path, and what it does
+ * @returns {string} the sentence
+ */
+export function verdictRefusalReason(reason, { tool = 'that tool', verb = 'judge' } = {}) {
+  return `this run and ${tool} do not resolve to one checkout (${reason}), so which tree to ${verb} is undecided`;
+}
+
 /**
  * Thrown by `writeRoot` and `judgeRoot` so a caller can catch the refusal rather than exit. The name
  * stays as it was, because every importer reads it; `action` is what says which verb it carried.
@@ -338,6 +358,16 @@ function selftest() {
   ok(jcode === 2, 'the judge CLI form exits 2 — a gate that cannot name its tree examined nothing');
   ok(jlines.length === 1 && jlines[0].includes('REFUSED'), 'the judge CLI form prints the refusal once');
   ok(judgeRootOrDie(gateUrl, { cwd: shared, topLevel: () => shared }) === shared, 'an agreeing judge run returns the root and prints nothing');
+
+  /* THE VERDICT REASON CLAIMS NO DISAGREEMENT, because one of the three reasons has only one
+     checkout to name. The loop is over the module's own list, so a fourth reason joins it. */
+  for (const r of REASONS) {
+    ok(verdictRefusalReason(r, { tool: 'tools/x.mjs' }).includes(`(${r})`), `the verdict reason names ${r}`);
+    ok(!verdictRefusalReason(r, { tool: 'tools/x.mjs' }).includes('different checkouts'), `the verdict reason claims no disagreement for ${r}`);
+  }
+  ok(verdictRefusalReason('checkout-mismatch', { tool: 'tools/x.mjs', verb: 'scan' }).includes('which tree to scan'), 'the verb a caller gives reaches the sentence');
+  ok(verdictRefusalReason('checkout-mismatch', { tool: 'tools/x.mjs' }).includes('which tree to judge'), 'a caller that names no verb judges');
+  ok(verdictRefusalReason('checkout-mismatch').includes('this run and that tool'), 'a caller that names no tool still reads as a sentence');
 
   console.log(`all ${ran} selftests passed`);
   return ran;

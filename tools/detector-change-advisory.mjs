@@ -64,7 +64,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry } from './argv-guard.mjs';
 import { blankComments, codeMask } from './js-lex.mjs';
-import { WriteRootRefusal, judgeRoot } from './write-root.mjs';
+import { WriteRootRefusal, judgeRoot, verdictRefusalReason } from './write-root.mjs';
 
 let REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const Verdict = createRequire(import.meta.url)('../verdict.js');
@@ -440,7 +440,7 @@ function main() {
     } catch (e) {
       if (!(e instanceof WriteRootRefusal)) throw e;
       console.error(e.message);
-      const v = verdictFor(null, gitShort(), { notRun: `this run and tools/detector-change-advisory.mjs sit in different checkouts (${e.reason}), so which tree to reconcile is undecided` });
+      const v = verdictFor(null, gitShort(), { notRun: verdictRefusalReason(e.reason, { tool: 'tools/detector-change-advisory.mjs', verb: 'reconcile' }) });
       console.log(`detector-change-advisory: ⏱ UNEXAMINED the work-unit tree — ${v.reason}`);
       console.log(`\nVERDICT (tepna.verdict/1): ${JSON.stringify(v)}`);
       process.exit(2);

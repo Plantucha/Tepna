@@ -113,6 +113,13 @@ still cannot refuse.
 A refusing gate owes a verdict. `secret-scan.mjs` routes its refusal through its own `refuse`, so the
 run exits 2 with one object carrying `status: NOT_RUN` and `result: null`.
 
+THE VERDICT REASON IS ITS OWN SENTENCE, and `refusalMessage` does not serve it. A run from a directory
+in no checkout read ten tools on 2026-11-14, and nine of them wrote "sit in different checkouts" into
+their own `reason`. That wording states something false about `cwd-not-a-checkout`, which names a
+caller standing in no checkout at all. `verdictRefusalReason(reason, { tool, verb })` in
+`tools/write-root.mjs` now holds the sentence, each caller names its own verb, and a selftest loop over
+`REASONS` holds both halves.
+
 ### 6.2 · The measurement
 
 Measured 2026-11-05 over `tools/*.mjs` at `feecbee8b`:

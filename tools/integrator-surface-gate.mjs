@@ -71,7 +71,7 @@ import { dirname, join } from 'node:path';
 import { isCliEntry } from './argv-guard.mjs';
 import { escapeRe } from './regex-escape-core.mjs';
 import { codeOnly, prepare } from './find-unwired-js.mjs';
-import { REASONS, WriteRootRefusal, judgeRoot } from './write-root.mjs';
+import { REASONS, WriteRootRefusal, judgeRoot, verdictRefusalReason } from './write-root.mjs';
 
 const Verdict = createRequire(import.meta.url)('../verdict.js');
 /* THE TOOL'S OWN CHECKOUT IS ONLY THE DEFAULT. `main` reassigns this through `judgeRoot`, so a run
@@ -1885,10 +1885,12 @@ export function notRunVerdict(reason, commit = null) {
 /* 🔴 ONE OF THE THREE REASONS IS NOT A DISAGREEMENT. `cwd-not-a-checkout` means the caller stands
    in no checkout at all, so a sentence saying the two "sit in different checkouts" states something
    false about two thirds of one case. Measured 2026-11-14 from `/tmp`: exit 2 and that wording.
-   The sentence below is true of all three, and a selftest holds it against the module's own list. */
+   The sentence is true of all three, and a selftest holds it against the module's own list. Nine
+   other tools carried the same false wording, so the sentence itself now lives in
+   `tools/write-root.mjs` beside the reason vocabulary, and this function names the verb. */
 /** PURE. The sentence a refusal carries, for any member of `REASONS`. */
 export function refusalReason(reason) {
-  return `this run and tools/integrator-surface-gate.mjs do not resolve to one checkout (${reason}), so which tree to judge is undecided`;
+  return verdictRefusalReason(reason, { tool: 'tools/integrator-surface-gate.mjs' });
 }
 
 /** Prints that object and answers with this repo's "it refused to look" code. */

@@ -62,7 +62,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry } from './argv-guard.mjs';
 import { splitRowCells } from './residue-ids.mjs';
-import { WriteRootRefusal, judgeRoot } from './write-root.mjs';
+import { WriteRootRefusal, judgeRoot, verdictRefusalReason } from './write-root.mjs';
 
 /* THE DEFAULT ONLY, for a library import and for `--verdict-sample`, which read no tree. A real run
    replaces it in `main` through `judgeRoot`, because every git call below runs with `cwd: REPO`: a
@@ -404,7 +404,7 @@ function main() {
   } catch (e) {
     if (!(e instanceof WriteRootRefusal)) throw e;
     console.error(e.message);
-    return notRun(`this run and tools/residue-path-leads.mjs sit in different checkouts (${e.reason}), so which tree to read is undecided`);
+    return notRun(verdictRefusalReason(e.reason, { tool: 'tools/residue-path-leads.mjs', verb: 'read' }));
   }
 
   const ref = arg('--ref', 'origin/main');

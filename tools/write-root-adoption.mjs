@@ -46,7 +46,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 import { bareSource } from './verdict-adoption.mjs';
-import { WriteRootRefusal, judgeRoot } from './write-root.mjs';
+import { WriteRootRefusal, judgeRoot, verdictRefusalReason } from './write-root.mjs';
 
 const Verdict = createRequire(import.meta.url)('../verdict.js');
 /* The DEFAULT only, for a library import and for `--verdict-sample`, which examine no tree. A real run
@@ -250,7 +250,7 @@ function main(argv) {
   } catch (e) {
     if (!(e instanceof WriteRootRefusal)) throw e;
     console.error(e.message);
-    refuse('this run and ' + SELF + ' sit in different checkouts (' + e.reason + '), so which tool tree to census is undecided');
+    refuse(verdictRefusalReason(e.reason, { tool: SELF, verb: 'census' }));
   }
   const prose = !argv.includes('--json');
   const base = (() => {

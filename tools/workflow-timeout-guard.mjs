@@ -38,7 +38,7 @@ import { createRequire } from 'node:module';
 import { execFileSync } from 'node:child_process';
 import { isCliEntry } from './argv-guard.mjs';
 import { escapeRe } from './regex-escape-core.mjs';
-import { WriteRootRefusal, judgeRoot } from './write-root.mjs';
+import { WriteRootRefusal, judgeRoot, verdictRefusalReason } from './write-root.mjs';
 
 /* SELF is the tool's own tree, which carries its library. ROOT is the tree it JUDGES, and the two
    differ whenever a run from one checkout names this file by another checkout's path. The default
@@ -149,7 +149,7 @@ function run() {
   } catch (e) {
     if (!(e instanceof WriteRootRefusal)) throw e;
     console.error(e.message);
-    return notRun(`this run and tools/workflow-timeout-guard.mjs sit in different checkouts (${e.reason}), so which tree to judge is undecided`);
+    return notRun(verdictRefusalReason(e.reason, { tool: 'tools/workflow-timeout-guard.mjs' }));
   }
   if (!existsSync(WF_DIR)) {
     const { verdict } = evaluate([], producedBy());

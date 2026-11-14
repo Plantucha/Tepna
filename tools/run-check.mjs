@@ -68,7 +68,7 @@ import { fileURLToPath } from 'node:url';
 import { aggregateChildren, makeVerdict } from './verdict-emit.mjs';
 import { isCliEntry } from './argv-guard.mjs';
 import { declaresSelftest } from './selftest-all.mjs';
-import { WriteRootRefusal, judgeRoot } from './write-root.mjs';
+import { WriteRootRefusal, judgeRoot, verdictRefusalReason } from './write-root.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 /* THE DEFAULT ONLY. It serves `--list`, `--verdict-sample`, the selftest and a library import, which
@@ -318,7 +318,7 @@ export function verdictSample() {
   return runVerdict(r, { steps: S, commit: null, commitReason: '--verdict-sample: a scratch step list, no gate run, no code identity claimed', at: '2026-09-22T00:00:00Z' });
 }
 
-/* A REFUSAL OWES A VERDICT (§🧾). A run whose cwd and whose own copy sit in different checkouts
+/* A REFUSAL OWES A VERDICT (§🧾). A run whose cwd and whose own copy do not resolve to one checkout
    examined no tree, so the object says `NOT_RUN` over zero children and carries `result: null`. The
    whole step list is the exclusion, which keeps `checked + excluded = eligible` true. */
 export function refusalVerdict(reason, { at } = {}) {
@@ -529,7 +529,7 @@ if (IS_MAIN && !process.argv.includes('--selftest')) {
   } catch (e) {
     if (!(e instanceof WriteRootRefusal)) throw e;
     console.error(e.message);
-    const reason = 'this run and tools/run-check.mjs sit in different checkouts (' + e.reason + '), so which tree to gate is undecided';
+    const reason = verdictRefusalReason(e.reason, { tool: 'tools/run-check.mjs', verb: 'gate' });
     console.error('✕ run-check: ' + reason);
     if (json) console.log(JSON.stringify(refusalVerdict(reason)));
     process.exit(2);
