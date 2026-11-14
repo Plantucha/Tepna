@@ -32,7 +32,12 @@ reads raw streams. This brief depends on `SIGNAL-QUALITY-TABLE-2026-11-14-BRIEF.
    comparison. A σ over misaligned streams measures the lag, not the sensor.
 2. Coverage map. Mark each quantity per window as measured, derived, absent or refused, from the
    signal-quality table. An absent window is `null`, never a fill.
-3. σ per window and per night. Use the three-corner hat where three independent sources exist.
+3. σ per window and per night, and σ against averaging time. Run the Allan deviation on the
+   pairwise DIFFERENCES between sensors, never on one sensor's series alone. The physiology
+   cancels in a difference, so the curve describes the sensors, not the sleep. The existing
+   `integrator-tch.js` `allanTriplet` already does this split. The curve also sets the window
+   length: the window sits where the curve is lowest.
+   Use the three-corner hat where three independent sources exist.
    Use an N-corner hat with a covariance term where errors correlate, because two optical sensors
    on one wrist share motion error and break the plain hat.
 4. Combination. Weight each source by inverse variance and remove its Bland–Altman bias first.

@@ -83,6 +83,16 @@ The table rejects one proposed fact. Percent of full scale (%FS) describes a dat
 recording, and no device in the corpus publishes a full-scale accuracy. Drift belongs to the
 clock, so the timing row and the Allan curve carry it, never an SD of the signal.
 
+Rules for the Allan curve in the timing row:
+
+- The input is the time error between two clocks, never the signal itself.
+- The curve needs an evenly spaced series. A RUNS gap or a SEAMS step splits the series into
+  segments, and the curve uses the longest segment. The row names that segment's span.
+- Each point carries its term count `n`. A point with too few terms reads `null`, as
+  `capture-host/allan.py` already does.
+- The row shows the curve, never one number. The slope says whether more averaging helps.
+- A stream whose `independent` flag is false has no second clock, so its curve reads `null`.
+
 ## 4 · Shape and placement
 
 - The table has two views: a per-window strip (one cell per epoch) and a night summary row.
