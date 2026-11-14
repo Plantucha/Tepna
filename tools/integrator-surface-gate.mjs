@@ -284,11 +284,12 @@ export function nestedShapes(dspText, fnName) {
     if (!/return \{\s*$/.test(lines[i])) {
       const one = oneLineShape(lines[i]);
       if (!one) return null;
-      shapes.push({ at: i + 1, keys: one });
+      shapes.push({ at: i + 1, end: i + 1, keys: one });
       continue;
     }
     let dd = 0;
     let closed = false;
+    let litEnd = -1;
     const keys = [];
     for (let j = i; j <= end; j++) {
       if (j > i && dd === 1) {
@@ -298,11 +299,16 @@ export function nestedShapes(dspText, fnName) {
       dd += (lines[j].match(/[{[]/g) || []).length - (lines[j].match(/[}\]]/g) || []).length;
       if (j > i && dd <= 0) {
         closed = true;
+        litEnd = j;
         break;
       }
     }
     if (!closed) return null;
-    shapes.push({ at: i + 1, keys });
+    /* 🔴 THE SHAPE CARRIES ITS OWN RANGE. `builderCandidates` ranges the inner literals of a
+       `builtBy` subtree, and the only honest anchor is the return literal this scan already
+       bounded. A second scan would re-derive the three traps above and could disagree with the
+       keys beside it. The field is additive, so `at` and `keys` keep their meaning. */
+    shapes.push({ at: i + 1, end: litEnd + 1, keys });
   }
   if (!shapes.length) return null;
   const union = [...new Set(shapes.flatMap((s) => s.keys))].sort();
@@ -932,6 +938,36 @@ export function innerCandidates(dspText, subtree, pre = prepare) {
   const unreadable = new Set();
   for (const [s0, e0] of outer) {
     const { keys, values } = literalKeys(lines, s0, e0);
+    for (const k of keys) {
+      const v = values[k] || '';
+      if (/^\s*\{/.test(v)) literals.add(k);
+      else if (/\{/.test(v)) unreadable.add(k);
+    }
+  }
+  return { literals: [...literals].sort(), unreadable: [...unreadable].sort() };
+}
+
+/* 🔴 A `builtBy` SUBTREE KEEPS ITS LITERAL INSIDE THE BUILDER, AND `innerCandidates` HAS NO
+   ANCHOR THERE. `literalRanges` wants an `apnea: {` line, and `fuseApneaEvents()` never writes
+   one — the fusion site reads `apnea: fuseApneaEvents(...)`. So the census called 5 of 10
+   subtrees unenumerable, and 2 of those 5 were blind only for want of a second anchor. The
+   builder's own return literal is that anchor, and `nestedShapes` already bounds it under the
+   three traps its comments record. Measured 2026-11-14.
+
+   WHAT STAYS BLIND, AND WHY. A `routes` subtree resolves through a guard or a return variable,
+   and an `arrayOf` subtree carries no object literal of its own. Neither reaches a return literal
+   this reader can range, so `apneaTyping`, `kernel` and `findings` keep their own blindness and
+   the census keeps naming them. */
+/** Every inner object literal a `builtBy` subtree carries inside its builder's return literal. */
+export function builderCandidates(dspText, fnName, pre = prepare) {
+  const code = pre(dspText).code;
+  const lines = code.split('\n');
+  const shaped = nestedShapes(code, fnName);
+  if (!shaped) return null;
+  const literals = new Set();
+  const unreadable = new Set();
+  for (const sh of shaped.shapes) {
+    const { keys, values } = literalKeys(lines, sh.at - 1, sh.end - 1);
     for (const k of keys) {
       const v = values[k] || '';
       if (/^\s*\{/.test(v)) literals.add(k);
@@ -1946,7 +1982,7 @@ function main() {
         );
       innerShapes[vn] = is;
     }
-    const cand = innerCandidates(dsp, sub);
+    const cand = d.builtBy ? builderCandidates(dsp, d.builtBy) : innerCandidates(dsp, sub);
     /* 🔴 AND THE THIRD INSTANCE OF THE SAME CLASS, SOURCE SIDE. `elemUnjudged` names an array key
        read element-wise that no element declaration serves, so the READ side already speaks. A key
        nobody reads said nothing at all: it carries an object literal, no `inner` block declares it,
@@ -3297,6 +3333,36 @@ if (DIRECT && process.argv.includes('--selftest')) {
   const IC6 = ['var _exp = {', '  outer: {', '    // a comment naming deep: { a: 1 }', '    plain: 1', '  }', '};'].join('\n');
   ck('a literal inside a COMMENT is no candidate, on either route', innerCandidates(IC6, 'outer').literals, []);
   ck('…the tokenizer route included', innerCandidates(IC6, 'outer', ICOK).literals, []);
+
+  /* `builderCandidates` — the same census over a `builtBy` subtree, anchored on the builder's
+     own return literal. Each leg carries its tokenizer-route twin, because the two parse routes
+     disagree on this machine and in CI (`prepare` resolves acorn here, CI takes the tokenizer). */
+  const BC1 = ['function buildIt(x) {', '  return {', '    plain: 1,', '    deep: {', '      a: 1', '    }', '  };', '}'].join('\n');
+  ck('an inner literal inside a builder return is a candidate', builderCandidates(BC1, 'buildIt').literals, ['deep']);
+  ck('…and a scalar key beside it is not', builderCandidates(BC1, 'buildIt').literals.includes('plain'), false);
+  ck('…and the tokenizer route agrees', builderCandidates(BC1, 'buildIt', ICOK).literals, ['deep']);
+  const BC2 = ['function buildIt(x) {', '  return { a: 1, b: 2 };', '}'].join('\n');
+  ck('a one-line builder return ranges and carries no candidate', builderCandidates(BC2, 'buildIt').literals, []);
+  ck('…and names nothing unreadable either', builderCandidates(BC2, 'buildIt').unreadable, []);
+  ck('a builder that is not in the source refuses, so the census calls the subtree unenumerable', builderCandidates(BC1, 'noSuchBuilder'), null);
+  const BC3 = ['function buildIt(x) {', '  return {', '    mapped: rows.map(function (r) { return { n: r }; }),', '    guarded: x ? { a: 1 } : null', '  };', '}'].join('\n');
+  ck('a value that merely CONTAINS a brace is no candidate here either', builderCandidates(BC3, 'buildIt').literals, []);
+  ck('…and both forms come back named apart', builderCandidates(BC3, 'buildIt').unreadable, ['guarded', 'mapped']);
+  ck('…on the tokenizer route as well', builderCandidates(BC3, 'buildIt', ICOK).unreadable, ['guarded', 'mapped']);
+  const BC4 = ['function buildIt(x) {', '  if (x) {', '    return {', '      one: { a: 1 }', '    };', '  }', '  return {', '    two: { b: 2 }', '  };', '}'].join('\n');
+  ck('every return literal of the builder contributes, and the names come back sorted', builderCandidates(BC4, 'buildIt').literals, ['one', 'two']);
+  ck('…the tokenizer route included', builderCandidates(BC4, 'buildIt', ICOK).literals, ['one', 'two']);
+  const BC5 = ['function buildIt(x) {', '  var rows = x.map(function (k) {', '    return {', '      inner: { a: 1 }', '    };', '  });', '  return {', '    own: { b: 2 }', '  };', '}'].join('\n');
+  ck('🔴 A NESTED CALLBACK RETURN IS NOT THE BUILDER SHAPE, so its literal is no candidate', builderCandidates(BC5, 'buildIt').literals, ['own']);
+  const BC6 = ['function buildIt(x) {', '  return {', '    // a comment naming deep: { a: 1 }', '    plain: 1', '  };', '}'].join('\n');
+  ck('a literal inside a COMMENT is no candidate on either route', builderCandidates(BC6, 'buildIt').literals, []);
+  ck('…the tokenizer route included', builderCandidates(BC6, 'buildIt', ICOK).literals, []);
+  ck(
+    'every builder shape carries a range that closes at or after it opens',
+    nestedShapes(BC4, 'buildIt').shapes.every((sh) => sh.end >= sh.at),
+    true
+  );
+  ck('…and a one-line return shape opens and closes on one line', nestedShapes(BC2, 'buildIt').shapes[0].end, nestedShapes(BC2, 'buildIt').shapes[0].at);
   console.log(bad ? `  ✗ ${bad} of ${ran} selftests failed` : `  all ${ran} selftests passed`);
   process.exit(bad ? 1 : 0);
 }
