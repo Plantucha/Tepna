@@ -51,6 +51,34 @@ annotates).
 | timing | `independent`, `timingSource`, resync count, `ppm` with anchor count and span | the stream has no second clock |
 | reference error | bias, limits of agreement and MAE against a reference stream | no reference stream exists: `null`, reason `no-reference` |
 
+## 3b · Sidecar ledger, with values before and after
+
+Owner question, 2026-11-14: does the table show every sidecar, and the values before and after
+each one applies? The answer is now yes. The table gains a sidecar ledger, one row per sidecar
+that the box can write for the node's streams.
+
+| sidecar | what it corrects or declares |
+|---|---|
+| `_ECGRUNS` · `_PPGRUNS` · `_PPG2WRUNS` · `_ACCRUNS` | absent spans in the stream (`PPG-ABSENCE-AS-VALUE`) |
+| `_ECGSEAMS` · `_PPGSEAMS` · `_ACCSEAMS` · `_HRSEAMS` · `_PPISEAMS` | device-clock seams and steps |
+| `_RADIOCLOCK.csv` · `_RTCLOG.csv` | device and radio clock observations |
+| `_LINK.csv` | link status from the host |
+| `_OXYFRAME.txt` | the O2Ring's per-frame contact declarations |
+
+Each ledger row has a state from a closed set:
+
+- `read` — the node found the sidecar and applied it.
+- `absent` — the box wrote no sidecar for this stream. The row says so, and it never reads as clean.
+- `not-read` — the sidecar exists, but the node has no reader for it. The table shows this state
+  as a defect, because a fact that the node drops is invisible otherwise.
+- `not-applicable` — the sidecar cannot exist for this stream, for example a phone export.
+
+Each fact that a sidecar changes shows two values: the value before the sidecar applies and the
+value after it applies. Examples: coverage before and after the node masks the RUNS spans, resync
+count before and after the SEAMS file, and the axis rate before and after `hostAxis`. The
+difference is the sidecar's effect, and the reader can see it. When the two values are equal,
+the row still shows both. The equality is a measured result, not an omission.
+
 The table rejects one proposed fact. Percent of full scale (%FS) describes a datasheet, not a
 recording, and no device in the corpus publishes a full-scale accuracy. Drift belongs to the
 clock, so the timing row and the Allan curve carry it, never an SD of the signal.
@@ -79,6 +107,9 @@ Assignee: decided on the agent board (`--kind decision`, 2026-11-14).
       fields where they exist.
 - [ ] Each `null` cell carries a named reason. A gate asserts that no cell holds `0` over an
       absent fact.
+- [ ] The sidecar ledger lists every ECG-side sidecar in §3b with its state. A gate fails when
+      a sidecar on disk reads `not-read` without a named reason.
+- [ ] Each fact that a sidecar changes shows its value before and after the sidecar applies.
 - [ ] The render shows the table above the first result card, with a badge in every cell.
 - [ ] The per-window strip aligns to the epochs that the HRV and staging code already use.
 - [ ] `tests/dex-tests.js` gains a group for the table over the committed ECGDex fixtures.
