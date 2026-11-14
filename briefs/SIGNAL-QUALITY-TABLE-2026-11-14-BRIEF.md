@@ -97,7 +97,7 @@ must stay honest for them.
 | CPAP SD card (EDF) | none | EDF header |
 
 The node classifies the source first, from the file itself. It never guesses the source from a
-missing sidecar, because a box night with a lost sidecar must read `absent`, not phone.
+absent sidecar, because a box night with a lost sidecar must read `absent`, not phone.
 
 For a source without sidecars:
 
