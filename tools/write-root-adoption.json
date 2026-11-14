@@ -110,6 +110,11 @@
      "wrapper": "judgeRoot",
      "reading": "it judges `.claude/hooks` and `package.json` of the tree it resolves, so a cross-checkout run would judge another work-unit's hooks and call the answer this branch's"
     },
+    "tools/integrator-surface-gate.mjs": {
+     "since": "2026-11-14",
+     "wrapper": "judgeRoot",
+     "reading": "it reads integrator-dsp.js, every declared reader realm and the surface declaration of the tree it resolves, and it stamps producedBy.commit from a git call in that tree, so a cross-checkout run judged another work-unit's 148 keys and printed PASS at exit 0"
+    },
     "tools/residue-path-leads.mjs": {
      "since": "2026-11-11",
      "wrapper": "judgeRoot",
@@ -151,7 +156,6 @@
     "tools/estate-drift.mjs",
     "tools/extreme-mutate.mjs",
     "tools/h10-session-rate.mjs",
-    "tools/integrator-surface-gate.mjs",
     "tools/lomb-share-profile.mjs",
     "tools/measurement-emitter-perf-oxydex.mjs",
     "tools/measurement-walk.mjs",
