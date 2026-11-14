@@ -890,6 +890,41 @@ export function innerShape(dspText, subtree, inner, pre = prepare) {
   const lines = pre(dspText).code.split('\n');
   const outer = literalRanges(lines, subtree);
   if (!outer) return null;
+  return innerShapeOver(lines, outer, subtree, inner);
+}
+
+/* 🔴 A `builtBy` SUBTREE KEEPS ITS LITERAL INSIDE THE BUILDER, AND `innerShape` HAS NO ANCHOR
+   THERE. `literalRanges` wants an `apnea: {` line, and `fuseApneaEvents()` never writes one, so
+   every inner declaration on a `builtBy` subtree refused with "was not found inside the `apnea: {`
+   literal" — the shape had not moved, the reader was blind. `builderCandidates` already named 4
+   such literals in `fuseApneaEvents` and no declaration could reach one. Measured 2026-11-14.
+
+   THE RETURN LITERAL IS THE ANCHOR, AND THE ROUTE ARITHMETIC IS THE SAME ONE. A builder's own
+   `return {` literals ARE the parent routes, so `shapes.length < outer.length` states exactly what
+   it states one level up: a route that carries no inner literal makes every inner key conditional.
+   Both readers share `innerShapeOver` for that reason, so neither can drift from the other.
+
+   WHAT STAYS BLIND HERE. A `routes` or `arrayOf` subtree reaches no return literal this reader can
+   range, exactly as `builderCandidates` records, so `apneaTyping`, `kernel` and `findings` carry no
+   inner layer at all and the census keeps naming them. */
+/** The shape of an object literal nested inside a `builtBy` subtree's builder return literal. */
+export function builderInnerShape(dspText, fnName, inner, pre = prepare) {
+  const code = pre(dspText).code;
+  const shaped = nestedShapes(code, fnName);
+  if (!shaped) return null;
+  return innerShapeOver(
+    code.split('\n'),
+    shaped.shapes.map((sh) => [sh.at - 1, sh.end - 1]),
+    `${fnName}()`,
+    inner
+  );
+}
+
+/* ONE IMPLEMENTATION OVER TWO ANCHORS. `outer` is the parent's route ranges, in the SAME prepared
+   lines the caller split, and `label` names the parent in a refusal. Nothing here finds the parent,
+   so a new anchor needs no second copy of the route arithmetic below. */
+/** The inner shape over already-bounded parent ranges. `label` names the parent in a throw. */
+function innerShapeOver(lines, outer, label, inner) {
   const shapes = [];
   const undefinedValued = new Set();
   for (const [s0, e0] of outer) {
@@ -919,7 +954,7 @@ export function innerShape(dspText, subtree, inner, pre = prepare) {
      rather than wear one word, exactly as `inlineShape` refuses to pick between them. */
   if (routeMissing.length && canBeUndefined.length)
     throw new Error(
-      `inner literal \`${subtree}.${inner}\` has keys conditional for TWO different reasons — ${routeMissing.join(', ')} ${routeMissing.length === 1 ? 'is' : 'are'} absent from one export route and ${canBeUndefined.join(', ')} can evaluate to \`undefined\` — and one \`partialKind\` cannot state both`
+      `inner literal \`${label}.${inner}\` has keys conditional for TWO different reasons — ${routeMissing.join(', ')} ${routeMissing.length === 1 ? 'is' : 'are'} absent from one export route and ${canBeUndefined.join(', ')} can evaluate to \`undefined\` — and one \`partialKind\` cannot state both`
     );
   return {
     shapes,
@@ -2032,10 +2067,16 @@ function main() {
        parent's refusal, rather than reporting a surface it never saw. */
     const innerShapes = {};
     for (const vn of Object.keys(d.inner || {})) {
-      const is = innerShape(dsp, sub, vn);
+      /* A `builtBy` parent is anchored in its BUILDER and an inline parent in the export literal,
+         so the reader follows the declaration's own shape source. A refusal names the anchor it
+         actually used, because a message naming the wrong one sends the next session to the wrong
+         file — the whole defect this route repaired on 2026-11-14. */
+      const is = d.builtBy ? builderInnerShape(dsp, d.builtBy, vn) : innerShape(dsp, sub, vn);
       if (!is)
         throw new Error(
-          `the inner literal \`${sub}.${vn}\` was not found inside the \`${sub}: {\` literal in integrator-dsp.js, or it does not close — its shape changed, and this gate must not guess`
+          d.builtBy
+            ? `the inner literal \`${sub}.${vn}\` was not found inside any \`return {\` literal of ${d.builtBy}() in integrator-dsp.js, or it does not close — its shape changed, and this gate must not guess`
+            : `the inner literal \`${sub}.${vn}\` was not found inside the \`${sub}: {\` literal in integrator-dsp.js, or it does not close — its shape changed, and this gate must not guess`
         );
       innerShapes[vn] = is;
     }
@@ -3407,6 +3448,37 @@ if (DIRECT && process.argv.includes('--selftest')) {
     true
   );
   ck('…and a one-line return shape opens and closes on one line', nestedShapes(BC2, 'buildIt').shapes[0].end, nestedShapes(BC2, 'buildIt').shapes[0].at);
+  /* `builderInnerShape` — the inner shape of a `builtBy` subtree, anchored on the builder's own
+     return literals. The first leg is the DEFECT: the subtree-anchored reader is blind here, and
+     every inner declaration on a `builtBy` subtree refused for that reason alone. The route
+     arithmetic below is the one `innerShape` runs, because both share `innerShapeOver`. */
+  ck('🔴 THE SUBTREE-ANCHORED READER IS BLIND INSIDE A BUILDER, which is the defect this route repairs', innerShape(BC1, 'buildIt', 'deep'), null);
+  ck('…while the builder-anchored reader yields the inner key', builderInnerShape(BC1, 'buildIt', 'deep').keys, ['a']);
+  ck('…and the tokenizer route reads the same key', builderInnerShape(BC1, 'buildIt', 'deep', ICOK).keys, ['a']);
+  ck('…and names the line the inner literal opens on', builderInnerShape(BC1, 'buildIt', 'deep').at, 4);
+  ck('…and says which layer read it', builderInnerShape(BC1, 'buildIt', 'deep').shapeKind, 'inner');
+  ck('an inner literal the builder does not carry is null, not an empty shape', builderInnerShape(BC1, 'buildIt', 'noSuchInner'), null);
+  ck('a builder that is not in the source refuses the same way', builderInnerShape(BC1, 'noSuchBuilder', 'deep'), null);
+  ck('🔴 A RETURN ROUTE CARRYING NO INNER LITERAL makes every inner key conditional', builderInnerShape(BC4, 'buildIt', 'one').partial, ['a']);
+  ck('…and the reason is the route, not an undefined value', builderInnerShape(BC4, 'buildIt', 'one').partialKind, 'export-route');
+  const BI1 = BC4.replace('two: { b: 2 }', 'one: { a: 1 }');
+  ck('…while an inner literal on BOTH routes is whole', builderInnerShape(BI1, 'buildIt', 'one').partial, []);
+  ck('…and it reports the two routes it read', builderInnerShape(BI1, 'buildIt', 'one').shapes.length, 2);
+  ck('🔴 A NESTED CALLBACK RETURN IS NOT THE BUILDER SHAPE here either, so its inner literal is unreachable', builderInnerShape(BC5, 'buildIt', 'inner'), null);
+  ck("…and the builder's own inner literal still reads", builderInnerShape(BC5, 'buildIt', 'own').keys, ['b']);
+  const BI2 = BI1.replace('      one: { a: 1 }\n    };\n  }', '      one: { a: cfg ? 1 : undefined }\n    };\n  }');
+  ck(
+    'TWO mechanisms at once refuse here too, and the message names the builder',
+    (() => {
+      try {
+        builderInnerShape(BI2.replace('    one: { a: 1 }', '    one: { a: 1, extra: 2 }'), 'buildIt', 'one');
+        return 'no throw';
+      } catch (e) {
+        return /inner literal `buildIt\(\)\.one` has keys conditional for TWO different reasons/.test(e.message);
+      }
+    })(),
+    true
+  );
   /* THE JUDGE ARM. The refusal itself needs a second checkout, so it is verified by a cross-checkout
      run and recorded in the brief; what a selftest can hold is the object that run prints and the
      path that moves with the resolved root. */
