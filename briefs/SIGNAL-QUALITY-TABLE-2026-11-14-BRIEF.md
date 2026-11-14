@@ -117,6 +117,26 @@ divergence is mostly the link stalling and not the ring's oscillator (§🔒.7).
 divergence and names the cause it cannot exclude. On a vendor export with no host stamps, the
 row uses another device in the same night when one exists.
 
+The ring's clock log already exists. The box reads the ring's real-time clock every 600 s over
+the live link (`capture-host/capture.py` `_OXYII_INFO_EVERY_S`, GET_INFO bytes 24 to 31) and
+writes each read to `_RTCLOG.csv`. Over 2026-08-22 to 2026-11-02 the box logged 5 387 reads, and
+the ring clock ran about 24 ppm fast against the host (`WEARABLE-DRIFT-DIRECT-2026-08-02-BRIEF`
+§9.2). Two limits apply:
+
+- The ring reports whole seconds. A 1 s step over one 10 min window is about 1 700 ppm, so one
+  read per window cannot resolve drift inside the window. Only read pairs hours apart resolve a
+  rate.
+- The real-time clock is not proven to share an oscillator with the 125 Hz sample stream. A rate
+  for one says nothing about the other until a measurement links them.
+
+Owner proposal, 2026-11-14: read the ring's clock at every window start. The proposal works if
+the box times the SECOND EDGE. The box polls the clock in a short burst until the seconds value
+changes, and it stamps that change on the host clock. The edge instant is good to about one BLE
+round trip, not 1 s. One edge per window then gives a sub-second anchor per window.
+
+This is capture-host work in Heron's lane, and a deploy to vigil stays owner-authorized. OxyDex does not
+read `_RTCLOG.csv` today, so the ledger shows it as `not-read` until the rollout reaches OxyDex.
+
 A drift row reads `null` only when the night holds no reference at all, reason
 `no-time-reference`. A host column that is the device time rounded is not a reference
 (`independent` false), so the table moves to the next reference in the list.
@@ -264,6 +284,9 @@ Assignee: decided on the agent board (`--kind decision`, 2026-11-14).
 4. The helper moves to a spine module in the same PR as the second adopter.
 
 ## 8 · Open questions
+
+- Does the ring's real-time clock share an oscillator with its 125 Hz sample stream? The
+  second-edge read (§3d) can answer it, by comparing the two rates over one night.
 
 - Which band edges define in-band SNR for each channel type? The pilot states ECG edges before
   it measures, as a pre-stated criterion.
