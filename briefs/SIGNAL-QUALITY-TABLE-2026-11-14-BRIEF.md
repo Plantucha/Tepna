@@ -84,6 +84,38 @@ count before and after the SEAMS file, and the axis rate before and after `hostA
 difference is the sidecar's effect, and the reader can see it. When the two values are equal,
 the row still shows both. The equality is a measured result, not an omission.
 
+## 3d · Clock drift overnight and per window
+
+Owner request, 2026-11-14: when a sensor carries two clocks, the table shows drift over the
+whole night and per window. The reader then sees whether the clocks drifted slowly or moved in
+sudden steps. This section applies only when `hostAxis` reads `independent` true.
+
+| view | fact | source |
+|---|---|---|
+| night | total divergence in ms, and the rate in ppm with anchor count and span | `hostAxis` `spanPpm`, `n` |
+| night | the Allan curve of the time error (§3) | `capture-host/allan.py` rules |
+| per window | divergence change inside the window, in ms, and its rate in ppm | raw anchor residuals |
+| per window | largest single jump inside the window, in ms | raw anchor residuals |
+| events | each step with its instant and size, and each resync | `_clockResyncs`, the SEAMS sidecar |
+
+The per-window cells read the RAW anchor residuals, never the smoothed correction. The width-21
+running median in `hostAxis` smooths a sudden step across many anchors by design. `clock.js`
+records that 287 of 1547 accepted axes carry a raw step that the smoothed `maxStepMs` reports
+at under a tenth of its size. So the smoothed curve can show slow drift where the clock jumped.
+The table shows both: `maxStepMs` (what the correction kept) and `rawMaxStepMs` (what the
+columns did).
+
+The table names three patterns, from the per-window strip:
+
+- Slow drift: the rate stays near one value in every window, and no window holds a jump.
+- Step: one window holds a jump, and the level after the jump stays shifted. A resync or a SEAMS
+  row at that instant confirms it.
+- Spike: one anchor jumps, and the next anchors return to the old level. This is usually a link
+  stall on the host side, not a clock change. The table marks it and keeps it out of the rate.
+
+The table names the pattern and shows the numbers. It never removes a step from the night figure
+without saying so. A window without enough anchors reads `null`, reason `too-few-anchors`.
+
 ## 3c · Recordings without sidecars
 
 Only the capture box writes sidecars. Many recordings come from another source, and the table
@@ -153,6 +185,8 @@ Assignee: decided on the agent board (`--kind decision`, 2026-11-14).
 - [ ] The sidecar ledger lists every ECG-side sidecar in §3b with its state. A gate fails when
       a sidecar on disk reads `not-read` without a named reason.
 - [ ] Each fact that a sidecar changes shows its value before and after the sidecar applies.
+- [ ] When the ECG stream has two clocks, the table shows the night drift, the per-window drift
+      strip from raw residuals, and each step or spike with its instant (§3d).
 - [ ] A Polar Sensor Logger ECG export renders the table with every sidecar row
       `not-applicable` and every AFTER cell `null`. A test covers this case.
 - [ ] The render shows the table above the first result card, with a badge in every cell.
