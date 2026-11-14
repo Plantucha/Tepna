@@ -166,8 +166,9 @@ three tests held the path in this repo's own words. So each of the 49 remaining 
       gate step, and each judges only the tree's own tracked files, with no ref read and no API call. So
       a cross-checkout run of any of them judged another work-unit's files and called the answer this
       branch's. All four now resolve the judged tree through `judgeRoot` and refuse at exit 2 with one
-      NOT_RUN object, measured per tool. `tools/integrator-surface-gate.mjs` is the fifth of that class
-      and it stays open here, because another unit holds that file today. The manifest carries the rest.
+      NOT_RUN object, measured per tool. `tools/integrator-surface-gate.mjs` is the fifth of that class,
+      and the unit that held the file converted it the same day — see the item below. The manifest
+      carries the rest.
 - [ ] Every gate judging an artifact of the run's work-unit calls `judgeRootOrDie`.
 - [x] `tools/run-check.mjs` carries its reading, because it runs the whole gate in the tree it resolves.
       Done 2026-11-05: it resolves through `judgeRoot` inside the CLI block and refuses a disagreement with exit 2.
@@ -177,5 +178,5 @@ three tests held the path in this repo's own words. So each of the 49 remaining 
 - [x] `tools/integrator-surface-gate.mjs` declares in its header which tree it judges, because it reads
       the Integrator surface of the tree it resolves. Done 2026-11-14: the pre-change copy, run from a second checkout, exited 0 and
       printed `PASS` over 148 keys of a tree the caller never named. It now exits 2 with one `NOT_RUN`
-      object, and the judge arm reads 7 adopted against 46 pending.
+      object, and the judge arm reads 11 adopted against 42 pending.
 - [ ] The population figures here are re-measured at closing, because `tools/` grows every week.
