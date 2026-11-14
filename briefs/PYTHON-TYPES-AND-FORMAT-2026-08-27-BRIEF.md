@@ -379,7 +379,15 @@
       (the box's own wording is superseded by the shape the leg shipped with, for the reason §P3 now
       records). mypy: blocking 2026-10-20 in #3739 — `check.sh` gains a `mypy-ratchet` leg and the CI
       job's bound now comes from `MYPY_BASELINE`.
-      ⚠️ **One named remainder, and it is not a file in this repo:** `mypy (advisory ratchet)` is not
+      ~~⚠️ **One named remainder, and it is not a file in this repo:** `mypy (advisory ratchet)` is not
       among `protect-main`'s required contexts, so the CI half informs a reviewer and does not hold a
-      merge. Only the owner can add it. Row `2026-10-20-the-mypy-ratchet-job-is-not-a-required-context`.
+      merge. Only the owner can add it.~~ **CLOSED 2026-11-14 (Heron) — the remainder WAS a file in
+      this repo, and the repo had already solved it twice.** The ratchet step now runs inside the
+      `test` job on the 3.14 leg, which publishes `test (py3.14)`, a required context since
+      2026-10-31; the advisory `mypy` job is deleted. `find_unwired` and `covscope` each reached CI
+      the same way, as a step in that same job rather than a ruleset edit. No ruleset change is owed,
+      and §P3's CI half now holds a merge. Measured before the move, from the advisory job's own log
+      on run 43600948992 (main, 2026-11-14): `mypy errors: 0   baseline here: 0   delta: 0` under
+      CPython 3.14.4 with the runtime deps installed. Row
+      `2026-10-20-the-mypy-ratchet-job-is-not-a-required-context`.
 - [ ] Follow-up brief if the qwen fix lane earns expansion (its acceptance rate is the evidence).
