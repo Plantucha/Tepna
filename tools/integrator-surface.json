@@ -99,6 +99,36 @@
     "total": "card",
     "unmatched": "card"
    },
+   "inner": {
+    "matched": {
+     "readAs": "Two keys, one per channel of the pairing. integrator-render.js reads both through the parent, and the `matched` note below names the lines, so this layer judges the key set alone.",
+     "surfaces": { "desat": "export-only", "surge": "export-only" }
+    },
+    "total": {
+     "readAs": "Two keys, the denominators of that same pairing. The render file reads both through the parent, as the `total` note below records.",
+     "surfaces": { "desat": "export-only", "surge": "export-only" }
+    },
+    "unmatched": {
+     "readAs": "Two arrays, the desat and the surge pool that paired with nothing. The render file reads their lengths through the parent, as the `unmatched` note below records.",
+     "surfaces": { "desat": "export-only", "surge": "export-only" }
+    },
+    "nullModel": {
+     "readAs": "Eleven keys of the chance model. SIX of them sit on the fused route alone, because the no-overlap guard returns a five-key form of this literal — the same two-route split `enumeratedWith` records for the parent keys, one level down. The render file reads `belowChance` and `expectedConfirmed` through the parent.",
+     "surfaces": {
+      "expectedConfirmed": "export-only",
+      "expectedConfirmedAnalytic": "export-only",
+      "nullMethod": "export-only",
+      "nullDraws": "export-only",
+      "pFloor": "export-only",
+      "pAtLeastObserved": "export-only",
+      "belowChance": "export-only",
+      "surgeRatePerHr": "export-only",
+      "surgeRateObserver": "export-only",
+      "surgeAlsoObservedBy": "export-only",
+      "directionalWindowSec": "export-only"
+     }
+    }
+   },
    "notes": {
     "confirmedAHI": "the Confirmed apnea index KPI value (integrator-render.js:478, :480) and the finding card headline (:988).",
     "confirmedAHIReportable": "integrator-render.js:478 decides with it whether the index may be shown at all.",
@@ -114,7 +144,8 @@
     "coupling": "no anchored read, and the top-level `apneaCoupling` that forwards it is export-only for the same reason.",
     "contributions": "no anchored read, matching the top-level `confirmedApneaIndexContributions` note.",
     "consequence": "no anchored read; it is also the one key the two return shapes disagree on."
-   }
+   },
+   "depthNote": "Four of these keys carry an object literal, and the `inner` block judges the key set of each. A `builtBy` subtree keeps those literals inside its builder, so the gate anchors them on the `return {` literals of fuseApneaEvents() and never on an `apnea: {` line, which the source does not write. A `card` label one level in reds, because the read machinery credits no reader there, and the credit for every read of these four objects sits on the PARENT key at depth 2 — each of the four reads `card` above and each parent note names its lines. So `export-only` here states this layer's own blindness, and never that nothing reads the key."
   },
   "apneaTyping": {
    "routes": [
