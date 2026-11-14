@@ -23,6 +23,13 @@
  * NOT check that the number is well chosen: the measurement that sizes it lives in `tools/ci-timing.mjs`
  * (`pct`, `summarise`), and asserting a committed cap still matches today's p95 would red CI every time
  * the runners got slower, which is a fact about GitHub, not a defect in this repo.
+ *
+ * THE READING (write-root brief §6.4, judge arm). It judges `.github/workflows` of the tree the run
+ * belongs to, and a workflow file is an artifact of a work-unit. So `run` resolves the judged tree
+ * through `judgeRoot` and refuses a cross-checkout run with one NOT_RUN object at exit 2. The tool
+ * keeps its OWN tree for `verdict.js`, because that is its code identity and not its subject. The
+ * `--verdict-sample` mode scans the tool's own tree on purpose: it feeds `tools/verdict-adoption.mjs`,
+ * which asks what this producer emits rather than what some tree declares.
  */
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join, dirname, basename } from 'node:path';
@@ -31,10 +38,16 @@ import { createRequire } from 'node:module';
 import { execFileSync } from 'node:child_process';
 import { isCliEntry } from './argv-guard.mjs';
 import { escapeRe } from './regex-escape-core.mjs';
+import { WriteRootRefusal, judgeRoot } from './write-root.mjs';
 
-const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-const Verdict = createRequire(import.meta.url)(join(ROOT, 'verdict.js'));
-const WF_DIR = join(ROOT, '.github', 'workflows');
+/* SELF is the tool's own tree, which carries its library. ROOT is the tree it JUDGES, and the two
+   differ whenever a run from one checkout names this file by another checkout's path. The default
+   below serves a library import and `--verdict-sample`; `run` replaces it through `judgeRoot`
+   (row 2026-11-04-a-verdict-gate-judges-the-checkout-it-lives-in-not-the-one-it-ran-from). */
+const SELF = join(dirname(fileURLToPath(import.meta.url)), '..');
+const Verdict = createRequire(import.meta.url)(join(SELF, 'verdict.js'));
+let ROOT = SELF;
+let WF_DIR = join(ROOT, '.github', 'workflows');
 
 /* ── pure core ────────────────────────────────────────────────────────────────────────────────
    Takes workflow TEXT, never a path, so the selftest can plant a workflow that does not exist on
@@ -111,7 +124,33 @@ function producedBy() {
   return p;
 }
 
+/* The refusal verdict. It examines nothing, so it is NOT_RUN over an empty population with a null
+   result, and its `producedBy.commit` names the tool's own tree, which is the code that refused. */
+function notRun(reason) {
+  const v = Verdict.make({
+    gate: 'workflow-job-timeout',
+    status: 'NOT_RUN',
+    scope: 'internal',
+    population: { checked: 0, eligible: 0, excluded: 0 },
+    criterion: { name: 'jobs_declaring_timeout_minutes', threshold: 0, unit: 'jobs', direction: 'lte' },
+    result: null,
+    evidence: ['tools/workflow-timeout-guard.mjs'],
+    reason,
+    producedBy: producedBy()
+  });
+  process.stdout.write(`${JSON.stringify(v, null, 1)}\n`);
+  return 2;
+}
+
 function run() {
+  try {
+    ROOT = judgeRoot(import.meta.url);
+    WF_DIR = join(ROOT, '.github', 'workflows');
+  } catch (e) {
+    if (!(e instanceof WriteRootRefusal)) throw e;
+    console.error(e.message);
+    return notRun(`this run and tools/workflow-timeout-guard.mjs sit in different checkouts (${e.reason}), so which tree to judge is undecided`);
+  }
   if (!existsSync(WF_DIR)) {
     const { verdict } = evaluate([], producedBy());
     process.stdout.write(`${JSON.stringify(verdict, null, 1)}\n`);

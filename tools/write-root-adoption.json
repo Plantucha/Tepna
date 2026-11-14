@@ -23,7 +23,6 @@
    "pending": [
     "tools/absence-ledger.mjs",
     "tools/analysis-rerun.mjs",
-    "tools/astgrep-gate.mjs",
     "tools/beat-error-recovery.mjs",
     "tools/board-note.mjs",
     "tools/brief-header-claims.mjs",
@@ -37,7 +36,6 @@
     "tools/ecg-physionet-differential.mjs",
     "tools/estate-drift.mjs",
     "tools/extreme-mutate.mjs",
-    "tools/hook-contract.mjs",
     "tools/killcheck.mjs",
     "tools/known-clock-recovery.mjs",
     "tools/mutate-ledger-merge.mjs",
@@ -87,6 +85,11 @@
    "pendingMeans": "the tool matches the shape and owes one reading in its own header (brief \u00a76.4). A name leaves this list only by adopting, or with the file.",
    "exemptMeans": "the regexes read the tool\u2019s own test data. Each row carries the sentence that says why, and a mute row reds.",
    "adopted": {
+    "tools/astgrep-gate.mjs": {
+     "since": "2026-11-14",
+     "wrapper": "judgeRoot",
+     "reading": "it scans the tracked source of the tree it resolves, under that tree's own rules and allow-list, so a cross-checkout run would scan another work-unit's source and call the answer this branch's"
+    },
     "tools/bus-conf-provenance.mjs": {
      "since": "2026-11-12",
      "wrapper": "judgeRootOrDie",
@@ -96,6 +99,16 @@
      "since": "2026-11-13",
      "wrapper": "judgeRoot",
      "reading": "it reconciles the declared detector sets against the root `*.js` and `capture-host/` files of the tree it resolves, and censuses that tree's diff against a base ref, so a cross-checkout run would reconcile another work-unit's files and call the answer this branch's"
+    },
+    "tools/flag-exit-drive.mjs": {
+     "since": "2026-11-14",
+     "wrapper": "judgeRoot",
+     "reading": "it reads each recipe's source in the tree it resolves and spawns that copy as a child, so a cross-checkout run would drive another work-unit's tools and call the answer this branch's"
+    },
+    "tools/hook-contract.mjs": {
+     "since": "2026-11-14",
+     "wrapper": "judgeRoot",
+     "reading": "it judges `.claude/hooks` and `package.json` of the tree it resolves, so a cross-checkout run would judge another work-unit's hooks and call the answer this branch's"
     },
     "tools/residue-path-leads.mjs": {
      "since": "2026-11-11",
@@ -112,6 +125,11 @@
      "wrapper": "judgeRoot",
      "reading": "it judges the commits the RUN\u2019s branch adds (#4384, row 2026-11-04-a-verdict-gate-judges-the-checkout-it-lives-in-not-the-one-it-ran-from)"
     },
+    "tools/workflow-timeout-guard.mjs": {
+     "since": "2026-11-14",
+     "wrapper": "judgeRoot",
+     "reading": "it judges `.github/workflows` of the tree it resolves, so a cross-checkout run would judge another work-unit's workflow caps and call the answer this branch's"
+    },
     "tools/write-root-adoption.mjs": {
      "since": "2026-11-11",
      "wrapper": "judgeRoot",
@@ -121,7 +139,6 @@
    "exempt": {},
    "pending": [
     "tools/archive-manifest.mjs",
-    "tools/astgrep-gate.mjs",
     "tools/board-share.mjs",
     "tools/board.mjs",
     "tools/brief-gaps.mjs",
@@ -133,9 +150,7 @@
     "tools/defect-bench.mjs",
     "tools/estate-drift.mjs",
     "tools/extreme-mutate.mjs",
-    "tools/flag-exit-drive.mjs",
     "tools/h10-session-rate.mjs",
-    "tools/hook-contract.mjs",
     "tools/integrator-surface-gate.mjs",
     "tools/lomb-share-profile.mjs",
     "tools/measurement-emitter-perf-oxydex.mjs",
@@ -164,7 +179,6 @@
     "tools/verdict-emit.mjs",
     "tools/verdict-undeclared.mjs",
     "tools/verify-fixtures.mjs",
-    "tools/workflow-timeout-guard.mjs",
     "tools/xerj-bench.mjs",
     "tools/xerj-load.mjs"
    ]

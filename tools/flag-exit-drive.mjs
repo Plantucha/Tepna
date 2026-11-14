@@ -70,9 +70,16 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 import { flagExitShape, jsParse } from './flag-exit-scan.mjs';
+import { WriteRootRefusal, judgeRoot } from './write-root.mjs';
 
+/* SELF is the tool's own tree. REPO is the tree this driver JUDGES, because it reads each recipe's
+   source there and spawns that copy as a child. The two differ whenever a run from one checkout names
+   this file by another checkout's path, so `main` resolves REPO through `judgeRoot` and refuses a
+   disagreement (row 2026-11-04-a-verdict-gate-judges-the-checkout-it-lives-in-not-the-one-it-ran-from).
+   The default below serves a library import, which spawns nothing. */
 const HERE = dirname(fileURLToPath(import.meta.url));
-const REPO = join(HERE, '..');
+const SELF = join(HERE, '..');
+let REPO = SELF;
 const PARSE = { ecmaVersion: 'latest', sourceType: 'module', locations: true, allowAwaitOutsideFunction: true };
 /* 60 s per child, against a measured 1.5 s for all eight together. The cap exists for a wedged
    child, not for a slow one, and a run that hits it reports UNEXAMINED rather than a failure. */
@@ -391,6 +398,23 @@ export function verdict(results) {
   };
 }
 
+/** A cross-checkout run examined nothing either, so it reports the same shape with its own reason. */
+export function crossCheckoutVerdict(reason) {
+  return {
+    schema: 'tepna.verdict/1',
+    gate: 'flag-exit-drive',
+    status: 'NOT_RUN',
+    scope: 'internal',
+    population: { checked: 0, eligible: 0, excluded: 0 },
+    criterion: CRITERION,
+    result: null,
+    evidence: ['tools/flag-exit-drive.mjs', 'tools/write-root.mjs'],
+    reason,
+    producedBy: producedBy(),
+    at: new Date().toISOString()
+  };
+}
+
 /** No parser means the run examined nothing, so the object says so over an empty population (§∅). */
 export function noParserVerdict() {
   return {
@@ -497,9 +521,10 @@ function selftest(parse = jsParse()) {
 
   /* The object is only arithmetically valid over the FULL recipe set, because `checked + excluded`
      must equal `eligible`. So the schema leg replicates one result rather than driving eight again. */
-  const V = createRequire(import.meta.url)(join(REPO, 'verdict.js'));
+  const V = createRequire(import.meta.url)(join(SELF, 'verdict.js'));
   ok('verdict.js accepts the emitted verdict', V.validate(verdict(RECIPES.map(() => good))).ok === true);
   ok('verdict.js accepts the NOT_RUN object', V.validate(noParserVerdict()).ok === true);
+  ok('verdict.js accepts the cross-checkout refusal object', V.validate(crossCheckoutVerdict('two checkouts')).ok === true);
   ok('an absent parser emits NOT_RUN over an empty population', noParserVerdict().status === 'NOT_RUN' && noParserVerdict().population.eligible === 0);
 
   /* This driver holds its whole program in `main()`, so it never wears the shape it drives. */
@@ -519,6 +544,15 @@ function main() {
   if (argv.includes('--help')) {
     console.log('usage: node tools/flag-exit-drive.mjs [--json | --selftest | --verdict-sample | --help]');
     process.exit(0);
+  }
+  /* Every mode below this line reads a recipe's source or spawns it, so the judged tree comes first. */
+  try {
+    REPO = judgeRoot(import.meta.url);
+  } catch (e) {
+    if (!(e instanceof WriteRootRefusal)) throw e;
+    console.error(e.message);
+    console.log(JSON.stringify(crossCheckoutVerdict(`this run and tools/flag-exit-drive.mjs sit in different checkouts (${e.reason}), so which tree to drive is undecided`)));
+    process.exit(2);
   }
   const parse = jsParse();
   if (argv.includes('--selftest')) selftest(parse);
