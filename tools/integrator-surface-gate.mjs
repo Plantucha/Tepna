@@ -909,6 +909,38 @@ export function innerShape(dspText, subtree, inner, pre = prepare) {
   };
 }
 
+/* 🔴 THE LAYER'S OWN DENOMINATOR. The inner layer is OPT-IN: `evaluateNested` judges an inner
+   literal only where the declaration names one, so dropping an `inner` block lowered `innerKeys`
+   and nothing said a layer had gone. Measured 2026-11-13 on `fusion.handshakes`: the gate passed
+   at `checked: 104` and named the absent layer nowhere, which is the third instance of the class
+   at board entry 6135. So this census reads the inner literals the SOURCE carries and holds the
+   declared set against them. It reports and never reds, because the layer stays opt-in by the
+   owner's design, and a count a reader can see is the whole repair.
+
+   A READER CARRIES ITS OWN ANCHOR, SO THIS ONE STATES WHERE IT IS BLIND. `literalRanges` wants
+   `<subtree>: {` on its own line or one closed line, so a GUARDED parent — `kernel:` behind
+   `window.DexKernel ?` — cannot be ranged at all, and that subtree joins the unenumerable set
+   rather than reporting a false zero. Inside a parent it CAN range, a value that merely contains
+   a brace is a guard, a call argument or an object inside an expression, and `innerShape` can
+   read none of the three, so those keys are named apart rather than as missing declarations. */
+/** Every inner object literal the SOURCE carries inside a subtree's own literal. */
+export function innerCandidates(dspText, subtree, pre = prepare) {
+  const lines = pre(dspText).code.split('\n');
+  const outer = literalRanges(lines, subtree);
+  if (!outer) return null;
+  const literals = new Set();
+  const unreadable = new Set();
+  for (const [s0, e0] of outer) {
+    const { keys, values } = literalKeys(lines, s0, e0);
+    for (const k of keys) {
+      const v = values[k] || '';
+      if (/^\s*\{/.test(v)) literals.add(k);
+      else if (/\{/.test(v)) unreadable.add(k);
+    }
+  }
+  return { literals: [...literals].sort(), unreadable: [...unreadable].sort() };
+}
+
 /* 🔴 THE NEAREST HEADER IS NOT THE ENCLOSING ONE. `integrator-app.js:88` binds the skew subtree
    nine lines under a `forEach(function (m) {` callback that closed at :82, and a scan that stopped
    at the first header above reported the site UNSCOPED and credited nothing. So walk every header
@@ -1805,6 +1837,8 @@ function main() {
   /* THE NESTED SUBTREES, one entry at a time. A declared subtree whose builder shape has moved
      REFUSES — the same fail-closed rule the slim-export literal already carries above. */
   const nested = [];
+  /* The inner layer's denominator, one row per declared subtree. See `innerCandidates`. */
+  const innerCensus = [];
   const readers = realmFiles;
   for (const [sub, d] of Object.entries(decl.nested || {})) {
     if (!d) throw new Error(`nested subtree \`${sub}\` declares nothing`);
@@ -1912,18 +1946,43 @@ function main() {
         );
       innerShapes[vn] = is;
     }
+    const cand = innerCandidates(dsp, sub);
+    /* 🔴 AND THE THIRD INSTANCE OF THE SAME CLASS, SOURCE SIDE. `elemUnjudged` names an array key
+       read element-wise that no element declaration serves, so the READ side already speaks. A key
+       nobody reads said nothing at all: it carries an object literal, no `inner` block declares it,
+       no `servesKeys` entry serves it, and both layers skipped it in silence. The subtraction runs
+       here, where the declaration's `inner` names and every element's `servesKeys` are both in
+       hand, and `innerCandidates` stays a reader of the source alone. */
+    const served = Object.values(d.elements || {}).flatMap((e) => (e && e.servesKeys) || []);
+    innerCensus.push({
+      subtree: sub,
+      declared: Object.keys(d.inner || {}).sort(),
+      served: [...new Set(served)].sort(),
+      candidates: cand ? cand.literals : null,
+      unreadable: cand ? cand.unreadable : null
+    });
     nested.push(evaluateNested(sub, shapes, d, rlist[0].text, { readers: rlist, elementShapes, innerShapes }));
   }
   const nestedBad = nested.filter((n) => !n.ok);
   const nestedKeys = nested.reduce((t, n) => t + n.keys.length, 0);
   const nestedInnerKeys = nested.reduce((t, n) => t + (n.inners || []).reduce((u, i) => u + i.keys.length, 0), 0);
+  /* 🔴 THE JUDGED KEYS THE POPULATION LEFT OUT. An element key is judged: `elemUndeclared`,
+     `elemBadValue`, `elemCardUnread` and `elemExportOnlyRead` each feed a subtree's `ok`, so a
+     misdeclared element key FAILS this gate. The population counted depth 1, depth 2 and the
+     inner layer alone, so the verdict claimed 108 keys while the gate judged 148 of them.
+     Measured 2026-11-13; the criterion and every threshold stay as they were. */
+  const nestedElementKeys = nested.reduce((t, n) => t + (n.elements || []).reduce((u, e) => u + e.keys.length, 0), 0);
   const nestedCard = nested.reduce((t, n) => t + n.keys.filter((k) => (decl.nested[n.subtree].surfaces || {})[k] === 'card').length, 0);
   const cards = keys.filter((k) => (decl.surfaces || {})[k] === 'card').length;
   const v = Verdict.make({
     gate: 'integrator-surface',
     scope: 'internal',
     status: r.ok && !nestedBad.length ? 'PASS' : 'FAIL',
-    population: { checked: keys.length + nestedKeys + nestedInnerKeys, eligible: keys.length + nestedKeys + nestedInnerKeys, excluded: 0 },
+    population: {
+      checked: keys.length + nestedKeys + nestedInnerKeys + nestedElementKeys,
+      eligible: keys.length + nestedKeys + nestedInnerKeys + nestedElementKeys,
+      excluded: 0
+    },
     criterion: { name: 'undeclared_or_misdeclared_keys', threshold: 0, unit: 'keys', direction: 'lte' },
     result: {
       keys: keys.length,
@@ -1970,8 +2029,18 @@ function main() {
       innerWhere: nested.flatMap((n) => (n.inners || []).map((i) => n.subtree + '.' + i.name + '{' + i.keys.length + '}')),
       innerStaleDeclarations: nested.reduce((t, n) => t + (n.innerStale || []).length, 0),
       innerStaleWhere: nested.flatMap((n) => (n.innerStale || []).map((k) => n.subtree + '.' + k)),
+      /* 🔴 THE OPT-IN LAYER'S DENOMINATOR, PUBLISHED. `innerLiterals` counts what a declaration
+         asked for, so it falls to zero when a declaration goes and reads as a clean subtree.
+         These four fields say what the SOURCE carries, which subtree the census could not range,
+         and which inner literal nobody declared. Reported, never red — the layer is opt-in. */
+      innerCensusSubtrees: innerCensus.filter((c) => c.candidates).length,
+      innerUnenumerable: innerCensus.filter((c) => !c.candidates).map((c) => c.subtree),
+      innerUndeclaredLiterals: innerCensus.reduce((t, c) => t + (c.candidates || []).filter((k) => !c.declared.includes(k)).length, 0),
+      innerUndeclaredWhere: innerCensus.flatMap((c) => (c.candidates || []).filter((k) => !c.declared.includes(k)).map((k) => c.subtree + '.' + k)),
+      literalKeysNoLayerReads: innerCensus.reduce((t, c) => t + (c.unreadable || []).filter((k) => !c.declared.includes(k) && !c.served.includes(k)).length, 0),
+      literalKeysNoLayerReadsWhere: innerCensus.flatMap((c) => (c.unreadable || []).filter((k) => !c.declared.includes(k) && !c.served.includes(k)).map((k) => c.subtree + '.' + k)),
       elementShapes: nested.reduce((t, n) => t + (n.elements || []).length, 0),
-      elementKeys: nested.reduce((t, n) => t + (n.elements || []).reduce((u, e) => u + e.keys.length, 0), 0),
+      elementKeys: nestedElementKeys,
       elementCard: nested.reduce((t, n) => t + (n.elements || []).reduce((u, e) => u + Object.values(e.cardByReader || {}).reduce((v, c) => v + c, 0), 0), 0),
       elementSites: nested.reduce((t, n) => t + (n.elements || []).reduce((u, e) => u + (e.sites || []).length, 0), 0),
       /* A union over push sites can carry a key only SOME site writes, so the count says how many
@@ -3200,6 +3269,34 @@ if (DIRECT && process.argv.includes('--selftest')) {
     ).ok,
     true
   );
+
+  /* ── `innerCandidates`: the inner layer's own denominator (section 22) ───────────────────── */
+  const ICOK = (src) => ({ code: codeOnly(src), by: 'tokenizer' });
+  const IC1 = ['var _exp = {', '  outer: {', '    plain: 1,', '    deep: {', '      a: 1', '    }', '  }', '};'].join('\n');
+  ck('an inner literal inside a multi-line parent is a candidate', innerCandidates(IC1, 'outer').literals, ['deep']);
+  ck('…and a scalar key beside it is not', innerCandidates(IC1, 'outer').literals.includes('plain'), false);
+  ck('…and nothing reads as unreadable there', innerCandidates(IC1, 'outer').unreadable, []);
+  ck('…and the tokenizer route agrees', innerCandidates(IC1, 'outer', ICOK).literals, ['deep']);
+  const IC2 = ['var _exp = {', '  outer: { deep: { a: 1 }, flat: 2 },', '};'].join('\n');
+  /* 🔴 THE ONE-LINE PARENT THAT HOLDS A BRACE CANNOT BE RANGED EITHER. `literalRanges` reads a
+     one-line literal as `key: {[^{}]*}`, so an inner literal on the parent's own line puts the
+     parent out of reach — the same anchor limit a guarded parent has. The census reports it as
+     unenumerable, which is the only reading that does not claim an empty set. */
+  ck('a one-line parent holding a one-line inner cannot be ranged, so it is unenumerable', innerCandidates(IC2, 'outer'), null);
+  const IC2B = ['var _exp = {', '  outer: { flat: 2, other: 3 },', '};'].join('\n');
+  ck('…while a one-line parent with no inner literal ranges and carries none', innerCandidates(IC2B, 'outer').literals, []);
+  const IC3 = ['var _exp = {', '  outer: {', '    guarded: f ? { a: 1 } : null,', '    mapped: xs.map(function (e) {', '      return { a: e.a };', '    })', '  }', '};'].join('\n');
+  ck('a value that merely CONTAINS a brace is not a candidate', innerCandidates(IC3, 'outer').literals, []);
+  ck('…it is named apart, because `innerShape` can read none of those forms', innerCandidates(IC3, 'outer').unreadable, ['guarded', 'mapped']);
+  ck('…and the tokenizer route names the same two', innerCandidates(IC3, 'outer', ICOK).unreadable, ['guarded', 'mapped']);
+  const IC4 = ['var _exp = {', '  outer: cond ? {', '    deep: { a: 1 }', '  } : null', '};'].join('\n');
+  ck('🔴 A GUARDED PARENT CANNOT BE RANGED AT ALL, and the census says so instead of returning an empty set', innerCandidates(IC4, 'outer'), null);
+  ck('a parent that is not in the source at all refuses the same way', innerCandidates(IC1, 'noSuchKey'), null);
+  const IC5 = ['var a = {', '  outer: {', '    one: { x: 1 }', '  }', '};', 'var b = {', '  outer: {', '    two: { y: 2 }', '  }', '};'].join('\n');
+  ck('every parent site of the same name contributes, and the names come back sorted', innerCandidates(IC5, 'outer').literals, ['one', 'two']);
+  const IC6 = ['var _exp = {', '  outer: {', '    // a comment naming deep: { a: 1 }', '    plain: 1', '  }', '};'].join('\n');
+  ck('a literal inside a COMMENT is no candidate, on either route', innerCandidates(IC6, 'outer').literals, []);
+  ck('…the tokenizer route included', innerCandidates(IC6, 'outer', ICOK).literals, []);
   console.log(bad ? `  ✗ ${bad} of ${ran} selftests failed` : `  all ${ran} selftests passed`);
   process.exit(bad ? 1 : 0);
 }
