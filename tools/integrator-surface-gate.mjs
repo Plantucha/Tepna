@@ -55,6 +55,13 @@
    close to the briefed 108/55). That enumeration cannot be a gate: `uploads/` is
    absent in a worktree and in CI, where the scan silently finds one fixture, or
    none, and reports a clean pass over almost nothing examined.
+   THE READING (write-root brief §6.4, judge arm). It reads `integrator-dsp.js`,
+   every declared reader realm and the surface declaration of the tree it
+   resolves, and it stamps `producedBy.commit` from a `git` call in that tree, so
+   it resolves through `judgeRoot` inside `main` and refuses a cross-checkout run
+   with one NOT_RUN object at exit 2. A library import and `--verdict-sample`
+   read no tree, so neither can refuse.
+
    ════════════════════════════════════════════════════════════════════════ */
 import { readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
@@ -64,10 +71,20 @@ import { dirname, join } from 'node:path';
 import { isCliEntry } from './argv-guard.mjs';
 import { escapeRe } from './regex-escape-core.mjs';
 import { codeOnly, prepare } from './find-unwired-js.mjs';
+import { REASONS, WriteRootRefusal, judgeRoot } from './write-root.mjs';
 
 const Verdict = createRequire(import.meta.url)('../verdict.js');
-const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-export const DECL_PATH = join(ROOT, 'tools/integrator-surface.json');
+/* THE TOOL'S OWN CHECKOUT IS ONLY THE DEFAULT. `main` reassigns this through `judgeRoot`, so a run
+   judges the tree it was called from. The default serves a library import and `--verdict-sample`,
+   neither of which reads a tree, and it is what `gitCommit` stamps on a refusal. */
+let ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+
+/* A PATH DERIVED AT MODULE SCOPE WOULD NAME THE WRONG CHECKOUT. `DECL_PATH` was a `const` until
+   2026-11-14 and it froze before `main` could judge, so the declaration became a function of the
+   root that the run resolved. Nothing outside this file read the constant. */
+export function declPath() {
+  return join(ROOT, 'tools/integrator-surface.json');
+}
 export const SURFACES = ['card', 'export-only'];
 
 /* 🔴 THE SLIM-EXPORT LITERAL IS A SECOND EXPORT ROUTE, AND THIS GATE READ ONLY THE FIRST. Until
@@ -1850,11 +1867,51 @@ function gitCommit() {
   }
 }
 
+/** PURE but for the commit stamp: the one object a run that examined nothing may print. */
+export function notRunVerdict(reason, commit = null) {
+  return Verdict.make({
+    gate: 'integrator-surface',
+    scope: 'internal',
+    status: 'NOT_RUN',
+    population: { checked: 0, eligible: 0, excluded: 0 },
+    criterion: { name: 'undeclared_or_misdeclared_keys', threshold: 0, unit: 'keys', direction: 'lte' },
+    result: null,
+    evidence: ['tools/integrator-surface-gate.mjs'],
+    reason,
+    producedBy: { tool: 'tools/integrator-surface-gate.mjs', commit }
+  });
+}
+
+/* 🔴 ONE OF THE THREE REASONS IS NOT A DISAGREEMENT. `cwd-not-a-checkout` means the caller stands
+   in no checkout at all, so a sentence saying the two "sit in different checkouts" states something
+   false about two thirds of one case. Measured 2026-11-14 from `/tmp`: exit 2 and that wording.
+   The sentence below is true of all three, and a selftest holds it against the module's own list. */
+/** PURE. The sentence a refusal carries, for any member of `REASONS`. */
+export function refusalReason(reason) {
+  return `this run and tools/integrator-surface-gate.mjs do not resolve to one checkout (${reason}), so which tree to judge is undecided`;
+}
+
+/** Prints that object and answers with this repo's "it refused to look" code. */
+function notRun(reason) {
+  console.log(JSON.stringify(notRunVerdict(reason, gitCommit())));
+  return 2;
+}
+
 function main() {
+  /* A GATE JUDGES THE CHECKOUT IT WAS RUN FROM, never the one it lives in. The refusal goes through
+     `notRun`, so a cross-checkout run still emits one verdict rather than dying mute, and the exit
+     code separates "it could not look" from a finding. */
+  try {
+    ROOT = judgeRoot(import.meta.url);
+  } catch (e) {
+    if (!(e instanceof WriteRootRefusal)) throw e;
+    console.error(e.message);
+    process.exit(notRun(refusalReason(e.reason)));
+  }
   const dsp = readFileSync(join(ROOT, 'integrator-dsp.js'), 'utf8');
   if (!exportLiteralKeys(dsp)) throw new Error('the `var _exp = {` slim-export literal was not found, or it does not close — its shape changed, and this gate must not guess');
   const render = readFileSync(join(ROOT, 'integrator-render.js'), 'utf8');
-  const decl = JSON.parse(readFileSync(DECL_PATH, 'utf8'));
+  const decl = JSON.parse(readFileSync(declPath(), 'utf8'));
   const keys = fusionKeys(dsp);
   /* The realms are loaded ONCE and shared with the nested pass, so a file read for a depth-1 card
      key is the same text a depth-2 subtree is judged against. */
@@ -2177,23 +2234,10 @@ function main() {
 const DIRECT = isCliEntry(import.meta.url);
 
 if (DIRECT && process.argv.includes('--verdict-sample')) {
-  console.log(
-    JSON.stringify(
-      Verdict.make({
-        gate: 'integrator-surface',
-        scope: 'internal',
-        status: 'NOT_RUN',
-        population: { checked: 0, eligible: 0, excluded: 0 },
-        criterion: { name: 'undeclared_or_misdeclared_keys', threshold: 0, unit: 'keys', direction: 'lte' },
-        result: null,
-        evidence: ['tools/integrator-surface-gate.mjs'],
-        reason: 'sample only — this invocation read no source and checked no key',
-        producedBy: { tool: 'tools/integrator-surface-gate.mjs', commit: gitCommit() }
-      }),
-      null,
-      2
-    )
-  );
+  /* ONE SHAPE FOR BOTH RUNS THAT EXAMINE NOTHING. The sample and the cross-checkout refusal print
+     the same object through `notRunVerdict`, so a field added to one can never go absent from the
+     other. This arm reads no tree, so it cannot refuse. */
+  console.log(JSON.stringify(notRunVerdict('sample only — this invocation read no source and checked no key', gitCommit()), null, 2));
   process.exit(0);
 }
 
@@ -3363,6 +3407,26 @@ if (DIRECT && process.argv.includes('--selftest')) {
     true
   );
   ck('…and a one-line return shape opens and closes on one line', nestedShapes(BC2, 'buildIt').shapes[0].end, nestedShapes(BC2, 'buildIt').shapes[0].at);
+  /* THE JUDGE ARM. The refusal itself needs a second checkout, so it is verified by a cross-checkout
+     run and recorded in the brief; what a selftest can hold is the object that run prints and the
+     path that moves with the resolved root. */
+  ck('the declaration path is derived from the root this run resolved', declPath().endsWith('tools/integrator-surface.json'), true);
+  ck('a run that examined nothing prints NOT_RUN', notRunVerdict('r').status, 'NOT_RUN');
+  ck('…over a checked population of zero', notRunVerdict('r').population.checked, 0);
+  ck('…carrying the reason it was given', notRunVerdict('because').reason, 'because');
+  ck('…and naming its own evidence, which `PASS` may never leave empty', notRunVerdict('r').evidence, ['tools/integrator-surface-gate.mjs']);
+  ck(
+    '…and it validates against the contract',
+    (() => {
+      Verdict.validate(notRunVerdict('r'));
+      return true;
+    })(),
+    true
+  );
+  ck('a null commit stamp is the default, never a fabricated sha', notRunVerdict('r').producedBy.commit, null);
+  ck('the refusal sentence names the reason it was given', refusalReason('checkout-mismatch').includes('(checkout-mismatch)'), true);
+  ck('…for every reason the module declares', REASONS.filter((r) => refusalReason(r).includes(`(${r})`)).length, REASONS.length);
+  ck('…and it claims no disagreement, because one reason has only one checkout to name', refusalReason('cwd-not-a-checkout').includes('different checkouts'), false);
   console.log(bad ? `  ✗ ${bad} of ${ran} selftests failed` : `  all ${ran} selftests passed`);
   process.exit(bad ? 1 : 0);
 }

@@ -174,4 +174,8 @@ three tests held the path in this repo's own words. So each of the 49 remaining 
 - [x] A gate names the adopted judge set, so a new gate joins it deliberately rather than by habit.
       Done 2026-11-11: the same gate runs §6.2's three greps as one shape, and it judges the checkout it ran
       from, so a cross-checkout run refuses with one `NOT_RUN` object rather than censusing the wrong tree.
+- [x] `tools/integrator-surface-gate.mjs` declares in its header which tree it judges, because it reads
+      the Integrator surface of the tree it resolves. Done 2026-11-14: the pre-change copy, run from a second checkout, exited 0 and
+      printed `PASS` over 148 keys of a tree the caller never named. It now exits 2 with one `NOT_RUN`
+      object, and the judge arm reads 7 adopted against 46 pending.
 - [ ] The population figures here are re-measured at closing, because `tools/` grows every week.
