@@ -42,10 +42,15 @@
  * USAGE
  *   node tools/sync-docs-index.mjs            # fix the rows, report what moved
  *   node tools/sync-docs-index.mjs --check    # report only, exit 1 if anything is stale (CI-shaped)
+ * THE WRITE READING (§3 of `WRITE-ROOT-ADOPTION-2026-11-03-BRIEF.md`). It rewrites `DOCS-INDEX.md`,
+ * a TRACKED file that `docs-ledger` check3b judges, so a run launched from a worktree against the
+ * shared copy both loses the fix and reds a tree nobody is editing. It resolves the write tree through
+ * `writeRootOrDie` at the write site. `--check` writes nothing, so that path keeps its own reach.
  */
 import { readFileSync, writeFileSync, readdirSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { writeRootOrDie } from './write-root.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const CHECK = process.argv.includes('--check');
@@ -106,7 +111,11 @@ for (const [name, hs] of Object.entries(briefs)) {
   }
 }
 
-if (moved.length && !CHECK) writeFileSync(idxPath, lines.join('\n'));
+if (moved.length && !CHECK) {
+  /* The index belongs to the checkout this run was LAUNCHED IN, not to the one this file lives in.
+     `writeRootOrDie` refuses on a disagreement and names both trees. */
+  writeFileSync(join(writeRootOrDie(import.meta.url), 'DOCS-INDEX.md'), lines.join('\n'));
+}
 
 for (const m of moved) console.log((CHECK ? '  ✕ stale  ' : '  ✓ synced ') + m);
 if (blind.length) console.log(`  ∘ ${blind.length} row(s) carry no status marker — reported by check3b as statusBlind, not invented here`);

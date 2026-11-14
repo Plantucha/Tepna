@@ -10,10 +10,30 @@
    "pendingMeans": "the tool matches the shape and owes one reading in its own header (brief \u00a73). A name leaves this list only by adopting, or with the file.",
    "exemptMeans": "the regexes read the tool\u2019s own test data. Each row carries the sentence that says why, and a mute row reds.",
    "adopted": {
+    "tools/absence-ledger.mjs": {
+     "since": "2026-11-14",
+     "wrapper": "writeRootOrDie",
+     "reading": "`--write` writes a tracked work-unit artifact, `audits/ABSENCE-SURVEY-2026-09-22-STATE.json`, which a wrong checkout loses; every read keeps its own reach, so another checkout may still import `LEDGER`"
+    },
+    "tools/ecg-physionet-differential.mjs": {
+     "since": "2026-11-14",
+     "wrapper": "writeRootOrDie",
+     "reading": "`--pin` writes a tracked work-unit artifact, `tools/physionet-mitdb-manifest.json`; the selftest corpus stays in `mkdtempSync(tmpdir())`, outside every checkout"
+    },
     "tools/new-changeset.mjs": {
      "since": "2026-11-03",
      "wrapper": "writeRootOrDie",
      "reading": "it writes a tracked work-unit artifact, `changes/<slug>.md`, which a wrong checkout loses (row 2026-11-02-a-tool-run-by-absolute-path-writes-into-its-own-checkout)"
+    },
+    "tools/sync-docs-index.mjs": {
+     "since": "2026-11-14",
+     "wrapper": "writeRootOrDie",
+     "reading": "it rewrites the tracked `DOCS-INDEX.md` that `docs-ledger` check3b judges, so a wrong checkout both loses the fix and reds a tree nobody is editing; `--check` writes nothing"
+    },
+    "tools/tools-index.mjs": {
+     "since": "2026-11-14",
+     "wrapper": "writeRootOrDie",
+     "reading": "it generates `docs/TOOLS-INDEX.md`, which `npm run verify:tools-index` re-checks in CI, so a write into the wrong checkout reds a job the causing worktree cannot explain"
     }
    },
    "exempt": {
@@ -21,7 +41,6 @@
     "tools/write-root-adoption.mjs": "its selftests plant both shapes as fixture strings, so the write regexes read its own test data; it writes no tracked artifact and calls no write wrapper"
    },
    "pending": [
-    "tools/absence-ledger.mjs",
     "tools/analysis-rerun.mjs",
     "tools/beat-error-recovery.mjs",
     "tools/board-note.mjs",
@@ -33,7 +52,6 @@
     "tools/cvhr-edge-widen.mjs",
     "tools/defect-bench.mjs",
     "tools/doc-search.mjs",
-    "tools/ecg-physionet-differential.mjs",
     "tools/estate-drift.mjs",
     "tools/extreme-mutate.mjs",
     "tools/killcheck.mjs",
@@ -70,8 +88,6 @@
     "tools/stitch-31d-run.mjs",
     "tools/stmt-delete.mjs",
     "tools/survivor-witness.mjs",
-    "tools/sync-docs-index.mjs",
-    "tools/tools-index.mjs",
     "tools/trio-eligible-nights.mjs",
     "tools/unit-health.mjs",
     "tools/verdict-adoption.mjs",

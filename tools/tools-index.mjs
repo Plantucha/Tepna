@@ -34,12 +34,17 @@
  *   node tools/tools-index.mjs            # write docs/TOOLS-INDEX.md
  *   node tools/tools-index.mjs --check    # drift check (CI/gate); non-zero if stale
  *   node tools/tools-index.mjs --selftest
+ * THE WRITE READING (§3 of `WRITE-ROOT-ADOPTION-2026-11-03-BRIEF.md`). It generates
+ * `docs/TOOLS-INDEX.md`, which `npm run verify:tools-index` re-checks in CI, so a write into the wrong
+ * checkout reds a job the causing worktree cannot explain. It resolves the write tree through
+ * `writeRootOrDie` at the write site; `--check` and `--selftest` write nothing and keep their reach.
  */
 
 import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry } from './argv-guard.mjs';
+import { writeRootOrDie } from './write-root.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = join(ROOT, 'docs', 'TOOLS-INDEX.md');
@@ -322,7 +327,9 @@ if (IS_MAIN && argv.includes('--check')) {
 }
 
 if (IS_MAIN) {
-  writeFileSync(OUT, text);
+  /* The index belongs to the checkout this run was LAUNCHED IN, not to the one this file lives in.
+     `writeRootOrDie` refuses on a disagreement and names both trees. */
+  writeFileSync(join(writeRootOrDie(import.meta.url), 'docs', 'TOOLS-INDEX.md'), text);
   console.log(`✓ wrote docs/TOOLS-INDEX.md — ${entries.length} tools, ${missing.length} without a purpose line`);
   if (missing.length) console.log(`  ⚠ no purpose line: ${missing.map((m) => m.name).join(', ')}`);
   process.exit(0);
