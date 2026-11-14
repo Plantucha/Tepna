@@ -90,6 +90,8 @@ All three are planted in `--selftest` and asserted red. None is a claim about to
       and a subtree with one guarded source declares a route list of one (§21).
 - [x] 2026-11-14: every opt-in layer publishes its own denominator, and the population counts the
       element keys the gate already judged (§22).
+- [x] 2026-11-14: the census ranges a `builtBy` subtree's inner literals inside its builder, so its
+      blindness falls from 5 subtrees to 3 and it names 4 undeclared inner literals (§23).
 
 ## 6 · 2026-11-11 — the seed counted prose, and two declarations were wrong
 
@@ -1328,3 +1330,69 @@ The census ranges 5 of 10 subtrees, and a reader anchor is what bounds it. A `bu
 its literal inside the builder, where `innerShape` has no anchor either, so the blindness and the
 layer's reach coincide today. The pass-through subtrees of the form `fusion.X || null` still need the
 resolver that board entry 5905 parks.
+
+## 23 · 2026-11-14 — the census was blind to a builder, and a second anchor halved that blindness
+
+§22 shipped the inner census and named its own bound. It ranged 5 of 10 subtrees. A reader carries
+its own anchor, and `innerCandidates` anchors on an `apnea: {` line in the source. A `builtBy`
+subtree writes no such line. The fusion site reads `apnea: fuseApneaEvents(...)`, and the literal
+lives inside the builder.
+
+### The second anchor
+
+`nestedShapes` already bounds every `return {` literal in a builder's own scope, under three traps
+its comments record. A nested callback return is not the builder shape. A wholly-inline callback
+keeps its header and its return on one line. A `return {` that does not end its line is a one-line
+literal, which reads or refuses. A second scan would re-derive all three and could disagree with
+the keys beside it. So each shape now carries its own `end` line, and the new reader
+`builderCandidates` ranges the literal that scan bounded.
+
+| measure | before | after |
+|---|---|---|
+| census subtrees ranged | 5 | **7** |
+| subtrees the census cannot range | 5 | **3** |
+| undeclared inner literals named | 0 | **4** |
+| selftests | 381 | **397** |
+| `population.checked` | 148 | 148 |
+
+### What the second anchor found
+
+`fuseApneaEvents()` returns from two places, and both return literals carry four object-valued keys:
+`matched`, `total`, `unmatched` and `nullModel`. No `inner` block declares any of them, and no
+element declaration serves them. The census names all four, and the verdict stays `PASS`, because
+the census reports and never reds.
+
+`auditNodeKernels()` returns one one-line literal with five keys and no object value. Its census
+entry is an honest empty set, and not a blind one.
+
+### What stays blind, and why
+
+A `routes` subtree resolves through a guard or a return variable. An `arrayOf` subtree carries no
+object literal of its own. Neither reaches a return literal this reader can range, so `apneaTyping`,
+`kernel` and `findings` keep their blindness and the census keeps naming them.
+
+### Declaring the four is a unit of its own, and the control says why
+
+`innerShape` anchors inside the `sub: {` literal, exactly as `innerCandidates` did. A declaration of
+`apnea.inner` therefore refuses before it can judge anything. Control 4 below carries that refusal
+text. So the four names land first, and the layer that judges their keys needs the same builder
+anchor in `innerShape`.
+
+### The controls
+
+| control | outcome |
+|---|---|
+| 0 · this branch, unchanged | `PASS` · `checked: 148` · census 7 · blind `apneaTyping`, `findings`, `kernel` · names the 4 apnea literals |
+| 1 · revert the wiring, so no builder is ranged | `PASS` · census 5 · blind 5 · names nothing. This control sizes the unit |
+| 3 · plant an object-valued key in the builder return | `FAIL` · `checked: 149` · the census names `apnea.plantedPool`, and the depth-2 leg reds it |
+| 3b · plant a brace-bearing non-literal value there | `FAIL` · `literalKeysNoLayerReadsWhere` names `apnea.plantedMap` |
+| 4 · declare an inner on a `builtBy` subtree | throws: ``the inner literal `apnea.matched` was not found inside the `apnea: {` literal`` |
+| 6 · rename the builder in the declaration | throws at `evaluateNested` first: ``fuseApneaEventsX() was not found``. My `null` branch is unreachable through a declaration, and one selftest covers it directly |
+| 7 · remove the `unreadable` branch from both readers | `PASS` · every field unchanged. No live key carries that form today, so the branch has no live subject |
+| 7b · control 3b with the `unreadable` branch removed | `FAIL` · names nothing. The leg is mine, and it bites once a subject exists |
+
+### What remains
+
+`innerShape` needs the builder anchor before the four named literals can declare a surface per key.
+The pass-through subtrees of the form `fusion.X || null` still need the resolver that board entry
+5905 parks.
