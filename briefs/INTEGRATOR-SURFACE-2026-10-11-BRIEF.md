@@ -1393,6 +1393,69 @@ anchor in `innerShape`.
 
 ### What remains
 
-`innerShape` needs the builder anchor before the four named literals can declare a surface per key.
+Section 24 gives `innerShape` that builder anchor and declares the four literals.
 The pass-through subtrees of the form `fusion.X || null` still need the resolver that board entry
 5905 parks.
+
+## 24 · 2026-11-14 — the inner layer reached a builder, and the four named apnea literals declare 17 keys
+
+Section 23 named four object literals inside `fuseApneaEvents()` that no `inner` block could declare,
+because `innerShape` anchors on a `<subtree>: {` line and a `builtBy` subtree writes none. The
+refusal read ``the inner literal `apnea.matched` was not found inside the `apnea: {` literal``, which
+says the shape moved and was false: the reader was blind. Control 1 below holds that blindness.
+
+### One implementation over two anchors
+
+`innerShapeOver(lines, outer, label, inner)` now carries the route arithmetic, and two readers find
+`outer` for it. `innerShape` ranges the parent's own literal, as before. `builderInnerShape` takes
+the `return {` ranges `nestedShapes` already bounds, which is the anchor `builderCandidates` took on
+2026-11-14 for the census. Both readers therefore state the SAME thing when a parent route carries no
+inner literal: every inner key is conditional, and `partialKind` reads `export-route`.
+
+The call site follows the declaration's own shape source — `builtBy` to the builder, inline to the
+export literal — and a refusal names the anchor it used. A message naming the other file sends the
+next session to the wrong source, which is the whole defect this section repaired.
+
+### What the four literals carry
+
+| literal | keys | routes | partial |
+|---|---|---|---|
+| `matched` | `desat`, `surge` | 2 | none |
+| `total` | `desat`, `surge` | 2 | none |
+| `unmatched` | `desat`, `surge` | 2 | none |
+| `nullModel` | 11 | 2 | 6 on the fused route alone |
+
+The no-overlap guard returns a five-key `nullModel` and the fused path an eleven-key one, so
+`expectedConfirmedAnalytic`, `nullMethod`, `nullDraws`, `pFloor`, `surgeRateObserver` and
+`surgeAlsoObservedBy` are absent from one route. That is the two-route split `enumeratedWith` already
+records for the parent keys, one level down.
+
+### Every one of the 17 keys is `export-only`, and the label is not a claim about readers
+
+`card` one level in reds, because the read machinery credits no reader there. The render file DOES
+read five of these keys — `matched.desat`, `total.desat`, `unmatched.desat`, `unmatched.surge`,
+`nullModel.belowChance` and `nullModel.expectedConfirmed` — and the PARENT key at depth 2 carries the
+credit for every one, where `matched`, `total`, `unmatched` and `nullModel` all read `card` and each
+parent note names its lines. The subtree's new `depthNote` states that, so `export-only` here reads as
+this layer's own blindness and never as an absence of readers.
+
+### The controls
+
+| control | outcome |
+|---|---|
+| 0 · this branch, unchanged | `PASS` · `checked: 165` · `innerLiterals: 7` · `innerKeys: 26` · `innerUndeclaredLiterals: 0` |
+| 1 · the call site anchored on the subtree again | exit 1 · refuses `apnea.matched`. This control sizes the unit |
+| 2 · declare an inner literal the builder does not carry | exit 1 · refuses `apnea.matchedX` and names the `return {` anchor |
+| 3 · withdraw one declared key | `FAIL` · ``1 inner key(s) declare no surface: nullModel.pFloor`` |
+| 4 · label one inner key `card` | `FAIL` · the credit-nobody-computed message names `nullModel.belowChance` |
+| 5 · declare a key the source does not carry | `PASS` · `innerStaleWhere` names `apnea.nullModel.pFloorX`. Reported and never red, which is this gate's documented stale policy at every depth |
+| 6 · withdraw the whole `inner` block | `PASS` · `innerUndeclaredLiterals: 4`. The layer stays opt-in |
+
+Selftests move 407 to 421. Fourteen legs hold the new reader, and the first one pins the blindness:
+`innerShape` reads `null` inside a builder where `builderInnerShape` reads the key.
+
+### What remains
+
+`apneaTyping`, `kernel` and `findings` reach no return literal either reader can range, so they carry
+no inner layer at all and the census keeps naming them. The pass-through subtrees of the form
+`fusion.X || null` still need the resolver that board entry 5905 parks.
