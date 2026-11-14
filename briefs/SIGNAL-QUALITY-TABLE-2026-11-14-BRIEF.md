@@ -57,6 +57,10 @@ Owner question, 2026-11-14: does the table show every sidecar, and the values be
 each one applies? The answer is now yes. The table gains a sidecar ledger, one row per sidecar
 that the box can write for the node's streams.
 
+The ledger READS its sidecar set from the registry in `tools/sidecar-census.mjs`, which the
+`sidecar-census` gate already holds. The table below is a reader's summary, not a second
+declaration. Two declarations of one set drift apart (Magpie, board #6195).
+
 | sidecar | what it corrects or declares |
 |---|---|
 | `_ECGRUNS` · `_PPGRUNS` · `_PPG2WRUNS` · `_ACCRUNS` | absent spans in the stream (`PPG-ABSENCE-AS-VALUE`) |
@@ -71,13 +75,42 @@ Each ledger row has a state from a closed set:
 - `absent` — the box wrote no sidecar for this stream. The row says so, and it never reads as clean.
 - `not-read` — the sidecar exists, but the node has no reader for it. The table shows this state
   as a defect, because a fact that the node drops is invisible otherwise.
-- `not-applicable` — the sidecar cannot exist for this stream, for example a phone export.
+- `not-applicable` — the sidecar cannot exist for this recording, for example a phone export
+  (§3c) or `_OXYFRAME` against an ECG stream.
 
 Each fact that a sidecar changes shows two values: the value before the sidecar applies and the
 value after it applies. Examples: coverage before and after the node masks the RUNS spans, resync
 count before and after the SEAMS file, and the axis rate before and after `hostAxis`. The
 difference is the sidecar's effect, and the reader can see it. When the two values are equal,
 the row still shows both. The equality is a measured result, not an omission.
+
+## 3c · Recordings without sidecars
+
+Only the capture box writes sidecars. Many recordings come from another source, and the table
+must stay honest for them.
+
+| source | sidecars | how the node knows |
+|---|---|---|
+| capture box (`capture-host`) | yes, per the registry | box filename and header |
+| Polar Sensor Logger phone export | none | its own stamp columns (CLAUDE.md "Capture provenance") |
+| vendor app export (O2Ring, Welltory and others) | none | vendor format |
+| CPAP SD card (EDF) | none | EDF header |
+
+The node classifies the source first, from the file itself. It never guesses the source from a
+missing sidecar, because a box night with a lost sidecar must read `absent`, not phone.
+
+For a source without sidecars:
+
+- Every sidecar row reads `not-applicable`, reason `source-writes-no-sidecars`. The table shows
+  this state as neutral, never as a defect and never as clean.
+- Each fact that a sidecar would change shows its BEFORE value only. The AFTER value reads
+  `null`, reason `no-sidecar`. The node never copies the before value into the after cell.
+- Coverage and absence come from the in-stream run-length detector (§∅), and the cell names that
+  method. A run-length estimate is weaker than a box declaration, so its badge sits lower.
+- Timing comes from the file's own two stamp columns when they exist. A phone export whose host
+  column is the device time rounded has no second clock: `independent` is false, and the timing
+  row reads `null`, reason `no-second-clock`.
+- The night summary names the source in its first cell, so a reader compares like with like.
 
 The table rejects one proposed fact. Percent of full scale (%FS) describes a datasheet, not a
 recording, and no device in the corpus publishes a full-scale accuracy. Drift belongs to the
@@ -120,6 +153,8 @@ Assignee: decided on the agent board (`--kind decision`, 2026-11-14).
 - [ ] The sidecar ledger lists every ECG-side sidecar in §3b with its state. A gate fails when
       a sidecar on disk reads `not-read` without a named reason.
 - [ ] Each fact that a sidecar changes shows its value before and after the sidecar applies.
+- [ ] A Polar Sensor Logger ECG export renders the table with every sidecar row
+      `not-applicable` and every AFTER cell `null`. A test covers this case.
 - [ ] The render shows the table above the first result card, with a badge in every cell.
 - [ ] The per-window strip aligns to the epochs that the HRV and staging code already use.
 - [ ] `tests/dex-tests.js` gains a group for the table over the committed ECGDex fixtures.
