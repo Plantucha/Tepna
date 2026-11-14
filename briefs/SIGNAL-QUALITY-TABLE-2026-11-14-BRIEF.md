@@ -98,9 +98,28 @@ the row still shows both. The equality is a measured result, not an omission.
 
 ## 3d · Clock drift overnight and per window
 
-Owner request, 2026-11-14: when a sensor carries two clocks, the table shows drift over the
-whole night and per window. The reader then sees whether the clocks drifted slowly or moved in
-sudden steps. This section applies only when `hostAxis` reads `independent` true.
+Owner request, 2026-11-14: the table shows each device's drift over the whole night and per
+window. The reader then sees whether the clock drifted slowly or moved in sudden steps.
+
+Drift needs a time reference, not a second clock inside the same file. The table computes drift
+against the best reference the night holds, and it names that reference in the row. The
+references, best first:
+
+| reference | example | what limits it |
+|---|---|---|
+| radio clock log | `_RADIOCLOCK.csv` on a box night | the controller's own timing, below the host stack |
+| host arrival stamps | box capture of any device, the O2Ring included | BLE jitter and link stalls |
+| device clock log | the O2Ring's `_RTCLOG.csv`, one reading per connect | few anchors per night |
+| another device in the same night | O2Ring pulse rate against H10 ECG heart rate | cross-correlation lag per window, so it measures the RELATIVE drift of two devices |
+
+The O2Ring always gets a drift row. On a box night its host stamps are a reference, although its
+divergence is mostly the link stalling and not the ring's oscillator (§🔒.7). The row shows that
+divergence and names the cause it cannot exclude. On a vendor export with no host stamps, the
+row uses another device in the same night when one exists.
+
+A drift row reads `null` only when the night holds no reference at all, reason
+`no-time-reference`. A host column that is the device time rounded is not a reference
+(`independent` false), so the table moves to the next reference in the list.
 
 | view | fact | source |
 |---|---|---|
@@ -150,8 +169,9 @@ The chart leaves out a point that reads `null` and marks its slot. Faint guide l
 type. The Integrator already draws a τ-curve sparkline in `integrator-render.js`; the pilot
 reuses that drawing code where it fits.
 
-Both charts badge each series, not the caption (§🎫). A recording without two clocks shows no
-chart and one line: "no second clock", with the reason from §3c.
+Both charts badge each series, not the caption (§🎫). The chart title names the reference from
+the list above. A recording with no reference shows no chart and one line: "no time reference".
+A relative drift against another device carries that device's name in the title.
 
 ## 3c · Recordings without sidecars
 
@@ -177,8 +197,8 @@ For a source without sidecars:
 - Coverage and absence come from the in-stream run-length detector (§∅), and the cell names that
   method. A run-length estimate is weaker than a box declaration, so its badge sits lower.
 - Timing comes from the file's own two stamp columns when they exist. A phone export whose host
-  column is the device time rounded has no second clock: `independent` is false, and the timing
-  row reads `null`, reason `no-second-clock`.
+  column is the device time rounded has no second clock (`independent` false). The drift row
+  then uses another device in the same night (§3d), or reads `null`, reason `no-time-reference`.
 - The night summary names the source in its first cell, so a reader compares like with like.
 
 The table rejects one proposed fact. Percent of full scale (%FS) describes a datasheet, not a
@@ -222,8 +242,8 @@ Assignee: decided on the agent board (`--kind decision`, 2026-11-14).
 - [ ] The sidecar ledger lists every ECG-side sidecar in §3b with its state. A gate fails when
       a sidecar on disk reads `not-read` without a named reason.
 - [ ] Each fact that a sidecar changes shows its value before and after the sidecar applies.
-- [ ] When the ECG stream has two clocks, the table shows the night drift, the per-window drift
-      strip from raw residuals, and each step or spike with its instant (§3d).
+- [ ] The table shows the night drift against the best reference from §3d and names it. It
+      also shows the per-window drift strip from raw residuals, and each step or spike with its instant (§3d).
 - [ ] The drift chart renders the divergence panel and the per-window rate panel, plus the
       Allan chart, with a badge on each series (§3d).
 - [ ] A Polar Sensor Logger ECG export renders the table with every sidecar row
@@ -238,7 +258,8 @@ Assignee: decided on the agent board (`--kind decision`, 2026-11-14).
 ## 7 · Rollout after the pilot
 
 1. PpgDex, which has the most channels and a RUNS sidecar.
-2. MotionDex and OxyDex.
+2. MotionDex and OxyDex. OxyDex shows O2Ring drift against the host stamps on a box night, and
+   against the H10 when the night holds one (§3d).
 3. CPAPDex and GlucoDex, which do not carry `clock.js`, so their timing row reads `null`.
 4. The helper moves to a spine module in the same PR as the second adopter.
 
