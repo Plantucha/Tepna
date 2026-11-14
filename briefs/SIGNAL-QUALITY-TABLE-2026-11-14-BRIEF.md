@@ -96,7 +96,7 @@ must stay honest for them.
 | vendor app export (O2Ring, Welltory and others) | none | vendor format |
 | CPAP SD card (EDF) | none | EDF header |
 
-The node classifies the source first, from the file itself. It never guesses the source from a
+The node classifies the source first, from the file itself. It never guesses the source from an
 absent sidecar, because a box night with a lost sidecar must read `absent`, not phone.
 
 For a source without sidecars:
