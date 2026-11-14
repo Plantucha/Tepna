@@ -5,7 +5,7 @@
   Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
   project root, or http://www.apache.org/licenses/LICENSE-2.0
 -->
-**Status:** PROPOSED (resolver BUILT with TWO arms, the ADOPTION GATE BUILT, the per-tool readings BEGUN — verified 2026-11-11 (Heron). `tools/write-root.mjs` ships `writeRoot` and `judgeRoot` over one pure decision, and its `--selftest` passes whole. Four tools adopt it: `tools/new-changeset.mjs` writes through it, and `tools/secret-scan.mjs` (#4384), `tools/run-check.mjs` and `tools/write-root-adoption.mjs` judge through it. `tools/write-root-adoption.mjs --check` names both adopted sets in `tools/write-root-adoption.json` and reds an undeclared arrival, so §4's third box and §6.5's fourth are ticked. Both populations re-measure today, and §1 and §6.2 carry today's figures beside the old ones — `node tools/write-root-adoption.mjs --census` reprints them on demand, so this header asserts no count of its own. What stays open is one reading per remaining header, on both arms) · **Created:** 2026-11-03
+**Status:** PROPOSED (resolver BUILT with TWO arms, the ADOPTION GATE BUILT, the per-tool readings BEGUN — verified 2026-11-11 (Heron). `tools/write-root.mjs` ships `writeRoot` and `judgeRoot` over one pure decision, and its `--selftest` passes whole. `tools/new-changeset.mjs` writes through it, and `tools/write-root-adoption.json` names every judge-arm adopter beside its own answer. `tools/write-root-adoption.mjs --check` names both adopted sets in `tools/write-root-adoption.json` and reds an undeclared arrival, so §4's third box and §6.5's fourth are ticked. Both populations re-measure today, and §1 and §6.2 carry today's figures beside the old ones — `node tools/write-root-adoption.mjs --census` reprints them on demand, so this header asserts no count of its own. What stays open is one reading per remaining header, on both arms) · **Created:** 2026-11-03
 
 # Every writing tool resolves the checkout it writes from the run, not from its own path
 
@@ -161,6 +161,13 @@ three tests held the path in this repo's own words. So each of the 49 remaining 
 ### 6.5 · Acceptance
 
 - [ ] Each of the 48 remaining judge sites carries one of the three readings above, in its own header.
+      PROGRESS 2026-11-14: four more answer — `astgrep-gate`, `flag-exit-drive`, `hook-contract` and
+      `workflow-timeout-guard`. One class, picked by consequence: `package.json` names each of them as a
+      gate step, and each judges only the tree's own tracked files, with no ref read and no API call. So
+      a cross-checkout run of any of them judged another work-unit's files and called the answer this
+      branch's. All four now resolve the judged tree through `judgeRoot` and refuse at exit 2 with one
+      NOT_RUN object, measured per tool. `tools/integrator-surface-gate.mjs` is the fifth of that class
+      and it stays open here, because another unit holds that file today. The manifest carries the rest.
 - [ ] Every gate judging an artifact of the run's work-unit calls `judgeRootOrDie`.
 - [x] `tools/run-check.mjs` carries its reading, because it runs the whole gate in the tree it resolves.
       Done 2026-11-05: it resolves through `judgeRoot` inside the CLI block and refuses a disagreement with exit 2.

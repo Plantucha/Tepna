@@ -61,6 +61,16 @@
  * NOT CHECKED HERE. Whether a hook's verdict is correct, and whether its self-test asserts the right
  * things. That is the self-test's own job and `test:hooks` runs it. This gate checks only that a
  * hook reads what it was handed, and that somebody runs its test.
+ *
+ * THE READING (write-root brief §6.4, judge arm). It judges `.claude/hooks` and `package.json` of the
+ * tree the run belongs to, and both are artifacts of a work-unit. So `run` resolves the judged tree
+ * through `judgeRoot` and refuses a cross-checkout run with one NOT_RUN object at exit 2. The tool
+ * keeps its OWN tree for `verdict.js`, because that is its code identity and not its subject. The
+ * `--verdict-sample` mode reads the tool's own tree on purpose: it feeds `tools/verdict-adoption.mjs`,
+ * which asks what this producer emits rather than what some tree declares.
+ *
+ * THE WRITE READING (§3). It writes only its probe payloads and planted hooks, into
+ * `mkdtempSync(tmpdir())` outside any checkout, and it deletes them. So no write owes `writeRoot`.
  */
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
@@ -69,10 +79,16 @@ import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry } from './argv-guard.mjs';
+import { WriteRootRefusal, judgeRoot } from './write-root.mjs';
 
-const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-const Verdict = createRequire(import.meta.url)(join(ROOT, 'verdict.js'));
-const HOOK_DIR = join(ROOT, '.claude', 'hooks');
+/* SELF is the tool's own tree, which carries its library. ROOT is the tree it JUDGES, and the two
+   differ whenever a run from one checkout names this file by another checkout's path. The default
+   below serves a library import and `--verdict-sample`; `run` replaces it through `judgeRoot`
+   (row 2026-11-04-a-verdict-gate-judges-the-checkout-it-lives-in-not-the-one-it-ran-from). */
+const SELF = join(dirname(fileURLToPath(import.meta.url)), '..');
+const Verdict = createRequire(import.meta.url)(join(SELF, 'verdict.js'));
+let ROOT = SELF;
+let HOOK_DIR = join(ROOT, '.claude', 'hooks');
 
 /* ⚠ THE PAYLOAD SIZE IS A MEASUREMENT, AND 100 KB IS NOT ENOUGH. A pipe holds 16 pages — 65536 bytes,
    `F_GETPIPE_SZ` on this box — so 100 KB looked like plenty, and the nine writer-fate legs in the hook
@@ -432,7 +448,33 @@ export function collect(files = hookFiles()) {
   return out;
 }
 
+/* The refusal verdict. It examines nothing, so it is NOT_RUN over an empty population with a null
+   result, and its `producedBy.commit` names the tool's own tree, which is the code that refused. */
+function notRun(reason) {
+  const v = Verdict.make({
+    gate: 'hook-stdin-contract',
+    status: 'NOT_RUN',
+    scope: 'internal',
+    population: { checked: 0, eligible: 0, excluded: 0 },
+    criterion: { name: 'hooks_breaking_the_stdin_contract', threshold: 0, unit: 'hooks', direction: 'lte' },
+    result: null,
+    evidence: ['tools/hook-contract.mjs'],
+    reason,
+    producedBy: producedBy()
+  });
+  process.stdout.write(`${JSON.stringify(v, null, 1)}\n`);
+  return 2;
+}
+
 function run() {
+  try {
+    ROOT = judgeRoot(import.meta.url);
+    HOOK_DIR = join(ROOT, '.claude', 'hooks');
+  } catch (e) {
+    if (!(e instanceof WriteRootRefusal)) throw e;
+    console.error(e.message);
+    return notRun(`this run and tools/hook-contract.mjs sit in different checkouts (${e.reason}), so which tree to judge is undecided`);
+  }
   const files = hookFiles();
   const findings = collect(files);
   const pkgPath = join(ROOT, 'package.json');

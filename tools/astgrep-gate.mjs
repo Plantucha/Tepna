@@ -35,6 +35,16 @@
  * scans a planted fixture: each rule must match its plant AND ignore its legal twin, or the gate is
  * FAIL with no claim about the tree. A gate that cannot prove it still bites does not get to pass.
  *
+ * THE READING (write-root brief §6.4, judge arm). It judges the tracked source of the tree the run
+ * belongs to — the root modules, two directories and the capture-host lane — and that source is the
+ * artifact of a work-unit. So `run` resolves the judged tree through `judgeRoot` and refuses a
+ * cross-checkout run with one NOT_RUN object at exit 2. The tool keeps its OWN tree for `verdict.js`
+ * and for the `ast-grep` binary, because neither is its subject. Its rules and its allow-list stay on
+ * the judged tree, so one run never scans one tree under another tree's exemptions.
+ *
+ * THE WRITE READING (§3). It writes only the control plants, into `mkdtempSync(tmpdir())` outside any
+ * checkout, and it deletes them. So no write of its own owes `writeRoot`.
+ *
  * USAGE
  *   node tools/astgrep-gate.mjs            # report + exit code
  *   node tools/astgrep-gate.mjs --json     # ONE tepna.verdict/1 on stdout (report → stderr)
@@ -46,10 +56,16 @@ import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { WriteRootRefusal, judgeRoot } from './write-root.mjs';
 
-const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-const Verdict = createRequire(import.meta.url)(join(ROOT, 'verdict.js'));
-const SG = join(ROOT, 'node_modules', '.bin', 'ast-grep');
+/* SELF is the tool's own tree, which carries its library and its binary. ROOT is the tree it JUDGES,
+   and the two differ whenever a run from one checkout names this file by another checkout's path. The
+   default below serves a library import; `run` replaces it through `judgeRoot`
+   (row 2026-11-04-a-verdict-gate-judges-the-checkout-it-lives-in-not-the-one-it-ran-from). */
+const SELF = join(dirname(fileURLToPath(import.meta.url)), '..');
+const Verdict = createRequire(import.meta.url)(join(SELF, 'verdict.js'));
+const SG = join(SELF, 'node_modules', '.bin', 'ast-grep');
+let ROOT = SELF;
 const GATE = 'astgrep-house-rules';
 
 /* THE SCOPE IS A REGEX OVER `git ls-files`, NOT A GLOB AND NOT A DIRECTORY WALK. A tracked-file list
@@ -248,6 +264,21 @@ function run(asJson) {
   const emit = (v) => {
     if (asJson) process.stdout.write(JSON.stringify(v, null, 2) + '\n');
   };
+  try {
+    ROOT = judgeRoot(import.meta.url);
+  } catch (e) {
+    if (!(e instanceof WriteRootRefusal)) throw e;
+    process.stderr.write(e.message + '\n');
+    const v = verdictOf({
+      status: 'NOT_RUN',
+      pairs: 0,
+      res: null,
+      reason: `this run and tools/astgrep-gate.mjs sit in different checkouts (${e.reason}), so which tree to judge is undecided`
+    });
+    say(`✗ ${GATE}: the run and this file sit in different checkouts, so NOTHING was examined.`);
+    emit(v);
+    return 2;
+  }
   if (!existsSync(SG)) {
     const v = verdictOf({ status: 'NOT_RUN', pairs: 0, res: null, reason: 'ast-grep is not installed — run `npm ci` (a missing tool is not a pass)' });
     say(`✗ ${GATE}: ast-grep is not installed at node_modules/.bin/ast-grep — run \`npm ci\`. NOTHING was examined.`);
