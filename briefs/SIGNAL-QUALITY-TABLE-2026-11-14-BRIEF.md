@@ -61,13 +61,25 @@ The ledger READS its sidecar set from the registry in `tools/sidecar-census.mjs`
 `sidecar-census` gate already holds. The table below is a reader's summary, not a second
 declaration. Two declarations of one set drift apart (Magpie, board #6195).
 
-| sidecar | what it corrects or declares |
-|---|---|
-| `_ECGRUNS` · `_PPGRUNS` · `_PPG2WRUNS` · `_ACCRUNS` | absent spans in the stream (`PPG-ABSENCE-AS-VALUE`) |
-| `_ECGSEAMS` · `_PPGSEAMS` · `_ACCSEAMS` · `_HRSEAMS` · `_PPISEAMS` | device-clock seams and steps |
-| `_RADIOCLOCK.csv` · `_RTCLOG.csv` | device and radio clock observations |
-| `_LINK.csv` | link status from the host |
-| `_OXYFRAME.txt` | the O2Ring's per-frame contact declarations |
+| name shown | file | what it tells the node |
+|---|---|---|
+| Signal gaps — ECG | `_ECGRUNS.txt` | spans where the ECG stream holds no valid samples |
+| Signal gaps — optical | `_PPGRUNS.txt` | spans where the PPG stream holds no valid samples |
+| Signal gaps — optical, 2nd stream | `_PPG2WRUNS.txt` | the same, for the second PPG stream |
+| Signal gaps — motion | `_ACCRUNS.txt` | spans where the accelerometer holds no valid samples |
+| Clock jumps — ECG | `_ECGSEAMS.txt` | instants where the ECG device clock stepped or resynced |
+| Clock jumps — optical | `_PPGSEAMS.txt` | the same, for the PPG stream |
+| Clock jumps — motion | `_ACCSEAMS.txt` | the same, for the accelerometer |
+| Clock jumps — heart rate | `_HRSEAMS.txt` | the same, for the device heart-rate stream |
+| Clock jumps — beat intervals | `_PPISEAMS.txt` | the same, for the device beat-interval stream |
+| Radio clock log | `_RADIOCLOCK.csv` | the radio controller's own timing of each connection event, an optional second clock below the host stack |
+| Ring clock log | `_RTCLOG.csv` | the O2Ring's real-time clock, read once per connect |
+| Bluetooth link log | `_LINK.csv` | the host's link status for the night (one file per night, tied to no stream) |
+| Ring contact log | `_OXYFRAME.txt` | the O2Ring's per-frame finger-contact flag |
+
+The table shows the human-readable name first. The file name sits beside it in small type, so a
+reader can still find the file. The names come from the registry in `tools/sidecar-census.mjs`,
+which gains a `label` field for each tag.
 
 Each ledger row has a state from a closed set:
 
