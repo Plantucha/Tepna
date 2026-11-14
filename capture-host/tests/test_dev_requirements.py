@@ -21,6 +21,7 @@ WORKFLOW = HERE.parent / ".github" / "workflows" / "capture-host-ci.yml"
 REQ_DEV = HERE / "requirements-dev.txt"
 
 _PKG = re.compile(r"^([A-Za-z0-9][A-Za-z0-9._-]*)")
+_COMMENT = re.compile(r"(?:^|\s)#.*$")
 
 
 def _norm(name: str) -> str:
@@ -33,7 +34,11 @@ def inline_ci_packages(text: str) -> set[str]:
 
     Flags (`--quiet`, `--upgrade`) are skipped; `pip` itself (`--upgrade pip`) is not a dev dependency."""
     out: set[str] = set()
-    for line in text.splitlines():
+    for raw in text.splitlines():
+        # A `#` at the line start or after a space opens a YAML or shell comment, which names no package.
+        # Board 6183: a timing comment holding the phrase handed the gate `1m02s`, `8m03s` and `and`.
+        # A `#` inside a token is not a comment, so the token stays whole.
+        line = _COMMENT.sub("", raw)
         m = re.search(r"\bpip install\b(.*)$", line)
         if not m:
             continue
@@ -82,6 +87,16 @@ def test_parser_skips_r_installs_flags_and_pip_itself():
         '          pip install pytest shellcheck_py>=0.11 Hypothesis "$EXTRA"\n'
     )
     assert inline_ci_packages(text) == {"detect-secrets", "pytest", "shellcheck-py", "hypothesis"}
+
+
+def test_a_comment_names_no_package():
+    """Board 6183: prose in a workflow comment that held the phrase gave the gate its words as names."""
+    text = (
+        "      # the step to pip install the tools took 1m02s and 8m03s\n"
+        "          pip install pytest ruff  # trailing note: pip install and\n"
+        "          pip install mutmut#not-a-comment hypothesis\n"
+    )
+    assert inline_ci_packages(text) == {"pytest", "ruff", "mutmut", "hypothesis"}
 
 
 def test_declared_reads_past_comments_and_version_specifiers():

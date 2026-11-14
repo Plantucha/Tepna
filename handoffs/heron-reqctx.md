@@ -10,8 +10,12 @@ wedged on the staging defect at `handoffs/heron-mutstage.md`.
 `a-reporting-check-is-not-a-gating-check.md` and indexed it in `INDEX-code-and-capture`. The state file
 carries `## Unit 34`.
 
-**Next step.** None of mine. Arming a context edits ruleset 18794443, so the owner decides. The exact
-ask is two lines: add `mypy (advisory ratchet)`, and decide the same question for `secret-scan`.
+**Next step.** None of mine, and the ask has since emptied. ~~Arming a context edits ruleset 18794443,
+so the owner decides. The exact ask is two lines: add `mypy (advisory ratchet)`, and decide the same
+question for `secret-scan`.~~ **Both halves closed without a ruleset edit.** The mypy ratchet moved
+into the `test` job's 3.14 leg on 2026-11-14, so it rides `test (py3.14)`, and the advisory job is
+deleted. `secret-scan` joined the required set before the 2026-11-06 read recorded in
+`capture-host/tests/test_check_script.py`. Nothing here is owed to the owner now.
 
 **What I measured.** A PR produces 28 check contexts and the ruleset names 9. Nine more gate in effect
 through a `needs` edge into a required job. Those are the six `suite (shard N/6)` shards and
