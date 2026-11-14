@@ -116,6 +116,31 @@ The table names three patterns, from the per-window strip:
 The table names the pattern and shows the numbers. It never removes a step from the night figure
 without saying so. A window without enough anchors reads `null`, reason `too-few-anchors`.
 
+### Drift chart
+
+The drift section also renders one chart with two stacked panels that share the night's time
+axis. The reader sees the shape of the drift before reading any number.
+
+1. Top panel, divergence: the x axis is wall-clock time (`tMs`, §🔒). The y axis is host minus
+   device time in ms, relative to the first anchor.
+   - Each raw anchor residual is a dot. The reader sees the BLE jitter and each spike directly.
+   - The `hostAxis` correction is a line over the dots. Where the line leaves the dots, the
+     smoother removed a jump.
+   - A step is a vertical marker with its size. A spike is a ringed dot. A resync or a SEAMS
+     row is a full-height rule.
+   - An absent span from the RUNS sidecar is a shaded band, so a gap never reads as flat drift.
+2. Bottom panel, per-window rate: one bar per window, in ppm, on the same windows as the
+   strip. A window that reads `null` shows an empty slot with its reason, never a zero bar.
+
+A second, small chart shows the Allan curve on log-log axes. Each point shows its term count.
+The chart leaves out a point that reads `null` and marks its slot. Faint guide lines show the slopes
+−1, −½, 0, +½ and +1 from `ALLAN-DEVIATION-2026-08-12-BRIEF`, so the reader can name the noise
+type. The Integrator already draws a τ-curve sparkline in `integrator-render.js`; the pilot
+reuses that drawing code where it fits.
+
+Both charts badge each series, not the caption (§🎫). A recording without two clocks shows no
+chart and one line: "no second clock", with the reason from §3c.
+
 ## 3c · Recordings without sidecars
 
 Only the capture box writes sidecars. Many recordings come from another source, and the table
@@ -187,6 +212,8 @@ Assignee: decided on the agent board (`--kind decision`, 2026-11-14).
 - [ ] Each fact that a sidecar changes shows its value before and after the sidecar applies.
 - [ ] When the ECG stream has two clocks, the table shows the night drift, the per-window drift
       strip from raw residuals, and each step or spike with its instant (§3d).
+- [ ] The drift chart renders the divergence panel and the per-window rate panel, plus the
+      Allan chart, with a badge on each series (§3d).
 - [ ] A Polar Sensor Logger ECG export renders the table with every sidecar row
       `not-applicable` and every AFTER cell `null`. A test covers this case.
 - [ ] The render shows the table above the first result card, with a badge in every cell.
