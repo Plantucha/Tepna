@@ -576,6 +576,10 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     <!-- QUALITY -->
     <div id="qualitySection" style="display:none">
       <div class="section-title">Signal Quality <span class="st-note">per-beat SQI → Ganglior conf</span></div>
+      <!-- SIGNAL-QUALITY-TABLE-2026-11-14 §6: the per-channel table sits ABOVE the first result card
+           of this section, which is where the owner's direction put it (agent board entry 6514). -->
+      <div class="card" id="sqTableCard"></div>
+      <div class="card" id="sqDriftCard"></div>
       <div class="card" id="qualityCard"></div>
     </div>
 
