@@ -92,6 +92,7 @@ import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
+import { boundedFetch } from './net-bound.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
@@ -413,12 +414,20 @@ async function askOne(g) {
     'Write ONE short paragraph in plain English: what the number did when nulls were present versus removed, and the single most likely JavaScript coercion that explains it (null + x, null < x, null - x, a sort with null). ' +
     `Do not invent line numbers or function names. Do not propose code. Under 120 words.\n\n${JSON.stringify(facts, null, 1)}`;
   try {
-    const res = await fetch(`${OLLAMA}/v1/chat/completions`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ model: NARRATE_MODEL, messages: [{ role: 'user', content: prompt }], temperature: 0.2, max_tokens: Number(process.env.NULL_FUZZ_MAXTOK) || 400 }),
-      signal: AbortSignal.timeout(120000)
-    });
+    /* 🔴 THIS BOUND USED `AbortSignal.timeout(120000)`, AND 120000 IS ALSO `selftest-all.mjs`'s OWN
+       `TOOL_TIMEOUT_MS`. So under `npm run check` the parent killed the child at the same instant the
+       child's own bound fired, and the child's reason never reached the log. The number stays, because
+       no measurement here supports a different one for a narration call; what changes is that the
+       breach now NAMES itself, and `DEX_NET_TIMEOUT_MS` can lower it below the parent cap. */
+    const res = await boundedFetch(
+      `${OLLAMA}/v1/chat/completions`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ model: NARRATE_MODEL, messages: [{ role: 'user', content: prompt }], temperature: 0.2, max_tokens: Number(process.env.NULL_FUZZ_MAXTOK) || 400 })
+      },
+      { cls: 'model', ms: 120000, label: 'the narration call' }
+    );
     if (!res.ok) return { status: 'error', text: null, why: `HTTP ${res.status}` };
     const j = await res.json();
     const c = j.choices?.[0];

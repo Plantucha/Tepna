@@ -47,6 +47,7 @@ import { execFileSync } from 'node:child_process';
 import vm from 'node:vm';
 import { loadRealm, isRealmArtefact } from './mutation-crawl.mjs';
 import { isCliEntry } from './argv-guard.mjs';
+import { boundedFetch } from './net-bound.mjs';
 
 const argv = process.argv.slice(2);
 const has = (f) => argv.includes(f);
@@ -375,11 +376,15 @@ function promptFor(fnName, fnSrc, before, after, op) {
 /** bge-m3 embedding. Returns null on any failure — ranking degrades, verdicts never do. */
 async function embed(text) {
   try {
-    const res = await fetch(HOST + '/api/embeddings', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ model: 'bge-m3', prompt: String(text).slice(0, 600) })
-    });
+    const res = await boundedFetch(
+      HOST + '/api/embeddings',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ model: 'bge-m3', prompt: String(text).slice(0, 600) })
+      },
+      { cls: 'model', label: 'the bge-m3 embedding call' }
+    );
     const j = await res.json();
     return Array.isArray(j.embedding) ? j.embedding : null;
   } catch {
@@ -397,11 +402,15 @@ async function ask(prompt, attempt = 0) {
     { temperature: 1.1, top_p: 0.97, top_k: 60 },
     { temperature: 1.3, top_p: 0.99, top_k: 80 }
   ];
-  const res = await fetch(HOST + '/api/generate', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ model: MODEL, prompt, stream: false, think: false, options: { num_ctx: CTX, num_predict: 300, ...sampling[Math.min(attempt, sampling.length - 1)] } })
-  });
+  const res = await boundedFetch(
+    HOST + '/api/generate',
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ model: MODEL, prompt, stream: false, think: false, options: { num_ctx: CTX, num_predict: 300, ...sampling[Math.min(attempt, sampling.length - 1)] } })
+    },
+    { cls: 'model', label: 'the ollama generate call' }
+  );
   const j = await res.json();
   return j.response || '';
 }

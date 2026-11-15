@@ -13,6 +13,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import { boundedFetch } from './net-bound.mjs';
 
 const argv = process.argv.slice(2);
 const opt = (name, dflt) => {
@@ -408,11 +409,15 @@ async function ask(text) {
     options: { temperature: 0.2, num_ctx: NUM_CTX, num_predict: NUM_PREDICT }
   };
   const t0 = Date.now();
-  const res = await fetch(`${ENDPOINT}/api/chat`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body)
-  });
+  const res = await boundedFetch(
+    `${ENDPOINT}/api/chat`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body)
+    },
+    { cls: 'model', label: 'the ollama chat call' }
+  );
   if (!res.ok) throw new Error(`ollama ${res.status}`);
   const j = await res.json();
   return {

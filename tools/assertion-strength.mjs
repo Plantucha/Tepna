@@ -75,6 +75,7 @@ import { resolveStatePath, stateDirs } from './mutation-map.mjs';
 import { fileURLToPath } from 'node:url';
 import { ResumeLedger, fingerprint, fmtDuration, progressLine } from './run-progress.mjs';
 import { isCliEntry } from './argv-guard.mjs';
+import { boundedFetch } from './net-bound.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const OLLAMA = process.env.DEX_OLLAMA || 'http://localhost:11434';
@@ -128,11 +129,15 @@ async function ask(batch) {
     '<number>: BOUND <short reason>   — a bound is all that is available\n' +
     '<number>: SKIP                   — not a numeric property assertion\n\n' +
     numbered;
-  const res = await fetch(`${OLLAMA}/api/generate`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ model: MODEL, stream: false, think: false, prompt, options: { temperature: 0.1, num_predict: 700 } })
-  });
+  const res = await boundedFetch(
+    `${OLLAMA}/api/generate`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ model: MODEL, stream: false, think: false, prompt, options: { temperature: 0.1, num_predict: 700 } })
+    },
+    { cls: 'model', label: 'the ollama generate call' }
+  );
   const j = await res.json();
   return parseVerdicts(j.response || '', batch.length);
 }
