@@ -114,7 +114,7 @@ node tools/rebase-safe.mjs            # fetch → rebase → auto-resolve genera
 node tools/rebase-safe.mjs --onto <ref>
 ```
 
-- **Generated** (auto-resolved, rebuilt): the 9 provenance bundles + 2 orchestrators (read from
+- **Generated** (auto-resolved, rebuilt): the 10 provenance bundles + 2 orchestrators (read from
   `manifest-gate.js MANIFEST_BUNDLES` + `build.mjs ORCHESTRATORS`), the analysis tools
   (`build-analysis.mjs TOOLS`), the `docs/` paths their builders declare (`build-docs.mjs
   --list-owned` plus `tools-index.mjs`'s single output), `provenance/**`. **`docs/MUTATION-INVENTORY.md`
@@ -141,8 +141,8 @@ module inlined into many bundles moves every carrying app's `manifestHash` at on
 
 | module | bundles carrying it |
 |---|---|
-| `kernel-constants.js` · `metric-registry.js` · `dex-export.js` | **8 of 8** |
-| **`clock.js`** | **6 of 8** — absent from **GlucoDex · CPAPDex**, where `DexClock` is `undefined` |
+| `kernel-constants.js` · `metric-registry.js` · `dex-export.js` | **9 of 9** |
+| **`clock.js`** | **6 of 9** — absent from **GlucoDex · CPAPDex · EEGDex**, where `DexClock` is `undefined` |
 
 - **Before delegating anything in a `*-dsp.js` to `DexClock`, check the bundle carries it**
   (`grep -c 'data-inline-src="clock.js"' <App>.html`). An unguarded alias throws at module evaluation
@@ -481,7 +481,7 @@ npm run check                         # ← the FULL gate. Not `build.mjs --chec
 
 | tree | built by | checked by |
 |---|---|---|
-| the 11 owned bundles | `tools/build.mjs` | `npm run build:check` |
+| the 12 owned bundles | `tools/build.mjs` | `npm run build:check` |
 | `docs/` served copies of those bundles | `tools/build-docs.mjs` | `npm run verify:docs` |
 | the analysis tools | `tools/build-analysis.mjs` | `npm run verify:analysis` |
 | `docs/TOOLS-INDEX.md` (stalened by `tools/`, not by a re-bundle) | `tools/tools-index.mjs` | `npm run verify:tools-index` |
@@ -490,10 +490,10 @@ npm run check                         # ← the FULL gate. Not `build.mjs --chec
   `docs/` reds only CI's `static` job — it presents as a test failure and is not one.
 - **After `build-docs.mjs`, stage from `git status`, not from the `git add` line it prints.**
 - `build.mjs` auto-writes `manifestHash` and re-stamps code-gated fixtures — never hand-edit either;
-  never use `super_inline_html`. **Owned ≠ in GATE A:** `build.mjs` owns **`CLAIM ownedBundles = 11`**
-  bundles — the 9 in `manifest-gate.js MANIFEST_BUNDLES` (8 apps + `Integrator.html`) plus
-  **`CLAIM orchestrators = 2`** orchestrators (`Data Unifier.html`, `OverDex.html`); GATE A covers the 9,
-  `--check` all 11 (markers machine-checked).
+  never use `super_inline_html`. **Owned ≠ in GATE A:** `build.mjs` owns **`CLAIM ownedBundles = 12`**
+  bundles — the 10 in `manifest-gate.js MANIFEST_BUNDLES` (9 apps + `Integrator.html`) plus
+  **`CLAIM orchestrators = 2`** orchestrators (`Data Unifier.html`, `OverDex.html`); GATE A covers the 10,
+  `--check` all 12 (markers machine-checked).
 - **Regenerate a moved fixture OUTPUT by re-running the app on its committed inputs**, never by
   editing a hash: `tools/regen-<node>-goldens.mjs` — nine of them (`cpap` 5 fixtures · `ecgdex` 4 ·
   `glucodex` 3 · `hrvdex` 3 · `integrator` 3 · `motiondex` 1 · `oxydex` 3 · `ppgdex` 6 · `pulsedex` 3) on
@@ -537,8 +537,8 @@ caption is correct when a badge sits on every series it draws.
   `provisionally validated`) never reappears.
 - **Gate `cohesion-badges`:** engine ≡ CSS, guides `<link>` the CSS, guide grades ≡ registry — fix the DOC.
 - 🔴 **An INLINED module has no inert addition.** `manifestHash` hashes every inline block
-  byte-for-byte, so one comment line in `metric-registry.js` moves it on all **14** bundles that
-  carry the file (10 of the 11 owned; `Data Unifier.html` does not carry it). The compute closure is
+  byte-for-byte, so one comment line in `metric-registry.js` moves it on all **15** bundles that
+  carry the file (11 of the 12 owned; `Data Unifier.html` does not carry it). The compute closure is
   a denylist, so a spine module sits inside it and `computeHash` moves on all 14 as well — every
   corpus-backed fixture then owes re-verification. Re-bundle each carrier:
   `grep -lc 'data-inline-src="<file>"' *.html`. **Export-inert is the narrower claim, and it still
@@ -566,10 +566,11 @@ placeholders).
 - **Fonts:** no woff2, no `@font-face`, no CDN; `'Inter'`/`'IBM Plex Mono'` fall through to system faces
   by design.
 - **`parseTimestamp` is single-sourced in `clock.js` (`DexClock`)**, inlined into
-  **`CLAIM clockBundles = 6`** of the 8 app bundles — oxydex/pulsedex/hrvdex/ecgdex/motiondex delegate
+  **`CLAIM clockBundles = 6`** of the 9 app bundles — oxydex/pulsedex/hrvdex/ecgdex/motiondex delegate
   via local aliases; **ppgdex carries `clock.js` (since 2026-10-29, for `DexClock.hostAxis`) and keeps
-  its node-local parser; glucodex and cpapdex do not carry it, so `DexClock` is UNDEFINED there** (a
-  `ReferenceError`, not a fallback). All three keep deliberate node-local parser variants. Do not force
+  its node-local parser; glucodex, cpapdex and eegdex do not carry it, so `DexClock` is UNDEFINED
+  there** (a `ReferenceError`, not a fallback). The first three keep deliberate node-local parser
+  variants, and eegdex reads its EDF stamps through `CpapEdf.parseEdfClock` instead. Do not force
   them onto DexClock or reintroduce a mirror. Load `clock.js` before any delegating `*-dsp.js`
   (`dex-coload.js shared:`, worker `importScripts`).
 - `docs-archive/REFACTOR-BRIEF-modularize-Dexes.md`: historical, done.

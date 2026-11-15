@@ -194,6 +194,37 @@
     return { abs: out, rel: rel, total: tot };
   }
 
+  /* ── WHY AN EPOCH HAS NO SPECTRUM (∅) ─────────────────────────────────────────────────────────
+     `epochBands` returns `null` and `stageEpoch` then returns `null`, so the hypnogram already
+     refuses an unusable epoch rather than defaulting it to a stage. What it did NOT carry is the
+     REASON, and ∅ asks an output over absent input to name one.
+
+     This function mirrors `epochBands`'s own arms in `epochBands`'s own order, and it invents no
+     arm that function does not have: a non-finite sample first (“a hole is not a zero”), then a
+     constant stretch (a disconnected electrode), then the two shape guards. It runs NO FFT, so the
+     last arm is a deduction rather than a measurement: when every cheap arm passes and the bands
+     are still null, the only arm left in `epochBands` is its `tot > 0` guard. */
+  function epochAbsence(sig, from, to, fs) {
+    if (!sig) return 'no-samples';
+    if (!(fs > 0)) return 'no-sample-rate';
+    var n = to - from;
+    if (n < fs * 5) return 'epoch-too-short';
+    var holes = 0,
+      i;
+    for (i = from; i < to; i++) if (!isFinite(sig[i])) holes++;
+    if (holes) return holes === n ? 'signal-absent' : 'partial-hole';
+    var first = sig[from],
+      flat = true;
+    for (i = from; i < to; i++) {
+      if (sig[i] !== first) {
+        flat = false;
+        break;
+      }
+    }
+    if (flat) return 'flat-signal';
+    return 'no-spectrum';
+  }
+
   /* RMS of a window, used for EMG tone and EOG activity. Null on an unusable window. */
   function rms(sig, from, to) {
     if (!sig) return null;
@@ -392,12 +423,26 @@
          posterior, so there is no number to state. The flat 0.5 that stood here until 2026-11-10 was
          an in-range sentinel: `confidenceSvg` draws "darker = surer", so a constant drew a uniform
          strip that read as a measured confidence at every epoch. A consumer now reads the absence. */
-      hypnogram.push({ epoch: i, tMs: rec.t0Ms != null ? rec.t0Ms + i * EPOCH_SEC * 1000 : null, stage: st2, conf: null });
+      /* ∅ · a null stage CARRIES ITS REASON. `absentReason` is null whenever a stage exists, so a
+         consumer never reads a reason beside a value. */
+      hypnogram.push({
+        epoch: i,
+        tMs: rec.t0Ms != null ? rec.t0Ms + i * EPOCH_SEC * 1000 : null,
+        stage: st2,
+        conf: null,
+        absentReason: st2 == null ? epochAbsence(sig, i * spe, (i + 1) * spe, fs) : null
+      });
       if (st2 == null) nNull++;
       else counts[st2]++;
     }
 
     var scored = nEp - nNull;
+    /* The TALLY beside the count, so a reader sees WHICH refusal ran rather than only how often. */
+    var absentReasons = {};
+    for (i = 0; i < hypnogram.length; i++) {
+      var ar = hypnogram[i].absentReason;
+      if (ar) absentReasons[ar] = (absentReasons[ar] || 0) + 1;
+    }
     var sleepEp = counts.N1 + counts.N2 + counts.N3 + counts.REM;
     /* §∅ — architecture over zero scored epochs is not an architecture. */
     var arch =
@@ -414,6 +459,7 @@
       version: VERSION,
       fs: fs,
       nEpochs: nEp,
+      absentReasons: absentReasons,
       epochSec: EPOCH_SEC,
       hypnogram: hypnogram,
       stageCounts: counts,
@@ -743,6 +789,339 @@
     };
   }
 
+  /* ── AN OVERNIGHT SIMULATOR WITH A GROUND-TRUTH HYPNOGRAM ─────────────────────────────────────
+     Owner order 2026-11-14 (board #6256): EEGDex ships a labelled simulator, so the surface can be
+     exercised before a real overnight recording exists. It is AUTHORED ARITHMETIC, never a
+     recording, and every surface that draws it says so. It states nothing about the stager's
+     accuracy against people — that number is the held-out kappa in the TUNED block above.
+
+     `genSynthetic` above STAYS UNTOUCHED and keeps the render-coverage rig. Its five blocks are
+     pinned by a known-answer band test (`every band publishes its own median share`), so a new PRNG
+     or a new block order there would move the numbers those legs exist to hold. That one is the
+     fixture; this one is the night.
+
+     WHAT IT RETURNS BESIDE THE SIGNAL. `truth` holds the hypnogram the generator USED, one entry per
+     30 s epoch, plus the spindles, the K-complexes, the artefacts and the absent spans it wrote.
+     ECGDex returns its ground-truth RR the same way, so a test can hold the stager against the thing
+     that produced the signal rather than against itself.
+
+     ABSENCE IS NaN, NEVER ZERO (§∅). Zero is a legal EEG sample, so a zero run is a value no
+     consumer can tell from signal. `epochBands` already refuses an epoch holding a non-finite sample
+     — "a hole is not a zero" — so an absent span reaches the hypnogram as `stage: null`, and
+     `epochAbsence` names `signal-absent` beside it.
+
+     NO TIME ANCHOR UNLESS THE CALLER GIVES ONE. A synthetic run has no file, so §🔒.4 offers it no
+     date in the data, no 14-digit filename and no `lastModified`. The anchor is therefore `null`,
+     and `t0Reason` says so. A caller that wants a clock states its own `t0Ms`, which is what the
+     demo does. Stamping `Date.now()` here would fabricate the one value §🔒.2 item 6 forbids. */
+
+  /* xorshift32, the PRNG `ecgdex-dsp.js genSynthetic` uses. One seed gives one night, byte for byte. */
+  function xs32(ref) {
+    var x = ref.s >>> 0;
+    x = (x ^ (x << 13)) >>> 0;
+    x = (x ^ (x >>> 17)) >>> 0;
+    x = (x ^ (x << 5)) >>> 0;
+    ref.s = x;
+    return x / 4294967296;
+  }
+
+  /* ONE SPECTRUM PER STAGE, each written to reach ONE arm of `stageEpoch` in that function's own
+     order, and each shaped like the stage it names:
+
+       W    alpha with beta over it, high muscle tone      → the `bt + a > wFast` arm
+       N1   theta-dominant, low fast share, mid tone       → falls through to N1
+       N2   slow background with the spindle band lifted   → the `sg >= n2s && d >= n2d` arm
+       N3   high-amplitude delta                           → the `d >= n3` arm
+       REM  low-voltage mixed, lowest tone, active eyes    → the `d < remD` arm
+
+     The amplitudes are authored, not fitted. `emg` and `eog` are compared to their own per-night
+     MEDIAN by the stager, so what matters is the ORDER of the five tones, never their absolute size. */
+  var EEG_NIGHT_SPECTRA = {
+    W: {
+      comps: [
+        [10, 13],
+        [20, 9],
+        [1.0, 3]
+      ],
+      emg: 3.0,
+      eog: 1.6,
+      noise: 4
+    },
+    N1: {
+      comps: [
+        [6, 13],
+        [1.2, 6],
+        [10, 4]
+      ],
+      emg: 1.2,
+      eog: 0.9,
+      noise: 3.5
+    },
+    N2: {
+      comps: [
+        [1.2, 13],
+        [13.5, 9],
+        [6, 6]
+      ],
+      emg: 0.9,
+      eog: 0.5,
+      noise: 3
+    },
+    N3: {
+      comps: [
+        [1.0, 36],
+        [2.2, 14],
+        [6, 4]
+      ],
+      emg: 0.8,
+      eog: 0.4,
+      noise: 3
+    },
+    REM: {
+      comps: [
+        [6, 9],
+        [18, 5],
+        [1.0, 3]
+      ],
+      emg: 0.45,
+      eog: 2.4,
+      noise: 3
+    }
+  };
+
+  /* THE CYCLE PLAN, AASM-shaped rather than fitted: about 90 min per cycle, N3 shrinking across the
+     night and REM growing, with a short arousal closing each cycle. That decay is the one
+     architectural fact a single repeating cycle gets wrong (Carskadon and Dement, Principles and
+     Practice of Sleep Medicine, 6th edition, chapter 2 — a textbook description of sleep
+     architecture, cited as the shape this plan follows and not as a measurement of this code).
+
+     An arousal is 60 s, which is TWO epochs on purpose: `smoothHypnogram` replaces a SINGLE
+     isolated epoch with its neighbours, so a 30 s arousal would be smoothed away and the plan would
+     then name a stage the hypnogram cannot hold. */
+  function nightPlan(durSec, opts) {
+    opts = opts || {};
+    var onset = opts.onsetSec >= 0 ? opts.onsetSec : 300;
+    var raw = [{ stage: 'W', sec: Math.min(onset, durSec) }],
+      used = raw[0].sec,
+      c = 0,
+      i;
+    while (used < durSec && c < 12) {
+      var cyc = [
+        { stage: 'N1', sec: 90 },
+        { stage: 'N2', sec: 2250 + c * 120 },
+        { stage: 'N3', sec: Math.max(0, 1500 - c * 450) },
+        { stage: 'N2', sec: 900 },
+        { stage: 'REM', sec: 600 + c * 300 },
+        { stage: 'W', sec: 60 }
+      ];
+      for (i = 0; i < cyc.length; i++) {
+        if (cyc[i].sec <= 0 || used >= durSec) continue;
+        var take = Math.min(cyc[i].sec, durSec - used);
+        raw.push({ stage: cyc[i].stage, sec: take });
+        used += take;
+      }
+      c++;
+    }
+    var out = [],
+      at = 0;
+    for (i = 0; i < raw.length; i++) {
+      if (raw[i].sec <= 0) continue;
+      out.push({ stage: raw[i].stage, fromSec: at, toSec: at + raw[i].sec });
+      at += raw[i].sec;
+    }
+    return out;
+  }
+
+  function genOvernight(opts) {
+    opts = opts || {};
+    var fs = opts.fs > 0 ? opts.fs : opts.hz > 0 ? opts.hz : 100;
+    var durSec = opts.durSec > 0 ? opts.durSec : opts.sec > 0 ? opts.sec : 8 * 3600;
+    var scenario = opts.scenario === 'clean' ? 'clean' : 'artefactual';
+    var seed = (opts.seed == null ? 20261115 : opts.seed) >>> 0 || 1;
+    var ref = { s: seed };
+    var plan = nightPlan(durSec, opts);
+    var n = Math.round(fs * durSec);
+    var t0 = opts.t0Ms == null ? null : opts.t0Ms;
+    var i, j, k;
+
+    /* ── 1 · the events, chosen BEFORE the signal, so each one is also ground truth ── */
+    var spindles = [],
+      kcx = [],
+      artefacts = [],
+      absent = [];
+    for (i = 0; i < plan.length; i++) {
+      var seg = plan[i],
+        span = seg.toSec - seg.fromSec;
+      if (seg.stage === 'N2' || seg.stage === 'N3') {
+        /* Spindle density, per minute of the stage: N2 carries them, N3 fewer. */
+        var cnt = Math.floor((span / 60) * (seg.stage === 'N2' ? 3 : 1));
+        for (k = 0; k < cnt; k++) {
+          var at = seg.fromSec + ((k + 0.5) * span) / (cnt || 1) + (xs32(ref) - 0.5) * 8;
+          var fast = xs32(ref) > 0.35;
+          spindles.push({
+            atSec: +at.toFixed(3),
+            durSec: +(0.5 + xs32(ref)).toFixed(3),
+            freqHz: fast ? 13.5 : 11.5,
+            kind: fast ? 'fast' : 'slow',
+            stage: seg.stage
+          });
+        }
+      }
+      if (seg.stage === 'N2') {
+        var kc = Math.floor(span / 60);
+        for (k = 0; k < kc; k++) {
+          kcx.push({
+            atSec: +(seg.fromSec + ((k + 0.5) * span) / (kc || 1) + (xs32(ref) - 0.5) * 10).toFixed(3),
+            durSec: 0.6,
+            stage: 'N2'
+          });
+        }
+      }
+      if (scenario === 'artefactual' && (seg.stage === 'W' || seg.stage === 'N1')) {
+        /* Blinks ride the EOG lead and propagate to a frontal EEG lead. They belong to wake. */
+        var bl = Math.floor((span / 60) * 12);
+        for (k = 0; k < bl; k++) {
+          artefacts.push({
+            kind: 'blink',
+            atSec: +(seg.fromSec + ((k + 0.5) * span) / (bl || 1) + (xs32(ref) - 0.5) * 2).toFixed(3),
+            durSec: 0.3,
+            stage: seg.stage
+          });
+        }
+      }
+    }
+    if (scenario === 'artefactual') {
+      for (k = 0; k < 3; k++) {
+        artefacts.push({ kind: 'movement', atSec: +(durSec * (0.18 + 0.27 * k) + xs32(ref) * 30).toFixed(3), durSec: 4, stage: null });
+      }
+      for (k = 0; k < 5; k++) {
+        artefacts.push({ kind: 'pop', atSec: +(durSec * (0.1 + 0.17 * k) + xs32(ref) * 60).toFixed(3), durSec: 1 / fs, stage: null });
+      }
+      /* TWO absent spans, and the pair is deliberate: the long one is SNAPPED to an epoch boundary
+         and runs 90 s, so it costs whole epochs at any duration, while the short one sits inside an
+         epoch. A consumer then sees both refusals — the whole-epoch `signal-absent` and the
+         `partial-hole` — and neither depends on where the night happens to end. An unsnapped 45 s
+         span landed mid-epoch at one duration and whole-epoch at another, which made the reason a
+         function of `durSec` rather than of the hole. */
+      var longAt = Math.floor((durSec * 0.33) / EPOCH_SEC) * EPOCH_SEC;
+      absent.push({ fromSec: longAt, toSec: longAt + 3 * EPOCH_SEC, reason: 'electrode-off' });
+      absent.push({ fromSec: +(durSec * 0.71 + EPOCH_SEC / 2).toFixed(3), toSec: +(durSec * 0.71 + EPOCH_SEC / 2 + 20).toFixed(3), reason: 'electrode-off' });
+    }
+
+    /* ── 2 · the base signal, one stage spectrum at a time ── */
+    var sig = new Float32Array(n),
+      emg = new Float32Array(n),
+      eog = new Float32Array(n);
+    var TAU = 2 * Math.PI,
+      pi = 0;
+    for (i = 0; i < n; i++) {
+      var t = i / fs;
+      while (pi < plan.length - 1 && t >= plan[pi].toSec) pi++;
+      var sp = EEG_NIGHT_SPECTRA[plan[pi].stage];
+      var v = 0;
+      for (j = 0; j < sp.comps.length; j++) v += sp.comps[j][1] * Math.sin(TAU * sp.comps[j][0] * t);
+      sig[i] = v + sp.noise * (xs32(ref) - 0.5);
+      emg[i] = sp.emg * (xs32(ref) - 0.5);
+      eog[i] = sp.eog * (xs32(ref) - 0.5);
+    }
+
+    /* ── 3 · the overlays, in the order a reader would draw them ── */
+    function hann(rel) {
+      return 0.5 * (1 - Math.cos(TAU * rel));
+    }
+    for (i = 0; i < spindles.length; i++) {
+      var s0 = Math.round(spindles[i].atSec * fs),
+        sN = Math.round(spindles[i].durSec * fs);
+      for (j = 0; j < sN; j++) {
+        if (s0 + j < 0 || s0 + j >= n) continue;
+        sig[s0 + j] += 16 * hann(j / sN) * Math.sin(TAU * spindles[i].freqHz * ((s0 + j) / fs));
+      }
+    }
+    for (i = 0; i < kcx.length; i++) {
+      var k0 = Math.round(kcx[i].atSec * fs),
+        kN = Math.round(kcx[i].durSec * fs);
+      /* One full cycle over 0.6 s: a sharp negative deflection, then the positive return. */
+      for (j = 0; j < kN; j++) {
+        if (k0 + j < 0 || k0 + j >= n) continue;
+        sig[k0 + j] += -45 * Math.sin(TAU * (j / kN));
+      }
+    }
+    for (i = 0; i < artefacts.length; i++) {
+      var a0 = Math.round(artefacts[i].atSec * fs),
+        aN = Math.max(1, Math.round(artefacts[i].durSec * fs)),
+        kind = artefacts[i].kind;
+      for (j = 0; j < aN; j++) {
+        var at2 = a0 + j;
+        if (at2 < 0 || at2 >= n) continue;
+        if (kind === 'blink') {
+          eog[at2] += 120 * hann(j / aN) * Math.sin(TAU * 1.5 * (j / fs));
+          sig[at2] += 40 * hann(j / aN) * Math.sin(TAU * 1.5 * (j / fs));
+        } else if (kind === 'movement') {
+          sig[at2] += 80 * (xs32(ref) - 0.5);
+          emg[at2] += 6 * (xs32(ref) - 0.5);
+        } else {
+          sig[at2] += 400;
+        }
+      }
+    }
+    /* ── 4 · absence LAST, so no overlay writes a value back over a hole ── */
+    for (i = 0; i < absent.length; i++) {
+      var f0 = Math.max(0, Math.round(absent[i].fromSec * fs)),
+        f1 = Math.min(n, Math.round(absent[i].toSec * fs));
+      for (j = f0; j < f1; j++) sig[j] = NaN;
+    }
+
+    /* ── 5 · the ground-truth hypnogram, one entry per epoch ── */
+    var nEp = Math.floor(durSec / EPOCH_SEC),
+      truth = [];
+    for (i = 0; i < nEp; i++) {
+      var mid = i * EPOCH_SEC + EPOCH_SEC / 2,
+        st = null;
+      for (j = 0; j < plan.length; j++) {
+        if (mid >= plan[j].fromSec && mid < plan[j].toSec) {
+          st = plan[j].stage;
+          break;
+        }
+      }
+      var ab = false;
+      for (j = 0; j < absent.length; j++) {
+        if (absent[j].toSec > i * EPOCH_SEC && absent[j].fromSec < (i + 1) * EPOCH_SEC) ab = true;
+      }
+      /* `absent` marks an epoch whose SIGNAL this generator removed. The stage beside it is still
+         the stage the sleeper was in, so an agreement measurement excludes these epochs and says
+         how many it excluded, rather than counting a refusal as a disagreement. */
+      truth.push({ epoch: i, stage: st, absent: ab, tMs: t0 == null ? null : t0 + i * EPOCH_SEC * 1000 });
+    }
+
+    return {
+      samples: sig,
+      fs: fs,
+      emg: emg,
+      eog: eog,
+      emgFs: fs,
+      eogFs: fs,
+      t0Ms: t0,
+      offsetMin: null,
+      t0Reason: t0 == null ? 'synthetic-no-anchor' : null,
+      channel: 'SYNTH-C4',
+      source: 'synthetic',
+      unit: null,
+      synthetic: true,
+      scenario: scenario,
+      seed: seed,
+      durSec: durSec,
+      truth: {
+        epochSec: EPOCH_SEC,
+        hypnogram: truth,
+        plan: plan,
+        spindles: spindles,
+        kComplexes: kcx,
+        artefacts: artefacts,
+        absentSpans: absent
+      }
+    };
+  }
+
   /* ── THE NODE EXPORT ───────────────────────────────────────────────────────────────────────────
      `ganglior.node-export` v2.0, the envelope the other eight nodes emit. `recording.startEpochMs`
      is the floating `t0Ms`; `sleep` and `quality` are declared envelope bags, so their inner keys
@@ -844,6 +1223,11 @@
     nightBands: nightBands,
     buildNodeExport: buildNodeExport,
     genSynthetic: genSynthetic,
+    /* the overnight simulator, its plan and the absence-reason helper the hypnogram now carries */
+    genOvernight: genOvernight,
+    nightPlan: nightPlan,
+    epochAbsence: epochAbsence,
+    EEG_NIGHT_SPECTRA: EEG_NIGHT_SPECTRA,
     fmtClock: fmtClockUTC,
     _fft: fft
   };

@@ -93,10 +93,11 @@
       "id": "EEGDex",
       "signal": "EEG",
       "device": "Muse",
-      "app": null,
+      "app": "EEGDex.html",
       "guide": null,
       "summary": "Raw EEG.",
-      "planned": true
+      "planned": true,
+      "deploy": false
     }
   ],
   "fusion": [

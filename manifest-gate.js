@@ -38,7 +38,7 @@
 
   // Canonical bundle set — the 9 shipped apps. SINGLE source: verify-provenance.html no longer
   // inlines its own list, and BUILD-MANIFEST.json's `bundles` keys must equal this set.
-  var MANIFEST_BUNDLES = ['ECGDex.html', 'OxyDex.html', 'PulseDex.html', 'GlucoDex.html', 'PpgDex.html', 'HRVDex.html', 'CPAPDex.html', 'Integrator.html', 'MotionDex.html'];
+  var MANIFEST_BUNDLES = ['ECGDex.html', 'OxyDex.html', 'PulseDex.html', 'GlucoDex.html', 'PpgDex.html', 'HRVDex.html', 'CPAPDex.html', 'Integrator.html', 'MotionDex.html', 'EEGDex.html'];
 
   // LEGACY-FORMAT DETECTOR ONLY (OWN-THE-BUILD Phase 4, 2026-07-03). The platform inliner's
   // gzip+UUID format is RETIRED — every shipped bundle is owned plain-inline (tools/build.mjs).

@@ -51,8 +51,10 @@ a standalone `<App>.html`. **Edit the `.js` + `.src.html`, never the bundled `.h
 | **MotionDex** | inertial motion (IMU) | Polar Sensor Logger `*_ACC/_GYRO/_MAGN` (Verity + H10) | body position, actigraphy, respiratory effort, motion SQI | `motiondex-dsp.js` |
 | **Integrator** | *(fusion)* | N× `ganglior.node-export` | cross-node consensus + corroborated findings | `integrator-dsp.js` |
 
-Planned (not shipped): **EEGDex** (Muse EEG) and **SpiroDex** (flow-volume) introduce *new* signals →
-they still need real new DSP. **UltrahumanDex / Coospo** are pure adapter wins (signals we already
+**EEGDex** (Muse EEG) ships a bundle and an overnight synthetic simulator since 2026-11-14, and no
+real recording has passed it yet — so the landing tile still reads "soon" and the README still reads
+*planned*. **SpiroDex** (flow-volume) stays planned and introduces a *new* signal → it still needs
+real new DSP. **UltrahumanDex / Coospo** are pure adapter wins (signals we already
 analyze). New node names follow `docs/LEXICON.md` (closed compound, capital-D, acronym stems all-caps).
 
 Each node ships the same file pattern: `-dsp.js` (signal math, headless), `-render.js`, `-app.js`,

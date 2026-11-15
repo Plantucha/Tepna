@@ -15229,10 +15229,11 @@
         'CPAPDex.html',
         'Integrator.html',
         'MotionDex.html',
+        'EEGDex.html',
         'OverDex.html',
         'Data Unifier.html'
       ];
-      T.eq('the built list is the 11 owned bundles (CLAUDE.md §🔏 ownedBundles)', built.length, 11);
+      T.eq('the built list is the 12 owned bundles (CLAUDE.md §🔏 ownedBundles)', built.length, 12);
       T.ok(
         'the block table carries every marked block',
         BLOCKS.length >= 2,
@@ -29702,8 +29703,24 @@
         U = env.EEGUI,
         missing = [],
         i;
-      var DSP = ['analyze', 'compute', 'ingestEDF', 'nightBands', 'buildNodeExport', 'genSynthetic', 'epochBands', 'stageEpoch', 'smoothHypnogram', 'median', 'rms', 'fmtClock'];
-      var UI = ['renderSummary', 'hypnoHtml', 'bandHtml', 'qualityHtml', 'powerSub'];
+      var DSP = [
+        'analyze',
+        'compute',
+        'ingestEDF',
+        'nightBands',
+        'buildNodeExport',
+        'genSynthetic',
+        'genOvernight',
+        'nightPlan',
+        'epochAbsence',
+        'epochBands',
+        'stageEpoch',
+        'smoothHypnogram',
+        'median',
+        'rms',
+        'fmtClock'
+      ];
+      var UI = ['renderSummary', 'synthNote', 'hypnoHtml', 'bandHtml', 'qualityHtml', 'powerSub'];
       for (i = 0; i < DSP.length; i++) if (typeof D[DSP[i]] !== 'function') missing.push('EEGDSP.' + DSP[i]);
       for (i = 0; i < UI.length; i++) if (typeof U[UI[i]] !== 'function') missing.push('EEGUI.' + UI[i]);
       T.eq('every function the app imports is callable in this realm', missing.join(', '), '');
@@ -29775,6 +29792,130 @@
         JSON.stringify([D.nightBands(null, 100).rel, D.nightBands(null, 100).relSum, D.nightBands(null, 100).totalPower]),
         JSON.stringify([null, null, null])
       );
+    });
+
+    /* ── THE OVERNIGHT SIMULATOR (owner order 2026-11-14, board #6256 items 1–4 and 8) ─────────
+       THE CRITERION IS STATED HERE, BEFORE ANY NUMBER BELOW, because a threshold read off the data it
+       judges is `UNKNOWN` per §🧾. The stager must beat BOTH halves on the artefactual night:
+
+         (a) accuracy ≥ 0.80 over the epochs it scored, and
+         (b) every one of the five stages recovered at least once, and
+         (c) accuracy strictly above the best CONSTANT stager on the same epochs.
+
+       Half (a) alone cannot tell a working stager from a constant one: this night's own priors make
+       "always N2" score about 0.64, which is why (b) and (c) are part of the criterion rather than a
+       remark about it. The 0.80 floor is the held-out kappa's company, not a tight bound — the rule
+       set scored 0.314 kappa on a real held-out split, so a night AUTHORED from its own five arms
+       owes a far higher agreement, and a drop to the floor means the generator stopped reaching an
+       arm rather than that the stager regressed. */
+    group('The EEGDex overnight simulator reproduces itself, states its absences and agrees with its own truth', 'eegdex · simulator · ground-truth', function (T) {
+      var D = env.EEGDSP;
+      if (!D) {
+        T.skip('env.EEGDSP available', 'eegdex-dsp.js is not executed by this lane');
+        return;
+      }
+      /* NaN-aware, because absence is written as NaN and `NaN !== NaN`. A plain `!==` loop would
+         report every hole as a difference and call a reproducible night non-deterministic. */
+      function diffs(x, y) {
+        if (!x || !y || x.length !== y.length) return -1;
+        var d = 0,
+          i,
+          p,
+          q;
+        for (i = 0; i < x.length; i++) {
+          p = x[i];
+          q = y[i];
+          if (p !== q && !(Number.isNaN(p) && Number.isNaN(q))) d++;
+        }
+        return d;
+      }
+
+      /* ── 1 · ONE SEED GIVES THE SAME BYTES TWICE ── */
+      var a = D.genOvernight({ durSec: 600, seed: 7 }),
+        b = D.genOvernight({ durSec: 600, seed: 7 }),
+        c = D.genOvernight({ durSec: 600, seed: 8 });
+      T.eq('one seed reproduces the EEG sample for sample', diffs(a.samples, b.samples), 0);
+      T.eq('and reproduces the EMG and EOG channels with it', diffs(a.emg, b.emg) + diffs(a.eog, b.eog), 0);
+      T.ok('a second seed gives a different night', diffs(a.samples, c.samples) > 0, 'seed 8 reproduced seed 7 — the seed does not reach the generator');
+      T.eq('the plan is a function of the duration, not of the seed', JSON.stringify(a.truth.plan), JSON.stringify(c.truth.plan));
+      /* §🔒.4 — a synthetic night has no anchor to carry, so `t0Ms` is null and NAMED. Stamping
+         `Date.now()` here would fabricate the one value §🔒.2 item 6 forbids. */
+      T.eq('a synthetic night declares no start stamp', a.t0Ms, null);
+      T.eq('and says why rather than leaving the absence bare', D.compute(a).t0Reason, 'synthetic-no-anchor');
+
+      /* ── 2 · AN ABSENT SPAN REACHES THE EXPORT AS null WITH A NAMED REASON (§∅) ── */
+      var night = D.genOvernight({ durSec: 3 * 3600, scenario: 'artefactual', seed: 11 }),
+        res = D.compute(night);
+      T.ok('the three-hour night computes', !res.err, res.err || '');
+      if (res.err) return;
+      T.eq('the generator planted two absent spans', night.truth.absentSpans.length, 2);
+      var hyp = res.hypnogram,
+        nulls = [],
+        scoredWithReason = 0,
+        i;
+      for (i = 0; i < hyp.length; i++) {
+        if (hyp[i].stage == null) nulls.push(hyp[i]);
+        else if (hyp[i].absentReason != null) scoredWithReason++;
+      }
+      T.ok('the absent spans cost at least one epoch', nulls.length > 0, 'no epoch went unscored, so this group measured no absence at all');
+      T.eq('the quality bag counts the same unscorable epochs', res.quality.nUnscorable, nulls.length);
+      T.eq('a scored epoch carries no absence reason', scoredWithReason, 0);
+      var bare = nulls.filter(function (e) {
+        return !e.absentReason;
+      }).length;
+      T.eq('every unscorable epoch names its own absence', bare, 0);
+      /* The two spans are planted DIFFERENTLY on purpose: one snapped to an epoch boundary, one laid
+         across a boundary. They must not answer with one borrowed reason. */
+      T.ok('a whole-epoch hole reads as signal-absent', res.absentReasons['signal-absent'] > 0, 'reasons seen: ' + JSON.stringify(res.absentReasons));
+      T.ok('a hole across a boundary reads as a partial hole', res.absentReasons['partial-hole'] > 0, 'reasons seen: ' + JSON.stringify(res.absentReasons));
+      T.eq(
+        'the reason vocabulary covers an absent input too, rather than a zero',
+        JSON.stringify([D.epochAbsence(null, 0, 100, 100), D.epochAbsence(night.samples, 0, 100, 0)]),
+        JSON.stringify(['no-samples', 'no-sample-rate'])
+      );
+
+      /* ── 3 · THE STAGER AGREES WITH THE GROUND TRUTH, AGAINST THE CRITERION STATED ABOVE ── */
+      var truth = night.truth.hypnogram,
+        nScored = 0,
+        nAgree = 0,
+        hit = {},
+        tally = {},
+        st;
+      for (i = 0; i < hyp.length && i < truth.length; i++) {
+        if (hyp[i].stage == null) continue;
+        nScored++;
+        st = truth[i].stage;
+        tally[st] = (tally[st] || 0) + 1;
+        if (hyp[i].stage === st) {
+          nAgree++;
+          hit[st] = (hit[st] || 0) + 1;
+        }
+      }
+      var acc = nScored ? nAgree / nScored : 0,
+        best = 0,
+        k;
+      for (k in tally) if (tally[k] > best) best = tally[k];
+      var constAcc = nScored ? best / nScored : 0;
+      T.ok('the night was scored at all', nScored > 300, 'only ' + nScored + ' epochs were scored, so the agreement below describes almost nothing');
+      T.ok('(a) agreement clears the pre-stated 0.80 floor', acc >= 0.8, 'agreement ' + acc.toFixed(3) + ' over ' + nScored + ' scored epochs');
+      T.eq(
+        '(b) every one of the five stages is recovered at least once',
+        ['W', 'N1', 'N2', 'N3', 'REM']
+          .filter(function (s) {
+            return !hit[s];
+          })
+          .join(','),
+        ''
+      );
+      T.ok('(c) agreement beats the best constant stager on the same epochs', acc > constAcc, 'stager ' + acc.toFixed(3) + ' against a constant ' + constAcc.toFixed(3));
+      /* The simulator exists to feed the metrics of units B and C, so it owes every feature they
+         measure. These are counts of PLANNED events, not of detected ones — a detector held against
+         this truth is the next unit's business, not this group's. */
+      T.ok('the night carries spindles to find', night.truth.spindles.length > 0, 'no spindle was planted');
+      T.ok('the night carries K-complexes to find', night.truth.kComplexes.length > 0, 'no K-complex was planted');
+      T.ok('the night carries artefacts to reject', night.truth.artefacts.length > 0, 'no artefact was planted');
+      T.ok('the plan runs in cycles rather than one block', night.truth.plan.length > 5, 'the plan holds only ' + night.truth.plan.length + ' segments');
+      T.eq('truth and output are epoch-aligned on the same grid', JSON.stringify([night.truth.epochSec, res.epochSec]), JSON.stringify([30, 30]));
     });
 
     group('EEGDex refuses the four metrics one channel cannot measure, each with its own reason', 'eegdex · refusals · named', function (T) {
