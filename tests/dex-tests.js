@@ -28176,6 +28176,59 @@
         (C.claimFilesScanned || 0) > 1,
         'files scanned: ' + (C.claimFilesScanned || 0) + ' — briefs/ must be in the corpus or a brief claim can never fire'
       );
+
+      /* THE REACH IS SHARED DATA AND IT IS REPORTED AS A COUNT PER ROOT. Until 2026-11-15 this scan
+         read `CLAUDE.md`, `briefs/*.md` and `papers/*.html`, while the stamp reader beside it declared
+         four roots in `tools/table-provenance-core.mjs`. The two readers answer one question — which
+         committed document may carry a machine-read marker — so a reader with the narrower reach
+         left a marker unread. Measured at f1d3eb0bd: `docs/CLAUDE-MD-RATIONALE.md` carries 1 sourced
+         marker, `audits/*.md` carries none, and the one marker resolves and agrees. A root that
+         contributes nothing is a count of 0 here, never an absent key, so a reader sees which root
+         carried the evidence. */
+      var rc = C.claimRootCounts || null;
+      T.ok(
+        'the scan reports its reach as a count per root',
+        rc != null && Object.keys(rc).length > 0,
+        'roots reported: ' + (rc ? Object.keys(rc).join(', ') : 'none — run-tests.mjs must return claimRootCounts')
+      );
+      if (rc) {
+        var TPR = (env.tableProvenance && env.tableProvenance.roots) || null;
+        if (!TPR) {
+          T.skip('the claim reach equals the stamp reach', 'Node-lane only — env.tableProvenance carries the declared root list');
+        } else {
+          var missing = TPR.map(function (r) {
+            return r.dir;
+          }).filter(function (d) {
+            return !Object.prototype.hasOwnProperty.call(rc, d);
+          });
+          T.ok(
+            'the claim scan reaches every root the stamp reader declares',
+            missing.length === 0,
+            missing.join(', ') ||
+              TPR.length +
+                ' root(s) shared: ' +
+                TPR.map(function (r) {
+                  return r.dir;
+                }).join(', ')
+          );
+        }
+        T.ok(
+          'docs/ contributes at least one marker today (a reach with no evidence is untested reach)',
+          (rc.docs && rc.docs.markers) > 0,
+          'docs markers: ' + ((rc.docs && rc.docs.markers) || 0) + ' — docs/CLAUDE-MD-RATIONALE.md carried the first one'
+        );
+        /* `docs/papers/*.html` holds 119 markers that are GENERATED copies of `papers/*.html`, which
+           this scan already reads. Each root is listed non-recursively, and that is what keeps one
+           artifact from resolving twice under two paths. */
+        var mirrored = (C.sourced || []).filter(function (r) {
+          return r.where.indexOf('docs/papers/') === 0;
+        });
+        T.ok(
+          'the generated mirror under docs/papers/ stays outside the scan',
+          mirrored.length === 0,
+          mirrored.length + ' mirrored marker(s) — the scan went recursive and now double-counts a generated twin'
+        );
+      }
       var srcd = C.sourced || [];
       T.ok('at least one SOURCED claim exists (a generic checker with nothing to check is not a gate)', srcd.length > 0, 'sourced claims: ' + srcd.length);
       /* REFUSAL IS LOUD. A vanished artifact or a dead pointer is exactly the stale number this gate
