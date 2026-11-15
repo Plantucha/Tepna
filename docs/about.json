@@ -30,7 +30,8 @@
     "ECGDex: Raw ECG — ~130 Hz ECG → QRS, QTc, HRV.",
     "HRVDex: HRV summaries — Additive multi-day HRV ledger.",
     "GlucoDex: CGM — Continuous glucose → Time in Range, GMI.",
-    "CPAPDex: CPAP therapy — EDF therapy data → pressure, leak, respiratory events."
+    "CPAPDex: CPAP therapy — EDF therapy data → pressure, leak, respiratory events.",
+    "MotionDex: IMU — Raw IMU → body position, actigraphy, motion quality."
   ],
   "softwareHelp": [
     {
@@ -67,6 +68,11 @@
       "@type": "WebPage",
       "name": "CPAPDex technical reference",
       "url": "https://tepna.net/CPAPDex%20Reference.html"
+    },
+    {
+      "@type": "WebPage",
+      "name": "MotionDex technical reference",
+      "url": "https://tepna.net/MotionDex%20Reference.html"
     }
   ]
 }
