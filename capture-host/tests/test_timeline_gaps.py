@@ -591,6 +591,78 @@ def _day(root, date, hhmmss, rows=10, base_sec=0):
     return d
 
 
+def _crossing_day(root, date, open_hhmmss, close_iso, rows=10):
+    """One folder whose single ECG session OPENS at `open_hhmmss` and whose last row AND mtime both say
+    `close_iso` (no fractional part — this appends it).
+
+    `_day` cannot express a session that crosses midnight: it stamps `rows` consecutive SECONDS and
+    leaves the mtime at now. A cross-midnight claim needs the close instant and the writer offset to
+    agree, because `nightqc.recover_writer_offset` reads that offset from the distance between a file's
+    last row and its mtime — so a fixture whose two disagree states a zone it never meant to."""
+    d = root / date
+    d.mkdir(parents=True, exist_ok=True)
+    hh, mm, ss = int(open_hhmmss[:2]), int(open_hhmmss[2:4]), int(open_hhmmss[4:])
+    lines = [f"{date}T{hh:02d}:{mm:02d}:{ss + i:02d}.000;{i}000000000;1" for i in range(rows - 1)]
+    lines.append(f"{close_iso}.000;{rows}000000000;1")
+    p = d / f"Polar_H10_02849638_{date.replace('-', '')}{open_hhmmss}_ECG.txt"
+    p.write_text("Phone timestamp;sensor timestamp [ns];channel 0\n" + "\n".join(lines) + "\n")
+    close = datetime.datetime.strptime(close_iso, "%Y-%m-%dT%H:%M:%S").timestamp()
+    os.utime(p, (close, close))
+    return d
+
+
+def _reader_frame(stamp):
+    """`declared_offset` for the reader's own UTC offset at this 14-digit stamp — the frame the fixtures
+    below build in.
+
+    DECLARED, not recovered, and the distinction is the point: `recover_writer_offset` needs two
+    unanimous voters and each folder here holds ONE file, so recovery refuses and `offset_sec` is None.
+    That refusal is correct and it is not what these two tests are about — they are about which folder a
+    crossing belongs to, which is decided from mtimes once a frame exists. `test_timeline.py` declares
+    the frame the same way for the same reason."""
+    parsed = datetime.datetime.strptime(stamp, "%Y%m%d%H%M%S")
+    return nightqc.declared_offset(parsed.timestamp() - calendar.timegm(parsed.timetuple()))
+
+
+def test_build_pools_when_the_neighbour_RAN_PAST_MIDNIGHT_and_this_folder_is_a_daytime_sitting(tmp_path):
+    """The picture must not disagree with the verdict about which night this folder is, so `build` reads
+    the same crossing `nightqc.summarize` reads. The night ran 23:24 -> 07:23 into this date and left
+    every file next door; this folder holds an 11:34 daytime sitting, 4 h 11 m later, which no session
+    test can join to it. See that function's note dated 2026-11-15.
+
+    Observable only because the night carries MORE rows than the sitting, exactly as the daemon-restart
+    test below needs: `judged_session` breaks a tie toward this folder, so an equal-weight fixture
+    publishes this folder's window whether the pool happened or not and observes nothing."""
+    _crossing_day(tmp_path, "2026-07-24", "232400", "2026-07-25T07:23:00", rows=20)
+    tonight = _crossing_day(tmp_path, "2026-07-25", "113400", "2026-07-25T11:34:09")
+    frame = _reader_frame("20260725113400")
+    out = timeline.build(str(tonight), _DEV, writer_offset=frame)
+    # ⚠️ THE RAISED FRAME, not the floating one. A DECLARED offset shifts every published bound by it,
+    # so a `fromtimestamp(t0, UTC).day` read moves the answer bodily by 4 h and said 25 for the pooled
+    # window too. The instant is the claim: this folder's window must OPEN on the neighbour's session.
+    assert out["t0"] == _floating_epoch("20260724232400") + frame["offset_sec"], (
+        f"the crossing was not pooled; window opens at {out['t0']}"
+    )
+    assert out["t1"] == _floating_epoch("20260725072300") + frame["offset_sec"], (
+        f"the pooled window must CLOSE on the night's last row; closes at {out['t1']}"
+    )
+
+
+def test_build_does_not_pool_a_neighbour_that_STOPPED_BEFORE_MIDNIGHT(tmp_path):
+    """The refusing arm. An evening sitting that closed at 23:26 crossed nothing, so this folder's
+    daytime session is the whole window and yesterday keeps its own.
+
+    Its neighbour is row-heavier for the same reason as the case above: if this pooled, `judged_session`
+    would take yesterday and the window would open there, so the assertion can tell."""
+    _crossing_day(tmp_path, "2026-07-24", "200000", "2026-07-24T23:26:00", rows=20)
+    tonight = _crossing_day(tmp_path, "2026-07-25", "113400", "2026-07-25T11:34:09")
+    frame = _reader_frame("20260725113400")
+    out = timeline.build(str(tonight), _DEV, writer_offset=frame)
+    assert out["t0"] == _floating_epoch("20260725113400") + frame["offset_sec"], (
+        f"yesterday must stay out of it; window opens at {out['t0']}"
+    )
+
+
 def test_a_session_opening_EXACTLY_at_midnight_pools_the_previous_day(tmp_path):
     """Kills `0 <= earliest - midnight` → `1 <=` and → `0 <`.
 
