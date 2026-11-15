@@ -781,6 +781,11 @@ function readSources() {
        ratchet exists precisely so a new runtime source cannot ship invisible to every lane, and it
        caught this one on its first build. */
     'eegdex-dsp.js',
+    /* The shared raw device frame reader, read by EEGDex here and by PpgDex next. Listed in BOTH
+       lanes with the file itself: `Dex-Test-Suite.html` keeps its own source list and its own env
+       table, and a file in one lane only has a scan reading bytes in one realm and nothing in the
+       other — measured four times now, most recently on EEGDex's own equivalence leg (#5053). */
+    'muse-frame.js',
     /* EEGDex's RENDER and APP, added with the files themselves and listed in BOTH lanes. Every other
        node's `*-render.js` / `*-app.js` is in both, and `motiondex-app.js` measured what one lane
        buys: a source-mirror assertion about the node read nothing anywhere and passed VACUOUSLY. */
@@ -2138,8 +2143,14 @@ function readClaudeMdClaims() {
   }
 
   /* Read from the SHIPPED bundle, not from source or a builder list: the question this claim answers is
-     what a user's browser actually gets. `data-inline-src` is the owned bundler's marker. */
-  const APP_BUNDLES = ['OxyDex.html', 'PulseDex.html', 'HRVDex.html', 'ECGDex.html', 'PpgDex.html', 'GlucoDex.html', 'CPAPDex.html', 'MotionDex.html'];
+     what a user's browser actually gets. `data-inline-src` is the owned bundler's marker.
+
+     ⚠ THIS LIST IS HAND-WRITTEN, SO A NEW APP MUST JOIN IT. EEGDex shipped its bundle on 2026-11-14
+     and this list still held eight names on 2026-11-15, so the claim counted carriers over EIGHT app
+     bundles and read health about a ninth it never opened. A count over a stale population is the
+     shape of a gate that examines nothing. The `missingBundles` leg below reds a name that vanishes;
+     nothing but this comment reds a name that was never added. */
+  const APP_BUNDLES = ['OxyDex.html', 'PulseDex.html', 'HRVDex.html', 'ECGDex.html', 'PpgDex.html', 'GlucoDex.html', 'CPAPDex.html', 'MotionDex.html', 'EEGDex.html'];
   const clockBundles = [];
   const missingBundles = [];
   for (const b of APP_BUNDLES) {
@@ -3076,6 +3087,10 @@ async function main() {
        reads what a file SAYS; an executed module answers what it DOES. Sets env.EEGDSP, which the
        eegdex groups assert on directly. */
     'eegdex-dsp.js',
+    /* The shared raw device frame reader. It must be EXECUTED, not only read: `ingestMuseRaw`
+       resolves `global.MuseFrame` at call time and refuses by name without it, so a lane that only
+       scanned the text would skip every muse group and report that as a pass. */
+    'muse-frame.js',
     'synth-gen.js',
     'cohort-gen.js',
     'cohort-full.js',
@@ -3451,6 +3466,7 @@ async function main() {
     ECGUI: ctx.ECGUI,
     MOTIONUI: ctx.MOTIONUI, // §RN: MotionDex's render layer — executed above, so a throw in it reds
     EEGDSP: ctx.EEGDSP, // EEGDex's staging engine — EXECUTED in this realm, so a throw in it reds
+    MuseFrame: ctx.MuseFrame, // the shared raw device frame reader — executed in this realm too
     EEGUI: ctx.EEGUI, // EEGDex's render layer — executed above, same reason
     PPGUI: ctx.PPGUI, // PPGScope's per-window y-scale (owner report 2026-11-07: a flat Verity trace)
     IntegratorDSP: ctx.IntegratorDSP,
