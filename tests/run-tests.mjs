@@ -2169,25 +2169,48 @@ function readClaudeMdClaims() {
      there would report health about something it never examined. */
   const sourced = [];
   const CLAIM_FROM = /CLAIM\s+([A-Za-z][A-Za-z0-9_]*)\s*=\s*(-?\d+(?:\.\d+)?)\s+FROM\s+([^\s#`]+)#([A-Za-z0-9_./-]+)/g;
-  const claimFiles = [['CLAUDE.md', claudeMd]];
-  try {
-    const bd = join(ROOT, 'briefs');
-    if (existsSync(bd)) for (const f of readdirSync(bd).filter((x) => x.endsWith('.md'))) claimFiles.push(['briefs/' + f, readFileSync(join(bd, f), 'utf8')]);
-  } catch {
-    /* unreadable briefs/ ⇒ CLAUDE.md alone; the non-vacuity assertion notices if nothing was scanned */
+  /* ONE REACH, TWO READERS. This scan listed `briefs/*.md` plus `CLAUDE.md`, and `papers/*.html` since
+     2026-09-22 (the preprints state a re-cut correction block as sourced CLAIMs against
+     analysis/published-numbers/*.json, owner ruling D9.1). The stamp reader beside it declares its reach
+     as DATA in `tools/table-provenance-core.mjs`, over four roots. So the two readers disagreed, and a
+     marker under `docs/` went unread: measured 2026-11-15 at f1d3eb0bd, `docs/CLAUDE-MD-RATIONALE.md`
+     carries 1 sourced marker, which resolves and agrees, and `audits/*.md` carries none. One marker is
+     the whole population today, and the asymmetry is the defect, because `CLAUDE.md` names that file as
+     the record behind every rule. Both readers now enumerate `STAMP_ROOTS` + `STAMP_FILES`.
+     NON-RECURSIVE IS LOAD-BEARING HERE. `docs/papers/*.html` holds 119 further markers, and
+     `build-docs.mjs --list-owned` declares those files GENERATED copies of `papers/*.html`, which this
+     scan already reads. A recursive walk would resolve each twin twice and report a population that
+     double-counts one artifact. `docs/` accepts `.md` only, so the served bundles under `docs/` stay out
+     by the same root list. */
+  const claimRootCounts = {};
+  const claimFiles = [];
+  for (const root of TP_ROOTS) {
+    claimRootCounts[root.dir] = { files: 0, markers: 0 };
+    const d = join(ROOT, root.dir);
+    if (!existsSync(d)) continue;
+    try {
+      for (const f of readdirSync(d)) {
+        if (!tpRootAccepts(root, f)) continue;
+        const rel = root.dir + '/' + f;
+        claimFiles.push([rel, readFileSync(join(ROOT, rel), 'utf8')]);
+        claimRootCounts[root.dir].files++;
+      }
+    } catch {
+      /* unreadable root ⇒ the other roots stand. `claimRootCounts` then reports 0 files for this one,
+         so the shortfall is visible as a count and never as a silent pass. */
+    }
   }
-  /* 2026-09-22 — the preprints too: a re-cut correction block states its numbers as sourced CLAIMs against
-     analysis/published-numbers/*.json (owner ruling D9.1), and a marker that no gate reads is prose. Opt-in,
-     so a paper with no marker adds nothing to the scan. */
-  try {
-    const pd = join(ROOT, 'papers');
-    if (existsSync(pd)) for (const f of readdirSync(pd).filter((x) => x.endsWith('.html'))) claimFiles.push(['papers/' + f, readFileSync(join(pd, f), 'utf8')]);
-  } catch {
-    /* unreadable papers/ ⇒ the briefs + CLAUDE.md scan stands */
+  for (const f of TP_FILES) {
+    claimRootCounts[f] = { files: 0, markers: 0 };
+    if (!existsSync(join(ROOT, f))) continue;
+    claimFiles.push([f, f === 'CLAUDE.md' ? claudeMd : readFileSync(join(ROOT, f), 'utf8')]);
+    claimRootCounts[f].files++;
   }
   for (const [where, text] of claimFiles) {
+    const rootKey = where.indexOf('/') < 0 ? where : where.slice(0, where.indexOf('/'));
     for (const m of text.matchAll(CLAIM_FROM)) {
       const [, name, raw, file, pointer] = m;
+      if (claimRootCounts[rootKey]) claimRootCounts[rootKey].markers++;
       const rec = { name, where, file, pointer, stated: Number(raw), actual: null, reason: null };
       /* A `.json` pointer and a `.js`/`.mjs` IDENTIFIER both resolve here (`tools/claim-source.mjs`).
          The JSON-only resolver read a code source as `unreadable/invalid JSON` — a refusal about the
@@ -2229,6 +2252,7 @@ function readClaudeMdClaims() {
     orchestrators,
     sourced,
     claimFilesScanned: claimFiles.length,
+    claimRootCounts,
     docsConstantsPins: docsConstantsPins(DOCS_CONSTANTS_CHECKS)
   };
 }

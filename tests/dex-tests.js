@@ -28177,6 +28177,59 @@
         (C.claimFilesScanned || 0) > 1,
         'files scanned: ' + (C.claimFilesScanned || 0) + ' — briefs/ must be in the corpus or a brief claim can never fire'
       );
+
+      /* THE REACH IS SHARED DATA AND IT IS REPORTED AS A COUNT PER ROOT. Until 2026-11-15 this scan
+         read `CLAUDE.md`, `briefs/*.md` and `papers/*.html`, while the stamp reader beside it declared
+         four roots in `tools/table-provenance-core.mjs`. The two readers answer one question — which
+         committed document may carry a machine-read marker — so a reader with the narrower reach
+         left a marker unread. Measured at f1d3eb0bd: `docs/CLAUDE-MD-RATIONALE.md` carries 1 sourced
+         marker, `audits/*.md` carries none, and the one marker resolves and agrees. A root that
+         contributes nothing is a count of 0 here, never an absent key, so a reader sees which root
+         carried the evidence. */
+      var rc = C.claimRootCounts || null;
+      T.ok(
+        'the scan reports its reach as a count per root',
+        rc != null && Object.keys(rc).length > 0,
+        'roots reported: ' + (rc ? Object.keys(rc).join(', ') : 'none — run-tests.mjs must return claimRootCounts')
+      );
+      if (rc) {
+        var TPR = (env.tableProvenance && env.tableProvenance.roots) || null;
+        if (!TPR) {
+          T.skip('the claim reach equals the stamp reach', 'Node-lane only — env.tableProvenance carries the declared root list');
+        } else {
+          var missing = TPR.map(function (r) {
+            return r.dir;
+          }).filter(function (d) {
+            return !Object.prototype.hasOwnProperty.call(rc, d);
+          });
+          T.ok(
+            'the claim scan reaches every root the stamp reader declares',
+            missing.length === 0,
+            missing.join(', ') ||
+              TPR.length +
+                ' root(s) shared: ' +
+                TPR.map(function (r) {
+                  return r.dir;
+                }).join(', ')
+          );
+        }
+        T.ok(
+          'docs/ contributes at least one marker today (a reach with no evidence is untested reach)',
+          (rc.docs && rc.docs.markers) > 0,
+          'docs markers: ' + ((rc.docs && rc.docs.markers) || 0) + ' — docs/CLAUDE-MD-RATIONALE.md carried the first one'
+        );
+        /* `docs/papers/*.html` holds 119 markers that are GENERATED copies of `papers/*.html`, which
+           this scan already reads. Each root is listed non-recursively, and that is what keeps one
+           artifact from resolving twice under two paths. */
+        var mirrored = (C.sourced || []).filter(function (r) {
+          return r.where.indexOf('docs/papers/') === 0;
+        });
+        T.ok(
+          'the generated mirror under docs/papers/ stays outside the scan',
+          mirrored.length === 0,
+          mirrored.length + ' mirrored marker(s) — the scan went recursive and now double-counts a generated twin'
+        );
+      }
       var srcd = C.sourced || [];
       T.ok('at least one SOURCED claim exists (a generic checker with nothing to check is not a gate)', srcd.length > 0, 'sourced claims: ' + srcd.length);
       /* REFUSAL IS LOUD. A vanished artifact or a dead pointer is exactly the stale number this gate
@@ -54560,6 +54613,96 @@
         T.ok('the export seam projects the token, present only on a refusal', /\.\.\.\(e\.positionReason \? \{ positionReason: e\.positionReason \} : \{\}\)/.test(src));
         T.ok('the surge event carries it under the same rule', /\.\.\.\(_posWhy \? \{ positionReason: _posWhy \} : \{\}\)/.test(src));
         T.ok('CONTROL · no branch stamps a refusal token on a scored vector', !/reason = 'scored/.test(src));
+      } else T.skip('ecgdex-dsp.js source unavailable');
+    });
+
+    /* SIGNAL-QUALITY-TABLE unit 1 — the ECGDex pilot of the per-channel quality table.
+       THE CELL BICONDITIONAL IS THE §∅ GATE. Every cell holds EITHER a finite `value` with
+       `reason: null`, OR `value: null` with a named reason, and never both. That is what makes "no cell
+       reports 0 over a fact nobody measured" machine-checkable: an absent fact cannot be a number, so
+       a `0` in a cell is a measurement by construction. `_SQ_UNMEASURED` is the visible escape — a
+       caller that forgets its reason leaves that string, and this group reads it as a defect. */
+    group('SIGNAL-QUALITY-TABLE unit 1 — every quality cell is a number or a named absence, never a zero', 'ecgdex-dsp · §∅ · signalQuality', function (T) {
+      var E = env.ECGDSP || env.ECGDex;
+      var eq = env.equiv && env.equiv.ecgdex_rich;
+      if (!(E && typeof E.compute === 'function' && eq && eq.input)) {
+        T.skip('committed ECGDex rich input present', 'synthetic_ecgdex_h10.txt is COMMITTED, so this must run everywhere including CI');
+        return;
+      }
+      var rich = E.compute({ text: eq.input }, { rich: true });
+      var light = E.compute({ text: eq.input });
+      var sq = rich && rich.signalQuality;
+
+      // 1 · THE TABLE IS RICH-ONLY, so the light Ganglior stream it shares a node with does not move.
+      T.ok('the rich export carries the table', !!(sq && sq.channels));
+      T.ok('…and the light export does not, so the light stream is unchanged', !light || !('signalQuality' in light));
+      T.eq('the epoch the table reports is the node epoch', sq && sq.epochSec, 300);
+
+      // 2 · THE BICONDITIONAL, over every cell of every channel.
+      var FACTS = ['coverage', 'rail', 'flatline', 'snr', 'mains', 'nodeSqi', 'timing', 'reference'];
+      var cells = [],
+        chans = (sq && sq.channels) || {};
+      var chanNames = Object.keys(chans).sort();
+      T.eq('the table carries one row per ingested channel', chanNames.join(','), 'acc,ecg');
+      for (var ci = 0; ci < chanNames.length; ci++) {
+        var ch = chans[chanNames[ci]];
+        T.eq(chanNames[ci] + ' names its stream', typeof (ch && ch.stream), 'string');
+        var got = Object.keys(ch || {})
+          .filter(function (k) {
+            return k !== 'stream';
+          })
+          .sort();
+        T.eq(chanNames[ci] + ' carries the eight facts the brief names, and no others', got.join(','), FACTS.slice().sort().join(','));
+        for (var fi = 0; fi < FACTS.length; fi++) {
+          var cell = ch && ch[FACTS[fi]];
+          if (cell) cells.push({ where: chanNames[ci] + '.' + FACTS[fi], cell: cell });
+        }
+      }
+      T.eq('every cell of both channels was reached', cells.length, 16);
+
+      var bad = [],
+        unexplained = [],
+        zeroed = [];
+      for (var i = 0; i < cells.length; i++) {
+        var c = cells[i].cell,
+          w = cells[i].where;
+        var finite = typeof c.value === 'number' && isFinite(c.value);
+        var named = typeof c.reason === 'string' && c.reason.length > 0;
+        if (finite === named) bad.push(w + ' (value ' + JSON.stringify(c.value) + ', reason ' + JSON.stringify(c.reason) + ')');
+        if (c.reason === 'unmeasured-and-unexplained') unexplained.push(w);
+        if (!finite && c.value !== null) zeroed.push(w + ' = ' + JSON.stringify(c.value));
+        if (typeof c.unit !== 'string' || !c.unit.length) bad.push(w + ' carries no unit');
+      }
+      T.eq('a cell is a finite value with no reason, or null with a reason — never both and never neither', bad.join(' | '), '');
+      T.eq('no cell left the reason to the fallback, which is what a forgotten reason looks like', unexplained.join(','), '');
+      T.eq('an absent fact is null, never 0 and never a sentinel', zeroed.join(' | '), '');
+
+      // 3 · THE SIDECAR LEDGER — the four states are a closed set, and only `read` carries no reason.
+      var STATES = ['absent', 'not-applicable', 'not-read', 'read'];
+      var led = (sq && sq.sidecars) || [];
+      T.eq('the ledger carries one row per sidecar the census registry declares', led.length, 25);
+      var offState = [],
+        offReason = [],
+        noLabel = [];
+      for (var li = 0; li < led.length; li++) {
+        var r = led[li];
+        if (STATES.indexOf(r.state) < 0) offState.push(r.key + ' = ' + JSON.stringify(r.state));
+        if (r.state === 'read') {
+          if (r.reason !== null) offReason.push(r.key + ' is read and still carries a reason');
+        } else if (!(typeof r.reason === 'string' && r.reason.length > 0)) offReason.push(r.key + ' is ' + r.state + ' and names no reason');
+        if (!(typeof r.label === 'string' && r.label.length) || !(typeof r.file === 'string' && r.file.length)) noLabel.push(r.key);
+      }
+      T.eq('every row reports one of the four states', offState.join(' | '), '');
+      T.eq('a read row needs no reason; every other row names one', offReason.join(' | '), '');
+      T.eq('every row carries its on-disk spelling and its reader-facing label', noLabel.join(','), '');
+
+      // 4 · SOURCE MIRRORS — each leg fails when the shape it pins comes back.
+      var src = (env.sources && env.sources['ecgdex-dsp.js']) || '';
+      if (src) {
+        T.ok('the fallback reason is a visible string, not a zero', /_SQ_UNMEASURED = 'unmeasured-and-unexplained'/.test(src));
+        T.ok('the table sits beside out.quality, inside the rich branch', /out\.signalQuality = ecgSignalQuality\(/.test(src));
+        T.ok('the ledger is one literal table, which the census gate holds against its registry', /var _ECG_SIDECAR_LEDGER = \[/.test(src));
+        T.ok('CONTROL · no cell builder defaults a value to 0', !/_sqCell\(\s*0\s*,/.test(src));
       } else T.skip('ecgdex-dsp.js source unavailable');
     });
 

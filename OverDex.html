@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="2edff452ef61" data-compute-hash="ee4669faab07"><head>
+<html lang="en" data-manifest-hash="fb0042183a76" data-compute-hash="678b72aab05b"><head>
 <!--
   OverDex.html — Tepna
   Copyright 2026 Michal Planicka
@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HAXbchwkH2w0sxN5WvjWCMLbxsfGGclNPzL9K/ePBeM=' 'sha256-IDeAYFC+myKzaJhU+jd20soVrwGAVcq7iM1mIVcFTwM=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-IikqYxHC3BIwGwBPFp8Jp5IDGx29Y8y9PXhJvfwvHfM=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-R6Dc/xXQzYFveWsVfbGSg8lpp98pG2dIwLNGGu4Pc04=' 'sha256-SYhOYN70OcmPNUyQI3+XkzBPsDEkov/r8Qc03as7ooU=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-WCQTLVkSv1QgSOi2vvBHY7+NBC4URxQt6+ufi6R/3qU=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-XkCJjtofRC8yuzIDQ1Ofcdj/kJnYaArgcSmrDj/MoAc=' 'sha256-c0L2fP9KS+dZLG2AaH4LfdLnwpVfCWVH+gyyUn5L7Pc=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-oH7lhnTrlkQhQ9f9PuKw7Wwq8UnyptMMWqHMeBGouU8=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-uS0BO9FA6T7Ej0PgYdFgmhKAD7wWWUv6IRvThTzY6lc=' 'sha256-wK9fP+fYfi661IypDOgrAoxGZS8mGJfe9l/9288cTZQ=' 'sha256-xtenwBk/c0kQhriEYklcSw1rgI2UYxNmHOVx1cfvdZw=' 'sha256-yJI159rOoEVhsTIsuQRFR32KBOQL/8y6f7F2zWeQpF4=' 'sha256-yS5frs7FO4HDqcSuAYI4rtjm7+gtWKSEozKGWUwHA/4=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw=' 'sha256-z4l2zX2D/RcAl/wpu0C/Z9GU6A/Rt5Gmh35gDByXOhQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HAXbchwkH2w0sxN5WvjWCMLbxsfGGclNPzL9K/ePBeM=' 'sha256-IDeAYFC+myKzaJhU+jd20soVrwGAVcq7iM1mIVcFTwM=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-IikqYxHC3BIwGwBPFp8Jp5IDGx29Y8y9PXhJvfwvHfM=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-R6Dc/xXQzYFveWsVfbGSg8lpp98pG2dIwLNGGu4Pc04=' 'sha256-SYhOYN70OcmPNUyQI3+XkzBPsDEkov/r8Qc03as7ooU=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-WCQTLVkSv1QgSOi2vvBHY7+NBC4URxQt6+ufi6R/3qU=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-c0L2fP9KS+dZLG2AaH4LfdLnwpVfCWVH+gyyUn5L7Pc=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-oH7lhnTrlkQhQ9f9PuKw7Wwq8UnyptMMWqHMeBGouU8=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-uS0BO9FA6T7Ej0PgYdFgmhKAD7wWWUv6IRvThTzY6lc=' 'sha256-wK9fP+fYfi661IypDOgrAoxGZS8mGJfe9l/9288cTZQ=' 'sha256-xkr0YnbrLjIx/v3+3C8YgKKASbexZjChGmmEr2sgHTY=' 'sha256-xtenwBk/c0kQhriEYklcSw1rgI2UYxNmHOVx1cfvdZw=' 'sha256-yJI159rOoEVhsTIsuQRFR32KBOQL/8y6f7F2zWeQpF4=' 'sha256-yS5frs7FO4HDqcSuAYI4rtjm7+gtWKSEozKGWUwHA/4=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw=' 'sha256-z4l2zX2D/RcAl/wpu0C/Z9GU6A/Rt5Gmh35gDByXOhQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -45277,6 +45277,10 @@ __exports.PpgDex = window.PpgDex;
          every key above this one is ALWAYS populated, because the owner ruled on 2026-11-05 that a
          night with no seam sidecar reads as seams UNKNOWN rather than as a night with none. */
       seams: _ecgSeamState(rec, _recSeamPlaced, _recSeamUnplaced),
+      /* …and the RUN channel's state beside it, carried for the same reason and from the same place,
+         and ALWAYS populated for the same one: a night with no run sidecar reads as blanking UNKNOWN
+         rather than as a night with none. The signal-quality ledger (§3b) publishes it. */
+      runs: _ecgRunsState(rec),
       durMin: +durMin.toFixed(1),
       longRec,
       tier,
@@ -48096,6 +48100,37 @@ __exports.PpgDex = window.PpgDex;
      tell "the sidecar said nothing" from "this reader does not report the axis", which is the very
      confusion the row logs. A drawn axis still carries real discontinuities of the axis this node
      places samples on, so no refusal here changes — the provenance travels BESIDE the count. */
+  /* THE RUN-SIDECAR CHANNEL, ON THE SAME FOOTING AS THE SEAM CHANNEL BELOW (∅; SIGNAL-QUALITY-TABLE
+     §3b). `blankingSpansReason` already travels through `analyze`, and it is non-null ONLY when rows
+     went unplaced — so "the box wrote no `_ECGRUNS.txt`" and "a sidecar parsed and placed every row"
+     reach a consumer as the same silence. That is the confusion the owner's 2026-11-05 seam ruling
+     refused one stream over, and the signal-quality ledger has to state the run channel too. ALWAYS
+     populated, like `_ecgSeamState`, and it names which of the four states this recording is in. */
+  function _ecgRunsState(rec) {
+    var sc = rec && rec.runsSidecar;
+    if (!sc) return { runs: null, examined: null, placed: null, unplaced: null, minRun: null, stream: null, reason: 'no-runs-sidecar' };
+    if (sc.placedNone)
+      return {
+        runs: null,
+        examined: sc.examined != null ? sc.examined : null,
+        placed: 0,
+        unplaced: sc.dataRows != null ? sc.dataRows : null,
+        minRun: sc.minRun != null ? sc.minRun : null,
+        stream: sc.stream != null ? sc.stream : null,
+        reason: 'runs-rows-unplaced'
+      };
+    var nSpans = Array.isArray(sc.spans) ? sc.spans.length : null;
+    return {
+      runs: nSpans,
+      examined: sc.examined != null ? sc.examined : null,
+      placed: nSpans,
+      unplaced: sc.rejected != null ? sc.rejected : null,
+      minRun: sc.minRun != null ? sc.minRun : null,
+      stream: sc.stream != null ? sc.stream : null,
+      reason: null
+    };
+  }
+
   function _ecgSeamState(rec, placed, unplaced) {
     var sc = rec && rec.seamsSidecar;
     if (!sc) return { deviceAxis: null, seams: null, examined: null, placed: null, unplaced: null, boundMs: null, reason: 'no-seam-sidecar' };
@@ -48839,6 +48874,368 @@ __exports.PpgDex = window.PpgDex;
     return out;
   }
 
+  /* ══ THE SIGNAL-QUALITY TABLE — SIGNAL-QUALITY-TABLE-2026-11-14 §3/§3b, THE ECGDex PILOT ═════
+     One row per INPUT CHANNEL, one cell per quality fact, plus a ledger of every sidecar the box can
+     write for this node's streams. The point of the table is the honest cell: a reader sees which
+     sensor facts were MEASURED, which were not, and why — before reading a single result card.
+
+     ONE RULE GOVERNS EVERY CELL, and `tests/dex-tests.js` asserts it over the committed fixtures:
+     a cell carries EITHER a finite value with `reason: null`, OR `value: null` with a named reason.
+     Never both. So no cell can read `0` over a fact nobody measured (∅), which is the defect class
+     the `_PPG.txt` in-band zeros taught this repo — and `_sqCell` makes the rule structural rather
+     than a convention each new fact has to remember.
+
+     RICH ONLY, beside `quality` (§4). `out.quality` is itself rich-gated, so the LIGHT Ganglior
+     stream the app emits stays BYTE-IDENTICAL and only the one rich fixture moves. The node-local
+     helper is deliberate (§5): a shared spine module would move `manifestHash` and `computeHash`
+     on every carrier and put every corpus-backed fixture of those nodes into re-verification. */
+  var _SQ_EPOCH_SEC = 300;
+  var _SQ_UNMEASURED = 'unmeasured-and-unexplained';
+  /* A cell. `value` is the number the fact is worth; `unit` names what the number counts, because
+     several of these facts have more than one defensible unit and a bare percentage is how a share
+     of BEATS gets read as a share of TIME. A non-finite value takes the caller's reason; a caller
+     that forgot one leaves `_SQ_UNMEASURED`, which the test group reads as a defect rather than as
+     an absence — an escape that is VISIBLE instead of silent. */
+  function _sqCell(value, unit, reason, extra) {
+    var ok = typeof value === 'number' && isFinite(value);
+    var c = { value: ok ? value : null, unit: unit, reason: ok ? null : reason || _SQ_UNMEASURED };
+    if (extra) for (var k in extra) if (Object.prototype.hasOwnProperty.call(extra, k)) c[k] = extra[k];
+    return c;
+  }
+
+  /* THE SIDECAR LEDGER'S ROWS (§3b). The NAMES are a projection of the registry in
+     `tools/sidecar-census.mjs`, never a second declaration of the set: two declarations of one set
+     drift apart (board #6195), so the `sidecar-census` gate reds when this list drops a name the
+     registry carries. A browser bundle cannot import a `tools/*.mjs` file, which is why the
+     projection exists at all — and why the parity check lives in the gate rather than here.
+
+     `state` is the closed four of §3b: `read` · `absent` · `not-read` · `not-applicable`. A row with a
+     fixed state below states a fact about THIS NODE's readers, which no recording can change; the
+     three `lane` rows are computed per recording. ROWS WITH UNPLACED SIDECAR ROWS READ `not-read`:
+     the state answers "did the fact reach the node", and for a reader that placed nothing the answer
+     is no — the reason then names that the reader ran. That mapping keeps §3b's set at four states
+     rather than inventing a fifth. */
+  var _ECG_SIDECAR_LEDGER = [
+    { key: 'ECGRUNS', file: '_ECGRUNS.txt', label: 'Signal gaps — ECG', lane: 'ecgRuns' },
+    { key: 'ECGSEAMS', file: '_ECGSEAMS.txt', label: 'Clock jumps — ECG', lane: 'ecgSeams' },
+    { key: 'ACCRUNS', file: '_ACCRUNS.txt', label: 'Signal gaps — motion', lane: 'accRuns' },
+    {
+      key: 'ACCSEAMS',
+      file: '_ACCSEAMS.txt',
+      label: 'Clock jumps — motion',
+      state: 'not-read',
+      reason: 'the box writes it beside the chest `_ACC.txt` and MotionDex reads it; this node has no motion-seam reader'
+    },
+    { key: 'HRSEAMS', file: '_HRSEAMS.txt', label: 'Clock jumps — heart rate', state: 'not-read', reason: 'this node reads the device `_HR.txt` rows and has no seam reader for them' },
+    {
+      key: 'PPISEAMS',
+      file: '_PPISEAMS.txt',
+      label: 'Clock jumps — beat intervals',
+      state: 'not-read',
+      reason: 'this node reads the device RR rows for the firmware cross-check and has no seam reader for them'
+    },
+    { key: 'PPGRUNS', file: '_PPGRUNS.txt', label: 'Signal gaps — optical', state: 'not-applicable', reason: 'an optical stream, which this node does not ingest' },
+    { key: 'PPG2WRUNS', file: '_PPG2WRUNS.txt', label: 'Signal gaps — optical, 2nd stream', state: 'not-applicable', reason: 'an optical stream, which this node does not ingest' },
+    { key: 'PPGSEAMS', file: '_PPGSEAMS.txt', label: 'Clock jumps — optical', state: 'not-applicable', reason: 'an optical stream, which this node does not ingest' },
+    {
+      key: 'ACCRAWRUNS',
+      file: '_ACCRAWRUNS.txt',
+      label: 'Signal gaps — motion, raw stream',
+      state: 'not-applicable',
+      reason: 'the optical device writes this raw motion stream, which this node does not ingest'
+    },
+    {
+      key: 'RADIOCLOCK',
+      file: '_RADIOCLOCK.csv',
+      label: 'Radio clock log',
+      state: 'not-read',
+      reason: 'a parser stands in radio-clock.js, which 0 bundles inline and 0 node DSPs call (measured 2026-11-14), so no node reads this file'
+    },
+    { key: 'LINK', file: '_LINK.csv', label: 'Bluetooth link log', state: 'not-read', reason: 'one file per night, tied to no stream, and no node reads it' },
+    { key: 'RTCLOG', file: '_RTCLOG.csv', label: 'Ring clock log', state: 'not-applicable', reason: 'the ring writes it, and this node ingests no ring stream' },
+    { key: 'OXYFRAME', file: '_OXYFRAME.txt', label: 'Ring contact log', state: 'not-applicable', reason: 'the ring writes it, and this node ingests no ring stream' },
+    /* THE REST OF THE REGISTERED SIDECARS. The set is `tools/sidecar-census.mjs` REGISTRY, held against
+       this table by that gate's `nodeLedgerFindings`, so the table covers every spelling that registry
+       declares rather than the ones this node happens to parse. The box derives further spellings by
+       rule, one `…RUNS.txt` and one `…SEAMS.txt` per stream word, and the census absorbs those by suffix. A row the node does not read says which
+       of the two it is: `not-read` means the box writes this file for a capture of this kind and this
+       node has no reader for it, and `not-applicable` means another device's capture writes it. Both
+       are facts; neither is a zero. */
+    {
+      key: 'CLOCK',
+      file: '_CLOCK.csv',
+      label: 'Host clock log',
+      state: 'not-read',
+      reason: 'a night journal of what disciplined the host clock, and this node reads the host stamps of its own stream instead'
+    },
+    {
+      key: 'PMDARRIVAL',
+      file: '_PMDARRIVAL.csv',
+      label: 'Packet arrival log',
+      state: 'not-read',
+      reason: 'a per-session log of the host arrival stamp of every packet of the streams this node ingests, and no reader stands here'
+    },
+    {
+      key: 'CLOCKSYNC',
+      file: 'CLOCKSYNC.csv',
+      label: 'Device clock sync log',
+      state: 'not-read',
+      reason: 'a per-device log of each clock-sync event and its skew, and no reader stands here'
+    },
+    {
+      key: 'PMDNEG',
+      file: 'PMDNEG.csv',
+      label: 'Stream rate agreement log',
+      state: 'not-read',
+      reason: 'the per-stream record of the rate the device agreed to, which this node could hold against the rate it measures, and no reader stands here'
+    },
+    {
+      key: 'STARTS',
+      file: 'STARTS.csv',
+      label: 'Daemon start log',
+      state: 'not-read',
+      reason: 'a night journal of each daemon start, which binds to no stream'
+    },
+    {
+      key: 'WORN',
+      file: 'WORN.csv',
+      label: 'Wear state log',
+      state: 'not-read',
+      reason: 'a per-device journal of the wear state, which binds to no stream'
+    },
+    {
+      key: 'WEDGEFIRE',
+      file: 'WEDGEFIRE.csv',
+      label: 'Device wedge log',
+      state: 'not-read',
+      reason: 'a journal of each device the box found wedged, which binds to no stream'
+    },
+    {
+      key: 'ADAPTERHCI',
+      file: 'ADAPTERHCI.csv',
+      label: 'Radio health log',
+      state: 'not-read',
+      reason: 'a per-radio health report, which binds to no stream'
+    },
+    {
+      key: 'OXYLIFE',
+      file: 'OXYLIFE.csv',
+      label: 'Ring lifecycle log',
+      state: 'not-applicable',
+      reason: 'the ring writes it, and this node ingests no ring stream'
+    },
+    {
+      key: 'SESSIONDETECT',
+      file: 'SESSIONDETECT.csv',
+      label: 'CPAP session detector log',
+      state: 'not-applicable',
+      reason: 'the CPAP shadow runner writes it, and this node ingests no CPAP stream'
+    },
+    {
+      key: 'AS11CLOCK',
+      file: 'AS11CLOCK.csv',
+      label: 'CPAP device clock log',
+      state: 'not-applicable',
+      reason: 'the CPAP clock discipline writes it, and this node ingests no CPAP stream'
+    }
+  ];
+
+  /* The three computed rows. Each reads a state this node ALREADY carries — `r.runs` and `r.seams`
+     from `analyze`, the motion sidecar off the ACC companion — so the ledger reports the node's own
+     reading rather than a second opinion about the same files. */
+  function _sqLedgerRow(row, r) {
+    if (row.state) return { key: row.key, file: row.file, label: row.label, state: row.state, reason: row.reason };
+    var st = null,
+      why = null;
+    if (row.lane === 'ecgRuns') {
+      var rs = r && r.runs;
+      if (!rs || rs.reason === 'no-runs-sidecar') {
+        st = 'absent';
+        why = 'the box wrote no `_ECGRUNS.txt` beside this recording, so no blanking span is known — this is not a clean stream';
+      } else if (rs.reason) {
+        st = 'not-read';
+        why = 'the reader ran and placed no row: ' + rs.reason;
+      } else {
+        st = 'read';
+      }
+    } else if (row.lane === 'ecgSeams') {
+      var ss = r && r.seams;
+      if (!ss || ss.reason === 'no-seam-sidecar') {
+        st = 'absent';
+        why = 'the box wrote no `_ECGSEAMS.txt` beside this recording, so the seam count is unknown rather than zero';
+      } else if (ss.reason) {
+        st = 'not-read';
+        why = 'the reader ran and placed no row: ' + ss.reason;
+      } else {
+        st = 'read';
+      }
+    } else {
+      var acc = r && r.deviceACC;
+      if (!acc || !acc.length) {
+        st = 'not-applicable';
+        why = 'this recording carries no motion companion, so no motion sidecar can apply to it';
+      } else if (acc._runsSidecar) {
+        st = 'read';
+      } else {
+        st = 'absent';
+        why = 'a motion companion is loaded and the box wrote no `_ACCRUNS.txt` beside it';
+      }
+    }
+    return { key: row.key, file: row.file, label: row.label, state: st, reason: st === 'read' ? null : why };
+  }
+
+  /* THE TABLE ITSELF. `ex` is the export under construction, read for the one fact that lives there
+     rather than on `r`: the firmware cross-check, which is this node's only reference stream. */
+  function ecgSignalQuality(r, ex) {
+    r = r || {};
+    var rail = r.ecgRail || null,
+      terms = r.sqiTerms || null,
+      ax = r.hostAxis || null,
+      val = (ex && ex.validation) || null;
+    /* §3: coverage is NEVER absent — zero coverage is a real value — and reduced coverage ANNOTATES
+       (owner ruling 2026-09-17), so the gap count and the covered span travel beside the number. */
+    var ecgCov = _sqCell(r.coveragePct, '% of the beat span covered', 'no coverage figure: the beat series carries no span to divide by', {
+      gaps: r.nGaps != null ? r.nGaps : null,
+      activeMin: r.activeMin != null ? r.activeMin : null,
+      gapMin: r.gapMin != null ? r.gapMin : null,
+      spanMin: r.spanMin != null ? r.spanMin : null,
+      analyzablePct: r.analyzablePct != null ? r.analyzablePct : null
+    });
+    /* RAIL: the COUNT of samples at the file's own rail, not a share. §3 defines the fact as a share,
+       and this reshape carries no sample total to divide by (`durSec` is ACTIVE data seconds, :3348,
+       which is a different denominator) — so the honest cell is the number this node measured, with
+       the unit saying what it counts. `absent: true` is the file having no rail at all, which is a
+       measured third state and NOT a clean one (∅). */
+    var ecgRail = _sqCell(
+      rail && rail.absent ? null : rail ? rail.samples : null,
+      'samples at the rail over the whole record',
+      rail && rail.absent ? 'no-rail: this file holds no saturation rail, so no sample can sit at one' : 'no rail census ran on this recording',
+      { absent: rail ? rail.absent : null, lo: rail ? rail.lo : null, hi: rail ? rail.hi : null, mirrorLo: rail ? rail.mirrorLo : null, mirrorHi: rail ? rail.mirrorHi : null }
+    );
+    var ecgFlat = _sqCell(terms ? terms.flatBadPct : null, '% of assessed beats inside a flat run', 'no per-beat run census ran on this recording', {
+      n: terms ? terms.n : null,
+      source: 'the per-beat flat-run term of this node’s own beat score'
+    });
+    var ecgSqi = _sqCell(r.meanSQI, 'mean per-beat score, 0 to 1', 'no beat score ran on this recording', {
+      weights: '0.30·kSQI + 0.28·bSQI + 0.24·rrPlaus + 0.18·ampOK',
+      terms: terms ? { n: terms.n, kSQI: terms.kSQI, bSQI: terms.bSQI, rrPlaus: terms.rrPlaus, ampOK: terms.ampOK } : null,
+      cleanBeatPct: r.cleanBeatPct != null ? r.cleanBeatPct : null
+    });
+    /* TIMING: the cell's value is the RATE, because that is the one number a consumer spends. §7 of
+       the Clock Contract forbids quoting `ppm` without its anchor count and span, so both ride in the
+       cell, and `applied` says whether the correction actually reached `fs`. The resync count is a
+       SEPARATE fact this node always measures (it detects its own steps), so it sits beside the
+       value rather than under its reason. */
+    var ecgTiming = _sqCell(
+      ax && ax.ok ? ax.ppm : null,
+      'ppm of the device rate against the host axis',
+      ax && ax.inertReason ? ax.inertReason : 'no second clock on this input: one device clock, nothing to measure a rate against',
+      {
+        independent: ax ? ax.independent : null,
+        timingSource: ax && ax.timingSource ? ax.timingSource : r.hostAxis ? null : 'device',
+        spreadMs: ax ? ax.spreadMs : null,
+        anchors: ax ? ax.anchors : null,
+        applied: ax ? ax.applied : null,
+        spanPpm: ax && ax.spanPpm !== undefined ? ax.spanPpm : null,
+        maxStepMs: ax && ax.maxStepMs !== undefined ? ax.maxStepMs : null,
+        resyncs: Array.isArray(r.clockResyncs) ? r.clockResyncs.length : null,
+        fsRaw: r.fsRaw != null ? r.fsRaw : null,
+        fs: r.fs != null ? r.fs : null
+      }
+    );
+    /* REFERENCE: this node HAS one — the strap's own RR train (`validation`) — so the cell carries a
+       number rather than `no-reference`. The value is the median absolute interval difference, which
+       is not the MAE §3 names: the block computes a median, so the unit says median and `mae` stays
+       null with its own reason. Limits of agreement are not computed either, and say so. */
+    var al = (val && val.alignment) || null;
+    var ecgRef = _sqCell(
+      al ? al.medianAbsMs : null,
+      'ms, median absolute interval difference against the strap’s own RR',
+      val ? 'the cross-check ran and published no alignment' : 'no-reference: this recording carries no device RR train to compare against',
+      {
+        source: val ? val.source : null,
+        beatsCompared: val ? val.beatsCompared : null,
+        biasPct: val ? val.dMeanPct : null,
+        gapCutBeats: val ? val.gapCutBeats : null,
+        pairingDecays: al ? al.pairingDecays : null,
+        mae: null,
+        maeReason: 'not computed: the cross-check publishes a median absolute difference, not a mean',
+        loa: null,
+        loaReason: 'not computed: this node publishes no limits of agreement for the RR comparison'
+      }
+    );
+    var NO_ACC = 'this node ingests no motion channel on this recording';
+    var acc = r.deviceACC && r.deviceACC.length ? r.deviceACC : null;
+    var accBlank = acc && Array.isArray(acc._blankSpans) ? acc._blankSpans : null;
+    var accBlankMs = null;
+    if (accBlank) {
+      accBlankMs = 0;
+      for (var i = 0; i < accBlank.length; i++) {
+        var sp = accBlank[i];
+        var a = sp && (sp.length ? sp[0] : sp.startMs),
+          b = sp && (sp.length ? sp[1] : sp.endMs);
+        if (typeof a === 'number' && typeof b === 'number' && isFinite(a) && isFinite(b) && b > a) accBlankMs += b - a;
+      }
+    }
+    var accSpanMs = r.durSec != null && isFinite(r.durSec) ? r.durSec * 1000 : null;
+    var accFlatPct = accBlankMs != null && accSpanMs ? +((100 * accBlankMs) / accSpanMs).toFixed(3) : null;
+    /* THE MOTION CHANNEL. §3 asks for one row per input channel, and a table that showed only the ECG
+       would read as a claim that the ECG is the only stream this node takes. Most of its cells are
+       absences with named causes, which is the honest state and the reason the row belongs. The two
+       it can fill come from the BOX's own run census, so coverage and flatline are complements here
+       by construction — the comment says so rather than letting a reader read two measurements. */
+    var accCov = _sqCell(
+      accFlatPct != null ? +(100 - accFlatPct).toFixed(3) : null,
+      '% of the recording span outside the box’s held-value runs',
+      acc ? 'no `_ACCRUNS.txt` reached this node, so the covered share of the motion stream is unknown' : NO_ACC,
+      { blankMs: accBlankMs, spanMs: accSpanMs, samples: acc ? acc.length : null, fs: r.accFs != null ? r.accFs : null, complementOf: 'flatline' }
+    );
+    var accFlat = _sqCell(accFlatPct, '% of the recording span inside the box’s held-value runs', acc ? 'no `_ACCRUNS.txt` reached this node, so no run census applies to the motion stream' : NO_ACC, {
+      runs: accBlank ? accBlank.length : null,
+      source: 'the box’s run sidecar, not a census this node computes'
+    });
+    var NOT_MEASURED_SNR = 'not-measured: this node computes no in-band SNR for the ECG; the band edges are pre-stated before that measurement (brief §8)';
+    var NOT_MEASURED_MAINS = 'not-measured: this node computes no mains-hum ratio for any channel';
+    return {
+      /* The strip's grid, stated rather than implied: the per-window view aligns to the epochs the
+         HRV and staging code already use (§6), which on this node is 300 s. Kestrel's ruling of
+         2026-11-14 keeps that grid — a 300 s epoch holds exactly ten 30 s windows, so the
+         Combinator's common grid nests inside it and no node has to invent windows. */
+      epochSec: _SQ_EPOCH_SEC,
+      channels: {
+        ecg: {
+          stream: 'H10:ecg',
+          coverage: ecgCov,
+          rail: ecgRail,
+          flatline: ecgFlat,
+          snr: _sqCell(null, 'dB', NOT_MEASURED_SNR),
+          mains: _sqCell(null, 'ratio to in-band power', NOT_MEASURED_MAINS),
+          nodeSqi: ecgSqi,
+          timing: ecgTiming,
+          reference: ecgRef
+        },
+        acc: {
+          stream: 'H10:acc',
+          coverage: accCov,
+          rail: _sqCell(null, 'samples at the rail', acc ? 'not-measured: this node runs no rail census on the motion stream' : NO_ACC),
+          flatline: accFlat,
+          snr: _sqCell(null, 'dB', acc ? 'not-measured: this node computes no in-band SNR for the motion stream' : NO_ACC),
+          mains: _sqCell(null, 'ratio to in-band power', NOT_MEASURED_MAINS),
+          nodeSqi: _sqCell(null, 'mean per-beat score, 0 to 1', acc ? 'no-score: this node computes no quality score for the motion stream' : NO_ACC),
+          timing: _sqCell(
+            null,
+            'ppm of the device rate against the host axis',
+            acc ? 'no own axis: this node places motion samples against the ECG start, so the motion stream carries no rate of its own here' : NO_ACC
+          ),
+          reference: _sqCell(null, 'ms', 'no-reference: no second motion stream reaches this node')
+        }
+      },
+      sidecars: _ECG_SIDECAR_LEDGER.map(function (row) {
+        return _sqLedgerRow(row, r);
+      })
+    };
+  }
+
   function ecgBuildNodeExport(r, opts) {
     opts = opts || {};
     // EXPORT-IDENTITY §2.1: computed ONCE here and shared by recording.contentId and the measurement
@@ -49162,6 +49559,13 @@ __exports.PpgDex = window.PpgDex;
         lng = !!r.longRec;
       var _geom = baevskyGeom(r.nn); // Baevsky-SI inputs for the envelope (FOLLOWUP-FINDINGS P4)
       out.quality = { analyzablePct: nz(r.analyzablePct), cleanBeatPct: nz(r.cleanBeatPct), coveragePct: nz(r.coveragePct), ecgRail: r.ecgRail || null };
+      /* …AND THE SIGNAL-QUALITY TABLE BESIDE IT (SIGNAL-QUALITY-TABLE-2026-11-14 §4). `quality`
+         above is four headline numbers; this is the table a reader sees BEFORE the first result
+         card — one row per input channel, one cell per quality fact, and a ledger of every sidecar
+         the box can write for these streams. Additive and rich-gated, so the LIGHT Ganglior stream
+         the app emits does not move a byte and the change is MINOR. It reads `out.validation`,
+         which the light block above has already built, for the one reference fact this node holds. */
+      out.signalQuality = ecgSignalQuality(r, out);
       out.hrv = {
         time: {
           hr: nz(r.dispHr),
