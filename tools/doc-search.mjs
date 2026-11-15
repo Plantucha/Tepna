@@ -74,6 +74,20 @@
  * rather than erroring, because a search tool that is down is a search tool nobody uses — and the
  * fallback is the `grep` you would have run anyway.
  *
+ * ⚠️ A STALL IS NOT A REFUSAL, AND IT NEEDS ITS OWN BOUND. The degrade above fires on a THROW, and
+ * `fetch` throws at once only when the endpoint REFUSES the connection. Measured 2026-11-15: the
+ * router accepted the connection and never answered, because it sends every bge-m3 embed to a ROCm
+ * backend that starved under a training job (board #6287). Two runs of this tool printed nothing at
+ * all and ended at the caller's own 40 s and 60 s timeouts. Every embed now carries
+ * `embedTimeoutMs`, and a breach degrades into the same token lane under a NAMED reason, so the
+ * banner no longer reads "unreachable" over an endpoint that answered its TCP handshake. The bound
+ * is a floor of 90 s plus 20 s for every input past the first: the floor clears the 60 s a
+ * single-text CPU embed measured on 2026-11-04 by half as much again, and the per-input term clears
+ * that day's 3.8 s single-text GPU embed five times over. `DEX_EMBED_TIMEOUT_MS` and
+ * `DEX_EMBED_TIMEOUT_PER_INPUT_MS` move both, so a reader who wants the token lane at once sets
+ * `DEX_EMBED_TIMEOUT_MS=1`. A deadline cannot tell dead from slow (CLAUDE.md §4c): this bounds the
+ * WAIT and diagnoses no backend.
+ *
  *   node tools/doc-search.mjs "has anyone measured the equivalent mutant ceiling?"
  *   node tools/doc-search.mjs --no-map "…"      # without the repo-map lines (see below)
  *   node tools/doc-search.mjs --selftest
@@ -320,6 +334,13 @@ export function withTimeout(promise, ms, label) {
     t = setTimeout(() => reject(new Error(`${label} did not answer within ${ms} ms`)), ms);
   });
   return Promise.race([promise, bound]).finally(() => clearTimeout(t));
+}
+/* The lane line, as a pure text so a leg can read it: the banner is the one place a reader learns
+   WHICH lane answered, and before this unit it stated `embedder unreachable` over every embed
+   failure, including a host that answered its handshake and then said nothing. */
+export function laneBanner(semantic, reason, query) {
+  const lane = semantic ? 'semantic' : `TOKEN-FALLBACK (${reason || 'embedder unreachable'})`;
+  return `\n▸ ${lane} · "${query}"\n`;
 }
 /* The warning both lanes print after their hits — one text, so the two lanes cannot drift apart in
    what they tell a reader a result IS. */
@@ -674,15 +695,60 @@ export function embedRequest(model, inputs, cpu = embedOnCpu()) {
   return body;
 }
 
-async function embed(inputs) {
-  const res = await fetch(`${OLLAMA}/api/embed`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(embedRequest(EMBED_MODEL, inputs))
-  });
-  const j = await res.json();
-  if (!j.embeddings) throw new Error(j.error || 'no embeddings returned');
-  return j.embeddings;
+/* ── THE EMBED BOUND ───────────────────────────────────────────────────────────────────────────────
+   PRE-STATED, and never derived from the run it judges. `n` is the input count of ONE request, so a
+   large file's chunk batch earns its time instead of racing a single query's bound. Both terms cite
+   the measurements in this file's own header. */
+export function embedTimeoutMs(n, env = process.env) {
+  const floor = Number(env.DEX_EMBED_TIMEOUT_MS ?? 90_000);
+  const perInput = Number(env.DEX_EMBED_TIMEOUT_PER_INPUT_MS ?? 20_000);
+  const extra = Math.max(0, (Number.isFinite(n) ? n : 1) - 1);
+  return floor + perInput * extra;
+}
+
+/* NAMES what happened, so the token lane never borrows "unreachable" for a stall (CLAUDE.md §∅: a
+   named reason, never one taken from a neighbouring failure). */
+export function embedFailureReason(err, endpoint = OLLAMA) {
+  const name = err?.name || '';
+  /* The message ALONE when the throw carries one, because `String(new Error(''))` reads `Error` and
+     a banner naming the class of the failure names nothing a reader can act on. A thrown string has
+     no `message`, so it falls through to its own text. */
+  const msg = typeof err?.message === 'string' ? err.message : String(err ?? '');
+  if (msg.includes('did not answer within')) return msg;
+  if (name === 'TimeoutError' || name === 'AbortError') return `${endpoint} did not answer in time`;
+  const code = err?.cause?.code || '';
+  if (code === 'ECONNREFUSED' || msg.includes('ECONNREFUSED')) return `${endpoint} refused the connection`;
+  if (code === 'ENOTFOUND' || msg.includes('ENOTFOUND')) return `${endpoint} does not resolve`;
+  return msg || 'the embedder failed with no message';
+}
+
+async function embed(inputs, { timeoutMs = embedTimeoutMs(inputs.length), fetchImpl = fetch } = {}) {
+  /* An explicit controller, and never `AbortSignal.timeout`: THAT HELPER'S TIMER IS UNREF'D, so it
+     cannot fire in a realm whose only pending work is this request. Measured here on 2026-11-15 —
+     the first draft of the selftest leg below used it against an injected fetch, nothing else held
+     the loop, and Node printed `Detected unsettled top-level await` and left. A ref'd timer fires,
+     the signal frees the socket a stalled backend holds, and the `finally` clears the timer so it
+     never holds the process open. The reason travels ON the signal, so one text states the bound. */
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(new Error(`the embedder at ${OLLAMA} did not answer within ${timeoutMs} ms`)), timeoutMs);
+  try {
+    const res = await fetchImpl(`${OLLAMA}/api/embed`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(embedRequest(EMBED_MODEL, inputs)),
+      signal: ac.signal
+    });
+    const j = await res.json();
+    if (!j.embeddings) throw new Error(j.error || 'no embeddings returned');
+    return j.embeddings;
+  } catch (e) {
+    /* The breach decides, never the shape of what fetch threw: an abort surfaces as a DOMException
+       on one runtime and as the reason itself on another, and both must read as this bound. */
+    if (ac.signal.aborted) throw ac.signal.reason;
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 /* Incremental by CONTENT HASH. A brief that has not changed is not re-embedded, so the common case
@@ -817,15 +883,17 @@ async function buildIndex(quiet, scope = 'all') {
   }
   let embedded = 0;
   let live = true;
+  let embedFailure = null;
   for (const p of pending) {
     try {
       const vecs = await embed(p.chunks);
       cache.entries[p.file] = { h: p.h, vecs, c: CHUNKER };
       p.chunks.forEach((t, i) => entries.push({ file: p.file, text: t, vec: vecs[i] }));
       embedded += p.chunks.length;
-    } catch {
+    } catch (e) {
       /* embedder down mid-build: keep the chunk as text so the fallback can still score it */
       live = false;
+      embedFailure ??= embedFailureReason(e);
       p.chunks.forEach((t) => entries.push({ file: p.file, text: t, vec: null }));
     }
   }
@@ -837,9 +905,9 @@ async function buildIndex(quiet, scope = 'all') {
   }
   if (!quiet)
     process.stderr.write(
-      `  ${files.length} docs (${repo.length} repo · ${ext.length} external) · ${entries.length} chunks · ${embedded} newly embedded${live ? '' : ' · EMBEDDER DOWN, token fallback'}\n`
+      `  ${files.length} docs (${repo.length} repo · ${ext.length} external) · ${entries.length} chunks · ${embedded} newly embedded${live ? '' : ` · EMBEDDER DOWN (${embedFailure}), token fallback`}\n`
     );
-  return { entries, live };
+  return { entries, live, embedFailure };
 }
 
 /* 🔴 IDENTITY, NOT FILENAME. This was `process.argv[1].endsWith('doc-search.mjs')`, and a peer
@@ -1333,6 +1401,41 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
     }
     ok('withTimeout rejects a silent answer and names what did not answer', msg === 'hybrid index did not answer within 5 ms');
   })();
+  await (async () => {
+    /* THE EMBED BOUND. The degrade lane fires on a THROW, and before this unit nothing bounded the
+       embed, so an endpoint that accepted the connection and never answered hung the tool with no
+       output at all. Every leg here runs in milliseconds, because the bound is injectable. */
+    const env = {};
+    ok('the bound is pre-stated and clears the measured single-text CPU embed', embedTimeoutMs(1, env) === 90_000);
+    ok('…and buys time for every input past the first', embedTimeoutMs(3, env) === 130_000);
+    ok('…and a reader can tighten it to reach the token lane at once', embedTimeoutMs(1, { DEX_EMBED_TIMEOUT_MS: '1' }) === 1);
+    ok('a non-finite input count costs the floor alone', embedTimeoutMs(undefined, env) === 90_000);
+    /* The CONTROL for the two legs below: a healthy embedder must still answer through this path. */
+    const healthy = () => Promise.resolve({ json: async () => ({ embeddings: [[1, 2]] }) });
+    ok('a healthy embedder still returns its vectors', JSON.stringify(await embed(['x'], { timeoutMs: 50, fetchImpl: healthy })) === '[[1,2]]');
+    /* A stall, not a refusal: this fetch accepts and answers nothing, and it honours the signal the
+       request now carries. Without that signal the promise never settles and this leg hangs. */
+    const stalling = (_u, o) => new Promise((_, reject) => o.signal.addEventListener('abort', () => reject(o.signal.reason)));
+    let stalled = null;
+    try {
+      await embed(['x'], { timeoutMs: 20, fetchImpl: stalling });
+    } catch (e) {
+      stalled = e.message;
+    }
+    ok('a server that accepts and never answers breaches the bound', stalled === `the embedder at ${OLLAMA} did not answer within 20 ms`, String(stalled));
+    ok('…and the token lane repeats that reason rather than borrowing "unreachable"', embedFailureReason(new Error(stalled)) === stalled);
+    const err = (code) => Object.assign(new Error('fetch failed'), { cause: { code } });
+    ok('a refused connection keeps its own reason', embedFailureReason(err('ECONNREFUSED'), 'http://h') === 'http://h refused the connection');
+    ok('an unresolvable host keeps its own reason', embedFailureReason(err('ENOTFOUND'), 'http://h') === 'http://h does not resolve');
+    ok('a bare abort still reads as a timeout', embedFailureReason(Object.assign(new Error('aborted'), { name: 'TimeoutError' }), 'http://h') === 'http://h did not answer in time');
+    ok('an unknown failure keeps its message rather than inventing a cause', embedFailureReason(new Error('no embeddings returned')) === 'no embeddings returned');
+    ok('a failure with no message at all still names itself', embedFailureReason(new Error('')) === 'the embedder failed with no message');
+    ok('…and never names the CLASS of the failure instead', embedFailureReason(new Error('')) !== 'Error');
+    ok('a thrown string keeps its own text', embedFailureReason('boom') === 'boom');
+    ok('the banner names the stall it degraded on', laneBanner(null, 'http://h did not answer within 20 ms', 'q').includes('TOKEN-FALLBACK (http://h did not answer within 20 ms)'));
+    ok('…and keeps the old wording when no reason reached it', laneBanner(null, null, 'q').includes('TOKEN-FALLBACK (embedder unreachable)'));
+    ok('…and says nothing about a lane the embedder answered', laneBanner([1], null, 'q').includes('semantic') && !laneBanner([1], null, 'q').includes('FALLBACK'));
+  })();
   ok(
     'both lanes print ONE read-warning text (it cannot drift between them)',
     readWarningLines().some((l) => l.includes('PATHS TO READ')) && readWarningLines().some((l) => l.includes('ADJACENCY IS NOT EQUIVALENCE'))
@@ -1398,13 +1501,17 @@ if (IS_MAIN && !process.argv.includes('--selftest')) {
     console.error('  one answer this tool must never fake. Fix the corpus rather than trusting the silence.');
     process.exit(2);
   }
-  const { entries, live } = await buildIndex(process.argv.includes('--quiet'), scope);
+  const { entries, live, embedFailure } = await buildIndex(process.argv.includes('--quiet'), scope);
   let qv = null;
+  /* The build's own failure carries forward: when it could not embed, this lane never asks again, so
+     without this the banner would name no reason at all for the lane the reader landed in. */
+  let fallbackReason = embedFailure;
   if (live) {
     try {
       qv = (await embed([query]))[0];
-    } catch {
+    } catch (e) {
       qv = null;
+      fallbackReason = embedFailureReason(e);
     }
   }
   /* THE SAME CAP IN THE FALLBACK LANE. A rule that binds only the lane that usually answers is a
@@ -1417,7 +1524,7 @@ if (IS_MAIN && !process.argv.includes('--selftest')) {
   const deferred = wantSuperseded(process.argv) ? deferSuperseded(ranked, 8) : { hits: ranked, supersededHeld: 0, supersededBy: [], unreadable: [] };
   const capped = wantBoardCap(process.argv) ? capSourceShare(deferred.hits, 8) : { hits: deferred.hits.slice(0, 8), held: 0 };
   const hits = capped.hits;
-  console.log(`\n▸ ${qv ? 'semantic' : 'TOKEN-FALLBACK (embedder unreachable)'} · "${query}"\n`);
+  console.log(laneBanner(qv, fallbackReason, query));
   if (capped.held > 0) console.log(`  ⚠ ${capped.held} board post(s) held below the share cap (at most ${capMax(8)} of 8) — \`--board-all\` ranks them with everything else\n`);
   if (deferred.supersededHeld > 0)
     console.log(`  ⚠ ${deferred.supersededHeld} replaced source(s) held below their successors (${deferred.supersededBy.join(', ')}) — \`--keep-superseded\` ranks them where they scored\n`);
