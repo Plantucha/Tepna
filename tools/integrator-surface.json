@@ -176,6 +176,65 @@
    "notes": "`obstructive` and `central` are permanently null by the INTEGRATOR-APNEA-TYPING-REVIEW-2026-07-22 withdrawal, and `typingWithdrawn` states that with a machine-readable `withdrawnReason`. So two of the twelve keys carry an absence by ruling and not by a measurement gap, and the gate judges the SURFACE of each one, never its value.",
    "depthNote": "This subtree needed the `routes` list. One source form reads one route, and the two routes here differ in form: a returned variable and a guarded literal. `inlineShape`, `nestedShapes` and `exportMapShape` each returned null on 2026-11-13, so the subtree had no shape at all under the three readers that existed."
   },
+  "autoGly": {
+   "builtBy": "fuseAutonomicGlycemic",
+   "enumeratedWith": "the depth-1 keys of the single `return {` inside fuseAutonomicGlycemic(), at integrator-dsp.js:2897 — 6 keys, one return shape, so no key here rides a branch. Read from SOURCE in blanked code on 2026-11-15. The builder holds two more returns of a VALUE, at :2889 and :2895, and both sit in a predicate callback that `nestedShapes` excludes from the builder's own shape. The two export routes DISAGREE on this key. The full export writes `autoGly: autoGly` at :7985, and the slim `var _exp = {` projection attaches no `autoGly` key at all: it reads ONE member at :8126 and :8127, renamed twice, inside `glucodex_ready.glucose_autonomic_correlation` and `ecgdex_ready.glucoseCorrelation`. So a slim-export consumer receives `glucoseAutonomicCorrelation` under two other names and never meets the other five keys.",
+   "readAs": "an anchored read: `<alias>.<key>` inside the enclosing function of a site that binds the whole path, or a read through the whole path itself. integrator-render.js binds `var ag = fusion.autoGly` at :1060 and reads `ag.<key>` inside that scope, and it also reads `fusion.autoGly.<key>` directly at :521 and :522. integrator-app.js and overdex-app.js name `autoGly` zero times, so this subtree's whole reader surface sits in the render layer.",
+   "seededFrom": "Hand-checked on 2026-11-15 against the builder and all three reader realms, from the read sites and never from a token match. The bare-token trap is live here twice, and both traps hit the ELEMENT layer. `integrator-render.js:416` and `:1416` read `.overlapMin` off an overlap-window object, and `integrator-app.js:651` reads `.glucoseCV` off a GlucoDex row. Neither object is an autoGly pair, so a token reader would call two export-only element keys card. Held against a positive control on the same scan: `directional`, `ecg`, `glu`, `slope` and `dawnSurge` have zero property-access hits in all three realms.",
+   "nullWhen": "three guards, and each one states its own reason. `integrator-dsp.js:2841` refuses when either node contributed no record, `:2869` refuses when no night overlaps, and the export site at `:7821` writes null when `anyOverlap` is false. So an absent coupling is never a zero.",
+   "exportOnlyWhy": "`directional` is the fallback estimate the builder folds into `glucoseAutonomicCorrelation` at :2893, so the render layer reads the fused value and never the input. It rides the export for a consumer that must tell a one-night direction from a correlation.",
+   "depthNote": "`pairs` holds objects, so this subtree owns an element layer, which the `elements` block below declares. The element keys are flat: no member of a pair holds an object, so nothing here sits deeper than the declaration reaches. The DEPTH is not the limit here, the HOP is. One element read sits past an array variable the walk does not cross, and `elementReadsUnjudged` reads 0 with an empty where-list, so the walk does not report the read it missed. `exportOnlyWhy` on the element names the line.",
+   "surfaces": {
+    "pairs": "card",
+    "r": "card",
+    "directional": "export-only",
+    "glucoseAutonomicCorrelation": "card",
+    "n": "card",
+    "note": "card"
+   },
+   "notes": {
+    "pairs": "integrator-render.js:1062 — `(ag.pairs || []).filter` opens the windowed-coverage sentence",
+    "r": "integrator-render.js:522 and :1084 — the card prints `r` or the word directional, so the key decides the unit label",
+    "directional": "no realm reads it off this holder. See exportOnlyWhy",
+    "glucoseAutonomicCorrelation": "integrator-render.js:521, :522 and :1084 — the KPI and the finding card both print it",
+    "n": "integrator-render.js:522 — the KPI sublabel names the night count beside the r",
+    "note": "integrator-render.js:1085 — the card body is this note plus the windowed-coverage sentence"
+   },
+   "elements": {
+    "pair": {
+     "servesKeys": [
+      "pairs"
+     ],
+     "builtBy": "fuseAutonomicGlycemic",
+     "pushInto": "pairs",
+     "enumeratedWith": "the depth-1 keys of the ONE `pairs.push({` literal inside fuseAutonomicGlycemic(), at integrator-dsp.js:2866, read by `pushShapes`. One site, 8 keys, and no partial key: every pair a consumer meets carries all eight. The literal is one line and sits inside a nested `.forEach` within the builder, so the shape is scoped by the ARRAY name and not by the enclosing function.",
+     "readAs": "an anchored ELEMENT read: a callback bound on `<alias-or-whole-path>.pairs.<iterator>(…)` in a declared realm, and a read of that callback's own parameter inside the call. integrator-render.js:1063 binds `p` on `(ag.pairs || []).filter`, and :1067 binds a second `p` on `.map`, where `ag` is the alias bound at :1060.",
+     "seededFrom": "hand-checked line by line on 2026-11-15 over integrator-render.js:1062-1078. It reads `p.windowed` at :1063 and `p.coverage` at :1068, and it reads no other key off a pair. No second realm reads this subtree at all. The two bare-token traps that `seededFrom` names above both land on keys of THIS literal.",
+     "exportOnlyWhy": "`coverage` is the one cell here that UNDERSTATES the key, and the gate measured it rather than me. integrator-render.js:1068 reads `p.coverage`, but the callback is bound on `wp`, the variable the filter at :1062 assigns, and not on `ag.pairs` itself. The element walk credits a callback bound on the PATH and refuses a filtered copy held in a variable, so the anchored test reaches this key 0 times and `card` reds the gate. The other five export-only cells here are read nowhere at all, which is why this one carries its own sentence. The remaining six keys of the pair are genuinely unread: `ecg`, `glu`, `overlapMin`, `slope`, `glucoseCV` and `dawnSurge`.",
+   "shapeNote": "a multi-line literal at a push site, read by `pushShapes`. `mapShapes` cannot reach it: the declaration statement is the bare `var pairs = [];` at :2842, which holds no `.map(` at all, and I measured `null` from that reader on 2026-11-15.",
+     "surfaces": {
+      "ecg": "export-only",
+      "glu": "export-only",
+      "overlapMin": "export-only",
+      "slope": "export-only",
+      "glucoseCV": "export-only",
+      "dawnSurge": "export-only",
+      "coverage": "export-only",
+      "windowed": "card"
+     },
+     "notes": {
+      "ecg": "which ECGDex recording the night paired. No realm reads it off an element",
+      "glu": "which GlucoDex recording the night paired, so two files of one node stay distinct",
+      "overlapMin": "how many minutes the two recordings share. A token reader credits this on integrator-render.js:416 and :1416, where the property belongs to an overlap-window object and not to a pair",
+      "slope": "the ECG autonomic-instability slope, one of the two correlated axes",
+      "glucoseCV": "the CGM glucose coefficient of variation over the exact overlap window. A token reader credits this on integrator-app.js:651, where the property belongs to a GlucoDex row",
+      "dawnSurge": "the dawn-surge estimate for that night. It rides the export and reaches no render surface",
+      "coverage": "integrator-render.js:1068 READS it, and the cell still says export-only. See exportOnlyWhy: the read sits one array-variable hop past where the element walk looks",
+      "windowed": "integrator-render.js:1063 — the filter that decides whether the windowing sentence appears at all"
+     }
+    }
+   }
+  },
   "cvhrCorroboration": {
    "builtBy": "fuseCvhrCorroboration",
    "enumeratedWith": "the depth-1 keys of EVERY `return {` inside fuseCvhrCorroboration(), unioned \u2014 11 on the refusal route at integrator-dsp.js:3667 and 10 on the measured path at :3703. Read from SOURCE in blanked code on 2026-11-15. The builder also holds two `.map` callback returns, at :3677 and :3695, and both sit in a callback scope that `nestedShapes` excludes from the builder's own shape. Both export routes carry the key: the full export writes `cvhrCorroboration: cvhrCorroboration` at :7991 and the slim `var _exp = {` projection attaches it at :8135, so depth 2 agrees with depth 1 here.",
