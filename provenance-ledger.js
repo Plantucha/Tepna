@@ -31,7 +31,7 @@
   // the trio fold's run-level record). They are deliberately NOT assembled here: they carry no
   // manifestHash and no fixtures, so GATE A and GATE B have nothing to read in them. `tests/
   // verify-manifest.mjs` P3 is their only reader, and it checks the declaration AND the shape.
-  var APPS = ['ECGDex', 'OxyDex', 'PulseDex', 'GlucoDex', 'PpgDex', 'HRVDex', 'CPAPDex', 'Integrator', 'MotionDex'];
+  var APPS = ['ECGDex', 'OxyDex', 'PulseDex', 'GlucoDex', 'PpgDex', 'HRVDex', 'CPAPDex', 'Integrator', 'MotionDex', 'EEGDex'];
 
   // A fragment file is `provenance/<App>.json` = { bundle:'<App>.html', manifestHash, fixtures:{…} }.
   // `meta` is `provenance/_meta.json` = { buildManifest:{…_keys}, fixtureProvenance:{…_keys} } — the
