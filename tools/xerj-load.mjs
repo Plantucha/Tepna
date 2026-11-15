@@ -37,6 +37,11 @@
  * mode will not attest a remote provider's assets, and its own embedder is MiniLM), so vectors come
  * from OUR cache, already computed by doc-search against Ollama. `--embed-mode neural` would fetch a
  * model and is never used here.
+ *
+ * JUDGE-ROOT READING (2026-11-15, brief WRITE-ROOT-ADOPTION §6.4): THIS TOOL JUDGES NO TREE. The one
+ * child it spawns asks `git rev-parse` for a commit stamp at the tool root, and that stamp names the code
+ * which produced the verdict, so it is right in the checkout of the tool itself. The judge-root wrapper is
+ * not owed here, and `tools/write-root-adoption.json` carries the row under `arms.judge.exempt`.
  */
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
