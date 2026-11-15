@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="09dd21a7191f" data-compute-hash="ae0200a4dbb4">
+<html lang="en" data-manifest-hash="c80915320196" data-compute-hash="7200daa64287">
 <head>
 <!--
   EEGDex.src.html — Tepna
@@ -12,7 +12,7 @@
 <!-- CSP: browser-enforces the no-network invariant. connect-src 'none' blocks every outbound request;
      script-src is STRICT ('self' + per-inline-script sha256, NO 'unsafe-inline'). EEGDex ships zero
      inline scripts (all init lives in eegdex-app.js), so the hash list is empty by construction. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+5s/308ZZHLhEYgoeaMWJ/zCs2ZUakeHuo1fhny95Bc=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-K7+uIbG5ZqPm405RoRfCVCG+Q2LLPZtHsZfR8aQyP8M=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-fTkS5jp3xmv5CYiCspi5NZl92KO6nQFF1mjPXP6knro=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-zNrW85hAqNGql/xLaI8/ruXZeyqkmumE0Jh22zrFop0='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+5s/308ZZHLhEYgoeaMWJ/zCs2ZUakeHuo1fhny95Bc=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-K7+uIbG5ZqPm405RoRfCVCG+Q2LLPZtHsZfR8aQyP8M=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-MnXTv6kv46M/aPbQteDX46rsvkh+fEyowT40+T8SmXM=' 'sha256-OOgx+3gx3OnpcM6eFaCjaQj4cKHo5EJO9WRJg98/EPg=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-R6Dc/xXQzYFveWsVfbGSg8lpp98pG2dIwLNGGu4Pc04=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-zNrW85hAqNGql/xLaI8/ruXZeyqkmumE0Jh22zrFop0='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>EEGDex — Sleep EEG Analyzer · v2.32.0</title>
@@ -6030,6 +6030,1323 @@ global.EegRegistry = {
   }
 })(typeof window !== 'undefined' ? window : null);
 </script>
+<script data-inline-src="clock.js">/*
+ * clock.js — Tepna
+ * Copyright 2026 Michal Planicka
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+ * project root, or http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * THE Clock Contract parser — single-sourced (A5, owner-ratified 2026-07-03;
+ * OWN-THE-BUILD-FOLLOWUPS-2026-07-03-BRIEF §3). Extracted VERBATIM from the canonical
+ * per-node mirror (the byte-identical block pulsedex/ecgdex/integrator carried; hrvdex's
+ * commented copy; oxydex's was the same minus the unused _ckP2). The owned bundler inlines
+ * this ONE file into every bundle, so it stays bundled-local AND single-source — the
+ * copy-paste mirror + its drift risk are retired.
+ *
+ * Contract (CLAUDE.md §🔒): floating wall-clock tMs via Date.UTC on components-as-written;
+ * zoned ISO authoritative; explicit vendor regexes (never locale Date.parse); DMY/MDY §3;
+ * time-only rows anchor+roll; NEVER fabricate now() — miss ⇒ null.
+ *
+ * Adopters delegate via local aliases (var parseTimestamp = DexClock.parseTimestamp; …)
+ * inside their IIFE — public surfaces (ECGDSP.parseTimestamp, bare re-export tails) are
+ * unchanged. NODE-LOCAL VARIANTS THAT STAY (deliberate, do not force onto DexClock):
+ * ppgdex-dsp.js (strict ISO/epoch subset + quote-stripping), glucodex-dsp.js (_ckParse +
+ * numeric-returning MDY wrapper), cpapdex-dsp.js (EDF-subset). Load clock.js BEFORE any
+ * delegating *-dsp.js (dex-coload.js enforces host membership).
+ */
+(function (root) {
+  'use strict';
+
+  function tzOffset(instantMs) {
+    return new Date(instantMs).getTimezoneOffset() * 60000;
+  }
+  function _ckP2(n) {
+    return n < 10 ? '0' + n : '' + n;
+  }
+  function _ckNumEpoch(n) {
+    if (!isFinite(n)) return null;
+    if (n < 1e11) n = n * 1000; // 10-digit (or smaller) → seconds → ms
+    if (n < 1e11 || n > 4e12) return null; // implausible epoch range
+    var off = tzOffset(n);
+    /* §1 grants `offsetMin` only when the INPUT states a zone, and a numeric epoch states none. Reading
+       the parsing machine's own offset here made one stamp carry 840 in Kiritimati and -240 in New York,
+       and that number reached the export. The floating conversion stays, because §2.1 names the local
+       zone at parse time for the `tMs` half alone. */
+    return { tMs: n - off, offsetMin: null };
+  }
+  function _ckZoneMin(z) {
+    var zs = z.replace(':', '');
+    var sign = zs[0] === '-' ? -1 : 1;
+    return sign * (parseInt(zs.slice(1, 3), 10) * 60 + parseInt(zs.slice(3, 5), 10));
+  }
+  /* Contract §3 — decide day vs month from the first two slash fields.
+   `locked` (from resolveDMY) means the ORDER WAS PROVEN FOR THIS FILE: apply it unconditionally, so a
+   single row can no longer flip the order mid-file. A row the lock cannot explain (its month field lands
+   outside 1..12) is a contradiction, and a contradiction is null — never a guess.
+   Unlocked (no pre-scan) keeps the historical per-call behavior for back-compat. */
+  function _ckDMY(a, b, preferDMY, locked) {
+    if (locked) {
+      var ld = preferDMY ? a : b,
+        lmo = preferDMY ? b : a;
+      return lmo >= 1 && lmo <= 12 && ld >= 1 && ld <= 31 ? { d: ld, mo: lmo } : null;
+    }
+    if (a > 12) return { d: a, mo: b };
+    if (b > 12) return { d: b, mo: a };
+    return preferDMY ? { d: a, mo: b } : { d: b, mo: a };
+  }
+
+  /* Contract §3, the FILE-LEVEL lock: "Any row with day-component > 12 ⇒ file is unambiguous; lock that
+   order for the whole file … Never switch order mid-file."  Scan every stamp ONCE up front:
+     a row whose 1st slash field > 12 PROVES DMY · a row whose 2nd field > 12 PROVES MDY.
+   Both proofs present ⇒ the file contradicts itself ⇒ refuse (contradictory:true) rather than guess.
+   Neither ⇒ genuinely ambiguous ⇒ fall back to the caller's preferDMY, unlocked.
+   Pass the result into parseTimestamp as { preferDMY: r.dmy, dmyLocked: r.locked }.
+   Only the two ambiguous vendor shapes are scanned (4a "HH:MM:SS D/M/Y" and 4c "D/M/Y HH:MM"); ISO and
+   YYYY/MM/DD carry no ambiguity. */
+  function resolveDMY(rawStamps, preferDMY) {
+    var pref = preferDMY !== false,
+      sawDMY = false,
+      sawMDY = false;
+    var RE_A = /^(\d{1,2}):(\d{2}):(\d{2})\s+(\d{1,2})\/(\d{1,2})\/(\d{4})$/; // 4a — O2Ring
+    var RE_C = /^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/; // 4c — Welltory etc.
+    var list = rawStamps || [];
+    for (var i = 0; i < list.length; i++) {
+      var s = list[i];
+      if (typeof s !== 'string') continue;
+      s = s.trim().replace(/^["']|["']$/g, '');
+      var a = null,
+        b = null;
+      var mA = s.match(RE_A);
+      var mC = mA ? null : s.match(RE_C);
+      if (mA) {
+        a = +mA[4];
+        b = +mA[5];
+      } else if (mC) {
+        a = +mC[1];
+        b = +mC[2];
+      } else continue;
+      if (a > 12) sawDMY = true;
+      if (b > 12) sawMDY = true;
+      if (sawDMY && sawMDY) break; // contradiction proven — no need to scan further
+    }
+    if (sawDMY && sawMDY) return { dmy: pref, locked: false, contradictory: true };
+    if (sawDMY) return { dmy: true, locked: true, contradictory: false };
+    if (sawMDY) return { dmy: false, locked: true, contradictory: false };
+    return { dmy: pref, locked: false, contradictory: false };
+  }
+
+  // DEEP-AUDIT-II §12.3 — Clock Contract amendment. Date.UTC SILENTLY ROLLS out-of-range components
+  // (month 13 → next January, day 45 → next month, 25:99 → +1 day 1 h 39 m), so a corrupt stamp used to
+  // land on a plausible WRONG instant instead of an honest null. `_ckMk` builds the floating tMs ONLY if
+  // every component is in range: the date must round-trip (rejects month>12, day>31, Feb 30, Apr 31…) and
+  // the time must be 0–23 : 0–59 : 0–59 . 0–999. The ONE legitimate overflow is ISO-8601 `24:00:00`
+  // (end-of-day) — normalized to next-day 00:00, NOT rejected (do not add a bare `h>23` guard). Returns
+  // a number, or null on any out-of-range component (Clock §2.6 — a bad stamp is visible, never fabricated).
+  // §1.2 — a backwards step smaller than this is DISORDER (duplicate/jittered row), not a midnight
+  // wrap; a genuine wrap is ~23 h backwards. See the roll site in step 5 for why 1 s is not enough.
+  var CK_ROLL_SLACK_MS = 43200000; // 12 h
+  function _ckMk(y, mo0, d, h, mi, se, ms) {
+    se = se || 0;
+    ms = ms || 0;
+    var day0 = Date.UTC(y, mo0, d),
+      dd = new Date(day0);
+    if (dd.getUTCFullYear() !== y || dd.getUTCMonth() !== mo0 || dd.getUTCDate() !== d) return null; // date rolled ⇒ invalid
+    if (h === 24 && mi === 0 && se === 0 && ms === 0) return day0 + 86400000; // ISO end-of-day → next 00:00:00
+    if (h < 0 || h > 23 || mi < 0 || mi > 59 || se < 0 || se > 59 || ms < 0 || ms > 999) return null;
+    return Date.UTC(y, mo0, d, h, mi, se, ms);
+  }
+
+  function parseTimestamp(raw, opts) {
+    opts = opts || {};
+    var preferDMY = opts.preferDMY !== false; // default true (O2Ring/Welltory exports are DMY)
+    var dmyLocked = opts.dmyLocked === true; // set by resolveDMY — the order is proven for this file
+    /* §1.1 — THE FILE CONTRADICTS ITSELF. `resolveDMY` detects this and returns `contradictory:true`,
+       and the doc-comment above has always said "refuse rather than guess" — but the flag was computed
+       and thrown away by every caller, so the file silently fell back to the caller's PREFERENCE. One
+       anomalous row moved a proven-MDY O2Ring night 2026-06-12 → 2026-12-06, with the date, t0Ms,
+       exportName(), the crossnight axis and the Integrator's date join all confidently wrong.
+       We refuse the ROW, not the FILE: only the two AMBIGUOUS slash shapes (4a/4c) return null, because
+       only they depend on the unresolvable order. An ISO, epoch, 14-digit or time-only stamp in the same
+       file is not ambiguous and still parses. Punishing unambiguous rows for their neighbours' sins
+       would be its own kind of dishonesty. */
+    var dmyContradictory = opts.dmyContradictory === true;
+    var anchor = opts.dateAnchorMs != null && isFinite(opts.dateAnchorMs) ? opts.dateAnchorMs : null;
+    if (raw == null) return null;
+    if (typeof raw === 'number') return _ckNumEpoch(raw);
+    var s = String(raw)
+      .trim()
+      .replace(/^["']|["']$/g, '');
+    if (!s) return null;
+    var m;
+    // 1. all-digits epoch (ms or s) — but not a 14-digit YYYYMMDDHHMMSS run (step 4b)
+    if (/^\d{10,13}$/.test(s)) return _ckNumEpoch(parseInt(s, 10));
+    // 2. ISO-8601 WITH explicit zone (Z or ±HH:MM): zone authoritative, re-express as local wall clock
+    m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{1,2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3})\d*)?)?\s*(Z|[+-]\d{2}:?\d{2})$/);
+    if (m) {
+      var off = m[8] === 'Z' ? 0 : _ckZoneMin(m[8]);
+      var _tz = _ckMk(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], m[6] ? +m[6] : 0, m[7] ? +(m[7] + '00').slice(0, 3) : 0);
+      return _tz == null ? null : { tMs: _tz, offsetMin: off };
+    }
+    // 3. ISO / "YYYY-MM-DD[ T]HH:MM[:SS][.sss]" NO zone → components verbatim (ms preserved)
+    m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{1,2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3})\d*)?)?$/);
+    if (m) {
+      var _ti = _ckMk(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], m[6] ? +m[6] : 0, m[7] ? +(m[7] + '00').slice(0, 3) : 0);
+      return _ti == null ? null : { tMs: _ti, offsetMin: null };
+    }
+    // 4a. "HH:MM:SS DD/MM/YYYY" | "HH:MM:SS MM/DD/YYYY" (O2Ring)
+    m = s.match(/^(\d{1,2}):(\d{2}):(\d{2})\s+(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (m) {
+      if (dmyContradictory) return null; // §1.1 — the file's day/month order is unresolvable; this SHAPE cannot be read
+      var dm = _ckDMY(+m[4], +m[5], preferDMY, dmyLocked);
+      if (!dm) return null; // row contradicts the file's proven order → honest null
+      var _to = _ckMk(+m[6], dm.mo - 1, dm.d, +m[1], +m[2], +m[3]);
+      return _to == null ? null : { tMs: _to, offsetMin: null };
+    }
+    // 4b. compact "YYYYMMDDHHMMSS" (14-digit, O2Ring filename embed)
+    m = s.match(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})$/);
+    if (m) {
+      var _tc = _ckMk(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]);
+      return _tc == null ? null : { tMs: _tc, offsetMin: null };
+    }
+    // 4c. "DD/MM/YYYY HH:MM[:SS]" | "MM/DD/YYYY HH:MM[:SS]" (Welltory etc.)
+    m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+    if (m) {
+      if (dmyContradictory) return null; // §1.1 — the file's day/month order is unresolvable; this SHAPE cannot be read
+      var dm2 = _ckDMY(+m[1], +m[2], preferDMY, dmyLocked);
+      if (!dm2) return null; // row contradicts the file's proven order → honest null
+      var _tw = _ckMk(+m[3], dm2.mo - 1, dm2.d, +m[4], +m[5], m[6] ? +m[6] : 0);
+      return _tw == null ? null : { tMs: _tw, offsetMin: null };
+    }
+    // 4d. "YYYY/MM/DD HH:MM[:SS]"
+    m = s.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+    if (m) {
+      var _ty = _ckMk(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], m[6] ? +m[6] : 0);
+      return _ty == null ? null : { tMs: _ty, offsetMin: null };
+    }
+    // 5. Time-only "HH:MM[:SS]" → combine with dateAnchorMs, monotonic roll-forward
+    m = s.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+    if (m) {
+      if (anchor == null) return null; // never fabricate Jan-1-2000
+      var d0 = new Date(anchor);
+      var t = _ckMk(d0.getUTCFullYear(), d0.getUTCMonth(), d0.getUTCDate(), +m[1], +m[2], m[3] ? +m[3] : 0);
+      if (t == null) return null; // §12.3 — an out-of-range time-only stamp (e.g. 25:99) → honest null
+      if (opts.prevTMs != null && isFinite(opts.prevTMs)) {
+        /* MIDNIGHT ROLL NEEDS REAL SLACK (DEEP-AUDIT-III §1.2). A bare `t < prevTMs` treats ANY
+           backwards step as a midnight wrap, so ONE duplicated row turned a 120-minute night into a
+           claimed 1560 minutes and collapsed SBII 13× — while start/end still read correctly and
+           `clockNonMonotonic` stayed false, because OxyDex's guard only catches a NEGATIVE span.
+           The two in-repo siblings (`oxydex-fusion.js:42`, `cpapdex-coimport.js:49`) use a 1-second
+           tolerance, and the audit's own fix sketch proposed the same — but executing it disproved
+           it: with −1 s only a 1-second blip is absorbed, and 2 s, 5 s, 60 s and 3600 s all still
+           rolled a whole day. A real wrap is ~23 h backwards. The threshold therefore has to be a
+           FRACTION OF A DAY, not a jitter allowance: roll only when the step back is larger than any
+           plausible clock disorder within one recording. 12 h is the natural split — it is the
+           largest backwards step that cannot be a wrap (a wrap is ≥ ~23 h) and the smallest that no
+           duplicated/jittered row can reach. */
+        while (t < opts.prevTMs - CK_ROLL_SLACK_MS) t += 86400000;
+      }
+      return { tMs: t, offsetMin: null };
+    }
+    // 6. Fallback — NEVER now(). A missing stamp stays visible (null).
+    return null;
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════════════════
+  //  FILENAME STAMP — fileStamp()            (Clock Contract §4, anchor source (2))
+  // ══════════════════════════════════════════════════════════════════════════════════════
+  //  `YYYYMMDDHHMMSS` — or the Polar-Sensor-Logger split `YYYYMMDD_HHMMSS` — lifted out of a capture
+  //  filename as floating wall-clock ms. §4 names the filename as anchor source (2), and until now no
+  //  one owned it: six call sites had each grown a regex, and four of the six built the instant with a
+  //  bare `Date.UTC` over digit slices. §2.7 forbids that, for the reason `oxydex-dsp.js` measured
+  //  before it fixed its own two: `20261332999999` (month 13, day 32) rolls to a night dated
+  //  2027-02-01, and `99999999999999` to 10007-06-07 — a fabricated date, read off a filename, with
+  //  nothing flagged.
+  //
+  //  THREE rules, each one a defect the fleet already paid for:
+  //   · SCAN FROM THE RIGHT. The stamp is the token before the stream tag. A device id can itself be
+  //     14 digits (`Polar_H10_20250101000000_20260725225058_ECG.txt`), and a left-to-right search
+  //     keys that file to a session eighteen months away instead of falling back to mtime
+  //     (`capture-host/writers.py file_stamp`, audit F5). The JS twin of that bug ate an 8-digit
+  //     serial as year 0292 (DEEP-AUDIT-II §10.5).
+  //   · BOUND THE DIGIT RUN. A bare `/(\d{14})/` takes the first fourteen digits of a LONGER run, so
+  //     a 15-digit id yields a stamp that is wrong by a decade and parses cleanly. Splitting the name
+  //     on non-digits makes every candidate a MAXIMAL run, which is the rule stated directly: a stamp
+  //     is fourteen digits with a non-digit on each side, never a window inside a longer number.
+  //   · VALIDATE, then require a plausible year. The candidate goes through `parseTimestamp`'s 14-digit
+  //     branch, so `_ckMk` refuses a date that does not round-trip; the year window then refuses the
+  //     in-range-but-absurd ones, because `_ckMk` is perfectly happy with year 0292.
+  //
+  //  TWO LAYOUTS, one device, and the split one is load-bearing: the capture host writes the 14 digits
+  //  contiguously (`..._20260610211539_PPG.txt`) and Polar Sensor Logger separates them
+  //  (`..._20260610_211539_PPG.txt`). Reading only the contiguous form made every PSL file parse to
+  //  `null` while its name still matched the device pattern, so the file was found and then dropped one
+  //  line later — quieter than not matching at all, and worth 0 usable PSL nights (found 2026-08-18).
+  //
+  //  Returns `{ tMs, stamp }`, or `null` when the name carries no readable stamp. `null` means the
+  //  filename cannot supply the anchor; the caller falls through to its own next source (§4) and never
+  //  fabricates one.
+  var CK_FSTAMP_MIN_YEAR = 1990, // below this a "stamp" is a serial or an id, not a capture date
+    CK_FSTAMP_MAX_YEAR = 2099;
+  function fileStamp(name) {
+    var s = String(name == null ? '' : name);
+    s = s.slice(s.lastIndexOf('/') + 1); // basename — a directory in the path may carry its own digits
+    var parts = s.split(/\D+/); // maximal digit runs; the extension and every separator fall out with it
+    for (var i = parts.length - 1; i >= 0; i--) {
+      var cand = null;
+      if (/^\d{14}$/.test(parts[i])) cand = parts[i];
+      else if (/^\d{6}$/.test(parts[i]) && i > 0 && /^\d{8}$/.test(parts[i - 1])) cand = parts[i - 1] + parts[i];
+      if (cand === null) continue;
+      var y = +cand.slice(0, 4);
+      if (y < CK_FSTAMP_MIN_YEAR || y > CK_FSTAMP_MAX_YEAR) continue; // keep scanning left, do not abort
+      var p = parseTimestamp(cand);
+      if (p) return { tMs: p.tMs, stamp: cand };
+    }
+    return null;
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════════════════
+  //  HOST-DISCIPLINED TIME AXIS — hostAxis()      (WEARABLE-HOST-AXIS-2026-08-02-BRIEF)
+  // ══════════════════════════════════════════════════════════════════════════════════════
+  //  Every Polar-Sensor-Logger / capture-host stream carries TWO clocks on EVERY row:
+  //      col 0  "Phone timestamp"        — the capture HOST (vigil box: chrony local-stratum-1, 0.008 ppm)
+  //      col 1  "sensor timestamp [ns]"  — the DEVICE's own crystal
+  //  The nodes historically read the host stamp ONCE (to anchor t0Ms) and then rode the DEVICE
+  //  crystal for the rest of the night — ppgdex `relSec = ns/1e9`, ecgdex `t0 + i/fs` with fs from
+  //  the device's own ms column. That puts an uncorrected crystal on the EXPORTED axis while a
+  //  disciplined clock sat unused in column 0 of every row.
+  //
+  //  Measured on 2026-07-26 by deciles of (host − device), with NO fitting of any kind:
+  //      H10 ECG       −0.70 s over 434 min   −27 ppm, smooth
+  //      Verity PPG    −0.34 s over 189 min   −30 ppm, smooth
+  //      O2Ring PPG   −18.49 s over 190 min   NON-LINEAR — −3035 ppm decaying to −1622 ppm
+  //  A counter reset was ruled out first (it would fake any global slope): the O2Ring ramp is
+  //  smooth, so it is a genuine rate error — and because it is non-linear, NO single ppm and no
+  //  linear fit describes it. That is why this interpolates a measured curve instead of fitting.
+  //
+  //  TWO properties of the correction, neither optional:
+  //    • SLOW.   Its own slope is ~30 ppm (30 µs per second), so RR/PPI intervals keep the device's
+  //      fine structure. The crystal is excellent at short scales; only its RATE is wrong. Correcting
+  //      the rate must not disturb the intervals HRV is computed from.
+  //    • ROBUST. Host stamps carry BLE delivery jitter (~0.1 s here — visible as the Verity's
+  //      −0.15/−0.08/−0.26 wobble). Interpolating RAW anchors would inject that jitter straight into
+  //      beat times, which for HRV is worse than the drift it fixes. A running median rejects it.
+  //
+  //  NO SPAN GATE HERE — and that is deliberate, because the sibling tool needed one. A ppm QUOTED
+  //  from a short fragment is unreliable (dual-clock-rate.mjs measured the same H10 at −20.3 ppm over
+  //  373 min and −65.8 ppm over 10.9 min), so that tool gates on span. This function is not quoting a
+  //  rate: it INTERPOLATES the measured divergence, so the correction it applies is bounded by what it
+  //  actually observed over that fragment. On a short H10 fragment the noise is ~12 ms; on a short
+  //  O2Ring one the real error is ~3 s and very much worth removing. Gating on span would refuse
+  //  exactly the case that needs it most. `ppm` is REPORTED for diagnosis — do not quote it from a
+  //  short fragment without the span beside it.
+  //
+  //  ⚠ This does NOT claim the host is absolutely right. It places every device on ONE timebase, so
+  //  they become mutually consistent; whether that timebase is itself correct is the host's business
+  //  (0.008 ppm on the capture box — UNVERIFIED on phone captures, where the column is a real phone).
+  //  Reported, never assumed: `maxStepMs` surfaces a genuine clock STEP smeared across one anchor gap
+  //  (2026-07-26 carries a 1.90 s O2Ring step and a 3.22 s H10 one) rather than hiding it in a slope.
+  //  Window CHOSEN BY MEASUREMENT, not taste — planted recovery against ±100 ms jitter over the real
+  //  190 min / 2873-anchor O2Ring geometry (worst / rms residual, ms):
+  //      win  9 → 77 / 36.3      win 21 → 57 / 18.7      win 41 → 168 / 16.5      win 81 → 245 / 24.8
+  //  21 halves the jitter without over-smoothing; 41+ starts flattening the O2Ring's real curvature,
+  //  which is the one thing this must follow. Step recovery is unaffected across the whole range.
+  /* ── ALLAN DEVIATION, THE SPINE COPY (HOSTAXIS-STABILITY-2026-08-13-BRIEF) ─────────────────────────
+     WHY IT LIVES HERE. `hostAxis` publishes a `ppm` with no statement of how far to trust it, and §7's
+     rule "never quote a ppm without the span beside it" was enforced by prose plus one hand-picked
+     threshold. Allan deviation is the standard answer — it says whether an error shrinks when you
+     average longer, which a standard deviation CANNOT, because SD diverges for several of these noise
+     types as N grows (NIST/Riley SP 1065).
+     Promoted rather than copied: `ppgdex-dsp.js` had the only JS core and `ecgdex-dsp.js` had none, so
+     giving each node its own would have made a fourth implementation. It sits in the spine for the same
+     reason `parseTimestamp` does (§✅) — one definition, inlined everywhere, delegated to by name.
+     `integrator-tch.js` deliberately keeps its own: different domain (frequency series, per-node
+     three-cornered hat) and a different API. `capture-host/allan.py` is a different LANGUAGE lane and
+     cannot be called from a bundle. All three are pinned to each other by cross-implementation tests.
+
+     INPUT IS PHASE — a time-error series. For a physiological signal the only legitimate phase series
+     is the DIFFERENCE between two observers of the same thing; intervals are a FREQUENCY series and a
+     heart is not an oscillator with stationary noise. Here the input is the host-minus-device
+     divergence, which is a phase series by construction. */
+  var CK_ALLAN_MIN_TERMS = 8; // an estimate from a handful of terms is wider than the answer it gives
+  /* Slope midpoints between the canonical exponents, and the SAME vocabulary as capture-host/allan.py
+     `_NOISE`. Verbatim on purpose: two lanes naming one curve differently is a defect a reader cannot
+     see. Drift is the open-ended top, so it is the fall-through — an edge no slope can fail would make
+     that arm unreachable. */
+  var CK_ALLAN_NOISE = [
+    [-0.75, 'white/flicker-phase', 'jitter — averages away fast'],
+    [-0.25, 'white-frequency', 'benign; averaging helps as √N'],
+    [0.25, 'flicker-frequency', 'A FLOOR — more averaging buys nothing'],
+    [0.75, 'random-walk-frequency', 'wanders; a longer fit is worse than a short one']
+  ];
+  function _ckAllanFromPhase(phaseMs, tau0Sec) {
+    // PHASE → FRACTIONAL FREQUENCY: y[i] = (x[i+1] − x[i]) / tau0. The change of variable that makes
+    // the overlapping-average form apply, and why this matches allan.py's second-difference form.
+    var y = [],
+      i;
+    for (i = 1; i < phaseMs.length; i++) {
+      var v = (phaseMs[i] - phaseMs[i - 1]) / tau0Sec;
+      if (!isFinite(v)) return [];
+      y.push(v);
+    }
+    var N = y.length;
+    if (N < 3) return [];
+    var pre = new Float64Array(N + 1);
+    for (var j = 0; j < N; j++) pre[j + 1] = pre[j] + y[j];
+    var out = [];
+    for (var m = 1; 2 * m + 1 <= N; m *= 2) {
+      var sum = 0,
+        cnt = 0;
+      for (i = 0; i + 2 * m <= N; i++) {
+        var d = (pre[i + 2 * m] - pre[i + m]) / m - (pre[i + m] - pre[i]) / m;
+        sum += d * d;
+        cnt++;
+      }
+      if (cnt < CK_ALLAN_MIN_TERMS) break;
+      out.push({ tau: m * tau0Sec, adev: Math.sqrt(sum / (2 * cnt)), n: cnt });
+    }
+    return out;
+  }
+  /* Log-log least squares, returning the slope AND ITS STANDARD ERROR.
+     ⚠️ THE SE IS A LOWER BOUND, NOT AN ESTIMATE. Overlapping ADEV points are CORRELATED — adjacent τ
+     are computed from largely the same samples — while OLS assumes independent residuals. So the true
+     uncertainty is wider than this. Do NOT tighten the 1.96 multiplier below to 1 SE believing that is
+     the more rigorous choice; it is the less rigorous one. */
+  function _ckAllanSlope(points) {
+    var pts = [],
+      i;
+    for (i = 0; i < (points || []).length; i++) if (points[i].adev > 0 && points[i].tau > 0) pts.push(points[i]);
+    if (pts.length < 3) return null; // two points fit any line and cannot be checked
+    var xs = [],
+      ys = [];
+    for (i = 0; i < pts.length; i++) {
+      xs.push(Math.log(pts[i].tau) / Math.LN10);
+      ys.push(Math.log(pts[i].adev) / Math.LN10);
+    }
+    var k = xs.length,
+      mx = 0,
+      my = 0;
+    for (i = 0; i < k; i++) {
+      mx += xs[i];
+      my += ys[i];
+    }
+    mx /= k;
+    my /= k;
+    var sxx = 0,
+      sxy = 0;
+    for (i = 0; i < k; i++) {
+      sxx += (xs[i] - mx) * (xs[i] - mx);
+      sxy += (xs[i] - mx) * (ys[i] - my);
+    }
+    if (!(sxx > 0) || k < 3) return null;
+    var b = sxy / sxx,
+      a = my - b * mx,
+      ss = 0;
+    for (i = 0; i < k; i++) {
+      var e = ys[i] - (a + b * xs[i]);
+      ss += e * e;
+    }
+    return { slope: b, se: Math.sqrt(ss / (k - 2) / sxx), nTau: k };
+  }
+  /* NAME THE NOISE TYPE — OR REFUSE TO. A strict `<` against a POINT ESTIMATE assigns a type the data
+     may not support: −0.7501 and −0.7500 sit either side of a boundary while printing identically, and
+     the `meaning` string flips between "averages away" and "helps as √N" — the field a consumer
+     branches on. So when a boundary lies within 1.96 SE the type is NOT named.
+     `noise: null`, never a string like 'ambiguous': a truthy sentinel passes the guard everyone writes
+     (`if (noise) …`), which would reintroduce the bug inside its own fix.
+     ⚠️ 1.96 SE IS A DELIBERATE STAND-IN, AND THE REASON IS WORTH KEEPING. The textbook treatment is
+     Riley/SP-1065 equivalent degrees of freedom, but EDF is a function of THE NOISE TYPE — so computing
+     a confidence interval in order to DECIDE the noise type is circular exactly at a boundary. The
+     honest forms are to iterate (assume a type → EDF → re-classify) or to test under each candidate;
+     near a boundary the iteration is least likely to settle, and a classification that does not
+     converge is the same finding as a CI that straddles. So this reaches the same verdict where it
+     matters. Anyone implementing EDF properly must handle that circularity before claiming more. */
+  /* `nTau` travels WITH the classification, not only beside it. A perfect fit on 3 taus and one on 12
+     both yield se 0 and are very different evidence — the SE divides by k−2, so three points lie on a
+     line far more easily than twelve. `stability` publishes `taus` at its own level, but a consumer
+     holding only this dict could not tell them apart, which is the rename problem one FIELD short
+     rather than one LAYER short. */
+  function _ckClassifyAllan(sl, se, nTau) {
+    if (sl == null || !isFinite(sl)) return null; // an unknown is not a noise type
+    var i,
+      edges = [];
+    for (i = 0; i < CK_ALLAN_NOISE.length; i++) edges.push(CK_ALLAN_NOISE[i][0]);
+    /* se === 0 and se == null both skip the refusal — a DECISION, not a fall-through, and the record
+       keeps them apart (`slopeSE` is 0 vs null/undefined). No SE supplied ⇒ the pre-SE contract, since
+       refusing would break every existing caller over a distinction it never asked about. An SE of
+       exactly 0 ⇒ the log-log points fall exactly on a line (reachable: a noiseless τ⁻¹ series returns
+       exactly 0), and a perfect fit is the one case where the exponent IS known exactly.
+       ⚠️ Do not read 0 as "measured and perfectly certain" on real data: residuals are never exactly
+       zero for a capture, so 0 means a degenerate or synthetic input — and the SE is a LOWER bound
+       regardless. Published so a reader can tell which they got. */
+    // `se > 0` alone: null/undefined/NaN all compare false, so the isFinite guard was redundant — and
+    // its `> 0` → `>= 0` mutant is EQUIVALENT (at se === 0 the product is 0 either way), i.e. a guard
+    // nothing could observe being wrong. Kept identical to the Python twin.
+    var half = se > 0 ? 1.96 * se : 0;
+    var straddled = [];
+    for (i = 0; i < edges.length; i++) if (sl - half < edges[i] && edges[i] < sl + half) straddled.push(edges[i]);
+    var name = null,
+      meaning = null;
+    for (i = 0; i < CK_ALLAN_NOISE.length; i++) {
+      if (sl < CK_ALLAN_NOISE[i][0]) {
+        name = CK_ALLAN_NOISE[i][1];
+        meaning = CK_ALLAN_NOISE[i][2];
+        break;
+      }
+    }
+    if (name == null) {
+      name = 'drift';
+      meaning = 'deterministic — fit and remove it, never average through it';
+    }
+    if (straddled.length) {
+      // The two types the data cannot separate, so a reader sees WHAT is undecided rather than a blank.
+      var cands = [];
+      for (i = 0; i < CK_ALLAN_NOISE.length; i++) {
+        var lo = i === 0 ? -Infinity : CK_ALLAN_NOISE[i - 1][0];
+        if (sl - half < CK_ALLAN_NOISE[i][0] && sl + half > lo) cands.push(CK_ALLAN_NOISE[i][1]);
+      }
+      if (sl + half > 0.75) cands.push('drift');
+      return {
+        slope: sl, // UNROUNDED — rounding in the DATA is what made the boundary case invisible
+        slopeSE: se,
+        nTau: nTau == null ? null : nTau,
+        noise: null,
+        candidates: cands,
+        meaning: 'the slope sits within 1.96 SE of a category boundary — the noise TYPE is not supported by this fit; branch on `slope`, not on a label'
+      };
+    }
+    return { slope: sl, slopeSE: se, nTau: nTau == null ? null : nTau, noise: name, candidates: null, meaning: meaning };
+  }
+
+  var CK_AXIS_WIN = 21; // running-median width in anchors; odd so the median is a real sample
+  var CK_AXIS_MAX_PPM = 50000; // 5 % — refusal bound, see the plausibility check in hostAxis()
+  /* Twice the 1 ms phone-stamp quantum. A residual spread at or below this means the host column is
+     the device column rounded, not a second clock — see the measurement in hostAxis(). */
+  var CK_AXIS_INERT_MS = 2;
+  /* A DEVICE WHOSE AXIS WAS DRAWN IS NOT A SECOND CLOCK — and `spreadMs` alone cannot see it.
+     `independent` was `spreadMs > CK_AXIS_INERT_MS`, which detects the OPPOSITE of what it must for a
+     drawn axis: a counter synthesised as `index × an assumed rate` at 1 s granularity produces a HUGE
+     residual spread (22,335 ms measured on a real O2Ring segment), so the coarser the fabrication the
+     more "independent" it read. Measured 2026-08-14 on the O2Ring's monotonic run: `ok:true`,
+     `ppm = 2765.5`, `independent:true` — a confident rate for a device with no oscillator, consumed
+     downstream by pat-gate.js, ecgdex-dsp.js's fs correction and integrator-dsp.js's skew decision.
+     The discriminator that DOES separate them is the concentration of the device's inter-sample
+     deltas. Measured over 381 arrival sidecars on the box tree:
+         real clock streams (356)  modal-delta share  max  56.00 %   (Verity ppg; H10 ecg 40.79 %)
+         DRAWN streams      (25)   modal-delta share  min  79.04 %   (O2Ring counter, Verity ppi)
+     Nothing lands between. 0.67 sits in that gap — ~1.2× above the highest real and ~1.2× below the
+     lowest drawn — and gives 0/25 missed with 0/356 false positives. It is a property of the DATA,
+     like CK_AXIS_INERT_MS, not a tuned knob.
+     ⚠ The pre-existing ≥99 % drawn test (ppgdex-dsp) MISSES 5 of those 25 — a drawn axis is only
+     ~100 % concentrated when nothing interrupts it; one counter reset, a repeated stamp or a doubled
+     delta drops a genuinely fabricated stream to 79 %. Do not raise this back toward 99 %. */
+  var CK_AXIS_DRAWN_SHARE = 0.67;
+
+  function _ckMedian(v) {
+    var s = v.slice().sort(function (a, b) {
+      return a - b;
+    });
+    var m = s.length >> 1;
+    return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+  }
+
+  /* anchors: [{ devMs, hostMs }, …] — BOTH relative to the same first row, in device order.
+     Returns { ok, correctionAt(devMs) → ms to ADD to the device axis, n, maxStepMs, rawMaxStepMs,
+     totalMs, ppm }.
+     ok:false ⇒ caller keeps the raw device axis (honest: no correction beats a fabricated one).
+     A refusal on a device epoch change also carries { epochStepMs, epochAtDevMs, epochHostStepMs,
+     ppmExEpoch }, so the caller can re-anchor on the seam. */
+  function hostAxis(anchors, opts) {
+    opts = opts || {};
+    var win = opts.window > 0 ? opts.window | 0 : CK_AXIS_WIN;
+    var pts = [];
+    for (var i = 0; i < (anchors ? anchors.length : 0); i++) {
+      var a = anchors[i];
+      if (!a) continue;
+      var d = Number(a.devMs),
+        h = Number(a.hostMs);
+      if (!isFinite(d) || !isFinite(h)) continue;
+      pts.push({ d: d, r: h - d });
+    }
+    if (pts.length < 3) return { ok: false, reason: 'need ≥3 host anchors, got ' + pts.length, n: pts.length };
+    pts.sort(function (x, y) {
+      return x.d - y.d;
+    });
+    /* Divergence is measured RELATIVE to the first anchor: the node has already anchored t0Ms there,
+       and an absolute offset here would double-count it.
+       ⚠ This comment used to add "so the correction must be 0 at the start and grow". IT IS NOT 0 —
+       measured, and now stated in CLAUDE.md §7. The running median's clamped window pulls each end
+       INWARD by exactly ⌊win/2⌋/2 = 5 anchors' worth of drift, so `correctionAt(firstAnchor)` is that
+       bias and `ppm` under-reads by 1 − 5/(n−1): 12.5 % at n=41, 0.17 % on the real 2873-anchor O2Ring
+       geometry. Subtracting r0 sets the ORIGIN of the measurement, which is what this line does; it
+       does not make the smoothed series start at zero. (Found by `tools/guarantees.mjs` — the promise
+       was both ungated and false.) */
+    var r0 = pts[0].r;
+    var n = pts.length;
+    var sm = new Array(n);
+    for (var k = 0; k < n; k++) {
+      var lo = k - (win >> 1),
+        hi = k + (win >> 1);
+      if (lo < 0) lo = 0;
+      if (hi > n - 1) hi = n - 1;
+      var w = [];
+      for (var j = lo; j <= hi; j++) w.push(pts[j].r - r0);
+      sm[k] = _ckMedian(w);
+    }
+    var maxStep = 0;
+    /* THE SAME MAXIMUM OVER THE RAW DIVERGENCE, carried beside the smoothed one. Measured
+       2026-11-03 by `tools/wild-anchor-census.mjs` over the consolidated corpus: of 1547 distinct
+       ACCEPTED axes, 331 carry a raw adjacent step over 1000 ms, and 287 of those publish a
+       `maxStepMs` under a tenth of it; 248 publish exactly 0. The worst reads a raw step of 50368 ms
+       against a published 99.94 ms. The mechanism is the width-21 running median doing its job. On a
+       FLAT divergence carrying ONE wild +3000 ms anchor, `maxStepMs` reads exactly 0 at n = 3, 5, 10,
+       20, 21, 22, 30, 41 and 60, and `stackJitterMs` (a half-IQR) reads 0 from n = 10 up. Add a drift
+       ramp and the two published numbers do not reach the anchor either: a 1000 ms/190 min ramp at
+       n = 41 reads `maxStepMs` 50 ms against a raw step of 3025 ms, where the clean ramp reads 25 ms.
+       So the smoothed step sizes the DRIFT and never the anchor, both published statistics are blind
+       to a lone wild anchor BY CONSTRUCTION, and a consumer had nothing to read instead. */
+    var rawMaxStep = 0,
+      rawStepAt = null,
+      rawStepIdx = null;
+    for (var s = 1; s < n; s++) {
+      var st = Math.abs(sm[s] - sm[s - 1]);
+      if (st > maxStep) maxStep = st;
+      var rst = Math.abs(pts[s].r - pts[s - 1].r);
+      if (rst > rawMaxStep) {
+        rawMaxStep = rst;
+        rawStepAt = pts[s].d;
+        rawStepIdx = s;
+      }
+    }
+    var span = pts[n - 1].d - pts[0].d;
+    /* A ZERO DEVICE SPAN IS NOT A CLOCK, AND A RATE OVER IT IS NOT 0 — refuse. This line used to read
+       `span > 0 ? … : 0`, which is the fabricated zero of CLAUDE.md §∅ at the rate: every anchor's
+       device stamp identical (the 50 `inapplicable` streams of `known-clock-recovery blindScore`, a
+       device column that was never a counter) came back `ok:true, ppm:0, independent:true` — the
+       spread gate is inert here because the HOST wanders, so the axis read as two agreeing clocks
+       and a caller reading `hostAxis` alone spent it as a second clock (residue
+       2026-09-02-hostaxis-accepts-drawn-axis). Same shape as the ±CK_AXIS_MAX_PPM refusal below and
+       the ≥3-anchor one above: when the input cannot be a rate, the answer is no rate, never 0.
+       ⚠ Deliberately NARROW. The general drawn case (a uniform counter with span > 0) is still
+       admitted and published as `deviceDrawn` — gating on it was tried and reverted (a synthetic
+       fixture's `devMs = i * 1000` is a legitimate uniform axis), and consumer migration is its own
+       row. Zero span has no such legitimate reading: no fixture, synthetic or real, is a clock that
+       never ticks. */
+    if (!(span > 0)) {
+      return { ok: false, reason: 'device axis has zero span across ' + n + ' anchors — the device column is not a clock, so there is no rate to measure', n: n, spanMs: span };
+    }
+    var ppm = (sm[n - 1] / span) * 1e6;
+    /* IS THERE ACTUALLY A SECOND CLOCK HERE? (PAT-NO-VALID-ANCHOR §10, last item.)
+       A ppm of ~0 has two completely different meanings and this function used to report them
+       identically: (a) two INDEPENDENT clocks that happen to agree — the good case, and (b) the host
+       column is not an independent clock at all, because the capture app derived it from the device
+       stamp. Under (b) a ~0 ppm is not a measurement of agreement; it is the absence of a measurement,
+       and a consumer that reads `ok: true, ppm: 0` cannot tell which it got.
+
+       The discriminator is the SPREAD of the residual, not its slope. Measured over both capture trees:
+
+         box / capture-host   82 files   spread  min 101.89 ms · median 425 ms · max 5124 ms
+         phone tree          104 files   spread  min   0.13 ms · median   1.00 ms · max    1.00 ms
+
+       The phone tree's MAXIMUM is exactly 1.00 ms — the resolution of the phone's own timestamp. Its
+       host column is the device time rounded to the millisecond, so the residual cannot exceed one
+       quantum, and no file in either tree lands between 1.00 and 101.89 ms. The bound below is set at
+       twice the stamp quantum: 2× the largest inert spread observed, and 50× below the smallest real
+       one. It is a property of the DATA (a host that adds nothing beyond rounding), not a tuned
+       threshold, which is why it is stated as a multiple of the quantum rather than a bare number.
+
+       Reported ADDITIVELY: `ok` and `ppm` are untouched, so every existing consumer behaves exactly as
+       before. A node that wants to know whether its axis was disciplined by a real second clock now
+       has something to read instead of inferring it from a number that cannot carry the distinction. */
+    var rMin = Infinity,
+      rMax = -Infinity;
+    for (var q = 0; q < n; q++) {
+      var rv = pts[q].r - r0;
+      if (rv < rMin) rMin = rv;
+      if (rv > rMax) rMax = rv;
+    }
+    var spreadMs = rMax - rMin;
+    /* Is the DEVICE column a clock at all? (See CK_AXIS_DRAWN_SHARE.) Concentration of the device's
+       own inter-sample deltas — computed from the anchors already in hand, no extra input. */
+    var _dTally = Object.create(null),
+      _dTotal = 0,
+      _dTop = 0;
+    for (var dq = 1; dq < n; dq++) {
+      var dk = String(pts[dq].d - pts[dq - 1].d);
+      var dc = (_dTally[dk] = (_dTally[dk] || 0) + 1);
+      _dTotal++;
+      if (dc > _dTop) _dTop = dc;
+    }
+    var drawnShare = _dTotal > 0 ? _dTop / _dTotal : 0;
+    var deviceDrawn = _dTotal > 0 && drawnShare >= CK_AXIS_DRAWN_SHARE;
+    /* `deviceDrawn` is published ADDITIVELY and does NOT gate `independent` — the same discipline the
+       spread flag itself shipped under ("ok and ppm are untouched, so every existing consumer behaves
+       exactly as before"). Folding it in was tried and reverted: a SYNTHETIC fixture legitimately uses
+       a uniform device axis (`devMs = i * 1000`), which is by construction indistinguishable from a
+       fabricated one, so gating on it reds 11 assertions including ECGDex's planted-drift recovery —
+       a real feature, not a fixture nit. The detector is right about real data (381 files, perfect
+       separation) and wrong to be load-bearing here, because a test fixture is not a recording.
+       ⚠ CONSEQUENCE, split because its two halves no longer agree: `independent` is STILL true
+       for a drawn O2Ring axis, and that half is the additive discipline above rather than a hole.
+       The CONSUMER half has MOVED, each node to the remedy its own §7 position allows — measured
+       2026-10-18 on 16a5a96f5: `ecgdex-dsp.js` RELABELS (`ecgAxisDrawn` → `timingSource:'host'`,
+       8 `deviceDrawn` sites), because §7 lets a drawn axis be PLACED on a host timeline and a
+       refusal would leave every sample on the assumed rate — strictly worse (residue
+       2026-09-05-drawn-remedy-is-relabel-not-refuse); `integrator-dsp.js` REFUSES on it
+       (`deviceDrawn !== true`, 3 sites); `pat-gate.js` carries no `deviceDrawn` site and refuses earlier, on
+       `timingSource === 'none'`. A node adopting `deviceDrawn` re-cuts its own fixtures to a
+       realistic device axis first. The migration table is KNOWN-CLOCK-ADVERSARIAL-CAPTURE
+       §Findings (corrected 2026-09-27, #3172); the suite's `clock · drawn-axis · source-scan`
+       group keeps the TOOL spenders honest, and residue
+       2026-10-12-clock-js-names-two-migrated-drawn-consumers-as-live records what this sentence
+       used to overstate. */
+    var independent = spreadMs > CK_AXIS_INERT_MS;
+    /* PLAUSIBILITY BOUND — refuse, never "correct", an implausible rate. Caught by the ECGDex §4.3
+       fixture, whose synthetic ms column advances at 2× its host stamps: unbounded, that is a −500000
+       ppm "correction" that doubled fs from 130 to 259.9. A device crystal is wrong by ppm; the worst
+       REAL one in this corpus is the O2Ring at −3035 ppm, which this admits with 16× headroom. Beyond
+       5 % the two columns are not the two clocks we think they are — a misparse, a unit mismatch, a
+       shifted column, or a device epoch change INSIDE one stream — and applying it would fabricate a
+       timebase. §2.6's rule, one level up: when the input cannot be trusted the answer is "no
+       correction", not a confident wrong one. */
+    if (!(Math.abs(ppm) <= CK_AXIS_MAX_PPM)) {
+      /* WHICH OF THE FOUR CAUSES? The first three are properties of the COLUMNS and the fourth is a
+         property of the RECORDING, and until now this branch named the columns for all four. Measured
+         2026-11-04 on one archived ECG stream: its first 45260 rows carry a device counter 7.84 years
+         below the rest of the same file, the counter never steps BACKWARD so every monotonic check
+         passes, and this refusal read -999914 ppm and reported that the columns are probably not host
+         and device. They are exactly host and device. §7 already names the shape — "a resync is a
+         change of clock" — so the diagnosis existed and the refusal could not reach it.
+
+         THE DISCRIMINATOR IS CONCENTRATION, and it needs no new threshold. A rate error is UNIFORM:
+         it spreads divergence across every interval, so dropping any one interval leaves the rest of
+         it behind. An epoch change is ONE interval. So drop the single worst adjacent step from the
+         raw divergence and re-measure against this function's OWN bound — a misparse or a unit
+         mismatch is still implausible without that step, and a seam is not. `CK_AXIS_MAX_PPM` is
+         therefore the criterion on both sides of the test, pre-stated (§🧾) rather than fitted here.
+         Worked: a ns column read as ms diverges 1e6 ppm across EVERY interval, so dropping one of
+         (n-1) of them still reads 1e6 * (1 - 1/(n-1)) ppm, over the bound for every n this function
+         admits. The seam case drops to the night's real drift.
+
+         The second condition states the MECHANISM, also without a tuned number: through a real
+         interval both clocks advance together, so a dropout keeps the device step near the host step.
+         An epoch change is a device advance the host does not corroborate, and the unaccounted part
+         exceeds the host's own elapsed time over that interval. No crystal inside ±5 % can do that.
+
+         ⚠ STILL A REFUSAL. The rate is unusable either way and `ok` stays false, exactly as §7
+         requires: the bound "guards the RATE, not the AXIS". What changes is that the caller now
+         learns WHERE the seam sits (`epochAtDevMs`) and how large it is, which is what a node needs
+         to re-anchor — §7 puts step detection and re-anchoring on the axis, not in here.
+         ⚠ TWO seams defeat it: dropping one leaves the other, the residual stays implausible, and
+         this falls back to the column reason. That is today's answer, so the branch is no worse
+         there, and a multi-seam split belongs with the node that owns the re-anchoring. */
+      var epPpm = null,
+        epStep = null,
+        epHostStep = null;
+      if (rawStepIdx != null) {
+        var epPrev = pts[rawStepIdx - 1],
+          epHere = pts[rawStepIdx];
+        epHostStep = epHere.d + epHere.r - (epPrev.d + epPrev.r);
+        epStep = epHere.d - epPrev.d - epHostStep;
+        epPpm = ((pts[n - 1].r - r0 - (epHere.r - epPrev.r)) / span) * 1e6;
+      }
+      if (epPpm != null && Math.abs(epStep) > Math.abs(epHostStep) && Math.abs(epPpm) <= CK_AXIS_MAX_PPM) {
+        return {
+          ok: false,
+          reason:
+            'device epoch change of ' +
+            Math.round(epStep) +
+            ' ms at device stamp ' +
+            pts[rawStepIdx].d +
+            ', where the host advanced ' +
+            Math.round(epHostStep) +
+            ' ms — without that one step the rate reads ' +
+            Math.round(epPpm) +
+            ' ppm, inside ±' +
+            CK_AXIS_MAX_PPM +
+            ', so the columns ARE host+device and the axis carries a resync',
+          n: n,
+          ppm: ppm,
+          spanMs: span,
+          epochStepMs: epStep,
+          epochAtDevMs: pts[rawStepIdx].d,
+          epochHostStepMs: epHostStep,
+          ppmExEpoch: epPpm
+        };
+      }
+      return { ok: false, reason: 'implausible host/device rate ' + Math.round(ppm) + ' ppm (bound ±' + CK_AXIS_MAX_PPM + ') — columns are probably not host+device', n: n, ppm: ppm };
+    }
+    return {
+      ok: true,
+      n: n,
+      maxStepMs: maxStep,
+      totalMs: sm[n - 1],
+      ppm: ppm,
+      /* THE SPAN THE `ppm` ABOVE WAS MEASURED OVER. §7 says a ppm never travels without its anchor
+         count and its span, and until now this function published `n` and left the span to the
+         caller: the refusal path three blocks up returns `spanMs`, the SUCCESS path did not. Measured
+         2026-10-29 over the tracked corpus: 173 committed PpgDex node-exports carry a `ppm` and an
+         `anchors` with no span anywhere in the block, because the node had nothing to forward.
+         ECGDex computes its own (`ecgdex-dsp.js:5656`) and keeps it. Additive — no existing field
+         moves, and a consumer that ignores this reads exactly what it read before. */
+      spanMs: span,
+      /* THE SAME RATE WITHOUT THE SMOOTHER, so a reader can size what the smoother did HERE.
+         `ppm` above is `sm[n-1] / span`: an END-POINT RATIO of the median-smoothed divergence, not a
+         fit across the anchors. `spanPpm` is that ratio over the RAW divergence,
+         `(pts[n-1].r − r0) / span`. The DIFFERENCE between them is therefore exactly what the width-21
+         running median did to the final window — the end-clamp bias §7 describes as 5 anchors' drift,
+         which no consumer could previously measure on its own fragment.
+         ⚠ NEITHER NUMBER IS THE BETTER ONE, and `spanPpm` is NOT a rate to apply. The median is here
+         on purpose: one 470 ms host-stamp slip (VIGIL-OBSERVED-ERRORS E8) moves an end-point ratio by
+         470 ms / span and leaves the median alone, which is why the correction reads `sm`. Over an
+         11-minute fragment that single slip is 712 ppm. Read `spanPpm` to size the smoothing, and
+         read `stability.ppmUncertainty` below to size the rate itself.
+         WHY IT IS WORTH A FIELD (tools/ring-rate-cause.mjs, 708 ring fragments / 223 788 544 rows,
+         2026-10-29): the published `ppm` decomposes into five terms, this smoothing difference is one
+         of them, and the DOMINANT term carries a median 4.16 times the quote. A number that is the
+         residual of terms larger than itself cannot be read while only the residual is published. */
+      spanPpm: ((pts[n - 1].r - r0) / span) * 1e6,
+      /* THE LARGEST SINGLE-GAP JUMP THE SMOOTHER DID NOT KEEP (see the loop above for the corpus
+         figure). `maxStepMs` is a step in `sm`, so it reports what SURVIVED the running median;
+         `rawMaxStepMs` is the same maximum over the raw residual `r_i − r_{i−1}`, which is what the
+         host and device columns actually did. The DIFFERENCE between them is the part of the arrival
+         record the correction discards.
+         ⚠ NEITHER NUMBER IS A REFUSAL, and this one gates nothing. The remedy here is annotation on
+         purpose: 287 real accepted axes sit on today's answer, so a bound over `rawMaxStepMs` would
+         move 287 recordings' corrections at once, and that call is the owner's rather than this
+         function's. Read it to size the arrival record, never to decide the rate.
+         ⚠ `rawStepAtDevMs` is the LATER anchor's device stamp, so a reader can find the gap. */
+      rawMaxStepMs: rawMaxStep,
+      rawStepAtDevMs: rawStepAt,
+      /* The step as a fraction of the recording's own device span — the scale-free form, since a
+         50 s step means one thing over a 7-hour night and another over a 2-minute fragment. */
+      rawStepOverSpan: rawMaxStep / span,
+      /* HOW MUCH OF THAT STEP THE SMOOTHER HID, as a ratio. NULL rather than Infinity when the
+         smoothed series carries no step at all (CLAUDE.md §∅ — a ratio with no denominator is not a
+         large number), with the reason named beside it. That null is the COMMON blind case, not an
+         edge: 248 of the 1547 accepted corpus axes read it. */
+      stepHiddenRatio: maxStep > 0 ? rawMaxStep / maxStep : null,
+      stepHiddenReason:
+        maxStep > 0
+          ? null
+          : 'the smoothed series carries no step at all (maxStepMs 0 over ' + n + ' anchors), so there is no denominator for a ratio — read rawMaxStepMs ' + rawMaxStep.toFixed(2) + ' ms directly',
+      /* See the spread block above. `independent: false` means the host column carried no information
+         the device column did not already have — read this, never a ~0 ppm, to decide whether the axis
+         was actually disciplined. `spreadMs` is published so the call is checkable rather than trusted. */
+      spreadMs: spreadMs,
+      independent: independent,
+      /* THE STACK-JITTER COMPONENT, ISOLATED (ZEPHYR-INSTRUMENT §Task 2, layer 3). `spreadMs` above
+         is the RAW min-max of the divergence, so it carries the whole night's drift; this is the
+         residual the running median REMOVED — r_i − sm[i] — which is precisely the BLE/host-stack
+         delivery jitter the smoother exists to keep out of the correction. Same estimator as the
+         sibling instruments (tools/ble-jitter-probe.py, capture-host/jitterfloor.py): HALF-IQR, not
+         MAD — alternating ±J residuals (delivery jitter's common shape) are bimodal and the median
+         lands ON a cluster; MAD read 1.2 ms against a 5.5 ms plant (measured 2026-08-23). Measured
+         context for a reader of the number: HCI-layer floor ≈4.5–6 ms, production sidecar floor
+         14 ms, H10 streams ≈23 ms = half the 45 ms connection interval (2026-08-21 night).
+         NULL when `independent` is false, same reasoning as `stability`: a host column that is the
+         device stamp rounded would report its quantisation as jitter. Additive and gated by
+         nothing downstream — a diagnostic, not a knob.
+         ⚠ A LOWER BOUND, not the whole jitter: this measures what the smoother removed, and a
+         running median TRACKS structured jitter instead of removing it — a strictly alternating
+         ±J plant reads ~0 because the window's parity-majority follows the plant (measured), and
+         a period-9 plant reads ~half. Real BLE delivery jitter is aperiodic, where recovery is
+         honest (uniform ±4.5 plant → 2.51 against the ideal 2.25). Read it as "at least this
+         much stack noise", never as "only this much". */
+      stackJitterMs: (function () {
+        if (!independent) return null;
+        var res = [];
+        for (var z = 0; z < n; z++) res.push(pts[z].r - r0 - sm[z]);
+        res.sort(function (a, b) {
+          return a - b;
+        });
+        var half = n >> 1;
+        var q1 = _ckMedian(res.slice(0, half));
+        var q3 = _ckMedian(res.slice(n - half));
+        return (q3 - q1) / 2;
+      })(),
+      /* HOW FAR TO TRUST THE `ppm` ABOVE — σ_y(τ) for the host-vs-device divergence, plus the noise
+         type its slope names. §7 has always said "never quote a `ppm` without the span beside it";
+         this is that rule computed rather than asserted.
+         ⚠️ RAW divergence, NOT the running-median `sm`. The median exists to keep BLE delivery jitter
+         out of the correction, which is exactly the noise this measures — running ADEV on the smoothed
+         series would report how well the smoother worked and call it clock stability.
+         ⚠️ NULL WHEN THERE IS NO SECOND CLOCK. `independent:false` means the host column is the device
+         stamp rounded, so its "divergence" is quantisation; a curve over it would report the rounding
+         as physics. That is the COMMON case, not an edge — the whole phone-captured tree reads
+         false — so the refusal path is the one most consumers will see.
+         Deliberately gated by nothing: this is a diagnostic. The last two arrival diagnostics that
+         shipped with thresholds both fired on every stream of the first real night
+         (ALLAN-DEVIATION §4); a bar comes after a τ-curve from several nights, not before. */
+      stability: (function () {
+        if (!independent) return null;
+        var spanSec = (pts[n - 1].d - pts[0].d) / 1000;
+        if (!(spanSec > 0)) return null;
+        var ph = [];
+        for (var q = 0; q < n; q++) ph.push(pts[q].r - r0);
+        var curve = _ckAllanFromPhase(ph, spanSec / (n - 1));
+        if (curve.length < 3) return null;
+        var fit = _ckAllanSlope(curve);
+        if (!fit) return null;
+        var cls = _ckClassifyAllan(fit.slope, fit.se, fit.nTau);
+        var bestI = 0;
+        for (var b = 1; b < curve.length; b++) if (curve[b].adev < curve[bestI].adev) bestI = b;
+        return {
+          taus: curve.length,
+          tau0Sec: spanSec / (n - 1),
+          slope: cls.slope,
+          /* Published UNCONDITIONALLY, including when the type IS named — a caller with a wider
+             tolerance can then decide for itself instead of being forced to accept this default. */
+          slopeSE: cls.slopeSE,
+          /* ⚠️ THE SE'S OWN n — and it is NOT `taus`. `slopeSE` is a standard error, so it is
+             uninterpretable without the number of points it was fitted over: a tight SE from 3 τ
+             points and one from 12 are different claims. `_ckAllanSlope` fits only the points with
+             `adev > 0 && tau > 0`, so an exactly-flat τ (a frequency series periodic in that τ —
+             reachable, and gate-pinned) is dropped from the fit while still being counted in `taus`.
+             Reading `taus` as the SE's n therefore OVERSTATES it. Published because a consumer that
+             quotes the SE owes this beside it, the same way `ppm` owes its span. */
+          nTau: cls.nTau,
+          noise: cls.noise,
+          candidates: cls.candidates,
+          meaning: cls.meaning,
+          /* ⚠️ `…Ms` IS A MISNOMER AND IS KEPT ONLY FOR BACK-COMPAT — these are a RATE, not a duration.
+             `_ckAllanFromPhase` is handed phase in MILLISECONDS and τ in SECONDS, so `adev` is a
+             fractional frequency in ms/s. `ppmUncertainty` below multiplies the same number by 1000,
+             which is only correct because of that: ms/s ÷ 1000 is dimensionless, × 1e6 is ppm.
+             Read as milliseconds these two understate themselves by 1000×, and CLAUDE.md §📏 rates a
+             wrong unit at the severity of a wrong number. Prefer the `…Ppm` pair below. Renaming in
+             place is NOT available — `integrator-dsp.js` and `ppgdex-*` read these names. */
+          atShortestMs: curve[0].adev,
+          atLongestMs: curve[curve.length - 1].adev,
+          /* The same two values in the unit they are actually in. */
+          atShortestPpm: curve[0].adev * 1000,
+          atLongestPpm: curve[curve.length - 1].adev * 1000,
+          tauMaxSec: curve[curve.length - 1].tau,
+          /* The averaging time minimising σ_y — the window a measurement on this pair should use, in
+             place of one chosen by intuition. On a pure-jitter clock it is simply the longest τ
+             measured, and saying so is more honest than implying a minimum was found. */
+          optimalTauSec: curve[bestI].tau,
+          /* THE CURVE ITSELF (residue 2026-09-21-adev-curve-not-exported-by-either-node). Every scalar
+             above is a projection of it, and the projections cannot show WHERE the floor sits or
+             whether the slope was fitted over a straight run or across a KNEE — which is §7's whole
+             point: the slope names the mechanism, and one number cannot show a slope that changes.
+             `adevPpm` deliberately, NOT the `…Ms` misnomer above: the estimator is handed phase in ms
+             and τ in seconds, so `adev` is ms/s = 1e-3 dimensionless, and ×1000 is ppm. `n` is the
+             term count at that τ — a reader needs it to see the estimate widening as τ grows. The
+             ladder is octave-spaced and ends where `CK_ALLAN_MIN_TERMS` bites, so this is short
+             (≤ ~20 points) and bounded by construction. */
+          curve: curve.map(function (pt) {
+            return { tauSec: pt.tau, adevPpm: pt.adev * 1000, n: pt.n };
+          }),
+          /* THE POINT OF THE EXERCISE: how much of the `ppm` above is real. σ_y at the recording's own
+             span, expressed in ppm — quote the ppm WITH this or not at all. */
+          ppmUncertainty: curve[curve.length - 1].adev * 1000,
+          note: 'σ_y(τ) of the RAW host−device divergence; slope names the noise type. The SE is a LOWER bound — overlapping ADEV points are correlated while OLS assumes independence.'
+        };
+      })(),
+      /* Published so the `independent` call is checkable rather than trusted — the same reason
+         `spreadMs` is published beside it. */
+      drawnShare: drawnShare,
+      deviceDrawn: deviceDrawn,
+      inertReason: independent
+        ? null
+        : 'host ≡ device — residual spread ' + spreadMs.toFixed(2) + ' ms ≤ ' + CK_AXIS_INERT_MS + ' ms (one stamp quantum); this host column is not an independent clock',
+      /* Separate from `inertReason` on purpose: that field answers "is the HOST column real", this one
+         answers "is the DEVICE column a clock". Both can be non-null; neither implies the other. */
+      drawnReason: deviceDrawn
+        ? 'device axis is DRAWN — ' +
+          (drawnShare * 100).toFixed(2) +
+          ' % of inter-sample deltas share one value (≥ ' +
+          (CK_AXIS_DRAWN_SHARE * 100).toFixed(0) +
+          ' %); this column is a synthesised counter, not a clock, so there is no second timebase to discipline against'
+        : null,
+      /* Linear between anchors; FLAT outside them. Flat, not extrapolated: past the last anchor there
+         is no measurement, and extending a slope there would fabricate one — the same rule as §2.6. */
+      correctionAt: function (devMs) {
+        var x = Number(devMs);
+        if (!isFinite(x)) return 0;
+        if (x <= pts[0].d) return sm[0];
+        if (x >= pts[n - 1].d) return sm[n - 1];
+        var lo2 = 0,
+          hi2 = n - 1;
+        while (hi2 - lo2 > 1) {
+          var mid = (lo2 + hi2) >> 1;
+          if (pts[mid].d <= x) lo2 = mid;
+          else hi2 = mid;
+        }
+        var dx = pts[hi2].d - pts[lo2].d;
+        if (!(dx > 0)) return sm[lo2];
+        return sm[lo2] + ((sm[hi2] - sm[lo2]) * (x - pts[lo2].d)) / dx;
+      }
+    };
+  }
+
+  root.DexClock = {
+    tzOffset: tzOffset,
+    _ckP2: _ckP2,
+    _ckNumEpoch: _ckNumEpoch,
+    _ckZoneMin: _ckZoneMin,
+    _ckDMY: _ckDMY,
+    resolveDMY: resolveDMY,
+    parseTimestamp: parseTimestamp,
+    fileStamp: fileStamp,
+    hostAxis: hostAxis,
+    // Promoted from ppgdex-dsp.js so the fleet has ONE JS core (HOSTAXIS-STABILITY §4.3). Nodes
+    // delegate by name, the way they already do for parseTimestamp.
+    allanFromPhase: _ckAllanFromPhase,
+    allanSlope: _ckAllanSlope,
+    classifyAllan: _ckClassifyAllan,
+    _ckMedian: _ckMedian
+  };
+  if (typeof module !== 'undefined' && module.exports) module.exports = root.DexClock;
+})(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this);
+</script>
+<script data-inline-src="muse-frame.js">/*
+ * muse-frame.js — the Muse S Athena wire frame: one tokenizer for every node
+ * Copyright 2026 Michal Planicka
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not
+ * use this file except in compliance with the License. See the LICENSE and
+ * NOTICE files at the project root, or http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * ────────────────────────────────────────────────────────────────────────
+ * A PORT, NOT A DESIGN. Every rule here is read from `capture-host/muse_athena.py`
+ * (Finch's clean-room tokeniser, measured against the probe of 2026-11-14 and
+ * recorded in `briefs/MUSE-ATHENA-PROTOCOL-2026-11-14-BRIEF.md`). This file invents
+ * no layout, names no tag the Python does not name, and keeps the Python's refusal
+ * vocabulary word for word, so the two decoders can be held against one fixture.
+ *
+ * EEGDex and PpgDex both read the same `<base>_RAW.txt`: EEGDex takes the 0x12
+ * records, PpgDex the 0x36 ones. That is why the frame layer lives here and not in
+ * either node — one file, one set of constants, one bit reader.
+ *
+ * §∅ THROUGHOUT: a refused packet yields NOTHING, never a partial record list and
+ * never a zero-filled one. An absent device clock and an absent packet counter are
+ * `null`, because `0` is in band for both. A counter gap is reported as a COUNT OF
+ * LOST PACKETS, and the samples behind it are the caller's absence to place.
+ *
+ * DOM-free; loadable in node:vm.
+ */
+(function (global) {
+  'use strict';
+
+  /* The notification frame (brief §2.1): `[length u8][packet counter u8][7 bytes]`.
+     The seven header bytes are kept verbatim and NOT interpreted — the probe did not
+     resolve them, and a guessed field is a fabricated reading. */
+  var HEADER_LEN = 9;
+  /* Each record: `[tag u8][record index u8][device tick, 24-bit little-endian]`. */
+  var RECORD_HEAD = 5;
+
+  var TAG_EEG = 0x12,
+    TAG_OPTICS = 0x36,
+    TAG_MOTION = 0x47,
+    TAG_53 = 0x53, // meaning unresolved
+    TAG_BATTERY = 0x88, // battery in the first two data bytes; the other 18 unresolved
+    TAG_11 = 0x11, // layout INFERRED from the size only: kept raw
+    TAG_34 = 0x34, // layout INFERRED from the size only: kept raw
+    TAG_35 = 0x35; // layout INFERRED from the size only: kept raw
+
+  /* Whole record size per tag, head included. Solved from the capture: with these five
+     sizes all 58 075 packets of the evidence capture tokenise to their last byte (brief
+     §2.2); the last three came from single-record packets of the preset probe (§6.7). */
+  var RECORD_SIZE = {};
+  RECORD_SIZE[TAG_EEG] = 33;
+  RECORD_SIZE[TAG_OPTICS] = 45;
+  RECORD_SIZE[TAG_MOTION] = 41;
+  RECORD_SIZE[TAG_53] = 29;
+  RECORD_SIZE[TAG_BATTERY] = 25;
+  RECORD_SIZE[TAG_11] = 33;
+  RECORD_SIZE[TAG_34] = 35;
+  RECORD_SIZE[TAG_35] = 45;
+
+  var TICK_HZ = 10000000; // device ticks per second (brief §2.4)
+  var TICK_MOD = 1 << 24; // the tick field wraps every 1.6777 s
+
+  var EEG_FIELDS = 16, // 14-bit, LSB-first: 2 samples x 8 channels, sample after sample (§6.5)
+    EEG_WIDTH = 14,
+    EEG_CHANNELS = 8,
+    EEG_SAMPLES = 2;
+  /* The four electrodes pinned by the owner's events in the worn capture (§6.5). Channels
+     4-7 are NOT identified, so they keep their wire number and no name. */
+  var EEG_ELECTRODES = ['left-ear', 'left-forehead', 'right-forehead', 'right-ear'];
+  var OPTICS_CHANNELS = 16, // 20-bit, LSB-first, one sample per record
+    OPTICS_WIDTH = 20;
+  var MOTION_CHANNELS = 6, // int16 little-endian, sample-major
+    MOTION_SAMPLES = 3;
+
+  /* ── THE BIT READER ───────────────────────────────────────────────────────────────
+     The Python reads `int.from_bytes(data, 'little')` and shifts a 224-bit integer. A
+     JS `Number` holds 53 bits and `>>` truncates to 32, so a literal transcription
+     would silently return garbage for every field past the fourth. BigInt would be
+     exact and allocates one heap integer per record, at 128 records a second.
+
+     So this reads the SAME bits without ever forming the whole integer: field `j` of a
+     little-endian integer occupies bits `[j*width, (j+1)*width)`, and bit `k` of that
+     integer is bit `k & 7` of byte `k >> 3`. Accumulating low bit first gives the
+     Python's value exactly, for any width, with no big number anywhere.
+
+     Trailing bits are DROPPED, as the Python drops them: the field count is the floor
+     of `bytes * 8 / width`. */
+  function unpackLsb(bytes, width, signed) {
+    /* A width over 53 cannot be held exactly by a double, and this returns `null` rather
+       than a rounded field. That is a DELIBERATE divergence from the Python, which is
+       exact at any width: the three widths this format uses are 14, 16 and 20, so the
+       refusal is unreachable through `eegFields`, `optics` and `motion`, and it only
+       binds a caller that asks for something a JS number cannot answer. */
+    if (!bytes || !(width > 0) || width > 53) return null;
+    var n = Math.floor((bytes.length * 8) / width),
+      out = new Array(n),
+      span = Math.pow(2, width),
+      half = span / 2,
+      j,
+      b,
+      k,
+      v;
+    for (j = 0; j < n; j++) {
+      v = 0;
+      for (b = 0; b < width; b++) {
+        k = j * width + b;
+        /* `Math.pow`, not `1 << b`: the two agree only while `b` stays under 31, and the
+           sign test below is the same trap. Measured 2026-11-15 against the Python at
+           widths 32, 40 and 53 — a shift gave -1 for an all-ones 32-bit field. */
+        if ((bytes[k >> 3] >> (k & 7)) & 1) v += Math.pow(2, b);
+      }
+      out[j] = signed && v >= half ? v - span : v;
+    }
+    return out;
+  }
+
+  /* ── THE FRAME ────────────────────────────────────────────────────────────────────
+     Records from `off` to the end of the packet, or a refusal reason. Recursion, not a
+     hand-advanced index: a packet holds at most nine records, so the stack is bounded,
+     and a wrong size cannot loop. (The capture-host mutation gate TIMES OUT on a
+     hand-advanced `while` index rather than failing — CLAUDE.md §🧪 — and the Python
+     this ports from gives the same reason for its own recursion.) */
+  function records(pkt, off) {
+    if (off === pkt.length) return { recs: [], why: null };
+    var size = RECORD_SIZE[pkt[off]];
+    if (size === undefined) return { recs: [], why: 'unknown-tag' };
+    if (off + size > pkt.length) return { recs: [], why: 'truncated-record' };
+    var rest = records(pkt, off + size);
+    if (rest.why !== null) return { recs: [], why: rest.why };
+    var rec = {
+      tag: pkt[off],
+      index: pkt[off + 1], // per-tag counter, +1 modulo 256 between records of this tag
+      tick: pkt[off + 2] | (pkt[off + 3] << 8) | (pkt[off + 4] << 16), // 24-bit LE
+      data: pkt.slice(off + RECORD_HEAD, off + size)
+    };
+    return { recs: [rec].concat(rest.recs), why: null };
+  }
+
+  /* One notification → `{ packet, reason: null }`, or `{ packet: null, reason }`. A
+     refused packet yields nothing: the five reasons are the Python's own words. */
+  function tokenise(pkt) {
+    if (!pkt || pkt.length < HEADER_LEN) return { packet: null, reason: 'short' };
+    if (pkt[0] !== pkt.length) return { packet: null, reason: 'length-byte' };
+    var r = records(pkt, HEADER_LEN);
+    if (r.why !== null) return { packet: null, reason: r.why };
+    if (!r.recs.length) return { packet: null, reason: 'no-record' };
+    return {
+      packet: { counter: pkt[1], header: pkt.slice(2, HEADER_LEN), records: r.recs },
+      reason: null
+    };
+  }
+
+  /* The packet counter of a notification whose frame header holds, or `null`. It reads
+     the HEADER ONLY, so a packet that `tokenise` refuses for a record fault still keeps
+     its place in the counter sequence. A short packet or a wrong length byte has no
+     trusted header, and gives `null` rather than a guess. */
+  function frameCounter(pkt) {
+    if (!pkt || pkt.length < HEADER_LEN || pkt[0] !== pkt.length) return null;
+    return pkt[1];
+  }
+
+  /* Packets (or records of one tag) lost between two consecutive 8-bit counters. The
+     counter is modulo 256, so A LOSS OF EXACTLY 256 READS AS 0 and a repeated counter
+     reads as 255. That is the Python's caveat verbatim and it is NOT improved here: the
+     caller pairs this with the device tick when the stream has one. `null` for `prev` is
+     the start of a chain, which is 0 lost, never an unknown count. */
+  function lostBetween(prev, cur) {
+    if (prev == null) return 0;
+    return (((cur - prev - 1) % 256) + 256) % 256;
+  }
+
+  /* Device time from one tick to a later one, in seconds, across at most one wrap. */
+  function tickSeconds(prev, cur) {
+    return ((((cur - prev) % TICK_MOD) + TICK_MOD) % TICK_MOD) / TICK_HZ;
+  }
+
+  /* The 24-bit device tick unwrapped into a running count of ticks. Each step is read as
+     a SIGNED step of less than half the modulus (0.84 s), so a packet whose first record
+     is a little older than the last packet's steps back a little and never forward by a
+     whole wrap. A real silence longer than 0.84 s ALIASES by a multiple of 1.68 s — the
+     host stamp beside each row carries the true gap, which is why a node reads the rate
+     from `DexClock.hostAxis` and not from this counter. */
+  function TickClock() {
+    this.ticks = null;
+    this._prev = null;
+  }
+  TickClock.prototype.feed = function (tick) {
+    if (this._prev == null || this.ticks == null) this.ticks = tick;
+    else {
+      var half = TICK_MOD / 2;
+      this.ticks += ((((tick - this._prev + half) % TICK_MOD) + TICK_MOD) % TICK_MOD) - half;
+    }
+    this._prev = tick;
+    return this.ticks;
+  };
+  /* The unwrapped device time of `tick` in nanoseconds: 100 ns per tick at 10 MHz. */
+  TickClock.prototype.ns = function (tick) {
+    return this.feed(tick) * (1000000000 / TICK_HZ);
+  };
+
+  /* ── THE FIELDS ───────────────────────────────────────────────────────────────────
+     Each reader checks the tag AND the data length, and returns `null` on either
+     mismatch: a record of the right tag and the wrong size is not a short sample, it is
+     a record this code does not understand. */
+  function dataLen(tag) {
+    return RECORD_SIZE[tag] - RECORD_HEAD;
+  }
+
+  /* The 16 raw 14-bit fields of an EEG record, in WIRE ORDER. Not channels. */
+  function eegFields(rec) {
+    if (!rec || rec.tag !== TAG_EEG || rec.data.length !== dataLen(TAG_EEG)) return null;
+    return unpackLsb(rec.data, EEG_WIDTH, false).slice(0, EEG_FIELDS);
+  }
+
+  /* The two samples of eight channels in one EEG record, sample after sample (§6.5).
+     Channels 0-3 are `EEG_ELECTRODES`; 4-7 are unidentified. Raw 14-bit counts: THE
+     SCALE IS NOT MEASURED, so nothing here converts them to volts. */
+  function eegSamples(rec) {
+    var f = eegFields(rec);
+    if (f === null) return null;
+    var out = [],
+      s;
+    for (s = 0; s < EEG_SAMPLES; s++) out.push(f.slice(s * EEG_CHANNELS, (s + 1) * EEG_CHANNELS));
+    return out;
+  }
+
+  /* The 16 raw 20-bit optical values of one sample, in wire order. */
+  function optics(rec) {
+    if (!rec || rec.tag !== TAG_OPTICS || rec.data.length !== dataLen(TAG_OPTICS)) return null;
+    return unpackLsb(rec.data, OPTICS_WIDTH, false).slice(0, OPTICS_CHANNELS);
+  }
+
+  /* Three samples of six signed 16-bit values each, in wire order (sample after sample). */
+  function motion(rec) {
+    if (!rec || rec.tag !== TAG_MOTION || rec.data.length !== dataLen(TAG_MOTION)) return null;
+    var v = unpackLsb(rec.data, 16, true),
+      out = [],
+      s;
+    for (s = 0; s < MOTION_SAMPLES; s++) out.push(v.slice(s * MOTION_CHANNELS, (s + 1) * MOTION_CHANNELS));
+    return out;
+  }
+
+  /* Battery percent from a 0x88 record: the first two data bytes, little-endian, over
+     256. Held against the device's own `bp` reply in 18 presets, largest difference 0.09
+     points (brief §6.4). */
+  function batteryPct(rec) {
+    if (!rec || rec.tag !== TAG_BATTERY || rec.data.length !== dataLen(TAG_BATTERY)) return null;
+    return (rec.data[0] | (rec.data[1] << 8)) / 256;
+  }
+
+  /* ── THE CAPTURED FILE ────────────────────────────────────────────────────────────
+     `writers.StreamWriter.write_muse` writes one row per notification:
+
+         `<host stamp>;<device ns>;<packet counter>;<payload length>;<payload hex>`
+
+     The host stamp is local civil time to the millisecond, zone-free, and THIS FILE
+     DOES NOT PARSE IT: the Clock Contract has one parser, so the row carries the stamp
+     out as text and the node delegates to `DexClock.parseTimestamp`. The device-ns and
+     counter columns are written EMPTY when absent, never as `0`, so an empty column
+     becomes `null` here and the caller sees the absence it was given. */
+  function hexToBytes(hex) {
+    if (typeof hex !== 'string' || hex.length % 2) return null;
+    var n = hex.length / 2,
+      out = new Array(n),
+      i,
+      v;
+    for (i = 0; i < n; i++) {
+      v = parseInt(hex.substr(i * 2, 2), 16);
+      if (!isFinite(v)) return null;
+      out[i] = v;
+    }
+    return out;
+  }
+
+  function parseRawRow(line) {
+    var c = String(line).split(';');
+    if (c.length !== 5) return { row: null, reason: 'column-count' };
+    var bytes = hexToBytes(c[4].trim());
+    if (bytes === null) return { row: null, reason: 'payload-not-hex' };
+    var declared = c[3].trim() === '' ? null : Number(c[3]);
+    /* The length column is written from the payload the recorder held, so a disagreement
+       is a damaged row and not a short packet. It refuses rather than trusting one side. */
+    if (declared !== null && declared !== bytes.length) return { row: null, reason: 'length-column' };
+    return {
+      row: {
+        hostRaw: c[0].trim(), // text for `DexClock.parseTimestamp`; never parsed here
+        devNs: c[1].trim() === '' ? null : Number(c[1]), // absence written as absence
+        counter: c[2].trim() === '' ? null : Number(c[2]), // null breaks the counter chain
+        bytes: bytes
+      },
+      reason: null
+    };
+  }
+
+  /* Every row of a `<base>_RAW.txt`, with the refused ones counted BY REASON rather than
+     dropped quietly. A blank line is not a row and is not a fault. */
+  function parseRawRows(text) {
+    var lines = String(text == null ? '' : text).split(/\r?\n/),
+      rows = [],
+      refused = {},
+      i,
+      r;
+    for (i = 0; i < lines.length; i++) {
+      if (lines[i].trim() === '') continue;
+      r = parseRawRow(lines[i]);
+      if (r.row === null) refused[r.reason] = (refused[r.reason] || 0) + 1;
+      else rows.push(r.row);
+    }
+    return { rows: rows, refused: refused };
+  }
+
+  global.MuseFrame = {
+    HEADER_LEN: HEADER_LEN,
+    RECORD_HEAD: RECORD_HEAD,
+    RECORD_SIZE: RECORD_SIZE,
+    TAG_EEG: TAG_EEG,
+    TAG_OPTICS: TAG_OPTICS,
+    TAG_MOTION: TAG_MOTION,
+    TAG_BATTERY: TAG_BATTERY,
+    TICK_HZ: TICK_HZ,
+    TICK_MOD: TICK_MOD,
+    EEG_WIDTH: EEG_WIDTH,
+    EEG_CHANNELS: EEG_CHANNELS,
+    EEG_SAMPLES: EEG_SAMPLES,
+    EEG_ELECTRODES: EEG_ELECTRODES,
+    OPTICS_CHANNELS: OPTICS_CHANNELS,
+    OPTICS_WIDTH: OPTICS_WIDTH,
+    MOTION_CHANNELS: MOTION_CHANNELS,
+    MOTION_SAMPLES: MOTION_SAMPLES,
+    unpackLsb: unpackLsb,
+    tokenise: tokenise,
+    frameCounter: frameCounter,
+    lostBetween: lostBetween,
+    tickSeconds: tickSeconds,
+    TickClock: TickClock,
+    eegFields: eegFields,
+    eegSamples: eegSamples,
+    optics: optics,
+    motion: motion,
+    batteryPct: batteryPct,
+    hexToBytes: hexToBytes,
+    parseRawRow: parseRawRow,
+    parseRawRows: parseRawRows
+  };
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+</script>
 <script data-inline-src="eegdex-dsp.js">(function(){var __M=(globalThis.__dexEsm=globalThis.__dexEsm||(function(){var reg={},cache={};function require(n){if(Object.prototype.hasOwnProperty.call(cache,n))return cache[n];var f=reg[n];if(!f)throw new Error('ESM bundle: module not found: '+n);var ex={};cache[n]=ex;f(require,ex);return ex;}return{define:function(n,f){reg[n]=f;},require:require};})());__M.define("eegdex-dsp.js",function(__require,__exports){
 /*
  * eegdex-dsp.js — Tepna
@@ -6811,9 +8128,12 @@ global.EegRegistry = {
   function p2(n) {
     return (n < 10 ? '0' : '') + n;
   }
-  /* §🔒.5 — display and the export's date-less `t` read `getUTC*` off the floating `tMs`. Local to
-     this node: the EDF ingest parses its stamps through `CpapEdf.parseEdfClock`, so nothing here
-     needs `DexClock`, and a formatter is not a parser. */
+  /* §🔒.5 — display and the export's date-less `t` read `getUTC*` off the floating `tMs`. A
+     formatter is not a parser, and this node now has TWO readers with two stamp sources: the EDF
+     ingest parses its header through `CpapEdf.parseEdfClock`, while `ingestMuseRaw` parses each raw
+     row's host stamp through `DexClock.parseTimestamp` and builds the host axis from it. So the
+     bundle carries `clock.js`, which it did not before, and the earlier note here saying nothing in
+     this node needs `DexClock` is no longer true. */
   function fmtClockUTC(tMs) {
     if (tMs == null || !isFinite(tMs)) return null;
     var d = new Date(tMs);
@@ -7186,6 +8506,199 @@ global.EegRegistry = {
       unit: ch.dim || null,
       truncated: edf.truncated === true,
       source: 'edf'
+    };
+  }
+
+  /* ── THE RAW MUSE FRAME INGEST ─────────────────────────────────────────────────────────────────
+     The capture host writes one notification per line of `<base>_RAW.txt` as
+     `<host stamp>;<device ns>;<packet counter>;<payload length>;<payload hex>`, and `muse-frame.js`
+     tokenises a payload into records. This function turns that file into the SAME frame `compute`
+     already consumes from `ingestEDF`, so the analysis path below is reached by two readers and
+     written once.
+
+     NO SILENT FALLBACK, for the same reason `ingestEDF` has none: both the frame reader and the
+     clock live in other modules, so a realm that did not load one gets a NAMED refusal rather than
+     "this file has no EEG".
+
+     §∅ — A LOST RECORD BECOMES NaN, NOT A NUMBER. The samples inside a dropped notification were
+     never measured, so this writes `NaN` at each absent sample index and advances the position.
+     `epochAbsence` already scans `!isFinite` and answers `partial-hole` or `signal-absent`, so a
+     dropout reaches the node's existing refusal vocabulary and needs no new reason key. Dropping the
+     gap instead would splice two stretches of signal into one epoch and move every stamp after it.
+
+     THE GAP IS MEASURED FROM THE EEG RECORD'S OWN INDEX, NOT THE NOTIFICATION COUNTER. One
+     notification carries records of several tags, so a gap of k notifications is NOT k EEG records.
+     The per-tag `index` steps by one from one record of THAT tag to the next, which is the only
+     counter that answers how many EEG records went missing. The notification counter is kept beside
+     it as a separate diagnostic, and both inherit the frame reader's documented modulo-256 blind
+     spot: a loss of exactly 256 reads as 0. */
+  function ingestMuseRaw(text, opts) {
+    opts = opts || {};
+    var lib = opts.frame || (typeof global !== 'undefined' && global ? global.MuseFrame : null);
+    if (!lib || typeof lib.parseRawRows !== 'function') return { ok: false, reason: 'frame-reader-absent' };
+    /* §🔒.2 — ONE parser. The row's host stamp is handed out as text by the frame reader precisely so
+       that this node parses it through `DexClock` and nothing hand-rolls a second stamp reader. */
+    var ckLib = opts.clock || (typeof global !== 'undefined' && global ? global.DexClock : null);
+    if (!ckLib || typeof ckLib.parseTimestamp !== 'function') return { ok: false, reason: 'clock-absent' };
+
+    var parsed = lib.parseRawRows(text);
+    if (!parsed.rows.length) return { ok: false, reason: 'no-row', refusedRows: parsed.refused };
+
+    var names = [],
+      i;
+    for (i = 0; i < lib.EEG_CHANNELS; i++) names.push(lib.EEG_ELECTRODES[i] || 'unidentified-' + i);
+    /* The default is the FIRST electrode in the order the device packs them, which is a packing fact
+       and not a clinical choice: four of the eight channels are identified and the other four are
+       not, so no surface here may imply a montage. `opts.channel` selects by name. */
+    var pick = opts.channel == null ? names[0] : opts.channel;
+    var ci = names.indexOf(pick);
+    if (ci < 0) return { ok: false, reason: 'named-channel-absent', channels: names };
+
+    var clk = new lib.TickClock(),
+      out = [],
+      steps = [],
+      anchors = [],
+      gaps = [],
+      unparsable = {},
+      eegRecords = 0,
+      lostRecords = 0,
+      lostFrames = 0,
+      gapCount = 0,
+      prevIndex = null,
+      prevCounter = null,
+      prevTick = null,
+      row,
+      pkt,
+      rec,
+      smp,
+      tsec,
+      missed,
+      rowTick,
+      hostMs,
+      ck,
+      r,
+      s,
+      k;
+
+    for (i = 0; i < parsed.rows.length; i++) {
+      row = parsed.rows[i];
+      pkt = lib.tokenise(row.bytes);
+      if (!pkt.packet) {
+        unparsable[pkt.reason] = (unparsable[pkt.reason] || 0) + 1;
+        /* §∅ — an unreadable notification breaks BOTH chains. The next row's step is then unexamined
+           rather than read across a frame nobody decoded, which is what a null does here. */
+        prevCounter = null;
+        continue;
+      }
+      if (row.counter == null) prevCounter = null;
+      else {
+        lostFrames += lib.lostBetween(prevCounter, row.counter);
+        prevCounter = row.counter;
+      }
+      rowTick = null;
+      for (r = 0; r < pkt.packet.records.length; r++) {
+        rec = pkt.packet.records[r];
+        if (rec.tag !== lib.TAG_EEG) continue;
+        smp = lib.eegSamples(rec);
+        if (!smp) {
+          unparsable['eeg-undecodable'] = (unparsable['eeg-undecodable'] || 0) + 1;
+          prevIndex = null;
+          prevTick = null;
+          continue;
+        }
+        missed = lib.lostBetween(prevIndex, rec.index);
+        if (missed) {
+          gapCount++;
+          if (gaps.length < 64) gaps.push({ firstSample: out.length, records: missed, samples: missed * lib.EEG_SAMPLES });
+          lostRecords += missed;
+          for (k = missed * lib.EEG_SAMPLES; k > 0; k--) out.push(NaN);
+        }
+        tsec = clk.feed(rec.tick) / lib.TICK_HZ;
+        /* The rate is MEASURED from the device clock, over consecutive records with no gap between
+           them. A step across a gap spans the missing records and is not an inter-record interval. */
+        if (prevTick !== null && !missed) steps.push(tsec - prevTick);
+        prevTick = tsec;
+        prevIndex = rec.index;
+        for (s = 0; s < smp.length; s++) out.push(smp[s][ci]);
+        if (rowTick === null) rowTick = tsec;
+        eegRecords++;
+      }
+      if (rowTick === null) continue;
+      ck = ckLib.parseTimestamp(row.hostRaw, {});
+      hostMs = ck ? ck.tMs : null;
+      /* §🔒.7 — an anchor is `{ devMs, hostMs }` from the SAME row, and a row with no parseable host
+         stamp contributes none rather than a fabricated one. */
+      if (hostMs != null && isFinite(hostMs)) anchors.push({ devMs: rowTick * 1000, hostMs: hostMs });
+    }
+
+    if (!eegRecords) return { ok: false, reason: 'no-eeg-record', rows: parsed.rows.length, refusedRows: parsed.refused, unparsable: unparsable };
+    /* A rate from one or two intervals is not a rate. The floor is the three `DexClock.hostAxis`
+       refuses below, for the same reason: two points cannot disagree. */
+    if (steps.length < 3) return { ok: false, reason: 'no-sample-rate', eegRecords: eegRecords, cleanSteps: steps.length };
+    var medSec = median(steps);
+    if (!(medSec > 0)) return { ok: false, reason: 'no-sample-rate', eegRecords: eegRecords, cleanSteps: steps.length };
+    var fs = +(lib.EEG_SAMPLES / medSec).toFixed(4);
+
+    /* §🔒.7 — the axis is REPORTED, NEVER APPLIED here. ECGDex gates its own `fs` correction at a
+       2400 s span, and that knee is a measurement of the H10's crystal over the H10's own fragments
+       (`ecgdex-dsp.js`, `ECG_AXIS_MIN_SPAN_MS`). It is not a number about this device, and spending
+       it here would be the borrowed reason §∅ forbids. Nothing has measured this device's drift, so
+       the node keeps the device axis and says so through the block below. Read `independent` before
+       `ppm`: a host column that is the device time rounded is not a second clock. */
+    var ax = typeof ckLib.hostAxis === 'function' ? ckLib.hostAxis(anchors, {}) : { ok: false, reason: 'host-axis-absent' };
+    var ck0 = ckLib.parseTimestamp(parsed.rows[0].hostRaw, {});
+
+    return {
+      ok: true,
+      samples: out,
+      fs: fs,
+      /* §🔒.6 — an unparseable first stamp is `null` with a named reason, never now() and never a
+         stamp borrowed from a later row. */
+      t0Ms: ck0 ? ck0.tMs : null,
+      offsetMin: ck0 ? ck0.offsetMin : null,
+      t0Reason: ck0 ? null : 'host-stamp-unparseable',
+      channel: pick,
+      channels: names,
+      /* The device's own reader states the 14-bit EEG field is raw counts and that the scale is not
+         measured, so the amplitude unit is UNDECLARED. A renderer then says so instead of printing
+         µV² over a number nobody calibrated. */
+      unit: null,
+      truncated: gapCount > 0 || Object.keys(unparsable).length > 0 || Object.keys(parsed.refused).length > 0,
+      source: 'muse-raw',
+      frames: {
+        rows: parsed.rows.length,
+        eegRecords: eegRecords,
+        lostRecords: lostRecords,
+        lostFrames: lostFrames,
+        gapCount: gapCount,
+        gaps: gaps,
+        refusedRows: parsed.refused,
+        unparsable: unparsable
+      },
+      fsBasis: { source: 'device-tick-median', cleanSteps: steps.length, medianSec: +medSec.toFixed(9), samplesPerRecord: lib.EEG_SAMPLES },
+      hostAxis: {
+        ok: ax.ok === true,
+        anchors: anchors.length,
+        n: ax.n == null ? null : ax.n,
+        ppm: ax.ppm == null ? null : ax.ppm,
+        independent: ax.independent == null ? null : ax.independent,
+        /* ── THE FIVE FIELDS A TRIMMED AXIS DROPS, AND WHAT DROPPING THEM PUBLISHES ──────────────
+           Measured 2026-11-15 against `dex-export.js timingBlock`, which is the one consumer of an
+           axis on a node-export. It reads `deviceDrawn` to choose `timingSource`, and it treats an
+           axis that publishes NO such field as unmeasured: `drawn` goes null, the `drawn !== false`
+           branch takes it, and the builder's own comment calls that an UNDER-CLAIM to `host`. So a
+           summary carrying `ok` and `independent` alone would publish `timingSource: 'host'` over a
+           stream this reader never disciplines — the host axis here is a diagnostic and never moves
+           `fs`. These five travel for that reason, so a later consumer states the device-rate
+           verdict instead of inferring one from an absence. `deviceDrawn` is a tri-state and takes
+           an `undefined` test, because `false` is one of its answers. */
+        deviceDrawn: ax.deviceDrawn === undefined ? null : ax.deviceDrawn,
+        drawnShare: ax.drawnShare == null ? null : ax.drawnShare,
+        spreadMs: ax.spreadMs == null ? null : ax.spreadMs,
+        drawnReason: ax.drawnReason == null ? null : ax.drawnReason,
+        inertReason: ax.inertReason == null ? null : ax.inertReason,
+        reason: ax.reason == null ? null : ax.reason
+      }
     };
   }
 
@@ -7833,6 +9346,7 @@ global.EegRegistry = {
        the node export and the deterministic demo frame */
     compute: compute,
     ingestEDF: ingestEDF,
+    ingestMuseRaw: ingestMuseRaw,
     nightBands: nightBands,
     buildNodeExport: buildNodeExport,
     genSynthetic: genSynthetic,

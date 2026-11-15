@@ -778,9 +778,12 @@
   function p2(n) {
     return (n < 10 ? '0' : '') + n;
   }
-  /* §🔒.5 — display and the export's date-less `t` read `getUTC*` off the floating `tMs`. Local to
-     this node: the EDF ingest parses its stamps through `CpapEdf.parseEdfClock`, so nothing here
-     needs `DexClock`, and a formatter is not a parser. */
+  /* §🔒.5 — display and the export's date-less `t` read `getUTC*` off the floating `tMs`. A
+     formatter is not a parser, and this node now has TWO readers with two stamp sources: the EDF
+     ingest parses its header through `CpapEdf.parseEdfClock`, while `ingestMuseRaw` parses each raw
+     row's host stamp through `DexClock.parseTimestamp` and builds the host axis from it. So the
+     bundle carries `clock.js`, which it did not before, and the earlier note here saying nothing in
+     this node needs `DexClock` is no longer true. */
   function fmtClockUTC(tMs) {
     if (tMs == null || !isFinite(tMs)) return null;
     var d = new Date(tMs);
@@ -1153,6 +1156,199 @@
       unit: ch.dim || null,
       truncated: edf.truncated === true,
       source: 'edf'
+    };
+  }
+
+  /* ── THE RAW MUSE FRAME INGEST ─────────────────────────────────────────────────────────────────
+     The capture host writes one notification per line of `<base>_RAW.txt` as
+     `<host stamp>;<device ns>;<packet counter>;<payload length>;<payload hex>`, and `muse-frame.js`
+     tokenises a payload into records. This function turns that file into the SAME frame `compute`
+     already consumes from `ingestEDF`, so the analysis path below is reached by two readers and
+     written once.
+
+     NO SILENT FALLBACK, for the same reason `ingestEDF` has none: both the frame reader and the
+     clock live in other modules, so a realm that did not load one gets a NAMED refusal rather than
+     "this file has no EEG".
+
+     §∅ — A LOST RECORD BECOMES NaN, NOT A NUMBER. The samples inside a dropped notification were
+     never measured, so this writes `NaN` at each absent sample index and advances the position.
+     `epochAbsence` already scans `!isFinite` and answers `partial-hole` or `signal-absent`, so a
+     dropout reaches the node's existing refusal vocabulary and needs no new reason key. Dropping the
+     gap instead would splice two stretches of signal into one epoch and move every stamp after it.
+
+     THE GAP IS MEASURED FROM THE EEG RECORD'S OWN INDEX, NOT THE NOTIFICATION COUNTER. One
+     notification carries records of several tags, so a gap of k notifications is NOT k EEG records.
+     The per-tag `index` steps by one from one record of THAT tag to the next, which is the only
+     counter that answers how many EEG records went missing. The notification counter is kept beside
+     it as a separate diagnostic, and both inherit the frame reader's documented modulo-256 blind
+     spot: a loss of exactly 256 reads as 0. */
+  function ingestMuseRaw(text, opts) {
+    opts = opts || {};
+    var lib = opts.frame || (typeof global !== 'undefined' && global ? global.MuseFrame : null);
+    if (!lib || typeof lib.parseRawRows !== 'function') return { ok: false, reason: 'frame-reader-absent' };
+    /* §🔒.2 — ONE parser. The row's host stamp is handed out as text by the frame reader precisely so
+       that this node parses it through `DexClock` and nothing hand-rolls a second stamp reader. */
+    var ckLib = opts.clock || (typeof global !== 'undefined' && global ? global.DexClock : null);
+    if (!ckLib || typeof ckLib.parseTimestamp !== 'function') return { ok: false, reason: 'clock-absent' };
+
+    var parsed = lib.parseRawRows(text);
+    if (!parsed.rows.length) return { ok: false, reason: 'no-row', refusedRows: parsed.refused };
+
+    var names = [],
+      i;
+    for (i = 0; i < lib.EEG_CHANNELS; i++) names.push(lib.EEG_ELECTRODES[i] || 'unidentified-' + i);
+    /* The default is the FIRST electrode in the order the device packs them, which is a packing fact
+       and not a clinical choice: four of the eight channels are identified and the other four are
+       not, so no surface here may imply a montage. `opts.channel` selects by name. */
+    var pick = opts.channel == null ? names[0] : opts.channel;
+    var ci = names.indexOf(pick);
+    if (ci < 0) return { ok: false, reason: 'named-channel-absent', channels: names };
+
+    var clk = new lib.TickClock(),
+      out = [],
+      steps = [],
+      anchors = [],
+      gaps = [],
+      unparsable = {},
+      eegRecords = 0,
+      lostRecords = 0,
+      lostFrames = 0,
+      gapCount = 0,
+      prevIndex = null,
+      prevCounter = null,
+      prevTick = null,
+      row,
+      pkt,
+      rec,
+      smp,
+      tsec,
+      missed,
+      rowTick,
+      hostMs,
+      ck,
+      r,
+      s,
+      k;
+
+    for (i = 0; i < parsed.rows.length; i++) {
+      row = parsed.rows[i];
+      pkt = lib.tokenise(row.bytes);
+      if (!pkt.packet) {
+        unparsable[pkt.reason] = (unparsable[pkt.reason] || 0) + 1;
+        /* §∅ — an unreadable notification breaks BOTH chains. The next row's step is then unexamined
+           rather than read across a frame nobody decoded, which is what a null does here. */
+        prevCounter = null;
+        continue;
+      }
+      if (row.counter == null) prevCounter = null;
+      else {
+        lostFrames += lib.lostBetween(prevCounter, row.counter);
+        prevCounter = row.counter;
+      }
+      rowTick = null;
+      for (r = 0; r < pkt.packet.records.length; r++) {
+        rec = pkt.packet.records[r];
+        if (rec.tag !== lib.TAG_EEG) continue;
+        smp = lib.eegSamples(rec);
+        if (!smp) {
+          unparsable['eeg-undecodable'] = (unparsable['eeg-undecodable'] || 0) + 1;
+          prevIndex = null;
+          prevTick = null;
+          continue;
+        }
+        missed = lib.lostBetween(prevIndex, rec.index);
+        if (missed) {
+          gapCount++;
+          if (gaps.length < 64) gaps.push({ firstSample: out.length, records: missed, samples: missed * lib.EEG_SAMPLES });
+          lostRecords += missed;
+          for (k = missed * lib.EEG_SAMPLES; k > 0; k--) out.push(NaN);
+        }
+        tsec = clk.feed(rec.tick) / lib.TICK_HZ;
+        /* The rate is MEASURED from the device clock, over consecutive records with no gap between
+           them. A step across a gap spans the missing records and is not an inter-record interval. */
+        if (prevTick !== null && !missed) steps.push(tsec - prevTick);
+        prevTick = tsec;
+        prevIndex = rec.index;
+        for (s = 0; s < smp.length; s++) out.push(smp[s][ci]);
+        if (rowTick === null) rowTick = tsec;
+        eegRecords++;
+      }
+      if (rowTick === null) continue;
+      ck = ckLib.parseTimestamp(row.hostRaw, {});
+      hostMs = ck ? ck.tMs : null;
+      /* §🔒.7 — an anchor is `{ devMs, hostMs }` from the SAME row, and a row with no parseable host
+         stamp contributes none rather than a fabricated one. */
+      if (hostMs != null && isFinite(hostMs)) anchors.push({ devMs: rowTick * 1000, hostMs: hostMs });
+    }
+
+    if (!eegRecords) return { ok: false, reason: 'no-eeg-record', rows: parsed.rows.length, refusedRows: parsed.refused, unparsable: unparsable };
+    /* A rate from one or two intervals is not a rate. The floor is the three `DexClock.hostAxis`
+       refuses below, for the same reason: two points cannot disagree. */
+    if (steps.length < 3) return { ok: false, reason: 'no-sample-rate', eegRecords: eegRecords, cleanSteps: steps.length };
+    var medSec = median(steps);
+    if (!(medSec > 0)) return { ok: false, reason: 'no-sample-rate', eegRecords: eegRecords, cleanSteps: steps.length };
+    var fs = +(lib.EEG_SAMPLES / medSec).toFixed(4);
+
+    /* §🔒.7 — the axis is REPORTED, NEVER APPLIED here. ECGDex gates its own `fs` correction at a
+       2400 s span, and that knee is a measurement of the H10's crystal over the H10's own fragments
+       (`ecgdex-dsp.js`, `ECG_AXIS_MIN_SPAN_MS`). It is not a number about this device, and spending
+       it here would be the borrowed reason §∅ forbids. Nothing has measured this device's drift, so
+       the node keeps the device axis and says so through the block below. Read `independent` before
+       `ppm`: a host column that is the device time rounded is not a second clock. */
+    var ax = typeof ckLib.hostAxis === 'function' ? ckLib.hostAxis(anchors, {}) : { ok: false, reason: 'host-axis-absent' };
+    var ck0 = ckLib.parseTimestamp(parsed.rows[0].hostRaw, {});
+
+    return {
+      ok: true,
+      samples: out,
+      fs: fs,
+      /* §🔒.6 — an unparseable first stamp is `null` with a named reason, never now() and never a
+         stamp borrowed from a later row. */
+      t0Ms: ck0 ? ck0.tMs : null,
+      offsetMin: ck0 ? ck0.offsetMin : null,
+      t0Reason: ck0 ? null : 'host-stamp-unparseable',
+      channel: pick,
+      channels: names,
+      /* The device's own reader states the 14-bit EEG field is raw counts and that the scale is not
+         measured, so the amplitude unit is UNDECLARED. A renderer then says so instead of printing
+         µV² over a number nobody calibrated. */
+      unit: null,
+      truncated: gapCount > 0 || Object.keys(unparsable).length > 0 || Object.keys(parsed.refused).length > 0,
+      source: 'muse-raw',
+      frames: {
+        rows: parsed.rows.length,
+        eegRecords: eegRecords,
+        lostRecords: lostRecords,
+        lostFrames: lostFrames,
+        gapCount: gapCount,
+        gaps: gaps,
+        refusedRows: parsed.refused,
+        unparsable: unparsable
+      },
+      fsBasis: { source: 'device-tick-median', cleanSteps: steps.length, medianSec: +medSec.toFixed(9), samplesPerRecord: lib.EEG_SAMPLES },
+      hostAxis: {
+        ok: ax.ok === true,
+        anchors: anchors.length,
+        n: ax.n == null ? null : ax.n,
+        ppm: ax.ppm == null ? null : ax.ppm,
+        independent: ax.independent == null ? null : ax.independent,
+        /* ── THE FIVE FIELDS A TRIMMED AXIS DROPS, AND WHAT DROPPING THEM PUBLISHES ──────────────
+           Measured 2026-11-15 against `dex-export.js timingBlock`, which is the one consumer of an
+           axis on a node-export. It reads `deviceDrawn` to choose `timingSource`, and it treats an
+           axis that publishes NO such field as unmeasured: `drawn` goes null, the `drawn !== false`
+           branch takes it, and the builder's own comment calls that an UNDER-CLAIM to `host`. So a
+           summary carrying `ok` and `independent` alone would publish `timingSource: 'host'` over a
+           stream this reader never disciplines — the host axis here is a diagnostic and never moves
+           `fs`. These five travel for that reason, so a later consumer states the device-rate
+           verdict instead of inferring one from an absence. `deviceDrawn` is a tri-state and takes
+           an `undefined` test, because `false` is one of its answers. */
+        deviceDrawn: ax.deviceDrawn === undefined ? null : ax.deviceDrawn,
+        drawnShare: ax.drawnShare == null ? null : ax.drawnShare,
+        spreadMs: ax.spreadMs == null ? null : ax.spreadMs,
+        drawnReason: ax.drawnReason == null ? null : ax.drawnReason,
+        inertReason: ax.inertReason == null ? null : ax.inertReason,
+        reason: ax.reason == null ? null : ax.reason
+      }
     };
   }
 
@@ -1800,6 +1996,7 @@
        the node export and the deterministic demo frame */
     compute: compute,
     ingestEDF: ingestEDF,
+    ingestMuseRaw: ingestMuseRaw,
     nightBands: nightBands,
     buildNodeExport: buildNodeExport,
     genSynthetic: genSynthetic,
