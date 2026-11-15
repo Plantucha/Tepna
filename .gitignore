@@ -62,6 +62,14 @@ uploads/*
 !uploads/20260613_231433_EVE.edf
 !uploads/20260613_231433_CSL.edf
 !uploads/cpapdex_synthetic_edf_golden.node-export.json
+# EEGDex BINARY-EDF equivalence leg + GATE B record (2026-11-15). The .edf is SYNTHETIC
+# (tools/make-synthetic-eeg-edf.mjs) — genuine EDF bytes written around EEGDSP.genSynthetic's own
+# closed-form 1800 s signal, header identity fields 'X', no recording of any person. It is EEGDex's
+# FIRST committed input, and the first thing that puts ingestEDF (header clock, int16 record decode,
+# channel pick) in a gated path. Regenerate byte-identically with
+# `node tools/make-synthetic-eeg-edf.mjs`, then `node tools/regen-eegdex-goldens.mjs`.
+!uploads/synthetic_eegdex_c4.edf
+!uploads/synthetic_eegdex_golden.node-export.json
 # CPAPDex live-vs-SD comparator pin-twin — SYNTHETIC BRP pair (one wall-clock flow sampled into two
 # files, sd −159 s ×0.998) reproducing the night pin's identity verdict + 27.35-min overlap geometry.
 # Real patient slices stay gitignored (health data, public repo); only the synthetic twin is committed.

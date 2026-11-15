@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="ec36d5a0f45a" data-compute-hash="8deff5e5bf5e">
+<html lang="en" data-manifest-hash="09dd21a7191f" data-compute-hash="ae0200a4dbb4">
 <head>
 <!--
   EEGDex.src.html — Tepna
@@ -12,7 +12,7 @@
 <!-- CSP: browser-enforces the no-network invariant. connect-src 'none' blocks every outbound request;
      script-src is STRICT ('self' + per-inline-script sha256, NO 'unsafe-inline'). EEGDex ships zero
      inline scripts (all init lives in eegdex-app.js), so the hash list is empty by construction. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+5s/308ZZHLhEYgoeaMWJ/zCs2ZUakeHuo1fhny95Bc=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-G6XCFoe1MnyPh2+tjT/Mp1hqSGUMPTYr1AZiRaywclE=' 'sha256-K7+uIbG5ZqPm405RoRfCVCG+Q2LLPZtHsZfR8aQyP8M=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-zNrW85hAqNGql/xLaI8/ruXZeyqkmumE0Jh22zrFop0='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+5s/308ZZHLhEYgoeaMWJ/zCs2ZUakeHuo1fhny95Bc=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-K7+uIbG5ZqPm405RoRfCVCG+Q2LLPZtHsZfR8aQyP8M=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-fTkS5jp3xmv5CYiCspi5NZl92KO6nQFF1mjPXP6knro=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-zNrW85hAqNGql/xLaI8/ruXZeyqkmumE0Jh22zrFop0='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>EEGDex — Sleep EEG Analyzer · v2.32.0</title>
@@ -7758,7 +7758,18 @@ global.EegRegistry = {
         offsetMin: summary.offsetMin == null ? null : summary.offsetMin,
         durSec: summary.durSec == null ? null : summary.durSec,
         sampleRateHz: summary.fs == null ? null : summary.fs,
-        channel: summary.channel || null
+        channel: summary.channel || null,
+        /* ── THE SHARED TIMING BLOCK (DEVICE-TIME-HANDLING-2026-10-29-BRIEF U5) ──────────────────
+           One shape on every node-export, built by one function (`dex-export.js timingBlock`, which
+           carries the field list and the null discipline). An EDF header and a synthetic frame each
+           carry ONE clock — the start stamp plus the record geometry — and no host stamp column, so
+           there is no second clock here to discipline the device rate against. This node looks for
+           neither device-clock resyncs nor axis seams either, so the bare call publishes both counts
+           as unknown rather than zero.
+           Guarded like every other `DexExport` reach in this file; `dex-export.js` is inlined in
+           every bundle that builds an export and co-loaded by every realm that does, so a `null`
+           here is a load-order bug and the export-parity group reds on it. */
+        timing: typeof DexExport !== 'undefined' && DexExport && DexExport.timingBlock ? DexExport.timingBlock({}) : null
       },
       sleep: {
         epochSec: summary.epochSec == null ? EPOCH_SEC : summary.epochSec,

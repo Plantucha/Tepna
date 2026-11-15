@@ -1,0 +1,417 @@
+{
+  "kernel": {
+    "version": "1.0.0",
+    "hash": "118ebed5"
+  },
+  "schema": {
+    "name": "ganglior.node-export",
+    "version": "2.0",
+    "node": "EEGDex",
+    "nodeVersion": "1.0",
+    "bus": "ganglior"
+  },
+  "recording": {
+    "source": "edf",
+    "startEpochMs": 1767308400000,
+    "offsetMin": null,
+    "durSec": 1800,
+    "sampleRateHz": 100,
+    "channel": "EEG C4-A1",
+    "timing": {
+      "timingSource": "device-only",
+      "independent": false,
+      "anchors": null,
+      "spanMs": null,
+      "ppm": null,
+      "spanPpm": null,
+      "resyncs": null,
+      "seams": null,
+      "rate": null,
+      "rateRaw": null,
+      "rateApplied": null,
+      "reason": "no host stamp column on this input, so there is no second clock to discipline the device rate against; this node looks for neither device-clock resyncs nor axis seams, so both counts are unknown rather than zero"
+    }
+  },
+  "sleep": {
+    "epochSec": 30,
+    "hypnogram": [
+      {
+        "tMs": 1767308400000,
+        "stage": "REM"
+      },
+      {
+        "tMs": 1767308430000,
+        "stage": "REM"
+      },
+      {
+        "tMs": 1767308460000,
+        "stage": "REM"
+      },
+      {
+        "tMs": 1767308490000,
+        "stage": "REM"
+      },
+      {
+        "tMs": 1767308520000,
+        "stage": "REM"
+      },
+      {
+        "tMs": 1767308550000,
+        "stage": "REM"
+      },
+      {
+        "tMs": 1767308580000,
+        "stage": "REM"
+      },
+      {
+        "tMs": 1767308610000,
+        "stage": "REM"
+      },
+      {
+        "tMs": 1767308640000,
+        "stage": "REM"
+      },
+      {
+        "tMs": 1767308670000,
+        "stage": "REM"
+      },
+      {
+        "tMs": 1767308700000,
+        "stage": "REM"
+      },
+      {
+        "tMs": 1767308730000,
+        "stage": "REM"
+      },
+      {
+        "tMs": 1767308760000,
+        "stage": "REM"
+      },
+      {
+        "tMs": 1767308790000,
+        "stage": "REM"
+      },
+      {
+        "tMs": 1767308820000,
+        "stage": "REM"
+      },
+      {
+        "tMs": 1767308850000,
+        "stage": "REM"
+      },
+      {
+        "tMs": 1767308880000,
+        "stage": "REM"
+      },
+      {
+        "tMs": 1767308910000,
+        "stage": "REM"
+      },
+      {
+        "tMs": 1767308940000,
+        "stage": "REM"
+      },
+      {
+        "tMs": 1767308970000,
+        "stage": "REM"
+      },
+      {
+        "tMs": 1767309000000,
+        "stage": "REM"
+      },
+      {
+        "tMs": 1767309030000,
+        "stage": "REM"
+      },
+      {
+        "tMs": 1767309060000,
+        "stage": "REM"
+      },
+      {
+        "tMs": 1767309090000,
+        "stage": "REM"
+      },
+      {
+        "tMs": 1767309120000,
+        "stage": "N2"
+      },
+      {
+        "tMs": 1767309150000,
+        "stage": "N2"
+      },
+      {
+        "tMs": 1767309180000,
+        "stage": "N2"
+      },
+      {
+        "tMs": 1767309210000,
+        "stage": "N2"
+      },
+      {
+        "tMs": 1767309240000,
+        "stage": "N2"
+      },
+      {
+        "tMs": 1767309270000,
+        "stage": "N2"
+      },
+      {
+        "tMs": 1767309300000,
+        "stage": "N2"
+      },
+      {
+        "tMs": 1767309330000,
+        "stage": "N2"
+      },
+      {
+        "tMs": 1767309360000,
+        "stage": "N2"
+      },
+      {
+        "tMs": 1767309390000,
+        "stage": "N2"
+      },
+      {
+        "tMs": 1767309420000,
+        "stage": "N2"
+      },
+      {
+        "tMs": 1767309450000,
+        "stage": "N2"
+      },
+      {
+        "tMs": 1767309480000,
+        "stage": "N3"
+      },
+      {
+        "tMs": 1767309510000,
+        "stage": "N3"
+      },
+      {
+        "tMs": 1767309540000,
+        "stage": "N3"
+      },
+      {
+        "tMs": 1767309570000,
+        "stage": "N3"
+      },
+      {
+        "tMs": 1767309600000,
+        "stage": "N3"
+      },
+      {
+        "tMs": 1767309630000,
+        "stage": "N3"
+      },
+      {
+        "tMs": 1767309660000,
+        "stage": "N3"
+      },
+      {
+        "tMs": 1767309690000,
+        "stage": "N3"
+      },
+      {
+        "tMs": 1767309720000,
+        "stage": "N3"
+      },
+      {
+        "tMs": 1767309750000,
+        "stage": "N3"
+      },
+      {
+        "tMs": 1767309780000,
+        "stage": "N3"
+      },
+      {
+        "tMs": 1767309810000,
+        "stage": "N3"
+      },
+      {
+        "tMs": 1767309840000,
+        "stage": "REM"
+      },
+      {
+        "tMs": 1767309870000,
+        "stage": "REM"
+      },
+      {
+        "tMs": 1767309900000,
+        "stage": "REM"
+      },
+      {
+        "tMs": 1767309930000,
+        "stage": "REM"
+      },
+      {
+        "tMs": 1767309960000,
+        "stage": "REM"
+      },
+      {
+        "tMs": 1767309990000,
+        "stage": "REM"
+      },
+      {
+        "tMs": 1767310020000,
+        "stage": "REM"
+      },
+      {
+        "tMs": 1767310050000,
+        "stage": "REM"
+      },
+      {
+        "tMs": 1767310080000,
+        "stage": "REM"
+      },
+      {
+        "tMs": 1767310110000,
+        "stage": "REM"
+      },
+      {
+        "tMs": 1767310140000,
+        "stage": "REM"
+      },
+      {
+        "tMs": 1767310170000,
+        "stage": "REM"
+      }
+    ],
+    "stageCounts": {
+      "W": 0,
+      "N1": 0,
+      "N2": 12,
+      "N3": 12,
+      "REM": 36
+    },
+    "tstHours": 0.5,
+    "sleepEfficiencyPct": 100,
+    "n3Pct": 20,
+    "remPct": 60,
+    "n1Pct": 0,
+    "n2Pct": 20,
+    "wakePct": 0,
+    "latencySleepMin": 0,
+    "latencyRemMin": 0,
+    "wasoMin": 0,
+    "stageShifts": 3,
+    "remPeriods": 2,
+    "architectureAbsence": {},
+    "spindleDensity": 0,
+    "spindlesPerMin": {
+      "N2": 0,
+      "N3": 0
+    },
+    "spindleReason": null,
+    "spindlePopulation": {
+      "eligibleEpochs": 24,
+      "eligibleMin": 12,
+      "stageEpochs": {
+        "N2": 12,
+        "N3": 12
+      },
+      "excludedByHole": 0,
+      "detections": 0
+    },
+    "swaDecayPctPerPeriod": null,
+    "swaReason": "under-two-nrem-stretches",
+    "swaPeriods": [
+      {
+        "period": 0,
+        "fromEpoch": 24,
+        "toEpoch": 48,
+        "epochs": 24,
+        "deltaPower": 59.789
+      }
+    ],
+    "bands": {
+      "totalPower": 21.261,
+      "alphaRel": 9.3,
+      "thetaRel": 20.7,
+      "alphaTheta": 0.99,
+      "rel": {
+        "delta": 21.3,
+        "theta": 20.7,
+        "alpha": 9.3,
+        "sigma": 0.1,
+        "beta": 0.3
+      },
+      "relSum": 51.7,
+      "reason": null,
+      "ratioReason": null,
+      "sef95": 14.01,
+      "sefReason": null,
+      "population": {
+        "epochs": 60,
+        "withBands": 60,
+        "ratioEpochs": 60,
+        "sefEpochs": 60
+      }
+    }
+  },
+  "quality": {
+    "analyzablePct": 100,
+    "nUnscorable": 0,
+    "nEpochs": 60,
+    "t0Reason": null,
+    "refused": {
+      "contactPct": {
+        "value": null,
+        "reason": "no-contact-sidecar"
+      },
+      "frontalAsym": {
+        "value": null,
+        "reason": "single-channel-ingest"
+      },
+      "calmScore": {
+        "value": null,
+        "reason": "depends-on-refused-inputs"
+      }
+    }
+  },
+  "ganglior_events": [
+    {
+      "t": "23:00:00",
+      "tMs": 1767308400000,
+      "impulse": "stage_rem",
+      "node": "EEGDex",
+      "conf": null,
+      "meta": {
+        "stage": "REM",
+        "epoch": 0
+      }
+    },
+    {
+      "t": "23:12:00",
+      "tMs": 1767309120000,
+      "impulse": "stage_n2",
+      "node": "EEGDex",
+      "conf": null,
+      "meta": {
+        "stage": "N2",
+        "epoch": 24
+      }
+    },
+    {
+      "t": "23:18:00",
+      "tMs": 1767309480000,
+      "impulse": "stage_n3",
+      "node": "EEGDex",
+      "conf": null,
+      "meta": {
+        "stage": "N3",
+        "epoch": 36
+      }
+    },
+    {
+      "t": "23:24:00",
+      "tMs": 1767309840000,
+      "impulse": "stage_rem",
+      "node": "EEGDex",
+      "conf": null,
+      "meta": {
+        "stage": "REM",
+        "epoch": 48
+      }
+    }
+  ]
+}

@@ -1,5 +1,19 @@
 {
   "bundle": "EEGDex.html",
-  "manifestHash": "ec36d5a0f45a",
-  "fixtures": {}
+  "manifestHash": "09dd21a7191f",
+  "fixtures": {
+    "synthetic_eegdex_golden.node-export.json": {
+      "bundle": "EEGDex.html",
+      "manifestHash": "09dd21a7191f",
+      "added": "2026-11-15",
+      "note": "EEGDex's first known answer. The input is a single-channel EEG EDF written by tools/make-synthetic-eeg-edf.mjs around EEGDSP.genSynthetic's own 1800 s signal: closed-form sines plus a seeded LCG, no RNG, no Date.now(), header identity fields 'X', no recording of any person. It is therefore committed by exact-name negation in .gitignore, so this leg runs in CI with no corpus. It is also the first fixture that puts ingestEDF in the gated path at all: the header clock, the int16 record decode, the physical scaling and the channel pick out of the header.",
+      "inputs": [
+        "synthetic_eegdex_c4.edf"
+      ],
+      "outputHash": "5d3f0bd306b2d5ae",
+      "inputHashes": {
+        "synthetic_eegdex_c4.edf": "32e3ce1001c8d7b4"
+      }
+    }
+  }
 }

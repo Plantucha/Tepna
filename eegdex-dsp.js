@@ -1725,7 +1725,18 @@
         offsetMin: summary.offsetMin == null ? null : summary.offsetMin,
         durSec: summary.durSec == null ? null : summary.durSec,
         sampleRateHz: summary.fs == null ? null : summary.fs,
-        channel: summary.channel || null
+        channel: summary.channel || null,
+        /* ── THE SHARED TIMING BLOCK (DEVICE-TIME-HANDLING-2026-10-29-BRIEF U5) ──────────────────
+           One shape on every node-export, built by one function (`dex-export.js timingBlock`, which
+           carries the field list and the null discipline). An EDF header and a synthetic frame each
+           carry ONE clock — the start stamp plus the record geometry — and no host stamp column, so
+           there is no second clock here to discipline the device rate against. This node looks for
+           neither device-clock resyncs nor axis seams either, so the bare call publishes both counts
+           as unknown rather than zero.
+           Guarded like every other `DexExport` reach in this file; `dex-export.js` is inlined in
+           every bundle that builds an export and co-loaded by every realm that does, so a `null`
+           here is a load-order bug and the export-parity group reds on it. */
+        timing: typeof DexExport !== 'undefined' && DexExport && DexExport.timingBlock ? DexExport.timingBlock({}) : null
       },
       sleep: {
         epochSec: summary.epochSec == null ? EPOCH_SEC : summary.epochSec,
