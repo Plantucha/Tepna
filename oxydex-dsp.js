@@ -2852,7 +2852,9 @@
     // ODI-3-depth subset from the ONE shared detector (ceiling baseline, simple re-rise close
     // matching the legacy ODI-3 logic). DEX-EVENT-UNIFY Task A.
     var nadirEvents = [];
+    var detectorRan = false;
     if (rows && rows.length > 60) {
+      detectorRan = true;
       var spo2 = rows.map(function (r) {
         return r.spo2;
       });
@@ -2861,11 +2863,34 @@
       var pulseSeries = rows.map(function (r) {
         return r.hr;
       });
-      nadirEvents = detectDesatEventsGated(spo2, { dropPct: 3, exitPct: 3, blArr: blArr }, pulseSeries).map(function (e) {
-        return { depth: e.depth, duration: e.durationSec };
-      });
+      nadirEvents = detectDesatEventsGated(spo2, { dropPct: 3, exitPct: 3, blArr: blArr }, pulseSeries)
+        .map(function (e) {
+          return { depth: e.depth, duration: e.durationSec };
+        })
+        .filter(function (e) {
+          return _has(e.depth) && _has(e.duration);
+        });
     }
     var nadirCount = nadirEvents.length;
+    /* ∅ the depth and the duration are MEASURED over derived events. With no detector run — `rows`
+       absent or under the 60-sample floor — nothing was examined, and the old code multiplied
+       `0 × 0 × 0`, published 0 and labelled it `Low` against an input that can state a high ODI-3.
+       A measured zero keeps its zero: a night the detector DID read and found event-free scores 0
+       honestly. A detector that found nothing while the supplied ODI-3 rate is positive is a
+       DISAGREEMENT between two readings of one night, so it refuses and names which. The MEMBERS are
+       nulled and the object keeps its shape, because the render chip and the two summary builders
+       dereference `hypoxicLoad` behind only an `if (n.hypLoad)`. */
+    var hlRefusal = !detectorRan ? 'rows-absent' : nadirCount === 0 && _has(odi3.rate) && odi3.rate > 0 ? 'detector-odi3-disagree' : null;
+    if (hlRefusal) {
+      return {
+        hypoxicLoad: null,
+        hlLabel: '—',
+        hlReason: hlRefusal,
+        hl_nadirCount: detectorRan ? 0 : null,
+        hl_meanDepth: null,
+        hl_meanDurSec: null
+      };
+    }
     var meanDepth =
       nadirCount > 0
         ? nadirEvents.reduce(function (s, e) {
@@ -2878,11 +2903,14 @@
             return s + e.duration;
           }, 0) / nadirCount
         : 0;
-    // Fall back to odi3.rate if no events detected (short recordings, low ODI)
-    var rate = durationHr > 0 ? +(nadirCount / durationHr).toFixed(1) : odi3.rate;
+    /* The comment here claimed a fallback to `odi3.rate` when no event was detected. The arm was
+       DEAD CODE: the early return above refuses under `durationHr < 0.5`, so `durationHr > 0` always
+       held and the fallback never ran. The rate is the measured event rate, and the no-event case is
+       decided above. */
+    var rate = +(nadirCount / durationHr).toFixed(1);
     var hl = +(rate * meanDepth * (meanDur / 60)).toFixed(3); // %·events·min/hr
     var label = hl < 1 ? 'Low' : hl < 5 ? 'Moderate' : 'High';
-    return { hypoxicLoad: hl, hlLabel: label, hl_nadirCount: nadirCount, hl_meanDepth: +meanDepth.toFixed(1), hl_meanDurSec: +meanDur.toFixed(0) };
+    return { hypoxicLoad: hl, hlLabel: label, hlReason: null, hl_nadirCount: nadirCount, hl_meanDepth: +meanDepth.toFixed(1), hl_meanDurSec: +meanDur.toFixed(0) };
   }
 
   // Vagal Index — composite of HRV proxies weighted by oxygen stability
@@ -3113,7 +3141,11 @@
     // ── Hypoxic burden ──
     /* §∅ — `null < 0.5` is TRUE, so an unmeasured burden would have scored the BEST bucket. */
     if (n.hb && n.hb.rate != null) push('hbRate', 'Hypoxic Burden', n.hb.rate, n.hb.rate < 0.5 ? 0 : n.hb.rate < 2 ? 2 : n.hb.rate < 5 ? 5 : n.hb.rate < 10 ? 7 : 10, n.hb.rate + '%-min/hr');
-    if (n.hypLoad) push('hypLoad', 'Hypoxic Load', n.hypLoad.hypoxicLoad, n.hypLoad.hypoxicLoad < 0.5 ? 0 : n.hypLoad.hypoxicLoad < 2 ? 2 : n.hypLoad.hypoxicLoad < 5 ? 5 : 9, n.hypLoad.hypoxicLoad);
+    /* §∅ — `push` drops a null value at its head, so the refused load never reached the list. The
+       guard states the refusal at the SITE, beside the `n.hb` twin, so a later edit of `push` cannot
+       quietly score `null < 0.5` into the BEST bucket. */
+    if (n.hypLoad && n.hypLoad.hypoxicLoad != null)
+      push('hypLoad', 'Hypoxic Load', n.hypLoad.hypoxicLoad, n.hypLoad.hypoxicLoad < 0.5 ? 0 : n.hypLoad.hypoxicLoad < 2 ? 2 : n.hypLoad.hypoxicLoad < 5 ? 5 : 9, n.hypLoad.hypoxicLoad);
 
     // ── AHI estimate ──
     if (n.ahiEst) push('ahiEst', 'AHI Estimate', n.ahiEst.ahiODI4, n.ahiEst.ahiODI4 < 5 ? 0 : n.ahiEst.ahiODI4 < 15 ? 3 : n.ahiEst.ahiODI4 < 30 ? 6 : 9, n.ahiEst.ahiODI4);
@@ -3307,7 +3339,9 @@
         return n.patScore ? 'UARS indicators ' + n.patScore.uarsScore + '/3' : 'UARS unavailable';
       },
       hypLoad: function () {
-        return n.hypLoad ? 'hypoxic load ' + n.hypLoad.hypoxicLoad : 'hypLoad unavailable';
+        /* §∅ — this read `hypoxic load null` into a sentence a reader takes as a measurement. */
+        if (!n.hypLoad || n.hypLoad.hypoxicLoad == null) return 'hypLoad unavailable';
+        return 'hypoxic load ' + n.hypLoad.hypoxicLoad;
       },
       hrnDip: function () {
         return n.hrnDip ? 'blunted nocturnal HR dip ' + n.hrnDip.hrnDip + '%' : 'HR dip unavailable';
@@ -5916,7 +5950,16 @@
       xs = xsOrVals;
     }
     var n = xs.length;
-    if (n < 2) return { slope: 0, r2: 0, intercept: 0 };
+    /* ∅ ABSENCE IS NULL. This returned `{ slope: 0, r2: 0, intercept: 0 }` under one point, which
+       reads as a MEASURED flat trend with no scatter, and the consumer below it drew a direction word
+       off that zero. It also tested no member for presence, so one absent y summed as a zero and
+       tilted a real-looking slope. A fit over fewer than two measured points is a DISCONTINUITY and
+       it refuses (owner ruling 2026-09-17). `linReg` is on the export surface, so the presence test
+       covers a caller outside this file as well as the three inside it. */
+    if (n < 2) return null;
+    for (var pi = 0; pi < n; pi++) {
+      if (!_has(xs[pi]) || !_has(ys[pi])) return null;
+    }
     var sx = 0,
       sy = 0,
       sxx = 0,
@@ -5928,7 +5971,10 @@
       sxy += xs[i] * ys[i];
     }
     var denom = n * sxx - sx * sx;
-    if (denom === 0) return { slope: 0, r2: 0, intercept: ys[0] || 0 };
+    /* ∅ a zero denominator means every x holds ONE value, so no line is determined. The old arm
+       published a slope of 0 against it, and `ys[0] || 0` turned a legitimate first y of 0 into a
+       fabricated intercept. */
+    if (denom === 0) return null;
     var slope = denom ? (n * sxy - sx * sy) / denom : 0;
     var intercept = n > 0 ? (sy - slope * sx) / n : 0;
     var ssTot = 0,
@@ -5950,19 +5996,41 @@
     var n = rows.length;
     if (n < 600) return null;
     var WIN = 300;
-    var windows = [];
-    for (var i = 0; i + WIN <= n; i += WIN) {
+    /* ∅ a window mean needs measured samples. DRIFT_MIN_COVERED is a pre-stated engineering floor
+       at 60 % of the window, not a literature value. */
+    var DRIFT_MIN_COVERED = Math.ceil(WIN * 0.6);
+    var winX = [],
+      winY = [];
+    for (var i = 0, wi = 0; i + WIN <= n; i += WIN, wi++) {
       var seg = rows.slice(i, i + WIN);
-      var m =
-        seg.reduce(function (a, r) {
-          return a + r.spo2;
-        }, 0) / WIN;
-      windows.push(m);
+      /* ∅ this summed `r.spo2` over the whole window and divided by WIN, so every absent sample
+         added a zero and pulled the window mean toward 0. A dropout then published a steep decline
+         and the label read `Declining (hypovent)`. The mean now covers the MEASURED samples only,
+         and a window under the coverage floor is ABSENT rather than low. `winX` carries the window
+         ORDINAL, so a dropped window leaves a hole in the axis and the windows after it keep their
+         position — a DELTA across a hole skips the pair, it does not close the gap. */
+      var mw = _avgPresent(
+        seg.map(function (r) {
+          return r ? r.spo2 : null;
+        })
+      );
+      if (mw && mw.n >= DRIFT_MIN_COVERED) {
+        winX.push(wi);
+        winY.push(mw.mean);
+      }
     }
-    if (windows.length < 3) return null;
-    var lr = linReg(windows);
+    if (winY.length < 3) return null;
+    var lr = linReg(winX, winY);
+    if (!lr) return null;
     var driftPerHr = +(lr.slope * (3600 / WIN)).toFixed(3);
-    return { driftSlope: lr.slope, driftPerHr: driftPerHr, driftR2: lr.r2, driftLabel: driftPerHr < -0.3 ? 'Declining (hypovent)' : driftPerHr > 0.3 ? 'Rising' : 'Stable' };
+    return {
+      driftSlope: lr.slope,
+      driftPerHr: driftPerHr,
+      driftR2: lr.r2,
+      driftWindows: winY.length,
+      driftWindowsPossible: Math.floor(n / WIN),
+      driftLabel: driftPerHr < -0.3 ? 'Declining (hypovent)' : driftPerHr > 0.3 ? 'Rising' : 'Stable'
+    };
   }
 
   // ── B. ODI-2 ─────────────────────────────────────────────────────
@@ -7291,6 +7359,7 @@
       });
     if (nadirs.length < 4) return null;
     var lr = linReg(nadirs);
+    if (!lr) return null; // ∅ `linReg` refuses rather than publishing a zero slope
     /* A SLOPE SIGN IS NOT A TREND (residue 2026-11-11). This read `Worsening (REM-load)` off the
        sign of an OLS slope with no gate at all, and vigil's 2026-11-04 night published that verdict
        at r-squared 0.04 over 6 nadirs — a direction word over a scatter. The verdict now needs BOTH
@@ -7491,6 +7560,7 @@
         return p.y;
       })
     );
+    if (!lr) return null; // ∅ `linReg` refuses rather than publishing a zero slope
     var firstHalf = valid.slice(0, Math.floor(valid.length / 2));
     var lastHalf = valid.slice(Math.floor(valid.length / 2));
     var mFirst = +(
@@ -8000,7 +8070,13 @@
     var hasHrRestSource = (UP && UP.hrRestOverride && UP.hrRestOverride > 30 && UP.hrRestOverride < 100) || (vo2est && vo2est.hrRest);
     if (!hasHrRestSource && n < 3600) return null;
 
-    age = age || 49;
+    /* ∅ an unentered age is an ASSUMPTION, not a measurement. `age || 49` published five zones, a
+       readiness tier, a MAF ceiling and an LTHR over a silent default, and the return named no age
+       at all, so no surface could say the number rested on one. This mirrors `computeVO2maxEstimate`
+       above: the estimate is KEPT (reduced coverage annotates), it names the age it used and it
+       carries `ageAssumed`. */
+    var ageAssumed = !(age > 0);
+    if (ageAssumed) age = 49; // default to space profile age
 
     // ── HRrest: prefer manual entry, then vo2est, then recompute ──
     var hrRest;
@@ -8276,7 +8352,9 @@
       mafAdj: mafAdj,
       lthr: lthr,
       lthrNote: lthrNote,
-      method: 'Karvonen HRR (ACSM 2022) · Tanaka HRmax · MAF 180-formula'
+      ageUsed: age,
+      ageAssumed: ageAssumed,
+      method: 'Karvonen HRR (ACSM 2022) · Tanaka HRmax · MAF 180-formula' + (ageAssumed ? ' · age 49 ASSUMED (not entered)' : '')
     };
   }
 

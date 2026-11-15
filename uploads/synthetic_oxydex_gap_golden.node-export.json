@@ -370,8 +370,8 @@
       },
       "sourceChannel": "O2Ring:spo2",
       "code": {
-        "manifestHash": "6065ad2d2479",
-        "computeHash": "489f933f3eea"
+        "manifestHash": "cf0e915d08d0",
+        "computeHash": "f1a31415db66"
       },
       "evidence": {
         "envelopeRef": null,
@@ -399,8 +399,8 @@
       },
       "sourceChannel": "O2Ring:spo2",
       "code": {
-        "manifestHash": "6065ad2d2479",
-        "computeHash": "489f933f3eea"
+        "manifestHash": "cf0e915d08d0",
+        "computeHash": "f1a31415db66"
       },
       "evidence": {
         "envelopeRef": null,
@@ -428,8 +428,8 @@
       },
       "sourceChannel": "O2Ring:spo2",
       "code": {
-        "manifestHash": "6065ad2d2479",
-        "computeHash": "489f933f3eea"
+        "manifestHash": "cf0e915d08d0",
+        "computeHash": "f1a31415db66"
       },
       "evidence": {
         "envelopeRef": null,
@@ -457,8 +457,8 @@
       },
       "sourceChannel": "O2Ring:spo2",
       "code": {
-        "manifestHash": "6065ad2d2479",
-        "computeHash": "489f933f3eea"
+        "manifestHash": "cf0e915d08d0",
+        "computeHash": "f1a31415db66"
       },
       "evidence": {
         "envelopeRef": null,
@@ -765,10 +765,12 @@
   ],
   "newMetrics": {
     "spo2Drift": {
-      "driftSlope": -1.4966,
-      "driftPerHr": -17.959,
-      "driftR2": 0.062,
-      "driftLabel": "Declining (hypovent)"
+      "driftSlope": 0.0128,
+      "driftPerHr": 0.154,
+      "driftR2": 0.012,
+      "driftWindows": 18,
+      "driftWindowsPossible": 24,
+      "driftLabel": "Stable"
     },
     "odi2": {
       "odi2Count": 4,
@@ -1282,6 +1284,7 @@
     "hypLoad": {
       "hypoxicLoad": 7.944,
       "hlLabel": "High",
+      "hlReason": null,
       "hl_nadirCount": 3,
       "hl_meanDepth": 8.7,
       "hl_meanDurSec": 37

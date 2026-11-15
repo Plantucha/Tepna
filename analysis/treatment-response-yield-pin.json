@@ -24,7 +24,7 @@
       "dex-escape.js": "f0d38619047a",
       "oxydex-util.js": "5cc642ee790b",
       "oxydex-profile.js": "410146545439",
-      "oxydex-dsp.js": "ed812f7cb6d9"
+      "oxydex-dsp.js": "0f18bb8ea6c3"
     },
     "pulse": {
       "synth-gen.js": "a653cf5afb78",
@@ -220,12 +220,19 @@
       "file": "oxydex-dsp.js",
       "old": "4b59a5fa140b",
       "new": "ed812f7cb6d9",
-      "reason": "Group G3 of the null and zero audit (board #6489): seven OxyDex event metrics reported absence as a measurement. computeOxyCrash skips a pair across a hole and refuses with no measured pair, computeSpO2Percentiles sorts the measured set alone, detectODI nulls its count and its rate below the 60-sample floor, computeSpikeDecay walks measured samples, computeRollingMetrics and computePBmetrics refuse below the same floor, and computeO2HREfficiency averages the present samples in both windows. measureFromResults drops a patient only on a gap or a non-finite value in the ODI or rMSSD series, and no numeric detector output moves for a fully measured night. This run RE-CUT the cohort at paper scale rather than re-stamping on that argument, and the yield came back on the SAME counts: 233 tx / 239 flat, 667 / 661 skipped \u2014 byte-identical to the 2026-09-22 published counts this file already holds."
+      "reason": "Group G3 of the null and zero audit (board #6489): seven OxyDex event metrics reported absence as a measurement. computeOxyCrash skips a pair across a hole and refuses with no measured pair, computeSpO2Percentiles sorts the measured set alone, detectODI nulls its count and its rate below the 60-sample floor, computeSpikeDecay walks measured samples, computeRollingMetrics and computePBmetrics refuse below the same floor, and computeO2HREfficiency averages the present samples in both windows. measureFromResults drops a patient only on a gap or a non-finite value in the ODI or rMSSD series, and no numeric detector output moves for a fully measured night. This run RE-CUT the cohort at paper scale rather than re-stamping on that argument, and the yield came back on the SAME counts: 233 tx / 239 flat, 667 / 661 skipped — byte-identical to the 2026-09-22 published counts this file already holds."
+    },
+    {
+      "date": "2026-11-15",
+      "file": "oxydex-dsp.js",
+      "old": "ed812f7cb6d9",
+      "new": "0f18bb8ea6c3",
+      "reason": "Group G4 of the null and zero audit (board #6532): a linear fit, a hypoxic load and an SpO2 drift reported absence as a measurement. linReg published a zero slope over fewer than two points, over a non-finite member and over a zero denominator, and it now refuses in all three cases. computeSpO2Drift divided a null sum by the full window, and it now averages the measured samples, keeps each window on its own ordinal so a dropped window leaves a hole, and refuses below three covered windows. computeHypoxicLoad reported a zero load when the detector never ran and when it disagreed with a positive ODI3, and it now names the refusal reason and keeps a measured zero. computeKarvonenZones hid an assumed age of 49, and it now declares ageUsed and ageAssumed. No numeric detector output moves for a fully measured night. This run RE-CUT the cohort at paper scale rather than re-stamping on that argument, and the yield came back on the SAME counts: 233 tx / 239 flat, 667 / 661 skipped."
     }
   ],
-  "measuredAt": "2026-11-15T14:29:06.310Z",
+  "measuredAt": "2026-11-15T15:49:36.072Z",
   "producedBy": {
     "tool": "tools/treatment-response-yield-pin.mjs",
-    "commit": "e07f2c273"
+    "commit": "0c54e9dd5"
   }
 }

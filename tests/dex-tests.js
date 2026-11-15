@@ -26021,6 +26021,120 @@
       T.eq('N1-11 · five measured seconds of the pre-window give the measured ratio, not an inflated one', effHalf && effHalf.o2hrEff, 2);
     });
 
+    group('§∅ · OxyDex medium group — a fit, a load and an age over absent input', 'oxydex-dsp · absence', function (T) {
+      var B = env.OxyDex && env.OxyDex._bare;
+      var need4 = ['linReg', 'computeSpO2Drift', 'computeHypoxicLoad', 'computeKarvonenZones'];
+      var absent4 = need4.filter(function (k) {
+        return !B || typeof B[k] !== 'function';
+      });
+      if (absent4.length) {
+        T.ok('OxyDex._bare exposes the four functions this group reads', false, 'not loaded: ' + absent4.join(', ') + ' — this group must not read as a pass');
+        return;
+      }
+      /* GROUP G4 of the null-and-zero audit (board #6444, routed by decision #6446 — findings N1-06,
+         N1-07 and N1-13; decision #6533 split N1-12 into its own unit). N1-05 needs no leg here: the
+         G3 consumer sweep (#5081) already guards both ODI-4 pattern points. Each leg pins the DEFECT
+         CASE, and each carries a control on the same shape, because a guard that blanks a real
+         reading is the same defect wearing the other mask. */
+      var t0g4 = Date.UTC(2026, 5, 14, 23, 0, 0);
+      var mkG4 = function (count, sFn) {
+        var out = [];
+        for (var i = 0; i < count; i++) out.push({ tMs: t0g4 + i * 1000, t: new Date(t0g4 + i * 1000), spo2: sFn(i), hr: 58, motion: 0, pi: null });
+        return out;
+      };
+
+      /* N1-07 · `linReg` returned `{ slope: 0, r2: 0, intercept: 0 }` under one point and tested no
+         member for presence, so an absent y summed as a zero and tilted the fit. It is on the export
+         surface, so a caller outside this file reached it with any input at all. */
+      T.eq('N1-07 · one point determines no line', B.linReg([96]), null);
+      T.eq('N1-07 · no point at all determines no line', B.linReg([]), null);
+      T.eq('N1-07 · an absent member refuses, it does not sum as a zero', B.linReg([1, null, 3]), null);
+      T.eq('N1-07 · one x value determines no line', B.linReg([0, 0, 0], [1, 2, 3]), null);
+      var lrCtl = B.linReg([1, 2, 3]);
+      T.eq('N1-07 CONTROL · three measured points still fit', lrCtl && lrCtl.slope, 1);
+      T.eq('N1-07 CONTROL · and the fit explains the whole variance', lrCtl && lrCtl.r2, 1);
+      var lrZero = B.linReg([0, 1, 2], [0, 1, 2]);
+      T.eq('N1-07 · a first y of 0 is a measurement, not a falsy intercept', lrZero && lrZero.intercept, 0);
+
+      /* N1-07 · the same function's first caller summed `r.spo2` over the whole window and divided by
+         WIN, so each absent sample added a zero. A half-absent window published a mean near 48 and the
+         label read `Declining (hypovent)` over a flat night. */
+      var driftHole = B.computeSpO2Drift(
+        mkG4(1800, function (i) {
+          return i >= 1200 && i % 2 === 0 ? null : 97;
+        })
+      );
+      T.eq('N1-07 · a half-absent window does not publish a decline', driftHole && driftHole.driftLabel, 'Stable');
+      T.eq('N1-07 · and the covered window count travels with the slope', driftHole && driftHole.driftWindows, 4);
+      T.eq('N1-07 · against six windows the night could have covered', driftHole && driftHole.driftWindowsPossible, 6);
+      var driftCtl = B.computeSpO2Drift(
+        mkG4(1800, function (i) {
+          return 97 - Math.floor(i / 300);
+        })
+      );
+      T.ok('N1-07 CONTROL · a real decline still reads as one', driftCtl && driftCtl.driftLabel === 'Declining (hypovent)', 'label = ' + JSON.stringify(driftCtl && driftCtl.driftLabel));
+      T.eq(
+        'N1-07 · under three covered windows there is no trend to publish',
+        B.computeSpO2Drift(
+          mkG4(1800, function (i) {
+            return i >= 600 ? null : 97;
+          })
+        ),
+        null
+      );
+
+      /* N1-06 · `computeHypoxicLoad` multiplied a rate of 0 by a depth of 0 by a duration of 0 and
+         published 0 with the label `Low`, whether or not the detector had examined anything. A
+         MEASURED event-free night keeps its 0; an unexamined one refuses and names why. */
+      var hlAbsent = B.computeHypoxicLoad(null, { rate: 8 }, 8, null, null);
+      T.eq('N1-06 · with no samples the load is absent, not Low', hlAbsent && hlAbsent.hypoxicLoad, null);
+      T.eq('N1-06 · and it names the reason', hlAbsent && hlAbsent.hlReason, 'rows-absent');
+      T.eq('N1-06 · the event count is absent too, never a counted zero', hlAbsent && hlAbsent.hl_nadirCount, null);
+      var flatRows = mkG4(3600, function () {
+        return 97;
+      });
+      var flatBl = flatRows.map(function () {
+        return 97;
+      });
+      var hlDisagree = B.computeHypoxicLoad(null, { rate: 8 }, 1, flatRows, flatBl);
+      T.eq('N1-06 · a detector that finds nothing under a stated ODI-3 of 8 refuses', hlDisagree && hlDisagree.hypoxicLoad, null);
+      T.eq('N1-06 · and it names the disagreement, not a borrowed reason', hlDisagree && hlDisagree.hlReason, 'detector-odi3-disagree');
+      var hlMeasuredZero = B.computeHypoxicLoad(null, { rate: 0 }, 1, flatRows, flatBl);
+      T.eq('N1-06 CONTROL · a measured event-free night keeps its zero', hlMeasuredZero && hlMeasuredZero.hypoxicLoad, 0);
+      T.eq('N1-06 CONTROL · and the zero carries no refusal reason', hlMeasuredZero && hlMeasuredZero.hlReason, null);
+      T.eq('N1-06 CONTROL · a measured event-free night means a mean depth of 0, not a NaN', JSON.stringify(hlMeasuredZero && hlMeasuredZero.hl_meanDepth), '0');
+      T.eq('N1-06 CONTROL · and a mean duration of 0 — this pins `nadirCount > 0` against `>=`', JSON.stringify(hlMeasuredZero && hlMeasuredZero.hl_meanDurSec), '0');
+      var dipRows = mkG4(3600, function (i) {
+        return i % 120 < 20 ? 90 : 97;
+      });
+      var hlCtl = B.computeHypoxicLoad(null, { rate: 25 }, 1, dipRows, flatBl);
+      T.ok('N1-06 CONTROL · real desaturations still load', hlCtl && hlCtl.hypoxicLoad > 0, 'load = ' + JSON.stringify(hlCtl && hlCtl.hypoxicLoad));
+
+      /* N1-13 · `age = age || 49` published five zones, a readiness tier, a MAF ceiling and an LTHR
+         over a silent default, and the return named no age, so no surface could say so. */
+      var kzAssumed = B.computeKarvonenZones(null, { rmssd: 1.4 }, { hrRest: 55 }, null, null, null, null, undefined, 480);
+      T.eq('N1-13 · an unentered age is named as an assumption', kzAssumed && kzAssumed.ageAssumed, true);
+      T.eq('N1-13 · and the age the zones used travels with them', kzAssumed && kzAssumed.ageUsed, 49);
+      T.ok(
+        'N1-13 · the method line says the age was not entered',
+        !!(kzAssumed && kzAssumed.method && kzAssumed.method.indexOf('ASSUMED') >= 0),
+        'method = ' + JSON.stringify(kzAssumed && kzAssumed.method)
+      );
+      var kzEntered = B.computeKarvonenZones(null, { rmssd: 1.4 }, { hrRest: 55 }, null, null, null, null, 30, 480);
+      T.eq('N1-13 CONTROL · an entered age is a measurement', kzEntered && kzEntered.ageAssumed, false);
+      T.eq('N1-13 CONTROL · and it reaches the zones', kzEntered && kzEntered.ageUsed, 30);
+      T.ok(
+        'N1-13 CONTROL · an entered age of 30 raises HRmax over the assumed 49',
+        kzEntered && kzAssumed && kzEntered.hrMax > kzAssumed.hrMax,
+        'entered = ' + JSON.stringify(kzEntered && kzEntered.hrMax) + ' assumed = ' + JSON.stringify(kzAssumed && kzAssumed.hrMax)
+      );
+      T.ok(
+        'N1-13 CONTROL · and the entered case says nothing about an assumption',
+        !!(kzEntered && kzEntered.method && kzEntered.method.indexOf('ASSUMED') < 0),
+        'method = ' + JSON.stringify(kzEntered && kzEntered.method)
+      );
+    });
+
     group('§∅ · OxyDex — a hole is not a reading, in all thirteen consumers', 'oxydex-dsp · absence', function (T) {
       var B = env.OxyDex && env.OxyDex._bare;
       if (!B) {
@@ -100725,16 +100839,18 @@
         T.eq('OxyDex.computeGatedNadir("x") → out.excluded', JSON.stringify(out.excluded), '0');
       }
       /* mutant: cmp > → >=  @ nadirCount > 0
-         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The test ensures that the mean depth value is properly initialized to 0 instead of null when there are no nadi */
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The test ensures that the mean depth value is properly initialized to 0 instead of null when there are no nadi
+         ⚠ 2026-11-15 (G4): the recorded property was the defect. `rows` absent means the detector never ran, so the mean is now null with `hlReason: 'rows-absent'`. The mutant this leg guards (`nadirCount > 0`) is reached by the MEASURED-ZERO path instead, pinned in '§∅ · OxyDex medium group'. */
       {
         var out = NS._bare.computeHypoxicLoad(null, 1);
-        T.eq('OxyDex._bare.computeHypoxicLoad(null,1) → out.hl_meanDepth', JSON.stringify(out.hl_meanDepth), '0');
+        T.eq('OxyDex._bare.computeHypoxicLoad(null,1) → out.hl_meanDepth', JSON.stringify(out.hl_meanDepth), 'null');
       }
       /* mutant: cmp > → >=  @ nadirCount > 0
-         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The test ensures that the mean duration in seconds is properly initialized to 0 rather than null when there ar */
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The test ensures that the mean duration in seconds is properly initialized to 0 rather than null when there ar
+         ⚠ 2026-11-15 (G4): the recorded property was the defect. `rows` absent means the detector never ran, so the mean is now null with `hlReason: 'rows-absent'`. The mutant this leg guards (`nadirCount > 0`) is reached by the MEASURED-ZERO path instead, pinned in '§∅ · OxyDex medium group'. */
       {
         var out = NS._bare.computeHypoxicLoad(null, 1);
-        T.eq('OxyDex._bare.computeHypoxicLoad(null,1) → out.hl_meanDurSec', JSON.stringify(out.hl_meanDurSec), '0');
+        T.eq('OxyDex._bare.computeHypoxicLoad(null,1) → out.hl_meanDurSec', JSON.stringify(out.hl_meanDurSec), 'null');
       }
       /* mutant: bool || → &&  @ var pnn3 = hrv.pnn3 || 0;
          qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The vagal index value correctly computed instead of being null due to incorrect logical operator usage. */
@@ -101374,16 +101490,18 @@
           T.eq('NS.computeGatedNadir("x") → out.excluded', JSON.stringify(out.excluded), '0');
         }
         /* mutant: cmp > → >=  @ nadirCount > 0
-         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The mean depth of hypoxic events is correctly calculated as 0 when there are no hypoxic events, rather than be */
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The mean depth of hypoxic events is correctly calculated as 0 when there are no hypoxic events, rather than be
+         ⚠ 2026-11-15 (G4): the recorded property was the defect. `rows` absent means the detector never ran, so the mean is now null with `hlReason: 'rows-absent'`. The mutant this leg guards (`nadirCount > 0`) is reached by the MEASURED-ZERO path instead, pinned in '§∅ · OxyDex medium group'. */
         {
           var out = NS._bare.computeHypoxicLoad(null, 1);
-          T.eq('NS._bare.computeHypoxicLoad(null,1) → out.hl_meanDepth', JSON.stringify(out.hl_meanDepth), '0');
+          T.eq('NS._bare.computeHypoxicLoad(null,1) → out.hl_meanDepth', JSON.stringify(out.hl_meanDepth), 'null');
         }
         /* mutant: cmp > → >=  @ nadirCount > 0
-         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The mean duration in seconds is correctly initialized to 0 instead of being null when there are no hypoxic eve */
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The mean duration in seconds is correctly initialized to 0 instead of being null when there are no hypoxic eve
+         ⚠ 2026-11-15 (G4): the recorded property was the defect. `rows` absent means the detector never ran, so the mean is now null with `hlReason: 'rows-absent'`. The mutant this leg guards (`nadirCount > 0`) is reached by the MEASURED-ZERO path instead, pinned in '§∅ · OxyDex medium group'. */
         {
           var out = NS._bare.computeHypoxicLoad(null, 1);
-          T.eq('NS._bare.computeHypoxicLoad(null,1) → out.hl_meanDurSec', JSON.stringify(out.hl_meanDurSec), '0');
+          T.eq('NS._bare.computeHypoxicLoad(null,1) → out.hl_meanDurSec', JSON.stringify(out.hl_meanDurSec), 'null');
         }
         /* mutant: bool || → &&  @ var pnn3 = hrv.pnn3 || 0;
          qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The vagal index value correctly computed as 0 instead of null when input is [1,1] */
