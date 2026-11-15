@@ -8026,7 +8026,10 @@ async def pull_oxyii_session(
                         "device": name,
                         "bytes": off,
                         "total": size,
-                        "pct": (100 * off // size) if size else 0,
+                        # ∅ N3-2 (2026-11-15) — the ring's half of the same record, under the same rule
+                        # as `webmon.polar_pull`: a null size is an absence and says so, a zero size is
+                        # a measured zero with nothing to move, and only a real size divides.
+                        "pct": None if size is None else (100 if size == 0 else 100 * off // size),
                     },
                 )
 

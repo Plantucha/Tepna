@@ -2321,7 +2321,13 @@ def make_app(
                     "device": nm,
                     "bytes": done,
                     "total": total,
-                    "pct": (100 * done // total) if total else 0,
+                    # ∅ N3-2 (2026-11-15) — THREE STATES, NEVER TWO. `if total else 0` collapsed an
+                    # UNKNOWN total and a KNOWN total of zero bytes onto `0 %`, which is also what a
+                    # pull that has moved nothing reports — so no consumer of `/api/status` could tell
+                    # the three apart. The monitor hid every falsy-total record, so the zero travelled
+                    # unannounced. A null total is an absence and reports one; a zero total is a
+                    # measured zero and a pull with nothing to move is complete.
+                    "pct": None if total is None else (100 if total == 0 else 100 * done // total),
                 }
 
             try:
