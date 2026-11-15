@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**348 tools** · 347 with a purpose line · **1 without**
+**349 tools** · 348 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -309,6 +309,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`stmt-delete.mjs`](../tools/stmt-delete.mjs) | LEVEL B — PSEUDO-TESTED STATEMENTS. Delete ONE statement and see whether anything notices. |
 | [`strip-markup.mjs`](../tools/strip-markup.mjs) | Remove an element AND ITS CONTENT from an HTML string — `<script>`/`<style>` for the tools that read a guide as prose. |
 | [`stuck-run-lengths.mjs`](../tools/stuck-run-lengths.mjs) | is T_STUCK = 200 samples a threshold for this stream, or only for the one it was derived from? |
+| [`suite-determinism.mjs`](../tools/suite-determinism.mjs) | IS A SUITE SELECTOR DECIDED THE SAME WAY TWICE? `2026-10-20-the-js-gate-survivor-set-does-not-reproduce-across-runs` measured three legs over one identical mutant population, and each leg… |
 | [`survivor-witness.mjs`](../tools/survivor-witness.mjs) | A WITNESS INPUT FOR EVERY SURVIVOR THAT HAS ONE 4708 operator mutants survive the JS sweeps unresolved. |
 | [`sync-docs-index.mjs`](../tools/sync-docs-index.mjs) | FLIP A BRIEF'S STATUS, THEN RUN THIS. It carries the flip into DOCS-INDEX.md. |
 | [`synth-desat-kinetics.mjs`](../tools/synth-desat-kinetics.mjs) | measure whether a synthetic SpO₂ corpus desaturates at a PHYSIOLOGICAL rate, and how much of it OxyDex's artifact self-gate rejects. |

@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-**Status:** REFERENCE (living — last-verified 2026-10-20) · **Created:** 2026-10-20
+**Status:** REFERENCE (living — last-verified 2026-11-15) · **Created:** 2026-10-20
 
 # The JS mutation lane pays 2.3x on CI, and one of its two bounds never learned that
 
@@ -177,6 +177,36 @@ output. Logged as residue `2026-10-20-the-js-gate-survivor-set-does-not-reproduc
 for operator, and killed the same 11. So the set does not move with parallelism, and it did not move
 on this file at all. The §6 legs differ in two ways at once — the file and the CI/rig boundary — and
 this pair holds one of them still. Whatever moves that set, four times the workers is not it.
+### 6b · The verdict does not move in isolation, and the mover was the repository (2026-11-15)
+
+`tools/suite-determinism.mjs` runs one selector repeatedly over an unchanged tree. Three measurements
+ran over `--group=ppgdex-dsp`, which selects 116 groups and 1722 assertions.
+
+| leg | what ran | reading |
+|---|---|---|
+| A, the clean tree | 5 runs, no mutant | **one** normalized result set `8dd9ae31000b` · 0 unreadable |
+| B, three mutants a position rule chose | 3 reps each | every mutant STABLE · one result set each · 0 killed |
+| B-prime, the three mutants the table above names | 3 reps each | every mutant STABLE · one result set each · 0 killed |
+
+`:3560` and `:3787` at `daf6cc2a2` are lines 4320 and 4587 today, and they carry the same source text.
+So the table's mutants are reachable, and leg B-prime decided those and not a lookalike.
+
+🔴 **The sensitivity control failed, and it looked like it passed.** Leg B-prime reported that all
+three mutants moved the result set away from the clean hash. A diff names the lines, and a hash does
+not. Three assertion labels print the DSP's length in characters, so a `< → <=` mutant moves the hash
+by adding one byte to the file. One more label prints `the scan has a denominator (495 authored
+sources)`, and adding one tool moved the clean set from `8dd9ae31000b` to `d2647657afac`. The leg held
+the older hash as its baseline, so it read my own new file as the mutant. **A baseline from a
+different tree state is not a control.**
+
+The one honest control is a mutant the suite KILLS. `:3435:796` (`cmp < → <=` in `buildPPI`) reads
+KILLED on all three repetitions. Over the failing suite the shipped tool reads one result set
+`74a07c525a84` over two legs, which is the first reading in this unit taken from a suite that failed.
+
+**What this does NOT do.** It does not refute the flaky-assertion candidate. Every mutant it decided
+SURVIVED, bar the planted control, so the legs exercised one branch of the gate 18 times. The row
+stays open, and the instrument that can decide it at any repetition count now ships.
+
 ## 7 · THE THIRD FINDING — the gate cannot finish a large-DSP diff at CI's parallelism
 
 Residue `2026-10-12-the-js-mutation-timeout-is-wider-than-the-self-speeding-pr` asks whether an

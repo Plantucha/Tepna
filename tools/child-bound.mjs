@@ -75,7 +75,8 @@ export function childFailureReason(err, ms, label) {
 
 /* Run a synchronous child and keep both outcomes readable.
      { ok: true,  out, ms }            the child answered; `out` is its stdout
-     { ok: false, out: null, reason }  the child did not answer, and `reason` names the breach
+     { ok: false, out: null, reason, partial }  it did not answer; `reason` names the breach and
+                                       `partial` is whatever it wrote before it, or null
    It never throws for the child's own failure, because a caller that wanted a throw already had one.
    `impl` is injected so a selftest can run every leg without spawning a process. */
 export function boundedChild(
@@ -88,15 +89,23 @@ export function boundedChild(
   const t0 = Date.now();
   try {
     const out = impl(file, args, { cwd, env, encoding, maxBuffer, stdio, timeout: bound });
-    return { ok: true, out, ms: Date.now() - t0, reason: null, status: 0, killed: false, timedOut: false };
+    return { ok: true, out, partial: null, ms: Date.now() - t0, reason: null, status: 0, killed: false, timedOut: false };
   } catch (err) {
     /* `status` and `killed` travel with the breach, because ONE CALLER CANNOT ASK THE REASON STRING.
        `git grep` exits 1 to say "no matches", which is an ANSWER and not a failure, so `qwen-agent.mjs`
        reads `status === 1 && !killed` and reports the absence. Read `killed` FIRST wherever you read
        `status`: a killed child also carries an exit code, which is why `whyFailed` orders it that way. */
+    /* 🔴 THE PARTIAL OUTPUT IS NOT NOTHING. `out` stays null on a breach, because a caller must never
+       read a partial answer as an answer. The bytes the child DID write are still evidence, and
+       discarding them is the same defect one layer down from the discarded reason: measured
+       2026-11-15, `suite-determinism` normalized every failing test suite to the empty string, so two
+       failing legs agreed perfectly about nothing. `err.stdout` is what `execFileSync` captured before
+       it threw, and it is absent on a child that wrote nothing or was killed early. */
+    const partial = err && typeof err.stdout === 'string' && err.stdout !== '' ? err.stdout : null;
     return {
       ok: false,
       out: null,
+      partial,
       ms: Date.now() - t0,
       reason: childFailureReason(err, bound, who),
       status: err && typeof err.status === 'number' ? err.status : null,
@@ -157,6 +166,26 @@ if (isCliEntry(import.meta.url)) {
   ok('a child that answers returns ok with its stdout', good.ok === true && good.out === 'hello');
   ok('…and carries no reason', good.reason === null);
   ok('…and reports the wall time it took', typeof good.ms === 'number' && good.ms >= 0);
+  ok('…and a child that answered has no partial, because `out` IS the answer', good.partial === null);
+
+  /* ── THE PARTIAL OUTPUT OF A CHILD THAT DID NOT ANSWER ──
+     Measured 2026-11-15: a reader that normalizes a failing child's output turned every failure into
+     the empty string, so two failures agreed perfectly about nothing. These legs run REAL children,
+     because the defect hid behind an injected error object carrying a field the real function never
+     set. A selftest that builds its own error proves the reader, never the capture. */
+  const spoke = boundedChild(process.execPath, ['-e', 'process.stdout.write("half an answer"); process.exit(3)'], { ms: 20000, label: 'a child that writes then fails' });
+  ok('a child that wrote bytes and then failed keeps them in `partial`', spoke.ok === false && spoke.partial === 'half an answer', JSON.stringify(spoke.partial));
+  ok('…and `out` stays null, because a partial answer is not an answer', spoke.out === null);
+  ok('…and the exit code still travels', spoke.status === 3 && spoke.killed === false);
+  const silent = boundedChild(process.execPath, ['-e', 'process.exit(4)'], { ms: 20000, label: 'a child that fails silently' });
+  ok('a child that wrote nothing reports partial null, never an empty string', silent.ok === false && silent.partial === null);
+  const blank = boundedChild('node', [], {
+    ms: 1000,
+    impl: () => {
+      throw Object.assign(new Error('x'), { status: 1, stdout: '' });
+    }
+  });
+  ok('an empty capture is null too, because "" is a result a caller would compare', blank.partial === null);
 
   /* ── the breach ──
      Each reason leg below tests the reason for PRESENCE first. Measured 2026-11-15: without that, a
