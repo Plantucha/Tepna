@@ -3533,6 +3533,21 @@ function deviceSettingsBlock(d){
         <b>Costs PPI and HR</b> — a Verity cannot serve those in SDK mode, and they go quiet rather than erroring.
         <em style="opacity:.75">(needs reconnect · measured: 176 Hz PPG costs 8.60 %/h against 4.74, ~11.6 h runtime — PPG-SAMPLE-RATE-AND-PAT)</em></span></label>`;
     })();
+    // ── MUSE PRESET (native recorder only). The menu is the server's: the presets the headband ACCEPTED
+    // in the probe, so this cannot offer one it refuses. The state line keeps request and report apart,
+    // as SDK mode does: null means the headband has not confirmed a preset, which is not "the same one".
+    const muse = !d.muse_preset_options ? '' : (() => {
+      const want = d.muse_preset, act = d.muse_preset_actual;
+      const opts = Object.entries(d.muse_preset_options).map(([k, why]) =>
+        `<option value="${esc(k)}" ${k===want?'selected':''}>${esc(k)} — ${esc(why)}</option>`).join('');
+      const state = act == null ? '<span class="mb" style="color:#ca3">headband has not confirmed a preset yet — unknown</span>'
+        : act === want ? `<span class="mb" style="color:#3c8">headband confirms: ${esc(act)}</span>`
+        : `<span class="mb" style="color:#c55">headband runs ${esc(act)}, not ${esc(want)} — reconnect to apply</span>`;
+      return `<label class="setrow"><span class="k">preset</span>
+        <select class="presetsel" data-addr="${esc(d.address)}">${opts}</select>${state}
+        <span class="mb">Which records the headband sends. Battery falls are from 22 s windows (MUSE-ATHENA-PROTOCOL §6.7):
+        they order the presets, they are not rates. <em style="opacity:.75">(needs reconnect)</em></span></label>`;
+    })();
     // ── O2RING DEVICE SETTINGS (RTC readback + the gated SET_CONFIG writer, 2026-08-19) ─────────
     // Rendered only for the ring. Shows the ring's clock vs the host (GET_INFO [24:31] — a 0xC0 push
     // that failed to land is visible here, not silently trusted) and the two vendor-app knobs the
@@ -3567,7 +3582,7 @@ function deviceSettingsBlock(d){
           <span class="hint">${d.ring_buzz_at?('last fired '+esc(String(d.ring_buzz_at).slice(11,23))):''}</span>
         </div>${verdict}</div>`;
     })();
-  return `${sdk}${ring}${boxes||'<span class="hint">no streams reported yet</span>'}`;
+  return `${sdk}${muse}${ring}${boxes||'<span class="hint">no streams reported yet</span>'}`;
 }
 
 async function loadSettings(){
@@ -3798,7 +3813,7 @@ async function applyRestart(btn){
 
 async function saveSettings(btn){
   const t0=btn.textContent; btn.disabled=true; btn.textContent='saving…';
-  const streams={}, settings={}, rates={}, sdk_mode={};
+  const streams={}, settings={}, rates={}, sdk_mode={}, muse_preset={};
   // `[data-stream]`, not a bare `input[type=checkbox]`. The SDK-mode switch lives in the same
   // container and carries no `data-stream`, so an unqualified selector pushes `undefined` into the
   // stream list and the server 400s the whole save on "unknown stream" — taking the unrelated settings
@@ -3819,6 +3834,7 @@ async function saveSettings(btn){
   document.querySelectorAll('input.sdksel').forEach(el=>{
     sdk_mode[el.dataset.addr] = el.checked;
   });
+  document.querySelectorAll('select.presetsel').forEach(el=>{ muse_preset[el.dataset.addr] = el.value; });
   // Both control kinds, in ONE pass. A comma selector returns DOCUMENT order, not selector order, so
   // this does not encode a precedence — and it does not need to: a stream renders a <select> (>1
   // option) or a carrier (0 or 1), never both. If that ever changes, the later element in the markup
@@ -3836,7 +3852,7 @@ async function saveSettings(btn){
   });
   try{
     const r = await api('/api/settings',{method:'POST',headers:{'content-type':'application/json'},
-                                         body:JSON.stringify({settings,streams,rates,sdk_mode})});
+                                         body:JSON.stringify({settings,streams,rates,sdk_mode,muse_preset})});
     // A saved-with-warnings result is NOT a plain success and must not read like one. The server
     // warns rather than refusing (an exclusion that is a Verity-family fact should not block a config
     // written for other hardware), so this line is the only place the operator learns it — appended
@@ -4011,7 +4027,7 @@ function guessDevice(d){
   // obstructive from central apnea) for a whole session. Ask for everything the sensor can give.
   if(n.includes('h10')){ vendor='Polar'; model='H10'; streams=['ecg','acc','hr']; }
   else if(n.includes('sense')||n.includes('verity')){ vendor='Polar'; model='VeritySense'; streams=['ppg','acc','gyro','mag']; }
-  else if(n.includes('muse')){ vendor='Muse'; model='S'; streams=['eeg']; }
+  else if(n.includes('muse')){ vendor='Muse'; model='S-Athena'; streams=['eeg']; }  // webmon.remember adds `protocol: athena`
   // `acc` IS IN THE DEFAULT because the ring's 3-axis accelerometer is device-PUSHED and gated by
   // AUTO_RT_SWITCH bit 3, which capture.py ORs in from this very list at connect. Left out, the stream
   // is not merely off — nothing ever asks the ring to push, so `acc_o2` is never registered and the

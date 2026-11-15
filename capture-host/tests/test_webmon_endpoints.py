@@ -9,6 +9,7 @@
 import asyncio
 
 import bonding
+import muse_athena
 import telemetry
 import webmon
 from aiohttp.test_utils import TestClient, TestServer
@@ -739,3 +740,134 @@ def test_a_malformed_json_body_is_400_not_500(tmp_path):
         return r.status
 
     assert _serve(app, go) == 400  # invalid address (empty body → {}), not a 500 traceback
+
+
+# ── A Muse remembered from the Devices page records through the native Athena recorder ─────────────
+MUSE = {
+    "name": "Muse S Athena",
+    "vendor": "Muse",
+    "model": "S-Athena",
+    "device_id": "DABBF026",
+    "address": "00:55:DA:BB:F0:26",
+    "streams": ["eeg"],
+}
+
+
+def test_remember_gives_a_new_muse_the_athena_protocol(tmp_path):
+    app, cfg, *_ = _mk(tmp_path, devices=[])
+
+    async def go(c):
+        r = await c.post("/api/remember", json=MUSE)
+        return r.status
+
+    assert _serve(app, go) == 200
+    saved = next(d for d in cfg["devices"] if d["address"] == MUSE["address"])
+    assert saved["protocol"] == "athena"
+
+
+def test_remember_keeps_the_protocol_of_a_known_muse_and_adds_none_to_other_vendors(tmp_path):
+    known = dict(MUSE, protocol="legacy-test")
+    app, cfg, *_ = _mk(tmp_path, devices=[known])
+    h10 = dict(H10, address="11:22:33:44:55:77")
+
+    async def go(c):
+        a = await c.post("/api/remember", json=MUSE)
+        b = await c.post("/api/remember", json=h10)
+        return a.status, b.status
+
+    assert _serve(app, go) == (200, 200)
+    by_addr = {d["address"]: d for d in cfg["devices"]}
+    assert by_addr[MUSE["address"]]["protocol"] == "legacy-test"
+    assert "protocol" not in by_addr[h10["address"]]
+
+
+# ── The Muse preset picker on the Devices page ─────────────────────────────────────────────────────
+MUSE_ATHENA = dict(MUSE, protocol="athena")
+
+
+def _muse_row(body):
+    return next(d for d in body["devices"] if d["address"] == MUSE["address"])
+
+
+def test_settings_offers_a_native_muse_only_the_accepted_presets_and_keeps_request_and_report_apart(tmp_path):
+    app, *_ = _mk(tmp_path, devices=[MUSE_ATHENA, H10], status={"Muse S Athena": {"preset_active": 0x1041}})
+
+    async def go(c):
+        return await (await c.get("/api/settings")).json()
+
+    body = _serve(app, go)
+    row = _muse_row(body)
+    assert row["muse_preset"] == "p1045"  # nothing configured → the recorder's default
+    assert row["muse_preset_actual"] == "p1041"  # what the headband said, NOT the request
+    assert set(row["muse_preset_options"]) == set(muse_athena.PRESETS)
+    assert "p20" not in row["muse_preset_options"]  # refused with rc 69 in the probe
+    h10 = next(d for d in body["devices"] if d["address"] == H10["address"])
+    assert "muse_preset" not in h10
+
+
+def test_settings_reports_an_unconfirmed_preset_as_null_and_offers_nothing_to_a_legacy_muse(tmp_path):
+    legacy = dict(MUSE, address="00:55:DA:BB:F0:27", name="Muse old")
+    app, *_ = _mk(tmp_path, devices=[dict(MUSE_ATHENA, preset="p1022"), legacy])
+
+    async def go(c):
+        return await (await c.get("/api/settings")).json()
+
+    body = _serve(app, go)
+    row = _muse_row(body)
+    assert row["muse_preset"] == "p1022"
+    assert row["muse_preset_actual"] is None  # no `ps` reply yet: unknown, never the request
+    assert "muse_preset" not in next(d for d in body["devices"] if d["name"] == "Muse old")
+
+
+def test_a_preset_save_writes_the_config_and_asks_for_a_reconnect(tmp_path):
+    app, cfg, *_ = _mk(tmp_path, devices=[MUSE_ATHENA])
+
+    async def go(c):
+        return await (await c.post("/api/settings", json={"muse_preset": {MUSE["address"]: "p1041"}})).json()
+
+    body = _serve(app, go)
+    assert body["ok"] is True
+    assert body["restart_needed"] is True
+    assert "Muse S Athena.preset" in body["changed"]
+    assert cfg["devices"][0]["preset"] == "p1041"
+
+
+def test_saving_the_preset_already_in_force_changes_nothing(tmp_path):
+    app, cfg, *_ = _mk(tmp_path, devices=[MUSE_ATHENA])
+
+    async def go(c):
+        return await (await c.post("/api/settings", json={"muse_preset": {MUSE["address"]: "p1045"}})).json()
+
+    body = _serve(app, go)
+    assert body["ok"] is True
+    assert body["changed"] == []
+    assert "preset" not in cfg["devices"][0]
+
+
+@pytest.mark.parametrize(
+    ("devices", "addr", "want", "msg"),
+    [
+        ([MUSE_ATHENA], MUSE["address"], "p20", "not one the headband accepted"),
+        ([MUSE_ATHENA], "00:00:00:00:00:01", "p1041", "unknown device"),
+        ([dict(MUSE)], MUSE["address"], "p1041", "not a Muse on the native recorder"),
+        ([H10], H10["address"], "p1041", "not a Muse on the native recorder"),
+    ],
+)
+def test_a_bad_preset_request_is_refused_before_the_config_moves(tmp_path, devices, addr, want, msg):
+    app, cfg, *_ = _mk(tmp_path, devices=devices)
+
+    async def go(c):
+        r = await c.post("/api/settings", json={"muse_preset": {addr: want}})
+        return r.status, await r.json()
+
+    status, body = _serve(app, go)
+    assert status == 400
+    assert msg in body["error"]
+    assert all("preset" not in d for d in cfg["devices"])
+
+
+@pytest.mark.parametrize(
+    ("ps", "name"), [(0x1041, "p1041"), (0x21, "p21"), (None, None), (True, None), (-1, None), ("4161", None)]
+)
+def test_preset_name_reads_the_ps_reply_and_nulls_what_is_not_a_preset(ps, name):
+    assert muse_athena.preset_name(ps) == name
