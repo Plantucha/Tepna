@@ -96,7 +96,7 @@ first — this index maps the ~60 *markdown* docs; the block below surfaces the 
 | [`HEALTH-BOX-VISION-2026-07-01-BRIEF.md`](briefs/HEALTH-BOX-VISION-2026-07-01-BRIEF.md) | **Tepna Vigil** | Brief *(ARCHIVED 2026-08-03)* |
 | [`CAPTURE-HOST-FOLLOWUPS-2026-07-16-BRIEF.md`](briefs/CAPTURE-HOST-FOLLOWUPS-2026-07-16-BRIEF.md) | **What the first real multi-sensor bring-up surfaced** | Brief *(DONE 2026-08-04)* |
 | [`MULTI-SENSOR-DERIVATIONS-2026-07-16-BRIEF.md`](briefs/MULTI-SENSOR-DERIVATIONS-2026-07-16-BRIEF.md) | **Scoping/agenda** | Brief *(DONE 2026-07-17)* |
-| [`SIGNAL-QUALITY-TABLE-2026-11-14-BRIEF.md`](briefs/SIGNAL-QUALITY-TABLE-2026-11-14-BRIEF.md) | **Per-channel sensor quality table on every Dex; ECGDex pilot** | Brief *(PROPOSED 2026-11-14)* |
+| [`SIGNAL-QUALITY-TABLE-2026-11-14-BRIEF.md`](briefs/SIGNAL-QUALITY-TABLE-2026-11-14-BRIEF.md) | **Per-channel sensor quality table on every Dex; ECGDex pilot** | Brief *(IN-PROGRESS 2026-11-14)* |
 | [`COMBINATOR-2026-11-14-BRIEF.md`](briefs/COMBINATOR-2026-11-14-BRIEF.md) | **Raw-signal combination with per-window σ; consumes the signal-quality table** | Brief *(PROPOSED 2026-11-14)* |
 | [`MULTI-SENSOR-DERIVATIONS-FOLLOWUPS-2026-07-18-BRIEF.md`](briefs/MULTI-SENSOR-DERIVATIONS-FOLLOWUPS-2026-07-18-BRIEF.md) | **What executing four fusions (§1.1·§1.2·§2.2·§2.4) surfaced.** | Brief *(IN-PROGRESS 2026-09-05)* |
 | [`MOTIONDEX-BUILD-2026-07-17-BRIEF.md`](briefs/MOTIONDEX-BUILD-2026-07-17-BRIEF.md) | **Build brief for MotionDex — the fleet's motion / IMU node.** | Brief *(DONE 2026-07-18)* |

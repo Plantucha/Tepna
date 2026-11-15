@@ -76,8 +76,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "02736618d5a7",
-        "computeHash": "c73913a843d0"
+        "manifestHash": "90ecc75295ae",
+        "computeHash": "5bff85b1e812"
       },
       "evidence": {
         "envelopeRef": null,
@@ -106,8 +106,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "02736618d5a7",
-        "computeHash": "c73913a843d0"
+        "manifestHash": "90ecc75295ae",
+        "computeHash": "5bff85b1e812"
       },
       "evidence": {
         "envelopeRef": null,
@@ -136,8 +136,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "02736618d5a7",
-        "computeHash": "c73913a843d0"
+        "manifestHash": "90ecc75295ae",
+        "computeHash": "5bff85b1e812"
       },
       "evidence": {
         "envelopeRef": null,
@@ -166,8 +166,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "02736618d5a7",
-        "computeHash": "c73913a843d0"
+        "manifestHash": "90ecc75295ae",
+        "computeHash": "5bff85b1e812"
       },
       "evidence": {
         "envelopeRef": null,
@@ -198,8 +198,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "02736618d5a7",
-        "computeHash": "c73913a843d0"
+        "manifestHash": "90ecc75295ae",
+        "computeHash": "5bff85b1e812"
       },
       "evidence": {
         "envelopeRef": null,
@@ -235,6 +235,321 @@
       "absent": true,
       "samples": null
     }
+  },
+  "signalQuality": {
+    "epochSec": 300,
+    "channels": {
+      "ecg": {
+        "stream": "H10:ecg",
+        "coverage": {
+          "value": 100,
+          "unit": "% of the beat span covered",
+          "reason": null,
+          "gaps": 0,
+          "activeMin": 1,
+          "gapMin": 0,
+          "spanMin": 1,
+          "analyzablePct": 100
+        },
+        "rail": {
+          "value": null,
+          "unit": "samples at the rail over the whole record",
+          "reason": "no-rail: this file holds no saturation rail, so no sample can sit at one",
+          "absent": true,
+          "lo": null,
+          "hi": null,
+          "mirrorLo": null,
+          "mirrorHi": null
+        },
+        "flatline": {
+          "value": 0,
+          "unit": "% of assessed beats inside a flat run",
+          "reason": null,
+          "n": 60,
+          "source": "the per-beat flat-run term of this node’s own beat score"
+        },
+        "snr": {
+          "value": null,
+          "unit": "dB",
+          "reason": "not-measured: this node computes no in-band SNR for the ECG; the band edges are pre-stated before that measurement (brief §8)"
+        },
+        "mains": {
+          "value": null,
+          "unit": "ratio to in-band power",
+          "reason": "not-measured: this node computes no mains-hum ratio for any channel"
+        },
+        "nodeSqi": {
+          "value": 0.959,
+          "unit": "mean per-beat score, 0 to 1",
+          "reason": null,
+          "weights": "0.30·kSQI + 0.28·bSQI + 0.24·rrPlaus + 0.18·ampOK",
+          "terms": {
+            "n": 60,
+            "kSQI": 0.8617,
+            "bSQI": 1,
+            "rrPlaus": 1,
+            "ampOK": 1
+          },
+          "cleanBeatPct": 100
+        },
+        "timing": {
+          "value": -6.6680440095983435,
+          "unit": "ppm of the device rate against the host axis",
+          "reason": null,
+          "independent": false,
+          "timingSource": "device",
+          "spreadMs": 0.9232177734375,
+          "anchors": 16,
+          "applied": false,
+          "spanPpm": -10.669716882384908,
+          "maxStepMs": 0.0384521484375,
+          "resyncs": 0,
+          "fsRaw": 129.9999998982617,
+          "fs": 129.9999998982617
+        },
+        "reference": {
+          "value": null,
+          "unit": "ms, median absolute interval difference against the strap’s own RR",
+          "reason": "no-reference: this recording carries no device RR train to compare against",
+          "source": null,
+          "beatsCompared": null,
+          "biasPct": null,
+          "gapCutBeats": null,
+          "pairingDecays": null,
+          "mae": null,
+          "maeReason": "not computed: the cross-check publishes a median absolute difference, not a mean",
+          "loa": null,
+          "loaReason": "not computed: this node publishes no limits of agreement for the RR comparison"
+        }
+      },
+      "acc": {
+        "stream": "H10:acc",
+        "coverage": {
+          "value": null,
+          "unit": "% of the recording span outside the box’s held-value runs",
+          "reason": "this node ingests no motion channel on this recording",
+          "blankMs": null,
+          "spanMs": 59399.169581947135,
+          "samples": null,
+          "fs": null,
+          "complementOf": "flatline"
+        },
+        "rail": {
+          "value": null,
+          "unit": "samples at the rail",
+          "reason": "this node ingests no motion channel on this recording"
+        },
+        "flatline": {
+          "value": null,
+          "unit": "% of the recording span inside the box’s held-value runs",
+          "reason": "this node ingests no motion channel on this recording",
+          "runs": null,
+          "source": "the box’s run sidecar, not a census this node computes"
+        },
+        "snr": {
+          "value": null,
+          "unit": "dB",
+          "reason": "this node ingests no motion channel on this recording"
+        },
+        "mains": {
+          "value": null,
+          "unit": "ratio to in-band power",
+          "reason": "not-measured: this node computes no mains-hum ratio for any channel"
+        },
+        "nodeSqi": {
+          "value": null,
+          "unit": "mean per-beat score, 0 to 1",
+          "reason": "this node ingests no motion channel on this recording"
+        },
+        "timing": {
+          "value": null,
+          "unit": "ppm of the device rate against the host axis",
+          "reason": "this node ingests no motion channel on this recording"
+        },
+        "reference": {
+          "value": null,
+          "unit": "ms",
+          "reason": "no-reference: no second motion stream reaches this node"
+        }
+      }
+    },
+    "sidecars": [
+      {
+        "key": "ECGRUNS",
+        "file": "_ECGRUNS.txt",
+        "label": "Signal gaps — ECG",
+        "state": "absent",
+        "reason": "the box wrote no `_ECGRUNS.txt` beside this recording, so no blanking span is known — this is not a clean stream"
+      },
+      {
+        "key": "ECGSEAMS",
+        "file": "_ECGSEAMS.txt",
+        "label": "Clock jumps — ECG",
+        "state": "absent",
+        "reason": "the box wrote no `_ECGSEAMS.txt` beside this recording, so the seam count is unknown rather than zero"
+      },
+      {
+        "key": "ACCRUNS",
+        "file": "_ACCRUNS.txt",
+        "label": "Signal gaps — motion",
+        "state": "not-applicable",
+        "reason": "this recording carries no motion companion, so no motion sidecar can apply to it"
+      },
+      {
+        "key": "ACCSEAMS",
+        "file": "_ACCSEAMS.txt",
+        "label": "Clock jumps — motion",
+        "state": "not-read",
+        "reason": "the box writes it beside the chest `_ACC.txt` and MotionDex reads it; this node has no motion-seam reader"
+      },
+      {
+        "key": "HRSEAMS",
+        "file": "_HRSEAMS.txt",
+        "label": "Clock jumps — heart rate",
+        "state": "not-read",
+        "reason": "this node reads the device `_HR.txt` rows and has no seam reader for them"
+      },
+      {
+        "key": "PPISEAMS",
+        "file": "_PPISEAMS.txt",
+        "label": "Clock jumps — beat intervals",
+        "state": "not-read",
+        "reason": "this node reads the device RR rows for the firmware cross-check and has no seam reader for them"
+      },
+      {
+        "key": "PPGRUNS",
+        "file": "_PPGRUNS.txt",
+        "label": "Signal gaps — optical",
+        "state": "not-applicable",
+        "reason": "an optical stream, which this node does not ingest"
+      },
+      {
+        "key": "PPG2WRUNS",
+        "file": "_PPG2WRUNS.txt",
+        "label": "Signal gaps — optical, 2nd stream",
+        "state": "not-applicable",
+        "reason": "an optical stream, which this node does not ingest"
+      },
+      {
+        "key": "PPGSEAMS",
+        "file": "_PPGSEAMS.txt",
+        "label": "Clock jumps — optical",
+        "state": "not-applicable",
+        "reason": "an optical stream, which this node does not ingest"
+      },
+      {
+        "key": "ACCRAWRUNS",
+        "file": "_ACCRAWRUNS.txt",
+        "label": "Signal gaps — motion, raw stream",
+        "state": "not-applicable",
+        "reason": "the optical device writes this raw motion stream, which this node does not ingest"
+      },
+      {
+        "key": "RADIOCLOCK",
+        "file": "_RADIOCLOCK.csv",
+        "label": "Radio clock log",
+        "state": "not-read",
+        "reason": "a parser stands in radio-clock.js, which 0 bundles inline and 0 node DSPs call (measured 2026-11-14), so no node reads this file"
+      },
+      {
+        "key": "LINK",
+        "file": "_LINK.csv",
+        "label": "Bluetooth link log",
+        "state": "not-read",
+        "reason": "one file per night, tied to no stream, and no node reads it"
+      },
+      {
+        "key": "RTCLOG",
+        "file": "_RTCLOG.csv",
+        "label": "Ring clock log",
+        "state": "not-applicable",
+        "reason": "the ring writes it, and this node ingests no ring stream"
+      },
+      {
+        "key": "OXYFRAME",
+        "file": "_OXYFRAME.txt",
+        "label": "Ring contact log",
+        "state": "not-applicable",
+        "reason": "the ring writes it, and this node ingests no ring stream"
+      },
+      {
+        "key": "CLOCK",
+        "file": "_CLOCK.csv",
+        "label": "Host clock log",
+        "state": "not-read",
+        "reason": "a night journal of what disciplined the host clock, and this node reads the host stamps of its own stream instead"
+      },
+      {
+        "key": "PMDARRIVAL",
+        "file": "_PMDARRIVAL.csv",
+        "label": "Packet arrival log",
+        "state": "not-read",
+        "reason": "a per-session log of the host arrival stamp of every packet of the streams this node ingests, and no reader stands here"
+      },
+      {
+        "key": "CLOCKSYNC",
+        "file": "CLOCKSYNC.csv",
+        "label": "Device clock sync log",
+        "state": "not-read",
+        "reason": "a per-device log of each clock-sync event and its skew, and no reader stands here"
+      },
+      {
+        "key": "PMDNEG",
+        "file": "PMDNEG.csv",
+        "label": "Stream rate agreement log",
+        "state": "not-read",
+        "reason": "the per-stream record of the rate the device agreed to, which this node could hold against the rate it measures, and no reader stands here"
+      },
+      {
+        "key": "STARTS",
+        "file": "STARTS.csv",
+        "label": "Daemon start log",
+        "state": "not-read",
+        "reason": "a night journal of each daemon start, which binds to no stream"
+      },
+      {
+        "key": "WORN",
+        "file": "WORN.csv",
+        "label": "Wear state log",
+        "state": "not-read",
+        "reason": "a per-device journal of the wear state, which binds to no stream"
+      },
+      {
+        "key": "WEDGEFIRE",
+        "file": "WEDGEFIRE.csv",
+        "label": "Device wedge log",
+        "state": "not-read",
+        "reason": "a journal of each device the box found wedged, which binds to no stream"
+      },
+      {
+        "key": "ADAPTERHCI",
+        "file": "ADAPTERHCI.csv",
+        "label": "Radio health log",
+        "state": "not-read",
+        "reason": "a per-radio health report, which binds to no stream"
+      },
+      {
+        "key": "OXYLIFE",
+        "file": "OXYLIFE.csv",
+        "label": "Ring lifecycle log",
+        "state": "not-applicable",
+        "reason": "the ring writes it, and this node ingests no ring stream"
+      },
+      {
+        "key": "SESSIONDETECT",
+        "file": "SESSIONDETECT.csv",
+        "label": "CPAP session detector log",
+        "state": "not-applicable",
+        "reason": "the CPAP shadow runner writes it, and this node ingests no CPAP stream"
+      },
+      {
+        "key": "AS11CLOCK",
+        "file": "AS11CLOCK.csv",
+        "label": "CPAP device clock log",
+        "state": "not-applicable",
+        "reason": "the CPAP clock discipline writes it, and this node ingests no CPAP stream"
+      }
+    ]
   },
   "hrv": {
     "time": {

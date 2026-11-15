@@ -56,13 +56,20 @@ export const NOT_SIDECARS = {
 };
 
 /** @typedef {{kind:'node'|'box'|'tool', file:string, anchor:string, onAbsent:string, test?:string|null, residue?:string|null}} Reader */
-/** @typedef {{tag:string, names?:string[], writer:{file:string, anchor:string}, readers:Reader[], residue?:string|null, note?:string}} Sidecar */
+/** @typedef {{name:string, file:string, label:string}} LedgerRow */
+/** @typedef {{tag:string, rows?:LedgerRow[], writer:{file:string, anchor:string}, readers:Reader[], residue?:string|null, note?:string}} Sidecar */
 
 /** @type {Sidecar[]} */
 export const REGISTRY = [
   {
     tag: 'RUNS',
-    names: ['PPGRUNS', 'PPG2WRUNS', 'ECGRUNS', 'ACCRUNS', 'ACCRAWRUNS'],
+    rows: [
+      { name: 'ECGRUNS', file: '_ECGRUNS.txt', label: 'Signal gaps — ECG' },
+      { name: 'PPGRUNS', file: '_PPGRUNS.txt', label: 'Signal gaps — optical' },
+      { name: 'PPG2WRUNS', file: '_PPG2WRUNS.txt', label: 'Signal gaps — optical, 2nd stream' },
+      { name: 'ACCRUNS', file: '_ACCRUNS.txt', label: 'Signal gaps — motion' },
+      { name: 'ACCRAWRUNS', file: '_ACCRAWRUNS.txt', label: 'Signal gaps — motion, raw stream' }
+    ],
     writer: { file: 'capture-host/writers.py', anchor: 'class _RunSidecar' },
     readers: [
       {
@@ -120,7 +127,13 @@ export const REGISTRY = [
   },
   {
     tag: 'SEAMS',
-    names: ['PPGSEAMS', 'PPISEAMS', 'ECGSEAMS', 'HRSEAMS'],
+    rows: [
+      { name: 'ECGSEAMS', file: '_ECGSEAMS.txt', label: 'Clock jumps — ECG' },
+      { name: 'PPGSEAMS', file: '_PPGSEAMS.txt', label: 'Clock jumps — optical' },
+      { name: 'PPISEAMS', file: '_PPISEAMS.txt', label: 'Clock jumps — beat intervals' },
+      { name: 'HRSEAMS', file: '_HRSEAMS.txt', label: 'Clock jumps — heart rate' },
+      { name: 'ACCSEAMS', file: '_ACCSEAMS.txt', label: 'Clock jumps — motion' }
+    ],
     writer: { file: 'capture-host/writers.py', anchor: 'class _SeamSidecar' },
     note: 'ECGDex reads the ECG spelling (SEAM-SIDECAR-CONSUMPTION §4, owner ruling 2026-11-05); the browser drop lane and the four other clock-carrying nodes are open — rows 2026-11-05-the-ecgseams-browser-drop-lane-has-no-companion-lane and 2026-11-05-four-clock-carrying-nodes-still-read-no-seam-sidecar',
     residue: ROW_SEAMNODE,
@@ -165,6 +178,7 @@ export const REGISTRY = [
   },
   {
     tag: 'LINK',
+    rows: [{ name: 'LINK', file: '_LINK.csv', label: 'Bluetooth link log' }],
     writer: { file: 'capture-host/writers.py', anchor: 'class LinkLogWriter' },
     readers: [
       {
@@ -186,6 +200,7 @@ export const REGISTRY = [
   },
   {
     tag: 'CLOCK',
+    rows: [{ name: 'CLOCK', file: '_CLOCK.csv', label: 'Host clock log' }],
     writer: { file: 'capture-host/writers.py', anchor: 'class HostClockLogWriter' },
     readers: [
       {
@@ -199,6 +214,7 @@ export const REGISTRY = [
   },
   {
     tag: 'OXYFRAME',
+    rows: [{ name: 'OXYFRAME', file: '_OXYFRAME.txt', label: 'Ring contact log' }],
     writer: { file: 'capture-host/writers.py', anchor: 'class OxyFrameLogWriter' },
     readers: [
       {
@@ -214,6 +230,7 @@ export const REGISTRY = [
   },
   {
     tag: 'RTCLOG',
+    rows: [{ name: 'RTCLOG', file: '_RTCLOG.csv', label: 'Ring clock log' }],
     writer: { file: 'capture-host/writers.py', anchor: 'class RingClockLogWriter' },
     readers: [
       {
@@ -242,6 +259,7 @@ export const REGISTRY = [
   },
   {
     tag: 'PMDARRIVAL',
+    rows: [{ name: 'PMDARRIVAL', file: '_PMDARRIVAL.csv', label: 'Packet arrival log' }],
     writer: { file: 'capture-host/writers.py', anchor: 'class PmdArrivalLogWriter' },
     readers: [
       {
@@ -264,6 +282,7 @@ export const REGISTRY = [
   },
   {
     tag: 'RADIOCLOCK',
+    rows: [{ name: 'RADIOCLOCK', file: '_RADIOCLOCK.csv', label: 'Radio clock log' }],
     writer: { file: 'capture-host/radioclock.py', anchor: 'def sidecar_name(' },
     note: 'radio-clock.js is in no bundle and no DSP calls it',
     residue: ROW_SEAMNODE,
@@ -280,6 +299,7 @@ export const REGISTRY = [
   },
   {
     tag: 'OXYLIFE',
+    rows: [{ name: 'OXYLIFE', file: 'OXYLIFE.csv', label: 'Ring lifecycle log' }],
     writer: { file: 'capture-host/writers.py', anchor: 'class OxyLifeLogWriter' },
     readers: [
       {
@@ -293,6 +313,7 @@ export const REGISTRY = [
   },
   {
     tag: 'CLOCKSYNC',
+    rows: [{ name: 'CLOCKSYNC', file: 'CLOCKSYNC.csv', label: 'Device clock sync log' }],
     writer: { file: 'capture-host/writers.py', anchor: 'CLOCKSYNC_NAME = ' },
     readers: [
       {
@@ -313,6 +334,7 @@ export const REGISTRY = [
   },
   {
     tag: 'STARTS',
+    rows: [{ name: 'STARTS', file: 'STARTS.csv', label: 'Daemon start log' }],
     writer: { file: 'capture-host/writers.py', anchor: 'STARTS_NAME = ' },
     readers: [
       {
@@ -333,6 +355,7 @@ export const REGISTRY = [
   },
   {
     tag: 'PMDNEG',
+    rows: [{ name: 'PMDNEG', file: 'PMDNEG.csv', label: 'Stream rate agreement log' }],
     writer: { file: 'capture-host/writers.py', anchor: 'PMDNEG_NAME = ' },
     readers: [
       {
@@ -353,6 +376,7 @@ export const REGISTRY = [
   },
   {
     tag: 'WORN',
+    rows: [{ name: 'WORN', file: 'WORN.csv', label: 'Wear state log' }],
     writer: { file: 'capture-host/writers.py', anchor: 'WORN_NAME = ' },
     readers: [
       {
@@ -366,6 +390,7 @@ export const REGISTRY = [
   },
   {
     tag: 'WEDGEFIRE',
+    rows: [{ name: 'WEDGEFIRE', file: 'WEDGEFIRE.csv', label: 'Device wedge log' }],
     writer: { file: 'capture-host/capture.py', anchor: 'def _wedge_fire_record(' },
     readers: [
       {
@@ -379,6 +404,7 @@ export const REGISTRY = [
   },
   {
     tag: 'SESSIONDETECT',
+    rows: [{ name: 'SESSIONDETECT', file: 'SESSIONDETECT.csv', label: 'CPAP session detector log' }],
     writer: { file: 'capture-host/cpap_shadow_runner.py', anchor: 'class SessionSidecar' },
     readers: [
       {
@@ -392,6 +418,7 @@ export const REGISTRY = [
   },
   {
     tag: 'AS11CLOCK',
+    rows: [{ name: 'AS11CLOCK', file: 'AS11CLOCK.csv', label: 'CPAP device clock log' }],
     writer: { file: 'capture-host/as11_clock.py', anchor: 'class ClockSidecar' },
     readers: [
       {
@@ -412,6 +439,7 @@ export const REGISTRY = [
   },
   {
     tag: 'ADAPTERHCI',
+    rows: [{ name: 'ADAPTERHCI', file: 'ADAPTERHCI.csv', label: 'Radio health log' }],
     writer: { file: 'capture-host/adapter_hci.py', anchor: 'FILE_NAME = "ADAPTERHCI.csv"' },
     readers: [
       {
@@ -481,13 +509,77 @@ export function discover(root) {
 /** The registry tag a discovered name belongs to, or the non-sidecar class that claims it, or null. */
 export function classify(name, registry) {
   for (const s of registry) {
-    if (s.tag === name || (s.names || []).includes(name)) return { sidecar: s.tag };
+    if (s.tag === name || (s.rows || []).some((r) => r.name === name)) return { sidecar: s.tag };
   }
   if (name.endsWith('RUNS') && registry.some((s) => s.tag === 'RUNS')) return { sidecar: 'RUNS' };
   if (name.endsWith('SEAMS') && registry.some((s) => s.tag === 'SEAMS')) return { sidecar: 'SEAMS' };
   for (const [cls, list] of Object.entries(NOT_SIDECARS)) if (list.includes(name)) return { not: cls };
   return null;
 }
+
+/**
+ * EVERY SIDECAR SPELLING THE BOX CAN WRITE, with the label a reader-facing table gives it.
+ *
+ * One declaration. A node that surfaces a sidecar ledger projects THIS set, and `nodeLedgerFindings`
+ * below holds the projection against it, the way `registry-defs-parity` holds a node's `*_DEFS` against
+ * its registry. Two hand-kept lists of one set drift apart, and the drift is silent in the direction
+ * that reads as "the box writes no such file".
+ */
+export function ledgerRows(registry = REGISTRY) {
+  return registry.flatMap((s) => s.rows || []);
+}
+
+/**
+ * A NODE'S SIDECAR LEDGER IS A PROJECTION OF THE REGISTRY ABOVE — this check reds when it stops being one.
+ *
+ * A browser bundle cannot import a `tools/*.mjs`, so the node declares its own literal table and this
+ * gate proves the two agree on the SET, on each on-disk spelling and on each label. It reads the node's
+ * table as text between its opening anchor and the first `];`, so a renamed table fails here until the
+ * check follows it, which is the same limit the writer and reader anchors accept.
+ *
+ * The node says what it DOES with each sidecar; that part is the node's own fact and no concern of this
+ * gate. Only the three declared columns are held.
+ */
+export function nodeLedgerFindings(root, registry = REGISTRY, ledger = NODE_LEDGERS) {
+  const out = [];
+  for (const L of ledger) {
+    const p = join(root, L.file);
+    if (!existsSync(p)) {
+      out.push(`${L.file}: the node ledger file is absent, so its sidecar table cannot be held against the registry`);
+      continue;
+    }
+    const text = readFileSync(p, 'utf8');
+    const at = text.indexOf(L.anchor);
+    if (at < 0) {
+      out.push(`${L.file}: the sidecar-table anchor "${L.anchor}" is absent`);
+      continue;
+    }
+    const end = text.indexOf('];', at);
+    const body = end < 0 ? text.slice(at) : text.slice(at, end);
+    const got = new Map();
+    for (const m of body.matchAll(/key:\s*'([A-Z0-9]+)'/g)) got.set(m[1], { file: null, label: null });
+    for (const m of body.matchAll(/key:\s*'([A-Z0-9]+)',\s*file:\s*'([^']+)',\s*label:\s*'([^']*)'/g)) {
+      got.set(m[1], { file: m[2], label: m[3] });
+    }
+    const rows = ledgerRows(registry);
+    for (const r of rows) {
+      const g = got.get(r.name);
+      if (!g) {
+        out.push(`${L.file}: the sidecar ledger names no row for ${r.name} (${r.file}), which the registry declares`);
+        continue;
+      }
+      if (g.file !== r.file) out.push(`${L.file}: row ${r.name} spells the file "${g.file}", the registry spells it "${r.file}"`);
+      if (g.label !== r.label) out.push(`${L.file}: row ${r.name} labels it "${g.label}", the registry labels it "${r.label}"`);
+    }
+    for (const name of got.keys()) {
+      if (!rows.some((r) => r.name === name)) out.push(`${L.file}: the sidecar ledger carries a row ${name}, which the registry does not declare`);
+    }
+  }
+  return out;
+}
+
+/** The node sidecar ledgers this gate holds against the registry. */
+export const NODE_LEDGERS = [{ file: 'ecgdex-dsp.js', anchor: 'var _ECG_SIDECAR_LEDGER = [' }];
 
 /* ── THE CHECKS ────────────────────────────────────────────────────────────────────────────────── */
 
@@ -514,6 +606,7 @@ function testExists(root, ref, cache) {
  */
 export function census(root, registry = REGISTRY, opts = {}) {
   const related = opts.related || RELATED_ROWS;
+  const nodeLedgers = opts.nodeLedgers || NODE_LEDGERS;
   const cache = new Map();
   const ledgerPath = join(root, 'briefs/RESIDUE.md');
   const rows = existsSync(ledgerPath) ? parseRows(readFileSync(ledgerPath, 'utf8')) : null;
@@ -559,6 +652,7 @@ export function census(root, registry = REGISTRY, opts = {}) {
   }
   for (const r of related) cite(r.key, r.cls, 'a reader not handed its sidecar');
 
+  for (const f of nodeLedgerFindings(root, registry, nodeLedgers)) findings.push(f);
   if (rows === null) findings.push('briefs/RESIDUE.md is absent, so no cited row can be checked');
   const ranking = [...cites.values()].map((c) => ({ key: c.key, cls: c.cls, state: stateOf.get(c.key) ?? null, why: c.why }));
   for (const c of ranking) if (rows !== null && c.state === null) findings.push(`cited residue key ${c.key} is not a row of briefs/RESIDUE.md`);
@@ -611,11 +705,14 @@ const PLANT = {
     'class FooLogWriter:\n    """Writes FOO.csv; a docstring BAR.csv names nothing."""\n    name = "FOO.csv"\n# a comment QUX.csv names nothing\nx = capture_filename(a, b, c, d, "ecg", "txt")\n',
   'capture-host/tests/test_foo.py': 'def test_absent_foo_is_none():\n    pass\n',
   'foo-dsp.js': 'function readFoo(text) { return null; }\n',
+  'foo-node.js': "var _FOO_LEDGER = [\n    { key: 'FOO', file: 'FOO.csv', label: 'Foo log' }\n  ];\n",
   'briefs/RESIDUE.md': '| 2026-01-01-a-planted-row | 2026-01-01 | `x` | d | e | OPEN |\n'
 };
+const PLANT_LEDGERS = [{ file: 'foo-node.js', anchor: 'var _FOO_LEDGER = [' }];
 const PLANT_REG = () => [
   {
     tag: 'FOO',
+    rows: [{ name: 'FOO', file: 'FOO.csv', label: 'Foo log' }],
     writer: { file: 'capture-host/writers.py', anchor: 'class FooLogWriter' },
     readers: [{ kind: 'node', file: 'foo-dsp.js', anchor: 'function readFoo(', onAbsent: 'null', test: 'capture-host/tests/test_foo.py::test_absent_foo_is_none' }]
   }
@@ -636,7 +733,7 @@ function selftest() {
       rmSync(root, { recursive: true, force: true });
       mkdirSync(root, { recursive: true });
       plant(root, { ...PLANT, ...files });
-      return census(root, reg || PLANT_REG(), { related: [], ...opts });
+      return census(root, reg || PLANT_REG(), { related: [], nodeLedgers: PLANT_LEDGERS, ...opts });
     };
     const a = run({});
     eq('a registered sidecar with a tested reader passes', a.status, 'PASS');
@@ -677,6 +774,29 @@ function selftest() {
     reg4[0].readers[0].kind = 'tool';
     const e = run({}, reg4);
     eq('…a tool reader with no test is counted, not failed', [e.status, e.verdict.result.untestedToolReaders], ['PASS', 1]);
+
+    /* THE NODE LEDGER IS A PROJECTION — each arm below mutates the node file or the registry and
+       reads what the gate says, because a check whose subject never changes proves nothing. */
+    const miss = run({ 'foo-node.js': 'var _FOO_LEDGER = [\n  ];\n' });
+    eq('a registry row the node ledger does not carry FAILS', [miss.status, miss.findings.some((f) => /names no row for FOO \(FOO.csv\)/.test(f))], ['FAIL', true]);
+
+    const stray = run({ 'foo-node.js': "var _FOO_LEDGER = [\n    { key: 'FOO', file: 'FOO.csv', label: 'Foo log' },\n    { key: 'GHOST', file: 'GHOST.csv', label: 'Ghost log' }\n  ];\n" });
+    eq('a node row the registry does not declare FAILS', [stray.status, stray.findings.some((f) => /carries a row GHOST/.test(f))], ['FAIL', true]);
+
+    /* The drifted spelling is deliberately NOT of the `_<TAG>.<ext>` shape a reader compares against:
+       the suffix-parity group in `tests/dex-tests.js` scans this source for that shape and asks the box
+       writer to emit every one it finds, and a planted literal is no reader's expectation. */
+    const spell = run({ 'foo-node.js': "var _FOO_LEDGER = [\n    { key: 'FOO', file: 'foo-drifted.csv', label: 'Foo log' }\n  ];\n" });
+    eq('a file spelling that drifts from the registry FAILS', [spell.status, spell.findings.some((f) => /spells the file "foo-drifted.csv"/.test(f))], ['FAIL', true]);
+
+    const lab = run({ 'foo-node.js': "var _FOO_LEDGER = [\n    { key: 'FOO', file: 'FOO.csv', label: 'Foo journal' }\n  ];\n" });
+    eq('a label that drifts from the registry FAILS', [lab.status, lab.findings.some((f) => /labels it "Foo journal"/.test(f))], ['FAIL', true]);
+
+    const gone = run({}, null, { nodeLedgers: [{ file: 'no-such-node.js', anchor: 'var _FOO_LEDGER = [' }] });
+    eq('an absent node ledger file FAILS', [gone.status, gone.findings.some((f) => /the node ledger file is absent/.test(f))], ['FAIL', true]);
+
+    const ren = run({}, null, { nodeLedgers: [{ file: 'foo-node.js', anchor: 'var _RENAMED_LEDGER = [' }] });
+    eq('a renamed sidecar table FAILS until the check follows it', [ren.status, ren.findings.some((f) => /anchor "var _RENAMED_LEDGER = \[" is absent/.test(f))], ['FAIL', true]);
 
     eq('an empty registry examined nothing: NOT_RUN with a null result', [run({}, []).verdict.status, run({}, []).verdict.result], ['NOT_RUN', null]);
   } finally {
