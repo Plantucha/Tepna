@@ -2757,6 +2757,42 @@ def test_pull_oxyii_session_waits_progress_and_meta(tmp_path, monkeypatch):
     assert r["ok"] is True and r["sessions"] == [{"session": "abc"}]  # meta.json parsed (1073-1074)
 
 
+def test_the_rings_pull_progress_reports_an_absence_when_the_size_is_unknown(tmp_path, monkeypatch):
+    """∅ N3-2 (2026-11-15) — the ring's writer is the sibling of `webmon.polar_pull`'s, and it carried the
+    same `if size else 0`. A `0 %` bar is what a transfer that has moved nothing shows, so the published
+    record could not tell an unknown size from a stalled pull. `pull_session` reads the size from the
+    ring's own meta and refuses anything outside `0 < size < 50_000_000`, so both arms below guard the
+    published contract rather than a reachable producer. The record is read INSIDE the pull, because the
+    `finally` clears it on the way out."""
+    capture._OXYII_PAUSE.clear()
+    import pull_session
+
+    datf = tmp_path / "s.dat"
+    datf.write_text("x")
+    seen = []
+
+    async def fake_pull(address, out_dir, **kw):
+        kw["on_progress"](25, 100)
+        seen.append(dict(capture.STATUS["devices"]["Ring"]["pull_progress"]))
+        kw["on_progress"](25, None)  # no size at all
+        seen.append(dict(capture.STATUS["devices"]["Ring"]["pull_progress"]))
+        kw["on_progress"](0, 0)  # a measured zero: nothing to move
+        seen.append(dict(capture.STATUS["devices"]["Ring"]["pull_progress"]))
+        return [str(datf)]
+
+    monkeypatch.setattr(pull_session, "pull", fake_pull)
+    capture.STATUS["devices"]["Ring"] = {"connected": False}
+
+    async def fake_sleep(_s):
+        return None
+
+    monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
+    _run(capture.pull_oxyii_session(_o2dev(name="Ring"), str(tmp_path)))
+    assert seen[0] == {"device": "Ring", "bytes": 25, "total": 100, "pct": 25}, seen[0]
+    assert seen[1] == {"device": "Ring", "bytes": 25, "total": None, "pct": None}, seen[1]
+    assert seen[2] == {"device": "Ring", "bytes": 0, "total": 0, "pct": 100}, seen[2]
+
+
 # ── polar_offline_op: waits for the live link to drop before taking the slot (1124) ────────────────────
 def test_polar_offline_op_waits_for_the_link_to_drop(monkeypatch):
     capture._POLAR_PAUSED.clear()

@@ -2616,7 +2616,16 @@ def night_verdict(audit: dict, *, night_dir: str, commit: str | None = None) -> 
     (checked) vs those without (excluded). UNKNOWN with the measurement until a bar exists; with a bar,
     FAIL names the device and the cause."""
     devs = audit.get("devices") or {}
-    checked = {n: v for n, v in devs.items() if isinstance(v, dict) and v.get("file")}
+    # ∅ N3-1 (2026-11-15) — A FILE THAT CANNOT BE READ IS NOT A MEASUREMENT. `audit_night` writes a
+    # device entry with `file` SET and no `lost_min` when every fragment raised, so keying `checked` on
+    # `file` alone put that entry in the measured population and `by_device` below raised
+    # `KeyError: 'lost_min'`. `write_night` caught the raise and published UNKNOWN with `result: null`,
+    # so ONE unreadable primary threw away every other device's measurement for the night, and the
+    # reason read as a crash instead of the absence it is. The predicate now asks for the measurement
+    # itself, and the excluded names travel in `unreadable` below — an exclusion nobody names reads as
+    # agreement.
+    checked = {n: v for n, v in devs.items() if isinstance(v, dict) and v.get("file") and "lost_min" in v}
+    unreadable = sorted(n for n, v in devs.items() if isinstance(v, dict) and v.get("file") and "lost_min" not in v)
     excluded = len(devs) - len(checked)
     pop = {"checked": len(checked), "eligible": len(devs), "excluded": excluded}
     evidence = [TOOL, os.path.join(night_dir, AUDIT_NAME), "journalctl -u tepna-capture"]
@@ -2633,6 +2642,9 @@ def night_verdict(audit: dict, *, night_dir: str, commit: str | None = None) -> 
     absent = sorted(n for n, v in devs.items() if isinstance(v, dict) and v.get("night_absent") is True)
     result = {
         "night_absent": absent,
+        # THE PRIMARIES THAT EXISTED AND COULD NOT BE READ. They sit in `excluded`, so a reader of
+        # `population` alone cannot tell them from a device that recorded nothing at all.
+        "unreadable": unreadable,
         "worn_but_not_recorded_fraction": frac,
         "worn_lost_min": round(worn_lost, 1),
         "worn_span_min": round(worn_span, 1),
@@ -2669,6 +2681,23 @@ def night_verdict(audit: dict, *, night_dir: str, commit: str | None = None) -> 
             tool=TOOL,
             commit=commit,
         )
+    if not checked and unreadable:
+        # NOT_RUN would say the night held nothing to audit, and a primary stream DID exist. `result` is
+        # None for the reason the two NOT_RUN arms pass None: over an empty `checked` every figure in it
+        # is a 0.0 nobody measured, so the names ride the reason instead (§∅).
+        return _verdict.make(
+            gate=GATE,
+            status="UNKNOWN",
+            population=pop,
+            criterion=CRITERION,
+            result=None,
+            evidence=evidence,
+            reason="every primary stream this night was unreadable — "
+            + ", ".join(unreadable)
+            + "; the night is undecided, not clean",
+            tool=TOOL,
+            commit=commit,
+        )
     if not checked:
         return _verdict.make(
             gate=GATE,
@@ -2693,6 +2722,23 @@ def night_verdict(audit: dict, *, night_dir: str, commit: str | None = None) -> 
             evidence=evidence,
             reason=f"night absent: expected device(s) left no primary file — {', '.join(absent)}; "
             f"the {len(checked)} that recorded cannot speak for them",
+            tool=TOOL,
+            commit=commit,
+        )
+    if unreadable and not (frac is not None and frac > THRESHOLD):
+        # The same precedence the `absent` arm states, and its own reason: a clear FAIL outranks this,
+        # and no PASS can be said over a population whose other primary could not be read. When a night
+        # carries BOTH classes the arm above answers first, and `result["unreadable"]` still names these.
+        return _verdict.make(
+            gate=GATE,
+            status="UNKNOWN",
+            population=pop,
+            criterion=CRITERION,
+            result=result,
+            evidence=evidence,
+            reason="unreadable primary stream(s) — "
+            + ", ".join(unreadable)
+            + f"; the {len(checked)} device(s) that could be read cannot speak for them",
             tool=TOOL,
             commit=commit,
         )

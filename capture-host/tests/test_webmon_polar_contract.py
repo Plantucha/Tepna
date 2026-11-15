@@ -154,12 +154,18 @@ def test_progress_is_published_against_the_device_the_monitor_shows(tmp_path):
     assert seen["mid"] == {"device": "H10", "bytes": 2500, "total": 10000, "pct": 25}
 
 
-def test_progress_with_an_unknown_total_reports_zero_rather_than_dividing_by_it(tmp_path):
-    seen = {}
+def test_a_total_has_three_states_and_an_unknown_one_is_not_a_zero_percent_pull(tmp_path):
+    """∅ N3-2 (2026-11-15) — THIS TEST USED TO PIN THE DEFECT. It asserted `pct == 0 and total == 0` for
+    a falsy total, and `0 %` is also what a pull that has moved nothing reports — so no consumer of
+    `/api/status` could tell an unknown total, a zero-byte session and a stalled transfer apart. The
+    monitor hid every falsy-total record, which is why the zero travelled unannounced. The division is
+    still never attempted: a null total answers null, and a measured zero has nothing left to move."""
+    seen = []
 
     async def fake_pull(address, session, out_dir, on_progress=None, device_id=None):
-        on_progress(500, 0)
-        seen["mid"] = dict(st["devices"]["H10"]["pull_progress"])
+        for args in ((500, None), (0, 0), (2500, 10000)):
+            on_progress(*args)
+            seen.append(dict(st["devices"]["H10"]["pull_progress"]))
         return {"ok": True}
 
     webmon.polar_psftp.pull_recording = fake_pull
@@ -169,7 +175,9 @@ def test_progress_with_an_unknown_total_reports_zero_rather_than_dividing_by_it(
         return await (await c.post("/api/polar/pull", json={"address": ADDR, "session": SESSION})).json()
 
     _serve(app, go)
-    assert seen["mid"]["pct"] == 0 and seen["mid"]["total"] == 0
+    assert seen[0] == {"device": "H10", "bytes": 500, "total": None, "pct": None}, seen[0]
+    assert seen[1] == {"device": "H10", "bytes": 0, "total": 0, "pct": 100}, seen[1]
+    assert seen[2] == {"device": "H10", "bytes": 2500, "total": 10000, "pct": 25}, seen[2]
 
 
 def test_progress_is_cleared_when_the_pull_ends(tmp_path):

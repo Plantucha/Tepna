@@ -1921,9 +1921,12 @@ def test_a_zero_byte_file_is_still_downloaded(monkeypatch, tmp_path):
     assert m["ok"] is True, "zero declared, zero received — that is a complete file"
 
 
-def test_a_session_of_nothing_but_empty_files_still_reports_full_progress(monkeypatch, tmp_path):
-    """Mutant 45 changes the zero-division guard `or 1` to `or 2`, so a session whose bytes sum to zero
-    reports 0/2 — a progress bar stuck at half on a pull that finished."""
+def test_a_session_of_nothing_but_empty_files_reports_its_measured_zero_total(monkeypatch, tmp_path):
+    """Mutant 45 changed the zero-division guard `or 1` to `or 2`, so a session whose bytes sum to zero
+    reported 0/2 — a bar stuck at half on a pull that finished. ∅ N3-2 (2026-11-15): `or 1` had the same
+    defect one step along, because both consumers divide and drew 0 % from 0/1 while this test's name
+    claimed full progress. The sum is now reported as measured, and a zero total is the consumers' own
+    complete-pull case."""
     c = _fs_with_one_session()
     c.dirs["/U/0/20260719/E/034500/"] = [("EMPTY.GZ", 0)]
     c.files["/U/0/20260719/E/034500/EMPTY.GZ"] = b""
@@ -1934,7 +1937,7 @@ def test_a_session_of_nothing_but_empty_files_still_reports_full_progress(monkey
             "AA:BB", "/U/0/20260719/E/034500/", str(tmp_path), on_progress=lambda d, t: seen.append((d, t))
         )
     )
-    assert seen == [(0, 1)], "no bytes to move is 100 %, not 0 %"
+    assert seen == [(0, 0)], "the listing was read and its sizes sum to zero — that is the total"
 
 
 def test_progress_accumulates_across_files_and_reaches_the_total(monkeypatch, tmp_path):

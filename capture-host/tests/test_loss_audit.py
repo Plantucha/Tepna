@@ -5296,3 +5296,81 @@ def test_an_unwitnessed_gap_after_the_worn_end_is_not_subtracted_twice(tmp_path,
     dev = loss_audit.audit_night(d, RING_DEV, journal=lambda *a: [])["devices"]["Ring"]
     assert [g["witness"] for g in dev["gaps"]] == ["unwitnessed"], dev["gaps"]
     assert dev["unwitnessed_min"] == 0.2 and dev["after_worn_end_min"] == 0.0, dev
+
+
+# ── N3-1 · AN UNREADABLE PRIMARY IS AN ABSENCE, NEVER A MEASUREMENT ─────────────────────────────────
+# `audit_night` writes `{primary, file, reason}` for a device whose every fragment raised. That entry
+# carries a truthy `file` and NO `lost_min`, so the verdict's measured population used to admit it on
+# `file` alone and the `by_device` comprehension raised `KeyError: 'lost_min'`. `write_night` caught the
+# raise, so the night read UNKNOWN with `result: null` — and every OTHER device's measurement went with
+# it, while the reason named a crash instead of the absence. A direct `night_verdict` caller still raised.
+
+
+def _eio_for(monkeypatch, token):
+    """`stream_scan` raises for a primary whose basename holds `token`, and reads every other one."""
+    real = loss_audit.stream_scan
+
+    def scan(p):
+        if token in os.path.basename(p):
+            raise OSError("eio")
+        return real(p)
+
+    monkeypatch.setattr(loss_audit, "stream_scan", scan)
+
+
+def test_a_night_whose_only_primary_is_unreadable_is_UNKNOWN_and_names_the_device(tmp_path, monkeypatch):
+    """The call on the second line used to raise `KeyError: 'lost_min'`. NOT_RUN is the wrong answer too:
+    a primary stream DID exist, so the night is undecided rather than empty."""
+    d = _night(tmp_path, holes=())
+    _eio_for(monkeypatch, "H10")
+    a = loss_audit.audit_night(d, DEV, journal=lambda *a: [])
+    assert "unreadable" in a["devices"]["Polar H10 0284"]["reason"]
+    o = loss_audit.night_verdict(a, night_dir=d, commit="abc1234")
+    verdict.validate(o)
+    assert js_validate(o)["ok"]
+    assert o["status"] == "UNKNOWN", o["status"]
+    assert "unreadable" in o["reason"] and "Polar H10 0284" in o["reason"]
+    # `result` is None for the reason the NOT_RUN arms pass None: over an empty `checked` every figure in
+    # it is a 0.0 nobody measured, so the device names ride the reason instead (§∅).
+    assert o["result"] is None
+    assert o["population"] == {"checked": 0, "eligible": 1, "excluded": 1}
+
+
+def test_a_readable_device_keeps_its_measurement_beside_an_unreadable_primary(tmp_path, monkeypatch):
+    """THE DEFECT'S REAL COST. One unreadable primary voided the whole night, so the ring's clean
+    measurement was thrown away. It is published now, under an UNKNOWN that names what it cannot cover."""
+    d = _night(tmp_path, holes=())
+    _stream(os.path.join(d, "Wellue_O2Ring-S_S8_20260920220000_SPO2.csv"), ())
+    _eio_for(monkeypatch, "H10")
+    a = loss_audit.audit_night(d, DEV + [{"name": "Ring", "model": "O2Ring-S"}], journal=lambda *a: [])
+    o = loss_audit.night_verdict(a, night_dir=d, commit="abc1234")
+    verdict.validate(o)
+    assert o["status"] == "UNKNOWN", o["status"]
+    assert "unreadable" in o["reason"] and "Polar H10 0284" in o["reason"]
+    assert o["result"]["unreadable"] == ["Polar H10 0284"]
+    assert "Ring" in o["result"]["by_device"] and "Polar H10 0284" not in o["result"]["by_device"]
+    assert o["population"] == {"checked": 1, "eligible": 2, "excluded": 1}
+
+
+def test_a_FAIL_is_not_hidden_behind_an_unreadable_primary(tmp_path, monkeypatch):
+    """The `night_absent` precedence, applied to the other absence class: a device that DID record and
+    lost minutes over the bar decides the night, and the object still names the unreadable one."""
+    d = _night(tmp_path)  # a 2 min hole in 10 min on the H10: far over the 1 % bar
+    _stream(os.path.join(d, "Wellue_O2Ring-S_S8_20260920220000_SPO2.csv"), ())
+    _eio_for(monkeypatch, "O2Ring")
+    a = loss_audit.audit_night(d, DEV + [{"name": "Ring", "model": "O2Ring-S"}], journal=lambda *a: [])
+    o = loss_audit.night_verdict(a, night_dir=d, commit="abc1234")
+    verdict.validate(o)
+    assert o["status"] == "FAIL", o["status"]
+    assert o["result"]["unreadable"] == ["Ring"]
+
+
+def test_a_night_where_every_primary_was_read_publishes_an_empty_unreadable_list(tmp_path):
+    """The complement, and the control for the two above: the key is always present, so a consumer never
+    reads an absent key as an empty one."""
+    o = loss_audit.night_verdict(
+        loss_audit.audit_night(_night(tmp_path, holes=()), DEV, journal=lambda *a: []),
+        night_dir=str(tmp_path),
+        commit="abc1234",
+    )
+    assert o["status"] == "PASS" and o["result"]["unreadable"] == []

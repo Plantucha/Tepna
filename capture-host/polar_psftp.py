@@ -797,7 +797,12 @@ async def pull_recording(
             walked = [(f, s) async for f, s, is_dir in fs.walk(session) if not is_dir]
             files = [(f, s) for f, s in walked if s >= 0]
             m["unreadable_dirs"] = [f for f, s in walked if s < 0]
-            total = sum(sz for _, sz in files) or 1  # PS-FTP has no per-chunk hook, so report
+            # ∅ N3-2 (2026-11-15) — THE SUM IS REPORTED AS MEASURED, zero included. The `or 1` here
+            # published a one-byte total for a session of nothing but empty files, and the consumers
+            # then divided 0 by 1 and drew 0 % — the very "stuck at half" class the mutant-45 test was
+            # written against, one step along. It guarded a division that now lives in the consumers,
+            # each of which answers 100 % for a total of zero and null for no total at all.
+            total = sum(sz for _, sz in files)  # PS-FTP has no per-chunk hook, so report
             done = 0  # per-FILE completion — coarse but honest
             for full, size in files:
                 rel = full[len(session) :]
