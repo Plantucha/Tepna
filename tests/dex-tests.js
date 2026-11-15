@@ -278,8 +278,8 @@
     return r.status === wanted;
   }
 
-  /* THE NINE REFERENCE GUIDES ARE THE POPULATION EVERY GUIDE LANE SCANS — eight authored at the repo
-     root, plus the generated EEGDex one. Both producers declare this same roster: `readDocs()` in
+  /* THE NINE REFERENCE GUIDES ARE THE POPULATION EVERY GUIDE LANE SCANS — all nine authored at the
+     repo root since 2026-11-15, when EEGDex left the generated scaffold path. Both producers declare this same roster: `readDocs()` in
      tests/run-tests.mjs and the docs fetch in Dex-Test-Suite.html. Each records an unreadable guide
      as `null`, so a lost guide stays in the key set and gets NAMED here.
      Measured 2026-11-09: three guide lanes carried anti-vacuity floors of 7, 6 and 7 over this
@@ -25652,6 +25652,148 @@
       T.ok('CONTROL · and a measured all-still night is still a zero, not a null', st2.motionColumnAbsent === undefined, 'motionColumnAbsent = ' + JSON.stringify(st2.motionColumnAbsent));
     });
 
+    group('§∅ · OxyDex — an unread stream is not a reading, in the research block', 'oxydex-dsp · absence', function (T) {
+      var B = env.OxyDex && env.OxyDex._bare;
+      var need = ['computeStats', 'computeNightExtras', 'computeHREntropy', 'computeCircadianHR', 'computeRollingMetrics'];
+      var absentFn = need.filter(function (k) {
+        return !B || typeof B[k] !== 'function';
+      });
+      if (absentFn.length) {
+        T.ok('OxyDex._bare exposes the five functions this group reads', false, 'not loaded: ' + absentFn.join(', ') + ' — this group must not read as a pass');
+        return;
+      }
+      /* GROUP G2 of the null-and-zero audit (board #6444 — findings N1-10, N1-42 and N2-3). The
+         research block reported a confident number for a stream the device never measured: a
+         pulseless night published `hrRange` 0, `meanHrEarly` and `meanHrLate` 0, `postDipHrResponse`
+         0, SampEn 0.0022 labelled "Low (regular)" and a `circNadirHour` at the exact midpoint of the
+         night. A fully unread night added `spo2Range` 0, `t95BurdenScore` 0 and a time-in-range share
+         scored against every row rather than the measured ones.
+         🔴 EVERY LEG BELOW HAS A MEASURED CONTROL ON THE SAME SHAPE, because a guard that blanks a
+         real reading is the same defect wearing the other mask. The pulseless night is the
+         discriminator the fully unread night cannot be: it proves the HR guards do not blank the
+         SpO2 members beside them. */
+      var t0 = Date.UTC(2026, 5, 13, 23, 0, 0);
+      var N = 3600;
+      var mk = function (sFn, hFn, count) {
+        var out = [];
+        var lim = count || N;
+        for (var i = 0; i < lim; i++) out.push({ tMs: t0 + i * 1000, t: new Date(t0 + i * 1000), spo2: sFn(i), hr: hFn(i), motion: 0, pi: null });
+        return out;
+      };
+      var exOf = function (rows) {
+        var st = B.computeStats(rows.slice());
+        return B.computeNightExtras(rows.slice(), st, null, null, null, { total: 100 }) || {};
+      };
+      var sOk = function (i) {
+        return 96 + (i % 3);
+      };
+      /* ⚠️ A CONTROL WHOSE VALUE COLLIDES WITH THE DEFECT'S VALUE CANNOT SHOW THE TWO APART, AND MY
+         FIRST TWO TRIES BOTH DID. `58 + (i % 7)` scored SampEn 0.0022 — the very figure N2-3 reports
+         for a pulseless night — and `58 + ((i * 7919) % 13)` only moved it to 0.0023, because a short
+         integer cycle is nearly as regular as nothing at all. A hashed step is genuinely irregular,
+         which is the direction a real night lies in (this file's own measurement: whole-night SampEn
+         ≈ 1.5 on the committed O2Ring corpus). */
+      var hOk = function (i) {
+        return 58 + (((i * 2654435761) >>> 8) % 17);
+      };
+      var nil = function () {
+        return null;
+      };
+      var exM = exOf(mk(sOk, hOk)),
+        exP = exOf(mk(sOk, nil)),
+        exU = exOf(mk(nil, nil));
+
+      // ── CONTROL FIRST · a measured night keeps all seven members, or every leg below is vacuous ──
+      var seven = ['spo2Range', 'tir9499', 'meanSpo2Early', 'meanSpo2Late', 'hrRange', 'meanHrEarly', 'meanHrLate'];
+      var notNum = seven.filter(function (k) {
+        return typeof exM[k] !== 'number';
+      });
+      T.eq('CONTROL · a MEASURED night still reports all seven members (the group is non-vacuous)', notNum.join(',') || '—', '—');
+      T.ok('CONTROL · and its t95BurdenScore is a number', typeof exM.t95BurdenScore === 'number', 't95BurdenScore = ' + JSON.stringify(exM.t95BurdenScore));
+
+      // ── N1-42 · a fully unread night ──
+      T.eq('N1-42 · spo2Range is NULL on an unread night, not a 0 spread', exU.spo2Range, null);
+      T.eq('N1-42 · t95BurdenScore is NULL, not a 0 burden', exU.t95BurdenScore, null);
+      T.eq('N2-3 · hrRange is NULL, not a 0 spread', exU.hrRange, null);
+      T.eq('N1-10 · time-in-range is NULL when nothing was measured', exU.tir9499, null);
+      T.eq('and the split-night SpO2 means are NULL, not 0', JSON.stringify([exU.meanSpo2Early, exU.meanSpo2Late]), '[null,null]');
+      T.eq('and the split-night HR means are NULL, not 0', JSON.stringify([exU.meanHrEarly, exU.meanHrLate]), '[null,null]');
+
+      // ── N2-3 · the pulseless night, which must blank the HR members ONLY ──
+      T.eq('N2-3 · a pulseless night reports NO HR range', exP.hrRange, null);
+      T.eq('N2-3 · and no split-night HR means', JSON.stringify([exP.meanHrEarly, exP.meanHrLate]), '[null,null]');
+      T.ok(
+        'DISCRIMINATOR · its MEASURED SpO2 members survive untouched',
+        typeof exP.spo2Range === 'number' && typeof exP.tir9499 === 'number' && typeof exP.meanSpo2Early === 'number',
+        JSON.stringify([exP.spo2Range, exP.tir9499, exP.meanSpo2Early])
+      );
+
+      /* ── N1-10 · the split-night defect: an absent half must not drag a mean, and the time-in-range
+            denominator is the MEASURED set. This night is in range over 100 % of what it measured. ── */
+      /* ⚠️ THE TWO HALVES MUST NOT OVERLAP, AND MY FIRST VERSION'S DID. `TWO_HR` is
+         `Math.min(n, 7200)`, so over an hour-long night BOTH slices are the whole night and the
+         "late" mean read the measured early half — 96, not null. The leg failed and the leg was
+         wrong. This night runs 16000 rows, so the two 7200-sample slices are disjoint. */
+      var half = mk(
+        function (i) {
+          return i < 8000 ? 96 : null;
+        },
+        nil,
+        16000
+      );
+      var exH = exOf(half);
+      T.eq('N1-10 · a night in range over ALL of its measured time reads 100, not 50', exH.tir9499, 100);
+      T.eq('N1-10 · the measured early half keeps its real mean', exH.meanSpo2Early, 96);
+      T.eq('N1-10 · and the absent late half is NULL, not 0', exH.meanSpo2Late, null);
+
+      // ── N2-3 · SampEn ──
+      T.ok('CONTROL · a measured night still yields a SampEn', typeof (B.computeHREntropy(mk(sOk, hOk)) || {}).sampEn === 'number', JSON.stringify(B.computeHREntropy(mk(sOk, hOk))));
+      T.eq('N2-3 · a pulseless night yields NO entropy, not 0.0022 "Low (regular)"', B.computeHREntropy(mk(sOk, nil)), null);
+      /* COVERAGE ANNOTATES, ABSENCE REFUSES (owner, 2026-09-17): 250 measured HR samples clear the
+         function's own 200-sample floor, so reduced coverage must still produce a value. */
+      var thin = B.computeHREntropy(
+        mk(sOk, function (i) {
+          return i < 250 ? 58 + (((i * 2654435761) >>> 8) % 17) : null;
+        })
+      );
+      T.ok('CONTROL · reduced coverage above the 200-sample floor still yields a SampEn', typeof (thin || {}).sampEn === 'number', JSON.stringify(thin));
+
+      // ── N2-3 · the circadian fit ──
+      var circM = B.computeCircadianHR(
+        mk(sOk, function (i) {
+          return 58 + 6 * Math.sin((2 * Math.PI * i) / N);
+        })
+      );
+      T.ok('CONTROL · a measured night still yields a circadian fit', typeof (circM || {}).circNadirHour === 'number' && circM.circAmplitude > 0, JSON.stringify(circM));
+      T.eq('N2-3 · a pulseless night yields NO circadian fit', B.computeCircadianHR(mk(sOk, nil)), null);
+      /* THE OLD VALUE WAS NOT RANDOM, AND NAMING IT IS THE POINT: with every `y` coerced to 0 the two
+         sums fell to 0, `Math.atan2(0, 0)` returned 0, and the nadir landed at half the recording —
+         0.5 h for this hour-long night. A later edit that restores the coercion reproduces it. */
+      T.ok('…and it is not the midpoint the coerced fit always produced', (B.computeCircadianHR(mk(sOk, nil)) || {}).circNadirHour !== 0.5, JSON.stringify(B.computeCircadianHR(mk(sOk, nil))));
+      /* Coverage again: 3700 measured samples of a 4000-row night clear the same floor the function
+         already applies to rows, so a night with holes is fitted rather than refused. */
+      var gappy = B.computeCircadianHR(
+        mk(
+          sOk,
+          function (i) {
+            return i < 3700 ? 58 + 6 * Math.sin((2 * Math.PI * i) / 4000) : null;
+          },
+          4000
+        )
+      );
+      T.ok('CONTROL · a night with a 300 s hole is still fitted, not refused', typeof (gappy || {}).circNadirHour === 'number', JSON.stringify(gappy));
+      T.ok('…and its amplitude is the real 6 bpm, not the 12.34 the uncentred sum read', Math.abs(((gappy || {}).circAmplitude || 0) - 6) < 0.6, JSON.stringify(gappy));
+
+      // ── N2-3 · postDipHrResponse ──
+      var dips = function (i) {
+        return i % 300 < 20 ? 90 : 97;
+      };
+      var rollM = B.computeRollingMetrics(mk(dips, hOk), null, null, null, null) || {};
+      var rollP = B.computeRollingMetrics(mk(dips, nil), null, null, null, null) || {};
+      T.ok('CONTROL · a measured night still scores a post-dip HR response', typeof rollM.postDipHrResponse === 'number', 'measured = ' + JSON.stringify(rollM.postDipHrResponse));
+      T.eq('N2-3 · a pulseless night scores NO arousal, not a mean of 0 bpm', rollP.postDipHrResponse, null);
+    });
+
     group('§∅ · OxyDex — a hole is not a reading, in all thirteen consumers', 'oxydex-dsp · absence', function (T) {
       var B = env.OxyDex && env.OxyDex._bare;
       if (!B) {
@@ -26247,7 +26389,8 @@
         // EEGDex: a GENERATED node (codegen/dex-gen.js + dex-registry-gen.js from ONE manifest).
         // Wired in to prove the manifest→registry→guide single-source: the guide's ev-corner
         // grades, joined via the GENERATED EegRegistry.idForLabel, must equal the GENERATED
-        // EEG_REGISTRY. Forward-first — EEGDex is a planned scaffold, not a shipped node.
+        // EEG_REGISTRY. The guide is AUTHORED at the repo root since 2026-11-15, and its cards and
+        // grades still come from that one manifest through dex-gen.js.
         { doc: 'EEGDex Reference.html', reg: env.EEG_REGISTRY, resolver: env.EegRegistry }
       ];
       var allowed = { 'ev-corner': 1, 'ev-measured': 1, 'ev-validated': 1, 'ev-emerging': 1, 'ev-experimental': 1, 'ev-heuristic': 1, 'ev-legend': 1, 'ev-legend-strip': 1, 'ev-sep': 1, 'ev-ink': 1 };
@@ -29545,7 +29688,7 @@
 
       var guide = env.docs && env.docs['EEGDex Reference.html'];
       if (!guide) {
-        T.skip('generated EEGDex guide available', 'codegen/generated/eegdex-reference.html not in env.docs');
+        T.skip('generated EEGDex guide available', 'EEGDex Reference.html not in env.docs');
         return;
       }
 

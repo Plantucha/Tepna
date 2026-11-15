@@ -713,7 +713,7 @@ async function main(){
   }
   // doc artifacts for the cohesion-badge single-source group (engine ≡ mirror ≡ reference)
   const docs = {};
-  await Promise.all([['dex-badges.css','dex-badges.css'],['OxyDex Reference.html','OxyDex Reference.html'],['ECGDex Reference.html','ECGDex Reference.html'],['PpgDex Reference.html','PpgDex Reference.html'],['CPAPDex Reference.html','CPAPDex Reference.html'],['PulseDex Reference.html','PulseDex Reference.html'],['HRVDex Reference.html','HRVDex Reference.html'],['GlucoDex Reference.html','GlucoDex Reference.html'],['MotionDex Reference.html','MotionDex Reference.html'],['EEGDex Reference.html','codegen/generated/eegdex-reference.html'],['ORIENTATION.md','ORIENTATION.md'],['papers/sensor-trio-nights.html','papers/sensor-trio-nights.html']]
+  await Promise.all([['dex-badges.css','dex-badges.css'],['OxyDex Reference.html','OxyDex Reference.html'],['ECGDex Reference.html','ECGDex Reference.html'],['PpgDex Reference.html','PpgDex Reference.html'],['CPAPDex Reference.html','CPAPDex Reference.html'],['PulseDex Reference.html','PulseDex Reference.html'],['HRVDex Reference.html','HRVDex Reference.html'],['GlucoDex Reference.html','GlucoDex Reference.html'],['MotionDex Reference.html','MotionDex Reference.html'],['EEGDex Reference.html','EEGDex Reference.html'],['ORIENTATION.md','ORIENTATION.md'],['papers/sensor-trio-nights.html','papers/sensor-trio-nights.html']]
     // A failed fetch lands as `null`, never as an absent key (CLAUDE.md §∅) — see readDocs().
     .map(async ([k,p]) => { docs[k] = await fetchText(encodeURI(p)); }));
 

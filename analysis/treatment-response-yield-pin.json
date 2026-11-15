@@ -24,7 +24,7 @@
       "dex-escape.js": "f0d38619047a",
       "oxydex-util.js": "5cc642ee790b",
       "oxydex-profile.js": "410146545439",
-      "oxydex-dsp.js": "a45bc68d1132"
+      "oxydex-dsp.js": "4b59a5fa140b"
     },
     "pulse": {
       "synth-gen.js": "a653cf5afb78",
@@ -207,11 +207,18 @@
       "old": "68d39ab77837",
       "new": "410146545439",
       "reason": "residue 2026-11-12-oxydex-profile-span-reads-a-date-string-with-new-date: the measurement-count caption read its span with `new Date` over a raw date string, which Clock Contract rule 4 bans, and it indexed the first and the last entry rather than the earliest and the latest. Measured on the old expression over four date arrays: sorted ISO gave 25 days (the control), one undated night gave NaN, three nights out of order gave 2 days against a true 25, and the DMY pair 10/06/2026 and 05/07/2026 gave 152 days because `new Date` read both as MDY. The span now shape-tests each date, parses it with DexClock.parseTimestamp, and reads the minimum and the maximum of the parsed days. The caption is not a treatment-response input, which selects on the ODI and rMSSD series alone. This run RE-CUT the cohort at paper scale rather than re-stamping on that argument, and the yield came back on the SAME counts: 233 tx / 239 flat, 667 / 661 skipped."
+    },
+    {
+      "date": "2026-11-15",
+      "file": "oxydex-dsp.js",
+      "old": "a45bc68d1132",
+      "new": "4b59a5fa140b",
+      "reason": "Group G2 of the null and zero audit (board #6444): the OxyDex research block reported absence as a number in nine members. computeNightExtras now takes the measured set as both numerator and denominator, computeHREntropy and computeCircadianHR count measured samples against their power floors, postDipHrResponse skips a non-finite pair, and the circadian projection subtracts the measured mean so a hole leaves no DC offset in the amplitude. measureFromResults drops a patient only on a gap or a non-finite value in the ODI or rMSSD series, and no numeric detector output moves for a fully measured night. This run RE-CUT the cohort at paper scale rather than re-stamping on that argument, and the yield came back on the SAME counts: 233 tx / 239 flat, 667 / 661 skipped."
     }
   ],
-  "measuredAt": "2026-11-12T05:57:49.800Z",
+  "measuredAt": "2026-11-15T11:55:13.681Z",
   "producedBy": {
     "tool": "tools/treatment-response-yield-pin.mjs",
-    "commit": "74274e900"
+    "commit": "9814e50d2"
   }
 }

@@ -1,0 +1,1124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!--
+  EEGDex Reference.html — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+  project root, or http://www.apache.org/licenses/LICENSE-2.0
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EEGDex — Reference Guide</title>
+<!-- Canonical evidence-badge visuals (single source; mirrors MetricRegistry.BADGE_CSS).
+     Linked, not inlined, so the guide's discs equal the engine by construction
+     (DEX-EVENT-UNIFY C3 / cohesion-badges gate). -->
+<link rel="stylesheet" href="licensing/dex-license.css">
+<link rel="stylesheet" href="dex-badges.css">
+<style>
+/* Fonts: system stacks only — no @font-face, no CDN. 'Inter'/'IBM Plex Mono'
+   names fall through to system-ui / ui-monospace by design (CLAUDE.md / AUDIT.md). */
+/* ═══════════════════════════════════════════════════════
+   EEGDex — Reference Guide · Tepna
+   Cohesion-native: evidence badges driven by MOTION_REGISTRY,
+   disc CSS byte-faithful to dex-badges.css / metric-registry.js.
+═══════════════════════════════════════════════════════ */
+:root {
+  --bg:#0B0F14; --surface:#121821; --surface2:#18212C; --surface3:#1E2835;
+  --border:#1e2d42; --border2:#253550;
+  --text:#F4F7FB; --text2:#9FB0C3; --text3:#6F8096; --text4:#4E5A6B;
+  --teal:#3DE0D0; --blue:#58A6FF; --green:#39D98A; --amber:#FFB84D; --red:#FF6B7A;
+  --purple:#a78bfa; --orange:#fb923c;
+  --r-md:18px;
+  --b:1px solid rgba(255,255,255,.05);
+  --fs-body:14px; --fs-card-sub:13px; --fs-label:11px; --fs-sm:11.5px;
+  --fw-regular:400; --fw-semibold:600; --fw-bold:700;
+  --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-5:24px; --sp-6:32px; --sp-7:48px; --sp-8:64px;
+  color-scheme: dark;
+  --sidebar-w:260px;
+  --ev-ink:#aab8cc;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-serif;font-size:var(--fs-body);line-height:1.55;overflow-x:hidden;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:var(--bg)}::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+a{color:inherit}
+.app{display:block;min-height:100vh}
+.sidebar{background:rgba(18,24,33,.97);border-right:var(--b);padding:var(--sp-5) var(--sp-3);position:fixed;top:0;left:0;width:var(--sidebar-w);height:100vh;-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);display:flex;flex-direction:column;overflow-y:auto;z-index:10}
+.logo{display:flex;gap:var(--sp-3);align-items:center;margin-bottom:var(--sp-6);padding:0 var(--sp-2)}
+.logo-badge{width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,var(--teal),var(--blue));display:flex;align-items:center;justify-content:center;color:#041014;font-weight:var(--fw-bold);font-size:13px;letter-spacing:-.02em;box-shadow:0 0 20px rgba(61,224,208,0.22);flex-shrink:0}
+.logo-title{font-weight:var(--fw-semibold);font-size:15px;letter-spacing:-.015em}
+.logo-sub{font-size:11px;color:var(--text3);margin-top:2px}
+.nav-lbl{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--text4);padding:0 var(--sp-2);margin:var(--sp-5) 0 var(--sp-2);font-weight:var(--fw-semibold)}
+.nav{display:flex;flex-direction:column;gap:2px}
+.nav a{display:flex;align-items:center;gap:var(--sp-3);padding:9px var(--sp-3);border-radius:10px;color:var(--text2);font-size:13px;text-decoration:none;transition:all .15s}
+.nav a:hover{background:rgba(255,255,255,.04);color:var(--text)}
+.nav-dot{width:5px;height:5px;border-radius:50%;background:currentColor;flex-shrink:0;opacity:.55}
+.sidebar-bottom{margin-top:auto;padding-top:var(--sp-5)}
+.sidebar-data-card{background:rgba(61,224,208,.04);border:1px solid rgba(61,224,208,.09);border-radius:12px;padding:12px 14px}
+.data-pill{display:inline-flex;align-items:center;gap:6px;background:rgba(61,224,208,.1);border:1px solid rgba(61,224,208,.18);color:var(--green);padding:4px 10px;border-radius:999px;font-size:11px;font-weight:var(--fw-semibold)}
+.data-dot{width:6px;height:6px;border-radius:50%;background:var(--green)}
+.sidebar-data-info{margin-top:8px;font-size:11px;color:var(--text3);line-height:1.55}
+.main{position:relative;z-index:1;margin-left:var(--sidebar-w);padding:var(--sp-6) max(44px,20px) var(--sp-8);max-width:1260px;margin-right:auto;overflow-x:hidden}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.main{animation:fadeIn .3s ease}
+.ph{margin-bottom:var(--sp-6);padding-bottom:var(--sp-5);border-bottom:1px solid rgba(255,255,255,.045)}
+.ph-eyebrow{font-size:var(--fs-label);letter-spacing:.12em;text-transform:uppercase;color:var(--teal);font-weight:var(--fw-semibold);margin-bottom:10px;display:flex;align-items:center;gap:var(--sp-2)}
+.ph-eyebrow::before{content:'';display:block;width:20px;height:2px;background:var(--teal)}
+.ph-title{font-size:28px;font-weight:var(--fw-bold);letter-spacing:-.025em;line-height:1.15;margin-bottom:var(--sp-3)}
+.ph-title>span{color:var(--teal)}
+.ph-desc{font-size:var(--fs-body);color:var(--text2);max-width:660px;line-height:1.65}
+.rs{margin-bottom:var(--sp-7);width:100%}
+.sh{display:flex;align-items:center;gap:var(--sp-4);margin-bottom:var(--sp-5);padding-bottom:var(--sp-4);border-bottom:1px solid rgba(255,255,255,.05)}
+.si{width:38px;height:38px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.si.sig{background:rgba(255,184,77,.12)}.si.hr{background:rgba(255,107,122,.12)}.si.sleep{background:rgba(167,139,250,.12)}
+.si.clin{background:rgba(88,166,255,.12)}.si.comp{background:rgba(251,146,60,.12)}.si.proj{background:rgba(57,217,138,.12)}.si.spo2{background:rgba(61,224,208,.12)}
+.st{font-size:19px;font-weight:var(--fw-bold);letter-spacing:-.02em}
+.sd{font-size:var(--fs-card-sub);color:var(--text3);margin-top:2px}
+.mc{position:relative;background:var(--surface);border:1px solid rgba(255,255,255,.055);border-radius:var(--r-md);padding:20px var(--sp-5);margin-bottom:var(--sp-3);transition:border-color .2s;min-width:0}
+.mc:hover{border-color:rgba(61,224,208,.18)}
+.mh{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--sp-3);margin-bottom:var(--sp-3);flex-wrap:wrap}
+.mi{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.ma{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:17px;font-weight:var(--fw-semibold);color:var(--teal);letter-spacing:-.01em}
+.mf{font-size:var(--fs-card-sub);font-weight:var(--fw-semibold);color:var(--text)}
+.mt{font-size:10px;font-weight:var(--fw-bold);letter-spacing:.08em;text-transform:uppercase;padding:3px 9px;border-radius:999px;flex-shrink:0;margin-top:2px}
+.tc{background:rgba(61,224,208,.1);color:var(--teal);border:1px solid rgba(61,224,208,.2)}
+.ta{background:rgba(88,166,255,.1);color:var(--blue);border:1px solid rgba(88,166,255,.2)}
+.tr{background:rgba(167,139,250,.1);color:var(--purple);border:1px solid rgba(167,139,250,.2)}
+.md{font-size:13px;color:var(--text2);line-height:1.65;margin-bottom:var(--sp-4)}
+.fb{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-left:3px solid var(--blue);border-radius:0 10px 10px 0;padding:11px var(--sp-4);margin-bottom:var(--sp-3)}
+.fl{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;font-weight:var(--fw-semibold);margin-bottom:5px}
+.ft{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:12px;color:var(--blue);line-height:1.75;white-space:pre-wrap;overflow-wrap:break-word}
+.fn{font-size:11.5px;color:var(--text3);margin-top:6px;line-height:1.55}
+.nt-wrap{max-width:100%;overflow-x:auto;margin:4px 0}
+.nt{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:4px}
+.nt th{font-size:10px;font-weight:var(--fw-bold);letter-spacing:.07em;text-transform:uppercase;color:var(--text4);padding:6px 10px;text-align:left;border-bottom:1px solid rgba(255,255,255,.06)}
+.nt td{padding:7px 10px;border-bottom:1px solid rgba(255,255,255,.03)}
+.nt tr:last-child td{border-bottom:none}
+.nt tr:hover td{background:rgba(255,255,255,.02)}
+.nr{font-family:'IBM Plex Mono',ui-monospace,monospace;font-weight:var(--fw-regular)}
+tr.ok td{color:var(--green)}tr.wn td{color:var(--amber)}tr.bd td{color:var(--orange)}tr.cr td{color:var(--red)}tr.nm td{color:var(--text2)}
+tr.ok .nr,tr.wn .nr,tr.bd .nr,tr.cr .nr,tr.nm .nr{color:inherit}
+tr.ok td:first-child,tr.wn td:first-child,tr.bd td:first-child,tr.cr td:first-child{color:var(--text2)}
+.co{display:flex;gap:var(--sp-3);padding:13px 15px;border-radius:11px;margin-bottom:var(--sp-3);font-size:12.5px;line-height:1.6}
+.co-i{background:rgba(88,166,255,.07);border:1px solid rgba(88,166,255,.18);color:var(--text2)}
+.co-w{background:rgba(255,184,77,.07);border:1px solid rgba(255,184,77,.2);color:var(--text2)}
+.co-ic{font-size:15px;flex-shrink:0;margin-top:1px}
+.co strong{color:var(--text);font-weight:var(--fw-semibold)}
+.mg{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(320px,100%),1fr));gap:var(--sp-3);width:100%;min-width:0}
+.no-norm-note{font-size:11.5px;color:var(--text4);font-style:italic;margin-top:8px;line-height:1.55}
+.sec-back{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--text4);text-decoration:none;margin-top:var(--sp-3);transition:color .14s}
+.sec-back:hover{color:var(--teal)}
+td.fmt-m{display:flex;align-items:center;gap:5px;min-width:0}
+
+/* ── Quick Jump ── */
+.qj-wrap{margin-bottom:var(--sp-6);border-radius:var(--r-md);border:1px solid var(--border2);overflow:hidden}
+.qj-toggle{width:100%;background:var(--surface2);border:none;padding:13px var(--sp-4);display:flex;align-items:center;gap:10px;cursor:pointer;color:var(--text2);font-size:var(--fs-sm);font-family:'Inter',system-ui,sans-serif;text-align:left;transition:background .18s,color .18s}
+.qj-toggle:hover{background:var(--surface3);color:var(--text)}
+.qj-toggle svg:first-child{color:var(--teal);flex-shrink:0}
+.qj-count{margin-left:auto;font-size:11px;color:var(--text3);background:rgba(255,255,255,.04);padding:2px 8px;border-radius:20px;border:1px solid var(--border)}
+.qj-arrow{margin-left:6px;flex-shrink:0;transition:transform .25s cubic-bezier(.16,1,.3,1)}
+.qj-toggle[aria-expanded="true"] .qj-arrow{transform:rotate(180deg)}
+.qj-panel{border-top:1px solid var(--border);background:var(--surface)}
+.qj-panel[hidden]{display:none}
+.qj-search-wrap{display:flex;align-items:center;gap:8px;padding:10px var(--sp-4);border-bottom:1px solid var(--border)}
+.qj-search-wrap svg{color:var(--text3);flex-shrink:0}
+.qj-search{flex:1;background:transparent;border:none;outline:none;color:var(--text);font-size:var(--fs-sm);font-family:'Inter',system-ui,sans-serif;min-width:0}
+.qj-search::placeholder{color:var(--text4)}
+.qj-clear{background:none;border:none;cursor:pointer;color:var(--text3);padding:0 4px;font-size:13px;line-height:1}
+.qj-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:0;border-bottom:1px solid var(--border)}
+.qj-group{padding:var(--sp-3) var(--sp-4);border-right:1px solid var(--border);border-bottom:1px solid var(--border)}
+.qj-group[data-hidden]{display:none}
+.qj-group-header{display:flex;align-items:center;gap:7px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:8px}
+.qj-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.qj-links{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px}
+.qj-sec{font-size:12px;font-weight:500;color:var(--text2);text-decoration:none;background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:4px;padding:2px 8px;transition:all .14s;white-space:nowrap}
+.qj-sec:hover{background:rgba(61,224,208,.1);border-color:var(--teal);color:var(--teal)}
+.qj-metrics{display:flex;flex-wrap:wrap;gap:3px}
+.qm{font-size:11px;font-family:'IBM Plex Mono',ui-monospace,monospace;color:var(--text3);text-decoration:none;background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.06);border-radius:3px;padding:1px 6px;transition:all .14s;white-space:nowrap}
+.qm:hover,.qm.qm-match{background:rgba(61,224,208,.08);color:var(--teal);border-color:rgba(61,224,208,.25)}
+.qm.qm-hide{display:none}
+.qj-no-results{padding:var(--sp-4);text-align:center;color:var(--text3);font-size:var(--fs-sm)}
+
+/* ── Top abbr strip ── */
+.top-abbr-strip{display:flex;align-items:center;gap:8px;background:var(--surface2);border:1px solid var(--border2);border-radius:10px;padding:8px 14px;margin-bottom:var(--sp-4);flex-wrap:wrap}
+.tas-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);white-space:nowrap}
+.tas-pills{display:flex;flex-wrap:wrap;gap:4px;flex:1;min-width:0}
+.tas-pill{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:10px;color:var(--teal);text-decoration:none;background:rgba(255,255,255,.025);border:1px solid rgba(61,224,208,.15);border-radius:4px;padding:2px 7px;white-space:nowrap}
+.tas-pill:hover{background:rgba(61,224,208,.08)}
+.tas-all{font-size:11px;color:var(--text3);text-decoration:none;white-space:nowrap}
+.tas-all:hover{color:var(--teal)}
+
+/* ── Abbr index ── */
+.abbr-search-wrap{display:flex;align-items:center;gap:8px;padding:9px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;margin-bottom:10px}
+.abbr-search-wrap svg{color:var(--text3);flex-shrink:0}
+.abbr-search-inp{flex:1;background:transparent;border:none;outline:none;color:var(--text);font-size:13px;font-family:'Inter',system-ui,sans-serif}
+.abbr-count-label{font-size:11px;color:var(--text3);white-space:nowrap;background:rgba(255,255,255,.04);padding:2px 8px;border-radius:20px;border:1px solid var(--border)}
+.abbr-alpha-wrap{display:flex;flex-wrap:wrap;gap:3px;margin-bottom:10px}
+.abbr-tab{background:transparent;border:1px solid var(--border);border-radius:5px;color:var(--text3);font-size:10px;font-family:'IBM Plex Mono',ui-monospace,monospace;font-weight:600;padding:3px 7px;cursor:pointer;transition:all .12s}
+.abbr-tab:hover{background:rgba(255,255,255,.05);color:var(--text2)}
+.abbr-tab.abbr-tab-active{background:rgba(61,224,208,.12);color:var(--teal);border-color:rgba(61,224,208,.3)}
+#abbrGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:6px}
+.abbr-link:hover{opacity:.85}
+
+/* ── Active nav ── */
+.sidebar .nav a.nav-active{color:var(--teal);background:rgba(61,224,208,.08)}
+.sidebar .nav a.nav-active .nav-dot{background:var(--teal);box-shadow:0 0 6px rgba(61,224,208,.5)}
+
+/* ── Back to top ── */
+#btt{position:fixed;bottom:22px;right:18px;z-index:95;width:42px;height:42px;border-radius:12px;background:rgba(61,224,208,.1);border:1px solid rgba(61,224,208,.25);color:var(--teal);display:none;align-items:center;justify-content:center;cursor:pointer;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+#btt.btt-show{display:flex}
+
+/* ── Theme toggle button ── */
+#themeToggleBtn{position:fixed;bottom:72px;right:18px;z-index:99;background:rgba(61,224,208,.08);border:1px solid rgba(61,224,208,.22);color:var(--teal);border-radius:999px;padding:8px 16px;cursor:pointer;font-size:12px;font-weight:700;letter-spacing:.03em;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+.theme-icon{font-size:14px;margin-right:3px}
+
+/* ── Mobile bar + drawer ── */
+.mob-bar{display:none;position:fixed;top:0;left:0;right:0;z-index:999;height:54px;background:rgba(11,15,20,.92);border-bottom:1px solid rgba(255,255,255,.08);padding:0 14px;align-items:center;justify-content:space-between;-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px)}
+.mob-bar-logo{display:flex;align-items:center;gap:10px}
+.mob-bar-badge{width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#3DE0D0,#58A6FF);display:flex;align-items:center;justify-content:center;color:#041014;font-weight:800;font-size:11px}
+.mob-bar-name{font-weight:700;font-size:13.5px;letter-spacing:-.02em}
+.mob-bar-btn{width:44px;height:44px;border-radius:10px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:#9FB0C3;font-size:20px;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.mob-drawer-bg{display:block;opacity:0;visibility:hidden;transition:opacity .22s,visibility .22s;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.65);-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px)}
+.mob-drawer-bg.open{opacity:1;visibility:visible}
+.mob-drawer-panel{position:absolute;top:0;left:0;bottom:0;width:min(290px,82vw);background:var(--bg);border-right:1px solid rgba(255,255,255,.08);overflow-y:auto;padding:16px 12px 40px;transform:translateX(-100%);transition:transform .22s cubic-bezier(.16,1,.3,1)}
+.mob-drawer-bg.open .mob-drawer-panel{transform:translateX(0)}
+.mob-drawer-top{display:flex;align-items:center;justify-content:space-between;padding:0 8px;margin-bottom:20px}
+.mob-drawer-close{width:36px;height:36px;border-radius:8px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);color:#9FB0C3;font-size:18px;display:flex;align-items:center;justify-content:center;cursor:pointer}
+
+@media(max-width:900px){
+  .mob-bar{display:flex}
+  .app{display:block;padding-top:54px}
+  .sidebar{display:none}
+  .main{padding:20px 15px 100px;max-width:100%;margin-left:0}
+  .ph-title{font-size:clamp(20px,5vw,28px)}
+  .mh{flex-direction:column;align-items:flex-start;gap:8px}
+  .mg{grid-template-columns:1fr}
+  .qj-grid{grid-template-columns:1fr}
+  .qj-group{border-right:none}
+  #abbrGrid{grid-template-columns:1fr}
+  .top-abbr-strip{display:none}
+  .st{font-size:17px}
+  .rs{margin-bottom:40px}
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   CANONICAL EVIDENCE BADGE SYSTEM — verbatim mirror of dex-badges.css
+   (byte-faithful to MetricRegistry.BADGE_CSS; the test suite proves it).
+   DO NOT edit the disc rules — they are gated for equivalence to the engine.
+   ════════════════════════════════════════════════════════════════════════ */
+/* Evidence tier discs (.ev-measured / .ev-validated / .ev-emerging / .ev-experimental /
+   .ev-heuristic) are sourced from the linked dex-badges.css — the canonical visual mirror of
+   MetricRegistry.BADGE_CSS — and are no longer inlined here (one visual source, not a third
+   copy). DEX-EVENT-UNIFY-AND-CSV-BRIEF Task C3. */
+.ev[title], .ev-corner[title] { cursor: help; }
+.ev { position: relative; opacity: .85; }
+.ev-corner { position: absolute; bottom: 12px; right: 14px; z-index: 2; cursor: help; opacity: .55; transition: opacity .15s; }
+.ev-corner:hover { opacity: .7; }
+.mc, .metric, .ss-kpi, .nr-kpi, .kpi, .readiness-subscore { position: relative; }
+.mc { overflow: visible; }
+.fmt-m .ev { position: static; margin: 0 7px 0 0; opacity: .7; vertical-align: baseline; }
+.nr-chip .ev { position: static; margin-left: 5px; opacity: .6; vertical-align: baseline; width: 9px; height: 9px; }
+.ev-legend-strip { display:flex; align-items:center; gap:7px; flex-wrap:wrap; font-size:11.5px;
+                   color:var(--text3); background:var(--surface2); border:1px solid var(--border);
+                   border-radius:10px; padding:9px 14px; margin-bottom:var(--sp-4,16px); }
+.ev-legend-strip .lg-title { font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:10px; letter-spacing:.08em;
+                             text-transform:uppercase; color:var(--text4); margin-right:4px; }
+.ev-legend-strip .lg-item  { display:inline-flex; align-items:center; gap:6px; }
+.ev-legend-strip .lg-item b { color:var(--text2); font-weight:600; }
+.ev-legend-strip .sep      { width:1px; height:13px; background:var(--border2); margin:0 4px; }
+.ev-legend-strip .lg-note  { margin-left:auto; color:var(--text4); font-size:10.5px; }
+
+/* ── Light theme ── */
+body.light {
+  --bg:#F2F5F9;--surface:#FFFFFF;--surface2:#EBF0F7;--surface3:#DDE4EF;
+  --border:#C8D4E4;--border2:#B0C0D8;
+  --text:#0F1923;--text2:#3A4E65;--text3:#6A7F96;--text4:#8FA0B4;
+  --b:1px solid rgba(0,0,0,.07);
+}
+body.light .sidebar{background:linear-gradient(180deg,#FFFFFF,#F8FAFC);box-shadow:inset -1px 0 0 rgba(0,0,0,.07),2px 0 20px rgba(0,0,0,.06)}
+body.light .mc{background:var(--surface);border-color:rgba(0,0,0,.08)}
+body.light .fb{background:rgba(88,166,255,.06);border-color:rgba(88,166,255,.15)}
+body.light .co-i{background:rgba(88,166,255,.08)}
+body.light .co-w{background:rgba(255,184,77,.08)}
+body.light .ev-legend-strip{background:rgba(0,0,0,.02);border-color:rgba(0,0,0,.08)}
+/* Only .ev-measured has a background-coloured GAP ring (border:2px solid var(--bg)) that must follow the
+   card in light theme. validated/emerging/experimental carry no border at all (inset shadow), and
+   .ev-heuristic's border IS its dashed shape — repainting it --surface drew white-on-white and erased the
+   least-trusted tier entirely, so a heuristic number read as UNBADGED. Scope the override to measured. */
+body.light .ev-measured{border-color:var(--surface)}
+body.light .mob-bar{background:rgba(242,245,249,.92);border-bottom-color:rgba(0,0,0,.1)}
+body.light .mob-drawer-panel{background:#FFFFFF}
+
+
+/* EEGDex — page-specific overrides (built by dex-gen.js) */
+:root {
+  --node-accent: var(--purple);
+  --node-accent-hex: #B98AFF;
+}
+
+/* Sidebar logo badge gradient uses node accent */
+.logo-badge {
+  background: linear-gradient(135deg, var(--node-accent-hex), var(--blue));
+}
+
+/* Section icons use node accent */
+.si { background: rgba(185,138,255, .12) !important; }
+
+/* Quick Jump dot uses node accent */
+.qj-dot { background: var(--node-accent-hex) !important; }
+
+</style>
+<!-- meta:auto — roster-derived by tools/build-docs.mjs (REPO-DISCOVERABILITY-FOLLOWUPS §5.3/§5.6); do not hand-edit, re-run the builder -->
+<meta name="description" content="Raw EEG → band powers, hypnogram, sleep architecture. EEGDex is a local-first EEG analyzer for Muse — evidence-graded metrics, 100% in your browser, no upload or account.">
+<link rel="canonical" href="https://tepna.net/EEGDex%20Reference.html">
+<meta name="theme-color" content="#070A0E">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Tepna">
+<meta property="og:title" content="EEGDex Reference — EEG · Tepna">
+<meta property="og:description" content="Raw EEG → band powers, hypnogram, sleep architecture. EEGDex is a local-first EEG analyzer for Muse — evidence-graded metrics, 100% in your browser, no upload or account.">
+<meta property="og:url" content="https://tepna.net/EEGDex%20Reference.html">
+<meta property="og:image" content="https://tepna.net/tepna-og.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="EEGDex Reference — EEG · Tepna">
+<meta name="twitter:description" content="Raw EEG → band powers, hypnogram, sleep architecture. EEGDex is a local-first EEG analyzer for Muse — evidence-graded metrics, 100% in your browser, no upload or account.">
+<meta name="twitter:image" content="https://tepna.net/tepna-og.png">
+<!-- /meta:auto -->
+</head>
+<body>
+
+<!-- ═══ MOBILE BAR + DRAWER ═══ -->
+<div class="mob-bar" id="mobBar">
+  <div class="mob-bar-logo">
+    <div class="mob-bar-badge" style="background:linear-gradient(135deg,#B98AFF,#58A6FF)">
+      🧠
+    </div>
+    <span class="mob-bar-name">EEGDex</span>
+  </div>
+  <button class="mob-bar-btn" id="mobMenuBtn" aria-label="Open navigation menu"
+          onclick="openDrawer()">&#9776;</button>
+</div>
+
+<div class="mob-drawer-bg" id="mobDrawerBg" onclick="handleBgClick(event)">
+  <div class="mob-drawer-panel" id="mobDrawerPanel">
+    <div class="mob-drawer-top">
+      <div style="display:flex;align-items:center;gap:9px">
+        <div style="width:28px;height:28px;border-radius:7px;
+             background:linear-gradient(135deg,#B98AFF,#58A6FF);
+             display:flex;align-items:center;justify-content:center;font-size:12px">
+          🧠
+        </div>
+        <span style="font-weight:700;font-size:13px;color:#F4F7FB">Sections</span>
+      </div>
+      <button class="mob-drawer-close" aria-label="Close navigation"
+              onclick="closeDrawer()">&#x2715;</button>
+    </div>
+    <div style="margin-bottom:14px;padding:0 4px">
+      <a href="#quick-jump" onclick="closeDrawer()" style="display:flex;align-items:center;
+         gap:8px;background:rgba(61,224,208,.07);border:1px solid rgba(61,224,208,.18);
+         border-radius:8px;padding:9px 12px;text-decoration:none;color:var(--teal);
+         font-size:13px;font-weight:500;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2"><circle cx="11" cy="11" r="8"/>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        Quick Jump &amp; Search
+      </a>
+    </div>
+    
+    <div class="nav-lbl">Signal &amp; Contact</div>
+    <div class="nav">
+          <a href="#signal" onclick="closeDrawer()">
+    </div>
+
+    <div class="nav-lbl">Band Powers</div>
+    <div class="nav">
+          <a href="#bands" onclick="closeDrawer()">
+    </div>
+
+    <div class="nav-lbl">Sleep Architecture</div>
+    <div class="nav">
+          <a href="#sleep" onclick="closeDrawer()">
+    </div>
+  </div>
+</div>
+
+<!-- ═══ APP SHELL ═══ -->
+<div class="app">
+
+<!-- ── Sidebar ── -->
+<nav class="sidebar">
+  <div class="logo">
+    <div class="logo-badge" style="background:linear-gradient(135deg,#B98AFF,#58A6FF)">
+      🧠
+    </div>
+    <div>
+      <div class="logo-title">EEGDex</div>
+      <div class="logo-sub">Reference Guide</div>
+    </div>
+  </div>
+  
+    <div class="nav-lbl">Signal &amp; Contact</div>
+    <div class="nav">
+      <a href="#signal"><span class="nav-dot"></span>Signal &amp; Contact</a>
+    </div>
+
+    <div class="nav-lbl">Band Powers</div>
+    <div class="nav">
+      <a href="#bands"><span class="nav-dot"></span>Band Powers</a>
+    </div>
+
+    <div class="nav-lbl">Sleep Architecture</div>
+    <div class="nav">
+      <a href="#sleep"><span class="nav-dot"></span>Sleep Architecture</a>
+    </div>
+
+  <div class="nav-lbl">Reference</div>
+  <div class="nav">
+    <a href="#abbr"><span class="nav-dot"></span>Abbreviation Index</a>
+  </div>
+
+  <div class="sidebar-bottom">
+    <div class="sidebar-data-card">
+      <div class="data-pill"><span class="data-dot"></span> Reference Guide</div>
+      <div class="sidebar-data-info">
+        EEGDex v0.1.0 · cards generated from eegdex.manifest.json · page shell authored<br>
+        27 metrics · 3 sections
+      </div>
+    </div>
+  </div>
+</nav>
+
+<!-- ── Main content ── -->
+<main class="main">
+  <div class="ph">
+    <div class="ph-eyebrow">EEGDex — Technical Reference</div>
+    <h1 class="ph-title">Metrics, Formulas &amp;<br><span>Normal Values</span></h1>
+    <p class="ph-desc">Band-power and sleep-architecture analysis from consumer EEG (Muse). Direct spectral readouts, EEG-staged hypnogram, and derived micro-architecture markers.</p>
+    <p class="ph-desc" style="margin-top:8px;font-size:12px;color:var(--text3)">
+      27 metrics total: 13 Core · 11 Advanced · 3 Research
+    </p>
+  </div>
+
+  
+  <div class="co co-w">
+    <span class="co-ic">&#x26A0;&#xFE0F;</span>
+    <div><strong>Important:</strong> EEGDex is a scaffold, not a shipped node — as of 2026-09-20 a DSP module and its selftest exist, but no EEGDex app, bundle or hand-authored registry is built, and the adapter layer routes EEG files to an EEGDSP that resolves to undefined in every shipped bundle. This guide documents the manifest's intended metrics, not measured behaviour. Consumer dry-electrode EEG (4-channel Muse) has higher artifact rates and lower spatial resolution than clinical PSG. Contact quality gates every downstream metric.</div>
+  </div>
+
+  
+<div class="qj-wrap" id="quick-jump">
+  <button class="qj-toggle" id="qjToggle" aria-expanded="false" aria-controls="qjPanel">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/>
+      <line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/>
+      <line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
+    </svg>
+    Quick Jump Index
+    <span class="qj-count">27 metrics · 3 sections</span>
+    <svg class="qj-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <polyline points="6 9 12 15 18 9"/>
+    </svg>
+  </button>
+  <div class="qj-panel" id="qjPanel" hidden>
+    <div class="qj-search-wrap">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+      <input type="text" class="qj-search" id="qjSearch" placeholder="Filter metrics…"
+             autocomplete="off" spellcheck="false" inputmode="search">
+      <button class="qj-clear" id="qjClear" aria-label="Clear search" hidden>✕</button>
+    </div>
+    <div class="qj-grid" id="qjGrid">
+      
+      <div class="qj-group">
+        <div class="qj-group-header">
+          <span class="qj-dot" style="background:var(--purple)"></span>
+          Signal &amp; Contact
+        </div>
+        <div class="qj-links"><a href="#signal" class="qj-sec">Signal &amp; Contact</a></div>
+        <div class="qj-metrics"><a href="#signal" class="qm">% Contact</a><a href="#signal" class="qm">% Analyzable</a><a href="#signal" class="qm">Total Power</a></div>
+      </div>
+
+      <div class="qj-group">
+        <div class="qj-group-header">
+          <span class="qj-dot" style="background:var(--purple)"></span>
+          Band Powers
+        </div>
+        <div class="qj-links"><a href="#bands" class="qj-sec">Band Powers</a></div>
+        <div class="qj-metrics"><a href="#bands" class="qm">δ rel</a><a href="#bands" class="qm">θ rel</a><a href="#bands" class="qm">α rel</a><a href="#bands" class="qm">σ rel</a><a href="#bands" class="qm">β rel</a><a href="#bands" class="qm">α/θ</a><a href="#bands" class="qm">SEF95</a></div>
+      </div>
+
+      <div class="qj-group">
+        <div class="qj-group-header">
+          <span class="qj-dot" style="background:var(--purple)"></span>
+          Sleep Architecture
+        </div>
+        <div class="qj-links"><a href="#sleep" class="qj-sec">Sleep Architecture</a></div>
+        <div class="qj-metrics"><a href="#sleep" class="qm">REM %</a><a href="#sleep" class="qm">Spindles</a><a href="#sleep" class="qm">FAA</a><a href="#sleep" class="qm">Calm</a><a href="#sleep" class="qm">Hypnogram</a><a href="#sleep" class="qm">TST</a><a href="#sleep" class="qm">SE</a><a href="#sleep" class="qm">N3 %</a><a href="#sleep" class="qm">N1 %</a><a href="#sleep" class="qm">N2 %</a><a href="#sleep" class="qm">Wake %</a><a href="#sleep" class="qm">SOL</a><a href="#sleep" class="qm">REM Lat</a><a href="#sleep" class="qm">WASO</a><a href="#sleep" class="qm">Shifts</a><a href="#sleep" class="qm">REM Per</a><a href="#sleep" class="qm">SWA Decay</a></div>
+      </div>
+    </div>
+    <div class="qj-no-results" id="qjNoResults" hidden>No metrics match your search.</div>
+  </div>
+</div>
+
+  
+  <div class="ev-legend-strip">
+    <span class="lg-title">Evidence</span>
+    <span class="lg-item"><span class="ev-measured"></span><b>Measured</b></span><span class="sep"></span>
+    <span class="lg-item"><span class="ev-validated"></span><b>Validated</b></span><span class="sep"></span>
+    <span class="lg-item"><span class="ev-emerging"></span><b>Emerging</b></span><span class="sep"></span>
+    <span class="lg-item"><span class="ev-experimental"></span><b>Experimental</b></span><span class="sep"></span>
+    <span class="lg-item"><span class="ev-heuristic"></span><b>Heuristic</b></span>
+    <span class="lg-note">fill = trust</span>
+  </div>
+
+  
+<div class="rs" id="signal">
+  <div class="sh">
+    <div class="si" style="background:var(--purple)">
+      📶
+    </div>
+    <div>
+      <div class="st">Signal &amp; Contact</div>
+      <div class="sd">Direct signal-quality readouts that gate everything downstream</div>
+    </div>
+  </div>
+  <div class="mg">
+  
+  <div class="mc">
+    <div class="mh">
+      <div class="mi">
+        <span class="ma">% Contact</span>
+        <span class="mf">Fraction of the recording with all electrodes in good contact</span>
+      </div>
+      <span class="mt tc">Core</span>
+    </div>
+    
+    <div class="fb">
+      <div class="fl">Formula</div>
+      <div class="ft">mean(all-channel contact ≥ threshold)</div>
+      
+    </div>
+    
+    <span class="ev-corner ev-measured" title="% Contact — Per-channel contact quality — direct sensor readout"></span>
+  </div>
+
+  <div class="mc">
+    <div class="mh">
+      <div class="mi">
+        <span class="ma">% Analyzable</span>
+        <span class="mf">Fraction of the recording usable after artifact rejection</span>
+      </div>
+      <span class="mt tc">Core</span>
+    </div>
+    
+    <div class="fb">
+      <div class="fl">Formula</div>
+      <div class="ft">1 − artifactRejectedFraction</div>
+      
+    </div>
+    
+    <span class="ev-corner ev-measured" title="% Analyzable — Analyzable coverage after artifact rejection — direct"></span>
+  </div>
+
+  <div class="mc" data-tier="secondary">
+    <div class="mh">
+      <div class="mi">
+        <span class="ma">Total Power</span>
+        <span class="mf">Broadband EEG power over (0, 45] Hz, the band the transform sums</span>
+      </div>
+      <span class="mt ta">Advanced</span>
+    </div>
+    
+    <div class="fb">
+      <div class="fl">Formula</div>
+      <div class="ft">Σ P(f) over (0, 45] Hz</div>
+      
+    </div>
+    
+    <span class="ev-corner ev-measured" title="Total Power — Broadband spectral power — direct from the PSD. The amplitude unit is the EDF channel's own physical dimension, which the DSP carries as `unit` and the surface prints; this node never assumes µV, so the registry states a squared amplitude rather than µV²"></span>
+  </div>
+  </div>
+</div>
+
+
+<div class="rs" id="bands">
+  <div class="sh">
+    <div class="si" style="background:var(--purple)">
+      🌊
+    </div>
+    <div>
+      <div class="st">Band Powers</div>
+      <div class="sd">Relative power in the canonical EEG bands</div>
+    </div>
+  </div>
+  <div class="mg">
+  
+  <div class="mc">
+    <div class="mh">
+      <div class="mi">
+        <span class="ma">δ rel</span>
+        <span class="mf">Delta-band ([0.5, 4) Hz) relative power, as the engine bands it</span>
+      </div>
+      <span class="mt tc">Core</span>
+    </div>
+    
+    <div class="fb">
+      <div class="fl">Formula</div>
+      <div class="ft">median over epochs with a spectrum of P([0.5, 4) Hz) / Σ P(f) over (0, 45] Hz</div>
+      
+    </div>
+    
+    <span class="ev-corner ev-validated" title="δ rel — Relative delta power — established EEG band readout"></span>
+  </div>
+
+  <div class="mc">
+    <div class="mh">
+      <div class="mi">
+        <span class="ma">θ rel</span>
+        <span class="mf">Theta-band ([4, 8) Hz) relative power, as the engine bands it</span>
+      </div>
+      <span class="mt tc">Core</span>
+    </div>
+    
+    <div class="fb">
+      <div class="fl">Formula</div>
+      <div class="ft">median over epochs with a spectrum of P([4, 8) Hz) / Σ P(f) over (0, 45] Hz</div>
+      
+    </div>
+    
+    <span class="ev-corner ev-validated" title="θ rel — Relative theta power — established EEG band readout"></span>
+  </div>
+
+  <div class="mc">
+    <div class="mh">
+      <div class="mi">
+        <span class="ma">α rel</span>
+        <span class="mf">Alpha-band ([8, 12) Hz) relative power, as the engine bands it</span>
+      </div>
+      <span class="mt tc">Core</span>
+    </div>
+    
+    <div class="fb">
+      <div class="fl">Formula</div>
+      <div class="ft">median over epochs with a spectrum of P([8, 12) Hz) / Σ P(f) over (0, 45] Hz</div>
+      
+    </div>
+    
+    <span class="ev-corner ev-validated" title="α rel — Relative alpha power — established EEG band readout"></span>
+  </div>
+
+  <div class="mc" data-tier="secondary">
+    <div class="mh">
+      <div class="mi">
+        <span class="ma">σ rel</span>
+        <span class="mf">Sigma-band ([12, 16) Hz) relative power, as the engine bands it</span>
+      </div>
+      <span class="mt ta">Advanced</span>
+    </div>
+    
+    <div class="fb">
+      <div class="fl">Formula</div>
+      <div class="ft">median over epochs with a spectrum of P([12, 16) Hz) / Σ P(f) over (0, 45] Hz</div>
+      
+    </div>
+    
+    <span class="ev-corner ev-validated" title="σ rel — Relative sigma power — established EEG band readout, a band share and never a spindle count"></span>
+  </div>
+
+  <div class="mc" data-tier="secondary">
+    <div class="mh">
+      <div class="mi">
+        <span class="ma">β rel</span>
+        <span class="mf">Beta-band ([16, 30) Hz) relative power, as the engine bands it</span>
+      </div>
+      <span class="mt ta">Advanced</span>
+    </div>
+    
+    <div class="fb">
+      <div class="fl">Formula</div>
+      <div class="ft">median over epochs with a spectrum of P([16, 30) Hz) / Σ P(f) over (0, 45] Hz</div>
+      
+    </div>
+    
+    <span class="ev-corner ev-validated" title="β rel — Relative beta power — established EEG band readout"></span>
+  </div>
+
+  <div class="mc" data-tier="secondary">
+    <div class="mh">
+      <div class="mi">
+        <span class="ma">α/θ</span>
+        <span class="mf">Ratio of alpha to theta band power</span>
+      </div>
+      <span class="mt ta">Advanced</span>
+    </div>
+    
+    <div class="fb">
+      <div class="fl">Formula</div>
+      <div class="ft">median over epochs with nonzero theta power of P([8, 12) Hz) / P([4, 8) Hz)</div>
+      
+    </div>
+    
+    <span class="ev-corner ev-emerging" title="α/θ — Alpha/theta ratio — published drowsiness/relaxation index, device-dependent"></span>
+  </div>
+
+  <div class="mc" data-tier="secondary">
+    <div class="mh">
+      <div class="mi">
+        <span class="ma">SEF95</span>
+        <span class="mf">Frequency below which 95 % of the epoch's examined power sits</span>
+      </div>
+      <span class="mt ta">Advanced</span>
+    </div>
+    
+    <div class="fb">
+      <div class="fl">Formula</div>
+      <div class="ft">median over epochs of min{ f : Σ P(≤ f) ≥ 0.95 × Σ P over (0, 45] Hz }</div>
+      
+    </div>
+    
+    <span class="ev-corner ev-measured" title="SEF95 — Spectral edge frequency — a definition over the same PSD the band shares divide, with no tuned constant and no stage assumption. The 45 Hz ceiling is this engine's own, so the answer is an edge of the EXAMINED band and never of the channel"></span>
+  </div>
+  </div>
+</div>
+
+
+<div class="rs" id="sleep">
+  <div class="sh">
+    <div class="si" style="background:var(--purple)">
+      🌙
+    </div>
+    <div>
+      <div class="st">Sleep Architecture</div>
+      <div class="sd">EEG-staged hypnogram and micro-architecture markers</div>
+    </div>
+  </div>
+  <div class="mg">
+  
+  <div class="mc">
+    <div class="mh">
+      <div class="mi">
+        <span class="ma">REM %</span>
+        <span class="mf">Fraction of total sleep time scored REM from EEG</span>
+      </div>
+      <span class="mt tc">Core</span>
+    </div>
+    
+    <div class="fb">
+      <div class="fl">Formula</div>
+      <div class="ft">remEpochs / totalSleepEpochs</div>
+      
+    </div>
+    
+    <span class="ev-corner ev-emerging" title="REM % — REM fraction from the staged hypnogram — it inherits the single-channel stager's tier, never the reference standard's. PSG EEG staging is the reference standard; this stager is not PSG-validated"></span>
+  </div>
+
+  <div class="mc" data-tier="research">
+    <div class="mh">
+      <div class="mi">
+        <span class="ma">Spindles</span>
+        <span class="mf">Sleep-spindle count per minute of staged N2 and N3</span>
+      </div>
+      <span class="mt tr">Research</span>
+    </div>
+    
+    <div class="fb">
+      <div class="fl">Formula</div>
+      <div class="ft">detections / staged NREM minutes, over an epoch-relative sigma envelope</div>
+      
+    </div>
+    
+    <span class="ev-corner ev-heuristic" title="Spindles — Sleep-spindle density (11–16 Hz bursts) — published memory-consolidation marker. The DETECTOR is a relative-envelope rule this suite wrote, and no expert-scored spindle has judged it, so the metric carries the suite's own tier and never the marker's. It dropped from `emerging` to `heuristic` when it stopped being a refusal"></span>
+  </div>
+
+  <div class="mc" data-tier="research">
+    <div class="mh">
+      <div class="mi">
+        <span class="ma">FAA</span>
+        <span class="mf">ln(α right) − ln(α left) over frontal channels (AF7/AF8)</span>
+      </div>
+      <span class="mt tr">Research</span>
+    </div>
+    
+    <div class="fb">
+      <div class="fl">Formula</div>
+      <div class="ft">ln(αAF8) − ln(αAF7)</div>
+      
+    </div>
+    
+    <span class="ev-corner ev-experimental" title="FAA — Frontal alpha asymmetry — affective-state composite, EEGDex-derived, weak consumer-grade support"></span>
+  </div>
+
+  <div class="mc" data-tier="secondary">
+    <div class="mh">
+      <div class="mi">
+        <span class="ma">Calm</span>
+        <span class="mf">Composite relaxation index blended from band ratios</span>
+      </div>
+      <span class="mt ta">Advanced</span>
+    </div>
+    
+    <div class="fb">
+      <div class="fl">Formula</div>
+      <div class="ft">weighted blend of α/θ, β suppression, and stability</div>
+      
+    </div>
+    
+    <span class="ev-corner ev-heuristic" title="Calm — Calm score — heuristic wellness composite, not a validated EEG metric"></span>
+  </div>
+
+  <div class="mc">
+    <div class="mh">
+      <div class="mi">
+        <span class="ma">Hypnogram</span>
+        <span class="mf">Per-epoch sleep-stage series scored from one EEG channel</span>
+      </div>
+      <span class="mt tc">Core</span>
+    </div>
+    
+    <div class="fb">
+      <div class="fl">Formula</div>
+      <div class="ft">stageEpoch(bands) per 30 s epoch, median-smoothed</div>
+      
+    </div>
+    
+    <span class="ev-corner ev-emerging" title="Hypnogram — Single-channel band-power staging — literature-backed, not PSG-validated (EEGDEX-BUILD-BRIEF §0)"></span>
+  </div>
+
+  <div class="mc">
+    <div class="mh">
+      <div class="mi">
+        <span class="ma">TST</span>
+        <span class="mf">Hours of epochs scored N1, N2, N3 or REM</span>
+      </div>
+      <span class="mt tc">Core</span>
+    </div>
+    
+    <div class="fb">
+      <div class="fl">Formula</div>
+      <div class="ft">30 s × (N1 + N2 + N3 + REM) / 3600</div>
+      
+    </div>
+    
+    <span class="ev-corner ev-emerging" title="TST — Total sleep time from the staged hypnogram — it inherits the stager tier, never the clock tier"></span>
+  </div>
+
+  <div class="mc">
+    <div class="mh">
+      <div class="mi">
+        <span class="ma">SE</span>
+        <span class="mf">Percent of SCORED epochs that are sleep, not of the recording span</span>
+      </div>
+      <span class="mt tc">Core</span>
+    </div>
+    
+    <div class="fb">
+      <div class="fl">Formula</div>
+      <div class="ft">100 × sleepEpochs / scoredEpochs</div>
+      
+    </div>
+    
+    <span class="ev-corner ev-emerging" title="SE — Sleep efficiency over the scored population — an unscorable epoch is excluded, never counted as wake"></span>
+  </div>
+
+  <div class="mc">
+    <div class="mh">
+      <div class="mi">
+        <span class="ma">N3 %</span>
+        <span class="mf">Fraction of total sleep time scored N3, the slow-wave share</span>
+      </div>
+      <span class="mt tc">Core</span>
+    </div>
+    
+    <div class="fb">
+      <div class="fl">Formula</div>
+      <div class="ft">100 × N3 / sleepEpochs</div>
+      
+    </div>
+    
+    <span class="ev-corner ev-emerging" title="N3 % — N3 fraction from the staged hypnogram — single-channel stager, not a PSG score"></span>
+  </div>
+
+  <div class="mc" data-tier="secondary">
+    <div class="mh">
+      <div class="mi">
+        <span class="ma">N1 %</span>
+        <span class="mf">Fraction of total sleep time scored N1, the lightest stage</span>
+      </div>
+      <span class="mt ta">Advanced</span>
+    </div>
+    
+    <div class="fb">
+      <div class="fl">Formula</div>
+      <div class="ft">100 × N1 / sleepEpochs</div>
+      
+    </div>
+    
+    <span class="ev-corner ev-emerging" title="N1 % — N1 fraction from the staged hypnogram — the stage a band-power rule scores least reliably. Against the simulator's planted truth this engine over-reads N1, so the number carries the stager's tier and a stated shortfall"></span>
+  </div>
+
+  <div class="mc">
+    <div class="mh">
+      <div class="mi">
+        <span class="ma">N2 %</span>
+        <span class="mf">Fraction of total sleep time scored N2, the dominant NREM stage</span>
+      </div>
+      <span class="mt tc">Core</span>
+    </div>
+    
+    <div class="fb">
+      <div class="fl">Formula</div>
+      <div class="ft">100 × N2 / sleepEpochs</div>
+      
+    </div>
+    
+    <span class="ev-corner ev-emerging" title="N2 % — N2 fraction from the staged hypnogram — single-channel stager, not a PSG score"></span>
+  </div>
+
+  <div class="mc" data-tier="secondary">
+    <div class="mh">
+      <div class="mi">
+        <span class="ma">Wake %</span>
+        <span class="mf">Percent of SCORED epochs scored wake, not of the recording span</span>
+      </div>
+      <span class="mt ta">Advanced</span>
+    </div>
+    
+    <div class="fb">
+      <div class="fl">Formula</div>
+      <div class="ft">100 × W / scoredEpochs</div>
+      
+    </div>
+    
+    <span class="ev-corner ev-emerging" title="Wake % — Wake fraction over the scored population — an unscorable epoch is excluded, never counted as wake. It is the complement of sleep efficiency over the same denominator"></span>
+  </div>
+
+  <div class="mc">
+    <div class="mh">
+      <div class="mi">
+        <span class="ma">SOL</span>
+        <span class="mf">Minutes of elapsed epochs before the first epoch scored as sleep</span>
+      </div>
+      <span class="mt tc">Core</span>
+    </div>
+    
+    <div class="fb">
+      <div class="fl">Formula</div>
+      <div class="ft">0.5 × elapsed epochs before the first sleep epoch</div>
+      
+    </div>
+    
+    <span class="ev-corner ev-emerging" title="SOL — Sleep-onset latency from the staged hypnogram. It counts ELAPSED epochs, so an unscorable epoch before onset still costs the time it occupied — a latency is a clock fact rather than a scoring fact"></span>
+  </div>
+
+  <div class="mc" data-tier="secondary">
+    <div class="mh">
+      <div class="mi">
+        <span class="ma">REM Lat</span>
+        <span class="mf">Minutes from the first sleep epoch to the first epoch scored REM</span>
+      </div>
+      <span class="mt ta">Advanced</span>
+    </div>
+    
+    <div class="fb">
+      <div class="fl">Formula</div>
+      <div class="ft">0.5 × (first REM epoch − first sleep epoch)</div>
+      
+    </div>
+    
+    <span class="ev-corner ev-emerging" title="REM Lat — REM latency from the staged hypnogram — it inherits the stager's REM tier, and a night with no REM epoch reports the absence with its own reason"></span>
+  </div>
+
+  <div class="mc">
+    <div class="mh">
+      <div class="mi">
+        <span class="ma">WASO</span>
+        <span class="mf">Minutes scored wake strictly between the first and last sleep epoch</span>
+      </div>
+      <span class="mt tc">Core</span>
+    </div>
+    
+    <div class="fb">
+      <div class="fl">Formula</div>
+      <div class="ft">0.5 × wake epochs between the first and last sleep epoch</div>
+      
+    </div>
+    
+    <span class="ev-corner ev-emerging" title="WASO — Wake after sleep onset from the staged hypnogram. The bounds are STRICT, so wake before onset and wake after the final sleep epoch are not WASO"></span>
+  </div>
+
+  <div class="mc" data-tier="secondary">
+    <div class="mh">
+      <div class="mi">
+        <span class="ma">Shifts</span>
+        <span class="mf">Count of stage transitions over the scored series</span>
+      </div>
+      <span class="mt ta">Advanced</span>
+    </div>
+    
+    <div class="fb">
+      <div class="fl">Formula</div>
+      <div class="ft">transitions over the scored series, where an unscorable epoch BREAKS the run</div>
+      
+    </div>
+    
+    <span class="ev-corner ev-heuristic" title="Shifts — Stage-shift count from the staged hypnogram. Measured against the simulator's planted truth this engine reports roughly twice the planted transitions, because an epoch-independent rule set fragments a stable stage, so the number reads this stager's fragmentation as much as the night's"></span>
+  </div>
+
+  <div class="mc" data-tier="secondary">
+    <div class="mh">
+      <div class="mi">
+        <span class="ma">REM Per</span>
+        <span class="mf">Count of REM runs, merged across a non-REM gap of up to 5 minutes</span>
+      </div>
+      <span class="mt ta">Advanced</span>
+    </div>
+    
+    <div class="fb">
+      <div class="fl">Formula</div>
+      <div class="ft">maximal REM runs merged across a gap of ≤ 10 epochs</div>
+      
+    </div>
+    
+    <span class="ev-corner ev-emerging" title="REM Per — REM period count from the staged hypnogram. It is NOT the Feinberg–Floyd NREM–REM cycle, which needs an NREM duration rule this engine does not apply, and the name says so"></span>
+  </div>
+
+  <div class="mc" data-tier="research">
+    <div class="mh">
+      <div class="mi">
+        <span class="ma">SWA Decay</span>
+        <span class="mf">Change in NREM delta power per NREM stretch, against the first stretch</span>
+      </div>
+      <span class="mt tr">Research</span>
+    </div>
+    
+    <div class="fb">
+      <div class="fl">Formula</div>
+      <div class="ft">100 × leastSquaresSlope(median delta power vs stretch index) / first stretch's median</div>
+      
+    </div>
+    
+    <span class="ev-corner ev-heuristic" title="SWA Decay — The overnight fall of slow-wave activity. What this metric measures is the SLOPE over NREM delta power, and it claims nothing about sleep homeostasis: that reading rests on a citation this repo has not verified, so the metric carries the suite's own tier"></span>
+  </div>
+  </div>
+</div>
+
+  
+<div class="rs" id="abbr">
+  <div class="sh">
+    <div class="si" style="background:rgba(110,133,168,.12)">📖</div>
+    <div>
+      <div class="st">Abbreviation Index</div>
+      <div class="sd">All abbreviations used in EEGDex reference</div>
+    </div>
+  </div>
+  <div class="nt-wrap">
+    <table class="nt">
+      <tr><th>Abbr</th><th>Meaning</th></tr>
+      <tr><td class="nr" style="color:var(--teal)">EEG</td><td>Electroencephalography</td></tr>
+<tr><td class="nr" style="color:var(--teal)">FAA</td><td>Frontal Alpha Asymmetry</td></tr>
+<tr><td class="nr" style="color:var(--teal)">N1</td><td>Non-REM sleep stage 1</td></tr>
+<tr><td class="nr" style="color:var(--teal)">N2</td><td>Non-REM sleep stage 2</td></tr>
+<tr><td class="nr" style="color:var(--teal)">N3</td><td>Non-REM sleep stage 3, slow-wave sleep</td></tr>
+<tr><td class="nr" style="color:var(--teal)">PSD</td><td>Power Spectral Density</td></tr>
+<tr><td class="nr" style="color:var(--teal)">REM</td><td>Rapid Eye Movement sleep</td></tr>
+<tr><td class="nr" style="color:var(--teal)">SEF95</td><td>Spectral Edge Frequency, 95 %</td></tr>
+<tr><td class="nr" style="color:var(--teal)">SOL</td><td>Sleep-Onset Latency</td></tr>
+<tr><td class="nr" style="color:var(--teal)">SWA</td><td>Slow-Wave Activity</td></tr>
+<tr><td class="nr" style="color:var(--teal)">WASO</td><td>Wake After Sleep Onset</td></tr>
+    </table>
+  </div>
+</div>
+
+</main>
+</div>
+
+<!-- ═══ Script: drawer + quick-jump search ═══ -->
+<script>
+/* ── Mobile drawer ── */
+function openDrawer() {
+  document.getElementById('mobDrawerBg').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeDrawer() {
+  document.getElementById('mobDrawerBg').classList.remove('open');
+  document.body.style.overflow = '';
+}
+function handleBgClick(e) {
+  if (e.target === e.currentTarget) closeDrawer();
+}
+
+/* ── Quick Jump toggle + search ── */
+(function() {
+  const toggle = document.getElementById('qjToggle');
+  const panel = document.getElementById('qjPanel');
+  const search = document.getElementById('qjSearch');
+  const clear = document.getElementById('qjClear');
+  const noResults = document.getElementById('qjNoResults');
+
+  if (!toggle) return;
+
+  toggle.addEventListener('click', () => {
+    const open = panel.hidden;
+    panel.hidden = !open;
+    toggle.setAttribute('aria-expanded', open);
+    if (open && search) search.focus();
+  });
+
+  if (!search) return;
+
+  search.addEventListener('input', () => {
+    const q = search.value.toLowerCase().trim();
+    clear.hidden = !q;
+    const items = document.querySelectorAll('.qm');
+    let visible = 0;
+    items.forEach(el => {
+      const match = !q || el.textContent.toLowerCase().includes(q);
+      el.classList.toggle('qm-hide', !match);
+      el.classList.toggle('qm-match', q && match);
+      if (match) visible++;
+    });
+    noResults.hidden = visible > 0;
+  });
+
+  if (clear) {
+    clear.addEventListener('click', () => {
+      search.value = '';
+      search.dispatchEvent(new Event('input'));
+      search.focus();
+    });
+  }
+})();
+</script>
+
+<div style="text-align:center;padding:20px 24px 28px;font-size:11px;color:var(--text4);font-family:'IBM Plex Mono',ui-monospace,monospace;letter-spacing:.05em;border-top:1px solid var(--border);margin-top:32px">
+  Reference Guide Version: <strong style="color:var(--text3)">1.0.0</strong>
+  &nbsp;&#xB7;&nbsp; Node: <strong style="color:var(--text3)">EEGDex &#x2014; EEG / Muse</strong>
+  &nbsp;&#xB7;&nbsp; Last Literature Review: <strong style="color:var(--text3)">November 2026</strong>
+  &nbsp;&#xB7;&nbsp; Apache-2.0 Licence
+</div>
+
+<div class="dxl" style="max-width:900px;margin:40px auto 14px;padding:0 24px">
+  <div class="dxl-notice">
+    <div class="dxl-k">Intended use &amp; safety</div>
+    <p><b>Tepna</b> computes biometric patterns from your wearable and sensor data to support personal self-quantification. It is <b>not a medical device</b>, does not <b>diagnose, treat, cure, screen for, or prevent</b> any disease or condition, and is <b>not a substitute for professional clinical evaluation</b>. It has not been reviewed or cleared by the FDA, CE, or any regulatory body. Always consult a qualified healthcare provider about your health. Use at your own risk. For research and personal use only. 100% local — no data leaves your device.</p>
+  </div>
+</div>
+<div class="dxl dxl-ribbon" style="max-width:900px;margin:0 auto 30px">
+  <div class="dxl-seg">
+    <span class="dxl-mark">T</span>
+    <span style="display:flex;flex-direction:column">
+      <b style="font-size:13px">Tepna</b>
+      <span class="dxl-colophon">physiological-signal suite</span>
+    </span>
+  </div>
+  <div class="dxl-seg dxl-grow">
+    <span style="font-size:11.5px;color:var(--text2,#9FB0C3)">© 2026 <b>Michal Planicka</b> — Concept · Architecture · Algorithms</span>
+    <span class="dxl-disclaimer">Not a medical device · does not diagnose or treat · not FDA/CE cleared · research &amp; personal use only · ◈ Made in Asheville, NC</span>
+  </div>
+  <div class="dxl-seg"><span class="dxl-spdx"><span class="k">licence</span><span class="v">Apache-2.0</span></span></div>
+</div>
+</body>
+</html>
