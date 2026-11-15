@@ -1457,5 +1457,78 @@ Selftests move 407 to 421. Fourteen legs hold the new reader, and the first one 
 ### What remains
 
 `apneaTyping`, `kernel` and `findings` reach no return literal either reader can range, so they carry
-no inner layer at all and the census keeps naming them. The pass-through subtrees of the form
-`fusion.X || null` still need the resolver that board entry 5905 parks.
+no inner layer at all and the census keeps naming them. Section 25 measures the pass-through
+population at depth 1 and declares the one member that needs no resolver.
+
+## 25 · 2026-11-15 — the depth-1 census names the 25 keys that hold no shape layer
+
+The gate judged 36 top-level keys and 10 nested subtrees, and it said nothing at all about the other
+26 keys. A `nested` entry buys a key its shape layer. A key without one holds a depth-1 label alone,
+so it ships whatever it ships and the verdict printed no word about it. That is the fourth instance of
+the class at board entry 6135, where an opt-in layer reports its own absence nowhere.
+
+### The form of each key, measured at both export routes
+
+The census reads the text after each `key:` colon in the fusion return literal and in the slim
+`var _exp = {` literal, and it classifies what that text carries. The 26 keys held 35 export sites:
+
+| form | sites | what it means |
+|---|---|---|
+| `variable` | 16 | a bare identifier the fusion builds elsewhere in its own scope |
+| `member` | 8 | `fusion.<key>`, with or without a `\|\| null` guard |
+| `member-guarded` | 6 | a conditional whose value is a longer `fusion.` chain |
+| `call` | 2 | a `.map` or a constructor the reader cannot follow |
+| `blanked-value` | 2 | a string, which the preparer deletes before any reader sees it |
+| `inline-literal` | 1 | an object literal written at the publish site |
+
+Two of those forms taught the reader something. A guarded member names the LONGEST chain and never
+the first, because `apneaNullModel` writes `fusion.apnea ? fusion.apnea.nullModel : null`, where the
+first chain is the guard and the second is the value. And a string has no text at all once the
+preparer runs: `kind: 'fusion'` reads as `kind: ,`, so the first spelling of this reader called it
+`other` and swept `kind` into the keys it cannot resolve. A number, `true`, `false` and `null` all
+survive that step, so the class is narrow and `kind` now reads as resolved.
+
+### `matchWindow` was the one key the census redded, and it needed no resolver
+
+One of the 26 keys carries an object literal that this file's own `inlineShape` reads today.
+`matchWindow` sits at `integrator-dsp.js:7956` with four keys, and the gate judged one. So the census
+carries ONE red arm: an object literal that `inlineShape` reads and no `nested` entry declares. That
+case needs no resolver and no new reader, so the arm carries its own remedy.
+
+The subtree now declares `leadMaxSec` and `trailMaxSec` as `card`, read at `integrator-render.js:990`
+and `:992` through the DIRECT path, where the renderer adds the two halves of the pairing window. It
+holds no alias site at all, so `readsDirectPath` carries the whole credit. `directionalWindowSec` and
+`unionPrefilterSec` return zero lines in all three realms, so both read `export-only`. The gate moves
+from 165 keys to 169, and from 10 nested subtrees to 11.
+
+### What the census reports and never reds
+
+Eleven keys hold nothing but bare variables and calls, so the census cannot say whether they carry an
+object: `anyOverlap`, `autoGly`, `bus`, `cvhrCorroboration`, `hrSource`, `hrv`, `hrvResource`,
+`pairs`, `pulseCrossCheck`, `sleepWake` and `staging`. Board entry 5905 parked the resolver they need,
+and two designs stay rejected there: an acorn-only resolver, which CI cannot run, and a second
+tokenizer beside `find-unwired-js.mjs prepare`, which is a drift surface nobody measures. A red arm
+over those 11 keys would red on a population I cannot declare, so the census names them instead.
+
+One key sits in a third state. `apneaNullModel` re-exports `fusion.apnea.nullModel`, and the inner
+layer of section 24 already judges that path as 11 keys. The census reports the pair as served, and
+the remedy there is a pointer and never a second shape. No pointer form exists yet, so this unit
+states the state and declares nothing.
+
+These keys add nothing to `population.checked`, because the census names keys it does not judge.
+
+### The controls
+
+| control | outcome |
+|---|---|
+| 0 · this branch, unchanged | `PASS` · `checked: 169` · `passThroughKeys: 25` · `passThroughUndeclaredInline: 0` |
+| 1 · the declaration withdrawn | exit 1 · names `matchWindow at integrator-dsp.js:7956`. This control sizes the unit |
+| 2 · a NEW object literal in the slim export, declared at depth 1 only | exit 1 · names `trial at integrator-dsp.js:8058`. The arm catches a key nobody knew about, which control 1 cannot show |
+| 3 · `leadMaxSec` flipped to `export-only` | `FAIL` · an anchored read reaches it, so the `card` credit is a real read |
+| 4 · `directionalWindowSec` flipped to `card` | `FAIL` · no anchored read reaches it in `integrator-render.js` |
+| 5 · a declared key the literal does not carry | `PASS` · `nestedStaleWhere` names `matchWindow.ghostKey`. Reported and never red, which is this gate's documented stale policy at every depth |
+| 6 · the red arm emptied under the live declaration | `PASS`. With the subtree declared the arm judges nothing, and control 2 is what shows it live |
+
+Selftests move 421 to 448. Twenty-seven legs hold the census, and three pin the lessons above: the
+longest chain, the dropped method of `fusion.findings.map`, and the string that survives as an empty
+value text.
