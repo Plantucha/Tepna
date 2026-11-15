@@ -81,7 +81,8 @@ def test_tick_clock_unwraps_forward_across_the_wrap_and_steps_back_a_little():
     assert c.feed(M.TICK_MOD - 10) == M.TICK_MOD - 10
     assert c.feed(5) == M.TICK_MOD + 5  # forward 15 ticks across the wrap
     assert c.feed(1) == M.TICK_MOD + 1  # a slightly older record steps back, never forward a wrap
-    assert c.ns(78126) == (M.TICK_MOD + 78126) * 100
+    ns = c.ns(78126)
+    assert ns == (M.TICK_MOD + 78126) * 100 and type(ns) is int
 
 
 def test_a_command_is_length_then_ascii_then_a_line_feed():
@@ -181,3 +182,37 @@ def test_unpack_lsb_drops_trailing_bits_and_sign_extends():
     assert M.unpack_lsb(bytes([0xFF, 0x01]), 5) == [31, 15, 0]
     assert M.unpack_lsb(bytes([0xFF, 0x7F]), 16, signed=True) == [32767]
     assert M.unpack_lsb(bytes([0x00, 0x80]), 16, signed=True) == [-32768]
+
+
+def test_tick_clock_reads_half_a_wrap_as_a_step_back_and_less_than_half_as_forward():
+    c = M.TickClock()
+    c.feed(0)
+    assert c.feed(M.TICK_MOD // 2) == -(M.TICK_MOD // 2)
+    c = M.TickClock()
+    c.feed(0)
+    assert c.feed(M.TICK_MOD * 2 // 5) == M.TICK_MOD * 2 // 5
+
+
+def test_battery_reads_two_bytes_only():
+    n = M.RECORD_SIZE[M.TAG_BATTERY] - M.RECORD_HEAD
+    assert M.battery_pct(M.Record(M.TAG_BATTERY, 0, 0, bytes([0x80, 0x40, 0x01]) + bytes(n - 3))) == 64.5
+
+
+def test_a_packet_of_exactly_the_header_length_has_a_counter():
+    assert M.frame_counter(bytes([M.HEADER_LEN, 77]) + bytes(M.HEADER_LEN - 2)) == 77
+
+
+def test_unpack_lsb_gives_one_field_per_whole_width_and_no_more():
+    assert M.unpack_lsb(bytes(range(1, 9)), 8) == list(range(1, 9))
+
+
+def test_control_replies_read_only_the_bytes_the_length_byte_counts():
+    """Bytes past the length byte are padding: they never join the reply."""
+    r = M.ControlReplies()
+    assert r.feed(bytes([5]) + b'{"a":' + b"zz}") == []
+    assert r.feed(_frag("1}")) == [{"a": 1}]
+
+
+def test_control_replies_decode_as_ascii_and_replace_a_byte_outside_it():
+    body = b'{"k":"\xc3\xa9"}'
+    assert M.ControlReplies().feed(bytes([len(body)]) + body) == [{"k": "\ufffd\ufffd"}]

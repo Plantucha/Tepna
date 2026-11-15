@@ -38,7 +38,7 @@
 
 from __future__ import annotations
 import atexit as _atexit, calendar as _calendar, collections as _collections, itertools as _itertools, errno as _errno, logging, os, queue as _queue, re as _re, threading as _threading, datetime as _dt, time as _time
-from typing import Iterable, TextIO
+from typing import Iterable, TextIO, cast
 
 # The annotation values a device INSERTS into a stream live with the device, not here — the merge
 # rule takes them as a parameter so it never carries a marker literal. `oxyii` imports nothing local,
@@ -1383,13 +1383,7 @@ class _RunSidecar:
         min_run: int,
         annotations: frozenset = frozenset(),
         contact: "ContactLedger | None" = None,
-        rule: str = "stuck",
     ):
-        # `rule` picks which detector feeds this file: `stuck` (the run accumulator below, the default)
-        # or COUNTER_GAP_RULE (`count_step`). Both write the same columns.
-        self.rule = rule
-        self.steps = 0  # counter steps examined (counter-gap rule only)
-        self.unexamined = 0  # frames with no previous trusted counter to step from (counter-gap rule only)
         # `<base>.txt` -> `<base>RUNS.txt`, so `…_PPG.txt` gets `…_PPGRUNS.txt` and `…_PPG2W.txt`
         # gets `…_PPG2WRUNS.txt` — derived by rule rather than by a per-stream table that could
         # drift away from the stream names it claims to cover.
@@ -1439,13 +1433,7 @@ class _RunSidecar:
         resumed = os.path.exists(self.path) and os.path.getsize(self.path) > 0
         try:
             self._fh = open(self.path, "a" if resumed else "w", buffering=1 << 16, newline="\n")
-            if not resumed and rule == COUNTER_GAP_RULE:
-                self._fh.write(
-                    f"# stream={stream} rule={COUNTER_GAP_RULE} modulus={COUNTER_MOD} basis=packet-counter "
-                    f"value=previous-counter first_index=counter n_samples=absent-frames dur_ms=host-step\n"
-                )
-                self._fh.write(self.HEADER + "\n")
-            elif not resumed:
+            if not resumed:
                 # The comment carries the RULE, so a reader never has to infer it from the rows —
                 # and an EMPTY sidecar still states what was looked for. A `#` line fails every
                 # consumer's row filter, the same shape `# timebase=` uses.
@@ -1723,55 +1711,11 @@ class _RunSidecar:
         self._warm[channel] = 0
         self._win[channel] = window + 1
 
-    def count_step(self, phone: _dt.datetime, prev: int | None, counter: int | None, dur_ms: float | None) -> None:
-        """One frame's packet counter against the previous frame's (COUNTER_GAP_RULE).
-
-        A step of +1 writes nothing. Any other step writes one row: the previous counter in `value`, this
-        counter in `first_index`, the frames the step skipped in `n_samples`, and the host time between
-        the two frames in `dur_ms`. The same counter twice is a REPEAT, written as `counter-repeat` with
-        0 frames, because modulo 256 it would otherwise read as 255 frames lost. A frame with no trusted
-        counter, or no previous one (the first frame, a resume), is counted in `unexamined` and judged
-        never. O(1) per frame: this runs on the notify path."""
-        if self._fh is None:
-            return
-        if prev is None or counter is None:
-            self.unexamined += 1
-            return
-        self.steps += 1
-        absent = (counter - prev - 1) % COUNTER_MOD
-        if absent == 0:
-            return
-        rule = COUNTER_GAP_RULE
-        if counter == prev:
-            rule, absent = COUNTER_REPEAT_RULE, 0
-        try:
-            self._fh.write(
-                f"{_phone_ts(phone)};{self.stream};{prev};{counter};{absent};"
-                f"{'' if dur_ms is None else f'{dur_ms:.1f}'};1;{rule};"
-                f"{BRACKET_UNAVAILABLE}/{BRACKET_UNAVAILABLE};{CONTACT_NONE}\n"
-            )
-            self.runs += 1  # counted once the row is on the file, as `_SeamSidecar` counts seams
-        except Exception:  # noqa: BLE001 - an annotation must never end a recording
-            self.errors += 1
-
     def close(self) -> None:
         """Flush every still-open run with `closed=0` — a run cut short by the recording ending is a
         real span whose END is unknown, and dropping it would lose exactly the spans that ran to the
         end of a night."""
         if self._fh is None:
-            return
-        if self.rule == COUNTER_GAP_RULE:
-            # The final line says the file LOOKED: an empty gap file and one that never ran differ here.
-            try:
-                self._fh.write(
-                    f"# final rule={COUNTER_GAP_RULE} examined={self.steps} rows={self.runs} "
-                    f"unexamined={self.unexamined} errors={self.errors}\n"
-                )
-                self._fh.close()
-            except Exception:  # noqa: BLE001 - closing an annotation cannot fail a night
-                self.errors += 1
-            finally:
-                self._fh = None
             return
         try:
             # An open run may still merge into a held span, so resolve the pipeline in order:
@@ -1858,6 +1802,81 @@ class _RunSidecar:
                 self._fh.close()
             except Exception:
                 self.errors += 1
+            self._fh = None
+
+
+class _CounterGapSidecar(_RunSidecar):
+    """COUNTER_GAP_RULE: a raw-frame stream judged by its packet counter, in the `_RunSidecar` file shape.
+
+    It writes the same columns to the same `<base>RUNS.txt` and runs its own detector (`count_step`), so
+    none of the `stuck` rule's run state is built. `feed` is never called on it: a raw-frame stream has
+    no decoded sample to feed."""
+
+    def __init__(self, path: str, stream: str) -> None:  # the stuck rule's state is deliberately not built
+        base, dot, ext = path.rpartition(".")
+        self.path = f"{base}RUNS.{ext}" if dot else path + "RUNS"
+        self.stream = stream
+        self.runs = 0  # rows written
+        self.errors = 0  # swallowed exceptions, named on the final line
+        self.steps = 0  # counter steps examined
+        self.unexamined = 0  # frames with no previous trusted counter to step from
+        resumed = os.path.exists(self.path) and os.path.getsize(self.path) > 0  # the file's own size decides
+        try:
+            self._fh = open(self.path, "a" if resumed else "w", buffering=1 << 16, newline="\n")
+            if not resumed:
+                self._fh.write(
+                    f"# stream={stream} rule={COUNTER_GAP_RULE} modulus={COUNTER_MOD} basis=packet-counter "
+                    f"value=previous-counter first_index=counter n_samples=absent-frames dur_ms=host-step\n"
+                )
+                self._fh.write(self.HEADER + "\n")
+        except OSError:
+            self._fh = None  # a sidecar that cannot open must never stop the capture
+            self.errors = 1  # the first and only swallowed error a sidecar that never opened can have
+
+    def count_step(self, phone: _dt.datetime, prev: int | None, counter: int | None, dur_ms: float | None) -> None:
+        """One frame's packet counter against the previous frame's (COUNTER_GAP_RULE).
+
+        A step of +1 writes nothing. Any other step writes one row: the previous counter in `value`, this
+        counter in `first_index`, the frames the step skipped in `n_samples`, and the host time between
+        the two frames in `dur_ms`. The same counter twice is a REPEAT, written as `counter-repeat` with
+        0 frames, because modulo 256 it would otherwise read as 255 frames lost. A frame with no trusted
+        counter, or no previous one (the first frame, a resume), is counted in `unexamined` and judged
+        never. O(1) per frame: this runs on the notify path."""
+        if self._fh is None:
+            return
+        if prev is None or counter is None:
+            self.unexamined += 1
+            return
+        self.steps += 1
+        absent = (counter - prev - 1) % COUNTER_MOD
+        if absent == 0:
+            return
+        rule = COUNTER_GAP_RULE
+        if counter == prev:
+            rule, absent = COUNTER_REPEAT_RULE, 0
+        try:
+            self._fh.write(
+                f"{_phone_ts(phone)};{self.stream};{prev};{counter};{absent};"
+                f"{'' if dur_ms is None else f'{dur_ms:.1f}'};1;{rule};"
+                f"{BRACKET_UNAVAILABLE}/{BRACKET_UNAVAILABLE};{CONTACT_NONE}\n"
+            )
+            self.runs += 1  # counted once the row is on the file, as `_SeamSidecar` counts seams
+        except Exception:  # noqa: BLE001 - an annotation must never end a recording
+            self.errors += 1
+
+    def close(self) -> None:
+        """The final line says the file LOOKED: an empty gap file and one that never ran differ here."""
+        if self._fh is None:
+            return
+        try:
+            self._fh.write(
+                f"# final rule={COUNTER_GAP_RULE} examined={self.steps} rows={self.runs} "
+                f"unexamined={self.unexamined} errors={self.errors}\n"
+            )
+            self._fh.close()
+        except Exception:  # noqa: BLE001 - closing an annotation cannot fail a night
+            self.errors += 1
+        finally:
             self._fh = None
 
 
@@ -2035,7 +2054,7 @@ class StreamWriter:
                 contact=contact,
             )
         elif stream in COUNTER_GAP_STREAMS:
-            self._runs = _RunSidecar(path, stream, 1, rule=COUNTER_GAP_RULE)
+            self._runs = _CounterGapSidecar(path, stream)
         self._prev_counter: int | None = None  # counter-gap streams: the last frame's counter
         self._prev_phone: _dt.datetime | None = None
         # §1.4: seams are emitted where the clocks ARRIVE. Every device-clocked writer already
@@ -2169,8 +2188,7 @@ class StreamWriter:
         packet counter to the counter-gap sidecar; the frame itself is never changed. A frame with no
         trusted counter breaks the chain, so the next step is unexamined rather than read across it."""
         self._seams.feed(phone, sensor_ns)
-        runs = self._runs
-        assert runs is not None  # a `muse` StreamWriter always builds its counter-gap sidecar
+        runs = cast(_CounterGapSidecar, self._runs)  # a `muse` StreamWriter always builds its counter-gap sidecar
         dur_ms = None if self._prev_phone is None else (phone - self._prev_phone).total_seconds() * 1000.0
         runs.count_step(phone, self._prev_counter, counter, dur_ms)
         self._prev_counter, self._prev_phone = counter, phone

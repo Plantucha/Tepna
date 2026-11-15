@@ -207,20 +207,21 @@ class TickClock:
 
     def __init__(self) -> None:
         self.ticks: int | None = None
-        self._prev: int | None = None
 
     def feed(self, tick: int) -> int:
-        if self._prev is None or self.ticks is None:
+        # `ticks` is congruent to the last tick modulo TICK_MOD, so it is its own previous tick.
+        if self.ticks is None:
             self.ticks = tick
         else:
-            half = TICK_MOD // 2
-            self.ticks += (tick - self._prev + half) % TICK_MOD - half
-        self._prev = tick
+            step = (tick - self.ticks) % TICK_MOD
+            if step >= TICK_MOD // 2:  # half a wrap or more forward reads as a step back
+                step -= TICK_MOD
+            self.ticks += step
         return self.ticks
 
     def ns(self, tick: int) -> int:
         """The unwrapped device time of `tick` in nanoseconds: 100 ns per tick at 10 MHz."""
-        return self.feed(tick) * (1_000_000_000 // TICK_HZ)
+        return self.feed(tick) * 1_000_000_000 // TICK_HZ
 
 
 # ── The control channel (brief §6.3) ──────────────────────────────────────────────────────────────
@@ -256,11 +257,11 @@ class ControlReplies:
     def feed(self, frag: bytes) -> list:
         if not frag:
             return []
-        n = min(frag[0], len(frag) - 1)
-        self._buf += frag[1 : 1 + n].decode("ascii", errors="replace")
+        self._buf += frag[1 : 1 + frag[0]].decode("ascii", errors="replace")  # the slice stops at the end
         out: list = []
         depth = 0
-        opened = 0  # where the reply now open began
+        # `opened` (where the reply now open began) is bound at the first `{`: until then `depth` is 0,
+        # so neither read of it below can run first.
         for i, ch in enumerate(self._buf):
             if ch == "{":
                 if depth == 0:

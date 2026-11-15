@@ -1468,7 +1468,7 @@ def test_a_resumed_counter_gap_file_writes_no_second_header_and_its_first_frame_
 
 
 def test_a_counter_gap_write_that_raises_is_counted_and_never_ends_the_recording(tmp_path):
-    sc = _RunSidecar(str(tmp_path / "x_MUSE.txt"), "muse", 1, rule=writers.COUNTER_GAP_RULE)
+    sc = writers._CounterGapSidecar(str(tmp_path / "x_MUSE.txt"), "muse")
     real = sc._fh
 
     class _Boom:
@@ -1480,9 +1480,53 @@ def test_a_counter_gap_write_that_raises_is_counted_and_never_ends_the_recording
 
     sc._fh = _Boom()
     sc.count_step(T0, 1, 5, 1.0)
-    assert (sc.errors, sc.runs, sc.steps) == (1, 0, 1)
+    sc.count_step(T0, 5, 9, 1.0)
+    assert (sc.errors, sc.runs, sc.steps) == (2, 0, 2)  # each failed write counts once
     sc.close()
-    assert sc.errors == 2 and sc._fh is None
-    sc.count_step(T0, 5, 9, 1.0)  # a closed sidecar takes no more steps
-    assert sc.steps == 1
+    assert sc.errors == 3 and sc._fh is None
+    sc.count_step(T0, 9, 12, 1.0)  # a closed sidecar takes no more steps
+    assert sc.steps == 2
     real.close()
+
+
+def test_a_counter_gap_row_carries_the_host_step_in_ms_and_each_row_counts(tmp_path):
+    """One second between two frames reads 1000.0 ms: a scale off by one part in a thousand shows."""
+    _, sc = _muse(tmp_path, [1, 3, 9], step_ms=1000)
+    assert [(r[2], r[3], r[5]) for r in _rows(sc)] == [("1", "3", "1000.0"), ("3", "9", "1000.0")]
+    assert "examined=2 rows=2 unexamined=1 errors=0" in open(sc).read()
+
+
+def test_a_counter_gap_step_with_no_host_step_writes_a_blank_duration(tmp_path):
+    sc = writers._CounterGapSidecar(str(tmp_path / "y_MUSE.txt"), "muse")
+    sc.count_step(T0, 1, 5, None)
+    sc.close()
+    assert [r[5] for r in _rows(str(tmp_path / "y_MUSERUNS.txt"))] == [""]
+    assert (sc.runs, sc.errors) == (1, 0)
+
+
+def test_the_counter_gap_file_is_named_from_the_last_dot_and_a_name_with_no_dot_gets_a_suffix(tmp_path, monkeypatch):
+    """`a.b/f_MUSE.txt` keeps its directory, and a name with no dot takes `RUNS` at its end."""
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "a.b").mkdir()
+    assert writers._CounterGapSidecar("a.b/f_MUSE.txt", "muse").path == "a.b/f_MUSERUNS.txt"
+    sc = writers._CounterGapSidecar("f", "muse")
+    assert sc.path == "fRUNS"
+    sc.close()
+    assert open("fRUNS").read().startswith("# stream=muse rule=counter-gap ")
+
+
+def test_a_counter_gap_file_that_cannot_open_counts_one_error_and_takes_no_step(tmp_path):
+    sc = writers._CounterGapSidecar(str(tmp_path / "absent-dir" / "z_MUSE.txt"), "muse")
+    assert (sc._fh, sc.errors) == (None, 1)
+    sc.count_step(T0, 1, 5, 1.0)
+    sc.close()
+    assert (sc.steps, sc.runs, sc.errors) == (0, 0, 1)
+
+
+def test_a_counter_gap_file_of_one_byte_is_resumed_and_gets_no_header(tmp_path):
+    """The file's own size decides resume: one byte already there means append, never truncate."""
+    (tmp_path / "r_MUSERUNS.txt").write_text("x")
+    sc = writers._CounterGapSidecar(str(tmp_path / "r_MUSE.txt"), "muse")
+    sc.close()
+    text = (tmp_path / "r_MUSERUNS.txt").read_text()
+    assert text.startswith("x# final rule=counter-gap ") and "# stream=" not in text
