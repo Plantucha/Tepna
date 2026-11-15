@@ -504,19 +504,25 @@ function adaptEnvelopeNode(json, node, filename) {
        only knew the RICH summary's `glycemic{}`, so glucoseCV resolved to null on EVERY ganglior export,
        and fuseAutonomicGlycemic then published a glucose⟷autonomic coupling computed from the ECG slope
        ALONE — 0.44 with n=0 and no glucose value in it, surfaced as the "Autonomic⟷glycemic" KPI. */
-    summary.glucoseCV =
-      _dig(json, ['glucose', 'cv']) || _dig(json, ['glycemic', 'cv']) || _dig(json, ['variability', 'cv']) || _dig(json, ['glycemia', 'cv']) || (json.summary ? json.summary.cv : null);
+    summary.glucoseCV = _digNum(json, [
+      ['glucose', 'cv'],
+      ['glycemic', 'cv'],
+      ['variability', 'cv'],
+      ['glycemia', 'cv'],
+      ['summary', 'cv']
+    ]);
     summary.dawnSurge =
       // GlucoDex's light export writes glucose.dawn.medianDelta (present ⇒ ≥20 mg/dL, dawnPhenomenon);
       // the older read chain pointed only at pre-enrichment keys (riseMgdl is per-EVENT meta, not the
       // summary) and so resolved null for EVERY GlucoDex export — the un-fixed sibling of the §13
       // glucose.cv read-drift. medianDelta first, then the legacy shapes.
-      _dig(json, ['glucose', 'dawn', 'medianDelta']) ||
-      _dig(json, ['glucose', 'dawn', 'riseMgdl']) ||
-      _dig(json, ['fusion', 'dawnSurge']) ||
-      _dig(json, ['dawn', 'surge']) ||
-      (json.patterns && json.patterns.dawnPhenomenon ? json.patterns.dawnPhenomenon.medianRiseMgdl : null) ||
-      null;
+      _digNum(json, [
+        ['glucose', 'dawn', 'medianDelta'],
+        ['glucose', 'dawn', 'riseMgdl'],
+        ['fusion', 'dawnSurge'],
+        ['dawn', 'surge'],
+        ['patterns', 'dawnPhenomenon', 'medianRiseMgdl']
+      ]);
     summary.glucoseAutonomicCorrelation = json.reserved && json.reserved.glucoseAutonomicCorrelation != null ? json.reserved.glucoseAutonomicCorrelation : f.r != null ? f.r : null;
     summary.autonomicInstabilitySlope = json.reserved && json.reserved.autonomicInstabilitySlope != null ? json.reserved.autonomicInstabilitySlope : null;
     // CLAMP-SATURATION (GLUCODEX-FOLLOWUPS §2): a clipped CGM (Abbott Lingo 55–200, etc.) under-counts
@@ -569,9 +575,9 @@ function adaptEnvelopeNode(json, node, filename) {
   if (node === 'PulseDex' || node === 'HRVDex' || node === 'PpgDex') {
     // These nodes' bare hrv.time.{sdnn,rmssd} ARE whole-record (single-window or
     // short readings), so they're directly comparable to ECGDex's wholeRecord axis.
-    summary.rmssd = _dig(json, ['hrv', 'time', 'rmssd']) || _dig(json, ['hrv', 'rmssd']) || _dig(json, ['metrics', 'rmssd']) || (json.rmssd != null ? json.rmssd : null);
-    summary.sdnn = _dig(json, ['hrv', 'time', 'sdnn']) || _dig(json, ['hrv', 'sdnn']) || _dig(json, ['metrics', 'sdnn']) || (json.sdnn != null ? json.sdnn : null);
-    summary.lfhf = _dig(json, ['hrv', 'frequency', 'lfhf']) || _dig(json, ['hrv', 'lfhf']) || (json.lfhf != null ? json.lfhf : null);
+    summary.rmssd = _digNum(json, [['hrv', 'time', 'rmssd'], ['hrv', 'rmssd'], ['metrics', 'rmssd'], ['rmssd']]);
+    summary.sdnn = _digNum(json, [['hrv', 'time', 'sdnn'], ['hrv', 'sdnn'], ['metrics', 'sdnn'], ['sdnn']]);
+    summary.lfhf = _digNum(json, [['hrv', 'frequency', 'lfhf'], ['hrv', 'lfhf'], ['lfhf']]);
     summary.hrvWindow = 'wholeRecord';
     /* ── RESPIRATION FROM THE OPTICAL NODE (Heron's cross-family trace, verified 2026-09-02) ──
        PpgDex computes an RSA respiration rate and EXPORTS it at `hrv.frequency.respRate` with its
@@ -952,6 +958,22 @@ function _dig(o, path) {
     c = c[path[i]];
   }
   return c == null ? null : c;
+}
+
+/* ── ∅ A READ CHAIN STOPS AT THE FIRST VALUE PRESENT, NEVER AT THE FIRST TRUTHY ONE ─────────────
+   `_dig(a) || _dig(b)` skips a MEASURED 0 and reads the next key, so a real zero became either
+   another basis's number or null. The adapter's numeric summary fields all have 0 inside their
+   domain: a flat CGM trace has cv 0, a night with no dawn rise has medianDelta 0, and a drawn or
+   constant RR series has rmssd 0. `_digNum` walks the same paths in the same order and stops at
+   the first one holding a FINITE NUMBER, so a measured zero wins over every later alternative.
+   A path holding a string, a boolean or NaN is NOT a number this adapter can publish, so the walk
+   skips it and the field ends null — the §∅ answer, because nothing there was readable. */
+function _digNum(o, paths) {
+  for (var i = 0; i < paths.length; i++) {
+    var v = _dig(o, paths[i]);
+    if (typeof v === 'number' && isFinite(v)) return v;
+  }
+  return null;
 }
 
 /* ECGDex body-position series from acc / sleepStages.posture / timeseries posture. */
