@@ -283,18 +283,43 @@ import { CpapDsp } from './cpapdex-dsp.js';
   }
 
   /* AHI-by-clock-hour bars (device-scored apneas+hypopneas, RERA excluded) */
-  function drawAhiByHour(cv, night) {
-    if (!cv) return;
-    var hours = Math.max(1, Math.ceil(night.therapyHours || 1));
-    var buckets = new Array(hours).fill(0);
-    (night.sessions || []).forEach(function (s) {
+  /* §∅ — AN EVENT WITH NO TIME HAS NO HOUR. Until 2026-11-15 a timeless event was placed at
+     `s.t0Ms`, because `(ev.timeSec || 0)` turned an absent offset into zero, so a first session's
+     untimed apnoea drew in the h1 bar as a measured event (row
+     2026-11-15-cpapdex-ahi-by-hour-puts-timeless-event-in-hour-0). A time is measured only when it
+     is FINITE and PRESENT: `isFinite(null)` is TRUE in JavaScript, so each read names null first.
+     The untimed count travels beside the buckets, so the chart can state it. A TIMED event outside
+     the bars is a different case: it has a time and falls past the window, so it counts as `outside`.
+     Pure and exported, because the bars need a canvas and this decision does not. */
+  function ahiByHourBuckets(night) {
+    var hours = Math.max(1, Math.ceil((night && night.therapyHours) || 1));
+    var buckets = new Array(hours).fill(0),
+      untimed = 0,
+      outside = 0,
+      t0 = night && night.t0Ms;
+    var hasT0 = t0 != null && isFinite(t0);
+    ((night && night.sessions) || []).forEach(function (s) {
       (s.events || []).forEach(function (ev) {
         if (ev.type === 'RE') return;
-        var tMs = ev.tMs != null ? ev.tMs : s.t0Ms + (ev.timeSec || 0) * 1000;
-        var hi = Math.floor((tMs - night.t0Ms) / 3600000);
+        var tMs = null;
+        if (ev.tMs != null && isFinite(ev.tMs)) tMs = ev.tMs;
+        else if (ev.timeSec != null && isFinite(ev.timeSec) && s.t0Ms != null && isFinite(s.t0Ms)) tMs = s.t0Ms + ev.timeSec * 1000;
+        if (tMs == null || !hasT0) {
+          untimed++;
+          return;
+        }
+        var hi = Math.floor((tMs - t0) / 3600000);
         if (hi >= 0 && hi < hours) buckets[hi]++;
+        else outside++;
       });
     });
+    return { hours: hours, buckets: buckets, untimed: untimed, outside: outside };
+  }
+  function drawAhiByHour(cv, night) {
+    if (!cv) return;
+    var B = ahiByHourBuckets(night),
+      hours = B.hours,
+      buckets = B.buckets;
     var W = cv.clientWidth || 600,
       H = 150,
       ctx = _prep(cv, W, H);
@@ -338,6 +363,14 @@ import { CpapDsp } from './cpapdex-dsp.js';
       ctx.fillRect(rx, ry, rw, Math.max(bh, 2));
       ctx.fillStyle = txt;
       ctx.fillText('h' + (i + 1), x + bw / 2, padT + gh + 5);
+    }
+    /* The bars say where events fell. This says how many carried no time, so an untimed event is
+       a stated absence rather than a bar. */
+    if (B.untimed) {
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'top';
+      ctx.fillStyle = amber;
+      ctx.fillText(B.untimed + ' untimed', W - 8, padT);
     }
   }
 
@@ -1646,6 +1679,7 @@ import { CpapDsp } from './cpapdex-dsp.js';
     sessionsCard: sessionsCard,
     eventStream: eventStream,
     drawAhiByHour: drawAhiByHour,
+    ahiByHourBuckets: ahiByHourBuckets,
     drawPressure: drawPressure,
     drawNightTrend: drawNightTrend,
     // SELF-INGEST (SELF-INGEST-FOLLOWUPS-2026-07-03): review-mode clinical view
