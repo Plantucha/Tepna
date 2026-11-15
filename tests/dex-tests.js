@@ -43823,6 +43823,39 @@
       T.ok('ANTI-VACUITY · buildLongitudinal returned a real block', D.buildLongitudinal(two).nights === 2 && typeof D.buildLongitudinal(two).compliancePct === 'number');
     });
 
+    group('∅ CPAPDex AHI-by-hour — an event with no time has no hour', 'cpapdex-dsp · cpapdex-render · absence', function (T) {
+      var CR = env.CpapRender;
+      if (!CR || typeof CR.ahiByHourBuckets !== 'function') {
+        T.skip('CpapRender.ahiByHourBuckets', 'export the pure bucketing so the untimed case is pinned with no canvas');
+        return;
+      }
+      var T0 = Date.UTC(2026, 0, 1, 22, 0, 0);
+      var night = function (events) {
+        return { t0Ms: T0, therapyHours: 4, sessions: [{ t0Ms: T0, events: events }] };
+      };
+      /* The row's case: an event with neither an absolute stamp nor a session offset. The old code
+         read `(ev.timeSec || 0)` and placed it at the session start, i.e. the h1 bar. */
+      var b0 = CR.ahiByHourBuckets(night([{ type: 'OA' }, { type: 'H', tMs: null, timeSec: null }]));
+      T.eq('∅ two timeless events do not enter hour 1', b0.buckets[0], 0);
+      T.eq('∅ they travel beside the buckets instead', b0.untimed, 2);
+      T.eq('∅ and no other bucket invents them', b0.buckets.join(','), '0,0,0,0');
+      var b1 = CR.ahiByHourBuckets(night([{ type: 'OA', tMs: T0 + 2 * 3600000 + 5 }]));
+      T.eq('CONTROL · a measured event lands in its own hour', b1.buckets[2], 1);
+      T.eq('CONTROL · and nothing is left untimed', b1.untimed, 0);
+      var b2 = CR.ahiByHourBuckets(
+        night([
+          { type: 'OA', timeSec: 1800 },
+          { type: 'CA', timeSec: null }
+        ])
+      );
+      T.eq('a session-relative offset is a measured time', b2.buckets[0], 1);
+      T.eq('∅ a null timeSec is not a zero', b2.untimed, 1);
+      var b3 = CR.ahiByHourBuckets(night([{ type: 'OA', tMs: T0 + 9 * 3600000 }]));
+      T.eq('a timed event past the last hour is OUTSIDE, not untimed', [b3.untimed, b3.outside].join(','), '0,1');
+      T.eq('a RERA stays out of the count, as before', CR.ahiByHourBuckets(night([{ type: 'RE' }])).untimed, 0);
+      T.eq('∅ a night with no anchor places nothing and says so', CR.ahiByHourBuckets({ therapyHours: 4, sessions: [{ events: [{ type: 'OA', timeSec: 60 }] }] }).untimed, 1);
+    });
+
     /* ════ CPAPDex USAGE — a mask-on label draws mask-on hours ════
      `night.therapyHours` sums each session's `durMin`, and the full-set constructor sets `durMin`
      from the WALL span ("WALL duration (for off-mask gap math)"). The pooled MASK-ON figure lives
