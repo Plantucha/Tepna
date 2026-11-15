@@ -5374,3 +5374,45 @@ def test_a_night_where_every_primary_was_read_publishes_an_empty_unreadable_list
         commit="abc1234",
     )
     assert o["status"] == "PASS" and o["result"]["unreadable"] == []
+
+
+def test_both_unreadable_UNKNOWN_arms_carry_the_commit_rather_than_a_default(tmp_path, monkeypatch):
+    """Four mutants no test could see (CI diff-scoped gate, 2026-11-15), the twin of the night-absent case
+    above. An UNKNOWN object is provenance too, and BOTH arms owe it: the one over an empty `checked`,
+    where the names ride the reason, and the one that still publishes the readable device's measurement.
+    Each leg below passed a commit already and asserted nothing about it, so dropping the argument read
+    as green."""
+    d = _night(tmp_path, holes=())
+    _eio_for(monkeypatch, "H10")
+    only = loss_audit.night_verdict(
+        loss_audit.audit_night(d, DEV, journal=lambda *a: []), night_dir=d, commit="abc1234"
+    )
+    assert only["status"] == "UNKNOWN" and only["result"] is None
+    assert only["producedBy"]["commit"] == "abc1234", "the commit is provenance of the run, not a default"
+    d2 = _night(tmp_path / "beside", holes=())
+    _stream(os.path.join(d2, "Wellue_O2Ring-S_S8_20260920220000_SPO2.csv"), ())
+    beside = loss_audit.night_verdict(
+        loss_audit.audit_night(d2, DEV + [{"name": "Ring", "model": "O2Ring-S"}], journal=lambda *a: []),
+        night_dir=d2,
+        commit="abc1234",
+    )
+    assert beside["status"] == "UNKNOWN" and beside["result"]["unreadable"] == ["Polar H10 0284"]
+    assert beside["producedBy"]["commit"] == "abc1234", "the arm that publishes a measurement owes it too"
+
+
+def test_a_loss_EXACTLY_at_the_bar_beside_an_unreadable_primary_is_UNKNOWN_not_a_PASS(tmp_path, monkeypatch):
+    """The boundary the night-absent twin already pins, on the other absence class. The FAIL criterion is
+    STRICTLY over the bar, so a night exactly ON it cannot PASS while another primary went unread — the
+    arm's own test is `not (frac > THRESHOLD)`, and `>=` there would hand this night a PASS."""
+    # a 5-row hole is a 6 s gap over the 5 s cadence cut, 6 / 599 s rounds to exactly the 1 % bar
+    d = _night(tmp_path, holes=((200, 205),))
+    _stream(os.path.join(d, "Wellue_O2Ring-S_S8_20260920220000_SPO2.csv"), ())
+    _eio_for(monkeypatch, "O2Ring")
+    o = loss_audit.night_verdict(
+        loss_audit.audit_night(d, DEV + [{"name": "Ring", "model": "O2Ring-S"}], journal=lambda *a: []),
+        night_dir=d,
+        commit="abc1234",
+    )
+    assert o["result"]["worn_but_not_recorded_fraction"] == loss_audit.THRESHOLD, o["result"]
+    assert o["status"] == "UNKNOWN", o["status"]
+    assert o["result"]["unreadable"] == ["Ring"]
