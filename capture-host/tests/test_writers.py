@@ -200,7 +200,10 @@ def test_every_emitted_header_matches_a_real_polar_sensor_logger_export():
     assert "[" not in writers.StreamWriter.HEADERS["pletha"].split(";")[2], (
         "the ring's 8-bit optical counts have no published scale — a unit here would be fabricated"
     )
-    assert set(writers.StreamWriter.HEADERS) == set(psl) | {"ppg1", "ppg2w", "accraw", "pletha"}, (
+    # `muse` is ours BY DESIGN — PSL never recorded a Muse. Each row is one raw notification: the host
+    # stamp, the device tick, the packet counter, the byte count and the frame as hex, never decoded.
+    assert writers.StreamWriter.HEADERS["muse"] == "Phone timestamp;sensor timestamp [ns];counter;bytes;hex"
+    assert set(writers.StreamWriter.HEADERS) == set(psl) | {"ppg1", "ppg2w", "accraw", "pletha", "muse"}, (
         "a new stream needs its header checked against a real export, or this gate stops covering it"
     )
 

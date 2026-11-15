@@ -114,6 +114,20 @@ def test_edf_hours_is_records_times_duration_from_the_header(tmp_path):
     assert ni.edf_hours(str(tmp_path / "missing.edf")) is None
 
 
+def test_a_muse_raw_frame_file_fills_the_eeg_cell_and_its_sidecars_stay_out(tmp_path):
+    """The native Muse recorder writes `<base>_RAW.txt` beside `RAWRUNS` and `RAWSEAMS`. The cell takes the
+    frame file alone, and stays not loadable until EEGDex has a parser for it."""
+    root = str(tmp_path)
+    d = _night(root, h10=False, verity=False, ring=False, cpap=False)
+    base = os.path.join(d, "Muse_S-Athena_TEST0001_20260919220000_RAW")
+    _w(base + ".txt", "Phone timestamp;sensor timestamp [ns];counter;bytes;hex\n2026-09-19T22:00:00.000;0;1;9;09\n")
+    _w(base + "RUNS.txt", "# stream=muse rule=counter-gap\n")
+    _w(base + "SEAMS.txt", "# stream=muse rule=clock-seam\n")
+    e = ni.night_entry(os.path.join(root, "captures"), d)
+    assert e["EEGDex"]["files"] == ["2026-09-19/Muse_S-Athena_TEST0001_20260919220000_RAW.txt"]
+    assert e["EEGDex"]["loadable"] is False
+
+
 # ── the entry ────────────────────────────────────────────────────────────────────────────────────
 def test_a_full_trio_night_fills_every_column_from_its_own_files(tmp_path):
     root = str(tmp_path)

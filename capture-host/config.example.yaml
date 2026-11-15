@@ -130,6 +130,20 @@ devices:
     streams: [eeg]
     muse_tool: muselsl           # "muselsl" (Muse 2 / S gen 1-2, record_direct) | "openmuse" (Muse S Athena)
 
+  # Muse S Athena — NATIVE recorder (capture.run_muse_athena, MUSE-ATHENA-PROTOCOL brief §6). No child
+  # tool: bleak writes every data notification verbatim to `<base>_RAW.txt`, with counter gaps in
+  # `<base>_RAWRUNS.txt` and clock seams in `<base>_RAWSEAMS.txt`. Battery comes from the 0x88 record.
+  # Put it in the daemon instance whose `adapter:` is the USB radio: the built-in adapter dropped the
+  # link silently in the probe, which the recorder's stall watchdog then has to catch.
+  # - name: Muse S Athena
+  #   vendor: Muse
+  #   model: S-Athena
+  #   device_id: EEEEEEEE
+  #   address: "ZZ:ZZ:ZZ:ZZ:ZZ:ZZ"
+  #   streams: [eeg]
+  #   protocol: athena
+  #   preset: p1045              # one of the 17 presets of brief §6.6; p1045 = EEG + 4 optics + motion
+
   # Wellue O2Ring-S / T8520 (advertises as "S8-AW …") — LIVE SpO2 + pulse via the OxyII protocol
   # (run_oxyii; no bond, no vendor-app round-trip). Older O2Rings on the legacy Viatom protocol:
   # add `protocol: legacy` to route them through run_viatom instead.

@@ -136,6 +136,10 @@ ALLOW_KEYS = {
     "at the same site — this STATUS copy is the live snapshot for a monitor draw that "
     "is a tracked follow-up (bluez_wedge.py's own comment names the journal as the "
     "outcome channel precisely because status.json snapshots cannot be one)",
+    # ── 2026-11-15, the native Muse recorder: the preset the headband CONFIRMS in its `ps` reply, beside
+    #    the preset the daemon asked for. The Devices card (PR 2 of the Muse unit, board 6335) reads it.
+    "preset_active": "run_muse_athena — the preset the Muse confirmed in its control reply. Its consumer is the "
+    "Devices card of the Muse unit (board 6335). Retire this when monitor.html draws it",
 }
 # Fields the API publishes that the monitor does not draw — either for a consumer OTHER than the monitor,
 # or a monitor draw that is PENDING and tracked. `/api/state` is not the monitor's private channel — but
@@ -382,6 +386,17 @@ ALLOW_FUNCS = {
     # `classify_frame` WAS excused here as "wired by the P1+P3 ingestion touch next". That touch is
     # CPAP-ACQ-P3 W1: `as11_pull.stream` now calls it, so the suppression is SPENT and the entry is gone.
     # The scan that reds on a spent suppression is what made this edit non-optional rather than a tidy-up.
+    # ── muse_athena decode helpers (2026-11-15, the native recorder). The recorder writes each frame
+    #    VERBATIM and decodes only the battery; these four are the read half the EEGDex parser needs.
+    #    Retire each entry when a parser or a daemon path calls it (MUSE-ATHENA-PROTOCOL brief §5 2b).
+    "eeg_samples": "muse_athena — the EEG field decode. The recorder stores raw frames by design, so the consumer is the "
+    "EEGDex parser (MUSE-ATHENA-PROTOCOL brief §5 2b). Retire this when that parser or a daemon path calls it",
+    "lost_between": "muse_athena — the frame-loss count between two counters, for a reader of the RAW file. The recorder stores raw frames by design, so the consumer is the "
+    "EEGDex parser (MUSE-ATHENA-PROTOCOL brief §5 2b). Retire this when that parser or a daemon path calls it",
+    "optics": "muse_athena — the optical channel unpack. The recorder stores raw frames by design, so the consumer is the "
+    "EEGDex parser (MUSE-ATHENA-PROTOCOL brief §5 2b). Retire this when that parser or a daemon path calls it",
+    "tick_seconds": "muse_athena — the device tick in seconds. The recorder stores raw frames by design, so the consumer is the "
+    "EEGDex parser (MUSE-ATHENA-PROTOCOL brief §5 2b). Retire this when that parser or a daemon path calls it",
 }
 
 
