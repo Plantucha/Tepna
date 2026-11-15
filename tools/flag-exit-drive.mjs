@@ -70,7 +70,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 import { flagExitShape, jsParse } from './flag-exit-scan.mjs';
-import { WriteRootRefusal, judgeRoot } from './write-root.mjs';
+import { WriteRootRefusal, judgeRoot, verdictRefusalReason } from './write-root.mjs';
 
 /* SELF is the tool's own tree. REPO is the tree this driver JUDGES, because it reads each recipe's
    source there and spawns that copy as a child. The two differ whenever a run from one checkout names
@@ -551,7 +551,7 @@ function main() {
   } catch (e) {
     if (!(e instanceof WriteRootRefusal)) throw e;
     console.error(e.message);
-    console.log(JSON.stringify(crossCheckoutVerdict(`this run and tools/flag-exit-drive.mjs sit in different checkouts (${e.reason}), so which tree to drive is undecided`)));
+    console.log(JSON.stringify(crossCheckoutVerdict(verdictRefusalReason(e.reason, { tool: 'tools/flag-exit-drive.mjs', verb: 'drive' }))));
     process.exit(2);
   }
   const parse = jsParse();

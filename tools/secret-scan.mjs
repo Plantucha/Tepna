@@ -63,7 +63,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
-import { WriteRootRefusal, judgeRoot } from './write-root.mjs';
+import { WriteRootRefusal, judgeRoot, verdictRefusalReason } from './write-root.mjs';
 
 const Verdict = createRequire(import.meta.url)('../verdict.js');
 /* The DEFAULT only, for a library import and for `--verdict-sample`, which examine no tree. A real run
@@ -310,7 +310,7 @@ function main() {
   } catch (e) {
     if (!(e instanceof WriteRootRefusal)) throw e;
     console.error(e.message);
-    refuse('this run and ' + SELF + ' sit in different checkouts (' + e.reason + '), so which tree to scan is undecided', null);
+    refuse(verdictRefusalReason(e.reason, { tool: SELF, verb: 'scan' }), null);
   }
 
   const commit = gitCommit();

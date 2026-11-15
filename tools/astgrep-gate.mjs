@@ -56,7 +56,7 @@ import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { WriteRootRefusal, judgeRoot } from './write-root.mjs';
+import { WriteRootRefusal, judgeRoot, verdictRefusalReason } from './write-root.mjs';
 
 /* SELF is the tool's own tree, which carries its library and its binary. ROOT is the tree it JUDGES,
    and the two differ whenever a run from one checkout names this file by another checkout's path. The
@@ -273,9 +273,9 @@ function run(asJson) {
       status: 'NOT_RUN',
       pairs: 0,
       res: null,
-      reason: `this run and tools/astgrep-gate.mjs sit in different checkouts (${e.reason}), so which tree to judge is undecided`
+      reason: verdictRefusalReason(e.reason, { tool: 'tools/astgrep-gate.mjs' })
     });
-    say(`✗ ${GATE}: the run and this file sit in different checkouts, so NOTHING was examined.`);
+    say(`✗ ${GATE}: the run and this file do not resolve to one checkout, so NOTHING was examined.`);
     emit(v);
     return 2;
   }
