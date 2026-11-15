@@ -87,12 +87,23 @@ import { EEGUI } from './eegdex-render.js';
   }
 
   function runDemo() {
-    /* The deterministic synthetic: five authored blocks, one per branch of the stager. It proves the
-       wiring, the units and the refusals, and it says nothing about the stager's accuracy. */
-    var frame = EEGDSP.genSynthetic({});
+    /* THE OVERNIGHT SIMULATOR (owner order 2026-11-14, board #6256), not a recording. Eight hours of
+       authored arithmetic: about 90 min per cycle, one spectrum per stage, spindles and K-complexes
+       in N2, blinks in wake, movement bursts, electrode pops and two absent spans. It proves the
+       wiring, the units and the refusals, and it says nothing about the stager's accuracy.
+
+       THE ANCHOR IS DECLARED HERE, never in the DSP. A synthetic run has no file, so the generator
+       returns `t0Ms: null` and the reason beside it (§🔒.4). The demo wants a clock on its
+       hypnogram, so the DEMO states the anchor it wants and owns that choice.
+
+       `genSynthetic` stays the five-block fixture for the render-coverage rig and for the
+       known-answer band test, which pin its numbers. */
+    var frame = EEGDSP.genOvernight({ durSec: 8 * 3600, scenario: 'artefactual', t0Ms: Date.UTC(2026, 0, 1, 23, 0, 0) });
     RESULT = EEGDSP.compute(frame);
+    /* The render reads `summary.source`, which `compute` carries from the frame, so the label needs
+       no second argument and an EDF run cannot accidentally claim it. */
     EEGUI.renderSummary(RESULT);
-    setStatus('Demo — deterministic synthetic, authored arithmetic and not a recording.');
+    setStatus('Demo — synthetic, not a recording: an 8 h simulated night, authored arithmetic.');
     setExportReady(true);
   }
 

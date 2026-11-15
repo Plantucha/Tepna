@@ -234,6 +234,16 @@
     return out;
   }
 
+  /* ── EVERY SIMULATOR SURFACE SAYS WHAT IT IS (owner order 2026-11-14, board #6256 item 7) ──
+     The label rides `summary.source`, which `compute` carries from the frame, so an EDF run cannot
+     claim it and a demo cannot lose it. The app's own status text used to carry this sentence and
+     `renderSummary` then overwrote the status line at the end of its own run, so the demo showed no
+     label at all. One owner of the sentence, and it is this function. */
+  function synthNote(summary) {
+    if (!summary || summary.source !== 'synthetic') return '';
+    return '<p class="chart-note">\u26a0 synthetic \u2014 not a recording: authored arithmetic from the EEGDex simulator, so every number below describes the generator rather than a person.</p>';
+  }
+
   function renderSummary(summary) {
     var st = $('egStatus');
     if (!summary || summary.err) {
@@ -257,15 +267,22 @@
     if (grid) setHTML(grid, k);
     var title = $('egKPI');
     if (title) title.style.display = '';
-    fill('egHypnoCard', 'egHypno', hypnoHtml(summary));
-    fill('egBandsCard', 'egBands', bandHtml(summary));
-    fill('egQualityCard', 'egQuality', qualityHtml(summary));
+    var sn = synthNote(summary);
+    fill('egHypnoCard', 'egHypno', sn + hypnoHtml(summary));
+    fill('egBandsCard', 'egBands', sn + bandHtml(summary));
+    fill('egQualityCard', 'egQuality', sn + qualityHtml(summary));
     if (st) {
-      st.textContent = (summary.channel || 'EEG') + ' · ' + (summary.nEpochs == null ? '—' : summary.nEpochs) + ' epochs · ' + (summary.fs == null ? '—' : num(summary.fs, 0) + ' Hz');
+      st.textContent =
+        (summary.source === 'synthetic' ? 'synthetic — not a recording · ' : '') +
+        (summary.channel || 'EEG') +
+        ' · ' +
+        (summary.nEpochs == null ? '—' : summary.nEpochs) +
+        ' epochs · ' +
+        (summary.fs == null ? '—' : num(summary.fs, 0) + ' Hz');
     }
   }
 
-  global.EEGUI = { renderSummary: renderSummary, hypnoHtml: hypnoHtml, bandHtml: bandHtml, qualityHtml: qualityHtml, powerSub: powerSub };
+  global.EEGUI = { synthNote: synthNote, renderSummary: renderSummary, hypnoHtml: hypnoHtml, bandHtml: bandHtml, qualityHtml: qualityHtml, powerSub: powerSub };
 })(window);
 
 // ESM-from-birth dual-mode (mirrors motiondex-render): the IIFE attaches window.EEGUI for the
