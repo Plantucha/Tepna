@@ -541,6 +541,28 @@ async function main(){
     }
   }
 
+  // ── EEGDex BINARY-EDF leg (EEGDEX-BUILD-BRIEF; wired 2026-11-15) ────────────────────────────
+  // BOTH LANES OR NEITHER, the fourth time this file has had to say so. The node lane's readEquiv
+  // joins this input from ROOT/uploads; this lane reads only what the loader fetches. So wiring
+  // tests/run-tests.mjs alone left EEGDex's fixture code-gated HERE with nothing re-running it, and
+  // the CASES loop self-skipped one assertion past the declared browser budget. CI read both halves
+  // of that single omission: `every code-gated fixture has a dynamic leg that re-runs it` got
+  // ["synthetic_eegdex_golden.node-export.json"], and the skip budget read 194 against 193.
+  // Committed and SYNTHETIC like the CPAPDex leg below: tools/make-synthetic-eeg-edf.mjs computes
+  // every byte in closed form around the engine's own genSynthetic signal, with identity fields 'X'
+  // and no recording of any person. So this leg RUNS in CI rather than skipping for want of a
+  // gitignored recording. Bytes, not text: ArrayBuffer -> ingestEDF -> CpapEdf.readEDF.
+  // The FIXTURE registers even when the input half is absent, exactly as the real-recording loop
+  // above does it, so the fixture-reproducibility gate can still see that this fixture HAS a leg.
+  try {
+    const eegFix = await fetchJSON('uploads/synthetic_eegdex_golden.node-export.json');
+    let eegBuf = null;
+    const reEeg = await fetch('uploads/synthetic_eegdex_c4.edf');
+    if (reEeg.ok) eegBuf = await reEeg.arrayBuffer();
+    setEquiv('eegdex', eegBuf, eegFix, 'synthetic_eegdex_golden.node-export.json');
+  } catch (e) {
+    /* absent -> the CASES loop self-skips */
+  }
   // ── CPAPDex BINARY-EDF leg (CPAP-REAL-CORPUS-2026-07-11-BRIEF §P2) ──────────────────────────
   // The ONLY equiv input in the repo that is COMMITTED — because it is SYNTHETIC
   // (tools/make-synthetic-edf.mjs: closed-form waveforms, no recording of any person). Every other
