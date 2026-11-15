@@ -132,6 +132,7 @@ export const STEPS = [
   'verify:ci-step-parity',
   'verify:no-network-surface',
   'verify:absence-regression',
+  'verify:absence-backlog',
   'verify:astgrep',
   'verify:xss-sink',
   'verify:docs-constants',
