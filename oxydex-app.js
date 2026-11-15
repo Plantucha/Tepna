@@ -477,16 +477,23 @@ function exportCSV() {
     }
     if (n.extras) {
       var ex = n.extras;
+      var _exCell = function (v) {
+        return v == null ? '' : v;
+      };
       lines.push(
         '',
         'NIGHT EXTRAS',
-        '  SpO2 Range (%),' + ex.spo2Range,
-        '  Time-in-Range 94-99% (%),' + ex.tir9499,
-        '  Mean SpO2 Early (2h),' + ex.meanSpo2Early,
-        '  Mean SpO2 Late (2h),' + ex.meanSpo2Late,
-        '  HR Range (bpm),' + ex.hrRange,
-        '  Mean HR Early (2h),' + ex.meanHrEarly,
-        '  Mean HR Late (2h),' + ex.meanHrLate,
+        /* §∅ group G2 — these seven now carry null over an unmeasured stream (oxydex-dsp.js
+           `computeNightExtras`), and a bare concatenation writes the word "null" into the cell. The
+           two lines below them already guard this way, so an absent reading leaves the cell empty,
+           which is how every other absent value reaches this CSV. */
+        '  SpO2 Range (%),' + _exCell(ex.spo2Range),
+        '  Time-in-Range 94-99% (%),' + _exCell(ex.tir9499),
+        '  Mean SpO2 Early (2h),' + _exCell(ex.meanSpo2Early),
+        '  Mean SpO2 Late (2h),' + _exCell(ex.meanSpo2Late),
+        '  HR Range (bpm),' + _exCell(ex.hrRange),
+        '  Mean HR Early (2h),' + _exCell(ex.meanHrEarly),
+        '  Mean HR Late (2h),' + _exCell(ex.meanHrLate),
         '  Motion Bursts,' + ex.motionBursts,
         '  Longest Clean Run (min),' + ex.longestCleanRun,
         '  Nadir Density (/hr),' + ex.nadirDensity,
