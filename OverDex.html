@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="ab1d4470d429" data-compute-hash="cc06db0d94e1"><head>
+<html lang="en" data-manifest-hash="20724c642356" data-compute-hash="3f7dae566bbd"><head>
 <!--
   OverDex.html — Tepna
   Copyright 2026 Michal Planicka
@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HAXbchwkH2w0sxN5WvjWCMLbxsfGGclNPzL9K/ePBeM=' 'sha256-IDeAYFC+myKzaJhU+jd20soVrwGAVcq7iM1mIVcFTwM=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-IikqYxHC3BIwGwBPFp8Jp5IDGx29Y8y9PXhJvfwvHfM=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-R6Dc/xXQzYFveWsVfbGSg8lpp98pG2dIwLNGGu4Pc04=' 'sha256-SYhOYN70OcmPNUyQI3+XkzBPsDEkov/r8Qc03as7ooU=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-WCQTLVkSv1QgSOi2vvBHY7+NBC4URxQt6+ufi6R/3qU=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-bLaOPCCzJ6ucv2cYT7gXT3wMKeYyQgCMbOFas3IV7BM=' 'sha256-c0L2fP9KS+dZLG2AaH4LfdLnwpVfCWVH+gyyUn5L7Pc=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-oH7lhnTrlkQhQ9f9PuKw7Wwq8UnyptMMWqHMeBGouU8=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-uS0BO9FA6T7Ej0PgYdFgmhKAD7wWWUv6IRvThTzY6lc=' 'sha256-wK9fP+fYfi661IypDOgrAoxGZS8mGJfe9l/9288cTZQ=' 'sha256-xtenwBk/c0kQhriEYklcSw1rgI2UYxNmHOVx1cfvdZw=' 'sha256-yJI159rOoEVhsTIsuQRFR32KBOQL/8y6f7F2zWeQpF4=' 'sha256-yS5frs7FO4HDqcSuAYI4rtjm7+gtWKSEozKGWUwHA/4=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw=' 'sha256-z4l2zX2D/RcAl/wpu0C/Z9GU6A/Rt5Gmh35gDByXOhQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HAXbchwkH2w0sxN5WvjWCMLbxsfGGclNPzL9K/ePBeM=' 'sha256-IDeAYFC+myKzaJhU+jd20soVrwGAVcq7iM1mIVcFTwM=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-IikqYxHC3BIwGwBPFp8Jp5IDGx29Y8y9PXhJvfwvHfM=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-NmhOOy1eWo1a0Q4a5IUaMOCr0RXVD8rVFdEBdP5AzUw=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-R6Dc/xXQzYFveWsVfbGSg8lpp98pG2dIwLNGGu4Pc04=' 'sha256-SYhOYN70OcmPNUyQI3+XkzBPsDEkov/r8Qc03as7ooU=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-WCQTLVkSv1QgSOi2vvBHY7+NBC4URxQt6+ufi6R/3qU=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-bLaOPCCzJ6ucv2cYT7gXT3wMKeYyQgCMbOFas3IV7BM=' 'sha256-c0L2fP9KS+dZLG2AaH4LfdLnwpVfCWVH+gyyUn5L7Pc=' 'sha256-i0Sm5seKz/22C1rTuIDz5PXWmQKSkXwkwamG+kYKUzQ=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-uS0BO9FA6T7Ej0PgYdFgmhKAD7wWWUv6IRvThTzY6lc=' 'sha256-wK9fP+fYfi661IypDOgrAoxGZS8mGJfe9l/9288cTZQ=' 'sha256-yJI159rOoEVhsTIsuQRFR32KBOQL/8y6f7F2zWeQpF4=' 'sha256-yS5frs7FO4HDqcSuAYI4rtjm7+gtWKSEozKGWUwHA/4=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw=' 'sha256-z4l2zX2D/RcAl/wpu0C/Z9GU6A/Rt5Gmh35gDByXOhQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -31927,9 +31927,43 @@ __exports.PulseDex = window.PulseDex;
   const TIR_CUT = { vlow: 54, low: 70, high: 180, vhigh: 250 }; // mg/dL consensus 2019
 
   function coreMetrics(vals) {
+    /* §∅ — the panel is computed over MEASURED readings only. The old body fed every entry to the
+       TIR loop (`null < 54` is true, so ten nulls read as 100 % time below range) and divided by
+       `vals.length || 1`, so zero readings published GMI 3.3 and eHbA1c 1.6 over n 1. A non-finite
+       entry is now dropped and counted in `nAbsent`; zero readings return a null panel with its
+       reason, and the spread needs two readings. */
+    const all = vals || [];
+    const meas = [];
+    for (let i = 0; i < all.length; i++) {
+      if (typeof all[i] === 'number' && Number.isFinite(all[i])) meas.push(all[i]);
+    }
+    const nAbsent = all.length - meas.length;
+    if (!meas.length) {
+      return {
+        mean: null,
+        sd: null,
+        cv: null,
+        gmi: null,
+        ea1c: null,
+        titr: null,
+        min: null,
+        max: null,
+        p10: null,
+        p25: null,
+        median: null,
+        p75: null,
+        p90: null,
+        tir: { tbr2: null, tbr1: null, tir: null, tar1: null, tar2: null },
+        tirN: { tbr2: 0, tbr1: 0, tir: 0, tar1: 0, tar2: 0 },
+        n: 0,
+        nAbsent,
+        reason: 'no-readings'
+      };
+    }
+    vals = meas;
     const m = mean(vals),
-      sd = std(vals, m);
-    const cv = m > 0 ? (sd / m) * 100 : 0;
+      sd = vals.length >= 2 ? std(vals, m) : null;
+    const cv = sd == null ? null : m > 0 ? (sd / m) * 100 : 0;
     const gmi = 3.31 + 0.02392 * m; // GMI % (lab-A1c proxy, NOT A1c)
     const ea1c = (m + 46.7) / 28.7; // ADAG eHbA1c %
     let tbr2 = 0,
@@ -31948,7 +31982,7 @@ __exports.PulseDex = window.PulseDex;
     for (const g of vals) {
       if (g >= 70 && g <= 140) tight++;
     } // Time in Tight Range (2023 consensus addition)
-    const n = vals.length || 1;
+    const n = vals.length;
     const pct = (x) => +((x / n) * 100).toFixed(1);
     const sorted = [...vals].sort((a, b) => a - b);
     return {
@@ -31967,7 +32001,9 @@ __exports.PulseDex = window.PulseDex;
       p90: round(quantile(sorted, 0.9), 0),
       tir: { tbr2: pct(tbr2), tbr1: pct(tbr1), tir: pct(tir), tar1: pct(tar1), tar2: pct(tar2) },
       tirN: { tbr2, tbr1, tir, tar1, tar2 },
-      n
+      n,
+      nAbsent,
+      reason: null
     };
   }
 
@@ -32000,7 +32036,9 @@ __exports.PulseDex = window.PulseDex;
       const amp = Math.abs(v[tp[i]] - v[tp[i - 1]]);
       if (amp > sd) exc.push(amp);
     }
-    return exc.length ? round(mean(exc), 0) : round(sd, 0);
+    // §∅ — MAGE is the mean of the qualifying excursions. With none above 1 SD there is no mean to
+    // take, so the value is null; the old fallback published the SD itself under MAGE's name.
+    return exc.length ? round(mean(exc), 0) : null;
   }
 
   // CONGA(n hours): SD of (G(t) − G(t−n))
@@ -32073,7 +32111,8 @@ __exports.PulseDex = window.PulseDex;
       else rh += r;
       n++;
     }
-    return { lbgi: round(n ? rl / n : 0, 1), hbgi: round(n ? rh / n : 0, 1) };
+    // §∅ — zero scorable readings carry no risk estimate; the old body published LBGI 0 and HBGI 0.
+    return { lbgi: n ? round(rl / n, 1) : null, hbgi: n ? round(rh / n, 1) : null };
   }
 
   function variability(c, ana, core) {
@@ -32190,11 +32229,13 @@ __exports.PulseDex = window.PulseDex;
             ttp = s.rel;
           }
         }
+        // §∅ — the +2 h value must sit near +2 h. Without the ±15 min bound a record that ends at
+        // +30 min published its +30 min reading as the 2 h delta.
         let v2 = null,
-          best = 1e9;
+          best = Infinity;
         for (const s of seq) {
           const dd = Math.abs(s.rel - 120);
-          if (dd < best) {
+          if (dd <= 15 && dd < best) {
             best = dd;
             v2 = s.v;
           }
@@ -32371,6 +32412,9 @@ __exports.PulseDex = window.PulseDex;
       let peak = trough,
         peakI = i;
       for (let k = i; k <= maxAhead; k++) {
+        // §∅ — a non-analysable cell (a GAP_LONG interpolation, warm-up or compression) ends the
+        // window: the old scan read the drawn line across a long gap and could publish its peak.
+        if (!_ana(c, k)) break;
         if (c.gV[k] > peak) {
           peak = c.gV[k];
           peakI = k;
@@ -32451,16 +32495,19 @@ __exports.PulseDex = window.PulseDex;
       }
       if (vals.length < 6) continue;
       const cm = coreMetrics(vals);
+      // §∅ — the day's count is its MEASURED readings; a day of fewer than 6 is skipped as before.
+      const { tbr1, tbr2, tar1, tar2 } = cm.tir;
+      if (cm.n < 6 || tbr1 == null || tbr2 == null || tar1 == null || tar2 == null) continue;
       out.push({
         day: k,
         startMs: c.gT[cells[0]],
-        n: vals.length,
+        n: cm.n,
         mean: cm.mean,
         cv: cm.cv,
         tir: cm.tir.tir,
         gmi: cm.gmi,
-        tbr: +(cm.tir.tbr1 + cm.tir.tbr2).toFixed(1),
-        tar: +(cm.tir.tar1 + cm.tir.tar2).toFixed(1)
+        tbr: +(tbr1 + tbr2).toFixed(1),
+        tar: +(tar1 + tar2).toFixed(1)
       });
     }
     return out.sort((a, b) => a.startMs - b.startMs);
@@ -32470,6 +32517,9 @@ __exports.PulseDex = window.PulseDex;
   //  TIER GATING
   // ════════════════════════════════════════════════════════════════════════
   function tierOf(activeDays, pctActive) {
+    // §∅ — an unmeasured span has no tier. `null < 1` is true, so the old first line graded it 'Partial day'.
+    if (activeDays == null || !Number.isFinite(activeDays))
+      return { tier: 'unknown', label: 'Unknown span', msg: 'The active duration was not measured, so no length tier applies — read each metric with its own n' };
     if (activeDays < 1) return { tier: 'partial', label: 'Partial day', msg: '< 24 h · mean glucose · GMI · SD · CV · basic TIR valid — MODD & AGP bands need more days' };
     if (activeDays < 14)
       return {
@@ -33372,6 +33422,12 @@ __exports.PulseDex = window.PulseDex;
     // PUBLISHED — so the app threw `GLUDSP.glucoCells is not a function` and ⬇ JSON downloaded
     // nothing, while glucoBuildNodeExport (which calls it in lexical scope) kept the gates green.
     glucoCells,
+    // exposed for the §∅ null-panel regression group (tests/dex-tests.js, "GlucoDex absence")
+    _mage: mage,
+    _bgRisk: bgRisk,
+    _tierOf: tierOf,
+    _postprandial: postprandial,
+    _excursions: excursions,
     _ckParse // exposed for the Clock Contract §2.7 range-validation regression gate
   };
   // ONE namespaced global (brief §1A). GlucoDex leaks nothing bare (whole DSP is in
@@ -33564,6 +33620,17 @@ __exports.GlucoDex = window.GlucoDex;
   }
   function r1(v) {
     return Math.round(v * 10) / 10;
+  }
+  /* 🔴 §∅ — `r1(null)` IS `0`, NOT `null`: `Math.round(null * 10) / 10` reads 0, because `null`
+     coerces to 0 in arithmetic. So a refusal that travels through `r1`/`r2` arrives at the export as
+     a measured zero, and the refusal is erased by its own rounding. These two wrappers are what a
+     nullable statistic rounds through. They also null a non-finite value, which is what `mean([])`
+     and `std(<2 samples)` return by design (§2.6). Measured 2026-11-15, Muse N1-21. */
+  function r1n(v) {
+    return v == null || !isFinite(v) ? null : r1(v);
+  }
+  function r2n(v) {
+    return v == null || !isFinite(v) ? null : r2(v);
   }
 
   // ════════════════════════════════════════════════════════════════════════
@@ -37227,9 +37294,17 @@ __exports.GlucoDex = window.GlucoDex;
   function timeDomain(nn, cleanMask, omit, adj) {
     if (nn.length < 2) return null;
     const keep = omit ? nn.filter((_, i) => !omit[i]) : nn;
-    const base = keep.length >= 2 ? keep : nn; // never let the omission empty the record
-    const meanRR = mean(base),
-      sdnn = std(base); // dispersion: over ALL accepted NN (whole-record), minus non-measurements
+    /* 🔴 §∅ — THE OMITTED INTERVALS ARE NOT MEASUREMENTS, SO THIS ARM REFUSES RATHER THAN RESTORING
+       THEM. Until 2026-11-15 this line read `keep.length >= 2 ? keep : nn`, under the comment "never
+       let the omission empty the record": when omission emptied the record, every interval the caller
+       had declined to invent came back into `meanRR`, `sdnn`, `hr` and `triIdx`. An omitted interval
+       straddles a time discontinuity, which is the DISCONTINUITY case of the owner's 2026-09-17
+       ruling — a discontinuity refuses, and only reduced coverage annotates. The refusal is PER ARM:
+       the beat-to-beat arm below holds its own population and its own reason. (Muse N1-21.) */
+    const dispersionReason = keep.length >= 2 ? null : 'omit-leaves-under-2-intervals';
+    const base = keep;
+    const meanRR = dispersionReason ? null : mean(base),
+      sdnn = dispersionReason ? null : std(base); // dispersion: over ALL accepted NN, minus non-measurements
     // §4 (PPGDEX-BEAT-DETECTION-PERF): the beat-to-beat metrics (rMSSD/pNN50) are computed
     // over adjacent HIGH-SQI CLEAN pairs only, so sub-ectopy-threshold optical PAT jitter +
     // gap boundaries don't inflate them (the whole-record 137 ms → truth). The ectopy/gap
@@ -37246,17 +37321,15 @@ __exports.GlucoDex = window.GlucoDex;
       cnt++;
       if (Math.abs(d) > 50) nn50++;
     }
-    if (cnt < 1) {
-      for (let i = 1; i < nn.length; i++) {
-        const d = nn[i] - nn[i - 1];
-        sumSq += d * d;
-        cnt++;
-        if (Math.abs(d) > 50) nn50++;
-      }
-    } // no clean pair → fall back
-    const rmssd = Math.sqrt(sumSq / cnt),
-      pnn50 = (100 * nn50) / cnt;
-    const hr = 60000 / meanRR;
+    /* 🔴 §∅ — NO CLEAN ADJACENT PAIR MEANS NO BEAT-TO-BEAT MEASUREMENT. Until 2026-11-15 a `cnt < 1`
+       fallback recomputed rMSSD and pNN50 over EVERY pair in `nn`, which is exactly the population
+       `cleanMask` and `adj` had excluded: the published number was the one the caller refused. The
+       caller cannot tell that from the numbers, because the old return carried no population and no
+       reason. `nBeatPairs` now travels beside them. (Muse N1-21.) */
+    const beatPairReason = cnt >= 1 ? null : 'no-clean-adjacent-pair';
+    const rmssd = beatPairReason ? null : Math.sqrt(sumSq / cnt),
+      pnn50 = beatPairReason ? null : (100 * nn50) / cnt;
+    const hr = meanRR == null ? null : 60000 / meanRR;
     // triangular index
     const bins = {};
     for (const v of nn) {
@@ -37265,9 +37338,26 @@ __exports.GlucoDex = window.GlucoDex;
     }
     let mx = 0;
     for (const k in bins) if (bins[k] > mx) mx = bins[k];
-    const triIdx = mx ? nn.length / mx : null;
-    return { meanRR: Math.round(meanRR), sdnn: r1(sdnn), rmssd: r1(rmssd), pnn50: r1(pnn50), hr: Math.round(hr), lnRMSSD: r2(Math.log(rmssd)), triIdx: triIdx ? r1(triIdx) : null };
+    /* The histogram bins `nn`, so it counts the omitted intervals too. That population is unchanged
+       here, and it is a SEPARATE defect from N1-21: this line only declines to publish an index whose
+       dispersion arm has already refused. */
+    const triIdx = dispersionReason ? null : mx ? nn.length / mx : null;
+    return {
+      meanRR: meanRR == null ? null : Math.round(meanRR),
+      sdnn: r1n(sdnn),
+      rmssd: r1n(rmssd),
+      pnn50: r1n(pnn50),
+      hr: hr == null ? null : Math.round(hr),
+      lnRMSSD: rmssd == null ? null : r2n(Math.log(rmssd)),
+      triIdx: triIdx ? r1(triIdx) : null,
+      nDispersionIntervals: keep.length,
+      nBeatPairs: cnt,
+      dispersionReason,
+      beatPairReason
+    };
   }
+  /* Half of `r1`'s last published decimal place: an `sd2` below this prints as `0.0`. */
+  const PPG_SD2_MIN_MS = 0.05;
   function poincare(nn, cleanMask, adj) {
     if (nn.length < 3) return null;
     // §4: SD1 (≈ short-term beat-to-beat) from the clean adjacent-pair successive
@@ -37279,14 +37369,30 @@ __exports.GlucoDex = window.GlucoDex;
       if (adj && adj[i] === false) continue;
       d.push(nn[i] - nn[i - 1]);
     }
-    if (d.length < 2) {
-      d.length = 0;
-      for (let i = 1; i < nn.length; i++) d.push(nn[i] - nn[i - 1]);
-    } // fallback
+    /* 🔴 §∅ — the same refusal as `timeDomain`'s beat-to-beat arm, and for the same reason. Until
+       2026-11-15 a `d.length < 2` fallback refilled `d` with every pair in `nn`, so SD1 and SD2 were
+       published over the population `cleanMask` and `adj` had excluded. (Muse N1-22.) */
+    const pairReason = d.length >= 2 ? null : 'no-clean-adjacent-pair';
+    if (pairReason) return { sd1: null, sd2: null, sd1sd2: null, ellArea: null, nPairs: d.length, reason: pairReason };
     const sd1 = Math.sqrt(0.5) * std(d);
     const sdnn = std(nn);
     const sd2 = Math.sqrt(Math.max(0, 2 * sdnn * sdnn - 0.5 * std(d) * std(d)));
-    return { sd1: r1(sd1), sd2: r1(sd2), sd1sd2: r2(sd1 / (sd2 || 1)), ellArea: Math.round(Math.PI * sd1 * sd2) };
+    /* 🔴 THE RATIO NEEDS A DENOMINATOR THIS NODE CAN PUBLISH. Until 2026-11-15 the ratio read
+       `sd1 / (sd2 || 1)`, which substitutes 1 ms for an EXACT zero and nothing for a floating-point
+       residue: `sd2` is a difference of two squares, so it lands at 1e-8 rather than at 0, survives
+       the `||` guard, and the ratio reads ~75,000,000 (Muse N1-22, measured). The bound is the
+       PUBLISHED precision rather than a chosen epsilon: `r1` prints one decimal, so any `sd2` under
+       half of that last place publishes as `0.0`, and a ratio over a denominator the reader sees as
+       zero cannot be read. The substituted 1 was never a measurement either. */
+    const pcReason = sd2 >= PPG_SD2_MIN_MS ? null : 'sd2-below-published-precision';
+    return {
+      sd1: r1n(sd1),
+      sd2: r1n(sd2),
+      sd1sd2: pcReason ? null : r2n(sd1 / sd2),
+      ellArea: Math.round(Math.PI * sd1 * sd2),
+      nPairs: d.length,
+      reason: pcReason
+    };
   }
   // Lomb–Scargle on irregular RR for frequency-domain HRV
   function lombScargle(tt, nn) {
@@ -39209,7 +39315,8 @@ __exports.GlucoDex = window.GlucoDex;
         beats: idx.length,
         hr: td.hr,
         /* Same STATISTIC as ECGDex (60000/mean(RR)) but a different PRECISION: `td.hr` is
-           `Math.round(hr)`, so every epoch here is an integer where ECGDex keeps a decimal. A ±0.5
+           `Math.round(hr)`, so every MEASURED epoch here is an integer where ECGDex keeps a decimal,
+           and an epoch whose clean population falls under two intervals is `null` (2026-11-15). A ±0.5
            uniform rounding is SD 0.289 bpm on a hat leg resolving σ≈1.5. Labelled, not changed —
            un-rounding moves every epoch and the fleet has not chosen a precision (R5-FOLLOWUPS). */
         hrStat: 'rate-of-mean',
