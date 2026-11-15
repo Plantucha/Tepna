@@ -4,7 +4,7 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** IN-PROGRESS (unit 1 of 5 — the ECGDex table: its reasons, its sidecar ledger, the sidecar before-and-after, the drift strip and the writer a filename names; the two RENDER boxes stay open) · **Created:** 2026-11-14
+**Status:** IN-PROGRESS (unit 1 of 5 — the ECGDex pilot is COMPLETE; §7 rolls the table out to the other nodes) · **Created:** 2026-11-14
 
 # Signal-quality table — every Dex shows its sensors before its results
 
@@ -264,15 +264,33 @@ Assignee: decided on the agent board (`--kind decision`, 2026-11-14).
 - [x] Each fact that a sidecar changes shows its value before and after the sidecar applies.
 - [x] The table shows the night drift against the best reference from §3d and names it. It
       also shows the per-window drift strip from raw residuals, and each step or spike with its instant (§3d).
-- [ ] The drift chart renders the divergence panel and the per-window rate panel, plus the
+- [x] The drift chart renders the divergence panel and the per-window rate panel, plus the
       Allan chart, with a badge on each series (§3d).
-- [ ] A Polar Sensor Logger ECG export renders the table with every sidecar row
+      *(`ECGUI.sqDriftPanels` draws the three series from the published facts and measures nothing of
+      its own: the divergence panel reads `driftProfile.windows[].residFirstMs` (RAW residuals, per
+      §3d), the rate panel reads `windows[].ppm` against the night value, and the Allan panel reads
+      `hostAxis.stability.curve`. Each refusal prints the axis's OWN reason — no axis, the axis's
+      `reason` when it refused, the rounded-stamp reason when `independent` is false, and an empty
+      curve — so a panel never draws an absence as a flat line.)*
+- [x] A Polar Sensor Logger ECG export renders the table with every sidecar row
       `not-applicable` and every AFTER cell `null`. A test covers this case.
-      *(The DATA half is done and tested: the origin is read from the filename, because the two
-      writers' ECG text is byte-identical, and under a vendor name all 25 ledger rows read
-      `not-applicable` while the epoch cell's before and after are both named absences. The box stays
-      open for the RENDER half, which rides the same unit as boxes 6 and 8.)*
-- [ ] The render shows the table above the first result card, with a badge in every cell.
+      *(The DATA half reads the origin from the filename, because the two writers' ECG text is
+      byte-identical, and under a vendor name all 25 ledger rows read `not-applicable` while the
+      epoch cell's before and after are both named absences. The RENDER half now goes through the
+      builder, because a cell the table drops is invisible to a leg that reads the object alone: the
+      ledger count line reads `25 listed · 0 read · 25 not-applicable`, every drawn after value is a
+      dash with its own reason, and no row claims a sidecar was read.)*
+- [x] The render shows the table at the top of the existing Signal Quality section, above that
+      section's first result card, with a badge in every cell.
+      *(This box read "above the first result card" at creation. The owner's direction moved it: the
+      table "surfaces in the existing Signal Quality section of ECGDex … Put the table at the top of
+      that section" (agent board entry 6514), and the wording moved with the diff that built it. The
+      two cards are `#sqTableCard` and `#sqDriftCard` in `ECGDex.src.html`, both inside
+      `#qualitySection` and both above `#qualityCard`; a suite leg reads the three offsets in that
+      order. Every row label, every channel cell and every ledger row carries a disc from
+      `MetricRegistry.badge()` through the registry, and a leg resolves all 14 labels to a `measured`
+      entry — because `badgeForLabel` FABRICATES an `experimental` disc for a label it cannot
+      resolve, and that branch prints no warning.)*
 - [x] The per-window strip aligns to the epochs that the HRV and staging code already use.
 - [x] `tests/dex-tests.js` gains a group for the table over the committed ECGDex fixtures.
 - [x] The ECGDex fixtures regenerate through `tools/regen-ecgdex-goldens.mjs`, and

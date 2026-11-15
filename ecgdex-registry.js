@@ -39,6 +39,124 @@
     correctionRate: { label: 'Correction', unit: '%', goodDirection: 'down', depth: 'advanced', evidence: 'measured', cite: 'Beats corrected during cleaning — direct quality statistic' },
     meanSQI: { label: 'Mean SQI', unit: '', goodDirection: 'up', depth: 'advanced', evidence: 'measured', cite: 'Mean signal-quality index — direct per-beat quality' },
     ectopy: { label: 'Ectopy', unit: '', goodDirection: 'down', depth: 'advanced', evidence: 'measured', cite: 'Detected ectopic-beat count (PVC + PAC) — direct classification' },
+    /* ── SIGNAL-QUALITY TABLE (SIGNAL-QUALITY-TABLE-2026-11-14 §6) ─────────────────────────────
+       Each row of the per-channel table is one metric, so each needs its own grade: a new surface
+       inherits nothing. Every one is `measured` — a census of the captured samples or a rate read
+       off two clocks — and a row the node does not compute still carries the grade of the
+       measurement, with a null value and its named reason beside it (§∅). */
+    sqRail: {
+      label: 'Rail census',
+      emittedAt: 'signalQuality.channels.ecg.rail.value',
+      unit: 'samples at the rail',
+      goodDirection: 'down',
+      depth: 'advanced',
+      evidence: 'measured',
+      cite: 'Samples at the converter rail — direct census'
+    },
+    sqFlatline: {
+      label: 'Flatline share',
+      emittedAt: 'signalQuality.channels.ecg.flatline.value',
+      unit: '% of samples',
+      goodDirection: 'down',
+      depth: 'advanced',
+      evidence: 'measured',
+      cite: 'Share of the stream inside a flat run — direct census'
+    },
+    sqSnr: {
+      label: 'In-band SNR',
+      emittedAt: 'signalQuality.channels.ecg.snr.value',
+      unit: 'dB',
+      goodDirection: 'up',
+      depth: 'advanced',
+      evidence: 'measured',
+      cite: 'In-band signal-to-noise ratio over pre-stated band edges — direct ratio'
+    },
+    sqMains: {
+      label: 'Mains ratio',
+      emittedAt: 'signalQuality.channels.ecg.mains.value',
+      unit: 'ratio to in-band power',
+      goodDirection: 'down',
+      depth: 'advanced',
+      evidence: 'measured',
+      cite: 'Mains-hum power against in-band power — direct ratio'
+    },
+    sqTiming: {
+      label: 'Axis rate',
+      emittedAt: 'signalQuality.channels.ecg.timing.value',
+      unit: 'ppm',
+      goodDirection: 'down',
+      depth: 'advanced',
+      evidence: 'measured',
+      cite: 'Device rate against the host axis — direct from the anchor pairs (Clock Contract §7)'
+    },
+    sqReference: {
+      label: 'Reference Δ',
+      emittedAt: 'signalQuality.channels.ecg.reference.value',
+      unit: 'ms',
+      goodDirection: 'down',
+      depth: 'advanced',
+      evidence: 'measured',
+      cite: 'Offset against the best §3d time reference — direct comparison'
+    },
+    sqEpochs: {
+      label: 'Epoch population',
+      emittedAt: 'signalQuality.channels.ecg.epochs.value',
+      unit: 'windows',
+      goodDirection: 'up',
+      depth: 'advanced',
+      evidence: 'measured',
+      cite: 'Windows the per-window walk accepted — direct count'
+    },
+    sqDrift: {
+      label: 'Night drift',
+      emittedAt: 'signalQuality.channels.ecg.drift.value',
+      unit: 'ppm',
+      goodDirection: 'down',
+      depth: 'advanced',
+      evidence: 'measured',
+      cite: 'Whole-night rate against the named reference — direct from raw anchor residuals'
+    },
+    sqSidecarState: {
+      label: 'Sidecar state',
+      emittedAt: 'signalQuality.sidecars.0.state',
+      unit: '',
+      goodDirection: 'neutral',
+      depth: 'advanced',
+      evidence: 'measured',
+      cite: 'Whether this validity sidecar was read, and why when it was not — direct read'
+    },
+    sqDivergence: {
+      label: 'Host divergence',
+      emittedAt: 'signalQuality.channels.ecg.drift.windows.0.residFirstMs',
+      unit: 'ms',
+      goodDirection: 'neutral',
+      depth: 'advanced',
+      evidence: 'measured',
+      cite: 'Raw host-minus-device divergence per window — the residual before the running median'
+    },
+    sqWindowRate: {
+      label: 'Per-window rate',
+      emittedAt: 'signalQuality.channels.ecg.drift.windows.0.ppm',
+      unit: 'ppm',
+      goodDirection: 'down',
+      depth: 'advanced',
+      evidence: 'measured',
+      cite: 'Rate inside one epoch from that window raw residuals — direct'
+    },
+    /* NO `emittedAt` FOR THIS ONE, DELIBERATELY. The Allan curve reaches the page from
+       `hostAxis.stability.curve`, which no committed export carries: every committed ECGDex fixture
+       is a phone-shaped capture whose host column is the device stamp rounded, so `stability` is
+       null by the rule that an axis with no second clock averages no divergence. A path declared
+       here would resolve on nothing, and the gate WALKS every path it is given. The binding is the
+       render site instead — `SQ_DRIFT_SERIES.allan` in ecgdex-render.js names this id. */
+    sqAllan: {
+      label: 'Allan deviation',
+      unit: 'ppm',
+      goodDirection: 'down',
+      depth: 'advanced',
+      evidence: 'measured',
+      cite: 'Overlapping Allan deviation of the raw divergence — how far to trust the rate (ALLAN-DEVIATION-2026-08-12)'
+    },
 
     /* ── EMERGING — published, less standardized / device-dependent ─────────── */
     dfaAlpha1: { label: 'DFA α1', unit: '', goodDirection: 'up', depth: 'research', evidence: 'emerging', cite: 'Detrended-fluctuation short-term scaling exponent — device-dependent' },
