@@ -948,6 +948,32 @@ window.evBadge = evBadge;
             : stab && stab.note
               ? stab.note
               : 'the axis published no Allan curve for this recording';
+    /* THE NIGHT FIGURE IS AN OBJECT, NEVER A NUMBER. `ecgdex-dsp.js` builds
+       `{ppm, spanPpm, spanMs, anchors, ppmUncertainty, uncertaintyReason}`, and it is non-null
+       whenever the recording names a host reference — which is every capture-host night, and no
+       committed fixture. A `== null` guard passes that object to a numeric site, so `night.toFixed(1)`
+       threw on the first real night, and the throw took down every section after this one, because
+       it aborts `renderAll`. Read `.ppm`, and read it finite.
+       §🔒.7 forbids a quoted `ppm` without its anchor count and its span, so the label carries both,
+       and §7 forbids a rate that travels without the size of its own uncertainty. §∅: each absence
+       states the node's own reason rather than printing nothing. */
+    var nightObj = dp.night && typeof dp.night === 'object' ? dp.night : null;
+    var nightPpm = nightObj && nightObj.ppm != null && isFinite(nightObj.ppm) ? nightObj.ppm : null;
+    var nightUnc = nightObj && nightObj.ppmUncertainty != null && isFinite(nightObj.ppmUncertainty) ? nightObj.ppmUncertainty : null;
+    var nightSpanH = nightObj && nightObj.spanMs != null && isFinite(nightObj.spanMs) ? nightObj.spanMs / 3600000 : null;
+    var nightTxt;
+    if (nightPpm == null) {
+      nightTxt = nightObj ? ' · no night rate: the host axis published none for this recording' : dp.nightReason ? ' · no night rate: ' + dp.nightReason : '';
+    } else {
+      nightTxt =
+        ' · night ' +
+        nightPpm.toFixed(1) +
+        (nightUnc == null ? ' ppm (no uncertainty: ' + (nightObj.uncertaintyReason || _SQ_NO_REASON) + ')' : ' ± ' + nightUnc.toFixed(1) + ' ppm') +
+        ' · ' +
+        (nightObj.anchors == null ? '?' : nightObj.anchors) +
+        ' anchors' +
+        (nightSpanH == null ? ' · span absent' : ' over ' + nightSpanH.toFixed(1) + ' h');
+    }
     var winWhy = refName ? 'no window of this recording holds the three anchors a rate needs' : noRef;
     return (
       '<div class="mini-h">Clock drift <span class="mini-sub">' +
@@ -971,13 +997,13 @@ window.evBadge = evBadge;
       _sqPanel(
         SQ_DRIFT_SERIES.rate,
         'Per-window rate',
-        'ppm from each window own raw residuals' + (dp.night == null ? '' : ' · night ' + dp.night.toFixed(1) + ' ppm'),
+        'ppm from each window own raw residuals' + nightTxt,
         ratePts,
         C.teal,
         {
           W: 680,
           H: 140,
-          med: dp.night == null ? undefined : dp.night,
+          med: nightPpm == null ? undefined : nightPpm,
           xfmt: function (x) {
             return (x / 60).toFixed(1) + 'h';
           }
