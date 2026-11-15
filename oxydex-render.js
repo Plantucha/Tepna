@@ -1698,8 +1698,8 @@ function renderAll() {
         _mnsHtml += '<div class="mns-row-label">Stability overview</div>';
         _mnsHtml +=
           '<div class="grid">' +
-          metric('Best Night', bestNight.date, 'score ' + (bestNight.stab ? bestNight.stab.score : '—'), 'good') +
-          metric('Worst Night', worstNight.date, 'score ' + (worstNight.stab ? worstNight.stab.score : '—'), 'bad') +
+          metric('Best Night', bestNight.date, 'score ' + (bestNight.stab && bestNight.stab.score != null ? bestNight.stab.score : '—'), 'good') +
+          metric('Worst Night', worstNight.date, 'score ' + (worstNight.stab && worstNight.stab.score != null ? worstNight.stab.score : '—'), 'bad') +
           metric('Stability R²', lr.r2, 'regression fit', '') +
           metric('Trend', lr.slope > 0 ? '+' + lr.slope : lr.slope, 'pts/night', lr.slope > 0 ? 'good' : lr.slope > -1 ? 'warn' : 'bad') +
           '</div>';
@@ -2267,7 +2267,8 @@ function renderSmartSummary(n) {
       html += '<div class="ss-note" style="grid-column:1/-1;opacity:.85;font-size:.82em;line-height:1.35">⚠ ' + escapeHTML(n.stageProxy.plausibilityNote) + '</div>';
     }
   }
-  if (n.osc) html += ssKPI('Osc Windows', cv(n.osc.episodeCount, 2, 5, ''), n.osc.episodeCount < 2 ? 'good' : n.osc.episodeCount < 5 ? 'warn' : 'bad');
+  /* §∅ — `null < 2` is TRUE, so an unexamined channel would have taken the GOOD class. */
+  if (n.osc) html += ssKPI('Osc Windows', cv(n.osc.episodeCount, 2, 5, ''), n.osc.episodeCount == null ? 'neutral' : n.osc.episodeCount < 2 ? 'good' : n.osc.episodeCount < 5 ? 'warn' : 'bad');
   if (n.spo2NadirT) html += ssKPI('SpO₂ Nadir', cv(n.spo2NadirT.spo2NadirValue, null, null, '%'), 'neutral');
   html += '</div>';
   html += ssIssuesBars(s.top5, 'sleep');
