@@ -30394,6 +30394,201 @@
       T.ok('the night edge is a finite frequency under the ceiling', flat.bands.sef95 < D.SEF_CEIL_HZ && tone.bands.sef95 > 0, 'flat ' + flat.bands.sef95 + ' tone ' + tone.bands.sef95);
     });
 
+    group('The EEGDex chart helpers answer every case a night axis carries', 'eegdex · charts · helpers', function (T) {
+      var U = env.EEGUI;
+      if (!U) {
+        T.skip('env.EEGUI available', 'eegdex-render.js is not executed by this lane');
+        return;
+      }
+      /* THESE THREE HELPERS CARRY THE ∅ RULE FOR EVERY FIGURE, so their answers are pinned here
+         rather than inferred from a drawing. `buckets` groups epochs into columns, `meanOf`
+         averages the finite members of one group, and `pathOf` lifts the line over a null. */
+      var b960 = U.buckets(960, 120);
+      T.eq('an 8 h night at 120 columns gives 120 equal groups', b960.length, 120);
+      T.eq('the first group holds 8 epochs', JSON.stringify(b960[0]), JSON.stringify([0, 8]));
+      T.eq('and the last group ends on the last epoch', JSON.stringify(b960[119]), JSON.stringify([952, 960]));
+      /* A NIGHT SHORTER THAN THE BUDGET GETS ONE COLUMN PER EPOCH AND NO EMPTY GROUP. An empty
+         group would average nothing and draw a gap the night does not hold. */
+      T.eq('50 epochs under a 120 budget give 50 groups', U.buckets(50, 120).length, 50);
+      T.eq('and each of them holds exactly one epoch', JSON.stringify(U.buckets(50, 120)[0]), JSON.stringify([0, 1]));
+      T.eq(
+        'an uneven split puts the remainder in the last group',
+        JSON.stringify(U.buckets(7, 3)),
+        JSON.stringify([
+          [0, 2],
+          [2, 4],
+          [4, 7]
+        ])
+      );
+      T.eq('no epochs give no groups rather than one empty group', JSON.stringify(U.buckets(0, 120)), '[]');
+      T.eq('one epoch gives one group', JSON.stringify(U.buckets(1, 120)), JSON.stringify([[0, 1]]));
+      T.eq('a group mean skips the null and the non-finite members', U.meanOf([1, null, 3, NaN], 0, 4), 2);
+      T.eq('a group with no finite member is null, never 0', U.meanOf([null, null], 0, 2), null);
+      /* THE LINE LIFTS OVER A NULL rather than joining across it: a joined segment would draw a
+         value for a group that published none. */
+      var pth = U.pathOf([
+        { x: 0, y: 10 },
+        { x: 1, y: null },
+        { x: 2, y: 20 },
+        { x: 3, y: 30 }
+      ]);
+      T.eq('a null inside a series starts a second subpath', (pth.match(/M/g) || []).length, 2);
+      T.eq('and the subpaths carry only the finite points', pth, 'M0.0 10.0 M2.0 20.0 L3.0 30.0');
+      T.eq('a series with no finite point draws nothing at all', U.pathOf([{ x: 0, y: null }]), '');
+      T.ok('the spectrogram declares its own column budget, narrower than a line chart’s', U.SPEC_COLS < U.MAX_COLS, U.SPEC_COLS + ' against ' + U.MAX_COLS);
+    });
+
+    group('The EEGDex charts draw the engine answer and badge every series', 'eegdex · charts · known-answer', function (T) {
+      var D = env.EEGDSP,
+        U = env.EEGUI;
+      if (!D || !U) {
+        T.skip('env.EEGDSP and env.EEGUI available', 'eegdex-dsp.js or eegdex-render.js is not executed by this lane');
+        return;
+      }
+      /* ONE 1 h ARTEFACTUAL NIGHT. The planted absences are the whole point of three legs below,
+         and a `clean` night plants none, so the same legs over a clean night would pass over an
+         empty population and say nothing. */
+      var night = D.genOvernight({ durSec: 3600, scenario: 'artefactual', seed: 7310011, t0Ms: Date.UTC(2026, 0, 1, 23, 0, 0) }),
+        res = D.compute(night),
+        absent = res.hypnogram.filter(function (e) {
+          return e.stage == null;
+        });
+      // ANTI-VACUITY FIRST: every leg below describes one of these three populations.
+      T.eq('the night holds the epochs the figures draw', res.nEpochs, 120);
+      T.eq('and it holds the planted absences three legs describe', absent.length, 5);
+      T.ok('and it holds detections for the raster', res.spindles.spindles.length > 50, res.spindles.spindles.length + ' detections');
+
+      /* THE PER-EPOCH SPECTRUM IS OPT-IN, AND IT STAYS OFF THE BUS. `buildNodeExport` copies
+         `bands` wholesale, so a 45-bin vector per epoch attached there would put some 43 000
+         numbers per 8 h night onto `ganglior.node-export`. It rides `summary.spectra` instead,
+         which the export projects by name and therefore never carries. */
+      T.eq('the night publishes one spectrum per epoch', res.spectra.series.length, res.nEpochs);
+      T.eq('each spectrum is a 1 Hz bin vector', res.spectra.binHz, 1);
+      T.eq('and it holds one bin per hertz up to the declared ceiling', res.spectra.series[0].bins.length, D.SEF_CEIL_HZ);
+      T.ok('the published band medians carry no bin vector', JSON.stringify(res.bands).indexOf('bins') < 0);
+      var ex = JSON.stringify(D.buildNodeExport(res, night));
+      T.ok('the node export carries neither the bins nor the series', ex.indexOf('"bins"') < 0 && ex.indexOf('spectra') < 0, 'export ' + ex.length + ' B');
+      /* THE KNOWN ANSWER IS ANALYTIC, not a pinned night: one sinusoid puts every watt in its own
+         bin, so the argmax bin IS the sinusoid’s frequency. */
+      var FS = 100,
+        N = FS * 30 * 4,
+        sig = new Float64Array(N),
+        i;
+      for (i = 0; i < N; i++) sig[i] = 30 * Math.sin((2 * Math.PI * 10 * i) / FS);
+      var tone = D.compute({ samples: sig, fs: FS, t0Ms: null, offsetMin: null, channel: 'EEG', source: 'authored' }),
+        bins = tone.spectra.series[0].bins,
+        arg = -1,
+        best = -Infinity;
+      for (i = 0; i < bins.length; i++) {
+        if (bins[i] != null && bins[i] > best) {
+          best = bins[i];
+          arg = i;
+        }
+      }
+      T.eq('a 10 Hz sinusoid puts its own bin at the top of the spectrum', arg, 10);
+
+      /* EVERY FIGURE BADGES THE SERIES IT DRAWS (§🎫). The band figure draws five independent
+         lines, so it carries five badges and not one caption badge. */
+      var figs = {
+        spectro: U.spectroHtml(res),
+        bandSeries: U.bandSeriesHtml(res),
+        swa: U.swaHtml(res),
+        raster: U.spindleRasterHtml(res, night.truth),
+        absence: U.absenceHtml(res)
+      };
+      T.eq('the spectrogram badges the power it draws', (figs.spectro.match(/class="ev /g) || []).length, 1);
+      T.eq('the band figure badges each of its five lines', (figs.bandSeries.match(/class="ev /g) || []).length, 5);
+      T.eq('and it draws one path per band', (figs.bandSeries.match(/<path /g) || []).length, 5);
+      T.eq('the slow-wave figure badges its decay', (figs.swa.match(/class="ev /g) || []).length, 1);
+      T.eq('the raster badges the spindle density', (figs.raster.match(/class="ev /g) || []).length, 1);
+      T.eq('the absence timeline badges the analyzable share', (figs.absence.match(/class="ev /g) || []).length, 1);
+      var k;
+      for (k in figs) {
+        if (!Object.prototype.hasOwnProperty.call(figs, k)) continue;
+        T.ok('the ' + k + ' figure writes no NaN and no undefined', figs[k].indexOf('NaN') < 0 && figs[k].indexOf('undefined') < 0, figs[k].slice(0, 160));
+      }
+      /* THE RASTER GROUPS ITS TICKS BY STAGE AND CARRIES NO PER-EVENT HOVER: over a thousand
+         detections share 620 px on an 8 h night, so a pointer cannot reach one tick and a title
+         per tick would weigh more than the figure. */
+      T.ok(
+        'the raster draws paths rather than one element per event',
+        (figs.raster.match(/<path /g) || []).length <= 11,
+        (figs.raster.match(/<path /g) || []).length + ' paths over ' + res.spindles.spindles.length + ' detections'
+      );
+      T.ok('and it says where the per-event detail went', figs.raster.indexOf('detail travels in the export') >= 0);
+      T.ok('the raster draws no slow-wave row, because the engine detects no single slow wave', figs.raster.indexOf('no individual slow wave') >= 0);
+
+      /* THE ABSENCE TIMELINE NAMES EACH REASON IN THE READER’S WORDS and counts its epochs. The
+         two planted spans land on two different reasons, which is what makes the legend a
+         measurement rather than a label. */
+      T.eq('the timeline shades one stretch per planted span', (figs.absence.match(/opacity="\.78"/g) || []).length, 2);
+      T.eq('and it draws the three scored stretches between them', (figs.absence.match(/opacity="\.16"/g) || []).length, 3);
+      T.eq('the legend names both reasons the night carried', (figs.absence.match(/class="eg-lg"/g) || []).length, 2);
+      T.ok('a whole absent epoch reads in words, with its count', figs.absence.indexOf('every sample in the epoch is absent — 3 epochs') >= 0, figs.absence.slice(-420));
+      T.ok('and a hole inside an epoch reads as its own reason', figs.absence.indexOf('a hole inside an otherwise present epoch — 2 epochs') >= 0);
+      T.ok('the note states the epochs the shading covers', figs.absence.indexOf('5 of 120 epochs') >= 0);
+
+      /* THE SLOW-WAVE LINE IS THE ENGINE’S OWN FIT. A renderer fitting its own least squares would
+         publish a second calculation of one claim, and the two would disagree the moment either
+         side changed. The 8 h night is the memoised pre-stated one, so this costs no generation. */
+      var eight = eegPrestatedNight(D, 'on'),
+        sw = eight.res.swa;
+      T.eq('the engine publishes the fitted line beside the percentage', JSON.stringify(sw.fit), JSON.stringify({ slope: -1.784, intercept: 11.368 }));
+      T.eq('the fit covers the stretches the decay was read over', sw.periods.length, 6);
+      T.ok('the intercept is the fitted power at the first stretch', Math.abs(sw.fit.intercept - sw.periods[0].deltaPower) < 0.2, sw.fit.intercept + ' against ' + sw.periods[0].deltaPower);
+      var sw8 = U.swaHtml(eight.res);
+      T.eq('the figure draws one bar per stretch', (sw8.match(/<rect /g) || []).length, 6);
+      T.ok('and it draws the fitted line as a dashed line', sw8.indexOf('stroke-dasharray') >= 0);
+      /* THE CONTROL: a trend with no fit must name its reason rather than draw a flat line. */
+      var noFit = D.swaTrend(null, null);
+      T.eq('a refused trend publishes no fit', noFit.fit, null);
+      T.ok('and the figure names the refusal instead of drawing', U.swaHtml({ swa: noFit, nEpochs: 0 }).indexOf(noFit.reason) >= 0, noFit.reason);
+
+      /* THE MARKUP BUDGET IS PINNED, because the two heaviest figures were 244 kB and 282 kB
+         before the runs were merged and the attributes grouped. Both ceilings were set against a
+         measured mutant rather than a round number: 120 columns widened back to 240 draws
+         144 842 B, and a staircase that emits one segment per epoch rather than per run draws
+         37 504 B against the 22 516 B it draws merged. */
+      var spectro8 = U.spectroHtml(eight.res),
+        raster8 = U.spindleRasterHtml(eight.res, eight.night.truth);
+      T.ok('an 8 h spectrogram stays under 120 kB of markup', spectro8.length < 120000, spectro8.length + ' B, ' + (spectro8.match(/<rect /g) || []).length + ' rects');
+      T.ok('an 8 h raster stays under 30 kB of markup', raster8.length < 30000, raster8.length + ' B, ' + (raster8.match(/<path /g) || []).length + ' paths');
+
+      /* THE PLANTED STRIP EXISTS ON THE DEMO PATH ALONE. `compute` never returns the truth, so the
+         EDF path loses the strip by construction rather than by a flag. */
+      var withTruth = U.hypnoHtml(res, night.truth),
+        without = U.hypnoHtml(res);
+      T.eq('a summary alone draws one cell per epoch', (without.match(/class="eg-ep/g) || []).length, 120);
+      T.eq('and the truth draws a second strip beside it', (withTruth.match(/class="eg-ep/g) || []).length, 240);
+      T.ok('the second strip is the plan the generator followed', withTruth.indexOf('planned · epoch') >= 0);
+      T.ok('the note counts the epochs both strips name', withTruth.indexOf('120 planned') >= 0, withTruth.slice(-300));
+      /* ⚠ NO AGREEMENT NUMBER IS DRAWN: the registry grades no agreement metric, so a number on
+         this surface would mint a fabricated badge. The pre-stated agreement lives in the test
+         lane, against its own floor. */
+      T.ok('the figure prints no agreement number', !/agreement[^<]{0,14}\d/.test(withTruth), withTruth.slice(-300));
+
+      /* EVERY FIGURE REFUSES IN WORDS. `compute` refuses with `{err, reason}` and carries no
+         spectra, bands or hypnogram, so each figure must say what it lacks and never throw. */
+      var refused = D.compute({ samples: new Float64Array(0), fs: 100 }),
+        names = ['spectroHtml', 'bandSeriesHtml', 'swaHtml', 'spindleRasterHtml', 'absenceHtml', 'hypnoHtml'],
+        threw = null,
+        bare = [];
+      for (i = 0; i < names.length; i++) {
+        try {
+          var a = U[names[i]](refused),
+            b = U[names[i]](null);
+          if (a.indexOf('eg-empty') < 0 || b.indexOf('eg-empty') < 0) bare.push(names[i]);
+        } catch (e) {
+          threw = names[i] + ': ' + ((e && e.message) || String(e));
+          break;
+        }
+      }
+      T.eq('no figure throws over a refusal or over nothing', threw, null);
+      T.eq('and each of them says what it lacks', JSON.stringify(bare), '[]');
+      T.ok('a synthetic summary carries the synthetic note the cards print', U.synthNote(eight.res).indexOf('synthetic — not a recording') >= 0);
+      T.eq('and an authored frame carries no such note', U.synthNote(tone), '');
+    });
+
     group('Every runtime source layer is readable by at least one lane', 'cohesion · source-visibility · ratchet', function (T) {
       var SV = env.sourceVisibility;
       if (!SV || !env.sources) {
