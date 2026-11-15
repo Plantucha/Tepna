@@ -57376,7 +57376,12 @@
       /* 4 · BOX 6 — THE THREE DRIFT SERIES. Synthetic inputs, because the builder is a pure function
          of the two objects and a committed recording cannot carry the refusal cases below. */
       var dp = {
-        night: 12.5,
+        /* THE PRODUCER'S OWN SHAPE. `_ecgDriftProfile` publishes `night` as an OBJECT, and this
+           fixture carried the number `12.5` until 2026-11-15. The builder read it as a number, so
+           it threw on the first real night (see 4c). A synthetic input that the producer never
+           emits tests nothing, and no gate could see the difference. */
+        night: { ppm: 12.5, spanPpm: 3.1, spanMs: 27900000, anchors: 412, ppmUncertainty: 0.8, uncertaintyReason: null },
+        nightReason: null,
         windows: [
           { tMin: 0, anchors: 40, ppm: 11, reason: null, residFirstMs: -2, residLastMs: 3, residRangeMs: 5 },
           { tMin: 5, anchors: 40, ppm: 13, reason: null, residFirstMs: -1, residLastMs: 4, residRangeMs: 5 }
@@ -57459,6 +57464,43 @@
       );
       T.ok('a profile with one window cannot draw a line, and says why rather than drawing nothing', /\(/.test(UI.sqDriftPanels({ night: null, windows: [dp.windows[0]] }, ax)));
       T.ok('CONTROL · no refusal path draws a chart', !/<svg/.test(UI.sqDriftPanels(null, null)));
+
+      /* 4c · THE NIGHT FIGURE IS THE PRODUCER'S OBJECT, NEVER A NUMBER. `_ecgDriftProfile` builds
+         `{ppm, spanPpm, spanMs, anchors, ppmUncertainty, uncertaintyReason}`, and it is non-null
+         whenever the recording names a host reference — every capture-host night, and no committed
+         fixture. The builder read the object at a numeric site, so `night.toFixed(1)` threw on the
+         first real night, and the throw aborted `renderAll`: every section after the quality one
+         went unrendered. Measured 2026-11-15 on the deployed v2.33.0 build, over a capture-host
+         night. These legs pin the read, the two figures the contract demands beside a quoted rate,
+         and each absence. */
+      var dhN = UI.sqDriftPanels(dp, ax);
+      T.ok('the night rate is read off `.ppm`, so the panel prints the number', dhN.indexOf('night 12.5') > 0);
+      T.ok('…with the size of its own uncertainty beside it (§7)', dhN.indexOf('± 0.8 ppm') > 0);
+      T.ok('…and with the anchor count and the span the clock contract demands beside a quoted ppm (§🔒.7)', dhN.indexOf('412 anchors') > 0 && dhN.indexOf('7.8 h') > 0);
+      T.ok('CONTROL · no panel stringifies the object', !/\[object Object\]/.test(dhN));
+      T.ok('CONTROL · and no panel prints NaN', !/NaN/.test(dhN));
+      var dhU = UI.sqDriftPanels(
+        {
+          night: { ppm: 12.5, spanPpm: null, spanMs: null, anchors: 412, ppmUncertainty: null, uncertaintyReason: 'the spine published no stability curve for this axis' },
+          windows: dp.windows
+        },
+        ax
+      );
+      T.ok('§∅ · a rate with no uncertainty names the producer OWN reason rather than travelling bare', dhU.indexOf('the spine published no stability curve for this axis') > 0);
+      T.ok('…and a span the producer did not publish says so', dhU.indexOf('span absent') > 0);
+      var dhP = UI.sqDriftPanels({ night: { ppm: null, spanMs: 1000, anchors: 2, ppmUncertainty: null, uncertaintyReason: null }, windows: dp.windows }, ax);
+      T.ok('§∅ · a night object whose rate is null says so, and quotes no number', /no night rate/.test(dhP) && !/night \d/.test(dhP));
+      var dhR = UI.sqDriftPanels({ night: null, nightReason: 'the host column is the device stamp rounded, so it is not a second clock', windows: dp.windows }, ax);
+      T.ok('§∅ · an absent night quotes the profile OWN `nightReason`', dhR.indexOf('the host column is the device stamp rounded') > 0);
+
+      /* 4d · THE PRODUCER SIDE OF THE SAME CONTRACT, read from the DSP's own source. A synthetic
+         input can drift from the shape the producer emits with no gate noticing, which is how the
+         defect above shipped. */
+      var dsrcN = env.sources && env.sources['ecgdex-dsp.js'];
+      if (dsrcN) {
+        T.ok('`night` is built as an object whose first field is the rate', /night = \{\s*[\r\n]\s*ppm:/.test(dsrcN));
+        T.ok('…and it carries the anchor count and the span the render quotes beside that rate', /night = \{[\s\S]{0,600}?anchors:/.test(dsrcN) && /night = \{[\s\S]{0,600}?spanMs:/.test(dsrcN));
+      } else T.skip('ecgdex-dsp.js source unavailable for the producer-shape leg');
 
       /* 5 · BOX 8 — THE PLACEMENT. The owner's direction (agent board entry 6514) put the table at
          the top of the EXISTING Signal Quality section, above that section's first result card. The
