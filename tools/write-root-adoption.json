@@ -144,6 +144,11 @@
      "wrapper": "judgeRoot",
      "reading": "it reads integrator-dsp.js, every declared reader realm and the surface declaration of the tree it resolves, and it stamps producedBy.commit from a git call in that tree, so a cross-checkout run judged another work-unit's 148 keys and printed PASS at exit 0"
     },
+    "tools/killcheck.mjs": {
+     "since": "2026-11-15",
+     "wrapper": "judgeRootOrDie",
+     "reading": "it hard-links the tree it resolves into each worker and runs that copy's suite against recorded mutants, so a cross-checkout run would score another work-unit's source and call the kill rate this branch's"
+    },
     "tools/residue-path-leads.mjs": {
      "since": "2026-11-11",
      "wrapper": "judgeRoot",

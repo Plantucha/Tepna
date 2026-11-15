@@ -52,6 +52,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry } from './argv-guard.mjs';
 import { escapeRe } from './regex-escape-core.mjs';
+import { judgeRootOrDie } from './write-root.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const argv = process.argv.slice(2);
@@ -349,12 +350,31 @@ if (IS_MAIN && has('--selftest')) {
     [0, 2, 7, 9, null].every((c) => mutantOutcome({ code: c, out: '' }).outcome !== 'killed')
   );
 
+  /* THE RUN SCORES THE CHECKOUT IT WAS RUN FROM, never the one this file lives in. Every worker tree
+     is a `cp -al` of ROOT, so a run of another checkout's copy would score that checkout's source and
+     print no word about which tree it was (row 2026-11-15-killcheck-scores-the-checkout-it-lives-in).
+     Drive the real CLI from a directory in no checkout: it must refuse at exit 2 before it reads a flag. */
+  {
+    const { spawnSync } = await import('node:child_process');
+    const { tmpdir } = await import('node:os');
+    const away = mkdtempSync(join(tmpdir(), 'killcheck-away-'));
+    const r = spawnSync(process.execPath, [fileURLToPath(import.meta.url), '--file', 'x.js', '--fn', 'f', '--group', 'g'], {
+      cwd: away,
+      encoding: 'utf8',
+      timeout: 30000
+    });
+    rmSync(away, { recursive: true, force: true });
+    ok('a run from outside this checkout refuses at exit 2', r.status === 2, `status ${r.status}`);
+    ok('…and names the refusal rather than a usage or sweep error', /write-root: REFUSED/.test(r.stderr || ''), (r.stderr || '').split('\n')[0]);
+  }
+
   console.log('\n' + (fail ? `✗ ${fail} failed, ${pass} passed` : `✓ all ${pass} selftests passed`));
   process.exit(fail ? 1 : 0);
 }
 
 // ── run ─────────────────────────────────────────────────────────────────────────────────────
 if (IS_MAIN && !has('--selftest')) {
+  judgeRootOrDie(import.meta.url);
   const file = opt('--file', '');
   const fn = opt('--fn', '');
   const group = opt('--group', '');
