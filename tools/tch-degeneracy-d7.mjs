@@ -50,6 +50,11 @@
  *   node tools/tch-degeneracy-d7.mjs --dir uploads/trio --json
  *   node tools/tch-degeneracy-d7.mjs --verdict-sample
  *   node tools/tch-degeneracy-d7.mjs --selftest        # planted truth: the inversion, the constant-weight identity
+ *
+ * JUDGE-ROOT READING (2026-11-15, brief WRITE-ROOT-ADOPTION §6.4): THIS TOOL JUDGES NO TREE. The one
+ * child it spawns asks `git rev-parse` for a commit stamp at the tool root, and that stamp names the code
+ * which produced the verdict, so it is right in the checkout of the tool itself. The judge-root wrapper is
+ * not owed here, and `tools/write-root-adoption.json` carries the row under `arms.judge.exempt`.
  */
 import { dirname, join } from 'node:path';
 import { execFileSync } from 'node:child_process';
