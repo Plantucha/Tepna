@@ -34196,17 +34196,25 @@
       T.eq('parseTimestamp("22:00:00") with no opts at all → null (no anchor, no fabricated date)', P.parseTimestamp('22:00:00'), null);
       T.eq('parseTimestamp ISO without opts → floating tMs', JSON.stringify(P.parseTimestamp('2026-06-10 22:00:00')), '{"tMs":1781128800000,"offsetMin":null}');
       //      A jittered TREND series exercises the full ellipse — both axes and the ratio nonzero —
-      //      which is what pins the sd1/sd2 quotient's denominator (its `|| 1` fallback mutated to
-      //      `&& 1` silently divides by 1 always, and only a nonzero-sd2 series can see that).
-      T.eq('a jittered rising trend has a full Poincaré ellipse', JSON.stringify(P.poincare([700, 725, 735, 765, 775, 805])), '{"sd1":7.2,"sd2":53.3,"sd1sd2":0.14,"ellArea":1212}');
+      //      which is what pins the sd1/sd2 quotient's denominator. The `|| 1` substitution it used
+      //      to pin RETIRED on 2026-11-15: the quotient now refuses a denominator below the published
+      //      precision, and this leg pins the shape that still publishes, reason included.
+      T.eq(
+        'a jittered rising trend has a full Poincaré ellipse',
+        JSON.stringify(P.poincare([700, 725, 735, 765, 775, 805])),
+        '{"sd1":7.2,"sd2":53.3,"sd1sd2":0.14,"ellArea":1212,"nPairs":5,"reason":null}'
+      );
       out = P.detectBeats([], 1);
       T.eq('P.detectBeats([],1) → "1"', JSON.stringify(out.T), '1');
       out = P.detectBeats(0, 1);
       T.eq('P.detectBeats(0,1) → "1"', JSON.stringify(out.T), '1');
+      /* These two legs asserted 1 and 0 until 2026-11-15, which was the `cnt < 1` fallback's output:
+         a truthy non-array mask excludes every pair, so the old code recomputed over EVERY pair and
+         published the population the mask had excluded. The refusal is the answer now (Muse N1-21). */
       out = P.timeDomain([1, 2, 3], 1);
-      T.eq('P.timeDomain([1,2,3],1) → "1"', JSON.stringify(out.rmssd), '1');
+      T.eq('a mask that admits no pair refuses rMSSD (asserted 1 until 2026-11-15)', JSON.stringify(out.rmssd), 'null');
       out = P.timeDomain([1, 2, 3], 1);
-      T.eq('P.timeDomain([1,2,3],1) → "0"', JSON.stringify(out.pnn50), '0');
+      T.eq('a mask that admits no pair refuses pNN50 (asserted 0 until 2026-11-15)', JSON.stringify(out.pnn50), 'null');
       out = P.timeDomain([1, 2, 3]);
       T.eq('P.timeDomain([1,2,3]) → "1"', JSON.stringify(out.triIdx), '1');
       out = P.movementOnsets(null);
@@ -34218,7 +34226,7 @@
       out = P.poincare([1, 2, 3]);
       T.eq('P.poincare([1,2,3]) → "1.4"', JSON.stringify(out.sd2), '1.4');
       out = P.poincare([1, 2, 3], 1);
-      T.eq('P.poincare([1,2,3],1) → "1.4"', JSON.stringify(out.sd2), '1.4');
+      T.eq('a mask that admits no pair refuses SD2 (asserted 1.4 until 2026-11-15)', JSON.stringify(out.sd2), 'null');
       out = P.intervalsSpanningTimeGap(1);
       T.eq('P.intervalsSpanningTimeGap(1) → "1"', JSON.stringify(out.length), '1');
       out = P.correctRR([1, 2, 3], 0);
@@ -34251,6 +34259,74 @@
       T.eq('P.timeDomain([250,300,250,300],null) → "0"', JSON.stringify(out.pnn50), '0');
       out = P.movementOnsets([1, 1, 1], 1);
       T.eq('P.movementOnsets([1,1,1],1) → "0"', JSON.stringify(out.length), '0');
+    });
+
+    /* ── §∅ · THE TWO FALLBACKS THAT RESTORED AN EXCLUDED POPULATION (Muse N1-21, N1-22) ──────────
+       Every leg below pins the number the OLD code published, because the audit found no leg pinning
+       any of these cases. I measured each old value on `origin/main` at e7cddc898 through the module
+       itself, and none of them is recalled. The refusals are per ARM, so a leg that reds names which
+       arm moved: the whole-record dispersion, the beat-to-beat pair population, or the SD1/SD2
+       quotient's denominator. */
+    group('PpgDex HRV refuses an excluded population rather than restoring it', 'ppgdex-dsp · absence · known-answer', function (T) {
+      var P = env.PPGDSP || env.PpgDex;
+      if (!P || typeof P.timeDomain !== 'function') {
+        T.skip('PPGDSP available', 'PpgDex not co-loaded in this runner');
+        return;
+      }
+      var out;
+
+      /* N1-21a · `omit` marks intervals that are NOT MEASUREMENTS, because each straddles a time
+         discontinuity. Old: `keep.length < 2` restored all of them, and the record published
+         meanRR 810, sdnn 10, hr 74 and triIdx 3 over one measured interval. */
+      out = P.timeDomain([800, 810, 820], null, [true, true, false]);
+      T.eq('omission leaving one interval refuses the dispersion arm (published meanRR 810 before)', JSON.stringify([out.meanRR, out.sdnn, out.hr, out.triIdx]), '[null,null,null,null]');
+      T.eq('  ... and it names the reason, with the surviving population beside it', JSON.stringify([out.dispersionReason, out.nDispersionIntervals]), '["omit-leaves-under-2-intervals",1]');
+
+      /* N1-21b · no clean adjacent pair. Old: the `cnt < 1` fallback recomputed over every pair and
+         published rmssd 442.8 with pnn50 100 — exactly the population `cleanMask` excluded. */
+      out = P.timeDomain([800, 1200, 790, 1300], [true, false, false, true]);
+      T.eq('no clean adjacent pair refuses the beat-to-beat arm (published rmssd 442.8 before)', JSON.stringify([out.rmssd, out.pnn50, out.lnRMSSD]), '[null,null,null]');
+      T.eq(
+        '  ... while the dispersion arm keeps its own population and says so',
+        JSON.stringify([out.beatPairReason, out.nBeatPairs, out.sdnn, out.nDispersionIntervals]),
+        '["no-clean-adjacent-pair",0,265.9,4]'
+      );
+
+      /* N1-22a · the same fallback in `poincare`. Old: a full ellipse of sd1 47.6, sd2 55.2 and
+         ellArea 8253, drawn entirely from the excluded pairs. */
+      out = P.poincare([700, 810, 790, 805], [true, false, false, true]);
+      T.eq(
+        'poincare refuses when no clean pair survives (drew an 8253 ellipse before)',
+        JSON.stringify(out),
+        '{"sd1":null,"sd2":null,"sd1sd2":null,"ellArea":null,"nPairs":0,"reason":"no-clean-adjacent-pair"}'
+      );
+
+      /* N1-22b · the ratio's denominator, EXACT-ZERO path. A perfectly alternating series drives sd2
+         to zero analytically, and `sd2 || 1` substituted 1 ms: the old object published sd1sd2 81.65
+         beside its own `sd2: 0`. The substituted 1 was never a measurement. */
+      out = P.poincare([700, 800, 700, 800]);
+      T.eq('an exact-zero SD2 refuses the ratio (published 81.65 beside sd2 0 before)', JSON.stringify([out.sd2, out.sd1sd2, out.reason]), '[0,null,"sd2-below-published-precision"]');
+
+      /* N1-22c · the RESIDUE path, which `|| 1` could never catch. sd2 is a difference of two
+         squares, so it lands at 1.3487e-6 rather than at 0, survives the guard, and the quotient
+         explodes. Measured on origin/main: 61266038.35, printed beside `sd2: 0` in one object. */
+      out = P.poincare([812.7, 913.9, 812.7, 913.9]);
+      T.eq('a floating-point residue SD2 refuses the ratio (published 61266038.35 before)', JSON.stringify([out.sd2, out.sd1sd2, out.reason]), '[0,null,"sd2-below-published-precision"]');
+
+      /* THE CONTROLS. A refusal that fires unconditionally measures nothing, so each arm must still
+         publish over input that supports it. */
+      out = P.poincare([700, 725, 735, 765, 775, 805]);
+      T.eq('a real ellipse still publishes its ratio, and names no reason', JSON.stringify([out.sd1, out.sd2, out.sd1sd2, out.reason]), '[7.2,53.3,0.14,null]');
+      out = P.timeDomain([800, 810, 820, 805]);
+      T.eq('an unmasked record still publishes both arms', JSON.stringify([out.dispersionReason, out.beatPairReason]), '[null,null]');
+      out = P.timeDomain([1, 2, 3]);
+      T.eq('  ... and an unmasked [1,2,3] still measures rMSSD 1, so the refusal is conditional', JSON.stringify([out.rmssd, out.beatPairReason]), '[1,null]');
+
+      /* 🔴 THE ROUNDING CONTROL. `r1(null)` is `0`, because `null` coerces to 0 in arithmetic, so a
+         refusal that travels through the old `r1` would arrive at the export as a measured zero. A
+         regression there reds here, and it reds nowhere else. */
+      out = P.timeDomain([800, 1200, 790, 1300], [true, false, false, true]);
+      T.eq('a refused rMSSD rounds to null, never to 0', JSON.stringify(out.rmssd) === '0' ? 'ROUNDED TO ZERO' : JSON.stringify(out.rmssd), 'null');
     });
 
     /* ── INSUFFICIENT INPUT REFUSES; IT DOES NOT REPORT ZERO (Clock Contract §2.6) ──────────────
@@ -92658,12 +92734,22 @@
       T.ok('ANTI-VACUITY · ppgdex-dsp.js source is loaded', typeof Pp === 'string' && Pp.length > 5000, 'len=' + (Pp ? Pp.length : 'absent'));
       if (typeof Pp === 'string') {
         var pc = strip(Pp);
-        T.ok('PpgDex ROUNDS its epoch hr to an integer', /hr:\s*Math\.round\(hr\)/.test(pc), 'expected `hr: Math.round(hr)` in the time-domain return');
+        /* 🔴 RE-AIMED 2026-11-15 — the two source pins below read `hr: Math.round(hr)` and
+           `const hr = 60000 / meanRR;` until the time-domain refusal landed. Both texts now carry a
+           null arm, because an epoch whose clean population falls under two intervals publishes
+           `null` instead of the dispersion of the population the caller excluded. The PRECISION fact
+           and the STATISTIC fact are unchanged, and they are what these legs guard: the rounding is
+           still there, and it is still the rate of the mean interval. Only the text moved. */
+        T.ok(
+          'PpgDex ROUNDS its epoch hr to an integer — and publishes null rather than a rounded fabrication',
+          /hr:\s*hr == null \? null : Math\.round\(hr\)/.test(pc),
+          'expected `hr: hr == null ? null : Math.round(hr)` in the time-domain return'
+        );
         T.ok('…while ECGDex keeps a decimal — the two legs are quantised differently', /\+\(60000\s*\/\s*m\)\.toFixed\(1\)/.test(ec), 'expected `+(60000 / m).toFixed(1)`');
         T.ok(
           'PpgDex uses the SAME statistic as ECGDex (rate-of-mean) — so precision is the only axis it differs on',
-          /const hr = 60000 \/ meanRR;/.test(pc),
-          'if PpgDex switches statistic too, the confound gains a third variant'
+          /const hr = meanRR == null \? null : 60000 \/ meanRR;/.test(pc),
+          'expected `const hr = meanRR == null ? null : 60000 / meanRR;` — if PpgDex switches statistic too, the confound gains a third variant'
         );
       }
     });
