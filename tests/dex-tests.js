@@ -25794,6 +25794,233 @@
       T.eq('N2-3 · a pulseless night scores NO arousal, not a mean of 0 bpm', rollP.postDipHrResponse, null);
     });
 
+    group('§∅ · OxyDex events — a hole is not an event, in the seven event metrics', 'oxydex-dsp · absence', function (T) {
+      var B = env.OxyDex && env.OxyDex._bare;
+      var need = ['computeOxyCrash', 'computeSpO2Percentiles', 'detectODI', 'computeODRI', 'computeSpikeDecay', 'computeRollingMetrics', 'computePBmetrics', 'computeO2HREfficiency'];
+      var absentFn = need.filter(function (k) {
+        return !B || typeof B[k] !== 'function';
+      });
+      if (absentFn.length) {
+        T.ok('OxyDex._bare exposes the eight functions this group reads', false, 'not loaded: ' + absentFn.join(', ') + ' — this group must not read as a pass');
+        return;
+      }
+      /* GROUP G3 of the null-and-zero audit (board #6444, routed by decision #6446 — findings N1-01,
+         N1-02, N1-03, N1-04, N1-08, N1-09 and N1-11). Each leg pins the DEFECT CASE: the input shape
+         that published an event measurement over seconds the device never recorded. Each one carries a
+         measured control on the same shape, because a guard that blanks a real reading is the same
+         defect wearing the other mask. The file's own contract block states which remedy each site
+         needs: a delta across a hole skips the pair, a run across a hole breaks. */
+      var t0 = Date.UTC(2026, 5, 13, 23, 0, 0);
+      var mk = function (count, sFn, hFn) {
+        var out = [];
+        for (var i = 0; i < count; i++) out.push({ tMs: t0 + i * 1000, t: new Date(t0 + i * 1000), spo2: sFn(i), hr: hFn ? hFn(i) : 58, motion: 0, pi: null });
+        return out;
+      };
+      var flat96 = function () {
+        return 96;
+      };
+      var nil = function () {
+        return null;
+      };
+
+      /* N1-01 · `spo2[i - 30] - null` reads as a fall of the whole saturation, so the hole ENTRY
+         scored a crash indistinguishable from the real-crash control below. */
+      var crashHole = B.computeOxyCrash(
+        mk(1200, function (i) {
+          return i >= 600 && i < 720 ? null : 96;
+        })
+      );
+      T.eq('N1-01 · a 120 s hole in a flat night scores no crash', crashHole && crashHole.oxyCrashCount, 0);
+      var crashReal = B.computeOxyCrash(
+        mk(1200, function (i) {
+          return i >= 600 && i < 640 ? 88 : 96;
+        })
+      );
+      T.ok('N1-01 CONTROL · a real 8-point fall still counts', crashReal && crashReal.oxyCrashCount >= 1, 'count = ' + JSON.stringify(crashReal && crashReal.oxyCrashCount));
+      T.eq('N1-01 · an unmeasured column reports no count at all, never 0', B.computeOxyCrash(mk(1200, nil)), null);
+
+      /* N1-02 · `a - b` coerces null to 0, so every hole sorted below every reading: p25 came back as
+         the hole and `spo2IQR` was `p75 - null`, the whole scale. */
+      var pcts = B.computeSpO2Percentiles(
+        mk(1200, function (i) {
+          return i < 400 ? null : 97;
+        })
+      );
+      T.eq('N1-02 · p25 is a measured saturation, not a hole', pcts && pcts.spo2P25, 97);
+      T.eq('N1-02 · and the IQR is the width of the measured distribution', pcts && pcts.spo2IQR, 0);
+      var pctCtl = B.computeSpO2Percentiles(
+        mk(1200, function (i) {
+          return i < 120 ? 88 : 97;
+        })
+      );
+      T.eq('N1-02 CONTROL · a real low tail still reaches p5', pctCtl && pctCtl.spo2P5, 88);
+      T.eq(
+        'N1-02 · under a minute of measured signal there is no distribution to publish',
+        B.computeSpO2Percentiles(
+          mk(1200, function (i) {
+            return i < 1180 ? null : 97;
+          })
+        ),
+        null
+      );
+
+      /* N1-03 · `Math.max(hrs, 0.01)` divided 0 events by a hundredth of an hour, so a column that
+         measured nothing published ODI 0.0/hr — the most reassuring reading there is. */
+      var allNull = [];
+      for (var k = 0; k < 3600; k++) allNull.push(null);
+      var odiNone = B.detectODI(allNull, 4, 0);
+      T.eq('N1-03 · an unmeasured column yields no ODI rate', odiNone && odiNone.rate, null);
+      T.eq('N1-03 · and no event count either', odiNone && odiNone.count, null);
+      var odiSeries = [];
+      for (var m2 = 0; m2 < 3600; m2++) odiSeries.push(m2 % 120 < 15 ? 91 : 96);
+      var odiCtl = B.detectODI(odiSeries, 4, 3600);
+      T.ok('N1-03 CONTROL · a measured column with real desaturations still rates', odiCtl && typeof odiCtl.rate === 'number' && odiCtl.rate > 0, 'rate = ' + JSON.stringify(odiCtl && odiCtl.rate));
+      T.eq('N1-03 · and a refused index does not become a regularity ratio of zero', B.computeODRI({ odi1Rate: 12 }, odiNone), null);
+
+      /* N1-04 · `null <= baseline + 2` is TRUE, so the first hole after the peak read as the recovery
+         second and a pulse that came back 80 s later was labelled "Fast (<60s)". */
+      var mfm300 = 23 * 60 + 300 / 60;
+      var dec = B.computeSpikeDecay(
+        mk(600, flat96, function (i) {
+          if (i >= 300 && i < 310) return 95;
+          if (i >= 310 && i < 380) return null;
+          return 60;
+        }),
+        [{ baseline: 60, peak: 95, mfm: mfm300 }]
+      );
+      T.ok('N1-04 · the decay is measured to a real sample, not to the hole', dec && dec.spikeDecayMeanS >= 60, 'mean = ' + JSON.stringify(dec && dec.spikeDecayMeanS));
+      var decCtl = B.computeSpikeDecay(
+        mk(600, flat96, function (i) {
+          if (i >= 300 && i < 310) return 95;
+          if (i >= 310 && i < 320) return 70;
+          return 60;
+        }),
+        [{ baseline: 60, peak: 95, mfm: mfm300 }]
+      );
+      T.ok('N1-04 CONTROL · a real fast recovery is still fast', decCtl && decCtl.spikeDecayMeanS < 60, 'mean = ' + JSON.stringify(decCtl && decCtl.spikeDecayMeanS));
+
+      /* N1-08 · the emptiest window was the worst window: a 30-minute hole published `worst10` near a
+         saturation of zero, `worst30minT95` at 100 % and a stable-window count that scored the hole. */
+      var roll = B.computeRollingMetrics(
+        mk(3600, function (i) {
+          return i >= 1000 && i < 2800 ? null : 96;
+        }),
+        null,
+        null,
+        null,
+        null
+      );
+      T.ok('N1-08 · worst10 is a measured saturation', roll && roll.worst10minSpo2 >= 95, 'worst10 = ' + JSON.stringify(roll && roll.worst10minSpo2));
+      T.eq('N1-08 · the worst 30-min T95 share counts measured seconds only', roll && roll.worst30minT95, 0);
+      var rollNone = B.computeRollingMetrics(mk(3600, nil, nil), null, null, null, null);
+      T.eq('N1-08 · an unmeasured night withholds worst10', rollNone && rollNone.worst10minSpo2, null);
+      T.eq('N1-08 · and withholds the stable-window count rather than reporting none', rollNone && rollNone.spo2StableWindows, null);
+      var rollCtl = B.computeRollingMetrics(
+        mk(3600, function (i) {
+          return i >= 1000 && i < 2800 ? 88 : 96;
+        }),
+        null,
+        null,
+        null,
+        null
+      );
+      T.ok('N1-08 CONTROL · a real 30-minute desaturation is still the worst window', rollCtl && rollCtl.worst10minSpo2 <= 89, 'worst10 = ' + JSON.stringify(rollCtl && rollCtl.worst10minSpo2));
+      T.ok('N1-08 CONTROL · and it still fills the worst T95 window', rollCtl && rollCtl.worst30minT95 >= 90, 'T95 = ' + JSON.stringify(rollCtl && rollCtl.worst30minT95));
+      T.ok('N1-08 CONTROL · a measured night still counts its stable windows', rollCtl && rollCtl.spo2StableWindows > 0, 'stable = ' + JSON.stringify(rollCtl && rollCtl.spo2StableWindows));
+
+      /* MY OWN CONTROL FOUND TWO MORE COERCIONS IN THE SAME FUNCTION, outside N1-08's three. A
+         deceleration RUN extended across a 1000 s pulse hole and closed as a qualifying descent,
+         because `null < hr[i - 1]` is TRUE and `decelStartHR - null` is the whole heart rate. And the
+         30-second decoupling pair spanned a hole, where the SIGN it reads came from a second nobody
+         recorded. A run BREAKS at a hole (the owner's 2026-09-17 ruling); a pair is skipped. */
+      var decel = B.computeRollingMetrics(
+        mk(3600, flat96, function (i) {
+          return i >= 1000 && i < 2000 ? null : 58;
+        }),
+        null,
+        null,
+        null,
+        null
+      );
+      T.eq('a 1000 s pulse hole is no deceleration run', decel && decel.hrDecelRuns, 0);
+      var decoup = B.computeRollingMetrics(
+        mk(
+          3600,
+          function (i) {
+            return i >= 1000 && i < 2000 ? null : 96;
+          },
+          function (i) {
+            return 58 + (i % 7);
+          }
+        ),
+        null,
+        null,
+        null,
+        null
+      );
+      T.eq('and no decoupling share is read out of a hole', decoup && decoup.spo2HrDecouplingPct, null);
+      var decelCtl = B.computeRollingMetrics(
+        mk(3600, flat96, function (i) {
+          /* 39 STRICTLY decreasing seconds. An equal pair breaks the run as surely as a hole does,
+             so a ramp that repeats each value never reaches the 30-sample floor. */
+          return i >= 1000 && i < 1040 ? 90 - (i - 1000) : 58;
+        }),
+        null,
+        null,
+        null,
+        null
+      );
+      T.ok('CONTROL · a real sustained deceleration is still a run', decelCtl && decelCtl.hrDecelRuns >= 1, 'runs = ' + JSON.stringify(decelCtl && decelCtl.hrDecelRuns));
+
+      /* N1-09 · one hole took a window the device spent at 96 % and read it as an oscillating window,
+         with an amplitude of the whole saturation and a cycle nobody recorded. */
+      var pb = B.computePBmetrics(
+        mk(600, function (i) {
+          return i >= 100 && i < 160 ? null : 96;
+        }),
+        { episodeCount: 2 }
+      );
+      T.eq('N1-09 · a flat 96 % window with a hole has no PB amplitude', pb && pb.pbAmplitude, null);
+      T.eq('N1-09 · and invents no cycle length', pb && pb.pbCycleLen, null);
+      var pbCtl = B.computePBmetrics(
+        mk(600, function (i) {
+          return i % 40 < 20 ? 88 : 97;
+        }),
+        { episodeCount: 2 }
+      );
+      T.ok('N1-09 CONTROL · a real oscillation still measures its amplitude', pbCtl && pbCtl.pbAmplitude >= 8, 'amplitude = ' + JSON.stringify(pbCtl && pbCtl.pbAmplitude));
+      T.ok('N1-09 CONTROL · and its cycle length', pbCtl && pbCtl.pbCycleLen != null && pbCtl.pbCycleLen > 0, 'cycle = ' + JSON.stringify(pbCtl && pbCtl.pbCycleLen));
+
+      /* N1-11 · an absent pre-window summed as a pulse of zero, so the rise was the whole heart rate
+         and the ratio came out sevenfold — the audit measured 14 against 2. */
+      var effHole = B.computeO2HREfficiency(
+        mk(600, flat96, function (i) {
+          if (i >= 290 && i < 300) return null;
+          if (i >= 305 && i < 335) return 68;
+          return 60;
+        }),
+        { events: [{ depth: 4, nadirIdx: 300 }] }
+      );
+      T.eq('N1-11 · an event with no measured pre-window is not scored', effHole, null);
+      var effCtl = B.computeO2HREfficiency(
+        mk(600, flat96, function (i) {
+          if (i >= 305 && i < 335) return 68;
+          return 60;
+        }),
+        { events: [{ depth: 4, nadirIdx: 300 }] }
+      );
+      T.eq('N1-11 CONTROL · a measured pair still scores its ratio', effCtl && effCtl.o2hrEff, 2);
+      var effHalf = B.computeO2HREfficiency(
+        mk(600, flat96, function (i) {
+          if (i >= 290 && i < 295) return null;
+          if (i >= 305 && i < 335) return 68;
+          return 60;
+        }),
+        { events: [{ depth: 4, nadirIdx: 300 }] }
+      );
+      T.eq('N1-11 · five measured seconds of the pre-window give the measured ratio, not an inflated one', effHalf && effHalf.o2hrEff, 2);
+    });
+
     group('§∅ · OxyDex — a hole is not a reading, in all thirteen consumers', 'oxydex-dsp · absence', function (T) {
       var B = env.OxyDex && env.OxyDex._bare;
       if (!B) {
