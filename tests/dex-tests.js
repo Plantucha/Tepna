@@ -42267,6 +42267,13 @@
         );
         out = G.pearson([1, 2, 3], [4, 5, 6]);
         T.eq('G.pearson([1,2,3],[4,5,6]) → "1"', JSON.stringify(out), '1');
+        /* Three refusals no assertion held (Shrike mutants G1, G2 and G4, 2026-11-15). Each assertion tests `=== null`,
+           because `JSON.stringify(NaN)` also prints null and so cannot tell a refusal from a 0/0. */
+        T.eq('G.pearson over 2 pairs → null, never a two-point ±1', JSON.stringify(G.pearson([1, 2], [3, 5]) === null), 'true');
+        T.eq('G.pearson with a constant x series → null, never NaN', JSON.stringify(G.pearson([1, 1, 1], [1, 2, 3]) === null), 'true');
+        T.eq('G.pearson with a constant y series → null, never NaN', JSON.stringify(G.pearson([1, 2, 3], [4, 4, 4]) === null), 'true');
+        T.eq('G._mage over 3 readings → null (the four-reading floor)', JSON.stringify(G._mage([100, 200, 100], 10) === null), 'true');
+        T.eq('CONTROL: G._mage over 4 readings measures the excursions', JSON.stringify(G._mage([100, 200, 100, 200], 10)), '100');
 
         /* ── ROUND 2 (2026-08-25 bank) — 10 of 11 candidates adopted (the 11th was MANUAL-truncated).
          The seven `|| null` field pins below are the highest-value drafts in the whole bank: each
