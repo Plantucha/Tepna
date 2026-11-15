@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**349 tools** · 348 with a purpose line · **1 without**
+**351 tools** · 350 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -142,6 +142,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`live-surface-audit.mjs`](../tools/live-surface-audit.mjs) | THE GATE JUDGES THE BUNDLE; THIS READS THE BYTES THE HOST SERVES. |
 | [`lomb-share-profile.mjs`](../tools/lomb-share-profile.mjs) | `lombScargle`'s SHARE of a real ECGDex and PpgDex `compute()`, measured on the PRODUCT PATH. |
 | [`make-synthetic-edf.mjs`](../tools/make-synthetic-edf.mjs) | emit a DETERMINISTIC, SYNTHETIC ResMed EDF file set. WHY THIS EXISTS. |
+| [`make-synthetic-eeg-edf.mjs`](../tools/make-synthetic-eeg-edf.mjs) | emit a DETERMINISTIC, SYNTHETIC single-channel EEG EDF. WHY THIS EXISTS. |
 | [`make-synthetic-inputs.mjs`](../tools/make-synthetic-inputs.mjs) | a COMMITTABLE vendor-format input for every node. WHY. The suite's strongest correctness gate — Phase-9 `compute() ≡ committed export` — DOES NOT RUN IN CI. |
 | [`measurement-emitter-perf-oxydex.mjs`](../tools/measurement-emitter-perf-oxydex.mjs) | MEASUREMENT-PROVENANCE-ROADMAP §10 for the OXYDEX emitter and the Integrator adapter — runtime, peak memory, export size, against bands written BEFORE the run. |
 | [`measurement-walk.mjs`](../tools/measurement-walk.mjs) | WALK A MEASUREMENT BACK TO ITS RAW INPUT — the roadmap §3 backward walk-through, as a check. |
@@ -260,6 +261,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`rebase-safe.mjs`](../tools/rebase-safe.mjs) | REBASE ONTO origin/main WITHOUT SILENTLY REVERTING SOURCE. WHY THIS EXISTS. |
 | [`regen-cpap-goldens.mjs`](../tools/regen-cpap-goldens.mjs) | Regenerate CPAPDex's committed node-export fixtures by RE-RUNNING THE REAL MODULES on their committed inputs and re-exporting — never by hand-editing a value (CLAUDE.md §🔏). |
 | [`regen-ecgdex-goldens.mjs`](../tools/regen-ecgdex-goldens.mjs) | Regenerate ECGDex's committed node-export fixtures by RE-RUNNING THE REAL MODULES on their committed inputs and re-exporting — never by hand-editing a value (CLAUDE.md §🔏). |
+| [`regen-eegdex-goldens.mjs`](../tools/regen-eegdex-goldens.mjs) | Regenerate EEGDex's committed node-export fixture by RE-RUNNING THE REAL MODULES on the committed input and re-exporting — never by hand-editing a value (CLAUDE.md §🔏). |
 | [`regen-glucodex-goldens.mjs`](../tools/regen-glucodex-goldens.mjs) | Regenerate GlucoDex's committed node-export fixtures by RE-RUNNING THE REAL MODULES on their committed inputs and re-exporting — never by hand-editing a value (CLAUDE.md §🔏). |
 | [`regen-goldens-core.mjs`](../tools/regen-goldens-core.mjs) | Shared scaffolding for the per-node golden regenerators (CPAP-REAL-CORPUS-FOLLOWUPS-III §3). |
 | [`regen-goldens.mjs`](../tools/regen-goldens.mjs) | Unified entry for the per-node golden regenerators (CPAP-REAL-CORPUS-FOLLOWUPS-III §3). |
