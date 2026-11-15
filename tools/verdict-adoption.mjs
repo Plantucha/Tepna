@@ -67,6 +67,7 @@ import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { writeRootOrDie } from './write-root.mjs';
 import { isCliEntry } from './argv-guard.mjs';
 import { CLS_CODE, blankComments, classify } from './js-lex.mjs';
 import { declaresSelftest } from './selftest-all.mjs';
@@ -2426,7 +2427,13 @@ function selftest() {
 
 function main() {
   if (has('--selftest')) return selftest();
-  const text = fs.existsSync(MANIFEST) ? fs.readFileSync(MANIFEST, 'utf8') : null;
+  /* WHICH CHECKOUT'S MANIFEST. `--format` REWRITES this tracked file, so a run launched by absolute
+     path from a worktree would rewrite the shared root's copy and leave the worktree unchanged — row
+     2026-11-02-a-tool-run-by-absolute-path-writes-into-its-own-checkout. `writeRootOrDie` refuses a
+     disagreement and names both trees, so `MANIFEST` and this path agree on every run that proceeds.
+     Every selftest and library read keeps `MANIFEST`, because reading a peer checkout is legitimate. */
+  const manifestPath = path.join(writeRootOrDie(import.meta.url), 'tools', 'verdict-adoption.json');
+  const text = fs.existsSync(manifestPath) ? fs.readFileSync(manifestPath, 'utf8') : null;
   if (has('--format')) {
     if (text === null) {
       console.log('verdict-adoption: --format found no tools/verdict-adoption.json to rewrite');
@@ -2435,7 +2442,7 @@ function main() {
     const want = canonicalText(JSON.parse(text));
     if (want === text) console.log('verdict-adoption: tools/verdict-adoption.json is already canonical');
     else {
-      fs.writeFileSync(MANIFEST, want);
+      fs.writeFileSync(manifestPath, want);
       console.log('verdict-adoption: rewrote tools/verdict-adoption.json in the canonical form; review `git diff` before you commit');
     }
     return;

@@ -38,11 +38,23 @@ import { spawn, spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 import { escapeRe } from './regex-escape-core.mjs';
+import { writeRootOrDie } from './write-root.mjs';
 
-const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+/* THIS tool's own checkout, which is NOT necessarily the one a run was asked to stamp. A READ of a
+   sibling module is legitimate from anywhere, so the `require` below keeps this root; the five
+   TRACKED writes below use the root resolved from the directory the run was launched in. See
+   `tools/write-root.mjs` and residue
+   2026-11-02-a-tool-run-by-absolute-path-writes-into-its-own-checkout. */
+const SELF_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+/* The checkout this run stamps. The dispatch at the foot of this file calls `writeRootOrDie` on the
+   two branches that WRITE, so from there on this equals the tree the caller stands in and every `p()`
+   write lands in it. A `--status` report reads a state file and writes no tracked artifact, so it runs
+   from anywhere, including a directory in no checkout. `release-land.mjs` runs the stamp step as a
+   RELATIVE path under the worktree's own cwd, so both legitimate call sites already agree. */
+let ROOT = SELF_ROOT;
 const require = createRequire(import.meta.url);
 // P3 — the per-app manifestHash snapshot comes from the reassembled provenance/ fragments.
-const ProvenanceLedger = require(join(ROOT, 'provenance-ledger.js'));
+const ProvenanceLedger = require(join(SELF_ROOT, 'provenance-ledger.js'));
 const args = process.argv.slice(2);
 /* REFUSE AN UNKNOWN TOKEN BEFORE THE STAMP RUNS. This tool imported `isCliEntry` alone and read its
    flags with `args.includes`, so a token nobody looks up was indistinguishable from an absent one and
@@ -397,7 +409,18 @@ function main() {
    `device-stability.mjs` was found unimportable for the sibling reason: of 143 `tools/*.mjs`, 48
    guarded, 90 have no entry point at all, and a handful executed on import. */
 if (isCliEntry(import.meta.url)) {
+  /* REFUSE A CHECKOUT NOBODY ASKED FOR, on the two branches that write. The stamp bumps
+     `suite.manifest.json`, appends `RELEASE-MANIFEST.json`, rewrites `CHANGELOG.md` and `README.md`
+     and UNLINKS every consumed changeset, and `--full` hands that same chain to `release-land.mjs`
+     under this `ROOT`. A run launched by absolute path from a worktree wrote all of it into the tool's
+     own checkout — row 2026-11-02-a-tool-run-by-absolute-path-writes-into-its-own-checkout.
+     `--status` and `--resume` forward to `release-land.mjs`, which guards its own writes. */
   if (DELEGATED) delegateToLand();
-  else if (FULL) launchFull();
-  else main();
+  else if (FULL) {
+    ROOT = writeRootOrDie(import.meta.url);
+    launchFull();
+  } else {
+    ROOT = writeRootOrDie(import.meta.url);
+    main();
+  }
 }
