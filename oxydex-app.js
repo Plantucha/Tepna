@@ -298,8 +298,10 @@ function exportCSV() {
       lines.push('Spike ' + (i + 1) + ',' + csvSafe(sp.time) + ',' + csvNum(sp.baseline) + ',' + csvNum(sp.peak) + ',' + csvNum(_rise) + ',' + csvNum(sp.duration) + ',' + csvNum(sp.spo2));
     });
     if (n.period) lines.push('HR Periodicity,' + n.period.pattern + ' avg ' + n.period.avg + 'min');
-    if (n.osc) lines.push('Oscillation Windows (5min),' + n.osc.episodeCount);
-    if (n.osc) lines.push('Total Crossings (burden),' + (n.osc.totalCrossings || 0));
+    /* §∅ — `csvNum` blanks an absent count and prints a measured 0 unchanged; `|| 0` could not tell
+       the two apart, and these counts are null when the SpO2 channel reported nothing. */
+    if (n.osc) lines.push('Oscillation Windows (5min),' + csvNum(n.osc.episodeCount));
+    if (n.osc) lines.push('Total Crossings (burden),' + csvNum(n.osc.totalCrossings));
     lines.push(
       '',
       'FLAGS,' +
@@ -599,7 +601,9 @@ function exportCSV() {
       lines.push('  Desaturation Asymmetry,' + n.desatAsym.desatAsym, '  Asym Label,' + n.desatAsym.asymLabel);
     }
     lines.push('', 'HYPOXIC BURDEN', 'Total (%-min),' + (n.hb && n.hb.total != null ? n.hb.total : ''), 'Rate (%-min/hr),' + (n.hb && n.hb.rate != null ? n.hb.rate : ''));
-    lines.push('', 'SLEEP STABILITY', 'Score (0-100),' + (n.stab ? n.stab.score : ''), 'Grade,' + (n.stab ? n.stab.grade : ''));
+    /* §∅ — the score is null when no component was measured, so the cell stays blank rather than
+       carrying the word "null" into a reader's spreadsheet. */
+    lines.push('', 'SLEEP STABILITY', 'Score (0-100),' + (n.stab ? csvNum(n.stab.score) : ''), 'Grade,' + (n.stab && n.stab.grade ? n.stab.grade : ''));
     // Stability component subscores (same as JSONL)
     if (n.stab && n.stab.components) {
       var c = n.stab.components;
@@ -639,9 +643,9 @@ function exportCSV() {
     lines.push(
       '',
       'OSCILLATION DETAIL',
-      '  Episode Count,' + (n.osc ? n.osc.episodeCount : ''),
-      '  Peak Crossings (max/window),' + (n.osc ? n.osc.peakCrossings || 0 : ''),
-      '  Total Crossings (burden),' + (n.osc ? n.osc.totalCrossings || 0 : ''),
+      '  Episode Count,' + (n.osc ? csvNum(n.osc.episodeCount) : ''),
+      '  Peak Crossings (max/window),' + (n.osc ? csvNum(n.osc.peakCrossings) : ''),
+      '  Total Crossings (burden),' + (n.osc ? csvNum(n.osc.totalCrossings) : ''),
       '  First Episode,' + (n.osc ? n.osc.first || '' : ''),
       '  Last Episode,' + (n.osc ? n.osc.last || '' : '')
     );
