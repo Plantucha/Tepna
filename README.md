@@ -69,7 +69,7 @@ the always-on, one-clock upgrade, not the entry fee.
 | **GlucoDex** | CGM | exports | Time in Range · GMI | [reference](GlucoDex%20Reference.html) |
 | **CPAPDex** | CPAP therapy | ResMed EDF | pressure · leak · respiratory events · breath rate | [reference](CPAPDex%20Reference.html) |
 | **MotionDex** | IMU | Polar Verity Sense · H10 | body position · actigraphy · motion quality | [reference](MotionDex%20Reference.html) |
-| **EEGDex** | EEG | Muse | *planned* | — |
+| **EEGDex** | raw EEG | Muse | band powers · hypnogram · sleep architecture | [reference](EEGDex%20Reference.html) |
 
 Each app writes a `ganglior.node-export` JSON. The **Integrator** fuses them; the **Data Unifier**
 routes single dropped files to the right app; **OverDex** does the same for a whole folder.

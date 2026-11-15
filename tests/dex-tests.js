@@ -278,8 +278,8 @@
     return r.status === wanted;
   }
 
-  /* THE NINE REFERENCE GUIDES ARE THE POPULATION EVERY GUIDE LANE SCANS — eight authored at the repo
-     root, plus the generated EEGDex one. Both producers declare this same roster: `readDocs()` in
+  /* THE NINE REFERENCE GUIDES ARE THE POPULATION EVERY GUIDE LANE SCANS — all nine authored at the
+     repo root since 2026-11-15, when EEGDex left the generated scaffold path. Both producers declare this same roster: `readDocs()` in
      tests/run-tests.mjs and the docs fetch in Dex-Test-Suite.html. Each records an unreadable guide
      as `null`, so a lost guide stays in the key set and gets NAMED here.
      Measured 2026-11-09: three guide lanes carried anti-vacuity floors of 7, 6 and 7 over this
@@ -26389,7 +26389,8 @@
         // EEGDex: a GENERATED node (codegen/dex-gen.js + dex-registry-gen.js from ONE manifest).
         // Wired in to prove the manifest→registry→guide single-source: the guide's ev-corner
         // grades, joined via the GENERATED EegRegistry.idForLabel, must equal the GENERATED
-        // EEG_REGISTRY. Forward-first — EEGDex is a planned scaffold, not a shipped node.
+        // EEG_REGISTRY. The guide is AUTHORED at the repo root since 2026-11-15, and its cards and
+        // grades still come from that one manifest through dex-gen.js.
         { doc: 'EEGDex Reference.html', reg: env.EEG_REGISTRY, resolver: env.EegRegistry }
       ];
       var allowed = { 'ev-corner': 1, 'ev-measured': 1, 'ev-validated': 1, 'ev-emerging': 1, 'ev-experimental': 1, 'ev-heuristic': 1, 'ev-legend': 1, 'ev-legend-strip': 1, 'ev-sep': 1, 'ev-ink': 1 };
@@ -29687,7 +29688,7 @@
 
       var guide = env.docs && env.docs['EEGDex Reference.html'];
       if (!guide) {
-        T.skip('generated EEGDex guide available', 'codegen/generated/eegdex-reference.html not in env.docs');
+        T.skip('generated EEGDex guide available', 'EEGDex Reference.html not in env.docs');
         return;
       }
 

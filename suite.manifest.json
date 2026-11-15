@@ -93,10 +93,8 @@
       "signal": "EEG",
       "device": "Muse",
       "app": "EEGDex.html",
-      "guide": null,
-      "summary": "Raw EEG.",
-      "planned": true,
-      "deploy": false
+      "guide": "EEGDex Reference.html",
+      "summary": "Raw EEG \u2192 band powers, hypnogram, sleep architecture."
     }
   ],
   "fusion": [

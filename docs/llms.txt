@@ -13,6 +13,7 @@ Repository: https://github.com/Plantucha/Tepna · License: Apache-2.0 · Author:
 - [GlucoDex](https://tepna.net/GlucoDex%20Reference.html): CGM — Continuous glucose → Time in Range, GMI.
 - [CPAPDex](https://tepna.net/CPAPDex%20Reference.html): CPAP therapy — EDF therapy data → pressure, leak, respiratory events.
 - [MotionDex](https://tepna.net/MotionDex%20Reference.html): IMU — Raw IMU → body position, actigraphy, motion quality.
+- [EEGDex](https://tepna.net/EEGDex%20Reference.html): EEG — Raw EEG → band powers, hypnogram, sleep architecture.
 
 ## Overview
 - [Science](https://tepna.net/Science.html)
