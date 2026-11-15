@@ -1720,6 +1720,18 @@
    },
    "note": "every key the Integrator's fusion emits declares a SURFACE (card | export-only) in tools/integrator-surface.json; criterion undeclared_or_unrendered_card_keys lte 0. Measured 2026-10-11: 25 keys, 14 card, 11 export-only, 0 undeclared. \u26a0\ufe0f The seed was derived from a render scan, so the first PASS is true by construction (the generator-compared-to-itself shape); what it detects is DRIFT \u2014 a new undeclared key, or a card key whose render mention is deleted \u2014 and both are planted in --selftest. It reads SOURCE, not uploads/, because a fixture scan finds one fixture in a worktree and in CI."
   },
+  "tools/judge-targets.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/judge-targets.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "THE JUDGE-ARM CENSUS BEHIND THE READINGS (brief WRITE-ROOT-ADOPTION \u00a76.4): it states, per named judge tool, WHICH tree the tool hands its child and WHAT the child asks of that tree, over comment-blanked source. A probe over all 53 named judge tools (2026-11-15) found 52 of them pass a root they resolved from import.meta.url, so the shape alone separates nothing and the pair is the discriminator. The criterion is a CONTROL read one direction only: no tool with an adopted row may still hold a proven unguarded own-root child cwd. An abstaining adopted row is EXCLUDED with its own sentence rather than read as agreement. It examines nothing about a gate that judges a tree through a library call or a shell string it assembles elsewhere, which reads as no-site."
+  },
   "tools/known-clock-recovery.mjs": {
    "bin": "word-only",
    "status": "exempt",

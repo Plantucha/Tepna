@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**352 tools** · 351 with a purpose line · **1 without**
+**353 tools** · 352 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -136,6 +136,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`integrator-contributions.mjs`](../tools/integrator-contributions.mjs) | THE GATE HARNESS for the Integrator's attribution block — VERDICT-CONTRIBUTIONS-2026-10-04 §2's Integrator row (`integrator-dsp.js`, `leave-one-out over nodes`). |
 | [`integrator-surface-gate.mjs`](../tools/integrator-surface-gate.mjs) | every Integrator key declares its surface node tools/integrator-surface-gate.mjs # gate node tools/integrator-surface-gate.mjs --json # verdict only node tools/integrator-surface-gate.mjs… |
 | [`js-lex.mjs`](../tools/js-lex.mjs) | THE ONE REGEX-AWARE JS LEXER, shared by the tools that need to tell code from prose. |
+| [`judge-targets.mjs`](../tools/judge-targets.mjs) | WHICH TREE EACH PENDING JUDGE ACTUALLY HANDS ITS CHILD. WHY. |
 | [`killcheck.mjs`](../tools/killcheck.mjs) | DID THE TEST I JUST WROTE ACTUALLY KILL ANYTHING? — measured, per function, in parallel. |
 | [`known-clock-recovery.mjs`](../tools/known-clock-recovery.mjs) | known-clock-recovery — inject a KNOWN clock defect, run the production estimator, measure what comes back. |
 | [`land-pr.mjs`](../tools/land-pr.mjs) | LAND A PR WITHOUT HAND-POLLING — and without any of the four traps that make hand-polling lie. |
