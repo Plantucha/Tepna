@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**351 tools** · 350 with a purpose line · **1 without**
+**352 tools** · 351 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -359,6 +359,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`workflow-timeout-guard.mjs`](../tools/workflow-timeout-guard.mjs) | EVERY WORKFLOW JOB DECLARES `timeout-minutes`. Without one a job inherits GitHub's 360-minute default, so a hung step burns six hours of the concurrency pool before anything notices. |
 | [`write-root-adoption.mjs`](../tools/write-root-adoption.mjs) | the adopted write-root and judge-root sets, named node tools/write-root-adoption.mjs --check # the gate node tools/write-root-adoption.mjs --census # the measured sets, deciding nothing… |
 | [`write-root.mjs`](../tools/write-root.mjs) | A TOOL'S OWN LOCATION IS NOT THE CHECKOUT IT WAS ASKED TO WRITE. |
+| [`write-targets.mjs`](../tools/write-targets.mjs) | WHERE EACH PENDING WRITER ACTUALLY BUILDS ITS PATH. WHY. `briefs/WRITE-ROOT-ADOPTION-2026-11-03-BRIEF.md` §3 refuses a blanket conversion: "each of the remaining 55 writers needs one… |
 | [`wt-done.mjs`](../tools/wt-done.mjs) | CLOSE THE WORKTREE LOOP. `git worktree add` is cheap and correct, and the REMOVAL is the half that gets skipped — the PR merging feels like the end of the work-unit, and it is not. |
 | [`xerj-bench.mjs`](../tools/xerj-bench.mjs) | xerj-bench — score bge-alone vs hybrid vs xerj-BM25 on REAL past Rule-0 queries. |
 | [`xerj-load.mjs`](../tools/xerj-load.mjs) | xerj-load — write doc-search's EXISTING chunks and cached bge-m3 vectors into a xerj index carrying a `dense_vector` mapping, so one engine can serve BM25 + kNN + hybrid in one request. |

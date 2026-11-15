@@ -66,7 +66,9 @@ NODES: dict[str, tuple[tuple[Pattern, ...], Pattern | None]] = {
     # it is dropped without a word, measured 2026-09-20). The box holds neither, so like the
     # Integrator its cell is the raw input that reaches it through ECGDex. Unlike the Integrator, it is not a click.
     "HRVDex": (("Polar_H10_*_HR.txt", "Polar_H10_*_RR.txt", "Polar_VeritySense_*_PPI.txt"), "Polar_H10_*_RR.txt"),
-    "EEGDex": ((), None),  # no Muse on the box
+    # The Muse S Athena raw frame file (capture.run_muse_athena). Its RUNS and SEAMS sidecars end in
+    # `RAWRUNS` / `RAWSEAMS`, so this glob takes the frame file alone. No Muse file: the cell stays None.
+    "EEGDex": (("Muse_*_RAW.txt",), "Muse_*_RAW.txt"),
     # The Integrator ingests NODE EXPORTS (ganglior.node-export JSON), which the box does not hold. Its
     # cell is the raw input a fold takes, and the monitor's click opens OverDex with those files: OverDex
     # runs each analyzer in the browser and fuses the exports with the Integrator's engine.
@@ -81,7 +83,9 @@ NODES: dict[str, tuple[tuple[Pattern, ...], Pattern | None]] = {
         "Polar_VeritySense_*_PPG.txt",
     ),
 }
-NOT_LOADABLE = frozenset({"HRVDex"})
+# EEGDex: the Muse raw frame file has no parser in the app yet (unit museparse), so a click would load
+# nothing. Drop it from this set in the PR that ships the parser.
+NOT_LOADABLE = frozenset({"HRVDex", "EEGDex"})
 # derived tools: eligible when every required input exists; they open with those inputs loaded
 DERIVED: dict[str, tuple[str, ...]] = {
     # the hat's O2Ring corner is the ring's PULSE from its _SPO2.csv (sensor-trio-power-analysis.js role `o2`), not the

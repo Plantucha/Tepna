@@ -61,6 +61,16 @@
  *   node tools/repo-map.mjs --selftest
  * ────────────────────────────────────────────────────────────────────────────────────────── */
 
+// THE WRITE-ROOT READING (brief WRITE-ROOT-ADOPTION-2026-11-03 §3, adopted 2026-11-15). `--write`
+// puts the shared map in the git common dir of ONE checkout, and `doc-search` reads that file and
+// never rebuilds it. Run by absolute path from another checkout, the old `root = ROOT` default
+// refreshed the map of the tree this tool LIVES in, at exit 0, while the caller's own tree kept
+// answering from a stale map — residue
+// `2026-11-02-a-tool-run-by-absolute-path-writes-into-its-own-checkout`. So the `--write` branch
+// resolves the checkout through `writeRootOrDie`, which refuses two trees that disagree rather than
+// choosing one. The guard sits on that branch alone: every read keeps its own `import.meta.url`
+// reach, and `writeMap` keeps its injected `root` so the selftest still writes under `mkdtemp`.
+
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
@@ -69,6 +79,7 @@ import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { refuseUnknownArgvOrExit, isCliEntry } from './argv-guard.mjs';
 import { resolveStatePath, sharedStatePath } from './mutation-map.mjs';
+import { writeRootOrDie } from './write-root.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -767,7 +778,7 @@ if (isCliEntry(import.meta.url)) {
   const map = buildMap();
   if (argv.includes('--write')) {
     const compact = compactMap(map);
-    const where = writeMap(compact, {});
+    const where = writeMap(compact, { root: writeRootOrDie(import.meta.url) });
     const t = map.totals;
     console.log(`wrote ${where}`);
     console.log(`  ${t.files} file(s) · ${t.functions} function(s) · ${t.exports} export(s) · ${t.unparsed} with symbols: null (NOT zero)`);
