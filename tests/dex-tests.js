@@ -30053,10 +30053,32 @@
       T.eq('the export declares the bus schema and the node', JSON.stringify([ex.schema.name, ex.schema.node, ex.schema.bus]), JSON.stringify(['ganglior.node-export', 'EEGDex', 'ganglior']));
       /* §🔒.6 — `startEpochMs` is the floating t0 and `t` is a date-less wall-clock string. The five
          authored blocks run in order, so the night is five runs and the export is five events. */
+      /* The six keys that describe the INPUT are pinned whole. `recording.timing` is the shared block
+         every node-export carries (`dex-export.js timingBlock`), and its twelve keys, its vocabulary
+         and its null discipline are gated for all ten nodes at once by the export-parity group. So
+         this group pins that the block is REACHED and what it says, never its sentence byte for byte. */
+      var recNoTiming = {};
+      Object.keys(ex.recording).forEach(function (k) {
+        if (k !== 'timing') recNoTiming[k] = ex.recording[k];
+      });
       T.eq(
         'the recording block',
-        JSON.stringify(ex.recording),
+        JSON.stringify(recNoTiming),
         JSON.stringify({ source: 'synthetic', startEpochMs: 1767308400000, offsetMin: null, durSec: 1800, sampleRateHz: 100, channel: 'SYNTH-C4' })
+      );
+      /* An EDF header and a synthetic frame each carry one clock and no host stamp column, so this node
+         reaches the shared builder with no axis and publishes a device-only timebase. A `null` block here
+         is a load-order bug: `dex-export.js` is inlined in EEGDex.html and co-loaded in this realm. */
+      T.eq('the shared timing block is reached, and the timebase is device-only', ex.recording.timing && ex.recording.timing.timingSource, 'device-only');
+      T.ok(
+        '\u2205 …and it names the clock it has not got rather than publishing a zero',
+        !!ex.recording.timing && typeof ex.recording.timing.reason === 'string' && /no host stamp column/.test(ex.recording.timing.reason),
+        String(ex.recording.timing && ex.recording.timing.reason)
+      );
+      T.eq(
+        '\u2205 …and the three counts this node never takes are null, never 0',
+        JSON.stringify([ex.recording.timing.anchors, ex.recording.timing.resyncs, ex.recording.timing.seams]),
+        JSON.stringify([null, null, null])
       );
       T.eq(
         'one event per transition, in wall-clock order',
@@ -75054,7 +75076,7 @@
      PulseDex/HRVDex export shapes carry schema.generated (a per-run timestamp) + kernel +
      provenance — all volatile, so EXCL strips `generated` too (added for VI §1; OxyDex's
      night element has no such keys, so it is unaffected). */
-    group('Phase-9 compute() ≡ committed export — equivalence gate', 'oxydex-dsp · pulsedex-dsp · hrvdex-dsp · glucodex-dsp · ecgdex-dsp · co-load · equivalence', function (T) {
+    group('Phase-9 compute() ≡ committed export — equivalence gate', 'oxydex-dsp · pulsedex-dsp · hrvdex-dsp · glucodex-dsp · ecgdex-dsp · eegdex-dsp · co-load · equivalence', function (T) {
       var EQ = env.equiv || {};
       // Excluded key NAMES (anywhere in the tree): non-computed metadata the headless path
       // leaves null/volatile + the FIXTURE-PROVENANCE profile-coupled strip-list. Matches the §3 diff.
@@ -75213,6 +75235,29 @@
           node: env.MotionDex,
           run: function (n, input) {
             return n.buildNodeExport(n.compute({ acc: input, chestAcc: input }));
+          },
+          pick: function (res) {
+            return res;
+          },
+          fixPick: function (fx) {
+            return fx;
+          }
+        },
+        /* EEGDex (2026-11-15): a COMMITTED single-channel EEG EDF →
+           buildNodeExport(compute(ingestEDF(bytes))) ≡ the committed golden. Until this leg EEGDex held
+           NO equivalence case and NO ledger fixture, so nothing pinned its compute path but the
+           in-suite groups — assertions that move with the code they judge. It is also the first gated
+           input that reaches `ingestEDF` at all: the EDF header clock, the int16 record decode, the
+           physical scaling and the channel pick out of the header.
+           `edf` is passed EXPLICITLY. The DSP's default reads a `global.CpapEdf` that neither realm
+           declares, and the resulting `edf-reader-absent` refusal would read downstream as "this file
+           holds no EEG" — a load-order bug wearing a data answer's clothes. */
+        {
+          key: 'eegdex',
+          label: 'EEGDex (binary EDF)',
+          node: env.EEGDSP,
+          run: function (n, input) {
+            return n.buildNodeExport(n.compute(n.ingestEDF(input, { edf: env.CpapEdf })));
           },
           pick: function (res) {
             return res;

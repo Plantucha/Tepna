@@ -1547,6 +1547,34 @@ function readEquiv() {
   // rate that cannot be measured is refused, never substituted), not a byte pin.
   pairCommitted('ecgdex_flat_edr', 'synthetic_ecgdex_flat_edr.txt', null);
 
+  // ── EEGDex BINARY-EDF equivalence leg (2026-11-15) ──────────────────────────────
+  // `provenance/EEGDex.json` read `fixtures: {}` until this leg, so EEGDex's compute path was pinned
+  // only by the in-suite groups — assertions that move with the code they judge. The input is a
+  // COMMITTED single-channel EEG EDF (tools/make-synthetic-eeg-edf.mjs: closed-form bytes around the
+  // engine's own genSynthetic signal, identity fields 'X', no recording of any person), so this diff
+  // RUNS IN CI like the CPAPDex one below and unlike every real-recording leg above.
+  //
+  // Joined against ROOT/uploads rather than `inputPath`, for pairCommitted's reason: both halves are
+  // repo artifacts, so a DEX_UPLOADS corpus override cannot turn this leg into a silent skip.
+  {
+    const eegP = join(ROOT, 'uploads', 'synthetic_eegdex_c4.edf');
+    const fxP = join(ROOT, 'uploads', 'synthetic_eegdex_golden.node-export.json');
+    const rec = {};
+    if (existsSync(eegP)) {
+      const b = readFileSync(eegP); // binary: no 'utf8'
+      rec.input = b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength);
+    }
+    if (existsSync(fxP)) {
+      try {
+        rec.fixture = JSON.parse(readFileSync(fxP, 'utf8'));
+      } catch {
+        /* unreadable → treat as absent */
+      }
+    }
+    rec.fixtureFile = 'synthetic_eegdex_golden.node-export.json';
+    if (rec.input !== undefined || rec.fixture !== undefined) out.eegdex = rec;
+  }
+
   // ── CPAPDex BINARY-EDF equivalence leg (CPAP-REAL-CORPUS-2026-07-11-BRIEF §P2) ──────────────
   // The fleet's FIRST equiv input that is actually COMMITTED — and therefore the first one whose
   // diff RUNS IN CI. Every leg above skips on a fresh clone: its input is a real recording, so it
