@@ -5958,6 +5958,15 @@
       "key": "- self._warned = False | + self._warned = None",
       "probe": "MEASURED 2026-11-08 (Heron): ran the original and the mutant over 32 input combinations — failing feed samples in {0, 1, 2, 37} x a failing note before them in {no, yes} x a succeeding feed between them in {no, yes} x a failing close in {no, yes} — comparing the full WARNING record list with the temp directory normalised, the `failures`, `seams` and `examined` counters, and the sidecar file bytes. 0 of 32 differed. The flag has exactly one read, `if not self._warned`, and exactly one later write, `= True`, so False and None enter that read identically.",
       "why": "The latch is a two-state flag read only for truthiness. None and False are both falsy, so no sequence of failures can separate them. An assertion that told them apart would pin the attribute's TYPE rather than any behaviour of the sidecar."
+    },
+    {
+      "brief": "MUSE-ATHENA native recorder (#5049), 2026-11-15",
+      "class": "no-distinguishing-input",
+      "key": "- runs = cast(_CounterGapSidecar, self._runs) # a `muse` StreamWriter always builds its counter-gap sidecar | + runs = cast(None, self._runs) # a `muse` StreamWriter always builds its counter-gap sidecar",
+      "function": "StreamWriter.write_muse",
+      "op": "type-argument substitution inside `typing.cast`, which is the identity at runtime",
+      "probe": "No probe is possible and none is owed: the value on both sides is `self._runs`, so every input is a non-distinguishing input. The same argument as the `recording_newest_mtime` entry in this module.",
+      "why": "`typing.cast` IS THE IDENTITY FUNCTION AT RUNTIME. Its body is `return val`, so `cast(None, v)` returns `v` whatever the first argument says. mypy in the same `check.sh` owns the mutation: `runs` then types as None and `runs.count_step(...)` reports an error. A cast and not isinstance, because a test replaces `_runs` with a spy. FALSIFY THIS by finding any first argument to `cast` that changes its return value."
     }
   ],
   "solid_night.py": [

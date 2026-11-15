@@ -38,7 +38,7 @@
 
 from __future__ import annotations
 import atexit as _atexit, calendar as _calendar, collections as _collections, itertools as _itertools, errno as _errno, logging, os, queue as _queue, re as _re, threading as _threading, datetime as _dt, time as _time
-from typing import Iterable, TextIO
+from typing import Iterable, TextIO, cast
 
 # The annotation values a device INSERTS into a stream live with the device, not here — the merge
 # rule takes them as a parameter so it never carries a marker literal. `oxyii` imports nothing local,
@@ -115,6 +115,16 @@ RUN_MIN_BY_STREAM = {
     "accraw": T_STUCK,  # O2Ring ACC — a zero-order hold; the classifier catches it
     "ecg": ECG_RUN_MIN,  # Polar H10 — derived above; NOT T_STUCK, and the table says why
 }
+
+# ── THE COUNTER-GAP RULE — a second rule in the same RUNS file shape ────────────────────────────────
+# A raw-frame stream has no decoded sample for the `stuck` rule to read. Its absence is visible in the
+# device's own packet counter instead: a step that is not +1 is a gap, and the count of frames the step
+# skipped is the size of the gap. The rule keys on the counter alone, never on a value (§∅). It writes
+# through `_RunSidecar`, so the corpus keeps ONE span-file shape with the rule named in its own column.
+COUNTER_GAP_RULE = "counter-gap"
+COUNTER_REPEAT_RULE = "counter-repeat"  # the same counter twice: a repeat, never "255 frames lost"
+COUNTER_MOD = 256  # the Muse Athena packet counter is one byte (MUSE-ATHENA-PROTOCOL brief §2.1)
+COUNTER_GAP_STREAMS = ("muse",)
 
 # ── BRACKETING — the sidecar EMITS THE MEASUREMENT and names nothing (owner ruling D5, 2026-09-19) ────
 # What shipped for one afternoon (#2675) named two kinds from the morning's finger-off capture: `absence`
@@ -1047,6 +1057,7 @@ SEAM_FED_WRITERS = (
     "write_mag",
     "write_ppi",
     "write_hr",
+    "write_muse",
 )
 
 # WHAT THE DEVICE COLUMN IS, declared by the producer that fills it. `basis=device-minus-host` states
@@ -1794,6 +1805,81 @@ class _RunSidecar:
             self._fh = None
 
 
+class _CounterGapSidecar(_RunSidecar):
+    """COUNTER_GAP_RULE: a raw-frame stream judged by its packet counter, in the `_RunSidecar` file shape.
+
+    It writes the same columns to the same `<base>RUNS.txt` and runs its own detector (`count_step`), so
+    none of the `stuck` rule's run state is built. `feed` is never called on it: a raw-frame stream has
+    no decoded sample to feed."""
+
+    def __init__(self, path: str, stream: str) -> None:  # the stuck rule's state is deliberately not built
+        base, dot, ext = path.rpartition(".")
+        self.path = f"{base}RUNS.{ext}" if dot else path + "RUNS"
+        self.stream = stream
+        self.runs = 0  # rows written
+        self.errors = 0  # swallowed exceptions, named on the final line
+        self.steps = 0  # counter steps examined
+        self.unexamined = 0  # frames with no previous trusted counter to step from
+        resumed = os.path.exists(self.path) and os.path.getsize(self.path) > 0  # the file's own size decides
+        try:
+            self._fh = open(self.path, "a" if resumed else "w", buffering=1 << 16, newline="\n")
+            if not resumed:
+                self._fh.write(
+                    f"# stream={stream} rule={COUNTER_GAP_RULE} modulus={COUNTER_MOD} basis=packet-counter "
+                    f"value=previous-counter first_index=counter n_samples=absent-frames dur_ms=host-step\n"
+                )
+                self._fh.write(self.HEADER + "\n")
+        except OSError:
+            self._fh = None  # a sidecar that cannot open must never stop the capture
+            self.errors = 1  # the first and only swallowed error a sidecar that never opened can have
+
+    def count_step(self, phone: _dt.datetime, prev: int | None, counter: int | None, dur_ms: float | None) -> None:
+        """One frame's packet counter against the previous frame's (COUNTER_GAP_RULE).
+
+        A step of +1 writes nothing. Any other step writes one row: the previous counter in `value`, this
+        counter in `first_index`, the frames the step skipped in `n_samples`, and the host time between
+        the two frames in `dur_ms`. The same counter twice is a REPEAT, written as `counter-repeat` with
+        0 frames, because modulo 256 it would otherwise read as 255 frames lost. A frame with no trusted
+        counter, or no previous one (the first frame, a resume), is counted in `unexamined` and judged
+        never. O(1) per frame: this runs on the notify path."""
+        if self._fh is None:
+            return
+        if prev is None or counter is None:
+            self.unexamined += 1
+            return
+        self.steps += 1
+        absent = (counter - prev - 1) % COUNTER_MOD
+        if absent == 0:
+            return
+        rule = COUNTER_GAP_RULE
+        if counter == prev:
+            rule, absent = COUNTER_REPEAT_RULE, 0
+        try:
+            self._fh.write(
+                f"{_phone_ts(phone)};{self.stream};{prev};{counter};{absent};"
+                f"{'' if dur_ms is None else f'{dur_ms:.1f}'};1;{rule};"
+                f"{BRACKET_UNAVAILABLE}/{BRACKET_UNAVAILABLE};{CONTACT_NONE}\n"
+            )
+            self.runs += 1  # counted once the row is on the file, as `_SeamSidecar` counts seams
+        except Exception:  # noqa: BLE001 - an annotation must never end a recording
+            self.errors += 1
+
+    def close(self) -> None:
+        """The final line says the file LOOKED: an empty gap file and one that never ran differ here."""
+        if self._fh is None:
+            return
+        try:
+            self._fh.write(
+                f"# final rule={COUNTER_GAP_RULE} examined={self.steps} rows={self.runs} "
+                f"unexamined={self.unexamined} errors={self.errors}\n"
+            )
+            self._fh.close()
+        except Exception:  # noqa: BLE001 - closing an annotation cannot fail a night
+            self.errors += 1
+        finally:
+            self._fh = None
+
+
 class StreamWriter:
     """One open file in a fixed vendor layout. Append rows as samples arrive; flush periodically."""
 
@@ -1838,6 +1924,11 @@ class StreamWriter:
         # intervals go to a sibling _RR.txt. Matching this lets ONE parser read Vigil and genuine Polar
         # Sensor Logger captures: PulseDex.parseRRInput and ECGDex's `_RR` routing both expect a _RR.txt.
         "hr": "Phone timestamp;HR [bpm];HRV [ms];Breathing interval [rpm];",
+        # THE MUSE ATHENA RAW FRAME: one row per notification of the data characteristic, VERBATIM as
+        # hex. Nothing is decoded at capture (MUSE-ATHENA-PROTOCOL brief): `counter` is the frame's own
+        # packet counter (blank when the frame header does not hold), `bytes` its length, and the
+        # device clock is the first record's 24-bit tick unwrapped (`muse_athena.TickClock`).
+        "muse": "Phone timestamp;sensor timestamp [ns];counter;bytes;hex",
         "rr": "Phone timestamp;RR-interval [ms]",
         "gyro": "Phone timestamp;sensor timestamp [ns];X [dps];Y [dps];Z [dps]",
         "mag": "Phone timestamp;sensor timestamp [ns];X [G];Y [G];Z [G]",
@@ -1962,6 +2053,10 @@ class StreamWriter:
                 annotations=ANNOTATIONS_BY_STREAM.get(stream, frozenset()),
                 contact=contact,
             )
+        elif stream in COUNTER_GAP_STREAMS:
+            self._runs = _CounterGapSidecar(path, stream)
+        self._prev_counter: int | None = None  # counter-gap streams: the last frame's counter
+        self._prev_phone: _dt.datetime | None = None
         # §1.4: seams are emitted where the clocks ARRIVE. Every device-clocked writer already
         # receives `phone` and `sensor_ns` taken at the notification, so recording here costs no
         # timing quality — the stamps are passed in, not re-taken.
@@ -2087,6 +2182,21 @@ class StreamWriter:
     def write_mag(self, phone: _dt.datetime, sensor_ns: int, t_ms: float, x: float, y: float, z: float) -> None:
         self._seams.feed(phone, sensor_ns)
         self._row(f"{_phone_ts(phone)};{sensor_ns};{x:.6g};{y:.6g};{z:.6g}\n", phone)
+
+    def write_muse(self, phone: _dt.datetime, sensor_ns: int | None, counter: int | None, payload: bytes) -> None:
+        """One raw notification, written as it arrived. The device clock goes to the seam sidecar and the
+        packet counter to the counter-gap sidecar; the frame itself is never changed. A frame with no
+        trusted counter breaks the chain, so the next step is unexamined rather than read across it."""
+        self._seams.feed(phone, sensor_ns)
+        runs = cast(_CounterGapSidecar, self._runs)  # a `muse` StreamWriter always builds its counter-gap sidecar
+        dur_ms = None if self._prev_phone is None else (phone - self._prev_phone).total_seconds() * 1000.0
+        runs.count_step(phone, self._prev_counter, counter, dur_ms)
+        self._prev_counter, self._prev_phone = counter, phone
+        self._row(
+            f"{_phone_ts(phone)};{_ns_col(sensor_ns)};{'' if counter is None else counter};"
+            f"{len(payload)};{payload.hex()}\n",
+            phone,
+        )
 
     def write_ppi(
         self, phone: _dt.datetime, sensor_ns: int | None, hr: int, pp_ms: int, err_ms: int, flags: int
