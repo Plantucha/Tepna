@@ -4,7 +4,7 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** PROPOSED · **Created:** 2026-11-14
+**Status:** IN-PROGRESS (unit 1 of 5 — the ECGDex table, its reasons and its sidecar ledger) · **Created:** 2026-11-14
 
 # Signal-quality table — every Dex shows its sensors before its results
 
@@ -255,11 +255,11 @@ to a spine module only after a second node adopts it.
 
 Assignee: decided on the agent board (`--kind decision`, 2026-11-14).
 
-- [ ] The ECGDex DSP emits `signalQuality` per channel with every fact in §3, from existing
+- [x] The ECGDex DSP emits `signalQuality` per channel with every fact in §3, from existing
       fields where they exist.
-- [ ] Each `null` cell carries a named reason. A gate asserts that no cell holds `0` over an
+- [x] Each `null` cell carries a named reason. A gate asserts that no cell holds `0` over an
       absent fact.
-- [ ] The sidecar ledger lists every ECG-side sidecar in §3b with its state. A gate fails when
+- [x] The sidecar ledger lists every ECG-side sidecar in §3b with its state. A gate fails when
       a sidecar on disk reads `not-read` without a named reason.
 - [ ] Each fact that a sidecar changes shows its value before and after the sidecar applies.
 - [ ] The table shows the night drift against the best reference from §3d and names it. It
@@ -270,10 +270,10 @@ Assignee: decided on the agent board (`--kind decision`, 2026-11-14).
       `not-applicable` and every AFTER cell `null`. A test covers this case.
 - [ ] The render shows the table above the first result card, with a badge in every cell.
 - [ ] The per-window strip aligns to the epochs that the HRV and staging code already use.
-- [ ] `tests/dex-tests.js` gains a group for the table over the committed ECGDex fixtures.
-- [ ] The ECGDex fixtures regenerate through `tools/regen-ecgdex-goldens.mjs`, and
+- [x] `tests/dex-tests.js` gains a group for the table over the committed ECGDex fixtures.
+- [x] The ECGDex fixtures regenerate through `tools/regen-ecgdex-goldens.mjs`, and
       `tools/verify-fixtures.mjs` re-verifies them.
-- [ ] `npm run check` and `Dex-Test-Suite.html?full` pass.
+- [x] `npm run check` and `Dex-Test-Suite.html?full` pass.
 
 ## 7 · Rollout after the pilot
 
