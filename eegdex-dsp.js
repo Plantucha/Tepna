@@ -147,6 +147,10 @@
 
   /* Band powers of one epoch. Hann-windowed periodogram; returns null when the epoch cannot carry a
      spectrum rather than a spectrum of zeros. */
+  /* The analysis ceiling, in Hz. Every power this engine sums stops here, so every share and every
+     spectral edge is a share of the band 0 to this number and nothing wider. */
+  var SEF_CEIL_HZ = 45;
+
   function epochBands(sig, from, to, fs) {
     var n = to - from;
     if (!(fs > 0) || n < fs * 5) return null; // under 5 s is not an epoch
@@ -183,7 +187,7 @@
     var half = N >> 1;
     for (i = 1; i < half; i++) {
       var f = (i * fs) / N;
-      if (f > 45) break;
+      if (f > SEF_CEIL_HZ) break;
       var p = (re[i] * re[i] + im[i] * im[i]) / (N * N);
       tot += p;
       for (var b in BANDS) if (f >= BANDS[b][0] && f < BANDS[b][1]) out[b] += p;
@@ -191,7 +195,33 @@
     if (!(tot > 0)) return null;
     var rel = {};
     for (var b2 in out) rel[b2] = out[b2] / tot;
-    return { abs: out, rel: rel, total: tot };
+    /* ── SPECTRAL EDGE FREQUENCY, 95 % (SEF95) ──────────────────────────────────────────────────
+       The frequency below which 95 % of the epoch's power sits. It is a DEFINITION over the same
+       spectrum the five bands come from, not a model of anything, so it is `measured`: no tuned
+       constant, no literature threshold, no stage assumption. One number says where the mass of
+       the spectrum lies, which five band shares can only imply.
+
+       The quantum is the bin width `fs / N`, and the answer is the centre frequency of the bin
+       where the running sum first reaches 95 % of the SAME `tot` the shares divide by. The second
+       pass recomputes each bin's power rather than storing the first pass's, because an array per
+       epoch over a whole night is memory this engine does not need to hold.
+
+       It runs over the SAME 45 Hz ceiling as `tot`, so it answers "95 % of the power this engine
+       examined" and never "95 % of the power in the channel". A reader needs that bound stated,
+       and `SEF_CEIL_HZ` is where it is stated. */
+    var want = 0.95 * tot,
+      run = 0,
+      sef = null;
+    for (i = 1; i < half; i++) {
+      var fe = (i * fs) / N;
+      if (fe > SEF_CEIL_HZ) break;
+      run += (re[i] * re[i] + im[i] * im[i]) / (N * N);
+      if (run >= want) {
+        sef = +fe.toFixed(2);
+        break;
+      }
+    }
+    return { abs: out, rel: rel, total: tot, sef95: sef };
   }
 
   /* ── WHY AN EPOCH HAS NO SPECTRUM (∅) ─────────────────────────────────────────────────────────
@@ -379,6 +409,225 @@
   /* ── analyze ───────────────────────────────────────────────────────────────
      `rec` = { eeg:Float|Array, fs, emg?, emgFs?, eog?, eogFs?, t0Ms? }. Samples, not a vendor file:
      see the scope note at the top. */
+  /* ── REM PERIODS, AND THE NREM STRETCHES BETWEEN THEM ──────────────────────────────────────────
+     One function, so the count `sleepArchitecture` publishes and the stretches `swaTrend` measures
+     over can never disagree. A REM period is a maximal run of REM epochs merged across a non-REM
+     gap of up to `REM_GAP_EP`; a non-REM epoch and an unscored epoch both widen that gap, because
+     an epoch nobody staged is not evidence of REM. */
+  function remPeriodSpans(stages) {
+    var spans = [],
+      gap = REM_GAP_EP + 1,
+      i;
+    for (i = 0; i < stages.length; i++) {
+      if (stages[i] === 'REM') {
+        if (gap > REM_GAP_EP) spans.push([i, i + 1]);
+        else spans[spans.length - 1][1] = i + 1;
+        gap = 0;
+      } else gap++;
+    }
+    return spans;
+  }
+
+  /* ── SLOW-WAVE ACTIVITY ACROSS THE NIGHT ───────────────────────────────────────────────────────
+     Delta power falls from one NREM period to the next in a healthy night, and the SHAPE of that
+     fall is the oldest quantitative claim in sleep EEG. This function measures the fall and NOTHING
+     about the claim: it reports the median absolute delta power of each NREM stretch and the
+     least-squares slope across them, as a percentage of the FIRST stretch per period.
+
+     ⚠️ THE INTERPRETATION IS UNCITED HERE, so the metric is `heuristic`. A homeostatic reading of
+     this slope needs a citation this repo has not verified, and §📚 is explicit that a number
+     without one keeps the suite's own tier. What is measured is the slope; what is claimed is
+     nothing.
+
+     ABSOLUTE power, never the relative share: a relative delta share is bounded by 1 and saturates
+     in N3, so a share cannot fall while the power does. The unit is therefore the EDF channel's own
+     physical dimension squared, which `compute` carries as `unit`, and a synthetic frame declares
+     none.
+
+     An NREM stretch is the span from sleep onset or the end of the previous REM period to the start
+     of the next REM period, and only its N2 and N3 epochs with a spectrum count. A stretch with no
+     such epoch is EXCLUDED and counted, never entered as a zero. */
+  var SWA_MIN_EPOCHS = 4; // 2 min of staged NREM, under which a stretch's median is not a stretch
+
+  function swaTrend(bands, stages) {
+    var out = { periods: [], decayPctPerPeriod: null, reason: null, population: { stretches: 0, measured: 0, excluded: 0 } };
+    if (!bands || !bands.length || !stages || stages.length !== bands.length) {
+      out.reason = 'no-epoch-bands';
+      return out;
+    }
+    var spans = remPeriodSpans(stages),
+      onset = -1,
+      i,
+      j;
+    for (i = 0; i < stages.length; i++) {
+      if (isSleepStage(stages[i])) {
+        onset = i;
+        break;
+      }
+    }
+    if (onset < 0) {
+      out.reason = 'no-sleep-onset';
+      return out;
+    }
+    /* The stretch boundaries: onset, then every REM period's end, closing at the next REM start or
+       at the end of the recording. */
+    var edges = [],
+      at = onset;
+    for (i = 0; i < spans.length; i++) {
+      if (spans[i][0] > at) edges.push([at, spans[i][0]]);
+      at = spans[i][1];
+    }
+    if (at < stages.length) edges.push([at, stages.length]);
+    out.population.stretches = edges.length;
+    for (i = 0; i < edges.length; i++) {
+      var vals = [];
+      for (j = edges[i][0]; j < edges[i][1]; j++) {
+        if ((stages[j] === 'N2' || stages[j] === 'N3') && bands[j]) vals.push(bands[j].abs.delta);
+      }
+      if (vals.length < SWA_MIN_EPOCHS) {
+        out.population.excluded++;
+        continue;
+      }
+      out.population.measured++;
+      out.periods.push({ period: out.periods.length, fromEpoch: edges[i][0], toEpoch: edges[i][1], epochs: vals.length, deltaPower: round3(median(vals)) });
+    }
+    if (out.periods.length < 2) {
+      out.reason = 'under-two-nrem-stretches';
+      return out;
+    }
+    /* Least squares over the stretch index, reported against the FIRST stretch so the number is a
+       percentage and not an amplitude. */
+    var n = out.periods.length,
+      sx = 0,
+      sy = 0,
+      sxx = 0,
+      sxy = 0;
+    for (i = 0; i < n; i++) {
+      sx += i;
+      sy += out.periods[i].deltaPower;
+      sxx += i * i;
+      sxy += i * out.periods[i].deltaPower;
+    }
+    var den = n * sxx - sx * sx;
+    if (!(den > 0) || !(out.periods[0].deltaPower > 0)) {
+      out.reason = 'no-first-stretch-power';
+      return out;
+    }
+    var slope = (n * sxy - sx * sy) / den;
+    out.decayPctPerPeriod = +((100 * slope) / out.periods[0].deltaPower).toFixed(2);
+    return out;
+  }
+
+  /* ── SLEEP ARCHITECTURE OVER THE STAGE SERIES ──────────────────────────────────────────────────
+     Twelve numbers, every one of them arithmetic over ONE array of stages. The arithmetic is exact
+     and the stages are not, so each key here inherits the single-channel stager's tier and none of
+     them earns a reference-standard grade. The module header above holds the ceiling that bounds
+     all twelve: Arnal et al. (2020) measured five human experts agreeing to about 86 % on the same
+     records, so an exact number over an inexact hypnogram is still an inexact number.
+
+     ∅ · EVERY NULL CARRIES ITS OWN REASON, and the reasons are not interchangeable. A night with no
+     scored epoch measured no latency at all, while a night that never reached REM measured one and
+     found no REM. `absence` holds an entry for exactly the keys that are null, so a consumer never
+     reads a reason beside a value.
+
+     `remPeriods` is named for what it counts. A REM period here is a maximal run of REM epochs,
+     merged across a non-REM gap of up to `REM_GAP_EP` epochs. That is NOT the Feinberg-Floyd sleep
+     cycle, which requires an NREM period of its own minimum length ahead of each REM period, so
+     this key is not called `cycles` and no consumer may read it as one. */
+  var ARCH_KEYS = ['TST', 'SE', 'n1Pct', 'n2Pct', 'n3Pct', 'remPct', 'wakePct', 'latencySleepMin', 'latencyRemMin', 'wasoMin', 'stageShifts', 'remPeriods'];
+  var REM_GAP_EP = 10; // 5 min at a 30 s epoch
+
+  function isSleepStage(st) {
+    return st === 'N1' || st === 'N2' || st === 'N3' || st === 'REM';
+  }
+
+  function sleepArchitecture(stages) {
+    stages = stages || [];
+    var arch = {},
+      absence = {},
+      i,
+      st;
+    for (i = 0; i < ARCH_KEYS.length; i++) arch[ARCH_KEYS[i]] = null;
+    var tally = { W: 0, N1: 0, N2: 0, N3: 0, REM: 0 },
+      scored = 0,
+      first = -1,
+      last = -1,
+      firstRem = -1;
+    for (i = 0; i < stages.length; i++) {
+      st = stages[i];
+      if (st == null) continue;
+      scored++;
+      if (tally[st] != null) tally[st]++;
+      if (isSleepStage(st)) {
+        if (first < 0) first = i;
+        last = i;
+        if (st === 'REM' && firstRem < 0) firstRem = i;
+      }
+    }
+    var asleep = tally.N1 + tally.N2 + tally.N3 + tally.REM;
+    var out = {
+      arch: arch,
+      absence: absence,
+      tally: tally,
+      scored: scored,
+      sleepEpochs: asleep,
+      onsetEpoch: first < 0 ? null : first
+    };
+    if (!scored) {
+      for (i = 0; i < ARCH_KEYS.length; i++) absence[ARCH_KEYS[i]] = 'no-scored-epoch';
+      return out;
+    }
+    var minPerEp = EPOCH_SEC / 60;
+    arch.TST = +((asleep * EPOCH_SEC) / 3600).toFixed(3);
+    arch.SE = +((100 * asleep) / scored).toFixed(1);
+    arch.wakePct = +((100 * tally.W) / scored).toFixed(1);
+    if (asleep) {
+      arch.n1Pct = +((100 * tally.N1) / asleep).toFixed(1);
+      arch.n2Pct = +((100 * tally.N2) / asleep).toFixed(1);
+      arch.n3Pct = +((100 * tally.N3) / asleep).toFixed(1);
+      arch.remPct = +((100 * tally.REM) / asleep).toFixed(1);
+    } else {
+      absence.n1Pct = 'no-sleep-epoch';
+      absence.n2Pct = 'no-sleep-epoch';
+      absence.n3Pct = 'no-sleep-epoch';
+      absence.remPct = 'no-sleep-epoch';
+    }
+    if (first < 0) {
+      absence.latencySleepMin = 'no-sleep-onset';
+      absence.latencyRemMin = 'no-sleep-onset';
+      absence.wasoMin = 'no-sleep-onset';
+    } else {
+      /* ELAPSED epochs to the first sleep epoch, so an unscorable epoch before onset still costs
+         the time it occupied. A latency is a clock fact rather than a scoring fact. */
+      arch.latencySleepMin = +(first * minPerEp).toFixed(1);
+      if (firstRem < 0) absence.latencyRemMin = 'no-rem-epoch';
+      else arch.latencyRemMin = +((firstRem - first) * minPerEp).toFixed(1);
+      var waso = 0;
+      for (i = first + 1; i < last; i++) if (stages[i] === 'W') waso++;
+      arch.wasoMin = +(waso * minPerEp).toFixed(1);
+    }
+    if (scored < 2) absence.stageShifts = 'under-two-scored-epochs';
+    else {
+      var shifts = 0,
+        prev = null;
+      for (i = 0; i < stages.length; i++) {
+        st = stages[i];
+        /* A refused epoch BREAKS the run, exactly as `buildNodeExport` breaks its impulse run: the
+           next scored epoch is a fresh stage, never a continuation across a span nobody staged. */
+        if (st == null) {
+          prev = null;
+          continue;
+        }
+        if (prev != null && st !== prev) shifts++;
+        prev = st;
+      }
+      arch.stageShifts = shifts;
+    }
+    if (firstRem < 0) absence.remPeriods = 'no-rem-epoch';
+    else arch.remPeriods = remPeriodSpans(stages).length;
+    return out;
+  }
+
   function analyze(rec, opts) {
     opts = opts || {};
     if (!rec || !rec.eeg || !(rec.fs > 0)) return { err: 'no EEG signal' };
@@ -443,17 +692,10 @@
       var ar = hypnogram[i].absentReason;
       if (ar) absentReasons[ar] = (absentReasons[ar] || 0) + 1;
     }
-    var sleepEp = counts.N1 + counts.N2 + counts.N3 + counts.REM;
-    /* §∅ — architecture over zero scored epochs is not an architecture. */
-    var arch =
-      scored > 0
-        ? {
-            TST: +((sleepEp * EPOCH_SEC) / 3600).toFixed(3),
-            SE: +((100 * sleepEp) / scored).toFixed(1),
-            n3Pct: sleepEp ? +((100 * counts.N3) / sleepEp).toFixed(1) : null,
-            remPct: sleepEp ? +((100 * counts.REM) / sleepEp).toFixed(1) : null
-          }
-        : { TST: null, SE: null, n3Pct: null, remPct: null };
+    /* The twelve architecture numbers come from ONE function over the stage series, so the four
+       this engine published before unit B and the eight it adds now cannot drift apart. */
+    var archPair = sleepArchitecture(stages),
+      arch = archPair.arch;
 
     return {
       version: VERSION,
@@ -464,6 +706,14 @@
       hypnogram: hypnogram,
       stageCounts: counts,
       architecture: arch,
+      /* ∅ · one entry per architecture key that is null, each naming its own reason. */
+      architectureAbsence: archPair.absence,
+      /* The SWA fall across NREM stretches, measured over the per-epoch bands this function
+         already computed, so the night is spectrally analysed exactly once. */
+      swa: swaTrend(bands, stages),
+      /* The spindle answer over the epochs THIS function staged, so the density and the hypnogram
+         it is a density over can never come from two different stagings. */
+      spindles: detectSpindles(sig, fs, hypnogram),
       quality: {
         analyzablePct: +((100 * scored) / nEp).toFixed(1),
         nUnscorable: nNull
@@ -472,19 +722,22 @@
   }
 
   /* ── §∅ WHAT THIS ENGINE CANNOT MEASURE, AND WHY EACH ONE IS ABSENT ────────────────────────────
-     The node registry declares four metrics that ONE EEG channel over an EDF ingest cannot produce.
+     The node registry declares three metrics that ONE EEG channel over an EDF ingest cannot produce.
      Each refusal carries its OWN reason, never a borrowed one: a null with no reason reads downstream
      as "the recording was absent", which is a different fact from "this instrument cannot see it".
 
      Two of them are absent BY DESIGN rather than pending a fix. `contactPct` is the headband contact
      metric and `frontalAsym` needs the two frontal electrodes of that montage; the module header
      above records the owner's park on that front end, so no ingest here will ever supply them. The
-     other two are honest gaps in this engine: there is no spindle DETECTOR (a sigma-band power is not
-     a spindle count), and the calm score is a composite over the three above. */
+     third is a composite over the two above, so it inherits their absence and says so.
+
+     `spindleDensity` LEFT THIS BLOCK when `detectSpindles` landed. Its refusal read
+     `no-spindle-detector`, and that reason is now false, so the row had to go rather than stand as a
+     stale claim. The metric is computed, its tier is `heuristic`, and its own `reason` field carries
+     every night the detector cannot answer for. */
   var REFUSALS = {
     contactPct: 'no-contact-sidecar',
     frontalAsym: 'single-channel-ingest',
-    spindleDensity: 'no-spindle-detector',
     calmScore: 'depends-on-refused-inputs'
   };
 
@@ -537,7 +790,9 @@
       relSum: null,
       reason: null,
       ratioReason: null,
-      population: { epochs: 0, withBands: 0, ratioEpochs: 0 }
+      sef95: null,
+      sefReason: null,
+      population: { epochs: 0, withBands: 0, ratioEpochs: 0, sefEpochs: 0 }
     };
     if (!sig || !sig.length) {
       out.reason = 'no-samples';
@@ -557,6 +812,7 @@
     var tot = [],
       per = { delta: [], theta: [], alpha: [], sigma: [], beta: [] },
       ratio = [],
+      sefs = [],
       k;
     for (var i = 0; i < nEp; i++) {
       var b = epochBands(sig, i * step, (i + 1) * step, fs);
@@ -564,9 +820,11 @@
       tot.push(b.total);
       for (k in per) per[k].push(b.rel[k]);
       if (b.rel.theta > 0) ratio.push(b.rel.alpha / b.rel.theta);
+      if (b.sef95 != null) sefs.push(b.sef95);
     }
     out.population.withBands = tot.length;
     out.population.ratioEpochs = ratio.length;
+    out.population.sefEpochs = sefs.length;
     if (!tot.length) {
       out.reason = 'no-analyzable-epoch';
       return out;
@@ -588,6 +846,217 @@
     out.thetaRel = out.rel.theta;
     if (ratio.length) out.alphaTheta = round3(median(ratio));
     else out.ratioReason = 'no-epoch-with-theta-power';
+    /* ∅ · an epoch whose cumulative power never reaches 95 % inside the ceiling yields NO edge, so
+       it is left out and counted rather than entered at the ceiling. The ceiling is not an answer. */
+    if (sefs.length) out.sef95 = +median(sefs).toFixed(2);
+    else out.sefReason = 'no-epoch-with-a-spectral-edge';
+    return out;
+  }
+
+  /* ── THE SPINDLE DETECTOR ──────────────────────────────────────────────────────────────────────
+     The registry declared `spindleDensity` from the start and this engine REFUSED it, for the
+     reason `no-spindle-detector`: a sigma-band share is not a spindle count. This is the detector,
+     and it is a RELATIVE-ENVELOPE rule rather than a published algorithm.
+
+     WHY A RELATIVE THRESHOLD, AND WHY PER EPOCH. A spindle is a 0.5 s to 3 s burst in the 11-16 Hz
+     band, and its amplitude against the background is what an expert sees. An absolute microvolt
+     threshold cannot travel between an EDF whose channel is in µV and a synthetic frame whose unit
+     is undeclared, so every threshold here is a MULTIPLE of the enclosing epoch's own median
+     envelope. The epoch is the baseline unit because the background itself moves with the stage:
+     N2 carries a standing sigma rhythm and N3 carries almost none, so one night-wide threshold
+     would fire continuously in N2 and never in N3.
+
+     THE RULE CAN RETURN ZERO, and that is the point of a multiple rather than a percentile. A
+     percentile threshold puts a fixed share of every night above the line, so it manufactures a
+     density over a signal with no spindle in it. A multiple of the median finds nothing in a
+     uniform envelope.
+
+     ∅ · A HOLE ENTERS THE FILTER AS ZERO AND ENTERS THE MASK. An IIR filter needs a finite input,
+     and one non-finite sample would otherwise poison every later output. So a non-finite sample is
+     filtered as 0 and recorded in `mask`, and every detection that touches a masked sample, or sits
+     within `SPINDLE.holeGuardSec` of one, is DROPPED. No substituted zero reaches a reported
+     number; `population.excludedByHole` counts what the guard removed.
+
+     WHAT THIS DETECTOR HAS NOT BEEN JUDGED BY. Its multiples are tuned against the overnight
+     simulator's planted spindles, which ride a constant 13.5 Hz carrier in N2. No expert-scored
+     spindle has judged it, so the metric is `heuristic` and never `emerging`, whatever its
+     agreement with our own generator. */
+  var SPINDLE = {
+    loHz: 11,
+    hiHz: 16,
+    envSec: 0.25,
+    hiMult: 2.0,
+    loMult: 1.4,
+    minSec: 0.4,
+    maxSec: 3.0,
+    mergeSec: 0.2,
+    holeGuardSec: 1.0,
+    stages: { N2: 1, N3: 1 }
+  };
+
+  /* An RBJ bandpass biquad, constant 0 dB peak gain, centred on the spindle band. ONE section: at
+     Q = f0/(hi-lo) its skirts already put the N2 delta carrier under 4 % of its passband gain, and a
+     cascade would narrow the -3 dB band away from the 11-16 Hz the metric names. */
+  function spindleBiquad(fs) {
+    var f0 = (SPINDLE.loHz + SPINDLE.hiHz) / 2,
+      q = f0 / (SPINDLE.hiHz - SPINDLE.loHz),
+      w0 = (2 * Math.PI * f0) / fs,
+      alpha = Math.sin(w0) / (2 * q),
+      a0 = 1 + alpha;
+    return { b0: alpha / a0, b2: -alpha / a0, a1: (-2 * Math.cos(w0)) / a0, a2: (1 - alpha) / a0 };
+  }
+
+  /* The 11-16 Hz envelope: one biquad pass, then a centred moving RMS. `mask[i]` is 1 where the
+     input sample was not finite. */
+  function spindleEnvelope(sig, fs) {
+    var n = sig.length,
+      c = spindleBiquad(fs),
+      band = new Float64Array(n),
+      mask = new Uint8Array(n),
+      x1 = 0,
+      x2 = 0,
+      y1 = 0,
+      y2 = 0,
+      i,
+      x,
+      y;
+    for (i = 0; i < n; i++) {
+      x = sig[i];
+      if (!isFinite(x)) {
+        mask[i] = 1;
+        x = 0;
+      }
+      y = c.b0 * x + c.b2 * x2 - c.a1 * y1 - c.a2 * y2;
+      x2 = x1;
+      x1 = x;
+      y2 = y1;
+      y1 = y;
+      band[i] = y;
+    }
+    var w = Math.max(1, Math.round(SPINDLE.envSec * fs)),
+      half = w >> 1,
+      env = new Float64Array(n),
+      acc = 0;
+    for (i = 0; i < n; i++) {
+      acc += band[i] * band[i];
+      if (i >= w) acc -= band[i - w] * band[i - w];
+      if (i >= w - 1) env[i - half] = Math.sqrt(acc / w);
+    }
+    for (i = 0; i < half; i++) env[i] = env[half];
+    for (i = n - half; i < n; i++) env[i] = env[n - half - 1];
+    return { env: env, mask: mask, width: w };
+  }
+
+  function detectSpindles(sig, fs, hypnogram) {
+    var out = {
+      spindles: [],
+      density: null,
+      byStage: { N2: null, N3: null },
+      reason: null,
+      population: { eligibleEpochs: 0, eligibleMin: 0, stageEpochs: { N2: 0, N3: 0 }, excludedByHole: 0, detections: 0 }
+    };
+    if (!sig || !sig.length) {
+      out.reason = 'no-samples';
+      return out;
+    }
+    if (!(fs > 0)) {
+      out.reason = 'no-sample-rate';
+      return out;
+    }
+    if (!hypnogram || !hypnogram.length) {
+      out.reason = 'no-hypnogram';
+      return out;
+    }
+    var spe = Math.round(EPOCH_SEC * fs),
+      e = spindleEnvelope(sig, fs),
+      env = e.env,
+      mask = e.mask,
+      guard = Math.round(SPINDLE.holeGuardSec * fs),
+      minN = Math.round(SPINDLE.minSec * fs),
+      maxN = Math.round(SPINDLE.maxSec * fs),
+      mergeN = Math.round(SPINDLE.mergeSec * fs),
+      ep,
+      i,
+      j;
+    for (ep = 0; ep < hypnogram.length; ep++) {
+      var st = hypnogram[ep] ? hypnogram[ep].stage : null;
+      if (!st || !SPINDLE.stages[st]) continue;
+      var from = ep * spe,
+        to = Math.min(sig.length, from + spe);
+      if (to - from < minN) continue;
+      /* The epoch's OWN median envelope is the baseline, over a 4-sample decimation: a median is a
+         rank statistic, so a regular quarter of the epoch moves it by less than its own rounding. */
+      var samp = [];
+      for (i = from; i < to; i += 4) samp.push(env[i]);
+      var base = median(samp);
+      if (!(base > 0)) continue;
+      out.population.eligibleEpochs++;
+      out.population.stageEpochs[st]++;
+      var hi = SPINDLE.hiMult * base,
+        lo = SPINDLE.loMult * base;
+      /* Runs above the LOW threshold, merged across a short dip, then kept only when one sample
+         inside the run passes the HIGH threshold and the width lands in the duration window. */
+      var runs = [],
+        inRun = false,
+        s0 = 0;
+      for (i = from; i < to; i++) {
+        if (env[i] > lo) {
+          if (!inRun) {
+            inRun = true;
+            s0 = i;
+          }
+        } else if (inRun) {
+          inRun = false;
+          runs.push([s0, i]);
+        }
+      }
+      if (inRun) runs.push([s0, to]);
+      var merged = [];
+      for (i = 0; i < runs.length; i++) {
+        if (merged.length && runs[i][0] - merged[merged.length - 1][1] <= mergeN) merged[merged.length - 1][1] = runs[i][1];
+        else merged.push([runs[i][0], runs[i][1]]);
+      }
+      for (i = 0; i < merged.length; i++) {
+        var a = merged[i][0],
+          b = merged[i][1],
+          w2 = b - a;
+        if (w2 < minN || w2 > maxN) continue;
+        var peak = 0,
+          holed = false;
+        for (j = a; j < b; j++) if (env[j] > peak) peak = env[j];
+        for (j = Math.max(0, a - guard); j < Math.min(sig.length, b + guard); j++) {
+          if (mask[j]) {
+            holed = true;
+            break;
+          }
+        }
+        if (peak <= hi) continue;
+        if (holed) {
+          out.population.excludedByHole++;
+          continue;
+        }
+        out.spindles.push({
+          atSec: +(a / fs).toFixed(3),
+          durSec: +(w2 / fs).toFixed(3),
+          peakRatio: +(peak / base).toFixed(2),
+          epoch: ep,
+          stage: st
+        });
+      }
+    }
+    out.population.detections = out.spindles.length;
+    out.population.eligibleMin = +((out.population.eligibleEpochs * EPOCH_SEC) / 60).toFixed(2);
+    if (!out.population.eligibleEpochs) {
+      out.reason = 'no-staged-nrem-epoch';
+      return out;
+    }
+    out.density = +(out.spindles.length / out.population.eligibleMin).toFixed(3);
+    var perStage = { N2: 0, N3: 0 };
+    for (i = 0; i < out.spindles.length; i++) perStage[out.spindles[i].stage]++;
+    for (var k in perStage) {
+      var mins = (out.population.stageEpochs[k] * EPOCH_SEC) / 60;
+      out.byStage[k] = mins > 0 ? +(perStage[k] / mins).toFixed(3) : null;
+    }
     return out;
   }
 
@@ -932,6 +1401,12 @@
     return out;
   }
 
+  /* The planted SWA decline, as a fraction of the initial sub-delta POWER lost per hour, and the
+     floor its multiplier cannot pass. Both are generator facts, never thresholds: no measurement
+     compares against them, and a test reads the planted slope from `truth` rather than from here. */
+  var EEG_SWA_SLOPE_PER_H = -0.1;
+  var EEG_SWA_FLOOR = 0.2;
+
   function genOvernight(opts) {
     opts = opts || {};
     var fs = opts.fs > 0 ? opts.fs : opts.hz > 0 ? opts.hz : 100;
@@ -1014,12 +1489,29 @@
       eog = new Float32Array(n);
     var TAU = 2 * Math.PI,
       pi = 0;
+    /* THE OVERNIGHT SWA DECLINE, PLANTED SO `swaTrend` HAS SOMETHING TO FIND. The stage spectra
+       above are constant, so without this the delta power of the last NREM period equals the first
+       and the slope reads zero over every night. A metric measured only against a signal that
+       cannot vary has examined nothing, so the generator plants the variation and `truth` records
+       the slope it planted.
+
+       The plant scales the AMPLITUDE of every sub-delta component inside N2 and N3 by
+       `sqrt(1 + slope * hours)`, so the POWER of those components falls linearly at `|slope|` of
+       its initial value per hour. The floor stops a recording longer than 10 h driving the
+       multiplier through zero. `swaSlopePerH: 0` disables the plant, which is the CONTROL a test
+       needs: a trend detector that reports a decline over a flat night is the failure worth
+       catching, and only the flat night can catch it. */
+    var swaSlope = opts.swaSlopePerH == null ? EEG_SWA_SLOPE_PER_H : opts.swaSlopePerH;
     for (i = 0; i < n; i++) {
       var t = i / fs;
       while (pi < plan.length - 1 && t >= plan[pi].toSec) pi++;
       var sp = EEG_NIGHT_SPECTRA[plan[pi].stage];
+      var swaMul = swaSlope && (plan[pi].stage === 'N2' || plan[pi].stage === 'N3') ? Math.sqrt(Math.max(EEG_SWA_FLOOR, 1 + swaSlope * (t / 3600))) : 1;
       var v = 0;
-      for (j = 0; j < sp.comps.length; j++) v += sp.comps[j][1] * Math.sin(TAU * sp.comps[j][0] * t);
+      for (j = 0; j < sp.comps.length; j++) {
+        var amp = sp.comps[j][0] < BANDS.delta[1] ? sp.comps[j][1] * swaMul : sp.comps[j][1];
+        v += amp * Math.sin(TAU * sp.comps[j][0] * t);
+      }
       sig[i] = v + sp.noise * (xs32(ref) - 0.5);
       emg[i] = sp.emg * (xs32(ref) - 0.5);
       eog[i] = sp.eog * (xs32(ref) - 0.5);
@@ -1114,6 +1606,9 @@
         epochSec: EPOCH_SEC,
         hypnogram: truth,
         plan: plan,
+        /* The planted SWA slope, so a test holds the recovered trend against the generator's own
+           number instead of a constant typed twice. */
+        swaSlopePerH: swaSlope,
         spindles: spindles,
         kComplexes: kcx,
         artefacts: artefacts,
@@ -1143,6 +1638,11 @@
     var kern = opts.kernel || dk || null;
     var kfmt = kern ? { version: kern.VERSION, hash: kern.HASH } : null;
     var arch = summary.architecture || {};
+    /* ∅ · an ABSENT spindle answer is not an empty one: a summary from an older engine carries no
+       `spindles` key at all, and the export then says `no-spindle-answer` rather than publishing a
+       null that reads as a night with no spindle in it. */
+    var sp = summary.spindles || { density: null, byStage: null, reason: 'no-spindle-answer', population: null };
+    var swa = summary.swa || { decayPctPerPeriod: null, reason: 'no-swa-answer', periods: [] };
     var hyp = summary.hypnogram || [];
     var events = [],
       prev = null,
@@ -1190,6 +1690,28 @@
         sleepEfficiencyPct: arch.SE == null ? null : arch.SE,
         n3Pct: arch.n3Pct == null ? null : arch.n3Pct,
         remPct: arch.remPct == null ? null : arch.remPct,
+        /* THE FOUR KEYS ABOVE STAY WHERE CONSUMERS ALREADY READ THEM, and the eight unit B adds
+           arrive under `architecture` beside the per-key absence map. A consumer that reads only
+           `tstHours` keeps working, and one that wants the whole picture reads one object whose
+           every null names its own reason. */
+        n1Pct: arch.n1Pct == null ? null : arch.n1Pct,
+        n2Pct: arch.n2Pct == null ? null : arch.n2Pct,
+        wakePct: arch.wakePct == null ? null : arch.wakePct,
+        latencySleepMin: arch.latencySleepMin == null ? null : arch.latencySleepMin,
+        latencyRemMin: arch.latencyRemMin == null ? null : arch.latencyRemMin,
+        wasoMin: arch.wasoMin == null ? null : arch.wasoMin,
+        stageShifts: arch.stageShifts == null ? null : arch.stageShifts,
+        remPeriods: arch.remPeriods == null ? null : arch.remPeriods,
+        architectureAbsence: summary.architectureAbsence || {},
+        /* A density with its population beside it: the staged NREM minutes it is a rate over, the
+           detections it counted, and the reason when it answers nothing. */
+        spindleDensity: sp.density,
+        spindlesPerMin: { N2: sp.byStage ? sp.byStage.N2 : null, N3: sp.byStage ? sp.byStage.N3 : null },
+        spindleReason: sp.reason || null,
+        spindlePopulation: sp.population || null,
+        swaDecayPctPerPeriod: swa.decayPctPerPeriod == null ? null : swa.decayPctPerPeriod,
+        swaReason: swa.reason || null,
+        swaPeriods: swa.periods || [],
         bands: summary.bands || null
       },
       quality: {
@@ -1227,7 +1749,16 @@
     genOvernight: genOvernight,
     nightPlan: nightPlan,
     epochAbsence: epochAbsence,
+    sleepArchitecture: sleepArchitecture,
+    swaTrend: swaTrend,
+    remPeriodSpans: remPeriodSpans,
+    detectSpindles: detectSpindles,
+    spindleEnvelope: spindleEnvelope,
+    SPINDLE: SPINDLE,
+    ARCH_KEYS: ARCH_KEYS,
     EEG_NIGHT_SPECTRA: EEG_NIGHT_SPECTRA,
+    EEG_SWA_SLOPE_PER_H: EEG_SWA_SLOPE_PER_H,
+    SEF_CEIL_HZ: SEF_CEIL_HZ,
     fmtClock: fmtClockUTC,
     _fft: fft
   };
